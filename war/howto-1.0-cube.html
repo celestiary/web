@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="Three.js"></script>
+    <script type="text/javascript" src="Detector.js"></script>
+    <script type="text/javascript" src="RequestAnimationFrame.js"></script>
+    <script type="text/javascript" src="shared.js"></script>
+    <script type="text/javascript" src="animation.js"></script>
+    <script type="text/javascript" src="index.js"></script>
+    <script>
+      // Simple cube for testing.
+      function cube() {
+        var geometry = new THREE.CubeGeometry(1, 1, 1);
+        var material = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            wireframe: true
+          });
+        return new THREE.Mesh(geometry, material);
+      }
+      test_hook = function() {
+        var scene = initCanvas(document.getElementById('canvas-cube'));
+        var c = cube();
+        scene.add(c);
+      }
+    </script>
+  </head>
+  <body style="margin: 0; padding: 0; overflow: hidden; font-family: arial, sans">
+    <div id="canvas-cube"></div>
+  </body>
+</html>

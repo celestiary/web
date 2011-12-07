@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<appengine-web-app xmlns="http://appengine.google.com/ns/1.0">
+  <application>pmy-test</application>
+  <version>1</version>
+  <threadsafe>true</threadsafe>
+  <system-properties>
+    <property name="java.util.logging.config.file" value="WEB-INF/classes/logging.properties"/>
+  </system-properties>
+</appengine-web-app>

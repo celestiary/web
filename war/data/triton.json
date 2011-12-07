@@ -1,0 +1,38 @@
+{
+"type":"planet",
+
+"name":"triton",
+"parent":"neptune",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": 2.1400000000000004E25,
+"density": 2.054,
+"radius": 1353000.0,
+"siderealRotationPeriod": 508032.0,
+"axialInclination": 156.83,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.7,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+"eccentricity": 0.0,
+"inclination": 1.0,
+"longitudeOfAscendingNode": 1.0,
+"longitudeOfPerihelion": 1.0,
+"meanLongitude": 1.0,
+"semiMajorAxis": 3.5476E8,
+"siderealOrbitPeriod": 507760.18992
+}
+,
+"system": []
+}

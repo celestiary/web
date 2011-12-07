@@ -1,0 +1,65 @@
+{type:'universe',
+ name:'Our Universe'
+ 
+  <system type="galaxy" name="Andromeda"/>
+  <system type="galaxy" name="Milky Way">
+
+    <system type="star" name="Sol">
+
+      <physicalParameters>
+        <apparentMagnitude value="-26.8"/>
+        <mass value="1989100E24kg"/>
+        <density value="1.410"/><!-- (g/cm^3) -->
+        <meanRadius value="694248.95km"/>
+        <siderealRotationPeriod value="2160000s"/><!-- At equator -->
+        <escapeVelocity value="618.02"/><!-- (km s^-1) -->
+      </physicalParameters>
+
+      <system type="planet" name="Earth">
+        <orbitalElements>
+          <eccentricity value="0.01671022"/>
+          <inclination value="0.00005"/>
+          <longitudeOfAscendingNode value="-11.26064"/>
+          <longitudeOfPerihelion value="102.94719"/>
+          <meanLongitude value="100.46435"/>
+          <semiMajorAxis value="149597900km"/>
+          <siderealOrbitPeriod value="31536000s"/>
+        </orbitalElements>
+        <physicalParameters>
+          <meanRadius value="6371.01km"/>
+          <mass value="59.736Mg"/>
+          <density value="5.515"/>
+          <apparentMagnitude value="-3.86"/>
+          <albedo value="0.367"/>
+          <equatorialGravity value="9.780327"/>
+          <escapeVelocity value="11.186"/>
+          <siderealRotationPeriod value="86163.084s"/>
+          <axialInclination value="23.45"/>
+        </physicalParameters>
+
+        <system type="planet" name="Moon">
+          <orbitalElements>
+            <eccentricity value="0.0554"/>
+            <inclination value="5.14"/>
+            <longitudeOfAscendingNode value="125.08"/>
+            <longitudeOfPerihelion value="0"/>
+            <meanLongitude value="0"/>
+            <semiMajorAxis value="384467km"/>
+            <siderealOrbitPeriod value="2548108.8s"/>
+          </orbitalElements>
+          <physicalParameters>
+            <meanRadius value="1738.1km"/>
+            <mass value="0.7347Mg"/>
+            <density value="3.344"/>
+            <apparentMagnitude value="-12.74"/>
+            <albedo value="0.12"/>
+            <equatorialGravity value="1.622"/>
+            <escapeVelocity value="2.38"/>
+            <siderealRotationPeriod value="31449525.66s"/>
+            <axialInclination value="1.543"/>
+          </physicalParameters>
+
+        </system>
+
+      </system>
+    </system> 
