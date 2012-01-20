@@ -14,7 +14,7 @@
 	<include name="*.jar"/>
       </fileset>
       <fileset dir="${datawiki.home}/build/lib">
-	<include name="datahub.jar"/> <!-- change back to datawiki -->
+	<include name="datahub.jar"/> <!-- change back to datawiki. -->
       </fileset>
     </copy>
     <!-- change back to web-noui.xml -->
