@@ -6,7 +6,7 @@
   <property name="appengine.home" value="${env.GAE_HOME}"/>
   <property name="datahub.home" value="${env.DATAHUB_HOME}"/>
   <property name="appname" value="celestiary"/>
-
+  <!-- test comment -->
   <target name="war">
     <mkdir dir="war/WEB-INF/lib"/>
     <copy toDir="war/WEB-INF/lib" failonerror="true">
