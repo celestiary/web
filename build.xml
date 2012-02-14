@@ -2,23 +2,20 @@
 <project name="celestiary" basedir="." default="war">
   <property environment="env"/>
   <fail message="Error: must set environment variable GAE_HOME" unless="env.GAE_HOME"/>
-  <fail message="Error: must set environment variable DATAWIKI_HOME" unless="env.DATAWIKI_HOME"/>
+  <fail message="Error: must set environment variable DATAHUB_HOME" unless="env.DATAHUB_HOME"/>
   <property name="appengine.home" value="${env.GAE_HOME}"/>
-  <property name="datawiki.home" value="${env.DATAWIKI_HOME}"/>
+  <property name="datahub.home" value="${env.DATAHUB_HOME}"/>
   <property name="appname" value="celestiary"/>
 
   <target name="war">
     <mkdir dir="war/WEB-INF/lib"/>
     <copy toDir="war/WEB-INF/lib" failonerror="true">
-      <fileset dir="${appengine.home}/lib/user">
-	<include name="*.jar"/>
-      </fileset>
-      <fileset dir="${datawiki.home}/build/lib">
-	<include name="datahub.jar"/> <!-- change back to datawiki. -->
+      <fileset dir="${datahub.home}/build/lib">
+	<include name="datahub.jar"/>
       </fileset>
     </copy>
     <!-- change back to web-noui.xml -->
-    <copy file="${datawiki.home}/war/WEB-INF/web.xml"
+    <copy file="${datahub.home}/war/WEB-INF/web.xml"
           toFile="war/WEB-INF/web.xml" />
   </target>
 

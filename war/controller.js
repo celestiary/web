@@ -1,8 +1,8 @@
-angular.service('Object', function($resource) {
+angular.service('Datasets', function($resource) {
     return $resource('data/:name.json');
   });
 
-function ObjectCtrl(Object) {
+function SceneCtrl(Scene, Datasets) {
 
   this.object = {};
 
@@ -10,7 +10,7 @@ function ObjectCtrl(Object) {
 
   this.load = function(objectName) {
     if (!objectName) {
-      console.log('ObjectCtrl: load: ERROR, missing object name.');
+      console.log('SceneCtrl: load: ERROR, missing object name.');
       return;
     }
     objectName = objectName.toLowerCase().replace(/ */g, '');
@@ -20,8 +20,8 @@ function ObjectCtrl(Object) {
     }
     console.log('Loading: ' + objectName);
     var me = this;
-    return Object.get({name:objectName},
-                      function(obj) { me.display(obj); });
+    return Datasets.get({name:objectName},
+                        function(obj) { me.display(obj); });
   };
 
   this.toggleOrbits = function() {
@@ -32,17 +32,17 @@ function ObjectCtrl(Object) {
     console.log('Camera to: ' + node.props.name);
     this.object = node.props;
     targetObj = n[node.props.name].orbitPosition;
-        targetObjLoc.identity();
-        var curObj = targetObj;
-        var objs = [];
-        while (curObj.parent != scene) {
-          objs.push(curObj);
-          curObj = curObj.parent;
-        }
-        for (var i = objs.length - 1; i >= 0; i--) {
-          var o = objs[i];
-          targetObjLoc.multiplySelf(o.matrix);
-        }
+    targetObjLoc.identity();
+    var curObj = targetObj;
+    var objs = [];
+    while (curObj.parent != scene) {
+      objs.push(curObj);
+      curObj = curObj.parent;
+    }
+    for (var i = objs.length - 1; i >= 0; i--) {
+      var o = objs[i];
+      targetObjLoc.multiplySelf(o.matrix);
+    }
     tpos = targetObjLoc.getPosition();
     tpos.multiplyScalar(0.999);
     setTimeout('camera.position.set('+ tpos.x +', '+ tpos.y +', '+ tpos.z +')', 1000);
@@ -84,8 +84,8 @@ function ObjectCtrl(Object) {
       for (s in props.system) {
         var name = props.system[s];
         var me = this;
-        Object.get({name:name},
-                      function(p){ me.display(p); });
+        Datasets.get({name:name},
+                     function(p){ me.display(p); });
       }
     }
   };

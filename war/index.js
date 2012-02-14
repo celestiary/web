@@ -1,21 +1,14 @@
 var time = new Date().getTime();
-
-var test_hook = null;
+var scene = null;
 var animationDelegate = animation;
 
-window.onload = function() {
-  if (!Detector.webgl) {
-    Detector.addGetWebGLMessage();
-    return;
-  }
-  if (test_hook == null) {
-    // TODO(pablo): current sets a global since not sure how to wire
-    // into angular.
+angular.service('Scene', function() {
+    if (!Detector.webgl) {
+      Detector.addGetWebGLMessage();
+      return;
+    }
     scene = initCanvas(document.getElementById('scene'), 0);
-  } else {
-    test_hook();
-  }
-}
+  })
 
 function initCanvas(container, bgColor) {
   if (bgColor == null) {

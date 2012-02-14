@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:ng="http://angularjs.org">
   <head>
-    <title>solar system</title>
+    <title>Solar System</title>
     <script type="text/javascript" src="angular.js" ng:autobind></script>
     <script type="text/javascript" src="Three.js"></script>
     <script type="text/javascript" src="shared.js"></script>
@@ -12,14 +12,9 @@
     <script type="text/javascript" src="animation.js"></script>
     <script type="text/javascript" src="t-10000.js"></script>
     <script type="text/javascript" src="index.js"></script>
-    <script>
-      test_hook = function(){
-        scene = initCanvas(document.getElementById('scene'), 0);
-      }
-    </script>
   </head>
   <body style="margin: 0; padding: 0; overflow: hidden; font-family: arial, sans; background-color: black">
-    <div ng:controller="ObjectCtrl">
+    <div ng:controller="SceneCtrl">
       <div>
         <select name="name">
           <option selected="true">Milky Way</option>
@@ -42,5 +37,18 @@
       </ul>
       <div id="scene"/>
     </div>
+    <script type="text/javascript">
+      var _gaq = _gaq || [];
+      _gaq.push(['_setAccount', 'UA-29174571-1']);
+      _gaq.push(['_setDomainName', 'celestiary.appspot.com']);
+      _gaq.push(['_setAllowLinker', true]);
+      _gaq.push(['_trackPageview']);
+
+      (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+      })();
+    </script>
   </body>
 </html>
