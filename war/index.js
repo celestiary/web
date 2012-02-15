@@ -72,13 +72,6 @@ function onWindowResize(renderer, camera, controls) {
     controls.screen.width = width;
     controls.screen.height = height;
   }
-
-  if (box1) {
-    var testBoxWidth = findBoxExtent();
-    if (testBoxWidth != -1) {
-      box1.scale.x = testBoxWidth * 1.05;
-    }
-  }
 }
 
 function animate(renderer, camera, controls, scene) {
