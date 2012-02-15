@@ -70,6 +70,9 @@ function newStar(starProps) {
   var orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
 
+  // TODO(pablo): add back in sun shape; this is currently removed
+  // because it causes shading of the planets.
+
   // TODO(pablo): add back in 'sun-white' sunspot texture.
   /*
   var star = lodSphere(starProps.radius * radiusScale,
