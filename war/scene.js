@@ -71,18 +71,17 @@ function newStar(starProps) {
   orbitPlane.add(orbitPosition);
 
   // TODO(pablo): add back in 'sun-white' sunspot texture.
+  /*
   var star = lodSphere(starProps.radius * radiusScale,
                        new THREE.MeshBasicMaterial({color: 0xffffff,
                                                     depthTest: false,
                                                     wireframe: false,
                                                     transparent: true }));
   orbitPosition.add(star);
-
+  */
   orbitPlane.orbitPosition = orbitPosition;
   return orbitPlane;
 }
-
-var n = {};
 
 function newOrbitingPlanet(planetProps) {
 
@@ -110,7 +109,6 @@ function newOrbitingPlanet(planetProps) {
   referencePlane.rotation.y = orbit.longitudeOfAscendingNode * toRad;
   // Children centered at this planet's orbit position.
   referencePlane.orbitPosition = orbitPosition;
-  n[planetProps.name] = referencePlane;
   return referencePlane;
 };
 

@@ -2,6 +2,12 @@ angular.service('Datasets', function($resource) {
     return $resource('data/:name.json');
   });
 
+// TODO(pablo): this is lookup of scene nodes by name; I'd like to use
+// SceneCtrl.sceneNodes for this, but have lost track of how it's
+// being used with the DOM menu control and apparently can't just rip
+// it out currently without breaking things.
+var n = {};
+
 function SceneCtrl(Scene, Datasets) {
 
   this.object = {};
@@ -45,8 +51,17 @@ function SceneCtrl(Scene, Datasets) {
     }
     tpos = targetObjLoc.getPosition();
     tpos.multiplyScalar(0.999);
+    // If the target is the sun, we're at the origin, which screws up
+    // lookAt and controls, so reset back to initial sun view.
+    if (tpos.x == 0 && tpos.y == 0 && tpos.z == 0) {
+      tpos.z = getSunView(node.props);
+    }
     setTimeout('camera.position.set('+ tpos.x +', '+ tpos.y +', '+ tpos.z +')', 1000);
   };
+
+  function getSunView(sunProps) {
+    return sunProps.radius * radiusScale * 1E1;
+  }
 
   this.display = function(props) {
 
@@ -62,14 +77,16 @@ function SceneCtrl(Scene, Datasets) {
     } else if (props.type == 'stars') {
       obj = newStars(props, stars); // TODO(pablo): get rid of global for stars.
     } else if (props.type == 'star') {
-      obj = new THREE.Object3D;
-      //obj = newStar(props);
-      camera.position.z = props.radius * radiusScale * 1E1;
+      //obj = new THREE.Object3D;
+      obj = newStar(props);
+      camera.position.z = getSunView(props);
       // TODO(pablo): add light at orbitPosition?
       scene.add(newPointLight());
     } else if (props.type == 'planet') {
       obj = newOrbitingPlanet(props);
     }
+
+    n[props.name] = obj;
 
     if (parentNode.orbitPosition) {
       parentNode.orbitPosition.add(obj);
