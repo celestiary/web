@@ -1,3 +1,5 @@
+'use strict';
+
 // Simple cube for testing.
 function cube(size) {
   size = size || 1;
@@ -15,19 +17,13 @@ function box(width, height, depth, opts) {
   return new THREE.Mesh(geom, matr);
 }
 
-function sphere(opts) {
+function sphere(opts, matr) {
   opts = opts || {};
   opts.radius = opts.radius || 1;
-  opts.segmentSize = opts.segmentSize || 50;
+  opts.segmentSize = opts.segmentSize || 128;
   opts.color = opts.color || 0xff0000;
-  opts.basic = opts.basic || true;
+  matr = matr || new THREE.MeshBasicMaterial(opts);
   var geom = new THREE.SphereGeometry(opts.radius, opts.segmentSize, opts.segmentSize / 2);
-  var matr;
-  if (opts.basic) {
-    matr = new THREE.MeshPhongMaterial(opts);
-  } else {
-    matr = new THREE.MeshBasicMaterial(opts);
-  }
   return new THREE.Mesh(geom, matr);
 }
 
@@ -107,9 +103,11 @@ function atmos(radius) {
 // LINE
 
 function line(vec1, vec2) {
+  vec1 = vec1 || new THREE.Vector3();
+  vec2 = vec2 || new THREE.Vector3();
   var geom = new THREE.Geometry();
-  geom.vertices.push(new THREE.Vertex(vec1));
-  geom.vertices.push(new THREE.Vertex(vec2));
+  geom.vertices.push(vec1);
+  geom.vertices.push(vec2);
   return new THREE.Line(geom, lineMaterial());
 }
 
@@ -123,7 +121,7 @@ function grid(params) {
     params['stepSize'] = 1;
   }
   if (!params.numSteps) {
-    params['numSteps'] = 1E2;
+    params['numSteps'] = 10;
   }
   return lineGrid(params);
 }
@@ -171,22 +169,22 @@ function gridGeometry(params) {
   var size = params.stepSize * params.numSteps;
   for (var x = 0; x < params.numSteps; x += 2) {
     var xOff = x * params.stepSize;
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(xOff, 0, 0)));
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(xOff, size, 0)));
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(xOff + params.stepSize, size, 0)));
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(xOff + params.stepSize, 0, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(xOff, 0, 0));
+    gridGeom.vertices.push(new THREE.Vector3(xOff, size, 0));
+    gridGeom.vertices.push(new THREE.Vector3(xOff + params.stepSize, size, 0));
+    gridGeom.vertices.push(new THREE.Vector3(xOff + params.stepSize, 0, 0));
   }
   for (var y = 0; y < params.numSteps; y += 2) {
     var yOff = y * params.stepSize;
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(0, yOff, 0, 0)));
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(size, yOff, 0)));
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(size, yOff + params.stepSize, 0)));
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(0, yOff + params.stepSize, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(0, yOff, 0, 0));
+    gridGeom.vertices.push(new THREE.Vector3(size, yOff, 0));
+    gridGeom.vertices.push(new THREE.Vector3(size, yOff + params.stepSize, 0));
+    gridGeom.vertices.push(new THREE.Vector3(0, yOff + params.stepSize, 0));
   }
   if (params.numSteps % 2 == 0) {
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(0, size, 0)));
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(size, size, 0)));
-    gridGeom.vertices.push(new THREE.Vertex(new THREE.Vector3(size, 0, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(0, size, 0));
+    gridGeom.vertices.push(new THREE.Vector3(size, size, 0));
+    gridGeom.vertices.push(new THREE.Vector3(size, 0, 0));
   }
   return gridGeom;
 }

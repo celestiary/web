@@ -1,0 +1,24 @@
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: arial, sans;
+  background-color: black;
+}
+
+a:visited {
+  color: lightblue;
+}
+
+#info {
+  position: absolute;
+  bottom: 0;
+  color: white;
+  border-top: dashed 1px #888;
+  border-right: dashed 1px #888;
+  padding: 1em;
+}
+
+.collapsed {
+  display: none;
+}

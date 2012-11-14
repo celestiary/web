@@ -7,7 +7,7 @@
 "colorIndex": 1.0,
 "mass": 1.9891E33,
 "density": 1.41,
-"radius": 6.9424895E8,
+"radius": "6.9424895E8m",
 "siderealRotationPeriod": 2160000.0,
 "axialInclination": 1.0,
 "location": {
