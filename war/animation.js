@@ -68,7 +68,7 @@ function updateView(targetNode, camera) {
   var targetPos = targetNode.orbitPosition.position;
   console.log('targetPos:');
   console.log(targetPos);
-
+  /*
   var sumTrans = new THREE.Vector3;
   var last = targetNode;
   var cur = targetNode.parent;
@@ -80,7 +80,7 @@ function updateView(targetNode, camera) {
   }
 
   camera.lookAt(targetPos);
-
+  */
   // Then move camera back outside of target.
   var tStepBack = targetPos.clone();
   tStepBack.negate();

@@ -4,12 +4,4 @@
  "http://java.sun.com/dtd/web-app_2_3.dtd">
 
 <web-app xmlns="http://java.sun.com/xml/ns/javaee" version="2.5">
-  <servlet>
-    <servlet-name>hub</servlet-name>
-    <servlet-class>hub.Hub</servlet-class>
-  </servlet>
-  <servlet-mapping>
-    <servlet-name>hub</servlet-name>
-    <url-pattern>/data/*</url-pattern>
-  </servlet-mapping>
 </web-app>
