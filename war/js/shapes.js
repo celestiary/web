@@ -1,5 +1,3 @@
-'use strict';
-
 // Simple cube for testing.
 function cube(size) {
   size = size || 1;
@@ -17,12 +15,15 @@ function box(width, height, depth, opts) {
   return new THREE.Mesh(geom, matr);
 }
 
-function sphere(opts, matr) {
+function sphere(opts) {
   opts = opts || {};
   opts.radius = opts.radius || 1;
   opts.segmentSize = opts.segmentSize || 128;
-  opts.color = opts.color || 0xff0000;
-  matr = matr || new THREE.MeshBasicMaterial(opts);
+  var matrOpts = opts.matr || {
+    color: 0xffffff,
+    transparent: false
+  };
+  var matr = new THREE.MeshBasicMaterial(matrOpts);
   var geom = new THREE.SphereGeometry(opts.radius, opts.segmentSize, opts.segmentSize / 2);
   return new THREE.Mesh(geom, matr);
 }
@@ -100,11 +101,23 @@ function atmos(radius) {
   return sceneAtmosphere;
 }
 
-// LINE
+// TODO(pmy): is there a simpler way to draw a point?
+function point() {
+  var geom = new THREE.Geometry();
+  geom.vertices.push(new THREE.Vector3());
+
+  var pointMaterial =
+    new THREE.PointCloudMaterial({ color: 0xffffff,
+                                   size: 3,
+                                   sizeAttenuation: false,
+                                   blending: THREE.AdditiveBlending,
+                                   depthTest: true,
+                                   transparent: true });
+
+  return new THREE.PointCloud(geom, pointMaterial);
+}
 
 function line(vec1, vec2) {
-  vec1 = vec1 || new THREE.Vector3();
-  vec2 = vec2 || new THREE.Vector3();
   var geom = new THREE.Geometry();
   geom.vertices.push(vec1);
   geom.vertices.push(vec2);
@@ -121,7 +134,7 @@ function grid(params) {
     params['stepSize'] = 1;
   }
   if (!params.numSteps) {
-    params['numSteps'] = 10;
+    params['numSteps'] = 1E2;
   }
   return lineGrid(params);
 }
@@ -169,22 +182,22 @@ function gridGeometry(params) {
   var size = params.stepSize * params.numSteps;
   for (var x = 0; x < params.numSteps; x += 2) {
     var xOff = x * params.stepSize;
-    gridGeom.vertices.push(new THREE.Vector3(xOff, 0, 0));
-    gridGeom.vertices.push(new THREE.Vector3(xOff, size, 0));
-    gridGeom.vertices.push(new THREE.Vector3(xOff + params.stepSize, size, 0));
-    gridGeom.vertices.push(new THREE.Vector3(xOff + params.stepSize, 0, 0));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff, 0, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff, size, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff + params.stepSize, size, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff + params.stepSize, 0, 0)));
   }
   for (var y = 0; y < params.numSteps; y += 2) {
     var yOff = y * params.stepSize;
-    gridGeom.vertices.push(new THREE.Vector3(0, yOff, 0, 0));
-    gridGeom.vertices.push(new THREE.Vector3(size, yOff, 0));
-    gridGeom.vertices.push(new THREE.Vector3(size, yOff + params.stepSize, 0));
-    gridGeom.vertices.push(new THREE.Vector3(0, yOff + params.stepSize, 0));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, yOff, 0, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, yOff, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, yOff + params.stepSize, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, yOff + params.stepSize, 0)));
   }
   if (params.numSteps % 2 == 0) {
-    gridGeom.vertices.push(new THREE.Vector3(0, size, 0));
-    gridGeom.vertices.push(new THREE.Vector3(size, size, 0));
-    gridGeom.vertices.push(new THREE.Vector3(size, 0, 0));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, size, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, size, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, 0, 0)));
   }
   return gridGeom;
 }

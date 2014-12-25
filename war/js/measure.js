@@ -1,7 +1,3 @@
-// TODO(pablo): strict complains that Measure.parseMeasure doesn't
-// exist?
-// 'use strict';
-
 // copied from phys/measure.js
 /**
  * Measure formatting and conversion utility.  The system of measure

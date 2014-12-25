@@ -3,4 +3,12 @@
   <application>celestiary</application>
   <version>1</version>
   <threadsafe>true</threadsafe>
+  <static-files>
+    <include path="/**.html" expiration="1d"/>
+    <include path="/**.css" expiration="1d"/>
+    <include path="/**.js" expiration="1d"/>
+    <include path="/**.json" expiration="1d"/>
+    <include path="/**.jpg" expiration="1d"/>
+    <include path="/**.png" expiration="1d"/>
+  </static-files>
 </appengine-web-app>
