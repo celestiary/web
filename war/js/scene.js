@@ -92,19 +92,7 @@ Scene.prototype.select = function(name) {
     return;
   }
 
-  targetObjLoc.identity();
-  var curObj = targetObj;
-  var objs = [];
-  while (curObj.parent != scene) {
-    objs.push(curObj);
-    curObj = curObj.parent;
-  }
-  for (var i = objs.length - 1; i >= 0; i--) {
-    var o = objs[i];
-    targetObjLoc.multiply(o.matrix);
-  }
-
-  targetPos.setFromMatrixPosition(targetObjLoc);
+  updateView();
   var tStepBack = targetPos.clone();
   tStepBack.negate();
   // TODO(pablo): if the target is at the origin (i.e. the sun),
