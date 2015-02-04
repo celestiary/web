@@ -13,12 +13,14 @@ var
 var globe;
 var starImage, starGlowMaterial;
 
-var Scene = function() {
+var Scene = function(threeUi) {
   this.sceneNodes = {};
   this.orbitShapes = [];
   this.orbitsVisible = true;
   this.lastAddTime = 0;
+  this.threeUi = threeUi;
 };
+
 
 /**
  * Add an object to the scene.
@@ -30,7 +32,7 @@ Scene.prototype.add = function(props) {
   // ugly, since this is the only way the scene goes live.
   var parentNode = this.sceneNodes[props.parent];
   if (!parentNode) {
-    parentNode = scene;
+    parentNode = this.threeUi.scene;
   }
 
   var obj;
@@ -43,7 +45,7 @@ Scene.prototype.add = function(props) {
   } else if (props.type == 'star') {
     obj = this.newStar(props);
     obj.add(this.newPointLight());
-    camera.position.set(0, 0, Measure.parseMeasure(props.radius).scalar * radiusScale * 1E3);
+    this.threeUi.camera.position.set(0, 0, Measure.parseMeasure(props.radius).scalar * radiusScale * 1E3);
   } else if (props.type == 'planet') {
     obj = this.newOrbitingPlanet(props);
   } else {
@@ -69,6 +71,7 @@ Scene.prototype.add = function(props) {
   this.lastAddTime = time;
 };
 
+
 Scene.prototype.select = function(name) {
   var node = this.sceneNodes[name];
   if (!node) {
@@ -92,19 +95,7 @@ Scene.prototype.select = function(name) {
     return;
   }
 
-  targetObjLoc.identity();
-  var curObj = targetObj;
-  var objs = [];
-  while (curObj.parent != scene) {
-    objs.push(curObj);
-    curObj = curObj.parent;
-  }
-  for (var i = objs.length - 1; i >= 0; i--) {
-    var o = objs[i];
-    targetObjLoc.multiply(o.matrix);
-  }
-
-  targetPos.setFromMatrixPosition(targetObjLoc);
+  updateView(this.threeUi.camera, this.threeRoot);
   var tStepBack = targetPos.clone();
   tStepBack.negate();
   // TODO(pablo): if the target is at the origin (i.e. the sun),
@@ -115,18 +106,19 @@ Scene.prototype.select = function(name) {
   var radius = node.props.radius;
   if (node.props.type == 'star') {
     radius = Measure.parseMeasure(node.props.radius).scalar;
-    controls.rotateSpeed = 1;
-    controls.zoomSpeed = 1;
-    controls.panSpeed = 1;
+    this.threeUi.controls.rotateSpeed = 1;
+    this.threeUi.controls.zoomSpeed = 1;
+    this.threeUi.controls.panSpeed = 1;
   } else {
-    controls.rotateSpeed = 0.001;
-    controls.zoomSpeed = 0.001;
-    controls.panSpeed = 0.001;
+    this.threeUi.controls.rotateSpeed = 0.001;
+    this.threeUi.controls.zoomSpeed = 0.001;
+    this.threeUi.controls.panSpeed = 0.001;
   }
   tStepBack.setLength(radius * orbitScale * 10.0);
   targetPos.add(tStepBack);
-  camera.position.set(targetPos.x, targetPos.y, targetPos.z);
+  this.threeUi.camera.position.set(targetPos.x, targetPos.y, targetPos.z);
 };
+
 
 /** The stars from the data file. */
 Scene.prototype.starGeom = function(stars) {
@@ -144,6 +136,7 @@ Scene.prototype.starGeom = function(stars) {
   }
   return geom;
 };
+
 
 Scene.prototype.newStars = function(geom, props) {
   var orbitPlane = new THREE.Object3D;
@@ -178,6 +171,7 @@ Scene.prototype.newStars = function(geom, props) {
   return orbitPlane;
 };
 
+
 Scene.prototype.newPlanetStars = function(geom, props) {
   var orbitPlane = new THREE.Object3D;
   var orbitPosition = new THREE.Object3D;
@@ -197,9 +191,11 @@ Scene.prototype.newPlanetStars = function(geom, props) {
   return orbitPlane;
 };
 
+
 Scene.prototype.newPointLight = function() {
   return new THREE.PointLight(0xffffff);
 };
+
 
 Scene.prototype.newStar = function(props) {
   var orbitPlane = new THREE.Object3D;
@@ -220,12 +216,14 @@ Scene.prototype.newStar = function(props) {
   return orbitPlane;
 };
 
+
 Scene.prototype.toggleOrbits = function() {
   this.orbitsVisible = !this.orbitsVisible;
   for (var i = 0; i < this.orbitShapes.length; i++) {
     this.orbitShapes[i].visible = this.orbitsVisible;
   }
 };
+
 
 Scene.prototype.newOrbitingPlanet = function(planetProps) {
 
@@ -262,6 +260,7 @@ Scene.prototype.newOrbitingPlanet = function(planetProps) {
   return referencePlane;
 };
 
+
 Scene.prototype.newPlanet = function(planetProps) {
   var planet = new THREE.Object3D;
   // TODO(pablo): put these in near LOD only.
@@ -287,6 +286,7 @@ Scene.prototype.newPlanet = function(planetProps) {
 
   return planet;
 };
+
 
 // TODO(pablo): get shaders working again.
 Scene.prototype.newSurface = function(planetProps) {
@@ -339,6 +339,7 @@ Scene.prototype.newAtmosphere = function(planetProps) {
                                    transparent: true});
   return lodSphere(planetProps.radius * atmosScale, mat);
 };
+
 
 Scene.prototype.newOrbit = function(orbit) {
   var ellipseCurve = new THREE.EllipseCurve(0, 0,

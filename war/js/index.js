@@ -3,7 +3,7 @@
  * '/...' paths differently and don't want to muddy up references
  * below.
  */
-var JS_PATH = '../js';
+var JS_PATH = 'js';
 function include(jsFile) {
   var scriptTag = document.createElement('script');
   scriptTag.setAttribute('type', 'text/javascript');
@@ -24,3 +24,4 @@ include('animation.js');
 include('t-1000.js');
 include('collapsor.js');
 include('init.js');
+include('ui.js');

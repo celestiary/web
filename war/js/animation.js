@@ -22,14 +22,16 @@ var simTimeSecs = simTime / 1000;
 var date = new Date(simTime);
 var postRenderCb = null;
 
-function animation(scene) {
+
+function animation(scene, camera) {
   animateSystem(scene);
-  updateView(scene);
+  updateView(camera, scene);
   if (postRenderCb) {
     postRenderCb();
     postRenderCb = null;
   }
 }
+
 
 /**
  * @param delta -1, 0 or 1 for slower, reset or faster.
@@ -44,6 +46,7 @@ function changeTimeScale(delta) {
   updateTimeMsg();
 }
 
+
 function updateTimeMsg() {
   var timeScaleElt = document.getElementById('timeScale');
   var msg = '';
@@ -53,10 +56,12 @@ function updateTimeMsg() {
   timeScaleElt.innerHTML = msg;
 }
 
+
 function invertTimeScale() {
   timeScale *= -1.0;
   updateTimeMsg();
 }
+
 
 /**
  * Recursive animation of orbits and rotations at the current time.
@@ -103,7 +108,8 @@ function animateSystem(system) {
   }
 }
 
-function updateView() {
+
+function updateView(camera, scene) {
   if (targetObj) {
     targetObjLoc.identity();
     var curObj = targetObj;
