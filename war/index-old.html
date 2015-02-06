@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Celestiary - Solar System Simulator</title>
+    <script type="text/javascript" src="js/lib/Detector.js"></script>
+    <script type="text/javascript" src="js/lib/three.js/r69/three.js"></script>
+    <script type="text/javascript" src="js/lib/TrackballControls.js"></script>
+    <script type="text/javascript" src="js/three_ui.js"></script>
+    <script type="text/javascript" src="js/rest.js"></script>
+    <script type="text/javascript" src="js/shared.js"></script>
+    <script type="text/javascript" src="js/material.js"></script>
+    <script type="text/javascript" src="js/shapes.js"></script>
+    <script type="text/javascript" src="js/scene.js"></script>
+    <script type="text/javascript" src="js/controller.js"></script>
+    <script type="text/javascript" src="js/measure.js"></script>
+    <script type="text/javascript" src="js/animation.js"></script>
+    <script type="text/javascript" src="js/t-1000.js"></script>
+    <script type="text/javascript" src="js/collapsor.js"></script>
+    <script type="text/javascript" src="js/celestiary.js"></script>
+    <script type="text/javascript" src="js/init.js"></script>
+    <link rel="stylesheet" href="index.css"/>
+  </head>
+  <body>
+    <div id="scene">
+      <div style="position: absolute; width: 50%; margin: 20% 20%">
+        <p>This page shows 3D content
+        using <a href="http://en.wikipedia.org/wiki/WebGL">WebGL</a>.
+        It should work fine in Chrome and Firefox.</p>
+
+        <p>If you're using Safari,
+        follow <a href="https://discussions.apple.com/thread/3300585"
+        target="_window">Apple's instructions to enable WebGL</a>.
+        Then reload this page.</p>
+
+        <p>If you're using IE... not sure if this will work.</p>
+      </div>
+    </div>
+    <div id="nav">
+      <div id="info">Welcome to Celestiary!  Loading...</div>
+      <div id="clock">
+        <span id="date"></span><br/>
+        <span id="timeScale"></span>
+      </div>
+      <div id="controls">
+        <button onclick="ctrl.scene.toggleOrbits()">o</button>
+        <button onclick="changeTimeScale(-1)">-</button>
+        <button onclick="changeTimeScale(0)">=</button>
+        <button onclick="invertTimeScale()">/</button>
+        <button onclick="changeTimeScale(1)">+</button>
+      </div>
+    </div>
+  </body>
+</html>

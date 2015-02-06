@@ -6,16 +6,17 @@
  * node locations based on names, and information is displayed for
  * the selected node.
  */
-var Controller = function() {
-
-  this.scene = new Scene();
+var Controller = function(scene) {
+  this.scene = scene;
   this.curPath = ['sun'];
   this.loaded = {};
-  var me = this;
 
+  // TODO(pablo): get rid of most of this me madness.
+  var me = this;
   this.getPathTarget = function() {
     return me.curPath[me.curPath.length - 1];
   };
+
 
   this.showNavDisplay = function() {
     var crumbs = '';
@@ -42,6 +43,7 @@ var Controller = function() {
     // collapsor.js
     makeTagsCollapsable(infoElt);
   };
+
 
   this.showInfoRecursive = function(obj, pathPrefix, isArray, isSystem) {
     var html = '';
@@ -84,6 +86,7 @@ var Controller = function() {
     return html;
   };
 
+
   /**
    * Loads the given object and adds it to the scene; optionally
    * expanding it if it has as system.
@@ -125,6 +128,7 @@ var Controller = function() {
     }
   };
 
+
   /**
    * @param {!string} p The path, e.g. 'sun/earth/moon' or an empty
    * string for default.
@@ -140,6 +144,7 @@ var Controller = function() {
         me.showNavDisplay();
       });
   };
+
 
   /**
    * @param {!Array} path The path to the scene target, e.g. ['sun',

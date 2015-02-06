@@ -3,7 +3,7 @@
  * '/...' paths differently and don't want to muddy up references
  * below.
  */
-var JS_PATH = '../js';
+var JS_PATH = 'js';
 function include(jsFile) {
   var scriptTag = document.createElement('script');
   scriptTag.setAttribute('type', 'text/javascript');
@@ -13,6 +13,7 @@ function include(jsFile) {
 include('lib/Detector.js');
 include('lib/three.js/r69/three.min.js');
 include('lib/TrackballControls.js');
+include('three_ui.js');
 include('rest.js');
 include('shared.js');
 include('material.js');
@@ -23,4 +24,5 @@ include('measure.js');
 include('animation.js');
 include('t-1000.js');
 include('collapsor.js');
+include('celestiary.js');
 include('init.js');
