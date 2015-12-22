@@ -1,6 +1,6 @@
 'use strict';
 
-window.onload = function() {
+function init() {
   if (!Detector.webgl) {
     return;
   }

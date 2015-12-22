@@ -1,28 +1,19 @@
-/**
- * Specify path separately since server vs. local load will interpret
- * '/...' paths differently and don't want to muddy up references
- * below.
- */
-var JS_PATH = 'js';
-function include(jsFile) {
-  var scriptTag = document.createElement('script');
-  scriptTag.setAttribute('type', 'text/javascript');
-  scriptTag.setAttribute('src', JS_PATH + '/' + jsFile);
-  document.getElementsByTagName('head')[0].appendChild(scriptTag);
-}
-include('lib/Detector.js');
-include('lib/three.js/r69/three.min.js');
-include('lib/TrackballControls.js');
-include('three_ui.js');
-include('rest.js');
-include('shared.js');
-include('material.js');
-include('shapes.js');
-include('scene.js');
-include('controller.js');
-include('measure.js');
-include('animation.js');
-include('t-1000.js');
-include('collapsor.js');
-include('celestiary.js');
-include('init.js');
+$LAB
+.script('js/lib/Detector.js').wait()
+.script('js/lib/three.js/r69/three.min.js').wait()
+.script('js/lib/TrackballControls.js')
+.script('js/three_ui.js')
+.script('js/rest.js')
+.script('js/shared.js')
+.script('js/material.js')
+.script('js/shapes.js')
+.script('js/scene.js')
+.script('js/controller.js')
+.script('js/measure.js')
+.script('js/animation.js')
+.script('js/t-1000.js')
+.script('js/collapsor.js')
+.script('js/celestiary.js')
+.script('js/init.js').wait(function() {
+  init();
+});
