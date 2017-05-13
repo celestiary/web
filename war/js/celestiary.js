@@ -59,6 +59,7 @@ function Celestiary(canvasContainer, dateElt) {
 }
 
 
+/** Callback to update the HTML date element with the current time. */
 Celestiary.prototype.updateUi = function(dateElt) {
   var lastUiUpdateTime = 0;
   if (time > lastUiUpdateTime + 1000) {
