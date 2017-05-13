@@ -1,7 +1,9 @@
 'use strict';
 
+const loader = new THREE.TextureLoader();
+
 function loadTexture(texPath) {
-  return THREE.ImageUtils.loadTexture(texPath);
+  return loader.load(texPath);
 }
 
 function pathTexture(filebase, ext) {

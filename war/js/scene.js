@@ -145,7 +145,7 @@ Scene.prototype.newStars = function(geom, props) {
 
   var starImage = pathTexture('star_glow', '.png');
   var starMiniMaterial =
-    new THREE.PointCloudMaterial({ color: 0xffffff,
+    new THREE.PointsMaterial({ color: 0xffffff,
                                    size: radiusScale * props.radius * 5E5,
                                    map: starImage,
                                    sizeAttenuation: true,
@@ -153,21 +153,21 @@ Scene.prototype.newStars = function(geom, props) {
                                    depthTest: true,
                                    transparent: true });
 
-  var starPoints = new THREE.PointCloud(geom, starMiniMaterial);
+  var starPoints = new THREE.Points(geom, starMiniMaterial);
   starPoints.sortParticles = true;
   orbitPosition.add(starPoints);
   orbitPlane.orbitPosition = orbitPosition;
 
   // A special one for the Sun. TODO(pmy): replace w/shader.
   var sunSpriteMaterial =
-    new THREE.PointCloudMaterial({ color: 0xffffff,
-                                   size: radiusScale * props.radius * 5E2,
-                                   map: starImage,
-                                   sizeAttenuation: true,
-                                   blending: THREE.AdditiveBlending,
-                                   depthTest: true,
-                                   transparent: true });
-  orbitPosition.add(new THREE.PointCloud(this.starGeom([[0,0,0]]), sunSpriteMaterial));
+    new THREE.PointsMaterial({ color: 0xffffff,
+                               size: radiusScale * props.radius * 5E2,
+                               map: starImage,
+                               sizeAttenuation: true,
+                               blending: THREE.AdditiveBlending,
+                               depthTest: true,
+                               transparent: true });
+  orbitPosition.add(new THREE.Points(this.starGeom([[0,0,0]]), sunSpriteMaterial));
   return orbitPlane;
 };
 
@@ -178,13 +178,13 @@ Scene.prototype.newPlanetStars = function(geom, props) {
   orbitPlane.add(orbitPosition);
 
   var planetStarMiniMaterial =
-    new THREE.PointCloudMaterial({ color: 0xffffff,
+    new THREE.PointsMaterial({ color: 0xffffff,
                                    size: 3,
                                    sizeAttenuation: false,
                                    depthTest: true,
                                    transparent: false });
 
-  var planetStarPoints = new THREE.PointCloud(geom, planetStarMiniMaterial);
+  var planetStarPoints = new THREE.Points(geom, planetStarMiniMaterial);
   planetStarPoints.sortParticles = true;
   orbitPosition.add(planetStarPoints);
   orbitPlane.orbitPosition = orbitPosition;
@@ -350,7 +350,6 @@ Scene.prototype.newOrbit = function(orbit) {
   var ellipseCurvePath = new THREE.CurvePath();
   ellipseCurvePath.add(ellipseCurve);
   var ellipseGeometry = ellipseCurvePath.createPointsGeometry(100);
-  ellipseGeometry.computeTangents();
   var orbitMaterial = new THREE.LineBasicMaterial({
       color: 0x0000ff,
       blending: THREE.AdditiveBlending,

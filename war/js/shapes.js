@@ -56,8 +56,6 @@ function getSphereGeom(segmentSize) {
   var geom = _sphereGeoms[segmentSize];
   if (!geom) {
     geom = _sphereGeoms[segmentSize] = new THREE.SphereGeometry(1, segmentSize, segmentSize / 2);
-    //geom.computeNormals();
-    geom.computeTangents();
   }
   return geom;
 }
@@ -107,14 +105,14 @@ function point() {
   geom.vertices.push(new THREE.Vector3());
 
   var pointMaterial =
-    new THREE.PointCloudMaterial({ color: 0xffffff,
-                                   size: 3,
-                                   sizeAttenuation: false,
-                                   blending: THREE.AdditiveBlending,
-                                   depthTest: true,
-                                   transparent: true });
+    new THREE.PointsMaterial({ color: 0xffffff,
+                               size: 3,
+                               sizeAttenuation: false,
+                               blending: THREE.AdditiveBlending,
+                               depthTest: true,
+                               transparent: true });
 
-  return new THREE.PointCloud(geom, pointMaterial);
+  return new THREE.Points(geom, pointMaterial);
 }
 
 function line(vec1, vec2) {
