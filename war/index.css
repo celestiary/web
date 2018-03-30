@@ -33,6 +33,10 @@ button:hover {
   background-color: #555;
 }
 
+.collapsed {
+  display: none;
+}
+
 #nav {
   position: absolute;
   bottom: 0;
@@ -43,32 +47,32 @@ button:hover {
   border-top-right-radius: 10px;
 }
 
+#nav div {
+  border-top: solid 1px grey;
+  padding: 1em;
+}
+
+#nav div:first-child {
+  border-top: none;
+}
+
 #info {
   color: white;
-  padding: 1em;
   z-index: 3;
 }
 
 #clock {
   font-family: monospace;
-  border-top: solid 1px grey;
   padding: 1em 0 1em 0.5em;
 }
 
-#date {
-}
+#date {}
 
 #controls {
-  border-top: solid 1px grey;
   font-family: monospace;
   font-weight: bold;
-  padding: 2em;
 }
 
 #controls button {
   font-size: 1.5em;
-}
-
-.collapsed {
-  display: none;
 }
