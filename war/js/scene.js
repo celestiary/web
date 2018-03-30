@@ -347,9 +347,11 @@ Scene.prototype.newOrbit = function(orbit) {
                                             orbit.eccentricity,
                                             0, 2.0 * Math.PI,
                                             false);
-  var ellipseCurvePath = new THREE.CurvePath();
-  ellipseCurvePath.add(ellipseCurve);
-  var ellipseGeometry = ellipseCurvePath.createPointsGeometry(100);
+  //var ellipseCurvePath = new THREE.CurvePath();
+  //ellipseCurvePath.add(ellipseCurve);
+  //var ellipseGeometry = ellipseCurvePath.createPointsGeometry(100);
+  const ellipsePoints = ellipseCurve.getPoints(100);
+  var ellipseGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
   var orbitMaterial = new THREE.LineBasicMaterial({
       color: 0x0000ff,
       blending: THREE.AdditiveBlending,

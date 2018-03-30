@@ -114,7 +114,7 @@ function updateView(camera, scene) {
     targetObjLoc.identity();
     var curObj = targetObj;
     var objs = []; // TODO(pablo)
-    while (curObj.parent != scene) {
+    while (curObj.parent && (curObj.parent != scene)) {
       objs.push(curObj);
       curObj = curObj.parent;
     }

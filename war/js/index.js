@@ -1,6 +1,6 @@
 $LAB
 .script('js/lib/Detector.js').wait()
-.script('js/lib/three.js/r85/three.min.js').wait()
+.script('js/lib/three.js/r91/three.min.js').wait()
 .script('js/lib/TrackballControls.js')
 .script('js/three_ui.js')
 .script('js/rest.js')
