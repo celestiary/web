@@ -1,24 +1,28 @@
 'use strict';
 
-var RADIUS_SCALE_NORMAL = 1E-7;
-var RADIUS_SCALE_BIG = 1E-4;
-var ORBIT_SCALE_NORMAL = 1E-7;
+const THREE = require('three');
+const Animation = require('./animation.js');
+const Measure = require('./measure.js');
+const Shared = require('./shared.js');
+const stars = require('./t-1000.js');
+const Material = require('./material.js');
+const Shapes = require('./Shapes.js');
 
-var
+const RADIUS_SCALE_NORMAL = 1E-7;
+const RADIUS_SCALE_BIG = 1E-4;
+
+const
   radiusScale = RADIUS_SCALE_NORMAL,
   atmosScale = radiusScale * 1.005,
-  atmosUpperScale = atmosScale,
-  orbitScale = ORBIT_SCALE_NORMAL;
+  atmosUpperScale = atmosScale;
 
-var globe;
-var starImage, starGlowMaterial;
-
-var Scene = function(threeUi) {
+const Scene = function(threeUi, updateViewCb) {
+  this.threeUi = threeUi;
+  this.updateViewCb = updateViewCb;
   this.sceneNodes = {};
   this.orbitShapes = [];
   this.orbitsVisible = true;
   this.lastAddTime = 0;
-  this.threeUi = threeUi;
 };
 
 
@@ -45,7 +49,9 @@ Scene.prototype.add = function(props) {
   } else if (props.type == 'star') {
     obj = this.newStar(props);
     obj.add(this.newPointLight());
-    this.threeUi.camera.position.set(0, 0, Measure.parseMeasure(props.radius).scalar * radiusScale * 1E3);
+    // step back from the sun.
+    this.threeUi.camera.position.set(
+        0, 0, Measure.parseMeasure(props.radius).scalar * radiusScale * 10.0);
   } else if (props.type == 'planet') {
     obj = this.newOrbitingPlanet(props);
   } else {
@@ -68,7 +74,7 @@ Scene.prototype.add = function(props) {
   obj['props'] = props;
   this.sceneNodes[props.name] = obj;
 
-  this.lastAddTime = time;
+  this.lastAddTime = Animation.clocks.sysTime;
 };
 
 
@@ -83,20 +89,17 @@ Scene.prototype.select = function(name) {
   if (!node.orbitPosition) {
     throw new Error('No orbit position for target of select: ' + name)
   }
-  targetObj = node.orbitPosition;
+  Shared.targetObj = node.orbitPosition;
 
-  if (this.lastAddTime == time) {
-    var me = this;
-    postRenderCb = function() {
-      // TODO(pmy):
-      //me.select(name);
-      setTimeout('ctrl.scene.select("'+name+'")', 10);
+  if (this.lastAddTime == Animation.clocks.sysTime) {
+    Animation.postRenderCb = () => {
+      setTimeout('global.select("' + name + '")', 10);
     };
     return;
   }
 
-  updateView(this.threeUi.camera, this.threeRoot);
-  var tStepBack = targetPos.clone();
+  this.updateViewCb(this.threeUi.camera, this.threeRoot);
+  var tStepBack = Shared.targetPos.clone();
   tStepBack.negate();
   // TODO(pablo): if the target is at the origin (i.e. the sun),
   // need some non-zero basis to use as a step-back.
@@ -114,9 +117,10 @@ Scene.prototype.select = function(name) {
     this.threeUi.controls.zoomSpeed = 0.001;
     this.threeUi.controls.panSpeed = 0.001;
   }
-  tStepBack.setLength(radius * orbitScale * 10.0);
-  targetPos.add(tStepBack);
-  this.threeUi.camera.position.set(targetPos.x, targetPos.y, targetPos.z);
+  tStepBack.setLength(radius * Shared.orbitScale * 10.0);
+  Shared.targetPos.add(tStepBack);
+  this.threeUi.camera.position.set(
+      Shared.targetPos.x, Shared.targetPos.y, Shared.targetPos.z);
 };
 
 
@@ -126,9 +130,9 @@ Scene.prototype.starGeom = function(stars) {
 
   for (var i = 0; i < stars.length; i++) {
     var s = stars[i];
-    var ra = s[0] * toDeg; // why not toRad?
-    var dec = s[1] * toDeg;
-    var dist = s[2] * orbitScale;
+    var ra = s[0] * Shared.toDeg; // why not toRad?
+    var dec = s[1] * Shared.toDeg;
+    var dist = s[2] * Shared.orbitScale;
     var vec = new THREE.Vector3(dist * Math.sin(ra) * Math.cos(dec),
                                 dist * Math.sin(ra) * Math.sin(dec),
                                 dist * Math.cos(ra));
@@ -143,15 +147,15 @@ Scene.prototype.newStars = function(geom, props) {
   var orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
 
-  var starImage = pathTexture('star_glow', '.png');
+  var starImage = Material.pathTexture('star_glow', '.png');
   var starMiniMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                                   size: radiusScale * props.radius * 5E5,
-                                   map: starImage,
-                                   sizeAttenuation: true,
-                                   blending: THREE.AdditiveBlending,
-                                   depthTest: true,
-                                   transparent: true });
+                               size: radiusScale * props.radius * 5E5,
+			       map: starImage,
+			       sizeAttenuation: true,
+			       blending: THREE.AdditiveBlending,
+			       depthTest: true,
+			       transparent: true });
 
   var starPoints = new THREE.Points(geom, starMiniMaterial);
   starPoints.sortParticles = true;
@@ -207,10 +211,10 @@ Scene.prototype.newStar = function(props) {
   // actual rendering.
   //orbitPosition.add(new THREE.Object3D);
   var matr = {
-    map: pathTexture('sun'),
+    map: Material.pathTexture('sun'),
     blending: THREE.AdditiveBlending,
   };
-  var star = sphere({'radius': 20, 'matr': matr});
+  var star = Shapes.sphere({'radius': 20, 'matr': matr});
   orbitPosition.add(star);
   orbitPlane.orbitPosition = orbitPosition;
   return orbitPlane;
@@ -234,11 +238,11 @@ Scene.prototype.newOrbitingPlanet = function(planetProps) {
   this.orbitShapes.push(orbitShape);
   orbitPlane.add(orbitShape);
 
-  orbitPlane.rotation.x = orbit.inclination * toRad;
-  orbitPlane.rotation.y = orbit.longitudeOfPerihelion * toRad;
+  orbitPlane.rotation.x = orbit.inclination * Shared.toRad;
+  orbitPlane.rotation.y = orbit.longitudeOfPerihelion * Shared.toRad;
 
-  //orbitPlane.add(line(new THREE.Vector3(0, 0, 0),
-  //                    new THREE.Vector3(orbit.semiMajorAxis * orbitScale, 0, 0)));
+  //orbitPlane.add(Shapes.line(new THREE.Vector3(0, 0, 0),
+  //    new THREE.Vector3(orbit.semiMajorAxis * Shared.orbitScale, 0, 0)));
 
   var orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
@@ -249,11 +253,11 @@ Scene.prototype.newOrbitingPlanet = function(planetProps) {
 
   var planet = this.newPlanet(planetProps);
   orbitPosition.add(planet);
-  orbitPosition.add(point());
+  orbitPosition.add(Shapes.point());
 
   var referencePlane = new THREE.Object3D;
   referencePlane.add(orbitPlane);
-  referencePlane.rotation.y = orbit.longitudeOfAscendingNode * toRad;
+  referencePlane.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
   // Children centered at this planet's orbit position.
   referencePlane.orbitPosition = orbitPosition;
 
@@ -278,8 +282,8 @@ Scene.prototype.newPlanet = function(planetProps) {
 
   // Tilt could be set in orbit configuration, but for the moment
   // seems more intrinsic.
-  planet.rotation.z = planetProps.axialInclination * toRad;
-  //planet.rotation.x += planetProps.axialInclination * toDeg;
+  planet.rotation.z = planetProps.axialInclination * Shared.toRad;
+  //planet.rotation.x += planetProps.axialInclination * Shared.toDeg;
 
   // Attaching this property triggers rotation of planet during animation.
   planet.siderealRotationPeriod = planetProps.siderealRotationPeriod;
@@ -292,15 +296,14 @@ Scene.prototype.newPlanet = function(planetProps) {
 Scene.prototype.newSurface = function(planetProps) {
   var planetMaterial;
   if (true || !(planetProps.texture_hydrosphere || planetProps.texture_terrain)) {
-    planetMaterial = cacheMaterial(planetProps.name);
+    planetMaterial = Material.cacheMaterial(planetProps.name);
   } else {
 
     // Fancy planets.
     var shader = THREE.ShaderUtils.lib['normal'];
     var uniforms = THREE.UniformsUtils.clone(shader.uniforms);
 
-    var tex = pathTexture(planetProps.name);
-    uniforms['tDiffuse'].texture = tex;
+    uniforms['tDiffuse'].texture = Material.pathTexture(planetProps.name);
     uniforms['enableAO'].value = false;
     uniforms['enableDiffuse'].value = true;
     uniforms['uDiffuseColor'].value.setHex(0xffffff);
@@ -311,13 +314,13 @@ Scene.prototype.newSurface = function(planetProps) {
 
     if (false && planetProps.texture_hydrosphere) {
       uniforms['enableSpecular'].value = true;
-      uniforms['tSpecular'].texture = pathTexture(planetProps.name, '_hydro.jpg');
+      uniforms['tSpecular'].texture = Material.pathTexture(planetProps.name, '_hydro.jpg');
       uniforms['uSpecularColor'].value.setHex(0xffffff);
       uniforms['uSpecularColor'].value.convertGammaToLinear();
     }
 
     if (false && planetProps.texture_terrain) {
-      uniforms['tNormal'].texture = pathTexture(planetProps.name, '_terrain.jpg');
+      uniforms['tNormal'].texture = Material.pathTexture(planetProps.name, '_terrain.jpg');
       uniforms['uNormalScale'].value = 0.1;
     }
 
@@ -329,21 +332,21 @@ Scene.prototype.newSurface = function(planetProps) {
       });
   }
 
-  return lodSphere(planetProps.radius * radiusScale, planetMaterial);
+  return Shapes.lodSphere(planetProps.radius * radiusScale, planetMaterial);
 };
 
 Scene.prototype.newAtmosphere = function(planetProps) {
   var mat =
     new THREE.MeshLambertMaterial({color: 0xffffff,
-                                   map: pathTexture(planetProps.name, '_atmos.png'),
+                                   map: Material.pathTexture(planetProps.name, '_atmos.png'),
                                    transparent: true});
-  return lodSphere(planetProps.radius * atmosScale, mat);
+  return Shapes.lodSphere(planetProps.radius * atmosScale, mat);
 };
 
 
 Scene.prototype.newOrbit = function(orbit) {
   var ellipseCurve = new THREE.EllipseCurve(0, 0,
-                                            orbit.semiMajorAxis * orbitScale,
+                                            orbit.semiMajorAxis * Shared.orbitScale,
                                             orbit.eccentricity,
                                             0, 2.0 * Math.PI,
                                             false);
@@ -361,10 +364,13 @@ Scene.prototype.newOrbit = function(orbit) {
     });
   
   var line = new THREE.Line(ellipseGeometry, orbitMaterial);
-  line.rotation.x = halfPi;
+  line.rotation.x = Shared.halfPi;
 
   // Orbits may be turned off when this orbit is added, so set it to
   // current visibility.
   line.visible = this.orbitsVisible;
   return line;
 };
+
+
+module.exports = Scene;

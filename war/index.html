@@ -2,23 +2,16 @@
 <html>
   <head>
     <title>Celestiary - Solar System Simulator</title>
-    <script src="js/LAB.min.js"></script>
-    <script src="js/index.js"></script>
     <link rel="stylesheet" href="index.css"/>
   </head>
   <body>
     <div id="scene">
-      <div style="position: absolute; width: 50%; margin: 20% 20%">
+      <div style="position: absolute; width: 50%; margin: auto">
         <p>This page shows 3D content
         using <a href="http://en.wikipedia.org/wiki/WebGL">WebGL</a>.
-        It should work fine in Chrome and Firefox.</p>
+        It should work fine in modern browsers.</p></p>
 
-        <p>If you're using Safari,
-          follow <a href="https://discussions.apple.com/thread/3300585"
-                    target="_blank">Apple's instructions to enable WebGL</a>.  Then
-          reload this page.</p>
-
-        <p>If you're using IE... not sure if this will work.</p>
+        <p>Internet Explorer 10 and below may not work.</p>
       </div>
     </div>
     <div id="nav">
@@ -28,16 +21,17 @@
         <span id="timeScale"></span>
       </div>
       <div id="controls">
-        <button onclick="ctrl.scene.toggleOrbits()">o</button>
-        <button onclick="changeTimeScale(-1)">-</button>
-        <button onclick="changeTimeScale(0)">=</button>
-        <button onclick="invertTimeScale()">/</button>
-        <button onclick="changeTimeScale(1)">+</button>
+        <button onclick="celestiary.toggleOrbits()">o</button>
+        <button onclick="celestiary.changeTimeScale(-1)">-</button>
+        <button onclick="celestiary.changeTimeScale(0)">=</button>
+        <button onclick="celestiary.invertTimeScale()">/</button>
+        <button onclick="celestiary.changeTimeScale(1)">+</button>
       </div>
       <div id="links">
 	<a href="https://github.com/pablo-mayrgundter/celestiary" target="_blank">source</a> |
 	<!-- <a href="howto.html" target="_blank">howto</a> -->
       </div>
     </div>
+    <script src="js/index-bundle.js"></script>
   </body>
 </html>

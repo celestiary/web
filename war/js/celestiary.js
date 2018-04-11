@@ -1,8 +1,10 @@
-var targetPos = new THREE.Vector3();
-var targetObj = null;
-var targetObjLoc = new THREE.Matrix4;
-var date = new Date();
-var ctrl;
+'use strict';
+
+const THREE = require('three');
+const Animation = require('./animation.js');
+const ThreeUi = require('./three_ui.js');
+const Controller = require('./controller.js');
+const Scene = require('./scene.js');
 
 /**
  * Solar System simulator inspired by Celestia using Three.js.
@@ -28,28 +30,30 @@ var ctrl;
  * @author Pablo Mayrgundter
  */
 function Celestiary(canvasContainer, dateElt) {
-  // TODO(pablo): hack to move camera from global to local.
-  var animationCb = animation;
-  // TODO(pablo): add back clock update.
-  var postAnimationCb = function() {};
-  var threeUi = new ThreeUi(canvasContainer, animationCb, postAnimationCb);
-  this.scene = new Scene(threeUi);
+  this.dateElt = dateElt;
+  const postAnimationCb = () => {
+      this.updateUi();
+  };
+  const updateViewCb = (camera, scene) => {
+      Animation.updateView(camera, scene);
+  };
+  this.threeUi = new ThreeUi(
+      canvasContainer, Animation.animation, postAnimationCb, updateViewCb);
+  this.scene = new Scene(this.threeUi, updateViewCb);
   this.ctrl = new Controller(this.scene);
-  ctrl = this.ctrl;
-  var me = this;
   window.addEventListener(
       'hashchange',
-      function(e) {
-        me.ctrl.loadPath((location.hash || '#').substring(1));
+      (e) => {
+        this.ctrl.loadPath((location.hash || '#').substring(1));
       },
       false);
 
   window.addEventListener(
       'keypress',
-      function(e) {
+      (e) => {
         switch (e.which) {
           // 'o'
-        case 111: me.ctrl.scene.toggleOrbits(); break;
+        case 111: this.ctrl.scene.toggleOrbits(); break;
         }
       },
       true);
@@ -58,12 +62,24 @@ function Celestiary(canvasContainer, dateElt) {
   this.ctrl.loadPath(location.hash ? location.hash.substring(1) : '');
 }
 
-
 /** Callback to update the HTML date element with the current time. */
-Celestiary.prototype.updateUi = function(dateElt) {
-  var lastUiUpdateTime = 0;
-  if (time > lastUiUpdateTime + 1000) {
-    lastUiUpdateTime = time;
-    dateElt.innerHTML = new Date(simTime) + '';
+Celestiary.prototype.updateUi = function() {
+  let lastUiUpdateTime = 0;
+  if (Animation.clocks.sysTime > lastUiUpdateTime + 1000) {
+    lastUiUpdateTime = Animation.clocks.sysTime;
+    const showTime = new Date(Animation.clocks.simTime);
+    this.dateElt.innerHTML = showTime + '';
   }
 };
+
+Celestiary.prototype.select = function(name) {
+  this.ctrl.scene.select(name);
+};
+Celestiary.prototype.toggleOrbits = function() {
+  this.ctrl.scene.toggleOrbits();
+};
+Celestiary.prototype.changeTimeScale = Animation.changeTimeScale;
+Celestiary.prototype.invertTimeScale = Animation.invertTimeScale;
+
+
+module.exports = Celestiary;

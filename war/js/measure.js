@@ -142,24 +142,21 @@ Measure.parseMeasure = function(s) {
   if (!m)
     throw "Could not parse measure from given string: " + s;
 
-  // console.log("#groups: " + m.length);
   var scalar = m[1];
-  // console.log("scalar: " + scalar);
 
   if (m.length == 2) {
     var unit = m[2];
-    console.log("unit: " + unit);
     return new Measure(parseFloat(scalar), Unit.lookup(unit));
   }
 
   var magnitude = m[2];
-  // console.log("magnitude: " + magnitude);
-
   var unit = m[3];
-  // console.log("unit: " + unit);
 
   return new Measure(scalar == null ? 0.0 : parseFloat(scalar),
                      Unit.lookup(unit),
                      magnitude == null ? Magnitude.prototype.UNIT :
                      Magnitude.lookup(magnitude));
 };
+
+
+module.exports = Measure;

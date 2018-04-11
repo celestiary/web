@@ -4,7 +4,7 @@
  * Modifies the DOM tree rooted at {@param elt} to make the
  * given {@param tagTypes} interactively collapsable/expandable.
  */
-function makeTagsCollapsable(elt, tagTypes) {
+function makeCollapsable(elt, tagTypes) {
   tagTypes = tagTypes || ['UL', 'OL'];
   if (elt.nodeType != 1) { // i.e. DOM Element
     return;
@@ -22,7 +22,7 @@ function makeTagsCollapsable(elt, tagTypes) {
           elt.parentNode.insertBefore(toggleCtrl, elt);
   }
   for (var cndx in copyOfChildNodes) {
-    makeTagsCollapsable(copyOfChildNodes[cndx], tagTypes);
+    makeCollapsable(copyOfChildNodes[cndx], tagTypes);
   }
 }
 
@@ -74,3 +74,10 @@ function eltClass(elt, action, className) {
   }
   return true;
 }
+
+
+module.exports = {
+  makeCollapsable: makeCollapsable,
+  collapse: collapse,
+};
+

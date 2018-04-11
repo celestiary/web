@@ -1,3 +1,9 @@
+'use strict';
+
+const THREE = require('three');
+
+const Material = require('./material.js');
+
 // Simple cube for testing.
 function cube(size) {
   size = size || 1;
@@ -119,7 +125,7 @@ function line(vec1, vec2) {
   var geom = new THREE.Geometry();
   geom.vertices.push(vec1);
   geom.vertices.push(vec2);
-  return new THREE.Line(geom, lineMaterial());
+  return new THREE.Line(geom, Material.lineMaterial());
 }
 
 // GRID
@@ -148,7 +154,7 @@ function lineGrid(params) {
 
   var size = params.stepSize * params.numSteps;
 
-  var mat = lineMaterial(params);
+  var mat = Material.lineMaterial(params);
 
   var xyGrid = new THREE.Line(gridGeometry(params), mat);
   xyGrid.position.x -= size / 2;
@@ -294,4 +300,16 @@ THREE.EllipseCurve.prototype.getPoint = function (t) {
   var ty = this.aY + this.bRadius * Math.sin(angle);
 
   return new THREE.Vector2(tx, ty);
+};
+
+
+module.exports = {
+  cube: cube,
+  box: box,
+  grid: grid,
+  line: line,
+  lineGrid: lineGrid,
+  lodSphere: lodSphere,
+  point: point,
+  sphere: sphere,
 };

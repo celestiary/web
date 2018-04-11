@@ -13,15 +13,15 @@ if (typeof XMLHttpRequest == "undefined") {
   };
 }
 
-var Resource = function(name) {
+const Resource = function(name) {
   this.name = 'data/' + name + '.json';
-  this.get = function(func) {
+  this.get = (func) => {
     if (location.href.startsWith && location.href.startsWith('file')) {
       return func({type: 'star', name: 'sun', radius: 6.9424895E8});
     }
     var xmlhttp = new XMLHttpRequest();
-    xmlhttp.onreadystatechange = function() {
-      if(xmlhttp.readyState == 4){
+    xmlhttp.onreadystatechange = () => {
+      if (xmlhttp.readyState == 4){
         var json = xmlhttp.responseText;
         var obj = eval('(' + json + ')');
         func(obj);
@@ -31,3 +31,6 @@ var Resource = function(name) {
     xmlhttp.send(null);
   };
 };
+
+
+module.exports = Resource;

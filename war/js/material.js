@@ -1,5 +1,7 @@
 'use strict';
 
+const THREE = require('three');
+
 const loader = new THREE.TextureLoader();
 
 function loadTexture(texPath) {
@@ -37,3 +39,9 @@ function lineMaterial(params, name) {
   }
   return m;
 }
+
+
+module.exports = {
+  pathTexture: pathTexture,
+  cacheMaterial: cacheMaterial,
+};

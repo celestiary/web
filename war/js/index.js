@@ -1,19 +1,17 @@
-$LAB
-.script('js/lib/Detector.js').wait()
-.script('js/lib/three.js/r91/three.min.js').wait()
-.script('js/lib/TrackballControls.js')
-.script('js/three_ui.js')
-.script('js/rest.js')
-.script('js/shared.js')
-.script('js/material.js')
-.script('js/shapes.js')
-.script('js/scene.js')
-.script('js/controller.js')
-.script('js/measure.js')
-.script('js/animation.js')
-.script('js/t-1000.js')
-.script('js/collapsor.js')
-.script('js/celestiary.js')
-.script('js/init.js').wait(function() {
-  init();
-});
+'use strict';
+
+const Detector = require('./lib/Detector.js');
+const Celestiary = require('./celestiary.js');
+const collapsor = require('./collapsor.js');
+
+function init() {
+  if (!Detector.webgl) {
+    return;
+  }
+  global.celestiary = new Celestiary(
+      document.getElementById('scene'),
+      document.getElementById('date'));
+  global.collapse = collapsor.collapse;
+}
+
+init();

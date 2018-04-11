@@ -1,28 +1,34 @@
-'use strict';
+const THREE = require('three');
+const Shared = require('./shared.js');
 
-var Y_AXIS = new THREE.Vector3(0, 1, 0);
+let Y_AXIS = new THREE.Vector3(0, 1, 0);
 
 /**
  * Time scale is applied to wall-clock time, so that by a larger time
  * scale will speed things up, 0 will be normal time, negative
  * backwards.
  */
-var timeScale = 1;
+let timeScale = 1;
 
-/**
- * Controlled by UI clicks.. timeScale is basically 2^steps.
- */
-var timeScaleSteps = 0;
+/** Controlled by UI clicks.. timeScale is basically 2^steps. */
+let timeScaleSteps = 0;
 
-var time = Date.now();
-var lastTime = time;
-var dt = time - lastTime;
-var simTime = time;
-var simTimeSecs = simTime / 1000;
-var date = new Date(simTime);
-var postRenderCb = null;
+let lastSysTime = Date.now();
+
+/** @exported */
+const clocks = {
+  sysTime: lastSysTime,
+  simTime: lastSysTime,
+};
+
+/** @exported */
+let postRenderCb = null;
+
+let dt = clocks.sysTime - lastSysTime;
+let simTimeSecs = clocks.simTime / 1000;
 
 
+/** @exported */
 function animation(scene, camera) {
   animateSystem(scene);
   updateView(camera, scene);
@@ -35,6 +41,7 @@ function animation(scene, camera) {
 
 /**
  * @param delta -1, 0 or 1 for slower, reset or faster.
+ * @exported
  */
 function changeTimeScale(delta) {
   if (delta == 0) {
@@ -48,30 +55,28 @@ function changeTimeScale(delta) {
 
 
 function updateTimeMsg() {
-  var timeScaleElt = document.getElementById('timeScale');
-  var msg = '';
+  let msg = '';
   if (timeScaleSteps != 0) {
     msg = '(@ ' + timeScale + ' secs/s)';
   }
-  timeScaleElt.innerHTML = msg;
+  document.getElementById('timeScale').innerHTML = msg;
 }
 
 
+/** @exported */
 function invertTimeScale() {
   timeScale *= -1.0;
   updateTimeMsg();
 }
 
 
-/**
- * Recursive animation of orbits and rotations at the current time.
- */
+/** Recursive animation of orbits and rotations at the current time. */
 function animateSystem(system) {
-  lastTime = time;
-  time = Date.now();
-  dt = time - lastTime;
-  simTime += dt * timeScale;
-  simTimeSecs = simTime / 1000;
+  lastSysTime = clocks.sysTime;
+  clocks.sysTime = Date.now();
+  dt = clocks.sysTime - lastSysTime;
+  clocks.simTime += dt * timeScale;
+  simTimeSecs = clocks.simTime / 1000;
 
   if (system.siderealRotationPeriod) {
     // TODO(pablo): this is hand-calibrated for Earth and so is
@@ -81,48 +86,54 @@ function animateSystem(system) {
     //   http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
     // 
     // and also would also need them for the other planets.
-    var angle = 1.5 * Math.PI + simTimeSecs / 86400 * twoPi;
+    const angle = 1.5 * Math.PI + simTimeSecs / 86400 * Shared.twoPi;
     system.setRotationFromAxisAngle(Y_AXIS, angle);
   }
 
   // This is referred to by a comment in scene.js#addOrbitingPlanet.
   if (system.orbit) {
-    var eccentricity = system.orbit.eccentricity;
-    var aRadius = system.orbit.semiMajorAxis * orbitScale;
-    var bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0));
+    const eccentricity = system.orbit.eccentricity;
+    const aRadius = system.orbit.semiMajorAxis * Shared.orbitScale;
+    const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0));
     // -1.0 because orbits are counter-clockwise when viewed from above North of Earth.
-    var angle = -1.0 * simTimeSecs / system.orbit.siderealOrbitPeriod * twoPi;
-    var x = aRadius * Math.cos(angle);
-    var y = 0;
-    var z = bRadius * Math.sin(angle);
+    const angle = -1.0 * simTimeSecs / system.orbit.siderealOrbitPeriod * Shared.twoPi;
+    const x = aRadius * Math.cos(angle);
+    const y = 0;
+    const z = bRadius * Math.sin(angle);
     system.position.set(x, y, z);
-    //system.particle.set(x, y, z);
-    // if (system.orbit.siderealOrbitPeriod == 31536000) {
-    //   console.log('earth angle: ' + angle);
-    // }
   }
 
-  for (var ndx in system.children) {
-    var child = system.children[ndx];
+  for (const ndx in system.children) {
+    const child = system.children[ndx];
     animateSystem(child);
   }
 }
 
 
 function updateView(camera, scene) {
-  if (targetObj) {
-    targetObjLoc.identity();
-    var curObj = targetObj;
-    var objs = []; // TODO(pablo)
+  if (Shared.targetObj) {
+    Shared.targetObjLoc.identity();
+    let curObj = Shared.targetObj;
+    const objs = []; // TODO(pablo)
     while (curObj.parent && (curObj.parent != scene)) {
       objs.push(curObj);
       curObj = curObj.parent;
     }
-    for (var i = objs.length - 1; i >= 0; i--) {
-      var o = objs[i];
-      targetObjLoc.multiply(o.matrix);
+    for (let i = objs.length - 1; i >= 0; i--) {
+      const o = objs[i];
+      Shared.targetObjLoc.multiply(o.matrix);
     }
-    targetPos.setFromMatrixPosition(targetObjLoc);
-    camera.lookAt(targetPos);
+    Shared.targetPos.setFromMatrixPosition(Shared.targetObjLoc);
+    camera.lookAt(Shared.targetPos);
   }
 }
+
+
+module.exports = {
+  animation: animation,
+  updateView: updateView,
+  clocks: clocks,
+  postRenderCb: postRenderCb,
+  changeTimeScale: changeTimeScale,
+  invertTimeScale: invertTimeScale,
+};

@@ -1,7 +1,12 @@
-function ThreeUi(container, animationCb, postAnimationCb) {
-  this.animationCb = animationCb;
-  this.postAnimationCb = postAnimationCb;
+const THREE = require('three');
+const TrackballControls = require('./lib/TrackballControls.js');
+
+function ThreeUi(container, animationCb, postAnimationCb, windowResizeCb) {
+  container.innerHTML = '';
   this.container = container;
+  this.animationCb = animationCb || (() => {});
+  this.postAnimationCb = postAnimationCb || (() => {});
+  this.windowResizeCb = windowResizeCb || (() => {});
   this.setSize();
   this.initRenderer(container);
   this.camera = new THREE.PerspectiveCamera(25, this.width / this.height, 1, 1E13);
@@ -9,11 +14,10 @@ function ThreeUi(container, animationCb, postAnimationCb) {
   this.initControls(this.camera);
   this.scene = new THREE.Scene();
 
-  var me = this;
   window.addEventListener(
       'resize',
-      function() {
-        me.onWindowResize();
+      () => {
+        this.onWindowResize();
       },
       false);
 
@@ -39,12 +43,9 @@ ThreeUi.prototype.initRenderer = function(container) {
 
 
 ThreeUi.prototype.initControls = function(camera) {
-  var c = new THREE.TrackballControls(camera);
+  const c = new TrackballControls(camera);
   // Rotation speed is changed in scene.js depending on target
   // type: faster for sun, slow for planets.
-  c.rotateSpeed = 0.001;
-  c.zoomSpeed = 0.001;
-  c.panSpeed = 0.001;
   c.noZoom = false;
   c.noPan = false;
   c.staticMoving = true;
@@ -62,7 +63,7 @@ ThreeUi.prototype.onWindowResize = function() {
   this.controls.screen.width = this.width;
   this.controls.screen.height = this.height;
   // TODO(pablo): this doesn't tilt the view when JS console is toggled?
-  updateView(this.camera, this.scene);
+  this.windowResizeCb(this.camera, this.scene);
 };
 
 
@@ -81,3 +82,6 @@ function renderLoop(controls, animationCb, scene, camera, renderer, postAnimatio
     renderLoop(controls, animationCb, scene, camera, renderer, postAnimationCb);
   });
 }
+
+
+module.exports = ThreeUi;

@@ -56,3 +56,6 @@ var Detector = {
 	}
 
 };
+
+
+module.exports = Detector;

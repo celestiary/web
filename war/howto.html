@@ -1,23 +1,27 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <script type="text/javascript" src="js/lib/Detector.js"></script>
-    <script type="text/javascript" src="js/lib/three.js/r69/three.js"></script>
-    <script type="text/javascript" src="js/lib/TrackballControls.js"></script>
-    <script type="text/javascript" src="js/rest.js"></script>
-    <script type="text/javascript" src="js/shared.js"></script>
-    <script type="text/javascript" src="js/shapes.js"></script>
-    <script type="text/javascript" src="js/animation.js"></script>
-    <script type="text/javascript" src="js/init.js"></script>
-    <script>
-      test_hook = function() {
-        scene.add(cube());
-        initCanvas(document.getElementById('canvas-sphere')).add(sphere(50));
-      }
-    </script>
+    <title>Celestiary - Solar System Simulator</title>
+    <link rel="stylesheet" href="howto.css"/>
   </head>
-  <body style="margin: 0; padding: 0; overflow: hidden; font-family: arial, sans">
-    <div id="scene" style="height: 300px"></div>
-    <div id="canvas-sphere" style="height: 300px"></div>
+  <body>
+    <div id="scene" style="float: right; width: 400px; height: 400px">
+      <div style="position: absolute; width: 50%; margin: auto">
+        <p>This page shows 3D content
+        using <a href="http://en.wikipedia.org/wiki/WebGL">WebGL</a>.
+        It should work fine in modern browsers.</p></p>
+
+        <p>Internet Explorer 10 and below may not work.</p>
+      </div>
+    </div>
+
+    <p>To start with, a simple scene is defined with an object and
+    controls.  Try rotating the cube with your mouse.  A scroll up or
+    down gesture or mouse-wheel will zoom.  Double-button drag will
+    pan.
+
+    <p>View source <a href="js/howto.js">here</a>.
+
+    <script src="js/howto-bundle.js"></script>
   </body>
 </html>

@@ -1,47 +1,47 @@
 'use strict';
 
+const collapsor = require('./collapsor.js');
+const Resource = require('./rest.js');
+
 /**
  * The Controller loads the scene.  The scene nodes are fetched from
  * the server, a mapping is created for navigation to current scene
  * node locations based on names, and information is displayed for
  * the selected node.
  */
-var Controller = function(scene) {
+function Controller(scene) {
   this.scene = scene;
   this.curPath = ['sun'];
   this.loaded = {};
 
-  // TODO(pablo): get rid of most of this me madness.
-  var me = this;
-  this.getPathTarget = function() {
-    return me.curPath[me.curPath.length - 1];
+  this.getPathTarget = () => {
+    return this.curPath[this.curPath.length - 1];
   };
 
 
-  this.showNavDisplay = function() {
+  this.showNavDisplay = () => {
     var crumbs = '';
-    for (var i = 0; i < me.curPath.length; i++) {
-      var hash = me.curPath.slice(0, i + 1).join('/');
-      var name = me.curPath[i];
-      if (i == me.curPath.length - 1) {
+    for (var i = 0; i < this.curPath.length; i++) {
+      var hash = this.curPath.slice(0, i + 1).join('/');
+      var name = this.curPath[i];
+      if (i == this.curPath.length - 1) {
         crumbs += name;
       } else {
         crumbs += '<a href="#'+ hash +'">' + name + '</a>';
       }
-      if (i < me.curPath.length - 1) {
+      if (i < this.curPath.length - 1) {
         crumbs += ' &gt; ';
       }
     }
 
     var html = crumbs + ' <ul>\n';
-    var pathPrefix = me.curPath.join('/');
-    html += me.showInfoRecursive(me.loaded[me.getPathTarget()],
+    var pathPrefix = this.curPath.join('/');
+    html += this.showInfoRecursive(this.loaded[this.getPathTarget()],
                                  pathPrefix, false, false);
     html += '</ul>\n';
     var infoElt = document.getElementById('info');
     infoElt.innerHTML = html;
-    // collapsor.js
-    makeTagsCollapsable(infoElt);
+    collapsor.makeCollapsable(infoElt);
   };
 
 
@@ -60,11 +60,11 @@ var Controller = function(scene) {
           } else {
             html += '<ol class="collapsed">\n';
           }
-          html += me.showInfoRecursive(val, pathPrefix, true, prop == 'system');
+          html += this.showInfoRecursive(val, pathPrefix, true, prop == 'system');
           html += '</ol>\n';
         } else if (val instanceof Object) {
           html += '<ul class="collapsed">\n';
-          html += me.showInfoRecursive(val, pathPrefix, false, false);
+          html += this.showInfoRecursive(val, pathPrefix, false, false);
           html += '</ul>\n';
         } else {
           if (isSystem) {
@@ -95,14 +95,14 @@ var Controller = function(scene) {
    * @param {function} cb optional callback.
    */
   this.loadObj = function(name, expand, cb) {
-    var loadedObj = me.loaded[name];
+    var loadedObj = this.loaded[name];
     if (loadedObj) {
       if (loadedObj == 'pending') {
         return;
       }
       if (expand && loadedObj.system) {
         for (var i = 0; i < loadedObj.system.length; i++) {
-          me.loadObj(loadedObj.system[i], false);
+          this.loadObj(loadedObj.system[i], false);
         }
       }
       // Execute cb immediately even though children may not all be
@@ -112,13 +112,13 @@ var Controller = function(scene) {
         cb();
       }
     } else {
-      me.loaded[name] = 'pending';
-      new Resource(name).get(function(obj) {
-          me.loaded[name] = obj;
-          me.scene.add(obj);
+      this.loaded[name] = 'pending';
+      new Resource(name).get((obj) => {
+          this.loaded[name] = obj;
+          this.scene.add(obj);
           if (expand && obj.system) {
             for (var i = 0; i < obj.system.length; i++) {
-              me.loadObj(obj.system[i], false);
+	      this.loadObj(obj.system[i], false);
             }
           }
           if (cb) {
@@ -138,10 +138,10 @@ var Controller = function(scene) {
     if (reqPath.length == 0) {
       reqPath = 'sun';
     }
-    me.curPath = reqPath.split('/');
-    me.loadPathRecursive([].concat(me.curPath), function() {
-        me.scene.select(me.getPathTarget());
-        me.showNavDisplay();
+    this.curPath = reqPath.split('/');
+    this.loadPathRecursive([].concat(this.curPath), () => {
+        this.scene.select(this.getPathTarget());
+        this.showNavDisplay();
       });
   };
 
@@ -155,7 +155,10 @@ var Controller = function(scene) {
       return;
     }
     var systemName = path.shift();
-    me.loadObj(systemName, true, path.length == 0 ? cb : null);
-    me.loadPathRecursive(path, cb);
+    this.loadObj(systemName, true, path.length == 0 ? cb : null);
+    this.loadPathRecursive(path, cb);
   };
 };
+
+
+module.exports = Controller;
