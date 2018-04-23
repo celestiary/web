@@ -34,5 +34,7 @@
 "siderealOrbitPeriod": 5.93144099136E7
 }
 ,
-"system": ["phobos","deimos"]
+"system": ["phobos","deimos"],
+"texture_atmosphere": true,
+"texture_terrain": true,
 }

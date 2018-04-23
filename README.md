@@ -5,3 +5,7 @@ Inspired by Celestia (http://shatters.net/celestia), Celestiary is a web-based a
 A running instance of Celestiary is available at:
 
 http://celestiary.appspot.com/
+
+## How to Build
+
+browserify src/index.js > war/index-bundle.js

@@ -1,31 +1,36 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <script type="text/javascript" src="Three.js"></script>
-    <script type="text/javascript" src="shared.js"></script>
-    <script type="text/javascript" src="material.js"></script>
-    <script type="text/javascript" src="scene.js"></script>
-    <script type="text/javascript" src="shapes.js"></script>
-    <script type="text/javascript" src="animation.js"></script>
-    <script type="text/javascript" src="testJson.js"></script>
-    <script type="text/javascript" src="t-1000.js"></script>
-    <script type="text/javascript" src="index.js"></script>
-    <script>
-      test_hook = function(){
-        scene = initCanvas(document.getElementById('scene'), 0);
-        timeScale = 1E2;
-
-        camera.position.z = 10;
-
-        scene.add(l = newPointLight());
-        l.position.x = 5;
-        l.position.y = 10;
-        l.position.z = 10;
-
-        //scene.add(s = sphere());
-      }
-    </script>
+    <script type="text/javascript" src="three.js"></script>
   </head>
-  <body id="scene" style="position: relative; margin: 0; padding: 0; overflow: hidden; font-family: arial, sans">
-  </body>
+  <body style="margin: 0"></body>
+  <script type="text/javascript">
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const ratio = window.innerWidth/window.innerHeight;
+    const camera = new THREE.PerspectiveCamera(45, ratio, 1, 1000);
+    camera.position.z = 5;
+    camera.position.y = 2;
+    camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+    const scene = new THREE.Scene();
+ 
+    const material = new THREE.MeshPhongMaterial({color: 0x00AA00})
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
+    cube.overdraw = true;
+    scene.add(cube);
+ 
+    const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 1);
+    directionalLight.position.set(0, 1, 0.5);
+    scene.add(directionalLight);
+    function animate() {
+      cube.rotation.y += 0.01;
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+ 
+    animate();
+    </script>
 </html>

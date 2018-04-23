@@ -46289,7 +46289,6 @@
 'use strict';
 
 const THREE = require('three');
-
 const Material = require('./material.js');
 
 // Simple cube for testing.
@@ -46304,8 +46303,8 @@ function box(width, height, depth, opts) {
   depth = depth || 1;
   opts = opts || {};
   opts.color = opts.color || 0xff0000;
-  var geom = new THREE.CubeGeometry(width, height, depth);
-  var matr = new THREE.MeshBasicMaterial(opts);
+  const geom = new THREE.CubeGeometry(width, height, depth);
+  const matr = new THREE.MeshBasicMaterial(opts);
   return new THREE.Mesh(geom, matr);
 }
 
@@ -46313,26 +46312,26 @@ function sphere(opts) {
   opts = opts || {};
   opts.radius = opts.radius || 1;
   opts.segmentSize = opts.segmentSize || 128;
-  var matrOpts = opts.matr || {
+  const matrOpts = opts.matr || {
     color: 0xffffff,
     transparent: false
   };
-  var matr = new THREE.MeshBasicMaterial(matrOpts);
-  var geom = new THREE.SphereGeometry(opts.radius, opts.segmentSize, opts.segmentSize / 2);
+  const geom = new THREE.SphereGeometry(opts.radius, opts.segmentSize, opts.segmentSize / 2);
+  const matr = new THREE.MeshBasicMaterial(matrOpts);
   return new THREE.Mesh(geom, matr);
 }
 
 // Lod Sphere.
 function lodSphere(radius, material) {
   radius = radius || 1;
-  var lod = new THREE.LOD();
-  var geoms = 
+  const lod = new THREE.LOD();
+  const geoms = 
     [[getSphereGeom(128), radius],
      [getSphereGeom(32), radius * 10],
      [getSphereGeom(16), radius * 100],
      [getSphereGeom(8), radius * 300]];
-  for (var i = 0; i < geoms.length; i++) {
-    var mesh = new THREE.Mesh(geoms[i][0], material);
+  for (let i = 0; i < geoms.length; i++) {
+    const mesh = new THREE.Mesh(geoms[i][0], material);
     mesh.scale.set(radius, radius, radius);
     mesh.updateMatrix();
     mesh.matrixAutoUpdate = false;
@@ -46340,14 +46339,14 @@ function lodSphere(radius, material) {
   }
   lod.updateMatrix();
   lod.matrixAutoUpdate = false;
-  var obj = new THREE.Object3D;
+  const obj = new THREE.Object3D;
   obj.add(lod);
   return obj;
 }
 
-var _sphereGeoms = new Array();
+const _sphereGeoms = new Array();
 function getSphereGeom(segmentSize) {
-  var geom = _sphereGeoms[segmentSize];
+  let geom = _sphereGeoms[segmentSize];
   if (!geom) {
     geom = _sphereGeoms[segmentSize] = new THREE.SphereGeometry(1, segmentSize, segmentSize / 2);
   }
@@ -46356,7 +46355,7 @@ function getSphereGeom(segmentSize) {
 
 function atmos(radius) {
   // from http://data-arts.appspot.com/globe/globe.js
-  var Shaders = {
+  const Shaders = {
     'atmosphere' : {
       uniforms: {},
       vertexShader: ['varying vec3 vNormal;',
@@ -46372,19 +46371,19 @@ function atmos(radius) {
     }
   };
 
-  var sceneAtmosphere = new THREE.Object3D();
-  var geometry = new THREE.SphereGeometry(1, 128, 64);
+  const sceneAtmosphere = new THREE.Object3D();
+  const geometry = new THREE.SphereGeometry(1, 128, 64);
 
-  shader = Shaders['atmosphere'];
-  uniforms = THREE.UniformsUtils.clone(shader.uniforms);
+  const shader = Shaders['atmosphere'];
+  const uniforms = THREE.UniformsUtils.clone(shader.uniforms);
 
-  material = new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
       uniforms: uniforms,
       vertexShader: shader.vertexShader,
       fragmentShader: shader.fragmentShader
     });
 
-  var mesh = new THREE.Mesh(geometry, material);
+  const mesh = new THREE.Mesh(geometry, material);
   mesh.scale.x = mesh.scale.y = mesh.scale.z = radius;
   mesh.flipSided = true;
   mesh.matrixAutoUpdate = false;
@@ -46395,10 +46394,10 @@ function atmos(radius) {
 
 // TODO(pmy): is there a simpler way to draw a point?
 function point() {
-  var geom = new THREE.Geometry();
+  const geom = new THREE.Geometry();
   geom.vertices.push(new THREE.Vector3());
 
-  var pointMaterial =
+  const pointMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
                                size: 3,
                                sizeAttenuation: false,
@@ -46410,7 +46409,7 @@ function point() {
 }
 
 function line(vec1, vec2) {
-  var geom = new THREE.Geometry();
+  const geom = new THREE.Geometry();
   geom.vertices.push(vec1);
   geom.vertices.push(vec2);
   return new THREE.Line(geom, Material.lineMaterial());
@@ -46438,22 +46437,22 @@ function grid(params) {
  */
 function lineGrid(params) {
 
-  var grids = new THREE.Object3D();
+  const grids = new THREE.Object3D();
 
-  var size = params.stepSize * params.numSteps;
+  const size = params.stepSize * params.numSteps;
 
-  var mat = Material.lineMaterial(params);
+  const mat = Material.lineMaterial(params);
 
-  var xyGrid = new THREE.Line(gridGeometry(params), mat);
+  const xyGrid = new THREE.Line(gridGeometry(params), mat);
   xyGrid.position.x -= size / 2;
   xyGrid.position.y -= size / 2;
 
-  var xzGrid = new THREE.Line(gridGeometry(params), mat);
+  const xzGrid = new THREE.Line(gridGeometry(params), mat);
   xzGrid.rotation.x = Math.PI / 2;
   xzGrid.position.x -= size / 2;
   xzGrid.position.z -= size / 2;
 
-  var yzGrid = new THREE.Line(gridGeometry(params), mat);
+  const yzGrid = new THREE.Line(gridGeometry(params), mat);
   yzGrid.rotation.y = Math.PI / 2;
   yzGrid.position.z += size / 2;
   yzGrid.position.y -= size / 2;
@@ -46470,17 +46469,17 @@ function gridGeometry(params) {
   if (!params) params = {}
   if (!params.stepSize) params.stepSize = 1
   if (!params.numSteps) params.numSteps = 10;
-  var gridGeom = new THREE.Geometry();
-  var size = params.stepSize * params.numSteps;
-  for (var x = 0; x < params.numSteps; x += 2) {
-    var xOff = x * params.stepSize;
+  const gridGeom = new THREE.Geometry();
+  const size = params.stepSize * params.numSteps;
+  for (let x = 0; x < params.numSteps; x += 2) {
+    const xOff = x * params.stepSize;
     gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff, 0, 0)));
     gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff, size, 0)));
     gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff + params.stepSize, size, 0)));
     gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff + params.stepSize, 0, 0)));
   }
-  for (var y = 0; y < params.numSteps; y += 2) {
-    var yOff = y * params.stepSize;
+  for (let y = 0; y < params.numSteps; y += 2) {
+    const yOff = y * params.stepSize;
     gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, yOff, 0, 0)));
     gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, yOff, 0)));
     gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, yOff + params.stepSize, 0)));
@@ -46495,8 +46494,7 @@ function gridGeometry(params) {
 }
 
 function imgGrid(params) {
-
-  var imageCanvas = document.createElement('canvas'),
+  const imageCanvas = document.createElement('canvas'),
     context = imageCanvas.getContext('2d');
 
   imageCanvas.width = imageCanvas.height = 32;
@@ -46505,17 +46503,17 @@ function imgGrid(params) {
   context.lineWidth = params.lineWidth;
   context.strokeRect(0, 0, 32, 32);
 
-  var textureCanvas =
+  const textureCanvas =
     new THREE.Texture(imageCanvas, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping);
   materialCanvas = new THREE.MeshBasicMaterial({map: textureCanvas});
 
-  var span = params.stepSize * params.numSteps;
+  const span = params.stepSize * params.numSteps;
 
   textureCanvas.needsUpdate = true;
   textureCanvas.repeat.set(params.numSteps, params.numSteps);
 
-  var geometry = new THREE.PlaneGeometry(1, 1);
-  var meshCanvas = new THREE.Mesh(geometry, materialCanvas);
+  const geometry = new THREE.PlaneGeometry(1, 1);
+  const meshCanvas = new THREE.Mesh(geometry, materialCanvas);
   meshCanvas.scale.set(span, span, span);
   meshCanvas.doubleSided = true;
 
@@ -46524,12 +46522,12 @@ function imgGrid(params) {
 
 // Ellipse
 function port(rad, height, startAngle, angle) {
-  var curveGen = new THREE.EllipseCurve(0, 0, rad, 0, startAngle, angle);
-  var path = new THREE.CurvePath();
+  const curveGen = new THREE.EllipseCurve(0, 0, rad, 0, startAngle, angle);
+  const path = new THREE.CurvePath();
   path.add(curveGen);
-  var geom = path.createPointsGeometry(100);
+  const geom = path.createPointsGeometry(100);
   geom.computeTangents();
-  var mat = new THREE.LineBasicMaterial({
+  const mat = new THREE.LineBasicMaterial({
       color: 0xc0c0c0,
       blending: THREE.AdditiveBlending,
       depthTest: true,
@@ -46537,12 +46535,12 @@ function port(rad, height, startAngle, angle) {
       transparent: false
     });
   
-  var portTop = new THREE.Line(geom, mat);
-  var portBottom = new THREE.Line(geom, mat);
+  const portTop = new THREE.Line(geom, mat);
+  const portBottom = new THREE.Line(geom, mat);
   portTop.position.z += height / 2;
   portBottom.position.z -= height / 2;
   
-  var shape = new THREE.Object3D();
+  const shape = new THREE.Object3D();
   shape.add(portTop);
   shape.add(portBottom);
 
@@ -46576,16 +46574,16 @@ THREE.EllipseCurve.prototype = new THREE.Curve();
 THREE.EllipseCurve.prototype.constructor = THREE.EllipseCurve;
 THREE.EllipseCurve.prototype.getPoint = function (t) {
 
-  var deltaAngle = this.aEndAngle - this.aStartAngle;
+  const deltaAngle = this.aEndAngle - this.aStartAngle;
 
   if (!this.aClockwise) {
     t = 1 - t;
   }
 
-  var angle = this.aStartAngle + t * deltaAngle;
+  const angle = this.aStartAngle + t * deltaAngle;
 
-  var tx = this.aX + this.aRadius * Math.cos(angle);
-  var ty = this.aY + this.bRadius * Math.sin(angle);
+  const tx = this.aX + this.aRadius * Math.cos(angle);
+  const ty = this.aY + this.bRadius * Math.sin(angle);
 
   return new THREE.Vector2(tx, ty);
 };
@@ -46797,8 +46795,14 @@ function Celestiary(canvasContainer, dateElt) {
       'keypress',
       (e) => {
         switch (e.which) {
+          // 'j'
+          case 106: this.invertTimeScale(); break;
+          // 'k'
+          case 107: this.changeTimeScale(-1); break;
+          // 'l'
+          case 108: this.changeTimeScale(1); break;
           // 'o'
-        case 111: this.ctrl.scene.toggleOrbits(); break;
+          case 111: this.toggleOrbits(); break;
         }
       },
       true);
@@ -48088,12 +48092,12 @@ Scene.prototype.add = function(props) {
 
   // Find a parent or add directly to scene.  TODO(pablo): this is
   // ugly, since this is the only way the scene goes live.
-  var parentNode = this.sceneNodes[props.parent];
+  let parentNode = this.sceneNodes[props.parent];
   if (!parentNode) {
     parentNode = this.threeUi.scene;
   }
 
-  var obj;
+  let obj;
   if (props.type == 'galaxy') {
     // TODO(pablo): a nice galaxy.
     obj = new THREE.Object3D;
@@ -48133,7 +48137,7 @@ Scene.prototype.add = function(props) {
 
 
 Scene.prototype.select = function(name) {
-  var node = this.sceneNodes[name];
+  const node = this.sceneNodes[name];
   if (!node) {
     // TODO(pablo): this is a race on initial load.  The target is
     // selected before it's loaded, but the deferred select does work,
@@ -48153,14 +48157,14 @@ Scene.prototype.select = function(name) {
   }
 
   this.updateViewCb(this.threeUi.camera, this.threeRoot);
-  var tStepBack = Shared.targetPos.clone();
+  const tStepBack = Shared.targetPos.clone();
   tStepBack.negate();
   // TODO(pablo): if the target is at the origin (i.e. the sun),
   // need some non-zero basis to use as a step-back.
   if (tStepBack.x == 0 && tStepBack.y == 0) {
     tStepBack.set(0,0,1);
   }
-  var radius = node.props.radius;
+  let radius = node.props.radius;
   if (node.props.type == 'star') {
     radius = Measure.parseMeasure(node.props.radius).scalar;
     this.threeUi.controls.rotateSpeed = 1;
@@ -48180,14 +48184,14 @@ Scene.prototype.select = function(name) {
 
 /** The stars from the data file. */
 Scene.prototype.starGeom = function(stars) {
-  var geom = new THREE.Geometry();
+  const geom = new THREE.Geometry();
 
-  for (var i = 0; i < stars.length; i++) {
-    var s = stars[i];
-    var ra = s[0] * Shared.toDeg; // why not toRad?
-    var dec = s[1] * Shared.toDeg;
-    var dist = s[2] * Shared.orbitScale;
-    var vec = new THREE.Vector3(dist * Math.sin(ra) * Math.cos(dec),
+  for (let i = 0; i < stars.length; i++) {
+    const s = stars[i];
+    const ra = s[0] * Shared.toDeg; // why not toRad?
+    const dec = s[1] * Shared.toDeg;
+    const dist = s[2] * Shared.orbitScale;
+    const vec = new THREE.Vector3(dist * Math.sin(ra) * Math.cos(dec),
                                 dist * Math.sin(ra) * Math.sin(dec),
                                 dist * Math.cos(ra));
     geom.vertices.push(vec);
@@ -48197,12 +48201,12 @@ Scene.prototype.starGeom = function(stars) {
 
 
 Scene.prototype.newStars = function(geom, props) {
-  var orbitPlane = new THREE.Object3D;
-  var orbitPosition = new THREE.Object3D;
+  const orbitPlane = new THREE.Object3D;
+  const orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
 
-  var starImage = Material.pathTexture('star_glow', '.png');
-  var starMiniMaterial =
+  const starImage = Material.pathTexture('star_glow', '.png');
+  const starMiniMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
                                size: radiusScale * props.radius * 5E5,
 			       map: starImage,
@@ -48211,13 +48215,13 @@ Scene.prototype.newStars = function(geom, props) {
 			       depthTest: true,
 			       transparent: true });
 
-  var starPoints = new THREE.Points(geom, starMiniMaterial);
+  const starPoints = new THREE.Points(geom, starMiniMaterial);
   starPoints.sortParticles = true;
   orbitPosition.add(starPoints);
   orbitPlane.orbitPosition = orbitPosition;
 
   // A special one for the Sun. TODO(pmy): replace w/shader.
-  var sunSpriteMaterial =
+  const sunSpriteMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
                                size: radiusScale * props.radius * 5E2,
                                map: starImage,
@@ -48231,18 +48235,18 @@ Scene.prototype.newStars = function(geom, props) {
 
 
 Scene.prototype.newPlanetStars = function(geom, props) {
-  var orbitPlane = new THREE.Object3D;
-  var orbitPosition = new THREE.Object3D;
+  const orbitPlane = new THREE.Object3D;
+  const orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
 
-  var planetStarMiniMaterial =
+  const planetStarMiniMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
                                    size: 3,
                                    sizeAttenuation: false,
                                    depthTest: true,
                                    transparent: false });
 
-  var planetStarPoints = new THREE.Points(geom, planetStarMiniMaterial);
+  const planetStarPoints = new THREE.Points(geom, planetStarMiniMaterial);
   planetStarPoints.sortParticles = true;
   orbitPosition.add(planetStarPoints);
   orbitPlane.orbitPosition = orbitPosition;
@@ -48256,19 +48260,19 @@ Scene.prototype.newPointLight = function() {
 
 
 Scene.prototype.newStar = function(props) {
-  var orbitPlane = new THREE.Object3D;
-  var orbitPosition = new THREE.Object3D;
+  const orbitPlane = new THREE.Object3D;
+  const orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
   // Can't do a x-platform star yet.. sprites don't size up equally on
   // all screens and don't know how to do a billboard otherwise, so
   // just leave this as placeholder.  Particle system above does that
   // actual rendering.
   //orbitPosition.add(new THREE.Object3D);
-  var matr = {
+  const matr = {
     map: Material.pathTexture('sun'),
     blending: THREE.AdditiveBlending,
   };
-  var star = Shapes.sphere({'radius': 20, 'matr': matr});
+  const star = Shapes.sphere({'radius': 20, 'matr': matr});
   orbitPosition.add(star);
   orbitPlane.orbitPosition = orbitPosition;
   return orbitPlane;
@@ -48277,18 +48281,17 @@ Scene.prototype.newStar = function(props) {
 
 Scene.prototype.toggleOrbits = function() {
   this.orbitsVisible = !this.orbitsVisible;
-  for (var i = 0; i < this.orbitShapes.length; i++) {
+  for (let i = 0; i < this.orbitShapes.length; i++) {
     this.orbitShapes[i].visible = this.orbitsVisible;
   }
 };
 
 
 Scene.prototype.newOrbitingPlanet = function(planetProps) {
+  const orbit = planetProps.orbit;
 
-  var orbit = planetProps.orbit;
-
-  var orbitPlane = new THREE.Object3D;
-  var orbitShape = this.newOrbit(orbit);
+  const orbitPlane = new THREE.Object3D;
+  const orbitShape = this.newOrbit(orbit);
   this.orbitShapes.push(orbitShape);
   orbitPlane.add(orbitShape);
 
@@ -48298,18 +48301,18 @@ Scene.prototype.newOrbitingPlanet = function(planetProps) {
   //orbitPlane.add(Shapes.line(new THREE.Vector3(0, 0, 0),
   //    new THREE.Vector3(orbit.semiMajorAxis * Shared.orbitScale, 0, 0)));
 
-  var orbitPosition = new THREE.Object3D;
+  const orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
 
   // Attaching this property triggers orbit of planet during animation.
   // See animation.js#animateSystem.
   orbitPosition.orbit = planetProps.orbit;
 
-  var planet = this.newPlanet(planetProps);
+  const planet = this.newPlanet(planetProps);
   orbitPosition.add(planet);
   orbitPosition.add(Shapes.point());
 
-  var referencePlane = new THREE.Object3D;
+  const referencePlane = new THREE.Object3D;
   referencePlane.add(orbitPlane);
   referencePlane.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
   // Children centered at this planet's orbit position.
@@ -48320,11 +48323,10 @@ Scene.prototype.newOrbitingPlanet = function(planetProps) {
 
 
 Scene.prototype.newPlanet = function(planetProps) {
-  var planet = new THREE.Object3D;
+  const planet = new THREE.Object3D;
   // TODO(pablo): put these in near LOD only.
   if (planetProps.texture_atmosphere) {
     planet.add(this.newAtmosphere(planetProps));
-    //planet.add(atmos(planetProps.radius * atmosUpperScale));
   }
 
   // TODO(pablo): if underlying planet is a BasicMeshMaterial, order
@@ -48348,68 +48350,51 @@ Scene.prototype.newPlanet = function(planetProps) {
 
 // TODO(pablo): get shaders working again.
 Scene.prototype.newSurface = function(planetProps) {
-  var planetMaterial;
-  if (true || !(planetProps.texture_hydrosphere || planetProps.texture_terrain)) {
+  let planetMaterial;
+  if (!(planetProps.texture_hydrosphere || planetProps.texture_terrain)) {
     planetMaterial = Material.cacheMaterial(planetProps.name);
-  } else {
-
-    // Fancy planets.
-    var shader = THREE.ShaderUtils.lib['normal'];
-    var uniforms = THREE.UniformsUtils.clone(shader.uniforms);
-
-    uniforms['tDiffuse'].texture = Material.pathTexture(planetProps.name);
-    uniforms['enableAO'].value = false;
-    uniforms['enableDiffuse'].value = true;
-    uniforms['uDiffuseColor'].value.setHex(0xffffff);
-    uniforms['uAmbientColor'].value.setHex(0x000000);
-    uniforms['uShininess'].value = 100.0 * planetProps.albedo;
-    uniforms['uDiffuseColor'].value.convertGammaToLinear();
-    uniforms['uAmbientColor'].value.convertGammaToLinear();
-
-    if (false && planetProps.texture_hydrosphere) {
-      uniforms['enableSpecular'].value = true;
-      uniforms['tSpecular'].texture = Material.pathTexture(planetProps.name, '_hydro.jpg');
-      uniforms['uSpecularColor'].value.setHex(0xffffff);
-      uniforms['uSpecularColor'].value.convertGammaToLinear();
+    planetMaterial.shininess = 30;
+  } else if (planetProps.texture_hydrosphere || planetProps.texture_terrain) {
+    planetMaterial = Material.cacheMaterial(planetProps.name);
+    planetMaterial.shininess = 30;
+    if (planetProps.texture_terrain) {
+      planetMaterial.bumpMap = Material.pathTexture(planetProps.name + "_terrain");
+      planetMaterial.bumpScale = 0.001;
     }
-
-    if (false && planetProps.texture_terrain) {
-      uniforms['tNormal'].texture = Material.pathTexture(planetProps.name, '_terrain.jpg');
-      uniforms['uNormalScale'].value = 0.1;
+    if (planetProps.texture_hydrosphere) {
+      const hydroTex = Material.pathTexture(planetProps.name + "_hydro");
+      planetMaterial.specularMap = hydroTex;
+      planetMaterial.shininess = 50;
     }
-
-    planetMaterial = new THREE.ShaderMaterial({
-        fragmentShader: shader.fragmentShader,
-        vertexShader: shader.vertexShader,
-        uniforms: uniforms,
-        lights: true
-      });
   }
-
   return Shapes.lodSphere(planetProps.radius * radiusScale, planetMaterial);
 };
 
 Scene.prototype.newAtmosphere = function(planetProps) {
-  var mat =
-    new THREE.MeshLambertMaterial({color: 0xffffff,
-                                   map: Material.pathTexture(planetProps.name, '_atmos.png'),
-                                   transparent: true});
+  const atmosTex = Material.pathTexture(planetProps.name, '_atmos.jpg');
+  const mat =
+    new THREE.MeshPhongMaterial({color: 0xffffff,
+				 alphaMap: atmosTex,
+                                 transparent: true,
+				 specularMap: atmosTex,
+				 shininess: 100
+				 });
   return Shapes.lodSphere(planetProps.radius * atmosScale, mat);
 };
 
 
 Scene.prototype.newOrbit = function(orbit) {
-  var ellipseCurve = new THREE.EllipseCurve(0, 0,
+  const ellipseCurve = new THREE.EllipseCurve(0, 0,
                                             orbit.semiMajorAxis * Shared.orbitScale,
                                             orbit.eccentricity,
                                             0, 2.0 * Math.PI,
                                             false);
-  //var ellipseCurvePath = new THREE.CurvePath();
+  //const ellipseCurvePath = new THREE.CurvePath();
   //ellipseCurvePath.add(ellipseCurve);
-  //var ellipseGeometry = ellipseCurvePath.createPointsGeometry(100);
+  //const ellipseGeometry = ellipseCurvePath.createPointsGeometry(100);
   const ellipsePoints = ellipseCurve.getPoints(100);
-  var ellipseGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
-  var orbitMaterial = new THREE.LineBasicMaterial({
+  const ellipseGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
+  const orbitMaterial = new THREE.LineBasicMaterial({
       color: 0x0000ff,
       blending: THREE.AdditiveBlending,
       depthTest: true,
@@ -48417,7 +48402,7 @@ Scene.prototype.newOrbit = function(orbit) {
       transparent: false
     });
   
-  var line = new THREE.Line(ellipseGeometry, orbitMaterial);
+  const line = new THREE.Line(ellipseGeometry, orbitMaterial);
   line.rotation.x = Shared.halfPi;
 
   // Orbits may be turned off when this orbit is added, so set it to

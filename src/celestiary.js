@@ -52,8 +52,14 @@ function Celestiary(canvasContainer, dateElt) {
       'keypress',
       (e) => {
         switch (e.which) {
+          // 'j'
+          case 106: this.invertTimeScale(); break;
+          // 'k'
+          case 107: this.changeTimeScale(-1); break;
+          // 'l'
+          case 108: this.changeTimeScale(1); break;
           // 'o'
-        case 111: this.ctrl.scene.toggleOrbits(); break;
+          case 111: this.toggleOrbits(); break;
         }
       },
       true);
