@@ -2,19 +2,16 @@
 
 const THREE = require('three');
 const Animation = require('./animation.js');
-const Measure = require('./measure.js');
 const Shared = require('./shared.js');
 const stars = require('./t-1000.js');
 const Material = require('./material.js');
 const Shapes = require('./Shapes.js');
 
-const RADIUS_SCALE_NORMAL = 1E-7;
-const RADIUS_SCALE_BIG = 1E-4;
 
 const
-  radiusScale = RADIUS_SCALE_NORMAL,
-  atmosScale = radiusScale * 1.005,
-  atmosUpperScale = atmosScale;
+  radiusScale = Shared.radiusScale,
+  atmosScale = 1.005,
+  stepBackMult = 10;
 
 const Scene = function(threeUi, updateViewCb) {
   this.threeUi = threeUi;
@@ -51,7 +48,7 @@ Scene.prototype.add = function(props) {
     obj.add(this.newPointLight());
     // step back from the sun.
     this.threeUi.camera.position.set(
-        0, 0, Measure.parseMeasure(props.radius).scalar * radiusScale * 10.0);
+        0, 0, props.radius.scalar * radiusScale * stepBackMult);
   } else if (props.type == 'planet') {
     obj = this.newOrbitingPlanet(props);
   } else {
@@ -106,9 +103,7 @@ Scene.prototype.select = function(name) {
   if (tStepBack.x == 0 && tStepBack.y == 0) {
     tStepBack.set(0,0,1);
   }
-  let radius = node.props.radius;
   if (node.props.type == 'star') {
-    radius = Measure.parseMeasure(node.props.radius).scalar;
     this.threeUi.controls.rotateSpeed = 1;
     this.threeUi.controls.zoomSpeed = 1;
     this.threeUi.controls.panSpeed = 1;
@@ -117,7 +112,7 @@ Scene.prototype.select = function(name) {
     this.threeUi.controls.zoomSpeed = 0.001;
     this.threeUi.controls.panSpeed = 0.001;
   }
-  tStepBack.setLength(radius * Shared.orbitScale * 10.0);
+  tStepBack.setLength(node.props.radius.scalar * radiusScale * stepBackMult);
   Shared.targetPos.add(tStepBack);
   this.threeUi.camera.position.set(
       Shared.targetPos.x, Shared.targetPos.y, Shared.targetPos.z);
@@ -147,10 +142,11 @@ Scene.prototype.newStars = function(geom, props) {
   const orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
 
+  const starSize = props.radius.scalar * radiusScale * 1E5;
   const starImage = Material.pathTexture('star_glow', '.png');
   const starMiniMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                               size: radiusScale * props.radius * 5E5,
+                               size: starSize,
 			       map: starImage,
 			       sizeAttenuation: true,
 			       blending: THREE.AdditiveBlending,
@@ -165,7 +161,7 @@ Scene.prototype.newStars = function(geom, props) {
   // A special one for the Sun. TODO(pmy): replace w/shader.
   const sunSpriteMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                               size: radiusScale * props.radius * 5E2,
+                               size: starSize,
                                map: starImage,
                                sizeAttenuation: true,
                                blending: THREE.AdditiveBlending,
@@ -309,7 +305,7 @@ Scene.prototype.newSurface = function(planetProps) {
       planetMaterial.shininess = 50;
     }
   }
-  return Shapes.lodSphere(planetProps.radius * radiusScale, planetMaterial);
+  return Shapes.lodSphere(planetProps.radius.scalar * radiusScale, planetMaterial);
 };
 
 Scene.prototype.newAtmosphere = function(planetProps) {
@@ -321,7 +317,7 @@ Scene.prototype.newAtmosphere = function(planetProps) {
 				 specularMap: atmosTex,
 				 shininess: 100
 				 });
-  return Shapes.lodSphere(planetProps.radius * atmosScale, mat);
+  return Shapes.lodSphere(planetProps.radius.scalar * radiusScale * atmosScale, mat);
 };
 
 

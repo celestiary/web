@@ -5,9 +5,9 @@
 "parent":"sun",
 "apparentMagnitude": "-1.52",
 "colorIndex": 0.63369966,
-"mass": 6418500.0,
+"mass": "6.4171E25 g",
 "density": 3.9335,
-"radius": 3389920.0,
+"radius": "3.3895E6 m",
 "siderealRotationPeriod": 88642.6632,
 "axialInclination": 23.98,
 "location": {
@@ -20,8 +20,8 @@
 "name": "J2000",
 "date": "Sat Jan 01 07:00:00 EST 2000"
 }
-}
-,"albedo": 0.15,
+},
+"albedo": 0.15,
 "equatorialGravity": 3.69,
 "escapeVelocity": 5.027,
 "orbit": {

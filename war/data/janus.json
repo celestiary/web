@@ -5,9 +5,9 @@
 "parent":"saturn",
 "apparentMagnitude": "1.0",
 "colorIndex": 0.63369966,
-"mass": 1.98E21,
+"mass": "1.98E21 g",
 "density": 0.65,
-"radius": 88800.0,
+"radius": "8.88E5 m",
 "siderealRotationPeriod": 60000.0,
 "axialInclination": 0.14,
 "location": {

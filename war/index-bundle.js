@@ -46748,6 +46748,7 @@ const Animation = require('./animation.js');
 const ThreeUi = require('./three_ui.js');
 const Controller = require('./controller.js');
 const Scene = require('./scene.js');
+const Shared = require('./shared.js');
 
 /**
  * Solar System simulator inspired by Celestia using Three.js.
@@ -46784,6 +46785,7 @@ function Celestiary(canvasContainer, dateElt) {
       canvasContainer, Animation.animation, postAnimationCb, updateViewCb);
   this.scene = new Scene(this.threeUi, updateViewCb);
   this.ctrl = new Controller(this.scene);
+  this.shared = Shared;
   window.addEventListener(
       'hashchange',
       (e) => {
@@ -46795,14 +46797,20 @@ function Celestiary(canvasContainer, dateElt) {
       'keypress',
       (e) => {
         switch (e.which) {
-          // 'j'
-          case 106: this.invertTimeScale(); break;
-          // 'k'
-          case 107: this.changeTimeScale(-1); break;
-          // 'l'
-          case 108: this.changeTimeScale(1); break;
-          // 'o'
-          case 111: this.toggleOrbits(); break;
+          case 48: this.ctrl.loadPath('sun'); break; // '0'
+          case 49: this.ctrl.loadPath('mercury'); break; // '1'
+          case 50: this.ctrl.loadPath('venus'); break; // '2'
+          case 51: this.ctrl.loadPath('earth'); break; // '3'
+          case 52: this.ctrl.loadPath('mars'); break; // '4'
+          case 53: this.ctrl.loadPath('jupiter'); break; // '5'
+          case 54: this.ctrl.loadPath('saturn'); break; // '6'
+          case 55: this.ctrl.loadPath('uranus'); break; // '7'
+          case 56: this.ctrl.loadPath('neptune'); break; // '8'
+          case 57: this.ctrl.loadPath('pluto'); break; // '9'
+          case 106: this.invertTimeScale(); break; // 'j'
+          case 107: this.changeTimeScale(-1); break; // 'k'
+          case 108: this.changeTimeScale(1); break; // 'l'
+          case 111: this.toggleOrbits(); break; // 'o'
         }
       },
       true);
@@ -46833,7 +46841,7 @@ Celestiary.prototype.invertTimeScale = Animation.invertTimeScale;
 
 module.exports = Celestiary;
 
-},{"./animation.js":3,"./controller.js":6,"./scene.js":13,"./three_ui.js":16,"three":1}],5:[function(require,module,exports){
+},{"./animation.js":3,"./controller.js":6,"./scene.js":13,"./shared.js":14,"./three_ui.js":16,"three":1}],5:[function(require,module,exports){
 'use strict';
 
 /**
@@ -46923,6 +46931,7 @@ module.exports = {
 
 const collapsor = require('./collapsor.js');
 const Resource = require('./rest.js');
+const Measure = require('./measure.js');
 
 /**
  * The Controller loads the scene.  The scene nodes are fetched from
@@ -46975,7 +46984,13 @@ function Controller(scene) {
         if (!isArray) {
           html += prop + ': ';
         }
-        if (val instanceof Array) {
+        if (val instanceof Measure) {
+          if (prop == 'radius' || prop == 'mass') {
+            val = val.convertTo(Measure.Magnitude.KILO);
+            val.scalar = Math.floor(val.scalar);
+          }
+          html += `${val}`;
+        } else if (val instanceof Array) {
           if (prop == 'system') {
             html += '<ol>\n';
           } else {
@@ -47007,6 +47022,30 @@ function Controller(scene) {
     return html;
   };
 
+  /**
+   * Most measures are just passed on for display.  Some are needed to
+   * be reified, like radius and mass.
+   */
+  this.reifyMeasures = function(obj) {
+    function reify(obj, prop, name) {
+      if (obj[prop]) {
+        if (typeof obj[prop] === 'string') {
+          const m = Measure.parse(obj[prop]).convertToUnit();
+          // The parse leaves small amount in the low-significant
+          // decimals, meaningless for unit values in grams and meters
+          // for celestial objects.
+          m.scalar = Math.floor(m.scalar);
+          obj[prop] = m;
+        } else {
+          console.log(`unnormalized ${prop} for ${name}`);
+        }
+      }
+    }
+    const name = obj.name;
+    reify(obj, 'radius', name);
+    reify(obj, 'mass', name);
+  };
+
 
   /**
    * Loads the given object and adds it to the scene; optionally
@@ -47036,6 +47075,7 @@ function Controller(scene) {
       this.loaded[name] = 'pending';
       new Resource(name).get((obj) => {
           this.loaded[name] = obj;
+          this.reifyMeasures(obj);
           this.scene.add(obj);
           if (expand && obj.system) {
             for (var i = 0; i < obj.system.length; i++) {
@@ -47084,7 +47124,7 @@ function Controller(scene) {
 
 module.exports = Controller;
 
-},{"./collapsor.js":5,"./rest.js":12}],7:[function(require,module,exports){
+},{"./collapsor.js":5,"./measure.js":11,"./rest.js":12}],7:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -47854,7 +47894,7 @@ module.exports = {
 };
 
 },{"three":1}],11:[function(require,module,exports){
-// copied from phys/measure.js
+'use strict';
 /**
  * Measure formatting and conversion utility.  The system of measure
  * used is a a slight variation of the System International (SI)
@@ -47871,18 +47911,15 @@ module.exports = {
  * defined as "D" instead of "da" so that a decagram can be
  * represented as "Dg" instead of "dag" or "da gram", which is
  * congruent with the usage of the other unit abbreviations.
- *
- * @author <a href="mailto:pablo@freality.com">Pablo Mayrgundter</a>
- * @version $Revision: 1.1.1.1 $
  */
 
-var unitByAbbrev = {};
-var unitByName = {};
+const unitByAbbrev = {};
+const unitByName = {};
 
-function Unit(symbol, abbrev, name) {
-  this.symbol = symbol;
-  this.abbrev = abbrev;
+function Unit(name, abbrev, dimension) {
   this.name = name;
+  this.abbrev = abbrev;
+  this.dimension = dimension;
   unitByAbbrev[abbrev] = this;
   unitByName[name] = this;
 }
@@ -47892,31 +47929,30 @@ Unit.prototype.toString = function() {
 };
 
 Unit.lookup = function(str) {
-  var unit = unitByAbbrev[str];
-  if (unit)
+  const unit = unitByAbbrev[str];
+  if (unit) {
     return unit;
+  }
   return unitByName[str];
 };
 
-Unit.LENGTH = new Unit("l", "m", "meter");
-Unit.MASS = new Unit("m", "g", "gram");
-Unit.TIME = new Unit("t", "s", "second");
-Unit.CURRENT = new Unit("I", "A", "Ampere");
-Unit.TEMPERATURE = new Unit("T", "K", "Kelvin");
-Unit.LUMINOUS_INTENSITY = new Unit("L", "cd", "candela");
-Unit.AMOUNT_OF_SUBSTANCE = new Unit("n", "mol", "mole");
+Unit.METER = new Unit('meter', 'm', 'length');
+Unit.GRAM = new Unit('gram', 'g', 'mass');
+Unit.SECOND = new Unit('second', 's', 'time');
+Unit.AMPERE = new Unit('ampere', 'A', 'electric current');
+Unit.KELVIN = new Unit('kelvin', 'K', 'temperature');
+Unit.CANDELA = new Unit('candela', 'cd', 'luminous intensity');
+Unit.MOLE = new Unit('mole', 'mol', 'amount of substance');
 
-magnitudeByAbbrev = {};
-magnitudeByName = {};
+const magnitudeByAbbrev = {};
+const magnitudeByName = {};
 
 function Magnitude(exponent, name, abbrev) {
   this.exponent = exponent;
   this.name = name;
   this.abbrev = abbrev;
-
-  magnitudeByAbbrev[abbrev] = this;
   magnitudeByName[name] = this;
-
+  magnitudeByAbbrev[abbrev] = this;
 }
 
 Magnitude.prototype.toString = function() {
@@ -47924,9 +47960,10 @@ Magnitude.prototype.toString = function() {
 };
 
 Magnitude.lookup = function(str) {
-  var magnitude = magnitudeByAbbrev[str];
-  if (magnitude)
+  const magnitude = magnitudeByAbbrev[str];
+  if (magnitude) {
     return magnitude;
+  }
   return magnitudeByName[str];
 };
 
@@ -47934,84 +47971,99 @@ Magnitude.lookup = function(str) {
  * Converts the given scalar in the given magnitude to the
  * equivalent scalar in this magnitude.
  */
-Magnitude.prototype.convert = function(scalar, mag) {
-  return scalar * Math.pow(10, mag.exponent - this.exponent);
+Magnitude.prototype.from = function(scalar, mag) {
+  const expDiff = mag.exponent - this.exponent;
+  const mult = Math.pow(10, expDiff);
+  const result = scalar * mult;
+  return result;
 };
 
-Magnitude.YOTTA = new Magnitude(24, "yotta", "Y");
-Magnitude.ZETTA = new Magnitude(21, "zetta", "Z");
-Magnitude.EXA = new Magnitude(18, "exa", "E");
-Magnitude.PETA = new Magnitude(15, "peta", "P");
-Magnitude.TERA = new Magnitude(12, "tera", "T");
-Magnitude.GIGA = new Magnitude(9, "giga", "G");
-Magnitude.MEGA = new Magnitude(6, "mega", "M");
-Magnitude.KILO = new Magnitude(3, "kilo", "k");
-Magnitude.HECTO = new Magnitude(2, "hecto", "h");
-Magnitude.DECA = new Magnitude(1, "deca", "D");
-Magnitude.UNIT = new Magnitude(0, "", "");
-Magnitude.DECI = new Magnitude(-1, "deci", "d");
-Magnitude.CENTI = new Magnitude(-2, "centi", "c");
-Magnitude.MILLI = new Magnitude(-3, "milli", "m");
-Magnitude.MICRO = new Magnitude(-6, "micro", "\u03BC");
-Magnitude.NANO = new Magnitude(-9, "nano", "n");
-Magnitude.PICO = new Magnitude(-12, "pico", "p");
-Magnitude.FEMTO = new Magnitude(-15, "femto", "f");
-Magnitude.ATTO = new Magnitude(-18, "atto", "a");
-Magnitude.ZETO = new Magnitude(-21, "zepto", "z");
-Magnitude.YOCTO = new Magnitude(-24, "yocto", "y");
+Magnitude.YOTTA = new Magnitude(24, 'yotta', 'Y');
+Magnitude.ZETTA = new Magnitude(21, 'zetta', 'Z');
+Magnitude.EXA = new Magnitude(18, 'exa', 'E');
+Magnitude.PETA = new Magnitude(15, 'peta', 'P');
+Magnitude.TERA = new Magnitude(12, 'tera', 'T');
+Magnitude.GIGA = new Magnitude(9, 'giga', 'G');
+Magnitude.MEGA = new Magnitude(6, 'mega', 'M');
+Magnitude.KILO = new Magnitude(3, 'kilo', 'k');
+Magnitude.HECTO = new Magnitude(2, 'hecto', 'h');
+Magnitude.DECA = new Magnitude(1, 'deca', 'D');
+Magnitude.UNIT = new Magnitude(0, '', '');
+Magnitude.DECI = new Magnitude(-1, 'deci', 'd');
+Magnitude.CENTI = new Magnitude(-2, 'centi', 'c');
+Magnitude.MILLI = new Magnitude(-3, 'milli', 'm');
+Magnitude.MICRO = new Magnitude(-6, 'micro', '\u03BC');
+Magnitude.NANO = new Magnitude(-9, 'nano', 'n');
+Magnitude.PICO = new Magnitude(-12, 'pico', 'p');
+Magnitude.FEMTO = new Magnitude(-15, 'femto', 'f');
+Magnitude.ATTO = new Magnitude(-18, 'atto', 'a');
+Magnitude.ZETO = new Magnitude(-21, 'zepto', 'z');
+Magnitude.YOCTO = new Magnitude(-24, 'yocto', 'y');
 
-function Measure(scalar, unit, magnitude) {
-  if (!scalar)
-    throw "Null scalar given.";
-  if (!unit)
-    throw "Null unit given.";
+function Measure(scalar, magnitude, unit) {
+  if (typeof scalar != 'number') {
+    throw 'Invalid scalar given: ' + scalar;
+  }
+  if (typeof magnitude != 'object' || magnitude.constructor.name != 'Magnitude') {
+    throw 'Invalid magnitude given: ' + magnitude;
+  }
+  if (typeof unit != 'object' || unit.constructor.name != 'Unit') {
+    throw 'Invalid unit given: ' + unit;
+  }
   this.scalar = scalar;
-  this.unit = unit;
   this.magnitude = magnitude || Magnitude.UNIT;
+  this.unit = unit;
 
-  this.convert = function(mag) {
-    return new Measure(mag.convert(this.scalar, this.magnitude), this.unit, mag);
+  this.equals = function(other) {
+    return this.scalar === other.scalar
+      && this.magnitude === other.magnitude
+      && this.unit === other.unit;
+  }
+
+  this.convertTo = function(mag) {
+    return new Measure(mag.from(this.scalar, this.magnitude), mag, this.unit);
   };
 
-  this.toUnitScalar = function() {
-    return UNIT.convert(this.scalar, this.magnitude);
+  this.convertToUnit = function() {
+    return this.convertTo(Magnitude.UNIT);
   };
 
   this.toString = function() {
-    var canonical = this.convert(Magnitude.UNIT);
-    var s = '';
-    s += canonical.scalar;
-    s += canonical.magnitude.abbrev;
-    s += canonical.unit.abbrev;
+    let s = '';
+    s += this.scalar;
+    s += this.magnitude.abbrev;
+    s += this.unit.abbrev;
     return s;
   };
 }
 
+
+Measure.Unit = Unit;
+Measure.Magnitude = Magnitude;
+
 /**
  * @throws If the string does not contain a parsable measure.
  */
-Measure.parseMeasure = function(s) {
-  if (!s)
-    throw "Given string is null";
-  //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
-  var m = s.match(/(-?\d+(?:.\d+)?(?:E\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
-  if (!m)
-    throw "Could not parse measure from given string: " + s;
-
-  var scalar = m[1];
-
-  if (m.length == 2) {
-    var unit = m[2];
-    return new Measure(parseFloat(scalar), Unit.lookup(unit));
+Measure.parse = function(s) {
+  if (typeof s != 'string') {
+    throw 'Given string is null or not string: ' + s;
   }
-
-  var magnitude = m[2];
-  var unit = m[3];
-
-  return new Measure(scalar == null ? 0.0 : parseFloat(scalar),
-                     Unit.lookup(unit),
-                     magnitude == null ? Magnitude.prototype.UNIT :
-                     Magnitude.lookup(magnitude));
+  //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
+  const m = s.match(/(-?\d+(?:.\d+)?(?:E\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
+  if (!m) {
+    throw 'Could not parse measure from given string: ' + s;
+  }
+  const scalar = parseFloat(m[1]);
+  if (m.length == 2) {
+    const unit = m[2];
+    const ul = Unit.lookup(unit);
+    return new Measure(parseFloat(scalar), Magnitude.UNIT, ul);
+  }
+  const magnitude = m[2] || null;
+  const unit = m[3];
+  const ml = magnitude == null ? Magnitude.UNIT : Magnitude.lookup(magnitude);
+  const ul = Unit.lookup(unit);
+  return new Measure(scalar == null ? 0.0 : parseFloat(scalar), ml, ul);
 };
 
 
@@ -48060,19 +48112,16 @@ module.exports = Resource;
 
 const THREE = require('three');
 const Animation = require('./animation.js');
-const Measure = require('./measure.js');
 const Shared = require('./shared.js');
 const stars = require('./t-1000.js');
 const Material = require('./material.js');
 const Shapes = require('./Shapes.js');
 
-const RADIUS_SCALE_NORMAL = 1E-7;
-const RADIUS_SCALE_BIG = 1E-4;
 
 const
-  radiusScale = RADIUS_SCALE_NORMAL,
-  atmosScale = radiusScale * 1.005,
-  atmosUpperScale = atmosScale;
+  radiusScale = Shared.radiusScale,
+  atmosScale = 1.005,
+  stepBackMult = 10;
 
 const Scene = function(threeUi, updateViewCb) {
   this.threeUi = threeUi;
@@ -48109,7 +48158,7 @@ Scene.prototype.add = function(props) {
     obj.add(this.newPointLight());
     // step back from the sun.
     this.threeUi.camera.position.set(
-        0, 0, Measure.parseMeasure(props.radius).scalar * radiusScale * 10.0);
+        0, 0, props.radius.scalar * radiusScale * stepBackMult);
   } else if (props.type == 'planet') {
     obj = this.newOrbitingPlanet(props);
   } else {
@@ -48164,9 +48213,7 @@ Scene.prototype.select = function(name) {
   if (tStepBack.x == 0 && tStepBack.y == 0) {
     tStepBack.set(0,0,1);
   }
-  let radius = node.props.radius;
   if (node.props.type == 'star') {
-    radius = Measure.parseMeasure(node.props.radius).scalar;
     this.threeUi.controls.rotateSpeed = 1;
     this.threeUi.controls.zoomSpeed = 1;
     this.threeUi.controls.panSpeed = 1;
@@ -48175,7 +48222,7 @@ Scene.prototype.select = function(name) {
     this.threeUi.controls.zoomSpeed = 0.001;
     this.threeUi.controls.panSpeed = 0.001;
   }
-  tStepBack.setLength(radius * Shared.orbitScale * 10.0);
+  tStepBack.setLength(node.props.radius.scalar * radiusScale * stepBackMult);
   Shared.targetPos.add(tStepBack);
   this.threeUi.camera.position.set(
       Shared.targetPos.x, Shared.targetPos.y, Shared.targetPos.z);
@@ -48205,10 +48252,11 @@ Scene.prototype.newStars = function(geom, props) {
   const orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
 
+  const starSize = props.radius.scalar * radiusScale * 1E5;
   const starImage = Material.pathTexture('star_glow', '.png');
   const starMiniMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                               size: radiusScale * props.radius * 5E5,
+                               size: starSize,
 			       map: starImage,
 			       sizeAttenuation: true,
 			       blending: THREE.AdditiveBlending,
@@ -48223,7 +48271,7 @@ Scene.prototype.newStars = function(geom, props) {
   // A special one for the Sun. TODO(pmy): replace w/shader.
   const sunSpriteMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                               size: radiusScale * props.radius * 5E2,
+                               size: starSize,
                                map: starImage,
                                sizeAttenuation: true,
                                blending: THREE.AdditiveBlending,
@@ -48367,7 +48415,7 @@ Scene.prototype.newSurface = function(planetProps) {
       planetMaterial.shininess = 50;
     }
   }
-  return Shapes.lodSphere(planetProps.radius * radiusScale, planetMaterial);
+  return Shapes.lodSphere(planetProps.radius.scalar * radiusScale, planetMaterial);
 };
 
 Scene.prototype.newAtmosphere = function(planetProps) {
@@ -48379,7 +48427,7 @@ Scene.prototype.newAtmosphere = function(planetProps) {
 				 specularMap: atmosTex,
 				 shininess: 100
 				 });
-  return Shapes.lodSphere(planetProps.radius * atmosScale, mat);
+  return Shapes.lodSphere(planetProps.radius.scalar * radiusScale * atmosScale, mat);
 };
 
 
@@ -48414,12 +48462,27 @@ Scene.prototype.newOrbit = function(orbit) {
 
 module.exports = Scene;
 
-},{"./Shapes.js":2,"./animation.js":3,"./material.js":10,"./measure.js":11,"./shared.js":14,"./t-1000.js":15,"three":1}],14:[function(require,module,exports){
+},{"./Shapes.js":2,"./animation.js":3,"./material.js":10,"./shared.js":14,"./t-1000.js":15,"three":1}],14:[function(require,module,exports){
 'use strict';
 
 const THREE = require('three');
 
-const ORBIT_SCALE_NORMAL = 1E-7;
+// This size is chosen to allow for the maximum object and distance
+// size range in the scene.  The smallest object in the scene is
+// Mars's moon Deimos, which is 6.2E3 m.  The smallest size I found
+// that three/webgl supports is 1E-4.  So rounding Deimos down to 1E3,
+// and then dividing it down to the smallest size.
+
+// Deimos size in meters.
+const SMALLEST_REAL_SIZE = 1E3;
+// Smallest renderable size.
+const SMALLEST_RENDER_SIZE = 1E-4;
+// SMALLEST_RENDER_SIZE / SMALLEST_REAL_SIZE = 1E-7, but can't use the
+// calculation since it actually yields 1.0000000000000001e-7.
+const LENGTH_SCALE = 1E-7;
+
+// Additionally, when I hardcode LENGTH_SCALE to 1E-5, LOD starts to
+// flake out when zoomed to small sizes, supporting the 1E-4 minimum.
 
 module.exports = {
   twoPi: Math.PI * 2.0,
@@ -48427,7 +48490,8 @@ module.exports = {
   toDeg: 180.0 / Math.PI,
   toRad: Math.PI / 180.0,
 
-  orbitScale: ORBIT_SCALE_NORMAL,
+  orbitScale: LENGTH_SCALE,
+  radiusScale: LENGTH_SCALE,
 
   targetObj: null,
   targetObjLoc: new THREE.Matrix4,
@@ -49447,7 +49511,7 @@ function ThreeUi(container, animationCb, postAnimationCb, windowResizeCb) {
   this.windowResizeCb = windowResizeCb || (() => {});
   this.setSize();
   this.initRenderer(container);
-  this.camera = new THREE.PerspectiveCamera(25, this.width / this.height, 1, 1E13);
+  this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, 1E-3, 1E35);
   this.camera.rotationAutoUpdate = true;
   this.initControls(this.camera);
   this.scene = new THREE.Scene();

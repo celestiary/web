@@ -5,9 +5,9 @@
 "parent":"earth",
 "apparentMagnitude": "-12.74",
 "colorIndex": 0.63369966,
-"mass": 734700.0,
+"mass": "7.34767309E25 g",
 "density": 3.344,
-"radius": 1738100.0,
+"radius": "1.7381E6 m",
 "siderealRotationPeriod": 3.144952566E7,
 "axialInclination": 1.543,
 "location": {
