@@ -9,28 +9,53 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    const ratio = window.innerWidth/window.innerHeight;
-    const camera = new THREE.PerspectiveCamera(45, ratio, 1, 1000);
-    camera.position.z = 5;
-    camera.position.y = 2;
-    camera.lookAt(new THREE.Vector3(0, 0, 0));
+    function makeLight() {
+      const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 1);
+      directionalLight.position.set(0, 1, 0.5);
+      return directionalLight;
+    }
+
+    function makeCube(size) {
+      size = size || 1;
+      const material = new THREE.MeshPhongMaterial({color: 0x00AA00})
+      const cube = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), material);
+      cube.overdraw = true;
+      return cube;
+    }
+
+    let camera;
+    let cube = null;
+    function animate(cb) {
+      if (typeof cb == 'function') {
+        cb();
+      }
+      renderer.render(scene, camera);
+      requestAnimationFrame(() => {
+        animate(cb)
+      });
+    }
+
+    let fov = 1E-36;
+    function makeCamera(near, far) {
+      camera = new THREE.PerspectiveCamera(fov,
+        window.innerWidth / window.innerHeight,
+        near, far);
+      camera.lookAt(new THREE.Vector3(0, 0, 0));
+      return camera;
+    }
+
+    let cubeSize = 1E-4;
+    const stepBack = cubeSize * 5;
+    const near = 1E-4, far = 1/fov * 1E-1;
 
     const scene = new THREE.Scene();
+    scene.add(makeLight());
+    scene.add(cube = makeCube(cubeSize));
+    makeCamera(near, far);
+    camera.position.z = far;
  
-    const material = new THREE.MeshPhongMaterial({color: 0x00AA00})
-    const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
-    cube.overdraw = true;
-    scene.add(cube);
- 
-    const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 1);
-    directionalLight.position.set(0, 1, 0.5);
-    scene.add(directionalLight);
-    function animate() {
-      cube.rotation.y += 0.01;
-      renderer.render(scene, camera);
-      requestAnimationFrame(animate);
-    }
- 
-    animate();
-    </script>
+    renderer.render(scene, camera);
+    const cb = () => { if (cube) { cube.rotation.y += 0.01; } };
+    animate(cb);
+  </script>
 </html>

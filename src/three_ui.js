@@ -9,7 +9,7 @@ function ThreeUi(container, animationCb, postAnimationCb, windowResizeCb) {
   this.windowResizeCb = windowResizeCb || (() => {});
   this.setSize();
   this.initRenderer(container);
-  this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, 1, 1E13);
+  this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, 1E-3, 1E35);
   this.camera.rotationAutoUpdate = true;
   this.initControls(this.camera);
   this.scene = new THREE.Scene();
