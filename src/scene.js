@@ -7,12 +7,10 @@ const stars = require('./t-1000.js');
 const Material = require('./material.js');
 const Shapes = require('./Shapes.js');
 
-const RADIUS_SCALE = 1E-7;
 
 const
-  radiusScale = RADIUS_SCALE,
-  atmosScale = radiusScale * 1.005,
-  atmosUpperScale = atmosScale,
+  radiusScale = Shared.radiusScale,
+  atmosScale = 1.005,
   stepBackMult = 10;
 
 const Scene = function(threeUi, updateViewCb) {
@@ -144,10 +142,11 @@ Scene.prototype.newStars = function(geom, props) {
   const orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
 
+  const starSize = props.radius.scalar * radiusScale * 1E5;
   const starImage = Material.pathTexture('star_glow', '.png');
   const starMiniMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                               size: props.radius.scalar * radiusScale * 5E5,
+                               size: starSize,
 			       map: starImage,
 			       sizeAttenuation: true,
 			       blending: THREE.AdditiveBlending,
@@ -162,7 +161,7 @@ Scene.prototype.newStars = function(geom, props) {
   // A special one for the Sun. TODO(pmy): replace w/shader.
   const sunSpriteMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                               size: props.radius.scalar * radiusScale * 5E2,
+                               size: starSize,
                                map: starImage,
                                sizeAttenuation: true,
                                blending: THREE.AdditiveBlending,
@@ -318,7 +317,7 @@ Scene.prototype.newAtmosphere = function(planetProps) {
 				 specularMap: atmosTex,
 				 shininess: 100
 				 });
-  return Shapes.lodSphere(planetProps.radius.scalar * atmosScale, mat);
+  return Shapes.lodSphere(planetProps.radius.scalar * radiusScale * atmosScale, mat);
 };
 
 

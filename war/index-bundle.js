@@ -46748,6 +46748,7 @@ const Animation = require('./animation.js');
 const ThreeUi = require('./three_ui.js');
 const Controller = require('./controller.js');
 const Scene = require('./scene.js');
+const Shared = require('./shared.js');
 
 /**
  * Solar System simulator inspired by Celestia using Three.js.
@@ -46784,6 +46785,7 @@ function Celestiary(canvasContainer, dateElt) {
       canvasContainer, Animation.animation, postAnimationCb, updateViewCb);
   this.scene = new Scene(this.threeUi, updateViewCb);
   this.ctrl = new Controller(this.scene);
+  this.shared = Shared;
   window.addEventListener(
       'hashchange',
       (e) => {
@@ -46795,14 +46797,20 @@ function Celestiary(canvasContainer, dateElt) {
       'keypress',
       (e) => {
         switch (e.which) {
-          // 'j'
-          case 106: this.invertTimeScale(); break;
-          // 'k'
-          case 107: this.changeTimeScale(-1); break;
-          // 'l'
-          case 108: this.changeTimeScale(1); break;
-          // 'o'
-          case 111: this.toggleOrbits(); break;
+          case 48: this.ctrl.loadPath('sun'); break; // '0'
+          case 49: this.ctrl.loadPath('mercury'); break; // '1'
+          case 50: this.ctrl.loadPath('venus'); break; // '2'
+          case 51: this.ctrl.loadPath('earth'); break; // '3'
+          case 52: this.ctrl.loadPath('mars'); break; // '4'
+          case 53: this.ctrl.loadPath('jupiter'); break; // '5'
+          case 54: this.ctrl.loadPath('saturn'); break; // '6'
+          case 55: this.ctrl.loadPath('uranus'); break; // '7'
+          case 56: this.ctrl.loadPath('neptune'); break; // '8'
+          case 57: this.ctrl.loadPath('pluto'); break; // '9'
+          case 106: this.invertTimeScale(); break; // 'j'
+          case 107: this.changeTimeScale(-1); break; // 'k'
+          case 108: this.changeTimeScale(1); break; // 'l'
+          case 111: this.toggleOrbits(); break; // 'o'
         }
       },
       true);
@@ -46833,7 +46841,7 @@ Celestiary.prototype.invertTimeScale = Animation.invertTimeScale;
 
 module.exports = Celestiary;
 
-},{"./animation.js":3,"./controller.js":6,"./scene.js":13,"./three_ui.js":16,"three":1}],5:[function(require,module,exports){
+},{"./animation.js":3,"./controller.js":6,"./scene.js":13,"./shared.js":14,"./three_ui.js":16,"three":1}],5:[function(require,module,exports){
 'use strict';
 
 /**
@@ -48038,7 +48046,7 @@ Measure.Magnitude = Magnitude;
  */
 Measure.parse = function(s) {
   if (typeof s != 'string') {
-    throw 'Given string is null or not string: ' + s + ', type: ' + (typeof s);
+    throw 'Given string is null or not string: ' + s;
   }
   //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
   const m = s.match(/(-?\d+(?:.\d+)?(?:E\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
@@ -48109,12 +48117,10 @@ const stars = require('./t-1000.js');
 const Material = require('./material.js');
 const Shapes = require('./Shapes.js');
 
-const RADIUS_SCALE = 1E-7;
 
 const
-  radiusScale = RADIUS_SCALE,
-  atmosScale = radiusScale * 1.005,
-  atmosUpperScale = atmosScale,
+  radiusScale = Shared.radiusScale,
+  atmosScale = 1.005,
   stepBackMult = 10;
 
 const Scene = function(threeUi, updateViewCb) {
@@ -48246,10 +48252,11 @@ Scene.prototype.newStars = function(geom, props) {
   const orbitPosition = new THREE.Object3D;
   orbitPlane.add(orbitPosition);
 
+  const starSize = props.radius.scalar * radiusScale * 1E5;
   const starImage = Material.pathTexture('star_glow', '.png');
   const starMiniMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                               size: props.radius.scalar * radiusScale * 5E5,
+                               size: starSize,
 			       map: starImage,
 			       sizeAttenuation: true,
 			       blending: THREE.AdditiveBlending,
@@ -48264,7 +48271,7 @@ Scene.prototype.newStars = function(geom, props) {
   // A special one for the Sun. TODO(pmy): replace w/shader.
   const sunSpriteMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                               size: props.radius.scalar * radiusScale * 5E2,
+                               size: starSize,
                                map: starImage,
                                sizeAttenuation: true,
                                blending: THREE.AdditiveBlending,
@@ -48420,7 +48427,7 @@ Scene.prototype.newAtmosphere = function(planetProps) {
 				 specularMap: atmosTex,
 				 shininess: 100
 				 });
-  return Shapes.lodSphere(planetProps.radius.scalar * atmosScale, mat);
+  return Shapes.lodSphere(planetProps.radius.scalar * radiusScale * atmosScale, mat);
 };
 
 
@@ -48460,7 +48467,7 @@ module.exports = Scene;
 
 const THREE = require('three');
 
-const ORBIT_SCALE_NORMAL = 1E-6;
+const LENGTH_SCALE = 1E-5;
 
 module.exports = {
   twoPi: Math.PI * 2.0,
@@ -48468,7 +48475,8 @@ module.exports = {
   toDeg: 180.0 / Math.PI,
   toRad: Math.PI / 180.0,
 
-  orbitScale: ORBIT_SCALE_NORMAL,
+  orbitScale: LENGTH_SCALE,
+  radiusScale: LENGTH_SCALE,
 
   targetObj: null,
   targetObjLoc: new THREE.Matrix4,
@@ -49488,7 +49496,7 @@ function ThreeUi(container, animationCb, postAnimationCb, windowResizeCb) {
   this.windowResizeCb = windowResizeCb || (() => {});
   this.setSize();
   this.initRenderer(container);
-  this.camera = new THREE.PerspectiveCamera(25, this.width / this.height, 1, 1E13);
+  this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, 1, 1E13);
   this.camera.rotationAutoUpdate = true;
   this.initControls(this.camera);
   this.scene = new THREE.Scene();
