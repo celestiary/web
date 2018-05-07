@@ -51,7 +51,7 @@ Scene.prototype.add = function(props) {
     obj.add(this.newPointLight());
     // step back from the sun.
     this.threeUi.camera.position.set(
-        0, 0, Measure.parseMeasure(props.radius).scalar * radiusScale * 10.0);
+        0, 0, Measure.parse(props.radius).scalar * radiusScale * 10.0);
   } else if (props.type == 'planet') {
     obj = this.newOrbitingPlanet(props);
   } else {
@@ -108,7 +108,7 @@ Scene.prototype.select = function(name) {
   }
   let radius = node.props.radius;
   if (node.props.type == 'star') {
-    radius = Measure.parseMeasure(node.props.radius).scalar;
+    radius = Measure.parse(node.props.radius).scalar;
     this.threeUi.controls.rotateSpeed = 1;
     this.threeUi.controls.zoomSpeed = 1;
     this.threeUi.controls.panSpeed = 1;

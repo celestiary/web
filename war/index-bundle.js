@@ -47854,7 +47854,7 @@ module.exports = {
 };
 
 },{"three":1}],11:[function(require,module,exports){
-// copied from phys/measure.js
+'use strict';
 /**
  * Measure formatting and conversion utility.  The system of measure
  * used is a a slight variation of the System International (SI)
@@ -47871,18 +47871,15 @@ module.exports = {
  * defined as "D" instead of "da" so that a decagram can be
  * represented as "Dg" instead of "dag" or "da gram", which is
  * congruent with the usage of the other unit abbreviations.
- *
- * @author <a href="mailto:pablo@freality.com">Pablo Mayrgundter</a>
- * @version $Revision: 1.1.1.1 $
  */
 
-var unitByAbbrev = {};
-var unitByName = {};
+const unitByAbbrev = {};
+const unitByName = {};
 
-function Unit(symbol, abbrev, name) {
-  this.symbol = symbol;
-  this.abbrev = abbrev;
+function Unit(name, abbrev, dimension) {
   this.name = name;
+  this.abbrev = abbrev;
+  this.dimension = dimension;
   unitByAbbrev[abbrev] = this;
   unitByName[name] = this;
 }
@@ -47892,31 +47889,30 @@ Unit.prototype.toString = function() {
 };
 
 Unit.lookup = function(str) {
-  var unit = unitByAbbrev[str];
-  if (unit)
+  const unit = unitByAbbrev[str];
+  if (unit) {
     return unit;
+  }
   return unitByName[str];
 };
 
-Unit.LENGTH = new Unit("l", "m", "meter");
-Unit.MASS = new Unit("m", "g", "gram");
-Unit.TIME = new Unit("t", "s", "second");
-Unit.CURRENT = new Unit("I", "A", "Ampere");
-Unit.TEMPERATURE = new Unit("T", "K", "Kelvin");
-Unit.LUMINOUS_INTENSITY = new Unit("L", "cd", "candela");
-Unit.AMOUNT_OF_SUBSTANCE = new Unit("n", "mol", "mole");
+Unit.METER = new Unit('meter', 'm', 'length');
+Unit.GRAM = new Unit('gram', 'g', 'mass');
+Unit.SECOND = new Unit('second', 's', 'time');
+Unit.AMPERE = new Unit('ampere', 'A', 'electric current');
+Unit.KELVIN = new Unit('kelvin', 'K', 'temperature');
+Unit.CANDELA = new Unit('candela', 'cd', 'luminous intensity');
+Unit.MOLE = new Unit('mole', 'mol', 'amount of substance');
 
-magnitudeByAbbrev = {};
-magnitudeByName = {};
+const magnitudeByAbbrev = {};
+const magnitudeByName = {};
 
 function Magnitude(exponent, name, abbrev) {
   this.exponent = exponent;
   this.name = name;
   this.abbrev = abbrev;
-
-  magnitudeByAbbrev[abbrev] = this;
   magnitudeByName[name] = this;
-
+  magnitudeByAbbrev[abbrev] = this;
 }
 
 Magnitude.prototype.toString = function() {
@@ -47924,9 +47920,10 @@ Magnitude.prototype.toString = function() {
 };
 
 Magnitude.lookup = function(str) {
-  var magnitude = magnitudeByAbbrev[str];
-  if (magnitude)
+  const magnitude = magnitudeByAbbrev[str];
+  if (magnitude) {
     return magnitude;
+  }
   return magnitudeByName[str];
 };
 
@@ -47934,84 +47931,99 @@ Magnitude.lookup = function(str) {
  * Converts the given scalar in the given magnitude to the
  * equivalent scalar in this magnitude.
  */
-Magnitude.prototype.convert = function(scalar, mag) {
-  return scalar * Math.pow(10, mag.exponent - this.exponent);
+Magnitude.prototype.from = function(scalar, mag) {
+  const expDiff = mag.exponent - this.exponent;
+  const mult = Math.pow(10, expDiff);
+  const result = scalar * mult;
+  return result;
 };
 
-Magnitude.YOTTA = new Magnitude(24, "yotta", "Y");
-Magnitude.ZETTA = new Magnitude(21, "zetta", "Z");
-Magnitude.EXA = new Magnitude(18, "exa", "E");
-Magnitude.PETA = new Magnitude(15, "peta", "P");
-Magnitude.TERA = new Magnitude(12, "tera", "T");
-Magnitude.GIGA = new Magnitude(9, "giga", "G");
-Magnitude.MEGA = new Magnitude(6, "mega", "M");
-Magnitude.KILO = new Magnitude(3, "kilo", "k");
-Magnitude.HECTO = new Magnitude(2, "hecto", "h");
-Magnitude.DECA = new Magnitude(1, "deca", "D");
-Magnitude.UNIT = new Magnitude(0, "", "");
-Magnitude.DECI = new Magnitude(-1, "deci", "d");
-Magnitude.CENTI = new Magnitude(-2, "centi", "c");
-Magnitude.MILLI = new Magnitude(-3, "milli", "m");
-Magnitude.MICRO = new Magnitude(-6, "micro", "\u03BC");
-Magnitude.NANO = new Magnitude(-9, "nano", "n");
-Magnitude.PICO = new Magnitude(-12, "pico", "p");
-Magnitude.FEMTO = new Magnitude(-15, "femto", "f");
-Magnitude.ATTO = new Magnitude(-18, "atto", "a");
-Magnitude.ZETO = new Magnitude(-21, "zepto", "z");
-Magnitude.YOCTO = new Magnitude(-24, "yocto", "y");
+Magnitude.YOTTA = new Magnitude(24, 'yotta', 'Y');
+Magnitude.ZETTA = new Magnitude(21, 'zetta', 'Z');
+Magnitude.EXA = new Magnitude(18, 'exa', 'E');
+Magnitude.PETA = new Magnitude(15, 'peta', 'P');
+Magnitude.TERA = new Magnitude(12, 'tera', 'T');
+Magnitude.GIGA = new Magnitude(9, 'giga', 'G');
+Magnitude.MEGA = new Magnitude(6, 'mega', 'M');
+Magnitude.KILO = new Magnitude(3, 'kilo', 'k');
+Magnitude.HECTO = new Magnitude(2, 'hecto', 'h');
+Magnitude.DECA = new Magnitude(1, 'deca', 'D');
+Magnitude.UNIT = new Magnitude(0, '', '');
+Magnitude.DECI = new Magnitude(-1, 'deci', 'd');
+Magnitude.CENTI = new Magnitude(-2, 'centi', 'c');
+Magnitude.MILLI = new Magnitude(-3, 'milli', 'm');
+Magnitude.MICRO = new Magnitude(-6, 'micro', '\u03BC');
+Magnitude.NANO = new Magnitude(-9, 'nano', 'n');
+Magnitude.PICO = new Magnitude(-12, 'pico', 'p');
+Magnitude.FEMTO = new Magnitude(-15, 'femto', 'f');
+Magnitude.ATTO = new Magnitude(-18, 'atto', 'a');
+Magnitude.ZETO = new Magnitude(-21, 'zepto', 'z');
+Magnitude.YOCTO = new Magnitude(-24, 'yocto', 'y');
 
-function Measure(scalar, unit, magnitude) {
-  if (!scalar)
-    throw "Null scalar given.";
-  if (!unit)
-    throw "Null unit given.";
+function Measure(scalar, magnitude, unit) {
+  if (typeof scalar != 'number') {
+    throw 'Invalid scalar given: ' + scalar;
+  }
+  if (typeof magnitude != 'object' || magnitude.constructor.name != 'Magnitude') {
+    throw 'Invalid magnitude given: ' + magnitude;
+  }
+  if (typeof unit != 'object' || unit.constructor.name != 'Unit') {
+    throw 'Invalid unit given: ' + unit;
+  }
   this.scalar = scalar;
-  this.unit = unit;
   this.magnitude = magnitude || Magnitude.UNIT;
+  this.unit = unit;
 
-  this.convert = function(mag) {
-    return new Measure(mag.convert(this.scalar, this.magnitude), this.unit, mag);
+  this.equals = function(other) {
+    return this.scalar === other.scalar
+      && this.magnitude === other.magnitude
+      && this.unit === other.unit;
+  }
+
+  this.convertTo = function(mag) {
+    return new Measure(mag.from(this.scalar, this.magnitude), mag, this.unit);
   };
 
-  this.toUnitScalar = function() {
-    return UNIT.convert(this.scalar, this.magnitude);
+  this.convertToUnit = function() {
+    return this.convertTo(Magnitude.UNIT);
   };
 
   this.toString = function() {
-    var canonical = this.convert(Magnitude.UNIT);
-    var s = '';
-    s += canonical.scalar;
-    s += canonical.magnitude.abbrev;
-    s += canonical.unit.abbrev;
+    let s = '';
+    s += this.scalar;
+    s += this.magnitude.abbrev;
+    s += this.unit.abbrev;
     return s;
   };
 }
 
+
+Measure.Unit = Unit;
+Measure.Magnitude = Magnitude;
+
 /**
  * @throws If the string does not contain a parsable measure.
  */
-Measure.parseMeasure = function(s) {
-  if (!s)
-    throw "Given string is null";
-  //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
-  var m = s.match(/(-?\d+(?:.\d+)?(?:E\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
-  if (!m)
-    throw "Could not parse measure from given string: " + s;
-
-  var scalar = m[1];
-
-  if (m.length == 2) {
-    var unit = m[2];
-    return new Measure(parseFloat(scalar), Unit.lookup(unit));
+Measure.parse = function(s) {
+  if (typeof s != 'string') {
+    throw 'Given string is null or not string: ' + s;
   }
-
-  var magnitude = m[2];
-  var unit = m[3];
-
-  return new Measure(scalar == null ? 0.0 : parseFloat(scalar),
-                     Unit.lookup(unit),
-                     magnitude == null ? Magnitude.prototype.UNIT :
-                     Magnitude.lookup(magnitude));
+  //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
+  const m = s.match(/(-?\d+(?:.\d+)?(?:E\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
+  if (!m) {
+    throw 'Could not parse measure from given string: ' + s;
+  }
+  const scalar = parseFloat(m[1]);
+  if (m.length == 2) {
+    const unit = m[2];
+    const ul = Unit.lookup(unit);
+    return new Measure(parseFloat(scalar), Magnitude.UNIT, ul);
+  }
+  const magnitude = m[2] || null;
+  const unit = m[3];
+  const ml = magnitude == null ? Magnitude.UNIT : Magnitude.lookup(magnitude);
+  const ul = Unit.lookup(unit);
+  return new Measure(scalar == null ? 0.0 : parseFloat(scalar), ml, ul);
 };
 
 
@@ -48109,7 +48121,7 @@ Scene.prototype.add = function(props) {
     obj.add(this.newPointLight());
     // step back from the sun.
     this.threeUi.camera.position.set(
-        0, 0, Measure.parseMeasure(props.radius).scalar * radiusScale * 10.0);
+        0, 0, Measure.parse(props.radius).scalar * radiusScale * 10.0);
   } else if (props.type == 'planet') {
     obj = this.newOrbitingPlanet(props);
   } else {
@@ -48166,7 +48178,7 @@ Scene.prototype.select = function(name) {
   }
   let radius = node.props.radius;
   if (node.props.type == 'star') {
-    radius = Measure.parseMeasure(node.props.radius).scalar;
+    radius = Measure.parse(node.props.radius).scalar;
     this.threeUi.controls.rotateSpeed = 1;
     this.threeUi.controls.zoomSpeed = 1;
     this.threeUi.controls.panSpeed = 1;
