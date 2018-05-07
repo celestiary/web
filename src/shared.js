@@ -2,7 +2,7 @@
 
 const THREE = require('three');
 
-const ORBIT_SCALE_NORMAL = 1E-7;
+const ORBIT_SCALE_NORMAL = 1E-6;
 
 module.exports = {
   twoPi: Math.PI * 2.0,

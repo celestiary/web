@@ -1,13 +1,12 @@
 {
 "type":"planet",
-
 "name":"phobos",
 "parent":"mars",
 "apparentMagnitude": "1.0",
 "colorIndex": 0.63369966,
-"mass": 1.08E19,
+"mass": "1.0659E19 g",
 "density": 1.75,
-"radius": 13400.0,
+"radius": "1.2667E4 m",
 "siderealRotationPeriod": 27648.0,
 "axialInclination": 1.0,
 "location": {

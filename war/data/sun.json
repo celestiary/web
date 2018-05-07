@@ -5,9 +5,9 @@
 "parent":"milky_way",
 "apparentMagnitude": "-26.8",
 "colorIndex": 1.0,
-"mass": 1.9891E33,
+"mass": "1.9891E33 g",
 "density": 1.41,
-"radius": "6.9424895E8m",
+"radius": "6.9424895E8 m",
 "siderealRotationPeriod": 2160000.0,
 "axialInclination": 1.0,
 "location": {
@@ -20,7 +20,6 @@
 "name": "J2000",
 "date": "Sat Jan 01 07:00:00 EST 2000"
 }
-}
-,
+},
 "system": ["mercury","venus","earth","mars","jupiter","saturn","uranus","neptune","pluto"]
 }

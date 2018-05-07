@@ -5,9 +5,9 @@
 "parent":"jupiter",
 "apparentMagnitude": "1.0",
 "colorIndex": 0.63369966,
-"mass": 8.94E25,
+"mass": "8.94E25 g",
 "density": 3.57,
-"radius": 1821000.0,
+"radius": "1.821E6 m",
 "siderealRotationPeriod": 152928.0,
 "axialInclination": 1.0,
 "location": {

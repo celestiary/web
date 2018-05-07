@@ -46923,6 +46923,7 @@ module.exports = {
 
 const collapsor = require('./collapsor.js');
 const Resource = require('./rest.js');
+const Measure = require('./measure.js');
 
 /**
  * The Controller loads the scene.  The scene nodes are fetched from
@@ -46975,7 +46976,13 @@ function Controller(scene) {
         if (!isArray) {
           html += prop + ': ';
         }
-        if (val instanceof Array) {
+        if (val instanceof Measure) {
+          if (prop == 'radius' || prop == 'mass') {
+            val = val.convertTo(Measure.Magnitude.KILO);
+            val.scalar = Math.floor(val.scalar);
+          }
+          html += `${val}`;
+        } else if (val instanceof Array) {
           if (prop == 'system') {
             html += '<ol>\n';
           } else {
@@ -47007,6 +47014,30 @@ function Controller(scene) {
     return html;
   };
 
+  /**
+   * Most measures are just passed on for display.  Some are needed to
+   * be reified, like radius and mass.
+   */
+  this.reifyMeasures = function(obj) {
+    function reify(obj, prop, name) {
+      if (obj[prop]) {
+        if (typeof obj[prop] === 'string') {
+          const m = Measure.parse(obj[prop]).convertToUnit();
+          // The parse leaves small amount in the low-significant
+          // decimals, meaningless for unit values in grams and meters
+          // for celestial objects.
+          m.scalar = Math.floor(m.scalar);
+          obj[prop] = m;
+        } else {
+          console.log(`unnormalized ${prop} for ${name}`);
+        }
+      }
+    }
+    const name = obj.name;
+    reify(obj, 'radius', name);
+    reify(obj, 'mass', name);
+  };
+
 
   /**
    * Loads the given object and adds it to the scene; optionally
@@ -47036,6 +47067,7 @@ function Controller(scene) {
       this.loaded[name] = 'pending';
       new Resource(name).get((obj) => {
           this.loaded[name] = obj;
+          this.reifyMeasures(obj);
           this.scene.add(obj);
           if (expand && obj.system) {
             for (var i = 0; i < obj.system.length; i++) {
@@ -47084,7 +47116,7 @@ function Controller(scene) {
 
 module.exports = Controller;
 
-},{"./collapsor.js":5,"./rest.js":12}],7:[function(require,module,exports){
+},{"./collapsor.js":5,"./measure.js":11,"./rest.js":12}],7:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -48006,7 +48038,7 @@ Measure.Magnitude = Magnitude;
  */
 Measure.parse = function(s) {
   if (typeof s != 'string') {
-    throw 'Given string is null or not string: ' + s;
+    throw 'Given string is null or not string: ' + s + ', type: ' + (typeof s);
   }
   //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
   const m = s.match(/(-?\d+(?:.\d+)?(?:E\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
@@ -48072,19 +48104,18 @@ module.exports = Resource;
 
 const THREE = require('three');
 const Animation = require('./animation.js');
-const Measure = require('./measure.js');
 const Shared = require('./shared.js');
 const stars = require('./t-1000.js');
 const Material = require('./material.js');
 const Shapes = require('./Shapes.js');
 
-const RADIUS_SCALE_NORMAL = 1E-7;
-const RADIUS_SCALE_BIG = 1E-4;
+const RADIUS_SCALE = 1E-7;
 
 const
-  radiusScale = RADIUS_SCALE_NORMAL,
+  radiusScale = RADIUS_SCALE,
   atmosScale = radiusScale * 1.005,
-  atmosUpperScale = atmosScale;
+  atmosUpperScale = atmosScale,
+  stepBackMult = 10;
 
 const Scene = function(threeUi, updateViewCb) {
   this.threeUi = threeUi;
@@ -48121,7 +48152,7 @@ Scene.prototype.add = function(props) {
     obj.add(this.newPointLight());
     // step back from the sun.
     this.threeUi.camera.position.set(
-        0, 0, Measure.parse(props.radius).scalar * radiusScale * 10.0);
+        0, 0, props.radius.scalar * radiusScale * stepBackMult);
   } else if (props.type == 'planet') {
     obj = this.newOrbitingPlanet(props);
   } else {
@@ -48176,9 +48207,7 @@ Scene.prototype.select = function(name) {
   if (tStepBack.x == 0 && tStepBack.y == 0) {
     tStepBack.set(0,0,1);
   }
-  let radius = node.props.radius;
   if (node.props.type == 'star') {
-    radius = Measure.parse(node.props.radius).scalar;
     this.threeUi.controls.rotateSpeed = 1;
     this.threeUi.controls.zoomSpeed = 1;
     this.threeUi.controls.panSpeed = 1;
@@ -48187,7 +48216,7 @@ Scene.prototype.select = function(name) {
     this.threeUi.controls.zoomSpeed = 0.001;
     this.threeUi.controls.panSpeed = 0.001;
   }
-  tStepBack.setLength(radius * Shared.orbitScale * 10.0);
+  tStepBack.setLength(node.props.radius.scalar * radiusScale * stepBackMult);
   Shared.targetPos.add(tStepBack);
   this.threeUi.camera.position.set(
       Shared.targetPos.x, Shared.targetPos.y, Shared.targetPos.z);
@@ -48220,7 +48249,7 @@ Scene.prototype.newStars = function(geom, props) {
   const starImage = Material.pathTexture('star_glow', '.png');
   const starMiniMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                               size: radiusScale * props.radius * 5E5,
+                               size: props.radius.scalar * radiusScale * 5E5,
 			       map: starImage,
 			       sizeAttenuation: true,
 			       blending: THREE.AdditiveBlending,
@@ -48235,7 +48264,7 @@ Scene.prototype.newStars = function(geom, props) {
   // A special one for the Sun. TODO(pmy): replace w/shader.
   const sunSpriteMaterial =
     new THREE.PointsMaterial({ color: 0xffffff,
-                               size: radiusScale * props.radius * 5E2,
+                               size: props.radius.scalar * radiusScale * 5E2,
                                map: starImage,
                                sizeAttenuation: true,
                                blending: THREE.AdditiveBlending,
@@ -48379,7 +48408,7 @@ Scene.prototype.newSurface = function(planetProps) {
       planetMaterial.shininess = 50;
     }
   }
-  return Shapes.lodSphere(planetProps.radius * radiusScale, planetMaterial);
+  return Shapes.lodSphere(planetProps.radius.scalar * radiusScale, planetMaterial);
 };
 
 Scene.prototype.newAtmosphere = function(planetProps) {
@@ -48391,7 +48420,7 @@ Scene.prototype.newAtmosphere = function(planetProps) {
 				 specularMap: atmosTex,
 				 shininess: 100
 				 });
-  return Shapes.lodSphere(planetProps.radius * atmosScale, mat);
+  return Shapes.lodSphere(planetProps.radius.scalar * atmosScale, mat);
 };
 
 
@@ -48426,12 +48455,12 @@ Scene.prototype.newOrbit = function(orbit) {
 
 module.exports = Scene;
 
-},{"./Shapes.js":2,"./animation.js":3,"./material.js":10,"./measure.js":11,"./shared.js":14,"./t-1000.js":15,"three":1}],14:[function(require,module,exports){
+},{"./Shapes.js":2,"./animation.js":3,"./material.js":10,"./shared.js":14,"./t-1000.js":15,"three":1}],14:[function(require,module,exports){
 'use strict';
 
 const THREE = require('three');
 
-const ORBIT_SCALE_NORMAL = 1E-7;
+const ORBIT_SCALE_NORMAL = 1E-6;
 
 module.exports = {
   twoPi: Math.PI * 2.0,

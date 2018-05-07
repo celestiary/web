@@ -2,6 +2,7 @@
 
 const collapsor = require('./collapsor.js');
 const Resource = require('./rest.js');
+const Measure = require('./measure.js');
 
 /**
  * The Controller loads the scene.  The scene nodes are fetched from
@@ -54,7 +55,13 @@ function Controller(scene) {
         if (!isArray) {
           html += prop + ': ';
         }
-        if (val instanceof Array) {
+        if (val instanceof Measure) {
+          if (prop == 'radius' || prop == 'mass') {
+            val = val.convertTo(Measure.Magnitude.KILO);
+            val.scalar = Math.floor(val.scalar);
+          }
+          html += `${val}`;
+        } else if (val instanceof Array) {
           if (prop == 'system') {
             html += '<ol>\n';
           } else {
@@ -86,6 +93,30 @@ function Controller(scene) {
     return html;
   };
 
+  /**
+   * Most measures are just passed on for display.  Some are needed to
+   * be reified, like radius and mass.
+   */
+  this.reifyMeasures = function(obj) {
+    function reify(obj, prop, name) {
+      if (obj[prop]) {
+        if (typeof obj[prop] === 'string') {
+          const m = Measure.parse(obj[prop]).convertToUnit();
+          // The parse leaves small amount in the low-significant
+          // decimals, meaningless for unit values in grams and meters
+          // for celestial objects.
+          m.scalar = Math.floor(m.scalar);
+          obj[prop] = m;
+        } else {
+          console.log(`unnormalized ${prop} for ${name}`);
+        }
+      }
+    }
+    const name = obj.name;
+    reify(obj, 'radius', name);
+    reify(obj, 'mass', name);
+  };
+
 
   /**
    * Loads the given object and adds it to the scene; optionally
@@ -115,6 +146,7 @@ function Controller(scene) {
       this.loaded[name] = 'pending';
       new Resource(name).get((obj) => {
           this.loaded[name] = obj;
+          this.reifyMeasures(obj);
           this.scene.add(obj);
           if (expand && obj.system) {
             for (var i = 0; i < obj.system.length; i++) {

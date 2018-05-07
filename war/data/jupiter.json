@@ -5,9 +5,9 @@
 "parent":"sun",
 "apparentMagnitude": "-9.4",
 "colorIndex": 0.63369966,
-"mass": 1.8986E10,
+"mass": "1.8986E30 g",
 "density": 1.326,
-"radius": 6.9911E7,
+"radius": "6.9911E7 m",
 "siderealRotationPeriod": 35727.3,
 "axialInclination": 3.08,
 "location": {
