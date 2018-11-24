@@ -1,3 +1,4 @@
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :
@@ -46283,3 +46284,3333 @@
 	Object.defineProperty(exports, '__esModule', { value: true });
 
 })));
+
+},{}],2:[function(require,module,exports){
+const THREE = require('three');
+const Shared = require('./shared.js');
+
+let Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+/**
+ * Time scale is applied to wall-clock time, so that by a larger time
+ * scale will speed things up, 0 will be normal time, negative
+ * backwards.
+ */
+let timeScale = 1;
+
+/** Controlled by UI clicks.. timeScale is basically 2^steps. */
+let timeScaleSteps = 0;
+
+let lastSysTime = Date.now();
+
+/** @exported */
+const clocks = {
+  sysTime: lastSysTime,
+  simTime: lastSysTime,
+};
+
+let dt = clocks.sysTime - lastSysTime;
+let simTimeSecs = clocks.simTime / 1000;
+
+
+/** @exported */
+function animation(scene) {
+  animateSystem(scene);
+}
+
+
+/**
+ * @param delta -1, 0 or 1 for slower, reset or faster.
+ * @exported
+ */
+function changeTimeScale(delta) {
+  if (delta == 0) {
+    timeScaleSteps = 0;
+  } else {
+    timeScaleSteps += delta;
+  }
+  timeScale = (timeScale < 0 ? -1 : 1) * Math.pow(2, Math.abs(timeScaleSteps));
+  updateTimeMsg();
+}
+
+
+function updateTimeMsg() {
+  let msg = '';
+  if (timeScaleSteps != 0) {
+    msg = '(@ ' + timeScale + ' secs/s)';
+  }
+  document.getElementById('timeScale').innerHTML = msg;
+}
+
+
+/** @exported */
+function invertTimeScale() {
+  timeScale *= -1.0;
+  updateTimeMsg();
+}
+
+
+/** Recursive animation of orbits and rotations at the current time. */
+function animateSystem(system) {
+  lastSysTime = clocks.sysTime;
+  clocks.sysTime = Date.now();
+  dt = clocks.sysTime - lastSysTime;
+  clocks.simTime += dt * timeScale;
+  simTimeSecs = clocks.simTime / 1000;
+
+  if (system.siderealRotationPeriod) {
+    // TODO(pablo): this is hand-calibrated for Earth and so is
+    // incorrect for the other planets.  Earth Orientation Parameters
+    // are here:
+    //
+    //   http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
+    // 
+    // and also would also need them for the other planets.
+    const angle = 1.5 * Math.PI + simTimeSecs / 86400 * Shared.twoPi;
+    system.setRotationFromAxisAngle(Y_AXIS, angle);
+  }
+
+  // This is referred to by a comment in scene.js#addOrbitingPlanet.
+  if (system.orbit) {
+    const eccentricity = system.orbit.eccentricity;
+    const aRadius = system.orbit.semiMajorAxis * Shared.lengthScale;
+    const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0));
+    // -1.0 because orbits are counter-clockwise when viewed from above North of Earth.
+    const angle = -1.0 * simTimeSecs / system.orbit.siderealOrbitPeriod * Shared.twoPi;
+    const x = aRadius * Math.cos(angle);
+    const y = 0;
+    const z = bRadius * Math.sin(angle);
+    system.position.set(x, y, z);
+  }
+
+  for (const ndx in system.children) {
+    const child = system.children[ndx];
+    animateSystem(child);
+  }
+}
+
+
+module.exports = {
+  animation: animation,
+  clocks: clocks,
+  changeTimeScale: changeTimeScale,
+  invertTimeScale: invertTimeScale,
+};
+
+},{"./shared.js":12,"three":1}],3:[function(require,module,exports){
+'use strict';
+
+/**
+ * Modifies the DOM tree rooted at {@param elt} to make the
+ * given {@param tagTypes} interactively collapsable/expandable.
+ */
+function makeCollapsable(elt, tagTypes) {
+  tagTypes = tagTypes || ['UL', 'OL'];
+  if (elt.nodeType != 1) { // i.e. DOM Element
+    return;
+  }
+  var copyOfChildNodes = [];
+  for (var cndx in elt.childNodes) {
+    copyOfChildNodes.push(elt.childNodes[cndx]);
+  }
+  if (tagTypes.indexOf(elt.nodeName) != -1) {
+    var toggleCtrl = document.createElement('a');
+    toggleCtrl.setAttribute('href', '#');
+    toggleCtrl.setAttribute('onclick', 'collapse(this); return false;');
+          toggleCtrl.innerHTML =
+            eltClass(elt, 'check', 'collapsed') ? '[+]' : '[-]';
+          elt.parentNode.insertBefore(toggleCtrl, elt);
+  }
+  for (var cndx in copyOfChildNodes) {
+    makeCollapsable(copyOfChildNodes[cndx], tagTypes);
+  }
+}
+
+/**
+ * The click handler attached to collapsable nodes.
+ */
+function collapse(ctrl) {
+  var target = ctrl.nextSibling;
+  if (eltClass(target, 'check', 'collapsed')) {
+    eltClass(target, 'remove', 'collapsed');
+    ctrl.innerHTML = '[-]';
+  } else {
+    eltClass(target, 'add', 'collapsed');
+    ctrl.innerHTML = '[+]';
+  }
+  return false;
+}
+
+/**
+ * Utility to 'check', 'add' or 'remove' a className attribute
+ * for a given node.  If the action is 'check', true is returned
+ * if the node has the class, or false otherwise.
+ */
+function eltClass(elt, action, className) {
+  var classNames = elt.className.split(/ +/);
+  if (action == 'check') {
+    for (var i in classNames) {
+      if (classNames[i] == className) {
+        return true;
+      }
+    }
+    return false;
+  } else if (action == 'add') {
+    for (var i in classNames) {
+      if (classNames[i] == className) {
+        return true;
+      }
+    }
+    elt.className += ' ' + className;
+  } else if (action == 'remove') {
+    var newClassNames = '';
+    for (var i in classNames) {
+      if (classNames[i] == className) {
+        continue;
+      }
+      newClassNames += ' ' + classNames[i];
+    }
+    elt.className = newClassNames;
+  }
+  return true;
+}
+
+
+module.exports = {
+  makeCollapsable: makeCollapsable,
+  collapse: collapse,
+};
+
+
+},{}],4:[function(require,module,exports){
+'use strict';
+
+const collapsor = require('./collapsor.js');
+const Resource = require('./rest.js');
+const Measure = require('./measure.js');
+
+/**
+ * The Controller loads the scene.  The scene nodes are fetched from
+ * the server, a mapping is created for navigation to current scene
+ * node locations based on names, and information is displayed for
+ * the selected node.
+ */
+function Controller(scene) {
+  this.scene = scene;
+  this.curPath = ['sun'];
+  this.loaded = {};
+
+  this.getPathTarget = () => {
+    return this.curPath[this.curPath.length - 1];
+  };
+
+
+  this.showNavDisplay = () => {
+    var crumbs = '';
+    for (var i = 0; i < this.curPath.length; i++) {
+      var hash = this.curPath.slice(0, i + 1).join('/');
+      var name = this.curPath[i];
+      if (i == this.curPath.length - 1) {
+        crumbs += name;
+      } else {
+        crumbs += '<a href="#'+ hash +'">' + name + '</a>';
+      }
+      if (i < this.curPath.length - 1) {
+        crumbs += ' &gt; ';
+      }
+    }
+
+    var html = crumbs + ' <ul>\n';
+    var pathPrefix = this.curPath.join('/');
+    html += this.showInfoRecursive(this.loaded[this.getPathTarget()],
+                                 pathPrefix, false, false);
+    html += '</ul>\n';
+    var infoElt = document.getElementById('info');
+    infoElt.innerHTML = html;
+    collapsor.makeCollapsable(infoElt);
+  };
+
+
+  this.showInfoRecursive = function(obj, pathPrefix, isArray, isSystem) {
+    var html = '';
+    for (var prop in obj) {
+      if (obj.hasOwnProperty(prop)) {
+        var val = obj[prop];
+        html += '<li>';
+        if (!isArray) {
+          html += prop + ': ';
+        }
+        if (val instanceof Measure) {
+          if (prop == 'radius' || prop == 'mass') {
+            val = val.convertTo(Measure.Magnitude.KILO);
+            val.scalar = Math.floor(val.scalar);
+          }
+          html += `${val}`;
+        } else if (val instanceof Array) {
+          if (prop == 'system') {
+            html += '<ol>\n';
+          } else {
+            html += '<ol class="collapsed">\n';
+          }
+          html += this.showInfoRecursive(val, pathPrefix, true, prop == 'system');
+          html += '</ol>\n';
+        } else if (val instanceof Object) {
+          html += '<ul class="collapsed">\n';
+          html += this.showInfoRecursive(val, pathPrefix, false, false);
+          html += '</ul>\n';
+        } else {
+          if (isSystem) {
+            var path = pathPrefix;
+            if (pathPrefix.length > 0) {
+              path += '/';
+            }
+            path += val;
+            html += '<a href="#' + path + '">';
+          }
+          html += val;
+          if (isSystem) {
+            html += '</a>';
+          }
+        }
+        html += '</li>\n';
+      }
+    }
+    return html;
+  };
+
+  /**
+   * Most measures are just passed on for display.  Some are needed to
+   * be reified, like radius and mass.
+   */
+  this.reifyMeasures = function(obj) {
+    function reify(obj, prop, name) {
+      if (obj[prop]) {
+        if (typeof obj[prop] === 'string') {
+          const m = Measure.parse(obj[prop]).convertToUnit();
+          // The parse leaves small amount in the low-significant
+          // decimals, meaningless for unit values in grams and meters
+          // for celestial objects.
+          m.scalar = Math.floor(m.scalar);
+          obj[prop] = m;
+        } else {
+          console.log(`unnormalized ${prop} for ${name}`);
+        }
+      }
+    }
+    const name = obj.name;
+    reify(obj, 'radius', name);
+    reify(obj, 'mass', name);
+  };
+
+
+  /**
+   * Loads the given object and adds it to the scene; optionally
+   * expanding it if it has as system.
+   * @param {!boolean} expand Whether to also load the children of the
+   *     given node.
+   * @param {function} cb optional callback.
+   */
+  this.loadObj = function(name, expand, cb) {
+    var loadedObj = this.loaded[name];
+    if (loadedObj) {
+      if (loadedObj == 'pending') {
+        return;
+      }
+      if (expand && loadedObj.system) {
+        for (var i = 0; i < loadedObj.system.length; i++) {
+          this.loadObj(loadedObj.system[i], false);
+        }
+      }
+      // Execute cb immediately even though children may not all be
+      // loaded.  TODO(pmy): later selection of possibly unloaded
+      // child should wait.
+      if (cb) {
+        cb();
+      }
+    } else {
+      this.loaded[name] = 'pending';
+      new Resource(name).get((obj) => {
+          this.loaded[name] = obj;
+          this.reifyMeasures(obj);
+          this.scene.add(obj);
+          if (expand && obj.system) {
+            for (var i = 0; i < obj.system.length; i++) {
+	      this.loadObj(obj.system[i], false);
+            }
+          }
+          if (cb) {
+            cb();
+          }
+        });
+    }
+  };
+
+
+  /**
+   * @param {!string} p The path, e.g. 'sun/earth/moon' or an empty
+   * string for default.
+   */
+  this.loadPath = function(p) {
+    console.log('loadPath');
+    var reqPath = p || '';
+    if (reqPath.length == 0) {
+      reqPath = 'sun';
+    }
+    this.curPath = reqPath.split('/');
+    this.loadPathRecursive([].concat(this.curPath), () => {
+        this.scene.select(this.getPathTarget());
+        this.showNavDisplay();
+      });
+  };
+
+
+  /**
+   * @param {!Array} path The path to the scene target, e.g. ['sun',
+   * 'earth', 'moon'].
+   */
+  this.loadPathRecursive = function(path, cb) {
+    if (path.length == 0) {
+      return;
+    }
+    var systemName = path.shift();
+    this.loadObj(systemName, true, path.length == 0 ? cb : null);
+    this.loadPathRecursive(path, cb);
+  };
+};
+
+
+module.exports = Controller;
+
+},{"./collapsor.js":3,"./measure.js":8,"./rest.js":9}],5:[function(require,module,exports){
+/**
+ * @author alteredq / http://alteredqualia.com/
+ * @author mr.doob / http://mrdoob.com/
+ */
+
+var Detector = {
+	canvas: !! window.CanvasRenderingContext2D,
+	webgl: ( function () { try { var canvas = document.createElement( 'canvas' ); return !! window.WebGLRenderingContext && ( canvas.getContext( 'webgl' ) || canvas.getContext( 'experimental-webgl' ) ); } catch( e ) { return false; } } )(),
+	workers: !! window.Worker,
+	fileapi: window.File && window.FileReader && window.FileList && window.Blob,
+
+	getWebGLErrorMessage: function () {
+
+		var element = document.createElement( 'div' );
+		element.id = 'webgl-error-message';
+		element.style.fontFamily = 'monospace';
+		element.style.fontSize = '13px';
+		element.style.fontWeight = 'normal';
+		element.style.textAlign = 'center';
+		element.style.background = '#fff';
+		element.style.color = '#000';
+		element.style.padding = '1.5em';
+		element.style.width = '400px';
+		element.style.margin = '5em auto 0';
+
+		if ( ! this.webgl ) {
+
+			element.innerHTML = window.WebGLRenderingContext ? [
+				'Your graphics card does not seem to support <a href="http://khronos.org/webgl/wiki/Getting_a_WebGL_Implementation" style="color:#000">WebGL</a>.<br />',
+				'Find out how to get it <a href="http://get.webgl.org/" style="color:#000">here</a>.'
+			].join( '\n' ) : [
+				'Your browser does not seem to support <a href="http://khronos.org/webgl/wiki/Getting_a_WebGL_Implementation" style="color:#000">WebGL</a>.<br/>',
+				'Find out how to get it <a href="http://get.webgl.org/" style="color:#000">here</a>.'
+			].join( '\n' );
+
+		}
+
+		return element;
+
+	},
+
+	addGetWebGLMessage: function ( parameters ) {
+
+		var parent, id, element;
+
+		parameters = parameters || {};
+
+		parent = parameters.parent !== undefined ? parameters.parent : document.body;
+		id = parameters.id !== undefined ? parameters.id : 'oldie';
+
+		element = Detector.getWebGLErrorMessage();
+		element.id = id;
+
+		parent.appendChild( element );
+
+	}
+
+};
+
+
+module.exports = Detector;
+
+},{}],6:[function(require,module,exports){
+'use strict';
+
+const THREE = require('three');
+
+/**
+ * @author Eberhard Graether / http://egraether.com/
+ * @author Mark Lundin 	/ http://mark-lundin.com
+ * @author Simone Manini / http://daron1337.github.io
+ * @author Luca Antiga 	/ http://lantiga.github.io
+ */
+
+const TrackballControls = function ( object, domElement ) {
+
+	var _this = this;
+	var STATE = { NONE: - 1, ROTATE: 0, ZOOM: 1, PAN: 2, TOUCH_ROTATE: 3, TOUCH_ZOOM_PAN: 4 };
+
+	this.object = object;
+	this.domElement = ( domElement !== undefined ) ? domElement : document;
+
+	// API
+
+	this.enabled = true;
+
+	this.screen = { left: 0, top: 0, width: 0, height: 0 };
+
+	this.rotateSpeed = 1.0;
+	this.zoomSpeed = 1.2;
+	this.panSpeed = 0.3;
+
+	this.noRotate = false;
+	this.noZoom = false;
+	this.noPan = false;
+
+	this.staticMoving = false;
+	this.dynamicDampingFactor = 0.2;
+
+	this.minDistance = 0;
+	this.maxDistance = Infinity;
+
+	this.keys = [ 65 /*A*/, 83 /*S*/, 68 /*D*/ ];
+
+	// internals
+
+	this.target = new THREE.Vector3();
+
+	var EPS = 0.000001;
+
+	var lastPosition = new THREE.Vector3();
+
+	var _state = STATE.NONE,
+	_prevState = STATE.NONE,
+
+	_eye = new THREE.Vector3(),
+
+	_movePrev = new THREE.Vector2(),
+	_moveCurr = new THREE.Vector2(),
+
+	_lastAxis = new THREE.Vector3(),
+	_lastAngle = 0,
+
+	_zoomStart = new THREE.Vector2(),
+	_zoomEnd = new THREE.Vector2(),
+
+	_touchZoomDistanceStart = 0,
+	_touchZoomDistanceEnd = 0,
+
+	_panStart = new THREE.Vector2(),
+	_panEnd = new THREE.Vector2();
+
+	// for reset
+
+	this.target0 = this.target.clone();
+	this.position0 = this.object.position.clone();
+	this.up0 = this.object.up.clone();
+
+	// events
+
+	var changeEvent = { type: 'change' };
+	var startEvent = { type: 'start' };
+	var endEvent = { type: 'end' };
+
+
+	// methods
+
+	this.handleResize = function () {
+
+		if ( this.domElement === document ) {
+
+			this.screen.left = 0;
+			this.screen.top = 0;
+			this.screen.width = window.innerWidth;
+			this.screen.height = window.innerHeight;
+
+		} else {
+
+			var box = this.domElement.getBoundingClientRect();
+			// adjustments come from similar code in the jquery offset() function
+			var d = this.domElement.ownerDocument.documentElement;
+			this.screen.left = box.left + window.pageXOffset - d.clientLeft;
+			this.screen.top = box.top + window.pageYOffset - d.clientTop;
+			this.screen.width = box.width;
+			this.screen.height = box.height;
+
+		}
+
+	};
+
+	this.handleEvent = function ( event ) {
+
+		if ( typeof this[ event.type ] == 'function' ) {
+
+			this[ event.type ]( event );
+
+		}
+
+	};
+
+	var getMouseOnScreen = ( function () {
+
+		var vector = new THREE.Vector2();
+
+		return function getMouseOnScreen( pageX, pageY ) {
+
+			vector.set(
+				( pageX - _this.screen.left ) / _this.screen.width,
+				( pageY - _this.screen.top ) / _this.screen.height
+			);
+
+			return vector;
+
+		};
+
+	}() );
+
+	var getMouseOnCircle = ( function () {
+
+		var vector = new THREE.Vector2();
+
+		return function getMouseOnCircle( pageX, pageY ) {
+
+			vector.set(
+				( ( pageX - _this.screen.width * 0.5 - _this.screen.left ) / ( _this.screen.width * 0.5 ) ),
+				( ( _this.screen.height + 2 * ( _this.screen.top - pageY ) ) / _this.screen.width ) // screen.width intentional
+			);
+
+			return vector;
+
+		};
+
+	}() );
+
+	this.rotateCamera = ( function() {
+
+		var axis = new THREE.Vector3(),
+			quaternion = new THREE.Quaternion(),
+			eyeDirection = new THREE.Vector3(),
+			objectUpDirection = new THREE.Vector3(),
+			objectSidewaysDirection = new THREE.Vector3(),
+			moveDirection = new THREE.Vector3(),
+			angle;
+
+		return function rotateCamera() {
+
+			moveDirection.set( _moveCurr.x - _movePrev.x, _moveCurr.y - _movePrev.y, 0 );
+			angle = moveDirection.length();
+
+			if ( angle ) {
+
+				_eye.copy( _this.object.position ).sub( _this.target );
+
+				eyeDirection.copy( _eye ).normalize();
+				objectUpDirection.copy( _this.object.up ).normalize();
+				objectSidewaysDirection.crossVectors( objectUpDirection, eyeDirection ).normalize();
+
+				objectUpDirection.setLength( _moveCurr.y - _movePrev.y );
+				objectSidewaysDirection.setLength( _moveCurr.x - _movePrev.x );
+
+				moveDirection.copy( objectUpDirection.add( objectSidewaysDirection ) );
+
+				axis.crossVectors( moveDirection, _eye ).normalize();
+
+				angle *= _this.rotateSpeed;
+				quaternion.setFromAxisAngle( axis, angle );
+
+				_eye.applyQuaternion( quaternion );
+				_this.object.up.applyQuaternion( quaternion );
+
+				_lastAxis.copy( axis );
+				_lastAngle = angle;
+
+			} else if ( ! _this.staticMoving && _lastAngle ) {
+
+				_lastAngle *= Math.sqrt( 1.0 - _this.dynamicDampingFactor );
+				_eye.copy( _this.object.position ).sub( _this.target );
+				quaternion.setFromAxisAngle( _lastAxis, _lastAngle );
+				_eye.applyQuaternion( quaternion );
+				_this.object.up.applyQuaternion( quaternion );
+
+			}
+
+			_movePrev.copy( _moveCurr );
+
+		};
+
+	}() );
+
+
+	this.zoomCamera = function () {
+
+		var factor;
+
+		if ( _state === STATE.TOUCH_ZOOM_PAN ) {
+
+			factor = _touchZoomDistanceStart / _touchZoomDistanceEnd;
+			_touchZoomDistanceStart = _touchZoomDistanceEnd;
+			_eye.multiplyScalar( factor );
+
+		} else {
+
+			factor = 1.0 + ( _zoomEnd.y - _zoomStart.y ) * _this.zoomSpeed;
+
+			if ( factor !== 1.0 && factor > 0.0 ) {
+
+				_eye.multiplyScalar( factor );
+
+			}
+
+			if ( _this.staticMoving ) {
+
+				_zoomStart.copy( _zoomEnd );
+
+			} else {
+
+				_zoomStart.y += ( _zoomEnd.y - _zoomStart.y ) * this.dynamicDampingFactor;
+
+			}
+
+		}
+
+	};
+
+	this.panCamera = ( function() {
+
+		var mouseChange = new THREE.Vector2(),
+			objectUp = new THREE.Vector3(),
+			pan = new THREE.Vector3();
+
+		return function panCamera() {
+
+			mouseChange.copy( _panEnd ).sub( _panStart );
+
+			if ( mouseChange.lengthSq() ) {
+
+				mouseChange.multiplyScalar( _eye.length() * _this.panSpeed );
+
+				pan.copy( _eye ).cross( _this.object.up ).setLength( mouseChange.x );
+				pan.add( objectUp.copy( _this.object.up ).setLength( mouseChange.y ) );
+
+				_this.object.position.add( pan );
+				_this.target.add( pan );
+
+				if ( _this.staticMoving ) {
+
+					_panStart.copy( _panEnd );
+
+				} else {
+
+					_panStart.add( mouseChange.subVectors( _panEnd, _panStart ).multiplyScalar( _this.dynamicDampingFactor ) );
+
+				}
+
+			}
+
+		};
+
+	}() );
+
+	this.checkDistances = function () {
+
+		if ( ! _this.noZoom || ! _this.noPan ) {
+
+			if ( _eye.lengthSq() > _this.maxDistance * _this.maxDistance ) {
+
+				_this.object.position.addVectors( _this.target, _eye.setLength( _this.maxDistance ) );
+				_zoomStart.copy( _zoomEnd );
+
+			}
+
+			if ( _eye.lengthSq() < _this.minDistance * _this.minDistance ) {
+
+				_this.object.position.addVectors( _this.target, _eye.setLength( _this.minDistance ) );
+				_zoomStart.copy( _zoomEnd );
+
+			}
+
+		}
+
+	};
+
+	this.update = function () {
+
+		_eye.subVectors( _this.object.position, _this.target );
+
+		if ( ! _this.noRotate ) {
+
+			_this.rotateCamera();
+
+		}
+
+		if ( ! _this.noZoom ) {
+
+			_this.zoomCamera();
+
+		}
+
+		if ( ! _this.noPan ) {
+
+			_this.panCamera();
+
+		}
+
+		_this.object.position.addVectors( _this.target, _eye );
+
+		_this.checkDistances();
+
+		_this.object.lookAt( _this.target );
+
+		if ( lastPosition.distanceToSquared( _this.object.position ) > EPS ) {
+
+			_this.dispatchEvent( changeEvent );
+
+			lastPosition.copy( _this.object.position );
+
+		}
+
+	};
+
+	this.reset = function () {
+
+		_state = STATE.NONE;
+		_prevState = STATE.NONE;
+
+		_this.target.copy( _this.target0 );
+		_this.object.position.copy( _this.position0 );
+		_this.object.up.copy( _this.up0 );
+
+		_eye.subVectors( _this.object.position, _this.target );
+
+		_this.object.lookAt( _this.target );
+
+		_this.dispatchEvent( changeEvent );
+
+		lastPosition.copy( _this.object.position );
+
+	};
+
+	// listeners
+
+	function keydown( event ) {
+
+		if ( _this.enabled === false ) return;
+
+		window.removeEventListener( 'keydown', keydown );
+
+		_prevState = _state;
+
+		if ( _state !== STATE.NONE ) {
+
+			return;
+
+		} else if ( event.keyCode === _this.keys[ STATE.ROTATE ] && ! _this.noRotate ) {
+
+			_state = STATE.ROTATE;
+
+		} else if ( event.keyCode === _this.keys[ STATE.ZOOM ] && ! _this.noZoom ) {
+
+			_state = STATE.ZOOM;
+
+		} else if ( event.keyCode === _this.keys[ STATE.PAN ] && ! _this.noPan ) {
+
+			_state = STATE.PAN;
+
+		}
+
+	}
+
+	function keyup( event ) {
+
+		if ( _this.enabled === false ) return;
+
+		_state = _prevState;
+
+		window.addEventListener( 'keydown', keydown, false );
+
+	}
+
+	function mousedown( event ) {
+
+		if ( _this.enabled === false ) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		if ( _state === STATE.NONE ) {
+
+			_state = event.button;
+
+		}
+
+		if ( _state === STATE.ROTATE && ! _this.noRotate ) {
+
+			_moveCurr.copy( getMouseOnCircle( event.pageX, event.pageY ) );
+			_movePrev.copy( _moveCurr );
+
+		} else if ( _state === STATE.ZOOM && ! _this.noZoom ) {
+
+			_zoomStart.copy( getMouseOnScreen( event.pageX, event.pageY ) );
+			_zoomEnd.copy( _zoomStart );
+
+		} else if ( _state === STATE.PAN && ! _this.noPan ) {
+
+			_panStart.copy( getMouseOnScreen( event.pageX, event.pageY ) );
+			_panEnd.copy( _panStart );
+
+		}
+
+		document.addEventListener( 'mousemove', mousemove, false );
+		document.addEventListener( 'mouseup', mouseup, false );
+
+		_this.dispatchEvent( startEvent );
+
+	}
+
+	function mousemove( event ) {
+
+		if ( _this.enabled === false ) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		if ( _state === STATE.ROTATE && ! _this.noRotate ) {
+
+			_movePrev.copy( _moveCurr );
+			_moveCurr.copy( getMouseOnCircle( event.pageX, event.pageY ) );
+
+		} else if ( _state === STATE.ZOOM && ! _this.noZoom ) {
+
+			_zoomEnd.copy( getMouseOnScreen( event.pageX, event.pageY ) );
+
+		} else if ( _state === STATE.PAN && ! _this.noPan ) {
+
+			_panEnd.copy( getMouseOnScreen( event.pageX, event.pageY ) );
+
+		}
+
+	}
+
+	function mouseup( event ) {
+
+		if ( _this.enabled === false ) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		_state = STATE.NONE;
+
+		document.removeEventListener( 'mousemove', mousemove );
+		document.removeEventListener( 'mouseup', mouseup );
+		_this.dispatchEvent( endEvent );
+
+	}
+
+	function mousewheel( event ) {
+
+		if ( _this.enabled === false ) return;
+		
+		if ( _this.noZoom === true ) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		switch ( event.deltaMode ) {
+
+			case 2:
+				// Zoom in pages
+				_zoomStart.y -= event.deltaY * 0.025;
+				break;
+
+			case 1:
+				// Zoom in lines
+				_zoomStart.y -= event.deltaY * 0.01;
+				break;
+
+			default:
+				// undefined, 0, assume pixels
+				_zoomStart.y -= event.deltaY * 0.00025;
+				break;
+
+		}
+
+		_this.dispatchEvent( startEvent );
+		_this.dispatchEvent( endEvent );
+
+	}
+
+	function touchstart( event ) {
+
+		if ( _this.enabled === false ) return;
+
+		switch ( event.touches.length ) {
+
+			case 1:
+				_state = STATE.TOUCH_ROTATE;
+				_moveCurr.copy( getMouseOnCircle( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY ) );
+				_movePrev.copy( _moveCurr );
+				break;
+
+			default: // 2 or more
+				_state = STATE.TOUCH_ZOOM_PAN;
+				var dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+				var dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+				_touchZoomDistanceEnd = _touchZoomDistanceStart = Math.sqrt( dx * dx + dy * dy );
+
+				var x = ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX ) / 2;
+				var y = ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY ) / 2;
+				_panStart.copy( getMouseOnScreen( x, y ) );
+				_panEnd.copy( _panStart );
+				break;
+
+		}
+
+		_this.dispatchEvent( startEvent );
+
+	}
+
+	function touchmove( event ) {
+
+		if ( _this.enabled === false ) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		switch ( event.touches.length ) {
+
+			case 1:
+				_movePrev.copy( _moveCurr );
+				_moveCurr.copy( getMouseOnCircle( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY ) );
+				break;
+
+			default: // 2 or more
+				var dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+				var dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+				_touchZoomDistanceEnd = Math.sqrt( dx * dx + dy * dy );
+
+				var x = ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX ) / 2;
+				var y = ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY ) / 2;
+				_panEnd.copy( getMouseOnScreen( x, y ) );
+				break;
+
+		}
+
+	}
+
+	function touchend( event ) {
+
+		if ( _this.enabled === false ) return;
+
+		switch ( event.touches.length ) {
+
+			case 0:
+				_state = STATE.NONE;
+				break;
+
+			case 1:
+				_state = STATE.TOUCH_ROTATE;
+				_moveCurr.copy( getMouseOnCircle( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY ) );
+				_movePrev.copy( _moveCurr );
+				break;
+
+		}
+
+		_this.dispatchEvent( endEvent );
+
+	}
+
+	function contextmenu( event ) {
+
+		if ( _this.enabled === false ) return;
+
+		event.preventDefault();
+
+	}
+
+	this.dispose = function() {
+
+		this.domElement.removeEventListener( 'contextmenu', contextmenu, false );
+		this.domElement.removeEventListener( 'mousedown', mousedown, false );
+		this.domElement.removeEventListener( 'wheel', mousewheel, false );
+
+		this.domElement.removeEventListener( 'touchstart', touchstart, false );
+		this.domElement.removeEventListener( 'touchend', touchend, false );
+		this.domElement.removeEventListener( 'touchmove', touchmove, false );
+
+		document.removeEventListener( 'mousemove', mousemove, false );
+		document.removeEventListener( 'mouseup', mouseup, false );
+
+		window.removeEventListener( 'keydown', keydown, false );
+		window.removeEventListener( 'keyup', keyup, false );
+
+	};
+
+	this.domElement.addEventListener( 'contextmenu', contextmenu, false );
+	this.domElement.addEventListener( 'mousedown', mousedown, false );
+	this.domElement.addEventListener( 'wheel', mousewheel, false );
+
+	this.domElement.addEventListener( 'touchstart', touchstart, false );
+	this.domElement.addEventListener( 'touchend', touchend, false );
+	this.domElement.addEventListener( 'touchmove', touchmove, false );
+
+	window.addEventListener( 'keydown', keydown, false );
+	window.addEventListener( 'keyup', keyup, false );
+
+	this.handleResize();
+
+	// force an update at start
+	this.update();
+
+};
+
+TrackballControls.prototype = Object.create( THREE.EventDispatcher.prototype );
+TrackballControls.prototype.constructor = TrackballControls;
+
+
+module.exports = TrackballControls;
+
+},{"three":1}],7:[function(require,module,exports){
+'use strict';
+
+const THREE = require('three');
+
+const loader = new THREE.TextureLoader();
+
+function loadTexture(texPath) {
+  return loader.load(texPath);
+}
+
+function pathTexture(filebase, ext) {
+  ext = ext || '.jpg';
+  return loadTexture('textures/' + filebase + ext);
+}
+
+var materials = [];
+function cacheMaterial(name) {
+  var m = materials[name];
+  if (!m) {
+    materials[name] = m = new THREE.MeshPhongMaterial({
+        map: pathTexture(name),
+      });
+  }
+  return m;
+}
+
+function lineMaterial(params, name) {
+  var params = params || {};
+  params.color = params.color || 0xff0000;
+  params.linewidth = params.lineWidth || 1;
+  var name = name || 'line-basic';
+  var m = materials[name];
+  if (!m) {
+    materials[name] = m = new THREE.LineBasicMaterial({
+    color: params.color,
+    linewidth: params.linewidth,
+    blending: THREE.AdditiveBlending,
+    transparent: false});
+  }
+  return m;
+}
+
+
+module.exports = {
+  lineMaterial: lineMaterial,
+  pathTexture: pathTexture,
+  cacheMaterial: cacheMaterial,
+};
+
+},{"three":1}],8:[function(require,module,exports){
+'use strict';
+/**
+ * Measure formatting and conversion utility.  The system of measure
+ * used is a a slight variation of the System International (SI)
+ * system (http://scienceworld.wolfram.com/physics/SI.html).  There
+ * are two particular variations.
+ *
+ * This first variation is that no unit has an implicit magnitude.
+ * This is in contrast to the MKS or Meters, Kilograms, Seconds system
+ * which has the "kilo" magnitude for its mass unit, or the CGS or
+ * Centimeters, Grams, Seconds which has the "centi" magnitude for its
+ * length unit.
+ *
+ * The second variation is that the "deca" magnitude's abbreviation is
+ * defined as "D" instead of "da" so that a decagram can be
+ * represented as "Dg" instead of "dag" or "da gram", which is
+ * congruent with the usage of the other unit abbreviations.
+ */
+
+const unitByAbbrev = {};
+const unitByName = {};
+
+function Unit(name, abbrev, dimension) {
+  this.name = name;
+  this.abbrev = abbrev;
+  this.dimension = dimension;
+  unitByAbbrev[abbrev] = this;
+  unitByName[name] = this;
+}
+
+Unit.prototype.toString = function() {
+  return this.name;
+};
+
+Unit.lookup = function(str) {
+  const unit = unitByAbbrev[str];
+  if (unit) {
+    return unit;
+  }
+  return unitByName[str];
+};
+
+Unit.METER = new Unit('meter', 'm', 'length');
+Unit.GRAM = new Unit('gram', 'g', 'mass');
+Unit.SECOND = new Unit('second', 's', 'time');
+Unit.AMPERE = new Unit('ampere', 'A', 'electric current');
+Unit.KELVIN = new Unit('kelvin', 'K', 'temperature');
+Unit.CANDELA = new Unit('candela', 'cd', 'luminous intensity');
+Unit.MOLE = new Unit('mole', 'mol', 'amount of substance');
+
+const magnitudeByAbbrev = {};
+const magnitudeByName = {};
+
+function Magnitude(exponent, name, abbrev) {
+  this.exponent = exponent;
+  this.name = name;
+  this.abbrev = abbrev;
+  magnitudeByName[name] = this;
+  magnitudeByAbbrev[abbrev] = this;
+}
+
+Magnitude.prototype.toString = function() {
+  return this.name;
+};
+
+Magnitude.lookup = function(str) {
+  const magnitude = magnitudeByAbbrev[str];
+  if (magnitude) {
+    return magnitude;
+  }
+  return magnitudeByName[str];
+};
+
+/**
+ * Converts the given scalar in the given magnitude to the
+ * equivalent scalar in this magnitude.
+ */
+Magnitude.prototype.from = function(scalar, mag) {
+  const expDiff = mag.exponent - this.exponent;
+  const mult = Math.pow(10, expDiff);
+  const result = scalar * mult;
+  return result;
+};
+
+Magnitude.YOTTA = new Magnitude(24, 'yotta', 'Y');
+Magnitude.ZETTA = new Magnitude(21, 'zetta', 'Z');
+Magnitude.EXA = new Magnitude(18, 'exa', 'E');
+Magnitude.PETA = new Magnitude(15, 'peta', 'P');
+Magnitude.TERA = new Magnitude(12, 'tera', 'T');
+Magnitude.GIGA = new Magnitude(9, 'giga', 'G');
+Magnitude.MEGA = new Magnitude(6, 'mega', 'M');
+Magnitude.KILO = new Magnitude(3, 'kilo', 'k');
+Magnitude.HECTO = new Magnitude(2, 'hecto', 'h');
+Magnitude.DECA = new Magnitude(1, 'deca', 'D');
+Magnitude.UNIT = new Magnitude(0, '', '');
+Magnitude.DECI = new Magnitude(-1, 'deci', 'd');
+Magnitude.CENTI = new Magnitude(-2, 'centi', 'c');
+Magnitude.MILLI = new Magnitude(-3, 'milli', 'm');
+Magnitude.MICRO = new Magnitude(-6, 'micro', '\u03BC');
+Magnitude.NANO = new Magnitude(-9, 'nano', 'n');
+Magnitude.PICO = new Magnitude(-12, 'pico', 'p');
+Magnitude.FEMTO = new Magnitude(-15, 'femto', 'f');
+Magnitude.ATTO = new Magnitude(-18, 'atto', 'a');
+Magnitude.ZETO = new Magnitude(-21, 'zepto', 'z');
+Magnitude.YOCTO = new Magnitude(-24, 'yocto', 'y');
+
+function Measure(scalar, magnitude, unit) {
+  if (typeof scalar != 'number') {
+    throw 'Invalid scalar given: ' + scalar;
+  }
+  if (typeof magnitude != 'object' || magnitude.constructor.name != 'Magnitude') {
+    throw 'Invalid magnitude given: ' + magnitude;
+  }
+  if (typeof unit != 'object' || unit.constructor.name != 'Unit') {
+    throw 'Invalid unit given: ' + unit;
+  }
+  this.scalar = scalar;
+  this.magnitude = magnitude || Magnitude.UNIT;
+  this.unit = unit;
+
+  this.equals = function(other) {
+    return this.scalar === other.scalar
+      && this.magnitude === other.magnitude
+      && this.unit === other.unit;
+  }
+
+  this.convertTo = function(mag) {
+    return new Measure(mag.from(this.scalar, this.magnitude), mag, this.unit);
+  };
+
+  this.convertToUnit = function() {
+    return this.convertTo(Magnitude.UNIT);
+  };
+
+  this.toString = function() {
+    let s = '';
+    s += this.scalar;
+    s += this.magnitude.abbrev;
+    s += this.unit.abbrev;
+    return s;
+  };
+}
+
+
+Measure.Unit = Unit;
+Measure.Magnitude = Magnitude;
+
+/**
+ * @throws If the string does not contain a parsable measure.
+ */
+Measure.parse = function(s) {
+  if (typeof s != 'string') {
+    throw 'Given string is null or not string: ' + s;
+  }
+  //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
+  const m = s.match(/(-?\d+(?:.\d+)?(?:E\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
+  if (!m) {
+    throw 'Could not parse measure from given string: ' + s;
+  }
+  const scalar = parseFloat(m[1]);
+  if (m.length == 2) {
+    const unit = m[2];
+    const ul = Unit.lookup(unit);
+    return new Measure(parseFloat(scalar), Magnitude.UNIT, ul);
+  }
+  const magnitude = m[2] || null;
+  const unit = m[3];
+  const ml = magnitude == null ? Magnitude.UNIT : Magnitude.lookup(magnitude);
+  const ul = Unit.lookup(unit);
+  return new Measure(scalar == null ? 0.0 : parseFloat(scalar), ml, ul);
+};
+
+
+module.exports = Measure;
+
+},{}],9:[function(require,module,exports){
+'use strict';
+
+if (typeof XMLHttpRequest == "undefined") {
+  XMLHttpRequest = function () {
+    try { return new ActiveXObject("Msxml2.XMLHTTP.6.0"); }
+    catch (e) {}
+    try { return new ActiveXObject("Msxml2.XMLHTTP.3.0"); }
+    catch (e) {}
+    try { return new ActiveXObject("Microsoft.XMLHTTP"); }
+    catch (e) {}
+    //Microsoft.XMLHTTP points to Msxml2.XMLHTTP and is redundant
+    throw new Error("This browser does not support XMLHttpRequest.");
+  };
+}
+
+const Resource = function(name) {
+  this.name = 'data/' + name + '.json';
+  this.get = (func) => {
+    if (location.href.startsWith && location.href.startsWith('file')) {
+      return func({type: 'star', name: 'sun', radius: 6.9424895E8});
+    }
+    var xmlhttp = new XMLHttpRequest();
+    xmlhttp.onreadystatechange = () => {
+      if (xmlhttp.readyState == 4){
+        var json = xmlhttp.responseText;
+        var obj = eval('(' + json + ')');
+        func(obj);
+      }
+    };
+    xmlhttp.open("GET", this.name, true);
+    xmlhttp.send(null);
+  };
+};
+
+
+module.exports = Resource;
+
+},{}],10:[function(require,module,exports){
+'use strict';
+
+const THREE = require('three');
+const Animation = require('./animation.js');
+const Shared = require('./shared.js');
+const stars = require('./t-1000.js');
+const Material = require('./material.js');
+const Shapes = require('./shapes.js');
+
+const
+  lengthScale = Shared.lengthScale,
+  atmosScale = 1.01,
+  stepBackMult = 10;
+
+const Scene = function(threeUi) {
+  this.threeUi = threeUi;
+  this.sceneNodes = {};
+  this.orbitShapes = {};
+  this.debugShapes = [];
+  this.orbitsVisible = true;
+  this.debugVisible = true;
+  this.lastAddTime = 0;
+};
+
+
+/**
+ * Add an object to the scene.
+ * @param {!object} props object properties, must include type.
+ */
+Scene.prototype.add = function(props) {
+
+  // Find a parent or add directly to scene.  TODO(pablo): this is
+  // ugly, since this is the only way the scene goes live.
+  let parentNode = this.sceneNodes[props.parent];
+  if (!parentNode) {
+    parentNode = this.threeUi.scene;
+    if (props.name != 'milky_way') {
+      console.log(`No parent for ${props.name}, adding to root scene`);
+    }
+  }
+
+  let obj;
+  if (props.type == 'galaxy') {
+    // TODO(pablo): a nice galaxy.
+    obj = new THREE.Object3D;
+    obj.orbitPosition = obj;
+  } else if (props.type == 'stars') {
+    obj = this.newStars(props);
+  } else if (props.type == 'star') {
+    obj = this.newStar(props);
+    obj.add(this.newPointLight());
+    // step back from the sun.
+    this.threeUi.camera.position.set(
+        0, 0, props.radius.scalar * lengthScale * stepBackMult);
+  } else if (props.type == 'planet' || props.type == 'moon') {
+    obj = this.newOrbitingPlanet(props);
+  } else {
+    throw new Error('Adding object of unknown type: ' + props.type);
+  }
+
+  // Add to scene in reference frame of parent's orbit position,
+  // i.e. moons orbit planets, so they have to be added to the
+  // planet's orbital center.
+  if (parentNode.orbitPosition) {
+    parentNode.orbitPosition.add(obj);
+  } else {
+    // Should only happen for milkyway.
+    if (props.name != 'milky_way') {
+      console.log('Parent has no orbit position: ' + props.name);
+    }
+    parentNode.add(obj);
+  }
+
+  obj['props'] = props;
+  this.sceneNodes[props.name] = obj;
+  this.lastAddTime = Animation.clocks.sysTime;
+};
+
+
+Scene.prototype.checkedSelect = function(name) {
+  const node = this.sceneNodes[name];
+  if (!node) {
+    // TODO(pablo): this is a race on initial load.  The target is
+    // selected before it's loaded, but the deferred select does work,
+    // so not critical for now.
+    console.log('scene#checkedSelect: initial load race');
+    return;
+  }
+  if (!node.orbitPosition) {
+    throw new Error('No orbit position for target of select: ' + name)
+  }
+  console.log(`scene#checkedSelect: ${node.props.name}`);
+  return node;
+};
+
+
+Scene.prototype.select = function(name) {
+  console.log('select');
+  const node = this.checkedSelect(name);
+  this.lookAt(node);
+  this.goTo(node);
+};
+
+
+Scene.prototype.lookAtNamed = function(name) {
+  this.lookAt(this.checkedSelect(name));
+};
+
+
+Scene.prototype.lookAt = function(node) {
+  if (!node && Shared.targetNode) {
+    node = Shared.targetNode;
+  }
+  if (!node) {
+    console.error('scene.js#lookAt: no target node to look at.');
+    return;
+  }
+  Shared.targetNode = node;
+  Shared.targetObj = node.orbitPosition.children[0];
+  console.log(`scene.js#lookAt: ${node.props.name}`);
+  if (Shared.targetObj) {
+    Shared.targetObjLoc.identity();
+    let curObj = Shared.targetObj;
+    const objs = []; // TODO(pablo)
+    while (curObj.parent && (curObj.parent != this.threeRoot)) {
+      objs.push(curObj);
+      curObj = curObj.parent;
+    }
+    for (let i = objs.length - 1; i >= 0; i--) {
+      const o = objs[i];
+      Shared.targetObjLoc.multiply(o.matrix);
+    }
+    Shared.targetPos.setFromMatrixPosition(Shared.targetObjLoc);
+    const p = Shared.targetPos;
+    console.log(`scene.js#lookAt: ${p.x}, ${p.y}, ${p.z}`);
+    this.threeUi.camera.lookAt(p);
+  }
+};
+
+
+Scene.prototype.goTo = function(node) {
+  if (!node) {
+    if (!Shared.targetNode) {
+      console.error('Scene.goTo called with no target node.');
+      return;
+    }
+    node = Shared.targetNode;
+  }
+  console.log('goto: ' + node.props.name);
+  if (this.lastAddTime == Animation.clocks.sysTime) {
+    Animation.postRenderCb = () => {
+      setTimeout('global.select("' + node.props.name + '")', 10);
+    };
+    return;
+  }
+
+  //Shared.targetPos = node.orbitPosition.position;
+  //const t = Shared.targetPos;
+  //console.log(`targetPos: x: ${t.x}, y: ${t.y}, z: ${t.z}`);
+
+  const tStepBack = Shared.targetPos.clone();
+  // TODO(pablo): if the target is at the origin (i.e. the sun),
+  // need some non-zero basis to use as a step-back.
+  if (tStepBack.x == 0 && tStepBack.y == 0 && tStepBack.z == 0) {
+    tStepBack.set(0,0,0.001);
+  }
+
+  // Point away from the target, with length some multiple of radii of
+  // it, and move base of vector to object's position.
+  tStepBack.negate();
+  tStepBack.setLength(node.props.radius.scalar * lengthScale * stepBackMult);
+  tStepBack.add(Shared.targetPos);
+  // console.log(`x: ${tStepBack.x}, y: ${tStepBack.y}, z: ${tStepBack.z}`);
+
+  this.threeUi.camera.position.set(tStepBack.x, tStepBack.y, tStepBack.z);
+  // this.updateViewCb(this.threeUi.camera, this.threeRoot);
+
+  // Change control sensitivity depending on object size.
+  if (node.props.type == 'star') {
+    this.threeUi.controls.rotateSpeed = 1;
+    this.threeUi.controls.zoomSpeed = 1;
+    this.threeUi.controls.panSpeed = 1;
+  } else {
+    this.threeUi.controls.rotateSpeed = 0.001;
+    this.threeUi.controls.zoomSpeed = 0.001;
+    this.threeUi.controls.panSpeed = 0.001;
+  }
+
+  console.log('goto: done');
+};
+
+
+/** The stars from the data file. */
+Scene.prototype.starGeom = function(stars) {
+  const geom = new THREE.Geometry();
+  // The sun first.
+  geom.vertices.push(new THREE.Vector3);
+  for (let i = 0; i < stars.length; i++) {
+    const s = stars[i];
+    const ra = s[0] * Shared.toDeg; // TODO: why not toRad?
+    const dec = s[1] * Shared.toDeg;
+    const dist = s[2] * 1e3; // convert from kilometer to meter.
+    const vec = new THREE.Vector3(dist * Math.sin(ra) * Math.cos(dec),
+                                  dist * Math.sin(ra) * Math.sin(dec),
+                                  dist * Math.cos(ra));
+    geom.vertices.push(vec);
+  }
+  return geom;
+};
+
+
+Scene.prototype.newStars = function(props) {
+  const geom = this.starGeom(stars);
+  const orbitPlane = new THREE.Object3D;
+  const orbitPosition = new THREE.Object3D;
+  orbitPlane.add(orbitPosition);
+
+  const starImage = Material.pathTexture('star_glow', '.png');
+  // Not sure why need the 10x multiple, but otherwise they're too small.
+  const avgStarRadius = props.radius.scalar * 1e1;
+  const starMiniMaterial =
+    new THREE.PointsMaterial({ size: avgStarRadius,
+			       map: starImage,
+			       blending: THREE.AdditiveBlending,
+			       depthTest: true,
+                               depthWrite: false,
+                               transparent: true });
+  const starPoints = new THREE.Points(geom, starMiniMaterial);
+  starPoints.sortParticles = true;
+  orbitPosition.add(starPoints);
+  orbitPlane.orbitPosition = orbitPosition;
+  orbitPlane.scale.setScalar(lengthScale);
+  return orbitPlane;
+};
+
+
+Scene.prototype.newPlanetStars = function(geom, props) {
+  const orbitPlane = new THREE.Object3D;
+  const orbitPosition = new THREE.Object3D;
+  orbitPlane.add(orbitPosition);
+
+  const planetStarMiniMaterial =
+    new THREE.PointsMaterial({ color: 0xffffff,
+                               size: 3,
+                               sizeAttenuation: false,
+                               depthTest: true,
+                               transparent: false });
+
+  const planetStarPoints = new THREE.Points(geom, planetStarMiniMaterial);
+  planetStarPoints.sortParticles = true;
+  orbitPosition.add(planetStarPoints);
+  orbitPlane.orbitPosition = orbitPosition;
+  return orbitPlane;
+};
+
+
+Scene.prototype.newPointLight = function() {
+  return new THREE.PointLight(0xffffff);
+};
+
+
+Scene.prototype.newStar = function(props) {
+  const orbitPlane = new THREE.Object3D;
+  const orbitPosition = new THREE.Object3D;
+  orbitPlane.add(orbitPosition);
+  const matr = new THREE.MeshBasicMaterial({
+    map: Material.pathTexture('sun'),
+    blending: THREE.AdditiveBlending,
+  });
+  const star = Shapes.sphere({
+      radius: 1,
+      matr: props.matr || matr
+    });
+  orbitPosition.add(star);
+  orbitPlane.orbitPosition = orbitPosition;
+  orbitPlane.scale.setScalar(props.radius.scalar * lengthScale);
+  return orbitPlane;
+};
+
+
+Scene.prototype.toggleOrbits = function() {
+  this.orbitsVisible = !this.orbitsVisible;
+  for (let i in this.orbitShapes) {
+    const shape = this.orbitShapes[i];
+    if (shape.hasOwnProperty('visible')) {
+      this.orbitShapes[i].visible = this.orbitsVisible;
+    }
+  }
+};
+
+
+Scene.prototype.toggleDebug = function() {
+  this.debugVisible = !this.debugVisible;
+  for (let i = 0; i < this.debugShapes.length; i++) {
+    this.debugShapes[i].visible = this.debugVisible;
+  }
+};
+
+
+/**
+ * A new planet at its place in orbit.
+ * https://en.wikipedia.org/wiki/Orbital_elements
+ * https://en.wikipedia.org/wiki/Equinox#Celestial_coordinate_systems
+ * https://en.wikipedia.org/wiki/Epoch_(astronomy)#Julian_years_and_J2000
+ */
+Scene.prototype.newOrbitingPlanet = function(planetProps) {
+  const name = planetProps.name;
+  const referencePlane = new THREE.Object3D;
+
+  const orbit = planetProps.orbit;
+
+  const orbitPlane = new THREE.Object3D;
+  orbitPlane.name = name + '.orbitPlane';
+  referencePlane.add(orbitPlane);
+
+  const orbitShape = this.newOrbit(orbit);
+  orbitPlane.add(orbitShape);
+  orbitShape.visible = this.orbitsVisible;
+  this.orbitShapes[name] = orbitShape;
+
+  orbitPlane.rotation.x = orbit.inclination * Shared.toRad;
+  orbitPlane.rotation.y = orbit.longitudeOfPerihelion * Shared.toRad;
+
+  const orbitPosition = new THREE.Object3D;
+  orbitPosition.name = name + '.orbitPosition';
+  orbitPlane.add(orbitPosition);
+
+  // Attaching this property triggers orbit of planet during animation.
+  // See animation.js#animateSystem.
+  orbitPosition.orbit = planetProps.orbit;
+
+  const planetTilt = new THREE.Object3D;
+  orbitPosition.add(planetTilt);
+  planetTilt.rotateZ(planetProps.axialInclination * Shared.toRad);
+
+  const planet = this.newPlanet(planetProps);
+  planet.scale.setScale(lengthScale);
+  planetTilt.add(planet);
+  orbitPosition.add(Shapes.point());
+
+  // referencePlane.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
+  // Children centered at this planet's orbit position.
+  referencePlane.orbitPosition = orbitPosition;
+
+  return referencePlane;
+};
+
+
+Scene.prototype.newPlanet = function(planetProps) {
+  const planet = new THREE.Object3D;
+  const planetName = planetProps.name;
+  planet.props = planetProps;
+  planet.name =  planetName + '.planetGroup';
+
+  const axes = new THREE.AxesHelper(2);
+  axes.visible = true;
+  this.debugShapes.push(axes);
+  planet.add(axes);
+
+  const planetSurface = this.newSurface(planetProps);
+  planetSurface.name = planetName + '.surface';
+  planet.add(planetSurface);
+
+  if (planetProps.texture_atmosphere) {
+    const atmos = this.newAtmosphere(planetProps);
+    atmos.name = planetName + '.atmosphere';
+    planet.add(atmos);
+  }
+
+  // Attaching this property triggers rotation of planet during animation.
+  planet.siderealRotationPeriod = planetProps.siderealRotationPeriod;
+
+  planet.scale.setScalar(planetProps.radius.scalar);
+  return planet;
+};
+
+
+// TODO(pablo): get shaders working again.
+Scene.prototype.newSurface = function(planetProps) {
+  let planetMaterial;
+  if (!(planetProps.texture_hydrosphere || planetProps.texture_terrain)) {
+    planetMaterial = Material.cacheMaterial(planetProps.name);
+    planetMaterial.shininess = 30;
+  } else if (planetProps.texture_hydrosphere || planetProps.texture_terrain) {
+    planetMaterial = Material.cacheMaterial(planetProps.name);
+    planetMaterial.shininess = 30;
+    if (planetProps.texture_terrain) {
+      planetMaterial.bumpMap = Material.pathTexture(planetProps.name + "_terrain");
+      planetMaterial.bumpScale = 0.001;
+    }
+    if (planetProps.texture_hydrosphere) {
+      const hydroTex = Material.pathTexture(planetProps.name + "_hydro");
+      planetMaterial.specularMap = hydroTex;
+      planetMaterial.shininess = 50;
+    }
+  }
+  return Shapes.sphere({matr: planetMaterial});
+};
+
+
+Scene.prototype.newAtmosphere = function(planetProps) {
+  // TODO: https://threejs.org/examples/webgl_shaders_sky.html
+  const atmosTex = Material.pathTexture(planetProps.name, '_atmos.jpg');
+  return Shapes.sphere({
+      radius: atmosScale, // assumes radius of planet is 1.
+      matr: new THREE.MeshPhongMaterial({
+          color: 0xffffff,
+          alphaMap: atmosTex,
+          transparent: true,
+          specularMap: atmosTex,
+          shininess: 100
+        })
+    });
+};
+
+
+Scene.prototype.newOrbit = function(orbit) {
+  const shape = new THREE.Object3D();
+  // https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes
+  const a = 1;
+  const e = orbit.eccentricity;
+  // Semi-minor axis.
+  const b = a * Math.sqrt(1 - Math.pow(e, 2));
+  // TODO, API docs say 3rd and 4th args should be a, b, but it
+  // appears eccentricity is used instead.
+  const ellipseCurve = new THREE.EllipseCurve(0, 0,
+                                              a, e,
+                                              0, Math.PI);
+  const ellipsePoints = ellipseCurve.getPoints(1000);
+  const ellipseGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
+  const orbitMaterial = new THREE.LineBasicMaterial({
+      color: 0x0000ff,
+      blending: THREE.AdditiveBlending,
+      depthTest: true,
+      depthWrite: false,
+      transparent: false
+    });
+  const pathShape = new THREE.Line(ellipseGeometry, orbitMaterial);
+  // Orbit is in the x/y plane, so rotate it around x by 90 deg to put
+  // it in the x/z plane (top comes towards camera until it's flat
+  // edge on).
+  pathShape.rotation.x = Shared.halfPi;
+  shape.add(pathShape);
+  shape.add(Shapes.line(1, 0, 0));
+  shape.scale.multiplyScalar(orbit.semiMajorAxis);
+  return shape;
+};
+
+
+module.exports = Scene;
+
+},{"./animation.js":2,"./material.js":7,"./shapes.js":11,"./shared.js":12,"./t-1000.js":13,"three":1}],11:[function(require,module,exports){
+'use strict';
+
+const THREE = require('three');
+const Material = require('./material.js');
+
+// Simple cube for testing.
+function cube(size) {
+  size = size || 1;
+  return box(size, size, size);
+}
+
+function box(width, height, depth, opts) {
+  width = width || 1;
+  height = height || 1;
+  depth = depth || 1;
+  opts = opts || {};
+  opts.color = opts.color || 0xff0000;
+  const geom = new THREE.CubeGeometry(width, height, depth);
+  const matr = new THREE.MeshPhongMaterial(opts);
+  return new THREE.Mesh(geom, matr);
+}
+
+function sphere(opts) {
+  opts = opts || {};
+  opts.radius = opts.radius || 1;
+  opts.segmentSize = opts.segmentSize || 128;
+  const matrOpts = opts.matr || {
+    color: 0xffffff,
+    transparent: false
+  };
+  const geom = new THREE.SphereGeometry(opts.radius, opts.segmentSize, opts.segmentSize / 2);
+  opts.matr = opts.matr || new THREE.MeshPhongMaterial(matrOpts);
+  console.log(opts);
+  return new THREE.Mesh(geom, opts.matr);
+}
+
+// Lod Sphere.
+function lodSphere(radius, material) {
+  radius = radius || 1;
+  const lod = new THREE.LOD();
+  const geoms = 
+    [[getSphereGeom(128), radius],
+     [getSphereGeom(32), radius * 10],
+     [getSphereGeom(16), radius * 100],
+     [getSphereGeom(8), radius * 300]];
+  for (let i = 0; i < geoms.length; i++) {
+    const mesh = new THREE.Mesh(geoms[i][0], material);
+    mesh.scale.set(radius, radius, radius);
+    mesh.updateMatrix();
+    mesh.matrixAutoUpdate = false;
+    lod.addLevel(mesh, geoms[i][1]);
+  }
+  lod.updateMatrix();
+  lod.matrixAutoUpdate = false;
+  const obj = new THREE.Object3D;
+  obj.add(lod);
+  return obj;
+}
+
+const _sphereGeoms = new Array();
+function getSphereGeom(segmentSize) {
+  let geom = _sphereGeoms[segmentSize];
+  if (!geom) {
+    geom = _sphereGeoms[segmentSize] = new THREE.SphereGeometry(1, segmentSize, segmentSize / 2);
+  }
+  return geom;
+}
+
+function atmos(radius) {
+  // from http://data-arts.appspot.com/globe/globe.js
+  const Shaders = {
+    'atmosphere' : {
+      uniforms: {},
+      vertexShader: ['varying vec3 vNormal;',
+                     'void main() {',
+                     'vNormal = normalize(normalMatrix * normal);',
+                     'gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+        '}'].join('\n'),
+      fragmentShader: ['varying vec3 vNormal;',
+                       'void main() {',
+                       'float intensity = pow(1.1 + dot(vNormal, vec3(0, 0, 1)), 8.0);',
+                       'gl_FragColor = vec4(0.5, 0.5, 1.0, 0.01) * intensity;',
+        '}'].join('\n')
+    }
+  };
+
+  const sceneAtmosphere = new THREE.Object3D();
+  const geometry = new THREE.SphereGeometry(1, 128, 64);
+
+  const shader = Shaders['atmosphere'];
+  const uniforms = THREE.UniformsUtils.clone(shader.uniforms);
+
+  const material = new THREE.ShaderMaterial({
+      uniforms: uniforms,
+      vertexShader: shader.vertexShader,
+      fragmentShader: shader.fragmentShader
+    });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.scale.x = mesh.scale.y = mesh.scale.z = radius;
+  mesh.flipSided = true;
+  mesh.matrixAutoUpdate = false;
+  mesh.updateMatrix();
+  sceneAtmosphere.add(mesh);
+  return sceneAtmosphere;
+}
+
+// TODO(pmy): is there a simpler way to draw a point?
+function point() {
+  const geom = new THREE.Geometry();
+  geom.vertices.push(new THREE.Vector3());
+
+  const pointMaterial =
+    new THREE.PointsMaterial({ color: 0xffffff,
+                               size: 3,
+                               sizeAttenuation: false,
+                               blending: THREE.AdditiveBlending,
+                               depthTest: true,
+                               transparent: true });
+
+  return new THREE.Points(geom, pointMaterial);
+}
+
+/**
+ * line(vec1, vec2); // vec1 may be null for zero.
+ * line(x, y, z); // from zero.
+ * line(x1, y1, z1, x2, y2, z3);
+ */
+function line(vec1, vec2) {
+  if (arguments.length == 2) {
+    vec1 = vec1 == null ? new THREE.Vector3 : vec1;
+  } else if (arguments.length == 3) {
+    vec1 = new THREE.Vector3;
+    vec2 = new THREE.Vector3(arguments[0], arguments[1], arguments[2]);
+  } else if (arguments.length == 6) {
+    vec1 = new THREE.Vector3(arguments[0], arguments[1], arguments[2]);
+    vec2 = new THREE.Vector3(arguments[3], arguments[4], arguments[5]);
+  } else {
+    throw new Error('Can only be called with 2, 3 or 6 arguments.');
+  }
+  const geom = new THREE.Geometry();
+  geom.vertices.push(vec1);
+  geom.vertices.push(vec2);
+  return new THREE.Line(geom, Material.lineMaterial());
+}
+
+
+// Angle
+
+function angle(vec1, vec2) {
+  return line(vec1, vec2);
+}
+
+
+// Grid
+
+function grid(params) {
+  if (!params) {
+    params = {};
+  }
+  if (!params.stepSize) {
+    params['stepSize'] = 1;
+  }
+  if (!params.numSteps) {
+    params['numSteps'] = 1E2;
+  }
+  return lineGrid(params);
+}
+
+/**
+ * Creates a shape with 3 reference grids, xy, xz and yz.
+ *
+ * TODO(pablo): each grid has its own geometry.
+ */
+function lineGrid(params) {
+
+  const grids = new THREE.Object3D();
+
+  const size = params.stepSize * params.numSteps;
+
+  const mat = Material.lineMaterial(params);
+
+  const xyGrid = new THREE.Line(gridGeometry(params), mat);
+  xyGrid.position.x -= size / 2;
+  xyGrid.position.y -= size / 2;
+
+  const xzGrid = new THREE.Line(gridGeometry(params), mat);
+  xzGrid.rotation.x = Math.PI / 2;
+  xzGrid.position.x -= size / 2;
+  xzGrid.position.z -= size / 2;
+
+  const yzGrid = new THREE.Line(gridGeometry(params), mat);
+  yzGrid.rotation.y = Math.PI / 2;
+  yzGrid.position.z += size / 2;
+  yzGrid.position.y -= size / 2;
+
+  grids.add(xzGrid);
+  grids.add(yzGrid);
+
+  grids.add(xyGrid);
+
+  return grids;
+}
+
+function gridGeometry(params) {
+  if (!params) params = {}
+  if (!params.stepSize) params.stepSize = 1
+  if (!params.numSteps) params.numSteps = 10;
+  const gridGeom = new THREE.Geometry();
+  const size = params.stepSize * params.numSteps;
+  for (let x = 0; x < params.numSteps; x += 2) {
+    const xOff = x * params.stepSize;
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff, 0, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff, size, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff + params.stepSize, size, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff + params.stepSize, 0, 0)));
+  }
+  for (let y = 0; y < params.numSteps; y += 2) {
+    const yOff = y * params.stepSize;
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, yOff, 0, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, yOff, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, yOff + params.stepSize, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, yOff + params.stepSize, 0)));
+  }
+  if (params.numSteps % 2 == 0) {
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, size, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, size, 0)));
+    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, 0, 0)));
+  }
+  return gridGeom;
+}
+
+function imgGrid(params) {
+  const imageCanvas = document.createElement('canvas'),
+    context = imageCanvas.getContext('2d');
+
+  imageCanvas.width = imageCanvas.height = 32;
+
+  context.strokeStyle = '#' + params.color.toString(16);
+  context.lineWidth = params.lineWidth;
+  context.strokeRect(0, 0, 32, 32);
+
+  const textureCanvas =
+    new THREE.Texture(imageCanvas, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping);
+  materialCanvas = new THREE.MeshBasicMaterial({map: textureCanvas});
+
+  const span = params.stepSize * params.numSteps;
+
+  textureCanvas.needsUpdate = true;
+  textureCanvas.repeat.set(params.numSteps, params.numSteps);
+
+  const geometry = new THREE.PlaneGeometry(1, 1);
+  const meshCanvas = new THREE.Mesh(geometry, materialCanvas);
+  meshCanvas.scale.set(span, span, span);
+  meshCanvas.doubleSided = true;
+
+  return meshCanvas;
+}
+
+// Ellipse
+function port(rad, height, startAngle, angle) {
+  const curveGen = new THREE.EllipseCurve(0, 0, rad, 0, startAngle, angle);
+  const path = new THREE.CurvePath();
+  path.add(curveGen);
+  const geom = path.createPointsGeometry(100);
+  geom.computeTangents();
+  const mat = new THREE.LineBasicMaterial({
+      color: 0xc0c0c0,
+      blending: THREE.AdditiveBlending,
+      depthTest: true,
+      depthWrite: false,
+      transparent: false
+    });
+  
+  const portTop = new THREE.Line(geom, mat);
+  const portBottom = new THREE.Line(geom, mat);
+  portTop.position.z += height / 2;
+  portBottom.position.z -= height / 2;
+  
+  const shape = new THREE.Object3D();
+  shape.add(portTop);
+  shape.add(portBottom);
+
+  shape.rotation.z = Math.PI * 0.5 + startAngle * deg;
+  shape.rotation.x = Math.PI * 0.5;
+  return shape;
+}
+
+THREE.EllipseCurve = function(aX, aY, aRadius, eccentricity,
+                             aStartAngle, aEndAngle,
+                             aClockwise) {
+
+  aX = aX || 0;
+  aY = aY || 0;
+  aRadius = aRadius || 1;
+  eccentricity = eccentricity || 0;
+  aStartAngle = aStartAngle || 0;
+  aEndAngle = aEndAngle || Math.PI * 2.0;
+  aClockwise = aClockwise || true;
+
+  this.aX = aX;
+  this.aY = aY;
+  this.aRadius = aRadius;
+  this.bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0));
+  this.aStartAngle = aStartAngle;
+  this.aEndAngle = aEndAngle;
+  this.aClockwise = aClockwise;
+};
+
+THREE.EllipseCurve.prototype = new THREE.Curve();
+THREE.EllipseCurve.prototype.constructor = THREE.EllipseCurve;
+THREE.EllipseCurve.prototype.getPoint = function (t) {
+
+  const deltaAngle = this.aEndAngle - this.aStartAngle;
+
+  if (!this.aClockwise) {
+    t = 1 - t;
+  }
+
+  const angle = this.aStartAngle + t * deltaAngle;
+
+  const tx = this.aX + this.aRadius * Math.cos(angle);
+  const ty = this.aY + this.bRadius * Math.sin(angle);
+
+  return new THREE.Vector2(tx, ty);
+};
+
+
+module.exports = {
+  angle: angle,
+  box: box,
+  cube: cube,
+  grid: grid,
+  line: line,
+  lineGrid: lineGrid,
+  lodSphere: lodSphere,
+  point: point,
+  sphere: sphere,
+};
+},{"./material.js":7,"three":1}],12:[function(require,module,exports){
+'use strict';
+
+const THREE = require('three');
+
+// This size is chosen to allow for the maximum object and distance
+// size range in the scene.  The smallest object in the scene is
+// Mars's moon Deimos, which is 6.2E3 m.  The smallest size I found
+// that three/webgl supports is 1E-4.  So rounding Deimos down to 1E3,
+// and then dividing it down to the smallest size.
+
+// Deimos size in meters.
+const SMALLEST_REAL_SIZE = 1E3;
+// Smallest renderable size.
+const SMALLEST_RENDER_SIZE = 1E-4;
+// SMALLEST_RENDER_SIZE / SMALLEST_REAL_SIZE = 1E-7, but can't use the
+// calculation since it actually yields 1.0000000000000001e-7.
+const LENGTH_SCALE = 1E-7;
+
+// Additionally, when I hardcode LENGTH_SCALE to 1E-5, LOD starts to
+// flake out when zoomed to small sizes, supporting the 1E-4 minimum.
+
+module.exports = {
+  twoPi: Math.PI * 2.0,
+  halfPi: Math.PI / 2.0,
+  toDeg: 180.0 / Math.PI,
+  toRad: Math.PI / 180.0,
+
+  lengthScale: LENGTH_SCALE,
+
+  targetNode: null,
+  targetObj: null,
+  targetObjLoc: new THREE.Matrix4(),
+  targetPos: new THREE.Vector3(),
+};
+
+},{"three":1}],13:[function(require,module,exports){
+// RA,Dec,Distance(km)
+module.exports = [
+[21.41435523,-3.3982351,2.1994668567355658E15],
+[10.5974893,-51.42848043,1.1020899999999994E16],
+[5.67214626,-3.42706631,9.986576051779946E15],
+[13.23653773,-63.37373127,1.1778061068702286E16],
+[17.63181016,-59.43291552,2.4686816E16],
+[20.80397253,-0.29936199,8.120663157894734E15],
+[15.97038727,-56.22830481,6.934498876404478E15],
+[10.39240651,-3.64286765,1.138690774907748E16],
+[18.94044363,2.47120367,4.953213483146064E15],
+[11.9068675132218,-51.3898678159207,7.912441025641012E14],
+[19.72614878,-9.06724632,1.4555905660377354E16],
+[14.53025594,-64.28347838,1.3498915135608045E15],
+[14.87317569,-62.57205994,3.061361111111111E15],
+[0.282223745227761,5.13282822987191,5.452035335689046E14],
+[17.01122806,-27.79232732,1.4440112306972402E15],
+[18.58735861,41.58135404,1.532200595829196E15],
+[21.06000236,81.16085186,7.347266666666663E15],
+[23.9060627,33.59337579,7.852040712468181E15],
+[11.70842334,23.90635912,1.3170516431924878E15],
+[14.43669196,19.20924714,5.500627450980391E15],
+[4.94519826,47.34013763,2.3201894736842096E16],
+[21.16948208,34.26304642,3.085852E20],
+[7.64218096,-62.41691221,2.593152941176472E16],
+[18.53148149,-19.12505743,1.14290814814814688E17],
+[13.89190556,-80.27284177,4.19843809523808E15],
+[13.67801741,20.01355215,3.0432465483234695E15],
+[11.82742566,18.93545349,4.969165861513702E15],
+[18.97499684,-35.88890582,4.62646476761618E15],
+[1.04733117,62.6090739,8.45438904109589E15],
+[11.91180771,-25.71406632,2.7901012658227835E15],
+[11.66073516,17.90434226,1.46945333333333248E17],
+[3.45185465,63.81629097,4.605749253731356E15],
+[21.90105281,-17.16141186,1.5640405473897615E15],
+[12.67798078,-8.44809333,1.8088229777256742E15],
+[6.11140775,-42.29879701,3.046250740375124E15],
+[5.81012922,-20.63360361,3.129667342799187E15],
+[21.77524497,-38.7217286,4.291866481223936E15],
+[23.83631494,24.85797357,4.4528888888888795E15],
+[3.51250633,42.20248367,2.3682670759785115E15],
+[6.11429122,-23.09374846,4.303838214783809E15],
+[5.03360209,-5.50097094,3.6736333333333315E15],
+[9.23904198,61.42339501,6.036486697965564E14],
+[8.20069848,-21.99275125,3.085852E20],
+[0.27772408,11.9382965,3.085852E20],
+[16.04325277,-66.37791474,4.192733695652164E15],
+[22.51827304,50.3647204,8.185283819628635E15],
+[1.04021953,-44.09956205,8.362742547425467E15],
+[10.86511202,-41.11649019,3.6562227488151695E15],
+[11.90283968,-35.99212476,3.5923771827706525E15],
+[7.3901414,-20.23033528,1.6327259259259256E16],
+[8.36930608,74.82025381,4.408360000000004E15],
+[10.86303614,-57.27231455,5.714540740740735E15],
+[8.32486616,-34.59014713,7.714629999999999E15],
+[17.34824579,-42.65279526,2.74786464826358E15],
+[20.51786973,-15.05605156,3.0105873170731705E15],
+[3.31193807,64.9078768,1.5201241379310356E16],
+[19.38621531,-50.05295671,2.660217241379309E15],
+[5.79384649,-56.81638281,1.2442951612903228E16],
+[1.94565036,46.5239178,1.2751454545454552E16],
+[22.80167708,-21.62938961,4.018036458333323E15],
+[1.4564752,-22.33802701,3.6605599051008255E15],
+[15.67021074,-39.39066699,3.085852E20],
+[16.94717008,29.58963761,4.465777134587567E15],
+[16.82316868,52.91687214,9.613246105919008E15],
+[7.14581383,64.36877745,5.590311594202896E15],
+[14.76003723,8.15978832,5.855506641366225E15],
+[15.39027879,-46.14039293,4.68262822458271E15],
+[20.45434772,16.71108227,6.693822125813438E15],
+[13.48440857,-58.94226357,2.2200374100719432E16],
+[2.555719,61.52172056,1.4487568075117358E16],
+[19.57460111,17.98126429,7.209934579439248E15],
+[3.71365169,-22.9103938,7.0132999999999912E16],
+[2.06515842,-2.71242043,9.351066666666666E15],
+[17.07555784,62.17220511,7.753396984924618E15],
+[3.84488798,-4.62173187,2.2557397660818725E15],
+[22.98134398,69.02986843,1.2585040783034265E15],
+[16.94246832,-63.88375702,5.442419753086429E15],
+[7.30799043,27.25323579,1.0946619368570414E15],
+[10.5585921,34.98870207,4.993288025889973E15],
+[16.75152761,-31.37996077,1.4352799999999986E16],
+[3.71854902,-63.44849927,1.04605152542373E16],
+[21.7622399,-69.36369314,3.0492608695652185E15],
+[5.57849452,-55.25603562,1.2804365145228228E16],
+[22.49747602,-78.21316096,8.228938666666678E15],
+[15.15159154,-54.92674494,2.7552250000000004E16],
+[13.57261443,4.66770016,6.326059860598599E14],
+[1.27481738,42.93949385,7.295158392434995E14],
+[1.86343029,-10.80215939,5.476223602484488E14],
+[11.32376233,-32.50717541,6.888062500000009E15],
+[20.63025372,-17.12241263,9.796355555555542E15],
+[6.4122193,-28.77981914,6.800026443367129E14],
+[20.0487632,45.98691863,3.085852E20],
+[15.21517892,-44.95874489,1.4487568075117358E16],
+[18.70833513,-70.30312137,6.038849315068479E15],
+[0.05161308,31.87010321,2.330703927492447E15],
+[20.62225864,35.43623481,7.657200992555826E15],
+[10.14523273,-65.81553262,3.231258638743463E15],
+[16.29203957,61.36872519,2.5190628571428575E15],
+[1.79614856,49.86845262,7.193128205128201E15],
+[13.68076268,-17.79264643,2.878593283582088E15],
+[19.05040388,24.11679381,1.2442951612903228E16],
+[20.33464468,-51.65803138,5.92294049904032E15],
+[4.45905437,-40.47244133,2.0586070713809205E15],
+[18.44315985,-61.66038022,6.55170276008494E15],
+[18.06547487,58.72415913,1.0218052980132464E16],
+[23.14722374,64.84620007,5.2302576271186496E16],
+[6.12344248,-58.77380134,6.496530526315799E15],
+[5.23887087,-15.82608507,9.710044052863439E14],
+[19.9521857,18.34198585,8.668123595505605E15],
+[19.60638412,15.89218485,1.6072145833333322E15],
+[7.64436499,-26.31669742,9.1297396449704E15],
+[8.59473559,-52.32234158,1.6414106382978712E16],
+[15.34667429,-44.22881972,4.408360000000004E16],
+[20.56664489,4.89868547,5.889030534351159E15],
+[8.3059618,65.64368175,2.2524467153284668E16],
+[17.22797887,-8.41977523,5.848847611827134E14],
+[2.75166151,-18.57265077,4.312258244829507E14],
+[8.00840216,-17.03382914,1.11001870503597E16],
+[14.7444973647573,-22.2418225656338,7.71463E14],
+[6.26707483,37.72273393,5.338844290657428E15],
+[6.4182547,16.99470026,9.1297396449704E15],
+[22.07661772,29.95955747,1.794099999999999E16],
+[14.38307218,24.10669894,5.239137521222414E15],
+[15.928194,28.41908322,3.1013587939698475E15],
+[17.57512658,43.50086814,3.085852E20],
+[0.87174619,-26.39823765,9.322815709969798E15],
+[5.16880911,53.70979355,4.913777070063697E15],
+[10.98150067,-4.6780099,1.06408689655172544E17],
+[2.80865237,-51.56781785,4.1309933065595785E15],
+[7.16216685,-23.00955622,5.357381944444441E15],
+[23.62292064,-58.16976912,6.636240860215046E15],
+[20.87476854,-8.06302197,1.847815568862276E16],
+[11.73000489,16.32315142,2.1823564356435635E15],
+[10.47400892,15.75580698,2.628494037478706E15],
+[20.46774656,33.88794436,1.0865676056338026E16],
+[15.59790848,-29.57354964,4.754779661016963E15],
+[1.42332335545638,-26.006362743023,5.714540740740735E14],
+[13.21328325,-55.10862203,7.347266666666663E15],
+[17.99894532,45.50146059,5.778749063670404E15],
+[12.61183714,23.63316419,6.664907127429792E15],
+[18.51727589,-24.89200795,6.7083739130434752E16],
+[3.10759107,-16.20210806,2.6602172413793092E16],
+[9.10642079,-36.80318238,5.662113761467887E15],
+[2.34828223,-64.21034241,1.1937531914893628E15],
+[2.69490344,-47.12907477,5.789590994371497E15],
+[22.26692454,45.08912515,9.673517241379298E15],
+[6.48485032,76.99626741,3.178014418125652E15],
+[12.52100259,-52.79234314,1.8045918128654976E16],
+[16.2244491,-64.98563142,4.689744680851048E15],
+[18.2229238,-25.15130042,4.62646476761618E15],
+[5.92253926,64.32196159,1.4487568075117358E16],
+[6.88543739,44.84008268,3.398515418502191E15],
+[5.60173214,-7.39649054,7.435787951807236E15],
+[13.1546124198441,-40.1384223502032,4.9771806451612844E14],
+[23.39129952,45.79326087,9.625240174672484E14],
+[6.62221583,-43.4513161,1.723939664804469E16],
+[16.82730313,28.34176576,4.321921568627464E15],
+[11.06406675,-51.02933854,7.973777777777762E15],
+[18.85552282,-17.15428346,2.05723466666666752E17],
+[12.54547074,-45.45963912,2.641996575342466E15],
+[0.68546454,19.25461642,1.5216232741617365E15],
+[12.18969386,31.98233189,2.51700815660685E15],
+[4.44810045,-18.65618823,2.0504E15],
+[20.40923279,5.50948086,8.816720000000008E15],
+[14.43524381,-4.45492626,1.847815568862276E16],
+[3.09251496,45.08803094,2.5027185725871855E15],
+[22.32853378,83.53357108,2.1777360621030335E15],
+[5.40434845,20.14011089,1.1471568773234206E16],
+[23.8729012560731,-14.6869006536717,5.93433076923076E14],
+[4.93458639,-10.16051568,8.207053191489373E15],
+[10.62524291,28.30563634,1.249332793522268E15],
+[21.31936752,2.08763579,6.693822125813438E15],
+[10.21802181,-47.91960479,2.085035135135136E16],
+[2.41692605,-10.19693576,6.07451181102361E15],
+[12.35905473,-44.26841321,1.142908148148147E16],
+[21.4745213,-23.61810444,4.309849162011181E15],
+[23.03687437,-25.09334609,5.641411334552097E15],
+[22.90058083,34.19928019,1.3131285106382978E15],
+[14.91393884,-36.15323567,6.537822033898305E15],
+[20.73231559,9.82186223,1.0752097560975612E16],
+[17.95943055,29.46806332,6.965805869074478E15],
+[3.85906886,-17.16633032,3.8913644388398365E15],
+[22.1584697,-8.80054527,3.8238562577447355E15],
+[6.44974649,38.9752268,6.650543103448265E15],
+[13.68100506,-62.8798021,3.7632341463414592E16],
+[2.28879801,5.36070032,2.007711125569292E15],
+[3.52039694,19.78342944,3.526687999999991E15],
+[23.59739338,60.90253704,1.7434192090395466E16],
+[17.62542603,-52.67011044,2.302874626865672E16],
+[8.39716403,-78.71758652,7.312445497630339E15],
+[3.43917999,35.34058016,2.321935289691496E15],
+[13.98588064,-69.57697245,2.1135972602739724E16],
+[0.0842532,9.28002796,3.6824009546539455E15],
+[3.99883058,45.69797762,7.695391521196999E15],
+[19.2494399,45.17496575,7.226819672131148E15],
+[9.76252384,-47.33161072,5.134529118136446E15],
+[23.45708434,63.9293455,8.036072916666677E15],
+[10.39492522,-61.56942649,2.80531999999999936E17],
+[1.03842903,81.87558833,6.375727272727276E15],
+[21.12967649,-42.24537545,7.544870415647907E15],
+[16.89936209,-25.06923832,1.4907497584541078E16],
+[9.13557092,-60.74865238,9.1297396449704E15],
+[8.70921004,-24.21183111,9.1297396449704E15],
+[21.49369733,33.79546076,1.10208999999999952E17],
+[15.5687626,60.32484883,5.050494271685772E15],
+[3.6590622,-29.10220377,9.524234567901234E15],
+[12.80067922,-68.71987537,1.4487568075117358E16],
+[9.10894481,3.85993036,8.163629629629643E15],
+[10.05624439,56.66769601,5.37604878048779E15],
+[20.84495595,-31.26261846,3.1392187182095565E15],
+[7.46358796,27.29273451,3.961299101412064E15],
+[0.22096224,-26.32530812,5.968765957446813E15],
+[15.22675077,13.11543892,1.2698979423868314E16],
+[1.21325977,-6.78333777,3.726874396135254E15],
+[6.33523105,-7.87193757,3.559229527104952E15],
+[15.10950696,-12.90700458,5.168931323283078E15],
+[18.88215029,-41.22614877,8.717096045197748E15],
+[5.06791441415913,-42.360888606362,5.922940499040321E14],
+[14.91358657,-40.74726632,3.085852E20],
+[7.51110341,41.25800982,4.340157524613219E15],
+[5.67844715,52.5701213,6.679333333333319E15],
+[0.97060954,33.95105921,1.7951436881908092E15],
+[23.07669798,52.44369132,3.1488285714285832E16],
+[19.99352609,76.48153707,4.969165861513702E15],
+[11.09592476,30.59588381,3.3910461538461576E16],
+[13.0345392,28.99157704,4.377095035461002E15],
+[14.34099782,-17.52840991,5.631116788321182E15],
+[5.81751759,54.03251774,1.2007206225680942E16],
+[3.63696349,49.08303653,7.619387654321E15],
+[19.33656395,14.13877857,9.294734939759022E15],
+[19.55978325,-0.28341522,1.042517567567568E16],
+[4.18922022,60.08223081,6.622000000000013E15],
+[23.41361109,-71.62741583,7.657200992555826E15],
+[17.91909867,-29.81142264,9.294734939759022E15],
+[19.64611648,23.11425562,4.732901840490787E15],
+[19.20761626,-5.41441446,1.6207205882352928E15],
+[18.05010545,15.00234698,3.085852E20],
+[13.14483523,37.22336544,7.619387654321E15],
+[14.77731562,43.89882227,3.0253450980392155E15],
+[1.97908378,-32.27064328,5.0754144736842E15],
+[5.34302961,-22.41679631,1.686257923497268E16],
+[3.2675028,11.62848313,2.8732327746741155E15],
+[10.34454677,-71.14853875,7.892204603580568E15],
+[1.20775181954207,-1.8561452837444,3.117022222222222E14],
+[21.56095112,-6.37378562,5.338844290657428E15],
+[2.67156639,34.58513822,3.346911062906719E15],
+[15.70458547,12.94334143,1.4857255657197878E15],
+[5.31286632,-17.57278101,2.323683734939759E15],
+[20.21971089,2.93888174,1.1278698830409362E15],
+[22.18751193,52.31232516,3.085852E20],
+[11.73864497,-31.62562253,3.4440312500000045E15],
+[1.21491206,22.83844015,3.332453563714912E15],
+[9.74603732,81.5994716,2.2041799999999988E16],
+[18.79632882,-62.97052744,1.7143622222222234E16],
+[19.99983574,-40.80577008,4.1644426450742265E15],
+[12.54304295,35.83022999,2.8310568807339435E15],
+[16.98244618,-46.1289884,7.3472666666666624E16],
+[21.58388863,-44.99863887,2.947327602674309E15],
+[9.02598719,-14.49111048,1.0942737588652476E16],
+[9.36244471,-2.79288809,7.126678983833716E15],
+[6.60991472,77.92504322,5.394846153846159E15],
+[5.60108312,-15.38151476,5.143086666666677E15],
+[4.93506792,1.28312543,5.00949999999999E15],
+[15.9803043,16.21115423,9.239077844311364E15],
+[2.36128779,-85.71789991,4.1476505376344195E15],
+[5.57936364,6.55379491,6.402182572614114E15],
+[2.3305554,-63.54480179,3.567458959537573E15],
+[22.24089622,49.87159439,4.675533333333348E16],
+[19.63071524,-6.1437264,9.379489361702126E15],
+[22.60104067,23.33253366,1.0251999999999986E16],
+[10.70549665,-36.202403,3.03128880157171E15],
+[15.3582815,-60.88977642,1.2343408E16],
+[13.86419052,11.9371402,1.8522521008403348E15],
+[9.64100641,28.00600923,7.329814726840842E15],
+[1.84369186,-4.95423709,5.877813333333318E15],
+[8.03641424,26.63793802,4.592041666666672E15],
+[20.65210902,10.08615196,9.275178839795609E14],
+[22.82802725,-77.05104599,3.145618756371062E15],
+[22.69998321,-10.12556294,4.647367469879511E15],
+[15.90836603,-27.33857445,5.025817589576557E15],
+[15.95080905,-2.98868524,4.2681217150760865E15],
+[1.0460522,45.4253039,5.092165016501649E15],
+[11.93917242,-53.89989885,4.929476038338661E15],
+[13.04596035,-4.60907301,4.518084919472903E15],
+[7.51634423,-18.93001009,7.1764000000000088E16],
+[8.74168,-65.82568206,1.8713474833232275E15],
+[0.34329562,8.19024803,3.735898305084732E15],
+[23.28519824,1.2316692,8.477615384615394E15],
+[15.59927286,-79.08602275,1.307564406779661E16],
+[7.96358247,-34.9283639,1.0789692307692318E16],
+[8.16989698,69.41581453,1.0827550877192978E16],
+[9.30463237,-65.43082702,4.4528888888888795E15],
+[2.51131446,40.16766441,6.110598019801979E15],
+[17.87371556,60.39627063,6.062577603143432E15],
+[18.24414761,52.55752664,5.160287625418075E15],
+[9.50537821,-44.85985839,3.234645702306065E15],
+[18.54870263,-73.96538378,3.368834061135374E15],
+[18.59177634,23.6055287,4.605749253731356E15],
+[10.15838877,-68.68283264,5.520307692307687E15],
+[10.86279271,1.09601526,1.940787421383648E16],
+[12.55260042,51.10808116,1.566422335025382E16],
+[18.30934712,19.45060839,1.8045918128654976E16],
+[10.8179468061194,5.04749136805713,7.544870415647908E14],
+[6.24786238,-0.41511227,2.5715433333333324E16],
+[22.95034463,36.50555023,7.453748792270539E15],
+[7.48092923,-24.14112866,1.1229446870451239E15],
+[20.15711576,36.83959003,8.142089709762523E15],
+[13.19807621,-63.30298568,3.085852E20],
+[20.20053302,34.4789385,4.62646476761618E15],
+[2.17767911,63.5983488,6.415492723492726E15],
+[22.01728907,66.08248597,1.10208999999999952E17],
+[5.63002395,-34.68968252,9.211498507462682E15],
+[16.32068765,41.65932137,8.571811111111117E15],
+[10.79018272,13.37904462,1.6156293193717282E16],
+[5.57155816,-2.38536702,3.428724444444441E17],
+[22.55117393,63.8798379,7.953226804123724E15],
+[14.64668698,60.0376948,7.600620689655178E15],
+[7.75606903,-0.51340154,2.878593283582088E15],
+[20.70974994,82.53110584,3.3873238199780515E15],
+[15.80265717,1.57214455,6.58807002561914E14],
+[0.12289102,-25.35632439,1.4958080465341722E15],
+[7.44523915,49.21164489,2.3538154080854295E15],
+[23.28734153,17.44950843,2.2690088235294124E16],
+[10.27190889,-28.97845412,4.633411411411407E15],
+[23.59581127,-13.45520262,6.767219298245612E15],
+[12.73183791,34.34395123,1.3475336244541498E15],
+[14.118023,-63.44532555,2.2200374100719432E16],
+[5.52596004,-29.65642165,1.6680281081081096E16],
+[21.98432477,63.26283067,3.3181204301075232E16],
+[1.58098745,-23.69971287,9.379489361702126E15],
+[20.80382438,-78.95100108,4.1309933065595785E15],
+[11.98203791,15.26588155,2.3737323076923072E16],
+[0.39513647,-62.42527363,3.079692614770459E15],
+[15.19732254,-46.75174229,1.566422335025382E16],
+[17.37907219,-12.74102494,2.2200374100719432E16],
+[4.3893968,-41.24852743,1.1557498127340838E16],
+[8.54005421,23.74655706,3.1392187182095565E15],
+[3.92512214,38.31409833,2.410821875E15],
+[11.59575808,-17.92727562,1.229423107569721E16],
+[13.83906297,21.25557997,3.398515418502191E15],
+[22.19931619,50.19619319,1.9530708860759484E16],
+[16.44419823,5.3340001,4.668459909228442E15],
+[15.76731744,-62.42897451,2.128173793103448E16],
+[15.82634402,-14.54075037,5.413775438596489E15],
+[0.13669219,-2.44769895,9.494929230769242E15],
+[5.6542114,30.15056342,5.37604878048779E15],
+[7.68819617,17.36529585,1.6241326315789468E16],
+[6.80749992,33.82232105,8.692540845070409E15],
+[10.4950538,-22.04454178,4.321921568627464E15],
+[8.14099013,5.36679137,6.524000000000002E15],
+[12.75849488,-15.50835758,3.7632341463414595E15],
+[0.93392958,-3.73796256,4.799147744945563E15],
+[8.3517888,-30.58371648,9.022959064327472E15],
+[17.6403636,12.73733163,3.7134199759326245E15],
+[5.34747241,-77.92099356,1.498713938805246E15],
+[4.20870129,17.27750726,2.7021471103327505E15],
+[4.23307263,22.70808382,8.996653061224484E15],
+[11.42054641,50.49887996,2.1281737931034482E15],
+[10.5219304,87.27095673,9.858952076677322E15],
+[6.24759346,-6.27472737,6.098521739130443E15],
+[11.2157086,-3.83215229,9.408085365853664E15],
+[6.7401831,56.93306955,1.0286173333333322E16],
+[0.61467749,33.71935227,6.208957746478885E15],
+[18.1624385,4.60310898,3.2482652631578995E15],
+[4.56162932,19.0141167,1.4652668566001915E15],
+[18.39856438,-44.9694113,7.061446224256289E15],
+[4.65456995,15.9180242,1.504559726962456E15],
+[21.71637265,20.99518115,1.151437313432836E16],
+[5.36923391,31.37267583,3.609183625730982E15],
+[2.92305514,-25.22454236,8.756674233825209E14],
+[3.98896304,-43.91745017,4.784266666666651E15],
+[7.69139644,18.25599741,1.229423107569721E16],
+[15.64849928,57.46180365,1.704890607734807E16],
+[0.81219694,-17.54708857,6.208957746478885E15],
+[13.55583145,-54.43144651,1.4694533333333326E16],
+[20.58066834,51.85423447,6.8574488888888808E16],
+[1.19542848,-2.25102487,4.1700702702702655E15],
+[20.59227948,-16.52581187,2.2200374100719438E15],
+[5.68402623,68.79861273,1.9908722580645172E16],
+[12.84213545,-41.69638525,4.142083221476508E15],
+[4.04493375,35.39959514,1.9530708860759484E16],
+[8.17993881,-38.2688883,5.93433076923076E15],
+[11.7520026,0.90948712,6.752411378555783E15],
+[6.4662624,18.8136607,5.423289982425293E15],
+[5.28301803,54.17380272,4.8596094488189E15],
+[18.52928779,-45.9147436,7.526468292682919E15],
+[5.20513833,9.1241918,7.295158392434994E15],
+[17.93750773,-4.57635999,6.415492723492726E15],
+[14.11129397,-46.58750174,1.2343408E16],
+[22.34464971,0.54656358,1.142908148148147E16],
+[16.55948372,-71.13751935,6.36258144329896E15],
+[15.23369391,50.26000445,6.934498876404478E15],
+[23.59195429,-7.15176483,9.1297396449704E15],
+[0.97137642,-27.09239799,1.0640868965517254E16],
+[2.98245398,77.08013994,4.108990679094539E15],
+[8.19856135,-30.21190202,6.0506901960784304E16],
+[8.95327858,50.74182248,4.689744680851048E15],
+[12.65426106,59.75008675,7.973777777777762E15],
+[1.76406508,-11.32948955,1.260045732952226E15],
+[11.04901885,-67.9091411,2.2690088235294124E16],
+[11.30584326,11.98462248,5.37604878048779E15],
+[0.80911113,-53.33246585,1.7633439999999984E16],
+[9.75825707,-29.53991956,7.526468292682919E15],
+[23.05195971,4.94034056,3.90120353982302E15],
+[5.34009094,-8.02000564,7.953226804123724E15],
+[22.75185731,36.32852031,3.085852E20],
+[11.59281013,6.52172597,3.613409836065574E15],
+[7.44615819,-5.86893266,4.007600000000004E16],
+[12.090329,17.28944187,3.1044788732394275E15],
+[15.20867368,-48.21889226,4.4593236994219585E15],
+[4.95428264,61.75310836,1.114025992779784E16],
+[19.64183804,-48.01575285,1.7734781609195404E16],
+[13.89228148,64.24536738,7.417913461538449E15],
+[11.69796866,-6.94245696,7.417913461538449E15],
+[6.95886369,-16.88958775,3.6304141176470455E15],
+[4.51345088,-57.45013235,3.609183625730982E15],
+[23.28489566,43.92819883,6.565642553191473E15],
+[22.36412755,42.0781687,6.767219298245612E15],
+[17.45196176,-71.92715546,1.1020899999999994E16],
+[0.95163752,-33.86985015,2.410821875E16],
+[17.55167165,-33.05777691,1.6770934782608688E16],
+[23.6441794,35.53523813,5.0340163132137E15],
+[8.22151699,49.22161846,2.5190628571428575E15],
+[8.05822782,-42.94832058,7.382421052631593E15],
+[19.97046275,34.42275647,8.477615384615394E15],
+[21.42028258,-9.74814011,2.610703891708966E15],
+[13.27462657,68.40796113,4.3340617977528025E15],
+[20.4769914,10.98698096,9.765354430379758E15],
+[16.8284659,-65.07581337,8.362742547425465E14],
+[8.53839399,-5.10814312,5.991945631067949E15],
+[1.61243611,-58.2709679,7.619387654321E15],
+[14.46258846,-13.35929187,1.3181768475010665E15],
+[23.57894982,36.20414348,1.0640868965517254E16],
+[5.93489515,58.06584435,4.544701030927841E15],
+[7.90762243,-41.65817625,5.432838028169013E15],
+[14.50788745,25.08990499,4.0656811594202855E15],
+[15.03824623,-80.27760266,9.494929230769242E15],
+[15.18312549,14.25144801,8.918647398843917E15],
+[7.19111778,48.33177839,1.1196850507982584E15],
+[12.87431202,16.12252624,3.447879329608939E15],
+[12.07792478,35.56743196,6.607820128479661E15],
+[18.65057532,-23.18208209,4.2271945205479448E16],
+[22.64902781,-3.02582434,6.737668122270748E15],
+[21.45811244,-20.21255474,4.352400564174899E15],
+[8.37688155,-49.05132256,8.120663157894734E15],
+[18.57522074,-39.06129569,7.657200992555826E15],
+[11.00511998,-54.56790704,4.1700702702702664E16],
+[19.53511752,-49.03864685,4.718428134556562E15],
+[7.81999545,-4.65881524,4.5380176470588312E16],
+[18.6116987,15.44803672,5.274960683760685E15],
+[16.03848309,-35.2698621,3.10760523665661E15],
+[19.24344601,-29.83119759,8.996653061224484E15],
+[0.12706013,52.7729898,1.1262233576642334E16],
+[10.70432158,12.41812024,8.099349081364833E15],
+[17.8498991931735,-56.5727516788852,1.0640868965517254E15],
+[16.85330903,15.79471062,7.364801909307891E15],
+[17.95965818,27.99221606,6.07451181102361E15],
+[23.32864368,-33.70796023,5.413775438596489E15],
+[1.01122234,-1.65857625,1.723939664804469E16],
+[19.44130185,19.89161003,4.303838214783809E15],
+[0.22478611,-36.82792674,8.399161676646711E14],
+[10.4345009627352,50.4562131912935,6.050690196078431E14],
+[22.65953454,37.59281397,8.548066481994445E15],
+[20.52958873,56.77987434,7.772926952141055E15],
+[2.85988517,7.54999454,6.171704E15],
+[19.16043417,58.27518169,2.439408695652174E15],
+[15.91118718,8.58033887,2.2790635155096015E15],
+[19.45492015,-48.51127955,4.8981777777777864E16],
+[13.73239829,-28.66601175,5.338844290657428E15],
+[16.78061749,39.10508091,6.812035320088309E15],
+[4.85750804,-51.72558824,1.142908148148147E16],
+[17.55877819,57.55870857,7.143175925925912E15],
+[5.23359679,88.22202521,7.812283544303787E15],
+[11.45669287,-18.5196463,7.435787951807236E15],
+[17.39896767,54.36489197,8.668123595505605E15],
+[15.77206851,-44.08261428,5.338844290657428E15],
+[20.04499547,53.88966128,1.8989858461538448E15],
+[7.3396804,28.12221417,8.996653061224484E15],
+[8.35378681,38.87844076,9.049419354838698E15],
+[10.6241916,31.64060738,1.6414106382978712E16],
+[14.95551945,-32.83366979,4.103526595744671E15],
+[7.11005965,-61.45969602,3.3725158469945415E15],
+[7.62124143,-39.20194716,5.490839857651239E15],
+[10.28005191,56.90805322,7.126678983833716E15],
+[0.23696595,35.41805038,2.296020833333333E15],
+[11.46772526,-2.47200394,3.9061417721519096E16],
+[1.13626486,44.79611256,8.185283819628635E15],
+[8.06948183,-4.8269414,3.085852E20],
+[19.65922916,71.87306594,6.725919790758492E14],
+[10.77810393,-15.5068681,3.085852E20],
+[5.85776722,-2.91709664,1.3963131221719444E16],
+[4.56624346,15.16370338,1.2847010824313085E15],
+[16.51498338,26.04783071,2.7552250000000004E16],
+[7.72308252,-47.0466741,1.138690774907748E16],
+[18.62548486,35.65978922,5.757186567164164E15],
+[3.21288119,35.33242993,7.56336274509803E15],
+[21.7129666,-2.95889113,6.15938522954093E15],
+[7.97566262,-66.77455735,5.98033333333333E15],
+[18.6051976227433,13.6028331245033,3.4672494382022544E14],
+[0.93586728,13.95196746,4.740172043010757E15],
+[19.11227909,-40.5185429,4.8981777777777864E16],
+[6.60634935,-18.65994454,2.6173469041560655E15],
+[2.11252266,54.30680019,4.874963665086872E15],
+[18.13274015,59.02079515,9.583391304347822E15],
+[23.44444294,45.33787529,1.0816165439887831E15],
+[12.07127112,21.45916332,3.3947766776677665E15],
+[5.53687534,18.59424525,1.8152070588235288E16],
+[11.26005136,42.33940762,8.099349081364833E15],
+[3.90752435,5.19116866,7.56336274509803E15],
+[0.91042132,39.16939308,4.420991404011457E15],
+[14.44958111,3.68756645,3.238039874081843E15],
+[10.75124355,38.1213849,8.43128961748634E15],
+[9.7324934,-67.02387998,1.8045918128654976E16],
+[8.16999232,-38.16177515,7.508155717761556E15],
+[7.969755,51.35106622,8.099349081364833E15],
+[19.16279858,37.79427953,3.722378769601929E15],
+[0.87830579,52.73361012,1.2857716666666678E16],
+[12.01869766,-1.73203365,1.3434270787984325E15],
+[18.92080051,32.40017526,7.638247524752489E15],
+[8.95909679,-27.71581584,6.797030837004413E15],
+[8.09658548,2.1651121,1.3837901345291492E16],
+[3.69706128,-48.23898327,2.975749276759885E15],
+[14.04142715,43.98923976,1.8589469879518076E16],
+[20.28349532,56.90472217,4.352400564174899E15],
+[1.60778996,54.69615029,1.042517567567568E16],
+[1.83230901,76.99221841,1.2255170770452745E15],
+[1.68140023,77.96901023,8.741790368271955E15],
+[12.8943964,-71.27347858,3.936035714285706E15],
+[8.95414248,15.32271727,1.5134144188327625E15],
+[20.00196031,32.78968231,1.7533249999999992E16],
+[11.72594267,-52.61968161,6.015306042884981E15],
+[1.52851439,10.88937825,4.125470588235309E15],
+[14.36699832,51.1112858,4.675533333333348E15],
+[15.10774428,3.00902726,5.945764932562612E15],
+[18.85817585,-34.95382152,4.65437707390647E15],
+[16.20934714,-67.90589842,3.2144291666666768E16],
+[5.95399011,-53.4256934,6.812035320088309E15],
+[5.24957832,44.53070272,1.256454397394138E15],
+[20.7967578,6.00824104,4.8596094488189E15],
+[4.92255192,-34.84362702,1.1221280000000012E16],
+[21.75695253,-67.10354844,2.5715433333333324E16],
+[13.22876708,-35.94614127,7.792555555555569E15],
+[6.78105672,42.03827069,3.7724352078239535E15],
+[2.54686855,-38.58385078,9.408085365853664E15],
+[3.66019961,-17.36504821,4.3340617977528025E15],
+[8.76858093,-11.00680266,3.6304141176470464E16],
+[19.85392396,-72.79504967,2.846726937269373E15],
+[8.8523224,-13.73186214,4.02327509778356E15],
+[2.28882185,-35.98307115,2.981499516908212E15],
+[5.36108697,18.90681601,2.1885475177304952E16],
+[11.27745507,-75.22201668,1.0218052980132464E16],
+[15.59644853,-56.90387852,3.0018015564202335E15],
+[16.8870545,10.87450126,2.2858162962962968E16],
+[16.27848239,38.64499381,1.6770934782608688E16],
+[23.75336484,15.04353535,5.461684955752216E15],
+[22.96460566,-3.65398996,3.961299101412064E15],
+[22.83728159,36.70427968,1.0184330033003299E15],
+[20.55709424,-6.21940534,1.558511111111111E16],
+[9.53354074,-38.93773776,1.2595314285714272E16],
+[15.92321839,54.0939872,1.193291569992267E15],
+[17.26931629,-61.18555443,7.159749419953602E15],
+[23.33841514,6.87234676,2.6810182450043425E15],
+[15.62322657,12.30155396,3.2968504273504325E15],
+[4.19212356,-0.4224967,5.151672787979982E15],
+[5.78096464,47.4673762,1.0604302405498288E16],
+[14.13764565,21.19314786,2.508822764227643E15],
+[5.85862584,-63.53125439,3.906141772151909E15],
+[7.18692427,-25.90784437,2.464738019169328E15],
+[9.8346024,-50.62618589,2.366450920245399E15],
+[14.67453792,30.52061836,1.5569384460141282E15],
+[17.65472804,3.5554776,3.3053256212510825E14],
+[14.89914579,-44.93013163,1.0218052980132464E16],
+[17.14654045,-30.40356872,2.5273153153153155E15],
+[18.12392403,-14.06703825,8.692540845070409E15],
+[18.89683501,-19.7970884,1.5824882051282056E16],
+[16.65832561,50.56860064,6.724454129439954E14],
+[2.2609466,57.76332247,1.1471568773234206E16],
+[9.02697661,49.73713164,1.3283908738699962E15],
+[6.61395364,-81.67896777,8.015200000000008E15],
+[19.24651762,-58.00670835,1.6164756416972248E15],
+[6.62334524,6.13538051,3.085852E20],
+[11.29012601,-10.86907261,8.099349081364833E15],
+[14.47166025,-20.56455812,3.5798747099767855E15],
+[5.74913402,38.49868736,4.585218424962856E15],
+[21.0647437,-20.74818007,4.158830188679256E15],
+[23.7849953,-73.09928596,3.936035714285706E15],
+[10.13787612,-54.77165091,7.852040712468181E15],
+[21.97425386,14.02233141,6.997396825396811E15],
+[23.56296172,-35.51220436,4.158830188679256E15],
+[14.83780423,-58.97673452,3.3181204301075232E16],
+[4.57753651,51.00326235,4.776860681114546E15],
+[23.43292147,27.69014055,1.1557498127340838E16],
+[21.19966875,-5.96375129,7.045324200913241E15],
+[21.55953225,-13.45006684,6.903472035794199E15],
+[17.32128434,-31.36160329,2.8336565656565665E15],
+[5.71614003,14.17852107,3.4363608017817375E15],
+[18.46062802,-64.6674357,1.1345044117647044E16],
+[5.71925437,-1.61317771,6.428858333333323E15],
+[13.71774561,3.53807968,2.0558640906062615E15],
+[9.63594469,-47.38818825,4.465777134587567E15],
+[7.47988817,-29.5087767,9.583391304347822E15],
+[19.14260057,50.3638425,6.375727272727276E15],
+[22.72440612,-24.38055359,1.042517567567568E16],
+[12.50136988,-13.39305238,7.708848363727195E14],
+[20.85528731,-13.92427847,5.610640000000006E15],
+[14.92720825,10.69251353,1.142908148148147E16],
+[21.09913896,45.71759295,7.176400000000008E15],
+[6.18943765,-60.05999794,3.1649764102564235E15],
+[13.91788692,11.14470233,1.307564406779661E16],
+[20.9943679,74.28630843,7.852040712468181E15],
+[0.86035986,-8.81834977,7.077642201834874E15],
+[10.15765772,-40.47405679,7.226819672131148E15],
+[22.71275674,-37.34546484,4.905965023847365E15],
+[6.82543949,-45.56691051,5.293056603773577E15],
+[3.8772845,-2.32844943,3.0704995024875605E15],
+[12.30807912,32.74891999,2.604094514767931E15],
+[8.24157244,-40.82588088,9.07603529411766E15],
+[2.15937291,-45.46672168,3.526687999999991E15],
+[21.50603493,-52.73750658,2.7116449912126525E15],
+[10.82512405,43.06765523,6.336451745379889E15],
+[16.20975825,57.79500657,3.4440312500000045E15],
+[19.51616651,-14.5632231,8.741790368271955E15],
+[22.75577398,-9.64450892,2.610703891708966E15],
+[15.46384775,29.10549164,1.0789692307692319E15],
+[7.30867026,-7.83650911,3.857315E17],
+[11.46293738,-60.24391774,4.3462704225352045E15],
+[20.96822672,-6.17505599,6.038849315068479E15],
+[10.08489668,21.82419623,1.7837294797687864E16],
+[3.60839927,21.78018794,1.1060401433691744E16],
+[9.50142443,-51.51719294,3.931021656050951E15],
+[11.09807149,52.32672858,5.945764932562612E15],
+[22.18437036,43.0307314,8.250941176470587E15],
+[8.75965101,-43.32914459,1.7734781609195404E16],
+[17.93538893,-1.41001848,2.1135972602739724E16],
+[16.66179461,-3.61953733,5.320434482758612E15],
+[19.91518198,-57.56687779,1.5429259999999998E16],
+[18.22829234,42.87939359,7.872071428571442E15],
+[11.26027305,35.84574344,8.571811111111117E15],
+[13.65811568,-61.21416217,9.524234567901234E15],
+[23.76435974,33.29051524,8.867390804597688E15],
+[9.37333195,-46.04750246,5.394846153846159E15],
+[3.00483956,0.97061607,8.408316076294292E15],
+[9.67523639,-71.80459713,1.9048469135802468E16],
+[22.23656849,4.4713235,1.0320575250836118E16],
+[13.54946976,-10.16490767,2.4966440129449835E15],
+[18.86355,77.14376634,4.740172043010757E15],
+[1.59465086,-65.29353386,1.508236559139784E15],
+[20.75784135,18.09005793,1.1733277566539914E16],
+[6.78773323,-18.25888017,9.802579415501899E14],
+[9.78007647,76.04634854,4.909867939538594E14],
+[11.77795604,-62.29510169,5.844416666666654E15],
+[17.31328853,-44.12970725,3.207746361746363E15],
+[11.13816301,-15.96149947,3.4363608017817375E15],
+[3.89222652,25.72997146,4.2329931412894275E15],
+[6.39434194,-33.31959597,2.9305337132003795E15],
+[4.58751916,-29.35747663,3.268911016949168E15],
+[22.27427339,47.97571121,7.56336274509803E15],
+[21.31207479,36.60225848,6.4288583333333216E16],
+[23.5314402,-46.72185344,4.485249999999989E15],
+[16.38683241,-34.56382174,4.2156448087431535E15],
+[7.83374497,-15.41181446,3.085852E20],
+[23.3643365,-12.44889279,9.294734939759022E15],
+[8.51215881,-70.8425824,6.015306042884981E15],
+[23.21653183,-44.06124659,7.852040712468181E15],
+[2.35816746,51.29001965,1.4419869158878496E16],
+[0.00441571,8.00723437,5.283993150684938E15],
+[22.17693266,-37.74958302,1.940787421383648E15],
+[3.07804347,9.02840059,6.050690196078431E15],
+[8.81683347,41.10805325,4.007600000000004E16],
+[18.84598529,10.9763769,1.7633439999999984E16],
+[12.50092039,-61.45597841,4.1309933065595785E15],
+[9.6449836,75.2054334,5.357381944444441E15],
+[7.90688227,-4.52831132,1.04605152542373E16],
+[18.18421609,-48.26849857,7.733964912280698E15],
+[6.35632111,-54.35189619,2.936110371075166E15],
+[12.55739177,40.40417012,1.3552270531400982E15],
+[12.07034125,44.45038072,9.954361290322572E15],
+[2.82849666,-17.27983119,1.0640868965517254E16],
+[0.46061757,-71.88263949,3.1392187182095565E15],
+[11.18226627,26.26830019,1.9286575E16],
+[6.1721204,82.11000311,2.899419336653199E14],
+[2.30410515,-30.78955471,9.184083333333344E15],
+[23.06405241,21.59840434,8.538605423353611E14],
+[3.86858647,43.67217254,1.2544113821138198E16],
+[2.05705243,54.69359533,3.6518958579881595E15],
+[17.5347528,-61.95054005,9.922353697749208E15],
+[20.2933646,-50.55882835,1.14290814814814688E17],
+[14.91592416,-3.63053009,3.4022624035281035E15],
+[9.54401724,48.16681216,1.0390074074074082E16],
+[12.0802292,-62.00229235,3.0253450980392152E16],
+[14.02930731,-61.30397729,3.085852E20],
+[17.68079725,-52.62631716,1.0084483660130718E16],
+[12.18367172,-68.26093422,8.892945244956776E15],
+[6.49002629,-55.51142193,8.717096045197748E15],
+[23.37806628,11.19810021,4.081814814814806E15],
+[15.96253546,42.23834994,8.500969696969702E15],
+[1.09754339,-21.56647665,5.338844290657428E15],
+[5.05410945,-64.53531265,2.967165384615386E16],
+[18.20667705,-7.29685659,2.55662966031483E15],
+[19.93389293,17.88684668,3.2828212765957368E16],
+[6.4533643,-60.72861488,4.19843809523808E15],
+[19.15971879,43.44098254,1.7336247191011244E16],
+[20.32567347,38.73166436,1.0567986301369876E16],
+[17.8415644165627,82.7309513406732,5.0176455284552794E14],
+[4.91144413,12.02581886,7.02927562642368E15],
+[13.89117626,-39.05720012,1.4026600000000014E16],
+[1.70774748,-78.2435529,1.6590602150537648E16],
+[16.7558783,83.1850532,2.0037999999999984E16],
+[23.89394006,71.49057946,8.057054830287196E15],
+[8.56423074,-10.96445535,5.058773770491797E15],
+[16.50825937,33.75080007,4.633411411411407E15],
+[22.31729121,68.4324789,7.045324200913241E15],
+[17.85943474,-62.63547408,1.0531918088737198E16],
+[11.37122549,-49.92383602,8.500969696969702E15],
+[19.73023297,52.61078575,2.905698681732579E15],
+[9.64544069,-39.38652366,1.1320073367571528E15],
+[20.78459456,-1.69369573,3.0253450980392152E16],
+[8.06802517,-29.1733036,7.953226804123724E15],
+[10.65275444,-54.86124098,1.4026600000000014E16],
+[12.8568945360935,22.1029504109596,7.71463E14],
+[3.80637343,52.0380253,1.5624567088607605E15],
+[18.70555349,36.55176777,5.957243243243242E15],
+[11.14979768,-57.41984957,4.9771806451612856E16],
+[13.30005438,58.61224767,2.1885475177304952E16],
+[1.93849841,-24.23359119,4.82164375E16],
+[4.83596343,10.60502313,3.9410625798211975E15],
+[7.69309907,3.6248275,4.769477588871725E15],
+[18.09322183,63.66833723,1.200720622568094E15],
+[3.00471266,-9.03970372,1.3170516431924878E15],
+[5.70569332,-37.45809962,1.5906453608247416E16],
+[4.84680366,16.21051508,1.5988870466321252E15],
+[6.49697967,-50.23895882,1.5964055871702005E15],
+[17.20651612,-22.92521908,6.537822033898305E15],
+[23.68900731,14.77216838,5.560093693693688E15],
+[8.47057146,58.74470531,1.1868661538461548E16],
+[12.4678294,78.22688824,7.382421052631593E15],
+[0.904633183558774,69.0481552216866,5.789590994371466E14],
+[5.08182632,-40.57055714,2.0627352941176482E15],
+[21.05485564,38.15270594,1.5126725490196092E16],
+[4.01578059,23.20157634,1.0251999999999986E16],
+[11.28732414,-41.93430363,3.7956359163591595E15],
+[1.95223764,-56.94623998,1.390023423423422E16],
+[7.92222354,-11.77374188,1.8702133333333332E16],
+[9.87676694,-51.71305747,2.5293868852459016E16],
+[16.02695455,-78.71174907,1.792016260162602E15],
+[15.30073102,-23.47186461,1.4352799999999986E16],
+[21.80433581,-47.3028979,4.8254136043784294E14],
+[23.52454828,34.5506572,1.02861733333333216E17],
+[6.01366609,-51.21655276,1.950601769911504E15],
+[20.16926488,45.01672309,9.211498507462682E15],
+[16.73816787,-27.456219,2.8310568807339435E15],
+[2.92581415,76.52894573,8.250941176470587E15],
+[2.67271819,52.80412,8.120663157894734E15],
+[0.56574679,18.78820737,2.8920824742268035E15],
+[5.81075777,51.16528306,1.3131285106382976E16],
+[20.13228248,7.44197657,1.3906498422712922E15],
+[13.83836896,-66.8230269,3.6176459554513615E15],
+[19.91137767,24.17560087,4.4983265306122565E15],
+[16.71486984,-40.62053366,1.0531918088737198E16],
+[17.68873453,-33.69066398,1.2149023622047248E16],
+[3.43857452,-67.61629911,3.7449660194174795E15],
+[11.73696252,29.89542048,7.110258064516134E15],
+[3.22277207,-27.57401895,7.695391521196999E15],
+[19.93243989,-18.87494517,2.3114996254681645E15],
+[5.71269159,2.68032382,9.673517241379298E14],
+[18.05137358,-74.31172224,1.7345992130410338E15],
+[4.47553572,34.19914089,7.110258064516134E15],
+[13.30501441,-57.30032515,8.595688022284116E15],
+[10.41194226,-21.52843795,4.605749253731356E15],
+[11.51858853,-62.94692786,4.7474646153846192E16],
+[3.44896658,3.46464024,9.07603529411766E15],
+[4.33507388,31.14108605,1.8227123449497925E15],
+[19.61177473,-24.88356664,1.789937354988399E15],
+[20.32383184,-20.95076653,3.7586504263093635E15],
+[11.11192248,-52.95068316,3.0858519999999996E16],
+[2.60001891,-7.83145306,4.890415213946129E15],
+[3.52345766,17.81136834,2.0572346666666676E16],
+[10.18421673,-44.08479287,2.621794392523366E15],
+[19.56493178,56.45985673,6.524000000000002E15],
+[0.04629872,-40.9831797,1.1778061068702286E16],
+[8.76672632,28.38988401,8.595688022284116E15],
+[4.562939,13.25192686,1.3534438596491222E15],
+[21.72673297,-83.0728307,2.0710416107382536E16],
+[20.41171912,19.29555132,8.099349081364833E15],
+[1.81431757,23.98517953,3.4287244444444404E16],
+[22.50493059,-62.28227436,7.953226804123724E15],
+[10.17825536,-38.9109156,5.490839857651239E15],
+[5.22052361,-12.94128833,5.293056603773577E15],
+[20.09992383,-55.89297721,2.780046846846847E15],
+[13.15451089,-60.30830037,2.5629999999999995E15],
+[5.56047824,-3.46315553,2.410821875E16],
+[18.85177087,-20.30008863,2.0992190476190464E16],
+[3.28155079,2.33934713,1.4286351851851852E16],
+[8.28651947,-44.66678915,2.2690088235294124E16],
+[20.11105019,-28.37136082,4.675533333333348E15],
+[0.12643796,31.66904954,5.100581818181815E15],
+[12.56667998,-14.63859695,7.890186653029905E14],
+[2.23483586,-20.53534419,2.0992190476190464E16],
+[22.48534814,-36.97004303,5.767947663551392E15],
+[6.78061229,-9.16458072,8.250941176470587E15],
+[9.33917134,-9.61010253,1.9095618811881192E15],
+[7.6019601,-3.11016346,4.417826771653551E14],
+[4.33862641,41.42450921,1.2595314285714272E16],
+[13.43652245,-1.19248368,2.320189473684209E15],
+[6.59097733,10.84261809,2.5715433333333324E16],
+[12.23945406,47.0480881,1.686257923497268E16],
+[17.4518579,21.71958938,1.8368166666666658E15],
+[9.17306117,-23.17670877,3.931021656050951E15],
+[11.24706917,-70.36047222,1.3020472573839656E16],
+[13.2727663,29.0989852,9.871567498400524E14],
+[7.85037401,30.26190476,9.294734939759022E15],
+[16.15891654,-6.72773507,6.782092307692314E15],
+[3.55337767,-1.86062603,5.311277108433731E15],
+[7.8567194,14.17050016,1.8152070588235288E16],
+[22.97227457,11.28729927,3.992046571798189E15],
+[1.27002435,-42.00966444,5.957243243243242E15],
+[9.68740085,8.99552713,3.019424657534246E15],
+[5.71738874,30.90274936,1.2751454545454552E16],
+[14.16495003,-0.65130146,1.6501882352941174E16],
+[15.32431829,-7.72203834,1.9344608826479428E14],
+[12.34640367,-19.89591331,9.173162901307976E14],
+[18.85996963,28.78365926,1.5126725490196092E16],
+[17.15924486,40.77701519,2.6307348678601885E15],
+[4.17833032,-60.76867212,9.583391304347822E15],
+[16.86968543,61.66537612,3.6304141176470464E16],
+[18.417833911379,24.6379099921177,6.857448888888882E14],
+[20.59060542,11.35622337,1.1832254601226995E15],
+[17.86966882,-28.45112955,2.8053199999999996E16],
+[11.96675693,67.81215892,6.147115537848605E15],
+[16.04617378,22.23852598,4.081814814814806E15],
+[22.91016591,20.33315434,2.815558394160585E15],
+[7.48491972,-38.8121049,5.265959044368616E15],
+[8.56849176,25.23346397,3.6261480611045805E15],
+[13.29215158,57.82178312,1.7633439999999984E16],
+[12.47746062,-16.00560411,8.45438904109589E15],
+[3.21469387,-28.77353453,1.365421238938054E16],
+[2.33969295,-56.7840886,4.51147953216375E15],
+[9.89360892,-42.31032745,2.792626244343892E15],
+[8.03348445,-9.35680139,4.119962616822415E15],
+[12.50207718,17.89561929,1.1221280000000012E16],
+[8.51966328,-10.93760081,1.0827550877192978E16],
+[19.18368416,-7.4274245,5.600457350272242E15],
+[18.07713738,-40.63754047,9.734548895899042E15],
+[5.04075626,-23.78397953,2.9111811320754708E16],
+[19.48926694,-7.04406367,1.505293658536587E16],
+[18.84482651,-47.77973284,3.085852E20],
+[18.01603396,-58.45875863,5.239137521222414E15],
+[5.00938073,14.38368335,1.083135135135135E15],
+[16.36619884,22.54007349,3.567458959537573E15],
+[14.78842898,12.97984021,1.4666596958174918E15],
+[13.75245076,-71.53297445,5.203797639123092E15],
+[12.52673254,-11.07643813,3.085852E20],
+[16.86916559,-57.58030646,8.741790368271955E15],
+[15.33878177,29.74338869,4.8596094488189E15],
+[16.87885195,76.8525884,4.9373632E15],
+[0.81728476,41.13208313,5.855506641366225E15],
+[9.05244338,-45.65387104,7.9124410256410112E16],
+[22.42252882,73.6029962,3.7632341463414595E15],
+[16.2444094827559,19.0957743102394,5.461684955752216E14],
+[16.2643934,3.06828698,9.890551282051264E15],
+[14.41760682,5.61537811,7.159749419953602E15],
+[11.5465392,-7.8275244,5.442419753086429E15],
+[13.90929833,-60.34262643,3.085852E20],
+[1.24699458,-0.97429411,1.354037735849058E15],
+[23.08537211,17.32689826,4.346270422535204E16],
+[2.06624769,-2.05446094,1.196066666666666E16],
+[16.10548112,67.80998136,2.5888020134228175E15],
+[6.90753803,27.45844055,2.6602172413793092E16],
+[5.81184193,-60.31696115,1.8816170731707328E16],
+[4.58351311,-19.92152085,3.123331983805655E15],
+[23.72185928,-0.70805116,7.226819672131148E15],
+[19.50994379,31.98010534,2.615128813559322E16],
+[17.16347235,-70.34932842,4.081814814814806E15],
+[11.26565315,12.61361435,5.855506641366225E15],
+[13.81188157,32.97694965,2.488590322580646E15],
+[7.94073393,-40.58182047,1.4624890995260678E16],
+[18.02481769,40.32371312,7.176400000000008E15],
+[15.02379359,-65.91400887,1.7533249999999992E16],
+[4.81121612,-15.22766679,6.537822033898305E15],
+[15.80688775,-42.61798541,3.0583270564915765E15],
+[9.3563459,-6.67218785,3.0402482758620675E15],
+[15.78525184,-72.44363631,2.0992190476190464E16],
+[16.26663352,11.42515915,8.892945244956776E15],
+[13.84643926,-24.97969151,6.650543103448265E15],
+[2.6446712,6.94673923,2.7308424778761045E15],
+[19.23777607,-8.71902793,2.1223191196698762E15],
+[7.59938826,-3.36830303,1.558511111111111E16],
+[7.06462611027321,52.719735241194,2.8284619615032075E14],
+[10.26366942,-55.90909699,8.295301075268808E15],
+[1.05436382,-26.17995291,9.102808259587016E15],
+[10.26554665,-63.76410404,9.703937106918226E15],
+[18.25560801,-16.831454,9.922353697749208E15],
+[8.57794185,-44.52833312,4.4722492753623168E16],
+[22.6774757715591,44.5976107480726,6.171704E14],
+[12.68511351,15.37756957,4.41214183585932E14],
+[5.49338653,47.61466449,8.1206631578947328E16],
+[21.33176293,53.32211335,1.0981679715302478E16],
+[12.955952,-67.21268815,1.1262233576642334E16],
+[15.59680236,-42.09840216,2.4490888888888896E16],
+[12.66254906,44.88201851,1.6414106382978712E16],
+[1.44945267,-41.74736876,5.177604026845642E15],
+[3.49421881,-6.80423924,3.538821100917437E15],
+[7.01591593,-72.56067296,3.604967289719624E15],
+[8.98493852,63.35263095,4.478740203193046E15],
+[11.09833822,53.85084118,1.0827550877192978E16],
+[8.5699019,1.13418624,1.0904070671378092E16],
+[8.90590971,26.92379619,9.703937106918226E15],
+[1.93005553,-55.07216964,9.156830860534112E15],
+[7.3379992,-70.17007624,9.379489361702126E15],
+[1.96543383,-3.7122051,6.15938522954093E15],
+[13.70992509,-12.08689594,1.8401025641025632E15],
+[20.34073582,83.99949982,1.5074997557401088E15],
+[10.94806997,-18.49239243,1.0789692307692318E16],
+[15.72517614,46.90374488,1.2442951612903228E16],
+[21.30834954,-12.26520116,2.148922005571032E15],
+[17.56736173,66.55836682,9.184083333333344E15],
+[21.98077777,-19.60976194,2.437481832543442E15],
+[6.93334818,2.35880163,7.3472666666666624E16],
+[16.3427304,-29.51482087,1.151437313432836E16],
+[10.75197015,-31.33737778,1.2911514644351458E16],
+[13.42522047,-41.88083042,5.186305882352931E15],
+[13.63001238,-45.88283095,2.392133333333332E16],
+[12.91112344,-48.06175587,2.63522801024765E15],
+[18.9090109,-49.87900599,8.996653061224484E15],
+[4.17173535,30.64838167,1.2857716666666678E16],
+[19.03280642,-68.13454543,4.619538922155682E15],
+[8.01336031,19.81623542,3.265451851851857E15],
+[4.03444056,6.52387136,1.0714763888888882E16],
+[10.99573905,-7.57608149,7.526468292682919E15],
+[6.04910586,82.75137337,2.8572703703703705E15],
+[19.55528363,34.07725571,1.1868661538461548E16],
+[15.39332272,-27.2602834,3.567458959537573E15],
+[0.08946002,8.7879537,1.8259479289940832E16],
+[8.3744633,-37.64011628,8.717096045197748E15],
+[19.72918941,41.77308397,5.968765957446813E15],
+[12.16327181,-5.22577894,2.0436105960264898E15],
+[3.03696142,-21.75126595,4.1144693333333225E15],
+[1.08052133,74.37212887,1.4764842105263154E16],
+[17.07521728,-43.30942598,1.6005456431535252E15],
+[2.25979171,16.19508995,9.211498507462682E15],
+[17.27686266,-0.44514192,2.0613573814295255E15],
+[2.7708926,-26.17116987,7.489932038834959E15],
+[11.08823073,-43.54251801,2.775046762589927E15],
+[8.55255599,-15.76448003,8.548066481994445E15],
+[20.22383327,14.41036503,5.348097053726173E15],
+[6.75486455,82.41704207,1.8045918128654976E16],
+[1.35534032,11.53674564,5.00949999999999E15],
+[5.28657313,-1.96253303,5.725142857142845E15],
+[7.45871219,-44.28460509,1.3358666666666668E16],
+[11.01537632,69.58406771,1.6327259259259256E16],
+[3.61314132,0.58815498,8.939316338354588E14],
+[11.65285741,17.83829394,5.311277108433731E15],
+[9.56486254,-80.94129374,5.100581818181815E15],
+[11.43758138,-21.4004905,6.349489711934157E15],
+[8.58128427,-21.45905403,1.330108620689656E16],
+[9.38439943,-59.55647388,7.329814726840842E15],
+[10.59117177,-78.60781379,3.9110925221799715E15],
+[10.57833761,-22.20328755,6.95011711711711E15],
+[0.69290866,-25.19645782,5.385431064572428E15],
+[18.62425576,53.18635958,5.067080459770129E15],
+[3.91879126,-35.5645792,2.2200374100719432E16],
+[15.60978405,-23.99581071,5.404294220665513E15],
+[17.28462854,14.68078221,4.1644426450742265E15],
+[12.11705782,-23.7663482,2.414594679186229E15],
+[1.44198135,18.20307556,7.772926952141055E15],
+[15.39962049,25.06653216,1.0051635179153086E16],
+[23.63511519,-1.33560915,8.524453038674035E15],
+[6.55284442,-38.62514452,4.4528888888888795E15],
+[6.87807336,78.08848742,5.283993150684938E15],
+[3.4326563,-22.0639092,1.9518355471220762E15],
+[17.89685258,-44.28917502,9.919164255866274E14],
+[16.32665513,26.01704818,1.0251999999999986E16],
+[22.0591280503659,1.60501817383254,7.14317592592591E14],
+[1.51972704,-9.31206378,1.3919043752819118E15],
+[9.71500903,50.5883916,9.465803680981604E15],
+[16.28937678,-57.30569894,2.9959728155339808E16],
+[17.83749915,25.29096756,4.851968553459127E15],
+[22.01119217,56.71062796,2.1579384615384604E16],
+[20.59147465,1.8388929,2.4686816E16],
+[19.41896517,35.99944679,3.117022222222222E16],
+[6.00721352,-37.03925662,2.595333894028594E15],
+[2.22776101,32.9813151,3.022381978452497E15],
+[6.8744073,-45.0488551,2.424078554595445E15],
+[4.04351575,-0.26831052,5.93433076923076E14],
+[1.80760026,55.7059993,1.0251999999999986E16],
+[6.89516569,38.31243792,3.085852E20],
+[9.65841511,-15.96177782,5.293056603773577E15],
+[11.45250955,25.02782457,3.7134199759326245E15],
+[9.65362571,21.19747499,6.184072144288564E15],
+[7.06739584,-12.28816691,1.8259479289940832E16],
+[19.69325601,-72.44564702,1.2777855072463762E15],
+[19.80847636,10.69411398,1.6680281081081096E16],
+[8.38059169,43.18837233,3.678011918951145E15],
+[19.34206934,50.34014402,6.593700854700865E15],
+[10.8982648,3.70150685,3.2828212765957365E15],
+[4.67426846,76.56716249,2.936110371075166E15],
+[15.03013514,-41.81805524,3.085852E20],
+[17.52057297,-73.16254066,3.085852E20],
+[23.28575872,-28.43803072,8.619698324022331E15]];
+
+},{}],14:[function(require,module,exports){
+(function (global){
+'use strict';
+
+const Detector = require('./lib/Detector.js');
+const THREE = require('three');
+const ThreeUi = require('./three_ui.js');
+const Controller = require('./controller.js');
+const Scene = require('./scene.js');
+const Shared = require('./shared.js');
+// for debug.
+const Shapes = require('./shapes.js');
+
+let animationCb = () => {};
+
+function animate() {
+  animationCb();
+}
+
+function Celestiary(canvasContainer) {
+  this.ui = new ThreeUi(canvasContainer, animate);
+  this.scene = new Scene(this.ui);
+  this.ctrl = new Controller(this.scene);
+  this.shared = Shared;
+  // For debug
+  this.three = THREE;
+  this.shapes = Shapes;
+}
+
+function init() {
+  if (!Detector.webgl) {
+    return;
+  }
+  global.celestiary = new Celestiary(document.getElementById('scene'));
+  global.c = celestiary;
+}
+
+init();
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./controller.js":4,"./lib/Detector.js":5,"./scene.js":10,"./shapes.js":11,"./shared.js":12,"./three_ui.js":15,"three":1}],15:[function(require,module,exports){
+const THREE = require('three');
+const Shared = require('./shared.js');
+const TrackballControls = require('./lib/TrackballControls.js');
+
+function ThreeUi(container, animationCb, windowResizeCb) {
+  container.innerHTML = '';
+  this.container = container;
+  this.animationCb = animationCb || (() => {});
+  this.windowResizeCb = windowResizeCb || (() => {});
+  this.setSize();
+  this.initRenderer(container);
+  this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, 1E-3, 1E35);
+  this.camera.rotationAutoUpdate = true;
+  this.initControls(this.camera);
+  this.scene = new THREE.Scene();
+
+  window.addEventListener(
+      'resize',
+      () => {
+        this.onWindowResize();
+      },
+      false);
+
+  this.renderLoop();
+}
+
+
+ThreeUi.prototype.setSize = function() {
+  this.width = this.container.clientWidth || window.innerWidth;
+  this.height = this.container.clientHeight || window.innerHeight;
+};
+
+
+ThreeUi.prototype.initRenderer = function(container) {
+  const r = new THREE.WebGLRenderer({antialias: true});
+  r.setClearColor(0, 1);
+  r.setSize(this.width, this.height);
+  r.sortObjects = true;
+  r.autoClear = true;
+  container.appendChild(r.domElement);
+  this.renderer = r;
+};
+
+
+ThreeUi.prototype.initControls = function(camera) {
+  const c = new TrackballControls(camera);
+  // Rotation speed is changed in scene.js depending on target
+  // type: faster for sun, slow for planets.
+  c.noZoom = false;
+  c.noPan = false;
+  c.staticMoving = true;
+  c.dynamicDampingFactor = 0.3;
+  this.controls = c;
+};
+
+
+ThreeUi.prototype.onWindowResize = function() {
+  this.setSize();
+  this.renderer.setSize(this.width, this.height);
+  this.camera.aspect = this.width / this.height;
+  this.camera.updateProjectionMatrix();
+  this.camera.radius = (this.width + this.height) / 4;
+  this.controls.screen.width = this.width;
+  this.controls.screen.height = this.height;
+  // TODO(pablo): this doesn't tilt the view when JS console is toggled?
+  this.windowResizeCb(this.camera, this.scene);
+};
+
+
+ThreeUi.prototype.multFov = function(factor) {
+  // TODO(pablo): narrowing very far leads to overflow in the float
+  // values, such that zooming out cannot return exactly to 45
+  // degrees.
+  const newFov = this.camera.fov * factor;
+  if (newFov >= 180) {
+    return;
+  }
+  this.camera.fov = newFov;
+  this.camera.updateProjectionMatrix();
+};
+
+
+ThreeUi.prototype.renderLoop = function() {
+  if (Shared.targetNode && Shared.targetNode.orbitPosition) {
+    controls.target = Shared.targetNode.orbitPosition.position;
+  }
+  this.controls.update();
+  this.animationCb(this.scene);
+  this.renderer.render(this.scene, this.camera);
+  requestAnimationFrame(() => {
+      this.renderLoop();
+  });
+}
+
+
+module.exports = ThreeUi;
+
+},{"./lib/TrackballControls.js":6,"./shared.js":12,"three":1}]},{},[14]);

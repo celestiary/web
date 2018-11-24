@@ -16,7 +16,7 @@ function box(width, height, depth, opts) {
   opts = opts || {};
   opts.color = opts.color || 0xff0000;
   const geom = new THREE.CubeGeometry(width, height, depth);
-  const matr = new THREE.MeshBasicMaterial(opts);
+  const matr = new THREE.MeshPhongMaterial(opts);
   return new THREE.Mesh(geom, matr);
 }
 
@@ -29,8 +29,9 @@ function sphere(opts) {
     transparent: false
   };
   const geom = new THREE.SphereGeometry(opts.radius, opts.segmentSize, opts.segmentSize / 2);
-  const matr = new THREE.MeshBasicMaterial(matrOpts);
-  return new THREE.Mesh(geom, matr);
+  opts.matr = opts.matr || new THREE.MeshPhongMaterial(matrOpts);
+  console.log(opts);
+  return new THREE.Mesh(geom, opts.matr);
 }
 
 // Lod Sphere.
@@ -120,14 +121,38 @@ function point() {
   return new THREE.Points(geom, pointMaterial);
 }
 
+/**
+ * line(vec1, vec2); // vec1 may be null for zero.
+ * line(x, y, z); // from zero.
+ * line(x1, y1, z1, x2, y2, z3);
+ */
 function line(vec1, vec2) {
+  if (arguments.length == 2) {
+    vec1 = vec1 == null ? new THREE.Vector3 : vec1;
+  } else if (arguments.length == 3) {
+    vec1 = new THREE.Vector3;
+    vec2 = new THREE.Vector3(arguments[0], arguments[1], arguments[2]);
+  } else if (arguments.length == 6) {
+    vec1 = new THREE.Vector3(arguments[0], arguments[1], arguments[2]);
+    vec2 = new THREE.Vector3(arguments[3], arguments[4], arguments[5]);
+  } else {
+    throw new Error('Can only be called with 2, 3 or 6 arguments.');
+  }
   const geom = new THREE.Geometry();
   geom.vertices.push(vec1);
   geom.vertices.push(vec2);
   return new THREE.Line(geom, Material.lineMaterial());
 }
 
-// GRID
+
+// Angle
+
+function angle(vec1, vec2) {
+  return line(vec1, vec2);
+}
+
+
+// Grid
 
 function grid(params) {
   if (!params) {
@@ -302,8 +327,9 @@ THREE.EllipseCurve.prototype.getPoint = function (t) {
 
 
 module.exports = {
-  cube: cube,
+  angle: angle,
   box: box,
+  cube: cube,
   grid: grid,
   line: line,
   lineGrid: lineGrid,

@@ -166,6 +166,7 @@ function Controller(scene) {
    * string for default.
    */
   this.loadPath = function(p) {
+    console.log('loadPath');
     var reqPath = p || '';
     if (reqPath.length == 0) {
       reqPath = 'sun';

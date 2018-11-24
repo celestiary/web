@@ -25,10 +25,10 @@ module.exports = {
   toDeg: 180.0 / Math.PI,
   toRad: Math.PI / 180.0,
 
-  orbitScale: LENGTH_SCALE,
-  radiusScale: LENGTH_SCALE,
+  lengthScale: LENGTH_SCALE,
 
+  targetNode: null,
   targetObj: null,
-  targetObjLoc: new THREE.Matrix4,
+  targetObjLoc: new THREE.Matrix4(),
   targetPos: new THREE.Vector3(),
 };

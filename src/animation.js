@@ -21,21 +21,13 @@ const clocks = {
   simTime: lastSysTime,
 };
 
-/** @exported */
-let postRenderCb = null;
-
 let dt = clocks.sysTime - lastSysTime;
 let simTimeSecs = clocks.simTime / 1000;
 
 
 /** @exported */
-function animation(scene, camera) {
+function animation(scene) {
   animateSystem(scene);
-  updateView(camera, scene);
-  if (postRenderCb) {
-    postRenderCb();
-    postRenderCb = null;
-  }
 }
 
 
@@ -93,7 +85,7 @@ function animateSystem(system) {
   // This is referred to by a comment in scene.js#addOrbitingPlanet.
   if (system.orbit) {
     const eccentricity = system.orbit.eccentricity;
-    const aRadius = system.orbit.semiMajorAxis * Shared.orbitScale;
+    const aRadius = system.orbit.semiMajorAxis * Shared.lengthScale;
     const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0));
     // -1.0 because orbits are counter-clockwise when viewed from above North of Earth.
     const angle = -1.0 * simTimeSecs / system.orbit.siderealOrbitPeriod * Shared.twoPi;
@@ -110,30 +102,9 @@ function animateSystem(system) {
 }
 
 
-function updateView(camera, scene) {
-  if (Shared.targetObj) {
-    Shared.targetObjLoc.identity();
-    let curObj = Shared.targetObj;
-    const objs = []; // TODO(pablo)
-    while (curObj.parent && (curObj.parent != scene)) {
-      objs.push(curObj);
-      curObj = curObj.parent;
-    }
-    for (let i = objs.length - 1; i >= 0; i--) {
-      const o = objs[i];
-      Shared.targetObjLoc.multiply(o.matrix);
-    }
-    Shared.targetPos.setFromMatrixPosition(Shared.targetObjLoc);
-    camera.lookAt(Shared.targetPos);
-  }
-}
-
-
 module.exports = {
   animation: animation,
-  updateView: updateView,
   clocks: clocks,
-  postRenderCb: postRenderCb,
   changeTimeScale: changeTimeScale,
   invertTimeScale: invertTimeScale,
 };

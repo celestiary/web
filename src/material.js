@@ -27,13 +27,13 @@ function cacheMaterial(name) {
 function lineMaterial(params, name) {
   var params = params || {};
   params.color = params.color || 0xff0000;
-  params.lineWidth = params.lineWidth || 1;
+  params.linewidth = params.lineWidth || 1;
   var name = name || 'line-basic';
   var m = materials[name];
   if (!m) {
     materials[name] = m = new THREE.LineBasicMaterial({
     color: params.color,
-    lineWidth: params.lineWidth,
+    linewidth: params.linewidth,
     blending: THREE.AdditiveBlending,
     transparent: false});
   }
@@ -42,6 +42,7 @@ function lineMaterial(params, name) {
 
 
 module.exports = {
+  lineMaterial: lineMaterial,
   pathTexture: pathTexture,
   cacheMaterial: cacheMaterial,
 };

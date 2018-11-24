@@ -1,11 +1,11 @@
 const THREE = require('three');
+const Shared = require('./shared.js');
 const TrackballControls = require('./lib/TrackballControls.js');
 
-function ThreeUi(container, animationCb, postAnimationCb, windowResizeCb) {
+function ThreeUi(container, animationCb, windowResizeCb) {
   container.innerHTML = '';
   this.container = container;
   this.animationCb = animationCb || (() => {});
-  this.postAnimationCb = postAnimationCb || (() => {});
   this.windowResizeCb = windowResizeCb || (() => {});
   this.setSize();
   this.initRenderer(container);
@@ -21,7 +21,7 @@ function ThreeUi(container, animationCb, postAnimationCb, windowResizeCb) {
       },
       false);
 
-  this.startRendering();
+  this.renderLoop();
 }
 
 
@@ -32,7 +32,7 @@ ThreeUi.prototype.setSize = function() {
 
 
 ThreeUi.prototype.initRenderer = function(container) {
-  var r = new THREE.WebGLRenderer({antialias: true});
+  const r = new THREE.WebGLRenderer({antialias: true});
   r.setClearColor(0, 1);
   r.setSize(this.width, this.height);
   r.sortObjects = true;
@@ -67,21 +67,29 @@ ThreeUi.prototype.onWindowResize = function() {
 };
 
 
-ThreeUi.prototype.startRendering = function() {
-  renderLoop(this.controls, this.animationCb, this.scene, this.camera, this.renderer, this.postAnimationCb);
+ThreeUi.prototype.multFov = function(factor) {
+  // TODO(pablo): narrowing very far leads to overflow in the float
+  // values, such that zooming out cannot return exactly to 45
+  // degrees.
+  const newFov = this.camera.fov * factor;
+  if (newFov >= 180) {
+    return;
+  }
+  this.camera.fov = newFov;
+  this.camera.updateProjectionMatrix();
 };
 
 
-function renderLoop(controls, animationCb, scene, camera, renderer, postAnimationCb) {
-  controls.update();
-  animationCb(scene, camera);
-  renderer.clear();
-  renderer.render(scene, camera);
-  postAnimationCb();
-  requestAnimationFrame(function() {
-    renderLoop(controls, animationCb, scene, camera, renderer, postAnimationCb);
+ThreeUi.prototype.renderLoop = function() {
+  if (Shared.targetNode) {
+    this.controls.target = Shared.targetNode.orbitPosition.position;
+  }
+  this.controls.update();
+  this.animationCb(this.scene);
+  this.renderer.render(this.scene, this.camera);
+  requestAnimationFrame(() => {
+      this.renderLoop();
   });
 }
-
 
 module.exports = ThreeUi;

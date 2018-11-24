@@ -3,5 +3,6 @@
   "name": "stars",
   "parent": "milky_way",
   "count": 1000,
+  // Sun's radius.
   "radius": "6.9424895E8 m",
 }

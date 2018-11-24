@@ -4,15 +4,12 @@
   <script type="text/javascript" src="test-bundle.js"></script>
   <script type="text/javascript">
     const THREE = c.three;
-    function makeLight() {
-      const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 1);
-      directionalLight.position.set(10, 10, 10);
-      return directionalLight;
-    }
-    c.ui.scene.add(makeLight());
     let obj;
-    c.ui.scene.add(obj = c.shapes.sphere({
-      radius: 1,
+    c.ui.scene.add(obj = c.scene.newStars({
+      radius: {
+        // Sun's radius in meters.
+        scalar: 6.9424895E8
+      },
     }));
     c.ui.camera.position.z = 2;
     c.ui.animationCb = () => {

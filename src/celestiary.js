@@ -15,13 +15,13 @@ const Shared = require('./shared.js');
  * - Smooth transitions.
  * - Exponential zoom.
  * X Time control.
- * - Units for measurements.
+ * X Units for measurements.
  * - Q/A against Celestia.
  *   - Epoch-based locations.
  * v2:
  * - Stars and Galaxies.
  * - LRU scene-graph un-loading.
- * - View options, e.g. toggle orbits.
+ * X View options, e.g. toggle orbits.
  * - Time slider.  Meaningful time steps: 1s, 1m, 1h, 1d, 1mo, 1yr, ...
  * BUGS:
  * - Scene select race before objects gain location in anim.
@@ -35,17 +35,17 @@ function Celestiary(canvasContainer, dateElt) {
   const postAnimationCb = () => {
       this.updateUi();
   };
-  const updateViewCb = (camera, scene) => {
-      Animation.updateView(camera, scene);
-  };
-  this.threeUi = new ThreeUi(
-      canvasContainer, Animation.animation, postAnimationCb, updateViewCb);
-  this.scene = new Scene(this.threeUi, updateViewCb);
+  this.animation = Animation;
+  // TODO: add back in windowResizeCb -> scene.updateView;
+  this.ui = new ThreeUi(canvasContainer, Animation.animation, null);
+  this.scene = new Scene(this.ui);
   this.ctrl = new Controller(this.scene);
   this.shared = Shared;
+
   window.addEventListener(
       'hashchange',
       (e) => {
+        console.log('hashchange');
         this.ctrl.loadPath((location.hash || '#').substring(1));
       },
       false);
@@ -54,16 +54,22 @@ function Celestiary(canvasContainer, dateElt) {
       'keypress',
       (e) => {
         switch (e.which) {
-          case 48: this.ctrl.loadPath('sun'); break; // '0'
-          case 49: this.ctrl.loadPath('mercury'); break; // '1'
-          case 50: this.ctrl.loadPath('venus'); break; // '2'
-          case 51: this.ctrl.loadPath('earth'); break; // '3'
-          case 52: this.ctrl.loadPath('mars'); break; // '4'
-          case 53: this.ctrl.loadPath('jupiter'); break; // '5'
-          case 54: this.ctrl.loadPath('saturn'); break; // '6'
-          case 55: this.ctrl.loadPath('uranus'); break; // '7'
-          case 56: this.ctrl.loadPath('neptune'); break; // '8'
-          case 57: this.ctrl.loadPath('pluto'); break; // '9'
+          case 44: this.ui.multFov(0.9); break; // ','
+          case 46: this.ui.multFov(1.1); break; // '.'
+          case 48: this.scene.lookAtNamed('sun'); break; // '0'
+          case 49: this.scene.lookAtNamed('mercury'); break; // '1'
+          case 50: this.scene.lookAtNamed('venus'); break; // '2'
+          case 51: this.scene.lookAtNamed('earth'); break; // '3'
+          case 52: this.scene.lookAtNamed('mars'); break; // '4'
+          case 53: this.scene.lookAtNamed('jupiter'); break; // '5'
+          case 54: this.scene.lookAtNamed('saturn'); break; // '6'
+          case 55: this.scene.lookAtNamed('uranus'); break; // '7'
+          case 56: this.scene.lookAtNamed('neptune'); break; // '8'
+          case 57: this.scene.lookAtNamed('pluto'); break; // '9'
+          case 59: this.changeTimeScale(0); break; // ';'
+          case 99: this.scene.lookAtCurrentTarget(); break; // 'c'
+          case 100: this.toggleDebug(); break; // 'd'
+          case 103: this.scene.goTo(); break; // 'g'
           case 106: this.invertTimeScale(); break; // 'j'
           case 107: this.changeTimeScale(-1); break; // 'k'
           case 108: this.changeTimeScale(1); break; // 'l'
@@ -91,6 +97,9 @@ Celestiary.prototype.select = function(name) {
 };
 Celestiary.prototype.toggleOrbits = function() {
   this.ctrl.scene.toggleOrbits();
+};
+Celestiary.prototype.toggleDebug = function() {
+  this.ctrl.scene.toggleDebug();
 };
 Celestiary.prototype.changeTimeScale = Animation.changeTimeScale;
 Celestiary.prototype.invertTimeScale = Animation.invertTimeScale;

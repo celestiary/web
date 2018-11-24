@@ -9,11 +9,18 @@
       directionalLight.position.set(10, 10, 10);
       return directionalLight;
     }
+
     c.ui.scene.add(makeLight());
+
     let obj;
-    c.ui.scene.add(obj = c.shapes.sphere({
-      radius: 1,
+    c.ui.scene.add(obj = c.scene.newPlanet({
+      name: (location.hash || '#earth').substring(1),
+      radius: {scalar: 6.37101E6}, // earth's radius (meters)
+      texture_atmosphere: true,
+      texture_hydrosphere: false,
+      texture_terrain: true
     }));
+    obj.scale.normalize();
     c.ui.camera.position.z = 2;
     c.ui.animationCb = () => {
       obj.rotation.y += 0.001;

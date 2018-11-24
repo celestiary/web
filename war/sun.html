@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <!-- Trying to use Sun from https://www.html5rocks.com/en/tutorials/casestudies/100000stars/ -->
+  <body style="margin: 0" id="scene"></body>
+  <script src="jquery-1.7.1.min.js"></script>
+  <script type="text/javascript" src="test-bundle.js"></script>
+  <script type="text/javascript">
+    const camera = c.ui.camera;
+    const scene = c.scene;
+  </script>
+  <script type="text/javascript" src="sun-bundle.js"></script>
+  <script type="text/javascript">
+    let obj;
+    loadSun({
+      radius: 1,
+      spectral: 10 // ?
+    }, (sun) => {
+      console.log('sun loaded', sun);
+      obj = sun;
+      c.ui.scene.add(obj);
+      obj.scale.normalize();
+      camera.position.z = 2;
+      //c.ui.animationCb = () => {
+      //  obj.rotation.y += 0.001;
+      //};
+    });
+  </script>
+</html>

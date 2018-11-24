@@ -1,0 +1,21 @@
+{
+"type":"star",
+"name":"sun",
+"parent":"milky_way",
+"mass": "1 g",
+"radius": "1 m",
+"siderealRotationPeriod": 1.0,
+"axialInclination": 1.0,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+},
+"system": ["earth"]
+}

@@ -1,0 +1,9 @@
+{"type":"galaxy",
+"name":"root",
+"parent":"universe",
+"mass":"1 g",
+"radius":"1 km",
+"siderealRotationPeriod":"0",
+"axialInclination":"0.0",
+"system":["stars","sun"]
+}
