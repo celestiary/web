@@ -1,0 +1,23 @@
+body {
+  font-family: arial, sans;
+  height; 100%;
+  margin: 2em;
+}
+
+#ui {
+  position: relative;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 400px;
+  float: right;
+  margin: 2em;
+  background-color: black;
+}
+
+#ui > canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+}

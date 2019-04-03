@@ -1,6 +1,4 @@
-'use strict';
-
-const THREE = require('three');
+import * as THREE from './lib/three.module.js';
 
 // This size is chosen to allow for the maximum object and distance
 // size range in the scene.  The smallest object in the scene is
@@ -19,16 +17,17 @@ const LENGTH_SCALE = 1E-7;
 // Additionally, when I hardcode LENGTH_SCALE to 1E-5, LOD starts to
 // flake out when zoomed to small sizes, supporting the 1E-4 minimum.
 
-module.exports = {
-  twoPi: Math.PI * 2.0,
-  halfPi: Math.PI / 2.0,
-  toDeg: 180.0 / Math.PI,
-  toRad: Math.PI / 180.0,
+export const
+  twoPi = Math.PI * 2.0,
+  halfPi = Math.PI / 2.0,
+  toDeg = 180.0 / Math.PI,
+  toRad = Math.PI / 180.0,
 
-  lengthScale: LENGTH_SCALE,
+  lengthScale = LENGTH_SCALE,
 
-  targetNode: null,
-  targetObj: null,
-  targetObjLoc: new THREE.Matrix4(),
-  targetPos: new THREE.Vector3(),
-};
+  targetRefs = {
+    targetObj: null,
+    targetPos: new THREE.Vector3(),
+    trackObj: null,
+    followObj: null
+  }

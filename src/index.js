@@ -1,19 +1,11 @@
-'use strict';
-
-const WebGL = require('./lib/WebGL.js');
-const Celestiary = require('./celestiary.js');
-const collapsor = require('./collapsor.js');
+import Celestiary from './celestiary.js';
+import * as collapsor from './collapsor.js';
 
 function init() {
-  if (!WebGL.isWebGLAvailable()) {
-    const errMsg = WebGL.getWebGLErrorMessage();
-    console.log(errMsg);
-    return;
-  }
-  global.c = global.celestiary = new Celestiary(
-      document.getElementById('scene'),
-      document.getElementById('date'));
-  global.collapse = collapsor.collapse;
+  const sceneElt = document.getElementById('scene')
+  const dateElt = document.getElementById('date');
+  window.c = window.celestiary = new Celestiary(sceneElt, dateElt);
+  window.collapse = collapsor.collapse;
 }
 
 init();

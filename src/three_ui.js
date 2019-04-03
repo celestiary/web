@@ -1,95 +1,106 @@
-const THREE = require('three');
-const Shared = require('./shared.js');
-const TrackballControls = require('./lib/TrackballControls.js');
-
-function ThreeUi(container, animationCb, windowResizeCb) {
-  container.innerHTML = '';
-  this.container = container;
-  this.animationCb = animationCb || (() => {});
-  this.windowResizeCb = windowResizeCb || (() => {});
-  this.setSize();
-  this.initRenderer(container);
-  this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, 1E-3, 1E35);
-  this.camera.rotationAutoUpdate = true;
-  this.initControls(this.camera);
-  this.scene = new THREE.Scene();
-
-  window.addEventListener(
-      'resize',
-      () => {
-        this.onWindowResize();
-      },
-      false);
-
-  this.renderLoop();
-}
+import * as THREE from './lib/three.module.js';
+import * as Shared from './shared.js';
+import TrackballControls from './lib/TrackballControls.js';
+import Fullscreen from './fullscreen.js';
 
 
-ThreeUi.prototype.setSize = function() {
-  this.width = this.container.clientWidth || window.innerWidth;
-  this.height = this.container.clientHeight || window.innerHeight;
-};
-
-
-ThreeUi.prototype.initRenderer = function(container) {
-  const r = new THREE.WebGLRenderer({antialias: true});
-  r.setClearColor(0, 1);
-  r.setSize(this.width, this.height);
-  r.sortObjects = true;
-  r.autoClear = true;
-  container.appendChild(r.domElement);
-  this.renderer = r;
-};
-
-
-ThreeUi.prototype.initControls = function(camera) {
-  const c = new TrackballControls(camera);
-  // Rotation speed is changed in scene.js depending on target
-  // type: faster for sun, slow for planets.
-  c.noZoom = false;
-  c.noPan = false;
-  c.staticMoving = true;
-  c.dynamicDampingFactor = 0.3;
-  this.controls = c;
-};
-
-
-ThreeUi.prototype.onWindowResize = function() {
-  this.setSize();
-  this.renderer.setSize(this.width, this.height);
-  this.camera.aspect = this.width / this.height;
-  this.camera.updateProjectionMatrix();
-  this.camera.radius = (this.width + this.height) / 4;
-  this.controls.screen.width = this.width;
-  this.controls.screen.height = this.height;
-  // TODO(pablo): this doesn't tilt the view when JS console is toggled?
-  this.windowResizeCb(this.camera, this.scene);
-};
-
-
-ThreeUi.prototype.multFov = function(factor) {
-  // TODO(pablo): narrowing very far leads to overflow in the float
-  // values, such that zooming out cannot return exactly to 45
-  // degrees.
-  const newFov = this.camera.fov * factor;
-  if (newFov >= 180) {
-    return;
+export default class ThreeUi {
+  constructor(container, animationCb, backgroundColor) {
+    if (typeof container == 'string') {
+      this.container = document.getElementById(container);
+    } else if (typeof container == 'object') {
+      this.container = container;
+    } else {
+      throw new Error(`Given container must be DOM ID or element: ${container}`);
+    }
+    this.animationCb = animationCb || (() => {});
+    this.renderer =
+      this.initRenderer(this.container, backgroundColor || 0x000000);
+    const w = this.container.offsetWidth;
+    const h = this.container.offsetHeight;
+    const ratio = w / h;
+    this.camera = new THREE.PerspectiveCamera(45, ratio, 1E-3, 1E35);
+    this.camera.rotationAutoUpdate = true;
+    this.initControls(this.camera);
+    this.fs = new Fullscreen(this.container, () => {
+        this.onResize();
+      });
+    window.addEventListener('resize', () => {
+        if (this.fs.isFullscreen()) {
+          this.onResize();
+        }
+      });
+    this.onResize();
+    this.scene = new THREE.Scene();
+    this.renderLoop();
   }
-  this.camera.fov = newFov;
-  this.camera.updateProjectionMatrix();
-};
 
 
-ThreeUi.prototype.renderLoop = function() {
-  if (Shared.targetNode) {
-    this.controls.target = Shared.targetNode.orbitPosition.position;
+  initRenderer(container, backgroundColor) {
+    const renderer = new THREE.WebGLRenderer({antialias: true});
+    renderer.setPixelRatio(window.devicePixelRatio);
+    const width = this.container.offsetWidth;
+    const height = this.container.offsetHeight;
+    renderer.setClearColor(backgroundColor, 1);
+    renderer.setSize(width, height);
+    renderer.sortObjects = true;
+    renderer.autoClear = true;
+    container.appendChild(renderer.domElement);
+    return renderer;
   }
-  this.controls.update();
-  this.animationCb(this.scene);
-  this.renderer.render(this.scene, this.camera);
-  requestAnimationFrame(() => {
-      this.renderLoop();
-  });
-}
 
-module.exports = ThreeUi;
+
+  initControls(camera) {
+    const controls = new TrackballControls(camera);
+    // Rotation speed is changed in scene.js depending on target
+    // type: faster for sun, slow for planets.
+    controls.noZoom = false;
+    controls.noPan = false;
+    controls.staticMoving = true;
+    controls.dynamicDampingFactor = 0.3;
+    this.controls = controls;
+  }
+
+
+  onResize() {
+    let width, height;
+    if (this.fs.isFullscreen()) {
+      width = window.innerWidth;
+      height = window.innerHeight;
+    } else {
+      width = this.container.offsetWidth;
+      height = this.container.offsetHeight;
+    }
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(width, height);
+    this.controls.handleResize();
+    // console.log(`onResize: ${width} x ${height}`);
+  }
+
+
+  multFov(factor) {
+    // TODO(pablo): narrowing very far leads to overflow in the float
+    // values, such that zooming out cannot return exactly to 45
+    // degrees.
+    const newFov = this.camera.fov * factor;
+    if (newFov >= 180) {
+      return;
+    }
+    this.camera.fov = newFov;
+    this.camera.updateProjectionMatrix();
+  }
+
+
+  renderLoop() {
+    this.controls.update();
+    if (Shared.targetRefs.trackObj) {
+      c.scene.lookAtCurrentTarget();
+    }
+    this.animationCb(this.scene);
+    this.renderer.render(this.scene, this.camera);
+    requestAnimationFrame(() => {
+        this.renderLoop();
+      });
+  }
+}

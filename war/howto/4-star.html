@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>Star</h1>
+See <a href="https://www.seedofandromeda.com/blogs/51-procedural-star-rendering">Seed
+of Andromeda</a> for a nice overall approach.
+
+<p>Borrowed heavily from
+code <a href="https://bpodgursky.com/2017/02/01/procedural-star-rendering-with-three-js-and-webgl-shaders/">here</a>.
+
+<p>Added differential color range based on distance.  This makes the
+star appear white from far away and reveal surface structure as
+false-color on closer approach.
+
+<script type="module">
+  import * as Animation from '/js/animation.js';
+  import Scene from '/js/scene.js';
+  import ThreeUi from '/js/three_ui.js';
+
+  const ui = new ThreeUi('ui');
+  const scene = new Scene(ui);
+  ui.camera.position.z = 2;
+
+  const star = scene.newStar({
+    radius: {
+      // Sun's radius in meters.
+      scalar: 6.9424895E8
+    },
+  }, () => {
+    ui.animationCb = () => {
+      star.rotation.y += 0.001;
+      const dist = ui.camera.position.z;
+      Animation.updateTime();
+      Animation.getShaderUpdateCallback()(Animation.time.simTimeElapsed * 5E-2, dist);
+    };
+  });
+  star.scale.normalize();
+  ui.scene.add(star);
+</script>
+</body>
+</html>

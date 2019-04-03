@@ -1,7 +1,6 @@
-'use strict';
-
-const THREE = require('three');
-const Material = require('./material.js');
+import * as THREE from './lib/three.module.js';
+import * as Material from './material.js';
+import * as Shared from './shared.js';
 
 // Simple cube for testing.
 function cube(size) {
@@ -23,22 +22,16 @@ function box(width, height, depth, opts) {
 function sphere(opts) {
   opts = opts || {};
   opts.radius = opts.radius || 1;
-  opts.segmentSize = opts.segmentSize || 128;
-  const matrOpts = opts.matr || {
-    color: 0xffffff,
-    transparent: false
-  };
-  const geom = new THREE.SphereGeometry(opts.radius, opts.segmentSize, opts.segmentSize / 2);
-  opts.matr = opts.matr || new THREE.MeshPhongMaterial(matrOpts);
-  console.log(opts);
+  opts.resolution = opts.resolution || 4;
+  const geom = new THREE.IcosahedronGeometry(opts.radius, opts.resolution);
+  opts.matr = opts.matr || new THREE.MeshPhongMaterial({flatShading: true});
   return new THREE.Mesh(geom, opts.matr);
 }
 
 // Lod Sphere.
 function lodSphere(radius, material) {
-  radius = radius || 1;
   const lod = new THREE.LOD();
-  const geoms = 
+  const geoms =
     [[getSphereGeom(128), radius],
      [getSphereGeom(32), radius * 10],
      [getSphereGeom(16), radius * 100],
@@ -64,6 +57,30 @@ function getSphereGeom(segmentSize) {
     geom = _sphereGeoms[segmentSize] = new THREE.SphereGeometry(1, segmentSize, segmentSize / 2);
   }
   return geom;
+}
+
+/** https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes */
+function ellipseSemiMinorAxisCurve(eccentricity, semiMajorAxisLength) {
+  eccentricity = eccentricity || 0; // Circle
+  semiMajorAxisLength = semiMajorAxisLength || 1;
+  return semiMajorAxisLength * Math.sqrt(1 - Math.pow(eccentricity, 2))
+}
+
+function solidEllipse(eccentricity) {
+  const ellipsePath = new THREE.Shape();
+  const semiMajorAxisLength = 1;
+  ellipsePath.absellipse(
+    0, 0, // center
+    1, ellipseSemiMinorAxisCurve(eccentricity), // xRadius, yRadius
+    0, Math.PI * 2, // start and finish angles
+    true, 0); // clockwise, offset rotation
+  const material = new THREE.MeshBasicMaterial({
+      color: 0x888888,
+      side: THREE.DoubleSide
+    });
+  return new THREE.Mesh(
+    new THREE.ShapeBufferGeometry(ellipsePath),
+    material);
 }
 
 function atmos(radius) {
@@ -138,31 +155,106 @@ function line(vec1, vec2) {
   } else {
     throw new Error('Can only be called with 2, 3 or 6 arguments.');
   }
+  if (vec1.equals(vec2)) {
+    throw new Error('Vectors may not be equal: ' + JSON.stringify([vec1, vec2]));
+  }
   const geom = new THREE.Geometry();
   geom.vertices.push(vec1);
   geom.vertices.push(vec2);
-  return new THREE.Line(geom, Material.lineMaterial());
+  return new THREE.Line(geom);
 }
 
 
-// Angle
+/**
+ * Angle.  Material properties of arrow head and text are derived from
+ * given {@param material}.
+ * @param material An instance of LineBasicMaterial.
+ */
+function angle(vec1, vec2, material) {
+  let angleInRadians;
+  if (arguments.length == 1 || vec2 === null || typeof vec2 === 'undefined') {
+    angleInRadians = vec1;
+  } else if (arguments.length == 2) {
+    angleInRadians = vec1.angleTo(vec2);
+  }
 
-function angle(vec1, vec2) {
-  return line(vec1, vec2);
+  const angle = new THREE.Object3D;
+  angle.name = `angle(${angleInRadians * Shared.toDeg})`;
+  angle.material = material || new THREE.LineBasicMaterial;
+  const arrowArc = arc(1, 0, angleInRadians, angle.material);
+  arrowArc.name = angle.name + '.arc';
+  const up = new THREE.Vector3(0, 1, 0);
+  const zero = new THREE.Vector3(0, 0, 0);
+
+  const coneHeight = 0.1;
+  const coneGeometry = new THREE.ConeGeometry(coneHeight / 3, coneHeight, 10);
+  const coneMaterial = new THREE.MeshBasicMaterial;
+  coneMaterial.color = angle.material.color;
+  const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+  cone.name = angle.name + '.cone';
+  cone.position.x = 1;
+  cone.position.y = coneHeight / -2;
+
+  angle.add(arrowArc);
+  angle.add(cone);
+
+  if (true) {
+    const label = getCanvasTextSprite((angleInRadians * Shared.toDeg) + '˚', angle.material.color);
+    label.name = angle.name + '.label';
+    label.position.set(Math.cos(angleInRadians * 0.1), -Math.sin(angleInRadians * 0.1), 0);
+    label.center.set(0, 0);
+    angle.add(label);
+  }
+  angle.rotation.z = angleInRadians;
+  return angle;
 }
 
+function getCanvasTextSprite(text, color) {
+  const canvas = document.createElement('canvas');
+  // TODO(pablo): Find a safer way to do this.
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  ctx.font = '1em Arial';
+  const metrics = ctx.measureText(text);
+  // WebGL requires power of 2 width, so round up.
+  canvas.width = Math.pow(2, Math.ceil(Math.log2(metrics.width)));
+  canvas.height = 32;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const label = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: texture,
+        alphaTest: 0.5,
+      }));
+  const scale = 0.2;
+  setCanvasText(canvas, ctx, text, color);
+  label.scale.set(canvas.width / canvas.height * scale, scale, 1.0);
+  document.body.removeChild(canvas);
+  return label;
+}
+
+function setCanvasText(canvas, ctx, text, color) {
+  ctx.save();
+  ctx.font = '1em Arial';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, 1)`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 0, canvas.height / 2);
+  ctx.restore();
+}
 
 // Grid
-
 function grid(params) {
   if (!params) {
     params = {};
   }
   if (!params.stepSize) {
-    params['stepSize'] = 1;
+    params.stepSize = 1;
   }
   if (!params.numSteps) {
-    params['numSteps'] = 1E2;
+    params.numSteps = 1E2;
   }
   return lineGrid(params);
 }
@@ -173,61 +265,28 @@ function grid(params) {
  * TODO(pablo): each grid has its own geometry.
  */
 function lineGrid(params) {
-
   const grids = new THREE.Object3D();
+  const size = params.stepSize * params.numSteps || 1;
+  const divisions = params.numSteps || 10;
+  const color = params.color || 0x0000af;
 
-  const size = params.stepSize * params.numSteps;
+  grids.material = new THREE.LineBasicMaterial;
 
-  const mat = Material.lineMaterial(params);
-
-  const xyGrid = new THREE.Line(gridGeometry(params), mat);
-  xyGrid.position.x -= size / 2;
-  xyGrid.position.y -= size / 2;
-
-  const xzGrid = new THREE.Line(gridGeometry(params), mat);
-  xzGrid.rotation.x = Math.PI / 2;
-  xzGrid.position.x -= size / 2;
-  xzGrid.position.z -= size / 2;
-
-  const yzGrid = new THREE.Line(gridGeometry(params), mat);
-  yzGrid.rotation.y = Math.PI / 2;
-  yzGrid.position.z += size / 2;
-  yzGrid.position.y -= size / 2;
-
+  const xzGrid = new THREE.GridHelper(size, divisions, color, color);
+  xzGrid.material = grids.material;
   grids.add(xzGrid);
-  grids.add(yzGrid);
 
+  const xyGrid = new THREE.GridHelper(size, divisions, color, color);
+  xyGrid.rotation.x = Math.PI / 2;
+  xyGrid.material = grids.material;
   grids.add(xyGrid);
 
-  return grids;
-}
+  const yzGrid = new THREE.GridHelper(size, divisions, color, color);
+  yzGrid.rotation.z = Math.PI / 2;
+  yzGrid.material = grids.material;
+  grids.add(yzGrid);
 
-function gridGeometry(params) {
-  if (!params) params = {}
-  if (!params.stepSize) params.stepSize = 1
-  if (!params.numSteps) params.numSteps = 10;
-  const gridGeom = new THREE.Geometry();
-  const size = params.stepSize * params.numSteps;
-  for (let x = 0; x < params.numSteps; x += 2) {
-    const xOff = x * params.stepSize;
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff, 0, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff, size, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff + params.stepSize, size, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff + params.stepSize, 0, 0)));
-  }
-  for (let y = 0; y < params.numSteps; y += 2) {
-    const yOff = y * params.stepSize;
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, yOff, 0, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, yOff, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, yOff + params.stepSize, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, yOff + params.stepSize, 0)));
-  }
-  if (params.numSteps % 2 == 0) {
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, size, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, size, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, 0, 0)));
-  }
-  return gridGeom;
+  return grids;
 }
 
 function imgGrid(params) {
@@ -257,83 +316,30 @@ function imgGrid(params) {
   return meshCanvas;
 }
 
-// Ellipse
-function port(rad, height, startAngle, angle) {
-  const curveGen = new THREE.EllipseCurve(0, 0, rad, 0, startAngle, angle);
-  const path = new THREE.CurvePath();
-  path.add(curveGen);
-  const geom = path.createPointsGeometry(100);
-  geom.computeTangents();
-  const mat = new THREE.LineBasicMaterial({
-      color: 0xc0c0c0,
-      blending: THREE.AdditiveBlending,
-      depthTest: true,
-      depthWrite: false,
-      transparent: false
-    });
-  
-  const portTop = new THREE.Line(geom, mat);
-  const portBottom = new THREE.Line(geom, mat);
-  portTop.position.z += height / 2;
-  portBottom.position.z -= height / 2;
-  
-  const shape = new THREE.Object3D();
-  shape.add(portTop);
-  shape.add(portBottom);
-
-  shape.rotation.z = Math.PI * 0.5 + startAngle * deg;
-  shape.rotation.x = Math.PI * 0.5;
-  return shape;
+function arc(rad, startAngle, angle, material) {
+  const curveGen = new THREE.EllipseCurve(
+    0, 0, // ax, aY
+    rad, rad, // xRadius, yRadius
+    startAngle, angle,
+    false, // clockwise
+    -angle
+  );
+  const points = curveGen.getPoints(100);
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  material = material || new THREE.LineBasicMaterial;
+  return new THREE.Line(geometry, material);
 }
 
-THREE.EllipseCurve = function(aX, aY, aRadius, eccentricity,
-                             aStartAngle, aEndAngle,
-                             aClockwise) {
-
-  aX = aX || 0;
-  aY = aY || 0;
-  aRadius = aRadius || 1;
-  eccentricity = eccentricity || 0;
-  aStartAngle = aStartAngle || 0;
-  aEndAngle = aEndAngle || Math.PI * 2.0;
-  aClockwise = aClockwise || true;
-
-  this.aX = aX;
-  this.aY = aY;
-  this.aRadius = aRadius;
-  this.bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0));
-  this.aStartAngle = aStartAngle;
-  this.aEndAngle = aEndAngle;
-  this.aClockwise = aClockwise;
-};
-
-THREE.EllipseCurve.prototype = new THREE.Curve();
-THREE.EllipseCurve.prototype.constructor = THREE.EllipseCurve;
-THREE.EllipseCurve.prototype.getPoint = function (t) {
-
-  const deltaAngle = this.aEndAngle - this.aStartAngle;
-
-  if (!this.aClockwise) {
-    t = 1 - t;
-  }
-
-  const angle = this.aStartAngle + t * deltaAngle;
-
-  const tx = this.aX + this.aRadius * Math.cos(angle);
-  const ty = this.aY + this.bRadius * Math.sin(angle);
-
-  return new THREE.Vector2(tx, ty);
-};
-
-
-module.exports = {
-  angle: angle,
-  box: box,
-  cube: cube,
-  grid: grid,
-  line: line,
-  lineGrid: lineGrid,
-  lodSphere: lodSphere,
-  point: point,
-  sphere: sphere,
+export {
+  angle,
+  box,
+  cube,
+  ellipseSemiMinorAxisCurve,
+  grid,
+  line,
+  lineGrid,
+  lodSphere,
+  point,
+  solidEllipse,
+  sphere,
 };

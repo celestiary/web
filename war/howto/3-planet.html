@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>Planet</h1>
+<script type="module">
+  import ThreeUi from '/js/three_ui.js';
+  import Scene from '/js/scene.js';
+  import {PointLight} from '/js/lib/three.module.js';
+
+  const ui = new ThreeUi('ui');
+  ui.camera.position.z = 2;
+  const light = new PointLight();
+  light.position.set(10, 10, 10);
+  ui.scene.add(light);
+
+  const scene = new Scene(ui);
+  const planet = scene.newPlanet({
+    name: (location.hash || '#earth').substring(1),
+    radius: {scalar: 1},
+    texture_atmosphere: true,
+    texture_hydrosphere: true,
+    texture_terrain: true,
+    type: 'planet'
+  });
+  planet.scale.normalize();
+  ui.scene.add(planet);
+  ui.animationCb = () => {
+    planet.rotation.y += 0.001;
+  };
+</script>
+</body>
+</html>

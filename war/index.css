@@ -3,7 +3,6 @@ body {
   padding: 0;
   overflow: hidden;
   font-family: arial, sans;
-  background-color: black;
   color: white;
 }
 
@@ -38,10 +37,10 @@ button:hover {
 }
 
 #nav {
-  position: absolute;
-  bottom: 0;
+  position: fixed;
   background-color: #222;
   opacity: 0.8;
+  bottom: 0;
   border-top: solid 2px #888;
   border-right: solid 2px #888;
   border-top-right-radius: 10px;

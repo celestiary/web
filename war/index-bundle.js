@@ -48333,7 +48333,7 @@ function animateSystem(system) {
     // are here:
     //
     //   http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
-    // 
+    //
     // and also would also need them for the other planets.
     const angle = 1.5 * Math.PI + simTimeSecs / 86400 * Shared.twoPi;
     system.setRotationFromAxisAngle(Y_AXIS, angle);
@@ -48366,15 +48366,16 @@ module.exports = {
   invertTimeScale: invertTimeScale,
 };
 
-},{"./shared.js":14,"three":1}],3:[function(require,module,exports){
+},{"./shared.js":15,"three":1}],3:[function(require,module,exports){
 'use strict';
 
 const THREE = require('three');
-const Animation = require('./animation.js');
 const ThreeUi = require('./three_ui.js');
+const Animation = require('./animation.js');
 const Controller = require('./controller.js');
 const Scene = require('./scene.js');
 const Shared = require('./shared.js');
+const Utils = require('./utils.js');
 
 /**
  * Solar System simulator inspired by Celestia using Three.js.
@@ -48399,18 +48400,22 @@ const Shared = require('./shared.js');
  * @see http://mrdoob.github.com/three.js/
  * @author Pablo Mayrgundter
  */
-function Celestiary(canvasContainer, dateElt) {
-  this.THREE = THREE; //tmp
+function Celestiary(canvasContainer, dateElt, testing) {
   this.dateElt = dateElt;
   const postAnimationCb = () => {
       this.updateUi();
   };
   this.animation = Animation;
-  // TODO: add back in windowResizeCb -> scene.updateView;
-  this.ui = new ThreeUi(canvasContainer, Animation.animation, null);
+  this.ui = new ThreeUi(
+    canvasContainer,
+    Animation.animation,
+    null, // TODO: add back in windowResizeCb -> scene.updateView;
+    testing ? 0xffffff : 0x000000);
   this.scene = new Scene(this.ui);
-  this.ctrl = new Controller(this.scene);
+  this.ctrl = new Controller(this.scene, 'sun');
   this.shared = Shared;
+  this.three = THREE;
+  this.utils = Utils;
 
   window.addEventListener(
       'hashchange',
@@ -48448,8 +48453,10 @@ function Celestiary(canvasContainer, dateElt) {
       },
       true);
 
-  this.ctrl.loadPath('milkyway');
-  this.ctrl.loadPath(location.hash ? location.hash.substring(1) : '');
+  if (!testing) {//tmp
+    this.ctrl.loadPath('milkyway');
+    this.ctrl.loadPath(location.hash ? location.hash.substring(1) : '');
+  }
 }
 
 /** Callback to update the HTML date element with the current time. */
@@ -48477,7 +48484,7 @@ Celestiary.prototype.invertTimeScale = Animation.invertTimeScale;
 
 module.exports = Celestiary;
 
-},{"./animation.js":2,"./controller.js":5,"./scene.js":12,"./shared.js":14,"./three_ui.js":16,"three":1}],4:[function(require,module,exports){
+},{"./animation.js":2,"./controller.js":6,"./scene.js":13,"./shared.js":15,"./three_ui.js":17,"./utils.js":18,"three":1}],4:[function(require,module,exports){
 'use strict';
 
 /**
@@ -48566,30 +48573,27 @@ module.exports = {
 'use strict';
 
 const collapsor = require('./collapsor.js');
-const Resource = require('./rest.js');
 const Measure = require('./measure.js');
 
 /**
- * The Controller loads the scene.  The scene nodes are fetched from
- * the server, a mapping is created for navigation to current scene
- * node locations based on names, and information is displayed for
- * the selected node.
+ * @param curPath Read-only view of curPath from Controller.
+ * @param loaded Read-only view of loaded from Controller.
  */
-function Controller(scene) {
-  this.scene = scene;
-  this.curPath = ['sun'];
-  this.loaded = {};
+function ControlPanel(curPath, loaded) {
 
+  this.curPath = curPath;
+  this.loaded = loaded;
+
+  // TODO: DUPLICATE of Controller#getPathTarget.
   this.getPathTarget = () => {
     return this.curPath[this.curPath.length - 1];
   };
 
-
   this.showNavDisplay = () => {
-    var crumbs = '';
-    for (var i = 0; i < this.curPath.length; i++) {
-      var hash = this.curPath.slice(0, i + 1).join('/');
-      var name = this.curPath[i];
+    let crumbs = '';
+    for (let i = 0; i < this.curPath.length; i++) {
+      const hash = this.curPath.slice(0, i + 1).join('/');
+      const name = this.curPath[i];
       if (i == this.curPath.length - 1) {
         crumbs += name;
       } else {
@@ -48600,22 +48604,22 @@ function Controller(scene) {
       }
     }
 
-    var html = crumbs + ' <ul>\n';
-    var pathPrefix = this.curPath.join('/');
+    let html = crumbs + ' <ul>\n';
+    const pathPrefix = this.curPath.join('/');
     html += this.showInfoRecursive(this.loaded[this.getPathTarget()],
-                                 pathPrefix, false, false);
+                                   pathPrefix, false, false);
     html += '</ul>\n';
-    var infoElt = document.getElementById('info');
+    const infoElt = document.getElementById('info');
     infoElt.innerHTML = html;
     collapsor.makeCollapsable(infoElt);
   };
 
 
   this.showInfoRecursive = function(obj, pathPrefix, isArray, isSystem) {
-    var html = '';
-    for (var prop in obj) {
+    let html = '';
+    for (let prop in obj) {
       if (obj.hasOwnProperty(prop)) {
-        var val = obj[prop];
+        let val = obj[prop];
         html += '<li>';
         if (!isArray) {
           html += prop + ': ';
@@ -48640,7 +48644,7 @@ function Controller(scene) {
           html += '</ul>\n';
         } else {
           if (isSystem) {
-            var path = pathPrefix;
+            let path = pathPrefix;
             if (pathPrefix.length > 0) {
               path += '/';
             }
@@ -48656,6 +48660,37 @@ function Controller(scene) {
       }
     }
     return html;
+  };
+}
+
+module.exports = ControlPanel;
+
+},{"./collapsor.js":4,"./measure.js":11}],6:[function(require,module,exports){
+'use strict';
+
+const Resource = require('./rest.js');
+const Measure = require('./measure.js');
+const ControlPanel = require('./controlPanel.js');
+
+/**
+ * The Controller loads the scene.  The scene nodes are fetched from
+ * the server, a mapping is created for navigation to current scene
+ * node locations based on names, and information is displayed for
+ * the selected node.
+ */
+function Controller(scene, defaultPath, curPath, loaded) {
+  this.scene = scene;
+  this.curPath = [];
+  this.loaded = {};
+  this.defaultPath = defaultPath;
+  if (defaultPath) {
+    this.curPath.push(defaultPath);
+  }
+
+  this.controlPanel = new ControlPanel(this.curPath, this.loaded);
+
+  this.getPathTarget = () => {
+    return this.curPath[this.curPath.length - 1];
   };
 
   /**
@@ -48691,13 +48726,13 @@ function Controller(scene) {
    * @param {function} cb optional callback.
    */
   this.loadObj = function(name, expand, cb) {
-    var loadedObj = this.loaded[name];
+    const loadedObj = this.loaded[name];
     if (loadedObj) {
       if (loadedObj == 'pending') {
         return;
       }
       if (expand && loadedObj.system) {
-        for (var i = 0; i < loadedObj.system.length; i++) {
+        for (let i = 0; i < loadedObj.system.length; i++) {
           this.loadObj(loadedObj.system[i], false);
         }
       }
@@ -48714,7 +48749,7 @@ function Controller(scene) {
           this.reifyMeasures(obj);
           this.scene.add(obj);
           if (expand && obj.system) {
-            for (var i = 0; i < obj.system.length; i++) {
+            for (let i = 0; i < obj.system.length; i++) {
 	      this.loadObj(obj.system[i], false);
             }
           }
@@ -48727,32 +48762,31 @@ function Controller(scene) {
 
 
   /**
-   * @param {!string} p The path, e.g. 'sun/earth/moon' or an empty
+   * @param {!string} p The path, e.g. 'a/b/c' or an empty
    * string for default.
    */
   this.loadPath = function(p) {
-    console.log('loadPath');
-    var reqPath = p || '';
+    let reqPath = p || '';
     if (reqPath.length == 0) {
-      reqPath = 'sun';
+      reqPath = this.defaultPath;
     }
     this.curPath = reqPath.split('/');
     this.loadPathRecursive([].concat(this.curPath), () => {
         this.scene.select(this.getPathTarget());
-        this.showNavDisplay();
+        this.controlPanel.showNavDisplay();
       });
   };
 
 
   /**
-   * @param {!Array} path The path to the scene target, e.g. ['sun',
-   * 'earth', 'moon'].
+   * @param {!Array} path The path to the scene target, e.g. ['a',
+   * 'b', 'c'].
    */
   this.loadPathRecursive = function(path, cb) {
     if (path.length == 0) {
       return;
     }
-    var systemName = path.shift();
+    const systemName = path.shift();
     this.loadObj(systemName, true, path.length == 0 ? cb : null);
     this.loadPathRecursive(path, cb);
   };
@@ -48761,7 +48795,7 @@ function Controller(scene) {
 
 module.exports = Controller;
 
-},{"./collapsor.js":4,"./measure.js":10,"./rest.js":11}],6:[function(require,module,exports){
+},{"./controlPanel.js":5,"./measure.js":11,"./rest.js":12}],7:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -48770,22 +48804,22 @@ const Celestiary = require('./celestiary.js');
 const collapsor = require('./collapsor.js');
 
 function init() {
+  const sceneElt = document.getElementById('scene')
   if (!WebGL.isWebGLAvailable()) {
     const errMsg = WebGL.getWebGLErrorMessage();
     console.log(errMsg);
+    sceneElt.innerHTML = errMsg;
     return;
   }
-  global.c = global.celestiary = new Celestiary(
-      document.getElementById('scene'),
-      document.getElementById('date'));
-  global.d = WebGL;//tmp
+  const dateElt = document.getElementById('date');
+  global.c = global.celestiary = new Celestiary(sceneElt, dateElt);
   global.collapse = collapsor.collapse;
 }
 
 init();
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./celestiary.js":3,"./collapsor.js":4,"./lib/WebGL.js":8}],7:[function(require,module,exports){
+},{"./celestiary.js":3,"./collapsor.js":4,"./lib/WebGL.js":9}],8:[function(require,module,exports){
 'use strict';
 
 const THREE = require('three');
@@ -49421,7 +49455,7 @@ TrackballControls.prototype.constructor = TrackballControls;
 
 module.exports = TrackballControls;
 
-},{"three":1}],8:[function(require,module,exports){
+},{"three":1}],9:[function(require,module,exports){
 /**
  * @author alteredq / http://alteredqualia.com/
  * @author mr.doob / http://mrdoob.com/
@@ -49518,7 +49552,7 @@ const WEBGL = {
 };
 
 module.exports = WEBGL;
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 'use strict';
 
 const THREE = require('three');
@@ -49534,9 +49568,9 @@ function pathTexture(filebase, ext) {
   return loadTexture('textures/' + filebase + ext);
 }
 
-var materials = [];
+const materials = [];
 function cacheMaterial(name) {
-  var m = materials[name];
+  let m = materials[name];
   if (!m) {
     materials[name] = m = new THREE.MeshPhongMaterial({
         map: pathTexture(name),
@@ -49546,11 +49580,11 @@ function cacheMaterial(name) {
 }
 
 function lineMaterial(params, name) {
-  var params = params || {};
+  params = params || {};
   params.color = params.color || 0xff0000;
   params.linewidth = params.lineWidth || 1;
-  var name = name || 'line-basic';
-  var m = materials[name];
+  name = name || 'line-basic';
+  let m = materials[name];
   if (!m) {
     materials[name] = m = new THREE.LineBasicMaterial({
     color: params.color,
@@ -49568,7 +49602,7 @@ module.exports = {
   cacheMaterial: cacheMaterial,
 };
 
-},{"three":1}],10:[function(require,module,exports){
+},{"three":1}],11:[function(require,module,exports){
 'use strict';
 /**
  * Measure formatting and conversion utility.  The system of measure
@@ -49744,7 +49778,7 @@ Measure.parse = function(s) {
 
 module.exports = Measure;
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 'use strict';
 
 if (typeof XMLHttpRequest == "undefined") {
@@ -49782,7 +49816,7 @@ const Resource = function(name) {
 
 module.exports = Resource;
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 'use strict';
 
 const THREE = require('three');
@@ -49798,6 +49832,7 @@ const
   stepBackMult = 10;
 
 const Scene = function(threeUi) {
+  this.shapes = Shapes;
   this.ui = threeUi;
   this.sceneNodes = {};
   this.orbitShapes = {};
@@ -49813,7 +49848,6 @@ const Scene = function(threeUi) {
  * @param {!object} props object properties, must include type.
  */
 Scene.prototype.add = function(props) {
-
   // Find a parent or add directly to scene.  TODO(pablo): this is
   // ugly, since this is the only way the scene goes live.
   let parentNode = this.sceneNodes[props.parent];
@@ -49868,13 +49902,12 @@ Scene.prototype.select = function(name) {
     // TODO(pablo): this is a race on initial load.  The target is
     // selected before it's loaded, but the deferred select does work,
     // so not critical for now.
-    console.log('scene#checkedSelect: initial load race');
+    console.error('scene#checkedSelect: initial load race');
     return;
   }
   if (!node.orbitPosition) {
     throw new Error('No orbit position for target of select: ' + name)
   }
-  console.log(`scene#checkedSelect: ${node.props.name}`);
   Shared.targetNode = node;
 };
 
@@ -49912,10 +49945,7 @@ Scene.prototype.goTo = function() {
   }
   const targetPos = node.orbitPosition.position;
   const camPos = targetPos.clone().negate().setScalar(node.props.radius.scalar * lengthScale * 2);
-  console.log('camPos: ', camPos);
   node.orbitPosition.add(this.ui.camera);
-  //this.ui.camera.position.copy(camPos);
-  //this.ui.camera.target = 
 
   // Change control sensitivity depending on object size.
   if (node.props.type == 'star') {
@@ -50047,22 +50077,27 @@ Scene.prototype.toggleDebug = function() {
  */
 Scene.prototype.newOrbitingPlanet = function(planetProps) {
   const name = planetProps.name;
-  const referencePlane = new THREE.Object3D;
-
   const orbit = planetProps.orbit;
+  const inclination = orbit.inclination || 0;
+  const longitudeOfPerihelion = orbit.longitudeOfPerihelion || 0;
+
+  const referencePlane = new THREE.Object3D;
+  referencePlane.name = name + '.referencePlane';
+  referencePlane.add(new THREE.AxesHelper(2));
 
   const orbitPlane = new THREE.Object3D;
   orbitPlane.name = name + '.orbitPlane';
   referencePlane.add(orbitPlane);
+  orbitPlane.rotation.x = inclination * Shared.toRad;
+  orbitPlane.rotation.y = longitudeOfPerihelion * Shared.toRad;
+  //orbitPlane.add(new THREE.AxesHelper(2));
 
   const orbitShape = this.newOrbit(orbit);
+  orbitShape.name = name + '.orbit';
   orbitShape.scale.multiplyScalar(lengthScale);
   orbitPlane.add(orbitShape);
   orbitShape.visible = this.orbitsVisible;
   this.orbitShapes[name] = orbitShape;
-
-  orbitPlane.rotation.x = orbit.inclination * Shared.toRad;
-  orbitPlane.rotation.y = orbit.longitudeOfPerihelion * Shared.toRad;
 
   const orbitPosition = new THREE.Object3D;
   orbitPosition.name = name + '.orbitPosition';
@@ -50073,6 +50108,7 @@ Scene.prototype.newOrbitingPlanet = function(planetProps) {
   orbitPosition.orbit = planetProps.orbit;
 
   const planetTilt = new THREE.Object3D;
+  planetTilt.name = name + '.planetTilt';
   orbitPosition.add(planetTilt);
   planetTilt.rotateZ(planetProps.axialInclination * Shared.toRad);
 
@@ -50091,28 +50127,19 @@ Scene.prototype.newOrbitingPlanet = function(planetProps) {
 
 Scene.prototype.newPlanet = function(planetProps) {
   const planet = new THREE.Object3D;
-  const planetName = planetProps.name;
+  planet.name = planetProps.name;
   planet.props = planetProps;
-  planet.name =  planetName + '.planetGroup';
 
   const axes = new THREE.AxesHelper(2);
-  axes.visible = true;
   this.debugShapes.push(axes);
   planet.add(axes);
-
-  const planetSurface = this.newSurface(planetProps);
-  planetSurface.name = planetName + '.surface';
-  planet.add(planetSurface);
-
+  planet.add(this.newSurface(planetProps));
   if (planetProps.texture_atmosphere) {
-    const atmos = this.newAtmosphere(planetProps);
-    atmos.name = planetName + '.atmosphere';
-    planet.add(atmos);
+    planet.add(this.newAtmosphere(planetProps));
   }
 
   // Attaching this property triggers rotation of planet during animation.
   planet.siderealRotationPeriod = planetProps.siderealRotationPeriod;
-
   planet.scale.setScalar(planetProps.radius.scalar);
   return planet;
 };
@@ -50137,14 +50164,16 @@ Scene.prototype.newSurface = function(planetProps) {
       planetMaterial.shininess = 50;
     }
   }
-  return Shapes.sphere({matr: planetMaterial});
+  const shape = Shapes.sphere({matr: planetMaterial});
+  shape.name = planetProps.name + '.surface';
+  return shape;
 };
 
 
 Scene.prototype.newAtmosphere = function(planetProps) {
   // TODO: https://threejs.org/examples/webgl_shaders_sky.html
   const atmosTex = Material.pathTexture(planetProps.name, '_atmos.jpg');
-  return Shapes.sphere({
+  const shape = Shapes.sphere({
       radius: atmosScale, // assumes radius of planet is 1.
       matr: new THREE.MeshPhongMaterial({
           color: 0xffffff,
@@ -50154,21 +50183,17 @@ Scene.prototype.newAtmosphere = function(planetProps) {
           shininess: 100
         })
     });
+  shape.name = planetProps.name + '.atmosphere';
+  return shape;
 };
 
 
 Scene.prototype.newOrbit = function(orbit) {
-  const shape = new THREE.Object3D();
-  // https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes
-  const a = 1;
-  const e = orbit.eccentricity;
-  // Semi-minor axis.
-  const b = a * Math.sqrt(1 - Math.pow(e, 2));
-  // TODO, API docs say 3rd and 4th args should be a, b, but it
-  // appears eccentricity is used instead.
-  const ellipseCurve = new THREE.EllipseCurve(0, 0,
-                                              a, e,
-                                              0, Math.PI);
+  const shape = new THREE.Object3D;
+  const ellipseCurve = new THREE.EllipseCurve(
+    0, 0,
+    1, Shapes.ellipseSemiMinorAxisCurve(orbit.eccentricity),
+    0, Math.PI);
   const ellipsePoints = ellipseCurve.getPoints(1000);
   const ellipseGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
   const orbitMaterial = new THREE.LineBasicMaterial({
@@ -50192,7 +50217,7 @@ Scene.prototype.newOrbit = function(orbit) {
 
 module.exports = Scene;
 
-},{"./animation.js":2,"./material.js":9,"./shapes.js":13,"./shared.js":14,"./t-1000.js":15,"three":1}],13:[function(require,module,exports){
+},{"./animation.js":2,"./material.js":10,"./shapes.js":14,"./shared.js":15,"./t-1000.js":16,"three":1}],14:[function(require,module,exports){
 'use strict';
 
 const THREE = require('three');
@@ -50225,15 +50250,14 @@ function sphere(opts) {
   };
   const geom = new THREE.SphereGeometry(opts.radius, opts.segmentSize, opts.segmentSize / 2);
   opts.matr = opts.matr || new THREE.MeshPhongMaterial(matrOpts);
-  console.log(opts);
   return new THREE.Mesh(geom, opts.matr);
 }
 
 // Lod Sphere.
 function lodSphere(radius, material) {
-  radius = radius || 1;
+  radius 
   const lod = new THREE.LOD();
-  const geoms = 
+  const geoms =
     [[getSphereGeom(128), radius],
      [getSphereGeom(32), radius * 10],
      [getSphereGeom(16), radius * 100],
@@ -50259,6 +50283,30 @@ function getSphereGeom(segmentSize) {
     geom = _sphereGeoms[segmentSize] = new THREE.SphereGeometry(1, segmentSize, segmentSize / 2);
   }
   return geom;
+}
+
+/** https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes */
+function ellipseSemiMinorAxisCurve(eccentricity, semiMajorAxisLength) {
+  eccentricity = eccentricity || 0; // Circle
+  semiMajorAxisLength = semiMajorAxisLength || 1;
+  return semiMajorAxisLength * Math.sqrt(1 - Math.pow(eccentricity, 2))
+}
+
+function solidEllipse(eccentricity) {
+  const ellipsePath = new c.three.Shape();
+  const semiMajorAxisLength = 1;
+  ellipsePath.absellipse(
+    0, 0, // center
+    1, ellipseSemiMinorAxisCurve(eccentricity), // xRadius, yRadius
+    0, Math.PI * 2, // start and finish angles
+    true, 0); // clockwise, offset rotation
+  const material = new c.three.MeshBasicMaterial({
+      color: 0x888888,
+      side: THREE.DoubleSide
+    });
+  return new THREE.Mesh(
+    new c.three.ShapeBufferGeometry(ellipsePath),
+    material);
 }
 
 function atmos(radius) {
@@ -50333,31 +50381,107 @@ function line(vec1, vec2) {
   } else {
     throw new Error('Can only be called with 2, 3 or 6 arguments.');
   }
+  if (vec1.equals(vec2)) {
+    throw new Error('Vectors may not be equal: ' + JSON.stringify([vec1, vec2]));
+  }
   const geom = new THREE.Geometry();
   geom.vertices.push(vec1);
   geom.vertices.push(vec2);
-  return new THREE.Line(geom, Material.lineMaterial());
+  return new THREE.Line(geom);
 }
 
 
-// Angle
+/**
+ * Angle.  Material properties of arrow head and text are derived from
+ * given {@param material}.
+ * @param material An instance of LineBasicMaterial.
+ */
+function angle(vec1, vec2, material) {
+  let angleInRadians;
+  if (arguments.length == 1 || vec2 === null || typeof vec2 === 'undefined') {
+    angleInRadians = vec1;
+  } else if (arguments.length == 2) {
+    angleInRadians = vec1.angleTo(vec2);
+  }
 
-function angle(vec1, vec2) {
-  return line(vec1, vec2);
+  const angle = new THREE.Object3D;
+  angle.name = `angle(${angleInRadians * c.shared.toDeg})`;
+  angle.material = material || new c.three.LineBasicMaterial;
+  const arrowArc = arc(1, 0, angleInRadians, angle.material);
+  arrowArc.name = angle.name + '.arc';
+  const up = new THREE.Vector3(0, 1, 0);
+  const zero = new THREE.Vector3(0, 0, 0);
+
+  const coneHeight = 0.1;
+  const coneGeometry = new THREE.ConeGeometry(coneHeight / 3, coneHeight, 10);
+  const coneMaterial = new THREE.MeshBasicMaterial;
+  coneMaterial.color = angle.material.color;
+  const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+  cone.name = angle.name + '.cone';
+  cone.position.x = 1;
+  cone.position.y = coneHeight / -2;
+
+  angle.add(arrowArc);
+  angle.add(cone);
+
+  if (true) {
+    const label = getCanvasTextSprite((angleInRadians * c.shared.toDeg) + '˚', angle.material.color);
+    label.name = angle.name + '.label';
+    label.position.set(Math.cos(angleInRadians * 0.1), -Math.sin(angleInRadians * 0.1), 0);
+    label.center.set(0, 0);
+    angle.add(label);
+  }
+  angle.rotation.z = angleInRadians;
+  return angle;
 }
 
+const canvasContainer = document.getElementById('canvasContainer');
+
+function getCanvasTextSprite(text, color) {
+  const canvas = document.createElement('canvas');
+  canvasContainer.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  ctx.font = '1em Arial';
+  const metrics = ctx.measureText(text);
+  // WebGL requires power of 2 width, so round up.
+  canvas.width = Math.pow(2, Math.ceil(Math.log2(metrics.width)));
+  canvas.height = 32;
+
+  const texture = new c.three.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const label = new c.three.Sprite(new c.three.SpriteMaterial({
+        map: texture,
+        alphaTest: 0.5,
+      }));
+  const scale = 0.2;
+  setCanvasText(canvas, ctx, text, color);
+  label.scale.set(canvas.width / canvas.height * scale, scale, 1.0);
+  canvasContainer.removeChild(canvas);
+  return label;
+}
+
+function setCanvasText(canvas, ctx, text, color) {
+  ctx.save();
+  ctx.font = '1em Arial';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, 1)`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 0, canvas.height / 2);
+  ctx.restore();
+}
 
 // Grid
-
 function grid(params) {
   if (!params) {
     params = {};
   }
   if (!params.stepSize) {
-    params['stepSize'] = 1;
+    params.stepSize = 1;
   }
   if (!params.numSteps) {
-    params['numSteps'] = 1E2;
+    params.numSteps = 1E2;
   }
   return lineGrid(params);
 }
@@ -50368,61 +50492,28 @@ function grid(params) {
  * TODO(pablo): each grid has its own geometry.
  */
 function lineGrid(params) {
-
   const grids = new THREE.Object3D();
+  const size = params.stepSize * params.numSteps || 1;
+  const divisions = params.numSteps || 10;
+  const color = params.color || 0x0000af;
 
-  const size = params.stepSize * params.numSteps;
+  grids.material = new THREE.LineBasicMaterial;
 
-  const mat = Material.lineMaterial(params);
-
-  const xyGrid = new THREE.Line(gridGeometry(params), mat);
-  xyGrid.position.x -= size / 2;
-  xyGrid.position.y -= size / 2;
-
-  const xzGrid = new THREE.Line(gridGeometry(params), mat);
-  xzGrid.rotation.x = Math.PI / 2;
-  xzGrid.position.x -= size / 2;
-  xzGrid.position.z -= size / 2;
-
-  const yzGrid = new THREE.Line(gridGeometry(params), mat);
-  yzGrid.rotation.y = Math.PI / 2;
-  yzGrid.position.z += size / 2;
-  yzGrid.position.y -= size / 2;
-
+  const xzGrid = new THREE.GridHelper(size, divisions, color, color);
+  xzGrid.material = grids.material;
   grids.add(xzGrid);
-  grids.add(yzGrid);
 
+  const xyGrid = new THREE.GridHelper(size, divisions, color, color);
+  xyGrid.rotation.x = Math.PI / 2;
+  xyGrid.material = grids.material;
   grids.add(xyGrid);
 
-  return grids;
-}
+  const yzGrid = new THREE.GridHelper(size, divisions, color, color);
+  yzGrid.rotation.z = Math.PI / 2;
+  yzGrid.material = grids.material;
+  grids.add(yzGrid);
 
-function gridGeometry(params) {
-  if (!params) params = {}
-  if (!params.stepSize) params.stepSize = 1
-  if (!params.numSteps) params.numSteps = 10;
-  const gridGeom = new THREE.Geometry();
-  const size = params.stepSize * params.numSteps;
-  for (let x = 0; x < params.numSteps; x += 2) {
-    const xOff = x * params.stepSize;
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff, 0, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff, size, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff + params.stepSize, size, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(xOff + params.stepSize, 0, 0)));
-  }
-  for (let y = 0; y < params.numSteps; y += 2) {
-    const yOff = y * params.stepSize;
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, yOff, 0, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, yOff, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, yOff + params.stepSize, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, yOff + params.stepSize, 0)));
-  }
-  if (params.numSteps % 2 == 0) {
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(0, size, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, size, 0)));
-    gridGeom.vertices.push(new THREE.Vector3(new THREE.Vector3(size, 0, 0)));
-  }
-  return gridGeom;
+  return grids;
 }
 
 function imgGrid(params) {
@@ -50452,87 +50543,34 @@ function imgGrid(params) {
   return meshCanvas;
 }
 
-// Ellipse
-function port(rad, height, startAngle, angle) {
-  const curveGen = new THREE.EllipseCurve(0, 0, rad, 0, startAngle, angle);
-  const path = new THREE.CurvePath();
-  path.add(curveGen);
-  const geom = path.createPointsGeometry(100);
-  geom.computeTangents();
-  const mat = new THREE.LineBasicMaterial({
-      color: 0xc0c0c0,
-      blending: THREE.AdditiveBlending,
-      depthTest: true,
-      depthWrite: false,
-      transparent: false
-    });
-  
-  const portTop = new THREE.Line(geom, mat);
-  const portBottom = new THREE.Line(geom, mat);
-  portTop.position.z += height / 2;
-  portBottom.position.z -= height / 2;
-  
-  const shape = new THREE.Object3D();
-  shape.add(portTop);
-  shape.add(portBottom);
-
-  shape.rotation.z = Math.PI * 0.5 + startAngle * deg;
-  shape.rotation.x = Math.PI * 0.5;
-  return shape;
+function arc(rad, startAngle, angle, material) {
+  const curveGen = new THREE.EllipseCurve(
+    0, 0, // ax, aY
+    rad, rad, // xRadius, yRadius
+    startAngle, angle,
+    false, // clockwise
+    -angle
+  );
+  const points = curveGen.getPoints(100);
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  material = material || new THREE.LineBasicMaterial;
+  return new THREE.Line(geometry, material);
 }
-
-THREE.EllipseCurve = function(aX, aY, aRadius, eccentricity,
-                             aStartAngle, aEndAngle,
-                             aClockwise) {
-
-  aX = aX || 0;
-  aY = aY || 0;
-  aRadius = aRadius || 1;
-  eccentricity = eccentricity || 0;
-  aStartAngle = aStartAngle || 0;
-  aEndAngle = aEndAngle || Math.PI * 2.0;
-  aClockwise = aClockwise || true;
-
-  this.aX = aX;
-  this.aY = aY;
-  this.aRadius = aRadius;
-  this.bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0));
-  this.aStartAngle = aStartAngle;
-  this.aEndAngle = aEndAngle;
-  this.aClockwise = aClockwise;
-};
-
-THREE.EllipseCurve.prototype = new THREE.Curve();
-THREE.EllipseCurve.prototype.constructor = THREE.EllipseCurve;
-THREE.EllipseCurve.prototype.getPoint = function (t) {
-
-  const deltaAngle = this.aEndAngle - this.aStartAngle;
-
-  if (!this.aClockwise) {
-    t = 1 - t;
-  }
-
-  const angle = this.aStartAngle + t * deltaAngle;
-
-  const tx = this.aX + this.aRadius * Math.cos(angle);
-  const ty = this.aY + this.bRadius * Math.sin(angle);
-
-  return new THREE.Vector2(tx, ty);
-};
-
 
 module.exports = {
   angle: angle,
   box: box,
   cube: cube,
+  ellipseSemiMinorAxisCurve: ellipseSemiMinorAxisCurve,
   grid: grid,
   line: line,
   lineGrid: lineGrid,
   lodSphere: lodSphere,
   point: point,
+  solidEllipse: solidEllipse,
   sphere: sphere,
 };
-},{"./material.js":9,"three":1}],14:[function(require,module,exports){
+},{"./material.js":10,"three":1}],15:[function(require,module,exports){
 'use strict';
 
 const THREE = require('three');
@@ -50568,7 +50606,7 @@ module.exports = {
   targetPos: new THREE.Vector3(),
 };
 
-},{"three":1}],15:[function(require,module,exports){
+},{"three":1}],16:[function(require,module,exports){
 // RA,Dec,Distance(km)
 module.exports = [
 [21.41435523,-3.3982351,2.1994668567355658E15],
@@ -51571,18 +51609,18 @@ module.exports = [
 [17.52057297,-73.16254066,3.085852E20],
 [23.28575872,-28.43803072,8.619698324022331E15]];
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 const THREE = require('three');
 const Shared = require('./shared.js');
 const TrackballControls = require('./lib/TrackballControls.js');
 
-function ThreeUi(container, animationCb, windowResizeCb) {
+function ThreeUi(container, animationCb, windowResizeCb, backgroundColor) {
   container.innerHTML = '';
   this.container = container;
   this.animationCb = animationCb || (() => {});
   this.windowResizeCb = windowResizeCb || (() => {});
   this.setSize();
-  this.initRenderer(container);
+  this.initRenderer(container, backgroundColor);
   this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, 1E-3, 1E35);
   this.camera.rotationAutoUpdate = true;
   this.initControls(this.camera);
@@ -51605,9 +51643,9 @@ ThreeUi.prototype.setSize = function() {
 };
 
 
-ThreeUi.prototype.initRenderer = function(container) {
+ThreeUi.prototype.initRenderer = function(container, backgroundColor) {
   const r = new THREE.WebGLRenderer({antialias: true});
-  r.setClearColor(0, 1);
+  r.setClearColor(backgroundColor, 1);
   r.setSize(this.width, this.height);
   r.sortObjects = true;
   r.autoClear = true;
@@ -51668,4 +51706,55 @@ ThreeUi.prototype.renderLoop = function() {
 
 module.exports = ThreeUi;
 
-},{"./lib/TrackballControls.js":7,"./shared.js":14,"three":1}]},{},[6]);
+},{"./lib/TrackballControls.js":8,"./shared.js":15,"three":1}],18:[function(require,module,exports){
+'use strict';
+
+const Shapes = require('./shapes.js');
+
+/**
+ * Recursively visit child members of {@param elt}'s "children" property.
+ * @param cb1 The pre-order callback.  Called with the current element.
+ * @param cb2 The in-order callback.  Called with the parent and current element.
+ * @param cb3 The post-order callback.  Called with the current element.
+ * @param level is incremented on the way down recursivey and probably
+ * should not be set by caller, but will be passed to the callbacks to
+ * allow indent formatting.
+ */
+function visitChildren(elt, cb1, cb2, cb3, level) {
+  level = level || 1;
+  if (cb1) {
+    cb1(elt, level);
+  }
+  if (elt.children) {
+    for (let ndx in elt.children) {
+      const child = elt.children[ndx];
+      if (cb2) {
+        cb2(elt, child, level);
+      }
+      visitChildren(child, cb1, cb2, cb3, level + 1);
+    }
+  }
+  if (cb3) {
+    cb3(elt, level);
+  }
+}
+
+function lineTraceScene(root) {
+  visitChildren(root, null, (parent, elt, level) => {
+      if (root.position.equals(elt.position)) {
+        console.log(`${elt.name} is at root`);
+        return;
+      }
+      console.log(new Array(level + 1).join(' ') + elt.name);
+      const line = Shapes.line(root.position, elt.position);
+      console.log('lineTraceScene: ', line);
+      root.add(line);
+    });
+}
+
+module.exports = {
+  lineTraceScene: lineTraceScene,
+  visitChildren: visitChildren
+};
+
+},{"./shapes.js":14}]},{},[7]);

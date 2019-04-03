@@ -4,16 +4,8 @@
     <title>Celestiary - Solar System Simulator</title>
     <link rel="stylesheet" href="index.css"/>
   </head>
-  <body>
-    <div id="scene">
-      <div style="position: absolute; width: 50%; margin: auto">
-        <p>This page shows 3D content
-        using <a href="http://en.wikipedia.org/wiki/WebGL">WebGL</a>.
-        It should work fine in modern browsers.</p></p>
-
-        <p>Internet Explorer 10 and below may not work.</p>
-      </div>
-    </div>
+  <body style="background-color: black">
+    <div id="scene"/>
     <div id="nav">
       <div id="info">Welcome to Celestiary!  Loading...</div>
       <div id="clock">
@@ -29,9 +21,9 @@
       </div>
       <div id="links">
 	<a href="https://github.com/pablo-mayrgundter/celestiary" target="_blank">source</a> |
-	<a href="howto.html" target="_blank">howto</a>
+	<a href="howto/index.html" target="_blank">howto</a>
       </div>
     </div>
-    <script src="index-bundle.js"></script>
+    <script type="module" src="js/index.js"></script>
   </body>
 </html>

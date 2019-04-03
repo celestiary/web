@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="index.css"/>
+  </head>
+  <body style="margin: 0">
+    <div id="scene"></div>
+    <div id="nav">
+      <div id="info">Orbital Elements Loading...</div>
+      <div id="clock">
+        <span id="date"></span><br/>
+        <span id="timeScale"></span>
+      </div>
+      <div id="controls">
+        <button onclick="celestiary.toggleOrbits()">o</button>
+        <button onclick="celestiary.changeTimeScale(-1)">-</button>
+        <button onclick="celestiary.changeTimeScale(0)">=</button>
+        <button onclick="celestiary.invertTimeScale()">/</button>
+        <button onclick="celestiary.changeTimeScale(1)">+</button>
+      </div>
+    </div>
+    <div id="canvasContainer"></div>
+  </body>
+  <script type="text/javascript" src="test-bundle.js"></script>
+  <script type="text/javascript">
+    c.ui.camera.position.set(0, 1, 3);
+    const root = new c.three.Object3D;
+    //root.add(new c.three.AxesHelper);
+    const grid = new c.scene.shapes.grid();
+    grid.material.color.setRGB(0, 0, 1);
+    grid.material.transparent = true;
+    grid.material.opacity = 0.1;
+    root.add(grid);
+    c.ui.scene.add(root);
+
+    const fortyFiveDeg = Math.PI / 4;
+    const orbit = {
+      eccentricity: 0.5,
+      argumentOfPeriapsis: Math.PI / 2,
+      inclination: Math.PI / 4,
+      longitudeOfAscendingNode: Math.PI * 1.6
+    };
+
+    // Controller; TODO make a good API
+    c.ctrl.loaded['earth'] = {
+      orbit: orbit
+    };
+    c.ctrl.curPath.push('earth');
+    c.ctrl.controlPanel.showNavDisplay();
+
+    // Solar plane
+    const solarPlaneGroup = new c.three.Object3D;
+    root.add(solarPlaneGroup);
+    const solarPlane = c.scene.shapes.solidEllipse();
+    solarPlane.material.color.setRGB(0.78, 0.78, 0.78);
+    solarPlaneGroup.add(solarPlane);
+
+    const lonAscNode = c.scene.shapes.angle(
+      orbit.longitudeOfAscendingNode, null,
+      new c.three.LineBasicMaterial({color: 0x42a029}));
+    lonAscNode.scale.set(0.3, 0.3, 0.3);
+    solarPlaneGroup.add(lonAscNode);
+    solarPlaneGroup.rotateX(Math.PI / -2); // to horizontal
+
+    // Planet plane
+    const ellipse2 = c.scene.shapes.solidEllipse(orbit.eccentricity);
+    const material = ellipse2.material.clone();
+    material.color = new c.three.Color(0xf5f5b9);
+    material.transparent = true;
+    material.opacity = 0.5;
+    ellipse2.material = material;
+    ellipse2.rotateX(Math.PI / -2); // to horizontal
+
+    // Semi-major axis oriented towards periapsis.
+    const periapsis = c.scene.shapes.line(1, 0, 0);
+    periapsis.material.color.setRGB(0, 0, 1);
+    ellipse2.add(periapsis);
+    root.add(ellipse2);
+
+    // Argument of periapsis
+    const argOfPeri = c.scene.shapes.angle(
+      orbit.argumentOfPeriapsis, null,
+      new c.three.LineBasicMaterial({color: 0x0000ff}));
+    argOfPeri.scale.set(0.3, 0.3, 0.3);
+    argOfPeri.rotation.z = Math.PI * -2;
+    ellipse2.add(argOfPeri);
+
+    const steps = 200;
+    ellipse2.rotation.reorder('YXZ');
+    let i = 0, delta = 0, state = 0;
+    const startX = ellipse2.rotation.x;
+    const startY = ellipse2.rotation.y;
+    const startZ = ellipse2.rotation.z;
+    c.ui.animationCb = () => {
+    //if (true) return;
+      if (i < steps) {
+        delta = i / steps;
+      } else {
+        i = 0;
+        delta = 0;
+        state++;
+      }
+      switch(state) {
+        case 0: ellipse2.rotation.y = startY + delta * orbit.longitudeOfAscendingNode; break;
+        case 1: ellipse2.rotation.x = startX + delta * orbit.inclination; break;
+        case 2: ellipse2.rotation.z = startZ + delta * orbit.argumentOfPeriapsis; break;
+        default: c.ui.animationCb = () => {};
+      }
+      i++;
+    };
+  </script>
+</html>

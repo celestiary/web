@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>A Simple Cube</h1>
+To start with, a simple scene is defined with an object and
+controls.  Try rotating the cube with your mouse.  A scroll up or
+down gesture or mouse-wheel will zoom.  Double-button drag will
+pan.
+
+<script type="module">
+  // Import things from libraries, showing three types of syntax.
+  // First syntax imports a single thing that three_ui.js exports, so
+  // just need to give it a name.
+  import ThreeUi from '/js/three_ui.js';
+  import Fullscreen from '/js/fullscreen.js';
+
+  // Second syntax picks one thing from the many exported from
+  // three.module.js.
+  import {AmbientLight, PointLight} from '/js/lib/three.module.js';
+
+  // Last syntax grabs everything from shapes and puts them under
+  // the name 'Shapes' so they're easily accessible here.
+  import * as Shapes from '/js/shapes.js';
+
+  // Bind the ThreeUi to the "ui" HTML page element.
+  const ui = new ThreeUi('ui');
+
+  // Pull the camera back from center 10 units along the z-axis
+  // (towards the viewer).
+  ui.camera.position.z = 10;
+
+  // Create a light and move away 10 units from the center along
+  // each axis to give // interesting lighting.
+  const light = new PointLight();
+  light.position.set(10, 10, 10);
+  ui.scene.add(light);
+  ui.scene.add(new AmbientLight(0x404040));
+
+  // Add a unit cube at the center; (0,0,0) is implicit.
+  ui.scene.add(Shapes.cube());
+</script>
+</body>
+</html>

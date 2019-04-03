@@ -1,5 +1,3 @@
-'use strict';
-
 if (typeof XMLHttpRequest == "undefined") {
   XMLHttpRequest = function () {
     try { return new ActiveXObject("Msxml2.XMLHTTP.6.0"); }
@@ -17,6 +15,7 @@ const Resource = function(name) {
   this.name = 'data/' + name + '.json';
   this.get = (func) => {
     if (location.href.startsWith && location.href.startsWith('file')) {
+      console.log('yoo');
       return func({type: 'star', name: 'sun', radius: 6.9424895E8});
     }
     var xmlhttp = new XMLHttpRequest();
@@ -33,4 +32,4 @@ const Resource = function(name) {
 };
 
 
-module.exports = Resource;
+export default Resource;

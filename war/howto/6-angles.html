@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>Angles</h1>
+<script type="module">
+  import * as THREE from '/js/lib/three.module.js';
+  import Scene from '/js/scene.js';
+  import ThreeUi from '/js/three_ui.js';
+  import * as Shared from '/js/shared.js';
+
+  const ui = new ThreeUi('ui');
+  const scene = new Scene(ui);
+  ui.camera.position.set(0, 1, 3);
+
+  const material = new THREE.LineBasicMaterial({
+    color: 0x00ff00,
+  });
+
+  const axes1 = new THREE.AxesHelper;
+  axes1.position.x = -1.1;
+  axes1.add(scene.shapes.angle(42 * Shared.toRad, null, material));
+  ui.scene.add(axes1);
+
+  const axes2 = new THREE.AxesHelper;
+  axes2.position.x = 1.1;
+  const angle2 = scene.shapes.angle(256 * Shared.toRad, null, material);
+  angle2.rotation.x = Math.PI / 2;
+  axes2.add(angle2);
+  ui.scene.add(axes2);
+</script>
+</body>
+</html>

@@ -1,6 +1,4 @@
-'use strict';
-
-const THREE = require('three');
+import * as THREE from './three.module.js';
 
 /**
  * @author Eberhard Graether / http://egraether.com/
@@ -630,5 +628,4 @@ const TrackballControls = function ( object, domElement ) {
 TrackballControls.prototype = Object.create( THREE.EventDispatcher.prototype );
 TrackballControls.prototype.constructor = TrackballControls;
 
-
-module.exports = TrackballControls;
+export default TrackballControls;

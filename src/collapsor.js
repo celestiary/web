@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Modifies the DOM tree rooted at {@param elt} to make the
  * given {@param tagTypes} interactively collapsable/expandable.
@@ -75,9 +73,7 @@ function eltClass(elt, action, className) {
   return true;
 }
 
-
-module.exports = {
-  makeCollapsable: makeCollapsable,
-  collapse: collapse,
+export {
+  makeCollapsable,
+  collapse,
 };
-

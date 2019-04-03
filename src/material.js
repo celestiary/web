@@ -1,6 +1,4 @@
-'use strict';
-
-const THREE = require('three');
+import * as THREE from './lib/three.module.js';
 
 const loader = new THREE.TextureLoader();
 
@@ -10,12 +8,12 @@ function loadTexture(texPath) {
 
 function pathTexture(filebase, ext) {
   ext = ext || '.jpg';
-  return loadTexture('textures/' + filebase + ext);
+  return loadTexture('/textures/' + filebase + ext);
 }
 
-var materials = [];
+const materials = [];
 function cacheMaterial(name) {
-  var m = materials[name];
+  let m = materials[name];
   if (!m) {
     materials[name] = m = new THREE.MeshPhongMaterial({
         map: pathTexture(name),
@@ -25,11 +23,11 @@ function cacheMaterial(name) {
 }
 
 function lineMaterial(params, name) {
-  var params = params || {};
+  params = params || {};
   params.color = params.color || 0xff0000;
   params.linewidth = params.lineWidth || 1;
-  var name = name || 'line-basic';
-  var m = materials[name];
+  name = name || 'line-basic';
+  let m = materials[name];
   if (!m) {
     materials[name] = m = new THREE.LineBasicMaterial({
     color: params.color,
@@ -40,9 +38,8 @@ function lineMaterial(params, name) {
   return m;
 }
 
-
-module.exports = {
-  lineMaterial: lineMaterial,
-  pathTexture: pathTexture,
-  cacheMaterial: cacheMaterial,
+export {
+  lineMaterial,
+  pathTexture,
+  cacheMaterial
 };

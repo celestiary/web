@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Celestiary - Guide</title>
+  <link rel="stylesheet" href="index.css"/>
+  <script type="text/javascript">
+    let contentElt;
+    function checkHash() {
+      if (location.hash) {
+        const hash = location.hash.substr(1);
+          if (hash) {
+          contentElt.src = hash;
+        }
+      } else {
+        contentElt.src = '1-welcome.html';
+      }
+    }
+    function init() {
+      contentElt = document.getElementById('content-frame');
+      if (contentElt) {
+        window.addEventListener('hashchange', () => {
+          checkHash();
+        });
+        checkHash();
+      } else {
+        console.log('No content elt');
+      }
+    }
+  </script>
+</head>
+<body id="nav" style="background-color: #abcdef" onload="init()">
+  <h1>Guide</h1>
+  <ol>
+    <li><a href="#">Welcome</a></li>
+    <li><a href="#2-cube.html">Cube</a></li>
+    <ol><li><a href="#2.1-sphere.html">Sphere</a></li></ol>
+    <li><a href="#3-planet.html">Planet</a></li>
+    <li><a href="#4-star.html">Star</a></li>
+    <li><a href="#5-stars.html">Stars</a></li>
+    <li><a href="#6-angles.html">Angles</a></li>
+    <li><a href="#7-position.html">Position</a></li>
+  </ol>
+  <iframe id="content-frame"
+          name="content-frame"
+          style="position: absolute; width: 85%; height: 100%; top: 0; right: 0; border: none; background: white"
+          src="1-welcome.html"/>
+</body>
+</html>

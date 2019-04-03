@@ -1,4 +1,3 @@
-'use strict';
 /**
  * Measure formatting and conversion utility.  The system of measure
  * used is a a slight variation of the System International (SI)
@@ -171,4 +170,4 @@ Measure.parse = function(s) {
 };
 
 
-module.exports = Measure;
+export default Measure;

@@ -1,8 +1,7 @@
 {
 "type":"star",
-
 "name":"sun",
-"parent":"milky_way",
+"parent":"milkyway",
 "apparentMagnitude": "-26.8",
 "colorIndex": 1.0,
 "mass": "1.9891E33 g",

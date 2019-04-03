@@ -1,5 +1,5 @@
-const THREE = require('three');
-const Shared = require('./shared.js');
+import * as THREE from './lib/three.module.js';
+import * as Shared from './shared.js';
 
 let Y_AXIS = new THREE.Vector3(0, 1, 0);
 
@@ -13,21 +13,62 @@ let timeScale = 1;
 /** Controlled by UI clicks.. timeScale is basically 2^steps. */
 let timeScaleSteps = 0;
 
-let lastSysTime = Date.now();
+let shaderUpdateCb = null;
+
+let preAnimCbs = {};
+
+const clock = new THREE.Clock();
+clock.start();
+const startTime = clock.startTime;
+const time = {
+  sysTime: startTime,
+  simTime: startTime * timeScale,
+  simTimeDelta: 0,
+  simTimeSecs: startTime / 1000.0
+}
+
 
 /** @exported */
-const clocks = {
-  sysTime: lastSysTime,
-  simTime: lastSysTime,
-};
+function invertTimeScale() {
+  timeScale *= -1.0;
+  updateTimeMsg();
+}
 
-let dt = clocks.sysTime - lastSysTime;
-let simTimeSecs = clocks.simTime / 1000;
+
+function updateTime() {
+  const cDelta = clock.getDelta();
+  time.sysTime = startTime + clock.elapsedTime;
+  //console.log(time.sysTime);
+  time.simTime = time.sysTime * timeScale;
+  time.simTimeDelta = cDelta * timeScale;
+  time.simTimeElapsed = clock.elapsedTime * timeScale;
+  time.simTimeSecs = time.simTime / 1000;
+  //console.log(`cDelta: ${cDelta}, sysTime: ${time.sysTime}, simTime: ${time.simTime}`
+  //    + `simTimeDelta: ${time.simTimeDelta}, simTimeElapsed: ${time.simTimeElapsed}, `
+  //    + `simTimeSecs: ${time.simTimeSecs}`);
+}
+
+
+function addPreAnimCb(cb) {
+  let key = {};
+  preAnimCbs[key] = cb;
+  return key;
+}
+
+
+function removePreAnimCb(key) {
+  delete preAnimCbs[key];
+}
 
 
 /** @exported */
 function animation(scene) {
-  animateSystem(scene);
+  updateTime();
+  animateSystem(scene, time.simTimeSecs);
+  for (let i in preAnimCbs) {
+    let preAnimCb = preAnimCbs[i];
+    preAnimCb(time.simTime);
+  }
 }
 
 
@@ -55,28 +96,16 @@ function updateTimeMsg() {
 }
 
 
-/** @exported */
-function invertTimeScale() {
-  timeScale *= -1.0;
-  updateTimeMsg();
-}
-
-
+// TODO: move this to scene.
 /** Recursive animation of orbits and rotations at the current time. */
-function animateSystem(system) {
-  lastSysTime = clocks.sysTime;
-  clocks.sysTime = Date.now();
-  dt = clocks.sysTime - lastSysTime;
-  clocks.simTime += dt * timeScale;
-  simTimeSecs = clocks.simTime / 1000;
-
+function animateSystem(system, simTimeSecs) {
   if (system.siderealRotationPeriod) {
     // TODO(pablo): this is hand-calibrated for Earth and so is
     // incorrect for the other planets.  Earth Orientation Parameters
     // are here:
     //
     //   http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
-    // 
+    //
     // and also would also need them for the other planets.
     const angle = 1.5 * Math.PI + simTimeSecs / 86400 * Shared.twoPi;
     system.setRotationFromAxisAngle(Y_AXIS, angle);
@@ -92,19 +121,36 @@ function animateSystem(system) {
     const x = aRadius * Math.cos(angle);
     const y = 0;
     const z = bRadius * Math.sin(angle);
+    //console.log(`${eccentricity} ${aRadius} ${bRadius} ${simTimeSecs} ${system.orbit.siderealOrbitPeriod}`);
     system.position.set(x, y, z);
+    if (system.postAnimCb) {
+      system.postAnimCb(system);
+    }
   }
 
   for (const ndx in system.children) {
     const child = system.children[ndx];
-    animateSystem(child);
+    animateSystem(child, simTimeSecs);
   }
 }
 
+function setShaderUpdateCallback(cb) {
+  shaderUpdateCb = cb;
+}
 
-module.exports = {
-  animation: animation,
-  clocks: clocks,
-  changeTimeScale: changeTimeScale,
-  invertTimeScale: invertTimeScale,
+function getShaderUpdateCallback() {
+  return shaderUpdateCb;
+}
+
+export {
+  addPreAnimCb,
+  animation,
+  clock,
+  changeTimeScale,
+  getShaderUpdateCallback,
+  invertTimeScale,
+  removePreAnimCb,
+  setShaderUpdateCallback,
+  time,
+  updateTime
 };
