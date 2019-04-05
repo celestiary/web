@@ -1,14 +1,16 @@
 import * as THREE from './lib/three.module.js';
 import * as Shared from './shared.js';
 
-let Y_AXIS = new THREE.Vector3(0, 1, 0);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
 /**
  * Time scale is applied to wall-clock time, so that by a larger time
- * scale will speed things up, 0 will be normal time, negative
- * backwards.
+ * scale will speed things up, 1 is real-time, (0,1) is slower than
+ * realtime, 0 is paused, negative is backwards.
  */
-let timeScale = 1;
+let timeScale = 1.0;
+
+let timeScaleBeforePause = null;
 
 /** Controlled by UI clicks.. timeScale is basically 2^steps. */
 let timeScaleSteps = 0;
@@ -23,12 +25,10 @@ const startTime = clock.startTime;
 const time = {
   sysTime: startTime,
   simTime: startTime * timeScale,
-  simTimeDelta: 0,
   simTimeSecs: startTime / 1000.0
 }
 
 
-/** @exported */
 function invertTimeScale() {
   timeScale *= -1.0;
   updateTimeMsg();
@@ -38,14 +38,29 @@ function invertTimeScale() {
 function updateTime() {
   const cDelta = clock.getDelta();
   time.sysTime = startTime + clock.elapsedTime;
-  //console.log(time.sysTime);
-  time.simTime = time.sysTime * timeScale;
-  time.simTimeDelta = cDelta * timeScale;
-  time.simTimeElapsed = clock.elapsedTime * timeScale;
+  time.simTime += cDelta * timeScale;
   time.simTimeSecs = time.simTime / 1000;
   //console.log(`cDelta: ${cDelta}, sysTime: ${time.sysTime}, simTime: ${time.simTime}`
-  //    + `simTimeDelta: ${time.simTimeDelta}, simTimeElapsed: ${time.simTimeElapsed}, `
-  //    + `simTimeSecs: ${time.simTimeSecs}`);
+  //    + `simTimeElapsed: ${time.simTimeElapsed}, simTimeSecs: ${time.simTimeSecs}`);
+}
+
+
+function setTimeToNow() {
+  timeScale = 1.0;
+  timeScaleSteps = 0;
+  time.simTime = clock.getElapsedTime();
+  updateTimeMsg();
+}
+
+
+function togglePause() {
+  if (timeScaleBeforePause) {
+    timeScale = timeScaleBeforePause;
+    timeScaleBeforePause = null;
+  } else {
+    timeScaleBeforePause = timeScale;
+    timeScale = 0;
+  }
 }
 
 
@@ -61,7 +76,6 @@ function removePreAnimCb(key) {
 }
 
 
-/** @exported */
 function animation(scene) {
   updateTime();
   animateSystem(scene, time.simTimeSecs);
@@ -72,10 +86,7 @@ function animation(scene) {
 }
 
 
-/**
- * @param delta -1, 0 or 1 for slower, reset or faster.
- * @exported
- */
+/** @param delta -1, 0 or 1 for slower, reset or faster. */
 function changeTimeScale(delta) {
   if (delta == 0) {
     timeScaleSteps = 0;
@@ -151,6 +162,8 @@ export {
   invertTimeScale,
   removePreAnimCb,
   setShaderUpdateCallback,
+  setTimeToNow,
   time,
+  togglePause,
   updateTime
 };

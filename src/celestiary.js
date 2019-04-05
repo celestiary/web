@@ -77,6 +77,7 @@ export default class Celestiary {
 
     window.addEventListener('keypress', (e) => {
         switch (e.which) {
+        case 32: Animation.togglePause(); break; // ' '
         case 44: this.ui.multFov(0.9); break; // ','
         case 46: this.ui.multFov(1.1); break; // '.'
         case 48: this.scene.lookAtNamed('sun'); break; // '0'
@@ -89,15 +90,16 @@ export default class Celestiary {
         case 55: this.scene.lookAtNamed('uranus'); break; // '7'
         case 56: this.scene.lookAtNamed('neptune'); break; // '8'
         case 57: this.scene.lookAtNamed('pluto'); break; // '9'
-        case 59: this.changeTimeScale(0); break; // ';'
+        case 59: Animation.changeTimeScale(0); break; // ';'
         case 99: this.scene.lookAtCurrentTarget(); break; // 'c'
-        case 100: this.toggleDebug(); break; // 'd'
+        case 100: this.ctrl.scene.toggleDebug(); break; // 'd'
         case 102: this.scene.follow(); break; // 'f'
         case 103: this.scene.goTo(); break; // 'g'
-        case 106: this.invertTimeScale(); break; // 'j'
-        case 107: this.changeTimeScale(-1); break; // 'k'
-        case 108: this.changeTimeScale(1); break; // 'l'
-        case 111: this.toggleOrbits(); break; // 'o'
+        case 106: Animation.invertTimeScale(); break; // 'j'
+        case 107: Animation.changeTimeScale(-1); break; // 'k'
+        case 108: Animation.changeTimeScale(1); break; // 'l'
+        case 110: Animation.setTimeToNow(); break; // 'n'
+        case 111: this.ctrl.scene.toggleOrbits(); break; // 'o'
         case 116: this.scene.track(); break; // 't'
         }
       },
@@ -120,25 +122,5 @@ export default class Celestiary {
 
   select(name) {
     this.ctrl.scene.select(name);
-  }
-
-
-  changeTimeScale(delta) {
-    Animation.changeTimeScale(delta);
-  }
-
-
-  invertTimeScale() {
-    Animation.invertTimeScale();
-  }
-
-
-  toggleOrbits() {
-    this.ctrl.scene.toggleOrbits();
-  }
-
-
-  toggleDebug() {
-    this.ctrl.scene.toggleDebug();
   }
 }
