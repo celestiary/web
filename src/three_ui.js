@@ -4,8 +4,6 @@ import TrackballControls from './lib/TrackballControls.js';
 import Fullscreen from './fullscreen.js';
 
 
-const INITIAL_FOV = 45;
-
 export default class ThreeUi {
   constructor(container, animationCb, backgroundColor) {
     if (typeof container == 'string') {
@@ -21,7 +19,7 @@ export default class ThreeUi {
     const w = this.container.offsetWidth;
     const h = this.container.offsetHeight;
     const ratio = w / h;
-    this.camera = new THREE.PerspectiveCamera(INITIAL_FOV, ratio, 1E-3, 1E35);
+    this.camera = new THREE.PerspectiveCamera(Shared.INITIAL_FOV, ratio, 1E-3, 1E35);
     this.camera.position.z = 1;
     this.camera.platform = new THREE.Object3D();
     this.camera.platform.add(this.camera);

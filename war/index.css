@@ -6,16 +6,20 @@ body {
   color: white;
 }
 
-a {
+a, .link {
   color: #aaf;
 }
 
-a:hover {
+a:hover, .link:hover {
   color: #faf;
 }
 
-a:visited {
+a:visited, .link:visited {
   color: #ccf;
+}
+
+.link {
+  text-decoration: underline;
 }
 
 button {
@@ -76,4 +80,36 @@ button:hover {
 
 #controls-id button {
   font-size: 1.5em;
+}
+
+#keys-id {
+  display: none;
+  position: fixed;
+  width: 60%;
+  margin: 5% 20%;
+  padding: 1em;
+  border: solid 1px white;
+  background-color: grey;
+  border-radius: 10px;
+}
+
+#keys-id h1 {
+  width: 100%;
+  text-align: center;
+  border-bottom: solid 1px white;
+}
+
+#keys-id ul {
+  columns: 2;
+  list-style-type: none;
+}
+
+#keys-id li {
+  padding: 3px;
+}
+
+#keys-id span {
+  display: inline-block;
+  width: 4em;
+  font-weight: bold;
 }

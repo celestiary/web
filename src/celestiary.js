@@ -1,5 +1,6 @@
 import Animation from './animation.js';
 import ControlPanel from './controlPanel.js';
+import Keys from './keys.js';
 import Loader from './loader.js';
 import Scene from './scene.js';
 import * as Shapes from './shapes.js';
@@ -91,40 +92,74 @@ export default class Celestiary {
       },
       false);
 
-    window.addEventListener('keypress', (e) => {
-        switch (e.which) {
-        case 32: /* space */ this.time.togglePause(); break;
-        case 44: /* , */ this.ui.multFov(0.9); break;
-        case 46: /* . */ this.ui.multFov(1.1); break;
-        case 47: /* / */ this.ui.resetFov(); break;
-        case 48: /* 0 */ this.scene.targetCurNode(); break;
-        case 49: /* 1 */ this.scene.targetNode(1); break;
-        case 50: /* 2 */ this.scene.targetNode(2); break;
-        case 51: /* 3 */ this.scene.targetNode(3); break;
-        case 52: /* 4 */ this.scene.targetNode(4); break;
-        case 53: /* 5 */ this.scene.targetNode(5); break;
-        case 54: /* 6 */ this.scene.targetNode(6); break;
-        case 55: /* 7 */ this.scene.targetNode(7); break;
-        case 56: /* 8 */ this.scene.targetNode(8); break;
-        case 57: /* 9 */ this.scene.targetNode(9); break;
-        case 59: /* ; */ this.time.changeTimeScale(0); break;
-        case 99: /* c */ this.scene.lookAtTarget(); break;
-        case 100: /* d */ this.scene.toggleDebug(); break;
-        case 102: /* f */ this.scene.follow(); break;
-        case 103: /* g */ this.goTo(); break;
-        case 106: /* j */ this.time.invertTimeScale(); break;
-        case 107: /* k */ this.time.changeTimeScale(-1); break;
-        case 108: /* l */ this.time.changeTimeScale(1); break;
-        case 110: /* n */ this.time.setTimeToNow(); break;
-        case 111: /* o */ this.scene.toggleOrbits(); break;
-        case 116: /* t */ this.scene.track(); break;
-        case 117: /* u */ this.scene.targetParent(); break;
-        case 118: /* v */
-          const nav = elt('nav-id');
-          nav.style.display = nav.style.display == 'none' ? 'block' : 'none';
-          break;
-        }
-      },
-      true);
+    const k = new Keys();
+    k.map('Escape', () => { this.hideHelpOnEscape(); },
+          'Hide active dialog');
+    k.map(' ', () => { this.time.togglePause(); },
+          'Toggle time pause');
+    k.map(',', () => { this.ui.multFov(0.9); },
+          'Narrow field-of-vision');
+    k.map('.', () => { this.ui.multFov(1.1); },
+          'Broaden field-of-vision');
+    k.map('/', () => { this.ui.resetFov(); },
+          'Reset field-of-vision to ' + Shared.INITIAL_FOV + 'º');
+    k.map('0', () => { this.scene.targetCurNode(); },
+          'Target current system');
+    for (let i = 1; i <= 9; i++) {
+      k.map(''+i, () => { const ndx = i; this.scene.targetNode(ndx); },
+            `Look at child ${i} of current system`);
+    }
+    k.map(';', () => { this.time.changeTimeScale(0); },
+          'Change time scale to real-time');
+    k.map('?', () => { this.toggleShowKeys(); },
+          'Show/hide keyboard shortcuts');
+    k.map('c', () => { this.scene.lookAtTarget(); },
+          'Look at target');
+    k.map('d', () => { this.scene.toggleDebug(); },
+          'Show/hide debug shapes');
+    k.map('f', () => { this.scene.follow(); },
+          'Follow current node');
+    k.map('g', () => { this.goTo(); },
+          'Go to target node');
+    k.map('j', () => { this.time.invertTimeScale();},
+          'Reverse time');
+    k.map('k', () => { this.time.changeTimeScale(-1); },
+          'Slow down time');
+    k.map('l', () => { this.time.changeTimeScale(1); },
+          'Speed up time');
+    k.map('n', () => { this.time.setTimeToNow(); },
+          'Set time to now');
+    k.map('o', () => { this.scene.toggleOrbits(); },
+          'Show/hide orbits');
+    k.map('t', () => { this.scene.track(); },
+          'Track target node');
+    k.map('u', () => { this.scene.targetParent(); },
+          'Look at parent of current system');
+    k.map('v', () => {
+        const nav = elt('nav-id');
+        nav.style.display = nav.style.display == 'none' ? 'block' : 'none';
+      }, 'Show/hide navigation panel');
+    this.keys = k;
+
+    window.addEventListener('keydown', (e) => {
+        this.keys.onKeyDown(e);
+      }, true);
+  }
+
+
+  hideHelpOnEscape() {
+    const keysElt = elt('keys-id');
+    keysElt.style.display = 'none';
+  }
+
+
+  toggleShowKeys() {
+    const keysElt = elt('keys-id');
+    if (keysElt.style.display == 'block') {
+      keysElt.style.display = 'none';
+    } else {
+      this.keys.appendHelp(keysElt);
+      keysElt.style.display = 'block';
+    }
   }
 }

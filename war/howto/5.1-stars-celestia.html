@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>Stars</h1>
+<script type="module">
+  import ThreeUi from '/js/three_ui.js';
+  import Scene from '/js/scene.js';
+  import * as CelestiaData from '/js/celestia-data.js';
+  CelestiaData.loadStars((catalog) => {
+    console.log(catalog);
+  });
+</script>
+</body>
+</html>

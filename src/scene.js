@@ -1,11 +1,12 @@
-import * as THREE from './lib/three.module.js';
-import * as Shared from './shared.js';
-import Stars from './stars-1000.js';
+import Stars from './stars-10000.js';
+import * as CelestiaData from '/js/celestia-data.js';
 import * as Material from './material.js';
+import * as Shared from './shared.js';
 import * as Shapes from './shapes.js';
+import * as THREE from './lib/three.module.js';
 
 const
-  lengthScale = Shared.lengthScale,
+  lengthScale = Shared.LENGTH_SCALE,
   atmosScale = 1.01,
   stepBackMult = 10;
 
@@ -222,22 +223,23 @@ export default class Scene {
 
 
   newStars(props) {
-    const geom = this.starGeom(Stars);
-    const starImage = Material.pathTexture('star_glow', '.png');
-    // x10 is manual tuning.  Not sure what the avg star size is, but
-    // for highly visible ones they're likely much larger than the
-    // sun, which is the value I'm typically passing in.
-    const avgStarSize = props.radius.scalar * 1E1;
-    const starMiniMaterial =
-      new THREE.PointsMaterial({ size: avgStarSize,
-                                 map: starImage,
-                                 blending: THREE.AdditiveBlending,
-                                 depthTest: true,
-                                 depthWrite: false,
-                                 transparent: true });
-    const starPoints = new THREE.Points(geom, starMiniMaterial);
-    starPoints.sortParticles = true;
-    return starPoints;
+    //const geom = this.starGeom(Stars);
+    CelestiaData.loadStars((catalog) => {
+        const geom = this.starGeomFromCelestia(catalog.stars);
+        const starImage = Material.pathTexture('star_glow', '.png');
+        const avgStarSize = props.radius.scalar;
+        const starMiniMaterial =
+        new THREE.PointsMaterial({ size: avgStarSize,
+                                   map: starImage,
+                                   blending: THREE.AdditiveBlending,
+                                   depthTest: true,
+                                   depthWrite: false,
+                                   transparent: true });
+        const starPoints = new THREE.Points(geom, starMiniMaterial);
+        starPoints.sortParticles = true;
+        this.ui.scene.add(starPoints); // hack
+      });
+    return new THREE.Object3D(); // dummy
   }
 
 
@@ -257,10 +259,25 @@ export default class Scene {
       const s = stars[i];
       const ra = s[0] * Shared.toDeg; // TODO: why not toRad?
       const dec = s[1] * Shared.toDeg;
-      const dist = s[2] * Shared.lengthScale * 1E3; // convert from kilometer to meter.
+      const dist = s[2] * lengthScale * 1E3; // convert from kilometer to meter.
       const vec = new THREE.Vector3(dist * Math.sin(ra) * Math.cos(dec),
                                     dist * Math.sin(ra) * Math.sin(dec),
                                     dist * Math.cos(ra));
+      geom.vertices.push(vec);
+    }
+    return geom;
+  }
+
+
+  starGeomFromCelestia(stars) {
+    const geom = new THREE.Geometry();
+    // The sun first.
+    geom.vertices.push(new THREE.Vector3);
+    // km/ly * m/km * lengthScale
+    const scale = 9.461E12 * 1E3 * lengthScale;
+    for (let i = 0; i < stars.length; i++) {
+      const star = stars[i];
+      const vec = new THREE.Vector3(star.x * scale, star.y * scale, star.z * scale);
       geom.vertices.push(vec);
     }
     return geom;

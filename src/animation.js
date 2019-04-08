@@ -39,7 +39,7 @@ export default class Animation {
     // This is referred to by a comment in scene.js#addOrbitingPlanet.
     if (system.orbit) {
       const eccentricity = system.orbit.eccentricity;
-      const aRadius = system.orbit.semiMajorAxis * Shared.lengthScale;
+      const aRadius = system.orbit.semiMajorAxis * Shared.LENGTH_SCALE;
       const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0));
       // -1.0 because orbits are counter-clockwise when viewed from above North of Earth.
       const angle = -1.0 * simTimeSecs / system.orbit.siderealOrbitPeriod * Shared.twoPi;
