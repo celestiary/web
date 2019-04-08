@@ -41,18 +41,25 @@ export default class ControlPanel {
   showInfoRecursive(obj, pathPrefix, isArray, isSystem) {
     let html = '';
     for (let prop in obj) {
+      if (prop == 'name' || prop == 'parent' || prop.startsWith('texture_')) {
+        continue;
+      }
       if (obj.hasOwnProperty(prop)) {
         let val = obj[prop];
+        if (prop == 'system' && typeof val == 'object' && Array.isArray(val) && val.length == 0) {
+          continue;
+        }
         html += '<li>';
         if (!isArray) {
           html += prop + ': ';
         }
         if (val instanceof Measure) {
-          if (prop == 'radius' || prop == 'mass') {
-            val = val.convertTo(Measure.Magnitude.KILO);
-            val.scalar = Math.floor(val.scalar);
+          switch (prop) {
+          case 'radius': val = val.convertTo(Measure.Magnitude.KILO); break;
+          case 'mass': val = val.convertTo(Measure.Magnitude.GIGA); break;
           }
-          html += `${val}`;
+          val.scalar = val.scalar.toLocaleString();
+          html += `${val.scalar} ${val.magnitude.abbrev}${val.unit.abbrev}`;
         } else if (val instanceof Array) {
           if (prop == 'system') {
             html += '<ol>\n';

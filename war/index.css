@@ -30,6 +30,7 @@ button {
   margin: 0;
   padding: 3px;
   width: 2em;
+  font-size: 1em;
 }
 
 button:hover {
@@ -40,57 +41,51 @@ button:hover {
   display: none;
 }
 
+.panel {
+  padding: 1em;
+  color: #ccc;
+  z-index: 1;
+  visibility: visible;
+}
+
 #nav-id {
   display: block;
   width: 25%;
   position: fixed;
-  background-color: #222;
-  opacity: 0.8;
-  bottom: 0;
-  border-top: solid 2px #888;
-  border-right: solid 2px #888;
-  border-top-right-radius: 10px;
-}
-
-#nav-id div {
-  border-top: solid 1px grey;
-  padding: 1em;
-}
-
-#nav-id div:first-child {
-  border-top: none;
-}
-
-#info-id {
-  color: white;
-  z-index: 3;
+  top: 0;
 }
 
 #time-id {
-  font-family: monospace;
-  padding: 1em 0 1em 0.5em;
+  position: fixed;
+  top: 0;
+  right: 0;
+  color: #aaa;
+  text-align: right;
 }
 
-#date-id {}
-
-#controls-id {
-  font-family: monospace;
-  font-weight: bold;
+#time-id div {
+  padding: 3px;
 }
 
-#controls-id button {
-  font-size: 1.5em;
+#time-scale-id {
+  color: #aaa;
+}
+
+#date-id, #time-controls-id, #time-scale-id {
+  text-align: right;
 }
 
 #keys-id {
   display: none;
   position: fixed;
+  top: 1em;
   width: 60%;
   margin: 5% 20%;
   padding: 1em;
   border: solid 1px white;
   background-color: grey;
   border-radius: 10px;
+  z-index: 2;
 }
 
 #keys-id h1 {

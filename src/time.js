@@ -61,13 +61,14 @@ export default class Time {
     } else {
       this.timeScaleSteps += delta;
     }
-    this.timeScale = (this.timeScale < 0 ? -1 : 1) * Math.pow(2, Math.abs(this.timeScaleSteps));
+    this.timeScale = (this.timeScaleSteps < 0 ? -1 : 1) * Math.pow(2, Math.abs(this.timeScaleSteps));
     this.updateTimeMsg();
   }
 
 
   invertTimeScale() {
-    this.timeScale *= -1.0;
+    this.timeScale *= -1;
+    this.timeScaleSteps *= -1;
     this.updateTimeMsg();
   }
 
@@ -81,6 +82,7 @@ export default class Time {
       this.timeScale = 0;
       this.pause = true;
     }
+    this.updateTimeMsg();
   }
 
 
@@ -88,8 +90,15 @@ export default class Time {
     if (this.dateElt) {
       if (this.sysTime > this.lastUiUpdateTime + 1000) {
         this.lastUiUpdateTime = this.sysTime;
-        const showTime = new Date(this.simTime);
-        this.dateElt.innerHTML = showTime + '';
+        const date = new Date(this.simTime);
+        this.dateElt.innerHTML = date.toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric'
+          });
       }
     }
   }
@@ -98,8 +107,13 @@ export default class Time {
   updateTimeMsg() {
     if (this.timeScaleElt) {
       let msg = '';
-      if (this.timeScaleSteps != 0) {
-        msg = '(@ ' + this.timeScale + ' secs/s)';
+      if (this.timeScale == 1) {
+        msg = 'real-time';
+      } else {
+        msg = this.timeScale.toLocaleString() + ' secs/s';
+      }
+      if (this.pause) {
+        msg += ' (paused)';
       }
       this.timeScaleElt.innerHTML = msg;
     }

@@ -2,6 +2,7 @@ import Animation from './animation.js';
 import ControlPanel from './controlPanel.js';
 import Keys from './keys.js';
 import Loader from './loader.js';
+import Reify from './reify.js';
 import Scene from './scene.js';
 import * as Shapes from './shapes.js';
 import ThreeUi from './three_ui.js';
@@ -15,7 +16,7 @@ const elt = (id) => { return document.getElementById(id); }
 
 /** Main application class. */
 export default class Celestiary {
-  constructor(canvasContainer, dateElt, timeScaleElt, infoElt) {
+  constructor(canvasContainer, dateElt, timeScaleElt, navElt) {
     this.time = new Time(dateElt, timeScaleElt);
     this.animation = new Animation(this.time);
     canvasContainer.style.width = window.innerWidth + 'px';
@@ -26,9 +27,10 @@ export default class Celestiary {
     this.ui = new ThreeUi(canvasContainer, animCb);
     this.scene = new Scene(this.ui);
     this.loader = new Loader();
-    this.controlPanel = new ControlPanel(infoElt, this.loader);
+    this.controlPanel = new ControlPanel(navElt, this.loader);
     this.load();
     this.setupListeners();
+    this.navVisible = true;
     // these are here for convenience debugging from jsconsole.
     this.shared = Shared;
     this.shapes = Shapes;
@@ -39,6 +41,7 @@ export default class Celestiary {
 
   load() {
     this.onLoadCb = (name, obj) => {
+      Reify(obj);
       this.scene.add(obj);
     };
 
@@ -136,9 +139,10 @@ export default class Celestiary {
     k.map('u', () => { this.scene.targetParent(); },
           'Look at parent of current system');
     k.map('v', () => {
-        const nav = elt('nav-id');
-        nav.style.display = nav.style.display == 'none' ? 'block' : 'none';
-      }, 'Show/hide navigation panel');
+        const panels = [elt('nav-id'), elt('time-id')];
+        panels.map((panel) => { panel.style.visibility = this.navVisible ? 'hidden' : 'visible' });
+        this.navVisible = !this.navVisible;
+      }, 'Show/hide navigation panels');
     this.keys = k;
 
     window.addEventListener('keydown', (e) => {

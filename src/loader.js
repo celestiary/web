@@ -77,7 +77,6 @@ export default class Loader {
       this.loaded[name] = 'pending';
       new Resource(name).get((obj) => {
           this.loaded[name] = obj;
-          this.reifyMeasures(obj);
           const path = prefix ? `${prefix}/${name}` : name;
           this.pathByName[name] = path;
           if (onLoadCb) {
@@ -86,30 +85,5 @@ export default class Loader {
           this.loadObj(prefix, name, onLoadCb, expand);
         });
     }
-  }
-
-
-  /**
-   * Most measures are just passed on for display.  Some are needed to
-   * be reified, like radius and mass.
-   */
-  reifyMeasures(obj) {
-    function reify(obj, prop, name) {
-      if (obj[prop]) {
-        if (typeof obj[prop] === 'string') {
-          const m = Measure.parse(obj[prop]).convertToUnit();
-          // The parse leaves small amount in the low-significant
-          // decimals, meaningless for unit values in grams and meters
-          // for celestial objects.
-          m.scalar = Math.floor(m.scalar);
-          obj[prop] = m;
-        } else {
-          console.log(`unnormalized ${prop} for ${name}`);
-        }
-      }
-    }
-    const name = obj.name;
-    reify(obj, 'radius', name);
-    reify(obj, 'mass', name);
   }
 }

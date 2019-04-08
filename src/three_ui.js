@@ -104,7 +104,7 @@ export default class ThreeUi {
 
 
   resetFov() {
-    this.setFov(INITIAL_FOV);
+    this.setFov(Shared.INITIAL_FOV);
   }
 
 
