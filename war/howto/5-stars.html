@@ -5,15 +5,13 @@
 <div id="ui"></div>
 <h1>Stars</h1>
 <script type="module">
-  import * as Animation from '/js/animation.js';
   import ThreeUi from '/js/three_ui.js';
   import Scene from '/js/scene.js';
 
   const ui = new ThreeUi('ui');
   const scene = new Scene(ui);
   ui.camera.position.z = 2;
-  let obj;
-  ui.scene.add(obj = scene.newStars({
+  ui.scene.add(ui.obj = scene.newStars({
     radius: {
       // Sun's radius in meters.
       scalar: 6.9424895E8
@@ -21,7 +19,7 @@
   }));
   ui.camera.position.z = 2;
   ui.animationCb = () => {
-    obj.rotation.y += 0.001;
+    ui.obj.rotation.y += 0.001;
   };
 </script>
 </body>

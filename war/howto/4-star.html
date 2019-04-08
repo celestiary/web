@@ -18,10 +18,12 @@ false-color on closer approach.
   import * as Animation from '/js/animation.js';
   import Scene from '/js/scene.js';
   import ThreeUi from '/js/three_ui.js';
+  import Time from '/js/time.js';
 
+  const time = new Time();
   const ui = new ThreeUi('ui');
   const scene = new Scene(ui);
-  ui.camera.position.z = 2;
+  ui.camera.position.z = 120;
 
   const star = scene.newStar({
     radius: {
@@ -30,10 +32,9 @@ false-color on closer approach.
     },
   }, () => {
     ui.animationCb = () => {
-      star.rotation.y += 0.001;
       const dist = ui.camera.position.z;
-      Animation.updateTime();
-      Animation.getShaderUpdateCallback()(Animation.time.simTimeElapsed * 5E-2, dist);
+      time.updateTime();
+      star.preAnimCb(time);
     };
   });
   star.scale.normalize();

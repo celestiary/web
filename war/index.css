@@ -36,7 +36,9 @@ button:hover {
   display: none;
 }
 
-#nav {
+#nav-id {
+  display: block;
+  width: 25%;
   position: fixed;
   background-color: #222;
   opacity: 0.8;
@@ -46,32 +48,32 @@ button:hover {
   border-top-right-radius: 10px;
 }
 
-#nav div {
+#nav-id div {
   border-top: solid 1px grey;
   padding: 1em;
 }
 
-#nav div:first-child {
+#nav-id div:first-child {
   border-top: none;
 }
 
-#info {
+#info-id {
   color: white;
   z-index: 3;
 }
 
-#clock {
+#time-id {
   font-family: monospace;
   padding: 1em 0 1em 0.5em;
 }
 
-#date {}
+#date-id {}
 
-#controls {
+#controls-id {
   font-family: monospace;
   font-weight: bold;
 }
 
-#controls button {
+#controls-id button {
   font-size: 1.5em;
 }
