@@ -13,7 +13,7 @@ http://celestiary.appspot.com/
 ### v1:
 - Smooth transitions.
 - Q/A against Celestia.
--- Epoch-based locations.
+- Epoch-based locations.
 
 ### Future
 - Stars and Galaxies.

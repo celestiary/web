@@ -74,9 +74,36 @@ export default class Scene {
   }
 
 
-  lookAtNamed(name) {
+  targetNamed(name) {
     this.setTarget(name);
     this.lookAtTarget();
+  }
+
+
+  targetParent() {
+    const cObj = Shared.targets.cur;
+    if (cObj && cObj.props && cObj.props.parent) {
+      this.setTarget(cObj.props.parent);
+    }
+  }
+
+
+  targetNode(index) {
+    const cObj = Shared.targets.cur;
+    if (cObj && cObj.props && cObj.props.system && cObj.props.system) {
+      const sys = cObj.props.system;
+      if (sys[index - 1]) {
+        this.setTarget(sys[index - 1]);
+      }
+    }
+  }
+
+
+  targetCurNode() {
+    const cObj = Shared.targets.cur;
+    if (cObj && cObj.props && cObj.props.name) {
+      this.setTarget(cObj.props.name);
+    }
   }
 
 
@@ -123,7 +150,7 @@ export default class Scene {
     this.ui.camera.platform.lookAt(Shared.targets.origin);
     this.ui.camera.position.copy(cPos);
     this.ui.camera.lookAt(tPos);
-    Shared.targets.track = Shared.targets.obj;
+    Shared.targets.track = Shared.targets.cur = Shared.targets.obj;
     this.ui.controls.update();
   }
 

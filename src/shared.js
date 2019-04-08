@@ -27,6 +27,7 @@ export const
 
   targets = {
     origin: new THREE.Vector3,
+    cur: null,
     obj: null,
     pos: new THREE.Vector3,
     track: null,
