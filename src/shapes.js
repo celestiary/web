@@ -22,8 +22,8 @@ function box(width, height, depth, opts) {
 function sphere(opts) {
   opts = opts || {};
   opts.radius = opts.radius || 1;
-  opts.resolution = opts.resolution || 4;
-  const geom = new THREE.IcosahedronGeometry(opts.radius, opts.resolution);
+  opts.resolution = opts.resolution || 64;
+  const geom = new THREE.SphereGeometry(opts.radius, opts.resolution, opts.resolution / 2);
   opts.matr = opts.matr || new THREE.MeshPhongMaterial({flatShading: true});
   return new THREE.Mesh(geom, opts.matr);
 }
@@ -145,7 +145,7 @@ function point() {
  */
 function line(vec1, vec2) {
   if (arguments.length == 2) {
-    vec1 = vec1 == null ? new THREE.Vector3 : vec1;
+    vec1 = vec1 || new THREE.Vector3;
   } else if (arguments.length == 3) {
     vec1 = new THREE.Vector3;
     vec2 = new THREE.Vector3(arguments[0], arguments[1], arguments[2]);

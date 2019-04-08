@@ -25,9 +25,10 @@ export const
 
   lengthScale = LENGTH_SCALE,
 
-  targetRefs = {
-    targetObj: null,
-    targetPos: new THREE.Vector3(),
-    trackObj: null,
-    followObj: null
+  targets = {
+    origin: new THREE.Vector3,
+    obj: null,
+    pos: new THREE.Vector3,
+    track: null,
+    follow: null
   }

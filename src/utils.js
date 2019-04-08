@@ -1,4 +1,5 @@
-import * as Shapes from './shapes.js';
+import {line} from './shapes.js';
+
 
 /**
  * Recursively visit child members of {@param elt}'s "children" property.
@@ -35,7 +36,7 @@ function lineTraceScene(root) {
         return;
       }
       console.log(new Array(level + 1).join(' ') + elt.name);
-      const line = Shapes.line(root.position, elt.position);
+      const line = line(root.position, elt.position);
       console.log('lineTraceScene: ', line);
       root.add(line);
     });

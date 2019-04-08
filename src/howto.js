@@ -9,7 +9,7 @@ function init() {
   if (!Detector.webgl) {
     return;
   }
-  const threeUi = new ThreeUi(document.getElementById('scene'));
+  const threeUi = new ThreeUi(document.getElementById('scene.id'));
   threeUi.camera.position.set(0, 0, 10);
   threeUi.scene.add(Shapes.cube());
 }

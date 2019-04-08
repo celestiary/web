@@ -1,7 +1,6 @@
 import * as THREE from './lib/three.module.js';
-import * as Animation from './animation.js';
 import * as Shared from './shared.js';
-import Stars from './t-1000.js';
+import Stars from './stars-1000.js';
 import * as Material from './material.js';
 import * as Shapes from './shapes.js';
 
@@ -11,14 +10,13 @@ const
   stepBackMult = 10;
 
 export default class Scene {
-  constructor(threeUi) {
-    this.ui = threeUi;
-    this.frames = {};
+  constructor(ui) {
+    this.ui = ui;
+    this.objects = {};
     this.orbitShapes = {};
     this.debugShapes = [];
     this.orbitsVisible = false;
     this.debugVisible = false;
-    this.lastAddTime = 0;
     this.uniforms = null;
   }
 
@@ -29,145 +27,132 @@ export default class Scene {
    */
   add(props) {
     const name = props.name;
-    let parentObj = this.frames[props.parent];
-    let parentOrbitPosition = this.frames[props.parent + '.orbitPosition'];
+    let parentObj = this.objects[props.parent];
+    let parentOrbitPosition = this.objects[props.parent + '.orbitPosition'];
     if (props.name == 'milkyway' || props.name == 'sun') {
       parentObj = parentOrbitPosition = this.ui.scene;
     }
     if (!parentObj || !parentOrbitPosition) {
       throw new Error(`No parent obj: ${parentObj} or pos: ${parentOrbitPosition} for ${name}`);
     }
-
-    let obj;
-    switch (props.type) {
-    case 'galaxy':
-      obj = this.newGalaxy(props);
-      break;
-    case 'stars':
-      obj = this.newStars(props);
-      break;
-    case 'star':
-      obj = this.newStar(props);
-      // step back from the sun.
-      this.ui.camera.position.set(0, 0, props.radius.scalar * lengthScale * stepBackMult);
-      break;
-    case 'planet':
-    case 'moon':
-      obj = this.newOrbitingPlanet(props);
-      break;
-    default:
-      throw new Error(`Object has unknown type: ${props.type}`);
-    }
-
     // Add to scene in reference frame of parent's orbit position,
     // e.g. moons orbit planets, so they have to be added to the
     // planet's orbital center.
-    parentOrbitPosition.add(obj);
-
-    this.lastAddTime = Animation.time.sysTime;
+    parentOrbitPosition.add(this.newObject(props));
   }
 
 
-  select(name) {
-    const obj = this.frames[name];
-    if (!obj) {
-      throw new Error(`scene#checkedSelect: initial load race, this.frames[${name}]: ${obj}`);
+  newObject(props) {
+    switch (props.type) {
+    case 'galaxy':
+      return this.newGalaxy(props);
+    case 'stars':
+      return this.newStars(props);
+    case 'star':
+      return this.newStar(props);
+    case 'planet':
+    case 'moon':
+      return this.newOrbitingPlanet(props);
     }
-    Shared.targetRefs.targetObj = obj;
+    throw new Error(`Object has unknown type: ${props.type}`);
   }
 
 
-  lookAtCurrentTarget() {
-    if (!Shared.targetRefs.targetObj) {
-      console.error('scene.js#lookAtTarget: no target obj to look at.');
-      return;
+  /**
+   * @param name Prefix, attached to .frame suffix.
+   * @param props Optional props to attach to a .props field on the frame.
+   */
+  newGroup(name, props) {
+    const obj = new THREE.Object3D();
+    this.objects[name] = obj;
+    obj.name = name;
+    if (props) {
+      obj.props = props;
     }
-    this.ui.scene.updateMatrixWorld();
-    Shared.targetRefs.targetPos.setFromMatrixPosition(Shared.targetRefs.targetObj.matrixWorld);
-    this.ui.controls.target = Shared.targetRefs.targetPos;
-    this.ui.controls.update();
-    this.ui.camera.lookAt(Shared.targetRefs.targetPos);
+    obj.add(this.debugAxes());
+    return obj;
   }
 
 
   lookAtNamed(name) {
-    this.select(name);
-    this.lookAtCurrentTarget();
+    this.setTarget(name);
+    this.lookAtTarget();
+  }
+
+
+  setTarget(name) {
+    const obj = this.objects[name];
+    if (!obj) {
+      throw new Error(`scene#setTarget: no matching target: ${name}`);
+    }
+    Shared.targets.obj = obj;
+  }
+
+
+  lookAtTarget() {
+    if (!Shared.targets.obj) {
+      console.error('scene.js#lookAtTarget: no target obj to look at.');
+      return;
+    }
+    const obj = Shared.targets.obj;
+    const tPos = Shared.targets.pos;
+    this.ui.scene.updateMatrixWorld();
+    tPos.setFromMatrixPosition(obj.matrixWorld);
+    this.ui.camera.lookAt(tPos);
   }
 
 
   goTo() {
-    if (!Shared.targetRefs.targetObj) {
+    if (!Shared.targets.obj) {
       console.error('Scene.goTo called with no target obj.');
       return;
     }
-    const obj = Shared.targetRefs.targetObj;
-    const objPos = Shared.targetRefs.targetPos.clone();
-    const camPos = objPos.clone();
-    // TODO(pablo): figure out why hacky step back needed.
-    const stepBack = obj.props.radius.scalar * lengthScale * 2E2;
-    if (objPos.length() == 0) {
-      // Sun pos is 0,0.0.
-      camPos.set(0, 0, 2E2);
-    } else {
-      camPos.add(objPos.negate().setLength(stepBack));
-    }
-    this.ui.camera.position.copy(camPos);
-    this.lookAtCurrentTarget();
+    const obj = Shared.targets.obj;
+    const tPos = Shared.targets.pos;
+    this.ui.scene.updateMatrixWorld();
+    tPos.setFromMatrixPosition(obj.matrixWorld);
+    c.tp = tPos;
+    const pPos = new THREE.Vector3;
+    const cPos = new THREE.Vector3;
+    const surfaceAltitude = obj.props.radius.scalar * lengthScale;
+    const stepBackMult = 3;
+    pPos.set(0, 0, 0); // TODO(pablo): maybe put platform at surfaceAltitude
+    cPos.set(0, 0, surfaceAltitude * stepBackMult);
+    obj.orbitPosition.add(this.ui.camera.platform);
+    this.ui.camera.platform.position.copy(pPos);
+    this.ui.camera.platform.lookAt(Shared.targets.origin);
+    this.ui.camera.position.copy(cPos);
+    this.ui.camera.lookAt(tPos);
+    Shared.targets.track = Shared.targets.obj;
+    this.ui.controls.update();
   }
 
 
   track(name) {
-    if (Shared.targetRefs.trackObj) {
-      console.log('stop tracking');
-      Shared.targetRefs.trackObj = null;
+    if (Shared.targets.track) {
+      Shared.targets.track = null;
     } else {
-      Shared.targetRefs.trackObj = Shared.targetRefs.targetObj;
-      console.log('start tracking', Shared.targetRefs.trackObj);
+      Shared.targets.track = Shared.targets.obj;
     }
   }
 
 
   follow(name) {
-    if (Shared.targetRefs.followObj) {
-      delete Shared.targetRefs.followObj.postAnimCb;
-      Shared.targetRefs.followObj = null;
+    if (Shared.targets.follow) {
+      delete Shared.targets.follow.postAnimCb;
+      Shared.targets.follow = null;
     } else {
-      if (Shared.targetRefs.targetObj) {
-        if (Shared.targetRefs.targetObj.orbitPosition) {
-          console.log('Starting follow....');
-          const tObj = Shared.targetRefs.targetObj;
+      if (Shared.targets.obj) {
+        if (Shared.targets.obj.orbitPosition) {
           // Follow the orbit position for less jitter.
-          const followed = Shared.targetRefs.targetObj.orbitPosition;
-          Shared.targetRefs.followObj = followed;
+          const followed = Shared.targets.obj.orbitPosition;
+          Shared.targets.follow = followed;
 
-          let cp = this.ui.camera.position;
-          console.log(`${cp.x} ${cp.y} ${cp.z}`);
-          const cameraPlatform = new THREE.Object3D;
-          this.ui.camera.position.set(0,0,0);
-          this.ui.controls.rotateSpeed = 0.001;
-          this.ui.controls.zoomSpeed = 0.001;
-          this.ui.scene.add(cameraPlatform);
-          Shared.targetRefs.cameraPlatform = cameraPlatform;
-
-          let i = 0;
           followed.postAnimCb = (obj) => {
-            const tPos = new THREE.Vector3;
-            this.ui.scene.updateMatrixWorld();
-            tPos.setFromMatrixPosition(obj.matrixWorld);
-            tPos.add(tPos.clone().negate().setLength(1E2));
-            //tPos.multiplyScalar(0.999);
-            //console.log(tPos);
-            cameraPlatform.position.copy(tPos);
-            if (i++ == 0) {
-              console.log(`${cp.x} ${cp.y} ${cp.z}`);
-            }
+            this.ui.camera.platform.lookAt(Shared.targets.origin);
           };
 
           followed.postAnimCb(followed);
-          cp = cameraPlatform.position;
-          cameraPlatform.add(this.ui.camera);
-          console.log(`${cp.x} ${cp.y} ${cp.z}`);
         } else {
           console.error('Target to follow has no orbitPosition property.');
         }
@@ -178,13 +163,46 @@ export default class Scene {
   }
 
 
+  manageDebugShape(shape) {
+    this.debugShapes.push(shape);
+    shape.visible = this.debugVisible;
+    return shape;
+  }
+
+
+  debugAxes(size) {
+    return this.manageDebugShape(new THREE.AxesHelper(size || 1));
+  }
+
+
+  toggleOrbits() {
+    this.orbitsVisible = !this.orbitsVisible;
+    for (let i in this.orbitShapes) {
+      const shape = this.orbitShapes[i];
+      if (shape.hasOwnProperty('visible')) {
+        this.orbitShapes[i].visible = this.orbitsVisible;
+      }
+    }
+  }
+
+
+  toggleDebug() {
+    this.debugVisible = !this.debugVisible;
+    for (let i = 0; i < this.debugShapes.length; i++) {
+      this.debugShapes[i].visible = this.debugVisible;
+    }
+  }
+
+
   newStars(props) {
     const geom = this.starGeom(Stars);
     const starImage = Material.pathTexture('star_glow', '.png');
-    // Not sure why need the 10x multiple, but otherwise they're too small.
-    const avgStarRadius = props.radius.scalar * 1e1;
+    // x10 is manual tuning.  Not sure what the avg star size is, but
+    // for highly visible ones they're likely much larger than the
+    // sun, which is the value I'm typically passing in.
+    const avgStarSize = props.radius.scalar * 1E1;
     const starMiniMaterial =
-      new THREE.PointsMaterial({ size: avgStarRadius,
+      new THREE.PointsMaterial({ size: avgStarSize,
                                  map: starImage,
                                  blending: THREE.AdditiveBlending,
                                  depthTest: true,
@@ -192,15 +210,14 @@ export default class Scene {
                                  transparent: true });
     const starPoints = new THREE.Points(geom, starMiniMaterial);
     starPoints.sortParticles = true;
-    starPoints.scale.setScalar(lengthScale);
     return starPoints;
   }
 
 
   newGalaxy(galaxyProps) {
-    const frame = this.newFrame(galaxyProps.name, galaxyProps);
-    this.frames[galaxyProps.name + '.orbitPosition'] = frame;
-    return frame;
+    const group = this.newGroup(galaxyProps.name, galaxyProps);
+    this.objects[galaxyProps.name + '.orbitPosition'] = group;
+    return group;
   }
 
 
@@ -213,7 +230,7 @@ export default class Scene {
       const s = stars[i];
       const ra = s[0] * Shared.toDeg; // TODO: why not toRad?
       const dec = s[1] * Shared.toDeg;
-      const dist = s[2] * 1e3; // convert from kilometer to meter.
+      const dist = s[2] * Shared.lengthScale * 1E3; // convert from kilometer to meter.
       const vec = new THREE.Vector3(dist * Math.sin(ra) * Math.cos(dec),
                                     dist * Math.sin(ra) * Math.sin(dec),
                                     dist * Math.cos(ra));
@@ -256,15 +273,6 @@ export default class Scene {
           value: 1.0
         }
       };
-      Animation.addPreAnimCb((time) => {
-          // Sun looks bad changing too quickly.
-          time = Math.log(time);
-          if (Shared.targetRefs.targetPos) {
-            this.uniforms.iTime.value = time;
-            const d = Shared.targetRefs.targetPos.distanceTo(this.ui.camera.position);
-            this.uniforms.iDist.value = d * 1E-2;
-          }
-        });
     }
     return this.uniforms;
   }
@@ -288,8 +296,8 @@ export default class Scene {
   // star and use it to mix in a representation of differential plasma
   // flows along the field lines.
   newStar(starProps, finishedCb) {
-    const frame = this.newFrame(starProps.name, starProps);
-    this.frames[starProps.name + '.orbitPosition'] = frame;
+    const group = this.newGroup(starProps.name, starProps);
+    this.objects[starProps.name + '.orbitPosition'] = group;
     const shaders = {
       uniforms: this.findCreateUniforms(),
       vertexShader: null,
@@ -320,64 +328,27 @@ export default class Scene {
     loadShaders(shaders, (completeShaderConfig) => {
         window.shaders = completeShaderConfig;
         const matr = new THREE.ShaderMaterial(completeShaderConfig);
-        const star = Shapes.sphere({
-            radius: 1,
-            matr: matr
-          });
-        frame.add(star);
+        const star = Shapes.sphere({ matr: matr });
+        star.scale.setScalar(starProps.radius.scalar * lengthScale);
+        group.add(star);
         if (finishedCb) {
           finishedCb();
         }
       });
-    frame.scale.setScalar(starProps.radius.scalar * lengthScale);
-    frame.add(new THREE.PointLight(0xffffff));
-    return frame;
-  }
+    group.add(new THREE.PointLight(0xffffff));
+    group.orbitPosition = group;
 
-
-  /**
-   * @param name Prefix, attached to .frame suffix.
-   * @param props Optional props to attach to a .props field on the frame. */
-  newFrame(name, props) {
-    const frame = new THREE.Object3D();
-    this.frames[name] = frame;
-    frame.name = name;
-    if (props) {
-      frame.props = props;
-    }
-    frame.add(this.debugAxes());
-    return frame;
-  }
-
-
-  manageDebugShape(shape) {
-    this.debugShapes.push(shape);
-    shape.visible = this.debugVisible;
-    return shape;
-  }
-
-
-  debugAxes(size) {
-    return this.manageDebugShape(new THREE.AxesHelper(size || 1));
-  }
-
-
-  toggleOrbits() {
-    this.orbitsVisible = !this.orbitsVisible;
-    for (let i in this.orbitShapes) {
-      const shape = this.orbitShapes[i];
-      if (shape.hasOwnProperty('visible')) {
-        this.orbitShapes[i].visible = this.orbitsVisible;
+    group.preAnimCb = (time) => {
+      // Sun looks bad changing too quickly.
+      time = Math.log(1 + time.simTimeElapsed * 5E-6);
+      if (Shared.targets.pos) {
+        shaders.uniforms.iTime.value = time;
+        const d = Shared.targets.pos.distanceTo(this.ui.camera.position);
+        shaders.uniforms.iDist.value = d * 1E-2;
       }
-    }
-  }
+    };
 
-
-  toggleDebug() {
-    this.debugVisible = !this.debugVisible;
-    for (let i = 0; i < this.debugShapes.length; i++) {
-      this.debugShapes[i].visible = this.debugVisible;
-    }
+    return group;
   }
 
 
@@ -393,44 +364,42 @@ export default class Scene {
     const inclination = orbit.inclination || 0;
     const longitudeOfPerihelion = orbit.longitudeOfPerihelion || 0;
 
-    const frame = this.newFrame(name + '.frame');
+    const group = this.newGroup(name + '.group');
 
-    const orbitPlane = this.newFrame(name + '.orbitPlane');
-    frame.add(orbitPlane);
+    const orbitPlane = this.newGroup(name + '.orbitPlane');
+    group.add(orbitPlane);
     orbitPlane.rotation.x = inclination * Shared.toRad;
     orbitPlane.rotation.y = longitudeOfPerihelion * Shared.toRad;
 
     const orbitShape = this.newOrbit(orbit, name);
-    orbitShape.scale.multiplyScalar(lengthScale);
     orbitPlane.add(orbitShape);
     orbitShape.visible = this.orbitsVisible;
     this.orbitShapes[name] = orbitShape;
 
-    const orbitPosition = this.newFrame(name + '.orbitPosition');
+    const orbitPosition = this.newGroup(name + '.orbitPosition');
     orbitPlane.add(orbitPosition);
 
     // Attaching this property triggers orbit of planet during animation.
     // See animation.js#animateSystem.
     orbitPosition.orbit = planetProps.orbit;
 
-    const planetTilt = this.newFrame(name + '.planetTilt');
+    const planetTilt = this.newGroup(name + '.planetTilt');
     orbitPosition.add(planetTilt);
     planetTilt.rotateZ(planetProps.axialInclination * Shared.toRad);
 
     const planet = this.newPlanet(planetProps);
-    planet.scale.multiplyScalar(lengthScale);
     planetTilt.add(planet);
     orbitPosition.add(Shapes.point());
     planet.orbitPosition = orbitPosition;
 
-    // frame.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
+    // group.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
     // Children centered at this planet's orbit position.
-    return frame;
+    return group;
   }
 
 
   newPlanet(planetProps) {
-    const planet = this.newFrame(planetProps.name, planetProps);
+    const planet = this.newGroup(planetProps.name, planetProps);
     planet.add(this.newSurface(planetProps));
     if (planetProps.texture_atmosphere) {
       planet.add(this.newAtmosphere(planetProps));
@@ -438,7 +407,7 @@ export default class Scene {
 
     // Attaching this property triggers rotation of planet during animation.
     planet.siderealRotationPeriod = planetProps.siderealRotationPeriod;
-    planet.scale.setScalar(planetProps.radius.scalar);
+    planet.scale.setScalar(planetProps.radius.scalar * lengthScale);
     return planet;
   }
 
@@ -464,6 +433,7 @@ export default class Scene {
     }
     const shape = Shapes.sphere({matr: planetMaterial});
     shape.name = planetProps.name + '.surface';
+    this.objects[shape.name] = shape;
     return shape;
   }
 
@@ -487,7 +457,7 @@ export default class Scene {
 
 
   newOrbit(orbit, name) {
-    const frame = this.newFrame(name + '.orbit');
+    const group = this.newGroup(name + '.orbit');
     const ellipseCurve = new THREE.EllipseCurve(
         0, 0,
         1, Shapes.ellipseSemiMinorAxisCurve(orbit.eccentricity),
@@ -506,9 +476,9 @@ export default class Scene {
     // it in the x/z plane (top comes towards camera until it's flat
     // edge on).
     pathShape.rotation.x = Shared.halfPi;
-    frame.add(pathShape);
-    frame.add(Shapes.line(1, 0, 0));
-    frame.scale.multiplyScalar(orbit.semiMajorAxis);
-    return frame;
+    group.add(pathShape);
+    group.add(Shapes.line(1, 0, 0));
+    group.scale.setScalar(orbit.semiMajorAxis * lengthScale);
+    return group;
   }
 }

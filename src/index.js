@@ -1,10 +1,11 @@
 import Celestiary from './celestiary.js';
 import * as collapsor from './collapsor.js';
 
+const elt = (id) => { return document.getElementById(id); }
+
 function init() {
-  const sceneElt = document.getElementById('scene')
-  const dateElt = document.getElementById('date');
-  window.c = window.celestiary = new Celestiary(sceneElt, dateElt);
+  window.c = window.celestiary =
+    new Celestiary(elt('scene-id'), elt('date-id'), elt('time-scale-id'), elt('info-id'));
   window.collapse = collapsor.collapse;
 }
 

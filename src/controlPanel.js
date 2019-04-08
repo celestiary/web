@@ -2,18 +2,18 @@ import * as collapsor from './collapsor.js';
 import Measure from './measure.js';
 
 export default class ControlPanel {
-  constructor(containerElt) {
+  constructor(containerElt, loader) {
     this.containerElt = containerElt;
+    this.loader = loader;
   }
 
 
-  // TODO: DUPLICATE of Controller#getPathTarget.
   getPathTarget(path) {
     return path[path.length - 1];
   }
 
 
-  showNavDisplay(path, loaded) {
+  showNavDisplay(path) {
     let crumbs = '';
     for (let i = 0; i < path.length; i++) {
       const hash = path.slice(0, i + 1).join('/');
@@ -30,7 +30,7 @@ export default class ControlPanel {
 
     let html = crumbs + ' <ul>\n';
     const pathPrefix = path.join('/');
-    html += this.showInfoRecursive(loaded[this.getPathTarget(path)],
+    html += this.showInfoRecursive(this.loader.loaded[this.getPathTarget(path)],
                                    pathPrefix, false, false);
     html += '</ul>\n';
     this.containerElt.innerHTML = html;

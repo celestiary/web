@@ -1,6 +1,7 @@
 export default class Fullscreen {
   constructor(container, cb) {
     this.container = container;
+    // Fullscreen button, with dash border icon inset.
     this.elt = document.createElement('div');
     this.dash = document.createElement('div');
     this.elt.appendChild(this.dash);
@@ -13,7 +14,7 @@ export default class Fullscreen {
     this.origMargin = this.container.style.margin;
     this.fs = (this.origWidth == window.innerWidth
                && this.origHeight == window.innerHeight);
-    this.elt.style.position = 'fixed';
+    this.elt.style.position = 'absolute';
     this.elt.style.bottom = '5px';
     this.elt.style.right = '5px';
     this.elt.style.width = '50px';

@@ -4,6 +4,8 @@ import TrackballControls from './lib/TrackballControls.js';
 import Fullscreen from './fullscreen.js';
 
 
+const INITIAL_FOV = 45;
+
 export default class ThreeUi {
   constructor(container, animationCb, backgroundColor) {
     if (typeof container == 'string') {
@@ -19,8 +21,10 @@ export default class ThreeUi {
     const w = this.container.offsetWidth;
     const h = this.container.offsetHeight;
     const ratio = w / h;
-    this.camera = new THREE.PerspectiveCamera(45, ratio, 1E-3, 1E35);
-    this.camera.rotationAutoUpdate = true;
+    this.camera = new THREE.PerspectiveCamera(INITIAL_FOV, ratio, 1E-3, 1E35);
+    this.camera.position.z = 1;
+    this.camera.platform = new THREE.Object3D();
+    this.camera.platform.add(this.camera);
     this.initControls(this.camera);
     this.fs = new Fullscreen(this.container, () => {
         this.onResize();
@@ -32,6 +36,7 @@ export default class ThreeUi {
       });
     this.onResize();
     this.scene = new THREE.Scene();
+    this.scene.add(this.camera.platform);
     this.renderLoop();
   }
 
@@ -56,8 +61,11 @@ export default class ThreeUi {
     // type: faster for sun, slow for planets.
     controls.noZoom = false;
     controls.noPan = false;
-    controls.staticMoving = true;
+    controls.staticMoving = false;
     controls.dynamicDampingFactor = 0.3;
+    //controls.rotateSpeed = 1;
+    //controls.zoomSpeed = 0.001;
+    controls.target = camera.platform.position;
     this.controls = controls;
   }
 
@@ -79,6 +87,12 @@ export default class ThreeUi {
   }
 
 
+  setFov(fov) {
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+  }
+
+
   multFov(factor) {
     // TODO(pablo): narrowing very far leads to overflow in the float
     // values, such that zooming out cannot return exactly to 45
@@ -87,15 +101,19 @@ export default class ThreeUi {
     if (newFov >= 180) {
       return;
     }
-    this.camera.fov = newFov;
-    this.camera.updateProjectionMatrix();
+    this.setFov(newFov);
+  }
+
+
+  resetFov() {
+    this.setFov(INITIAL_FOV);
   }
 
 
   renderLoop() {
     this.controls.update();
-    if (Shared.targetRefs.trackObj) {
-      c.scene.lookAtCurrentTarget();
+    if (Shared.targets.track) {
+      c.scene.lookAtTarget();
     }
     this.animationCb(this.scene);
     this.renderer.render(this.scene, this.camera);

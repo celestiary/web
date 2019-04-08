@@ -214,7 +214,6 @@ const TrackballControls = function ( object, domElement ) {
 			_eye.multiplyScalar( factor );
 
 		} else {
-
 			factor = 1.0 + ( _zoomEnd.y - _zoomStart.y ) * _this.zoomSpeed;
 
 			if ( factor !== 1.0 && factor > 0.0 ) {
