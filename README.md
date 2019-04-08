@@ -10,19 +10,16 @@ A running instance of Celestiary is available at:
 http://celestiary.appspot.com/
 
 ## TODO
-v1:
+### v1:
 - Smooth transitions.
-- Exponential zoom.
-X Time control.
-X Units for measurements.
 - Q/A against Celestia.
-  - Epoch-based locations.
-v2:
+-- Epoch-based locations.
+
+### Future
 - Stars and Galaxies.
 - LRU scene-graph un-loading.
-X View options, e.g. toggle orbits.
 - Time slider.  Meaningful time steps: 1s, 1m, 1h, 1d, 1mo, 1yr, ...
 
-## How to Build
+## How to run locally
 
-
+Run a web server in the war directory and load index.html from there.
