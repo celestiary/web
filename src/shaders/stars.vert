@@ -7,9 +7,9 @@ float sigmoid(float x) {
   return 2./(1. + exp2(-x)) - 1.;
 }
 
-vec3 unitVec = vec3(1., 1., 1.);
-float maxDist = 100000000000000.0;
-float lMaxDist = log(maxDist);
+const vec3 unitVec = vec3(1., 1., 1.);
+const float maxDist = 100000000000000.0;
+const float lMaxDist = log(maxDist);
 
 void main() {
   vColor = customColor;
@@ -20,6 +20,8 @@ void main() {
   float close = 3. * (lMaxDist - lDist) / lMaxDist;
   vColor = clamp(close * unitVec, 0.5, 1.);
 
+  // Not sure why this is neeed.. scene sizes should be properly
+  // scaled.  This makes big stars a little too big, but I like it.
   float art = 300000000.;
   float scaledSize = art * size / cDist;
   // Larger than 250 doesn't seem to make a difference.

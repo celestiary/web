@@ -20,6 +20,11 @@ export default class Scene {
     this.orbitsVisible = false;
     this.debugVisible = false;
     this.uniforms = null;
+    this.mouse = new THREE.Vector2;
+    this.raycaster = new THREE.Raycaster;
+    ui.addClickCb((click) => {
+        this.onClick(click);
+      });
   }
 
 
@@ -188,6 +193,25 @@ export default class Scene {
       } else {
         console.error('No target object to follow.');
       }
+    }
+  }
+
+
+  onClick(click) {
+    this.raycaster.setFromCamera(click, this.ui.camera);
+    const intersects = this.raycaster.intersectObjects(this.ui.scene.children, true);
+    out:
+    for (let i = 0; i < intersects.length; i++) {
+      let obj = intersects[i].object;
+      console.log('click object: ', obj);
+      do {
+        if (obj.props) {
+          Shared.targets.obj = obj;
+          console.log('targeting click object: ', obj);
+          this.lookAtTarget();
+          break out;
+        }
+      } while (obj = obj.parent);
     }
   }
 

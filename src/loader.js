@@ -3,7 +3,11 @@ import Measure from './measure.js';
 
 
 /**
- * The Loader fetches the scene resource descriptions and reifies their data.
+ * The Loader fetches the scene resource descriptions and reifies
+ * their data.
+ *
+ * TODO(pablo): There are currently a few ways of loading around the
+ * code, should consolidate.
  */
 export default class Loader {
   constructor() {

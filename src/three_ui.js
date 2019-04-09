@@ -33,9 +33,23 @@ export default class ThreeUi {
         }
       });
     this.onResize();
-    this.scene = new THREE.Scene();
+    this.scene = new THREE.Scene;
     this.scene.add(this.camera.platform);
+
     this.renderLoop();
+    this.clickCbs = [];
+    this.click;
+    document.addEventListener('mousedown', (event) => {
+        this.click = new THREE.Vector2;
+        this.click.event = event;
+        this.click.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+        this.click.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+      }, false);
+  }
+
+
+  addClickCb(clickCb) {
+    this.clickCbs.push(clickCb);
   }
 
 
@@ -109,6 +123,14 @@ export default class ThreeUi {
 
 
   renderLoop() {
+    if (this.click) {
+      for (let i in this.clickCbs) {
+        const clickCb = this.clickCbs[i];
+        clickCb(this.click);
+      }
+      this.click = null;
+    }
+
     this.controls.update();
     if (Shared.targets.track) {
       c.scene.lookAtTarget();
