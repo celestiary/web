@@ -254,8 +254,8 @@ export default class Scene {
 
   newStars(props) {
     // Let's try this with shaders.
-    CelestiaData.loadStars((catalog) => {
-        /*const n = 100000;
+    CelestiaData.loadStars((catalogIn) => {
+        const n = 100000;
         const catalog = {
           count: n,
           index: {},
@@ -268,7 +268,7 @@ export default class Scene {
           const star = catalogIn.stars[Math.floor(Math.random() * catalogIn.stars.length)];
           if (star)
             catalog.stars.push(star);
-            }*/
+            }
         const geom = this.starGeomFromCelestia(catalog);
         const starImage = Material.pathTexture('star_glow', '.png');
         const shaderMaterial = new THREE.ShaderMaterial({
@@ -337,16 +337,14 @@ export default class Scene {
       coords[off + 2] = scale * star.z;
       let rgb = spectrum[star.type];
       rgb = rgb || sunSpectrum;
-      const lumType = star.lum;
-      const lum = Math.min(1, Math.pow(lumType, 4) / maxLum);
-      const r = lum * rgb[0];
-      const g = lum * rgb[1];
-      const b = lum * rgb[2];
+      const lumRelSun = star.lumRelSun;
+      const r = rgb[0] / 255;
+      const g = rgb[1] / 255;
+      const b = rgb[2] / 255;
       colors[off] = r;
       colors[off + 1] = g;
       colors[off + 2] = b;
-      const mag = star.mag * -1 + magShift;
-      sizes[off] = mag * 1.3E17 * lengthScale;
+      sizes[off] = star.radiusMeters * lengthScale;
     }
     geom.addAttribute('position', new THREE.BufferAttribute(coords, 3));
     geom.addAttribute('customColor', new THREE.BufferAttribute(colors, 3));
