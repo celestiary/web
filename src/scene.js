@@ -1,4 +1,5 @@
 import Stars from './stars-10000.js';
+import Loader from './loader.js';
 import * as CelestiaData from '/js/celestia-data.js';
 import * as Material from './material.js';
 import * as Shared from './shared.js';
@@ -222,19 +223,27 @@ export default class Scene {
   }
 
 
-  newStars(props) {
+  newGalaxy(galaxyProps) {
+    const group = this.newGroup(galaxyProps.name, galaxyProps);
+    this.objects[galaxyProps.name + '.orbitPosition'] = group;
+    return group;
+  }
+
+
+  newStarsCelestiaSprite(props) {
     //const geom = this.starGeom(Stars);
     CelestiaData.loadStars((catalog) => {
         const geom = this.starGeomFromCelestia(catalog.stars);
         const starImage = Material.pathTexture('star_glow', '.png');
-        const avgStarSize = props.radius.scalar;
+        const avgStarSize = 0.1;
         const starMiniMaterial =
         new THREE.PointsMaterial({ size: avgStarSize,
                                    map: starImage,
                                    blending: THREE.AdditiveBlending,
                                    depthTest: true,
                                    depthWrite: false,
-                                   transparent: true });
+                                   vertexColors: THREE.VertexColors,
+                                   transparent: false });
         const starPoints = new THREE.Points(geom, starMiniMaterial);
         starPoints.sortParticles = true;
         this.ui.scene.add(starPoints); // hack
@@ -243,10 +252,106 @@ export default class Scene {
   }
 
 
-  newGalaxy(galaxyProps) {
-    const group = this.newGroup(galaxyProps.name, galaxyProps);
-    this.objects[galaxyProps.name + '.orbitPosition'] = group;
-    return group;
+  newStars(props) {
+    // Let's try this with shaders.
+    CelestiaData.loadStars((catalog) => {
+        /*const n = 100000;
+        const catalog = {
+          count: n,
+          index: {},
+          stars: [],
+          minMag: -8.25390625,
+          maxMag: 15.4453125
+        };
+        catalog.stars.push(catalogIn.stars[0]);
+        for (let i = 0; i < n; i++) {
+          const star = catalogIn.stars[Math.floor(Math.random() * catalogIn.stars.length)];
+          if (star)
+            catalog.stars.push(star);
+            }*/
+        const geom = this.starGeomFromCelestia(catalog);
+        const starImage = Material.pathTexture('star_glow', '.png');
+        const shaderMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+              amplitude: { value: 1.0 },
+              color: { value: new THREE.Color( 0xffffff ) },
+              texture: { value: starImage }
+            },
+            vertexShader: '/js/shaders/stars.vert',
+            fragmentShader: '/js/shaders/stars.frag',
+            blending: THREE.AdditiveBlending,
+            depthTest: true,
+            depthWrite: false,
+            transparent: true
+          });
+        new Loader().loadShaders(shaderMaterial, () => {
+            const starPoints = new THREE.Points(geom, shaderMaterial);
+            starPoints.sortParticles = true;
+            this.ui.scene.add(starPoints); // hack
+          });
+      });
+    return new THREE.Object3D(); // dummy
+  }
+
+
+  starGeomFromCelestia(catalog) {
+    const stars = catalog.stars;
+    // km/ly * m/km * lengthScale
+    const scale = 9.461E12 * 1E3 * lengthScale;
+    const n = stars.length;
+    const geom = new THREE.BufferGeometry();
+    const coords = new Float32Array(n * 3);
+    const colors = new Float32Array(n * 3);
+    const sizes = new Float32Array(n);
+    // TODO(pablo): plenty of color work to do here based on
+    // https://en.wikipedia.org/wiki/Stellar_classification. The
+    // method used here to choose colors is to hover my mouse over the
+    // color chart near the top of the page, above a given class, and
+    // record the RGB values in the table below.
+    const sunSpectrum = [255,238,229];
+    const spectrum = [
+                [142,176,255], // O
+                [165,191,255], // B
+                [205,218,255], // A
+                [242,239,254], // F
+                sunSpectrum, // G
+                [255,219,178], // K
+                [255,180,80], // M
+                [255,180,80], // R, like M
+                [255,180,80], // S, like M
+                [255,180,80], // N, like M
+                [142,176,255], // WC, like O
+                [142,176,255], // WN, like O
+                [142,176,255], // Unknown, like O?
+                [255,118,0], // L
+                [255,0,0],   // T
+                [10,10,10,]]; // Carbon star?
+    const minSize = 1;
+    const magShift = catalog.maxMag + minSize;
+    const maxLum = Math.pow(8, 4);
+    for (let i = 0; i < n; i++) {
+      const star = stars[i];
+      const off = 3 * i;
+      coords[off] = scale * star.x;
+      coords[off + 1] = scale * star.y;
+      coords[off + 2] = scale * star.z;
+      let rgb = spectrum[star.type];
+      rgb = rgb || sunSpectrum;
+      const lumType = star.lum;
+      const lum = Math.min(1, Math.pow(lumType, 4) / maxLum);
+      const r = lum * rgb[0];
+      const g = lum * rgb[1];
+      const b = lum * rgb[2];
+      colors[off] = r;
+      colors[off + 1] = g;
+      colors[off + 2] = b;
+      const mag = star.mag * -1 + magShift;
+      sizes[off] = mag * 1.3E17 * lengthScale;
+    }
+    geom.addAttribute('position', new THREE.BufferAttribute(coords, 3));
+    geom.addAttribute('customColor', new THREE.BufferAttribute(colors, 3));
+    geom.addAttribute('size', new THREE.BufferAttribute(sizes, 1));
+    return geom;
   }
 
 
@@ -269,21 +374,6 @@ export default class Scene {
   }
 
 
-  starGeomFromCelestia(stars) {
-    const geom = new THREE.Geometry();
-    // The sun first.
-    geom.vertices.push(new THREE.Vector3);
-    // km/ly * m/km * lengthScale
-    const scale = 9.461E12 * 1E3 * lengthScale;
-    for (let i = 0; i < stars.length; i++) {
-      const star = stars[i];
-      const vec = new THREE.Vector3(star.x * scale, star.y * scale, star.z * scale);
-      geom.vertices.push(vec);
-    }
-    return geom;
-  }
-
-
   newPlanetStars(geom, props) {
     const planetStarMiniMaterial =
       new THREE.PointsMaterial({ color: 0xffffff,
@@ -294,31 +384,6 @@ export default class Scene {
     const planetStarPoints = new THREE.Points(geom, planetStarMiniMaterial);
     planetStarPoints.sortParticles = true;
     return planetStarPoints;
-  }
-
-
-  findCreateUniforms() {
-    if (this.uniforms == null) {
-      this.uniforms = {
-        iTime: {
-          type: "f",
-          value: 1.0
-        },
-        iResolution: {
-          type: "v2",
-          value: new THREE.Vector2()
-        },
-        iScale: {
-          type: "f",
-          value: 100.0
-        },
-        iDist: {
-          type: "f",
-          value: 1.0
-        }
-      };
-    }
-    return this.uniforms;
   }
 
 
@@ -342,37 +407,18 @@ export default class Scene {
   newStar(starProps, finishedCb) {
     const group = this.newGroup(starProps.name, starProps);
     this.objects[starProps.name + '.orbitPosition'] = group;
-    const shaders = {
-      uniforms: this.findCreateUniforms(),
-      vertexShader: null,
-      fragmentShader: null,
-    };
-    const loadShaders = (shaderConfig, doneCb) => {
-      let mainDone = false, fragDone = false;
-      const checkDone = () => {
-        if (mainDone && fragDone) {
-          doneCb(shaderConfig);
-        }
-      }
-      fetch('/js/shaders/main2.vert').then((rsp) => {
-          rsp.text().then((text) => {
-              shaderConfig.vertexShader = text;
-              mainDone = true;
-              checkDone();
-            });
-        });
-      fetch('/js/shaders/star2.frag').then((rsp) => {
-          rsp.text().then((text) => {
-              shaderConfig.fragmentShader = text;
-              fragDone = true;
-              checkDone();
-            });
-        });
-    };
-    loadShaders(shaders, (completeShaderConfig) => {
-        window.shaders = completeShaderConfig;
-        const matr = new THREE.ShaderMaterial(completeShaderConfig);
-        const star = Shapes.sphere({ matr: matr });
+    const shaderMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        iTime: { value: 1.0 },
+        iResolution: { value: new THREE.Vector2() },
+        iScale: { value: 100.0 },
+        iDist: { value: 1.0 }
+      },
+      vertexShader: '/js/shaders/star.vert',
+      fragmentShader: '/js/shaders/star.frag'
+    });
+    new Loader().loadShaders(shaderMaterial, () => {
+        const star = Shapes.sphere({ matr: shaderMaterial });
         star.scale.setScalar(starProps.radius.scalar * lengthScale);
         group.add(star);
         if (finishedCb) {
@@ -386,9 +432,9 @@ export default class Scene {
       // Sun looks bad changing too quickly.
       time = Math.log(1 + time.simTimeElapsed * 5E-6);
       if (Shared.targets.pos) {
-        shaders.uniforms.iTime.value = time;
+        shaderMaterial.uniforms.iTime.value = time;
         const d = Shared.targets.pos.distanceTo(this.ui.camera.position);
-        shaders.uniforms.iDist.value = d * 1E-2;
+        shaderMaterial.uniforms.iDist.value = d * 1E-2;
       }
     };
 

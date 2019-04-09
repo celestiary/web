@@ -86,4 +86,28 @@ export default class Loader {
         });
     }
   }
+
+
+  loadShaders(shaderConfig, doneCb) {
+    let vertDone = false, fragDone = false;
+    const checkDone = () => {
+      if (vertDone && fragDone) {
+        doneCb();
+      }
+    }
+    fetch(shaderConfig.vertexShader).then((rsp) => {
+        rsp.text().then((text) => {
+            shaderConfig.vertexShader = text;
+            vertDone = true;
+            checkDone();
+          });
+      });
+    fetch(shaderConfig.fragmentShader).then((rsp) => {
+        rsp.text().then((text) => {
+            shaderConfig.fragmentShader = text;
+            fragDone = true;
+            checkDone();
+          });
+      });
+  };
 }

@@ -4,12 +4,15 @@
 <body>
 <div id="ui"></div>
 <h1>Stars</h1>
+<script type="x-shader/x-vertex" id="vertexshader">
+</script>
 <script type="module">
   import ThreeUi from '/js/three_ui.js';
   import Scene from '/js/scene.js';
 
   const ui = new ThreeUi('ui');
   const scene = new Scene(ui);
+  ui.fs.makeFullscreen();
   ui.camera.position.z = 2;
   ui.scene.add(ui.obj = scene.newStars({
     radius: {
@@ -21,6 +24,8 @@
   ui.animationCb = () => {
     ui.obj.rotation.y += 0.001;
   };
+  //ui.controls.rotateSpeed = 0.01;
+  console.log(ui);
 </script>
 </body>
 </html>
