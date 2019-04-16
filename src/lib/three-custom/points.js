@@ -1,17 +1,20 @@
 // From https://github.com/mrdoob/three.js/blob/34dc2478c684066257e4e39351731a93c6107ef5/src/objects/Points.js
-import { Sphere } from '../math/Sphere.js';
-import { Ray } from '../math/Ray.js';
-import { Matrix4 } from '../math/Matrix4.js';
-import { Object3D } from '../core/Object3D.js';
-import { Vector3 } from '../math/Vector3.js';
-import { PointsMaterial } from '../materials/PointsMaterial.js';
-import { BufferGeometry } from '../core/BufferGeometry.js';
+import {
+  BufferGeometry,
+  Matrix4,
+  Object3D,
+  PointsMaterial,
+  Ray,
+  Sphere,
+  Vector3
+} from '../three.module.js';
 
 /**
  * @author alteredq / http://alteredqualia.com/
+ * @author pablo
  */
 
-function Points( geometry, material ) {
+function CustomPoints( geometry, material ) {
 
   Object3D.call( this );
 
@@ -22,9 +25,9 @@ function Points( geometry, material ) {
 
 }
 
-Points.prototype = Object.assign( Object.create( Object3D.prototype ), {
+CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
-    constructor: Points,
+    constructor: CustomPoints,
 
     isPoints: true,
 
@@ -61,11 +64,19 @@ Points.prototype = Object.assign( Object.create( Object3D.prototype ), {
           var position = new Vector3();
           var intersectPoint = new Vector3();
 
+          let min = null;
           function testPoint( point, index ) {
 
             var rayPointDistanceSq = ray.distanceSqToPoint( point );
 
-            if ( rayPointDistanceSq < localThresholdSq ) {
+              if (min == null) {
+                min = rayPointDistanceSq;
+              }
+
+              if (rayPointDistanceSq > min) {
+                return;
+              }
+              min = rayPointDistanceSq;
 
               ray.closestPointToPoint( point, intersectPoint );
               intersectPoint.applyMatrix4( matrixWorld );
@@ -84,8 +95,6 @@ Points.prototype = Object.assign( Object.create( Object3D.prototype ), {
                     object: object
 
                     } );
-
-            }
 
           }
 
@@ -146,4 +155,4 @@ Points.prototype = Object.assign( Object.create( Object3D.prototype ), {
   } );
 
 
-export { Points };
+export { CustomPoints };
