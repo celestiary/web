@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+  <div id="ui"></div>
+  <h1>Text</h1>
+<script type="module">
+  import Label from '/js/label.js';
+  import Scene from '/js/scene.js';
+  import ThreeUi from '/js/three_ui.js';
+  import * as Shapes from '/js/Shapes.js';
+
+  const container = document.getElementById('ui');
+  const ui = new ThreeUi(container);
+  const scene = new Scene(ui);
+  ui.camera.position.set(0, 1, 4);
+
+  const labels = [];
+  for (let i = 0; i < 100; i++) {
+    const point = Shapes.point();
+    point.position.set(
+      Math.random() - 0.5,
+      Math.random() - 0.5,
+      Math.random() - 0.5);
+    point.position.multiplyScalar(2);
+    const label = new Label(i + '', container, point, container);
+    point.onBeforeRender = (renderer, scene, camera) => {
+      label.updatePosition(camera);
+    };
+    ui.scene.add(point);
+    labels.push(label);
+  }
+  /*
+  setTimeout(() => {
+    for (let i = 0; i < labels.length; i++) {
+      Label.remove(labels[i]);
+    }
+  }, 2000);
+  */
+</script>
+</body>
+</html>

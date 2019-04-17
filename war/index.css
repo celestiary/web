@@ -6,22 +6,6 @@ body {
   color: white;
 }
 
-a, .link {
-  color: #aaf;
-}
-
-a:hover, .link:hover {
-  color: #faf;
-}
-
-a:visited, .link:visited {
-  color: #ccf;
-}
-
-.link {
-  text-decoration: underline;
-}
-
 button {
   background-color: inherit;
   color: #ccf;
@@ -37,6 +21,17 @@ button:hover {
   background-color: #555;
 }
 
+.text-label {
+  position: absolute;
+  top: -1000;
+  left: -1000;
+  cursor: pointer;
+  padding: 5px;
+  border: solid 1px white;
+  border-radius: 5px;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
 .collapsed {
   display: none;
 }
@@ -48,11 +43,27 @@ button:hover {
   visibility: visible;
 }
 
+#scene-id, #ui {
+  color: white;
+}
+
 #nav-id {
   display: block;
+  position: fixed;
+  top: 0px;
   width: 25%;
+}
+
+#target-id {
   position: fixed;
   top: 0;
+  left: 0;
+  margin: 0;
+  font-size: 2em;
+  text-align: center;
+  text-transform: capitalize;
+  color: red;
+  border: solid 1px blue;
 }
 
 #time-id {

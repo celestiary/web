@@ -1,7 +1,14 @@
+@import '../index.css';
+
 body {
-  font-family: arial, sans;
   height; 100%;
-  margin: 2em;
+  margin: 1em;
+  color: black;
+}
+
+ol {
+  margin-block-start: 0;
+  padding-inline-start: 1em;
 }
 
 #ui {
