@@ -1,6 +1,45 @@
 import {line} from './shapes.js';
 
 
+function testStarCube(fullCatalog, scale) {
+  const cube = {
+    count: 27,
+    index: {},
+    stars: [],
+    minMag: -8.25390625,
+    maxMag: 15.4453125
+  };
+  const m = 4.83, ki = 0, t = 4, s = 2, l = 6, r = 6.957E8
+  for (let i = -1; i <= 1; i++)
+    for (let j = -1; j <= 1; j++)
+      for (let k = -1; k <= 1; k++)
+        cube.stars.push({
+            x: i*scale, y: j*scale, z: k*scale,
+              mag: m, kind: ki, type: t, sub: s, lum: l, radiusMeters: r });
+  return cube;
+}
+
+
+function sampleStarCatalog(fullCatalog, n) {
+  const sampled = {
+    count: n,
+    index: {},
+    stars: [],
+    minMag: -8.25390625,
+    maxMag: 15.4453125
+  };
+  sampled.stars.push(fullCatalog.stars[0]); // the sun
+  for (let i = 1; i < n; i++) {
+    const star = fullCatalog.stars[Math.floor(Math.random() * fullCatalog.stars.length)];
+    if (!star) {
+      throw new Error();
+    }
+    sampled.stars.push(star);
+  }
+  return sampled;
+}
+
+
 /**
  * Recursively visit child members of {@param elt}'s "children" property.
  * @param cb1 The pre-order callback.  Called with the current element.
@@ -29,6 +68,7 @@ function visitChildren(elt, cb1, cb2, cb3, level) {
   }
 }
 
+
 function lineTraceScene(root) {
   visitChildren(root, null, (parent, elt, level) => {
       if (root.position.equals(elt.position)) {
@@ -44,5 +84,7 @@ function lineTraceScene(root) {
 
 export {
   lineTraceScene,
+  testStarCube,
+  sampleStarCatalog,
   visitChildren
 };

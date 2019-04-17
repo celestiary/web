@@ -1,15 +1,21 @@
 import Stars from './stars-10000.js';
+import Label from './label.js';
 import Loader from './loader.js';
+import CustomRaycaster from './lib/three-custom/raycaster.js';
+import CustomPoints from './lib/three-custom/points.js';
 import * as CelestiaData from '/js/celestia-data.js';
 import * as Material from './material.js';
 import * as Shared from './shared.js';
 import * as Shapes from './shapes.js';
 import * as THREE from './lib/three.module.js';
+import * as Utils from './utils.js';
 
 const
   lengthScale = Shared.LENGTH_SCALE,
   atmosScale = 1.01,
   stepBackMult = 10;
+
+const SCALE = 9.461E12 * 1E3 * lengthScale;
 
 export default class Scene {
   constructor(ui) {
@@ -21,7 +27,9 @@ export default class Scene {
     this.debugVisible = false;
     this.uniforms = null;
     this.mouse = new THREE.Vector2;
-    this.raycaster = new THREE.Raycaster;
+    //this.raycaster = new THREE.Raycaster;
+    this.raycaster = new CustomRaycaster;
+    //this.raycaster.params.Points.threshold = 3;
     ui.addClickCb((click) => {
         this.onClick(click);
       });
@@ -45,11 +53,11 @@ export default class Scene {
     // Add to scene in reference frame of parent's orbit position,
     // e.g. moons orbit planets, so they have to be added to the
     // planet's orbital center.
-    parentOrbitPosition.add(this.newObject(props));
+    parentOrbitPosition.add(this.objectFactory(props));
   }
 
 
-  newObject(props) {
+  objectFactory(props) {
     switch (props.type) {
     case 'galaxy':
       return this.newGalaxy(props);
@@ -66,6 +74,20 @@ export default class Scene {
 
 
   /**
+   * A primary scene object composed.
+   */
+  newObject(name, props, onClick) {
+    const obj = this.newGroup(name, props);
+    if (!onClick) {
+      throw new Error('Must provide an onClick handler');
+    }
+    obj.onClick = onClick;
+    return obj;
+  }
+
+
+  /**
+   * A secondary grouping of scene objects.
    * @param name Prefix, attached to .frame suffix.
    * @param props Optional props to attach to a .props field on the frame.
    */
@@ -197,22 +219,89 @@ export default class Scene {
   }
 
 
-  onClick(click) {
-    this.raycaster.setFromCamera(click, this.ui.camera);
+  onClick(mouse) {
+    this.ui.scene.updateMatrixWorld();
+    this.raycaster.setFromCamera(mouse, this.ui.camera);
+    const t = Date.now();
     const intersects = this.raycaster.intersectObjects(this.ui.scene.children, true);
-    out:
-    for (let i = 0; i < intersects.length; i++) {
-      let obj = intersects[i].object;
-      console.log('click object: ', obj);
-      do {
-        if (obj.props) {
-          Shared.targets.obj = obj;
-          console.log('targeting click object: ', obj);
-          this.lookAtTarget();
-          break out;
-        }
-      } while (obj = obj.parent);
+    const elapsedSeconds = (Date.now() - t) / 1000;
+    if (elapsedSeconds > 0.1) {
+      console.error('Scene picking taking a long time (seconds): ', elapsedSeconds);
     }
+    if (intersects.length == 0) {
+      return;
+    }
+    let nearestMeshIntersect, nearestPointIntersect,
+      nearestStarPointIntersect, nearestDefaultIntersect;
+    for (let i = 0; i < intersects.length; i++) {
+      const intersect = intersects[i];
+      const dist = intersect.distance;
+      const obj = intersect.object;
+      if (obj.isAnchor) {
+        console.log('raycast skipping anchor');
+        continue;
+      }
+      //console.log(`intersect ${i} dist: ${dist}, type: ${obj.type}, obj: `, obj);
+      switch (obj.type) {
+        case 'Mesh': {
+          if (nearestMeshIntersect
+              && nearestMeshIntersect.distance < dist) {
+            continue;
+          }
+          nearestMeshIntersect = intersect;
+        } break;
+        case 'Points': {
+          if (obj.isStarPoints) {
+            if (nearestStarPointIntersect
+                && nearestStarPointIntersect.distanceToRay < intersect.distanceToRay) {
+              continue;
+            }
+            //console.log('New nearest star point: ', intersect);
+            nearestStarPointIntersect = intersect;
+          } else {
+            if (nearestPointIntersect
+                && nearestPointIntersect.distance < dist) {
+              continue;
+            }
+            //console.log('New nearest point: ', intersect);
+            nearestPointIntersect = intersect;
+          }
+        } break;
+        default: {
+          //console.log('Raycasting default handler for object type: ', obj.type);
+          if (nearestDefaultIntersect
+              && nearestDefaultIntersect.distance < dist) {
+            continue;
+          }
+          //console.log('New nearest default: ', intersect);
+          nearestDefaultIntersect = intersect;
+        }
+      }
+    }
+    const nearestIntersect = nearestMeshIntersect ? nearestMeshIntersect
+      : nearestPointIntersect ? nearestPointIntersect
+      : nearestStarPointIntersect ? nearestStarPointIntersect
+      : nearestDefaultIntersect ? nearestDefaultIntersect
+      : null;
+    if (!nearestIntersect) {
+      throw new Error("Picking did not yield an intersect.  Intersects: ", intersects);
+    }
+    let obj = nearestIntersect.object;
+    console.log('Nearest object type: ', obj.isStarPoints ? '<star points>' : obj.type);
+    let firstName;
+    do {
+      if (obj.name || (obj.props && obj.props.name) && !firstName) {
+        firstName = obj.name || (obj.props && obj.props.name);
+      }
+      if (obj.onClick) {
+        obj.onClick(mouse, nearestIntersect, obj);
+        break;
+      }
+      if (obj == obj.parent) {
+        console.error('no clickable object found in path to root.');
+        break;
+      }
+    } while (obj = obj.parent);
   }
 
 
@@ -248,57 +337,69 @@ export default class Scene {
 
 
   newGalaxy(galaxyProps) {
-    const group = this.newGroup(galaxyProps.name, galaxyProps);
+    const group = this.newObject(galaxyProps.name, galaxyProps, (click) => {
+        console.error('Well done, you found the galaxy!');
+      });
     this.objects[galaxyProps.name + '.orbitPosition'] = group;
     return group;
   }
 
 
-  newStarsCelestiaSprite(props) {
-    //const geom = this.starGeom(Stars);
-    CelestiaData.loadStars((catalog) => {
-        const geom = this.starGeomFromCelestia(catalog.stars);
-        const starImage = Material.pathTexture('star_glow', '.png');
-        const avgStarSize = 0.1;
-        const starMiniMaterial =
-        new THREE.PointsMaterial({ size: avgStarSize,
-                                   map: starImage,
-                                   blending: THREE.AdditiveBlending,
-                                   depthTest: true,
-                                   depthWrite: false,
-                                   vertexColors: THREE.VertexColors,
-                                   transparent: false });
-        const starPoints = new THREE.Points(geom, starMiniMaterial);
-        starPoints.sortParticles = true;
-        this.ui.scene.add(starPoints); // hack
-      });
-    return new THREE.Object3D(); // dummy
-  }
-
-
   newStars(props) {
-    // Let's try this with shaders.
-    CelestiaData.loadStars((catalogIn) => {
-        const n = 100000;
-        const catalog = {
-          count: n,
-          index: {},
-          stars: [],
-          minMag: -8.25390625,
-          maxMag: 15.4453125
-        };
-        catalog.stars.push(catalogIn.stars[0]);
-        for (let i = 0; i < n; i++) {
-          const star = catalogIn.stars[Math.floor(Math.random() * catalogIn.stars.length)];
-          if (star)
-            catalog.stars.push(star);
-            }
+    const cursor = this.debugAxes(10);
+    let origSizes = {}, lastNdx = null, lastLabel = null;
+
+    let stars;
+
+    const showInfo = (textPos, ndx, fullInfo) => {
+      const labelAnchor = Shapes.labelAnchor();
+      labelAnchor.position.copy(textPos);
+      if (lastLabel) {
+        lastLabel.threeParent.remove();
+        Label.remove(lastLabel);
+      }
+      const starRecord = stars.catalog.stars[ndx];
+      console.log('Star record: ', starRecord);
+      const hipId = parseInt(starRecord.hipId);
+      let name = stars.catalog.namesByHip[hipId];
+      name = name ? name : hipId ? ('HIP ' + hipId) : 'Unknown';
+      let desc = name;
+      if (fullInfo) {
+        desc += '\n' + JSON.stringify(starRecord).replace(/,/g, '\n');
+      }
+      const label = new Label(desc, this.ui.container, labelAnchor);
+      labelAnchor.onBeforeRender = (renderer, scene, camera) => {
+        label.updatePosition(camera);
+      };
+      stars.add(labelAnchor);
+      lastLabel = label;
+      Shared.targets.obj = labelAnchor;
+      Shared.targets.pos = textPos;
+      Shared.targets.track = textPos;
+    }
+
+    stars = this.newObject('stars', props, (mouse, intersect, clickRoot) => {
+        console.log(`Stars clicked: `, mouse, intersect, clickRoot);
+        cursor.position.copy(intersect.point);
+        const ndx = intersect.index;
+        const geom = intersect.object.geometry;
+        if (!geom || !geom.getAttribute) return;
+        const position = geom.getAttribute('position');
+        const textPos = new THREE.Vector3;
+        const posArr = position.array;
+        const off = 3 * ndx;
+        textPos.set(posArr[off], posArr[off + 1], posArr[off + 2]);
+        showInfo(textPos, ndx);
+      });
+    stars.add(cursor);
+    CelestiaData.loadStars((catalog) => {
+        stars.catalog = catalog;
         const geom = this.starGeomFromCelestia(catalog);
         const starImage = Material.pathTexture('star_glow', '.png');
         const shaderMaterial = new THREE.ShaderMaterial({
             uniforms: {
               amplitude: { value: 1.0 },
-              color: { value: new THREE.Color( 0xffffff ) },
+              color: { value: new THREE.Color( 0xffff00 ) },
               texture: { value: starImage }
             },
             vertexShader: '/js/shaders/stars.vert',
@@ -309,20 +410,90 @@ export default class Scene {
             transparent: true
           });
         new Loader().loadShaders(shaderMaterial, () => {
-            const starPoints = new THREE.Points(geom, shaderMaterial);
+            //const testMatr = new THREE.PointsMaterial({color: 0x0000ff, size: 1, sizeAttenuation: true});
+            //const starPoints = new THREE.Points(geom, shaderMaterial);
+            const starPoints = new CustomPoints(geom, shaderMaterial);
             starPoints.sortParticles = true;
-            this.ui.scene.add(starPoints); // hack
+            stars.add(starPoints);
           });
+
+        const show = {
+          439: 'Gliese 1',
+          8102: 'Tau Ceti',
+          11767: 'Polaris',
+          21421: 'Aldebaran',
+          24436: 'Rigel',
+          25336: 'Bellatrix',
+          27989: 'Betelgeuse',
+          30438: 'Canopus',
+          32349: 'Sirius',
+          37279: 'Procyon',
+          49669: 'Regulus',
+          57632: 'Denebola',
+          65474: 'Spica',
+          69673: 'Arcturus',
+          70890: 'Proxima Centauri',
+          //          71681: 'Rigel Kentaurus B',
+          80763: 'Antares',
+          83608: 'Arrakis',
+          91262: 'Vega',
+          102098: 'Deneb',
+          97649: 'Altair',
+          113881: 'Scheat'
+        };
+        if (true) {
+          const ursaMinorNames = [
+              "ALF UMi", "DEL UMi", "EPS UMi",
+              "ZET UMi", "BET UMi", "GAM UMi",
+              "ETA UMi", "ZET UMi" ];
+          this.showConstellation(ursaMinorNames, stars, catalog);
+        }
       });
-    return new THREE.Object3D(); // dummy
+    return stars;
+  }
+
+
+  showStarName(stars, star, name) {
+    const sPos = new THREE.Vector3(SCALE * star.x, SCALE * star.y, SCALE * star.z);
+    const labelAnchor = Shapes.labelAnchor();
+    labelAnchor.position.copy(sPos);
+    const label = new Label(name, this.ui.container, labelAnchor);
+    labelAnchor.onBeforeRender = (renderer, scene, camera) => {
+      label.updatePosition(camera);
+    };
+    stars.add(labelAnchor);
+  }
+
+
+  showConstellation(names, stars, catalog) {
+    let lastStar = null;
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      const hipId = catalog.hipByName[name];
+      const star = catalog.index[hipId];
+      if (!star) {
+        console.error('Cannot find star: ', name);
+        continue;
+      }
+      this.showStarName(stars, star, name);
+      if (lastStar) {
+        stars.add(Shapes.line(
+            SCALE * lastStar.x, SCALE * lastStar.y, SCALE * lastStar.z,
+            SCALE * star.x, SCALE * star.y, SCALE * star.z));
+      }
+      lastStar = star;
+    }
   }
 
 
   starGeomFromCelestia(catalog) {
+    //catalog = Utils.testStarCube(catalog, 1);
+    //catalog = Utils.sampleStarCatalog(catalog, 1E5);
     const stars = catalog.stars;
     // km/ly * m/km * lengthScale
     const scale = 9.461E12 * 1E3 * lengthScale;
     const n = stars.length;
+    console.log('num stars loaded: ', n);
     const geom = new THREE.BufferGeometry();
     const coords = new Float32Array(n * 3);
     const colors = new Float32Array(n * 3);
@@ -351,7 +522,6 @@ export default class Scene {
                 [255,0,0],   // T
                 [10,10,10,]]; // Carbon star?
     const minSize = 1;
-    const magShift = catalog.maxMag + minSize;
     const maxLum = Math.pow(8, 4);
     for (let i = 0; i < n; i++) {
       const star = stars[i];
@@ -368,44 +538,16 @@ export default class Scene {
       colors[off] = r;
       colors[off + 1] = g;
       colors[off + 2] = b;
-      sizes[off] = star.radiusMeters * lengthScale;
+      // Added 2E1 for looks.  Stars too small otherwise.
+      sizes[i] = star.radiusMeters * lengthScale * 2;
     }
+    //console.log('coords: ', coords)
     geom.addAttribute('position', new THREE.BufferAttribute(coords, 3));
     geom.addAttribute('customColor', new THREE.BufferAttribute(colors, 3));
     geom.addAttribute('size', new THREE.BufferAttribute(sizes, 1));
+    geom.computeBoundingBox();
+    geom.computeBoundingSphere();
     return geom;
-  }
-
-
-  /** The stars from the data file. */
-  starGeom(stars) {
-    const geom = new THREE.Geometry();
-    // The sun first.
-    geom.vertices.push(new THREE.Vector3);
-    for (let i = 0; i < stars.length; i++) {
-      const s = stars[i];
-      const ra = s[0] * Shared.toDeg; // TODO: why not toRad?
-      const dec = s[1] * Shared.toDeg;
-      const dist = s[2] * lengthScale * 1E3; // convert from kilometer to meter.
-      const vec = new THREE.Vector3(dist * Math.sin(ra) * Math.cos(dec),
-                                    dist * Math.sin(ra) * Math.sin(dec),
-                                    dist * Math.cos(ra));
-      geom.vertices.push(vec);
-    }
-    return geom;
-  }
-
-
-  newPlanetStars(geom, props) {
-    const planetStarMiniMaterial =
-      new THREE.PointsMaterial({ color: 0xffffff,
-                                 size: 3,
-                                 sizeAttenuation: false,
-                                 depthTest: true,
-                                 transparent: false });
-    const planetStarPoints = new THREE.Points(geom, planetStarMiniMaterial);
-    planetStarPoints.sortParticles = true;
-    return planetStarPoints;
   }
 
 
@@ -427,8 +569,11 @@ export default class Scene {
   // star and use it to mix in a representation of differential plasma
   // flows along the field lines.
   newStar(starProps, finishedCb) {
-    const group = this.newGroup(starProps.name, starProps);
-    this.objects[starProps.name + '.orbitPosition'] = group;
+    const name = starProps.name;
+    const group = this.newObject(name, starProps, (mouse, intersect, clickRoot) => {
+        console.log(`Star ${name} clicked`, mouse, intersect, clickRoot);
+      });
+    this.objects[name + '.orbitPosition'] = group;
     const shaderMaterial = new THREE.ShaderMaterial({
       uniforms: {
         iTime: { value: 1.0 },
@@ -449,7 +594,6 @@ export default class Scene {
       });
     group.add(new THREE.PointLight(0xffffff));
     group.orbitPosition = group;
-
     group.preAnimCb = (time) => {
       // Sun looks bad changing too quickly.
       time = Math.log(1 + time.simTimeElapsed * 5E-6);
@@ -459,7 +603,6 @@ export default class Scene {
         shaderMaterial.uniforms.iDist.value = d * 1E-2;
       }
     };
-
     return group;
   }
 
@@ -501,7 +644,6 @@ export default class Scene {
 
     const planet = this.newPlanet(planetProps);
     planetTilt.add(planet);
-    orbitPosition.add(Shapes.point());
     planet.orbitPosition = orbitPosition;
 
     // group.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
@@ -511,15 +653,26 @@ export default class Scene {
 
 
   newPlanet(planetProps) {
-    const planet = this.newGroup(planetProps.name, planetProps);
+    const name = planetProps.name;
+    const planet = this.newObject(name, planetProps, (mouse, intersect, clickRoot) => {
+        console.log(`Planet ${name} clicked: `, mouse, intersect, clickRoot);
+        //const tElt = document.getElementById('target-id');
+        //tElt.innerText = name + (firstName ? ` (${firstName})` : '');
+        //tElt.style.left = `${mouse.clientX}px`;
+        //tElt.style.top = `${mouse.clientY}px`;
+        //this.setTarget(name);
+        //this.lookAtTarget();
+      });
+    const pointSize = planetProps.radius.scalar * lengthScale * 1E1;
+    console.log(`${name} point size: ${pointSize}`);
+    planet.add(Shapes.point());
     planet.add(this.newSurface(planetProps));
     if (planetProps.texture_atmosphere) {
       planet.add(this.newAtmosphere(planetProps));
     }
-
+    planet.scale.setScalar(planetProps.radius.scalar * lengthScale);
     // Attaching this property triggers rotation of planet during animation.
     planet.siderealRotationPeriod = planetProps.siderealRotationPeriod;
-    planet.scale.setScalar(planetProps.radius.scalar * lengthScale);
     return planet;
   }
 
@@ -543,7 +696,9 @@ export default class Scene {
         planetMaterial.shininess = 50;
       }
     }
-    const shape = Shapes.sphere({matr: planetMaterial});
+    const shape = Shapes.sphere({
+        matr: planetMaterial
+      });
     shape.name = planetProps.name + '.surface';
     this.objects[shape.name] = shape;
     return shape;

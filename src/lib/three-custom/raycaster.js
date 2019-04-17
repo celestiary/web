@@ -10,7 +10,7 @@ import { Ray } from '../three.module.js';
  * @author stephomi / http://stephaneginier.com/
  * @author pablo
  */
-function CustomRaycaster( origin, direction, near, far ) {
+export default function CustomRaycaster( origin, direction, near, far ) {
 
   this.ray = new Ray( origin, direction );
   // direction is assumed to be normalized (for accurate distance calculations)
@@ -93,5 +93,3 @@ Object.assign( CustomRaycaster.prototype, {
       return intersects;
     }
   } );
-
-export { CustomRaycaster };

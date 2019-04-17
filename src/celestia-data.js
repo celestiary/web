@@ -23,13 +23,14 @@ export function readCatalogFile(buffer) {
 
   const numRecords = data.getUint32(offset, littleEndian);
   offset += 4;
-  console.log('num records: ', numRecords);
   const catalog = {
     count: numRecords,
     index: {},
     stars: [],
     minMag: -8.25390625,
-    maxMag: 15.4453125
+    maxMag: 15.4453125,
+    hipByName: {},
+    namesByHip: {}
   }
   // Didn't see the sun in the stars.dat catalog, so adding it
   // manually.  If wrong, it'll be in there twice but indexed once
@@ -37,6 +38,7 @@ export function readCatalogFile(buffer) {
   const sunAbsMag = 4.83;
   const sun = {
     x: 0, y: 0, z: 0,
+    hipId: 0,
     mag: sunAbsMag,
     kind: 0,
     type: 4,
@@ -81,6 +83,7 @@ export function readCatalogFile(buffer) {
       x: x,
       y: y,
       z: z,
+      hipId: hipId,
       absMag: absMag,
       kind: kind,
       type: type,
@@ -91,8 +94,33 @@ export function readCatalogFile(buffer) {
     };
     catalog.index[hipId] = star;
     catalog.stars.push(star);
+    if (hipId == 70890) {
+      console.log('Proxima Centauri: ', star);
+    }
   }
   return catalog;
+}
+
+
+function readStarNamesFile(text, catalog) {
+  const records = text.split('\n');
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    const parts = record.split(':');
+    if (parts.length < 2) {
+      console.error('Malformed name record: ', record);
+      continue;
+    }
+    const hipId = parseInt(parts.shift());
+    catalog.namesByHip[hipId] = parts;
+    for (let j = 0; j < parts.length; j++) {
+      const part = parts[j];
+      catalog.hipByName[part] = hipId;
+    }
+    if (hipId == 11767) {
+      console.log('PARTZ: ', parts, hipId);
+    }
+  }
 }
 
 
@@ -103,7 +131,12 @@ export function loadStars(cb) {
   fetch('/data/stars.dat').then((body) => {
     body.arrayBuffer().then((buffer) => {
         const catalog = readCatalogFile(buffer);
-        cb(catalog);
+        fetch('/data/starnames.dat').then((body) => {
+            body.text().then((text) => {
+                readStarNamesFile(text, catalog);
+                cb(catalog);
+              })
+          });
     })
   });
 }

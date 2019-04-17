@@ -14,7 +14,7 @@ import {
  * @author pablo
  */
 
-function CustomPoints( geometry, material ) {
+export default function CustomPoints( geometry, material ) {
 
   Object3D.call( this );
 
@@ -30,6 +30,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
     constructor: CustomPoints,
 
     isPoints: true,
+    isStarPoints: true,
 
     raycast: ( function () {
 
@@ -66,7 +67,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
           let min = null;
           function testPoint( point, index ) {
-
+            //console.log(`CustomPoints.raycast#testPoint: point, index`, point, index);
             var rayPointDistanceSq = ray.distanceSqToPoint( point );
 
               if (min == null) {
@@ -76,6 +77,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
               if (rayPointDistanceSq > min) {
                 return;
               }
+              const old = min;
               min = rayPointDistanceSq;
 
               ray.closestPointToPoint( point, intersectPoint );
@@ -85,17 +87,18 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
               if ( distance < raycaster.near || distance > raycaster.far ) return;
 
-              intersects.push( {
+              const distanceToRay = Math.sqrt(rayPointDistanceSq);
 
-                  distance: distance,
-                    distanceToRay: Math.sqrt( rayPointDistanceSq ),
-                    point: intersectPoint.clone(),
-                    index: index,
-                    face: null,
-                    object: object
-
-                    } );
-
+              //console.log(`old: ${old}, min: ${rayPointDistanceSq}, ` +
+              //            `dist: ${distance}, distanceToRay: ${distanceToRay}`);
+              intersects.push({
+                distance: distance,
+                distanceToRay: distanceToRay,
+                point: intersectPoint.clone(),
+                index: index,
+                face: null,
+                object: object
+               });
           }
 
           if ( geometry.isBufferGeometry ) {
@@ -153,6 +156,3 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
     }
 
   } );
-
-
-export { CustomPoints };

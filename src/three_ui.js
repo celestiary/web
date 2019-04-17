@@ -16,11 +16,10 @@ export default class ThreeUi {
     this.animationCb = animationCb || (() => {});
     this.renderer =
       this.initRenderer(this.container, backgroundColor || 0x000000);
-    const w = this.container.offsetWidth;
-    const h = this.container.offsetHeight;
-    const ratio = w / h;
+    this.width = this.container.offsetWidth;
+    this.height = this.container.offsetHeight;
+    const ratio = this.width / this.height;
     this.camera = new THREE.PerspectiveCamera(Shared.INITIAL_FOV, ratio, 1E-3, 1E35);
-    this.camera.position.z = 1;
     this.camera.platform = new THREE.Object3D();
     this.camera.platform.add(this.camera);
     this.initControls(this.camera);
@@ -35,16 +34,36 @@ export default class ThreeUi {
     this.onResize();
     this.scene = new THREE.Scene;
     this.scene.add(this.camera.platform);
-
-    this.renderLoop();
+    // Adapted from https://threejs.org/docs/#api/en/core/Raycaster
     this.clickCbs = [];
-    this.click;
+    this.mouse = new THREE.Vector2;
+    this.clicked = false;
     document.addEventListener('mousedown', (event) => {
-        this.click = new THREE.Vector2;
-        this.click.event = event;
-        this.click.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-        this.click.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+        event.preventDefault();
+        const eX = event.clientX;
+        const eY = event.clientY;
+        const screenRect = this.container.getBoundingClientRect();
+        const cL = screenRect.left;
+        const cT = screenRect.top;
+        const cW = screenRect.right - screenRect.left;
+        const cH = screenRect.bottom - screenRect.top;
+        const a = eX - cL>= 0;
+        const b = eY - cT >= 0;
+        const c = eX < cL + cW;
+        const d = eY < cT + cH;
+        //console.log(`container top: ${cT}, left: ${cL}, event x: ${eX}, y: ${eY}, ${a}, ${b}, ${c}, ${d}`);
+        if (a && b && c && d) {
+          this.clicked = true;
+          this.mouse.x = (eX - cL) / cW * 2 - 1;
+          this.mouse.y = -(eY - cT) / cH * 2 + 1;
+          this.mouse.clientX = eX;
+          this.mouse.clientY = eY;
+          this.clicked = true;
+        } else {
+          console.log(`click outside of canvas`);
+        }
       }, false);
+    this.renderLoop();
   }
 
 
@@ -56,10 +75,10 @@ export default class ThreeUi {
   initRenderer(container, backgroundColor) {
     const renderer = new THREE.WebGLRenderer({antialias: true});
     renderer.setPixelRatio(window.devicePixelRatio);
-    const width = this.container.offsetWidth;
-    const height = this.container.offsetHeight;
+    this.width = this.container.offsetWidth;
+    this.height = this.container.offsetHeight;
     renderer.setClearColor(backgroundColor, 1);
-    renderer.setSize(width, height);
+    renderer.setSize(this.width, this.height);
     renderer.sortObjects = true;
     renderer.autoClear = true;
     container.appendChild(renderer.domElement);
@@ -123,12 +142,13 @@ export default class ThreeUi {
 
 
   renderLoop() {
-    if (this.click) {
+    this.camera.updateMatrixWorld();
+    if (this.clicked) {
       for (let i in this.clickCbs) {
         const clickCb = this.clickCbs[i];
-        clickCb(this.click);
+        clickCb(this.mouse);
       }
-      this.click = null;
+      this.clicked = false;
     }
 
     this.controls.update();

@@ -1,3 +1,5 @@
+import CustomPoints from './lib/three-custom/points.js';
+import Label from './label.js';
 import * as THREE from './lib/three.module.js';
 import * as Material from './material.js';
 import * as Shared from './shared.js';
@@ -39,12 +41,8 @@ function lodSphere(radius, material) {
   for (let i = 0; i < geoms.length; i++) {
     const mesh = new THREE.Mesh(geoms[i][0], material);
     mesh.scale.set(radius, radius, radius);
-    mesh.updateMatrix();
-    mesh.matrixAutoUpdate = false;
     lod.addLevel(mesh, geoms[i][1]);
   }
-  lod.updateMatrix();
-  lod.matrixAutoUpdate = false;
   const obj = new THREE.Object3D;
   obj.add(lod);
   return obj;
@@ -116,26 +114,43 @@ function atmos(radius) {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.scale.x = mesh.scale.y = mesh.scale.z = radius;
   mesh.flipSided = true;
-  mesh.matrixAutoUpdate = false;
-  mesh.updateMatrix();
   sceneAtmosphere.add(mesh);
   return sceneAtmosphere;
 }
 
-// TODO(pmy): is there a simpler way to draw a point?
-function point() {
+// TODO(pmy): Convert to shared BufferGeometry.
+function point(radius) {
+  const opts = {
+    color: 0xffffff,
+    size: radius || 4,
+    sizeAttenuation: false,
+    blending: THREE.AdditiveBlending,
+    depthTest: true,
+    transparent: true
+  };
   const geom = new THREE.Geometry();
   geom.vertices.push(new THREE.Vector3());
-
-  const pointMaterial =
-    new THREE.PointsMaterial({ color: 0xffffff,
-                               size: 3,
-                               sizeAttenuation: false,
-                               blending: THREE.AdditiveBlending,
-                               depthTest: true,
-                               transparent: true });
-
+  const pointMaterial = new THREE.PointsMaterial(opts);
+  //return new CustomPoints(geom, pointMaterial);
   return new THREE.Points(geom, pointMaterial);
+}
+
+
+function labelAnchor() {
+  const opts = {
+    color: 0x000000,
+    size: 3,
+    sizeAttenuation: false,
+    blending: THREE.AdditiveBlending,
+    depthTest: true,
+    transparent: true
+  };
+  const geom = new THREE.Geometry();
+  geom.vertices.push(new THREE.Vector3());
+  const pointMaterial = new THREE.PointsMaterial(opts);
+  const anchorPoints = new THREE.Points(geom, pointMaterial);
+  anchorPoints.isAnchor = true;
+  return anchorPoints;
 }
 
 /**
@@ -170,7 +185,7 @@ function line(vec1, vec2) {
  * given {@param material}.
  * @param material An instance of LineBasicMaterial.
  */
-function angle(vec1, vec2, material) {
+function angle(vec1, vec2, material, container) {
   let angleInRadians;
   if (arguments.length == 1 || vec2 === null || typeof vec2 === 'undefined') {
     angleInRadians = vec1;
@@ -181,11 +196,12 @@ function angle(vec1, vec2, material) {
   const angle = new THREE.Object3D;
   angle.name = `angle(${angleInRadians * Shared.toDeg})`;
   angle.material = material || new THREE.LineBasicMaterial;
+
+  // Arc
   const arrowArc = arc(1, 0, angleInRadians, angle.material);
   arrowArc.name = angle.name + '.arc';
-  const up = new THREE.Vector3(0, 1, 0);
-  const zero = new THREE.Vector3(0, 0, 0);
 
+  // Cone
   const coneHeight = 0.1;
   const coneGeometry = new THREE.ConeGeometry(coneHeight / 3, coneHeight, 10);
   const coneMaterial = new THREE.MeshBasicMaterial;
@@ -199,49 +215,61 @@ function angle(vec1, vec2, material) {
   angle.add(cone);
 
   if (true) {
-    const label = getCanvasTextSprite((angleInRadians * Shared.toDeg) + '˚', angle.material.color);
-    label.name = angle.name + '.label';
-    label.position.set(Math.cos(angleInRadians * 0.1), -Math.sin(angleInRadians * 0.1), 0);
-    label.center.set(0, 0);
-    angle.add(label);
+    const labelObj = point();
+    labelObj.name = angle.name + '.label';
+    labelObj.position.x = 1;
+    //labelObj.position.set(Math.cos(angleInRadians * 0.1), -Math.sin(angleInRadians * 0.1), 0);
+    const label = new Label((angleInRadians * Shared.toDeg) + '˚', container, labelObj);
+    labelObj.onBeforeRender = (renderer, scene, camera) => {
+      label.updatePosition(camera);
+    };
+    angle.add(labelObj);
   }
+
   angle.rotation.z = angleInRadians;
   return angle;
 }
 
 function getCanvasTextSprite(text, color) {
-  const canvas = document.createElement('canvas');
-  // TODO(pablo): Find a safer way to do this.
-  document.body.appendChild(canvas);
-  const ctx = canvas.getContext('2d');
+  color = color || 0xffffff;
+  const canvasEltId = 'text-canvas';
+  let textCanvas = document.getElementById(canvasEltId);
+  if (textCanvas == null) {
+    // TODO(pablo): Find a safer way to do this.
+    textCanvas = document.createElement('canvas');
+    document.querySelector('body').appendChild(textCanvas);
+    console.log('getCanvasTextSprite: creating canvas... ', textCanvas);
+  } else {
+    console.log('getCanvasTextSprite: reusing existing canvas: ', textCanvas);
+  }
+  const ctx = textCanvas.getContext('2d');
   ctx.font = '1em Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   const metrics = ctx.measureText(text);
+  const charSize = metrics.width / text.length;
   // WebGL requires power of 2 width, so round up.
-  canvas.width = Math.pow(2, Math.ceil(Math.log2(metrics.width)));
-  canvas.height = 32;
+  textCanvas.width = Math.pow(2, Math.floor(Math.log2(metrics.width + charSize)));
+  textCanvas.height = 32;
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.needsUpdate = true;
+  const texture = new THREE.CanvasTexture(textCanvas);
   const label = new THREE.Sprite(new THREE.SpriteMaterial({
         map: texture,
         alphaTest: 0.5,
       }));
   const scale = 0.2;
-  setCanvasText(canvas, ctx, text, color);
-  label.scale.set(canvas.width / canvas.height * scale, scale, 1.0);
-  document.body.removeChild(canvas);
+  setCanvasText(textCanvas, ctx, text, color);
+  label.scale.set(textCanvas.width / textCanvas.height * scale, scale, 1.0);
+  textCanvas.parentNode.removeChild(textCanvas);
   return label;
 }
 
-function setCanvasText(canvas, ctx, text, color) {
+function setCanvasText(textCanvas, ctx, text, color) {
   ctx.save();
-  ctx.font = '1em Arial';
   ctx.fillStyle = 'rgba(255, 255, 255, 0)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, textCanvas.width, textCanvas.height);
   ctx.fillStyle = `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, 1)`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, 0, canvas.height / 2);
+  ctx.fillText(text, 0, textCanvas.height / 2);
   ctx.restore();
 }
 
@@ -335,7 +363,9 @@ export {
   box,
   cube,
   ellipseSemiMinorAxisCurve,
+  getCanvasTextSprite,
   grid,
+  labelAnchor,
   line,
   lineGrid,
   lodSphere,
