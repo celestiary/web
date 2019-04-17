@@ -27,8 +27,8 @@ button:hover {
   left: -1000;
   cursor: pointer;
   padding: 5px;
-  border: solid 1px white;
-  border-radius: 5px;
+  border: solid 1px rgba(255, 255, 255, 0.5);
+  border-radius: 3px;
   background-color: rgba(0, 0, 0, 0.5);
 }
 

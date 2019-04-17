@@ -417,7 +417,7 @@ export default class Scene {
             stars.add(starPoints);
           });
 
-        const show = {
+        const faveStars = {
           439: 'Gliese 1',
           8102: 'Tau Ceti',
           11767: 'Polaris',
@@ -433,7 +433,7 @@ export default class Scene {
           65474: 'Spica',
           69673: 'Arcturus',
           70890: 'Proxima Centauri',
-          //          71681: 'Rigel Kentaurus B',
+          71681: 'Rigel Kentaurus B',
           80763: 'Antares',
           83608: 'Arrakis',
           91262: 'Vega',
@@ -441,6 +441,11 @@ export default class Scene {
           97649: 'Altair',
           113881: 'Scheat'
         };
+        for (let hipId in faveStars) {
+          const name = faveStars[hipId];
+          const star = catalog.index[hipId];
+          this.showStarName(stars, star, name);
+        }
         if (true) {
           const ursaMinorNames = [
               "ALF UMi", "DEL UMi", "EPS UMi",
@@ -468,8 +473,14 @@ export default class Scene {
   showConstellation(names, stars, catalog) {
     let lastStar = null;
     for (let i = 0; i < names.length; i++) {
-      const name = names[i];
+      name = names[i];
       const hipId = catalog.hipByName[name];
+      const altNames = catalog.namesByHip[hipId];
+      if (!altNames) {
+        console.error('No alternative names found for constellation node: ', name);
+        continue;
+      }
+      name = altNames[0];
       const star = catalog.index[hipId];
       if (!star) {
         console.error('Cannot find star: ', name);
@@ -539,7 +550,7 @@ export default class Scene {
       colors[off + 1] = g;
       colors[off + 2] = b;
       // Added 2E1 for looks.  Stars too small otherwise.
-      sizes[i] = star.radiusMeters * lengthScale * 2;
+      sizes[i] = star.radiusMeters * lengthScale * 1E1;
     }
     //console.log('coords: ', coords)
     geom.addAttribute('position', new THREE.BufferAttribute(coords, 3));
