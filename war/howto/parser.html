@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<h1>Parser</h1>
+<script type="text/javascript">
+let count = 0, count2 = 0;
+
+/**
+ * Each matcher must move the lastIndex forward.  At the root level,
+ * the lastIndex must equal the length of the string for a match.
+ */
+function parse(s, G, state) {
+  count++;
+  if (count > 10) {
+    console.log('Reached max stack depth 10');
+    return;
+  }
+  const matcher = G.rules[state].matcher;
+  console.log(`parse: state(${state}): s(${s})`);
+  let nextIndex = 0, matchOffset = 0;
+  for (let i in matcher) {
+    const term = matcher[i];
+    if (term instanceof RegExp) {
+      const regex = term;
+      console.log(`state(${state}): s(${s}) must start with regex: `, regex);
+      let match;
+      if (regex.global) {
+        while ((match = regex.exec(s)) !== null) {
+          if (match.index != nextIndex) {
+            console.log(`state(${state}): match after next (${match.index}), next(${nextIndex})`);
+            return -1;
+          }
+          nextIndex = regex.lastIndex;
+          console.log(`state(${state}): global matched at (${match.index}), next(${nextIndex}): `);
+          if (count2++ > 10) {
+            throw new Error('Inner loop forever');
+          }
+        }
+      } else {
+        match = regex.exec(s);
+        if (match.index == -1) {
+          return -1;
+        }
+        nextIndex = match.index + match[0].length;
+        console.log(`state(${state}): non-global match at (${match.index}), next(${nextIndex}): `);
+      }
+      matchOffset += nextIndex;
+      console.log(`state(${state}): after sequence, matchOffset(${matchOffset})`);
+    } else if (typeof term == 'number') {
+      const stateReference = term;
+      console.log(`state(${state}): recursing at next index(${nextIndex})`);
+      const recurseOffset = parse(s.substring(nextIndex), G, stateReference);
+      if (recurseOffset == -1) {
+        return -1;
+      }
+      console.log(`state(${state}): after recurse, next(${nextIndex}) recurseOffset(${recurseOffset}) s(${s})`);
+      matchOffset = nextIndex + recurseOffset;
+      s = s.substring(matchOffset);
+      nextIndex = 0;
+      console.log(`state(${state}): after recurse, matchOffset(${matchOffset}) s(${s})`);
+    }
+  }
+  return matchOffset;
+}
+
+</script>
+<script type="text/javascript">
+
+const Grammar = {
+  rules: {
+    0: { // array
+      matcher: [ /\s*\[\s*/ , 1 , /\s*\]\s*/ ]
+    },
+    1: {
+      matcher: [ /\s*\[\s*/ , 2 , /\s*\]\s*/ ]
+    },
+    2: { // name
+      matcher: [ /\"[A-Za-z0-9 ]+\"\s/g ]
+    }
+  }
+};
+
+const inner = '[ [ "3" "B" ] ]';
+const text = '"Caelum" [' + inner + ']';
+const matchLength = parse(inner, Grammar, 0);
+console.log(matchLength == inner.length ? 'match' : 'no match');
+
+
+/**
+ * Many records of this form
+ * "Caelum"
+ * [
+ *   [ "Alpha Cae" "Beta Cae" ]
+ *   ...
+ * ]
+ */
+//function readAsterismsFile(str, catalog) {
+//  [name, off] = unquote(str, 0, '"', '"');
+//  [record, off] = unquote(str, off, '[', ']');
+//  [names, off] = unquote(record, 0, '[', ']');
+//  console.log(`name(${name}), record(${record}), names(${names})`);
+//}
+</script>
+</body>
+</html>

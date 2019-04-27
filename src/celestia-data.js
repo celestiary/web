@@ -124,6 +124,25 @@ function readStarNamesFile(text, catalog) {
 }
 
 
+/**
+ * Many records of this form
+ * "Caelum"
+ * [
+ *   [ "Alpha Cae" "Beta Cae" ]
+ *   ...
+ * ]
+ */
+function readAsterismsFile(text, catalog) {
+  const brace = (mem, lChar, rChar) => {
+    const lNdx = mem.in.indexOf(lChar);
+    const rNdx = mem.in.indexOf(rChar, lNdx + 1);
+    mem.out = mem.in.substring(lNdx + 1, rNdx);
+  }
+  catalog.in = text;
+  brace(catalog, '"', '"');
+}
+
+
 export function loadStars(cb) {
   if (!cb) {
     throw new Error('Undefined callback');
