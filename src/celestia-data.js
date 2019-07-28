@@ -1,3 +1,5 @@
+import Parser from '/js/parser.js';
+
 // From https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
 const littleEndian = true;
 
@@ -132,14 +134,54 @@ function readStarNamesFile(text, catalog) {
  *   ...
  * ]
  */
-function readAsterismsFile(text, catalog) {
-  const brace = (mem, lChar, rChar) => {
-    const lNdx = mem.in.indexOf(lChar);
-    const rNdx = mem.in.indexOf(rChar, lNdx + 1);
-    mem.out = mem.in.substring(lNdx + 1, rNdx);
+export function readAsterismsFile(text, catalog) {
+  const asterisms = {};
+  let numRecords = 0;
+  const Grammar = {
+    rules: {
+      0: {
+        rule: [ 1, 2 ],
+        callback: (state, termIndex, choiceIndex) => {
+          console.log(`Named record! choiceIndex(${choiceIndex}), numRecords(${numRecords})`);
+          numRecords++;
+          if (++numRecords > 10) {
+            throw new Error('too many!');
+          }
+        }
+      },
+      1: { // Repeatedly match quoted names, e.g. "Alpha Cae" "Beta Cae"
+        rule: [ /\"([A-Za-z0-9 ]+)\"\s*/g ],
+        callback: (state, termIndex, match) => {
+          console.log(`Name encountered: match(${match})`);
+        }
+      },
+      2: { // Array record, peels off the outside brackets.
+        rule: [ /\s*\[\s*/ , 3 , /\s*\]\s*/ ],
+        callback: (state, termIndex, match) => {
+          console.log(`array record: match(${match})`);
+        }
+      },
+      3: { // Sequence of arrays of name
+        rule: [ 4, 3, -1 ],
+        callback: (state, termIndex, choiceIndex) => {
+          console.log(`sequence of arrays of name: choiceIndex(${choiceIndex})`);
+        }
+      },
+      4: { // Array of named nodes
+        rule: [ /\s*\[\s*/ , 1 , /\s*\]\s*/ ],
+        callback: (state, termIndex, match) => {
+          console.log(`named node: match(${match})`);
+        }
+      }
+    }
+  };
+  catalog.asterisms = asterisms;
+  const offset = Parser.parse(text, Grammar, 0);
+  if (offset != text.length) {
+    console.log(`Cannot parse asterisms, offset(${offset}) != text.length(${text.length})`);
+  } else {
+    console.log(`Parsed!`);
   }
-  catalog.in = text;
-  brace(catalog, '"', '"');
 }
 
 

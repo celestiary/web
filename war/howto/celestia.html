@@ -3,44 +3,16 @@
 <head><link rel="stylesheet" href="index.css"/></head>
 <body>
 <h1>Celestia Data</h1>
-<script type="text/javascript">
+<script type="module">
+import * as CelestiaData from '/js/celestia-data.js';
 
-const unquote = (str, off, lChar, rChar) => {
-  const lNdx = str.indexOf(lChar, off);
-  const rNdx = str.indexOf(rChar, lNdx + 1);
-  return [str.substring(lNdx + 1, rNdx), rNdx + 1];
-}
-
-g = {
-  S: [/\s*[\s*/, /\s*[\s*/
-};
-
-/**
- * Many records of this form
- * "Caelum"
- * [
- *   [ "Alpha Cae" "Beta Cae" ]
- *   ...
- * ]
- */
-function readAsterismsFile(str, catalog) {
-  [name, off] = unquote(str, 0, '"', '"');
-  [record, off] = unquote(str, off, '[', ']');
-  [names, off] = unquote(record, 0, '[', ']');
-  console.log(`name(${name}), record(${record}), names(${names})`);
-}
-
-</script>
-<script type="text/javascript">
-
-const text = '"Caelum"\
-[\
-  [ "Alpha Cae" "Beta Cae" ]\
-]';
-const catalog = {};
-readAsterismsFile(text, catalog);
-console.log(catalog);
-
+fetch('/data/asterisms-2.dat').then((rsp) => {
+  rsp.text().then((text) => {
+      const catalog = {};
+      CelestiaData.readAsterismsFile(text, catalog);
+      console.log(catalog);
+    });
+  });
 </script>
 </body>
 </html>
