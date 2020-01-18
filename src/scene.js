@@ -553,9 +553,9 @@ export default class Scene {
       sizes[i] = star.radiusMeters * lengthScale * 1E1;
     }
     //console.log('coords: ', coords)
-    geom.addAttribute('position', new THREE.BufferAttribute(coords, 3));
-    geom.addAttribute('customColor', new THREE.BufferAttribute(colors, 3));
-    geom.addAttribute('size', new THREE.BufferAttribute(sizes, 1));
+    geom.setAttribute('position', new THREE.BufferAttribute(coords, 3));
+    geom.setAttribute('customColor', new THREE.BufferAttribute(colors, 3));
+    geom.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
     geom.computeBoundingBox();
     geom.computeBoundingSphere();
     return geom;
