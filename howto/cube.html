@@ -13,16 +13,16 @@ pan.
   // Import things from libraries, showing three types of syntax.
   // First syntax imports a single thing that three_ui.js exports, so
   // just need to give it a name.
-  import ThreeUi from '/js/three_ui.js';
-  import Fullscreen from '/js/fullscreen.js';
+  import ThreeUi from './js/three_ui.js';
+  import Fullscreen from './js/fullscreen.js';
 
   // Second syntax picks one thing from the many exported from
   // three.module.js.
-  import {AmbientLight, PointLight} from '/js/lib/three.module.js';
+  import {AmbientLight, PointLight} from './js/lib/three.module.js';
 
   // Last syntax grabs everything from shapes and puts them under
   // the name 'Shapes' so they're easily accessible here.
-  import * as Shapes from '/js/shapes.js';
+  import * as Shapes from './js/shapes.js';
 
   // Bind the ThreeUi to the "ui" HTML page element.
   const ui = new ThreeUi('ui');
