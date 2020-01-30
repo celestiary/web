@@ -96,9 +96,9 @@ export function readCatalogFile(buffer) {
     };
     catalog.index[hipId] = star;
     catalog.stars.push(star);
-    if (hipId == 70890) {
-      console.log('Proxima Centauri: ', star);
-    }
+    //if (hipId == 70890) {
+    //  console.log('Proxima Centauri: ', star);
+    //}
   }
   return catalog;
 }
@@ -110,7 +110,7 @@ function readStarNamesFile(text, catalog) {
     const record = records[i];
     const parts = record.split(':');
     if (parts.length < 2) {
-      console.error('Malformed name record: ', record);
+      console.warn('Malformed name record: ', record);
       continue;
     }
     const hipId = parseInt(parts.shift());
@@ -118,9 +118,6 @@ function readStarNamesFile(text, catalog) {
     for (let j = 0; j < parts.length; j++) {
       const part = parts[j];
       catalog.hipByName[part] = hipId;
-    }
-    if (hipId == 11767) {
-      console.log('PARTZ: ', parts, hipId);
     }
   }
 }
@@ -178,7 +175,7 @@ export function readAsterismsFile(text, catalog) {
   catalog.asterisms = asterisms;
   const offset = Parser.parse(text, Grammar, 0);
   if (offset != text.length) {
-    console.log(`Cannot parse asterisms, offset(${offset}) != text.length(${text.length})`);
+    console.warn(`Cannot parse asterisms, offset(${offset}) != text.length(${text.length})`);
   } else {
     console.log(`Parsed!`);
   }
