@@ -7,7 +7,7 @@ community maintenance of the celestial datasets.
 
 A running instance of Celestiary is available at:
 
-http://celestiary.appspot.com/
+https://pablo-mayrgundter.github.io/celestiary/
 
 ## TODO
 ### v1:
