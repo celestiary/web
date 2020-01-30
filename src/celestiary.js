@@ -17,6 +17,7 @@ const elt = (id) => { return document.getElementById(id); }
 /** Main application class. */
 export default class Celestiary {
   constructor(canvasContainer, dateElt, timeScaleElt, navElt) {
+    Utils.assertArgs(arguments, 4);
     this.time = new Time(dateElt, timeScaleElt);
     this.animation = new Animation(this.time);
     canvasContainer.style.width = window.innerWidth + 'px';

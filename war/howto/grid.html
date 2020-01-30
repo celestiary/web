@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>A Grid</h1>
+Try zooming out and rotating.
+
+<script type="module">
+  import ThreeUi from '/js/three_ui.js';
+  import Fullscreen from '/js/fullscreen.js';
+  import {AmbientLight, PointLight} from '/js/lib/three.module.js';
+  import * as Shapes from '/js/shapes.js';
+
+  const ui = new ThreeUi('ui');
+  ui.camera.position.z = 10;
+
+  const grid = Shapes.grid();
+  grid.material.color.setRGB(0, 0, 1);
+  grid.material.transparent = true;
+  //grid.material.opacity = 0.1;
+  ui.scene.add(grid);
+</script>
+</body>
+</html>

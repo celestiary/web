@@ -23,20 +23,21 @@
       Math.random() - 0.5,
       Math.random() - 0.5);
     point.position.multiplyScalar(2);
-    const label = new Label(i + '', container, point, container);
+    const label = new Label(i + '', container, point);
     point.onBeforeRender = (renderer, scene, camera) => {
       label.updatePosition(camera);
     };
     ui.scene.add(point);
     labels.push(label);
   }
-  /*
+
+/*
   setTimeout(() => {
     for (let i = 0; i < labels.length; i++) {
       Label.remove(labels[i]);
     }
   }, 2000);
-  */
+*/
 </script>
 </body>
 </html>

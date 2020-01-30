@@ -38,8 +38,8 @@ export default class ThreeUi {
     this.clickCbs = [];
     this.mouse = new THREE.Vector2;
     this.clicked = false;
-    document.addEventListener('mousedown', (event) => {
-        event.preventDefault();
+
+    document.addEventListener('mousedown', event => {
         const eX = event.clientX;
         const eY = event.clientY;
         const screenRect = this.container.getBoundingClientRect();
@@ -51,7 +51,8 @@ export default class ThreeUi {
         const b = eY - cT >= 0;
         const c = eX < cL + cW;
         const d = eY < cT + cH;
-        //console.log(`container top: ${cT}, left: ${cL}, event x: ${eX}, y: ${eY}, ${a}, ${b}, ${c}, ${d}`);
+        //console.log(`container top: ${cT}, left: ${cL},
+        //    event x: ${eX}, y: ${eY}, ${a}, ${b}, ${c}, ${d}`);
         if (a && b && c && d) {
           this.clicked = true;
           this.mouse.x = (eX - cL) / cW * 2 - 1;
@@ -59,10 +60,9 @@ export default class ThreeUi {
           this.mouse.clientX = eX;
           this.mouse.clientY = eY;
           this.clicked = true;
-        } else {
-          console.log(`click outside of canvas`);
+          event.preventDefault();
         }
-      }, false);
+      }, true);
     this.renderLoop();
   }
 
@@ -87,7 +87,7 @@ export default class ThreeUi {
 
 
   initControls(camera) {
-    const controls = new TrackballControls(camera);
+    const controls = new TrackballControls(camera, this.container);
     // Rotation speed is changed in scene.js depending on target
     // type: faster for sun, slow for planets.
     controls.noZoom = false;
@@ -152,9 +152,9 @@ export default class ThreeUi {
     }
 
     this.controls.update();
-    if (Shared.targets.track) {
-      c.scene.lookAtTarget();
-    }
+    //if (Shared.targets.track) {
+    //  this.scene.lookAtTarget();
+    //}
     this.animationCb(this.scene);
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(() => {

@@ -8,7 +8,9 @@ import * as THREE from './three.module.js';
  */
 
 const TrackballControls = function ( object, domElement ) {
-
+  if (!domElement) {
+    console.warn('TrackballControls: no domElement specified, capturing events from whole document');
+  }
 	var _this = this;
 	var STATE = { NONE: - 1, ROTATE: 0, ZOOM: 1, PAN: 2, TOUCH_ROTATE: 3, TOUCH_ZOOM_PAN: 4 };
 

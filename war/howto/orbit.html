@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>Orbit</h1>
+An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
+  https://en.wikipedia.org/wiki/Orbital_elements</a>
+<image style="width: 400px" src="images/Orbit1.png"
+       alt="By Lasunncty at the English Wikipedia, CC BY-SA 3.0, https://commons.wikimedia.org/w/index.php?curid=8971052"/>
+
+<form name="elts">
+<table>
+  <tr>
+    <td>Eccentricity:
+    <td><input type="range" min="0" max="100" name="ecc-slider" value="0"
+               oninput="document.oc(event, document.forms.elts.ecc, 1)"/>
+    <td><input name="ecc" value="0"/>
+  </tr>
+  <tr>
+    <td>Longitude of Ascending Node:
+    <td><input type="range" min="0" max="100" name="loan-slider" value="0"
+               oninput="document.oc(event, document.forms.elts.loan, Math.PI * 2)"/>
+    <td><input name="loan" value="0"/>
+  <tr>
+    <td>Inclination:
+    <td><input type="range" min="0" max="100" name="inc-slider" value="0"
+               oninput="document.oc(event, document.forms.elts.inc, Math.PI * 2)"/>
+    <td><input name="inc" value="0"/>
+  </tr>
+  <tr>
+    <td>Argument of Periapsis:
+    <td><input type="range" min="0" max="100" name="aop-slider" value="0"
+               oninput="document.oc(event, document.forms.elts.aop, Math.PI * 2)"/>
+    <td><input name="aop" value="0"/>
+  </tr>
+  <tr>
+    <td>True Anomaly:
+    <td><input type="range" min="0" max="100" name="ta-slider" value="0"
+               oninput="document.oc(event, document.forms.elts.ta, Math.PI * 2)"/>
+    <td><input name="ta" value="0"/>
+  </tr>
+</table>
+</form>
+<script type="module">
+  import ThreeUi from '/js/three_ui.js';
+  import * as THREE from '/js/lib/three.module.js';
+  import Fullscreen from '/js/fullscreen.js';
+  import {AmbientLight, PointLight} from '/js/lib/three.module.js';
+  import * as Shapes from '/js/shapes.js';
+  import * as Utils from '/js/utils.js';
+  import Label from '/js/label.js';
+  import Scene from '/js/scene.js';
+
+  const ui = new ThreeUi('ui');
+  ui.camera.position.x = 1;
+  ui.camera.position.y = 2;
+  ui.camera.position.z = 5;
+
+  const grid = Shapes.grid();
+  grid.material.color.setRGB(0, 0, 1);
+  grid.material.transparent = true;
+  grid.material.opacity = 0.3;
+  ui.scene.add(grid);
+
+  // Sunlight
+  ui.scene.add(new PointLight());
+
+  let curGroup;
+  function addOrbit(orbit) {
+    const fortyFiveDeg = Math.PI / 4;
+
+    // Solar plane
+    const solarPlaneGroup = new THREE.Object3D;
+    if (curGroup) {
+      ui.scene.remove(curGroup);
+    }
+    curGroup = solarPlaneGroup;
+    ui.scene.add(curGroup);
+    solarPlaneGroup.add(Shapes.solidEllipse(1, {color: 0xc8c8c8, opacity: 0.5}));
+
+    const lonAscNode = Shapes.angle(
+      orbit.longitudeOfAscendingNode, null,
+      new THREE.LineBasicMaterial({color: 0x42a029}),
+      ui.container);
+    lonAscNode.scale.set(0.3, 0.3, 0.3);
+    solarPlaneGroup.add(lonAscNode);
+    solarPlaneGroup.rotateX(Math.PI / -2); // to horizontal
+
+    // Planet plane
+    const loan = new Shapes.solidEllipse();
+    solarPlaneGroup.add(loan);
+
+    const planetPlane = Shapes.solidEllipse(orbit.eccentricity, {
+      color: 0xf5f5b9,
+      opacity: 0.5,
+    });
+    planetPlane.add(Shapes.line(null, new THREE.Vector3(1, 0, 0)));
+
+    const scene = new Scene(ui);
+    const planet = scene.newPlanet({
+      name: (location.hash || '#earth').substring(1),
+      radius: {scalar: 1},
+      texture_atmosphere: true,
+      texture_hydrosphere: true,
+      texture_terrain: true,
+      type: 'planet'
+    });
+    planet.scale.set(0.5, 0.5, 0.5);
+    planet.position.set(1, 0, 0);
+    planetPlane.add(planet);
+
+
+    loan.rotateZ(orbit.longitudeOfAscendingNode);
+    loan.add(planetPlane);
+    planetPlane.rotateX(orbit.inclination);
+    planetPlane.rotateZ(orbit.argumentOfPeriapsis + orbit.trueAnomaly);
+  }
+
+  const form = document.forms.elts;
+  document.oc = (e, textInputElt, max) => {
+    const sliderVal = parseInt(e.srcElement.value);
+    const mapVal = sliderVal / 100.0 * max;
+    textInputElt.value = mapVal == 0 ? 0 : mapVal.toFixed(3);
+    addOrbit({
+      eccentricity: parseFloat(form.ecc.value),
+      argumentOfPeriapsis: parseFloat(form.aop.value),
+      inclination: parseFloat(form.inc.value),
+      longitudeOfAscendingNode: parseFloat(form.loan.value),
+      trueAnomaly: parseFloat(form.ta.value)
+    });
+  }
+</script>
+</body>
+</html>

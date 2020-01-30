@@ -167,7 +167,6 @@ export default class Scene {
     const tPos = Shared.targets.pos;
     this.ui.scene.updateMatrixWorld();
     tPos.setFromMatrixPosition(obj.matrixWorld);
-    c.tp = tPos;
     const pPos = new THREE.Vector3;
     const cPos = new THREE.Vector3;
     const surfaceAltitude = obj.props.radius.scalar * lengthScale;

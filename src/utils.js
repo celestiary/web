@@ -1,6 +1,42 @@
 import {line} from './shapes.js';
 
 
+const $ = (id) => { return document.getElementById(id); }
+
+function assertNotNullOrUndefined(x) {
+  try {
+    if (x == null) {
+      throw 'Variable may not be null';
+    }
+    if (x == undefined) {
+      throw 'Variable may not be undefined';
+    }
+  } catch (e) {
+    console.error(e);
+    throw e;
+  }
+}
+
+
+function assertArgs(args, length) {
+  let i;
+  try {
+    if (args.length != length) {
+      throw `Not enough arguments; expected ${length} got ${args.length}`;
+    }
+    for (i = 0; i < args.length; i++) {
+      assertNotNullOrUndefined(args[i]);
+    }
+  } catch (e) {
+    if (i == undefined) {
+      console.error(e);
+    } else {
+      console.error(`Arg ${i}: ${e}`)
+    }
+    throw e;
+  }
+}
+
 function testStarCube(fullCatalog, scale) {
   const cube = {
     count: 27,
@@ -83,6 +119,9 @@ function lineTraceScene(root) {
 }
 
 export {
+  $,
+  assertNotNullOrUndefined,
+  assertArgs,
   lineTraceScene,
   testStarCube,
   sampleStarCatalog,

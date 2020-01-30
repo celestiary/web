@@ -11,7 +11,7 @@ export default class Parser {
    * @param depth (optional) call depth for debug.
    * @return The next index for match in s after parsing.
    */
-  static parse(inputString, G, state, depth) {
+  parse(inputString, G, state, depth) {
     depth = depth || 0;
     if (depth > MAX_DEPTH) {
       p(state, 0, `ERROR: Reached max call depth of ${MAX_DEPTH}`);
@@ -98,7 +98,7 @@ export default class Parser {
       } else if (typeof term == 'number') {
         const stateReference = term;
         p(state, depth, `N: grammar term is recurse to: `, stateReference);
-        const recurseOffset = Parser.parse(s.substring(curOffset), G, stateReference, depth + 1);
+        const recurseOffset = this.parse(s.substring(curOffset), G, stateReference, depth + 1);
         if (recurseOffset == -1) {
           p(state, depth, `N: after recurse; none matched.`);
           return -1;

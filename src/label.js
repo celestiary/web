@@ -1,11 +1,13 @@
 // From https://codepen.io/dxinteractive/pen/reNpOR
 import {Vector3} from '/js/lib/three.module.js';
+import * as Utils from '/js/utils.js';
 
 const labels = {};
 let labelNdx = 0;
 
 export default class Label {
   constructor(labelText, domContainer, threeParent) {
+    Utils.assertArgs(arguments, 3);
     this.container = domContainer;
     const elt = document.createElement('div');
     elt.innerText = labelText;
@@ -61,5 +63,9 @@ export default class Label {
     vector.x = (vector.x + 1) / 2 * this.container.offsetWidth;
     vector.y = -(vector.y - 1) / 2 * this.container.offsetHeight;
     return vector;
+  }
+
+  remove() {
+    this.container.removeChild(this.elt);
   }
 }

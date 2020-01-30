@@ -3,6 +3,7 @@ import Label from './label.js';
 import * as THREE from './lib/three.module.js';
 import * as Material from './material.js';
 import * as Shared from './shared.js';
+import * as Utils from './utils.js';
 
 // Simple cube for testing.
 function cube(size) {
@@ -64,7 +65,8 @@ function ellipseSemiMinorAxisCurve(eccentricity, semiMajorAxisLength) {
   return semiMajorAxisLength * Math.sqrt(1 - Math.pow(eccentricity, 2))
 }
 
-function solidEllipse(eccentricity) {
+function solidEllipse(eccentricity, opts) {
+  opts = opts || {};
   const ellipsePath = new THREE.Shape();
   const semiMajorAxisLength = 1;
   ellipsePath.absellipse(
@@ -73,7 +75,9 @@ function solidEllipse(eccentricity) {
     0, Math.PI * 2, // start and finish angles
     true, 0); // clockwise, offset rotation
   const material = new THREE.MeshBasicMaterial({
-      color: 0x888888,
+      color: opts.color || 0x888888,
+      opacity: opts.opacity || 1,
+      transparent: opts.opacity < 1 ? true : false,
       side: THREE.DoubleSide
     });
   return new THREE.Mesh(
@@ -184,8 +188,10 @@ function line(vec1, vec2) {
  * Angle.  Material properties of arrow head and text are derived from
  * given {@param material}.
  * @param material An instance of LineBasicMaterial.
+ * @param addLabel Boolean controlling the display of text angle label.
  */
-function angle(vec1, vec2, material, container) {
+function angle(vec1, vec2, material, container, addLabel) {
+  Utils.assertNotNullOrUndefined(container);
   let angleInRadians;
   if (arguments.length == 1 || vec2 === null || typeof vec2 === 'undefined') {
     angleInRadians = vec1;
@@ -214,7 +220,7 @@ function angle(vec1, vec2, material, container) {
   angle.add(arrowArc);
   angle.add(cone);
 
-  if (true) {
+  if (addLabel) {
     const labelObj = point();
     labelObj.name = angle.name + '.label';
     labelObj.position.x = 1;
@@ -223,6 +229,7 @@ function angle(vec1, vec2, material, container) {
     labelObj.onBeforeRender = (renderer, scene, camera) => {
       label.updatePosition(camera);
     };
+    angle.label = label;
     angle.add(labelObj);
   }
 

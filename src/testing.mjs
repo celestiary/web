@@ -1,34 +1,33 @@
-'use strict';
+export default class Testing {
+  constructor() {
+    this.tests = [];
+  }
 
-function Testing() {
-
-  this.tests = [];
-
-  this.add = (description, fn) => {
+  add(description, fn) {
     this.tests.push([description, fn]);
-  };
+  }
 
-  this.assertTrue = (cond, msg) => {
+  assertTrue(cond, msg) {
     if (!cond) {
       throw new Error(msg, 'Condition not true.');
     }
-  };
+  }
 
-  this.assertEquals = (expected, actual, msg) => {
+  assertEquals(expected, actual, msg) {
     if (expected !== actual) {
       throw new Error(msg ||
         `expected(${expected}) != actual(${actual}).`);
     }
-  };
+  }
 
-  this.assertFail = (func, msg) => {
+  assertFail(func, msg) {
     try {
       func();
       throw new Error(msg || 'Function should throw error.');
     } catch (e) { /* expected */ }
-  };
+  }
 
-  this.run = () => {
+  run() {
     let ok = 0;
     let fail = 0;
     for (let i in this.tests) {
@@ -45,6 +44,4 @@ function Testing() {
     }
     console.log(`TOTAL OK: ${ok}, FAIL: ${fail}`);
   }
-};
-
-module.exports = Testing;
+}

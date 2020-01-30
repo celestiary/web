@@ -1,4 +1,4 @@
-import Parser from '/js/parser.js';
+import Parser from '/js/parser.mjs';
 
 // From https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
 const littleEndian = true;
