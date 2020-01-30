@@ -12,7 +12,7 @@ if (typeof XMLHttpRequest == "undefined") {
 }
 
 const Resource = function(name) {
-  this.name = '/data/' + name + '.json';
+  this.name = './data/' + name + '.json';
   this.get = (func) => {
     if (location.href.startsWith && location.href.startsWith('file')) {
       console.log('yoo');

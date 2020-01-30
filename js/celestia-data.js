@@ -1,4 +1,4 @@
-import Parser from '/js/parser.mjs';
+import Parser from './parser.mjs';
 
 // From https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
 const littleEndian = true;
@@ -186,10 +186,10 @@ export function loadStars(cb) {
   if (!cb) {
     throw new Error('Undefined callback');
   }
-  fetch('/data/stars.dat').then((body) => {
+  fetch('data/stars.dat').then((body) => {
     body.arrayBuffer().then((buffer) => {
         const catalog = readCatalogFile(buffer);
-        fetch('/data/starnames.dat').then((body) => {
+        fetch('data/starnames.dat').then((body) => {
             body.text().then((text) => {
                 readStarNamesFile(text, catalog);
                 cb(catalog);

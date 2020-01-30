@@ -3,7 +3,7 @@ import Label from './label.js';
 import Loader from './loader.js';
 import CustomRaycaster from './lib/three-custom/raycaster.js';
 import CustomPoints from './lib/three-custom/points.js';
-import * as CelestiaData from '/js/celestia-data.js';
+import * as CelestiaData from './celestia-data.js';
 import * as Material from './material.js';
 import * as Shared from './shared.js';
 import * as Shapes from './shapes.js';
@@ -401,8 +401,8 @@ export default class Scene {
               color: { value: new THREE.Color( 0xffff00 ) },
               texture: { value: starImage }
             },
-            vertexShader: '/js/shaders/stars.vert',
-            fragmentShader: '/js/shaders/stars.frag',
+            vertexShader: 'js/shaders/stars.vert',
+            fragmentShader: 'js/shaders/stars.frag',
             blending: THREE.AdditiveBlending,
             depthTest: true,
             depthWrite: false,
@@ -591,8 +591,8 @@ export default class Scene {
         iScale: { value: 100.0 },
         iDist: { value: 1.0 }
       },
-      vertexShader: '/js/shaders/star.vert',
-      fragmentShader: '/js/shaders/star.frag'
+      vertexShader: 'js/shaders/star.vert',
+      fragmentShader: 'js/shaders/star.frag'
     });
     new Loader().loadShaders(shaderMaterial, () => {
         const star = Shapes.sphere({ matr: shaderMaterial });
