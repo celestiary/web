@@ -21,8 +21,7 @@
 
   const axes1 = new THREE.AxesHelper;
   axes1.position.x = -1.1;
-  const angle1 = Shapes.angle(41 * Shared.toRad, null, material, ui.container);
-  axes1.add(angle1);
+  axes1.add(Shapes.angle(41 * Shared.toRad, null, material, ui.container));
   ui.scene.add(axes1);
 
   const axes2 = new THREE.AxesHelper;
