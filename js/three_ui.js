@@ -152,9 +152,6 @@ export default class ThreeUi {
     }
 
     this.controls.update();
-    //if (Shared.targets.track) {
-    //  this.scene.lookAtTarget();
-    //}
     this.animationCb(this.scene);
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(() => {

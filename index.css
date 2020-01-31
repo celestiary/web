@@ -6,6 +6,11 @@ body {
   color: white;
 }
 
+a, .link {
+  color: #7fa0e0;
+  text-decoration: underline;
+}
+
 button {
   background-color: inherit;
   color: #ccf;
