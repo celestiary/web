@@ -24,6 +24,9 @@ export default class Celestiary {
     canvasContainer.style.height = window.innerHeight + 'px';
     const animCb = (scene) => {
       this.animation.animate(scene);
+      if (Shared.targets.track) {
+        this.scene.lookAtTarget();
+      }
     };
     this.ui = new ThreeUi(canvasContainer, animCb);
     this.scene = new Scene(this.ui);

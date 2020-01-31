@@ -1,7 +1,7 @@
 import {line} from './shapes.js';
 
 
-const $ = (id) => { return document.getElementById(id); }
+const elt = (id) => { return document.getElementById(id); }
 
 function assertNotNullOrUndefined(x) {
   try {
@@ -119,7 +119,7 @@ function lineTraceScene(root) {
 }
 
 export {
-  $,
+  elt,
   assertNotNullOrUndefined,
   assertArgs,
   lineTraceScene,

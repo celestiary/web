@@ -1,7 +1,6 @@
 import Celestiary from './celestiary.js';
 import * as collapsor from './collapsor.js';
-
-const elt = (id) => { return document.getElementById(id); }
+import {elt} from './utils.js';
 
 function init() {
   window.c = window.celestiary =
