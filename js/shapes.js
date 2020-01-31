@@ -190,7 +190,9 @@ function line(vec1, vec2) {
  * @param material An instance of LineBasicMaterial.
  * @param addLabel Boolean controlling the display of text angle label.
  */
-function angle(vec1, vec2, material, container, addLabel) {
+function angle(vec1, vec2, materialOrOpts, container, addLabel) {
+  const material = materialOrOpts instanceof THREE.LineBasicMaterial
+      ? materialOrOpts : new THREE.LineBasicMaterial(materialOrOpts);
   Utils.assertNotNullOrUndefined(container);
   let angleInRadians;
   if (arguments.length == 1 || vec2 === null || typeof vec2 === 'undefined') {
@@ -305,7 +307,7 @@ function lineGrid(params) {
   const divisions = params.numSteps || 10;
   const color = params.color || 0x0000af;
 
-  grids.material = new THREE.LineBasicMaterial;
+  grids.material = new THREE.LineBasicMaterial(params);
 
   const xzGrid = new THREE.GridHelper(size, divisions, color, color);
   xzGrid.material = grids.material;

@@ -118,11 +118,27 @@ function lineTraceScene(root) {
     });
 }
 
+
+function testPlanet(planetName) {
+  switch (planetName) {
+  case 'earth': return {
+    name: (location.hash || '#earth').substring(1),
+    radius: {scalar: 1},
+    texture_atmosphere: true,
+    texture_hydrosphere: true,
+    texture_terrain: true,
+    type: 'planet'
+  };
+  }
+}
+
+
 export {
   elt,
   assertNotNullOrUndefined,
   assertArgs,
   lineTraceScene,
+  testPlanet,
   testStarCube,
   sampleStarCatalog,
   visitChildren
