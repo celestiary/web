@@ -163,14 +163,22 @@ function labelAnchor() {
  * line(x1, y1, z1, x2, y2, z3);
  */
 function line(vec1, vec2) {
-  if (arguments.length == 2) {
+  const args = Array.prototype.slice.call(arguments);
+  const lastArg = args[args.length - 1];
+  let material;
+  if (typeof(lastArg) == 'object') {
+    const materialOrOpts = args.pop();
+    material = materialOrOpts instanceof THREE.LineBasicMaterial
+      ? materialOrOpts : new THREE.LineBasicMaterial(materialOrOpts);
+  }
+  if (args.length == 2) {
     vec1 = vec1 || new THREE.Vector3;
-  } else if (arguments.length == 3) {
+  } else if (args.length == 3) {
     vec1 = new THREE.Vector3;
-    vec2 = new THREE.Vector3(arguments[0], arguments[1], arguments[2]);
-  } else if (arguments.length == 6) {
-    vec1 = new THREE.Vector3(arguments[0], arguments[1], arguments[2]);
-    vec2 = new THREE.Vector3(arguments[3], arguments[4], arguments[5]);
+    vec2 = new THREE.Vector3(args[0], args[1], args[2]);
+  } else if (args.length == 6) {
+    vec1 = new THREE.Vector3(args[0], args[1], args[2]);
+    vec2 = new THREE.Vector3(args[3], args[4], args[5]);
   } else {
     throw new Error('Can only be called with 2, 3 or 6 arguments.');
   }
@@ -180,7 +188,7 @@ function line(vec1, vec2) {
   const geom = new THREE.Geometry();
   geom.vertices.push(vec1);
   geom.vertices.push(vec2);
-  return new THREE.Line(geom);
+  return new THREE.Line(geom, material);
 }
 
 

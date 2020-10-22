@@ -133,13 +133,36 @@ function testPlanet(planetName) {
 }
 
 
+function rotateEuler(obj, opts) {
+  opts = opts || { x: 0, rotY: 0, rotZ: 0 };
+  obj.applyEuler(new THREE.Euler(opts.x || 0, opts.y || 0))
+}
+
+
+function rotate(obj, opts) {
+  opts = opts || { x: 0, y: 0, z: 0 };
+  if (opts.x) { obj.rotateX(opts.x); }
+  if (opts.y) { obj.rotateY(opts.y); }
+  if (opts.z) { obj.rotateZ(opts.z); }
+}
+
+
+function addAndOrient(parent, child, opts) {
+  parent.add(child);
+  rotate(child, {x: opts.rotX || 0, y: opts.rotY || 0, z: opts.rotZ || 0});
+  return child;
+}
+
+
 export {
+  addAndOrient,
   elt,
   assertNotNullOrUndefined,
   assertArgs,
   lineTraceScene,
+  rotate,
+  sampleStarCatalog,
   testPlanet,
   testStarCube,
-  sampleStarCatalog,
   visitChildren
 };
