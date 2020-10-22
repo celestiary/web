@@ -315,7 +315,7 @@ function lineGrid(params) {
   const divisions = params.numSteps || 10;
   const color = params.color || 0x0000af;
 
-  grids.material = new THREE.LineBasicMaterial(params);
+  grids.material = new THREE.LineBasicMaterial({color: color});
 
   const xzGrid = new THREE.GridHelper(size, divisions, color, color);
   xzGrid.material = grids.material;
