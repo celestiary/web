@@ -399,7 +399,7 @@ export default class Scene {
             uniforms: {
               amplitude: { value: 1.0 },
               color: { value: new THREE.Color( 0xffff00 ) },
-              texture: { value: starImage }
+              texSampler: { value: starImage }
             },
             vertexShader: 'js/shaders/stars.vert',
             fragmentShader: 'js/shaders/stars.frag',
@@ -674,7 +674,7 @@ export default class Scene {
         //this.lookAtTarget();
       });
     const pointSize = planetProps.radius.scalar * lengthScale * 1E1;
-    console.log(`${name} point size: ${pointSize}`);
+    // console.log(`${name} point size: ${pointSize}`);
     planet.add(Shapes.point());
     planet.add(this.newSurface(planetProps));
     if (planetProps.texture_atmosphere) {
