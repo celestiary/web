@@ -3,12 +3,12 @@
 <head><link rel="stylesheet" href="index.css"/></head>
 <body>
   <div id="ui"></div>
-  <h1>Text</h1>
+  <h1>Sprite Labels</h1>
 <script type="module">
-  import Label from './js/label.js';
+  import makeLabel from './js/spriteLabel.js';
   import Scene from './js/scene.js';
   import ThreeUi from './js/three_ui.js';
-  import * as Shapes from './js/Shapes.js';
+  import {point} from './js/Shapes.js';
 
   const container = document.getElementById('ui');
   const ui = new ThreeUi(container);
@@ -17,27 +17,15 @@
 
   const labels = [];
   for (let i = 0; i < 100; i++) {
-    const point = Shapes.point();
-    point.position.set(
+    const p = point();
+    p.position.set(
       Math.random() - 0.5,
       Math.random() - 0.5,
       Math.random() - 0.5);
-    point.position.multiplyScalar(2);
-    const label = new Label(i + '', container, point);
-    point.onBeforeRender = (renderer, scene, camera) => {
-      label.updatePosition(camera);
-    };
-    ui.scene.add(point);
-    labels.push(label);
+    p.position.multiplyScalar(10);
+    ui.scene.add(p);
+    p.add(makeLabel('item: ' + i));
   }
-
-/*
-  setTimeout(() => {
-    for (let i = 0; i < labels.length; i++) {
-      Label.remove(labels[i]);
-    }
-  }, 2000);
-*/
 </script>
 </body>
 </html>

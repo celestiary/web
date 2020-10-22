@@ -1,5 +1,5 @@
 import Stars from './stars-10000.js';
-import Label from './label.js';
+import makeLabel from './spriteLabel.js';
 import Loader from './loader.js';
 import CustomRaycaster from './lib/three-custom/raycaster.js';
 import CustomPoints from './lib/three-custom/points.js';
@@ -27,9 +27,9 @@ export default class Scene {
     this.debugVisible = false;
     this.uniforms = null;
     this.mouse = new THREE.Vector2;
-    //this.raycaster = new THREE.Raycaster;
-    this.raycaster = new CustomRaycaster;
-    //this.raycaster.params.Points.threshold = 3;
+    this.raycaster = new THREE.Raycaster;
+    //this.raycaster = new CustomRaycaster;
+    this.raycaster.params.Points.threshold = 3;
     ui.addClickCb((click) => {
         this.onClick(click);
       });
@@ -346,17 +346,11 @@ export default class Scene {
 
   newStars(props) {
     const cursor = this.debugAxes(10);
-    let origSizes = {}, lastNdx = null, lastLabel = null;
+    let origSizes = {}, lastNdx = null;
 
     let stars;
-
+    /*
     const showInfo = (textPos, ndx, fullInfo) => {
-      const labelAnchor = Shapes.labelAnchor();
-      labelAnchor.position.copy(textPos);
-      if (lastLabel) {
-        lastLabel.threeParent.remove();
-        Label.remove(lastLabel);
-      }
       const starRecord = stars.catalog.stars[ndx];
       console.log('Star record: ', starRecord);
       const hipId = parseInt(starRecord.hipId);
@@ -366,17 +360,11 @@ export default class Scene {
       if (fullInfo) {
         desc += '\n' + JSON.stringify(starRecord).replace(/,/g, '\n');
       }
-      const label = new Label(desc, this.ui.container, labelAnchor);
-      labelAnchor.onBeforeRender = (renderer, scene, camera) => {
-        label.updatePosition(camera);
-      };
-      stars.add(labelAnchor);
-      lastLabel = label;
       Shared.targets.obj = labelAnchor;
       Shared.targets.pos = textPos;
       Shared.targets.track = textPos;
     }
-
+    */
     stars = this.newObject('stars', props, (mouse, intersect, clickRoot) => {
         console.log(`Stars clicked: `, mouse, intersect, clickRoot);
         cursor.position.copy(intersect.point);
@@ -388,7 +376,7 @@ export default class Scene {
         const posArr = position.array;
         const off = 3 * ndx;
         textPos.set(posArr[off], posArr[off + 1], posArr[off + 2]);
-        showInfo(textPos, ndx);
+        //showInfo(textPos, ndx);
       });
     stars.add(cursor);
     CelestiaData.loadStars((catalog) => {
@@ -459,13 +447,9 @@ export default class Scene {
 
   showStarName(stars, star, name) {
     const sPos = new THREE.Vector3(SCALE * star.x, SCALE * star.y, SCALE * star.z);
-    const labelAnchor = Shapes.labelAnchor();
-    labelAnchor.position.copy(sPos);
-    const label = new Label(name, this.ui.container, labelAnchor);
-    labelAnchor.onBeforeRender = (renderer, scene, camera) => {
-      label.updatePosition(camera);
-    };
-    stars.add(labelAnchor);
+    const label = makeLabel(name);
+    label.position.copy(sPos);
+    stars.add(label);
   }
 
 
