@@ -1,25 +1,19 @@
 # Celestiary
-<img src="war/ss.png" width="200" align="right"/>
+<img src="ss.png" width="200" style="float: right"/>
 
-Inspired by Celestia (http://shatters.net/celestia), Celestiary is a
-web-based astronomical dataset explorer, backed by a data wiki for
-community maintenance of the celestial datasets.
+A celestial simulator inspired by Celestia
+(http://shatters.net/celestia), written in JS/three.js/GLSL.
 
 A running instance of Celestiary is available at:
 
 https://pablo-mayrgundter.github.io/celestiary/
 
-## TODO
-### v1:
-- Smooth transitions.
-- Q/A against Celestia.
-- Epoch-based locations.
-
-### Future
-- Stars and Galaxies.
-- LRU scene-graph un-loading.
-- Time slider.  Meaningful time steps: 1s, 1m, 1h, 1d, 1mo, 1yr, ...
-
 ## How to run locally
 
 Run a web server in the war directory and load index.html from there.
+
+```
+> git clone https://github.com/pablo-mayrgundter/celestiary
+> npx http-server
+# http://localhost:8080/index.html
+```
