@@ -1,5 +1,5 @@
 # Celestiary
-<img src="ss.png" width="200" style="float: right"/>
+<img src="ss.png" width="400" align="right"/>
 
 A celestial simulator inspired by Celestia
 (http://shatters.net/celestia), written in JS/three.js/GLSL.
