@@ -1,57 +1,91 @@
 import * as THREE from './lib/three.module.js';
+import * as Utils from './utils.js';
 
-const scratchCanvasId = 'scratch-canvas';
-function scrathCanvas() {
-  let canvas = document.getElementById(scratchCanvasId);
-  if (canvas) {
-    return canvas;
-  }
-  canvas = document.createElement('canvas');
-  canvas.setAttribute('id', scratchCanvasId);
-  return canvas;
+// https://observablehq.com/@vicapow/three-js-sprite-sheet-example
+// https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
+
+export default function makeLabel(text, fontSize = 20, fontFamily = 'arial') {
+  const vertices = [];
+  vertices.push(0, 0, 0);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.computeBoundingBox();
+  return new THREE.Points(geometry, createMaterial());
 }
 
-function measureText(ctx, text) {
-  const m = ctx.measureText(text);
-  const left = -m.actualBoundingBoxLeft;
-  const right = m.actualBoundingBoxRight;
-  const ascent = m.actualBoundingBoxAscent;
-  const descent = m.actualBoundingBoxDescent;
-  const width = left + right;
-  const height = ascent + descent;
-  return [width, height];
-}
-
-function makeLabelCanvas(fontSize, text) {
-  const canvas = scrathCanvas();
-  const ctx = canvas.getContext('2d');
-  const fontFamily = 'arial';
-  const font = `${fontSize}px ${fontFamily}`;
-  ctx.textBaseline = 'top';
-  ctx.font = font;
-  let [textWidth, textHeight] = measureText(ctx, text);
-  // TODO: + 3 to account for the inset.
-  let canvasSize = Math.max(textWidth, textHeight) + 3;
-  canvas.width = canvas.height = canvasSize;
-  // need to reset font after canvas resize.
-  ctx.font = font;
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = 'green';
-  ctx.fillText(text, 0, 0);
-  return canvas;
-}
-
-export default function makeLabel(text, fontSize = 20) {
-  const canvas = makeLabelCanvas(fontSize, text);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
-  const labelMaterial = new THREE.SpriteMaterial({
-      map: texture,
+const renderToPixelRatio = true;
+const pixelRatio = 1;
+function createMaterial() {
+  const texture = new THREE.CanvasTexture(spriteSheet.canvas);
+  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.NearestFilter;
+  const material = new THREE.ShaderMaterial( {
+      uniforms: {
+        pointWidth: { value: 50 * (renderToPixelRatio ? (pixelRatio * pixelRatio) : pixelRatio) },
+        map: { value: texture },
+        spriteCoords: { value: spriteSheet.spriteMap.item_0 }
+      },
+      vertexShader: this.vertexShader,
+      fragmentShader: this.fragmentShader,
       transparent: true,
-      sizeAttenuation: false,
     });
-  const sprite = new THREE.Sprite(labelMaterial);
-  const s = 0.06;
-  sprite.scale.set(s, s, 1);
-  return sprite;
+  return material;
+}
+
+const vertexShader = `
+  uniform float pointWidth;
+  void main() {
+    vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+    gl_PointSize = pointWidth;
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+const fragmentShader = `
+  uniform float pointWidth;
+  uniform sampler2D map;
+  uniform vec4 spriteCoords;
+  void main() {
+    vec2 spriteUV = vec2(
+      spriteCoords.x + spriteCoords.z * gl_PointCoord.x,
+      spriteCoords.y + spriteCoords.w * (1.0 - gl_PointCoord.y));
+    gl_FragColor = texture2D(map, spriteUV);
+  }
+`;
+
+function createSpriteSheet() {
+  const size = Math.pow(2, 8);
+  const [width, height] = [size, size];
+  const canvas = Utils.createCanvas();
+  [canvas.width, canvas.height] = [width, height];
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(0, 0, 0, 0)'; // full black without alpha
+  ctx.fillRect(0, 0, width, height);
+  ctx.fill();
+
+  const spriteMap = {};
+  const drawAt = (name, {x, y, width, height}, fill) => {
+    ctx.save();
+    ctx.translate(x, y);
+    drawLabel(ctx, fill, width, name);
+    ctx.restore();
+    spriteMap[name] = [x / size, 1 - (y + height) / size, width / size, height / size];
+  };
+
+  const spriteSize = 128;
+  drawAt('item_0', {x: 0, y: 0, width: spriteSize, height: spriteSize }, 'green');
+  drawAt('item_1', {x: spriteSize, y: 0, width: spriteSize, height: spriteSize}, 'blue');
+  drawAt('item_2', {x: 0, y: spriteSize, width: spriteSize, height: spriteSize}, 'brown');
+  drawAt('item_3', {x: spriteSize, y: spriteSize, width: spriteSize, height: spriteSize}, 'red');
+  return {canvas, spriteMap};
+}
+
+function drawLabel(ctx, fillStyle, size, name) {
+  const [width, height] = [size, size];
+  ctx.fillStyle = fillStyle;
+  ctx.fillRect(0, 0, size, size);
+  ctx.textBaseline = 'top';
+  ctx.font = '40px arial';
+  ctx.fillStyle = 'white';
+  ctx.fillText(name, 0, 0);
 }

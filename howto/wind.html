@@ -1,0 +1,115 @@
+<!-- TODO: just use the source data and run on gpu:
+     https://blog.mapbox.com/how-i-built-a-wind-map-with-webgl-b63022b5537f -->
+<html>
+  <head>
+    <meta
+       name="viewport"
+       content="width=device-width, initial-scale=1.0, shrink-to-fit=no"/>
+    <script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"></script>
+    <script src="https://api.windy.com/assets/map-forecast/libBoot.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maptalks/dist/maptalks.css">
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/maptalks/dist/maptalks.min.js"></script>
+    <style>
+      #windy {
+        width: 1400px;
+        height: 1400px;
+      }
+    </style>
+    <script>
+      const options = {
+        // Required: API key
+        key: 'OILWuJY0pC5QQMG6YwLiNZ8wxGaphEUX',
+
+        // Put additional console output
+        verbose: true,
+
+        // Optional: Initial state of the map
+        lat: 0,
+        lon: 0,
+        zoom: 1,
+      };
+
+      // Initialize Windy API
+      windyInit(options, windyAPI => {
+        // windyAPI is ready, and contain 'map', 'store',
+
+        // 'picker' and other usefull stuff
+        const { map } = windyAPI;
+
+        // .map is instance of Leaflet map
+        L.popup()
+          .setLatLng([0, 0])
+          .setContent('Hello World')
+          .openOn(map);
+      });
+    </script>
+  </head>
+  <body>
+    <h1>Wind and map textures on concentric spheres</h1>
+    <div id="ui" style="width: 640px; height: 480px; border: solid 1px black"></div>
+    <button id="load">Load</button>
+    <div id="windy"></div>
+    <canvas width=600 height=500 id="map" style="border:1px solid"></canvas>
+    <script type="module">
+      import ThreeUi from './js/three_ui.js';
+      import * as THREE from './js/lib/three.module.js';
+      const loadButton = document.getElementById('load');
+      let animTexture;
+
+      function sphere(ui, canvas, radius, needsAnim) {
+        const texture = new THREE.CanvasTexture(canvas);
+        if (needsAnim) {
+          animTexture = texture;
+        }
+        texture.minFilter = THREE.LinearFilter;
+        radius = radius || 1;
+        const segmentSize = 40;
+        const geometry = new THREE.SphereGeometry(radius, segmentSize, segmentSize / 2);
+        const material = new THREE.MeshStandardMaterial({
+          map: texture,
+          transparent: needsAnim,
+        });
+        ui.scene.add(new THREE.Mesh(geometry, material));
+        if (needsAnim) {
+          window.requestAnimationFrame(anim);
+        }
+      }
+
+      loadButton.onclick = () => {
+        const ui = new ThreeUi('ui');
+        ui.camera.position.z = 10;
+        ui.scene.add(new THREE.AmbientLight());
+
+        sphere(ui, document.getElementById('map'));
+        sphere(ui, document.getElementsByClassName('particles-layer')[0], 1.1, true);
+      }
+      function anim(texture) {
+        animTexture.needsUpdate = true;
+        window.requestAnimationFrame(anim);
+      }
+    </script>
+  <script>
+    var res = (window.devicePixelRatio || (window.screen.deviceXDPI / window.screen.logicalXDPI)) > 1;
+    if (res) {
+      // retina, see https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
+      var canvas = document.getElementById('map');
+      var r = 2;
+      canvas.width *= r;
+      canvas.height *= r;
+      canvas.style.cssText += 'width:' + Math.round(canvas.width / r) + 'px;height:' + Math.round(canvas.height / r) + 'px';
+    }
+
+    var map = new maptalks.Map('map', {
+      center: [0,0],
+      zoom: 1,
+      zoomControl : true, // ignored in a canvas container
+      scaleControl : true, // ignored in a canvas container
+      baseLayer: new maptalks.TileLayer('base', {
+        urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+        subdomains: ['a','b','c','d'],
+        attribution: '&copy; <a href="http://osm.org">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/">CARTO</a>'
+      })
+    });
+  </script>
+  </body>
+</html>

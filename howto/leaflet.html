@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+        integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+        crossorigin=""/>
+  <!-- Make sure you put this AFTER Leaflet's CSS -->
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+          integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+          crossorigin=""></script>
+  <title>Leaflet map - Load on Canvas</title>
+  <style type="text/css">
+    #map { height: 180px; }
+  </style>
+  <body>
+    <h1>Leaflet map on canvas</h1>
+    <p>Haven't figured out how to do this yet.  Not clear that it's possible.</p>
+    <div id="map" style="width: 640px; height: 480px; border:1px solid"></div>
+    <script>
+      const mymap = L.map('map', {
+        center: [0, 0],
+        zoom: 1,
+        preferCanvas: true,
+        renderer: L.canvas(),
+      });
+
+      const layer = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+        maxZoom: 18,
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+        '<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+        'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        id: 'mapbox/streets-v11',
+        tileSize: 512,
+        zoomOffset: -1
+      });
+      layer.addTo(mymap);
+      console.log(layer.canvas());
+    </script>
+  </body>
+</html>

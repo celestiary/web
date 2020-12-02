@@ -1,30 +1,48 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="stylesheet" href="index.css"/></head>
+<head>
+  <link rel="stylesheet" href="index.css"/>
+  <style>
+    body {
+      overflow: scroll;
+    }
+    canvas {
+      background-color: #ccc;
+    }
+  </style>
+</head>
 <body>
   <div id="ui"></div>
-  <h1>Sprite Labels</h1>
+  <h1>Sprite Sheet Labels</h1>
+  <p>To allow for more labels in the scene, a single sprite sheet is
+    used, with a GL shader configured with custom offsets into the sheet
+    for each object.
 <script type="module">
-  import makeLabel from './js/spriteLabel.js';
+  import SpriteSheet from './js/SpriteSheet.js';
   import Scene from './js/scene.js';
   import ThreeUi from './js/three_ui.js';
   import {point} from './js/Shapes.js';
+  import * as Utils from './js/utils.js';
 
   const container = document.getElementById('ui');
   const ui = new ThreeUi(container);
   const scene = new Scene(ui);
-  ui.camera.position.set(0, 1, 4);
 
-  const labels = [];
-  for (let i = 0; i < 100; i++) {
-    const p = point();
-    p.position.set(
-      Math.random() - 0.5,
-      Math.random() - 0.5,
-      Math.random() - 0.5);
-    p.position.multiplyScalar(10);
-    ui.scene.add(p);
-    p.add(makeLabel('item: ' + i));
+  const cols = 15;
+
+  ui.camera.position.set(0, 0, 10);
+  const labels = new SpriteSheet(cols, 'item-999', '12px arial');
+  let count = 0;
+  for (let n = 0; n < 2; n++) {
+    for (let i = cols/-2; i < cols/2; i++) {
+      for (let j = cols/-2; j < cols/2; j++) {
+        const p = point();
+        p.position.set(i , j, 0);
+        ui.scene.add(p);
+        const label = labels.alloc('item-' + count++);
+        p.add(label);
+      }
+    }
   }
 </script>
 </body>

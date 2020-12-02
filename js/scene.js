@@ -1,8 +1,8 @@
 import Stars from './stars-10000.js';
-import makeLabel from './spriteLabel.js';
 import Loader from './loader.js';
 import CustomRaycaster from './lib/three-custom/raycaster.js';
 import CustomPoints from './lib/three-custom/points.js';
+import SpriteSheet from './SpriteSheet.js';
 import * as CelestiaData from './celestia-data.js';
 import * as Material from './material.js';
 import * as Shared from './shared.js';
@@ -30,6 +30,8 @@ export default class Scene {
     this.raycaster = new THREE.Raycaster;
     //this.raycaster = new CustomRaycaster;
     this.raycaster.params.Points.threshold = 3;
+    const maxLabel = 'Rigel Kentaurus B';
+    this.starLabelSpriteSheet = new SpriteSheet(10, maxLabel, '12px arial');
     ui.addClickCb((click) => {
         this.onClick(click);
       });
@@ -286,7 +288,7 @@ export default class Scene {
       throw new Error("Picking did not yield an intersect.  Intersects: ", intersects);
     }
     let obj = nearestIntersect.object;
-    console.log('Nearest object type: ', obj.isStarPoints ? '<star points>' : obj.type);
+    //console.log('Nearest object type: ', obj.isStarPoints ? '<star points>' : obj.type);
     let firstName;
     do {
       if (obj.name || (obj.props && obj.props.name) && !firstName) {
@@ -349,10 +351,9 @@ export default class Scene {
     let origSizes = {}, lastNdx = null;
 
     let stars;
-    /*
-    const showInfo = (textPos, ndx, fullInfo) => {
+
+    const starInfo = (textPos, ndx, fullInfo) => {
       const starRecord = stars.catalog.stars[ndx];
-      console.log('Star record: ', starRecord);
       const hipId = parseInt(starRecord.hipId);
       let name = stars.catalog.namesByHip[hipId];
       name = name ? name : hipId ? ('HIP ' + hipId) : 'Unknown';
@@ -360,15 +361,21 @@ export default class Scene {
       if (fullInfo) {
         desc += '\n' + JSON.stringify(starRecord).replace(/,/g, '\n');
       }
-      Shared.targets.obj = labelAnchor;
-      Shared.targets.pos = textPos;
-      Shared.targets.track = textPos;
+      //Shared.targets.obj = labelAnchor;
+      //Shared.targets.pos = textPos;
+      //Shared.targets.track = textPos;
+      return desc;
     }
-    */
+
     stars = this.newObject('stars', props, (mouse, intersect, clickRoot) => {
-        console.log(`Stars clicked: `, mouse, intersect, clickRoot);
+        //console.log(`Stars clicked: `, mouse, intersect, clickRoot);
         cursor.position.copy(intersect.point);
         const ndx = intersect.index;
+        if (intersect.object.children.length > 0
+            && intersect.object.children[0] instanceof THREE.Sprite) {
+          intersect.object.remove(intersect.object.children[0]);
+          return;
+        }
         const geom = intersect.object.geometry;
         if (!geom || !geom.getAttribute) return;
         const position = geom.getAttribute('position');
@@ -376,7 +383,13 @@ export default class Scene {
         const posArr = position.array;
         const off = 3 * ndx;
         textPos.set(posArr[off], posArr[off + 1], posArr[off + 2]);
-        //showInfo(textPos, ndx);
+        const info = starInfo(textPos, ndx);
+        if (info) {
+          const name = typeof info == 'string' ? info : info[0];
+          //const label = makeLabel(info);
+          //label.position.copy(textPos);
+          //intersect.object.add(label);
+        }
       });
     stars.add(cursor);
     CelestiaData.loadStars((catalog) => {
@@ -447,7 +460,7 @@ export default class Scene {
 
   showStarName(stars, star, name) {
     const sPos = new THREE.Vector3(SCALE * star.x, SCALE * star.y, SCALE * star.z);
-    const label = makeLabel(name);
+    const label = this.starLabelSpriteSheet.alloc(name)
     label.position.copy(sPos);
     stars.add(label);
   }
