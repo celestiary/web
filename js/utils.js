@@ -37,9 +37,13 @@ function assertArgs(args, length) {
   }
 }
 
+function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.substring(1);
+}
+
 function createCanvas() {
   const canvas = document.createElement('canvas');
-  canvas.style = 'border: solid 1px red';
+  canvas.style = 'border: solid 1px red; display: none';
   document.body.appendChild(canvas);
   return canvas;
 }
@@ -174,6 +178,7 @@ function addAndOrient(parent, child, opts) {
 
 export {
   addAndOrient,
+  capitalize,
   createCanvas,
   elt,
   assertNotNullOrUndefined,

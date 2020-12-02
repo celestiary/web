@@ -1,5 +1,6 @@
 import * as collapsor from './collapsor.js';
 import Measure from './measure.js';
+import {capitalize} from './utils.js';
 
 export default class ControlPanel {
   constructor(containerElt, loader) {
@@ -7,16 +8,9 @@ export default class ControlPanel {
     this.loader = loader;
   }
 
-
   getPathTarget(path) {
     return path[path.length - 1];
   }
-
-
-  capitalize(text) {
-    return text.charAt(0).toUpperCase() + text.substring(1);
-  }
-
 
   showNavDisplay(path) {
     let crumbs = '';
@@ -24,9 +18,9 @@ export default class ControlPanel {
       const hash = path.slice(0, i + 1).join('/');
       const name = path[i];
       if (i == path.length - 1) {
-        crumbs += this.capitalize(name);
+        crumbs += capitalize(name);
       } else {
-        crumbs += '<a href="#'+ hash +'">' + this.capitalize(name) + '</a>';
+        crumbs += '<a href="#'+ hash +'">' + capitalize(name) + '</a>';
       }
       if (i < path.length - 1) {
         crumbs += ' &gt; ';
@@ -84,7 +78,7 @@ export default class ControlPanel {
             }
             path += val;
             html += '<a href="#' + path + '">';
-            html += this.capitalize(val);
+            html += capitalize(val);
           } else {
             html += val;
           }

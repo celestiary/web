@@ -72,8 +72,8 @@ export default class SpriteSheet {
     //ctx.fillRect(0, 0, width, height);
     ctx.textBaseline = this.textBaseline;
     ctx.font = this.fontStyle;
-    ctx.fillStyle = 'white';
-    ctx.fillText(text, 0, height / 2);
+    ctx.fillStyle = '#7fa0e0';
+    ctx.fillText(text, 0, height / 2 - 3);
   }
 
   makeLabelObject(pointSize, spriteCoords) {
