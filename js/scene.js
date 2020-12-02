@@ -17,6 +17,10 @@ const
 
 const SCALE = 9.461E12 * 1E3 * lengthScale;
 
+const labelTextFont = '12px arial';
+const labelTextColor = '#7fa0e0';
+const FAR_OBJ = new THREE.Object3D; // for invisible LOD.
+
 export default class Scene {
   constructor(ui) {
     this.ui = ui;
@@ -31,8 +35,8 @@ export default class Scene {
     //this.raycaster = new CustomRaycaster;
     this.raycaster.params.Points.threshold = 3;
     const maxLabel = 'Rigel Kentaurus B';
-    this.starLabelSpriteSheet = new SpriteSheet(10, maxLabel, '12px arial');
-    this.planetLabelSpriteSheet = new SpriteSheet(10, maxLabel, '12px arial');
+    this.starLabelSpriteSheet = new SpriteSheet(10, maxLabel, labelTextFont);
+    this.planetLabelSpriteSheet = new SpriteSheet(10, maxLabel, labelTextFont);
     ui.addClickCb((click) => {
         this.onClick(click);
       });
@@ -61,6 +65,7 @@ export default class Scene {
 
 
   objectFactory(props) {
+    console.log(props);
     switch (props.type) {
     case 'galaxy':
       return this.newGalaxy(props);
@@ -69,8 +74,9 @@ export default class Scene {
     case 'star':
       return this.newStar(props);
     case 'planet':
-    case 'moon':
       return this.newOrbitingPlanet(props);
+    case 'moon':
+      return this.newOrbitingPlanet(props, true);
     }
     throw new Error(`Object has unknown type: ${props.type}`);
   }
@@ -95,7 +101,7 @@ export default class Scene {
    * @param props Optional props to attach to a .props field on the frame.
    */
   newGroup(name, props) {
-    const obj = new THREE.Object3D();
+    const obj = new THREE.Object3D;
     this.objects[name] = obj;
     obj.name = name;
     if (props) {
@@ -460,10 +466,13 @@ export default class Scene {
 
 
   showStarName(stars, star, name) {
+    const labelLOD = new THREE.LOD();
     const sPos = new THREE.Vector3(SCALE * star.x, SCALE * star.y, SCALE * star.z);
-    const label = this.starLabelSpriteSheet.alloc(name);
-    label.position.copy(sPos);
-    stars.add(label);
+    const label = this.starLabelSpriteSheet.alloc(name, labelTextColor);
+    labelLOD.position.copy(sPos);
+    labelLOD.addLevel(label, 1);
+    labelLOD.addLevel(FAR_OBJ, 1e13);
+    stars.add(labelLOD);
   }
 
 
@@ -621,7 +630,7 @@ export default class Scene {
    * https://en.wikipedia.org/wiki/Equinox#Celestial_coordinate_systems
    * https://en.wikipedia.org/wiki/Epoch_(astronomy)#Julian_years_and_J2000
    */
-  newOrbitingPlanet(planetProps) {
+  newOrbitingPlanet(planetProps, isMoon = false) {
     const name = planetProps.name;
     const orbit = planetProps.orbit;
     const inclination = orbit.inclination || 0;
@@ -657,9 +666,14 @@ export default class Scene {
     // group.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
     // Children centered at this planet's orbit position.
 
-    const label = this.planetLabelSpriteSheet.alloc(Utils.capitalize(name));
-    label.position.copy(planet.orbitPosition.position);
-    planet.orbitPosition.add(label);
+    const nearLOD = new THREE.LOD();
+    planet.orbitPosition.add(nearLOD);
+
+    nearLOD.addLevel(this.planetLabelSpriteSheet.alloc(Utils.capitalize(name), labelTextColor), 1);
+    let lodDist = isMoon ? 1e3 : 1e7;
+    nearLOD.addLevel(FAR_OBJ, lodDist);
+    console.log(name, isMoon, lodDist);
+
     return group;
   }
 

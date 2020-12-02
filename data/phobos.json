@@ -1,5 +1,5 @@
 {
-"type":"planet",
+"type":"moon",
 "name":"phobos",
 "parent":"mars",
 "apparentMagnitude": "1.0",
