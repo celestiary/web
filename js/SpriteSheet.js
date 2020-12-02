@@ -8,12 +8,12 @@ import * as Utils from './utils.js';
  *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
  */
 export default class SpriteSheet {
-  constructor(cols, maxLabel, fontStyle) {
-    this.fontStyle = fontStyle;
+  constructor(cols, maxLabel, labelTextFont = '12px arial') {
+    this.labelTextFont = labelTextFont;
     this.textBaseline = 'bottom';
     this.canvas = Utils.createCanvas();
     this.ctx = this.canvas.getContext('2d');
-    const maxBounds = Utils.measureText(this.ctx, maxLabel, fontStyle);
+    const maxBounds = Utils.measureText(this.ctx, maxLabel, labelTextFont);
     const itemSize = Math.max(maxBounds.width, maxBounds.height);
     this.size = cols * itemSize;
     this.width = this.size;
@@ -31,7 +31,7 @@ export default class SpriteSheet {
     ctx.fill();
   }
 
-  alloc(labelText) {
+  alloc(labelText, fillStyle = 'white') {
     let bounds = Utils.measureText(this.ctx, labelText);
     const size = Math.max(bounds.width, bounds.height);
     if (this.curX + size > this.width) {
@@ -42,7 +42,7 @@ export default class SpriteSheet {
     if (size > this.lineSizeMax) {
       this.lineSizeMax = size;
     }
-    bounds = this.drawAt(labelText, this.curX, this.curY, 'blue');
+    bounds = this.drawAt(labelText, this.curX, this.curY, fillStyle);
     //console.log(`alloc: text: ${labelText}, curX: ${this.curX}, curY: ${this.curY}, this.width: ${this.width}, bounds:`, bounds);
     const spriteCoords = [bounds.x / this.size,
                           1 - (bounds.y + bounds.height) / this.size,
@@ -53,15 +53,15 @@ export default class SpriteSheet {
     return labelObject;
   }
 
-  drawAt(text, x, y, fill) {
+  drawAt(text, x, y, fillStyle) {
     const ctx = this.ctx;
     ctx.textBaseline = this.textBaseline;
-    ctx.font = this.fontStyle;
+    ctx.font = this.labelTextFont;
     const bounds = Utils.measureText(ctx, text);
     const size = Math.max(bounds.width, bounds.height);
     ctx.save();
     ctx.translate(x, y);
-    this.drawLabel(text, size, size, fill);
+    this.drawLabel(text, size, size, fillStyle);
     ctx.restore();
     return {x, y, width: size, height: size};
   }
@@ -71,8 +71,8 @@ export default class SpriteSheet {
     //ctx.fillStyle = fillStyle;
     //ctx.fillRect(0, 0, width, height);
     ctx.textBaseline = this.textBaseline;
-    ctx.font = this.fontStyle;
-    ctx.fillStyle = '#7fa0e0';
+    ctx.font = this.labelTextFont;
+    ctx.fillStyle = fillStyle;
     ctx.fillText(text, 0, height / 2 - 3);
   }
 
