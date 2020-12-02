@@ -37,6 +37,24 @@ function assertArgs(args, length) {
   }
 }
 
+function createCanvas() {
+  const canvas = document.createElement('canvas');
+  canvas.style = 'border: solid 1px red';
+  document.body.appendChild(canvas);
+  return canvas;
+}
+
+function measureText(ctx, text, fontStyle) {
+  if (fontStyle) {
+    ctx.font = fontStyle;
+  }
+  const m = ctx.measureText(text);
+  const width = Math.ceil(m.width);
+  const height = Math.ceil(m.actualBoundingBoxAscent + m.actualBoundingBoxDescent);
+  //console.log(`text: ${text}, width: ${width}, height: ${height}`);
+  return {width, height};
+}
+
 function testStarCube(fullCatalog, scale) {
   const cube = {
     count: 27,
@@ -156,10 +174,12 @@ function addAndOrient(parent, child, opts) {
 
 export {
   addAndOrient,
+  createCanvas,
   elt,
   assertNotNullOrUndefined,
   assertArgs,
   lineTraceScene,
+  measureText,
   rotate,
   sampleStarCatalog,
   testPlanet,

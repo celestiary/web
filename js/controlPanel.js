@@ -13,15 +13,20 @@ export default class ControlPanel {
   }
 
 
+  capitalize(text) {
+    return text.charAt(0).toUpperCase() + text.substring(1);
+  }
+
+
   showNavDisplay(path) {
     let crumbs = '';
     for (let i = 0; i < path.length; i++) {
       const hash = path.slice(0, i + 1).join('/');
       const name = path[i];
       if (i == path.length - 1) {
-        crumbs += name;
+        crumbs += this.capitalize(name);
       } else {
-        crumbs += '<a href="#'+ hash +'">' + name + '</a>';
+        crumbs += '<a href="#'+ hash +'">' + this.capitalize(name) + '</a>';
       }
       if (i < path.length - 1) {
         crumbs += ' &gt; ';
@@ -56,10 +61,9 @@ export default class ControlPanel {
         if (val instanceof Measure) {
           switch (prop) {
           case 'radius': val = val.convertTo(Measure.Magnitude.KILO); break;
-          case 'mass': val = val.convertTo(Measure.Magnitude.GIGA); break;
+          case 'mass': val = val.convertTo(Measure.Magnitude.KILO); break;
           }
-          val.scalar = val.scalar.toLocaleString();
-          html += `${val.scalar} ${val.magnitude.abbrev}${val.unit.abbrev}`;
+          html += val;
         } else if (val instanceof Array) {
           if (prop == 'system') {
             html += '<ol>\n';
@@ -80,8 +84,10 @@ export default class ControlPanel {
             }
             path += val;
             html += '<a href="#' + path + '">';
+            html += this.capitalize(val);
+          } else {
+            html += val;
           }
-          html += val;
           if (isSystem) {
             html += '</a>';
           }

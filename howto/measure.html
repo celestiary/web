@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="index.css"/>
+  <style>
+    td {
+      padding: 2em;
+      border: solid 1px black;
+    }
+  </style>
+</head>
+<body>
+<h1>Measures</h1>
+
+<p>The measure class manages units and numbers.
+
+<table padding="2em" cellspacing=0>
+<tr><th>Data string<th>Parsed Measure toString<th>toKilo
+<tr><td id="mass1">1.9891E33 g
+<tr><td id="mass2">1.9891E33 kg
+<tr><td id="radius">6.9424895E8 m
+</table>
+<script type="module">
+  import Measure from './js/measure.js';
+  const domElt = id => document.getElementById(id);
+  const newElt = (tagName, inner) => {
+    const elt = document.createElement(tagName);
+    elt.innerHTML = inner;
+    return elt;
+  }
+  const parse = elt => {
+    const origText = elt.innerHTML;
+    const measure = Measure.parse(elt.innerHTML);
+    const asKilo = measure.convertTo(Measure.Magnitude.KILO);
+    const p = elt.parentNode;
+    p.appendChild(newElt('td', measure));
+    p.appendChild(newElt('td', asKilo));
+  }
+  parse(domElt('mass1'));
+  parse(domElt('mass2'));
+  parse(domElt('radius'));
+</script>
+</body>
+</html>

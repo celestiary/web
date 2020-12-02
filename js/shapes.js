@@ -281,6 +281,20 @@ function getCanvasTextSprite(text, color) {
   return label;
 }
 
+// TODO: use for above?
+function measureText(ctx, text) {
+  const m = ctx.measureText(text);
+  const left = -m.actualBoundingBoxLeft;
+  const top = -m.actualBoundingBoxAscent;
+  const right = m.actualBoundingBoxRight;
+  const descent = m.actualBoundingBoxDescent;
+  console.log(`text(text), bounds: `
+      + `left(${left}), top(${top}), right(${right}), descent(${descent})`);
+  const width = left + right;
+  const height = descent + top;
+  return [left, top, width, height];
+}
+
 function setCanvasText(textCanvas, ctx, text, color) {
   ctx.save();
   ctx.fillStyle = 'rgba(255, 255, 255, 0)';

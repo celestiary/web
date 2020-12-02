@@ -1,5 +1,4 @@
 import Resource from './rest.js';
-import Measure from './measure.js';
 
 
 /**

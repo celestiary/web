@@ -77,7 +77,13 @@ Magnitude.lookup = function(str) {
 Magnitude.prototype.from = function(scalar, mag) {
   const expDiff = mag.exponent - this.exponent;
   const mult = Math.pow(10, expDiff);
-  const result = scalar * mult;
+  let result = scalar * mult;
+  const testResultStr = result.toString();
+  const zerosNdx = testResultStr.indexOf('00000');
+  if (zerosNdx != 0) {
+    let partial = result.toString().replace(/000+[0-9]/, '');
+    result = parseFloat(partial);
+  }
   return result;
 };
 
