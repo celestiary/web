@@ -32,6 +32,7 @@ export default class Scene {
     this.raycaster.params.Points.threshold = 3;
     const maxLabel = 'Rigel Kentaurus B';
     this.starLabelSpriteSheet = new SpriteSheet(10, maxLabel, '12px arial');
+    this.planetLabelSpriteSheet = new SpriteSheet(10, maxLabel, '12px arial');
     ui.addClickCb((click) => {
         this.onClick(click);
       });
@@ -460,7 +461,7 @@ export default class Scene {
 
   showStarName(stars, star, name) {
     const sPos = new THREE.Vector3(SCALE * star.x, SCALE * star.y, SCALE * star.z);
-    const label = this.starLabelSpriteSheet.alloc(name)
+    const label = this.starLabelSpriteSheet.alloc(name);
     label.position.copy(sPos);
     stars.add(label);
   }
@@ -655,6 +656,10 @@ export default class Scene {
 
     // group.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
     // Children centered at this planet's orbit position.
+
+    const label = this.planetLabelSpriteSheet.alloc(Utils.capitalize(name));
+    label.position.copy(planet.orbitPosition.position);
+    planet.orbitPosition.add(label);
     return group;
   }
 
