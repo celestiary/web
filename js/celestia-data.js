@@ -136,8 +136,8 @@ export function readAsterismsFile(text, catalog) {
   let numRecords = 0;
   const Grammar = {
     rules: {
-      0: {
-        rule: [ 1, 2 ],
+      0: { // Quoted name followed by array of arrays of list of quoted names
+        rule: [ 1, 3 ],
         callback: (state, termIndex, choiceIndex) => {
           console.log(`Named record! choiceIndex(${choiceIndex}), numRecords(${numRecords})`);
           numRecords++;
@@ -146,34 +146,37 @@ export function readAsterismsFile(text, catalog) {
           }
         }
       },
-      1: { // Repeatedly match quoted names, e.g. "Alpha Cae" "Beta Cae"
-        rule: [ /\"([A-Za-z0-9 ]+)\"\s*/g ],
+      1: { // Quoted name
+        rule: [ /\"([A-Za-z0-9 ]+)\"\s*/ ],
         callback: (state, termIndex, match) => {
           console.log(`Name encountered: match(${match})`);
         }
       },
-      2: { // Array record, peels off the outside brackets.
-        rule: [ /\s*\[\s*/ , 3 , /\s*\]\s*/ ],
+      2: { // List of quoted name
+        rule: [ 1, [ 2, -1 ] ]
+      },
+      3: { // Outer array of list of inner array
+        rule: [ /\s*\[\s*/ , 4 , /\s*\]\s*/ ],
         callback: (state, termIndex, match) => {
           console.log(`array record: match(${match})`);
         }
       },
-      3: { // Sequence of arrays of name
-        rule: [ 4, 3, -1 ],
-        callback: (state, termIndex, choiceIndex) => {
-          console.log(`sequence of arrays of name: choiceIndex(${choiceIndex})`);
+      4: { // List of inner array
+        rule: [ 5, [ 4, -1 ] ]
+      },
+      5: { // Inner array of list of quoted name
+        rule: [ /\s*\[\s*/ , 2, /\s*\]\s*/ ],
+        callback: (state, termIndex, match) => {
+          console.log(`array record: match(${match})`);
         }
       },
-      4: { // Array of named nodes
-        rule: [ /\s*\[\s*/ , 1 , /\s*\]\s*/ ],
-        callback: (state, termIndex, match) => {
-          console.log(`named node: match(${match})`);
-        }
-      }
+      6: { // List of records
+        rule: [ 0, [ 6, -1 ] ]
+      },
     }
   };
   catalog.asterisms = asterisms;
-  const offset = Parser.parse(text, Grammar, 0);
+  const offset = new Parser().parse(text, Grammar, 6);
   if (offset != text.length) {
     console.warn(`Cannot parse asterisms, offset(${offset}) != text.length(${text.length})`);
   } else {
