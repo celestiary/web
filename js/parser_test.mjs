@@ -47,7 +47,7 @@ tests.add('Chained states', () => {
       },
       'Hij': {
         rule: [/(hij)*/]
-      },
+      }
     };
     tests.assertEquals(6, new Parser().parse('abcdef', G, 'Start'));
     tests.assertEquals(9, new Parser().parse('abcdefhij', G, 'Start'));
@@ -57,14 +57,14 @@ tests.add('Chained states', () => {
 
 tests.add('Choice', () => {
     const G = {
+      'Start': {
+        rule: [/(abc)+/, ['AA', 'BB'], /(def)+/]
+      },
       'AA': {
         rule: [/AA/]
       },
       'BB': {
         rule: [/BB/]
-      },
-      'Start': {
-        rule: [/(abc)+/, ['AA', 'BB'], /(def)+/]
       }
     };
     tests.assertEquals(8, new Parser().parse('abcAAdef', G, 'Start'));
@@ -78,7 +78,7 @@ tests.add('Recursion', () => {
       },
       'String': {
         rule: /[a-z]*/
-      },
+      }
     };
     tests.assertEquals(-1, new Parser().parse('', G, 'Start'));
     tests.assertEquals(-1, new Parser().parse('(', G, 'Start'));
@@ -100,11 +100,11 @@ tests.add('Recursion', () => {
 tests.add('Lists', () => {
   let numRecords = 0;
   const G = {
+    'Start': { // List of name
+      rule: [ 'Name', [ 'Start', Parser.Terminal ] ]
+    },
     'Name': {
       rule: [ /\s*\"([A-Za-z0-9 ]+)\"\s*/ ],
-    },
-    'Start': {
-      rule: [ 'Name', [ 'Start', Parser.Terminal ] ] // List of quoted name
     }
   };
   const parser = new Parser();
