@@ -4,26 +4,24 @@
 <body>
 <h1>Parser</h1>
 <script type="module">
-import Parser from '/js/parser.js';
+import Parser from '/js/parser.mjs';
 
 let open = 0, close = 0;
 const Grammar = {
-  rules: {
-    0: {
-      rule: [ /</, [0,-1], />/ ],
-      callback: (state, termIndex, match) => {
-        if (termIndex == 0)
-          open++;
-        if (termIndex == 2)
-          close++;
-      }
-    },
+  'Start': {
+     rule: [ /</, ['Start', Parser.Terminal], />/ ],
+     callback: (state, termIndex, match) => {
+       if (termIndex == 0)
+         open++;
+       if (termIndex == 2)
+         close++;
+     }
   }
 };
 
 
 const text = '<<<<<>>>>>';
-const offset = Parser.parse(text, Grammar, 0);
+const offset = new Parser().parse(text, Grammar, 'Start');
 console.log(offset == text.length ? 'match' : 'no match');
 console.log(`open: ${open}, close: ${close}`);
 </script>
