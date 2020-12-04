@@ -1,19 +1,25 @@
 export default class Testing {
   constructor() {
     this.tests = [];
+    this.asserts = 0;
   }
 
-  add(description, fn) {
+  add(description, fn, onlyThisOne = false) {
+    if (onlyThisOne) {
+      this.tests.length = 0;
+    }
     this.tests.push([description, fn]);
   }
 
   assertTrue(cond, msg) {
+    this.asserts++;
     if (!cond) {
       throw new Error(msg, 'Condition not true.');
     }
   }
 
   assertEquals(expected, actual, msg) {
+    this.asserts++;
     if (expected !== actual) {
       throw new Error(msg ||
         `expected(${expected}) != actual(${actual}).`);
@@ -21,6 +27,7 @@ export default class Testing {
   }
 
   assertFail(func, msg) {
+    this.asserts++;
     try {
       func();
       throw new Error(msg || 'Function should throw error.');
@@ -42,6 +49,6 @@ export default class Testing {
         fail++;
       }
     }
-    console.log(`TOTAL OK: ${ok}, FAIL: ${fail}`);
+    console.log(`TOTAL OK: ${ok}, FAIL: ${fail}, ASSERTS: ${this.asserts}`);
   }
 }

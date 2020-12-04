@@ -1,29 +1,65 @@
+import {info} from './log.mjs';
+
 const MAX_DEPTH = 10;
 
+/**
+ * A grammar is made of a set of rules.  A rule may be one of: RegExp,
+ * Choice or State.
+ *
+ * A RegExp consumes the string from the current match position.
+ *
+ * A Choice is an array of allowed next states.
+ *
+ * A State is a direct next state.
+ *
+ * See parser_test.mjs for example grammars.
+ */
 export default class Parser {
-  constructor() {
-  }
+
+  static Terminal = 'Terminal';
 
   /**
    * @param inputString String to parse.
-   * @param G Grammer to use.
    * @param state Current state in grammar production.
    * @param depth (optional) call depth for debug.
-   * @return The next index for match in s after parsing.
+   * @return The next index for match in s after parsing, or -1 if no match.
    */
-  parse(inputString, G, state, depth) {
-    depth = depth || 0;
+  parse(inputString, grammar, state, depth = 0) {
+    const offset = this.prefixParse(inputString, grammar, state, depth);
+    if (offset == inputString.length) {
+      return offset;
+    }
+    return -1;
+  }
+
+  prefixParse(inputString, grammar, stateName, depth = 0) {
+    if (inputString == null) {
+      throw new Error('Input string cannot be null');
+    }
+    if (grammar == null || stateName == null) {
+      throw new Error('Neither grammar nor stateName may be null');
+    }
+    if (stateName == Parser.Terminal) {
+      return 0;
+    }
+    const state = grammar[stateName];
+    if (state === undefined) {
+      throw new Error(`Grammar does not define state(${stateName})`);
+    }
     if (depth > MAX_DEPTH) {
       p(state, 0, `ERROR: Reached max call depth of ${MAX_DEPTH}`);
-      return;
+      return -1;
     }
-    const rule = G.rules[state].rule;
-    const cb = G.rules[state].callback;
+    let rule = state.rule;
+    if (!Array.isArray(rule)) {
+      rule = [rule];
+    }
+    const cb = state.callback;
     // Each term must either:
     //   - match, update these offsets and set a new substring
     //   - return -1
     let s = inputString + '', inputOffset = 0, curOffset = 0;
-    p(state, depth, `input base string(${s})`);
+    p(state, depth, `input base string(${s}), evaluating rule: `, rule);
     for (let termIndex in rule) {
       const term = rule[termIndex];
       if (term instanceof RegExp) {
@@ -47,7 +83,7 @@ export default class Parser {
             }
             curOffset = regex.lastIndex;
             p(state, depth, `R: global match at (${match.index}), curOffset(${curOffset})`);
-            if (cb) cb(state, termIndex, match);
+            break;
           }
           if (!foundMatch) {
             p(state, depth, `R: global had no matches, returning -1., foundMatch: `, foundMatch);
@@ -64,54 +100,53 @@ export default class Parser {
           }
           curOffset = match.index + match[0].length;
           p(state, depth, `R: non-global match at (${match.index}), curOffset(${curOffset})`);
-          if (cb) cb(state, termIndex, match);
         }
+        if (cb) cb(state, termIndex, match);
         inputOffset += curOffset;
         regex.lastIndex = 0;
         p(state, depth, `R: finished with inputOffset(${inputOffset})`);
       } else if (Array.isArray(term)) { // Choice
+        p(state, depth, `R: grammar term is choice: `, term);
         let i;
         for (i = 0; i < term.length; i++) {
-          const stateReference = term[i];
-          if (typeof stateReference != 'number') {
-            throw new Error('Choice must be a state reference.  Found: ', stateReference);
+          const stateName = term[i];
+          if (stateName === 'undefined') {
+            throw new Error('Choice stateName undefined.');
           }
-          if(stateReference == -1) {
-            p(state, depth, 'hit null terminal');
-            break;
-          }
-          p(state, depth, `C: grammar choice recurses to: `, stateReference);
-          const recurseOffset = Parser.parse(s.substring(curOffset), G, stateReference, depth + 1);
+          p(state, depth, `C: grammar choice recursing to: `, stateName);
+          const recurseOffset = this.prefixParse(s.substring(curOffset), grammar, stateName, depth + 1);
           // Break on first match in order.
+          p(state, depth, `C: recurse returned with recurseOffset(${recurseOffset})`);
           if (recurseOffset >= 0) {
             inputOffset += curOffset + recurseOffset;
-            p(state, depth, `C: after recurse, inputOffset(${inputOffset}) += curOffset(${curOffset}) + recurseOffset(${recurseOffset})`);
-          } else {
-            p(state, depth, `C: after recurse; none matched.`);
+            p(state, depth, `C: after recurse match, inputOffset(${inputOffset}) += curOffset(${curOffset}) + recurseOffset(${recurseOffset})`);
+            break;
           }
+          p(state, depth, `C: after recurse; continuing.`);
         }
         if (i == term.length) {
+          p(state, depth, `C: after recurse; none matched.`);
           return -1;
         }
         p(state, depth, `C: finished with inputOffset(${inputOffset})`);
         if (cb) cb(state, termIndex, i);
-      } else if (typeof term == 'number') {
-        const stateReference = term;
-        p(state, depth, `N: grammar term is recurse to: `, stateReference);
-        const recurseOffset = this.parse(s.substring(curOffset), G, stateReference, depth + 1);
+        //} else if ((typeof term == 'object') || (typeof term == 'string')) {
+      } else if (typeof term == 'string') {
+        // term is a stateName
+        const recurseOffset = this.prefixParse(s.substring(curOffset), grammar, term, depth + 1);
         if (recurseOffset == -1) {
-          p(state, depth, `N: after recurse; none matched.`);
+          p(state, depth, `O: after recurse; none matched.`);
           return -1;
         }
-        p(state, depth, `N: after recurse, inputOffset(${inputOffset}) += curOffset(${curOffset}) + recurseOffset(${recurseOffset})`);
+        p(state, depth, `O: after recurse, inputOffset(${inputOffset}) += curOffset(${curOffset}) + recurseOffset(${recurseOffset})`);
         inputOffset += curOffset + recurseOffset;
       } else {
-        throw new Error('Invalid grammar term: ', term);
+        throw new Error('Invalid grammar term: ' + term + ', type: ' + typeof term);
       }
       s = inputString.substring(inputOffset);
       curOffset = 0;
-      p(state, depth, `new base string: s(${s})`);
     }
+    p(state, depth, `output base string:(${s})`);
     p(state, depth, `returning inputOffset(${inputOffset}) for inputString(${inputString}), len(${inputString.length})`);
     return inputOffset;
   }
@@ -119,8 +154,8 @@ export default class Parser {
 
 
 function p(state, depth, msg, varargs) {
-   if (true) {
-     console.log(`${''.padStart(depth * 2, ' ')}state(${state}): ${msg}`,
-                 typeof varargs == 'undefined' ? '' : varargs);
+   if (false) {
+     info('parser:', `${''.padStart(depth * 2, ' ')}state(${state}): ${msg}`,
+          typeof varargs == 'undefined' ? '' : varargs);
    }
 }

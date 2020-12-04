@@ -476,33 +476,6 @@ export default class Scene {
   }
 
 
-  showConstellation(names, stars, catalog) {
-    let lastStar = null;
-    for (let i = 0; i < names.length; i++) {
-      name = names[i];
-      const hipId = catalog.hipByName[name];
-      const altNames = catalog.namesByHip[hipId];
-      if (!altNames) {
-        console.error('No alternative names found for constellation node: ', name);
-        continue;
-      }
-      name = altNames[0];
-      const star = catalog.index[hipId];
-      if (!star) {
-        console.error('Cannot find star: ', name);
-        continue;
-      }
-      this.showStarName(stars, star, name);
-      if (lastStar) {
-        stars.add(Shapes.line(
-            SCALE * lastStar.x, SCALE * lastStar.y, SCALE * lastStar.z,
-            SCALE * star.x, SCALE * star.y, SCALE * star.z));
-      }
-      lastStar = star;
-    }
-  }
-
-
   starGeomFromCelestia(catalog) {
     //catalog = Utils.testStarCube(catalog, 1);
     //catalog = Utils.sampleStarCatalog(catalog, 1E5);
@@ -565,6 +538,33 @@ export default class Scene {
     geom.computeBoundingBox();
     geom.computeBoundingSphere();
     return geom;
+  }
+
+
+  showConstellation(names, stars, catalog) {
+    let lastStar = null;
+    for (let i = 0; i < names.length; i++) {
+      name = names[i];
+      const hipId = catalog.hipByName[name];
+      const altNames = catalog.namesByHip[hipId];
+      if (!altNames) {
+        console.error('No alternative names found for constellation node: ', name);
+        continue;
+      }
+      name = altNames[0];
+      const star = catalog.index[hipId];
+      if (!star) {
+        console.error('Cannot find star: ', name);
+        continue;
+      }
+      this.showStarName(stars, star, name);
+      if (lastStar) {
+        stars.add(Shapes.line(
+            SCALE * lastStar.x, SCALE * lastStar.y, SCALE * lastStar.z,
+            SCALE * star.x, SCALE * star.y, SCALE * star.z));
+      }
+      lastStar = star;
+    }
   }
 
 
@@ -678,6 +678,33 @@ export default class Scene {
   }
 
 
+  newOrbit(orbit, name) {
+    const group = this.newGroup(name + '.orbit');
+    const ellipseCurve = new THREE.EllipseCurve(
+        0, 0,
+        1, Shapes.ellipseSemiMinorAxisCurve(orbit.eccentricity),
+        0, Math.PI);
+    const ellipsePoints = ellipseCurve.getPoints(1000);
+    const ellipseGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
+    const orbitMaterial = new THREE.LineBasicMaterial({
+        color: 0x0000ff,
+        blending: THREE.AdditiveBlending,
+        depthTest: true,
+        depthWrite: false,
+        transparent: false
+      });
+    const pathShape = new THREE.Line(ellipseGeometry, orbitMaterial);
+    // Orbit is in the x/y plane, so rotate it around x by 90 deg to put
+    // it in the x/z plane (top comes towards camera until it's flat
+    // edge on).
+    pathShape.rotation.x = Shared.halfPi;
+    group.add(pathShape);
+    group.add(Shapes.line(1, 0, 0));
+    group.scale.setScalar(orbit.semiMajorAxis * lengthScale);
+    return group;
+  }
+
+
   newPlanet(planetProps) {
     const name = planetProps.name;
     const planet = this.newObject(name, planetProps, (mouse, intersect, clickRoot) => {
@@ -695,6 +722,9 @@ export default class Scene {
     planet.add(this.newSurface(planetProps));
     if (planetProps.texture_atmosphere) {
       planet.add(this.newAtmosphere(planetProps));
+    }
+    if (planetProps.has_locations) {
+      planet.add(this.loadLocations(planetProps));
     }
     planet.scale.setScalar(planetProps.radius.scalar * lengthScale);
     // Attaching this property triggers rotation of planet during animation.
@@ -749,29 +779,7 @@ export default class Scene {
   }
 
 
-  newOrbit(orbit, name) {
-    const group = this.newGroup(name + '.orbit');
-    const ellipseCurve = new THREE.EllipseCurve(
-        0, 0,
-        1, Shapes.ellipseSemiMinorAxisCurve(orbit.eccentricity),
-        0, Math.PI);
-    const ellipsePoints = ellipseCurve.getPoints(1000);
-    const ellipseGeometry = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
-    const orbitMaterial = new THREE.LineBasicMaterial({
-        color: 0x0000ff,
-        blending: THREE.AdditiveBlending,
-        depthTest: true,
-        depthWrite: false,
-        transparent: false
-      });
-    const pathShape = new THREE.Line(ellipseGeometry, orbitMaterial);
-    // Orbit is in the x/y plane, so rotate it around x by 90 deg to put
-    // it in the x/z plane (top comes towards camera until it's flat
-    // edge on).
-    pathShape.rotation.x = Shared.halfPi;
-    group.add(pathShape);
-    group.add(Shapes.line(1, 0, 0));
-    group.scale.setScalar(orbit.semiMajorAxis * lengthScale);
-    return group;
+  loadLocations() {
+    
   }
 }
