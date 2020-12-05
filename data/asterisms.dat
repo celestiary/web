@@ -75,7 +75,7 @@
 
 "Canis Major"
 [
-[ "Beta CMa" "Alpha CMa" "Iota CMa" "Gamma CMa" "Theta CMa" "Alpha CMa" ] 
+[ "Beta CMa" "Alpha CMa" "Iota CMa" "Gamma CMa" "Theta CMa" "Alpha CMa" ]
 [ "Alpha CMa" "Omicron2 CMa" "Delta CMa" "Sigma CMa" "Epsilon CMa" "Zeta CMa" ]
 [ "Delta CMa" "Omega CMa" "Eta CMa" ]
 [ "Omega CMa" "Tau CMa" ]
@@ -209,7 +209,7 @@
 "Gemini"
 [
 [ "Beta Gem" "Upsilon Gem" "Delta Gem" "Zeta Gem" "Gamma Gem" ]
-[ "1 Gem" "Eta Gem" "Mu Gem" "Epsilon Gem" "Tau Gem" "Rho Gem" "Alpha Gem" ] 
+[ "1 Gem" "Eta Gem" "Mu Gem" "Epsilon Gem" "Tau Gem" "Rho Gem" "Alpha Gem" ]
 [ "Delta Gem" "Lambda Gem" "51 Gem" "Xi Gem"]
 [ "Nu Gem" "Epsilon Gem" ]
 [ "Tau Gem" "Theta Gem" ]
@@ -266,7 +266,7 @@
 [
 [  "Gamma1 Leo" "Epsilon Leo" "Mu Leo" "Zeta Leo" "Gamma1 Leo" "Eta Leo" "Alpha Leo" "Theta Leo" "Beta Leo" "Delta Leo" "Gamma1 Leo" ]
 [ "Alpha Leo" "Omicron Leo" ]
-[ "Theta Leo" "Iota Leo" "Sigma Leo" ] 
+[ "Theta Leo" "Iota Leo" "Sigma Leo" ]
 ]
 
 "Leo Minor"
@@ -395,8 +395,7 @@
 
 "Puppis"
 [
-[ "Xi Pup" "K Pup" "Pi Pup" "Nu Pup" "Tau Pup" "Sigma Pup" "Zeta Pup"
-  "Rho Pup" "11 Pup" "Xi Pup" ]
+[ "Xi Pup" "K Pup" "Pi Pup" "Nu Pup" "Tau Pup" "Sigma Pup" "Zeta Pup" "Rho Pup" "11 Pup" "Xi Pup" ]
 [ "11 Pup" "16 Pup" ]
 ]
 

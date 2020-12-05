@@ -118,12 +118,8 @@ export default class Celestiary {
     }
     k.map(';', () => { this.time.changeTimeScale(0); },
           'Change time scale to real-time');
-    k.map('?', () => { this.toggleShowKeys(); },
-          'Show/hide keyboard shortcuts');
     k.map('c', () => { this.scene.lookAtTarget(); },
           'Look at target');
-    k.map('d', () => { this.scene.toggleDebug(); },
-          'Show/hide debug shapes');
     k.map('f', () => { this.scene.follow(); },
           'Follow current node');
     k.map('g', () => { this.goTo(); },
@@ -136,17 +132,25 @@ export default class Celestiary {
           'Speed up time');
     k.map('n', () => { this.time.setTimeToNow(); },
           'Set time to now');
-    k.map('o', () => { this.scene.toggleOrbits(); },
-          'Show/hide orbits');
     k.map('t', () => { this.scene.track(); },
           'Track target node');
     k.map('u', () => { this.scene.targetParent(); },
           'Look at parent of current system');
-    k.map('v', () => {
+    k.map('A', () => { this.scene.toggleAsterisms(); },
+          'Show/hide asterisms');
+    k.map('N', () => { this.scene.toggleNames(); },
+          'Show/hide names');
+    k.map('O', () => { this.scene.toggleOrbits(); },
+          'Show/hide orbits');
+    k.map('D', () => { this.scene.toggleDebug(); },
+          'Show/hide debug shapes');
+    k.map('V', () => {
         const panels = [elt('nav-id'), elt('time-id')];
         panels.map((panel) => { panel.style.visibility = this.navVisible ? 'hidden' : 'visible' });
         this.navVisible = !this.navVisible;
       }, 'Show/hide navigation panels');
+    k.map('?', () => { this.toggleShowKeys(); },
+          'Show/hide keyboard shortcuts');
     this.keys = k;
 
     window.addEventListener('keydown', (e) => {

@@ -1,9 +1,8 @@
-import Stars from './stars-10000.js';
 import Loader from './loader.js';
 import CustomRaycaster from './lib/three-custom/raycaster.js';
 import CustomPoints from './lib/three-custom/points.js';
 import SpriteSheet from './SpriteSheet.js';
-import * as CelestiaData from './celestia-data.js';
+import * as CelestiaData from './celestia-data.mjs';
 import * as Material from './material.js';
 import * as Shared from './shared.js';
 import * as Shapes from './shapes.js';
@@ -35,8 +34,8 @@ export default class Scene {
     //this.raycaster = new CustomRaycaster;
     this.raycaster.params.Points.threshold = 3;
     const maxLabel = 'Rigel Kentaurus B';
-    this.starLabelSpriteSheet = new SpriteSheet(10, maxLabel, labelTextFont);
-    this.planetLabelSpriteSheet = new SpriteSheet(10, maxLabel, labelTextFont);
+    this.starLabelSpriteSheet = new SpriteSheet(13, maxLabel, labelTextFont);
+    this.planetLabelSpriteSheet = new SpriteSheet(4, maxLabel, labelTextFont);
     ui.addClickCb((click) => {
         this.onClick(click);
       });
@@ -65,7 +64,6 @@ export default class Scene {
 
 
   objectFactory(props) {
-    console.log(props);
     switch (props.type) {
     case 'galaxy':
       return this.newGalaxy(props);
@@ -325,6 +323,16 @@ export default class Scene {
   }
 
 
+  toggleAsterisms() {
+    this.objects.stars.asterisms.visible = !this.objects.stars.asterisms.visible;
+  }
+
+
+  toggleNames() {
+    this.objects.stars.names.visible = !this.objects.stars.names.visible;
+  }
+
+
   toggleOrbits() {
     this.orbitsVisible = !this.orbitsVisible;
     for (let i in this.orbitShapes) {
@@ -448,31 +456,39 @@ export default class Scene {
           97649: 'Altair',
           113881: 'Scheat'
         };
+        stars.names = this.newGroup('names');
+        stars.add(stars.names);
         for (let hipId in faveStars) {
           const name = faveStars[hipId];
           const star = catalog.index[hipId];
-          this.showStarName(stars, star, name);
+          this.showStarName(stars.names, star, name);
         }
         if (true) {
-          const ursaMinorNames = [
-              "ALF UMi", "DEL UMi", "EPS UMi",
-              "ZET UMi", "BET UMi", "GAM UMi",
-              "ETA UMi", "ZET UMi" ];
-          this.showConstellation(ursaMinorNames, stars, catalog);
+          fetch('/data/asterisms.dat').then((rsp) => {
+              rsp.text().then((text) => {
+                  catalog.asterisms = CelestiaData.readAsterismsFile(text);
+                  stars.asterisms = this.newGroup('asterisms');
+                  for (let i in catalog.asterisms) {
+                    const asterism = catalog.asterisms[i];
+                    this.showConstellation(asterism.paths, stars.asterisms, stars, catalog);
+                  }
+                  stars.add(stars.asterisms);
+                });
+            });
         }
       });
     return stars;
   }
 
 
-  showStarName(stars, star, name) {
+  showStarName(nameGroup, star, name) {
     const labelLOD = new THREE.LOD();
     const sPos = new THREE.Vector3(SCALE * star.x, SCALE * star.y, SCALE * star.z);
     const label = this.starLabelSpriteSheet.alloc(name, labelTextColor);
     labelLOD.position.copy(sPos);
     labelLOD.addLevel(label, 1);
     labelLOD.addLevel(FAR_OBJ, 1e13);
-    stars.add(labelLOD);
+    nameGroup.add(labelLOD);
   }
 
 
@@ -483,7 +499,7 @@ export default class Scene {
     // km/ly * m/km * lengthScale
     const scale = 9.461E12 * 1E3 * lengthScale;
     const n = stars.length;
-    console.log('num stars loaded: ', n);
+    console.log('Stars: ', n);
     const geom = new THREE.BufferGeometry();
     const coords = new Float32Array(n * 3);
     const colors = new Float32Array(n * 3);
@@ -541,29 +557,37 @@ export default class Scene {
   }
 
 
-  showConstellation(names, stars, catalog) {
-    let lastStar = null;
-    for (let i = 0; i < names.length; i++) {
-      name = names[i];
-      const hipId = catalog.hipByName[name];
-      const altNames = catalog.namesByHip[hipId];
-      if (!altNames) {
-        console.error('No alternative names found for constellation node: ', name);
-        continue;
+  showConstellation(paths, asterismsGroup, stars, catalog) {
+    for (let pathNdx in paths) {
+      let lastStar = null;
+      const pathNames = paths[pathNdx];
+      for (let i = 0; i < pathNames.length; i++) {
+        const [origName, name, hipId, score] = CelestiaData.reifyName(pathNames[i], catalog);
+        const star = catalog.index[hipId];
+        if (!star) {
+          console.log('Cannot find star: ', name);
+          continue;
+        }
+        // Only show interesting star names
+        if (score < 2) {
+          this.showStarName(stars.names, star, name);
+        } else {
+          //console.log('not interesting: ', origName, name);
+        }
+        if (lastStar) {
+          try {
+            const line = Shapes.line(
+              SCALE * lastStar.x, SCALE * lastStar.y, SCALE * lastStar.z,
+              SCALE * star.x, SCALE * star.y, SCALE * star.z)
+              line.material = new THREE.LineBasicMaterial({color: labelTextColor});
+            asterismsGroup.add(line);
+          } catch (e) {
+            console.error(e);
+            continue;
+          }
+        }
+        lastStar = star;
       }
-      name = altNames[0];
-      const star = catalog.index[hipId];
-      if (!star) {
-        console.error('Cannot find star: ', name);
-        continue;
-      }
-      this.showStarName(stars, star, name);
-      if (lastStar) {
-        stars.add(Shapes.line(
-            SCALE * lastStar.x, SCALE * lastStar.y, SCALE * lastStar.z,
-            SCALE * star.x, SCALE * star.y, SCALE * star.z));
-      }
-      lastStar = star;
     }
   }
 
@@ -672,7 +696,6 @@ export default class Scene {
     nearLOD.addLevel(this.planetLabelSpriteSheet.alloc(Utils.capitalize(name), labelTextColor), 1);
     let lodDist = isMoon ? 1e3 : 1e7;
     nearLOD.addLevel(FAR_OBJ, lodDist);
-    console.log(name, isMoon, lodDist);
 
     return group;
   }
@@ -780,6 +803,6 @@ export default class Scene {
 
 
   loadLocations() {
-    
+    CelestiaData.lo
   }
 }

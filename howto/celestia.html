@@ -6,7 +6,7 @@
 <script type="module">
 import * as CelestiaData from '/js/celestia-data.js';
 
-fetch('/data/asterisms-2.dat').then((rsp) => {
+fetch('/data/asterisms.dat').then((rsp) => {
   rsp.text().then((text) => {
       const catalog = {};
       CelestiaData.readAsterismsFile(text, catalog);
