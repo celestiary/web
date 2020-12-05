@@ -1,4 +1,4 @@
-import Measure from './measure.js';
+import Measure from './lib/measure.js/measure.js';
 
 
 /**
