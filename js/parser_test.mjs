@@ -1,4 +1,4 @@
-import Testing from './testing.mjs';
+import Testing from './lib/testing.js/testing.mjs';
 import Parser from './parser.mjs';
 import {info} from './log.mjs';
 

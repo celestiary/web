@@ -1,4 +1,4 @@
-import * as THREE from './lib/three.module.js';
+import * as THREE from './lib/three.js/three.module.js';
 import * as Utils from './utils.js';
 
 // https://observablehq.com/@vicapow/three-js-sprite-sheet-example

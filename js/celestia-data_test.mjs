@@ -1,4 +1,4 @@
-import Testing from './testing.mjs';
+import Testing from './lib/testing.js/testing.mjs';
 import {info} from './log.mjs';
 import * as CelestiaData from './celestia-data.mjs';
 import * as fs from 'fs';

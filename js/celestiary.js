@@ -1,3 +1,4 @@
+import * as THREE from './lib/three.js/three.module.js';
 import Animation from './animation.js';
 import ControlPanel from './controlPanel.js';
 import Keys from './keys.js';
@@ -9,7 +10,6 @@ import ThreeUi from './three_ui.js';
 import Time from './time.js';
 import * as Shared from './shared.js';
 import * as Utils from './utils.js';
-import * as THREE from './lib/three.module.js';
 
 
 const elt = (id) => { return document.getElementById(id); }

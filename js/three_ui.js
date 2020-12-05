@@ -1,6 +1,6 @@
-import * as THREE from './lib/three.module.js';
+import * as THREE from './lib/three.js/three.module.js';
+import TrackballControls from './lib/three.js/TrackballControls.js';
 import * as Shared from './shared.js';
-import TrackballControls from './lib/TrackballControls.js';
 import Fullscreen from './fullscreen.js';
 
 
