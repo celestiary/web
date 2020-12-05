@@ -1,6 +1,6 @@
+import * as THREE from './lib/three.js/three.module.js';
 import CustomPoints from './lib/three-custom/points.js';
 import Label from './label.js';
-import * as THREE from './lib/three.module.js';
 import * as Material from './material.js';
 import * as Shared from './shared.js';
 import * as Utils from './utils.js';

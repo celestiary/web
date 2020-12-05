@@ -1,5 +1,5 @@
 // From https://codepen.io/dxinteractive/pen/reNpOR
-import {Vector3} from './lib/three.module.js';
+import {Vector3} from './lib/three.js/three.module.js';
 import * as Utils from './utils.js';
 
 const labels = {};

@@ -1,12 +1,12 @@
-import Loader from './loader.js';
+import * as THREE from './lib/three.js/three.module.js';
 import CustomRaycaster from './lib/three-custom/raycaster.js';
 import CustomPoints from './lib/three-custom/points.js';
+import Loader from './loader.js';
 import SpriteSheet from './SpriteSheet.js';
 import * as CelestiaData from './celestia-data.mjs';
 import * as Material from './material.js';
 import * as Shared from './shared.js';
 import * as Shapes from './shapes.js';
-import * as THREE from './lib/three.module.js';
 import * as Utils from './utils.js';
 
 const

@@ -1,4 +1,4 @@
-import * as THREE from './lib/three.module.js';
+import * as THREE from './lib/three.js/three.module.js';
 
 // This size is chosen to allow for the maximum object and distance
 // size range in the scene.  The smallest object in the scene is
