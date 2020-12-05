@@ -1,6 +1,7 @@
+import Measure from './lib/measure.js/measure.js';
 import * as collapsor from './collapsor.js';
-import Measure from './measure.js';
 import {capitalize} from './utils.js';
+
 
 export default class ControlPanel {
   constructor(containerElt, loader) {

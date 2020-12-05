@@ -4,3 +4,6 @@
 [submodule "js/lib/parser.js"]
 	path = js/lib/parser.js
 	url = https://github.com/pablo-mayrgundter/parser.js
+[submodule "js/lib/measure.js"]
+	path = js/lib/measure.js
+	url = https://github.com/pablo-mayrgundter/measure.js
