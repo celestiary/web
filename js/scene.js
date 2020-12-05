@@ -463,19 +463,17 @@ export default class Scene {
           const star = catalog.index[hipId];
           this.showStarName(stars.names, star, name);
         }
-        if (true) {
-          fetch('/data/asterisms.dat').then((rsp) => {
-              rsp.text().then((text) => {
-                  catalog.asterisms = CelestiaData.readAsterismsFile(text);
-                  stars.asterisms = this.newGroup('asterisms');
-                  for (let i in catalog.asterisms) {
-                    const asterism = catalog.asterisms[i];
-                    this.showConstellation(asterism.paths, stars.asterisms, stars, catalog);
-                  }
-                  stars.add(stars.asterisms);
-                });
-            });
-        }
+        fetch('data/asterisms.dat').then((rsp) => {
+            rsp.text().then((text) => {
+                catalog.asterisms = CelestiaData.readAsterismsFile(text);
+                stars.asterisms = this.newGroup('asterisms');
+                for (let i in catalog.asterisms) {
+                  const asterism = catalog.asterisms[i];
+                  this.showConstellation(asterism.paths, stars.asterisms, stars, catalog);
+                }
+                stars.add(stars.asterisms);
+              });
+          });
       });
     return stars;
   }
