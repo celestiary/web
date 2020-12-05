@@ -44,7 +44,11 @@ export default class Celestiary {
 
 
   setTitle(parts) {
-    document.title = Utils.capitalize(parts[parts.length - 1]);
+    let title = 'Celestiary';
+    if (parts.length >= 1) {
+      title = Utils.capitalize(parts[parts.length - 1]);
+    }
+    document.title = title;
   }
 
 
