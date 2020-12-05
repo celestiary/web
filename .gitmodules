@@ -1,3 +1,6 @@
 [submodule "js/lib/testing.js"]
 	path = js/lib/testing.js
 	url = https://github.com/pablo-mayrgundter/testing.js
+[submodule "js/lib/parser.js"]
+	path = js/lib/parser.js
+	url = https://github.com/pablo-mayrgundter/parser.js
