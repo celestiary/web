@@ -1,6 +1,6 @@
 import {info} from './log.mjs';
 
-const MAX_DEPTH = 10;
+const MAX_DEPTH = 1000;
 
 /**
  * A grammar is made of a set of rules.  A rule may be one of: RegExp,
@@ -33,6 +33,8 @@ export default class Parser {
   }
 
   prefixParse(inputString, grammar, stateName, depth = 0) {
+    // Return -1 for errors, 0 for a Terminal, otherwise return offset
+    // at end of function, with callback.
     if (inputString == null) {
       throw new Error('Input string cannot be null');
     }
@@ -47,25 +49,23 @@ export default class Parser {
       throw new Error(`Grammar does not define state(${stateName})`);
     }
     if (depth > MAX_DEPTH) {
-      p(state, 0, `ERROR: Reached max call depth of ${MAX_DEPTH}`);
-      return -1;
+      throw new Error(`ERROR: Reached max call depth of ${MAX_DEPTH} in state ${state}`);
     }
     let rule = state.rule;
     if (!Array.isArray(rule)) {
       rule = [rule];
     }
-    const cb = state.callback;
     // Each term must either:
     //   - match, update these offsets and set a new substring
     //   - return -1
     let s = inputString + '', inputOffset = 0, curOffset = 0;
     p(state, depth, `input base string(${s}), evaluating rule: `, rule);
+    let match;
     for (let termIndex in rule) {
       const term = rule[termIndex];
       if (term instanceof RegExp) {
         // Must set regex.lastIndex = 0 before exiting.
         const regex = term;
-        let match;
         if (regex.global) {
           p(state, depth, `R: grammar term is global regex(${regex}), s(${s})`);
           let foundMatch = false;
@@ -101,7 +101,6 @@ export default class Parser {
           curOffset = match.index + match[0].length;
           p(state, depth, `R: non-global match at (${match.index}), curOffset(${curOffset})`);
         }
-        if (cb) cb(state, termIndex, match);
         inputOffset += curOffset;
         regex.lastIndex = 0;
         p(state, depth, `R: finished with inputOffset(${inputOffset})`);
@@ -129,8 +128,6 @@ export default class Parser {
           return -1;
         }
         p(state, depth, `C: finished with inputOffset(${inputOffset})`);
-        if (cb) cb(state, termIndex, i);
-        //} else if ((typeof term == 'object') || (typeof term == 'string')) {
       } else if (typeof term == 'string') {
         // term is a stateName
         const recurseOffset = this.prefixParse(s.substring(curOffset), grammar, term, depth + 1);
@@ -148,6 +145,8 @@ export default class Parser {
     }
     p(state, depth, `output base string:(${s})`);
     p(state, depth, `returning inputOffset(${inputOffset}) for inputString(${inputString}), len(${inputString.length})`);
+    const cb = state.callback;
+    if (cb) cb(state, match);
     return inputOffset;
   }
 }

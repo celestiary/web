@@ -16,7 +16,7 @@ function check(expect, actual, offset) {
 }
 
 
-export function readCatalogFile(buffer) {
+function readCatalogFile(buffer) {
   const header = "CELSTARS\x00\x01";
   const data = new DataView(buffer);
   let offset = 0;
@@ -106,11 +106,12 @@ export function readCatalogFile(buffer) {
 
 function readStarNamesFile(text, catalog) {
   const records = text.split('\n');
+  console.log('Star names: ', records.length);
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
     const parts = record.split(':');
-    if (parts.length < 2) {
-      console.warn('Malformed name record: ', record);
+    if (parts.length < 2 && i < records.length - 1) {
+      console.warn(`Malformed name record ${i}: `, parts);
       continue;
     }
     const hipId = parseInt(parts.shift());
@@ -118,6 +119,18 @@ function readStarNamesFile(text, catalog) {
     for (let j = 0; j < parts.length; j++) {
       const part = parts[j];
       catalog.hipByName[part] = hipId;
+      // ZET1 Aqr -> ZET Aqr
+      let match = part.match(/(\w{2,3})\d+ (\w{3})/);
+      if (match) {
+        const fix = match[1] + ' ' + match[2];
+        catalog.hipByName[fix] = hipId;
+      }
+      // IOT Cnc A -> Iot Cnc
+      match = part.match(/(\w{2,3}) (\w{3}).*/);
+      if (match) {
+        const fix = match[1] + ' ' + match[2];
+        catalog.hipByName[fix] = hipId;
+      }
     }
   }
 }
@@ -131,61 +144,70 @@ function readStarNamesFile(text, catalog) {
  *   ...
  * ]
  */
-export function readAsterismsFile(text, catalog) {
-  const asterisms = {};
-  let numRecords = 0;
+function readAsterismsFile(text) {
+  let records = [];
+  let recordName = null;
+  let paths = [];
+  let path = [];
+  let names = [];
+  let nameList = [];
   const Grammar = {
-    rules: {
-      0: { // Quoted name followed by array of arrays of list of quoted names
-        rule: [ 1, 3 ],
-        callback: (state, termIndex, choiceIndex) => {
-          console.log(`Named record! choiceIndex(${choiceIndex}), numRecords(${numRecords})`);
-          numRecords++;
-          if (++numRecords > 10) {
-            throw new Error('too many!');
-          }
-        }
-      },
-      1: { // Quoted name
-        rule: [ /\"([A-Za-z0-9 ]+)\"\s*/ ],
-        callback: (state, termIndex, match) => {
-          console.log(`Name encountered: match(${match})`);
-        }
-      },
-      2: { // List of quoted name
-        rule: [ 1, [ 2, -1 ] ]
-      },
-      3: { // Outer array of list of inner array
-        rule: [ /\s*\[\s*/ , 4 , /\s*\]\s*/ ],
-        callback: (state, termIndex, match) => {
-          console.log(`array record: match(${match})`);
-        }
-      },
-      4: { // List of inner array
-        rule: [ 5, [ 4, -1 ] ]
-      },
-      5: { // Inner array of list of quoted name
-        rule: [ /\s*\[\s*/ , 2, /\s*\]\s*/ ],
-        callback: (state, termIndex, match) => {
-          console.log(`array record: match(${match})`);
-        }
-      },
-      6: { // List of records
-        rule: [ 0, [ 6, -1 ] ]
-      },
+    'Start': { // List of records
+      rule: [ 'Record', [ 'Start', Parser.Terminal ] ]
+    },
+    'Record': {
+      rule: [ 'Name', 'OuterArray' ],
+      callback: (state, match) => {
+        recordName = names.pop();
+        const record = {
+          name: recordName,
+          paths: paths
+        };
+        records.push(record);
+        recordName = null;
+        paths = [];
+        names = [];
+        nameList = [];
+      }
+    },
+    'Name': {
+      rule: [ /"([\p{L}0-9 ]+)" */u ],
+      callback: (state, match) => {
+        const name = match[1];
+        names.push(name);
+      }
+    },
+    'NameList': {
+      rule: [ 'Name', [ 'NameList', Parser.Terminal ] ],
+      callback: (state, match) => {
+        nameList.unshift(names.pop());
+      }
+    },
+    'OuterArray': {
+      rule: [ /\s*\[\s*/ , 'ListInnerArray' , /\s*\]\s*/ ],
+    },
+    'ListInnerArray': {
+      rule: [ 'Path', [ 'ListInnerArray', Parser.Terminal ] ],
+    },
+    'Path': {
+      rule: [ /\s*\[\s*/ , 'NameList', /\s*\]\s*/ ],
+      callback: (state, match) => {
+        paths.push(nameList);
+        nameList = [];
+      }
     }
   };
-  catalog.asterisms = asterisms;
-  const offset = new Parser().parse(text, Grammar, 6);
+  const offset = new Parser().parse(text, Grammar, 'Start');
   if (offset != text.length) {
     console.warn(`Cannot parse asterisms, offset(${offset}) != text.length(${text.length})`);
   } else {
-    console.log(`Parsed!`);
+    console.log(`Asterisms: ${records.length}`);
   }
+  return records;
 }
 
 
-export function loadStars(cb) {
+function loadStars(cb) {
   if (!cb) {
     throw new Error('Undefined callback');
   }
@@ -200,4 +222,83 @@ export function loadStars(cb) {
           });
     })
   });
+}
+
+
+function reifyName(origName, catalog) {
+  let name = origName;
+  let hipId = catalog.hipByName[name];
+  let score = 1;
+  if (!hipId) {
+    name = abbrev(name);
+    hipId = catalog.hipByName[name];
+    if (hipId) {
+      //console.log(`${origName} --abbrev-> ${name}, hipId: ${hipId}`);
+      score++;
+    }
+  }
+  if (!hipId) {
+    name = abbrevVariant(name);
+    hipId = catalog.hipByName[name];
+    if (hipId) {
+      //console.log(`${origName} --abbrevVariant-> ${name}, hipId: ${hipId}`);
+      score++;
+    }
+  }
+  if (hipId) {
+    const names = catalog.namesByHip[hipId];
+    name = names[0];
+  } else {
+    score++;
+  }
+  return [origName, name, hipId, score];
+}
+
+
+function reifyAsterism(record, catalog) {
+  const paths = record.paths;
+  for (let i = 0; i < paths.length; i++) {
+    const path = paths[i];
+    for (let n = 0; n < path.length; n++) {
+      const [origName, name, hipId] = reifyName(path[n], catalog);
+      if (hipId) {
+        path[n] = name;
+      }
+    }
+  }
+}
+
+
+function abbrev(name) {
+  const parts = name.split(/\s+/);
+  parts[0] = parts[0].substring(0, 3).toUpperCase();
+  const out = parts.join(' ');
+  return out;
+}
+
+
+function abbrevVariant(name) {
+  const parts = name.split(/\s+/);
+  const num = variants[parts[0]];
+  if (num) {
+    parts[0] = num;
+  }
+  return parts.join(' ');
+}
+
+
+// TODO: https://en.wikipedia.org/wiki/Bayer_designation
+// Meantime, these are what I've observed:
+const variants = {
+  ALP: 'ALF',
+  THE: 'TET',
+};
+
+export {
+  loadStars,
+  readAsterismsFile,
+  readCatalogFile,
+  readStarNamesFile,
+  reifyName,
+  reifyAsterism,
 }
