@@ -13,7 +13,11 @@ https://pablo-mayrgundter.github.io/celestiary/
 Run a web server in the war directory and load index.html from there.
 
 ```
-> git clone https://github.com/pablo-mayrgundter/celestiary
-> npx http-server
-# http://localhost:8080/index.html
+> git clone --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
+> java/http/net/http/serve.sh
+net.http.Server.port=8090
+net.http.Server.log=true
+net.http.Server.index=index.html
+net.http.Server.ssl=false
+# Now visit http://localhost:8080/index.html in your browser
 ```
