@@ -10,7 +10,8 @@ https://pablo-mayrgundter.github.io/celestiary/
 
 ## How to run locally
 
-Run a web server in the war directory and load index.html from there.
+Run a web server in the root directory and load index.html from there.
+The project includes https://github.com/pablo-mayrgundter/http, e.g.:
 
 ```
 > git clone --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
