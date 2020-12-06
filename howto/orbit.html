@@ -37,7 +37,7 @@ An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
   <tr>
     <td>Tilt:
     <td><input type="range" min="0" max="100" name="tilt-slider" value="0"
-               oninput="document.oc(event, document.forms.elts.tilt, Math.PI * 2)"/>
+               oninput="document.oc(event, document.forms.elts.tilt, 360)"/>
     <td><input name="tilt" value="0"/>
   </tr>
   <tr>
@@ -49,19 +49,19 @@ An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
 </table>
 </form>
 <script type="module">
-  import ThreeUi from './js/three_ui.js';
-  import * as THREE from './js/lib/three.module.js';
+  import * as THREE from './js/lib/three.js/three.module.js';
   import Fullscreen from './js/fullscreen.js';
-  import {AmbientLight, PointLight} from './js/lib/three.module.js';
-  import {angle, grid, line, solidEllipse} from './js/shapes.js';
-  import {addAndOrient, testPlanet} from './js/utils.js';
   import Label from './js/label.js';
   import Scene from './js/scene.js';
+  import Planet from './js/planet.js';
+  import ThreeUi from './js/three_ui.js';
+  import {angle, grid, line, solidEllipse} from './js/shapes.js';
+  import {addAndOrient, testPlanetProps} from './js/utils.js';
 
   const ui = new ThreeUi('ui');
   ui.camera.position.set(1, 2, 5);
   ui.scene.add(grid({color: 0x0000ff, opacity: 0.3}));
-  ui.scene.add(new AmbientLight());
+  ui.scene.add(new THREE.AmbientLight());
 
 
   function addOrbitalGroup(parent, child, orbit) {
@@ -108,7 +108,7 @@ An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
       ui.scene.remove(orbitalGroup);
     }
     const scene = new Scene(ui);
-    const earth = scene.newPlanet(testPlanet('earth'));
+    const earth = new Planet(scene, testPlanetProps('earth'));
     earth.scale.set(0.5, 0.5, 0.5);
     earth.position.set(1, 0, 0);
     orbitalGroup = addOrbitalGroup(ui.scene, earth, {
@@ -116,7 +116,7 @@ An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
       argumentOfPeriapsis: parseFloat(form.aop.value),
       inclination: parseFloat(form.inc.value),
       longitudeOfAscendingNode: parseFloat(form.loan.value),
-      tilt: parseFloat(form.tilt.value),
+      axialInclination: parseFloat(form.tilt.value),
       trueAnomaly: parseFloat(form.ta.value)
     });
   }

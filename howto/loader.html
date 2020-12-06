@@ -15,7 +15,7 @@
 Each path part is passed to an onLoad callback, and an onDone callback
 is called after the final object is loaded.
 
-<p>Here is the loaded sun object, displayed with the collapsor.js utility:
+<p>Here is the loaded Moon object, displayed with the collapsor.js utility:
 
 <div id="done-id"></div>
 <script type="module">
@@ -38,7 +38,7 @@ is called after the final object is loaded.
     window.collapse = Collapsor.collapse;
     Collapsor.makeCollapsable(doneElt);
   };
-  loader.loadPath('sun', onLoadCb, onDoneCb);
+  loader.loadPath('sun/earth/moon', onLoadCb, onDoneCb);
 </script>
 </body>
 </html>

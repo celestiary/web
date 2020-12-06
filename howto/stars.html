@@ -9,22 +9,22 @@
 <script type="module">
   import ThreeUi from './js/three_ui.js';
   import Scene from './js/scene.js';
+  import Stars from './js/stars.js';
 
   const ui = new ThreeUi('ui');
-  const scene = new Scene(ui);
   ui.fs.makeFullscreen();
   //ui.camera.position.z = 1e20;
-  ui.scene.add(ui.obj = scene.newStars({
+  const stars = new Stars('stars', {
     radius: {
       // Sun's radius in meters.
       scalar: 6.9424895E8
     },
-  }));
+  });
+  ui.scene.add(stars);
   ui.camera.position.z = 1e10;
   ui.animationCb = () => {
-    ui.obj.rotation.y += 0.001;
+    stars.rotation.y += 0.001;
   };
-  //ui.controls.rotateSpeed = 0.01;
   console.log(ui);
 </script>
 </body>

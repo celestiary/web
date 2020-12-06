@@ -16,27 +16,25 @@ false-color on closer approach.
 
 <script type="module">
   import * as Animation from './js/animation.js';
-  import Scene from './js/scene.js';
+  import Star from './js/star.js';
   import ThreeUi from './js/three_ui.js';
   import Time from './js/time.js';
 
   const time = new Time();
   const ui = new ThreeUi('ui');
-  const scene = new Scene(ui);
   ui.camera.position.z = 120;
 
-  const star = scene.newStar({
+  const star = new Star({
     radius: {
       // Sun's radius in meters.
       scalar: 6.9424895E8
     },
-  }, () => {
-    ui.animationCb = () => {
-      const dist = ui.camera.position.z;
-      time.updateTime();
-      star.preAnimCb(time);
-    };
-  });
+  }, {}, ui);
+  ui.animationCb = () => {
+    const dist = ui.camera.position.z;
+    time.updateTime();
+    star.preAnimCb(time);
+  };
   star.scale.normalize();
   ui.scene.add(star);
 </script>
