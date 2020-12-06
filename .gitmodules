@@ -7,3 +7,6 @@
 [submodule "js/lib/measure.js"]
 	path = js/lib/measure.js
 	url = https://github.com/pablo-mayrgundter/measure.js
+[submodule "java/http"]
+	path = java/http
+	url = https://github.com/pablo-mayrgundter/http
