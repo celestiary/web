@@ -20,5 +20,6 @@ net.http.Server.port=8090
 net.http.Server.log=true
 net.http.Server.index=index.html
 net.http.Server.ssl=false
-# Now visit http://localhost:8080/index.html in your browser
+...
 ```
+Now visit http://localhost:8080/index.html in your browser
