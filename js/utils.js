@@ -1,4 +1,5 @@
 import {line} from './shapes.js';
+import {LENGTH_SCALE} from './shared.js';
 
 
 const elt = (id) => { return document.getElementById(id); }
@@ -141,17 +142,23 @@ function lineTraceScene(root) {
 }
 
 
-function testPlanet(planetName) {
-  switch (planetName) {
-  case 'earth': return {
-    name: (location.hash || '#earth').substring(1),
-    radius: {scalar: 1},
+function testPlanetProps(planetName) {
+  const props = {
+    type: 'planet',
+    name: planetName,
+    radius: {scalar: 1 / LENGTH_SCALE},
+    axialInclination: 0,
     texture_atmosphere: true,
     texture_hydrosphere: true,
     texture_terrain: true,
-    type: 'planet'
+    orbit: {
+      eccentricity: 0,
+      inclination: 0,
+      longitudeOfPerihelion: 0,
+      semiMajorAxis: 1 / LENGTH_SCALE,
+    }
   };
-  }
+  return props;
 }
 
 
@@ -187,7 +194,7 @@ export {
   measureText,
   rotate,
   sampleStarCatalog,
-  testPlanet,
+  testPlanetProps,
   testStarCube,
   visitChildren
 };

@@ -15,6 +15,7 @@ const SMALLEST_RENDER_SIZE = 1E-4;
 // flake out when zoomed to small sizes, supporting the 1E-4 minimum.
 
 export const
+  FAR_OBJ = new THREE.Object3D, // for invisible LOD.
   twoPi = Math.PI * 2.0,
   halfPi = Math.PI / 2.0,
   toDeg = 180.0 / Math.PI,
@@ -32,4 +33,8 @@ export const
     pos: new THREE.Vector3,
     track: null,
     follow: null
-  }
+  },
+
+  // Colors
+  labelTextColor = '#7fa0e0',
+  labelTextFont = '12px arial';
