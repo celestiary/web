@@ -12,6 +12,7 @@ export default class SpriteSheet {
     this.labelTextFont = labelTextFont;
     this.textBaseline = 'bottom';
     this.canvas = Utils.createCanvas();
+    document.canvas = this.canvas;
     this.ctx = this.canvas.getContext('2d');
     const maxBounds = Utils.measureText(this.ctx, maxLabel, labelTextFont);
     const itemSize = Math.max(maxBounds.width, maxBounds.height);

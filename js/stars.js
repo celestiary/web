@@ -7,6 +7,7 @@ import * as CelestiaData from './celestia-data.mjs';
 import * as Material from './material.js';
 import * as Shapes from './shapes.js';
 import * as Shared from './shared.js';
+import {debug} from './log.mjs';
 
 
 const SCALE = 9.461E12 * 1E3 * Shared.LENGTH_SCALE;
@@ -97,6 +98,7 @@ export default class Stars extends Object {
           });
 
         const faveStars = {
+          0: '  Sol  ', // TODO: short name width/height ratio bug.. tmp workaround.
           439: 'Gliese 1',
           8102: 'Tau Ceti',
           11767: 'Polaris',
@@ -123,7 +125,7 @@ export default class Stars extends Object {
         for (let hipId in faveStars) {
           const star = catalog.index[hipId];
           if (!star) {
-            console.log('cant find hip: ', hipId);
+            console.error('cant find hip: ', hipId);
             continue;
           }
           const name = faveStars[hipId];
@@ -223,17 +225,19 @@ export default class Stars extends Object {
       let lastStar = null;
       const pathNames = paths[pathNdx];
       for (let i = 0; i < pathNames.length; i++) {
-        const [origName, name, hipId, score] = CelestiaData.reifyName(pathNames[i], catalog);
+        const [origName, name, hipId] = CelestiaData.reifyName(pathNames[i], catalog);
         const star = catalog.index[hipId];
         if (!star) {
-          console.log('Cannot find star: ', name);
+          debug('Cannot find star: ', name);
           continue;
         }
+        const starNames = catalog.namesByHip[hipId];
+        if (!starNames) {
+          throw new Error(`Star names catalog corrupted, missing hipId ${hipId} for origName ${origName}`);
+        }
         // Only show interesting star names
-        if (score < 2) {
+        if (starNames.length > 2) {
           this.showStarName(star, name);
-        } else {
-          //console.log('not interesting: ', origName, name);
         }
         if (lastStar) {
           try {
@@ -243,7 +247,7 @@ export default class Stars extends Object {
               line.material = new THREE.LineBasicMaterial({color: Shared.labelTextColor});
             this.asterismsGroup.add(line);
           } catch (e) {
-            console.error(e);
+            console.error(`origName: ${origName}, hipId: ${hipId}: ${e}`);
             continue;
           }
         }

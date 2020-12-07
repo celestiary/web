@@ -123,10 +123,10 @@ function atmos(radius) {
 }
 
 // TODO(pmy): Convert to shared BufferGeometry.
-function point(radius) {
-  const opts = {
+function point(optsOrRadius) {
+  const opts = optsOrRadius || {
     color: 0xffffff,
-    size: radius || 4,
+    size: optsOrRadius || 4,
     sizeAttenuation: false,
     blending: THREE.AdditiveBlending,
     depthTest: true,

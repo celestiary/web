@@ -1,6 +1,5 @@
 import * as THREE from './lib/three.js/three.module.js';
 import CustomRaycaster from './lib/three-custom/raycaster.js';
-import Loader from './loader.js';
 import Object from './object.js';
 import Planet from './planet.js';
 import Star from './star.js';

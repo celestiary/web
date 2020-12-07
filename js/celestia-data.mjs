@@ -228,30 +228,19 @@ function loadStars(cb) {
 function reifyName(origName, catalog) {
   let name = origName;
   let hipId = catalog.hipByName[name];
-  let score = 1;
   if (!hipId) {
     name = abbrev(name);
     hipId = catalog.hipByName[name];
-    if (hipId) {
-      //console.log(`${origName} --abbrev-> ${name}, hipId: ${hipId}`);
-      score++;
-    }
   }
   if (!hipId) {
     name = abbrevVariant(name);
     hipId = catalog.hipByName[name];
-    if (hipId) {
-      //console.log(`${origName} --abbrevVariant-> ${name}, hipId: ${hipId}`);
-      score++;
-    }
   }
   if (hipId) {
     const names = catalog.namesByHip[hipId];
     name = names[0];
-  } else {
-    score++;
   }
-  return [origName, name, hipId, score];
+  return [origName, name, hipId];
 }
 
 

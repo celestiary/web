@@ -53,9 +53,8 @@ export default class Planet extends Object {
     orbitPosition.add(planetTilt);
     planetTilt.rotateZ(assertInRange(this.props.axialInclination, 0, 360) * Shared.toRad);
 
-    const planet = this.newPlanet(this.scene);
+    const planet = this.newPlanet(this.scene, orbitPosition, this.isMoon);
     planetTilt.add(planet);
-    planet.orbitPosition = orbitPosition;
 
     // group.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
     // Children centered at this planet's orbit position.
@@ -64,7 +63,7 @@ export default class Planet extends Object {
     nearLOD.addLevel(Planet.LABEL_SHEET.alloc(capitalize(this.name),
                                               Shared.labelTextColor), 1);
     nearLOD.addLevel(Shared.FAR_OBJ, this.isMoon ? 1e3 : 1e7);
-    planet.orbitPosition.add(nearLOD);
+    orbitPosition.add(nearLOD);
 
     this.add(group);
   }
@@ -101,7 +100,9 @@ export default class Planet extends Object {
    * Creates a planet with waypoint, surface, atmosphere and locations,
    * scaled-down by Shared.LENGTH_SCALE (i.e. 1e-7), and set to rotate.
    */
-  newPlanet(scene) {
+  newPlanet(scene, orbitPosition, isMoon) {
+    const lod = new THREE.LOD();
+
     const planet = scene.newObject(this.name, this.props, (mouse, intersect, clickRoot) => {
         console.log(`Planet ${this.name} clicked: `, mouse, intersect, clickRoot);
         //const tElt = document.getElementById('target-id');
@@ -111,20 +112,53 @@ export default class Planet extends Object {
         //this.setTarget(this.name);
         //this.lookAtTarget();
       });
-    const pointSize = this.props.radius.scalar * Shared.LENGTH_SCALE * 1E1;
-    // console.log(`${this.name} point size: ${pointSize}`);
-    planet.add(Shapes.point());
-    planet.add(this.newSurface(this.props));
-    if (this.props.texture_atmosphere) {
-      planet.add(this.newAtmosphere());
-    }
-    if (this.props.has_locations) {
-      planet.add(this.loadLocations(this.props));
-    }
+
+    const closePoint = Shapes.point({
+        color: 0x55aaff, // todo: earth-ish for now. get planet color index data.
+        size: isMoon ? 2 : 3,
+        sizeAttenuation: false,
+        blending: THREE.AdditiveBlending,
+        depthTest: true,
+        transparent: true
+      });
+    planet.add(closePoint);
+
     planet.scale.setScalar(assertFinite(this.props.radius.scalar) * Shared.LENGTH_SCALE);
     // Attaching this property triggers rotation of planet during animation.
     planet.siderealRotationPeriod = this.props.siderealRotationPeriod;
-    return planet;
+    // Attaching this is used by scene#goTo.
+    planet.orbitPosition = orbitPosition;
+
+    if (this.props.has_locations) {
+      // lod for names
+      planet.add(this.loadLocations(this.props));
+    }
+
+    const point = Shapes.point({
+        color: 0x55aaff, // todo: earth-ish for now. get planet color index data.
+        size: isMoon ? 1 : 2,
+        sizeAttenuation: false,
+        blending: THREE.AdditiveBlending,
+        depthTest: true,
+        transparent: true
+      });
+
+    lod.addLevel(planet, 1);
+    lod.addLevel(point, 1e3);
+
+    closePoint.onBeforeRender = () => {
+      if (lod.getCurrentLevel() == 0) {
+        planet.add(this.newSurface(this.props));
+        if (this.props.texture_atmosphere) {
+          planet.add(this.newAtmosphere());
+        }
+        planet.hasSurface = true;
+        closePoint.onBeforeRender = null;
+        delete closePoint['onBeforeRender'];
+      }
+    }
+
+    return lod;
   }
 
 
