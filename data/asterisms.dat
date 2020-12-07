@@ -13,7 +13,7 @@
 
 "Apus"
 [
-[ "Beta Aps" "Gamma Aps" "Delta1 Aps" "Alpha Aps" ]
+[ "Beta Aps" "Gamma Aps" "DEL1 Aps" "Alpha Aps" ]
 ]
 
 "Aquarius"
@@ -93,7 +93,7 @@
 
 "Carina"
 [
-[ "Alpha Car" "N Car" "Chi Car" "Epsilon Car" "Iota Car" "Q Car" "P Car" "Theta Car" "Omega Car" "Beta Car" "Upsilon Car" ]
+[ "Alpha Car" "Nu Car" "Chi Car" "Epsilon Car" "Iota Car" "Q Car" "Pi Car" "Theta Car" "Omega Car" "Beta Car" "Upsilon Car" ]
 ]
 
 "Cassiopeia"
@@ -198,7 +198,7 @@
 
 "Eridanus"
 [
-[ "Lambda Eri" "Beta Eri" "Omega Eri" "Mu Eri" "Nu Eri" "Omicron1 Eri" "Gamma Eri" "Pi Eri" "Delta Eri" "Epsilon Eri" "Eta Eri" "Tau1 Eri" "Tau2 Eri" "Tau3 Eri" "Tau4 Eri" "Tau5 Eri" "Tau6 Eri" "Tau9 Eri" "Upsilon1 Eri" "Upsilon2 Eri" "43 Eri" "41 Eri" "G Eri" "F Eri" "E Eri" "Theta Eri" "Iota Eri" "S Eri" "Kappa Eri" "Phi Eri" "Chi Eri" "Alpha Eri" ]
+[ "Lambda Eri" "Beta Eri" "Omega Eri" "Mu Eri" "Nu Eri" "Omicron1 Eri" "Gamma Eri" "Pi Eri" "Delta Eri" "Epsilon Eri" "Eta Eri" "TAU1 Eri" "TAU2 Eri" "TAU3 Eri" "TAU4 Eri" "TAU5 Eri" "TAU6 Eri" "TAU9 Eri" "UPS1 Eri" "UPS2 Eri" "43 Eri" "41 Eri" "GAM Eri" "PHI Eri" "EPS Eri" "Theta Eri" "Iota Eri" "Sigma Eri" "Kappa Eri" "Phi Eri" "Chi Eri" "Alpha Eri" ]
 ]
 
 "Fornax"
@@ -219,7 +219,7 @@
 
 "Grus"
 [
-[ "Gamma Gru" "Lambda Gru" "Mu1 Gru" "Delta1 Gru" "Beta Gru" "Epsilon Gru" "Zeta Gru" ]
+[ "Gamma Gru" "Lambda Gru" "Mu1 Gru" "DEL1 Gru" "Beta Gru" "Epsilon Gru" "Zeta Gru" ]
 [ "Alpha Gru" "Beta Gru" "Iota Gru" "Theta Gru" ]
 ]
 
@@ -243,7 +243,7 @@
 [
 [ "Gamma Hya" "Beta Hya" "Xi Hya" ]
 [ "Pi Hya" "Gamma Hya" ]
-[ "Xi Hya" "Nu Hya" "Mu Hya" "Lambda Hya" "Upsilon2 Hya" "Upsilon1 Hya" "Alpha Hya" "Iota Hya" "Theta Hya" "Zeta Hya" "Eta Hya" "Sigma Hya" "Delta Hya" "Epsilon Hya" "Zeta Hya" ]
+[ "Xi Hya" "Nu Hya" "Mu Hya" "Lambda Hya" "UPS2 Hya" "UPS1 Hya" "Alpha Hya" "Iota Hya" "Theta Hya" "Zeta Hya" "Eta Hya" "Sigma Hya" "Delta Hya" "Epsilon Hya" "Zeta Hya" ]
 ]
 
 "Hydrus"
@@ -300,7 +300,7 @@
 
 "Lyra"
 [
-[ "Epsilon1 Lyr" "Alpha Lyr" "Zeta1 Lyr" "Beta Lyr" "Gamma Lyr" "Delta1 Lyr" "Zeta1 Lyr" ]
+[ "Epsilon1 Lyr" "Alpha Lyr" "Zeta1 Lyr" "Beta Lyr" "Gamma Lyr" "DEL1 Lyr" "Zeta1 Lyr" ]
 [ "Alpha Lyr" "Kappa Lyr" ]
 ]
 
@@ -311,7 +311,7 @@
 
 "Microscopium"
 [
-[ "Theta1 Mic" "Epsilon Mic" "Gamma Mic" "Alpha Mic" ]
+[ "TET1 Mic" "Epsilon Mic" "Gamma Mic" "Alpha Mic" ]
 ]
 
 "Monoceros"
@@ -328,7 +328,7 @@
 
 "Norma"
 [
-[ "Epsilon Nor" "Gamma1 Nor" "Gamma2 Nor" "Eta Nor" ]
+[ "Epsilon Nor" "GAM1 Nor" "GAM2 Nor" "Eta Nor" ]
 ]
 
 "Octans"
@@ -419,10 +419,10 @@
 [
 [ "Phi Sgr" "Delta Sgr" ]
 [ "Beta2 Sgr" "Iota Sgr" "Alpha Sgr" ]
-[ "Iota Sgr" "Theta1 Sgr" "Theta2 Sgr" "62 Sgr" "59 Sgr" "52 Sgr" "Psi Sgr" "Tau Sgr" "Zeta Sgr" "Phi Sgr" "Sigma Sgr" "Tau Sgr" ]
+[ "Iota Sgr" "TET1 Sgr" "TET2 Sgr" "62 Sgr" "59 Sgr" "52 Sgr" "Psi Sgr" "Tau Sgr" "Zeta Sgr" "Phi Sgr" "Sigma Sgr" "Tau Sgr" ]
 [ "Sigma Sgr" "Omicron Sgr" "Pi Sgr" "53 Sgr" "Rho1 Sgr" ]
 [ "Omicron Sgr" ]
-[ "Phi Sgr" "Lambda Sgr" "Mu Sgr" ]
+[ "Phi Sgr" "Lambda Sgr" "MU Sgr" ]
 [ "Lambda Sgr" "Delta Sgr" "Epsilon Sgr" "Eta Sgr" ]
 [ "Delta Sgr" "Gamma Sgr" "3 Sgr" ]
 [ "Zeta Sgr" "Epsilon Sgr" "Gamma Sgr" ]
@@ -464,7 +464,7 @@
 
 "Taurus"
 [
-[ "Beta Tau" "Tau Tau" "Epsilon Tau" "68 Tau" "Delta1 Tau" "Gamma Tau" "Theta2 Tau" "Alpha Tau" "Zeta Tau" ]
+[ "Beta Tau" "Tau Tau" "Epsilon Tau" "68 Tau" "DEL1 Tau" "Gamma Tau" "TET2 Tau" "Alpha Tau" "Zeta Tau" ]
 [ "Gamma Tau" "Lambda Tau" "47 Tau" "Mu Tau" "Nu Tau" ]
 [ "Lambda Tau" "5 Tau" "Xi Tau" "Omicron Tau" ]
 [ "Alpha Tau" "Epsilon Tau" ]

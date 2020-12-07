@@ -4,6 +4,8 @@
 <body>
 <div id="ui"></div>
 <h1>Planet</h1>
+<p>Use LOD to lazy-load texture.  Open your browser network trace and
+watch it as you zoom in.
 <script type="module">
   import * as THREE from './js/lib/three.js/three.module.js';
   import ThreeUi from './js/three_ui.js';
@@ -11,7 +13,7 @@
   import {testPlanetProps} from './js/utils.js';
 
   const ui = new ThreeUi('ui');
-  ui.camera.position.z = 5;
+  ui.camera.position.z = 1e4;
   const light = new THREE.PointLight();
   light.position.set(0, 0, 10);
   ui.camera.add(light);
@@ -27,7 +29,7 @@
     newGroup: nO,
     orbitShapes: []
   };
-  let planet = new Planet(scene, testPlanetProps((planetName || '#earth').substring(1)));
+  let planet = new Planet(scene, testPlanetProps((document.hash || '#earth').substring(1)));
   ui.scene.add(planet);
   ui.scene.add(new THREE.AxesHelper(1.1));
   ui.animationCb = () => {
