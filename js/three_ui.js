@@ -75,6 +75,11 @@ export default class ThreeUi {
   initRenderer(container, backgroundColor) {
     const renderer = new THREE.WebGLRenderer({antialias: true});
     renderer.setPixelRatio(window.devicePixelRatio);
+    // No idea about this.. just like the way it looks.
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.6;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    //renderer.outputEncoding = THREE.GammaEncoding;
     this.width = this.container.offsetWidth;
     this.height = this.container.offsetHeight;
     renderer.setClearColor(backgroundColor, 1);

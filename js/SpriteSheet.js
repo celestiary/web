@@ -102,6 +102,7 @@ export default class SpriteSheet {
         },
         vertexShader: vertexShader,
         fragmentShader: fragmentShader,
+        depthTest: true,
         transparent: true,
       });
     return material;

@@ -59,12 +59,6 @@ export default class Planet extends Object {
     // group.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
     // Children centered at this planet's orbit position.
 
-    const nearLOD = new THREE.LOD();
-    nearLOD.addLevel(Planet.LABEL_SHEET.alloc(capitalize(this.name),
-                                              Shared.labelTextColor), 1);
-    nearLOD.addLevel(Shared.FAR_OBJ, this.isMoon ? 1e3 : 1e7);
-    orbitPosition.add(nearLOD);
-
     this.add(group);
   }
 
@@ -101,21 +95,27 @@ export default class Planet extends Object {
    * scaled-down by Shared.LENGTH_SCALE (i.e. 1e-7), and set to rotate.
    */
   newPlanet(scene, orbitPosition, isMoon) {
-    const lod = new THREE.LOD();
+    const planet = new THREE.Object3D;//scene.newObject(this.name, this.props, );
 
-    const planet = scene.newObject(this.name, this.props, (mouse, intersect, clickRoot) => {
-        console.log(`Planet ${this.name} clicked: `, mouse, intersect, clickRoot);
-        //const tElt = document.getElementById('target-id');
-        //tElt.innerText = this.name + (firstName ? ` (${firstName})` : '');
-        //tElt.style.left = `${mouse.clientX}px`;
-        //tElt.style.top = `${mouse.clientY}px`;
-        //this.setTarget(this.name);
-        //this.lookAtTarget();
-      });
+    planet.scale.setScalar(assertFinite(this.props.radius.scalar) * Shared.LENGTH_SCALE);
+    // Attaching this property triggers rotation of planet during animation.
+    planet.siderealRotationPeriod = this.props.siderealRotationPeriod;
+    // Attaching this is used by scene#goTo.
+    planet.orbitPosition = orbitPosition;
+    planet.props = this.props;
+    if (scene.objects) //hack
+      scene.objects[this.name] = planet;
 
+    if (this.props.has_locations) {
+      // TODO: lod for names
+      planet.add(this.loadLocations(this.props));
+    }
+
+    // An object must have a mesh to have onBeforeRender called, so
+    // add a little helper.
     const closePoint = Shapes.point({
-        color: 0x55aaff, // todo: earth-ish for now. get planet color index data.
-        size: isMoon ? 2 : 3,
+        color: 'green',//0x55aaff, // todo: earth-ish for now. get planet color index data.
+        size: 1,//isMoon ? 2 : 3,
         sizeAttenuation: false,
         blending: THREE.AdditiveBlending,
         depthTest: true,
@@ -123,18 +123,7 @@ export default class Planet extends Object {
       });
     planet.add(closePoint);
 
-    planet.scale.setScalar(assertFinite(this.props.radius.scalar) * Shared.LENGTH_SCALE);
-    // Attaching this property triggers rotation of planet during animation.
-    planet.siderealRotationPeriod = this.props.siderealRotationPeriod;
-    // Attaching this is used by scene#goTo.
-    planet.orbitPosition = orbitPosition;
-
-    if (this.props.has_locations) {
-      // lod for names
-      planet.add(this.loadLocations(this.props));
-    }
-
-    const point = Shapes.point({
+    const farPoint = Shapes.point({
         color: 0x55aaff, // todo: earth-ish for now. get planet color index data.
         size: isMoon ? 1 : 2,
         sizeAttenuation: false,
@@ -143,22 +132,44 @@ export default class Planet extends Object {
         transparent: true
       });
 
-    lod.addLevel(planet, 1);
-    lod.addLevel(point, 1e3);
+    const planetLOD = new THREE.LOD();
+    planetLOD.addLevel(planet, 1);
+    planetLOD.addLevel(farPoint, 1e3);
+    planetLOD.addLevel(Shared.FAR_OBJ, this.isMoon ? 1e7 : 1e8);
 
     closePoint.onBeforeRender = () => {
-      if (lod.getCurrentLevel() == 0) {
-        planet.add(this.newSurface(this.props));
-        if (this.props.texture_atmosphere) {
-          planet.add(this.newAtmosphere());
-        }
-        planet.hasSurface = true;
-        closePoint.onBeforeRender = null;
-        delete closePoint['onBeforeRender'];
+      console.log(`onBeforeRender`);
+      planet.add(this.newSurface(this.props));
+      if (this.props.texture_atmosphere) {
+        planet.add(this.newAtmosphere());
       }
+      planet.hasSurface = true;
+      closePoint.onBeforeRender = null;
+      delete closePoint['onBeforeRender'];
     }
 
-    return lod;
+    const labelLOD = new THREE.LOD();
+    labelLOD.addLevel(Planet.LABEL_SHEET.alloc(capitalize(this.name),
+                                               Shared.labelTextColor), 1);
+    labelLOD.addLevel(Shared.FAR_OBJ, this.isMoon ? 1e3 : 1e6);
+
+    const group = new THREE.Object3D;
+    group.add(planetLOD);
+    group.add(labelLOD);
+    /*
+    group.onClick = (mouse, intersect, clickRoot) => {
+        console.log(`Planet group ${this.name} clicked: `, mouse, intersect, clickRoot);
+        //const tElt = document.getElementById('target-id');
+        //tElt.innerText = this.name + (firstName ? ` (${firstName})` : '');
+        //tElt.style.left = `${mouse.clientX}px`;
+        //tElt.style.top = `${mouse.clientY}px`;
+        //this.setTarget(this.name);
+        //this.lookAtTarget();
+      }
+    group.type = 'Group';
+    return group;
+    */
+    return group;
   }
 
 

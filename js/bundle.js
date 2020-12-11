@@ -53050,6 +53050,7 @@ class SpriteSheet {
         },
         vertexShader: vertexShader,
         fragmentShader: fragmentShader,
+        depthTest: true,
         transparent: true,
       });
     return material;
@@ -53144,12 +53145,6 @@ class Planet extends Object$1 {
     // group.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
     // Children centered at this planet's orbit position.
 
-    const nearLOD = new LOD();
-    nearLOD.addLevel(Planet.LABEL_SHEET.alloc(capitalize(this.name),
-                                              labelTextColor), 1);
-    nearLOD.addLevel(FAR_OBJ, this.isMoon ? 1e3 : 1e7);
-    orbitPosition.add(nearLOD);
-
     this.add(group);
   }
 
@@ -53186,21 +53181,27 @@ class Planet extends Object$1 {
    * scaled-down by Shared.LENGTH_SCALE (i.e. 1e-7), and set to rotate.
    */
   newPlanet(scene, orbitPosition, isMoon) {
-    const lod = new LOD();
+    const planet = new Object3D;//scene.newObject(this.name, this.props, );
 
-    const planet = scene.newObject(this.name, this.props, (mouse, intersect, clickRoot) => {
-        console.log(`Planet ${this.name} clicked: `, mouse, intersect, clickRoot);
-        //const tElt = document.getElementById('target-id');
-        //tElt.innerText = this.name + (firstName ? ` (${firstName})` : '');
-        //tElt.style.left = `${mouse.clientX}px`;
-        //tElt.style.top = `${mouse.clientY}px`;
-        //this.setTarget(this.name);
-        //this.lookAtTarget();
-      });
+    planet.scale.setScalar(assertFinite(this.props.radius.scalar) * LENGTH_SCALE);
+    // Attaching this property triggers rotation of planet during animation.
+    planet.siderealRotationPeriod = this.props.siderealRotationPeriod;
+    // Attaching this is used by scene#goTo.
+    planet.orbitPosition = orbitPosition;
+    planet.props = this.props;
+    if (scene.objects) //hack
+      scene.objects[this.name] = planet;
 
+    if (this.props.has_locations) {
+      // TODO: lod for names
+      planet.add(this.loadLocations(this.props));
+    }
+
+    // An object must have a mesh to have onBeforeRender called, so
+    // add a little helper.
     const closePoint = point({
-        color: 0x55aaff, // todo: earth-ish for now. get planet color index data.
-        size: isMoon ? 2 : 3,
+        color: 'green',//0x55aaff, // todo: earth-ish for now. get planet color index data.
+        size: 1,//isMoon ? 2 : 3,
         sizeAttenuation: false,
         blending: AdditiveBlending,
         depthTest: true,
@@ -53208,18 +53209,7 @@ class Planet extends Object$1 {
       });
     planet.add(closePoint);
 
-    planet.scale.setScalar(assertFinite(this.props.radius.scalar) * LENGTH_SCALE);
-    // Attaching this property triggers rotation of planet during animation.
-    planet.siderealRotationPeriod = this.props.siderealRotationPeriod;
-    // Attaching this is used by scene#goTo.
-    planet.orbitPosition = orbitPosition;
-
-    if (this.props.has_locations) {
-      // lod for names
-      planet.add(this.loadLocations(this.props));
-    }
-
-    const point$1 = point({
+    const farPoint = point({
         color: 0x55aaff, // todo: earth-ish for now. get planet color index data.
         size: isMoon ? 1 : 2,
         sizeAttenuation: false,
@@ -53228,22 +53218,44 @@ class Planet extends Object$1 {
         transparent: true
       });
 
-    lod.addLevel(planet, 1);
-    lod.addLevel(point$1, 1e3);
+    const planetLOD = new LOD();
+    planetLOD.addLevel(planet, 1);
+    planetLOD.addLevel(farPoint, 1e3);
+    planetLOD.addLevel(FAR_OBJ, this.isMoon ? 1e7 : 1e8);
 
     closePoint.onBeforeRender = () => {
-      if (lod.getCurrentLevel() == 0) {
-        planet.add(this.newSurface(this.props));
-        if (this.props.texture_atmosphere) {
-          planet.add(this.newAtmosphere());
-        }
-        planet.hasSurface = true;
-        closePoint.onBeforeRender = null;
-        delete closePoint['onBeforeRender'];
+      console.log(`onBeforeRender`);
+      planet.add(this.newSurface(this.props));
+      if (this.props.texture_atmosphere) {
+        planet.add(this.newAtmosphere());
       }
+      planet.hasSurface = true;
+      closePoint.onBeforeRender = null;
+      delete closePoint['onBeforeRender'];
     };
 
-    return lod;
+    const labelLOD = new LOD();
+    labelLOD.addLevel(Planet.LABEL_SHEET.alloc(capitalize(this.name),
+                                               labelTextColor), 1);
+    labelLOD.addLevel(FAR_OBJ, this.isMoon ? 1e3 : 1e6);
+
+    const group = new Object3D;
+    group.add(planetLOD);
+    group.add(labelLOD);
+    /*
+    group.onClick = (mouse, intersect, clickRoot) => {
+        console.log(`Planet group ${this.name} clicked: `, mouse, intersect, clickRoot);
+        //const tElt = document.getElementById('target-id');
+        //tElt.innerText = this.name + (firstName ? ` (${firstName})` : '');
+        //tElt.style.left = `${mouse.clientX}px`;
+        //tElt.style.top = `${mouse.clientY}px`;
+        //this.setTarget(this.name);
+        //this.lookAtTarget();
+      }
+    group.type = 'Group';
+    return group;
+    */
+    return group;
   }
 
 
@@ -54113,6 +54125,9 @@ class Stars extends Object$1 {
     // method used here to choose colors is to hover my mouse over the
     // color chart near the top of the page, above a given class, and
     // record the RGB values in the table below.
+    //
+    // TODO: use color lookup attributes:
+    // https://threejs.org/examples/#webgl_geometry_colors_lookuptable
     const sunSpectrum = [255,238,229];
     const spectrum = [
                 [142,176,255], // O
@@ -54346,6 +54361,7 @@ class Scene$1 {
     tPos.setFromMatrixPosition(obj.matrixWorld);
     const pPos = new Vector3;
     const cPos = new Vector3;
+    console.log(`the obj: `, obj);
     const surfaceAltitude = obj.props.radius.scalar * lengthScale;
     const stepBackMult = 3;
     pPos.set(0, 0, 0); // TODO(pablo): maybe put platform at surfaceAltitude
@@ -54407,8 +54423,10 @@ class Scene$1 {
     if (intersects.length == 0) {
       return;
     }
+    console.log('checking all the things');
     let nearestMeshIntersect, nearestPointIntersect,
       nearestStarPointIntersect, nearestDefaultIntersect;
+    // TODO: this is looping through all 8k asterisms.. that right?
     for (let i = 0; i < intersects.length; i++) {
       const intersect = intersects[i];
       const dist = intersect.distance;
@@ -54417,7 +54435,10 @@ class Scene$1 {
         console.log('raycast skipping anchor');
         continue;
       }
-      //console.log(`intersect ${i} dist: ${dist}, type: ${obj.type}, obj: `, obj);
+      if (obj.type == 'Line') {
+        continue;
+      }
+      console.log(`intersect ${i} dist: ${dist}, type: ${obj.type}, obj: `, obj);
       switch (obj.type) {
         case 'Mesh': {
           if (nearestMeshIntersect
@@ -54442,6 +54463,9 @@ class Scene$1 {
             //console.log('New nearest point: ', intersect);
             nearestPointIntersect = intersect;
           }
+        } break;
+        case 'Group': {
+          console.log('GROUP CLICKED');
         } break;
         default: {
           //console.log('Raycasting default handler for object type: ', obj.type);
@@ -54524,7 +54548,7 @@ class Scene$1 {
 
   newGalaxy(galaxyProps) {
     const group = this.newObject(galaxyProps.name, galaxyProps, (click) => {
-        console.error('Well done, you found the galaxy!');
+        console.log('Well done, you found the galaxy!');
       });
     this.objects[galaxyProps.name + '.orbitPosition'] = group;
     return group;
@@ -55310,6 +55334,11 @@ class ThreeUi {
   initRenderer(container, backgroundColor) {
     const renderer = new WebGLRenderer({antialias: true});
     renderer.setPixelRatio(window.devicePixelRatio);
+    // No idea about this.. just like the way it looks.
+    renderer.toneMapping = ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.6;
+    renderer.outputEncoding = sRGBEncoding;
+    //renderer.outputEncoding = THREE.GammaEncoding;
     this.width = this.container.offsetWidth;
     this.height = this.container.offsetHeight;
     renderer.setClearColor(backgroundColor, 1);

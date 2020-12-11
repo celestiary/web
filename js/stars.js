@@ -172,6 +172,9 @@ export default class Stars extends Object {
     // method used here to choose colors is to hover my mouse over the
     // color chart near the top of the page, above a given class, and
     // record the RGB values in the table below.
+    //
+    // TODO: use color lookup attributes:
+    // https://threejs.org/examples/#webgl_geometry_colors_lookuptable
     const sunSpectrum = [255,238,229];
     const spectrum = [
                 [142,176,255], // O

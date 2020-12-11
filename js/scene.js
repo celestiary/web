@@ -161,6 +161,7 @@ export default class Scene {
     tPos.setFromMatrixPosition(obj.matrixWorld);
     const pPos = new THREE.Vector3;
     const cPos = new THREE.Vector3;
+    console.log(`the obj: `, obj);
     const surfaceAltitude = obj.props.radius.scalar * lengthScale;
     const stepBackMult = 3;
     pPos.set(0, 0, 0); // TODO(pablo): maybe put platform at surfaceAltitude
@@ -222,8 +223,10 @@ export default class Scene {
     if (intersects.length == 0) {
       return;
     }
+    console.log('checking all the things');
     let nearestMeshIntersect, nearestPointIntersect,
       nearestStarPointIntersect, nearestDefaultIntersect;
+    // TODO: this is looping through all 8k asterisms.. that right?
     for (let i = 0; i < intersects.length; i++) {
       const intersect = intersects[i];
       const dist = intersect.distance;
@@ -232,7 +235,10 @@ export default class Scene {
         console.log('raycast skipping anchor');
         continue;
       }
-      //console.log(`intersect ${i} dist: ${dist}, type: ${obj.type}, obj: `, obj);
+      if (obj.type == 'Line') {
+        continue;
+      }
+      console.log(`intersect ${i} dist: ${dist}, type: ${obj.type}, obj: `, obj);
       switch (obj.type) {
         case 'Mesh': {
           if (nearestMeshIntersect
@@ -257,6 +263,9 @@ export default class Scene {
             //console.log('New nearest point: ', intersect);
             nearestPointIntersect = intersect;
           }
+        } break;
+        case 'Group': {
+          console.log('GROUP CLICKED');
         } break;
         default: {
           //console.log('Raycasting default handler for object type: ', obj.type);
@@ -339,7 +348,7 @@ export default class Scene {
 
   newGalaxy(galaxyProps) {
     const group = this.newObject(galaxyProps.name, galaxyProps, (click) => {
-        console.error('Well done, you found the galaxy!');
+        console.log('Well done, you found the galaxy!');
       });
     this.objects[galaxyProps.name + '.orbitPosition'] = group;
     return group;
