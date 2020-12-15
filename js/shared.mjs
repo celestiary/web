@@ -1,5 +1,8 @@
 import * as THREE from './lib/three.js/three.module.js';
 
+import {named} from './utils.mjs';
+
+
 // This size is chosen to allow for the maximum object and distance
 // size range in the scene.  The smallest object in the scene is
 // Mars's moon Deimos, which is 6.2E3 m.  The smallest size I found
@@ -15,7 +18,7 @@ const SMALLEST_RENDER_SIZE = 1E-4;
 // flake out when zoomed to small sizes, supporting the 1E-4 minimum.
 
 export const
-  FAR_OBJ = new THREE.Object3D, // for invisible LOD.
+  FAR_OBJ = named(new THREE.Object3D, 'LODFarObj'), // for invisible LOD.
   twoPi = Math.PI * 2.0,
   halfPi = Math.PI / 2.0,
   toDeg = 180.0 / Math.PI,

@@ -1,6 +1,6 @@
 import Measure from './lib/measure.js/measure.js';
 import * as collapsor from './collapsor.js';
-import {capitalize} from './utils.js';
+import {capitalize} from './utils.mjs';
 
 
 export default class ControlPanel {

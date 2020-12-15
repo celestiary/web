@@ -1,17 +1,22 @@
 import * as THREE from './lib/three.js/three.module.js';
 import CustomRaycaster from './lib/three-custom/raycaster.js';
+
+import Asterisms from './Asterisms.mjs';
 import Object from './object.js';
-import Planet from './planet.js';
-import Star from './star.js';
-import Stars from './stars.js';
+import Planet from './Planet.js';
+import Star from './Star.js';
+import Stars from './Stars.mjs';
 import * as Material from './material.js';
-import * as Shared from './shared.js';
-import * as Shapes from './shapes.js';
-import * as Utils from './utils.js';
+import * as Shared from './shared.mjs';
+import * as Shapes from './shapes.mjs';
+import * as Utils from './utils.mjs';
+import {info} from './log.mjs';
+
 
 const
   lengthScale = Shared.LENGTH_SCALE,
   stepBackMult = 10;
+
 
 export default class Scene {
   constructor(ui) {
@@ -56,7 +61,15 @@ export default class Scene {
   objectFactory(props) {
     switch (props.type) {
     case 'galaxy': return this.newGalaxy(props);
-    case 'stars': return new Stars(props);
+    case 'stars':
+      const stars = new Stars(props, () => {
+          console.log(`Stars count: ${stars.catalog.numStars}`);
+          const asterisms = new Asterisms(stars, () => {
+              stars.add(asterisms);
+              console.log(`Asterisms count:`, asterisms.catalog.numAsterisms);
+            });
+        });
+      return stars;
     case 'star': return new Star(props, this.objects, this.ui);
     case 'planet': return new Planet(this, props);
     case 'moon': return new Planet(this, props, true);
@@ -161,7 +174,6 @@ export default class Scene {
     tPos.setFromMatrixPosition(obj.matrixWorld);
     const pPos = new THREE.Vector3;
     const cPos = new THREE.Vector3;
-    console.log(`the obj: `, obj);
     const surfaceAltitude = obj.props.radius.scalar * lengthScale;
     const stepBackMult = 3;
     pPos.set(0, 0, 0); // TODO(pablo): maybe put platform at surfaceAltitude
@@ -212,6 +224,7 @@ export default class Scene {
 
 
   onClick(mouse) {
+    if (true) return; // Disable picking for now.
     this.ui.scene.updateMatrixWorld();
     this.raycaster.setFromCamera(mouse, this.ui.camera);
     const t = Date.now();
@@ -223,7 +236,7 @@ export default class Scene {
     if (intersects.length == 0) {
       return;
     }
-    console.log('checking all the things');
+    //console.log('checking all the things');
     let nearestMeshIntersect, nearestPointIntersect,
       nearestStarPointIntersect, nearestDefaultIntersect;
     // TODO: this is looping through all 8k asterisms.. that right?
@@ -238,7 +251,7 @@ export default class Scene {
       if (obj.type == 'Line') {
         continue;
       }
-      console.log(`intersect ${i} dist: ${dist}, type: ${obj.type}, obj: `, obj);
+      //console.log(`intersect ${i} dist: ${dist}, type: ${obj.type}, obj: `, obj);
       switch (obj.type) {
         case 'Mesh': {
           if (nearestMeshIntersect
@@ -265,7 +278,7 @@ export default class Scene {
           }
         } break;
         case 'Group': {
-          console.log('GROUP CLICKED');
+          //console.log('GROUP CLICKED');
         } break;
         default: {
           //console.log('Raycasting default handler for object type: ', obj.type);
@@ -348,7 +361,7 @@ export default class Scene {
 
   newGalaxy(galaxyProps) {
     const group = this.newObject(galaxyProps.name, galaxyProps, (click) => {
-        console.log('Well done, you found the galaxy!');
+        //console.log('Well done, you found the galaxy!');
       });
     this.objects[galaxyProps.name + '.orbitPosition'] = group;
     return group;

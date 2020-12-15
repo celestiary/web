@@ -39,7 +39,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
         var sphere = new Sphere();
 
         return function raycast( raycaster, intersects ) {
-
+          console.log('raycast');
           var object = this;
           var geometry = this.geometry;
           var matrixWorld = this.matrixWorld;
@@ -70,6 +70,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
             //console.log(`CustomPoints.raycast#testPoint: point, index`, point, index);
             var rayPointDistanceSq = ray.distanceSqToPoint( point );
 
+            console.log('test point');
               if (min == null) {
                 min = rayPointDistanceSq;
               }
@@ -102,6 +103,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
           }
 
           if ( geometry.isBufferGeometry ) {
+            console.log('geometry.isBufferGeometry');
 
             var index = geometry.index;
             var attributes = geometry.attributes;
@@ -112,6 +114,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
               var indices = index.array;
 
               for ( var i = 0, il = indices.length; i < il; i ++ ) {
+                console.log('looping positions1');
 
                 var a = indices[ i ];
 
@@ -124,6 +127,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
             } else {
 
               for ( var i = 0, l = positions.length / 3; i < l; i ++ ) {
+                console.log('looping positions2');
 
                 position.fromArray( positions, i * 3 );
 
@@ -138,6 +142,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
             var vertices = geometry.vertices;
 
             for ( var i = 0, l = vertices.length; i < l; i ++ ) {
+              console.log('looping positions3');
 
               testPoint( vertices[ i ], i );
 
@@ -146,7 +151,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
           }
 
         };
-
+        console.log('points after');
       }() ),
 
     clone: function () {

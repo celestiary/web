@@ -1,5 +1,5 @@
 import * as THREE from './lib/three.js/three.module.js';
-import * as Utils from './utils.js';
+import * as Utils from './utils.mjs';
 
 // TODO: separate this into a SpriteSheet supercalss and LabelSheet subclass.
 /**
@@ -32,6 +32,7 @@ export default class SpriteSheet {
     ctx.fill();
   }
 
+
   alloc(labelText, fillStyle = 'white') {
     let bounds = Utils.measureText(this.ctx, labelText);
     const size = Math.max(bounds.width, bounds.height);
@@ -54,6 +55,7 @@ export default class SpriteSheet {
     return labelObject;
   }
 
+
   drawAt(text, x, y, fillStyle) {
     const ctx = this.ctx;
     ctx.textBaseline = this.textBaseline;
@@ -67,6 +69,7 @@ export default class SpriteSheet {
     return {x, y, width: size, height: size};
   }
 
+
   drawLabel(text, width, height, fillStyle) {
     const ctx = this.ctx;
     //ctx.fillStyle = fillStyle;
@@ -77,6 +80,7 @@ export default class SpriteSheet {
     ctx.fillText(text, 0, height / 2 - 3);
   }
 
+
   makeLabelObject(pointSize, spriteCoords) {
     const vertices = [];
     vertices.push(0, 0, 0);
@@ -85,6 +89,7 @@ export default class SpriteSheet {
     geometry.computeBoundingBox();
     return new THREE.Points(geometry, this.createMaterial(pointSize, spriteCoords));
   }
+
 
   createMaterial(pointSize, spriteCoords) {
     //console.log(spriteCoords);
@@ -109,6 +114,7 @@ export default class SpriteSheet {
   }
 }
 
+
 const vertexShader = `
   uniform float pointWidth;
   void main() {
@@ -117,6 +123,7 @@ const vertexShader = `
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
+
 
 const fragmentShader = `
   uniform float pointWidth;

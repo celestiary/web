@@ -2,8 +2,8 @@ import * as THREE from './lib/three.js/three.module.js';
 import CustomPoints from './lib/three-custom/points.js';
 import Label from './label.js';
 import * as Material from './material.js';
-import * as Shared from './shared.js';
-import * as Utils from './utils.js';
+import * as Shared from './shared.mjs';
+import * as Utils from './utils.mjs';
 
 // Simple cube for testing.
 function cube(size) {

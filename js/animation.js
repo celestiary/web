@@ -1,5 +1,5 @@
 import {Vector3} from './lib/three.js/three.module.js';
-import * as Shared from './shared.js';
+import * as Shared from './shared.mjs';
 
 
 // TODO: move this to scene.

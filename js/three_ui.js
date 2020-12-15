@@ -1,7 +1,9 @@
-import * as THREE from './lib/three.js/three.module.js';
 import TrackballControls from './lib/three.js/TrackballControls.js';
-import * as Shared from './shared.js';
+import * as THREE from './lib/three.js/three.module.js';
+
 import Fullscreen from './fullscreen.js';
+import * as Shared from './shared.mjs';
+import {named} from './utils.mjs';
 
 
 export default class ThreeUi {
@@ -20,7 +22,7 @@ export default class ThreeUi {
     this.height = this.container.offsetHeight;
     const ratio = this.width / this.height;
     this.camera = new THREE.PerspectiveCamera(Shared.INITIAL_FOV, ratio, 1E-3, 1E35);
-    this.camera.platform = new THREE.Object3D();
+    this.camera.platform = named(new THREE.Object3D, 'CameraPlatform');
     this.camera.platform.add(this.camera);
     this.initControls(this.camera);
     this.fs = new Fullscreen(this.container, () => {
@@ -157,7 +159,7 @@ export default class ThreeUi {
     }
 
     this.controls.update();
-    this.animationCb(this.scene);
+    this.animationCb(this.scene, this);
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(() => {
         this.renderLoop();

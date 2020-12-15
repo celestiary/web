@@ -1,5 +1,5 @@
 import * as THREE from './lib/three.js/three.module.js';
-import * as Utils from './utils.js';
+import * as Utils from './utils.mjs';
 
 // https://observablehq.com/@vicapow/three-js-sprite-sheet-example
 // https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs

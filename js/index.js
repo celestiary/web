@@ -1,6 +1,6 @@
 import Celestiary from './celestiary.js';
 import * as collapsor from './collapsor.js';
-import {elt} from './utils.js';
+import {elt} from './utils.mjs';
 
 function init() {
   window.c = window.celestiary =

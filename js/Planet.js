@@ -1,11 +1,13 @@
 import * as THREE from './lib/three.js/three.module.js';
+import {assertFinite, assertInRange} from './lib/testing.js/testing.mjs';
+
 import Object from './object.js';
 import SpriteSheet from './SpriteSheet.js';
-import * as Shapes from './shapes.js';
-import * as Shared from './shared.js';
+
+import * as Shapes from './shapes.mjs';
+import * as Shared from './shared.mjs';
 import * as Material from './material.js';
-import {capitalize} from './utils.js';
-import {assertFinite, assertInRange} from './lib/testing.js/testing.mjs';
+import {capitalize} from './utils.mjs';
 
 
 export default class Planet extends Object {
@@ -138,7 +140,6 @@ export default class Planet extends Object {
     planetLOD.addLevel(Shared.FAR_OBJ, this.isMoon ? 1e7 : 1e8);
 
     closePoint.onBeforeRender = () => {
-      console.log(`onBeforeRender`);
       planet.add(this.newSurface(this.props));
       if (this.props.texture_atmosphere) {
         planet.add(this.newAtmosphere());

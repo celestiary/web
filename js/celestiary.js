@@ -5,11 +5,11 @@ import Keys from './keys.js';
 import Loader from './loader.js';
 import Reify from './reify.js';
 import Scene from './scene.js';
-import * as Shapes from './shapes.js';
+import * as Shapes from './shapes.mjs';
 import ThreeUi from './three_ui.js';
 import Time from './time.js';
-import * as Shared from './shared.js';
-import * as Utils from './utils.js';
+import * as Shared from './shared.mjs';
+import * as Utils from './utils.mjs';
 
 
 const elt = (id) => { return document.getElementById(id); }

@@ -1,22 +1,26 @@
 export const VERTEX_SHADER = `
+uniform vec3 uColor;
 uniform float iScale;
 uniform float iTime;
 varying vec3 vTexCoord3D;
+varying vec3 vColor;
 void main() {
   // Time is being used here to morph the noise field.
+  vColor = uColor;
   vTexCoord3D = iScale * ( position.xyz + vec3( iTime, iTime, iTime ) );
   gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 }`;
 
 
 export const FRAGMENT_SHADER = `
+varying vec3 vColor;
 varying vec3 vTexCoord3D;
 
-//uniform float highTemp;
-//uniform float lowTemp;
+uniform float uHighTemp;
+uniform float uLowTemp;
 uniform float iDist;
-const float highTemp = 5778.;
-const float lowTemp = highTemp / 4.;
+//const float highTemp = 5778.;
+//const float lowTemp = highTemp / 4.;
 
 //  Noise fnunctions are taken from here:
 //
@@ -147,7 +151,7 @@ void main(void) {
   float brightSpot = max(0.0, brightNoise);
   float total = noiseBase - ss + brightSpot;
 
-  float temp = (highTemp * (total) + (1.0-total) * lowTemp);
+  float temp = (uHighTemp * (total) + (1.0-total) * uLowTemp);
   // these equations reproduce the RGB values of this image:
   // https://www.seedofandromeda.com/assets/images/blogs/star_spectrum_3.png
   float i = (temp - 800.0)*0.035068;
@@ -207,6 +211,6 @@ void main(void) {
   r += mult;
   g += mult;
   b += mult;
-  gl_FragColor = vec4(vec3(r/255.0, g/255.0, b/255.0), 1.0);
+  gl_FragColor = vec4(vColor, 1.) * vec4(vec3(r/255.0, g/255.0, b/255.0), 1.0);
 }
 `;
