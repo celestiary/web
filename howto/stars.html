@@ -8,23 +8,24 @@
 </script>
 <script type="module">
   import ThreeUi from './js/three_ui.js';
-  import Scene from './js/scene.js';
-  import Stars from './js/stars.js';
+  import Stars from './js/Stars.mjs';
+  import StarsCatalog from './js/StarsCatalog.mjs';
+
 
   const ui = new ThreeUi('ui');
-  ui.fs.makeFullscreen();
-  //ui.camera.position.z = 1e20;
-  const stars = new Stars('stars', {
-    radius: {
-      // Sun's radius in meters.
-      scalar: 6.9424895E8
-    },
+
+  const catalog = new StarsCatalog();
+  catalog.load(() => {
+    const stars = new Stars({
+      radius: {
+        // Sun's radius in meters.
+        scalar: 6.9424895E8
+      },
+    }, catalog);
+    ui.scene.add(stars);
+    window.catalog = stars.catalog;
   });
-  ui.scene.add(stars);
   ui.camera.position.z = 1e10;
-  ui.animationCb = () => {
-    stars.rotation.y += 0.001;
-  };
   console.log(ui);
 </script>
 </body>

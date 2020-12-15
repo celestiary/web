@@ -3,32 +3,12 @@
 <head>
   <title>Celestiary - Guide</title>
   <link rel="stylesheet" href="index.css"/>
-  <script type="text/javascript">
-    let contentElt;
-    function checkHash() {
-      if (location.hash) {
-        const hash = location.hash.substr(1);
-          if (hash) {
-          contentElt.src = hash;
-        }
-      } else {
-        contentElt.src = 'welcome.html';
-      }
-    }
-    function init() {
-      contentElt = document.getElementById('content-frame');
-      if (contentElt) {
-        window.addEventListener('hashchange', () => {
-          checkHash();
-        });
-        checkHash();
-      } else {
-        console.log('No content elt');
-      }
-    }
+  <script type="module">
+    import {init} from './index.js';
+    init();
   </script>
 </head>
-<body id="nav" style="background-color: #abcdef" onload="init()">
+<body id="nav" style="background-color: #abcdef">
   <h1>Guide</h1>
   <p><a href="/index.html">&lt; Back</a></p>
   <ol>
@@ -56,6 +36,10 @@
         </li>
         <li>Celestial Bodies
           <ul>
+            <li><a href="#stars.html">Stars</a></li>
+            <li><a href="#stars-picking.html">Stars Picking</a></li>
+            <li><a href="#star.html">Star</a></li>
+            <li><a href="#asterisms.html">Asterisms</a>
             <li><a href="#planet.html">Planet</a>
               <li>Earth:
                 <ul>
@@ -65,8 +49,7 @@
                 </ul>
               </li>
             </li>
-            <li><a href="#star.html">Star</a></li>
-            <li><a href="#stars.html">Stars</a></li>
+            <li><a href="#asteroids.html">Asteroids</a>
           </ul>
         </li>
         <li>Interaction

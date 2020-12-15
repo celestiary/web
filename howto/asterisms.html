@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>Asterisms</h1>
+Asterisms include constellations.
+<script type="x-shader/x-vertex" id="vertexshader">
+</script>
+<script type="module">
+  import ThreeUi from './js/three_ui.js';
+  import Stars from './js/Stars.mjs';
+  import StarsCatalog from './js/StarsCatalog.mjs';
+  import Asterisms from './js/Asterisms.mjs';
+  import AsterismsCatalog from './js/AsterismsCatalog.mjs';
+
+
+  const ui = new ThreeUi('ui');
+  const catalog = new StarsCatalog();
+
+  const props = {
+    radius: {
+      // Sun's radius in meters.
+      scalar: 6.9424895E8
+    },
+  };
+  const stars = new Stars(props, () => {
+      console.log(`Stars count: ${stars.catalog.numStars}`);
+      const asterisms = new Asterisms(stars, () => {
+          stars.add(asterisms);
+          console.log(`Asterisms count:`, asterisms.catalog.numAsterisms);
+        });
+    });
+  ui.scene.add(stars);
+  ui.camera.position.z = 1e10;
+</script>
+</body>
+</html>

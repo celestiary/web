@@ -10,19 +10,19 @@ down gesture or mouse-wheel will zoom.  Double-button drag will
 pan.
 
 <script type="module">
-  // Import things from libraries, showing three types of syntax.
-  // First syntax imports a single thing that three_ui.js exports, so
-  // just need to give it a name.
+  // First import from third-party libraries.  This syntax picks only
+  // the named items, AmbientLight and PointLight, from the many
+  // exported from three.module.js.
+  import {AmbientLight, PointLight} from './js/lib/three.js/three.module.js';
+
+  // Next, import classes from this project.
   import ThreeUi from './js/three_ui.js';
   import Fullscreen from './js/fullscreen.js';
 
-  // Second syntax picks one thing from the many exported from
-  // three.module.js.
-  import {AmbientLight, PointLight} from './js/lib/three.js/three.module.js';
+  // Lastly, you can also grab all items defined in a module and put
+  // them under a local name like 'Shapes'.
+  import * as Shapes from './js/shapes.mjs';
 
-  // Last syntax grabs everything from shapes and puts them under
-  // the name 'Shapes' so they're easily accessible here.
-  import * as Shapes from './js/shapes.js';
 
   // Bind the ThreeUi to the "ui" HTML page element.
   const ui = new ThreeUi('ui');

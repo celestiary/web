@@ -11,32 +11,93 @@ of Andromeda</a> for a nice overall approach.
 code <a href="https://bpodgursky.com/2017/02/01/procedural-star-rendering-with-three-js-and-webgl-shaders/">here</a>.
 
 <p>Added differential color range based on distance.  This makes the
-star appear white from far away and reveal surface structure as
+nstar appear white from far away and reveal surface structure as
 false-color on closer approach.
 
+<table id="faves">
+  <tr><th>Star</th><th>Spectral Type</th><th>Hip ID</th></tr>
+</table>
+
 <script type="module">
-  import * as Animation from './js/animation.js';
-  import Star from './js/star.js';
+  import Star from './js/Star.js';
+  import StarsCatalog from './js/StarsCatalog.mjs';
   import ThreeUi from './js/three_ui.js';
   import Time from './js/time.js';
 
+  import * as Animation from './js/animation.js';
+  import {StarSpectra} from './js/StarsCatalog.mjs';
+  import {LENGTH_SCALE} from './js/shared.mjs';
+  import {faves} from './js/Stars.mjs';
+  import {elt} from './js/utils.mjs';
+
+  import {checkHash} from './index.js';
+
+
   const time = new Time();
   const ui = new ThreeUi('ui');
-  ui.camera.position.z = 120;
+  ui.camera.position.z = 3;
 
-  const star = new Star({
-    radius: {
-      // Sun's radius in meters.
-      scalar: 6.9424895E8
-    },
-  }, {}, ui);
-  ui.animationCb = () => {
-    const dist = ui.camera.position.z;
-    time.updateTime();
-    star.preAnimCb(time);
+  const targetName = (document.location.hash || '#Sol').substring(1);
+  const catalog = new StarsCatalog();
+  window.catalog = catalog;
+  let star;
+
+  const makeTestProps = (hipId) => {
+    const starProps = catalog.starsByHip[hipId];
+    starProps.x = starProps.y = starProps.z = 0;
+    starProps.radius = {
+        // Sun's radius in meters.
+        scalar: 1 / LENGTH_SCALE,
+    };
+    return starProps;
   };
-  star.scale.normalize();
-  ui.scene.add(star);
+
+  const showStar = (hipId) => {
+    if (hipId >= 0) {
+      ui.scene.remove(star);
+      star = new Star(makeTestProps(hipId), {}, ui);
+      ui.scene.add(star);
+    }
+  };
+
+  const setupFavesTable = () => {
+    const favesTable = elt('faves');
+    for (let hipId in faves) {
+      const name = faves[hipId];
+      const star = catalog.starsByHip[hipId];
+      const spectralType = StarSpectra[star.spectralType][3];
+      favesTable.innerHTML +=
+        `<tr>
+          <td><a href="#${name}">${name}</a></td>
+          <td>${spectralType}</td>
+          <td>${hipId}</td>
+        </tr>`;
+    }
+  };
+
+  catalog.load(() => {
+    setupFavesTable();
+    const hipId = catalog.hipByName[targetName] || 0;
+    showStar(hipId);
+    ui.animationCb = () => {
+      const dist = ui.camera.position.z;
+      time.updateTime();
+      star.preAnimCb(time);
+    };
+  });
+
+  window.addEventListener('hashchange', () => {
+    let hash = location.hash.substr(1);
+    if (hash) {
+      hash = hash.replaceAll(/%20/g, ' ');
+      const hipId = catalog.hipByName[hash];
+      if (hipId != undefined) {
+        showStar(parseInt(hipId));
+      } else {
+        console.error('Cannot find star: ', hash);
+      }
+    }
+  });
 </script>
 </body>
 </html>

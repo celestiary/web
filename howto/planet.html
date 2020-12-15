@@ -9,8 +9,8 @@ watch it as you zoom in.
 <script type="module">
   import * as THREE from './js/lib/three.js/three.module.js';
   import ThreeUi from './js/three_ui.js';
-  import Planet from './js/planet.js';
-  import {testPlanetProps} from './js/utils.js';
+  import Planet from './js/Planet.js';
+  import {testPlanetProps} from './js/scene_utils.js';
 
   const ui = new ThreeUi('ui');
   ui.camera.position.z = 1e4;
@@ -29,7 +29,7 @@ watch it as you zoom in.
     newGroup: nO,
     orbitShapes: []
   };
-  let planet = new Planet(scene, testPlanetProps((document.hash || '#earth').substring(1)));
+  let planet = new Planet(scene, testPlanetProps((document.location.hash || '#earth').substring(1)));
   ui.scene.add(planet);
   ui.scene.add(new THREE.AxesHelper(1.1));
   ui.animationCb = () => {

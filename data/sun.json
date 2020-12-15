@@ -2,6 +2,7 @@
 "type":"star",
 "name":"sun",
 "parent":"milkyway",
+"spectralType":"4",
 "apparentMagnitude": "-26.8",
 "colorIndex": 1.0,
 "mass": "1.9891E33 g",
