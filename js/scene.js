@@ -22,11 +22,6 @@ export default class Scene {
   constructor(ui) {
     this.ui = ui;
     this.objects = {};
-    this.orbitShapes = {};
-    this.debugShapes = [];
-    this.orbitsVisible = false;
-    this.debugVisible = false;
-    this.uniforms = null;
     this.mouse = new THREE.Vector2;
     this.raycaster = new THREE.Raycaster;
     //this.raycaster = new CustomRaycaster;
@@ -34,6 +29,12 @@ export default class Scene {
     ui.addClickCb((click) => {
         this.onClick(click);
       });
+    this.stars = null;
+    this.asterisms = null;
+    this.orbitShapes = {};
+    this.debugShapes = [];
+    this.orbitsVisible = false;
+    this.debugVisible = false;
   }
 
 
@@ -62,14 +63,8 @@ export default class Scene {
     switch (props.type) {
     case 'galaxy': return this.newGalaxy(props);
     case 'stars':
-      const stars = new Stars(props, () => {
-          console.log(`Stars count: ${stars.catalog.numStars}`);
-          const asterisms = new Asterisms(stars, () => {
-              stars.add(asterisms);
-              console.log(`Asterisms count:`, asterisms.catalog.numAsterisms);
-            });
-        });
-      return stars;
+      this.stars = new Stars(props, () => {});
+      return this.stars;
     case 'star': return new Star(props, this.objects, this.ui);
     case 'planet': return new Planet(this, props);
     case 'moon': return new Planet(this, props, true);
@@ -331,12 +326,21 @@ export default class Scene {
 
 
   toggleAsterisms() {
-    Object.registry.stars.asterismsGroup.visible = !Object.registry.stars.asterismsGroup.visible;
+    if (this.asterisms == null) {
+      const asterisms = new Asterisms(this.stars, () => {
+          this.stars.add(asterisms);
+          console.log(`Asterisms count:`, asterisms.catalog.numAsterisms);
+          this.asterisms = asterisms;
+        });
+    }
+    if (this.asterisms) {
+      this.asterisms.visible = !this.asterisms.visible;
+    }
   }
 
 
   toggleNames() {
-    Object.registry.stars.namesGroup.visible = !Object.registry.stars.namesGroup.visible;
+    this.stars.labelLOD.visible = !this.stars.labelLOD.visible;
   }
 
 

@@ -53631,7 +53631,7 @@ class Planet extends Object$1 {
 
     const orbitShape = this.newOrbit(this.scene, orbit, this.name);
     orbitPlane.add(orbitShape);
-    orbitShape.visible = this.orbitsVisible;
+    orbitShape.visible = this.scene.orbitsVisible;
     this.scene.orbitShapes[this.name] = orbitShape;
 
     const orbitPosition = this.scene.newGroup(this.name + '.orbitPosition');
@@ -54286,11 +54286,6 @@ class Scene$1 {
   constructor(ui) {
     this.ui = ui;
     this.objects = {};
-    this.orbitShapes = {};
-    this.debugShapes = [];
-    this.orbitsVisible = false;
-    this.debugVisible = false;
-    this.uniforms = null;
     this.mouse = new Vector2;
     this.raycaster = new Raycaster;
     //this.raycaster = new CustomRaycaster;
@@ -54298,6 +54293,12 @@ class Scene$1 {
     ui.addClickCb((click) => {
         this.onClick(click);
       });
+    this.stars = null;
+    this.asterisms = null;
+    this.orbitShapes = {};
+    this.debugShapes = [];
+    this.orbitsVisible = false;
+    this.debugVisible = false;
   }
 
 
@@ -54326,14 +54327,8 @@ class Scene$1 {
     switch (props.type) {
     case 'galaxy': return this.newGalaxy(props);
     case 'stars':
-      const stars = new Stars(props, () => {
-          console.log(`Stars count: ${stars.catalog.numStars}`);
-          const asterisms = new Asterisms(stars, () => {
-              stars.add(asterisms);
-              console.log(`Asterisms count:`, asterisms.catalog.numAsterisms);
-            });
-        });
-      return stars;
+      this.stars = new Stars(props, () => {});
+      return this.stars;
     case 'star': return new Star(props, this.objects, this.ui);
     case 'planet': return new Planet(this, props);
     case 'moon': return new Planet(this, props, true);
@@ -54505,12 +54500,21 @@ class Scene$1 {
 
 
   toggleAsterisms() {
-    Object$1.registry.stars.asterismsGroup.visible = !Object$1.registry.stars.asterismsGroup.visible;
+    if (this.asterisms == null) {
+      const asterisms = new Asterisms(this.stars, () => {
+          this.stars.add(asterisms);
+          console.log(`Asterisms count:`, asterisms.catalog.numAsterisms);
+          this.asterisms = asterisms;
+        });
+    }
+    if (this.asterisms) {
+      this.asterisms.visible = !this.asterisms.visible;
+    }
   }
 
 
   toggleNames() {
-    Object$1.registry.stars.namesGroup.visible = !Object$1.registry.stars.namesGroup.visible;
+    this.stars.labelLOD.visible = !this.stars.labelLOD.visible;
   }
 
 

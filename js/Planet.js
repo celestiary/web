@@ -41,7 +41,7 @@ export default class Planet extends Object {
 
     const orbitShape = this.newOrbit(this.scene, orbit, this.name);
     orbitPlane.add(orbitShape);
-    orbitShape.visible = this.orbitsVisible;
+    orbitShape.visible = this.scene.orbitsVisible;
     this.scene.orbitShapes[this.name] = orbitShape;
 
     const orbitPosition = this.scene.newGroup(this.name + '.orbitPosition');
