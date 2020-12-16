@@ -36,5 +36,5 @@
 ,
 "system": ["phobos","deimos"],
 "texture_atmosphere": true,
-"texture_terrain": true,
+"texture_terrain": true
 }

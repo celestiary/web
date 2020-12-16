@@ -21,6 +21,8 @@ is called after the final object is loaded.
 <script type="module">
   import Loader from './js/loader.js';
   import * as Collapsor from './js/collapsor.js';
+
+
   const elt = (id) => { return document.getElementById(id); }
   const loader = new Loader();
   const onLoadCb = (name, obj) => {};
@@ -38,7 +40,13 @@ is called after the final object is loaded.
     window.collapse = Collapsor.collapse;
     Collapsor.makeCollapsable(doneElt);
   };
-  loader.loadPath('sun/earth/moon', onLoadCb, onDoneCb);
+
+  const handleHash = () => {
+    let hash = location.hash.substr(1) || 'sun/earth/moon';
+    loader.loadPath(hash, onLoadCb, onDoneCb);
+  }
+  window.addEventListener('hashchange', handleHash);
+  handleHash();
 </script>
 </body>
 </html>
