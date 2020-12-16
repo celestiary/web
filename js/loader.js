@@ -1,4 +1,4 @@
-import Resource from './rest.js';
+import {FileLoader} from './lib/three.js/three.module.js';
 
 
 /**
@@ -78,7 +78,9 @@ export default class Loader {
       }
     } else {
       this.loaded[name] = 'pending';
-      new Resource(name).get((obj) => {
+      const fileLoader = new FileLoader();
+      fileLoader.setResponseType('json');
+      fileLoader.load('./data/' + name + '.json', (obj) => {
           this.loaded[name] = obj;
           const path = prefix ? `${prefix}/${name}` : name;
           this.pathByName[name] = path;

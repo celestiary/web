@@ -51559,9 +51559,6 @@ var Utils = /*#__PURE__*/Object.freeze({
 	visitChildren: visitChildren
 });
 
-// Additionally, when I hardcode LENGTH_SCALE to 1E-5, LOD starts to
-// flake out when zoomed to small sizes, supporting the 1E-4 minimum.
-
 const
   FAR_OBJ = named(new Object3D, 'LODFarObj'), // for invisible LOD.
   twoPi = Math.PI * 2.0,
@@ -51569,9 +51566,14 @@ const
   toDeg = 180.0 / Math.PI,
   toRad = Math.PI / 180.0,
 
-  // SMALLEST_RENDER_SIZE / SMALLEST_REAL_SIZE = 1E-7, but can't use the
-  // calculation since it actually yields 1.0000000000000001e-7.
+  // When I hardcode LENGTH_SCALE to 1E-5, LOD starts to flake out
+  // when zoomed to small sizes, supporting the 1E-4 minimum.
+  // SMALLEST_RENDER_SIZE / SMALLEST_REAL_SIZE = 1E-7, but can't use
+  // the calculation since it actually yields 1.0000000000000001e-7.
   LENGTH_SCALE = 1E-7,
+
+  STARS_SCALE = 9.461E12 * 1E3 * LENGTH_SCALE,
+
   INITIAL_FOV = 45,
 
   targets = {
@@ -51595,6 +51597,7 @@ var Shared = /*#__PURE__*/Object.freeze({
 	toDeg: toDeg,
 	toRad: toRad,
 	LENGTH_SCALE: LENGTH_SCALE,
+	STARS_SCALE: STARS_SCALE,
 	INITIAL_FOV: INITIAL_FOV,
 	targets: targets,
 	labelTextColor: labelTextColor,
@@ -52039,39 +52042,6 @@ class Keys {
   }
 }
 
-if (typeof XMLHttpRequest == "undefined") {
-  XMLHttpRequest = function () {
-    try { return new ActiveXObject("Msxml2.XMLHTTP.6.0"); }
-    catch (e) {}
-    try { return new ActiveXObject("Msxml2.XMLHTTP.3.0"); }
-    catch (e) {}
-    try { return new ActiveXObject("Microsoft.XMLHTTP"); }
-    catch (e) {}
-    //Microsoft.XMLHTTP points to Msxml2.XMLHTTP and is redundant
-    throw new Error("This browser does not support XMLHttpRequest.");
-  };
-}
-
-const Resource = function(name) {
-  this.name = './data/' + name + '.json';
-  this.get = (func) => {
-    if (location.href.startsWith && location.href.startsWith('file')) {
-      console.log('yoo');
-      return func({type: 'star', name: 'sun', radius: 6.9424895E8});
-    }
-    var xmlhttp = new XMLHttpRequest();
-    xmlhttp.onreadystatechange = () => {
-      if (xmlhttp.readyState == 4){
-        var json = xmlhttp.responseText;
-        var obj = eval('(' + json + ')');
-        func(obj);
-      }
-    };
-    xmlhttp.open("GET", this.name, true);
-    xmlhttp.send(null);
-  };
-};
-
 /**
  * The Loader fetches the scene resource descriptions and reifies
  * their data.
@@ -52149,7 +52119,9 @@ class Loader$1 {
       }
     } else {
       this.loaded[name] = 'pending';
-      new Resource(name).get((obj) => {
+      const fileLoader = new FileLoader();
+      fileLoader.setResponseType('json');
+      fileLoader.load('./data/' + name + '.json', (obj) => {
           this.loaded[name] = obj;
           const path = prefix ? `${prefix}/${name}` : name;
           this.pathByName[name] = path;
@@ -52814,196 +52786,6 @@ class AsterismsCatalog {
   }
 }
 
-class Object$1 extends Object3D {
-
-  static registry = [];
-
-  /**
-   * @param name Prefix, attached to .frame suffix.
-   * @param props Optional props to attach to a .props field on the frame.
-   * @param onClick Optional callback to handle click.  Leaving
-   * undefined will pass click to parent.
-   */
-  constructor(name, props, onClick) {
-    super();
-    this.name = name;
-    this.props = props || {name: name};
-    this.onClick = onClick;
-    Object$1.registry[name] = this;
-  }
-}
-
-// TODO: separate this into a SpriteSheet supercalss and LabelSheet subclass.
-/**
- * From:
- *   https://observablehq.com/@vicapow/three-js-sprite-sheet-example
- *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
- */
-class SpriteSheet {
-  constructor(cols, maxLabel, labelTextFont = '12px arial') {
-    this.labelTextFont = labelTextFont;
-    this.textBaseline = 'bottom';
-    this.canvas = createCanvas();
-    document.canvas = this.canvas;
-    this.ctx = this.canvas.getContext('2d');
-    const maxBounds = measureText(this.ctx, maxLabel, labelTextFont);
-    const itemSize = Math.max(maxBounds.width, maxBounds.height);
-    this.size = cols * itemSize;
-    this.width = this.size;
-    this.height = this.size;
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
-    //console.log('canvas: ', {width: this.canvas.width, height: this.canvas.height},
-    //            cols, maxBounds, this.size, maxBounds.width);
-    this.curX = 0;
-    this.curY = 0;
-    this.lineSizeMax = 0;
-    const ctx = this.ctx;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0)'; // full black without alpha
-    ctx.fillRect(0, 0, this.width, this.height);
-    ctx.fill();
-  }
-
-
-  alloc(labelText, fillStyle = 'white') {
-    let bounds = measureText(this.ctx, labelText);
-    const size = Math.max(bounds.width, bounds.height);
-    if (this.curX + size > this.width) {
-      this.curX = 0;
-      this.curY += this.lineSizeMax;
-      this.lineSizeMax = 0;
-    }
-    if (size > this.lineSizeMax) {
-      this.lineSizeMax = size;
-    }
-    bounds = this.drawAt(labelText, this.curX, this.curY, fillStyle);
-    //console.log(`alloc: text: ${labelText}, curX: ${this.curX}, curY: ${this.curY}, this.width: ${this.width}, bounds:`, bounds);
-    const spriteCoords = [bounds.x / this.size,
-                          1 - (bounds.y + bounds.height) / this.size,
-                          bounds.width / this.size,
-                          bounds.height / this.size];
-    const labelObject = this.makeLabelObject({width: bounds.width, height: bounds.height}, spriteCoords);
-    this.curX += bounds.width;
-    return labelObject;
-  }
-
-
-  drawAt(text, x, y, fillStyle) {
-    const ctx = this.ctx;
-    ctx.textBaseline = this.textBaseline;
-    ctx.font = this.labelTextFont;
-    const bounds = measureText(ctx, text);
-    const size = Math.max(bounds.width, bounds.height);
-    ctx.save();
-    ctx.translate(x, y);
-    this.drawLabel(text, size, size, fillStyle);
-    ctx.restore();
-    return {x, y, width: size, height: size};
-  }
-
-
-  drawLabel(text, width, height, fillStyle) {
-    const ctx = this.ctx;
-    //ctx.fillStyle = fillStyle;
-    //ctx.fillRect(0, 0, width, height);
-    ctx.textBaseline = this.textBaseline;
-    ctx.font = this.labelTextFont;
-    ctx.fillStyle = fillStyle;
-    ctx.fillText(text, 0, height / 2 - 3);
-  }
-
-
-  makeLabelObject(pointSize, spriteCoords) {
-    const vertices = [];
-    vertices.push(0, 0, 0);
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
-    geometry.computeBoundingBox();
-    return new Points(geometry, this.createMaterial(pointSize, spriteCoords));
-  }
-
-
-  createMaterial(pointSize, spriteCoords) {
-    const pixelRatio = 1;
-    const texture = new CanvasTexture(this.canvas);
-    texture.minFilter = NearestFilter;
-    texture.magFilter = NearestFilter;
-    const material = new ShaderMaterial( {
-        uniforms: {
-          pointWidth: { value: pointSize.width * ( (pixelRatio * pixelRatio) ) },
-          map: { value: texture },
-          spriteCoords: { value: spriteCoords }
-        },
-        vertexShader: vertexShader,
-        fragmentShader: fragmentShader,
-        depthTest: true,
-        transparent: true,
-      });
-    return material;
-  }
-}
-
-
-const vertexShader = `
-  uniform float pointWidth;
-  void main() {
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = pointWidth;
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-
-const fragmentShader = `
-  uniform float pointWidth;
-  uniform sampler2D map;
-  uniform vec4 spriteCoords;
-  void main() {
-    vec2 spriteUV = vec2(
-      spriteCoords.x + spriteCoords.z * gl_PointCoord.x,
-      spriteCoords.y + spriteCoords.w * (1.0 - gl_PointCoord.y));
-    gl_FragColor = texture2D(map, spriteUV);
-  }
-`;
-
-class StarsBufferGeometry extends BufferGeometry {
-  constructor(catalog) {
-    super();
-    const numStars = catalog.numStars;
-    const coords = new Float32Array(numStars * 3);
-    const colors = new Float32Array(numStars * 3);
-    const sizes = new Float32Array(numStars);
-    const sunSpectrum = StarSpectra[4];
-    let i = 0;
-    const scale = SCALE;
-    for (let hipId in catalog.starsByHip) {
-      const star = catalog.starsByHip[hipId];
-      const off = 3 * i;
-      coords[off] = scale * star.x;
-      coords[off + 1] = scale * star.y;
-      coords[off + 2] = scale * star.z;
-      let rgb = StarSpectra[star.spectralType];
-      rgb = rgb || sunSpectrum;
-      const lumRelSun = star.lumRelSun;
-      const r = rgb[0] / 255;
-      const g = rgb[1] / 255;
-      const b = rgb[2] / 255;
-      colors[off] = r;
-      colors[off + 1] = g;
-      colors[off + 2] = b;
-      // 1E1 looks decent.  2E1 much more intriguing but a little fake.
-      const scaleUp = 1e1;
-      sizes[i] = star.radiusMeters * LENGTH_SCALE * scaleUp;
-      i++;
-    }
-    // https://github.com/mrdoob/three.js/blob/master/examples/webgl_custom_attributes_points.html
-    this.setAttribute('position', new BufferAttribute(coords, 3));
-    this.setAttribute('color', new BufferAttribute(colors, 3));
-    this.setAttribute('size', new BufferAttribute(sizes, 1));
-    this.computeBoundingSphere();
-  }
-}
-
 const loader = new TextureLoader();
 
 function loadTexture(texPath) {
@@ -53570,117 +53352,6 @@ var Shapes = /*#__PURE__*/Object.freeze({
 	sphere: sphere
 });
 
-//import CustomPoints from './lib/three-custom/points.js';
-
-
-const SCALE = 9.461E12 * 1E3 * LENGTH_SCALE;
-const labelTextColor$1 = labelTextColor;
-
-
-class Stars extends Object$1 {
-  constructor(props, catalogOrCb) {
-    super('Stars', props);
-    this.starLabelSpriteSheet = new SpriteSheet(17, 'Rigel Kentaurus B', labelTextFont);
-    this.labelsGroup = named(new Group, 'LabelsGroup');
-    this.labelsByName = {};
-    this.labelLOD = named(new LOD, 'LabelsLOD');
-    this.labelLOD.addLevel(this.labelsGroup, 1);
-    this.labelLOD.addLevel(FAR_OBJ, 1e13);
-    this.add(this.labelLOD);
-    if (typeof catalogOrCb == 'StarsCatalog') {
-      const catalog = catalogOrCb;
-      if (!catalog.starsByHip) {
-        throw new Error('Invalid stars catalog');
-      }
-      this.catalog = catalog;
-      this.show();
-    } else {
-      this.catalog = new StarsCatalog();
-      this.catalog.load(() => {
-          this.show();
-          if (typeof catalogOrCb == 'function') {
-            const cb = catalogOrCb;
-            cb();
-          }
-        });
-    }
-  }
-
-
-  show() {
-    const geom = new StarsBufferGeometry(this.catalog);
-    const starImage = pathTexture('star_glow', '.png');
-    const starsMaterial = new ShaderMaterial({
-        uniforms: {
-          texSampler: { value: starImage }
-        },
-        vertexShader: 'js/shaders/stars.vert',
-        fragmentShader: 'js/shaders/stars.frag',
-        blending: AdditiveBlending,
-        depthTest: true,
-        depthWrite: false,
-        transparent: true
-        });
-    new Loader$1().loadShaders(starsMaterial, () => {
-        //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
-        const starPoints = named(new Points(geom, starsMaterial), 'StarsPoints');
-        starPoints.sortParticles = true;
-        this.add(starPoints);
-        window.sp = starPoints;
-      });
-      //const starsMaterial = new THREE.PointsMaterial( { size: 10, vertexColors: true, sizeAttenuation: false } );
-      //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
-      //this.add(starPoints);
-    for (let hipId in faves) {
-      const star = this.catalog.starsByHip[hipId];
-      if (star) {
-        this.showStarName(star, faves[hipId]);
-      } else {
-        throw new Error(`Null star for hipId(${hipId})`);
-      }
-    }
-  }
-
-
-  showStarName(star, name) {
-    if (this.labelsByName[name]) {
-      //console.log('skipping double show of name: ', name);
-      return;
-    }
-    const sPos = new Vector3(SCALE * star.x, SCALE * star.y, SCALE * star.z);
-    const label = this.starLabelSpriteSheet.alloc(name, labelTextColor);
-    label.position.copy(sPos);
-    this.labelsGroup.attach(label);
-    this.labelsByName[name] = label;
-  }
-}
-
-
-const faves = {
-  0: 'Sol',
-  439: 'Gliese 1',
-  8102: 'Tau Ceti',
-  11767: 'Polaris',
-  21421: 'Aldebaran',
-  24436: 'Rigel',
-  25336: 'Bellatrix',
-  27989: 'Betelgeuse',
-  30438: 'Canopus',
-  32349: 'Sirius',
-  37279: 'Procyon',
-  49669: 'Regulus',
-  57632: 'Denebola',
-  65474: 'Spica',
-  69673: 'Arcturus',
-  70890: 'Proxima Centauri',
-  80763: 'Antares',
-  83608: 'Arrakis',
-  91262: 'Vega',
-  102098: 'Deneb',
-  97649: 'Altair',
-  113881: 'Scheat'
-};
-
 class Asterisms extends Object3D {
   constructor(stars, cb) {
     super();
@@ -53689,8 +53360,7 @@ class Asterisms extends Object3D {
     this.catalog = new AsterismsCatalog(stars.catalog);
     this.catalog.load(() => {
         for (let astrName in this.catalog.byName) {
-          const asterism = this.catalog.byName[astrName];
-          this.show(asterism.paths);
+          this.show(astrName);
         }
         if (cb) {
           cb();
@@ -53699,7 +53369,22 @@ class Asterisms extends Object3D {
   }
 
 
-  show(paths) {
+  show(astrName, filterFn) {
+    if (!filterFn) {
+      filterFn = (stars, hipId, name) => {
+        if (this.stars.catalog.namesByHip[hipId].length >= 2) {
+          if (!name.match(/\w{2,3} [\w\d]{3,4}/)) {
+            return true;
+          }
+        }
+        return false;
+      };
+    }
+    const asterism = this.catalog.byName[astrName];
+    if (!asterism) {
+      throw new Error('Unknown asterism: ', astrName);
+    }
+    const paths = asterism.paths;
     for (let pathNdx in paths) {
       let prevStar = null;
       const pathNames = paths[pathNdx];
@@ -53712,17 +53397,15 @@ class Asterisms extends Object3D {
           console.log('added catalog to window.catalog', this.stars);
           continue;
         }
-        if (this.stars.catalog.namesByHip[hipId].length >= 2) {
-          if (!name.match(/\w{2,3} [\w\d]{3,4}/)) {
-            this.stars.showStarName(star, name);
-          }
+        if (filterFn(this.stars, hipId, name)) {
+          this.stars.showStarName(star, name);
         }
         if (prevStar) {
           try {
             const line$1 = line(
-              SCALE * prevStar.x, SCALE * prevStar.y, SCALE * prevStar.z,
-              SCALE * star.x, SCALE * star.y, SCALE * star.z);
-              line$1.material = new LineBasicMaterial({color: labelTextColor$1});
+              STARS_SCALE * prevStar.x, STARS_SCALE * prevStar.y, STARS_SCALE * prevStar.z,
+              STARS_SCALE * star.x, STARS_SCALE * star.y, STARS_SCALE * star.z);
+              line$1.material = new LineBasicMaterial({color: labelTextColor});
             this.add(line$1);
           } catch (e) {
             console.error(`origName: ${origName}, hipId: ${hipId}: ${e}`);
@@ -53749,6 +53432,25 @@ class Asterisms extends Object3D {
   }
 }
 
+class Object$1 extends Object3D {
+
+  static registry = [];
+
+  /**
+   * @param name Prefix, attached to .frame suffix.
+   * @param props Optional props to attach to a .props field on the frame.
+   * @param onClick Optional callback to handle click.  Leaving
+   * undefined will pass click to parent.
+   */
+  constructor(name, props, onClick) {
+    super();
+    this.name = name;
+    this.props = props || {name: name};
+    this.onClick = onClick;
+    Object$1.registry[name] = this;
+  }
+}
+
 function assertFinite(num, msg) {
   if (!Number.isFinite(num)) {
     throw new Error(msg || `Is not a number: ${num}`);
@@ -53764,6 +53466,139 @@ function assertInRange(num, min, max, msg) {
   }
   return num;
 }
+
+// TODO: separate this into a SpriteSheet supercalss and LabelSheet subclass.
+/**
+ * From:
+ *   https://observablehq.com/@vicapow/three-js-sprite-sheet-example
+ *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
+ */
+class SpriteSheet {
+  constructor(cols, maxLabel, labelTextFont = '12px arial') {
+    this.labelTextFont = labelTextFont;
+    this.textBaseline = 'bottom';
+    this.canvas = createCanvas();
+    document.canvas = this.canvas;
+    this.ctx = this.canvas.getContext('2d');
+    const maxBounds = measureText(this.ctx, maxLabel, labelTextFont);
+    const itemSize = Math.max(maxBounds.width, maxBounds.height);
+    this.size = cols * itemSize;
+    this.width = this.size;
+    this.height = this.size;
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+    //console.log('canvas: ', {width: this.canvas.width, height: this.canvas.height},
+    //            cols, maxBounds, this.size, maxBounds.width);
+    this.curX = 0;
+    this.curY = 0;
+    this.lineSizeMax = 0;
+    const ctx = this.ctx;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0)'; // full black without alpha
+    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.fill();
+  }
+
+
+  alloc(labelText, fillStyle = 'white') {
+    let bounds = measureText(this.ctx, labelText);
+    const size = Math.max(bounds.width, bounds.height);
+    if (this.curX + size > this.width) {
+      this.curX = 0;
+      this.curY += this.lineSizeMax;
+      this.lineSizeMax = 0;
+    }
+    if (size > this.lineSizeMax) {
+      this.lineSizeMax = size;
+    }
+    bounds = this.drawAt(labelText, this.curX, this.curY, fillStyle);
+    //console.log(`alloc: text: ${labelText}, curX: ${this.curX}, curY: ${this.curY}, this.width: ${this.width}, bounds:`, bounds);
+    const spriteCoords = [bounds.x / this.size,
+                          1 - (bounds.y + bounds.height) / this.size,
+                          bounds.width / this.size,
+                          bounds.height / this.size];
+    const labelObject = this.makeLabelObject({width: bounds.width, height: bounds.height}, spriteCoords);
+    this.curX += bounds.width;
+    return labelObject;
+  }
+
+
+  drawAt(text, x, y, fillStyle) {
+    const ctx = this.ctx;
+    ctx.textBaseline = this.textBaseline;
+    ctx.font = this.labelTextFont;
+    const bounds = measureText(ctx, text);
+    const size = Math.max(bounds.width, bounds.height);
+    ctx.save();
+    ctx.translate(x, y);
+    this.drawLabel(text, size, size, fillStyle);
+    ctx.restore();
+    return {x, y, width: size, height: size};
+  }
+
+
+  drawLabel(text, width, height, fillStyle) {
+    const ctx = this.ctx;
+    //ctx.fillStyle = fillStyle;
+    //ctx.fillRect(0, 0, width, height);
+    ctx.textBaseline = this.textBaseline;
+    ctx.font = this.labelTextFont;
+    ctx.fillStyle = fillStyle;
+    ctx.fillText(text, 0, height / 2 - 3);
+  }
+
+
+  makeLabelObject(pointSize, spriteCoords) {
+    const vertices = [];
+    vertices.push(0, 0, 0);
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
+    geometry.computeBoundingBox();
+    return new Points(geometry, this.createMaterial(pointSize, spriteCoords));
+  }
+
+
+  createMaterial(pointSize, spriteCoords) {
+    const pixelRatio = 1;
+    const texture = new CanvasTexture(this.canvas);
+    texture.minFilter = NearestFilter;
+    texture.magFilter = NearestFilter;
+    const material = new ShaderMaterial( {
+        uniforms: {
+          pointWidth: { value: pointSize.width * ( (pixelRatio * pixelRatio) ) },
+          map: { value: texture },
+          spriteCoords: { value: spriteCoords }
+        },
+        vertexShader: vertexShader,
+        fragmentShader: fragmentShader,
+        depthTest: true,
+        transparent: true,
+      });
+    return material;
+  }
+}
+
+
+const vertexShader = `
+  uniform float pointWidth;
+  void main() {
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = pointWidth;
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+
+const fragmentShader = `
+  uniform float pointWidth;
+  uniform sampler2D map;
+  uniform vec4 spriteCoords;
+  void main() {
+    vec2 spriteUV = vec2(
+      spriteCoords.x + spriteCoords.z * gl_PointCoord.x,
+      spriteCoords.y + spriteCoords.w * (1.0 - gl_PointCoord.y));
+    gl_FragColor = texture2D(map, spriteUV);
+  }
+`;
 
 class Planet extends Object$1 {
 
@@ -54287,6 +54122,161 @@ class Star extends Object$1 {
     };
   }
 }
+
+class StarsBufferGeometry extends BufferGeometry {
+  constructor(catalog) {
+    super();
+    const numStars = catalog.numStars;
+    const coords = new Float32Array(numStars * 3);
+    const colors = new Float32Array(numStars * 3);
+    const sizes = new Float32Array(numStars);
+    const sunSpectrum = StarSpectra[4];
+    let i = 0;
+    const scale = STARS_SCALE;
+    for (let hipId in catalog.starsByHip) {
+      const star = catalog.starsByHip[hipId];
+      const off = 3 * i;
+      coords[off] = scale * star.x;
+      coords[off + 1] = scale * star.y;
+      coords[off + 2] = scale * star.z;
+      let rgb = StarSpectra[star.spectralType];
+      rgb = rgb || sunSpectrum;
+      const lumRelSun = star.lumRelSun;
+      const r = rgb[0] / 255;
+      const g = rgb[1] / 255;
+      const b = rgb[2] / 255;
+      colors[off] = r;
+      colors[off + 1] = g;
+      colors[off + 2] = b;
+      // 1E1 looks decent.  2E1 much more intriguing but a little fake.
+      const scaleUp = 1e1;
+      sizes[i] = star.radiusMeters * LENGTH_SCALE * scaleUp;
+      i++;
+    }
+    // https://github.com/mrdoob/three.js/blob/master/examples/webgl_custom_attributes_points.html
+    this.setAttribute('position', new BufferAttribute(coords, 3));
+    this.setAttribute('color', new BufferAttribute(colors, 3));
+    this.setAttribute('size', new BufferAttribute(sizes, 1));
+    this.computeBoundingSphere();
+  }
+}
+
+//import CustomPoints from './lib/three-custom/points.js';
+
+
+class Stars extends Object$1 {
+  constructor(props, catalogOrCb) {
+    super('Stars', props);
+    this.starLabelSpriteSheet = new SpriteSheet(17, 'Rigel Kentaurus B', labelTextFont);
+    this.labelsGroup = named(new Group, 'LabelsGroup');
+    this.labelsByName = {};
+    this.labelLOD = named(new LOD, 'LabelsLOD');
+    this.labelLOD.addLevel(this.labelsGroup, 1);
+    this.labelLOD.addLevel(FAR_OBJ, 1e13);
+    this.add(this.labelLOD);
+    if (typeof catalogOrCb == 'StarsCatalog') {
+      const catalog = catalogOrCb;
+      if (!catalog.starsByHip) {
+        throw new Error('Invalid stars catalog');
+      }
+      this.catalog = catalog;
+      this.show();
+    } else {
+      this.catalog = new StarsCatalog();
+      this.catalog.load(() => {
+          this.show();
+          if (typeof catalogOrCb == 'function') {
+            const cb = catalogOrCb;
+            cb();
+          }
+        });
+    }
+  }
+
+
+  show() {
+    const geom = new StarsBufferGeometry(this.catalog);
+    const starImage = pathTexture('star_glow', '.png');
+    const starsMaterial = new ShaderMaterial({
+        uniforms: {
+          texSampler: { value: starImage }
+        },
+        vertexShader: 'js/shaders/stars.vert',
+        fragmentShader: 'js/shaders/stars.frag',
+        blending: AdditiveBlending,
+        depthTest: true,
+        depthWrite: false,
+        transparent: true
+        });
+    new Loader$1().loadShaders(starsMaterial, () => {
+        //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
+        const starPoints = named(new Points(geom, starsMaterial), 'StarsPoints');
+        starPoints.sortParticles = true;
+        this.add(starPoints);
+        window.sp = starPoints;
+      });
+      //const starsMaterial = new THREE.PointsMaterial( { size: 10, vertexColors: true, sizeAttenuation: false } );
+      //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
+      //this.add(starPoints);
+    for (let hipId in faves) {
+      const star = this.catalog.starsByHip[hipId];
+      if (star) {
+        this.showStarName(star, faves[hipId]);
+      } else {
+        throw new Error(`Null star for hipId(${hipId})`);
+      }
+    }
+  }
+
+
+  // TODO fix this in the SpriteSheet.
+  maybeWiden(str) {
+    while (str.length < 8) {
+      str = ` ${str} `;
+    }
+    return str;
+  }
+
+
+  showStarName(star, name) {
+    if (this.labelsByName[name]) {
+      //console.log('skipping double show of name: ', name);
+      return;
+    }
+    const sPos = new Vector3(
+        STARS_SCALE * star.x, STARS_SCALE * star.y, STARS_SCALE * star.z);
+    const label = this.starLabelSpriteSheet.alloc(this.maybeWiden(name), labelTextColor);
+    label.position.copy(sPos);
+    this.labelsGroup.attach(label);
+    this.labelsByName[name] = label;
+  }
+}
+
+
+const faves = {
+  0: 'Sol',
+  439: 'Gliese 1',
+  8102: 'Tau Ceti',
+  11767: 'Polaris',
+  21421: 'Aldebaran',
+  24436: 'Rigel',
+  25336: 'Bellatrix',
+  27989: 'Betelgeuse',
+  30438: 'Canopus',
+  32349: 'Sirius',
+  37279: 'Procyon',
+  49669: 'Regulus',
+  57632: 'Denebola',
+  65474: 'Spica',
+  69673: 'Arcturus',
+  70890: 'Proxima Centauri',
+  80763: 'Antares',
+  83608: 'Arrakis',
+  91262: 'Vega',
+  102098: 'Deneb',
+  97649: 'Altair',
+  113881: 'Scheat'
+};
 
 const 
   lengthScale = LENGTH_SCALE;

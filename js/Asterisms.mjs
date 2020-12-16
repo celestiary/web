@@ -3,10 +3,9 @@ import * as THREE from './lib/three.js/three.module.js';
 
 import AsterismsCatalog from './AsterismsCatalog.mjs';
 import StarsCatalog from './StarsCatalog.mjs';
-import {labelTextColor} from './Stars.mjs';
 import * as Material from './material.js';
 import * as Shapes from './shapes.mjs';
-import {SCALE} from './Stars.mjs';
+import {STARS_SCALE, labelTextColor} from './shared.mjs';
 
 
 export default class Asterisms extends THREE.Object3D {
@@ -60,8 +59,8 @@ export default class Asterisms extends THREE.Object3D {
         if (prevStar) {
           try {
             const line = Shapes.line(
-              SCALE * prevStar.x, SCALE * prevStar.y, SCALE * prevStar.z,
-              SCALE * star.x, SCALE * star.y, SCALE * star.z)
+              STARS_SCALE * prevStar.x, STARS_SCALE * prevStar.y, STARS_SCALE * prevStar.z,
+              STARS_SCALE * star.x, STARS_SCALE * star.y, STARS_SCALE * star.z)
               line.material = new THREE.LineBasicMaterial({color: labelTextColor});
             this.add(line);
           } catch (e) {

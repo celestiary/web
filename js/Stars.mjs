@@ -8,24 +8,20 @@ import StarsBufferGeometry from './StarsBufferGeometry.mjs';
 import StarsCatalog from './StarsCatalog.mjs';
 import * as Material from './material.js';
 import * as Shapes from './shapes.mjs';
-import * as Shared from './shared.mjs';
+import {STARS_SCALE, labelTextColor, labelTextFont, FAR_OBJ} from './shared.mjs';
 import {debug} from './log.mjs';
 import {named} from './utils.mjs';
-
-
-export const SCALE = 9.461E12 * 1E3 * Shared.LENGTH_SCALE;
-export const labelTextColor = Shared.labelTextColor;
 
 
 export default class Stars extends Object {
   constructor(props, catalogOrCb) {
     super('Stars', props);
-    this.starLabelSpriteSheet = new SpriteSheet(17, 'Rigel Kentaurus B', Shared.labelTextFont);
+    this.starLabelSpriteSheet = new SpriteSheet(17, 'Rigel Kentaurus B', labelTextFont);
     this.labelsGroup = named(new THREE.Group, 'LabelsGroup');
     this.labelsByName = {};
     this.labelLOD = named(new THREE.LOD, 'LabelsLOD');
     this.labelLOD.addLevel(this.labelsGroup, 1);
-    this.labelLOD.addLevel(Shared.FAR_OBJ, 1e13);
+    this.labelLOD.addLevel(FAR_OBJ, 1e13);
     this.add(this.labelLOD);
     if (typeof catalogOrCb == 'StarsCatalog') {
       const catalog = catalogOrCb;
@@ -96,8 +92,9 @@ export default class Stars extends Object {
       //console.log('skipping double show of name: ', name);
       return;
     }
-    const sPos = new THREE.Vector3(SCALE * star.x, SCALE * star.y, SCALE * star.z);
-    const label = this.starLabelSpriteSheet.alloc(this.maybeWiden(name), Shared.labelTextColor);
+    const sPos = new THREE.Vector3(
+        STARS_SCALE * star.x, STARS_SCALE * star.y, STARS_SCALE * star.z);
+    const label = this.starLabelSpriteSheet.alloc(this.maybeWiden(name), labelTextColor);
     label.position.copy(sPos);
     this.labelsGroup.attach(label);
     this.labelsByName[name] = label;
