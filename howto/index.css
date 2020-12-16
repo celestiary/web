@@ -3,7 +3,8 @@
 body {
   height; 100%;
   margin: 1em;
-  color: black;
+  color: white;
+  background: #333;
 }
 
 ol {

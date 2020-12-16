@@ -17,8 +17,7 @@ export default class Asterisms extends THREE.Object3D {
     this.catalog = new AsterismsCatalog(stars.catalog);
     this.catalog.load(() => {
         for (let astrName in this.catalog.byName) {
-          const asterism = this.catalog.byName[astrName];
-          this.show(asterism.paths);
+          this.show(astrName);
         }
         if (cb) {
           cb();
@@ -27,7 +26,22 @@ export default class Asterisms extends THREE.Object3D {
   }
 
 
-  show(paths) {
+  show(astrName, filterFn) {
+    if (!filterFn) {
+      filterFn = (stars, hipId, name) => {
+        if (this.stars.catalog.namesByHip[hipId].length >= 2) {
+          if (!name.match(/\w{2,3} [\w\d]{3,4}/)) {
+            return true;
+          }
+        }
+        return false;
+      };
+    }
+    const asterism = this.catalog.byName[astrName];
+    if (!asterism) {
+      throw new Error('Unknown asterism: ', astrName);
+    }
+    const paths = asterism.paths;
     for (let pathNdx in paths) {
       let prevStar = null;
       const pathNames = paths[pathNdx];
@@ -40,10 +54,8 @@ export default class Asterisms extends THREE.Object3D {
           console.log('added catalog to window.catalog', this.stars);
           continue;
         }
-        if (this.stars.catalog.namesByHip[hipId].length >= 2) {
-          if (!name.match(/\w{2,3} [\w\d]{3,4}/)) {
-            this.stars.showStarName(star, name);
-          }
+        if (filterFn(this.stars, hipId, name)) {
+          this.stars.showStarName(star, name);
         }
         if (prevStar) {
           try {

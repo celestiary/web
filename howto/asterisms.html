@@ -1,22 +1,64 @@
 <!DOCTYPE html>
 <html>
 <head><link rel="stylesheet" href="index.css"/></head>
+<style>
+#faveCtr {
+  height: 600px;
+  overflow: scroll
+}
+
+::-webkit-scrollbar {
+  -webkit-appearance: none;
+  width: 7px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, .5);
+  box-shadow: 0 0 1px rgba(255, 255, 255, .5);
+}
+</style>
 <body>
 <div id="ui"></div>
 <h1>Asterisms</h1>
 Asterisms include constellations.
-<script type="x-shader/x-vertex" id="vertexshader">
-</script>
+<div id="faveCtr">
+  <table id="faves">
+    <tr><th>Asterism</th><th>Middle star name</th><th>Star HIP ID</th></tr>
+  </table>
+</div>
 <script type="module">
   import ThreeUi from './js/three_ui.js';
   import Stars from './js/Stars.mjs';
   import StarsCatalog from './js/StarsCatalog.mjs';
   import Asterisms from './js/Asterisms.mjs';
   import AsterismsCatalog from './js/AsterismsCatalog.mjs';
+  import Keys from './js/keys.js';
+  import * as Shared from './js/shared.mjs';
+  import {elt} from './js/utils.mjs';
 
 
-  const ui = new ThreeUi('ui');
+  const cb = (scene, ui) => {
+    if (window.target) {
+      ui.camera.target = window.target;
+      ui.camera.lookAt(window.target);
+    }
+  };
+  const ui = new ThreeUi('ui', cb);
   const catalog = new StarsCatalog();
+
+
+  const k = new Keys();
+  k.map(',', () => { ui.multFov(0.9); },
+        'Narrow field-of-vision');
+  k.map('.', () => { ui.multFov(1.1); },
+        'Broaden field-of-vision');
+  k.map('/', () => { ui.resetFov(); },
+        'Reset field-of-vision to ' + Shared.INITIAL_FOV + 'º');
+  window.addEventListener('keydown', (e) => {
+      k.onKeyDown(e);
+    }, true);
+
 
   const props = {
     radius: {
@@ -24,15 +66,69 @@ Asterisms include constellations.
       scalar: 6.9424895E8
     },
   };
+  let asterisms;
   const stars = new Stars(props, () => {
       console.log(`Stars count: ${stars.catalog.numStars}`);
-      const asterisms = new Asterisms(stars, () => {
+      asterisms = new Asterisms(stars, () => {
           stars.add(asterisms);
           console.log(`Asterisms count:`, asterisms.catalog.numAsterisms);
+          setupFavesTable();
+          handleHash();
         });
     });
   ui.scene.add(stars);
   ui.camera.position.z = 1e10;
+
+
+  const findCenterStar = (asterismName) => {
+    const asterism = asterisms.catalog.byName[asterismName];
+    for (let pathNdx in asterism.paths) {
+      const path = asterism.paths[pathNdx];
+      // Search from center to front.
+      for (let i = Math.floor(path.length / 2); i >= 0; i--) {
+        const starName = path[i];
+        let [origName, name, hipId] = stars.catalog.reifyName(starName);
+        const names = stars.catalog.namesByHip[hipId];
+        if (names && names.length > 2) {
+          name = names[0];
+          return [origName, name, hipId];
+        }
+      }
+    }
+    return [null, null, null];
+  }
+
+  const setupFavesTable = () => {
+    const favesTable = elt('faves');
+    for (let asterismName in asterisms.catalog.byName) {
+      const [origName, name, hipId] = findCenterStar(asterismName);
+      favesTable.innerHTML +=
+        `<tr>
+          <td><a href="#${asterismName}">${asterismName}</a></td>
+          <td>${name}</td>
+          <td>${hipId}</td>
+        </tr>`;
+    }
+  };
+
+  const handleHash = () => {
+    let hash = location.hash.substr(1);
+    if (hash) {
+      hash = hash.replaceAll(/%20/g, ' ');
+      const [origName, name, hipId] = findCenterStar(hash);
+      const star = stars.catalog.starsByHip[hipId];
+      const label = stars.labelsByName[name];
+      if (!label) {
+        console.error('No label for name!', name);
+        return;
+      }
+      asterisms.show(hash, () => { return true; });
+      console.log('centering at: ', label.position);
+      window.target = label.position;
+    }
+  }
+
+  window.addEventListener('hashchange', handleHash);
 </script>
 </body>
 </html>

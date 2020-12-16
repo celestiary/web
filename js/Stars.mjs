@@ -82,13 +82,22 @@ export default class Stars extends Object {
   }
 
 
+  // TODO fix this in the SpriteSheet.
+  maybeWiden(str) {
+    while (str.length < 8) {
+      str = ` ${str} `;
+    }
+    return str;
+  }
+
+
   showStarName(star, name) {
     if (this.labelsByName[name]) {
       //console.log('skipping double show of name: ', name);
       return;
     }
     const sPos = new THREE.Vector3(SCALE * star.x, SCALE * star.y, SCALE * star.z);
-    const label = this.starLabelSpriteSheet.alloc(name, Shared.labelTextColor);
+    const label = this.starLabelSpriteSheet.alloc(this.maybeWiden(name), Shared.labelTextColor);
     label.position.copy(sPos);
     this.labelsGroup.attach(label);
     this.labelsByName[name] = label;
