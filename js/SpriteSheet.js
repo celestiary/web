@@ -24,8 +24,8 @@ export default class SpriteSheet {
     this.height = this.size;
     this.canvas.width = this.width;
     this.canvas.height = this.height;
-    console.log('canvas: ', {width: this.canvas.width, height: this.canvas.height},
-                this.maxLabels, maxBounds, this.size, maxBounds.width);
+    //console.log('canvas: ', {width: this.canvas.width, height: this.canvas.height},
+    //            this.maxLabels, maxBounds, this.size, maxBounds.width);
     this.curX = 0;
     this.curY = 0;
     this.lineSizeMax = 0;
@@ -48,12 +48,10 @@ export default class SpriteSheet {
     if (this.curX + size > this.width) {
       this.curX = 0;
       this.curY += this.lineSizeMax;
-      console.log('yOff for new line: ', this.curY);
       this.lineSizeMax = 0;
     }
     if (size > this.lineSizeMax) {
       this.lineSizeMax = size;
-      console.log(`for (${labelText})found new lineSizeMax(${this.lineSizeMax})`);
     }
     bounds = this.drawAt(labelText, this.curX, this.curY, fillStyle);
     const spriteCoords = [bounds.x / this.size,
@@ -73,7 +71,7 @@ export default class SpriteSheet {
     ctx.font = this.labelTextFont;
     const bounds = Utils.measureText(ctx, text);
     const size = Math.max(bounds.width, bounds.height);
-    console.log(`drawAt, text(${text}), x(${x}), y(${y}), size(${size})`);
+    //console.log(`drawAt, text(${text}), x(${x}), y(${y}), size(${size})`);
     ctx.save();
     ctx.translate(x, y);
     this.drawLabel(text, size, size, fillStyle);

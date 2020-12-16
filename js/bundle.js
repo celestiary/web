@@ -51499,7 +51499,7 @@ function measureText(ctx, text, fontStyle) {
   const m = ctx.measureText(text);
   const width = Math.ceil(m.width);
   const height = Math.ceil(m.actualBoundingBoxAscent + m.actualBoundingBoxDescent);
-  //console.log(`text: ${text}, width: ${width}, height: ${height}`);
+  //console.log(`text: ${text}, width: ${width}, height: ${height}`, m);
   return {width, height};
 }
 
@@ -51587,7 +51587,7 @@ const
 
   // Colors
   labelTextColor = '#7fa0e0',
-  labelTextFont = '12px arial';
+  labelTextFont = 'medium arial';
 
 var Shared = /*#__PURE__*/Object.freeze({
 	__proto__: null,
@@ -53474,21 +53474,24 @@ function assertInRange(num, min, max, msg) {
  *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
  */
 class SpriteSheet {
-  constructor(cols, maxLabel, labelTextFont = '12px arial') {
+  constructor(maxLabels, maxLabel, labelTextFont = '12px arial') {
+    this.maxLabels = maxLabels;
+    this.labelCount = 0;
     this.labelTextFont = labelTextFont;
-    this.textBaseline = 'bottom';
+    //this.textBaseline = 'bottom';
+    this.textBaseline = 'top';
     this.canvas = createCanvas();
     document.canvas = this.canvas;
     this.ctx = this.canvas.getContext('2d');
     const maxBounds = measureText(this.ctx, maxLabel, labelTextFont);
     const itemSize = Math.max(maxBounds.width, maxBounds.height);
-    this.size = cols * itemSize;
+    this.size = Math.sqrt(this.maxLabels) * itemSize;
     this.width = this.size;
     this.height = this.size;
     this.canvas.width = this.width;
     this.canvas.height = this.height;
     //console.log('canvas: ', {width: this.canvas.width, height: this.canvas.height},
-    //            cols, maxBounds, this.size, maxBounds.width);
+    //            this.maxLabels, maxBounds, this.size, maxBounds.width);
     this.curX = 0;
     this.curY = 0;
     this.lineSizeMax = 0;
@@ -53500,6 +53503,12 @@ class SpriteSheet {
 
 
   alloc(labelText, fillStyle = 'white') {
+    if (this.labelCount >= this.maxLabels) {
+      throw new Error(`Alloc called too many times, can only allocate maxLabels(${this.maxLabels})`);
+    }
+    this.labelCount++;
+    const ctx = this.ctx;
+    this.ctx.font = this.labelTextFont;
     let bounds = measureText(this.ctx, labelText);
     const size = Math.max(bounds.width, bounds.height);
     if (this.curX + size > this.width) {
@@ -53511,11 +53520,11 @@ class SpriteSheet {
       this.lineSizeMax = size;
     }
     bounds = this.drawAt(labelText, this.curX, this.curY, fillStyle);
-    //console.log(`alloc: text: ${labelText}, curX: ${this.curX}, curY: ${this.curY}, this.width: ${this.width}, bounds:`, bounds);
     const spriteCoords = [bounds.x / this.size,
                           1 - (bounds.y + bounds.height) / this.size,
                           bounds.width / this.size,
                           bounds.height / this.size];
+    //console.log(`alloc: text: ${labelText}, curX: ${this.curX}, curY: ${this.curY}, this.width: ${this.width}, bounds, spriteCoords`, bounds, spriteCoords);
     const labelObject = this.makeLabelObject({width: bounds.width, height: bounds.height}, spriteCoords);
     this.curX += bounds.width;
     return labelObject;
@@ -53528,6 +53537,7 @@ class SpriteSheet {
     ctx.font = this.labelTextFont;
     const bounds = measureText(ctx, text);
     const size = Math.max(bounds.width, bounds.height);
+    //console.log(`drawAt, text(${text}), x(${x}), y(${y}), size(${size})`);
     ctx.save();
     ctx.translate(x, y);
     this.drawLabel(text, size, size, fillStyle);
@@ -53538,12 +53548,16 @@ class SpriteSheet {
 
   drawLabel(text, width, height, fillStyle) {
     const ctx = this.ctx;
-    //ctx.fillStyle = fillStyle;
-    //ctx.fillRect(0, 0, width, height);
     ctx.textBaseline = this.textBaseline;
     ctx.font = this.labelTextFont;
     ctx.fillStyle = fillStyle;
-    ctx.fillText(text, 0, height / 2 - 3);
+    ctx.fillText(text, 0, 0);
+    /*
+    ctx.beginPath();
+    ctx.strokeStyle = 'white';
+    ctx.rect(0, 0, width, height);
+    ctx.stroke();
+    */
   }
 
 
@@ -53558,19 +53572,20 @@ class SpriteSheet {
 
 
   createMaterial(pointSize, spriteCoords) {
-    const pixelRatio = 1;
     const texture = new CanvasTexture(this.canvas);
     texture.minFilter = NearestFilter;
     texture.magFilter = NearestFilter;
     const material = new ShaderMaterial( {
         uniforms: {
-          pointWidth: { value: pointSize.width * ( (pixelRatio * pixelRatio) ) },
+          pointWidth: { value: pointSize.width },
+          //pointWidth: { value: pointSize.width * (renderToPixelRatio ? (pixelRatio * pixelRatio) : pixelRatio) },
           map: { value: texture },
           spriteCoords: { value: spriteCoords }
         },
         vertexShader: vertexShader,
         fragmentShader: fragmentShader,
         depthTest: true,
+        depthWrite: false,
         transparent: true,
       });
     return material;
@@ -53601,9 +53616,6 @@ const fragmentShader = `
 `;
 
 class Planet extends Object$1 {
-
-
-  static LABEL_SHEET = new SpriteSheet(5, 'Jupiter', labelTextFont);
 
 
   /**
@@ -53648,7 +53660,7 @@ class Planet extends Object$1 {
     const planet = this.newPlanet(this.scene, orbitPosition, this.isMoon);
     planetTilt.add(planet);
 
-    // group.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
+    // group.rotation.y = orbit.longitudeOfAscendingNode * toRad;
     // Children centered at this planet's orbit position.
 
     this.add(group);
@@ -53684,7 +53696,7 @@ class Planet extends Object$1 {
 
   /**
    * Creates a planet with waypoint, surface, atmosphere and locations,
-   * scaled-down by Shared.LENGTH_SCALE (i.e. 1e-7), and set to rotate.
+   * scaled-down by LENGTH_SCALE (i.e. 1e-7), and set to rotate.
    */
   newPlanet(scene, orbitPosition, isMoon) {
     const planet = new Object3D;//scene.newObject(this.name, this.props, );
@@ -53740,8 +53752,8 @@ class Planet extends Object$1 {
     };
 
     const labelLOD = new LOD();
-    labelLOD.addLevel(Planet.LABEL_SHEET.alloc(capitalize(this.name),
-                                               labelTextColor), 1);
+    labelLOD.addLevel(this.scene.planetLabels.alloc(capitalize(this.name),
+                                                    labelTextColor), 1);
     labelLOD.addLevel(FAR_OBJ, this.isMoon ? 1e3 : 1e6);
 
     const group = new Object3D;
@@ -54167,7 +54179,7 @@ class StarsBufferGeometry extends BufferGeometry {
 class Stars extends Object$1 {
   constructor(props, catalogOrCb) {
     super('Stars', props);
-    this.starLabelSpriteSheet = new SpriteSheet(17, 'Rigel Kentaurus B', labelTextFont);
+    this.starLabelSpriteSheet = new SpriteSheet(300, 'Rigel Kentaurus B', labelTextFont);
     this.labelsGroup = named(new Group, 'LabelsGroup');
     this.labelsByName = {};
     this.labelLOD = named(new LOD, 'LabelsLOD');
@@ -54207,7 +54219,7 @@ class Stars extends Object$1 {
         depthTest: true,
         depthWrite: false,
         transparent: true
-        });
+      });
     new Loader$1().loadShaders(starsMaterial, () => {
         //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
         const starPoints = named(new Points(geom, starsMaterial), 'StarsPoints');
@@ -54279,7 +54291,8 @@ const faves = {
 };
 
 const 
-  lengthScale = LENGTH_SCALE;
+  lengthScale = LENGTH_SCALE,
+  INITIAL_STEP_BACK_MULT = 10;
 
 
 class Scene$1 {
@@ -54299,6 +54312,7 @@ class Scene$1 {
     this.debugShapes = [];
     this.orbitsVisible = false;
     this.debugVisible = false;
+    this.planetLabels = new SpriteSheet(30, 'Jupiter', labelTextFont);
   }
 
 
@@ -54434,7 +54448,7 @@ class Scene$1 {
     const pPos = new Vector3;
     const cPos = new Vector3;
     const surfaceAltitude = obj.props.radius.scalar * lengthScale;
-    const stepBackMult = 3;
+    const stepBackMult = INITIAL_STEP_BACK_MULT;
     pPos.set(0, 0, 0); // TODO(pablo): maybe put platform at surfaceAltitude
     cPos.set(0, 0, surfaceAltitude * stepBackMult);
     obj.orbitPosition.add(this.ui.camera.platform);
@@ -55324,7 +55338,7 @@ class ThreeUi {
 
   initRenderer(container, backgroundColor) {
     const renderer = new WebGLRenderer({antialias: true});
-    renderer.setPixelRatio(window.devicePixelRatio);
+    //renderer.setPixelRatio(window.devicePixelRatio);
     // No idea about this.. just like the way it looks.
     renderer.toneMapping = ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.6;
@@ -55357,6 +55371,7 @@ class ThreeUi {
 
 
   onResize() {
+    // https://threejsfundamentals.org/threejs/lessons/threejs-responsive.html
     let width, height;
     if (this.fs.isFullscreen()) {
       width = window.innerWidth;
@@ -55367,6 +55382,7 @@ class ThreeUi {
     }
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    // TODO: avoid resize if already correct size?
     this.renderer.setSize(width, height);
     this.controls.handleResize();
     // console.log(`onResize: ${width} x ${height}`);

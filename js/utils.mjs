@@ -51,7 +51,7 @@ function capitalize(text) {
 
 function createCanvas() {
   const canvas = document.createElement('canvas');
-  canvas.style = 'border: solid 1px red';
+  canvas.style = 'border: solid 1px red; display: none';
   document.body.appendChild(canvas);
   return canvas;
 }
