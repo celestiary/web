@@ -16,7 +16,7 @@ The project includes https://github.com/pablo-mayrgundter/http, e.g.:
 ```
 > git clone --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
 > java/http/net/http/serve.sh
-net.http.Server.port=8090
+net.http.Server.port=8080
 net.http.Server.log=true
 net.http.Server.index=index.html
 net.http.Server.ssl=false
