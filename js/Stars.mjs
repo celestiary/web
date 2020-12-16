@@ -16,7 +16,7 @@ import {named} from './utils.mjs';
 export default class Stars extends Object {
   constructor(props, catalogOrCb) {
     super('Stars', props);
-    this.starLabelSpriteSheet = new SpriteSheet(17, 'Rigel Kentaurus B', labelTextFont);
+    this.starLabelSpriteSheet = new SpriteSheet(300, 'Rigel Kentaurus B', labelTextFont);
     this.labelsGroup = named(new THREE.Group, 'LabelsGroup');
     this.labelsByName = {};
     this.labelLOD = named(new THREE.LOD, 'LabelsLOD');
@@ -56,7 +56,7 @@ export default class Stars extends Object {
         depthTest: true,
         depthWrite: false,
         transparent: true
-        });
+      });
     new Loader().loadShaders(starsMaterial, () => {
         //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
         const starPoints = named(new THREE.Points(geom, starsMaterial), 'StarsPoints');

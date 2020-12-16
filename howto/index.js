@@ -18,7 +18,6 @@ export function checkHash() {
     contentElt.src = 'welcome.html';
     document.title = 'Celstiary - Guide: Welcome';
   }
-  console.log('checked hash!', location.hash, document.title);
 }
 
 
@@ -30,6 +29,6 @@ export function init() {
       });
     checkHash();
   } else {
-    console.log('No content elt');
+    console.error('No content elt');
   }
 }

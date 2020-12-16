@@ -18,30 +18,39 @@
     used, with a GL shader configured with custom offsets into the sheet
     for each object.
 <script type="module">
+  import {PointLight} from './js/lib/three.js/three.module.js';
   import SpriteSheet from './js/SpriteSheet.js';
   import Scene from './js/scene.js';
+
   import ThreeUi from './js/three_ui.js';
-  import {point} from './js/Shapes.mjs';
   import * as Utils from './js/utils.mjs';
+  import {cube, point} from './js/Shapes.mjs';
 
   const container = document.getElementById('ui');
   const ui = new ThreeUi(container);
-  const scene = new Scene(ui);
 
-  const cols = 15;
+  const c = cube();
+  c.position.z = -3;
+  ui.scene.add(c);
+  const light = new PointLight();
+  light.position.set(10, 10, 10);
+  ui.scene.add(light);
+
+  const planets = ['Mercury','Venus','Mars','Earth','Jupiter','Saturn','Uranus','Neptune','Pluto'];
 
   ui.camera.position.set(0, 0, 10);
-  const labels = new SpriteSheet(cols, 'item-999', '12px arial');
+  const labels = new SpriteSheet(planets.length, 'Mercury', 'medium arial');
   let count = 0;
-  for (let n = 0; n < 2; n++) {
-    for (let i = cols/-2; i < cols/2; i++) {
-      for (let j = cols/-2; j < cols/2; j++) {
-        const p = point();
-        p.position.set(i , j, 0);
-        ui.scene.add(p);
-        const label = labels.alloc('item-' + count++);
-        p.add(label);
-      }
+  const cols = planets.length / 2;
+  const xOff = cols / -2 + 0.5;
+  const yOff = cols / -2 + 0.5;
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < cols; j++) {
+      const p = point();
+      p.position.set(xOff + i, yOff + j, 0);
+      ui.scene.add(p);
+      const label = labels.alloc(planets[count++]);
+      p.add(label);
     }
   }
 </script>

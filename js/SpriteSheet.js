@@ -8,21 +8,24 @@ import * as Utils from './utils.mjs';
  *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
  */
 export default class SpriteSheet {
-  constructor(cols, maxLabel, labelTextFont = '12px arial') {
+  constructor(maxLabels, maxLabel, labelTextFont = '12px arial') {
+    this.maxLabels = maxLabels;
+    this.labelCount = 0;
     this.labelTextFont = labelTextFont;
-    this.textBaseline = 'bottom';
+    //this.textBaseline = 'bottom';
+    this.textBaseline = 'top';
     this.canvas = Utils.createCanvas();
     document.canvas = this.canvas;
     this.ctx = this.canvas.getContext('2d');
     const maxBounds = Utils.measureText(this.ctx, maxLabel, labelTextFont);
     const itemSize = Math.max(maxBounds.width, maxBounds.height);
-    this.size = cols * itemSize;
+    this.size = Math.sqrt(this.maxLabels) * itemSize;
     this.width = this.size;
     this.height = this.size;
     this.canvas.width = this.width;
     this.canvas.height = this.height;
-    //console.log('canvas: ', {width: this.canvas.width, height: this.canvas.height},
-    //            cols, maxBounds, this.size, maxBounds.width);
+    console.log('canvas: ', {width: this.canvas.width, height: this.canvas.height},
+                this.maxLabels, maxBounds, this.size, maxBounds.width);
     this.curX = 0;
     this.curY = 0;
     this.lineSizeMax = 0;
@@ -34,22 +37,30 @@ export default class SpriteSheet {
 
 
   alloc(labelText, fillStyle = 'white') {
+    if (this.labelCount >= this.maxLabels) {
+      throw new Error(`Alloc called too many times, can only allocate maxLabels(${this.maxLabels})`);
+    }
+    this.labelCount++;
+    const ctx = this.ctx;
+    this.ctx.font = this.labelTextFont;
     let bounds = Utils.measureText(this.ctx, labelText);
     const size = Math.max(bounds.width, bounds.height);
     if (this.curX + size > this.width) {
       this.curX = 0;
       this.curY += this.lineSizeMax;
+      console.log('yOff for new line: ', this.curY);
       this.lineSizeMax = 0;
     }
     if (size > this.lineSizeMax) {
       this.lineSizeMax = size;
+      console.log(`for (${labelText})found new lineSizeMax(${this.lineSizeMax})`);
     }
     bounds = this.drawAt(labelText, this.curX, this.curY, fillStyle);
-    //console.log(`alloc: text: ${labelText}, curX: ${this.curX}, curY: ${this.curY}, this.width: ${this.width}, bounds:`, bounds);
     const spriteCoords = [bounds.x / this.size,
                           1 - (bounds.y + bounds.height) / this.size,
                           bounds.width / this.size,
                           bounds.height / this.size];
+    //console.log(`alloc: text: ${labelText}, curX: ${this.curX}, curY: ${this.curY}, this.width: ${this.width}, bounds, spriteCoords`, bounds, spriteCoords);
     const labelObject = this.makeLabelObject({width: bounds.width, height: bounds.height}, spriteCoords);
     this.curX += bounds.width;
     return labelObject;
@@ -62,6 +73,7 @@ export default class SpriteSheet {
     ctx.font = this.labelTextFont;
     const bounds = Utils.measureText(ctx, text);
     const size = Math.max(bounds.width, bounds.height);
+    console.log(`drawAt, text(${text}), x(${x}), y(${y}), size(${size})`);
     ctx.save();
     ctx.translate(x, y);
     this.drawLabel(text, size, size, fillStyle);
@@ -72,12 +84,16 @@ export default class SpriteSheet {
 
   drawLabel(text, width, height, fillStyle) {
     const ctx = this.ctx;
-    //ctx.fillStyle = fillStyle;
-    //ctx.fillRect(0, 0, width, height);
     ctx.textBaseline = this.textBaseline;
     ctx.font = this.labelTextFont;
     ctx.fillStyle = fillStyle;
-    ctx.fillText(text, 0, height / 2 - 3);
+    ctx.fillText(text, 0, 0);
+    /*
+    ctx.beginPath();
+    ctx.strokeStyle = 'white';
+    ctx.rect(0, 0, width, height);
+    ctx.stroke();
+    */
   }
 
 
@@ -92,7 +108,6 @@ export default class SpriteSheet {
 
 
   createMaterial(pointSize, spriteCoords) {
-    //console.log(spriteCoords);
     const renderToPixelRatio = true;
     const pixelRatio = 1;
     const texture = new THREE.CanvasTexture(this.canvas);
@@ -101,13 +116,15 @@ export default class SpriteSheet {
     const me = this;
     const material = new THREE.ShaderMaterial( {
         uniforms: {
-          pointWidth: { value: pointSize.width * (renderToPixelRatio ? (pixelRatio * pixelRatio) : pixelRatio) },
+          pointWidth: { value: pointSize.width },
+          //pointWidth: { value: pointSize.width * (renderToPixelRatio ? (pixelRatio * pixelRatio) : pixelRatio) },
           map: { value: texture },
           spriteCoords: { value: spriteCoords }
         },
         vertexShader: vertexShader,
         fragmentShader: fragmentShader,
         depthTest: true,
+        depthWrite: false,
         transparent: true,
       });
     return material;

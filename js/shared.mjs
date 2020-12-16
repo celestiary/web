@@ -43,4 +43,4 @@ export const
 
   // Colors
   labelTextColor = '#7fa0e0',
-  labelTextFont = '12px arial';
+  labelTextFont = 'medium arial';

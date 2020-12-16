@@ -76,7 +76,7 @@ export default class ThreeUi {
 
   initRenderer(container, backgroundColor) {
     const renderer = new THREE.WebGLRenderer({antialias: true});
-    renderer.setPixelRatio(window.devicePixelRatio);
+    //renderer.setPixelRatio(window.devicePixelRatio);
     // No idea about this.. just like the way it looks.
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.6;
@@ -109,6 +109,7 @@ export default class ThreeUi {
 
 
   onResize() {
+    // https://threejsfundamentals.org/threejs/lessons/threejs-responsive.html
     let width, height;
     if (this.fs.isFullscreen()) {
       width = window.innerWidth;
@@ -119,6 +120,7 @@ export default class ThreeUi {
     }
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    // TODO: avoid resize if already correct size?
     this.renderer.setSize(width, height);
     this.controls.handleResize();
     // console.log(`onResize: ${width} x ${height}`);

@@ -51,7 +51,7 @@ function capitalize(text) {
 
 function createCanvas() {
   const canvas = document.createElement('canvas');
-  canvas.style = 'border: solid 1px red; display: none';
+  canvas.style = 'border: solid 1px red';
   document.body.appendChild(canvas);
   return canvas;
 }
@@ -63,7 +63,7 @@ function measureText(ctx, text, fontStyle) {
   const m = ctx.measureText(text);
   const width = Math.ceil(m.width);
   const height = Math.ceil(m.actualBoundingBoxAscent + m.actualBoundingBoxDescent);
-  //console.log(`text: ${text}, width: ${width}, height: ${height}`);
+  //console.log(`text: ${text}, width: ${width}, height: ${height}`, m);
   return {width, height};
 }
 

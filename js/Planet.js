@@ -5,15 +5,12 @@ import Object from './object.js';
 import SpriteSheet from './SpriteSheet.js';
 
 import * as Shapes from './shapes.mjs';
-import * as Shared from './shared.mjs';
+import {FAR_OBJ, LENGTH_SCALE, labelTextColor, halfPi, toRad} from './shared.mjs';
 import * as Material from './material.js';
 import {capitalize} from './utils.mjs';
 
 
 export default class Planet extends Object {
-
-
-  static LABEL_SHEET = new SpriteSheet(5, 'Jupiter', Shared.labelTextFont);
 
 
   /**
@@ -36,8 +33,8 @@ export default class Planet extends Object {
 
     const orbitPlane = this.scene.newGroup(this.name + '.orbitPlane');
     group.add(orbitPlane);
-    orbitPlane.rotation.x = assertInRange(orbit.inclination, 0, 360) * Shared.toRad;
-    orbitPlane.rotation.y = assertInRange(orbit.longitudeOfPerihelion, 0, 360) * Shared.toRad;
+    orbitPlane.rotation.x = assertInRange(orbit.inclination, 0, 360) * toRad;
+    orbitPlane.rotation.y = assertInRange(orbit.longitudeOfPerihelion, 0, 360) * toRad;
 
     const orbitShape = this.newOrbit(this.scene, orbit, this.name);
     orbitPlane.add(orbitShape);
@@ -53,12 +50,12 @@ export default class Planet extends Object {
 
     const planetTilt = this.scene.newGroup(this.name + '.planetTilt');
     orbitPosition.add(planetTilt);
-    planetTilt.rotateZ(assertInRange(this.props.axialInclination, 0, 360) * Shared.toRad);
+    planetTilt.rotateZ(assertInRange(this.props.axialInclination, 0, 360) * toRad);
 
     const planet = this.newPlanet(this.scene, orbitPosition, this.isMoon);
     planetTilt.add(planet);
 
-    // group.rotation.y = orbit.longitudeOfAscendingNode * Shared.toRad;
+    // group.rotation.y = orbit.longitudeOfAscendingNode * toRad;
     // Children centered at this planet's orbit position.
 
     this.add(group);
@@ -84,22 +81,22 @@ export default class Planet extends Object {
     // Orbit is in the x/y plane, so rotate it around x by 90 deg to put
     // it in the x/z plane (top comes towards camera until it's flat
     // edge on).
-    pathShape.rotation.x = Shared.halfPi;
+    pathShape.rotation.x = halfPi;
     group.add(pathShape);
     group.add(Shapes.line(1, 0, 0));
-    group.scale.setScalar(assertFinite(orbit.semiMajorAxis) * Shared.LENGTH_SCALE);
+    group.scale.setScalar(assertFinite(orbit.semiMajorAxis) * LENGTH_SCALE);
     return group;
   }
 
 
   /**
    * Creates a planet with waypoint, surface, atmosphere and locations,
-   * scaled-down by Shared.LENGTH_SCALE (i.e. 1e-7), and set to rotate.
+   * scaled-down by LENGTH_SCALE (i.e. 1e-7), and set to rotate.
    */
   newPlanet(scene, orbitPosition, isMoon) {
     const planet = new THREE.Object3D;//scene.newObject(this.name, this.props, );
 
-    planet.scale.setScalar(assertFinite(this.props.radius.scalar) * Shared.LENGTH_SCALE);
+    planet.scale.setScalar(assertFinite(this.props.radius.scalar) * LENGTH_SCALE);
     // Attaching this property triggers rotation of planet during animation.
     planet.siderealRotationPeriod = this.props.siderealRotationPeriod;
     // Attaching this is used by scene#goTo.
@@ -137,7 +134,7 @@ export default class Planet extends Object {
     const planetLOD = new THREE.LOD();
     planetLOD.addLevel(planet, 1);
     planetLOD.addLevel(farPoint, 1e3);
-    planetLOD.addLevel(Shared.FAR_OBJ, this.isMoon ? 1e7 : 1e8);
+    planetLOD.addLevel(FAR_OBJ, this.isMoon ? 1e7 : 1e8);
 
     closePoint.onBeforeRender = () => {
       planet.add(this.newSurface(this.props));
@@ -150,9 +147,9 @@ export default class Planet extends Object {
     }
 
     const labelLOD = new THREE.LOD();
-    labelLOD.addLevel(Planet.LABEL_SHEET.alloc(capitalize(this.name),
-                                               Shared.labelTextColor), 1);
-    labelLOD.addLevel(Shared.FAR_OBJ, this.isMoon ? 1e3 : 1e6);
+    labelLOD.addLevel(this.scene.planetLabels.alloc(capitalize(this.name),
+                                                    labelTextColor), 1);
+    labelLOD.addLevel(FAR_OBJ, this.isMoon ? 1e3 : 1e6);
 
     const group = new THREE.Object3D;
     group.add(planetLOD);

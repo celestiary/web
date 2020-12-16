@@ -4,6 +4,7 @@ import CustomRaycaster from './lib/three-custom/raycaster.js';
 import Asterisms from './Asterisms.mjs';
 import Object from './object.js';
 import Planet from './Planet.js';
+import SpriteSheet from './SpriteSheet.js';
 import Star from './Star.js';
 import Stars from './Stars.mjs';
 import * as Material from './material.js';
@@ -15,7 +16,8 @@ import {info} from './log.mjs';
 
 const
   lengthScale = Shared.LENGTH_SCALE,
-  stepBackMult = 10;
+  stepBackMult = 10,
+  INITIAL_STEP_BACK_MULT = 10;
 
 
 export default class Scene {
@@ -35,6 +37,7 @@ export default class Scene {
     this.debugShapes = [];
     this.orbitsVisible = false;
     this.debugVisible = false;
+    this.planetLabels = new SpriteSheet(30, 'Jupiter', Shared.labelTextFont);
   }
 
 
@@ -170,7 +173,7 @@ export default class Scene {
     const pPos = new THREE.Vector3;
     const cPos = new THREE.Vector3;
     const surfaceAltitude = obj.props.radius.scalar * lengthScale;
-    const stepBackMult = 3;
+    const stepBackMult = INITIAL_STEP_BACK_MULT;
     pPos.set(0, 0, 0); // TODO(pablo): maybe put platform at surfaceAltitude
     cPos.set(0, 0, surfaceAltitude * stepBackMult);
     obj.orbitPosition.add(this.ui.camera.platform);
