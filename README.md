@@ -16,10 +16,20 @@ The project includes https://github.com/pablo-mayrgundter/http, e.g.:
 ```
 > git clone --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
 > java/http/net/http/serve.sh
-net.http.Server.port=8090
+net.http.Server.port=8080
 net.http.Server.log=true
 net.http.Server.index=index.html
 net.http.Server.ssl=false
 ...
 ```
+Alternatively with Node's http-server package:
+```
+> npx http-server -p 8080
+Starting up http-server, serving ./
+Available on:
+  http://127.0.0.1:8080
+  http://10.0.0.3:8080
+Hit CTRL-C to stop the server
+```
+
 Now visit http://localhost:8080/index.html in your browser
