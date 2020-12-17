@@ -24,7 +24,7 @@ export default class Stars extends Object {
     this.labelShown = {};
     this.labelLOD = named(new THREE.LOD, 'LabelsLOD');
     this.labelLOD.addLevel(this.labelsGroup, 1);
-    this.labelLOD.addLevel(FAR_OBJ, 1e13);
+    this.labelLOD.addLevel(FAR_OBJ, 1e14);
     this.add(this.labelLOD);
     if (typeof catalogOrCb == 'StarsCatalog') {
       const catalog = catalogOrCb;
