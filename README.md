@@ -24,32 +24,6 @@ Celestia datasets:
 
 See open issues page for upcoming features: https://github.com/pablo-mayrgundter/celestiary/issues 
 
-## How to run locally
-
-Run a web server in the root directory and load index.html from there.
-The project includes https://github.com/pablo-mayrgundter/http, e.g.:
-
-```
-> git clone --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
-> java/http/net/http/serve.sh
-net.http.Server.port=8080
-net.http.Server.log=true
-net.http.Server.index=index.html
-net.http.Server.ssl=false
-...
-```
-Alternatively with Node's http-server package:
-```
-> npx http-server -p 8080
-Starting up http-server, serving ./
-Available on:
-  http://127.0.0.1:8080
-  http://10.0.0.3:8080
-Hit CTRL-C to stop the server
-```
-
-Now visit http://localhost:8080/index.html in your browser
-
 ## Build
 
 No build is required, but for efficiency the live site uses a JS bundle, created like this:
@@ -74,3 +48,29 @@ TOTAL OK: 1, FAIL: 0, ASSERTS: 2
 StarsCatalog_test.mjs
 TOTAL OK: 3, FAIL: 0, ASSERTS: 3
 ```
+
+## Run
+
+Run a web server in the root directory and load index.html from there.
+The project includes https://github.com/pablo-mayrgundter/http, e.g.:
+
+```
+> git clone --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
+> java/http/net/http/serve.sh
+net.http.Server.port=8080
+net.http.Server.log=true
+net.http.Server.index=index.html
+net.http.Server.ssl=false
+...
+```
+Alternatively with Node's http-server package:
+```
+> npx http-server -p 8080
+Starting up http-server, serving ./
+Available on:
+  http://127.0.0.1:8080
+  http://10.0.0.3:8080
+Hit CTRL-C to stop the server
+```
+
+Now visit http://localhost:8080/index.html in your browser
