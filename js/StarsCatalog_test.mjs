@@ -27,7 +27,7 @@ tests.add('StarsCatalog#readNames', () => {
     const catalog = new StarsCatalog();
     catalog.read(toArrayBuffer(readFileSync('../data/stars.dat')));
     catalog.readNames(readFileSync('../data/starnames.dat', 'utf-8'));
-    tests.assertEquals(5694, Object.keys(catalog.hipByName).length);
+    tests.assertEquals(5699, Object.keys(catalog.hipByName).length);
   })
 
 tests.run();
