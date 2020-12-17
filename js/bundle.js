@@ -52818,11 +52818,11 @@ function pathTexture(filebase, ext) {
 }
 
 const materials = [];
-function cacheMaterial(name) {
+function cacheMaterial(name, ext) {
   let m = materials[name];
   if (!m) {
     materials[name] = m = new MeshPhongMaterial({
-        map: pathTexture(name),
+        map: pathTexture(name, ext),
       });
   }
   return m;
@@ -53355,6 +53355,38 @@ function arc(rad, startAngle, angle, material) {
   return new Line(geometry, material);
 }
 
+
+/** Just Saturn for now. */
+function rings(name = 'saturn') {
+  const geometry = new RingBufferGeometry(3, 6, 64);
+  const textureMap = pathTexture(name + 'ringcolor', '.png');
+  const alphaMap = pathTexture(name + 'ringalpha', '.png');
+  const material = new MeshLambertMaterial({
+      color: 0xffffff,
+      side: DoubleSide,
+      map: textureMap,
+      alphaMap: alphaMap,
+      transparent: true
+    });
+  // I still don't understand UVs.
+  // https://discourse.threejs.org/t/applying-a-texture-to-a-ringgeometry/9990/3
+  const pos = geometry.attributes.position;
+  geometry.setAttribute('uv', new BufferAttribute(new Float32Array(pos.count * 4), 4));
+  const v3 = new Vector3();
+  for (let i = 0; i < pos.count; i++){
+    v3.fromBufferAttribute(pos, i);
+    geometry.attributes.uv.setXY(i, v3.length() < 4 ? 0 : 1, 1);
+  }
+  const rings = new Mesh(geometry, material);
+  // TODO: shadows
+  //rings.castShadow = true;
+  //rings.receiveShadow = true;
+  rings.scale.setScalar(0.4);
+  rings.rotateY(Math.PI / 2);
+  rings.rotateX(Math.PI / 2);
+  return rings;
+}
+
 var Shapes = /*#__PURE__*/Object.freeze({
 	__proto__: null,
 	angle: angle,
@@ -53368,6 +53400,7 @@ var Shapes = /*#__PURE__*/Object.freeze({
 	lineGrid: lineGrid,
 	lodSphere: lodSphere,
 	point: point,
+	rings: rings,
 	solidEllipse: solidEllipse,
 	sphere: sphere
 });
@@ -53821,8 +53854,16 @@ class Planet extends Object$1 {
       planetMaterial.shininess = 50;
     }
     const shape = sphere({ matr: planetMaterial });
+    shape.castShadow = true;
     if (this.props.texture_atmosphere) {
       shape.add(this.newAtmosphere());
+    }
+    if (this.props.name == 'saturn') {
+      shape.add(rings());
+      const underRings = rings();
+      underRings.position.setY(-0.01);
+      underRings.rotateX(Math.PI);
+      shape.add(underRings);
     }
     return shape;
   }
