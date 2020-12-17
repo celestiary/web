@@ -17,6 +17,7 @@ https://pablo-mayrgundter.github.io/celestiary/
 - 9 planets, 20 moons
 - Permalinks for positions
 - Howto guide for programming topics used in the app (see help/? screen in the app for the live howto guide)
+- Even kinda works on mobile! :)
 
 Celestia datasets:
 - ~100,000 stars
