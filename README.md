@@ -20,7 +20,7 @@ https://pablo-mayrgundter.github.io/celestiary/
 Celestia datasets:
 - ~100,000 stars
 - ~3k star names
-- ~80 Asterisms
+- ~80 Asterisms/constellations
 
 ## How to run locally
 
