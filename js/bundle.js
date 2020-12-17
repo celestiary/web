@@ -51513,7 +51513,7 @@ function measureText(ctx, text, fontStyle) {
  * should not be set by caller, but will be passed to the callbacks to
  * allow indent formatting.
  */
-function visitChildren(elt, cb1, cb2, cb3, level) {
+function visit(elt, cb1, cb2, cb3, level) {
   level = level || 1;
   if (cb1) {
     cb1(elt, level);
@@ -51524,7 +51524,7 @@ function visitChildren(elt, cb1, cb2, cb3, level) {
       if (cb2) {
         cb2(elt, child, level);
       }
-      visitChildren(child, cb1, cb2, cb3, level + 1);
+      visit(child, cb1, cb2, cb3, level + 1);
     }
   }
   if (cb3) {
@@ -51533,7 +51533,25 @@ function visitChildren(elt, cb1, cb2, cb3, level) {
 }
 
 
+/** Preorder visit. */
+function visitFilterProperty(elt, propName, propValue, cb) {
+  visit(elt, child => {
+      if (child.hasOwnProperty(propName) && child[propName] == propValue) {
+        cb(child);
+      }
+    });
+}
 
+
+/** Preorder visit. */
+function visitToggleProperty(elt, filterPropName, filterPropValue, togglePropName) {
+  visitFilterProperty(elt, filterPropName, filterPropValue, child => {
+      if (!(child.hasOwnProperty(togglePropName) && typeof child[togglePropName] == 'boolean')) {
+        throw new Error(`Found child invalid toggle property(${togglePropName}):`, child);
+      }
+      child[togglePropName] = !child[togglePropName];
+    });
+}
 
 
 // https://stackoverflow.com/questions/8609289/convert-a-binary-nodejs-buffer-to-javascript-arraybuffer
@@ -51556,7 +51574,9 @@ var Utils = /*#__PURE__*/Object.freeze({
 	measureText: measureText,
 	named: named,
 	toArrayBuffer: toArrayBuffer,
-	visitChildren: visitChildren
+	visit: visit,
+	visitFilterProperty: visitFilterProperty,
+	visitToggleProperty: visitToggleProperty
 });
 
 const
@@ -53655,8 +53675,6 @@ class Planet extends Object$1 {
 
     const orbitShape = this.newOrbit(this.scene, orbit, this.name);
     orbitPlane.add(orbitShape);
-    orbitShape.visible = this.scene.orbitsVisible;
-    this.scene.orbitShapes[this.name] = orbitShape;
 
     const orbitPosition = this.scene.newGroup(this.name + '.orbitPosition');
     orbitPlane.add(orbitPosition);
@@ -53680,7 +53698,8 @@ class Planet extends Object$1 {
 
 
   newOrbit(scene, orbit) {
-    const group = scene.newGroup(this.name + '.orbit');
+    const group = named(new Group(), 'orbit');
+    group.visible = false;
     const ellipseCurve = new EllipseCurve(
         0, 0,
         1, ellipseSemiMinorAxisCurve(assertInRange(orbit.eccentricity, 0, 1)),
@@ -53754,23 +53773,20 @@ class Planet extends Object$1 {
     planetLOD.addLevel(FAR_OBJ, this.isMoon ? 1e7 : 1e8);
 
     closePoint.onBeforeRender = () => {
-      planet.add(this.newSurface(this.props));
-      if (this.props.texture_atmosphere) {
-        planet.add(this.newAtmosphere());
-      }
-      planet.hasSurface = true;
+      planet.add(this.nearShape());
       closePoint.onBeforeRender = null;
       delete closePoint['onBeforeRender'];
     };
 
     const labelLOD = new LOD();
     const name = capitalize(this.name);
-    labelLOD.addLevel(new SpriteSheet(1, name).add(0, 0, 0, name, labelTextColor).compile(), 1);
-    labelLOD.addLevel(FAR_OBJ, this.isMoon ? 1e3 : 1e6);
+    const label = new SpriteSheet(1, name).add(0, 0, 0, name, labelTextColor).compile();
+    labelLOD.addLevel(label, 1);
+    labelLOD.addLevel(FAR_OBJ, this.isMoon ? 2e3 : 5e6);
 
     const group = new Object3D;
     group.add(planetLOD);
-    group.add(labelLOD);
+    group.add(named(labelLOD, 'label'));
     /*
     group.onClick = (mouse, intersect, clickRoot) => {
         console.log(`Planet group ${this.name} clicked: `, mouse, intersect, clickRoot);
@@ -53792,29 +53808,22 @@ class Planet extends Object$1 {
    * A surface with a shiny hydrosphere and bumpy terrain materials.
    * TODO(pablo): get shaders working again.
    */
-  newSurface(scene) {
-    let planetMaterial;
-    if (!(this.props.texture_hydrosphere || this.props.texture_terrain)) {
-      planetMaterial = cacheMaterial(this.name);
-      planetMaterial.shininess = 30;
-    } else if (this.props.texture_hydrosphere || this.props.texture_terrain) {
-      planetMaterial = cacheMaterial(this.name);
-      planetMaterial.shininess = 30;
-      if (this.props.texture_terrain) {
-        planetMaterial.bumpMap = pathTexture(this.name + "_terrain");
-        planetMaterial.bumpScale = 0.001;
-      }
-      if (this.props.texture_hydrosphere) {
-        const hydroTex = pathTexture(this.name + "_hydro");
-        planetMaterial.specularMap = hydroTex;
-        planetMaterial.shininess = 50;
-      }
+  nearShape() {
+    const planetMaterial = cacheMaterial(this.name);
+    planetMaterial.shininess = 30;
+    if (this.props.texture_terrain) {
+      planetMaterial.bumpMap = pathTexture(this.name + "_terrain");
+      planetMaterial.bumpScale = 0.001;
     }
-    const shape = sphere({
-        matr: planetMaterial
-      });
-    //shape.name = this.name + '.surface';
-    //scene.objects[shape.name] = shape;
+    if (this.props.texture_hydrosphere) {
+      const hydroTex = pathTexture(this.name + "_hydro");
+      planetMaterial.specularMap = hydroTex;
+      planetMaterial.shininess = 50;
+    }
+    const shape = sphere({ matr: planetMaterial });
+    if (this.props.texture_atmosphere) {
+      shape.add(this.newAtmosphere());
+    }
     return shape;
   }
 
@@ -54344,11 +54353,10 @@ class Scene$1 {
         this.onClick(click);
       });
     this.stars = null;
+    // TODO: Generalize this when other stars centered.  Used as
+    // parent for searches.
+    this.sun = null;
     this.asterisms = null;
-    this.orbitShapes = {};
-    this.debugShapes = [];
-    this.orbitsVisible = false;
-    this.debugVisible = false;
   }
 
 
@@ -54381,7 +54389,9 @@ class Scene$1 {
           this.stars.showLabels();
         });
       return this.stars;
-    case 'star': return new Star(props, this.objects, this.ui);
+    case 'star':
+        this.sun = new Star(props, this.objects, this.ui);
+        return this.sun;
     case 'planet': return new Planet(this, props);
     case 'moon': return new Planet(this, props, true);
     }
@@ -54414,7 +54424,6 @@ class Scene$1 {
     if (props) {
       obj.props = props;
     }
-    obj.add(this.debugAxes());
     return obj;
   }
 
@@ -54539,18 +54548,6 @@ class Scene$1 {
   }
 
 
-  manageDebugShape(shape) {
-    this.debugShapes.push(shape);
-    shape.visible = this.debugVisible;
-    return shape;
-  }
-
-
-  debugAxes(size) {
-    return this.manageDebugShape(new AxesHelper(size || 1));
-  }
-
-
   toggleAsterisms() {
     if (this.asterisms == null) {
       const asterisms = new Asterisms(this.stars, () => {
@@ -54565,27 +54562,18 @@ class Scene$1 {
   }
 
 
-  toggleNames() {
-    this.stars.labelLOD.visible = !this.stars.labelLOD.visible;
-  }
-
-
   toggleOrbits() {
-    this.orbitsVisible = !this.orbitsVisible;
-    for (let i in this.orbitShapes) {
-      const shape = this.orbitShapes[i];
-      if (shape.hasOwnProperty('visible')) {
-        this.orbitShapes[i].visible = this.orbitsVisible;
-      }
-    }
+    visitToggleProperty(this.sun, 'name', 'orbit', 'visible');
   }
 
 
-  toggleDebug() {
-    this.debugVisible = !this.debugVisible;
-    for (let i = 0; i < this.debugShapes.length; i++) {
-      this.debugShapes[i].visible = this.debugVisible;
-    }
+  togglePlanetLabels() {
+    visitToggleProperty(this.sun, 'name', 'label', 'visible');
+  }
+
+
+  toggleStarLabels() {
+    this.stars.labelLOD.visible = !this.stars.labelLOD.visible;
   }
 
 
@@ -55724,12 +55712,12 @@ class Celestiary {
           'Look at parent of current system');
     k.map('A', () => { this.scene.toggleAsterisms(); },
           'Show/hide asterisms');
-    k.map('N', () => { this.scene.toggleNames(); },
-          'Show/hide names');
     k.map('O', () => { this.scene.toggleOrbits(); },
           'Show/hide orbits');
-    k.map('D', () => { this.scene.toggleDebug(); },
-          'Show/hide debug shapes');
+    k.map('P', () => { this.scene.togglePlanetLabels(); },
+          'Show/hide planet and moon names');
+    k.map('S', () => { this.scene.toggleStarLabels(); },
+          'Show/hide star names');
     k.map('V', () => {
         const panels = [elt$1('nav-id'), elt$1('time-id')];
         panels.map((panel) => { panel.style.visibility = this.navVisible ? 'hidden' : 'visible'; });
