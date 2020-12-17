@@ -17,6 +17,7 @@ https://pablo-mayrgundter.github.io/celestiary/
 - 9 planets, 20 moons
 - Permalinks for positions
 - Howto guide for programming topics used in the app (see help/? screen in the app for the live howto guide)
+- Even kinda works on mobile! :)
 
 Celestia datasets:
 - ~100,000 stars
@@ -28,8 +29,9 @@ See open issues page for upcoming features: https://github.com/pablo-mayrgundter
 ## Get
 This project uses submodules, so make sure to get them when cloning:
 ```
-> git clone --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
+> git clone --depth=1 --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
 ```
+This will download about 60MB, with the current directory being ~20MB, mostly in textures/.  I'll probably filter most of the older versions in git soon.
 
 ## Development
 Celestiary is a static web app, and may be served directly out of its root.
@@ -82,3 +84,10 @@ Hit CTRL-C to stop the server
 ```
 
 Now visit http://localhost:8080/index.html in your browser
+
+## Performance
+A first-time session downloads ~3-5MB, mostly of the stars data.  Planet textures are lazy-fetched as the user moves around the scene, but will bring that upwards to ~10MB in full.
+
+Everything is highly cacheable, so subsequent visits are brief HEAD checks on root resources.
+
+Warm load on a local server is 260B in ~300ms (mostly cache checking).  Page rendering finishes by 1s.
