@@ -22,6 +22,8 @@ Celestia datasets:
 - ~3k star names
 - ~80 Asterisms/constellations
 
+See open issues page for upcoming features: https://github.com/pablo-mayrgundter/celestiary/issues 
+
 ## How to run locally
 
 Run a web server in the root directory and load index.html from there.
