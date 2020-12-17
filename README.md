@@ -86,6 +86,8 @@ Hit CTRL-C to stop the server
 Now visit http://localhost:8080/index.html in your browser
 
 ## Performance
-A first-time session downloads ~3-5MB, mostly of the stars data.  Planet textures are lazy-fetched, but will bring that upwards to ~10MB.  Everything is highly cacheable, so subsequent visits are brief HEAD checks on root resources.
+A first-time session downloads ~3-5MB, mostly of the stars data.  Planet textures are lazy-fetched as the user moves around the scene, but will bring that upwards to ~10MB in full.
 
-Cached load on a local server is 260B in ~300ms.  Page rendering finishes by 1s.
+Everything is highly cacheable, so subsequent visits are brief HEAD checks on root resources.
+
+Warm load on a local server is 260B in ~300ms (mostly cache checking).  Page rendering finishes by 1s.
