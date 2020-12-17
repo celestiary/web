@@ -29,8 +29,9 @@ See open issues page for upcoming features: https://github.com/pablo-mayrgundter
 ## Get
 This project uses submodules, so make sure to get them when cloning:
 ```
-> git clone --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
+> git clone --depth=1 --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
 ```
+This will download about 60MB, with the current directory being ~20MB, mostly in textures/.  I'll probably filter most of the older versions in git soon.
 
 ## Development
 Celestiary is a static web app, and may be served directly out of its root.
@@ -83,3 +84,8 @@ Hit CTRL-C to stop the server
 ```
 
 Now visit http://localhost:8080/index.html in your browser
+
+## Performance
+A first-time session downloads ~3-5MB, mostly of the stars data.  Planet textures are lazy-fetched, but will bring that upwards to ~10MB.  Everything is highly cacheable, so subsequent visits are brief HEAD checks on root resources.
+
+Cached load on a local server is 260B in ~300ms.  Page rendering finishes by 1s.
