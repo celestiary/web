@@ -6,6 +6,9 @@
 <h1>Planet</h1>
 <p>Use LOD to lazy-load texture.  Open your browser network trace and
 watch it as you zoom in.
+<table id="faves">
+<tr><th>Name</th></tr>
+</table>
 <script type="module">
   import * as THREE from './js/lib/three.js/three.module.js';
   import Loader from './js/loader.js';
@@ -15,9 +18,11 @@ watch it as you zoom in.
   import {testPlanetProps} from './js/scene_utils.js';
 
   const ui = new ThreeUi('ui');
-  ui.camera.position.z = 1e4;
-  const light = new THREE.PointLight();
-  light.position.set(0, 0, 10);
+  ui.camera.position.z = 1e2;
+  const light = new THREE.DirectionalLight();
+  const dist = 1e7;
+  light.position.set(dist, 0, dist);
+  //ui.scene.add(light);
   ui.camera.add(light);
 
   const nO = (name) => {
@@ -31,6 +36,16 @@ watch it as you zoom in.
     newGroup: nO,
     orbitShapes: []
   };
+
+  const planetNames = ['Mercury','Venus','Earth','Mars','Jupiter','Saturn','Uranus','Neptune','Pluto'];
+  const favesTable = document.getElementById('faves');
+  planetNames.map(planetName => {
+      favesTable.innerHTML +=
+          `<tr>
+            <td><a href="#${planetName.toLowerCase()}">${planetName}</a></td>
+          </tr>`;
+    });
+
 
   let planet;
 

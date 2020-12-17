@@ -12,11 +12,11 @@ function pathTexture(filebase, ext) {
 }
 
 const materials = [];
-function cacheMaterial(name) {
+function cacheMaterial(name, ext) {
   let m = materials[name];
   if (!m) {
     materials[name] = m = new THREE.MeshPhongMaterial({
-        map: pathTexture(name),
+        map: pathTexture(name, ext),
       });
   }
   return m;

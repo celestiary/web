@@ -184,8 +184,16 @@ export default class Planet extends Object {
       planetMaterial.shininess = 50;
     }
     const shape = Shapes.sphere({ matr: planetMaterial });
+    shape.castShadow = true;
     if (this.props.texture_atmosphere) {
       shape.add(this.newAtmosphere());
+    }
+    if (this.props.name == 'saturn') {
+      shape.add(Shapes.rings());
+      const underRings = Shapes.rings();
+      underRings.position.setY(-0.01);
+      underRings.rotateX(Math.PI);
+      shape.add(underRings);
     }
     return shape;
   }
