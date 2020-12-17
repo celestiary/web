@@ -77,7 +77,7 @@ function measureText(ctx, text, fontStyle) {
  * should not be set by caller, but will be passed to the callbacks to
  * allow indent formatting.
  */
-function visitChildren(elt, cb1, cb2, cb3, level) {
+function visit(elt, cb1, cb2, cb3, level) {
   level = level || 1;
   if (cb1) {
     cb1(elt, level);
@@ -88,7 +88,7 @@ function visitChildren(elt, cb1, cb2, cb3, level) {
       if (cb2) {
         cb2(elt, child, level);
       }
-      visitChildren(child, cb1, cb2, cb3, level + 1);
+      visit(child, cb1, cb2, cb3, level + 1);
     }
   }
   if (cb3) {
@@ -97,7 +97,25 @@ function visitChildren(elt, cb1, cb2, cb3, level) {
 }
 
 
+/** Preorder visit. */
+function visitFilterProperty(elt, propName, propValue, cb) {
+  visit(elt, child => {
+      if (child.hasOwnProperty(propName) && child[propName] == propValue) {
+        cb(child);
+      }
+    })
+}
 
+
+/** Preorder visit. */
+function visitToggleProperty(elt, filterPropName, filterPropValue, togglePropName) {
+  visitFilterProperty(elt, filterPropName, filterPropValue, child => {
+      if (!(child.hasOwnProperty(togglePropName) && typeof child[togglePropName] == 'boolean')) {
+        throw new Error(`Found child invalid toggle property(${togglePropName}):`, child);
+      }
+      child[togglePropName] = !child[togglePropName];
+    });
+}
 
 
 // https://stackoverflow.com/questions/8609289/convert-a-binary-nodejs-buffer-to-javascript-arraybuffer
@@ -120,5 +138,7 @@ export {
   measureText,
   named,
   toArrayBuffer,
-  visitChildren
+  visit,
+  visitFilterProperty,
+  visitToggleProperty
 };

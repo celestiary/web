@@ -5,9 +5,9 @@ import Object from './object.js';
 import SpriteSheet from './SpriteSheet.js';
 
 import * as Shapes from './shapes.mjs';
-import {FAR_OBJ, LENGTH_SCALE, labelTextColor, halfPi, toRad} from './shared.mjs';
 import * as Material from './material.js';
-import {capitalize} from './utils.mjs';
+import {FAR_OBJ, LENGTH_SCALE, labelTextColor, halfPi, toRad} from './shared.mjs';
+import {capitalize, named} from './utils.mjs';
 
 
 export default class Planet extends Object {
@@ -38,8 +38,6 @@ export default class Planet extends Object {
 
     const orbitShape = this.newOrbit(this.scene, orbit, this.name);
     orbitPlane.add(orbitShape);
-    orbitShape.visible = this.scene.orbitsVisible;
-    this.scene.orbitShapes[this.name] = orbitShape;
 
     const orbitPosition = this.scene.newGroup(this.name + '.orbitPosition');
     orbitPlane.add(orbitPosition);
@@ -63,7 +61,8 @@ export default class Planet extends Object {
 
 
   newOrbit(scene, orbit) {
-    const group = scene.newGroup(this.name + '.orbit');
+    const group = named(new THREE.Group(), 'orbit');
+    group.visible = false;
     const ellipseCurve = new THREE.EllipseCurve(
         0, 0,
         1, Shapes.ellipseSemiMinorAxisCurve(assertInRange(orbit.eccentricity, 0, 1)),
@@ -137,23 +136,20 @@ export default class Planet extends Object {
     planetLOD.addLevel(FAR_OBJ, this.isMoon ? 1e7 : 1e8);
 
     closePoint.onBeforeRender = () => {
-      planet.add(this.newSurface(this.props));
-      if (this.props.texture_atmosphere) {
-        planet.add(this.newAtmosphere());
-      }
-      planet.hasSurface = true;
+      planet.add(this.nearShape());
       closePoint.onBeforeRender = null;
       delete closePoint['onBeforeRender'];
     }
 
     const labelLOD = new THREE.LOD();
     const name = capitalize(this.name);
-    labelLOD.addLevel(new SpriteSheet(1, name).add(0, 0, 0, name, labelTextColor).compile(), 1);
-    labelLOD.addLevel(FAR_OBJ, this.isMoon ? 1e3 : 1e6);
+    const label = new SpriteSheet(1, name).add(0, 0, 0, name, labelTextColor).compile();
+    labelLOD.addLevel(label, 1);
+    labelLOD.addLevel(FAR_OBJ, this.isMoon ? 2e3 : 5e6);
 
     const group = new THREE.Object3D;
     group.add(planetLOD);
-    group.add(labelLOD);
+    group.add(named(labelLOD, 'label'));
     /*
     group.onClick = (mouse, intersect, clickRoot) => {
         console.log(`Planet group ${this.name} clicked: `, mouse, intersect, clickRoot);
@@ -175,29 +171,22 @@ export default class Planet extends Object {
    * A surface with a shiny hydrosphere and bumpy terrain materials.
    * TODO(pablo): get shaders working again.
    */
-  newSurface(scene) {
-    let planetMaterial;
-    if (!(this.props.texture_hydrosphere || this.props.texture_terrain)) {
-      planetMaterial = Material.cacheMaterial(this.name);
-      planetMaterial.shininess = 30;
-    } else if (this.props.texture_hydrosphere || this.props.texture_terrain) {
-      planetMaterial = Material.cacheMaterial(this.name);
-      planetMaterial.shininess = 30;
-      if (this.props.texture_terrain) {
-        planetMaterial.bumpMap = Material.pathTexture(this.name + "_terrain");
-        planetMaterial.bumpScale = 0.001;
-      }
-      if (this.props.texture_hydrosphere) {
-        const hydroTex = Material.pathTexture(this.name + "_hydro");
-        planetMaterial.specularMap = hydroTex;
-        planetMaterial.shininess = 50;
-      }
+  nearShape() {
+    const planetMaterial = Material.cacheMaterial(this.name);
+    planetMaterial.shininess = 30;
+    if (this.props.texture_terrain) {
+      planetMaterial.bumpMap = Material.pathTexture(this.name + "_terrain");
+      planetMaterial.bumpScale = 0.001;
     }
-    const shape = Shapes.sphere({
-        matr: planetMaterial
-      });
-    //shape.name = this.name + '.surface';
-    //scene.objects[shape.name] = shape;
+    if (this.props.texture_hydrosphere) {
+      const hydroTex = Material.pathTexture(this.name + "_hydro");
+      planetMaterial.specularMap = hydroTex;
+      planetMaterial.shininess = 50;
+    }
+    const shape = Shapes.sphere({ matr: planetMaterial });
+    if (this.props.texture_atmosphere) {
+      shape.add(this.newAtmosphere());
+    }
     return shape;
   }
 

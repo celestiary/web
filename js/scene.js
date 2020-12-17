@@ -32,11 +32,10 @@ export default class Scene {
         this.onClick(click);
       });
     this.stars = null;
+    // TODO: Generalize this when other stars centered.  Used as
+    // parent for searches.
+    this.sun = null;
     this.asterisms = null;
-    this.orbitShapes = {};
-    this.debugShapes = [];
-    this.orbitsVisible = false;
-    this.debugVisible = false;
   }
 
 
@@ -69,7 +68,9 @@ export default class Scene {
           this.stars.showLabels();
         });
       return this.stars;
-    case 'star': return new Star(props, this.objects, this.ui);
+    case 'star':
+        this.sun = new Star(props, this.objects, this.ui);
+        return this.sun;
     case 'planet': return new Planet(this, props);
     case 'moon': return new Planet(this, props, true);
     }
@@ -102,7 +103,6 @@ export default class Scene {
     if (props) {
       obj.props = props;
     }
-    obj.add(this.debugAxes());
     return obj;
   }
 
@@ -317,18 +317,6 @@ export default class Scene {
   }
 
 
-  manageDebugShape(shape) {
-    this.debugShapes.push(shape);
-    shape.visible = this.debugVisible;
-    return shape;
-  }
-
-
-  debugAxes(size) {
-    return this.manageDebugShape(new THREE.AxesHelper(size || 1));
-  }
-
-
   toggleAsterisms() {
     if (this.asterisms == null) {
       const asterisms = new Asterisms(this.stars, () => {
@@ -343,27 +331,18 @@ export default class Scene {
   }
 
 
-  toggleNames() {
-    this.stars.labelLOD.visible = !this.stars.labelLOD.visible;
-  }
-
-
   toggleOrbits() {
-    this.orbitsVisible = !this.orbitsVisible;
-    for (let i in this.orbitShapes) {
-      const shape = this.orbitShapes[i];
-      if (shape.hasOwnProperty('visible')) {
-        this.orbitShapes[i].visible = this.orbitsVisible;
-      }
-    }
+    Utils.visitToggleProperty(this.sun, 'name', 'orbit', 'visible');
   }
 
 
-  toggleDebug() {
-    this.debugVisible = !this.debugVisible;
-    for (let i = 0; i < this.debugShapes.length; i++) {
-      this.debugShapes[i].visible = this.debugVisible;
-    }
+  togglePlanetLabels() {
+    Utils.visitToggleProperty(this.sun, 'name', 'label', 'visible');
+  }
+
+
+  toggleStarLabels() {
+    this.stars.labelLOD.visible = !this.stars.labelLOD.visible;
   }
 
 

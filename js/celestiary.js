@@ -148,12 +148,12 @@ export default class Celestiary {
           'Look at parent of current system');
     k.map('A', () => { this.scene.toggleAsterisms(); },
           'Show/hide asterisms');
-    k.map('N', () => { this.scene.toggleNames(); },
-          'Show/hide names');
     k.map('O', () => { this.scene.toggleOrbits(); },
           'Show/hide orbits');
-    k.map('D', () => { this.scene.toggleDebug(); },
-          'Show/hide debug shapes');
+    k.map('P', () => { this.scene.togglePlanetLabels(); },
+          'Show/hide planet and moon names');
+    k.map('S', () => { this.scene.toggleStarLabels(); },
+          'Show/hide star names');
     k.map('V', () => {
         const panels = [elt('nav-id'), elt('time-id')];
         panels.map((panel) => { panel.style.visibility = this.navVisible ? 'hidden' : 'visible' });
