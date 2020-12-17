@@ -54198,6 +54198,7 @@ class Stars extends Object$1 {
     this.labelsGroup = named(new Group, 'LabelsGroup');
     this.labelShown = {};
     this.labelLOD = named(new LOD, 'LabelsLOD');
+    this.labelLOD.visible = false;
     this.labelLOD.addLevel(this.labelsGroup, 1);
     this.labelLOD.addLevel(FAR_OBJ, 1e14);
     this.add(this.labelLOD);
@@ -54248,18 +54249,6 @@ class Stars extends Object$1 {
   }
 
 
-  addFaves(toShow) {
-    for (let hipId in faves) {
-      const star = this.catalog.starsByHip[hipId];
-      if (star) {
-        toShow.push([star, faves[hipId]]);
-      } else {
-        throw new Error(`Null star for hipId(${hipId})`);
-      }
-    }
-  }
-
-
   showLabels(level = 2) {
     const toShow = [];
     this.addFaves(toShow);
@@ -54297,6 +54286,18 @@ class Stars extends Object$1 {
     const sPos = new Vector3(x, y, z);
     this.starLabelSpriteSheet.add(x, y, z, name);
     this.labelShown[name] = true;
+  }
+
+
+  addFaves(toShow) {
+    for (let hipId in faves) {
+      const star = this.catalog.starsByHip[hipId];
+      if (star) {
+        toShow.push([star, faves[hipId]]);
+      } else {
+        throw new Error(`Null star for hipId(${hipId})`);
+      }
+    }
   }
 }
 
