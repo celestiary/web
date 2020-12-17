@@ -14,17 +14,17 @@
 
   const ui = new ThreeUi('ui');
 
-  const catalog = new StarsCatalog();
-  catalog.load(() => {
-    const stars = new Stars({
-      radius: {
-        // Sun's radius in meters.
-        scalar: 6.9424895E8
-      },
-    }, catalog);
-    ui.scene.add(stars);
-    window.catalog = stars.catalog;
-  });
+  const stars = new Stars({
+    radius: {
+      // Sun's radius in meters.
+      scalar: 6.9424895E8
+    },
+    }, () => {
+      ui.scene.add(stars);
+      window.catalog = stars.catalog;
+      stars.showLabels(2);
+    });
+
   ui.camera.position.z = 1e10;
   console.log(ui);
 </script>

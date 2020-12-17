@@ -1,5 +1,6 @@
 import * as THREE from './lib/three.js/three.module.js';
 import * as Utils from './utils.mjs';
+import {labelTextColor as defaultTextColor, labelTextFont as defaultFont} from './shared.mjs';
 
 // TODO: separate this into a SpriteSheet supercalss and LabelSheet subclass.
 /**
@@ -8,7 +9,7 @@ import * as Utils from './utils.mjs';
  *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
  */
 export default class SpriteSheet {
-  constructor(maxLabels, maxLabel, labelTextFont = '12px arial') {
+  constructor(maxLabels, maxLabel, labelTextFont = defaultFont) {
     this.maxLabels = maxLabels;
     this.labelCount = 0;
     this.labelTextFont = labelTextFont;
@@ -33,14 +34,41 @@ export default class SpriteSheet {
     ctx.fillStyle = 'rgba(0, 0, 0, 0)'; // full black without alpha
     ctx.fillRect(0, 0, this.width, this.height);
     ctx.fill();
+
+    this.positions = [];
+    this.sizes = [];
+    this.spriteCoords = [];
   }
 
 
-  alloc(labelText, fillStyle = 'white') {
-    if (this.labelCount >= this.maxLabels) {
-      throw new Error(`Alloc called too many times, can only allocate maxLabels(${this.maxLabels})`);
+  compile() {
+    if (this.positions.length != this.labelCount * 3) {
+      throw new Error('Positions array size wrong: ' + this.positions.length);
     }
-    this.labelCount++;
+    if (this.sizes.length != this.labelCount * 2) {
+      throw new Error('Positions array size wrong: ' + this.sizes.length);
+    }
+    if (this.spriteCoords.length != this.labelCount * 4) {
+      throw new Error('Positions array size wrong: ' + this.spriteCoords.length);
+    }
+    this.positionAttribute = new THREE.Float32BufferAttribute(this.positions, 3);
+    this.sizeAttribute = new THREE.Float32BufferAttribute(this.sizes, 2);
+    this.spriteCoordAttribute = new THREE.Float32BufferAttribute(this.spriteCoords, 4);
+    this.geometry = new THREE.BufferGeometry();
+    this.geometry.setAttribute('position', this.positionAttribute);
+    this.geometry.setAttribute('size', this.sizeAttribute);
+    this.geometry.setAttribute('spriteCoord', this.spriteCoordAttribute);
+    this.geometry.computeBoundingBox();
+    this.points = new THREE.Points(this.geometry, this.createMaterial());
+    //console.log('compile done', this);
+    return this.points;
+  }
+
+
+  add(x, y, z, labelText, fillStyle = defaultTextColor) {
+    if (this.labelCount >= this.maxLabels) {
+      throw new Error(`Add called too many times, can only allocate maxLabels(${this.maxLabels}), already have ${this.labelCount}`);
+    }
     const ctx = this.ctx;
     this.ctx.font = this.labelTextFont;
     let bounds = Utils.measureText(this.ctx, labelText);
@@ -54,14 +82,19 @@ export default class SpriteSheet {
       this.lineSizeMax = size;
     }
     bounds = this.drawAt(labelText, this.curX, this.curY, fillStyle);
-    const spriteCoords = [bounds.x / this.size,
-                          1 - (bounds.y + bounds.height) / this.size,
-                          bounds.width / this.size,
-                          bounds.height / this.size];
-    //console.log(`alloc: text: ${labelText}, curX: ${this.curX}, curY: ${this.curY}, this.width: ${this.width}, bounds, spriteCoords`, bounds, spriteCoords);
-    const labelObject = this.makeLabelObject({width: bounds.width, height: bounds.height}, spriteCoords);
+
+    //console.log(`positionAttribute.set(x: ${x}, y: ${y}, z: ${z}, offset: ${this.labelCount})`);
+    this.positions.push(x, y, z);
+
+    this.spriteCoords.push(bounds.x / this.size,
+                           1 - (bounds.y + bounds.height) / this.size,
+                           bounds.width / this.size,
+                           bounds.height / this.size);
+
+    this.sizes.push(bounds.width, bounds.height);
     this.curX += bounds.width;
-    return labelObject;
+    this.labelCount++;
+    return this;
   }
 
 
@@ -94,30 +127,13 @@ export default class SpriteSheet {
     */
   }
 
-
-  makeLabelObject(pointSize, spriteCoords) {
-    const vertices = [];
-    vertices.push(0, 0, 0);
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geometry.computeBoundingBox();
-    return new THREE.Points(geometry, this.createMaterial(pointSize, spriteCoords));
-  }
-
-
-  createMaterial(pointSize, spriteCoords) {
-    const renderToPixelRatio = true;
-    const pixelRatio = 1;
+  createMaterial() {
     const texture = new THREE.CanvasTexture(this.canvas);
     texture.minFilter = THREE.NearestFilter;
     texture.magFilter = THREE.NearestFilter;
-    const me = this;
     const material = new THREE.ShaderMaterial( {
         uniforms: {
-          pointWidth: { value: pointSize.width },
-          //pointWidth: { value: pointSize.width * (renderToPixelRatio ? (pixelRatio * pixelRatio) : pixelRatio) },
           map: { value: texture },
-          spriteCoords: { value: spriteCoords }
         },
         vertexShader: vertexShader,
         fragmentShader: fragmentShader,
@@ -131,23 +147,25 @@ export default class SpriteSheet {
 
 
 const vertexShader = `
-  uniform float pointWidth;
+  attribute vec2 size;
+  attribute vec4 spriteCoord;
+  varying vec4 spriteCoordVarying;
   void main() {
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = pointWidth;
+    spriteCoordVarying = spriteCoord;
+    gl_PointSize = size[0];
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
 
 const fragmentShader = `
-  uniform float pointWidth;
   uniform sampler2D map;
-  uniform vec4 spriteCoords;
+  varying vec4 spriteCoordVarying;
   void main() {
     vec2 spriteUV = vec2(
-      spriteCoords.x + spriteCoords.z * gl_PointCoord.x,
-      spriteCoords.y + spriteCoords.w * (1.0 - gl_PointCoord.y));
+      spriteCoordVarying.x + spriteCoordVarying.z * gl_PointCoord.x,
+      spriteCoordVarying.y + spriteCoordVarying.w * (1.0 - gl_PointCoord.y));
     gl_FragColor = texture2D(map, spriteUV);
   }
 `;

@@ -52413,6 +52413,9 @@ class Parser {
 function p(state, depth, msg, varargs) {
 }
 
+// Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
+const littleEndian = true;
+
 // TODO: Unify with temperature-based color alg in shaders/star.frag.
 //
 // TODO: plenty of color work to do here based on
@@ -52494,11 +52497,12 @@ class StarsCatalog {
     const sun = {
       x: 0, y: 0, z: 0,
       hipId: 0,
-      mag: sunAbsMag,
+      absMag: sunAbsMag,
       kind: 0,
       spectralType: 4,
       sub: 2,
-      lum: 6,
+      lumClass: 6,
+      lumRelSun: 1,
       radiusMeters: sunRadiusMeters
     };
     this.starsByHip[0] = sun;
@@ -52682,10 +52686,6 @@ const variants = {
   ALP: 'ALF',
   THE: 'TET',
 };
-
-
-// From https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
-const littleEndian = true;
 
 
 function check(expect, actual, offset) {
@@ -53370,16 +53370,6 @@ class Asterisms extends Object3D {
 
 
   show(astrName, filterFn) {
-    if (!filterFn) {
-      filterFn = (stars, hipId, name) => {
-        if (this.stars.catalog.namesByHip[hipId].length >= 2) {
-          if (!name.match(/\w{2,3} [\w\d]{3,4}/)) {
-            return true;
-          }
-        }
-        return false;
-      };
-    }
     const asterism = this.catalog.byName[astrName];
     if (!asterism) {
       throw new Error('Unknown asterism: ', astrName);
@@ -53392,14 +53382,16 @@ class Asterisms extends Object3D {
         const [origName, name, hipId] = this.stars.catalog.reifyName(pathNames[i]);
         const star = this.stars.catalog.starsByHip[hipId];
         if (!star) {
-          console.warn(`Cannot find star, hipId(${hipId})`, name);
-          window.catalog = this.stars.catalog;
-          console.log('added catalog to window.catalog', this.stars);
+          // TODO: fixup missing star names.
+          //console.warn(`Cannot find star, hipId(${hipId})`, name);
+          //window.catalog = this.stars.catalog;
+          //console.log('added catalog to window.catalog', this.stars);
           continue;
         }
-        if (filterFn(this.stars, hipId, name)) {
-          this.stars.showStarName(star, name);
-        }
+        // Probably just show them in Stars, and don't trigger here.
+        //if (filterFn(this.stars, hipId, name)) {
+        //  this.stars.showStarName(star, name);
+        //}
         if (prevStar) {
           try {
             const line$1 = line(
@@ -53474,16 +53466,16 @@ function assertInRange(num, min, max, msg) {
  *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
  */
 class SpriteSheet {
-  constructor(maxLabels, maxLabel, labelTextFont = '12px arial') {
+  constructor(maxLabels, maxLabel, labelTextFont$1 = labelTextFont) {
     this.maxLabels = maxLabels;
     this.labelCount = 0;
-    this.labelTextFont = labelTextFont;
+    this.labelTextFont = labelTextFont$1;
     //this.textBaseline = 'bottom';
     this.textBaseline = 'top';
     this.canvas = createCanvas();
     document.canvas = this.canvas;
     this.ctx = this.canvas.getContext('2d');
-    const maxBounds = measureText(this.ctx, maxLabel, labelTextFont);
+    const maxBounds = measureText(this.ctx, maxLabel, labelTextFont$1);
     const itemSize = Math.max(maxBounds.width, maxBounds.height);
     this.size = Math.sqrt(this.maxLabels) * itemSize;
     this.width = this.size;
@@ -53499,14 +53491,41 @@ class SpriteSheet {
     ctx.fillStyle = 'rgba(0, 0, 0, 0)'; // full black without alpha
     ctx.fillRect(0, 0, this.width, this.height);
     ctx.fill();
+
+    this.positions = [];
+    this.sizes = [];
+    this.spriteCoords = [];
   }
 
 
-  alloc(labelText, fillStyle = 'white') {
-    if (this.labelCount >= this.maxLabels) {
-      throw new Error(`Alloc called too many times, can only allocate maxLabels(${this.maxLabels})`);
+  compile() {
+    if (this.positions.length != this.labelCount * 3) {
+      throw new Error('Positions array size wrong: ' + this.positions.length);
     }
-    this.labelCount++;
+    if (this.sizes.length != this.labelCount * 2) {
+      throw new Error('Positions array size wrong: ' + this.sizes.length);
+    }
+    if (this.spriteCoords.length != this.labelCount * 4) {
+      throw new Error('Positions array size wrong: ' + this.spriteCoords.length);
+    }
+    this.positionAttribute = new Float32BufferAttribute(this.positions, 3);
+    this.sizeAttribute = new Float32BufferAttribute(this.sizes, 2);
+    this.spriteCoordAttribute = new Float32BufferAttribute(this.spriteCoords, 4);
+    this.geometry = new BufferGeometry();
+    this.geometry.setAttribute('position', this.positionAttribute);
+    this.geometry.setAttribute('size', this.sizeAttribute);
+    this.geometry.setAttribute('spriteCoord', this.spriteCoordAttribute);
+    this.geometry.computeBoundingBox();
+    this.points = new Points(this.geometry, this.createMaterial());
+    //console.log('compile done', this);
+    return this.points;
+  }
+
+
+  add(x, y, z, labelText, fillStyle = labelTextColor) {
+    if (this.labelCount >= this.maxLabels) {
+      throw new Error(`Add called too many times, can only allocate maxLabels(${this.maxLabels}), already have ${this.labelCount}`);
+    }
     const ctx = this.ctx;
     this.ctx.font = this.labelTextFont;
     let bounds = measureText(this.ctx, labelText);
@@ -53520,14 +53539,19 @@ class SpriteSheet {
       this.lineSizeMax = size;
     }
     bounds = this.drawAt(labelText, this.curX, this.curY, fillStyle);
-    const spriteCoords = [bounds.x / this.size,
-                          1 - (bounds.y + bounds.height) / this.size,
-                          bounds.width / this.size,
-                          bounds.height / this.size];
-    //console.log(`alloc: text: ${labelText}, curX: ${this.curX}, curY: ${this.curY}, this.width: ${this.width}, bounds, spriteCoords`, bounds, spriteCoords);
-    const labelObject = this.makeLabelObject({width: bounds.width, height: bounds.height}, spriteCoords);
+
+    //console.log(`positionAttribute.set(x: ${x}, y: ${y}, z: ${z}, offset: ${this.labelCount})`);
+    this.positions.push(x, y, z);
+
+    this.spriteCoords.push(bounds.x / this.size,
+                           1 - (bounds.y + bounds.height) / this.size,
+                           bounds.width / this.size,
+                           bounds.height / this.size);
+
+    this.sizes.push(bounds.width, bounds.height);
     this.curX += bounds.width;
-    return labelObject;
+    this.labelCount++;
+    return this;
   }
 
 
@@ -53560,27 +53584,13 @@ class SpriteSheet {
     */
   }
 
-
-  makeLabelObject(pointSize, spriteCoords) {
-    const vertices = [];
-    vertices.push(0, 0, 0);
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
-    geometry.computeBoundingBox();
-    return new Points(geometry, this.createMaterial(pointSize, spriteCoords));
-  }
-
-
-  createMaterial(pointSize, spriteCoords) {
+  createMaterial() {
     const texture = new CanvasTexture(this.canvas);
     texture.minFilter = NearestFilter;
     texture.magFilter = NearestFilter;
     const material = new ShaderMaterial( {
         uniforms: {
-          pointWidth: { value: pointSize.width },
-          //pointWidth: { value: pointSize.width * (renderToPixelRatio ? (pixelRatio * pixelRatio) : pixelRatio) },
           map: { value: texture },
-          spriteCoords: { value: spriteCoords }
         },
         vertexShader: vertexShader,
         fragmentShader: fragmentShader,
@@ -53594,23 +53604,25 @@ class SpriteSheet {
 
 
 const vertexShader = `
-  uniform float pointWidth;
+  attribute vec2 size;
+  attribute vec4 spriteCoord;
+  varying vec4 spriteCoordVarying;
   void main() {
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = pointWidth;
+    spriteCoordVarying = spriteCoord;
+    gl_PointSize = size[0];
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
 
 const fragmentShader = `
-  uniform float pointWidth;
   uniform sampler2D map;
-  uniform vec4 spriteCoords;
+  varying vec4 spriteCoordVarying;
   void main() {
     vec2 spriteUV = vec2(
-      spriteCoords.x + spriteCoords.z * gl_PointCoord.x,
-      spriteCoords.y + spriteCoords.w * (1.0 - gl_PointCoord.y));
+      spriteCoordVarying.x + spriteCoordVarying.z * gl_PointCoord.x,
+      spriteCoordVarying.y + spriteCoordVarying.w * (1.0 - gl_PointCoord.y));
     gl_FragColor = texture2D(map, spriteUV);
   }
 `;
@@ -53752,8 +53764,8 @@ class Planet extends Object$1 {
     };
 
     const labelLOD = new LOD();
-    labelLOD.addLevel(this.scene.planetLabels.alloc(capitalize(this.name),
-                                                    labelTextColor), 1);
+    const name = capitalize(this.name);
+    labelLOD.addLevel(new SpriteSheet(1, name).add(0, 0, 0, name, labelTextColor).compile(), 1);
     labelLOD.addLevel(FAR_OBJ, this.isMoon ? 1e3 : 1e6);
 
     const group = new Object3D;
@@ -54176,12 +54188,15 @@ class StarsBufferGeometry extends BufferGeometry {
 //import CustomPoints from './lib/three-custom/points.js';
 
 
+// > 10k is too much for my old laptop.
+const MAX_LABELS = 10000;
+
+
 class Stars extends Object$1 {
   constructor(props, catalogOrCb) {
     super('Stars', props);
-    this.starLabelSpriteSheet = new SpriteSheet(300, 'Rigel Kentaurus B', labelTextFont);
     this.labelsGroup = named(new Group, 'LabelsGroup');
-    this.labelsByName = {};
+    this.labelShown = {};
     this.labelLOD = named(new LOD, 'LabelsLOD');
     this.labelLOD.addLevel(this.labelsGroup, 1);
     this.labelLOD.addLevel(FAR_OBJ, 1e13);
@@ -54230,10 +54245,14 @@ class Stars extends Object$1 {
       //const starsMaterial = new THREE.PointsMaterial( { size: 10, vertexColors: true, sizeAttenuation: false } );
       //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
       //this.add(starPoints);
+  }
+
+
+  addFaves(toShow) {
     for (let hipId in faves) {
       const star = this.catalog.starsByHip[hipId];
       if (star) {
-        this.showStarName(star, faves[hipId]);
+        toShow.push([star, faves[hipId]]);
       } else {
         throw new Error(`Null star for hipId(${hipId})`);
       }
@@ -54241,26 +54260,43 @@ class Stars extends Object$1 {
   }
 
 
-  // TODO fix this in the SpriteSheet.
-  maybeWiden(str) {
-    while (str.length < 8) {
-      str = ` ${str} `;
+  showLabels(level = 2) {
+    const toShow = [];
+    this.addFaves(toShow);
+    for (let hipId in this.catalog.starsByHip) {
+      if (faves[hipId]) {
+        continue;
+      }
+      const star = this.catalog.starsByHip[hipId];
+      const names = this.catalog.namesByHip[hipId];
+      if (names && names.length > level) {
+        toShow.push([star, names[0]]);
+      } else if (star.absMag < -5) {
+        toShow.push([star, 'HIP ' + hipId]);
+      }
+      if (toShow.length >= MAX_LABELS) {
+        console.warn('Stars#showLabels: hit max count of ' + MAX_LABELS);
+        break;
+      }
     }
-    return str;
+    this.starLabelSpriteSheet = new SpriteSheet(toShow.length, 'Rigel Kentaurus B');
+    for (let i = 0; i < toShow.length; i++) {
+      const [star, name] = toShow[i];
+      this.showStarName(star, name);
+    }
+    this.labelsGroup.add(this.starLabelSpriteSheet.compile());
   }
 
 
   showStarName(star, name) {
-    if (this.labelsByName[name]) {
-      //console.log('skipping double show of name: ', name);
+    if (this.labelShown[name]) {
+      console.warn('skipping double show of name: ', name);
       return;
     }
-    const sPos = new Vector3(
-        STARS_SCALE * star.x, STARS_SCALE * star.y, STARS_SCALE * star.z);
-    const label = this.starLabelSpriteSheet.alloc(this.maybeWiden(name), labelTextColor);
-    label.position.copy(sPos);
-    this.labelsGroup.attach(label);
-    this.labelsByName[name] = label;
+    const x = STARS_SCALE * star.x, y = STARS_SCALE * star.y, z = STARS_SCALE * star.z;
+    const sPos = new Vector3(x, y, z);
+    this.starLabelSpriteSheet.add(x, y, z, name);
+    this.labelShown[name] = true;
   }
 }
 
@@ -54312,7 +54348,6 @@ class Scene$1 {
     this.debugShapes = [];
     this.orbitsVisible = false;
     this.debugVisible = false;
-    this.planetLabels = new SpriteSheet(30, 'Jupiter', labelTextFont);
   }
 
 
@@ -54341,7 +54376,9 @@ class Scene$1 {
     switch (props.type) {
     case 'galaxy': return this.newGalaxy(props);
     case 'stars':
-      this.stars = new Stars(props, () => {});
+      this.stars = new Stars(props, () => {
+          this.stars.showLabels();
+        });
       return this.stars;
     case 'star': return new Star(props, this.objects, this.ui);
     case 'planet': return new Planet(this, props);

@@ -36,23 +36,22 @@
   light.position.set(10, 10, 10);
   ui.scene.add(light);
 
-  const planets = ['Mercury','Venus','Mars','Earth','Jupiter','Saturn','Uranus','Neptune','Pluto'];
-
+  const prefix = 'item-';
+  const num = 10000;
   ui.camera.position.set(0, 0, 10);
-  const labels = new SpriteSheet(planets.length, 'Mercury', 'medium arial');
-  let count = 0;
-  const cols = planets.length / 2;
-  const xOff = cols / -2 + 0.5;
-  const yOff = cols / -2 + 0.5;
-  for (let i = 0; i < cols; i++) {
-    for (let j = 0; j < cols; j++) {
-      const p = point();
-      p.position.set(xOff + i, yOff + j, 0);
-      ui.scene.add(p);
-      const label = labels.alloc(planets[count++]);
-      p.add(label);
+  const labels = new SpriteSheet(num, prefix + num, 'medium arial');
+  const size = Math.ceil(Math.sqrt(num));
+  const xOff = size / -2 + 0.5, yOff = size / -2 + 0.5;
+  out:
+  for (let i = 0; i < size; i++) {
+    for (let j = 0; j < size; j++) {
+      const id = i * size + j;
+      if (id >= num)
+        break out;
+      labels.add(xOff + i, yOff + j, 0, prefix + id);
     }
   }
+  ui.scene.add(labels.compile());
 </script>
 </body>
 </html>

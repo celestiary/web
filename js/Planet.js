@@ -147,8 +147,8 @@ export default class Planet extends Object {
     }
 
     const labelLOD = new THREE.LOD();
-    labelLOD.addLevel(this.scene.planetLabels.alloc(capitalize(this.name),
-                                                    labelTextColor), 1);
+    const name = capitalize(this.name);
+    labelLOD.addLevel(new SpriteSheet(1, name).add(0, 0, 0, name, labelTextColor).compile(), 1);
     labelLOD.addLevel(FAR_OBJ, this.isMoon ? 1e3 : 1e6);
 
     const group = new THREE.Object3D;

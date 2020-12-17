@@ -8,17 +8,20 @@ import StarsBufferGeometry from './StarsBufferGeometry.mjs';
 import StarsCatalog from './StarsCatalog.mjs';
 import * as Material from './material.js';
 import * as Shapes from './shapes.mjs';
-import {STARS_SCALE, labelTextColor, labelTextFont, FAR_OBJ} from './shared.mjs';
+import {STARS_SCALE, labelTextColor, FAR_OBJ} from './shared.mjs';
 import {debug} from './log.mjs';
 import {named} from './utils.mjs';
+
+
+// > 10k is too much for my old laptop.
+const MAX_LABELS = 10000;
 
 
 export default class Stars extends Object {
   constructor(props, catalogOrCb) {
     super('Stars', props);
-    this.starLabelSpriteSheet = new SpriteSheet(300, 'Rigel Kentaurus B', labelTextFont);
     this.labelsGroup = named(new THREE.Group, 'LabelsGroup');
-    this.labelsByName = {};
+    this.labelShown = {};
     this.labelLOD = named(new THREE.LOD, 'LabelsLOD');
     this.labelLOD.addLevel(this.labelsGroup, 1);
     this.labelLOD.addLevel(FAR_OBJ, 1e13);
@@ -67,10 +70,14 @@ export default class Stars extends Object {
       //const starsMaterial = new THREE.PointsMaterial( { size: 10, vertexColors: true, sizeAttenuation: false } );
       //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
       //this.add(starPoints);
+  }
+
+
+  addFaves(toShow) {
     for (let hipId in faves) {
       const star = this.catalog.starsByHip[hipId];
       if (star) {
-        this.showStarName(star, faves[hipId]);
+        toShow.push([star, faves[hipId]]);
       } else {
         throw new Error(`Null star for hipId(${hipId})`);
       }
@@ -78,26 +85,43 @@ export default class Stars extends Object {
   }
 
 
-  // TODO fix this in the SpriteSheet.
-  maybeWiden(str) {
-    while (str.length < 8) {
-      str = ` ${str} `;
+  showLabels(level = 2) {
+    const toShow = [];
+    this.addFaves(toShow);
+    for (let hipId in this.catalog.starsByHip) {
+      if (faves[hipId]) {
+        continue;
+      }
+      const star = this.catalog.starsByHip[hipId];
+      const names = this.catalog.namesByHip[hipId];
+      if (names && names.length > level) {
+        toShow.push([star, names[0]]);
+      } else if (star.absMag < -5) {
+        toShow.push([star, 'HIP ' + hipId]);
+      }
+      if (toShow.length >= MAX_LABELS) {
+        console.warn('Stars#showLabels: hit max count of ' + MAX_LABELS);
+        break;
+      }
     }
-    return str;
+    this.starLabelSpriteSheet = new SpriteSheet(toShow.length, 'Rigel Kentaurus B');
+    for (let i = 0; i < toShow.length; i++) {
+      const [star, name] = toShow[i];
+      this.showStarName(star, name);
+    }
+    this.labelsGroup.add(this.starLabelSpriteSheet.compile());
   }
 
 
   showStarName(star, name) {
-    if (this.labelsByName[name]) {
-      //console.log('skipping double show of name: ', name);
+    if (this.labelShown[name]) {
+      console.warn('skipping double show of name: ', name);
       return;
     }
-    const sPos = new THREE.Vector3(
-        STARS_SCALE * star.x, STARS_SCALE * star.y, STARS_SCALE * star.z);
-    const label = this.starLabelSpriteSheet.alloc(this.maybeWiden(name), labelTextColor);
-    label.position.copy(sPos);
-    this.labelsGroup.attach(label);
-    this.labelsByName[name] = label;
+    const x = STARS_SCALE * star.x, y = STARS_SCALE * star.y, z = STARS_SCALE * star.z;
+    const sPos = new THREE.Vector3(x, y, z);
+    this.starLabelSpriteSheet.add(x, y, z, name);
+    this.labelShown[name] = true;
   }
 }
 

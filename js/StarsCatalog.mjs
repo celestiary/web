@@ -1,3 +1,6 @@
+// Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
+const littleEndian = true;
+
 // TODO: Unify with temperature-based color alg in shaders/star.frag.
 //
 // TODO: plenty of color work to do here based on
@@ -79,11 +82,12 @@ export default class StarsCatalog {
     const sun = {
       x: 0, y: 0, z: 0,
       hipId: 0,
-      mag: sunAbsMag,
+      absMag: sunAbsMag,
       kind: 0,
       spectralType: 4,
       sub: 2,
-      lum: 6,
+      lumClass: 6,
+      lumRelSun: 1,
       radiusMeters: sunRadiusMeters
     };
     this.starsByHip[0] = sun;
@@ -267,10 +271,6 @@ const variants = {
   ALP: 'ALF',
   THE: 'TET',
 };
-
-
-// From https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
-const littleEndian = true;
 
 
 function check(expect, actual, offset) {

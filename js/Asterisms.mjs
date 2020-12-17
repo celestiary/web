@@ -48,14 +48,16 @@ export default class Asterisms extends THREE.Object3D {
         const [origName, name, hipId] = this.stars.catalog.reifyName(pathNames[i]);
         const star = this.stars.catalog.starsByHip[hipId];
         if (!star) {
-          console.warn(`Cannot find star, hipId(${hipId})`, name);
-          window.catalog = this.stars.catalog;
-          console.log('added catalog to window.catalog', this.stars);
+          // TODO: fixup missing star names.
+          //console.warn(`Cannot find star, hipId(${hipId})`, name);
+          //window.catalog = this.stars.catalog;
+          //console.log('added catalog to window.catalog', this.stars);
           continue;
         }
-        if (filterFn(this.stars, hipId, name)) {
-          this.stars.showStarName(star, name);
-        }
+        // Probably just show them in Stars, and don't trigger here.
+        //if (filterFn(this.stars, hipId, name)) {
+        //  this.stars.showStarName(star, name);
+        //}
         if (prevStar) {
           try {
             const line = Shapes.line(

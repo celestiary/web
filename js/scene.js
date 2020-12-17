@@ -37,7 +37,6 @@ export default class Scene {
     this.debugShapes = [];
     this.orbitsVisible = false;
     this.debugVisible = false;
-    this.planetLabels = new SpriteSheet(30, 'Jupiter', Shared.labelTextFont);
   }
 
 
@@ -66,7 +65,9 @@ export default class Scene {
     switch (props.type) {
     case 'galaxy': return this.newGalaxy(props);
     case 'stars':
-      this.stars = new Stars(props, () => {});
+      this.stars = new Stars(props, () => {
+          this.stars.showLabels();
+        });
       return this.stars;
     case 'star': return new Star(props, this.objects, this.ui);
     case 'planet': return new Planet(this, props);
