@@ -8,6 +8,20 @@ A running instance of Celestiary is available at:
 
 https://pablo-mayrgundter.github.io/celestiary/
 
+
+## Features
+- Keplerian orbits (6 orbital elements)
+- Time controls, to alter rate and direction of time
+- Star colors based on surface temperatures
+- Star surface dynamics simulation (Perlin noise in black-body spectra)
+- 9 planets, 20 moons
+- Permalinks for positions
+
+Celestia datasets:
+- ~100,000 stars
+- ~3k star names
+- ~80 Asterisms
+
 ## How to run locally
 
 Run a web server in the root directory and load index.html from there.
