@@ -16,6 +16,7 @@ https://pablo-mayrgundter.github.io/celestiary/
 - Star surface dynamics simulation (Perlin noise in black-body spectra)
 - 9 planets, 20 moons
 - Permalinks for positions
+- Howto guide for programming topics used in the app (see help/? screen in the app for the live howto guide)
 
 Celestia datasets:
 - ~100,000 stars
@@ -24,10 +25,21 @@ Celestia datasets:
 
 See open issues page for upcoming features: https://github.com/pablo-mayrgundter/celestiary/issues 
 
-## Build
+## Get
+This project uses submodules, so make sure to get them when cloning:
+```
+> git clone --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
+```
 
-No build is required, but for efficiency the live site uses a JS bundle, created like this:
+## Development
+Celestiary is a static web app, and may be served directly out of its root.
 
+For live editing, change the script tag that loads the app in index.html, from js/bundle.js to js/index.js.
+
+See the following section to recreate the bundle.js.
+
+## Build (optional)
+The live site uses a JS bundle efficiency.  To generate and test with it:
 ```
 ~/celestiary/> cd js
 ~/celestiary/js> npx rollup index.js --file bundle.js
@@ -35,12 +47,10 @@ No build is required, but for efficiency the live site uses a JS bundle, created
 index.js → bundle.js...
 created bundle.js in 2.4s
 ```
-
 The bundle.js file is referenced only in index.html in the script include.  Switch that to js/index.js for live source editing.
 
 ## Test
-
-There are a few tests in files ending in: _test.js
+There are a few tests in files ending in: \_test.js
 ```
 ~/celestiary/js> for f in *_test.mjs ; do echo $f ; node $f ; done
 AsterismsCatalog_test.mjs
@@ -48,15 +58,13 @@ TOTAL OK: 1, FAIL: 0, ASSERTS: 2
 StarsCatalog_test.mjs
 TOTAL OK: 3, FAIL: 0, ASSERTS: 3
 ```
+For larger changes, it's also a good idea to step through the guide pages (in /howto) to make sure they'll all working.
 
 ## Run
-
 Run a web server in the root directory and load index.html from there.
 The project includes https://github.com/pablo-mayrgundter/http, e.g.:
-
 ```
-> git clone --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
-> java/http/net/http/serve.sh
+~/celestiary> java/http/net/http/serve.sh
 net.http.Server.port=8080
 net.http.Server.log=true
 net.http.Server.index=index.html
@@ -65,7 +73,7 @@ net.http.Server.ssl=false
 ```
 Alternatively with Node's http-server package:
 ```
-> npx http-server -p 8080
+~/celestiary> npx http-server -p 8080
 Starting up http-server, serving ./
 Available on:
   http://127.0.0.1:8080
