@@ -18,7 +18,7 @@ button {
   border-radius: 3px;
   margin: 0;
   padding: 3px;
-  width: 2em;
+  min-width: 2em;
   font-size: 1em;
 }
 
