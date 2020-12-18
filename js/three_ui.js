@@ -15,7 +15,7 @@ export default class ThreeUi {
     } else {
       throw new Error(`Given container must be DOM ID or element: ${container}`);
     }
-    this.animationCb = animationCb || (() => {});
+    this.animationCb = animationCb || null;
     this.renderer =
       this.initRenderer(this.container, backgroundColor || 0x000000);
     this.width = this.container.offsetWidth;
@@ -161,7 +161,9 @@ export default class ThreeUi {
     }
 
     this.controls.update();
-    this.animationCb(this.scene, this);
+    if (this.animationCb) {
+      this.animationCb(this.scene, this);
+    }
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(() => {
         this.renderLoop();

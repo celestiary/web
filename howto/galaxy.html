@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>Galaxy</h1>
+Gravity particle system.  Work in progress.
+<div style="width: 50%; margin: 1em auto; align: center">
+  <button id="step">Step</button>
+  <button id="play">Play</button>
+  <button id="pause">Pause</button>
+</div>
+<script type="module">
+  import ThreeUi from './js/three_ui.js';
+  import Galaxy from './js/Galaxy.js';
+
+  const elt = id => document.getElementById(id);
+  const ui = new ThreeUi('ui');
+  ui.camera.position.z = 3;
+  const galaxy = new Galaxy();
+  ui.scene.add(galaxy);
+
+  let debug = true;
+  const anim = () => {
+    if (debug) {
+      console.log('anim...');
+    }
+    galaxy.animate(debug);
+  };
+  elt('step').onclick = anim;
+  elt('play').onclick = () => {
+    ui.animationCb = anim;
+    debug = false;
+  };
+  elt('pause').onclick = () => {
+    ui.animationCb = null;
+    debug = true;
+  };
+</script>
+</body>
+</html>
