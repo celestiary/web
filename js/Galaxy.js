@@ -5,7 +5,15 @@ import {pathTexture} from './Material.js';
 
 
 export default class Galaxy extends THREE.Points {
-  constructor(numPoints = 500) {
+  // numPoints, ms
+  // 400, 20
+  // 500, 30
+  // 600, 40
+  // 700, 54
+  // 800, 70
+  // 900, 88
+  // 1000, 110
+  constructor(numPoints = 400) {
     super(new GalaxyBufferGeometry(numPoints),
           new THREE.ShaderMaterial({
               uniforms: {
@@ -27,9 +35,11 @@ export default class Galaxy extends THREE.Points {
     const coords = this.geometry.attributes.position.array;
     const sizes = this.geometry.attributes.size.array;
     const velocities = this.geometry.attributes.velocity.array;
-    if (debug && this.first) {
-      console.log('first coords, velocities:', coords, velocities);
+    if (this.first) {
       this.first = false;
+      if (debug) {
+        console.log('first coords, velocities:', coords, velocities);
+      }
     }
 
     // Two coords, a and b, each with...
@@ -74,7 +84,7 @@ export default class Galaxy extends THREE.Points {
         if (debug) {
           console.log('dX, dY, dZ:', dX, dY, dZ);
         }
-        g = G / (d * d * d * d);
+        g = G / (d * d);
         if (debug) {
           console.log(`d(${d}) g(${g})`);
         }

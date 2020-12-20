@@ -10,27 +10,38 @@ Gravity particle system.  Work in progress.
   <button id="play">Play</button>
   <button id="pause">Pause</button>
 </div>
+<div id="stats"/>
 <script type="module">
+  import Stats from './js/lib/stats.js/build/stats.module.js';
+
   import ThreeUi from './js/three_ui.js';
   import Galaxy from './js/Galaxy.js';
 
+
   const elt = id => document.getElementById(id);
-  const ui = new ThreeUi('ui');
+  const uiContainer = elt('ui');
+  const ui = new ThreeUi(uiContainer);
   ui.camera.position.z = 3;
   const galaxy = new Galaxy();
   ui.scene.add(galaxy);
 
-  let debug = true;
+  const stats = new Stats();
+  stats.showPanel(1);
+  stats.dom.style.position = 'relative';
+  uiContainer.appendChild(stats.dom);
+  let debug = false;
   const anim = () => {
+    stats.begin();
     if (debug) {
       console.log('anim...');
     }
     galaxy.animate(debug);
+    stats.end();
   };
   elt('step').onclick = anim;
   elt('play').onclick = () => {
-    ui.animationCb = anim;
     debug = false;
+    ui.animationCb = anim;
   };
   elt('pause').onclick = () => {
     ui.animationCb = null;

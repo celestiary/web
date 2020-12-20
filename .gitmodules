@@ -10,3 +10,6 @@
 [submodule "java/http"]
 	path = java/http
 	url = https://github.com/pablo-mayrgundter/http
+[submodule "js/lib/stats.js"]
+	path = js/lib/stats.js
+	url = https://github.com/mrdoob/stats.js
