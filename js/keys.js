@@ -3,12 +3,14 @@ export default class Keys {
     this.keymap = {};
     this.msgs = {};
     this.domDone = false;
+    this.bindToWindow();
   }
 
 
-  map(c, fn, msg) {
-    this.keymap[c] = fn;
-    this.msgs[c] = msg;
+  bindToWindow() {
+    window.addEventListener('keydown', e => {
+      this.onKeyDown(e);
+    });
   }
 
 
@@ -18,6 +20,12 @@ export default class Keys {
     if (f) {
       f();
     }
+  }
+
+
+  map(c, fn, msg) {
+    this.keymap[c] = fn;
+    this.msgs[c] = msg;
   }
 
 
@@ -37,6 +45,7 @@ export default class Keys {
       list.appendChild(li = document.createElement('li'));
       li.innerHTML = `<span>${keyStr}</span>  ${msg}`;
     }
+    container.appendChild(document.createTextNode('Controls:'));
     container.appendChild(list);
   }
 }

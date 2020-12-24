@@ -29,14 +29,13 @@ pan.
 
   // Pull the camera back from center 10 units along the z-axis
   // (towards the viewer).
-  ui.camera.position.z = 10;
+  ui.camera.position.set(1, 2, 3);
 
   // Create a light and move away 10 units from the center along
   // each axis to give // interesting lighting.
   const light = new PointLight();
-  light.position.set(10, 10, 10);
+  light.position.set(3, 4, 5);
   ui.scene.add(light);
-  ui.scene.add(new AmbientLight(0x404040));
 
   // Add a unit cube at the center; (0,0,0) is implicit.
   ui.scene.add(Shapes.cube());

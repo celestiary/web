@@ -1,15 +1,19 @@
 import * as THREE from './lib/three.js/three.module.js';
+
 import CustomPoints from './lib/three-custom/points.js';
-import Label from './label.js';
+import SpriteSheet from './SpriteSheet.js';
+
 import * as Material from './material.js';
 import * as Shared from './shared.mjs';
-import * as Utils from './utils.mjs';
+import {named} from './utils.mjs';
+
 
 // Simple cube for testing.
 function cube(size) {
   size = size || 1;
   return box(size, size, size);
 }
+
 
 function box(width, height, depth, opts) {
   width = width || 1;
@@ -22,6 +26,7 @@ function box(width, height, depth, opts) {
   return new THREE.Mesh(geom, matr);
 }
 
+
 function sphere(opts) {
   opts = opts || {};
   opts.radius = opts.radius || 1;
@@ -30,6 +35,7 @@ function sphere(opts) {
   opts.matr = opts.matr || new THREE.MeshPhongMaterial({flatShading: true});
   return new THREE.Mesh(geom, opts.matr);
 }
+
 
 // Lod Sphere.
 function lodSphere(radius, material) {
@@ -49,6 +55,7 @@ function lodSphere(radius, material) {
   return obj;
 }
 
+
 const _sphereGeoms = new Array();
 function getSphereGeom(segmentSize) {
   let geom = _sphereGeoms[segmentSize];
@@ -58,6 +65,7 @@ function getSphereGeom(segmentSize) {
   return geom;
 }
 
+
 /** https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes */
 function ellipseSemiMinorAxisCurve(eccentricity, semiMajorAxisLength) {
   eccentricity = eccentricity || 0; // Circle
@@ -65,15 +73,20 @@ function ellipseSemiMinorAxisCurve(eccentricity, semiMajorAxisLength) {
   return semiMajorAxisLength * Math.sqrt(1 - Math.pow(eccentricity, 2))
 }
 
+
 function solidEllipse(eccentricity, opts) {
-  opts = opts || {};
+  opts = opts || {
+    from: 0,
+    to: Math.PI * 2
+  };
+  console.log(opts);
   const ellipsePath = new THREE.Shape();
   const semiMajorAxisLength = 1;
   ellipsePath.absellipse(
     0, 0, // center
     1, ellipseSemiMinorAxisCurve(eccentricity), // xRadius, yRadius
-    0, Math.PI * 2, // start and finish angles
-    true, 0); // clockwise, offset rotation
+    0, Math.PI / 2, // start and finish angles
+    false, 0); // clockwise, offset rotation
   const material = new THREE.MeshBasicMaterial({
       color: opts.color || 0x888888,
       opacity: opts.opacity || 1,
@@ -84,6 +97,25 @@ function solidEllipse(eccentricity, opts) {
     new THREE.ShapeBufferGeometry(ellipsePath),
     material);
 }
+
+
+function solidArc(opts) {
+  opts = opts || {
+    from: 0,
+    to: Math.PI * 2,
+    opacity: 0.1,
+  };
+  const shape = new THREE.Mesh(
+      new THREE.CircleBufferGeometry(1, 32, opts.from, opts.to),
+      new THREE.MeshLambertMaterial({
+        color: opts.color || 0x888888,
+        opacity: opts.opacity || 1,
+        transparent: opts.opacity < 1 ? true : false,
+        side: THREE.DoubleSide
+      }));
+  return shape;
+}
+
 
 function atmos(radius) {
   // from http://data-arts.appspot.com/globe/globe.js
@@ -122,6 +154,7 @@ function atmos(radius) {
   return sceneAtmosphere;
 }
 
+
 // TODO(pmy): Convert to shared BufferGeometry.
 function point(optsOrRadius) {
   const opts = optsOrRadius || {
@@ -157,19 +190,21 @@ function labelAnchor() {
   return anchorPoints;
 }
 
+
 /**
  * line(vec1, vec2); // vec1 may be null for zero.
  * line(x, y, z); // from zero.
  * line(x1, y1, z1, x2, y2, z3);
+ * @param {rest} If the last arg is an object, it will be queried for
+ * an object property of {color}.
  */
-function line(vec1, vec2) {
+function line(vec1, vec2, ...rest) {
   const args = Array.prototype.slice.call(arguments);
   const lastArg = args[args.length - 1];
-  let material;
+  let opts = {color: 'white'};
   if (typeof(lastArg) == 'object') {
     const materialOrOpts = args.pop();
-    material = materialOrOpts instanceof THREE.LineBasicMaterial
-      ? materialOrOpts : new THREE.LineBasicMaterial(materialOrOpts);
+    opts.color = materialOrOpts.color || opts.color;
   }
   if (args.length == 2) {
     vec1 = vec1 || new THREE.Vector3;
@@ -188,20 +223,60 @@ function line(vec1, vec2) {
   const geom = new THREE.Geometry();
   geom.vertices.push(vec1);
   geom.vertices.push(vec2);
-  return new THREE.Line(geom, material);
+  return new THREE.Line(geom, new THREE.LineBasicMaterial(opts));
+}
+
+
+function cone(height, materialOrOpts = {color: 0xffffff}) {
+  const opts = {
+    color: materialOrOpts.color || 'white',
+  };
+  const coneHeight = height;
+  const coneGeometry = new THREE.ConeGeometry(coneHeight / 3, coneHeight, 10);
+  const coneMaterial = new THREE.MeshBasicMaterial(opts);
+  return named(new THREE.Mesh(coneGeometry, coneMaterial), 'cone');
 }
 
 
 /**
- * Angle.  Material properties of arrow head and text are derived from
+ * Straight arrow.  Material properties of arrow head and text are derived from
  * given {@param material}.
  * @param material An instance of LineBasicMaterial.
- * @param addLabel Boolean controlling the display of text angle label.
+ * @param addLabel Boolean Optional controlling the display of text angle label.
+ * @param addSolidArc Boolean Optional controlling the display of text angle label.
  */
-function angle(vec1, vec2, materialOrOpts, container, addLabel) {
-  const material = materialOrOpts instanceof THREE.LineBasicMaterial
-      ? materialOrOpts : new THREE.LineBasicMaterial(materialOrOpts);
-  Utils.assertNotNullOrUndefined(container);
+function arrow(to = new THREE.Vector3(1, 0, 0), origin = new Vector3, hexColor = 0xffffff, labelText) {
+  const dirVec = new THREE.Vector3();
+  dirVec.copy(to);
+  dirVec.normalize();
+  // TODO: make my own arrow that works like arc.
+  const arrow = new THREE.ArrowHelper(dirVec, origin, to.length(), hexColor, 0.1, 0.1);
+
+  if (labelText) {
+    const labelSheet = new SpriteSheet(1, labelText, undefined, [0, 0.1]);
+    const r = hexColor & 0xff0000, g = hexColor & 0x00ff00, b = hexColor & 0x0000ff;
+    labelSheet.add(0, 0, 0, labelText, `rgb(${r}, ${g}, ${b})`);
+    const label = named(labelSheet.compile(), angle.name + '.label');
+    // Arrow first points up and is then rotated.
+    label.position.setY(to.length());
+    arrow.add(label);
+  }
+
+  return arrow;
+}
+
+
+/**
+ * Angle in the XY, clockwise from 3 o'clock (the x-axis).  Material
+ * properties of arrow head and text are derived from given {@param material}.
+ * @param material An instance of LineBasicMaterial.
+ * @param addLabelOrOpts {Boolean|Object} If false, no label.  If
+ *   true, then display the angle in degrees, else set opts for:
+ *   {text, color, font, padding}.  Color string is parsed as a CSS
+ *   color value, e.g. 'red' or 'rgb(1, 0, 0, 0)'.
+ * @param addSolidArc Boolean Optional controlling the display of text angle label.
+ */
+function angle(vec1, vec2, materialOrOpts, addLabelOrOpts = true, addSolidArc = true) {
   let angleInRadians;
   if (arguments.length == 1 || vec2 === null || typeof vec2 === 'undefined') {
     angleInRadians = vec1;
@@ -209,100 +284,46 @@ function angle(vec1, vec2, materialOrOpts, container, addLabel) {
     angleInRadians = vec1.angleTo(vec2);
   }
 
-  const angle = new THREE.Object3D;
-  angle.name = `angle(${angleInRadians * Shared.toDeg})`;
-  angle.material = material || new THREE.LineBasicMaterial;
+  const angle = named(new THREE.Object3D, `angle(${angleInRadians * Shared.toDeg})`);
 
-  // Arc
-  const arrowArc = arc(1, 0, angleInRadians, angle.material);
-  arrowArc.name = angle.name + '.arc';
-
-  // Cone
-  const coneHeight = 0.1;
-  const coneGeometry = new THREE.ConeGeometry(coneHeight / 3, coneHeight, 10);
-  const coneMaterial = new THREE.MeshBasicMaterial;
-  coneMaterial.color = angle.material.color;
-  const cone = new THREE.Mesh(coneGeometry, coneMaterial);
-  cone.name = angle.name + '.cone';
-  cone.position.x = 1;
-  cone.position.y = coneHeight / -2;
-
+  // TODO: move this into help, maybe redundant with arc.
+  const radius = 1;
+  const headHeight = 0.1;
+  const arrowArc = arc(radius, 0, angleInRadians, materialOrOpts);
+  const coneHead = cone(headHeight, materialOrOpts);
+  coneHead.position.x = radius;
+  coneHead.position.y = headHeight / -2;
+  arrowArc.add(coneHead);
   angle.add(arrowArc);
-  angle.add(cone);
 
-  if (addLabel) {
-    const labelObj = point();
-    labelObj.name = angle.name + '.label';
-    labelObj.position.x = 1;
-    //labelObj.position.set(Math.cos(angleInRadians * 0.1), -Math.sin(angleInRadians * 0.1), 0);
-    const label = new Label((angleInRadians * Shared.toDeg) + '˚', container, labelObj);
-    labelObj.onBeforeRender = (renderer, scene, camera) => {
-      label.updatePosition(camera);
-    };
-    angle.label = label;
-    angle.add(labelObj);
+  if (addSolidArc) {
+    const arc = named(solidArc({radius: 1, from: 0, to: angleInRadians, opacity: 0.2 }), '.solidArc');
+    arc.rotation.z = -angleInRadians;
+    angle.add(arc);
+  }
+
+  if (addLabelOrOpts) {
+    let labelText, color = 'white', font = SpriteSheet.defaultFont, padding = [0, 0.1];
+    if (typeof addLabelOrOpts == 'object') {
+      labelText = addLabelOrOpts.text || '';
+      color = addLabelOrOpts.color || color;
+      font = addLabelOrOpts.font || font;
+      padding = addLabelOrOpts.padding || padding;
+    } else {
+      labelText = (angleInRadians * Shared.toDeg).toPrecision(4) + '˚';
+    }
+    //console.log('label opts:', labelText, color, font, padding)
+    const labelSheet = new SpriteSheet(1, labelText, font, padding);
+    labelSheet.add(0, 0, 0, labelText, color);
+    const label = named(labelSheet.compile(), angle.name + '.label');
+    label.position.copy(coneHead.position);
+    angle.add(label);
   }
 
   angle.rotation.z = angleInRadians;
   return angle;
 }
 
-function getCanvasTextSprite(text, color) {
-  color = color || 0xffffff;
-  const canvasEltId = 'text-canvas';
-  let textCanvas = document.getElementById(canvasEltId);
-  if (textCanvas == null) {
-    // TODO(pablo): Find a safer way to do this.
-    textCanvas = document.createElement('canvas');
-    document.querySelector('body').appendChild(textCanvas);
-    console.log('getCanvasTextSprite: creating canvas... ', textCanvas);
-  } else {
-    console.log('getCanvasTextSprite: reusing existing canvas: ', textCanvas);
-  }
-  const ctx = textCanvas.getContext('2d');
-  ctx.font = '1em Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const metrics = ctx.measureText(text);
-  const charSize = metrics.width / text.length;
-  // WebGL requires power of 2 width, so round up.
-  textCanvas.width = Math.pow(2, Math.floor(Math.log2(metrics.width + charSize)));
-  textCanvas.height = 32;
-
-  const texture = new THREE.CanvasTexture(textCanvas);
-  const label = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: texture,
-        alphaTest: 0.5,
-      }));
-  const scale = 0.2;
-  setCanvasText(textCanvas, ctx, text, color);
-  label.scale.set(textCanvas.width / textCanvas.height * scale, scale, 1.0);
-  textCanvas.parentNode.removeChild(textCanvas);
-  return label;
-}
-
-// TODO: use for above?
-function measureText(ctx, text) {
-  const m = ctx.measureText(text);
-  const left = -m.actualBoundingBoxLeft;
-  const top = -m.actualBoundingBoxAscent;
-  const right = m.actualBoundingBoxRight;
-  const descent = m.actualBoundingBoxDescent;
-  console.log(`text(text), bounds: `
-      + `left(${left}), top(${top}), right(${right}), descent(${descent})`);
-  const width = left + right;
-  const height = descent + top;
-  return [left, top, width, height];
-}
-
-function setCanvasText(textCanvas, ctx, text, color) {
-  ctx.save();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0)';
-  ctx.fillRect(0, 0, textCanvas.width, textCanvas.height);
-  ctx.fillStyle = `rgba(${color.r * 255}, ${color.g * 255}, ${color.b * 255}, 1)`;
-  ctx.fillText(text, 0, textCanvas.height / 2);
-  ctx.restore();
-}
 
 // Grid
 function grid(params) {
@@ -317,6 +338,7 @@ function grid(params) {
   }
   return lineGrid(params);
 }
+
 
 /**
  * Creates a shape with 3 reference grids, xy, xz and yz.
@@ -348,6 +370,7 @@ function lineGrid(params) {
   return grids;
 }
 
+
 function imgGrid(params) {
   const imageCanvas = document.createElement('canvas'),
     context = imageCanvas.getContext('2d');
@@ -375,7 +398,11 @@ function imgGrid(params) {
   return meshCanvas;
 }
 
-function arc(rad, startAngle, angle, material) {
+
+function arc(rad, startAngle, angle, materialOrOpts) {
+  const opts = {
+    color: (materialOrOpts ? (materialOrOpts.color || 'red') : 'white'),
+  };
   const curveGen = new THREE.EllipseCurve(
     0, 0, // ax, aY
     rad, rad, // xRadius, yRadius
@@ -385,7 +412,7 @@ function arc(rad, startAngle, angle, material) {
   );
   const points = curveGen.getPoints(100);
   const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  material = material || new THREE.LineBasicMaterial;
+  const material = new THREE.LineBasicMaterial(opts);
   return new THREE.Line(geometry, material);
 }
 
@@ -424,10 +451,10 @@ function rings(name = 'saturn') {
 
 export {
   angle,
+  arrow,
   box,
   cube,
   ellipseSemiMinorAxisCurve,
-  getCanvasTextSprite,
   grid,
   labelAnchor,
   line,
@@ -435,6 +462,7 @@ export {
   lodSphere,
   point,
   rings,
+  solidArc,
   solidEllipse,
   sphere,
 };

@@ -6,9 +6,11 @@
 <h1>Angles</h1>
 <script type="module">
   import * as THREE from './js/lib/three.js/three.module.js';
+
   import ThreeUi from './js/three_ui.js';
   import * as Shared from './js/shared.mjs';
-  import * as Shapes from './js/shapes.mjs';
+  import {angle} from './js/shapes.mjs';
+
 
   const ui = new ThreeUi('ui');
   ui.camera.position.set(0, 1, 4);
@@ -19,12 +21,12 @@
 
   const axes1 = new THREE.AxesHelper;
   axes1.position.x = -1.1;
-  axes1.add(Shapes.angle(41 * Shared.toRad, null, material, ui.container, true));
+  axes1.add(angle(41 * Shared.toRad, null, material, true));
   ui.scene.add(axes1);
 
   const axes2 = new THREE.AxesHelper;
   axes2.position.x = 1.1;
-  const angle2 = Shapes.angle(270 * Shared.toRad, null, material, ui.container, true);
+  const angle2 = angle(270 * Shared.toRad, null, material, true);
   angle2.rotation.x = Math.PI / 2;
   axes2.add(angle2);
   ui.scene.add(axes2);

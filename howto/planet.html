@@ -11,66 +11,29 @@ watch it as you zoom in.
 </table>
 <script type="module">
   import * as THREE from './js/lib/three.js/three.module.js';
-  import Loader from './js/loader.js';
-  import Planet from './js/Planet.js';
-  import Reify from './js/reify.js';
   import ThreeUi from './js/three_ui.js';
-  import {testPlanetProps} from './js/scene_utils.js';
+  import * as Shapes from './js/shapes.mjs';
+  import {planetHelper} from './js/scene_utils.js';
 
   const ui = new ThreeUi('ui');
   ui.camera.position.z = 1e2;
-  const light = new THREE.DirectionalLight();
-  const dist = 1e7;
+  const light = new THREE.PointLight();
+  const dist = 1e3;
   light.position.set(dist, 0, dist);
-  //ui.scene.add(light);
   ui.camera.add(light);
-
-  const nO = (name) => {
-    const o = new THREE.Object3D;
-    o.name = name;
-    return o;
-  }
-
-  const scene = {
-    newObject: nO,
-    newGroup: nO,
-    orbitShapes: []
-  };
-
-  const planetNames = ['Mercury','Venus','Earth','Mars','Jupiter','Saturn','Uranus','Neptune','Pluto'];
-  const favesTable = document.getElementById('faves');
-  planetNames.map(planetName => {
-      favesTable.innerHTML +=
-          `<tr>
-            <td><a href="#${planetName.toLowerCase()}">${planetName}</a></td>
-          </tr>`;
-    });
-
+  //ui.camera.add(new THREE.AmbientLight());
 
   let planet;
-
-  const onLoadCb = (name, props) => {};
-  const onDoneCb = (name, props) => {
-    Reify(props);
-    console.log('props', props);
+  planetHelper(p => {
     if (planet) {
       ui.scene.remove(planet);
     }
-    planet = new Planet(scene, props);
-    ui.scene.add(planet);
-    ui.scene.add(new THREE.AxesHelper(1.1));
-    ui.animationCb = () => {
-      planet.rotation.y += 0.001;
-    };
+    ui.scene.add(p);
+    planet = p;
+  });
+  ui.animationCb = () => {
+    //planet.rotation.y += 0.001;
   };
-
-  const loader = new Loader();
-  const handleHash = () => {
-    let hash = location.hash.substr(1) || 'earth';
-    loader.loadPath(hash, onLoadCb, onDoneCb);
-  }
-  window.addEventListener('hashchange', handleHash);
-  handleHash();
 </script>
 </body>
 </html>

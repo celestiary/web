@@ -18,12 +18,12 @@ const MAX_LABELS = 10000;
 
 
 export default class Stars extends Object {
-  constructor(props, catalogOrCb) {
+  constructor(props, catalogOrCb, showLabels = false) {
     super('Stars', props);
     this.labelsGroup = named(new THREE.Group, 'LabelsGroup');
-    this.labelShown = {};
+    this.labelCenterPosByName = {};
     this.labelLOD = named(new THREE.LOD, 'LabelsLOD');
-    this.labelLOD.visible = false;
+    this.labelLOD.visible = showLabels;
     this.labelLOD.addLevel(this.labelsGroup, 1);
     this.labelLOD.addLevel(FAR_OBJ, 1e14);
     this.add(this.labelLOD);
@@ -34,6 +34,9 @@ export default class Stars extends Object {
       }
       this.catalog = catalog;
       this.show();
+      if (showLabels) {
+        this.showLabels();
+      }
     } else {
       this.catalog = new StarsCatalog();
       this.catalog.load(() => {
@@ -41,6 +44,9 @@ export default class Stars extends Object {
           if (typeof catalogOrCb == 'function') {
             const cb = catalogOrCb;
             cb();
+          }
+          if (showLabels) {
+            this.showLabels();
           }
         });
     }
@@ -103,14 +109,14 @@ export default class Stars extends Object {
 
 
   showStarName(star, name) {
-    if (this.labelShown[name]) {
+    if (this.labelCenterPosByName[name]) {
       console.warn('skipping double show of name: ', name);
       return;
     }
     const x = STARS_SCALE * star.x, y = STARS_SCALE * star.y, z = STARS_SCALE * star.z;
     const sPos = new THREE.Vector3(x, y, z);
     this.starLabelSpriteSheet.add(x, y, z, name);
-    this.labelShown[name] = true;
+    this.labelCenterPosByName[name] = sPos;
   }
 
 

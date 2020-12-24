@@ -1,6 +1,6 @@
 import * as THREE from './lib/three.js/three.module.js';
 import * as Utils from './utils.mjs';
-import {labelTextColor as defaultTextColor, labelTextFont as defaultFont} from './shared.mjs';
+import {labelTextColor as defaultTextColor, labelTextFont as sharedDefaultFont} from './shared.mjs';
 
 // TODO: separate this into a SpriteSheet supercalss and LabelSheet subclass.
 /**
@@ -9,73 +9,58 @@ import {labelTextColor as defaultTextColor, labelTextFont as defaultFont} from '
  *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
  */
 export default class SpriteSheet {
-  constructor(maxLabels, maxLabel, labelTextFont = defaultFont) {
+  static defaultFont = sharedDefaultFont;
+  constructor(maxLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0]) {
     this.maxLabels = maxLabels;
     this.labelCount = 0;
     this.labelTextFont = labelTextFont;
-    //this.textBaseline = 'bottom';
     this.textBaseline = 'top';
+    this.padding = padding;
     this.canvas = Utils.createCanvas();
-    document.canvas = this.canvas;
     this.ctx = this.canvas.getContext('2d');
     const maxBounds = Utils.measureText(this.ctx, maxLabel, labelTextFont);
     const itemSize = Math.max(maxBounds.width, maxBounds.height);
     this.size = Math.sqrt(this.maxLabels) * itemSize;
-    this.width = this.size;
-    this.height = this.size;
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
-    //console.log('canvas: ', {width: this.canvas.width, height: this.canvas.height},
-    //            this.maxLabels, maxBounds, this.size, maxBounds.width);
+    this.canvas.width = this.size;
+    this.canvas.height = this.size;
     this.curX = 0;
     this.curY = 0;
     this.lineSizeMax = 0;
     const ctx = this.ctx;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0)'; // full black without alpha
-    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.fill();
-
     this.positions = [];
     this.sizes = [];
     this.spriteCoords = [];
+
+    this.positionAttribute = null;
+    this.sprites = null;
+    //document.canvas = this.canvas;
+    //console.log('canvas: ', {width: this.canvas.width, height: this.canvas.height},
+    //            this.maxLabels, maxBounds, this.size, maxBounds.width);
   }
 
 
-  compile() {
-    if (this.positions.length != this.labelCount * 3) {
-      throw new Error('Positions array size wrong: ' + this.positions.length);
-    }
-    if (this.sizes.length != this.labelCount * 2) {
-      throw new Error('Positions array size wrong: ' + this.sizes.length);
-    }
-    if (this.spriteCoords.length != this.labelCount * 4) {
-      throw new Error('Positions array size wrong: ' + this.spriteCoords.length);
-    }
-    this.positionAttribute = new THREE.Float32BufferAttribute(this.positions, 3);
-    this.sizeAttribute = new THREE.Float32BufferAttribute(this.sizes, 2);
-    this.spriteCoordAttribute = new THREE.Float32BufferAttribute(this.spriteCoords, 4);
-    this.geometry = new THREE.BufferGeometry();
-    this.geometry.setAttribute('position', this.positionAttribute);
-    this.geometry.setAttribute('size', this.sizeAttribute);
-    this.geometry.setAttribute('spriteCoord', this.spriteCoordAttribute);
-    this.geometry.computeBoundingBox();
-    this.points = new THREE.Points(this.geometry, this.createMaterial());
-    //console.log('compile done', this);
-    return this.points;
-  }
-
-
+  /**
+   * @param {fillStyle} Parsed as a CSS <color> value, e.g. 'red' or 'rgb(1, 0, 0, 0)'.
+   * @return {number} id of label.
+   */
   add(x, y, z, labelText, fillStyle = defaultTextColor) {
     if (this.labelCount >= this.maxLabels) {
-      throw new Error(`Add called too many times, can only allocate maxLabels(${this.maxLabels}), already have ${this.labelCount}`);
+      throw new Error(`Add called too many times, can only allocate`
+                      ` maxLabels(${this.maxLabels}), already have ${this.labelCount}`);
     }
     const ctx = this.ctx;
     this.ctx.font = this.labelTextFont;
     let bounds = Utils.measureText(this.ctx, labelText);
     const size = Math.max(bounds.width, bounds.height);
-    if (this.curX + size > this.width) {
+    if (this.curX + size > this.canvas.width) {
       this.curX = 0;
-      this.curY += this.lineSizeMax;
+      // TODO: getting a little bleed through from cur to next line,
+      // so moving down next line a bit.  This is probably from
+      // measureText not being quite tall enough.
+      this.curY += this.lineSizeMax + 1;
       this.lineSizeMax = 0;
     }
     if (size > this.lineSizeMax) {
@@ -93,8 +78,8 @@ export default class SpriteSheet {
 
     this.sizes.push(bounds.width, bounds.height);
     this.curX += bounds.width;
-    this.labelCount++;
-    return this;
+    const id = this.labelCount++;
+    return id;
   }
 
 
@@ -104,7 +89,7 @@ export default class SpriteSheet {
     ctx.font = this.labelTextFont;
     const bounds = Utils.measureText(ctx, text);
     const size = Math.max(bounds.width, bounds.height);
-    //console.log(`drawAt, text(${text}), x(${x}), y(${y}), size(${size})`);
+    //console.log(`drawAt, text(${text}), x(${x}), y(${y}), size(${size}), fillStyle(${fillStyle})`);
     ctx.save();
     ctx.translate(x, y);
     this.drawLabel(text, size, size, fillStyle);
@@ -119,6 +104,7 @@ export default class SpriteSheet {
     ctx.font = this.labelTextFont;
     ctx.fillStyle = fillStyle;
     ctx.fillText(text, 0, 0);
+    //console.log(`fillStyle(${fillStyle}), ctx.fillStyle(${ctx.fillStyle}):`, ctx);
     /*
     ctx.beginPath();
     ctx.strokeStyle = 'white';
@@ -127,6 +113,35 @@ export default class SpriteSheet {
     */
   }
 
+
+  /** @param {THREE.Float32BufferAttribute} sharedPositionAttribute Optional. */
+  compile(sharedPositionAttribute) {
+    if (sharedPositionAttribute && sharedPositionAttribute.count * 3 != this.positions.length) {
+      throw new Error(`Shared positionAttribute.length(${sharedPositionAttribute.count * 3}) `
+                      `!= this.positions.length(${this.positions.length})`);
+    }
+    if (this.positions.length != this.labelCount * 3) {
+      throw new Error('Positions array size wrong: ' + this.positions.length);
+    }
+    if (this.sizes.length != this.labelCount * 2) {
+      throw new Error('Positions array size wrong: ' + this.sizes.length);
+    }
+    if (this.spriteCoords.length != this.labelCount * 4) {
+      throw new Error('Positions array size wrong: ' + this.spriteCoords.length);
+    }
+    this.positionAttribute = sharedPositionAttribute || new THREE.Float32BufferAttribute(this.positions, 3);
+    const sizeAttribute = new THREE.Float32BufferAttribute(this.sizes, 2);
+    const spriteCoordAttribute = new THREE.Float32BufferAttribute(this.spriteCoords, 4);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', this.positionAttribute);
+    geometry.setAttribute('size', sizeAttribute);
+    geometry.setAttribute('spriteCoord', spriteCoordAttribute);
+    geometry.computeBoundingBox();
+    this.sprites = new THREE.Points(geometry, this.createMaterial());
+    return this.sprites;
+  }
+
+
   createMaterial() {
     const texture = new THREE.CanvasTexture(this.canvas);
     texture.minFilter = THREE.NearestFilter;
@@ -134,6 +149,7 @@ export default class SpriteSheet {
     const material = new THREE.ShaderMaterial( {
         uniforms: {
           map: { value: texture },
+          padding: { value: new THREE.Vector2(this.padding[0], this.padding[1]) }
         },
         vertexShader: vertexShader,
         fragmentShader: fragmentShader,
@@ -147,11 +163,13 @@ export default class SpriteSheet {
 
 
 const vertexShader = `
+  uniform vec2 padding;
   attribute vec2 size;
   attribute vec4 spriteCoord;
   varying vec4 spriteCoordVarying;
   void main() {
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vec3 offsetPos = vec3(position.x + padding.x, position.y + padding.y, position.z);
+    vec4 mvPosition = modelViewMatrix * vec4(offsetPos, 1.0);
     spriteCoordVarying = spriteCoord;
     gl_PointSize = size[0];
     gl_Position = projectionMatrix * mvPosition;

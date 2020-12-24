@@ -55,9 +55,6 @@ Asterisms include constellations.
         'Broaden field-of-vision');
   k.map('/', () => { ui.resetFov(); },
         'Reset field-of-vision to ' + Shared.INITIAL_FOV + 'º');
-  window.addEventListener('keydown', (e) => {
-      k.onKeyDown(e);
-    }, true);
 
 
   const props = {
@@ -75,9 +72,9 @@ Asterisms include constellations.
           setupFavesTable();
           handleHash();
         });
-    });
+    }, true);
   ui.scene.add(stars);
-  ui.camera.position.z = 1e10;
+  ui.camera.position.z = 1e2;
 
 
   const findCenterStar = (asterismName) => {
@@ -102,6 +99,10 @@ Asterisms include constellations.
     const favesTable = elt('faves');
     for (let asterismName in asterisms.catalog.byName) {
       const [origName, name, hipId] = findCenterStar(asterismName);
+      if (name == null || hipId == null) {
+        //console.warn('Couldn\'t find center for ', asterismName);
+        continue;
+      }
       favesTable.innerHTML +=
         `<tr>
           <td><a href="#${asterismName}">${asterismName}</a></td>
@@ -117,14 +118,14 @@ Asterisms include constellations.
       hash = hash.replaceAll(/%20/g, ' ');
       const [origName, name, hipId] = findCenterStar(hash);
       const star = stars.catalog.starsByHip[hipId];
-      const label = stars.labelsByName[name];
-      if (!label) {
-        console.error('No label for name!', name);
+      const labelPos = stars.labelCenterPosByName[name];
+      if (!labelPos) {
+        console.error('No coord for name:', labelPos);
         return;
       }
       asterisms.show(hash, () => { return true; });
-      console.log('centering at: ', label.position);
-      window.target = label.position;
+      console.log('centering at: ', labelPos);
+      window.target = labelPos;
     }
   }
 

@@ -7,7 +7,7 @@ import {named} from './utils.mjs';
 
 
 export default class ThreeUi {
-  constructor(container, animationCb, backgroundColor) {
+  constructor(container, animationCb, backgroundColor, renderer) {
     if (typeof container == 'string') {
       this.container = document.getElementById(container);
     } else if (typeof container == 'object') {
@@ -16,7 +16,7 @@ export default class ThreeUi {
       throw new Error(`Given container must be DOM ID or element: ${container}`);
     }
     this.animationCb = animationCb || null;
-    this.renderer =
+    this.renderer = renderer ||
       this.initRenderer(this.container, backgroundColor || 0x000000);
     this.width = this.container.offsetWidth;
     this.height = this.container.offsetHeight;

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>Atmospheres</h1>
+<p>Work in progress.
+<p>Integrating <a href="https://github.com/ebruneton/precomputed_atmospheric_scattering">Eric
+Brunetons atmosphere shaders</a>.  Check out the amazing work he was
+part of
+at <a href="http://proland.inrialpes.fr/skies.html">Proland</a>
+<p>This will involve integrating THREE JS shaders with Eric's.  I'm
+learning about webgl programming
+at <a href="https://github.com/ebruneton/precomputed_atmospheric_scattering">WegGL
+Fundamentals</a>.
+<table id="faves">
+<tr><th>Name</th></tr>
+</table>
+<script type="module">
+  import * as THREE from './js/lib/three.js/three.module.js';
+  import Atmosphere from './atmos/atmosphere.js';
+  import Loader from './js/loader.js';
+  import Planet from './js/Planet.js';
+  import Reify from './js/reify.js';
+  import ThreeUi from './js/three_ui.js';
+
+  const ui = new ThreeUi('ui');
+  ui.camera.position.z = 1e1;
+  const light = new THREE.DirectionalLight();
+  const dist = 1e7;
+  light.position.set(dist, 0, dist);
+  //ui.scene.add(light);
+  ui.camera.add(light);
+
+  const nO = (name) => {
+    const o = new THREE.Object3D;
+    o.name = name;
+    return o;
+  }
+
+  const scene = {
+    newObject: nO,
+    newGroup: nO,
+    orbitShapes: []
+  };
+
+  const planetNames = ['Mercury','Venus','Earth','Mars','Jupiter','Saturn','Uranus','Neptune','Pluto'];
+  const favesTable = document.getElementById('faves');
+  planetNames.map(planetName => {
+      favesTable.innerHTML +=
+          `<tr>
+            <td><a href="#${planetName.toLowerCase()}">${planetName}</a></td>
+          </tr>`;
+    });
+
+
+  let planet;
+  let atmos = null;
+  let count = 0;
+
+  const onLoadCb = (name, props) => {};
+  const onDoneCb = (name, props) => {
+    Reify(props);
+    console.log('props', props);
+    if (planet) {
+      ui.scene.remove(planet);
+    }
+    planet = new Planet(scene, props, false, () => {
+        if (ui.renderer.capabilities.isWebGL2) {
+          console.log('Adding WebGL2 atmosphere...');
+          atmos = new Atmosphere(ui.renderer.getContext(), null, ui.width, ui.height);
+        } else {
+          console.log('Need WebGL2 for good atmosphere');
+        }
+      });
+    ui.scene.add(planet);
+    ui.scene.add(new THREE.AxesHelper(1.1));
+    ui.animationCb = () => {
+      planet.rotation.y += 0.001;
+      if (atmos && count < 10) {
+        atmos.onRender();
+        count++;
+      }
+    };
+  };
+
+  const loader = new Loader();
+  const handleHash = () => {
+    let hash = location.hash.substr(1) || 'earth';
+    loader.loadPath(hash, onLoadCb, onDoneCb);
+  }
+  window.addEventListener('hashchange', handleHash);
+  handleHash();
+</script>
+</body>
+</html>

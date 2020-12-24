@@ -1,25 +1,47 @@
-import {Euler} from './lib/three.js/three.module.mjs';
+import {Euler, Object3D} from './lib/three.js/three.module.mjs';
 
+import Loader from './loader.js';
+import Planet from './Planet.js';
+import Reify from './reify.js';
 import {LENGTH_SCALE} from './shared.mjs';
 
 
-function testPlanetProps(planetName) {
-  const props = {
-    type: 'planet',
-    name: planetName,
-    radius: {scalar: 1 / LENGTH_SCALE},
-    axialInclination: 0,
-    texture_atmosphere: true,
-    texture_hydrosphere: true,
-    texture_terrain: true,
-    orbit: {
-      eccentricity: 0,
-      inclination: 0,
-      longitudeOfPerihelion: 0,
-      semiMajorAxis: 1 / LENGTH_SCALE,
-    }
+function planetHelper(cb) {
+  const nO = (name) => {
+    const o = new Object3D;
+    o.name = name;
+    return o;
+  }
+
+  const sceneGroups = {
+    newObject: nO,
+    newGroup: nO,
+    orbitShapes: []
   };
-  return props;
+
+  const planetNames = ['Mercury','Venus','Earth','Mars','Jupiter','Saturn','Uranus','Neptune','Pluto'];
+  const favesTable = document.getElementById('faves');
+  favesTable.innerHTML = '<tr><th>Planet</th></tr>';
+  planetNames.map(planetName => {
+      favesTable.innerHTML +=
+          `<tr>
+            <td><a href="#${planetName.toLowerCase()}">${planetName}</a></td>
+          </tr>`;
+    });
+
+  const onLoadCb = (name, props) => {};
+  const onDoneCb = (name, props) => {
+    Reify(props);
+    cb(new Planet(sceneGroups, props));
+  };
+
+  const loader = new Loader();
+  const handleHash = () => {
+    let hash = location.hash.substr(1) || 'earth';
+    loader.loadPath(hash, onLoadCb, onDoneCb);
+  }
+  window.addEventListener('hashchange', handleHash);
+  handleHash();
 }
 
 
@@ -46,7 +68,7 @@ function addAndOrient(parent, child, opts) {
 
 export {
   addAndOrient,
+  planetHelper,
   rotate,
   rotateEuler,
-  testPlanetProps,
 }

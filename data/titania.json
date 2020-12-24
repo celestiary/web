@@ -28,7 +28,7 @@
 "eccentricity": 0.0020,
 "inclination": 1.0,
 "longitudeOfAscendingNode": 1.0,
-"longitudeOfPerihelion": 1.0,
+"longitudeOfPericenter": 1.0,
 "meanLongitude": 1.0,
 "semiMajorAxis": 4.3591E8,
 "siderealOrbitPeriod": 752187.2112

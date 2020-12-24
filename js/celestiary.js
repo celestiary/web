@@ -162,10 +162,6 @@ export default class Celestiary {
     k.map('?', () => { this.toggleShowKeys(); },
           'Show/hide keyboard shortcuts');
     this.keys = k;
-
-    window.addEventListener('keydown', (e) => {
-        this.keys.onKeyDown(e);
-      }, true);
   }
 
 

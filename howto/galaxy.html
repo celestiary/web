@@ -8,14 +8,15 @@ Gravity particle system.  Work in progress.
 <div style="width: 50%; margin: 1em auto; align: center">
   <button id="step">Step</button>
   <button id="play">Play</button>
-  <button id="pause">Pause</button>
 </div>
 <div id="stats"/>
 <script type="module">
   import Stats from './js/lib/stats.js/build/stats.module.js';
 
-  import ThreeUi from './js/three_ui.js';
   import Galaxy from './js/Galaxy.js';
+  import ThreeUi from './js/three_ui.js';
+  import SpriteSheet from './js/SpriteSheet.js';
+  import Keys from './js/keys.js';
 
 
   const elt = id => document.getElementById(id);
@@ -24,6 +25,13 @@ Gravity particle system.  Work in progress.
   ui.camera.position.z = 3;
   const galaxy = new Galaxy();
   ui.scene.add(galaxy);
+
+  const labels = new SpriteSheet(galaxy.numPoints, galaxy.numPoints + '', '13px arial', [0, 0.1]);
+  for (let i = 0; i < labels.maxLabels; i++) {
+    labels.add(0, 0, 0, i + '');
+  }
+  const obj = labels.compile(galaxy.geometry.getAttribute('position'));
+  ui.scene.add(obj);
 
   const stats = new Stats();
   stats.showPanel(1);
@@ -38,15 +46,25 @@ Gravity particle system.  Work in progress.
     galaxy.animate(debug);
     stats.end();
   };
+  const playButton = elt('play');
+  function togglePlay() {
+    if (ui.animationCb) { // Is playing
+      ui.animationCb = null;
+      playButton.innerText = 'Play';
+      debug = true;
+    } else { // Is paused
+      ui.animationCb = anim;
+      playButton.innerText = 'Pause';
+      debug = false;
+    }
+  }
   elt('step').onclick = anim;
-  elt('play').onclick = () => {
-    debug = false;
-    ui.animationCb = anim;
-  };
-  elt('pause').onclick = () => {
-    ui.animationCb = null;
-    debug = true;
-  };
+  playButton.onclick = togglePlay;
+
+  const keys = new Keys();
+  keys.map(' ', () => { togglePlay(); }, 'Toggle play/pause');
+  keys.map('l', () => { obj.visible = !obj.visible; }, 'Toggle label display');
+  keys.appendHelp(document.body);
 </script>
 </body>
 </html>

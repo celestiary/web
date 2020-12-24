@@ -8,9 +8,10 @@
     init();
   </script>
 </head>
-<body id="nav" style="background: #444">
+<body style="height: 100%; background: #444">
+<div id="nav" style="overflow-y: scroll">
   <h1>Guide</h1>
-  <p><a href="/index.html">&lt; Back</a></p>
+  <p><a href="/index.html">← Back</a></p>
   <ol>
     <li><a href="#welcome.html">Welcome</a></li>
     <li>Data
@@ -34,45 +35,42 @@
             <li><a href="#angles.html">Angles</a></li>
           </ul>
         </li>
-        <li>Celestial Bodies
-          <ul>
-            <li><a href="#stars.html">Stars</a></li>
-            <li><a href="#stars-picking.html">Stars Picking</a></li>
-            <li><a href="#star.html">Star</a></li>
-            <li><a href="#asterisms.html">Asterisms</a>
-            <li><a href="#planet.html">Planet</a>
-              <li>Earth:
-                <ul>
-                  <li><a href="#map.html">Map</a></li>
-                  <li><a href="#sphere-map.html">Sphere map</a></li>
-                  <li><a href="#wind.html">Wind map</a></li>
-                </ul>
-              </li>
-            </li>
-            <li><a href="#asteroids.html">Asteroids</a>
-          </ul>
-        </li>
         <li>Interaction
           <ul><li><a href="#picking.html">Picking</a></li></ul>
         </li>
-        <li>Misc
-          <ul><li><a href="#position.html">Position</a></li></ul>
-        </li>
       </ol>
+    </li>
+    <li>Celestial Bodies
+      <ul>
+        <li><a href="#stars.html">Stars</a></li>
+        <!--<li><a href="#stars-picking.html">Stars Picking</a></li>-->
+        <li><a href="#star.html">Star</a></li>
+        <li><a href="#asterisms.html">Asterisms</a></li>
+        <li><a href="#planet.html">Planet</a></li>
+        <ul>
+          <!--<li><a href="#atmos-ebruneton/index.html">Atmosphere</a></li>-->
+          <li>Earth:
+            <ul>
+              <li><a href="#map.html">Map</a></li>
+              <li><a href="#sphere-map.html">Sphere map</a></li>
+              <li><a href="#wind.html">Wind map</a></li>
+            </ul>
+          </li>
+        </ul></li>
+        <!--<li><a href="#asteroids.html">Asteroids</a> -->
+      </ul>
     </li>
     <li>Celestial Mechanics
-      <ol>
-        <li>Orbits
-          <ul>
-            <li><a href="#orbit.html">Orbit</a></li>
-          </ul>
-        </li>
-      </ol>
+      <ul>
+        <li><a href="#orbit.html">Orbits</a></li>
+        <li><a href="#galaxy.html">Gravity (galaxy)</a></li>
+      </ul>
     </li>
   </ol>
-  <iframe id="content-frame"
-          name="content-frame"
-          style="position: absolute; width: 85%; height: 100%; top: 0; right: 0; border: none"
-          src="welcome.html"/>
+</div>
+<iframe id="content-frame"
+        name="content-frame"
+        style="position: absolute; width: 85%; height: 100%; top: 0; right: 0; border: none"
+        src="welcome.html"/>
 </body>
 </html>

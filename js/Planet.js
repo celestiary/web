@@ -21,6 +21,7 @@ export default class Planet extends Object {
    */
   constructor(scene, props, isMoon = false) {
     super(props.name, props);
+    console.log(`mars radius(3389500), props.radius.scalar: (${props.radius.scalar})`);
     this.scene = scene;
     this.isMoon = isMoon;
     this.load();
@@ -34,7 +35,7 @@ export default class Planet extends Object {
     const orbitPlane = this.scene.newGroup(this.name + '.orbitPlane');
     group.add(orbitPlane);
     orbitPlane.rotation.x = assertInRange(orbit.inclination, 0, 360) * toRad;
-    orbitPlane.rotation.y = assertInRange(orbit.longitudeOfPerihelion, 0, 360) * toRad;
+    orbitPlane.rotation.y = assertInRange(orbit.longitudeOfPericenter, 0, 360) * toRad;
 
     const orbitShape = this.newOrbit(this.scene, orbit, this.name);
     orbitPlane.add(orbitShape);
@@ -143,26 +144,15 @@ export default class Planet extends Object {
 
     const labelLOD = new THREE.LOD();
     const name = capitalize(this.name);
-    const label = new SpriteSheet(1, name).add(0, 0, 0, name, labelTextColor).compile();
-    labelLOD.addLevel(label, 1);
+    const labelSheet = new SpriteSheet(1, name);
+    labelSheet.add(0, 0, 0, name, labelTextColor)
+    labelLOD.addLevel(labelSheet.compile(), 1);
     labelLOD.addLevel(FAR_OBJ, this.isMoon ? 2e3 : 5e6);
 
     const group = new THREE.Object3D;
     group.add(planetLOD);
     group.add(named(labelLOD, 'label'));
-    /*
-    group.onClick = (mouse, intersect, clickRoot) => {
-        console.log(`Planet group ${this.name} clicked: `, mouse, intersect, clickRoot);
-        //const tElt = document.getElementById('target-id');
-        //tElt.innerText = this.name + (firstName ? ` (${firstName})` : '');
-        //tElt.style.left = `${mouse.clientX}px`;
-        //tElt.style.top = `${mouse.clientY}px`;
-        //this.setTarget(this.name);
-        //this.lookAtTarget();
-      }
-    group.type = 'Group';
-    return group;
-    */
+
     return group;
   }
 

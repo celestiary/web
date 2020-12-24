@@ -26,8 +26,10 @@ export default class Galaxy extends THREE.Points {
               depthWrite: false,
               transparent: true,
             }));
+    this.numPoints = numPoints;
     this.first = true;
   }
+
 
   animate(debug) {
     const G = 1e-8;

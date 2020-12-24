@@ -7,16 +7,18 @@ import Measure from './lib/measure.js/measure.js';
  */
 export default function reifyMeasures(obj) {
   function reify(obj, prop, name) {
-    if (obj[prop]) {
-      if (typeof obj[prop] === 'string') {
-        const m = Measure.parse(obj[prop]).convertToUnit();
+    const val = obj[prop];
+    if (val !== undefined && val !== null) {
+      const type = typeof val;
+      if (type == 'string') {
+        const m = Measure.parse(val).convertToUnit();
         // The parse leaves small amount in the low-significant
         // decimals, meaningless for unit values in grams and meters
         // for celestial objects.
         m.scalar = Math.floor(m.scalar);
         obj[prop] = m;
-      } else {
-        console.log(`unnormalized ${prop} for ${name}`);
+      } else if (!(val instanceof Measure)) {
+        console.warn(`unnormalized ${prop} for ${name}; val(${val}) type(${type})`);
       }
     }
   }
