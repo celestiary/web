@@ -21,7 +21,6 @@ export default class Planet extends Object {
    */
   constructor(scene, props, isMoon = false) {
     super(props.name, props);
-    console.log(`mars radius(3389500), props.radius.scalar: (${props.radius.scalar})`);
     this.scene = scene;
     this.isMoon = isMoon;
     this.load();
@@ -83,7 +82,7 @@ export default class Planet extends Object {
     // edge on).
     pathShape.rotation.x = halfPi;
     group.add(pathShape);
-    group.add(Shapes.line(1, 0, 0));
+    group.add(Shapes.line(1, 0, 0, {color: 'blue'}));
     group.scale.setScalar(assertFinite(orbit.semiMajorAxis) * LENGTH_SCALE);
     return group;
   }
