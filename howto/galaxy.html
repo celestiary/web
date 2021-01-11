@@ -22,16 +22,20 @@ Gravity particle system.  Work in progress.
   const elt = id => document.getElementById(id);
   const uiContainer = elt('ui');
   const ui = new ThreeUi(uiContainer);
-  ui.camera.position.z = 3;
+  ui.camera.position.z = 10;
+  ui.camera.position.y = 3;
   const galaxy = new Galaxy();
   ui.scene.add(galaxy);
-
+/*
   const labels = new SpriteSheet(galaxy.numPoints, galaxy.numPoints + '', '13px arial', [0, 0.1]);
   for (let i = 0; i < labels.maxLabels; i++) {
     labels.add(0, 0, 0, i + '');
   }
   const obj = labels.compile(galaxy.geometry.getAttribute('position'));
+  obj.visible = false;
   ui.scene.add(obj);
+*/
+  ui.fs.makeFullscreen();
 
   const stats = new Stats();
   stats.showPanel(1);
