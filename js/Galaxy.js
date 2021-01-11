@@ -1,7 +1,7 @@
 import * as THREE from './lib/three.js/three.module.js';
 
 import GalaxyBufferGeometry from './GalaxyBufferGeometry.js';
-import {pathTexture} from './Material.js';
+import {pathTexture} from './material.js';
 
 
 const Tau = 2.0 * Math.PI;
@@ -34,7 +34,6 @@ export default class Galaxy extends THREE.Points {
             }));
     this.numStars = numStars;
     this.first = true;
-
     const coords = this.geometry.attributes.position.array;
     const sizes = this.geometry.attributes.size.array;
     const velocities = this.geometry.attributes.velocity.array;

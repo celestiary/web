@@ -26,15 +26,17 @@ Gravity particle system.  Work in progress.
   ui.camera.position.y = 3;
   const galaxy = new Galaxy();
   ui.scene.add(galaxy);
-/*
-  const labels = new SpriteSheet(galaxy.numPoints, galaxy.numPoints + '', '13px arial', [0, 0.1]);
-  for (let i = 0; i < labels.maxLabels; i++) {
-    labels.add(0, 0, 0, i + '');
+
+  let labels;
+  if (true) {
+    const labelSheet = new SpriteSheet(galaxy.numStars, galaxy.numStars + '', '13px arial', [0, 0.1]);
+    for (let i = 0; i < labelSheet.maxLabels; i++) {
+      labelSheet.add(0, 0, 0, i + '');
+    }
+    labels = labelSheet.compile(galaxy.geometry.getAttribute('position'));
+    labels.visible = false;
+    ui.scene.add(labels);
   }
-  const obj = labels.compile(galaxy.geometry.getAttribute('position'));
-  obj.visible = false;
-  ui.scene.add(obj);
-*/
   ui.fs.makeFullscreen();
 
   const stats = new Stats();
@@ -67,7 +69,9 @@ Gravity particle system.  Work in progress.
 
   const keys = new Keys();
   keys.map(' ', () => { togglePlay(); }, 'Toggle play/pause');
-  keys.map('l', () => { obj.visible = !obj.visible; }, 'Toggle label display');
+  if (labels) {
+    keys.map('l', () => { labels.visible = !labels.visible; }, 'Toggle label display');
+  }
   keys.appendHelp(document.body);
 </script>
 </body>

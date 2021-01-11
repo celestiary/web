@@ -11,6 +11,9 @@ import {labelTextColor as defaultTextColor, labelTextFont as sharedDefaultFont} 
 export default class SpriteSheet {
   static defaultFont = sharedDefaultFont;
   constructor(maxLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0]) {
+    if (!Number.isInteger(maxLabels)) {
+      throw new Error('maxLabels is invalid: ' + maxLabels);
+    }
     this.maxLabels = maxLabels;
     this.labelCount = 0;
     this.labelTextFont = labelTextFont;
@@ -117,6 +120,7 @@ export default class SpriteSheet {
   /** @param {THREE.Float32BufferAttribute} sharedPositionAttribute Optional. */
   compile(sharedPositionAttribute) {
     if (sharedPositionAttribute && sharedPositionAttribute.count * 3 != this.positions.length) {
+      console.log(sharedPositionAttribute.count);
       throw new Error(`Shared positionAttribute.length(${sharedPositionAttribute.count * 3}) `
                       `!= this.positions.length(${this.positions.length})`);
     }
