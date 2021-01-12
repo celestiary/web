@@ -6,7 +6,7 @@ import {pathTexture} from './material.js';
 
 const Tau = 2.0 * Math.PI;
 const armDensityRatio = 0.4;
-const G = 1e-6;
+const G = 1e-5;
 const speed = 30;
 const colorTemp = 0.5;
 
@@ -53,11 +53,12 @@ export default class Galaxy extends THREE.Points {
       colors[xi] = 1 - colorTemp + colorTemp * Math.random();
       colors[yi] = 1 - colorTemp + colorTemp * Math.random();
       colors[zi] = 1 - colorTemp + colorTemp * Math.random();
-      sizes[i] = 10 * ((1 - armDensityRatio) + armDensityRatio * Math.cos(theta * numSpokes));// * (mass / numStars) * Math.random();
+      sizes[i] = 10 * ((1 - armDensityRatio) + armDensityRatio * Math.cos(theta * numSpokes));
       velocities[xi] = 0;
       velocities[yi] = 0;
       velocities[zi] = 0;
     }
+    this.newAccels = new Float32Array(velocities.length);
   }
 
 
@@ -65,7 +66,7 @@ export default class Galaxy extends THREE.Points {
     const coords = this.geometry.attributes.position.array;
     const sizes = this.geometry.attributes.size.array;
     const velocities = this.geometry.attributes.velocity.array;
-    const newVelos = new Array(velocities.length).fill(0);
+    const newAccels = this.newAccels;
     if (this.first) {
       this.first = false;
       if (debug) {
@@ -80,10 +81,7 @@ export default class Galaxy extends THREE.Points {
       const aZ = coords[zi];
       const aS = sizes[i / 3];
       let fX = 0, fY = 0, fZ = 0;
-      for (let j = 0; j < coords.length; j += 3) {
-        if (i == j) {
-          continue;
-        }
+      for (let j = coords.length - 3; j > i ; j -= 3) {
         const xj = j, yj = j + 1, zj = j + 2;
         const bX = coords[xj];
         const bY = coords[yj];
@@ -93,34 +91,32 @@ export default class Galaxy extends THREE.Points {
         const dX = bX - aX;
         const dY = bY - aY;
         const dZ = bZ - aZ;
-        if (debug) {
-          console.log('dX, dY, dZ:', dX, dY, dZ);
-        }
-        const d = Math.pow(dX*dX + dY*dY + dZ*dZ, 0.5);
-        if (debug) {
-          console.log('dX, dY, dZ:', dX, dY, dZ);
-        }
+        const d = Math.sqrt(dX*dX + dY*dY + dZ*dZ);
         const g = G / (d * d);
-        if (debug) {
-          console.log(`d(${d}) g(${g})`);
-        }
         const bSG = bS * g;
+        const aSG = aS * g;
         fX += bSG * dX;
         fY += bSG * dY;
         fZ += bSG * dZ;
+        newAccels[xj] += -aSG * dX;
+        newAccels[yj] += -aSG * dY;
+        newAccels[zj] += -aSG * dZ;
+        if (debug) {
+          console.log(`d(${d}) g(${g}) dX(${dX}) dY(${dY}) dZ(${dZ})`);
+        }
       }
-      newVelos[xi] += fX;
-      newVelos[yi] += fY;
-      newVelos[zi] += fZ;
+      newAccels[xi] += fX;
+      newAccels[yi] += fY;
+      newAccels[zi] += fZ;
     }
     for (let i = 0; i < coords.length; i += 3) {
       const xi = i, yi = i + 1, zi = i + 2;
-      velocities[xi] = speed * newVelos[zi];
-      velocities[zi] = speed * -newVelos[xi];
-      coords[xi] += velocities[xi] += newVelos[xi];
-      coords[yi] += velocities[yi] += newVelos[yi];
-      coords[zi] += velocities[zi] += newVelos[zi];
-      newVelos[xi] = newVelos[yi] = newVelos[zi] = 0;
+      velocities[xi] = speed * newAccels[zi];
+      velocities[zi] = speed * -newAccels[xi];
+      coords[xi] += velocities[xi] += newAccels[xi];
+      coords[yi] += velocities[yi] += newAccels[yi];
+      coords[zi] += velocities[zi] += newAccels[zi];
+      newAccels[xi] = newAccels[yi] = newAccels[zi] = 0;
     }
     if (debug) {
       console.log(coords, velocities);
