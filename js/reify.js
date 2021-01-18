@@ -1,4 +1,6 @@
-import Measure from './lib/measure.js/measure.js';
+import Measure from './lib/measure.js/Measure.js';
+import Magnitude from './lib/measure.js/Magnitude.js';
+import Unit from './lib/measure.js/Unit.js';
 
 
 /**
@@ -17,6 +19,12 @@ export default function reifyMeasures(obj) {
         // for celestial objects.
         m.scalar = Math.floor(m.scalar);
         obj[prop] = m;
+      } else if (type == 'number') {
+        switch (prop) {
+          case 'siderealOrbitPeriod': obj[prop] = new Measure(val, Magnitude.UNIT, Unit.SECOND); break;
+          case 'siderealRotationPeriod': obj[prop] = new Measure(val, Magnitude.UNIT, Unit.SECOND); break;
+          case 'semiMajorAxis': obj[prop] = new Measure(val, Magnitude.UNIT, Unit.METER); break;
+        }
       } else if (!(val instanceof Measure)) {
         console.warn(`unnormalized ${prop} for ${name}; val(${val}) type(${type})`);
       }
@@ -25,4 +33,9 @@ export default function reifyMeasures(obj) {
   const name = obj.name;
   reify(obj, 'radius', name);
   reify(obj, 'mass', name);
+  reify(obj, 'siderealRotationPeriod', name);
+  if (obj['orbit']) {
+    reify(obj['orbit'], 'semiMajorAxis', name);
+    reify(obj['orbit'], 'siderealOrbitPeriod', name);
+  }
 }

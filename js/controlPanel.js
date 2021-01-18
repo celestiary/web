@@ -1,4 +1,5 @@
-import Measure from './lib/measure.js/measure.js';
+import Measure from './lib/measure.js/Measure.js';
+import Magnitude from './lib/measure.js/Magnitude.js';
 import * as collapsor from './collapsor.js';
 import {capitalize} from './utils.mjs';
 
@@ -55,8 +56,18 @@ export default class ControlPanel {
         }
         if (val instanceof Measure) {
           switch (prop) {
-          case 'radius': val = val.convertTo(Measure.Magnitude.KILO); break;
-          case 'mass': val = val.convertTo(Measure.Magnitude.KILO); break;
+          case 'radius': val = val.convertTo(Magnitude.KILO); break;
+          case 'mass': val = val.convertTo(Magnitude.KILO); break;
+          case 'semiMajorAxis':
+            val.scalar = val.scalar.toExponential(4);
+            val = val.toString();
+            break;
+          case 'siderealOrbitPeriod':
+            val = secsToYDHMS(val.scalar);
+            break;
+          case 'siderealRotationPeriod':
+            val = secsToYDHMS(val.scalar);
+            break;
           }
           html += val;
         } else if (val instanceof Array) {
@@ -92,4 +103,35 @@ export default class ControlPanel {
     }
     return html;
   }
+}
+
+
+function secsToYDHMS(s) {
+  const secsPerYear = 86400 * 365;
+  let str = '';
+  const years = parseInt(s / secsPerYear);
+  if (years > 0) {
+    s -= years * secsPerYear;
+    str += `${years}y`;
+  }
+  const days = parseInt(s / 86400);
+  if (days > 0) {
+    s -= days * 86400;
+    str += ` ${days}d`;
+  }
+  const hours = parseInt(s / 3600);
+  if (hours > 0) {
+    s -= hours * 3600;
+    str += ` ${hours}h`;
+  }
+  const minutes = parseInt(s / 60);
+  if (minutes > 0) {
+    s -= minutes * 60;
+    str += ` ${minutes}m`;
+  }
+  const seconds = parseInt(s);
+  if (seconds > 0) {
+    str += ` ${seconds}s`;
+  }
+  return str;
 }

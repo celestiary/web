@@ -83,7 +83,7 @@ export default class Planet extends Object {
     pathShape.rotation.x = halfPi;
     group.add(pathShape);
     group.add(Shapes.line(1, 0, 0, {color: 'blue'}));
-    group.scale.setScalar(assertFinite(orbit.semiMajorAxis) * LENGTH_SCALE);
+    group.scale.setScalar(assertFinite(orbit.semiMajorAxis.scalar) * LENGTH_SCALE);
     return group;
   }
 

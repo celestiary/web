@@ -12,13 +12,13 @@ export default class Orbit extends Object3D {
     /** The passed props. */
     this.props = props;
     this.propsReified = {
-      siderealOrbitPeriod: props.siderealOrbitPeriod,
+      siderealOrbitPeriod: props.siderealOrbitPeriod.scalar,
       ecc: props.eccentricity,
       inc: props.inclination * toRad,
       loan: props.longitudeOfAscendingNode * toRad,
       lop: props.longitudeOfPericenter * toRad,
       meanLon: props.meanLongitude * toRad,
-      radius: props.semiMajorAxis
+      radius: props.semiMajorAxis.scalar
     };
     this.init(this.propsReified);
   }
