@@ -51661,10 +51661,10 @@ class Animation {
     // This is referred to by a comment in scene.js#addOrbitingPlanet.
     if (system.orbit) {
       const eccentricity = system.orbit.eccentricity;
-      const aRadius = system.orbit.semiMajorAxis * LENGTH_SCALE;
+      const aRadius = system.orbit.semiMajorAxis.scalar * LENGTH_SCALE;
       const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0));
       // -1.0 because orbits are counter-clockwise when viewed from above North of Earth.
-      const angle = -1.0 * simTimeSecs / system.orbit.siderealOrbitPeriod * twoPi;
+      const angle = -1.0 * simTimeSecs / system.orbit.siderealOrbitPeriod.scalar * twoPi;
       const x = aRadius * Math.cos(angle);
       const y = 0;
       const z = bRadius * Math.sin(angle);
@@ -51679,6 +51679,106 @@ class Animation {
       const child = system.children[ndx];
       this.animateSystem(child, simTimeSecs);
     }
+  }
+}
+
+const unitByAbbrev = {};
+const unitByName = {};
+
+class Unit {
+
+  static METER = new Unit('meter', 'm', 'length');
+  static GRAM = new Unit('gram', 'g', 'mass');
+  static SECOND = new Unit('second', 's', 'time');
+  static AMPERE = new Unit('ampere', 'A', 'electric current');
+  static KELVIN = new Unit('kelvin', 'K', 'temperature');
+  static CANDELA = new Unit('candela', 'cd', 'luminous intensity');
+  static MOLE = new Unit('mole', 'mol', 'amount of substance');
+
+  static lookup(str) {
+    const unit = unitByAbbrev[str];
+    if (unit) {
+      return unit;
+    }
+    return unitByName[str];
+  }
+
+
+  constructor(name, abbrev, dimension) {
+    this.name = name;
+    this.abbrev = abbrev;
+    this.dimension = dimension;
+    unitByAbbrev[abbrev] = this;
+    unitByName[name] = this;
+  }
+
+
+  toString() {
+    return this.name;
+  }
+}
+
+const magnitudeByAbbrev = {};
+const magnitudeByName = {};
+
+class Magnitude {
+
+
+  static YOTTA = new Magnitude(24, 'yotta', 'Y');
+  static ZETTA = new Magnitude(21, 'zetta', 'Z');
+  static EXA = new Magnitude(18, 'exa', 'E');
+  static PETA = new Magnitude(15, 'peta', 'P');
+  static TERA = new Magnitude(12, 'tera', 'T');
+  static GIGA = new Magnitude(9, 'giga', 'G');
+  static MEGA = new Magnitude(6, 'mega', 'M');
+  static KILO = new Magnitude(3, 'kilo', 'k');
+  static HECTO = new Magnitude(2, 'hecto', 'h');
+  static DECA = new Magnitude(1, 'deca', 'D');
+  static UNIT = new Magnitude(0, '', '');
+  static DECI = new Magnitude(-1, 'deci', 'd');
+  static CENTI = new Magnitude(-2, 'centi', 'c');
+  static MILLI = new Magnitude(-3, 'milli', 'm');
+  static MICRO = new Magnitude(-6, 'micro', '\u03BC');
+  static NANO = new Magnitude(-9, 'nano', 'n');
+  static PICO = new Magnitude(-12, 'pico', 'p');
+  static FEMTO = new Magnitude(-15, 'femto', 'f');
+  static ATTO = new Magnitude(-18, 'atto', 'a');
+  static ZETO = new Magnitude(-21, 'zepto', 'z');
+  static YOCTO = new Magnitude(-24, 'yocto', 'y');
+
+
+  static lookup(str) {
+    const magnitude = magnitudeByAbbrev[str];
+    if (magnitude) {
+      return magnitude;
+    }
+    return magnitudeByName[str];
+  }
+
+
+  constructor(exponent, name, abbrev) {
+    this.exponent = exponent;
+    this.name = name;
+    this.abbrev = abbrev;
+    magnitudeByName[name] = this;
+    magnitudeByAbbrev[abbrev] = this;
+  }
+
+
+  /**
+   * Converts the given scalar in the given magnitude to the
+   * equivalent scalar in this magnitude.
+   */
+  from(scalar, mag) {
+    const expDiff = mag.exponent - this.exponent;
+    const mult = Math.pow(10, expDiff);
+    const result = scalar * mult;
+    return result;
+  }
+
+
+  toString() {
+    return this.name;
   }
 }
 
@@ -51699,167 +51799,85 @@ class Animation {
  * represented as "Dg" instead of "dag" or "da gram", which is
  * congruent with the usage of the other unit abbreviations.
  */
+class Measure {
 
-const unitByAbbrev = {};
-const unitByName = {};
 
-function Unit(name, abbrev, dimension) {
-  this.name = name;
-  this.abbrev = abbrev;
-  this.dimension = dimension;
-  unitByAbbrev[abbrev] = this;
-  unitByName[name] = this;
-}
-
-Unit.prototype.toString = function() {
-  return this.name;
-};
-
-Unit.lookup = function(str) {
-  const unit = unitByAbbrev[str];
-  if (unit) {
-    return unit;
+  /**
+   * @throws If the string does not contain a parsable measure.
+   */
+  static parse(s) {
+    if (typeof s != 'string') {
+      throw 'Given string is null or not string: ' + s;
+    }
+    //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
+    const m = s.match(/(-?\d+(?:.\d+)?(?:[eE]\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
+    if (!m) {
+      throw 'Could not parse measure from given string: ' + s;
+    }
+    const scalar = parseFloat(m[1]);
+    if (m.length == 2) {
+      const unit = m[2];
+      const ul = Unit.lookup(unit);
+      return new Measure(parseFloat(scalar), Magnitude.UNIT, ul);
+    }
+    const magnitude = m[2] || null;
+    const unit = m[3];
+    const ml = magnitude == null ? Magnitude.UNIT : Magnitude.lookup(magnitude);
+    const ul = Unit.lookup(unit);
+    return new Measure(scalar == null ? 0.0 : parseFloat(scalar), ml, ul);
   }
-  return unitByName[str];
-};
 
-Unit.METER = new Unit('meter', 'm', 'length');
-Unit.GRAM = new Unit('gram', 'g', 'mass');
-Unit.SECOND = new Unit('second', 's', 'time');
-Unit.AMPERE = new Unit('ampere', 'A', 'electric current');
-Unit.KELVIN = new Unit('kelvin', 'K', 'temperature');
-Unit.CANDELA = new Unit('candela', 'cd', 'luminous intensity');
-Unit.MOLE = new Unit('mole', 'mol', 'amount of substance');
 
-const magnitudeByAbbrev = {};
-const magnitudeByName = {};
-
-function Magnitude(exponent, name, abbrev) {
-  this.exponent = exponent;
-  this.name = name;
-  this.abbrev = abbrev;
-  magnitudeByName[name] = this;
-  magnitudeByAbbrev[abbrev] = this;
-}
-
-Magnitude.prototype.toString = function() {
-  return this.name;
-};
-
-Magnitude.lookup = function(str) {
-  const magnitude = magnitudeByAbbrev[str];
-  if (magnitude) {
-    return magnitude;
+  constructor(scalar, magnitude, unit) {
+    if (typeof scalar != 'number') {
+      throw 'Invalid scalar given: ' + scalar;
+    }
+    if (typeof magnitude != 'object' || magnitude.constructor.name != 'Magnitude') {
+      throw 'Invalid magnitude given: ' + magnitude;
+    }
+    if (typeof unit != 'object' || unit.constructor.name != 'Unit') {
+      throw 'Invalid unit given: ' + unit;
+    }
+    this.scalar = scalar;
+    this.magnitude = magnitude || Magnitude.UNIT;
+    this.unit = unit;
   }
-  return magnitudeByName[str];
-};
 
-/**
- * Converts the given scalar in the given magnitude to the
- * equivalent scalar in this magnitude.
- */
-Magnitude.prototype.from = function(scalar, mag) {
-  const expDiff = mag.exponent - this.exponent;
-  const mult = Math.pow(10, expDiff);
-  const result = scalar * mult;
-  return result;
-};
 
-Magnitude.YOTTA = new Magnitude(24, 'yotta', 'Y');
-Magnitude.ZETTA = new Magnitude(21, 'zetta', 'Z');
-Magnitude.EXA = new Magnitude(18, 'exa', 'E');
-Magnitude.PETA = new Magnitude(15, 'peta', 'P');
-Magnitude.TERA = new Magnitude(12, 'tera', 'T');
-Magnitude.GIGA = new Magnitude(9, 'giga', 'G');
-Magnitude.MEGA = new Magnitude(6, 'mega', 'M');
-Magnitude.KILO = new Magnitude(3, 'kilo', 'k');
-Magnitude.HECTO = new Magnitude(2, 'hecto', 'h');
-Magnitude.DECA = new Magnitude(1, 'deca', 'D');
-Magnitude.UNIT = new Magnitude(0, '', '');
-Magnitude.DECI = new Magnitude(-1, 'deci', 'd');
-Magnitude.CENTI = new Magnitude(-2, 'centi', 'c');
-Magnitude.MILLI = new Magnitude(-3, 'milli', 'm');
-Magnitude.MICRO = new Magnitude(-6, 'micro', '\u03BC');
-Magnitude.NANO = new Magnitude(-9, 'nano', 'n');
-Magnitude.PICO = new Magnitude(-12, 'pico', 'p');
-Magnitude.FEMTO = new Magnitude(-15, 'femto', 'f');
-Magnitude.ATTO = new Magnitude(-18, 'atto', 'a');
-Magnitude.ZETO = new Magnitude(-21, 'zepto', 'z');
-Magnitude.YOCTO = new Magnitude(-24, 'yocto', 'y');
-
-function Measure(scalar, magnitude, unit) {
-  if (typeof scalar != 'number') {
-    throw 'Invalid scalar given: ' + scalar;
-  }
-  if (typeof magnitude != 'object' || magnitude.constructor.name != 'Magnitude') {
-    throw 'Invalid magnitude given: ' + magnitude;
-  }
-  if (typeof unit != 'object' || unit.constructor.name != 'Unit') {
-    throw 'Invalid unit given: ' + unit;
-  }
-  this.scalar = scalar;
-  this.magnitude = magnitude || Magnitude.UNIT;
-  this.unit = unit;
-
-  this.identical = function(other) {
+  identical(other) {
     return this.scalar === other.scalar
       && this.magnitude === other.magnitude
       && this.unit === other.unit;
-  };
+  }
 
-  this.equals = function(other) {
+
+  equals(other) {
     const thisUnit = this.convertToUnit();
     const otherUnit = other.convertToUnit();
     return thisUnit.scalar === otherUnit.scalar
       && thisUnit.magnitude === otherUnit.magnitude
       && thisUnit.unit === otherUnit.unit;
-  };
+  }
 
-  this.convertTo = function(mag) {
+
+  convertTo(mag) {
     return new Measure(mag.from(this.scalar, this.magnitude), mag, this.unit);
-  };
+  }
 
-  this.convertToUnit = function() {
+
+  convertToUnit() {
     return this.convertTo(Magnitude.UNIT);
-  };
+  }
 
-  this.toString = function() {
+
+  toString() {
     let s = '';
     s += this.scalar;
     s += this.magnitude.abbrev;
     s += this.unit.abbrev;
     return s;
-  };
+  }
 }
-
-
-Measure.Unit = Unit;
-Measure.Magnitude = Magnitude;
-
-/**
- * @throws If the string does not contain a parsable measure.
- */
-Measure.parse = function(s) {
-  if (typeof s != 'string') {
-    throw 'Given string is null or not string: ' + s;
-  }
-  //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
-  const m = s.match(/(-?\d+(?:.\d+)?(?:[eE]\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
-  if (!m) {
-    throw 'Could not parse measure from given string: ' + s;
-  }
-  const scalar = parseFloat(m[1]);
-  if (m.length == 2) {
-    const unit = m[2];
-    const ul = Unit.lookup(unit);
-    return new Measure(parseFloat(scalar), Magnitude.UNIT, ul);
-  }
-  const magnitude = m[2] || null;
-  const unit = m[3];
-  const ml = magnitude == null ? Magnitude.UNIT : Magnitude.lookup(magnitude);
-  const ul = Unit.lookup(unit);
-  return new Measure(scalar == null ? 0.0 : parseFloat(scalar), ml, ul);
-};
 
 /**
  * Modifies the DOM tree rooted at {@param elt} to make the
@@ -51988,8 +52006,18 @@ class ControlPanel {
         }
         if (val instanceof Measure) {
           switch (prop) {
-          case 'radius': val = val.convertTo(Measure.Magnitude.KILO); break;
-          case 'mass': val = val.convertTo(Measure.Magnitude.KILO); break;
+          case 'radius': val = val.convertTo(Magnitude.KILO); break;
+          case 'mass': val = val.convertTo(Magnitude.KILO); break;
+          case 'semiMajorAxis':
+            val.scalar = val.scalar.toExponential(4);
+            val = val.toString();
+            break;
+          case 'siderealOrbitPeriod':
+            val = secsToYDHMS(val.scalar);
+            break;
+          case 'siderealRotationPeriod':
+            val = secsToYDHMS(val.scalar);
+            break;
           }
           html += val;
         } else if (val instanceof Array) {
@@ -52025,6 +52053,37 @@ class ControlPanel {
     }
     return html;
   }
+}
+
+
+function secsToYDHMS(s) {
+  const secsPerYear = 86400 * 365;
+  let str = '';
+  const years = parseInt(s / secsPerYear);
+  if (years > 0) {
+    s -= years * secsPerYear;
+    str += `${years}y`;
+  }
+  const days = parseInt(s / 86400);
+  if (days > 0) {
+    s -= days * 86400;
+    str += ` ${days}d`;
+  }
+  const hours = parseInt(s / 3600);
+  if (hours > 0) {
+    s -= hours * 3600;
+    str += ` ${hours}h`;
+  }
+  const minutes = parseInt(s / 60);
+  if (minutes > 0) {
+    s -= minutes * 60;
+    str += ` ${minutes}m`;
+  }
+  const seconds = parseInt(s);
+  if (seconds > 0) {
+    str += ` ${seconds}s`;
+  }
+  return str;
 }
 
 class Keys {
@@ -52211,6 +52270,12 @@ function reifyMeasures(obj) {
         // for celestial objects.
         m.scalar = Math.floor(m.scalar);
         obj[prop] = m;
+      } else if (type == 'number') {
+        switch (prop) {
+          case 'siderealOrbitPeriod': obj[prop] = new Measure(val, Magnitude.UNIT, Unit.SECOND); break;
+          case 'siderealRotationPeriod': obj[prop] = new Measure(val, Magnitude.UNIT, Unit.SECOND); break;
+          case 'semiMajorAxis': obj[prop] = new Measure(val, Magnitude.UNIT, Unit.METER); break;
+        }
       } else if (!(val instanceof Measure)) {
         console.warn(`unnormalized ${prop} for ${name}; val(${val}) type(${type})`);
       }
@@ -52219,6 +52284,11 @@ function reifyMeasures(obj) {
   const name = obj.name;
   reify(obj, 'radius', name);
   reify(obj, 'mass', name);
+  reify(obj, 'siderealRotationPeriod', name);
+  if (obj['orbit']) {
+    reify(obj['orbit'], 'semiMajorAxis', name);
+    reify(obj['orbit'], 'siderealOrbitPeriod', name);
+  }
 }
 
 // From https://github.com/mrdoob/three.js/blob/34dc2478c684066257e4e39351731a93c6107ef5/src/core/Raycaster.js
@@ -53008,6 +53078,9 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
 class SpriteSheet {
   static defaultFont = labelTextFont;
   constructor(maxLabels, maxLabel, labelTextFont$1 = labelTextFont, padding = [0, 0]) {
+    if (!Number.isInteger(maxLabels)) {
+      throw new Error('maxLabels is invalid: ' + maxLabels);
+    }
     this.maxLabels = maxLabels;
     this.labelCount = 0;
     this.labelTextFont = labelTextFont$1;
@@ -53114,6 +53187,7 @@ class SpriteSheet {
   /** @param {THREE.Float32BufferAttribute} sharedPositionAttribute Optional. */
   compile(sharedPositionAttribute) {
     if (sharedPositionAttribute && sharedPositionAttribute.count * 3 != this.positions.length) {
+      console.log(sharedPositionAttribute.count);
       throw new Error(`Shared positionAttribute.length(${sharedPositionAttribute.count * 3}) `
                       `!= this.positions.length(${this.positions.length})`);
     }
@@ -53757,7 +53831,7 @@ class Planet extends Object$1 {
     pathShape.rotation.x = halfPi;
     group.add(pathShape);
     group.add(line(1, 0, 0, {color: 'blue'}));
-    group.scale.setScalar(assertFinite(orbit.semiMajorAxis) * LENGTH_SCALE);
+    group.scale.setScalar(assertFinite(orbit.semiMajorAxis.scalar) * LENGTH_SCALE);
     return group;
   }
 
