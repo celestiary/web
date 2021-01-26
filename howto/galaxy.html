@@ -11,6 +11,7 @@ Gravity particle system.  Work in progress.
 </div>
 <div id="stats"/>
 <script type="module">
+  import {AxesHelper} from './js/lib/three.js/three.module.js';
   import Stats from './js/lib/stats.js/build/stats.module.js';
 
   import Galaxy from './js/Galaxy.js';
@@ -26,6 +27,7 @@ Gravity particle system.  Work in progress.
   ui.camera.position.y = 3;
   const galaxy = new Galaxy();
   ui.scene.add(galaxy);
+  ui.scene.add(new AxesHelper);
 
   let labels;
   if (true) {
@@ -37,7 +39,7 @@ Gravity particle system.  Work in progress.
     labels.visible = false;
     ui.scene.add(labels);
   }
-  //ui.fs.makeFullscreen();
+  ui.fs.makeFullscreen();
 
   const stats = new Stats();
   stats.showPanel(1);
