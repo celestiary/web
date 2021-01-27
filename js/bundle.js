@@ -51687,23 +51687,6 @@ const unitByName = {};
 
 class Unit {
 
-  static METER = new Unit('meter', 'm', 'length');
-  static GRAM = new Unit('gram', 'g', 'mass');
-  static SECOND = new Unit('second', 's', 'time');
-  static AMPERE = new Unit('ampere', 'A', 'electric current');
-  static KELVIN = new Unit('kelvin', 'K', 'temperature');
-  static CANDELA = new Unit('candela', 'cd', 'luminous intensity');
-  static MOLE = new Unit('mole', 'mol', 'amount of substance');
-
-  static lookup(str) {
-    const unit = unitByAbbrev[str];
-    if (unit) {
-      return unit;
-    }
-    return unitByName[str];
-  }
-
-
   constructor(name, abbrev, dimension) {
     this.name = name;
     this.abbrev = abbrev;
@@ -51718,44 +51701,31 @@ class Unit {
   }
 }
 
+
+// TODO: declare the following as static after Safari adopts:
+// https://github.com/tc39/proposal-static-class-features
+  Unit.lookup = str => {
+    const unit = unitByAbbrev[str];
+    if (unit) {
+      return unit;
+    }
+    return unitByName[str];
+  };
+
+
+
+  Unit.METER = new Unit('meter', 'm', 'length');
+  Unit.GRAM = new Unit('gram', 'g', 'mass');
+  Unit.SECOND = new Unit('second', 's', 'time');
+  Unit.AMPERE = new Unit('ampere', 'A', 'electric current');
+  Unit.KELVIN = new Unit('kelvin', 'K', 'temperature');
+  Unit.CANDELA = new Unit('candela', 'cd', 'luminous intensity');
+  Unit.MOLE = new Unit('mole', 'mol', 'amount of substance');
+
 const magnitudeByAbbrev = {};
 const magnitudeByName = {};
 
 class Magnitude {
-
-
-  static YOTTA = new Magnitude(24, 'yotta', 'Y');
-  static ZETTA = new Magnitude(21, 'zetta', 'Z');
-  static EXA = new Magnitude(18, 'exa', 'E');
-  static PETA = new Magnitude(15, 'peta', 'P');
-  static TERA = new Magnitude(12, 'tera', 'T');
-  static GIGA = new Magnitude(9, 'giga', 'G');
-  static MEGA = new Magnitude(6, 'mega', 'M');
-  static KILO = new Magnitude(3, 'kilo', 'k');
-  static HECTO = new Magnitude(2, 'hecto', 'h');
-  static DECA = new Magnitude(1, 'deca', 'D');
-  static UNIT = new Magnitude(0, '', '');
-  static DECI = new Magnitude(-1, 'deci', 'd');
-  static CENTI = new Magnitude(-2, 'centi', 'c');
-  static MILLI = new Magnitude(-3, 'milli', 'm');
-  static MICRO = new Magnitude(-6, 'micro', '\u03BC');
-  static NANO = new Magnitude(-9, 'nano', 'n');
-  static PICO = new Magnitude(-12, 'pico', 'p');
-  static FEMTO = new Magnitude(-15, 'femto', 'f');
-  static ATTO = new Magnitude(-18, 'atto', 'a');
-  static ZETO = new Magnitude(-21, 'zepto', 'z');
-  static YOCTO = new Magnitude(-24, 'yocto', 'y');
-
-
-  static lookup(str) {
-    const magnitude = magnitudeByAbbrev[str];
-    if (magnitude) {
-      return magnitude;
-    }
-    return magnitudeByName[str];
-  }
-
-
   constructor(exponent, name, abbrev) {
     this.exponent = exponent;
     this.name = name;
@@ -51782,6 +51752,40 @@ class Magnitude {
   }
 }
 
+
+// TODO: declare the following as static after Safari adopts:
+// https://github.com/tc39/proposal-static-class-features
+  Magnitude.lookup = str => {
+    const magnitude = magnitudeByAbbrev[str];
+    if (magnitude) {
+      return magnitude;
+    }
+    return magnitudeByName[str];
+  };
+
+
+  Magnitude.YOTTA = new Magnitude(24, 'yotta', 'Y');
+  Magnitude.ZETTA = new Magnitude(21, 'zetta', 'Z');
+  Magnitude.EXA = new Magnitude(18, 'exa', 'E');
+  Magnitude.PETA = new Magnitude(15, 'peta', 'P');
+  Magnitude.TERA = new Magnitude(12, 'tera', 'T');
+  Magnitude.GIGA = new Magnitude(9, 'giga', 'G');
+  Magnitude.MEGA = new Magnitude(6, 'mega', 'M');
+  Magnitude.KILO = new Magnitude(3, 'kilo', 'k');
+  Magnitude.HECTO = new Magnitude(2, 'hecto', 'h');
+  Magnitude.DECA = new Magnitude(1, 'deca', 'D');
+  Magnitude.UNIT = new Magnitude(0, '', '');
+  Magnitude.DECI = new Magnitude(-1, 'deci', 'd');
+  Magnitude.CENTI = new Magnitude(-2, 'centi', 'c');
+  Magnitude.MILLI = new Magnitude(-3, 'milli', 'm');
+  Magnitude.MICRO = new Magnitude(-6, 'micro', '\u03BC');
+  Magnitude.NANO = new Magnitude(-9, 'nano', 'n');
+  Magnitude.PICO = new Magnitude(-12, 'pico', 'p');
+  Magnitude.FEMTO = new Magnitude(-15, 'femto', 'f');
+  Magnitude.ATTO = new Magnitude(-18, 'atto', 'a');
+  Magnitude.ZETO = new Magnitude(-21, 'zepto', 'z');
+  Magnitude.YOCTO = new Magnitude(-24, 'yocto', 'y');
+
 /**
  * Measure formatting and conversion utility.  The system of measure
  * used is a a slight variation of the System International (SI)
@@ -51800,34 +51804,6 @@ class Magnitude {
  * congruent with the usage of the other unit abbreviations.
  */
 class Measure {
-
-
-  /**
-   * @throws If the string does not contain a parsable measure.
-   */
-  static parse(s) {
-    if (typeof s != 'string') {
-      throw 'Given string is null or not string: ' + s;
-    }
-    //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
-    const m = s.match(/(-?\d+(?:.\d+)?(?:[eE]\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
-    if (!m) {
-      throw 'Could not parse measure from given string: ' + s;
-    }
-    const scalar = parseFloat(m[1]);
-    if (m.length == 2) {
-      const unit = m[2];
-      const ul = Unit.lookup(unit);
-      return new Measure(parseFloat(scalar), Magnitude.UNIT, ul);
-    }
-    const magnitude = m[2] || null;
-    const unit = m[3];
-    const ml = magnitude == null ? Magnitude.UNIT : Magnitude.lookup(magnitude);
-    const ul = Unit.lookup(unit);
-    return new Measure(scalar == null ? 0.0 : parseFloat(scalar), ml, ul);
-  }
-
-
   constructor(scalar, magnitude, unit) {
     if (typeof scalar != 'number') {
       throw 'Invalid scalar given: ' + scalar;
@@ -51878,6 +51854,38 @@ class Measure {
     return s;
   }
 }
+
+
+// TODO: declare the following as static after Safari adopts:
+// https://github.com/tc39/proposal-static-class-features
+
+
+Measure.Magnitude = Magnitude;
+Measure.Unit = Unit;
+  /**
+   * @throws If the string does not contain a parsable measure.
+   */
+Measure.parse = s => {
+    if (typeof s != 'string') {
+      throw 'Given string is null or not string: ' + s;
+    }
+    //var MEASURE_PATTERN = new RegExp(/(-?\\d+(?:.\\d+)?(?:E\\d+)?)\\s*([khdnmgtpfaezy\u03BC]|(?:yotta|zetta|exa|peta|tera|giga|mega|kilo|hecto|deca|deci|centi|milli|micro|nano|pico|femto|atto|zepto|yocto))?\\s*([mgsAKLn]|(?:meter|gram|second|Ampere|Kelvin|candela|mole))/);
+    const m = s.match(/(-?\d+(?:.\d+)?(?:[eE]\d+)?)\s*([khdnmgtpfaezy\u03BC])?\s*([mgsAKLn])/);
+    if (!m) {
+      throw 'Could not parse measure from given string: ' + s;
+    }
+    const scalar = parseFloat(m[1]);
+    if (m.length == 2) {
+      const unit = m[2];
+      const ul = Unit.lookup(unit);
+      return new Measure(parseFloat(scalar), Magnitude.UNIT, ul);
+    }
+    const magnitude = m[2] || null;
+    const unit = m[3];
+    const ml = magnitude == null ? Magnitude.UNIT : Magnitude.lookup(magnitude);
+    const ul = Unit.lookup(unit);
+    return new Measure(scalar == null ? 0.0 : parseFloat(scalar), ml, ul);
+  };
 
 /**
  * Modifies the DOM tree rooted at {@param elt} to make the
@@ -52387,6 +52395,8 @@ Object.assign( CustomRaycaster.prototype, {
   } );
 
 const MAX_DEPTH = 1000;
+const TERMINAL = 'Terminal';
+
 
 /**
  * A grammar is made of a set of rules.  A rule may be one of: RegExp,
@@ -52402,7 +52412,6 @@ const MAX_DEPTH = 1000;
  */
 class Parser {
 
-  static Terminal = 'Terminal';
 
   /**
    * @param inputString String to parse.
@@ -52427,7 +52436,7 @@ class Parser {
     if (grammar == null || stateName == null) {
       throw new Error('Neither grammar nor stateName may be null');
     }
-    if (stateName == Parser.Terminal) {
+    if (stateName == TERMINAL) {
       return 0;
     }
     const state = grammar[stateName];
@@ -52521,6 +52530,11 @@ class Parser {
 
 function p(state, depth, msg, varargs) {
 }
+
+
+// TODO: declare the following as static after Safari adopts:
+// https://github.com/tc39/proposal-static-class-features
+Parser.Terminal = TERMINAL;
 
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
 const littleEndian = true;
@@ -52970,7 +52984,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
           inverseMatrix.getInverse( matrixWorld );
           ray.copy( raycaster.ray ).applyMatrix4( inverseMatrix );
 
-          var localThreshold = threshold / ( ( this.scale.x + this.scale.y + this.scale.z ) / 3 );
+          threshold / ( ( this.scale.x + this.scale.y + this.scale.z ) / 3 );
           var position = new Vector3$1();
           var intersectPoint = new Vector3$1();
 
@@ -53076,7 +53090,6 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
  *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
  */
 class SpriteSheet {
-  static defaultFont = labelTextFont;
   constructor(maxLabels, maxLabel, labelTextFont$1 = labelTextFont, padding = [0, 0]) {
     if (!Number.isInteger(maxLabels)) {
       throw new Error('maxLabels is invalid: ' + maxLabels);
@@ -53121,7 +53134,7 @@ class SpriteSheet {
       throw new Error(`Add called too many times, can only allocate`
                       ` maxLabels(${this.maxLabels}), already have ${this.labelCount}`);
     }
-    const ctx = this.ctx;
+    this.ctx;
     this.ctx.font = this.labelTextFont;
     let bounds = measureText(this.ctx, labelText);
     const size = Math.max(bounds.width, bounds.height);
@@ -53723,10 +53736,10 @@ class Asterisms extends Object3D {
   }
 }
 
+const REGISTRY = [];
+
+
 class Object$1 extends Object3D {
-
-  static registry = [];
-
   /**
    * @param name Prefix, attached to .frame suffix.
    * @param props Optional props to attach to a .props field on the frame.
@@ -53738,7 +53751,7 @@ class Object$1 extends Object3D {
     this.name = name;
     this.props = props || {name: name};
     this.onClick = onClick;
-    Object$1.registry[name] = this;
+    REGISTRY[name] = this;
   }
 }
 
@@ -54282,7 +54295,7 @@ class StarsBufferGeometry extends BufferGeometry {
       coords[off + 2] = scale * star.z;
       let rgb = StarSpectra[star.spectralType];
       rgb = rgb || sunSpectrum;
-      const lumRelSun = star.lumRelSun;
+      star.lumRelSun;
       const r = rgb[0] / 255;
       const g = rgb[1] / 255;
       const b = rgb[2] / 255;
@@ -54450,8 +54463,7 @@ const faves = {
   113881: 'Scheat'
 };
 
-const 
-  lengthScale = LENGTH_SCALE,
+const lengthScale = LENGTH_SCALE,
   INITIAL_STEP_BACK_MULT = 10;
 
 

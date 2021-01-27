@@ -1,6 +1,6 @@
 import {readFileSync} from 'fs';
 
-import Testing from './lib/testing.js/testing.mjs';
+import Testing from './lib/testing.js/testing.js';
 
 import StarsCatalog from './StarsCatalog.mjs';
 import {toArrayBuffer} from './utils.mjs';

@@ -1,5 +1,5 @@
 import * as THREE from './lib/three.js/three.module.js';
-import {assertFinite, assertInRange} from './lib/testing.js/testing.mjs';
+import {assertFinite, assertInRange} from './lib/testing.js/testing.js';
 
 import Object from './object.js';
 import SpriteSheet from './SpriteSheet.js';

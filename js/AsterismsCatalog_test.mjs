@@ -1,6 +1,6 @@
 import {readFileSync} from 'fs';
 
-import Testing from './lib/testing.js/testing.mjs';
+import Testing from './lib/testing.js/testing.js';
 
 import AsterismsCatalog from './AsterismsCatalog.mjs';
 import StarsCatalog from './StarsCatalog.mjs';
