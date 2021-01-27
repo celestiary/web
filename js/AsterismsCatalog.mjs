@@ -1,4 +1,4 @@
-import Parser from './lib/parser.js/parser.mjs';
+import Parser from './lib/parser.js/parser.js';
 import * as THREE from './lib/three.js/three.module.js';
 
 import StarsCatalog from './StarsCatalog.mjs';

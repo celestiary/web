@@ -1,10 +1,10 @@
 import * as THREE from './lib/three.js/three.module.js';
 
 
+const REGISTRY = [];
+
+
 export default class Object extends THREE.Object3D {
-
-  static registry = [];
-
   /**
    * @param name Prefix, attached to .frame suffix.
    * @param props Optional props to attach to a .props field on the frame.
@@ -16,6 +16,6 @@ export default class Object extends THREE.Object3D {
     this.name = name;
     this.props = props || {name: name};
     this.onClick = onClick;
-    Object.registry[name] = this;
+    REGISTRY[name] = this;
   }
 }
