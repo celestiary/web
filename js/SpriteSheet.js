@@ -2,6 +2,7 @@ import * as THREE from './lib/three.js/three.module.js';
 import * as Utils from './utils.mjs';
 import {labelTextColor as defaultTextColor, labelTextFont as sharedDefaultFont} from './shared.mjs';
 
+
 // TODO: separate this into a SpriteSheet supercalss and LabelSheet subclass.
 /**
  * From:
@@ -9,7 +10,6 @@ import {labelTextColor as defaultTextColor, labelTextFont as sharedDefaultFont} 
  *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
  */
 export default class SpriteSheet {
-  static defaultFont = sharedDefaultFont;
   constructor(maxLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0]) {
     if (!Number.isInteger(maxLabels)) {
       throw new Error('maxLabels is invalid: ' + maxLabels);
