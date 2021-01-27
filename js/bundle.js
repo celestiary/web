@@ -53073,7 +53073,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
           }
 
         };
-      }() ),
+      }()),
 
     clone: function () {
 
