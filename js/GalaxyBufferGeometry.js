@@ -1,4 +1,4 @@
-import {Float32BufferAttribute, BufferGeometry} from './lib/three.js/three.module.mjs';
+import {Float32BufferAttribute, BufferGeometry} from './lib/three.js/three.module.js';
 
 
 export default class GalaxyBufferGeometry extends BufferGeometry {

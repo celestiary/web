@@ -1,9 +1,9 @@
-import {Euler, Object3D} from './lib/three.js/three.module.mjs';
+import {Euler, Object3D} from './lib/three.js/three.module.js';
 
 import Loader from './loader.js';
 import Planet from './Planet.js';
 import Reify from './reify.js';
-import {LENGTH_SCALE} from './shared.mjs';
+import {LENGTH_SCALE} from './shared.js';
 
 
 function planetHelper(cb) {

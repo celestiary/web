@@ -1,11 +1,11 @@
 import Parser from './lib/parser.js/parser.js';
 import * as THREE from './lib/three.js/three.module.js';
 
-import AsterismsCatalog from './AsterismsCatalog.mjs';
-import StarsCatalog from './StarsCatalog.mjs';
+import AsterismsCatalog from './AsterismsCatalog.js';
+import StarsCatalog from './StarsCatalog.js';
 import * as Material from './material.js';
-import * as Shapes from './shapes.mjs';
-import {STARS_SCALE, labelTextColor} from './shared.mjs';
+import * as Shapes from './shapes.js';
+import {STARS_SCALE, labelTextColor} from './shared.js';
 
 
 export default class Asterisms extends THREE.Object3D {

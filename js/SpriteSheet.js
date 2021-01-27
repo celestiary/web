@@ -1,6 +1,6 @@
 import * as THREE from './lib/three.js/three.module.js';
-import * as Utils from './utils.mjs';
-import {labelTextColor as defaultTextColor, labelTextFont as sharedDefaultFont} from './shared.mjs';
+import * as Utils from './utils.js';
+import {labelTextColor as defaultTextColor, labelTextFont as sharedDefaultFont} from './shared.js';
 
 
 // TODO: separate this into a SpriteSheet supercalss and LabelSheet subclass.

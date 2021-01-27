@@ -1,8 +1,8 @@
 import {Object3D, Vector3} from './lib/three.js/three.module.js';
 
-import * as Shapes from './shapes.mjs';
-import {toRad} from './shared.mjs';
-import {named} from './utils.mjs';
+import * as Shapes from './shapes.js';
+import {toRad} from './shared.js';
+import {named} from './utils.js';
 import {addAndOrient} from './scene_utils.js';
 
 

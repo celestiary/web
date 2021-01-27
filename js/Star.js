@@ -1,8 +1,8 @@
 import * as THREE from './lib/three.js/three.module.js';
 import Object from './object.js';
 import * as Shaders from './star-shaders.js';
-import * as Shapes from './shapes.mjs';
-import * as Shared from './shared.mjs';
+import * as Shapes from './shapes.js';
+import * as Shared from './shared.js';
 
 
 /**

@@ -1,7 +1,7 @@
 import Parser from './lib/parser.js/parser.js';
 import * as THREE from './lib/three.js/three.module.js';
 
-import StarsCatalog from './StarsCatalog.mjs';
+import StarsCatalog from './StarsCatalog.js';
 
 
 export default class AsterismsCatalog {

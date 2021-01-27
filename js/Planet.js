@@ -4,10 +4,10 @@ import {assertFinite, assertInRange} from './lib/testing.js/testing.js';
 import Object from './object.js';
 import SpriteSheet from './SpriteSheet.js';
 
-import * as Shapes from './shapes.mjs';
+import * as Shapes from './shapes.js';
 import * as Material from './material.js';
-import {FAR_OBJ, LENGTH_SCALE, labelTextColor, halfPi, toRad} from './shared.mjs';
-import {capitalize, named} from './utils.mjs';
+import {FAR_OBJ, LENGTH_SCALE, labelTextColor, halfPi, toRad} from './shared.js';
+import {capitalize, named} from './utils.js';
 
 
 export default class Planet extends Object {

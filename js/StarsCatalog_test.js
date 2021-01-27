@@ -2,8 +2,8 @@ import {readFileSync} from 'fs';
 
 import Testing from './lib/testing.js/testing.js';
 
-import StarsCatalog from './StarsCatalog.mjs';
-import {toArrayBuffer} from './utils.mjs';
+import StarsCatalog from './StarsCatalog.js';
+import {toArrayBuffer} from './utils.js';
 
 
 const tests = new Testing();

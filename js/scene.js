@@ -1,17 +1,17 @@
 import * as THREE from './lib/three.js/three.module.js';
 import CustomRaycaster from './lib/three-custom/raycaster.js';
 
-import Asterisms from './Asterisms.mjs';
+import Asterisms from './Asterisms.js';
 import Object from './object.js';
 import Planet from './Planet.js';
 import SpriteSheet from './SpriteSheet.js';
 import Star from './Star.js';
-import Stars from './Stars.mjs';
+import Stars from './Stars.js';
 import * as Material from './material.js';
-import * as Shared from './shared.mjs';
-import * as Shapes from './shapes.mjs';
-import * as Utils from './utils.mjs';
-import {info} from './log.mjs';
+import * as Shared from './shared.js';
+import * as Shapes from './shapes.js';
+import * as Utils from './utils.js';
+import {info} from './log.js';
 
 
 const

@@ -4,13 +4,13 @@ import * as THREE from './lib/three.js/three.module.js';
 import Loader from './loader.js';
 import Object from './object.js';
 import SpriteSheet from './SpriteSheet.js';
-import StarsBufferGeometry from './StarsBufferGeometry.mjs';
-import StarsCatalog from './StarsCatalog.mjs';
+import StarsBufferGeometry from './StarsBufferGeometry.js';
+import StarsCatalog from './StarsCatalog.js';
 import * as Material from './material.js';
-import * as Shapes from './shapes.mjs';
-import {STARS_SCALE, labelTextColor, FAR_OBJ} from './shared.mjs';
-import {debug} from './log.mjs';
-import {named} from './utils.mjs';
+import * as Shapes from './shapes.js';
+import {STARS_SCALE, labelTextColor, FAR_OBJ} from './shared.js';
+import {debug} from './log.js';
+import {named} from './utils.js';
 
 
 // > 10k is too much for my old laptop.

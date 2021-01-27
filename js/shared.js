@@ -1,6 +1,6 @@
 import {Object3D, Vector3} from './lib/three.js/three.module.js';
 
-import {named} from './utils.mjs';
+import {named} from './utils.js';
 
 
 // This size is chosen to allow for the maximum object and distance

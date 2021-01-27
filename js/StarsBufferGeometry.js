@@ -1,7 +1,7 @@
-import {BufferAttribute, BufferGeometry} from './lib/three.js/three.module.mjs';
+import {BufferAttribute, BufferGeometry} from './lib/three.js/three.module.js';
 
-import {LENGTH_SCALE, STARS_SCALE} from './shared.mjs';
-import {StarSpectra} from './StarsCatalog.mjs';
+import {LENGTH_SCALE, STARS_SCALE} from './shared.js';
+import {StarSpectra} from './StarsCatalog.js';
 
 
 export default class StarsBufferGeometry extends BufferGeometry {
