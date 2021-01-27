@@ -151,8 +151,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
           }
 
         };
-        console.log('points after');
-      }() ),
+      }()),
 
     clone: function () {
 
