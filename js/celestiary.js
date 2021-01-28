@@ -110,7 +110,7 @@ export default class Celestiary {
       false);
 
     const k = new Keys();
-    k.map('Escape', () => { this.hideHelpOnEscape(); },
+    k.map('Escape', () => { this.hideActiveDialog(); },
           'Hide active dialog');
     k.map(' ', () => { this.time.togglePause(); },
           'Toggle time pause');
@@ -165,19 +165,81 @@ export default class Celestiary {
   }
 
 
-  hideHelpOnEscape() {
-    const keysElt = elt('keys-id');
-    keysElt.style.display = 'none';
+  hideActiveDialog() {
+    document.querySelectorAll('.dialog').forEach(elt => this.hideElt(elt));
+  }
+
+
+  hideElt(elt) {
+    elt.style.display = 'none';
+  }
+
+
+  /** @return True iff showing */
+  toggleEltDisplay(elt) {
+    if (elt.style.display == 'block') {
+      this.hideElt(elt);
+      return false;
+    } else {
+      this.hideActiveDialog();
+      elt.style.display = 'block';
+      return true;
+    }
+  }
+
+
+  toggleAbout() {
+    const aboutElt = elt('about-id');
+    if (this.toggleEltDisplay(aboutElt)) {
+      aboutElt.innerHTML = ABOUT;
+    }
   }
 
 
   toggleShowKeys() {
     const keysElt = elt('keys-id');
-    if (keysElt.style.display == 'block') {
-      keysElt.style.display = 'none';
-    } else {
-      this.keys.appendHelp(keysElt);
-      keysElt.style.display = 'block';
+    if (this.toggleEltDisplay(keysElt)) {
+      if (!keysElt.domDone) {
+        keysElt.appendChild(this.keys.toHtml());
+        keysElt.domDone = true;
+      }
     }
   }
+
+
+  hideHelpOnEscape() {
+    const keysElt = elt('keys-id');
+    keysElt.style.display = 'none';
+  }
 }
+
+
+const ABOUT = `<h1>About</h1>
+Celestiary is a cosmological simulator.
+
+<h2>News</h2>
+<ul>
+  <li>2021 Jan 25 - Works in Safari 13.1.2+ on OSX, maybe earlier.
+  Now all major browsers tested except IE.
+</ul>
+<h2>Features</h2>
+<ul>
+  <li>Keplerian orbits (6 orbital elements)
+  <li>Time controls, to alter rate and direction of time
+  <li>Star colors based on surface temperatures
+  <li>Star surface dynamics simulation (Perlin noise in black-body spectra)
+  <li>9 planets, 20 moons
+  <li>Permanent links for scene locations
+  <li>Even kinda works on mobile! :)
+</ul>
+<h2>Datasets</h2>
+<ul>
+  <li>~100,000 stars
+  <li>~3k star names
+  <li>~80 Asterisms/constellations
+</ul>
+<h2>Learn more</h2>
+<ul>
+  <li><a href="howto/index.html" target="_blank">Software development guide</a>
+  <li><a href="https://github.com/pablo-mayrgundter/celestiary" target="_blank">Source code (GitHub)</a>
+</ul>`;

@@ -48,6 +48,31 @@ button:hover {
   visibility: visible;
 }
 
+
+.dialog {
+  display: none;
+}
+
+
+.dialog a {
+  color: lightblue;
+}
+
+
+.dialog h1 {
+  width: 100%;
+  text-align: center;
+  border-bottom: solid 1px white;
+}
+
+
+.dialog span {
+  display: inline-block;
+  width: 4em;
+  font-weight: bold;
+}
+
+
 #scene-id, #ui {
   color: white;
 }
@@ -91,8 +116,8 @@ button:hover {
   text-align: right;
 }
 
-#keys-id {
-  display: none;
+
+.dialog {
   position: fixed;
   top: 1em;
   width: 60%;
@@ -104,23 +129,19 @@ button:hover {
   z-index: 2;
 }
 
-#keys-id h1 {
-  width: 100%;
-  text-align: center;
-  border-bottom: solid 1px white;
+
+#about-id {
+  display: none;
 }
+
 
 #keys-id ul {
   columns: 2;
   list-style-type: none;
 }
 
+
 #keys-id li {
   padding: 3px;
 }
 
-#keys-id span {
-  display: inline-block;
-  width: 4em;
-  font-weight: bold;
-}

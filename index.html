@@ -25,22 +25,17 @@
         <button onclick="c.time.changeTimeScale(0)">=</button>
         <button onclick="c.time.invertTimeScale()">/</button>
       </div>
-      <div class="link" onclick="c.toggleShowKeys(); return false;">help/?</div>
+      <div class="link" onclick="c.toggleShowKeys(); return false;">Help/?</div>
+      <div class="link" onclick="c.toggleAbout(); return false;">About</div>
     </div>
-    <div id="keys-id">
-      <div id="links-id">
-        <h1>About</h1>
-        <a href="https://github.com/pablo-mayrgundter/celestiary" target="_blank">source</a> |
-        <a href="howto/index.html" target="_blank">howto</a>
-      </div>
-      <h1>Keyboard Shortcuts</h1>
-    </div>
+    <div id="about-id" class="dialog"></div>
+    <div id="keys-id" class="dialog"></div>
     <!--
       -- Set src to js/index.js for live editing, or js/bundle.js for efficient serving.
       -- Regenerate bundle with:
       --
       --   npx rollup index.js --file bundle.js
       -->
-    <script type="module" src="js/bundle.js"></script>
+    <script type="module" src="js/index.js"></script>
   </body>
 </html>
