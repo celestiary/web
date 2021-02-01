@@ -2,13 +2,12 @@ import * as THREE from './lib/three.js/three.module.js';
 
 import GalaxyBufferGeometry from './GalaxyBufferGeometry.js';
 import {pathTexture} from './material.js';
+import * as Gravity from './gravity.js';
 
 
 const Tau = 2.0 * Math.PI;
 const armDensityRatio = 0.4;
-const G = 1e-8;
 const colorTemp = 0.5;
-const minDistnce = 0.1;
 
 export default class Galaxy extends THREE.Points {
   // numStars, ms
@@ -92,7 +91,7 @@ export default class Galaxy extends THREE.Points {
     // Set the orbital speed the the magnitude from this equation:
     //   https://en.wikipedia.org/wiki/Orbital_speed#Mean_orbital_speed
     // and normal (tangent, along the orbit) to the gravity vector (inward).
-    this.computeAccels(coords, masses, velocities, this.newAccels);
+    Gravity.computeAccels(coords, masses, velocities, this.newAccels);
     for (let i = 0; i < numStars; i++) {
       const off = 3 * i, xi = off, yi = off + 1, zi = off + 2;
       const x = coords[xi], z = coords[zi];
@@ -109,7 +108,7 @@ export default class Galaxy extends THREE.Points {
         velocities[xi] = F * z;
         velocities[zi] = F * -x;
       } else if (true) {
-        const mu = G * M0;
+        const mu = Gravity.G * M0;
         const F = R == 0 ? 0 : Math.sqrt(mu * R) / R;
         velocities[xi] = F * z;
         velocities[zi] = F * -x;
@@ -121,45 +120,6 @@ export default class Galaxy extends THREE.Points {
       //console.log(`${xi} ${zi} ${R} ${F}`);
     }
     //console.log('first coords, velocities:', coords, velocities);
-  }
-
-
-  computeAccels(coords, masses, velocities, newAccels) {
-    for (let i = 0; i < coords.length; i += 3) {
-      const xi = i, yi = i + 1, zi = i + 2;
-      const aX = coords[xi];
-      const aY = coords[yi];
-      const aZ = coords[zi];
-      const aM = masses[i / 3];
-      let fX = 0, fY = 0, fZ = 0;
-      for (let j = coords.length - 3; j > i ; j -= 3) {
-        const xj = j, yj = j + 1, zj = j + 2;
-        const bX = coords[xj];
-        const bY = coords[yj];
-        const bZ = coords[zj];
-        const bM = masses[j / 3];
-
-        const dX = bX - aX;
-        const dY = bY - aY;
-        const dZ = bZ - aZ;
-        const d = Math.sqrt(dX*dX + dY*dY + dZ*dZ) + minDistnce;
-        const g = G / (d * d * d);
-        const bMG = bM * g;
-        const aMG = aM * g;
-        fX += bMG * dX;
-        fY += bMG * dY;
-        fZ += bMG * dZ;
-        newAccels[xj] += aMG * -dX;
-        newAccels[yj] += aMG * -dY;
-        newAccels[zj] += aMG * -dZ;
-        //if (false) {
-        //  console.log(`d(${d}) g(${g}) dX(${dX}) dY(${dY}) dZ(${dZ})`);
-        //}
-      }
-      newAccels[xi] += fX;
-      newAccels[yi] += fY;
-      newAccels[zi] += fZ;
-    }
   }
 
 
@@ -179,7 +139,7 @@ export default class Galaxy extends THREE.Points {
     const masses = this.geometry.attributes.mass.array;
     const velocities = this.geometry.attributes.velocity.array;
     const newAccels = this.newAccels;
-    this.computeAccels(coords, masses, velocities, newAccels);
+    Gravity.computeAccels(coords, masses, velocities, newAccels);
     this.move(coords, velocities, newAccels);
     //console.log('newAccels:', newAccels);
     if (this.first) {

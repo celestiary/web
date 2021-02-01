@@ -39,7 +39,7 @@ Gravity particle system.  Work in progress.
     labels.visible = false;
     ui.scene.add(labels);
   }
-  ui.fs.makeFullscreen();
+  //ui.fs.makeFullscreen();
 
   const stats = new Stats();
   stats.showPanel(1);
@@ -74,7 +74,7 @@ Gravity particle system.  Work in progress.
   if (labels) {
       keys.map('l', () => { labels.visible = !labels.visible; }, 'Toggle label display');
   }
-  keys.appendHelp(document.body);
+  document.body.appendChild(keys.toHtml());
 </script>
 </body>
 </html>
