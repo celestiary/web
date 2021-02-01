@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>A Saturn-Earth Orbital System</h1>
+
+If the Earth orbited Saturn at the same distance that the Moon orbits
+Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
+
+
+<script type="module">
+  // First import from third-party libraries.  This syntax picks only
+  // the named items, AmbientLight and PointLight, from the many
+  // exported from three.module.js.
+  import {AmbientLight, AxesHelper, Object3D, PointLight} from './js/lib/three.js/three.module.js';
+
+  // Next, import classes from this project.
+  import ThreeUi from './js/three_ui.js';
+  import Fullscreen from './js/fullscreen.js';
+  import Loader from './js/loader.js';
+  import Reify from './js/reify.js';
+  import Planet from './js/Planet.js';
+
+  // Lastly, you can also grab all items defined in a module and put
+  // them under a local name like 'Shapes'.
+  import * as Shapes from './js/shapes.js';
+  import {planetHelper} from './js/scene_utils.js';
+  import {LENGTH_SCALE} from './js/shared.js';
+
+
+  // Bind the ThreeUi to the "ui" HTML page element.
+  const ui = new ThreeUi('ui');
+
+  // Pull the camera back from center 10 units along the z-axis
+  // (towards the viewer).
+  ui.camera.position.set(0, 0, 50);
+
+  // Create a light and move away 10 units from the center along
+  // each axis to give // interesting lighting.
+  const light = new AmbientLight();
+  ui.scene.add(light);
+  ui.scene.add(new AxesHelper());
+
+  let saturn, earth, moon;
+  const nO = (name) => {
+    const o = new Object3D;
+    o.name = name;
+    return o;
+  }
+  const sceneGroups = {
+    newObject: nO,
+    newGroup: nO,
+    orbitShapes: []
+  };
+  let scaledSemiMajorAxis;
+  const sceneLoadCb = (name, planet) => {
+    if (name == 'moon') {
+      const semiMajorAxis = planet.props.orbit.semiMajorAxis.scalar;
+      scaledSemiMajorAxis = semiMajorAxis * LENGTH_SCALE;
+      return;
+    }
+    if (name == 'earth') {
+      planet.position.x = 0.5 * scaledSemiMajorAxis;
+    } else { // saturn
+      planet.position.x = -0.5 * scaledSemiMajorAxis;
+    }
+    ui.scene.add(planet);
+  };
+  const onLoadCb = (name, props) => {};
+  const onDoneCb = (name, props) => {
+    Reify(props);
+    sceneLoadCb(name, new Planet(sceneGroups, props));
+  };
+  const loader = new Loader();
+  loader.loadPath('moon', onLoadCb, onDoneCb);
+  loader.loadPath('saturn', onLoadCb, onDoneCb);
+  loader.loadPath('earth', onLoadCb, onDoneCb);
+  ui.animationCb = () => {
+    //planet.rotation.y += 0.001;
+  };
+</script>
+</body>
+</html>
