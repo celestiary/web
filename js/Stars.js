@@ -18,9 +18,10 @@ const MAX_LABELS = 10000;
 
 
 export default class Stars extends Object {
-  constructor(props, catalogOrCb, showLabels = false) {
+  constructor(props, catalogOrCb, showLabels = false, pointsLoadedCb) {
     super('Stars', props);
     this.labelsGroup = named(new THREE.Group, 'LabelsGroup');
+    this.pointsLoadedCb = pointsLoadedCb;
     this.labelCenterPosByName = {};
     this.labelLOD = named(new THREE.LOD, 'LabelsLOD');
     this.labelLOD.visible = showLabels;
@@ -73,6 +74,9 @@ export default class Stars extends Object {
         starPoints.sortParticles = true;
         this.add(starPoints);
         window.sp = starPoints;
+        if (this.pointsLoadedCb) {
+          this.pointsLoadedCb();
+        }
       });
       //const starsMaterial = new THREE.PointsMaterial( { size: 10, vertexColors: true, sizeAttenuation: false } );
       //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');

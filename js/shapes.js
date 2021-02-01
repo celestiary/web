@@ -436,7 +436,7 @@ function rings(name = 'saturn') {
   const v3 = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++){
     v3.fromBufferAttribute(pos, i);
-    geometry.attributes.uv.setXY(i, v3.length() < 4 ? 0 : 1, 1);
+    geometry.attributes.uv.setXY(i, v3.length() < 4 ? 1 : 0, 1);
   }
   const rings = new THREE.Mesh(geometry, material);
   // TODO: shadows

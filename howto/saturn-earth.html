@@ -39,11 +39,14 @@ Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
   // Pull the camera back from center 10 units along the z-axis
   // (towards the viewer).
   ui.camera.position.set(0, 0, 50);
+  // Position closest to photo's perspective, but atmosphere doesn't look right.
+  ui.camera.position.setLength(29.12);
+  ui.camera.position.setY(0.63351);
+  document.cam = ui.camera;
 
   // Create a light and move away 10 units from the center along
   // each axis to give // interesting lighting.
-  const light = new AmbientLight();
-  ui.scene.add(light);
+  ui.scene.add(new AmbientLight(0x111111));
   ui.scene.add(new AxesHelper());
   const stars = new Stars({
     radius: {
@@ -51,8 +54,17 @@ Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
       scalar: 6.9424895E8
     },
     }, () => {
-      ui.scene.add(stars);
-      //stars.showLabels(2);
+        document.stars = stars;
+        ui.scene.add(stars);
+    }, false, () => {
+        // Move sun to proper distance from Saturn.
+        const saturnSemiMajorAxis = 1.43353E12 * LENGTH_SCALE;
+        const starPositions = stars.children[1].geometry.attributes.position;
+        starPositions.array[0] = -saturnSemiMajorAxis;
+        starPositions.array[2] = -saturnSemiMajorAxis;
+        const sunlight = new PointLight();
+        sunlight.position.set(-saturnSemiMajorAxis, 0, -saturnSemiMajorAxis);
+        ui.scene.add(sunlight);
     });
 
   let saturn, earth, moon;
@@ -93,9 +105,7 @@ Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
   loader.loadPath('moon', onLoadCb, onDoneCb);
   loader.loadPath('saturn', onLoadCb, onDoneCb);
   loader.loadPath('earth', onLoadCb, onDoneCb);
-  ui.animationCb = () => {
-      ui.camera.updateProjectionMatrix();
-  };
+  ui.animationCb = () => {};
 </script>
 </body>
 </html>
