@@ -1,8 +1,8 @@
 {
 "type":"planet",
 
-"name":"saturn",
-"parent":"sun",
+"name":"saturn-with-earth-moon",
+"parent":"sun-saturn-with-earth-moon",
 "apparentMagnitude": "-8.88",
 "colorIndex": 0.63369966,
 "mass": "5.6846E29 g",
