@@ -13,9 +13,11 @@ Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
 <img src="saturn-earth-fb-photo.jpg" width="400">
 
 <script type="module">
-  // First import from third-party libraries.  This syntax picks only
-  // the named items, AmbientLight and PointLight, from the many
-  // exported from three.module.js.
+  // First import from third-party libraries.
+  import Fullscreen from './js/lib/fullscreen.js/fullscreen.js';
+
+  // This syntax picks only the named items, AmbientLight and
+  // PointLight, from the many exported from three.module.js.
   import {AmbientLight, AxesHelper, Object3D, PointLight} from './js/lib/three.js/three.module.js';
 
   // Next, import classes from this project.

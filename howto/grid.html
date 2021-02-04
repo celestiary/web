@@ -7,13 +7,11 @@
 Try zooming out and rotating.
 
 <script type="module">
+  import Fullscreen from './js/lib/fullscreen.js/fullscreen.js';
   import {AmbientLight, PointLight} from './js/lib/three.js/three.module.js';
 
   import ThreeUi from './js/three_ui.js';
-  import Fullscreen from './js/fullscreen.js';
-
   import * as Shapes from './js/shapes.js';
-
 
   const ui = new ThreeUi('ui');
   ui.camera.position.z = 10;

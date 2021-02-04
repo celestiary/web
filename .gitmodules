@@ -13,3 +13,6 @@
 [submodule "js/lib/stats.js"]
 	path = js/lib/stats.js
 	url = https://github.com/mrdoob/stats.js
+[submodule "js/lib/fullscreen.js"]
+	path = js/lib/fullscreen.js
+	url = https://github.com/pablo-mayrgundter/fullscreen.js

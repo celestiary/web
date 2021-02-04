@@ -1,7 +1,7 @@
 import TrackballControls from './lib/three.js/TrackballControls.js';
 import * as THREE from './lib/three.js/three.module.js';
 
-import Fullscreen from './fullscreen.js';
+import Fullscreen from './lib/fullscreen.js/fullscreen.js';
 import * as Shared from './shared.js';
 import {named} from './utils.js';
 
