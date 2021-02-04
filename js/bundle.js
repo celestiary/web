@@ -53633,7 +53633,7 @@ function rings(name = 'saturn') {
   const v3 = new Vector3$1();
   for (let i = 0; i < pos.count; i++){
     v3.fromBufferAttribute(pos, i);
-    geometry.attributes.uv.setXY(i, v3.length() < 4 ? 0 : 1, 1);
+    geometry.attributes.uv.setXY(i, v3.length() < 4 ? 1 : 0, 1);
   }
   const rings = new Mesh(geometry, material);
   // TODO: shadows
@@ -54323,9 +54323,10 @@ const MAX_LABELS = 10000;
 
 
 class Stars extends Object$1 {
-  constructor(props, catalogOrCb, showLabels = false) {
+  constructor(props, catalogOrCb, showLabels = false, pointsLoadedCb) {
     super('Stars', props);
     this.labelsGroup = named(new Group, 'LabelsGroup');
+    this.pointsLoadedCb = pointsLoadedCb;
     this.labelCenterPosByName = {};
     this.labelLOD = named(new LOD, 'LabelsLOD');
     this.labelLOD.visible = showLabels;
@@ -54378,6 +54379,9 @@ class Stars extends Object$1 {
         starPoints.sortParticles = true;
         this.add(starPoints);
         window.sp = starPoints;
+        if (this.pointsLoadedCb) {
+          this.pointsLoadedCb();
+        }
       });
       //const starsMaterial = new THREE.PointsMaterial( { size: 10, vertexColors: true, sizeAttenuation: false } );
       //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
@@ -55346,32 +55350,23 @@ class Fullscreen {
     this.container = container;
     // Fullscreen button, with dash border icon inset.
     this.elt = document.createElement('div');
+    this.elt.setAttribute('class', 'fullscreen-control');
     this.dash = document.createElement('div');
+    this.dash.setAttribute('class', 'fullscreen-dash');
     this.elt.appendChild(this.dash);
     this.container.appendChild(this.elt);
     this.cb = cb;
-    this.canvas = this.container.querySelector('canvas');
+    this.content = container;
     this.origPosition = this.container.style.position;
     this.origWidth = this.container.offsetWidth;
     this.origHeight = this.container.offsetHeight;
     this.origMargin = this.container.style.margin;
     this.fs = (this.origWidth == window.innerWidth
                && this.origHeight == window.innerHeight);
-    this.elt.style.position = 'absolute';
-    this.elt.style.bottom = '5px';
-    this.elt.style.right = '5px';
-    this.elt.style.width = '50px';
-    this.elt.style.height = '40px';
-    this.elt.style.zIndex = '1';
     if (this.fs) {
       this.dash.display = 'none';
       return;
     }
-    this.dash.style.width = '30px';
-    this.dash.style.height = '20px';
-    this.dash.style.border = 'dashed 5px white';
-    this.dash.style.margin = '6px 4px';
-    this.dash.style.opacity = '0.3';
     this.elt.onclick = () => {
       this.toggle();
     };
@@ -55397,9 +55392,7 @@ class Fullscreen {
       this.container.style.margin = this.origMargin;
       this.container.style.width = this.origWidth + 'px';
       this.container.style.height = this.origHeight + 'px';
-      this.canvas.style.width = this.origWidth + 'px';
-      this.canvas.style.height = this.origHeight + 'px';
-      this.dash.style.opacity = '0.3';
+      this.dash.setAttribute('class', 'fullscreen-dash');
       this.fs = false;
       if (this.cb) {
         this.cb();
@@ -55409,9 +55402,7 @@ class Fullscreen {
       this.container.style.margin = '0';
       this.container.style.width = window.innerWidth + 'px';
       this.container.style.height = window.innerHeight + 'px';
-      this.canvas.style.width = window.innerWidth + 'px';
-      this.canvas.style.height = window.innerHeight + 'px';
-      this.dash.style.opacity = '0.1';
+      this.dash.setAttribute('class', 'fullscreen-dash-zoomed');
       this.fs = true;
       if (this.cb) {
         this.cb();
@@ -55757,7 +55748,11 @@ class Celestiary {
       // schedule this after the next pass.
       setTimeout(() => {
           const parts = path.split('/');
-          this.scene.targetNamed(parts[parts.length - 1]);
+          let targetName = parts[parts.length - 1];
+          if (targetName.indexOf('-') >= 0) {
+            targetName = targetName.split('-')[0];
+          }
+          this.scene.targetNamed(targetName);
           this.scene.goTo();
           this.setTitle(parts);
         }, 0);

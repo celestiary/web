@@ -65,7 +65,11 @@ export default class Celestiary {
       // schedule this after the next pass.
       setTimeout(() => {
           const parts = path.split('/');
-          this.scene.targetNamed(parts[parts.length - 1]);
+          let targetName = parts[parts.length - 1];
+          if (targetName.indexOf('-') >= 0) {
+            targetName = targetName.split('-')[0];
+          }
+          this.scene.targetNamed(targetName);
           this.scene.goTo();
           this.setTitle(parts);
         }, 0);
