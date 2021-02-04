@@ -1,8 +1,8 @@
 {
 "type":"planet",
 
-"name":"saturn-with-earth-moon",
-"parent":"sun-saturn-with-earth-moon",
+"name":"saturn",
+"parent":"sun",
 "apparentMagnitude": "-8.88",
 "colorIndex": 0.63369966,
 "mass": "5.6846E29 g",
@@ -34,5 +34,5 @@
 "siderealOrbitPeriod": 9.28656296928E8
 }
 ,
-"system": ["earth-as-moon","titan-w-earth"]
+"system": ["earth-as-moon","titan","rhea","dione","tethys","iapetus","hyperion","janus"]
 }
