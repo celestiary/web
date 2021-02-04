@@ -24,7 +24,7 @@ Celestia datasets:
 - ~3k star names
 - ~80 Asterisms/constellations
 
-See open issues page for upcoming features: https://github.com/pablo-mayrgundter/celestiary/issues 
+See [open issues](https://github.com/pablo-mayrgundter/celestiary/issues) page for upcoming features. 
 
 ## Get
 This project uses submodules, so make sure to get them when cloning:
