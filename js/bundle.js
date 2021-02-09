@@ -52017,6 +52017,9 @@ class ControlPanel {
           case 'radius': val = val.convertTo(Magnitude.KILO); break;
           case 'mass': val = val.convertTo(Magnitude.KILO); break;
           case 'semiMajorAxis':
+            // TODO
+            if (typeof val.scalar == 'string')
+              val.scalar = parseFloat(val.scalar);
             val.scalar = val.scalar.toExponential(4);
             val = val.toString();
             break;
