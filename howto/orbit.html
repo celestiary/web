@@ -2,29 +2,38 @@
 <html>
 <head><link rel="stylesheet" href="index.css"/></head>
 <body>
-<div id="ui"></div>
-<h1>Orbit</h1>
-An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
-  https://en.wikipedia.org/wiki/Orbital_elements</a>
-<image style="width: 400px" src="images/Orbit1.png"
-       alt="By Lasunncty at the English Wikipedia, CC BY-SA 3.0, https://commons.wikimedia.org/w/index.php?curid=8971052"/>
-
-<table style="width: 600px"><tr><td style="width: 20%; vertical-align: top"><tr><td>
-  <table id="faves"></table>
-</td><td style="width: 80%">
-  <form name="elts"><table id="propsTable"></table></form>
-</td></tr></table>
-<em style="font-size: small">(or change hash to <a href="#test">#test</a> and reload)</em>
+  <div id="ui"></div>
+  <h1>Orbit</h1>
+  An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
+    https://en.wikipedia.org/wiki/Orbital_elements</a>
+  <image style="width: 400px" src="images/Orbit1.png"
+         alt="By Lasunncty at the English Wikipedia, CC BY-SA 3.0, https://commons.wikimedia.org/w/index.php?curid=8971052"/>
+  <table style="width: 600px">
+    <tr>
+      <td style="width: 20%; vertical-align: top">
+        <tr>
+          <td>
+            <table id="faves"></table>
+          </td>
+          <td style="width: 80%">
+            <form name="elts">
+              <table id="propsTable"></table>
+            </form>
+          </td>
+        </tr>
+      </td>
+    </tr>
+  </table>
+  <em style="font-size: small">(<a href="#test">emulate image above</a> and refresh)</em>
 <script type="module">
-  import Fullscreen from './js/lib/fullscreen.js/fullscreen.js';
   import * as THREE from './js/lib/three.js/three.module.js';
-
   import Label from './js/label.js';
   import Orbit from './js/Orbit.js';
   import ThreeUi from './js/three_ui.js';
   import {angle, arrow, grid, line, solidEllipse} from './js/shapes.js';
   import {addAndOrient, planetHelper} from './js/scene_utils.js';
   import {visitFilterProperty} from './js/utils.js';
+  import {twoPi, LENGTH_SCALE} from './js/shared.js';
 
   const ui = new ThreeUi('ui');
   ui.camera.position.set(1, 1, 3);
@@ -70,12 +79,9 @@ An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
   }
 
 
-  let orbit;
+  let curOrbit, curPlanet;
   function show(orbitProps) {
-    if (orbit) {
-      ui.scene.remove(orbit);
-    }
-    orbit = new Orbit(orbitProps);
+    const orbit = new Orbit(orbitProps);
     visitFilterProperty(orbit, 'name', 'referencePlane', o => {
         const opts = {
           text: 'Ω Longitude of ascending node',
@@ -101,8 +107,16 @@ An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
         an.rotation.z = orbit.propsReified.loan;
         o.add(an);
       });
-    ui.scene.add(orbit);
+    if (curOrbit) {
+      ui.scene.remove(curOrbit);
+    }
+    curOrbit = orbit
+    ui.scene.add(curOrbit);
+    if (curPlanet) {
+      curOrbit.addOrbiter(curPlanet);
+    }
   }
+
 
   if (location.hash == '#test') {
     // Similar to graphic at https://en.wikipedia.org/wiki/Orbital_elements
@@ -113,7 +127,7 @@ An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
       longitudeOfAscendingNode: 300,
       longitudeOfPericenter: 110,
       meanLongitude: 0,
-      semiMajorAxis: 1,
+      semiMajorAxis: {scalar: 1},
     }
     setupProps(testOrbit);
     show(testOrbit);
@@ -122,9 +136,50 @@ An example orbit.  <a href="https://en.wikipedia.org/wiki/Orbital_elements">
     planetHelper(p => {
       setupProps(p.props.orbit);
       show(p.props.orbit);
-      document.orbit = orbit;
+      curPlanet = p;
+      curPlanet.orbit = curOrbit;
+      curPlanet.scale.setScalar(0.1);
+      curOrbit.addOrbiter(curPlanet);
+      console.log('planet setup done', curPlanet);
     });
   }
+
+
+  const anim = () => {
+    //console.log('animating...');
+    const simTimeSecs = Date.now() * 1000;
+    //console.log('animating...', simTimeSecs);
+    if (curPlanet == undefined) {
+      console.log('no system defined...');
+      return;
+    }
+    if (curPlanet.siderealRotationPeriod) {
+      console.log('has rotation!');
+      console.log(curPlanet.siderealRotationPeriod);
+      // http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
+      const angle = 1.5 * Math.PI + simTimeSecs / 86400 * twoPi;
+      curPlanet.setRotationFromAxisAngle(this.Y_AXIS, angle);
+    }
+
+    // This is referred to by a comment in scene.js#addOrbitingPlanet.
+    if (curPlanet.orbit) {
+      const orbit = curPlanet.orbit.props;
+      //console.log('has orbit!', orbit);
+      // TODO: orig code read this as semiMajorAxis.scalar
+      const aRadius = 1;//orbit.semiMajorAxis * LENGTH_SCALE;
+      const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(orbit.eccentricity, 2.0));
+      const angle = 1.0 * simTimeSecs / orbit.siderealOrbitPeriod.scalar * twoPi;
+      const x = aRadius * Math.cos(angle);
+      const y = bRadius * Math.sin(angle);
+      const z = 0;
+      //console.log(`x:${x} y:${y} z:${z}`
+      //            + `e:${orbit.eccentricity} a:${aRadius} b:${bRadius}`
+      //            + `t:${simTimeSecs} p:${orbit.siderealOrbitPeriod}`);
+      curPlanet.position.set(x, y, z);
+    }
+  }
+  //document.anim = anim;
+  ui.animationCb = anim;
 </script>
 </body>
 </html>

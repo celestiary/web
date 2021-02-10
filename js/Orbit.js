@@ -43,6 +43,12 @@ export default class Orbit extends Object3D {
     let anomaly;
     orbitalPlane.add(anomaly = Shapes.angle(meanAnomaly, null, null, true));
     */
+    this.orbiterCenter = periPlane;
+  }
+
+
+  addOrbiter(obj) {
+    this.orbiterCenter.add(obj);
   }
 }
 
