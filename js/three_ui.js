@@ -1,4 +1,5 @@
 import TrackballControls from './lib/three.js/TrackballControls.js';
+import {VRButton} from './lib/three.js/VRButton.js';
 import * as THREE from './lib/three.js/three.module.js';
 
 import Fullscreen from './lib/fullscreen.js/fullscreen.js';
@@ -41,6 +42,9 @@ export default class ThreeUi {
     this.mouse = new THREE.Vector2;
     this.clicked = false;
 
+    document.body.appendChild(VRButton.createButton(this.renderer));
+    this.renderer.xr.enabled = true;
+
     document.addEventListener('mousedown', event => {
         const eX = event.clientX;
         const eY = event.clientY;
@@ -65,7 +69,12 @@ export default class ThreeUi {
           event.preventDefault();
         }
       }, true);
-    this.renderLoop();
+
+    //this.renderLoop();
+    this.renderer.setAnimationLoop(() => {
+        this.renderLoop();
+      });
+
   }
 
 
@@ -165,8 +174,8 @@ export default class ThreeUi {
       this.animationCb(this.scene, this);
     }
     this.renderer.render(this.scene, this.camera);
-    requestAnimationFrame(() => {
-        this.renderLoop();
-      });
+    //requestAnimationFrame(() => {
+    //    this.renderLoop();
+    //  });
   }
 }
