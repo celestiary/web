@@ -1,5 +1,7 @@
 import TrackballControls from './lib/three.js/TrackballControls.js';
 import {VRButton} from './lib/three.js/VRButton.js';
+import {XRControllerModelFactory} from './lib/three.js/XRControllerModelFactory.js';
+
 import * as THREE from './lib/three.js/three.module.js';
 
 import Fullscreen from './lib/fullscreen.js/fullscreen.js';
@@ -44,6 +46,31 @@ export default class ThreeUi {
 
     document.body.appendChild(VRButton.createButton(this.renderer));
     this.renderer.xr.enabled = true;
+
+    function onSelectStart() {
+      this.userData.isSelecting = true;
+    }
+
+    function onSelectEnd() {
+      this.userData.isSelecting = false;
+    }
+
+    const controller = this.renderer.xr.getController(0);
+    controller.addEventListener('selectstart', onSelectStart);
+    controller.addEventListener('selectend', onSelectEnd);
+    controller.addEventListener('connected', (event) => {
+        this.add(buildController(event.data));
+      });
+    controller.addEventListener( 'disconnected', function () {
+        this.remove( this.children[ 0 ] );
+      });
+    this.scene.add( controller );
+
+    const controllerModelFactory = new XRControllerModelFactory();
+
+    const controllerGrip = this.renderer.xr.getControllerGrip( 0 );
+    controllerGrip.add( controllerModelFactory.createControllerModel( controllerGrip ) );
+    this.scene.add( controllerGrip );
 
     document.addEventListener('mousedown', event => {
         const eX = event.clientX;
