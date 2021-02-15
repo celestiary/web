@@ -6,7 +6,7 @@ A celestial simulator inspired by Celestia
 
 A running instance of Celestiary is available at:
 
-https://pablo-mayrgundter.github.io/celestiary/
+https://celestiary.github.io/
 
 
 ## Features
@@ -24,12 +24,12 @@ Celestia datasets:
 - ~3k star names
 - ~80 Asterisms/constellations
 
-See [open issues](https://github.com/pablo-mayrgundter/celestiary/issues) page for upcoming features. 
+See [open issues](https://github.com/celestiary/celestiary/issues) page for upcoming features. 
 
 ## Get
 This project uses submodules, so make sure to get them when cloning:
 ```
-> git clone --depth=1 --recurse-submodules https://github.com/pablo-mayrgundter/celestiary
+> git clone --depth=1 --recurse-submodules https://github.com/celestiary/celestiary
 ```
 This will download about 60MB, with the current directory being ~20MB, mostly in textures/.  I'll probably filter most of the older versions in git soon.
 
