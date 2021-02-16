@@ -44,7 +44,7 @@ export default class ThreeUi {
     this.mouse = new THREE.Vector2;
     this.clicked = false;
 
-    document.body.appendChild(VRButton.createButton(this.renderer));
+    this.container.appendChild(VRButton.createButton(this.renderer));
     this.renderer.xr.enabled = true;
 
     function onSelectStart() {
