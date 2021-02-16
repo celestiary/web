@@ -13,85 +13,49 @@ at <a href="http://proland.inrialpes.fr/skies.html">Proland</a>
 learning about webgl programming
 at <a href="https://github.com/ebruneton/precomputed_atmospheric_scattering">WegGL
 Fundamentals</a>.
-<table id="faves">
-<tr><th>Name</th></tr>
-</table>
+
 <script type="module">
   import * as THREE from './js/lib/three.js/three.module.js';
+  import TrackballControls from './js/lib/three.js/TrackballControls.js';
   import Atmosphere from './atmos/atmosphere.js';
   import Loader from './js/loader.js';
   import Planet from './js/Planet.js';
   import Reify from './js/reify.js';
-  import ThreeUi from './js/three_ui.js';
+  import * as Shared from './js/shared.js';
 
-  const ui = new ThreeUi('ui');
-  ui.camera.position.z = 1e1;
+  const container = document.getElementById('ui');
+  const renderer = new THREE.WebGLRenderer({antialias: true});
+  //renderer.autoClear = false;
+  if (!renderer.capabilities.isWebGL2) {
+    console.error('Need WebGL2 for good atmosphere');
+  }
+  console.log('Renderer capabilities:',  renderer.capabilities);
+  renderer.setClearColor(0x00aaff, 1);
+  renderer.setSize(600, 600);
+  container.appendChild(renderer.domElement);
+
+  const camera = new THREE.PerspectiveCamera(Shared.INITIAL_FOV, 1, 1E-3, 1E35);
+  camera.position.z = 10;
+  const controls = new TrackballControls(camera, container);
+  controls.target = camera.position;
+
+  const scene = new THREE.Scene;
   const light = new THREE.DirectionalLight();
   const dist = 1e7;
   light.position.set(dist, 0, dist);
-  //ui.scene.add(light);
-  ui.camera.add(light);
+  camera.add(light);
 
-  const nO = (name) => {
-    const o = new THREE.Object3D;
-    o.name = name;
-    return o;
-  }
+  scene.add(new THREE.AxesHelper(1.1));
 
-  const scene = {
-    newObject: nO,
-    newGroup: nO,
-    orbitShapes: []
+  const atmos = new Atmosphere(container, 'canvas', renderer.getContext());
+  window.atmos = atmos;
+  const onRender = () => {
+    atmos.onRender();
+    //renderer.render(scene, camera);
+    requestAnimationFrame(onRender);
   };
-
-  const planetNames = ['Mercury','Venus','Earth','Mars','Jupiter','Saturn','Uranus','Neptune','Pluto'];
-  const favesTable = document.getElementById('faves');
-  planetNames.map(planetName => {
-      favesTable.innerHTML +=
-          `<tr>
-            <td><a href="#${planetName.toLowerCase()}">${planetName}</a></td>
-          </tr>`;
-    });
-
-
-  let planet;
-  let atmos = null;
-  let count = 0;
-
-  const onLoadCb = (name, props) => {};
-  const onDoneCb = (name, props) => {
-    Reify(props);
-    console.log('props', props);
-    if (planet) {
-      ui.scene.remove(planet);
-    }
-    if (!ui.renderer.capabilities.isWebGL2) {
-      console.error('Need WebGL2 for good atmosphere');
-      return;
-    }
-    console.log('Adding WebGL2 atmosphere...');
-    atmos = new Atmosphere(ui.container, 'canvas', ui.width, ui.height);
-    atmos.init();
-    atmos.maybeLinkProgram();
-    //planet = new Planet(scene, props, false)
-    //ui.scene.add(planet);
-    //ui.scene.add(new THREE.AxesHelper(1.1));
-    ui.animationCb = () => {
-      //planet.rotation.y += 0.001;
-      if (atmos && count < 10) {
-        atmos.onRender();
-        count++;
-      }
-    };
-  };
-
-  const loader = new Loader();
-  const handleHash = () => {
-    let hash = location.hash.substr(1) || 'earth';
-    loader.loadPath(hash, onLoadCb, onDoneCb);
-  }
-  window.addEventListener('hashchange', handleHash);
-  handleHash();
+  window.onRender = onRender;
+  requestAnimationFrame(onRender);
 </script>
 </body>
 </html>

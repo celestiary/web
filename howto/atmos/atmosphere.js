@@ -60,15 +60,22 @@ const kLengthUnitInMeters = 1000;
  * the render loop:
  */
 export default class Atmosphere {
-  constructor(rootElement, canvasId = '#glcanvas') {
+  constructor(rootElement, canvasId = '#glcanvas', glCtx) {
     this.canvas = rootElement.querySelector(canvasId);
     console.log(this.canvas);
-    this.canvas.style.width = `${rootElement.clientWidth}px`;
-    this.canvas.style.height = `${rootElement.clientHeight}px`;
+    //this.canvas.style.width = `${rootElement.clientWidth}px`;
+    //nthis.canvas.style.height = `${rootElement.clientHeight}px`;
     this.canvas.width = rootElement.clientWidth * window.devicePixelRatio;
     this.canvas.height = rootElement.clientHeight * window.devicePixelRatio;
     this.help = rootElement.querySelector('#help');
-    this.gl = this.canvas.getContext('webgl2');
+    if (glCtx) {
+      console.log('using provided webgl context: ', glCtx);
+    } else {
+      glCtx = this.canvas.getContext('webgl2');
+      console.log('getting webgl context from canvas: ', glCtx);
+    }
+    this.gl = glCtx;
+    console.log(this.canvas.width, this.canvas.height, this.gl);
 
     this.vertexBuffer = null;
     this.transmittanceTexture = null;
@@ -115,13 +122,14 @@ export default class Atmosphere {
     this.drag = undefined;
     this.previousMouseX = undefined;
     this.previousMouseY = undefined;
-    /*
+
     rootElement.addEventListener('keypress', (e) => this.onKeyPress(e));
     rootElement.addEventListener('mousedown', (e) => this.onMouseDown(e));
     rootElement.addEventListener('mousemove', (e) => this.onMouseMove(e));
     rootElement.addEventListener('mouseup', (e) => this.onMouseUp(e));
     rootElement.addEventListener('wheel', (e) => this.onMouseWheel(e));
-    */
+    this.init();
+    this.count = 0;
   }
 
 
@@ -160,8 +168,19 @@ export default class Atmosphere {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, IRRADIANCE_TEXTURE_WIDTH,
           IRRADIANCE_TEXTURE_HEIGHT, 0, gl.RGBA, gl.FLOAT, data);
     });
+
+    Utils.loadShaderSource('./atmos/vertex_shader.txt', (source) => {
+      this.vertexShaderSource = source;
+    });
+    Utils.loadShaderSource('./atmos/fragment_shader.txt', (source) => {
+      this.fragmentShaderSource = source;
+    });
+    Utils.loadShaderSource('./atmos/atmosphere_shader.txt', (source) => {
+      this.atmosphereShaderSource = source;
+    });
     console.log('Init: DONE');
   }
+
 
   /**
    * The WebGL program cannot be created before all the shaders are
@@ -179,6 +198,7 @@ export default class Atmosphere {
         !this.atmosphereShaderSource) {
       return;
     }
+    console.log('linking...');
     const gl = this.gl;
     const vertexShader =
         Utils.createShader(gl, gl.VERTEX_SHADER,
@@ -203,7 +223,7 @@ export default class Atmosphere {
       const info = gl.getProgramInfoLog(this.program);
       throw new Error('Could not compile WebGL program. \n\n' + info);
     }
-    console.log('Program link: DONE');
+    console.log('Program link: DONE', this.program);
   }
 
 
@@ -216,6 +236,7 @@ export default class Atmosphere {
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
+    this.maybeLinkProgram();
     const kFovY = Math.PI / 4; // Original: 50 / 180 * Math.PI
     const kTanFovY = Math.tan(kFovY / 2);
     const aspectRatio = this.canvas.width / this.canvas.height;
@@ -239,15 +260,14 @@ export default class Atmosphere {
     const program = this.program;
     gl.useProgram(program);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
-    const vertexLoc = gl.getAttribLocation(program, 'vertex');
     gl.vertexAttribPointer(
-        vertexLoc,
+        gl.getAttribLocation(program, 'vertex'),
         2, // numComponents
         this.gl.FLOAT, // type
         false, // normalize
         0, // stride
         0); // offset
-    gl.enableVertexAttribArray(vertexLoc);
+    gl.enableVertexAttribArray(gl.getAttribLocation(program, 'vertex'));
     gl.uniformMatrix4fv(gl.getUniformLocation(program, 'view_from_clip'),
         true,  this.viewFromClip);
     gl.uniformMatrix4fv(gl.getUniformLocation(program, 'model_from_view'),
@@ -370,6 +390,14 @@ export default class Atmosphere {
  * texture objects from them:
  */
 class Utils {
+
+  static loadShaderSource(shaderName, callback) {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', shaderName);
+    xhr.responseType = 'text';
+    xhr.onload = (event) => callback(xhr.responseText.trim());
+    xhr.send();
+  }
 
   static createShader(gl, type, source) {
     const shader = gl.createShader(type);
