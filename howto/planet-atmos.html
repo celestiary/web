@@ -65,18 +65,19 @@ Fundamentals</a>.
     if (planet) {
       ui.scene.remove(planet);
     }
-    planet = new Planet(scene, props, false, () => {
-        if (ui.renderer.capabilities.isWebGL2) {
-          console.log('Adding WebGL2 atmosphere...');
-          atmos = new Atmosphere(ui.renderer.getContext(), null, ui.width, ui.height);
-        } else {
-          console.log('Need WebGL2 for good atmosphere');
-        }
-      });
-    ui.scene.add(planet);
-    ui.scene.add(new THREE.AxesHelper(1.1));
+    if (!ui.renderer.capabilities.isWebGL2) {
+      console.error('Need WebGL2 for good atmosphere');
+      return;
+    }
+    console.log('Adding WebGL2 atmosphere...');
+    atmos = new Atmosphere(ui.container, 'canvas', ui.width, ui.height);
+    atmos.init();
+    atmos.maybeLinkProgram();
+    //planet = new Planet(scene, props, false)
+    //ui.scene.add(planet);
+    //ui.scene.add(new THREE.AxesHelper(1.1));
     ui.animationCb = () => {
-      planet.rotation.y += 0.001;
+      //planet.rotation.y += 0.001;
       if (atmos && count < 10) {
         atmos.onRender();
         count++;

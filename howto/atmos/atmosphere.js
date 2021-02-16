@@ -60,8 +60,9 @@ const kLengthUnitInMeters = 1000;
  * the render loop:
  */
 export default class Atmosphere {
-  constructor(rootElement) {
-    this.canvas = rootElement.querySelector('#glcanvas');
+  constructor(rootElement, canvasId = '#glcanvas') {
+    this.canvas = rootElement.querySelector(canvasId);
+    console.log(this.canvas);
     this.canvas.style.width = `${rootElement.clientWidth}px`;
     this.canvas.style.height = `${rootElement.clientHeight}px`;
     this.canvas.width = rootElement.clientWidth * window.devicePixelRatio;
@@ -137,7 +138,7 @@ export default class Atmosphere {
     gl.bufferData(gl.ARRAY_BUFFER,
        new Float32Array([-1, -1, +1, -1, -1, +1, +1, +1]), gl.STATIC_DRAW);
 
-    Utils.loadTextureData('transmittance.dat', (data) => {
+    Utils.loadTextureData('./atmos/transmittance.dat', (data) => {
       this.transmittanceTexture =
           Utils.createTexture(gl, gl.TEXTURE0, gl.TEXTURE_2D);
       gl.texImage2D(gl.TEXTURE_2D, 0,
@@ -145,7 +146,7 @@ export default class Atmosphere {
           TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT, 0, gl.RGBA,
           gl.FLOAT, data);
     });
-    Utils.loadTextureData('scattering.dat', (data) => {
+    Utils.loadTextureData('./atmos/scattering.dat', (data) => {
       this.scatteringTexture =
           Utils.createTexture(gl, gl.TEXTURE1, gl.TEXTURE_3D);
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
@@ -153,7 +154,7 @@ export default class Atmosphere {
           SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, 0, gl.RGBA,
           gl.FLOAT, data);
     });
-    Utils.loadTextureData('irradiance.dat', (data) => {
+    Utils.loadTextureData('./atmos/irradiance.dat', (data) => {
       this.irradianceTexture =
           Utils.createTexture(gl, gl.TEXTURE2, gl.TEXTURE_2D);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, IRRADIANCE_TEXTURE_WIDTH,
@@ -195,7 +196,6 @@ export default class Atmosphere {
             .replace('const float PI = 3.14159265;', '')
         );
     this.program = gl.createProgram();
-    console.log('vertexShaderSource', vertexShader);
     gl.attachShader(this.program, vertexShader);
     gl.attachShader(this.program, fragmentShader);
     gl.linkProgram(this.program);
@@ -239,11 +239,9 @@ export default class Atmosphere {
     const program = this.program;
     gl.useProgram(program);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
-
     const vertexLoc = gl.getAttribLocation(program, 'vertex');
-    console.log('vertexLoc', vertexLoc);
     gl.vertexAttribPointer(
-        vetexLoc,
+        vertexLoc,
         2, // numComponents
         this.gl.FLOAT, // type
         false, // normalize
