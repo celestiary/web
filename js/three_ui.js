@@ -44,8 +44,20 @@ export default class ThreeUi {
     this.mouse = new THREE.Vector2;
     this.clicked = false;
 
-    this.container.appendChild(VRButton.createButton(this.renderer));
+    // VR
     this.renderer.xr.enabled = true;
+    // TODO: clean up VR Button container or find better one from three.js.
+    const vrButtonContainer = document.createElement('div');
+    vrButtonContainer.setAttribute('style',
+        'bottom: 10px; width: 150px; left: calc(50% - 75px); position: absolute; text-align: center');
+    const vrButton = VRButton.createButton(this.renderer);
+    vrButtonContainer.appendChild(vrButton);
+    const dismissButton = document.createElement('button');
+    dismissButton.setAttribute('style', 'border: none; position: relative; bottom: -10px; opacity: 0.7')
+    dismissButton.textContent = 'Dismiss';
+    dismissButton.onclick = () => { vrButtonContainer.remove(); }
+    vrButtonContainer.appendChild(dismissButton);
+    this.container.appendChild(vrButtonContainer);
 
     function onSelectStart() {
       this.userData.isSelecting = true;
