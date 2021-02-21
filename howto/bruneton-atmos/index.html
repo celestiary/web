@@ -1,33 +1,66 @@
+<!DOCTYPE html>
 <html>
-  <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <title>Precomputed Atmospheric Scattering - WebGL Demo (from ebruneton)</title>
-    <link rel="stylesheet" href="index.css"/>
-    <script type="module">
-      import Demo from './demo.js';
-      const atm = new Demo(document.body);
-    </script>
-  </head>
-  <body>
-    <canvas id="glcanvas" width="1440" height="495" style="width: 1440px; height: 495px;"></canvas>
-    <ul id="help" style="display: none">
-      <li>
-        Precomputed Atmospheric Scattering - WebGL Demo
-        <a href="https://github.com/ebruneton/precomputed_atmospheric_scattering" target="new">(forked from Eric Bruneton)</a>
-      </li>
-      <li>&nbsp;</li>
-      <li>Mouse:
-        <ul>
-          <li>drag, CTRL+drag, wheel: view and sun directions</li>
-        </ul>
-      </li>
-      <li>Keys:
-        <ul>
-          <li>h: help</li>
-          <li>+/-: increase/decrease exposure</li>
-          <li>1-9: predefined views</li>
-        </ul>
-      </li>
-    </ul>
-  </body>
+<head><link rel="stylesheet" href="../index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>Atmosphere - WIP: Bruneton integration</h1>
+<p>Work in progress.
+<p>Integrating <a href="https://github.com/ebruneton/precomputed_atmospheric_scattering">Eric
+    Bruneton's atmosphere shaders</a>.
+
+<p>Eric's JS + shader are here drawing on the canvas setup by the
+three.js renderer, but I haven't been able to get both to make a
+render pass without clobbering each other.  Eric's shaders are pretty
+complex, using GL concepts I don't yet undesrtand, so passing on these
+for now.
+
+<p>Check out the amazing work he was part of
+  at <a href="http://proland.inrialpes.fr/skies.html">Proland</a>.
+
+<script type="module">
+  import * as THREE from '../js/lib/three.js/three.module.js';
+  import TrackballControls from '../js/lib/three.js/TrackballControls.js';
+
+  import Loader from '../js/loader.js';
+  import Planet from '../js/Planet.js';
+  import Reify from '../js/reify.js';
+  import * as Shared from '../js/shared.js';
+
+  import Atmosphere from './atmosphere.js';
+
+  const container = document.getElementById('ui');
+  const renderer = new THREE.WebGLRenderer({antialias: true});
+  //renderer.autoClear = false;
+  if (!renderer.capabilities.isWebGL2) {
+    console.error('Need WebGL2 for good atmosphere');
+  }
+  console.log('Renderer capabilities:',  renderer.capabilities);
+  renderer.setClearColor(0xff0000, 1);
+  renderer.setSize(600, 600);
+  container.appendChild(renderer.domElement);
+
+  const camera = new THREE.PerspectiveCamera(Shared.INITIAL_FOV, 1, 1E-3, 1E35);
+  camera.position.z = 10;
+  const controls = new TrackballControls(camera, container);
+  controls.target = camera.position;
+
+  const scene = new THREE.Scene;
+  const light = new THREE.DirectionalLight();
+  const dist = 1e7;
+  light.position.set(dist, 0, dist);
+  camera.add(light);
+
+  scene.add(new THREE.AxesHelper(1.1));
+
+  const atmos = new Atmosphere(container, 'canvas', renderer.getContext());
+  window.atmos = atmos;
+  const onRender = () => {
+    renderer.render(scene, camera);
+    atmos.onRender();
+    requestAnimationFrame(onRender);
+  };
+  window.onRender = onRender;
+  onRender();
+</script>
+</body>
 </html>
