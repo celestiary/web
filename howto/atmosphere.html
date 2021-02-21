@@ -48,12 +48,7 @@
     vertexShader: 'atmosphere.vert',
     fragmentShader: 'atmosphere.frag',
     blending: THREE.AdditiveBlending,
-    depthMode: THREE.NeverDepth,
-    depthTest: true,
-    depthWrite: true,
-    transparent: true
   });
-  console.log(skyMaterial);
 
   new Loader().loadShaders(skyMaterial, () => {
     const geometry = new THREE.BufferGeometry();
