@@ -146,7 +146,7 @@ export default class Atmosphere {
     gl.bufferData(gl.ARRAY_BUFFER,
        new Float32Array([-1, -1, +1, -1, -1, +1, +1, +1]), gl.STATIC_DRAW);
 
-    Utils.loadTextureData('./atmos/transmittance.dat', (data) => {
+    Utils.loadTextureData('./atmos/bruneton/transmittance.dat', (data) => {
       this.transmittanceTexture =
           Utils.createTexture(gl, gl.TEXTURE0, gl.TEXTURE_2D);
       gl.texImage2D(gl.TEXTURE_2D, 0,
@@ -154,7 +154,7 @@ export default class Atmosphere {
           TRANSMITTANCE_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT, 0, gl.RGBA,
           gl.FLOAT, data);
     });
-    Utils.loadTextureData('./atmos/scattering.dat', (data) => {
+    Utils.loadTextureData('./atmos/bruneton/scattering.dat', (data) => {
       this.scatteringTexture =
           Utils.createTexture(gl, gl.TEXTURE1, gl.TEXTURE_3D);
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
@@ -162,20 +162,20 @@ export default class Atmosphere {
           SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_DEPTH, 0, gl.RGBA,
           gl.FLOAT, data);
     });
-    Utils.loadTextureData('./atmos/irradiance.dat', (data) => {
+    Utils.loadTextureData('./atmos/bruneton/irradiance.dat', (data) => {
       this.irradianceTexture =
           Utils.createTexture(gl, gl.TEXTURE2, gl.TEXTURE_2D);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, IRRADIANCE_TEXTURE_WIDTH,
           IRRADIANCE_TEXTURE_HEIGHT, 0, gl.RGBA, gl.FLOAT, data);
     });
 
-    Utils.loadShaderSource('./atmos/vertex_shader.txt', (source) => {
+    Utils.loadShaderSource('./atmos/bruneton/vertex_shader.txt', (source) => {
       this.vertexShaderSource = source;
     });
-    Utils.loadShaderSource('./atmos/fragment_shader.txt', (source) => {
+    Utils.loadShaderSource('./atmos/bruneton/fragment_shader.txt', (source) => {
       this.fragmentShaderSource = source;
     });
-    Utils.loadShaderSource('./atmos/atmosphere_shader.txt', (source) => {
+    Utils.loadShaderSource('./atmos/bruneton/atmosphere_shader.txt', (source) => {
       this.atmosphereShaderSource = source;
     });
     console.log('Init: DONE');
@@ -203,18 +203,16 @@ export default class Atmosphere {
     const vertexShader =
         Utils.createShader(gl, gl.VERTEX_SHADER,
             this.vertexShaderSource.replace('#version 330', '#version 300 es'));
-    const fragmentShader = Utils.createShader(
-        gl,
-        gl.FRAGMENT_SHADER,
-        this.atmosphereShaderSource
+    const combinedSource = this.atmosphereShaderSource
             .replace('#version 330',
                      '#version 300 es\n' +
                      'precision highp float;\n' +
                      'precision highp sampler3D;') +
         this.fragmentShaderSource
             .replace('#version 330', '')
-            .replace('const float PI = 3.14159265;', '')
-        );
+            .replace('const float PI = 3.14159265;', '');
+    const fragmentShader =
+      Utils.createShader(gl, gl.FRAGMENT_SHADER, combinedSource);
     this.program = gl.createProgram();
     gl.attachShader(this.program, vertexShader);
     gl.attachShader(this.program, fragmentShader);
@@ -233,8 +231,8 @@ export default class Atmosphere {
    */
   onRender() {
     const gl = this.gl;
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    //gl.clearColor(0, 0, 0, 1);
+    //gl.clear(gl.COLOR_BUFFER_BIT);
 
     this.maybeLinkProgram();
     const kFovY = Math.PI / 4; // Original: 50 / 180 * Math.PI

@@ -1,0 +1,32 @@
+#version 330
+const float kLengthUnitInMeters = 1000.000000;
+
+uniform vec3 camera;
+uniform float exposure;
+uniform vec3 white_point;
+uniform vec3 earth_center;
+uniform vec3 sun_direction;
+uniform vec2 sun_size;
+in vec3 view_ray;
+layout(location = 0) out vec4 color;
+const float PI = 3.14159265;
+const vec3 kSphereCenter = vec3(0.0, 0.0, 1000.0) / kLengthUnitInMeters;
+const float kSphereRadius = 1000.0 / kLengthUnitInMeters;
+const vec3 kSphereAlbedo = vec3(0.8);
+#ifdef USE_LUMINANCE
+#define GetSolarRadiance GetSolarLuminance
+#define GetSkyRadiance GetSkyLuminance
+#define GetSkyRadianceToPoint GetSkyLuminanceToPoint
+#define GetSunAndSkyIrradiance GetSunAndSkyIlluminance
+#endif
+
+vec3 GetSolarRadiance();
+
+
+vec3 GetSkyRadiance(vec3 camera, vec3 view_ray, vec3 sun_direction, out vec3 transmittance);
+
+
+vec3 GetSkyRadianceToPoint(vec3 camera, vec3 point, vec3 sun_direction, out vec3 transmittance);
+
+
+vec3 GetSunAndSkyIrradiance(vec3 p, vec3 normal, vec3 sun_direction, out vec3 sky_irradiance);

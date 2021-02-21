@@ -17,7 +17,7 @@ Fundamentals</a>.
 <script type="module">
   import * as THREE from './js/lib/three.js/three.module.js';
   import TrackballControls from './js/lib/three.js/TrackballControls.js';
-  import Atmosphere from './atmos/atmosphere.js';
+  import Atmosphere from './atmos/bruneton/atmosphere.js';
   import Loader from './js/loader.js';
   import Planet from './js/Planet.js';
   import Reify from './js/reify.js';
@@ -30,7 +30,7 @@ Fundamentals</a>.
     console.error('Need WebGL2 for good atmosphere');
   }
   console.log('Renderer capabilities:',  renderer.capabilities);
-  renderer.setClearColor(0x00aaff, 1);
+  renderer.setClearColor(0xff0000, 1);
   renderer.setSize(600, 600);
   container.appendChild(renderer.domElement);
 
@@ -50,8 +50,8 @@ Fundamentals</a>.
   const atmos = new Atmosphere(container, 'canvas', renderer.getContext());
   window.atmos = atmos;
   const onRender = () => {
+    renderer.render(scene, camera);
     atmos.onRender();
-    //renderer.render(scene, camera);
     requestAnimationFrame(onRender);
   };
   window.onRender = onRender;
