@@ -198,6 +198,11 @@ export default class ThreeUi {
   }
 
 
+  setAnimation(animationCb) {
+    this.animationCb = animationCb;
+  }
+
+
   renderLoop() {
     this.camera.updateMatrixWorld();
     if (this.clicked) {

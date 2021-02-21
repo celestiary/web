@@ -16,83 +16,29 @@ camera look direction.
 <p>See also <a href="bruneton-atmos/index.html">my attempt to integrate Eric Bruneton's shaders</a>.
 
 <script type="module">
-  import * as THREE from './js/lib/three.js/three.module.js';
-  import TrackballControls from './js/lib/three.js/TrackballControls.js';
-  import Loader from './js/loader.js';
-  import Planet from './js/Planet.js';
-  import Reify from './js/reify.js';
-  import * as Shapes from './js/shapes.js';
+  import {PointLight,AxesHelper} from './js/lib/three.js/three.module.js';
 
-  const container = document.getElementById('ui');
-  const renderer = new THREE.WebGLRenderer({antialias: true});
-  //renderer.autoClear = false;
-  if (!renderer.capabilities.isWebGL2) {
-    console.error('Need WebGL2 for good atmosphere');
-  }
-  console.log('Renderer capabilities:',  renderer.capabilities);
-  //renderer.setClearColor(0xff0000, 1);
-  renderer.setSize(600, 600);
-  container.appendChild(renderer.domElement);
+  import ThreeUi from './js/three_ui.js';
+  import {box} from './js/shapes.js';
 
-  const camera = new THREE.PerspectiveCamera(45, 1, 1E-3, 1E10);
-  camera.position.z = 10;
-  const controls = new TrackballControls(camera, renderer.domElement);
-  const scene = new THREE.Scene;
-  const light = new THREE.PointLight();
+  import Atmosphere from './atmosphere.js';
+
+  const ui = new ThreeUi('ui');
+  ui.camera.position.z = 10;
+  const light = new PointLight();
   const dist = 1e7;
   light.position.set(dist, 0, dist);
-  scene.add(light);
+  ui.scene.add(light);
+  ui.scene.add(new AxesHelper(1.1));
+  ui.scene.add(box());
 
-  scene.add(new THREE.AxesHelper(1.1));
-  scene.add(Shapes.box());
-
-  const skyMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-      uEyePos: { value: new THREE.Vector3(0, 6372e3, 0) },
-      uSunPos: { value: new THREE.Vector3(0, 0.5, -1) }
-    },
-    vertexShader: 'atmosphere.vert',
-    fragmentShader: 'atmosphere.frag',
-    blending: THREE.AdditiveBlending,
-  });
-
-  new Loader().loadShaders(skyMaterial, () => {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute([
-        -1, -1, -1,
-         1, -1, -1,
-         1,  1, -1,
-        -1, -1, -1,
-         1,  1, -1,
-        -1,  1, -1
-    ], 3));
-    const skySprite = new THREE.Mesh(geometry, skyMaterial);
-    skySprite.position.z = 0;
-    scene.add(skySprite);
-    onRender();
-  });
-
-
-  let theta = 0;
-  const eyeAltOffset = 6372e3;
-  window.sky = skyMaterial;
-  const onRender = () => {
-    theta += 0.0125;
-    skyMaterial.uniforms.uSunPos.value.y = Math.cos(theta) * 0.3 + 0.2;
-
-    controls.update();
-    window.c = controls;
-
-    camera.updateMatrixWorld();
-    const vector = camera.position.clone();
-    vector.applyMatrix4(camera.matrixWorld);
-    //console.log(vector);
-    skyMaterial.uniforms.uEyePos.value.y = eyeAltOffset + vector.z;
-
-    renderer.render(scene, camera);
-    requestAnimationFrame(onRender);
-  };
-  window.onRender = onRender;
+  const sky = new Atmosphere(() => {
+    ui.setAnimation(() => {
+      const cameraPosition = ui.camera.position.clone();
+      cameraPosition.applyMatrix4(ui.camera.matrixWorld);
+      sky.onRender(cameraPosition);
+    })});
+  ui.scene.add(sky);
 </script>
 </body>
 </html>
