@@ -6,15 +6,18 @@
 <h1>Atmosphere</h1>
 <p><em>Work in progress.</em>
 
-<p>Integrating
-  <a target="_new" href="https://github.com/wwwtyro/glsl-atmosphere">Rye Terrell's atmosphere shaders</a>.
+<p>Using
+  <a target="_new"
+    href="https://github.com/wwwtyro/glsl-atmosphere">Rye Terrell's
+    atmosphere shaders</a> with some physical constants and equation
+    corrections adopted from <a href="bruneton-atmos/index.html">my
+    attempt to integrate Eric Bruneton's shaders</a>.
+    See <a href="https://github.com/celestiary/web/blob/master/howto/atmosphere.html">source</a>
+    for extended notes on physical parameters.
 
 <p>Try zooming out (mouse scroll or pad push) to see the change in eye
 height.  Currently working on parameterizing the sun position and
 camera look direction.
-
-<p>See also <a href="bruneton-atmos/index.html">my attempt to
-    integrate Eric Bruneton's shaders</a>.
 
 <div id="control"></div>
 
@@ -41,16 +44,14 @@ camera look direction.
     load: {
       'preset': 'Earth',
       'remembered': {
-        'Default': {
-          '0': {}
-        },
         'Earth': {
           '0': {
-            'SunY': 0.5,
+            'SunY': 2,
             // Terrell's original, needs citation.
             'SunIntensity': 22,
-            'GroundElevation': 6371000,
-            'AtmosphereHeight': 100000,
+            'GroundElevation': 6371000, // meters
+            // 'AtmosphereHeight': 100000, // meters
+            'AtmosphereHeight': 60000, // meters, Bruneton
             // TODO: these should be based on a constant λ for the frequency of light.
             // The Nvidia reference says Mie is usually λ/4, so maybe λ=84e-6 here?
             //'RayleighRed': 5.5e-6,
@@ -62,25 +63,28 @@ camera look direction.
             'RayleighRed': 5.8e-6,
             'RayleighGreen': 13.5e-6,
             'RayleighBlue': 33.1e-6,
-            'RayleighScaleHeight': 7000,
             // Rayleigh scale height for Earth
+            'RayleighScaleHeight': 8000, // Bruneton agrees
             // https://en.wikipedia.org/wiki/Scale_height#Planetary_examples
+            //'RayleighScaleHeight': 7000,
+            // https://www.scratchapixel.com/lessons/procedural-generation-virtual-worlds/simulating-sky/simulating-colors-of-the-sky
+            //'MieScatteringCoeff': 0.000021,
             'MieScatteringCoeff': 0.000021,
-            // Terrell's original, needs citation.
-            'MieScaleHeight': 1200,
-            // Terrell's original, needs citation.  TODO: why positive? Nvidia has it negative.
-            'MiePolarity': 0.758
+            'MieScaleHeight': 1200, // meters, Bruneton agrees
+            // TODO: why positive? Nvidia has it negative.
+            // 'MiePolarity': 0.758
+            'MiePolarity': 0.8 // Bruneton
           }
         },
         // Values default to Earth values.
         'Mars': {
           '0': {
-            'SunY': 0.5,
+            'SunY': 2,
             'SunIntensity': 11, // TODO
             //'GroundElevation': 3389500,
             'GroundElevation': 6371000,
             // https://en.wikipedia.org/wiki/Atmosphere_of_Mars#Vertical_structure
-            'AtmosphereHeight': 100000,
+            'AtmosphereHeight': 60000,
             // Roughly swap r & b from Earth, then some hand tuning.
             'RayleighRed': 12e-6,
             'RayleighGreen': 6e-6,
@@ -92,9 +96,9 @@ camera look direction.
             //'RayleighBlue': 5.75e-3,
             // https://en.wikipedia.org/wiki/Scale_height#Planetary_examples
             'RayleighScaleHeight': 11100,
-            'MieScatteringCoeff': 0.00004, // 2x earth
+            'MieScatteringCoeff': 0.000042, // 2x earth
             'MieScaleHeight': 1200,
-            'MiePolarity': 0.758
+            'MiePolarity': 0.8
           }
         },
       },
@@ -123,9 +127,9 @@ camera look direction.
   //                           0.000021, 1200, 0.758);
 
   // Collienne et al., diffs: Rayleigh and scale height
-  const sky = new Atmosphere(0.5, 22, 6371000, 100000,
-                             5.8e-6, 13.5e-6, 33.1e-6, 7000,
-                             0.000021, 1200, 0.758);
+  const sky = new Atmosphere(2, 22, 6371000, 60000,
+                             5.8e-6, 13.5e-6, 33.1e-6, 8000,
+                             0.000021, 1200, 0.8);
 
   gui.add(sky, 'SunY', -1, 5).name('Sun Y');
   gui.add(sky, 'SunIntensity', 0, sky.SunIntensity * 10).name('Sun intensity');
@@ -138,7 +142,7 @@ camera look direction.
   rls.add(sky, 'RayleighScaleHeight', 1, sky.AtmosphereHeight).name('Scale height (m)');
   rls.open();
   const mie = gui.addFolder('Mie Scattering');
-  mie.add(sky, 'MieScatteringCoeff', 1e-6, 50e-6).name('Scattering');
+  mie.add(sky, 'MieScatteringCoeff', 0.000001, 0.0001).name('Scattering');
   mie.add(sky, 'MieScaleHeight', 1, sky.AtmosphereHeight).name('Scale height (m)');
   mie.add(sky, 'MiePolarity', -0.999, 0.999).name('Polarity');
   mie.open();

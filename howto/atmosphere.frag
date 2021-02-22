@@ -76,10 +76,17 @@ vec3 atmosphere(vec3 pVrt, vec3 pEye,
     float mu = dot(pVrt, pSun);
     float mumu = mu * mu;
     float pol2 = polarity * polarity;
+    // https://www.scratchapixel.com/lessons/procedural-generation-virtual-worlds/simulating-sky/simulating-colors-of-the-sky
+    // Solid angle 0.1:
     float pRlh = 3.0 / (16.0 * PI) * (1.0 + mumu);
-    float pMie = 3.0 /
-      (8.0 * PI) * ((1.0 - pol2) * (mumu + 1.0)) /
-      (pow(1.0 + pol2 - 2.0 * mu * polarity, 1.5) * (2.0 + pol2));
+    // TODO: add sr term to (8.0 * PI * sr), maybe steradian (solid angle) of sun?
+    // https://github.com/ebruneton/precomputed_atmospheric_scattering/blob/master/atmosphere/definitions.glsl#L209
+    // TODO: test addition of abs inside base of pow (seen in Unity port)
+    // TODO: Terrell and scratchpixel put (2.0 + pol2) in demoninator, Bruneton in numerator.
+    // https://github.com/ebruneton/precomputed_atmospheric_scattering/blob/master/atmosphere/functions.glsl#L746
+    float InverseSolidAngle = 3.0 / (8.0 * PI) * ((1.0 - pol2) * (1.0 + mumu));
+    float pMie = InverseSolidAngle * (2.0 + pol2)
+      / pow(1.0 + pol2 - 2.0 * polarity * mu, 1.5);
 
     // Sample the primary ray.
     for (int i = 0; i < iSteps; i++) {
