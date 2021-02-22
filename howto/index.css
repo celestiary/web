@@ -16,6 +16,11 @@ ol {
 }
 
 
+ul, ol {
+  padding-left: 1em;
+}
+
+
 #ui {
   position: relative;
   top: 0;
