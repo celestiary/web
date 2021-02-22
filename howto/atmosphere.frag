@@ -13,10 +13,19 @@ varying vec3 vPosition;
 
 uniform vec3 uSunPos;
 uniform vec3 uEyePos;
+uniform float uSunIntensity;
+uniform float uGroundElevation;
+uniform float uAtmosphereHeight;
+uniform vec3 uRayleighScatteringCoeff;
+uniform float uMieScatteringCoeff;
+uniform float uRayleighScaleHeight;
+uniform float uMieScaleHeight;
+uniform float uMiePolarity;
 
 #define PI 3.141592
 #define iSteps 16
 #define jSteps 8
+
 
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
     // ray-sphere intersection that assumes
@@ -33,15 +42,19 @@ vec2 rsi(vec3 r0, vec3 rd, float sr) {
     );
 }
 
-vec3 atmosphere(vec3 r, vec3 r0, vec3 pSun, float iSun, float rPlanet, float rAtmos, vec3 kRlh, float kMie, float shRlh, float shMie, float g) {
+
+vec3 atmosphere(vec3 pVrt, vec3 pEye, vec3 pSun,
+                float iSun, float rPlanet, float rAtmos,
+                vec3 kRlh, float kMie, float shRlh, float shMie,
+                float polarity) {
     // Normalize the sun and view directions.
+    pVrt = normalize(pVrt);
     pSun = normalize(pSun);
-    r = normalize(r);
 
     // Calculate the step size of the primary ray.
-    vec2 p = rsi(r0, r, rAtmos);
+    vec2 p = rsi(pEye, pVrt, rAtmos);
     if (p.x > p.y) return vec3(0,0,0);
-    p.y = min(p.y, rsi(r0, r, rPlanet).x);
+    p.y = min(p.y, rsi(pEye, pVrt, rPlanet).x);
     float iStepSize = (p.y - p.x) / float(iSteps);
 
     // Initialize the primary ray time.
@@ -56,17 +69,22 @@ vec3 atmosphere(vec3 r, vec3 r0, vec3 pSun, float iSun, float rPlanet, float rAt
     float iOdMie = 0.0;
 
     // Calculate the Rayleigh and Mie phases.
-    float mu = dot(r, pSun);
+    // These look like some variant on:
+    //   16.2.2 The Phase Function
+    //   https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lighting-and-shadows/chapter-16-accurate-atmospheric-scattering
+    float mu = dot(pVrt, pSun);
     float mumu = mu * mu;
-    float gg = g * g;
+    float pol2 = polarity * polarity;
     float pRlh = 3.0 / (16.0 * PI) * (1.0 + mumu);
-    float pMie = 3.0 / (8.0 * PI) * ((1.0 - gg) * (mumu + 1.0)) / (pow(1.0 + gg - 2.0 * mu * g, 1.5) * (2.0 + gg));
+    float pMie = 3.0 /
+      (8.0 * PI) * ((1.0 - pol2) * (mumu + 1.0)) /
+      (pow(1.0 + pol2 - 2.0 * mu * polarity, 1.5) * (2.0 + pol2));
 
     // Sample the primary ray.
     for (int i = 0; i < iSteps; i++) {
 
         // Calculate the primary ray sample position.
-        vec3 iPos = r0 + r * (iTime + iStepSize * 0.5);
+        vec3 iPos = pEye + pVrt * (iTime + iStepSize * 0.5);
 
         // Calculate the height of the sample.
         float iHeight = length(iPos) - rPlanet;
@@ -125,18 +143,17 @@ vec3 atmosphere(vec3 r, vec3 r0, vec3 pSun, float iSun, float rPlanet, float rAt
 
 void main() {
     vec3 color = atmosphere(
-        normalize(vPosition),           // normalized ray direction
-        uEyePos,                        // ray origin
-        uSunPos,                        // position of the sun
-        22.0,                           // intensity of the sun
-        6371e3,                         // radius of the planet in meters
-        6471e3,                         // radius of the atmosphere in meters
-        vec3(5.5e-6, 13.0e-6, 22.4e-6), // Rayleigh scattering coefficient
-        21e-6,                          // Mie scattering coefficient
-        8e3,                            // Rayleigh scale height
-        1.2e3,                          // Mie scale height
-        0.758                           // Mie preferred scattering direction
-    );
+        vPosition,
+        uEyePos,
+        uSunPos,
+        uSunIntensity,
+        uGroundElevation,
+        uGroundElevation + uAtmosphereHeight,
+        uRayleighScatteringCoeff,
+        uMieScatteringCoeff,
+        uRayleighScaleHeight,
+        uMieScaleHeight,
+        uMiePolarity);
 
     // Apply exposure.
     color = 1.0 - exp(-1.0 * color);

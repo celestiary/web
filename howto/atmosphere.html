@@ -3,8 +3,8 @@
 <head><link rel="stylesheet" href="index.css"/></head>
 <body>
 <div id="ui"></div>
-<h1>Atmosphere - WIP: Terrell integration</h1>
-<p>Work in progress.
+<h1>Atmosphere - Terrell integration</h1>
+<p><em>Work in progress.</em>
 
 <p>Integrating
   <a target="_new" href="https://github.com/wwwtyro/glsl-atmosphere">Rye Terrell's atmosphere shaders</a>.
@@ -13,15 +13,19 @@
 height.  Currently working on parameterizing the sun position and
 camera look direction.
 
-<p>See also <a href="bruneton-atmos/index.html">my attempt to integrate Eric Bruneton's shaders</a>.
+<p>See also <a href="bruneton-atmos/index.html">my attempt to
+    integrate Eric Bruneton's shaders</a>.
+
+<div id="control"></div>
 
 <script type="module">
   import {PointLight,AxesHelper} from './js/lib/three.js/three.module.js';
+  import {GUI} from './js/lib/dat.gui.module.js';
 
   import ThreeUi from './js/three_ui.js';
   import {box} from './js/shapes.js';
 
-  import Atmosphere from './atmosphere.js';
+  import Atmosphere from './Atmosphere.js';
 
   const ui = new ThreeUi('ui');
   ui.camera.position.z = 10;
@@ -30,14 +34,60 @@ camera look direction.
   light.position.set(dist, 0, dist);
   ui.scene.add(light);
   ui.scene.add(new AxesHelper(1.1));
-  ui.scene.add(box());
+  //ui.scene.add(box());
 
-  const sky = new Atmosphere(() => {
-    ui.setAnimation(() => {
-      const cameraPosition = ui.camera.position.clone();
-      cameraPosition.applyMatrix4(ui.camera.matrixWorld);
-      sky.onRender(cameraPosition);
-    })});
+  const gui = new GUI({
+    autoPlace: false,
+    width: 400,
+  });
+  const guiElt = gui.domElement;
+  guiElt.style.position = 'absolute';
+  document.querySelector('#control').appendChild(guiElt);
+
+  const sky = new Atmosphere(
+    // SunY
+    0.5,
+    // GroundElevation
+    6371e3,
+    // AtmosphereHeight
+    100e3,
+    // SunIntensity
+    22.0,
+    // TODO: these should be based on a constant λ for the frequency of light.
+    // The Nvidia reference says Mie is usually λ/4, so maybe λ=84e-6 here.
+    5.5e-6,
+    13.0e-6,
+    22.4e-6,
+    21e-6,
+    // Rayleigh scale height for Earth
+    // https://en.wikipedia.org/wiki/Scale_height#Planetary_examples
+    8.5e3,
+    1.2e3,
+    // Mie preferred scattering direction
+    // TODO: why positive? Nvidia has it negative.
+    0.758);
+  gui.add(sky, 'SunY', -1, 5);
+  gui.add(sky, 'GroundElevation', 6371e3, 6371e3 + 1e3).name('Ground Elevation (km)');
+  gui.add(sky, 'AtmosphereHeight', 1, sky.AtmosphereHeight * 2).name('Atmos. height (km)');
+  gui.add(sky, 'SunIntensity', 0, sky.SunIntensity * 10);
+  gui.add(sky, 'RayleighRed', 1e-6, 50e-6);
+  gui.add(sky, 'RayleighGreen', 1e-6, 50e-6);
+  gui.add(sky, 'RayleighBlue', 1e-6, 50e-6);
+  gui.add(sky, 'MieScatteringCoeff', 1e-6, 50e-6);
+  gui.add(sky, 'RayleighScaleHeight', 1, sky.AtmosphereHeight);
+  gui.add(sky, 'MieScaleHeight', 1, sky.AtmosphereHeight);
+  gui.add(sky, 'MiePolarity', -0.999, 0.999);
+  gui.remember(sky);
+
+  const animation = () => {
+    const cameraPosition = ui.camera.position.clone();
+    cameraPosition.applyMatrix4(ui.camera.matrixWorld);
+    sky.EyeHeight = sky.GroundElevation + cameraPosition.z;
+    sky.onRender();
+  }
+  sky.loadShaders(() => {
+    ui.setAnimation(animation);
+  });
   ui.scene.add(sky);
 </script>
 </body>
