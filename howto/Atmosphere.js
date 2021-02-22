@@ -6,12 +6,9 @@ let sunY = 0.5;
 
 export default class Atmosphere extends THREE.Object3D {
   constructor(
-      SunY, GroundElevation, AtmosphereHeight, SunIntensity,
-      RayleighRed, RayleighGreen, RayleighBlue,
-      MieScatteringCoeff,
-      RayleighScaleHeight,
-      MieScaleHeight,
-      MiePolarity) {
+      SunY, SunIntensity, GroundElevation, AtmosphereHeight,
+      RayleighRed, RayleighGreen, RayleighBlue, RayleighScaleHeight,
+      MieScatteringCoeff, MieScaleHeight, MiePolarity) {
     super();
     this.SunY = SunY;
     this.GroundElevation = GroundElevation;
@@ -33,19 +30,19 @@ export default class Atmosphere extends THREE.Object3D {
 
     this.skyMaterial = new THREE.ShaderMaterial({
         uniforms: {
-          uSunPos: { value: new THREE.Vector3(0, this.SunY, -1) },
           uEyePos: { value: new THREE.Vector3(0, this.EyeHeight, 0) },
+          uSunPos: { value: new THREE.Vector3(0, this.SunY, -1) },
+          uSunIntensity: { value: this.SunIntensity },
           uGroundElevation: { value: this.GroundElevation },
           uAtmosphereHeight: { value: this.AtmosphereHeight },
-          uSunIntensity: { value: this.SunIntensity },
           uRayleighScatteringCoeff: {
             value: new THREE.Vector3(
                 this.RayleighRed,
                 this.RayleighGreen,
                 this.RayleighBlue,
               )},
-          uMieScatteringCoeff: { value: this.MieScatteringCoeff },
           uRayleighScaleHeight: { value: this.RayleighScaleHeight },
+          uMieScatteringCoeff: { value: this.MieScatteringCoeff },
           uMieScaleHeight: { value: this.MieScaleHeight },
           uMiePolarity: { value: this.MiePolarity },
         },
@@ -80,17 +77,17 @@ export default class Atmosphere extends THREE.Object3D {
 
   onRender() {
     const u = this.skyMaterial.uniforms;
-    u.uSunPos.value.y = this.SunY;
     u.uEyePos.value.y = this.EyeHeight;
+    u.uSunPos.value.y = this.SunY;
+    u.uSunIntensity.value = this.SunIntensity;
     u.uGroundElevation.value = this.GroundElevation;
     u.uAtmosphereHeight.value = this.AtmosphereHeight;
-    u.uSunIntensity.value = this.SunIntensity;
     u.uRayleighScatteringCoeff.value.set(
         this.RayleighRed,
         this.RayleighGreen,
         this.RayleighBlue);
-    u.uMieScatteringCoeff.value = this.MieScatteringCoeff;
     u.uRayleighScaleHeight.value = this.RayleighScaleHeight;
+    u.uMieScatteringCoeff.value = this.MieScatteringCoeff;
     u.uMieScaleHeight.value = this.MieScaleHeight;
     u.uMiePolarity.value = this.MiePolarity;
   }

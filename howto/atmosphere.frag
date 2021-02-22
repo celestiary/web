@@ -43,10 +43,11 @@ vec2 rsi(vec3 r0, vec3 rd, float sr) {
 }
 
 
-vec3 atmosphere(vec3 pVrt, vec3 pEye, vec3 pSun,
-                float iSun, float rPlanet, float rAtmos,
-                vec3 kRlh, float kMie, float shRlh, float shMie,
-                float polarity) {
+vec3 atmosphere(vec3 pVrt, vec3 pEye,
+                vec3 pSun, float iSun,
+                float rPlanet, float rAtmos,
+                vec3 kRlh, float shRlh,
+                float kMie, float shMie, float polarity) {
     // Normalize the sun and view directions.
     pVrt = normalize(pVrt);
     pSun = normalize(pSun);
@@ -143,17 +144,11 @@ vec3 atmosphere(vec3 pVrt, vec3 pEye, vec3 pSun,
 
 void main() {
     vec3 color = atmosphere(
-        vPosition,
-        uEyePos,
-        uSunPos,
-        uSunIntensity,
-        uGroundElevation,
-        uGroundElevation + uAtmosphereHeight,
-        uRayleighScatteringCoeff,
-        uMieScatteringCoeff,
-        uRayleighScaleHeight,
-        uMieScaleHeight,
-        uMiePolarity);
+        vPosition, uEyePos,
+        uSunPos, uSunIntensity,
+        uGroundElevation, uGroundElevation + uAtmosphereHeight,
+        uRayleighScatteringCoeff, uRayleighScaleHeight,
+        uMieScatteringCoeff, uMieScaleHeight, uMiePolarity);
 
     // Apply exposure.
     color = 1.0 - exp(-1.0 * color);

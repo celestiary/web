@@ -38,41 +38,103 @@ camera look direction.
 
   const gui = new GUI({
     width: 400,
+    load: {
+      'preset': 'Earth',
+      'remembered': {
+        'Default': {
+          '0': {}
+        },
+        'Earth': {
+          '0': {
+            'SunY': 0.5,
+            // Terrell's original, needs citation.
+            'SunIntensity': 22,
+            'GroundElevation': 6371000,
+            'AtmosphereHeight': 100000,
+            // TODO: these should be based on a constant λ for the frequency of light.
+            // The Nvidia reference says Mie is usually λ/4, so maybe λ=84e-6 here?
+            //'RayleighRed': 5.5e-6,
+            //'RayleighGreen': 13.0e-6,
+            //'RayleighBlue': 22.4e-6,
+            //'RayleighScaleHeight': 8000,
+            // Collienne et al. https://core.ac.uk/download/pdf/18591764.pdf
+            // Eq 10: βR = (5.8, 13.5, 33.1)10^6 for wavelengths λ = (680, 550, 440)10−9m
+            'RayleighRed': 5.8e-6,
+            'RayleighGreen': 13.5e-6,
+            'RayleighBlue': 33.1e-6,
+            'RayleighScaleHeight': 7000,
+            // Rayleigh scale height for Earth
+            // https://en.wikipedia.org/wiki/Scale_height#Planetary_examples
+            'MieScatteringCoeff': 0.000021,
+            // Terrell's original, needs citation.
+            'MieScaleHeight': 1200,
+            // Terrell's original, needs citation.  TODO: why positive? Nvidia has it negative.
+            'MiePolarity': 0.758
+          }
+        },
+        // Values default to Earth values.
+        'Mars': {
+          '0': {
+            'SunY': 0.5,
+            'SunIntensity': 22, // TODO
+            //'GroundElevation': 3389500,
+            'GroundElevation': 6371000,
+            // https://en.wikipedia.org/wiki/Atmosphere_of_Mars#Vertical_structure
+            'AtmosphereHeight': 100000,
+            // Roughly swap r & b from Earth, then some hand tuning.
+            'RayleighRed': 12e-6,
+            'RayleighGreen': 6e-6,
+            'RayleighBlue': 3e-6,
+            // Collienne et al.
+            // Eq 11: βR = (19.918, 13.57, 5.75)10−3; λ = (680, 510, 440)10−9m
+            //'RayleighRed': 19.918e-3,
+            //'RayleighGreen': 13.57e-3,
+            //'RayleighBlue': 5.75e-3,
+            // https://en.wikipedia.org/wiki/Scale_height#Planetary_examples
+            'RayleighScaleHeight': 11100,
+            'MieScatteringCoeff': 0.00004, // 2x earth
+            'MieScaleHeight': 1200,
+            'MiePolarity': 0.758
+          }
+        },
+      },
+      'closed': false,
+      'folders': {
+        'Rayleigh Scattering': {
+          'preset': 'Default',
+          'closed': false,
+          'folders': {}
+        },
+        'Mie Scattering': {
+          'preset': 'Default',
+          'closed': false,
+          'folders': {}
+        }
+      }
+    },
   });
   const guiElt = gui.domElement;
   guiElt.style.position = 'absolute';
   document.querySelector('#control').appendChild(guiElt);
 
-  const sky = new Atmosphere(
-    // SunY
-    0.5,
-    // GroundElevation
-    6371e3,
-    // AtmosphereHeight
-    100e3,
-    // SunIntensity
-    22.0,
-    // TODO: these should be based on a constant λ for the frequency of light.
-    // The Nvidia reference says Mie is usually λ/4, so maybe λ=84e-6 here.
-    5.5e-6,
-    13.0e-6,
-    22.4e-6,
-    21e-6,
-    // Rayleigh scale height for Earth
-    // https://en.wikipedia.org/wiki/Scale_height#Planetary_examples
-    8.5e3,
-    1.2e3,
-    // Mie preferred scattering direction
-    // TODO: why positive? Nvidia has it negative.
-    0.758);
+  // Earth, Terrell's original.
+  //const sky = new Atmosphere(0.5, 22, 6371000, 100000,
+  //                           5.5e-6, 13.0e-6, 22.4e-6, 8000,
+  //                           0.000021, 1200, 0.758);
+
+  // Collienne et al., diffs: Rayleigh and scale height
+  const sky = new Atmosphere(0.5, 22, 6371000, 100000,
+                             5.8e-6, 13.5e-6, 33.1e-6, 7000,
+                             0.000021, 1200, 0.758);
+
   gui.add(sky, 'SunY', -1, 5).name('Sun Y');
   gui.add(sky, 'SunIntensity', 0, sky.SunIntensity * 10).name('Sun intensity');
   gui.add(sky, 'GroundElevation', 1, sky.GroundElevation).name('Ground Elevation (m)');
   gui.add(sky, 'AtmosphereHeight', 1, sky.AtmosphereHeight * 2).name('Atmos. height (m)');
   const rls = gui.addFolder('Rayleigh Scattering');
-  rls.add(sky, 'RayleighRed', 1e-6, 50e-6).name('Red');
-  rls.add(sky, 'RayleighGreen', 1e-6, 50e-6).name('Green');
-  rls.add(sky, 'RayleighBlue', 1e-6, 50e-6).name('Blue');
+  rls.add(sky, 'RayleighRed', 1e-7, 1e-4).name('Red');
+  rls.add(sky, 'RayleighGreen', 1e-7, 1e-4).name('Green');
+  rls.add(sky, 'RayleighBlue', 1e-7, 1e-4).name('Blue');
   rls.add(sky, 'RayleighScaleHeight', 1, sky.AtmosphereHeight).name('Scale height (m)');
   rls.open();
   const mie = gui.addFolder('Mie Scattering');
