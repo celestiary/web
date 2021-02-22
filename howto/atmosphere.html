@@ -37,7 +37,6 @@ camera look direction.
   //ui.scene.add(box());
 
   const gui = new GUI({
-    autoPlace: false,
     width: 400,
   });
   const guiElt = gui.domElement;
@@ -66,17 +65,21 @@ camera look direction.
     // Mie preferred scattering direction
     // TODO: why positive? Nvidia has it negative.
     0.758);
-  gui.add(sky, 'SunY', -1, 5);
-  gui.add(sky, 'GroundElevation', 6371e3, 6371e3 + 1e3).name('Ground Elevation (km)');
-  gui.add(sky, 'AtmosphereHeight', 1, sky.AtmosphereHeight * 2).name('Atmos. height (km)');
-  gui.add(sky, 'SunIntensity', 0, sky.SunIntensity * 10);
-  gui.add(sky, 'RayleighRed', 1e-6, 50e-6);
-  gui.add(sky, 'RayleighGreen', 1e-6, 50e-6);
-  gui.add(sky, 'RayleighBlue', 1e-6, 50e-6);
-  gui.add(sky, 'MieScatteringCoeff', 1e-6, 50e-6);
-  gui.add(sky, 'RayleighScaleHeight', 1, sky.AtmosphereHeight);
-  gui.add(sky, 'MieScaleHeight', 1, sky.AtmosphereHeight);
-  gui.add(sky, 'MiePolarity', -0.999, 0.999);
+  gui.add(sky, 'SunY', -1, 5).name('Sun Y');
+  gui.add(sky, 'SunIntensity', 0, sky.SunIntensity * 10).name('Sun intensity');
+  gui.add(sky, 'GroundElevation', 1, sky.GroundElevation).name('Ground Elevation (m)');
+  gui.add(sky, 'AtmosphereHeight', 1, sky.AtmosphereHeight * 2).name('Atmos. height (m)');
+  const rls = gui.addFolder('Rayleigh Scattering');
+  rls.add(sky, 'RayleighRed', 1e-6, 50e-6).name('Red');
+  rls.add(sky, 'RayleighGreen', 1e-6, 50e-6).name('Green');
+  rls.add(sky, 'RayleighBlue', 1e-6, 50e-6).name('Blue');
+  rls.add(sky, 'RayleighScaleHeight', 1, sky.AtmosphereHeight).name('Scale height (m)');
+  rls.open();
+  const mie = gui.addFolder('Mie Scattering');
+  mie.add(sky, 'MieScatteringCoeff', 1e-6, 50e-6).name('Scattering');
+  mie.add(sky, 'MieScaleHeight', 1, sky.AtmosphereHeight).name('Scale height (m)');
+  mie.add(sky, 'MiePolarity', -0.999, 0.999).name('Polarity');
+  mie.open();
   gui.remember(sky);
 
   const animation = () => {
