@@ -217,8 +217,9 @@ export default class Demo {
   /**
    * The render loop body sets the program attributes and uniforms,
    * and renders a full screen quad with it:
+   * @param atmos Atmosphere parameters.
    */
-  onRender() {
+  onRender(atmos) {
     const gl = this.gl;
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);

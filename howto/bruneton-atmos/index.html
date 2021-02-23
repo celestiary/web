@@ -2,37 +2,63 @@
 <html>
 <head><link rel="stylesheet" href="../index.css"/></head>
 <body>
-<div id="ui"></div>
-<h1>Atmosphere - WIP: Bruneton integration</h1>
-<p>Work in progress.
+<div id="ui"><canvas width="600" height="600"></canvas></div>
+<h1>Atmosphere - Bruneton</h1>
+<p><em>Work in progress.</em>
+
 <p>Integrating <a href="https://github.com/ebruneton/precomputed_atmospheric_scattering">Eric
-    Bruneton's atmosphere shaders</a>.
+    Bruneton's atmosphere shaders</a>.  <p>Check out the amazing work
+    he was part of
+    at <a href="http://proland.inrialpes.fr/skies.html">Proland</a>.
 
-<p>Eric's JS + shader are here drawing on the canvas setup by the
-three.js renderer, but I haven't been able to get both to make a
-render pass without clobbering each other.  Eric's shaders are pretty
-complex, using GL concepts I don't yet undesrtand, so passing on these
-for now.
+<p>Eric's JS + shader are here drawing on a canvas shared with the
+  three.js renderer, but I haven't been able to get both to make a
+  render pass without clobbering each other.
 
-<p><em>Update</em>, there's a better-commented version of Bruneton's work <a href="https://github.com/ebruneton/precomputed_atmospheric_scattering/tree/master/atmosphere">here</a>, with physical params <a href="https://github.com/ebruneton/precomputed_atmospheric_scattering/blob/master/atmosphere/demo/demo.cc">here</a>.
+<p>The Atmosphere Controls below are only affecting some settings
+within the shaders here, and I haven't yet been able to recompute the
+lookup tables needed for the full Mars rendering.
 
-<p>Check out the amazing work he was part of
-  at <a href="http://proland.inrialpes.fr/skies.html">Proland</a>.
+<p>Eric's shaders are pretty complex, using GL concepts I don't yet
+undesrtand, so passing on these for now.
+
+<p>Bruneton's C implementation <a href="https://github.com/ebruneton/precomputed_atmospheric_scattering/tree/master/atmosphere">here</a>, is better commented and has physical params <a href="https://github.com/ebruneton/precomputed_atmospheric_scattering/blob/master/atmosphere/demo/demo.cc">here</a>.
+
+<div id="control"></div>
 
 <script type="module">
   import * as THREE from '../js/lib/three.js/three.module.js';
   import TrackballControls from '../js/lib/three.js/TrackballControls.js';
 
-  import Loader from '../js/loader.js';
-  import Planet from '../js/Planet.js';
-  import Reify from '../js/reify.js';
-  import * as Shared from '../js/shared.js';
+  import Atmosphere from '../Atmosphere.js';
+  import AtmosphereControls from '../AtmosphereControls.js';
+  import Demo from './demo2.js';
 
-  import Atmosphere from './atmosphere.js';
+  const groundEl = 6360000;
+  const atmosHeight = 60000;
+  // Collienne et al., diffs: Rayleigh and scale height
+  const atmos = new Atmosphere(2, 22, groundEl, atmosHeight,
+                               5.8e-6, 13.5e-6, 33.1e-6, 8000,
+                               0.000021, 1200, 0.8);
+
+  const atmosControls = new AtmosphereControls(atmos);
+  const ctrlElt = atmosControls.domElement;
+  ctrlElt.style.position = 'absolute';
+  document.querySelector('#control').appendChild(ctrlElt);
 
   const container = document.getElementById('ui');
-  const renderer = new THREE.WebGLRenderer({antialias: true});
-  //renderer.autoClear = false;
+  const canvas = container.querySelector('canvas');
+  let demo = new Demo(container, canvas, atmos);
+  atmosControls.onFinishChangeCb = () => {
+    demo = new Demo(container, canvas, atmos);
+  };
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas: canvas,
+    antialias: true,
+    preserveDrawingBuffer: true
+  });
+  renderer.autoClear = false;
   if (!renderer.capabilities.isWebGL2) {
     console.error('Need WebGL2 for good atmosphere');
   }
@@ -41,7 +67,7 @@ for now.
   renderer.setSize(600, 600);
   container.appendChild(renderer.domElement);
 
-  const camera = new THREE.PerspectiveCamera(Shared.INITIAL_FOV, 1, 1E-3, 1E35);
+  const camera = new THREE.PerspectiveCamera(45, 1, 1E-3, 1E35);
   camera.position.z = 10;
   const controls = new TrackballControls(camera, container);
   controls.target = camera.position;
@@ -54,15 +80,39 @@ for now.
 
   scene.add(new THREE.AxesHelper(1.1));
 
-  const atmos = new Atmosphere(container, 'canvas', renderer.getContext());
-  window.atmos = atmos;
   const onRender = () => {
+    demo.onRender(atmos);
     renderer.render(scene, camera);
-    atmos.onRender();
     requestAnimationFrame(onRender);
   };
-  window.onRender = onRender;
   onRender();
 </script>
 </body>
 </html>
+
+<!--/*
+  const renderer = new THREE.WebGLRenderer({antialias: true});
+  //renderer.autoClear = false;
+  if (!renderer.capabilities.isWebGL2) {
+    console.error('Need WebGL2 for good atmosphere');
+  }
+  console.log('Renderer capabilities:',  renderer.capabilities);
+  renderer.setClearColor(0xff0000, 1);
+  renderer.setSize(600, 600);
+  container.appendChild(renderer.domElement);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 1E-3, 1E35);
+  camera.position.z = 10;
+  const controls = new TrackballControls(camera, container);
+  controls.target = camera.position;
+
+  const scene = new THREE.Scene;
+  const light = new THREE.DirectionalLight();
+  const dist = 1e7;
+  light.position.set(dist, 0, dist);
+  camera.add(light);
+
+  scene.add(new THREE.AxesHelper(1.1));
+  const demo = new Demo(container, 'canvas', renderer.getContext());
+*/
+-->

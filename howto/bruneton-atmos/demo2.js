@@ -26,7 +26,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
-import * as AtmosphereShader from './AtmosphereShader.js';
+import getAtmosShaderFromParams from './AtmosphereShader.js';
 import * as FragmentShader from './FragmentShader.js';
 import * as VertexShader from './VertexShader.js';
 
@@ -59,23 +59,21 @@ const kLengthUnitInMeters = 1000;
  * class, sets up the event handlers and starts the resource loading and
  * the render loop:
  */
-export default class Atmosphere {
-  constructor(rootElement, canvasId = '#glcanvas', glCtx) {
-    this.canvas = rootElement.querySelector(canvasId);
-    console.log(this.canvas);
-    //this.canvas.style.width = `${rootElement.clientWidth}px`;
-    //nthis.canvas.style.height = `${rootElement.clientHeight}px`;
-    this.canvas.width = rootElement.clientWidth * window.devicePixelRatio;
-    this.canvas.height = rootElement.clientHeight * window.devicePixelRatio;
-    this.help = rootElement.querySelector('#help');
-    if (glCtx) {
-      console.log('using provided webgl context: ', glCtx);
-    } else {
-      glCtx = this.canvas.getContext('webgl2');
-      console.log('getting webgl context from canvas: ', glCtx);
-    }
-    this.gl = glCtx;
-    console.log(this.canvas.width, this.canvas.height, this.gl);
+export default class Demo {
+  constructor(rootElt, canvasElt, atmos) {
+    this.canvas = canvasElt;
+    this.canvas.width = rootElt.clientWidth * window.devicePixelRatio;
+    this.canvas.height = rootElt.clientHeight * window.devicePixelRatio;
+    this.gl = this.canvas.getContext('webgl2');
+
+    // Controls.
+    this.drag = undefined;
+    this.previousMouseX = undefined;
+    this.previousMouseY = undefined;
+    rootElt.addEventListener('mousedown', (e) => this.onMouseDown(e));
+    rootElt.addEventListener('mousemove', (e) => this.onMouseMove(e));
+    rootElt.addEventListener('mouseup', (e) => this.onMouseUp(e));
+    rootElt.addEventListener('wheel', (e) => this.onMouseWheel(e));
 
     this.vertexBuffer = null;
     this.transmittanceTexture = null;
@@ -83,7 +81,7 @@ export default class Atmosphere {
     this.irradianceTexture = null;
     this.vertexShaderSource = VertexShader.source;
     this.fragmentShaderSource = FragmentShader.source;
-    this.atmosphereShaderSource = AtmosphereShader.source;
+    this.atmosphereShaderSource = getAtmosShaderFromParams(atmos);
     this.program = null;
 
     this.viewFromClip = new Float32Array(16);
@@ -119,15 +117,6 @@ export default class Atmosphere {
      * Original: 10 */
     this.exposure = 10;
 
-    this.drag = undefined;
-    this.previousMouseX = undefined;
-    this.previousMouseY = undefined;
-
-    rootElement.addEventListener('keypress', (e) => this.onKeyPress(e));
-    rootElement.addEventListener('mousedown', (e) => this.onMouseDown(e));
-    rootElement.addEventListener('mousemove', (e) => this.onMouseMove(e));
-    rootElement.addEventListener('mouseup', (e) => this.onMouseUp(e));
-    rootElement.addEventListener('wheel', (e) => this.onMouseWheel(e));
     this.init();
     this.count = 0;
   }
@@ -168,17 +157,6 @@ export default class Atmosphere {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, IRRADIANCE_TEXTURE_WIDTH,
           IRRADIANCE_TEXTURE_HEIGHT, 0, gl.RGBA, gl.FLOAT, data);
     });
-
-    Utils.loadShaderSource('./vertex_shader.txt', (source) => {
-      this.vertexShaderSource = source;
-    });
-    Utils.loadShaderSource('./fragment_shader.txt', (source) => {
-      this.fragmentShaderSource = source;
-    });
-    Utils.loadShaderSource('./atmosphere_shader.txt', (source) => {
-      this.atmosphereShaderSource = source;
-    });
-    console.log('Init: DONE');
   }
 
 
@@ -192,10 +170,7 @@ export default class Atmosphere {
    * type):
    */
   maybeLinkProgram() {
-    if (this.program ||
-        !this.vertexShaderSource ||
-        !this.fragmentShaderSource ||
-        !this.atmosphereShaderSource) {
+    if (this.program) {
       return;
     }
     console.log('linking...');
@@ -219,9 +194,9 @@ export default class Atmosphere {
     gl.linkProgram(this.program);
     if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
       const info = gl.getProgramInfoLog(this.program);
-      throw new Error('Could not compile WebGL program. \n\n' + info);
+      console.error(this.atmosphereShaderSource);
+      throw new Error('Could not compile WebGL program:', info);
     }
-    console.log('Program link: DONE', this.program);
   }
 
 
@@ -293,54 +268,6 @@ export default class Atmosphere {
     gl.drawArrays(gl.TRIANGLE_STRIP,
     0, // offset
     4); // vertexCount
-  }
-
-
-  /**
-   * The last part of the Demo class are the event handler methods, which are
-   * directly adapted from the C++ code:
-   */
-  onKeyPress(event) {
-    const key = event.key;
-    if (key == 'h') {
-      if (this.help) {
-        const hidden = this.help.style.display == 'none';
-        this.help.style.display = hidden ? 'block' : 'none';
-      }
-    } else if (key == '+') {
-      this.exposure *= 1.1;
-    } else if (key == '-') {
-      this.exposure /= 1.1;
-    } else if (key == '1') {
-      this.setView(9000, 1.47, 0, 1.3, 3, 10);
-    } else if (key == '2') {
-      this.setView(9000, 1.47, 0, 1.564, -3, 10);
-    } else if (key == '3') {
-      this.setView(7000, 1.57, 0, 1.54, -2.96, 10);
-    } else if (key == '4') {
-      this.setView(7000, 1.57, 0, 1.328, -3.044, 10);
-    } else if (key == '5') {
-      this.setView(9000, 1.39, 0, 1.2, 0.7, 10);
-    } else if (key == '6') {
-      this.setView(9000, 1.5, 0, 1.628, 1.05, 200);
-    } else if (key == '7') {
-      this.setView(7000, 1.43, 0, 1.57, 1.34, 40);
-    } else if (key == '8') {
-      this.setView(2.7e6, 0.81, 0, 1.57, 2, 10);
-    } else if (key == '9') {
-      this.setView(1.2e7, 0.0, 0, 0.93, -2, 10);
-    }
-  }
-
-
-  setView(viewDistanceMeters, viewZenithAngleRadians, viewAzimuthAngleRadians,
-      sunZenithAngleRadians, sunAzimuthAngleRadians, exposure) {
-    this.viewDistanceMeters = viewDistanceMeters;
-    this.viewZenithAngleRadians = viewZenithAngleRadians;
-    this.viewAzimuthAngleRadians = viewAzimuthAngleRadians;
-    this.sunZenithAngleRadians = sunZenithAngleRadians;
-    this.sunAzimuthAngleRadians = sunAzimuthAngleRadians;
-    this.exposure = exposure;
   }
 
 

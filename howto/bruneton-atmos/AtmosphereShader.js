@@ -1,5 +1,28 @@
-export const source =
-`#version 330
+export default function getAtmosShaderFromParams(atmos) {
+  return getAtmosShader(
+      atmos.GroundElevation / 1000, atmos.AtmosphereHeight / 1000,
+      atmos.RayleighRed, atmos.RayleighGreen, atmos.RayleighBlue,
+      atmos.MieScatteringCoeff, undefined, atmos.MiePolarity);
+}
+
+function getAtmosShader(
+    elevation = 6360, atmosHeight = 60,
+    RayleighRed = 0.005802, RayleighGreen = 0.013558, RayleighBlue = 0.033100,
+    MieCoeff = 0.003996, MieExtinction = 0.004444, MiePolarity = 0.8) {
+  const header = `#version 330
+
+#define GROUND_ELEVATION ${elevation.toFixed(2)}
+#define ATMOSPHERE_HEIGHT ${(elevation + atmosHeight).toFixed(2)}
+#define RAYLEIGH_SCATTERING_SPECTRUM vec3(${RayleighRed}, ${RayleighGreen}, ${RayleighBlue})
+#define MIE_SCATTERING_SPECTRUM vec3(${MieCoeff}, ${MieCoeff}, ${MieCoeff})
+#define MIE_EXTINCTION vec3(${MieExtinction}, ${MieExtinction}, ${MieExtinction})
+#define MIE_PHASE_G ${MiePolarity}
+
+`;
+  return header + source;
+}
+
+const source = `
 #define IN(x) const in x
 #define OUT(x) out x
 #define TEMPLATE(x)
@@ -110,18 +133,18 @@ struct AtmosphereParameters {
 const AtmosphereParameters ATMOSPHERE = AtmosphereParameters(
     vec3(1.474000,1.850400,1.911980),
     0.004675,
-    6360.000000,
-    6420.000000,
+    GROUND_ELEVATION,
+    ATMOSPHERE_HEIGHT,
     DensityProfile(DensityProfileLayer[2](
         DensityProfileLayer(0.000000,0.000000,0.000000,0.000000,0.000000),
         DensityProfileLayer(0.000000,1.000000,-0.125000,0.000000,0.000000))),
-    vec3(0.005802,0.013558,0.033100),
+    RAYLEIGH_SCATTERING_SPECTRUM,
     DensityProfile(DensityProfileLayer[2](
         DensityProfileLayer(0.000000,0.000000,0.000000,0.000000,0.000000),
         DensityProfileLayer(0.000000,1.000000,-0.833333,0.000000,0.000000))),
-    vec3(0.003996,0.003996,0.003996),
-    vec3(0.004440,0.004440,0.004440),
-    0.800000,
+    MIE_SCATTERING_SPECTRUM,
+    MIE_EXTINCTION,
+    MIE_PHASE_G,
     DensityProfile(DensityProfileLayer[2](
         DensityProfileLayer(25.000000,0.000000,0.000000,0.066667,-0.666667),
         DensityProfileLayer(0.000000,0.000000,0.000000,-0.066667,2.666667))),
