@@ -12,6 +12,7 @@ import * as Shared from './shared.js';
 import * as Utils from './utils.js';
 
 
+const DEFAULT_TARGET = 'sun';
 const elt = (id) => { return document.getElementById(id); }
 
 /** Main application class. */
@@ -79,12 +80,15 @@ export default class Celestiary {
     if (location.hash) {
       path = location.hash.substring(1);
     } else {
-      path = 'sun';
+      path = DEFAULT_TARGET;
       location.hash = path;
     }
     this.loader.loadPath('milkyway', this.onLoadCb, () => {
-        this.loader.loadPath(path, this.onLoadCb, this.onDoneCb);
+      this.loader.loadPath(path, this.onLoadCb, this.onDoneCb, () => {
+        // On error.
+        location.hash = DEFAULT_TARGET;
       });
+    });
   }
 
 

@@ -2,8 +2,10 @@ import {
   AdditiveBlending,
   BufferGeometry,
   Float32BufferAttribute,
+  GLSL3,
   Mesh,
   ShaderMaterial,
+  Vector2,
   Vector3,
 } from './js/lib/three.js/three.module.js';
 
@@ -41,11 +43,11 @@ function makeGeometry() {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new Float32BufferAttribute([
       -1, -1, -1,
-      1, -1, -1,
-      1,  1, -1,
+       1, -1, -1,
+       1,  1, -1,
 
       -1, -1, -1,
-      1,  1, -1,
+       1,  1, -1,
       -1,  1, -1],
     3));
   return geometry;
@@ -53,10 +55,43 @@ function makeGeometry() {
 
 
 function makeMaterial(atmos) {
+  const kLengthUnitInMeters = 1000;
+  const viewDistanceMeters = 9e3;
+  const viewZenithAngleRadians = 1.47;
+  const viewAzimuthAngleRadians = -0.1;
+  const kFovY = Math.PI / 4; // Original: 50 / 180 * Math.PI
+  const kTanFovY = Math.tan(kFovY / 2);
+  const aspectRatio = 1; //this.canvas.width / this.canvas.height;
+  const viewFromClip = new Float32Array(16);
+  const modelFromView = new Float32Array(16);
+  viewFromClip.set([
+        kTanFovY * aspectRatio, 0, 0, 0,
+        0, kTanFovY, 0, 0,
+        0, 0, 0, -1,
+        0, 0, 1, 1]);
+
+  const cosZ = Math.cos(viewZenithAngleRadians);
+  const sinZ = Math.sin(viewZenithAngleRadians);
+  const cosA = Math.cos(viewAzimuthAngleRadians);
+  const sinA = Math.sin(viewAzimuthAngleRadians);
+  const viewDistance = viewDistanceMeters / kLengthUnitInMeters;
+  modelFromView.set([
+        -sinA, -cosZ * cosA,  sinZ * cosA, sinZ * cosA * viewDistance,
+        cosA, -cosZ * sinA, sinZ * sinA, sinZ * sinA * viewDistance,
+        0, sinZ, cosZ, cosZ * viewDistance,
+        0, 0, 0, 1]);
+  const sunPos = -10;
   return new ShaderMaterial({
     uniforms: {
+      model_from_view: { value: modelFromView },
+      view_from_clip: { value: viewFromClip },
       uEyePos: { value: new Vector3(0, atmos.EyeHeight, 0) },
       uSunPos: { value: new Vector3(0, atmos.SunY, -1) },
+      earth_center: { value: new Vector3(0, 0, atmos.EyeHeight) },
+      sun_direction: { value: new Vector3(0, atmos.SunY, 0) },
+      sun_size: { value: new Vector2(1, 1) },
+          // TODO: same as sun
+      camera: { value: new Vector3(0, atmos.SunY, -1) },
       uSunIntensity: { value: atmos.SunIntensity },
       uGroundElevation: { value: atmos.GroundElevation },
       uAtmosphereHeight: { value: atmos.AtmosphereHeight },
@@ -71,6 +106,7 @@ function makeMaterial(atmos) {
       uMieScaleHeight: { value: atmos.MieScaleHeight },
       uMiePolarity: { value: atmos.MiePolarity },
     },
+        //    glslVersion: GLSL3,
     vertexShader: VERTEX_SHADER,
     fragmentShader: FRAGMENT_SHADER,
     blending: AdditiveBlending,
@@ -80,15 +116,20 @@ function makeMaterial(atmos) {
 
 const VERTEX_SHADER = `varying vec3 vPosition;
 
+uniform mat4 model_from_view;
+uniform mat4 view_from_clip;
+layout(location = 0) in vec4 vertex;
+out vec3 view_ray;
 void main() {
-  //vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  view_ray = (model_from_view * vec4((view_from_clip * vertex).xyz, 0.0)).xyz;
+  vec4 mvPosition = modelViewMatrix * vec4(position, 0.0);
   vPosition = position;
-  //gl_Position = projectionMatrix * mvPosition;
-  gl_Position = vec4(position, 1.0);
+  gl_Position = projectionMatrix * mvPosition;
+  //gl_Position = vec4(position, 1.0);
 }
 `;
 
-const FRAGMENT_SHADER = `// Adapted From https://github.com/wwwtyro/glsl-atmosphere
+// Adapted From https://github.com/wwwtyro/glsl-atmosphere
 // Thanks Rye!
 // License:
 //   The Unlicense
@@ -97,7 +138,7 @@ const FRAGMENT_SHADER = `// Adapted From https://github.com/wwwtyro/glsl-atmosph
 //   works may be distributed under different terms and without source
 //   code.
 //   https://github.com/wwwtyro/glsl-atmosphere/blob/master/LICENSE
-precision highp float;
+const FRAGMENT_SHADER = `precision highp float;
 
 varying vec3 vPosition;
 
@@ -111,6 +152,13 @@ uniform float uMieScatteringCoeff;
 uniform float uRayleighScaleHeight;
 uniform float uMieScaleHeight;
 uniform float uMiePolarity;
+
+uniform vec3 camera;
+uniform vec3 earth_center;
+uniform vec3 sun_direction;
+uniform vec2 sun_size;
+
+in vec3 view_ray;
 
 #define PI 3.141592
 #define iSteps 16
@@ -238,14 +286,44 @@ vec3 atmosphere(vec3 pVrt, vec3 pEye,
     return iSun * (pRlh * kRlh * totalRlh + pMie * kMie * totalMie);
 }
 
+const float kLengthUnitInMeters = 1.;
+const vec3 kSphereCenter = vec3(0.0, 0.0, 0) / kLengthUnitInMeters;
 
 void main() {
+
+  vec3 view_direction = normalize(view_ray);
+  vec3 p = camera - kSphereCenter;
+  float p_dot_v = dot(p, view_direction);
+  float p_dot_p = dot(p, p);
+  p = camera - earth_center;
+  p_dot_v = dot(p, view_direction);
+  p_dot_p = dot(p, p);
+  /*
+  float ground_alpha = 0.0;
+  vec3 ground_radiance = vec3(0.0);
+  vec3 transmittance;
+  float shadow_length = 0.;
+  vec3 radiance = GetSkyRadiance(
+      camera - earth_center, view_direction, shadow_length, sun_direction,
+      transmittance);
+  if (dot(view_direction, sun_direction) > sun_size.y) {
+    radiance = radiance + transmittance * GetSolarRadiance();
+  }
+  radiance = mix(radiance, ground_radiance, ground_alpha);
+  color.rgb =
+      pow(vec3(1.0) - exp(-radiance / white_point * exposure), vec3(1.0 / 2.2));
+  color.a = 0.5;
+  */
+  color.rgb =
+      pow(vec3(1.0) - exp(-radiance / white_point * exposure), vec3(1.0 / 2.2));
+  /*
     vec3 color = atmosphere(
         vPosition, uEyePos,
         uSunPos, uSunIntensity,
         uGroundElevation, uGroundElevation + uAtmosphereHeight,
         uRayleighScatteringCoeff, uRayleighScaleHeight,
         uMieScatteringCoeff, uMieScaleHeight, uMiePolarity);
+  */
 
     // Apply exposure.
     color = 1.0 - exp(-1.0 * color);

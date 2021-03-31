@@ -24,7 +24,7 @@ export default class Loader {
    * This will happen once whether or not the path has previously been
    * loaded.
    */
-  loadPath(path, onLoadCb, onDoneCb) {
+  loadPath(path, onLoadCb, onDoneCb, onErrCb) {
     if (path.length == 0) {
       throw new Error('empty target path');
     }
@@ -38,7 +38,7 @@ export default class Loader {
         if (name == targetName) {
           onDoneCb(path, obj);
         }
-      });
+    }, onErrCb);
   }
 
 
@@ -47,13 +47,13 @@ export default class Loader {
    * @param {function} onLoadCb Called when the object is loaded.
    * This will only happen once per path.
    */
-  loadPathRecursive(pathParts, onLoadCb) {
+  loadPathRecursive(pathParts, onLoadCb, onErrCb) {
     if (pathParts.length == 0) {
       return;
     }
     const name = pathParts.pop();
-    this.loadPathRecursive(pathParts, onLoadCb);
-    this.loadObj(pathParts.join('/'), name, onLoadCb, true);
+    this.loadPathRecursive(pathParts, onLoadCb, onErrCb);
+    this.loadObj(pathParts.join('/'), name, onLoadCb, true, onErrCb);
   }
 
 
@@ -64,7 +64,7 @@ export default class Loader {
    * @param {!boolean} expand Whether to also load the children of the
    *     given node.
    */
-  loadObj(prefix, name, onLoadCb, expand) {
+  loadObj(prefix, name, onLoadCb, expand, onErrCb) {
     const loadedObj = this.loaded[name];
     if (loadedObj) {
       if (loadedObj == 'pending') {
@@ -73,7 +73,7 @@ export default class Loader {
       if (expand && loadedObj.system) {
         const path = prefix ? `${prefix}/${name}` : name;
         for (let i = 0; i < loadedObj.system.length; i++) {
-          this.loadObj(path, loadedObj.system[i], onLoadCb, false);
+          this.loadObj(path, loadedObj.system[i], onLoadCb, false, onErrCb);
         }
       }
     } else {
@@ -81,14 +81,14 @@ export default class Loader {
       const fileLoader = new FileLoader();
       fileLoader.setResponseType('json');
       fileLoader.load('./data/' + name + '.json', (obj) => {
-          this.loaded[name] = obj;
-          const path = prefix ? `${prefix}/${name}` : name;
-          this.pathByName[name] = path;
-          if (onLoadCb) {
-            onLoadCb(name, obj);
-          }
-          this.loadObj(prefix, name, onLoadCb, expand);
-        });
+        this.loaded[name] = obj;
+        const path = prefix ? `${prefix}/${name}` : name;
+        this.pathByName[name] = path;
+        if (onLoadCb) {
+          onLoadCb(name, obj);
+        }
+        this.loadObj(prefix, name, onLoadCb, expand, onErrCb);
+      }, null, onErrCb);
     }
   }
 

@@ -123,7 +123,10 @@ export default class ThreeUi {
 
 
   initRenderer(container, backgroundColor) {
-    const renderer = new THREE.WebGLRenderer({antialias: true});
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('webgl2');
+    container.appendChild(canvas);
+    const renderer = new THREE.WebGLRenderer({canvas: canvas, context: ctx, antialias: true});
     //renderer.setPixelRatio(window.devicePixelRatio);
     // No idea about this.. just like the way it looks.
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -136,7 +139,6 @@ export default class ThreeUi {
     renderer.setSize(this.width, this.height);
     renderer.sortObjects = true;
     renderer.autoClear = true;
-    container.appendChild(renderer.domElement);
     return renderer;
   }
 
