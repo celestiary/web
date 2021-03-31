@@ -86,7 +86,9 @@ export default class Celestiary {
     this.loader.loadPath('milkyway', this.onLoadCb, () => {
       this.loader.loadPath(path, this.onLoadCb, this.onDoneCb, () => {
         // On error.
-        location.hash = DEFAULT_TARGET;
+        setTimeout(() => {
+          location.hash = DEFAULT_TARGET;
+        }, 1000)
       });
     });
   }
