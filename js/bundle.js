@@ -25111,7 +25111,7 @@ class Fog {
 
 }
 
-class Scene extends Object3D {
+class Scene$1 extends Object3D {
 
 	constructor() {
 
@@ -36225,7 +36225,7 @@ function LoadingManager( onLoad, onProgress, onError ) {
 
 const DefaultLoadingManager = new LoadingManager();
 
-function Loader( manager ) {
+function Loader$1( manager ) {
 
 	this.manager = ( manager !== undefined ) ? manager : DefaultLoadingManager;
 
@@ -36237,7 +36237,7 @@ function Loader( manager ) {
 
 }
 
-Object.assign( Loader.prototype, {
+Object.assign( Loader$1.prototype, {
 
 	load: function ( /* url, onLoad, onProgress, onError */ ) {},
 
@@ -36296,11 +36296,11 @@ const loading = {};
 
 function FileLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 }
 
-FileLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+FileLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: FileLoader,
 
@@ -36588,11 +36588,11 @@ FileLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
 
 function AnimationLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 }
 
-AnimationLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+AnimationLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: AnimationLoader,
 
@@ -36656,11 +36656,11 @@ AnimationLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
 
 function CompressedTextureLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 }
 
-CompressedTextureLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+CompressedTextureLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: CompressedTextureLoader,
 
@@ -36778,11 +36778,11 @@ CompressedTextureLoader.prototype = Object.assign( Object.create( Loader.prototy
 
 function ImageLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 }
 
-ImageLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+ImageLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: ImageLoader,
 
@@ -36860,11 +36860,11 @@ ImageLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
 
 function CubeTextureLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 }
 
-CubeTextureLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+CubeTextureLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: CubeTextureLoader,
 
@@ -36918,11 +36918,11 @@ CubeTextureLoader.prototype = Object.assign( Object.create( Loader.prototype ), 
 
 function DataTextureLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 }
 
-DataTextureLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+DataTextureLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: DataTextureLoader,
 
@@ -37003,11 +37003,11 @@ DataTextureLoader.prototype = Object.assign( Object.create( Loader.prototype ), 
 
 function TextureLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 }
 
-TextureLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+TextureLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: TextureLoader,
 
@@ -40017,13 +40017,13 @@ LightProbe.prototype = Object.assign( Object.create( Light.prototype ), {
 
 function MaterialLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 	this.textures = {};
 
 }
 
-MaterialLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+MaterialLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: MaterialLoader,
 
@@ -40444,11 +40444,11 @@ InstancedBufferAttribute.prototype = Object.assign( Object.create( BufferAttribu
 
 function BufferGeometryLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 }
 
-BufferGeometryLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+BufferGeometryLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: BufferGeometryLoader,
 
@@ -40659,7 +40659,7 @@ const TYPED_ARRAYS = {
 	Float64Array: Float64Array
 };
 
-class ObjectLoader extends Loader {
+class ObjectLoader extends Loader$1 {
 
 	constructor( manager ) {
 
@@ -41336,7 +41336,7 @@ class ObjectLoader extends Loader {
 
 			case 'Scene':
 
-				object = new Scene();
+				object = new Scene$1();
 
 				if ( data.background !== undefined ) {
 
@@ -41627,13 +41627,13 @@ function ImageBitmapLoader( manager ) {
 
 	}
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 	this.options = { premultiplyAlpha: 'none' };
 
 }
 
-ImageBitmapLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+ImageBitmapLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: ImageBitmapLoader,
 
@@ -42141,11 +42141,11 @@ function createPath( char, scale, offsetX, offsetY, data ) {
 
 function FontLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 }
 
-FontLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+FontLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: FontLoader,
 
@@ -42214,11 +42214,11 @@ const AudioContext = {
 
 function AudioLoader( manager ) {
 
-	Loader.call( this, manager );
+	Loader$1.call( this, manager );
 
 }
 
-AudioLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+AudioLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 	constructor: AudioLoader,
 
@@ -46186,13 +46186,13 @@ function Raycaster( origin, direction, near, far ) {
 
 }
 
-function ascSort( a, b ) {
+function ascSort$1( a, b ) {
 
 	return a.distance - b.distance;
 
 }
 
-function intersectObject( object, raycaster, intersects, recursive ) {
+function intersectObject$1( object, raycaster, intersects, recursive ) {
 
 	if ( object.layers.test( raycaster.layers ) ) {
 
@@ -46206,7 +46206,7 @@ function intersectObject( object, raycaster, intersects, recursive ) {
 
 		for ( let i = 0, l = children.length; i < l; i ++ ) {
 
-			intersectObject( children[ i ], raycaster, intersects, true );
+			intersectObject$1( children[ i ], raycaster, intersects, true );
 
 		}
 
@@ -46250,9 +46250,9 @@ Object.assign( Raycaster.prototype, {
 
 		const intersects = optionalTarget || [];
 
-		intersectObject( object, this, intersects, recursive );
+		intersectObject$1( object, this, intersects, recursive );
 
-		intersects.sort( ascSort );
+		intersects.sort( ascSort$1 );
 
 		return intersects;
 
@@ -46271,11 +46271,11 @@ Object.assign( Raycaster.prototype, {
 
 		for ( let i = 0, l = objects.length; i < l; i ++ ) {
 
-			intersectObject( objects[ i ], this, intersects, recursive );
+			intersectObject$1( objects[ i ], this, intersects, recursive );
 
 		}
 
-		intersects.sort( ascSort );
+		intersects.sort( ascSort$1 );
 
 		return intersects;
 
@@ -49152,7 +49152,7 @@ function WireframeHelper( object, hex ) {
 
 //
 
-Object.assign( Loader.prototype, {
+Object.assign( Loader$1.prototype, {
 
 	extractUrlBase: function ( url ) {
 
@@ -49163,7 +49163,7 @@ Object.assign( Loader.prototype, {
 
 } );
 
-Loader.Handlers = {
+Loader$1.Handlers = {
 
 	add: function ( /* regex, loader */ ) {
 
@@ -50182,7 +50182,7 @@ Object.assign( ExtrudeBufferGeometry.prototype, {
 
 //
 
-Object.assign( Scene.prototype, {
+Object.assign( Scene$1.prototype, {
 
 	dispose: function () {
 
@@ -51172,7 +51172,7 @@ var THREE = /*#__PURE__*/Object.freeze({
 	LinearMipmapLinearFilter: LinearMipmapLinearFilter,
 	LinearMipmapNearestFilter: LinearMipmapNearestFilter,
 	LinearToneMapping: LinearToneMapping,
-	Loader: Loader,
+	Loader: Loader$1,
 	LoaderUtils: LoaderUtils,
 	LoadingManager: LoadingManager,
 	LogLuvEncoding: LogLuvEncoding,
@@ -51330,7 +51330,7 @@ var THREE = /*#__PURE__*/Object.freeze({
 	SRGB8_ALPHA8_ASTC_8x5_Format: SRGB8_ALPHA8_ASTC_8x5_Format,
 	SRGB8_ALPHA8_ASTC_8x6_Format: SRGB8_ALPHA8_ASTC_8x6_Format,
 	SRGB8_ALPHA8_ASTC_8x8_Format: SRGB8_ALPHA8_ASTC_8x8_Format,
-	Scene: Scene,
+	Scene: Scene$1,
 	SceneUtils: SceneUtils,
 	ShaderChunk: ShaderChunk,
 	ShaderLib: ShaderLib,
@@ -51434,7 +51434,7 @@ var THREE = /*#__PURE__*/Object.freeze({
 	sRGBEncoding: sRGBEncoding
 });
 
-const elt = (id) => { return document.getElementById(id); };
+const elt$1 = (id) => { return document.getElementById(id); };
 
 
 function assertNotNullOrUndefined(x) {
@@ -51568,7 +51568,7 @@ var Utils = /*#__PURE__*/Object.freeze({
 	__proto__: null,
 	capitalize: capitalize,
 	createCanvas: createCanvas,
-	elt: elt,
+	elt: elt$1,
 	assertNotNullOrUndefined: assertNotNullOrUndefined,
 	assertArgs: assertArgs,
 	measureText: measureText,
@@ -52156,7 +52156,7 @@ class Keys {
  * TODO(pablo): There are currently a few ways of loading around the
  * code, should consolidate.
  */
-class Loader$1 {
+class Loader {
   constructor() {
     this.loaded = {};
     this.pathByName = {};
@@ -52172,7 +52172,7 @@ class Loader$1 {
    * This will happen once whether or not the path has previously been
    * loaded.
    */
-  loadPath(path, onLoadCb, onDoneCb) {
+  loadPath(path, onLoadCb, onDoneCb, onErrCb) {
     if (path.length == 0) {
       throw new Error('empty target path');
     }
@@ -52186,7 +52186,7 @@ class Loader$1 {
         if (name == targetName) {
           onDoneCb(path, obj);
         }
-      });
+    }, onErrCb);
   }
 
 
@@ -52195,13 +52195,13 @@ class Loader$1 {
    * @param {function} onLoadCb Called when the object is loaded.
    * This will only happen once per path.
    */
-  loadPathRecursive(pathParts, onLoadCb) {
+  loadPathRecursive(pathParts, onLoadCb, onErrCb) {
     if (pathParts.length == 0) {
       return;
     }
     const name = pathParts.pop();
-    this.loadPathRecursive(pathParts, onLoadCb);
-    this.loadObj(pathParts.join('/'), name, onLoadCb, true);
+    this.loadPathRecursive(pathParts, onLoadCb, onErrCb);
+    this.loadObj(pathParts.join('/'), name, onLoadCb, true, onErrCb);
   }
 
 
@@ -52212,7 +52212,7 @@ class Loader$1 {
    * @param {!boolean} expand Whether to also load the children of the
    *     given node.
    */
-  loadObj(prefix, name, onLoadCb, expand) {
+  loadObj(prefix, name, onLoadCb, expand, onErrCb) {
     const loadedObj = this.loaded[name];
     if (loadedObj) {
       if (loadedObj == 'pending') {
@@ -52221,7 +52221,7 @@ class Loader$1 {
       if (expand && loadedObj.system) {
         const path = prefix ? `${prefix}/${name}` : name;
         for (let i = 0; i < loadedObj.system.length; i++) {
-          this.loadObj(path, loadedObj.system[i], onLoadCb, false);
+          this.loadObj(path, loadedObj.system[i], onLoadCb, false, onErrCb);
         }
       }
     } else {
@@ -52229,14 +52229,14 @@ class Loader$1 {
       const fileLoader = new FileLoader();
       fileLoader.setResponseType('json');
       fileLoader.load('./data/' + name + '.json', (obj) => {
-          this.loaded[name] = obj;
-          const path = prefix ? `${prefix}/${name}` : name;
-          this.pathByName[name] = path;
-          if (onLoadCb) {
-            onLoadCb(name, obj);
-          }
-          this.loadObj(prefix, name, onLoadCb, expand);
-        });
+        this.loaded[name] = obj;
+        const path = prefix ? `${prefix}/${name}` : name;
+        this.pathByName[name] = path;
+        if (onLoadCb) {
+          onLoadCb(name, obj);
+        }
+        this.loadObj(prefix, name, onLoadCb, expand, onErrCb);
+      }, null, onErrCb);
     }
   }
 
@@ -52339,17 +52339,17 @@ function CustomRaycaster( origin, direction, near, far ) {
     } );
 }
 
-function ascSort$1( a, b ) {
+function ascSort( a, b ) {
   return a.distanceToRay - b.distanceToRay;
 }
 
-function intersectObject$1( object, raycaster, intersects, recursive ) {
+function intersectObject( object, raycaster, intersects, recursive ) {
   if ( object.visible === false ) return;
   object.raycast( raycaster, intersects );
   if ( recursive === true ) {
     var children = object.children;
     for ( var i = 0, l = children.length; i < l; i ++ ) {
-      intersectObject$1( children[ i ], raycaster, intersects, true );
+      intersectObject( children[ i ], raycaster, intersects, true );
     }
   }
 }
@@ -52377,8 +52377,8 @@ Object.assign( CustomRaycaster.prototype, {
 
     intersectObject: function ( object, recursive, optionalTarget ) {
       var intersects = optionalTarget || [];
-      intersectObject$1( object, this, intersects, recursive );
-      intersects.sort( ascSort$1 );
+      intersectObject( object, this, intersects, recursive );
+      intersects.sort( ascSort );
       return intersects;
 
     },
@@ -52390,9 +52390,9 @@ Object.assign( CustomRaycaster.prototype, {
         return intersects;
       }
       for ( var i = 0, l = objects.length; i < l; i ++ ) {
-        intersectObject$1( objects[ i ], this, intersects, recursive );
+        intersectObject( objects[ i ], this, intersects, recursive );
       }
-      intersects.sort( ascSort$1 );
+      intersects.sort( ascSort );
       return intersects;
     }
   } );
@@ -54376,7 +54376,7 @@ class Stars extends Object$1 {
         depthWrite: false,
         transparent: true
       });
-    new Loader$1().loadShaders(starsMaterial, () => {
+    new Loader().loadShaders(starsMaterial, () => {
         //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
         const starPoints = named(new Points(geom, starsMaterial), 'StarsPoints');
         starPoints.sortParticles = true;
@@ -54474,7 +54474,7 @@ const lengthScale = LENGTH_SCALE,
   INITIAL_STEP_BACK_MULT = 10;
 
 
-class Scene$1 {
+class Scene {
   constructor(ui) {
     this.ui = ui;
     this.objects = {};
@@ -55520,7 +55520,7 @@ var GLTFLoader = ( function () {
 
 	function GLTFLoader( manager ) {
 
-		Loader.call( this, manager );
+		Loader$1.call( this, manager );
 
 		this.dracoLoader = null;
 		this.ddsLoader = null;
@@ -55567,7 +55567,7 @@ var GLTFLoader = ( function () {
 
 	}
 
-	GLTFLoader.prototype = Object.assign( Object.create( Loader.prototype ), {
+	GLTFLoader.prototype = Object.assign( Object.create( Loader$1.prototype ), {
 
 		constructor: GLTFLoader,
 
@@ -60187,7 +60187,7 @@ class ThreeUi {
         }
       });
     this.onResize();
-    this.scene = new Scene;
+    this.scene = new Scene$1;
     this.scene.add(this.camera.platform);
     // Adapted from https://threejs.org/docs/#api/en/core/Raycaster
     this.clickCbs = [];
@@ -60273,7 +60273,10 @@ class ThreeUi {
 
 
   initRenderer(container, backgroundColor) {
-    const renderer = new WebGLRenderer({antialias: true});
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('webgl2');
+    container.appendChild(canvas);
+    const renderer = new WebGLRenderer({canvas: canvas, context: ctx, antialias: true});
     //renderer.setPixelRatio(window.devicePixelRatio);
     // No idea about this.. just like the way it looks.
     renderer.toneMapping = ACESFilmicToneMapping;
@@ -60286,7 +60289,6 @@ class ThreeUi {
     renderer.setSize(this.width, this.height);
     renderer.sortObjects = true;
     renderer.autoClear = true;
-    container.appendChild(renderer.domElement);
     return renderer;
   }
 
@@ -60345,6 +60347,11 @@ class ThreeUi {
 
   resetFov() {
     this.setFov(INITIAL_FOV);
+  }
+
+
+  setAnimation(animationCb) {
+    this.animationCb = animationCb;
   }
 
 
@@ -60488,7 +60495,8 @@ class Time {
   }
 }
 
-const elt$1 = (id) => { return document.getElementById(id); };
+const DEFAULT_TARGET = 'sun';
+const elt = (id) => { return document.getElementById(id); };
 
 /** Main application class. */
 class Celestiary {
@@ -60505,8 +60513,8 @@ class Celestiary {
       }
     };
     this.ui = new ThreeUi(canvasContainer, animCb);
-    this.scene = new Scene$1(this.ui);
-    this.loader = new Loader$1();
+    this.scene = new Scene(this.ui);
+    this.loader = new Loader();
     this.controlPanel = new ControlPanel(navElt, this.loader);
     this.load();
     this.setupListeners();
@@ -60555,12 +60563,15 @@ class Celestiary {
     if (location.hash) {
       path = location.hash.substring(1);
     } else {
-      path = 'sun';
+      path = DEFAULT_TARGET;
       location.hash = path;
     }
     this.loader.loadPath('milkyway', this.onLoadCb, () => {
-        this.loader.loadPath(path, this.onLoadCb, this.onDoneCb);
+      this.loader.loadPath(path, this.onLoadCb, this.onDoneCb, () => {
+        // On error.
+        location.hash = DEFAULT_TARGET;
       });
+    });
   }
 
 
@@ -60635,7 +60646,7 @@ class Celestiary {
     k.map('S', () => { this.scene.toggleStarLabels(); },
           'Show/hide star names');
     k.map('V', () => {
-        const panels = [elt$1('nav-id'), elt$1('time-id')];
+        const panels = [elt('nav-id'), elt('time-id')];
         panels.map((panel) => { panel.style.visibility = this.navVisible ? 'hidden' : 'visible'; });
         this.navVisible = !this.navVisible;
       }, 'Show/hide navigation panels');
@@ -60669,7 +60680,7 @@ class Celestiary {
 
 
   toggleAbout() {
-    const aboutElt = elt$1('about-id');
+    const aboutElt = elt('about-id');
     if (this.toggleEltDisplay(aboutElt)) {
       aboutElt.innerHTML = ABOUT;
     }
@@ -60677,7 +60688,7 @@ class Celestiary {
 
 
   toggleShowKeys() {
-    const keysElt = elt$1('keys-id');
+    const keysElt = elt('keys-id');
     if (this.toggleEltDisplay(keysElt)) {
       if (!keysElt.domDone) {
         keysElt.appendChild(this.keys.toHtml());
@@ -60688,7 +60699,7 @@ class Celestiary {
 
 
   hideHelpOnEscape() {
-    const keysElt = elt$1('keys-id');
+    const keysElt = elt('keys-id');
     keysElt.style.display = 'none';
   }
 }
@@ -60726,7 +60737,7 @@ Celestiary is a cosmological simulator.
 
 function init() {
   window.c = window.celestiary =
-    new Celestiary(elt('scene-id'), elt('date-id'), elt('time-scale-id'), elt('nav-id'));
+    new Celestiary(elt$1('scene-id'), elt$1('date-id'), elt$1('time-scale-id'), elt$1('nav-id'));
   window.collapse = collapse;
 }
 
