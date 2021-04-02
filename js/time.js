@@ -1,6 +1,3 @@
-import * as THREE from './lib/three.js/three.module.js';
-
-
 export default class Time {
   constructor(dateElt, timeScaleElt) {
     /**

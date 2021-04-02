@@ -7,20 +7,22 @@
 Try zooming out and rotating.
 
 <script type="module">
-  import Fullscreen from './js/lib/fullscreen.js/fullscreen.js';
-  import {AmbientLight, PointLight} from './js/lib/three.js/three.module.js';
-
-  import ThreeUi from './js/three_ui.js';
-  import * as Shapes from './js/shapes.js';
+  import {
+    AmbientLight,
+    Fullscreen,
+    PointLight,
+    ThreeUi,
+    grid
+  } from './howto-bundle.js';
 
   const ui = new ThreeUi('ui');
   ui.camera.position.z = 10;
 
-  const grid = Shapes.grid();
-  grid.material.color.setRGB(0, 0, 1);
-  grid.material.transparent = true;
+  const g = grid();
+  g.material.color.setRGB(0, 0, 1);
+  g.material.transparent = true;
   //grid.material.opacity = 0.1;
-  ui.scene.add(grid);
+  ui.scene.add(g);
 </script>
 </body>
 </html>

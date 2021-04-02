@@ -22,12 +22,14 @@ camera look direction.
 <div id="control"></div>
 
 <script type="module">
-  import {PointLight,AxesHelper} from './js/lib/three.js/three.module.js';
-  import ThreeUi from './js/three_ui.js';
-
+  import {
+    AtmosphereControls,
+    AtmosphereMesh,
+    AxesHelper,
+    PointLight,
+    ThreeUi
+  } from './howto-bundle.js';
   import Atmosphere from './Atmosphere.js';
-  import AtmosphereControls from './AtmosphereControls.js';
-  import AtmosphereMesh from './AtmosphereMesh.js';
 
 
   // TODO: args need to be hand sync'd with AtmosphereControls.PRESETS.

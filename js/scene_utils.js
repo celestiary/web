@@ -1,4 +1,4 @@
-import {Euler, Object3D} from './lib/three.js/three.module.js';
+import {Euler, Object3D} from 'three';
 
 import Loader from './loader.js';
 import Planet from './Planet.js';

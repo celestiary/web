@@ -1,8 +1,7 @@
-import * as THREE from './lib/three.js/three.module.js';
-
+import * as THREE from 'three';
 import CustomPoints from './lib/three-custom/points.js';
-import SpriteSheet from './SpriteSheet.js';
 
+import SpriteSheet from './SpriteSheet.js';
 import * as Material from './material.js';
 import * as Shared from './shared.js';
 import {named} from './utils.js';
@@ -21,7 +20,7 @@ function box(width, height, depth, opts) {
   depth = depth || 1;
   opts = opts || {};
   opts.color = opts.color || 0xff0000;
-  const geom = new THREE.CubeGeometry(width, height, depth);
+  const geom = new THREE.BoxGeometry(width, height, depth);
   const matr = new THREE.MeshPhongMaterial(opts);
   return new THREE.Mesh(geom, matr);
 }
@@ -165,8 +164,8 @@ function point(optsOrRadius) {
     depthTest: true,
     transparent: true
   };
-  const geom = new THREE.Geometry();
-  geom.vertices.push(new THREE.Vector3());
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
   const pointMaterial = new THREE.PointsMaterial(opts);
   //return new CustomPoints(geom, pointMaterial);
   return new THREE.Points(geom, pointMaterial);
@@ -182,8 +181,8 @@ function labelAnchor() {
     depthTest: true,
     transparent: true
   };
-  const geom = new THREE.Geometry();
-  geom.vertices.push(new THREE.Vector3());
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
   const pointMaterial = new THREE.PointsMaterial(opts);
   const anchorPoints = new THREE.Points(geom, pointMaterial);
   anchorPoints.isAnchor = true;
@@ -220,9 +219,10 @@ function line(vec1, vec2, ...rest) {
   if (vec1.equals(vec2)) {
     throw new Error('Vectors may not be equal: ' + JSON.stringify([vec1, vec2]));
   }
-  const geom = new THREE.Geometry();
-  geom.vertices.push(vec1);
-  geom.vertices.push(vec2);
+  const points = [];
+  points.push(vec1);
+  points.push(vec2);
+  const geom = new THREE.BufferGeometry().setFromPoints(points);
   return new THREE.Line(geom, new THREE.LineBasicMaterial(opts));
 }
 

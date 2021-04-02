@@ -1,10 +1,9 @@
 import {readFileSync} from 'fs';
 
-import Testing from './lib/testing.js/testing.js';
+import Testing from '@pablo-mayrgundter/testing.js/testing.js';
 
 import AsterismsCatalog from './AsterismsCatalog.js';
 import StarsCatalog from './StarsCatalog.js';
-
 import {toArrayBuffer} from './utils.js';
 
 

@@ -1,4 +1,4 @@
-import * as THREE from './lib/three.js/three.module.js';
+import * as THREE from 'three';
 import Animation from './animation.js';
 import ControlPanel from './controlPanel.js';
 import Keys from './keys.js';

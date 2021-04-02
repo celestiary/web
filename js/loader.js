@@ -1,4 +1,4 @@
-import {FileLoader} from './lib/three.js/three.module.js';
+import {FileLoader} from 'three';
 
 
 /**

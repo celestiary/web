@@ -10,10 +10,11 @@ import {
   PointLight,
   Object3D,
   Raycaster,
-  Vector3
-} from './js/lib/three.js/three.module.js';
-import ThreeUi from './js/three_ui.js';
-import * as Shapes from './js/shapes.js';
+  ThreeUi,
+  Vector3,
+  sphere
+} from './howto-bundle.js';
+
 
 const ui = new ThreeUi('ui');
 const light = new PointLight;
@@ -23,7 +24,7 @@ ui.scene.add(light);
 // Test a complex scene graph to show that picking is compatible with
 // object and camera offsets.
 const a = new Object3D, b = new Object3D, c = new Object3D;
-const s = Shapes.sphere();
+const s = sphere();
 c.add(s);
 c.position.set(3,2,1);
 b.add(c);

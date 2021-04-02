@@ -1,4 +1,4 @@
-@import './js/lib/fullscreen.js/fullscreen.css';
+@import '/node_modules/@pablo-mayrgundter/fullscreen.js/fullscreen.css';
 @import '../index.css';
 
 

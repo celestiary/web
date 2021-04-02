@@ -1,10 +1,9 @@
-import TrackballControls from './lib/three.js/TrackballControls.js';
-import {VRButton} from './lib/three.js/VRButton.js';
-import {XRControllerModelFactory} from './lib/three.js/XRControllerModelFactory.js';
+import * as THREE from 'three';
+import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js';
+import {VRButton} from 'three/examples/jsm/webxr/VRButton.js';
+import {XRControllerModelFactory} from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
+import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js';
 
-import * as THREE from './lib/three.js/three.module.js';
-
-import Fullscreen from './lib/fullscreen.js/fullscreen.js';
 import * as Shared from './shared.js';
 import {named} from './utils.js';
 

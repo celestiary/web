@@ -7,7 +7,7 @@ import {
   ShaderMaterial,
   Vector2,
   Vector3,
-} from './js/lib/three.js/three.module.js';
+} from 'three';
 
 
 export default class AtmosphereObject3D extends Mesh {

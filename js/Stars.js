@@ -1,5 +1,5 @@
 //import CustomPoints from './lib/three-custom/points.js';
-import * as THREE from './lib/three.js/three.module.js';
+import * as THREE from 'three';
 
 import Loader from './loader.js';
 import Object from './object.js';
@@ -161,3 +161,6 @@ export const faves = {
   97649: 'Altair',
   113881: 'Scheat'
 };
+
+
+Stars.faves = faves;

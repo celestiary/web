@@ -28,14 +28,16 @@ Asterisms include constellations.
   </table>
 </div>
 <script type="module">
-  import ThreeUi from './js/three_ui.js';
-  import Stars from './js/Stars.js';
-  import StarsCatalog from './js/StarsCatalog.js';
-  import Asterisms from './js/Asterisms.js';
-  import AsterismsCatalog from './js/AsterismsCatalog.js';
-  import Keys from './js/keys.js';
-  import * as Shared from './js/shared.js';
-  import {elt} from './js/utils.js';
+  import {
+    Asterisms,
+    AsterismsCatalog,
+    Keys,
+    Shared,
+    Stars,
+    StarsCatalog,
+    ThreeUi,
+    elt
+  } from './howto-bundle.js';
 
 
   const cb = (scene, ui) => {

@@ -1,4 +1,11 @@
-import * as THREE from './lib/three.js/three.module.js';
+import {
+  LOD,
+  PointLight,
+  ShaderMaterial,
+  Vector2,
+  Vector3
+} from 'three';
+
 import Object from './object.js';
 import * as Shaders from './star-shaders.js';
 import * as Shapes from './shapes.js';
@@ -36,9 +43,9 @@ export default class Star extends Object {
     }
     this.orbitPosition = this;
 
-    this.add(new THREE.PointLight(0xffffff));
+    this.add(new PointLight(0xffffff));
 
-    const lod = new THREE.LOD;
+    const lod = new LOD;
     lod.addLevel(this.createSurface(props), 1);
     lod.addLevel(Shared.FAR_OBJ, 2e4);
     this.add(lod);
@@ -64,13 +71,13 @@ export default class Star extends Object {
                 [8152,10060], // 14, T
                 [8152,10060]];// 15, Carbon star?
     const temp = tempRanges[props.spectralType];
-    this.shaderMaterial = new THREE.ShaderMaterial({
+    this.shaderMaterial = new ShaderMaterial({
       uniforms: {
-        uColor: { value: new THREE.Vector3(1.0, 1.0, 1.0) },
+        uColor: { value: new Vector3(1.0, 1.0, 1.0) },
         uLowTemp: { value: parseFloat(temp[0]) },
         uHighTemp: { value: parseFloat(temp[1]) },
         iTime: { value: 1.0 },
-        iResolution: { value: new THREE.Vector2() },
+        iResolution: { value: new Vector2() },
         iScale: { value: 100.0 },
         iDist: { value: 1.0 }
       },

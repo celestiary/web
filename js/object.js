@@ -1,10 +1,10 @@
-import * as THREE from './lib/three.js/three.module.js';
+import {Object3D} from 'three';
 
 
 const REGISTRY = [];
 
 
-export default class Object extends THREE.Object3D {
+export default class Object extends Object3D {
   /**
    * @param name Prefix, attached to .frame suffix.
    * @param props Optional props to attach to a .props field on the frame.

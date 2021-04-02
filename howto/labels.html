@@ -18,13 +18,15 @@
     used, with a GL shader configured with custom offsets into the sheet
     for each object.
 <script type="module">
-  import {PointLight} from './js/lib/three.js/three.module.js';
-  import SpriteSheet from './js/SpriteSheet.js';
-  import Scene from './js/scene.js';
+  import {
+    PointLight,
+    SpriteSheet,
+    Scene,
+    ThreeUi,
+    cube,
+    point
+  } from './howto-bundle.js';
 
-  import ThreeUi from './js/three_ui.js';
-  import * as Utils from './js/utils.js';
-  import {cube, point} from './js/shapes.js';
 
   const container = document.getElementById('ui');
   const ui = new ThreeUi(container);

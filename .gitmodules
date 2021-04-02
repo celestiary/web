@@ -1,21 +1,6 @@
-[submodule "js/lib/testing.js"]
-	path = js/lib/testing.js
-	url = https://github.com/pablo-mayrgundter/testing.js
-[submodule "js/lib/parser.js"]
-	path = js/lib/parser.js
-	url = https://github.com/pablo-mayrgundter/parser.js
-[submodule "js/lib/measure.js"]
-	path = js/lib/measure.js
-	url = https://github.com/pablo-mayrgundter/measure.js
 [submodule "java/http"]
 	path = java/http
 	url = https://github.com/pablo-mayrgundter/http
-[submodule "js/lib/stats.js"]
-	path = js/lib/stats.js
-	url = https://github.com/mrdoob/stats.js
-[submodule "js/lib/fullscreen.js"]
-	path = js/lib/fullscreen.js
-	url = https://github.com/pablo-mayrgundter/fullscreen.js
 [submodule "howto/atmos/glsl-atmosphere/glsl"]
 	path = howto/atmos/glsl-atmosphere/glsl
 	url = https://github.com/wwwtyro/glsl-atmosphere

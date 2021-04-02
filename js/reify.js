@@ -1,7 +1,8 @@
-import Measure from './lib/measure.js/Measure.js';
-import Magnitude from './lib/measure.js/Magnitude.js';
-import Unit from './lib/measure.js/Unit.js';
+import Measure from '@pablo-mayrgundter/measure.js/Measure.js';
 
+
+const UNIT = Measure.Magnitude.UNIT;
+const [METER, SECOND] = [Measure.Unit.METER, Measure.Unit.SECOND];
 
 /**
  * Most measures are just passed on for display.  Some are needed to
@@ -21,9 +22,9 @@ export default function reifyMeasures(obj) {
         obj[prop] = m;
       } else if (type == 'number') {
         switch (prop) {
-          case 'siderealOrbitPeriod': obj[prop] = new Measure(val, Magnitude.UNIT, Unit.SECOND); break;
-          case 'siderealRotationPeriod': obj[prop] = new Measure(val, Magnitude.UNIT, Unit.SECOND); break;
-          case 'semiMajorAxis': obj[prop] = new Measure(val, Magnitude.UNIT, Unit.METER); break;
+          case 'siderealOrbitPeriod': obj[prop] = new Measure(val, UNIT, SECOND); break;
+          case 'siderealRotationPeriod': obj[prop] = new Measure(val, UNIT, SECOND); break;
+          case 'semiMajorAxis': obj[prop] = new Measure(val, UNIT, METER); break;
         }
       } else if (!(val instanceof Measure)) {
         console.warn(`unnormalized ${prop} for ${name}; val(${val}) type(${type})`);

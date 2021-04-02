@@ -1,4 +1,7 @@
-import {Object3D, Vector3} from './lib/three.js/three.module.js';
+import {
+  Object3D,
+  Vector3
+} from 'three';
 
 import * as Shapes from './shapes.js';
 import {toRad} from './shared.js';

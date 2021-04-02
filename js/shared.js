@@ -1,4 +1,7 @@
-import {Object3D, Vector3} from './lib/three.js/three.module.js';
+import {
+  Object3D,
+  Vector3
+} from 'three';
 
 import {named} from './utils.js';
 

@@ -10,18 +10,11 @@ down gesture or mouse-wheel will zoom.  Double-button drag will
 pan.
 
 <script type="module">
-  // First import from third-party libraries.
-  // This syntax picks only the named items, AmbientLight and
-  // PointLight, from the many exported from three.module.js.
-  import {AmbientLight, PointLight} from './js/lib/three.js/three.module.js';
-
-  // Next, import classes from this project.
-  import ThreeUi from './js/three_ui.js';
-
-  // Lastly, you can also grab all items defined in a module and put
-  // them under a local name like 'Shapes'.
-  import * as Shapes from './js/shapes.js';
-
+  import {
+    PointLight,
+    ThreeUi,
+    cube,
+  } from './howto-bundle.js';
 
   // Bind the ThreeUi to the "ui" HTML page element.
   const ui = new ThreeUi('ui');
@@ -37,7 +30,7 @@ pan.
   ui.scene.add(light);
 
   // Add a unit cube at the center; (0,0,0) is implicit.
-  ui.scene.add(Shapes.cube());
+  ui.scene.add(cube());
 </script>
 </body>
 </html>

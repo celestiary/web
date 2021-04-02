@@ -1,4 +1,9 @@
-import * as THREE from './lib/three.js/three.module.js';
+import {
+  Object3D,
+  Raycaster,
+  Vector2,
+  Vector3
+} from 'three';
 import CustomRaycaster from './lib/three-custom/raycaster.js';
 
 import Asterisms from './Asterisms.js';
@@ -24,8 +29,8 @@ export default class Scene {
   constructor(ui) {
     this.ui = ui;
     this.objects = {};
-    this.mouse = new THREE.Vector2;
-    this.raycaster = new THREE.Raycaster;
+    this.mouse = new Vector2;
+    this.raycaster = new Raycaster;
     //this.raycaster = new CustomRaycaster;
     this.raycaster.params.Points.threshold = 3;
     ui.addClickCb((click) => {
@@ -97,7 +102,7 @@ export default class Scene {
    * @param props Optional props to attach to a .props field on the frame.
    */
   newGroup(name, props) {
-    const obj = new THREE.Object3D;
+    const obj = new Object3D;
     this.objects[name] = obj;
     obj.name = name;
     if (props) {
@@ -171,8 +176,8 @@ export default class Scene {
     const tPos = Shared.targets.pos;
     this.ui.scene.updateMatrixWorld();
     tPos.setFromMatrixPosition(obj.matrixWorld);
-    const pPos = new THREE.Vector3;
-    const cPos = new THREE.Vector3;
+    const pPos = new Vector3;
+    const cPos = new Vector3;
     const surfaceAltitude = obj.props.radius.scalar * lengthScale;
     const stepBackMult = INITIAL_STEP_BACK_MULT;
     pPos.set(0, 0, 0); // TODO(pablo): maybe put platform at surfaceAltitude

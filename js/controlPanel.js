@@ -1,5 +1,4 @@
-import Measure from './lib/measure.js/Measure.js';
-import Magnitude from './lib/measure.js/Magnitude.js';
+import Measure from '@pablo-mayrgundter/measure.js/Measure.js';
 import * as collapsor from './collapsor.js';
 import {capitalize} from './utils.js';
 
@@ -56,8 +55,8 @@ export default class ControlPanel {
         }
         if (val instanceof Measure) {
           switch (prop) {
-          case 'radius': val = val.convertTo(Magnitude.KILO); break;
-          case 'mass': val = val.convertTo(Magnitude.KILO); break;
+          case 'radius': val = val.convertTo(Measure.Magnitude.KILO); break;
+          case 'mass': val = val.convertTo(Measure.Magnitude.KILO); break;
           case 'semiMajorAxis':
             // TODO
             if (typeof val.scalar == 'string')

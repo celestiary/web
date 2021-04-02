@@ -10,14 +10,16 @@ watch it as you zoom in.
 <tr><th>Name</th></tr>
 </table>
 <script type="module">
-  import * as THREE from './js/lib/three.js/three.module.js';
-  import ThreeUi from './js/three_ui.js';
-  import * as Shapes from './js/shapes.js';
-  import {planetHelper} from './js/scene_utils.js';
+  import {
+    PointLight,
+    ThreeUi,
+    planetHelper
+  } from './howto-bundle.js';
+
 
   const ui = new ThreeUi('ui');
   ui.camera.position.z = 1e2;
-  const light = new THREE.PointLight();
+  const light = new PointLight();
   const dist = 1e3;
   light.position.set(dist, 0, dist);
   ui.camera.add(light);

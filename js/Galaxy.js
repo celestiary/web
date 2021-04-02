@@ -1,4 +1,9 @@
-import * as THREE from './lib/three.js/three.module.js';
+import {
+  AdditiveBlending,
+  AxesHelper,
+  Points,
+  ShaderMaterial
+} from 'three';
 
 import GalaxyBufferGeometry from './GalaxyBufferGeometry.js';
 import {pathTexture} from './material.js';
@@ -9,7 +14,7 @@ const Tau = 2.0 * Math.PI;
 const armDensityRatio = 0.4;
 const colorTemp = 0.5;
 
-export default class Galaxy extends THREE.Points {
+export default class Galaxy extends Points {
   // numStars, ms
   // 400, 20
   // 500, 30
@@ -20,13 +25,13 @@ export default class Galaxy extends THREE.Points {
   // 1000, 110
   constructor(numStars = 2, radius = 10, mass = numStars) {
     super(new GalaxyBufferGeometry(numStars),
-          new THREE.ShaderMaterial({
+          new ShaderMaterial({
               uniforms: {
                 texSampler: { value: pathTexture('star_glow', '.png') },
               },
               vertexShader: vertexShader,
               fragmentShader: fragmentShader,
-              blending: THREE.AdditiveBlending,
+              blending: AdditiveBlending,
               depthTest: true,
               depthWrite: false,
               transparent: true,
@@ -64,7 +69,7 @@ export default class Galaxy extends THREE.Points {
       coords[3] = 1;
       masses[1] = 5;
       colors[3] = 1;
-      const axes = new THREE.AxesHelper();
+      const axes = new AxesHelper();
       axes.position.set(1, 0, 0);
       this.add(axes);
 

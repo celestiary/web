@@ -1,6 +1,11 @@
-import * as THREE from './lib/three.js/three.module.js';
+import {
+  AdditiveBlending,
+  LineBasicMaterial,
+  MeshPhongMaterial,
+  TextureLoader
+} from 'three';
 
-const loader = new THREE.TextureLoader();
+const loader = new TextureLoader();
 
 function loadTexture(texPath) {
   return loader.load(texPath);
@@ -15,7 +20,7 @@ const materials = [];
 function cacheMaterial(name, ext) {
   let m = materials[name];
   if (!m) {
-    materials[name] = m = new THREE.MeshPhongMaterial({
+    materials[name] = m = new MeshPhongMaterial({
         map: pathTexture(name, ext),
       });
   }
@@ -29,10 +34,10 @@ function lineMaterial(params, name) {
   name = name || 'line-basic';
   let m = materials[name];
   if (!m) {
-    materials[name] = m = new THREE.LineBasicMaterial({
+    materials[name] = m = new LineBasicMaterial({
     color: params.color,
     linewidth: params.linewidth,
-    blending: THREE.AdditiveBlending,
+    blending: AdditiveBlending,
     transparent: false});
   }
   return m;

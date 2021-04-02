@@ -43,10 +43,9 @@ See the following section to recreate the bundle.js.
 ## Build (optional)
 The live site uses a JS bundle efficiency.  To generate and test with it:
 ```
-~/celestiary/> cd js
-~/celestiary/js> npx rollup index.js --file bundle.js
+> npm run build
 
-index.js → bundle.js...
+js/index.js → bundle.js...
 created bundle.js in 2.4s
 ```
 The bundle.js file is referenced only in index.html in the script include.  Switch that to js/index.js for live source editing.

@@ -12,13 +12,14 @@ Gravity particle system.  Work in progress.
   <button id="play">Play</button>
 </div>
 <script type="module">
-  import {AxesHelper} from './js/lib/three.js/three.module.js';
-  import Stats from './js/lib/stats.js/build/stats.module.js';
-
-  import Galaxy from './js/Galaxy.js';
-  import ThreeUi from './js/three_ui.js';
-  import SpriteSheet from './js/SpriteSheet.js';
-  import Keys from './js/keys.js';
+  import {
+    AxesHelper,
+    Galaxy,
+    Keys,
+    SpriteSheet,
+    Stats,
+    ThreeUi
+  } from './howto-bundle.js';
 
 
   const elt = id => document.getElementById(id);

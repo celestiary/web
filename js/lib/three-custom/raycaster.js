@@ -1,5 +1,5 @@
 // From https://github.com/mrdoob/three.js/blob/34dc2478c684066257e4e39351731a93c6107ef5/src/core/Raycaster.js
-import { Ray } from '../three.js/three.module.js';
+import { Ray } from 'three';
 
 /**
  * Custom version of Raycaster for Celestiary that uses distanceToRay

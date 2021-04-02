@@ -1,4 +1,4 @@
-import {Vector3} from './lib/three.js/three.module.js';
+import {Vector3} from 'three';
 import * as Shared from './shared.js';
 
 

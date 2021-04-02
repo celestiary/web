@@ -1,5 +1,5 @@
-import Parser from './lib/parser.js/parser.js';
-import * as THREE from './lib/three.js/three.module.js';
+import * as THREE from 'three';
+import Parser from '@pablo-mayrgundter/parser.js/Parser.js';
 
 import StarsCatalog from './StarsCatalog.js';
 

@@ -1,4 +1,4 @@
-import {BufferAttribute, BufferGeometry} from './lib/three.js/three.module.js';
+import {BufferAttribute, BufferGeometry} from 'three';
 
 import {LENGTH_SCALE, STARS_SCALE} from './shared.js';
 import {StarSpectra} from './StarsCatalog.js';

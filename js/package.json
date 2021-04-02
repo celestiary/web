@@ -1,3 +1,15 @@
 {
-  "type": "module"
+  "type": "module",
+  "browserify": {
+    "transform": [
+      [
+        "babelify",
+        {
+          "presets": [
+            "@babel/preset-env"
+          ]
+        }
+      ]
+    ]
+  }
 }

@@ -1,4 +1,4 @@
-import {GUI} from './js/lib/dat.gui.module.js';
+import {GUI} from 'dat.gui';
 
 
 const PRESETS = {

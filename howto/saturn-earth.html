@@ -15,20 +15,19 @@ Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
 <script type="module">
   // This syntax picks only the named items, AmbientLight and
   // PointLight, from the many exported from three.module.js.
-  import {AmbientLight, AxesHelper, Object3D, PointLight} from './js/lib/three.js/three.module.js';
-
-  // Next, import classes from this project.
-  import ThreeUi from './js/three_ui.js';
-  import Loader from './js/loader.js';
-  import Reify from './js/reify.js';
-  import Stars from './js/Stars.js';
-  import Planet from './js/Planet.js';
-
-  // Lastly, you can also grab all items defined in a module and put
-  // them under a local name like 'Shapes'.
-  import * as Shapes from './js/shapes.js';
-  import {planetHelper} from './js/scene_utils.js';
-  import {LENGTH_SCALE} from './js/shared.js';
+  import {
+    AmbientLight,
+    AxesHelper,
+    Loader,
+    Object3D,
+    Planet,
+    PointLight,
+    Reify,
+    Shared,
+    Stars,
+    ThreeUi,
+    planetHelper
+  } from './howto-bundle.js';
 
 
   // Bind the ThreeUi to the "ui" HTML page element.
@@ -56,7 +55,7 @@ Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
         ui.scene.add(stars);
     }, false, () => {
         // Move sun to proper distance from Saturn.
-        const saturnSemiMajorAxis = 1.43353E12 * LENGTH_SCALE;
+        const saturnSemiMajorAxis = 1.43353E12 * Shared.LENGTH_SCALE;
         const starPositions = stars.children[1].geometry.attributes.position;
         starPositions.array[0] = -saturnSemiMajorAxis;
         starPositions.array[2] = -saturnSemiMajorAxis;
@@ -80,12 +79,12 @@ Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
   const sceneLoadCb = (name, planet) => {
     if (name == 'moon') {
       const semiMajorAxis = planet.props.orbit.semiMajorAxis.scalar;
-      scaledSemiMajorAxis = semiMajorAxis * LENGTH_SCALE;
+      scaledSemiMajorAxis = semiMajorAxis * Shared.LENGTH_SCALE;
       return;
     }
     if (name == 'earth') {
         const earthX = 0.5 * scaledSemiMajorAxis + 10;
-        const earthRadius = planet.props.radius.scalar * LENGTH_SCALE;
+        const earthRadius = planet.props.radius.scalar * Shared.LENGTH_SCALE;
         planet.position.x = earthX;
         ui.camera.position.set(earthX * 2, earthRadius * 2, 0);
     } else { // saturn

@@ -19,16 +19,15 @@ false-color on closer approach.
 </table>
 
 <script type="module">
-  import Star from './js/Star.js';
-  import StarsCatalog from './js/StarsCatalog.js';
-  import ThreeUi from './js/three_ui.js';
-  import Time from './js/time.js';
-
-  import * as Animation from './js/animation.js';
-  import {StarSpectra} from './js/StarsCatalog.js';
-  import {LENGTH_SCALE} from './js/shared.js';
-  import {faves} from './js/Stars.js';
-  import {elt} from './js/utils.js';
+  import {
+    Shared,
+    Star,
+    Stars,
+    StarsCatalog,
+    ThreeUi,
+    Time,
+    elt
+  } from './howto-bundle.js';
 
 
   const time = new Time();
@@ -45,7 +44,7 @@ false-color on closer approach.
     starProps.x = starProps.y = starProps.z = 0;
     starProps.radius = {
         // Sun's radius in meters.
-        scalar: 1 / LENGTH_SCALE,
+        scalar: 1 / Shared.LENGTH_SCALE,
     };
     return starProps;
   };
@@ -60,10 +59,10 @@ false-color on closer approach.
 
   const setupFavesTable = () => {
     const favesTable = elt('faves');
-    for (let hipId in faves) {
-      const name = faves[hipId];
+    for (let hipId in Stars.faves) {
+      const name = Stars.faves[hipId];
       const star = catalog.starsByHip[hipId];
-      const spectralType = StarSpectra[star.spectralType][3];
+      const spectralType = StarsCatalog.StarSpectra[star.spectralType][3];
       favesTable.innerHTML +=
         `<tr>
           <td><a href="#${name}">${name}</a></td>

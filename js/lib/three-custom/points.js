@@ -7,7 +7,7 @@ import {
   Ray,
   Sphere,
   Vector3
-} from '../three.js/three.module.js';
+} from 'three';
 
 /**
  * @author alteredq / http://alteredqualia.com/
