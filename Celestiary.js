@@ -50760,35 +50760,6 @@ function p(state, depth, msg, varargs) {
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
 const littleEndian = true;
 
-// TODO: Unify with temperature-based color alg in shaders/star.frag.
-//
-// TODO: plenty of color work to do here based on
-// https://en.wikipedia.org/wiki/Stellar_classification. The
-// method used here to choose colors is to hover my mouse over the
-// color chart near the top of the page, above a given class, and
-// record the RGB values in the table below.
-//
-// TODO: use color lookup attributes:
-// https://threejs.org/examples/#webgl_geometry_colors_lookuptable
-const StarSpectra = [
-  [142,176,255, 'O'], // 0,
-  [165,191,255, 'B'], // 1,
-  [205,218,255, 'A'], // 2,
-  [242,239,254, 'F'], // 3,
-  [255,238,229,'G'], // 4,
-  [255,219,178, 'K'], // 5,
-  [255,180,80, 'M'],  // 6,
-  [255,180,80, 'R'],  // 7, like M
-  [255,180,80, 'S'],  // 8, like M
-  [255,180,80, 'N'],  // 9, like M
-  [142,176,255, 'WC'],   // 10, like O
-  [142,176,255, 'WN'],   // 11, like O
-  [142,176,255, 'Unk.'], // 12, like O?
-  [255,118,0, 'L'],      // 13,
-  [255,0,0, 'T'],        // 14,
-  [10,10,10, 'Carbon']]; // 15, ?
-
-
 
 class StarsCatalog {
   /** @see StarsCatalog#downsample for call with all the args. */
@@ -51004,6 +50975,37 @@ class StarsCatalog {
     return [origName, name, hipId];
   }
 }
+
+
+// TODO: Unify with temperature-based color alg in shaders/star.frag.
+//
+// TODO: plenty of color work to do here based on
+// https://en.wikipedia.org/wiki/Stellar_classification. The
+// method used here to choose colors is to hover my mouse over the
+// color chart near the top of the page, above a given class, and
+// record the RGB values in the table below.
+//
+// TODO: use color lookup attributes:
+// https://threejs.org/examples/#webgl_geometry_colors_lookuptable
+const StarSpectra = [
+  [142,176,255, 'O'], // 0,
+  [165,191,255, 'B'], // 1,
+  [205,218,255, 'A'], // 2,
+  [242,239,254, 'F'], // 3,
+  [255,238,229,'G'], // 4,
+  [255,219,178, 'K'], // 5,
+  [255,180,80, 'M'],  // 6,
+  [255,180,80, 'R'],  // 7, like M
+  [255,180,80, 'S'],  // 8, like M
+  [255,180,80, 'N'],  // 9, like M
+  [142,176,255, 'WC'],   // 10, like O
+  [142,176,255, 'WN'],   // 11, like O
+  [142,176,255, 'Unk.'], // 12, like O?
+  [255,118,0, 'L'],      // 13,
+  [255,0,0, 'T'],        // 14,
+  [10,10,10, 'Carbon']]; // 15, ?
+
+StarsCatalog.StarSpectra = StarSpectra;
 
 
 function abbrev(name) {
@@ -52688,6 +52690,9 @@ const faves = {
   97649: 'Altair',
   113881: 'Scheat'
 };
+
+
+Stars.faves = faves;
 
 const lengthScale = LENGTH_SCALE,
   INITIAL_STEP_BACK_MULT = 10;
@@ -58498,12 +58503,13 @@ class ThreeUi {
     // TODO: clean up VR Button container or find better one from three.js.
     const vrButtonContainer = document.createElement('div');
     vrButtonContainer.setAttribute('style',
-        'bottom: 10px; width: 150px; left: calc(50% - 75px); position: absolute; text-align: center');
+      'width: 150px; font: 10px sans; position: absolute; bottom: -10px; left: 10px; text-align: center');
     const vrButton = VRButton.createButton(this.renderer);
     vrButtonContainer.appendChild(vrButton);
     const dismissButton = document.createElement('button');
-    dismissButton.setAttribute('style', 'border: none; position: relative; bottom: -10px; opacity: 0.7');
-    dismissButton.textContent = 'Dismiss';
+    dismissButton.setAttribute(
+      'style', 'border: none; position: relative; bottom: 43px; left: 68px; opacity: 0.7; z-index: 1000');
+    dismissButton.textContent = 'X';
     dismissButton.onclick = () => { vrButtonContainer.remove(); };
     vrButtonContainer.appendChild(dismissButton);
     this.container.appendChild(vrButtonContainer);

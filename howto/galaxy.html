@@ -4,6 +4,7 @@
 <body>
 <div id="ui">
 </div>
+Info: <div id="info"></div>
 <div id="stats"/>
 <h1>Galaxy</h1>
 Gravity particle system.  Work in progress.
@@ -27,7 +28,7 @@ Gravity particle system.  Work in progress.
   const ui = new ThreeUi(uiContainer);
   ui.camera.position.z = 10;
   ui.camera.position.y = 3;
-  const galaxy = new Galaxy();
+  const galaxy = new Galaxy({numStars: 500});
   ui.scene.add(galaxy);
   ui.scene.add(new AxesHelper);
 

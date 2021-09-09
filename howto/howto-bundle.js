@@ -43345,44 +43345,87 @@ class GalaxyBufferGeometry extends BufferGeometry {
   }
 }
 
-const G = 1e-8;
-const minDistnce = 0.1;
+// https://en.wikipedia.org/wiki/Gravitational_constant
+//const G = 6.6743e-11;
+const G = 1e-10;
+const minDistance = 0.1;
 
-function computeAccels(coords, masses, velocities, newAccels) {
-  for (let i = 0; i < coords.length; i += 3) {
+
+/**
+ * @param pos Positions of particles: [x0, y0, z0, x1, y1, z1, ...]
+ * @param vel Velocities of particles: [xV0, yV0, zV0, xV1, yV1, zV1, ...]
+ * @param acc Acceleration on particles: [xA0, yA0, zA0, xA1, yA1, zA1, ...]
+ * @param mass Masses of particles: [m0, m1, ...]
+ * @param dt Change in time to integrate.  Default 1 second.
+ */
+function step(pos, vel, acc, mass, dt = 1) {
+  const halfDt = dt * 0.5;
+  const halfDt2 = dt * dt * 0.5;
+  const vxBefore = new Array(mass.length), vxAfter = new Array(mass.length);
+  for (let i = 0; i < pos.length; i += 3) {
     const xi = i, yi = i + 1, zi = i + 2;
-    const aX = coords[xi];
-    const aY = coords[yi];
-    const aZ = coords[zi];
-    const aM = masses[i / 3];
-    let fX = 0, fY = 0, fZ = 0;
-    for (let j = coords.length - 3; j > i ; j -= 3) {
-      const xj = j, yj = j + 1, zj = j + 2;
-      const bX = coords[xj];
-      const bY = coords[yj];
-      const bZ = coords[zj];
-      const bM = masses[j / 3];
-
-      const dX = bX - aX;
-      const dY = bY - aY;
-      const dZ = bZ - aZ;
-      const d = Math.sqrt(dX*dX + dY*dY + dZ*dZ) + minDistnce;
-      const g = G / (d * d * d);
-      const bMG = bM * g;
-      const aMG = aM * g;
-      fX += bMG * dX;
-      fY += bMG * dY;
-      fZ += bMG * dZ;
-      newAccels[xj] += aMG * -dX;
-      newAccels[yj] += aMG * -dY;
-      newAccels[zj] += aMG * -dZ;
-      // console.log(`d(${d}) g(${g}) dX(${dX}) dY(${dY}) dZ(${dZ})`);
-    }
-    newAccels[xi] += fX;
-    newAccels[yi] += fY;
-    newAccels[zi] += fZ;
+    pos[xi] += vel[xi] * dt + acc[xi] * halfDt2;
+    pos[yi] += vel[yi] * dt + acc[yi] * halfDt2;
+    pos[zi] += vel[zi] * dt + acc[zi] * halfDt2;
+    const n = Math.floor(xi/3);
+    vxBefore[n] = vel[xi];
+  }
+  updateAccelerations(pos, vel, acc, mass);
+  for (let i = 0; i < pos.length; i += 3) {
+    const xi = i, yi = i + 1, zi = i + 2;
+    vel[xi] += acc[xi] * halfDt;
+    vel[yi] += acc[yi] * halfDt;
+    vel[zi] += acc[zi] * halfDt;
+    const n = Math.floor(xi/3);
+    vxAfter[n] = vel[xi];
   }
 }
+
+
+function updateAccelerations(pos, vel, acc, mass) {
+  let fX, fY, fZ;
+  for (let i = 0; i < pos.length; i += 3) {
+    const xi = i, yi = i + 1, zi = i + 2;
+    const x1 = pos[xi], y1 = pos[yi], z1 = pos[zi];
+    const m1 = mass[i / 3];
+    const GM1 = G * m1;
+    fX = 0, fY = 0, fZ = 0;
+    for (let j = 0; j < i; j += 3) {
+      const xj = j, yj = j + 1, zj = j + 2;
+      const x2 = pos[xj], y2 = pos[yj], z2 = pos[zj];
+      const m2 = mass[j / 3];
+
+      // https://en.wikipedia.org/wiki/Euclidean_distance#Higher_dimensions
+      let dX = x2 - x1;
+      let dY = y2 - y1;
+      let dZ = z2 - z1;
+      const d = Math.max(Math.sqrt(dX*dX + dY*dY + dZ*dZ), minDistance);
+      // Normalize
+      dX = dX / d;
+      dY = dY / d;
+      dZ = dZ / d;
+
+      // https://en.wikipedia.org/wiki/Kepler_orbit#Isaac_Newton
+      const F = GM1 * m2 / (d * d);
+      const fx = F * dX;
+      const fy = F * dY;
+      const fz = F * dZ;
+      fX += fx;
+      fY += fy;
+      fZ += fz;
+      acc[xj] -= fx;
+      acc[yj] -= fy;
+      acc[zj] -= fz;
+    }
+    acc[xi] += fX;
+    acc[yi] += fY;
+    acc[zi] += fZ;
+    vel[xi];
+  }
+}
+
+const Tau = 2.0 * Math.PI;
+
 
 class Galaxy extends Points {
   // numStars, ms
@@ -43393,7 +43436,7 @@ class Galaxy extends Points {
   // 800, 70
   // 900, 88
   // 1000, 110
-  constructor(numStars = 2, radius = 10, mass = numStars) {
+  constructor({numStars = 2, radius = 10} = {}) {
     super(new GalaxyBufferGeometry(numStars),
           new ShaderMaterial({
               uniforms: {
@@ -43407,93 +43450,85 @@ class Galaxy extends Points {
               transparent: true,
             }));
     this.numStars = numStars;
+    this.radius = radius;
+    this.pos = this.geometry.attributes.position.array;
+    this.vel = this.geometry.attributes.velocity.array;
+    this.mass = this.geometry.attributes.mass.array;
+    this.colors = this.geometry.attributes.color.array;
+    this.acc = new Float32Array(this.vel.length);
     this.first = true;
-    const coords = this.geometry.attributes.position.array;
-    const masses = this.geometry.attributes.mass.array;
-    const velocities = this.geometry.attributes.velocity.array;
-    const colors = this.geometry.attributes.color.array;
-    {
-      // Custom setup for testing..
-      // star 0: 0,0,0
-      masses[0] = 1000;
-      colors[0] = colors[1] = colors[2] = 1;
 
-      // star 1: 1,0,0
-      coords[3] = 1;
-      masses[1] = 5;
-      colors[3] = 1;
-      const axes = new AxesHelper();
-      axes.position.set(1, 0, 0);
-      this.add(axes);
-
-      // star 2: -1,0,0
-      /*
-      coords[6] = -1;
-      masses[2] = 5;
-      colors[7] = 1;
-
-      // star 3: 2,0,0
-      coords[9] = 2;
-      masses[3] = 5;
-      colors[9] = colors[10] = 1;
-
-      // star 4: -2,0,0
-      coords[12] = -2;
-      masses[4] = 5;
-      colors[12] = colors[14] = 1;
-      */
-    }
-    this.newAccels = new Float32Array(velocities.length);
-
-    const M0 = masses[0];
-    // Set the orbital speed the the magnitude from this equation:
-    //   https://en.wikipedia.org/wiki/Orbital_speed#Mean_orbital_speed
-    // and normal (tangent, along the orbit) to the gravity vector (inward).
-    computeAccels(coords, masses, velocities, this.newAccels);
-    for (let i = 0; i < numStars; i++) {
-      const off = 3 * i, xi = off, zi = off + 2;
-      const x = coords[xi], z = coords[zi];
-      const R = Math.sqrt(x * x + z * z);
-      masses[i];
-      this.newAccels[xi]; this.newAccels[zi];
-      {
-        const mu = G * M0;
-        const F = R == 0 ? 0 : Math.sqrt(mu * R) / R;
-        velocities[xi] = F * z;
-        velocities[zi] = F * -x;
-      }
-      //console.log(`${xi} ${zi} ${R} ${F}`);
-    }
-    //console.log('first coords, velocities:', coords, velocities);
+    throw new Error('yo');
   }
 
 
-  move(coords, velocities, newAccels) {
+  animate(dt = 1, debug = false) {
+    step(this.pos, this.vel, this.acc, this.mass);
+    this.geometry.attributes.position.needsUpdate = true;
+  }
+
+
+  // Private helpers
+  /** Heavy particle at 0,0,0 and light particle at 1,0,0. */
+  initSimple() {
+    const SPEED = G * 1e7;
+    console.log("SPEED: ", SPEED);
+    // star 0: 0,0,0
+    this.mass[0] = 100;
+    this.colors[0] = this.colors[1] = this.colors[2] = 1;
+    this.vel[2] = SPEED;
+
+    // star 1: 1,0,0
+    this.pos[3] = 1;
+    this.mass[1] = 100;
+    this.colors[3] = 1;
+    this.vel[5] = -SPEED;
+    const axes = new AxesHelper();
+    axes.position.set(1, 0, 0);
+    this.add(axes);
+  }
+
+
+  /** Preset positions in a spiral (just spokes for now and spiral
+   * comes from time stepping. */
+  initSpirals() {
+    this.mass[0] = 1000;
+    //this.colors[0] = this.colors[1] = this.colors[2] = 0;
+    const numSpokes = 5;
+    const armDensityRatio = 0.7;
+    const colorTemp = 0.5;
     for (let i = 0; i < this.numStars; i++) {
       const off = 3 * i, xi = off, yi = off + 1, zi = off + 2;
-      coords[xi] += velocities[xi] += newAccels[xi];
-      coords[yi] += velocities[yi] += newAccels[yi];
-      coords[zi] += velocities[zi] += newAccels[zi];
-      newAccels[xi] = newAccels[yi] = newAccels[zi] = 0;
+      const theta = Math.random() * Tau;
+      const r = Math.random() * this.radius;
+      this.pos[xi] = r * Math.cos(theta);
+      this.pos[yi] = (this.radius / 100) * (Math.random() - 0.5);
+      this.pos[zi] = r * Math.sin(theta);
+      this.colors[xi] = 1 - colorTemp + colorTemp * Math.random();
+      this.colors[yi] = 1 - colorTemp + colorTemp * Math.random();
+      this.colors[zi] = 1 - colorTemp + colorTemp * Math.random();
+      this.mass[i] = 10 * ((1 - armDensityRatio) + armDensityRatio * Math.cos(theta * numSpokes));
     }
   }
 
 
-  animate(debug) {
-    const coords = this.geometry.attributes.position.array;
-    const masses = this.geometry.attributes.mass.array;
-    const velocities = this.geometry.attributes.velocity.array;
-    const newAccels = this.newAccels;
-    computeAccels(coords, masses, velocities, newAccels);
-    this.move(coords, velocities, newAccels);
-    //console.log('newAccels:', newAccels);
-    if (this.first) {
-      this.first = false;
-      if (debug) {
-        console.log('first coords, velocities:', coords, velocities);
-      }
+  /**
+   * https://en.wikipedia.org/wiki/Standard_gravitational_parameter#Small_body_orbiting_a_central_body
+   * https://github.com/jdiwnab/OrbitSim
+   */
+  initOrbits() {
+    this.mass[0];
+    // Start at 1 to skip moving center body.
+    for (let i = 1; i < this.numStars; i++) {
+      const off = 3 * i, xi = off, zi = off + 2;
+      this.mass[i];
+      const x = this.pos[xi], z = this.pos[zi];
+      const R = Math.sqrt(x * x + z * z);
+      const fR = 0;//Gravity.G * M0 * M1 / R2 * 1e1;
+      this.vel[xi] = -z * fR;
+      this.vel[zi] = x * fR;
+      console.log(`${xi} ${zi} ${R} ${fR}`);
     }
-    this.geometry.attributes.position.needsUpdate = true;
   }
 }
 
@@ -43505,7 +43540,7 @@ const vertexShader = `
   void main() {
     vColor = color;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = mass * 50. / -mvPosition.z;
+    gl_PointSize = mass * 80. / -mvPosition.z;
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
@@ -50425,12 +50460,13 @@ class ThreeUi {
     // TODO: clean up VR Button container or find better one from three.js.
     const vrButtonContainer = document.createElement('div');
     vrButtonContainer.setAttribute('style',
-        'bottom: 10px; width: 150px; left: calc(50% - 75px); position: absolute; text-align: center');
+      'width: 150px; font: 10px sans; position: absolute; bottom: -10px; left: 10px; text-align: center');
     const vrButton = VRButton.createButton(this.renderer);
     vrButtonContainer.appendChild(vrButton);
     const dismissButton = document.createElement('button');
-    dismissButton.setAttribute('style', 'border: none; position: relative; bottom: -10px; opacity: 0.7');
-    dismissButton.textContent = 'Dismiss';
+    dismissButton.setAttribute(
+      'style', 'border: none; position: relative; bottom: 43px; left: 68px; opacity: 0.7; z-index: 1000');
+    dismissButton.textContent = 'X';
     dismissButton.onclick = () => { vrButtonContainer.remove(); };
     vrButtonContainer.appendChild(dismissButton);
     this.container.appendChild(vrButtonContainer);

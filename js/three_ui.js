@@ -48,12 +48,13 @@ export default class ThreeUi {
     // TODO: clean up VR Button container or find better one from three.js.
     const vrButtonContainer = document.createElement('div');
     vrButtonContainer.setAttribute('style',
-        'bottom: 10px; width: 150px; left: calc(50% - 75px); position: absolute; text-align: center');
+      'width: 150px; font: 10px sans; position: absolute; bottom: -10px; left: 10px; text-align: center');
     const vrButton = VRButton.createButton(this.renderer);
     vrButtonContainer.appendChild(vrButton);
     const dismissButton = document.createElement('button');
-    dismissButton.setAttribute('style', 'border: none; position: relative; bottom: -10px; opacity: 0.7')
-    dismissButton.textContent = 'Dismiss';
+    dismissButton.setAttribute(
+      'style', 'border: none; position: relative; bottom: 43px; left: 68px; opacity: 0.7; z-index: 1000');
+    dismissButton.textContent = 'X';
     dismissButton.onclick = () => { vrButtonContainer.remove(); }
     vrButtonContainer.appendChild(dismissButton);
     this.container.appendChild(vrButtonContainer);
