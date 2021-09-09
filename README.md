@@ -44,9 +44,9 @@ See the following section to recreate the bundle.js.
 The live site uses a JS bundle efficiency.  To generate and test with it:
 ```
 > npm run build
-
 js/index.js → bundle.js...
 created bundle.js in 2.4s
+> cd howto && npx rollup -c
 ```
 The bundle.js file is referenced only in index.html in the script include.  Switch that to js/index.js for live source editing.
 
