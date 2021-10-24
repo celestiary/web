@@ -14,7 +14,8 @@
   },
   "scripts": {
     "test": "cd js ; for t in *_test.js ; do echo $t ; node $t ; done",
-    "build": "npx rollup -c"
+    "build": "npx rollup -c",
+    "start": "npx rollup -c rollup-serve.config.js -w"
   },
   "main": "Celestiary.js",
   "type": "module",
@@ -22,14 +23,16 @@
     "@pablo-mayrgundter/fullscreen.js": "^1.0.1",
     "@pablo-mayrgundter/measure.js": "^1.0.7",
     "@pablo-mayrgundter/parser.js": "^1.0.0",
-    "rollup": "2.58.0",
     "three": "^0.133.1"
   },
   "devDependencies": {
-    "@pablo-mayrgundter/testing.js": "^1.0.0",
-    "@rollup/plugin-node-resolve": "^13.0.6",
+    "rollup": "2.58.0",
+    "rollup-plugin-livereload": "^2.0.5",
+    "rollup-plugin-serve": "^1.1.0",
     "dat.gui": "^0.7.7",
-    "stats.js": "^0.17.0"
+    "stats.js": "^0.17.0",
+    "@pablo-mayrgundter/testing.js": "^1.0.0",
+    "@rollup/plugin-node-resolve": "^13.0.6"
   },
   "keywords": [
     "astronomy",
