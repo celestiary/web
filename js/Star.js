@@ -32,7 +32,7 @@ import * as Shared from './shared.js';
  * flows along the field lines.
  */
 export default class Star extends Object {
-  constructor(props, sceneObjects, ui) {
+  constructor(props, sceneObjects, ui, shadowProps = {}) {
     super(props.name, props);
     if (!props || !(props.radius))
       throw new Error('Props undefined');
@@ -43,7 +43,17 @@ export default class Star extends Object {
     }
     this.orbitPosition = this;
 
-    this.add(new PointLight(0xffffff));
+    // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
+    const sunlight = new PointLight(0xffffff, 1, 0, 0);
+    console.log('THIS LIGHT WILL CAST SHADOW')
+    sunlight.castShadow = true;
+    sunlight.shadow.mapSize.width = shadowProps.width || 512; // default: 512
+    sunlight.shadow.mapSize.height = shadowProps.height || 512; // default: 512
+    sunlight.shadow.camera.near = shadowProps.near || 0.5; // default: 0.5
+    sunlight.shadow.camera.far = shadowProps.far || 500; // default: 500
+    sunlight.shadow.bias = shadowProps.bias || -0.01;
+    sunlight.decay = shadowProps.decay || 1; // default: 1
+    this.add(sunlight);
 
     const lod = new LOD;
     lod.addLevel(this.createSurface(props), 1);

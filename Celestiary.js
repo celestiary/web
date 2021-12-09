@@ -1,5 +1,3 @@
-
-(function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
 /**
  * @license
  * Copyright 2010-2021 Three.js Authors
@@ -52435,13 +52433,13 @@ function arc(rad, startAngle, angle, materialOrOpts) {
 
 
 /** Just Saturn for now. */
-function rings(name = 'saturn') {
+function rings(name = 'saturn', shadows = false, side = FrontSide) {
   const geometry = new RingGeometry(3, 6, 64);
   const textureMap = pathTexture(name + 'ringcolor', '.png');
   const alphaMap = pathTexture(name + 'ringalpha', '.png');
-  const material = new MeshLambertMaterial({
+  const material = new MeshStandardMaterial({
       color: 0xffffff,
-      side: DoubleSide,
+      side: shadows ? side : DoubleSide,
       map: textureMap,
       alphaMap: alphaMap,
       transparent: true
@@ -52456,9 +52454,11 @@ function rings(name = 'saturn') {
     geometry.attributes.uv.setXY(i, v3.length() < 4 ? 1 : 0, 1);
   }
   const rings = new Mesh(geometry, material);
-  // TODO: shadows
-  //rings.castShadow = true;
-  //rings.receiveShadow = true;
+  if (shadows) {
+    console.log('THESE RINGS WILL DO SHADOWS');
+    rings.castShadow = true;
+    rings.receiveShadow = true;
+  }
   rings.scale.setScalar(0.4);
   rings.rotateY(Math.PI / 2);
   rings.rotateX(Math.PI / 2);
@@ -52754,13 +52754,15 @@ class Planet extends Object$1 {
       planetMaterial.shininess = 50;
     }
     const shape = sphere({ matr: planetMaterial });
-    shape.castShadow = true;
     if (this.props.texture_atmosphere) {
       shape.add(this.newAtmosphere());
     }
     if (this.props.name == 'saturn') {
-      shape.add(rings());
-      const underRings = rings();
+      console.log('THIS IS SATURN');
+      shape.castShadow = true;
+      shape.receiveShadow = true;
+      shape.add(rings('saturn', true, BackSide));
+      const underRings = rings('saturn', true, FrontSide);
       underRings.position.setY(-0.01);
       underRings.rotateX(Math.PI);
       shape.add(underRings);
@@ -53025,7 +53027,7 @@ void main(void) {
  * flows along the field lines.
  */
 class Star extends Object$1 {
-  constructor(props, sceneObjects, ui) {
+  constructor(props, sceneObjects, ui, shadowProps = {}) {
     super(props.name, props);
     if (!props || !(props.radius))
       throw new Error('Props undefined');
@@ -53036,7 +53038,17 @@ class Star extends Object$1 {
     }
     this.orbitPosition = this;
 
-    this.add(new PointLight(0xffffff));
+    // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
+    const sunlight = new PointLight(0xffffff, 1, 0, 0);
+    console.log('THIS LIGHT WILL CAST SHADOW');
+    sunlight.castShadow = true;
+    sunlight.shadow.mapSize.width = shadowProps.width || 512; // default: 512
+    sunlight.shadow.mapSize.height = shadowProps.height || 512; // default: 512
+    sunlight.shadow.camera.near = shadowProps.near || 0.5; // default: 0.5
+    sunlight.shadow.camera.far = shadowProps.far || 500; // default: 500
+    sunlight.shadow.bias = shadowProps.bias || -0.01;
+    sunlight.decay = shadowProps.decay || 1; // default: 1
+    this.add(sunlight);
 
     const lod = new LOD;
     lod.addLevel(this.createSurface(props), 1);
@@ -59600,6 +59612,9 @@ class ThreeUi {
     renderer.setSize(this.width, this.height);
     renderer.sortObjects = true;
     renderer.autoClear = true;
+    // Shadows
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = PCFSoftShadowMap;
     return renderer;
   }
 

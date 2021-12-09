@@ -139,6 +139,9 @@ export default class ThreeUi {
     renderer.setSize(this.width, this.height);
     renderer.sortObjects = true;
     renderer.autoClear = true;
+    // Shadows
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     return renderer;
   }
 
