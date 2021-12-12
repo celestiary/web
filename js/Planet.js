@@ -180,9 +180,8 @@ export default class Planet extends Object {
       shape.add(this.newAtmosphere());
     }
     if (this.props.name == 'saturn') {
-      console.log('THIS IS SATURN');
       shape.castShadow = true;
-      shape.receiveShadow = true;
+      //shape.receiveShadow = true;
       shape.add(Shapes.rings('saturn', true, THREE.BackSide));
       const underRings = Shapes.rings('saturn', true, THREE.FrontSide);
       underRings.position.setY(-0.01);

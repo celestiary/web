@@ -14,10 +14,10 @@
   dependencies:
     "@pablo-mayrgundter/testing.js" "^1.0.0"
 
-"@pablo-mayrgundter/parser.js@^1.0.0":
-  version "1.0.0"
-  resolved "https://npm.pkg.github.com/download/@pablo-mayrgundter/parser.js/1.0.0/5ac3e289adb18744d5b0b7c344b62a1101cff285df7ded46f48efe0c6ab41306#c3768dac66936f09061fc0448fa5ca983e09ded8"
-  integrity sha512-dDd2WfAlNIiM5PeuSYijhw57cemE2lZP6wcRkwNKAZ05KhF2hEmQYS2TBORim7B9SsRmmO6i8wtTEBoJtY28xw==
+"@pablo-mayrgundter/parser.js@^1.0.1":
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/@pablo-mayrgundter/parser.js/-/parser.js-1.0.1.tgz#ad805fb006251a575398c4e9602906976851603b"
+  integrity sha512-vtvLOAauCGjm3J47k7FkW52FbomwHij9XJh59jkQSFCpc/cugVF+AMnQU0+XGFU2erZkun8b/VEXp33fAb2KAg==
   dependencies:
     "@pablo-mayrgundter/testing.js" "^1.0.0"
 
@@ -261,10 +261,10 @@ rollup-plugin-serve@^1.1.0:
     mime ">=2.4.6"
     opener "1"
 
-rollup@2.58.0:
-  version "2.58.0"
-  resolved "https://registry.yarnpkg.com/rollup/-/rollup-2.58.0.tgz#a643983365e7bf7f5b7c62a8331b983b7c4c67fb"
-  integrity sha512-NOXpusKnaRpbS7ZVSzcEXqxcLDOagN6iFS8p45RkoiMqPHDLwJm758UF05KlMoCRbLBTZsPOIa887gZJ1AiXvw==
+rollup@2.61.1:
+  version "2.61.1"
+  resolved "https://registry.yarnpkg.com/rollup/-/rollup-2.61.1.tgz#1a5491f84543cf9e4caf6c61222d9a3f8f2ba454"
+  integrity sha512-BbTXlEvB8d+XFbK/7E5doIcRtxWPRiqr0eb5vQ0+2paMM04Ye4PZY5nHOQef2ix24l/L0SpLd5hwcH15QHPdvA==
   optionalDependencies:
     fsevents "~2.3.2"
 
@@ -273,10 +273,10 @@ stats.js@^0.17.0:
   resolved "https://registry.yarnpkg.com/stats.js/-/stats.js-0.17.0.tgz#b1c3dc46d94498b578b7fd3985b81ace7131cc7d"
   integrity sha1-scPcRtlEmLV4t/05hbgaznExzH0=
 
-three@^0.133.1:
-  version "0.133.1"
-  resolved "https://registry.yarnpkg.com/three/-/three-0.133.1.tgz#5606f4817d67a09d9212d4ccbd6826564774f8f4"
-  integrity sha512-WydohO8ll949B0FTD6MGz59Yv2Lwj8hvObg/0Heh2r42S6+tQC1WByfCNRdmG4D7+odfGod+n8JPV1I2xrboWw==
+three@^0.135:
+  version "0.135.0"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.135.0.tgz#cff4ec8edd3c51ce9bc7e88d13e8eafed4d0ddfc"
+  integrity sha512-kuEpuuxRzLv0MDsXai9huCxOSQPZ4vje6y0gn80SRmQvgz6/+rI0NAvCRAw56zYaWKMGMfqKWsxF9Qa2Z9xymQ==
 
 to-regex-range@^5.0.1:
   version "5.0.1"

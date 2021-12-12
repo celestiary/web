@@ -1,17 +1,15 @@
 {
   "name": "celestiary",
+  "homepage": "https://github.com/celestiary/web#readme",
   "description": "Astronomical simulator web app.",
   "author": "Pablo Mayrgundter",
   "license": "ISC",
-  "version": "1.0.0",
-  "homepage": "https://github.com/celestiary/web#readme",
+  "version": "v0.8",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/celestiary/web.git"
   },
-  "bugs": {
-    "url": "https://github.com/celestiary/web/issues"
-  },
+  "bugs": { "url": "https://github.com/celestiary/web/issues" },
   "scripts": {
     "test": "cd js ; for t in *_test.js ; do echo $t ; node $t ; done",
     "build": "npx rollup -c",
@@ -23,11 +21,11 @@
   "dependencies": {
     "@pablo-mayrgundter/fullscreen.js": "^1.0.1",
     "@pablo-mayrgundter/measure.js": "^1.0.7",
-    "@pablo-mayrgundter/parser.js": "^1.0.0",
-    "three": "^0.133.1"
+    "@pablo-mayrgundter/parser.js": "^1.0.1",
+    "three": "^0.135"
   },
   "devDependencies": {
-    "rollup": "2.58.0",
+    "rollup": "2.61.1",
     "rollup-plugin-livereload": "^2.0.5",
     "rollup-plugin-serve": "^1.1.0",
     "dat.gui": "^0.7.7",

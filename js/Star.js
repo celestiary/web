@@ -45,7 +45,6 @@ export default class Star extends Object {
 
     // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
     const sunlight = new PointLight(0xffffff, 1, 0, 0);
-    console.log('THIS LIGHT WILL CAST SHADOW')
     sunlight.castShadow = true;
     sunlight.shadow.mapSize.width = shadowProps.width || 512; // default: 512
     sunlight.shadow.mapSize.height = shadowProps.height || 512; // default: 512

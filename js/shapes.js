@@ -440,9 +440,8 @@ function rings(name = 'saturn', shadows = false, side = THREE.FrontSide) {
   }
   const rings = new THREE.Mesh(geometry, material);
   if (shadows) {
-    console.log('THESE RINGS WILL DO SHADOWS');
     rings.castShadow = true;
-    rings.receiveShadow = true;
+    //rings.receiveShadow = true;
   }
   rings.scale.setScalar(0.4);
   rings.rotateY(Math.PI / 2);
