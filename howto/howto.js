@@ -16,7 +16,7 @@ import {
 import Stats from '../node_modules/stats.js/src/Stats.js';
 
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js';
-import Measure from '@pablo-mayrgundter/measure.js/measure.js';
+import Measure from '@pablo-mayrgundter/measure.js/Measure.js';
 
 import Asterisms from './js/Asterisms.js';
 import AsterismsCatalog from './js/AsterismsCatalog.js';

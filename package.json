@@ -15,7 +15,8 @@
   "scripts": {
     "test": "cd js ; for t in *_test.js ; do echo $t ; node $t ; done",
     "build": "npx rollup -c",
-    "start": "npx rollup -c rollup-serve.config.js -w"
+    "build-howto": "rollup -c howto/rollup.config.js",
+    "start": "rollup -c rollup-serve.config.js -w"
   },
   "main": "Celestiary.js",
   "type": "module",

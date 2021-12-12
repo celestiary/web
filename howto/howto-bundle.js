@@ -55834,11 +55834,16 @@ class ThreeUi {
     } else {
       throw new Error(`Given container must be DOM ID or element: ${container}`);
     }
+    this.threeContainer = document.createElement('div');
+    this.threeContainer.style.width = this.container.offsetWidth;
+    this.threeContainer.style.height = this.container.offsetHeight;
+    this.container.appendChild(this.threeContainer);
+
     this.animationCb = animationCb || null;
     this.renderer = renderer ||
-      this.initRenderer(this.container, backgroundColor || 0x000000);
-    this.width = this.container.offsetWidth;
-    this.height = this.container.offsetHeight;
+      this.initRenderer(this.threeContainer, backgroundColor || 0x000000);
+    this.width = this.threeContainer.offsetWidth;
+    this.height = this.threeContainer.offsetHeight;
     const ratio = this.width / this.height;
     this.camera = new PerspectiveCamera(INITIAL_FOV, ratio, 1E-3, 1E35);
     this.camera.platform = named(new Object3D, 'CameraPlatform');
@@ -55846,7 +55851,7 @@ class ThreeUi {
     this.initControls(this.camera);
     this.fs = new Fullscreen(this.container, () => {
         this.onResize();
-      });
+    });
     window.addEventListener('resize', () => {
         if (this.fs.isFullscreen()) {
           this.onResize();
@@ -55925,12 +55930,10 @@ class ThreeUi {
           event.preventDefault();
         }
       }, true);
-
     //this.renderLoop();
     this.renderer.setAnimationLoop(() => {
         this.renderLoop();
       });
-
   }
 
 
@@ -55964,7 +55967,7 @@ class ThreeUi {
 
 
   initControls(camera) {
-    const controls = new TrackballControls(camera, this.container);
+    const controls = new TrackballControls(camera, this.threeContainer);
     // Rotation speed is changed in scene.js depending on target
     // type: faster for sun, slow for planets.
     controls.noZoom = false;
