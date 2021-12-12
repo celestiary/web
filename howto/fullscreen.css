@@ -1,0 +1,33 @@
+.fullscreen-control {
+  position: absolute;
+  width: 50px;
+  height: 40px;
+  bottom: 0px;
+  right: 0px;
+}
+
+
+/** The dashed box */
+.fullscreen-control div {
+  display: inline-block;
+  width: 30px;
+  height: 20px;
+  z-index: 1;
+}
+
+
+.fullscreen-dash {
+  display: inline-block;
+  width: 30px;
+  height: 20px;
+  border: dashed 5px grey;
+  opacity: 0.5;
+}
+
+
+.fullscreen-dash-zoomed {
+  width: 30px;
+  height: 20px;
+  border: dashed 5px grey;
+  opacity: 0.3;
+}
