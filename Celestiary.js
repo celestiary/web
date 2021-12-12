@@ -52435,13 +52435,13 @@ function arc(rad, startAngle, angle, materialOrOpts) {
 
 
 /** Just Saturn for now. */
-function rings(name = 'saturn') {
+function rings(name = 'saturn', shadows = false, side = FrontSide) {
   const geometry = new RingGeometry(3, 6, 64);
   const textureMap = pathTexture(name + 'ringcolor', '.png');
   const alphaMap = pathTexture(name + 'ringalpha', '.png');
-  const material = new MeshLambertMaterial({
+  const material = new MeshStandardMaterial({
       color: 0xffffff,
-      side: DoubleSide,
+      side: shadows ? side : DoubleSide,
       map: textureMap,
       alphaMap: alphaMap,
       transparent: true
@@ -52456,9 +52456,11 @@ function rings(name = 'saturn') {
     geometry.attributes.uv.setXY(i, v3.length() < 4 ? 1 : 0, 1);
   }
   const rings = new Mesh(geometry, material);
-  // TODO: shadows
-  //rings.castShadow = true;
-  //rings.receiveShadow = true;
+  if (shadows) {
+    console.log('THESE RINGS WILL DO SHADOWS');
+    rings.castShadow = true;
+    rings.receiveShadow = true;
+  }
   rings.scale.setScalar(0.4);
   rings.rotateY(Math.PI / 2);
   rings.rotateX(Math.PI / 2);
@@ -52754,13 +52756,15 @@ class Planet extends Object$1 {
       planetMaterial.shininess = 50;
     }
     const shape = sphere({ matr: planetMaterial });
-    shape.castShadow = true;
     if (this.props.texture_atmosphere) {
       shape.add(this.newAtmosphere());
     }
     if (this.props.name == 'saturn') {
-      shape.add(rings());
-      const underRings = rings();
+      console.log('THIS IS SATURN');
+      shape.castShadow = true;
+      shape.receiveShadow = true;
+      shape.add(rings('saturn', true, BackSide));
+      const underRings = rings('saturn', true, FrontSide);
       underRings.position.setY(-0.01);
       underRings.rotateX(Math.PI);
       shape.add(underRings);
@@ -53025,7 +53029,7 @@ void main(void) {
  * flows along the field lines.
  */
 class Star extends Object$1 {
-  constructor(props, sceneObjects, ui) {
+  constructor(props, sceneObjects, ui, shadowProps = {}) {
     super(props.name, props);
     if (!props || !(props.radius))
       throw new Error('Props undefined');
@@ -53036,7 +53040,17 @@ class Star extends Object$1 {
     }
     this.orbitPosition = this;
 
-    this.add(new PointLight(0xffffff));
+    // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
+    const sunlight = new PointLight(0xffffff, 1, 0, 0);
+    console.log('THIS LIGHT WILL CAST SHADOW');
+    sunlight.castShadow = true;
+    sunlight.shadow.mapSize.width = shadowProps.width || 512; // default: 512
+    sunlight.shadow.mapSize.height = shadowProps.height || 512; // default: 512
+    sunlight.shadow.camera.near = shadowProps.near || 0.5; // default: 0.5
+    sunlight.shadow.camera.far = shadowProps.far || 500; // default: 500
+    sunlight.shadow.bias = shadowProps.bias || -0.01;
+    sunlight.decay = shadowProps.decay || 1; // default: 1
+    this.add(sunlight);
 
     const lod = new LOD;
     lod.addLevel(this.createSurface(props), 1);
@@ -59478,11 +59492,16 @@ class ThreeUi {
     } else {
       throw new Error(`Given container must be DOM ID or element: ${container}`);
     }
+    this.threeContainer = document.createElement('div');
+    this.threeContainer.style.width = this.container.offsetWidth;
+    this.threeContainer.style.height = this.container.offsetHeight;
+    this.container.appendChild(this.threeContainer);
+
     this.animationCb = animationCb || null;
     this.renderer = renderer ||
-      this.initRenderer(this.container, backgroundColor || 0x000000);
-    this.width = this.container.offsetWidth;
-    this.height = this.container.offsetHeight;
+      this.initRenderer(this.threeContainer, backgroundColor || 0x000000);
+    this.width = this.threeContainer.offsetWidth;
+    this.height = this.threeContainer.offsetHeight;
     const ratio = this.width / this.height;
     this.camera = new PerspectiveCamera(INITIAL_FOV, ratio, 1E-3, 1E35);
     this.camera.platform = named(new Object3D, 'CameraPlatform');
@@ -59490,7 +59509,7 @@ class ThreeUi {
     this.initControls(this.camera);
     this.fs = new Fullscreen(this.container, () => {
         this.onResize();
-      });
+    });
     window.addEventListener('resize', () => {
         if (this.fs.isFullscreen()) {
           this.onResize();
@@ -59569,12 +59588,10 @@ class ThreeUi {
           event.preventDefault();
         }
       }, true);
-
     //this.renderLoop();
     this.renderer.setAnimationLoop(() => {
         this.renderLoop();
       });
-
   }
 
 
@@ -59600,12 +59617,15 @@ class ThreeUi {
     renderer.setSize(this.width, this.height);
     renderer.sortObjects = true;
     renderer.autoClear = true;
+    // Shadows
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = PCFSoftShadowMap;
     return renderer;
   }
 
 
   initControls(camera) {
-    const controls = new TrackballControls(camera, this.container);
+    const controls = new TrackballControls(camera, this.threeContainer);
     // Rotation speed is changed in scene.js depending on target
     // type: faster for sun, slow for planets.
     controls.noZoom = false;

@@ -418,13 +418,13 @@ function arc(rad, startAngle, angle, materialOrOpts) {
 
 
 /** Just Saturn for now. */
-function rings(name = 'saturn') {
+function rings(name = 'saturn', shadows = false, side = THREE.FrontSide) {
   const geometry = new THREE.RingBufferGeometry(3, 6, 64);
   const textureMap = Material.pathTexture(name + 'ringcolor', '.png');
   const alphaMap = Material.pathTexture(name + 'ringalpha', '.png');
-  const material = new THREE.MeshLambertMaterial({
+  const material = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      side: THREE.DoubleSide,
+      side: shadows ? side : THREE.DoubleSide,
       map: textureMap,
       alphaMap: alphaMap,
       transparent: true
@@ -439,9 +439,11 @@ function rings(name = 'saturn') {
     geometry.attributes.uv.setXY(i, v3.length() < 4 ? 1 : 0, 1);
   }
   const rings = new THREE.Mesh(geometry, material);
-  // TODO: shadows
-  //rings.castShadow = true;
-  //rings.receiveShadow = true;
+  if (shadows) {
+    console.log('THESE RINGS WILL DO SHADOWS');
+    rings.castShadow = true;
+    rings.receiveShadow = true;
+  }
   rings.scale.setScalar(0.4);
   rings.rotateY(Math.PI / 2);
   rings.rotateX(Math.PI / 2);

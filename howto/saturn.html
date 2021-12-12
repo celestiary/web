@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="index.css"/></head>
+<body>
+<div id="ui"></div>
+<h1>Saturn</h1>
+
+Saturn's rings.
+
+<script type="module">
+  // This syntax picks only the named items, AmbientLight and
+  // PointLight, from the many exported from three.module.js.
+  import {
+    AmbientLight,
+    AxesHelper,
+    Loader,
+    Object3D,
+    Planet,
+    PointLight,
+    Reify,
+    Shared,
+    Star,
+    ThreeUi,
+    planetHelper
+  } from './howto-bundle.js';
+
+
+  // Bind the ThreeUi to the "ui" HTML page element.
+  const ui = new ThreeUi('ui');
+
+  // Pull the camera back from center 10 units along the z-axis
+  // (towards the viewer).
+  ui.camera.position.set(0, 0, 2);
+
+  //ui.scene.add(new AmbientLight(0x111111));
+  ui.scene.add(new AxesHelper());
+
+  const nO = (name) => {
+    const o = new Object3D;
+    o.name = name;
+    return o;
+  }
+  const sceneGroups = {
+    newObject: nO,
+    newGroup: nO,
+    orbitShapes: []
+  };
+  let scaledSemiMajorAxis;
+  const onLoadCb = (name, props) => {};
+  const loader = new Loader();
+  let sun, sunGroup, saturn;
+  loader.loadPath('sun', onLoadCb, (name, props) => {
+    Reify(props);
+    sun = new Star(props, {}, ui, {
+      width: 1024,
+      height: 1024,
+      near: 0.5,
+      far: 1e20,
+      bias: -0.000000001,
+    });
+    sun.position.x = -1e7;
+    sun.scale.setScalar(0.2);
+    sunGroup = new Object3D;
+    sunGroup.add(sun);
+    ui.scene.add(sunGroup);
+  });
+  loader.loadPath('saturn', onLoadCb, (name, props) => {
+    Reify(props);
+    saturn = new Planet(sceneGroups, props)
+    saturn.scale.setScalar(0.1);
+    saturn.rotation.y = Math.PI / -2;
+    ui.scene.add(saturn);
+  });
+  ui.animationCb = () => {
+    if (sunGroup) {
+      sunGroup.rotation.y -= Math.PI / 1000;
+    }
+  };
+</script>
+</body>
+</html>
