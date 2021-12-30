@@ -1,5 +1,16 @@
 const elt = (id) => { return document.getElementById(id); }
 
+const newElt = (tagName, inner) => {
+  const elt = document.createElement(tagName);
+  elt.innerHTML = inner;
+  return elt;
+}
+
+const remove = (id) => {
+  const elt = elt(id);
+  elt.parentNode.removeChild(elt);
+}
+
 
 function assertNotNullOrUndefined(x) {
   try {
@@ -20,7 +31,7 @@ function assertArgs(args, length) {
   let i;
   try {
     if (args.length != length) {
-      throw `Not enough arguments; expected ${length} got ${args.length}`;
+      throw `Wrong argument count; expected ${length} got ${args.length}`;
     }
     for (i = 0; i < args.length; i++) {
       assertNotNullOrUndefined(args[i]);
@@ -130,11 +141,15 @@ function toArrayBuffer(buf) {
 
 
 export {
+  // Elements
+  elt,
+  newElt,
+  remove,
+
+  assertArgs,
+  assertNotNullOrUndefined,
   capitalize,
   createCanvas,
-  elt,
-  assertNotNullOrUndefined,
-  assertArgs,
   measureText,
   named,
   toArrayBuffer,

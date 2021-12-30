@@ -1,11 +1,10 @@
 import * as THREE from 'three';
 import Parser from '@pablo-mayrgundter/parser.js/Parser.js';
-
 import AsterismsCatalog from './AsterismsCatalog.js';
 import StarsCatalog from './StarsCatalog.js';
 import * as Material from './material.js';
 import * as Shapes from './shapes.js';
-import {STARS_SCALE, labelTextColor} from './shared.js';
+import { STARS_SCALE, labelTextColor } from './shared.js';
 
 
 export default class Asterisms extends THREE.Object3D {
@@ -19,7 +18,7 @@ export default class Asterisms extends THREE.Object3D {
           this.show(astrName);
         }
         if (cb) {
-          cb();
+          cb(this);
         }
       });
   }

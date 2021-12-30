@@ -1,0 +1,38 @@
+{
+"type":"planet",
+
+"name":"jupiter",
+"parent":"sun",
+"apparentMagnitude": "-9.4",
+"colorIndex": 0.63369966,
+"mass": "1.8986E30 g",
+"density": 1.326,
+"radius": "6.9911E7 m",
+"siderealRotationPeriod": 35727.3,
+"axialInclination": 3.08,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.52,
+"equatorialGravity": 23.12,
+"escapeVelocity": 59.5,
+"orbit": {
+"eccentricity": 0.04839266,
+"inclination": 1.3053,
+"longitudeOfAscendingNode": 100.55615,
+"longitudeOfPericenter": 14.75385,
+"meanLongitude": 34.40438,
+"semiMajorAxis": 7.7857E11,
+"siderealOrbitPeriod": 3.7409942664E8
+}
+,
+"system": ["io","europa","ganymede","callisto"]
+}

@@ -1,0 +1,37 @@
+{
+"type":"moon",
+"name":"moon",
+"parent":"earth",
+"apparentMagnitude": "-12.74",
+"colorIndex": 0.63369966,
+"mass": "7.34767309E25 g",
+"density": 3.344,
+"radius": "1.7381E6 m",
+"siderealRotationPeriod": 3.144952566E7,
+"axialInclination": 1.543,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.12,
+"equatorialGravity": 1.622,
+"escapeVelocity": 2.38,
+"orbit": {
+"eccentricity": 0.0554,
+"inclination": 5.14,
+"longitudeOfAscendingNode": 125.08,
+"longitudeOfPericenter": 0.0,
+"meanLongitude": 0.0,
+"semiMajorAxis": 3.84467E8,
+"siderealOrbitPeriod": 2548108.8
+}
+,
+"system": []
+}

@@ -5,9 +5,9 @@ export default class Atmosphere {
       MieScatteringCoeff, MieScaleHeight, MiePolarity) {
     this.EyeHeight = 2; // meters
     this.SunY = SunY;
+    this.SunIntensity = SunIntensity;
     this.GroundElevation = GroundElevation;
     this.AtmosphereHeight = AtmosphereHeight;
-    this.SunIntensity = SunIntensity;
     // TODO: these should be based on a constant λ for the frequency of light.
     // The Nvidia reference says Mie is usually λ/4, so maybe λ=84e-6 here.
     this.RayleighRed = RayleighRed;
@@ -21,5 +21,6 @@ export default class Atmosphere {
     // Mie preferred scattering direction
     // TODO: why positive? Nvidia has it negative.
     this.MiePolarity = MiePolarity;
+    this.Presets = '';
   }
 }

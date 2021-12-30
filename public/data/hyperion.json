@@ -1,0 +1,38 @@
+{
+"type":"moon",
+
+"name":"hyperion",
+"parent":"saturn",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": "1.08E22 g",
+"density": 1.1,
+"radius": "1.33E5 m",
+"siderealRotationPeriod": 0.0,
+"axialInclination": 0.568,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.25,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+"eccentricity": 0.0175,
+"inclination": 1.0,
+"longitudeOfAscendingNode": 1.0,
+"longitudeOfPericenter": 1.0,
+"meanLongitude": 1.0,
+"semiMajorAxis": 1.4641E9,
+"siderealOrbitPeriod": 1838592.0
+}
+,
+"system": []
+}

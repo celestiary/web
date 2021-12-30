@@ -1,10 +1,9 @@
-@import '../index.css';
+@import './js/index.css';
 @import './fullscreen.css';
 
 
 body {
-  height; 100%;
-  margin: 1em;
+  height: 100%;
   color: white;
   background: #333;
 }
@@ -21,13 +20,24 @@ ul, ol {
 }
 
 
+#nav {
+  height: 100%;
+  width: 100%;
+}
+
+
+#nav td {
+  vertical-align: top;
+}
+
+
 #ui {
   position: relative;
+  float: right;
   top: 0;
-  left: 0;
+  right: 0;
   width: 400px;
   height: 400px;
-  float: right;
   margin: 2em;
   background-color: black;
 }

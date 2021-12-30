@@ -1,7 +1,7 @@
 'use strict';
 
 const WebGL = require('./lib/WebGL.js');
-const Celestiary = require('./celestiary.js');
+const Celestiary = require('./Celestiary.js');
 const collapsor = require('./collapsor.js');
 
 function init() {

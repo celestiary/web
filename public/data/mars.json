@@ -1,0 +1,40 @@
+{
+"type":"planet",
+
+"name":"mars",
+"parent":"sun",
+"apparentMagnitude": "-1.52",
+"colorIndex": 0.63369966,
+"mass": "6.4171E25 g",
+"density": 3.9335,
+"radius": "3.3895E6 m",
+"siderealRotationPeriod": 88642.6632,
+"axialInclination": 23.98,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+},
+"albedo": 0.15,
+"equatorialGravity": 3.69,
+"escapeVelocity": 5.027,
+"orbit": {
+"eccentricity": 0.09341233,
+"inclination": 1.85061,
+"longitudeOfAscendingNode": 49.57854,
+"longitudeOfPericenter": 336.04084,
+"meanLongitude": 355.45332,
+"semiMajorAxis": 2.2792E11,
+"siderealOrbitPeriod": 5.93144099136E7
+}
+,
+"system": ["phobos","deimos"],
+"texture_atmosphere": true,
+"texture_terrain": true
+}

@@ -8,21 +8,22 @@ function makeCollapsable(elt, tagTypes) {
     return;
   }
   var copyOfChildNodes = [];
-  for (var cndx in elt.childNodes) {
+  for (const cndx in elt.childNodes) {
     copyOfChildNodes.push(elt.childNodes[cndx]);
   }
   if (tagTypes.indexOf(elt.nodeName) != -1) {
-    var toggleCtrl = document.createElement('a');
-    toggleCtrl.setAttribute('href', '#');
-    toggleCtrl.setAttribute('onclick', 'collapse(this); return false;');
-          toggleCtrl.innerHTML =
-            eltClass(elt, 'check', 'collapsed') ? '[+]' : '[-]';
-          elt.parentNode.insertBefore(toggleCtrl, elt);
+    const toggleCtrl = document.createElement('button');
+    toggleCtrl.setAttribute('class', 'collapsor');
+    toggleCtrl.onclick = (e) => { collapse(toggleCtrl) };
+    toggleCtrl.innerHTML =
+      eltClass(elt, 'check', 'collapsed') ? '[+]' : '[-]';
+    elt.parentNode.insertBefore(toggleCtrl, elt);
   }
-  for (var cndx in copyOfChildNodes) {
+  for (const cndx in copyOfChildNodes) {
     makeCollapsable(copyOfChildNodes[cndx], tagTypes);
   }
 }
+
 
 /**
  * The click handler attached to collapsable nodes.
@@ -38,6 +39,7 @@ function collapse(ctrl) {
   }
   return false;
 }
+
 
 /**
  * Utility to 'check', 'add' or 'remove' a className attribute
@@ -73,7 +75,8 @@ function eltClass(elt, action, className) {
   return true;
 }
 
+
 export {
   makeCollapsable,
-  collapse,
-};
+  collapse
+}

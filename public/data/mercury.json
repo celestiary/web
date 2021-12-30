@@ -1,0 +1,38 @@
+{
+"type":"planet",
+
+"name":"mercury",
+"parent":"sun",
+"apparentMagnitude": "-0.42",
+"colorIndex": 0.63369966,
+"mass": "3.285e26 g",
+"density": 5.427,
+"radius": "2.440e6 m",
+"siderealRotationPeriod": 5067032.4,
+"axialInclination": 0.0,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+},
+"albedo": 0.106,
+"equatorialGravity": 3.701,
+"escapeVelocity": 4.435,
+"orbit": {
+"eccentricity": 0.20563069,
+"semiMajorAxis": 5.791e10,
+"inclination": 7.00487,
+"longitudeOfAscendingNode": 48.33167,
+"longitudeOfPericenter": 77.45645,
+"meanLongitude": 252.25084,
+"siderealOrbitPeriod": 7595341.5312
+}
+,
+"system": []
+}

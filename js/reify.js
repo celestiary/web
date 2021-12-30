@@ -1,4 +1,4 @@
-import Measure from '@pablo-mayrgundter/measure.js/Measure.js';
+import Measure from '@pablo-mayrgundter/measure.js';
 
 
 const UNIT = Measure.Magnitude.UNIT;

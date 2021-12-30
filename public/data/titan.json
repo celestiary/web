@@ -1,0 +1,38 @@
+{
+"type":"moon",
+
+"name":"titan",
+"parent":"saturn",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": "1.35E26 g",
+"density": 1.0,
+"radius": "2.576E6 m",
+"siderealRotationPeriod": 1838592.0,
+"axialInclination": 0.33,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.21,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+"eccentricity": 0.03,
+"inclination": 1.0,
+"longitudeOfAscendingNode": 1.0,
+"longitudeOfPericenter": 1.0,
+"meanLongitude": 1.0,
+"semiMajorAxis": 1.22183E9,
+"siderealOrbitPeriod": 1377684.37656
+}
+,
+"system": []
+}

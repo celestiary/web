@@ -1,0 +1,38 @@
+{
+"type":"planet",
+
+"name":"neptune",
+"parent":"sun",
+"apparentMagnitude": "-6.87",
+"colorIndex": 0.63369966,
+"mass": "1.024E29 g",
+"density": 1.638,
+"radius": "2.4624E7 m",
+"siderealRotationPeriod": 57996.0,
+"axialInclination": 28.8,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.41,
+"equatorialGravity": 11.0,
+"escapeVelocity": 23.5,
+"orbit": {
+"eccentricity": 0.00858587,
+"inclination": 1.76917,
+"longitudeOfAscendingNode": 131.72169,
+"longitudeOfPericenter": 44.97135,
+"meanLongitude": 304.88003,
+"semiMajorAxis": 4.49506E12,
+"siderealOrbitPeriod": 5.19685906752E9
+}
+,
+"system": ["triton","proteus"]
+}

@@ -1,7 +1,7 @@
 //import CustomPoints from './lib/three-custom/points.js';
 import * as THREE from 'three';
 
-import Loader from './loader.js';
+import Loader from './Loader.js';
 import Object from './object.js';
 import SpriteSheet from './SpriteSheet.js';
 import StarsBufferGeometry from './StarsBufferGeometry.js';
@@ -28,7 +28,7 @@ export default class Stars extends Object {
     this.labelLOD.addLevel(this.labelsGroup, 1);
     this.labelLOD.addLevel(FAR_OBJ, 1e14);
     this.add(this.labelLOD);
-    if (typeof catalogOrCb == 'StarsCatalog') {
+    if (catalogOrCb instanceof StarsCatalog) {
       const catalog = catalogOrCb;
       if (!catalog.starsByHip) {
         throw new Error('Invalid stars catalog');
@@ -41,15 +41,15 @@ export default class Stars extends Object {
     } else {
       this.catalog = new StarsCatalog();
       this.catalog.load(() => {
-          this.show();
-          if (typeof catalogOrCb == 'function') {
-            const cb = catalogOrCb;
-            cb();
-          }
-          if (showLabels) {
-            this.showLabels();
-          }
-        });
+        this.show();
+        if (typeof catalogOrCb == 'function') {
+          const cb = catalogOrCb;
+          cb();
+        }
+        if (showLabels) {
+          this.showLabels();
+        }
+      });
     }
   }
 
@@ -61,8 +61,8 @@ export default class Stars extends Object {
         uniforms: {
           texSampler: { value: starImage }
         },
-        vertexShader: 'js/shaders/stars.vert',
-        fragmentShader: 'js/shaders/stars.frag',
+        vertexShader: '/shaders/stars.vert',
+        fragmentShader: '/shaders/stars.frag',
         blending: THREE.AdditiveBlending,
         depthTest: true,
         depthWrite: false,

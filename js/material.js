@@ -13,7 +13,7 @@ function loadTexture(texPath) {
 
 function pathTexture(filebase, ext) {
   ext = ext || '.jpg';
-  return loadTexture('textures/' + filebase + ext);
+  return loadTexture('/textures/' + filebase + ext);
 }
 
 const materials = [];

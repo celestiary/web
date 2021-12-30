@@ -119,9 +119,9 @@ const VERTEX_SHADER = `varying vec3 vPosition;
 uniform mat4 model_from_view;
 uniform mat4 view_from_clip;
 layout(location = 0) in vec4 vertex;
-out vec3 view_ray;
+//out vec3 view_ray;
 void main() {
-  view_ray = (model_from_view * vec4((view_from_clip * vertex).xyz, 0.0)).xyz;
+  //view_ray = (model_from_view * vec4((view_from_clip * vertex).xyz, 0.0)).xyz;
   vec4 mvPosition = modelViewMatrix * vec4(position, 0.0);
   vPosition = position;
   gl_Position = projectionMatrix * mvPosition;
@@ -290,44 +290,14 @@ const float kLengthUnitInMeters = 1.;
 const vec3 kSphereCenter = vec3(0.0, 0.0, 0) / kLengthUnitInMeters;
 
 void main() {
-
-  vec3 view_direction = normalize(view_ray);
-  vec3 p = camera - kSphereCenter;
-  float p_dot_v = dot(p, view_direction);
-  float p_dot_p = dot(p, p);
-  p = camera - earth_center;
-  p_dot_v = dot(p, view_direction);
-  p_dot_p = dot(p, p);
-  /*
-  float ground_alpha = 0.0;
-  vec3 ground_radiance = vec3(0.0);
-  vec3 transmittance;
-  float shadow_length = 0.;
-  vec3 radiance = GetSkyRadiance(
-      camera - earth_center, view_direction, shadow_length, sun_direction,
-      transmittance);
-  if (dot(view_direction, sun_direction) > sun_size.y) {
-    radiance = radiance + transmittance * GetSolarRadiance();
-  }
-  radiance = mix(radiance, ground_radiance, ground_alpha);
-  color.rgb =
-      pow(vec3(1.0) - exp(-radiance / white_point * exposure), vec3(1.0 / 2.2));
-  color.a = 0.5;
-  */
-  color.rgb =
-      pow(vec3(1.0) - exp(-radiance / white_point * exposure), vec3(1.0 / 2.2));
-  /*
-    vec3 color = atmosphere(
-        vPosition, uEyePos,
-        uSunPos, uSunIntensity,
-        uGroundElevation, uGroundElevation + uAtmosphereHeight,
-        uRayleighScatteringCoeff, uRayleighScaleHeight,
-        uMieScatteringCoeff, uMieScaleHeight, uMiePolarity);
-  */
-
-    // Apply exposure.
-    color = 1.0 - exp(-1.0 * color);
-
-    gl_FragColor = vec4(color, 1);
+  vec3 color = atmosphere(
+      vPosition, uEyePos,
+      uSunPos, uSunIntensity,
+      uGroundElevation, uGroundElevation + uAtmosphereHeight,
+      uRayleighScatteringCoeff, uRayleighScaleHeight,
+      uMieScatteringCoeff, uMieScaleHeight, uMiePolarity);
+  // Apply exposure.
+  color = 1.0 - exp(-1.0 * color);
+  gl_FragColor = vec4(color, 1);
 }
 `;

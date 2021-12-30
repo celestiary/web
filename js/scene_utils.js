@@ -1,12 +1,11 @@
-import {Euler, Object3D} from 'three';
-
-import Loader from './loader.js';
+import { Euler, Object3D } from 'three';
+import Loader from './Loader.js';
 import Planet from './Planet.js';
 import Reify from './reify.js';
-import {LENGTH_SCALE} from './shared.js';
+import { LENGTH_SCALE } from './shared.js';
 
 
-function planetHelper(cb) {
+function planetHelper(path, cb) {
   const nO = (name) => {
     const o = new Object3D;
     o.name = name;
@@ -35,13 +34,7 @@ function planetHelper(cb) {
     cb(new Planet(sceneGroups, props));
   };
 
-  const loader = new Loader();
-  const handleHash = () => {
-    let hash = location.hash.substr(1) || 'earth';
-    loader.loadPath(hash, onLoadCb, onDoneCb);
-  }
-  window.addEventListener('hashchange', handleHash);
-  handleHash();
+  new Loader().loadPath(path, onLoadCb, onDoneCb);
 }
 
 

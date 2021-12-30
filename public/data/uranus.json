@@ -1,0 +1,38 @@
+{
+"type":"planet",
+
+"name":"uranus",
+"parent":"sun",
+"apparentMagnitude": "-7.19",
+"colorIndex": 0.63369966,
+"mass": "8.681E28 g",
+"density": 1.318,
+"radius": "2.5362E7 m",
+"siderealRotationPeriod": 62064.0,
+"axialInclination": 97.92,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.51,
+"equatorialGravity": 8.69,
+"escapeVelocity": 21.3,
+"orbit": {
+"eccentricity": 0.04716771,
+"inclination": 0.76986,
+"longitudeOfAscendingNode": 74.22988,
+"longitudeOfPericenter": 170.96424,
+"meanLongitude": 313.23218,
+"semiMajorAxis": 2.87246E12,
+"siderealOrbitPeriod": 2.649555255456E9
+}
+,
+"system": ["titania","oberon"]
+}

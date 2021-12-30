@@ -44,7 +44,6 @@ export default class Galaxy extends Points {
     this.acc = new Float32Array(this.vel.length);
     this.first = true;
 
-    throw new Error('yo');
     // Debug switch.
     if (numStars == 2) {
       this.initSimple();
@@ -121,7 +120,7 @@ export default class Galaxy extends Points {
       const fR = 0;//Gravity.G * M0 * M1 / R2 * 1e1;
       this.vel[xi] = -z * fR;
       this.vel[zi] = x * fR;
-      console.log(`${xi} ${zi} ${R} ${fR}`);
+      //console.log(`${xi} ${zi} ${R} ${fR}`);
     }
   }
 }

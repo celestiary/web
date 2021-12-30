@@ -1,0 +1,38 @@
+{
+"type":"planet",
+
+"name":"venus",
+"parent":"sun",
+"apparentMagnitude": "-4.4",
+"colorIndex": 0.63369966,
+"mass": "4.86732E24 g",
+"density": 5.204,
+"radius": "6.05184E6 m",
+"siderealRotationPeriod": 2.09967984E7,
+"axialInclination": 177.4,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+},
+"albedo": 0.65,
+"equatorialGravity": 8.87,
+"escapeVelocity": 10.361,
+"orbit": {
+"eccentricity": 0.00677323,
+"inclination": 3.39471,
+"longitudeOfAscendingNode": 76.68069,
+"longitudeOfPericenter": 131.53298,
+"meanLongitude": 181.97973,
+"semiMajorAxis": 1.0821E11,
+"siderealOrbitPeriod": 1.940086079136E7
+}
+,
+"system": []
+}

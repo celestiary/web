@@ -4,34 +4,41 @@
   "description": "Astronomical simulator web app.",
   "author": "Pablo Mayrgundter",
   "license": "ISC",
-  "version": "v0.8",
+  "version": "0.0.9",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/celestiary/web.git"
   },
-  "bugs": { "url": "https://github.com/celestiary/web/issues" },
+  "bugs": {
+    "url": "https://github.com/celestiary/web/issues"
+  },
   "scripts": {
     "test": "cd js ; for t in *_test.js ; do echo $t ; node $t ; done",
-    "build": "npx rollup -c",
-    "build-howto": "rollup -c howto/rollup.config.js",
-    "start": "rollup -c rollup-serve.config.js -w"
+    "clean": "rm -rf docs/*",
+    "build": "yarn clean && cp -r public/* js/shaders docs/ && node esbuild/build.js",
+    "serve": "yarn build && node esbuild/serve.js"
   },
   "main": "Celestiary.js",
   "type": "module",
   "dependencies": {
     "@pablo-mayrgundter/fullscreen.js": "^1.0.1",
-    "@pablo-mayrgundter/measure.js": "^1.0.7",
+    "@pablo-mayrgundter/measure.js": "^2.0.1",
     "@pablo-mayrgundter/parser.js": "^1.0.1",
-    "three": "^0.135"
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-router-dom": "^6.1.1",
+    "three": "^0.135",
+    "tweakpane": "^3.0.7"
   },
   "devDependencies": {
+    "@pablo-mayrgundter/testing.js": "^1.0.0",
+    "@rollup/plugin-node-resolve": "^13.0.6",
+    "esbuild": "^0.14.9",
     "rollup": "2.61.1",
+    "rollup-plugin-jsx": "^1.0.3",
     "rollup-plugin-livereload": "^2.0.5",
     "rollup-plugin-serve": "^1.1.0",
-    "dat.gui": "^0.7.7",
-    "stats.js": "^0.17.0",
-    "@pablo-mayrgundter/testing.js": "^1.0.0",
-    "@rollup/plugin-node-resolve": "^13.0.6"
+    "stats.js": "^0.17.0"
   },
   "keywords": [
     "astronomy",

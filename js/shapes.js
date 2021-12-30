@@ -465,5 +465,5 @@ export {
   rings,
   solidArc,
   solidEllipse,
-  sphere,
-};
+  sphere
+}

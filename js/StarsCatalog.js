@@ -22,10 +22,10 @@ export default class StarsCatalog {
     if (!cb) {
       throw new Error('Undefined callback');
     }
-    fetch('data/stars.dat').then((body) => {
+    fetch('/data/stars.dat').then((body) => {
         body.arrayBuffer().then((buffer) => {
             this.read(buffer);
-            fetch('data/starnames.dat').then((body) => {
+            fetch('/data/starnames.dat').then((body) => {
                 body.text().then((text) => {
                     this.readNames(text);
                     cb();
