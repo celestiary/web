@@ -4,7 +4,7 @@ const build = {
   entryPoints: [entry],
   outdir: buildDir,
   format: 'esm',
-  target: ['esnext'],
+  target: ['es6'],
   sourcemap: true,
   bundle: true,
   // Splitting
