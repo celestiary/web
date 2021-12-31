@@ -43,7 +43,6 @@ export default function Orbit() {
 function setup() {
   const ui = new ThreeUi('ui');
   ui.camera.position.set(1, 1, 3);
-//ui.scene.add(grid({color: 0x0000ff, opacity: 0.3}));
   ui.scene.add(new AmbientLight());
 
   function setupProps(orbitProps) {

@@ -135,7 +135,7 @@ button {
 }
 
 #top-right > *, #time-id > * {
-  padding: 0.25em 0;
+  padding-bottom: 0.5em;
 }
 
 #top-right .dialog {

@@ -53,15 +53,6 @@ export default class Celestiary {
   }
 
 
-  setTitle(parts) {
-    let title = 'Celestiary';
-    if (parts.length >= 1) {
-      title = Utils.capitalize(parts[parts.length - 1]);
-    }
-    document.title = title;
-  }
-
-
   load() {
     this.onLoadCb = (name, obj) => {
       Reify(obj);
@@ -81,7 +72,6 @@ export default class Celestiary {
           }
           this.scene.targetNamed(targetName);
           this.scene.goTo();
-          this.setTitle(parts);
         }, 0);
     };
 

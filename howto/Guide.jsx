@@ -1,5 +1,5 @@
 import React from 'react'
-import { Routes, Route, Link, Outlet } from 'react-router-dom'
+import { Routes, Route, Link, Outlet, useLocation } from 'react-router-dom'
 import Angles from './Angles'
 import Asterisms from './Asterisms'
 import Atmosphere from './Atmosphere'
@@ -16,6 +16,7 @@ import Sphere from './Sphere'
 import Star from './Star'
 import Stars from './Stars'
 import Welcome from './Welcome'
+import { setTitleFromLocation } from './js/utils.js'
 
 //import Map from './Map'
 //import SphereMap from './SphereMap'
@@ -28,6 +29,10 @@ import './index.css'
 
 
 export default function Guide() {
+  const location = useLocation();
+  React.useEffect(() => {
+    setTitleFromLocation(location, 'Guide')
+  }, [location])
   return (
 <>
   <table id="nav">

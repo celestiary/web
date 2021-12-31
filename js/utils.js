@@ -1,18 +1,5 @@
-const elt = (id) => { return document.getElementById(id); }
-
-const newElt = (tagName, inner) => {
-  const elt = document.createElement(tagName);
-  elt.innerHTML = inner;
-  return elt;
-}
-
-const remove = (id) => {
-  const elt = elt(id);
-  elt.parentNode.removeChild(elt);
-}
-
-
-function assertNotNullOrUndefined(x) {
+// JS
+export function assertNotNullOrUndefined(x) {
   try {
     if (x == null) {
       throw 'Variable may not be null';
@@ -27,7 +14,7 @@ function assertNotNullOrUndefined(x) {
 }
 
 
-function assertArgs(args, length) {
+export function assertArgs(args, length) {
   let i;
   try {
     if (args.length != length) {
@@ -47,38 +34,6 @@ function assertArgs(args, length) {
 }
 
 
-function named(obj, name) {
-  if (!(typeof name == 'string' && name.length > 0)) {
-    throw new Error('Name must be provided');
-  }
-  obj.name = name;
-  return obj;
-}
-
-
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.substring(1);
-}
-
-function createCanvas() {
-  const canvas = document.createElement('canvas');
-  canvas.style = 'border: solid 1px red; display: none';
-  document.body.appendChild(canvas);
-  return canvas;
-}
-
-function measureText(ctx, text, fontStyle) {
-  if (fontStyle) {
-    ctx.font = fontStyle;
-  }
-  const m = ctx.measureText(text);
-  const width = Math.ceil(m.width);
-  const height = Math.ceil(m.actualBoundingBoxAscent + m.actualBoundingBoxDescent);
-  //console.log(`text: ${text}, width: ${width}, height: ${height}`, m);
-  return {width, height};
-}
-
-
 /**
  * Recursively visit child members of {@param elt}'s "children" property.
  * @param cb1 The pre-order callback.  Called with the current element.
@@ -88,7 +43,7 @@ function measureText(ctx, text, fontStyle) {
  * should not be set by caller, but will be passed to the callbacks to
  * allow indent formatting.
  */
-function visit(elt, cb1, cb2, cb3, level) {
+export function visit(elt, cb1, cb2, cb3, level) {
   level = level || 1;
   if (cb1) {
     cb1(elt, level);
@@ -109,7 +64,7 @@ function visit(elt, cb1, cb2, cb3, level) {
 
 
 /** Preorder visit. */
-function visitFilterProperty(elt, propName, propValue, cb) {
+export function visitFilterProperty(elt, propName, propValue, cb) {
   visit(elt, child => {
       if (child.hasOwnProperty(propName) && child[propName] == propValue) {
         cb(child);
@@ -119,7 +74,7 @@ function visitFilterProperty(elt, propName, propValue, cb) {
 
 
 /** Preorder visit. */
-function visitToggleProperty(elt, filterPropName, filterPropValue, togglePropName) {
+export function visitToggleProperty(elt, filterPropName, filterPropValue, togglePropName) {
   visitFilterProperty(elt, filterPropName, filterPropValue, child => {
       if (!(child.hasOwnProperty(togglePropName) && typeof child[togglePropName] == 'boolean')) {
         throw new Error(`Found child invalid toggle property(${togglePropName}):`, child);
@@ -129,8 +84,13 @@ function visitToggleProperty(elt, filterPropName, filterPropValue, togglePropNam
 }
 
 
+export function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.substring(1);
+}
+
+
 // https://stackoverflow.com/questions/8609289/convert-a-binary-nodejs-buffer-to-javascript-arraybuffer
-function toArrayBuffer(buf) {
+export function toArrayBuffer(buf) {
   var ab = new ArrayBuffer(buf.length);
   var view = new Uint8Array(ab);
   for (var i = 0; i < buf.length; ++i) {
@@ -140,20 +100,63 @@ function toArrayBuffer(buf) {
 }
 
 
-export {
-  // Elements
-  elt,
-  newElt,
-  remove,
+// DOM
+export const elt = (id) => { return document.getElementById(id); }
 
-  assertArgs,
-  assertNotNullOrUndefined,
-  capitalize,
-  createCanvas,
-  measureText,
-  named,
-  toArrayBuffer,
-  visit,
-  visitFilterProperty,
-  visitToggleProperty
-};
+
+export const newElt = (tagName, inner) => {
+  const elt = document.createElement(tagName);
+  elt.innerHTML = inner;
+  return elt;
+}
+
+
+export const remove = (id) => {
+  const elt = elt(id);
+  elt.parentNode.removeChild(elt);
+}
+
+
+export function setTitleFromLocation(location, prefix) {
+  let title = 'Clstry' + (prefix ? (': ' + prefix) : '');
+  let path = location.pathname.length > 1 ? location.pathname : location.hash;
+  if (path.startsWith('#')) {
+    path = path.substring(1);
+  }
+  const parts = path.split('/');
+  if (parts.length >= 1) {
+    title += ': '
+    title += capitalize(parts[parts.length - 1]);
+  }
+  document.title = title;
+}
+
+
+export function createCanvas() {
+  const canvas = document.createElement('canvas');
+  canvas.style = 'border: solid 1px red; display: none';
+  document.body.appendChild(canvas);
+  return canvas;
+}
+
+
+export function measureText(ctx, text, fontStyle) {
+  if (fontStyle) {
+    ctx.font = fontStyle;
+  }
+  const m = ctx.measureText(text);
+  const width = Math.ceil(m.width);
+  const height = Math.ceil(m.actualBoundingBoxAscent + m.actualBoundingBoxDescent);
+  //console.log(`text: ${text}, width: ${width}, height: ${height}`, m);
+  return {width, height};
+}
+
+
+// Celestiary
+export function named(obj, name) {
+  if (!(typeof name == 'string' && name.length > 0)) {
+    throw new Error('Name must be provided');
+  }
+  obj.name = name;
+  return obj;
+}
