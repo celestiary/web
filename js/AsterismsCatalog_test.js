@@ -12,10 +12,10 @@ const tests = new Testing();
 
 tests.add('AsterismsCatalog', () => {
     const starsCatalog = new StarsCatalog();
-    starsCatalog.read(toArrayBuffer(readFileSync('../data/stars.dat')));
+    starsCatalog.read(toArrayBuffer(readFileSync('../public/data/stars.dat')));
     tests.assertEquals(106747, starsCatalog.numStars);
     const asterisms = new AsterismsCatalog(starsCatalog);
-    asterisms.read(readFileSync('../data/asterisms.dat', 'utf-8'));
+    asterisms.read(readFileSync('../public/data/asterisms.dat', 'utf-8'));
     tests.assertEquals(89, Object.keys(asterisms.byName).length);
   });
 

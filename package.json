@@ -18,7 +18,6 @@
     "build": "yarn clean && cp -r public/* js/shaders docs/ && node esbuild/build.js",
     "serve": "yarn build && node esbuild/serve.js"
   },
-  "main": "Celestiary.js",
   "type": "module",
   "dependencies": {
     "@pablo-mayrgundter/fullscreen.js": "^1.0.1",
@@ -32,22 +31,10 @@
   },
   "devDependencies": {
     "@pablo-mayrgundter/testing.js": "^1.0.0",
-    "@rollup/plugin-node-resolve": "^13.0.6",
-    "esbuild": "^0.14.9",
-    "rollup": "2.61.1",
-    "rollup-plugin-jsx": "^1.0.3",
-    "rollup-plugin-livereload": "^2.0.5",
-    "rollup-plugin-serve": "^1.1.0",
-    "stats.js": "^0.17.0"
+    "esbuild": "^0.14.9"
   },
   "keywords": [
-    "astronomy",
-    "astrology",
-    "planetarium",
-    "orary",
-    "gis",
-    "space",
-    "webgl",
-    "threejs"
+    "astronomy", "astrology", "planetarium", "orary", "gis", "space",
+    "webgl", "threejs", "javascript"
   ]
 }
