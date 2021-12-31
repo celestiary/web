@@ -36,7 +36,8 @@ export default function Guide() {
       <td style={{
             width: '15%',
             overflowY: scroll,
-            verticalAlign: 'top'
+            verticalAlign: 'top',
+            padding: '0 1em'
           }}>
         <h1>Guide</h1>
         <p><Link to="/">← Back</Link></p>
