@@ -80,9 +80,9 @@ export default function Guide() {
           <li><Link to="atmosphere">Atmosphere</Link></li>
           <li>Celestial Mechanics
             <ul>
-              <li><a href="orbit">Orbit</a></li>
-              <li><a href="galaxy">Gravity (galaxy)</a></li>
-              <li><a href="#saturn-earth.html">Saturn-Earth demo</a></li>
+              <li><Link href="orbit">Orbit</Link></li>
+              <li><Link href="galaxy">Gravity (galaxy)</Link></li>
+              {/*<li><Link href="#saturn-earth.html">Saturn-Earth demo</Link></li>*/}
             </ul>
           </li>
           {/*<li>Earth:
