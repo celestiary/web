@@ -22,8 +22,11 @@ function About({openToggle}) {
 
   <h2>News</h2>
   <ul>
+    <li>2021 Dec 30 - Introduce esbuild with code splitting.  Use react
+      and react-router to improve code structure and prepare for better
+      permalinks.</li>
     <li>2021 Jan 25 - Works in Safari 13.1.2+ on OSX, maybe earlier.
-    Now all major browsers tested except IE.</li>
+      Now all major browsers tested except IE.</li>
   </ul>
 
   <h2>Features</h2>
