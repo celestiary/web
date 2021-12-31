@@ -103,7 +103,7 @@ export default class Star extends Object {
   setupAnim() {
     this.preAnimCb = (time) => {
       // Sun looks bad changing too quickly.
-      time = Math.log(1 + time.simTimeElapsed * 5E-6);
+      time = Math.log(1 + time.simTimeElapsed * 8E-7);
       if (Shared.targets.pos) {
         this.shaderMaterial.uniforms.iTime.value = time;
         const d = Shared.targets.pos.distanceTo(this.ui.camera.position);
