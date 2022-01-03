@@ -34,6 +34,14 @@ export function assertArgs(args, length) {
 }
 
 
+export function assertFinite(x) {
+  if (!Number.isFinite(x)) {
+    throw new Error('Number not finite');
+  }
+  return x;
+}
+
+
 /**
  * Recursively visit child members of {@param elt}'s "children" property.
  * @param cb1 The pre-order callback.  Called with the current element.

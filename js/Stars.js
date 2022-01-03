@@ -18,17 +18,20 @@ const MAX_LABELS = 10000;
 
 
 export default class Stars extends Object {
-  constructor(props, catalogOrCb, showLabels = false, pointsLoadedCb) {
+  constructor(props, catalogOrCb, showLabels = false, pointsLoadedCb, faves = FAVES) {
     super('Stars', props);
     this.labelsGroup = named(new THREE.Group, 'LabelsGroup');
     this.pointsLoadedCb = pointsLoadedCb;
+    this.faves = faves;
     this.labelCenterPosByName = {};
     this.labelLOD = named(new THREE.LOD, 'LabelsLOD');
     this.labelLOD.visible = showLabels;
     this.labelLOD.addLevel(this.labelsGroup, 1);
     this.labelLOD.addLevel(FAR_OBJ, 1e14);
     this.add(this.labelLOD);
+    this.geom = null;
     if (catalogOrCb instanceof StarsCatalog) {
+      console.log('Caller gave catalog: ', catalogOrCb);
       const catalog = catalogOrCb;
       if (!catalog.starsByHip) {
         throw new Error('Invalid stars catalog');
@@ -55,7 +58,7 @@ export default class Stars extends Object {
 
 
   show() {
-    const geom = new StarsBufferGeometry(this.catalog);
+    this.geom = new StarsBufferGeometry(this.catalog);
     const starImage = Material.pathTexture('star_glow', '.png');
     const starsMaterial = new THREE.ShaderMaterial({
         uniforms: {
@@ -67,20 +70,23 @@ export default class Stars extends Object {
         depthTest: true,
         depthWrite: false,
         transparent: true
-      });
+    });
     new Loader().loadShaders(starsMaterial, () => {
-        //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
-        const starPoints = named(new THREE.Points(geom, starsMaterial), 'StarsPoints');
+        //const starPoints = named(new CustomPoints(this.geom, starsMaterial), 'StarsPoints');
+        const starPoints = named(new THREE.Points(this.geom, starsMaterial), 'StarsPoints');
         starPoints.sortParticles = true;
         this.add(starPoints);
         window.sp = starPoints;
         if (this.pointsLoadedCb) {
           this.pointsLoadedCb();
         }
-      });
-      //const starsMaterial = new THREE.PointsMaterial( { size: 10, vertexColors: true, sizeAttenuation: false } );
-      //const starPoints = named(new CustomPoints(geom, starsMaterial), 'StarsPoints');
-      //this.add(starPoints);
+    });
+    /*
+    this.add(new THREE.Points(this.geom, new THREE.PointsMaterial({
+      size: 3,
+      sizeAttenuation: false
+    })));
+    */
   }
 
 
@@ -88,7 +94,7 @@ export default class Stars extends Object {
     const toShow = [];
     this.addFaves(toShow);
     for (let hipId in this.catalog.starsByHip) {
-      if (faves[hipId]) {
+      if (this.faves[hipId]) {
         continue;
       }
       const star = this.catalog.starsByHip[hipId];
@@ -117,7 +123,9 @@ export default class Stars extends Object {
       console.warn('skipping double show of name: ', name);
       return;
     }
-    const x = STARS_SCALE * star.x, y = STARS_SCALE * star.y, z = STARS_SCALE * star.z;
+    const x = this.catalog.starScale * star.x,
+          y = this.catalog.starScale * star.y,
+          z = this.catalog.starScale * star.z;
     const sPos = new THREE.Vector3(x, y, z);
     this.starLabelSpriteSheet.add(x, y, z, name);
     this.labelCenterPosByName[name] = sPos;
@@ -125,10 +133,10 @@ export default class Stars extends Object {
 
 
   addFaves(toShow) {
-    for (let hipId in faves) {
+    for (let hipId in this.faves) {
       const star = this.catalog.starsByHip[hipId];
       if (star) {
-        toShow.push([star, faves[hipId]]);
+        toShow.push([star, this.faves[hipId]]);
       } else {
         throw new Error(`Null star for hipId(${hipId})`);
       }
@@ -137,7 +145,7 @@ export default class Stars extends Object {
 }
 
 
-export const faves = {
+export const FAVES = {
   0: 'Sol',
   439: 'Gliese 1',
   8102: 'Tau Ceti',
@@ -161,6 +169,3 @@ export const faves = {
   97649: 'Altair',
   113881: 'Scheat'
 };
-
-
-Stars.faves = faves;

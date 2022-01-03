@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js';
-import {VRButton} from 'three/examples/jsm/webxr/VRButton.js';
-import {XRControllerModelFactory} from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js';
 
 import * as Shared from './shared.js';
@@ -49,71 +47,14 @@ export default class ThreeUi {
     this.clicked = false;
 
     // VR
-    this.renderer.xr.enabled = true;
     // TODO: clean up VR Button container or find better one from three.js.
     /*
-    const vrButtonContainer = document.createElement('div');
-    vrButtonContainer.setAttribute('style',
-      'width: 150px; font: 10px sans; position: absolute; bottom: -10px; left: 10px; text-align: center');
-    const vrButton = VRButton.createButton(this.renderer);
-    vrButtonContainer.appendChild(vrButton);
-    const dismissButton = document.createElement('button');
-    dismissButton.setAttribute(
-      'style', 'border: none; position: relative; bottom: 43px; left: 68px; opacity: 0.7; z-index: 1000');
-    dismissButton.textContent = 'X';
-    dismissButton.onclick = () => { vrButtonContainer.remove(); }
-    vrButtonContainer.appendChild(dismissButton);
-    this.container.appendChild(vrButtonContainer);
+      this.renderer.xr.enabled = true;
+      const {vrButtonContainer, controller, controllerGrip} = initVR(this.renderer);
+      this.container.appendChild(vrButtonContainer);
+      this.scene.add(controllerGrip);
     */
-    function onSelectStart() {
-      this.userData.isSelecting = true;
-    }
 
-    function onSelectEnd() {
-      this.userData.isSelecting = false;
-    }
-
-    const controller = this.renderer.xr.getController(0);
-    controller.addEventListener('selectstart', onSelectStart);
-    controller.addEventListener('selectend', onSelectEnd);
-    controller.addEventListener('connected', (event) => {
-        this.add(buildController(event.data));
-      });
-    controller.addEventListener( 'disconnected', function () {
-        this.remove( this.children[ 0 ] );
-      });
-    this.scene.add( controller );
-
-    const controllerModelFactory = new XRControllerModelFactory();
-
-    const controllerGrip = this.renderer.xr.getControllerGrip( 0 );
-    controllerGrip.add( controllerModelFactory.createControllerModel( controllerGrip ) );
-    this.scene.add( controllerGrip );
-
-    document.addEventListener('mousedown', event => {
-        const eX = event.clientX;
-        const eY = event.clientY;
-        const screenRect = this.container.getBoundingClientRect();
-        const cL = screenRect.left;
-        const cT = screenRect.top;
-        const cW = screenRect.right - screenRect.left;
-        const cH = screenRect.bottom - screenRect.top;
-        const a = eX - cL>= 0;
-        const b = eY - cT >= 0;
-        const c = eX < cL + cW;
-        const d = eY < cT + cH;
-        //console.log(`container top: ${cT}, left: ${cL},
-        //    event x: ${eX}, y: ${eY}, ${a}, ${b}, ${c}, ${d}`);
-        if (a && b && c && d) {
-          this.clicked = true;
-          this.mouse.x = (eX - cL) / cW * 2 - 1;
-          this.mouse.y = -(eY - cT) / cH * 2 + 1;
-          this.mouse.clientX = eX;
-          this.mouse.clientY = eY;
-          this.clicked = true;
-          event.preventDefault();
-        }
-      }, true);
     //this.renderLoop();
     this.renderer.setAnimationLoop(() => {
         this.renderLoop();
@@ -123,6 +64,11 @@ export default class ThreeUi {
 
   addClickCb(clickCb) {
     this.clickCbs.push(clickCb);
+  }
+
+
+  addDblClickCb(cb) {
+    document.addEventListener('dblclick', cb);
   }
 
 

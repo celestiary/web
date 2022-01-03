@@ -23,6 +23,7 @@
     "@pablo-mayrgundter/fullscreen.js": "^1.0.1",
     "@pablo-mayrgundter/measure.js": "^2.0.1",
     "@pablo-mayrgundter/parser.js": "^1.0.1",
+    "@pablo-mayrgundter/yaot2": "^2.0.1",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "react-router-dom": "^6.1.1",
@@ -34,7 +35,14 @@
     "esbuild": "^0.14.9"
   },
   "keywords": [
-    "astronomy", "astrology", "planetarium", "orary", "gis", "space",
-    "webgl", "threejs", "javascript"
+    "astronomy",
+    "astrology",
+    "planetarium",
+    "orary",
+    "gis",
+    "space",
+    "webgl",
+    "threejs",
+    "javascript"
   ]
 }

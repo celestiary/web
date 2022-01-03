@@ -1,5 +1,5 @@
 import React from 'react';
-import { PointLight, Object3D, Raycaster, Vector3 } from 'three';
+import { AmbientLight, PointLight, Object3D, Raycaster, Vector3 } from 'three';
 import ThreeUi from './js/ThreeUI.js';
 import { sphere } from './js/shapes.js';
 
@@ -19,18 +19,17 @@ function setup() {
   const light = new PointLight;
   light.position.set(10, 10, 10);
   ui.scene.add(light);
+  ui.scene.add(new AmbientLight(0x888888));
 
   // Test a complex scene graph to show that picking is compatible with
   // object and camera offsets.
-  const a = new Object3D, b = new Object3D, c = new Object3D;
-  const s = sphere();
-  c.add(s);
-  c.position.set(3,2,1);
-  b.add(c);
-  b.position.set(3,2,1);
-  a.add(b);
-  a.position.set(3,2,1);
+  const a = sphere(), b = sphere(), c = sphere();
+  a.position.set(5, 3, 2);
+  b.position.set(2, 5, 3);
+  c.position.set(2, 3, 5);
   ui.scene.add(a);
+  ui.scene.add(b);
+  ui.scene.add(c);
 
   ui.camera.platform.position.z = 4;
   ui.camera.position.z = 1;
@@ -40,7 +39,7 @@ function setup() {
   // obj.
   ui.scene.updateMatrixWorld();
   const sPos = new Vector3;
-  sPos.setFromMatrixPosition(s.matrixWorld);
+  sPos.setFromMatrixPosition(a.matrixWorld);
   ui.camera.lookAt(sPos);
   ui.controls.update();
   ui.controls.target = sPos;

@@ -8,13 +8,13 @@ import {named} from './utils.js';
 
 
 // Simple cube for testing.
-function cube(size) {
+export function cube(size) {
   size = size || 1;
   return box(size, size, size);
 }
 
 
-function box(width, height, depth, opts) {
+export function box(width, height, depth, opts) {
   width = width || 1;
   height = height || 1;
   depth = depth || 1;
@@ -26,7 +26,7 @@ function box(width, height, depth, opts) {
 }
 
 
-function sphere(opts) {
+export function sphere(opts) {
   opts = opts || {};
   opts.radius = opts.radius || 1;
   opts.resolution = opts.resolution || 64;
@@ -36,8 +36,22 @@ function sphere(opts) {
 }
 
 
-// Lod Sphere.
-function lodSphere(radius, material) {
+export function marker() {
+  const map = new THREE.TextureLoader().load('/textures/crosshairs.png');
+  const marker = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: map,
+    sizeAttenuation: false,
+    transparent: true,
+    color: 0xffffff,
+    blending: THREE.AdditiveBlending,
+    depthTest: false
+  }));
+  marker.scale.set(0.1, 0.1, 1);
+  return marker;
+}
+
+
+export function lodSphere(radius, material) {
   const lod = new THREE.LOD();
   const geoms =
     [[getSphereGeom(128), radius],
@@ -66,14 +80,14 @@ function getSphereGeom(segmentSize) {
 
 
 /** https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes */
-function ellipseSemiMinorAxisCurve(eccentricity, semiMajorAxisLength) {
+export function ellipseSemiMinorAxisCurve(eccentricity, semiMajorAxisLength) {
   eccentricity = eccentricity || 0; // Circle
   semiMajorAxisLength = semiMajorAxisLength || 1;
   return semiMajorAxisLength * Math.sqrt(1 - Math.pow(eccentricity, 2))
 }
 
 
-function solidEllipse(eccentricity, opts) {
+export function solidEllipse(eccentricity, opts) {
   opts = opts || {
     from: 0,
     to: Math.PI * 2
@@ -98,7 +112,7 @@ function solidEllipse(eccentricity, opts) {
 }
 
 
-function solidArc(opts) {
+export function solidArc(opts) {
   opts = opts || {
     from: 0,
     to: Math.PI * 2,
@@ -155,7 +169,7 @@ function atmos(radius) {
 
 
 // TODO(pmy): Convert to shared BufferGeometry.
-function point(optsOrRadius) {
+export function point(optsOrRadius) {
   const opts = optsOrRadius || {
     color: 0xffffff,
     size: optsOrRadius || 4,
@@ -172,7 +186,7 @@ function point(optsOrRadius) {
 }
 
 
-function labelAnchor() {
+export function labelAnchor() {
   const opts = {
     color: 0x000000,
     size: 3,
@@ -197,7 +211,7 @@ function labelAnchor() {
  * @param {rest} If the last arg is an object, it will be queried for
  * an object property of {color}.
  */
-function line(vec1, vec2, ...rest) {
+export function line(vec1, vec2, ...rest) {
   const args = Array.prototype.slice.call(arguments);
   const lastArg = args[args.length - 1];
   let opts = {color: 'white'};
@@ -245,7 +259,7 @@ function cone(height, materialOrOpts = {color: 0xffffff}) {
  * @param addLabel Boolean Optional controlling the display of text angle label.
  * @param addSolidArc Boolean Optional controlling the display of text angle label.
  */
-function arrow(to = new THREE.Vector3(1, 0, 0), origin = new Vector3, hexColor = 0xffffff, labelText) {
+export function arrow(to = new THREE.Vector3(1, 0, 0), origin = new Vector3, hexColor = 0xffffff, labelText) {
   const dirVec = new THREE.Vector3();
   dirVec.copy(to);
   dirVec.normalize();
@@ -276,7 +290,7 @@ function arrow(to = new THREE.Vector3(1, 0, 0), origin = new Vector3, hexColor =
  *   color value, e.g. 'red' or 'rgb(1, 0, 0, 0)'.
  * @param addSolidArc Boolean Optional controlling the display of text angle label.
  */
-function angle(vec1, vec2, materialOrOpts, addLabelOrOpts = true, addSolidArc = true) {
+export function angle(vec1, vec2, materialOrOpts, addLabelOrOpts = true, addSolidArc = true) {
   let angleInRadians;
   if (arguments.length == 1 || vec2 === null || typeof vec2 === 'undefined') {
     angleInRadians = vec1;
@@ -326,7 +340,7 @@ function angle(vec1, vec2, materialOrOpts, addLabelOrOpts = true, addSolidArc = 
 
 
 // Grid
-function grid(params) {
+export function grid(params) {
   if (!params) {
     params = {};
   }
@@ -345,7 +359,7 @@ function grid(params) {
  *
  * TODO(pablo): each grid has its own geometry.
  */
-function lineGrid(params) {
+export function lineGrid(params) {
   const grids = new THREE.Object3D();
   const size = params.stepSize * params.numSteps || 1;
   const divisions = params.numSteps || 10;
@@ -418,7 +432,7 @@ function arc(rad, startAngle, angle, materialOrOpts) {
 
 
 /** Just Saturn for now. */
-function rings(name = 'saturn', shadows = false, side = THREE.FrontSide) {
+export function rings(name = 'saturn', shadows = false, side = THREE.FrontSide) {
   const geometry = new THREE.RingBufferGeometry(3, 6, 64);
   const textureMap = Material.pathTexture(name + 'ringcolor', '.png');
   const alphaMap = Material.pathTexture(name + 'ringalpha', '.png');
@@ -447,23 +461,4 @@ function rings(name = 'saturn', shadows = false, side = THREE.FrontSide) {
   rings.rotateY(Math.PI / 2);
   rings.rotateX(Math.PI / 2);
   return rings;
-}
-
-
-export {
-  angle,
-  arrow,
-  box,
-  cube,
-  ellipseSemiMinorAxisCurve,
-  grid,
-  labelAnchor,
-  line,
-  lineGrid,
-  lodSphere,
-  point,
-  rings,
-  solidArc,
-  solidEllipse,
-  sphere
 }

@@ -31,6 +31,13 @@
   resolved "https://npm.pkg.github.com/download/@pablo-mayrgundter/testing.js/1.1.2/7d639eab3ad3ea7e93c280291aa754b7c1fd75e3a83400668de630c0206f2e0b#47ec1236acca7eca183a7ccc0f4c30f1427d25a6"
   integrity sha512-Ml+MFgIMhFkEQjxPQQujDubBAcoVqpS4ux0urfnBrlCxuMaJ7aQNSZnl+AltsDt8iJcyBmgqfy6B1c3fhXJJEQ==
 
+"@pablo-mayrgundter/yaot2@^2.0.1":
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/@pablo-mayrgundter/yaot2/-/yaot2-2.0.1.tgz#4a2096b290292f36e95ff46bf598557cfda6682a"
+  integrity sha512-nFz7FvFiNaFRqve2hrdzEl89ublr2IE+4NnTpIzStRboF9GZV1M045m3PUUTZroZN1c2G8ZDuPxLjnysVbhj5A==
+  dependencies:
+    rafor "^1.0.2"
+
 esbuild-android-arm64@0.14.9:
   version "0.14.9"
   resolved "https://registry.yarnpkg.com/esbuild-android-arm64/-/esbuild-android-arm64-0.14.9.tgz#81491ba904eb0dd636e372d3d95fa8424a0d9e95"
@@ -168,6 +175,11 @@ object-assign@^4.1.1:
   version "4.1.1"
   resolved "https://registry.yarnpkg.com/object-assign/-/object-assign-4.1.1.tgz#2109adc7965887cfc05cbbd442cac8bfbb360863"
   integrity sha1-IQmtx5ZYh8/AXLvUQsrIv7s2CGM=
+
+rafor@^1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/rafor/-/rafor-1.0.2.tgz#e927cebcb9d8908da7a931ab0712095f1f199ec9"
+  integrity sha1-6SfOvLnYkI2nqTGrBxIJXx8Znsk=
 
 react-dom@^17.0.2:
   version "17.0.2"

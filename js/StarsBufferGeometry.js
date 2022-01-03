@@ -1,6 +1,5 @@
 import {BufferAttribute, BufferGeometry} from 'three';
 
-import {LENGTH_SCALE, STARS_SCALE} from './shared.js';
 import {StarSpectra} from './StarsCatalog.js';
 
 
@@ -8,20 +7,21 @@ export default class StarsBufferGeometry extends BufferGeometry {
   constructor(catalog) {
     super();
     const numStars = catalog.numStars;
-    const coords = new Float32Array(numStars * 3);
+    this.coords = new Float32Array(numStars * 3);
+    this.starsArray = [];
     const colors = new Float32Array(numStars * 3);
     const sizes = new Float32Array(numStars);
     const sunSpectrum = StarSpectra[4];
     const minSize = 1;
     const maxLum = Math.pow(8, 4);
     let i = 0;
-    const scale = STARS_SCALE;
     for (let hipId in catalog.starsByHip) {
       const star = catalog.starsByHip[hipId];
+      this.starsArray.push(star);
       const off = 3 * i;
-      coords[off] = scale * star.x;
-      coords[off + 1] = scale * star.y;
-      coords[off + 2] = scale * star.z;
+      this.coords[off] = catalog.starScale * star.x;
+      this.coords[off + 1] = catalog.starScale * star.y;
+      this.coords[off + 2] = catalog.starScale * star.z;
       let rgb = StarSpectra[star.spectralType];
       rgb = rgb || sunSpectrum;
       const lumRelSun = star.lumRelSun;
@@ -31,13 +31,11 @@ export default class StarsBufferGeometry extends BufferGeometry {
       colors[off] = r;
       colors[off + 1] = g;
       colors[off + 2] = b;
-      // 1E1 looks decent.  2E1 much more intriguing but a little fake.
-      const scaleUp = 1e1;
-      sizes[i] = star.radiusMeters * LENGTH_SCALE * scaleUp;
+      sizes[i] = star.radiusMeters * catalog.lengthScale;
       i++;
     }
     // https://github.com/mrdoob/three.js/blob/master/examples/webgl_custom_attributes_points.html
-    this.setAttribute('position', new BufferAttribute(coords, 3));
+    this.setAttribute('position', new BufferAttribute(this.coords, 3));
     this.setAttribute('color', new BufferAttribute(colors, 3));
     this.setAttribute('size', new BufferAttribute(sizes, 1));
     this.computeBoundingSphere();
