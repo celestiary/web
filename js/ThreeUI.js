@@ -67,11 +67,6 @@ export default class ThreeUi {
   }
 
 
-  addDblClickCb(cb) {
-    document.addEventListener('dblclick', cb);
-  }
-
-
   initRenderer(container, backgroundColor) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('webgl2');

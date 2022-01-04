@@ -29,12 +29,18 @@ function setup() {
       const coords = stars.geom.coords;
       const tree = createTree();
       tree.init(coords);
-      //document.body.addEventListener('mousemove', queryPoints);
       const marker = createMarker();
       ui.scene.add(marker);
-      ui.addDblClickCb(e => queryPoints(ui, e, tree, coords, (pick) => {
-        marker.position.copy(pick);
-      }));
+      const markCb = (e) => {
+        queryPoints(ui, e, tree, coords, (pick) => {
+          marker.position.copy(pick);
+        })
+      }
+      if (true) {
+        document.body.addEventListener('dblclick', markCb);
+      } else {
+        document.body.addEventListener('mousemove', markCb);
+      }
     }, true);
   ui.scene.add(stars);
 }
