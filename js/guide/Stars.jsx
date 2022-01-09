@@ -26,13 +26,12 @@ function setup() {
       scalar: getSunProps(0.1).radiusMeters
     }},
     () => {
-      const coords = stars.geom.coords;
       const tree = createTree();
-      tree.init(coords);
+      tree.init(stars.geom.coords);
       const marker = createMarker();
       ui.scene.add(marker);
       const markCb = (e) => {
-        queryPoints(ui, e, tree, coords, (pick) => {
+        queryPoints(ui, e, tree, stars, (pick) => {
           marker.position.copy(pick);
         })
       }

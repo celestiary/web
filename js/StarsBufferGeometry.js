@@ -7,6 +7,7 @@ export default class StarsBufferGeometry extends BufferGeometry {
   constructor(catalog) {
     super();
     const numStars = catalog.numStars;
+    this.idsByNdx = new Int32Array(numStars);
     this.coords = new Float32Array(numStars * 3);
     this.starsArray = [];
     const colors = new Float32Array(numStars * 3);
@@ -17,6 +18,7 @@ export default class StarsBufferGeometry extends BufferGeometry {
     let i = 0;
     for (let hipId in catalog.starsByHip) {
       const star = catalog.starsByHip[hipId];
+      this.idsByNdx[i] = hipId;
       this.starsArray.push(star);
       const off = 3 * i;
       this.coords[off] = catalog.starScale * star.x;

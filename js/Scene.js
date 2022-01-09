@@ -3,20 +3,23 @@ import {
   Raycaster,
   Vector2,
   Vector3
-} from 'three';
-import CustomRaycaster from './lib/three-custom/raycaster.js';
+} from 'three'
+import CustomRaycaster from './lib/three-custom/raycaster.js'
+import createTree from '@pablo-mayrgundter/yaot2'
 
-import Asterisms from './Asterisms.js';
-import Object from './object.js';
-import Planet from './Planet.js';
-import SpriteSheet from './SpriteSheet.js';
-import Star from './Star.js';
-import Stars from './Stars.js';
-import * as Material from './material.js';
-import * as Shared from './shared.js';
-import * as Shapes from './shapes.js';
-import * as Utils from './utils.js';
-import {info} from './log.js';
+import Asterisms from './Asterisms.js'
+import Object from './object.js'
+import Planet from './Planet.js'
+import SpriteSheet from './SpriteSheet.js'
+import Star from './Star.js'
+import Stars from './Stars.js'
+import * as Material from './material.js'
+import * as Shared from './shared.js'
+import * as Shapes from './shapes.js'
+import * as Utils from './utils.js'
+import { marker as createMarker } from './shapes'
+import { queryPoints } from './Picker'
+import { info } from './log.js'
 
 
 const
@@ -70,8 +73,22 @@ export default class Scene {
     case 'galaxy': return this.newGalaxy(props);
     case 'stars':
       this.stars = new Stars(props, () => {
-          this.stars.showLabels();
-        });
+        this.stars.showLabels();
+        const tree = createTree();
+        tree.init(this.stars.geom.coords);
+        const marker = createMarker();
+        this.ui.scene.add(marker);
+        const markCb = (e) => {
+          queryPoints(this.ui, e, tree, this.stars, (pick) => {
+            marker.position.copy(pick);
+          })
+        }
+        if (true) {
+          document.body.addEventListener('dblclick', markCb);
+        } else {
+          document.body.addEventListener('mousemove', markCb);
+        }
+      });
       return this.stars;
     case 'star':
         this.sun = new Star(props, this.objects, this.ui);

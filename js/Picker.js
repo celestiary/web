@@ -2,7 +2,7 @@ import { Raycaster, Vector3 } from 'three'
 import { assertFinite } from './utils'
 
 
-export function queryPoints(ui, e, tree, coords, pickCb) {
+export function queryPoints(ui, e, tree, coords, idsByNdx, pickCb) {
   const mouse = {
     x: (e.clientX / ui.renderer.domElement.clientWidth) * 2 - 1,
     y: (e.clientY / ui.renderer.domElement.clientHeight) * -2 + 1
@@ -15,22 +15,19 @@ export function queryPoints(ui, e, tree, coords, pickCb) {
   const ray = raycaster.ray;
   const items = tree.intersectRay(ray.origin, ray.direction);
   if (items.length > 0) {
-    mark(ui, items, mouse, coords, pickCb);
+    mark(ui, items, mouse, coords, idsByNdx, pickCb);
   }
   //console.timeEnd('ray');
 }
 
 
-function mark(ui, items, mouse, coords, pickCb) {
+function mark(ui, items, mouse, stars, pickCb) {
   const itemVec = new Vector3, mouseVec = new Vector3;
-  const arr = new Float32Array(items.length);
   let minX = 0, minY = 0, minZ = 0, minDist = Infinity, closestNdx = 0;
+  const coords = stars.geom.coords;
   for (let i = 0; i < items.length; i += 3) {
     const ndx = items[i];
     const x = coords[ndx], y = coords[ndx + 1], z = coords[ndx + 2];
-    arr[i] = assertFinite(x);
-    arr[i + 1] = assertFinite(y);
-    arr[i + 2] = assertFinite(z);
     itemVec.set(x, y, z);
     const v1 = itemVec.clone();
     itemVec.project(ui.camera);
@@ -50,6 +47,8 @@ function mark(ui, items, mouse, coords, pickCb) {
       minX = x, minY = y, minZ = z;
     }
   }
+  const hipId = stars.geom.idsByNdx[closestNdx / 3];
+  const star = stars.catalog.starsByHip[hipId];
   //console.log('minM, minS, maxM, maxS: ', minMDist, minSDist, maxMDist, maxSDist);
-  pickCb({x: minX, y: minY, z: minZ});
+  pickCb({star: star, x: minX, y: minY, z: minZ});
 }
