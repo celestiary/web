@@ -1,7 +1,7 @@
 import React from 'react';
 import { AmbientLight, PointLight } from 'three';
-import ThreeUi from './js/ThreeUI.js';
-import { grid } from './js/shapes.js';
+import ThreeUi from '../ThreeUI.js';
+import { grid } from '../shapes.js';
 
 
 export default function Grid() {

@@ -1,12 +1,12 @@
 import React from 'react'
 import { AmbientLight, Vector3 } from 'three'
-import Label from './js/label.js'
-import ThreeUi from './js/ThreeUI.js'
-import cOrbit from './js/Orbit.js'
-import * as Shared from './js/shared.js'
-import { addAndOrient, planetHelper } from './js/scene_utils.js'
-import { angle, arrow, grid, line, solidEllipse } from './js/shapes.js'
-import { visitFilterProperty } from './js/utils.js'
+import Label from '../label.js'
+import ThreeUi from '../ThreeUI.js'
+import cOrbit from '../Orbit.js'
+import * as Shared from '../shared.js'
+import { addAndOrient, planetHelper } from '../scene_utils.js'
+import { angle, arrow, grid, line, solidEllipse } from '../shapes.js'
+import { visitFilterProperty } from '../utils.js'
 
 
 export default function Orbit() {

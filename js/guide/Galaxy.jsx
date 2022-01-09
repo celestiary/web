@@ -1,12 +1,12 @@
 import React from 'react'
 import { AxesHelper } from 'three'
 import { Pane } from 'tweakpane'
-import cGalaxy from './js/Galaxy'
-import Keys from './js/Keys'
-import SpriteSheet from './js/SpriteSheet'
-import ThreeUi from './js/ThreeUI'
-import HelpButton from './js/Help'
-import { elt } from './js/utils'
+import cGalaxy from '../Galaxy'
+import Keys from '../Keys'
+import SpriteSheet from '../SpriteSheet'
+import ThreeUi from '../ThreeUI'
+import HelpButton from '../Help'
+import { elt } from '../utils'
 
 
 export default function Galaxy() {

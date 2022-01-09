@@ -1,6 +1,6 @@
 import React from 'react';
 import { Mesh, MeshBasicMaterial, PointLight, SphereGeometry } from 'three';
-import ThreeUi from './js/ThreeUI.js';
+import ThreeUi from '../ThreeUI.js';
 
 
 export default function Cube() {

@@ -5,7 +5,7 @@ import Loader from './Loader.js';
 import Object from './object.js';
 import SpriteSheet from './SpriteSheet.js';
 import StarsBufferGeometry from './StarsBufferGeometry.js';
-import StarsCatalog from './StarsCatalog.js';
+import StarsCatalog, { FAVES } from './StarsCatalog.js';
 import * as Material from './material.js';
 import * as Shapes from './shapes.js';
 import {STARS_SCALE, labelTextColor, FAR_OBJ} from './shared.js';
@@ -143,29 +143,3 @@ export default class Stars extends Object {
     }
   }
 }
-
-
-export const FAVES = {
-  0: 'Sol',
-  439: 'Gliese 1',
-  8102: 'Tau Ceti',
-  11767: 'Polaris',
-  21421: 'Aldebaran',
-  24436: 'Rigel',
-  25336: 'Bellatrix',
-  27989: 'Betelgeuse',
-  30438: 'Canopus',
-  32349: 'Sirius',
-  37279: 'Procyon',
-  49669: 'Regulus',
-  57632: 'Denebola',
-  65474: 'Spica',
-  69673: 'Arcturus',
-  70890: 'Proxima Centauri',
-  80763: 'Antares',
-  83608: 'Arrakis',
-  91262: 'Vega',
-  102098: 'Deneb',
-  97649: 'Altair',
-  113881: 'Scheat'
-};

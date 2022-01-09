@@ -1,11 +1,11 @@
 import React from 'react'
 import * as THREE from 'three'
 import createTree from '@pablo-mayrgundter/yaot2'
-import ThreeUi from './js/ThreeUI'
-import cStars from './js/Stars'
-import StarsCatalog, { getSunProps } from './js/StarsCatalog'
-import { marker as createMarker } from './js/shapes'
-import { queryPoints } from './js/Picker'
+import ThreeUi from '../ThreeUI'
+import cStars from '../Stars'
+import StarsCatalog, { getSunProps } from '../StarsCatalog'
+import { marker as createMarker } from '../shapes'
+import { queryPoints } from '../Picker'
 
 
 export default function Stars() {

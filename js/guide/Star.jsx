@@ -1,12 +1,12 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import cStar from './js/Star.js';
-import Stars from './js/Stars.js';
-import StarsCatalog from './js/StarsCatalog.js';
-import ThreeUi from './js/ThreeUI.js';
-import Time from './js/Time.js';
-import * as Shared from './js/shared.js';
-import { elt } from './js/utils.js';
+import cStar from '../Star.js';
+import Stars from '../Stars.js';
+import StarsCatalog, { FAVES } from '../StarsCatalog.js';
+import ThreeUi from '../ThreeUI.js';
+import Time from '../Time.js';
+import * as Shared from '../shared.js';
+import { elt } from '../utils.js';
 
 
 export default function Star() {
@@ -67,8 +67,8 @@ function addStarToScene(ui, catalog, hipId, curStar, setStar) {
 
 function setupFavesTable(catalog) {
   const favesTable = elt('faves');
-  for (let hipId in Stars.faves) {
-    const name = Stars.faves[hipId];
+  for (let hipId in FAVES) {
+    const name = FAVES[hipId];
     const star = catalog.starsByHip[hipId];
     const spectralType = StarsCatalog.StarSpectra[star.spectralType][3];
     favesTable.innerHTML +=

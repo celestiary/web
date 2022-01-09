@@ -1,36 +1,38 @@
-<!DOCTYPE html>
-<html>
-<head><link rel="stylesheet" href="index.css"/></head>
-<body>
-<div id="ui"></div>
-<h1>A Saturn-Earth Orbital System</h1>
-
-If the Earth orbited Saturn at the same distance that the Moon orbits
-Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
-
-<p>This question was inspired by a friend commenting on the FB photo <a href="https://www.facebook.com/fxsoyris/posts/4859941050713774">shared</a> by François Xavier Soyris, Jan 19 2021.
-<p>
-<img src="saturn-earth-fb-photo.jpg" width="400">
-
-<script type="module">
-  // This syntax picks only the named items, AmbientLight and
-  // PointLight, from the many exported from three.module.js.
-  import {AmbientLight, AxesHelper, Object3D, PointLight} from './js/lib/three.js/three.module.js';
-
-  // Next, import classes from this project.
-  import ThreeUi from './js/three_ui.js';
-  import Loader from './js/loader.js';
-  import Reify from './js/reify.js';
-  import Stars from './js/Stars.js';
-  import Planet from './js/Planet.js';
-
-  // Lastly, you can also grab all items defined in a module and put
-  // them under a local name like 'Shapes'.
-  import * as Shapes from './js/shapes.js';
-  import {planetHelper} from './js/scene_utils.js';
-  import {LENGTH_SCALE} from './js/shared.js';
+import React from 'react'
+import {
+  AmbientLight,
+  AxesHelper,
+  Object3D,
+  PointLight
+} from 'three'
+import ThreeUi from '../ThreeUI.js'
+import Loader from '../Loader.js'
+import Reify from '../reify.js'
+import Stars from '../Stars.js'
+import Planet from '../Planet.js'
+import * as Shapes from '../shapes.js'
+import {planetHelper} from '../scene_utils.js'
+import {LENGTH_SCALE} from '../shared.js'
 
 
+export default function SaturnEarth() {
+  React.useEffect(() => { setup() }, [])
+  return (
+    <>
+      <div id="ui"></div>
+      <h1>A Saturn-Earth Orbital System</h1>
+
+      <p>If the Earth orbited Saturn at the same distance that the Moon orbits
+      Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?</p>
+
+      <p>This question was inspired by a friend commenting on the FB photo <a href="https://www.facebook.com/fxsoyris/posts/4859941050713774">shared</a> by François Xavier Soyris, Jan 19 2021.</p>
+
+      <img src="/guide/saturn-earth-fb-photo.jpg" width="400"/>
+    </>)
+}
+
+
+function setup() {
   // Bind the ThreeUi to the "ui" HTML page element.
   const ui = new ThreeUi('ui');
 
@@ -104,6 +106,4 @@ Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
   loader.loadPath('saturn', onLoadCb, onDoneCb);
   loader.loadPath('earth', onLoadCb, onDoneCb);
   ui.animationCb = () => {};
-</script>
-</body>
-</html>
+}

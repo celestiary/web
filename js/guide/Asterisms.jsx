@@ -1,13 +1,13 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import cAsterisms from './js/Asterisms.js';
-import AsterismsCatalog from './js/AsterismsCatalog.js';
-import Keys from './js/Keys.js';
-import * as Shared from './js/shared.js';
-import Stars from './js/Stars.js';
-import StarsCatalog from './js/StarsCatalog.js';
-import ThreeUi from './js/ThreeUI.js';
-import { elt } from './js/utils.js';
+import cAsterisms from '../Asterisms.js';
+import AsterismsCatalog from '../AsterismsCatalog.js';
+import Keys from '../Keys.js';
+import * as Shared from '../shared.js';
+import Stars from '../Stars.js';
+import StarsCatalog from '../StarsCatalog.js';
+import ThreeUi from '../ThreeUI.js';
+import { elt } from '../utils.js';
 import './Asterisms.css';
 
 

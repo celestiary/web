@@ -1,6 +1,6 @@
 import React from 'react';
 import cMeasure from '@pablo-mayrgundter/measure.js';
-import { elt, newElt } from './js/utils.js';
+import { elt, newElt } from '../utils.js';
 
 
 export default function Measure() {

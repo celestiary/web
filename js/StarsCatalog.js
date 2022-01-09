@@ -359,3 +359,29 @@ function randomCatalog(tmpl, count) {
     0.1, 0.1);
   return {catalog, faves};
 }
+
+
+export const FAVES = {
+  0: 'Sol',
+  439: 'Gliese 1',
+  8102: 'Tau Ceti',
+  11767: 'Polaris',
+  21421: 'Aldebaran',
+  24436: 'Rigel',
+  25336: 'Bellatrix',
+  27989: 'Betelgeuse',
+  30438: 'Canopus',
+  32349: 'Sirius',
+  37279: 'Procyon',
+  49669: 'Regulus',
+  57632: 'Denebola',
+  65474: 'Spica',
+  69673: 'Arcturus',
+  70890: 'Proxima Centauri',
+  80763: 'Antares',
+  83608: 'Arrakis',
+  91262: 'Vega',
+  102098: 'Deneb',
+  97649: 'Altair',
+  113881: 'Scheat'
+};

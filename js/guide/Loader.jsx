@@ -1,8 +1,8 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import cLoader from './js/Loader.js';
-import * as Collapsor from './js/collapsor.js';
-import { elt } from './js/utils.js';
+import cLoader from '../Loader.js';
+import * as Collapsor from '../collapsor.js';
+import { elt } from '../utils.js';
 
 
 export default function Loader() {

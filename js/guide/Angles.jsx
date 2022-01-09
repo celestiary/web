@@ -1,8 +1,8 @@
 import React from 'react';
 import { AxesHelper, LineBasicMaterial } from 'three';
-import * as Shared from './js/shared.js';
-import { angle } from './js/shapes.js';
-import ThreeUi from './js/ThreeUI.js';
+import * as Shared from '../shared.js';
+import { angle } from '../shapes.js';
+import ThreeUi from '../ThreeUI.js';
 
 
 export default function Angles() {

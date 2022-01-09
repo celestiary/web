@@ -1,8 +1,8 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { PointLight } from 'three';
-import ThreeUi from './js/ThreeUI.js';
-import { planetHelper } from './js/scene_utils.js';
+import ThreeUi from '../ThreeUI.js';
+import { planetHelper } from '../scene_utils.js';
 
 
 export default function Planet() {

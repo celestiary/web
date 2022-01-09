@@ -1,7 +1,7 @@
 import React, { Suspense } from 'react'
 import { Outlet, Routes, Route, useNavigate } from 'react-router-dom'
 const App = React.lazy(() => import('./App'))
-const Guide = React.lazy(() => import('../howto/Guide'))
+const Guide = React.lazy(() => import('./guide/Guide'))
 
 
 export default function Routed() {

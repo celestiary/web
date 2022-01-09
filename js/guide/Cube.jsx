@@ -1,7 +1,7 @@
 import React from 'react';
 import { AxesHelper, PointLight } from 'three';
-import ThreeUi from './js/ThreeUI.js';
-import { cube } from './js/shapes.js';
+import ThreeUi from '../ThreeUI.js';
+import { cube } from '../shapes.js';
 
 
 export default function Cube() {

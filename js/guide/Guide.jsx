@@ -12,11 +12,12 @@ import Measure from './Measure'
 import Orbit from './Orbit'
 import Picking from './Picking'
 import Planet from './Planet'
+import SaturnEarth from './SaturnEarth'
 import Sphere from './Sphere'
 import Star from './Star'
 import Stars from './Stars'
 import Welcome from './Welcome'
-import { setTitleFromLocation } from './js/utils.js'
+import { setTitleFromLocation } from '../utils.js'
 
 //import Map from './Map'
 //import SphereMap from './SphereMap'
@@ -90,6 +91,11 @@ export default function Guide() {
               {/*<li><Link to="saturn-earth">Saturn-Earth demo</Link></li>*/}
             </ul>
           </li>
+          <li>Fun
+            <ul>
+              <li><Link to="saturn-earth">Earth, Saturn's moon</Link></li>
+            </ul>
+          </li>
           {/*<li>Earth:
             <ul>
               <li><Link to="map">Map</Link></li>
@@ -113,7 +119,7 @@ export default function Guide() {
           <Route path="measure" element={ <Measure/> }/>
           <Route path="orbit" element={ <Orbit/> }/>
           <Route path="picking" element={ <Picking/> }/>
-          <Route path="sphere" element={ <Sphere/> }/>
+          <Route path="saturn-earth" element={ <SaturnEarth/> }/>
           <Route path="stars" element={ <Stars/> }/>
           <Route path="star" element={ <Star/> }/>
           <Route path="asterisms" element={ <Asterisms/> }/>

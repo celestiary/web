@@ -1,7 +1,7 @@
 import React from 'react';
 import { AmbientLight, PointLight, Object3D, Raycaster, Vector3 } from 'three';
-import ThreeUi from './js/ThreeUI.js';
-import { sphere } from './js/shapes.js';
+import ThreeUi from '../ThreeUI.js';
+import { sphere } from '../shapes.js';
 
 
 export default function Picking() {
