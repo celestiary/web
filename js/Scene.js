@@ -24,7 +24,6 @@ import { info } from './log.js'
 
 const
   lengthScale = Shared.LENGTH_SCALE,
-  stepBackMult = 10,
   INITIAL_STEP_BACK_MULT = 10;
 
 
@@ -40,10 +39,10 @@ export default class Scene {
         this.onClick(click);
       });
     this.stars = null;
-    // TODO: Generalize this when other stars centered.  Used as
-    // parent for searches.
-    this.sun = null;
     this.asterisms = null;
+    this.marker = createMarker();
+    this.marker.visible = false;
+    this.ui.scene.add(this.marker);
   }
 
 
@@ -61,10 +60,13 @@ export default class Scene {
     if (!parentObj || !parentOrbitPosition) {
       throw new Error(`No parent obj: ${parentObj} or pos: ${parentOrbitPosition} for ${name}`);
     }
+    const obj3d = this.objectFactory(props);
+    console.log(obj3d, ` has parent(pname: ${props.parent}): `, parentObj);
     // Add to scene in reference frame of parent's orbit position,
     // e.g. moons orbit planets, so they have to be added to the
     // planet's orbital center.
-    parentOrbitPosition.add(this.objectFactory(props));
+    parentOrbitPosition.add(obj3d);
+    return obj3d;
   }
 
 
@@ -76,23 +78,53 @@ export default class Scene {
         this.stars.showLabels();
         const tree = createTree();
         tree.init(this.stars.geom.coords);
-        const marker = createMarker();
-        this.ui.scene.add(marker);
-        const markCb = (e) => {
+        const traceCb = (e) => {
+          this.marker.visible = true;
           queryPoints(this.ui, e, tree, this.stars, (pick) => {
-            marker.position.copy(pick);
+            this.marker.position.copy(pick);
           })
         }
-        if (true) {
-          document.body.addEventListener('dblclick', markCb);
-        } else {
-          document.body.addEventListener('mousemove', markCb);
+        const markCb = (e) => {
+          queryPoints(this.ui, e, tree, this.stars, (pick) => {
+            this.marker.position.copy(pick);
+            let tStar;
+            if (pick.star.hipId != 0) {
+              console.log('Adding new star: ', pick.star)
+              pick.star.name = this.stars.catalog.namesByHip[pick.star.hipId];
+              pick.star.type = 'star'; // todo: looks like this unintentionally override Three.js Object3D.
+              pick.star.parent = 'milkyway';
+              pick.star.radius = {
+                scalar: pick.star.radius,
+              };
+              tStar = this.add(pick.star);
+              window.star = tStar;
+              tStar.position.copy(pick);
+            } else {
+              tStar = this.objects['sun']// todo
+            }
+            window.sun = this.objects['sun'];
+            window.mw = this.objects['milkyway.orbitPosition'];
+            console.log('PICKED: ', window.star.name);
+            //Shared.targets.obj = tStar;
+            //Shared.targets.pos.copy(tStar.position);
+            //Shared.targets.track = tStar;
+            //Shared.targets.follow = tStar;
+            //window.mw.position.set(new Vector3);
+            window.mw.position.sub(tStar.position);
+            //Shared.targets.obj.position.sub(tStar.position);
+            const v = new Vector3;
+            this.marker.position.copy(v);
+            this.marker.visible = false;
+            v.set(0, 0, -tStar.props.radius.scalar * Shared.LENGTH_SCALE * 0.5e2);
+            this.ui.camera.platform.position.copy(v);
+            console.log('Shared.targets: ', Shared.targets.obj, Shared.targets.pos);
+          })
         }
+        document.body.addEventListener('dblclick', markCb);
+        document.body.addEventListener('mousemove', traceCb);
       });
       return this.stars;
-    case 'star':
-        this.sun = new Star(props, this.objects, this.ui);
-        return this.sun;
+    case 'star': return new Star(props, this.objects, this.ui);
     case 'planet': return new Planet(this, props);
     case 'moon': return new Planet(this, props, true);
     }
@@ -196,9 +228,8 @@ export default class Scene {
     const pPos = new Vector3;
     const cPos = new Vector3;
     const surfaceAltitude = obj.props.radius.scalar * lengthScale;
-    const stepBackMult = INITIAL_STEP_BACK_MULT;
     pPos.set(0, 0, 0); // TODO(pablo): maybe put platform at surfaceAltitude
-    cPos.set(0, 0, surfaceAltitude * stepBackMult);
+    cPos.set(0, 0, surfaceAltitude * INITIAL_STEP_BACK_MULT);
     obj.orbitPosition.add(this.ui.camera.platform);
     this.ui.camera.platform.position.copy(pPos);
     this.ui.camera.platform.lookAt(Shared.targets.origin);
@@ -354,12 +385,12 @@ export default class Scene {
 
 
   toggleOrbits() {
-    Utils.visitToggleProperty(this.sun, 'name', 'orbit', 'visible');
+    Utils.visitToggleProperty(this.objects['sun'], 'name', 'orbit', 'visible');
   }
 
 
   togglePlanetLabels() {
-    Utils.visitToggleProperty(this.sun, 'name', 'label', 'visible');
+    Utils.visitToggleProperty(this.objects['sun'], 'name', 'label', 'visible');
   }
 
 

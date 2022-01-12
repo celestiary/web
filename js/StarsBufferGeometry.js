@@ -33,7 +33,7 @@ export default class StarsBufferGeometry extends BufferGeometry {
       colors[off] = r;
       colors[off + 1] = g;
       colors[off + 2] = b;
-      sizes[i] = star.radiusMeters * catalog.lengthScale;
+      sizes[i] = star.radius * catalog.lengthScale;
       i++;
     }
     // https://github.com/mrdoob/three.js/blob/master/examples/webgl_custom_attributes_points.html

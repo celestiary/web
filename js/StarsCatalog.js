@@ -84,7 +84,7 @@ export default class StarsCatalog {
       // only a factor of 3 up or down.
       const absMagD = sun.absMag - absMag;
       const lumRelSun = Math.pow(2.512, absMagD);
-      const radiusMeters = sun.radiusMeters * Math.pow(lumRelSun, 0.5);
+      const radius = sun.radius * Math.pow(lumRelSun, 0.5);
 
       const star = {
         x: x,
@@ -97,7 +97,7 @@ export default class StarsCatalog {
         sub: sub,
         lumClass: lumClass,
         lumRelSun: lumRelSun,
-        radiusMeters: radiusMeters
+        radius: radius
       };
       this.starsByHip[hipId] = star;
     }
@@ -232,7 +232,7 @@ export function getSunProps(radius = 695700000) {
     sub: 2,
     lumClass: 6,
     lumRelSun: 1,
-    radiusMeters: radius
+    radius: radius
   }
 }
 
@@ -250,7 +250,7 @@ export function genStar(tmpl, id, posScale = 1e10) {
     sub: tmpl.sub,
     lumClass: tmpl.lumClass,
     lumRelSun: tmpl.lumRelSun,
-    radiusMeters: tmpl.radiusMeters
+    radius: tmpl.radius
 }}
 
 

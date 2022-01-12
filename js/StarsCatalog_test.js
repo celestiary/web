@@ -21,7 +21,7 @@ const TEST_STAR = {
   sub: '0',
   lumClass: 1,
   lumRelSun: 1,
-  radiusMeters: 1
+  radius: 1
 };
 
 

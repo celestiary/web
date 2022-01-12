@@ -1,5 +1,11 @@
 import React from 'react';
-import { AmbientLight, PointLight, Object3D, Raycaster, Vector3 } from 'three';
+import {
+  AmbientLight,
+  Object3D,
+  PointLight,
+  Raycaster,
+  Vector3
+} from 'three';
 import ThreeUi from '../ThreeUI.js';
 import { sphere } from '../shapes.js';
 
@@ -31,7 +37,7 @@ function setup() {
   ui.scene.add(b);
   ui.scene.add(c);
 
-  ui.camera.platform.position.z = 4;
+  ui.camera.platform.position.z = 10;
   ui.camera.position.z = 1;
 
   // I think lookAt just works, unless camera is controlled, in which
@@ -47,16 +53,17 @@ function setup() {
   const raycaster = new Raycaster;
   const colorAlts = [0xff0000, 0x00ff00];
   let colorNdx = 0;
-  ui.addClickCb((mouse) => {
-    if (ui.clicked) {
-      ui.clicked = false;
-      raycaster.setFromCamera(mouse, ui.camera);
-      const intersects = raycaster.intersectObjects(ui.scene.children, true);
-      for (let i = 0; i < intersects.length; i++) {
-        const obj = intersects[i].object;
-        obj.material.color.set(colorAlts[colorNdx]);
-        colorNdx = (colorNdx + 1) % 2;
-      }
+  document.body.addEventListener('dblclick', (event) => {
+    let mouse = {};
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = (event.clientY / window.innerHeight) * -2 + 1;
+    raycaster.setFromCamera(mouse, ui.camera);
+    const intersects = raycaster.intersectObjects(ui.scene.children, true);
+    console.log('click intersects: ', intersects);
+    for (let i = 0; i < intersects.length; i++) {
+      const obj = intersects[i].object;
+      obj.material.color.set(colorAlts[colorNdx]);
+      colorNdx = (colorNdx + 1) % 2;
     }
   });
 }

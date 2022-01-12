@@ -2,6 +2,9 @@ import {
   LOD,
   PointLight,
   ShaderMaterial,
+  Mesh,
+  SphereGeometry,
+  MeshBasicMaterial,
   Vector2,
   Vector3
 } from 'three';
@@ -34,8 +37,11 @@ import * as Shared from './shared.js';
 export default class Star extends Object {
   constructor(props, sceneObjects, ui, shadowProps = {}) {
     super(props.name, props);
-    if (!props || !(props.radius))
-      throw new Error('Props undefined');
+    console.log('ctor props: ', props);
+    if (!this.props || !(this.props.radius)) {
+      console.error('props', this.props);
+      throw new Error(`Props undefined: props(${props}), radius(${props.radius})`);
+    }
     this.ui = ui;
     if (sceneObjects) {
       sceneObjects[this.name] = this;
@@ -56,7 +62,8 @@ export default class Star extends Object {
 
     const lod = new LOD;
     lod.addLevel(this.createSurface(props), 1);
-    lod.addLevel(Shared.FAR_OBJ, 2e4);
+    const farLod = props.radius.scalar * Shared.LENGTH_SCALE * 1.1e2;
+    lod.addLevel(Shared.FAR_OBJ, farLod);
     this.add(lod);
   }
 
@@ -80,6 +87,16 @@ export default class Star extends Object {
                 [8152,10060], // 14, T
                 [8152,10060]];// 15, Carbon star?
     const temp = tempRanges[props.spectralType];
+    if (false) {
+      const surface = new Mesh(
+        new SphereGeometry(1, 16, 16 / 2),
+        new MeshBasicMaterial({
+          color: 0xff0000,
+          wireframe: true
+        }));
+      surface.scale.setScalar(props.radius.scalar * Shared.LENGTH_SCALE);
+      return surface;
+    }
     this.shaderMaterial = new ShaderMaterial({
       uniforms: {
         uColor: { value: new Vector3(1.0, 1.0, 1.0) },

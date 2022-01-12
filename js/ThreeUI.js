@@ -97,10 +97,11 @@ export default class ThreeUi {
     // type: faster for sun, slow for planets.
     controls.noZoom = false;
     controls.noPan = false;
-    controls.staticMoving = false;
+    controls.staticMoving = true;
     controls.dynamicDampingFactor = 0.3;
     //controls.rotateSpeed = 1;
     //controls.zoomSpeed = 0.001;
+    window.controls = controls;
     controls.target = camera.platform.position;
     this.controls = controls;
   }
