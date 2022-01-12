@@ -41,8 +41,9 @@ export default class Scene {
     this.stars = null;
     this.asterisms = null;
     this.marker = createMarker();
-    this.marker.visible = false;
+    this.marker.visible = true;
     this.ui.scene.add(this.marker);
+    this.starSelected = false;
   }
 
 
@@ -79,14 +80,19 @@ export default class Scene {
         const tree = createTree();
         tree.init(this.stars.geom.coords);
         const traceCb = (e) => {
-          this.marker.visible = true;
           queryPoints(this.ui, e, tree, this.stars, (pick) => {
-            this.marker.position.copy(pick);
+            if (!this.starSelected) {
+              this.marker.position.copy(pick);
+            }
           })
         }
         const markCb = (e) => {
           queryPoints(this.ui, e, tree, this.stars, (pick) => {
-            this.marker.position.copy(pick);
+            if (this.starSelected) {
+              this.marker.position.copy(pick);
+            }
+            this.starSelected = !this.starSelected;
+            /*
             let tStar;
             if (pick.star.hipId != 0) {
               console.log('Adding new star: ', pick.star)
@@ -118,6 +124,7 @@ export default class Scene {
             v.set(0, 0, -tStar.props.radius.scalar * Shared.LENGTH_SCALE * 0.5e2);
             this.ui.camera.platform.position.copy(v);
             console.log('Shared.targets: ', Shared.targets.obj, Shared.targets.pos);
+            */
           })
         }
         document.body.addEventListener('dblclick', markCb);
