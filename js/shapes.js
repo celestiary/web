@@ -46,7 +46,7 @@ export function marker() {
     blending: THREE.AdditiveBlending,
     depthTest: false
   }));
-  marker.scale.set(0.1, 0.1, 1);
+  marker.scale.set(0.03, 0.03, 0.03);
   return marker;
 }
 

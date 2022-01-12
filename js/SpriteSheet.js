@@ -55,8 +55,8 @@ export default class SpriteSheet {
    */
   add(x, y, z, labelText, fillStyle = defaultTextColor) {
     if (this.labelCount >= this.maxLabels) {
-      throw new Error(`Add called too many times, can only allocate`
-                      ` maxLabels(${this.maxLabels}), already have ${this.labelCount}`);
+      throw new Error(`Add called too many times, can only allocate
+                       maxLabels(${this.maxLabels}), already have ${this.labelCount}`);
     }
     const ctx = this.ctx;
     this.ctx.font = this.labelTextFont;

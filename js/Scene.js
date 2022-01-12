@@ -62,7 +62,6 @@ export default class Scene {
       throw new Error(`No parent obj: ${parentObj} or pos: ${parentOrbitPosition} for ${name}`);
     }
     const obj3d = this.objectFactory(props);
-    console.log(obj3d, ` has parent(pname: ${props.parent}): `, parentObj);
     // Add to scene in reference frame of parent's orbit position,
     // e.g. moons orbit planets, so they have to be added to the
     // planet's orbital center.
@@ -75,6 +74,7 @@ export default class Scene {
     switch (props.type) {
     case 'galaxy': return this.newGalaxy(props);
     case 'stars':
+      let pickedStarLabel;
       this.stars = new Stars(props, () => {
         this.stars.showLabels();
         const tree = createTree();
@@ -84,12 +84,21 @@ export default class Scene {
             if (!this.starSelected) {
               this.marker.position.copy(pick);
             }
+            if (pickedStarLabel != null) {
+              pickedStarLabel.removeFromParent();
+            }
+            const starName = '' + this.stars.catalog.getNameOrId(pick.star.hipId);
+            const pickedLabelSheet = new SpriteSheet(1, starName, undefined, [0, 1e5]);
+            pickedLabelSheet.add(pick.x, pick.y, pick.z, starName);
+            pickedStarLabel = pickedLabelSheet.compile();
+            this.ui.scene.add(pickedStarLabel);
           })
         }
         const markCb = (e) => {
           queryPoints(this.ui, e, tree, this.stars, (pick) => {
             if (this.starSelected) {
               this.marker.position.copy(pick);
+
             }
             this.starSelected = !this.starSelected;
             /*

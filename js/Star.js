@@ -37,7 +37,6 @@ import * as Shared from './shared.js';
 export default class Star extends Object {
   constructor(props, sceneObjects, ui, shadowProps = {}) {
     super(props.name, props);
-    console.log('ctor props: ', props);
     if (!this.props || !(this.props.radius)) {
       console.error('props', this.props);
       throw new Error(`Props undefined: props(${props}), radius(${props.radius})`);

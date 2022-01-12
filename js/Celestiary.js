@@ -42,6 +42,7 @@ export default class Celestiary {
     this.three = THREE;
     this.utils = Utils;
     this.toggleHelp = null;
+    window.c = this;
   }
 
 
