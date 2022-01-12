@@ -29,6 +29,10 @@ export default class Stars extends Object {
     this.labelLOD.addLevel(FAR_OBJ, 1e14);
     this.add(this.labelLOD);
     this.geom = null;
+
+    // Used by guide/Asterisms.jsx to center camera.
+    this.labelCenterPosByName = {};
+
     if (catalogOrCb instanceof StarsCatalog) {
       console.log('Caller gave catalog: ', catalogOrCb);
       const catalog = catalogOrCb;
@@ -124,6 +128,7 @@ export default class Stars extends Object {
           z = scale * star.z;
     const sPos = new THREE.Vector3(x, y, z);
     this.starLabelSpriteSheet.add(x, y, z, name);
+    this.labelCenterPosByName[name] = sPos;
   }
 
 
