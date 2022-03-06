@@ -14,17 +14,16 @@ export default function reifyMeasures(obj) {
     if (val !== undefined && val !== null) {
       const type = typeof val;
       if (type == 'string') {
-        const m = Measure.parse(val).convertToUnit();
-        // The parse leaves small amount in the low-significant
-        // decimals, meaningless for unit values in grams and meters
-        // for celestial objects.
-        m.scalar = Math.floor(m.scalar);
-        obj[prop] = m;
+        obj[prop] = Measure.parse(val).convertToUnit();
       } else if (type == 'number') {
+        let val = obj[prop];
         switch (prop) {
-          case 'siderealOrbitPeriod': obj[prop] = new Measure(val, UNIT, SECOND); break;
-          case 'siderealRotationPeriod': obj[prop] = new Measure(val, UNIT, SECOND); break;
-          case 'semiMajorAxis': obj[prop] = new Measure(val, UNIT, METER); break;
+          case 'siderealOrbitPeriod': val = new Measure(val, UNIT, SECOND); break;
+          case 'siderealRotationPeriod': val = new Measure(val, UNIT, SECOND); break;
+          case 'semiMajorAxis': val = new Measure(val, UNIT, METER); break;
+        }
+        if (val && val.scalar && parseFloat(val.scalar)) {
+          obj[prop] = val
         }
       } else if (!(val instanceof Measure)) {
         console.warn(`unnormalized ${prop} for ${name}; val(${val}) type(${type})`);

@@ -26,8 +26,10 @@ export default function App() {
       <div id="nav-id" className="panel">Welcome to Celestiary!  Loading...</div>
       <div id="top-right" className="panel">
         {celestiary && <TimePanel time={celestiary.time} timeStr={timeStr}/>}
-        {celestiary && <HelpButton keys={celestiary.keys} />}
-        <AboutButton/>
+        <div id="text-buttons">
+          {celestiary && <HelpButton keys={celestiary.keys} />}
+          <AboutButton/>
+        </div>
       </div>
       <h1 id="target-id"></h1>
     </>);

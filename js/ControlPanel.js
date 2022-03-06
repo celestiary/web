@@ -1,6 +1,7 @@
 import Measure from '@pablo-mayrgundter/measure.js';
 import * as collapsor from './collapsor.js';
 import {capitalize} from './utils.js';
+import {StarSpectra} from './StarsCatalog.js';
 
 
 export default class ControlPanel {
@@ -39,9 +40,14 @@ export default class ControlPanel {
 
 
   showInfoRecursive(obj, pathPrefix, isArray, isSystem) {
+    function cleanZeros(num) {
+      let str = num+''
+      return str.replace(/0000+\d+/,' ')
+    }
     let html = '';
     for (let prop in obj) {
-      if (prop == 'name' || prop == 'parent' || prop.startsWith('texture_')) {
+      if (prop == 'name' || prop == 'parent' || prop.startsWith('texture_')
+         || prop == 'apparentMagnitude' || prop == 'colorIndex') {
         continue;
       }
       if (obj.hasOwnProperty(prop)) {
@@ -51,27 +57,34 @@ export default class ControlPanel {
         }
         html += '<li>';
         if (!isArray) {
-          html += prop + ': ';
+          let prettyName = prop
+          switch (prop) {
+            case 'axialInclination': prettyName = 'tilt'; break;
+            case 'siderealRotationPeriod': prettyName = 'rotation period'; break;
+            case 'spectralType': prettyName = 'star class'; break;
+          }
+          html += prettyName + ': ';
         }
         if (val instanceof Measure) {
           switch (prop) {
-          case 'radius': val = val.convertTo(Measure.Magnitude.KILO); break;
-          case 'mass': val = val.convertTo(Measure.Magnitude.KILO); break;
-          case 'semiMajorAxis':
-            // TODO
-            if (typeof val.scalar == 'string')
-              val.scalar = parseFloat(val.scalar);
-            val.scalar = val.scalar.toExponential(4);
-            val = val.toString();
-            break;
-          case 'siderealOrbitPeriod':
-            val = secsToYDHMS(val.scalar);
-            break;
-          case 'siderealRotationPeriod':
-            val = secsToYDHMS(val.scalar);
-            break;
+            case 'radius': val = val.convertTo(Measure.Magnitude.KILO); break;
+            case 'mass': val = val.convertTo(Measure.Magnitude.KILO); break;
+            case 'semiMajorAxis':
+              // TODO
+              if (typeof val.scalar == 'string') {
+                val.scalar = parseFloat(val.scalar);
+              }
+              val.scalar = val.scalar.toExponential(4);
+              val = val.toString();
+              break;
+            case 'siderealOrbitPeriod':
+              val = secsToYDHMS(val.scalar);
+              break;
+            case 'siderealRotationPeriod':
+              val = secsToYDHMS(val.scalar);
+              break;
           }
-          html += val;
+          html += cleanZeros(val);
         } else if (val instanceof Array) {
           if (prop == 'system') {
             html += '<ol>\n';
@@ -94,6 +107,19 @@ export default class ControlPanel {
             html += '<a href="#' + path + '">';
             html += capitalize(val);
           } else {
+            switch (prop) {
+              case 'spectralType':
+                const ndx = parseInt(val)
+                if (ndx >= 0) {
+                  val = StarSpectra[ndx][3]
+                }
+                break;
+              case 'equatorialGravity':
+              case 'escapeVelocity':
+                val = val + ' m/s^2'
+                break;
+              case 'axialInclination': val = val + '°'; break;
+            }
             html += val;
           }
           if (isSystem) {
@@ -103,6 +129,8 @@ export default class ControlPanel {
         html += '</li>\n';
       }
     }
+    html = html.replaceAll('^2', '²')
+    html = html.replaceAll('^3', '³')
     return html;
   }
 }
