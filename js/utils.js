@@ -126,17 +126,12 @@ export const remove = (id) => {
 
 
 export function setTitleFromLocation(location, prefix) {
-  let title = 'Clstry' + (prefix ? (': ' + prefix) : '');
   let path = location.pathname.length > 1 ? location.pathname : location.hash;
   if (path.startsWith('#')) {
     path = path.substring(1);
   }
   const parts = path.split('/');
-  if (parts.length >= 1) {
-    title += ': '
-    title += capitalize(parts[parts.length - 1]);
-  }
-  document.title = title;
+  document.title = capitalize(parts[parts.length - 1]);
 }
 
 
