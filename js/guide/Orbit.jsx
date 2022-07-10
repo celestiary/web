@@ -1,16 +1,18 @@
 import React from 'react'
-import { AmbientLight, Vector3 } from 'three'
+import {AmbientLight, Vector3} from 'three'
 import Label from '../label.js'
 import ThreeUi from '../ThreeUI.js'
 import cOrbit from '../Orbit.js'
 import * as Shared from '../shared.js'
-import { addAndOrient, planetHelper } from '../scene_utils.js'
-import { angle, arrow, grid, line, solidEllipse } from '../shapes.js'
-import { visitFilterProperty } from '../utils.js'
+import {addAndOrient, planetHelper} from '../scene_utils.js'
+import {angle, arrow, grid, line, solidEllipse} from '../shapes.js'
+import {visitFilterProperty} from '../utils.js'
 
 
 export default function Orbit() {
-  React.useEffect(() => { setup() }, [])
+  React.useEffect(() => {
+    setup()
+  }, [])
   return (
     <>
       <div id="ui"></div>
@@ -18,8 +20,8 @@ export default function Orbit() {
       <p>An example orbit.
         <a href="https://en.wikipedia.org/wiki/Orbital_elements">https://en.wikipedia.org/wiki/Orbital_elements</a>
         <img src="/images/Orbit1.png"
-             style={{width: '400px'}}
-             alt="By Lasunncty at the English Wikipedia, CC BY-SA 3.0, https://commons.wikimedia.org/w/index.php?curid=8971052"/>
+          style={{width: '400px'}}
+          alt="By Lasunncty at the English Wikipedia, CC BY-SA 3.0, https://commons.wikimedia.org/w/index.php?curid=8971052"/>
       </p>
       <table style={{width: '20%', verticalAlign: 'top'}}>
         <tbody>
@@ -36,18 +38,18 @@ export default function Orbit() {
         </tbody>
       </table>
       <em style={{fontSize: 'small'}}>(<a href="#test">emulate image above</a> and refresh)</em>
-                        </>)
+    </>)
 }
 
 
 function setup() {
-  const ui = new ThreeUi('ui');
-  ui.camera.position.set(1, 1, 3);
-  ui.scene.add(new AmbientLight());
+  const ui = new ThreeUi('ui')
+  ui.camera.position.set(1, 1, 3)
+  ui.scene.add(new AmbientLight())
 
   function setupProps(orbitProps) {
-    const tau = Math.PI * 2;
-    const tauInDeg = 360;
+    const tau = Math.PI * 2
+    const tauInDeg = 360
     const elementMaxes = {
       siderealOrbitPeriod: 7.8184256184e9,
       eccentricity: 1,
@@ -56,69 +58,69 @@ function setup() {
       longitudeOfPericenter: tauInDeg,
       meanLongitude: tauInDeg,
       semiMajorAxis: 5.86966e12,
-    };
+    }
     document.onSlider = (sliderElt, propName, maxValue) => {
-      const value = sliderElt.value / 100 * elementMaxes[propName];
-      orbitProps[propName] = document.forms.elts[propName].value = value;
-      show(orbitProps);
+      const value = sliderElt.value / 100 * elementMaxes[propName]
+      orbitProps[propName] = document.forms.elts[propName].value = value
+      show(orbitProps)
     }
     document.onInput = (inputElt, propName, ma) => {
-      orbitProps[propName] = inputElt.value;
-      document.forms.elts[propName + '-slider'].value = inputElt.value / elementMaxes[propName] * 100;
-      show(orbitProps);
+      orbitProps[propName] = inputElt.value
+      document.forms.elts[propName + '-slider'].value = inputElt.value / elementMaxes[propName] * 100
+      show(orbitProps)
     }
-    propsTable.innerHTML = '';
-    for (let propName in elementMaxes) {
-      const maxValue = elementMaxes[propName];
-      const propsTable = document.getElementById('propsTable');
-      const value = orbitProps[propName];
-      const sliderValue = value / maxValue * 100;
+    propsTable.innerHTML = ''
+    for (const propName in elementMaxes) {
+      const maxValue = elementMaxes[propName]
+      const propsTable = document.getElementById('propsTable')
+      const value = orbitProps[propName]
+      const sliderValue = value / maxValue * 100
       propsTable.innerHTML +=
         `<tr>
            <td>${propName}:
            <td><input type="range" min="0" max="100" name="${propName}-slider" value="${sliderValue}"
                   oninput="document.onSlider(this, '${propName}')"/>
            <td><input name="${propName}" value="${value}" oninput="document.onInput(this, '${propName}')"/>
-         </tr>`;
+         </tr>`
     }
   }
 
 
-  let curOrbit, curPlanet;
+  let curOrbit; let curPlanet
   function show(orbitProps) {
-    const orbit = new cOrbit(orbitProps);
-    visitFilterProperty(orbit, 'name', 'referencePlane', o => {
-        const opts = {
-          text: 'Ω Longitude of ascending node',
-          color: 'green',
-          padding: [-0.5, -0.5]
-        };
-        o.add(arrow(new Vector3(1.1, 0, 0), new Vector3(), 0xff0000, '♈︎Reference direction'));
-        o.add(angle(orbit.propsReified.loan, null, opts, opts));
-      });
-    visitFilterProperty(orbit, 'name', 'orbitalPlane', o => {
-        const opts = {
-          text: 'ω Argument of periapsis',
-          color: 'blue',
-          padding: [-0.5, -0.5]
-        }
-        const lop = orbit.propsReified.lop;
-        const radiusOfPeriapsis = line(1, 0, 0, {color: 'blue'});
-        radiusOfPeriapsis.rotation.z = lop;
-        o.add(radiusOfPeriapsis);
-        o.add(angle(lop, null, opts, opts));
-        const an = new Label('☊ Ascending node', {fillStyle: 'green'});
-        an.position.set(1, 0, 0);
-        an.rotation.z = orbit.propsReified.loan;
-        o.add(an);
-      });
+    const orbit = new cOrbit(orbitProps)
+    visitFilterProperty(orbit, 'name', 'referencePlane', (o) => {
+      const opts = {
+        text: 'Ω Longitude of ascending node',
+        color: 'green',
+        padding: [-0.5, -0.5],
+      }
+      o.add(arrow(new Vector3(1.1, 0, 0), new Vector3(), 0xff0000, '♈︎Reference direction'))
+      o.add(angle(orbit.propsReified.loan, null, opts, opts))
+    })
+    visitFilterProperty(orbit, 'name', 'orbitalPlane', (o) => {
+      const opts = {
+        text: 'ω Argument of periapsis',
+        color: 'blue',
+        padding: [-0.5, -0.5],
+      }
+      const lop = orbit.propsReified.lop
+      const radiusOfPeriapsis = line(1, 0, 0, {color: 'blue'})
+      radiusOfPeriapsis.rotation.z = lop
+      o.add(radiusOfPeriapsis)
+      o.add(angle(lop, null, opts, opts))
+      const an = new Label('☊ Ascending node', {fillStyle: 'green'})
+      an.position.set(1, 0, 0)
+      an.rotation.z = orbit.propsReified.loan
+      o.add(an)
+    })
     if (curOrbit) {
-      ui.scene.remove(curOrbit);
+      ui.scene.remove(curOrbit)
     }
     curOrbit = orbit
-    ui.scene.add(curOrbit);
+    ui.scene.add(curOrbit)
     if (curPlanet) {
-      curOrbit.addOrbiter(curPlanet);
+      curOrbit.addOrbiter(curPlanet)
     }
   }
 
@@ -134,55 +136,55 @@ function setup() {
       meanLongitude: 0,
       semiMajorAxis: {scalar: 1},
     }
-    setupProps(testOrbit);
-    show(testOrbit);
-    document.orbit = testOrbit;
+    setupProps(testOrbit)
+    show(testOrbit)
+    document.orbit = testOrbit
   } else {
-    planetHelper('earth', p => {
-      setupProps(p.props.orbit);
-      show(p.props.orbit);
-      curPlanet = p;
-      curPlanet.orbit = curOrbit;
-      curPlanet.scale.setScalar(0.1);
-      curOrbit.addOrbiter(curPlanet);
-      //console.log('planet setup done', curPlanet);
-    });
+    planetHelper('earth', (p) => {
+      setupProps(p.props.orbit)
+      show(p.props.orbit)
+      curPlanet = p
+      curPlanet.orbit = curOrbit
+      curPlanet.scale.setScalar(0.1)
+      curOrbit.addOrbiter(curPlanet)
+      // console.log('planet setup done', curPlanet);
+    })
   }
 
 
   const anim = () => {
-    //console.log('animating...');
-    const simTimeSecs = Date.now() * 1000;
-    //console.log('animating...', simTimeSecs);
+    // console.log('animating...');
+    const simTimeSecs = Date.now() * 1000
+    // console.log('animating...', simTimeSecs);
     if (curPlanet == undefined) {
-      //console.log('no system defined...');
-      return;
+      // console.log('no system defined...');
+      return
     }
     if (curPlanet.siderealRotationPeriod) {
-      //console.log('has rotation!');
-      //console.log(curPlanet.siderealRotationPeriod);
+      // console.log('has rotation!');
+      // console.log(curPlanet.siderealRotationPeriod);
       // http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
-      const angle = 1.5 * Math.PI + simTimeSecs / 86400 * Shared.twoPi;
-      curPlanet.setRotationFromAxisAngle(this.Y_AXIS, angle);
+      const angle = 1.5 * Math.PI + simTimeSecs / 86400 * Shared.twoPi
+      curPlanet.setRotationFromAxisAngle(this.Y_AXIS, angle)
     }
 
     // This is referred to by a comment in scene.js#addOrbitingPlanet.
     if (curPlanet.orbit) {
-      const orbit = curPlanet.orbit.props;
-      //console.log('has orbit!', orbit);
+      const orbit = curPlanet.orbit.props
+      // console.log('has orbit!', orbit);
       // TODO: orig code read this as semiMajorAxis.scalar
-      const aRadius = 1;//orbit.semiMajorAxis * LENGTH_SCALE;
-      const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(orbit.eccentricity, 2.0));
-      const angle = 1.0 * simTimeSecs / orbit.siderealOrbitPeriod.scalar * Shared.twoPi;
-      const x = aRadius * Math.cos(angle);
-      const y = bRadius * Math.sin(angle);
-      const z = 0;
-      //console.log(`x:${x} y:${y} z:${z}`
+      const aRadius = 1// orbit.semiMajorAxis * LENGTH_SCALE;
+      const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(orbit.eccentricity, 2.0))
+      const angle = 1.0 * simTimeSecs / orbit.siderealOrbitPeriod.scalar * Shared.twoPi
+      const x = aRadius * Math.cos(angle)
+      const y = bRadius * Math.sin(angle)
+      const z = 0
+      // console.log(`x:${x} y:${y} z:${z}`
       //            + `e:${orbit.eccentricity} a:${aRadius} b:${bRadius}`
       //            + `t:${simTimeSecs} p:${orbit.siderealOrbitPeriod}`);
-      curPlanet.position.set(x, y, z);
+      curPlanet.position.set(x, y, z)
     }
   }
-  //document.anim = anim;
-  ui.animationCb = anim;
+  // document.anim = anim;
+  ui.animationCb = anim
 }

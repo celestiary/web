@@ -1,27 +1,29 @@
-import React from 'react';
-import { useLocation } from 'react-router-dom';
-import cStar from '../Star.js';
-import Stars from '../Stars.js';
-import StarsCatalog, { FAVES } from '../StarsCatalog.js';
-import ThreeUi from '../ThreeUI.js';
-import Time from '../Time.js';
-import * as Shared from '../shared.js';
-import { elt } from '../utils.js';
+import React from 'react'
+import {useLocation} from 'react-router-dom'
+import cStar from '../Star.js'
+import Stars from '../Stars.js'
+import StarsCatalog, {FAVES} from '../StarsCatalog.js'
+import ThreeUi from '../ThreeUI.js'
+import Time from '../Time.js'
+import * as Shared from '../shared.js'
+import {elt} from '../utils.js'
 
 
 export default function Star() {
-  const [ui, setUi] = React.useState(null);
-  const [star, setStar] = React.useState(null);
-  const [catalog, setCatalog] = React.useState(null);
-  const time = new Time();
+  const [ui, setUi] = React.useState(null)
+  const [star, setStar] = React.useState(null)
+  const [catalog, setCatalog] = React.useState(null)
+  const time = new Time()
 
-  React.useEffect(() => { setUi(setup(setCatalog)) }, [])
+  React.useEffect(() => {
+    setUi(setup(setCatalog))
+  }, [])
 
   const location = useLocation()
   React.useEffect(() => {
     if (ui) {
-      const path = (location.hash || '#Sol').substr(1);
-      showStar(ui, path, star, setStar, catalog, time);
+      const path = (location.hash || '#Sol').substr(1)
+      showStar(ui, path, star, setStar, catalog, time)
     }
   }, [catalog, location])
 
@@ -50,64 +52,64 @@ export default function Star() {
 
 function addStarToScene(ui, catalog, hipId, curStar, setStar) {
   if (curStar) {
-    ui.scene.remove(curStar);
+    ui.scene.remove(curStar)
   }
-  const starProps = catalog.starsByHip[hipId];
-  starProps.x = starProps.y = starProps.z = 0;
+  const starProps = catalog.starsByHip[hipId]
+  starProps.x = starProps.y = starProps.z = 0
   starProps.radius = {
     // Sun's radius in meters.
     scalar: 1 / Shared.LENGTH_SCALE,
-  };
-  const star = new cStar(starProps, {}, ui);
-  ui.scene.add(star);
-  setStar(star);
-  return star;
+  }
+  const star = new cStar(starProps, {}, ui)
+  ui.scene.add(star)
+  setStar(star)
+  return star
 }
 
 
 function setupFavesTable(catalog) {
-  const favesTable = elt('faves');
-  for (let hipId in FAVES) {
-    const name = FAVES[hipId];
-    const star = catalog.starsByHip[hipId];
-    const spectralType = StarsCatalog.StarSpectra[star.spectralType][3];
+  const favesTable = elt('faves')
+  for (const hipId in FAVES) {
+    const name = FAVES[hipId]
+    const star = catalog.starsByHip[hipId]
+    const spectralType = StarsCatalog.StarSpectra[star.spectralType][3]
     favesTable.innerHTML +=
       `<tr>
         <td><a href="#${name}">${name}</a></td>
         <td>${spectralType}</td>
         <td>${hipId}</td>
-      </tr>`;
+      </tr>`
   }
 }
 
 
 function setup(setCatalog) {
-  const ui = new ThreeUi('ui');
-  ui.camera.position.z = 3;
-  const catalog = new StarsCatalog();
+  const ui = new ThreeUi('ui')
+  ui.camera.position.z = 3
+  const catalog = new StarsCatalog()
   catalog.load(() => {
-    setupFavesTable(catalog);
-    setCatalog(catalog);
-  });
-  return ui;
+    setupFavesTable(catalog)
+    setCatalog(catalog)
+  })
+  return ui
 }
 
 
 function showStar(ui, path, curStar, setStar, catalog, time) {
-  path = path.replaceAll(/%20/g, ' ');
-  const hipId = catalog.hipByName[path];
+  path = path.replaceAll(/%20/g, ' ')
+  const hipId = catalog.hipByName[path]
   if (hipId === undefined) {
-    console.error(`Cannot find star(${path}) in `, catalog);
-    return;
+    console.error(`Cannot find star(${path}) in `, catalog)
+    return
   }
-  const star = addStarToScene(ui, catalog, parseInt(hipId), curStar, setStar);
+  const star = addStarToScene(ui, catalog, parseInt(hipId), curStar, setStar)
   ui.animationCb = () => {
-    time.updateTime();
+    time.updateTime()
     try {
-      star.preAnimCb(time);
+      star.preAnimCb(time)
     } catch (e) {
-      console.error(e);
-      throw new Error(`preanim star: ${star}`);
+      console.error(e)
+      throw new Error(`preanim star: ${star}`)
     }
-  };
+  }
 }

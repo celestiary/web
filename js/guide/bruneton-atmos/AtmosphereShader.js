@@ -2,7 +2,7 @@ export default function getAtmosShaderFromParams(atmos) {
   return getAtmosShader(
       atmos.GroundElevation / 1000, atmos.AtmosphereHeight / 1000,
       atmos.RayleighRed, atmos.RayleighGreen, atmos.RayleighBlue,
-      atmos.MieScatteringCoeff, undefined, atmos.MiePolarity);
+      atmos.MieScatteringCoeff, undefined, atmos.MiePolarity)
 }
 
 function getAtmosShader(
@@ -18,8 +18,8 @@ function getAtmosShader(
 #define MIE_EXTINCTION vec3(${MieExtinction}, ${MieExtinction}, ${MieExtinction})
 #define MIE_PHASE_G ${MiePolarity}
 
-`;
-  return header + source;
+`
+  return header + source
 }
 
 const source = `
@@ -1082,4 +1082,4 @@ Illuminance3 GetSunAndSkyIlluminance(
   sky_irradiance *= SKY_SPECTRAL_RADIANCE_TO_LUMINANCE;
   return sun_irradiance * SUN_SPECTRAL_RADIANCE_TO_LUMINANCE;
 }
-`;
+`

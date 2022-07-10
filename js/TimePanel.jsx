@@ -1,34 +1,42 @@
-import React from 'react';
+import React from 'react'
 
 
 function updateTimeMsg(time) {
-  let msg = '';
+  let msg = ''
   if (time.timeScale == 1) {
-    msg = 'real-time';
+    msg = 'real-time'
   } else {
-    msg = time.timeScale.toLocaleString() + ' secs/s';
+    msg = time.timeScale.toLocaleString() + ' secs/s'
   }
   if (time.pause) {
-    msg += ' (paused)';
+    msg += ' (paused)'
   }
-  return msg;
+  return msg
 }
 
 
 export default function TimePanel({time, timeStr}) {
-  const [timeScale, setTimeScale] = React.useState('');
+  const [timeScale, setTimeScale] = React.useState('')
   React.useEffect(() => {
-    setTimeScale(updateTimeMsg(time));
-  }, [timeStr]); // TODO: shouldn't depend on this to set time-scale.
+    setTimeScale(updateTimeMsg(time))
+  }, [timeStr]) // TODO: shouldn't depend on this to set time-scale.
   return (
-<div id="time-id">
-  <div id="date-id">{timeStr}</div>
-  <div id="time-scale-id">{timeScale}</div>
-  <div id="time-controls-id">
-    <button onClick={() => {time.changeTimeScale(1)}}>+</button>
-    <button onClick={() => {time.changeTimeScale(-1)}}>-</button>
-    <button onClick={() => {time.changeTimeScale(0)}}>=</button>
-    <button onClick={() => {time.invertTimeScale()}}>/</button>
-  </div>
-</div>);
+    <div id="time-id">
+      <div id="date-id">{timeStr}</div>
+      <div id="time-scale-id">{timeScale}</div>
+      <div id="time-controls-id">
+        <button onClick={() => {
+          time.changeTimeScale(1)
+        }}>+</button>
+        <button onClick={() => {
+          time.changeTimeScale(-1)
+        }}>-</button>
+        <button onClick={() => {
+          time.changeTimeScale(0)
+        }}>=</button>
+        <button onClick={() => {
+          time.invertTimeScale()
+        }}>/</button>
+      </div>
+    </div>)
 }

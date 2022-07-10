@@ -1,7 +1,7 @@
 import React from 'react'
-import { AxesHelper, PointLight } from 'three'
+import {AxesHelper, PointLight} from 'three'
 import ThreeUi from '../ThreeUI.js'
-import { elt } from '../utils.js'
+import {elt} from '../utils.js'
 import cAtmosphere from './Atmosphere.js'
 import AtmosphereControls from './AtmosphereControls.js'
 import AtmosphereMesh from './AtmosphereMesh.js'
@@ -15,7 +15,9 @@ import AtmosphereMesh from './AtmosphereMesh.js'
 
 // Collienne et al., diffs: Rayleigh and scale height
 export default function Atmosphere() {
-  React.useEffect(() => { setup() })
+  React.useEffect(() => {
+    setup()
+  })
   return (
     <>
       <div id="ui"></div>
@@ -40,23 +42,23 @@ export default function Atmosphere() {
 
 function setup() {
   const atmos = new cAtmosphere(2, 22, 6371000, 60000,
-                                5.8e-6, 13.5e-6, 33.1e-6, 8000,
-                                0.000021, 1200, 0.8);
+      5.8e-6, 13.5e-6, 33.1e-6, 8000,
+      0.000021, 1200, 0.8)
 
-  const atmosControls = new AtmosphereControls(elt('control'), atmos);
+  const atmosControls = new AtmosphereControls(elt('control'), atmos)
 
-  const ui = new ThreeUi('ui');
-  ui.camera.position.z = 10;
-  const light = new PointLight();
-  const dist = 1e7;
-  light.position.set(dist, 0, dist);
-  ui.scene.add(light);
-  ui.scene.add(new AxesHelper(1.1));
-  ui.scene.add(new AtmosphereMesh(atmos));
+  const ui = new ThreeUi('ui')
+  ui.camera.position.z = 10
+  const light = new PointLight()
+  const dist = 1e7
+  light.position.set(dist, 0, dist)
+  ui.scene.add(light)
+  ui.scene.add(new AxesHelper(1.1))
+  ui.scene.add(new AtmosphereMesh(atmos))
   const animation = () => {
-    const cameraPosition = ui.camera.position.clone();
-    cameraPosition.applyMatrix4(ui.camera.matrixWorld);
-    atmos.EyeHeight = atmos.GroundElevation + cameraPosition.z;
+    const cameraPosition = ui.camera.position.clone()
+    cameraPosition.applyMatrix4(ui.camera.matrixWorld)
+    atmos.EyeHeight = atmos.GroundElevation + cameraPosition.z
   }
-  ui.setAnimation(animation);
+  ui.setAnimation(animation)
 }

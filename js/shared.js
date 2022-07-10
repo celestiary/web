@@ -1,9 +1,9 @@
 import {
   Object3D,
-  Vector3
-} from 'three';
+  Vector3,
+} from 'three'
 
-import {named} from './utils.js';
+import {named} from './utils.js'
 
 
 // This size is chosen to allow for the maximum object and distance
@@ -13,37 +13,37 @@ import {named} from './utils.js';
 // and then dividing it down to the smallest size.
 
 // Deimos size in meters.
-const SMALLEST_REAL_SIZE = 1E3;
+const SMALLEST_REAL_SIZE = 1E3
 // Smallest renderable size.
-const SMALLEST_RENDER_SIZE = 1E-4;
+const SMALLEST_RENDER_SIZE = 1E-4
 
 
 export const
-  FAR_OBJ = named(new Object3D, 'LODFarObj'), // for invisible LOD.
-  twoPi = Math.PI * 2.0,
-  halfPi = Math.PI / 2.0,
-  toDeg = 180.0 / Math.PI,
-  toRad = Math.PI / 180.0,
+  FAR_OBJ = named(new Object3D, 'LODFarObj') // for invisible LOD.
+export const twoPi = Math.PI * 2.0
+export const halfPi = Math.PI / 2.0
+export const toDeg = 180.0 / Math.PI
+export const toRad = Math.PI / 180.0
 
-  // When I hardcode LENGTH_SCALE to 1E-5, LOD starts to flake out
-  // when zoomed to small sizes, supporting the 1E-4 minimum.
-  // SMALLEST_RENDER_SIZE / SMALLEST_REAL_SIZE = 1E-7, but can't use
-  // the calculation since it actually yields 1.0000000000000001e-7.
-  LENGTH_SCALE = 1E-7,
+// When I hardcode LENGTH_SCALE to 1E-5, LOD starts to flake out
+// when zoomed to small sizes, supporting the 1E-4 minimum.
+// SMALLEST_RENDER_SIZE / SMALLEST_REAL_SIZE = 1E-7, but can't use
+// the calculation since it actually yields 1.0000000000000001e-7.
+export const LENGTH_SCALE = 1E-7
 
-  STARS_SCALE = 9.461E12 * 1E3 * LENGTH_SCALE,
+export const STARS_SCALE = 9.461E12 * 1E3 * LENGTH_SCALE
 
-  INITIAL_FOV = 45,
+export const INITIAL_FOV = 45
 
-  targets = {
-    origin: new Vector3,
-    cur: null,
-    obj: null,
-    pos: new Vector3,
-    track: null,
-    follow: null
-  },
+export const targets = {
+  origin: new Vector3,
+  cur: null,
+  obj: null,
+  pos: new Vector3,
+  track: null,
+  follow: null,
+}
 
-  // Colors
-  labelTextColor = '#7fa0e0',
-  labelTextFont = 'medium arial';
+// Colors
+export const labelTextColor = '#7fa0e0'
+export const labelTextFont = 'medium arial'

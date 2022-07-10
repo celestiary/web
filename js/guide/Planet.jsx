@@ -1,21 +1,23 @@
-import React from 'react';
-import { useLocation } from 'react-router-dom';
-import { PointLight } from 'three';
-import ThreeUi from '../ThreeUI.js';
-import { planetHelper } from '../scene_utils.js';
+import React from 'react'
+import {useLocation} from 'react-router-dom'
+import {PointLight} from 'three'
+import ThreeUi from '../ThreeUI.js'
+import {planetHelper} from '../scene_utils.js'
 
 
 export default function Planet() {
-  const [ui, setUi] = React.useState(null);
-  const [planet, setPlanet] = React.useState(null);
+  const [ui, setUi] = React.useState(null)
+  const [planet, setPlanet] = React.useState(null)
 
-  React.useEffect(() => { setUi(setup()) }, [])
+  React.useEffect(() => {
+    setUi(setup())
+  }, [])
 
   const location = useLocation()
   React.useEffect(() => {
     if (ui) {
-      const path = (location.hash || '#earth').substr(1);
-      showPlanet(ui, path, planet, setPlanet);
+      const path = (location.hash || '#earth').substr(1)
+      showPlanet(ui, path, planet, setPlanet)
     }
   }, [ui, location])
 
@@ -35,25 +37,25 @@ export default function Planet() {
 
 
 function setup() {
-  const ui = new ThreeUi('ui');
-  ui.camera.position.z = 1e1;
-  const light = new PointLight();
-  const dist = 1e3;
-  light.position.set(-dist, 0, dist);
-  ui.camera.add(light);
-  return ui;
+  const ui = new ThreeUi('ui')
+  ui.camera.position.z = 1e1
+  const light = new PointLight()
+  const dist = 1e3
+  light.position.set(-dist, 0, dist)
+  ui.camera.add(light)
+  return ui
 }
 
 
 function showPlanet(ui, path, curPlanet, setPlanet) {
   planetHelper(path, (p) => {
     if (curPlanet) {
-      ui.scene.remove(curPlanet);
+      ui.scene.remove(curPlanet)
     }
-    ui.scene.add(p);
-    setPlanet(p);
+    ui.scene.add(p)
+    setPlanet(p)
     ui.animationCb = () => {
-      p.rotation.y += 0.001;
-    };
-  });
+      p.rotation.y += 0.001
+    }
+  })
 }

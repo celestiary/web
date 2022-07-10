@@ -1,5 +1,5 @@
 export default class {
   constructor() {
-    this.byName = {};
+    this.byName = {}
   }
 }

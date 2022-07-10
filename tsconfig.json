@@ -1,0 +1,11 @@
+{
+  "extends": "@tsconfig/recommended/tsconfig.json",
+  "include": [
+    "./js/**/*",
+    "index.d.ts",
+  ],
+  "compilerOptions": {
+    "outDir": "./built",
+    "jsx": "preserve",
+  },
+}

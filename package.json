@@ -14,25 +14,38 @@
   },
   "scripts": {
     "test": "cd js ; for t in *_test.js ; do echo $t ; node $t ; done",
-    "clean": "rm -rf docs/*",
+    "clean": "rm -rf docs ; cp -r public docs",
     "build": "yarn clean && cp -r public/* js/shaders docs/ && node esbuild/build.js",
-    "serve": "yarn build && node esbuild/serve.js"
+    "serve": "yarn build && node esbuild/serve.js",
+    "lint": "yarn eslint --fix `find js -name '*.jsx'` `find js -name '*.js'`"
   },
-  "type": "module",
   "dependencies": {
     "@pablo-mayrgundter/fullscreen.js": "^1.0.1",
     "@pablo-mayrgundter/measure.js": "^2.0.1",
     "@pablo-mayrgundter/parser.js": "^1.0.1",
     "@pablo-mayrgundter/yaot2": "^2.0.1",
+    "astro": "file:/Users/pablo/astro-1.0.0.tgz",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "react-router-dom": "^6.1.1",
-    "three": "^0.137",
+    "three": "^0.138.3",
     "tweakpane": "^3.0.7"
   },
   "devDependencies": {
     "@pablo-mayrgundter/testing.js": "^1.0.0",
-    "esbuild": "^0.14.9"
+    "@tsconfig/recommended": "^1.0.1",
+    "@types/history": "^5.0.0",
+    "@types/node": "^17.0.21",
+    "@types/react": "^17.0.39",
+    "@types/react-dom": "^17.0.13",
+    "@types/react-router": "^5.1.18",
+    "@types/react-router-dom": "^5.3.3",
+    "esbuild": "^0.14.9",
+    "eslint": "^8.8.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-jsx-a11y": "^6.5.1",
+    "eslint-plugin-react": "^7.28.0",
+    "eslint-plugin-react-hooks": "^4.3.0"
   },
   "keywords": [
     "astronomy",

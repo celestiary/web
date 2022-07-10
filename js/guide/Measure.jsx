@@ -1,10 +1,12 @@
-import React from 'react';
-import cMeasure from '@pablo-mayrgundter/measure.js';
-import { elt, newElt } from '../utils.js';
+import React from 'react'
+import cMeasure from '@pablo-mayrgundter/measure.js'
+import {elt, newElt} from '../utils.js'
 
 
 export default function Measure() {
-  React.useEffect(() => { setup() }, [])
+  React.useEffect(() => {
+    setup()
+  }, [])
   return (
     <div style={{maxWidth: '800px'}}>
       <h1>Measure</h1>
@@ -25,15 +27,15 @@ export default function Measure() {
 }
 
 function setup() {
-  const parse = elt => {
-    const origText = elt.innerHTML;
-    const measure = cMeasure.parse(elt.innerHTML);
-    const asKilo = measure.convertTo(cMeasure.Magnitude.KILO);
-    const p = elt.parentNode;
-    p.appendChild(newElt('td', measure));
-    p.appendChild(newElt('td', asKilo));
+  const parse = (elt) => {
+    const origText = elt.innerHTML
+    const measure = cMeasure.parse(elt.innerHTML)
+    const asKilo = measure.convertTo(cMeasure.Magnitude.KILO)
+    const p = elt.parentNode
+    p.appendChild(newElt('td', measure))
+    p.appendChild(newElt('td', asKilo))
   }
-  parse(elt('mass1'));
-  parse(elt('mass2'));
-  parse(elt('radius'));
+  parse(elt('mass1'))
+  parse(elt('mass2'))
+  parse(elt('radius'))
 }

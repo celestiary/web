@@ -1,3 +1,3 @@
 function run() {
-  new Demo(document.body);
+  new Demo(document.body)
 }

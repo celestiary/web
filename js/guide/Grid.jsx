@@ -1,11 +1,13 @@
-import React from 'react';
-import { AmbientLight, PointLight } from 'three';
-import ThreeUi from '../ThreeUI.js';
-import { grid } from '../shapes.js';
+import React from 'react'
+import {AmbientLight, PointLight} from 'three'
+import ThreeUi from '../ThreeUI.js'
+import {grid} from '../shapes.js'
 
 
 export default function Grid() {
-  React.useEffect(() => { setup() }, [])
+  React.useEffect(() => {
+    setup()
+  }, [])
   return (
     <>
       <div id="ui"></div>
@@ -15,12 +17,12 @@ export default function Grid() {
 }
 
 function setup() {
-  const ui = new ThreeUi('ui');
-  ui.camera.position.z = 10;
+  const ui = new ThreeUi('ui')
+  ui.camera.position.z = 10
 
-  const g = grid();
-  g.material.color.setRGB(0, 0, 1);
-  g.material.transparent = true;
-  //grid.material.opacity = 0.1;
-  ui.scene.add(g);
+  const g = grid()
+  g.material.color.setRGB(0, 0, 1)
+  g.material.transparent = true
+  // grid.material.opacity = 0.1;
+  ui.scene.add(g)
 }

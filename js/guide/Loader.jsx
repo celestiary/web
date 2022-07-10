@@ -1,8 +1,8 @@
-import React from 'react';
-import { useLocation } from 'react-router-dom';
-import cLoader from '../Loader.js';
-import * as Collapsor from '../collapsor.js';
-import { elt } from '../utils.js';
+import React from 'react'
+import {useLocation} from 'react-router-dom'
+import cLoader from '../Loader.js'
+import * as Collapsor from '../collapsor.js'
+import {elt} from '../utils.js'
 
 
 export default function Loader() {
@@ -25,18 +25,18 @@ export default function Loader() {
 }
 
 function setup(path) {
-  const onLoadCb = (name, obj) => {};
+  const onLoadCb = (name, obj) => {}
   const onDoneCb = (name, obj) => {
-    const doneElt = elt('done-id');
+    const doneElt = elt('done-id')
     doneElt.innerHTML = JSON.stringify(obj)
-      .replace(/{/g, '<ul><li>')
-      .replace(/}/g, '</li></ul>')
-      .replace(/\[/g, '<ol><li>')
-      .replace(/\]/g, '</li></ol>')
-      .replace(/,/g, '</li><li>')
-      .replace(/<li><\/li>/g, '');
-    window.collapse = Collapsor.collapse;
-    Collapsor.makeCollapsable(doneElt);
-  };
-  new cLoader().loadPath(path, onLoadCb, onDoneCb);
+        .replace(/{/g, '<ul><li>')
+        .replace(/}/g, '</li></ul>')
+        .replace(/\[/g, '<ol><li>')
+        .replace(/\]/g, '</li></ol>')
+        .replace(/,/g, '</li><li>')
+        .replace(/<li><\/li>/g, '')
+    window.collapse = Collapsor.collapse
+    Collapsor.makeCollapsable(doneElt)
+  }
+  new cLoader().loadPath(path, onLoadCb, onDoneCb)
 }

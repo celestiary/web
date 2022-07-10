@@ -1,7 +1,7 @@
-import {Object3D} from 'three';
+import {Object3D} from 'three'
 
 
-const REGISTRY = [];
+const REGISTRY = []
 
 
 export default class Object extends Object3D {
@@ -12,10 +12,10 @@ export default class Object extends Object3D {
    * undefined will pass click to parent.
    */
   constructor(name, props, onClick) {
-    super();
-    this.name = name;
-    this.props = props || {name: name};
-    this.onClick = onClick;
-    REGISTRY[name] = this;
+    super()
+    this.name = name
+    this.props = props || {name: name}
+    this.onClick = onClick
+    REGISTRY[name] = this
   }
 }

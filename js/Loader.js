@@ -1,4 +1,4 @@
-import {FileLoader} from 'three';
+import {FileLoader} from 'three'
 
 
 /**
@@ -10,8 +10,8 @@ import {FileLoader} from 'three';
  */
 export default class Loader {
   constructor() {
-    this.loaded = {};
-    this.pathByName = {};
+    this.loaded = {}
+    this.pathByName = {}
   }
 
 
@@ -26,19 +26,19 @@ export default class Loader {
    */
   loadPath(path, onLoadCb, onDoneCb, onErrCb) {
     if (path.length == 0) {
-      throw new Error('empty target path');
+      throw new Error('empty target path')
     }
-    const parts = path.split('/');
-    const targetName = parts[parts.length - 1];
+    const parts = path.split('/')
+    const targetName = parts[parts.length - 1]
     if (typeof this.loaded[targetName] == 'object') {
-      onDoneCb(path, this.loaded[targetName]);
+      onDoneCb(path, this.loaded[targetName])
     }
     this.loadPathRecursive(parts, (name, obj) => {
-        onLoadCb(name, obj);
-        if (name == targetName) {
-          onDoneCb(path, obj);
-        }
-    }, onErrCb);
+      onLoadCb(name, obj)
+      if (name == targetName) {
+        onDoneCb(path, obj)
+      }
+    }, onErrCb)
   }
 
 
@@ -49,11 +49,11 @@ export default class Loader {
    */
   loadPathRecursive(pathParts, onLoadCb, onErrCb) {
     if (pathParts.length == 0) {
-      return;
+      return
     }
-    const name = pathParts.pop();
-    this.loadPathRecursive(pathParts, onLoadCb, onErrCb);
-    this.loadObj(pathParts.join('/'), name, onLoadCb, true, onErrCb);
+    const name = pathParts.pop()
+    this.loadPathRecursive(pathParts, onLoadCb, onErrCb)
+    this.loadObj(pathParts.join('/'), name, onLoadCb, true, onErrCb)
   }
 
 
@@ -65,54 +65,54 @@ export default class Loader {
    *     given node.
    */
   loadObj(prefix, name, onLoadCb, expand, onErrCb) {
-    const loadedObj = this.loaded[name];
+    const loadedObj = this.loaded[name]
     if (loadedObj) {
       if (loadedObj == 'pending') {
-        return;
+        return
       }
       if (expand && loadedObj.system) {
-        const path = prefix ? `${prefix}/${name}` : name;
+        const path = prefix ? `${prefix}/${name}` : name
         for (let i = 0; i < loadedObj.system.length; i++) {
-          this.loadObj(path, loadedObj.system[i], onLoadCb, false, onErrCb);
+          this.loadObj(path, loadedObj.system[i], onLoadCb, false, onErrCb)
         }
       }
     } else {
-      this.loaded[name] = 'pending';
-      const fileLoader = new FileLoader();
-      fileLoader.setResponseType('json');
+      this.loaded[name] = 'pending'
+      const fileLoader = new FileLoader()
+      fileLoader.setResponseType('json')
       fileLoader.load('/data/' + name + '.json', (obj) => {
-        this.loaded[name] = obj;
-        const path = prefix ? `${prefix}/${name}` : name;
-        this.pathByName[name] = path;
+        this.loaded[name] = obj
+        const path = prefix ? `${prefix}/${name}` : name
+        this.pathByName[name] = path
         if (onLoadCb) {
-          onLoadCb(name, obj);
+          onLoadCb(name, obj)
         }
-        this.loadObj(prefix, name, onLoadCb, expand, onErrCb);
-      }, null, onErrCb);
+        this.loadObj(prefix, name, onLoadCb, expand, onErrCb)
+      }, null, onErrCb)
     }
   }
 
 
   loadShaders(shaderConfig, doneCb) {
-    let vertDone = false, fragDone = false;
+    let vertDone = false; let fragDone = false
     const checkDone = () => {
       if (vertDone && fragDone) {
-        doneCb();
+        doneCb()
       }
     }
     fetch(shaderConfig.vertexShader).then((rsp) => {
-        rsp.text().then((text) => {
-            shaderConfig.vertexShader = text;
-            vertDone = true;
-            checkDone();
-          });
-      });
+      rsp.text().then((text) => {
+        shaderConfig.vertexShader = text
+        vertDone = true
+        checkDone()
+      })
+    })
     fetch(shaderConfig.fragmentShader).then((rsp) => {
-        rsp.text().then((text) => {
-            shaderConfig.fragmentShader = text;
-            fragDone = true;
-            checkDone();
-          });
-      });
-  };
+      rsp.text().then((text) => {
+        shaderConfig.fragmentShader = text
+        fragDone = true
+        checkDone()
+      })
+    })
+  }
 }

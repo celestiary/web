@@ -9,7 +9,7 @@ void main() {
   vColor = uColor;
   vTexCoord3D = iScale * ( position.xyz + vec3( iTime, iTime, iTime ) );
   gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-}`;
+}`
 
 
 export const FRAGMENT_SHADER = `
@@ -213,4 +213,4 @@ void main(void) {
   b += mult;
   gl_FragColor = vec4(vColor, 1.) * vec4(vec3(r/255.0, g/255.0, b/255.0), 1.0);
 }
-`;
+`

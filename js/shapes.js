@@ -1,88 +1,88 @@
-import * as THREE from 'three';
-import CustomPoints from './lib/three-custom/points.js';
+import * as THREE from 'three'
+import CustomPoints from './lib/three-custom/points.js'
 
-import SpriteSheet from './SpriteSheet.js';
-import * as Material from './material.js';
-import * as Shared from './shared.js';
-import {named} from './utils.js';
+import SpriteSheet from './SpriteSheet.js'
+import * as Material from './material.js'
+import * as Shared from './shared.js'
+import {named} from './utils.js'
 
 
 // Simple cube for testing.
 export function cube(size) {
-  size = size || 1;
-  return box(size, size, size);
+  size = size || 1
+  return box(size, size, size)
 }
 
 
 export function box(width, height, depth, opts) {
-  width = width || 1;
-  height = height || 1;
-  depth = depth || 1;
-  opts = opts || {};
-  opts.color = opts.color || 0xff0000;
-  const geom = new THREE.BoxGeometry(width, height, depth);
-  const matr = new THREE.MeshPhongMaterial(opts);
-  return new THREE.Mesh(geom, matr);
+  width = width || 1
+  height = height || 1
+  depth = depth || 1
+  opts = opts || {}
+  opts.color = opts.color || 0xff0000
+  const geom = new THREE.BoxGeometry(width, height, depth)
+  const matr = new THREE.MeshPhongMaterial(opts)
+  return new THREE.Mesh(geom, matr)
 }
 
 
 export function sphere(opts) {
-  opts = opts || {};
-  opts.radius = opts.radius || 1;
-  opts.resolution = opts.resolution || 64;
-  const geom = new THREE.SphereGeometry(opts.radius, opts.resolution, opts.resolution / 2);
-  opts.matr = opts.matr || new THREE.MeshPhongMaterial({flatShading: true});
-  return new THREE.Mesh(geom, opts.matr);
+  opts = opts || {}
+  opts.radius = opts.radius || 1
+  opts.resolution = opts.resolution || 64
+  const geom = new THREE.SphereGeometry(opts.radius, opts.resolution, opts.resolution / 2)
+  opts.matr = opts.matr || new THREE.MeshPhongMaterial({flatShading: true})
+  return new THREE.Mesh(geom, opts.matr)
 }
 
 
 export function marker() {
-  const map = new THREE.TextureLoader().load('/textures/crosshairs.png');
+  const map = new THREE.TextureLoader().load('/textures/crosshairs.png')
   const marker = new THREE.Sprite(new THREE.SpriteMaterial({
     map: map,
     sizeAttenuation: false,
     transparent: true,
     color: 0xffffff,
     blending: THREE.AdditiveBlending,
-    depthTest: false
-  }));
-  marker.scale.set(0.03, 0.03, 0.03);
-  return marker;
+    depthTest: false,
+  }))
+  marker.scale.set(0.03, 0.03, 0.03)
+  return marker
 }
 
 
 export function lodSphere(radius, material) {
-  const lod = new THREE.LOD();
+  const lod = new THREE.LOD()
   const geoms =
     [[getSphereGeom(128), radius],
-     [getSphereGeom(32), radius * 10],
-     [getSphereGeom(16), radius * 100],
-     [getSphereGeom(8), radius * 300]];
+      [getSphereGeom(32), radius * 10],
+      [getSphereGeom(16), radius * 100],
+      [getSphereGeom(8), radius * 300]]
   for (let i = 0; i < geoms.length; i++) {
-    const mesh = new THREE.Mesh(geoms[i][0], material);
-    mesh.scale.set(radius, radius, radius);
-    lod.addLevel(mesh, geoms[i][1]);
+    const mesh = new THREE.Mesh(geoms[i][0], material)
+    mesh.scale.set(radius, radius, radius)
+    lod.addLevel(mesh, geoms[i][1])
   }
-  const obj = new THREE.Object3D;
-  obj.add(lod);
-  return obj;
+  const obj = new THREE.Object3D
+  obj.add(lod)
+  return obj
 }
 
 
-const _sphereGeoms = new Array();
+const _sphereGeoms = new Array()
 function getSphereGeom(segmentSize) {
-  let geom = _sphereGeoms[segmentSize];
+  let geom = _sphereGeoms[segmentSize]
   if (!geom) {
-    geom = _sphereGeoms[segmentSize] = new THREE.SphereGeometry(1, segmentSize, segmentSize / 2);
+    geom = _sphereGeoms[segmentSize] = new THREE.SphereGeometry(1, segmentSize, segmentSize / 2)
   }
-  return geom;
+  return geom
 }
 
 
 /** https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes */
 export function ellipseSemiMinorAxisCurve(eccentricity, semiMajorAxisLength) {
-  eccentricity = eccentricity || 0; // Circle
-  semiMajorAxisLength = semiMajorAxisLength || 1;
+  eccentricity = eccentricity || 0 // Circle
+  semiMajorAxisLength = semiMajorAxisLength || 1
   return semiMajorAxisLength * Math.sqrt(1 - Math.pow(eccentricity, 2))
 }
 
@@ -90,25 +90,25 @@ export function ellipseSemiMinorAxisCurve(eccentricity, semiMajorAxisLength) {
 export function solidEllipse(eccentricity, opts) {
   opts = opts || {
     from: 0,
-    to: Math.PI * 2
-  };
-  console.log(opts);
-  const ellipsePath = new THREE.Shape();
-  const semiMajorAxisLength = 1;
+    to: Math.PI * 2,
+  }
+  console.log(opts)
+  const ellipsePath = new THREE.Shape()
+  const semiMajorAxisLength = 1
   ellipsePath.absellipse(
-    0, 0, // center
-    1, ellipseSemiMinorAxisCurve(eccentricity), // xRadius, yRadius
-    0, Math.PI / 2, // start and finish angles
-    false, 0); // clockwise, offset rotation
+      0, 0, // center
+      1, ellipseSemiMinorAxisCurve(eccentricity), // xRadius, yRadius
+      0, Math.PI / 2, // start and finish angles
+      false, 0) // clockwise, offset rotation
   const material = new THREE.MeshBasicMaterial({
-      color: opts.color || 0x888888,
-      opacity: opts.opacity || 1,
-      transparent: opts.opacity < 1 ? true : false,
-      side: THREE.DoubleSide
-    });
+    color: opts.color || 0x888888,
+    opacity: opts.opacity || 1,
+    transparent: opts.opacity < 1 ? true : false,
+    side: THREE.DoubleSide,
+  })
   return new THREE.Mesh(
-    new THREE.ShapeBufferGeometry(ellipsePath),
-    material);
+      new THREE.ShapeBufferGeometry(ellipsePath),
+      material)
 }
 
 
@@ -117,54 +117,54 @@ export function solidArc(opts) {
     from: 0,
     to: Math.PI * 2,
     opacity: 0.1,
-  };
+  }
   const shape = new THREE.Mesh(
       new THREE.CircleBufferGeometry(1, 32, opts.from, opts.to),
       new THREE.MeshLambertMaterial({
         color: opts.color || 0x888888,
         opacity: opts.opacity || 1,
         transparent: opts.opacity < 1 ? true : false,
-        side: THREE.DoubleSide
-      }));
-  return shape;
+        side: THREE.DoubleSide,
+      }))
+  return shape
 }
 
 
 function atmos(radius) {
   // from http://data-arts.appspot.com/globe/globe.js
   const Shaders = {
-    'atmosphere' : {
+    atmosphere: {
       uniforms: {},
       vertexShader: ['varying vec3 vNormal;',
-                     'void main() {',
-                     'vNormal = normalize(normalMatrix * normal);',
-                     'gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+        'void main() {',
+        'vNormal = normalize(normalMatrix * normal);',
+        'gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
         '}'].join('\n'),
       fragmentShader: ['varying vec3 vNormal;',
-                       'void main() {',
-                       'float intensity = pow(1.1 + dot(vNormal, vec3(0, 0, 1)), 8.0);',
-                       'gl_FragColor = vec4(0.5, 0.5, 1.0, 0.01) * intensity;',
-        '}'].join('\n')
-    }
-  };
+        'void main() {',
+        'float intensity = pow(1.1 + dot(vNormal, vec3(0, 0, 1)), 8.0);',
+        'gl_FragColor = vec4(0.5, 0.5, 1.0, 0.01) * intensity;',
+        '}'].join('\n'),
+    },
+  }
 
-  const sceneAtmosphere = new THREE.Object3D();
-  const geometry = new THREE.SphereGeometry(1, 128, 64);
+  const sceneAtmosphere = new THREE.Object3D()
+  const geometry = new THREE.SphereGeometry(1, 128, 64)
 
-  const shader = Shaders['atmosphere'];
-  const uniforms = THREE.UniformsUtils.clone(shader.uniforms);
+  const shader = Shaders['atmosphere']
+  const uniforms = THREE.UniformsUtils.clone(shader.uniforms)
 
   const material = new THREE.ShaderMaterial({
-      uniforms: uniforms,
-      vertexShader: shader.vertexShader,
-      fragmentShader: shader.fragmentShader
-    });
+    uniforms: uniforms,
+    vertexShader: shader.vertexShader,
+    fragmentShader: shader.fragmentShader,
+  })
 
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.scale.x = mesh.scale.y = mesh.scale.z = radius;
-  mesh.flipSided = true;
-  sceneAtmosphere.add(mesh);
-  return sceneAtmosphere;
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.scale.x = mesh.scale.y = mesh.scale.z = radius
+  mesh.flipSided = true
+  sceneAtmosphere.add(mesh)
+  return sceneAtmosphere
 }
 
 
@@ -176,13 +176,13 @@ export function point(optsOrRadius) {
     sizeAttenuation: false,
     blending: THREE.AdditiveBlending,
     depthTest: true,
-    transparent: true
-  };
-  const geom = new THREE.BufferGeometry();
-  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
-  const pointMaterial = new THREE.PointsMaterial(opts);
-  //return new CustomPoints(geom, pointMaterial);
-  return new THREE.Points(geom, pointMaterial);
+    transparent: true,
+  }
+  const geom = new THREE.BufferGeometry()
+  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3))
+  const pointMaterial = new THREE.PointsMaterial(opts)
+  // return new CustomPoints(geom, pointMaterial);
+  return new THREE.Points(geom, pointMaterial)
 }
 
 
@@ -193,14 +193,14 @@ export function labelAnchor() {
     sizeAttenuation: false,
     blending: THREE.AdditiveBlending,
     depthTest: true,
-    transparent: true
-  };
-  const geom = new THREE.BufferGeometry();
-  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
-  const pointMaterial = new THREE.PointsMaterial(opts);
-  const anchorPoints = new THREE.Points(geom, pointMaterial);
-  anchorPoints.isAnchor = true;
-  return anchorPoints;
+    transparent: true,
+  }
+  const geom = new THREE.BufferGeometry()
+  geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3))
+  const pointMaterial = new THREE.PointsMaterial(opts)
+  const anchorPoints = new THREE.Points(geom, pointMaterial)
+  anchorPoints.isAnchor = true
+  return anchorPoints
 }
 
 
@@ -212,43 +212,43 @@ export function labelAnchor() {
  * an object property of {color}.
  */
 export function line(vec1, vec2, ...rest) {
-  const args = Array.prototype.slice.call(arguments);
-  const lastArg = args[args.length - 1];
-  let opts = {color: 'white'};
+  const args = Array.prototype.slice.call(arguments)
+  const lastArg = args[args.length - 1]
+  const opts = {color: 'white'}
   if (typeof(lastArg) == 'object') {
-    const materialOrOpts = args.pop();
-    opts.color = materialOrOpts.color || opts.color;
+    const materialOrOpts = args.pop()
+    opts.color = materialOrOpts.color || opts.color
   }
   if (args.length == 2) {
-    vec1 = vec1 || new THREE.Vector3;
+    vec1 = vec1 || new THREE.Vector3
   } else if (args.length == 3) {
-    vec1 = new THREE.Vector3;
-    vec2 = new THREE.Vector3(args[0], args[1], args[2]);
+    vec1 = new THREE.Vector3
+    vec2 = new THREE.Vector3(args[0], args[1], args[2])
   } else if (args.length == 6) {
-    vec1 = new THREE.Vector3(args[0], args[1], args[2]);
-    vec2 = new THREE.Vector3(args[3], args[4], args[5]);
+    vec1 = new THREE.Vector3(args[0], args[1], args[2])
+    vec2 = new THREE.Vector3(args[3], args[4], args[5])
   } else {
-    throw new Error('Can only be called with 2, 3 or 6 arguments.');
+    throw new Error('Can only be called with 2, 3 or 6 arguments.')
   }
   if (vec1.equals(vec2)) {
-    throw new Error('Vectors may not be equal: ' + JSON.stringify([vec1, vec2]));
+    throw new Error('Vectors may not be equal: ' + JSON.stringify([vec1, vec2]))
   }
-  const points = [];
-  points.push(vec1);
-  points.push(vec2);
-  const geom = new THREE.BufferGeometry().setFromPoints(points);
-  return new THREE.Line(geom, new THREE.LineBasicMaterial(opts));
+  const points = []
+  points.push(vec1)
+  points.push(vec2)
+  const geom = new THREE.BufferGeometry().setFromPoints(points)
+  return new THREE.Line(geom, new THREE.LineBasicMaterial(opts))
 }
 
 
 function cone(height, materialOrOpts = {color: 0xffffff}) {
   const opts = {
     color: materialOrOpts.color || 'white',
-  };
-  const coneHeight = height;
-  const coneGeometry = new THREE.ConeGeometry(coneHeight / 3, coneHeight, 10);
-  const coneMaterial = new THREE.MeshBasicMaterial(opts);
-  return named(new THREE.Mesh(coneGeometry, coneMaterial), 'cone');
+  }
+  const coneHeight = height
+  const coneGeometry = new THREE.ConeGeometry(coneHeight / 3, coneHeight, 10)
+  const coneMaterial = new THREE.MeshBasicMaterial(opts)
+  return named(new THREE.Mesh(coneGeometry, coneMaterial), 'cone')
 }
 
 
@@ -260,23 +260,23 @@ function cone(height, materialOrOpts = {color: 0xffffff}) {
  * @param addSolidArc Boolean Optional controlling the display of text angle label.
  */
 export function arrow(to = new THREE.Vector3(1, 0, 0), origin = new Vector3, hexColor = 0xffffff, labelText) {
-  const dirVec = new THREE.Vector3();
-  dirVec.copy(to);
-  dirVec.normalize();
+  const dirVec = new THREE.Vector3()
+  dirVec.copy(to)
+  dirVec.normalize()
   // TODO: make my own arrow that works like arc.
-  const arrow = new THREE.ArrowHelper(dirVec, origin, to.length(), hexColor, 0.1, 0.1);
+  const arrow = new THREE.ArrowHelper(dirVec, origin, to.length(), hexColor, 0.1, 0.1)
 
   if (labelText) {
-    const labelSheet = new SpriteSheet(1, labelText, undefined, [0, 0.1]);
-    const r = hexColor & 0xff0000, g = hexColor & 0x00ff00, b = hexColor & 0x0000ff;
-    labelSheet.add(0, 0, 0, labelText, `rgb(${r}, ${g}, ${b})`);
-    const label = named(labelSheet.compile(), angle.name + '.label');
+    const labelSheet = new SpriteSheet(1, labelText, undefined, [0, 0.1])
+    const r = hexColor & 0xff0000; const g = hexColor & 0x00ff00; const b = hexColor & 0x0000ff
+    labelSheet.add(0, 0, 0, labelText, `rgb(${r}, ${g}, ${b})`)
+    const label = named(labelSheet.compile(), angle.name + '.label')
     // Arrow first points up and is then rotated.
-    label.position.setY(to.length());
-    arrow.add(label);
+    label.position.setY(to.length())
+    arrow.add(label)
   }
 
-  return arrow;
+  return arrow
 }
 
 
@@ -291,66 +291,66 @@ export function arrow(to = new THREE.Vector3(1, 0, 0), origin = new Vector3, hex
  * @param addSolidArc Boolean Optional controlling the display of text angle label.
  */
 export function angle(vec1, vec2, materialOrOpts, addLabelOrOpts = true, addSolidArc = true) {
-  let angleInRadians;
+  let angleInRadians
   if (arguments.length == 1 || vec2 === null || typeof vec2 === 'undefined') {
-    angleInRadians = vec1;
+    angleInRadians = vec1
   } else if (arguments.length == 2) {
-    angleInRadians = vec1.angleTo(vec2);
+    angleInRadians = vec1.angleTo(vec2)
   }
 
-  const angle = named(new THREE.Object3D, `angle(${angleInRadians * Shared.toDeg})`);
+  const angle = named(new THREE.Object3D, `angle(${angleInRadians * Shared.toDeg})`)
 
   // TODO: move this into help, maybe redundant with arc.
-  const radius = 1;
-  const headHeight = 0.1;
-  const arrowArc = arc(radius, 0, angleInRadians, materialOrOpts);
-  const coneHead = cone(headHeight, materialOrOpts);
-  coneHead.position.x = radius;
-  coneHead.position.y = headHeight / -2;
-  arrowArc.add(coneHead);
-  angle.add(arrowArc);
+  const radius = 1
+  const headHeight = 0.1
+  const arrowArc = arc(radius, 0, angleInRadians, materialOrOpts)
+  const coneHead = cone(headHeight, materialOrOpts)
+  coneHead.position.x = radius
+  coneHead.position.y = headHeight / -2
+  arrowArc.add(coneHead)
+  angle.add(arrowArc)
 
   if (addSolidArc) {
-    const arc = named(solidArc({radius: 1, from: 0, to: angleInRadians, opacity: 0.2 }), '.solidArc');
-    arc.rotation.z = -angleInRadians;
-    angle.add(arc);
+    const arc = named(solidArc({radius: 1, from: 0, to: angleInRadians, opacity: 0.2}), '.solidArc')
+    arc.rotation.z = -angleInRadians
+    angle.add(arc)
   }
 
   if (addLabelOrOpts) {
-    let labelText, color = 'white', font = SpriteSheet.defaultFont, padding = [0, 0.1];
+    let labelText; let color = 'white'; let font = SpriteSheet.defaultFont; let padding = [0, 0.1]
     if (typeof addLabelOrOpts == 'object') {
-      labelText = addLabelOrOpts.text || '';
-      color = addLabelOrOpts.color || color;
-      font = addLabelOrOpts.font || font;
-      padding = addLabelOrOpts.padding || padding;
+      labelText = addLabelOrOpts.text || ''
+      color = addLabelOrOpts.color || color
+      font = addLabelOrOpts.font || font
+      padding = addLabelOrOpts.padding || padding
     } else {
-      labelText = (angleInRadians * Shared.toDeg).toPrecision(4) + '˚';
+      labelText = (angleInRadians * Shared.toDeg).toPrecision(4) + '˚'
     }
-    //console.log('label opts:', labelText, color, font, padding)
-    const labelSheet = new SpriteSheet(1, labelText, font, padding);
-    labelSheet.add(0, 0, 0, labelText, color);
-    const label = named(labelSheet.compile(), angle.name + '.label');
-    label.position.copy(coneHead.position);
-    angle.add(label);
+    // console.log('label opts:', labelText, color, font, padding)
+    const labelSheet = new SpriteSheet(1, labelText, font, padding)
+    labelSheet.add(0, 0, 0, labelText, color)
+    const label = named(labelSheet.compile(), angle.name + '.label')
+    label.position.copy(coneHead.position)
+    angle.add(label)
   }
 
-  angle.rotation.z = angleInRadians;
-  return angle;
+  angle.rotation.z = angleInRadians
+  return angle
 }
 
 
 // Grid
 export function grid(params) {
   if (!params) {
-    params = {};
+    params = {}
   }
   if (!params.stepSize) {
-    params.stepSize = 1;
+    params.stepSize = 1
   }
   if (!params.numSteps) {
-    params.numSteps = 1E2;
+    params.numSteps = 1E2
   }
-  return lineGrid(params);
+  return lineGrid(params)
 }
 
 
@@ -360,105 +360,105 @@ export function grid(params) {
  * TODO(pablo): each grid has its own geometry.
  */
 export function lineGrid(params) {
-  const grids = new THREE.Object3D();
-  const size = params.stepSize * params.numSteps || 1;
-  const divisions = params.numSteps || 10;
-  const color = params.color || 0x0000af;
+  const grids = new THREE.Object3D()
+  const size = params.stepSize * params.numSteps || 1
+  const divisions = params.numSteps || 10
+  const color = params.color || 0x0000af
 
-  grids.material = new THREE.LineBasicMaterial({color: color});
+  grids.material = new THREE.LineBasicMaterial({color: color})
 
-  const xzGrid = new THREE.GridHelper(size, divisions, color, color);
-  xzGrid.material = grids.material;
-  grids.add(xzGrid);
+  const xzGrid = new THREE.GridHelper(size, divisions, color, color)
+  xzGrid.material = grids.material
+  grids.add(xzGrid)
 
-  const xyGrid = new THREE.GridHelper(size, divisions, color, color);
-  xyGrid.rotation.x = Math.PI / 2;
-  xyGrid.material = grids.material;
-  grids.add(xyGrid);
+  const xyGrid = new THREE.GridHelper(size, divisions, color, color)
+  xyGrid.rotation.x = Math.PI / 2
+  xyGrid.material = grids.material
+  grids.add(xyGrid)
 
-  const yzGrid = new THREE.GridHelper(size, divisions, color, color);
-  yzGrid.rotation.z = Math.PI / 2;
-  yzGrid.material = grids.material;
-  grids.add(yzGrid);
+  const yzGrid = new THREE.GridHelper(size, divisions, color, color)
+  yzGrid.rotation.z = Math.PI / 2
+  yzGrid.material = grids.material
+  grids.add(yzGrid)
 
-  return grids;
+  return grids
 }
 
 
 function imgGrid(params) {
-  const imageCanvas = document.createElement('canvas'),
-    context = imageCanvas.getContext('2d');
+  const imageCanvas = document.createElement('canvas')
+  const context = imageCanvas.getContext('2d')
 
-  imageCanvas.width = imageCanvas.height = 32;
+  imageCanvas.width = imageCanvas.height = 32
 
-  context.strokeStyle = '#' + params.color.toString(16);
-  context.lineWidth = params.lineWidth;
-  context.strokeRect(0, 0, 32, 32);
+  context.strokeStyle = '#' + params.color.toString(16)
+  context.lineWidth = params.lineWidth
+  context.strokeRect(0, 0, 32, 32)
 
   const textureCanvas =
-    new THREE.Texture(imageCanvas, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping);
-  materialCanvas = new THREE.MeshBasicMaterial({map: textureCanvas});
+    new THREE.Texture(imageCanvas, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping)
+  materialCanvas = new THREE.MeshBasicMaterial({map: textureCanvas})
 
-  const span = params.stepSize * params.numSteps;
+  const span = params.stepSize * params.numSteps
 
-  textureCanvas.needsUpdate = true;
-  textureCanvas.repeat.set(params.numSteps, params.numSteps);
+  textureCanvas.needsUpdate = true
+  textureCanvas.repeat.set(params.numSteps, params.numSteps)
 
-  const geometry = new THREE.PlaneGeometry(1, 1);
-  const meshCanvas = new THREE.Mesh(geometry, materialCanvas);
-  meshCanvas.scale.set(span, span, span);
-  meshCanvas.doubleSided = true;
+  const geometry = new THREE.PlaneGeometry(1, 1)
+  const meshCanvas = new THREE.Mesh(geometry, materialCanvas)
+  meshCanvas.scale.set(span, span, span)
+  meshCanvas.doubleSided = true
 
-  return meshCanvas;
+  return meshCanvas
 }
 
 
 function arc(rad, startAngle, angle, materialOrOpts) {
   const opts = {
     color: (materialOrOpts ? (materialOrOpts.color || 'red') : 'white'),
-  };
+  }
   const curveGen = new THREE.EllipseCurve(
-    0, 0, // ax, aY
-    rad, rad, // xRadius, yRadius
-    startAngle, angle,
-    false, // clockwise
-    -angle
-  );
-  const points = curveGen.getPoints(100);
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  const material = new THREE.LineBasicMaterial(opts);
-  return new THREE.Line(geometry, material);
+      0, 0, // ax, aY
+      rad, rad, // xRadius, yRadius
+      startAngle, angle,
+      false, // clockwise
+      -angle,
+  )
+  const points = curveGen.getPoints(100)
+  const geometry = new THREE.BufferGeometry().setFromPoints(points)
+  const material = new THREE.LineBasicMaterial(opts)
+  return new THREE.Line(geometry, material)
 }
 
 
 /** Just Saturn for now. */
 export function rings(name = 'saturn', shadows = false, side = THREE.FrontSide) {
-  const geometry = new THREE.RingBufferGeometry(3, 6, 64);
-  const textureMap = Material.pathTexture(name + 'ringcolor', '.png');
-  const alphaMap = Material.pathTexture(name + 'ringalpha', '.png');
+  const geometry = new THREE.RingBufferGeometry(3, 6, 64)
+  const textureMap = Material.pathTexture(name + 'ringcolor', '.png')
+  const alphaMap = Material.pathTexture(name + 'ringalpha', '.png')
   const material = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      side: shadows ? side : THREE.DoubleSide,
-      map: textureMap,
-      alphaMap: alphaMap,
-      transparent: true
-    });
+    color: 0xffffff,
+    side: shadows ? side : THREE.DoubleSide,
+    map: textureMap,
+    alphaMap: alphaMap,
+    transparent: true,
+  })
   // I still don't understand UVs.
   // https://discourse.threejs.org/t/applying-a-texture-to-a-ringgeometry/9990/3
-  const pos = geometry.attributes.position;
-  geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(pos.count * 4), 4));
-  const v3 = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++){
-    v3.fromBufferAttribute(pos, i);
-    geometry.attributes.uv.setXY(i, v3.length() < 4 ? 1 : 0, 1);
+  const pos = geometry.attributes.position
+  geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(pos.count * 4), 4))
+  const v3 = new THREE.Vector3()
+  for (let i = 0; i < pos.count; i++) {
+    v3.fromBufferAttribute(pos, i)
+    geometry.attributes.uv.setXY(i, v3.length() < 4 ? 1 : 0, 1)
   }
-  const rings = new THREE.Mesh(geometry, material);
+  const rings = new THREE.Mesh(geometry, material)
   if (shadows) {
-    rings.castShadow = true;
-    //rings.receiveShadow = true;
+    rings.castShadow = true
+    // rings.receiveShadow = true;
   }
-  rings.scale.setScalar(0.4);
-  rings.rotateY(Math.PI / 2);
-  rings.rotateX(Math.PI / 2);
-  return rings;
+  rings.scale.setScalar(0.4)
+  rings.rotateY(Math.PI / 2)
+  rings.rotateX(Math.PI / 2)
+  return rings
 }

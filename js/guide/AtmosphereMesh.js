@@ -7,110 +7,110 @@ import {
   ShaderMaterial,
   Vector2,
   Vector3,
-} from 'three';
+} from 'three'
 
 
 export default class AtmosphereObject3D extends Mesh {
   /** @param atmos An Atmosphere parameters object. */
   constructor(atmos) {
-    super(makeGeometry(), makeMaterial(atmos));
-    this.atmosphere = atmos;
+    super(makeGeometry(), makeMaterial(atmos))
+    this.atmosphere = atmos
   }
 
 
   /** @Override */
   onBeforeRender() {
-    const u = this.material.uniforms;
-    const atmos = this.atmosphere;
-    u.uEyePos.value.y = atmos.EyeHeight;
-    u.uSunPos.value.y = atmos.SunY;
-    u.uSunIntensity.value = atmos.SunIntensity;
-    u.uGroundElevation.value = atmos.GroundElevation;
-    u.uAtmosphereHeight.value = atmos.AtmosphereHeight;
+    const u = this.material.uniforms
+    const atmos = this.atmosphere
+    u.uEyePos.value.y = atmos.EyeHeight
+    u.uSunPos.value.y = atmos.SunY
+    u.uSunIntensity.value = atmos.SunIntensity
+    u.uGroundElevation.value = atmos.GroundElevation
+    u.uAtmosphereHeight.value = atmos.AtmosphereHeight
     u.uRayleighScatteringCoeff.value.set(
         atmos.RayleighRed,
         atmos.RayleighGreen,
-        atmos.RayleighBlue);
-    u.uRayleighScaleHeight.value = atmos.RayleighScaleHeight;
-    u.uMieScatteringCoeff.value = atmos.MieScatteringCoeff;
-    u.uMieScaleHeight.value = atmos.MieScaleHeight;
-    u.uMiePolarity.value = atmos.MiePolarity;
+        atmos.RayleighBlue)
+    u.uRayleighScaleHeight.value = atmos.RayleighScaleHeight
+    u.uMieScatteringCoeff.value = atmos.MieScatteringCoeff
+    u.uMieScaleHeight.value = atmos.MieScaleHeight
+    u.uMiePolarity.value = atmos.MiePolarity
   }
 }
 
 
 function makeGeometry() {
-  const geometry = new BufferGeometry();
+  const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute([
-      -1, -1, -1,
-       1, -1, -1,
-       1,  1, -1,
+    -1, -1, -1,
+    1, -1, -1,
+    1, 1, -1,
 
-      -1, -1, -1,
-       1,  1, -1,
-      -1,  1, -1],
-    3));
-  return geometry;
+    -1, -1, -1,
+    1, 1, -1,
+    -1, 1, -1],
+  3))
+  return geometry
 }
 
 
 function makeMaterial(atmos) {
-  const kLengthUnitInMeters = 1000;
-  const viewDistanceMeters = 9e3;
-  const viewZenithAngleRadians = 1.47;
-  const viewAzimuthAngleRadians = -0.1;
-  const kFovY = Math.PI / 4; // Original: 50 / 180 * Math.PI
-  const kTanFovY = Math.tan(kFovY / 2);
-  const aspectRatio = 1; //this.canvas.width / this.canvas.height;
-  const viewFromClip = new Float32Array(16);
-  const modelFromView = new Float32Array(16);
+  const kLengthUnitInMeters = 1000
+  const viewDistanceMeters = 9e3
+  const viewZenithAngleRadians = 1.47
+  const viewAzimuthAngleRadians = -0.1
+  const kFovY = Math.PI / 4 // Original: 50 / 180 * Math.PI
+  const kTanFovY = Math.tan(kFovY / 2)
+  const aspectRatio = 1 // this.canvas.width / this.canvas.height;
+  const viewFromClip = new Float32Array(16)
+  const modelFromView = new Float32Array(16)
   viewFromClip.set([
-        kTanFovY * aspectRatio, 0, 0, 0,
-        0, kTanFovY, 0, 0,
-        0, 0, 0, -1,
-        0, 0, 1, 1]);
+    kTanFovY * aspectRatio, 0, 0, 0,
+    0, kTanFovY, 0, 0,
+    0, 0, 0, -1,
+    0, 0, 1, 1])
 
-  const cosZ = Math.cos(viewZenithAngleRadians);
-  const sinZ = Math.sin(viewZenithAngleRadians);
-  const cosA = Math.cos(viewAzimuthAngleRadians);
-  const sinA = Math.sin(viewAzimuthAngleRadians);
-  const viewDistance = viewDistanceMeters / kLengthUnitInMeters;
+  const cosZ = Math.cos(viewZenithAngleRadians)
+  const sinZ = Math.sin(viewZenithAngleRadians)
+  const cosA = Math.cos(viewAzimuthAngleRadians)
+  const sinA = Math.sin(viewAzimuthAngleRadians)
+  const viewDistance = viewDistanceMeters / kLengthUnitInMeters
   modelFromView.set([
-        -sinA, -cosZ * cosA,  sinZ * cosA, sinZ * cosA * viewDistance,
-        cosA, -cosZ * sinA, sinZ * sinA, sinZ * sinA * viewDistance,
-        0, sinZ, cosZ, cosZ * viewDistance,
-        0, 0, 0, 1]);
-  const sunPos = -10;
+    -sinA, -cosZ * cosA, sinZ * cosA, sinZ * cosA * viewDistance,
+    cosA, -cosZ * sinA, sinZ * sinA, sinZ * sinA * viewDistance,
+    0, sinZ, cosZ, cosZ * viewDistance,
+    0, 0, 0, 1])
+  const sunPos = -10
   return new ShaderMaterial({
     uniforms: {
-      model_from_view: { value: modelFromView },
-      view_from_clip: { value: viewFromClip },
-      uEyePos: { value: new Vector3(0, atmos.EyeHeight, 0) },
-      uSunPos: { value: new Vector3(0, atmos.SunY, -1) },
-      earth_center: { value: new Vector3(0, 0, atmos.EyeHeight) },
-      sun_direction: { value: new Vector3(0, atmos.SunY, 0) },
-      sun_size: { value: new Vector2(1, 1) },
-          // TODO: same as sun
-      camera: { value: new Vector3(0, atmos.SunY, -1) },
-      uSunIntensity: { value: atmos.SunIntensity },
-      uGroundElevation: { value: atmos.GroundElevation },
-      uAtmosphereHeight: { value: atmos.AtmosphereHeight },
+      model_from_view: {value: modelFromView},
+      view_from_clip: {value: viewFromClip},
+      uEyePos: {value: new Vector3(0, atmos.EyeHeight, 0)},
+      uSunPos: {value: new Vector3(0, atmos.SunY, -1)},
+      earth_center: {value: new Vector3(0, 0, atmos.EyeHeight)},
+      sun_direction: {value: new Vector3(0, atmos.SunY, 0)},
+      sun_size: {value: new Vector2(1, 1)},
+      // TODO: same as sun
+      camera: {value: new Vector3(0, atmos.SunY, -1)},
+      uSunIntensity: {value: atmos.SunIntensity},
+      uGroundElevation: {value: atmos.GroundElevation},
+      uAtmosphereHeight: {value: atmos.AtmosphereHeight},
       uRayleighScatteringCoeff: {
         value: new Vector3(
-          atmos.RayleighRed,
-          atmos.RayleighGreen,
-          atmos.RayleighBlue)
-        },
-      uRayleighScaleHeight: { value: atmos.RayleighScaleHeight },
-      uMieScatteringCoeff: { value: atmos.MieScatteringCoeff },
-      uMieScaleHeight: { value: atmos.MieScaleHeight },
-      uMiePolarity: { value: atmos.MiePolarity },
+            atmos.RayleighRed,
+            atmos.RayleighGreen,
+            atmos.RayleighBlue),
+      },
+      uRayleighScaleHeight: {value: atmos.RayleighScaleHeight},
+      uMieScatteringCoeff: {value: atmos.MieScatteringCoeff},
+      uMieScaleHeight: {value: atmos.MieScaleHeight},
+      uMiePolarity: {value: atmos.MiePolarity},
     },
-        //    glslVersion: GLSL3,
+    //    glslVersion: GLSL3,
     vertexShader: VERTEX_SHADER,
     fragmentShader: FRAGMENT_SHADER,
     blending: AdditiveBlending,
-  });
+  })
 }
 
 
@@ -127,7 +127,7 @@ void main() {
   gl_Position = projectionMatrix * mvPosition;
   //gl_Position = vec4(position, 1.0);
 }
-`;
+`
 
 // Adapted From https://github.com/wwwtyro/glsl-atmosphere
 // Thanks Rye!
@@ -300,4 +300,4 @@ void main() {
   color = 1.0 - exp(-1.0 * color);
   gl_FragColor = vec4(color, 1);
 }
-`;
+`

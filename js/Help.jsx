@@ -2,9 +2,11 @@ import React from 'react'
 
 
 export default function HelpButton({keys}) {
-  const [open, setOpen] = React.useState(false);
-  const toggleOpen = () => { setOpen(!open) };
-  keys.map('?', toggleOpen, 'Show/hide keyboard shortcuts');
+  const [open, setOpen] = React.useState(false)
+  const toggleOpen = () => {
+    setOpen(!open)
+  }
+  keys.map('?', toggleOpen, 'Show/hide keyboard shortcuts')
   return (
     <>
       <button onClick={toggleOpen} className="textButton">Help</button>
@@ -15,12 +17,12 @@ export default function HelpButton({keys}) {
 
 function Help({keys, openToggle}) {
   const item = (ndx, keyStr, msg) => {
-    return (<li key={ndx}><span>{keyStr}</span>{msg}</li>);
+    return (<li key={ndx}><span>{keyStr}</span>{msg}</li>)
   }
 
-  let items = [];
-  for (let i in keys.keymap) {
-    items.push(item(i, i == ' ' ? 'space' : i, keys.msgs[i]));
+  const items = []
+  for (const i in keys.keymap) {
+    items.push(item(i, i == ' ' ? 'space' : i, keys.msgs[i]))
   }
 
   return (

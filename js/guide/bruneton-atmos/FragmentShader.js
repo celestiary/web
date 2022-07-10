@@ -105,4 +105,4 @@ void main() {
       pow(vec3(1.0) - exp(-radiance / white_point * exposure), vec3(1.0 / 2.2));
   color.a = 0.5;
 }
-`;
+`
