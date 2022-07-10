@@ -24,7 +24,6 @@
     "@pablo-mayrgundter/measure.js": "^2.0.1",
     "@pablo-mayrgundter/parser.js": "^1.0.1",
     "@pablo-mayrgundter/yaot2": "^2.0.1",
-    "astro": "file:/Users/pablo/astro-1.0.0.tgz",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "react-router-dom": "^6.1.1",
