@@ -8,7 +8,7 @@ export default class AsterismsCatalog {
    */
   constructor(starsCatalog) {
     this.starsCatalog = starsCatalog
-    this.byName = {}
+    this.byName = new Map()
     this.numAsterisms = 0
   }
 
@@ -57,7 +57,7 @@ export default class AsterismsCatalog {
             name: recordName,
             paths: paths,
           }
-          this.byName[recordName] = record
+          this.byName.set(recordName, record)
           this.numAsterisms++
           records.push(record)
           recordName = null

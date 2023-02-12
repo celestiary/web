@@ -16,7 +16,7 @@ export default class Asterisms extends THREE.Object3D {
     this.stars = stars
     this.catalog = new AsterismsCatalog(stars.catalog)
     this.catalog.load(() => {
-      this.catalog.byName.values().forEach((astrName) => this.show(astrName))
+      this.catalog.byName.forEach((astr, name) => this.show(name))
       if (cb) {
         cb(this)
       }
@@ -39,17 +39,13 @@ export default class Asterisms extends THREE.Object3D {
         return false
       }
     }
-    const asterism = this.catalog.byName[astrName]
+    const asterism = this.catalog.byName.get(astrName)
     if (!asterism) {
       throw new Error('Unknown asterism: ', astrName)
     }
     const paths = asterism.paths
-    for (const pathNdx in paths) {
-      if (!Object.prototype.hasOwnProperty.call(paths, pathNdx)) {
-        continue
-      }
+    paths.forEach((pathNames, pathNdx) => {
       let prevStar = null
-      const pathNames = paths[pathNdx]
       for (let i = 0; i < pathNames.length; i++) {
         // eslint-disable-next-line no-unused-vars
         const [origName, name, hipId] = this.stars.catalog.reifyName(pathNames[i])
@@ -79,7 +75,7 @@ export default class Asterisms extends THREE.Object3D {
         }
         prevStar = star
       }
-    }
+    })
   }
 
 

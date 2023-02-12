@@ -95,11 +95,10 @@ export default class Stars extends Object {
   showLabels(level = 2) {
     const toShow = []
     this.addFaves(toShow)
-    for (const hipId in this.catalog.starByHip) {
+    this.catalog.starByHip.forEach((star, hipId) => {
       if (this.faves.get(hipId)) {
-        continue
+        return
       }
-      const star = this.catalog.starByHip.get(hipId)
       const names = this.catalog.namesByHip.get(hipId)
       if (names && names.length > level) {
         toShow.push([star, names[0]])
@@ -108,9 +107,8 @@ export default class Stars extends Object {
       }
       if (toShow.length >= MAX_LABELS) {
         console.warn(`Stars#showLabels: hit max count of ${ MAX_LABELS}`)
-        break
       }
-    }
+    })
     this.starLabelSpriteSheet = new SpriteSheet(toShow.length, 'Rigel Kentaurus B')
     for (let i = 0; i < toShow.length; i++) {
       const [star, name] = toShow[i]
