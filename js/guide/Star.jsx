@@ -17,7 +17,7 @@ export default function Star() {
 
   React.useEffect(() => {
     setUi(setup(setCatalog))
-  }, [])
+  }, [setCatalog])
 
   const location = useLocation()
   React.useEffect(() => {
@@ -25,7 +25,7 @@ export default function Star() {
       const path = (location.hash || '#Sol').substr(1)
       showStar(ui, path, star, setStar, catalog, time)
     }
-  }, [catalog, location, star, time, ui])
+  }, [catalog, location])
 
   return (
     <>
@@ -69,8 +69,7 @@ function addStarToScene(ui, catalog, hipId, curStar, setStar) {
 
 function setupFavesTable(catalog) {
   const favesTable = elt('faves')
-  for (const hipId in FAVES) {
-    const name = FAVES[hipId]
+  FAVES.forEach((name, hipId) => {
     const star = catalog.starByHip.get(hipId)
     const spectralType = StarsCatalog.StarSpectra[star.spectralType][3]
     favesTable.innerHTML +=
@@ -79,7 +78,7 @@ function setupFavesTable(catalog) {
         <td>${spectralType}</td>
         <td>${hipId}</td>
       </tr>`
-  }
+  })
 }
 
 
