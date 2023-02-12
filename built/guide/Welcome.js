@@ -1,30 +1,5 @@
-import React from 'react';
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { Link } from 'react-router-dom';
 export default function Welcome() {
-    return (<>
-      <h1>Welcome</h1>
-      <p>This is the developer guide for Celestiary.</p>
-
-      <p>Celestiary is written using
-        the <a href="https://threejs.org/">three.js</a> library for most of
-        the graphics.  Three.js is a productivity layer on top of
-        the <a href="https://en.wikipedia.org/wiki/WebGL">WebGL</a> capability
-        available in all modern browsers.</p>
-
-      <p>The topic guide to the left steps through how each of the main
-        functions of Celestiary are built.</p>
-
-      <p>Background reading:</p>
-      <ul>
-        <li><a href="https://webglfundamentals.org/">WebGL Fundamentals</a> - deeper dive into WebGL
-          <ul>
-            <li><a href="http://acko.net/files/gltalks/pixelfactory/online.html#0">The Pixel Factory</a></li>
-            <li><a href="https://webglfundamentals.org/webgl/lessons/webgl-shaders-and-glsl.html">WebGL Shaders and GLSL</a></li>
-            <li><a href="https://thebookofshaders.com/">The Book of Shaders</a></li>
-          </ul>
-        </li>
-      </ul>
-
-      <p>Back to the <Link to="/">app</Link>.</p>
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("h1", { children: "Welcome" }), _jsx("p", { children: "This is the developer guide for Celestiary." }), _jsxs("p", { children: ["Celestiary is written using the ", _jsx("a", Object.assign({ href: "https://threejs.org/" }, { children: "three.js" })), " library for most of the graphics.  Three.js is a productivity layer on top of the ", _jsx("a", Object.assign({ href: "https://en.wikipedia.org/wiki/WebGL" }, { children: "WebGL" })), " capability available in all modern browsers."] }), _jsx("p", { children: "The topic guide to the left steps through how each of the main functions of Celestiary are built." }), _jsx("p", { children: "Background reading:" }), _jsx("ul", { children: _jsxs("li", { children: [_jsx("a", Object.assign({ href: "https://webglfundamentals.org/" }, { children: "WebGL Fundamentals" })), " - deeper dive into WebGL", _jsxs("ul", { children: [_jsx("li", { children: _jsx("a", Object.assign({ href: "http://acko.net/files/gltalks/pixelfactory/online.html#0" }, { children: "The Pixel Factory" })) }), _jsx("li", { children: _jsx("a", Object.assign({ href: "https://webglfundamentals.org/webgl/lessons/webgl-shaders-and-glsl.html" }, { children: "WebGL Shaders and GLSL" })) }), _jsx("li", { children: _jsx("a", Object.assign({ href: "https://thebookofshaders.com/" }, { children: "The Book of Shaders" })) })] })] }) }), _jsxs("p", { children: ["Back to the ", _jsx(Link, Object.assign({ to: "/" }, { children: "app" })), "."] })] }));
 }

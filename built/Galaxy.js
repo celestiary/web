@@ -3,6 +3,7 @@ import GalaxyBufferGeometry from './GalaxyBufferGeometry.js';
 import { pathTexture } from './material.js';
 import * as Gravity from './gravity.js';
 const Tau = 2.0 * Math.PI;
+/** */
 export default class Galaxy extends Points {
     // numStars, ms
     // 400, 20
@@ -12,6 +13,7 @@ export default class Galaxy extends Points {
     // 800, 70
     // 900, 88
     // 1000, 110
+    /** */
     constructor({ numStars = 2, radius = 10 } = {}) {
         super(new GalaxyBufferGeometry(numStars), new ShaderMaterial({
             uniforms: {
@@ -33,7 +35,7 @@ export default class Galaxy extends Points {
         this.acc = new Float32Array(this.vel.length);
         this.first = true;
         // Debug switch.
-        if (numStars == 2) {
+        if (numStars === 2) {
             this.initSimple();
         }
         else {
@@ -41,6 +43,10 @@ export default class Galaxy extends Points {
             this.initOrbits();
         }
     }
+    /**
+     * @param {number} dt
+     * @param {boolean} debug
+     */
     animate(dt = 1, debug = false) {
         Gravity.step(this.pos, this.vel, this.acc, this.mass);
         this.geometry.attributes.position.needsUpdate = true;
@@ -63,8 +69,10 @@ export default class Galaxy extends Points {
         axes.position.set(1, 0, 0);
         this.add(axes);
     }
-    /** Preset positions in a spiral (just spokes for now and spiral
-     * comes from time stepping. */
+    /**
+     * Preset positions in a spiral (just spokes for now and spiral
+     * comes from time stepping.
+     */
     initSpirals() {
         this.mass[0] = 1000;
         // this.colors[0] = this.colors[1] = this.colors[2] = 0;
@@ -81,10 +89,10 @@ export default class Galaxy extends Points {
             this.pos[xi] = r * Math.cos(theta);
             this.pos[yi] = (this.radius / 100) * (Math.random() - 0.5);
             this.pos[zi] = r * Math.sin(theta);
-            this.colors[xi] = 1 - colorTemp + colorTemp * Math.random();
-            this.colors[yi] = 1 - colorTemp + colorTemp * Math.random();
-            this.colors[zi] = 1 - colorTemp + colorTemp * Math.random();
-            this.mass[i] = 10 * ((1 - armDensityRatio) + armDensityRatio * Math.cos(theta * numSpokes));
+            this.colors[xi] = 1 - colorTemp + (colorTemp * Math.random());
+            this.colors[yi] = 1 - colorTemp + (colorTemp * Math.random());
+            this.colors[zi] = 1 - colorTemp + (colorTemp * Math.random());
+            this.mass[i] = 10 * ((1 - armDensityRatio) + (armDensityRatio * Math.cos(theta * numSpokes)));
         }
     }
     /**
@@ -92,18 +100,18 @@ export default class Galaxy extends Points {
      * https://github.com/jdiwnab/OrbitSim
      */
     initOrbits() {
-        const M0 = this.mass[0];
+        // const M0 = this.mass[0]
         // Start at 1 to skip moving center body.
         for (let i = 1; i < this.numStars; i++) {
             const off = 3 * i;
             const xi = off;
-            const yi = off + 1;
+            // const yi = off + 1
             const zi = off + 2;
-            const M1 = this.mass[i];
+            // const M1 = this.mass[i]
             const x = this.pos[xi];
             const z = this.pos[zi];
-            const R = Math.sqrt(x * x + z * z);
-            const R2 = R * R;
+            // const R = Math.sqrt((x * x) + (z * z))
+            // const R2 = R * R
             const fR = 0; // Gravity.G * M0 * M1 / R2 * 1e1;
             this.vel[xi] = -z * fR;
             this.vel[zi] = x * fR;

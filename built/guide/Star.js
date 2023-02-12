@@ -1,3 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import cStar from '../Star.js';
@@ -21,25 +22,7 @@ export default function Star() {
             showStar(ui, path, star, setStar, catalog, time);
         }
     }, [catalog, location]);
-    return (<>
-      <div id="ui"></div>
-      <h1>Star</h1>
-      See <a href="https://www.seedofandromeda.com/blogs/51-procedural-star-rendering">Seed
-          of Andromeda</a> for a nice overall approach.
-
-      <p>Borrowed heavily from
-      code <a href="https://bpodgursky.com/2017/02/01/procedural-star-rendering-with-three-js-and-webgl-shaders/">here</a>.</p>
-
-      <p>Added differential color range based on distance.  This makes the
-        star appear white from far away and reveal surface structure as
-        false-color on closer approach.</p>
-
-      <table id="faves">
-        <tbody>
-          <tr><th>Star</th><th>Spectral Type</th><th>Hip ID</th></tr>
-        </tbody>
-      </table>
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "Star" }), "See ", _jsx("a", Object.assign({ href: "https://www.seedofandromeda.com/blogs/51-procedural-star-rendering" }, { children: "Seed of Andromeda" })), " for a nice overall approach.", _jsxs("p", { children: ["Borrowed heavily from code ", _jsx("a", Object.assign({ href: "https://bpodgursky.com/2017/02/01/procedural-star-rendering-with-three-js-and-webgl-shaders/" }, { children: "here" })), "."] }), _jsx("p", { children: "Added differential color range based on distance.  This makes the star appear white from far away and reveal surface structure as false-color on closer approach." }), _jsx("table", Object.assign({ id: "faves" }, { children: _jsx("tbody", { children: _jsxs("tr", { children: [_jsx("th", { children: "Star" }), _jsx("th", { children: "Spectral Type" }), _jsx("th", { children: "Hip ID" })] }) }) }))] }));
 }
 function addStarToScene(ui, catalog, hipId, curStar, setStar) {
     if (curStar) {

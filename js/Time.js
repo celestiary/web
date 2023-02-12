@@ -1,3 +1,6 @@
+/**
+ * @returns {string}
+ */
 function timeToDateStr(time) {
   return new Date(time).toLocaleDateString(undefined, {
     year: 'numeric',
@@ -10,8 +13,12 @@ function timeToDateStr(time) {
 }
 
 
+/**
+ */
 export default class Time {
-  constructor(setTimeStr = () => {}) {
+  /**
+   */
+  constructor(setTimeStr = () => {/**/}) {
     /**
      * Time scale is applied to wall-clock time, so that by a larger time
      * scale will speed things up, 1 is real-time, (0,1) is slower than
@@ -37,6 +44,8 @@ export default class Time {
   }
 
 
+  /**
+   */
   updateTime() {
     const now = Date.now()
     const timeDelta = now - this.lastUpdate
@@ -50,6 +59,8 @@ export default class Time {
   }
 
 
+  /**
+   */
   setTimeToNow() {
     this.timeScale = 1.0
     this.timeScaleSteps = 0
@@ -63,7 +74,7 @@ export default class Time {
     if (this.pause) {
       return
     }
-    if (delta == 0) {
+    if (delta === 0) {
       this.timeScaleSteps = 0
     } else {
       this.timeScaleSteps += delta
@@ -72,12 +83,16 @@ export default class Time {
   }
 
 
+  /**
+   */
   invertTimeScale() {
     this.timeScale *= -1
     this.timeScaleSteps *= -1
   }
 
 
+  /**
+   */
   togglePause() {
     if (this.pause) {
       this.timeScale = this.timeScaleBeforePause
@@ -90,6 +105,8 @@ export default class Time {
   }
 
 
+  /**
+   */
   updateUi() {
     if (this.sysTime > this.lastUiUpdateTime + 1000) {
       this.lastUiUpdateTime = this.sysTime

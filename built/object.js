@@ -1,5 +1,7 @@
 import { Object3D } from 'three';
 const REGISTRY = [];
+/**
+ */
 export default class Object extends Object3D {
     /**
      * @param name Prefix, attached to .frame suffix.

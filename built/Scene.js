@@ -11,7 +11,9 @@ import { marker as createMarker } from './shapes';
 import { queryPoints } from './Picker';
 const lengthScale = Shared.LENGTH_SCALE;
 const INITIAL_STEP_BACK_MULT = 10;
+/** */
 export default class Scene {
+    /** @param {object} ui */
     constructor(ui) {
         this.ui = ui;
         this.objects = {};
@@ -31,13 +33,15 @@ export default class Scene {
     }
     /**
      * Add an object to the scene.
+     *
      * @param {!object} props object properties, must include type.
+     * @returns {Object3D}
      */
     add(props) {
         const name = props.name;
         let parentObj = this.objects[props.parent];
-        let parentOrbitPosition = this.objects[props.parent + '.orbitPosition'];
-        if (props.name == 'milkyway' || props.name == 'sun') {
+        let parentOrbitPosition = this.objects[`${props.parent}.orbitPosition`];
+        if (props.name === 'milkyway' || props.name === 'sun') {
             parentObj = parentOrbitPosition = this.ui.scene;
         }
         if (!parentObj || !parentOrbitPosition) {
@@ -50,11 +54,15 @@ export default class Scene {
         parentOrbitPosition.add(obj3d);
         return obj3d;
     }
+    /**
+     * @param {object} props
+     * @returns {object}
+     */
     objectFactory(props) {
+        let pickedStarLabel;
         switch (props.type) {
             case 'galaxy': return this.newGalaxy(props);
             case 'stars':
-                let pickedStarLabel;
                 this.stars = new Stars(props, () => {
                     this.stars.showLabels();
                     const tree = createTree();
@@ -64,10 +72,10 @@ export default class Scene {
                             if (!this.starSelected) {
                                 this.marker.position.copy(pick);
                             }
-                            if (pickedStarLabel != null) {
+                            if (pickedStarLabel !== null) {
                                 pickedStarLabel.removeFromParent();
                             }
-                            const starName = '' + this.stars.catalog.getNameOrId(pick.star.hipId);
+                            const starName = `${this.stars.catalog.getNameOrId(pick.star.hipId)}`;
                             const pickedLabelSheet = new SpriteSheet(1, starName, undefined, [0, 1e5]);
                             pickedLabelSheet.add(pick.x, pick.y, pick.z, starName);
                             pickedStarLabel = pickedLabelSheet.compile();
@@ -118,15 +126,22 @@ export default class Scene {
                     document.body.addEventListener('dblclick', markCb);
                     document.body.addEventListener('mousemove', traceCb);
                 });
+                console.log('this.stars', this.stars);
                 return this.stars;
             case 'star': return new Star(props, this.objects, this.ui);
             case 'planet': return new Planet(this, props);
             case 'moon': return new Planet(this, props, true);
+            default:
         }
         throw new Error(`Object has unknown type: ${props.type}`);
     }
     /**
      * A primary scene object composed.
+     *
+     * @param {string} name
+     * @param {object} props
+     * @param {Function} onClick
+     * @returns {Object3D}
      */
     newObject(name, props, onClick) {
         const obj = this.newGroup(name, props);
@@ -138,8 +153,10 @@ export default class Scene {
     }
     /**
      * A secondary grouping of scene objects.
+     *
      * @param name Prefix, attached to .frame suffix.
      * @param props Optional props to attach to a .props field on the frame.
+     * @returns {object}
      */
     newGroup(name, props) {
         const obj = new Object3D;
@@ -150,16 +167,19 @@ export default class Scene {
         }
         return obj;
     }
+    /** @param {string} name */
     targetNamed(name) {
         this.setTarget(name);
         this.lookAtTarget();
     }
+    /** */
     targetParent() {
         const cObj = Shared.targets.cur;
         if (cObj && cObj.props && cObj.props.parent) {
             this.setTarget(cObj.props.parent);
         }
     }
+    /** */
     targetNode(index) {
         const cObj = Shared.targets.cur;
         if (cObj && cObj.props && cObj.props.system && cObj.props.system) {
@@ -169,12 +189,14 @@ export default class Scene {
             }
         }
     }
+    /** */
     targetCurNode() {
         const cObj = Shared.targets.cur;
         if (cObj && cObj.props && cObj.props.name) {
             this.setTarget(cObj.props.name);
         }
     }
+    /** */
     setTarget(name) {
         const obj = this.objects[name];
         if (!obj) {
@@ -182,6 +204,7 @@ export default class Scene {
         }
         Shared.targets.obj = obj;
     }
+    /** */
     lookAtTarget() {
         if (!Shared.targets.obj) {
             console.error('scene.js#lookAtTarget: no target obj to look at.');
@@ -193,6 +216,7 @@ export default class Scene {
         tPos.setFromMatrixPosition(obj.matrixWorld);
         this.ui.camera.lookAt(tPos);
     }
+    /** */
     goTo() {
         if (!Shared.targets.obj) {
             console.error('Scene.goTo called with no target obj.');
@@ -215,6 +239,7 @@ export default class Scene {
         Shared.targets.track = Shared.targets.cur = Shared.targets.obj;
         this.ui.controls.update();
     }
+    /** @param {string} name */
     track(name) {
         if (Shared.targets.track) {
             Shared.targets.track = null;
@@ -223,34 +248,36 @@ export default class Scene {
             Shared.targets.track = Shared.targets.obj;
         }
     }
+    /** @param {string} name */
     follow(name) {
         if (Shared.targets.follow) {
             delete Shared.targets.follow.postAnimCb;
             Shared.targets.follow = null;
         }
-        else {
-            if (Shared.targets.obj) {
-                if (Shared.targets.obj.orbitPosition) {
-                    // Follow the orbit position for less jitter.
-                    const followed = Shared.targets.obj.orbitPosition;
-                    Shared.targets.follow = followed;
-                    followed.postAnimCb = (obj) => {
-                        this.ui.camera.platform.lookAt(Shared.targets.origin);
-                    };
-                    followed.postAnimCb(followed);
-                }
-                else {
-                    console.error('Target to follow has no orbitPosition property.');
-                }
+        else if (Shared.targets.obj) {
+            if (Shared.targets.obj.orbitPosition) {
+                // Follow the orbit position for less jitter.
+                const followed = Shared.targets.obj.orbitPosition;
+                Shared.targets.follow = followed;
+                followed.postAnimCb = (obj) => {
+                    this.ui.camera.platform.lookAt(Shared.targets.origin);
+                };
+                followed.postAnimCb(followed);
             }
             else {
-                console.error('No target object to follow.');
+                console.error('Target to follow has no orbitPosition property.');
             }
         }
+        else {
+            console.error('No target object to follow.');
+        }
     }
+    /** @param {object} mouse */
     onClick(mouse) {
-        if (true)
-            return; // Disable picking for now.
+        const enable = false;
+        if (enable) {
+            return;
+        } // Disable picking for now.
         this.ui.scene.updateMatrixWorld();
         this.raycaster.setFromCamera(mouse, this.ui.camera);
         const t = Date.now();
@@ -259,7 +286,7 @@ export default class Scene {
         if (elapsedSeconds > 0.1) {
             console.error('Scene picking taking a long time (seconds): ', elapsedSeconds);
         }
-        if (intersects.length == 0) {
+        if (intersects.length === 0) {
             return;
         }
         // console.log('checking all the things');
@@ -276,45 +303,38 @@ export default class Scene {
                 console.log('raycast skipping anchor');
                 continue;
             }
-            if (obj.type == 'Line') {
+            if (obj.type === 'Line') {
                 continue;
             }
             // console.log(`intersect ${i} dist: ${dist}, type: ${obj.type}, obj: `, obj);
             switch (obj.type) {
-                case 'Mesh':
-                    {
-                        if (nearestMeshIntersect &&
-                            nearestMeshIntersect.distance < dist) {
+                case 'Mesh': {
+                    if (nearestMeshIntersect &&
+                        nearestMeshIntersect.distance < dist) {
+                        continue;
+                    }
+                    nearestMeshIntersect = intersect;
+                    break;
+                }
+                case 'Points': {
+                    if (obj.isStarPoints) {
+                        if (nearestStarPointIntersect &&
+                            nearestStarPointIntersect.distanceToRay < intersect.distanceToRay) {
                             continue;
                         }
-                        nearestMeshIntersect = intersect;
+                        // console.log('New nearest star point: ', intersect);
+                        nearestStarPointIntersect = intersect;
                     }
-                    break;
-                case 'Points':
-                    {
-                        if (obj.isStarPoints) {
-                            if (nearestStarPointIntersect &&
-                                nearestStarPointIntersect.distanceToRay < intersect.distanceToRay) {
-                                continue;
-                            }
-                            // console.log('New nearest star point: ', intersect);
-                            nearestStarPointIntersect = intersect;
+                    else {
+                        if (nearestPointIntersect &&
+                            nearestPointIntersect.distance < dist) {
+                            continue;
                         }
-                        else {
-                            if (nearestPointIntersect &&
-                                nearestPointIntersect.distance < dist) {
-                                continue;
-                            }
-                            // console.log('New nearest point: ', intersect);
-                            nearestPointIntersect = intersect;
-                        }
+                        // console.log('New nearest point: ', intersect);
+                        nearestPointIntersect = intersect;
                     }
                     break;
-                case 'Group':
-                    {
-                        // console.log('GROUP CLICKED');
-                    }
-                    break;
+                }
                 default: {
                     // console.log('Raycasting default handler for object type: ', obj.type);
                     if (nearestDefaultIntersect &&
@@ -338,21 +358,22 @@ export default class Scene {
         // console.log('Nearest object type: ', obj.isStarPoints ? '<star points>' : obj.type);
         let firstName;
         do {
-            if (obj.name || (obj.props && obj.props.name) && !firstName) {
+            if (obj.name || ((obj.props && obj.props.name) && !firstName)) {
                 firstName = obj.name || (obj.props && obj.props.name);
             }
             if (obj.onClick) {
                 obj.onClick(mouse, nearestIntersect, obj);
                 break;
             }
-            if (obj == obj.parent) {
+            if (obj === obj.parent) {
                 console.error('no clickable object found in path to root.');
                 break;
             }
-        } while (obj = obj.parent);
+        } while ((obj = obj.parent));
     }
+    /** */
     toggleAsterisms() {
-        if (this.asterisms == null) {
+        if (this.asterisms === null) {
             const asterisms = new Asterisms(this.stars, () => {
                 this.stars.add(asterisms);
                 console.log(`Asterisms count:`, asterisms.catalog.numAsterisms);
@@ -363,20 +384,27 @@ export default class Scene {
             this.asterisms.visible = !this.asterisms.visible;
         }
     }
+    /** */
     toggleOrbits() {
         Utils.visitToggleProperty(this.objects['sun'], 'name', 'orbit', 'visible');
     }
+    /** */
     togglePlanetLabels() {
         Utils.visitToggleProperty(this.objects['sun'], 'name', 'label', 'visible');
     }
+    /** */
     toggleStarLabels() {
         this.stars.labelLOD.visible = !this.stars.labelLOD.visible;
     }
+    /**
+     * @param {object} galaxyProps
+     * @returns {object}
+     */
     newGalaxy(galaxyProps) {
         const group = this.newObject(galaxyProps.name, galaxyProps, (click) => {
             // console.log('Well done, you found the galaxy!');
         });
-        this.objects[galaxyProps.name + '.orbitPosition'] = group;
+        this.objects[`${galaxyProps.name}.orbitPosition`] = group;
         return group;
     }
 }

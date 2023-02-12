@@ -1,3 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import React from 'react';
 import { AxesHelper } from 'three';
 import { Pane } from 'tweakpane';
@@ -12,17 +13,7 @@ export default function Galaxy() {
     React.useEffect(() => {
         setup({ setKeys: setKeys });
     }, []);
-    return (<>
-      <div id="ui"></div>
-      <div id="info"></div>
-      <h1>Galaxy</h1>
-      Gravity particle system.  Work in progress.
-      <div style={{ width: '50%', margin: '1em auto', align: 'center' }}>
-        <button id="step">Step</button>
-        <button id="play">Play</button>
-      </div>
-      {keys && <HelpButton keys={keys}/>}
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("div", { id: "info" }), _jsx("h1", { children: "Galaxy" }), "Gravity particle system.  Work in progress.", _jsxs("div", Object.assign({ style: { width: '50%', margin: '1em auto', align: 'center' } }, { children: [_jsx("button", Object.assign({ id: "step" }, { children: "Step" })), _jsx("button", Object.assign({ id: "play" }, { children: "Play" }))] })), keys && _jsx(HelpButton, { keys: keys })] }));
 }
 function setup({ setKeys }) {
     const uiContainer = elt('ui');

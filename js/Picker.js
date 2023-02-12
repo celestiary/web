@@ -1,11 +1,13 @@
 import {Raycaster, Vector3} from 'three'
-import {assertFinite} from './utils'
 
 
+/**
+ *
+ */
 export function queryPoints(ui, e, tree, coords, idsByNdx, pickCb) {
   const mouse = {
-    x: (e.clientX / ui.renderer.domElement.clientWidth) * 2 - 1,
-    y: (e.clientY / ui.renderer.domElement.clientHeight) * -2 + 1,
+    x: ((e.clientX / ui.renderer.domElement.clientWidth) * 2) - 1,
+    y: ((e.clientY / ui.renderer.domElement.clientHeight) * -2) + 1,
   }
   const raycaster = new Raycaster
   raycaster.setFromCamera(mouse, ui.camera)
@@ -21,6 +23,9 @@ export function queryPoints(ui, e, tree, coords, idsByNdx, pickCb) {
 }
 
 
+/**
+ *
+ */
 function mark(ui, items, mouse, stars, pickCb) {
   const itemVec = new Vector3; const mouseVec = new Vector3
   let minX = 0; let minY = 0; let minZ = 0; let minDist = Infinity; let closestNdx = 0
@@ -29,9 +34,7 @@ function mark(ui, items, mouse, stars, pickCb) {
     const ndx = items[i]
     const x = coords[ndx]; const y = coords[ndx + 1]; const z = coords[ndx + 2]
     itemVec.set(x, y, z)
-    const v1 = itemVec.clone()
     itemVec.project(ui.camera)
-    const v2 = itemVec.clone()
     mouseVec.x = mouse.x
     mouseVec.y = mouse.y
     mouseVec.z = 0
@@ -44,7 +47,9 @@ function mark(ui, items, mouse, stars, pickCb) {
     if (dist < minDist) {
       minDist = dist
       closestNdx = ndx
-      minX = x, minY = y, minZ = z
+      minX = x
+      minY = y
+      minZ = z
     }
   }
   const hipId = stars.geom.idsByNdx[closestNdx / 3]

@@ -7,18 +7,17 @@ import SpriteSheet from './SpriteSheet.js'
 import StarsBufferGeometry from './StarsBufferGeometry.js'
 import StarsCatalog, {FAVES} from './StarsCatalog.js'
 import * as Material from './material.js'
-import * as Shapes from './shapes.js'
-import {STARS_SCALE, labelTextColor, FAR_OBJ} from './shared.js'
-import {debug} from './log.js'
+import {FAR_OBJ} from './shared.js'
 import {named} from './utils.js'
 
 
 // > 10k is too much for my old laptop.
 const MAX_LABELS = 10000
 
-
+/** */
 export default class Stars extends Object {
-  constructor(props, catalogOrCb, showLabels = false, pointsLoadedCb, faves = FAVES) {
+  /** */
+  constructor(props, catalogOrCb, pointsLoadedCb, showLabels = false, faves = FAVES) {
     super('Stars', props)
     this.labelsGroup = named(new THREE.Group, 'LabelsGroup')
     this.pointsLoadedCb = pointsLoadedCb
@@ -48,7 +47,7 @@ export default class Stars extends Object {
       this.catalog = new StarsCatalog()
       this.catalog.load(() => {
         this.show()
-        if (typeof catalogOrCb == 'function') {
+        if (typeof catalogOrCb === 'function') {
           const cb = catalogOrCb
           cb()
         }
@@ -60,6 +59,7 @@ export default class Stars extends Object {
   }
 
 
+  /** */
   show() {
     this.geom = new StarsBufferGeometry(this.catalog)
     const starImage = Material.pathTexture('star_glow', '.png')
@@ -93,6 +93,7 @@ export default class Stars extends Object {
   }
 
 
+  /** */
   showLabels(level = 2) {
     const toShow = []
     this.addFaves(toShow)
@@ -105,10 +106,10 @@ export default class Stars extends Object {
       if (names && names.length > level) {
         toShow.push([star, names[0]])
       } else if (star.absMag < -5) {
-        toShow.push([star, 'HIP ' + hipId])
+        toShow.push([star, `HIP ${ hipId}`])
       }
       if (toShow.length >= MAX_LABELS) {
-        console.warn('Stars#showLabels: hit max count of ' + MAX_LABELS)
+        console.warn(`Stars#showLabels: hit max count of ${ MAX_LABELS}`)
         break
       }
     }
@@ -121,6 +122,7 @@ export default class Stars extends Object {
   }
 
 
+  /** */
   showStarName(star, name) {
     const scale = this.catalog.starScale
     const x = scale * star.x
@@ -132,8 +134,12 @@ export default class Stars extends Object {
   }
 
 
+  /** */
   addFaves(toShow) {
     for (const hipId in this.faves) {
+      if (!Object.prototype.hasOwnProperty.call(hipId, this.faves)) {
+        continue
+      }
       const star = this.catalog.starsByHip[hipId]
       if (star) {
         toShow.push([star, this.faves[hipId]])

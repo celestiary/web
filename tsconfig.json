@@ -1,11 +1,18 @@
 {
   "extends": "@tsconfig/recommended/tsconfig.json",
   "include": [
-    "./js/**/*",
+    "./js/utils.js",
+    "./js/shared.js",
+    "./js/StarsCatalog.js",
     "index.d.ts",
   ],
   "compilerOptions": {
+    "incremental": true, /* Save .tsbuildinfo files to allow for incremental compilation */
     "outDir": "./built",
-    "jsx": "preserve",
+    "allowJs": true,
+    "checkJs": true,
+    "module": "es6",
+    "jsx": "react-jsx",
+    "pretty": false,
   },
 }

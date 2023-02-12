@@ -30,12 +30,19 @@ export default function CustomRaycaster(origin, direction, near, far) {
         },
     });
 }
+/**
+ * @returns {number}
+ */
 function ascSort(a, b) {
     return a.distanceToRay - b.distanceToRay;
 }
+/**
+ *
+ */
 function intersectObject(object, raycaster, intersects, recursive) {
-    if (object.visible === false)
+    if (object.visible === false) {
         return;
+    }
     object.raycast(raycaster, intersects);
     if (recursive === true) {
         const children = object.children;
@@ -56,7 +63,8 @@ Object.assign(CustomRaycaster.prototype, {
             this.ray.direction.set(coords.x, coords.y, 0.5).unproject(camera).sub(this.ray.origin).normalize();
         }
         else if ((camera && camera.isOrthographicCamera)) {
-            this.ray.origin.set(coords.x, coords.y, (camera.near + camera.far) / (camera.near - camera.far)).unproject(camera); // set origin in plane of camera
+            this.ray.origin.set(coords.x, coords.y, (camera.near + camera.far) /
+                (camera.near - camera.far)).unproject(camera); // set origin in plane of camera
             this.ray.direction.set(0, 0, -1).transformDirection(camera.matrixWorld);
         }
         else {

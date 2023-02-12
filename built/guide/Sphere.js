@@ -1,3 +1,4 @@
+import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
 import React from 'react';
 import { Mesh, MeshBasicMaterial, PointLight, SphereGeometry } from 'three';
 import ThreeUi from '../ThreeUI.js';
@@ -5,11 +6,7 @@ export default function Cube() {
     React.useEffect(() => {
         setup();
     }, []);
-    return (<>
-      <div id="ui"></div>
-      <h1>A Sphere</h1>
-      Or is it a fully operational battlestation?!
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "A Sphere" }), "Or is it a fully operational battlestation?!"] }));
 }
 function setup() {
     const ui = new ThreeUi('ui');

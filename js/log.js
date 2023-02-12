@@ -1,23 +1,22 @@
+/**
+ *
+ */
 function log(tag, ...msgs) {
-  const log = console.log
   msgs.splice(0, 0, tag)
-  log.apply(null, msgs)
+  console.log.apply(null, msgs)
 }
 
 
-function debug(tag, ...msgs) {
-  if (true) {
-    log(tag, msgs)
-  }
+/**
+ *
+ */
+export function debug(tag, ...msgs) {
+  log(tag, msgs)
 }
 
-function info(tag, ...msgs) {
-  if (true) {
-    log(tag, msgs)
-  }
-}
-
-export {
-  debug,
-  info,
+/**
+ *
+ */
+export function info(tag, ...msgs) {
+  log(tag, msgs)
 }

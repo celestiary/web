@@ -2,16 +2,19 @@
  * Modifies the DOM tree rooted at {@param elt} to make the
  * given {@param tagTypes} interactively collapsable/expandable.
  */
-function makeCollapsable(elt, tagTypes) {
+export function makeCollapsable(elt, tagTypes) {
   tagTypes = tagTypes || ['UL', 'OL']
-  if (elt.nodeType != 1) { // i.e. DOM Element
+  if (elt.nodeType !== 1) { // i.e. DOM Element
     return
   }
   const copyOfChildNodes = []
-  for (const cndx in elt.childNodes) {
-    copyOfChildNodes.push(elt.childNodes[cndx])
+  const children = elt.childNodes
+  for (const cndx in children) {
+    if (Object.prototype.hasOwnProperty.call(cndx, children)) {
+      copyOfChildNodes.push(children[cndx])
+    }
   }
-  if (tagTypes.indexOf(elt.nodeName) != -1) {
+  if (tagTypes.indexOf(elt.nodeName) !== -1) {
     const toggleCtrl = document.createElement('button')
     toggleCtrl.setAttribute('class', 'collapsor')
     toggleCtrl.onclick = (e) => {
@@ -22,15 +25,19 @@ function makeCollapsable(elt, tagTypes) {
     elt.parentNode.insertBefore(toggleCtrl, elt)
   }
   for (const cndx in copyOfChildNodes) {
-    makeCollapsable(copyOfChildNodes[cndx], tagTypes)
+    if (Object.prototype.hasOwnProperty.call(cndx, copyOfChildNodes)) {
+      makeCollapsable(copyOfChildNodes[cndx], tagTypes)
+    }
   }
 }
 
 
 /**
  * The click handler attached to collapsable nodes.
+ *
+ * @returns {boolean}
  */
-function collapse(ctrl) {
+export function collapse(ctrl) {
   const target = ctrl.nextSibling
   if (eltClass(target, 'check', 'collapsed')) {
     eltClass(target, 'remove', 'collapsed')
@@ -47,38 +54,40 @@ function collapse(ctrl) {
  * Utility to 'check', 'add' or 'remove' a className attribute
  * for a given node.  If the action is 'check', true is returned
  * if the node has the class, or false otherwise.
+ *
+ * @returns {boolean}
  */
 function eltClass(elt, action, className) {
   const classNames = elt.className.split(/ +/)
-  if (action == 'check') {
-    for (var i in classNames) {
-      if (classNames[i] == className) {
-        return true
+  if (action === 'check') {
+    for (const i in classNames) {
+      if (Object.prototype.hasOwnProperty.call(i, classNames)) {
+        if (classNames[i] === className) {
+          return true
+        }
       }
     }
     return false
-  } else if (action == 'add') {
-    for (var i in classNames) {
-      if (classNames[i] == className) {
-        return true
+  } else if (action === 'add') {
+    for (const i in classNames) {
+      if (Object.prototype.hasOwnProperty.call(i, classNames)) {
+        if (classNames[i] === className) {
+          return true
+        }
       }
     }
-    elt.className += ' ' + className
-  } else if (action == 'remove') {
+    elt.className += ` ${ className}`
+  } else if (action === 'remove') {
     let newClassNames = ''
-    for (var i in classNames) {
-      if (classNames[i] == className) {
-        continue
+    for (const i in classNames) {
+      if (Object.prototype.hasOwnProperty.call(i, classNames)) {
+        if (classNames[i] === className) {
+          continue
+        }
+        newClassNames += ` ${ classNames[i]}`
       }
-      newClassNames += ' ' + classNames[i]
     }
     elt.className = newClassNames
   }
   return true
-}
-
-
-export {
-  makeCollapsable,
-  collapse,
 }

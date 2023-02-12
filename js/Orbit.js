@@ -1,15 +1,13 @@
 import {
   Object3D,
-  Vector3,
 } from 'three'
-
-import * as Shapes from './shapes.js'
 import {toRad} from './shared.js'
 import {named} from './utils.js'
-import {addAndOrient} from './scene_utils.js'
 
 
+/** */
 export default class Orbit extends Object3D {
+  /** @param {object} props */
   constructor(props) {
     super()
     /** The passed props. */
@@ -27,6 +25,7 @@ export default class Orbit extends Object3D {
   }
 
 
+  /** @param {object} orbit */
   init(orbit) {
     const referencePlane = addFrame(this, 'referencePlane')
     referencePlane.rotation.x = -Math.PI / 2 // Flat on XZ
@@ -50,12 +49,18 @@ export default class Orbit extends Object3D {
   }
 
 
+  /** @param {object} obj */
   addOrbiter(obj) {
     this.orbiterCenter.add(obj)
   }
 }
 
 
+/**
+ * @param {Object3D} parent
+ * @param {string} name
+ * @returns {Object3D}
+ */
 function addFrame(parent, name) {
   const frame = named(new Object3D(), name)
   parent.add(frame)

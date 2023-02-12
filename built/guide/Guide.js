@@ -1,3 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import React from 'react';
 import { Routes, Route, Link, Outlet, useLocation } from 'react-router-dom';
 import Angles from './Angles';
@@ -28,103 +29,10 @@ export default function Guide() {
     React.useEffect(() => {
         setTitleFromLocation(location, 'Guide');
     }, [location]);
-    return (<>
-      <table id="nav">
-        <tbody>
-          <tr>
-            <td style={{
-            width: '15%',
-            overflowY: scroll,
-            verticalAlign: 'top',
-            padding: '0 1em',
-        }}>
-              <h1>Guide</h1>
-              <p><Link to="/">← Back</Link></p>
-              <ol>
-                <li><Link to="">Welcome</Link></li>
-                <li>Data
-                  <ol>
-                    <li><Link to="loader">Loader</Link></li>
-                    <li><Link to="measure">Measure</Link></li>
-                  </ol>
-                </li>
-                <li>Scene Objects
-                  <ol>
-                    <li>Basic Shapes
-                      <ul>
-                        <li><Link to="cube">Cube</Link></li>
-                        <li><Link to="sphere">Sphere</Link></li>
-                      </ul>
-                    </li>
-                  </ol>
-                </li>
-                <li>Decorators
-                  <ul>
-                    <li><Link to="grid">Grid</Link></li>
-                    <li><Link to="labels">Labels</Link></li>
-                    <li><Link to="angles">Angles</Link></li>
-                  </ul>
-                </li>
-                <li>Interaction
-                  <ul><li><Link to="picking">Picking</Link></li></ul>
-                </li>
-                <li>Celestial Bodies
-                  <ul>
-                    <li><Link to="stars">Stars</Link></li>
-                    <li><Link to="star">Star</Link></li>
-                    <li><Link to="asterisms">Asterisms</Link></li>
-                    <li><Link to="planet">Planet</Link></li>
-                  </ul>
-                </li>
-                <li><Link to="atmosphere">Atmosphere</Link></li>
-                <li>Celestial Mechanics
-                  <ul>
-                    <li><Link to="orbit">Orbit</Link></li>
-                    <li><Link to="galaxy">Gravity (galaxy)</Link></li>
-                    {/* <li><Link to="saturn-earth">Saturn-Earth demo</Link></li>*/}
-                  </ul>
-                </li>
-                <li>Fun
-                  <ul>
-                    <li><Link to="saturn-earth">Earth, Saturn's moon</Link></li>
-                  </ul>
-                </li>
-                {/* <li>Earth:
-    <ul>
-      <li><Link to="map">Map</Link></li>
-      <li><Link to="sphere-map">Sphere map</Link></li>
-      <li><Link to="wind">Wind map</Link></li>
-    </ul>
-    </li>*/}
-              </ol>
-            </td>
-            <td>
-              <Outlet />
-              <Routes>
-                <Route index element={<Welcome />}/>
-                <Route path="angles" element={<Angles />}/>
-                <Route path="atmosphere" element={<Atmosphere />}/>
-                <Route path="cube" element={<Cube />}/>
-                <Route path="galaxy" element={<Galaxy />}/>
-                <Route path="grid" element={<Grid />}/>
-                <Route path="labels" element={<Labels />}/>
-                <Route path="loader" element={<Loader />}/>
-                <Route path="measure" element={<Measure />}/>
-                <Route path="orbit" element={<Orbit />}/>
-                <Route path="picking" element={<Picking />}/>
-                <Route path="saturn-earth" element={<SaturnEarth />}/>
-                <Route path="stars" element={<Stars />}/>
-                <Route path="star" element={<Star />}/>
-                <Route path="asterisms" element={<Asterisms />}/>
-                <Route path="planet" element={<Planet />}/>
-                {/*
-  <Route path="map" element={ <Map/> }/>
-  <Route path="sphere-map" element={ <SphereMap/> }/>
-  <Route path="wind" element={ <Wind/> }/>*/}
-              </Routes>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </>);
+    return (_jsx(_Fragment, { children: _jsx("table", Object.assign({ id: "nav" }, { children: _jsx("tbody", { children: _jsxs("tr", { children: [_jsxs("td", Object.assign({ style: {
+                                width: '15%',
+                                overflowY: scroll,
+                                verticalAlign: 'top',
+                                padding: '0 1em',
+                            } }, { children: [_jsx("h1", { children: "Guide" }), _jsx("p", { children: _jsx(Link, Object.assign({ to: "/" }, { children: "\u2190 Back" })) }), _jsxs("ol", { children: [_jsx("li", { children: _jsx(Link, Object.assign({ to: "" }, { children: "Welcome" })) }), _jsxs("li", { children: ["Data", _jsxs("ol", { children: [_jsx("li", { children: _jsx(Link, Object.assign({ to: "loader" }, { children: "Loader" })) }), _jsx("li", { children: _jsx(Link, Object.assign({ to: "measure" }, { children: "Measure" })) })] })] }), _jsxs("li", { children: ["Scene Objects", _jsx("ol", { children: _jsxs("li", { children: ["Basic Shapes", _jsxs("ul", { children: [_jsx("li", { children: _jsx(Link, Object.assign({ to: "cube" }, { children: "Cube" })) }), _jsx("li", { children: _jsx(Link, Object.assign({ to: "sphere" }, { children: "Sphere" })) })] })] }) })] }), _jsxs("li", { children: ["Decorators", _jsxs("ul", { children: [_jsx("li", { children: _jsx(Link, Object.assign({ to: "grid" }, { children: "Grid" })) }), _jsx("li", { children: _jsx(Link, Object.assign({ to: "labels" }, { children: "Labels" })) }), _jsx("li", { children: _jsx(Link, Object.assign({ to: "angles" }, { children: "Angles" })) })] })] }), _jsxs("li", { children: ["Interaction", _jsx("ul", { children: _jsx("li", { children: _jsx(Link, Object.assign({ to: "picking" }, { children: "Picking" })) }) })] }), _jsxs("li", { children: ["Celestial Bodies", _jsxs("ul", { children: [_jsx("li", { children: _jsx(Link, Object.assign({ to: "stars" }, { children: "Stars" })) }), _jsx("li", { children: _jsx(Link, Object.assign({ to: "star" }, { children: "Star" })) }), _jsx("li", { children: _jsx(Link, Object.assign({ to: "asterisms" }, { children: "Asterisms" })) }), _jsx("li", { children: _jsx(Link, Object.assign({ to: "planet" }, { children: "Planet" })) })] })] }), _jsx("li", { children: _jsx(Link, Object.assign({ to: "atmosphere" }, { children: "Atmosphere" })) }), _jsxs("li", { children: ["Celestial Mechanics", _jsxs("ul", { children: [_jsx("li", { children: _jsx(Link, Object.assign({ to: "orbit" }, { children: "Orbit" })) }), _jsx("li", { children: _jsx(Link, Object.assign({ to: "galaxy" }, { children: "Gravity (galaxy)" })) })] })] }), _jsxs("li", { children: ["Fun", _jsx("ul", { children: _jsx("li", { children: _jsx(Link, Object.assign({ to: "saturn-earth" }, { children: "Earth, Saturn's moon" })) }) })] })] })] })), _jsxs("td", { children: [_jsx(Outlet, {}), _jsxs(Routes, { children: [_jsx(Route, { index: true, element: _jsx(Welcome, {}) }), _jsx(Route, { path: "angles", element: _jsx(Angles, {}) }), _jsx(Route, { path: "atmosphere", element: _jsx(Atmosphere, {}) }), _jsx(Route, { path: "cube", element: _jsx(Cube, {}) }), _jsx(Route, { path: "galaxy", element: _jsx(Galaxy, {}) }), _jsx(Route, { path: "grid", element: _jsx(Grid, {}) }), _jsx(Route, { path: "labels", element: _jsx(Labels, {}) }), _jsx(Route, { path: "loader", element: _jsx(Loader, {}) }), _jsx(Route, { path: "measure", element: _jsx(Measure, {}) }), _jsx(Route, { path: "orbit", element: _jsx(Orbit, {}) }), _jsx(Route, { path: "picking", element: _jsx(Picking, {}) }), _jsx(Route, { path: "saturn-earth", element: _jsx(SaturnEarth, {}) }), _jsx(Route, { path: "stars", element: _jsx(Stars, {}) }), _jsx(Route, { path: "star", element: _jsx(Star, {}) }), _jsx(Route, { path: "asterisms", element: _jsx(Asterisms, {}) }), _jsx(Route, { path: "planet", element: _jsx(Planet, {}) })] })] })] }) }) })) }));
 }

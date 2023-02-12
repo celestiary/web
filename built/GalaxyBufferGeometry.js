@@ -1,5 +1,7 @@
 import { Float32BufferAttribute, BufferGeometry } from 'three';
+/** */
 export default class GalaxyBufferGeometry extends BufferGeometry {
+    /** @param {number} numStars */
     constructor(numStars) {
         super();
         const coords = new Float32Array(numStars * 3);

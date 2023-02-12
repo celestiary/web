@@ -1,12 +1,6 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const react_1 = __importDefault(require("react"));
-const react_dom_1 = require("react-dom");
-const react_router_dom_1 = require("react-router-dom");
-const Routed_1 = __importDefault(require("./Routed"));
-(0, react_dom_1.render)(<react_router_dom_1.BrowserRouter>
-      <Routed_1.default />
-    </react_router_dom_1.BrowserRouter>, document.getElementById('root'));
+import { jsx as _jsx } from "react/jsx-runtime";
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import Routed from './Routed';
+const root = createRoot(document.getElementById('root'));
+root.render(_jsx(BrowserRouter, { children: _jsx(Routed, {}) }));

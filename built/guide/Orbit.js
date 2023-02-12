@@ -1,3 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import React from 'react';
 import { AmbientLight, Vector3 } from 'three';
 import Label from '../label.js';
@@ -11,29 +12,7 @@ export default function Orbit() {
     React.useEffect(() => {
         setup();
     }, []);
-    return (<>
-      <div id="ui"></div>
-      <h1>Orbit</h1>
-      <p>An example orbit.
-        <a href="https://en.wikipedia.org/wiki/Orbital_elements">https://en.wikipedia.org/wiki/Orbital_elements</a>
-        <img src="/images/Orbit1.png" style={{ width: '400px' }} alt="By Lasunncty at the English Wikipedia, CC BY-SA 3.0, https://commons.wikimedia.org/w/index.php?curid=8971052"/>
-      </p>
-      <table style={{ width: '20%', verticalAlign: 'top' }}>
-        <tbody>
-          <tr>
-            <td>
-              <table id="faves"></table>
-            </td>
-            <td style={{ width: '80%' }}>
-              <form name="elts">
-                <table id="propsTable"></table>
-              </form>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <em style={{ fontSize: 'small' }}>(<a href="#test">emulate image above</a> and refresh)</em>
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "Orbit" }), _jsxs("p", { children: ["An example orbit.", _jsx("a", Object.assign({ href: "https://en.wikipedia.org/wiki/Orbital_elements" }, { children: "https://en.wikipedia.org/wiki/Orbital_elements" })), _jsx("img", { src: "/images/Orbit1.png", style: { width: '400px' }, alt: "By Lasunncty at the English Wikipedia, CC BY-SA 3.0, https://commons.wikimedia.org/w/index.php?curid=8971052" })] }), _jsx("table", Object.assign({ style: { width: '20%', verticalAlign: 'top' } }, { children: _jsx("tbody", { children: _jsxs("tr", { children: [_jsx("td", { children: _jsx("table", { id: "faves" }) }), _jsx("td", Object.assign({ style: { width: '80%' } }, { children: _jsx("form", Object.assign({ name: "elts" }, { children: _jsx("table", { id: "propsTable" }) })) }))] }) }) })), _jsxs("em", Object.assign({ style: { fontSize: 'small' } }, { children: ["(", _jsx("a", Object.assign({ href: "#test" }, { children: "emulate image above" })), " and refresh)"] }))] }));
 }
 function setup() {
     const ui = new ThreeUi('ui');

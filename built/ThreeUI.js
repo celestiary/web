@@ -3,12 +3,16 @@ import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js';
 import * as Shared from './shared.js';
 import { named } from './utils.js';
+/**
+ */
 export default class ThreeUi {
+    /**
+     */
     constructor(container, animationCb, backgroundColor, renderer) {
-        if (typeof container == 'string') {
+        if (typeof container === 'string') {
             this.container = document.getElementById(container);
         }
-        else if (typeof container == 'object') {
+        else if (typeof container === 'object') {
             this.container = container;
         }
         else {
@@ -56,9 +60,14 @@ export default class ThreeUi {
             this.renderLoop();
         });
     }
+    /**
+     */
     addClickCb(clickCb) {
         this.clickCbs.push(clickCb);
     }
+    /**
+     * @returns {THREE.Renderer}
+     */
     initRenderer(container, backgroundColor) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('webgl2');
@@ -81,6 +90,8 @@ export default class ThreeUi {
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         return renderer;
     }
+    /**
+     */
     initControls(camera) {
         const controls = new TrackballControls(camera, this.threeContainer);
         // Rotation speed is changed in scene.js depending on target
@@ -95,6 +106,8 @@ export default class ThreeUi {
         controls.target = camera.platform.position;
         this.controls = controls;
     }
+    /**
+     */
     onResize() {
         // https://threejsfundamentals.org/threejs/lessons/threejs-responsive.html
         let width;
@@ -114,10 +127,14 @@ export default class ThreeUi {
         this.controls.handleResize();
         // console.log(`onResize: ${width} x ${height}`);
     }
+    /**
+     */
     setFov(fov) {
         this.camera.fov = fov;
         this.camera.updateProjectionMatrix();
     }
+    /**
+     */
     multFov(factor) {
         // TODO(pablo): narrowing very far leads to overflow in the float
         // values, such that zooming out cannot return exactly to 45
@@ -128,18 +145,26 @@ export default class ThreeUi {
         }
         this.setFov(newFov);
     }
+    /**
+     */
     resetFov() {
         this.setFov(Shared.INITIAL_FOV);
     }
+    /**
+     */
     setAnimation(animationCb) {
         this.animationCb = animationCb;
     }
+    /**
+     */
     renderLoop() {
         this.camera.updateMatrixWorld();
         if (this.clicked) {
             for (const i in this.clickCbs) {
-                const clickCb = this.clickCbs[i];
-                clickCb(this.mouse);
+                if (Object.prototype.hasOwnProperty.call(i, this.clickCbs)) {
+                    const clickCb = this.clickCbs[i];
+                    clickCb(this.mouse);
+                }
             }
             this.clicked = false;
         }

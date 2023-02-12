@@ -1,6 +1,12 @@
+/**
+ *
+ */
 export default function getAtmosShaderFromParams(atmos) {
     return getAtmosShader(atmos.GroundElevation / 1000, atmos.AtmosphereHeight / 1000, atmos.RayleighRed, atmos.RayleighGreen, atmos.RayleighBlue, atmos.MieScatteringCoeff, undefined, atmos.MiePolarity);
 }
+/**
+ *
+ */
 function getAtmosShader(elevation = 6360, atmosHeight = 60, RayleighRed = 0.005802, RayleighGreen = 0.013558, RayleighBlue = 0.033100, MieCoeff = 0.003996, MieExtinction = 0.004444, MiePolarity = 0.8) {
     const header = `#version 330
 

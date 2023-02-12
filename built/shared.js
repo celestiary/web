@@ -6,9 +6,9 @@ import { named } from './utils.js';
 // that three/webgl supports is 1E-4.  So rounding Deimos down to 1E3,
 // and then dividing it down to the smallest size.
 // Deimos size in meters.
-const SMALLEST_REAL_SIZE = 1E3;
+// const SMALLEST_REAL_SIZE = 1E3
 // Smallest renderable size.
-const SMALLEST_RENDER_SIZE = 1E-4;
+// const SMALLEST_RENDER_SIZE = 1E-4
 export const FAR_OBJ = named(new Object3D, 'LODFarObj'); // for invisible LOD.
 export const twoPi = Math.PI * 2.0;
 export const halfPi = Math.PI / 2.0;

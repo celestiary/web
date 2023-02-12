@@ -1,3 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import React from 'react';
 import { AmbientLight, AxesHelper, Object3D, PointLight, } from 'three';
 import ThreeUi from '../ThreeUI.js';
@@ -10,17 +11,7 @@ export default function SaturnEarth() {
     React.useEffect(() => {
         setup();
     }, []);
-    return (<>
-      <div id="ui"></div>
-      <h1>A Saturn-Earth Orbital System</h1>
-
-      <p>If the Earth orbited Saturn at the same distance that the Moon orbits
-      Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?</p>
-
-      <p>This question was inspired by a friend commenting on the FB photo <a href="https://www.facebook.com/fxsoyris/posts/4859941050713774">shared</a> by François Xavier Soyris, Jan 19 2021.</p>
-
-      <img src="/guide/saturn-earth-fb-photo.jpg" width="400"/>
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "A Saturn-Earth Orbital System" }), _jsx("p", { children: "If the Earth orbited Saturn at the same distance that the Moon orbits Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?" }), _jsxs("p", { children: ["This question was inspired by a friend commenting on the FB photo ", _jsx("a", Object.assign({ href: "https://www.facebook.com/fxsoyris/posts/4859941050713774" }, { children: "shared" })), " by Fran\u00E7ois Xavier Soyris, Jan 19 2021."] }), _jsx("img", { src: "/guide/saturn-earth-fb-photo.jpg", width: "400" })] }));
 }
 function setup() {
     // Bind the ThreeUi to the "ui" HTML page element.

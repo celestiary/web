@@ -1,7 +1,9 @@
 import { Object3D, } from 'three';
 import { toRad } from './shared.js';
 import { named } from './utils.js';
+/** */
 export default class Orbit extends Object3D {
+    /** @param {object} props */
     constructor(props) {
         super();
         /** The passed props. */
@@ -17,6 +19,7 @@ export default class Orbit extends Object3D {
         };
         this.init(this.propsReified);
     }
+    /** @param {object} orbit */
     init(orbit) {
         const referencePlane = addFrame(this, 'referencePlane');
         referencePlane.rotation.x = -Math.PI / 2; // Flat on XZ
@@ -34,10 +37,16 @@ export default class Orbit extends Object3D {
         */
         this.orbiterCenter = periPlane;
     }
+    /** @param {object} obj */
     addOrbiter(obj) {
         this.orbiterCenter.add(obj);
     }
 }
+/**
+ * @param {Object3D} parent
+ * @param {string} name
+ * @returns {Object3D}
+ */
 function addFrame(parent, name) {
     const frame = named(new Object3D(), name);
     parent.add(frame);

@@ -1,23 +1,35 @@
 import {
   AdditiveBlending,
   LineBasicMaterial,
+  Material,
   MeshPhongMaterial,
+  Texture,
   TextureLoader,
 } from 'three'
 
+
 const loader = new TextureLoader()
 
-function loadTexture(texPath) {
+/**
+ * @returns {Texture}
+ */
+export function loadTexture(texPath) {
   return loader.load(texPath)
 }
 
-function pathTexture(filebase, ext) {
+/**
+ * @returns {Texture}
+ */
+export function pathTexture(filebase, ext) {
   ext = ext || '.jpg'
-  return loadTexture('/textures/' + filebase + ext)
+  return loadTexture(`/textures/${ filebase }${ext}`)
 }
 
 const materials = []
-function cacheMaterial(name, ext) {
+/**
+ * @returns {Material}
+ */
+export function cacheMaterial(name, ext) {
   let m = materials[name]
   if (!m) {
     materials[name] = m = new MeshPhongMaterial({
@@ -27,7 +39,10 @@ function cacheMaterial(name, ext) {
   return m
 }
 
-function lineMaterial(params, name) {
+/**
+ * @returns {Material}
+ */
+export function lineMaterial(params, name) {
   params = params || {}
   params.color = params.color || 0xff0000
   params.linewidth = params.lineWidth || 1
@@ -41,10 +56,4 @@ function lineMaterial(params, name) {
       transparent: false})
   }
   return m
-}
-
-export {
-  lineMaterial,
-  pathTexture,
-  cacheMaterial,
 }

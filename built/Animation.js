@@ -1,17 +1,21 @@
 import { Vector3 } from 'three';
 import * as Shared from './shared.js';
 // TODO: move this to scene.
+/** */
 export default class Animation {
+    /** @param {object} time */
     constructor(time) {
         this.time = time;
         this.Y_AXIS = new Vector3(0, 1, 0);
     }
+    /** @param {object} scene */
     animate(scene) {
         this.time.updateTime();
         this.animateSystem(scene, this.time.simTime / 1000);
     }
     /**
      * Recursive animation of orbits and rotations at the current time.
+     *
      * @param {!Object3D} system
      */
     animateSystem(system, simTimeSecs) {
@@ -26,7 +30,7 @@ export default class Animation {
             //   http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
             //
             // and also would also need them for the other planets.
-            const angle = 1.5 * Math.PI + simTimeSecs / 86400 * Shared.twoPi;
+            const angle = (1.5 * Math.PI) + ((simTimeSecs / 86400) * Shared.twoPi);
             system.setRotationFromAxisAngle(this.Y_AXIS, angle);
         }
         // This is referred to by a comment in scene.js#addOrbitingPlanet.
@@ -46,6 +50,9 @@ export default class Animation {
             }
         }
         for (const ndx in system.children) {
+            if (!Object.prototype.hasOwnProperty.call(ndx, system.children)) {
+                continue;
+            }
             const child = system.children[ndx];
             this.animateSystem(child, simTimeSecs);
         }

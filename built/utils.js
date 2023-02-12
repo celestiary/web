@@ -1,11 +1,13 @@
-// JS
+/**
+ * @param {any} x
+ */
 export function assertNotNullOrUndefined(x) {
     try {
-        if (x == null) {
-            throw 'Variable may not be null';
+        if (x === null) {
+            throw new Error('Variable may not be null');
         }
-        if (x == undefined) {
-            throw 'Variable may not be undefined';
+        if (x === undefined) {
+            throw new Error('Variable may not be undefined');
         }
     }
     catch (e) {
@@ -13,18 +15,22 @@ export function assertNotNullOrUndefined(x) {
         throw e;
     }
 }
+/**
+ * @param {Array.<any>} args
+ * @param {number} length
+ */
 export function assertArgs(args, length) {
     let i;
     try {
-        if (args.length != length) {
-            throw `Wrong argument count; expected ${length} got ${args.length}`;
+        if (args.length !== length) {
+            throw new Error(`Wrong argument count; expected ${length} got ${args.length}`);
         }
         for (i = 0; i < args.length; i++) {
             assertNotNullOrUndefined(args[i]);
         }
     }
     catch (e) {
-        if (i == undefined) {
+        if (i === undefined) {
             console.error(e);
         }
         else {
@@ -33,6 +39,10 @@ export function assertArgs(args, length) {
         throw e;
     }
 }
+/**
+ * @param {number} x
+ * @returns {number} x
+ */
 export function assertFinite(x) {
     if (!Number.isFinite(x)) {
         throw new Error('Number not finite');
@@ -41,52 +51,83 @@ export function assertFinite(x) {
 }
 /**
  * Recursively visit child members of {@param elt}'s "children" property.
- * @param cb1 The pre-order callback.  Called with the current element.
- * @param cb2 The in-order callback.  Called with the parent and current element.
- * @param cb3 The post-order callback.  Called with the current element.
- * @param level is incremented on the way down recursivey and probably
+ *
+ * @param {Element} elt Element to visit.
+ * @param {Function} cb1 The pre-order callback.  Called with the current element.
+ * @param {Function} [cb2] The in-order callback.  Called with the parent and current element.
+ * @param {Function} [cb3] The post-order callback.  Called with the current element.
+ * @param {number} [level] is incremented on the way down recursivey and probably
  * should not be set by caller, but will be passed to the callbacks to
  * allow indent formatting.
  */
-export function visit(elt, cb1, cb2, cb3, level) {
-    level = level || 1;
-    if (cb1) {
-        cb1(elt, level);
+export function visit(elt, cb1, cb2, cb3, level = 1) {
+    if (!cb1) {
+        throw new Error('cb1 required');
     }
+    cb1(elt, level);
     if (elt.children) {
-        for (const ndx in elt.children) {
-            const child = elt.children[ndx];
+        Array.from(elt.children).forEach((child) => {
             if (cb2) {
                 cb2(elt, child, level);
             }
             visit(child, cb1, cb2, cb3, level + 1);
-        }
+        });
     }
     if (cb3) {
         cb3(elt, level);
     }
 }
-/** Preorder visit. */
+/**
+ * Preorder visit.
+ *
+ * @param {Element} elt Element to visit.
+ * @param {string} propName
+ * @param {object} propValue
+ * @param {Function} cb
+ */
 export function visitFilterProperty(elt, propName, propValue, cb) {
-    visit(elt, (child) => {
-        if (child.hasOwnProperty(propName) && child[propName] == propValue) {
+    visit(elt, 
+    /**
+     * @param {Object<string, any>} child
+     */
+    (child) => {
+        if (child[propName] === propValue) {
             cb(child);
         }
     });
 }
-/** Preorder visit. */
+/**
+ * Preorder visit.
+ *
+ * @param {Element} elt Element to visit.
+ * @param {string} filterPropName
+ * @param {object} filterPropValue
+ * @param {string} togglePropName
+ */
 export function visitToggleProperty(elt, filterPropName, filterPropValue, togglePropName) {
-    visitFilterProperty(elt, filterPropName, filterPropValue, (child) => {
-        if (!(child.hasOwnProperty(togglePropName) && typeof child[togglePropName] == 'boolean')) {
-            throw new Error(`Found child invalid toggle property(${togglePropName}):`, child);
+    visitFilterProperty(elt, filterPropName, filterPropValue, 
+    /**
+     * @param {Object<string, any>} child
+     */
+    (child) => {
+        if (typeof child[togglePropName] === 'boolean') {
+            throw new Error(`Found child invalid toggle property(${togglePropName}): ${child}`);
         }
         child[togglePropName] = !child[togglePropName];
     });
 }
+/**
+ * @param {string} text
+ * @returns {string}
+ */
 export function capitalize(text) {
     return text.charAt(0).toUpperCase() + text.substring(1);
 }
 // https://stackoverflow.com/questions/8609289/convert-a-binary-nodejs-buffer-to-javascript-arraybuffer
+/**
+ * @param {Uint8Array} buf
+ * @returns {ArrayBuffer}
+ */
 export function toArrayBuffer(buf) {
     const ab = new ArrayBuffer(buf.length);
     const view = new Uint8Array(ab);
@@ -96,18 +137,39 @@ export function toArrayBuffer(buf) {
     return ab;
 }
 // DOM
+/**
+ * @param {string} id
+ * @returns {HTMLElement|null}
+ */
 export const elt = (id) => {
     return document.getElementById(id);
 };
+/**
+ * @param {string} tagName
+ * @param {string} inner
+ * @returns {Element}
+ */
 export const newElt = (tagName, inner) => {
-    const elt = document.createElement(tagName);
-    elt.innerHTML = inner;
-    return elt;
+    const e = document.createElement(tagName);
+    e.innerHTML = inner;
+    return e;
 };
+/**
+ * @param {string} id
+ */
 export const remove = (id) => {
-    const elt = elt(id);
-    elt.parentNode.removeChild(elt);
+    const e = elt(id);
+    if (e && e.parentNode) {
+        e.parentNode.removeChild(e);
+    }
+    else {
+        console.warn('Cannot remove element', e);
+    }
 };
+/**
+ * @param {Object<string,any>} location
+ * @param {string} prefix
+ */
 export function setTitleFromLocation(location, prefix) {
     let path = location.pathname.length > 1 ? location.pathname : location.hash;
     if (path.startsWith('#')) {
@@ -116,12 +178,21 @@ export function setTitleFromLocation(location, prefix) {
     const parts = path.split('/');
     document.title = capitalize(parts[parts.length - 1]);
 }
+/**
+ * @returns {Element}
+ */
 export function createCanvas() {
     const canvas = document.createElement('canvas');
-    canvas.style = 'border: solid 1px red; display: none';
+    canvas.setAttribute('style', 'border: solid 1px red; display: none');
     document.body.appendChild(canvas);
     return canvas;
 }
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {string} text
+ * @param {string} fontStyle
+ * @returns {object}
+ */
 export function measureText(ctx, text, fontStyle) {
     if (fontStyle) {
         ctx.font = fontStyle;
@@ -133,8 +204,13 @@ export function measureText(ctx, text, fontStyle) {
     return { width, height };
 }
 // Celestiary
+/**
+ * @param {Object<any, any>} obj
+ * @param {string} name
+ * @returns {object}
+ */
 export function named(obj, name) {
-    if (!(typeof name == 'string' && name.length > 0)) {
+    if (!(typeof name === 'string' && name.length > 0)) {
         throw new Error('Name must be provided');
     }
     obj.name = name;

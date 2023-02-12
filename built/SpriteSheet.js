@@ -8,9 +8,10 @@ import { labelTextColor as defaultTextColor, labelTextFont as sharedDefaultFont,
  *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
  */
 export default class SpriteSheet {
+    /** */
     constructor(maxLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0]) {
         if (!Number.isInteger(maxLabels)) {
-            throw new Error('maxLabels is invalid: ' + maxLabels);
+            throw new Error(`maxLabels is invalid: ${maxLabels}`);
         }
         this.maxLabels = maxLabels;
         this.labelCount = 0;
@@ -41,15 +42,14 @@ export default class SpriteSheet {
         //            this.maxLabels, maxBounds, this.size, maxBounds.width);
     }
     /**
-     * @param {fillStyle} Parsed as a CSS <color> value, e.g. 'red' or 'rgb(1, 0, 0, 0)'.
-     * @return {number} id of label.
+     * @param {string} Parsed as a CSS <color> value, e.g. 'red' or 'rgb(1, 0, 0, 0)'.
+     * @returns {number} id of label.
      */
     add(x, y, z, labelText, fillStyle = defaultTextColor) {
         if (this.labelCount >= this.maxLabels) {
             throw new Error(`Add called too many times, can only allocate
                        maxLabels(${this.maxLabels}), already have ${this.labelCount}`);
         }
-        const ctx = this.ctx;
         this.ctx.font = this.labelTextFont;
         let bounds = Utils.measureText(this.ctx, labelText);
         const size = Math.max(bounds.width, bounds.height);
@@ -67,12 +67,13 @@ export default class SpriteSheet {
         bounds = this.drawAt(labelText, this.curX, this.curY, fillStyle);
         // console.log(`positionAttribute.set(x: ${x}, y: ${y}, z: ${z}, offset: ${this.labelCount})`);
         this.positions.push(x, y, z);
-        this.spriteCoords.push(bounds.x / this.size, 1 - (bounds.y + bounds.height) / this.size, bounds.width / this.size, bounds.height / this.size);
+        this.spriteCoords.push(bounds.x / this.size, 1 - ((bounds.y + bounds.height) / this.size), bounds.width / this.size, bounds.height / this.size);
         this.sizes.push(bounds.width, bounds.height);
         this.curX += bounds.width;
         const id = this.labelCount++;
         return id;
     }
+    /** @returns {object} */
     drawAt(text, x, y, fillStyle) {
         const ctx = this.ctx;
         ctx.textBaseline = this.textBaseline;
@@ -86,6 +87,7 @@ export default class SpriteSheet {
         ctx.restore();
         return { x, y, width: size, height: size };
     }
+    /** */
     drawLabel(text, width, height, fillStyle) {
         const ctx = this.ctx;
         ctx.textBaseline = this.textBaseline;
@@ -100,20 +102,24 @@ export default class SpriteSheet {
         ctx.stroke();
         */
     }
-    /** @param {THREE.Float32BufferAttribute} sharedPositionAttribute Optional. */
-    compile(sharedPositionAttribute) {
-        if (sharedPositionAttribute && sharedPositionAttribute.count * 3 != this.positions.length) {
+    /**
+     * @param {THREE.Float32BufferAttribute} sharedPositionAttribute
+     * @returns {THREE.Points}
+     */
+    compile(sharedPositionAttribute = null) {
+        if (sharedPositionAttribute && sharedPositionAttribute.count * 3 !== this.positions.length) {
             console.log(sharedPositionAttribute.count);
-            throw new Error(`Shared positionAttribute.length(${sharedPositionAttribute.count * 3}) ` `!= this.positions.length(${this.positions.length})`);
+            throw new Error(`Shared positionAttribute.length(${sharedPositionAttribute.count * 3}) \
+           != this.positions.length(${this.positions.length})`);
         }
-        if (this.positions.length != this.labelCount * 3) {
-            throw new Error('Positions array size wrong: ' + this.positions.length);
+        if (this.positions.length !== this.labelCount * 3) {
+            throw new Error(`Positions array size wrong: ${this.positions.length}`);
         }
-        if (this.sizes.length != this.labelCount * 2) {
-            throw new Error('Positions array size wrong: ' + this.sizes.length);
+        if (this.sizes.length !== this.labelCount * 2) {
+            throw new Error(`Positions array size wrong: ${this.sizes.length}`);
         }
-        if (this.spriteCoords.length != this.labelCount * 4) {
-            throw new Error('Positions array size wrong: ' + this.spriteCoords.length);
+        if (this.spriteCoords.length !== this.labelCount * 4) {
+            throw new Error(`Positions array size wrong: ${this.spriteCoords.length}`);
         }
         this.positionAttribute = sharedPositionAttribute || new THREE.Float32BufferAttribute(this.positions, 3);
         const sizeAttribute = new THREE.Float32BufferAttribute(this.sizes, 2);
@@ -126,6 +132,9 @@ export default class SpriteSheet {
         this.sprites = new THREE.Points(geometry, this.createMaterial());
         return this.sprites;
     }
+    /**
+     * @returns {THREE.ShaderMaterial}
+     */
     createMaterial() {
         const texture = new THREE.CanvasTexture(this.canvas);
         texture.minFilter = THREE.NearestFilter;

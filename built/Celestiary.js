@@ -3,7 +3,7 @@ import Animation from './Animation.js';
 import ControlPanel from './ControlPanel.js';
 import Keys from './Keys.js';
 import Loader from './Loader.js';
-import Reify from './reify.js';
+import reifyMeasures from './reify.js';
 import Scene from './Scene.js';
 import * as Shapes from './shapes.js';
 import ThreeUi from './ThreeUI.js';
@@ -16,12 +16,17 @@ const elt = (id) => {
 };
 /** Main application class. */
 export default class Celestiary {
+    /**
+     * @param {Element} canvasContainer
+     * @param {Element} navElt
+     * @param {string} setTimeStr
+     */
     constructor(canvasContainer, navElt, setTimeStr) {
         Utils.assertArgs(arguments, 3);
         this.time = new Time(setTimeStr);
         this.animation = new Animation(this.time);
-        canvasContainer.style.width = window.innerWidth + 'px';
-        canvasContainer.style.height = window.innerHeight + 'px';
+        canvasContainer.style.width = `${window.innerWidth}px`;
+        canvasContainer.style.height = `${window.innerHeight}px`;
         const animCb = (scene) => {
             this.animation.animate(scene);
             if (Shared.targets.track) {
@@ -43,15 +48,17 @@ export default class Celestiary {
         this.toggleHelp = null;
         window.c = this;
     }
+    /** @returns {string} */
     getTime() {
         if (this.time === null) {
             throw new Error('Null time');
         }
         return this.time;
     }
+    /** */
     load() {
         this.onLoadCb = (name, obj) => {
-            Reify(obj);
+            reifyMeasures(obj);
             this.scene.add(obj);
         };
         this.onDoneCb = (path, obj) => {
@@ -86,6 +93,7 @@ export default class Celestiary {
             });
         });
     }
+    /** */
     goTo() {
         const tObj = this.shared.targets.obj;
         if (tObj) {
@@ -106,6 +114,7 @@ export default class Celestiary {
             console.error('no target obj!');
         }
     }
+    /** */
     setupListeners() {
         window.addEventListener('hashchange', (e) => {
             this.loader.loadPath((window.location.hash || '#').substring(1), this.onLoadCb, this.onDoneCb);
@@ -125,12 +134,12 @@ export default class Celestiary {
         }, 'Broaden field-of-vision');
         k.map('/', () => {
             this.ui.resetFov();
-        }, 'Reset field-of-vision to ' + Shared.INITIAL_FOV + 'º');
+        }, `Reset field-of-vision to ${Shared.INITIAL_FOV}º`);
         k.map('0', () => {
             this.scene.targetCurNode();
         }, 'Target current system');
         for (let i = 1; i <= 9; i++) {
-            k.map('' + i, () => {
+            k.map(`${i}`, () => {
                 const ndx = i;
                 this.scene.targetNode(ndx);
             }, `Look at child ${i} of current system`);
@@ -186,24 +195,30 @@ export default class Celestiary {
         }, 'Show/hide navigation panels');
         this.keys = k;
     }
+    /** */
     hideActiveDialog() {
-        document.querySelectorAll('.dialog').forEach((elt) => this.hideElt(elt));
+        document.querySelectorAll('.dialog').forEach((e) => this.hideElt(e));
     }
-    hideElt(elt) {
-        elt.style.display = 'none';
+    /** @param {Element} elt */
+    hideElt(e) {
+        e.style.display = 'none';
     }
-    /** @return True iff showing */
-    toggleEltDisplay(elt) {
-        if (elt.style.display == 'block') {
+    /**
+     * @param {Element} elt
+     * @returns {boolean} Iff showing
+     */
+    toggleEltDisplay(e) {
+        if (e.style.display === 'block') {
             this.hideElt(elt);
             return false;
         }
         else {
             this.hideActiveDialog();
-            elt.style.display = 'block';
+            e.style.display = 'block';
             return true;
         }
     }
+    /** */
     hideHelpOnEscape() {
         const keysElt = elt('keys-id');
         keysElt.style.display = 'none';

@@ -1,3 +1,4 @@
+import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
 import React from 'react';
 import { AxesHelper, PointLight } from 'three';
 import ThreeUi from '../ThreeUI.js';
@@ -6,14 +7,7 @@ export default function Cube() {
     React.useEffect(() => {
         setup();
     }, []);
-    return (<>
-      <div id="ui"></div>
-      <h1>A Simple Cube</h1>
-      To start with, a simple scene is defined with an object and
-      controls.  Try rotating the cube with your mouse.  A scroll up or
-      down gesture or mouse-wheel will zoom.  Double-button drag will
-      pan.
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "A Simple Cube" }), "To start with, a simple scene is defined with an object and controls.  Try rotating the cube with your mouse.  A scroll up or down gesture or mouse-wheel will zoom.  Double-button drag will pan."] }));
 }
 function setup() {
     // Bind the ThreeUi to the "ui" HTML page element.

@@ -1,7 +1,11 @@
 import { Object3D } from 'three';
 import SpriteSheet from './SpriteSheet.js';
-// TODO: use shared SpriteSheet.
+/**
+ * TODO: use shared SpriteSheet.
+ */
 export default class Label extends Object3D {
+    /**
+     */
     constructor(labelText, opts) {
         super();
         this.opts = {

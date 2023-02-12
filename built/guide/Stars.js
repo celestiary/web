@@ -1,3 +1,4 @@
+import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
 import React from 'react';
 import createTree from '@pablo-mayrgundter/yaot2';
 import ThreeUi from '../ThreeUI';
@@ -9,10 +10,7 @@ export default function Stars() {
     React.useEffect(() => {
         setup();
     }, []);
-    return (<>
-      <div id="ui"></div>
-      <h1>Stars</h1>
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "Stars" })] }));
 }
 function setup() {
     const ui = new ThreeUi('ui');

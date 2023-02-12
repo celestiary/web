@@ -1,3 +1,4 @@
+import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
 import React from 'react';
 import ThreeUi from '../ThreeUI.js';
 import { grid } from '../shapes.js';
@@ -5,11 +6,7 @@ export default function Grid() {
     React.useEffect(() => {
         setup();
     }, []);
-    return (<>
-      <div id="ui"></div>
-      <h1>A Grid</h1>
-      Try zooming out and rotating.
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "A Grid" }), "Try zooming out and rotating."] }));
 }
 function setup() {
     const ui = new ThreeUi('ui');

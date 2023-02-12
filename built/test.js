@@ -2,6 +2,9 @@
 const WebGL = require('./lib/WebGL.js');
 const Celestiary = require('./Celestiary.js');
 const collapsor = require('./collapsor.js');
+/**
+ *
+ */
 function init() {
     const sceneElt = document.getElementById('scene-id');
     if (!WebGL.isWebGLAvailable()) {

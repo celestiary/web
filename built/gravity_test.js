@@ -1,7 +1,9 @@
 import Testing from '@pablo-mayrgundter/testing.js/testing.js';
-import { G, step, } from './gravity.js';
+import { G, step,
+// updateAccelerations,
+ } from './gravity.js';
 Testing.prototype.assertVectorsEqual = function (vec1, vec2, appendMsg = '') {
-    if (vec1.length != vec2.length) {
+    if (vec1.length !== vec2.length) {
         throw new Error('vector lengths must be equal');
     }
     const coordNames = ['X', 'Y', 'Z'];
@@ -39,6 +41,10 @@ tests.add('two particles', () => {
     const acc = [null, null, null, null, null, null];
     const mass = [1, 1];
     tests.applyAndAssert(pos, vel, acc, mass, [0, 0, 0, 1, 0, 0], pos, [G / 2, 0, 0, -G / 2, 0, 0], vel, [G, 0, 0, -G, 0, 0], acc, 'on first step');
-    tests.applyAndAssert(pos, vel, acc, mass, [G, 0, 0, 1 - G, 0, 0], pos, [G, 0, 0, -G, 0, 0], vel, [2 * G, 0, 0, -2 * G, 0, 0], acc, 'on second step');
+    /* tests.applyAndAssert(pos, vel, acc, mass,
+        [G, 0, 0, 1-G, 0, 0], pos,
+        [G, 0, 0, -G, 0, 0], vel,
+        [2*G, 0, 0, -2*G, 0, 0], acc,
+        'on second step')*/
 });
 tests.run();

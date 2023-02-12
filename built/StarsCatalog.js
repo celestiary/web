@@ -1,11 +1,14 @@
 import { LENGTH_SCALE, STARS_SCALE } from './shared.js';
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
 const littleEndian = true;
+/**
+ */
 export default class StarsCatalog {
     /** @see StarsCatalog#downsample for call with all the args. */
     constructor(numStars = 0, starsByHip = {}, hipByName = {}, namesByHip = {}, minMag = -8.25390625, maxMag = 15.4453125, 
     // 1E1 looks decent.  2E1 much more intriguing but a little fake.
     starScale = STARS_SCALE, lengthScale = LENGTH_SCALE * 1e1) {
+        /** @type Object<number,object> */
         this.starsByHip = starsByHip;
         this.hipByName = hipByName;
         this.namesByHip = namesByHip;
@@ -18,15 +21,22 @@ export default class StarsCatalog {
         this.lengthScale = lengthScale;
         this.sceneScale = starScale * lengthScale;
     }
+    /**
+     * @param {Function} cb
+     */
     load(cb) {
         if (!cb) {
             throw new Error('Undefined callback');
         }
-        fetch('/data/stars.dat').then((body) => {
-            body.arrayBuffer().then((buffer) => {
+        fetch('/data/stars.dat').then((starsData) => {
+            starsData.arrayBuffer().then(
+            /**
+             * @param {ArrayBuffer} buffer
+             */
+            (buffer) => {
                 this.read(buffer);
-                fetch('/data/starnames.dat').then((body) => {
-                    body.text().then((text) => {
+                fetch('/data/starnames.dat').then((namesData) => {
+                    namesData.text().then((text) => {
                         this.readNames(text);
                         cb();
                     });
@@ -34,6 +44,10 @@ export default class StarsCatalog {
             });
         });
     }
+    /**
+     * @param {ArrayBuffer} buffer
+     * @returns {object}
+     */
     read(buffer) {
         const header = 'CELSTARS\x00\x01';
         const data = new DataView(buffer);
@@ -84,6 +98,7 @@ export default class StarsCatalog {
         }
         return this;
     }
+    /** */
     readNames(text) {
         const records = text.split('\n');
         for (let i = 0; i < records.length; i++) {
@@ -103,32 +118,37 @@ export default class StarsCatalog {
                 // ZET1 Aqr -> ZET Aqr
                 let match = part.match(/(\w{2,3})\d+ (\w{3})/);
                 if (match) {
-                    const fix = match[1] + ' ' + match[2];
+                    const fix = `${match[1]} ${match[2]}`;
                     this.hipByName[fix] = hipId;
                     this.numNames++;
                 }
                 // IOT Cnc A -> Iot Cnc
                 match = part.match(/(\w{2,3}) (\w{3}).*/);
                 if (match) {
-                    const fix = match[1] + ' ' + match[2];
+                    const fix = `${match[1]} ${match[2]}`;
                     this.hipByName[fix] = hipId;
                     this.numNames++;
                 }
             }
         }
     }
+    /** @returns {StarsCatalog} */
     downsample(n, keep = {}) {
         if (this.numStars < n) {
             return this;
         }
         const stars = [];
         for (const hipId in this.starsByHip) {
-            stars.push(this.starsByHip[hipId]);
+            if (Object.prototype.hasOwnProperty.call(hipId, this.starsByHip)) {
+                stars.push(this.starsByHip[hipId]);
+            }
         }
         const sampled = [];
         let kept = 0;
         for (const keepId in keep) {
-            sampled[kept++] = this.starsByHip[keepId];
+            if (Object.prototype.hasOwnProperty.call(keepId, keep)) {
+                sampled[kept++] = this.starsByHip[keepId];
+            }
         }
         for (let i = kept; i < n; i++) {
             const star = stars[Math.floor(Math.random() * stars.length)];
@@ -159,13 +179,16 @@ export default class StarsCatalog {
             }
         }
         for (const name in this.hipByName) {
-            const hipId = this.hipByName[name];
-            if (starsByHip[hipId]) {
-                hipByName[name] = hipId;
+            if (Object.prototype.hasOwnProperty.call(name, this.hipByName)) {
+                const hipId = this.hipByName[name];
+                if (starsByHip[hipId]) {
+                    hipByName[name] = hipId;
+                }
             }
         }
         return new StarsCatalog(numStars, starsByHip, hipByName, namesByHip, minMag, maxMag);
     }
+    /** @returns {string|number} */
     getNameOrId(hipId) {
         const names = this.namesByHip[hipId];
         if (names && names.length > 0) {
@@ -173,6 +196,7 @@ export default class StarsCatalog {
         }
         return hipId;
     }
+    /** @returns {Array} */
     reifyName(origName) {
         let name = origName;
         let hipId = this.hipByName[name];
@@ -195,6 +219,9 @@ export default class StarsCatalog {
 }
 // Didn't see the sun in the stars.dat catalog, so adding it
 // manually.  If wrong, it'll be in there twice but indexed once
+/**
+ * @returns {object}
+ */
 export function getSunProps(radius = 695700000) {
     return {
         x: 0, y: 0, z: 0,
@@ -208,7 +235,11 @@ export function getSunProps(radius = 695700000) {
         radius: radius,
     };
 }
-/** Generates a star like _tmpl_ but at random position and given id. */
+/**
+ * Generates a star like _tmpl_ but at random position and given id.
+ *
+ * @returns {object}
+ */
 export function genStar(tmpl, id, posScale = 1e10) {
     return {
         x: posScale * (Math.random() - 0.5),
@@ -253,12 +284,18 @@ export const StarSpectra = [
     [10, 10, 10, 'Carbon']
 ]; // 15, ?
 StarsCatalog.StarSpectra = StarSpectra;
+/**
+ * @returns {string}
+ */
 function abbrev(name) {
     const parts = name.split(/\s+/);
     parts[0] = parts[0].substring(0, 3).toUpperCase();
     const out = parts.join(' ');
     return out;
 }
+/**
+ * @returns {string}
+ */
 function abbrevVariant(name) {
     const parts = name.split(/\s+/);
     const num = variants[parts[0]];
@@ -273,40 +310,45 @@ const variants = {
     ALP: 'ALF',
     THE: 'TET',
 };
+/**
+ *
+ */
 function check(expect, actual, offset) {
     for (let i = 0; i < expect.length; i++) {
         const eC = expect.charCodeAt(i);
         const aC = actual.getUint8(offset + i, littleEndian);
-        if (eC == aC) {
+        if (eC === aC) {
             continue;
         }
         throw new Error(`Check failed at index ${i}, expected: ${eC}, actual: ${aC}`);
     }
 }
 // Unused utilities
+/**
+ *
+ */
+/*
 function smallCatalog(tmpl) {
-    const ps = 10; // position scale
-    const s0 = tmpl;
-    const s1 = genStar(s0, 1, ps);
-    const s2 = genStar(s0, 2, ps);
-    const s3 = genStar(s0, 3, ps);
-    s1.x = 2;
-    s1.y = 2;
-    s1.z = 0;
-    s2.x = 2;
-    s2.y = -2;
-    s2.z = 0;
-    s3.x = -2;
-    s3.y = 2;
-    s3.z = 0;
-    const starsByHip = { 0: s0, 1: s1, 2: s2, 3: s3 };
-    const hipByName = { Sun: 0, 1: 1, 2: 2, 3: 3 };
-    const faves = { 0: 'Sun', 1: 'Star 1', 2: 'Star 2', 3: 'Star 3' };
-    const namesByHip = { 0: ['Sun'], 1: ['Star 1'], 2: ['Star 2'], 3: ['Star 3'] };
-    const catalog = new StarsCatalog(4, starsByHip, hipByName, namesByHip, tmpl.absMag, tmpl.absMag, 1, 0.1);
-    return { catalog, faves };
+  const ps = 10 // position scale
+  const s0 = tmpl; const s1 = genStar(s0, 1, ps); const s2 = genStar(s0, 2, ps); const s3 = genStar(s0, 3, ps)
+  s1.x = 2; s1.y = 2; s1.z = 0
+  s2.x = 2; s2.y = -2; s2.z = 0
+  s3.x = -2; s3.y = 2; s3.z = 0
+  const starsByHip = {0: s0, 1: s1, 2: s2, 3: s3}
+  const hipByName = {Sun: 0, 1: 1, 2: 2, 3: 3}
+  const faves = {0: 'Sun', 1: 'Star 1', 2: 'Star 2', 3: 'Star 3'}
+  const namesByHip = {0: ['Sun'], 1: ['Star 1'], 2: ['Star 2'], 3: ['Star 3']}
+  const catalog = new StarsCatalog(
+      4, starsByHip, hipByName, namesByHip,
+      tmpl.absMag, tmpl.absMag,
+      1, 0.1)
+  return {catalog, faves}
 }
-function randomCatalog(tmpl, count) {
+*/
+/**
+ * @returns {object}
+ */
+export function randomCatalog(tmpl, count) {
     const ps = 10; // position scale
     const starsByHip = { 0: tmpl };
     const hipByName = { 0: 0 };
@@ -315,7 +357,7 @@ function randomCatalog(tmpl, count) {
     for (let i = 1; i < count; i++) {
         const star = genStar(tmpl, i, ps);
         starsByHip[i] = star;
-        const name = i + '';
+        const name = `${i}`;
         hipByName[name] = i;
         faves[i] = name;
         namesByHip[i] = [name];

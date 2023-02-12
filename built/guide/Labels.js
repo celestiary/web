@@ -1,3 +1,4 @@
+import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
 import React from 'react';
 import { PointLight } from 'three';
 import SpriteSheet from '../SpriteSheet.js';
@@ -7,13 +8,7 @@ export default function Labels() {
     React.useEffect(() => {
         setup();
     }, []);
-    return (<>
-      <div id="ui"></div>
-      <h1>Sprite Sheet Labels</h1>
-      <p>To allow for more labels in the scene, a single sprite sheet is
-        used, with a GL shader configured with custom offsets into the sheet
-        for each object.</p>
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "Sprite Sheet Labels" }), _jsx("p", { children: "To allow for more labels in the scene, a single sprite sheet is used, with a GL shader configured with custom offsets into the sheet for each object." })] }));
 }
 function setup() {
     const ui = new ThreeUi('ui');

@@ -1,3 +1,4 @@
+import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
 import React from 'react';
 import { AxesHelper, LineBasicMaterial } from 'three';
 import * as Shared from '../shared.js';
@@ -7,10 +8,7 @@ export default function Angles() {
     React.useEffect(() => {
         setup();
     }, []);
-    return (<>
-      <div id="ui"></div>
-      <h1>Angles</h1>
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "Angles" })] }));
 }
 function setup() {
     const ui = new ThreeUi('ui');

@@ -1,3 +1,4 @@
+import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
 import React from 'react';
 import { AmbientLight, PointLight, Raycaster, Vector3, } from 'three';
 import ThreeUi from '../ThreeUI.js';
@@ -6,11 +7,7 @@ export default function Picking() {
     React.useEffect(() => {
         setup();
     }, []);
-    return (<>
-      <div id="ui"></div>
-      <h1>Picking</h1>
-      Click on the sphere to change its colors.
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "Picking" }), "Click on the sphere to change its colors."] }));
 }
 function setup() {
     const ui = new ThreeUi('ui');

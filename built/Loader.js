@@ -7,42 +7,43 @@ import { FileLoader } from 'three';
  * code, should consolidate.
  */
 export default class Loader {
+    /** */
     constructor() {
         this.loaded = {};
         this.pathByName = {};
     }
     /**
      * @param {!string} path The path, e.g. 'a/b/c'.
-     * @param {function} onLoadCb Called when the object is loaded.
+     * @param {Function} onLoadCb Called when the object is loaded.
      * This will only happen the first time this path prefix is
      * encountered.
-     * @param {function} onDoneCb Called when the object is loaded.
+     * @param {Function} onDoneCb Called when the object is loaded.
      * This will happen once whether or not the path has previously been
      * loaded.
      */
     loadPath(path, onLoadCb, onDoneCb, onErrCb) {
-        if (path.length == 0) {
+        if (path.length === 0) {
             throw new Error('empty target path');
         }
         const parts = path.split('/');
         const targetName = parts[parts.length - 1];
-        if (typeof this.loaded[targetName] == 'object') {
+        if (typeof this.loaded[targetName] === 'object') {
             onDoneCb(path, this.loaded[targetName]);
         }
         this.loadPathRecursive(parts, (name, obj) => {
             onLoadCb(name, obj);
-            if (name == targetName) {
+            if (name === targetName) {
                 onDoneCb(path, obj);
             }
         }, onErrCb);
     }
     /**
      * @param {!Array} pathParts The path to the object, e.g. ['a','b','c'].
-     * @param {function} onLoadCb Called when the object is loaded.
+     * @param {Function} onLoadCb Called when the object is loaded.
      * This will only happen once per path.
      */
     loadPathRecursive(pathParts, onLoadCb, onErrCb) {
-        if (pathParts.length == 0) {
+        if (pathParts.length === 0) {
             return;
         }
         const name = pathParts.pop();
@@ -51,7 +52,8 @@ export default class Loader {
     }
     /**
      * Loads the given object; optionally expanding if it has as system.
-     * @param {function} onLoadCb Called when the object is loaded.
+     *
+     * @param {Function} onLoadCb Called when the object is loaded.
      * This will only happen once per path.
      * @param {!boolean} expand Whether to also load the children of the
      *     given node.
@@ -59,7 +61,7 @@ export default class Loader {
     loadObj(prefix, name, onLoadCb, expand, onErrCb) {
         const loadedObj = this.loaded[name];
         if (loadedObj) {
-            if (loadedObj == 'pending') {
+            if (loadedObj === 'pending') {
                 return;
             }
             if (expand && loadedObj.system) {
@@ -73,7 +75,7 @@ export default class Loader {
             this.loaded[name] = 'pending';
             const fileLoader = new FileLoader();
             fileLoader.setResponseType('json');
-            fileLoader.load('/data/' + name + '.json', (obj) => {
+            fileLoader.load(`/data/${name}.json`, (obj) => {
                 this.loaded[name] = obj;
                 const path = prefix ? `${prefix}/${name}` : name;
                 this.pathByName[name] = path;
@@ -84,6 +86,10 @@ export default class Loader {
             }, null, onErrCb);
         }
     }
+    /**
+     * @param {object} shaderConfig
+     * @param {Function} doneCb
+     */
     loadShaders(shaderConfig, doneCb) {
         let vertDone = false;
         let fragDone = false;

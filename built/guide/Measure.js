@@ -1,3 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import React from 'react';
 import cMeasure from '@pablo-mayrgundter/measure.js';
 import { elt, newElt } from '../utils.js';
@@ -5,22 +6,7 @@ export default function Measure() {
     React.useEffect(() => {
         setup();
     }, []);
-    return (<div style={{ maxWidth: '800px' }}>
-      <h1>Measure</h1>
-
-      <p>Working with astronomical data will quickly break ur brain
-        if you don't have an easy way to work with units and mangitudes.
-        I wrote the <a href="https://github.com/pablo-mayrgundter/measure.js">measure.js</a> library
-        to help with this.</p>
-      <table cellPadding="5em" cellSpacing="5">
-        <tbody>
-          <tr><th>Data string</th><th>Parsed Measure toString</th><th>toKilo</th></tr>
-          <tr><td id="mass1">1.9891E33 g</td></tr>
-          <tr><td id="mass2">1.9891E33 kg</td></tr>
-          <tr><td id="radius">6.9424895E8 m</td></tr>
-        </tbody>
-      </table>
-    </div>);
+    return (_jsxs("div", Object.assign({ style: { maxWidth: '800px' } }, { children: [_jsx("h1", { children: "Measure" }), _jsxs("p", { children: ["Working with astronomical data will quickly break ur brain if you don't have an easy way to work with units and mangitudes. I wrote the ", _jsx("a", Object.assign({ href: "https://github.com/pablo-mayrgundter/measure.js" }, { children: "measure.js" })), " library to help with this."] }), _jsx("table", Object.assign({ cellPadding: "5em", cellSpacing: "5" }, { children: _jsxs("tbody", { children: [_jsxs("tr", { children: [_jsx("th", { children: "Data string" }), _jsx("th", { children: "Parsed Measure toString" }), _jsx("th", { children: "toKilo" })] }), _jsx("tr", { children: _jsx("td", Object.assign({ id: "mass1" }, { children: "1.9891E33 g" })) }), _jsx("tr", { children: _jsx("td", Object.assign({ id: "mass2" }, { children: "1.9891E33 kg" })) }), _jsx("tr", { children: _jsx("td", Object.assign({ id: "radius" }, { children: "6.9424895E8 m" })) })] }) }))] })));
 }
 function setup() {
     const parse = (elt) => {

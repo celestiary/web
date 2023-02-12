@@ -14,6 +14,9 @@ import {
  * @author pablo
  */
 
+/**
+ *
+ */
 export default function CustomPoints( geometry, material ) {
   Object3D.call( this )
 
@@ -44,38 +47,44 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
       // Checking boundingSphere distance to ray
 
-      if ( geometry.boundingSphere === null ) geometry.computeBoundingSphere()
+      if ( geometry.boundingSphere === null ) {
+        geometry.computeBoundingSphere()
+      }
 
       sphere.copy( geometry.boundingSphere )
       sphere.applyMatrix4( matrixWorld )
       sphere.radius += threshold
 
-      if ( raycaster.ray.intersectsSphere( sphere ) === false ) return
+      if ( raycaster.ray.intersectsSphere( sphere ) === false ) {
+        return
+      }
 
       //
 
       inverseMatrix.getInverse( matrixWorld )
       ray.copy( raycaster.ray ).applyMatrix4( inverseMatrix )
 
-      const localThreshold = threshold / ( ( this.scale.x + this.scale.y + this.scale.z ) / 3 )
-      const localThresholdSq = localThreshold * localThreshold
+      // const localThreshold = threshold / ( ( this.scale.x + this.scale.y + this.scale.z ) / 3 )
       const position = new Vector3()
       const intersectPoint = new Vector3()
 
       let min = null
+      /**
+       *
+       */
       function testPoint( point, index ) {
         // console.log(`CustomPoints.raycast#testPoint: point, index`, point, index);
         const rayPointDistanceSq = ray.distanceSqToPoint( point )
 
         console.log('test point')
-        if (min == null) {
+        if (min === null) {
           min = rayPointDistanceSq
         }
 
         if (rayPointDistanceSq > min) {
           return
         }
-        const old = min
+        // const old = min
         min = rayPointDistanceSq
 
         ray.closestPointToPoint( point, intersectPoint )
@@ -83,7 +92,9 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
 
         const distance = raycaster.ray.origin.distanceTo( intersectPoint )
 
-        if ( distance < raycaster.near || distance > raycaster.far ) return
+        if ( distance < raycaster.near || distance > raycaster.far ) {
+          return
+        }
 
         const distanceToRay = Math.sqrt(rayPointDistanceSq)
 
@@ -109,7 +120,7 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
         if ( index !== null ) {
           const indices = index.array
 
-          for ( var i = 0, il = indices.length; i < il; i ++ ) {
+          for ( let i = 0, il = indices.length; i < il; i ++ ) {
             console.log('looping positions1')
 
             const a = indices[i]
@@ -119,21 +130,21 @@ CustomPoints.prototype = Object.assign( Object.create( Object3D.prototype ), {
             testPoint( position, a )
           }
         } else {
-          for ( var i = 0, l = positions.length / 3; i < l; i ++ ) {
+          for ( let j = 0, l = positions.length / 3; j < l; j ++ ) {
             console.log('looping positions2')
 
-            position.fromArray( positions, i * 3 )
+            position.fromArray( positions, j * 3 )
 
-            testPoint( position, i )
+            testPoint( position, j )
           }
         }
       } else {
         const vertices = geometry.vertices
 
-        for ( var i = 0, l = vertices.length; i < l; i ++ ) {
+        for ( let k = 0, l = vertices.length; k < l; k ++ ) {
           console.log('looping positions3')
 
-          testPoint( vertices[i], i )
+          testPoint( vertices[k], k )
         }
       }
     }

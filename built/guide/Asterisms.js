@@ -1,3 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import cAsterisms from '../Asterisms.js';
@@ -29,18 +30,7 @@ export default function Asterisms() {
             window.target = labelPos;
         }
     }, [location]);
-    return (<>
-      <div id="ui"></div>
-      <h1>Asterisms</h1>
-      Asterisms include constellations.
-      <div id="faveCtr">
-        <table id="faves" cellPadding="5em">
-          <tbody>
-            <tr><th>Asterism</th><th>Midpoint Star</th><th>Midpoint Star HIP</th></tr>
-          </tbody>
-        </table>
-      </div>
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "Asterisms" }), "Asterisms include constellations.", _jsx("div", Object.assign({ id: "faveCtr" }, { children: _jsx("table", Object.assign({ id: "faves", cellPadding: "5em" }, { children: _jsx("tbody", { children: _jsxs("tr", { children: [_jsx("th", { children: "Asterism" }), _jsx("th", { children: "Midpoint Star" }), _jsx("th", { children: "Midpoint Star HIP" })] }) }) })) }))] }));
 }
 function setup(setAsterisms) {
     const cb = (scene, ui) => {

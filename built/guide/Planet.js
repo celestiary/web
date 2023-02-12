@@ -1,3 +1,4 @@
+import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { PointLight } from 'three';
@@ -16,17 +17,7 @@ export default function Planet() {
             showPlanet(ui, path, planet, setPlanet);
         }
     }, [ui, location]);
-    return (<>
-      <div id="ui"></div>
-      <h1>Planet</h1>
-      <p>Use LOD to lazy-load texture.  Open your browser network trace and
-      watch it as you zoom in.</p>
-      <table id="faves">
-        <tbody>
-          <tr><th>Name</th></tr>
-        </tbody>
-      </table>
-    </>);
+    return (_jsxs(_Fragment, { children: [_jsx("div", { id: "ui" }), _jsx("h1", { children: "Planet" }), _jsx("p", { children: "Use LOD to lazy-load texture.  Open your browser network trace and watch it as you zoom in." }), _jsx("table", Object.assign({ id: "faves" }, { children: _jsx("tbody", { children: _jsx("tr", { children: _jsx("th", { children: "Name" }) }) }) }))] }));
 }
 function setup() {
     const ui = new ThreeUi('ui');

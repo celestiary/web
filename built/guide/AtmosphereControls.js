@@ -54,6 +54,8 @@ const PRESETS = {
         MiePolarity: 0.8,
     },
 };
+/**
+ */
 export default class AtmosphereControls extends Pane {
     /** @param atmos An Atmosphere parameters object. */
     constructor(container, atmos) {
