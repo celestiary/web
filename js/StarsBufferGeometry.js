@@ -1,5 +1,4 @@
 import {BufferAttribute, BufferGeometry} from 'three'
-
 import {StarSpectra} from './StarsCatalog.js'
 
 
@@ -18,17 +17,18 @@ export default class StarsBufferGeometry extends BufferGeometry {
     // const minSize = 1
     // const maxLum = Math.pow(8, 4)
     let i = 0
+    const distanceScale = catalog.starScale
     for (const hipId in catalog.starsByHip) {
-      if (!Object.prototype.hasOwnProperty.call(hipId, catalog.starsByHip)) {
+      if (!Object.prototype.hasOwnProperty.call(catalog.starsByHip, hipId)) {
         continue
       }
       const star = catalog.starsByHip[hipId]
       this.idsByNdx[i] = hipId
       this.starsArray.push(star)
       const off = 3 * i
-      this.coords[off] = catalog.starScale * star.x
-      this.coords[off + 1] = catalog.starScale * star.y
-      this.coords[off + 2] = catalog.starScale * star.z
+      this.coords[off] = distanceScale * star.x
+      this.coords[off + 1] = distanceScale * star.y
+      this.coords[off + 2] = distanceScale * star.z
       let rgb = StarSpectra[star.spectralType]
       rgb = rgb || sunSpectrum
       // const lumRelSun = star.lumRelSun

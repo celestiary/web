@@ -14,7 +14,7 @@ const build = {
   // See:
   //   https://esbuild.github.io/api/#chunk-names
   //   https://github.com/evanw/esbuild/issues/16
-  splitting: true,
+  splitting: false,
   logLevel: 'info',
 }
 

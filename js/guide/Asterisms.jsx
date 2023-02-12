@@ -1,16 +1,18 @@
 import React from 'react'
 import {useLocation} from 'react-router-dom'
-import cAsterisms from '../Asterisms.js'
-import AsterismsCatalog from '../AsterismsCatalog.js'
+import AsterismsFromApp from '../Asterisms.js'
+import StarsCatalog from '../StarsCatalog.js'
 import Keys from '../Keys.js'
 import * as Shared from '../shared.js'
 import Stars from '../Stars.js'
-import StarsCatalog from '../StarsCatalog.js'
 import ThreeUi from '../ThreeUI.js'
 import {elt} from '../utils.js'
 import './Asterisms.css'
 
 
+/**
+ * @returns {React.Component}
+ */
 export default function Asterisms() {
   const [asterisms, setAsterisms] = React.useState(null)
   const [stars, setStars] = React.useState(null)
@@ -23,7 +25,7 @@ export default function Asterisms() {
     if (asterisms) {
       const asterismName = (location.hash || '#Orion').substr(1).replaceAll(/%20/g, ' ')
       const [origName, name, hipId] = findCenterStar(stars, asterisms, asterismName)
-      const star = stars.catalog.starsByHip[hipId]
+      // const star = stars.catalog.starsByHip[hipId]
       const labelPos = stars.labelCenterPosByName[name]
       if (!labelPos) {
         return
@@ -33,7 +35,7 @@ export default function Asterisms() {
       })
       window.target = labelPos
     }
-  }, [location])
+  }, [location, asterisms, stars])
 
   return (
     <>
@@ -51,6 +53,10 @@ export default function Asterisms() {
 }
 
 
+/**
+ * @param {Function} setAsterisms
+ * @returns {object} stars
+ */
 function setup(setAsterisms) {
   const cb = (scene, ui) => {
     if (window.target) {
@@ -71,7 +77,7 @@ function setup(setAsterisms) {
   k.map('/', () => {
     ui.resetFov()
   },
-  'Reset field-of-vision to ' + Shared.INITIAL_FOV + 'º')
+  `Reset field-of-vision to ${Shared.INITIAL_FOV}º`)
 
   const props = {
     radius: {
@@ -79,19 +85,29 @@ function setup(setAsterisms) {
       scalar: 6.9424895E8,
     },
   }
-  const stars = new Stars(props, () => {
-    new cAsterisms(stars, (asterisms) => {
-      stars.add(asterisms)
-      setupFavesTable(stars, asterisms)
-      setAsterisms(asterisms)
-    })
-  }, true)
+  const stars = new Stars(
+      props,
+      new StarsCatalog(),
+      () => {
+        new AsterismsFromApp(stars, (asterisms) => {
+          stars.add(asterisms)
+          setupFavesTable(stars, asterisms)
+          setAsterisms(asterisms)
+        })
+      },
+      false)
   ui.scene.add(stars)
   ui.camera.position.z = 1e2
   return stars
 }
 
 
+/**
+ * @param {object} stars
+ * @param {object} asterisms
+ * @param {string} asterismName
+ * @returns {Array}
+ */
 function findCenterStar(stars, asterisms, asterismName) {
   const asterism = asterisms.catalog.byName[asterismName]
   for (const pathNdx in asterism.paths) {
@@ -111,11 +127,15 @@ function findCenterStar(stars, asterisms, asterismName) {
 }
 
 
+/**
+ * @param {object} stars
+ * @param {object} asterisms
+ */
 function setupFavesTable(stars, asterisms) {
   const favesTable = elt('faves')
   for (const asterismName in asterisms.catalog.byName) {
     const [origName, name, hipId] = findCenterStar(stars, asterisms, asterismName)
-    if (name == null || hipId == null) {
+    if (name === null || hipId === null) {
       continue
     }
     favesTable.innerHTML +=

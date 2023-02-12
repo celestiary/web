@@ -1,4 +1,3 @@
-// import CustomPoints from './lib/three-custom/points.js';
 import * as THREE from 'three'
 
 import Loader from './Loader.js'
@@ -33,7 +32,6 @@ export default class Stars extends Object {
     this.labelCenterPosByName = {}
 
     if (catalogOrCb instanceof StarsCatalog) {
-      console.log('Caller gave catalog: ', catalogOrCb)
       const catalog = catalogOrCb
       if (!catalog.starsByHip) {
         throw new Error('Invalid stars catalog')
@@ -75,7 +73,6 @@ export default class Stars extends Object {
       transparent: true,
     })
     new Loader().loadShaders(starsMaterial, () => {
-      // const starPoints = named(new CustomPoints(this.geom, starsMaterial), 'StarsPoints');
       const starPoints = named(new THREE.Points(this.geom, starsMaterial), 'StarsPoints')
       starPoints.sortParticles = true
       this.add(starPoints)
@@ -85,10 +82,11 @@ export default class Stars extends Object {
       }
     })
     /*
-    this.add(new THREE.Points(this.geom, new THREE.PointsMaterial({
+    const simpleSunMatr = new THREE.PointsMaterial({
       size: 3,
-      sizeAttenuation: false
-    })));
+      sizeAttenuation: false,
+    })
+    this.add(new THREE.Points(this.geom, simpleSunMatr))
     */
   }
 

@@ -4,11 +4,13 @@ import AboutButton from './About'
 import Celestiary from './Celestiary'
 import HelpButton from './Help'
 import TimePanel from './TimePanel'
-import * as collapsor from './collapsor'
 import {elt, setTitleFromLocation} from './utils'
 import './index.css'
 
 
+/**
+ * @returns {React.Component}
+ */
 export default function App() {
   const location = useLocation()
   React.useEffect(() => {
@@ -17,7 +19,6 @@ export default function App() {
 
   const [celestiary, setCelestiary] = React.useState(null)
   const [timeStr, setTimeStr] = React.useState('')
-  const [showAbout, setShowAbout] = React.useState(false)
   React.useEffect(() => {
     setCelestiary(new Celestiary(elt('scene-id'), elt('nav-id'), setTimeStr))
   }, [])
@@ -33,6 +34,6 @@ export default function App() {
           <AboutButton/>
         </div>
       </div>
-      <h1 id="target-id"></h1>
+      <h1 id="target-id">Hello</h1>
     </>)
 }

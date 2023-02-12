@@ -145,7 +145,7 @@ export function solidArc(opts) {
     opacity: 0.1,
   }
   const shape = new THREE.Mesh(
-      new THREE.CircleBufferGeometry(1, 32, opts.from, opts.to),
+      new THREE.CircleGeometry(1, 32, opts.from, opts.to),
       new THREE.MeshLambertMaterial({
         color: opts.color || 0x888888,
         opacity: opts.opacity || 1,

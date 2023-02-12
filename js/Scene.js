@@ -89,7 +89,7 @@ export default class Scene {
               if (pickedStarLabel !== null) {
                 pickedStarLabel.removeFromParent()
               }
-              const starName = `${ this.stars.catalog.getNameOrId(pick.star.hipId)}`
+              const starName = `${this.stars.catalog.getNameOrId(pick.star.hipId)}`
               const pickedLabelSheet = new SpriteSheet(1, starName, undefined, [0, 1e5])
               pickedLabelSheet.add(pick.x, pick.y, pick.z, starName)
               pickedStarLabel = pickedLabelSheet.compile()
