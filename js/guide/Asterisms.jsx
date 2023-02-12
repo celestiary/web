@@ -25,7 +25,7 @@ export default function Asterisms() {
     if (asterisms) {
       const asterismName = (location.hash || '#Orion').substr(1).replaceAll(/%20/g, ' ')
       const [origName, name, hipId] = findCenterStar(stars, asterisms, asterismName)
-      // const star = stars.catalog.starsByHip[hipId]
+      // const star = stars.catalog.starByHip.get(hipId)
       const labelPos = stars.labelCenterPosByName[name]
       if (!labelPos) {
         return
@@ -116,7 +116,7 @@ function findCenterStar(stars, asterisms, asterismName) {
     for (let i = Math.floor(path.length / 2); i >= 0; i--) {
       const starName = path[i]
       let [origName, name, hipId] = stars.catalog.reifyName(starName)
-      const names = stars.catalog.namesByHip[hipId]
+      const names = stars.catalog.namesByHip.get(hipId)
       if (names && names.length > 2) {
         name = names[0]
         return [origName, name, hipId]

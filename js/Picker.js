@@ -53,7 +53,7 @@ function mark(ui, items, mouse, stars, pickCb) {
     }
   }
   const hipId = stars.geom.idsByNdx[closestNdx / 3]
-  const star = stars.catalog.starsByHip[hipId]
+  const star = stars.catalog.starByHip.get(hipId)
   // console.log('minM, minS, maxM, maxS: ', minMDist, minSDist, maxMDist, maxSDist);
   pickCb({star: star, x: minX, y: minY, z: minZ})
 }

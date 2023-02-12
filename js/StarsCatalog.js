@@ -1,5 +1,5 @@
 import {LENGTH_SCALE, STARS_SCALE} from './shared.js'
-import {assertEquals, assertNotNullOrUndefined} from './utils'
+import {assertEquals, assertNotNullOrUndefined} from './utils.js'
 
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
 const littleEndian = true
@@ -411,31 +411,7 @@ function assertDataView(expect, actual, offset) {
 }
 
 
-// Unused utilities
-/**
- *
- */
-/*
-function smallCatalog(tmpl) {
-  const ps = 10 // position scale
-  const s0 = tmpl; const s1 = genStar(s0, 1, ps); const s2 = genStar(s0, 2, ps); const s3 = genStar(s0, 3, ps)
-  s1.x = 2; s1.y = 2; s1.z = 0
-  s2.x = 2; s2.y = -2; s2.z = 0
-  s3.x = -2; s3.y = 2; s3.z = 0
-  const starByHip = {0: s0, 1: s1, 2: s2, 3: s3}
-  const hipByName = {Sun: 0, 1: 1, 2: 2, 3: 3}
-  const faves = {0: 'Sun', 1: 'Star 1', 2: 'Star 2', 3: 'Star 3'}
-  const namesByHip = {0: ['Sun'], 1: ['Star 1'], 2: ['Star 2'], 3: ['Star 3']}
-  const catalog = new StarsCatalog(
-      4, starByHip, hipByName, namesByHip,
-      tmpl.absMag, tmpl.absMag,
-      1, 0.1)
-  return {catalog, faves}
-}
-*/
-
-
-export const FAVES = {
+export const FAVES = new Map(Object.entries({
   0: 'Sol',
   439: 'Gliese 1',
   8102: 'Tau Ceti',
@@ -458,4 +434,4 @@ export const FAVES = {
   102098: 'Deneb',
   97649: 'Altair',
   113881: 'Scheat',
-}
+}).map((entArr) => [parseInt(entArr[0]), entArr[1]]))

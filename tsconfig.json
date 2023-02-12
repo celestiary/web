@@ -3,6 +3,7 @@
   "include": [
     "./js/utils.js",
     "./js/shared.js",
+    "./js/AsterismsCatalog.js",
     "./js/StarsCatalog.js",
     "index.d.ts",
   ],

@@ -103,37 +103,37 @@ export default class Scene {
               }
               this.starSelected = !this.starSelected
             /*
-            let tStar;
+            let tStar
             if (pick.star.hipId != 0) {
               console.log('Adding new star: ', pick.star)
-              pick.star.name = this.stars.catalog.namesByHip[pick.star.hipId];
-              pick.star.type = 'star'; // todo: looks like this unintentionally override Three.js Object3D.
-              pick.star.parent = 'milkyway';
+              pick.star.name = this.stars.catalog.namesByHip.get(pick.star.hipId)
+              pick.star.type = 'star' // todo: looks like this unintentionally override Three.js Object3D.
+              pick.star.parent = 'milkyway'
               pick.star.radius = {
                 scalar: pick.star.radius,
-              };
-              tStar = this.add(pick.star);
-              window.star = tStar;
-              tStar.position.copy(pick);
+              }
+              tStar = this.add(pick.star)
+              window.star = tStar
+              tStar.position.copy(pick)
             } else {
               tStar = this.objects['sun']// todo
             }
-            window.sun = this.objects['sun'];
-            window.mw = this.objects['milkyway.orbitPosition'];
-            console.log('PICKED: ', window.star.name);
-            //Shared.targets.obj = tStar;
-            //Shared.targets.pos.copy(tStar.position);
-            //Shared.targets.track = tStar;
-            //Shared.targets.follow = tStar;
-            //window.mw.position.set(new Vector3);
-            window.mw.position.sub(tStar.position);
-            //Shared.targets.obj.position.sub(tStar.position);
-            const v = new Vector3;
-            this.marker.position.copy(v);
-            this.marker.visible = false;
-            v.set(0, 0, -tStar.props.radius.scalar * Shared.LENGTH_SCALE * 0.5e2);
-            this.ui.camera.platform.position.copy(v);
-            console.log('Shared.targets: ', Shared.targets.obj, Shared.targets.pos);
+            window.sun = this.objects['sun']
+            window.mw = this.objects['milkyway.orbitPosition']
+            console.log('PICKED: ', window.star.name)
+            //Shared.targets.obj = tStar
+            //Shared.targets.pos.copy(tStar.position)
+            //Shared.targets.track = tStar
+            //Shared.targets.follow = tStar
+            //window.mw.position.set(new Vector3)
+            window.mw.position.sub(tStar.position)
+            //Shared.targets.obj.position.sub(tStar.position)
+            const v = new Vector3
+            this.marker.position.copy(v)
+            this.marker.visible = false
+            v.set(0, 0, -tStar.props.radius.scalar * Shared.LENGTH_SCALE * 0.5e2)
+            this.ui.camera.platform.position.copy(v)
+            console.log('Shared.targets: ', Shared.targets.obj, Shared.targets.pos)
             */
             })
           }

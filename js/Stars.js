@@ -33,7 +33,7 @@ export default class Stars extends Object {
 
     if (catalogOrCb instanceof StarsCatalog) {
       const catalog = catalogOrCb
-      if (!catalog.starsByHip) {
+      if (!catalog.starByHip) {
         throw new Error('Invalid stars catalog')
       }
       this.catalog = catalog
@@ -95,12 +95,12 @@ export default class Stars extends Object {
   showLabels(level = 2) {
     const toShow = []
     this.addFaves(toShow)
-    for (const hipId in this.catalog.starsByHip) {
-      if (this.faves[hipId]) {
+    for (const hipId in this.catalog.starByHip) {
+      if (this.faves.get(hipId)) {
         continue
       }
-      const star = this.catalog.starsByHip[hipId]
-      const names = this.catalog.namesByHip[hipId]
+      const star = this.catalog.starByHip.get(hipId)
+      const names = this.catalog.namesByHip.get(hipId)
       if (names && names.length > level) {
         toShow.push([star, names[0]])
       } else if (star.absMag < -5) {
@@ -134,16 +134,12 @@ export default class Stars extends Object {
 
   /** */
   addFaves(toShow) {
-    for (const hipId in this.faves) {
-      if (!Object.prototype.hasOwnProperty.call(this.faves, hipId)) {
-        continue
+    this.faves.forEach((name, hipId) => {
+      const star = this.catalog.starByHip.get(hipId)
+      if (star === undefined) {
+        throw new Error(`Undefined star for hipId(${hipId})`)
       }
-      const star = this.catalog.starsByHip[hipId]
-      if (star) {
-        toShow.push([star, this.faves[hipId]])
-      } else {
-        throw new Error(`Null star for hipId(${hipId})`)
-      }
-    }
+      toShow.push([star, name])
+    })
   }
 }

@@ -18,11 +18,7 @@ export default class StarsBufferGeometry extends BufferGeometry {
     // const maxLum = Math.pow(8, 4)
     let i = 0
     const distanceScale = catalog.starScale
-    for (const hipId in catalog.starsByHip) {
-      if (!Object.prototype.hasOwnProperty.call(catalog.starsByHip, hipId)) {
-        continue
-      }
-      const star = catalog.starsByHip[hipId]
+    catalog.starByHip.forEach((star, hipId) => {
       this.idsByNdx[i] = hipId
       this.starsArray.push(star)
       const off = 3 * i
@@ -40,7 +36,7 @@ export default class StarsBufferGeometry extends BufferGeometry {
       colors[off + 2] = b
       sizes[i] = star.radius * catalog.lengthScale
       i++
-    }
+    })
     // https://github.com/mrdoob/three.js/blob/master/examples/webgl_custom_attributes_points.html
     this.setAttribute('position', new BufferAttribute(this.coords, 3))
     this.setAttribute('color', new BufferAttribute(colors, 3))

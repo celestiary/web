@@ -16,11 +16,7 @@ export default class Asterisms extends THREE.Object3D {
     this.stars = stars
     this.catalog = new AsterismsCatalog(stars.catalog)
     this.catalog.load(() => {
-      for (const astrName in this.catalog.byName) {
-        if (Object.prototype.hasOwnProperty.call(this.catalog.byName, astrName)) {
-          this.show(astrName)
-        }
-      }
+      this.catalog.byName.values().forEach((astrName) => this.show(astrName))
       if (cb) {
         cb(this)
       }
@@ -35,7 +31,7 @@ export default class Asterisms extends THREE.Object3D {
   show(astrName, filterFn) {
     if (!filterFn) {
       filterFn = (stars, hipId, name) => {
-        if (this.stars.catalog.namesByHip[hipId].length >= 2) {
+        if (this.stars.catalog.namesByHip.get(hipId).length >= 2) {
           if (!name.match(/\w{2,3} [\w\d]{3,4}/)) {
             return true
           }
@@ -57,7 +53,7 @@ export default class Asterisms extends THREE.Object3D {
       for (let i = 0; i < pathNames.length; i++) {
         // eslint-disable-next-line no-unused-vars
         const [origName, name, hipId] = this.stars.catalog.reifyName(pathNames[i])
-        const star = this.stars.catalog.starsByHip[hipId]
+        const star = this.stars.catalog.starByHip.get(hipId)
         if (!star) {
           // TODO: fixup missing star names.
           // console.warn(`Cannot find star, hipId(${hipId})`, name);
