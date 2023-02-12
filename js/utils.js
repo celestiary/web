@@ -1,5 +1,6 @@
 /**
  * @param {any} x
+ * @returns {any}
  */
 export function assertNotNullOrUndefined(x) {
   try {
@@ -13,6 +14,7 @@ export function assertNotNullOrUndefined(x) {
     console.error(e)
     throw e
   }
+  return x
 }
 
 
@@ -43,12 +45,27 @@ export function assertArgs(args, length) {
 /**
  * @param {number} x
  * @returns {number} x
+ * @throws Error if !Number.isFinite(x)
  */
 export function assertFinite(x) {
   if (!Number.isFinite(x)) {
     throw new Error('Number not finite')
   }
   return x
+}
+
+
+/**
+ * @param {any} expected
+ * @param {any} actual
+ * @returns {any} The actual value
+ * @throws Error if expected !== value
+ */
+export function assertEquals(expected, actual) {
+  if (expected !== actual) {
+    throw new Error(`Expected: ${expected} === actual: ${actual}`)
+  }
+  return actual
 }
 
 
@@ -93,9 +110,7 @@ export function visit(elt, cb1, cb2, cb3, level = 1) {
 export function visitFilterProperty(elt, propName, propValue, cb) {
   visit(
       elt,
-      /**
-       * @param {Object<string, any>} child
-       */
+      /** @param {Object<string, any>} child */
       (child) => {
         if (child[propName] === propValue) {
           cb(child)
@@ -113,10 +128,10 @@ export function visitFilterProperty(elt, propName, propValue, cb) {
  * @param {string} togglePropName
  */
 export function visitToggleProperty(elt, filterPropName, filterPropValue, togglePropName) {
-  visitFilterProperty(elt, filterPropName, filterPropValue, (child) => {
+  visitFilterProperty(elt, filterPropName, filterPropValue, /** @param {Object<string, any>} child */ (child) => {
     if (!(Object.prototype.hasOwnProperty.call(child, togglePropName) &&
           typeof child[togglePropName] === 'boolean')) {
-      throw new Error(`Found child invalid toggle property(${togglePropName}):`, child)
+      throw new Error(`Found child invalid toggle property(${togglePropName}): ${child}`)
     }
     child[togglePropName] = !child[togglePropName]
   })
