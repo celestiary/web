@@ -7,12 +7,16 @@
     "index.d.ts",
   ],
   "compilerOptions": {
-    "incremental": true, /* Save .tsbuildinfo files to allow for incremental compilation */
-    "outDir": "./built",
     "allowJs": true,
     "checkJs": true,
-    "module": "es6",
     "jsx": "react-jsx",
+    "lib": ["es6", "dom"],
+    "module": "es6",
+    "noEmit": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
     "pretty": false,
+    "strict": true,
+    "strictNullChecks": true,
   },
 }

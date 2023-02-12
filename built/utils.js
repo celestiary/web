@@ -105,13 +105,10 @@ export function visitFilterProperty(elt, propName, propValue, cb) {
  * @param {string} togglePropName
  */
 export function visitToggleProperty(elt, filterPropName, filterPropValue, togglePropName) {
-    visitFilterProperty(elt, filterPropName, filterPropValue, 
-    /**
-     * @param {Object<string, any>} child
-     */
-    (child) => {
-        if (typeof child[togglePropName] === 'boolean') {
-            throw new Error(`Found child invalid toggle property(${togglePropName}): ${child}`);
+    visitFilterProperty(elt, filterPropName, filterPropValue, (child) => {
+        if (!(Object.prototype.hasOwnProperty.call(child, togglePropName) &&
+            typeof child[togglePropName] === 'boolean')) {
+            throw new Error(`Found child invalid toggle property(${togglePropName}):`, child);
         }
         child[togglePropName] = !child[togglePropName];
     });

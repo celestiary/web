@@ -10,7 +10,7 @@ export function makeCollapsable(elt, tagTypes) {
   const copyOfChildNodes = []
   const children = elt.childNodes
   for (const cndx in children) {
-    if (Object.prototype.hasOwnProperty.call(cndx, children)) {
+    if (Object.prototype.hasOwnProperty.call(children, cndx)) {
       copyOfChildNodes.push(children[cndx])
     }
   }
@@ -25,7 +25,7 @@ export function makeCollapsable(elt, tagTypes) {
     elt.parentNode.insertBefore(toggleCtrl, elt)
   }
   for (const cndx in copyOfChildNodes) {
-    if (Object.prototype.hasOwnProperty.call(cndx, copyOfChildNodes)) {
+    if (Object.prototype.hasOwnProperty.call(copyOfChildNodes, cndx)) {
       makeCollapsable(copyOfChildNodes[cndx], tagTypes)
     }
   }
@@ -61,7 +61,7 @@ function eltClass(elt, action, className) {
   const classNames = elt.className.split(/ +/)
   if (action === 'check') {
     for (const i in classNames) {
-      if (Object.prototype.hasOwnProperty.call(i, classNames)) {
+      if (Object.prototype.hasOwnProperty.call(classNames, i)) {
         if (classNames[i] === className) {
           return true
         }
@@ -70,21 +70,21 @@ function eltClass(elt, action, className) {
     return false
   } else if (action === 'add') {
     for (const i in classNames) {
-      if (Object.prototype.hasOwnProperty.call(i, classNames)) {
+      if (Object.prototype.hasOwnProperty.call(classNames, i)) {
         if (classNames[i] === className) {
           return true
         }
       }
     }
-    elt.className += ` ${ className}`
+    elt.className += ` ${className}`
   } else if (action === 'remove') {
     let newClassNames = ''
     for (const i in classNames) {
-      if (Object.prototype.hasOwnProperty.call(i, classNames)) {
+      if (Object.prototype.hasOwnProperty.call(classNames, i)) {
         if (classNames[i] === className) {
           continue
         }
-        newClassNames += ` ${ classNames[i]}`
+        newClassNames += ` ${classNames[i]}`
       }
     }
     elt.className = newClassNames

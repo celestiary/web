@@ -86,7 +86,7 @@ export default class Scene {
               if (!this.starSelected) {
                 this.marker.position.copy(pick)
               }
-              if (pickedStarLabel !== null) {
+              if (pickedStarLabel !== undefined) {
                 pickedStarLabel.removeFromParent()
               }
               const starName = `${this.stars.catalog.getNameOrId(pick.star.hipId)}`
@@ -140,7 +140,6 @@ export default class Scene {
           document.body.addEventListener('dblclick', markCb)
           document.body.addEventListener('mousemove', traceCb)
         })
-        console.log('this.stars', this.stars)
         return this.stars
       case 'star': return new Star(props, this.objects, this.ui)
       case 'planet': return new Planet(this, props)
@@ -411,7 +410,6 @@ export default class Scene {
     if (this.asterisms === null) {
       const asterisms = new Asterisms(this.stars, () => {
         this.stars.add(asterisms)
-        console.log(`Asterisms count:`, asterisms.catalog.numAsterisms)
         this.asterisms = asterisms
       })
     }

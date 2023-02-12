@@ -181,7 +181,7 @@ export default class ThreeUi {
     this.camera.updateMatrixWorld()
     if (this.clicked) {
       for (const i in this.clickCbs) {
-        if (Object.prototype.hasOwnProperty.call(i, this.clickCbs)) {
+        if (Object.prototype.hasOwnProperty.call(this.clickCbs, i)) {
           const clickCb = this.clickCbs[i]
           clickCb(this.mouse)
         }

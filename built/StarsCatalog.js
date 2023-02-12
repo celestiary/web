@@ -8,7 +8,7 @@ export default class StarsCatalog {
     constructor(numStars = 0, starsByHip = {}, hipByName = {}, namesByHip = {}, minMag = -8.25390625, maxMag = 15.4453125, 
     // 1E1 looks decent.  2E1 much more intriguing but a little fake.
     starScale = STARS_SCALE, lengthScale = LENGTH_SCALE * 1e1) {
-        /** @type Object<number,object> */
+        /** @type {Object<number,object>} */
         this.starsByHip = starsByHip;
         this.hipByName = hipByName;
         this.namesByHip = namesByHip;
@@ -139,14 +139,14 @@ export default class StarsCatalog {
         }
         const stars = [];
         for (const hipId in this.starsByHip) {
-            if (Object.prototype.hasOwnProperty.call(hipId, this.starsByHip)) {
+            if (Object.prototype.hasOwnProperty.call(this.starsByHip, hipId)) {
                 stars.push(this.starsByHip[hipId]);
             }
         }
         const sampled = [];
         let kept = 0;
         for (const keepId in keep) {
-            if (Object.prototype.hasOwnProperty.call(keepId, keep)) {
+            if (Object.prototype.hasOwnProperty.call(keep, keepId)) {
                 sampled[kept++] = this.starsByHip[keepId];
             }
         }
@@ -179,7 +179,7 @@ export default class StarsCatalog {
             }
         }
         for (const name in this.hipByName) {
-            if (Object.prototype.hasOwnProperty.call(name, this.hipByName)) {
+            if (Object.prototype.hasOwnProperty.call(this.hipByName, name)) {
                 const hipId = this.hipByName[name];
                 if (starsByHip[hipId]) {
                     hipByName[name] = hipId;

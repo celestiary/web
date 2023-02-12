@@ -135,7 +135,7 @@ export default class Stars extends Object {
   /** */
   addFaves(toShow) {
     for (const hipId in this.faves) {
-      if (!Object.prototype.hasOwnProperty.call(hipId, this.faves)) {
+      if (!Object.prototype.hasOwnProperty.call(this.faves, hipId)) {
         continue
       }
       const star = this.catalog.starsByHip[hipId]

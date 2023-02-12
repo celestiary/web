@@ -34,6 +34,6 @@ export default function App() {
           <AboutButton/>
         </div>
       </div>
-      <h1 id="target-id">Hello</h1>
+      <h1 id="target-id"> </h1>
     </>)
 }

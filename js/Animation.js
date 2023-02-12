@@ -58,7 +58,7 @@ export default class Animation {
     }
 
     for (const ndx in system.children) {
-      if (!Object.prototype.hasOwnProperty.call(ndx, system.children)) {
+      if (!Object.prototype.hasOwnProperty.call(system.children, ndx)) {
         continue
       }
       const child = system.children[ndx]

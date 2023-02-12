@@ -75,7 +75,7 @@ export default class ControlPanel {
          prop === 'apparentMagnitude' || prop === 'colorIndex') {
         continue
       }
-      if (Object.prototype.hasOwnProperty.call(prop, obj)) {
+      if (Object.prototype.hasOwnProperty.call(obj, prop)) {
         let val = obj[prop]
         if (prop === 'system' && typeof val === 'object' && Array.isArray(val) && val.length === 0) {
           continue

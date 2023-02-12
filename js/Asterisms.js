@@ -17,7 +17,7 @@ export default class Asterisms extends THREE.Object3D {
     this.catalog = new AsterismsCatalog(stars.catalog)
     this.catalog.load(() => {
       for (const astrName in this.catalog.byName) {
-        if (Object.prototype.hasOwnProperty.call(astrName, this.catalog.byName)) {
+        if (Object.prototype.hasOwnProperty.call(this.catalog.byName, astrName)) {
           this.show(astrName)
         }
       }
@@ -49,7 +49,7 @@ export default class Asterisms extends THREE.Object3D {
     }
     const paths = asterism.paths
     for (const pathNdx in paths) {
-      if (!Object.prototype.hasOwnProperty.call(pathNdx, paths)) {
+      if (!Object.prototype.hasOwnProperty.call(paths, pathNdx)) {
         continue
       }
       let prevStar = null
