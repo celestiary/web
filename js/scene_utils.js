@@ -1,10 +1,12 @@
 import {Euler, Object3D} from 'three'
 import Loader from './Loader.js'
 import Planet from './Planet.js'
-import Reify from './reify.js'
-import {LENGTH_SCALE} from './shared.js'
+import reifyMeasures from './reify.js'
 
 
+/**
+ *
+ */
 function planetHelper(path, cb) {
   const nO = (name) => {
     const o = new Object3D
@@ -28,9 +30,9 @@ function planetHelper(path, cb) {
           </tr>`
   })
 
-  const onLoadCb = (name, props) => {}
+  const onLoadCb = (name, props) => {/**/}
   const onDoneCb = (name, props) => {
-    Reify(props)
+    reifyMeasures(props)
     cb(new Planet(sceneGroups, props))
   }
 
@@ -38,12 +40,18 @@ function planetHelper(path, cb) {
 }
 
 
+/**
+ *
+ */
 function rotateEuler(obj, opts) {
   opts = opts || {x: 0, rotY: 0, rotZ: 0}
   obj.applyEuler(new Euler(opts.x || 0, opts.y || 0))
 }
 
 
+/**
+ *
+ */
 function rotate(obj, opts) {
   opts = opts || {x: 0, y: 0, z: 0}
   if (opts.x) {
@@ -58,6 +66,9 @@ function rotate(obj, opts) {
 }
 
 
+/**
+ * @returns {object}
+ */
 function addAndOrient(parent, child, opts) {
   parent.add(child)
   rotate(child, {x: opts.rotX || 0, y: opts.rotY || 0, z: opts.rotZ || 0})

@@ -1,7 +1,6 @@
 import React from 'react'
 import {useLocation} from 'react-router-dom'
-import cStar from '../Star.js'
-import Stars from '../Stars.js'
+import StarFromApp from '../Star.js'
 import StarsCatalog, {FAVES} from '../StarsCatalog.js'
 import ThreeUi from '../ThreeUI.js'
 import Time from '../Time.js'
@@ -9,6 +8,7 @@ import * as Shared from '../shared.js'
 import {elt} from '../utils.js'
 
 
+/** @returns {React.Component} */
 export default function Star() {
   const [ui, setUi] = React.useState(null)
   const [star, setStar] = React.useState(null)
@@ -25,7 +25,7 @@ export default function Star() {
       const path = (location.hash || '#Sol').substr(1)
       showStar(ui, path, star, setStar, catalog, time)
     }
-  }, [catalog, location])
+  }, [catalog, location, star, time, ui])
 
   return (
     <>
@@ -54,13 +54,13 @@ function addStarToScene(ui, catalog, hipId, curStar, setStar) {
   if (curStar) {
     ui.scene.remove(curStar)
   }
-  const starProps = catalog.starsByHip[hipId]
+  const starProps = catalog.starByHip.get(hipId)
   starProps.x = starProps.y = starProps.z = 0
   starProps.radius = {
     // Sun's radius in meters.
     scalar: 1 / Shared.LENGTH_SCALE,
   }
-  const star = new cStar(starProps, {}, ui)
+  const star = new StarFromApp(starProps, {}, ui)
   ui.scene.add(star)
   setStar(star)
   return star
@@ -71,7 +71,7 @@ function setupFavesTable(catalog) {
   const favesTable = elt('faves')
   for (const hipId in FAVES) {
     const name = FAVES[hipId]
-    const star = catalog.starsByHip[hipId]
+    const star = catalog.starByHip.get(hipId)
     const spectralType = StarsCatalog.StarSpectra[star.spectralType][3]
     favesTable.innerHTML +=
       `<tr>
@@ -97,7 +97,7 @@ function setup(setCatalog) {
 
 function showStar(ui, path, curStar, setStar, catalog, time) {
   path = path.replaceAll(/%20/g, ' ')
-  const hipId = catalog.hipByName[path]
+  const hipId = catalog.hipByName.get(path)
   if (hipId === undefined) {
     console.error(`Cannot find star(${path}) in `, catalog)
     return

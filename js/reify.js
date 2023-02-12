@@ -9,21 +9,25 @@ const [METER, SECOND] = [Measure.Unit.METER, Measure.Unit.SECOND]
  * be reified, like radius and mass.
  */
 export default function reifyMeasures(obj) {
-  function reify(obj, prop, name) {
-    const val = obj[prop]
+  /**
+   *
+   */
+  function reify(o, prop, name) {
+    const val = o[prop]
     if (val !== undefined && val !== null) {
       const type = typeof val
-      if (type == 'string') {
-        obj[prop] = Measure.parse(val).convertToUnit()
-      } else if (type == 'number') {
-        let val = obj[prop]
+      if (type === 'string') {
+        o[prop] = Measure.parse(val).convertToUnit()
+      } else if (type === 'number') {
+        let v = o[prop]
         switch (prop) {
-          case 'siderealOrbitPeriod': val = new Measure(val, UNIT, SECOND); break
-          case 'siderealRotationPeriod': val = new Measure(val, UNIT, SECOND); break
-          case 'semiMajorAxis': val = new Measure(val, UNIT, METER); break
+          case 'siderealOrbitPeriod': v = new Measure(val, UNIT, SECOND); break
+          case 'siderealRotationPeriod': v = new Measure(val, UNIT, SECOND); break
+          case 'semiMajorAxis': v = new Measure(val, UNIT, METER); break
+          default:
         }
-        if (val && val.scalar && parseFloat(val.scalar)) {
-          obj[prop] = val
+        if (v && v.scalar && parseFloat(v.scalar)) {
+          o[prop] = v
         }
       } else if (!(val instanceof Measure)) {
         console.warn(`unnormalized ${prop} for ${name}; val(${val}) type(${type})`)

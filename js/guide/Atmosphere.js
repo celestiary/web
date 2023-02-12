@@ -1,4 +1,8 @@
+/**
+ */
 export default class Atmosphere {
+  /**
+   */
   constructor(
       SunY, SunIntensity, GroundElevation, AtmosphereHeight,
       RayleighRed, RayleighGreen, RayleighBlue, RayleighScaleHeight,

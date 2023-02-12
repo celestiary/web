@@ -1,8 +1,7 @@
 // https://en.wikipedia.org/wiki/Gravitational_constant
-// const G = 6.6743e-11;
-const G = 1e-10
+// export const G = 6.6743e-11;
+export const G = 1e-10
 const minDistance = 0.1
-const DEBUG = false// ;document.getElementById('info');
 
 
 /**
@@ -12,20 +11,17 @@ const DEBUG = false// ;document.getElementById('info');
  * @param mass Masses of particles: [m0, m1, ...]
  * @param dt Change in time to integrate.  Default 1 second.
  */
-function step(pos, vel, acc, mass, dt = 1) {
+export function step(pos, vel, acc, mass, dt = 1) {
   // TODO: maybe have an applyRealtime for dt = 1 with it factored out.
-  if (DEBUG) {
-    DEBUG.innerHTML = `step:<br/>`
-  }
   const halfDt = dt * 0.5
   const halfDt2 = dt * dt * 0.5
   const vxBefore = new Array(mass.length); const vxAfter = new Array(mass.length)
   for (let i = 0; i < pos.length; i += 3) {
     const xi = i; const yi = i + 1; const zi = i + 2
-    pos[xi] += vel[xi] * dt + acc[xi] * halfDt2
-    pos[yi] += vel[yi] * dt + acc[yi] * halfDt2
-    pos[zi] += vel[zi] * dt + acc[zi] * halfDt2
-    const n = Math.floor(xi/3)
+    pos[xi] += (vel[xi] * dt) + (acc[xi] * halfDt2)
+    pos[yi] += (vel[yi] * dt) + (acc[yi] * halfDt2)
+    pos[zi] += (vel[zi] * dt) + (acc[zi] * halfDt2)
+    const n = Math.floor(xi / 3)
     vxBefore[n] = vel[xi]
   }
   updateAccelerations(pos, vel, acc, mass)
@@ -34,26 +30,36 @@ function step(pos, vel, acc, mass, dt = 1) {
     vel[xi] += acc[xi] * halfDt
     vel[yi] += acc[yi] * halfDt
     vel[zi] += acc[zi] * halfDt
-    const n = Math.floor(xi/3)
+    const n = Math.floor(xi / 3)
     vxAfter[n] = vel[xi]
+    /*
     if (DEBUG) {
       DEBUG.innerHTML += `body #${n}<br/>` +
                        `__vxBefore: ${vxBefore[n]}<br/>` +
                        `__vxAfter: ${vxAfter[n]}<br/>` +
-                       `__delta: ${vxAfter[n]-vxBefore[n]}<br/>`
+                       `__delta: ${vxAfter[n] - vxBefore[n]}<br/>`
     }
+    */
   }
 }
 
 
-function updateAccelerations(pos, vel, acc, mass) {
+/**
+ * @param {Array.<number>} pos
+ * @param {Array.<number>} vel
+ * @param {Array.<number>} acc
+ * @param {Array.<number>} mass
+ */
+export function updateAccelerations(pos, vel, acc, mass) {
   let fX; let fY; let fZ
   for (let i = 0; i < pos.length; i += 3) {
     const xi = i; const yi = i + 1; const zi = i + 2
     const x1 = pos[xi]; const y1 = pos[yi]; const z1 = pos[zi]
     const m1 = mass[i / 3]
     const GM1 = G * m1
-    fX = 0, fY = 0, fZ = 0
+    fX = 0
+    fY = 0
+    fZ = 0
     for (let j = 0; j < i; j += 3) {
       const xj = j; const yj = j + 1; const zj = j + 2
       const x2 = pos[xj]; const y2 = pos[yj]; const z2 = pos[zj]
@@ -63,7 +69,7 @@ function updateAccelerations(pos, vel, acc, mass) {
       let dX = x2 - x1
       let dY = y2 - y1
       let dZ = z2 - z1
-      const d = Math.max(Math.sqrt(dX*dX + dY*dY + dZ*dZ), minDistance)
+      const d = Math.max(Math.sqrt((dX * dX) + (dY * dY) + (dZ * dZ)), minDistance)
       // Normalize
       dX = dX / d
       dY = dY / d
@@ -84,12 +90,14 @@ function updateAccelerations(pos, vel, acc, mass) {
     acc[xi] += fX
     acc[yi] += fY
     acc[zi] += fZ
-    const vX = vel[xi]
+    // const vX = vel[xi]
+    /*
     if (DEBUG) {
-      DEBUG.innerHTML += `body #${Math.floor(i/3)}<br/>` +
+      DEBUG.innerHTML += `body #${Math.floor(i / 3)}<br/>` +
                        `__vX:${vel[xi]}<br/>` +
-                       `__fX:${fX/G}<br/>`
+                       `__fX:${fX / G}<br/>`
     }
+    */
   }
 }
 
@@ -131,10 +139,3 @@ function updateAccelerations(pos, vel, acc, mass) {
   }
 }
 */
-
-
-export {
-  G,
-  step,
-  updateAccelerations,
-}

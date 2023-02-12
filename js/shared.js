@@ -13,9 +13,9 @@ import {named} from './utils.js'
 // and then dividing it down to the smallest size.
 
 // Deimos size in meters.
-const SMALLEST_REAL_SIZE = 1E3
+// const SMALLEST_REAL_SIZE = 1E3
 // Smallest renderable size.
-const SMALLEST_RENDER_SIZE = 1E-4
+// const SMALLEST_RENDER_SIZE = 1E-4
 
 
 export const

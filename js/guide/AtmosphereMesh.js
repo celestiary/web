@@ -2,7 +2,7 @@ import {
   AdditiveBlending,
   BufferGeometry,
   Float32BufferAttribute,
-  GLSL3,
+  // GLSL3,
   Mesh,
   ShaderMaterial,
   Vector2,
@@ -10,6 +10,8 @@ import {
 } from 'three'
 
 
+/**
+ */
 export default class AtmosphereObject3D extends Mesh {
   /** @param atmos An Atmosphere parameters object. */
   constructor(atmos) {
@@ -18,7 +20,7 @@ export default class AtmosphereObject3D extends Mesh {
   }
 
 
-  /** @Override */
+  /** @override */
   onBeforeRender() {
     const u = this.material.uniforms
     const atmos = this.atmosphere
@@ -39,6 +41,9 @@ export default class AtmosphereObject3D extends Mesh {
 }
 
 
+/**
+ * @returns {BufferGeometry}
+ */
 function makeGeometry() {
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute([
@@ -54,6 +59,9 @@ function makeGeometry() {
 }
 
 
+/**
+ * @returns {ShaderMaterial}
+ */
 function makeMaterial(atmos) {
   const kLengthUnitInMeters = 1000
   const viewDistanceMeters = 9e3
@@ -80,7 +88,7 @@ function makeMaterial(atmos) {
     cosA, -cosZ * sinA, sinZ * sinA, sinZ * sinA * viewDistance,
     0, sinZ, cosZ, cosZ * viewDistance,
     0, 0, 0, 1])
-  const sunPos = -10
+  // const sunPos = -10
   return new ShaderMaterial({
     uniforms: {
       model_from_view: {value: modelFromView},

@@ -3,8 +3,6 @@ import {
   PointLight,
   ShaderMaterial,
   Mesh,
-  SphereGeometry,
-  MeshBasicMaterial,
   Vector2,
   Vector3,
 } from 'three'
@@ -35,6 +33,7 @@ import * as Shared from './shared.js'
  * flows along the field lines.
  */
 export default class Star extends Object {
+  /** */
   constructor(props, sceneObjects, ui, shadowProps = {}) {
     super(props.name, props)
     if (!this.props || !(this.props.radius)) {
@@ -44,7 +43,7 @@ export default class Star extends Object {
     this.ui = ui
     if (sceneObjects) {
       sceneObjects[this.name] = this
-      sceneObjects[this.name + '.orbitPosition'] = this
+      sceneObjects[`${this.name }.orbitPosition`] = this
     }
     this.orbitPosition = this
 
@@ -67,13 +66,14 @@ export default class Star extends Object {
   }
 
 
+  /** @returns {Mesh} */
   createSurface(props) {
     const tempRanges = [
       [8152, 10060], // 0, O
       [11950, 12250], // 1, B  Rigel
       [8152, 10060], // 2, A  Vega
       [6000, 7600], // 3, F  Procyon
-      [5778, 5778/4], // 4, G  Sun
+      [5778, 5778 / 4], // 4, G  Sun
       [4256, 4316], // 5, K  Arcturus
       [3400, 3800], // 6, M  Betelgeuse
       [3400, 3800], // 7, R, like M
@@ -86,7 +86,7 @@ export default class Star extends Object {
       [8152, 10060], // 14, T
       [8152, 10060]]// 15, Carbon star?
     const temp = tempRanges[props.spectralType]
-    if (false) {
+    /*
       const surface = new Mesh(
           new SphereGeometry(1, 16, 16 / 2),
           new MeshBasicMaterial({
@@ -95,7 +95,7 @@ export default class Star extends Object {
           }))
       surface.scale.setScalar(props.radius.scalar * Shared.LENGTH_SCALE)
       return surface
-    }
+    }*/
     this.shaderMaterial = new ShaderMaterial({
       uniforms: {
         uColor: {value: new Vector3(1.0, 1.0, 1.0)},
@@ -116,10 +116,11 @@ export default class Star extends Object {
   }
 
 
+  /** */
   setupAnim() {
     this.preAnimCb = (time) => {
       // Sun looks bad changing too quickly.
-      time = Math.log(1 + time.simTimeElapsed * 8E-7)
+      time = Math.log(1 + (time.simTimeElapsed * 8E-7))
       if (Shared.targets.pos) {
         this.shaderMaterial.uniforms.iTime.value = time
         const d = Shared.targets.pos.distanceTo(this.ui.camera.position)

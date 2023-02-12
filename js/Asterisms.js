@@ -1,22 +1,22 @@
 import * as THREE from 'three'
-import Parser from '@pablo-mayrgundter/parser.js/Parser.js'
 import AsterismsCatalog from './AsterismsCatalog.js'
-import StarsCatalog from './StarsCatalog.js'
-import * as Material from './material.js'
 import * as Shapes from './shapes.js'
 import {STARS_SCALE, labelTextColor} from './shared.js'
 
 
+/** */
 export default class Asterisms extends THREE.Object3D {
+  /**
+   * @param {object} stars
+   * @param {Function} cb
+   */
   constructor(stars, cb) {
     super()
     this.name = 'Asterisms'
     this.stars = stars
     this.catalog = new AsterismsCatalog(stars.catalog)
     this.catalog.load(() => {
-      for (const astrName in this.catalog.byName) {
-        this.show(astrName)
-      }
+      this.catalog.byName.forEach((astr, name) => this.show(name))
       if (cb) {
         cb(this)
       }
@@ -24,10 +24,14 @@ export default class Asterisms extends THREE.Object3D {
   }
 
 
+  /**
+   * @param {string} astrName
+   * @param {Function} filterFn
+   */
   show(astrName, filterFn) {
     if (!filterFn) {
       filterFn = (stars, hipId, name) => {
-        if (this.stars.catalog.namesByHip[hipId].length >= 2) {
+        if (this.stars.catalog.namesByHip.get(hipId).length >= 2) {
           if (!name.match(/\w{2,3} [\w\d]{3,4}/)) {
             return true
           }
@@ -35,17 +39,17 @@ export default class Asterisms extends THREE.Object3D {
         return false
       }
     }
-    const asterism = this.catalog.byName[astrName]
+    const asterism = this.catalog.byName.get(astrName)
     if (!asterism) {
       throw new Error('Unknown asterism: ', astrName)
     }
     const paths = asterism.paths
-    for (const pathNdx in paths) {
+    paths.forEach((pathNames, pathNdx) => {
       let prevStar = null
-      const pathNames = paths[pathNdx]
       for (let i = 0; i < pathNames.length; i++) {
+        // eslint-disable-next-line no-unused-vars
         const [origName, name, hipId] = this.stars.catalog.reifyName(pathNames[i])
-        const star = this.stars.catalog.starsByHip[hipId]
+        const star = this.stars.catalog.starByHip.get(hipId)
         if (!star) {
           // TODO: fixup missing star names.
           // console.warn(`Cannot find star, hipId(${hipId})`, name);
@@ -71,15 +75,20 @@ export default class Asterisms extends THREE.Object3D {
         }
         prevStar = star
       }
-    }
+    })
   }
 
 
+  /**
+   * @param {object} record
+   * @param {object} catalog
+   */
   reify(record, catalog) {
     const paths = record.paths
     for (let i = 0; i < paths.length; i++) {
       const path = paths[i]
       for (let n = 0; n < path.length; n++) {
+        // eslint-disable-next-line no-unused-vars
         const [origName, name, hipId] = this.stars.catalog.reifyName(path[n])
         if (hipId) {
           path[n] = name

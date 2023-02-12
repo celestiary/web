@@ -1,4 +1,6 @@
+/** */
 export default class Keys {
+  /** */
   constructor() {
     this.keymap = {}
     this.msgs = {}
@@ -6,6 +8,7 @@ export default class Keys {
   }
 
 
+  /** */
   bindToWindow() {
     window.addEventListener('keydown', (e) => {
       this.onKeyDown(e)
@@ -13,6 +16,7 @@ export default class Keys {
   }
 
 
+  /** @param {object} event */
   onKeyDown(event) {
     const charStr = event.key
     const f = this.keymap[charStr]
@@ -22,6 +26,11 @@ export default class Keys {
   }
 
 
+  /**
+   * @param {string} c Shortcut key
+   * @param {Function} fn
+   * @param {string} msg
+   */
   map(c, fn, msg) {
     this.keymap[c] = fn
     this.msgs[c] = msg

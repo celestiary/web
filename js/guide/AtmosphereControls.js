@@ -1,5 +1,6 @@
 import {Pane} from 'tweakpane'
 
+
 const PRESETS = {
   Earth: {
     SunY: 2,
@@ -57,6 +58,8 @@ const PRESETS = {
 }
 
 
+/**
+ */
 export default class AtmosphereControls extends Pane {
   /** @param atmos An Atmosphere parameters object. */
   constructor(container, atmos) {

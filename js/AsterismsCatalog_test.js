@@ -16,7 +16,7 @@ tests.add('AsterismsCatalog', () => {
   tests.assertEquals(106747, starsCatalog.numStars)
   const asterisms = new AsterismsCatalog(starsCatalog)
   asterisms.read(readFileSync('../public/data/asterisms.dat', 'utf-8'))
-  tests.assertEquals(89, Object.keys(asterisms.byName).length)
+  tests.assertEquals(89, asterisms.byName.size)
 })
 
 tests.run()

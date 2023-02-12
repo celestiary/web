@@ -4,32 +4,46 @@ import {capitalize} from './utils.js'
 import {StarSpectra} from './StarsCatalog.js'
 
 
+/** */
 export default class ControlPanel {
+  /**
+   * @param {object} containerElt
+   * @param {object} loader
+   */
   constructor(containerElt, loader) {
     this.containerElt = containerElt
     this.loader = loader
   }
 
+
+  /**
+   * @param {string} path
+   * @returns {object}
+   */
   getPathTarget(path) {
     return path[path.length - 1]
   }
 
+
+  /**
+   * @param {string} path
+   */
   showNavDisplay(path) {
     let crumbs = ''
     for (let i = 0; i < path.length; i++) {
       const hash = path.slice(0, i + 1).join('/')
       const name = path[i]
-      if (i == path.length - 1) {
+      if (i === path.length - 1) {
         crumbs += capitalize(name)
       } else {
-        crumbs += '<a href="#'+ hash +'">' + capitalize(name) + '</a>'
+        crumbs += `<a href="#${ hash }">${ capitalize(name) }</a>`
       }
       if (i < path.length - 1) {
         crumbs += ' &gt; '
       }
     }
 
-    let html = crumbs + ' <ul>\n'
+    let html = `${crumbs } <ul>\n`
     const pathPrefix = path.join('/')
     html += this.showInfoRecursive(this.loader.loaded[this.getPathTarget(path)],
         pathPrefix, false, false)
@@ -39,20 +53,31 @@ export default class ControlPanel {
   }
 
 
+  /**
+   * @param {object} obj
+   * @param {string} pathPrefix
+   * @param {boolean} isArray
+   * @param {boolean} isSystem
+   * @returns {string}
+   */
   showInfoRecursive(obj, pathPrefix, isArray, isSystem) {
+    /**
+     * @param {number} num
+     * @returns {string}
+     */
     function cleanZeros(num) {
-      const str = num+''
+      const str = `${num}`
       return str.replace(/0000+\d+/, ' ')
     }
     let html = ''
     for (const prop in obj) {
-      if (prop == 'name' || prop == 'parent' || prop.startsWith('texture_') ||
-         prop == 'apparentMagnitude' || prop == 'colorIndex') {
+      if (prop === 'name' || prop === 'parent' || prop.startsWith('texture_') ||
+         prop === 'apparentMagnitude' || prop === 'colorIndex') {
         continue
       }
-      if (obj.hasOwnProperty(prop)) {
+      if (Object.prototype.hasOwnProperty.call(obj, prop)) {
         let val = obj[prop]
-        if (prop == 'system' && typeof val == 'object' && Array.isArray(val) && val.length == 0) {
+        if (prop === 'system' && typeof val === 'object' && Array.isArray(val) && val.length === 0) {
           continue
         }
         html += '<li>'
@@ -62,8 +87,9 @@ export default class ControlPanel {
             case 'axialInclination': prettyName = 'tilt'; break
             case 'siderealRotationPeriod': prettyName = 'rotation period'; break
             case 'spectralType': prettyName = 'star class'; break
+            default:
           }
-          html += prettyName + ': '
+          html += `${prettyName }: `
         }
         if (val instanceof Measure) {
           switch (prop) {
@@ -71,7 +97,7 @@ export default class ControlPanel {
             case 'mass': val = val.convertTo(Measure.Magnitude.KILO); break
             case 'semiMajorAxis':
               // TODO
-              if (typeof val.scalar == 'string') {
+              if (typeof val.scalar === 'string') {
                 val.scalar = parseFloat(val.scalar)
               }
               val.scalar = val.scalar.toExponential(4)
@@ -83,15 +109,16 @@ export default class ControlPanel {
             case 'siderealRotationPeriod':
               val = secsToYDHMS(val.scalar)
               break
+            default:
           }
           html += cleanZeros(val)
         } else if (val instanceof Array) {
-          if (prop == 'system') {
+          if (prop === 'system') {
             html += '<ol>\n'
           } else {
             html += '<ol class="collapsed">\n'
           }
-          html += this.showInfoRecursive(val, pathPrefix, true, prop == 'system')
+          html += this.showInfoRecursive(val, pathPrefix, true, prop === 'system')
           html += '</ol>\n'
         } else if (val instanceof Object) {
           html += '<ul class="collapsed">\n'
@@ -104,21 +131,24 @@ export default class ControlPanel {
               path += '/'
             }
             path += val
-            html += '<a href="#' + path + '">'
+            html += `<a href="#${ path }">`
             html += capitalize(val)
           } else {
             switch (prop) {
-              case 'spectralType':
+              case 'spectralType': {
                 const ndx = parseInt(val)
                 if (ndx >= 0) {
                   val = StarSpectra[ndx][3]
                 }
                 break
+              }
               case 'equatorialGravity':
-              case 'escapeVelocity':
-                val = val + ' m/s^2'
+              case 'escapeVelocity': {
+                val = `${val } m/s^2`
                 break
-              case 'axialInclination': val = val + '°'; break
+              }
+              case 'axialInclination': val = `${val }°`; break
+              default:
             }
             html += val
           }
@@ -136,6 +166,10 @@ export default class ControlPanel {
 }
 
 
+/**
+ * @param {number|string} s
+ * @returns {string}
+ */
 function secsToYDHMS(s) {
   const secsPerYear = 86400 * 365
   let str = ''

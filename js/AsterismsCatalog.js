@@ -1,17 +1,21 @@
-import * as THREE from 'three'
 import Parser from '@pablo-mayrgundter/parser.js/Parser.js'
 
-import StarsCatalog from './StarsCatalog.js'
 
-
+/** */
 export default class AsterismsCatalog {
+  /**
+   * @param {object} starsCatalog
+   */
   constructor(starsCatalog) {
     this.starsCatalog = starsCatalog
-    this.byName = {}
+    this.byName = new Map()
     this.numAsterisms = 0
   }
 
 
+  /**
+   * @param {Function} cb
+   */
   load(cb) {
     fetch('/data/asterisms.dat').then((rsp) => {
       rsp.text().then((text) => {
@@ -31,12 +35,14 @@ export default class AsterismsCatalog {
    *   [ "Alpha Cae" "Beta Cae" ]
    *   ...
    * ]
+   *
+   * @param {string} text
+   * @returns {object} this
    */
   read(text) {
     const records = []
     let recordName = null
     let paths = []
-    const path = []
     let names = []
     let nameList = []
     const Grammar = {
@@ -51,7 +57,7 @@ export default class AsterismsCatalog {
             name: recordName,
             paths: paths,
           }
-          this.byName[recordName] = record
+          this.byName.set(recordName, record)
           this.numAsterisms++
           records.push(record)
           recordName = null
@@ -88,7 +94,7 @@ export default class AsterismsCatalog {
       },
     }
     const offset = new Parser().parse(text, Grammar, 'Start')
-    if (offset != text.length) {
+    if (offset !== text.length) {
       console.warn(`Cannot parse asterisms, offset(${offset}) != text.length(${text.length})`)
     }
     return this

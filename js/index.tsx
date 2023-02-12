@@ -1,10 +1,11 @@
 import React from 'react'
-import {render} from 'react-dom'
+import {createRoot} from 'react-dom/client'
 import {BrowserRouter} from 'react-router-dom'
 import Routed from './Routed'
 
 
-render(
+const root = createRoot(document.getElementById('root'))
+root.render(
     <BrowserRouter>
       <Routed/>
-    </BrowserRouter>, document.getElementById('root'))
+    </BrowserRouter>)

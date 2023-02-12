@@ -1,18 +1,61 @@
 import {LENGTH_SCALE, STARS_SCALE} from './shared.js'
+import {assertEquals, assertNotNullOrUndefined} from './utils.js'
 
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
 const littleEndian = true
 
+/** @typedef {Map<number, StarProps>} StarByHip A map from Hipparcos ID to star object. */
 
+/** @typedef {Map<string, number>} HipByName Hipparcos ID by star name. */
+
+/** @typedef {Map<number, Array.<string>>} NamesByHip Array of names for the star by Hipparcos ID. */
+
+/**
+ * @typedef {{
+ *   x: number,
+ *   y: number,
+ *   z: number,
+ *   hipId: number,
+ *   absMag: number,
+ *   kind: number,
+ *   spectralType: number,
+ *   sub: number,
+ *   lumClass: number,
+ *   lumRelSun: number,
+ *   radius: number,
+ * }} StarProps
+ */
+
+
+/**
+ */
 export default class StarsCatalog {
-  /** @see StarsCatalog#downsample for call with all the args. */
-  constructor(numStars = 0,
-      starsByHip = {}, hipByName = {}, namesByHip = {},
+  /**
+   * @param {number} numStars
+   * @param {StarByHip} starByHip
+   * @param {HipByName} hipByName
+   * @param {NamesByHip} namesByHip
+   * @param {number} minMag
+   * @param {number} maxMag
+   * @param {number} starScale
+   * @param {number} lengthScale
+   * @see StarsCatalog#downsample for call with all the args.
+   */
+  constructor(
+      numStars = 0,
+      starByHip = /** @type {StarByHip}*/ new Map(),
+      hipByName = /** @type {HipByName}*/ new Map(),
+      namesByHip = /** @type {NamesByHip}*/ new Map(),
       minMag = -8.25390625, maxMag = 15.4453125,
       // 1E1 looks decent.  2E1 much more intriguing but a little fake.
       starScale = STARS_SCALE, lengthScale = LENGTH_SCALE * 1e1) {
-    this.starsByHip = starsByHip
+    /** @type {StarByHip} */
+    this.starByHip = starByHip
+
+    /** @type {HipByName} */
     this.hipByName = hipByName
+
+    /** @type {NamesByHip} */
     this.namesByHip = namesByHip
     this.minMag = minMag
     this.maxMag = maxMag
@@ -25,36 +68,47 @@ export default class StarsCatalog {
   }
 
 
+  /**
+   * @param {Function} cb
+   */
   load(cb) {
     if (!cb) {
       throw new Error('Undefined callback')
     }
-    fetch('/data/stars.dat').then((body) => {
-      body.arrayBuffer().then((buffer) => {
-        this.read(buffer)
-        fetch('/data/starnames.dat').then((body) => {
-          body.text().then((text) => {
-            this.readNames(text)
-            cb()
+    fetch('/data/stars.dat').then((starsData) => {
+      starsData.arrayBuffer().then(
+          /**
+           * @param {ArrayBuffer} buffer
+           */
+          (buffer) => {
+            this.read(buffer)
+            fetch('/data/starnames.dat').then((namesData) => {
+              namesData.text().then((text) => {
+                this.readNames(text)
+                cb()
+              })
+            })
           })
-        })
-      })
     })
   }
 
 
+  /**
+   * @param {ArrayBuffer} buffer
+   * @returns {object}
+   */
   read(buffer) {
     const header = 'CELSTARS\x00\x01'
     const data = new DataView(buffer)
     let offset = 0
-    check(header, data, offset)
+    assertDataView(header, data, offset)
     offset += header.length
 
     this.numStars = data.getUint32(offset, littleEndian)
     offset += 4
 
     const sun = getSunProps()
-    this.starsByHip[0] = sun
+    this.starByHip.set(0, sun)
     for (let i = 0; i < this.numStars; i++) {
       const hipId = data.getUint32(offset, littleEndian)
       offset += 4
@@ -86,6 +140,7 @@ export default class StarsCatalog {
       const lumRelSun = Math.pow(2.512, absMagD)
       const radius = sun.radius * Math.pow(lumRelSun, 0.5)
 
+      /** @type {StarProps} */
       const star = {
         x: x,
         y: y,
@@ -99,12 +154,13 @@ export default class StarsCatalog {
         lumRelSun: lumRelSun,
         radius: radius,
       }
-      this.starsByHip[hipId] = star
+      this.starByHip.set(hipId, star)
     }
     return this
   }
 
 
+  /** @param {string} text */
   readNames(text) {
     const records = text.split('\n')
     for (let i = 0; i < records.length; i++) {
@@ -114,25 +170,25 @@ export default class StarsCatalog {
         console.warn(`Malformed name record ${i}: `, parts)
         continue
       }
-      const hipId = parseInt(parts.shift())
-      this.namesByHip[hipId] = parts
+      const hipId = parseInt(assertNotNullOrUndefined(parts.shift()))
+      this.namesByHip.set(hipId, parts)
       this.numNamedStars++
       for (let j = 0; j < parts.length; j++) {
         const part = parts[j]
-        this.hipByName[part] = hipId
+        this.hipByName.set(part, hipId)
         this.numNames++
         // ZET1 Aqr -> ZET Aqr
         let match = part.match(/(\w{2,3})\d+ (\w{3})/)
         if (match) {
-          const fix = match[1] + ' ' + match[2]
-          this.hipByName[fix] = hipId
+          const fix = `${match[1] } ${ match[2]}`
+          this.hipByName.set(fix, hipId)
           this.numNames++
         }
         // IOT Cnc A -> Iot Cnc
         match = part.match(/(\w{2,3}) (\w{3}).*/)
         if (match) {
-          const fix = match[1] + ' ' + match[2]
-          this.hipByName[fix] = hipId
+          const fix = `${match[1] } ${ match[2]}`
+          this.hipByName.set(fix, hipId)
           this.numNames++
         }
       }
@@ -140,32 +196,33 @@ export default class StarsCatalog {
   }
 
 
-  downsample(n, keep = {}) {
-    if (this.numStars < n) {
+  /**
+   * @param {number} numToKeep
+   * @param {Set<number>} keep
+   * @returns {StarsCatalog}
+   */
+  downsample(numToKeep, keep = new Set()) {
+    if (this.numStars < numToKeep) {
       return this
     }
-    const stars = []
-    for (const hipId in this.starsByHip) {
-      stars.push(this.starsByHip[hipId])
-    }
-    const sampled = []
-    let kept = 0
-    for (const keepId in keep) {
-      sampled[kept++] = this.starsByHip[keepId]
-    }
-    for (let i = kept; i < n; i++) {
-      const star = stars[Math.floor(Math.random() * stars.length)]
-      if (keep[star.hipId]) {// Already have it, try again.
-        continue
-      }
-      sampled.push(star)
-    }
 
-    const numStars = sampled.length
-    const starsByHip = {}; const hipByName = {}; const namesByHip = {}
+    /** @type {Array.<StarProps>} */
+    let sampled = Array.from(this.starByHip.values())
+    // ChatGPT hooked me up with this!
+    sampled = sampled.sort(() => Math.random() - 0.5).slice(0, numToKeep)
+    assertEquals(numToKeep, sampled.length)
+
+    /** @type {StarByHip} */
+    const starByHip = new Map()
+
+    /** @type {HipByName} */
+    const hipByName = new Map()
+
+    /** @type {NamesByHip} */
+    const namesByHip = new Map()
+
     let minMag = Number.MAX_VALUE; let maxMag = Number.MIN_VALUE
-    for (let i = 0; i < numStars; i++) {
-      const star = sampled[i]
+    sampled.forEach((star) => {
       if (star.absMag < minMag) {
         minMag = star.absMag
       }
@@ -173,24 +230,27 @@ export default class StarsCatalog {
         maxMag = star.absMag
       }
       const hipId = star.hipId
-      starsByHip[hipId] = star
-      const names = this.namesByHip[hipId]
+      starByHip.set(hipId, star)
+      const names = this.namesByHip.get(hipId)
       if (names) {
-        namesByHip[hipId] = names
+        namesByHip.set(hipId, names)
       }
-    }
-    for (const name in this.hipByName) {
-      const hipId = this.hipByName[name]
-      if (starsByHip[hipId]) {
-        hipByName[name] = hipId
+    })
+    this.hipByName.forEach((hipId, name) => {
+      if (starByHip.get(hipId)) {
+        hipByName.set(name, hipId)
       }
-    }
-    return new StarsCatalog(numStars, starsByHip, hipByName, namesByHip, minMag, maxMag)
+    })
+    return new StarsCatalog(numToKeep, starByHip, hipByName, namesByHip, minMag, maxMag)
   }
 
 
+  /**
+   * @param {number} hipId
+   * @returns {string|number}
+   */
   getNameOrId(hipId) {
-    const names = this.namesByHip[hipId]
+    const names = this.namesByHip.get(hipId)
     if (names && names.length > 0) {
       return names[0]
     }
@@ -198,20 +258,26 @@ export default class StarsCatalog {
   }
 
 
+  /**
+   * @param {string} origName
+   * @returns {Array.<any>}
+   */
   reifyName(origName) {
     let name = origName
-    let hipId = this.hipByName[name]
+    let hipId = this.hipByName.get(name)
     if (!hipId) {
       name = abbrev(name)
-      hipId = this.hipByName[name]
+      hipId = this.hipByName.get(name)
     }
     if (!hipId) {
       name = abbrevVariant(name)
-      hipId = this.hipByName[name]
+      hipId = this.hipByName.get(name)
     }
     if (hipId) {
-      const names = this.namesByHip[hipId]
-      name = names[0]
+      const names = this.namesByHip.get(hipId)
+      if (names && names.length > 0) {
+        name = names[0]
+      }
     }
     // if (!hipId)
     //  throw new Error(`Could not reify origName(${origName}) for hipId(${hipId})`);
@@ -222,6 +288,7 @@ export default class StarsCatalog {
 
 // Didn't see the sun in the stars.dat catalog, so adding it
 // manually.  If wrong, it'll be in there twice but indexed once
+/** @returns {StarProps} */
 export function getSunProps(radius = 695700000) {
   return {
     x: 0, y: 0, z: 0,
@@ -237,7 +304,14 @@ export function getSunProps(radius = 695700000) {
 }
 
 
-/** Generates a star like _tmpl_ but at random position and given id. */
+/**
+ * Generates a star like _tmpl_ but at random position and given id.
+ *
+ * @param {StarProps} tmpl
+ * @param {number} id
+ * @param {number} posScale
+ * @returns {StarProps}
+ */
 export function genStar(tmpl, id, posScale = 1e10) {
   return {
     x: posScale * (Math.random() - 0.5),
@@ -286,6 +360,10 @@ export const StarSpectra = [
 StarsCatalog.StarSpectra = StarSpectra
 
 
+/**
+ * @param {string} name
+ * @returns {string}
+ */
 function abbrev(name) {
   const parts = name.split(/\s+/)
   parts[0] = parts[0].substring(0, 3).toUpperCase()
@@ -294,9 +372,13 @@ function abbrev(name) {
 }
 
 
+/**
+ * @param {string} name
+ * @returns {string}
+ */
 function abbrevVariant(name) {
   const parts = name.split(/\s+/)
-  const num = variants[parts[0]]
+  const num = variants.get(parts[0])
   if (num) {
     parts[0] = num
   }
@@ -306,17 +388,22 @@ function abbrevVariant(name) {
 
 // TODO: https://en.wikipedia.org/wiki/Bayer_designation
 // Meantime, these are what I've observed:
-const variants = {
-  ALP: 'ALF',
-  THE: 'TET',
-}
+/** @type {Map.<string, string>} */
+const variants = new Map()
+variants.set('ALP', 'ALF')
+variants.set('THE', 'TET')
 
 
-function check(expect, actual, offset) {
+/**
+ * @param {string} expect
+ * @param {DataView} actual
+ * @param {number} offset
+ */
+function assertDataView(expect, actual, offset) {
   for (let i = 0; i < expect.length; i++) {
     const eC = expect.charCodeAt(i)
-    const aC = actual.getUint8(offset + i, littleEndian)
-    if (eC == aC) {
+    const aC = actual.getUint8(offset + i)
+    if (eC === aC) {
       continue
     }
     throw new Error(`Check failed at index ${i}, expected: ${eC}, actual: ${aC}`)
@@ -324,45 +411,7 @@ function check(expect, actual, offset) {
 }
 
 
-// Unused utilities
-function smallCatalog(tmpl) {
-  const ps = 10 // position scale
-  const s0 = tmpl; const s1 = genStar(s0, 1, ps); const s2 = genStar(s0, 2, ps); const s3 = genStar(s0, 3, ps)
-  s1.x = 2; s1.y = 2; s1.z = 0
-  s2.x = 2; s2.y = -2; s2.z = 0
-  s3.x = -2; s3.y = 2; s3.z = 0
-  const starsByHip = {0: s0, 1: s1, 2: s2, 3: s3}
-  const hipByName = {Sun: 0, 1: 1, 2: 2, 3: 3}
-  const faves = {0: 'Sun', 1: 'Star 1', 2: 'Star 2', 3: 'Star 3'}
-  const namesByHip = {0: ['Sun'], 1: ['Star 1'], 2: ['Star 2'], 3: ['Star 3']}
-  const catalog = new StarsCatalog(
-      4, starsByHip, hipByName, namesByHip,
-      tmpl.absMag, tmpl.absMag,
-      1, 0.1)
-  return {catalog, faves}
-}
-
-
-function randomCatalog(tmpl, count) {
-  const ps = 10 // position scale
-  const starsByHip = {0: tmpl}; const hipByName = {0: 0}; const faves = {0: '0'}; const namesByHip = {0: ['0']}
-  for (let i = 1; i < count; i++) {
-    const star = genStar(tmpl, i, ps)
-    starsByHip[i] = star
-    const name = i+''
-    hipByName[name] = i
-    faves[i] = name
-    namesByHip[i] = [name]
-  }
-  const catalog = new StarsCatalog(
-      count, starsByHip, hipByName, namesByHip,
-      tmpl.absMag, tmpl.absMag,
-      0.1, 0.1)
-  return {catalog, faves}
-}
-
-
-export const FAVES = {
+export const FAVES = new Map(Object.entries({
   0: 'Sol',
   439: 'Gliese 1',
   8102: 'Tau Ceti',
@@ -385,4 +434,4 @@ export const FAVES = {
   102098: 'Deneb',
   97649: 'Altair',
   113881: 'Scheat',
-}
+}).map((entArr) => [parseInt(entArr[0]), entArr[1]]))

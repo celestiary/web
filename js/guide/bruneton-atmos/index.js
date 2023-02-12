@@ -1,3 +1,6 @@
-function run() {
-  new Demo(document.body)
-}
+/**
+ *
+ */
+// function run() {
+//   new Demo(document.body)
+// }

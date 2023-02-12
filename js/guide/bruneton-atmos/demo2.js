@@ -87,34 +87,44 @@ export default class Demo {
     this.viewFromClip = new Float32Array(16)
     this.modelFromView = new Float32Array(16)
 
-    /** Distance of camera from scene center.
-     * Original: 9e3 */
+    /**
+     * Distance of camera from scene center.
+     * Original: 9e3
+     */
     this.viewDistanceMeters = 9e3
 
-    /** The looking down at angle.
+    /**
+     * The looking down at angle.
      * 0: down
      * Math.PI/2: level with ground.
-     * Original: 1.47 */
+     * Original: 1.47
+     */
     this.viewZenithAngleRadians = 1.47
 
-    /** Rotation around the center object's y-axis, right-hand.
-     * Original: -0.1 */
+    /**
+     * Rotation around the center object's y-axis, right-hand.
+     * Original: -0.1
+     */
     this.viewAzimuthAngleRadians = -0.1
 
     /**
      * Elevation of Sun in sky.
      * 0: behind camera
-     * Original: 1.3 */
+     * Original: 1.3
+     */
     this.sunZenithAngleRadians = 1.3
 
     /**
      * Rotation of Sun around center object's y-axis, right-hand.
      * 0: behind camera
-     * Original: 2.9 */
+     * Original: 2.9
+     */
     this.sunAzimuthAngleRadians = 2.9
 
-    /** 0: behind camera
-     * Original: 10 */
+    /**
+     * 0: behind camera
+     * Original: 10
+     */
     this.exposure = 10
 
     this.init()
