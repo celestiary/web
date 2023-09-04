@@ -29,6 +29,7 @@ import {setTitleFromLocation} from '../utils.js'
 import './index.css'
 
 
+/** @returns {React.Component} */
 export default function Guide() {
   const location = useLocation()
   React.useEffect(() => {
@@ -39,12 +40,14 @@ export default function Guide() {
       <table id="nav">
         <tbody>
           <tr>
-            <td style={{
-              width: '15%',
-              overflowY: scroll,
-              verticalAlign: 'top',
-              padding: '0 1em',
-            }}>
+            <td
+              style={{
+                width: '15%',
+                overflowY: scroll,
+                verticalAlign: 'top',
+                padding: '0 1em',
+              }}
+            >
               <h1>Guide</h1>
               <p><Link to="/">← Back</Link></p>
               <ol>

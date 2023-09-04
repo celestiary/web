@@ -280,7 +280,7 @@ export default class StarsCatalog {
       }
     }
     // if (!hipId)
-    //  throw new Error(`Could not reify origName(${origName}) for hipId(${hipId})`);
+    //   throw new Error(`Could not reify origName(${origName}) for hipId(${hipId})`);
     return [origName, name, hipId]
   }
 }
