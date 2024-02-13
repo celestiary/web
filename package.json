@@ -31,7 +31,8 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.1.1",
     "three": "^0.147.0",
-    "tweakpane": "^3.0.7"
+    "tweakpane": "^3.0.7",
+    "vsop87": "^1.0.5"
   },
   "devDependencies": {
     "@pablo-mayrgundter/testing.js": "^1.0.0",
