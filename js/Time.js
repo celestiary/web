@@ -1,19 +1,4 @@
 /**
- * @returns {string}
- */
-function timeToDateStr(time) {
-  return new Date(time).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-  })
-}
-
-
-/**
  */
 export default class Time {
   /**
@@ -37,7 +22,7 @@ export default class Time {
     this.simTimeElapsed = 0
     this.setTimeStr = setTimeStr
     this.setTimeStr(timeToDateStr(this.simTime))
-    this.pause = false
+    this.isPaused = false
     // UI
     this.lastUiUpdateTime = 0
     this.updateTime()
@@ -45,12 +30,17 @@ export default class Time {
 
 
   /**
+   * Update time to current system time (Date.now) and move simulation forward
+   * by the delta since last update, multiplied by the current timeScale.
    */
   updateTime() {
     const now = Date.now()
     const timeDelta = now - this.lastUpdate
     this.lastUpdate = now
     this.sysTime = now
+    if (this.isPaused) {
+      return
+    }
     this.simTime += timeDelta * this.timeScale
     this.simTimeElapsed = this.simTime - this.startTime
     // console.log(`timeDelta: ${timeDelta}, sysTime: ${this.sysTime}, simTime: ${this.simTime}`
@@ -71,7 +61,7 @@ export default class Time {
 
   /** @param delta -1, 0 or 1 for slower, reset or faster. */
   changeTimeScale(delta) {
-    if (this.pause) {
+    if (this.isPaused) {
       return
     }
     if (delta === 0) {
@@ -92,25 +82,74 @@ export default class Time {
 
 
   /**
+   * Toggle pause state
+   *
+   * @returns {boolean} isPaused
    */
   togglePause() {
-    if (this.pause) {
-      this.timeScale = this.timeScaleBeforePause
-      this.pause = false
+    if (this.isPaused) {
+      this.isPaused = false
     } else {
-      this.timeScaleBeforePause = this.timeScale
-      this.timeScale = 0
-      this.pause = true
+      this.isPaused = true
     }
+    return this.isPaused
   }
 
 
-  /**
-   */
+  /** Update the UI time string, rounding to nearest second */
   updateUi() {
     if (this.sysTime > this.lastUiUpdateTime + 1000) {
       this.lastUiUpdateTime = this.sysTime
       this.setTimeStr(timeToDateStr(this.simTime))
     }
   }
+
+  /** @returns {number} Number of days since UNIX Epoch */
+  simTimeDays() {
+    return this.simTime / millisPerDay
+  }
+
+
+  /**
+   * See "Unix time" in table https://en.wikipedia.org/wiki/Julian_day#Variants
+   *
+   * @returns {number} The Julian Day
+   */
+  simTimeJulianDay() {
+    return (this.simTime / millisPerDay) + daysJulianToUnix
+  }
+
+
+  /** @returns {number} Number of seconds since UNIX Epoch */
+  simTimeSecs() {
+    return this.simTime / millisPerSec
+  }
+}
+
+
+// See "Unix time" in table https://en.wikipedia.org/wiki/Julian_day
+const unixEpoch = 1970
+const julianEpoch = -4712
+// TODO(pablo): hand searched to yield daysJulianToUnix ~= 2440587.5, as per article
+const daysPerYear = 365.2480545
+// 2440587.500169
+const daysJulianToUnix = ((unixEpoch - julianEpoch) * daysPerYear)
+const millisPerSec = 1000
+const secsPerDay = 86400
+const millisPerDay = millisPerSec * secsPerDay
+
+
+/**
+ * @param {number} UNIX Epoch milliseconds
+ * @returns {string}
+ */
+function timeToDateStr(time) {
+  return new Date(time).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+  })
 }

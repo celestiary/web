@@ -20,14 +20,10 @@ export function assertNotNullOrUndefined(x) {
 
 /**
  * @param {Array.<any>} args
- * @param {number} length
  */
-export function assertArgs(args, length) {
+export function assertArgs(...args) {
   let i
   try {
-    if (args.length !== length) {
-      throw new Error(`Wrong argument count; expected ${length} got ${args.length}`)
-    }
     for (i = 0; i < args.length; i++) {
       assertNotNullOrUndefined(args[i])
     }

@@ -1,7 +1,8 @@
 import React from 'react'
 
 
-export default function HelpButton({keys}) {
+/** @returns {React.ReactElement} */
+export default function Help({keys}) {
   const [open, setOpen] = React.useState(false)
   const toggleOpen = () => {
     setOpen(!open)
@@ -9,13 +10,14 @@ export default function HelpButton({keys}) {
   keys.map('?', toggleOpen, 'Show/hide keyboard shortcuts')
   return (
     <>
-      <button onClick={toggleOpen} className="textButton">Help</button>
-      {open && <Help keys={keys} openToggle={toggleOpen}/>}
+      <button onClick={toggleOpen} className='textButton'>Help</button>
+      {open && <HelpDialog keys={keys} openToggle={toggleOpen}/>}
     </>)
 }
 
 
-function Help({keys, openToggle}) {
+/** @returns {React.ReactElement} */
+function HelpDialog({keys, openToggle}) {
   const item = (ndx, keyStr, msg) => {
     return (<li key={ndx}><span>{keyStr}</span>{msg}</li>)
   }
@@ -26,7 +28,7 @@ function Help({keys, openToggle}) {
   }
 
   return (
-    <div id="help" className="dialog">
+    <div id='help' className='dialog'>
       <button onClick={openToggle}>X</button>
       <h1>Keyboard Shortcuts</h1>
       Controls:

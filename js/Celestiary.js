@@ -9,7 +9,7 @@ import * as Shapes from './shapes.js'
 import ThreeUi from './ThreeUI.js'
 import Time from './Time.js'
 import * as Shared from './shared.js'
-import * as Utils from './utils.js'
+import {assertArgs} from './utils.js'
 
 
 const DEFAULT_TARGET = 'sun'
@@ -23,14 +23,16 @@ export default class Celestiary {
   /**
    * @param {Element} canvasContainer
    * @param {Element} navElt
-   * @param {string} setTimeStr
+   * @param {Function} setTimeStr
+   * @param {Function} setIsPaused
    */
-  constructor(canvasContainer, navElt, setTimeStr) {
-    Utils.assertArgs(arguments, 3)
+  constructor(canvasContainer, navElt, setTimeStr, setIsPaused) {
+    assertArgs(...arguments)
     this.time = new Time(setTimeStr)
+    this.setIsPaused = setIsPaused
     this.animation = new Animation(this.time)
-    canvasContainer.style.width = `${window.innerWidth }px`
-    canvasContainer.style.height = `${window.innerHeight }px`
+    canvasContainer.style.width = `${window.innerWidth}px`
+    canvasContainer.style.height = `${window.innerHeight}px`
     const animCb = (scene) => {
       this.animation.animate(scene)
       if (Shared.targets.track) {
@@ -48,7 +50,6 @@ export default class Celestiary {
     this.shared = Shared
     this.shapes = Shapes
     this.three = THREE
-    this.utils = Utils
     this.toggleHelp = null
     window.c = this
   }
@@ -137,7 +138,7 @@ export default class Celestiary {
     },
     'Hide active dialog')
     k.map(' ', () => {
-      this.time.togglePause()
+      this.setIsPaused(this.time.togglePause())
     },
     'Toggle time pause')
     k.map(',', () => {

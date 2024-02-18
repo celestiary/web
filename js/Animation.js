@@ -1,13 +1,19 @@
 import {Object3D, Vector3} from 'three'
+import {loadVsop87c} from './vsop/VSOP.jsx'
 import * as Shared from './shared.js'
+import debug from './debug.js'
 
 
-// TODO: move this to scene.
-/** */
+/**
+ * Animate scene, currently just orbits.  For major planets Uses vsop87. For
+ * Pluto and moons, uses a (very incorrect) elliptical orbit based on orbital
+ * params.
+ */
 export default class Animation {
   /** @param {object} time */
   constructor(time) {
     this.time = time
+    this.curVsopCoords = vsop87c('ignored')
     this.Y_AXIS = new Vector3(0, 1, 0)
   }
 
@@ -15,7 +21,9 @@ export default class Animation {
   /** @param {object} scene */
   animate(scene) {
     this.time.updateTime()
-    this.animateSystem(scene, this.time.simTime / 1000)
+    const jd = this.time.simTimeJulianDay()
+    this.curVsopCoords = vsop87c(jd)
+    this.animateSystem(scene)
   }
 
 
@@ -24,10 +32,11 @@ export default class Animation {
    *
    * @param {!Object3D} system
    */
-  animateSystem(system, simTimeSecs) {
+  animateSystem(system) {
     if (system.preAnimCb) {
       system.preAnimCb(this.time)
     }
+
     if (system.siderealRotationPeriod) {
       // TODO(pablo): this is hand-calibrated for Earth and so is
       // incorrect for the other planets.  Earth Orientation Parameters
@@ -36,22 +45,40 @@ export default class Animation {
       //   http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
       //
       // and also would also need them for the other planets.
-      const angle = (1.5 * Math.PI) + ((simTimeSecs / 86400) * Shared.twoPi)
+      const angle = (1.5 * Math.PI) + ((this.time.simTimeDays()) * Shared.twoPi)
       system.setRotationFromAxisAngle(this.Y_AXIS, angle)
     }
 
     // This is referred to by a comment in scene.js#addOrbitingPlanet.
     if (system.orbit) {
-      const eccentricity = system.orbit.eccentricity
-      const aRadius = system.orbit.semiMajorAxis.scalar * Shared.LENGTH_SCALE
-      const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0))
-      // -1.0 because orbits are counter-clockwise when viewed from above North of Earth.
-      const angle = -1.0 * simTimeSecs / system.orbit.siderealOrbitPeriod.scalar * Shared.twoPi
-      const x = aRadius * Math.cos(angle)
-      const y = 0
-      const z = bRadius * Math.sin(angle)
-      // console.log(`${eccentricity} ${aRadius} ${bRadius} ${simTimeSecs} ${system.orbit.siderealOrbitPeriod}`);
+      // Get an object with the (x,y,z) coordinates of each planet.
+      // console.log('LOOKUP vsop for, in', sysName, vsopCoords)
+      const sysName = system.name.split('.')[0]
+      const vsopCoord = this.curVsopCoords[sysName]
+      let x
+      let y
+      let z
+      if (vsopCoord === undefined) {
+        const eccentricity = system.orbit.eccentricity
+        const aRadius = system.orbit.semiMajorAxis.scalar * Shared.LENGTH_SCALE
+        const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0))
+        // -1.0 because orbits are counter-clockwise when viewed from above North of Earth.
+        const angle = -1.0 * this.time.simTimeSecs() / system.orbit.siderealOrbitPeriod.scalar * Shared.twoPi
+        x = aRadius * Math.cos(angle)
+        y = 0
+        z = bRadius * Math.sin(angle)
+      } else {
+        // TODO: double check scaling
+        const scale = 14959.789999 // Earth's semiMajorAxis * LENGTH_SCALE
+        x = vsopCoord.x * scale
+        y = vsopCoord.z * scale
+        z = vsopCoord.y * scale
+      }
       system.position.set(x, y, z)
+      if (sysName === 'earth') {
+        debug().log(`SMA: ${system.orbit.semiMajorAxis.scalar}, syspos: ${system.position}, ` +
+                    `vsopCoord: ${vsopCoord}, delta: ${vsopCoord.x - x}, ${vsopCoord.y - y}, ${vsopCoord.z - z}`)
+      }
       if (system.postAnimCb) {
         system.postAnimCb(system)
       }
@@ -62,7 +89,28 @@ export default class Animation {
         continue
       }
       const child = system.children[ndx]
-      this.animateSystem(child, simTimeSecs)
+      this.animateSystem(child)
     }
   }
 }
+
+
+// Hack: initial vals until vsop loads
+const ival = {x: 0, y: 0, z: 0}
+let vsop87c = (_) => {
+  return {
+    mercury: ival,
+    venus: ival,
+    earth: ival,
+    mars: ival,
+    jupiter: ival,
+    saturn: ival,
+    uranus: ival,
+    neptune: ival,
+  }
+}
+
+
+loadVsop87c((v) => {
+  vsop87c = v
+})

@@ -1661,6 +1661,11 @@ uri-js@^4.2.2:
   dependencies:
     punycode "^2.1.0"
 
+vsop87@^1.0.5:
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/vsop87/-/vsop87-1.0.5.tgz#54af1b978e97bd4fd3958203b73bc37867d5c67f"
+  integrity sha512-TfPtglLENSoYrEO9eKYEdD8jVSbAUHmboSTAMk2JR513/Kw9/mTfc11L84kkMxzSs1hVMtLi1824PlcNdMTDrQ==
+
 which-boxed-primitive@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/which-boxed-primitive/-/which-boxed-primitive-1.0.2.tgz#13757bc89b209b049fe5d86430e21cf40a89a8e6"

@@ -2,33 +2,35 @@ import React from 'react'
 import {Link} from 'react-router-dom'
 
 
-export default function AboutButton() {
+/** @returns {React.ReactElement} */
+export default function About() {
   const [open, setOpen] = React.useState(false)
   const toggleOpen = () => {
     setOpen(!open)
   }
   return (
     <>
-      <button onClick={toggleOpen} className="textButton">About</button>
-      {open && <About openToggle={toggleOpen}/>}
+      <button onClick={toggleOpen} className='textButton'>About</button>
+      {open && <AboutDialog openToggle={toggleOpen}/>}
     </>)
 }
 
 
-function About({openToggle}) {
+/** @returns {React.ReactElement} */
+function AboutDialog({openToggle}) {
   return (
-    <div className="dialog">
+    <div className='dialog'>
       <button onClick={openToggle}>X</button>
       <h1>About</h1>
-  Celestiary is a cosmological simulator.
+      Celestiary is a cosmological simulator.
 
       <h2>News</h2>
       <ul>
         <li>2021 Dec 30 - Introduce esbuild with code splitting.  Use react
-      and react-router to improve code structure and prepare for better
-      permalinks.</li>
+          and react-router to improve code structure and prepare for better
+          permalinks.</li>
         <li>2021 Jan 25 - Works in Safari 13.1.2+ on OSX, maybe earlier.
-      Now all major browsers tested except IE.</li>
+          Now all major browsers tested except IE.</li>
       </ul>
 
       <h2>Features</h2>
@@ -49,8 +51,16 @@ function About({openToggle}) {
       </ul>
       <h2>Learn more</h2>
       <ul>
-        <li><Link to="/guide">Software development guide</Link></li>
-        <li><a href="https://github.com/pablo-mayrgundter/celestiary" target="_blank" rel="noreferrer">Source code (GitHub)</a></li>
+        <li><Link to='/guide'>Software development guide</Link></li>
+        <li>
+          <a
+            href='https://github.com/pablo-mayrgundter/celestiary'
+            target='_blank'
+            rel='noreferrer'
+          >
+            Source code (GitHub)
+          </a>
+        </li>
       </ul>
     </div>)
 }
