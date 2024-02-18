@@ -33,10 +33,15 @@ export default function Routed() {
           <Guide/>
         </Suspense>}
       />
-      <Route path="/vsop/*" element={
-        <Suspense fallback={<div>Loading...</div>}>
-          <VSOP/>
-        </Suspense>}
-      />
+      <Route path="/vsop">
+        <Route
+          index
+          element={<Suspense fallback={<div>Loading...</div>}><VSOP isIndex={true}/></Suspense>}
+        />
+        <Route
+          path=":day"
+          element={<Suspense fallback={<div>Loading...</div>}><VSOP/></Suspense>}
+        />
+      </Route>
     </Routes>)
 }

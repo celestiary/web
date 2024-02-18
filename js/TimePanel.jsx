@@ -7,15 +7,16 @@ import Time from './Time'
  *
  * @property {Time} time Time holder object for sys and sim time
  * @property {string} timeStr Time str state shared with app
+ * @property {boolean} isPaused Simulation is paused
  * @returns {React.ReactElement}
  */
-export default function TimePanel({time, timeStr}) {
+export default function TimePanel({time, timeStr, isPaused}) {
   const [timeScale, setTimeScale] = useState('')
 
 
   useEffect(() => {
-    setTimeScale(updateTimeMsg(time))
-  }, [time, setTimeScale, timeStr])
+    setTimeScale(updateTimeMsg(time, isPaused))
+  }, [time, setTimeScale, timeStr, isPaused])
 
 
   return (
@@ -38,9 +39,10 @@ export default function TimePanel({time, timeStr}) {
  * realTime, e.g. 1 day/s
  *
  * @param {Time} time
+ * @param {boolean} isPaused React state
  * @returns {string}
  */
-function updateTimeMsg(time) {
+function updateTimeMsg(time, isPaused) {
   let msg
   if (time.timeScale === 1) {
     msg = 'real-time'
@@ -67,7 +69,7 @@ function updateTimeMsg(time) {
     }
     msg = `${tsAbbrev.toLocaleString()} ${tsUnit}/sec`
   }
-  if (time.pause) {
+  if (isPaused) {
     msg += ' (paused)'
   }
   return msg
