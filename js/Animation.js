@@ -89,8 +89,8 @@ export default class Animation {
       } else {
         const scale = 14959.789999 // TODO: Earth's semiMajorAxis * LENGTH_SCALE
         x = vCoord.x * scale
-        y = vCoord.y * scale
-        z = vCoord.z * scale
+        y = vCoord.z * scale
+        z = vCoord.y * scale
       }
       system.position.set(x, y, z)
       if (sysName === 'earth') {
