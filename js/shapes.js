@@ -26,6 +26,7 @@ export function box(width, height, depth, opts) {
   opts.color = opts.color || 0xff0000
   const geom = new THREE.BoxGeometry(width, height, depth)
   const matr = new THREE.MeshPhongMaterial(opts)
+  // const matr = new THREE.MeshBasicMaterial(opts)
   return new THREE.Mesh(geom, matr)
 }
 

@@ -115,10 +115,7 @@ export default class Time {
    * @returns {number} The Julian Day
    */
   simTimeJulianDay() {
-    const daysUnix = (this.simTime / millisPerDay)
-    const julianDate = daysUnix + daysJulianToUnix
-    // console.log(daysUnix, daysJulianToUnix, julianDate)
-    return julianDate
+    return toJulianDay(this.simTime)
   }
 
 
@@ -139,6 +136,17 @@ const daysJulianToUnix = ((unixEpoch - julianEpoch) * daysPerYear)
 const millisPerSec = 1000
 const secsPerDay = 86400
 const millisPerDay = millisPerSec * secsPerDay
+
+
+/**
+ * @param {number} t System time (millis since Unix epoch)
+ * @returns {number} Julian date
+ */
+export function toJulianDay(t) {
+  const daysUnix = (t / millisPerDay)
+  const julianDate = daysUnix + daysJulianToUnix
+  return julianDate
+}
 
 
 /**

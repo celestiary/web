@@ -1,45 +1,26 @@
 import esbuild from 'esbuild'
-import http from 'http'
-import * as common from './common.js'
+import config from './common.js'
+import {createProxyServer} from './proxy.js'
 
 
-const port = 8080
+const ctx = await esbuild.context(config)
 
-esbuild.serve({
-  port: port,
-  servedir: common.build.outdir,
-}, common.build).then((result) => {
-  // The result tells us where esbuild's local server is
-  const {host, port} = result
-
-  http.createServer((req, res) => {
-    const options = {
-      hostname: host,
-      port: port,
-      path: req.url,
-      method: req.method,
-      headers: req.headers,
-    }
-
-    // Forward each incoming request to esbuild
-    const proxyReq = http.request(options, (proxyRes) => {
-      // If esbuild returns "not found", send a custom 404 page
-      if (proxyRes.statusCode === 404) {
-        res.writeHead(404, {'Content-Type': 'text/html'})
-        res.end('<html><head><meta http-equiv="refresh" content="0; URL=/"></head>')
-        return
-      }
-
-      // Otherwise, forward the response from esbuild to the client
-      res.writeHead(proxyRes.statusCode, proxyRes.headers)
-      proxyRes.pipe(res, {end: true})
-    })
-
-    // Forward the body of the request to esbuild
-    req.pipe(proxyReq, {end: true})
-  }).listen(port)
-  console.log(`serving on http://localhost:${port} and watching...`)
-}).catch((error) => {
-  console.error(`could not start serving: `, error)
-  process.exit(1)
+/**
+ * "It's not possible to hook into esbuild's local server to customize
+ * the behavior of the server itself. Instead, behavior should be
+ * customized by putting a proxy in front of esbuild."
+ *
+ * We intend to serve on the SERVE_PORT defined above, so run esbuild
+ * on the port below it, and use the SERVE_PORT for a proxy.  The
+ * proxy handles 404s with the bounce script above.
+ *
+ * See https://esbuild.github.io/api/#customizing-server-behavior
+ */
+const SERVE_PORT = 8080
+const {host, port} = await ctx.serve({
+  port: SERVE_PORT - 1,
+  servedir: config.outdir,
 })
+createProxyServer(host, port).listen(SERVE_PORT)
+
+console.log(`serving on http://localhost:${SERVE_PORT} and watching...`)

@@ -40,6 +40,7 @@ function setup() {
   const ui = new ThreeUi('ui')
   ui.camera.position.z = 1e1
   const light = new PointLight()
+  light.power = 1700
   const dist = 1e3
   light.position.set(-dist, 0, dist)
   ui.camera.add(light)

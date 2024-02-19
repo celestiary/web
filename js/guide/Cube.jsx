@@ -1,7 +1,7 @@
 import React from 'react'
 import {AxesHelper, PointLight} from 'three'
 import ThreeUi from '../ThreeUI.js'
-import {cube} from '../shapes.js'
+import {box} from '../shapes.js'
 
 
 export default function Cube() {
@@ -19,6 +19,7 @@ export default function Cube() {
     </>)
 }
 
+
 function setup() {
   // Bind the ThreeUi to the "ui" HTML page element.
   const ui = new ThreeUi('ui')
@@ -29,11 +30,12 @@ function setup() {
 
   // Create a light and move away 10 units from the center along
   // each axis to give // interesting lighting.
-  const light = new PointLight()
+  const light = new PointLight(0xffffff, 1, 0)
   light.position.set(3, 4, 5)
+  light.power = 1700
   ui.scene.add(light)
 
   // Add a unit cube at the center; (0,0,0) is implicit.
   ui.scene.add(new AxesHelper())
-  ui.scene.add(cube())
+  ui.scene.add(box(1, 1, 1, {color: 0xffffff}))
 }

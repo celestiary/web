@@ -42,24 +42,26 @@ export default class Planet extends Object {
   /** */
   load() {
     const orbit = this.props.orbit
-    const group = this.scene.newGroup(`${this.name }.group`)
+    const group = this.scene.newGroup(`${this.name}.group`)
 
-    const orbitPlane = this.scene.newGroup(`${this.name }.orbitPlane`)
+    const orbitPlane = this.scene.newGroup(`${this.name}.orbitPlane`)
     group.add(orbitPlane)
-    orbitPlane.rotation.x = assertInRange(orbit.inclination, 0, 360) * toRad
-    orbitPlane.rotation.y = assertInRange(orbit.longitudeOfPericenter, 0, 360) * toRad
+
+    // TODO(pablo): these break vsop for the planets.
+    // orbitPlane.rotation.x = assertInRange(orbit.inclination, 0, 360) * toRad
+    // orbitPlane.rotation.y = assertInRange(orbit.longitudeOfPericenter, 0, 360) * toRad
 
     const orbitShape = this.newOrbit(this.scene, orbit, this.name)
     orbitPlane.add(orbitShape)
 
-    const orbitPosition = this.scene.newGroup(`${this.name }.orbitPosition`)
+    const orbitPosition = this.scene.newGroup(`${this.name}.orbitPosition`)
     orbitPlane.add(orbitPosition)
 
     // Attaching this property triggers orbit of planet during animation.
     // See animation.js#animateSystem.
     orbitPosition.orbit = this.props.orbit
 
-    const planetTilt = this.scene.newGroup(`${this.name }.planetTilt`)
+    const planetTilt = this.scene.newGroup(`${this.name}.planetTilt`)
     orbitPosition.add(planetTilt)
     planetTilt.rotateZ(assertInRange(this.props.axialInclination, 0, 360) * toRad)
 
@@ -187,11 +189,11 @@ export default class Planet extends Object {
     const planetMaterial = Material.cacheMaterial(this.name)
     planetMaterial.shininess = 30
     if (this.props.texture_terrain) {
-      planetMaterial.bumpMap = Material.pathTexture(`${this.name }_terrain`)
+      planetMaterial.bumpMap = Material.pathTexture(`${this.name}_terrain`)
       planetMaterial.bumpScale = 0.001
     }
     if (this.props.texture_hydrosphere) {
-      const hydroTex = Material.pathTexture(`${this.name }_hydro`)
+      const hydroTex = Material.pathTexture(`${this.name}_hydro`)
       planetMaterial.specularMap = hydroTex
       planetMaterial.shininess = 50
     }
@@ -229,7 +231,7 @@ export default class Planet extends Object {
         shininess: 100,
       }),
     })
-    shape.name = `${this.name }.atmosphere`
+    shape.name = `${this.name}.atmosphere`
     return shape
   }
 }

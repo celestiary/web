@@ -40,7 +40,7 @@ export default function Routed() {
         />
         <Route
           path=":day"
-          element={<Suspense fallback={<div>Loading...</div>}><VSOP/></Suspense>}
+          element={<Suspense fallback={<div>Loading...</div>}><VSOP isIndex={false}/></Suspense>}
         />
       </Route>
     </Routes>)
