@@ -49,8 +49,7 @@ export default class Time {
   }
 
 
-  /**
-   */
+  /** */
   setTimeToNow() {
     this.timeScale = 1.0
     this.timeScaleSteps = 0
@@ -116,7 +115,10 @@ export default class Time {
    * @returns {number} The Julian Day
    */
   simTimeJulianDay() {
-    return (this.simTime / millisPerDay) + daysJulianToUnix
+    const daysUnix = (this.simTime / millisPerDay)
+    const julianDate = daysUnix + daysJulianToUnix
+    // console.log(daysUnix, daysJulianToUnix, julianDate)
+    return julianDate
   }
 
 

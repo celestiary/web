@@ -70,7 +70,7 @@ export default class Animation {
       } else {
         // TODO: double check scaling
         const scale = 14959.789999 // Earth's semiMajorAxis * LENGTH_SCALE
-        x = vsopCoord.x * scale
+        x = -vsopCoord.x * scale
         y = vsopCoord.z * scale
         z = vsopCoord.y * scale
       }

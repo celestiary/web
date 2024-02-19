@@ -21,13 +21,14 @@ export default function TimePanel({time, timeStr, isPaused}) {
 
   return (
     <div id="time-id">
-      <div id="date-id">{timeStr}</div>
+      <div id="date-id">{timeStr} ({time.simTimeJulianDay().toLocaleString()} Julian)</div>
       <div id="time-scale-id">{timeScale}</div>
       <div id="time-controls-id">
         <button onClick={() => time.changeTimeScale(1)}>+</button>
         <button onClick={() => time.changeTimeScale(-1)}>-</button>
-        <button onClick={() => time.changeTimeScale(0)}>=</button>
         <button onClick={() => time.invertTimeScale()}>/</button>
+        <button onClick={() => time.changeTimeScale(0)}>\</button>
+        <button onClick={() => time.setTimeToNow()}>!</button>
         <button onClick={() => time.togglePause()}>⏸️</button>
       </div>
     </div>)

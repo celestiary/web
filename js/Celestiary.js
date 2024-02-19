@@ -163,10 +163,14 @@ export default class Celestiary {
       },
       `Look at child ${i} of current system`)
     }
-    k.map(';', () => {
+    k.map('\\', () => {
       this.time.changeTimeScale(0)
     },
     'Change time scale to real-time')
+    k.map('!', () => {
+      this.time.setTimeToNow()
+    },
+    'Set time to now')
     k.map('c', () => {
       this.scene.lookAtTarget()
     },
