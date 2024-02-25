@@ -3,8 +3,8 @@ import TimeFastForwardIcon from '@mui/icons-material/FastForward'
 import TimeFastRewindIcon from '@mui/icons-material/FastRewind'
 import TimeNowIcon from '@mui/icons-material/SettingsBackupRestore'
 import TimePauseIcon from '@mui/icons-material/PauseCircleOutline'
-import Time from './Time'
-import TooltipIconButton from './ui/TooltipIconButton'
+import Time from '../Time'
+import TooltipIconButton from './TooltipIconButton'
 
 
 /**

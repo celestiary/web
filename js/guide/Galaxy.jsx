@@ -6,7 +6,7 @@ import CelestiaGalaxy from '../Galaxy'
 import Keys from '../Keys'
 import SpriteSheet from '../SpriteSheet'
 import ThreeUi from '../ThreeUI'
-import Help from '../Help'
+import Help from '../ui/Help'
 import {elt} from '../utils'
 import {ui as uiId} from './index.module.css'
 

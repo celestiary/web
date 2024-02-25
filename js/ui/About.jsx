@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react'
 import {Link, useLocation} from 'wouter'
-import Dialog from './ui/Dialog'
+import Dialog from './Dialog'
 import Typography from '@mui/material/Typography'
 
 
