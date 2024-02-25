@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react'
 import {useLocation} from 'wouter'
-import Dialog from './components/Dialog'
+import Dialog from './ui/Dialog'
 
 
 /** @returns {React.ReactElement} */

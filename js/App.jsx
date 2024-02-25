@@ -1,10 +1,14 @@
 import React, {useEffect, useRef, useState} from 'react'
-import {Link, Route, useLocation} from 'wouter'
+import {Route, useLocation} from 'wouter'
+import Box from '@mui/material/Box'
 import About from './About'
 import Celestiary from './Celestiary'
 import Help from './Help'
 import TimePanel from './TimePanel'
 import {setTitleFromLocation} from './utils'
+import TooltipIconButton from './ui/TooltipIconButton'
+import HelpIcon from '@mui/icons-material/HelpOutline'
+import StarsIcon from '@mui/icons-material/AutoAwesome'
 import './index.css'
 
 
@@ -17,7 +21,7 @@ export default function App() {
   const sceneRef = useRef(null)
   const navRef = useRef(null)
 
-  const [location] = useLocation()
+  const [location, navigate] = useLocation()
 
 
   useEffect(() => setTitleFromLocation(location), [location])
@@ -33,21 +37,22 @@ export default function App() {
       <div ref={sceneRef} id='scene-id'/>
       <div ref={navRef} id='nav-id' className='panel'>Welcome to Celestiary!  Loading...</div>
       <div id='top-right' className='panel'>
-        {celestiary && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused}/>}
+        {celestiary && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
         <div id='text-buttons'>
           {celestiary &&
-           <>
-             <Link href='/help'>Help</Link>
+           <Box sx={{position: 'fixed', bottom: 0, right: 0, m: '1em'}}>
+             <TooltipIconButton tip='Help' onClick={() => navigate('/help')} icon={<HelpIcon/>}/>
              <Route path='/help'>
                <Help keys={celestiary.keys}/>
              </Route>
-           </>
+           </Box>
           }
-          &nbsp;|&nbsp;
-          <Link href='/about'>About</Link>
-          <Route path='/about'>
-            <About/>
-          </Route>
+          <Box sx={{position: 'fixed', bottom: 0, left: 0, m: '1em'}}>
+            <TooltipIconButton tip='About' onClick={() => navigate('/about')} icon={<StarsIcon/>}/>
+            <Route path='/about'>
+              <About/>
+            </Route>
+          </Box>
         </div>
       </div>
       <h1 id='target-id'> </h1>

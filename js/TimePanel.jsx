@@ -1,5 +1,10 @@
 import React, {useEffect, useState} from 'react'
+import TimeFastForwardIcon from '@mui/icons-material/FastForward'
+import TimeFastRewindIcon from '@mui/icons-material/FastRewind'
+import TimeNowIcon from '@mui/icons-material/SettingsBackupRestore'
+import TimePauseIcon from '@mui/icons-material/PauseCircleOutline'
 import Time from './Time'
+import TooltipIconButton from './ui/TooltipIconButton'
 
 
 /**
@@ -10,7 +15,7 @@ import Time from './Time'
  * @property {boolean} isPaused Simulation is paused
  * @returns {React.ReactElement}
  */
-export default function TimePanel({time, timeStr, isPaused}) {
+export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
   const [timeScale, setTimeScale] = useState('')
 
 
@@ -19,19 +24,24 @@ export default function TimePanel({time, timeStr, isPaused}) {
   }, [time, setTimeScale, timeStr, isPaused])
 
 
+  // TODO(pablo): redundant.. setting time state isn't reactive
+  const onPauseClick = () => {
+    setIsPaused(!isPaused)
+    time.togglePause()
+  }
+
   return (
-    <div id="time-id">
-      <div id="date-id">{timeStr} ({time.simTimeJulianDay().toLocaleString()} Julian)</div>
-      <div id="time-scale-id">{timeScale}</div>
-      <div id="time-controls-id">
-        <button onClick={() => time.changeTimeScale(1)}>+</button>
-        <button onClick={() => time.changeTimeScale(-1)}>-</button>
-        <button onClick={() => time.invertTimeScale()}>/</button>
-        <button onClick={() => time.changeTimeScale(0)}>\</button>
-        <button onClick={() => time.setTimeToNow()}>!</button>
-        <button onClick={() => time.togglePause()}>⏸️</button>
+    <div id='time-id'>
+      <div id='date-id'>{timeStr} ({time.simTimeJulianDay().toLocaleString()} Julian)</div>
+      <div id='time-scale-id'>{timeScale}</div>
+      <div id='time-controls-id'>
+        <TooltipIconButton tip='Fast rewind' onClick={() => time.changeTimeScale(-1)} icon={<TimeFastRewindIcon/>}/>
+        <TooltipIconButton tip='Now' onClick={() => time.setTimeToNow()} icon={<TimeNowIcon/>}/>
+        <TooltipIconButton tip='Pause' onClick={onPauseClick} icon={<TimePauseIcon/>}/>
+        <TooltipIconButton tip='Fast forward' onClick={() => time.changeTimeScale(1)} icon={<TimeFastForwardIcon/>}/>
       </div>
-    </div>)
+    </div>
+  )
 }
 
 

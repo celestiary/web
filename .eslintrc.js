@@ -51,6 +51,7 @@ module.exports = {
     'jsdoc/require-param-description': 'off',
     'jsdoc/require-param-type': 'off',
     'jsdoc/require-returns-description': 'off',
+    'jsdoc/tag-lines': ['error', 'any', {startLines: 1}],
     'max-len': ['error', 140],
     'no-alert': 'error',
     'no-empty-function': 'error',

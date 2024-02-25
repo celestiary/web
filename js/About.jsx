@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react'
 import {Link, useLocation} from 'wouter'
-import Dialog from './components/Dialog'
+import Dialog from './ui/Dialog'
 import Typography from '@mui/material/Typography'
 
 
@@ -11,7 +11,7 @@ export default function About() {
   useEffect(() => setIsOpen(location === '/about'), [location])
   return (
     <Dialog title='About' isOpen={isOpen} setIsOpen={setIsOpen} onCloseHref='~/'>
-      <p>Celestiary is a cosmological simulator.</p>
+      <p>Celestiary is a cosmological simulator</p>
 
       <Typography variant='h3'>Features</Typography>
       <ul>

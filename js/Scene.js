@@ -138,7 +138,8 @@ export default class Scene {
             })
           }
           document.body.addEventListener('dblclick', markCb)
-          document.body.addEventListener('mousemove', traceCb)
+          // document.body.addEventListener('mousemove', traceCb)
+          document.body.addEventListener('mousedown', (e) => e.preventDefault())
         })
         return this.stars
       case 'star': return new Star(props, this.objects, this.ui)
