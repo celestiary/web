@@ -1,0 +1,43 @@
+@import '../index.css';
+@import './fullscreen.css';
+
+
+body {
+  height: 100%;
+  color: white;
+  background: #333;
+}
+
+
+ol {
+  margin-block-start: 0;
+  padding-inline-start: 1em;
+}
+
+
+ul, ol {
+  padding-left: 1em;
+}
+
+
+#nav {
+  height: 100%;
+  width: 100%;
+}
+
+
+#nav td {
+  vertical-align: top;
+}
+
+
+#ui {
+  position: relative;
+  float: right;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 400px;
+  margin: 2em;
+  background-color: black;
+}

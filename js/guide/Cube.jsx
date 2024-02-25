@@ -1,16 +1,16 @@
-import React from 'react'
+import React, {useEffect} from 'react'
 import {AxesHelper, PointLight} from 'three'
 import ThreeUi from '../ThreeUI.js'
 import {box} from '../shapes.js'
+import {ui as uiId} from './index.module.css'
 
 
+/** @returns {React.ReactElement} */
 export default function Cube() {
-  React.useEffect(() => {
-    setup()
-  }, [])
+  useEffect(() => setup(), [])
   return (
     <>
-      <div id="ui"></div>
+      <div id={uiId}></div>
       <h1>A Simple Cube</h1>
       To start with, a simple scene is defined with an object and
       controls.  Try rotating the cube with your mouse.  A scroll up or
@@ -20,9 +20,10 @@ export default function Cube() {
 }
 
 
+/** Initialize threejs helpers and load cube */
 function setup() {
   // Bind the ThreeUi to the "ui" HTML page element.
-  const ui = new ThreeUi('ui')
+  const ui = new ThreeUi(uiId)
 
   // Pull the camera back from center 10 units along the z-axis
   // (towards the viewer).

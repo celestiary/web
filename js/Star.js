@@ -51,7 +51,7 @@ export default class Star extends Object {
     const sunlight = new PointLight(0xffffff, 1, 0, 0)
     const sunLumensSurface = 2.626e29
     // TODO(pablo): three switched to lumens https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
-    sunlight.power = sunLumensSurface * 1e-23
+    sunlight.power = sunLumensSurface * 5e-29
     sunlight.castShadow = true
     sunlight.shadow.mapSize.width = shadowProps.width || 512 // default: 512
     sunlight.shadow.mapSize.height = shadowProps.height || 512 // default: 512

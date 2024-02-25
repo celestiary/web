@@ -1,20 +1,19 @@
-import React from 'react'
+import React, {useEffect} from 'react'
 import createTree from '@pablo-mayrgundter/yaot2'
 import ThreeUi from '../ThreeUI'
 import StarsFromApp from '../Stars'
 import {getSunProps} from '../StarsCatalog'
 import {marker as createMarker} from '../shapes'
 import {queryPoints} from '../Picker'
+import {ui as uiId} from './index.module.css'
 
 
 /** @returns {React.Component} */
 export default function Stars() {
-  React.useEffect(() => {
-    setup()
-  }, [])
+  useEffect(() => setup(), [])
   return (
     <>
-      <div id="ui"></div>
+      <div id={uiId}></div>
       <h1>Stars</h1>
     </>)
 }
@@ -22,7 +21,7 @@ export default function Stars() {
 
 /** */
 function setup() {
-  const ui = new ThreeUi('ui')
+  const ui = new ThreeUi(uiId)
   ui.camera.position.z = 1e1
 
   const stars = new StarsFromApp({

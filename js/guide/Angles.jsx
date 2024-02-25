@@ -1,24 +1,25 @@
-import React from 'react'
+import React, {useEffect} from 'react'
 import {AxesHelper, LineBasicMaterial} from 'three'
 import * as Shared from '../shared.js'
 import {angle} from '../shapes.js'
 import ThreeUi from '../ThreeUI.js'
+import {ui as uiId} from './index.module.css'
 
 
+/** @returns {React.ReactElement} */
 export default function Angles() {
-  React.useEffect(() => {
-    setup()
-  }, [])
+  useEffect(() => setup(), [])
   return (
     <>
-      <div id="ui"></div>
+      <div id={uiId}></div>
       <h1>Angles</h1>
     </>)
 }
 
 
+/** Initialize threejs helpers and load angles */
 function setup() {
-  const ui = new ThreeUi('ui')
+  const ui = new ThreeUi(uiId)
   ui.camera.position.set(0, 1, 4)
 
   const material = new LineBasicMaterial({

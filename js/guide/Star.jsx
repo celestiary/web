@@ -1,35 +1,40 @@
-import React from 'react'
-import {useLocation} from 'react-router-dom'
+import React, {useEffect, useState} from 'react'
+import {useLocation} from 'wouter'
 import StarFromApp from '../Star.js'
 import StarsCatalog, {FAVES} from '../StarsCatalog.js'
 import ThreeUi from '../ThreeUI.js'
 import Time from '../Time.js'
 import * as Shared from '../shared.js'
 import {elt} from '../utils.js'
+import {ui as uiId} from './index.module.css'
 
 
-/** @returns {React.Component} */
+/** @returns {React.ReactElement} */
 export default function Star() {
-  const [ui, setUi] = React.useState(null)
-  const [star, setStar] = React.useState(null)
-  const [catalog, setCatalog] = React.useState(null)
-  const time = new Time()
+  const [ui, setUi] = useState(null)
+  const [star, setStar] = useState(null)
+  const [catalog, setCatalog] = useState(null)
 
-  React.useEffect(() => {
+  const [location] = useLocation()
+
+
+  useEffect(() => {
     setUi(setup(setCatalog))
   }, [])
 
-  const location = useLocation()
-  React.useEffect(() => {
-    if (ui) {
+
+  useEffect(() => {
+    if (ui && catalog) {
+      const time = new Time()
       const path = (location.hash || '#Sol').substr(1)
       showStar(ui, path, star, setStar, catalog, time)
     }
-  }, [catalog, location, star, time, ui])
+  }, [catalog, location, star, ui])
+
 
   return (
     <>
-      <div id="ui"></div>
+      <div id={uiId}></div>
       <h1>Star</h1>
       See <a href="https://www.seedofandromeda.com/blogs/51-procedural-star-rendering">Seed
           of Andromeda</a> for a nice overall approach.
@@ -84,7 +89,7 @@ function setupFavesTable(catalog) {
 
 
 function setup(setCatalog) {
-  const ui = new ThreeUi('ui')
+  const ui = new ThreeUi(uiId)
   ui.camera.position.z = 3
   const catalog = new StarsCatalog()
   catalog.load(() => {

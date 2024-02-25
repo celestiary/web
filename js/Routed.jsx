@@ -1,15 +1,15 @@
 import React, {Suspense, useEffect} from 'react'
-import {Routes, Route, useNavigate} from 'react-router-dom'
+import {Route, Switch, useLocation} from 'wouter'
 
 
 const App = React.lazy(() => import('./App'))
 const Guide = React.lazy(() => import('./guide/Guide'))
-const VSOP = React.lazy(() => import('./vsop/VSOP'))
 
 
 /** @returns {React.ReactElement} */
 export default function Routed() {
-  const navigate = useNavigate()
+  const [, navigate] = useLocation()
+
 
   useEffect(() => {
     const referrer = document.referrer
@@ -21,27 +21,18 @@ export default function Routed() {
     }
   }, [navigate])
 
+
   return (
-    <Routes>
-      <Route path="/*" element={
-        <Suspense fallback={<div>Loading...</div>}>
-          <App/>
-        </Suspense>}
-      />
-      <Route path="/guide/*" element={
-        <Suspense fallback={<div>Loading...</div>}>
+    <Switch>
+      <Route path='/guide' nest>
+        <Suspense fallback={<>Loading...</>}>
           <Guide/>
-        </Suspense>}
-      />
-      <Route path="/vsop">
-        <Route
-          index
-          element={<Suspense fallback={<div>Loading...</div>}><VSOP isIndex={true}/></Suspense>}
-        />
-        <Route
-          path=":day"
-          element={<Suspense fallback={<div>Loading...</div>}><VSOP isIndex={false}/></Suspense>}
-        />
+        </Suspense>
       </Route>
-    </Routes>)
+      <Route path='/' nest>
+        <Suspense fallback={<>Loading...</>}>
+          <App/>
+        </Suspense>
+      </Route>
+    </Switch>)
 }

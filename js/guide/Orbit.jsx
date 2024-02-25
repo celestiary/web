@@ -1,21 +1,21 @@
-import React from 'react'
+import React, {useEffect} from 'react'
 import {AmbientLight, Vector3} from 'three'
 import Label from '../label.js'
 import ThreeUi from '../ThreeUI.js'
 import cOrbit from '../Orbit.js'
 import * as Shared from '../shared.js'
-import {addAndOrient, planetHelper} from '../scene_utils.js'
-import {angle, arrow, grid, line, solidEllipse} from '../shapes.js'
+import {planetHelper} from '../scene_utils.js'
+import {angle, arrow, line} from '../shapes.js'
 import {visitFilterProperty} from '../utils.js'
+import {ui as uiId} from './index.module.css'
 
 
+/** @returns {React.ReactElement} */
 export default function Orbit() {
-  React.useEffect(() => {
-    setup()
-  }, [])
+  useEffect(() => setup(), [])
   return (
     <>
-      <div id="ui"></div>
+      <div id={uiId}></div>
       <h1>Orbit</h1>
       <p>An example orbit.
         <a href="https://en.wikipedia.org/wiki/Orbital_elements">https://en.wikipedia.org/wiki/Orbital_elements</a>
@@ -42,8 +42,9 @@ export default function Orbit() {
 }
 
 
+/** Initialize threejs helpers and load orbit */
 function setup() {
-  const ui = new ThreeUi('ui')
+  const ui = new ThreeUi(uiId)
   ui.camera.position.set(1, 1, 3)
   ui.scene.add(new AmbientLight())
 

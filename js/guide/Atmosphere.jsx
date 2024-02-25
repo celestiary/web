@@ -5,6 +5,7 @@ import {elt} from '../utils.js'
 import cAtmosphere from './Atmosphere.js'
 import AtmosphereControls from './AtmosphereControls.js'
 import AtmosphereMesh from './AtmosphereMesh.js'
+import {ui as uiId} from './index.module.css'
 
 
 // TODO: args need to be hand sync'd with AtmosphereControls.PRESETS.
@@ -14,13 +15,15 @@ import AtmosphereMesh from './AtmosphereMesh.js'
 //                              0.000021, 1200, 0.758);
 
 // Collienne et al., diffs: Rayleigh and scale height
+
+/** @returns {React.ReactElement} */
 export default function Atmosphere() {
   React.useEffect(() => {
     setup()
   })
   return (
     <>
-      <div id="ui"></div>
+      <div id={uiId}></div>
       <h1>Atmosphere</h1>
       <p><em>Work in progress.</em></p>
 
@@ -47,7 +50,7 @@ function setup() {
 
   const atmosControls = new AtmosphereControls(elt('control'), atmos)
 
-  const ui = new ThreeUi('ui')
+  const ui = new ThreeUi(uiId)
   ui.camera.position.z = 10
   const light = new PointLight()
   const dist = 1e7

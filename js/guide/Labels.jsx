@@ -1,17 +1,17 @@
-import React from 'react'
+import React, {useEffect} from 'react'
 import {PointLight} from 'three'
 import SpriteSheet from '../SpriteSheet.js'
 import ThreeUi from '../ThreeUI.js'
 import {cube} from '../shapes.js'
+import {ui as uiId} from './index.module.css'
 
 
+/** @returns {React.ReactElement} */
 export default function Labels() {
-  React.useEffect(() => {
-    setup()
-  }, [])
+  useEffect(() => setup(), [])
   return (
     <>
-      <div id="ui"></div>
+      <div id={uiId}></div>
       <h1>Sprite Sheet Labels</h1>
       <p>To allow for more labels in the scene, a single sprite sheet is
         used, with a GL shader configured with custom offsets into the sheet
@@ -19,8 +19,10 @@ export default function Labels() {
     </>)
 }
 
+
+/** Initialize threejs helpers and load labels */
 function setup() {
-  const ui = new ThreeUi('ui')
+  const ui = new ThreeUi(uiId)
 
   const c = cube()
   c.position.z = -3

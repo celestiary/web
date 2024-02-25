@@ -1,7 +1,7 @@
 import {Object3D, Vector3} from 'three'
-import {loadVsop87c} from './vsop/VSOP.jsx'
-import * as Shared from './shared.js'
-import debug from './debug.js'
+import {loadVsop87c} from './vsop'
+import * as Shared from './shared'
+import debug from './debug'
 
 
 /**

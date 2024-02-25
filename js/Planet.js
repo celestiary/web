@@ -86,7 +86,7 @@ export default class Planet extends Object {
     const ellipseCurve = new EllipseCurve(
         0, 0,
         1, Shapes.ellipseSemiMinorAxisCurve(assertInRange(orbit.eccentricity, 0, 1)),
-        0, Math.PI)
+        0, Math.PI * 2)
     const ellipsePoints = ellipseCurve.getPoints(1000)
     const ellipseGeometry = new BufferGeometry().setFromPoints(ellipsePoints)
     const orbitMaterial = new LineBasicMaterial({
@@ -102,7 +102,7 @@ export default class Planet extends Object {
     // edge on).
     pathShape.rotation.x = halfPi
     group.add(pathShape)
-    group.add(Shapes.line(1, 0, 0, {color: 'blue'}))
+    // group.add(Shapes.line(1, 0, 0, {color: 'blue'}))
     group.scale.setScalar(assertFinite(orbit.semiMajorAxis.scalar) * LENGTH_SCALE)
     return group
   }

@@ -1,15 +1,20 @@
-import React from 'react'
-import {useLocation} from 'react-router-dom'
-import cLoader from '../Loader.js'
+import React, {useEffect} from 'react'
+import {useHashLocation} from 'wouter/use-hash-location'
+import CelestiaLoader from '../Loader.js'
 import * as Collapsor from '../collapsor.js'
 import {elt} from '../utils.js'
 
 
+/** @returns {React.ReactElement} */
 export default function Loader() {
-  const location = useLocation()
-  React.useEffect(() => {
-    setup(location.hash.substr(1) || 'sun/earth/moon')
+  const [location] = useHashLocation()
+
+
+  useEffect(() => {
+    setup(location.substr(1) || 'sun/earth/moon')
   }, [location])
+
+
   return (
     <>
       <h1>Loader</h1>
@@ -24,6 +29,8 @@ export default function Loader() {
     </>)
 }
 
+
+/** @param {string} Path passed to CelestiaLoader */
 function setup(path) {
   const onLoadCb = (name, obj) => {}
   const onDoneCb = (name, obj) => {
@@ -38,5 +45,5 @@ function setup(path) {
     window.collapse = Collapsor.collapse
     Collapsor.makeCollapsable(doneElt)
   }
-  new cLoader().loadPath(path, onLoadCb, onDoneCb)
+  new CelestiaLoader().loadPath(path, onLoadCb, onDoneCb)
 }

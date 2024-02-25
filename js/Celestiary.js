@@ -133,10 +133,6 @@ export default class Celestiary {
     false)
 
     const k = new Keys()
-    k.map('Escape', () => {
-      this.hideActiveDialog()
-    },
-    'Hide active dialog')
     k.map(' ', () => {
       this.setIsPaused(this.time.togglePause())
     },

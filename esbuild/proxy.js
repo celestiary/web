@@ -53,7 +53,7 @@ const serveNotFound = ((res) => {
       // MIT License
       // https://github.com/rafgraph/spa-github-pages
       // This page needs to be > 512 bytes to work for IE.  Currently 968.
-      var pathSegmentsToKeep = 0 // window.location.pathname.startsWith('/installPrefix') ? 1 : 0
+      var pathSegmentsToKeep = window.location.pathname.startsWith('/Share') ? 1 : 0
 
       var l = window.location
       var u1 = l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '')

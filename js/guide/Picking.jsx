@@ -1,29 +1,30 @@
-import React from 'react'
+import React, {useEffect} from 'react'
 import {
   AmbientLight,
-  Object3D,
   PointLight,
   Raycaster,
   Vector3,
 } from 'three'
 import ThreeUi from '../ThreeUI.js'
 import {sphere} from '../shapes.js'
+import {ui as uiId} from './index.module.css'
 
 
+/** @returns {React.ReactElement} */
 export default function Picking() {
-  React.useEffect(() => {
-    setup()
-  }, [])
+  useEffect(() => setup(), [])
   return (
     <>
-      <div id="ui"></div>
+      <div id={uiId}></div>
       <h1>Picking</h1>
       Click on the sphere to change its colors.
     </>)
 }
 
+
+/** Initialize threejs helpers and setup picking */
 function setup() {
-  const ui = new ThreeUi('ui')
+  const ui = new ThreeUi(uiId)
   const light = new PointLight
   light.position.set(10, 10, 10)
   ui.scene.add(light)

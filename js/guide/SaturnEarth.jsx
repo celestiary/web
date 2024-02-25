@@ -1,4 +1,4 @@
-import React from 'react'
+import React, {useEffect} from 'react'
 import {
   AmbientLight,
   AxesHelper,
@@ -10,33 +10,34 @@ import Loader from '../Loader.js'
 import Reify from '../reify.js'
 import Stars from '../Stars.js'
 import Planet from '../Planet.js'
-import * as Shapes from '../shapes.js'
-import {planetHelper} from '../scene_utils.js'
 import {LENGTH_SCALE} from '../shared.js'
+import {ui as uiId} from './index.module.css'
 
 
+/** @returns {React.ReactElement} */
 export default function SaturnEarth() {
-  React.useEffect(() => {
-    setup()
-  }, [])
+  useEffect(() => setup(), [])
   return (
     <>
-      <div id="ui"></div>
+      <div id={uiId}></div>
       <h1>A Saturn-Earth Orbital System</h1>
 
       <p>If the Earth orbited Saturn at the same distance that the Moon orbits
       Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?</p>
 
-      <p>This question was inspired by a friend commenting on the FB photo <a href="https://www.facebook.com/fxsoyris/posts/4859941050713774">shared</a> by François Xavier Soyris, Jan 19 2021.</p>
+      <p>This question was inspired by a friend commenting on the FB
+        photo <a href='https://www.facebook.com/fxsoyris/posts/4859941050713774'>shared</a> by
+        François Xavier Soyris, Jan 19 2021.</p>
 
-      <img src="/guide/saturn-earth-fb-photo.jpg" width="400"/>
+      <img alt='image of Saturn from Earth in its orbit' src='/guide/saturn-earth-fb-photo.jpg' width='400'/>
     </>)
 }
 
 
+/** Initialize threejs helpers and load scene */
 function setup() {
-  // Bind the ThreeUi to the "ui" HTML page element.
-  const ui = new ThreeUi('ui')
+  // Bind the ThreeUi to the 'ui' HTML page element.
+  const ui = new ThreeUi(uiId)
 
   // Pull the camera back from center 10 units along the z-axis
   // (towards the viewer).

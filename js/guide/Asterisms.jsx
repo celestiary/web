@@ -1,30 +1,37 @@
-import React from 'react'
-import {useLocation} from 'react-router-dom'
+import React, {useEffect, useState} from 'react'
+import {useLocation} from 'wouter'
 import AsterismsFromApp from '../Asterisms.js'
-import StarsCatalog from '../StarsCatalog.js'
 import Keys from '../Keys.js'
-import * as Shared from '../shared.js'
 import Stars from '../Stars.js'
+import StarsCatalog from '../StarsCatalog.js'
 import ThreeUi from '../ThreeUI.js'
+import {assertDefined} from '../assert.js'
+import * as Shared from '../shared.js'
 import {elt} from '../utils.js'
 import './Asterisms.css'
+import {ui as uiId} from './index.module.css'
 
 
-/**
- * @returns {React.Component}
- */
+/** @returns {React.ReactElement} */
+
+
+/** @returns {React.ReactElement} */
 export default function Asterisms() {
-  const [asterisms, setAsterisms] = React.useState(null)
-  const [stars, setStars] = React.useState(null)
-  React.useEffect(() => {
+  const [asterisms, setAsterisms] = useState(null)
+  const [stars, setStars] = useState(null)
+
+  const [location] = useLocation()
+
+
+  useEffect(() => {
     setStars(setup(setAsterisms))
   }, [])
 
-  const location = useLocation()
-  React.useEffect(() => {
+
+  useEffect(() => {
     if (asterisms) {
       const asterismName = (location.hash || '#Orion').substr(1).replaceAll(/%20/g, ' ')
-      const [origName, name, hipId] = findCenterStar(stars, asterisms, asterismName)
+      const [, name] = findCenterStar(stars, asterisms, asterismName)
       // const star = stars.catalog.starByHip.get(hipId)
       const labelPos = stars.labelCenterPosByName[name]
       if (!labelPos) {
@@ -37,9 +44,10 @@ export default function Asterisms() {
     }
   }, [location, asterisms, stars])
 
+
   return (
     <>
-      <div id="ui"></div>
+      <div id={uiId}></div>
       <h1>Asterisms</h1>
       Asterisms include constellations.
       <div id="faveCtr">
@@ -64,7 +72,7 @@ function setup(setAsterisms) {
       ui.camera.lookAt(window.target)
     }
   }
-  const ui = new ThreeUi('ui', cb)
+  const ui = new ThreeUi(uiId, cb)
   const k = new Keys()
   k.map(',', () => {
     ui.multFov(0.9)
@@ -109,7 +117,12 @@ function setup(setAsterisms) {
  * @returns {Array}
  */
 function findCenterStar(stars, asterisms, asterismName) {
-  const asterism = asterisms.catalog.byName[asterismName]
+  assertDefined(stars, asterisms, asterismName)
+  const asterism = asterisms.catalog.byName.get(asterismName)
+  if (!asterism) {
+    console.warn('No such asterism: ', asterismName)
+    return
+  }
   for (const pathNdx in asterism.paths) {
     const path = asterism.paths[pathNdx]
     // Search from center to front.
@@ -134,7 +147,7 @@ function findCenterStar(stars, asterisms, asterismName) {
 function setupFavesTable(stars, asterisms) {
   const favesTable = elt('faves')
   for (const asterismName in asterisms.catalog.byName) {
-    const [origName, name, hipId] = findCenterStar(stars, asterisms, asterismName)
+    const [, name, hipId] = findCenterStar(stars, asterisms, asterismName)
     if (name === null || hipId === null) {
       continue
     }

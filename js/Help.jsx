@@ -1,37 +1,31 @@
-import React from 'react'
+import React, {useEffect, useState} from 'react'
+import {useLocation} from 'wouter'
+import Dialog from './components/Dialog'
 
 
 /** @returns {React.ReactElement} */
-export default function Help({keys}) {
-  const [open, setOpen] = React.useState(false)
-  const toggleOpen = () => {
-    setOpen(!open)
-  }
-  keys.map('?', toggleOpen, 'Show/hide keyboard shortcuts')
+export default function Help({keys, href = '~/'}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [location] = useLocation()
+  useEffect(() => setIsOpen(location === '/help'), [location])
   return (
-    <>
-      <button onClick={toggleOpen} className='textButton'>Help</button>
-      {open && <HelpDialog keys={keys} openToggle={toggleOpen}/>}
-    </>)
-}
-
-
-/** @returns {React.ReactElement} */
-function HelpDialog({keys, openToggle}) {
-  const item = (ndx, keyStr, msg) => {
-    return (<li key={ndx}><span>{keyStr}</span>{msg}</li>)
-  }
-
-  const items = []
-  for (const i in keys.keymap) {
-    items.push(item(i, i == ' ' ? 'space' : i, keys.msgs[i]))
-  }
-
-  return (
-    <div id='help' className='dialog'>
-      <button onClick={openToggle}>X</button>
-      <h1>Keyboard Shortcuts</h1>
-      Controls:
-      <ul>{items}</ul>
-    </div>)
+    <Dialog title='Keyboard Shortcuts' isOpen={isOpen} setIsOpen={setIsOpen} onCloseHref={href}>
+      <ul style={{listStyleType: 'none'}}>
+        {Object.keys(keys.keymap).map((key, ndx) => (
+          <li key={ndx}>
+            <span
+              style={{
+                fontFamily: 'Courier',
+                width: '3em',
+                display: 'inline-block',
+              }}
+            >
+              {key === ' ' ? 'Spc' : key}
+            </span>
+            {keys.msgs[key]}
+          </li>
+        ))}
+      </ul>
+    </Dialog>
+  )
 }

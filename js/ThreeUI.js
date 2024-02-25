@@ -86,7 +86,7 @@ export default class ThreeUi {
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 0.6
     renderer.outputColorSpace = THREE.sRGBEncoding
-    renderer.outputEncoding = THREE.GammaEncoding
+    renderer.outputEncoding = THREE.sRGBEncoding
     this.width = this.container.offsetWidth
     this.height = this.container.offsetHeight
     renderer.setClearColor(backgroundColor, 1)
