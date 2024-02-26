@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react'
+import React, {ReactElement, useEffect} from 'react'
 import createTree from '@pablo-mayrgundter/yaot2'
 import ThreeUi from '../ThreeUI'
 import StarsFromApp from '../Stars'
@@ -8,14 +8,16 @@ import {queryPoints} from '../Picker'
 import {ui as uiId} from './index.module.css'
 
 
-/** @returns {React.Component} */
+/** @returns {ReactElement} */
 export default function Stars() {
   useEffect(() => setup(), [])
   return (
     <>
       <div id={uiId}></div>
       <h1>Stars</h1>
-    </>)
+      <>The star catalog uses Celestia&apos;s star.dat database</>
+    </>
+  )
 }
 
 
@@ -24,7 +26,8 @@ function setup() {
   const ui = new ThreeUi(uiId)
   ui.camera.position.z = 1e1
 
-  const stars = new StarsFromApp({
+  const mockStore = {setState: () => {}}
+  const stars = new StarsFromApp(mockStore, {
     radius: {
       scalar: getSunProps(0.1).radiusMeters,
     },

@@ -21,13 +21,15 @@ const elt = (id) => {
 /** Main application class. */
 export default class Celestiary {
   /**
+   * @param {Element} store Zustand store for sharing application state
    * @param {Element} canvasContainer
    * @param {Element} navElt
    * @param {Function} setTimeStr
    * @param {Function} setIsPaused
    */
-  constructor(canvasContainer, navElt, setTimeStr, setIsPaused) {
+  constructor(useStore, canvasContainer, navElt, setTimeStr, setIsPaused) {
     assertArgs(...arguments)
+    this.useStore = useStore
     this.time = new Time(setTimeStr)
     this.setIsPaused = setIsPaused
     this.animation = new Animation(this.time)
@@ -40,11 +42,12 @@ export default class Celestiary {
       }
     }
     this.ui = new ThreeUi(canvasContainer, animCb)
-    this.scene = new Scene(this.ui)
+    this.scene = new Scene(this.useStore, this.ui)
     this.loader = new Loader()
     this.controlPanel = new ControlPanel(navElt, this.loader)
     this.load()
-    this.setupListeners()
+    this.setupPathListeners()
+    this.setupKeyListeners()
     this.navVisible = true
     // these are here for convenience debugging from jsconsole.
     this.shared = Shared
@@ -125,13 +128,15 @@ export default class Celestiary {
   }
 
 
-  /** */
-  setupListeners() {
+  setupPathListeners() {
     window.addEventListener('hashchange', (e) => {
       this.loader.loadPath((window.location.hash || '#').substring(1), this.onLoadCb, this.onDoneCb)
     },
     false)
+  }
 
+
+  setupKeyListeners() {
     const k = new Keys()
     k.map(' ', () => {
       this.setIsPaused(this.time.togglePause())

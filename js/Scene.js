@@ -23,8 +23,12 @@ const INITIAL_STEP_BACK_MULT = 10
 
 /** */
 export default class Scene {
-  /** @param {object} ui */
-  constructor(ui) {
+  /**
+   * @param {Function} useStore Accessor to zustand store for shared application state
+   * @param {object} ui
+   */
+  constructor(useStore, ui) {
+    this.useStore = useStore
     this.ui = ui
     this.objects = {}
     this.mouse = new Vector2
@@ -77,7 +81,7 @@ export default class Scene {
     switch (props.type) {
       case 'galaxy': return this.newGalaxy(props)
       case 'stars':
-        this.stars = new Stars(props, () => {
+        this.stars = new Stars(this.useStore, props, () => {
           this.stars.showLabels()
           const tree = createTree()
           tree.init(this.stars.geom.coords)
@@ -409,7 +413,7 @@ export default class Scene {
   /** */
   toggleAsterisms() {
     if (this.asterisms === null) {
-      const asterisms = new Asterisms(this.stars, () => {
+      const asterisms = new Asterisms(this.useStore, this.stars, () => {
         this.stars.add(asterisms)
         this.asterisms = asterisms
       })

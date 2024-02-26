@@ -36,7 +36,8 @@
     "three": "0.151.0",
     "tweakpane": "4.0.3",
     "vsop87": "1.0.5",
-    "wouter": "^3.0.0"
+    "wouter": "^3.0.0",
+    "zustand": "^4.5.1"
   },
   "devDependencies": {
     "@pablo-mayrgundter/testing.js": "1.1.2",

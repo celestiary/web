@@ -5,6 +5,7 @@ import Object from './object.js'
 import SpriteSheet from './SpriteSheet.js'
 import StarsBufferGeometry from './StarsBufferGeometry.js'
 import StarsCatalog, {FAVES} from './StarsCatalog.js'
+import {assertDefined} from './assert.js'
 import * as Material from './material.js'
 import {FAR_OBJ} from './shared.js'
 import {named} from './utils.js'
@@ -15,9 +16,13 @@ const MAX_LABELS = 10000
 
 /** */
 export default class Stars extends Object {
-  /** */
-  constructor(props, catalogOrCb, pointsLoadedCb, showLabels = false, faves = FAVES) {
+  /**
+   * @param {Function} useStore Accessor to zustand store for shared application state
+   */
+  constructor(useStore, props, catalogOrCb, pointsLoadedCb, showLabels = false, faves = FAVES) {
     super('Stars', props)
+    assertDefined(useStore)
+    this.useStore = useStore
     this.labelsGroup = named(new THREE.Group, 'LabelsGroup')
     this.pointsLoadedCb = pointsLoadedCb
     this.faves = faves
@@ -54,6 +59,9 @@ export default class Stars extends Object {
         }
       })
     }
+
+    // Used by About for catalog stats
+    this.useStore.setState({starsCatalog: this.catalog})
   }
 
 

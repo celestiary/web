@@ -1,10 +1,13 @@
 import React, {useEffect, useState} from 'react'
+import Box from '@mui/material/Box'
 import TimeFastForwardIcon from '@mui/icons-material/FastForward'
 import TimeFastRewindIcon from '@mui/icons-material/FastRewind'
 import TimeNowIcon from '@mui/icons-material/SettingsBackupRestore'
 import TimePauseIcon from '@mui/icons-material/PauseCircleOutline'
 import Time from '../Time'
+import useIsMobile from '../useIsMobile'
 import TooltipIconButton from './TooltipIconButton'
+import TooltipToggleButton from './TooltipToggleButton'
 
 
 /**
@@ -17,6 +20,7 @@ import TooltipIconButton from './TooltipIconButton'
  */
 export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
   const [timeScale, setTimeScale] = useState('')
+  const isMobile = useIsMobile()
 
 
   useEffect(() => {
@@ -30,14 +34,25 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
     time.togglePause()
   }
 
+  const mobileTimeStyle = {
+    fontSize: 'x-small',
+    textAlign: 'center',
+  }
   return (
     <div id='time-id'>
-      <div id='date-id'>{timeStr} ({time.simTimeJulianDay().toLocaleString()} Julian)</div>
+      <Box
+        id='date-id'
+        sx={{
+          ...isMobile ? mobileTimeStyle : {},
+        }}
+      >
+        <>{timeStr} {isMobile || `(${time.simTimeJulianDay().toLocaleString()} Julian)`}</>
+      </Box>
       <div id='time-scale-id'>{timeScale}</div>
       <div id='time-controls-id'>
         <TooltipIconButton tip='Fast rewind' onClick={() => time.changeTimeScale(-1)} icon={<TimeFastRewindIcon/>}/>
         <TooltipIconButton tip='Now' onClick={() => time.setTimeToNow()} icon={<TimeNowIcon/>}/>
-        <TooltipIconButton tip='Pause' onClick={onPauseClick} icon={<TimePauseIcon/>}/>
+        <TooltipToggleButton tip='Pause' onClick={onPauseClick} icon={<TimePauseIcon/>}/>
         <TooltipIconButton tip='Fast forward' onClick={() => time.changeTimeScale(1)} icon={<TimeFastForwardIcon/>}/>
       </div>
     </div>

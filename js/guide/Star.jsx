@@ -29,24 +29,24 @@ export default function Star() {
       const path = (location.hash || '#Sol').substr(1)
       showStar(ui, path, star, setStar, catalog, time)
     }
-  }, [catalog, location, star, ui])
+  }, [ui, catalog, location.hash])
 
 
   return (
     <>
       <div id={uiId}></div>
       <h1>Star</h1>
-      See <a href="https://www.seedofandromeda.com/blogs/51-procedural-star-rendering">Seed
+      See <a href='https://www.seedofandromeda.com/blogs/51-procedural-star-rendering'>Seed
           of Andromeda</a> for a nice overall approach.
 
       <p>Borrowed heavily from
-      code <a href="https://bpodgursky.com/2017/02/01/procedural-star-rendering-with-three-js-and-webgl-shaders/">here</a>.</p>
+      code <a href='https://bpodgursky.com/2017/02/01/procedural-star-rendering-with-three-js-and-webgl-shaders/'>here</a>.</p>
 
       <p>Added differential color range based on distance.  This makes the
         star appear white from far away and reveal surface structure as
         false-color on closer approach.</p>
 
-      <table id="faves">
+      <table id='faves'>
         <tbody>
           <tr><th>Star</th><th>Spectral Type</th><th>Hip ID</th></tr>
         </tbody>
@@ -90,7 +90,7 @@ function setupFavesTable(catalog) {
 
 function setup(setCatalog) {
   const ui = new ThreeUi(uiId)
-  ui.camera.position.z = 3
+  ui.camera.position.z = 3.5
   const catalog = new StarsCatalog()
   catalog.load(() => {
     setupFavesTable(catalog)

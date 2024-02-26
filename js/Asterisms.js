@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import AsterismsCatalog from './AsterismsCatalog.js'
+import {assertDefined} from './assert.js'
 import * as Shapes from './shapes.js'
 import {STARS_SCALE, labelTextColor} from './shared.js'
 
@@ -7,17 +8,22 @@ import {STARS_SCALE, labelTextColor} from './shared.js'
 /** */
 export default class Asterisms extends THREE.Object3D {
   /**
+   * @param {Function} useStore Accessor to zustand store for shared application state
    * @param {object} stars
    * @param {Function} cb
    */
-  constructor(stars, cb) {
+  constructor(useStore, stars, cb) {
     super()
+    assertDefined(useStore)
+    this.useStore = useStore
     this.name = 'Asterisms'
     this.stars = stars
     this.catalog = new AsterismsCatalog(stars.catalog)
     this.catalog.load(() => {
       this.catalog.byName.forEach((astr, name) => this.show(name))
       if (cb) {
+        // Used by About for catalog stats
+        this.useStore.setState({asterismsCatalog: this.catalog})
         cb(this)
       }
     })
