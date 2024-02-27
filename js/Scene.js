@@ -4,16 +4,13 @@ import {
   Vector2,
   Vector3,
 } from 'three'
-import createTree from '@pablo-mayrgundter/yaot2'
 import Asterisms from './Asterisms.js'
+import PickLabels from './PickLabels.js'
 import Planet from './Planet.js'
-import SpriteSheet from './SpriteSheet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
 import * as Shared from './shared.js'
 import * as Utils from './utils.js'
-import {marker as createMarker} from './shapes'
-import {queryPoints} from './Picker'
 
 
 const
@@ -40,10 +37,7 @@ export default class Scene {
     })
     this.stars = null
     this.asterisms = null
-    this.marker = createMarker()
-    this.marker.visible = true
-    this.ui.scene.add(this.marker)
-    this.starSelected = false
+    this.pickLabels = null
   }
 
 
@@ -77,73 +71,13 @@ export default class Scene {
    * @returns {object}
    */
   objectFactory(props) {
-    let pickedStarLabel
     switch (props.type) {
       case 'galaxy': return this.newGalaxy(props)
       case 'stars':
         this.stars = new Stars(this.useStore, props, () => {
           this.stars.showLabels()
-          const tree = createTree()
-          tree.init(this.stars.geom.coords)
-          const traceCb = (e) => {
-            queryPoints(this.ui, e, tree, this.stars, (pick) => {
-              if (!this.starSelected) {
-                this.marker.position.copy(pick)
-              }
-              if (pickedStarLabel !== undefined) {
-                pickedStarLabel.removeFromParent()
-              }
-              const starName = `${this.stars.catalog.getNameOrId(pick.star.hipId)}`
-              const pickedLabelSheet = new SpriteSheet(1, starName, undefined, [0, 1e5])
-              pickedLabelSheet.add(pick.x, pick.y, pick.z, starName)
-              pickedStarLabel = pickedLabelSheet.compile()
-              this.ui.scene.add(pickedStarLabel)
-            })
-          }
-          const markCb = (e) => {
-            queryPoints(this.ui, e, tree, this.stars, (pick) => {
-              if (this.starSelected) {
-                this.marker.position.copy(pick)
-              }
-              this.starSelected = !this.starSelected
-            /*
-            let tStar
-            if (pick.star.hipId != 0) {
-              console.log('Adding new star: ', pick.star)
-              pick.star.name = this.stars.catalog.namesByHip.get(pick.star.hipId)
-              pick.star.type = 'star' // todo: looks like this unintentionally override Three.js Object3D.
-              pick.star.parent = 'milkyway'
-              pick.star.radius = {
-                scalar: pick.star.radius,
-              }
-              tStar = this.add(pick.star)
-              window.star = tStar
-              tStar.position.copy(pick)
-            } else {
-              tStar = this.objects['sun']// todo
-            }
-            window.sun = this.objects['sun']
-            window.mw = this.objects['milkyway.orbitPosition']
-            console.log('PICKED: ', window.star.name)
-            //Shared.targets.obj = tStar
-            //Shared.targets.pos.copy(tStar.position)
-            //Shared.targets.track = tStar
-            //Shared.targets.follow = tStar
-            //window.mw.position.set(new Vector3)
-            window.mw.position.sub(tStar.position)
-            //Shared.targets.obj.position.sub(tStar.position)
-            const v = new Vector3
-            this.marker.position.copy(v)
-            this.marker.visible = false
-            v.set(0, 0, -tStar.props.radius.scalar * Shared.LENGTH_SCALE * 0.5e2)
-            this.ui.camera.platform.position.copy(v)
-            console.log('Shared.targets: ', Shared.targets.obj, Shared.targets.pos)
-            */
-            })
-          }
-          document.body.addEventListener('dblclick', markCb)
-          // document.body.addEventListener('mousemove', traceCb)
-          document.body.addEventListener('mousedown', (e) => e.preventDefault())
+          this.pickLabels = new PickLabels(this.ui, this.stars)
+          this.pickLabels.addPickListeners()
         })
         return this.stars
       case 'star': return new Star(props, this.objects, this.ui)
