@@ -2,6 +2,7 @@ import * as THREE from 'three'
 
 import Loader from './Loader.js'
 import Object from './object.js'
+import PickLabels from './PickLabels.js'
 import SpriteSheet from './SpriteSheet.js'
 import StarsBufferGeometry from './StarsBufferGeometry.js'
 import StarsCatalog, {FAVES} from './StarsCatalog.js'
@@ -17,15 +18,19 @@ const MAX_LABELS = 10000
 /** */
 export default class Stars extends Object {
   /**
-   * @param {Function} useStore Accessor to zustand store for shared application state
+   * @param {object} props
+   * @param {Function} ui Accessor to zustand store for shared application state
+   * @param {object} [catalog]
+   * @param {Function} [onLoadCb]
+   * @param {boolean} [showLabels]
    */
-  constructor(useStore, props, catalogOrCb, pointsLoadedCb, showLabels = false, faves = FAVES) {
+  constructor(props, ui, catalog, onLoadCb, showLabels = false) {
     super('Stars', props)
-    assertDefined(useStore)
-    this.useStore = useStore
+    assertDefined(ui, ui.useStore)
+    this.ui = ui
     this.labelsGroup = named(new THREE.Group, 'LabelsGroup')
-    this.pointsLoadedCb = pointsLoadedCb
-    this.faves = faves
+    this.onLoadCb = onLoadCb
+    this.faves = FAVES
     this.labelLOD = named(new THREE.LOD, 'LabelsLOD')
     this.labelLOD.visible = showLabels
     this.labelLOD.addLevel(this.labelsGroup, 1)
@@ -36,8 +41,7 @@ export default class Stars extends Object {
     // Used by guide/Asterisms.jsx to center camera.
     this.labelCenterPosByName = {}
 
-    if (catalogOrCb instanceof StarsCatalog) {
-      const catalog = catalogOrCb
+    if (catalog instanceof StarsCatalog) {
       if (!catalog.starByHip) {
         throw new Error('Invalid stars catalog')
       }
@@ -50,18 +54,12 @@ export default class Stars extends Object {
       this.catalog = new StarsCatalog()
       this.catalog.load(() => {
         this.show()
-        if (typeof catalogOrCb === 'function') {
-          const cb = catalogOrCb
-          cb()
-        }
-        if (showLabels) {
-          this.showLabels()
-        }
+        this.showLabels()
       })
     }
 
-    // Used by About for catalog stats
-    this.useStore.setState({starsCatalog: this.catalog})
+    // used by About for catalog stats
+    this.ui.useStore.setState({starsCatalog: this.catalog})
   }
 
 
@@ -80,13 +78,15 @@ export default class Stars extends Object {
       depthWrite: false,
       transparent: true,
     })
+    const me = this
     new Loader().loadShaders(starsMaterial, () => {
       const starPoints = named(new THREE.Points(this.geom, starsMaterial), 'StarsPoints')
       starPoints.sortParticles = true
       this.add(starPoints)
       window.sp = starPoints
-      if (this.pointsLoadedCb) {
-        this.pointsLoadedCb()
+      new PickLabels(me.ui, me)
+      if (this.onLoadCb) {
+        this.onLoadCb()
       }
     })
     /*

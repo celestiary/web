@@ -12,10 +12,10 @@ export default class Asterisms extends THREE.Object3D {
    * @param {object} stars
    * @param {Function} cb
    */
-  constructor(useStore, stars, cb) {
+  constructor(ui, stars, cb) {
     super()
-    assertDefined(useStore)
-    this.useStore = useStore
+    assertDefined(ui, stars)
+    this.useStore = ui.useStore
     this.name = 'Asterisms'
     this.stars = stars
     this.catalog = new AsterismsCatalog(stars.catalog)

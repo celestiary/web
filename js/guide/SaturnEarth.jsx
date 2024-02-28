@@ -56,10 +56,9 @@ function setup() {
       // Sun's radius in meters.
       scalar: 6.9424895E8,
     },
-  }, () => {
-    document.stars = stars
-    ui.scene.add(stars)
-  }, false, () => {
+  },
+  null,
+  () => {
     // Move sun to proper distance from Saturn.
     const saturnSemiMajorAxis = 1.43353E12 * LENGTH_SCALE
     const starPositions = stars.children[1].geometry.attributes.position
@@ -68,9 +67,9 @@ function setup() {
     const sunlight = new PointLight()
     sunlight.position.set(-saturnSemiMajorAxis, 0, -saturnSemiMajorAxis)
     ui.scene.add(sunlight)
-  })
+  },
+  false)
 
-  let saturn; let earth; let moon
   const nO = (name) => {
     const o = new Object3D
     o.name = name
@@ -83,13 +82,13 @@ function setup() {
   }
   let scaledSemiMajorAxis
   const sceneLoadCb = (name, planet) => {
-    if (name == 'moon') {
+    if (name === 'moon') {
       const semiMajorAxis = planet.props.orbit.semiMajorAxis.scalar
       scaledSemiMajorAxis = semiMajorAxis * LENGTH_SCALE
       return
     }
-    if (name == 'earth') {
-      const earthX = 0.5 * scaledSemiMajorAxis + 10
+    if (name === 'earth') {
+      const earthX = (0.5 * scaledSemiMajorAxis) + 10
       const earthRadius = planet.props.radius.scalar * LENGTH_SCALE
       planet.position.x = earthX
       ui.camera.position.set(earthX * 2, earthRadius * 2, 0)

@@ -93,13 +93,14 @@ function setup(setAsterisms) {
       scalar: 6.9424895E8,
     },
   }
-  const mockStore = {setState: () => {}}
+  // Mock store for demo
+  ui.useStore = {setState: () => {}, subscribe: () => {}}
   const stars = new Stars(
-      mockStore,
       props,
+      ui,
       new StarsCatalog(),
       () => {
-        new AsterismsFromApp(mockStore, stars, (asterisms) => {
+        new AsterismsFromApp(ui, stars, (asterisms) => {
           stars.add(asterisms)
           setupFavesTable(stars, asterisms)
           setAsterisms(asterisms)

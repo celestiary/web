@@ -11,19 +11,33 @@ export default class PickLabels {
     assertDefined(ui, stars)
     this.ui = ui
     this.stars = stars
-    this.marker = createMarker()
-    this.marker.visible = true
-    this.ui.scene.add(this.marker)
     this.pickedStarLabels = {}
-    this.curPickedLabel = null
-    this.tree = createTree()
-    this.tree.init(stars.geom.coords)
+    this.marker = null
+    this.tree = null
+    this.traceLabel = null
     this.mcb = null
     this.tcb = null
+
+    // Activate when UI button clicked for star marking
+    this.ui.useStore.subscribe((state) => {
+      if (state.isStarsSelectActive) {
+        this.addPickListeners()
+      } else {
+        this.removePickListeners()
+        this.clearTrace()
+      }
+    })
   }
 
   /** Add dblclick calls mark, mousemove calls trace */
   addPickListeners() {
+    // First time
+    if (!this.tree) {
+      this.tree = createTree()
+      this.tree.init(this.stars.geom.coords)
+    }
+    this.marker = createMarker()
+    this.ui.scene.add(this.marker)
     const me = this
     this.mcb = (e) => me.markCb(e)
     this.tcb = (e) => me.traceCb(e)
@@ -35,26 +49,32 @@ export default class PickLabels {
   removePickListeners() {
     document.body.removeEventListener('dblclick', this.mcb)
     document.body.removeEventListener('mousemove', this.tcb)
+    this.ui.scene.remove(this.marker)
   }
 
   /** Mark and label current star */
   traceCb(e) {
     queryPoints(this.ui, e, this.tree, this.stars, (pick) => {
       this.marker.position.copy(pick)
-      if (this.curPickedLabel) {
-        this.curPickedLabel.removeFromParent()
-      }
-      this.curPickedLabel = this.labelStar(pick)
+      this.clearTrace()
+      this.traceLabel = this.labelStar(pick)
     })
   }
 
   /** Leave a label on star */
   markCb(e) {
     queryPoints(this.ui, e, this.tree, this.stars, (pick) => {
-      const curLabel = this.curPickedLabel
+      const curLabel = this.traceLabel
       this.pickedStarLabels[name] = curLabel
-      this.curPickedLabel = null
+      this.traceLabel = null
     })
+  }
+
+  /** If there's a current trace label, remove it from scene */
+  clearTrace() {
+    if (this.traceLabel) {
+      this.traceLabel.removeFromParent()
+    }
   }
 
   /**

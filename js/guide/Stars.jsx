@@ -1,10 +1,7 @@
 import React, {ReactElement, useEffect} from 'react'
-import createTree from '@pablo-mayrgundter/yaot2'
 import ThreeUi from '../ThreeUI'
 import StarsFromApp from '../Stars'
 import {getSunProps} from '../StarsCatalog'
-import {marker as createMarker} from '../shapes'
-import {queryPoints} from '../Picker'
 import {ui as uiId} from './index.module.css'
 
 
@@ -25,27 +22,14 @@ export default function Stars() {
 function setup() {
   const ui = new ThreeUi(uiId)
   ui.camera.position.z = 1e1
+  ui.useStore = {setState: () => {}}
 
-  const mockStore = {setState: () => {}}
-  const stars = new StarsFromApp(mockStore, {
+  const props = {
     radius: {
       scalar: getSunProps(0.1).radiusMeters,
     },
-  },
-  null,
-  () => {
-    const tree = createTree()
-    tree.init(stars.geom.coords)
-    const marker = createMarker()
-    ui.scene.add(marker)
-    const markCb = (e) => {
-      queryPoints(ui, e, tree, stars, (pick) => {
-        marker.position.copy(pick)
-      })
-    }
-    document.body.addEventListener('dblclick', markCb)
-    // document.body.addEventListener('mousemove', markCb)
-  },
-  true)
+  }
+  const stars = new StarsFromApp(props, ui, true)
+
   ui.scene.add(stars)
 }

@@ -49,6 +49,7 @@ export default class ThreeUi {
     this.clickCbs = []
     this.mouse = new THREE.Vector2
     this.clicked = false
+    this.useStore = undefined // TODO(pablo): passed into and set in Scene
 
     // VR
     // TODO: clean up VR Button container or find better one from three.js.

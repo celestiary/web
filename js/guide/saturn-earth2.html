@@ -47,14 +47,15 @@ Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
   ui.scene.add(new AmbientLight(0x111111));
   ui.scene.add(new AxesHelper());
   const stars = new Stars({
-    radius: {
+    {setState: () => {}}, // mock store
+    radius: { // props
       // Sun's radius in meters.
       scalar: 6.9424895E8
     },
-    }, () => {
+    null, // catalog
+    }, () => { // onLoadCb
         document.stars = stars;
         ui.scene.add(stars);
-    }, false, () => {
         // Move sun to proper distance from Saturn.
         const saturnSemiMajorAxis = 1.43353E12 * LENGTH_SCALE;
         const starPositions = stars.children[1].geometry.attributes.position;
@@ -63,7 +64,8 @@ Earth, i.e. Earth as a moon of Saturn, how fast would Earth orbit Saturn?
         const sunlight = new PointLight();
         sunlight.position.set(-saturnSemiMajorAxis, 0, -saturnSemiMajorAxis);
         ui.scene.add(sunlight);
-    });
+    },
+    false);
 
   let saturn, earth, moon;
   const nO = (name) => {

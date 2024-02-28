@@ -1,23 +1,23 @@
-import React, {useEffect, useRef, useState} from 'react'
+import React, {ReactElement, useEffect, useRef, useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {useParams} from 'wouter'
 import {Html, OrbitControls} from '@react-three/drei'
 import {Canvas} from '@react-three/fiber'
 import {toJulianDay} from '../Time'
 import {loadVsop87c} from '../vsop'
+import {ui as uiId} from './index.module.css'
 import './vsopLabels.css'
 
 
 /**
  * @property {boolean} index Use a default time instead of useParam day
- * @returns {React.ReactElement}
+ * @returns {ReactElement}
  */
 export default function VSOP({isIndex = false}) {
   const [planetCoords, setPlanetCoords] = useState(null)
   const [day, setDay] = useState(0)
 
   const {day: dayParam} = useParams()
-
 
   useEffect(() => {
     loadVsop87c((vsop87c) => {
@@ -27,14 +27,12 @@ export default function VSOP({isIndex = false}) {
       setDay(julianDate)
       const daysCoords = vsop87c(julianDate)
       setPlanetCoords(daysCoords)
-      doCreateRoot({planetCoords: daysCoords})
     })
   }, [dayParam, setDay, isIndex, setPlanetCoords])
 
-
   return (
     <div style={{position: 'relative', width: '100%', height: '100%'}}>
-      <ViewerContainer/>
+      {planetCoords && <ViewerContainer id={uiId} planetCoords={planetCoords}/>}
       <div style={{position: 'absolute', top: 0, left: 0, zIndex: 10}}>
         <h1>Julian Day: {day}</h1>
         <p><a href='https://en.wikipedia.org/wiki/VSOP_model' target='_new'>Variations
@@ -44,31 +42,19 @@ export default function VSOP({isIndex = false}) {
           <a href='https://en.wikipedia.org/wiki/Julian_day' target='_new'>
             https://en.wikipedia.org/wiki/Julian_day
           </a>
-          <pre>{JSON.stringify(planetCoords, null, 2)}</pre>
         </p>
+        <p>Coordinates: <span style={{whiteSpace: 'pre'}}>{JSON.stringify(planetCoords, null, 2)}</span></p>
       </div>
     </div>)
 }
 
 
-/** */
-function doCreateRoot({planetCoords}) {
-  createRoot(document.getElementById('ui')).render(<SolarSystem planetCoords={planetCoords}/>)
-}
-
-
 /** @returns {React.ReactElement} */
-function ViewerContainer() {
+function ViewerContainer({id, planetCoords}) {
   return (
-    <div
-      id='ui'
-      style={{
-        position: 'relative',
-        textAlign: 'center',
-        width: '100%',
-        height: '100%',
-      }}
-    />
+    <div id={id}>
+      <SolarSystem planetCoords={planetCoords}/>
+    </div>
   )
 }
 

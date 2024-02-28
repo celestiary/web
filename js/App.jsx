@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState} from 'react'
 import {Route, useLocation} from 'wouter'
 import Box from '@mui/material/Box'
 import ScopedCssBaseline from '@mui/material/ScopedCssBaseline'
+import Stack from '@mui/material/Stack'
 import Celestiary from './Celestiary'
 import useStore from './store/useStore'
 import About from './ui/About'
@@ -12,11 +13,13 @@ import {setTitleFromLocation} from './utils'
 import useIsMobile from './useIsMobile'
 import HelpIcon from '@mui/icons-material/HelpOutline'
 import StarsIcon from '@mui/icons-material/AutoAwesome'
+import StarSelectIcon from '@mui/icons-material/SavedSearch'
 import './index.css'
 
 
 /** @returns {React.ReactElement} */
 export default function App() {
+  const toggleIsStarsSelectActive = useStore((state) => state.toggleIsStarsSelectActive)
   const [celestiary, setCelestiary] = useState(null)
   const [isPaused, setIsPaused] = useState(false)
   const [timeStr, setTimeStr] = useState('')
@@ -39,7 +42,7 @@ export default function App() {
       <ScopedCssBaseline/>
       <div ref={sceneRef} id='scene-id'/>
       <div ref={navRef} id='nav-id' className='panel'>Welcome to Celestiary!  Loading...</div>
-      <div id='top-right' className='panel'>
+      <Stack id='top-right' className='panel' direction='column' justifyContent='flex-start' alignItems='flex-end'>
         {celestiary && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
         <div id='text-buttons'>
           <Box sx={{position: 'fixed', bottom: 0, left: 0, m: '1em'}}>
@@ -57,7 +60,8 @@ export default function App() {
            </Box>
           }
         </div>
-      </div>
+        <TooltipToggleButton tip='select' icon={<StarSelectIcon/>} onClick={toggleIsStarsSelectActive}/>
+      </Stack>
       <h1 id='target-id'> </h1>
     </>)
 }

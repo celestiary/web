@@ -42,13 +42,13 @@ export default class Celestiary {
       }
     }
     this.ui = new ThreeUi(canvasContainer, animCb)
-    this.scene = new Scene(this.useStore, this.ui)
+    this.ui.useStore = useStore
+    this.scene = new Scene(this.ui)
     this.loader = new Loader()
     this.controlPanel = new ControlPanel(navElt, this.loader)
     this.load()
     this.setupPathListeners()
     this.setupKeyListeners()
-    this.setupClickListeners()
     document.body.addEventListener('mousedown', (e) => e.preventDefault())
     this.navVisible = true
     // these are here for convenience debugging from jsconsole.

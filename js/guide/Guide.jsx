@@ -4,7 +4,6 @@ import Box from '@mui/material/Box'
 import SwipeableDrawer from '@mui/material/SwipeableDrawer'
 import Typography from '@mui/material/Typography'
 import TooltipIconButton from '../ui/TooltipIconButton'
-import useIsMobile from '../useIsMobile'
 import Angles from './Angles'
 import Asterisms from './Asterisms'
 import Atmosphere from './Atmosphere'
@@ -44,26 +43,20 @@ export default function Guide() {
     setTitleFromLocation(location, 'Guide')
   }, [location])
 
-
-  const isMobile = useIsMobile()
-  if (isMobile) {
-    document.body.style.overflow = 'inherit'
-  }
-
+  document.body.style.overflow = 'inherit'
 
   const anchor = 'left'
   return (
-    <>
-      <Fragment key={anchor}>
-        <SwipeableDrawer
-          anchor={anchor}
-          open={isOutlineVisible}
-          onClose={() => setIsOutlineVisible(false)}
-          onOpen={() => setIsOutlineVisible(true)}
-        >
-          <Outline/>
-        </SwipeableDrawer>
-      </Fragment>
+    <Fragment key={anchor}>
+      <SwipeableDrawer
+        anchor={anchor}
+        open={isOutlineVisible}
+        onClose={() => setIsOutlineVisible(false)}
+        onOpen={() => setIsOutlineVisible(true)}
+        variant='temporary'
+      >
+        <Outline/>
+      </SwipeableDrawer>
       <Box sx={{m: '1em'}}>
         <TooltipIconButton tip='Sections' icon={<HamburgerIcon/>} onClick={() => setIsOutlineVisible(true)}/>
         <Route path='/'><Welcome/></Route>
@@ -86,7 +79,7 @@ export default function Guide() {
         <Route path='/stars'><Stars/></Route>
         <Route path='/vsop'><VSOP/></Route>
       </Box>
-    </>
+    </Fragment>
   )
 }
 

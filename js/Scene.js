@@ -5,7 +5,6 @@ import {
   Vector3,
 } from 'three'
 import Asterisms from './Asterisms.js'
-import PickLabels from './PickLabels.js'
 import Planet from './Planet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
@@ -24,8 +23,7 @@ export default class Scene {
    * @param {Function} useStore Accessor to zustand store for shared application state
    * @param {object} ui
    */
-  constructor(useStore, ui) {
-    this.useStore = useStore
+  constructor(ui) {
     this.ui = ui
     this.objects = {}
     this.mouse = new Vector2
@@ -35,9 +33,9 @@ export default class Scene {
     ui.addClickCb((click) => {
       this.onClick(click)
     })
+    // Loaded later
     this.stars = null
     this.asterisms = null
-    this.pickLabels = null
   }
 
 
@@ -73,13 +71,7 @@ export default class Scene {
   objectFactory(props) {
     switch (props.type) {
       case 'galaxy': return this.newGalaxy(props)
-      case 'stars':
-        this.stars = new Stars(this.useStore, props, () => {
-          this.stars.showLabels()
-          this.pickLabels = new PickLabels(this.ui, this.stars)
-          this.pickLabels.addPickListeners()
-        })
-        return this.stars
+      case 'stars': return this.stars = new Stars(props, this.ui)
       case 'star': return new Star(props, this.objects, this.ui)
       case 'planet': return new Planet(this, props)
       case 'moon': return new Planet(this, props, true)
@@ -347,7 +339,7 @@ export default class Scene {
   /** */
   toggleAsterisms() {
     if (this.asterisms === null) {
-      const asterisms = new Asterisms(this.useStore, this.stars, () => {
+      const asterisms = new Asterisms(this.ui, this.stars, () => {
         this.stars.add(asterisms)
         this.asterisms = asterisms
       })
