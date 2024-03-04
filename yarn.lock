@@ -366,7 +366,7 @@
   resolved "https://registry.yarnpkg.com/@humanwhocodes/object-schema/-/object-schema-2.0.2.tgz#d9fae00a2d5cb40f92cfe64b47ad749fbc38f917"
   integrity sha512-6EwiSjwWYP7pTckG6I5eyFANjPhmPjUX9JRLUSfNPC7FX7zK9gyZAfUEaECL6ALTpGX5AjnBq3C9XmVWPitNpw==
 
-"@mui/base@5.0.0-beta.37", "@mui/base@^5.0.0-beta.22":
+"@mui/base@5.0.0-beta.37":
   version "5.0.0-beta.37"
   resolved "https://registry.yarnpkg.com/@mui/base/-/base-5.0.0-beta.37.tgz#0e7e0f28402391fcfbb05476d5acc6c4f2d817b1"
   integrity sha512-/o3anbb+DeCng8jNsd3704XtmmLDZju1Fo8R2o7ugrVtPQ/QpcqddwKNzKPZwa0J5T8YNW3ZVuHyQgbTnQLisQ==
@@ -447,7 +447,7 @@
   resolved "https://registry.yarnpkg.com/@mui/types/-/types-7.2.13.tgz#d1584912942f9dc042441ecc2d1452be39c666b8"
   integrity sha512-qP9OgacN62s+l8rdDhSFRe05HWtLLJ5TGclC9I1+tQngbssu0m2dmFZs+Px53AcOs9fD7TbYd4gc9AXzVqO/+g==
 
-"@mui/utils@^5.14.16", "@mui/utils@^5.15.11":
+"@mui/utils@^5.15.11":
   version "5.15.11"
   resolved "https://registry.yarnpkg.com/@mui/utils/-/utils-5.15.11.tgz#a71804d6d6025783478fd1aca9afbf83d9b789c7"
   integrity sha512-D6bwqprUa9Stf8ft0dcMqWyWDKEo7D+6pB1k8WajbqlYIRA8J8Kw9Ra7PSZKKePGBGWO+/xxrX1U8HpG/aXQCw==
@@ -456,19 +456,6 @@
     "@types/prop-types" "^15.7.11"
     prop-types "^15.8.1"
     react-is "^18.2.0"
-
-"@mui/x-date-pickers@^6.19.6":
-  version "6.19.6"
-  resolved "https://registry.yarnpkg.com/@mui/x-date-pickers/-/x-date-pickers-6.19.6.tgz#79800f81b8d587a52b3b652e142631746b1929dc"
-  integrity sha512-QW9AFcPi0vLpkUhmquhhyhLaBvB0AZJuu3NTrE173qNKx3Z3n51aCLY9bc7c6i4ltZMMsVRHlvzQjsve04TC8A==
-  dependencies:
-    "@babel/runtime" "^7.23.2"
-    "@mui/base" "^5.0.0-beta.22"
-    "@mui/utils" "^5.14.16"
-    "@types/react-transition-group" "^4.4.8"
-    clsx "^2.0.0"
-    prop-types "^15.8.1"
-    react-transition-group "^4.4.5"
 
 "@nodelib/fs.scandir@2.1.5":
   version "2.1.5"
@@ -508,7 +495,7 @@
   dependencies:
     "@pablo-mayrgundter/testing.js" "^1.0.0"
 
-"@pablo-mayrgundter/testing.js@1.1.2", "@pablo-mayrgundter/testing.js@^1.0.0":
+"@pablo-mayrgundter/testing.js@^1.0.0":
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/@pablo-mayrgundter/testing.js/-/testing.js-1.1.2.tgz#7c1a96eb81b93af3e3cb5e26fcfc8295d69407f1"
   integrity sha512-feCXFMg3ZrI6QTs3qrqr+SJSx5vctDjCyzwYIQ3UNHWOnmp2Aaqt7SyWq+BNiPHzGIUfayacFLHkFz8fSULjEg==
@@ -665,7 +652,7 @@
   dependencies:
     "@types/react" "*"
 
-"@types/react-transition-group@^4.4.10", "@types/react-transition-group@^4.4.8":
+"@types/react-transition-group@^4.4.10":
   version "4.4.10"
   resolved "https://registry.yarnpkg.com/@types/react-transition-group/-/react-transition-group-4.4.10.tgz#6ee71127bdab1f18f11ad8fb3322c6da27c327ac"
   integrity sha512-hT/+s0VQs2ojCX823m60m5f0sL5idt9SO6Tj6Dg+rdphGPIeJbJ6CxvBYkgkGKrYeDjvIpKTR38UzmtHJOGW3Q==
@@ -972,7 +959,7 @@ chalk@^4.0.0:
     ansi-styles "^4.1.0"
     supports-color "^7.1.0"
 
-clsx@^2.0.0, clsx@^2.1.0:
+clsx@^2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/clsx/-/clsx-2.1.0.tgz#e851283bcb5c80ee7608db18487433f7b23f77cb"
   integrity sha512-m3iNNWpd9rl3jvvcBnu70ylMdrXt8Vlq4HYadnU5fwcOtvkSQWPmj7amUcDT2qYI7risszBjI5AUIUox9D16pg==
@@ -1045,16 +1032,6 @@ damerau-levenshtein@^1.0.8:
   version "1.0.8"
   resolved "https://registry.yarnpkg.com/damerau-levenshtein/-/damerau-levenshtein-1.0.8.tgz#b43d286ccbd36bc5b2f7ed41caf2d0aba1f8a6e7"
   integrity sha512-sdQSFB7+llfUcQHUQO3+B8ERRj0Oa4w9POWMI/puGtuf7gFywGmkaLCElnudfTiKZV+NvHqL0ifzdrI8Ro7ESA==
-
-dayjs-plugin-utc@^0.1.2:
-  version "0.1.2"
-  resolved "https://registry.yarnpkg.com/dayjs-plugin-utc/-/dayjs-plugin-utc-0.1.2.tgz#48e552407024143922d6499a40f6c765f8c93d03"
-  integrity sha512-ExERH5o3oo6jFOdkvMP3gytTCQ9Ksi5PtylclJWghr7k7m3o2U5QrwtdiJkOxLOH4ghr0EKhpqGefzGz1VvVJg==
-
-dayjs@^1.11.10:
-  version "1.11.10"
-  resolved "https://registry.yarnpkg.com/dayjs/-/dayjs-1.11.10.tgz#68acea85317a6e164457d6d6947564029a6a16a0"
-  integrity sha512-vjAczensTgRcqDERK0SR2XMwsF/tSvnvlv6VcF2GIhg6Sx4yOIt/irsr1RDJsKiIyBzJDpCoXiWWq28MqH2cnQ==
 
 debounce@^1.2.1:
   version "1.2.1"

@@ -13,19 +13,17 @@
     "url": "https://github.com/celestiary/web/issues"
   },
   "scripts": {
-    "test": "cd js ; for t in *_test.js ; do echo $t ; node $t ; done",
-    "clean": "rm -rf docs ; cp -r public docs",
     "build": "yarn clean && cp -r public/* js/shaders docs/ && node esbuild/build.js",
+    "clean": "rm -rf docs ; cp -r public docs",
+    "lint": "yarn eslint js",
     "serve": "yarn build && node esbuild/serve.js",
-    "lint": "yarn eslint js"
+    "test": "bun test"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.15.11",
     "@mui/material": "^5.15.11",
-    "@mui/system": "^5.15.11",
-    "@mui/x-date-pickers": "^6.19.6",
     "@pablo-mayrgundter/fullscreen.js": "1.0.2",
     "@pablo-mayrgundter/measure.js": "2.0.1",
     "@pablo-mayrgundter/parser.js": "1.0.1",
@@ -33,8 +31,6 @@
     "@react-three/drei": "9.5.3",
     "@react-three/fiber": "8.2.3",
     "@types/three": "0.161.0",
-    "dayjs": "^1.11.10",
-    "dayjs-plugin-utc": "^0.1.2",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "three": "0.151.0",
@@ -44,7 +40,6 @@
     "zustand": "^4.5.1"
   },
   "devDependencies": {
-    "@pablo-mayrgundter/testing.js": "1.1.2",
     "@tsconfig/recommended": "1.0.3",
     "@types/history": "5.0.0",
     "@types/node": "18.11.10",

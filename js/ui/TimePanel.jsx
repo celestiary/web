@@ -8,10 +8,7 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import Divider from '@mui/material/Divider'
 import FormControl from '@mui/material/FormControl'
-import FormControlLabel from '@mui/material/FormControlLabel'
 import FormLabel from '@mui/material/FormLabel'
-import Radio from '@mui/material/Radio'
-import RadioGroup from '@mui/material/RadioGroup'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import TimeFastForwardIcon from '@mui/icons-material/FastForward'
@@ -41,10 +38,10 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
   const [simYear, setSimYear] = useState('')
   const [simMonth, setSimMonth] = useState('')
   const [simDay, setSimDay] = useState('')
-  
+  const [simHours, setSimHours] = useState('')
+  const [simMinutes, setSimMinutes] = useState('')
+  const [simSeconds, setSimSeconds] = useState('')
   const [timeScale, setTimeScale] = useState('')
-  const [unixTime, setUnixTime] = useState(null)
-  const [era, setEra] = useState('CE')
   const isMobile = useIsMobile()
 
 
@@ -64,32 +61,15 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
   function onSetDatetimeClick() {
     console.log('time.simTime', time.simTime)
 
-    /** @returns {number} fractional part of num */
-    function getFractionalPart(num) {
-      return Math.abs(num) - Math.floor(Math.abs(num))
-    }
-
-    const y = time.simTime / 1000 / 86400 / 365.25
-    setSimYear(1970 + Math.floor(y))
-
-    const m = getFractionalPart(y) * 12 // TODO(pablo)
-    setSimMonth(1 + Math.floor(m))
-
-    const d = getFractionalPart(m) * 30 // TODO(pablo)
-    setSimDay(Math.floor(d))
-
-    setUnixTime(time.simTime)
+    const date = new Date(time.simTime)
+    console.log('TimePanel with date: ', date)
+    setSimYear(date.getFullYear())
+    setSimMonth(date.getMonth() + 1)
+    setSimDay(date.getDate())
+    setSimHours(date.getHours())
+    setSimMinutes(date.getMinutes())
+    setSimSeconds(date.getSeconds())
     setIsTimeDialogVisible(true)
-  }
-
-
-  /**
-   * Toggle date and time picker visibility
-   *
-   * @param {dayjs} d
-   */
-  function onChange(d) {
-    setUnixTime(d.unix() * 1000)
   }
 
 
@@ -136,23 +116,14 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
           <DialogContent>
             <FormControl sx={{m: '1em 0'}}>
               <Stack spacing={2}>
-                <FormLabel id='date-group-label'>Date</FormLabel>
                 <Stack direction='row' aria-labelledby='date-group-label'>
-                  <TextField value={simYear} onChange={(event) => setSimYear(event.target.value)} sx={{width: '4em'}}/>
-                  <TextField value={simMonth} onChange={(event) => setSimMonth(event.target.value)} sx={{width: '2em'}}/>
-                  <TextField value={simDay} onChange={(event) => setSimDay(event.target.value)} sx={{width: '2em'}}/>
+                  <TextField label='Year' value={simYear} onChange={(event) => setSimYear(event.target.value)}/>
+                  <TextField label='Month' value={simMonth} onChange={(event) => setSimMonth(event.target.value)}/>
+                  <TextField label='Day' value={simDay} onChange={(event) => setSimDay(event.target.value)}/>
+                  <TextField label='Hour' value={simHours} onChange={(event) => setSimHours(event.target.value)}/>
+                  <TextField label='Minute' value={simMinutes} onChange={(event) => setSimMinutes(event.target.value)}/>
+                  <TextField label='Second' value={simSeconds} onChange={(event) => setSimSeconds(event.target.value)}/>
                 </Stack>
-                <FormLabel id='era-radio-buttons-group-label'>Era</FormLabel>
-                <RadioGroup
-                  aria-labelledby='era-radio-buttons-group-label'
-                  defaultValue='CE'
-                  value={era}
-                  onChange={(event) => setEra(event.target.value)}
-                  row
-                >
-                  <FormControlLabel value='BCE' control={<Radio/>} label='BCE' />
-                  <FormControlLabel value='CE' control={<Radio/>} label='CE' />
-                </RadioGroup>
               </Stack>
             </FormControl>
           </DialogContent>

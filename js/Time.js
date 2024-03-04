@@ -156,45 +156,25 @@ export function toJulianDay(t) {
 
 
 /**
- * @param {number} UNIX Epoch milliseconds
+ * @param {number} unixTime UNIX Epoch milliseconds
  * @returns {string}
  */
-function timeToDateStr(unixTime) {
-  /** @returns {number} fractional part of num */
-  function getFractionalPart(num) {
-    return Math.abs(num) - Math.floor(Math.abs(num))
-  }
-
-  let t = unixTime / 1000 / 86400 / 365.25
-  const year = 1970 + Math.floor(t)
-
-  // TODO(pablo)
-  t = getFractionalPart(t) * 12
-  const month = Math.floor(t)
-
-  t = getFractionalPart(t) * 30
-  const day = Math.floor(t)
-
-  t = getFractionalPart(t) * 24
-  const hour = Math.floor(t)
-
-  t = getFractionalPart(t) * 60
-  const minute = Math.floor(t)
-
-  t = getFractionalPart(t) * 60
-  const second = Math.floor(t)
+export function timeToDateStr(unixTime) {
+  const date = new Date(unixTime)
 
   // Assuming the month and day are provided in a modern context
   // Adjust the formatting as needed
-  const dateWithoutYear = new Date(month, day, hour, minute, second).toLocaleDateString(undefined, {
+  const dateWithoutYear = date.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: 'numeric',
     second: 'numeric',
+    timezone: 'long',
   })
 
   // Use commas for large-looking years
+  const year = date.getUTCFullYear()
   const yearStr = Math.abs(year) < 10000 ? (year).toString() : (year).toLocaleString()
 
   return `${yearStr} ${dateWithoutYear}`
