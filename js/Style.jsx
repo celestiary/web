@@ -56,7 +56,8 @@ const ColorModeContext = createContext({toggleColorMode: () => {}})
 const dark = {
   mode: 'dark',
   primary: {
-    main: '#f00',
+    // TODO(pablo): this is a light teal for text in dark mode.  not sure why main key is used
+    main: '#869fdb',
     light: '#0f0',
     dark: '#00f',
     contrastText: '#fff',

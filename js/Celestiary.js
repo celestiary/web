@@ -48,7 +48,7 @@ export default class Celestiary {
     this.controlPanel = new ControlPanel(navElt, this.loader)
     this.load()
     this.setupPathListeners()
-    this.setupKeyListeners()
+    this.setupKeyListeners(useStore)
     document.body.addEventListener('mousedown', (e) => e.preventDefault())
     this.navVisible = true
     // these are here for convenience debugging from jsconsole.
@@ -138,8 +138,8 @@ export default class Celestiary {
   }
 
 
-  setupKeyListeners() {
-    const k = new Keys()
+  setupKeyListeners(useStore) {
+    const k = new Keys(useStore)
     k.map(' ', () => {
       this.setIsPaused(this.time.togglePause())
     },

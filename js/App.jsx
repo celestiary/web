@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react'
+import React, {ReactElement, useEffect, useRef, useState} from 'react'
 import {Route, useLocation} from 'wouter'
 import Box from '@mui/material/Box'
 import ScopedCssBaseline from '@mui/material/ScopedCssBaseline'
@@ -17,7 +17,7 @@ import StarSelectIcon from '@mui/icons-material/SavedSearch'
 import './index.css'
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function App() {
   const toggleIsStarsSelectActive = useStore((state) => state.toggleIsStarsSelectActive)
   const [celestiary, setCelestiary] = useState(null)

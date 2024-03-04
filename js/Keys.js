@@ -1,17 +1,20 @@
 /** */
 export default class Keys {
   /** */
-  constructor() {
+  constructor(useStore) {
     this.keymap = {}
     this.msgs = {}
-    this.bindToWindow()
+    this.bindToWindow(useStore)
   }
 
 
   /** */
-  bindToWindow() {
+  bindToWindow(useStore) {
     window.addEventListener('keydown', (e) => {
-      this.onKeyDown(e)
+      const is = useStore.getState().isTimeDialogVisible
+      if (!is) {
+        this.onKeyDown(e)
+      }
     })
   }
 
