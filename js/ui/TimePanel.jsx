@@ -8,7 +8,6 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import Divider from '@mui/material/Divider'
 import FormControl from '@mui/material/FormControl'
-import FormLabel from '@mui/material/FormLabel'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import TimeFastForwardIcon from '@mui/icons-material/FastForward'
@@ -86,7 +85,7 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
 
   const mobileTimeStyle = {
     fontSize: 'x-small',
-    textAlign: 'center',
+    textAlign: 'right',
   }
 
 
@@ -113,7 +112,7 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
           <DialogContent>
             <FormControl sx={{m: '1em 0'}}>
               <Stack spacing={2}>
-                <Stack direction='row' aria-labelledby='date-group-label'>
+                <Stack direction={isMobile ? 'column' : 'row'} aria-labelledby='date-group-label'>
                   <TextField label='Year' value={simYear} onChange={(event) => setSimYear(event.target.value)}/>
                   <TextField label='Month' value={simMonth} onChange={(event) => setSimMonth(event.target.value)}/>
                   <TextField label='Day' value={simDay} onChange={(event) => setSimDay(event.target.value)}/>
