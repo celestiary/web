@@ -59,10 +59,7 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
 
   /** Open datetime setter dialog on calendar icon click */
   function onSetDatetimeClick() {
-    console.log('time.simTime', time.simTime)
-
     const date = new Date(time.simTime)
-    console.log('TimePanel with date: ', date)
     setSimYear(date.getFullYear())
     setSimMonth(date.getMonth() + 1)
     setSimDay(date.getDate())
@@ -76,14 +73,14 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
   /** Toggle date and time picker visibility */
   function onDialogOk() {
     setIsTimeDialogVisible(false)
-    console.log('y:${simYear} m:${simMonth} d:${simDay} e:${era}')
-    const millisPerDay = 86400 * 1000
-    let t = simYear * 365.25 * millisPerDay
-    t += simMonth * 30 * millisPerDay
-    t += simDay * millisPerDay
-    // y * (era === 'CE' ? 1 : -1) * unixTime
-    console.log('time', t, new Date(t))
-    time.setTime(t)
+    const date = new Date(time.simTime)
+    date.setFullYear(simYear)
+    date.setMonth(simMonth - 1)
+    date.setDate(simDay)
+    date.setHours(simHours)
+    date.setMinutes(simMinutes)
+    date.setSeconds(simSeconds)
+    time.setTime(date.getTime())
   }
 
 
