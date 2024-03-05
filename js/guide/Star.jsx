@@ -1,11 +1,12 @@
 import React, {useEffect, useState} from 'react'
+import {useHashLocation} from 'wouter/use-hash-location'
+import {Shape3D} from 'three'
 import {useLocation} from 'wouter'
 import StarFromApp from '../Star.js'
 import StarsCatalog, {FAVES} from '../StarsCatalog.js'
 import ThreeUi from '../ThreeUI.js'
 import Time from '../Time.js'
 import * as Shared from '../shared.js'
-import {elt} from '../utils.js'
 import {ui as uiId} from './index.module.css'
 
 
@@ -16,6 +17,7 @@ export default function Star() {
   const [catalog, setCatalog] = useState(null)
 
   const [location] = useLocation()
+  const [hashLocation] = useHashLocation()
 
 
   useEffect(() => {
@@ -25,11 +27,11 @@ export default function Star() {
 
   useEffect(() => {
     if (ui && catalog) {
+      const starName = hashLocation.substr(1)
       const time = new Time()
-      const path = (location.hash || '#Sol').substr(1)
-      showStar(ui, path, star, setStar, catalog, time)
+      showStar(ui, starName, star, setStar, catalog, time)
     }
-  }, [ui, catalog, location.hash])
+  }, [ui, catalog, hashLocation])
 
 
   return (
@@ -49,57 +51,35 @@ export default function Star() {
       <table id='faves'>
         <tbody>
           <tr><th>Star</th><th>Spectral Type</th><th>Hip ID</th></tr>
+          {catalog && Array.from(FAVES.keys()).map((hipId) => {
+            const name = FAVES.get(hipId)
+            const catStar = catalog.starByHip.get(hipId)
+            const spectralType = StarsCatalog.StarSpectra[catStar.spectralType][3]
+            return (
+              <tr>
+                <td><a href={`#${name}`}>{name}</a></td>
+                <td>{spectralType}</td>
+                <td>{hipId}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </>)
 }
 
 
-function addStarToScene(ui, catalog, hipId, curStar, setStar) {
-  if (curStar) {
-    ui.scene.remove(curStar)
-  }
-  const starProps = catalog.starByHip.get(hipId)
-  starProps.x = starProps.y = starProps.z = 0
-  starProps.radius = {
-    // Sun's radius in meters.
-    scalar: 1 / Shared.LENGTH_SCALE,
-  }
-  const star = new StarFromApp(starProps, {}, ui)
-  ui.scene.add(star)
-  setStar(star)
-  return star
-}
-
-
-function setupFavesTable(catalog) {
-  const favesTable = elt('faves')
-  for (const hipId in FAVES) {
-    const name = FAVES[hipId]
-    const star = catalog.starByHip.get(hipId)
-    const spectralType = StarsCatalog.StarSpectra[star.spectralType][3]
-    favesTable.innerHTML +=
-      `<tr>
-        <td><a href="#${name}">${name}</a></td>
-        <td>${spectralType}</td>
-        <td>${hipId}</td>
-      </tr>`
-  }
-}
-
-
+/** @returns {ThreeUi} */
 function setup(setCatalog) {
   const ui = new ThreeUi(uiId)
   ui.camera.position.z = 3.5
   const catalog = new StarsCatalog()
-  catalog.load(() => {
-    setupFavesTable(catalog)
-    setCatalog(catalog)
-  })
+  catalog.load(() => setCatalog(catalog))
   return ui
 }
 
 
+/** Called when user selects star from table */
 function showStar(ui, path, curStar, setStar, catalog, time) {
   path = path.replaceAll(/%20/g, ' ')
   const hipId = catalog.hipByName.get(path)
@@ -117,4 +97,26 @@ function showStar(ui, path, curStar, setStar, catalog, time) {
       throw new Error(`preanim star: ${star}`)
     }
   }
+}
+
+
+/**
+ * Draw the star on the canvas
+ *
+ * @returns {Shape3D} star
+ */
+function addStarToScene(ui, catalog, hipId, curStar, setStar) {
+  if (curStar) {
+    ui.scene.remove(curStar)
+  }
+  const starProps = catalog.starByHip.get(hipId)
+  starProps.x = starProps.y = starProps.z = 0
+  starProps.radius = {
+    // Sun's radius in meters.
+    scalar: 1 / Shared.LENGTH_SCALE,
+  }
+  const star = new StarFromApp(starProps, {}, ui)
+  ui.scene.add(star)
+  setStar(star)
+  return star
 }
