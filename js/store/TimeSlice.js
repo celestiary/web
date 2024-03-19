@@ -7,7 +7,7 @@
  */
 export default function createTimeSlice(set, get) {
   return {
-    isTimeDialogVisible: false,
-    setIsTimeDialogVisible: (is) => set((state) => ({isTimeDialogVisible: is})),
+    isDatePickerVisible: false,
+    setIsDatePickerVisible: (is) => set((state) => ({isDatePickerVisible: is})),
   }
 }

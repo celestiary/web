@@ -1,5 +1,4 @@
 import React, {ReactElement, useEffect, useRef, useState} from 'react'
-import {createRoot} from 'react-dom/client'
 import {useParams} from 'wouter'
 import {Html, OrbitControls} from '@react-three/drei'
 import {Canvas} from '@react-three/fiber'
@@ -106,7 +105,7 @@ function SolarSystem({planetCoords}) {
             key={index}
             name={coord[0]}
             position={[
-              scale * -coord[1].x,
+              scale * coord[1].x,
               scale * coord[1].z,
               scale * coord[1].y,
             ]}

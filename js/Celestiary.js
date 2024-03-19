@@ -49,7 +49,7 @@ export default class Celestiary {
     this.load()
     this.setupPathListeners()
     this.setupKeyListeners(useStore)
-    document.body.addEventListener('mousedown', (e) => e.preventDefault())
+    canvasContainer.addEventListener('mousedown', (e) => e.preventDefault())
     this.navVisible = true
     // these are here for convenience debugging from jsconsole.
     this.shared = Shared

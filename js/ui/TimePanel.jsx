@@ -1,15 +1,7 @@
 import React, {ReactElement, useEffect, useState} from 'react'
 import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
 import ButtonGroup from '@mui/material/ButtonGroup'
-import Dialog from '@mui/material/Dialog'
-import DialogActions from '@mui/material/DialogActions'
-import DialogContent from '@mui/material/DialogContent'
-import DialogTitle from '@mui/material/DialogTitle'
 import Divider from '@mui/material/Divider'
-import FormControl from '@mui/material/FormControl'
-import Stack from '@mui/material/Stack'
-import TextField from '@mui/material/TextField'
 import TimeFastForwardIcon from '@mui/icons-material/FastForward'
 import TimeFastRewindIcon from '@mui/icons-material/FastRewind'
 import TimeNowIcon from '@mui/icons-material/SettingsBackupRestore'
@@ -18,6 +10,7 @@ import CalendarIcon from '@mui/icons-material/CalendarMonth'
 import Time from '../Time'
 import useStore from '../store/useStore'
 import useIsMobile from '../useIsMobile'
+import DatePicker from './DatePicker'
 import TooltipIconButton from './TooltipIconButton'
 import TooltipToggleButton from './TooltipToggleButton'
 
@@ -31,16 +24,10 @@ import TooltipToggleButton from './TooltipToggleButton'
  * @returns {ReactElement}
  */
 export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
-  const isTimeDialogVisible = useStore((state) => state.isTimeDialogVisible)
-  const setIsTimeDialogVisible = useStore((state) => state.setIsTimeDialogVisible)
+  const isDatePickerVisible = useStore((state) => state.isDatePickerVisible)
+  const setIsDatePickerVisible = useStore((state) => state.setIsDatePickerVisible)
 
-  const [simYear, setSimYear] = useState('')
-  const [simMonth, setSimMonth] = useState('')
-  const [simDay, setSimDay] = useState('')
-  const [simHours, setSimHours] = useState('')
-  const [simMinutes, setSimMinutes] = useState('')
-  const [simSeconds, setSimSeconds] = useState('')
-  const [timeScale, setTimeScale] = useState('')
+  const [timeScale, setTimeScale] = useState(0)
   const isMobile = useIsMobile()
 
 
@@ -53,33 +40,6 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
   const onPauseClick = () => {
     setIsPaused(!isPaused)
     time.togglePause()
-  }
-
-
-  /** Open datetime setter dialog on calendar icon click */
-  function onSetDatetimeClick() {
-    const date = new Date(time.simTime)
-    setSimYear(date.getFullYear())
-    setSimMonth(date.getMonth() + 1)
-    setSimDay(date.getDate())
-    setSimHours(date.getHours())
-    setSimMinutes(date.getMinutes())
-    setSimSeconds(date.getSeconds())
-    setIsTimeDialogVisible(true)
-  }
-
-
-  /** Toggle date and time picker visibility */
-  function onDialogOk() {
-    setIsTimeDialogVisible(false)
-    const date = new Date(time.simTime)
-    date.setFullYear(simYear)
-    date.setMonth(simMonth - 1)
-    date.setDate(simDay)
-    date.setHours(simHours)
-    date.setMinutes(simMinutes)
-    date.setSeconds(simSeconds)
-    time.setTime(date.getTime())
   }
 
 
@@ -106,28 +66,14 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
         <TooltipToggleButton tip='Pause' onClick={onPauseClick} icon={<TimePauseIcon/>}/>
         <TooltipIconButton tip='Fast forward' onClick={() => time.changeTimeScale(1)} icon={<TimeFastForwardIcon/>}/>
         <Divider orientation='vertical' variant='middle' flexItem/>
-        <TooltipIconButton tip='Set date & time' onClick={onSetDatetimeClick} icon={<CalendarIcon/>}/>
-        <Dialog open={isTimeDialogVisible} onClose={() => setIsTimeDialogVisible(false)}>
-          <DialogTitle>Date & Time</DialogTitle>
-          <DialogContent>
-            <FormControl sx={{m: '1em 0'}}>
-              <Stack spacing={2}>
-                <Stack direction={isMobile ? 'column' : 'row'} aria-labelledby='date-group-label'>
-                  <TextField label='Year' value={simYear} onChange={(event) => setSimYear(event.target.value)}/>
-                  <TextField label='Month' value={simMonth} onChange={(event) => setSimMonth(event.target.value)}/>
-                  <TextField label='Day' value={simDay} onChange={(event) => setSimDay(event.target.value)}/>
-                  <TextField label='Hour' value={simHours} onChange={(event) => setSimHours(event.target.value)}/>
-                  <TextField label='Minute' value={simMinutes} onChange={(event) => setSimMinutes(event.target.value)}/>
-                  <TextField label='Second' value={simSeconds} onChange={(event) => setSimSeconds(event.target.value)}/>
-                </Stack>
-              </Stack>
-            </FormControl>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={onDialogOk}>Set time</Button>
-          </DialogActions>
-        </Dialog>
+        <TooltipIconButton tip='Set date & time' onClick={() => setIsDatePickerVisible(true)} icon={<CalendarIcon/>}/>
       </ButtonGroup>
+      {isDatePickerVisible &&
+       <DatePicker
+         time={time}
+         isVisible={isDatePickerVisible}
+         setIsVisible={setIsDatePickerVisible}
+       />}
     </div>
   )
 }

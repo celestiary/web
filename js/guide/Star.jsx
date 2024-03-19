@@ -1,7 +1,6 @@
 import React, {useEffect, useState} from 'react'
 import {useHashLocation} from 'wouter/use-hash-location'
-import {Shape3D} from 'three'
-import {useLocation} from 'wouter'
+import {Shape} from 'three'
 import StarFromApp from '../Star.js'
 import StarsCatalog, {FAVES} from '../StarsCatalog.js'
 import ThreeUi from '../ThreeUI.js'
@@ -16,7 +15,6 @@ export default function Star() {
   const [star, setStar] = useState(null)
   const [catalog, setCatalog] = useState(null)
 
-  const [location] = useLocation()
   const [hashLocation] = useHashLocation()
 
 
@@ -31,7 +29,7 @@ export default function Star() {
       const time = new Time()
       showStar(ui, starName, star, setStar, catalog, time)
     }
-  }, [ui, catalog, hashLocation])
+  }, [star, ui, catalog, hashLocation])
 
 
   return (
@@ -103,7 +101,7 @@ function showStar(ui, path, curStar, setStar, catalog, time) {
 /**
  * Draw the star on the canvas
  *
- * @returns {Shape3D} star
+ * @returns {Shape} star
  */
 function addStarToScene(ui, catalog, hipId, curStar, setStar) {
   if (curStar) {

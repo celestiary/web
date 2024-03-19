@@ -11,7 +11,7 @@ export default class Keys {
   /** */
   bindToWindow(useStore) {
     window.addEventListener('keydown', (e) => {
-      const is = useStore.getState().isTimeDialogVisible
+      const is = useStore.getState().isDatePickerVisible
       if (!is) {
         this.onKeyDown(e)
       }
