@@ -37,6 +37,8 @@ export default class Stars extends Object {
     this.labelLOD.addLevel(FAR_OBJ, 1e14)
     this.add(this.labelLOD)
     this.geom = null
+    // TODO(pablo): visual inspection, to line up with Celestia
+    this.rotation.y = Math.PI
 
     // Used by guide/Asterisms.jsx to center camera.
     this.labelCenterPosByName = {}
