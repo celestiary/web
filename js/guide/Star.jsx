@@ -18,19 +18,16 @@ export default function Star() {
   const [hashLocation] = useHashLocation()
 
 
-  useEffect(() => {
-    setUi(setup(setCatalog))
-  }, [])
+  useEffect(() => setUi(setup(setCatalog)), [])
 
 
   useEffect(() => {
-    console.log('guide/Star, useEffect: ', hashLocation)
     if (ui && catalog) {
       const starName = hashLocation.substr(1)
       const time = new Time()
       showStar(ui, starName, star, setStar, catalog, time)
     }
-  }, [ui, setStar, catalog, hashLocation])
+  }, [catalog, hashLocation, ui, setStar])
 
 
   return (

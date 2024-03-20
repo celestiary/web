@@ -94,7 +94,7 @@ function setup(setAsterisms) {
     },
   }
   // Mock store for demo
-  ui.useStore = {setState: () => {}, subscribe: () => {}}
+  ui.useStore = {getState: () => {}, setState: () => {}, subscribe: () => {}}
   const stars = new Stars(
       props,
       ui,

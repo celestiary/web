@@ -1,5 +1,5 @@
 import React, {ReactElement, useEffect, useState} from 'react'
-import {useLocation} from 'wouter'
+import {useHashLocation} from 'wouter/use-hash-location'
 import {PointLight} from 'three'
 import ThreeUi from '../ThreeUI.js'
 import {planetHelper} from '../scene_utils.js'
@@ -11,7 +11,7 @@ export default function Planet() {
   const [ui, setUi] = useState(null)
   const [planet, setPlanet] = useState(null)
 
-  const [location] = useLocation()
+  const [hashLocation] = useHashLocation()
 
 
   useEffect(() => setUi(setup()), [])
@@ -19,10 +19,10 @@ export default function Planet() {
 
   useEffect(() => {
     if (ui) {
-      const path = (location.hash || '#earth').substr(1)
-      showPlanet(ui, path, planet, setPlanet)
+      const planetName = (hashLocation === '/' ? '#earth' : hashLocation).substring(1)
+      showPlanet(ui, planetName, planet, setPlanet)
     }
-  }, [ui, location])
+  }, [hashLocation, ui])
 
 
   return (
