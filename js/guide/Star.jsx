@@ -24,12 +24,13 @@ export default function Star() {
 
 
   useEffect(() => {
+    console.log('guide/Star, useEffect: ', hashLocation)
     if (ui && catalog) {
       const starName = hashLocation.substr(1)
       const time = new Time()
       showStar(ui, starName, star, setStar, catalog, time)
     }
-  }, [star, ui, catalog, hashLocation])
+  }, [ui, setStar, catalog, hashLocation])
 
 
   return (
