@@ -63,7 +63,7 @@ export default class Star extends Object {
 
     const lod = new LOD
     lod.addLevel(this.createSurface(props), 1)
-    const farLod = props.radius.scalar * Shared.LENGTH_SCALE * 1.1e2
+    const farLod = props.radius.scalar * Shared.LENGTH_SCALE * 1e3
     lod.addLevel(Shared.FAR_OBJ, farLod)
     this.add(lod)
   }

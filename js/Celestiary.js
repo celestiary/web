@@ -9,13 +9,7 @@ import Time from './Time.js'
 import reifyMeasures from './reify.js'
 import * as Shapes from './shapes.js'
 import * as Shared from './shared.js'
-import {assertArgs} from './utils.js'
-
-
-const DEFAULT_TARGET = 'sun'
-const elt = (id) => {
-  return document.getElementById(id)
-}
+import {assertArgs, elt} from './utils.js'
 
 
 /** Main application class. */
@@ -162,7 +156,8 @@ export default class Celestiary {
     'Target current system')
     for (let i = 1; i <= 9; i++) {
       k.map(`${i}`, () => {
-        const ndx = i; this.scene.targetNode(ndx)
+        const ndx = i
+        this.scene.targetNode(ndx)
       },
       `Look at child ${i} of current system`)
     }
@@ -271,3 +266,6 @@ export default class Celestiary {
     keysElt.style.display = 'none'
   }
 }
+
+
+const DEFAULT_TARGET = 'sun'

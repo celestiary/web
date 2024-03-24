@@ -45,7 +45,7 @@ export default class Animation {
       //   http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
       //
       // and also would also need them for the other planets.
-      const angle = (1.5 * Math.PI) + ((this.time.simTimeDays()) * Shared.twoPi)
+      const angle = Math.PI + (this.time.simTimeDays() * Shared.twoPi)
       system.setRotationFromAxisAngle(this.Y_AXIS, angle)
     }
 
@@ -84,13 +84,7 @@ export default class Animation {
       }
     }
 
-    for (const ndx in system.children) {
-      if (!Object.prototype.hasOwnProperty.call(system.children, ndx)) {
-        continue
-      }
-      const child = system.children[ndx]
-      this.animateSystem(child)
-    }
+    system.children.forEach((child) => this.animateSystem(child))
   }
 }
 

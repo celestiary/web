@@ -203,18 +203,23 @@ export default class Scene {
   }
 
 
-  /** @param {string} name */
-  track(name) {
+  track() {
+    console.trace('Scene#track, Shared.targets.track:', Shared.targets.track, Shared.targets.obj)
     if (Shared.targets.track) {
+      delete Shared.targets.track.postAnimCb
       Shared.targets.track = null
     } else {
       Shared.targets.track = Shared.targets.obj
+      const tracked = Shared.targets.track
+      tracked.postAnimCb = (obj) => {
+        this.ui.camera.lookAt(Shared.targets.tracked)
+      }
     }
   }
 
 
-  /** @param {string} name */
-  follow(name) {
+  follow() {
+    console.trace('Scene#follow, Shared.targets.follow:', Shared.targets.follow, Shared.targets.obj)
     if (Shared.targets.follow) {
       delete Shared.targets.follow.postAnimCb
       Shared.targets.follow = null

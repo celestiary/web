@@ -155,7 +155,7 @@ export default class Planet extends Object {
 
     const planetLOD = new LOD()
     planetLOD.addLevel(planet, 1)
-    planetLOD.addLevel(farPoint, 1e3)
+    planetLOD.addLevel(farPoint, 1e4) // tuned on jupiter
     planetLOD.addLevel(FAR_OBJ, this.isMoon ? 1e7 : 1e8)
 
     closePoint.onBeforeRender = () => {

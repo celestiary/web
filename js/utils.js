@@ -163,7 +163,7 @@ export function toArrayBuffer(buf) {
  * @param {string} id
  * @returns {HTMLElement|null}
  */
-export const elt = (id) => {
+export function elt(id) {
   return document.getElementById(id)
 }
 
