@@ -1,4 +1,4 @@
-name: Build and Deploy to GitHub Pages
+name: GitHub Pages build and deploy
 
 on:
   push:
@@ -15,15 +15,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Node.js
+    - name: Setup node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
 
-    - name: Install dependencies
+    - name: Install deps
       run: npm install
 
-    - name: Build
+    - name: Build site serving directory (/docs)
       run: npm run build
 
     - name: Deploy to GitHub Pages
