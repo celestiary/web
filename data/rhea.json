@@ -1,0 +1,38 @@
+{
+"type":"moon",
+
+"name":"rhea",
+"parent":"saturn",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": "2.3166E24 g",
+"density": 1.24,
+"radius": "1.528E6 m",
+"siderealRotationPeriod": 390312.0,
+"axialInclination": 0.35,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.65,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+"eccentricity": 0.0010,
+"inclination": 1.0,
+"longitudeOfAscendingNode": 1.0,
+"longitudeOfPericenter": 1.0,
+"meanLongitude": 1.0,
+"semiMajorAxis": 5.2704E8,
+"siderealOrbitPeriod": 390312.0
+}
+,
+"system": []
+}

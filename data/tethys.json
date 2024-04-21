@@ -1,0 +1,38 @@
+{
+"type":"moon",
+
+"name":"tethys",
+"parent":"saturn",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": "6.176E23 g",
+"density": 0.99,
+"radius": "5.299E5 m",
+"siderealRotationPeriod": 163106.0,
+"axialInclination": 1.09,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.8,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+"eccentricity": 0.0,
+"inclination": 1.0,
+"longitudeOfAscendingNode": 1.0,
+"longitudeOfPericenter": 1.0,
+"meanLongitude": 1.0,
+"semiMajorAxis": 2.9466E8,
+"siderealOrbitPeriod": 163106.0
+}
+,
+"system": []
+}

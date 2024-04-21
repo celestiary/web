@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Celestiary - Celestial Simulator</title>
+    <meta name="description" content="Astronomical simulator of solar system and local stars"/>
+    <meta name="keywords"
+          content="javascript webgl astronomy glsl virtual-reality three-js webgl2 glsl-shaders 3d astrophysical-simulation"/>
+    <meta name="theme-color" content="#000000"/>
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-DBPT40HGLV" type="text/javascript"></script>
+    <script type="text/javascript">
+      window.dataLayer = window.dataLayer || []
+      function gtag(){ dataLayer.push(arguments) }
+      gtag('js', new Date())
+      gtag('config', 'G-DBPT40HGLV')
+    </script>
+    <link rel="stylesheet" href="/index.css" type="text/css"/>
+    <link rel="icon" type="image/png" href="favicon.ico"/>
+    <script type="text/javascript">
+      // Single Page Apps for GitHub Pages
+      // MIT License
+      // https://github.com/rafgraph/spa-github-pages
+      (function (l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search.slice(1).split('&').map(function (s) {
+            return s.replace(/~and~/g, '&')
+          }).join('?')
+          var finalPath = l.pathname.slice(0, -1) + decoded + l.hash
+          window.history.replaceState(null, null, finalPath)
+        }
+      }(window.location))
+    </script>
+  </head>
+  <body style="background-color: black">
+    <div id="root"></div>
+    <script type="module" src="/index.js"></script>
+  </body>
+</html>

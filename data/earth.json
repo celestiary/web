@@ -1,0 +1,41 @@
+{
+"type":"planet",
+
+"name":"earth",
+"parent":"sun",
+"apparentMagnitude": "-3.86",
+"colorIndex": 0.63369966,
+"mass": "5.97219e24 g",
+"density": "5.515 kg/m^3",
+"radius": "6.37101e6 m",
+"siderealRotationPeriod": 86163.084,
+"axialInclination": 23.45,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+},
+"albedo": 0.367,
+"equatorialGravity": 9.780327,
+"escapeVelocity": 11.186,
+"orbit": {
+"eccentricity": 0.01671022,
+"inclination": 5.0e-5,
+"longitudeOfAscendingNode": -11.26064,
+"longitudeOfPericenter": 102.94719,
+"meanLongitude": 100.46435,
+"semiMajorAxis": 1.495979e11,
+"siderealOrbitPeriod": 3.1536e7
+}
+,
+"system": ["moon"],
+"texture_atmosphere": true,
+"texture_hydrosphere": true,
+"texture_terrain": true
+}

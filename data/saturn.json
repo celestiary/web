@@ -1,0 +1,38 @@
+{
+"type":"planet",
+
+"name":"saturn",
+"parent":"sun",
+"apparentMagnitude": "-8.88",
+"colorIndex": 0.63369966,
+"mass": "5.6846E29 g",
+"density": 0.6873,
+"radius": "5.8232E7 m",
+"siderealRotationPeriod": 38362.392,
+"axialInclination": 26.73,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.47,
+"equatorialGravity": 8.96,
+"escapeVelocity": 35.5,
+"orbit": {
+"eccentricity": 0.0541506,
+"inclination": 2.48446,
+"longitudeOfAscendingNode": 113.71504,
+"longitudeOfPericenter": 92.43194,
+"meanLongitude": 49.94432,
+"semiMajorAxis": 1.43353E12,
+"siderealOrbitPeriod": 9.28656296928E8
+}
+,
+"system": ["titan","rhea","dione","tethys","iapetus","hyperion","janus"]
+}
