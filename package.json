@@ -24,7 +24,7 @@
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.15.11",
     "@mui/material": "^5.15.11",
-    "@pablo-mayrgundter/fullscreen.js": "1.0.2",
+    "@pablo-mayrgundter/fullscreen.js": "1.1.0",
     "@pablo-mayrgundter/measure.js": "2.0.1",
     "@pablo-mayrgundter/parser.js": "1.0.1",
     "@pablo-mayrgundter/yaot2": "2.0.1",

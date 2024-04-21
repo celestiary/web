@@ -1,13 +1,11 @@
-import React, {Suspense, useEffect} from 'react'
+import React, {Suspense, lazy, useEffect, useState} from 'react'
 import {Route, Router, Switch, useLocation} from 'wouter'
-
-
-const App = React.lazy(() => import('./App'))
-const Guide = React.lazy(() => import('./guide/Guide'))
 
 
 /** @returns {React.ReactElement} */
 export default function Routed() {
+  const [app, setApp] = useState(null)
+  const [guide, setGuide] = useState(null)
   const [, navigate] = useLocation()
 
   useEffect(() => {
@@ -19,6 +17,9 @@ export default function Routed() {
       }
     }
   }, [navigate])
+
+  const App = lazy(() => import('./App'))
+  const Guide = lazy(() => import('./guide/Guide'))
 
   return (
     <Router>

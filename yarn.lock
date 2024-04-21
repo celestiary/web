@@ -478,10 +478,10 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
-"@pablo-mayrgundter/fullscreen.js@1.0.2":
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/@pablo-mayrgundter/fullscreen.js/-/fullscreen.js-1.0.2.tgz#cd660fa705f75743c60480a6da0473aba432639d"
-  integrity sha512-Yxs+FY3JnqN7l184+MvcG4QwpwA27VhAPn12UUcZHg+KLXjtm8QwkTiVuam6WPKv2aWBns0Lr7oCoSMYJ+7IVA==
+"@pablo-mayrgundter/fullscreen.js@1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@pablo-mayrgundter/fullscreen.js/-/fullscreen.js-1.1.0.tgz#20902d44c1525500bd86dfeef1ab78bf4e64195f"
+  integrity sha512-n+Y6gpdPoOLqrgKKG/PUr8lYjfkRGZGhu+xsBblBkiwv9lzJFC5sSOfCneitHnsYbZ0/HYHaisSHYR27iY3uhg==
 
 "@pablo-mayrgundter/measure.js@2.0.1":
   version "2.0.1"
