@@ -1,11 +1,12 @@
-import React, {useEffect, useState} from 'react'
+import React, {ReactElement, useEffect, useState} from 'react'
 import {Link, useLocation} from 'wouter'
 import Dialog from './Dialog'
 import useStore from '../store/useStore'
 import Typography from '@mui/material/Typography'
+import pkgInfo from '../../package.json'
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function About() {
   const starsCatalog = useStore((state) => state.starsCatalog)
   // TODO(pablo): hardcoded for now, as asterisms are lazy load when used
@@ -27,6 +28,7 @@ export default function About() {
         <li>Kinda works on mobile! :)</li>
       </ul>
       <Typography variant='h4'>News</Typography>
+      <p>The current version is {pkgInfo.version}.</p>
       <ul>
         <li>2024 Feb 18 - Use highly accurate <Link href='~/guide/vsop'>VSOP</Link> orbits
         for major planets.</li>
