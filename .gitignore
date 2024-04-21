@@ -1,6 +1,11 @@
+node_modules
+
+# Website is built by GHA, so don't commit
+docs
+
+# Temp files
 *~
 #*
-node_modules
 .DS_Store
 *.log
 log
