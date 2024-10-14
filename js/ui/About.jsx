@@ -1,8 +1,8 @@
 import React, {ReactElement, useEffect, useState} from 'react'
 import {Link, useLocation} from 'wouter'
-import Dialog from './Dialog'
-import useStore from '../store/useStore'
 import Typography from '@mui/material/Typography'
+import useStore from '../store/useStore'
+import Dialog from './Dialog'
 import pkgInfo from '../../package.json'
 
 
@@ -40,11 +40,11 @@ export default function About() {
         <li><Link to='/guide'>Developer guide</Link></li>
         <li>
           <a
-            href='https://github.com/pablo-mayrgundter/celestiary'
+            href='https://github.com/celestiary/web'
             target='_blank'
             rel='noreferrer'
           >
-            Source code (GitHub)
+            Source code and issues/feature requests (GitHub)
           </a>
         </li>
       </ul>

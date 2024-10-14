@@ -4,7 +4,7 @@
   "description": "Astronomical simulator web app.",
   "author": "Pablo Mayrgundter",
   "license": "ISC",
-  "version": "0.0.10",
+  "version": "0.0.334",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/celestiary/web.git"
@@ -17,7 +17,8 @@
     "clean": "rm -rf docs ; cp -r public docs",
     "lint": "yarn eslint js",
     "serve": "yarn build && node esbuild/serve.js",
-    "test": "bun test"
+    "test": "bun test",
+    "update-version": "./tools/updateVersion.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
