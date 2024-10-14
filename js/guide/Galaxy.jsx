@@ -6,7 +6,7 @@ import CelestiaGalaxy from '../Galaxy'
 import Keys from '../Keys'
 import SpriteSheet from '../SpriteSheet'
 import ThreeUi from '../ThreeUI'
-import Help from '../ui/Help'
+import Settings from '../ui/Settings'
 import {elt} from '../utils'
 import {ui as uiId} from './index.module.css'
 
@@ -27,9 +27,9 @@ export default function Galaxy() {
       </div>
       {keys &&
       <>
-        <Link href='/help'>Help</Link>
-        <Route path='/help'>
-          <Help keys={keys} href=''/>
+        <Link href='/settings'>Help</Link>
+        <Route path='/settings'>
+          <Settings keys={keys} href=''/>
         </Route>
       </>}
     </>)
