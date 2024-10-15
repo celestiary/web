@@ -6,6 +6,7 @@ docs
 # Temp files
 *~
 #*
+.#*
 .DS_Store
 *.log
 log

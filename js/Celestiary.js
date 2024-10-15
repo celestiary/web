@@ -134,33 +134,41 @@ export default class Celestiary {
 
   setupKeyListeners(useStore) {
     const k = new Keys(useStore)
+
+    // Order determines listing in Settings panel.
+
+    // Nav panels
+    k.map('V', () => {
+      const panels = [elt('nav-id'), elt('top-right')]
+      panels.map((panel) => {
+        panel.style.visibility = this.navVisible ? 'hidden' : 'visible'
+      })
+      this.navVisible = !this.navVisible
+    }, 'Hide/show navigation panels')
+
+    // Scene elements
+    k.map('C', () => {
+      this.scene.toggleAsterisms()
+    },
+    'Show/hide constellations')
+    k.map('P', () => {
+      this.scene.togglePlanetLabels()
+    },
+    'Show/hide planet and moon names')
+    k.map('S', () => {
+      this.scene.toggleStarLabels()
+    },
+    'Show/hide star names')
+    k.map('O', () => {
+      this.scene.toggleOrbits()
+    },
+    'Show/hide orbits')
+
+    // Time
     k.map(' ', () => {
       this.setIsPaused(this.time.togglePause())
     },
     'Toggle time pause')
-    k.map(',', () => {
-      this.ui.multFov(0.9)
-    },
-    'Narrow field-of-vision')
-    k.map('.', () => {
-      this.ui.multFov(1.1)
-    },
-    'Broaden field-of-vision')
-    k.map('/', () => {
-      this.ui.resetFov()
-    },
-    `Reset field-of-vision to ${ Shared.INITIAL_FOV }º`)
-    k.map('0', () => {
-      this.scene.targetCurNode()
-    },
-    'Target current system')
-    for (let i = 1; i <= 9; i++) {
-      k.map(`${i}`, () => {
-        const ndx = i
-        this.scene.targetNode(ndx)
-      },
-      `Look at child ${i} of current system`)
-    }
     k.map('\\', () => {
       this.time.changeTimeScale(0)
     },
@@ -169,18 +177,6 @@ export default class Celestiary {
       this.time.setTimeToNow()
     },
     'Set time to now')
-    k.map('c', () => {
-      this.scene.lookAtTarget()
-    },
-    'Look at target')
-    k.map('f', () => {
-      this.scene.follow()
-    },
-    'Follow current node')
-    k.map('g', () => {
-      this.goTo()
-    },
-    'Go to target node')
     k.map('j', () => {
       this.time.invertTimeScale()
     },
@@ -197,6 +193,45 @@ export default class Celestiary {
       this.time.setTimeToNow()
     },
     'Set time to now')
+
+    // View
+    k.map(',', () => {
+      this.ui.multFov(0.9)
+    },
+    'Narrow field-of-vision')
+    k.map('.', () => {
+      this.ui.multFov(1.1)
+    },
+    'Broaden field-of-vision')
+    k.map('/', () => {
+      this.ui.resetFov()
+    },
+    `Reset field-of-vision to ${ Shared.INITIAL_FOV }º`)
+
+    // Numbered views
+    k.map('0', () => {
+      this.scene.targetCurNode()
+    },
+    'Target current system')
+    for (let i = 1; i <= 9; i++) {
+      k.map(`${i}`, () => {
+        const ndx = i
+        this.scene.targetNode(ndx)
+      },
+      `Look at child ${i} of current system`)
+    }
+    k.map('c', () => {
+      this.scene.lookAtTarget()
+    },
+    'Look at target')
+    k.map('f', () => {
+      this.scene.follow()
+    },
+    'Follow current node')
+    k.map('g', () => {
+      this.goTo()
+    },
+    'Go to target node')
     k.map('t', () => {
       this.scene.track()
     },
@@ -205,29 +240,6 @@ export default class Celestiary {
       this.scene.targetParent()
     },
     'Look at parent of current system')
-    k.map('A', () => {
-      this.scene.toggleAsterisms()
-    },
-    'Show/hide asterisms')
-    k.map('O', () => {
-      this.scene.toggleOrbits()
-    },
-    'Show/hide orbits')
-    k.map('P', () => {
-      this.scene.togglePlanetLabels()
-    },
-    'Show/hide planet and moon names')
-    k.map('S', () => {
-      this.scene.toggleStarLabels()
-    },
-    'Show/hide star names')
-    k.map('V', () => {
-      const panels = [elt('nav-id'), elt('top-right')]
-      panels.map((panel) => {
-        panel.style.visibility = this.navVisible ? 'hidden' : 'visible'
-      })
-      this.navVisible = !this.navVisible
-    }, 'Show/hide navigation panels')
     this.keys = k
   }
 
