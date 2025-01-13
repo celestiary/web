@@ -1,15 +1,18 @@
 import {
-  Group,
-  EllipseCurve,
-  BufferGeometry,
-  LineBasicMaterial,
   AdditiveBlending,
-  Line,
-  Object3D,
-  LOD,
   BackSide,
+  BufferGeometry,
+  EllipseCurve,
   FrontSide,
+  Group,
+  LOD,
+  Line,
+  LineBasicMaterial,
+  MeshBasicMaterial,
+  MeshLambertMaterial,
   MeshPhongMaterial,
+  Object3D,
+  TextureLoader,
 } from 'three'
 import {
   assertFinite,
@@ -31,11 +34,15 @@ export default class Planet extends Object {
    * https://en.wikipedia.org/wiki/Equinox#Celestial_coordinate_systems
    * https://en.wikipedia.org/wiki/Epoch_(astronomy)#Julian_years_and_J2000
    */
-  constructor(scene, props, isMoon = false) {
+  constructor(scene, props, isMoon = false, isTest = false) {
     super(props.name, props)
     this.scene = scene
     this.isMoon = isMoon
-    this.load()
+    if (isTest) {
+      this.loadNoOrbit()
+    } else {
+      this.load()
+    }
   }
 
 
@@ -66,12 +73,18 @@ export default class Planet extends Object {
     planetTilt.rotateZ(assertInRange(this.props.axialInclination, 0, 360) * toRad)
 
     const planet = this.newPlanet(this.scene, orbitPosition, this.isMoon)
-    planetTilt.add(planet)
+    planetTilt.add(named(planet, 'new planet'))
 
     // group.rotation.y = orbit.longitudeOfAscendingNode * toRad;
     // Children centered at this planet's orbit position.
 
     this.add(group)
+  }
+
+
+  loadNoOrbit() {
+    const planet = this.newPlanet(this.scene, {}, this.isMoon)
+    this.add(named(planet, 'new planet'))
   }
 
 
@@ -95,6 +108,7 @@ export default class Planet extends Object {
       depthTest: true,
       depthWrite: false,
       transparent: false,
+      toneMapped: false,
     })
     const pathShape = new Line(ellipseGeometry, orbitMaterial)
     // Orbit is in the x/y plane, so rotate it around x by 90 deg to put
@@ -103,7 +117,9 @@ export default class Planet extends Object {
     pathShape.rotation.x = halfPi
     group.add(pathShape)
     // group.add(Shapes.line(1, 0, 0, {color: 'blue'}))
-    group.scale.setScalar(assertFinite(orbit.semiMajorAxis.scalar) * LENGTH_SCALE)
+    // const orbitScaled = assertFinite(orbit.semiMajorAxis.scalar) * LENGTH_SCALE
+    const orbitScaled = orbit.semiMajorAxis.scalar
+    group.scale.setScalar(orbitScaled)
     return group
   }
 
@@ -115,9 +131,10 @@ export default class Planet extends Object {
    * @returns {Object3D}
    */
   newPlanet(scene, orbitPosition, isMoon) {
-    const planet = new Object3D// scene.newObject(this.name, this.props, );
-
-    planet.scale.setScalar(assertFinite(this.props.radius.scalar) * LENGTH_SCALE)
+    const planet = new Object3D // scene.newObject(this.name, this.props, );
+    // const planetScale = assertFinite(this.props.radius.scalar) * LENGTH_SCALE
+    const planetScale = this.props.radius.scalar
+    planet.scale.setScalar(planetScale)
     // Attaching this property triggers rotation of planet during animation.
     planet.siderealRotationPeriod = this.props.siderealRotationPeriod
     // Attaching this is used by scene#goTo.
@@ -133,48 +150,58 @@ export default class Planet extends Object {
     }
 
     // An object must have a mesh to have onBeforeRender called, so
-    // add a little helper.
-    const closePoint = Shapes.point({
-      color: 'green', // 0x55aaff, // todo: earth-ish for now. get planet color index data.
-      size: 1, // isMoon ? 2 : 3,
-      sizeAttenuation: false,
-      blending: AdditiveBlending,
-      depthTest: true,
+    // add a little invisible helper.
+    const placeholder = Shapes.point({
+      opacity: 0, // invisible
+      depthTest: false,
+      depthWrite: false,
       transparent: true,
     })
-    planet.add(closePoint)
+    // Delay load and render for planet to only the first time camera is close
+    // enough to see it
+    placeholder.onBeforeRender = () => {
+      planet.add(this.nearShape())
+      placeholder.onBeforeRender = null
+      delete placeholder['onBeforeRender']
+    }
+    planet.add(placeholder)
 
     const farPoint = Shapes.point({
-      color: 0x55aaff, // todo: earth-ish for now. get planet color index data.
+      color: 0xffffff,
       size: isMoon ? 1 : 2,
       sizeAttenuation: false,
       blending: AdditiveBlending,
-      depthTest: true,
+      depthTest: false,
+      depthWrite: false,
       transparent: true,
     })
 
+    const farDist = planetScale * 3e2
+    const labelTooNearDist = planetScale * 3e1
+    const labelTooFarDist = isMoon ? farDist * 5e1 : farDist * 5e4
+    const pointTooFarDist = farDist * 1e12
+
     const planetLOD = new LOD()
     planetLOD.addLevel(planet, 1)
-    planetLOD.addLevel(farPoint, 1e4) // tuned on jupiter
-    planetLOD.addLevel(FAR_OBJ, this.isMoon ? 1e7 : 1e8)
-
-    closePoint.onBeforeRender = () => {
-      planet.add(this.nearShape())
-      closePoint.onBeforeRender = null
-      delete closePoint['onBeforeRender']
-    }
+    planetLOD.addLevel(farPoint, farDist) // tuned on jupiter
+    planetLOD.addLevel(FAR_OBJ, pointTooFarDist)
 
     const labelLOD = new LOD()
     const name = capitalize(this.name)
     const labelSheet = new SpriteSheet(1, name)
     labelSheet.add(0, 0, 0, name, labelTextColor)
-    labelLOD.addLevel(labelSheet.compile(), 1)
-    labelLOD.addLevel(FAR_OBJ, this.isMoon ? 2e3 : 5e6)
+    labelLOD.addLevel(FAR_OBJ, labelTooNearDist)
+    const labels = labelSheet.compile()
+    labels.renderOrder = 0
+    labelLOD.addLevel(labels, labelTooNearDist)
+    labelLOD.addLevel(FAR_OBJ, labelTooFarDist)
+    labelLOD.renderOrder = 0
 
     const group = new Object3D
-    group.add(planetLOD)
-    group.add(named(labelLOD, 'label'))
+    group.add(named(planetLOD, 'planet LOD'))
+    group.add(named(labelLOD, 'label LOD'))
 
+    group.renderOrder = 1
     return group
   }
 
@@ -186,49 +213,56 @@ export default class Planet extends Object {
    * @returns {Object3D}
    */
   nearShape() {
-    const planetMaterial = Material.cacheMaterial(this.name)
-    planetMaterial.shininess = 30
+    const surfaceMaterial = Material.cacheMaterial(this.name)
+    surfaceMaterial.shininess = 30
     if (this.props.texture_terrain) {
-      planetMaterial.bumpMap = Material.pathTexture(`${this.name}_terrain`)
-      planetMaterial.bumpScale = 0.001
+      surfaceMaterial.bumpMap = Material.pathTexture(`${this.name}_terrain`)
+      surfaceMaterial.bumpScale = 0.25
     }
     if (this.props.texture_hydrosphere) {
       const hydroTex = Material.pathTexture(`${this.name}_hydro`)
-      planetMaterial.specularMap = hydroTex
-      planetMaterial.shininess = 50
+      surfaceMaterial.specularMap = hydroTex
+      surfaceMaterial.shininess = 50
     }
-    const shape = Shapes.sphere({matr: planetMaterial})
+    const surface = Shapes.sphere({matr: surfaceMaterial})
+    surface.renderOrder = 1
+    // surface.add(Shapes.sphere({matr: new MeshBasicMaterial({ color: 0xff0000, wireframe: true, depthTest: false })}))
     if (this.props.texture_atmosphere) {
-      shape.add(this.newAtmosphere())
+      const earthAtmosScaleHeightMeter = 8e3
+      const earthRadiusMeter = 6e6
+      const scaleHeight = 1 + (earthAtmosScaleHeightMeter / earthRadiusMeter)
+      surface.add(this.newAtmosphere({scaleHeight: scaleHeight}))
     }
     if (this.props.name === 'saturn') {
-      shape.castShadow = true
-      // shape.receiveShadow = true;
-      shape.add(Shapes.rings('saturn', true, BackSide))
+      // surface.add(Shapes.rings('saturn', false))
+      // surface.castShadow = true
+      // surface.receiveShadow = true
+      surface.add(Shapes.rings('saturn', true, FrontSide))
       const underRings = Shapes.rings('saturn', true, FrontSide)
       underRings.position.setY(-0.01)
       underRings.rotateX(Math.PI)
-      shape.add(underRings)
+      surface.add(underRings)
     }
-    return shape
+    return named(surface, 'planet surface')
   }
 
 
   /**
    * @returns {Object3D}
    */
-  newAtmosphere() {
-    const atmosScale = 1.01
+  newAtmosphere({scaleHeight}) {
     // TODO: https://threejs.org/examples/webgl_shaders_sky.html
     const atmosTex = Material.pathTexture(this.name, '_atmos.jpg')
     const shape = Shapes.sphere({
-      radius: atmosScale, // assumes radius of planet is 1.
+      radius: scaleHeight,
       matr: new MeshPhongMaterial({
         color: 0xffffff,
         alphaMap: atmosTex,
         transparent: true,
         specularMap: atmosTex,
         shininess: 100,
+        depthWrite: false,
+        depthTest: false,
       }),
     })
     shape.name = `${this.name}.atmosphere`

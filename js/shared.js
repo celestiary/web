@@ -13,9 +13,10 @@ import {named} from './utils.js'
 // and then dividing it down to the smallest size.
 
 // Deimos size in meters.
-// const SMALLEST_REAL_SIZE = 1E3
+const SMALLEST_REAL_SIZE = 1E3
 // Smallest renderable size.
 // const SMALLEST_RENDER_SIZE = 1E-4
+const SMALLEST_RENDER_SIZE = 1E-4
 
 
 export const
@@ -25,13 +26,21 @@ export const halfPi = Math.PI / 2.0
 export const toDeg = 180.0 / Math.PI
 export const toRad = Math.PI / 180.0
 
+export const ASTRO_UNIT_METER = 149.60e9
 // When I hardcode LENGTH_SCALE to 1E-5, LOD starts to flake out
 // when zoomed to small sizes, supporting the 1E-4 minimum.
 // SMALLEST_RENDER_SIZE / SMALLEST_REAL_SIZE = 1E-7, but can't use
 // the calculation since it actually yields 1.0000000000000001e-7.
-export const LENGTH_SCALE = 1E-7
+// export const LENGTH_SCALE = 1E-11
+// export const LENGTH_SCALE = SMALLEST_RENDER_SIZE / SMALLEST_REAL_SIZE
+export const LENGTH_SCALE = 1e-5 // one scene unit per million meters
 
-export const STARS_SCALE = 9.461E12 * 1E3 * LENGTH_SCALE
+// Celestia star data file measures star distances in lightyears
+export const METERS_PER_LIGHTYEAR = 9.461e15
+export const STAR_VOLUME_METERS = METERS_PER_LIGHTYEAR * 2e4 // largest coords for stars
+// export const STARS_SCALE = METERS_PER_LIGHTYEAR * LENGTH_SCALE
+export const STARS_SCALE = METERS_PER_LIGHTYEAR
+// export const STARS_SCALE = 9.461E12 * 1E3 * LENGTH_SCALE
 
 export const INITIAL_FOV = 45
 

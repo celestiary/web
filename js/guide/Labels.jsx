@@ -11,8 +11,8 @@ export default function Labels() {
   useEffect(() => setup(), [])
   return (
     <>
-      <div id={uiId}></div>
       <h1>Sprite Sheet Labels</h1>
+      <div id={uiId}></div>
       <p>To allow for more labels in the scene, a single sprite sheet is
         used, with a GL shader configured with custom offsets into the sheet
         for each object.</p>

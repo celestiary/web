@@ -1,10 +1,11 @@
 import {BufferAttribute, BufferGeometry} from 'three'
 import {StarSpectra} from './StarsCatalog.js'
+import {METERS_PER_LIGHTYEAR} from './shared.js'
 
 
-/** */
+/** Pack the data from a StarsCatalog into a BufferGeometry. */
 export default class StarsBufferGeometry extends BufferGeometry {
-  /** */
+  /** @param {StarsCatalog} */
   constructor(catalog) {
     super()
     const numStars = catalog.numStars
@@ -12,19 +13,18 @@ export default class StarsBufferGeometry extends BufferGeometry {
     this.coords = new Float32Array(numStars * 3)
     this.starsArray = []
     const colors = new Float32Array(numStars * 3)
-    const sizes = new Float32Array(numStars)
+    const radii = new Float32Array(numStars)
+    const lumens = new Float32Array(numStars)
     const sunSpectrum = StarSpectra[4]
-    // const minSize = 1
     // const maxLum = Math.pow(8, 4)
     let i = 0
-    const distanceScale = catalog.starScale
     catalog.starByHip.forEach((star, hipId) => {
       this.idsByNdx[i] = hipId
       this.starsArray.push(star)
       const off = 3 * i
-      this.coords[off] = distanceScale * star.x
-      this.coords[off + 1] = distanceScale * star.y
-      this.coords[off + 2] = distanceScale * star.z
+      this.coords[off] = star.x
+      this.coords[off + 1] = star.y
+      this.coords[off + 2] = star.z
       let rgb = StarSpectra[star.spectralType]
       rgb = rgb || sunSpectrum
       // const lumRelSun = star.lumRelSun
@@ -34,13 +34,15 @@ export default class StarsBufferGeometry extends BufferGeometry {
       colors[off] = r
       colors[off + 1] = g
       colors[off + 2] = b
-      sizes[i] = star.radius * catalog.lengthScale
+      radii[i] = star.radius
+      lumens[i] = star.lumens
       i++
     })
     // https://github.com/mrdoob/three.js/blob/master/examples/webgl_custom_attributes_points.html
     this.setAttribute('position', new BufferAttribute(this.coords, 3))
     this.setAttribute('color', new BufferAttribute(colors, 3))
-    this.setAttribute('size', new BufferAttribute(sizes, 1))
+    this.setAttribute('radius', new BufferAttribute(radii, 1))
+    this.setAttribute('lumens', new BufferAttribute(lumens, 1))
     this.computeBoundingSphere()
   }
 }

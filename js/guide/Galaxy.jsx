@@ -17,9 +17,9 @@ export default function Galaxy() {
   useEffect(() => setup({setKeys: setKeys}), [])
   return (
     <>
+      <h1>Galaxy</h1>
       <div id={uiId}></div>
       <div id='info'></div>
-      <h1>Galaxy</h1>
       Gravity particle system.  Work in progress.
       <div style={{width: '50%', margin: '1em auto', align: 'center'}}>
         <button id='step'>Step</button>

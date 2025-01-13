@@ -10,12 +10,12 @@ export default function Cube() {
   useEffect(() => setup(), [])
   return (
     <>
-      <div id={uiId}></div>
       <h1>A Simple Cube</h1>
-      To start with, a simple scene is defined with an object and
+      <div id={uiId}></div>
+      <p>To start with, a simple scene is defined with an object and
       controls.  Try rotating the cube with your mouse.  A scroll up or
       down gesture or mouse-wheel will zoom.  Double-button drag will
-      pan.
+      pan.</p>
     </>)
 }
 

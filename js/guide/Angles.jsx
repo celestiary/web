@@ -11,8 +11,8 @@ export default function Angles() {
   useEffect(() => setup(), [])
   return (
     <>
-      <div id={uiId}></div>
       <h1>Angles</h1>
+      <div id={uiId}></div>
     </>)
 }
 

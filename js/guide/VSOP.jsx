@@ -1,5 +1,5 @@
 import React, {ReactElement, useEffect, useRef, useState} from 'react'
-import {useParams} from 'wouter'
+import {Link, useParams} from 'wouter'
 import {Html, OrbitControls} from '@react-three/drei'
 import {Canvas} from '@react-three/fiber'
 import {toJulianDay} from '../Time'
@@ -30,28 +30,31 @@ export default function VSOP({isIndex = false}) {
   }, [dayParam, setDay, isIndex, setPlanetCoords])
 
   return (
-    <div style={{position: 'relative', width: '100%', height: '100%'}}>
+    <>
+      <h1>VSOP</h1>
       {planetCoords && <ViewerContainer id={uiId} planetCoords={planetCoords}/>}
-      <div style={{position: 'absolute', top: 0, left: 0, zIndex: 10}}>
-        <h1>Julian Day: {day}</h1>
-        <p><a href='https://en.wikipedia.org/wiki/VSOP_model' target='_new'>Variations
-           Séculaires des Orbites Planétaires (VSOP)</a> orbital positions using
-           the <a href='https://github.com/gmarty/vsop87' target='_new'>vsop87</a> library.</p>
-        <p>See
-          <a href='https://en.wikipedia.org/wiki/Julian_day' target='_new'>
-            https://en.wikipedia.org/wiki/Julian_day
-          </a>
-        </p>
-        <p>Coordinates: <span style={{whiteSpace: 'pre'}}>{JSON.stringify(planetCoords, null, 2)}</span></p>
-      </div>
-    </div>)
+      <p>The semi-analytic planetary theory VSOP
+        <a href='https://en.wikipedia.org/wiki/VSOP_model' target='_new'>Variations
+        Séculaires des Orbites Planétaires (VSOP)</a> is a mathematical model describing
+        long-term changes (secular variation) in the orbits of the planets Mercury to Neptune.</p>
+      <p>The theory is implemented by the <a href='https://github.com/gmarty/vsop87'
+                                             target='_new'>vsop87</a> library.</p>
+      <p>See <a href='https://en.wikipedia.org/wiki/Julian_day' target='_new'>
+          https://en.wikipedia.org/wiki/Julian_day
+        </a>
+      </p>
+      <p>Add /[number] to go to that day, e.g. <Link to='/vsop/0'>/0</Link></p>
+      <p>Simulation Julian Day: {day}</p>
+      <p>Coordinates: <span style={{whiteSpace: 'pre'}}>{JSON.stringify(planetCoords, null, 2)}</span></p>
+    </>
+  )
 }
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 function ViewerContainer({id, planetCoords}) {
   return (
-    <div id={id}>
+    <div id={id} style={{width: '400px', height: '400px'}}>
       <SolarSystem planetCoords={planetCoords}/>
     </div>
   )

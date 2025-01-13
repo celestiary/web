@@ -37,7 +37,6 @@ export default class Star extends Object {
   constructor(props, sceneObjects, ui, shadowProps = {}) {
     super(props.name, props)
     if (!this.props || !(this.props.radius)) {
-      console.error('props', this.props)
       throw new Error(`Props undefined: props(${props}), radius(${props.radius})`)
     }
     this.ui = ui
@@ -47,18 +46,21 @@ export default class Star extends Object {
     }
     this.orbitPosition = this
 
+    // As of r155 three switches to physically based lighting.  This is just kludged for now
+    // See https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
+    const sunLumensSurface = 3.7e28 // Sun lumens
+    const sunFilter = 1e-4
+    const sunlight = new PointLight(0xffffff, sunLumensSurface * sunFilter, 0)
     // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
-    const sunlight = new PointLight(0xffffff, 1, 0, 0)
-    const sunLumensSurface = 2.626e29
     // TODO(pablo): three switched to lumens https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
-    sunlight.power = sunLumensSurface * 5e-29
+    // sunlight.power = sunLumensSurface * 5e-29
     sunlight.castShadow = true
     sunlight.shadow.mapSize.width = shadowProps.width || 512 // default: 512
     sunlight.shadow.mapSize.height = shadowProps.height || 512 // default: 512
     sunlight.shadow.camera.near = shadowProps.near || 0.5 // default: 0.5
     sunlight.shadow.camera.far = shadowProps.far || 500 // default: 500
     sunlight.shadow.bias = shadowProps.bias || -0.01
-    sunlight.decay = shadowProps.decay || 1 // default: 1
+    // sunlight.decay = shadowProps.decay || 1 // default: 1
     this.add(sunlight)
 
     const lod = new LOD

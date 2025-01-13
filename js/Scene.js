@@ -190,7 +190,7 @@ export default class Scene {
     tPos.setFromMatrixPosition(obj.matrixWorld)
     const pPos = new Vector3
     const cPos = new Vector3
-    const surfaceAltitude = obj.props.radius.scalar * lengthScale
+    const surfaceAltitude = obj.props.radius.scalar // * lengthScale
     pPos.set(0, 0, 0) // TODO(pablo): maybe put platform at surfaceAltitude
     cPos.set(0, 0, surfaceAltitude * INITIAL_STEP_BACK_MULT)
     obj.orbitPosition.add(this.ui.camera.platform)

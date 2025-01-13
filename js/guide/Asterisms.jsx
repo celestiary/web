@@ -47,11 +47,11 @@ export default function Asterisms() {
 
   return (
     <>
-      <div id={uiId}></div>
       <h1>Asterisms</h1>
-      Asterisms include constellations.
-      <div id="faveCtr">
-        <table id="faves" cellPadding="5em">
+      <div id={uiId}></div>
+      <p>Asterisms include constellations.</p>
+      <div id='faveCtr'>
+        <table id='faves' cellPadding='5em'>
           <tbody>
             <tr><th>Asterism</th><th>Midpoint Star</th><th>Midpoint Star HIP</th></tr>
           </tbody>

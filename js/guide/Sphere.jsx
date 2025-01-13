@@ -1,19 +1,20 @@
-import React, {useEffect} from 'react'
+import React, {ReactElement, useEffect} from 'react'
 import {MeshBasicMaterial, PointLight} from 'three'
 import ThreeUi from '../ThreeUI.js'
 import {sphere} from '../shapes.js'
 import {ui as uiId} from './index.module.css'
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function Sphere() {
   useEffect(() => setup(), [])
   return (
     <>
-      <div id={uiId}></div>
       <h1>A Sphere</h1>
-      Or is it a fully operational battlestation?!
-    </>)
+      <div id={uiId}></div>
+      <p>Or is it a fully operational battlestation?!</p>
+    </>
+  )
 }
 
 

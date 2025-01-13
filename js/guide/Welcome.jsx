@@ -1,8 +1,8 @@
-import React from 'react'
+import React, {ReactElement} from 'react'
 import {Link} from 'wouter'
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function Welcome() {
   return (
     <>
@@ -30,5 +30,6 @@ export default function Welcome() {
       </ul>
 
       <p>Back to the <Link href='~/'>app</Link>.</p>
-    </>)
+    </>
+  )
 }

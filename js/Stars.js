@@ -1,5 +1,12 @@
-import * as THREE from 'three'
-
+import {
+  AdditiveBlending,
+  Group,
+  LOD,
+  Points,
+  PointsMaterial,
+  ShaderMaterial,
+  Vector3,
+} from 'three'
 import Loader from './Loader.js'
 import Object from './object.js'
 import PickLabels from './PickLabels.js'
@@ -8,7 +15,7 @@ import StarsBufferGeometry from './StarsBufferGeometry.js'
 import StarsCatalog, {FAVES} from './StarsCatalog.js'
 import {assertDefined} from './assert.js'
 import * as Material from './material.js'
-import {FAR_OBJ} from './shared.js'
+import {FAR_OBJ, STAR_VOLUME_METERS} from './shared.js'
 import {named} from './utils.js'
 
 
@@ -28,13 +35,13 @@ export default class Stars extends Object {
     super('Stars', props)
     assertDefined(ui, ui.useStore)
     this.ui = ui
-    this.labelsGroup = named(new THREE.Group, 'LabelsGroup')
+    this.labelsGroup = named(new Group, 'LabelsGroup')
     this.onLoadCb = onLoadCb
     this.faves = FAVES
-    this.labelLOD = named(new THREE.LOD, 'LabelsLOD')
+    this.labelLOD = named(new LOD, 'LabelsLOD')
     this.labelLOD.visible = showLabels
     this.labelLOD.addLevel(this.labelsGroup, 1)
-    this.labelLOD.addLevel(FAR_OBJ, 1e14)
+    this.labelLOD.addLevel(FAR_OBJ, STAR_VOLUME_METERS)
     this.add(this.labelLOD)
     this.geom = null
 
@@ -67,21 +74,29 @@ export default class Stars extends Object {
   show() {
     this.geom = new StarsBufferGeometry(this.catalog)
     const starImage = Material.pathTexture('star_glow', '.png')
-    const starsMaterial = new THREE.ShaderMaterial({
+    const starsMaterial = new ShaderMaterial({
       uniforms: {
         texSampler: {value: starImage},
+        cameraFovDegrees: {value: this.ui.camera.fov},
+        // TODO: Pulled this up for convenience of twiddling.  Something very
+        // wrong here.
+        cameraExposure: {value: 1e9},
       },
       vertexShader: '/shaders/stars.vert',
       fragmentShader: '/shaders/stars.frag',
-      blending: THREE.AdditiveBlending,
       depthTest: true,
       depthWrite: false,
-      transparent: true,
+      // blending: AdditiveBlending,
+      // transparent: true,
     })
+    this.ui.camera.onChange = (camera) => {
+      starsMaterial.uniforms.cameraFovDegrees.value = camera.fov
+    }
     const me = this
     new Loader().loadShaders(starsMaterial, () => {
-      const starPoints = named(new THREE.Points(this.geom, starsMaterial), 'StarsPoints')
+      const starPoints = named(new Points(this.geom, starsMaterial), 'StarsPoints')
       starPoints.sortParticles = true
+      starPoints.renderOrder = 0
       this.add(starPoints)
       window.sp = starPoints
       new PickLabels(me.ui, me)
@@ -90,11 +105,11 @@ export default class Stars extends Object {
       }
     })
     /*
-    const simpleSunMatr = new THREE.PointsMaterial({
+    const simpleSunMatr = new PointsMaterial({
       size: 3,
       sizeAttenuation: false,
     })
-    this.add(new THREE.Points(this.geom, simpleSunMatr))
+    this.add(new Points(this.geom, simpleSunMatr))
     */
   }
 
@@ -111,10 +126,10 @@ export default class Stars extends Object {
       if (names && names.length > level) {
         toShow.push([star, names[0]])
       } else if (star.absMag < -5) {
-        toShow.push([star, `HIP ${ hipId}`])
+        toShow.push([star, `HIP ${hipId}`])
       }
       if (toShow.length >= MAX_LABELS) {
-        console.warn(`Stars#showLabels: hit max count of ${ MAX_LABELS}`)
+        console.warn(`Stars#showLabels: hit max count of ${MAX_LABELS}`)
       }
     })
     this.starLabelSpriteSheet = new SpriteSheet(toShow.length, 'Rigel Kentaurus B')
@@ -128,12 +143,8 @@ export default class Stars extends Object {
 
   /** */
   showStarName(star, name) {
-    const scale = this.catalog.starScale
-    const x = scale * star.x
-    const y = scale * star.y
-    const z = scale * star.z
-    const sPos = new THREE.Vector3(x, y, z)
-    this.starLabelSpriteSheet.add(x, y, z, name)
+    const sPos = new Vector3(star.x, star.y, star.z)
+    this.starLabelSpriteSheet.add(star.x, star.y, star.z, name)
     this.labelCenterPosByName[name] = sPos
   }
 
