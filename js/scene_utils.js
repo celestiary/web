@@ -8,32 +8,22 @@ import reifyMeasures from './reify.js'
  *
  */
 function planetHelper(path, cb) {
-  const nO = (name) => {
+  const createNamedObject = (name) => {
     const o = new Object3D
     o.name = name
     return o
   }
 
   const sceneGroups = {
-    newObject: nO,
-    newGroup: nO,
+    newObject: createNamedObject,
+    newGroup: createNamedObject,
     orbitShapes: [],
   }
-
-  const planetNames = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto']
-  const favesTable = document.getElementById('faves')
-  favesTable.innerHTML = '<tr><th>Planet</th></tr>'
-  planetNames.map((planetName) => {
-    favesTable.innerHTML +=
-          `<tr>
-            <td><a href="#${planetName.toLowerCase()}">${planetName}</a></td>
-          </tr>`
-  })
 
   const onLoadCb = (name, props) => {/**/}
   const onDoneCb = (name, props) => {
     reifyMeasures(props)
-    cb(new Planet(sceneGroups, props))
+    cb(new Planet(sceneGroups, props, false, true))
   }
 
   new Loader().loadPath(path, onLoadCb, onDoneCb)

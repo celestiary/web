@@ -1,5 +1,13 @@
-import * as THREE from 'three'
-
+import {
+  AdditiveBlending,
+  BufferGeometry,
+  CanvasTexture,
+  Float32BufferAttribute,
+  NearestFilter,
+  Points,
+  ShaderMaterial,
+  Vector2,
+} from 'three'
 import * as Utils from './utils.js'
 import {
   labelTextColor as defaultTextColor,
@@ -124,8 +132,8 @@ export default class SpriteSheet {
 
 
   /**
-   * @param {THREE.Float32BufferAttribute} sharedPositionAttribute
-   * @returns {THREE.Points}
+   * @param {Float32BufferAttribute} sharedPositionAttribute
+   * @returns {Points}
    */
   compile(sharedPositionAttribute = null) {
     if (sharedPositionAttribute && sharedPositionAttribute.count * 3 !== this.positions.length) {
@@ -143,33 +151,33 @@ export default class SpriteSheet {
     if (this.spriteCoords.length !== this.labelCount * 4) {
       throw new Error(`Positions array size wrong: ${ this.spriteCoords.length}`)
     }
-    this.positionAttribute = sharedPositionAttribute || new THREE.Float32BufferAttribute(this.positions, 3)
-    const sizeAttribute = new THREE.Float32BufferAttribute(this.sizes, 2)
-    const spriteCoordAttribute = new THREE.Float32BufferAttribute(this.spriteCoords, 4)
-    const geometry = new THREE.BufferGeometry()
+    this.positionAttribute = sharedPositionAttribute || new Float32BufferAttribute(this.positions, 3)
+    const sizeAttribute = new Float32BufferAttribute(this.sizes, 2)
+    const spriteCoordAttribute = new Float32BufferAttribute(this.spriteCoords, 4)
+    const geometry = new BufferGeometry()
     geometry.setAttribute('position', this.positionAttribute)
     geometry.setAttribute('size', sizeAttribute)
     geometry.setAttribute('spriteCoord', spriteCoordAttribute)
     geometry.computeBoundingBox()
-    this.sprites = new THREE.Points(geometry, this.createMaterial())
+    this.sprites = new Points(geometry, this.createMaterial())
+    this.sprites.renderOrder = 0
     return this.sprites
   }
 
 
-  /**
-   * @returns {THREE.ShaderMaterial}
-   */
+  /** @returns {ShaderMaterial} */
   createMaterial() {
-    const texture = new THREE.CanvasTexture(this.canvas)
-    texture.minFilter = THREE.NearestFilter
-    texture.magFilter = THREE.NearestFilter
-    const material = new THREE.ShaderMaterial( {
+    const texture = new CanvasTexture(this.canvas)
+    texture.minFilter = NearestFilter
+    texture.magFilter = NearestFilter
+    const material = new ShaderMaterial( {
       uniforms: {
         map: {value: texture},
-        padding: {value: new THREE.Vector2(this.padding[0], this.padding[1])},
+        padding: {value: new Vector2(this.padding[0], this.padding[1])},
       },
       vertexShader: vertexShader,
       fragmentShader: fragmentShader,
+      blending: AdditiveBlending,
       depthTest: true,
       depthWrite: false,
       transparent: true,

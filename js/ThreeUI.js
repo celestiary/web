@@ -1,4 +1,14 @@
-import * as THREE from 'three'
+import {
+  NeutralToneMapping,
+  Object3D,
+  PCFSoftShadowMap,
+  PerspectiveCamera,
+  PointLight,
+  SRGBColorSpace,
+  Scene,
+  Vector2,
+  WebGLRenderer,
+} from 'three'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
 
@@ -29,9 +39,9 @@ export default class ThreeUi {
       this.initRenderer(this.threeContainer, backgroundColor || 0x000000)
     this.width = this.threeContainer.offsetWidth
     this.height = this.threeContainer.offsetHeight
-    const ratio = this.width / this.height
-    this.camera = new THREE.PerspectiveCamera(Shared.INITIAL_FOV, ratio, 1E-3, 1E35)
-    this.camera.platform = named(new THREE.Object3D, 'CameraPlatform')
+    const aspect = this.width / this.height
+    this.camera = new PerspectiveCamera(Shared.INITIAL_FOV, aspect, 1e-1, 1e3) // Scene's near&far set by Celestiary
+    this.camera.platform = named(new Object3D, 'CameraPlatform')
     this.camera.platform.add(this.camera)
     this.initControls(this.camera)
     this.fs = new Fullscreen(this.container, () => {
@@ -43,11 +53,13 @@ export default class ThreeUi {
       }
     })
     this.onResize()
-    this.scene = new THREE.Scene
+    this.scene = new Scene
     this.scene.add(this.camera.platform)
+    window.scene = this.scene
+    window.camera = this.camera
     // Adapted from https://threejs.org/docs/#api/en/core/Raycaster
     this.clickCbs = []
-    this.mouse = new THREE.Vector2
+    this.mouse = new Vector2
     this.clicked = false
     this.useStore = undefined // TODO(pablo): passed into and set in Scene
 
@@ -67,6 +79,14 @@ export default class ThreeUi {
   }
 
 
+  /** Sets camera near and far to deimos and local star cluster. */
+  configLargeScene() {
+    this.camera.near = 1e6 // Deimos
+    this.camera.far = Shared.METERS_PER_LIGHTYEAR * 2e4 // Celestia catalog max
+    this.camera.updateProjectionMatrix()
+  }
+
+
   /**
    */
   addClickCb(clickCb) {
@@ -75,19 +95,23 @@ export default class ThreeUi {
 
 
   /**
-   * @returns {THREE.Renderer}
+   * @returns {WebGLRenderer}
    */
   initRenderer(container, backgroundColor) {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('webgl2')
     container.appendChild(canvas)
-    const renderer = new THREE.WebGLRenderer({canvas: canvas, context: ctx, antialias: true})
+    const renderer = new WebGLRenderer({canvas: canvas, context: ctx, antialias: true})
     // renderer.setPixelRatio(window.devicePixelRatio);
     // No idea about this.. just like the way it looks.
-    renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 0.6
-    renderer.outputColorSpace = THREE.sRGBEncoding
-    renderer.outputEncoding = THREE.sRGBEncoding
+    // renderer.toneMapping = AgXToneMapping
+    // renderer.toneMapping = ACESFilmicToneMapping
+    // renderer.toneMapping = LinearToneMapping
+    renderer.toneMapping = NeutralToneMapping
+    // renderer.toneMapping = NoToneMapping
+    // renderer.toneMapping = ReinhardToneMapping
+    renderer.toneMappingExposure = 3e-5
+    renderer.outputEncoding = SRGBColorSpace
     this.width = this.container.offsetWidth
     this.height = this.container.offsetHeight
     renderer.setClearColor(backgroundColor, 1)
@@ -95,8 +119,8 @@ export default class ThreeUi {
     renderer.sortObjects = true
     renderer.autoClear = true
     // Shadows
-    renderer.shadowMap.enabled = true
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    // renderer.shadowMap.enabled = true
+    // renderer.shadowMap.type = PCFSoftShadowMap
     return renderer
   }
 
@@ -111,8 +135,8 @@ export default class ThreeUi {
     controls.noPan = false
     controls.staticMoving = true
     controls.dynamicDampingFactor = 0.3
-    // controls.rotateSpeed = 1;
-    // controls.zoomSpeed = 0.001;
+    // controls.rotateSpeed = 1
+    controls.zoomSpeed = 1e1
     window.controls = controls
     controls.target = camera.platform.position
     this.controls = controls
@@ -136,7 +160,7 @@ export default class ThreeUi {
     // TODO: avoid resize if already correct size?
     this.renderer.setSize(width, height)
     this.controls.handleResize()
-    // console.log(`onResize: ${width} x ${height}`);
+    // console.log(`onResize: ${width} x ${height}`)
   }
 
 
@@ -145,6 +169,9 @@ export default class ThreeUi {
   setFov(fov) {
     this.camera.fov = fov
     this.camera.updateProjectionMatrix()
+    if (this.camera.onChange) {
+      this.camera.onChange(this.camera)
+    }
   }
 
 

@@ -1,14 +1,14 @@
-import React from 'react'
+import React, {useEffect} from 'react'
 import cMeasure from '@pablo-mayrgundter/measure.js'
 import {elt, newElt} from '../utils.js'
 
 
 export default function Measure() {
-  React.useEffect(() => {
+  useEffect(() => {
     setup()
   }, [])
   return (
-    <div style={{maxWidth: '800px'}}>
+    <>
       <h1>Measure</h1>
 
       <p>Working with astronomical data will quickly break ur brain
@@ -23,7 +23,8 @@ export default function Measure() {
           <tr><td id="radius">6.9424895E8 m</td></tr>
         </tbody>
       </table>
-    </div>)
+    </>
+  )
 }
 
 function setup() {

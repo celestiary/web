@@ -5,6 +5,12 @@ import {createProxyServer} from './proxy.js'
 
 const ctx = await esbuild.context(config)
 
+// Watch rebuilds docs/ which can interfere with cypress
+if (process.env.ESBUILD_WATCH === 'true') {
+  await ctx.watch()
+}
+
+
 /**
  * "It's not possible to hook into esbuild's local server to customize
  * the behavior of the server itself. Instead, behavior should be

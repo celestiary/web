@@ -3,6 +3,7 @@ import {
   PointLight,
   ShaderMaterial,
   Mesh,
+  MeshBasicMaterial,
   Vector2,
   Vector3,
 } from 'three'
@@ -37,7 +38,6 @@ export default class Star extends Object {
   constructor(props, sceneObjects, ui, shadowProps = {}) {
     super(props.name, props)
     if (!this.props || !(this.props.radius)) {
-      console.error('props', this.props)
       throw new Error(`Props undefined: props(${props}), radius(${props.radius})`)
     }
     this.ui = ui
@@ -47,25 +47,28 @@ export default class Star extends Object {
     }
     this.orbitPosition = this
 
+    // As of r155 three switches to physically based lighting.  This is just kludged for now
+    // See https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
+    const sunLumensSurface = 3.7e28 // Sun lumens
+    const sunlight = new PointLight(0xffffff, sunLumensSurface, 0)
     // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
-    const sunlight = new PointLight(0xffffff, 1, 0, 0)
-    const sunLumensSurface = 2.626e29
-    // TODO(pablo): three switched to lumens https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
-    sunlight.power = sunLumensSurface * 5e-29
     sunlight.castShadow = true
     sunlight.shadow.mapSize.width = shadowProps.width || 512 // default: 512
     sunlight.shadow.mapSize.height = shadowProps.height || 512 // default: 512
     sunlight.shadow.camera.near = shadowProps.near || 0.5 // default: 0.5
     sunlight.shadow.camera.far = shadowProps.far || 500 // default: 500
     sunlight.shadow.bias = shadowProps.bias || -0.01
-    sunlight.decay = shadowProps.decay || 1 // default: 1
     this.add(sunlight)
 
+    const surface = this.createSurface(props)
+    /*
     const lod = new LOD
-    lod.addLevel(this.createSurface(props), 1)
+    lod.addLevel(surface, 1)
     const farLod = props.radius.scalar * Shared.LENGTH_SCALE * 1e3
     lod.addLevel(Shared.FAR_OBJ, farLod)
     this.add(lod)
+    */
+    this.add(surface)
   }
 
 
@@ -89,23 +92,13 @@ export default class Star extends Object {
       [8152, 10060], // 14, T
       [8152, 10060]]// 15, Carbon star?
     const temp = tempRanges[props.spectralType]
-    /*
-      const surface = new Mesh(
-          new SphereGeometry(1, 16, 16 / 2),
-          new MeshBasicMaterial({
-            color: 0xff0000,
-            wireframe: true,
-          }))
-      surface.scale.setScalar(props.radius.scalar * Shared.LENGTH_SCALE)
-      return surface
-    }*/
     this.shaderMaterial = new ShaderMaterial({
       uniforms: {
         uColor: {value: new Vector3(1.0, 1.0, 1.0)},
         uLowTemp: {value: parseFloat(temp[0])},
         uHighTemp: {value: parseFloat(temp[1])},
         iTime: {value: 1.0},
-        iResolution: {value: new Vector2()},
+        iResolution: {value: new Vector2},
         iScale: {value: 100.0},
         iDist: {value: 1.0},
       },
@@ -113,7 +106,8 @@ export default class Star extends Object {
       fragmentShader: Shaders.FRAGMENT_SHADER,
     })
     const surface = Shapes.sphere({matr: this.shaderMaterial})
-    surface.scale.setScalar(props.radius.scalar * Shared.LENGTH_SCALE)
+    // surface.add(Shapes.sphere({wireframe: true}))
+    surface.scale.setScalar(props.radius.scalar)
     this.setupAnim()
     return surface
   }
@@ -125,9 +119,9 @@ export default class Star extends Object {
       // Sun looks bad changing too quickly.
       time = Math.log(1 + (time.simTimeElapsed * 8E-7))
       if (Shared.targets.pos) {
-        this.shaderMaterial.uniforms.iTime.value = time
+        this.shaderMaterial.uniforms.iTime.value = time * 4
         const d = Shared.targets.pos.distanceTo(this.ui.camera.position)
-        this.shaderMaterial.uniforms.iDist.value = d * 1E-2
+        this.shaderMaterial.uniforms.iDist.value = d * 8E-9
       }
     }
   }

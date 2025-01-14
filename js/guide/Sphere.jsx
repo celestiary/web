@@ -1,19 +1,20 @@
-import React, {useEffect} from 'react'
+import React, {ReactElement, useEffect} from 'react'
 import {MeshBasicMaterial, PointLight} from 'three'
 import ThreeUi from '../ThreeUI.js'
 import {sphere} from '../shapes.js'
 import {ui as uiId} from './index.module.css'
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function Sphere() {
   useEffect(() => setup(), [])
   return (
     <>
-      <div id={uiId}></div>
       <h1>A Sphere</h1>
-      Or is it a fully operational battlestation?!
-    </>)
+      <div id={uiId}></div>
+      <p>Or is it a fully operational battlestation?!</p>
+    </>
+  )
 }
 
 
@@ -28,7 +29,6 @@ function setup() {
   // each axis to give // interesting lighting.
   const light = new PointLight(0xffffff, 1, 0)
   light.position.set(3, 4, 5)
-  light.power = 1700
   ui.scene.add(light)
 
   const radius = 1
@@ -36,6 +36,7 @@ function setup() {
   const matr = new MeshBasicMaterial({
     color: 0xff0000,
     wireframe: true,
+    toneMapped: false,
   })
   ui.scene.add(sphere({radius, resolution, matr}))
 }

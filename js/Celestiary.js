@@ -36,6 +36,7 @@ export default class Celestiary {
       }
     }
     this.ui = new ThreeUi(canvasContainer, animCb)
+    this.ui.configLargeScene()
     this.ui.useStore = useStore
     this.scene = new Scene(this.ui)
     this.loader = new Loader()
