@@ -30,7 +30,7 @@ export default function VSOP({isIndex = false}) {
   }, [dayParam, setDay, isIndex, setPlanetCoords])
 
   return (
-    <>
+    <div style={{'user-select': 'none'}}>
       <h1>VSOP</h1>
       {planetCoords && <ViewerContainer id={uiId} planetCoords={planetCoords}/>}
       <p>The semi-analytic planetary theory VSOP
@@ -46,7 +46,7 @@ export default function VSOP({isIndex = false}) {
       <p>Add /[number] to go to that day, e.g. <Link to='/vsop/0'>/0</Link></p>
       <p>Simulation Julian Day: {day}</p>
       <p>Coordinates: <span style={{whiteSpace: 'pre'}}>{JSON.stringify(planetCoords, null, 2)}</span></p>
-    </>
+    </div>
   )
 }
 

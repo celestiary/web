@@ -55,23 +55,13 @@ function setup() {
             <td><a href="#${planetName.toLowerCase()}">${planetName}</a></td>
           </tr>`
   })
-
   const ui = new ThreeUi(uiId)
-  if (true) {
-    const sunLumensSurface = 3.7e28 // Sun lumens
-    const sunFilter = 1e-5
-    const sunlight = new PointLight(0xffffff, sunLumensSurface * sunFilter, 0)
-    const dist = ASTRO_UNIT_METER
-    sunlight.position.set(-dist, dist, dist)
-    ui.scene.add(sunlight)
-  }
-  if (false) {
-    const cameraLight = new PointLight(0xffffff, 1e19, 0)
-    const dist = 1e6
-    cameraLight.position.set(dist, dist, dist)
-    ui.camera.add(cameraLight)
-  }
-
+  ui.configLargeScene()
+  const sunLumensSurface = 3.7e28 // Sun lumens
+  const sunlight = new PointLight(0xffffff, sunLumensSurface, 0)
+  const dist = ASTRO_UNIT_METER
+  sunlight.position.set(-dist, dist, dist)
+  ui.scene.add(sunlight)
   return ui
 }
 
@@ -84,8 +74,6 @@ function showPlanet(ui, path, curPlanet, setPlanet) {
     }
     p.add(new AxesHelper)
     const radius = p.props.radius.scalar
-    // p.scale.setScalar(1/radius)
-    console.log(`planet:`, p, radius)
     ui.camera.position.z = radius * 3e0
     ui.scene.add(p)
     ui.scene.add(new AxesHelper)

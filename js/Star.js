@@ -50,26 +50,24 @@ export default class Star extends Object {
     // As of r155 three switches to physically based lighting.  This is just kludged for now
     // See https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
     const sunLumensSurface = 3.7e28 // Sun lumens
-    // const sunFilter = 5e-4
-    const sunFilter = 1
-    const sunlight = new PointLight(0xffffff, sunLumensSurface * sunFilter, 0)
+    const sunlight = new PointLight(0xffffff, sunLumensSurface, 0)
     // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
-    // TODO(pablo): three switched to lumens https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
-    // sunlight.power = sunLumensSurface * 5e-29
     sunlight.castShadow = true
     sunlight.shadow.mapSize.width = shadowProps.width || 512 // default: 512
     sunlight.shadow.mapSize.height = shadowProps.height || 512 // default: 512
     sunlight.shadow.camera.near = shadowProps.near || 0.5 // default: 0.5
     sunlight.shadow.camera.far = shadowProps.far || 500 // default: 500
     sunlight.shadow.bias = shadowProps.bias || -0.01
-    // sunlight.decay = shadowProps.decay || 1 // default: 1
     this.add(sunlight)
 
     const surface = this.createSurface(props)
-    // const lod = new LOD
-    // lod.addLevel(surface, 1)
-    // const farLod = props.radius.scalar * 1e3
-    // lod.addLevel(Shared.FAR_OBJ, farLod)
+    /*
+    const lod = new LOD
+    lod.addLevel(surface, 1)
+    const farLod = props.radius.scalar * Shared.LENGTH_SCALE * 1e3
+    lod.addLevel(Shared.FAR_OBJ, farLod)
+    this.add(lod)
+    */
     this.add(surface)
   }
 
@@ -106,11 +104,10 @@ export default class Star extends Object {
       },
       vertexShader: Shaders.VERTEX_SHADER,
       fragmentShader: Shaders.FRAGMENT_SHADER,
-      // toneMapped: false,
     })
     const surface = Shapes.sphere({matr: this.shaderMaterial})
-    surface.add(Shapes.sphere({matr: new MeshBasicMaterial({ color: 0xff0000, wireframe: true })}))
-    surface.scale.setScalar(props.radius)
+    // surface.add(Shapes.sphere({wireframe: true}))
+    surface.scale.setScalar(props.radius.scalar)
     this.setupAnim()
     return surface
   }
@@ -122,9 +119,9 @@ export default class Star extends Object {
       // Sun looks bad changing too quickly.
       time = Math.log(1 + (time.simTimeElapsed * 8E-7))
       if (Shared.targets.pos) {
-        this.shaderMaterial.uniforms.iTime.value = time
+        this.shaderMaterial.uniforms.iTime.value = time * 4
         const d = Shared.targets.pos.distanceTo(this.ui.camera.position)
-        this.shaderMaterial.uniforms.iDist.value = d * 1E-2
+        this.shaderMaterial.uniforms.iDist.value = d * 8E-9
       }
     }
   }

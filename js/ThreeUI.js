@@ -1,5 +1,5 @@
 import {
-  ACESFilmicToneMapping,
+  NeutralToneMapping,
   Object3D,
   PCFSoftShadowMap,
   PerspectiveCamera,
@@ -9,7 +9,6 @@ import {
   Vector2,
   WebGLRenderer,
 } from 'three'
-import * as THREE from 'three'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
 
@@ -41,13 +40,7 @@ export default class ThreeUi {
     this.width = this.threeContainer.offsetWidth
     this.height = this.threeContainer.offsetHeight
     const aspect = this.width / this.height
-    // TODO: something's really wrong here. I test by zooming out to see if the
-    // far plane clips stars, which should happen at * 2e4.  But actually needs
-    // 1e-8 to 1e-9 here actually trims stars.
-    const maxDist = Shared.METERS_PER_LIGHTYEAR * 2e4
-    // Min here comfortably fits Deimos at about 6.2km.  Too small and
-    // z-fighting between planets & stars.
-    this.camera = new PerspectiveCamera(Shared.INITIAL_FOV, aspect, 1e5, maxDist)
+    this.camera = new PerspectiveCamera(Shared.INITIAL_FOV, aspect, 1e-1, 1e3) // Scene's near&far set by Celestiary
     this.camera.platform = named(new Object3D, 'CameraPlatform')
     this.camera.platform.add(this.camera)
     this.initControls(this.camera)
@@ -86,6 +79,14 @@ export default class ThreeUi {
   }
 
 
+  /** Sets camera near and far to deimos and local star cluster. */
+  configLargeScene() {
+    this.camera.near = 1e6 // Deimos
+    this.camera.far = Shared.METERS_PER_LIGHTYEAR * 2e4 // Celestia catalog max
+    this.camera.updateProjectionMatrix()
+  }
+
+
   /**
    */
   addClickCb(clickCb) {
@@ -103,13 +104,12 @@ export default class ThreeUi {
     const renderer = new WebGLRenderer({canvas: canvas, context: ctx, antialias: true})
     // renderer.setPixelRatio(window.devicePixelRatio);
     // No idea about this.. just like the way it looks.
-    // renderer.toneMapping = THREE.NoToneMapping
-    // renderer.toneMapping = THREE.LinearToneMapping
-    // renderer.toneMapping = THREE.ReinhardToneMapping
-    // renderer.toneMapping = THREE.ACESFilmicToneMapping
-    // renderer.toneMapping = THREE.AgXToneMapping
-    renderer.toneMapping = THREE.NeutralToneMapping
-    // renderer.toneMappingExposure = 1e-5
+    // renderer.toneMapping = AgXToneMapping
+    // renderer.toneMapping = ACESFilmicToneMapping
+    // renderer.toneMapping = LinearToneMapping
+    renderer.toneMapping = NeutralToneMapping
+    // renderer.toneMapping = NoToneMapping
+    // renderer.toneMapping = ReinhardToneMapping
     renderer.toneMappingExposure = 3e-5
     renderer.outputEncoding = SRGBColorSpace
     this.width = this.container.offsetWidth
@@ -136,7 +136,7 @@ export default class ThreeUi {
     controls.staticMoving = true
     controls.dynamicDampingFactor = 0.3
     // controls.rotateSpeed = 1
-    controls.zoomSpeed = 5
+    controls.zoomSpeed = 1e1
     window.controls = controls
     controls.target = camera.platform.position
     this.controls = controls

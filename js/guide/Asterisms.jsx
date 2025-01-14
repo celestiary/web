@@ -73,6 +73,7 @@ function setup(setAsterisms) {
     }
   }
   const ui = new ThreeUi(uiId, cb)
+  ui.configLargeScene()
   const k = new Keys()
   k.map(',', () => {
     ui.multFov(0.9)

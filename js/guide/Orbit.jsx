@@ -1,5 +1,5 @@
 import React, {useEffect} from 'react'
-import {AmbientLight, Vector3} from 'three'
+import {AmbientLight, PointLight, Vector3} from 'three'
 import Label from '../label.js'
 import ThreeUi from '../ThreeUI.js'
 import cOrbit from '../Orbit.js'
@@ -47,7 +47,8 @@ export default function Orbit() {
 function setup() {
   const ui = new ThreeUi(uiId)
   ui.camera.position.set(1, 1, 3)
-  ui.scene.add(new AmbientLight())
+  // ui.scene.add(new AmbientLight())
+  ui.scene.add(new PointLight(0xffffff, 1e6, 0))
 
   function setupProps(orbitProps) {
     const tau = Math.PI * 2
@@ -147,9 +148,9 @@ function setup() {
       show(p.props.orbit)
       curPlanet = p
       curPlanet.orbit = curOrbit
-      curPlanet.scale.setScalar(0.1)
+      curPlanet.scale.setScalar(1e-8)
       curOrbit.addOrbiter(curPlanet)
-      // console.log('planet setup done', curPlanet);
+      console.log('planet setup done', curPlanet);
     })
   }
 

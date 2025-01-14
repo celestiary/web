@@ -69,7 +69,12 @@ export function sphere(opts) {
   opts.radius = opts.radius || 1
   opts.resolution = opts.resolution || 128
   const geom = new SphereGeometry(opts.radius, opts.resolution, opts.resolution / 2)
-  opts.matr = opts.matr || new MeshPhongMaterial({flatShading: true})
+  opts.matr = opts.matr || new MeshPhongMaterial({
+    flatShading: true,
+    color: opts.wireframe ? 0xff0000 : 0xffffff,
+    wireframe: opts.wireframe || false,
+    transparent: opts.wireframe ? true : false,
+  })
   return new Mesh(geom, opts.matr)
 }
 
@@ -429,7 +434,7 @@ export function lineGrid(params) {
   const divisions = params.numSteps || 10
   const color = params.color || 0x0000af
 
-  grids.material = new LineBasicMaterial({color: color})
+  grids.material = new LineBasicMaterial({color: color, toneMapped: false})
 
   const xzGrid = new GridHelper(size, divisions, color, color)
   xzGrid.material = grids.material

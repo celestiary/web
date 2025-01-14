@@ -68,6 +68,7 @@ export default function Star() {
 /** @returns {ThreeUi} */
 function setup(setCatalog) {
   const ui = new ThreeUi(uiId)
+  ui.configLargeScene()
   const catalog = new StarsCatalog()
   catalog.load(() => setCatalog(catalog))
   return ui
@@ -83,7 +84,7 @@ function showStar(ui, path, curStar, setStar, catalog, time) {
     return
   }
   const star = addStarToScene(ui, catalog, parseInt(hipId), curStar, setStar)
-  ui.camera.position.z = star.props.radius * 3
+  ui.camera.position.z = star.props.radius.scalar * 3
   ui.animationCb = () => {
     time.updateTime()
     try {
@@ -107,6 +108,7 @@ function addStarToScene(ui, catalog, hipId, curStar, setStar) {
   }
   const starProps = catalog.starByHip.get(hipId)
   starProps.x = starProps.y = starProps.z = 0
+  starProps.radius = {scalar: starProps.radius}
   const star = new StarFromApp(starProps, {}, ui)
   ui.scene.add(star)
   setStar(star)

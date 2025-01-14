@@ -22,8 +22,8 @@ export default function TOC() {
           <ol>
             <li>Basic Shapes
               <ul>
-                <li><Link to='/cube'>Cube</Link></li>
                 <li><Link to='/sphere'>Sphere</Link></li>
+                <li><Link to='/cube'>Lit Cube</Link></li>
               </ul>
             </li>
           </ol>

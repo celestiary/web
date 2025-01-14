@@ -86,9 +86,9 @@ export default class Stars extends Object {
       vertexShader: '/shaders/stars.vert',
       fragmentShader: '/shaders/stars.frag',
       depthTest: true,
-      depthWrite: false,
-      // blending: AdditiveBlending,
-      // transparent: true,
+      depthWrite: true,
+      blending: AdditiveBlending,
+      transparent: true,
     })
     this.ui.camera.onChange = (camera) => {
       starsMaterial.uniforms.cameraFovDegrees.value = camera.fov

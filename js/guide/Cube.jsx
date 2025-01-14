@@ -31,12 +31,11 @@ function setup() {
 
   // Create a light and move away 10 units from the center along
   // each axis to give // interesting lighting.
-  const light = new PointLight(0xffffff, 1, 0)
+  const light = new PointLight(0xffffff, 1e1, 0)
   light.position.set(3, 4, 5)
-  light.power = 1700
   ui.scene.add(light)
 
   // Add a unit cube at the center; (0,0,0) is implicit.
   ui.scene.add(new AxesHelper())
-  ui.scene.add(box(1, 1, 1, {color: 0xffffff}))
+  ui.scene.add(box(1, 1, 1, {color: 0xffffff, toneMapped: false}))
 }

@@ -29,7 +29,6 @@ function setup() {
   // each axis to give // interesting lighting.
   const light = new PointLight(0xffffff, 1, 0)
   light.position.set(3, 4, 5)
-  light.power = 1700
   ui.scene.add(light)
 
   const radius = 1
@@ -37,6 +36,7 @@ function setup() {
   const matr = new MeshBasicMaterial({
     color: 0xff0000,
     wireframe: true,
+    toneMapped: false,
   })
   ui.scene.add(sphere({radius, resolution, matr}))
 }

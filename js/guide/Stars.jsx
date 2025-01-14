@@ -22,7 +22,7 @@ export default function Stars() {
 /** */
 function setup() {
   const ui = new ThreeUi(uiId)
-  // ui.camera.position.z = METERS_PER_LIGHTYEAR * 1e20
+  ui.configLargeScene()
   ui.camera.position.z = ASTRO_UNIT_METER
   ui.useStore = {setState: () => {}, subscribe: () => {}}
 
