@@ -54,7 +54,7 @@ void main() {
   // Final point size: blend of mostly brightness and some physical size
   float sizeInPixels = physicalSizeInPixels * 1e6;
 
-  vBrightness  = 10.; // TODO: illuminance * cameraExposure;
+  vBrightness  = 2.5; // TODO: illuminance * cameraExposure;
   gl_PointSize = clamp(sizeInPixels, 0.1, maxStarSizePixels);
   gl_Position  = projectionMatrix * mvPosition;
 }

@@ -191,11 +191,8 @@ export default class Planet extends Object {
     const labelSheet = new SpriteSheet(1, name)
     labelSheet.add(0, 0, 0, name, labelTextColor)
     labelLOD.addLevel(FAR_OBJ, labelTooNearDist)
-    const labels = labelSheet.compile()
-    labels.renderOrder = 0
-    labelLOD.addLevel(labels, labelTooNearDist)
+    labelLOD.addLevel(labelSheet.compile(), labelTooNearDist)
     labelLOD.addLevel(FAR_OBJ, labelTooFarDist)
-    labelLOD.renderOrder = 0
 
     const group = new Object3D
     group.add(named(planetLOD, 'planet LOD'))

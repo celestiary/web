@@ -36,6 +36,7 @@ export default class Stars extends Object {
     assertDefined(ui, ui.useStore)
     this.ui = ui
     this.labelsGroup = named(new Group, 'LabelsGroup')
+    this.labelsGroup.renderOrder = 0
     this.onLoadCb = onLoadCb
     this.faves = FAVES
     this.labelLOD = named(new LOD, 'LabelsLOD')
@@ -98,7 +99,6 @@ export default class Stars extends Object {
       starPoints.sortParticles = true
       starPoints.renderOrder = 0
       this.add(starPoints)
-      window.sp = starPoints
       new PickLabels(me.ui, me)
       if (this.onLoadCb) {
         this.onLoadCb()
