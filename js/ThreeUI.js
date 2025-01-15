@@ -11,16 +11,13 @@ import {
 } from 'three'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
-
-import * as Shared from './shared.js'
+import {INITIAL_FOV, METERS_PER_LIGHTYEAR} from './shared.js'
 import {named} from './utils.js'
 
 
-/**
- */
+/** */
 export default class ThreeUi {
-  /**
-   */
+  /** */
   constructor(container, animationCb, backgroundColor, renderer) {
     if (typeof container === 'string') {
       this.container = document.getElementById(container)
@@ -40,7 +37,7 @@ export default class ThreeUi {
     this.width = this.threeContainer.offsetWidth
     this.height = this.threeContainer.offsetHeight
     const aspect = this.width / this.height
-    this.camera = new PerspectiveCamera(Shared.INITIAL_FOV, aspect, 1e-1, 1e3) // Scene's near&far set by Celestiary
+    this.camera = new PerspectiveCamera(INITIAL_FOV, aspect, 1e-1, 1e3) // Scene's near&far set by Celestiary
     this.camera.platform = named(new Object3D, 'CameraPlatform')
     this.camera.platform.add(this.camera)
     this.initControls(this.camera)
@@ -72,7 +69,6 @@ export default class ThreeUi {
       this.scene.add(controllerGrip);
     */
 
-    // this.renderLoop();
     this.renderer.setAnimationLoop(() => {
       this.renderLoop()
     })
@@ -82,7 +78,7 @@ export default class ThreeUi {
   /** Sets camera near and far to deimos and local star cluster. */
   configLargeScene() {
     this.camera.near = 1e6 // Deimos
-    this.camera.far = Shared.METERS_PER_LIGHTYEAR * 2e4 // Celestia catalog max
+    this.camera.far = METERS_PER_LIGHTYEAR * 2e4 // Celestia catalog max
     this.camera.updateProjectionMatrix()
   }
 
@@ -102,12 +98,11 @@ export default class ThreeUi {
     const ctx = canvas.getContext('webgl2')
     container.appendChild(canvas)
     const renderer = new WebGLRenderer({canvas: canvas, context: ctx, antialias: true})
-    // renderer.setPixelRatio(window.devicePixelRatio);
     // No idea about this.. just like the way it looks.
     // renderer.toneMapping = AgXToneMapping
     // renderer.toneMapping = ACESFilmicToneMapping
     // renderer.toneMapping = LinearToneMapping
-    renderer.toneMapping = NeutralToneMapping
+    renderer.toneMapping = NeutralToneMapping // Tuned to balance brightness of inner and outer planets
     // renderer.toneMapping = NoToneMapping
     // renderer.toneMapping = ReinhardToneMapping
     renderer.toneMappingExposure = 3e-5
@@ -157,10 +152,8 @@ export default class ThreeUi {
     }
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
-    // TODO: avoid resize if already correct size?
     this.renderer.setSize(width, height)
     this.controls.handleResize()
-    // console.log(`onResize: ${width} x ${height}`)
   }
 
 
@@ -192,7 +185,7 @@ export default class ThreeUi {
   /**
    */
   resetFov() {
-    this.setFov(Shared.INITIAL_FOV)
+    this.setFov(INITIAL_FOV)
   }
 
 
@@ -222,8 +215,5 @@ export default class ThreeUi {
       this.animationCb(this.scene, this)
     }
     this.renderer.render(this.scene, this.camera)
-    // requestAnimationFrame(() => {
-    //    this.renderLoop();
-    //  });
   }
 }

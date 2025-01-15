@@ -1,6 +1,6 @@
 import React, {ReactElement, useEffect, useState} from 'react'
 import {useHashLocation} from 'wouter/use-hash-location'
-import {AxesHelper, MeshBasicMaterial, PointLight} from 'three'
+import {MeshBasicMaterial, PointLight} from 'three'
 import ThreeUi from '../ThreeUI'
 import * as Shapes from '../shapes'
 import {LENGTH_SCALE, ASTRO_UNIT_METER} from '../shared'
@@ -72,11 +72,9 @@ function showPlanet(ui, path, curPlanet, setPlanet) {
     if (curPlanet) {
       ui.scene.remove(curPlanet)
     }
-    p.add(new AxesHelper)
     const radius = p.props.radius.scalar
-    ui.camera.position.z = radius * 3e0
+    ui.camera.position.z = p.initialCameraDistance
     ui.scene.add(p)
-    ui.scene.add(new AxesHelper)
     setPlanet(p)
     ui.animationCb = () => {
       p.rotation.y += 0.001

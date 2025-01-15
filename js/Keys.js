@@ -22,9 +22,11 @@ export default class Keys {
   /** @param {object} event */
   onKeyDown(event) {
     const charStr = event.key
-    const f = this.keymap[charStr]
-    if (f) {
-      f()
+    if (charStr && typeof charStr == 'string') {
+      const f = this.keymap[charStr.toUpperCase()]
+      if (f) {
+        f()
+      }
     }
   }
 
@@ -35,7 +37,7 @@ export default class Keys {
    * @param {string} msg
    */
   map(c, fn, msg) {
-    this.keymap[c] = fn
+    this.keymap[c.toUpperCase()] = fn
     this.msgs[c] = msg
   }
 }

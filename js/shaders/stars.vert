@@ -1,6 +1,10 @@
-// Allows camera zoom into stars
-uniform float cameraFovDegrees;
-uniform float cameraExposure;
+uniform float CAMERA_FOV_DEGREES; // Allows camera zoom into stars
+uniform float CAMERA_EXPOSURE;
+uniform float MIN_BRIGHT;
+uniform float MIN_STAR_SIZE_PX;
+uniform float MAX_STAR_SIZE_PX;
+uniform float STAR_MAGNIFY;
+uniform float STAR_MAGNIFY_2;
 
 attribute vec3 color;
 attribute float radius;
@@ -9,9 +13,7 @@ attribute float lumens;
 varying vec3 vColor;
 varying float vBrightness;        // Pass brightness to fragment
 
-const float sunAbsMag = 4.83;     // Sun’s absolute magnitude in V-band
 const float screenHeight = 1024.; // TODO
-const float maxStarSizePixels = 5.;
 
 const vec3 unitVec = vec3(1., 1., 1.);
 const float twoTau = 2. * 6.2831853070;
@@ -44,17 +46,28 @@ void main() {
 
   // ------------------------------------------------
   // 2) Convert angular diameter to *pixel* size
-  //    Assume cameraFovDegrees is vertical FOV. So each radian
+  //    Assume CAMERA_FOV_DEGREES is vertical FOV. So each radian
   //    in vertical FOV spans `resolution.y` pixels.
   // ------------------------------------------------
-  float cameraFovRad = radians(cameraFovDegrees);
+  float cameraFovRad = radians(CAMERA_FOV_DEGREES);
   float pixelsPerRad = screenHeight / cameraFovRad;
   float physicalSizeInPixels  = angularDiameter * pixelsPerRad;
 
   // Final point size: blend of mostly brightness and some physical size
-  float sizeInPixels = physicalSizeInPixels * 1e6;
+  float sizeInPixels = physicalSizeInPixels * STAR_MAGNIFY;
 
-  vBrightness  = 2.5; // TODO: illuminance * cameraExposure;
-  gl_PointSize = clamp(sizeInPixels, 0.1, maxStarSizePixels);
+  vBrightness  = clamp(illuminance * CAMERA_EXPOSURE, MIN_BRIGHT, 1.);
+
+  // TODO: this is more correct
+  // gl_PointSize = clamp(sizeInPixels, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
+
+  // But this looks better
+  float cDist = clamp(-mvPosition.z, 0., 9.461e15*2e4);
+  float art = STAR_MAGNIFY_2;
+  float scaledSize = art * radius / cDist;
+  // Larger than 250 doesn't seem to make a difference.
+  float cSize = clamp(scaledSize, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
+  gl_PointSize = cSize;
+  
   gl_Position  = projectionMatrix * mvPosition;
 }

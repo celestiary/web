@@ -144,9 +144,8 @@ export default class StarsCatalog {
 
       // Compute star's luminous flux from absolute magnitude, from ChatG
       //    ratio = 10^((M_sun - M_star)/2.5)
-      const sunLumens = 3.0e28
       const magFactor = Math.pow(10.0, (sun.absMag - absMag) / 2.5)
-      const lumens = sunLumens * magFactor
+      const lumens = sun.lumens * magFactor
 
       /** @type {StarProps} */
       const star = {
@@ -307,8 +306,8 @@ export function getSunProps(radius = 695700000) {
     spectralType: 4,
     sub: 2,
     lumClass: 6,
-    lumRelSun: 1,
     radius: radius,
+    lumens: 3.0e28,
   }
 }
 

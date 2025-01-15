@@ -28,7 +28,7 @@ function setup() {
 
   const props = {
     radius: {
-      scalar: getSunProps(0.1).radiusMeters,
+      scalar: getSunProps().radius,
     },
   }
   const stars = new StarsFromApp(props, ui, true)
