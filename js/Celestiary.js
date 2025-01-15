@@ -148,7 +148,7 @@ export default class Celestiary {
     }, 'Hide/show navigation panels')
 
     // Scene elements
-    k.map('C', () => {
+    k.map('A', () => {
       this.scene.toggleAsterisms()
     },
     'Show/hide constellations')

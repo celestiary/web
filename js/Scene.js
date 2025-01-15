@@ -192,7 +192,10 @@ export default class Scene {
     const cPos = new Vector3
     const surfaceAltitude = obj.props.radius.scalar // * lengthScale
     pPos.set(0, 0, 0) // TODO(pablo): maybe put platform at surfaceAltitude
-    cPos.set(0, 0, surfaceAltitude * INITIAL_STEP_BACK_MULT)
+    const camDist = obj.initialCameraDistance || (surfaceAltitude * INITIAL_STEP_BACK_MULT)
+    const elevationAngleRad = 15 / 360 * Math.PI * 2
+    const y = Math.atan(elevationAngleRad) * camDist
+    cPos.set(0, y, camDist)
     obj.orbitPosition.add(this.ui.camera.platform)
     this.ui.camera.platform.position.copy(pPos)
     this.ui.camera.platform.lookAt(Shared.targets.origin)

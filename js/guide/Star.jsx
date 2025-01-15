@@ -84,7 +84,7 @@ function showStar(ui, path, curStar, setStar, catalog, time) {
     return
   }
   const star = addStarToScene(ui, catalog, parseInt(hipId), curStar, setStar)
-  ui.camera.position.z = star.props.radius.scalar * 3
+  ui.camera.position.z = star.initialCameraDistance
   ui.animationCb = () => {
     time.updateTime()
     try {

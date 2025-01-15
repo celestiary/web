@@ -1,4 +1,6 @@
 import {
+  AxesHelper,
+  Group,
   LOD,
   PointLight,
   ShaderMaterial,
@@ -7,10 +9,9 @@ import {
   Vector2,
   Vector3,
 } from 'three'
-
 import Object from './object.js'
 import * as Shaders from './star-shaders.js'
-import * as Shapes from './shapes.js'
+import {sphere} from './shapes.js'
 import * as Shared from './shared.js'
 
 
@@ -40,6 +41,7 @@ export default class Star extends Object {
     if (!this.props || !(this.props.radius)) {
       throw new Error(`Props undefined: props(${props}), radius(${props.radius})`)
     }
+    this.initialCameraDistance = this.props.radius.scalar * 35
     this.ui = ui
     if (sceneObjects) {
       sceneObjects[this.name] = this
@@ -60,15 +62,20 @@ export default class Star extends Object {
     sunlight.shadow.bias = shadowProps.bias || -0.01
     this.add(sunlight)
 
-    const surface = this.createSurface(props)
-    /*
     const lod = new LOD
-    lod.addLevel(surface, 1)
-    const farLod = props.radius.scalar * Shared.LENGTH_SCALE * 1e3
-    lod.addLevel(Shared.FAR_OBJ, farLod)
+
+    const guideGroup = new Group
+    const internalGuidesRadius = props.radius.scalar * 0.999
+    guideGroup.add(new AxesHelper(internalGuidesRadius))
+    guideGroup.add(sphere({radius: internalGuidesRadius, wireframe: true}))
+    lod.addLevel(guideGroup, 0)
+
+    const surface = this.createSurface(props)
+    lod.addLevel(surface, props.radius.scalar)
+
+    lod.addLevel(Shared.FAR_OBJ, props.radius.scalar * 1e3)
+    
     this.add(lod)
-    */
-    this.add(surface)
   }
 
 
@@ -105,8 +112,7 @@ export default class Star extends Object {
       vertexShader: Shaders.VERTEX_SHADER,
       fragmentShader: Shaders.FRAGMENT_SHADER,
     })
-    const surface = Shapes.sphere({matr: this.shaderMaterial})
-    // surface.add(Shapes.sphere({wireframe: true}))
+    const surface = sphere({matr: this.shaderMaterial})
     surface.scale.setScalar(props.radius.scalar)
     this.setupAnim()
     return surface

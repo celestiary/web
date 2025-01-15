@@ -78,20 +78,27 @@ export default class Stars extends Object {
     const starsMaterial = new ShaderMaterial({
       uniforms: {
         texSampler: {value: starImage},
-        cameraFovDegrees: {value: this.ui.camera.fov},
+        CAMERA_FOV_DEGREES: {value: this.ui.camera.fov},
         // TODO: Pulled this up for convenience of twiddling.  Something very
         // wrong here.
-        cameraExposure: {value: 1e9},
+        CAMERA_EXPOSURE: {value: 1e9},
+        // This is tuned for Star zoom e.g. on Sun to have surface just meet the
+        // glow in the png image.
+        STAR_MAGNIFY: {value: 5},
+        STAR_MAGNIFY_2: {value: 2e9},
+        MIN_BRIGHT: {value: 0.3},
+        MIN_STAR_SIZE_PX: {value: 4},
+        MAX_STAR_SIZE_PX: {value: 512},
       },
       vertexShader: '/shaders/stars.vert',
       fragmentShader: '/shaders/stars.frag',
-      depthTest: true,
-      depthWrite: true,
       blending: AdditiveBlending,
+      depthTest: true,
+      depthWrite: false,
       transparent: true,
     })
     this.ui.camera.onChange = (camera) => {
-      starsMaterial.uniforms.cameraFovDegrees.value = camera.fov
+      starsMaterial.uniforms.CAMERA_FOV_DEGREES.value = camera.fov
     }
     const me = this
     new Loader().loadShaders(starsMaterial, () => {
@@ -104,13 +111,6 @@ export default class Stars extends Object {
         this.onLoadCb()
       }
     })
-    /*
-    const simpleSunMatr = new PointsMaterial({
-      size: 3,
-      sizeAttenuation: false,
-    })
-    this.add(new Points(this.geom, simpleSunMatr))
-    */
   }
 
 

@@ -69,12 +69,23 @@ export function sphere(opts) {
   opts.radius = opts.radius || 1
   opts.resolution = opts.resolution || 128
   const geom = new SphereGeometry(opts.radius, opts.resolution, opts.resolution / 2)
-  opts.matr = opts.matr || new MeshPhongMaterial({
-    flatShading: true,
-    color: opts.wireframe ? 0xff0000 : 0xffffff,
-    wireframe: opts.wireframe || false,
-    transparent: opts.wireframe ? true : false,
-  })
+  if (opts.matr === undefined) {
+    opts.matr = opts.wireframe ?
+      new MeshBasicMaterial({
+        color: 0x808080,
+        wireframe: true,
+        transparent: false,
+        depthTest: true,
+        depthWrite: false,
+        toneMapped: false,
+      }) :
+      new MeshPhongMaterial({
+        flatShading: true,
+        color: 0xffffff,
+        wireframe: false,
+        transparent: false,
+      })
+  }
   return new Mesh(geom, opts.matr)
 }
 
