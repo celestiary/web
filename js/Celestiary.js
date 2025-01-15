@@ -134,12 +134,12 @@ export default class Celestiary {
 
 
   setupKeyListeners(useStore) {
-    const k = new Keys(useStore)
+    const k = new Keys(window, useStore)
 
     // Order determines listing in Settings panel.
 
     // Nav panels
-    k.map('V', () => {
+    k.map('v', () => {
       const panels = [elt('nav-id'), elt('top-right')]
       panels.map((panel) => {
         panel.style.visibility = this.navVisible ? 'hidden' : 'visible'
@@ -148,19 +148,19 @@ export default class Celestiary {
     }, 'Hide/show navigation panels')
 
     // Scene elements
-    k.map('A', () => {
+    k.map('a', () => {
       this.scene.toggleAsterisms()
     },
     'Show/hide constellations')
-    k.map('P', () => {
+    k.map('p', () => {
       this.scene.togglePlanetLabels()
     },
     'Show/hide planet and moon names')
-    k.map('S', () => {
+    k.map('s', () => {
       this.scene.toggleStarLabels()
     },
     'Show/hide star names')
-    k.map('O', () => {
+    k.map('o', () => {
       this.scene.toggleOrbits()
     },
     'Show/hide orbits')

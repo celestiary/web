@@ -1,7 +1,8 @@
 /** */
 export default class Keys {
   /** */
-  constructor(useStore) {
+  constructor(window, useStore) {
+    this.window = window
     this.keymap = {}
     this.msgs = {}
     this.bindToWindow(useStore)
@@ -10,7 +11,7 @@ export default class Keys {
 
   /** */
   bindToWindow(useStore) {
-    window.addEventListener('keydown', (e) => {
+    this.window.addEventListener('keydown', (e) => {
       const is = useStore.getState().isDatePickerVisible
       if (!is) {
         this.onKeyDown(e)
@@ -37,7 +38,8 @@ export default class Keys {
    * @param {string} msg
    */
   map(c, fn, msg) {
-    this.keymap[c.toUpperCase()] = fn
-    this.msgs[c] = msg
+    const key = c.toUpperCase()
+    this.keymap[key] = fn
+    this.msgs[key] = msg
   }
 }
