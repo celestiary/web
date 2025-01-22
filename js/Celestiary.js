@@ -52,6 +52,7 @@ export default class Celestiary {
     this.three = THREE
     this.toggleHelp = null
     window.c = this
+    this.firstTime = true
   }
 
 
@@ -84,7 +85,12 @@ export default class Celestiary {
         }
         this.scene.targetNamed(targetName)
         this.scene.goTo()
-      }, 0)
+        if (this.firstTime) {
+          this.scene.toggleAsterisms()
+          this.scene.toggleStarLabels()
+          this.firstTime = false
+        }
+      }, 1000)
     }
 
     let path
