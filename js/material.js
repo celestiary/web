@@ -2,7 +2,10 @@ import {
   AdditiveBlending,
   LineBasicMaterial,
   Material,
+  MeshLambertMaterial,
   MeshPhongMaterial,
+  MeshPhysicalMaterial,
+  MeshStandardMaterial,
   Texture,
   TextureLoader,
 } from 'three'
@@ -32,8 +35,10 @@ const materials = []
 export function cacheMaterial(name, ext) {
   let m = materials[name]
   if (!m) {
-    materials[name] = m = new MeshPhongMaterial({
+    materials[name] = m = new MeshPhysicalMaterial({
       map: pathTexture(name, ext),
+      depthTest: true,
+      depthWrite: true,
     })
   }
   return m

@@ -1,17 +1,17 @@
-import React, {useEffect} from 'react'
+import React, {ReactElement, useEffect} from 'react'
 import ThreeUi from '../ThreeUI.js'
 import {grid} from '../shapes.js'
 import {ui as uiId} from './index.module.css'
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function Grid() {
   useEffect(() => setup(), [])
   return (
     <>
-      <div id={uiId}></div>
       <h1>A Grid</h1>
-      Try zooming out and rotating.
+      <div id={uiId}></div>
+      <p>Try zooming out and rotating.</p>
     </>)
 }
 

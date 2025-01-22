@@ -92,7 +92,7 @@ module.exports = {
   },
   settings: {
     react: {
-      version: '17.0.2',
+      version: '18.3.1',
     },
   },
   reportUnusedDisableDirectives: true,

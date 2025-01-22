@@ -19,10 +19,10 @@ varying vec3 vTexCoord3D;
 uniform float uHighTemp;
 uniform float uLowTemp;
 uniform float iDist;
-//const float highTemp = 5778.;
-//const float lowTemp = highTemp / 4.;
+// const float highTemp = 5778.;
+// const float lowTemp = highTemp / 4.;
 
-//  Noise fnunctions are taken from here:
+// Noise fnunctions are taken from here:
 //
 // Description : Array and textureless GLSL 2D/3D/4D simplex
 //               noise functions.
@@ -140,12 +140,12 @@ float noise(vec3 position, float frequency, float persistence) {
 //  https://www.seedofandromeda.com/blogs/51-procedural-star-rendering
 void main(void) {
 
-  float noiseBase = (noise(vTexCoord3D, .4, 0.7)+1.0)/2.0;
+  float noiseBase = (noise(vTexCoord3D, .4, 0.7) + 1.0)/2.0;
 
   // Sunspots
   float frequency = 0.04;
-  float t1 = snoise(vTexCoord3D * frequency)*2.7 -  1.9;
-  float brightNoise= snoise(vTexCoord3D * .02)*1.4- .9;
+  float t1 = snoise(vTexCoord3D * frequency) * 2.7 - 1.9;
+  float brightNoise= snoise(vTexCoord3D * .02) * 1.4 - .9;
 
   float ss = max(0.0, t1);
   float brightSpot = max(0.0, brightNoise);
@@ -157,28 +157,28 @@ void main(void) {
   float i = (temp - 800.0)*0.035068;
 
   //  for R
-  bool rbucket1 = i < 60.0;   //  0, 255 in 60
-  bool rbucket2 = i >= 60.0 && i < 236.0;  //   255,255
-  bool rbucket3 = i >= 236.0 && i < 288.0; //  255,128
-  bool rbucket4 = i >= 288.0 && i < 377.0; //  128,60
-  bool rbucket5 = i >= 377.0 && i < 511.0; //  60,0
+  bool rbucket1 = i < 60.0;                //  0, 255 in 60
+  bool rbucket2 = i >= 60.0 && i < 236.0;  // 255,255
+  bool rbucket3 = i >= 236.0 && i < 288.0; // 255,128
+  bool rbucket4 = i >= 288.0 && i < 377.0; // 128,60
+  bool rbucket5 = i >= 377.0 && i < 511.0; // 60,0
   bool rbucket6 = i >= 511.0;  //  0,0
 
   bool gbucket1 = i <60.0;
-  bool gbucket2 = i >= 60.0 && i < 103.0; //  0,100
+  bool gbucket2 = i >= 60.0 && i < 103.0;  // 0,100
   bool gbucket3 = i >= 103.0 && i < 133.0; // 100,233
   bool gbucket4 = i >= 133.0 && i < 174.0; // 233, 255
   bool gbucket5 = i >= 174.0 && i < 236.0; // 255,255
-  bool gbucket6 = i >= 236.0 && i < 286.0; //255,193
-  bool gbucket7 = i >= 286.0 && i < 367.0; //193,129
-  bool gbucket8 = i >= 367.0 && i < 511.0; //129,64
+  bool gbucket6 = i >= 236.0 && i < 286.0; // 255,193
+  bool gbucket7 = i >= 286.0 && i < 367.0; // 193,129
+  bool gbucket8 = i >= 367.0 && i < 511.0; // 129,64
   bool gbucket9 = i >= 511.0; // 64,32
 
   // for B
   bool bbucket1 = i < 103.0;
   bool bbucket2 = i >= 103.0 && i < 133.0; // 0,211
   bool bbucket3 = i >= 133.0 && i < 173.0; // 211,247
-  bool bbucket4 = i >= 173.0 && i < 231.0;  //  247,255
+  bool bbucket4 = i >= 173.0 && i < 231.0; // 247,255
   bool bbucket5 = i>= 231.0;
 
   float r =
@@ -186,28 +186,28 @@ void main(void) {
     float(rbucket2) * (255.0) +
     float(rbucket3) * (255.0 + (i - 236.0) * -2.442) +
     float(rbucket4) * (128.0 + (i - 288.0) * -0.764) +
-    float(rbucket5) * (60.0 + (i - 377.0) * -0.4477)+
+    float(rbucket5) * (60.0 + (i - 377.0) * -0.4477) +
     float(rbucket6) * 0.0;
 
   float g =
     float(gbucket1) * (0.0) +
-    float(gbucket2) * (0.0 + (i - 60.0) *2.3255) +
-    float(gbucket3) * (100.0 + (i - 103.0) *4.433)+
-    float(gbucket4) * (233.0 + (i - 133.0) *0.53658)+
+    float(gbucket2) * (0.0 + (i - 60.0) * 2.3255) +
+    float(gbucket3) * (100.0 + (i - 103.0) * 4.433) +
+    float(gbucket4) * (233.0 + (i - 133.0) * 0.53658) +
     float(gbucket5) * (255.0) +
-    float(gbucket6) * (255.0 +(i - 236.0) *-1.24) +
-    float(gbucket7) * (193.0 + (i - 286.0) *-0.7901) +
-    float(gbucket8) * (129.0 + (i - 367.0) * -0.45138)+
+    float(gbucket6) * (255.0 +(i - 236.0) * -1.24) +
+    float(gbucket7) * (193.0 + (i - 286.0) * -0.7901) +
+    float(gbucket8) * (129.0 + (i - 367.0) * -0.45138) +
     float(gbucket9) * (64.0 + (i - 511.0) * -0.06237);
 
   float b =
     float(bbucket1) * 0.0+
     float(bbucket2) * (0.0 + (i - 103.0) * 7.0333) +
-    float(bbucket3) * (211.0 + (i - 133.0) * 0.9)+
-    float(bbucket4) * (247.0 + (i - 173.0)*0.1379)+
+    float(bbucket3) * (211.0 + (i - 133.0) * 0.9) +
+    float(bbucket4) * (247.0 + (i - 173.0) * 0.1379) +
     float(bbucket5) * 255.0;
 
- float mult = iDist * 20.2;
+  float mult = iDist;
   r += mult;
   g += mult;
   b += mult;

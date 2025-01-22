@@ -1,4 +1,4 @@
-import {LENGTH_SCALE, STARS_SCALE} from './shared.js'
+import {LENGTH_SCALE, METERS_PER_LIGHTYEAR} from './shared.js'
 import {assertEquals, assertNotNullOrUndefined} from './utils.js'
 
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
@@ -42,13 +42,15 @@ export default class StarsCatalog {
    * @see StarsCatalog#downsample for call with all the args.
    */
   constructor(
-      numStars = 0,
-      starByHip = /** @type {StarByHip}*/ new Map(),
-      hipByName = /** @type {HipByName}*/ new Map(),
-      namesByHip = /** @type {NamesByHip}*/ new Map(),
-      minMag = -8.25390625, maxMag = 15.4453125,
-      // 1E1 looks decent.  2E1 much more intriguing but a little fake.
-      starScale = STARS_SCALE, lengthScale = LENGTH_SCALE * 1e1) {
+    numStars = 0,
+    starByHip = /** @type {StarByHip}*/ new Map(),
+    hipByName = /** @type {HipByName}*/ new Map(),
+    namesByHip = /** @type {NamesByHip}*/ new Map(),
+    minMag = -8.25390625,
+    maxMag = 15.4453125,
+    // 1E1 looks decent.  2E1 much more intriguing but a little fake.
+    starScale = METERS_PER_LIGHTYEAR,
+    lengthScale = LENGTH_SCALE) {
     /** @type {StarByHip} */
     this.starByHip = starByHip
 
@@ -77,18 +79,18 @@ export default class StarsCatalog {
     }
     fetch('/data/stars.dat').then((starsData) => {
       starsData.arrayBuffer().then(
-          /**
-           * @param {ArrayBuffer} buffer
-           */
-          (buffer) => {
-            this.read(buffer)
-            fetch('/data/starnames.dat').then((namesData) => {
-              namesData.text().then((text) => {
-                this.readNames(text)
-                cb()
-              })
+        /**
+         * @param {ArrayBuffer} buffer
+         */
+        (buffer) => {
+          this.read(buffer)
+          fetch('/data/starnames.dat').then((namesData) => {
+            namesData.text().then((text) => {
+              this.readNames(text)
+              cb()
             })
           })
+        })
     })
   }
 
@@ -106,7 +108,7 @@ export default class StarsCatalog {
 
     this.numStars = data.getUint32(offset, littleEndian)
     offset += 4
-
+    let mX = 0, mY = 0, mZ = 0
     const sun = getSunProps()
     this.starByHip.set(0, sun)
     for (let i = 0; i < this.numStars; i++) {
@@ -136,23 +138,29 @@ export default class StarsCatalog {
       // http://cas.sdss.org/dr4/en/proj/advanced/hr/radius1.asp
       // Omitting the temperature factor for now as it changes radius by
       // only a factor of 3 up or down.
-      const absMagD = sun.absMag - absMag
-      const lumRelSun = Math.pow(2.512, absMagD)
-      const radius = sun.radius * Math.pow(lumRelSun, 0.5)
+      const absMagDelta = sun.absMag - absMag
+      const lumRelSun = Math.pow(2.512, absMagDelta)
+      const radiusRelSun = Math.pow(lumRelSun, 0.5)
+
+      // Compute star's luminous flux from absolute magnitude, from ChatG
+      //    ratio = 10^((M_sun - M_star)/2.5)
+      const magFactor = Math.pow(10.0, (sun.absMag - absMag) / 2.5)
+      const lumens = sun.lumens * magFactor
 
       /** @type {StarProps} */
       const star = {
-        x: x,
-        y: y,
-        z: z,
         hipId: hipId,
+        x: x * METERS_PER_LIGHTYEAR,
+        y: y * METERS_PER_LIGHTYEAR,
+        z: z * METERS_PER_LIGHTYEAR,
         absMag: absMag,
         kind: kind,
         spectralType: type,
         sub: sub,
         lumClass: lumClass,
-        lumRelSun: lumRelSun,
-        radius: radius,
+        radius: radiusRelSun * sun.radius,
+        // Used by stars.vert
+        lumens: lumens,
       }
       this.starByHip.set(hipId, star)
     }
@@ -298,8 +306,8 @@ export function getSunProps(radius = 695700000) {
     spectralType: 4,
     sub: 2,
     lumClass: 6,
-    lumRelSun: 1,
     radius: radius,
+    lumens: 3.0e28,
   }
 }
 
@@ -356,8 +364,6 @@ export const StarSpectra = [
   [255, 118, 0, 'L'], // 13,
   [255, 0, 0, 'T'], // 14,
   [10, 10, 10, 'Carbon']] // 15, ?
-
-StarsCatalog.StarSpectra = StarSpectra
 
 
 /**

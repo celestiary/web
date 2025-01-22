@@ -1,8 +1,8 @@
-import React, {Suspense, lazy, useEffect, useState} from 'react'
+import React, {ReactElement, Suspense, lazy, useEffect, useState} from 'react'
 import {Route, Router, Switch, useLocation} from 'wouter'
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function Routed() {
   const [app, setApp] = useState(null)
   const [guide, setGuide] = useState(null)
@@ -10,6 +10,7 @@ export default function Routed() {
 
   useEffect(() => {
     const referrer = document.referrer
+    console.log('Routed.jsx: referer', referrer)
     if (referrer) {
       const path = new URL(document.referrer).pathname
       if (path.length > 1) {

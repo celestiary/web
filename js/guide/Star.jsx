@@ -1,15 +1,15 @@
-import React, {useEffect, useState} from 'react'
+import React, {ReactElement, useEffect, useState} from 'react'
 import {useHashLocation} from 'wouter/use-hash-location'
 import {Shape} from 'three'
 import StarFromApp from '../Star.js'
-import StarsCatalog, {FAVES} from '../StarsCatalog.js'
+import StarsCatalog, {FAVES, StarSpectra} from '../StarsCatalog.js'
 import ThreeUi from '../ThreeUI.js'
 import Time from '../Time.js'
 import * as Shared from '../shared.js'
 import {ui as uiId} from './index.module.css'
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function Star() {
   const [ui, setUi] = useState(null)
   const [star, setStar] = useState(null)
@@ -32,10 +32,10 @@ export default function Star() {
 
   return (
     <>
-      <div id={uiId}></div>
       <h1>Star</h1>
-      See <a href='https://www.seedofandromeda.com/blogs/51-procedural-star-rendering'>Seed
-          of Andromeda</a> for a nice overall approach.
+      <div id={uiId}></div>
+      <p>See <a href='https://www.seedofandromeda.com/blogs/51-procedural-star-rendering'>Seed
+          of Andromeda</a> for a nice overall approach.</p>
 
       <p>Borrowed heavily from
       code <a href='https://bpodgursky.com/2017/02/01/procedural-star-rendering-with-three-js-and-webgl-shaders/'>here</a>.</p>
@@ -50,9 +50,9 @@ export default function Star() {
           {catalog && Array.from(FAVES.keys()).map((hipId) => {
             const name = FAVES.get(hipId)
             const catStar = catalog.starByHip.get(hipId)
-            const spectralType = StarsCatalog.StarSpectra[catStar.spectralType][3]
+            const spectralType = StarSpectra[catStar.spectralType][3]
             return (
-              <tr>
+              <tr key={`${hipId}`}>
                 <td><a href={`#${name}`}>{name}</a></td>
                 <td>{spectralType}</td>
                 <td>{hipId}</td>
@@ -68,7 +68,7 @@ export default function Star() {
 /** @returns {ThreeUi} */
 function setup(setCatalog) {
   const ui = new ThreeUi(uiId)
-  ui.camera.position.z = 3.5
+  ui.configLargeScene()
   const catalog = new StarsCatalog()
   catalog.load(() => setCatalog(catalog))
   return ui
@@ -84,6 +84,7 @@ function showStar(ui, path, curStar, setStar, catalog, time) {
     return
   }
   const star = addStarToScene(ui, catalog, parseInt(hipId), curStar, setStar)
+  ui.camera.position.z = star.initialCameraDistance
   ui.animationCb = () => {
     time.updateTime()
     try {
@@ -107,10 +108,7 @@ function addStarToScene(ui, catalog, hipId, curStar, setStar) {
   }
   const starProps = catalog.starByHip.get(hipId)
   starProps.x = starProps.y = starProps.z = 0
-  starProps.radius = {
-    // Sun's radius in meters.
-    scalar: 1 / Shared.LENGTH_SCALE,
-  }
+  starProps.radius = {scalar: starProps.radius}
   const star = new StarFromApp(starProps, {}, ui)
   ui.scene.add(star)
   setStar(star)

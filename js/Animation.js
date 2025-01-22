@@ -60,7 +60,7 @@ export default class Animation {
       let z
       if (vsopCoord === undefined) {
         const eccentricity = system.orbit.eccentricity
-        const aRadius = system.orbit.semiMajorAxis.scalar * Shared.LENGTH_SCALE
+        const aRadius = system.orbit.semiMajorAxis.scalar
         const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0))
         // -1.0 because orbits are counter-clockwise when viewed from above North of Earth.
         const angle = -1.0 * this.time.simTimeSecs() / system.orbit.siderealOrbitPeriod.scalar * Shared.twoPi
@@ -69,7 +69,7 @@ export default class Animation {
         z = bRadius * Math.sin(angle)
       } else {
         // TODO: double check scaling
-        const scale = 14959.789999 // Earth's semiMajorAxis * LENGTH_SCALE
+        const scale = Shared.ASTRO_UNIT_METER
         x = vsopCoord.x * scale
         y = vsopCoord.z * scale
         z = -vsopCoord.y * scale

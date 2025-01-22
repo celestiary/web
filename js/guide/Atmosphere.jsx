@@ -23,8 +23,8 @@ export default function Atmosphere() {
   })
   return (
     <>
-      <div id={uiId}></div>
       <h1>Atmosphere</h1>
+      <div id={uiId}></div>
       <p><em>Work in progress.</em></p>
 
       <p>Using <a target="_new" href="https://github.com/wwwtyro/glsl-atmosphere">Rye Terrell's

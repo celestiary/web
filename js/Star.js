@@ -1,15 +1,17 @@
 import {
+  AxesHelper,
+  Group,
   LOD,
   PointLight,
   ShaderMaterial,
   Mesh,
+  MeshBasicMaterial,
   Vector2,
   Vector3,
 } from 'three'
-
 import Object from './object.js'
 import * as Shaders from './star-shaders.js'
-import * as Shapes from './shapes.js'
+import {sphere} from './shapes.js'
 import * as Shared from './shared.js'
 
 
@@ -37,9 +39,9 @@ export default class Star extends Object {
   constructor(props, sceneObjects, ui, shadowProps = {}) {
     super(props.name, props)
     if (!this.props || !(this.props.radius)) {
-      console.error('props', this.props)
       throw new Error(`Props undefined: props(${props}), radius(${props.radius})`)
     }
+    this.initialCameraDistance = this.props.radius.scalar * 35
     this.ui = ui
     if (sceneObjects) {
       sceneObjects[this.name] = this
@@ -47,24 +49,37 @@ export default class Star extends Object {
     }
     this.orbitPosition = this
 
+    // As of r155 three switches to physically based lighting.  This is just kludged for now
+    // See https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
+    const sunLumensSurface = 3.7e28 // Sun lumens
+    // TODO: Haven't been able to get all planets to show up well while keeping
+    // correct distance and lumens.  Have tried tone mapping and custom
+    // rendering target, but nothing quite balances.  This is the best
+    // workaround so far.
+    const artFalloff = 1.01 // Default is 2, ie quadratic falloff
+    const sunlight = new PointLight(0xffffff, sunLumensSurface, 0, 1.01)
     // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
-    const sunlight = new PointLight(0xffffff, 1, 0, 0)
-    const sunLumensSurface = 2.626e29
-    // TODO(pablo): three switched to lumens https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
-    sunlight.power = sunLumensSurface * 5e-29
     sunlight.castShadow = true
     sunlight.shadow.mapSize.width = shadowProps.width || 512 // default: 512
     sunlight.shadow.mapSize.height = shadowProps.height || 512 // default: 512
     sunlight.shadow.camera.near = shadowProps.near || 0.5 // default: 0.5
     sunlight.shadow.camera.far = shadowProps.far || 500 // default: 500
     sunlight.shadow.bias = shadowProps.bias || -0.01
-    sunlight.decay = shadowProps.decay || 1 // default: 1
     this.add(sunlight)
 
     const lod = new LOD
-    lod.addLevel(this.createSurface(props), 1)
-    const farLod = props.radius.scalar * Shared.LENGTH_SCALE * 1e3
-    lod.addLevel(Shared.FAR_OBJ, farLod)
+
+    const guideGroup = new Group
+    const internalGuidesRadius = props.radius.scalar * 0.999
+    guideGroup.add(new AxesHelper(internalGuidesRadius))
+    guideGroup.add(sphere({radius: internalGuidesRadius, wireframe: true}))
+    lod.addLevel(guideGroup, 0)
+
+    const surface = this.createSurface(props)
+    lod.addLevel(surface, props.radius.scalar)
+
+    lod.addLevel(Shared.FAR_OBJ, props.radius.scalar * 1e3)
+    
     this.add(lod)
   }
 
@@ -89,31 +104,21 @@ export default class Star extends Object {
       [8152, 10060], // 14, T
       [8152, 10060]]// 15, Carbon star?
     const temp = tempRanges[props.spectralType]
-    /*
-      const surface = new Mesh(
-          new SphereGeometry(1, 16, 16 / 2),
-          new MeshBasicMaterial({
-            color: 0xff0000,
-            wireframe: true,
-          }))
-      surface.scale.setScalar(props.radius.scalar * Shared.LENGTH_SCALE)
-      return surface
-    }*/
     this.shaderMaterial = new ShaderMaterial({
       uniforms: {
         uColor: {value: new Vector3(1.0, 1.0, 1.0)},
         uLowTemp: {value: parseFloat(temp[0])},
         uHighTemp: {value: parseFloat(temp[1])},
         iTime: {value: 1.0},
-        iResolution: {value: new Vector2()},
+        iResolution: {value: new Vector2},
         iScale: {value: 100.0},
         iDist: {value: 1.0},
       },
       vertexShader: Shaders.VERTEX_SHADER,
       fragmentShader: Shaders.FRAGMENT_SHADER,
     })
-    const surface = Shapes.sphere({matr: this.shaderMaterial})
-    surface.scale.setScalar(props.radius.scalar * Shared.LENGTH_SCALE)
+    const surface = sphere({matr: this.shaderMaterial})
+    surface.scale.setScalar(props.radius.scalar)
     this.setupAnim()
     return surface
   }
@@ -125,9 +130,9 @@ export default class Star extends Object {
       // Sun looks bad changing too quickly.
       time = Math.log(1 + (time.simTimeElapsed * 8E-7))
       if (Shared.targets.pos) {
-        this.shaderMaterial.uniforms.iTime.value = time
+        this.shaderMaterial.uniforms.iTime.value = time * 4
         const d = Shared.targets.pos.distanceTo(this.ui.camera.position)
-        this.shaderMaterial.uniforms.iDist.value = d * 1E-2
+        this.shaderMaterial.uniforms.iDist.value = d * 8E-9
       }
     }
   }

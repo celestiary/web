@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react'
+import React, {ReactElement, useEffect} from 'react'
 import {
   AmbientLight,
   PointLight,
@@ -10,15 +10,16 @@ import {sphere} from '../shapes.js'
 import {ui as uiId} from './index.module.css'
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function Picking() {
   useEffect(() => setup(), [])
   return (
     <>
-      <div id={uiId}></div>
       <h1>Picking</h1>
-      Click on the sphere to change its colors.
-    </>)
+      <div id={uiId}></div>
+      <p>Click on the sphere to change its colors.</p>
+    </>
+  )
 }
 
 

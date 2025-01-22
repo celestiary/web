@@ -2,6 +2,7 @@ import React, {ReactElement, useEffect} from 'react'
 import ThreeUi from '../ThreeUI'
 import StarsFromApp from '../Stars'
 import {getSunProps} from '../StarsCatalog'
+import {METERS_PER_LIGHTYEAR, ASTRO_UNIT_METER} from '../shared'
 import {ui as uiId} from './index.module.css'
 
 
@@ -10,9 +11,9 @@ export default function Stars() {
   useEffect(() => setup(), [])
   return (
     <>
-      <div id={uiId}></div>
       <h1>Stars</h1>
-      <>The star catalog uses Celestia&apos;s star.dat database</>
+      <div id={uiId}></div>
+      <p>The star catalog uses Celestia&apos;s star.dat database</p>
     </>
   )
 }
@@ -21,12 +22,13 @@ export default function Stars() {
 /** */
 function setup() {
   const ui = new ThreeUi(uiId)
-  ui.camera.position.z = 1e1
-  ui.useStore = {setState: () => {}}
+  ui.configLargeScene()
+  ui.camera.position.z = ASTRO_UNIT_METER
+  ui.useStore = {setState: () => {}, subscribe: () => {}}
 
   const props = {
     radius: {
-      scalar: getSunProps(0.1).radiusMeters,
+      scalar: getSunProps().radius,
     },
   }
   const stars = new StarsFromApp(props, ui, true)

@@ -1,11 +1,11 @@
-import React, {useEffect} from 'react'
+import React, {ReactElement, useEffect} from 'react'
 import {useHashLocation} from 'wouter/use-hash-location'
 import CelestiaLoader from '../Loader.js'
 import * as Collapsor from '../collapsor.js'
 import {elt} from '../utils.js'
 
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function Loader() {
   const [location] = useHashLocation()
 
@@ -25,7 +25,7 @@ export default function Loader() {
 
       <p>Here is the loaded Moon object, displayed with the collapsor.js utility:</p>
 
-      <div id="done-id"></div>
+      <div id='done-id'></div>
     </>)
 }
 
