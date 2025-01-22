@@ -1,6 +1,7 @@
 import {
   AdditiveBlending,
   ArrowHelper,
+  BackSide,
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
@@ -77,7 +78,8 @@ export function sphere(opts) {
         depthTest: true,
         depthWrite: false,
         toneMapped: false,
-        transparent: true,
+        transparent: false,
+        side: BackSide,
       }) :
       new MeshPhongMaterial({
         flatShading: true,

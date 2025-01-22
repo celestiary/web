@@ -1,4 +1,4 @@
-import {LENGTH_SCALE, METERS_PER_LIGHTYEAR} from './shared.js'
+import {LENGTH_SCALE, LIGHTYEAR_METER} from './shared.js'
 import {assertEquals, assertNotNullOrUndefined} from './utils.js'
 
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
@@ -49,7 +49,7 @@ export default class StarsCatalog {
     minMag = -8.25390625,
     maxMag = 15.4453125,
     // 1E1 looks decent.  2E1 much more intriguing but a little fake.
-    starScale = METERS_PER_LIGHTYEAR,
+    starScale = LIGHTYEAR_METER,
     lengthScale = LENGTH_SCALE) {
     /** @type {StarByHip} */
     this.starByHip = starByHip
@@ -150,9 +150,9 @@ export default class StarsCatalog {
       /** @type {StarProps} */
       const star = {
         hipId: hipId,
-        x: x * METERS_PER_LIGHTYEAR,
-        y: y * METERS_PER_LIGHTYEAR,
-        z: z * METERS_PER_LIGHTYEAR,
+        x: x * LIGHTYEAR_METER,
+        y: y * LIGHTYEAR_METER,
+        z: z * LIGHTYEAR_METER,
         absMag: absMag,
         kind: kind,
         spectralType: type,

@@ -1,6 +1,5 @@
 import {BufferAttribute, BufferGeometry} from 'three'
 import {StarSpectra} from './StarsCatalog.js'
-import {METERS_PER_LIGHTYEAR} from './shared.js'
 
 
 /** Pack the data from a StarsCatalog into a BufferGeometry. */

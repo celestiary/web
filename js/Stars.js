@@ -15,7 +15,7 @@ import StarsBufferGeometry from './StarsBufferGeometry.js'
 import StarsCatalog, {FAVES} from './StarsCatalog.js'
 import {assertDefined} from './assert.js'
 import * as Material from './material.js'
-import {FAR_OBJ, STAR_VOLUME_METERS} from './shared.js'
+import {FAR_OBJ, STARS_RADIUS_METER, SUN_RADIUS_METER} from './shared.js'
 import {named} from './utils.js'
 
 
@@ -42,7 +42,7 @@ export default class Stars extends Object {
     this.labelLOD = named(new LOD, 'LabelsLOD')
     this.labelLOD.visible = showLabels
     this.labelLOD.addLevel(this.labelsGroup, 1)
-    this.labelLOD.addLevel(FAR_OBJ, STAR_VOLUME_METERS)
+    this.labelLOD.addLevel(FAR_OBJ, STARS_RADIUS_METER)
     this.add(this.labelLOD)
     this.geom = null
 
@@ -75,7 +75,6 @@ export default class Stars extends Object {
   show() {
     this.geom = new StarsBufferGeometry(this.catalog)
     const starImage = Material.pathTexture('star_glow', '.png')
-    const sunSizeMeters = 6.957e8
     const starsMaterial = new ShaderMaterial({
       uniforms: {
         texSampler: {value: starImage},
@@ -87,7 +86,7 @@ export default class Stars extends Object {
         // surface just meet the glow in the png image.
         // STAR_MAGNIFY_2: {value: 2e4}, // 2e4, 2e9
         // CAMERA_EXPOSURE: {value: 3e16 * 3.7e-38},
-        STAR_MAGNIFY_2: {value: 1/sunSizeMeters * 1e1},
+        STAR_MAGNIFY_2: {value: 1/SUN_RADIUS_METER * 1e1},
         CAMERA_EXPOSURE: {value: 1},
         MIN_BRIGHT: {value: 1},
         MAX_BRIGHT: {value: 2e16}, // half-float max
