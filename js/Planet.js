@@ -103,7 +103,6 @@ export default class Planet extends Object {
    */
   newOrbit(scene, orbit) {
     const group = named(new Group(), 'orbit')
-    group.visible = true
     const ellipseCurve = new EllipseCurve(
         0, 0,
         1, ellipseSemiMinorAxisCurve(assertInRange(orbit.eccentricity, 0, 1)),
@@ -192,7 +191,8 @@ export default class Planet extends Object {
 
     const labelLOD = new LOD()
     const name = capitalize(this.name)
-    const labelSheet = new SpriteSheet(1, name)
+    // TODO: single sheet for all planets/moons
+    const labelSheet = named(new SpriteSheet(1, name), 'label')
     labelSheet.add(0, 0, 0, name, labelTextColor)
     labelLOD.addLevel(FAR_OBJ, labelTooNearDist)
     labelLOD.addLevel(labelSheet.compile(), labelTooNearDist)
@@ -269,9 +269,9 @@ export default class Planet extends Object {
     }
     const group = new Group
     group.add(surface)
-    const internalGuidesRadius = this.props.radius.scalar * 0.7
+    const internalGuidesRadius = this.props.radius.scalar * 0.9
     group.add(new AxesHelper(internalGuidesRadius))
-    group.add(sphere({radius: internalGuidesRadius, wireframe: true, color: 0x808080}))
+    // group.add(sphere({radius: internalGuidesRadius, wireframe: true, color: 0x808080}))
     return named(group, 'planet surface and guides')
   }
 

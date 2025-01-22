@@ -105,13 +105,13 @@ export function visit(elt, cb1, cb2, cb3, level = 1) {
  */
 export function visitFilterProperty(elt, propName, propValue, cb) {
   visit(
-      elt,
-      /** @param {Object<string, any>} child */
-      (child) => {
-        if (child[propName] === propValue) {
-          cb(child)
-        }
-      })
+    elt,
+    /** @param {Object<string, any>} child */
+    (child) => {
+      if (child[propName] === propValue) {
+        cb(child)
+      }
+    })
 }
 
 

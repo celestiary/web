@@ -176,7 +176,7 @@ function setup() {
       const orbit = curPlanet.orbit.props
       // console.log('has orbit!', orbit);
       // TODO: orig code read this as semiMajorAxis.scalar
-      const aRadius = 1// orbit.semiMajorAxis * LENGTH_SCALE;
+      const aRadius = 1
       const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(orbit.eccentricity, 2.0))
       const angle = 1.0 * simTimeSecs / orbit.siderealOrbitPeriod.scalar * Shared.twoPi
       const x = aRadius * Math.cos(angle)

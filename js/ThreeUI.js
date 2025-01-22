@@ -25,7 +25,7 @@ import {Pass} from 'three/addons/postprocessing/Pass.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
-import {INITIAL_FOV, METERS_PER_LIGHTYEAR} from './shared.js'
+import {INITIAL_FOV, SMALLEST_SIZE_METER, STARS_RADIUS_METER, SUN_RADIUS_METER} from './shared.js'
 import {named} from './utils.js'
 
 
@@ -94,9 +94,13 @@ export default class ThreeUi {
 
   /** Sets camera near and far to deimos and local star cluster. */
   configLargeScene() {
-    this.camera.near = 6e5 // Little less than radius of deimos
-    this.camera.far = METERS_PER_LIGHTYEAR * 2e4 // Celestia catalog max
+    this.camera.near = SMALLEST_SIZE_METER
+    this.camera.far = STARS_RADIUS_METER * 2
     this.camera.updateProjectionMatrix()
+
+    // This is a bit of a hack.  Starting the camera away from center so there's
+    // less obvious jumping around, e.g. seeing inside of sun.
+    this.camera.position.z = SUN_RADIUS_METER * 1e3
   }
 
 

@@ -90,7 +90,7 @@ export default class Celestiary {
           this.scene.toggleStarLabels()
           this.firstTime = false
         }
-      }, 1000)
+      }, this.firstTime ? 1000 : 0)
     }
 
     let path

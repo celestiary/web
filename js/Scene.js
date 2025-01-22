@@ -12,8 +12,6 @@ import * as Shared from './shared.js'
 import * as Utils from './utils.js'
 
 
-const
-  lengthScale = Shared.LENGTH_SCALE
 const INITIAL_STEP_BACK_MULT = 10
 
 
@@ -190,7 +188,7 @@ export default class Scene {
     tPos.setFromMatrixPosition(obj.matrixWorld)
     const pPos = new Vector3
     const cPos = new Vector3
-    const surfaceAltitude = obj.props.radius.scalar // * lengthScale
+    const surfaceAltitude = obj.props.radius.scalar
     pPos.set(0, 0, 0) // TODO(pablo): maybe put platform at surfaceAltitude
     const camDist = obj.initialCameraDistance || (surfaceAltitude * INITIAL_STEP_BACK_MULT)
     const elevationAngleRad = 15 / 360 * Math.PI * 2
@@ -366,7 +364,7 @@ export default class Scene {
 
   /** */
   togglePlanetLabels() {
-    Utils.visitToggleProperty(this.objects['sun'], 'name', 'label', 'visible')
+    Utils.visitToggleProperty(this.objects['sun'], 'name', 'label LOD', 'visible')
   }
 
 

@@ -6,44 +6,31 @@ import {
 import {named} from './utils.js'
 
 
-// This size is chosen to allow for the maximum object and distance
-// size range in the scene.  The smallest object in the scene is
-// Mars's moon Deimos, which is 6.2E3 m.  The smallest size I found
-// that three/webgl supports is 1E-4.  So rounding Deimos down to 1E3,
-// and then dividing it down to the smallest size.
-
-// Deimos size in meters.
-const SMALLEST_REAL_SIZE = 1E3
-// Smallest renderable size.
-// const SMALLEST_RENDER_SIZE = 1E-4
-const SMALLEST_RENDER_SIZE = 1E-4
-
-
-export const
-  FAR_OBJ = named(new Object3D, 'LODFarObj') // for invisible LOD.
+// Geom
 export const twoPi = Math.PI * 2.0
 export const halfPi = Math.PI / 2.0
 export const toDeg = 180.0 / Math.PI
 export const toRad = Math.PI / 180.0
 
-export const ASTRO_UNIT_METER = 149.60e9
-// When I hardcode LENGTH_SCALE to 1E-5, LOD starts to flake out
-// when zoomed to small sizes, supporting the 1E-4 minimum.
-// SMALLEST_RENDER_SIZE / SMALLEST_REAL_SIZE = 1E-7, but can't use
-// the calculation since it actually yields 1.0000000000000001e-7.
-// export const LENGTH_SCALE = 1E-11
-// export const LENGTH_SCALE = SMALLEST_RENDER_SIZE / SMALLEST_REAL_SIZE
-export const LENGTH_SCALE = 1e-5 // one scene unit per million meters
-
+// Phys
 // Celestia star data file measures star distances in lightyears
-export const METERS_PER_LIGHTYEAR = 9.461e15
-export const STAR_VOLUME_METERS = METERS_PER_LIGHTYEAR * 2e4 // largest coords for stars
-// export const STARS_SCALE = METERS_PER_LIGHTYEAR * LENGTH_SCALE
-export const STARS_SCALE = METERS_PER_LIGHTYEAR
-// export const STARS_SCALE = 9.461E12 * 1E3 * LENGTH_SCALE
+export const LIGHTYEAR_METER = 9.461e15
 
+// Astro
+// https://en.wikipedia.org/wiki/Astronomical_unit
+export const ASTRO_UNIT_METER = 149.597870700e9
+
+// Camera
 export const INITIAL_FOV = 45
+// largest coords for stars in Celestia dataset
+export const STARS_RADIUS_METER = LIGHTYEAR_METER * 1e4
+// This size is chosen to allow for the maximum object and distance size range
+// in the scene.  The smallest object in the scene is Mars's moon Deimos, which
+// is 6.2e3m, but going a bit smaller to allow zoom in on it as well.
+export const SMALLEST_SIZE_METER = 6e5
+export const SUN_RADIUS_METER = 6.957e8
 
+// three.js Objects
 export const targets = {
   origin: new Vector3,
   cur: null,
@@ -52,7 +39,13 @@ export const targets = {
   track: null,
   follow: null,
 }
+// for invisible LOD.
+export const FAR_OBJ = named(new Object3D, 'LODFarObj')
 
 // Colors
 export const labelTextColor = '#7fa0e0'
 export const labelTextFont = 'medium arial'
+
+// Deprecated: moving to real sizes
+export const LENGTH_SCALE = 1e-5 // one scene unit per million meters
+export const STARS_SCALE = LIGHTYEAR_METER
