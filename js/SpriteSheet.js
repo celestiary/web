@@ -49,7 +49,6 @@ export default class SpriteSheet {
     this.positions = []
     this.sizes = []
     this.spriteCoords = []
-
     this.positionAttribute = null
     this.sprites = null
     // document.canvas = this.canvas;
@@ -170,7 +169,7 @@ export default class SpriteSheet {
     const texture = new CanvasTexture(this.canvas)
     texture.minFilter = NearestFilter
     texture.magFilter = NearestFilter
-    const material = new ShaderMaterial( {
+    const material = new ShaderMaterial({
       uniforms: {
         map: {value: texture},
         padding: {value: new Vector2(this.padding[0], this.padding[1])},
@@ -181,6 +180,7 @@ export default class SpriteSheet {
       depthTest: true,
       depthWrite: false,
       transparent: true,
+      toneMapped: false,
     })
     return material
   }

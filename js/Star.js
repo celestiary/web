@@ -52,7 +52,12 @@ export default class Star extends Object {
     // As of r155 three switches to physically based lighting.  This is just kludged for now
     // See https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
     const sunLumensSurface = 3.7e28 // Sun lumens
-    const sunlight = new PointLight(0xffffff, sunLumensSurface, 0)
+    // TODO: Haven't been able to get all planets to show up well while keeping
+    // correct distance and lumens.  Have tried tone mapping and custom
+    // rendering target, but nothing quite balances.  This is the best
+    // workaround so far.
+    const artFalloff = 1.01 // Default is 2, ie quadratic falloff
+    const sunlight = new PointLight(0xffffff, sunLumensSurface, 0, 1.01)
     // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
     sunlight.castShadow = true
     sunlight.shadow.mapSize.width = shadowProps.width || 512 // default: 512

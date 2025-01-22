@@ -1,6 +1,7 @@
-uniform float CAMERA_FOV_DEGREES; // Allows camera zoom into stars
+uniform float CAMERA_FOV_DEGREES; // Allows zoom into stars
 uniform float CAMERA_EXPOSURE;
 uniform float MIN_BRIGHT;
+uniform float MAX_BRIGHT;
 uniform float MIN_STAR_SIZE_PX;
 uniform float MAX_STAR_SIZE_PX;
 uniform float STAR_MAGNIFY;
@@ -32,8 +33,9 @@ void main() {
   float illuminance = lumens / (twoTau * distSq);
 
   //// Physical size
-  // This is useful for zooming in on a star during a flyby, and maybe
-  // neat to see relative sizes eg in a multi-star system.
+  // This is useful for zooming in on a star during a flyby,
+  // and maybe neat to see relative sizes eg in a multi-star
+  // system.
   // ------------------------------------------------
   // 1) Compute angular diameter of the star (radians)
   //    Approximation if dist >> radius:
@@ -53,20 +55,31 @@ void main() {
   float pixelsPerRad = screenHeight / cameraFovRad;
   float physicalSizeInPixels  = angularDiameter * pixelsPerRad;
 
-  // Final point size: blend of mostly brightness and some physical size
+  // Final point size: blend of mostly brightness and some
+  // physical size
   float sizeInPixels = physicalSizeInPixels * STAR_MAGNIFY;
+  // gl_PointSize = clamp(
+  //   sizeInPixels, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
 
-  vBrightness  = clamp(illuminance * CAMERA_EXPOSURE, MIN_BRIGHT, 1.);
-
-  // TODO: this is more correct
-  // gl_PointSize = clamp(sizeInPixels, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
+  vBrightness = clamp(
+    illuminance * CAMERA_EXPOSURE,
+    MIN_BRIGHT,
+    MAX_BRIGHT
+  );
 
   // But this looks better
-  float cDist = clamp(-mvPosition.z, 0., 9.461e15*2e4);
+  float maxDist = 9.461e15*2e4;
+  float cDist = clamp(dist, 0., maxDist);
+
+  float lDist = log(-mvPosition.z);
+  float lMaxDist = log(maxDist);
+  float cLDist = clamp(lDist, 0., lMaxDist);
+
   float art = STAR_MAGNIFY_2;
-  float scaledSize = art * radius / cDist;
+  float scaledSize = art * radius / cLDist;
   // Larger than 250 doesn't seem to make a difference.
-  float cSize = clamp(scaledSize, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
+  float cSize = clamp(
+    scaledSize, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
   gl_PointSize = cSize;
   
   gl_Position  = projectionMatrix * mvPosition;

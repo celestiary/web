@@ -18,7 +18,9 @@ export default function Planet() {
 
   useEffect(() => {
     if (ui) {
+      console.log('hashLocation:', hashLocation)
       const planetName = (hashLocation === '/' ? '#earth' : hashLocation).substring(1)
+      console.log('planetName:', planetName, hashLocation)
       showPlanet(ui, planetName, planet, setPlanet)
     }
   }, [hashLocation, ui])

@@ -72,12 +72,12 @@ export function sphere(opts) {
   if (opts.matr === undefined) {
     opts.matr = opts.wireframe ?
       new MeshBasicMaterial({
-        color: 0x808080,
+        color: opts.color || 0x808080,
         wireframe: true,
-        transparent: false,
         depthTest: true,
         depthWrite: false,
         toneMapped: false,
+        transparent: true,
       }) :
       new MeshPhongMaterial({
         flatShading: true,

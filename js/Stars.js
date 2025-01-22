@@ -75,19 +75,23 @@ export default class Stars extends Object {
   show() {
     this.geom = new StarsBufferGeometry(this.catalog)
     const starImage = Material.pathTexture('star_glow', '.png')
+    const sunSizeMeters = 6.957e8
     const starsMaterial = new ShaderMaterial({
       uniforms: {
         texSampler: {value: starImage},
         CAMERA_FOV_DEGREES: {value: this.ui.camera.fov},
-        // TODO: Pulled this up for convenience of twiddling.  Something very
-        // wrong here.
-        CAMERA_EXPOSURE: {value: 1e9},
-        // This is tuned for Star zoom e.g. on Sun to have surface just meet the
-        // glow in the png image.
-        STAR_MAGNIFY: {value: 5},
-        STAR_MAGNIFY_2: {value: 2e9},
-        MIN_BRIGHT: {value: 0.3},
-        MIN_STAR_SIZE_PX: {value: 4},
+        // Tuned for 0xFF max on a close-up star.
+        // CAMERA_EXPOSURE: {value: 3e16 * 3.7e-38},
+        STAR_MAGNIFY: {value: 8}, // to fit Star/sun
+        // This is tuned for Star zoom e.g. on Sun to have
+        // surface just meet the glow in the png image.
+        // STAR_MAGNIFY_2: {value: 2e4}, // 2e4, 2e9
+        // CAMERA_EXPOSURE: {value: 3e16 * 3.7e-38},
+        STAR_MAGNIFY_2: {value: 1/sunSizeMeters * 1e1},
+        CAMERA_EXPOSURE: {value: 1},
+        MIN_BRIGHT: {value: 1},
+        MAX_BRIGHT: {value: 2e16}, // half-float max
+        MIN_STAR_SIZE_PX: {value: 3},
         MAX_STAR_SIZE_PX: {value: 512},
       },
       vertexShader: '/shaders/stars.vert',

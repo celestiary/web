@@ -1,5 +1,6 @@
 import React, {ReactElement, useEffect, useRef, useState} from 'react'
 import {Route, useLocation} from 'wouter'
+import {useHashLocation} from 'wouter/use-hash-location'
 import Box from '@mui/material/Box'
 import ScopedCssBaseline from '@mui/material/ScopedCssBaseline'
 import Stack from '@mui/material/Stack'
@@ -27,9 +28,11 @@ export default function App() {
   const navRef = useRef(null)
 
   const [location, navigate] = useLocation()
+  const [hashLocation] = useHashLocation()
 
   useEffect(() => setTitleFromLocation(location), [location])
   useEffect(() => {
+    console.log('Celestiary, hashLocation:', hashLocation)
     const c = new Celestiary(useStore, sceneRef.current, navRef.current, setTimeStr, setIsPaused)
     setCelestiary(c)
     c.keys.map('?', () => navigate('/settings'), 'Show keyboard shortcuts')

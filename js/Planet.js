@@ -13,6 +13,7 @@ import {
   MeshLambertMaterial,
   MeshPhongMaterial,
   Object3D,
+  ShaderMaterial,
   TextureLoader,
 } from 'three'
 import {
@@ -214,20 +215,47 @@ export default class Planet extends Object {
    */
   nearShape() {
     const surfaceMaterial = Material.cacheMaterial(this.name)
-    surfaceMaterial.shininess = 30
+    surfaceMaterial.metalness = 0.2
+    surfaceMaterial.roughness = 0.8
     if (this.props.texture_terrain) {
-      surfaceMaterial.bumpMap = Material.pathTexture(`${this.name}_terrain`)
-      surfaceMaterial.bumpScale = 0.25
+      const terrainTex = Material.pathTexture(`${this.name}_terrain`)
+      surfaceMaterial.bumpMap = terrainTex
+      surfaceMaterial.bumpScale = 0.10
+      surfaceMaterial.roughnessMap = terrainTex
+      surfaceMaterial.roughness = 1.0
     }
     if (this.props.texture_hydrosphere) {
       const hydroTex = Material.pathTexture(`${this.name}_hydro`)
-      surfaceMaterial.specularMap = hydroTex
-      surfaceMaterial.shininess = 50
+      surfaceMaterial.metalnessMap = hydroTex
+      surfaceMaterial.reflectivity = 0.2
+      surfaceMaterial.roughnessMap = hydroTex
+      // https://franky-arkon-digital.medium.com/make-your-own-earth-in-three-js-8b875e281b1e
+      // 5. Insert our custom roughness calculation
+      // if the ocean map is white for the ocean, then we have to reverse the b&w values for roughness
+      // We want the land to have 1.0 roughness, and the ocean to have a minimum of 0.5 roughness
+      surfaceMaterial.onBeforeCompile = function( shader ) {
+        shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `
+        float roughnessFactor = roughness;
+
+        #ifdef USE_ROUGHNESSMAP
+
+          vec4 texelRoughness = texture2D( roughnessMap, vRoughnessMapUv );
+          // reversing the black and white values because we provide the ocean map
+          texelRoughness = vec4(1.0) - texelRoughness;
+
+          // reads channel G, compatible with a combined OcclusionRoughnessMetallic (RGB) texture
+          roughnessFactor *= clamp(texelRoughness.g, 0.5, 1.0);
+
+        #endif
+      `);
+      }
     }
     const surface = named(sphere({radius: this.props.radius.scalar, matr: surfaceMaterial}), 'planet surface')
+    // const surface = named(sphere({radius: this.props.radius.scalar, wireframe: true, color: 0x00ff00}), 'planet surface')
     surface.renderOrder = 1
+    surface.add(this.newAtmosphere())
     if (this.props.texture_atmosphere) {
-      surface.add(this.newAtmosphere())
+      surface.add(this.newClouds())
     }
     if (this.props.name === 'saturn') {
       // surface.add(rings('saturn', false))
@@ -241,15 +269,80 @@ export default class Planet extends Object {
     }
     const group = new Group
     group.add(surface)
-    const internalGuidesRadius = this.props.radius.scalar * 0.99
+    const internalGuidesRadius = this.props.radius.scalar * 0.7
     group.add(new AxesHelper(internalGuidesRadius))
-    group.add(sphere({radius: internalGuidesRadius, wireframe: true}))
+    group.add(sphere({radius: internalGuidesRadius, wireframe: true, color: 0x808080}))
     return named(group, 'planet surface and guides')
   }
 
 
   /** @returns {Object3D} */
   newAtmosphere() {
+    // https://franky-arkon-digital.medium.com/make-your-own-earth-in-three-js-8b875e281b1e
+    const shape = sphere({
+      radius: this.props.radius.scalar * 1.02,
+      // wireframe: true,
+      // color: 0x0000ff,
+      matr: new ShaderMaterial({
+        vertexShader: `varying vec3 vNormal;
+varying vec3 eyeVector;
+
+void main() {
+    // modelMatrix transforms the coordinates local to the model into world space
+    vec4 mvPos = modelViewMatrix * vec4( position, 1.0 );
+
+    // normalMatrix is a matrix that is used to transform normals from object space to view space.
+    vNormal = normalize( normalMatrix * normal );
+
+    // vector pointing from camera to vertex in view space
+    eyeVector = normalize(mvPos.xyz);
+
+    gl_Position = projectionMatrix * mvPos;
+}`,
+        fragmentShader: `// reference from https://youtu.be/vM8M4QloVL0?si=CKD5ELVrRm3GjDnN
+varying vec3 vNormal;
+varying vec3 eyeVector;
+uniform float atmOpacity;
+uniform float atmPowFactor;
+uniform float atmMultiplier;
+
+void main() {
+    // Starting from the rim to the center at the back, dotP would increase from 0 to 1
+    float dotP = dot( vNormal, eyeVector );
+    // This factor is to create the effect of a realistic thickening of the atmosphere coloring
+    float factor = pow(dotP, atmPowFactor) * atmMultiplier;
+    // Adding in a bit of dotP to the color to make it whiter while the color intensifies
+    float intensity = dotP;
+    vec3 atmColor = vec3(intensity, intensity, intensity);
+    // use atmOpacity to control the overall intensity of the atmospheric color
+    gl_FragColor = vec4(atmColor, atmOpacity) * factor;
+}`,
+        uniforms: {
+          atmOpacity: {value: 0.2},
+          atmPowFactor: {value: 1.1},
+          atmMultiplier: {value: 9.5},
+        },
+        // Such that it does not overlays on top of the earth; this points the
+        // normal in opposite direction in vertex shader
+        side: BackSide,
+        // Notice that by default, Three.js uses NormalBlending, where if your
+        // opacity of the output color gets lower, the displayed color might get
+        // whiter.
+        // This works better than setting transparent: true, because it avoids a
+        // weird dark edge around the earth
+        blending: AdditiveBlending,
+        depthTest: true,
+        // transparent: true,
+        // toneMapped: false,
+      }),
+    })
+    shape.name = `${this.name}.atmosphere`
+    return shape
+  }
+
+
+  /** @returns {Object3D} */
+  newClouds() {
     // TODO: https://threejs.org/examples/webgl_shaders_sky.html
     const atmosTex = Material.pathTexture(this.name, '_atmos.jpg')
     const atmosphereScaleHeight = 8.5e3 // earth
@@ -265,7 +358,8 @@ export default class Planet extends Object {
         depthTest: false,
       }),
     })
-    shape.name = `${this.name}.atmosphere`
+    shape.name = `${this.name}.clouds`
     return shape
   }
 }
+

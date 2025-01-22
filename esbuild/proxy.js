@@ -21,6 +21,7 @@ export function createProxyServer(host, port) {
     const proxyReq = http.request(options, (proxyResponse) => {
       // If esbuild cannot find the resource to serve, send our react-router bounce.
       if (proxyResponse.statusCode === HTTP_NOT_FOUND) {
+        console.log('Serving 404 bounce page')
         serveNotFound(res)
         return
       }
@@ -53,14 +54,14 @@ const serveNotFound = ((res) => {
       // MIT License
       // https://github.com/rafgraph/spa-github-pages
       // This page needs to be > 512 bytes to work for IE.  Currently 968.
-      var pathSegmentsToKeep = window.location.pathname.startsWith('/Share') ? 1 : 0
+      var pathSegmentsToKeep = window.location.pathname.startsWith('/web') ? 1 : 0
 
       var l = window.location
       var u1 = l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '')
       var u2 = l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/'
       var u3 = l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~')
       var u4 = (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '')
-      //console.log('Redirect URL parts: ', u1, u2, u3, u4)
+      console.log('Redirect URL parts: ', u1, u2, u3, u4, l.hash)
       l.replace(u1 + u2 + u3 + u4 + l.hash)
     </script>
   </head>
