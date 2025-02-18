@@ -23,10 +23,10 @@ if (process.env.ESBUILD_WATCH === 'true') {
  * See https://esbuild.github.io/api/#customizing-server-behavior
  */
 const SERVE_PORT = 8080
-const {host, port} = await ctx.serve({
+const {hosts, port} = await ctx.serve({
   port: SERVE_PORT - 1,
   servedir: config.outdir,
 })
-createProxyServer(host, port).listen(SERVE_PORT)
+createProxyServer(hosts[0], port).listen(SERVE_PORT)
 
 console.log(`serving on http://localhost:${SERVE_PORT} and watching...`)
