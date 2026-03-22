@@ -1,5 +1,6 @@
 import {
   Object3D,
+  Quaternion,
   Raycaster,
   Vector2,
   Vector3,
@@ -8,6 +9,7 @@ import Asterisms from './Asterisms.js'
 import Planet from './Planet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
+import {newCameraGoToTween, newCameraLookTween} from './camera.js'
 import * as Shared from './shared.js'
 import * as Utils from './utils.js'
 
@@ -34,6 +36,7 @@ export default class Scene {
     // Loaded later
     this.stars = null
     this.asterisms = null
+    this.orbitsVisible = true
   }
 
 
@@ -118,7 +121,7 @@ export default class Scene {
   /** @param {string} name */
   targetNamed(name) {
     this.setTarget(name)
-    this.lookAtTarget()
+    // this.lookAtTarget()
   }
 
 
@@ -159,6 +162,8 @@ export default class Scene {
       throw new Error(`scene#setTarget: no matching target: ${name}`)
     }
     Shared.targets.obj = obj
+    // Animated in ThreeUI.renderLoop
+    Shared.targets.tween = newCameraLookTween(this.ui.camera, obj.matrixWorld)
   }
 
 
@@ -194,12 +199,26 @@ export default class Scene {
     const elevationAngleRad = 15 / 360 * Math.PI * 2
     const y = Math.atan(elevationAngleRad) * camDist
     cPos.set(0, y, camDist)
+    // Capture world transform before reparenting so there is no visual jump
+    const startWorldPos = new Vector3()
+    const startWorldQuat = new Quaternion()
+    this.ui.camera.getWorldPosition(startWorldPos)
+    this.ui.camera.getWorldQuaternion(startWorldQuat)
+
+    // Reparent camera platform to the new target's orbit position
     obj.orbitPosition.add(this.ui.camera.platform)
     this.ui.camera.platform.position.copy(pPos)
     this.ui.camera.platform.lookAt(Shared.targets.origin)
-    this.ui.camera.position.copy(cPos)
-    this.ui.camera.lookAt(tPos)
-    Shared.targets.track = Shared.targets.cur = Shared.targets.obj
+    this.ui.scene.updateMatrixWorld()
+
+    // Re-express the departure transform in the new platform-local space
+    this.ui.camera.position.copy(this.ui.camera.platform.worldToLocal(startWorldPos))
+    const platformWorldQuat = new Quaternion()
+    this.ui.camera.platform.getWorldQuaternion(platformWorldQuat)
+    this.ui.camera.quaternion.copy(platformWorldQuat.invert().multiply(startWorldQuat))
+
+    Shared.targets.tween = newCameraGoToTween(this.ui.camera, tPos, cPos)
+    Shared.targets.cur = Shared.targets.obj
     this.ui.controls.update()
   }
 
@@ -231,6 +250,7 @@ export default class Scene {
         Shared.targets.follow = followed
 
         followed.postAnimCb = (obj) => {
+          console.log('following...')
           this.ui.camera.platform.lookAt(Shared.targets.origin)
         }
 
@@ -344,7 +364,7 @@ export default class Scene {
 
   /** */
   toggleAsterisms() {
-    if (this.asterisms === null) {
+    if (this.asterisms === null && this.stars !== null) {
       const asterisms = new Asterisms(this.ui, this.stars, () => {
         this.stars.add(asterisms)
         this.asterisms = asterisms
@@ -358,7 +378,7 @@ export default class Scene {
 
   /** */
   toggleOrbits() {
-    Utils.visitToggleProperty(this.objects['sun'], 'name', 'orbit', 'visible')
+    Utils.visitSetProperty(this.objects['sun'], 'name', 'orbit', 'visible', this.orbitsVisible = !this.orbitsVisible)
   }
 
 
