@@ -51,7 +51,7 @@ function setup({setKeys}) {
   if (true) {
     const maxLabel = `${galaxy.numStars}`
     const labelSheet = new SpriteSheet(galaxy.numStars, maxLabel, '13px arial', [0, 0.1])
-    for (let i = 0; i < labelSheet.maxLabels; i++) {
+    for (let i = 0; i < labelSheet.numLabels; i++) {
       labelSheet.add(0, 0, 0, `${i}`)
     }
     labels = labelSheet.compile(galaxy.geometry.getAttribute('position'))
