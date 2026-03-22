@@ -39,17 +39,6 @@ export function assertDefined(...args) {
 }
 
 
-/**
- * @param {boolean} arg Value to test
- * @return {boolean} The argument
- */
-export function assertDefinedBoolean(arg) {
-  if (arg) {
-    return true
-  }
-  return false
-}
-
 
 /**
  * @param {any} arrays Variable length arguments to assert are defined.
@@ -64,7 +53,7 @@ export function assertArraysEqualLength(...arrays) {
     if (Object.prototype.hasOwnProperty.call(arrays, ndx)) {
       const array = arrays[ndx]
       assertDefined(array)
-      assert(arrLength === array.length, `Array ${ndx} has unexpected length != ${array.length}`)
+      assert(arrLength === array.length, `Array ${ndx} has unexpected length ${array.length} != ${arrLength}`)
     }
   }
   return arrays
@@ -105,16 +94,11 @@ export function assertValues(obj, keys) {
  * @returns {any}
  */
 export function assertNotNullOrUndefined(x) {
-  try {
-    if (x === null) {
-      throw new Error('Variable may not be null')
-    }
-    if (x === undefined) {
-      throw new Error('Variable may not be undefined')
-    }
-  } catch (e) {
-    console.error(e)
-    throw e
+  if (x === null) {
+    throw new Error('Variable may not be null')
+  }
+  if (x === undefined) {
+    throw new Error('Variable may not be undefined')
   }
   return x
 }
@@ -124,18 +108,10 @@ export function assertNotNullOrUndefined(x) {
  * @param {Array.<any>} args
  */
 export function assertArgs(...args) {
-  let i
-  try {
-    for (i = 0; i < args.length; i++) {
-      assertNotNullOrUndefined(args[i])
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === null || args[i] === undefined) {
+      throw new Error(`Arg ${i} is null or undefined`)
     }
-  } catch (e) {
-    if (i === undefined) {
-      console.error(e)
-    } else {
-      console.error(`Arg ${i}: ${e}`)
-    }
-    throw e
   }
 }
 

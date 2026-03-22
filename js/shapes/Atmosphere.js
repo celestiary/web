@@ -8,7 +8,7 @@ import {sphere} from '../shapes'
 
 
 /**
- * @param {float} radiusMeters
+ * @param {number} radiusMeters
  * @returns {Object3D}
  */
 export function newAtmosphere(radiusMeters) {

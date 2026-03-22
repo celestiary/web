@@ -49,7 +49,7 @@ export default class Scene {
   add(props) {
     const name = props.name
     let parentObj = this.objects[props.parent]
-    let parentOrbitPosition = this.objects[`${props.parent }.orbitPosition`]
+    let parentOrbitPosition = this.objects[`${props.parent}.orbitPosition`]
     if (props.name === 'milkyway' || props.name === 'sun') {
       parentObj = parentOrbitPosition = this.ui.scene
     }
@@ -224,37 +224,20 @@ export default class Scene {
 
 
   track() {
-    console.trace('Scene#track, Shared.targets.track:', Shared.targets.track, Shared.targets.obj)
     if (Shared.targets.track) {
-      delete Shared.targets.track.postAnimCb
       Shared.targets.track = null
     } else {
       Shared.targets.track = Shared.targets.obj
-      const tracked = Shared.targets.track
-      tracked.postAnimCb = (obj) => {
-        this.ui.camera.lookAt(Shared.targets.tracked)
-      }
     }
   }
 
 
   follow() {
-    console.trace('Scene#follow, Shared.targets.follow:', Shared.targets.follow, Shared.targets.obj)
     if (Shared.targets.follow) {
-      delete Shared.targets.follow.postAnimCb
       Shared.targets.follow = null
     } else if (Shared.targets.obj) {
       if (Shared.targets.obj.orbitPosition) {
-        // Follow the orbit position for less jitter.
-        const followed = Shared.targets.obj.orbitPosition
-        Shared.targets.follow = followed
-
-        followed.postAnimCb = (obj) => {
-          console.log('following...')
-          this.ui.camera.platform.lookAt(Shared.targets.origin)
-        }
-
-        followed.postAnimCb(followed)
+        Shared.targets.follow = Shared.targets.obj.orbitPosition
       } else {
         console.error('Target to follow has no orbitPosition property.')
       }
@@ -266,10 +249,7 @@ export default class Scene {
 
   /** @param {object} mouse */
   onClick(mouse) {
-    const enable = false
-    if (enable) {
-      return
-    } // Disable picking for now.
+    return // Picking disabled for now.
     this.ui.scene.updateMatrixWorld()
     this.raycaster.setFromCamera(mouse, this.ui.camera)
     const t = Date.now()
@@ -406,7 +386,7 @@ export default class Scene {
     const group = this.newObject(galaxyProps.name, galaxyProps, (click) => {
       // console.log('Well done, you found the galaxy!');
     })
-    this.objects[`${galaxyProps.name }.orbitPosition`] = group
+    this.objects[`${galaxyProps.name}.orbitPosition`] = group
     return group
   }
 }
