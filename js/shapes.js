@@ -346,7 +346,8 @@ export function arrow(
   // TODO: make my own arrow that works like arc.
   const a = new ArrowHelper(dirVec, origin, to.length(), hexColor, 0.1, 0.1)
   if (labelText) {
-    const labelSheet = new SpriteSheet(1, labelText, undefined, [0, 0.1])
+    const labelTextLength = labelText.length
+    const labelSheet = new SpriteSheet(1, labelTextLength, undefined, [0, 0.1])
     const r = hexColor & 0xff0000; const g = hexColor & 0x00ff00; const b = hexColor & 0x0000ff
     labelSheet.add(0, 0, 0, labelText, `rgb(${r}, ${g}, ${b})`)
     const label = named(labelSheet.compile(), `${angle.name }.label`)
@@ -407,7 +408,8 @@ export function angle(vec1, vec2, materialOrOpts, addLabelOrOpts = true, addSoli
       labelText = `${(angleInRadians * Shared.toDeg).toPrecision(4) }˚`
     }
     // console.log('label opts:', labelText, color, font, padding)
-    const labelSheet = new SpriteSheet(1, labelText, font, padding)
+    const labelTextLength = labelText.length
+    const labelSheet = new SpriteSheet(1, labelTextLength, font, padding)
     labelSheet.add(0, 0, 0, labelText, color)
     const label = named(labelSheet.compile(), `${angle.name }.label`)
     label.position.copy(coneHead.position)

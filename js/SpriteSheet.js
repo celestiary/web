@@ -22,12 +22,15 @@ import {
  *   https://observablehq.com/@vicapow/uv-mapping-textures-in-threejs
  */
 export default class SpriteSheet {
-  /** */
-  constructor(maxLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0]) {
-    if (!Number.isInteger(maxLabels)) {
-      throw new Error(`maxLabels is invalid: ${ maxLabels}`)
+  /**
+   * @param {Number} numLabels
+   * @param {string} maxLabel
+   */
+  constructor(numLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0]) {
+    if (!Number.isInteger(numLabels)) {
+      throw new Error(`numLabels is invalid: ${ numLabels}`)
     }
-    this.maxLabels = maxLabels
+    this.numLabels = numLabels
     this.labelCount = 0
     this.labelTextFont = labelTextFont
     this.textBaseline = 'top'
@@ -36,7 +39,7 @@ export default class SpriteSheet {
     this.ctx = this.canvas.getContext('2d')
     const maxBounds = Utils.measureText(this.ctx, maxLabel, labelTextFont)
     const itemSize = Math.max(maxBounds.width, maxBounds.height)
-    this.size = Math.sqrt(this.maxLabels) * itemSize
+    this.size = Math.sqrt(this.numLabels) * itemSize
     this.canvas.width = this.size
     this.canvas.height = this.size
     this.curX = 0
@@ -53,7 +56,7 @@ export default class SpriteSheet {
     this.sprites = null
     // document.canvas = this.canvas;
     // console.log('canvas: ', {width: this.canvas.width, height: this.canvas.height},
-    //            this.maxLabels, maxBounds, this.size, maxBounds.width);
+    //            this.numLabels, maxBounds, this.size, maxBounds.width);
   }
 
 
@@ -62,9 +65,9 @@ export default class SpriteSheet {
    * @returns {number} id of label.
    */
   add(x, y, z, labelText, fillStyle = defaultTextColor) {
-    if (this.labelCount >= this.maxLabels) {
+    if (this.labelCount >= this.numLabels) {
       throw new Error(`Add called too many times, can only allocate
-                       maxLabels(${this.maxLabels}), already have ${this.labelCount}`)
+                       numLabels(${this.numLabels}), already have ${this.labelCount}`)
     }
     this.ctx.font = this.labelTextFont
     let bounds = Utils.measureText(this.ctx, labelText)

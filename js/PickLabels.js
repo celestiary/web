@@ -84,7 +84,8 @@ export default class PickLabels {
    */
   labelStar(pick) {
     const starName = `${this.stars.catalog.getNameOrId(pick.star.hipId)}`
-    const labelSheet = new SpriteSheet(1, starName, undefined, [0, 1e5])
+    const starNameLength = starName.length
+    const labelSheet = new SpriteSheet(1, starNameLength, undefined, [0, 1e5])
     labelSheet.add(pick.x, pick.y, pick.z, starName)
     const label = labelSheet.compile()
     this.ui.scene.add(label)

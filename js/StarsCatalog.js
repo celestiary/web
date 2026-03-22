@@ -1,5 +1,6 @@
-import {LENGTH_SCALE, LIGHTYEAR_METER} from './shared.js'
-import {assertEquals, assertNotNullOrUndefined} from './utils.js'
+import {LENGTH_SCALE, LIGHTYEAR_METER} from './shared'
+import {assertEquals, assertNotNullOrUndefined} from './assert'
+
 
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
 const littleEndian = true

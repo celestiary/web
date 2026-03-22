@@ -99,6 +99,7 @@ export default class Stars extends Object {
       depthTest: true,
       depthWrite: false,
       transparent: true,
+      toneMapped: false,
     })
     this.ui.camera.onChange = (camera) => {
       starsMaterial.uniforms.CAMERA_FOV_DEGREES.value = camera.fov
@@ -135,7 +136,8 @@ export default class Stars extends Object {
         console.warn(`Stars#showLabels: hit max count of ${MAX_LABELS}`)
       }
     })
-    this.starLabelSpriteSheet = new SpriteSheet(toShow.length, 'Rigel Kentaurus B')
+    const maxLabel = 'Rigel Kentaurus B'
+    this.starLabelSpriteSheet = new SpriteSheet(toShow.length, maxLabel)
     for (let i = 0; i < toShow.length; i++) {
       const [star, name] = toShow[i]
       this.showStarName(star, name)

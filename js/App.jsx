@@ -32,7 +32,6 @@ export default function App() {
 
   useEffect(() => setTitleFromLocation(location), [location])
   useEffect(() => {
-    console.log('Celestiary, hashLocation:', hashLocation)
     const c = new Celestiary(useStore, sceneRef.current, navRef.current, setTimeStr, setIsPaused)
     setCelestiary(c)
     c.keys.map('?', () => navigate('/settings'), 'Show keyboard shortcuts')

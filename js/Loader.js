@@ -1,4 +1,5 @@
 import {FileLoader} from 'three'
+import {assert} from './assert'
 
 
 /**
@@ -29,12 +30,12 @@ export default class Loader {
     if (path.length === 0) {
       throw new Error('empty target path')
     }
-    const parts = path.split('/')
-    const targetName = parts[parts.length - 1]
+    const partsToLoad = path.split('/')
+    const targetName = partsToLoad[partsToLoad.length - 1]
     if (typeof this.loaded[targetName] === 'object') {
       onDoneCb(path, this.loaded[targetName])
     }
-    this.loadPathRecursive(parts, (name, obj) => {
+    this.loadPathRecursive(partsToLoad, (name, obj) => {
       onLoadCb(name, obj)
       if (name === targetName) {
         onDoneCb(path, obj)
@@ -44,17 +45,21 @@ export default class Loader {
 
 
   /**
-   * @param {!Array} pathParts The path to the object, e.g. ['a','b','c'].
+   * @param {!Array} partsToLoad The path to the object, e.g. ['a','b','c'].
    * @param {Function} onLoadCb Called when the object is loaded.
-   * This will only happen once per path.
+   * @param {Function} onErrCb
+   * @param {Array} [partsLoaded]
    */
-  loadPathRecursive(pathParts, onLoadCb, onErrCb) {
-    if (pathParts.length === 0) {
-      return
-    }
-    const name = pathParts.pop()
-    this.loadPathRecursive(pathParts, onLoadCb, onErrCb)
-    this.loadObj(pathParts.join('/'), name, onLoadCb, true, onErrCb)
+  loadPathRecursive(partsToLoad, onLoadCb, onErrCb, partsLoaded = []) {
+    assert(partsToLoad.length > 0, 'Must provide an array of names to load')
+    const name = partsToLoad.shift()
+    this.loadObj(partsLoaded.join('/'), name, (name, obj) => {
+      onLoadCb(name, obj)
+      partsLoaded.push(name)
+      if (partsToLoad.length > 0) {
+        this.loadPathRecursive(partsToLoad, onLoadCb, onErrCb, partsLoaded)
+      }
+    }, true, onErrCb)
   }
 
 
@@ -75,7 +80,7 @@ export default class Loader {
       if (expand && loadedObj.system) {
         const path = prefix ? `${prefix}/${name}` : name
         for (let i = 0; i < loadedObj.system.length; i++) {
-          this.loadObj(path, loadedObj.system[i], onLoadCb, false, onErrCb)
+          this.loadObj(path, loadedObj.system[i], onLoadCb, true, onErrCb)
         }
       }
     } else {

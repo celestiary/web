@@ -98,3 +98,70 @@ export function assertValues(obj, keys) {
   }
   return obj
 }
+
+
+/**
+ * @param {any} x
+ * @returns {any}
+ */
+export function assertNotNullOrUndefined(x) {
+  try {
+    if (x === null) {
+      throw new Error('Variable may not be null')
+    }
+    if (x === undefined) {
+      throw new Error('Variable may not be undefined')
+    }
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
+  return x
+}
+
+
+/**
+ * @param {Array.<any>} args
+ */
+export function assertArgs(...args) {
+  let i
+  try {
+    for (i = 0; i < args.length; i++) {
+      assertNotNullOrUndefined(args[i])
+    }
+  } catch (e) {
+    if (i === undefined) {
+      console.error(e)
+    } else {
+      console.error(`Arg ${i}: ${e}`)
+    }
+    throw e
+  }
+}
+
+
+/**
+ * @param {number} x
+ * @returns {number} x
+ * @throws Error if !Number.isFinite(x)
+ */
+export function assertFinite(x) {
+  if (!Number.isFinite(x)) {
+    throw new Error('Number not finite')
+  }
+  return x
+}
+
+
+/**
+ * @param {any} expected
+ * @param {any} actual
+ * @returns {any} The actual value
+ * @throws Error if expected !== value
+ */
+export function assertEquals(expected, actual) {
+  if (expected !== actual) {
+    throw new Error(`Expected: ${expected} === actual: ${actual}`)
+  }
+  return actual
+}

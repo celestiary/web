@@ -1,71 +1,4 @@
 /**
- * @param {any} x
- * @returns {any}
- */
-export function assertNotNullOrUndefined(x) {
-  try {
-    if (x === null) {
-      throw new Error('Variable may not be null')
-    }
-    if (x === undefined) {
-      throw new Error('Variable may not be undefined')
-    }
-  } catch (e) {
-    console.error(e)
-    throw e
-  }
-  return x
-}
-
-
-/**
- * @param {Array.<any>} args
- */
-export function assertArgs(...args) {
-  let i
-  try {
-    for (i = 0; i < args.length; i++) {
-      assertNotNullOrUndefined(args[i])
-    }
-  } catch (e) {
-    if (i === undefined) {
-      console.error(e)
-    } else {
-      console.error(`Arg ${i}: ${e}`)
-    }
-    throw e
-  }
-}
-
-
-/**
- * @param {number} x
- * @returns {number} x
- * @throws Error if !Number.isFinite(x)
- */
-export function assertFinite(x) {
-  if (!Number.isFinite(x)) {
-    throw new Error('Number not finite')
-  }
-  return x
-}
-
-
-/**
- * @param {any} expected
- * @param {any} actual
- * @returns {any} The actual value
- * @throws Error if expected !== value
- */
-export function assertEquals(expected, actual) {
-  if (expected !== actual) {
-    throw new Error(`Expected: ${expected} === actual: ${actual}`)
-  }
-  return actual
-}
-
-
-/**
  * Recursively visit child members of {@param elt}'s "children" property.
  *
  * @param {Element} elt Element to visit.
@@ -130,6 +63,24 @@ export function visitToggleProperty(elt, filterPropName, filterPropValue, toggle
       throw new Error(`Found child invalid toggle property(${togglePropName}): ${child}`)
     }
     child[togglePropName] = !child[togglePropName]
+  })
+}
+
+
+/**
+ * Preorder visit.
+ *
+ * @param {Element} elt Element to visit.
+ * @param {string} filterPropName
+ * @param {object} filterPropValue
+ * @param {string} setPropName
+ * @param {any} setPropValue
+ */
+export function visitSetProperty(elt, filterPropName, filterPropValue, setPropName, setPropValue) {
+  visitFilterProperty(elt, filterPropName, filterPropValue, /** @param {Object<string, any>} child */ (child) => {
+    if (Object.prototype.hasOwnProperty.call(child, setPropName)) {
+      child[setPropName] = setPropValue
+    }
   })
 }
 
