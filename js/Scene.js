@@ -392,7 +392,9 @@ export default class Scene {
 
   /** */
   toggleStarLabels() {
-    this.stars.labelLOD.visible = !this.stars.labelLOD.visible
+    if (this.stars) {
+      this.stars.labelLOD.visible = !this.stars.labelLOD.visible
+    }
   }
 
 
