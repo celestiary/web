@@ -193,8 +193,7 @@ export default class Planet extends Object {
     const labelLOD = new LOD()
     const name = capitalize(this.name)
     // TODO: single sheet for all planets/moons
-    const maxLabel = name
-    const labelSheet = named(new SpriteSheet(1, maxLabel), name)
+    const labelSheet = named(new SpriteSheet(1, name), 'label')
     labelSheet.add(0, 0, 0, name, labelTextColor)
     labelLOD.addLevel(FAR_OBJ, labelTooNearDist)
     labelLOD.addLevel(labelSheet.compile(), labelTooNearDist)

@@ -97,7 +97,7 @@ export default class Celestiary {
           this.scene.toggleStarLabels()
           this.firstTime = false
         }
-      }, 0)
+      }, this.firstTime ? 1000 : 0)
     }
     this.loader.loadPath('milkyway', this.onLoad, () => {
       this.loader.loadPath(path, this.onLoad, this.onDone, () => {
