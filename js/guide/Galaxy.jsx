@@ -42,6 +42,7 @@ function setup({setKeys}) {
   const ui = new ThreeUi(uiContainer)
   ui.camera.position.z = 10
   ui.camera.position.y = 3
+  ui.camera.lookAt(0, 0, 0)
   const galaxy = new CelestiaGalaxy({numStars: 500})
   ui.scene.add(galaxy)
   ui.scene.add(new AxesHelper)
