@@ -1,8 +1,8 @@
 /** */
 export default class Keys {
   /** */
-  constructor(window, useStore) {
-    this.window = window
+  constructor(win = window, useStore = null) {
+    this.window = win
     this.keymap = {}
     this.msgs = {}
     this.bindToWindow(useStore)
@@ -12,7 +12,7 @@ export default class Keys {
   /** */
   bindToWindow(useStore) {
     this.window.addEventListener('keydown', (e) => {
-      const is = useStore.getState().isDatePickerVisible
+      const is = useStore ? useStore.getState().isDatePickerVisible : false
       if (!is) {
         this.onKeyDown(e)
       }

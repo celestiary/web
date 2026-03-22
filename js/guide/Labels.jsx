@@ -35,7 +35,7 @@ function setup() {
   const num = 10000
   ui.camera.position.set(0, 0, 10)
   const maxLabel = `${prefix}${num}`
-  const labels = new SpriteSheet(num, maxLabel, 'medium aria')
+  const labels = new SpriteSheet(num, maxLabel, 'medium arial')
   const size = Math.ceil(Math.sqrt(num))
   const xOff = size / -2 + 0.5; const yOff = size / -2 + 0.5
   out:
