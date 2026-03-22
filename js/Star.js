@@ -12,6 +12,7 @@ import {
 import Object from './object.js'
 import * as Shaders from './star-shaders.js'
 import {sphere} from './shapes.js'
+import {newAtmosphere} from './shapes/Atmosphere'
 import * as Shared from './shared.js'
 
 
@@ -75,8 +76,10 @@ export default class Star extends Object {
     guideGroup.add(sphere({radius: internalGuidesRadius, wireframe: true}))
     lod.addLevel(guideGroup, 0)
 
-    const surface = this.createSurface(props)
-    lod.addLevel(surface, props.radius.scalar)
+    const surfaceGroup = new Group
+    surfaceGroup.add(this.newSurface(props))
+    surfaceGroup.add(newAtmosphere(props.radius.scalar * 1.07))
+    lod.addLevel(surfaceGroup, props.radius.scalar)
 
     lod.addLevel(Shared.FAR_OBJ, props.radius.scalar * 1e3)
     
@@ -85,7 +88,7 @@ export default class Star extends Object {
 
 
   /** @returns {Mesh} */
-  createSurface(props) {
+  newSurface(props) {
     const tempRanges = [
       [8152, 10060], // 0, O
       [11950, 12250], // 1, B  Rigel

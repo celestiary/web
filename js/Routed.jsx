@@ -10,7 +10,6 @@ export default function Routed() {
 
   useEffect(() => {
     const referrer = document.referrer
-    console.log('Routed.jsx: referer', referrer)
     if (referrer) {
       const path = new URL(document.referrer).pathname
       if (path.length > 1) {

@@ -21,6 +21,7 @@ export default function Angles() {
 function setup() {
   const ui = new ThreeUi(uiId)
   ui.camera.position.set(0, 1, 4)
+  ui.camera.lookAt(0, 0, 0)
 
   const material = new LineBasicMaterial({
     color: 0x00ff00,

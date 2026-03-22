@@ -1,4 +1,4 @@
-import React from 'react'
+import React, {ReactElement, useEffect} from 'react'
 import {AxesHelper, PointLight} from 'three'
 import ThreeUi from '../ThreeUI.js'
 import {elt} from '../utils.js'
@@ -16,11 +16,9 @@ import {ui as uiId} from './index.module.css'
 
 // Collienne et al., diffs: Rayleigh and scale height
 
-/** @returns {React.ReactElement} */
+/** @returns {ReactElement} */
 export default function Atmosphere() {
-  React.useEffect(() => {
-    setup()
-  })
+  useEffect(() => setup())
   return (
     <>
       <h1>Atmosphere</h1>

@@ -4,11 +4,7 @@ import {createProxyServer} from './proxy.js'
 
 
 const ctx = await esbuild.context(config)
-
-// Watch rebuilds docs/ which can interfere with cypress
-if (process.env.ESBUILD_WATCH === 'true') {
-  await ctx.watch()
-}
+await ctx.watch()
 
 
 /**

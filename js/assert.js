@@ -39,17 +39,6 @@ export function assertDefined(...args) {
 }
 
 
-/**
- * @param {boolean} arg Value to test
- * @return {boolean} The argument
- */
-export function assertDefinedBoolean(arg) {
-  if (arg) {
-    return true
-  }
-  return false
-}
-
 
 /**
  * @param {any} arrays Variable length arguments to assert are defined.
@@ -64,7 +53,7 @@ export function assertArraysEqualLength(...arrays) {
     if (Object.prototype.hasOwnProperty.call(arrays, ndx)) {
       const array = arrays[ndx]
       assertDefined(array)
-      assert(arrLength === array.length, `Array ${ndx} has unexpected length != ${array.length}`)
+      assert(arrLength === array.length, `Array ${ndx} has unexpected length ${array.length} != ${arrLength}`)
     }
   }
   return arrays
@@ -97,4 +86,58 @@ export function assertValues(obj, keys) {
       ${undefinedKeys.join(', ')}`)
   }
   return obj
+}
+
+
+/**
+ * @param {any} x
+ * @returns {any}
+ */
+export function assertNotNullOrUndefined(x) {
+  if (x === null) {
+    throw new Error('Variable may not be null')
+  }
+  if (x === undefined) {
+    throw new Error('Variable may not be undefined')
+  }
+  return x
+}
+
+
+/**
+ * @param {Array.<any>} args
+ */
+export function assertArgs(...args) {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === null || args[i] === undefined) {
+      throw new Error(`Arg ${i} is null or undefined`)
+    }
+  }
+}
+
+
+/**
+ * @param {number} x
+ * @returns {number} x
+ * @throws Error if !Number.isFinite(x)
+ */
+export function assertFinite(x) {
+  if (!Number.isFinite(x)) {
+    throw new Error('Number not finite')
+  }
+  return x
+}
+
+
+/**
+ * @param {any} expected
+ * @param {any} actual
+ * @returns {any} The actual value
+ * @throws Error if expected !== value
+ */
+export function assertEquals(expected, actual) {
+  if (expected !== actual) {
+    throw new Error(`Expected: ${expected} === actual: ${actual}`)
+  }
+  return actual
 }

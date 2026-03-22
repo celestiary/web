@@ -4,6 +4,14 @@ import Button from '@mui/material/Button'
 import Dialog from './Dialog'
 
 
+const KEY_LABELS = {
+  ARROWUP: '↑',
+  ARROWDOWN: '↓',
+  ARROWLEFT: '←',
+  ARROWRIGHT: '→',
+}
+
+
 /** @returns {ReactElement} */
 export default function Settings({keys, href = '~/'}) {
   const [isOpen, setIsOpen] = useState(false)
@@ -15,7 +23,7 @@ export default function Settings({keys, href = '~/'}) {
         {numbersLastIterator(keys.keymap).map((key, ndx) => (
           <li key={ndx}>
             <Button onClick={keys.keymap[key]}>
-              {key === ' ' ? 'Spc' : key}
+              {KEY_LABELS[key] ?? (key === ' ' ? 'Spc' : key)}
             </Button>
             {keys.msgs[key]}
           </li>

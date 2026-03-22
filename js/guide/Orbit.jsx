@@ -47,6 +47,7 @@ export default function Orbit() {
 function setup() {
   const ui = new ThreeUi(uiId)
   ui.camera.position.set(1, 1, 3)
+  ui.camera.lookAt(0, 0, 0)
   // ui.scene.add(new AmbientLight())
   ui.scene.add(new PointLight(0xffffff, 1e6, 0))
 

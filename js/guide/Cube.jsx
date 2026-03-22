@@ -28,6 +28,7 @@ function setup() {
   // Pull the camera back from center 10 units along the z-axis
   // (towards the viewer).
   ui.camera.position.set(1, 2, 3)
+  ui.camera.lookAt(0, 0, 0)
 
   // Create a light and move away 10 units from the center along
   // each axis to give // interesting lighting.

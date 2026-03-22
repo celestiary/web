@@ -1,5 +1,6 @@
 import {
   Object3D,
+  Quaternion,
   Raycaster,
   Vector2,
   Vector3,
@@ -8,6 +9,7 @@ import Asterisms from './Asterisms.js'
 import Planet from './Planet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
+import {newCameraGoToTween, newCameraLookTween} from './camera.js'
 import * as Shared from './shared.js'
 import * as Utils from './utils.js'
 
@@ -34,6 +36,7 @@ export default class Scene {
     // Loaded later
     this.stars = null
     this.asterisms = null
+    this.orbitsVisible = true
   }
 
 
@@ -46,7 +49,7 @@ export default class Scene {
   add(props) {
     const name = props.name
     let parentObj = this.objects[props.parent]
-    let parentOrbitPosition = this.objects[`${props.parent }.orbitPosition`]
+    let parentOrbitPosition = this.objects[`${props.parent}.orbitPosition`]
     if (props.name === 'milkyway' || props.name === 'sun') {
       parentObj = parentOrbitPosition = this.ui.scene
     }
@@ -118,7 +121,7 @@ export default class Scene {
   /** @param {string} name */
   targetNamed(name) {
     this.setTarget(name)
-    this.lookAtTarget()
+    // this.lookAtTarget()
   }
 
 
@@ -159,6 +162,8 @@ export default class Scene {
       throw new Error(`scene#setTarget: no matching target: ${name}`)
     }
     Shared.targets.obj = obj
+    // Animated in ThreeUI.renderLoop
+    Shared.targets.tween = newCameraLookTween(this.ui.camera, obj.matrixWorld)
   }
 
 
@@ -194,47 +199,45 @@ export default class Scene {
     const elevationAngleRad = 15 / 360 * Math.PI * 2
     const y = Math.atan(elevationAngleRad) * camDist
     cPos.set(0, y, camDist)
+    // Capture world transform before reparenting so there is no visual jump
+    const startWorldPos = new Vector3()
+    const startWorldQuat = new Quaternion()
+    this.ui.camera.getWorldPosition(startWorldPos)
+    this.ui.camera.getWorldQuaternion(startWorldQuat)
+
+    // Reparent camera platform to the new target's orbit position
     obj.orbitPosition.add(this.ui.camera.platform)
     this.ui.camera.platform.position.copy(pPos)
     this.ui.camera.platform.lookAt(Shared.targets.origin)
-    this.ui.camera.position.copy(cPos)
-    this.ui.camera.lookAt(tPos)
-    Shared.targets.track = Shared.targets.cur = Shared.targets.obj
+    this.ui.scene.updateMatrixWorld()
+
+    // Re-express the departure transform in the new platform-local space
+    this.ui.camera.position.copy(this.ui.camera.platform.worldToLocal(startWorldPos))
+    const platformWorldQuat = new Quaternion()
+    this.ui.camera.platform.getWorldQuaternion(platformWorldQuat)
+    this.ui.camera.quaternion.copy(platformWorldQuat.invert().multiply(startWorldQuat))
+
+    Shared.targets.tween = newCameraGoToTween(this.ui.camera, tPos, cPos)
+    Shared.targets.cur = Shared.targets.obj
     this.ui.controls.update()
   }
 
 
   track() {
-    console.trace('Scene#track, Shared.targets.track:', Shared.targets.track, Shared.targets.obj)
     if (Shared.targets.track) {
-      delete Shared.targets.track.postAnimCb
       Shared.targets.track = null
     } else {
       Shared.targets.track = Shared.targets.obj
-      const tracked = Shared.targets.track
-      tracked.postAnimCb = (obj) => {
-        this.ui.camera.lookAt(Shared.targets.tracked)
-      }
     }
   }
 
 
   follow() {
-    console.trace('Scene#follow, Shared.targets.follow:', Shared.targets.follow, Shared.targets.obj)
     if (Shared.targets.follow) {
-      delete Shared.targets.follow.postAnimCb
       Shared.targets.follow = null
     } else if (Shared.targets.obj) {
       if (Shared.targets.obj.orbitPosition) {
-        // Follow the orbit position for less jitter.
-        const followed = Shared.targets.obj.orbitPosition
-        Shared.targets.follow = followed
-
-        followed.postAnimCb = (obj) => {
-          this.ui.camera.platform.lookAt(Shared.targets.origin)
-        }
-
-        followed.postAnimCb(followed)
+        Shared.targets.follow = Shared.targets.obj.orbitPosition
       } else {
         console.error('Target to follow has no orbitPosition property.')
       }
@@ -246,109 +249,19 @@ export default class Scene {
 
   /** @param {object} mouse */
   onClick(mouse) {
-    const enable = false
-    if (enable) {
-      return
-    } // Disable picking for now.
-    this.ui.scene.updateMatrixWorld()
-    this.raycaster.setFromCamera(mouse, this.ui.camera)
-    const t = Date.now()
-    const intersects = this.raycaster.intersectObjects(this.ui.scene.children, true)
-    const elapsedSeconds = (Date.now() - t) / 1000
-    if (elapsedSeconds > 0.1) {
-      console.error('Scene picking taking a long time (seconds): ', elapsedSeconds)
-    }
-    if (intersects.length === 0) {
-      return
-    }
-    // console.log('checking all the things');
-    let nearestMeshIntersect; let nearestPointIntersect
-    let nearestStarPointIntersect; let nearestDefaultIntersect
-    // TODO: this is looping through all 8k asterisms.. that right?
-    for (let i = 0; i < intersects.length; i++) {
-      const intersect = intersects[i]
-      const dist = intersect.distance
-      const obj = intersect.object
-      if (obj.isAnchor) {
-        console.log('raycast skipping anchor')
-        continue
-      }
-      if (obj.type === 'Line') {
-        continue
-      }
-      // console.log(`intersect ${i} dist: ${dist}, type: ${obj.type}, obj: `, obj);
-      switch (obj.type) {
-        case 'Mesh': {
-          if (nearestMeshIntersect &&
-              nearestMeshIntersect.distance < dist) {
-            continue
-          }
-          nearestMeshIntersect = intersect
-          break
-        }
-        case 'Points': {
-          if (obj.isStarPoints) {
-            if (nearestStarPointIntersect &&
-                nearestStarPointIntersect.distanceToRay < intersect.distanceToRay) {
-              continue
-            }
-            // console.log('New nearest star point: ', intersect);
-            nearestStarPointIntersect = intersect
-          } else {
-            if (nearestPointIntersect &&
-                nearestPointIntersect.distance < dist) {
-              continue
-            }
-            // console.log('New nearest point: ', intersect);
-            nearestPointIntersect = intersect
-          }
-          break
-        }
-        default: {
-          // console.log('Raycasting default handler for object type: ', obj.type);
-          if (nearestDefaultIntersect &&
-              nearestDefaultIntersect.distance < dist) {
-            continue
-          }
-          // console.log('New nearest default: ', intersect);
-          nearestDefaultIntersect = intersect
-        }
-      }
-    }
-    const nearestIntersect = nearestMeshIntersect ? nearestMeshIntersect :
-      nearestPointIntersect ? nearestPointIntersect :
-      nearestStarPointIntersect ? nearestStarPointIntersect :
-      nearestDefaultIntersect ? nearestDefaultIntersect :
-      null
-    if (!nearestIntersect) {
-      throw new Error('Picking did not yield an intersect.  Intersects: ', intersects)
-    }
-    let obj = nearestIntersect.object
-    // console.log('Nearest object type: ', obj.isStarPoints ? '<star points>' : obj.type);
-    let firstName
-    do {
-      if (obj.name || ((obj.props && obj.props.name) && !firstName)) {
-        firstName = obj.name || (obj.props && obj.props.name)
-      }
-      if (obj.onClick) {
-        obj.onClick(mouse, nearestIntersect, obj)
-        break
-      }
-      if (obj === obj.parent) {
-        console.error('no clickable object found in path to root.')
-        break
-      }
-    } while ((obj = obj.parent))
+    // TODO: picking disabled
   }
 
 
   /** */
   toggleAsterisms() {
-    if (this.asterisms === null) {
+    if (this.asterisms === null && this.stars !== null) {
       const asterisms = new Asterisms(this.ui, this.stars, () => {
         this.stars.add(asterisms)
         this.asterisms = asterisms
+        this.asterisms.visible = true
       })
+      return
     }
     if (this.asterisms) {
       this.asterisms.visible = !this.asterisms.visible
@@ -358,7 +271,7 @@ export default class Scene {
 
   /** */
   toggleOrbits() {
-    Utils.visitToggleProperty(this.objects['sun'], 'name', 'orbit', 'visible')
+    Utils.visitSetProperty(this.objects['sun'], 'name', 'orbit', 'visible', this.orbitsVisible = !this.orbitsVisible)
   }
 
 
@@ -370,7 +283,9 @@ export default class Scene {
 
   /** */
   toggleStarLabels() {
-    this.stars.labelLOD.visible = !this.stars.labelLOD.visible
+    if (this.stars) {
+      this.stars.labelLOD.visible = !this.stars.labelLOD.visible
+    }
   }
 
 
@@ -382,7 +297,7 @@ export default class Scene {
     const group = this.newObject(galaxyProps.name, galaxyProps, (click) => {
       // console.log('Well done, you found the galaxy!');
     })
-    this.objects[`${galaxyProps.name }.orbitPosition`] = group
+    this.objects[`${galaxyProps.name}.orbitPosition`] = group
     return group
   }
 }

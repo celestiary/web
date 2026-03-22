@@ -38,6 +38,7 @@ export const targets = {
   pos: new Vector3,
   track: null,
   follow: null,
+  tween: null,
 }
 // for invisible LOD.
 export const FAR_OBJ = named(new Object3D, 'LODFarObj')

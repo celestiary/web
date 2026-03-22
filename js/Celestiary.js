@@ -1,15 +1,16 @@
 import * as THREE from 'three'
-import Animation from './Animation.js'
-import ControlPanel from './ControlPanel.js'
-import Keys from './Keys.js'
-import Loader from './Loader.js'
-import Scene from './Scene.js'
-import ThreeUi from './ThreeUI.js'
-import Time from './Time.js'
-import reifyMeasures from './reify.js'
-import * as Shapes from './shapes.js'
-import * as Shared from './shared.js'
-import {assertArgs, elt} from './utils.js'
+import Animation from './Animation'
+import ControlPanel from './ControlPanel'
+import Keys from './Keys'
+import Loader from './Loader'
+import Scene from './Scene'
+import ThreeUi from './ThreeUI'
+import Time from './Time'
+import reifyMeasures from './reify'
+import * as Shapes from './shapes'
+import * as Shared from './shared'
+import {assertArgs} from './assert'
+import {elt} from './utils'
 
 
 /** Main application class. */
@@ -67,12 +68,18 @@ export default class Celestiary {
 
   /** */
   load() {
-    this.onLoadCb = (name, obj) => {
+    let path
+    if (location.hash) {
+      path = location.hash.substring(1)
+    } else {
+      path = DEFAULT_TARGET
+      location.hash = path
+    }
+    this.onLoad = (name, obj) => {
       reifyMeasures(obj)
       this.scene.add(obj)
     }
-
-    this.onDoneCb = (path, obj) => {
+    this.onDone = (path, obj) => {
       this.controlPanel.showNavDisplay(path.split('/'), this.loader)
       // TODO(pablo): Hack to handle load order.  The path is loaded,
       // but not yet animated so positions will be incorrect.  So
@@ -92,20 +99,10 @@ export default class Celestiary {
         }
       }, this.firstTime ? 1000 : 0)
     }
-
-    let path
-    if (location.hash) {
-      path = location.hash.substring(1)
-    } else {
-      path = DEFAULT_TARGET
-      location.hash = path
-    }
-    this.loader.loadPath('milkyway', this.onLoadCb, () => {
-      this.loader.loadPath(path, this.onLoadCb, this.onDoneCb, () => {
+    this.loader.loadPath('milkyway', this.onLoad, () => {
+      this.loader.loadPath(path, this.onLoad, this.onDone, () => {
         // On error.
-        setTimeout(() => {
-          location.hash = DEFAULT_TARGET
-        }, 1000)
+        setTimeout(() => location.hash = DEFAULT_TARGET, 1000)
       })
     })
   }
@@ -133,7 +130,7 @@ export default class Celestiary {
 
   setupPathListeners() {
     window.addEventListener('hashchange', (e) => {
-      this.loader.loadPath((window.location.hash || '#').substring(1), this.onLoadCb, this.onDoneCb)
+      this.loader.loadPath((window.location.hash || '#').substring(1), this.onLoad, this.onDone)
     },
     false)
   }
@@ -247,6 +244,15 @@ export default class Celestiary {
       this.scene.targetParent()
     },
     'Look at parent of current system')
+
+    // Arrow keys use held-key logic in ThreeUI._initArrowKeys; no-op here for Settings listing.
+    k.map('ArrowUp', () => {}, 'Pitch camera up (hold)')
+    k.map('ArrowDown', () => {}, 'Pitch camera down (hold)')
+    k.map('ArrowLeft', () => {}, 'Roll camera left (hold)')
+    k.map('ArrowRight', () => {}, 'Roll camera right (hold)')
+    k.msgs['MOUSEDRAG'] = 'Drag to pitch/yaw camera'
+    k.msgs['ALT+MOUSEDRAG'] = 'Option+drag to orbit target'
+
     this.keys = k
   }
 
