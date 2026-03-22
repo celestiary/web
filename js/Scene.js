@@ -368,7 +368,9 @@ export default class Scene {
       const asterisms = new Asterisms(this.ui, this.stars, () => {
         this.stars.add(asterisms)
         this.asterisms = asterisms
+        this.asterisms.visible = true
       })
+      return
     }
     if (this.asterisms) {
       this.asterisms.visible = !this.asterisms.visible
