@@ -28,7 +28,7 @@ import {
   rings,
   sphere,
 } from './shapes.js'
-import {newAtmosphere} from './shapes/Atmosphere'
+import {newAtmosphere, newPhysicalAtmosphere} from './shapes/Atmosphere'
 import * as Material from './material.js'
 import {ASTRO_UNIT_METER, FAR_OBJ, labelTextColor, halfPi, toRad} from './shared.js'
 import {capitalize, named} from './utils.js'
@@ -254,8 +254,7 @@ export default class Planet extends Object {
     const surface = named(sphere({radius: this.props.radius.scalar, matr: surfaceMaterial}), 'planet surface')
     // const surface = named(sphere({radius: this.props.radius.scalar, wireframe: true, color: 0x00ff00}), 'planet surface')
     surface.renderOrder = 1
-    surface.add(named(newAtmosphere(this.props.radius.scalar * 1.02), 'atmosphere'))
-    if (this.props.texture_atmosphere) {
+    if (this.props.texture_atmosphere && !this.props.atmosphere) {
       surface.add(this.newClouds())
     }
     if (this.props.name === 'saturn') {
@@ -270,6 +269,11 @@ export default class Planet extends Object {
     }
     const group = new Group
     group.add(surface)
+    if (this.props.atmosphere) {
+      group.add(named(newPhysicalAtmosphere(this.props.radius.scalar, this.props.atmosphere), 'atmosphere'))
+    } else {
+      group.add(named(newAtmosphere(this.props.radius.scalar * 1.02), 'atmosphere'))
+    }
     const internalGuidesRadius = this.props.radius.scalar * 0.9
     group.add(new AxesHelper(internalGuidesRadius))
     // group.add(sphere({radius: internalGuidesRadius, wireframe: true, color: 0x808080}))
