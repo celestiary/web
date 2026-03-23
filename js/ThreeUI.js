@@ -1,14 +1,19 @@
 import {
+  DepthTexture,
   LinearSRGBColorSpace,
   NeutralToneMapping,
   Object3D,
+  OrthographicCamera,
   Quaternion,
   PerspectiveCamera,
   Scene,
+  UnsignedIntType,
   Vector2,
   Vector3,
   WebGLRenderer,
+  WebGLRenderTarget,
 } from 'three'
+import {newAtmospherePass} from './shapes/Atmosphere'
 import * as TWEEN from '@tweenjs/tween.js'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
@@ -43,6 +48,13 @@ export default class ThreeUi {
 
     this.renderer = renderer ||
       this.initRenderer(this.threeContainer, backgroundColor || 0x000000)
+    // Post-process atmosphere pass
+    this._sceneRT = this._makeSceneRT()
+    this._atmScene = new Scene()
+    this._atmCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
+    this._atmMesh = newAtmospherePass()
+    this._atmScene.add(this._atmMesh)
+    this._pWorldAtm = new Vector3()
     this.initControls(this.camera)
     this.fs = new Fullscreen(this.container, () => this.onResize())
     window.addEventListener('resize', () => {
@@ -80,6 +92,20 @@ export default class ThreeUi {
     this.renderer.setAnimationLoop((time) => {
       this.renderLoop(time)
     })
+  }
+
+
+  /** @returns {WebGLRenderTarget} with a depth texture */
+  _makeSceneRT() {
+    const rt = new WebGLRenderTarget(this.width, this.height)
+    rt.depthTexture = new DepthTexture()
+    rt.depthTexture.type = UnsignedIntType
+    // Three.js only applies tone mapping when _currentRenderTarget is null
+    // (screen) or isXRRenderTarget. Tag ours so PBR materials get tone-mapped
+    // into [0,1] instead of writing raw HDR values that saturate to white.
+    rt.isXRRenderTarget = true
+    rt.texture.colorSpace = LinearSRGBColorSpace
+    return rt
   }
 
 
@@ -165,6 +191,7 @@ export default class ThreeUi {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
+    this._sceneRT.setSize(width, height)
     this.controls.handleResize()
   }
 
@@ -231,7 +258,12 @@ export default class ThreeUi {
       targets.tween.update()
     }
     this._applyCameraArrowKeys()
+    // Render scene to RT, then composite atmosphere fullscreen pass to screen
+    this.renderer.setRenderTarget(this._sceneRT)
     this.renderer.render(this.scene, this.camera)
+    this.renderer.setRenderTarget(null)
+    this._updateAtmUniforms()
+    this.renderer.render(this._atmScene, this._atmCamera)
   }
 
 
@@ -297,6 +329,46 @@ export default class ThreeUi {
         this.camera.rotateX(-dy * speed)
       }
     })
+  }
+
+
+  /**
+   * Updates fullscreen atmosphere pass uniforms from the current scene target.
+   * When no atmosphere target, sets uAtmosphereRadius = uGroundRadius so scatter
+   * returns zero and the scene colour passes through unchanged.
+   */
+  _updateAtmUniforms() {
+    const u = this._atmMesh.material.uniforms
+    u.tDiffuse.value = this._sceneRT.texture
+    u.tDepth.value   = this._sceneRT.depthTexture
+    u.uNear.value    = this.camera.near
+    u.uFar.value     = this.camera.far
+    u.uProjectionMatrixInverse.value.copy(this.camera.projectionMatrixInverse)
+
+    const tObj = targets.obj
+    if (!tObj?.props?.atmosphere) {
+      u.uAtmosphereRadius.value = u.uGroundRadius.value
+      return
+    }
+    const atmos = tObj.props.atmosphere
+    const R = tObj.props.radius.scalar
+
+    tObj.getWorldPosition(this._pWorldAtm)
+    u.uPlanetCenter.value
+      .copy(this._pWorldAtm)
+      .applyMatrix4(this.camera.matrixWorldInverse)
+    u.uSunDirection.value
+      .copy(this._pWorldAtm).negate().normalize()
+      .transformDirection(this.camera.matrixWorldInverse)
+
+    u.uGroundRadius.value        = R
+    u.uAtmosphereRadius.value    = R + atmos.height.scalar
+    u.uSunIntensity.value        = atmos.sunIntensity ?? 22
+    u.uRayleigh.value.set(...atmos.rayleigh)
+    u.uRayleighScaleHeight.value = atmos.rayleighScaleHeight.scalar
+    u.uMieCoeff.value            = atmos.mieCoeff
+    u.uMieScaleHeight.value      = atmos.mieScaleHeight.scalar
+    u.uMiePolarity.value         = atmos.miePolarity
   }
 
 

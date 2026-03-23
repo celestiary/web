@@ -5,9 +5,12 @@ import {
   CustomBlending,
   DoubleSide,
   FrontSide,
+  Matrix4,
+  Mesh,
   Object3D,
   OneFactor,
   OneMinusSrcAlphaFactor,
+  PlaneGeometry,
   ShaderMaterial,
   Vector3,
 } from 'three'
@@ -313,3 +316,204 @@ void main() {
   })
   return shape
 }
+
+
+/**
+ * Creates a fullscreen-quad Mesh for use as a post-process atmosphere pass.
+ * The caller is responsible for updating uniforms each frame via
+ * ThreeUI._updateAtmUniforms().
+ *
+ * @returns {Mesh}
+ */
+export function newAtmospherePass() {
+  const geo = new PlaneGeometry(2, 2)
+  const mat = new ShaderMaterial({
+    uniforms: {
+      tDiffuse:                 {value: null},
+      tDepth:                   {value: null},
+      uNear:                    {value: 0.1},
+      uFar:                     {value: 1e20},
+      uProjectionMatrixInverse: {value: new Matrix4()},
+      uPlanetCenter:            {value: new Vector3()},
+      uSunDirection:            {value: new Vector3(0, 1, 0)},
+      uSunIntensity:            {value: 22},
+      uGroundRadius:            {value: 1},
+      uAtmosphereRadius:        {value: 1}, // = uGroundRadius → no-op when no atmosphere
+      uRayleigh:                {value: new Vector3()},
+      uRayleighScaleHeight:     {value: 1},
+      uMieCoeff:                {value: 0},
+      uMieScaleHeight:          {value: 1},
+      uMiePolarity:             {value: 0},
+    },
+    vertexShader: FULLSCREEN_VERT,
+    fragmentShader: FULLSCREEN_FRAG,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  })
+  const mesh = new Mesh(geo, mat)
+  mesh.frustumCulled = false
+  return mesh
+}
+
+
+const FULLSCREEN_VERT = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = vec4(position.xy, 0.0, 1.0);
+}
+`
+
+const FULLSCREEN_FRAG = `
+precision highp float;
+
+varying vec2 vUv;
+
+uniform sampler2D tDiffuse;
+uniform sampler2D tDepth;
+uniform float     uNear;
+uniform float     uFar;
+uniform mat4      uProjectionMatrixInverse;
+uniform vec3      uPlanetCenter;
+uniform vec3      uSunDirection;
+uniform float     uSunIntensity;
+uniform float     uGroundRadius;
+uniform float     uAtmosphereRadius;
+uniform vec3      uRayleigh;
+uniform float     uRayleighScaleHeight;
+uniform float     uMieCoeff;
+uniform float     uMieScaleHeight;
+uniform float     uMiePolarity;
+
+#define PI      3.141592
+#define I_STEPS 16
+#define J_STEPS 8
+
+vec2 rsi(vec3 r0, vec3 rd, float sr) {
+  float a = dot(rd, rd);
+  float b = 2.0 * dot(rd, r0);
+  float c = dot(r0, r0) - sr * sr;
+  float d = b*b - 4.0*a*c;
+  if (d < 0.0) return vec2(1e5, -1e5);
+  return vec2((-b - sqrt(d)) / (2.0*a),
+              (-b + sqrt(d)) / (2.0*a));
+}
+
+vec4 scatter(
+    vec3 rayDir, vec3 eyePos, vec3 sunDir, float sunIntensity,
+    float rPlanet, float rAtmos,
+    vec3 kRlh, float shRlh, float kMie, float shMie, float polarity,
+    float tMax) {
+
+  rayDir = normalize(rayDir);
+  sunDir = normalize(sunDir);
+
+  vec2 p = rsi(eyePos, rayDir, rAtmos);
+  if (p.x > p.y) return vec4(0.0);
+
+  // Clip to the actual rendered surface depth.  The planet surface writes to
+  // the depth buffer (depthWrite:true), so tMax is accurate for surface pixels.
+  // For background/star pixels (depthWrite:false) tMax = 1e15 >> rAtmos, so
+  // scatter clips naturally at the atmosphere exit — no sphere math needed.
+  p.y = min(p.y, tMax);
+
+  float iTime = max(p.x, 0.0);
+  float iStepSize = (p.y - iTime) / float(I_STEPS);
+  if (iStepSize <= 0.0) return vec4(0.0);
+
+  float mu    = dot(rayDir, sunDir);
+  float mumu  = mu * mu;
+  float pol2  = polarity * polarity;
+  float pRlh  = 3.0 / (16.0 * PI) * (1.0 + mumu);
+  float pMie  = 3.0 / (8.0 * PI) * ((1.0 - pol2) * (1.0 + mumu))
+                * (2.0 + pol2) / pow(1.0 + pol2 - 2.0 * polarity * mu, 1.5);
+
+  vec3  totalRlh = vec3(0.0);
+  vec3  totalMie = vec3(0.0);
+  float iOdRlh   = 0.0;
+  float iOdMie   = 0.0;
+
+  for (int i = 0; i < I_STEPS; i++) {
+    vec3  iPos    = eyePos + rayDir * (iTime + iStepSize * 0.5);
+    float iHeight = max(length(iPos) - rPlanet, 0.0);
+    float odRlh   = exp(-iHeight / shRlh) * iStepSize;
+    float odMie   = exp(-iHeight / shMie) * iStepSize;
+    iOdRlh += odRlh;
+    iOdMie += odMie;
+
+    float jStepSize = rsi(iPos, sunDir, rAtmos).y / float(J_STEPS);
+    float jTime     = 0.0;
+    float jOdRlh    = 0.0;
+    float jOdMie    = 0.0;
+    for (int j = 0; j < J_STEPS; j++) {
+      vec3  jPos    = iPos + sunDir * (jTime + jStepSize * 0.5);
+      float jHeight = max(length(jPos) - rPlanet, 0.0);
+      jOdRlh += exp(-jHeight / shRlh) * jStepSize;
+      jOdMie += exp(-jHeight / shMie) * jStepSize;
+      jTime  += jStepSize;
+    }
+
+    vec3 attn = exp(-(kMie * (iOdMie + jOdMie) + kRlh * (iOdRlh + jOdRlh)));
+    totalRlh += odRlh * attn;
+    totalMie += odMie * attn;
+    iTime    += iStepSize;
+  }
+
+  vec3 extinction = kRlh * iOdRlh + vec3(kMie * iOdMie);
+  float alpha = 1.0 - exp(-max(extinction.x, max(extinction.y, extinction.z)));
+
+  return vec4(sunIntensity * (pRlh * kRlh * totalRlh + pMie * kMie * totalMie), alpha);
+}
+
+void main() {
+  vec2 ndc = vUv * 2.0 - 1.0;
+  float depthSample = texture2D(tDepth, vUv).r;
+
+  // Ray direction: reconstruct from the NEAR plane (z = -1 in NDC) so we never
+  // square a value of magnitude ~uFar (= 1.9e20 m) — that would overflow float32
+  // (max ~3.4e38).  The view-space direction is the same for any depth; only the
+  // magnitude differs, and we compute that separately below.
+  vec4 viewDir4 = uProjectionMatrixInverse * vec4(ndc, -1.0, 1.0);
+  viewDir4 /= viewDir4.w;
+  vec3 rayDir = normalize(viewDir4.xyz);
+
+  // Distance to the pixel: linearise the depth buffer value.
+  // Clamp the effective far to 1e15 m (far larger than any atmosphere, but safe
+  // to square in float32) so background pixels don't cause overflow.
+  float scatterFar = min(uFar, 1.0e15);
+  float z_ndc = depthSample * 2.0 - 1.0;
+  float tMax = (2.0 * uNear * scatterFar)
+               / (uNear + scatterFar - z_ndc * (scatterFar - uNear));
+  tMax = max(tMax, uNear);
+
+  vec3 eyePos = -uPlanetCenter;             // camera in planet-centred space
+
+  vec4 result = scatter(rayDir, eyePos, uSunDirection, uSunIntensity,
+                        uGroundRadius, uAtmosphereRadius,
+                        uRayleigh, uRayleighScaleHeight,
+                        uMieCoeff, uMieScaleHeight, uMiePolarity,
+                        tMax);
+
+  // Alpha boost: when camera is inside the atmosphere, sky rays get alpha lifted
+  // to the fractional atmospheric depth so stars don't show through the daytime
+  // sky (physical scatter under-estimates opacity for thin-column zenith views).
+  // Guard: only when atmosphere is defined (uAtmosphereRadius > uGroundRadius).
+  if (uAtmosphereRadius > uGroundRadius) {
+    float camDist = length(eyePos);
+    if (camDist < uAtmosphereRadius) {
+      vec2 tG = rsi(eyePos, rayDir, uGroundRadius);
+      bool hitsGround = tG.x > 0.0 && tG.x <= tG.y;
+      if (!hitsGround) {
+        float depth = 1.0 - (camDist - uGroundRadius)
+                          / (uAtmosphereRadius - uGroundRadius);
+        result.a = max(result.a, clamp(depth, 0.0, 1.0));
+      }
+    }
+  }
+
+  vec3 color = 1.0 - exp(-result.rgb);
+  vec4 scene = texture2D(tDiffuse, vUv);
+  gl_FragColor = vec4(color + scene.rgb * (1.0 - result.a), 1.0);
+}
+`
