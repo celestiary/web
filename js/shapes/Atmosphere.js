@@ -233,8 +233,12 @@ void main() {
   // This has no effect from outside the atmosphere (camDist >= uAtmosphereRadius).
   float camDist = length(eyePos);
   if (camDist < uAtmosphereRadius) {
-    float depth = 1.0 - (camDist - uGroundRadius) / (uAtmosphereRadius - uGroundRadius);
-    result.a = max(result.a, clamp(depth, 0.0, 1.0));
+    vec2 tG = rsi(eyePos, rayDir, uGroundRadius);
+    bool hitsGround = tG.x > 0.0 && tG.x <= tG.y;
+    if (!hitsGround) {
+      float depth = 1.0 - (camDist - uGroundRadius) / (uAtmosphereRadius - uGroundRadius);
+      result.a = max(result.a, clamp(depth, 0.0, 1.0));
+    }
   }
 
   vec3 color = 1.0 - exp(-result.rgb);
