@@ -344,6 +344,10 @@ export function newAtmospherePass() {
       uMieCoeff:                {value: 0},
       uMieScaleHeight:          {value: 1},
       uMiePolarity:             {value: 0},
+      tTransmittance:           {value: null},
+      uUseTransmittanceLUT:     {value: 0.0},
+      tInScatter:               {value: null},
+      uUseInScatterLUT:         {value: 0.0},
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
@@ -385,10 +389,73 @@ uniform float     uRayleighScaleHeight;
 uniform float     uMieCoeff;
 uniform float     uMieScaleHeight;
 uniform float     uMiePolarity;
+uniform sampler2D tTransmittance;
+uniform float     uUseTransmittanceLUT;
+uniform sampler2D tInScatter;
+uniform float     uUseInScatterLUT;
 
-#define PI      3.141592
-#define I_STEPS 16
-#define J_STEPS 8
+#define PI        3.141592
+#define I_STEPS   64
+#define J_STEPS   8
+#define R_SLICES  64.0
+
+// Map (r, mu_sun) → UV for the precomputed transmittance LUT.
+// Simple linear parameterisation.
+vec2 transmittanceUV(float r, float mu_s, float rG, float rA) {
+  return vec2(
+    (r  - rG) / (rA - rG),
+    mu_s * 0.5 + 0.5
+  );
+}
+
+// Bruneton horizon-aware mu_view encode (inverse of bruneton_decode_mu_v in precompute).
+// Concentrates atlas rows near the local horizon where scatter changes fastest.
+float bruneton_encode_mu_v(float r, float mu_v, float rG, float rA) {
+  float rho  = sqrt(max(0.0, r*r - rG*rG));
+  float H    = sqrt(max(0.0, rA*rA - rG*rG));
+  float mu_h = (r > 0.0) ? -rho/r : 0.0;
+  if (mu_v >= mu_h) {
+    float disc = max(0.0, r*r*mu_v*mu_v - r*r + rA*rA);
+    float d    = -r*mu_v + sqrt(disc);
+    float dMin = rA - r;
+    float dMax = rho + H;
+    float u    = (dMax > dMin) ? (dMax - d) / (dMax - dMin) : 1.0;
+    return 0.5 + 0.5*clamp(u, 0.0, 1.0);
+  } else {
+    float disc = max(0.0, r*r*mu_v*mu_v - r*r + rG*rG);
+    float d    = -r*mu_v - sqrt(disc);
+    float dMin = r - rG;
+    float dMax = rho;
+    float u    = (dMax > dMin) ? (d - dMin) / (dMax - dMin) : 0.0;
+    return 0.5*clamp(u, 0.0, 1.0);
+  }
+}
+
+// Trilinear in-scatter atlas lookup.
+// Atlas: 64 r-slices × 32 μ_sun steps = 2048px wide, 512 μ_view steps tall.
+// Manual r-slice blend; GPU handles μ_sun/μ_view bilinear within each slice.
+vec4 sampleInScatter(float r, float mu_view, float mu_sun) {
+  float r_t    = clamp((r - uGroundRadius) / (uAtmosphereRadius - uGroundRadius), 0.0, 1.0);
+  float r_f    = r_t * (R_SLICES - 1.0);
+  float r0     = floor(r_f);
+  float r1     = min(r0 + 1.0, R_SLICES - 1.0);
+  float rBlend = fract(r_f);
+
+  float mu_s_t = mu_sun  * 0.5 + 0.5;
+  float mu_v_t = bruneton_encode_mu_v(r, mu_view, uGroundRadius, uAtmosphereRadius);
+
+  // Each tile is (atlasWidth / R_SLICES) = 2048/64 = 32 texels wide.
+  // Clamp mu_s_t half a texel inward from each tile edge so the GPU bilinear
+  // filter cannot bleed across tile boundaries (which hold unrelated r-slices).
+  // Without this, mu_sun = -1 samples half from the previous tile's mu_sun = +1
+  // edge (bright dayside scatter), producing a spurious glow at the anti-solar pt.
+  const float TILE_HALF = 0.5 / 32.0;  // 32 texels per tile (atlas 2048 / R_SLICES 64)
+  mu_s_t = clamp(mu_s_t, TILE_HALF, 1.0 - TILE_HALF);
+
+  vec4 s0 = texture2D(tInScatter, vec2((r0 + mu_s_t) / R_SLICES, mu_v_t));
+  vec4 s1 = texture2D(tInScatter, vec2((r1 + mu_s_t) / R_SLICES, mu_v_t));
+  return mix(s0, s1, rBlend);
+}
 
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
   float a = dot(rd, rd);
@@ -442,16 +509,26 @@ vec4 scatter(
     iOdRlh += odRlh;
     iOdMie += odMie;
 
-    float jStepSize = rsi(iPos, sunDir, rAtmos).y / float(J_STEPS);
-    float jTime     = 0.0;
-    float jOdRlh    = 0.0;
-    float jOdMie    = 0.0;
-    for (int j = 0; j < J_STEPS; j++) {
-      vec3  jPos    = iPos + sunDir * (jTime + jStepSize * 0.5);
-      float jHeight = max(length(jPos) - rPlanet, 0.0);
-      jOdRlh += exp(-jHeight / shRlh) * jStepSize;
-      jOdMie += exp(-jHeight / shMie) * jStepSize;
-      jTime  += jStepSize;
+    float jOdRlh = 0.0;
+    float jOdMie = 0.0;
+    if (uUseTransmittanceLUT > 0.5) {
+      // Bruneton LUT lookup: one texture sample replaces the entire j-loop.
+      float iR   = length(iPos);
+      float mu_s = dot(normalize(iPos), sunDir);
+      vec2  uvT  = transmittanceUV(iR, mu_s, rPlanet, rAtmos);
+      vec2  jOd  = texture2D(tTransmittance, uvT).rg;
+      jOdRlh = jOd.r;
+      jOdMie = jOd.g;
+    } else {
+      float jStepSize = rsi(iPos, sunDir, rAtmos).y / float(J_STEPS);
+      float jTime     = 0.0;
+      for (int j = 0; j < J_STEPS; j++) {
+        vec3  jPos    = iPos + sunDir * (jTime + jStepSize * 0.5);
+        float jHeight = max(length(jPos) - rPlanet, 0.0);
+        jOdRlh += exp(-jHeight / shRlh) * jStepSize;
+        jOdMie += exp(-jHeight / shMie) * jStepSize;
+        jTime  += jStepSize;
+      }
     }
 
     vec3 attn = exp(-(kMie * (iOdMie + jOdMie) + kRlh * (iOdRlh + jOdRlh)));
@@ -489,16 +566,94 @@ void main() {
 
   vec3 eyePos = -uPlanetCenter;             // camera in planet-centred space
 
+  // ── Phase 2: in-scatter LUT path (no loops, smooth) ──────────────────────
+  if (uUseInScatterLUT > 0.5) {
+    // Use the ray's atmosphere entry point as the LUT index.
+    // When camera is inside atmosphere: t_entry=0 → entryPos=eyePos (camera).
+    // When camera is outside: t_entry=p.x → entryPos on atmosphere sphere.
+    vec2 pAtm = rsi(eyePos, rayDir, uAtmosphereRadius);
+    if (pAtm.x > pAtm.y) {
+      // Ray misses atmosphere entirely — pass scene through unchanged.
+      gl_FragColor = texture2D(tDiffuse, vUv);
+      return;
+    }
+    float t_entry = max(pAtm.x, 0.0);
+    vec3  entryPos = eyePos + rayDir * t_entry;
+    float r_e  = length(entryPos);
+    vec3  zen  = normalize(entryPos);
+    float mu_v = dot(rayDir, zen);
+    float mu_s = dot(zen, uSunDirection);
+
+    // Gap-pixel fix: at low altitude some pixels have no tessellated surface
+    // but the math ground sphere would block them.  The LUT gives near-zero
+    // scatter for sub-horizon rays (short path to surface), letting stars bleed
+    // through.  For these gap pixels only, clamp mu_v to the local horizon
+    // angle so we use the maximum-path (near-tangent) scatter instead.
+    // For all other pixels (real surface, sky, from-space) mu_v is used as-is.
+    //
+    // Use tMax (linearised depth distance) rather than raw depthSample to
+    // detect background pixels.  When dynamicNear is very small (e.g. 1 m
+    // during descent), the depth buffer is heavily compressed and real surface
+    // pixels at ~10 km get depthSample ≈ 0.9999, falsely triggering the clamp
+    // for the entire visible surface and flooding the screen with horizon haze.
+    // tMax is independent of near-plane compression: background = ~1e15 m,
+    // any in-atmosphere surface << uAtmosphereRadius * 2.
+    // pAtm.x <= 0 means the camera is inside the atmosphere sphere.
+    // Gap pixels only occur at low altitude (camera inside), so skip the
+    // clamp entirely when the camera is outside the atmosphere — otherwise
+    // distant surface pixels (tMax >> uAtmosphereRadius) also trigger it,
+    // blanketing the whole planet in haze from far away.
+    bool  insideAtm = (pAtm.x <= 0.0);
+    vec2  tG_ray  = rsi(eyePos, rayDir, uGroundRadius);
+    bool  isGap   = insideAtm
+                    && (tMax > uAtmosphereRadius * 2.0)
+                    && (tG_ray.x > 0.0 && tG_ray.x <= tG_ray.y);
+    float mu_horiz = -sqrt(max(0.0, 1.0 - uGroundRadius*uGroundRadius / (r_e*r_e)));
+    float mu_v_lut = isGap ? max(mu_v, mu_horiz) : mu_v;
+
+    // In-scatter from atlas (trilinear, no loops)
+    vec4  inS   = sampleInScatter(r_e, mu_v_lut, mu_s);
+    float mu    = dot(rayDir, uSunDirection);
+    float mumu  = mu * mu;
+    float pol2  = uMiePolarity * uMiePolarity;
+    float pRlh  = 3.0/(16.0*PI) * (1.0 + mumu);
+    float pMie  = 3.0/(8.0*PI) * ((1.0-pol2)*(1.0+mumu))
+                  * (2.0+pol2) / pow(1.0+pol2 - 2.0*uMiePolarity*mu, 1.5);
+    vec3 scattered = uSunIntensity * (pRlh * inS.rgb + vec3(pMie * inS.a));
+
+    // Extinction alpha via transmittance LUT along view ray.
+    // Use the same mu_v_lut clamp (horizon angle) so extinction matches scatter.
+    vec2 uvT_v    = transmittanceUV(r_e, mu_v_lut, uGroundRadius, uAtmosphereRadius);
+    vec2 odView   = texture2D(tTransmittance, uvT_v).rg;
+    vec3 extVec   = uRayleigh * odView.r + vec3(uMieCoeff * odView.g);
+    float alpha   = 1.0 - exp(-max(extVec.r, max(extVec.g, extVec.b)));
+
+    // Alpha boost when camera is inside atmosphere (sky rays)
+    if (uAtmosphereRadius > uGroundRadius) {
+      float camDist = length(eyePos);
+      if (camDist < uAtmosphereRadius) {
+        vec2 tG = rsi(eyePos, rayDir, uGroundRadius);
+        if (!(tG.x > 0.0 && tG.x <= tG.y)) {
+          float depth = 1.0 - (camDist - uGroundRadius)
+                            / (uAtmosphereRadius - uGroundRadius);
+          alpha = max(alpha, clamp(depth, 0.0, 1.0));
+        }
+      }
+    }
+
+    vec3 color = 1.0 - exp(-scattered);
+    vec4 scene = texture2D(tDiffuse, vUv);
+    gl_FragColor = vec4(color + scene.rgb * (1.0 - alpha), 1.0);
+    return;
+  }
+
+  // ── Fallback: ray-march scatter (i-loop + j-loop or j-LUT) ───────────────
   vec4 result = scatter(rayDir, eyePos, uSunDirection, uSunIntensity,
                         uGroundRadius, uAtmosphereRadius,
                         uRayleigh, uRayleighScaleHeight,
                         uMieCoeff, uMieScaleHeight, uMiePolarity,
                         tMax);
 
-  // Alpha boost: when camera is inside the atmosphere, sky rays get alpha lifted
-  // to the fractional atmospheric depth so stars don't show through the daytime
-  // sky (physical scatter under-estimates opacity for thin-column zenith views).
-  // Guard: only when atmosphere is defined (uAtmosphereRadius > uGroundRadius).
   if (uAtmosphereRadius > uGroundRadius) {
     float camDist = length(eyePos);
     if (camDist < uAtmosphereRadius) {

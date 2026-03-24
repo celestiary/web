@@ -14,6 +14,7 @@ import {
   WebGLRenderTarget,
 } from 'three'
 import {newAtmospherePass} from './shapes/Atmosphere'
+import {precomputeTransmittance, precomputeInScatter} from './shapes/AtmospherePrecompute'
 import * as TWEEN from '@tweenjs/tween.js'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
@@ -55,6 +56,9 @@ export default class ThreeUi {
     this._atmMesh = newAtmospherePass()
     this._atmScene.add(this._atmMesh)
     this._pWorldAtm = new Vector3()
+    this._lastAtmPlanet = null
+    this._transmittanceRT = null
+    this._inScatterRT = null
     this.initControls(this.camera)
     this.fs = new Fullscreen(this.container, () => this.onResize())
     window.addEventListener('resize', () => {
@@ -346,14 +350,24 @@ export default class ThreeUi {
     u.uProjectionMatrixInverse.value.copy(this.camera.projectionMatrixInverse)
 
     const tObj = targets.obj
-    if (!tObj?.props?.atmosphere) {
+    // Use the selected target's atmosphere if it has one, otherwise fall back
+    // to the last planet that did.  This keeps the atmosphere visible after
+    // pressing 'u' (select parent/no-atm target) while the camera is still
+    // near the planet; the fullscreen sphere-intersection naturally fades it
+    // as the camera moves away.
+    const atmTarget = tObj?.props?.atmosphere ? tObj : this._lastAtmPlanet
+
+    if (!atmTarget) {
+      // No atmosphere ever seen — push planet far off-screen so rsi misses.
+      u.uPlanetCenter.value.set(0, 0, 1e20)
       u.uAtmosphereRadius.value = u.uGroundRadius.value
+      u.uUseInScatterLUT.value = 0.0
       return
     }
-    const atmos = tObj.props.atmosphere
-    const R = tObj.props.radius.scalar
+    const atmos = atmTarget.props.atmosphere
+    const R = atmTarget.props.radius.scalar
 
-    tObj.getWorldPosition(this._pWorldAtm)
+    atmTarget.getWorldPosition(this._pWorldAtm)
     u.uPlanetCenter.value
       .copy(this._pWorldAtm)
       .applyMatrix4(this.camera.matrixWorldInverse)
@@ -369,6 +383,19 @@ export default class ThreeUi {
     u.uMieCoeff.value            = atmos.mieCoeff
     u.uMieScaleHeight.value      = atmos.mieScaleHeight.scalar
     u.uMiePolarity.value         = atmos.miePolarity
+
+    if (this._lastAtmPlanet !== atmTarget) {
+      this._lastAtmPlanet = atmTarget
+      if (this._transmittanceRT) this._transmittanceRT.dispose()
+      if (this._inScatterRT) this._inScatterRT.dispose()
+      this._transmittanceRT = precomputeTransmittance(this.renderer, atmos, R)
+      this._inScatterRT = precomputeInScatter(this.renderer, atmos, R, this._transmittanceRT)
+      u.tTransmittance.value = this._transmittanceRT.texture
+      u.uUseTransmittanceLUT.value = 1.0
+      u.tInScatter.value = this._inScatterRT.texture
+    }
+    // Always re-enable after returning from a no-atmosphere target.
+    u.uUseInScatterLUT.value = this._inScatterRT ? 1.0 : 0.0
   }
 
 
