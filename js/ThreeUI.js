@@ -56,6 +56,7 @@ export default class ThreeUi {
     this._atmMesh = newAtmospherePass()
     this._atmScene.add(this._atmMesh)
     this._pWorldAtm = new Vector3()
+    this._camWorldAtm = new Vector3()
     this._lastAtmPlanet = null
     this._transmittanceRT = null
     this._inScatterRT = null
@@ -350,12 +351,21 @@ export default class ThreeUi {
     u.uProjectionMatrixInverse.value.copy(this.camera.projectionMatrixInverse)
 
     const tObj = targets.obj
-    // Use the selected target's atmosphere if it has one, otherwise fall back
-    // to the last planet that did.  This keeps the atmosphere visible after
-    // pressing 'u' (select parent/no-atm target) while the camera is still
-    // near the planet; the fullscreen sphere-intersection naturally fades it
-    // as the camera moves away.
-    const atmTarget = tObj?.props?.atmosphere ? tObj : this._lastAtmPlanet
+    // Determine which planet's atmosphere to render.
+    // Fall back to _lastAtmPlanet when tObj has no atmosphere (e.g. Sun after 'u').
+    // When tObj does have atmosphere, only switch to it if the camera is actually
+    // near it — guards against selecting a distant moon with atmosphere (e.g. Titan)
+    // while the camera is still orbiting the parent planet (Saturn).
+    // Threshold: 20× atmosphere radius covers typical orbit distances.
+    let atmTarget = this._lastAtmPlanet
+    if (tObj?.props?.atmosphere) {
+      const atmR = tObj.props.radius.scalar + tObj.props.atmosphere.height.scalar
+      tObj.getWorldPosition(this._pWorldAtm)
+      this.camera.getWorldPosition(this._camWorldAtm)
+      if (!this._lastAtmPlanet || this._camWorldAtm.distanceTo(this._pWorldAtm) < atmR * 20) {
+        atmTarget = tObj
+      }
+    }
 
     if (!atmTarget) {
       // No atmosphere ever seen — push planet far off-screen so rsi misses.
