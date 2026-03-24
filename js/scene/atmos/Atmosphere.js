@@ -16,7 +16,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three'
-import {sphere} from '../shapes'
+import {sphere} from '../../shapes'
 
 
 /**
