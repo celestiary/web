@@ -18,7 +18,7 @@ await ctx.watch()
  *
  * See https://esbuild.github.io/api/#customizing-server-behavior
  */
-const SERVE_PORT = 8090
+const SERVE_PORT = parseInt(process.env.PORT ?? '8080')
 const {host, port} = await ctx.serve({
   port: SERVE_PORT - 1,
   servedir: config.outdir,
