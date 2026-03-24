@@ -1,7 +1,7 @@
 import React, {useEffect} from 'react'
 import {AxesHelper, PointLight} from 'three'
 import ThreeUi from '../ThreeUI.js'
-import {box} from '../shapes.js'
+import {box} from '../scene/shapes.js'
 import {ui as uiId} from './index.module.css'
 
 

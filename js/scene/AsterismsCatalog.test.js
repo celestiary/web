@@ -2,7 +2,7 @@ import {readFileSync} from 'fs'
 
 import AsterismsCatalog from './AsterismsCatalog.js'
 import StarsCatalog from './StarsCatalog.js'
-import {toArrayBuffer} from './utils.js'
+import {toArrayBuffer} from '../utils.js'
 
 
 describe('AsterismsCatalog', () => {

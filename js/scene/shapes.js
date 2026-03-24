@@ -39,8 +39,8 @@ import {
 } from 'three'
 import SpriteSheet from './SpriteSheet.js'
 import * as Material from './material.js'
-import * as Shared from './shared.js'
-import {named} from './utils.js'
+import * as Shared from '../shared.js'
+import {named} from '../utils.js'
 
 
 /** @returns {Mesh} */

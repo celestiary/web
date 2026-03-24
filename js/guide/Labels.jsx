@@ -1,8 +1,8 @@
 import React, {useEffect} from 'react'
 import {PointLight} from 'three'
-import SpriteSheet from '../SpriteSheet.js'
+import SpriteSheet from '../scene/SpriteSheet.js'
 import ThreeUi from '../ThreeUI.js'
-import {cube} from '../shapes.js'
+import {cube} from '../scene/shapes.js'
 import {ui as uiId} from './index.module.css'
 
 

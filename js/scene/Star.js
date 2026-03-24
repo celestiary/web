@@ -5,15 +5,14 @@ import {
   PointLight,
   ShaderMaterial,
   Mesh,
-  MeshBasicMaterial,
   Vector2,
   Vector3,
 } from 'three'
 import Object from './object.js'
 import * as Shaders from './star-shaders.js'
 import {sphere} from './shapes.js'
-import {newAtmosphere} from './scene/atmos/Atmosphere'
-import * as Shared from './shared.js'
+import {newAtmosphere} from './atmos/Atmosphere'
+import * as Shared from '../shared.js'
 
 
 /**
@@ -57,8 +56,7 @@ export default class Star extends Object {
     // correct distance and lumens.  Have tried tone mapping and custom
     // rendering target, but nothing quite balances.  This is the best
     // workaround so far.
-    const artFalloff = 1.01 // Default is 2, ie quadratic falloff
-    const sunlight = new PointLight(0xffffff, sunLumensSurface, 0, 1.01)
+    const sunlight = new PointLight(0xffffff, sunLumensSurface, 0, 1.01) // falloff 1.01: default is 2 (quadratic)
     // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
     sunlight.castShadow = true
     sunlight.shadow.mapSize.width = shadowProps.width || 512 // default: 512
@@ -82,7 +80,7 @@ export default class Star extends Object {
     lod.addLevel(surfaceGroup, props.radius.scalar)
 
     lod.addLevel(Shared.FAR_OBJ, props.radius.scalar * 1e3)
-    
+
     this.add(lod)
   }
 

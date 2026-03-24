@@ -10,7 +10,7 @@ import {Easing, Tween} from '@tweenjs/tween.js'
 /**
  * @param {Camera} camera
  * @param {Matrix4} targetMatrixWorld
- * @return {Tween}
+ * @returns {Tween}
  */
 export function newCameraLookTween(camera, targetMatrixWorld) {
   const tPos = new Vector3().setFromMatrixPosition(targetMatrixWorld)
@@ -18,11 +18,11 @@ export function newCameraLookTween(camera, targetMatrixWorld) {
   camera.lookAt(tPos)
   const endQuat = new Quaternion().copy(camera.quaternion)
   camera.quaternion.copy(startQuat)
-  return new Tween({ t: 0 })
-    .to({ t: 1 }, 600)
-    .easing(Easing.Quadratic.InOut)
-    .onUpdate((obj) => camera.quaternion.slerpQuaternions(startQuat, endQuat, obj.t))
-    .start()
+  return new Tween({t: 0})
+      .to({t: 1}, 600)
+      .easing(Easing.Quadratic.InOut)
+      .onUpdate((obj) => camera.quaternion.slerpQuaternions(startQuat, endQuat, obj.t))
+      .start()
 }
 
 
@@ -34,7 +34,7 @@ export function newCameraLookTween(camera, targetMatrixWorld) {
  * @param {Camera} camera
  * @param {Vector3} targetWorldPos World-space position to look at
  * @param {Vector3} endLocalPos Destination camera position in platform-local space
- * @return {Tween}
+ * @returns {Tween}
  */
 export function newCameraGoToTween(camera, targetWorldPos, endLocalPos) {
   const startPos = camera.position.clone()
@@ -51,11 +51,11 @@ export function newCameraGoToTween(camera, targetWorldPos, endLocalPos) {
   camera.quaternion.copy(startQuat)
 
   return new Tween({t: 0})
-    .to({t: 1}, 1500)
-    .easing(Easing.Quadratic.InOut)
-    .onUpdate(({t}) => {
-      camera.position.lerpVectors(startPos, endLocalPos, t)
-      camera.quaternion.slerpQuaternions(startQuat, endQuat, t)
-    })
-    .start()
+      .to({t: 1}, 1500)
+      .easing(Easing.Quadratic.InOut)
+      .onUpdate(({t}) => {
+        camera.position.lerpVectors(startPos, endLocalPos, t)
+        camera.quaternion.slerpQuaternions(startQuat, endQuat, t)
+      })
+      .start()
 }

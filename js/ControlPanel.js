@@ -1,7 +1,7 @@
 import Measure from '@pablo-mayrgundter/measure.js'
 import * as collapsor from './collapsor.js'
 import {capitalize} from './utils.js'
-import {StarSpectra} from './StarsCatalog.js'
+import {StarSpectra} from './scene/StarsCatalog.js'
 
 
 /** */

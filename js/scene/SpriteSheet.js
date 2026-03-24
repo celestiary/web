@@ -8,11 +8,11 @@ import {
   ShaderMaterial,
   Vector2,
 } from 'three'
-import * as Utils from './utils.js'
+import * as Utils from '../utils.js'
 import {
   labelTextColor as defaultTextColor,
   labelTextFont as sharedDefaultFont,
-} from './shared.js'
+} from '../shared.js'
 
 
 // TODO: separate this into a SpriteSheet supercalss and LabelSheet subclass.
@@ -23,7 +23,7 @@ import {
  */
 export default class SpriteSheet {
   /**
-   * @param {Number} numLabels
+   * @param {number} numLabels
    * @param {string} maxLabel
    */
   constructor(numLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0]) {

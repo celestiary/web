@@ -1,11 +1,11 @@
 import {
   LineBasicMaterial,
-  Object3D
+  Object3D,
 } from 'three'
 import AsterismsCatalog from './AsterismsCatalog.js'
-import {assertDefined} from './assert.js'
+import {assertDefined} from '../assert.js'
 import * as Shapes from './shapes.js'
-import {STARS_SCALE, labelTextColor} from './shared.js'
+import {labelTextColor} from '../shared.js'
 
 
 /** */
@@ -73,8 +73,8 @@ export default class Asterisms extends Object3D {
         if (prevStar) {
           try {
             const line = Shapes.line(
-              prevStar.x, prevStar.y, prevStar.z,
-              star.x, star.y, star.z,
+                prevStar.x, prevStar.y, prevStar.z,
+                star.x, star.y, star.z,
             )
             line.material = new LineBasicMaterial({color: labelTextColor, toneMapped: false})
             this.add(line)

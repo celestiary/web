@@ -1,13 +1,13 @@
 import * as THREE from 'three'
-import Animation from './Animation'
+import Animation from './scene/Animation'
 import ControlPanel from './ControlPanel'
 import Keys from './Keys'
 import Loader from './Loader'
-import Scene from './Scene'
+import Scene from './scene/Scene'
 import ThreeUi from './ThreeUI'
 import Time from './Time'
 import reifyMeasures from './reify'
-import * as Shapes from './shapes'
+import * as Shapes from './scene/shapes'
 import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {elt} from './utils'
@@ -79,13 +79,13 @@ export default class Celestiary {
       reifyMeasures(obj)
       this.scene.add(obj)
     }
-    this.onDone = (path, obj) => {
-      this.controlPanel.showNavDisplay(path.split('/'), this.loader)
+    this.onDone = (loadedPath, obj) => {
+      this.controlPanel.showNavDisplay(loadedPath.split('/'), this.loader)
       // TODO(pablo): Hack to handle load order.  The path is loaded,
       // but not yet animated so positions will be incorrect.  So
       // schedule this after the next pass.
       setTimeout(() => {
-        const parts = path.split('/')
+        const parts = loadedPath.split('/')
         let targetName = parts[parts.length - 1]
         if (targetName.indexOf('-') >= 0) {
           targetName = targetName.split('-')[0]
@@ -102,7 +102,9 @@ export default class Celestiary {
     this.loader.loadPath('milkyway', this.onLoad, () => {
       this.loader.loadPath(path, this.onLoad, this.onDone, () => {
         // On error.
-        setTimeout(() => location.hash = DEFAULT_TARGET, 1000)
+        setTimeout(() => {
+          location.hash = DEFAULT_TARGET
+        }, 1000)
       })
     })
   }
@@ -246,10 +248,10 @@ export default class Celestiary {
     'Look at parent of current system')
 
     // Arrow keys use held-key logic in ThreeUI._initArrowKeys; no-op here for Settings listing.
-    k.map('ArrowUp', () => {}, 'Pitch camera up (hold)')
-    k.map('ArrowDown', () => {}, 'Pitch camera down (hold)')
-    k.map('ArrowLeft', () => {}, 'Roll camera left (hold)')
-    k.map('ArrowRight', () => {}, 'Roll camera right (hold)')
+    k.map('ArrowUp', () => {/* no-op */}, 'Pitch camera up (hold)')
+    k.map('ArrowDown', () => {/* no-op */}, 'Pitch camera down (hold)')
+    k.map('ArrowLeft', () => {/* no-op */}, 'Roll camera left (hold)')
+    k.map('ArrowRight', () => {/* no-op */}, 'Roll camera right (hold)')
     k.msgs['MOUSEDRAG'] = 'Drag to pitch/yaw camera'
     k.msgs['ALT+MOUSEDRAG'] = 'Option+drag to orbit target'
 

@@ -16,7 +16,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three'
-import {sphere} from '../../shapes'
+import {sphere} from '../shapes'
 
 
 /**
@@ -92,8 +92,8 @@ export function newPhysicalAtmosphere(planetRadius, atmos) {
     // Sun direction in view space: sun is at world origin, so direction from
     // planet to sun is just -planetWorldPos, rotated to view space.
     u.uSunDirection.value
-      .copy(_pWorld).negate().normalize()
-      .transformDirection(camera.matrixWorldInverse)
+        .copy(_pWorld).negate().normalize()
+        .transformDirection(camera.matrixWorldInverse)
     // DoubleSide from inside prevents winding-flip culling gaps; FrontSide
     // from outside avoids rendering the far-side atmosphere twice.
     camera.getWorldPosition(_camWorld)
@@ -331,25 +331,25 @@ export function newAtmospherePass() {
   const geo = new PlaneGeometry(2, 2)
   const mat = new ShaderMaterial({
     uniforms: {
-      tDiffuse:                 {value: null},
-      tDepth:                   {value: null},
-      uNear:                    {value: 0.1},
-      uFar:                     {value: 1e20},
+      tDiffuse: {value: null},
+      tDepth: {value: null},
+      uNear: {value: 0.1},
+      uFar: {value: 1e20},
       uProjectionMatrixInverse: {value: new Matrix4()},
-      uPlanetCenter:            {value: new Vector3()},
-      uSunDirection:            {value: new Vector3(0, 1, 0)},
-      uSunIntensity:            {value: 22},
-      uGroundRadius:            {value: 1},
-      uAtmosphereRadius:        {value: 1}, // = uGroundRadius → no-op when no atmosphere
-      uRayleigh:                {value: new Vector3()},
-      uRayleighScaleHeight:     {value: 1},
-      uMieCoeff:                {value: 0},
-      uMieScaleHeight:          {value: 1},
-      uMiePolarity:             {value: 0},
-      tTransmittance:           {value: null},
-      uUseTransmittanceLUT:     {value: 0.0},
-      tInScatter:               {value: null},
-      uUseInScatterLUT:         {value: 0.0},
+      uPlanetCenter: {value: new Vector3()},
+      uSunDirection: {value: new Vector3(0, 1, 0)},
+      uSunIntensity: {value: 22},
+      uGroundRadius: {value: 1},
+      uAtmosphereRadius: {value: 1}, // = uGroundRadius → no-op when no atmosphere
+      uRayleigh: {value: new Vector3()},
+      uRayleighScaleHeight: {value: 1},
+      uMieCoeff: {value: 0},
+      uMieScaleHeight: {value: 1},
+      uMiePolarity: {value: 0},
+      tTransmittance: {value: null},
+      uUseTransmittanceLUT: {value: 0.0},
+      tInScatter: {value: null},
+      uUseInScatterLUT: {value: 0.0},
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,

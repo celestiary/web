@@ -2,9 +2,9 @@ import React, {ReactElement, useEffect, useState} from 'react'
 import {useHashLocation} from 'wouter/use-hash-location'
 import {MeshBasicMaterial, PointLight} from 'three'
 import ThreeUi from '../ThreeUI'
-import * as Shapes from '../shapes'
+import * as Shapes from '../scene/shapes'
 import {LENGTH_SCALE, ASTRO_UNIT_METER} from '../shared'
-import {planetHelper} from '../scene_utils'
+import {planetHelper} from '../scene/scene_utils'
 import {ui as uiId} from './index.module.css'
 
 

@@ -2,10 +2,7 @@ import {
   AdditiveBlending,
   LineBasicMaterial,
   Material,
-  MeshLambertMaterial,
-  MeshPhongMaterial,
   MeshPhysicalMaterial,
-  MeshStandardMaterial,
   Texture,
   TextureLoader,
 } from 'three'

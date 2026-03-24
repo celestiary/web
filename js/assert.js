@@ -17,7 +17,7 @@ export function assert(cond, msg) {
  * Equivalent to calling assertDefined on each parameter.
  *
  * @param {any} args Variable length arguments to assert are defined.
- * @return {any} args That was passed in
+ * @returns {any} args That was passed in
  * @throws If any argument is not defined.
  */
 export function assertDefined(...args) {
@@ -39,10 +39,9 @@ export function assertDefined(...args) {
 }
 
 
-
 /**
  * @param {any} arrays Variable length arguments to assert are defined.
- * @return {Array<Array<any>>} The arrays
+ * @returns {Array<Array<any>>} The arrays
  */
 export function assertArraysEqualLength(...arrays) {
   if (arrays.length <= 1) {
@@ -76,7 +75,7 @@ export function assertStringNotEmpty(str) {
  *
  * @param {any} obj Variable length arguments to assert are defined.
  * @param {Array<string>} keys That was passed in
- * @return {any} obj That object that was passed in, if valid
+ * @returns {any} obj That object that was passed in, if valid
  * @throws If any argument is not defined.
  */
 export function assertValues(obj, keys) {

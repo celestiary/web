@@ -4,7 +4,7 @@ import {StarSpectra} from './StarsCatalog.js'
 
 /** Pack the data from a StarsCatalog into a BufferGeometry. */
 export default class StarsBufferGeometry extends BufferGeometry {
-  /** @param {StarsCatalog} */
+  /** @param {object} catalog */
   constructor(catalog) {
     super()
     const numStars = catalog.numStars

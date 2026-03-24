@@ -3,20 +3,19 @@ import {
   Group,
   LOD,
   Points,
-  PointsMaterial,
   ShaderMaterial,
   Vector3,
 } from 'three'
-import Loader from './Loader.js'
+import Loader from '../Loader.js'
 import Object from './object.js'
 import PickLabels from './PickLabels.js'
 import SpriteSheet from './SpriteSheet.js'
 import StarsBufferGeometry from './StarsBufferGeometry.js'
 import StarsCatalog, {FAVES} from './StarsCatalog.js'
-import {assertDefined} from './assert.js'
+import {assertDefined} from '../assert.js'
 import * as Material from './material.js'
-import {FAR_OBJ, STARS_RADIUS_METER, SUN_RADIUS_METER} from './shared.js'
-import {named} from './utils.js'
+import {FAR_OBJ, STARS_RADIUS_METER, SUN_RADIUS_METER} from '../shared.js'
+import {named} from '../utils.js'
 
 
 // > 10k is too much for my old laptop.
@@ -86,7 +85,7 @@ export default class Stars extends Object {
         // surface just meet the glow in the png image.
         // STAR_MAGNIFY_2: {value: 2e4}, // 2e4, 2e9
         // CAMERA_EXPOSURE: {value: 3e16 * 3.7e-38},
-        STAR_MAGNIFY_2: {value: 1/SUN_RADIUS_METER * 1e1},
+        STAR_MAGNIFY_2: {value: 1 / SUN_RADIUS_METER * 1e1},
         CAMERA_EXPOSURE: {value: 1},
         MIN_BRIGHT: {value: 1},
         MAX_BRIGHT: {value: 2e16}, // half-float max
