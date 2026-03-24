@@ -1,3 +1,4 @@
+// Unit tests for atmosphere parameter validation and planet atmosphere data.
 import {readFileSync} from 'fs'
 
 

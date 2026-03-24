@@ -1,3 +1,5 @@
+// Precomputes Bruneton transmittance and in-scatter LUTs once per planet
+// change via GPU render-to-texture; results are consumed by Atmosphere.js.
 import {
   FloatType,
   Mesh,

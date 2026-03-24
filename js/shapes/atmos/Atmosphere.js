@@ -1,3 +1,5 @@
+// Runtime atmospheric rendering: sphere mesh (guide page) and fullscreen
+// post-process pass that looks up precomputed Bruneton LUTs each frame.
 import {
   AddEquation,
   AdditiveBlending,

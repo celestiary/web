@@ -28,7 +28,7 @@ import {
   rings,
   sphere,
 } from './shapes.js'
-import {newAtmosphere} from './shapes/Atmosphere'
+import {newAtmosphere} from './shapes/atmos/Atmosphere'
 import * as Material from './material.js'
 import {ASTRO_UNIT_METER, FAR_OBJ, labelTextColor, halfPi, toRad} from './shared.js'
 import {capitalize, named} from './utils.js'

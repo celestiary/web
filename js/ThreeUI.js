@@ -13,8 +13,8 @@ import {
   WebGLRenderer,
   WebGLRenderTarget,
 } from 'three'
-import {newAtmospherePass} from './shapes/Atmosphere'
-import {precomputeTransmittance, precomputeInScatter} from './shapes/AtmospherePrecompute'
+import {newAtmospherePass} from './shapes/atmos/Atmosphere'
+import {precomputeTransmittance, precomputeInScatter} from './shapes/atmos/AtmospherePrecompute'
 import * as TWEEN from '@tweenjs/tween.js'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
