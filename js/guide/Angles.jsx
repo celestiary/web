@@ -1,7 +1,7 @@
 import React, {useEffect} from 'react'
 import {AxesHelper, LineBasicMaterial} from 'three'
 import * as Shared from '../shared.js'
-import {angle} from '../shapes.js'
+import {angle} from '../scene/shapes.js'
 import ThreeUi from '../ThreeUI.js'
 import {ui as uiId} from './index.module.css'
 

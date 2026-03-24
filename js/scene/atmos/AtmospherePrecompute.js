@@ -24,21 +24,21 @@ import {
  *   u = (r - rGround) / (rAtmos - rGround)   altitude ∈ [0,1]
  *   v = mu * 0.5 + 0.5                        cos(sun zenith) ∈ [0,1]
  *
- * @param {WebGLRenderer} renderer
+ * @param {object} renderer
  * @param {object} atmos  reified atmosphere props (height.scalar, rayleighScaleHeight.scalar, mieScaleHeight.scalar)
  * @param {number} rGround  planet radius in meters
  * @returns {WebGLRenderTarget}  256×64 RGBA FloatType LUT
  */
 export function precomputeTransmittance(renderer, atmos, rGround) {
-  const W = 256, H = 256
+  const W = 256; const H = 256
   const rt = new WebGLRenderTarget(W, H, {type: FloatType})
 
   const mat = new ShaderMaterial({
     uniforms: {
-      uGroundRadius:        {value: rGround},
-      uAtmosphereRadius:    {value: rGround + atmos.height.scalar},
+      uGroundRadius: {value: rGround},
+      uAtmosphereRadius: {value: rGround + atmos.height.scalar},
       uRayleighScaleHeight: {value: atmos.rayleighScaleHeight.scalar},
-      uMieScaleHeight:      {value: atmos.mieScaleHeight.scalar},
+      uMieScaleHeight: {value: atmos.mieScaleHeight.scalar},
     },
     vertexShader: TRANSMIT_VERT,
     fragmentShader: TRANSMIT_FRAG,
@@ -46,10 +46,10 @@ export function precomputeTransmittance(renderer, atmos, rGround) {
     depthWrite: false,
   })
 
-  const scene  = new Scene()
+  const scene = new Scene()
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
-  const geo    = new PlaneGeometry(2, 2)
-  const mesh   = new Mesh(geo, mat)
+  const geo = new PlaneGeometry(2, 2)
+  const mesh = new Mesh(geo, mat)
   mesh.frustumCulled = false
   scene.add(mesh)
 
@@ -153,25 +153,25 @@ void main() {
  * Lookup: x = (r_slice + μ_sun_t) / R_SLICES,  y = μ_view_t
  * Manual r-slice blend in the fullscreen shader for trilinear interpolation.
  *
- * @param {WebGLRenderer} renderer
+ * @param {object} renderer
  * @param {object} atmos  reified atmosphere props
  * @param {number} rGround  planet radius in meters
  * @param {WebGLRenderTarget} transmittanceRT  output of precomputeTransmittance
  * @returns {WebGLRenderTarget}  2048×512 RGBA FloatType atlas
  */
 export function precomputeInScatter(renderer, atmos, rGround, transmittanceRT) {
-  const W = 2048, H = 512  // 64 r-slices × 32 mu_sun, 512 mu_view
+  const W = 2048; const H = 512 // 64 r-slices × 32 mu_sun, 512 mu_view
   const rt = new WebGLRenderTarget(W, H, {type: FloatType})
 
   const mat = new ShaderMaterial({
     uniforms: {
-      uGroundRadius:        {value: rGround},
-      uAtmosphereRadius:    {value: rGround + atmos.height.scalar},
+      uGroundRadius: {value: rGround},
+      uAtmosphereRadius: {value: rGround + atmos.height.scalar},
       uRayleighScaleHeight: {value: atmos.rayleighScaleHeight.scalar},
-      uMieScaleHeight:      {value: atmos.mieScaleHeight.scalar},
-      uRayleigh:            {value: new Vector3(...atmos.rayleigh)},
-      uMieCoeff:            {value: atmos.mieCoeff},
-      tTransmittance:       {value: transmittanceRT.texture},
+      uMieScaleHeight: {value: atmos.mieScaleHeight.scalar},
+      uRayleigh: {value: new Vector3(...atmos.rayleigh)},
+      uMieCoeff: {value: atmos.mieCoeff},
+      tTransmittance: {value: transmittanceRT.texture},
     },
     vertexShader: INSCATTER_VERT,
     fragmentShader: INSCATTER_FRAG,
@@ -179,10 +179,10 @@ export function precomputeInScatter(renderer, atmos, rGround, transmittanceRT) {
     depthWrite: false,
   })
 
-  const scene  = new Scene()
+  const scene = new Scene()
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
-  const geo    = new PlaneGeometry(2, 2)
-  const mesh   = new Mesh(geo, mat)
+  const geo = new PlaneGeometry(2, 2)
+  const mesh = new Mesh(geo, mat)
   mesh.frustumCulled = false
   scene.add(mesh)
 

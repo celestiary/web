@@ -1,7 +1,6 @@
 import {
   AdditiveBlending,
   AxesHelper,
-  BackSide,
   BufferGeometry,
   EllipseCurve,
   FrontSide,
@@ -9,12 +8,8 @@ import {
   LOD,
   Line,
   LineBasicMaterial,
-  MeshBasicMaterial,
-  MeshLambertMaterial,
   MeshPhongMaterial,
   Object3D,
-  ShaderMaterial,
-  TextureLoader,
 } from 'three'
 import {
   assertFinite,
@@ -28,10 +23,10 @@ import {
   rings,
   sphere,
 } from './shapes.js'
-import {newAtmosphere} from './scene/atmos/Atmosphere'
+import {newAtmosphere} from './atmos/Atmosphere'
 import * as Material from './material.js'
-import {ASTRO_UNIT_METER, FAR_OBJ, labelTextColor, halfPi, toRad} from './shared.js'
-import {capitalize, named} from './utils.js'
+import {ASTRO_UNIT_METER, FAR_OBJ, labelTextColor, halfPi, toRad} from '../shared.js'
+import {capitalize, named} from '../utils.js'
 
 
 /** */
@@ -248,7 +243,7 @@ export default class Planet extends Object {
           roughnessFactor *= clamp(texelRoughness.g, 0.5, 1.0);
 
         #endif
-      `);
+      `)
       }
     }
     const surface = named(sphere({radius: this.props.radius.scalar, matr: surfaceMaterial}), 'planet surface')

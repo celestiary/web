@@ -8,8 +8,8 @@ import {
 import ThreeUi from '../ThreeUI.js'
 import Loader from '../Loader.js'
 import Reify from '../reify.js'
-import Stars from '../Stars.js'
-import Planet from '../Planet.js'
+import Stars from '../scene/Stars.js'
+import Planet from '../scene/Planet.js'
 import {LENGTH_SCALE} from '../shared.js'
 import {ui as uiId} from './index.module.css'
 

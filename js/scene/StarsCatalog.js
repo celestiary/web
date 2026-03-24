@@ -1,5 +1,5 @@
-import {LENGTH_SCALE, LIGHTYEAR_METER} from './shared.js'
-import {assertEquals, assertNotNullOrUndefined} from './assert.js'
+import {LENGTH_SCALE, LIGHTYEAR_METER} from '../shared.js'
+import {assertEquals, assertNotNullOrUndefined} from '../assert.js'
 
 
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
@@ -43,15 +43,15 @@ export default class StarsCatalog {
    * @see StarsCatalog#downsample for call with all the args.
    */
   constructor(
-    numStars = 0,
-    starByHip = /** @type {StarByHip}*/ new Map(),
-    hipByName = /** @type {HipByName}*/ new Map(),
-    namesByHip = /** @type {NamesByHip}*/ new Map(),
-    minMag = -8.25390625,
-    maxMag = 15.4453125,
-    // 1E1 looks decent.  2E1 much more intriguing but a little fake.
-    starScale = LIGHTYEAR_METER,
-    lengthScale = LENGTH_SCALE) {
+      numStars = 0,
+      starByHip = /** @type {StarByHip}*/ new Map(),
+      hipByName = /** @type {HipByName}*/ new Map(),
+      namesByHip = /** @type {NamesByHip}*/ new Map(),
+      minMag = -8.25390625,
+      maxMag = 15.4453125,
+      // 1E1 looks decent.  2E1 much more intriguing but a little fake.
+      starScale = LIGHTYEAR_METER,
+      lengthScale = LENGTH_SCALE) {
     /** @type {StarByHip} */
     this.starByHip = starByHip
 
@@ -80,18 +80,18 @@ export default class StarsCatalog {
     }
     fetch('/data/stars.dat').then((starsData) => {
       starsData.arrayBuffer().then(
-        /**
-         * @param {ArrayBuffer} buffer
-         */
-        (buffer) => {
-          this.read(buffer)
-          fetch('/data/starnames.dat').then((namesData) => {
-            namesData.text().then((text) => {
-              this.readNames(text)
-              cb()
+          /**
+           * @param {ArrayBuffer} buffer
+           */
+          (buffer) => {
+            this.read(buffer)
+            fetch('/data/starnames.dat').then((namesData) => {
+              namesData.text().then((text) => {
+                this.readNames(text)
+                cb()
+              })
             })
           })
-        })
     })
   }
 
@@ -109,7 +109,6 @@ export default class StarsCatalog {
 
     this.numStars = data.getUint32(offset, littleEndian)
     offset += 4
-    let mX = 0, mY = 0, mZ = 0
     const sun = getSunProps()
     this.starByHip.set(0, sun)
     for (let i = 0; i < this.numStars; i++) {

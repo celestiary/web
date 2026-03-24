@@ -1,7 +1,7 @@
 import {Euler, Object3D} from 'three'
-import Loader from './Loader.js'
+import Loader from '../Loader.js'
 import Planet from './Planet.js'
-import reifyMeasures from './reify.js'
+import reifyMeasures from '../reify.js'
 
 
 /**

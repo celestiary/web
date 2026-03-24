@@ -1,7 +1,7 @@
 import React, {ReactElement, useEffect} from 'react'
 import ThreeUi from '../ThreeUI'
-import StarsFromApp from '../Stars'
-import {getSunProps} from '../StarsCatalog'
+import StarsFromApp from '../scene/Stars'
+import {getSunProps} from '../scene/StarsCatalog'
 import {ASTRO_UNIT_METER} from '../shared'
 import {ui as uiId} from './index.module.css'
 

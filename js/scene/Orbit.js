@@ -1,8 +1,8 @@
 import {
   Object3D,
 } from 'three'
-import {toRad} from './shared.js'
-import {named} from './utils.js'
+import {toRad} from '../shared.js'
+import {named} from '../utils.js'
 
 
 /** */

@@ -1,6 +1,6 @@
 import React, {ReactElement, useEffect} from 'react'
 import ThreeUi from '../ThreeUI.js'
-import {grid} from '../shapes.js'
+import {grid} from '../scene/shapes.js'
 import {ui as uiId} from './index.module.css'
 
 

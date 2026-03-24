@@ -2,6 +2,9 @@
 import {readFileSync} from 'fs'
 
 
+/**
+ * @returns {object}
+ */
 function loadPlanet(name) {
   return JSON.parse(readFileSync(`./public/data/${name}.json`, 'utf8'))
 }
@@ -29,7 +32,9 @@ describe('atmosphere JSON data', () => {
 
     it('rayleigh is an array of 3 positive numbers', () => {
       expect(atm.rayleigh).toHaveLength(3)
-      for (const v of atm.rayleigh) expect(v).toBeGreaterThan(0)
+      for (const v of atm.rayleigh) {
+        expect(v).toBeGreaterThan(0)
+      }
     })
 
     it('scatters blue more than red (blue sky)', () => {
@@ -65,7 +70,9 @@ describe('atmosphere JSON data', () => {
 
     it('rayleigh is an array of 3 positive numbers', () => {
       expect(atm.rayleigh).toHaveLength(3)
-      for (const v of atm.rayleigh) expect(v).toBeGreaterThan(0)
+      for (const v of atm.rayleigh) {
+        expect(v).toBeGreaterThan(0)
+      }
     })
 
     it('scatters red more than blue (reddish sky)', () => {

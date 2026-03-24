@@ -2,7 +2,7 @@ import createTree from '@pablo-mayrgundter/yaot2'
 import SpriteSheet from './SpriteSheet.js'
 import {queryPoints} from './Picker'
 import {marker as createMarker} from './shapes'
-import {assertDefined} from './assert'
+import {assertDefined} from '../assert'
 
 
 /** */

@@ -6,7 +6,7 @@ import {
 } from 'three'
 import GalaxyBufferGeometry from './GalaxyBufferGeometry.js'
 import {pathTexture} from './material.js'
-import * as Gravity from './gravity.js'
+import * as Gravity from '../gravity.js'
 
 
 const Tau = 2.0 * Math.PI

@@ -9,9 +9,9 @@ import Asterisms from './Asterisms.js'
 import Planet from './Planet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
-import {newCameraGoToTween, newCameraLookTween} from './camera.js'
-import * as Shared from './shared.js'
-import * as Utils from './utils.js'
+import {newCameraGoToTween, newCameraLookTween} from '../camera.js'
+import * as Shared from '../shared.js'
+import * as Utils from '../utils.js'
 
 
 const INITIAL_STEP_BACK_MULT = 10
@@ -72,7 +72,7 @@ export default class Scene {
   objectFactory(props) {
     switch (props.type) {
       case 'galaxy': return this.newGalaxy(props)
-      case 'stars': return this.stars = new Stars(props, this.ui)
+      case 'stars': this.stars = new Stars(props, this.ui); return this.stars
       case 'star': return new Star(props, this.objects, this.ui)
       case 'planet': return new Planet(this, props)
       case 'moon': return new Planet(this, props, true)

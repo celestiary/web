@@ -53,9 +53,9 @@ export default class Loader {
   loadPathRecursive(partsToLoad, onLoadCb, onErrCb, partsLoaded = []) {
     assert(partsToLoad.length > 0, 'Must provide an array of names to load')
     const name = partsToLoad.shift()
-    this.loadObj(partsLoaded.join('/'), name, (name, obj) => {
-      onLoadCb(name, obj)
-      partsLoaded.push(name)
+    this.loadObj(partsLoaded.join('/'), name, (loadedName, obj) => {
+      onLoadCb(loadedName, obj)
+      partsLoaded.push(loadedName)
       if (partsToLoad.length > 0) {
         this.loadPathRecursive(partsToLoad, onLoadCb, onErrCb, partsLoaded)
       }

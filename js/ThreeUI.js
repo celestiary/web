@@ -15,7 +15,6 @@ import {
 } from 'three'
 import {newAtmospherePass} from './scene/atmos/Atmosphere'
 import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
-import * as TWEEN from '@tweenjs/tween.js'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
 import {INITIAL_FOV, SMALLEST_SIZE_METER, STARS_RADIUS_METER, SUN_RADIUS_METER, targets} from './shared.js'
@@ -89,8 +88,8 @@ export default class ThreeUi {
 
     this._arrowKeys = {up: false, down: false, left: false, right: false}
     this._savedCamQuat = new Quaternion() // preserved across controls.update()
-    this._orbitAxis = new Vector3()       // pre-allocated for orbit drag
-    this._orbitRot = new Quaternion()     // pre-allocated for orbit drag
+    this._orbitAxis = new Vector3() // pre-allocated for orbit drag
+    this._orbitRot = new Quaternion() // pre-allocated for orbit drag
     this._initArrowKeys()
     this._initMouseDrag()
 
@@ -171,7 +170,7 @@ export default class ThreeUi {
     // Rotation speed is changed in scene.js depending on target
     // type: faster for sun, slow for planets.
     controls.noZoom = false
-    controls.noPan = true   // we own all mouse drag (plain = free look, option = orbit)
+    controls.noPan = true // we own all mouse drag (plain = free look, option = orbit)
     controls.noRotate = true // we own all rotation
     controls.staticMoving = true
     controls.dynamicDampingFactor = 0.3
@@ -300,14 +299,20 @@ export default class ThreeUi {
     let lastY = 0
 
     this.threeContainer.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return
+      if (e.button !== 0) {
+        return
+      }
       lastX = e.clientX
       lastY = e.clientY
-      if (e.altKey) e.preventDefault() // suppress browser Alt menu
+      if (e.altKey) {
+        e.preventDefault()
+      } // suppress browser Alt menu
     })
 
     window.addEventListener('mousemove', (e) => {
-      if (!e.buttons) return
+      if (!e.buttons) {
+        return
+      }
       const dx = e.clientX - lastX
       const dy = e.clientY - lastY
       lastX = e.clientX
@@ -345,9 +350,9 @@ export default class ThreeUi {
   _updateAtmUniforms() {
     const u = this._atmMesh.material.uniforms
     u.tDiffuse.value = this._sceneRT.texture
-    u.tDepth.value   = this._sceneRT.depthTexture
-    u.uNear.value    = this.camera.near
-    u.uFar.value     = this.camera.far
+    u.tDepth.value = this._sceneRT.depthTexture
+    u.uNear.value = this.camera.near
+    u.uFar.value = this.camera.far
     u.uProjectionMatrixInverse.value.copy(this.camera.projectionMatrixInverse)
 
     const tObj = targets.obj
@@ -379,25 +384,29 @@ export default class ThreeUi {
 
     atmTarget.getWorldPosition(this._pWorldAtm)
     u.uPlanetCenter.value
-      .copy(this._pWorldAtm)
-      .applyMatrix4(this.camera.matrixWorldInverse)
+        .copy(this._pWorldAtm)
+        .applyMatrix4(this.camera.matrixWorldInverse)
     u.uSunDirection.value
-      .copy(this._pWorldAtm).negate().normalize()
-      .transformDirection(this.camera.matrixWorldInverse)
+        .copy(this._pWorldAtm).negate().normalize()
+        .transformDirection(this.camera.matrixWorldInverse)
 
-    u.uGroundRadius.value        = R
-    u.uAtmosphereRadius.value    = R + atmos.height.scalar
-    u.uSunIntensity.value        = atmos.sunIntensity ?? 22
+    u.uGroundRadius.value = R
+    u.uAtmosphereRadius.value = R + atmos.height.scalar
+    u.uSunIntensity.value = atmos.sunIntensity ?? 22
     u.uRayleigh.value.set(...atmos.rayleigh)
     u.uRayleighScaleHeight.value = atmos.rayleighScaleHeight.scalar
-    u.uMieCoeff.value            = atmos.mieCoeff
-    u.uMieScaleHeight.value      = atmos.mieScaleHeight.scalar
-    u.uMiePolarity.value         = atmos.miePolarity
+    u.uMieCoeff.value = atmos.mieCoeff
+    u.uMieScaleHeight.value = atmos.mieScaleHeight.scalar
+    u.uMiePolarity.value = atmos.miePolarity
 
     if (this._lastAtmPlanet !== atmTarget) {
       this._lastAtmPlanet = atmTarget
-      if (this._transmittanceRT) this._transmittanceRT.dispose()
-      if (this._inScatterRT) this._inScatterRT.dispose()
+      if (this._transmittanceRT) {
+        this._transmittanceRT.dispose()
+      }
+      if (this._inScatterRT) {
+        this._inScatterRT.dispose()
+      }
       this._transmittanceRT = precomputeTransmittance(this.renderer, atmos, R)
       this._inScatterRT = precomputeInScatter(this.renderer, atmos, R, this._transmittanceRT)
       u.tTransmittance.value = this._transmittanceRT.texture
@@ -424,10 +433,18 @@ export default class ThreeUi {
       return
     }
     const speed = 0.01 // radians per frame
-    if (k.up) this.camera.rotateX(speed)
-    if (k.down) this.camera.rotateX(-speed)
-    if (k.left) this.camera.rotateZ(speed)
-    if (k.right) this.camera.rotateZ(-speed)
+    if (k.up) {
+      this.camera.rotateX(speed)
+    }
+    if (k.down) {
+      this.camera.rotateX(-speed)
+    }
+    if (k.left) {
+      this.camera.rotateZ(speed)
+    }
+    if (k.right) {
+      this.camera.rotateZ(-speed)
+    }
   }
 
 

@@ -18,7 +18,7 @@ export const LIGHTYEAR_METER = 9.461e15
 
 // Astro
 // https://en.wikipedia.org/wiki/Astronomical_unit
-export const ASTRO_UNIT_METER = 149.597870700e9
+export const ASTRO_UNIT_METER = 149597870700
 
 // Camera
 export const INITIAL_FOV = 45

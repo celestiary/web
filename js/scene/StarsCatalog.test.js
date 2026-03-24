@@ -1,7 +1,7 @@
 import {readFileSync} from 'fs'
 
 import StarsCatalog from './StarsCatalog.js'
-import {toArrayBuffer} from './utils.js'
+import {toArrayBuffer} from '../utils.js'
 
 
 const STARS_DAT = './public/data/stars.dat'

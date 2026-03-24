@@ -19,7 +19,7 @@ export function asymptoticZoomDist(distBefore, distAfter, surfaceR) {
   }
   const altBefore = Math.max(0, distBefore - surfaceR)
   const factor = distAfter / distBefore
-  return Math.max(surfaceR, surfaceR + altBefore * factor)
+  return Math.max(surfaceR, surfaceR + (altBefore * factor))
 }
 
 

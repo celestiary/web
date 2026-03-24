@@ -1,7 +1,7 @@
 import React, {ReactElement, useEffect} from 'react'
 import {MeshBasicMaterial, PointLight} from 'three'
 import ThreeUi from '../ThreeUI.js'
-import {sphere} from '../shapes.js'
+import {sphere} from '../scene/shapes.js'
 import {ui as uiId} from './index.module.css'
 
 

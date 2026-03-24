@@ -53,13 +53,13 @@ Celestiary            Main controller (window.c for debug)
   └── Keys            Keyboard shortcut registry
 ```
 
-All scene objects inherit from `js/object.js` (a thin Three.js `Object3D` wrapper).
+All scene objects inherit from `js/scene/object.js` (a thin Three.js `Object3D` wrapper).
 
 ## Coordinate System & Scale
 
 Distances are stored in **real SI meters**. Key constants from `js/shared.js`:
 
-- `ASTRO_UNIT_METER = 149.597870700e9` m (1 AU)
+- `ASTRO_UNIT_METER = 149597870700` m (1 AU)
 - `SUN_RADIUS_METER = 6.957e8` m
 - `STARS_RADIUS_METER = LIGHTYEAR_METER * 1e4` m
 - `SMALLEST_SIZE_METER = 6e5` m (allows zooming into Deimos)
@@ -144,7 +144,7 @@ Camera orientation and position are separated across three input modes, all accu
 
 **Camera platform**: the camera is a child of `camera.platform` which is reparented to the target's `orbitPosition` on each `goTo()`. This means the camera tracks the planet through its orbit automatically without requiring a per-frame `lookAt` call.
 
-**Navigation tweens** (`js/camera.js`):
+**Navigation tweens** (`js/camera.js`) — stays at root as general infrastructure:
 - `newCameraLookTween` — 600 ms quaternion slerp used by `setTarget` (key navigation)
 - `newCameraGoToTween` — 1500 ms combined position lerp + quaternion slerp used by `goTo`
 
@@ -203,27 +203,47 @@ A separate interactive tutorial route (`/guide`) built with React Three Fiber (`
 2. Copies shaders and public assets
 3. Runs esbuild bundler
 
+`yarn bundle-check` (`esbuild/check.js`) does a dry-run bundle (`write: false`) to verify all imports resolve without writing any output — used in `yarn precommit` alongside lint and tests.
+
 Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionally; `index.tsx` opens an `EventSource('/esbuild')` that reloads on `change` events and closes itself on error (silent in production).
 
 ## Key Files Reference
+
+### Root infrastructure (`js/`)
 
 | Path | Role |
 |---|---|
 | `js/shared.js` | Global constants and `targets` state object |
 | `js/Celestiary.js` | Top-level controller, keyboard bindings |
 | `js/ThreeUI.js` | Three.js renderer/camera/controls wrapper |
-| `js/Scene.js` | Scene object registry, targeting, raycasting |
-| `js/Animation.js` | VSOP87 + Keplerian orbit/rotation animation |
 | `js/Loader.js` | Recursive JSON asset loader |
 | `js/Time.js` | Simulation clock with time-scale control |
-| `js/Planet.js` | Planet/moon scene graph construction |
-| `js/Star.js` | Named star with noise shader |
-| `js/Stars.js` | Star field from Celestia catalog |
-| `js/StarsCatalog.js` | Celestia binary star catalog parser |
-| `js/shapes.js` | Geometry factory functions (sphere, rings, etc.) |
-| `js/material.js` | Texture/material cache |
 | `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
-| `js/SpriteSheet.js` | Canvas-based label sprite atlas |
 | `js/store/useStore.js` | Zustand store root |
 | `public/data/*.json` | Celestial object descriptors |
+
+### Scene objects and support (`js/scene/`)
+
+| Path | Role |
+|---|---|
+| `js/scene/Scene.js` | Scene object registry, targeting, raycasting |
+| `js/scene/Animation.js` | VSOP87 + Keplerian orbit/rotation animation |
+| `js/scene/Planet.js` | Planet/moon scene graph construction |
+| `js/scene/Star.js` | Named star with noise shader |
+| `js/scene/Stars.js` | Star field from Celestia catalog |
+| `js/scene/Galaxy.js` | Animated galaxy particle system |
+| `js/scene/Asterisms.js` | Constellation line drawings |
+| `js/scene/Orbit.js` | Orbital path visualization |
+| `js/scene/StarsCatalog.js` | Celestia binary star catalog parser |
+| `js/scene/AsterismsCatalog.js` | Constellation pattern definitions |
+| `js/scene/object.js` | Base `Object3D` wrapper with registry tracking |
+| `js/scene/shapes.js` | Geometry factory functions (sphere, rings, etc.) |
+| `js/scene/material.js` | Texture/material cache |
+| `js/scene/SpriteSheet.js` | Canvas-based label sprite atlas |
+| `js/scene/GalaxyBufferGeometry.js` | Packed vertex data for galaxy particles |
+| `js/scene/StarsBufferGeometry.js` | Packed vertex data for star catalog |
+| `js/scene/Picker.js` | Raycasting for 3D object picking |
+| `js/scene/PickLabels.js` | Label picking and marker display |
+| `js/scene/atmos/Atmosphere.js` | Atmosphere mesh + fullscreen post-process pass |
+| `js/scene/atmos/AtmospherePrecompute.js` | Bruneton transmittance + in-scatter LUT precomputation |

@@ -1,7 +1,7 @@
 /**
- * Recursively visit child members of {@param elt}'s "children" property.
+ * Recursively visit child members of {@param el}'s "children" property.
  *
- * @param {Element} elt Element to visit.
+ * @param {Element} el Element to visit.
  * @param {Function} cb1 The pre-order callback.  Called with the current element.
  * @param {Function} [cb2] The in-order callback.  Called with the parent and current element.
  * @param {Function} [cb3] The post-order callback.  Called with the current element.
@@ -9,21 +9,21 @@
  * should not be set by caller, but will be passed to the callbacks to
  * allow indent formatting.
  */
-export function visit(elt, cb1, cb2, cb3, level = 1) {
+export function visit(el, cb1, cb2, cb3, level = 1) {
   if (!cb1) {
     throw new Error('cb1 required')
   }
-  cb1(elt, level)
-  if (elt.children) {
-    Array.from(elt.children).forEach((child) => {
+  cb1(el, level)
+  if (el.children) {
+    Array.from(el.children).forEach((child) => {
       if (cb2) {
-        cb2(elt, child, level)
+        cb2(el, child, level)
       }
       visit(child, cb1, cb2, cb3, level + 1)
     })
   }
   if (cb3) {
-    cb3(elt, level)
+    cb3(el, level)
   }
 }
 
@@ -31,33 +31,33 @@ export function visit(elt, cb1, cb2, cb3, level = 1) {
 /**
  * Preorder visit.
  *
- * @param {Element} elt Element to visit.
+ * @param {Element} el Element to visit.
  * @param {string} propName
  * @param {object} propValue
  * @param {Function} cb
  */
-export function visitFilterProperty(elt, propName, propValue, cb) {
+export function visitFilterProperty(el, propName, propValue, cb) {
   visit(
-    elt,
-    /** @param {Object<string, any>} child */
-    (child) => {
-      if (child[propName] === propValue) {
-        cb(child)
-      }
-    })
+      el,
+      /** @param {object} child */
+      (child) => {
+        if (child[propName] === propValue) {
+          cb(child)
+        }
+      })
 }
 
 
 /**
  * Preorder visit.
  *
- * @param {Element} elt Element to visit.
+ * @param {Element} el Element to visit.
  * @param {string} filterPropName
  * @param {object} filterPropValue
  * @param {string} togglePropName
  */
-export function visitToggleProperty(elt, filterPropName, filterPropValue, togglePropName) {
-  visitFilterProperty(elt, filterPropName, filterPropValue, /** @param {Object<string, any>} child */ (child) => {
+export function visitToggleProperty(el, filterPropName, filterPropValue, togglePropName) {
+  visitFilterProperty(el, filterPropName, filterPropValue, /** @param {object} child */ (child) => {
     if (!(Object.prototype.hasOwnProperty.call(child, togglePropName) &&
           typeof child[togglePropName] === 'boolean')) {
       throw new Error(`Found child invalid toggle property(${togglePropName}): ${child}`)
@@ -70,14 +70,14 @@ export function visitToggleProperty(elt, filterPropName, filterPropValue, toggle
 /**
  * Preorder visit.
  *
- * @param {Element} elt Element to visit.
+ * @param {Element} el Element to visit.
  * @param {string} filterPropName
  * @param {object} filterPropValue
  * @param {string} setPropName
  * @param {any} setPropValue
  */
-export function visitSetProperty(elt, filterPropName, filterPropValue, setPropName, setPropValue) {
-  visitFilterProperty(elt, filterPropName, filterPropValue, /** @param {Object<string, any>} child */ (child) => {
+export function visitSetProperty(el, filterPropName, filterPropValue, setPropName, setPropValue) {
+  visitFilterProperty(el, filterPropName, filterPropValue, /** @param {object} child */ (child) => {
     if (Object.prototype.hasOwnProperty.call(child, setPropName)) {
       child[setPropName] = setPropValue
     }
@@ -192,7 +192,7 @@ export function measureText(ctx, text, fontStyle) {
 
 // Celestiary
 /**
- * @param {Object<any, any>} obj
+ * @param {object} obj
  * @param {string} name
  * @returns {object}
  */
