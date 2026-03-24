@@ -1,14 +1,20 @@
 import {
+  DepthTexture,
   LinearSRGBColorSpace,
   NeutralToneMapping,
   Object3D,
+  OrthographicCamera,
   Quaternion,
   PerspectiveCamera,
   Scene,
+  UnsignedIntType,
   Vector2,
   Vector3,
   WebGLRenderer,
+  WebGLRenderTarget,
 } from 'three'
+import {newAtmospherePass} from './scene/atmos/Atmosphere'
+import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
 import * as TWEEN from '@tweenjs/tween.js'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
@@ -43,6 +49,17 @@ export default class ThreeUi {
 
     this.renderer = renderer ||
       this.initRenderer(this.threeContainer, backgroundColor || 0x000000)
+    // Post-process atmosphere pass
+    this._sceneRT = this._makeSceneRT()
+    this._atmScene = new Scene()
+    this._atmCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
+    this._atmMesh = newAtmospherePass()
+    this._atmScene.add(this._atmMesh)
+    this._pWorldAtm = new Vector3()
+    this._camWorldAtm = new Vector3()
+    this._lastAtmPlanet = null
+    this._transmittanceRT = null
+    this._inScatterRT = null
     this.initControls(this.camera)
     this.fs = new Fullscreen(this.container, () => this.onResize())
     window.addEventListener('resize', () => {
@@ -80,6 +97,20 @@ export default class ThreeUi {
     this.renderer.setAnimationLoop((time) => {
       this.renderLoop(time)
     })
+  }
+
+
+  /** @returns {WebGLRenderTarget} with a depth texture */
+  _makeSceneRT() {
+    const rt = new WebGLRenderTarget(this.width, this.height)
+    rt.depthTexture = new DepthTexture()
+    rt.depthTexture.type = UnsignedIntType
+    // Three.js only applies tone mapping when _currentRenderTarget is null
+    // (screen) or isXRRenderTarget. Tag ours so PBR materials get tone-mapped
+    // into [0,1] instead of writing raw HDR values that saturate to white.
+    rt.isXRRenderTarget = true
+    rt.texture.colorSpace = LinearSRGBColorSpace
+    return rt
   }
 
 
@@ -165,6 +196,7 @@ export default class ThreeUi {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
+    this._sceneRT.setSize(width, height)
     this.controls.handleResize()
   }
 
@@ -231,7 +263,12 @@ export default class ThreeUi {
       targets.tween.update()
     }
     this._applyCameraArrowKeys()
+    // Render scene to RT, then composite atmosphere fullscreen pass to screen
+    this.renderer.setRenderTarget(this._sceneRT)
     this.renderer.render(this.scene, this.camera)
+    this.renderer.setRenderTarget(null)
+    this._updateAtmUniforms()
+    this.renderer.render(this._atmScene, this._atmCamera)
   }
 
 
@@ -297,6 +334,78 @@ export default class ThreeUi {
         this.camera.rotateX(-dy * speed)
       }
     })
+  }
+
+
+  /**
+   * Updates fullscreen atmosphere pass uniforms from the current scene target.
+   * When no atmosphere target, sets uAtmosphereRadius = uGroundRadius so scatter
+   * returns zero and the scene colour passes through unchanged.
+   */
+  _updateAtmUniforms() {
+    const u = this._atmMesh.material.uniforms
+    u.tDiffuse.value = this._sceneRT.texture
+    u.tDepth.value   = this._sceneRT.depthTexture
+    u.uNear.value    = this.camera.near
+    u.uFar.value     = this.camera.far
+    u.uProjectionMatrixInverse.value.copy(this.camera.projectionMatrixInverse)
+
+    const tObj = targets.obj
+    // Determine which planet's atmosphere to render.
+    // Fall back to _lastAtmPlanet when tObj has no atmosphere (e.g. Sun after 'u').
+    // When tObj does have atmosphere, only switch to it if the camera is actually
+    // near it — guards against selecting a distant moon with atmosphere (e.g. Titan)
+    // while the camera is still orbiting the parent planet (Saturn).
+    // Threshold: 20× atmosphere radius covers typical orbit distances.
+    let atmTarget = this._lastAtmPlanet
+    if (tObj?.props?.atmosphere) {
+      const atmR = tObj.props.radius.scalar + tObj.props.atmosphere.height.scalar
+      tObj.getWorldPosition(this._pWorldAtm)
+      this.camera.getWorldPosition(this._camWorldAtm)
+      if (!this._lastAtmPlanet || this._camWorldAtm.distanceTo(this._pWorldAtm) < atmR * 20) {
+        atmTarget = tObj
+      }
+    }
+
+    if (!atmTarget) {
+      // No atmosphere ever seen — push planet far off-screen so rsi misses.
+      u.uPlanetCenter.value.set(0, 0, 1e20)
+      u.uAtmosphereRadius.value = u.uGroundRadius.value
+      u.uUseInScatterLUT.value = 0.0
+      return
+    }
+    const atmos = atmTarget.props.atmosphere
+    const R = atmTarget.props.radius.scalar
+
+    atmTarget.getWorldPosition(this._pWorldAtm)
+    u.uPlanetCenter.value
+      .copy(this._pWorldAtm)
+      .applyMatrix4(this.camera.matrixWorldInverse)
+    u.uSunDirection.value
+      .copy(this._pWorldAtm).negate().normalize()
+      .transformDirection(this.camera.matrixWorldInverse)
+
+    u.uGroundRadius.value        = R
+    u.uAtmosphereRadius.value    = R + atmos.height.scalar
+    u.uSunIntensity.value        = atmos.sunIntensity ?? 22
+    u.uRayleigh.value.set(...atmos.rayleigh)
+    u.uRayleighScaleHeight.value = atmos.rayleighScaleHeight.scalar
+    u.uMieCoeff.value            = atmos.mieCoeff
+    u.uMieScaleHeight.value      = atmos.mieScaleHeight.scalar
+    u.uMiePolarity.value         = atmos.miePolarity
+
+    if (this._lastAtmPlanet !== atmTarget) {
+      this._lastAtmPlanet = atmTarget
+      if (this._transmittanceRT) this._transmittanceRT.dispose()
+      if (this._inScatterRT) this._inScatterRT.dispose()
+      this._transmittanceRT = precomputeTransmittance(this.renderer, atmos, R)
+      this._inScatterRT = precomputeInScatter(this.renderer, atmos, R, this._transmittanceRT)
+      u.tTransmittance.value = this._transmittanceRT.texture
+      u.uUseTransmittanceLUT.value = 1.0
+      u.tInScatter.value = this._inScatterRT.texture
+    }
+    // Always re-enable after returning from a no-atmosphere target.
+    u.uUseInScatterLUT.value = this._inScatterRT ? 1.0 : 0.0
   }
 
 

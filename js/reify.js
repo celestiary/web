@@ -42,4 +42,10 @@ export default function reifyMeasures(obj) {
     reify(obj['orbit'], 'semiMajorAxis', name)
     reify(obj['orbit'], 'siderealOrbitPeriod', name)
   }
+  if (obj['atmosphere']) {
+    const atm = obj['atmosphere']
+    reify(atm, 'height', name)
+    reify(atm, 'rayleighScaleHeight', name)
+    reify(atm, 'mieScaleHeight', name)
+  }
 }
