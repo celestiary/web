@@ -12,7 +12,7 @@ import {
 import Object from './object.js'
 import * as Shaders from './star-shaders.js'
 import {sphere} from './shapes.js'
-import {newAtmosphere} from './shapes/atmos/Atmosphere'
+import {newAtmosphere} from './scene/atmos/Atmosphere'
 import * as Shared from './shared.js'
 
 
