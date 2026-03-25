@@ -28,6 +28,19 @@ export default class Animation {
 
 
   /**
+   * Animate the scene at a specific Julian Day without advancing the clock.
+   * Used to position planets at a saved permalink time before camera restore.
+   *
+   * @param {object} scene Three.js scene
+   * @param {number} jd Julian Day number
+   */
+  animateAtJD(scene, jd) {
+    this.curVsopCoords = vsop87c(jd)
+    this.animateSystem(scene)
+  }
+
+
+  /**
    * Recursive animation of orbits and rotations at the current time.
    *
    * @param {!Object3D} system

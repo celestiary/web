@@ -5,11 +5,13 @@ import Keys from './Keys'
 import Loader from './Loader'
 import Scene from './scene/Scene'
 import ThreeUi from './ThreeUI'
-import Time from './Time'
+import Time, {fromJulianDay} from './Time'
 import reifyMeasures from './reify'
 import * as Shapes from './scene/shapes'
 import * as Shared from './shared'
 import {assertArgs} from './assert'
+import {latLngAltToLocal, worldToLatLngAlt} from './coords'
+import {decodePermalink, encodePermalink, pathFromFragment} from './permalink'
 import {elt} from './utils'
 
 
@@ -39,9 +41,14 @@ export default class Celestiary {
     this.ui = new ThreeUi(canvasContainer, animCb)
     this.ui.configLargeScene()
     this.ui.useStore = useStore
+    this.ui.onCameraChange = () => this._schedulePermalinkUpdate()
+    this.camera = this.ui.camera
     this.scene = new Scene(this.ui)
     this.loader = new Loader()
     this.controlPanel = new ControlPanel(navElt, this.loader)
+    this.firstTime = true
+    this._pendingPermalink = null
+    this._permalinkTimer = null
     this.load()
     this.setupPathListeners()
     this.setupKeyListeners(useStore)
@@ -53,7 +60,6 @@ export default class Celestiary {
     this.three = THREE
     this.toggleHelp = null
     window.c = this
-    this.firstTime = true
   }
 
 
@@ -69,8 +75,10 @@ export default class Celestiary {
   /** */
   load() {
     let path
-    if (location.hash) {
-      path = location.hash.substring(1)
+    const rawHash = location.hash ? location.hash.substring(1) : ''
+    if (rawHash) {
+      this._pendingPermalink = decodePermalink(rawHash)
+      path = pathFromFragment(rawHash)
     } else {
       path = DEFAULT_TARGET
       location.hash = path
@@ -90,14 +98,45 @@ export default class Celestiary {
         if (targetName.indexOf('-') >= 0) {
           targetName = targetName.split('-')[0]
         }
+        const pl = this._pendingPermalink
+        this._pendingPermalink = null
+        if (pl) {
+          // Position planets at the saved time before goTo() orients the platform
+          this.time.setTime(fromJulianDay(pl.d2000 + J2000_JD))
+          this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
+          this.ui.scene.updateMatrixWorld()
+        }
         this.scene.targetNamed(targetName)
         this.scene.goTo()
+        if (pl) {
+          try {
+            // Platform is now oriented; compute camera position from saved lat/lng/alt
+            this.ui.scene.updateMatrixWorld()
+            const tObj = Shared.targets.cur
+            const planetWorldPos = new THREE.Vector3()
+            tObj.getWorldPosition(planetWorldPos)
+            const planetWorldQuat = new THREE.Quaternion()
+            tObj.getWorldQuaternion(planetWorldQuat)
+            const platformWorldQuat = new THREE.Quaternion()
+            this.ui.camera.platform.getWorldQuaternion(platformWorldQuat)
+            const camPos = latLngAltToLocal(
+                pl.lat, pl.lng, pl.alt, tObj.props.radius.scalar,
+                planetWorldQuat, platformWorldQuat,
+            )
+            this.ui.camera.position.copy(camPos)
+            this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w)
+            Shared.targets.tween = null
+            this.ui.setFov(pl.fov)
+          } catch (e) {
+            console.error('Permalink restore failed:', e)
+          }
+        }
         if (this.firstTime) {
           this.scene.toggleAsterisms()
           this.scene.toggleStarLabels()
           this.firstTime = false
         }
-      }, this.firstTime ? 1000 : 0)
+      }, this._pendingPermalink ? 0 : (this.firstTime ? 1000 : 0))
     }
     this.loader.loadPath('milkyway', this.onLoad, () => {
       this.loader.loadPath(path, this.onLoad, this.onDone, () => {
@@ -132,9 +171,11 @@ export default class Celestiary {
 
   setupPathListeners() {
     window.addEventListener('hashchange', (e) => {
-      this.loader.loadPath((window.location.hash || '#').substring(1), this.onLoad, this.onDone)
-    },
-    false)
+      const raw = (window.location.hash || '#').substring(1)
+      const path = pathFromFragment(raw)
+      this._pendingPermalink = decodePermalink(raw)
+      this.loader.loadPath(path, this.onLoad, this.onDone)
+    }, false)
   }
 
 
@@ -259,6 +300,38 @@ export default class Celestiary {
   }
 
 
+  /** Schedule a debounced permalink URL update 1 s after the camera settles. */
+  _schedulePermalinkUpdate() {
+    if (Shared.targets.tween !== null || !Shared.targets.cur) {
+      return
+    }
+    clearTimeout(this._permalinkTimer)
+    this._permalinkTimer = setTimeout(() => {
+      const tObj = Shared.targets.cur
+      if (!tObj?.props?.name || !tObj.props.radius?.scalar) {
+        return
+      }
+      const path = this.loader.pathByName[tObj.props.name]
+      if (!path) {
+        return
+      }
+      const cam = this.ui.camera
+      const camWorldPos = new THREE.Vector3()
+      cam.getWorldPosition(camWorldPos)
+      const planetWorldPos = new THREE.Vector3()
+      tObj.getWorldPosition(planetWorldPos)
+      const planetWorldQuat = new THREE.Quaternion()
+      tObj.getWorldQuaternion(planetWorldQuat)
+      const {lat, lng, alt} = worldToLatLngAlt(
+          camWorldPos, planetWorldPos, planetWorldQuat, tObj.props.radius.scalar,
+      )
+      const d2000 = this.time.simTimeJulianDay() - J2000_JD
+      const fragment = encodePermalink(path, d2000, lat, lng, alt, cam.quaternion, cam.fov)
+      history.replaceState(null, '', `#${fragment}`)
+    }, 1000)
+  }
+
+
   /** */
   hideActiveDialog() {
     document.querySelectorAll('.dialog').forEach((e) => this.hideElt(e))
@@ -296,3 +369,4 @@ export default class Celestiary {
 
 
 const DEFAULT_TARGET = 'sun'
+const J2000_JD = 2451545.0

@@ -181,6 +181,8 @@ Two routing layers coexist:
 - **Wouter path routing** (`/`, `/guide`, `/about`, `/settings`) — controls which React panels are shown
 - **URL hash** (`#sun/earth/moon`) — drives which celestial object is targeted and loaded; managed imperatively by `Celestiary` via `hashchange` events
 
+The hash is extended with optional camera/time state to form a **permalink** — see [design/permalink.md](design/permalink.md) for the format specification.
+
 ## React UI Components (`js/ui/`)
 
 Thin MUI-based overlay panels:
@@ -220,6 +222,8 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/Time.js` | Simulation clock with time-scale control |
 | `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
+| `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment` |
+| `js/coords.js` | Geographic coordinate conversions: `worldToLatLngAlt`, `latLngAltToLocal` |
 | `js/store/useStore.js` | Zustand store root |
 | `public/data/*.json` | Celestial object descriptors |
 

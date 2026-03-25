@@ -126,6 +126,41 @@ atmosphere above top) or unobservable (camera exactly on ground).
 
 ## Testing
 
+### Integration tests catch constructor order bugs that unit tests miss
+
+The permalink restore feature had all unit tests passing (coords round-trips, encode/decode)
+but the integration test revealed a silent init bug: `this._pendingPermalink = null` was
+written in the constructor *after* `this.load()` was called, so `load()` set the permalink,
+then the constructor immediately cleared it.  The feature silently did nothing on every page
+load.
+
+The bug was invisible to unit tests because each function was correct in isolation.  The
+integration test (`js/Celestiary.test.js`) instantiates the real `Celestiary` with a permalink
+hash and asserts that sim time, camera position, orientation, and FOV are all restored — end
+to end, within a single test.
+
+**Rule:** For async or multi-phase init code, write an integration test that drives the full
+construction → async-settle → assert cycle.  Pure unit tests cannot catch sequencing bugs.
+
+### Initialise fields before calling methods that use them
+
+`this.load()` reads `this._pendingPermalink`.  The fix was to move the field initialisations
+(`this.firstTime`, `this._pendingPermalink`, `this._permalinkTimer`) to *before* `this.load()`
+in the constructor.  The constructor previously set those fields after calling `load()` as a
+stylistic tidying step, which silently shadowed the value that `load()` had just written.
+
+**Rule:** Any field that a method called from the constructor reads or writes must be
+initialised before that method is called.  "Tidy field listing at the bottom" is not worth
+the hazard.
+
+### Test code belongs in test files, not one-off shell scripts
+
+When debugging a codec, the instinct is to run a quick `bun -e "..."` snippet to verify
+output.  Putting that verification in a proper test case is strictly better: it runs in CI,
+is readable, and survives the session.
+
+**Rule:** One-off `bun -e` / `node -e` invocations should become test cases instead.
+
 ### Test across the full planet range, not just Earth
 
 Earth's atmosphere (8 km Rayleigh scale height, mild Mie) is the most forgiving. Mars (3 km
