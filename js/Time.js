@@ -156,6 +156,15 @@ export function toJulianDay(t) {
 
 
 /**
+ * @param {number} jd Julian Day number
+ * @returns {number} Unix epoch milliseconds
+ */
+export function fromJulianDay(jd) {
+  return (jd - daysJulianToUnix) * millisPerDay
+}
+
+
+/**
  * @param {number} unixTime UNIX Epoch milliseconds
  * @returns {string}
  */

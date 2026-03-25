@@ -104,4 +104,16 @@ module.exports = [
       'yoda': 'error',
     },
   },
+  // Test files: relax rules that conflict with stub/mock patterns (must be last to win)
+  {
+    files: ['**/*.test.js'],
+    rules: {
+      'no-empty-function': 'off',
+      'no-useless-constructor': 'off',
+      'jsdoc/require-jsdoc': 'off',
+      'jsdoc/require-returns': 'off',
+      'import/no-unresolved': ['error', {ignore: ['^bun:']}],
+      'import/no-duplicates': 'off',
+    },
+  },
 ]

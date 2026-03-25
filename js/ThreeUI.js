@@ -90,6 +90,7 @@ export default class ThreeUi {
     this._savedCamQuat = new Quaternion() // preserved across controls.update()
     this._orbitAxis = new Vector3() // pre-allocated for orbit drag
     this._orbitRot = new Quaternion() // pre-allocated for orbit drag
+    this.onCameraChange = null // set by Celestiary to schedule permalink updates
     this._initArrowKeys()
     this._initMouseDrag()
 
@@ -204,9 +205,7 @@ export default class ThreeUi {
   setFov(fov) {
     this.camera.fov = fov
     this.camera.updateProjectionMatrix()
-    if (this.camera.onChange) {
-      this.camera.onChange(this.camera)
-    }
+    this.onCameraChange?.()
   }
 
 
@@ -259,7 +258,10 @@ export default class ThreeUi {
     }
     // Order matters: tween then arrow keys then render, so arrow keys always win
     if (targets.tween !== null) {
-      targets.tween.update()
+      if (!targets.tween.update()) {
+        targets.tween = null
+        this.onCameraChange?.()
+      }
     }
     this._applyCameraArrowKeys()
     // Render scene to RT, then composite atmosphere fullscreen pass to screen
@@ -338,6 +340,7 @@ export default class ThreeUi {
         this.camera.rotateY(-dx * speed)
         this.camera.rotateX(-dy * speed)
       }
+      this.onCameraChange?.()
     })
   }
 
@@ -445,6 +448,7 @@ export default class ThreeUi {
     if (k.right) {
       this.camera.rotateZ(-speed)
     }
+    this.onCameraChange?.()
   }
 
 
@@ -483,5 +487,6 @@ export default class ThreeUi {
       this._zoomEye.setLength(distDesired)
       this.camera.position.copy(this.controls.target).add(this._zoomEye)
     }
+    this.onCameraChange?.()
   }
 }
