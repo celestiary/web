@@ -48,4 +48,8 @@ export default function reifyMeasures(obj) {
     reify(atm, 'rayleighScaleHeight', name)
     reify(atm, 'mieScaleHeight', name)
   }
+  if (obj['rings']) {
+    reify(obj['rings'], 'innerRadius', name)
+    reify(obj['rings'], 'outerRadius', name)
+  }
 }

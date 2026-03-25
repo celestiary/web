@@ -34,6 +34,11 @@
     "siderealOrbitPeriod": 9.28656296928E8
   },
   "system": ["titan","rhea","dione","tethys","iapetus","hyperion","janus"],
+  "rings": {
+    "innerRadius": "66900e3 m",
+    "outerRadius": "140210e3 m",
+    "texture": "saturn"
+  },
   "atmosphere": {
     "height": "4e5 m",
     "sunIntensity": 4,
