@@ -3,7 +3,6 @@ import {
   AxesHelper,
   BufferGeometry,
   EllipseCurve,
-  FrontSide,
   Group,
   LOD,
   Line,
@@ -20,9 +19,9 @@ import SpriteSheet from './SpriteSheet.js'
 import {
   ellipseSemiMinorAxisCurve,
   point,
-  rings,
   sphere,
 } from './shapes.js'
+import Rings from './rings/Rings.js'
 import {newAtmosphere} from './atmos/Atmosphere'
 import * as Material from './material.js'
 import {ASTRO_UNIT_METER, FAR_OBJ, labelTextColor, halfPi, toRad} from '../shared.js'
@@ -252,15 +251,10 @@ export default class Planet extends Object {
     if (this.props.texture_atmosphere && !this.props.atmosphere) {
       surface.add(this.newClouds())
     }
-    if (this.props.name === 'saturn') {
-      // surface.add(rings('saturn', false))
-      // surface.castShadow = true
-      // surface.receiveShadow = true
-      surface.add(rings('saturn', true, FrontSide))
-      const underRings = rings('saturn', true, FrontSide)
-      underRings.position.setY(-0.01)
-      underRings.rotateX(Math.PI)
-      surface.add(underRings)
+    if (this.props.rings && this.props.rings.texture) {
+      const ringsObj = new Rings(this.props)
+      ringsObj.injectPlanetShadow(surfaceMaterial)
+      surface.add(ringsObj)
     }
     const group = new Group
     group.add(surface)

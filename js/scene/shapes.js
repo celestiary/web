@@ -9,7 +9,6 @@ import {
   ConeGeometry,
   DoubleSide,
   EllipseCurve,
-  FrontSide,
   GridHelper,
   LOD,
   Line,
@@ -18,13 +17,11 @@ import {
   MeshBasicMaterial,
   MeshLambertMaterial,
   MeshPhongMaterial,
-  MeshStandardMaterial,
   Object3D,
   PlaneGeometry,
   Points,
   PointsMaterial,
   RepeatWrapping,
-  RingGeometry,
   ShaderMaterial,
   Shape,
   ShapeGeometry,
@@ -38,7 +35,6 @@ import {
   Vector3,
 } from 'three'
 import SpriteSheet from './SpriteSheet.js'
-import * as Material from './material.js'
 import * as Shared from '../shared.js'
 import {named} from '../utils.js'
 
@@ -512,43 +508,4 @@ function arc(rad, startAngle, arcAngle, materialOrOpts) {
   const geometry = new BufferGeometry().setFromPoints(points)
   const material = new LineBasicMaterial(opts)
   return new Line(geometry, material)
-}
-
-
-/**
- * Just Saturn for now.
- *
- * @returns {Mesh}
- */
-export function rings(name = 'saturn', shadows = true, side = FrontSide) {
-  const geometry = new RingGeometry(3, 6, 64)
-  const textureMap = Material.pathTexture(`${name}ringcolor`, '.png')
-  const alphaMap = Material.pathTexture(`${name}ringalpha`, '.png')
-  const material = new MeshStandardMaterial({
-    color: 0xffffff,
-    side: shadows ? side : DoubleSide,
-    map: textureMap,
-    alphaMap: alphaMap,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false,
-  })
-  // I still don't understand UVs.
-  // https://discourse.threejs.org/t/applying-a-texture-to-a-ringgeometry/9990/3
-  const pos = geometry.attributes.position
-  geometry.setAttribute('uv', new BufferAttribute(new Float32Array(pos.count * 4), 4))
-  const v3 = new Vector3()
-  for (let i = 0; i < pos.count; i++) {
-    v3.fromBufferAttribute(pos, i)
-    geometry.attributes.uv.setXY(i, v3.length() < 4 ? 1 : 0, 1)
-  }
-  const r = new Mesh(geometry, material)
-  /* if (shadows) {
-    r.castShadow = true
-    r.receiveShadow = true
-  } */
-  r.scale.setScalar(0.4)
-  r.rotateY(Math.PI / 2)
-  r.rotateX(Math.PI / 2)
-  return r
 }
