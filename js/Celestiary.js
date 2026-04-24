@@ -4,6 +4,10 @@ import ControlPanel from './ControlPanel'
 import Keys from './Keys'
 import Loader from './Loader'
 import Scene from './scene/Scene'
+import {searchIndex} from './search/SearchIndex'
+import PlacesProvider from './search/providers/PlacesProvider'
+import SceneProvider from './search/providers/SceneProvider'
+import StarsProvider from './search/providers/StarsProvider'
 import ThreeUi from './ThreeUI'
 import Time, {fromJulianDay} from './Time'
 import reifyMeasures from './reify'
@@ -49,6 +53,8 @@ export default class Celestiary {
     this.firstTime = true
     this._pendingPermalink = null
     this._permalinkTimer = null
+    this._registerSearchProviders()
+    this._subscribePreview()
     this.load()
     this.setupPathListeners()
     this.setupKeyListeners(useStore)
@@ -72,6 +78,70 @@ export default class Celestiary {
   }
 
 
+  /**
+   * Single re-entry point for info-panel rendering.  Fires whenever preview or
+   * committed state changes.  Precedence: previewStar > previewPath >
+   * committedPath.  Without this hub the navigation path would have to render
+   * the panel directly (which it used to) AND the preview code would have its
+   * own render path, making flicker-free transitions impossible.
+   */
+  _subscribePreview() {
+    this.useStore.subscribe((state, prev) => {
+      if (state.previewStar === prev.previewStar &&
+          state.previewPath === prev.previewPath &&
+          state.committedStar === prev.committedStar &&
+          state.committedPath === prev.committedPath) {
+        return
+      }
+      // Precedence: hovered/highlighted preview wins over committed selection;
+      // within each level, star > body-path.
+      if (state.previewStar) {
+        this.controlPanel.showStarPreview(state.previewStar)
+      } else if (state.previewPath && state.previewPath.length > 0) {
+        this.controlPanel.showNavDisplay(state.previewPath)
+      } else if (state.committedStar) {
+        this.controlPanel.showStarPreview(state.committedStar)
+      } else if (state.committedPath && state.committedPath.length > 0) {
+        this.controlPanel.showNavDisplay(state.committedPath)
+      }
+    })
+  }
+
+
+  /**
+   * Wire the app-wide search index.  SceneProvider and PlacesProvider are
+   * ready immediately; StarsProvider registers once the star catalog
+   * finishes async-loading (Stars.js sets `starsCatalog` on the store).
+   */
+  _registerSearchProviders() {
+    searchIndex.register(new SceneProvider(this.loader))
+    searchIndex.register(new PlacesProvider())
+    // StarsCatalog mutates in place — after load, prev.starsCatalog and
+    // state.starsCatalog are the same object (both already populated), so a
+    // before/after numStars comparison always sees equal.  Track registration
+    // with a local flag instead, and also try once immediately in case the
+    // catalog was already populated before we subscribed.
+    let registered = false
+    const tryRegister = (cat) => {
+      if (registered || !cat || !cat.numStars || cat.numStars <= 0) {
+        return false
+      }
+      registered = true
+      searchIndex.register(new StarsProvider(cat))
+      searchIndex.invalidate()
+      return true
+    }
+    if (tryRegister(this.useStore.getState().starsCatalog)) {
+      return
+    }
+    const unsub = this.useStore.subscribe((state) => {
+      if (tryRegister(state.starsCatalog)) {
+        unsub()
+      }
+    })
+  }
+
+
   /** */
   load() {
     let path
@@ -88,7 +158,10 @@ export default class Celestiary {
       this.scene.add(obj)
     }
     this.onDone = (loadedPath, obj) => {
-      this.controlPanel.showNavDisplay(loadedPath.split('/'), this.loader)
+      const pathParts = loadedPath.split('/')
+      // Updating committedPath fires the preview subscription (_subscribePreview)
+      // which owns info-panel rendering; no direct showNavDisplay here.
+      this.useStore.getState().setCommittedPath(pathParts)
       // TODO(pablo): Hack to handle load order.  The path is loaded,
       // but not yet animated so positions will be incorrect.  So
       // schedule this after the next pass.
@@ -152,8 +225,18 @@ export default class Celestiary {
   }
 
 
-  /** */
+  /**
+   * Travel to the current committed target.  Precedence: a committed star
+   * (set via search or crosshair dblclick) wins over the planet target —
+   * otherwise 'g' from a star-scoped body would always bounce back to the
+   * last-set planet via the stale Shared.targets.obj.
+   */
   goTo() {
+    const state = this.useStore.getState()
+    if (state.committedStar && state.committedStar.star) {
+      this.scene.goTo(state.committedStar.star)
+      return
+    }
     const tObj = this.shared.targets.obj
     if (tObj) {
       if (tObj.props && tObj.props.name) {
@@ -283,11 +366,12 @@ export default class Celestiary {
     },
     'Go to target node')
     k.map('h', () => {
+      // Just retarget — travel is 'g'.  setTarget syncs the store, which
+      // clears committedStar so a stale "at Rigel" breadcrumb doesn't
+      // linger after aiming back at the Sun.
       this.scene.targetNamed('sun')
-      this.scene.goTo()
-      history.pushState(null, '', '#sun')
     },
-    'Go home (Sun)')
+    'Set target to Sun (use "g" to travel)')
     k.map('t', () => {
       this.scene.track()
     },

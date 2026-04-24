@@ -189,6 +189,20 @@ mock.module('./vsop', () => ({
 }))
 
 
+// Zustand-like useStore stub: callable hook + getState/setState/subscribe.
+// Real Celestiary reaches into store.getState() to push state (e.g. committedPath).
+function makeStubStore() {
+  const state = {
+    setCommittedPath: () => {},
+  }
+  const hook = () => ({})
+  hook.getState = () => state
+  hook.setState = () => {}
+  hook.subscribe = () => () => {}
+  return hook
+}
+
+
 // ---- Celestiary loaded dynamically so mocks are in place first ----
 
 let Celestiary
@@ -211,7 +225,7 @@ describe('Celestiary permalink restore', () => {
       addEventListener: () => {},
     }
     app = new Celestiary(
-        () => ({}), // useStore
+        makeStubStore(), // useStore
         canvasContainer,
         {}, // navElt
         () => {}, // setTimeStr
@@ -291,7 +305,7 @@ describe('Scene.goTo navigation', () => {
       addEventListener: () => {},
     }
     app2 = new Celestiary(
-        () => ({}),
+        makeStubStore(),
         canvasContainer,
         {},
         () => {},

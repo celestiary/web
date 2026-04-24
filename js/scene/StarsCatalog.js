@@ -254,15 +254,20 @@ export default class StarsCatalog {
 
 
   /**
+   * Display-friendly identifier: proper name when available, otherwise the
+   * catalog-prefixed ID ("HIP 1234") — never a bare number.  Used for 3D
+   * sprite labels, search breadcrumb chip, and document title so they all
+   * read consistently.
+   *
    * @param {number} hipId
-   * @returns {string|number}
+   * @returns {string}
    */
   getNameOrId(hipId) {
     const names = this.namesByHip.get(hipId)
     if (names && names.length > 0) {
       return names[0]
     }
-    return hipId
+    return `HIP ${hipId}`
   }
 
 

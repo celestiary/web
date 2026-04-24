@@ -111,16 +111,87 @@ button {
   top: 0px;
 }
 
-#target-id {
-  position: fixed;
-  top: 0;
-  left: 0;
-  margin: 0;
-  font-size: 2em;
-  text-align: center;
-  text-transform: capitalize;
-  color: red;
-  border: solid 1px blue;
+#search-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+#search-bar .breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#search-bar .search-bar-icon {
+  color: #ccc;
+  padding: 2px;
+}
+
+/* Breadcrumb element as a chip: rounded container, reserved icon slot on
+   the left, label on the right.  Width is stable across active/inactive
+   because the icon slot always reserves layout (visibility toggled). */
+#search-bar .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 8px 1px 2px;
+  border-radius: 6px;
+  transition: background-color 120ms ease;
+}
+
+/* Hover preview only while closed — in the open state we rely on the
+   distinct active-chip styling instead. */
+#search-bar:not(.open) .chip:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+#search-bar.open .chip.chip-active {
+  background-color: rgba(127, 160, 224, 0.18);
+}
+
+#search-bar .chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden;
+}
+
+#search-bar .chip.chip-active .chip-icon {
+  visibility: visible;
+}
+
+#search-bar .chip-label {
+  line-height: 1.2;
+}
+
+/* Override the global `a` rule: keep the blue color as an affordance cue
+   but drop the underline.  Underline reappears on chip hover so the link
+   behavior is still discoverable. */
+#search-bar .chip a.chip-label {
+  color: #b8cdea;
+  text-decoration: none;
+}
+
+#search-bar .chip:hover a.chip-label {
+  color: #dde8f7;
+  text-decoration: underline;
+}
+
+#search-bar .chip-sep {
+  opacity: 0.35;
+  margin: 0 2px;
+  user-select: none;
+}
+
+#search-bar.open {
+  transition: width 240ms ease, opacity 240ms ease;
+}
+
+#search-bar .picker.active {
+  color: #7fa0e0;
+  background: rgba(127, 160, 224, 0.15);
 }
 
 #top-right {

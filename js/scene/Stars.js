@@ -57,16 +57,20 @@ export default class Stars extends Object {
       if (showLabels) {
         this.showLabels()
       }
+      this.ui.useStore.setState({starsCatalog: this.catalog})
     } else {
       this.catalog = new StarsCatalog()
+      // Expose the (empty) catalog immediately so About / search wiring can
+      // hold the reference; re-publish after load completes so subscribers
+      // that gate on numStars > 0 (SearchIndex's StarsProvider registration)
+      // see the transition.
+      this.ui.useStore.setState({starsCatalog: this.catalog})
       this.catalog.load(() => {
         this.show()
         this.showLabels()
+        this.ui.useStore.setState({starsCatalog: this.catalog})
       })
     }
-
-    // used by About for catalog stats
-    this.ui.useStore.setState({starsCatalog: this.catalog})
   }
 
 

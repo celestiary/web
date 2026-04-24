@@ -22,6 +22,18 @@ export default class Keys {
 
   /** @param {object} event */
   onKeyDown(event) {
+    // Suppress app shortcuts when the user is typing — otherwise letters
+    // bound as hotkeys (e.g. 'g', 'h') would fire while entering a query
+    // into the search bar or any other text input.
+    const doc = this.window && this.window.document
+    const active = doc && doc.activeElement
+    if (active) {
+      const tag = active.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+          active.isContentEditable) {
+        return
+      }
+    }
     const charStr = event.key
     if (charStr && typeof charStr === 'string') {
       const f = this.keymap[charStr.toUpperCase()]

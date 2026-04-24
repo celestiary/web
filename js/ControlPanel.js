@@ -1,7 +1,8 @@
 import Measure from '@pablo-mayrgundter/measure.js'
 import * as collapsor from './collapsor.js'
-import {capitalize} from './utils.js'
 import {StarSpectra} from './scene/StarsCatalog.js'
+import {LIGHTYEAR_METER} from './shared.js'
+import {capitalize} from './utils.js'
 
 
 /** */
@@ -26,30 +27,51 @@ export default class ControlPanel {
 
 
   /**
-   * @param {string} path
+   * Renders the recursive info tree for the target body into `containerElt`.
+   * The breadcrumb path itself is now rendered by the React SearchBar component
+   * (`js/ui/SearchBar.jsx`) from `store.committedPath`.
+   *
+   * @param {string[]} path
    */
   showNavDisplay(path) {
-    let crumbs = ''
-    for (let i = 0; i < path.length; i++) {
-      const hash = path.slice(0, i + 1).join('/')
-      const name = path[i]
-      if (i === path.length - 1) {
-        crumbs += capitalize(name)
-      } else {
-        crumbs += `<a href="#${ hash }">${ capitalize(name) }</a>`
-      }
-      if (i < path.length - 1) {
-        crumbs += ' &gt; '
-      }
+    const target = this.loader.loaded[this.getPathTarget(path)]
+    if (!target || typeof target !== 'object') {
+      return
     }
-
-    let html = `${crumbs } <ul>\n`
     const pathPrefix = path.join('/')
-    html += this.showInfoRecursive(this.loader.loaded[this.getPathTarget(path)],
-        pathPrefix, false, false)
+    let html = '<ul>\n'
+    html += this.showInfoRecursive(target, pathPrefix, false, false)
     html += '</ul>\n'
     this.containerElt.innerHTML = html
     collapsor.makeCollapsable(this.containerElt)
+  }
+
+
+  /**
+   * Renders a compact info summary for a catalog star (no JSON descriptor).
+   * Used by the search-preview mechanism when the highlighted/selected entry
+   * is a star rather than a body in `loader.loaded`.
+   *
+   * @param {object} preview {hipId, displayName, star}
+   */
+  showStarPreview(preview) {
+    if (!preview || !preview.star) {
+      return
+    }
+    const {hipId, star} = preview
+    const specNdx = typeof star.spectralType === 'number' ? star.spectralType : -1
+    const specClass = specNdx >= 0 && specNdx < StarSpectra.length ? StarSpectra[specNdx][3] : '?'
+    const distanceLy = Math.sqrt(
+        (star.x * star.x) + (star.y * star.y) + (star.z * star.z)) /
+        LIGHTYEAR_METER
+    const parts = []
+    parts.push('<ul>')
+    parts.push(`<li>HIP: ${hipId}</li>`)
+    parts.push(`<li>star class: ${specClass}</li>`)
+    parts.push(`<li>absolute magnitude: ${star.absMag.toFixed(2)}</li>`)
+    parts.push(`<li>distance: ${distanceLy.toFixed(2)} ly</li>`)
+    parts.push('</ul>')
+    this.containerElt.innerHTML = parts.join('\n')
   }
 
 
