@@ -17,7 +17,7 @@ import {newAtmospherePass} from './scene/atmos/Atmosphere'
 import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
-import {INITIAL_FOV, SMALLEST_SIZE_METER, STARS_RADIUS_METER, SUN_RADIUS_METER, targets} from './shared.js'
+import {GALAXY_RADIUS_METER, INITIAL_FOV, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets} from './shared.js'
 import {named} from './utils.js'
 import {asymptoticZoomDist, dynamicNear} from './zoom.js'
 
@@ -117,7 +117,13 @@ export default class ThreeUi {
   /** Sets camera near and far to deimos and local star cluster. */
   configLargeScene() {
     this.camera.near = SMALLEST_SIZE_METER
-    this.camera.far = STARS_RADIUS_METER * 2
+    // Far must comfortably enclose the procedural Milky Way (galaxy radius +
+    // a healthy navigation buffer for viewing it from outside).  The galaxy
+    // shader pins its z to the far plane so it never z-fights nearer geometry,
+    // so the precision crush at this far/near ratio is harmless for it; the
+    // depth-writing objects (planets, sun) are always orders of magnitude
+    // closer where precision is fine.
+    this.camera.far = GALAXY_RADIUS_METER * 6
     this.camera.updateProjectionMatrix()
 
     // This is a bit of a hack.  Starting the camera away from center so there's

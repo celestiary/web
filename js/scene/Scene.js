@@ -6,6 +6,7 @@ import {
   Vector3,
 } from 'three'
 import Asterisms from './Asterisms.js'
+import newMilkyWay from './MilkyWay.js'
 import Planet from './Planet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
@@ -408,6 +409,11 @@ export default class Scene {
       // console.log('Well done, you found the galaxy!');
     })
     this.objects[`${galaxyProps.name}.orbitPosition`] = group
+    // Procedural barred-spiral Milky Way as a background star cloud.  Built in
+    // galactic-centre coords and translated so the Sun (world origin) lands on
+    // a spiral arm.  Lives in worldGroup so star-navigation rebases shift it
+    // along with everything else, keeping the universe coherent.
+    group.add(newMilkyWay())
     return group
   }
 }
