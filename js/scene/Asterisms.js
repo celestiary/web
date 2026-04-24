@@ -1,11 +1,35 @@
 import {
-  LineBasicMaterial,
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  LineSegments,
   Object3D,
+  ShaderMaterial,
+  Vector3,
 } from 'three'
 import AsterismsCatalog from './AsterismsCatalog.js'
 import {assertDefined} from '../assert.js'
-import * as Shapes from './shapes.js'
 import {labelTextColor} from '../shared.js'
+
+
+// RTE line shader — same Relative-To-Eye technique as stars.vert.
+const asterismsVertexShader = `
+  uniform vec3 uCamPosWorldHigh;
+  uniform vec3 uCamPosWorldLow;
+  attribute vec3 positionLow;
+  void main() {
+    vec3 highDiff = position - uCamPosWorldHigh;
+    vec3 lowDiff  = positionLow - uCamPosWorldLow;
+    gl_Position = projectionMatrix * vec4(mat3(viewMatrix) * (highDiff + lowDiff), 1.0);
+  }
+`
+
+const asterismsFragmentShader = `
+  uniform vec3 uColor;
+  void main() {
+    gl_FragColor = vec4(uColor, 1.0);
+  }
+`
 
 
 /** */
@@ -21,9 +45,12 @@ export default class Asterisms extends Object3D {
     this.useStore = ui.useStore
     this.name = 'Asterisms'
     this.stars = stars
+    this._posHigh = []
+    this._posLow = []
     this.catalog = new AsterismsCatalog(stars.catalog)
     this.catalog.load(() => {
       this.catalog.byName.forEach((astr, name) => this.show(name))
+      this._compile()
       if (cb) {
         // Used by About for catalog stats
         this.useStore.setState({asterismsCatalog: this.catalog})
@@ -72,12 +99,8 @@ export default class Asterisms extends Object3D {
         // }
         if (prevStar) {
           try {
-            const line = Shapes.line(
-                prevStar.x, prevStar.y, prevStar.z,
-                star.x, star.y, star.z,
-            )
-            line.material = new LineBasicMaterial({color: labelTextColor, toneMapped: false})
-            this.add(line)
+            this._pushEndpoint(prevStar.x, prevStar.y, prevStar.z)
+            this._pushEndpoint(star.x, star.y, star.z)
           } catch (e) {
             console.error(`origName: ${origName}, hipId: ${hipId}: ${e}`)
             continue
@@ -86,6 +109,52 @@ export default class Asterisms extends Object3D {
         prevStar = star
       }
     })
+  }
+
+
+  /** Push one segment endpoint into the high/low accumulators. */
+  _pushEndpoint(x, y, z) {
+    const hx = Math.fround(x); const hy = Math.fround(y); const hz = Math.fround(z)
+    this._posHigh.push(hx, hy, hz)
+    this._posLow.push(x - hx, y - hy, z - hz)
+  }
+
+
+  /**
+   * Pack all accumulated segment endpoints into a single LineSegments with
+   * an RTE ShaderMaterial, then clear the accumulators.
+   */
+  _compile() {
+    const geom = new BufferGeometry()
+    geom.setAttribute('position', new BufferAttribute(new Float32Array(this._posHigh), 3))
+    geom.setAttribute('positionLow', new BufferAttribute(new Float32Array(this._posLow), 3))
+    const mat = new ShaderMaterial({
+      uniforms: {
+        uCamPosWorldHigh: {value: new Vector3()},
+        uCamPosWorldLow: {value: new Vector3()},
+        uColor: {value: new Color(labelTextColor)},
+      },
+      vertexShader: asterismsVertexShader,
+      fragmentShader: asterismsFragmentShader,
+      toneMapped: false,
+    })
+    const rtePos = new Vector3()
+    const lines = new LineSegments(geom, mat)
+    lines.onBeforeRender = (renderer, scene, camera) => {
+      camera.getWorldPosition(rtePos)
+      const wg = scene.getObjectByName('WorldGroup')
+      if (wg) {
+        rtePos.sub(wg.position)
+      }
+      const hx = Math.fround(rtePos.x)
+      const hy = Math.fround(rtePos.y)
+      const hz = Math.fround(rtePos.z)
+      mat.uniforms.uCamPosWorldHigh.value.set(hx, hy, hz)
+      mat.uniforms.uCamPosWorldLow.value.set(rtePos.x - hx, rtePos.y - hy, rtePos.z - hz)
+    }
+    this.add(lines)
+    this._posHigh = null
+    this._posLow = null
   }
 
 

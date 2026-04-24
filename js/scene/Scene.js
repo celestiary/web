@@ -14,7 +14,7 @@ import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
 
 
-const INITIAL_STEP_BACK_MULT = 10
+const STEP_BACK = 10
 
 
 /** */
@@ -25,7 +25,14 @@ export default class Scene {
    */
   constructor(ui) {
     this.ui = ui
+    ui.sceneManager = this
     this.objects = {}
+    // All celestial objects live under worldGroup so a single position shift
+    // rebases the entire universe (used by star navigation for float32 precision).
+    // camera.platform and _starAnchor are scene-root siblings, unaffected by the shift.
+    this.worldGroup = new Object3D
+    this.worldGroup.name = 'WorldGroup'
+    ui.scene.add(this.worldGroup)
     this.mouse = new Vector2
     this.raycaster = new Raycaster
     // this.raycaster = new CustomRaycaster;
@@ -51,7 +58,7 @@ export default class Scene {
     let parentObj = this.objects[props.parent]
     let parentOrbitPosition = this.objects[`${props.parent}.orbitPosition`]
     if (props.name === 'milkyway' || props.name === 'sun') {
-      parentObj = parentOrbitPosition = this.ui.scene
+      parentObj = parentOrbitPosition = this.worldGroup
     }
     if (!parentObj || !parentOrbitPosition) {
       throw new Error(`No parent obj: ${parentObj} or pos: ${parentOrbitPosition} for ${name}`)
@@ -181,45 +188,108 @@ export default class Scene {
   }
 
 
-  /** */
-  goTo() {
-    if (!Shared.targets.obj) {
+  /**
+   * Navigate camera to a planet (star=null) or a star catalog entry.
+   *
+   * Flow:
+   *   Phase 1 (synchronous): rebase WorldGroup + reparent camera platform to
+   *     the target's anchor (planet: obj.orbitPosition, star: _starAnchor),
+   *     preserving the camera's world transform so there's no visible jump.
+   *   Phase 2 (tween): look tween rotates toward the target's NEW world
+   *     position, then tweenNextFn launches the fly-in.
+   *
+   * Doing the rebase/reparent up-front means both tween phases operate in
+   * a single consistent coordinate frame — the old two-step split left the
+   * look tween aimed at the pre-rebase position and the fly-in handoff then
+   * had to re-rotate through any coordinate shift, which was visible as a
+   * camera jerk on star → planet or star → star transitions.
+   *
+   * Arrival distance = radius × STEP_BACK so both bodies fill the same
+   * apparent angular diameter regardless of absolute size.
+   *
+   * @param {object|null} star StarProps entry from StarsCatalog, or null for planet.
+   */
+  goTo(star = null) {
+    const isPlanet = star === null
+    const obj = isPlanet ? Shared.targets.obj : null
+    if (isPlanet && !obj) {
       console.error('Scene.goTo called with no target obj.')
       return
     }
-    const obj = Shared.targets.obj
-    const tPos = Shared.targets.pos
-    this.ui.scene.updateMatrixWorld()
-    tPos.setFromMatrixPosition(obj.matrixWorld)
-    const pPos = new Vector3
-    const cPos = new Vector3
-    const surfaceAltitude = obj.props.radius.scalar
-    pPos.set(0, 0, 0) // TODO(pablo): maybe put platform at surfaceAltitude
-    const camDist = obj.initialCameraDistance || (surfaceAltitude * INITIAL_STEP_BACK_MULT)
-    const elevationAngleRad = 15 / 360 * Math.PI * 2
-    const y = Math.atan(elevationAngleRad) * camDist
-    cPos.set(0, y, camDist)
-    // Capture world transform before reparenting so there is no visual jump
-    const startWorldPos = new Vector3()
-    const startWorldQuat = new Quaternion()
-    this.ui.camera.getWorldPosition(startWorldPos)
-    this.ui.camera.getWorldQuaternion(startWorldQuat)
-
-    // Reparent camera platform to the new target's orbit position
-    obj.orbitPosition.add(this.ui.camera.platform)
-    this.ui.camera.platform.position.copy(pPos)
-    this.ui.camera.platform.lookAt(Shared.targets.origin)
     this.ui.scene.updateMatrixWorld()
 
-    // Re-express the departure transform in the new platform-local space
-    this.ui.camera.position.copy(this.ui.camera.platform.worldToLocal(startWorldPos))
+    // Capture PRE-rebase camera world transform.
+    const camWorldPos = new Vector3()
+    const camWorldQuat = new Quaternion()
+    this.ui.camera.getWorldPosition(camWorldPos)
+    this.ui.camera.getWorldQuaternion(camWorldQuat)
+    const wgOld = this.worldGroup.position.clone()
+
+    // Rebase WorldGroup so the target lands at world origin.
+    this.worldGroup.position.set(
+      isPlanet ? 0 : -star.x,
+      isPlanet ? 0 : -star.y,
+      isPlanet ? 0 : -star.z,
+    )
+    this.ui.scene.updateMatrixWorld()
+
+    // Shift the captured camera world pos by the same wg delta, so the camera
+    // "moves with the universe" even when its parent (_starAnchor) is in
+    // scene-root and doesn't track wg.  This gives star → star and star → planet
+    // navigation a meaningful travel distance, and (crucially) keeps the
+    // camera's view direction to the previously-targeted body invariant across
+    // the rebase, so the follow-up look tween has a real rotation to animate.
+    const wgDelta = this.worldGroup.position.clone().sub(wgOld)
+    camWorldPos.add(wgDelta)
+
+    // Reparent platform to target anchor with identity local transform.
+    const anchor = isPlanet ? obj.orbitPosition : this._getOrCreateStarAnchor()
+    anchor.add(this.ui.camera.platform)
+    this.ui.camera.platform.position.set(0, 0, 0)
+    this.ui.camera.platform.quaternion.identity()
+    this.ui.scene.updateMatrixWorld()
+
+    // Restore camera's (shifted) world transform.
+    this.ui.camera.position.copy(this.ui.camera.platform.worldToLocal(camWorldPos.clone()))
     const platformWorldQuat = new Quaternion()
     this.ui.camera.platform.getWorldQuaternion(platformWorldQuat)
-    this.ui.camera.quaternion.copy(platformWorldQuat.invert().multiply(startWorldQuat))
+    this.ui.camera.quaternion.copy(platformWorldQuat.invert().multiply(camWorldQuat))
 
-    Shared.targets.tween = newCameraGoToTween(this.ui.camera, tPos, cPos)
-    Shared.targets.cur = Shared.targets.obj
-    this.ui.controls.update()
+    const targetWorldPos = isPlanet ?
+      new Vector3().setFromMatrixPosition(obj.matrixWorld) :
+      new Vector3(0, 0, 0)
+
+    if (isPlanet) {
+      Shared.targets.cur = obj
+    }
+
+    // Arrival pose: approach along camera→target line.
+    const dir = camWorldPos.clone().sub(targetWorldPos)
+    if (dir.lengthSq() > 0) {
+      dir.normalize()
+    } else {
+      dir.set(0, 0, 1)
+    }
+    const camDist = isPlanet ?
+      (obj.initialCameraDistance ?? (obj.props.radius.scalar * STEP_BACK)) :
+      (star.radius * STEP_BACK)
+    const arrivalWorld = targetWorldPos.clone().addScaledVector(dir, camDist)
+    const arrivalLocal = this.ui.camera.platform.worldToLocal(arrivalWorld)
+
+    // Single unified tween that overlaps rotation and movement.
+    Shared.targets.tween = newCameraGoToTween(this.ui.camera, targetWorldPos, arrivalLocal)
+    Shared.targets.tweenNextFn = null
+  }
+
+
+  /** @returns {Object3D} */
+  _getOrCreateStarAnchor() {
+    if (!this._starAnchor) {
+      this._starAnchor = new Object3D
+      this._starAnchor.name = 'StarAnchor'
+      this.ui.scene.add(this._starAnchor)
+    }
+    return this._starAnchor
   }
 
 

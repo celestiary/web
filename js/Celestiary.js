@@ -110,7 +110,8 @@ export default class Celestiary {
         this.scene.goTo()
         if (pl) {
           try {
-            // Platform is now oriented; compute camera position from saved lat/lng/alt
+            // scene.goTo() has already rebased WorldGroup + reparented the platform
+            // to the target body, so lat/lng can resolve against the platform directly.
             this.ui.scene.updateMatrixWorld()
             const tObj = Shared.targets.cur
             const planetWorldPos = new THREE.Vector3()
@@ -125,7 +126,9 @@ export default class Celestiary {
             )
             this.ui.camera.position.copy(camPos)
             this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w)
+            // Permalink restore takes precedence over any pending goTo animations.
             Shared.targets.tween = null
+            Shared.targets.tweenNextFn = null
             this.ui.setFov(pl.fov)
           } catch (e) {
             console.error('Permalink restore failed:', e)
@@ -279,6 +282,12 @@ export default class Celestiary {
       this.goTo()
     },
     'Go to target node')
+    k.map('h', () => {
+      this.scene.targetNamed('sun')
+      this.scene.goTo()
+      history.pushState(null, '', '#sun')
+    },
+    'Go home (Sun)')
     k.map('t', () => {
       this.scene.track()
     },

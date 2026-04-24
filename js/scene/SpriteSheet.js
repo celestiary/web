@@ -7,6 +7,7 @@ import {
   Points,
   ShaderMaterial,
   Vector2,
+  Vector3,
 } from 'three'
 import * as Utils from '../utils.js'
 import {
@@ -25,8 +26,9 @@ export default class SpriteSheet {
   /**
    * @param {number} numLabels
    * @param {string} maxLabel
+   * @param {boolean} [useRTE] Use Relative-To-Eye emulated double precision for catalog-space positions
    */
-  constructor(numLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0]) {
+  constructor(numLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0], useRTE = false) {
     if (!Number.isInteger(numLabels)) {
       throw new Error(`numLabels is invalid: ${ numLabels}`)
     }
@@ -49,7 +51,9 @@ export default class SpriteSheet {
     ctx.fillStyle = 'rgba(0, 0, 0, 0)'
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
     ctx.fill()
+    this.useRTE = useRTE
     this.positions = []
+    this._posLow = useRTE ? [] : null
     this.sizes = []
     this.spriteCoords = []
     this.positionAttribute = null
@@ -86,7 +90,13 @@ export default class SpriteSheet {
     bounds = this.drawAt(labelText, this.curX, this.curY, fillStyle)
 
     // console.log(`positionAttribute.set(x: ${x}, y: ${y}, z: ${z}, offset: ${this.labelCount})`);
-    this.positions.push(x, y, z)
+    if (this.useRTE) {
+      const hx = Math.fround(x); const hy = Math.fround(y); const hz = Math.fround(z)
+      this.positions.push(hx, hy, hz)
+      this._posLow.push(x - hx, y - hy, z - hz)
+    } else {
+      this.positions.push(x, y, z)
+    }
 
     this.spriteCoords.push(bounds.x / this.size,
         1 - ((bounds.y + bounds.height) / this.size),
@@ -158,6 +168,9 @@ export default class SpriteSheet {
     const spriteCoordAttribute = new Float32BufferAttribute(this.spriteCoords, 4)
     const geometry = new BufferGeometry()
     geometry.setAttribute('position', this.positionAttribute)
+    if (this.useRTE) {
+      geometry.setAttribute('positionLow', new Float32BufferAttribute(this._posLow, 3))
+    }
     geometry.setAttribute('size', sizeAttribute)
     geometry.setAttribute('spriteCoord', spriteCoordAttribute)
     geometry.computeBoundingBox()
@@ -172,12 +185,17 @@ export default class SpriteSheet {
     const texture = new CanvasTexture(this.canvas)
     texture.minFilter = NearestFilter
     texture.magFilter = NearestFilter
+    const uniforms = {
+      map: {value: texture},
+      padding: {value: new Vector2(this.padding[0], this.padding[1])},
+    }
+    if (this.useRTE) {
+      uniforms.uCamPosWorldHigh = {value: new Vector3()}
+      uniforms.uCamPosWorldLow = {value: new Vector3()}
+    }
     const material = new ShaderMaterial({
-      uniforms: {
-        map: {value: texture},
-        padding: {value: new Vector2(this.padding[0], this.padding[1])},
-      },
-      vertexShader: vertexShader,
+      uniforms,
+      vertexShader: this.useRTE ? rteVertexShader : vertexShader,
       fragmentShader: fragmentShader,
       blending: AdditiveBlending,
       depthTest: true,
@@ -201,6 +219,28 @@ const vertexShader = `
     spriteCoordVarying = spriteCoord;
     gl_PointSize = size[0];
     gl_Position = projectionMatrix * mvPosition;
+  }
+`
+
+
+// RTE variant — same Relative-To-Eye technique as stars.vert/Asterisms.js.
+const rteVertexShader = `
+  uniform vec2 padding;
+  uniform vec3 uCamPosWorldHigh;
+  uniform vec3 uCamPosWorldLow;
+  attribute vec2 size;
+  attribute vec4 spriteCoord;
+  attribute vec3 positionLow;
+  varying vec4 spriteCoordVarying;
+  void main() {
+    spriteCoordVarying = spriteCoord;
+    gl_PointSize = size[0];
+    vec3 highDiff = position - uCamPosWorldHigh;
+    vec3 lowDiff  = positionLow - uCamPosWorldLow;
+    vec3 eyePos = highDiff + lowDiff;
+    eyePos.x += padding.x;
+    eyePos.y += padding.y;
+    gl_Position = projectionMatrix * vec4(mat3(viewMatrix) * eyePos, 1.0);
   }
 `
 

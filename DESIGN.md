@@ -67,6 +67,8 @@ Distances are stored in **real SI meters**. Key constants from `js/shared.js`:
 
 Three.js scene units equal meters. Planets use VSOP87 coordinates scaled by `ASTRO_UNIT_METER`; stars use Celestia binary catalog coordinates scaled by `LIGHTYEAR_METER`.
 
+All celestial bodies (sun, planets, stars, asterisms) live under a single `WorldGroup` `Object3D`. Shifting `worldGroup.position` rebases the entire universe in one operation — used by star navigation to bring the current target star to world origin, so camera world coordinates stay small for float32 precision even across light-year distances. See [Navigation (goTo flow)](#navigation-goto-flow).
+
 ## Data Loading
 
 `Loader` fetches `/data/<name>.json` files recursively along a path (e.g. `sun/earth/moon`). Each JSON descriptor includes:
@@ -142,11 +144,105 @@ Camera orientation and position are separated across three input modes, all accu
 
 **Asymptotic zoom** (`js/zoom.js`): scroll zoom is remapped from distance-space to altitude-space so the camera approaches the surface asymptotically. The `camera.near` plane is dynamically scaled to `altitude * 0.1` (clamped 100 m – `SMALLEST_SIZE_METER`) so the surface remains visible without clipping.
 
-**Camera platform**: the camera is a child of `camera.platform` which is reparented to the target's `orbitPosition` on each `goTo()`. This means the camera tracks the planet through its orbit automatically without requiring a per-frame `lookAt` call.
+**Camera platform**: the camera is a child of `camera.platform`, a scene-root `Object3D` reparented on each `goTo()`. For planet targets the new parent is `obj.orbitPosition` so the camera tracks orbital motion automatically; for star targets it's `_starAnchor`, a dedicated scene-root anchor at world origin (paired with a `WorldGroup` rebase that moves the target star to origin). See [Navigation (goTo flow)](#navigation-goto-flow) for the full flow.
 
 **Navigation tweens** (`js/camera.js`) — stays at root as general infrastructure:
-- `newCameraLookTween` — 600 ms quaternion slerp used by `setTarget` (key navigation)
-- `newCameraGoToTween` — 1500 ms combined position lerp + quaternion slerp used by `goTo`
+- `newCameraLookTween` — 600 ms quaternion slerp used by `setTarget` (key navigation, `'c'` key)
+- `newCameraGoToTween` — 1800 ms unified tween used by `goTo`; rotation runs 0–60%, position 40–100%, with a 40–60% overlap so the camera never stops between turning and traveling. Details in [Navigation (goTo flow)](#navigation-goto-flow).
+
+
+## Navigation (goTo flow)
+
+`Scene.goTo(star)` reorients the camera onto a new target body. It has to satisfy two
+competing pressures:
+
+- **Float32 precision.** At star-scale distances the camera's world coordinates cannot
+  be large — catastrophic cancellation in `(objWorld − cameraWorld)` would destroy
+  positional accuracy for any non-RTE object.
+- **Smooth transitions.** Users expect a visible "turn then travel" beat that animates
+  from wherever the camera currently is toward the new target.
+
+The design resolves both by rebasing the universe so the new target sits at world
+origin, keeping camera world coordinates small, while preserving the camera's *position
+within the `WorldGroup` frame* so the subsequent look + travel tween has meaningful
+start and end poses.
+
+### Anchors
+
+The camera platform is parented differently depending on target type:
+
+| Target | Parent after `goTo()` | Notes |
+|---|---|---|
+| Planet / sun | `obj.orbitPosition` | That group is what orbital animation writes into, so the camera follows the body's orbit automatically. |
+| Star (catalog entry) | `_starAnchor` | A scene-root `Object3D` permanently fixed at world `(0, 0, 0)`, paired with `worldGroup.position = -star.xyz` so the target star lands at world origin. |
+
+### goTo flow
+
+Six synchronous steps before any tween runs:
+
+1. Capture pre-rebase camera world pos, world quat, and `wgOld = worldGroup.position`.
+2. Rebase `worldGroup.position` to `(0, 0, 0)` for planet targets or `-star.xyz` for
+   star targets.
+3. Compute `wgDelta = worldGroup.position − wgOld` and shift the captured camera world
+   pos by `wgDelta`. (See Invariant below.)
+4. Reparent `camera.platform` to the new anchor and reset its local transform to
+   identity.
+5. Restore the shifted camera world pos (via `platform.worldToLocal`) and reconstruct
+   `camera.quaternion` so the camera's *world* orientation matches what was captured
+   in step 1.
+6. Compute the arrival pose (a point at `radius × STEP_BACK` along the camera→target
+   line) and start a single `newCameraGoToTween`.
+
+### Invariant
+
+Across `goTo()`, the preserved quantity is **camera position in the WorldGroup frame**
+(`camera_world − worldGroup.position`), not camera world position. Camera world
+position deliberately shifts by `wgDelta` so the camera "moves with the universe":
+
+- When camera is already under `WorldGroup` (via some planet's `orbitPosition`), this
+  happens automatically because its parent moved during the rebase.
+- When camera is under `_starAnchor` (scene-root, unaffected by the rebase), step 3
+  applies the shift manually.
+
+Without the shift, star → star travel collapses to zero distance (camera and the new
+target both sit at origin because the old target was already at origin and `_starAnchor`
+didn't move). Pressing `h` from any star also produces an identical "instant look back"
+with no rotation animation, because the camera was coincidentally still pointing at
+origin after the rebase moved the sun into origin.
+
+With the shift, the direction from the (shifted) camera to the new target encodes where
+the user started from, so the follow-up rotation depends on the starting body.
+
+### Split-timing tween
+
+`newCameraGoToTween` is a single 1800 ms tween with two independently eased channels:
+
+| Channel | Active | Eased |
+|---|---|---|
+| Rotation (slerp to `lookAt(target)` from arrival) | 0 – 60% (0 – 1080 ms) | quadratic in-out |
+| Position (lerp from start to arrival) | 40 – 100% (720 – 1800 ms) | quadratic in-out |
+| **Overlap** | **40 – 60% (720 – 1080 ms, 360 ms)** | both active |
+
+The overlap means the camera starts moving before it finishes turning — there is no
+frame between the two phases where nothing is animating.
+
+### RTE interaction
+
+Stars, asterisms, and catalog star-name labels use Relative-To-Eye shaders that compute
+camera-relative positions every frame from double-precision emulation (high + low
+float32 split). They are visually stable across a `WorldGroup` rebase: the uniforms
+update one frame, the rendered positions on screen don't change.
+
+Non-RTE objects — the sun and planet meshes — are ordinary Three.js objects under
+`WorldGroup`, so they *do* visibly teleport when the rebase shifts their world
+positions. This teleport is the visible "warp" of star navigation: planets jump,
+stars hold still.
+
+### `setTarget`, `lookAtTarget`, `'c'` key
+
+Out of scope for the goTo flow. These use `newCameraLookTween` (rotation-only, 600 ms)
+and do not rebase or reparent. They only change `camera.quaternion` while leaving the
+scene graph alone.
 
 
 ## Rendering Techniques
@@ -181,7 +277,7 @@ Two routing layers coexist:
 - **Wouter path routing** (`/`, `/guide`, `/about`, `/settings`) — controls which React panels are shown
 - **URL hash** (`#sun/earth/moon`) — drives which celestial object is targeted and loaded; managed imperatively by `Celestiary` via `hashchange` events
 
-The hash is extended with optional camera/time state to form a **permalink** — see [design/permalink.md](design/permalink.md) for the format specification.
+The hash is extended with optional camera/time state to form a **permalink** — see [js/permalink.md](js/permalink.md) for the format specification.
 
 ## React UI Components (`js/ui/`)
 

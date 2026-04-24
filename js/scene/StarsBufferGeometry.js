@@ -16,14 +16,24 @@ export default class StarsBufferGeometry extends BufferGeometry {
     const lumens = new Float32Array(numStars)
     const sunSpectrum = StarSpectra[4]
     // const maxLum = Math.pow(8, 4)
+    // positionLow stores the float64 residual after quantising to float32.
+    // Together, coords (high) + positionLow (low) represent the full double-precision
+    // star position, enabling RTE (Relative-To-Eye) in the vertex shader.
+    const positionLow = new Float32Array(numStars * 3)
     let i = 0
     catalog.starByHip.forEach((star, hipId) => {
       this.idsByNdx[i] = hipId
       this.starsArray.push(star)
       const off = 3 * i
-      this.coords[off] = star.x
-      this.coords[off + 1] = star.y
-      this.coords[off + 2] = star.z
+      const hx = Math.fround(star.x)
+      const hy = Math.fround(star.y)
+      const hz = Math.fround(star.z)
+      this.coords[off] = hx
+      this.coords[off + 1] = hy
+      this.coords[off + 2] = hz
+      positionLow[off] = star.x - hx
+      positionLow[off + 1] = star.y - hy
+      positionLow[off + 2] = star.z - hz
       let rgb = StarSpectra[star.spectralType]
       rgb = rgb || sunSpectrum
       // const lumRelSun = star.lumRelSun
@@ -39,6 +49,7 @@ export default class StarsBufferGeometry extends BufferGeometry {
     })
     // https://github.com/mrdoob/three.js/blob/master/examples/webgl_custom_attributes_points.html
     this.setAttribute('position', new BufferAttribute(this.coords, 3))
+    this.setAttribute('positionLow', new BufferAttribute(positionLow, 3))
     this.setAttribute('color', new BufferAttribute(colors, 3))
     this.setAttribute('radius', new BufferAttribute(radii, 1))
     this.setAttribute('lumens', new BufferAttribute(lumens, 1))
