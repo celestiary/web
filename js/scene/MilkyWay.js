@@ -4,10 +4,11 @@ import {
   Float32BufferAttribute,
   Points,
   ShaderMaterial,
+  Texture,
   Vector3,
 } from 'three'
 import {pathTexture} from './material.js'
-import {LIGHTYEAR_METER} from '../shared.js'
+import {LIGHTYEAR_METER, STARS_RADIUS_METER} from '../shared.js'
 
 
 // Sun's distance from the galactic centre (Sgr A*) is ~26 kLY.  We park the
@@ -23,7 +24,7 @@ const BAR_HALF_LEN_M = 7000 * LIGHTYEAR_METER
 const BAR_HALF_WIDTH_M = 1500 * LIGHTYEAR_METER
 const BULGE_RADIUS_M = 4000 * LIGHTYEAR_METER
 
-const NUM_STARS = 12000
+const NUM_STARS = 8000
 const NUM_ARMS = 2 // two grand-design arms emerging from the bar
 const ARM_PITCH = 0.22 // tan(pitch); ≈ 12.5° pitch angle, MW-ish
 const FRAC_BULGE = 0.18
@@ -34,6 +35,14 @@ const FRAC_BAR = 0.18
 // spiral is sampled at r = SUN_GALACTIC_RADIUS_M to find the Sun anchor; the
 // whole disk is then translated so that anchor sits at the world origin.
 const SUN_ARM_INDEX = 0
+
+// Carve a hole around the Sun where the local Hipparcos catalog already
+// renders real stars at full fidelity.  Galaxy points inside this hole would
+// (a) overlap individual catalog stars, (b) blow up gl_PointSize when the
+// camera is inside the hole, and (c) be much closer than the cloud is
+// designed for.  Uses STARS_RADIUS_METER (~10 kLY) so the carve-out matches
+// the actual catalog footprint.
+const LOCAL_CATALOG_HOLE_M = STARS_RADIUS_METER
 
 
 /**
@@ -61,7 +70,13 @@ export default function newMilkyWay() {
   const sunGalCz = SUN_GALACTIC_RADIUS_M * Math.sin(sunArmAngle)
 
   const tmp = new Vector3()
-  for (let i = 0; i < NUM_STARS; i++) {
+  const holeSq = LOCAL_CATALOG_HOLE_M * LOCAL_CATALOG_HOLE_M
+  let written = 0
+  // Rejection-sample: reroll any point that lands inside the local catalog
+  // hole.  Cap the rejection budget so a degenerate config (Sun far inside
+  // the bar, etc.) can't infinite-loop.
+  const MAX_TRIES = NUM_STARS * 8
+  for (let tries = 0; tries < MAX_TRIES && written < NUM_STARS; tries++) {
     const r = Math.random()
     let col
     if (r < FRAC_BULGE) {
@@ -76,10 +91,14 @@ export default function newMilkyWay() {
     const x = tmp.x - sunGalCx
     const y = tmp.y
     const z = tmp.z - sunGalCz
+    // Reject if inside the local catalog hole around the Sun.
+    if (((x * x) + (y * y) + (z * z)) < holeSq) {
+      continue
+    }
     // RTE high/low split: hi = fround(x), lo = x - hi.  Magnitudes match,
     // so float32 subtraction (position - camPos) is exact.
     const hx = Math.fround(x); const hy = Math.fround(y); const hz = Math.fround(z)
-    const off3 = i * 3
+    const off3 = written * 3
     positions[off3] = hx
     positions[off3 + 1] = hy
     positions[off3 + 2] = hz
@@ -89,22 +108,42 @@ export default function newMilkyWay() {
     colors[off3] = col[0]
     colors[off3 + 1] = col[1]
     colors[off3 + 2] = col[2]
+    written++
   }
+  // Trim attribute arrays if rejection sampling left us short.
+  const positionsFinal = (written === NUM_STARS) ? positions : positions.subarray(0, written * 3)
+  const positionLowFinal = (written === NUM_STARS) ? positionLow : positionLow.subarray(0, written * 3)
+  const colorsFinal = (written === NUM_STARS) ? colors : colors.subarray(0, written * 3)
 
   const geom = new BufferGeometry()
-  geom.setAttribute('position', new Float32BufferAttribute(positions, 3))
-  geom.setAttribute('positionLow', new Float32BufferAttribute(positionLow, 3))
-  geom.setAttribute('color', new Float32BufferAttribute(colors, 3))
+  geom.setAttribute('position', new Float32BufferAttribute(positionsFinal, 3))
+  geom.setAttribute('positionLow', new Float32BufferAttribute(positionLowFinal, 3))
+  geom.setAttribute('aGalaxyColor', new Float32BufferAttribute(colorsFinal, 3))
 
-  // Texture is loaded lazily on first onBeforeRender so headless tests (no
-  // DOM, so TextureLoader.load → document.createElementNS would throw)
-  // construct the galaxy without touching the loader.
+  // pathTexture() routes through three's TextureLoader, which calls
+  // document.createElementNS synchronously to spin up an Image element.
+  // The bun test env supplies a stub document without that method, so
+  // guard the call: in headless we use a 1x1 placeholder texture (the
+  // Points cloud is never actually rendered there anyway).
+  let glowTex
+  try {
+    glowTex = pathTexture('star_glow', '.png')
+  } catch {
+    glowTex = new Texture()
+  }
+
+  // Note: do NOT set `vertexColors: true` on a ShaderMaterial whose vertex
+  // shader already declares `attribute vec3 color`.  Three injects a
+  // USE_COLOR define and may wire the standard Points chunks into the
+  // pipeline, which silently overrides the shader's gl_PointSize and
+  // produces giant fixed-size sprites instead of our 3px constant.
   const mat = new ShaderMaterial({
     uniforms: {
-      texSampler: {value: null},
-      uMinPxSize: {value: 1.0},
-      uMaxPxSize: {value: 48.0},
-      uSizeFalloff: {value: 8e18}, // metres; gl_PointSize ≈ uSizeFalloff / dist
+      texSampler: {value: glowTex},
+      // Galaxy "stars" are stand-ins for ~millions of real stars each.
+      // Keep the on-screen size very small (always a near-sub-pixel glow)
+      // so 8k of them stay performant and read as smoke-like background.
+      uPxSize: {value: 3.0},
       uCamPosWorldHigh: {value: new Vector3()},
       uCamPosWorldLow: {value: new Vector3()},
     },
@@ -114,7 +153,6 @@ export default function newMilkyWay() {
     depthTest: true,
     depthWrite: false,
     transparent: true,
-    vertexColors: true,
     toneMapped: false,
   })
 
@@ -134,9 +172,6 @@ export default function newMilkyWay() {
   // since the galaxy itself sits in worldGroup with identity local).
   const rtePos = new Vector3()
   points.onBeforeRender = (renderer, scene, camera) => {
-    if (mat.uniforms.texSampler.value === null) {
-      mat.uniforms.texSampler.value = pathTexture('star_glow', '.png')
-    }
     camera.getWorldPosition(rtePos)
     const wg = scene.getObjectByName('WorldGroup')
     if (wg) {
@@ -247,23 +282,27 @@ function armColor() {
 // every depth-writing object regardless of float32 depth-buffer crush at
 // galactic scales.
 
+// Custom attribute name aGalaxyColor (instead of plain `color`) sidesteps any
+// chance of three.js wiring its built-in vertex-color attribute on top of ours
+// — that path expects a different layout and silently breaks gl_PointSize.
 const VERT = `
-attribute vec3 color;
+attribute vec3 aGalaxyColor;
 attribute vec3 positionLow;
 uniform vec3  uCamPosWorldHigh;
 uniform vec3  uCamPosWorldLow;
-uniform float uMinPxSize;
-uniform float uMaxPxSize;
-uniform float uSizeFalloff;
+uniform float uPxSize;
 varying vec3  vColor;
 void main() {
-  vColor = color;
+  vColor = aGalaxyColor;
   vec3 highDiff = position    - uCamPosWorldHigh;
   vec3 lowDiff  = positionLow - uCamPosWorldLow;
   vec3 eyePos   = highDiff + lowDiff;
   vec4 mvPosition = vec4(mat3(viewMatrix) * eyePos, 1.0);
-  float dist = max(-mvPosition.z, 1.0);
-  gl_PointSize = clamp(uSizeFalloff / dist, uMinPxSize, uMaxPxSize);
+  // Constant pixel size — galaxy points are background smoke representing
+  // many stars each, not individual stars.  Keeping size constant (rather
+  // than 1/dist) means close-by points don't blow up into screen-filling
+  // squares and overdraw stays bounded.
+  gl_PointSize = uPxSize;
   vec4 clip = projectionMatrix * mvPosition;
   // Pin to (just inside) far plane in clip space so the additive galaxy
   // never "wins" a depth comparison against any nearer geometry.  z = w

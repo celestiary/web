@@ -350,6 +350,10 @@ export function newAtmospherePass() {
       uUseTransmittanceLUT: {value: 0.0},
       tInScatter: {value: null},
       uUseInScatterLUT: {value: 0.0},
+      // Hard kill-switch.  When false the shader composites the scene RT
+      // unchanged — no rsi(), no scatter, no risk of float32 overflow at
+      // interstellar distances.  Set by ThreeUI._updateAtmUniforms.
+      uAtmEnabled: {value: 0.0},
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
@@ -395,6 +399,7 @@ uniform sampler2D tTransmittance;
 uniform float     uUseTransmittanceLUT;
 uniform sampler2D tInScatter;
 uniform float     uUseInScatterLUT;
+uniform float     uAtmEnabled;
 
 #define PI        3.141592
 #define I_STEPS   64
@@ -546,6 +551,15 @@ vec4 scatter(
 }
 
 void main() {
+  // Hard kill-switch: when the camera is too far for the in-shader rsi() to
+  // remain numerically stable (or there's simply no atmosphere target), pass
+  // the scene through unchanged.  Must happen before any rsi() / scatter()
+  // call — eyePos² overflows float32 once |eyePos| ≳ 1.8e19 m, and a sentinel
+  // "push planet far away" value would itself trip that limit.
+  if (uAtmEnabled < 0.5) {
+    gl_FragColor = texture2D(tDiffuse, vUv);
+    return;
+  }
   vec2 ndc = vUv * 2.0 - 1.0;
   float depthSample = texture2D(tDepth, vUv).r;
 
