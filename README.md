@@ -37,7 +37,7 @@ For larger changes, it's also a good idea to step through the guide pages (in /g
 The app runs at https://celestiary.github.io/ and is in the celestiary.github.io repo.  From it grab the changes from the web repo and then push them:
 
 ```
-git pull upstream master
+git pull upstream main
 git push
 ```
 
