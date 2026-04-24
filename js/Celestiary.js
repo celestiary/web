@@ -296,6 +296,10 @@ export default class Celestiary {
       this.scene.toggleOrbits()
     },
     'Show/hide orbits')
+    k.map(';', () => {
+      this.scene.toggleGridsOrientation()
+    },
+    'Show/hide ecliptic + galactic reference grids')
 
     // Time
     k.map(' ', () => {

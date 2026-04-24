@@ -6,6 +6,7 @@ import {
   Vector3,
 } from 'three'
 import Asterisms from './Asterisms.js'
+import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import Planet from './Planet.js'
 import Star from './Star.js'
@@ -34,6 +35,13 @@ export default class Scene {
     this.worldGroup = new Object3D
     this.worldGroup.name = 'WorldGroup'
     ui.scene.add(this.worldGroup)
+    // Reference-frame grids (Equatorial, Ecliptic, Galactic).  Lives in the
+    // worldGroup so star-navigation rebases shift it along with the
+    // universe, but the grid shader ignores camera translation so the grid
+    // wraps the camera as a sky reference regardless.  All hidden by
+    // default; toggled via keyboard.
+    this.grids = newGrids()
+    this.worldGroup.add(this.grids.group)
     this.mouse = new Vector2
     this.raycaster = new Raycaster
     // this.raycaster = new CustomRaycaster;
@@ -396,6 +404,49 @@ export default class Scene {
   toggleStarLabels() {
     if (this.stars) {
       this.stars.labelLOD.visible = !this.stars.labelLOD.visible
+    }
+  }
+
+
+  /**
+   * Toggle the Ecliptic + Galactic reference grids together.  The two
+   * frames are the most useful pair for navigating outside the solar
+   * system: ecliptic gives "where am I relative to the planetary plane",
+   * galactic gives "where am I in the Milky Way".  Equatorial is left
+   * separate (rotates with Earth's spin axis, less useful for interstellar
+   * orientation).
+   */
+  toggleGridsOrientation() {
+    if (!this.grids) {
+      return
+    }
+    // Drive both off the ecliptic's state so they always match.
+    const next = !this.grids.ecliptic.visible
+    this.grids.ecliptic.visible = next
+    this.grids.galactic.visible = next
+  }
+
+
+  /** */
+  toggleGridEquatorial() {
+    if (this.grids) {
+      this.grids.equatorial.visible = !this.grids.equatorial.visible
+    }
+  }
+
+
+  /** */
+  toggleGridEcliptic() {
+    if (this.grids) {
+      this.grids.ecliptic.visible = !this.grids.ecliptic.visible
+    }
+  }
+
+
+  /** */
+  toggleGridGalactic() {
+    if (this.grids) {
+      this.grids.galactic.visible = !this.grids.galactic.visible
     }
   }
 
