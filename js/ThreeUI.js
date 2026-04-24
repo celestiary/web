@@ -391,6 +391,23 @@ export default class ThreeUi {
     const R = atmTarget.props.radius.scalar
 
     atmTarget.getWorldPosition(this._pWorldAtm)
+    this.camera.getWorldPosition(this._camWorldAtm)
+    // Skip the post-process when the camera is too far from the atmosphere
+    // for the in-shader rsi() to remain numerically stable.  The rsi math
+    // squares |eyePos| (and 2·dot(rayDir, eyePos)), so once |eyePos| approaches
+    // sqrt(FLT_MAX) ≈ 1.8e19 m, b² overflows to +Inf for forward-aligned rays
+    // while c is still finite — d becomes spuriously positive and rsi returns
+    // bogus intersections instead of the correct "miss," painting a giant
+    // halo over the screen.  At these distances the atmosphere is far below
+    // sub-pixel anyway, so skipping is the right call.
+    const camDist = this._camWorldAtm.distanceTo(this._pWorldAtm)
+    const FLT_SAFE_DIST = 1e15 // |eyePos|² stays below ~1e30, decades from FLT_MAX
+    if (camDist > FLT_SAFE_DIST) {
+      u.uPlanetCenter.value.set(0, 0, 1e20)
+      u.uAtmosphereRadius.value = u.uGroundRadius.value
+      u.uUseInScatterLUT.value = 0.0
+      return
+    }
     u.uPlanetCenter.value
         .copy(this._pWorldAtm)
         .applyMatrix4(this.camera.matrixWorldInverse)
