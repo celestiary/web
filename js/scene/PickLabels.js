@@ -6,6 +6,9 @@ import SpriteSheet from './SpriteSheet.js'
 import {marker as createMarker} from './shapes'
 
 
+const HOVER_SYNC_MS = 80
+
+
 /** */
 export default class PickLabels {
   constructor(ui, stars) {
@@ -18,6 +21,8 @@ export default class PickLabels {
     this.traceLabel = null
     this.mcb = null
     this.tcb = null
+    this._searchSyncTimer = null
+    this._pendingHoverName = null
 
     // Activate when UI button clicked for star marking.
     // Use prevState comparison so we only act when this flag actually changes,
@@ -31,6 +36,7 @@ export default class PickLabels {
       } else {
         this.removePickListeners()
         this.clearTrace()
+        this._clearHoverSync()
       }
     })
   }
@@ -70,7 +76,49 @@ export default class PickLabels {
       if (!this.stars.labelCenterPosByName[name]) {
         this.traceLabel = this.labelStar(pick)
       }
+      this._queueHoverSync(`${name}`)
     })
+  }
+
+
+  /**
+   * Debounced pipe from mousemove-hover to store.searchHoverName.  mousemove
+   * fires ~60–120 Hz; 80 ms coalesces into a rate the SearchBar can react to
+   * without thrashing Fuse.
+   *
+   * @param {string} name
+   */
+  _queueHoverSync(name) {
+    this._pendingHoverName = name
+    if (this._searchSyncTimer) {
+      return
+    }
+    this._searchSyncTimer = setTimeout(() => {
+      this._searchSyncTimer = null
+      const store = this.ui.useStore
+      if (store && typeof store.getState === 'function') {
+        const setter = store.getState().setSearchHoverName
+        if (typeof setter === 'function') {
+          setter(this._pendingHoverName)
+        }
+      }
+    }, HOVER_SYNC_MS)
+  }
+
+
+  _clearHoverSync() {
+    if (this._searchSyncTimer) {
+      clearTimeout(this._searchSyncTimer)
+      this._searchSyncTimer = null
+    }
+    this._pendingHoverName = null
+    const store = this.ui.useStore
+    if (store && typeof store.getState === 'function') {
+      const setter = store.getState().setSearchHoverName
+      if (typeof setter === 'function') {
+        setter(null)
+      }
+    }
   }
 
   /** Leave a label on star and navigate there */
@@ -79,6 +127,20 @@ export default class PickLabels {
       this.pickedStarLabels[pick.star.hipId] = this.traceLabel
       this.traceLabel = null
       this.ui.sceneManager.goTo(pick.star)
+      const store = this.ui.useStore
+      if (store && typeof store.getState === 'function') {
+        const state = store.getState()
+        if (typeof state.setCommittedStar === 'function') {
+          const displayName = String(this.stars.catalog.getNameOrId(pick.star.hipId))
+          state.setCommittedStar({hipId: pick.star.hipId, displayName, star: pick.star})
+        }
+        // Resolve the search: dblclick commits just like Enter/Go would.
+        // closeSearch also deactivates picking mode, which removes these
+        // listeners — clean end to the interaction.
+        if (state.isSearchOpen && typeof state.closeSearch === 'function') {
+          state.closeSearch()
+        }
+      }
     })
   }
 

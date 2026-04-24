@@ -262,9 +262,12 @@ LOD (`THREE.LOD`) is used throughout to swap between detailed meshes, point spri
 
 ## State Management (Zustand)
 
-`js/store/useStore.js` composes three slices:
+`js/store/useStore.js` composes four slices:
 
 - `AsterismsSlice` — asterisms visibility and catalog state
+- `SearchSlice` — search-bar state, anchor index, committed path / star,
+  preview fields; `setCommittedPath` and `setCommittedStar` are mutually
+  exclusive
 - `StarsSlice` — star selection / filter state
 - `TimeSlice` — time panel UI state
 
@@ -286,6 +289,9 @@ Thin MUI-based overlay panels:
 - `TimePanel` — displays sim time, pause/play, time-scale controls
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
+- `SearchBar` — breadcrumb-anchored search (chips, MUI `Autocomplete`,
+  crosshair picker toggle, preview + commit flow). See
+  [js/search/DESIGN.md](js/search/DESIGN.md) for the index architecture.
 - `DatePicker`, `NumberField`, `NumberInput` — supporting inputs
 - `TooltipToggleButton`, `TooltipIconButton`, `NavToggleButton` — icon button wrappers
 
@@ -322,6 +328,21 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/coords.js` | Geographic coordinate conversions: `worldToLatLngAlt`, `latLngAltToLocal` |
 | `js/store/useStore.js` | Zustand store root |
 | `public/data/*.json` | Celestial object descriptors |
+
+### Search (`js/search/`)
+
+| Path | Role |
+|---|---|
+| `js/search/SearchIndex.js` | Tiered index + app-wide singleton |
+| `js/search/SearchRegistry.js` | Provider registration singleton |
+| `js/search/SearchProvider.js` | JSDoc typedefs for `SearchEntry` / provider contract |
+| `js/search/providers/SceneProvider.js` | Bodies loaded by `Loader` |
+| `js/search/providers/StarsProvider.js` | Named stars + exact HIP resolver |
+| `js/search/providers/PlacesProvider.js` | Future surface-place stub |
+
+See [js/search/DESIGN.md](js/search/DESIGN.md) for the full architecture:
+tier structure (A/B/C), Fuse.js tuning, scoping semantics, commit flow,
+and the provider extension contract.
 
 ### Scene objects and support (`js/scene/`)
 

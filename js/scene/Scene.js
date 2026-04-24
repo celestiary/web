@@ -162,7 +162,14 @@ export default class Scene {
   }
 
 
-  /** */
+  /**
+   * Abstract target setter — all target-changing entry points (keyboard 'h',
+   * 'u', '0'-'9', onDone, etc) funnel here.  Syncs the committed-path store
+   * field (which also clears committedStar) so the breadcrumb + info panel
+   * reflect the new target rather than a stale star selection.
+   *
+   * @param {string} name
+   */
   setTarget(name) {
     const obj = this.objects[name]
     if (!obj) {
@@ -171,6 +178,39 @@ export default class Scene {
     Shared.targets.obj = obj
     // Animated in ThreeUI.renderLoop
     Shared.targets.tween = newCameraLookTween(this.ui.camera, obj.matrixWorld)
+
+    const store = this.ui && this.ui.useStore
+    if (store && typeof store.getState === 'function') {
+      const setter = store.getState().setCommittedPath
+      if (typeof setter === 'function') {
+        setter(this._pathFor(name))
+      }
+    }
+  }
+
+
+  /**
+   * Walk the parent chain up from `name` via scene.objects' stored props
+   * until we hit the milkyway root.  Used by setTarget to compute the
+   * breadcrumb path without depending on the Loader's lazy pathByName.
+   *
+   * @param {string} name
+   * @returns {string[]}
+   */
+  _pathFor(name) {
+    if (name === 'milkyway') {
+      return [name]
+    }
+    const parts = []
+    const seen = new Set()
+    let cur = name
+    while (cur && cur !== 'milkyway' && this.objects[cur] && !seen.has(cur)) {
+      parts.unshift(cur)
+      seen.add(cur)
+      const props = this.objects[cur].props
+      cur = props && props.parent
+    }
+    return parts
   }
 
 

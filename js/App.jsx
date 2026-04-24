@@ -7,32 +7,45 @@ import Stack from '@mui/material/Stack'
 import Celestiary from './Celestiary'
 import useStore from './store/useStore'
 import About from './ui/About'
+import SearchBar from './ui/SearchBar'
 import Settings from './ui/Settings'
 import TimePanel from './ui/TimePanel'
 import TooltipToggleButton from './ui/TooltipToggleButton'
-import {setTitleFromLocation} from './utils'
+import {capitalize} from './utils'
 import SettingsIcon from '@mui/icons-material/Settings'
 import StarsIcon from '@mui/icons-material/AutoAwesome'
-import StarSelectIcon from '@mui/icons-material/SavedSearch'
 import './index.css'
 
 
 /** @returns {ReactElement} */
 export default function App() {
-  const toggleIsStarsSelectActive = useStore((state) => state.toggleIsStarsSelectActive)
+  const committedPath = useStore((s) => s.committedPath)
+  const committedStar = useStore((s) => s.committedStar)
   const [celestiary, setCelestiary] = useState(null)
   const [isPaused, setIsPaused] = useState(false)
   const [timeStr, setTimeStr] = useState('')
 
   const sceneRef = useRef(null)
-  const navRef = useRef(null)
+  const navInfoRef = useRef(null)
 
   const [location, navigate] = useLocation()
   const [hashLocation] = useHashLocation()
 
-  useEffect(() => setTitleFromLocation(location), [location])
+  // Page title tracks the committed target.  Leaf-first so the active body
+  // is visible even in truncated tab titles.
   useEffect(() => {
-    const c = new Celestiary(useStore, sceneRef.current, navRef.current, setTimeStr, setIsPaused)
+    let leaf = null
+    if (location === '/guide') {
+      leaf = 'Guide'
+    } else if (committedStar && committedStar.displayName) {
+      leaf = committedStar.displayName
+    } else if (committedPath.length > 0) {
+      leaf = capitalize(committedPath[committedPath.length - 1])
+    }
+    document.title = leaf ? `${leaf} — Celestiary` : 'Celestiary'
+  }, [location, committedPath, committedStar])
+  useEffect(() => {
+    const c = new Celestiary(useStore, sceneRef.current, navInfoRef.current, setTimeStr, setIsPaused)
     setCelestiary(c)
     c.keys.map('?', () => navigate('/settings'), 'Show keyboard shortcuts')
   }, [])
@@ -41,7 +54,10 @@ export default function App() {
     <>
       <ScopedCssBaseline/>
       <div ref={sceneRef} id='scene-id'/>
-      <div ref={navRef} id='nav-id' className='panel'>Welcome to Celestiary!  Loading...</div>
+      <div id='nav-id' className='panel'>
+        {celestiary && <SearchBar celestiary={celestiary}/>}
+        <div ref={navInfoRef} id='nav-info-id'>Welcome to Celestiary!  Loading...</div>
+      </div>
       <Stack id='top-right' className='panel' direction='column' justifyContent='flex-start' alignItems='flex-end'>
         {celestiary && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
         <div id='text-buttons'>
@@ -58,8 +74,6 @@ export default function App() {
             </Box>
           }
         </div>
-        <TooltipToggleButton tip='select' icon={<StarSelectIcon/>} onClick={toggleIsStarsSelectActive}/>
       </Stack>
-      <h1 id='target-id'> </h1>
     </>)
 }
