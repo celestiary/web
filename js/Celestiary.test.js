@@ -121,6 +121,10 @@ class StubLoader {
     return this.loaded[name]
   }
 
+  loadShaders(material, cb) {
+    cb()
+  }
+
   loadPath(path, onLoad, onDone, _onErr) {
     if (path === 'milkyway') {
       const obj = this._read('milkyway')
@@ -150,14 +154,9 @@ mock.module('./ControlPanel', () => ({
     showNavDisplay() {}
   },
 }))
-mock.module('./Keys', () => ({
-  default: class {
-    constructor() {
-      this.msgs = {}
-    }
-    map() {}
-  },
-}))
+// Keys is NOT mocked: bun mock.module() is process-global, so mocking it here
+// would leak into Keys.test.js and cause the real class's methods to be shadowed.
+// The real Keys calls window.addEventListener, which is a no-op in our stub global.window.
 mock.module('./Loader', () => ({default: StubLoader}))
 
 // Avoid canvas dependency in Planet label sprites
@@ -272,5 +271,204 @@ describe('Celestiary permalink restore', () => {
     expect(lng).toBeCloseTo(PL.lng, 3)
     // Relative error on alt (large absolute value)
     expect(alt / PL.alt).toBeCloseTo(1, 3)
+  })
+})
+
+
+describe('Scene.goTo navigation', () => {
+  let app2
+
+  // Use a full permalink for 'sun' so _pendingPermalink is truthy → setTimeout delay = 0
+  const SUN_FRAGMENT = encodePermalink('sun', 0, 0, 0, 0, {x: 0, y: 0, z: 0, w: 1}, 45)
+  // A star far from the origin to make WorldGroup rebase assertions meaningful
+  const FAKE_STAR = {x: 1e14, y: 2e14, z: 3e14, hipId: 99, radius: 7e8}
+
+  beforeAll(async () => {
+    global.location.hash = `#${SUN_FRAGMENT}`
+    const canvasContainer = {
+      style: {width: '', height: ''},
+      appendChild: () => {},
+      addEventListener: () => {},
+    }
+    app2 = new Celestiary(
+        () => ({}),
+        canvasContainer,
+        {},
+        () => {},
+        () => {},
+    )
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  })
+
+  // Bring the scene back to a clean, known state before each navigation test.
+  // Camera world position is set to a non-trivial value so position-preservation
+  // assertions are meaningful (not just "0 ≈ 0").
+  function resetScene() {
+    app2.ui.scene.add(app2.ui.camera.platform)
+    app2.ui.camera.platform.position.set(0, 0, 0)
+    app2.ui.camera.platform.quaternion.identity()
+    app2.ui.camera.position.set(0, 0, 1e10)
+    app2.ui.camera.quaternion.identity()
+    app2.scene.worldGroup.position.set(0, 0, 0)
+    Shared.targets.tween = null
+    Shared.targets.tweenNextFn = null
+    Shared.targets.cur = null
+    Shared.targets.obj = null
+    app2.ui.scene.updateMatrixWorld()
+  }
+
+  // No-op in the current one-tween design (goTo no longer sets tweenNextFn),
+  // but kept so existing test blocks read consistently and any future reintroduction
+  // of a deferred tween would wire through this helper.
+  function fireTweenNext() {
+    const fn = Shared.targets.tweenNextFn
+    Shared.targets.tweenNextFn = null
+    Shared.targets.tween = fn ? fn() : null
+    app2.ui.scene.updateMatrixWorld()
+  }
+
+  // Invariant goTo must preserve: the camera's position in the WorldGroup frame
+  // (= camera_world − wg_position) is the same before and after the rebase +
+  // reparent.  Absolute camera world position deliberately changes by the wg
+  // delta so the camera "moves with the universe" for meaningful travel distance.
+  function camPosInWgFrame(camWorldPos, wgPos) {
+    return camWorldPos.clone().sub(wgPos)
+  }
+
+  describe('planet navigation to sun', () => {
+    let sunObj
+    let camPosInWgBefore
+    let camWorldQuatBefore
+
+    beforeAll(() => {
+      resetScene()
+      sunObj = app2.scene.objects['sun']
+      Shared.targets.obj = sunObj
+      const camWorldPosBefore = new Vector3()
+      app2.ui.camera.getWorldPosition(camWorldPosBefore)
+      camPosInWgBefore = camPosInWgFrame(camWorldPosBefore, app2.scene.worldGroup.position)
+      camWorldQuatBefore = new Quaternion()
+      app2.ui.camera.getWorldQuaternion(camWorldQuatBefore)
+      app2.scene.goTo()
+      fireTweenNext()
+    })
+
+    it('tweenNextFn is consumed', () => {
+      expect(Shared.targets.tweenNextFn).toBeNull()
+    })
+
+    it('preserves camera position in WorldGroup frame (< 1 m)', () => {
+      const after = new Vector3()
+      app2.ui.camera.getWorldPosition(after)
+      const afterInWg = camPosInWgFrame(after, app2.scene.worldGroup.position)
+      expect(afterInWg.distanceTo(camPosInWgBefore)).toBeLessThan(1)
+    })
+
+    it('preserves camera world orientation', () => {
+      const after = new Quaternion()
+      app2.ui.camera.getWorldQuaternion(after)
+      expect(Math.abs(after.dot(camWorldQuatBefore))).toBeCloseTo(1, 4)
+    })
+
+    it('keeps WorldGroup at origin', () => {
+      const {x, y, z} = app2.scene.worldGroup.position
+      expect(x).toBe(0)
+      expect(y).toBe(0)
+      expect(z).toBe(0)
+    })
+
+    it('reparents camera platform to sun.orbitPosition', () => {
+      expect(app2.ui.camera.platform.parent).toBe(sunObj.orbitPosition)
+    })
+  })
+
+
+  describe('star navigation', () => {
+    let camPosInWgBefore
+    let camWorldQuatBefore
+
+    beforeAll(() => {
+      resetScene()
+      const camWorldPosBefore = new Vector3()
+      app2.ui.camera.getWorldPosition(camWorldPosBefore)
+      camPosInWgBefore = camPosInWgFrame(camWorldPosBefore, app2.scene.worldGroup.position)
+      camWorldQuatBefore = new Quaternion()
+      app2.ui.camera.getWorldQuaternion(camWorldQuatBefore)
+      app2.scene.goTo(FAKE_STAR)
+      fireTweenNext()
+    })
+
+    it('preserves camera position in WorldGroup frame (< 1 m)', () => {
+      const after = new Vector3()
+      app2.ui.camera.getWorldPosition(after)
+      const afterInWg = camPosInWgFrame(after, app2.scene.worldGroup.position)
+      expect(afterInWg.distanceTo(camPosInWgBefore)).toBeLessThan(1)
+    })
+
+    it('preserves camera world orientation', () => {
+      const after = new Quaternion()
+      app2.ui.camera.getWorldQuaternion(after)
+      expect(Math.abs(after.dot(camWorldQuatBefore))).toBeCloseTo(1, 4)
+    })
+
+    it('rebases WorldGroup to negate star coordinates', () => {
+      const {x, y, z} = app2.scene.worldGroup.position
+      expect(x).toBe(-FAKE_STAR.x)
+      expect(y).toBe(-FAKE_STAR.y)
+      expect(z).toBe(-FAKE_STAR.z)
+    })
+
+    it('reparents camera platform to _starAnchor', () => {
+      expect(app2.ui.camera.platform.parent).toBe(app2.scene._starAnchor)
+    })
+  })
+
+
+  describe('star → sun regression (h key path)', () => {
+    let sunObj
+    let camPosInWgBefore
+    let camWorldQuatBefore
+
+    beforeAll(() => {
+      // First navigate to the fake star (mimics arriving at a star via PickLabels)
+      resetScene()
+      app2.scene.goTo(FAKE_STAR)
+      fireTweenNext()
+
+      // Then navigate back to sun — this is the path the 'h' key takes
+      sunObj = app2.scene.objects['sun']
+      Shared.targets.obj = sunObj
+      const camWorldPosBefore = new Vector3()
+      app2.ui.camera.getWorldPosition(camWorldPosBefore)
+      camPosInWgBefore = camPosInWgFrame(camWorldPosBefore, app2.scene.worldGroup.position)
+      camWorldQuatBefore = new Quaternion()
+      app2.ui.camera.getWorldQuaternion(camWorldQuatBefore)
+      app2.scene.goTo()
+      fireTweenNext()
+    })
+
+    it('preserves camera position in WorldGroup frame after star → sun (< 1 m)', () => {
+      const after = new Vector3()
+      app2.ui.camera.getWorldPosition(after)
+      const afterInWg = camPosInWgFrame(after, app2.scene.worldGroup.position)
+      expect(afterInWg.distanceTo(camPosInWgBefore)).toBeLessThan(1)
+    })
+
+    it('preserves camera world orientation after star → sun', () => {
+      const after = new Quaternion()
+      app2.ui.camera.getWorldQuaternion(after)
+      expect(Math.abs(after.dot(camWorldQuatBefore))).toBeCloseTo(1, 4)
+    })
+
+    it('resets WorldGroup to origin after star → sun', () => {
+      const {x, y, z} = app2.scene.worldGroup.position
+      expect(x).toBe(0)
+      expect(y).toBe(0)
+      expect(z).toBe(0)
+    })
+
+    it('reparents camera platform to sun.orbitPosition after star → sun', () => {
+      expect(app2.ui.camera.platform.parent).toBe(sunObj.orbitPosition)
+    })
   })
 })

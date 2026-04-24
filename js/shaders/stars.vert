@@ -6,10 +6,17 @@ uniform float MIN_STAR_SIZE_PX;
 uniform float MAX_STAR_SIZE_PX;
 uniform float STAR_MAGNIFY;
 uniform float STAR_MAGNIFY_2;
+// RTE (Relative-To-Eye): camera position in star catalog coordinates, split into
+// high (Math.fround) and low (residual) parts.  Together they carry full float64
+// precision so that (position - camera) is computed without subtractive cancellation
+// even at light-year distances.
+uniform vec3 uCamPosWorldHigh;
+uniform vec3 uCamPosWorldLow;
 
 attribute vec3 color;
 attribute float radius;
 attribute float lumens;
+attribute vec3 positionLow; // float64 residual: star.xyz - Math.fround(star.xyz)
 
 varying vec3 vColor;
 varying float vBrightness;        // Pass brightness to fragment
@@ -21,8 +28,16 @@ const float twoTau = 2. * 6.2831853070;
 
 void main() {
   vColor = color;
-  vec3 pos = position;
-  vec4 mvPosition = modelViewMatrix * vec4(pos, 1.);
+
+  // RTE: compute star position relative to camera eye in catalog space.
+  // highDiff and lowDiff have matched magnitudes so float32 arithmetic is exact.
+  // Stars carry no model rotation (WorldGroup is translation-only), so we apply
+  // only view rotation via mat3(viewMatrix), bypassing the translation that
+  // modelViewMatrix would add (already handled above).
+  vec3 highDiff = position - uCamPosWorldHigh;
+  vec3 lowDiff = positionLow - uCamPosWorldLow;
+  vec3 eyePos = highDiff + lowDiff;
+  vec4 mvPosition = vec4(mat3(viewMatrix) * eyePos, 1.);
   float dist = -mvPosition.z;
   float distSq = dist * dist;
 

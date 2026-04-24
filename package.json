@@ -17,6 +17,7 @@
     "bundle-check": "node esbuild/check.js",
     "clean": "rm -rf docs ; cp -r public docs",
     "lint": "yarn eslint js",
+    "prepare": "git config core.hooksPath hooks",
     "precommit": "yarn lint && yarn test && yarn bundle-check",
     "serve": "yarn build && node esbuild/serve.js",
     "test": "bun test",

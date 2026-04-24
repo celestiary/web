@@ -91,6 +91,9 @@ export default class Stars extends Object {
         MAX_BRIGHT: {value: 2e16}, // half-float max
         MIN_STAR_SIZE_PX: {value: 3},
         MAX_STAR_SIZE_PX: {value: 512},
+        // RTE uniforms: camera position in star catalog coords, split high/low
+        uCamPosWorldHigh: {value: new Vector3()},
+        uCamPosWorldLow: {value: new Vector3()},
       },
       vertexShader: '/shaders/stars.vert',
       fragmentShader: '/shaders/stars.frag',
@@ -108,6 +111,29 @@ export default class Stars extends Object {
       const starPoints = named(new Points(this.geom, starsMaterial), 'StarsPoints')
       starPoints.sortParticles = true
       starPoints.renderOrder = 0
+      // RTE: update camera-position uniforms every frame so the high/low split
+      // tracks the current camera position in star catalog coordinates.
+      const rtePos = new Vector3()
+      starPoints.onBeforeRender = (renderer, scene, camera) => {
+        camera.getWorldPosition(rtePos)
+        const wg = scene.getObjectByName('WorldGroup')
+        if (wg) {
+          rtePos.sub(wg.position)
+        }
+        const hx = Math.fround(rtePos.x)
+        const hy = Math.fround(rtePos.y)
+        const hz = Math.fround(rtePos.z)
+        starsMaterial.uniforms.uCamPosWorldHigh.value.set(hx, hy, hz)
+        starsMaterial.uniforms.uCamPosWorldLow.value.set(rtePos.x - hx, rtePos.y - hy, rtePos.z - hz)
+        // Catalog labels sit inside a LOD wrapper; their onBeforeRender is not
+        // guaranteed to fire every frame after a WorldGroup rebase.  Update from
+        // here instead — starPoints is a direct child of Stars and always renders.
+        const lm = this.starLabelSpriteSheet?.sprites?.material
+        if (lm) {
+          lm.uniforms.uCamPosWorldHigh.value.set(hx, hy, hz)
+          lm.uniforms.uCamPosWorldLow.value.set(rtePos.x - hx, rtePos.y - hy, rtePos.z - hz)
+        }
+      }
       this.add(starPoints)
       new PickLabels(me.ui, me)
       if (this.onLoadCb) {
@@ -136,12 +162,13 @@ export default class Stars extends Object {
       }
     })
     const maxLabel = 'Rigel Kentaurus B'
-    this.starLabelSpriteSheet = new SpriteSheet(toShow.length, maxLabel)
+    this.starLabelSpriteSheet = new SpriteSheet(toShow.length, maxLabel, undefined, [0, 0], true)
     for (let i = 0; i < toShow.length; i++) {
       const [star, name] = toShow[i]
       this.showStarName(star, name)
     }
-    this.labelsGroup.add(this.starLabelSpriteSheet.compile())
+    const labelPoints = this.starLabelSpriteSheet.compile()
+    this.labelsGroup.add(labelPoints)
   }
 
 

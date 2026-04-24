@@ -39,6 +39,7 @@ export const targets = {
   track: null,
   follow: null,
   tween: null,
+  tweenNextFn: null, // factory called when tween completes; creates the follow-on tween
 }
 // for invisible LOD.
 export const FAR_OBJ = named(new Object3D, 'LODFarObj')

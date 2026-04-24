@@ -259,8 +259,13 @@ export default class ThreeUi {
     // Order matters: tween then arrow keys then render, so arrow keys always win
     if (targets.tween !== null) {
       if (!targets.tween.update()) {
-        targets.tween = null
-        this.onCameraChange?.()
+        if (targets.tweenNextFn) {
+          targets.tween = targets.tweenNextFn()
+          targets.tweenNextFn = null
+        } else {
+          targets.tween = null
+          this.onCameraChange?.()
+        }
       }
     }
     this._applyCameraArrowKeys()
