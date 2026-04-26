@@ -68,10 +68,49 @@ export default class Scene {
       e: false, // equatorial grid
       c: false, // ecliptic grid
       g: false, // galactic grid
+      v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
+    // Custom appliers for settings keys that the Scene doesn't own directly
+    // (Celestiary registers 'v' here).  applySettings dispatches to these
+    // alongside the built-in toggle methods.
+    this._customAppliers = {}
     // Set by Celestiary; called whenever any settings flag flips so the
     // permalink can be updated.
     this.onSettingsChange = null
+  }
+
+
+  /**
+   * Register a key handler so applySettings can drive a toggle the Scene
+   * doesn't own (e.g. the Celestiary-level nav panels).  The applier
+   * function should perform the same effect as a user keypress and update
+   * Scene._settings via _flipSetting (or by calling back into a method
+   * that does).
+   *
+   * @param {string} key one of the SETTINGS_DEFAULTS keys
+   * @param {Function} fn
+   */
+  registerSettingApplier(key, fn) {
+    this._customAppliers[key] = fn
+  }
+
+
+  /**
+   * Public flip — updates _settings[key] and notifies the listener.
+   * Exposed so Celestiary-owned toggles (which can't easily call the
+   * underscore-prefixed internal version from outside) can keep the
+   * canonical state in sync.
+   *
+   * @param {string} key
+   */
+  flipSetting(key) {
+    this._flipSetting(key)
+  }
+
+
+  /** @returns {boolean} current value of a single setting */
+  getSetting(key) {
+    return this._settings[key]
   }
 
 
@@ -110,6 +149,7 @@ export default class Scene {
       e: () => this.toggleGridEquatorial(),
       c: () => this.toggleGridEcliptic(),
       g: () => this.toggleGridGalactic(),
+      ...this._customAppliers,
     }
     for (const key of Object.keys(dispatch)) {
       if (requested[key] !== undefined && requested[key] !== this._settings[key]) {

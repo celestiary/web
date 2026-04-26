@@ -51,6 +51,9 @@ export default class Celestiary {
     // Any settings toggle (asterisms, grids, etc.) updates the permalink so
     // the URL always reflects the live view configuration.
     this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
+    // 'v' (nav panels) is a Celestiary-level toggle — register the applier
+    // so Scene.applySettings can drive it on permalink restore.
+    this.scene.registerSettingApplier('v', () => this._toggleNav())
     this.loader = new Loader()
     this.controlPanel = new ControlPanel(navElt, this.loader)
     this.firstTime = true
@@ -280,13 +283,8 @@ export default class Celestiary {
     // Order determines listing in Settings panel.
 
     // Nav panels
-    k.map('v', () => {
-      const panels = [elt('nav-id'), elt('top-right')]
-      panels.map((panel) => {
-        panel.style.visibility = this.navVisible ? 'hidden' : 'visible'
-      })
-      this.navVisible = !this.navVisible
-    }, 'Hide/show navigation panels')
+    k.map('v', () => this._toggleNav(),
+        'Hide/show navigation panels')
 
     // Scene elements
     k.map('a', () => {
@@ -413,6 +411,22 @@ export default class Celestiary {
     k.msgs['ALT+MOUSEDRAG'] = 'Option+drag to orbit target'
 
     this.keys = k
+  }
+
+
+  /**
+   * Single-source-of-truth toggle for the nav panels (heads-up display).
+   * Used both by the 'v' keypress and by Scene.applySettings on permalink
+   * restore — the latter goes through the applier registered in the
+   * constructor, so the canonical _settings.v stays in sync.
+   */
+  _toggleNav() {
+    const panels = [elt('nav-id'), elt('top-right')]
+    panels.forEach((panel) => {
+      panel.style.visibility = this.navVisible ? 'hidden' : 'visible'
+    })
+    this.navVisible = !this.navVisible
+    this.scene.flipSetting('v')
   }
 
 

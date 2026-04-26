@@ -26,6 +26,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   e: false, // equatorial reference grid
   c: false, // ecliptic reference grid
   g: false, // galactic reference grid
+  v: true, // nav panels / heads-up display
 })
 
 
