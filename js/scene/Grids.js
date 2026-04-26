@@ -476,8 +476,17 @@ function attachEdgeFollower(points, items, gridGroup) {
         }
       }
 
-      // Fallback: no bracket — pick the closest visible sample to the edge
-      // (line never reaches the edge, but is still on screen somewhere).
+      // Fallback: no bracket — line never reaches the edge but might still
+      // be visible somewhere.  Pick the visible sample closest to the
+      // edge, then refine to sub-sample precision via a parabolic fit
+      // through that sample and its two neighbours.  Linear interpolation
+      // can't help here (both segment endpoints have score ≥ the local
+      // min), but the score curve through three adjacent samples is
+      // approximately quadratic, and the vertex of the fitted parabola
+      // gives a smooth continuous position even when no segment brackets
+      // the edge.  This eliminates the "snap to nearest sample" stepping
+      // for parallels viewed obliquely (where right/left-edge crossings
+      // are off-screen on the orthogonal axis).
       if (!Number.isFinite(bestScore)) {
         let bestI = -1
         let bestEdgeScore = Infinity
@@ -492,10 +501,11 @@ function attachEdgeFollower(points, items, gridGroup) {
           }
         }
         if (bestI >= 0) {
-          const off = bestI * 3
-          bestX3 = samples[off]
-          bestY3 = samples[off + 1]
-          bestZ3 = samples[off + 2]
+          const refined = refineSubSample(
+              bestI, samples, ndcX, ndcY, front, edge, closed)
+          bestX3 = refined.x
+          bestY3 = refined.y
+          bestZ3 = refined.z
           bestScore = bestEdgeScore
         }
       }
@@ -512,6 +522,72 @@ function attachEdgeFollower(points, items, gridGroup) {
     }
     positionAttr.needsUpdate = true
     visibleAttr.needsUpdate = true
+  }
+}
+
+
+/**
+ * Sub-sample refinement around `bestI`: fit a parabola through bestI's
+ * edge-score and its two neighbours' scores, find the vertex (offset t in
+ * [-1, +1] sample-spacings from bestI), and return the linearly
+ * interpolated 3D position toward whichever neighbour the vertex falls
+ * toward.  Falls back to the bestI sample directly when the three points
+ * don't form a true upward parabola (e.g. one neighbour is off-screen).
+ *
+ * Exported for tests.
+ *
+ * @param {number} bestI
+ * @param {Float32Array|Array<number>} samples flat (x,y,z) triples
+ * @param {Float32Array|Array<number>} ndcX
+ * @param {Float32Array|Array<number>} ndcY
+ * @param {Uint8Array|Array<number>} front per-sample visibility flag (1/0)
+ * @param {string} edge 'top' | 'bottom' | 'right' | 'left'
+ * @param {boolean} closed wrap (-1 ↔ N-1) when true
+ * @returns {{x:number, y:number, z:number}}
+ */
+export function refineSubSample(bestI, samples, ndcX, ndcY, front, edge, closed) {
+  const N = front.length
+  let prevI; let nextI
+  if (closed) {
+    prevI = (bestI - 1 + N) % N
+    nextI = (bestI + 1) % N
+  } else {
+    prevI = bestI > 0 ? bestI - 1 : bestI
+    nextI = bestI < N - 1 ? bestI + 1 : bestI
+  }
+  const offB = bestI * 3
+  if (prevI === bestI || nextI === bestI || !front[prevI] || !front[nextI]) {
+    return {x: samples[offB], y: samples[offB + 1], z: samples[offB + 2]}
+  }
+  const sa = edgeScore(ndcX[prevI], ndcY[prevI], edge)
+  const sb = edgeScore(ndcX[bestI], ndcY[bestI], edge)
+  const sc = edgeScore(ndcX[nextI], ndcY[nextI], edge)
+  if (!Number.isFinite(sa) || !Number.isFinite(sc)) {
+    return {x: samples[offB], y: samples[offB + 1], z: samples[offB + 2]}
+  }
+  // Parabola through (-1, sa), (0, sb), (1, sc) has vertex at
+  //   x* = (sa - sc) / (2 * (sa + sc - 2 sb))
+  // Only use the result if denom > 0 (parabola opens upward, sb really is
+  // a local min between sa and sc).  Clamp to [-1, +1] so we never reach
+  // past the neighbours.
+  const denom = (sa + sc) - (2 * sb)
+  if (denom <= 1e-12) {
+    return {x: samples[offB], y: samples[offB + 1], z: samples[offB + 2]}
+  }
+  let t = (sa - sc) / (2 * denom)
+  if (t > 1) {
+    t = 1
+  } else if (t < -1) {
+    t = -1
+  }
+  // Linearly interpolate between bestI and the neighbour in t's direction.
+  const otherI = t >= 0 ? nextI : prevI
+  const w = Math.abs(t) // fractional distance toward `otherI`, in [0, 1]
+  const offO = otherI * 3
+  return {
+    x: ((1 - w) * samples[offB]) + (w * samples[offO]),
+    y: ((1 - w) * samples[offB + 1]) + (w * samples[offO + 1]),
+    z: ((1 - w) * samples[offB + 2]) + (w * samples[offO + 2]),
   }
 }
 

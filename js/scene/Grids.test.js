@@ -1,5 +1,11 @@
 import {describe, expect, it} from 'bun:test'
-import {bracketCrossing, edgeScore, sampleMeridian, sampleParallel} from './Grids.js'
+import {
+  bracketCrossing,
+  edgeScore,
+  refineSubSample,
+  sampleMeridian,
+  sampleParallel,
+} from './Grids.js'
 
 
 describe('sampleMeridian', () => {
@@ -167,5 +173,93 @@ describe('bracketCrossing', () => {
     const r = bracketCrossing(0, -1, 0, 0, 'bottom', 0.1)
     expect(r).not.toBeNull()
     expect(r.y).toBeCloseTo(-0.9, 6)
+  })
+})
+
+
+describe('refineSubSample', () => {
+  // Small synthetic three-sample setup: scores 4, 1, 4 → symmetric
+  // parabola, vertex at offset 0 (no movement); scores 4, 1, 9 → vertex
+  // shifted toward the smaller side (prevI).  Sample positions shape the
+  // 3D output via lerp toward the neighbour the vertex points at.
+  const samples = new Float32Array([
+    -1, 0, 0, // prevI (idx 0)
+    0, 1, 0, // bestI (idx 1)
+    1, 0, 0, // nextI (idx 2)
+  ])
+  const front = new Uint8Array([1, 1, 1])
+
+  it('returns the bestI sample when both neighbours have equal scores', () => {
+    // Score function: |edgeScore(top)| = 1 - y.  Pick top edge with
+    // ndcY values that give scores (4, 1, 4) → vertex at offset 0.
+    const ndcX = new Float32Array([0, 0, 0])
+    const ndcY = new Float32Array([-3, 0, -3]) // top scores: 4, 1, 4
+    const r = refineSubSample(1, samples, ndcX, ndcY, front, 'top', false)
+    // Vertex at t=0 ⇒ no shift ⇒ bestI position
+    expect(r.x).toBeCloseTo(0, 6)
+    expect(r.y).toBeCloseTo(1, 6)
+  })
+
+  it('shifts toward the lower-score neighbour', () => {
+    // ndcY=(0.5, 0.9, 0.3) ⇒ top scores (0.5, 0.1, 0.7).  edgeScore for
+    // top requires y ∈ [-1, 1] (strict < threshold), so all on-screen.
+    //   denom = 0.5 + 0.7 − 0.2 = 1.0
+    //   t = (0.5 − 0.7) / 2 = −0.1  → shift 10% toward prevI = (-1,0,0)
+    const ndcX = new Float32Array([0, 0, 0])
+    const ndcY = new Float32Array([0.5, 0.9, 0.3])
+    const r = refineSubSample(1, samples, ndcX, ndcY, front, 'top', false)
+    const w = 0.1 // |t|
+    // lerp(bestI=(0,1,0) → prevI=(-1,0,0), w)
+    expect(r.x).toBeCloseTo(((1 - w) * 0) + (w * -1), 4)
+    expect(r.y).toBeCloseTo(((1 - w) * 1) + (w * 0), 4)
+  })
+
+  it('returns bestI position when a neighbour is off-screen', () => {
+    const ndcX = new Float32Array([0, 0, 0])
+    const ndcY = new Float32Array([-3, 0, -3])
+    const frontMissing = new Uint8Array([0, 1, 1]) // prevI off-screen
+    const r = refineSubSample(1, samples, ndcX, ndcY, frontMissing, 'top', false)
+    expect(r.x).toBeCloseTo(0, 6)
+    expect(r.y).toBeCloseTo(1, 6)
+  })
+
+  it('returns bestI position when bestI is at the open-loop boundary', () => {
+    // bestI at idx 0 with closed=false has no real prevI — should fall
+    // back to bestI directly without crashing.
+    const ndcX = new Float32Array([0, 0, 0])
+    const ndcY = new Float32Array([-3, -3, -3])
+    const r = refineSubSample(0, samples, ndcX, ndcY, front, 'top', false)
+    expect(r.x).toBeCloseTo(-1, 6) // samples[0] = (-1, 0, 0)
+    expect(r.y).toBeCloseTo(0, 6)
+  })
+
+  it('wraps at the open-loop boundary when closed=true', () => {
+    // bestI=0; closed=true wraps prevI → idx 2.  Asymmetric ndcY values
+    // (scores 1.5, 0, 1) shift the parabolic vertex toward nextI by t≈0.1.
+    // closed=false would hit the prevI===bestI guard and return bestI
+    // directly; closed=true should produce a non-zero lerp.
+    const ndcX = new Float32Array([0, 0, 0])
+    const ndcY = new Float32Array([1, 0, -0.5]) // top scores: 0, 1, 1.5
+    const closedR = refineSubSample(0, samples, ndcX, ndcY, front, 'top', true)
+    const openR = refineSubSample(0, samples, ndcX, ndcY, front, 'top', false)
+    // Closed: sa=1.5 (prevI=idx2), sb=0, sc=1 → denom=2.5, t=+0.1 → toward
+    // nextI by 10%.  Expected: lerp((-1,0,0)→(0,1,0), 0.1) = (-0.9, 0.1, 0)
+    expect(closedR.x).toBeCloseTo(-0.9, 4)
+    expect(closedR.y).toBeCloseTo(0.1, 4)
+    // Open: prevI clamps to bestI ⇒ returns bestI's sample directly.
+    expect(openR.x).toBeCloseTo(-1, 4)
+    expect(openR.y).toBeCloseTo(0, 4)
+  })
+
+  it('clamps the vertex offset to [-1, +1] for extreme score asymmetry', () => {
+    // edgeScore for top is in [0, 2] for on-screen y in [1, -1].  Choose
+    // scores sa=0 (y=1), sb=0.9 (y=0.1), sc=2 (y=-1).
+    //   denom = 0 + 2 − 1.8 = 0.2,  t = (0 − 2) / 0.4 = −5  → clamped to −1.
+    const ndcX = new Float32Array([0, 0, 0])
+    const ndcY = new Float32Array([1, 0.1, -1])
+    const r = refineSubSample(1, samples, ndcX, ndcY, front, 'top', false)
+    // t = −1 ⇒ lerp fully to prevI = samples[0] = (-1, 0, 0)
+    expect(r.x).toBeCloseTo(-1, 4)
+    expect(r.y).toBeCloseTo(0, 4)
   })
 })
