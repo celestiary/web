@@ -591,9 +591,14 @@ export default class Scene {
       Shared.targets.tweenNextFn = null
     }
 
-    // Lock to pan mode; mark landed for permalink + UI.
+    // Reset drag mode to 'auto' so pickDragMode picks 'pan' here at the
+    // surface AND naturally flips back to 'orbit' when the user later
+    // zooms out past the auto-switch threshold.  Earlier we forced
+    // 'pan' explicitly, which felt right at touchdown but stayed sticky:
+    // zooming out past orbit altitude kept dragging in pan mode forever.
+    // Mark landed for permalink + UI; this is independent of drag mode.
     const state = this.ui.useStore?.getState?.()
-    state?.setDragMode?.('pan')
+    state?.setDragMode?.('auto')
     state?.setLanded?.(true)
     Shared.targets.landed = true
 
@@ -707,9 +712,25 @@ export default class Scene {
   }
 
 
-  /** */
+  /**
+   * Toggle planet/moon name labels AND surface place labels.  Both belong
+   * to the 'p' overlay group: planet names live in their own LOD object
+   * named 'label LOD' (matched by visitToggleProperty); surface places
+   * (cities, craters, landing sites) live as a `places` property on the
+   * rotating planet Object3D, set in Planet.newPlanet.  Toggling them
+   * together gives the user one knob for "all planet-related labels"
+   * — and means the global 'V' presentation toggle hides them all
+   * together too via this same method.  See DESIGN.md "Overlays &
+   * visibility groups".
+   */
   togglePlanetLabels() {
     Utils.visitToggleProperty(this.objects['sun'], 'name', 'label LOD', 'visible')
+    for (const name of Object.keys(this.objects)) {
+      const obj = this.objects[name]
+      if (obj && obj.places && typeof obj.places.visible === 'boolean') {
+        obj.places.visible = !obj.places.visible
+      }
+    }
     this._flipSetting('p')
   }
 

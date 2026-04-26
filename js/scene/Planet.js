@@ -151,7 +151,15 @@ export default class Planet extends Object {
     }
 
     if (this.props.has_locations) {
-      planet.add(this.loadLocations(this.props))
+      const places = this.loadLocations(this.props)
+      // Stash a reference on the rotating planet node so Scene.togglePlanetLabels
+      // can toggle places visibility alongside the planet name labels (both
+      // belong to the 'p' overlay group — see DESIGN.md "Overlays & visibility").
+      planet.places = places
+      // Initial visibility tracks the 'p' setting for the same reason — without
+      // this, places would be visible after a permalink restore that had 'p' off.
+      places.visible = scene.getSetting ? scene.getSetting('p') : true
+      planet.add(places)
     }
 
     // An object must have a mesh to have onBeforeRender called, so
@@ -341,7 +349,14 @@ export default class Planet extends Object {
       }
     }
 
-    const surface = named(sphere({radius: this.props.radius.scalar, matr: surfaceMaterial}), 'planet surface')
+    // Bump surface resolution from sphere()'s default (128 segs ≈ 16k tris,
+    // ~310 km triangle edge at Earth scale) to 512 (~262k tris, ~78 km
+    // edge).  At close range — landing, low-altitude flight — the smaller
+    // triangles plus tighter chord-to-arc fit reduce sub-pixel rasterization
+    // gaps that previously let the sun show through Earth.  Cost per body
+    // is trivial on a modern GPU; one planet's worth of triangles dwarfed
+    // by the star catalog.
+    const surface = named(sphere({radius: this.props.radius.scalar, resolution: 512, matr: surfaceMaterial}), 'planet surface')
 
     // Per-frame: refresh sun direction (view space) for the night-lights
     // shader.  Sun lives at world origin; transform direction-from-planet-
