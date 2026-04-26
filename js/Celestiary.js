@@ -343,6 +343,12 @@ export default class Celestiary {
       this.scene.toggleGridEquatorial()
     },
     'Show/hide equatorial reference grid')
+    k.map('m', () => {
+      const s = useStore.getState()
+      const next = {auto: 'pan', pan: 'orbit', orbit: 'auto'}[s.dragMode] ?? 'auto'
+      s.setDragMode(next)
+    },
+    'Cycle camera drag mode (Auto / Drag Pan / Move)')
     // No keys for ecliptic / galactic per Celestia convention; click-only
     // entries appear in Settings after the keyed shortcuts.
     k.addAction(() => {

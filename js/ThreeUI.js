@@ -17,6 +17,7 @@ import {newAtmospherePass} from './scene/atmos/Atmosphere'
 import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import {attachPointerDrag} from './dragControls'
+import {resolveDragMode} from './dragMode'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
 import {GALAXY_RADIUS_METER, INITIAL_FOV, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets} from './shared.js'
 import {named} from './utils.js'
@@ -91,7 +92,13 @@ export default class ThreeUi {
     this._savedCamQuat = new Quaternion() // preserved across controls.update()
     this.onCameraChange = null // set by Celestiary to schedule permalink updates
     this._initArrowKeys()
-    attachPointerDrag(this.threeContainer, this.camera, () => this.onCameraChange?.())
+    attachPointerDrag(this.threeContainer, this.camera, {
+      onChange: () => this.onCameraChange?.(),
+      // useStore and Shared.targets are populated by Celestiary after
+      // ThreeUI construction; both accessors run lazily at pointerdown.
+      getDragMode: () => this.useStore?.getState().dragMode,
+      getTarget: () => targets.obj,
+    })
 
     this.renderer.setAnimationLoop((time) => {
       this.renderLoop(time)
@@ -274,12 +281,34 @@ export default class ThreeUi {
       }
     }
     this._applyCameraArrowKeys()
+    this._publishEffectiveDragMode()
     // Render scene to RT, then composite atmosphere fullscreen pass to screen
     this.renderer.setRenderTarget(this._sceneRT)
     this.renderer.render(this.scene, this.camera)
     this.renderer.setRenderTarget(null)
     this._updateAtmUniforms()
     this.renderer.render(this._atmScene, this._atmCamera)
+  }
+
+
+  /**
+   * Resolve the user's drag-mode intent to a concrete `'pan'` or
+   * `'orbit'` for the current camera/target context and write it into
+   * the store so the UI toggle can highlight whichever mode is active
+   * right now — including when the user-facing `dragMode` is `'auto'`
+   * and the resolution shifts as the camera moves (zoom, navigation).
+   * Zustand's default Object.is selector check skips the re-render when
+   * the value hasn't changed, so this is cheap to call every frame.
+   */
+  _publishEffectiveDragMode() {
+    const state = this.useStore?.getState()
+    if (!state?.setEffectiveDragMode) {
+      return
+    }
+    const next = resolveDragMode(state.dragMode, this.camera.position.length(), targets.obj)
+    if (next !== state.effectiveDragMode) {
+      state.setEffectiveDragMode(next)
+    }
   }
 
 
