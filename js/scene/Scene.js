@@ -6,6 +6,8 @@ import {
   Vector3,
 } from 'three'
 import Asterisms from './Asterisms.js'
+import newGrids from './Grids.js'
+import newMilkyWay from './MilkyWay.js'
 import Planet from './Planet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
@@ -33,6 +35,13 @@ export default class Scene {
     this.worldGroup = new Object3D
     this.worldGroup.name = 'WorldGroup'
     ui.scene.add(this.worldGroup)
+    // Reference-frame grids (Equatorial, Ecliptic, Galactic).  Lives in the
+    // worldGroup so star-navigation rebases shift it along with the
+    // universe, but the grid shader ignores camera translation so the grid
+    // wraps the camera as a sky reference regardless.  All hidden by
+    // default; toggled via keyboard.
+    this.grids = newGrids()
+    this.worldGroup.add(this.grids.group)
     this.mouse = new Vector2
     this.raycaster = new Raycaster
     // this.raycaster = new CustomRaycaster;
@@ -44,6 +53,148 @@ export default class Scene {
     this.stars = null
     this.asterisms = null
     this.orbitsVisible = true
+    // Toggleable settings.  Initialized to the runtime state right after
+    // Scene construction (before any user / firstTime toggle): asterisms
+    // and star labels are off (built / unhidden lazily); planet labels and
+    // orbits are visible by default; all reference grids are hidden.  Kept
+    // in sync by every toggle method below; surfaced for permalink
+    // round-tripping via getSettings() / applySettings().  Letter codes
+    // match permalink.js's SETTINGS_DEFAULTS.
+    this._settings = {
+      a: false, // asterisms
+      l: false, // star labels
+      p: true, // planet labels
+      o: true, // orbits
+      e: false, // equatorial grid
+      c: false, // ecliptic grid
+      g: false, // galactic grid
+      v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
+    }
+    // Custom appliers for settings keys that the Scene doesn't own directly
+    // (Celestiary registers 'v' here).  applySettings dispatches to these
+    // alongside the built-in toggle methods.
+    this._customAppliers = {}
+    // Set by Celestiary; called whenever any settings flag flips so the
+    // permalink can be updated.
+    this.onSettingsChange = null
+  }
+
+
+  /**
+   * Register a key handler so applySettings can drive a toggle the Scene
+   * doesn't own (e.g. the Celestiary-level nav panels).  The applier
+   * function should perform the same effect as a user keypress and update
+   * Scene._settings via _flipSetting (or by calling back into a method
+   * that does).
+   *
+   * @param {string} key one of the SETTINGS_DEFAULTS keys
+   * @param {Function} fn
+   */
+  registerSettingApplier(key, fn) {
+    this._customAppliers[key] = fn
+  }
+
+
+  /**
+   * Public flip — updates _settings[key] and notifies the listener.
+   * Exposed so Celestiary-owned toggles (which can't easily call the
+   * underscore-prefixed internal version from outside) can keep the
+   * canonical state in sync.
+   *
+   * @param {string} key
+   */
+  flipSetting(key) {
+    this._flipSetting(key)
+  }
+
+
+  /** @returns {boolean} current value of a single setting */
+  getSetting(key) {
+    return this._settings[key]
+  }
+
+
+  /** @returns {object} flat {key: bool} map matching permalink SETTINGS_DEFAULTS */
+  getSettings() {
+    return {...this._settings}
+  }
+
+
+  /**
+   * Drive each settings toggle to match the requested state, idempotently.
+   * Called at startup to reify either defaults or a permalink override; any
+   * key whose target value already matches the current value is a no-op.
+   *
+   * @param {object} requested flat {key: bool} map
+   */
+  applySettings(requested) {
+    // toggleStarLabels and toggleAsterisms guard on this.stars existing
+    // (the Stars instance, not the catalog).  On a permalink load the 0ms
+    // setTimeout in Celestiary.onDone can race the stars.json fetch — if
+    // earth.json wins, applySettings runs while this.stars is still null
+    // and the stars-dependent toggles silently no-op, leaving _settings.l
+    // and _settings.a stuck at their initial values.  Defer the whole
+    // apply pass until Stars is constructed; orbits / grids work either
+    // way, but doing them all at once keeps _settings coherent and gives
+    // a single permalink-update fire instead of two.
+    if (!this.stars) {
+      this.onStarsReady(() => this.applySettings(requested))
+      return
+    }
+    const dispatch = {
+      a: () => this.toggleAsterisms(),
+      l: () => this.toggleStarLabels(),
+      p: () => this.togglePlanetLabels(),
+      o: () => this.toggleOrbits(),
+      e: () => this.toggleGridEquatorial(),
+      c: () => this.toggleGridEcliptic(),
+      g: () => this.toggleGridGalactic(),
+      ...this._customAppliers,
+    }
+    for (const key of Object.keys(dispatch)) {
+      if (requested[key] !== undefined && requested[key] !== this._settings[key]) {
+        dispatch[key]()
+      }
+    }
+  }
+
+
+  /**
+   * Register a callback to fire when this.stars (the Stars instance) is
+   * constructed.  Fires synchronously if already set.  Used by
+   * applySettings to avoid the race described there.
+   *
+   * @param {Function} cb
+   */
+  onStarsReady(cb) {
+    if (this.stars) {
+      cb()
+      return
+    }
+    if (!this._starsReadyCbs) {
+      this._starsReadyCbs = []
+    }
+    this._starsReadyCbs.push(cb)
+  }
+
+
+  /** Internal: drain the stars-ready callback queue. */
+  _markStarsReady() {
+    const cbs = this._starsReadyCbs
+    this._starsReadyCbs = null
+    if (!cbs) {
+      return
+    }
+    for (const cb of cbs) {
+      cb()
+    }
+  }
+
+
+  /** Internal: flip a single key in _settings and notify the listener. */
+  _flipSetting(key) {
+    this._settings[key] = !this._settings[key]
+    this.onSettingsChange?.()
   }
 
 
@@ -79,7 +230,10 @@ export default class Scene {
   objectFactory(props) {
     switch (props.type) {
       case 'galaxy': return this.newGalaxy(props)
-      case 'stars': this.stars = new Stars(props, this.ui); return this.stars
+      case 'stars':
+        this.stars = new Stars(props, this.ui)
+        this._markStarsReady()
+        return this.stars
       case 'star': return new Star(props, this.objects, this.ui)
       case 'planet': return new Planet(this, props)
       case 'moon': return new Planet(this, props, true)
@@ -366,15 +520,33 @@ export default class Scene {
   /** */
   toggleAsterisms() {
     if (this.asterisms === null && this.stars !== null) {
-      const asterisms = new Asterisms(this.ui, this.stars, () => {
-        this.stars.add(asterisms)
-        this.asterisms = asterisms
-        this.asterisms.visible = true
+      // Defer the actual Asterisms construction until the stars catalog
+      // has loaded.  Without this, on permalink loads (which use a 0ms
+      // setTimeout in Celestiary.onDone) the asterism build runs against
+      // an empty starByHip map and silently produces zero line segments —
+      // so reload / permalink users would see no constellations even
+      // though the catalog itself was about to load fine.
+      // _asterismsPending guards against repeated toggle calls during the
+      // catalog-load window enqueueing duplicate callbacks (each would
+      // build its own Asterisms once ready).
+      if (this._asterismsPending) {
+        return
+      }
+      this._asterismsPending = true
+      this._flipSetting('a')
+      this.stars.onCatalogReady(() => {
+        const asterisms = new Asterisms(this.ui, this.stars, () => {
+          this.stars.add(asterisms)
+          this.asterisms = asterisms
+          this.asterisms.visible = this._settings.a
+          this._asterismsPending = false
+        })
       })
       return
     }
     if (this.asterisms) {
       this.asterisms.visible = !this.asterisms.visible
+      this._flipSetting('a')
     }
   }
 
@@ -382,12 +554,14 @@ export default class Scene {
   /** */
   toggleOrbits() {
     Utils.visitSetProperty(this.objects['sun'], 'name', 'orbit', 'visible', this.orbitsVisible = !this.orbitsVisible)
+    this._flipSetting('o')
   }
 
 
   /** */
   togglePlanetLabels() {
     Utils.visitToggleProperty(this.objects['sun'], 'name', 'label LOD', 'visible')
+    this._flipSetting('p')
   }
 
 
@@ -395,6 +569,34 @@ export default class Scene {
   toggleStarLabels() {
     if (this.stars) {
       this.stars.labelLOD.visible = !this.stars.labelLOD.visible
+      this._flipSetting('l')
+    }
+  }
+
+
+  /** */
+  toggleGridEquatorial() {
+    if (this.grids) {
+      this.grids.equatorial.visible = !this.grids.equatorial.visible
+      this._flipSetting('e')
+    }
+  }
+
+
+  /** */
+  toggleGridEcliptic() {
+    if (this.grids) {
+      this.grids.ecliptic.visible = !this.grids.ecliptic.visible
+      this._flipSetting('c')
+    }
+  }
+
+
+  /** */
+  toggleGridGalactic() {
+    if (this.grids) {
+      this.grids.galactic.visible = !this.grids.galactic.visible
+      this._flipSetting('g')
     }
   }
 
@@ -408,6 +610,11 @@ export default class Scene {
       // console.log('Well done, you found the galaxy!');
     })
     this.objects[`${galaxyProps.name}.orbitPosition`] = group
+    // Procedural barred-spiral Milky Way as a background star cloud.  Built in
+    // galactic-centre coords and translated so the Sun (world origin) lands on
+    // a spiral arm.  Lives in worldGroup so star-navigation rebases shift it
+    // along with everything else, keeping the universe coherent.
+    group.add(newMilkyWay())
     return group
   }
 }

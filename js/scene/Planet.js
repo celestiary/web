@@ -120,6 +120,12 @@ export default class Planet extends Object {
     group.add(pathShape)
     const orbitScaled = orbit.semiMajorAxis.scalar
     group.scale.setScalar(orbitScaled)
+    // Initial visibility from the scene's current settings — handles the
+    // case where this planet loads after applySettings has already toggled
+    // orbits off (toggleOrbits' visitSetProperty only walks
+    // already-attached children), so the new orbit doesn't sneak in
+    // visible and contradict the user's saved permalink state.
+    group.visible = scene.getSetting ? scene.getSetting('o') : true
     return group
   }
 
@@ -192,6 +198,10 @@ export default class Planet extends Object {
     labelLOD.addLevel(FAR_OBJ, labelTooNearDist)
     labelLOD.addLevel(labelSheet.compile(), labelTooNearDist)
     labelLOD.addLevel(FAR_OBJ, labelTooFarDist)
+    // Initial visibility from the scene's current settings (see newOrbit
+    // above) — guards against the load-order race where a planet appears
+    // after togglePlanetLabels has already run.
+    labelLOD.visible = scene.getSetting ? scene.getSetting('p') : true
 
     const group = new Object3D
     group.add(named(planetLOD, 'planet LOD'))

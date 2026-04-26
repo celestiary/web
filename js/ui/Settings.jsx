@@ -28,6 +28,12 @@ export default function Settings({keys, href = '~/'}) {
             {keys.msgs[key]}
           </li>
         ))}
+        {(keys.actions ?? []).map((action, ndx) => (
+          <li key={`action-${ndx}`}>
+            <Button onClick={action.fn}>•</Button>
+            {action.msg}
+          </li>
+        ))}
       </ul>
     </Dialog>
   )

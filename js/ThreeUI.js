@@ -17,7 +17,7 @@ import {newAtmospherePass} from './scene/atmos/Atmosphere'
 import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
-import {INITIAL_FOV, SMALLEST_SIZE_METER, STARS_RADIUS_METER, SUN_RADIUS_METER, targets} from './shared.js'
+import {GALAXY_RADIUS_METER, INITIAL_FOV, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets} from './shared.js'
 import {named} from './utils.js'
 import {asymptoticZoomDist, dynamicNear} from './zoom.js'
 
@@ -117,7 +117,13 @@ export default class ThreeUi {
   /** Sets camera near and far to deimos and local star cluster. */
   configLargeScene() {
     this.camera.near = SMALLEST_SIZE_METER
-    this.camera.far = STARS_RADIUS_METER * 2
+    // Far must comfortably enclose the procedural Milky Way (galaxy radius +
+    // a healthy navigation buffer for viewing it from outside).  The galaxy
+    // shader pins its z to the far plane so it never z-fights nearer geometry,
+    // so the precision crush at this far/near ratio is harmless for it; the
+    // depth-writing objects (planets, sun) are always orders of magnitude
+    // closer where precision is fine.
+    this.camera.far = GALAXY_RADIUS_METER * 6
     this.camera.updateProjectionMatrix()
 
     // This is a bit of a hack.  Starting the camera away from center so there's
@@ -381,16 +387,35 @@ export default class ThreeUi {
     }
 
     if (!atmTarget) {
-      // No atmosphere ever seen — push planet far off-screen so rsi misses.
-      u.uPlanetCenter.value.set(0, 0, 1e20)
-      u.uAtmosphereRadius.value = u.uGroundRadius.value
-      u.uUseInScatterLUT.value = 0.0
+      // No atmosphere ever seen — kill the pass via the shader's gate.  We
+      // can't simply "push the planet far away" as a sentinel because the
+      // in-shader rsi() squares |eyePos|, and any sentinel large enough to
+      // miss the atmosphere would itself overflow float32.
+      u.uAtmEnabled.value = 0.0
       return
     }
     const atmos = atmTarget.props.atmosphere
     const R = atmTarget.props.radius.scalar
 
     atmTarget.getWorldPosition(this._pWorldAtm)
+    this.camera.getWorldPosition(this._camWorldAtm)
+    // Skip the post-process when the camera is too far from the atmosphere
+    // for the in-shader rsi() to remain numerically stable.  rsi squares
+    // |eyePos| (and 2·dot(rayDir, eyePos)), so once |eyePos| approaches
+    // sqrt(FLT_MAX) ≈ 1.8e19 m, b² overflows to +Inf for forward-aligned
+    // rays while c is still finite — d becomes spuriously positive and rsi
+    // returns bogus intersections instead of the correct "miss," painting
+    // huge garbage halos over the screen.  At these distances the
+    // atmosphere is far below sub-pixel anyway, so skipping is the right
+    // call.  Use the shader gate rather than a sentinel uniform value, for
+    // the same reason as the no-target branch above.
+    const camDist = this._camWorldAtm.distanceTo(this._pWorldAtm)
+    const FLT_SAFE_DIST = 1e15 // |eyePos|² stays below ~1e30, decades from FLT_MAX
+    if (camDist > FLT_SAFE_DIST) {
+      u.uAtmEnabled.value = 0.0
+      return
+    }
+    u.uAtmEnabled.value = 1.0
     u.uPlanetCenter.value
         .copy(this._pWorldAtm)
         .applyMatrix4(this.camera.matrixWorldInverse)

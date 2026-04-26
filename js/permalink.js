@@ -12,6 +12,63 @@ const METER_PREFIXES = [
 ]
 
 
+// Toggleable scene settings — see Scene.js.  The `s=` permalink parameter is
+// a string of single-letter codes; each letter present means that setting is
+// in its NON-default state.  Empty / missing param = all defaults.  This
+// keeps the URL trivially short for the common case of a fresh viewer who
+// hasn't customized anything, while still being able to round-trip any
+// configuration faithfully.
+export const SETTINGS_DEFAULTS = Object.freeze({
+  a: true, // asterisms (constellation lines)
+  l: true, // star labels
+  p: true, // planet/moon labels
+  o: true, // orbits
+  e: false, // equatorial reference grid
+  c: false, // ecliptic reference grid
+  g: false, // galactic reference grid
+  v: true, // nav panels / heads-up display
+})
+
+
+/**
+ * Encode the current settings object as a compact letter-flag string for the
+ * permalink `s=` parameter.  Each letter present means "non-default state".
+ *
+ * @param {object} settings - flat {key: bool} map matching SETTINGS_DEFAULTS
+ * @returns {string}
+ */
+export function encodeSettings(settings) {
+  let out = ''
+  for (const key of Object.keys(SETTINGS_DEFAULTS)) {
+    if (settings[key] !== SETTINGS_DEFAULTS[key]) {
+      out += key
+    }
+  }
+  return out
+}
+
+
+/**
+ * Decode the settings flag string back to a full {key: bool} map (every key
+ * from SETTINGS_DEFAULTS is present, defaulted unless flagged).
+ *
+ * @param {string} s - flag string from `s=` param (may be undefined)
+ * @returns {object}
+ */
+export function decodeSettings(s) {
+  const out = {...SETTINGS_DEFAULTS}
+  if (!s) {
+    return out
+  }
+  for (const ch of s) {
+    if (Object.prototype.hasOwnProperty.call(SETTINGS_DEFAULTS, ch)) {
+      out[ch] = !SETTINGS_DEFAULTS[ch]
+    }
+  }
+  return out
+}
+
+
 /**
  * Trim a float to at most 4 decimal places, stripping trailing zeros.
  *
@@ -67,11 +124,14 @@ function parseMeters(s) {
 /**
  * Encode a complete view state into a hash fragment.
  *
- * Format: path@<lat>,<lng>,<alt>;t=<d2000>jd;cq=<qx>,<qy>,<qz>,<qw>;fov=<fov>deg
+ * Format: path@<lat>,<lng>,<alt>;t=<d2000>jd;cq=<qx>,<qy>,<qz>,<qw>;fov=<fov>deg[;s=<flags>]
  *
  * Position is encoded as geographic coordinates (Google Maps style) in the
  * body-fixed frame of the target object.  lat/lng in degrees (4 dp trimmed),
- * alt as SI-prefixed meters rounded to the nearest metre.
+ * alt as SI-prefixed meters rounded to the nearest metre.  The optional
+ * `s=` flag string round-trips toggleable scene settings (asterisms, grids,
+ * etc.) — see SETTINGS_DEFAULTS / encodeSettings.  Omitted when every
+ * setting is at its default, so the common case stays short.
  *
  * See design/permalink.md for the full specification.
  *
@@ -82,14 +142,22 @@ function parseMeters(s) {
  * @param {number} alt  Altitude above planet surface in meters
  * @param {{x:number, y:number, z:number, w:number}} quat  camera.quaternion (platform-local)
  * @param {number} fov  camera.fov in degrees
+ * @param {object} [settings]  Scene settings map matching SETTINGS_DEFAULTS
  * @returns {string}  Hash fragment without leading '#'
  */
-export function encodePermalink(path, d2000, lat, lng, alt, quat, fov) {
+export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings) {
   const pos = `${trimFloat(lat)},${trimFloat(lng)},${formatMeters(Math.round(alt))}`
   const t = `${parseFloat(d2000.toFixed(4))}jd`
   const cq = [quat.x, quat.y, quat.z, quat.w].map(trimFloat).join(',')
   const f = `${parseFloat(fov.toFixed(2))}deg`
-  return `${path}${SEPARATOR}${pos}${PARAM_SEP}t=${t}${PARAM_SEP}cq=${cq}${PARAM_SEP}fov=${f}`
+  let frag = `${path}${SEPARATOR}${pos}${PARAM_SEP}t=${t}${PARAM_SEP}cq=${cq}${PARAM_SEP}fov=${f}`
+  if (settings) {
+    const flags = encodeSettings(settings)
+    if (flags) {
+      frag += `${PARAM_SEP}s=${flags}`
+    }
+  }
+  return frag
 }
 
 
@@ -152,7 +220,10 @@ export function decodePermalink(fragment) {
   if ([lat, lng, alt, d2000, qx, qy, qz, qw, fov].some(isNaN)) {
     return null
   }
-  return {path, d2000, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov}
+  // Settings are always returned as a complete map (defaults + any flagged
+  // overrides) so callers don't need to know the default table.
+  const settings = decodeSettings(params['s'])
+  return {path, d2000, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov, settings}
 }
 
 

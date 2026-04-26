@@ -15,8 +15,16 @@ import * as Shapes from './scene/shapes'
 import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToLocal, worldToLatLngAlt} from './coords'
-import {decodePermalink, encodePermalink, pathFromFragment} from './permalink'
+import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment} from './permalink'
 import {elt} from './utils'
+
+
+// Scene-annotation settings keys (see permalink.js SETTINGS_DEFAULTS).
+// 'V' (Shift+v) toggles all of these together as a "presentation mode" —
+// keys here are the lowercase per-overlay toggles ('a' asterisms, 'p'
+// planet labels, etc.); the HTML chrome key 'v' is deliberately not in
+// this list so users can hide overlays and chrome independently.
+const SCENE_INFO_KEYS = ['a', 'l', 'p', 'o', 'e', 'c', 'g']
 
 
 /** Main application class. */
@@ -48,6 +56,12 @@ export default class Celestiary {
     this.ui.onCameraChange = () => this._schedulePermalinkUpdate()
     this.camera = this.ui.camera
     this.scene = new Scene(this.ui)
+    // Any settings toggle (asterisms, grids, etc.) updates the permalink so
+    // the URL always reflects the live view configuration.
+    this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
+    // 'v' (nav panels) is a Celestiary-level toggle — register the applier
+    // so Scene.applySettings can drive it on permalink restore.
+    this.scene.registerSettingApplier('v', () => this._toggleNav())
     this.loader = new Loader()
     this.controlPanel = new ControlPanel(navElt, this.loader)
     this.firstTime = true
@@ -208,8 +222,14 @@ export default class Celestiary {
           }
         }
         if (this.firstTime) {
-          this.scene.toggleAsterisms()
-          this.scene.toggleStarLabels()
+          // Apply scene settings — either from the permalink's `s=` flags
+          // or the SETTINGS_DEFAULTS table.  applySettings is idempotent;
+          // any setting already at its target state is a no-op, so this
+          // does the equivalent of the old "toggleAsterisms / toggleStarLabels"
+          // pair for a fresh viewer, and additionally honors the
+          // permalink for returning users.
+          const wantedSettings = pl?.settings ?? decodeSettings(undefined)
+          this.scene.applySettings(wantedSettings)
           this.firstTime = false
         }
       }, this._pendingPermalink ? 0 : (this.firstTime ? 1000 : 0))
@@ -265,19 +285,42 @@ export default class Celestiary {
   }
 
 
+  /**
+   * Wire up keyboard shortcuts.
+   *
+   * Keys.js dispatches case-sensitively, so 'v' and 'V' bind to different
+   * actions.  We use the convention:
+   *
+   *   - lowercase letters         = scoped toggles (one specific overlay
+   *                                 element each: 'a' asterisms, 'p'
+   *                                 planet labels, etc.)
+   *   - uppercase / Shift letters = "wider" actions affecting many things
+   *                                 at once.
+   *
+   * The two relevant cases today:
+   *
+   *   - 'v' hides the HTML chrome only — the nav panel, the search bar,
+   *     and the time / target heads-up text.  Scene annotations stay
+   *     visible.
+   *   - 'V' (Shift+v) is "presentation mode": hides every scene
+   *     annotation (planet labels, star labels, asterisms, orbits, all
+   *     reference grids) and snapshots their state so a second 'V' press
+   *     restores exactly what the user had.  The HTML chrome is left
+   *     alone — combine with 'v' for a fully bare view.
+   *
+   * The order of `k.map(...)` calls drives the Settings panel listing
+   * order.
+   */
   setupKeyListeners(useStore) {
     const k = new Keys(window, useStore)
 
-    // Order determines listing in Settings panel.
+    // Nav panels (HTML chrome only)
+    k.map('v', () => this._toggleNav(),
+        'Hide/show navigation panels (HTML overlay)')
 
-    // Nav panels
-    k.map('v', () => {
-      const panels = [elt('nav-id'), elt('top-right')]
-      panels.map((panel) => {
-        panel.style.visibility = this.navVisible ? 'hidden' : 'visible'
-      })
-      this.navVisible = !this.navVisible
-    }, 'Hide/show navigation panels')
+    // Presentation mode — hide every scene annotation at once.
+    k.map('V', () => this._toggleAllSceneInfo(),
+        'Hide/show all scene annotations (labels, orbits, asterisms, grids)')
 
     // Scene elements
     k.map('a', () => {
@@ -296,6 +339,20 @@ export default class Celestiary {
       this.scene.toggleOrbits()
     },
     'Show/hide orbits')
+    k.map(';', () => {
+      this.scene.toggleGridEquatorial()
+    },
+    'Show/hide equatorial reference grid')
+    // No keys for ecliptic / galactic per Celestia convention; click-only
+    // entries appear in Settings after the keyed shortcuts.
+    k.addAction(() => {
+      this.scene.toggleGridEcliptic()
+    },
+    'Show/hide ecliptic reference grid')
+    k.addAction(() => {
+      this.scene.toggleGridGalactic()
+    },
+    'Show/hide galactic reference grid')
 
     // Time
     k.map(' ', () => {
@@ -393,6 +450,62 @@ export default class Celestiary {
   }
 
 
+  /**
+   * Single-source-of-truth toggle for the nav panels (heads-up display).
+   * Used both by the 'v' keypress and by Scene.applySettings on permalink
+   * restore — the latter goes through the applier registered in the
+   * constructor, so the canonical _settings.v stays in sync.
+   *
+   * Uses `display: none` rather than `visibility: hidden` because the
+   * SearchBar's CSS sets `visibility: visible` on chip icons, which would
+   * override an ancestor's `visibility: hidden` and leak the search icon
+   * back through.  `display: none` removes the elements from layout
+   * entirely so descendants can't punch back through.
+   */
+  _toggleNav() {
+    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar')]
+    panels.forEach((panel) => {
+      if (panel) {
+        panel.style.display = this.navVisible ? 'none' : ''
+      }
+    })
+    this.navVisible = !this.navVisible
+    this.scene.flipSetting('v')
+  }
+
+
+  /**
+   * "Presentation mode" — hide every scene annotation in one shot, with
+   * snapshot+restore so a second press brings the user's prior state back.
+   *
+   * The hidden keys are the per-overlay scene toggles: planet labels (p),
+   * star labels (l), asterisms (a), orbits (o), and the three reference
+   * grids (e, c, g).  HTML chrome ('v') is intentionally left alone —
+   * users can combine with the 'v' key for a fully bare view.
+   *
+   * We snapshot only the relevant keys (not the whole settings map) so
+   * unrelated state changes between the press pair don't get clobbered on
+   * restore.
+   */
+  _toggleAllSceneInfo() {
+    if (this._sceneInfoSnapshot) {
+      const target = {...this.scene.getSettings(), ...this._sceneInfoSnapshot}
+      this._sceneInfoSnapshot = null
+      this.scene.applySettings(target)
+      return
+    }
+    const cur = this.scene.getSettings()
+    const snapshot = {}
+    const target = {...cur}
+    for (const key of SCENE_INFO_KEYS) {
+      snapshot[key] = cur[key]
+      target[key] = false
+    }
+    this._sceneInfoSnapshot = snapshot
+    this.scene.applySettings(target)
+  }
+
+
   /** Schedule a debounced permalink URL update 1 s after the camera settles. */
   _schedulePermalinkUpdate() {
     if (Shared.targets.tween !== null || !Shared.targets.cur) {
@@ -419,7 +532,9 @@ export default class Celestiary {
           camWorldPos, planetWorldPos, planetWorldQuat, tObj.props.radius.scalar,
       )
       const d2000 = this.time.simTimeJulianDay() - J2000_JD
-      const fragment = encodePermalink(path, d2000, lat, lng, alt, cam.quaternion, cam.fov)
+      const settings = this.scene.getSettings ? this.scene.getSettings() : null
+      const fragment = encodePermalink(
+          path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings)
       history.replaceState(null, '', `#${fragment}`)
     }, 1000)
   }

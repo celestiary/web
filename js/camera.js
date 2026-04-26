@@ -1,4 +1,8 @@
 import {
+  // Camera and Matrix4 are imported only for JSDoc type references below;
+  // the project's eslint no-unused-vars config accepts type-only imports.
+  Camera,
+  Matrix4,
   Quaternion,
   Vector3,
 } from 'three'

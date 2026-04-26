@@ -5,6 +5,10 @@ export default class Keys {
     this.window = win
     this.keymap = {}
     this.msgs = {}
+    // Click-only actions: items the user can toggle from Settings but which
+    // don't have a keyboard shortcut.  Each entry: {fn, msg}.  Listed in
+    // Settings after the keyed shortcuts.
+    this.actions = []
     this.bindToWindow(useStore)
   }
 
@@ -35,8 +39,13 @@ export default class Keys {
       }
     }
     const charStr = event.key
+    // Case-sensitive lookup so 'v' (plain) and 'V' (Shift+v) can be bound
+    // to different actions — the browser already distinguishes them in
+    // event.key for letters with Shift held.  Non-letter keys (' ', ';',
+    // 'ArrowUp', etc.) are unaffected since their event.key is the same
+    // either way.
     if (charStr && typeof charStr === 'string') {
-      const f = this.keymap[charStr.toUpperCase()]
+      const f = this.keymap[charStr]
       if (f) {
         f()
       }
@@ -45,13 +54,24 @@ export default class Keys {
 
 
   /**
-   * @param {string} c Shortcut key
+   * @param {string} c Shortcut key (case-sensitive — 'v' and 'V' bind to
+   *   different handlers).
    * @param {Function} fn
    * @param {string} msg
    */
   map(c, fn, msg) {
-    const key = c.toUpperCase()
-    this.keymap[key] = fn
-    this.msgs[key] = msg
+    this.keymap[c] = fn
+    this.msgs[c] = msg
+  }
+
+
+  /**
+   * Register a click-only action — listed in Settings without a key shortcut.
+   *
+   * @param {Function} fn
+   * @param {string} msg
+   */
+  addAction(fn, msg) {
+    this.actions.push({fn, msg})
   }
 }
