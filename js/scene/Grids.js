@@ -6,8 +6,10 @@ import {
   Group,
   LineSegments,
   LinearFilter,
+  Matrix3,
   Points,
   ShaderMaterial,
+  Vector3,
 } from 'three'
 import {named} from '../utils.js'
 import {toRad} from '../shared.js'
@@ -48,6 +50,12 @@ const MERIDIAN_STEP_DEG = 15
 // Label point-size (atlas tile is square; this is the pixel size on screen).
 // Tuned for legibility without dominating the view.
 const LABEL_FONT = '20px sans-serif'
+
+// How many points to sample along each meridian / parallel circle when
+// searching for the screen-edge intersection per frame.  64 is plenty for
+// smooth, jitter-free label motion at typical FOVs and is cheap (a few
+// thousand matrix-vector mults per grid per frame).
+const EDGE_SAMPLES = 64
 
 
 /**
@@ -249,11 +257,14 @@ function degParallelLabels() {
 
 
 /**
- * Build a labels Points object for `meridians` (placed at lat=0) and
- * `parallels` (placed at lng=0) on the unit sphere, and add it as a child of
- * `gridGroup`.  In the bun test env the canvas APIs are stubbed and tile
- * sizes come back as zero — the resulting atlas is degenerate but harmless
- * since no rendering happens; we just early-return on that case.
+ * Build a labels Points object for the grid's meridians and parallels and
+ * attach it to `gridGroup`.  Two labels per line — one anchored to each
+ * opposite screen edge (top + bottom for meridians, left + right for
+ * parallels) — so as the camera rotates each line's labels slide along the
+ * edge they're anchored to, like Celestia.
+ *
+ * In the bun test env canvas APIs are stubbed, so the texture build
+ * gracefully returns null; no test impact.
  *
  * @param {Group} gridGroup
  * @param {Array<{lng:number, text:string}>} meridians
@@ -263,14 +274,161 @@ function degParallelLabels() {
 function attachLabels(gridGroup, meridians, parallels, color) {
   const items = []
   for (const {lng, text} of meridians) {
-    items.push({pos: [Math.cos(lng), 0, Math.sin(lng)], text})
+    const samples = sampleMeridian(lng)
+    items.push({text, samples, edge: 'top'})
+    items.push({text, samples, edge: 'bottom'})
   }
   for (const {lat, text} of parallels) {
-    items.push({pos: [Math.cos(lat), Math.sin(lat), 0], text})
+    const samples = sampleParallel(lat)
+    items.push({text, samples, edge: 'right'})
+    items.push({text, samples, edge: 'left'})
   }
   const points = buildLabelsPoints(items, color)
-  if (points) {
-    gridGroup.add(points)
+  if (!points) {
+    return
+  }
+  attachEdgeFollower(points, items, gridGroup)
+  gridGroup.add(points)
+}
+
+
+/**
+ * Unit-sphere samples along a meridian (constant longitude, varying
+ * latitude from south pole to north pole).  Returned as a flat
+ * Float32Array of (x,y,z) triples for cheap iteration in the per-frame
+ * edge follower.
+ *
+ * Exported for tests.
+ *
+ * @param {number} lng radians
+ * @returns {Float32Array}
+ */
+export function sampleMeridian(lng) {
+  const arr = new Float32Array(EDGE_SAMPLES * 3)
+  const cl = Math.cos(lng); const sl = Math.sin(lng)
+  for (let i = 0; i < EDGE_SAMPLES; i++) {
+    const lat = (-Math.PI / 2) + ((Math.PI * i) / (EDGE_SAMPLES - 1))
+    const cy = Math.cos(lat)
+    arr[(3 * i)] = cy * cl
+    arr[(3 * i) + 1] = Math.sin(lat)
+    arr[(3 * i) + 2] = cy * sl
+  }
+  return arr
+}
+
+
+/**
+ * Unit-sphere samples along a parallel (constant latitude, full longitude
+ * loop).  Like sampleMeridian, returned as a flat Float32Array.
+ *
+ * Exported for tests.
+ *
+ * @param {number} lat radians
+ * @returns {Float32Array}
+ */
+export function sampleParallel(lat) {
+  const arr = new Float32Array(EDGE_SAMPLES * 3)
+  const cy = Math.cos(lat); const sy = Math.sin(lat)
+  for (let i = 0; i < EDGE_SAMPLES; i++) {
+    const lng = (2 * Math.PI * i) / EDGE_SAMPLES
+    arr[(3 * i)] = cy * Math.cos(lng)
+    arr[(3 * i) + 1] = sy
+    arr[(3 * i) + 2] = cy * Math.sin(lng)
+  }
+  return arr
+}
+
+
+/**
+ * Score a sample's NDC position by distance to a target screen edge.
+ * Smaller score = closer to that edge.  Off-screen samples return Infinity
+ * so the edge-follower picks the on-screen sample even if all candidates
+ * are far from the edge.
+ *
+ * Exported for tests.
+ *
+ * @param {number} ndcX in [-1, 1]
+ * @param {number} ndcY in [-1, 1]
+ * @param {string} edge 'top' | 'bottom' | 'right' | 'left'
+ * @returns {number}
+ */
+export function edgeScore(ndcX, ndcY, edge) {
+  if (Math.abs(ndcX) > 1 || Math.abs(ndcY) > 1) {
+    return Infinity
+  }
+  switch (edge) {
+    case 'top': return 1 - ndcY
+    case 'bottom': return 1 + ndcY
+    case 'right': return 1 - ndcX
+    case 'left': return 1 + ndcX
+    default: return Infinity
+  }
+}
+
+
+/**
+ * Per-frame, walk each label's sample circle, project each sample to NDC
+ * (using the same skybox-style rotation-only transform the label shader
+ * does), and pick the visible sample closest to that label's anchor edge.
+ * Update the position attribute and toggle aVisible based on whether any
+ * sample landed on screen.
+ *
+ * @param {Points} points
+ * @param {Array<object>} items
+ * @param {Group} gridGroup
+ */
+function attachEdgeFollower(points, items, gridGroup) {
+  const positionAttr = points.geometry.attributes.position
+  const visibleAttr = points.geometry.attributes.aVisible
+  const positions = positionAttr.array
+  const visibles = visibleAttr.array
+  const _v = new Vector3()
+  const _modelRot = new Matrix3()
+  const _viewRot = new Matrix3()
+
+  points.onBeforeRender = (renderer, scene, camera) => {
+    gridGroup.updateMatrixWorld()
+    _modelRot.setFromMatrix4(gridGroup.matrixWorld)
+    _viewRot.setFromMatrix4(camera.matrixWorldInverse)
+
+    for (let labelIdx = 0; labelIdx < items.length; labelIdx++) {
+      const {samples, edge} = items[labelIdx]
+      let bestX = 0; let bestY = 0; let bestZ = 0
+      let bestScore = Infinity
+
+      for (let i = 0; i < EDGE_SAMPLES; i++) {
+        const off = i * 3
+        _v.set(samples[off], samples[off + 1], samples[off + 2])
+        _v.applyMatrix3(_modelRot).applyMatrix3(_viewRot)
+        // Skip points behind / on the camera plane — perspective projection
+        // is ill-defined and Vector3.applyMatrix4's perspective division
+        // would give nonsense NDC.  Small epsilon guards points exactly at
+        // the eye plane.
+        if (_v.z >= -1e-6) {
+          continue
+        }
+        _v.applyMatrix4(camera.projectionMatrix)
+        const score = edgeScore(_v.x, _v.y, edge)
+        if (score < bestScore) {
+          bestScore = score
+          bestX = samples[off]
+          bestY = samples[off + 1]
+          bestZ = samples[off + 2]
+        }
+      }
+
+      const off = labelIdx * 3
+      if (Number.isFinite(bestScore)) {
+        positions[off] = bestX
+        positions[off + 1] = bestY
+        positions[off + 2] = bestZ
+        visibles[labelIdx] = 1
+      } else {
+        visibles[labelIdx] = 0
+      }
+    }
+    positionAttr.needsUpdate = true
+    visibleAttr.needsUpdate = true
   }
 }
 
@@ -347,25 +505,41 @@ function buildLabelsPoints(items, color) {
   // Build attribute buffers.  spriteCoord = (u_topLeft, v_topLeft, w, h) in
   // [0,1] atlas space.  v is flipped because gl_PointCoord runs top-down
   // while CanvasTexture is uploaded with the canvas's natural Y-down origin.
+  // aVisible defaults to 0 — the edge-follower onBeforeRender flips it on
+  // for each label whose line is currently on screen.  If no follower is
+  // attached (e.g. tests), labels stay hidden, which is fine.
   const positions = new Float32Array(items.length * 3)
   const spriteCoords = new Float32Array(items.length * 4)
   const sizes = new Float32Array(items.length)
+  const visibles = new Float32Array(items.length)
   for (let i = 0; i < items.length; i++) {
     const p = placed[i]
-    positions[(3 * i)] = items[i].pos[0]
-    positions[(3 * i) + 1] = items[i].pos[1]
-    positions[(3 * i) + 2] = items[i].pos[2]
+    // Initial position: first sample point if available, else (1, 0, 0).
+    // The follower will overwrite this on the first frame anyway; this is
+    // only used between geometry creation and the first render tick.
+    const samples = items[i].samples
+    if (samples) {
+      positions[(3 * i)] = samples[0]
+      positions[(3 * i) + 1] = samples[1]
+      positions[(3 * i) + 2] = samples[2]
+    } else {
+      positions[(3 * i)] = 1
+      positions[(3 * i) + 1] = 0
+      positions[(3 * i) + 2] = 0
+    }
     spriteCoords[(4 * i)] = p.x / atlasW
     spriteCoords[(4 * i) + 1] = (atlasH - p.y - p.tileSize) / atlasH
     spriteCoords[(4 * i) + 2] = p.tileSize / atlasW
     spriteCoords[(4 * i) + 3] = p.tileSize / atlasH
     sizes[i] = p.tileSize
+    visibles[i] = 0
   }
 
   const geom = new BufferGeometry()
   geom.setAttribute('position', new Float32BufferAttribute(positions, 3))
   geom.setAttribute('aSpriteCoord', new Float32BufferAttribute(spriteCoords, 4))
   geom.setAttribute('aSize', new Float32BufferAttribute(sizes, 1))
+  geom.setAttribute('aVisible', new Float32BufferAttribute(visibles, 1))
 
   const tex = new CanvasTexture(canvas)
   tex.minFilter = LinearFilter
@@ -391,13 +565,18 @@ function buildLabelsPoints(items, color) {
 
 
 // Vertex: same skybox-style projection as the lines (rotation only, pinned
-// to far plane), plus per-vertex point size taken from aSize.
+// to far plane), plus per-vertex point size taken from aSize.  aVisible is
+// passed through to the fragment which discards hidden labels (those whose
+// line is fully off-screen this frame).
 const LABEL_VERT = `
-attribute vec4 aSpriteCoord;
+attribute vec4  aSpriteCoord;
 attribute float aSize;
-varying vec4 vSpriteCoord;
+attribute float aVisible;
+varying vec4  vSpriteCoord;
+varying float vVisible;
 void main() {
   vSpriteCoord = aSpriteCoord;
+  vVisible = aVisible;
   vec3 dir = mat3(viewMatrix) * (mat3(modelMatrix) * position);
   vec4 clipPos = projectionMatrix * vec4(dir, 1.0);
   clipPos.z = clipPos.w * 0.9997;
@@ -408,11 +587,16 @@ void main() {
 
 // Fragment: sample the per-tile sub-rect of the atlas.  gl_PointCoord is
 // (0,0)=top-left → (1,1)=bottom-right of the sprite quad, while our atlas
-// has (0,0)=bottom-left in UV — hence the (1.0 - y) flip.
+// has (0,0)=bottom-left in UV — hence the (1.0 - y) flip.  Discard when
+// the edge-follower has marked the label as not currently on screen.
 const LABEL_FRAG = `
 uniform sampler2D map;
-varying vec4 vSpriteCoord;
+varying vec4  vSpriteCoord;
+varying float vVisible;
 void main() {
+  if (vVisible < 0.5) {
+    discard;
+  }
   vec2 uv = vec2(
     vSpriteCoord.x + vSpriteCoord.z * gl_PointCoord.x,
     vSpriteCoord.y + vSpriteCoord.w * (1.0 - gl_PointCoord.y));

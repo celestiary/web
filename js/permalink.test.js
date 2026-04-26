@@ -222,6 +222,24 @@ describe('settings encoding', () => {
     expect(decoded.settings).toEqual(custom)
   })
 
+  it('round-trips the v (nav) flag — default ON', () => {
+    expect(SETTINGS_DEFAULTS.v).toBe(true)
+    const navOff = {...defaults, v: false}
+    const encoded = encodePermalink(...baseArgs, navOff)
+    expect(encoded).toContain(';s=v')
+    const decoded = decodePermalink(encoded)
+    expect(decoded.settings.v).toBe(false)
+  })
+
+  it('decodePermalink always populates settings, even with no s= param', () => {
+    // back-compat: pre-settings permalinks should still round-trip cleanly,
+    // with the settings field defaulted.
+    const encoded = encodePermalink(...baseArgs)
+    expect(encoded).not.toContain(';s=')
+    const decoded = decodePermalink(encoded)
+    expect(decoded.settings).toEqual(defaults)
+  })
+
   it('decodeSettings returns full defaults map for empty / missing input', () => {
     expect(decodeSettings(undefined)).toEqual(defaults)
     expect(decodeSettings('')).toEqual(defaults)

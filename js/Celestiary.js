@@ -421,9 +421,11 @@ export default class Celestiary {
    * constructor, so the canonical _settings.v stays in sync.
    */
   _toggleNav() {
-    const panels = [elt('nav-id'), elt('top-right')]
+    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar')]
     panels.forEach((panel) => {
-      panel.style.visibility = this.navVisible ? 'hidden' : 'visible'
+      if (panel) {
+        panel.style.visibility = this.navVisible ? 'hidden' : 'visible'
+      }
     })
     this.navVisible = !this.navVisible
     this.scene.flipSetting('v')
