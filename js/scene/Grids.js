@@ -47,15 +47,18 @@ const SEGMENTS = 96 // segments per circle
 const PARALLEL_STEP_DEG = 15
 const MERIDIAN_STEP_DEG = 15
 
-// Label point-size (atlas tile is square; this is the pixel size on screen).
-// Tuned for legibility without dominating the view.
-const LABEL_FONT = '20px sans-serif'
+// Label font / atlas tile size.  Small — these are reference-grid axis
+// labels and shouldn't dominate the scene; we want them legible but
+// understated.
+const LABEL_FONT = '10px sans-serif'
+const LABEL_TILE_PAD = 3
+const LABEL_TILE_LINE_H = 14
 
 // How many points to sample along each meridian / parallel circle when
-// searching for the screen-edge intersection per frame.  64 is plenty for
-// smooth, jitter-free label motion at typical FOVs and is cheap (a few
-// thousand matrix-vector mults per grid per frame).
-const EDGE_SAMPLES = 64
+// searching for the screen-edge intersection per frame.  Continuous
+// interpolation between adjacent samples (see attachEdgeFollower) gives
+// smooth label motion regardless of sample count, so 32 is ample.
+const EDGE_SAMPLES = 32
 
 
 /**
@@ -273,15 +276,19 @@ function degParallelLabels() {
  */
 function attachLabels(gridGroup, meridians, parallels, color) {
   const items = []
+  // Meridians are open arcs from south pole to north pole; the (last,
+  // first) sample pair would be a chord through the centre of the sphere,
+  // not a continuation of the line, so closed=false.  Parallels are full
+  // small circles, so closed=true.
   for (const {lng, text} of meridians) {
     const samples = sampleMeridian(lng)
-    items.push({text, samples, edge: 'top'})
-    items.push({text, samples, edge: 'bottom'})
+    items.push({text, samples, edge: 'top', closed: false})
+    items.push({text, samples, edge: 'bottom', closed: false})
   }
   for (const {lat, text} of parallels) {
     const samples = sampleParallel(lat)
-    items.push({text, samples, edge: 'right'})
-    items.push({text, samples, edge: 'left'})
+    items.push({text, samples, edge: 'right', closed: true})
+    items.push({text, samples, edge: 'left', closed: true})
   }
   const points = buildLabelsPoints(items, color)
   if (!points) {
@@ -367,11 +374,20 @@ export function edgeScore(ndcX, ndcY, edge) {
 
 
 /**
- * Per-frame, walk each label's sample circle, project each sample to NDC
- * (using the same skybox-style rotation-only transform the label shader
- * does), and pick the visible sample closest to that label's anchor edge.
- * Update the position attribute and toggle aVisible based on whether any
- * sample landed on screen.
+ * Per-frame, walk each label's sample circle and place the label at the
+ * exact point where the line crosses its target screen edge.  Two-pass:
+ *
+ *   1. Pre-project every sample to NDC (cheap — ~32 matrix-vector mults).
+ *   2. For each pair of adjacent samples, check whether they bracket the
+ *      target edge in NDC; if so, linearly interpolate to find the exact
+ *      crossing in NDC space, then lerp the corresponding 3D positions to
+ *      produce a continuous label position that slides smoothly along the
+ *      edge as the camera rotates.
+ *
+ * Falls back to the closest visible sample when no pair brackets (the
+ * line stays entirely on screen or entirely off the edge side).  When no
+ * sample is visible, marks the label as hidden via the aVisible attribute,
+ * which the fragment shader uses to discard.
  *
  * @param {Points} points
  * @param {Array<object>} items
@@ -382,6 +398,13 @@ function attachEdgeFollower(points, items, gridGroup) {
   const visibleAttr = points.geometry.attributes.aVisible
   const positions = positionAttr.array
   const visibles = visibleAttr.array
+
+  // Per-frame scratch: per-sample NDC + frontness, reused across every
+  // label so we don't reallocate.
+  const ndcX = new Float32Array(EDGE_SAMPLES)
+  const ndcY = new Float32Array(EDGE_SAMPLES)
+  const front = new Uint8Array(EDGE_SAMPLES)
+
   const _v = new Vector3()
   const _modelRot = new Matrix3()
   const _viewRot = new Matrix3()
@@ -392,36 +415,81 @@ function attachEdgeFollower(points, items, gridGroup) {
     _viewRot.setFromMatrix4(camera.matrixWorldInverse)
 
     for (let labelIdx = 0; labelIdx < items.length; labelIdx++) {
-      const {samples, edge} = items[labelIdx]
-      let bestX = 0; let bestY = 0; let bestZ = 0
-      let bestScore = Infinity
+      const {samples, edge, closed} = items[labelIdx]
 
+      // Pass 1: project all samples once.
       for (let i = 0; i < EDGE_SAMPLES; i++) {
         const off = i * 3
         _v.set(samples[off], samples[off + 1], samples[off + 2])
         _v.applyMatrix3(_modelRot).applyMatrix3(_viewRot)
-        // Skip points behind / on the camera plane — perspective projection
-        // is ill-defined and Vector3.applyMatrix4's perspective division
-        // would give nonsense NDC.  Small epsilon guards points exactly at
-        // the eye plane.
         if (_v.z >= -1e-6) {
+          front[i] = 0
           continue
         }
         _v.applyMatrix4(camera.projectionMatrix)
-        const score = edgeScore(_v.x, _v.y, edge)
+        ndcX[i] = _v.x
+        ndcY[i] = _v.y
+        front[i] = 1
+      }
+
+      // Pass 2: walk pairs, find the bracket whose NDC-interpolation
+      // lands closest to screen centre (the visible portion of the line).
+      let bestX3 = 0; let bestY3 = 0; let bestZ3 = 0
+      let bestScore = Infinity
+      const pairLimit = closed ? EDGE_SAMPLES : EDGE_SAMPLES - 1
+      for (let i = 0; i < pairLimit; i++) {
+        const j = (i + 1) % EDGE_SAMPLES
+        if (!front[i] || !front[j]) {
+          continue
+        }
+        const xi = ndcX[i]; const yi = ndcY[i]
+        const xj = ndcX[j]; const yj = ndcY[j]
+        const cross = bracketCrossing(xi, yi, xj, yj, edge)
+        if (cross === null) {
+          continue
+        }
+        // Tie-break: prefer the visible portion of the line — interpolated
+        // crossing closest to screen centre.  Pure |x|+|y| keeps it cheap.
+        const score = Math.abs(cross.x) + Math.abs(cross.y)
         if (score < bestScore) {
           bestScore = score
-          bestX = samples[off]
-          bestY = samples[off + 1]
-          bestZ = samples[off + 2]
+          const t = cross.t
+          const offI = i * 3; const offJ = j * 3
+          bestX3 = ((1 - t) * samples[offI]) + (t * samples[offJ])
+          bestY3 = ((1 - t) * samples[offI + 1]) + (t * samples[offJ + 1])
+          bestZ3 = ((1 - t) * samples[offI + 2]) + (t * samples[offJ + 2])
         }
       }
 
-      const off = labelIdx * 3
+      // Fallback: no bracket — pick the closest visible sample to the edge
+      // (line never reaches the edge, but is still on screen somewhere).
+      if (!Number.isFinite(bestScore)) {
+        let bestI = -1
+        let bestEdgeScore = Infinity
+        for (let i = 0; i < EDGE_SAMPLES; i++) {
+          if (!front[i]) {
+            continue
+          }
+          const score = edgeScore(ndcX[i], ndcY[i], edge)
+          if (score < bestEdgeScore) {
+            bestEdgeScore = score
+            bestI = i
+          }
+        }
+        if (bestI >= 0) {
+          const off = bestI * 3
+          bestX3 = samples[off]
+          bestY3 = samples[off + 1]
+          bestZ3 = samples[off + 2]
+          bestScore = bestEdgeScore
+        }
+      }
+
+      const labelOff = labelIdx * 3
       if (Number.isFinite(bestScore)) {
-        positions[off] = bestX
-        positions[off + 1] = bestY
-        positions[off + 2] = bestZ
+        positions[labelOff] = bestX3
+        positions[labelOff + 1] = bestY3
+        positions[labelOff + 2] = bestZ3
         visibles[labelIdx] = 1
       } else {
         visibles[labelIdx] = 0
@@ -430,6 +498,53 @@ function attachEdgeFollower(points, items, gridGroup) {
     positionAttr.needsUpdate = true
     visibleAttr.needsUpdate = true
   }
+}
+
+
+/**
+ * Test whether the NDC line segment (xi,yi) → (xj,yj) brackets the given
+ * screen edge, and if so return the linear-interpolation parameter t at
+ * the crossing along with the crossing's NDC coordinates.  Returns null
+ * if the segment doesn't cross the edge or crosses it off-screen on the
+ * orthogonal axis.
+ *
+ * Exported for tests.
+ *
+ * @param {number} xi NDC x of segment start
+ * @param {number} yi NDC y of segment start
+ * @param {number} xj NDC x of segment end
+ * @param {number} yj NDC y of segment end
+ * @param {string} edge 'top' | 'bottom' | 'right' | 'left'
+ * @returns {{t:number, x:number, y:number}|null}
+ */
+export function bracketCrossing(xi, yi, xj, yj, edge) {
+  let edgeVal; let isYAxis
+  switch (edge) {
+    case 'top': edgeVal = 1; isYAxis = true; break
+    case 'bottom': edgeVal = -1; isYAxis = true; break
+    case 'right': edgeVal = 1; isYAxis = false; break
+    case 'left': edgeVal = -1; isYAxis = false; break
+    default: return null
+  }
+  const vi = isYAxis ? yi : xi
+  const vj = isYAxis ? yj : xj
+  // Bracket iff edge sits strictly between the two values.  Use product
+  // of differences: negative ⇒ opposite signs ⇒ crosses.
+  const di = vi - edgeVal
+  const dj = vj - edgeVal
+  if (di * dj >= 0) {
+    return null
+  }
+  const t = di / (di - dj) // ∈ (0, 1)
+  const xCross = xi + (t * (xj - xi))
+  const yCross = yi + (t * (yj - yi))
+  // Reject if the orthogonal coordinate is off-screen (line crosses the
+  // edge's axis but outside the visible window).
+  const orth = isYAxis ? xCross : yCross
+  if (orth < -1 || orth > 1) {
+    return null
+  }
+  return {t, x: xCross, y: yCross}
 }
 
 
@@ -456,12 +571,10 @@ function buildLabelsPoints(items, color) {
   // Per-item tile size — the larger of text width and a fixed line height,
   // padded.  Tiles are square so the on-screen sprite (Points are square)
   // displays the text without stretching.
-  const PAD = 6
-  const LINE_H = 24
   const tiles = items.map(({text}) => {
     const m = measureCtx.measureText(text)
     const w = Math.ceil(m.width)
-    const tileSize = Math.max(w, LINE_H) + (PAD * 2)
+    const tileSize = Math.max(w, LABEL_TILE_LINE_H) + (LABEL_TILE_PAD * 2)
     return {tileSize, text, w}
   })
   if (tiles.some((t) => !Number.isFinite(t.tileSize) || t.tileSize <= 0)) {

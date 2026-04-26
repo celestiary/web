@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import {edgeScore, sampleMeridian, sampleParallel} from './Grids.js'
+import {bracketCrossing, edgeScore, sampleMeridian, sampleParallel} from './Grids.js'
 
 
 describe('sampleMeridian', () => {
@@ -94,5 +94,54 @@ describe('edgeScore', () => {
 
   it('returns Infinity for an unknown edge name', () => {
     expect(edgeScore(0, 0, 'middle')).toBe(Infinity)
+  })
+})
+
+
+describe('bracketCrossing', () => {
+  it('returns null when both points are on the same side of the edge', () => {
+    expect(bracketCrossing(0, 0.5, 0.3, 0.6, 'top')).toBeNull()
+    expect(bracketCrossing(0, -0.5, 0.3, -0.6, 'bottom')).toBeNull()
+    expect(bracketCrossing(0.5, 0, 0.6, 0, 'right')).toBeNull()
+  })
+
+  it('finds the exact midpoint crossing of a horizontal edge', () => {
+    // Segment from y=0.8 to y=1.2 — bracket sits halfway, t=0.5
+    const r = bracketCrossing(-0.2, 0.8, 0.2, 1.2, 'top')
+    expect(r).not.toBeNull()
+    expect(r.t).toBeCloseTo(0.5, 6)
+    expect(r.y).toBeCloseTo(1, 6)
+    // x interpolates linearly: midpoint of (-0.2, 0.2) = 0
+    expect(r.x).toBeCloseTo(0, 6)
+  })
+
+  it('reports t outside (0, 1) is impossible — crossing always within segment', () => {
+    // Endpoint exactly on edge: t=0 means start is on edge — but bracket
+    // requires strict opposite signs, so endpoint-on-edge returns null.
+    expect(bracketCrossing(0, 1, 0, 1.5, 'top')).toBeNull()
+  })
+
+  it('returns null when the crossing lies off-screen on the orthogonal axis', () => {
+    // Segment crosses y=1 at x=2.5 — outside the screen window.
+    const r = bracketCrossing(2, 0.8, 3, 1.2, 'top')
+    expect(r).toBeNull()
+  })
+
+  it('handles bottom / left / right edges with consistent semantics', () => {
+    expect(bracketCrossing(0, -0.8, 0, -1.2, 'bottom')).not.toBeNull()
+    expect(bracketCrossing(-0.8, 0, -1.2, 0, 'left')).not.toBeNull()
+    expect(bracketCrossing(0.8, 0, 1.2, 0, 'right')).not.toBeNull()
+  })
+
+  it('returns null for unknown edge name', () => {
+    expect(bracketCrossing(0, 0.8, 0, 1.2, 'middle')).toBeNull()
+  })
+
+  it('interpolated x along a top crossing is exactly the linear-interp x', () => {
+    // y goes 0 → 2, edge at y=1 ⇒ t=0.5; x goes -1 → 1 ⇒ x@t=0
+    const r = bracketCrossing(-1, 0, 1, 2, 'top')
+    expect(r).not.toBeNull()
+    expect(r.t).toBeCloseTo(0.5, 6)
+    expect(r.x).toBeCloseTo(0, 6)
   })
 })
