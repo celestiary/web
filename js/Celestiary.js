@@ -419,12 +419,18 @@ export default class Celestiary {
    * Used both by the 'v' keypress and by Scene.applySettings on permalink
    * restore — the latter goes through the applier registered in the
    * constructor, so the canonical _settings.v stays in sync.
+   *
+   * Uses `display: none` rather than `visibility: hidden` because the
+   * SearchBar's CSS sets `visibility: visible` on chip icons, which would
+   * override an ancestor's `visibility: hidden` and leak the search icon
+   * back through.  `display: none` removes the elements from layout
+   * entirely so descendants can't punch back through.
    */
   _toggleNav() {
     const panels = [elt('nav-id'), elt('top-right'), elt('search-bar')]
     panels.forEach((panel) => {
       if (panel) {
-        panel.style.visibility = this.navVisible ? 'hidden' : 'visible'
+        panel.style.display = this.navVisible ? 'none' : ''
       }
     })
     this.navVisible = !this.navVisible

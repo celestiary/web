@@ -59,9 +59,13 @@ const LABEL_TILE_LINE_H = LABEL_FONT_PX + 4
 
 // How many points to sample along each meridian / parallel circle when
 // searching for the screen-edge intersection per frame.  Continuous
-// interpolation between adjacent samples (see attachEdgeFollower) gives
-// smooth label motion regardless of sample count, so 32 is ample.
-const EDGE_SAMPLES = 32
+// interpolation between adjacent samples (see attachEdgeFollower) keeps
+// motion smooth, but the chord-vs-arc discrepancy between linear-3D-lerp
+// and the actual sphere arc shows up as a sub-pixel wobble at low sample
+// counts.  96 samples → 3.75° per step, which is below the perceptible
+// jitter threshold at typical FOVs while still cheap (≈10k matrix-vector
+// mults per grid per frame).
+const EDGE_SAMPLES = 96
 
 
 /**
