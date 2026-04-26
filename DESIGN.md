@@ -260,6 +260,37 @@ scene graph alone.
 
 LOD (`THREE.LOD`) is used throughout to swap between detailed meshes, point sprites, and invisible placeholders based on camera distance.
 
+## Overlays & visibility groups
+
+Every visual feature in the app must opt into one of two top-level
+visibility groups so the user has predictable global hide/show controls:
+
+- **`v`** (lowercase v key) — **HTML chrome**: nav panels, search bar,
+  time/target HUD, settings dialogs.  React/MUI overlays only — anything
+  rendered outside the WebGL canvas.
+- **`V`** (Shift+v key, "presentation mode") — **scene annotations**:
+  everything drawn into the WebGL scene that isn't a celestial body or
+  texture.  Labels, asterism lines, orbit ellipses, reference grids,
+  surface place labels, etc.  A second `V` press restores the prior
+  per-element state (snapshotted on first press) so users can flip
+  between "bare" and "annotated" views without losing their
+  per-element toggles.
+
+Each scene-annotation feature also has its OWN scoped lowercase toggle
+(`a` asterisms, `p` planet+moon+place labels, `s` star labels, `o` orbits,
+`;` equatorial grid, etc.).  `V` is the union of all the lowercase
+scene-annotation toggles.
+
+**When adding a new visual feature, decide which group it belongs in and
+wire it through the corresponding toggle method.**  Surface place labels,
+for example, live under the `p` group: their visibility is controlled
+inside `Scene.togglePlanetLabels` alongside the planet name LODs, so the
+single 'p' shortcut and the global 'V' both pick them up automatically.
+
+Failing to opt in means the user has no way to hide the new element
+short of reloading the page — and `V` (presentation mode) won't be
+truly bare.
+
 ## State Management (Zustand)
 
 `js/store/useStore.js` composes four slices:

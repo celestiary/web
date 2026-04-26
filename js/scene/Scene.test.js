@@ -200,6 +200,21 @@ describe('Scene settings tracking', () => {
     expect(s.objects['sun'].children[0].visible).toBe(false)
   })
 
+  it('togglePlanetLabels also flips surface place groups (planet+place labels share the p group)', () => {
+    // Surface places (cities, craters, landing sites) belong to the same
+    // 'p' overlay group as planet name labels.  Planet.newPlanet stashes
+    // the Places ref on the rotating planet Object3D as `.places`, and
+    // togglePlanetLabels walks scene.objects to flip those alongside the
+    // 'label LOD' visit.  See DESIGN.md "Overlays & visibility groups".
+    const s = makeScene()
+    s.objects['sun'] = fakeSunWithLabelLOD()
+    s.objects['earth'] = {places: {visible: true}}
+    s.togglePlanetLabels()
+    expect(s.objects['earth'].places.visible).toBe(false)
+    s.togglePlanetLabels()
+    expect(s.objects['earth'].places.visible).toBe(true)
+  })
+
   it('toggleGridEquatorial / Ecliptic / Galactic flip e / c / g respectively', () => {
     const s = makeScene()
     s.toggleGridEquatorial()

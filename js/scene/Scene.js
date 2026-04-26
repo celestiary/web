@@ -712,9 +712,25 @@ export default class Scene {
   }
 
 
-  /** */
+  /**
+   * Toggle planet/moon name labels AND surface place labels.  Both belong
+   * to the 'p' overlay group: planet names live in their own LOD object
+   * named 'label LOD' (matched by visitToggleProperty); surface places
+   * (cities, craters, landing sites) live as a `places` property on the
+   * rotating planet Object3D, set in Planet.newPlanet.  Toggling them
+   * together gives the user one knob for "all planet-related labels"
+   * — and means the global 'V' presentation toggle hides them all
+   * together too via this same method.  See DESIGN.md "Overlays &
+   * visibility groups".
+   */
   togglePlanetLabels() {
     Utils.visitToggleProperty(this.objects['sun'], 'name', 'label LOD', 'visible')
+    for (const name of Object.keys(this.objects)) {
+      const obj = this.objects[name]
+      if (obj && obj.places && typeof obj.places.visible === 'boolean') {
+        obj.places.visible = !obj.places.visible
+      }
+    }
     this._flipSetting('p')
   }
 

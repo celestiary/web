@@ -151,7 +151,15 @@ export default class Planet extends Object {
     }
 
     if (this.props.has_locations) {
-      planet.add(this.loadLocations(this.props))
+      const places = this.loadLocations(this.props)
+      // Stash a reference on the rotating planet node so Scene.togglePlanetLabels
+      // can toggle places visibility alongside the planet name labels (both
+      // belong to the 'p' overlay group — see DESIGN.md "Overlays & visibility").
+      planet.places = places
+      // Initial visibility tracks the 'p' setting for the same reason — without
+      // this, places would be visible after a permalink restore that had 'p' off.
+      places.visible = scene.getSetting ? scene.getSetting('p') : true
+      planet.add(places)
     }
 
     // An object must have a mesh to have onBeforeRender called, so
