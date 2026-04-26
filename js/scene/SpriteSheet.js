@@ -26,9 +26,18 @@ export default class SpriteSheet {
   /**
    * @param {number} numLabels
    * @param {string} maxLabel
+   * @param {string} [labelTextFont]
+   * @param {[number, number]} [padding]
    * @param {boolean} [useRTE] Use Relative-To-Eye emulated double precision for catalog-space positions
+   * @param {boolean} [surfaceVisibility] Discard back-hemisphere labels in
+   *   shader (treat the sprite's body-local position vector as the surface
+   *   normal at that label, dot vs view direction).  Disables depth testing
+   *   so front-hemisphere labels never get clipped by the curving sphere
+   *   when the sprite extends in screen space.  Use for body-anchored
+   *   surface labels (Places); leave off for free-floating labels.
    */
-  constructor(numLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0], useRTE = false) {
+  constructor(numLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0],
+      useRTE = false, surfaceVisibility = false) {
     if (!Number.isInteger(numLabels)) {
       throw new Error(`numLabels is invalid: ${ numLabels}`)
     }
@@ -52,6 +61,7 @@ export default class SpriteSheet {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
     ctx.fill()
     this.useRTE = useRTE
+    this.surfaceVisibility = surfaceVisibility
     this.positions = []
     this._posLow = useRTE ? [] : null
     this.sizes = []
@@ -193,12 +203,24 @@ export default class SpriteSheet {
       uniforms.uCamPosWorldHigh = {value: new Vector3()}
       uniforms.uCamPosWorldLow = {value: new Vector3()}
     }
+    let vertSrc = vertexShader
+    let fragSrc = fragmentShader
+    if (this.surfaceVisibility) {
+      vertSrc = surfaceVertexShader
+      fragSrc = surfaceFragmentShader
+    } else if (this.useRTE) {
+      vertSrc = rteVertexShader
+    }
     const material = new ShaderMaterial({
       uniforms,
-      vertexShader: this.useRTE ? rteVertexShader : vertexShader,
-      fragmentShader: fragmentShader,
+      vertexShader: vertSrc,
+      fragmentShader: fragSrc,
       blending: AdditiveBlending,
-      depthTest: true,
+      // Surface-visibility mode does its own back-hemisphere discard, so
+      // depth testing isn't needed (and would re-introduce limb clipping
+      // by the curving sphere when sprite billboards extend in screen
+      // space).  Other modes keep depth testing for correct occlusion.
+      depthTest: !this.surfaceVisibility,
       depthWrite: false,
       transparent: true,
       toneMapped: false,
@@ -249,6 +271,51 @@ const fragmentShader = `
   uniform sampler2D map;
   varying vec4 spriteCoordVarying;
   void main() {
+    vec2 spriteUV = vec2(
+      spriteCoordVarying.x + spriteCoordVarying.z * gl_PointCoord.x,
+      spriteCoordVarying.y + spriteCoordVarying.w * (1.0 - gl_PointCoord.y));
+    gl_FragColor = texture2D(map, spriteUV);
+  }
+`
+
+
+// Surface-anchored variant: the sprite's body-local position is also its
+// surface normal at that point (since labels sit on/just above the sphere
+// surface, body-local pos / radius ≈ outward normal).  Compute view-space
+// normal vs view-space camera direction to get a per-vertex front/back
+// hemisphere flag, then discard back-facing labels in the fragment shader.
+// Pair this with depthTest=false to avoid sphere-curvature clipping at
+// the limb (front-facing sprite pixels extending toward disc centre share
+// the anchor's depth, but the sphere there is closer to the camera than
+// the anchor).
+const surfaceVertexShader = `
+  uniform vec2 padding;
+  attribute vec2 size;
+  attribute vec4 spriteCoord;
+  varying vec4 spriteCoordVarying;
+  varying float vVisible;
+  void main() {
+    vec3 offsetPos = vec3(position.x + padding.x, position.y + padding.y, position.z);
+    vec4 mvPosition = modelViewMatrix * vec4(offsetPos, 1.0);
+    // Body centre in view space (transform local origin).
+    vec3 bodyCentreView = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vec3 normalView = normalize(mvPosition.xyz - bodyCentreView);
+    // Camera at origin in view space; direction from sprite to camera = -mvPosition.
+    vec3 viewDir = normalize(-mvPosition.xyz);
+    vVisible = dot(normalView, viewDir) > 0.0 ? 1.0 : 0.0;
+    spriteCoordVarying = spriteCoord;
+    gl_PointSize = size[0];
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`
+
+
+const surfaceFragmentShader = `
+  uniform sampler2D map;
+  varying vec4 spriteCoordVarying;
+  varying float vVisible;
+  void main() {
+    if (vVisible < 0.5) discard;
     vec2 spriteUV = vec2(
       spriteCoordVarying.x + spriteCoordVarying.z * gl_PointCoord.x,
       spriteCoordVarying.y + spriteCoordVarying.w * (1.0 - gl_PointCoord.y));

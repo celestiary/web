@@ -1,7 +1,7 @@
 /**
- * Camera drag mode.
+ * Camera drag mode + landed state.
  *
- * Two related store fields:
+ * Drag-mode fields:
  *
  *   - `dragMode` — user intent: `'pan'`, `'orbit'`, or `'auto'` (let
  *     dragControls pick based on camera-to-target distance).  Default
@@ -14,6 +14,10 @@
  *     now — including when `dragMode === 'auto'` and the resolution
  *     follows the camera context.
  *
+ *   - `landed` — true when the camera is pinned to a surface location via
+ *     Scene.land (sidereal tracking + drag mode forced to 'pan').  Drives
+ *     the permalink `L` flag and any future first-person controller.
+ *
  * @param {Function} set
  * @param {Function} get
  * @returns {object} Zustand slice
@@ -22,7 +26,9 @@ export default function createDragModeSlice(set, get) {
   return {
     dragMode: 'auto',
     effectiveDragMode: 'pan',
+    landed: false,
     setDragMode: (mode) => set(() => ({dragMode: mode})),
     setEffectiveDragMode: (mode) => set(() => ({effectiveDragMode: mode})),
+    setLanded: (v) => set(() => ({landed: v})),
   }
 }

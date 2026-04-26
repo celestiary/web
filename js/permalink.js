@@ -18,6 +18,12 @@ const METER_PREFIXES = [
 // keeps the URL trivially short for the common case of a fresh viewer who
 // hasn't customized anything, while still being able to round-trip any
 // configuration faithfully.
+//
+// `L` is a special case that doesn't map to a Scene toggle method: it's
+// the "landed at the surface" flag (Scene.land).  When present on decode,
+// Celestiary calls scene.land(lat, lng, alt) to restore the pinned-surface
+// view rather than the orbit-style camera quaternion.  Backward compatible:
+// pre-L permalinks decode landed=false.
 export const SETTINGS_DEFAULTS = Object.freeze({
   a: true, // asterisms (constellation lines)
   l: true, // star labels
@@ -27,6 +33,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   c: false, // ecliptic reference grid
   g: false, // galactic reference grid
   v: true, // nav panels / heads-up display
+  L: false, // landed at surface — see Scene.land
 })
 
 

@@ -98,6 +98,7 @@ export default class ThreeUi {
       // ThreeUI construction; both accessors run lazily at pointerdown.
       getDragMode: () => this.useStore?.getState().dragMode,
       getTarget: () => targets.obj,
+      onClick: (e) => this._fireClickCbs(e),
     })
 
     this.renderer.setAnimationLoop((time) => {
@@ -141,6 +142,20 @@ export default class ThreeUi {
   /** */
   addClickCb(clickCb) {
     this.clickCbs.push(clickCb)
+  }
+
+
+  /**
+   * Dispatch a real click (no-drag pointerup) to every registered callback.
+   * The original mouse-coords plumbing is dead; clickCbs receive the raw
+   * pointer event so handlers can read clientX/clientY directly.
+   *
+   * @param {PointerEvent} e
+   */
+  _fireClickCbs(e) {
+    for (const cb of this.clickCbs) {
+      cb(e)
+    }
   }
 
 

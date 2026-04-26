@@ -122,15 +122,51 @@ export default class SearchIndex {
 
     const results = this._fuseA.search(trimmed, {limit: limit * 4})
     const filtered = []
+    const seenIds = new Set()
     for (const r of results) {
       if (inScope(r.item.path, anchorPath)) {
         filtered.push({entry: r.item, score: r.score ?? 0})
+        seenIds.add(r.item.id)
         if (filtered.length >= limit) {
           break
         }
       }
     }
+    // Tier C: per-anchor lazy provider entries (e.g. PlacesProvider).
+    // Caller seeds the cache via populateTierC; we just merge the matches
+    // here in score order alongside Tier A hits.
+    const tierC = this._tierCCache.get(anchorPath)
+    if (tierC && filtered.length < limit) {
+      const cResults = tierC.search(trimmed, {limit: limit * 4})
+      for (const r of cResults) {
+        if (seenIds.has(r.item.id)) {
+          continue
+        }
+        filtered.push({entry: r.item, score: r.score ?? 0})
+        if (filtered.length >= limit) {
+          break
+        }
+      }
+      // Re-sort so Tier C entries interleave by score with Tier A results.
+      filtered.sort((a, b) => a.score - b.score)
+    }
     return filtered
+  }
+
+
+  /**
+   * Build a Tier C Fuse for `anchorPath` from a precomputed entry list.
+   * Caller (typically Celestiary, via PlacesProvider.collectUnder) is
+   * responsible for the await; this method is sync so query() can stay sync.
+   *
+   * @param {string} anchorPath
+   * @param {Array} entries SearchEntry[]
+   */
+  populateTierC(anchorPath, entries) {
+    if (!anchorPath || !Array.isArray(entries) || entries.length === 0) {
+      return
+    }
+    this._tierCCache.set(anchorPath, new Fuse(entries, FUSE_OPTS))
   }
 
 

@@ -27,13 +27,22 @@ export function pathTexture(filebase, ext) {
 
 const materials = []
 /**
+ * Get-or-build a per-body MeshPhysicalMaterial.  Cached by `name` so the
+ * material instance is shared across scenes and re-renders.  An optional
+ * `pathPrefix` is prepended to the texture lookup (e.g. 'earth/' keeps
+ * earth-specific assets in their own subdir while preserving the
+ * by-name cache key).
+ *
+ * @param {string} name Body name; also the texture base filename
+ * @param {string} [ext] Texture extension; defaults to '.jpg'
+ * @param {string} [pathPrefix] Optional sub-path prefix under /textures/
  * @returns {Material}
  */
-export function cacheMaterial(name, ext) {
+export function cacheMaterial(name, ext, pathPrefix = '') {
   let m = materials[name]
   if (!m) {
     materials[name] = m = new MeshPhysicalMaterial({
-      map: pathTexture(name, ext),
+      map: pathTexture(`${pathPrefix}${name}`, ext),
       depthTest: true,
       depthWrite: true,
     })

@@ -1,0 +1,24 @@
+{
+  "_attribution": "Coordinates from IAU Gazetteer of Planetary Nomenclature (USGS Astrogeology, public domain). Lander sites from Soviet Venera mission records.",
+  "_body": "venus",
+  "_lngConvention": "east-positive (+E), 0..360 in IAU but normalized to -180..+180 here",
+  "places": [
+    {"n": "Venera 7",         "t": 0, "lat":  -5.00, "lng":  351.00, "k": "lander"},
+    {"n": "Venera 9",         "t": 0, "lat":  31.00, "lng":  291.64, "k": "lander"},
+    {"n": "Venera 13",        "t": 0, "lat":  -7.55, "lng":  303.69, "k": "lander"},
+    {"n": "Vega 1",           "t": 0, "lat":   8.10, "lng":  175.85, "k": "lander"},
+
+    {"n": "Maxwell Montes",   "t": 0, "lat":  65.00, "lng":   3.30,  "a": 11000, "k": "mountain"},
+    {"n": "Aphrodite Terra",  "t": 0, "lat":  -5.80, "lng": 104.80,  "k": "region"},
+    {"n": "Ishtar Terra",     "t": 0, "lat":  70.40, "lng":  27.50,  "k": "region"},
+    {"n": "Lakshmi Planum",   "t": 0, "lat":  68.60, "lng": 339.30,  "k": "plain"},
+
+    {"n": "Lada Terra",       "t": 1, "lat": -54.40, "lng":  20.00,  "k": "region"},
+    {"n": "Sapas Mons",       "t": 1, "lat":   8.50, "lng": 188.30,  "k": "volcano"},
+    {"n": "Sif Mons",         "t": 1, "lat":  22.00, "lng": 352.40,  "k": "volcano"},
+    {"n": "Cleopatra",        "t": 1, "lat":  65.90, "lng":   7.10,  "k": "crater"},
+
+    {"n": "North Pole",       "t": 0, "lat":  90.00, "lng":   0.00,  "k": "pole"},
+    {"n": "South Pole",       "t": 0, "lat": -90.00, "lng":   0.00,  "k": "pole"}
+  ]
+}
