@@ -375,10 +375,26 @@ export default class Scene {
   /** */
   toggleAsterisms() {
     if (this.asterisms === null && this.stars !== null) {
-      const asterisms = new Asterisms(this.ui, this.stars, () => {
-        this.stars.add(asterisms)
-        this.asterisms = asterisms
-        this.asterisms.visible = true
+      // Defer the actual Asterisms construction until the stars catalog
+      // has loaded.  Without this, on permalink loads (which use a 0ms
+      // setTimeout in Celestiary.onDone) the asterism build runs against
+      // an empty starByHip map and silently produces zero line segments —
+      // so reload / permalink users would see no constellations even
+      // though the catalog itself was about to load fine.
+      // _asterismsPending guards against repeated toggle calls during the
+      // catalog-load window enqueueing duplicate callbacks (each would
+      // build its own Asterisms once ready).
+      if (this._asterismsPending) {
+        return
+      }
+      this._asterismsPending = true
+      this.stars.onCatalogReady(() => {
+        const asterisms = new Asterisms(this.ui, this.stars, () => {
+          this.stars.add(asterisms)
+          this.asterisms = asterisms
+          this.asterisms.visible = true
+          this._asterismsPending = false
+        })
       })
       return
     }

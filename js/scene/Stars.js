@@ -44,6 +44,14 @@ export default class Stars extends Object {
     this.labelLOD.addLevel(FAR_OBJ, STARS_RADIUS_METER)
     this.add(this.labelLOD)
     this.geom = null
+    // Catalog readiness signalling.  The catalog object is mutated in place
+    // during async load, so subscribing to starsCatalog identity in the
+    // store doesn't fire a change event — we maintain our own callback list
+    // that's drained once load completes.  Anyone needing a populated
+    // catalog (asterisms, search, etc) calls onCatalogReady(cb) and gets
+    // either an immediate dispatch (if already loaded) or a deferred one.
+    this._catalogReady = false
+    this._catalogReadyCbs = []
 
     // Used by guide/Asterisms.jsx to center camera.
     this.labelCenterPosByName = {}
@@ -58,6 +66,7 @@ export default class Stars extends Object {
         this.showLabels()
       }
       this.ui.useStore.setState({starsCatalog: this.catalog})
+      this._markCatalogReady()
     } else {
       this.catalog = new StarsCatalog()
       // Expose the (empty) catalog immediately so About / search wiring can
@@ -69,7 +78,36 @@ export default class Stars extends Object {
         this.show()
         this.showLabels()
         this.ui.useStore.setState({starsCatalog: this.catalog})
+        this._markCatalogReady()
       })
+    }
+  }
+
+
+  /**
+   * Register a callback to fire once the stars catalog has finished
+   * loading.  If already loaded, fires synchronously.  Used by
+   * Scene.toggleAsterisms to avoid building an empty asterism geometry
+   * (would happen on a permalink load that races the catalog fetch).
+   *
+   * @param {Function} cb
+   */
+  onCatalogReady(cb) {
+    if (this._catalogReady) {
+      cb()
+      return
+    }
+    this._catalogReadyCbs.push(cb)
+  }
+
+
+  /** Internal: drain the readiness callback queue. */
+  _markCatalogReady() {
+    this._catalogReady = true
+    const cbs = this._catalogReadyCbs
+    this._catalogReadyCbs = []
+    for (const cb of cbs) {
+      cb()
     }
   }
 
