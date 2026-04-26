@@ -16,6 +16,7 @@ import {
 import {newAtmospherePass} from './scene/atmos/Atmosphere'
 import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
+import {attachPointerDrag} from './dragControls'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
 import {GALAXY_RADIUS_METER, INITIAL_FOV, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets} from './shared.js'
 import {named} from './utils.js'
@@ -88,11 +89,9 @@ export default class ThreeUi {
 
     this._arrowKeys = {up: false, down: false, left: false, right: false}
     this._savedCamQuat = new Quaternion() // preserved across controls.update()
-    this._orbitAxis = new Vector3() // pre-allocated for orbit drag
-    this._orbitRot = new Quaternion() // pre-allocated for orbit drag
     this.onCameraChange = null // set by Celestiary to schedule permalink updates
     this._initArrowKeys()
-    this._initMouseDrag()
+    attachPointerDrag(this.threeContainer, this.camera, () => this.onCameraChange?.())
 
     this.renderer.setAnimationLoop((time) => {
       this.renderLoop(time)
@@ -297,61 +296,6 @@ export default class ThreeUi {
       if (map[e.key] !== undefined) {
         this._arrowKeys[map[e.key]] = false
       }
-    })
-  }
-
-
-  /**
-   * Plain drag     → pitch/yaw camera around its local axes.
-   * Option+drag    → orbit: rotate camera.position around the platform origin,
-   *                  then lookAt the planet center. Fully manual so successive
-   *                  drags accumulate without TrackballControls state resets.
-   */
-  _initMouseDrag() {
-    let lastX = 0
-    let lastY = 0
-
-    this.threeContainer.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) {
-        return
-      }
-      lastX = e.clientX
-      lastY = e.clientY
-      if (e.altKey) {
-        e.preventDefault()
-      } // suppress browser Alt menu
-    })
-
-    window.addEventListener('mousemove', (e) => {
-      if (!e.buttons) {
-        return
-      }
-      const dx = e.clientX - lastX
-      const dy = e.clientY - lastY
-      lastX = e.clientX
-      lastY = e.clientY
-      const speed = 0.005 // radians per pixel
-
-      if (e.altKey) {
-        // Orbit: rotate camera as a rigid body around the platform origin
-        // (planet center). Apply each rotation to both position AND quaternion
-        // so the view direction stays consistent with the new orbital position.
-        // Horizontal → around platform-local Y
-        this._orbitAxis.set(0, 1, 0)
-        this._orbitRot.setFromAxisAngle(this._orbitAxis, -dx * speed)
-        this.camera.position.applyQuaternion(this._orbitRot)
-        this.camera.quaternion.premultiply(this._orbitRot)
-        // Vertical → around camera's current right axis
-        this._orbitAxis.set(1, 0, 0).applyQuaternion(this.camera.quaternion)
-        this._orbitRot.setFromAxisAngle(this._orbitAxis, -dy * speed)
-        this.camera.position.applyQuaternion(this._orbitRot)
-        this.camera.quaternion.premultiply(this._orbitRot)
-      } else {
-        // Free look: pitch/yaw camera around its own local axes.
-        this.camera.rotateY(-dx * speed)
-        this.camera.rotateX(-dy * speed)
-      }
-      this.onCameraChange?.()
     })
   }
 
