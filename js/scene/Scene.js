@@ -89,6 +89,19 @@ export default class Scene {
    * @param {object} requested flat {key: bool} map
    */
   applySettings(requested) {
+    // toggleStarLabels and toggleAsterisms guard on this.stars existing
+    // (the Stars instance, not the catalog).  On a permalink load the 0ms
+    // setTimeout in Celestiary.onDone can race the stars.json fetch — if
+    // earth.json wins, applySettings runs while this.stars is still null
+    // and the stars-dependent toggles silently no-op, leaving _settings.l
+    // and _settings.a stuck at their initial values.  Defer the whole
+    // apply pass until Stars is constructed; orbits / grids work either
+    // way, but doing them all at once keeps _settings coherent and gives
+    // a single permalink-update fire instead of two.
+    if (!this.stars) {
+      this.onStarsReady(() => this.applySettings(requested))
+      return
+    }
     const dispatch = {
       a: () => this.toggleAsterisms(),
       l: () => this.toggleStarLabels(),
@@ -102,6 +115,38 @@ export default class Scene {
       if (requested[key] !== undefined && requested[key] !== this._settings[key]) {
         dispatch[key]()
       }
+    }
+  }
+
+
+  /**
+   * Register a callback to fire when this.stars (the Stars instance) is
+   * constructed.  Fires synchronously if already set.  Used by
+   * applySettings to avoid the race described there.
+   *
+   * @param {Function} cb
+   */
+  onStarsReady(cb) {
+    if (this.stars) {
+      cb()
+      return
+    }
+    if (!this._starsReadyCbs) {
+      this._starsReadyCbs = []
+    }
+    this._starsReadyCbs.push(cb)
+  }
+
+
+  /** Internal: drain the stars-ready callback queue. */
+  _markStarsReady() {
+    const cbs = this._starsReadyCbs
+    this._starsReadyCbs = null
+    if (!cbs) {
+      return
+    }
+    for (const cb of cbs) {
+      cb()
     }
   }
 
@@ -145,7 +190,10 @@ export default class Scene {
   objectFactory(props) {
     switch (props.type) {
       case 'galaxy': return this.newGalaxy(props)
-      case 'stars': this.stars = new Stars(props, this.ui); return this.stars
+      case 'stars':
+        this.stars = new Stars(props, this.ui)
+        this._markStarsReady()
+        return this.stars
       case 'star': return new Star(props, this.objects, this.ui)
       case 'planet': return new Planet(this, props)
       case 'moon': return new Planet(this, props, true)
