@@ -19,6 +19,14 @@ import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment} from
 import {elt} from './utils'
 
 
+// Scene-annotation settings keys (see permalink.js SETTINGS_DEFAULTS).
+// 'V' (Shift+v) toggles all of these together as a "presentation mode" —
+// keys here are the lowercase per-overlay toggles ('a' asterisms, 'p'
+// planet labels, etc.); the HTML chrome key 'v' is deliberately not in
+// this list so users can hide overlays and chrome independently.
+const SCENE_INFO_KEYS = ['a', 'l', 'p', 'o', 'e', 'c', 'g']
+
+
 /** Main application class. */
 export default class Celestiary {
   /**
@@ -277,14 +285,42 @@ export default class Celestiary {
   }
 
 
+  /**
+   * Wire up keyboard shortcuts.
+   *
+   * Keys.js dispatches case-sensitively, so 'v' and 'V' bind to different
+   * actions.  We use the convention:
+   *
+   *   - lowercase letters         = scoped toggles (one specific overlay
+   *                                 element each: 'a' asterisms, 'p'
+   *                                 planet labels, etc.)
+   *   - uppercase / Shift letters = "wider" actions affecting many things
+   *                                 at once.
+   *
+   * The two relevant cases today:
+   *
+   *   - 'v' hides the HTML chrome only — the nav panel, the search bar,
+   *     and the time / target heads-up text.  Scene annotations stay
+   *     visible.
+   *   - 'V' (Shift+v) is "presentation mode": hides every scene
+   *     annotation (planet labels, star labels, asterisms, orbits, all
+   *     reference grids) and snapshots their state so a second 'V' press
+   *     restores exactly what the user had.  The HTML chrome is left
+   *     alone — combine with 'v' for a fully bare view.
+   *
+   * The order of `k.map(...)` calls drives the Settings panel listing
+   * order.
+   */
   setupKeyListeners(useStore) {
     const k = new Keys(window, useStore)
 
-    // Order determines listing in Settings panel.
-
-    // Nav panels
+    // Nav panels (HTML chrome only)
     k.map('v', () => this._toggleNav(),
-        'Hide/show navigation panels')
+        'Hide/show navigation panels (HTML overlay)')
+
+    // Presentation mode — hide every scene annotation at once.
+    k.map('V', () => this._toggleAllSceneInfo(),
+        'Hide/show all scene annotations (labels, orbits, asterisms, grids)')
 
     // Scene elements
     k.map('a', () => {
@@ -435,6 +471,38 @@ export default class Celestiary {
     })
     this.navVisible = !this.navVisible
     this.scene.flipSetting('v')
+  }
+
+
+  /**
+   * "Presentation mode" — hide every scene annotation in one shot, with
+   * snapshot+restore so a second press brings the user's prior state back.
+   *
+   * The hidden keys are the per-overlay scene toggles: planet labels (p),
+   * star labels (l), asterisms (a), orbits (o), and the three reference
+   * grids (e, c, g).  HTML chrome ('v') is intentionally left alone —
+   * users can combine with the 'v' key for a fully bare view.
+   *
+   * We snapshot only the relevant keys (not the whole settings map) so
+   * unrelated state changes between the press pair don't get clobbered on
+   * restore.
+   */
+  _toggleAllSceneInfo() {
+    if (this._sceneInfoSnapshot) {
+      const target = {...this.scene.getSettings(), ...this._sceneInfoSnapshot}
+      this._sceneInfoSnapshot = null
+      this.scene.applySettings(target)
+      return
+    }
+    const cur = this.scene.getSettings()
+    const snapshot = {}
+    const target = {...cur}
+    for (const key of SCENE_INFO_KEYS) {
+      snapshot[key] = cur[key]
+      target[key] = false
+    }
+    this._sceneInfoSnapshot = snapshot
+    this.scene.applySettings(target)
   }
 
 
