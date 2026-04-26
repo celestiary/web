@@ -8,7 +8,7 @@ import {
   Vector3,
 } from 'three'
 import {pathTexture} from './material.js'
-import {LIGHTYEAR_METER, STARS_RADIUS_METER, toRad} from '../shared.js'
+import {LIGHTYEAR_METER, toRad} from '../shared.js'
 
 
 // Sun's distance from the galactic centre (Sgr A*) is ~26 kLY.  We park the
@@ -24,19 +24,34 @@ const SUN_GALACTIC_RADIUS_M = 26000 * LIGHTYEAR_METER
 // the two normals).
 const ECLIPTIC_TO_GALACTIC_DEG = 60.187
 
-// Milky-Way-ish shape parameters (artistic, not surveyed).
+// Milky-Way-ish shape parameters.  Diameter (100 kly) matches the scene's
+// GALAXY_RADIUS_METER and the local Hipparcos catalog's outer scale.
+//
+// DISK_THICKNESS_M is the *peak* perpendicular spread (near the bar); the
+// arm sampler tapers it toward the rim.  10 kly is much thicker than a
+// real spiral disc but matches the perpendicular extent of the local
+// Hipparcos catalog so its stars sit visibly inside the cloud rather than
+// sticking out above/below.
 const DISK_RADIUS_M = 50000 * LIGHTYEAR_METER
-const DISK_THICKNESS_M = 1000 * LIGHTYEAR_METER
+const DISK_THICKNESS_M = 10000 * LIGHTYEAR_METER
 const BAR_HALF_LEN_M = 7000 * LIGHTYEAR_METER
 const BAR_HALF_WIDTH_M = 1800 * LIGHTYEAR_METER
+// Bar perpendicular half-extent — decoupled from DISK_THICKNESS_M so a
+// thicker disc doesn't spread the bar into a fat slab.  ~1.2 kly keeps
+// the bar visually flat and bulge-like in the perpendicular direction.
+const BAR_HALF_HEIGHT_M = 1200 * LIGHTYEAR_METER
 const BULGE_RADIUS_M = 4500 * LIGHTYEAR_METER
 
-const NUM_STARS = 16000
+// Arm region volume is ~600× the bar volume, so arm density appears far
+// lower than bar density at equal particle counts.  Bumping the total budget
+// + shifting fractions toward the arms brings arm visibility close to the
+// bar's appearance without nuking framerate.
+const NUM_STARS = 60000
 const NUM_ARMS = 4 // four arms — Milky Way is a "multi-arm" / 4-arm design
 const ARM_PITCH = 0.22 // tan(pitch); ≈ 12.5° pitch angle, MW-ish
-const FRAC_BULGE = 0.20
-const FRAC_BAR = 0.15
-// Remainder goes into the spiral arms.
+const FRAC_BULGE = 0.08
+const FRAC_BAR = 0.06
+// Remainder (≈ 86%) goes into the spiral arms.
 
 // Choice of "Sun arm" controls the galactic orientation.  Arm 0's logarithmic
 // spiral is sampled at r = SUN_GALACTIC_RADIUS_M to find the Sun anchor; the
@@ -47,9 +62,9 @@ const SUN_ARM_INDEX = 0
 // renders real stars at full fidelity.  Galaxy points inside this hole would
 // (a) overlap individual catalog stars, (b) blow up gl_PointSize when the
 // camera is inside the hole, and (c) be much closer than the cloud is
-// designed for.  Uses STARS_RADIUS_METER (~10 kLY) so the carve-out matches
-// the actual catalog footprint.
-const LOCAL_CATALOG_HOLE_M = STARS_RADIUS_METER
+// designed for.  Sized just large enough to cover the bulk of nearby
+// Hipparcos stars.
+const LOCAL_CATALOG_HOLE_M = 1500 * LIGHTYEAR_METER
 
 
 /**
@@ -220,11 +235,13 @@ function sampleBulge(out) {
 /** @param {Vector3} out */
 function sampleBar(out) {
   // Bar oriented along X in galactic-centre frame.  Long-axis density
-  // peaks at centre via sqrt-of-uniform.
+  // peaks at centre via sqrt-of-uniform.  Perpendicular thickness uses
+  // BAR_HALF_HEIGHT_M (decoupled from disc thickness) so the bar stays
+  // flat regardless of how thick the surrounding disc is.
   const tx = (Math.random() - 0.5) * 2.0
   out.set(
       Math.sign(tx) * Math.sqrt(Math.abs(tx)) * BAR_HALF_LEN_M,
-      (Math.random() - 0.5) * DISK_THICKNESS_M * 0.6,
+      (Math.random() - 0.5) * BAR_HALF_HEIGHT_M * 2.0,
       (Math.random() - 0.5) * BAR_HALF_WIDTH_M * 2.0)
 }
 
@@ -236,15 +253,24 @@ function sampleArm(out) {
   const t = Math.random()
   const r = BAR_HALF_LEN_M + (Math.pow(t, 0.5) * (DISK_RADIUS_M - BAR_HALF_LEN_M))
   const angle = armAngleAt(armIdx, r)
-  // Scatter perpendicular and along the arm so it reads as a thick lane,
-  // not a hairline.
-  const armWidth = (DISK_THICKNESS_M * 0.8) + (r * 0.04)
+  // Arm taper: arms are wide near the bar (so they blend visually into it)
+  // and thin out toward the disc edge (revealing the spiral structure).
+  // Both in-plane scatter (armWidth) and perpendicular scatter (thickness)
+  // follow the same exponential taper in r, plus a small constant floor so
+  // the outer arms still have visible thickness rather than going to a
+  // hairline.
+  const taperR = Math.exp(-(r - BAR_HALF_LEN_M) / (DISK_RADIUS_M * 0.45))
+  // In-plane width: bar-width-like at the inner edge, tapering to a thin
+  // spiral lane at the outer edge.
+  const armWidth = (BAR_HALF_WIDTH_M * 1.0 * taperR) + (DISK_RADIUS_M * 0.012)
   const dr = (Math.random() - 0.5) * armWidth * 1.6
   const da = (Math.random() - 0.5) * 0.30
   const finalR = Math.max(0, r + dr)
   const finalA = angle + da
-  // Disk thins very gradually with radius.
-  const thickness = DISK_THICKNESS_M * (0.6 + (0.4 * Math.exp(-r / DISK_RADIUS_M)))
+  // Perpendicular thickness: matches DISK_THICKNESS_M near the bar, drops
+  // to ~15% at the rim.  Catalog stars near the Sun (≈ 26 kly out) end up
+  // inside the local thickness rather than sticking out perpendicular.
+  const thickness = (DISK_THICKNESS_M * taperR) + (DISK_THICKNESS_M * 0.15)
   out.set(
       finalR * Math.cos(finalA),
       (Math.random() - 0.5) * thickness,
