@@ -39,6 +39,8 @@
   "texture_atmosphere": true,
   "texture_hydrosphere": true,
   "texture_terrain": true,
+  "texture_night": true,
+  "texture_dir": "earth/",
   "atmosphere": {
     "height": "8e4 m",
     "sunIntensity": 20,

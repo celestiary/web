@@ -9,6 +9,7 @@ import {
   LineBasicMaterial,
   MeshPhongMaterial,
   Object3D,
+  Vector3,
 } from 'three'
 import {
   assertFinite,
@@ -235,18 +236,27 @@ export default class Planet extends Object {
    * @returns {Object3D}
    */
   nearShape() {
-    const surfaceMaterial = Material.cacheMaterial(this.name)
+    // Optional per-body subdirectory under /textures/ — keeps a
+    // body's many maps (terrain, hydro, atmos, night…) organized.
+    const texDir = this.props.texture_dir || ''
+    const surfaceMaterial = Material.cacheMaterial(this.name, undefined, texDir)
     surfaceMaterial.metalness = 0.2
     surfaceMaterial.roughness = 0.8
     if (this.props.texture_terrain) {
-      const terrainTex = Material.pathTexture(`${this.name}_terrain`)
+      const terrainTex = Material.pathTexture(`${texDir}${this.name}_terrain`)
       surfaceMaterial.bumpMap = terrainTex
       surfaceMaterial.bumpScale = 0.10
       surfaceMaterial.roughnessMap = terrainTex
       surfaceMaterial.roughness = 1.0
     }
+    // Build a chain of fragment-shader mods: hydrosphere ocean roughness +
+    // night-side emissive city lights, both applied via a single
+    // onBeforeCompile (Three.js calls onBeforeCompile exactly once when
+    // the shader is first compiled).
+    const shaderMods = []
+    let nightSunDirUniform = null
     if (this.props.texture_hydrosphere) {
-      const hydroTex = Material.pathTexture(`${this.name}_hydro`)
+      const hydroTex = Material.pathTexture(`${texDir}${this.name}_hydro`)
       surfaceMaterial.metalnessMap = hydroTex
       surfaceMaterial.reflectivity = 0.2
       surfaceMaterial.roughnessMap = hydroTex
@@ -254,7 +264,7 @@ export default class Planet extends Object {
       // 5. Insert our custom roughness calculation
       // if the ocean map is white for the ocean, then we have to reverse the b&w values for roughness
       // We want the land to have 1.0 roughness, and the ocean to have a minimum of 0.5 roughness
-      surfaceMaterial.onBeforeCompile = function( shader ) {
+      shaderMods.push((shader) => {
         shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', `
         float roughnessFactor = roughness;
 
@@ -269,9 +279,81 @@ export default class Planet extends Object {
 
         #endif
       `)
+      })
+    }
+    if (this.props.texture_night) {
+      // City lights / night-side emissive map.  Drop a NASA "Black Marble"
+      // (or equivalent equirectangular night-lights JPG) at
+      // public/textures/<name>_night.jpg — public domain at
+      // https://earthobservatory.nasa.gov/features/NightLights.  Without
+      // the file the load fails silently and the night-side stays dark.
+      const nightTex = Material.pathTexture(`${texDir}${this.name}_night`)
+      // Shared uniform: written by the surface mesh's onBeforeRender each
+      // frame, read by the patched fragment shader.  Same Vector3 ref so
+      // the GLSL sees live values without re-binding.
+      nightSunDirUniform = {value: new Vector3(0, 0, -1)}
+      const nightMapUniform = {value: nightTex}
+      // Stash on the material so the surface mesh's onBeforeRender can
+      // find it without a closure (multiple Earth instances would all
+      // share material via cacheMaterial — though that doesn't happen
+      // today).
+      surfaceMaterial.userData.uSunDirection = nightSunDirUniform
+      shaderMods.push((shader) => {
+        shader.uniforms.uNightMap = nightMapUniform
+        shader.uniforms.uSunDirection = nightSunDirUniform
+        // Inject uniforms after <common> (always present) and the
+        // night-side emissive add BEFORE <tonemapping_fragment> so the
+        // city lights pass through the same tonemap+gamma chain as the
+        // rest of the surface.  Earlier rev tried `<output_fragment>` —
+        // that chunk was renamed `<opaque_fragment>` in r155+, so the
+        // string-replace silently failed and night lights didn't show.
+        // vNormal is in VIEW space; uSunDirection is updated per-frame
+        // (in onBeforeRender below) into the same view space.
+        // The intensity scalar compensates for the renderer's very small
+        // toneMappingExposure (3e-16, calibrated for sun lumens ~1e28).
+        // Day-side surface peaks at ~2e16 linear (sun illuminance × Earth
+        // albedo / π) → ~1.0 after tonemap.  For city peaks around 30%
+        // display brightness we want input·exposure ≈ 0.3, i.e. multiplier
+        // ≈ 1e15.  Tweak per texture: composite "Earth at night" textures
+        // (with land visible as faint grey) need a lower scalar than pure
+        // NASA Black Marble (mostly black with bright cities).
+        shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <common>',
+            `#include <common>
+             uniform sampler2D uNightMap;
+             uniform vec3 uSunDirection;`,
+        )
+        shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <tonemapping_fragment>',
+            `vec3 nightLight = texture2D(uNightMap, vMapUv).rgb;
+             // smoothstep around terminator: 0 fully day, 1 fully night
+             float nightFactor = smoothstep(-0.05, 0.05, -dot(normalize(vNormal), uSunDirection));
+             gl_FragColor.rgb += nightLight * nightFactor * 5e15;
+             #include <tonemapping_fragment>`,
+        )
+      })
+    }
+    if (shaderMods.length > 0) {
+      surfaceMaterial.onBeforeCompile = (shader) => {
+        for (const fn of shaderMods) {
+          fn(shader)
+        }
       }
     }
+
     const surface = named(sphere({radius: this.props.radius.scalar, matr: surfaceMaterial}), 'planet surface')
+
+    // Per-frame: refresh sun direction (view space) for the night-lights
+    // shader.  Sun lives at world origin; transform direction-from-planet-
+    // to-sun into the camera's view frame.
+    if (nightSunDirUniform) {
+      const _planetWorld = new Vector3()
+      surface.onBeforeRender = (renderer, scene, camera) => {
+        surface.getWorldPosition(_planetWorld)
+        nightSunDirUniform.value.copy(_planetWorld).negate().normalize()
+        nightSunDirUniform.value.transformDirection(camera.matrixWorldInverse)
+      }
+    }
     // const surface = named(sphere({radius: this.props.radius.scalar, wireframe: true, color: 0x00ff00}), 'planet surface')
     surface.renderOrder = 1
     if (this.props.texture_atmosphere && !this.props.atmosphere) {
@@ -297,7 +379,8 @@ export default class Planet extends Object {
   /** @returns {Object3D} */
   newClouds() {
     // TODO: https://threejs.org/examples/webgl_shaders_sky.html
-    const atmosTex = Material.pathTexture(this.name, '_atmos.jpg')
+    const texDir = this.props.texture_dir || ''
+    const atmosTex = Material.pathTexture(`${texDir}${this.name}`, '_atmos.jpg')
     const atmosphereScaleHeight = 8.5e3 // earth
     const shape = sphere({
       radius: this.props.radius.scalar + atmosphereScaleHeight,

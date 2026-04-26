@@ -11,14 +11,13 @@ import {labelTextColor} from '../shared.js'
 // finer tiers reveal as the camera closes in.  Indexed by entry's `t` field.
 const DEFAULT_TIER_PX = [30, 200, 1500, 8000]
 
-// Lift label anchors above the surface as a fraction of the body radius.
-// SpriteSheet billboards in screen space at the anchor's 3D depth — without
-// a lift, sprite pixels extending toward the disc center get depth-clipped
-// by the curving sphere (the surface curves CLOSER to the camera between
-// the anchor and the disc center).  ~0.5% of body radius (~32 km Earth,
-// 9 km Moon) keeps the lift invisible from typical viewing distances while
-// still floating clear of the curvature.  Per-entry `a` (alt) adds on top.
-const SURFACE_OFFSET_FRAC = 0.005
+// Per-entry altitude (`a`, in m) is preserved as-is.  We don't add a fixed
+// surface lift any more: the surface-visibility SpriteSheet shader uses
+// depthTest=false plus a per-vertex back-hemisphere discard, so labels
+// can't be clipped by sphere curvature even at the limb where the
+// surface curves rapidly relative to the sprite's screen-space extent.
+// Picking (Picker.queryPlaces) reads the same un-lifted body-fixed XYZ,
+// so click zones land where the labels appear.
 
 
 /**
@@ -121,12 +120,15 @@ export default class Places extends Group {
       return
     }
     const longest = entries.reduce((a, e) => (e.n.length > a.length ? e.n : a), '')
-    // Non-RTE: positions are body-local (small magnitude), three.js handles
-    // body-local → world via modelMatrix.  RTE shaders skip modelMatrix.
-    const sheet = new SpriteSheet(entries.length, longest)
-    const lift = this.planetRadius * SURFACE_OFFSET_FRAC
+    // surfaceVisibility=true: per-vertex back-hemisphere discard +
+    // depthTest=false, so labels never get clipped by the curving sphere
+    // at the limb (sprite pixels extending toward disc centre share the
+    // anchor's depth but the surface there can be much closer to the
+    // camera).  Non-RTE: positions are body-local (small magnitude),
+    // three.js handles body-local → world via modelMatrix.
+    const sheet = new SpriteSheet(entries.length, longest, undefined, [0, 0], false, true)
     for (const e of entries) {
-      const xyz = latLngAltToBodyFixed(e.lat, e.lng, (e.a ?? 0) + lift, this.planetRadius)
+      const xyz = latLngAltToBodyFixed(e.lat, e.lng, e.a ?? 0, this.planetRadius)
       sheet.add(xyz.x, xyz.y, xyz.z, e.n, labelTextColor)
     }
     const points = sheet.compile()

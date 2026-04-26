@@ -62,6 +62,26 @@ Per-tier SpriteSheets are lazy-instantiated the first time their
 threshold is crossed — most users browsing the solar system will never
 build T2/T3 sheets.
 
+## Label rendering: surface visibility mode
+
+Places use `SpriteSheet(..., surfaceVisibility=true)` — a body-anchored
+shader variant that:
+
+- **Discards back-hemisphere labels per-vertex.** The vertex shader treats
+  the sprite's body-local position as the surface normal at that point
+  (since labels sit on the sphere, position / radius ≈ outward normal),
+  computes view-space normal vs view direction, and the fragment shader
+  discards if not front-facing.
+- **Disables depth testing.** With visibility handled in shader, depth
+  testing isn't needed — and would in fact re-introduce limb clipping.
+  When the camera is close, a sprite extends in screen space at the
+  anchor's depth, but the sphere there can be much closer to the camera
+  than the anchor (curvature delta `(1 − cos Δθ) · camDist` exceeds 100 km
+  for big labels at limb).  Without depth testing, labels render cleanly.
+
+Picking (`Picker.queryPlaces`) reads body-fixed XYZ at the same un-lifted
+altitude as the visual, so click zones match what the user sees.
+
 ## Currently catalogued bodies
 
 - **moon** — 33 entries: Apollo/Luna/Chang'e landings, major maria,
