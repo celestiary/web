@@ -49,10 +49,12 @@ const MERIDIAN_STEP_DEG = 15
 
 // Label font / atlas tile size.  Small — these are reference-grid axis
 // labels and shouldn't dominate the scene; we want them legible but
-// understated.
-const LABEL_FONT = '10px sans-serif'
+// understated.  LABEL_FONT_PX is also the inset (1 em) we apply between
+// the label anchor and the screen edge so labels don't kiss the canvas.
+const LABEL_FONT_PX = 12
+const LABEL_FONT = `${LABEL_FONT_PX}px sans-serif`
 const LABEL_TILE_PAD = 3
-const LABEL_TILE_LINE_H = 14
+const LABEL_TILE_LINE_H = LABEL_FONT_PX + 4
 
 // How many points to sample along each meridian / parallel circle when
 // searching for the screen-edge intersection per frame.  Continuous
@@ -408,14 +410,24 @@ function attachEdgeFollower(points, items, gridGroup) {
   const _v = new Vector3()
   const _modelRot = new Matrix3()
   const _viewRot = new Matrix3()
+  const _rendererSize = {x: 0, y: 0}
 
   points.onBeforeRender = (renderer, scene, camera) => {
     gridGroup.updateMatrixWorld()
     _modelRot.setFromMatrix4(gridGroup.matrixWorld)
     _viewRot.setFromMatrix4(camera.matrixWorldInverse)
+    // Convert a 1 em (LABEL_FONT_PX) inset from each screen edge into NDC.
+    // NDC spans [-1, 1] (= 2 units) across the full canvas in each axis,
+    // so 1 px = 2 / size, and the per-axis pad in NDC is FONT_PX * 2 /
+    // size.  Recomputed each frame so the gap stays a constant em
+    // regardless of window resizes.
+    renderer.getSize(_rendererSize)
+    const padX = _rendererSize.x > 0 ? (LABEL_FONT_PX * 2) / _rendererSize.x : 0
+    const padY = _rendererSize.y > 0 ? (LABEL_FONT_PX * 2) / _rendererSize.y : 0
 
     for (let labelIdx = 0; labelIdx < items.length; labelIdx++) {
       const {samples, edge, closed} = items[labelIdx]
+      const padNDC = (edge === 'top' || edge === 'bottom') ? padY : padX
 
       // Pass 1: project all samples once.
       for (let i = 0; i < EDGE_SAMPLES; i++) {
@@ -444,7 +456,7 @@ function attachEdgeFollower(points, items, gridGroup) {
         }
         const xi = ndcX[i]; const yi = ndcY[i]
         const xj = ndcX[j]; const yj = ndcY[j]
-        const cross = bracketCrossing(xi, yi, xj, yj, edge)
+        const cross = bracketCrossing(xi, yi, xj, yj, edge, padNDC)
         if (cross === null) {
           continue
         }
@@ -502,11 +514,12 @@ function attachEdgeFollower(points, items, gridGroup) {
 
 
 /**
- * Test whether the NDC line segment (xi,yi) → (xj,yj) brackets the given
- * screen edge, and if so return the linear-interpolation parameter t at
- * the crossing along with the crossing's NDC coordinates.  Returns null
- * if the segment doesn't cross the edge or crosses it off-screen on the
- * orthogonal axis.
+ * Test whether the NDC line segment (xi,yi) → (xj,yj) crosses the given
+ * screen edge (optionally inset by `padNDC` from the canvas border so
+ * labels can sit slightly inside the visible area), and if so return the
+ * linear-interpolation parameter t at the crossing along with the
+ * crossing's NDC coordinates.  Returns null if the segment doesn't cross
+ * the inset edge or crosses it off-screen on the orthogonal axis.
  *
  * Exported for tests.
  *
@@ -515,15 +528,17 @@ function attachEdgeFollower(points, items, gridGroup) {
  * @param {number} xj NDC x of segment end
  * @param {number} yj NDC y of segment end
  * @param {string} edge 'top' | 'bottom' | 'right' | 'left'
+ * @param {number} [padNDC] inset toward screen centre, in NDC units
+ *   (e.g. 12 px on a 600 px-tall canvas → 12 / 300 = 0.04).
  * @returns {{t:number, x:number, y:number}|null}
  */
-export function bracketCrossing(xi, yi, xj, yj, edge) {
+export function bracketCrossing(xi, yi, xj, yj, edge, padNDC = 0) {
   let edgeVal; let isYAxis
   switch (edge) {
-    case 'top': edgeVal = 1; isYAxis = true; break
-    case 'bottom': edgeVal = -1; isYAxis = true; break
-    case 'right': edgeVal = 1; isYAxis = false; break
-    case 'left': edgeVal = -1; isYAxis = false; break
+    case 'top': edgeVal = 1 - padNDC; isYAxis = true; break
+    case 'bottom': edgeVal = -1 + padNDC; isYAxis = true; break
+    case 'right': edgeVal = 1 - padNDC; isYAxis = false; break
+    case 'left': edgeVal = -1 + padNDC; isYAxis = false; break
     default: return null
   }
   const vi = isYAxis ? yi : xi
@@ -539,7 +554,7 @@ export function bracketCrossing(xi, yi, xj, yj, edge) {
   const xCross = xi + (t * (xj - xi))
   const yCross = yi + (t * (yj - yi))
   // Reject if the orthogonal coordinate is off-screen (line crosses the
-  // edge's axis but outside the visible window).
+  // edge's axis but outside the visible window — no inset on this axis).
   const orth = isYAxis ? xCross : yCross
   if (orth < -1 || orth > 1) {
     return null

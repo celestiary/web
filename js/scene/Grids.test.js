@@ -144,4 +144,28 @@ describe('bracketCrossing', () => {
     expect(r.t).toBeCloseTo(0.5, 6)
     expect(r.x).toBeCloseTo(0, 6)
   })
+
+  it('padNDC insets the target line for the top edge', () => {
+    // Edge with pad 0.1 means we anchor at y=0.9, not y=1.  A segment
+    // from y=0 to y=1 (which would cross y=0.9 at t=0.9) should now
+    // bracket the inset line.
+    const r = bracketCrossing(0, 0, 0, 1, 'top', 0.1)
+    expect(r).not.toBeNull()
+    expect(r.t).toBeCloseTo(0.9, 6)
+    expect(r.y).toBeCloseTo(0.9, 6)
+  })
+
+  it('padNDC of zero behaves identically to the unpadded call', () => {
+    const a = bracketCrossing(-0.2, 0.8, 0.2, 1.2, 'top')
+    const b = bracketCrossing(-0.2, 0.8, 0.2, 1.2, 'top', 0)
+    expect(a).toEqual(b)
+  })
+
+  it('padNDC pushes the bottom edge inward symmetrically', () => {
+    // Pad 0.1 on bottom moves the target from y=-1 to y=-0.9.  A segment
+    // from y=-1 to y=0 must now bracket y=-0.9.
+    const r = bracketCrossing(0, -1, 0, 0, 'bottom', 0.1)
+    expect(r).not.toBeNull()
+    expect(r.y).toBeCloseTo(-0.9, 6)
+  })
 })
