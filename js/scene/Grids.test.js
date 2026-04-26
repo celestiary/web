@@ -174,6 +174,43 @@ describe('bracketCrossing', () => {
     expect(r).not.toBeNull()
     expect(r.y).toBeCloseTo(-0.9, 6)
   })
+
+  describe('exitOnly direction filter', () => {
+    it('top edge: accepts exits (yj > yi), rejects entries', () => {
+      // Exit: vi inside (y < 1) → vj outside (y > 1)
+      expect(bracketCrossing(0, 0.8, 0, 1.2, 'top', 0, true)).not.toBeNull()
+      // Entry: vi outside (y > 1) → vj inside (y < 1)
+      expect(bracketCrossing(0, 1.2, 0, 0.8, 'top', 0, true)).toBeNull()
+    })
+
+    it('bottom edge: exits go more negative (yj < yi)', () => {
+      // Exit through bottom: vi inside (y > -1) → vj outside (y < -1)
+      expect(bracketCrossing(0, -0.8, 0, -1.2, 'bottom', 0, true)).not.toBeNull()
+      // Entry through bottom: vi outside → vj inside
+      expect(bracketCrossing(0, -1.2, 0, -0.8, 'bottom', 0, true)).toBeNull()
+    })
+
+    it('right edge: exits go more positive (xj > xi)', () => {
+      expect(bracketCrossing(0.8, 0, 1.2, 0, 'right', 0, true)).not.toBeNull()
+      expect(bracketCrossing(1.2, 0, 0.8, 0, 'right', 0, true)).toBeNull()
+    })
+
+    it('left edge: exits go more negative (xj < xi)', () => {
+      expect(bracketCrossing(-0.8, 0, -1.2, 0, 'left', 0, true)).not.toBeNull()
+      expect(bracketCrossing(-1.2, 0, -0.8, 0, 'left', 0, true)).toBeNull()
+    })
+
+    it('exitOnly=false (default) accepts both directions', () => {
+      expect(bracketCrossing(0, 0.8, 0, 1.2, 'top')).not.toBeNull()
+      expect(bracketCrossing(0, 1.2, 0, 0.8, 'top')).not.toBeNull()
+    })
+
+    it('exitOnly=true preserves the off-screen-orthogonal rejection', () => {
+      // Crosses the inset top edge but at x=2.5 (off-screen).  Should
+      // still be rejected even with exitOnly=true.
+      expect(bracketCrossing(2, 0.8, 3, 1.2, 'top', 0, true)).toBeNull()
+    })
+  })
 })
 
 

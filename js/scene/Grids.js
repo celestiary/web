@@ -287,15 +287,26 @@ function attachLabels(gridGroup, meridians, parallels, color) {
   // first) sample pair would be a chord through the centre of the sphere,
   // not a continuation of the line, so closed=false.  Parallels are full
   // small circles, so closed=true.
+  //
+  // Parallels also set exitOnly=true so the bracket walk rejects "entry"
+  // (line moving inward) crossings of the side edges.  A parallel viewed
+  // from oblique angles crosses each side edge an even number of times —
+  // typically 2 (one exit + one entry) — and without this filter the
+  // |x|+|y| tie-break can flip between the two crossings as the camera
+  // rotates, producing a visible jump.  Exits are topologically
+  // unambiguous: there's exactly one exit per side-edge crossing pair.
+  // Meridians don't get this filter because their pole-to-pole sample
+  // direction makes the bottom-edge crossing an "entry," and we still
+  // want to label it.
   for (const {lng, text} of meridians) {
     const samples = sampleMeridian(lng)
-    items.push({text, samples, edge: 'top', closed: false})
-    items.push({text, samples, edge: 'bottom', closed: false})
+    items.push({text, samples, edge: 'top', closed: false, exitOnly: false})
+    items.push({text, samples, edge: 'bottom', closed: false, exitOnly: false})
   }
   for (const {lat, text} of parallels) {
     const samples = sampleParallel(lat)
-    items.push({text, samples, edge: 'right', closed: true})
-    items.push({text, samples, edge: 'left', closed: true})
+    items.push({text, samples, edge: 'right', closed: true, exitOnly: true})
+    items.push({text, samples, edge: 'left', closed: true, exitOnly: true})
   }
   const points = buildLabelsPoints(items, color)
   if (!points) {
@@ -433,7 +444,7 @@ function attachEdgeFollower(points, items, gridGroup) {
     const padY = _rendererSize.y > 0 ? (LABEL_FONT_PX * 2) / _rendererSize.y : 0
 
     for (let labelIdx = 0; labelIdx < items.length; labelIdx++) {
-      const {samples, edge, closed} = items[labelIdx]
+      const {samples, edge, closed, exitOnly} = items[labelIdx]
       const padNDC = (edge === 'top' || edge === 'bottom') ? padY : padX
 
       // Pass 1: project all samples once.
@@ -463,7 +474,7 @@ function attachEdgeFollower(points, items, gridGroup) {
         }
         const xi = ndcX[i]; const yi = ndcY[i]
         const xj = ndcX[j]; const yj = ndcY[j]
-        const cross = bracketCrossing(xi, yi, xj, yj, edge, padNDC)
+        const cross = bracketCrossing(xi, yi, xj, yj, edge, padNDC, exitOnly)
         if (cross === null) {
           continue
         }
@@ -604,6 +615,13 @@ export function refineSubSample(bestI, samples, ndcX, ndcY, front, edge, closed)
  * crossing's NDC coordinates.  Returns null if the segment doesn't cross
  * the inset edge or crosses it off-screen on the orthogonal axis.
  *
+ * When `exitOnly` is true, also requires that the segment is going
+ * outward through the edge (line moving from inside to outside).  Used by
+ * the closed-loop parallels, where each side edge is typically crossed
+ * twice (one exit + one entry); filtering to exits gives a topologically
+ * unambiguous pick that doesn't flip between the two crossings as the
+ * camera rotates.
+ *
  * Exported for tests.
  *
  * @param {number} xi NDC x of segment start
@@ -613,15 +631,17 @@ export function refineSubSample(bestI, samples, ndcX, ndcY, front, edge, closed)
  * @param {string} edge 'top' | 'bottom' | 'right' | 'left'
  * @param {number} [padNDC] inset toward screen centre, in NDC units
  *   (e.g. 12 px on a 600 px-tall canvas → 12 / 300 = 0.04).
+ * @param {boolean} [exitOnly] when true, reject brackets where the line
+ *   is moving inward through the edge (an "entry" rather than an "exit").
  * @returns {{t:number, x:number, y:number}|null}
  */
-export function bracketCrossing(xi, yi, xj, yj, edge, padNDC = 0) {
-  let edgeVal; let isYAxis
+export function bracketCrossing(xi, yi, xj, yj, edge, padNDC = 0, exitOnly = false) {
+  let edgeVal; let isYAxis; let outwardSign
   switch (edge) {
-    case 'top': edgeVal = 1 - padNDC; isYAxis = true; break
-    case 'bottom': edgeVal = -1 + padNDC; isYAxis = true; break
-    case 'right': edgeVal = 1 - padNDC; isYAxis = false; break
-    case 'left': edgeVal = -1 + padNDC; isYAxis = false; break
+    case 'top': edgeVal = 1 - padNDC; isYAxis = true; outwardSign = +1; break
+    case 'bottom': edgeVal = -1 + padNDC; isYAxis = true; outwardSign = -1; break
+    case 'right': edgeVal = 1 - padNDC; isYAxis = false; outwardSign = +1; break
+    case 'left': edgeVal = -1 + padNDC; isYAxis = false; outwardSign = -1; break
     default: return null
   }
   const vi = isYAxis ? yi : xi
@@ -631,6 +651,12 @@ export function bracketCrossing(xi, yi, xj, yj, edge, padNDC = 0) {
   const di = vi - edgeVal
   const dj = vj - edgeVal
   if (di * dj >= 0) {
+    return null
+  }
+  // Direction filter: an "exit" goes outward (positive `outwardSign` ⇒
+  // value increasing through the edge; negative ⇒ decreasing).  When the
+  // caller asks for exits only, reject pairs whose motion is inward.
+  if (exitOnly && ((vj - vi) * outwardSign) <= 0) {
     return null
   }
   const t = di / (di - dj) // ∈ (0, 1)
