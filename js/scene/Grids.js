@@ -9,6 +9,7 @@ import {
   Matrix3,
   Points,
   ShaderMaterial,
+  Vector2,
   Vector3,
 } from 'three'
 import {named} from '../utils.js'
@@ -410,7 +411,9 @@ function attachEdgeFollower(points, items, gridGroup) {
   const _v = new Vector3()
   const _modelRot = new Matrix3()
   const _viewRot = new Matrix3()
-  const _rendererSize = {x: 0, y: 0}
+  // renderer.getSize requires a Vector2 (the Three.js call does
+  // `target.set(width, height)`, which a plain literal won't provide).
+  const _rendererSize = new Vector2()
 
   points.onBeforeRender = (renderer, scene, camera) => {
     gridGroup.updateMatrixWorld()
