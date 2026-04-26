@@ -473,6 +473,16 @@ export default class Scene {
     // Single unified tween that overlaps rotation and movement.
     Shared.targets.tween = newCameraGoToTween(this.ui.camera, targetWorldPos, arrivalLocal)
     Shared.targets.tweenNextFn = null
+
+    // Reset drag mode to 'auto' on planet navigation so the next
+    // pointerdown re-evaluates pickDragMode against the actual camera
+    // position (which may end up at orbit altitude OR ground level if
+    // a permalink restore lands the camera on the surface).  Manual
+    // pan/orbit selections from a previous body don't carry over.
+    if (isPlanet) {
+      const setDragMode = this.ui.useStore?.getState()?.setDragMode
+      setDragMode?.('auto')
+    }
   }
 
 

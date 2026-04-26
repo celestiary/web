@@ -191,9 +191,18 @@ mock.module('./vsop', () => ({
 
 // Zustand-like useStore stub: callable hook + getState/setState/subscribe.
 // Real Celestiary reaches into store.getState() to push state (e.g. committedPath).
+// Setters are arrow fns mutating the closed-over state object — matching real
+// zustand's pattern where setters don't depend on `this`.
 function makeStubStore() {
   const state = {
     setCommittedPath: () => {},
+    dragMode: 'pan',
+    // Recorded: tests can read state.dragModeCalls to assert auto-pick fired.
+    dragModeCalls: [],
+  }
+  state.setDragMode = (m) => {
+    state.dragMode = m
+    state.dragModeCalls.push(m)
   }
   const hook = () => ({})
   hook.getState = () => state
@@ -393,6 +402,16 @@ describe('Scene.goTo navigation', () => {
 
     it('reparents camera platform to sun.orbitPosition', () => {
       expect(app2.ui.camera.platform.parent).toBe(sunObj.orbitPosition)
+    })
+
+    it('resets dragMode to \'auto\' on planet navigation', () => {
+      // dragControls re-evaluates pickDragMode at the next pointerdown
+      // against the actual final camera position — covers both the
+      // normal goTo arrival (orbit altitude) and permalink restores
+      // that land the camera on the surface.
+      const calls = app2.useStore.getState().dragModeCalls
+      expect(calls.length).toBeGreaterThan(0)
+      expect(calls[calls.length - 1]).toBe('auto')
     })
   })
 

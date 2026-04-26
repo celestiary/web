@@ -7,6 +7,7 @@ import Stack from '@mui/material/Stack'
 import Celestiary from './Celestiary'
 import useStore from './store/useStore'
 import About from './ui/About'
+import DragModeToggle from './ui/DragModeToggle'
 import SearchBar from './ui/SearchBar'
 import Settings from './ui/Settings'
 import TimePanel from './ui/TimePanel'
@@ -60,6 +61,7 @@ export default function App() {
       </div>
       <Stack id='top-right' className='panel' direction='column' justifyContent='flex-start' alignItems='flex-end'>
         {celestiary && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
+        {celestiary && <DragModeToggle/>}
         <div id='text-buttons'>
           {celestiary &&
             <Box sx={{position: 'fixed', bottom: 0, left: 0, m: '1em'}}>
