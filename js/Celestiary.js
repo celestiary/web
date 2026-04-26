@@ -297,9 +297,19 @@ export default class Celestiary {
     },
     'Show/hide orbits')
     k.map(';', () => {
-      this.scene.toggleGridsOrientation()
+      this.scene.toggleGridEquatorial()
     },
-    'Show/hide ecliptic + galactic reference grids')
+    'Show/hide equatorial reference grid')
+    // No keys for ecliptic / galactic per Celestia convention; click-only
+    // entries appear in Settings after the keyed shortcuts.
+    k.addAction(() => {
+      this.scene.toggleGridEcliptic()
+    },
+    'Show/hide ecliptic reference grid')
+    k.addAction(() => {
+      this.scene.toggleGridGalactic()
+    },
+    'Show/hide galactic reference grid')
 
     // Time
     k.map(' ', () => {

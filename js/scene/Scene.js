@@ -408,25 +408,6 @@ export default class Scene {
   }
 
 
-  /**
-   * Toggle the Ecliptic + Galactic reference grids together.  The two
-   * frames are the most useful pair for navigating outside the solar
-   * system: ecliptic gives "where am I relative to the planetary plane",
-   * galactic gives "where am I in the Milky Way".  Equatorial is left
-   * separate (rotates with Earth's spin axis, less useful for interstellar
-   * orientation).
-   */
-  toggleGridsOrientation() {
-    if (!this.grids) {
-      return
-    }
-    // Drive both off the ecliptic's state so they always match.
-    const next = !this.grids.ecliptic.visible
-    this.grids.ecliptic.visible = next
-    this.grids.galactic.visible = next
-  }
-
-
   /** */
   toggleGridEquatorial() {
     if (this.grids) {

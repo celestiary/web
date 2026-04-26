@@ -5,6 +5,10 @@ export default class Keys {
     this.window = win
     this.keymap = {}
     this.msgs = {}
+    // Click-only actions: items the user can toggle from Settings but which
+    // don't have a keyboard shortcut.  Each entry: {fn, msg}.  Listed in
+    // Settings after the keyed shortcuts.
+    this.actions = []
     this.bindToWindow(useStore)
   }
 
@@ -53,5 +57,16 @@ export default class Keys {
     const key = c.toUpperCase()
     this.keymap[key] = fn
     this.msgs[key] = msg
+  }
+
+
+  /**
+   * Register a click-only action — listed in Settings without a key shortcut.
+   *
+   * @param {Function} fn
+   * @param {string} msg
+   */
+  addAction(fn, msg) {
+    this.actions.push({fn, msg})
   }
 }

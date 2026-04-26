@@ -1,9 +1,12 @@
 import {
   BufferGeometry,
+  CanvasTexture,
   Color,
   Float32BufferAttribute,
   Group,
   LineSegments,
+  LinearFilter,
+  Points,
   ShaderMaterial,
 } from 'three'
 import {named} from '../utils.js'
@@ -30,10 +33,21 @@ const COLOR_EQUATORIAL = new Color(0xddaa44)
 const COLOR_ECLIPTIC = new Color(0xff66cc)
 const COLOR_GALACTIC = new Color(0x44ddee)
 
-// Grid resolution.
-const NUM_PARALLELS = 11 // latitude small-circles (excluding poles)
+// Grid resolution.  13 parallels at 15° spacing matches 24 meridians at 15°
+// (= 1h RA), giving a clean square grid with whole-number labels in both
+// directions.
+const NUM_PARALLELS = 13 // latitude small-circles including poles → 11 strictly between
 const NUM_MERIDIANS = 24 // longitude great-circles (one every 15° = 1h RA)
 const SEGMENTS = 96 // segments per circle
+
+// Label spacing (degrees).  Driven by the grid spacing — one label per
+// meridian and per parallel.
+const PARALLEL_STEP_DEG = 15
+const MERIDIAN_STEP_DEG = 15
+
+// Label point-size (atlas tile is square; this is the pixel size on screen).
+// Tuned for legibility without dominating the view.
+const LABEL_FONT = '20px sans-serif'
 
 
 /**
@@ -57,12 +71,15 @@ export default function newGrids() {
   const equatorial = wrapWithMaterial(sphereGeom, COLOR_EQUATORIAL, 'EquatorialGrid')
   // Match Earth's planetTilt convention (Planet.js rotateZ by axialInclination).
   equatorial.rotation.z = ECLIPTIC_TO_EQUATORIAL_DEG * toRad
+  attachLabels(equatorial, hourMeridianLabels(), degParallelLabels(), COLOR_EQUATORIAL)
 
   const ecliptic = wrapWithMaterial(sphereGeom, COLOR_ECLIPTIC, 'EclipticGrid')
   // identity rotation — the scene's Y axis IS the ecliptic pole
+  attachLabels(ecliptic, degMeridianLabels(), degParallelLabels(), COLOR_ECLIPTIC)
 
   const galactic = wrapWithMaterial(sphereGeom, COLOR_GALACTIC, 'GalacticGrid')
   galactic.rotation.z = ECLIPTIC_TO_GALACTIC_DEG * toRad
+  attachLabels(galactic, degMeridianLabels(), degParallelLabels(), COLOR_GALACTIC)
 
   group.add(equatorial)
   group.add(ecliptic)
@@ -182,5 +199,223 @@ uniform vec3  uColor;
 uniform float uOpacity;
 void main() {
   gl_FragColor = vec4(uColor, uOpacity);
+}
+`
+
+
+// ===========================================================================
+// LABELS
+// ===========================================================================
+//
+// Each grid carries text labels at its meridians and parallels.  Equatorial
+// uses RA hours for longitude (0h…23h) and signed degrees for declination;
+// ecliptic and galactic use signed degrees in both directions.  Labels are
+// rendered as Points sprites sampling a per-grid CanvasTexture atlas, with
+// the same "pin to far plane, ignore camera translation" trick as the lines
+// so they read as sky-fixed at any zoom.
+
+
+/** @returns {Array<{lng:number, text:string}>} */
+function hourMeridianLabels() {
+  // 24 hours of RA; one label per 1h = 15° meridian.
+  const out = []
+  for (let h = 0; h < 24; h += MERIDIAN_STEP_DEG / 15) {
+    out.push({lng: (h * 15) * toRad, text: `${h}h`})
+  }
+  return out
+}
+
+
+/** @returns {Array<{lng:number, text:string}>} */
+function degMeridianLabels() {
+  const out = []
+  for (let d = 0; d < 360; d += MERIDIAN_STEP_DEG) {
+    out.push({lng: d * toRad, text: `${d}°`})
+  }
+  return out
+}
+
+
+/** @returns {Array<{lat:number, text:string}>} */
+function degParallelLabels() {
+  // Strictly between the poles, signed degrees.
+  const out = []
+  for (let d = -90 + PARALLEL_STEP_DEG; d < 90; d += PARALLEL_STEP_DEG) {
+    const sign = d > 0 ? '+' : (d < 0 ? '-' : '')
+    out.push({lat: d * toRad, text: `${sign}${Math.abs(d)}°`})
+  }
+  return out
+}
+
+
+/**
+ * Build a labels Points object for `meridians` (placed at lat=0) and
+ * `parallels` (placed at lng=0) on the unit sphere, and add it as a child of
+ * `gridGroup`.  In the bun test env the canvas APIs are stubbed and tile
+ * sizes come back as zero — the resulting atlas is degenerate but harmless
+ * since no rendering happens; we just early-return on that case.
+ *
+ * @param {Group} gridGroup
+ * @param {Array<{lng:number, text:string}>} meridians
+ * @param {Array<{lat:number, text:string}>} parallels
+ * @param {Color} color
+ */
+function attachLabels(gridGroup, meridians, parallels, color) {
+  const items = []
+  for (const {lng, text} of meridians) {
+    items.push({pos: [Math.cos(lng), 0, Math.sin(lng)], text})
+  }
+  for (const {lat, text} of parallels) {
+    items.push({pos: [Math.cos(lat), Math.sin(lat), 0], text})
+  }
+  const points = buildLabelsPoints(items, color)
+  if (points) {
+    gridGroup.add(points)
+  }
+}
+
+
+/**
+ * Bake `items` into a CanvasTexture atlas + Points geometry with one sprite
+ * per item.  Returns null if the canvas environment can't measure text
+ * (e.g. headless tests).
+ *
+ * @param {Array<{pos:Array<number>, text:string}>} items
+ * @param {Color} color
+ * @returns {Points|null}
+ */
+function buildLabelsPoints(items, color) {
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+    return null
+  }
+  const measureCanvas = document.createElement('canvas')
+  const measureCtx = measureCanvas.getContext('2d')
+  if (!measureCtx) {
+    return null
+  }
+  measureCtx.font = LABEL_FONT
+
+  // Per-item tile size — the larger of text width and a fixed line height,
+  // padded.  Tiles are square so the on-screen sprite (Points are square)
+  // displays the text without stretching.
+  const PAD = 6
+  const LINE_H = 24
+  const tiles = items.map(({text}) => {
+    const m = measureCtx.measureText(text)
+    const w = Math.ceil(m.width)
+    const tileSize = Math.max(w, LINE_H) + (PAD * 2)
+    return {tileSize, text, w}
+  })
+  if (tiles.some((t) => !Number.isFinite(t.tileSize) || t.tileSize <= 0)) {
+    return null
+  }
+
+  // Pack tiles into a roughly-square atlas, row-by-row.
+  const tilesPerRow = Math.max(1, Math.ceil(Math.sqrt(tiles.length)))
+  const maxTile = Math.max(...tiles.map((t) => t.tileSize))
+  const atlasW = tilesPerRow * maxTile
+  let curX = 0; let curY = 0; let rowH = 0
+  const placed = []
+  for (const t of tiles) {
+    if (curX + t.tileSize > atlasW) {
+      curX = 0
+      curY += rowH
+      rowH = 0
+    }
+    placed.push({...t, x: curX, y: curY})
+    curX += t.tileSize
+    rowH = Math.max(rowH, t.tileSize)
+  }
+  const atlasH = curY + rowH
+
+  // Render the atlas.
+  const canvas = document.createElement('canvas')
+  canvas.width = atlasW
+  canvas.height = atlasH
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    return null
+  }
+  ctx.font = LABEL_FONT
+  ctx.fillStyle = color.getStyle()
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'center'
+  for (const p of placed) {
+    ctx.fillText(p.text, p.x + (p.tileSize / 2), p.y + (p.tileSize / 2))
+  }
+
+  // Build attribute buffers.  spriteCoord = (u_topLeft, v_topLeft, w, h) in
+  // [0,1] atlas space.  v is flipped because gl_PointCoord runs top-down
+  // while CanvasTexture is uploaded with the canvas's natural Y-down origin.
+  const positions = new Float32Array(items.length * 3)
+  const spriteCoords = new Float32Array(items.length * 4)
+  const sizes = new Float32Array(items.length)
+  for (let i = 0; i < items.length; i++) {
+    const p = placed[i]
+    positions[(3 * i)] = items[i].pos[0]
+    positions[(3 * i) + 1] = items[i].pos[1]
+    positions[(3 * i) + 2] = items[i].pos[2]
+    spriteCoords[(4 * i)] = p.x / atlasW
+    spriteCoords[(4 * i) + 1] = (atlasH - p.y - p.tileSize) / atlasH
+    spriteCoords[(4 * i) + 2] = p.tileSize / atlasW
+    spriteCoords[(4 * i) + 3] = p.tileSize / atlasH
+    sizes[i] = p.tileSize
+  }
+
+  const geom = new BufferGeometry()
+  geom.setAttribute('position', new Float32BufferAttribute(positions, 3))
+  geom.setAttribute('aSpriteCoord', new Float32BufferAttribute(spriteCoords, 4))
+  geom.setAttribute('aSize', new Float32BufferAttribute(sizes, 1))
+
+  const tex = new CanvasTexture(canvas)
+  tex.minFilter = LinearFilter
+  tex.magFilter = LinearFilter
+  tex.needsUpdate = true
+
+  const mat = new ShaderMaterial({
+    uniforms: {map: {value: tex}},
+    vertexShader: LABEL_VERT,
+    fragmentShader: LABEL_FRAG,
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+    toneMapped: false,
+  })
+  const points = new Points(geom, mat)
+  points.frustumCulled = false
+  // Render after the lines (also at -1) within the transparent batch so
+  // labels composite on top of grid line crossings.
+  points.renderOrder = 0
+  return points
+}
+
+
+// Vertex: same skybox-style projection as the lines (rotation only, pinned
+// to far plane), plus per-vertex point size taken from aSize.
+const LABEL_VERT = `
+attribute vec4 aSpriteCoord;
+attribute float aSize;
+varying vec4 vSpriteCoord;
+void main() {
+  vSpriteCoord = aSpriteCoord;
+  vec3 dir = mat3(viewMatrix) * (mat3(modelMatrix) * position);
+  vec4 clipPos = projectionMatrix * vec4(dir, 1.0);
+  clipPos.z = clipPos.w * 0.9997;
+  gl_Position = clipPos;
+  gl_PointSize = aSize;
+}
+`
+
+// Fragment: sample the per-tile sub-rect of the atlas.  gl_PointCoord is
+// (0,0)=top-left → (1,1)=bottom-right of the sprite quad, while our atlas
+// has (0,0)=bottom-left in UV — hence the (1.0 - y) flip.
+const LABEL_FRAG = `
+uniform sampler2D map;
+varying vec4 vSpriteCoord;
+void main() {
+  vec2 uv = vec2(
+    vSpriteCoord.x + vSpriteCoord.z * gl_PointCoord.x,
+    vSpriteCoord.y + vSpriteCoord.w * (1.0 - gl_PointCoord.y));
+  gl_FragColor = texture2D(map, uv);
 }
 `
