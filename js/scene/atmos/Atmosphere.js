@@ -639,51 +639,111 @@ void main() {
 
     // Extinction alpha via transmittance LUT along view ray.
     // Use the same mu_v_lut clamp (horizon angle) so extinction matches scatter.
+    // Trust the LUT: at zenith from sea level the visible-band optical
+    // depth is ~0.15, giving alpha ~0.14 — i.e. ~86% transmittance for the
+    // background (stars, milky way, distant planets).  Earlier revs forced
+    // alpha to ~1 whenever the camera was inside the atmosphere; that made
+    // the day sky look opaque blue but blocked stars on the night side.
     vec2 uvT_v    = transmittanceUV(r_e, mu_v_lut, uGroundRadius, uAtmosphereRadius);
     vec2 odView   = texture2D(tTransmittance, uvT_v).rg;
     vec3 extVec   = uRayleigh * odView.r + vec3(uMieCoeff * odView.g);
     float alpha   = 1.0 - exp(-max(extVec.r, max(extVec.g, extVec.b)));
-
-    // Alpha boost when camera is inside atmosphere (sky rays)
-    if (uAtmosphereRadius > uGroundRadius) {
-      float camDist = length(eyePos);
-      if (camDist < uAtmosphereRadius) {
-        vec2 tG = rsi(eyePos, rayDir, uGroundRadius);
-        if (!(tG.x > 0.0 && tG.x <= tG.y)) {
-          float depth = 1.0 - (camDist - uGroundRadius)
-                            / (uAtmosphereRadius - uGroundRadius);
-          alpha = max(alpha, clamp(depth, 0.0, 1.0));
-        }
-      }
+    // Cap raw extinction-alpha so horizon-grazing rays at night still let
+    // some starlight through (real physics says they shouldn't but the eye
+    // adapts; we don't simulate that yet).
+    alpha = min(alpha, 0.92);
+    // Tie alpha to inscatter brightness via a steep smoothstep — bright
+    // day sky becomes opaque (washes out star labels behind it), dim/dark
+    // night sky stays transparent.  Models eye iris dilation: the eye
+    // can't see faint sources once the sky is even faintly bright.
+    //
+    // Why smoothstep instead of a plain max(alpha, brightness): the
+    // Bruneton LUT inscatter for our atmosphere parameters tops out at
+    // ~0.5–0.7 max-channel even at noon, so a linear coupling leaves
+    // alpha at 0.7 → 30% transmittance, and the (HDR-valued) star label
+    // sprites still show through.  smoothstep snaps alpha to 1 as soon
+    // as brightness exceeds the upper bound (well below sunset).
+    //
+    // Gated on insideAtm: this boost models EYE adaptation, which only
+    // makes sense when you are the eye inside the atmosphere.  From space
+    // looking down at the day side, you're a camera viewing through a
+    // thin upper-atmosphere column — the LUT alpha already captures the
+    // real optical depth of that column, and forcing it to ~1 would hide
+    // the surface texture behind a featureless blue disc.
+    vec3 color = 1.0 - exp(-scattered);
+    float skyBrightness = max(color.r, max(color.g, color.b));
+    // Two knobs in the smoothstep:
+    // - Lower bound = brightness at which stars start fading
+    // - Upper bound = brightness at which sky goes fully opaque
+    float lowerBrightBound = 0.01;
+    float upperBrightBound = 0.1;
+    // Altitude weighting on the boost: full strength at the surface where
+    // the eye is deeply embedded in the atmosphere column, smoothly
+    // weakening to zero at the atmosphere's upper edge.  Reason: from
+    // high altitude looking at the limb, sky pixels in the dim transition
+    // zone above the bright glow have moderate brightness — full boost
+    // would push alpha to ~0.5 there, which hides stars but isn't bright
+    // enough to compensate (sky color is dim too), producing an additive
+    // "trough" that reads as a dark band between glow and starfield.
+    // Real-eye basis: at the top of the atmosphere there's barely any air
+    // to scatter, so iris dilation isn't being pushed by ambient
+    // brightness — the eye effectively becomes a camera and the LUT
+    // extinction alone is correct.
+    float camAlt = r_e - uGroundRadius;
+    float atmHeight = uAtmosphereRadius - uGroundRadius;
+    float altWeight = clamp(1.0 - camAlt / atmHeight, 0.0, 1.0);
+    if (insideAtm) {
+      alpha = max(alpha, smoothstep(lowerBrightBound, upperBrightBound, skyBrightness) * altWeight);
+    }
+    // TODO(future): tune the surface-vs-atmosphere blend coloring.  From
+    // space looking at the day side, the LUT inscatter mixes additively
+    // with the surface texture: where atmospheric column is thick (limb)
+    // the inscatter hue dominates; where thin (overhead/disc centre) the
+    // surface shows.  The transition reads OK but the saturation/hue
+    // balance over land vs ocean isn't perfectly tuned, and the coastal
+    // hand-off looks slightly washed.  Plausible knobs: per-channel
+    // inscatter scaling, a soft saturation curve on (color + scene*T),
+    // or eventually proper aerial-perspective integration over the
+    // segment from surface depth back to the camera.
+    // Gap-pixel hard occlusion: when isGap is true we KNOW the geometric
+    // ground is in front of whatever the depth buffer recorded — i.e. a
+    // sub-pixel rasterization gap let the background (sun, stars, distant
+    // planets) leak through where Earth's tessellated surface should have
+    // covered.  Force alpha=1 so the scene contribution drops out and the
+    // gap shows only inscatter (bright haze by day, dark by night) — visually
+    // matches the surrounding surface and gives a crisp horizon edge.
+    if (isGap) {
+      alpha = 1.0;
     }
 
-    vec3 color = 1.0 - exp(-scattered);
     vec4 scene = texture2D(tDiffuse, vUv);
     gl_FragColor = vec4(color + scene.rgb * (1.0 - alpha), 1.0);
     return;
   }
 
   // ── Fallback: ray-march scatter (i-loop + j-loop or j-LUT) ───────────────
+  // result.a is the extinction alpha along the view ray; trust it directly
+  // (no inside-atmosphere depth boost — see the LUT branch above for why).
   vec4 result = scatter(rayDir, eyePos, uSunDirection, uSunIntensity,
                         uGroundRadius, uAtmosphereRadius,
                         uRayleigh, uRayleighScaleHeight,
                         uMieCoeff, uMieScaleHeight, uMiePolarity,
                         tMax);
-
-  if (uAtmosphereRadius > uGroundRadius) {
-    float camDist = length(eyePos);
-    if (camDist < uAtmosphereRadius) {
-      vec2 tG = rsi(eyePos, rayDir, uGroundRadius);
-      bool hitsGround = tG.x > 0.0 && tG.x <= tG.y;
-      if (!hitsGround) {
-        float depth = 1.0 - (camDist - uGroundRadius)
-                          / (uAtmosphereRadius - uGroundRadius);
-        result.a = max(result.a, clamp(depth, 0.0, 1.0));
-      }
-    }
-  }
-
+  // Cap and brightness-tie — see the LUT branch above for the rationale.
+  // Boost weighted by camera altitude (full at surface, zero at top of
+  // atmosphere) and gated on insideAtm; both keep the boost confined to
+  // the eye-adaptation regime where it's physically meaningful.
+  result.a = min(result.a, 0.92);
   vec3 color = 1.0 - exp(-result.rgb);
+  float skyBrightness = max(color.r, max(color.g, color.b));
+  float r_eFb = length(eyePos);
+  bool insideAtmFb = (r_eFb <= uAtmosphereRadius);
+  float camAltFb = r_eFb - uGroundRadius;
+  float atmHeightFb = uAtmosphereRadius - uGroundRadius;
+  float altWeightFb = clamp(1.0 - camAltFb / atmHeightFb, 0.0, 1.0);
+  if (insideAtmFb) {
+    result.a = max(result.a, smoothstep(0.01, 0.1, skyBrightness) * altWeightFb);
+  }
   vec4 scene = texture2D(tDiffuse, vUv);
   gl_FragColor = vec4(color + scene.rgb * (1.0 - result.a), 1.0);
 }

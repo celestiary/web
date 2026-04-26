@@ -43,7 +43,7 @@
   "texture_dir": "earth/",
   "atmosphere": {
     "height": "8e4 m",
-    "sunIntensity": 20,
+    "sunIntensity": 60,
     "rayleigh": [5.8e-6, 1.35e-5, 3.31e-5],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "8e3 m",

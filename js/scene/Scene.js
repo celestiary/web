@@ -591,9 +591,14 @@ export default class Scene {
       Shared.targets.tweenNextFn = null
     }
 
-    // Lock to pan mode; mark landed for permalink + UI.
+    // Reset drag mode to 'auto' so pickDragMode picks 'pan' here at the
+    // surface AND naturally flips back to 'orbit' when the user later
+    // zooms out past the auto-switch threshold.  Earlier we forced
+    // 'pan' explicitly, which felt right at touchdown but stayed sticky:
+    // zooming out past orbit altitude kept dragging in pan mode forever.
+    // Mark landed for permalink + UI; this is independent of drag mode.
     const state = this.ui.useStore?.getState?.()
-    state?.setDragMode?.('pan')
+    state?.setDragMode?.('auto')
     state?.setLanded?.(true)
     Shared.targets.landed = true
 

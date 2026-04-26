@@ -336,10 +336,14 @@ describe('Scene.land', () => {
     expect(camera.position.y).toBeCloseTo(r + 100, 0)
   })
 
-  it('switches drag mode to pan', () => {
+  it('resets drag mode to auto so it picks pan here and orbit on zoom-out', () => {
+    // Earlier rev forced dragMode='pan' on land; that stayed sticky and
+    // never flipped back to orbit when the user later zoomed away from
+    // the surface.  'auto' resolves to pan at touchdown via pickDragMode
+    // and naturally flips to orbit past the auto-switch threshold.
     const {scene, stateBag} = makeSceneWithEarth()
     scene.land('earth', 0, 0, 0, {instant: true})
-    expect(stateBag.dragMode).toBe('pan')
+    expect(stateBag.dragMode).toBe('auto')
   })
 
   it('marks landed=true in store and Shared.targets', () => {
