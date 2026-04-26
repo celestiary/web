@@ -53,6 +53,63 @@ export default class Scene {
     this.stars = null
     this.asterisms = null
     this.orbitsVisible = true
+    // Toggleable settings.  Initialized to the runtime state right after
+    // Scene construction (before any user / firstTime toggle): asterisms
+    // and star labels are off (built / unhidden lazily); planet labels and
+    // orbits are visible by default; all reference grids are hidden.  Kept
+    // in sync by every toggle method below; surfaced for permalink
+    // round-tripping via getSettings() / applySettings().  Letter codes
+    // match permalink.js's SETTINGS_DEFAULTS.
+    this._settings = {
+      a: false, // asterisms
+      l: false, // star labels
+      p: true, // planet labels
+      o: true, // orbits
+      e: false, // equatorial grid
+      c: false, // ecliptic grid
+      g: false, // galactic grid
+    }
+    // Set by Celestiary; called whenever any settings flag flips so the
+    // permalink can be updated.
+    this.onSettingsChange = null
+  }
+
+
+  /** @returns {object} flat {key: bool} map matching permalink SETTINGS_DEFAULTS */
+  getSettings() {
+    return {...this._settings}
+  }
+
+
+  /**
+   * Drive each settings toggle to match the requested state, idempotently.
+   * Called at startup to reify either defaults or a permalink override; any
+   * key whose target value already matches the current value is a no-op.
+   *
+   * @param {object} requested flat {key: bool} map
+   */
+  applySettings(requested) {
+    const dispatch = {
+      a: () => this.toggleAsterisms(),
+      l: () => this.toggleStarLabels(),
+      p: () => this.togglePlanetLabels(),
+      o: () => this.toggleOrbits(),
+      e: () => this.toggleGridEquatorial(),
+      c: () => this.toggleGridEcliptic(),
+      g: () => this.toggleGridGalactic(),
+    }
+    for (const key of Object.keys(dispatch)) {
+      if (requested[key] !== undefined && requested[key] !== this._settings[key]) {
+        dispatch[key]()
+      }
+    }
+  }
+
+
+  /** Internal: flip a single key in _settings and notify the listener. */
+  _flipSetting(key) {
+    this._settings[key] = !this._settings[key]
+    this.onSettingsChange?.()
   }
 
 
@@ -388,11 +445,12 @@ export default class Scene {
         return
       }
       this._asterismsPending = true
+      this._flipSetting('a')
       this.stars.onCatalogReady(() => {
         const asterisms = new Asterisms(this.ui, this.stars, () => {
           this.stars.add(asterisms)
           this.asterisms = asterisms
-          this.asterisms.visible = true
+          this.asterisms.visible = this._settings.a
           this._asterismsPending = false
         })
       })
@@ -400,6 +458,7 @@ export default class Scene {
     }
     if (this.asterisms) {
       this.asterisms.visible = !this.asterisms.visible
+      this._flipSetting('a')
     }
   }
 
@@ -407,12 +466,14 @@ export default class Scene {
   /** */
   toggleOrbits() {
     Utils.visitSetProperty(this.objects['sun'], 'name', 'orbit', 'visible', this.orbitsVisible = !this.orbitsVisible)
+    this._flipSetting('o')
   }
 
 
   /** */
   togglePlanetLabels() {
     Utils.visitToggleProperty(this.objects['sun'], 'name', 'label LOD', 'visible')
+    this._flipSetting('p')
   }
 
 
@@ -420,6 +481,7 @@ export default class Scene {
   toggleStarLabels() {
     if (this.stars) {
       this.stars.labelLOD.visible = !this.stars.labelLOD.visible
+      this._flipSetting('l')
     }
   }
 
@@ -428,6 +490,7 @@ export default class Scene {
   toggleGridEquatorial() {
     if (this.grids) {
       this.grids.equatorial.visible = !this.grids.equatorial.visible
+      this._flipSetting('e')
     }
   }
 
@@ -436,6 +499,7 @@ export default class Scene {
   toggleGridEcliptic() {
     if (this.grids) {
       this.grids.ecliptic.visible = !this.grids.ecliptic.visible
+      this._flipSetting('c')
     }
   }
 
@@ -444,6 +508,7 @@ export default class Scene {
   toggleGridGalactic() {
     if (this.grids) {
       this.grids.galactic.visible = !this.grids.galactic.visible
+      this._flipSetting('g')
     }
   }
 

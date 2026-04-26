@@ -15,7 +15,7 @@ import * as Shapes from './scene/shapes'
 import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToLocal, worldToLatLngAlt} from './coords'
-import {decodePermalink, encodePermalink, pathFromFragment} from './permalink'
+import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment} from './permalink'
 import {elt} from './utils'
 
 
@@ -48,6 +48,9 @@ export default class Celestiary {
     this.ui.onCameraChange = () => this._schedulePermalinkUpdate()
     this.camera = this.ui.camera
     this.scene = new Scene(this.ui)
+    // Any settings toggle (asterisms, grids, etc.) updates the permalink so
+    // the URL always reflects the live view configuration.
+    this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
     this.loader = new Loader()
     this.controlPanel = new ControlPanel(navElt, this.loader)
     this.firstTime = true
@@ -208,8 +211,14 @@ export default class Celestiary {
           }
         }
         if (this.firstTime) {
-          this.scene.toggleAsterisms()
-          this.scene.toggleStarLabels()
+          // Apply scene settings — either from the permalink's `s=` flags
+          // or the SETTINGS_DEFAULTS table.  applySettings is idempotent;
+          // any setting already at its target state is a no-op, so this
+          // does the equivalent of the old "toggleAsterisms / toggleStarLabels"
+          // pair for a fresh viewer, and additionally honors the
+          // permalink for returning users.
+          const wantedSettings = pl?.settings ?? decodeSettings(undefined)
+          this.scene.applySettings(wantedSettings)
           this.firstTime = false
         }
       }, this._pendingPermalink ? 0 : (this.firstTime ? 1000 : 0))
@@ -433,7 +442,9 @@ export default class Celestiary {
           camWorldPos, planetWorldPos, planetWorldQuat, tObj.props.radius.scalar,
       )
       const d2000 = this.time.simTimeJulianDay() - J2000_JD
-      const fragment = encodePermalink(path, d2000, lat, lng, alt, cam.quaternion, cam.fov)
+      const settings = this.scene.getSettings ? this.scene.getSettings() : null
+      const fragment = encodePermalink(
+          path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings)
       history.replaceState(null, '', `#${fragment}`)
     }, 1000)
   }

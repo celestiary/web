@@ -1,4 +1,11 @@
-import {decodePermalink, encodePermalink, pathFromFragment} from './permalink.js'
+import {
+  SETTINGS_DEFAULTS,
+  decodePermalink,
+  decodeSettings,
+  encodePermalink,
+  encodeSettings,
+  pathFromFragment,
+} from './permalink.js'
 
 
 describe('encodePermalink / decodePermalink round-trip', () => {
@@ -173,5 +180,62 @@ describe('lat/lng encoding', () => {
   it('trims trailing zeros from lat/lng', () => {
     const encoded = encodePermalink('sun/earth', 0, 45.0, -90.0, 1000, {x: 0, y: 0, z: 0, w: 1}, 45)
     expect(encoded).toMatch(/^sun\/earth@45,-90,/)
+  })
+})
+
+
+describe('settings encoding', () => {
+  const defaults = {...SETTINGS_DEFAULTS}
+  const baseArgs = ['sun/earth', 0, 0, 0, 1000, {x: 0, y: 0, z: 0, w: 1}, 45]
+
+  it('omits the s= param when all settings are at defaults', () => {
+    const encoded = encodePermalink(...baseArgs, defaults)
+    expect(encoded).not.toContain(';s=')
+  })
+
+  it('omits the s= param when settings is undefined (back-compat)', () => {
+    const encoded = encodePermalink(...baseArgs)
+    expect(encoded).not.toContain(';s=')
+  })
+
+  it('flags only deviations from defaults', () => {
+    const encoded = encodePermalink(...baseArgs,
+        {...defaults, a: false, e: true})
+    expect(encoded).toContain(';s=')
+    expect(encoded).toMatch(/;s=[ae]+/)
+    // a is default ON, set to OFF → "a"; e is default OFF, set to ON → "e"
+    const m = encoded.match(/;s=(\w+)/)
+    const flags = m[1].split('').sort().join('')
+    expect(flags).toBe('ae')
+  })
+
+  it('round-trips an all-defaults permalink', () => {
+    const encoded = encodePermalink(...baseArgs, defaults)
+    const decoded = decodePermalink(encoded)
+    expect(decoded.settings).toEqual(defaults)
+  })
+
+  it('round-trips a permalink with custom settings', () => {
+    const custom = {...defaults, a: false, l: false, e: true, c: true, g: true}
+    const encoded = encodePermalink(...baseArgs, custom)
+    const decoded = decodePermalink(encoded)
+    expect(decoded.settings).toEqual(custom)
+  })
+
+  it('decodeSettings returns full defaults map for empty / missing input', () => {
+    expect(decodeSettings(undefined)).toEqual(defaults)
+    expect(decodeSettings('')).toEqual(defaults)
+  })
+
+  it('decodeSettings ignores unknown letter codes', () => {
+    expect(decodeSettings('aZQ')).toEqual({...defaults, a: false})
+  })
+
+  it('encodeSettings is stable in key order regardless of input ordering', () => {
+    // Caller may build the settings object in any order; the encoded string
+    // must be deterministic so the URL doesn't churn between identical states.
+    const s1 = {a: false, l: true, p: true, o: true, e: true, c: false, g: false}
+    const s2 = {g: false, c: false, e: true, o: true, p: true, l: true, a: false}
+    expect(encodeSettings(s1)).toBe(encodeSettings(s2))
   })
 })
