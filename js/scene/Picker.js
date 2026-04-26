@@ -1,4 +1,7 @@
-import {Raycaster, Vector3} from 'three'
+// Object3D imported only for the JSDoc type below; project lint config
+// permits type-only imports.
+import {Object3D, Raycaster, Vector3} from 'three'
+import {latLngAltToBodyFixed} from '../coords.js'
 
 
 // Reused across calls to avoid per-frame allocations.
@@ -7,8 +10,8 @@ const _itemVec = new Vector3
 const _mouseVec = new Vector3
 const _rayOrigin = new Vector3
 
-// Reject picks whose closest star is farther than this many screen pixels.
-const MAX_PICK_PX = 100
+// Reject picks whose closest hit is farther than this many screen pixels.
+export const MAX_PICK_PX = 100
 
 
 /**
@@ -96,4 +99,81 @@ function mark(ui, items, mouse, stars, wg, pickCb) {
   const hipId = stars.geom.idsByNdx[closestNdx / 3]
   const star = stars.catalog.starByHip.get(hipId)
   pickCb({star, x: minX, y: minY, z: minZ})
+}
+
+
+// Reusable temps for queryPlaces.
+const _placeLocal = new Vector3()
+const _placeWorld = new Vector3()
+const _bodyCenter = new Vector3()
+const _viewDir = new Vector3()
+const _normal = new Vector3()
+
+
+/**
+ * Find the place entry nearest the mouse cursor on a given body and call
+ * pickCb with it.  O(N) projection-loop — N is small (10s..few-thousand)
+ * and avoids transforming the ray into the body's rotated/tilted frame.
+ *
+ * Back-hemisphere places are filtered via the surface-normal vs view-dir
+ * dot product, so picking can't accidentally land on a Tycho behind the
+ * Moon when the user clicks the visible Plato.
+ *
+ * @param {object} ui  ThreeUI; uses .renderer, .camera
+ * @param {{clientX:number, clientY:number}} e  Pointer event
+ * @param {Object3D} body  Rotating planet Object3D (scene.objects[name]); needs
+ *   .matrixWorld and .props.radius.scalar
+ * @param {Array<{n,t?,lat,lng,a?,k?}>} entries  Catalog entries
+ * @param {Function} pickCb  Called with the matched entry, or never if no hit
+ */
+export function queryPlaces(ui, e, body, entries, pickCb) {
+  if (!entries || entries.length === 0) {
+    return
+  }
+  const radius = body.props?.radius?.scalar
+  if (!radius) {
+    return
+  }
+  const el = ui.renderer.domElement
+  const mouseNdcX = ((e.clientX / el.clientWidth) * 2) - 1
+  const mouseNdcY = ((e.clientY / el.clientHeight) * -2) + 1
+
+  body.updateMatrixWorld()
+  body.getWorldPosition(_bodyCenter)
+  ui.camera.getWorldPosition(_viewDir) // reused as cam world pos below
+
+  let minDist = Infinity
+  let bestEntry = null
+
+  for (const entry of entries) {
+    _placeLocal.copy(latLngAltToBodyFixed(entry.lat, entry.lng, entry.a ?? 0, radius))
+    _placeWorld.copy(_placeLocal).applyMatrix4(body.matrixWorld)
+
+    // Cull back hemisphere: outward normal at the place vs camera-to-place
+    // direction.  positive dot ⇒ camera looks AT the surface from outside.
+    _normal.copy(_placeWorld).sub(_bodyCenter).normalize()
+    const camToPlace = _placeWorld.clone().sub(_viewDir).normalize() // _viewDir holds cam world pos
+    if (_normal.dot(camToPlace) > 0) {
+      continue
+    }
+
+    // Project to NDC; reject behind the camera.
+    const proj = _placeWorld.clone().project(ui.camera)
+    if (proj.z < -1 || proj.z > 1) {
+      continue
+    }
+
+    const pxDx = ((proj.x - mouseNdcX) * el.clientWidth) / 2
+    const pxDy = ((proj.y - mouseNdcY) * el.clientHeight) / 2
+    const dist = (pxDx * pxDx) + (pxDy * pxDy)
+    if (dist < minDist) {
+      minDist = dist
+      bestEntry = entry
+    }
+  }
+
+  if (!bestEntry || minDist > MAX_PICK_PX * MAX_PICK_PX) {
+    return
+  }
+  pickCb(bestEntry)
 }

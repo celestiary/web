@@ -129,7 +129,8 @@ export default class Celestiary {
    */
   _registerSearchProviders() {
     searchIndex.register(new SceneProvider(this.loader))
-    searchIndex.register(new PlacesProvider())
+    this._placesProvider = new PlacesProvider()
+    searchIndex.register(this._placesProvider)
     // StarsCatalog mutates in place — after load, prev.starsCatalog and
     // state.starsCatalog are the same object (both already populated), so a
     // before/after numStars comparison always sees equal.  Track registration
@@ -195,24 +196,48 @@ export default class Celestiary {
         }
         this.scene.targetNamed(targetName)
         this.scene.goTo()
+        // If the target body has a places catalog, eager-populate the
+        // search index's Tier C cache so 'Paris', 'Tycho', etc. are
+        // searchable while the body is anchored.  Fire-and-forget;
+        // collectUnder is async but search just shows them when ready.
+        const tNow = Shared.targets.cur
+        if (tNow?.props?.has_locations && this._placesProvider) {
+          const anchorPath = this.loader.pathByName[tNow.props.name]
+          if (anchorPath) {
+            this._placesProvider.collectUnder(anchorPath).then((entries) => {
+              searchIndex.populateTierC(anchorPath, entries)
+            }).catch((e) => console.warn('PlacesProvider Tier C populate failed:', e))
+          }
+        }
         if (pl) {
           try {
-            // scene.goTo() has already rebased WorldGroup + reparented the platform
-            // to the target body, so lat/lng can resolve against the platform directly.
             this.ui.scene.updateMatrixWorld()
             const tObj = Shared.targets.cur
-            const planetWorldPos = new THREE.Vector3()
-            tObj.getWorldPosition(planetWorldPos)
-            const planetWorldQuat = new THREE.Quaternion()
-            tObj.getWorldQuaternion(planetWorldQuat)
-            const platformWorldQuat = new THREE.Quaternion()
-            this.ui.camera.platform.getWorldQuaternion(platformWorldQuat)
-            const camPos = latLngAltToLocal(
-                pl.lat, pl.lng, pl.alt, tObj.props.radius.scalar,
-                planetWorldQuat, platformWorldQuat,
-            )
-            this.ui.camera.position.copy(camPos)
-            this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w)
+            if (pl.settings?.L) {
+              // Landed restore: reparent to the rotating body, snap to the
+              // saved lat/lng/alt, then overwrite quaternion to recover the
+              // saved look direction.  Skips the orbit-style restore below
+              // because that path leaves the camera in an orbit-relative
+              // frame, but landed cq is body-relative.
+              this.scene.land(tObj.props.name, pl.lat, pl.lng, pl.alt, {instant: true})
+              this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w)
+            } else {
+              // Orbit-style restore: scene.goTo() has already rebased
+              // WorldGroup + reparented platform to the target body, so
+              // lat/lng resolve against the platform directly.
+              const planetWorldPos = new THREE.Vector3()
+              tObj.getWorldPosition(planetWorldPos)
+              const planetWorldQuat = new THREE.Quaternion()
+              tObj.getWorldQuaternion(planetWorldQuat)
+              const platformWorldQuat = new THREE.Quaternion()
+              this.ui.camera.platform.getWorldQuaternion(platformWorldQuat)
+              const camPos = latLngAltToLocal(
+                  pl.lat, pl.lng, pl.alt, tObj.props.radius.scalar,
+                  planetWorldQuat, platformWorldQuat,
+              )
+              this.ui.camera.position.copy(camPos)
+              this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w)
+            }
             // Permalink restore takes precedence over any pending goTo animations.
             Shared.targets.tween = null
             Shared.targets.tweenNextFn = null

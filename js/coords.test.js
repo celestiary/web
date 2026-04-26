@@ -1,5 +1,5 @@
 import {Quaternion, Vector3} from 'three'
-import {worldToLatLngAlt, latLngAltToLocal} from './coords.js'
+import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords.js'
 
 
 const EARTH_RADIUS = 6371000 // meters
@@ -37,9 +37,9 @@ describe('worldToLatLngAlt — known positions', () => {
     expect(alt).toBeCloseTo(EARTH_RADIUS * 2, 0)
   })
 
-  it('camera at equator, prime meridian (+Z) → lat=0, lng=0', () => {
+  it('camera at equator, prime meridian (+X) → lat=0, lng=0', () => {
     const {lat, lng, alt} = worldToLatLngAlt(
-        new Vector3(0, 0, EARTH_RADIUS * 2),
+        new Vector3(EARTH_RADIUS * 2, 0, 0),
         new Vector3(0, 0, 0),
         new Quaternion(),
         EARTH_RADIUS,
@@ -49,9 +49,9 @@ describe('worldToLatLngAlt — known positions', () => {
     expect(alt).toBeCloseTo(EARTH_RADIUS, 0)
   })
 
-  it('camera at equator, 90° east (+X) → lat=0, lng=90', () => {
+  it('camera at equator, 90° east (−Z) → lat=0, lng=90', () => {
     const {lat, lng} = worldToLatLngAlt(
-        new Vector3(EARTH_RADIUS * 2, 0, 0),
+        new Vector3(0, 0, -EARTH_RADIUS * 2),
         new Vector3(0, 0, 0),
         new Quaternion(),
         EARTH_RADIUS,
@@ -60,9 +60,9 @@ describe('worldToLatLngAlt — known positions', () => {
     expect(lng).toBeCloseTo(90, 4)
   })
 
-  it('camera at equator, 90° west (−X) → lat=0, lng=−90', () => {
+  it('camera at equator, 90° west (+Z) → lat=0, lng=−90', () => {
     const {lat, lng} = worldToLatLngAlt(
-        new Vector3(-EARTH_RADIUS * 2, 0, 0),
+        new Vector3(0, 0, EARTH_RADIUS * 2),
         new Vector3(0, 0, 0),
         new Quaternion(),
         EARTH_RADIUS,
@@ -167,18 +167,13 @@ describe('worldToLatLngAlt / latLngAltToLocal round-trip', () => {
   })
 
   it('southern hemisphere, west longitude (negative lat/lng)', () => {
-    // Sydney: lat=-33.87, lng=151.21
+    // Sydney: lat=-33.87, lng=151.21 — round-trip via the helper so the
+    // test inherits the texture-aligned convention rather than re-deriving
+    // the formula in the test (and re-introducing drift if it changes).
     const lat = -33.8688
     const lng = 151.2093
     const alt = 10000
-    const r = EARTH_RADIUS + alt
-    const latRad = lat * Math.PI / 180
-    const lngRad = lng * Math.PI / 180
-    const bodyFixed = new Vector3(
-        r * Math.cos(latRad) * Math.sin(lngRad),
-        r * Math.sin(latRad),
-        r * Math.cos(latRad) * Math.cos(lngRad),
-    )
+    const bodyFixed = latLngAltToBodyFixed(lat, lng, alt, EARTH_RADIUS)
     // With identity quaternions, body-fixed = world-relative = camera world pos (planet at origin)
     const {lat: dl, lng: dg, alt: da} = worldToLatLngAlt(
         bodyFixed, new Vector3(0, 0, 0), new Quaternion(), EARTH_RADIUS,
@@ -222,17 +217,56 @@ describe('latLngAltToLocal produces expected body-fixed directions', () => {
     expect(result.z).toBeCloseTo(0, 0)
   })
 
-  it('lat=0, lng=0 places camera along +Z (prime meridian)', () => {
+  it('lat=0, lng=0 places camera along +X (prime meridian, texture u=0.5)', () => {
     const result = latLngAltToLocal(0, 0, EARTH_RADIUS, EARTH_RADIUS, new Quaternion(), new Quaternion())
-    expect(result.x).toBeCloseTo(0, 0)
-    expect(result.y).toBeCloseTo(0, 0)
-    expect(result.z).toBeCloseTo(EARTH_RADIUS * 2, 0)
-  })
-
-  it('lat=0, lng=90 places camera along +X', () => {
-    const result = latLngAltToLocal(0, 90, EARTH_RADIUS, EARTH_RADIUS, new Quaternion(), new Quaternion())
     expect(result.x).toBeCloseTo(EARTH_RADIUS * 2, 0)
     expect(result.y).toBeCloseTo(0, 0)
     expect(result.z).toBeCloseTo(0, 0)
+  })
+
+  it('lat=0, lng=90 places camera along −Z (90° east winds toward −Z)', () => {
+    const result = latLngAltToLocal(0, 90, EARTH_RADIUS, EARTH_RADIUS, new Quaternion(), new Quaternion())
+    expect(result.x).toBeCloseTo(0, 0)
+    expect(result.y).toBeCloseTo(0, 0)
+    expect(result.z).toBeCloseTo(-EARTH_RADIUS * 2, 0)
+  })
+})
+
+
+describe('latLngAltToBodyFixed', () => {
+  it('places lat=0,lng=0 on +X at altitude r+alt (prime meridian)', () => {
+    const v = latLngAltToBodyFixed(0, 0, 0, EARTH_RADIUS)
+    expect(v.x).toBeCloseTo(EARTH_RADIUS, 0)
+    expect(v.y).toBeCloseTo(0, 0)
+    expect(v.z).toBeCloseTo(0, 0)
+  })
+
+  it('places lat=90 on +Y (north pole)', () => {
+    const v = latLngAltToBodyFixed(90, 0, 0, EARTH_RADIUS)
+    expect(v.x).toBeCloseTo(0, 0)
+    expect(v.y).toBeCloseTo(EARTH_RADIUS, 0)
+    expect(v.z).toBeCloseTo(0, 0)
+  })
+
+  it('places lng=+90 on −Z (east winds toward −Z, texture u=0.75)', () => {
+    const v = latLngAltToBodyFixed(0, 90, 0, EARTH_RADIUS)
+    expect(v.x).toBeCloseTo(0, 0)
+    expect(v.y).toBeCloseTo(0, 0)
+    expect(v.z).toBeCloseTo(-EARTH_RADIUS, 0)
+  })
+
+  it('round-trips against worldToLatLngAlt at 2 m altitude (eye-height landed)', () => {
+    // Surface-precision lock: the landed-camera default altitude is 2 m.
+    // Round-trip at a non-trivial lat/lng to confirm float64 accuracy.
+    const lat = 48.8566
+    const lng = 2.3522
+    const alt = 2
+    const v = latLngAltToBodyFixed(lat, lng, alt, EARTH_RADIUS)
+    // Treat v as the camera's world position relative to a planet at origin
+    // with identity orientation.  worldToLatLngAlt should recover the input.
+    const back = worldToLatLngAlt(v, new Vector3(0, 0, 0), new Quaternion(), EARTH_RADIUS)
+    expect(back.lat).toBeCloseTo(lat, 4)
+    expect(back.lng).toBeCloseTo(lng, 4)
+    expect(back.alt).toBeCloseTo(alt, 1)
   })
 })

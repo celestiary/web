@@ -44,6 +44,7 @@ export const targets = {
   follow: null,
   tween: null,
   tweenNextFn: null, // factory called when tween completes; creates the follow-on tween
+  landed: false, // true when camera is pinned to a body surface via Scene.land
 }
 // for invisible LOD.
 export const FAR_OBJ = named(new Object3D, 'LODFarObj')

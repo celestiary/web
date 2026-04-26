@@ -15,6 +15,7 @@ import {
   assertInRange,
 } from '@pablo-mayrgundter/testing.js/testing.js'
 import Object from './object.js'
+import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
 import {
   ellipseSemiMinorAxisCurve,
@@ -149,7 +150,6 @@ export default class Planet extends Object {
     }
 
     if (this.props.has_locations) {
-      // TODO: lod for names
       planet.add(this.loadLocations(this.props))
     }
 
@@ -209,6 +209,22 @@ export default class Planet extends Object {
 
     // group.renderOrder = 1
     return group
+  }
+
+
+  /**
+   * Build a Places group for this planet's surface POIs.  Returned
+   * synchronously (empty), populated async from /data/places/<name>.json.
+   * Cached on the Planet so Scene.land can read entries without re-fetching.
+   *
+   * @param {object} props
+   * @returns {Places}
+   */
+  loadLocations(props) {
+    const places = new Places(this.name, props.radius.scalar)
+    this.places = places
+    fetchPlaces(this.name).then((entries) => places.setEntries(entries))
+    return places
   }
 
 

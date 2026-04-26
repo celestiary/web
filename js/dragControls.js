@@ -38,15 +38,24 @@ import {resolveDragMode} from './dragMode'
  * @param {Function} [options.getTarget] Returns the current target object
  *   (with `.props.radius.scalar` and optional `.props.atmosphere.height.scalar`).
  *   Required for `'auto'` to resolve to anything other than `'pan'`.
+ * @param {Function} [options.onClick] Called with the pointerup event when
+ *   the gesture moved less than CLICK_PX_THRESHOLD — distinguishes a true
+ *   click (e.g., to pick a label) from a drag-rotate.
  */
 export function attachPointerDrag(el, camera, options = {}) {
-  const {onChange, getDragMode, getTarget} = options
+  const {onChange, getDragMode, getTarget, onClick} = options
   let lastX = 0
   let lastY = 0
+  let downX = 0
+  let downY = 0
   let activePointerId = null
   let activeMode = 'pan'
   const orbitAxis = new Vector3()
   const orbitRot = new Quaternion()
+  // Total pixel travel above which we treat the gesture as a drag, not a click.
+  // Below this, pointerup fires onClick (after which dragControls also runs its
+  // pointerend cleanup).  Tuned for finger-tap jitter on touch devices.
+  const CLICK_PX_THRESHOLD = 5
 
   // Suppress browser touch gestures (pan / pinch-to-zoom-page / double-tap-zoom)
   // on the canvas so single-finger drags reach our handler instead of being
@@ -65,11 +74,18 @@ export function attachPointerDrag(el, camera, options = {}) {
     }
     lastX = e.clientX
     lastY = e.clientY
+    downX = e.clientX
+    downY = e.clientY
     el.setPointerCapture?.(e.pointerId)
   })
 
   const onPointerEnd = (e) => {
     if (e.pointerId === activePointerId) {
+      const dx = e.clientX - downX
+      const dy = e.clientY - downY
+      if (onClick && (dx * dx) + (dy * dy) < CLICK_PX_THRESHOLD * CLICK_PX_THRESHOLD) {
+        onClick(e)
+      }
       activePointerId = null
     }
   }

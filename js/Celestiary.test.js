@@ -81,6 +81,10 @@ global.document = {
 }
 global.history = {replaceState: () => {}}
 global.location = {hash: `#${TEST_FRAGMENT}`}
+// Earth's `has_locations: true` triggers Planet.loadLocations → fetchPlaces;
+// stub fetch to a no-content response so the warn-on-fail path doesn't spam
+// the test output.  No test in this file exercises real catalog data.
+global.fetch = () => Promise.resolve({ok: false, json: () => Promise.resolve({})})
 
 
 // ---- ThreeUI stub: real Three.js camera/scene, no WebGL renderer ----

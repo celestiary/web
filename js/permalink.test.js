@@ -257,3 +257,49 @@ describe('settings encoding', () => {
     expect(encodeSettings(s1)).toBe(encodeSettings(s2))
   })
 })
+
+
+describe('L (landed) flag', () => {
+  const defaults = {...SETTINGS_DEFAULTS}
+  const baseArgs = ['sun/earth', 0, 48.8566, 2.3522, 35,
+    {x: 0, y: 0, z: 0, w: 1}, 45]
+
+  it('default is false', () => {
+    expect(SETTINGS_DEFAULTS.L).toBe(false)
+  })
+
+  it('emits ;s=L when landed=true', () => {
+    const encoded = encodePermalink(...baseArgs, {...defaults, L: true})
+    expect(encoded).toContain(';s=')
+    expect(encoded).toMatch(/;s=L/)
+  })
+
+  it('omits L from s= when landed=false (default)', () => {
+    const encoded = encodePermalink(...baseArgs, defaults)
+    expect(encoded).not.toContain(';s=')
+  })
+
+  it('round-trips the L=true state', () => {
+    const encoded = encodePermalink(...baseArgs, {...defaults, L: true})
+    const decoded = decodePermalink(encoded)
+    expect(decoded.settings.L).toBe(true)
+  })
+
+  it('legacy permalinks without L decode landed=false (back-compat)', () => {
+    // A pre-L URL might be just plain "sun/earth@0,0,0;t=0jd;cq=0,0,0,1;fov=45deg"
+    // (no s=) or with other flags but no L letter.  Both must produce
+    // settings.L === false.
+    const noFlagsURL = encodePermalink(...baseArgs)
+    expect(decodePermalink(noFlagsURL).settings.L).toBe(false)
+    // s= present, L absent
+    const otherFlagsOnly = encodePermalink(...baseArgs, {...defaults, a: false})
+    expect(decodePermalink(otherFlagsOnly).settings.L).toBe(false)
+  })
+
+  it('coexists with other flags', () => {
+    const combo = {...defaults, a: false, e: true, L: true}
+    const encoded = encodePermalink(...baseArgs, combo)
+    const decoded = decodePermalink(encoded)
+    expect(decoded.settings).toEqual(combo)
+  })
+})

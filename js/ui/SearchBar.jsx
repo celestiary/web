@@ -459,6 +459,11 @@ function commitEntry(entry, celestiary) {
     })
     return
   }
+  if (entry.kind === 'place' && entry.payload) {
+    const {body, lat, lng, alt} = entry.payload
+    celestiary.scene.land(body, lat, lng, alt)
+    return
+  }
   const name = entry.payload && entry.payload.name
   if (!name) {
     return

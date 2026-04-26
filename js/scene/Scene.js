@@ -11,9 +11,33 @@ import newMilkyWay from './MilkyWay.js'
 import Planet from './Planet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
-import {newCameraGoToTween, newCameraLookTween} from '../camera.js'
+import {latLngAltToBodyFixed} from '../coords.js'
+import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
+import {queryPlaces} from './Picker.js'
 import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
+
+
+/** Default observer altitude for Scene.land — eye height. */
+export const DEFAULT_LAND_ALT_M = 2
+
+
+/**
+ * Walk a body's scene-graph subtree to find its Places group (a child of
+ * the rotating Planet Object3D, attached in Planet.newPlanet).  Returns
+ * null if the body wasn't built with `has_locations`.
+ *
+ * @param {Object3D} bodyNode
+ * @returns {?object}
+ */
+function _findPlaces(bodyNode) {
+  for (const c of bodyNode.children) {
+    if (c.bodyName !== undefined && Array.isArray(c.entries)) {
+      return c
+    }
+  }
+  return null
+}
 
 
 const STEP_BACK = 10
@@ -116,7 +140,7 @@ export default class Scene {
 
   /** @returns {object} flat {key: bool} map matching permalink SETTINGS_DEFAULTS */
   getSettings() {
-    return {...this._settings}
+    return {...this._settings, L: Shared.targets.landed}
   }
 
 
@@ -479,9 +503,103 @@ export default class Scene {
     // position (which may end up at orbit altitude OR ground level if
     // a permalink restore lands the camera on the surface).  Manual
     // pan/orbit selections from a previous body don't carry over.
+    // Also clear any prior 'landed' state — orbit-style nav unpins the
+    // observer from the surface.
     if (isPlanet) {
-      const setDragMode = this.ui.useStore?.getState()?.setDragMode
-      setDragMode?.('auto')
+      const state = this.ui.useStore?.getState?.()
+      state?.setDragMode?.('auto')
+      state?.setLanded?.(false)
+      Shared.targets.landed = false
+    }
+  }
+
+
+  /**
+   * Pin the camera at a surface location and switch to first-person ('pan')
+   * drag mode.  Reparents the camera platform to the rotating planet
+   * Object3D — children of that node inherit axial tilt + sidereal rotation
+   * via the scene graph, so the observer stays "stuck" to the surface as
+   * the body spins.
+   *
+   * Arrival pose: camera at body-fixed XYZ for (lat, lng, alt); look
+   * direction = outward along the surface normal (the user faces the sky,
+   * which is the whole point of the feature — they can pan-drag to look
+   * down).  The existing newCameraGoToTween animates from the user's
+   * current view.
+   *
+   * @param {string} bodyName Body name (must exist in this.objects with .props.radius)
+   * @param {number} lat Latitude in degrees
+   * @param {number} lng Longitude in degrees, east-positive
+   * @param {number} [alt] Altitude above surface in meters; default DEFAULT_LAND_ALT_M
+   * @param {object} [opts]
+   * @param {boolean} [opts.instant] Snap into the landed pose with no tween
+   *   (used by permalink restore); caller may then set camera.quaternion to
+   *   the saved view direction.
+   */
+  land(bodyName, lat, lng, alt = DEFAULT_LAND_ALT_M, opts = {}) {
+    const bodyNode = this.objects[bodyName]
+    if (!bodyNode) {
+      throw new Error(`Scene.land: no body ${bodyName}`)
+    }
+    const r = bodyNode.props?.radius?.scalar
+    if (!r) {
+      throw new Error(`Scene.land: body ${bodyName} has no radius`)
+    }
+
+    this.ui.scene.updateMatrixWorld()
+
+    // Capture pre-land camera world transform so the tween starts from the
+    // user's actual view rather than snapping to identity.
+    const camWorldPos = new Vector3()
+    const camWorldQuat = new Quaternion()
+    this.ui.camera.getWorldPosition(camWorldPos)
+    this.ui.camera.getWorldQuaternion(camWorldQuat)
+
+    // Reparent to the rotating body.  This is the key difference from goTo
+    // (which uses orbitPosition, before sidereal rotation) — child of the
+    // rotating planet means the camera tracks surface rotation for free.
+    bodyNode.add(this.ui.camera.platform)
+    this.ui.camera.platform.position.set(0, 0, 0)
+    this.ui.camera.platform.quaternion.identity()
+    this.ui.scene.updateMatrixWorld()
+
+    // Restore camera's prior world pose in the new platform-local frame.
+    this.ui.camera.position.copy(this.ui.camera.platform.worldToLocal(camWorldPos.clone()))
+    const platformWorldQuat = new Quaternion()
+    this.ui.camera.platform.getWorldQuaternion(platformWorldQuat)
+    this.ui.camera.quaternion.copy(platformWorldQuat.invert().multiply(camWorldQuat))
+
+    Shared.targets.cur = bodyNode
+    Shared.targets.obj = bodyNode
+
+    // Arrival local pose = body-fixed XYZ for (lat, lng, alt).  Platform is
+    // identity at body origin, so platform-local == body-local.
+    const arrivalLocal = latLngAltToBodyFixed(lat, lng, alt, r)
+
+    if (opts.instant) {
+      // Snap into the landed pose; permalink restore will overwrite
+      // quaternion afterward to recover the saved look direction.
+      this.ui.camera.position.copy(arrivalLocal)
+      Shared.targets.tween = null
+      Shared.targets.tweenNextFn = null
+    } else {
+      // Spline-based landing: spacecraft-style approach that arrives
+      // tangent to the surface, with the camera looking forward along
+      // the runway direction at touchdown (horizon view).  The tween
+      // owns both position AND orientation per frame.
+      Shared.targets.tween = newCameraLandTween(this.ui.camera, arrivalLocal, r)
+      Shared.targets.tweenNextFn = null
+    }
+
+    // Lock to pan mode; mark landed for permalink + UI.
+    const state = this.ui.useStore?.getState?.()
+    state?.setDragMode?.('pan')
+    state?.setLanded?.(true)
+    Shared.targets.landed = true
+
+    const setter = state?.setCommittedPath
+    if (typeof setter === 'function') {
+      setter(this._pathFor(bodyName))
     }
   }
 
@@ -521,9 +639,30 @@ export default class Scene {
   }
 
 
-  /** @param {object} mouse */
-  onClick(mouse) {
-    // TODO: picking disabled
+  /**
+   * Click handler — currently routes to place-picking on the active body.
+   * If the click hits a place sprite (within MAX_PICK_PX), `land` at it.
+   * Star picking lives in PickLabels and uses its own dblclick handler.
+   *
+   * @param {PointerEvent} e
+   */
+  onClick(e) {
+    const cur = Shared.targets.cur
+    if (!cur || !cur.props || !cur.props.has_locations) {
+      return
+    }
+    // The Planet attaches its Places under `planet` (= scene.objects[name]),
+    // and Planet caches the Places instance on itself.  Find the Planet
+    // wrapper to read .places — it lives on the Object that subclasses our
+    // ./object.js, but for Phase 1 we just walk children of `cur` looking
+    // for the Places group.  This avoids piping a Planet→places map.
+    const places = _findPlaces(cur)
+    if (!places || places.entries.length === 0) {
+      return
+    }
+    queryPlaces(this.ui, e, cur, places.entries, (entry) => {
+      this.land(cur.props.name, entry.lat, entry.lng, entry.a ?? undefined)
+    })
   }
 
 
