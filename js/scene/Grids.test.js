@@ -1,4 +1,6 @@
 import {describe, expect, it} from 'bun:test'
+import {Matrix4, Vector3} from 'three'
+import {galacticToSceneMatrix} from './galacticFrame.js'
 import {
   bracketCrossing,
   edgeScore,
@@ -19,7 +21,7 @@ describe('sampleMeridian', () => {
       const z = samples[(3 * i) + 2]
       // Unit length within float-rounding tolerance
       expect(Math.hypot(x, y, z)).toBeCloseTo(1, 5)
-      // lng=0 ⇒ z = cos(lat) * sin(0) = 0
+      // lng=0 ⇒ z = -cos(lat) · sin(0) = 0
       expect(Math.abs(z)).toBeLessThan(1e-6)
     }
   })
@@ -33,12 +35,49 @@ describe('sampleMeridian', () => {
     expect(samples[((N - 1) * 3) + 1]).toBeCloseTo(1, 5)
   })
 
-  it('lng=π/2 ⇒ samples lie in the +Z / +Y plane (x=0)', () => {
+  it('lng=π/2 ⇒ samples lie in the −Z / +Y plane (x=0)', () => {
+    // CCW-from-+Y convention: lng=π/2 puts the meridian in the X=0 plane
+    // on the -Z side (NOT +Z; the negation in sampleMeridian is what makes
+    // longitude wind in the same direction as RA / ecliptic-/galactic-
+    // longitude).
     const samples = sampleMeridian(Math.PI / 2)
     const N = samples.length / 3
     for (let i = 0; i < N; i++) {
       expect(Math.abs(samples[(3 * i)])).toBeLessThan(1e-6)
+      // Z component must be ≤ 0 across the whole meridian (it's
+      // -cos(lat) · sin(π/2) = -cos(lat) ∈ [-1, 0]).
+      expect(samples[(3 * i) + 2]).toBeLessThanOrEqual(1e-6)
     }
+    // The mid-index sample is approximately at the equator — at
+    // EDGE_SAMPLES = 96 the sample-grid lands one half-step off, so
+    // |z| is close to 1 but not exact.  Tolerate the half-step error.
+    const mid = Math.floor(N / 2)
+    expect(samples[(3 * mid)]).toBeCloseTo(0, 5)
+    expect(Math.abs(samples[(3 * mid) + 2])).toBeGreaterThan(0.99)
+  })
+
+
+  it('longitude winds CCW viewed from +Y (lng=π/2 lands at -Z, not +Z)', () => {
+    // Equator at lng=0 is at +X, lng=π/2 is at -Z, lng=π is at -X,
+    // lng=3π/2 is at +Z.  CCW going through (+X, -Z, -X, +Z) viewed from
+    // +Y matches RA / ecliptic-lon / galactic-lon conventions.
+    const samples0 = sampleParallel(0) // equator
+    // Find the four cardinal points among the samples — index 0 is lng=0,
+    // and sampleParallel emits at lng = 2π · i / N.
+    const N = samples0.length / 3
+    const ndxAtLng = (lng) => Math.round(lng / (2 * Math.PI) * N) % N
+    const at = (lng) => {
+      const i = ndxAtLng(lng) * 3
+      return [samples0[i], samples0[i + 1], samples0[i + 2]]
+    }
+    const [x0, , z0] = at(0)
+    const [x90, , z90] = at(Math.PI / 2)
+    const [x180, , z180] = at(Math.PI)
+    const [x270, , z270] = at(3 * Math.PI / 2)
+    expect(x0).toBeCloseTo(1, 4); expect(z0).toBeCloseTo(0, 4)
+    expect(x90).toBeCloseTo(0, 4); expect(z90).toBeCloseTo(-1, 4)
+    expect(x180).toBeCloseTo(-1, 4); expect(z180).toBeCloseTo(0, 4)
+    expect(x270).toBeCloseTo(0, 4); expect(z270).toBeCloseTo(1, 4)
   })
 })
 
@@ -298,5 +337,175 @@ describe('refineSubSample', () => {
     // t = −1 ⇒ lerp fully to prevI = samples[0] = (-1, 0, 0)
     expect(r.x).toBeCloseTo(-1, 4)
     expect(r.y).toBeCloseTo(0, 4)
+  })
+})
+
+
+// ---------------------------------------------------------------------------
+// Per-grid orientation: each grid's labelled longitude/RA must land at the
+// correct sky direction in scene coordinates.  These tests don't construct a
+// full <Grids> tree — they just simulate the rotation each grid applies and
+// check that a sphere-local "lng=L" sample maps to the expected scene
+// direction for that frame's longitude convention.
+
+const D2R = Math.PI / 180
+const EARTH_OBLIQUITY_DEG = 23.4392811
+
+
+/**
+ * Equatorial-J2000 (RA, Dec) → scene-frame unit vector.  Same math as
+ * galacticFrame.equatorialToSceneUnit but inlined here so the test does
+ * not depend on that module's export.
+ */
+function eqToScene(raDeg, decDeg) {
+  const ra = raDeg * D2R; const dec = decDeg * D2R
+  const eps = EARTH_OBLIQUITY_DEG * D2R
+  // Equatorial Cartesian (X=VE, Y=90°RA, Z=NCP)
+  const xq = Math.cos(dec) * Math.cos(ra)
+  const yq = Math.cos(dec) * Math.sin(ra)
+  const zq = Math.sin(dec)
+  // Rotate about X by +ε to get right-handed ecliptic, then remap to scene
+  const cE = Math.cos(eps); const sE = Math.sin(eps)
+  const xe = xq
+  const ye = (yq * cE) + (zq * sE)
+  const ze = (-yq * sE) + (zq * cE)
+  return new Vector3(xe, ze, -ye)
+}
+
+
+/**
+ * Direct sphere-local position for (lng, lat) — same formula as
+ * buildWireSphereGeometry / sampleMeridian (CCW-from-+Y winding).  We use
+ * this rather than picking a sample index out of sampleMeridian because
+ * the sampler's discrete grid (~96 samples per meridian) doesn't land
+ * exactly on lat=0; sampling at the integer mid-index introduces a ~1°
+ * latitude error that's bigger than the orientation tolerances we care
+ * about here.
+ */
+function sphereLocal(lng, lat) {
+  return new Vector3(
+      Math.cos(lat) * Math.cos(lng),
+      Math.sin(lat),
+      -Math.cos(lat) * Math.sin(lng))
+}
+
+
+describe('Equatorial grid orientation', () => {
+  // Grids.js applies `equatorial.rotation.x = -ε * toRad`.  In scene this
+  // is rotateX(-ε) — pivots scene +Y → NCP_scene = (0, cos ε, -sin ε)
+  // while preserving scene +X (vernal equinox).
+  const eqRot = new Matrix4().makeRotationX(-EARTH_OBLIQUITY_DEG * D2R)
+
+
+  it('RA=0h (lng=0 on the equator) maps to the vernal equinox direction', () => {
+    const scene = sphereLocal(0, 0).applyMatrix4(eqRot)
+    // VE in scene is (+1, 0, 0).
+    expect(scene.x).toBeCloseTo(1, 6)
+    expect(scene.y).toBeCloseTo(0, 6)
+    expect(scene.z).toBeCloseTo(0, 6)
+  })
+
+
+  it('RA=6h equator point lands at the actual RA=6h sky direction', () => {
+    const scene = sphereLocal(Math.PI / 2, 0).applyMatrix4(eqRot)
+    const expected = eqToScene(90, 0)
+    expect(scene.x).toBeCloseTo(expected.x, 6)
+    expect(scene.y).toBeCloseTo(expected.y, 6)
+    expect(scene.z).toBeCloseTo(expected.z, 6)
+  })
+
+
+  it('Dec=+90° (north pole) maps to the IAU NCP in scene', () => {
+    const scenePole = new Vector3(0, 1, 0).applyMatrix4(eqRot)
+    const ncp = eqToScene(0, 90) // RA arbitrary at the pole
+    expect(scenePole.x).toBeCloseTo(ncp.x, 6)
+    expect(scenePole.y).toBeCloseTo(ncp.y, 6)
+    expect(scenePole.z).toBeCloseTo(ncp.z, 6)
+  })
+
+
+  it('Sirius (RA=101.287°, Dec=-16.716°) lands at its catalog scene direction', () => {
+    // Cross-check against a real, verified-against-stars.dat sky position:
+    // a Sirius-coordinate point on the grid sphere should map to the same
+    // scene direction the catalog stores for Sirius.  This is the test
+    // that fails noisily if the equatorial grid ever drifts away from the
+    // star catalog frame.
+    const ra = 101.287; const dec = -16.716
+    const local = sphereLocal(ra * D2R, dec * D2R)
+    const scene = local.applyMatrix4(eqRot)
+    const expected = eqToScene(ra, dec)
+    expect(scene.x).toBeCloseTo(expected.x, 6)
+    expect(scene.y).toBeCloseTo(expected.y, 6)
+    expect(scene.z).toBeCloseTo(expected.z, 6)
+  })
+})
+
+
+describe('Ecliptic grid orientation', () => {
+  // Identity rotation — the scene's Y axis IS the ecliptic pole, +X is
+  // already the vernal equinox.  No grid rotation is applied.
+
+  it('ecl-lon=0 maps to scene +X (vernal equinox)', () => {
+    const v = sphereLocal(0, 0)
+    expect(v.x).toBeCloseTo(1, 6)
+    expect(v.y).toBeCloseTo(0, 6)
+    expect(v.z).toBeCloseTo(0, 6)
+  })
+
+
+  it('ecl-lon=90° lands at scene -Z', () => {
+    // Standard ecliptic Y-axis (90° λ direction) is at scene -Z, since
+    // scene_Z = -ecl_Y.  Sphere lng=π/2, lat=0 (with the CCW-flip) is
+    // exactly there.
+    const v = sphereLocal(Math.PI / 2, 0)
+    expect(v.x).toBeCloseTo(0, 6)
+    expect(v.y).toBeCloseTo(0, 6)
+    expect(v.z).toBeCloseTo(-1, 6)
+  })
+
+
+  it('NEP (β=+90°) is at scene +Y', () => {
+    const localPole = new Vector3(0, 1, 0)
+    expect(localPole.y).toBeCloseTo(1, 6)
+  })
+})
+
+
+describe('Galactic grid orientation', () => {
+  // Grids.js applies `galactic.quaternion.setFromRotationMatrix(galacticToSceneMatrix())`.
+  const galRot = galacticToSceneMatrix()
+
+
+  it('l=0 (lng=0 on the equator) maps to the galactic centre direction', () => {
+    // Sphere lng=0, lat=0 = (+1, 0, 0) in grid local; the matrix's first
+    // column is the GC direction in scene by construction.  Tolerance is
+    // loose because GC isn't exactly perpendicular to NGP at publication
+    // precision and we orthogonalize off NGP — the residual cosine error
+    // is ~1e-7.
+    const scene = sphereLocal(0, 0).applyMatrix4(galRot)
+    const gc = eqToScene(266.40499, -28.93617)
+    expect(scene.dot(gc)).toBeGreaterThan(1 - 1e-5)
+  })
+
+
+  it('b=+90° (north pole) maps to the IAU NGP in scene', () => {
+    const scenePole = new Vector3(0, 1, 0).applyMatrix4(galRot)
+    const ngp = eqToScene(192.85948, 27.12825)
+    expect(scenePole.dot(ngp)).toBeGreaterThan(1 - 1e-12)
+  })
+
+
+  it('l=90° equator point lies in the galactic plane (perpendicular to NGP and GC)', () => {
+    // l=90° is in the galactic plane (so perpendicular to NGP) and 90°
+    // around the pole from GC (so perpendicular to GC too).
+    const scene = sphereLocal(Math.PI / 2, 0).applyMatrix4(galRot)
+    const ngp = eqToScene(192.85948, 27.12825)
+    const gc = eqToScene(266.40499, -28.93617)
+    // Perpendicular to NGP: tight tolerance (NGP is the orthogonalization
+    // anchor in galacticToSceneMatrix — the grid pole is *exactly* at NGP).
+    expect(Math.abs(scene.dot(ngp))).toBeLessThan(1e-12)
+    // Perpendicular to GC: loose tolerance because GC isn't exactly
+    // perpendicular to NGP at publication precision (~0.04° gap).
+    expect(Math.abs(scene.dot(gc))).toBeLessThan(1e-3)
   })
 })

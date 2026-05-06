@@ -12,22 +12,17 @@ import {
   Vector2,
   Vector3,
 } from 'three'
+import {galacticToSceneMatrix} from './galacticFrame.js'
 import {named} from '../utils.js'
 import {toRad} from '../shared.js'
 
 
 // Earth's obliquity at J2000 — angle between the celestial equator (Earth's
 // equatorial plane) and the ecliptic.  The scene's Y axis is the ecliptic
-// pole (vsop's z-axis is mapped to scene-y in Animation.js), so a Z-rotation
-// by the obliquity tilts the grid's pole into the celestial-pole direction
-// matching Earth's planetTilt rotation in Planet.js.
+// pole and +X is the vernal equinox (= the EQ↔EC pivot axis), so the
+// equatorial grid is just an X-rotation by -ε of the unit sphere — same
+// orientation Planet.js applies to Earth's planetTilt.
 const ECLIPTIC_TO_EQUATORIAL_DEG = 23.4392811
-
-// Galactic north pole, J2000, in equatorial coords: α=192.85948°, δ=27.12825°.
-// Converted to ecliptic (λ ≈ 180°, β ≈ 29.81°) — happens to lie in the X-Y
-// plane of the scene frame, so a single Z-rotation suffices.  Sign matches
-// the equatorial case: pole tilts toward -X.
-const ECLIPTIC_TO_GALACTIC_DEG = 60.187
 
 // Grid colors chosen for distinct fast identification, vaguely matching
 // Celestia's defaults (warm amber for the rotating Earth frame, magenta for
@@ -84,11 +79,19 @@ export default function newGrids() {
   // Built once, reused: a unit-sphere wireframe with poles along +Y.  Each
   // grid wraps it in its own Group with its own rotation and material so
   // visibility / color can be toggled independently.
+  //
+  // Longitude winds CCW viewed from +Y (the pole), matching the RA /
+  // ecliptic-longitude / galactic-longitude convention: lng=0 → local +X,
+  // lng=+π/2 → local -Z.  See sampleMeridian / sampleParallel for the
+  // canonical formula.
   const sphereGeom = buildWireSphereGeometry()
 
   const equatorial = wrapWithMaterial(sphereGeom, COLOR_EQUATORIAL, 'EquatorialGrid')
-  // Match Earth's planetTilt convention (Planet.js rotateZ by axialInclination).
-  equatorial.rotation.z = ECLIPTIC_TO_EQUATORIAL_DEG * toRad
+  // Match Earth's planetTilt convention (Planet.js rotateX(-ε) around the
+  // VE/EC↔EQ pivot axis).  The grid's pole then lands at NCP_scene =
+  // (0, cos ε, -sin ε), so it stays locked to Earth's actual rotational
+  // axis as the simulation advances time.
+  equatorial.rotation.x = -ECLIPTIC_TO_EQUATORIAL_DEG * toRad
   attachLabels(equatorial, hourMeridianLabels(), degParallelLabels(), COLOR_EQUATORIAL)
 
   const ecliptic = wrapWithMaterial(sphereGeom, COLOR_ECLIPTIC, 'EclipticGrid')
@@ -96,7 +99,13 @@ export default function newGrids() {
   attachLabels(ecliptic, degMeridianLabels(), degParallelLabels(), COLOR_ECLIPTIC)
 
   const galactic = wrapWithMaterial(sphereGeom, COLOR_GALACTIC, 'GalacticGrid')
-  galactic.rotation.z = ECLIPTIC_TO_GALACTIC_DEG * toRad
+  // Use the full galactic-frame rotation matrix (same one MilkyWay.js uses
+  // to orient the procedural disk) so the grid pole lands at the IAU NGP
+  // exactly AND the l=0 meridian points at the actual galactic centre in
+  // Sagittarius.  A single-Z-rotation would get the pole approximately
+  // right (~0.02° off) but leaves the l=0 azimuth around the pole
+  // arbitrary — see scene/galacticFrame.js for the math.
+  galactic.quaternion.setFromRotationMatrix(galacticToSceneMatrix())
   attachLabels(galactic, degMeridianLabels(), degParallelLabels(), COLOR_GALACTIC)
 
   group.add(equatorial)
@@ -121,6 +130,14 @@ export default function newGrids() {
  */
 function buildWireSphereGeometry() {
   const positions = []
+  // Sphere convention: a point at longitude L, latitude φ sits at
+  //   (cos φ · cos L,  sin φ,  -cos φ · sin L)
+  // The negation on Z makes longitude wind CCW viewed from +Y (the pole)
+  // — i.e. L=0 → +X, L=+π/2 → -Z, L=+π → -X, L=+3π/2 → +Z.  Without that
+  // flip the sphere winds CW from the pole, opposite to the RA / ecliptic-
+  // longitude / galactic-longitude conventions, and labels at e.g. RA=6h
+  // would appear at the actual RA=18h sky position.
+
   // Parallels (latitude circles, excluding poles).
   for (let i = 1; i < NUM_PARALLELS - 1; i++) {
     const lat = (-Math.PI / 2) + ((Math.PI * i) / (NUM_PARALLELS - 1))
@@ -129,8 +146,8 @@ function buildWireSphereGeometry() {
     for (let j = 0; j < SEGMENTS; j++) {
       const a1 = (2 * Math.PI * j) / SEGMENTS
       const a2 = (2 * Math.PI * (j + 1)) / SEGMENTS
-      positions.push(r * Math.cos(a1), y, r * Math.sin(a1))
-      positions.push(r * Math.cos(a2), y, r * Math.sin(a2))
+      positions.push(r * Math.cos(a1), y, -r * Math.sin(a1))
+      positions.push(r * Math.cos(a2), y, -r * Math.sin(a2))
     }
   }
   // Equator great-circle, drawn explicitly so it's a continuous loop even if
@@ -139,14 +156,14 @@ function buildWireSphereGeometry() {
   for (let j = 0; j < SEGMENTS; j++) {
     const a1 = (2 * Math.PI * j) / SEGMENTS
     const a2 = (2 * Math.PI * (j + 1)) / SEGMENTS
-    positions.push(Math.cos(a1), 0, Math.sin(a1))
-    positions.push(Math.cos(a2), 0, Math.sin(a2))
+    positions.push(Math.cos(a1), 0, -Math.sin(a1))
+    positions.push(Math.cos(a2), 0, -Math.sin(a2))
   }
   // Meridians (great-circles pole-to-pole).
   for (let j = 0; j < NUM_MERIDIANS; j++) {
     const lng = (2 * Math.PI * j) / NUM_MERIDIANS
     const cosL = Math.cos(lng)
-    const sinL = Math.sin(lng)
+    const sinL = -Math.sin(lng) // see "Sphere convention" comment above
     for (let i = 0; i < SEGMENTS; i++) {
       const a1 = (-Math.PI / 2) + ((Math.PI * i) / SEGMENTS)
       const a2 = (-Math.PI / 2) + ((Math.PI * (i + 1)) / SEGMENTS)
@@ -330,7 +347,9 @@ function attachLabels(gridGroup, meridians, parallels, color) {
  */
 export function sampleMeridian(lng) {
   const arr = new Float32Array(EDGE_SAMPLES * 3)
-  const cl = Math.cos(lng); const sl = Math.sin(lng)
+  // Sphere convention (see buildWireSphereGeometry): the Z component carries
+  // the negation that makes longitude wind CCW viewed from +Y.
+  const cl = Math.cos(lng); const sl = -Math.sin(lng)
   for (let i = 0; i < EDGE_SAMPLES; i++) {
     const lat = (-Math.PI / 2) + ((Math.PI * i) / (EDGE_SAMPLES - 1))
     const cy = Math.cos(lat)
@@ -358,7 +377,9 @@ export function sampleParallel(lat) {
     const lng = (2 * Math.PI * i) / EDGE_SAMPLES
     arr[(3 * i)] = cy * Math.cos(lng)
     arr[(3 * i) + 1] = sy
-    arr[(3 * i) + 2] = cy * Math.sin(lng)
+    // Negation matches buildWireSphereGeometry / sampleMeridian — see the
+    // "Sphere convention" comment there.
+    arr[(3 * i) + 2] = -cy * Math.sin(lng)
   }
   return arr
 }
