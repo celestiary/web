@@ -75,7 +75,17 @@ export default class Planet extends Object {
 
     const planetTilt = this.scene.newGroup(`${this.name}.planetTilt`)
     orbitPosition.add(planetTilt)
-    planetTilt.rotateZ(assertInRange(this.props.axialInclination, 0, 360) * toRad)
+    // Tilt the planet's pole away from scene +Y (= NEP) toward the celestial
+    // pole.  The scene frame is X = vernal equinox, Y = NEP, Z = -ecl-Y; the
+    // EQ↔EC pivot axis is the VE direction (= scene +X), so axial obliquity
+    // is rotation around scene +X.  After rotateX(-ε), local +Y maps to
+    //   (0, cos ε, -sin ε)
+    // which is the IAU North Celestial Pole in the scene frame — verified
+    // by the celestialFrame test "earth axial tilt places NCP at expected
+    // scene direction".  Using rotateZ instead would put the pole in the
+    // X-Y plane, 90° away from NCP, and any subsequent spin then turns the
+    // body around the wrong axis.
+    planetTilt.rotateX(-assertInRange(this.props.axialInclination, 0, 360) * toRad)
 
     const planet = this.newPlanet(this.scene, orbitPosition, this.isMoon)
     planetTilt.add(named(planet, 'new planet'))

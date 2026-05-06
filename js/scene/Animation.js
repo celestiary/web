@@ -1,4 +1,5 @@
 import {Object3D, Vector3} from 'three'
+import {gmstRad} from './celestialFrame.js'
 import {loadVsop87c} from '../vsop'
 import * as Shared from '../shared'
 import debug from '../debug'
@@ -51,14 +52,23 @@ export default class Animation {
     }
 
     if (system.siderealRotationPeriod) {
-      // TODO(pablo): this is hand-calibrated for Earth and so is
-      // incorrect for the other planets.  Earth Orientation Parameters
-      // are here:
+      // Spin around the body's local +Y axis (= rotational axis after
+      // planetTilt's rotateX(-ε)).  For Earth we use Greenwich Mean
+      // Sidereal Time directly: with the corrected tilt, rotation by
+      // angle α around local +Y places the prime meridian at RA = α on
+      // the celestial equator, so α = GMST puts Earth's geography in
+      // the correct sky orientation at the given Julian day.
       //
-      //   http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
-      //
-      // and also would also need them for the other planets.
-      const angle = Math.PI + (this.time.simTimeDays() * Shared.twoPi)
+      // For other bodies we don't have a per-planet "prime-meridian RA at
+      // J2000" datum, so we fall back to the legacy hand-calibrated
+      // formula — strictly no worse than before, but a candidate for
+      // refinement (proper IAU WGCCRE rotation models per body).
+      let angle
+      if (system.props && system.props.name === 'earth') {
+        angle = gmstRad(this.time.simTimeJulianDay())
+      } else {
+        angle = Math.PI + (this.time.simTimeDays() * Shared.twoPi)
+      }
       system.setRotationFromAxisAngle(this.Y_AXIS, angle)
     }
 
