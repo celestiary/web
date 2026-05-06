@@ -7,22 +7,16 @@ import {
   Texture,
   Vector3,
 } from 'three'
+import {galacticToSceneMatrix, SUN_GALACTIC_RADIUS_LY} from './galacticFrame.js'
 import {pathTexture} from './material.js'
-import {LIGHTYEAR_METER, toRad} from '../shared.js'
+import {LIGHTYEAR_METER} from '../shared.js'
 
 
 // Sun's distance from the galactic centre (Sgr A*) is ~26 kLY.  We park the
 // galactic centre at a fixed offset from the world origin so the Sun (which
 // already sits at the origin) lands on the inner edge of a spiral arm at
 // roughly its real galacto-centric radius.
-const SUN_GALACTIC_RADIUS_M = 26000 * LIGHTYEAR_METER
-
-// Galactic plane orientation in scene coords.  Same Z-rotation the Galactic
-// reference grid uses (Grids.js); puts the disk perpendicular to the IAU
-// J2000 galactic pole instead of the ecliptic pole.  Without this the disk
-// sits in the ecliptic plane, which is wrong by ~60° (the angle between
-// the two normals).
-const ECLIPTIC_TO_GALACTIC_DEG = 60.187
+const SUN_GALACTIC_RADIUS_M = SUN_GALACTIC_RADIUS_LY * LIGHTYEAR_METER
 
 // Milky-Way-ish shape parameters.  Diameter (100 kly) matches the scene's
 // GALAXY_RADIUS_METER and the local Hipparcos catalog's outer scale.
@@ -70,10 +64,22 @@ const LOCAL_CATALOG_HOLE_M = 1500 * LIGHTYEAR_METER
 /**
  * Procedural barred-spiral Milky Way as an additive Points cloud.
  *
- * Coordinate convention: built in galactic-centre local space (centre at
- * origin, disk in XZ plane, +Y = galactic north).  The whole Points object
- * is then translated so that the Sun's anchor point on a spiral arm lands at
- * the world origin (where the simulated Sun lives).
+ * Coordinate frames:
+ *   - "disk-D"  : sampler output frame.  Galactic-centre at origin, disk in
+ *     XZ plane, +Y = galactic north pole.  Bar long-axis along +X.  Spiral
+ *     arms wind around +Y; arm 0 starts at +X.
+ *   - "F"       : galaxy-local helio-galactic frame.  Sun at origin, GC at
+ *     (+R_sun, 0, 0), +Y = galactic north pole, +Z = cross.
+ *   - scene     : Celestia stars.dat frame (X=vernal equinox, Y=NEP,
+ *     Z=-ecl-Y); shared with StarsCatalog so the local Hipparcos slab
+ *     and the procedural disk render in the same sky orientation.
+ *
+ * Sampling pipeline per particle (all baked into the position buffer in JS,
+ * because the RTE shader uses `mat3(viewMatrix)` and bypasses the model
+ * matrix — a points.matrix rotation would never reach the GPU):
+ *   p_D = sample(D)
+ *   p_F = R_Y(π + sunArmAngle) · p_D + (R_sun, 0, 0)   // sun → origin
+ *   p_scene = M_F→scene · p_F                          // tilt to galactic plane
  *
  * Uses Relative-To-Eye (RTE) emulated double precision in the shader so the
  * stars stay rock-solid when the camera is rebased during star navigation
@@ -87,10 +93,23 @@ export default function newMilkyWay() {
   const colors = new Float32Array(NUM_STARS * 3)
   const sizes = new Float32Array(NUM_STARS)
 
-  // Sun sits on arm SUN_ARM_INDEX at radius SUN_GALACTIC_RADIUS_M.
+  // Sun sits on arm SUN_ARM_INDEX at radius SUN_GALACTIC_RADIUS_M.  In disk-D
+  // frame, the sun anchor is at (R cos θ, 0, R sin θ).  The disk-D → F
+  // rotation is a Y-axis rotation by (π + θ) which sends the sun anchor to
+  // (-R, 0, 0); a final shift by (+R, 0, 0) puts the sun at the F-origin
+  // and GC at (+R, 0, 0).
   const sunArmAngle = armAngleAt(SUN_ARM_INDEX, SUN_GALACTIC_RADIUS_M)
-  const sunGalCx = SUN_GALACTIC_RADIUS_M * Math.cos(sunArmAngle)
-  const sunGalCz = SUN_GALACTIC_RADIUS_M * Math.sin(sunArmAngle)
+  const cosSun = Math.cos(sunArmAngle)
+  const sinSun = Math.sin(sunArmAngle)
+
+  // F → scene rotation, expanded into 3x3 column-major scalars for the
+  // per-particle hot path.  three.js Matrix4 elements are column-major:
+  //   m[i][j] = elements[i + 4j]   (i = row, j = col)
+  // We only need the upper-left 3x3 (it's a pure rotation).
+  const galToSceneEls = galacticToSceneMatrix().elements
+  const m00 = galToSceneEls[0]; const m10 = galToSceneEls[1]; const m20 = galToSceneEls[2]
+  const m01 = galToSceneEls[4]; const m11 = galToSceneEls[5]; const m21 = galToSceneEls[6]
+  const m02 = galToSceneEls[8]; const m12 = galToSceneEls[9]; const m22 = galToSceneEls[10]
 
   const tmp = new Vector3()
   const holeSq = LOCAL_CATALOG_HOLE_M * LOCAL_CATALOG_HOLE_M
@@ -109,12 +128,22 @@ export default function newMilkyWay() {
     } else {
       sampleArm(tmp); col = armColor(); sz = armSize()
     }
-    // Translate galaxy so the Sun anchor sits at the world origin: galaxy
-    // points get shifted by -sunGalC so SUN ↦ (0,0,0).
-    const x = tmp.x - sunGalCx
-    const y = tmp.y
-    const z = tmp.z - sunGalCz
-    // Reject if inside the local catalog hole around the Sun.
+    // disk-D → F: Y-axis rotation by (π + θ), then shift by (+R, 0, 0).
+    // R_Y(π+θ) matrix:
+    //   x' =  cos(π+θ) x + sin(π+θ) z = -cos θ · x - sin θ · z
+    //   z' = -sin(π+θ) x + cos(π+θ) z =  sin θ · x - cos θ · z
+    //   y unchanged
+    const xF = ((-cosSun * tmp.x) - (sinSun * tmp.z)) + SUN_GALACTIC_RADIUS_M
+    const yF = tmp.y
+    const zF = (sinSun * tmp.x) - (cosSun * tmp.z)
+    // F → scene rotation: tilts disk into galactic plane and rotates the bar
+    // azimuth so GC lands in Sagittarius.
+    const x = (m00 * xF) + (m01 * yF) + (m02 * zF)
+    const y = (m10 * xF) + (m11 * yF) + (m12 * zF)
+    const z = (m20 * xF) + (m21 * yF) + (m22 * zF)
+    // Reject if inside the local catalog hole around the Sun.  The Sun sits
+    // at the F-origin, and rotation preserves distances, so |p_scene|² =
+    // |p_F|² and we can test against holeSq directly.
     if (((x * x) + (y * y) + (z * z)) < holeSq) {
       continue
     }
@@ -180,12 +209,9 @@ export default function newMilkyWay() {
 
   const points = new Points(geom, mat)
   points.name = 'MilkyWay'
-  // Tilt the disk into the galactic plane.  The samplers above lay the
-  // galaxy out with its pole along scene +Y (the ecliptic pole); rotating
-  // about Z by the IAU obliquity of the galactic plane swings the pole
-  // onto the actual galactic-pole direction.  Sun stays at the origin
-  // because we already shifted vertices by -sunGalC pre-rotation.
-  points.rotation.z = ECLIPTIC_TO_GALACTIC_DEG * toRad
+  // Local transform stays identity — the disk-D → F → scene rotation chain
+  // is baked into the position buffer above (the RTE shader uses
+  // mat3(viewMatrix), so a points.matrix rotation would never reach the GPU).
   // Galaxy sits on top of any rebase the worldGroup applies; positions are
   // already in world coords, so identity local transform.
   // Auto-computed bounding sphere is correct but huge — leave frustum
