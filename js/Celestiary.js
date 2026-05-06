@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import ARController from './ar/ARController'
 import Animation from './scene/Animation'
 import ControlPanel from './ControlPanel'
 import Keys from './Keys'
@@ -67,6 +68,16 @@ export default class Celestiary {
     this.firstTime = true
     this._pendingPermalink = null
     this._permalinkTimer = null
+    // AR (mobile sky-view).  Constructed lazily — most users won't enter
+    // AR mode, and the controller has no per-frame cost when inactive
+    // (ThreeUI.renderLoop checks isActive() before calling updateFrame).
+    this.ar = new ARController({
+      scene: this.scene,
+      ui: this.ui,
+      time: this.time,
+      useStore: useStore,
+    })
+    this.ui.arController = this.ar
     this._registerSearchProviders()
     this._subscribePreview()
     this.load()
@@ -256,6 +267,17 @@ export default class Celestiary {
           const wantedSettings = pl?.settings ?? decodeSettings(undefined)
           this.scene.applySettings(wantedSettings)
           this.firstTime = false
+        }
+        // AR-fallback resolution: if the permalink was captured in AR
+        // mode (s=A), try to re-enter AR at the saved lat/lng.
+        // Best-effort — on iOS Safari `requestPermission()` requires a
+        // user gesture, so this auto-attempt rejects silently and the
+        // user can tap the AR button (which is a real gesture) to enter.
+        if (pl?.settings?.A && typeof pl.lat === 'number' && typeof pl.lng === 'number') {
+          this.ar?.enter({lat: pl.lat, lng: pl.lng, alt: pl.alt}).catch(() => {
+            // Silent — sensor unavailability or permission denial just
+            // leaves the static permalink view as the visible result.
+          })
         }
       }, this._pendingPermalink ? 0 : (this.firstTime ? 1000 : 0))
     }
@@ -564,10 +586,61 @@ export default class Celestiary {
       )
       const d2000 = this.time.simTimeJulianDay() - J2000_JD
       const settings = this.scene.getSettings ? this.scene.getSettings() : null
+      // Mark AR-active so a recipient device with sensors can re-enter
+      // AR at this lat/lng.  Saved quaternion is left as-is; the AR
+      // resolution path overwrites camera orientation from sensors each
+      // frame, so the saved value is harmlessly ignored on AR replay.
+      if (settings && this.ar && this.ar.isActive()) {
+        settings.A = true
+      }
       const fragment = encodePermalink(
           path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings)
       history.replaceState(null, '', `#${fragment}`)
     }, 1000)
+  }
+
+
+  /**
+   * Enter AR sky-view mode.  Must be called from within a user gesture
+   * (button tap) so iOS Safari's `DeviceOrientationEvent.requestPermission`
+   * can prompt — the browser silently rejects the prompt otherwise.
+   *
+   * Requires explicit lat/lng (we add geoid-derived geolocation later).
+   * Body defaults to the currently committed target if it's a planet/moon
+   * with a radius; otherwise to 'earth'.
+   *
+   * @param {object} opts
+   * @param {string} [opts.body]
+   * @param {number} opts.lat
+   * @param {number} opts.lng
+   * @param {number} [opts.alt]
+   * @returns {Promise<void>}
+   */
+  enterAR(opts) {
+    const body = opts.body ?? this._currentBodyName() ?? 'earth'
+    return this.ar.enter({...opts, body})
+  }
+
+
+  /** Exit AR sky-view mode and restore the prior view state. */
+  exitAR() {
+    this.ar.exit()
+  }
+
+
+  /**
+   * @returns {?string} Name of the current target body if it's a body
+   *   (has a radius); null for stars or empty state.
+   */
+  _currentBodyName() {
+    const cur = Shared.targets.cur
+    if (!cur || !cur.props || !cur.props.name) {
+      return null
+    }
+    if (!cur.props.radius || !cur.props.radius.scalar) {
+      return null
+    }
+    return cur.props.name
   }
 
 

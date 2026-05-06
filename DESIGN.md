@@ -48,6 +48,7 @@ Celestiary            Main controller (window.c for debug)
   │     ├── Star      Individual named star (LOD, Perlin noise surface shader, PointLight)
   │     ├── Planet    Planet or moon (LOD, orbit shape, surface mesh, atmosphere, labels)
   │     └── Galaxy    Invisible grouping root (Milky Way container)
+  ├── ARController    Mobile sky view: device sensors → camera orientation
   ├── Loader          Async JSON fetcher for celestial object descriptors
   ├── ControlPanel    DOM-based nav display (breadcrumb path)
   └── Keys            Keyboard shortcut registry
@@ -399,3 +400,46 @@ and the provider extension contract.
 | `js/scene/PickLabels.js` | Label picking and marker display |
 | `js/scene/atmos/Atmosphere.js` | Atmosphere mesh + fullscreen post-process pass |
 | `js/scene/atmos/AtmospherePrecompute.js` | Bruneton transmittance + in-scatter LUT precomputation |
+
+### AR sky view (`js/ar/`)
+
+Pin the camera to a body surface and drive its orientation from device
+sensors so the rendered sky overlays the user's real-life view.  The
+heavy lifting — the rotating-body parent, the body-fixed lat/lng frame,
+the sidereal-rotation animation — already exists for the landed
+view; the AR module composes those with a sensor-driven camera→ENU
+quaternion to close the loop.
+
+Frame chain (per frame):
+
+```
+camera.quaternion =
+    enu_to_bodyFixed(lat, lng)   // js/ar/enuFrame.js
+  · q_calibration_enu             // js/ar/Calibration.js (optional)
+  · q_camera_to_enu               // js/ar/PoseSource.js (sensors)
+```
+
+The body-fixed → inertial step is inherited from the scene graph
+(camera.platform reparented to the rotating body via `Scene.land`).
+ARController.updateFrame writes the composed quaternion AFTER all other
+camera-orientation logic in `ThreeUI.renderLoop`, so AR pose always wins
+while active.
+
+Stage 1a (current): no camera-passthrough video, atmosphere disabled in
+AR mode (`Scene.enterAR` sets `ui._arMode`, `ThreeUI._updateAtmUniforms`
+honors it).  Stage 1b enables WebXR when supported.  Stage 1c adds
+`navigator.geolocation`.  Stage 1d wires the gear-icon calibration
+flow.  Stage 2 adds `<video>` passthrough behind the canvas with
+premultiplied-alpha atmosphere blending.
+
+| Path | Role |
+|---|---|
+| `js/ar/ARController.js` | Lifecycle (enter/exit), per-frame pose compose, calibration capture |
+| `js/ar/PoseSource.js` | Pose-source contract + factory; auto-probes WebXR → DeviceOrientation → Null |
+| `js/ar/NullPoseSource.js` | Identity-pose fallback (desktop / no sensors) |
+| `js/ar/DeviceOrientationPoseSource.js` | W3C DeviceOrientation → camera→ENU quaternion |
+| `js/ar/WebXRPoseSource.js` | WebXR `immersive-ar` / viewer-space (stub in stage 1a) |
+| `js/ar/enuFrame.js` | `enuTriadAtLatLng`, `enuToBodyFixedQuat` — body-agnostic ENU↔body-fixed math |
+| `js/ar/Calibration.js` | Single-vector calibration solver + per-(source, screen-angle) localStorage |
+| `js/ui/ARButton.jsx` | Mobile-only entry button + gear toggle when calibration is needed |
+| `js/store/ARSlice.js` | Zustand slice tracking active AR state for UI subscriptions |

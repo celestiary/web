@@ -138,9 +138,25 @@ export default class Scene {
   }
 
 
-  /** @returns {object} flat {key: bool} map matching permalink SETTINGS_DEFAULTS */
+  /**
+   * Flat {key: bool} map matching permalink SETTINGS_DEFAULTS.
+   *
+   * Two special-case keys are merged in here rather than tracked in
+   * `_settings`:
+   *
+   *   - `L` (landed) — sourced from `Shared.targets.landed` so any code
+   *     path that pins or unpins the surface mode (Scene.land, Scene.goTo)
+   *     drives this without going through a Scene toggle.
+   *   - `A` (AR-fallback) — defaults false here; the permalink writer in
+   *     Celestiary._schedulePermalinkUpdate overwrites it with the live
+   *     ARController.isActive() value before encoding.  The default-false
+   *     here ensures every key in SETTINGS_DEFAULTS has a slot, satisfying
+   *     the round-trip contract for code that snapshots getSettings().
+   *
+   * @returns {object}
+   */
   getSettings() {
-    return {...this._settings, L: Shared.targets.landed}
+    return {...this._settings, L: Shared.targets.landed, A: false}
   }
 
 
@@ -605,6 +621,60 @@ export default class Scene {
     const setter = state?.setCommittedPath
     if (typeof setter === 'function') {
       setter(this._pathFor(bodyName))
+    }
+  }
+
+
+  /**
+   * Enter AR mode: apply the AR scene-visibility preset and disable the
+   * atmosphere post-pass.  Returns a snapshot of the prior state so
+   * `exitAR(snapshot)` can restore it.
+   *
+   * Preset (Stage 1, no camera passthrough yet):
+   *   - asterisms ON, star labels ON, planet labels ON
+   *   - orbits OFF, all reference grids OFF
+   *   - atmosphere OFF (otherwise daytime sky paints over the stars; in
+   *     Stage 2 the atmosphere will return with premultiplied-alpha blend
+   *     so it tints the camera passthrough instead of opaque-painting it)
+   *
+   * Planet meshes are left visible — they form a virtual "ground" beneath
+   * the observer when landed at altitude ~2 m, which is exactly the
+   * spatial reference users want.
+   *
+   * @returns {object} snapshot for exitAR()
+   */
+  enterAR() {
+    const snapshot = {
+      settings: {...this._settings},
+      uiArMode: this.ui._arMode,
+    }
+    // Atmosphere off — checked by ThreeUI._updateAtmUniforms each frame.
+    this.ui._arMode = true
+    this.applySettings({
+      a: true, // asterisms
+      l: true, // star labels
+      p: true, // planet labels
+      o: false, // orbits
+      e: false, // equatorial grid
+      c: false, // ecliptic grid
+      g: false, // galactic grid
+    })
+    return snapshot
+  }
+
+
+  /**
+   * Restore the scene state captured by `enterAR()`.
+   *
+   * @param {object} snapshot Return value of enterAR()
+   */
+  exitAR(snapshot) {
+    if (!snapshot) {
+      return
+    }
+    this.ui._arMode = snapshot.uiArMode || false
+    if (snapshot.settings) {
+      this.applySettings(snapshot.settings)
     }
   }
 

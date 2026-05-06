@@ -296,6 +296,12 @@ export default class ThreeUi {
       }
     }
     this._applyCameraArrowKeys()
+    // AR mode (when active) owns camera.quaternion absolutely.  Run last so
+    // anything else's writes are overwritten.  Set by Celestiary.enterAR
+    // through this.arController; null when AR is inactive (the common case).
+    if (this.arController && this.arController.isActive()) {
+      this.arController.updateFrame()
+    }
     this._publishEffectiveDragMode()
     // Render scene to RT, then composite atmosphere fullscreen pass to screen
     this.renderer.setRenderTarget(this._sceneRT)
@@ -356,6 +362,15 @@ export default class ThreeUi {
     u.uNear.value = this.camera.near
     u.uFar.value = this.camera.far
     u.uProjectionMatrixInverse.value.copy(this.camera.projectionMatrixInverse)
+
+    if (this._arMode) {
+      // AR mode: skip the atmosphere altogether so daytime sky doesn't
+      // paint over the stars and asterism overlay.  Set by Scene.enterAR
+      // and cleared by Scene.exitAR.  Stage 2 (camera passthrough) will
+      // re-enable the atmosphere with premultiplied-alpha blending.
+      u.uAtmEnabled.value = 0.0
+      return
+    }
 
     const tObj = targets.obj
     // Determine which planet's atmosphere to render.

@@ -303,3 +303,50 @@ describe('L (landed) flag', () => {
     expect(decoded.settings).toEqual(combo)
   })
 })
+
+
+describe('A (AR-fallback) flag', () => {
+  const defaults = {...SETTINGS_DEFAULTS}
+  const baseArgs = ['sun/earth', 0, 37.77, -122.42, 2,
+    {x: 0, y: 0, z: 0, w: 1}, 45]
+
+  it('default is false', () => {
+    expect(SETTINGS_DEFAULTS.A).toBe(false)
+  })
+
+  it('emits ;s=A when AR-fallback is true', () => {
+    const encoded = encodePermalink(...baseArgs, {...defaults, A: true})
+    expect(encoded).toMatch(/;s=A/)
+  })
+
+  it('omits A from s= when AR-fallback is false (default)', () => {
+    const encoded = encodePermalink(...baseArgs, defaults)
+    expect(encoded).not.toContain(';s=A')
+  })
+
+  it('round-trips A=true', () => {
+    const encoded = encodePermalink(...baseArgs, {...defaults, A: true})
+    const decoded = decodePermalink(encoded)
+    expect(decoded.settings.A).toBe(true)
+  })
+
+  it('legacy permalinks without A decode A=false (back-compat)', () => {
+    // Pre-A URL: only the L flag flipped, A absent → A must default false.
+    const onlyL = encodePermalink(...baseArgs, {...defaults, L: true})
+    expect(decodePermalink(onlyL).settings.A).toBe(false)
+    // No s= at all.
+    const noFlags = encodePermalink(...baseArgs)
+    expect(decodePermalink(noFlags).settings.A).toBe(false)
+  })
+
+  it('coexists with the L (landed) flag — typical AR permalink', () => {
+    // The expected shape for a permalink captured while in AR mode:
+    //   landed at the surface (L=1) AND AR-fallback set (A=1).
+    const combo = {...defaults, L: true, A: true}
+    const encoded = encodePermalink(...baseArgs, combo)
+    expect(encoded).toMatch(/;s=[LA]+/)
+    const decoded = decodePermalink(encoded)
+    expect(decoded.settings.L).toBe(true)
+    expect(decoded.settings.A).toBe(true)
+  })
+})

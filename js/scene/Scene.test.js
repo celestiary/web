@@ -292,7 +292,10 @@ describe('Scene.applySettings', () => {
     s.applySettings(target)
     // L isn't in `target` but is added to getSettings by reading
     // Shared.targets.landed; pin it to the default (false) for this test.
-    expect(s.getSettings()).toEqual({...target, L: false})
+    // A is also merged in by getSettings (default false for this Scene-
+    // level snapshot — the live AR state is folded in at the permalink
+    // writer in Celestiary, not here).
+    expect(s.getSettings()).toEqual({...target, L: false, A: false})
   })
 })
 
@@ -403,5 +406,92 @@ describe('Scene.land', () => {
     expect(back.lat).toBeCloseTo(lat, 4)
     expect(back.lng).toBeCloseTo(lng, 4)
     expect(back.alt).toBeCloseTo(alt, 1)
+  })
+})
+
+
+/**
+ * Scene's AR mode hooks: enterAR snapshots prior settings + the ThreeUI
+ * `_arMode` flag, applies the AR preset, and returns the snapshot for
+ * exitAR to restore.  These tests exercise the bookkeeping; the actual
+ * scene-graph effects (asterism visibility, atmosphere uniform) are
+ * covered by their respective subsystem tests.
+ */
+describe('Scene.enterAR / exitAR', () => {
+  function makeArScene() {
+    const ui = {
+      scene: new ThreeScene(),
+      addClickCb: () => {},
+    }
+    const s = new Scene(ui)
+    // Stand-in stars so applySettings doesn't defer.
+    s.stars = {
+      labelLOD: {visible: false},
+      onCatalogReady: () => {},
+      add: () => {},
+    }
+    // applySettings dispatches to toggleOrbits / togglePlanetLabels which
+    // walk the 'sun' Object3D — give it a children-bearing fake with both
+    // 'orbit' and 'label LOD' so both toggles can do their walk in one
+    // pass without throwing.
+    s.objects['sun'] = {
+      children: [
+        {name: 'orbit', visible: true},
+        {name: 'label LOD', visible: true},
+      ],
+    }
+    return {scene: s, ui}
+  }
+
+  it('flips ui._arMode true on enter, restores on exit', () => {
+    const {scene, ui} = makeArScene()
+    expect(ui._arMode).toBeFalsy()
+    const snap = scene.enterAR()
+    expect(ui._arMode).toBe(true)
+    scene.exitAR(snap)
+    expect(ui._arMode).toBeFalsy()
+  })
+
+  it('returns a snapshot containing prior settings and arMode', () => {
+    const {scene} = makeArScene()
+    const before = {...scene.getSettings()}
+    const snap = scene.enterAR()
+    expect(snap).toBeDefined()
+    expect(snap.settings).toBeDefined()
+    // Snapshot captures pre-enter values, not post-enter.
+    expect(snap.settings.o).toBe(before.o)
+    expect(snap.settings.p).toBe(before.p)
+  })
+
+  it('applies the AR preset (orbits off, grids off) on enter', () => {
+    const {scene} = makeArScene()
+    scene._settings.o = true // make sure orbits would actually flip
+    scene.enterAR()
+    expect(scene.getSetting('o')).toBe(false)
+    expect(scene.getSetting('e')).toBe(false)
+    expect(scene.getSetting('c')).toBe(false)
+    expect(scene.getSetting('g')).toBe(false)
+  })
+
+  it('restores prior settings on exit', () => {
+    const {scene} = makeArScene()
+    // Set a non-trivial pre-enter state.
+    scene._settings.o = true
+    scene._settings.e = true
+    scene._settings.p = false
+    const snap = scene.enterAR()
+    // Confirm the preset took effect.
+    expect(scene.getSetting('o')).toBe(false)
+    expect(scene.getSetting('e')).toBe(false)
+    scene.exitAR(snap)
+    expect(scene.getSetting('o')).toBe(true)
+    expect(scene.getSetting('e')).toBe(true)
+    expect(scene.getSetting('p')).toBe(false)
+  })
+
+  it('exitAR with null/undefined snapshot is a no-op', () => {
+    const {scene} = makeArScene()
+    expect(() => scene.exitAR(null)).not.toThrow()
+    expect(() => scene.exitAR(undefined)).not.toThrow()
   })
 })
