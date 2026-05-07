@@ -287,7 +287,11 @@ describe('Scene.applySettings', () => {
       {name: 'label LOD', visible: true},
       {name: 'orbit', visible: true},
     ]}
-    const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, v: false}
+    // Add a fake MilkyWay so toggleGalaxy() finds it during dispatch.
+    const milkyWay = new Object3D()
+    milkyWay.name = 'MilkyWay'
+    s.ui.scene.add(milkyWay)
+    const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, v: false}
     s.registerSettingApplier('v', () => s.flipSetting('v'))
     s.applySettings(target)
     // L isn't in `target` but is added to getSettings by reading
@@ -296,6 +300,7 @@ describe('Scene.applySettings', () => {
     // level snapshot — the live AR state is folded in at the permalink
     // writer in Celestiary, not here).
     expect(s.getSettings()).toEqual({...target, L: false, A: false})
+    expect(milkyWay.visible).toBe(false)
   })
 })
 

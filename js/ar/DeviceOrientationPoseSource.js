@@ -1,5 +1,58 @@
 import {Euler, Quaternion, Vector3} from 'three'
 import {toRad} from '../shared.js'
+import AlphaPipeline from './AlphaPipeline.js'
+import BiquadNotch from './BiquadNotch.js'
+import LocalOneEuroFilter, {AngleOneEuroFilter as LocalAngleOneEuroFilter} from './OneEuroFilter.js'
+import LibBackedOneEuroFilter, {AngleOneEuroFilter as LibBackedAngleOneEuroFilter} from './OneEuroFilterLib.js'
+
+
+// A/B swap: flip USE_LIB_FILTER to exercise the canonical 1eurofilter
+// package instead of our local impl.  Same constructor opts, same
+// filter()/reset() API, same extension knobs (xDeadband / dDeadband /
+// motionThresh).  The lib gives us Casiez's reference math; our impl
+// is a direct port plus the same extensions.
+const USE_LIB_FILTER = true
+const OneEuroFilter = USE_LIB_FILTER ? LibBackedOneEuroFilter : LocalOneEuroFilter
+const AngleOneEuroFilter = USE_LIB_FILTER ? LibBackedAngleOneEuroFilter : LocalAngleOneEuroFilter
+
+
+// 1€ filter presets for the alpha (yaw / heading) axis — three damping
+// levels exposed to the user from the AR HUD.  The noise floor on
+// mid-range Android magnetometers isn't a clean tone we can notch out
+// (closer to pink-ish random walk with broadband fuzz), so smoothing
+// strength is the only knob that meaningfully changes UX.
+//
+//   light  : minCutoff 1.0, beta 0.05  → snappy, more visible jitter
+//   medium : minCutoff 0.5, beta 0.05  → balanced; tested-good default
+//                                        on a Samsung A34
+//   heavy  : minCutoff 0.05, beta 0.005 → near-fixed 0.05 Hz LP at rest;
+//                                        ~24° lag at 30°/s pan, but very
+//                                        clean for "recognise dots in
+//                                        the sky" use case
+//
+// Pitch + roll come from gravity via the accelerometer — much cleaner
+// — so they share the lighter TILT_FILTER_OPTS regardless of the
+// alpha damping selection.
+const ALPHA_FILTER_PRESETS = Object.freeze({
+  light: Object.freeze({minCutoff: 1.0, beta: 0.05, dCutoff: 1.0}),
+  medium: Object.freeze({minCutoff: 0.5, beta: 0.05, dCutoff: 1.0}),
+  heavy: Object.freeze({minCutoff: 0.05, beta: 0.005, dCutoff: 1.0}),
+})
+const DEFAULT_ALPHA_DAMPING = 'medium'
+const TILT_FILTER_OPTS = Object.freeze({minCutoff: 0.5, beta: 0.05, dCutoff: 1.0})
+
+
+// No notch — the magnetometer artifact on tested mid-range Android
+// hardware doesn't have a stationary spectrum a single-frequency notch
+// can bite into.  Left wired in via AlphaPipeline so it's a one-line
+// flip if a future device shows a clean carrier.
+const ALPHA_NOTCH_OPTS = null
+
+
+/** @returns {string[]} valid damping preset names */
+export function getAlphaDampingNames() {
+  return Object.keys(ALPHA_FILTER_PRESETS)
+}
 
 
 /**
@@ -58,11 +111,68 @@ export default class DeviceOrientationPoseSource {
     this._listening = false
     this._isAbsolute = false
     this._lastSample = null
+    this._lastRawSample = null
     this._lastSampleAt = 0
+    this._sampleCount = 0
+    this._lastEventType = null
     this._handler = (e) => this._onEvent(e)
     this._q = new Quaternion()
     this._screenQ = new Quaternion()
     this._scratchEuler = new Euler()
+    // Per-axis filters.  Alpha (yaw, magnetometer-fused, noisiest axis)
+    // gets the full unwrap → notch → 1€ pipeline so we can pick off a
+    // known periodic carrier before the smoothing stage.  Beta + gamma
+    // (pitch + roll, accelerometer-derived) are clean enough that bare
+    // 1€ is plenty.
+    this._alphaDamping = DEFAULT_ALPHA_DAMPING
+    this._alphaFilter = this._buildAlphaFilter(this._alphaDamping)
+    this._betaFilter = new AngleOneEuroFilter(TILT_FILTER_OPTS)
+    this._gammaFilter = new OneEuroFilter(TILT_FILTER_OPTS)
+  }
+
+
+  /**
+   * Build (or rebuild) the alpha filter pipeline at the given damping
+   * preset.  Used at construction time and whenever the user changes
+   * the damping mode from the AR HUD.
+   *
+   * @param {string} name  One of `getAlphaDampingNames()`
+   * @returns {AlphaPipeline}
+   */
+  _buildAlphaFilter(name) {
+    const opts = ALPHA_FILTER_PRESETS[name] ?? ALPHA_FILTER_PRESETS[DEFAULT_ALPHA_DAMPING]
+    return new AlphaPipeline({
+      BaseFilter: OneEuroFilter,
+      oneEuroOpts: opts,
+      notch: ALPHA_NOTCH_OPTS ? new BiquadNotch(ALPHA_NOTCH_OPTS) : null,
+    })
+  }
+
+
+  /**
+   * Swap the alpha-axis filter to a different damping preset.  Rebuilds
+   * the pipeline (state is reset, so a brief settling transient is
+   * expected on the next sample — fine since the user is in the middle
+   * of an explicit "change smoothing" gesture).
+   *
+   * @param {string} name  One of `getAlphaDampingNames()`
+   */
+  setAlphaDamping(name) {
+    if (!Object.prototype.hasOwnProperty.call(ALPHA_FILTER_PRESETS, name)) {
+      console.warn(`Unknown alpha damping preset: ${name}`)
+      return
+    }
+    if (name === this._alphaDamping) {
+      return
+    }
+    this._alphaDamping = name
+    this._alphaFilter = this._buildAlphaFilter(name)
+  }
+
+
+  /** @returns {string} Current alpha damping preset name */
+  getAlphaDamping() {
+    return this._alphaDamping
   }
 
 
@@ -110,6 +220,10 @@ export default class DeviceOrientationPoseSource {
     window.removeEventListener('deviceorientation', this._handler, true)
     this._listening = false
     this._lastSample = null
+    this._lastRawSample = null
+    this._alphaFilter.reset()
+    this._betaFilter.reset()
+    this._gammaFilter.reset()
   }
 
 
@@ -123,8 +237,17 @@ export default class DeviceOrientationPoseSource {
     if (typeof e.absolute === 'boolean' && e.absolute) {
       this._isAbsolute = true
     }
-    this._lastSample = {alpha: e.alpha, beta: e.beta, gamma: e.gamma}
-    this._lastSampleAt = (typeof performance !== 'undefined') ? performance.now() : Date.now()
+    const nowMs = (typeof performance !== 'undefined') ? performance.now() : Date.now()
+    const tSec = nowMs / 1000
+    this._lastRawSample = {alpha: e.alpha, beta: e.beta, gamma: e.gamma}
+    this._lastSample = {
+      alpha: this._alphaFilter.filter(e.alpha, tSec),
+      beta: this._betaFilter.filter(e.beta, tSec),
+      gamma: this._gammaFilter.filter(e.gamma, tSec),
+    }
+    this._lastSampleAt = nowMs
+    this._sampleCount++
+    this._lastEventType = e.type
     this.needsCalibration = !this._isAbsolute
   }
 
@@ -158,6 +281,31 @@ export default class DeviceOrientationPoseSource {
     const fresh = this._lastSample !== null &&
         ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - this._lastSampleAt) < 1000
     return {fresh, source: this._isAbsolute ? 'deviceorientation-absolute' : 'deviceorientation'}
+  }
+
+
+  /** @returns {object} Snapshot for the AR debug HUD */
+  getDebugSnapshot() {
+    // Pull the latest unwrapped + notched intermediates from the alpha
+    // pipeline so the HUD graph can plot all four traces (raw → unwrap
+    // → notch → 1€) and we can see which stage each artifact belongs to.
+    const alphaInter = typeof this._alphaFilter.getDebugIntermediates === 'function' ?
+      this._alphaFilter.getDebugIntermediates() :
+      null
+    return {
+      kind: this.kind,
+      listening: this._listening,
+      isAbsolute: this._isAbsolute,
+      sampleCount: this._sampleCount,
+      lastSample: this._lastSample,
+      lastRawSample: this._lastRawSample,
+      lastNotchedAlpha: alphaInter ? alphaInter.notched : null,
+      lastUnwrappedAlpha: alphaInter ? alphaInter.unwrapped : null,
+      lastEventType: this._lastEventType,
+      msSinceLastSample: this._lastSample === null ?
+        null :
+        Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - this._lastSampleAt),
+    }
   }
 }
 

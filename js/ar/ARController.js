@@ -4,6 +4,10 @@ import {createPoseSource} from './PoseSource.js'
 import {enuToBodyFixedQuat} from './enuFrame.js'
 
 
+/** Per-frame slerp factor for sensor-pose smoothing.  See updateFrame(). */
+const POSE_SLERP_T = 0.35
+
+
 /**
  * Top-level orchestrator for the AR sky-view feature.
  *
@@ -56,6 +60,10 @@ export default class ARController {
     this._lat = 0
     this._lng = 0
     this._alt = 0
+    // First-sample-after-enter snaps to the composed pose; subsequent
+    // samples slerp from prior so magnetometer noise on the alpha axis
+    // doesn't show up as visible left/right jitter.  See updateFrame().
+    this._hasAppliedSample = false
     // Pre-allocated scratch — updateFrame runs every frame.  No per-frame
     // allocations here keeps the pose-update path GC-free.
     this._qCamToEnu = new Quaternion()
@@ -80,18 +88,26 @@ export default class ARController {
    *      sidereal rotation and planetary ephemerides are accurate at this
    *      very moment.  Done first so step 2's land() places the observer
    *      on a body whose orientation matches reality.
-   *   2. Land on the requested body at the requested lat/lng/alt.  This
-   *      reparents camera.platform to the rotating body — the body-fixed
-   *      → inertial step happens automatically thereafter.
-   *   3. Apply the AR scene-visibility preset (atmosphere off, planet
+   *   2. Apply the AR scene-visibility preset (atmosphere off, planet
    *      meshes hidden, asterisms + labels on).
-   *   4. Construct and start the pose source (may prompt for permissions).
+   *   3. Construct and start the pose source (may prompt for permissions).
    *
-   * If step 4 throws (permissions denied, no sensors), the prior steps
+   * If step 3 throws (permissions denied, no sensors), the prior steps
    * are unwound so the user is left in a sensible non-AR state.
    *
+   * Camera position / parenting is *not* changed.  AR engages wherever
+   * the camera is.  If the user has previously landed on a body's
+   * surface (via Scene.land or place-click), the body-fixed → inertial
+   * chain is already correct via the scene-graph parenting and AR will
+   * align with the local sky.  If the user is in space, sensor pose
+   * still drives the camera quaternion, but the celestial-sphere
+   * composition won't be aligned to a particular ground frame —
+   * by-design tradeoff so AR doesn't silently teleport the user away
+   * from the spot they chose.
+   *
    * @param {object} opts
-   * @param {string} [opts.body]  Defaults to 'earth'
+   * @param {string} [opts.body]  Defaults to 'earth' — used only for the
+   *   ENU→body-fixed math seed; nothing is moved.
    * @param {number} opts.lat
    * @param {number} opts.lng
    * @param {number} [opts.alt]  Defaults to 2 m (eye-height)
@@ -108,6 +124,7 @@ export default class ARController {
     this._lat = lat
     this._lng = lng
     this._alt = alt
+    this._hasAppliedSample = false
     this._qEnuToBody.copy(enuToBodyFixedQuat(lat, lng))
 
     // Real-time sim — AR is meaningless if the simulated sky doesn't match
@@ -120,14 +137,6 @@ export default class ARController {
       this.time.togglePause()
     }
     this.time.setTimeToNow()
-
-    // Land — reparents camera.platform onto the rotating body.
-    try {
-      this.scene.land(body, lat, lng, alt, {instant: true})
-    } catch (e) {
-      this._active = false
-      throw new Error(`ARController.enter: scene.land failed: ${e.message}`)
-    }
 
     // Scene visibility preset.
     if (typeof this.scene.enterAR === 'function') {
@@ -207,9 +216,19 @@ export default class ARController {
 
   /**
    * Per-frame update.  No-op when AR is inactive or the pose source has
-   * not yet delivered a sample.  When active, overwrites camera.quaternion
-   * with the composed AR pose — this must be called AFTER any other
+   * not yet delivered a sample.  When active, slerps camera.quaternion
+   * toward the composed AR pose — this must be called AFTER any other
    * per-frame code that touches camera.quaternion, so the AR pose wins.
+   *
+   * Slerp factor (`POSE_SLERP_T`): the magnetometer-fused alpha axis on
+   * `deviceorientationabsolute` is noisy on most phones, especially
+   * indoors and before the figure-8 calibration dance — snapping to it
+   * raw produces visible left/right jitter.  At 60fps a slerp of 0.35
+   * settles in ~3 frames (~50ms), which is below the perceptual lag
+   * threshold but kills the jitter.  A 1-Euro filter would be better
+   * for stage 2 (camera passthrough) where every ms of lag is
+   * registered against the live video; for stage 1 sky-only this is
+   * plenty.
    */
   updateFrame() {
     if (!this._active || !this._poseSource) {
@@ -220,7 +239,12 @@ export default class ARController {
     }
     // camera.quaternion = enu_to_bodyFixed · q_calibration · q_cam_to_enu
     this._qOut.copy(this._qEnuToBody).multiply(this._qCalibration).multiply(this._qCamToEnu)
-    this.ui.camera.quaternion.copy(this._qOut)
+    // First sample of this AR session: snap, so the camera lands on the
+    // sensor pose immediately rather than tweening from the prior view.
+    // Subsequent samples slerp toward target — see POSE_SLERP_T.
+    const t = this._hasAppliedSample ? POSE_SLERP_T : 1.0
+    this.ui.camera.quaternion.slerp(this._qOut, t)
+    this._hasAppliedSample = true
   }
 
 
@@ -250,6 +274,19 @@ export default class ARController {
   }
 
 
+  /**
+   * Forward an alpha-axis damping preset change to the active pose source.
+   * No-op when AR isn't running (preset will be applied on next enter).
+   *
+   * @param {string} name  One of `getAlphaDampingNames()`
+   */
+  setAlphaDamping(name) {
+    if (this._poseSource && typeof this._poseSource.setAlphaDamping === 'function') {
+      this._poseSource.setAlphaDamping(name)
+    }
+  }
+
+
   /** Reset calibration to identity and clear persistent storage. */
   clearCalibration() {
     this._qCalibration.identity()
@@ -275,6 +312,59 @@ export default class ARController {
       lng: this._lng,
     }
   }
+
+
+  /**
+   * Snapshot for the AR debug HUD.  Always safe to call; returns an
+   * `active: false` payload when AR is not running.  Includes the raw
+   * sensor sample so we can tell at a glance whether the browser is
+   * delivering DeviceOrientationEvents at all (the most common failure
+   * mode is a permissions / secure-context issue that leaves the
+   * listener attached but events never firing).
+   *
+   * @returns {object}
+   */
+  getDebugSnapshot() {
+    const screenAngle = readScreenAngle()
+    if (!this._active) {
+      return {active: false, screenAngle}
+    }
+    const poseSrc = this._poseSource?.getDebugSnapshot?.() ?? {kind: this._poseSource?.kind ?? null}
+    const cam = this.ui?.camera
+    const camQuat = cam ? {
+      x: round3(cam.quaternion.x),
+      y: round3(cam.quaternion.y),
+      z: round3(cam.quaternion.z),
+      w: round3(cam.quaternion.w),
+    } : null
+    // Renderer-state cross-checks: the AR-mode preset is supposed to gate
+    // the atmosphere post-pass (`uAtmEnabled = 0`).  If the user reports
+    // atmosphere colors leaking through, surface the live values so we can
+    // tell whether _arMode got cleared or the gate isn't taking effect.
+    const arMode = this.ui?._arMode === true
+    const atmMesh = this.ui?._atmMesh
+    const uAtmEnabled = atmMesh?.material?.uniforms?.uAtmEnabled?.value ?? null
+    return {
+      active: true,
+      body: this._body,
+      lat: this._lat,
+      lng: this._lng,
+      screenAngle,
+      poseSrc,
+      camQuat,
+      arMode,
+      uAtmEnabled,
+    }
+  }
+}
+
+
+/**
+ * @param {number} v
+ * @returns {number} v rounded to 3 decimal places
+ */
+function round3(v) {
+  return Math.round(v * 1000) / 1000
 }
 
 

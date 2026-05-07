@@ -3,6 +3,9 @@ node_modules
 # Website is built by GHA, so don't commit
 docs
 
+# Local TLS certs for HTTPS dev server (yarn cert:dev)
+dev-certs
+
 # Temp files
 *~
 #*

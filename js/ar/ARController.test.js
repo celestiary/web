@@ -108,17 +108,17 @@ describe('ARController.enter / exit', () => {
   })
 
 
-  it('lands the camera platform on the requested body at the requested lat/lng', async () => {
+  it('does NOT call scene.land — AR engages wherever the camera is', async () => {
+    // Removing the implied goto was an explicit decision: AR should
+    // never silently teleport the camera away from the spot the user
+    // chose (e.g. landed at Cairo, then taps AR — they should stay at
+    // Cairo, not get warped to their device-geolocation).  The math
+    // composition still uses the supplied lat/lng for ENU→body-fixed,
+    // so callers should pass the user's intended observer position.
     const {ctrl, sceneCalls} = harness
     await enterWith(ctrl, {body: 'earth', lat: 37.77, lng: -122.42, alt: 2})
     expect(ctrl.isActive()).toBe(true)
-    const landCall = sceneCalls.find((c) => c.op === 'land')
-    expect(landCall).toBeDefined()
-    expect(landCall.name).toBe('earth')
-    expect(landCall.lat).toBeCloseTo(37.77, 6)
-    expect(landCall.lng).toBeCloseTo(-122.42, 6)
-    expect(landCall.alt).toBe(2)
-    expect(landCall.opts.instant).toBe(true)
+    expect(sceneCalls.some((c) => c.op === 'land')).toBe(false)
   })
 
 

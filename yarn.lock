@@ -2,6 +2,11 @@
 # yarn lockfile v1
 
 
+"1eurofilter@^1.3.0":
+  version "1.3.0"
+  resolved "https://registry.yarnpkg.com/1eurofilter/-/1eurofilter-1.3.0.tgz#c8a47d42287207fd2a3d7f613a785897dc357ec8"
+  integrity sha512-3t57UlTR7J2Uyq7kwfzgQg+auO6Yb3G09GKFeBVJQvaK/Otn0dcW20RNMt4d05G0/XcEQoORW87rGo3RFiyHYg==
+
 "@aashutoshrathi/word-wrap@^1.2.3":
   version "1.2.6"
   resolved "https://registry.yarnpkg.com/@aashutoshrathi/word-wrap/-/word-wrap-1.2.6.tgz#bd9154aec9983f77b3a034ecaa015c2e4201f6cf"

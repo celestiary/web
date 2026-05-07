@@ -5,9 +5,17 @@ export default class Keys {
     this.window = win
     this.keymap = {}
     this.msgs = {}
+    // Per-key state getter for boolean toggles: the Settings UI renders
+    // these as checkboxes (with current state) instead of plain buttons.
+    // Pure read-side — caller is responsible for passing the same fn on
+    // every refresh.  Absent for one-shot action keys ('h', 'g', etc.).
+    this.toggleStates = {}
+    // Per-key group label, drives the Settings panel section grouping.
+    // Entries without a group land in `MISC_GROUP_NAME` at the bottom.
+    this.groups = {}
     // Click-only actions: items the user can toggle from Settings but which
-    // don't have a keyboard shortcut.  Each entry: {fn, msg}.  Listed in
-    // Settings after the keyed shortcuts.
+    // don't have a keyboard shortcut.  Each entry: {fn, msg, getState?, group?}.
+    // Listed in Settings after the keyed shortcuts.
     this.actions = []
     this.bindToWindow(useStore)
   }
@@ -58,10 +66,20 @@ export default class Keys {
    *   different handlers).
    * @param {Function} fn
    * @param {string} msg
+   * @param {Function} [getState] Optional zero-arg boolean getter; when
+   *   supplied, Settings renders this entry as a checkbox reflecting the
+   *   current state instead of a click-only button.
+   * @param {string} [group] Optional Settings-panel section heading.
    */
-  map(c, fn, msg) {
+  map(c, fn, msg, getState, group) {
     this.keymap[c] = fn
     this.msgs[c] = msg
+    if (typeof getState === 'function') {
+      this.toggleStates[c] = getState
+    }
+    if (typeof group === 'string') {
+      this.groups[c] = group
+    }
   }
 
 
@@ -70,8 +88,19 @@ export default class Keys {
    *
    * @param {Function} fn
    * @param {string} msg
+   * @param {Function} [getState] Optional zero-arg boolean getter; when
+   *   supplied, Settings renders this action as a checkbox reflecting the
+   *   current state instead of a click-only button.
+   * @param {string} [group] Optional Settings-panel section heading.
    */
-  addAction(fn, msg) {
-    this.actions.push({fn, msg})
+  addAction(fn, msg, getState, group) {
+    const entry = {fn, msg}
+    if (typeof getState === 'function') {
+      entry.getState = getState
+    }
+    if (typeof group === 'string') {
+      entry.group = group
+    }
+    this.actions.push(entry)
   }
 }

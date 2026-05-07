@@ -13,6 +13,7 @@ import * as Shaders from './star-shaders.js'
 import {sphere} from './shapes.js'
 import {newAtmosphere} from './atmos/Atmosphere'
 import * as Shared from '../shared.js'
+import {named} from '../utils.js'
 
 
 /**
@@ -76,7 +77,10 @@ export default class Star extends Object {
 
     const surfaceGroup = new Group
     surfaceGroup.add(this.newSurface(props))
-    surfaceGroup.add(newAtmosphere(props.radius.scalar * 1.07))
+    // Name the halo so Scene.enterAR's `'atmosphere'` traversal can hide it
+    // — the additive BackSide shell flashes orange across the AR sky-view
+    // when the camera sweeps through the Sun direction.
+    surfaceGroup.add(named(newAtmosphere(props.radius.scalar * 1.07), 'atmosphere'))
     lod.addLevel(surfaceGroup, props.radius.scalar)
 
     lod.addLevel(Shared.FAR_OBJ, props.radius.scalar * 1e3)

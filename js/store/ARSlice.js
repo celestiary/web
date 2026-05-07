@@ -20,6 +20,20 @@ export default function createARSlice(set, _get) {
   return {
     ar: null,
     setARMode: setAR(set),
+    // ARDebugHUD overlay visibility.  Off by default — the debug HUD
+    // polls the controller per frame and runs a canvas redraw, so we
+    // keep it gated to the explicit Settings → Info → "AR debug HUD"
+    // toggle.  When off, the rAF loop in ARDebugHUD doesn't even start.
+    arDebugVisible: false,
+    setARDebugVisible: (v) => set(() => ({arDebugVisible: !!v})),
+    toggleARDebug: () => set((s) => ({arDebugVisible: !s.arDebugVisible})),
+    // Alpha-axis damping preset (light / medium / heavy).  Mirror of the
+    // active preset on the pose source so the AR HUD can highlight the
+    // selected button.  Driven by setARAlphaDamping() below — that fn
+    // both updates the store value and forwards to the running pose
+    // source via celestiary.setARAlphaDamping().
+    arAlphaDamping: 'medium',
+    setARAlphaDamping: (name) => set(() => ({arAlphaDamping: name})),
   }
 }
 

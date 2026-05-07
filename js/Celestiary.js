@@ -361,141 +361,210 @@ export default class Celestiary {
   setupKeyListeners(useStore) {
     const k = new Keys(window, useStore)
 
-    // Nav panels (HTML chrome only)
+    // === Info ===
     k.map('v', () => this._toggleNav(),
-        'Hide/show navigation panels (HTML overlay)')
-
-    // Presentation mode — hide every scene annotation at once.
+        'Target properties HUD (HTML overlay)',
+        () => this.scene.getSetting('v'),
+        'Info')
+    k.addAction(() => useStore.getState().toggleARDebug(),
+        'AR debug HUD',
+        () => useStore.getState().arDebugVisible,
+        'Info')
+    // Presentation mode — hide every scene annotation at once.  No clean
+    // single-state representation, so it stays an action button.
     k.map('V', () => this._toggleAllSceneInfo(),
-        'Hide/show all scene annotations (labels, orbits, asterisms, grids)')
+        'Hide/show all scene annotations (labels, orbits, asterisms, grids)',
+        undefined,
+        'Info')
 
-    // Scene elements
-    k.map('a', () => {
-      this.scene.toggleAsterisms()
-    },
-    'Show/hide constellations')
+    // === Labels ===
     k.map('p', () => {
       this.scene.togglePlanetLabels()
     },
-    'Show/hide planet and moon names')
+    'Planets',
+    () => this.scene.getSetting('p'),
+    'Labels')
     k.map('s', () => {
       this.scene.toggleStarLabels()
     },
-    'Show/hide star names')
+    'Stars',
+    () => this.scene.getSetting('l'),
+    'Labels')
+    k.map('a', () => {
+      this.scene.toggleAsterisms()
+    },
+    'Constellations',
+    () => this.scene.getSetting('a'),
+    'Labels')
+    k.map('U', () => {
+      this.scene.toggleGalaxy()
+    },
+    'Milky Way (procedural background galaxy)',
+    () => this.scene.getSetting('U'),
+    'Labels')
+
+    // === Orbits ===
     k.map('o', () => {
       this.scene.toggleOrbits()
     },
-    'Show/hide orbits')
+    'Orbits',
+    () => this.scene.getSetting('o'),
+    'Orbits')
+
+    // === Grids ===
     k.map(';', () => {
       this.scene.toggleGridEquatorial()
     },
-    'Show/hide equatorial reference grid')
+    'Equatorial',
+    () => this.scene.getSetting('e'),
+    'Grids')
+    k.addAction(() => {
+      this.scene.toggleGridEcliptic()
+    },
+    'Ecliptic',
+    () => this.scene.getSetting('c'),
+    'Grids')
+    k.addAction(() => {
+      this.scene.toggleGridGalactic()
+    },
+    'Galactic',
+    () => this.scene.getSetting('g'),
+    'Grids')
+
+    // === Time ===
+    k.map(' ', () => {
+      this.setIsPaused(this.time.togglePause())
+    },
+    'Toggle time pause',
+    undefined,
+    'Time')
+    k.map('\\', () => {
+      this.time.changeTimeScale(0)
+    },
+    'Change time scale to real-time',
+    undefined,
+    'Time')
+    k.map('!', () => {
+      this.time.setTimeToNow()
+    },
+    'Set time to now',
+    undefined,
+    'Time')
+    k.map('j', () => {
+      this.time.invertTimeScale()
+    },
+    'Reverse time',
+    undefined,
+    'Time')
+    k.map('k', () => {
+      this.time.changeTimeScale(-1)
+    },
+    'Slow down time',
+    undefined,
+    'Time')
+    k.map('l', () => {
+      this.time.changeTimeScale(1)
+    },
+    'Speed up time',
+    undefined,
+    'Time')
+    k.map('n', () => {
+      this.time.setTimeToNow()
+    },
+    'Set time to now',
+    undefined,
+    'Time')
+
+    // === Camera ===
+    k.map(',', () => {
+      this.ui.multFov(0.9)
+    },
+    'Narrow field-of-vision',
+    undefined,
+    'Camera')
+    k.map('.', () => {
+      this.ui.multFov(1.1)
+    },
+    'Broaden field-of-vision',
+    undefined,
+    'Camera')
+    k.map('/', () => {
+      this.ui.resetFov()
+    },
+    `Reset field-of-vision to ${ Shared.INITIAL_FOV }º`,
+    undefined,
+    'Camera')
     k.map('m', () => {
       const s = useStore.getState()
       const next = {auto: 'pan', pan: 'orbit', orbit: 'auto'}[s.dragMode] ?? 'auto'
       s.setDragMode(next)
     },
-    'Cycle camera drag mode (Auto / Drag Pan / Move)')
-    // No keys for ecliptic / galactic per Celestia convention; click-only
-    // entries appear in Settings after the keyed shortcuts.
-    k.addAction(() => {
-      this.scene.toggleGridEcliptic()
-    },
-    'Show/hide ecliptic reference grid')
-    k.addAction(() => {
-      this.scene.toggleGridGalactic()
-    },
-    'Show/hide galactic reference grid')
-
-    // Time
-    k.map(' ', () => {
-      this.setIsPaused(this.time.togglePause())
-    },
-    'Toggle time pause')
-    k.map('\\', () => {
-      this.time.changeTimeScale(0)
-    },
-    'Change time scale to real-time')
-    k.map('!', () => {
-      this.time.setTimeToNow()
-    },
-    'Set time to now')
-    k.map('j', () => {
-      this.time.invertTimeScale()
-    },
-    'Reverse time')
-    k.map('k', () => {
-      this.time.changeTimeScale(-1)
-    },
-    'Slow down time')
-    k.map('l', () => {
-      this.time.changeTimeScale(1)
-    },
-    'Speed up time')
-    k.map('n', () => {
-      this.time.setTimeToNow()
-    },
-    'Set time to now')
-
-    // View
-    k.map(',', () => {
-      this.ui.multFov(0.9)
-    },
-    'Narrow field-of-vision')
-    k.map('.', () => {
-      this.ui.multFov(1.1)
-    },
-    'Broaden field-of-vision')
-    k.map('/', () => {
-      this.ui.resetFov()
-    },
-    `Reset field-of-vision to ${ Shared.INITIAL_FOV }º`)
-
-    // Numbered views
+    'Cycle camera drag mode (Auto / Drag Pan / Move)',
+    undefined,
+    'Camera')
+    // Numbered views — pin a child of current system as look-target.
     k.map('0', () => {
       this.scene.targetCurNode()
     },
-    'Target current system')
+    'Target current system',
+    undefined,
+    'Camera')
     for (let i = 1; i <= 9; i++) {
       k.map(`${i}`, () => {
         const ndx = i
         this.scene.targetNode(ndx)
       },
-      `Look at child ${i} of current system`)
+      `Look at child ${i} of current system`,
+      undefined,
+      'Camera')
     }
+
+    // === Targeting ===
     k.map('c', () => {
       this.scene.lookAtTarget()
     },
-    'Look at target')
+    'Look at target',
+    undefined,
+    'Targeting')
     k.map('f', () => {
       this.scene.follow()
     },
-    'Follow current node')
+    'Follow current node',
+    undefined,
+    'Targeting')
     k.map('g', () => {
       this.goTo()
     },
-    'Go to target node')
+    'Go to target node',
+    undefined,
+    'Targeting')
     k.map('h', () => {
       // Just retarget — travel is 'g'.  setTarget syncs the store, which
       // clears committedStar so a stale "at Rigel" breadcrumb doesn't
       // linger after aiming back at the Sun.
       this.scene.targetNamed('sun')
     },
-    'Set target to Sun (use "g" to travel)')
+    'Set target to Sun (use "g" to travel)',
+    undefined,
+    'Targeting')
     k.map('t', () => {
       this.scene.track()
     },
-    'Track target node')
+    'Track target node',
+    undefined,
+    'Targeting')
     k.map('u', () => {
       this.scene.targetParent()
     },
-    'Look at parent of current system')
+    'Look at parent of current system',
+    undefined,
+    'Targeting')
 
     // Arrow keys use held-key logic in ThreeUI._initArrowKeys; no-op here for Settings listing.
-    k.map('ArrowUp', () => {/* no-op */}, 'Pitch camera up (hold)')
-    k.map('ArrowDown', () => {/* no-op */}, 'Pitch camera down (hold)')
-    k.map('ArrowLeft', () => {/* no-op */}, 'Roll camera left (hold)')
-    k.map('ArrowRight', () => {/* no-op */}, 'Roll camera right (hold)')
+    k.map('ArrowUp', () => {/* no-op */}, 'Pitch camera up (hold)', undefined, 'Camera')
+    k.map('ArrowDown', () => {/* no-op */}, 'Pitch camera down (hold)', undefined, 'Camera')
+    k.map('ArrowLeft', () => {/* no-op */}, 'Roll camera left (hold)', undefined, 'Camera')
+    k.map('ArrowRight', () => {/* no-op */}, 'Roll camera right (hold)', undefined, 'Camera')
     k.msgs['MOUSEDRAG'] = 'Drag to pitch/yaw camera'
     k.msgs['ALT+MOUSEDRAG'] = 'Option+drag to orbit target'
 
@@ -629,8 +698,23 @@ export default class Celestiary {
 
 
   /**
-   * @returns {?string} Name of the current target body if it's a body
-   *   (has a radius); null for stars or empty state.
+   * Forward an alpha-axis damping preset change to the AR controller.
+   * No-op while AR is inactive — preset applies on next enterAR().
+   *
+   * @param {string} name  One of `getAlphaDampingNames()`
+   */
+  setARAlphaDamping(name) {
+    this.ar.setAlphaDamping(name)
+  }
+
+
+  /**
+   * @returns {?string} Name of the current target body if it's a planet/
+   *   moon (has a radius and is not a star); null for stars or empty
+   *   state.  Stars are excluded so AR's "stand on this body" default
+   *   doesn't silently land the user on the photosphere of the Sun when
+   *   the current target happened to be a star.  Detected via
+   *   `props.spectralType` — present on Star, absent on Planet.
    */
   _currentBodyName() {
     const cur = Shared.targets.cur
@@ -638,6 +722,9 @@ export default class Celestiary {
       return null
     }
     if (!cur.props.radius || !cur.props.radius.scalar) {
+      return null
+    }
+    if (cur.props.spectralType !== undefined) {
       return null
     }
     return cur.props.name

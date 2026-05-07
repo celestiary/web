@@ -1,14 +1,18 @@
 import http from 'node:http'
+import https from 'node:https'
 
 
 /**
  * @param {string} proxiedHost The host to which traffic will be sent. E.g. localhost
  * @param {number} port The port to which traffic will be sent.  E.g. 8079
+ * @param {{key: Buffer, cert: Buffer}} [tlsOptions] When supplied, the
+ *   proxy listens on HTTPS using these credentials.  esbuild stays HTTP
+ *   on `host:port`; TLS terminates at the proxy.
  * @see https://esbuild.github.io/api/#serve-proxy
  * @returns {object} Proxy server
  */
-export function createProxyServer(host, port) {
-  return http.createServer((req, res) => {
+export function createProxyServer(host, port, tlsOptions) {
+  const handler = (req, res) => {
     const options = {
       hostname: host,
       port: port,
@@ -33,7 +37,8 @@ export function createProxyServer(host, port) {
 
     // Forward the body of the request to esbuild
     req.pipe(proxyReq, {end: true})
-  })
+  }
+  return tlsOptions ? https.createServer(tlsOptions, handler) : http.createServer(handler)
 }
 
 
