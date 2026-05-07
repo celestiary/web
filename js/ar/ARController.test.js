@@ -9,8 +9,9 @@ import {enuToBodyFixedQuat} from './enuFrame.js'
 /**
  * Build a minimal ARController harness:
  *   - real ThreeScene + PerspectiveCamera + camera.platform
- *   - fake Scene with land() that reparents the camera platform onto the
- *     "earth" Object3D, mirroring the real Scene.land contract
+ *   - fake Scene exposing only enterAR / exitAR (no `land` — AR no
+ *     longer teleports on entry; the camera is left wherever the user
+ *     left it before tapping AR)
  *   - fake Time (records what gets called)
  *   - in-memory CalibrationStore
  *   - injectable PoseSource so we can drive deterministic poses in tests
@@ -29,14 +30,6 @@ function makeHarness({poseSource} = {}) {
 
   const sceneCalls = []
   const fakeScene = {
-    land(name, lat, lng, alt, opts) {
-      sceneCalls.push({op: 'land', name, lat, lng, alt, opts})
-      // Reparent the camera platform onto earth (mirrors real Scene.land,
-      // which children-of-rotating-body auto-inherits sidereal rotation).
-      earth.add(camera.platform)
-      camera.platform.position.set(0, 0, 0)
-      camera.platform.quaternion.identity()
-    },
     enterAR() {
       sceneCalls.push({op: 'enterAR'})
       return {snapshot: 'fake'}

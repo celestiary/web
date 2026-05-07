@@ -38,7 +38,7 @@ const ALPHA_FILTER_PRESETS = Object.freeze({
   medium: Object.freeze({minCutoff: 0.5, beta: 0.05, dCutoff: 1.0}),
   heavy: Object.freeze({minCutoff: 0.05, beta: 0.005, dCutoff: 1.0}),
 })
-const DEFAULT_ALPHA_DAMPING = 'medium'
+export const DEFAULT_ALPHA_DAMPING = 'medium'
 const TILT_FILTER_OPTS = Object.freeze({minCutoff: 0.5, beta: 0.05, dCutoff: 1.0})
 
 

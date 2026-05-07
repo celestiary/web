@@ -709,25 +709,10 @@ export default class Celestiary {
 
 
   /**
-   * @returns {?string} Name of the current target body if it's a planet/
-   *   moon (has a radius and is not a star); null for stars or empty
-   *   state.  Stars are excluded so AR's "stand on this body" default
-   *   doesn't silently land the user on the photosphere of the Sun when
-   *   the current target happened to be a star.  Detected via
-   *   `props.spectralType` — present on Star, absent on Planet.
+   * @returns {?string} See `landableBodyName(target)`.
    */
   _currentBodyName() {
-    const cur = Shared.targets.cur
-    if (!cur || !cur.props || !cur.props.name) {
-      return null
-    }
-    if (!cur.props.radius || !cur.props.radius.scalar) {
-      return null
-    }
-    if (cur.props.spectralType !== undefined) {
-      return null
-    }
-    return cur.props.name
+    return landableBodyName(Shared.targets.cur)
   }
 
 
@@ -769,3 +754,30 @@ export default class Celestiary {
 
 const DEFAULT_TARGET = 'sun'
 const J2000_JD = 2451545.0
+
+
+/**
+ * Decide whether a scene-graph target is a body the user can plausibly
+ * "stand on" for AR purposes.  Returns the body's name if it has a
+ * surface (radius > 0) AND isn't a star (lacks `spectralType`); null
+ * otherwise.  Stars are excluded so tapping AR while viewing the Sun
+ * doesn't silently teleport the user to the photosphere — the AR
+ * caller falls back to a sensible default body (Earth) when this
+ * returns null.
+ *
+ * @param {?object} target  Scene-graph node (typically `Shared.targets.cur`)
+ * @returns {?string}
+ */
+export function landableBodyName(target) {
+  const props = target?.props
+  if (!props || !props.name) {
+    return null
+  }
+  if (!props.radius || !props.radius.scalar) {
+    return null
+  }
+  if (props.spectralType !== undefined) {
+    return null
+  }
+  return props.name
+}

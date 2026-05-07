@@ -2,6 +2,8 @@ import {Quaternion, Vector3} from 'three'
 import {CalibrationStore} from './Calibration.js'
 import {createPoseSource} from './PoseSource.js'
 import {enuToBodyFixedQuat} from './enuFrame.js'
+import {worldToLatLngAlt} from '../coords.js'
+import * as Shared from '../shared.js'
 
 
 /** Per-frame slerp factor for sensor-pose smoothing.  See updateFrame(). */
@@ -105,9 +107,16 @@ export default class ARController {
    * by-design tradeoff so AR doesn't silently teleport the user away
    * from the spot they chose.
    *
+   * If the camera is already over a body's surface (typical: user
+   * clicked a place, then tapped AR), the live camera-derived position
+   * wins over `opts.lat / opts.lng` — keeps the math honest about
+   * where the user actually is in the simulation, regardless of what
+   * geolocation the OS reported.  `opts` is still the fallback for the
+   * in-space case.
+   *
    * @param {object} opts
    * @param {string} [opts.body]  Defaults to 'earth' — used only for the
-   *   ENU→body-fixed math seed; nothing is moved.
+   *   ENU→body-fixed math seed when the in-camera fallback fails.
    * @param {number} opts.lat
    * @param {number} opts.lng
    * @param {number} [opts.alt]  Defaults to 2 m (eye-height)
@@ -119,6 +128,19 @@ export default class ARController {
     }
     if (typeof lat !== 'number' || typeof lng !== 'number') {
       throw new Error(`ARController.enter: lat/lng required (got ${lat}, ${lng})`)
+    }
+    // Prefer the camera's actual world-position-on-current-target over the
+    // caller-supplied opts when the camera is already over a body's
+    // surface (typical: user clicked a place to land, then tapped AR).
+    // This makes the ENU→body-fixed math seed match where the user
+    // *visually* is, and keeps the HUD's reported observer position
+    // honest.  Fall back to opts when no body is targeted (in space).
+    const live = this._observerFromCamera()
+    if (live !== null) {
+      body = live.body
+      lat = live.lat
+      lng = live.lng
+      alt = live.alt
     }
     this._body = body
     this._lat = lat
@@ -294,6 +316,39 @@ export default class ARController {
       const angle = readScreenAngle()
       this.calibrationStore.clear(this._poseSource.kind, angle)
     }
+  }
+
+
+  /**
+   * If the camera is currently sitting over a body with a known radius,
+   * return the body's name + lat/lng/alt derived from the camera's
+   * world position.  Returns null when no such body is targeted (e.g.
+   * the user is looking at a star or empty space) — caller falls back
+   * to whatever lat/lng the AR-entry call supplied.
+   *
+   * @returns {?{body: string, lat: number, lng: number, alt: number}}
+   */
+  _observerFromCamera() {
+    const cur = Shared?.targets?.cur
+    const props = cur?.props
+    if (!props || !props.name || !props.radius || !props.radius.scalar) {
+      return null
+    }
+    if (props.spectralType !== undefined) {
+      // Star — body-fixed math doesn't make sense (no surface to stand on).
+      return null
+    }
+    if (!this.ui?.camera || !cur.getWorldQuaternion || !cur.getWorldPosition) {
+      return null
+    }
+    const camWorld = this._scratchVec.set(0, 0, 0)
+    const planetWorld = new Vector3()
+    const planetWorldQuat = new Quaternion()
+    this.ui.camera.getWorldPosition(camWorld)
+    cur.getWorldPosition(planetWorld)
+    cur.getWorldQuaternion(planetWorldQuat)
+    const {lat, lng, alt} = worldToLatLngAlt(camWorld, planetWorld, planetWorldQuat, props.radius.scalar)
+    return {body: props.name, lat, lng, alt}
   }
 
 

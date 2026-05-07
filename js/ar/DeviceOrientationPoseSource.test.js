@@ -1,6 +1,10 @@
 import {describe, expect, it} from 'bun:test'
 import {Euler, Quaternion, Vector3} from 'three'
-import {composeDeviceToEnu} from './DeviceOrientationPoseSource.js'
+import DeviceOrientationPoseSource, {
+  DEFAULT_ALPHA_DAMPING,
+  composeDeviceToEnu,
+  getAlphaDampingNames,
+} from './DeviceOrientationPoseSource.js'
 
 
 /**
@@ -133,5 +137,44 @@ describe('composeDeviceToEnu — anchor poses', () => {
     expect(back.x).toBeCloseTo(1, 6)
     expect(back.y).toBeCloseTo(0, 6)
     expect(back.z).toBeCloseTo(0, 6)
+  })
+})
+
+
+describe('DeviceOrientationPoseSource — alpha damping presets', () => {
+  it('exposes valid preset names and a default that is one of them', () => {
+    const names = getAlphaDampingNames()
+    expect(names.length).toBeGreaterThanOrEqual(3)
+    expect(names).toContain(DEFAULT_ALPHA_DAMPING)
+  })
+
+  it('defaults to DEFAULT_ALPHA_DAMPING after construction', () => {
+    const ps = new DeviceOrientationPoseSource()
+    expect(ps.getAlphaDamping()).toBe(DEFAULT_ALPHA_DAMPING)
+  })
+
+  it('setAlphaDamping switches preset and rebuilds the alpha pipeline', () => {
+    const ps = new DeviceOrientationPoseSource()
+    const beforeFilter = ps._alphaFilter
+    const next = getAlphaDampingNames().find((n) => n !== ps.getAlphaDamping())
+    ps.setAlphaDamping(next)
+    expect(ps.getAlphaDamping()).toBe(next)
+    expect(ps._alphaFilter).not.toBe(beforeFilter)
+  })
+
+  it('setAlphaDamping with the same name is a no-op (preserves filter state)', () => {
+    const ps = new DeviceOrientationPoseSource()
+    const beforeFilter = ps._alphaFilter
+    ps.setAlphaDamping(ps.getAlphaDamping())
+    expect(ps._alphaFilter).toBe(beforeFilter)
+  })
+
+  it('setAlphaDamping with an unknown name leaves the preset unchanged', () => {
+    const ps = new DeviceOrientationPoseSource()
+    const before = ps.getAlphaDamping()
+    const beforeFilter = ps._alphaFilter
+    ps.setAlphaDamping('not-a-real-preset')
+    expect(ps.getAlphaDamping()).toBe(before)
+    expect(ps._alphaFilter).toBe(beforeFilter)
   })
 })

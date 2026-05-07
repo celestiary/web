@@ -1,3 +1,6 @@
+import {DEFAULT_ALPHA_DAMPING} from '../ar/DeviceOrientationPoseSource'
+
+
 /**
  * AR (Augmented Reality) sky-view state.
  *
@@ -32,7 +35,7 @@ export default function createARSlice(set, _get) {
     // selected button.  Driven by setARAlphaDamping() below — that fn
     // both updates the store value and forwards to the running pose
     // source via celestiary.setARAlphaDamping().
-    arAlphaDamping: 'medium',
+    arAlphaDamping: DEFAULT_ALPHA_DAMPING,
     setARAlphaDamping: (name) => set(() => ({arAlphaDamping: name})),
   }
 }
