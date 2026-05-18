@@ -1,4 +1,5 @@
 import {
+  Group,
   Object3D,
   Quaternion,
   Raycaster,
@@ -9,11 +10,13 @@ import Asterisms from './Asterisms.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import Planet from './Planet.js'
+import SpriteSheet from './SpriteSheet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
-import {queryPlaces} from './Picker.js'
+import {pickSurfaceLatLng, queryPlaces} from './Picker.js'
+import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
 
@@ -37,6 +40,23 @@ function _findPlaces(bodyNode) {
     }
   }
   return null
+}
+
+
+/**
+ * Format lat/lng as a compact, human-readable string for the dblclick
+ * marker label, e.g. "30.27°N, 97.74°W".  Two decimals: tight enough to
+ * resolve a city block at Earth scale (~1 km), short enough to keep the
+ * sprite sheet small.
+ *
+ * @param {number} lat
+ * @param {number} lng
+ * @returns {string}
+ */
+export function formatLatLng(lat, lng) {
+  const ns = lat >= 0 ? 'N' : 'S'
+  const ew = lng >= 0 ? 'E' : 'W'
+  return `${Math.abs(lat).toFixed(2)}°${ns}, ${Math.abs(lng).toFixed(2)}°${ew}`
 }
 
 
@@ -73,6 +93,11 @@ export default class Scene {
     ui.addClickCb((click) => {
       this.onClick(click)
     })
+    if (typeof ui.addDblClickCb === 'function') {
+      ui.addDblClickCb((click) => {
+        this.onDblClick(click)
+      })
+    }
     // Loaded later
     this.stars = null
     this.asterisms = null
@@ -808,6 +833,96 @@ export default class Scene {
   }
 
 
+  /**
+   * Double-click handler — ray-sphere intersects the click against the
+   * current body and, on hit, drops a temporary lat/lng marker at the spot
+   * and lands there.  Works on any body with a `props.radius.scalar` that
+   * isn't a star (stars are excluded so a dblclick on the Sun doesn't
+   * teleport the user to its photosphere).  Complements `onClick`'s
+   * named-place picking: dblclick lets the user land anywhere on the
+   * surface, including bodies without a catalogued places file.
+   *
+   * @param {PointerEvent} e
+   */
+  onDblClick(e) {
+    const cur = Shared.targets.cur
+    if (!cur || !cur.props || !cur.props.radius?.scalar) {
+      return
+    }
+    // Stars get raycast-targeted via the search/PickLabels flow.  Bodies
+    // are identified vs stars by the absence of spectralType (matches
+    // landableBodyName in Celestiary.js).
+    if (cur.props.spectralType !== undefined) {
+      return
+    }
+    const pick = pickSurfaceLatLng(this.ui, e, cur)
+    if (!pick) {
+      return
+    }
+    this._setTempMarker(cur, pick.lat, pick.lng)
+    this.land(cur.props.name, pick.lat, pick.lng)
+  }
+
+
+  /**
+   * Drop (or replace) a one-entry lat/lng SpriteSheet on the rotating body
+   * Object3D so the user can see where their dblclick landed.  Attached as
+   * a child of the body so it inherits axial tilt + sidereal rotation
+   * automatically.  Stashed on `bodyNode._tempMarker` so the next dblclick
+   * can dispose the previous one without a global registry.
+   *
+   * @param {Object3D} bodyNode  Rotating planet Object3D (scene.objects[name])
+   * @param {number} lat
+   * @param {number} lng
+   */
+  _setTempMarker(bodyNode, lat, lng) {
+    if (bodyNode._tempMarker) {
+      this._disposeTempMarker(bodyNode)
+    }
+    const radius = bodyNode.props.radius.scalar
+    const text = formatLatLng(lat, lng)
+    // surfaceVisibility=true matches Places — back-hemisphere discard so the
+    // marker can't bleed through to the far side of the body as it rotates.
+    const sheet = new SpriteSheet(1, text, undefined, [0, 0], false, true)
+    const xyz = latLngAltToBodyFixed(lat, lng, 0, radius)
+    sheet.add(xyz.x, xyz.y, xyz.z, text, labelTextColor)
+    const points = sheet.compile()
+    const g = new Group()
+    g.name = `${bodyNode.props.name}.tempMarker`
+    g.userData.isTempMarker = true
+    g.userData.sheet = sheet
+    g.add(points)
+    // Track 'p' overlay-group visibility so the global presentation toggle
+    // ('V') and the per-overlay toggle ('p') both pick up the marker.
+    g.visible = this.getSetting ? this.getSetting('p') : true
+    bodyNode.add(g)
+    bodyNode._tempMarker = g
+  }
+
+
+  /**
+   * Dispose the SpriteSheet GPU resources for a body's temp marker and
+   * detach it from the scene graph.  Optional-chains every dispose hop so
+   * a child Object3D without geometry/material (e.g. test stubs) doesn't
+   * throw — the cleanup is best-effort.
+   *
+   * @param {Object3D} bodyNode
+   */
+  _disposeTempMarker(bodyNode) {
+    const g = bodyNode._tempMarker
+    if (!g) {
+      return
+    }
+    bodyNode.remove(g)
+    const points = g.children[0]
+    points?.geometry?.dispose?.()
+    const mat = points?.material
+    mat?.uniforms?.map?.value?.dispose?.()
+    mat?.dispose?.()
+    bodyNode._tempMarker = null
+  }
+
+
   /** */
   toggleAsterisms() {
     if (this.asterisms === null && this.stars !== null) {
@@ -866,6 +981,11 @@ export default class Scene {
       const obj = this.objects[name]
       if (obj && obj.places && typeof obj.places.visible === 'boolean') {
         obj.places.visible = !obj.places.visible
+      }
+      // Dblclick-dropped lat/lng markers live in the same 'p' overlay group
+      // as the named places — flip them together so the user has one knob.
+      if (obj && obj._tempMarker && typeof obj._tempMarker.visible === 'boolean') {
+        obj._tempMarker.visible = !obj._tempMarker.visible
       }
     }
     this._flipSetting('p')

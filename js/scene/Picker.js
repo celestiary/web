@@ -1,7 +1,7 @@
 // Object3D imported only for the JSDoc type below; project lint config
 // permits type-only imports.
-import {Object3D, Raycaster, Vector3} from 'three'
-import {latLngAltToBodyFixed} from '../coords.js'
+import {Object3D, Quaternion, Raycaster, Vector3} from 'three'
+import {latLngAltToBodyFixed, worldToLatLngAlt} from '../coords.js'
 
 
 // Reused across calls to avoid per-frame allocations.
@@ -176,4 +176,75 @@ export function queryPlaces(ui, e, body, entries, pickCb) {
     return
   }
   pickCb(bestEntry)
+}
+
+
+// Reusable temps for pickSurfaceLatLng.
+const _surfL = new Vector3()
+const _surfBodyCenter = new Vector3()
+const _surfBodyQuat = new Quaternion()
+const _surfHit = new Vector3()
+
+
+/**
+ * Ray-sphere intersect a pointer event against a body's implicit surface
+ * sphere (center = body world position, radius = `props.radius.scalar`) and
+ * return the hit point as geographic coordinates in the body-fixed frame.
+ *
+ * No mesh raycasting: surface meshes are LOD-swapped and may not be the
+ * geometry actually rendered at a given camera distance (the far-LOD is a
+ * Point sprite, the very-far LOD is invisible).  The implicit sphere is
+ * always available — only `props.radius.scalar` is needed — and matches
+ * what the user sees for any LOD level since all bodies render as spheres.
+ *
+ * Returns null when the ray misses, when the body has no radius, or when
+ * the only intersections are behind the camera.
+ *
+ * @param {object} ui  ThreeUI; uses .renderer, .camera
+ * @param {{clientX:number, clientY:number}} e  Pointer event
+ * @param {Object3D} body  Body Object3D with `.props.radius.scalar`
+ * @returns {?{lat: number, lng: number, alt: number}}
+ */
+export function pickSurfaceLatLng(ui, e, body) {
+  const radius = body?.props?.radius?.scalar
+  if (!radius) {
+    return null
+  }
+
+  const el = ui.renderer.domElement
+  const mouse = {
+    x: ((e.clientX / el.clientWidth) * 2) - 1,
+    y: ((e.clientY / el.clientHeight) * -2) + 1,
+  }
+  _raycaster.setFromCamera(mouse, ui.camera)
+  const ray = _raycaster.ray
+
+  body.updateMatrixWorld()
+  body.getWorldPosition(_surfBodyCenter)
+  body.getWorldQuaternion(_surfBodyQuat)
+
+  // Standard ray-sphere intersect.  L = center - origin; tCenter = L·D is
+  // the parameter at the point on the ray closest to the sphere center,
+  // d² = |L|² − tCenter² is its squared perp-distance.  Miss when d² > R².
+  _surfL.copy(_surfBodyCenter).sub(ray.origin)
+  const tCenter = _surfL.dot(ray.direction)
+  const d2 = _surfL.lengthSq() - (tCenter * tCenter)
+  const r2 = radius * radius
+  if (d2 > r2) {
+    return null
+  }
+  const dt = Math.sqrt(r2 - d2)
+  const tNear = tCenter - dt
+  const tFar = tCenter + dt
+  // Pick the front-facing intersect when the camera is outside the sphere
+  // (tNear > 0); if the camera is inside (tNear < 0 < tFar) we still want
+  // a forward hit so the user can dblclick to land while already at low
+  // altitude.  tFar < 0 means the entire sphere is behind the camera.
+  const t = (tNear > 0) ? tNear : (tFar > 0 ? tFar : null)
+  if (t === null) {
+    return null
+  }
+
+  _surfHit.copy(ray.origin).addScaledVector(ray.direction, t)
+  return worldToLatLngAlt(_surfHit, _surfBodyCenter, _surfBodyQuat, radius)
 }

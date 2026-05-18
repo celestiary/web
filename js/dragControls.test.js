@@ -260,4 +260,94 @@ describe('attachPointerDrag', () => {
 
     expect(camera.quaternion.equals(startQuat)).toBe(true)
   })
+
+  it('fires onClick on a quick pointerup with no movement', () => {
+    const el = makeFakeElement()
+    const camera = new PerspectiveCamera()
+    const onClick = mock()
+    attachPointerDrag(el, camera, {onClick})
+
+    el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+    el.fire('pointerup', {pointerId: 1, clientX: 101, clientY: 100})
+
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not fire onClick when the gesture moved beyond CLICK_PX_THRESHOLD', () => {
+    const el = makeFakeElement()
+    const camera = new PerspectiveCamera()
+    const onClick = mock()
+    attachPointerDrag(el, camera, {onClick})
+
+    el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+    // 20 px is well above the 5 px click threshold — counts as a drag.
+    el.fire('pointerup', {pointerId: 1, clientX: 120, clientY: 100})
+
+    expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it('fires onDblClick on the second of two quick clicks at the same spot', () => {
+    const el = makeFakeElement()
+    const onClick = mock()
+    const onDblClick = mock()
+    attachPointerDrag(el, new PerspectiveCamera(), {onClick, onDblClick})
+
+    // Two clicks at the same point in rapid succession.
+    el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+    el.fire('pointerup', {pointerId: 1, clientX: 100, clientY: 100})
+    el.fire('pointerdown', {button: 0, pointerId: 2, clientX: 100, clientY: 100})
+    el.fire('pointerup', {pointerId: 2, clientX: 100, clientY: 100})
+
+    // Browser-style: onClick fires twice, onDblClick fires once on the second.
+    expect(onClick).toHaveBeenCalledTimes(2)
+    expect(onDblClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not fire onDblClick when the second click is far from the first', () => {
+    const el = makeFakeElement()
+    const onDblClick = mock()
+    attachPointerDrag(el, new PerspectiveCamera(), {onDblClick})
+
+    el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+    el.fire('pointerup', {pointerId: 1, clientX: 100, clientY: 100})
+    // 200 px away — well beyond the 8 px dblclick proximity gate.
+    el.fire('pointerdown', {button: 0, pointerId: 2, clientX: 300, clientY: 100})
+    el.fire('pointerup', {pointerId: 2, clientX: 300, clientY: 100})
+
+    expect(onDblClick).not.toHaveBeenCalled()
+  })
+
+  it('does not double-fire onDblClick on a triple-click (only first pair counts)', () => {
+    // Regression guard: after a dblclick fires, the next single tap must
+    // start a fresh pair — otherwise a triple-tap would fire dblclick
+    // twice (tap1+tap2 and tap2+tap3 both qualifying).
+    const el = makeFakeElement()
+    const onDblClick = mock()
+    attachPointerDrag(el, new PerspectiveCamera(), {onDblClick})
+
+    el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+    el.fire('pointerup', {pointerId: 1, clientX: 100, clientY: 100})
+    el.fire('pointerdown', {button: 0, pointerId: 2, clientX: 100, clientY: 100})
+    el.fire('pointerup', {pointerId: 2, clientX: 100, clientY: 100})
+    el.fire('pointerdown', {button: 0, pointerId: 3, clientX: 100, clientY: 100})
+    el.fire('pointerup', {pointerId: 3, clientX: 100, clientY: 100})
+
+    expect(onDblClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not fire onDblClick when only onClick is wired', () => {
+    // The dblclick branch is gated on the consumer wiring onDblClick — when
+    // it's not wired, click-pair bookkeeping still runs but is harmless.
+    const el = makeFakeElement()
+    const onClick = mock()
+    attachPointerDrag(el, new PerspectiveCamera(), {onClick})
+
+    el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+    el.fire('pointerup', {pointerId: 1, clientX: 100, clientY: 100})
+    el.fire('pointerdown', {button: 0, pointerId: 2, clientX: 100, clientY: 100})
+    el.fire('pointerup', {pointerId: 2, clientX: 100, clientY: 100})
+
+    expect(onClick).toHaveBeenCalledTimes(2)
+    // No onDblClick to check — the test passes as long as nothing crashes.
+  })
 })

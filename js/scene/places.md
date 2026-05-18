@@ -54,9 +54,22 @@ per-frame in `Places._installLODHook`'s `onBeforeRender`:
 | Tier | screenPx ≥ | UX intent |
 |---|---|---|
 | T0 | 30 | small recognizable disc → only marquee names |
-| T1 | 200 | planet fills ~20% of screen |
-| T2 | 1500 | continent-scale view |
+| T1 | 200 | planet fills ~half the screen |
+| T2 | 500 | close orbital view — whole hemisphere visible |
 | T3 | (Phase 2 lazy chunks) | — |
+
+`screenPx` is the body's apparent *radius* in viewport pixels (see
+`Places.screenPx`).  At the default FOV (45°) and a 900-px-tall viewport,
+the camera distance → screenPx mapping is roughly:
+
+| Camera distance | screenPx | Visible tiers |
+|---|---|---|
+| 10 R | 114 | T0 |
+| 5.5 R | 200 | T0, T1 |
+| 2.3 R | 500 | T0, T1, T2 |
+| R (surface) | 900 | T0, T1, T2 |
+
+(Where `R` is the body's surface radius.)
 
 Per-tier SpriteSheets are lazy-instantiated the first time their
 threshold is crossed — most users browsing the solar system will never
@@ -86,13 +99,29 @@ altitude as the visual, so click zones match what the user sees.
 
 - **moon** — 33 entries: Apollo/Luna/Chang'e landings, major maria,
   prominent craters, poles.  Source: IAU Gazetteer + NASA mission records.
-- **earth** — ~40 entries: top global cities + landmarks.  Tier 0 = world-
-  iconic (15 megacities + Everest, Grand Canyon, Pyramids); Tier 1 = ~30
-  cities and landmarks.
+- **earth** — ~165 entries.  Tier 0 = 15 world-iconic megacities + Everest,
+  Grand Canyon, Pyramids, poles; Tier 1 = ~30 major cities and landmarks
+  (>1M pop); Tier 2 = ~115 secondary cities (~500k-3M) and regional
+  capitals worldwide — Austin, Denver, Madrid, São Paulo, Shanghai,
+  Melbourne, etc.  Reveal-threshold tuning means T2 only paints at
+  continent-scale zoom, so the from-space view stays uncluttered.
 - **mars** — 25 entries: every successful surface mission + named features
   (Olympus Mons, Valles Marineris, Hellas, all Tharsis volcanoes).
 - **mercury** — 12 entries: Caloris and named craters.
 - **venus** — 14 entries: Venera/Vega landers + Aphrodite/Ishtar Terrae.
 
-Larger catalogs (Earth's full T2 ~5k cities, full IAU Gazetteer per body)
-are planned for a follow-up via a build-script that filters source CSVs.
+Larger catalogs (full IAU Gazetteer per body) are planned for a follow-up
+via a build-script that filters source CSVs.
+
+## Double-click to land anywhere
+
+`Scene.onDblClick` complements the named-place catalog by letting the user
+land at *any* surface point on the currently-targeted body.  Implementation
+in `Picker.pickSurfaceLatLng`: ray-sphere intersection against the body's
+implicit sphere (center = body world position, radius = `props.radius.scalar`),
+then `worldToLatLngAlt` to recover (lat, lng) in the body-fixed frame.
+
+The picked spot gets a temporary lat/lng marker (a one-entry SpriteSheet
+attached to the rotating body so it inherits sidereal rotation, stashed on
+`bodyNode._tempMarker` for replacement on the next dblclick).  The marker
+respects the 'p' visibility group like the named places.

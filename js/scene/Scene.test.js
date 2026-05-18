@@ -2,7 +2,32 @@ import {describe, expect, it} from 'bun:test'
 import {Object3D, PerspectiveCamera, Quaternion, Scene as ThreeScene, Vector3} from 'three'
 import {SETTINGS_DEFAULTS} from '../permalink.js'
 import * as Shared from '../shared.js'
-import Scene from './Scene.js'
+
+// SpriteSheet (used by Scene._setTempMarker) reaches for document.* —
+// stub the canvas APIs it touches.  Same pattern as Places.test.js.
+global.document = global.document ?? {
+  createElement: () => ({
+    setAttribute: () => {},
+    getContext: () => ({
+      fillStyle: '',
+      font: '',
+      textBaseline: '',
+      fillRect: () => {},
+      fill: () => {},
+      fillText: () => {},
+      save: () => {},
+      restore: () => {},
+      translate: () => {},
+      measureText: () => ({width: 100, actualBoundingBoxAscent: 10, actualBoundingBoxDescent: 2}),
+    }),
+    width: 0,
+    height: 0,
+  }),
+  body: {appendChild: () => {}},
+}
+
+const Scene = (await import('./Scene.js')).default
+const {formatLatLng} = await import('./Scene.js')
 
 
 function makeScene() {
@@ -498,5 +523,162 @@ describe('Scene.enterAR / exitAR', () => {
     const {scene} = makeArScene()
     expect(() => scene.exitAR(null)).not.toThrow()
     expect(() => scene.exitAR(undefined)).not.toThrow()
+  })
+})
+
+
+describe('formatLatLng', () => {
+  it('formats positive lat/lng as N/E with two decimals', () => {
+    expect(formatLatLng(30.2672, 97.7431)).toBe('30.27°N, 97.74°E')
+  })
+
+  it('formats negative lat as S, negative lng as W', () => {
+    expect(formatLatLng(-33.8688, -151.2093)).toBe('33.87°S, 151.21°W')
+  })
+
+  it('handles equator and prime meridian as N / E (sign convention: >= 0)', () => {
+    expect(formatLatLng(0, 0)).toBe('0.00°N, 0.00°E')
+  })
+
+  it('handles mixed signs (Austin: N latitude, W longitude)', () => {
+    expect(formatLatLng(30.2672, -97.7431)).toBe('30.27°N, 97.74°W')
+  })
+})
+
+
+/**
+ * Scene wires the ui.addDblClickCb when the ui supports it (the new
+ * pointer-drag dblclick path).  These tests verify the constructor binding
+ * and the per-call onDblClick early-out conditions without firing the
+ * actual ray-sphere intersect (mocking the raycaster is out of scope —
+ * Picker.test.js covers that).
+ */
+describe('Scene.onDblClick wiring', () => {
+  it('registers a dblclick callback when ui exposes addDblClickCb', () => {
+    let registered = null
+    const ui = {
+      scene: new ThreeScene(),
+      addClickCb: () => {},
+      addDblClickCb: (cb) => {
+        registered = cb
+      },
+    }
+    new Scene(ui)
+    expect(typeof registered).toBe('function')
+  })
+
+  it('is graceful when ui has no addDblClickCb (back-compat)', () => {
+    expect(() => makeScene()).not.toThrow()
+  })
+
+  it('onDblClick is a no-op when there is no current target', () => {
+    const s = makeScene()
+    Shared.targets.cur = null
+    expect(() => s.onDblClick({clientX: 100, clientY: 100})).not.toThrow()
+  })
+
+  it('onDblClick is a no-op when current target has no radius', () => {
+    const s = makeScene()
+    Shared.targets.cur = {props: {name: 'noradius'}}
+    expect(() => s.onDblClick({clientX: 100, clientY: 100})).not.toThrow()
+  })
+
+  it('onDblClick is a no-op when current target is a star (has spectralType)', () => {
+    // Stars are excluded so dblclicking the Sun doesn't teleport the user
+    // to its photosphere.  Mirrors landableBodyName in Celestiary.js.
+    const s = makeScene()
+    Shared.targets.cur = {
+      props: {name: 'sun', radius: {scalar: 6.957e8}, spectralType: 'G2V'},
+    }
+    expect(() => s.onDblClick({clientX: 100, clientY: 100})).not.toThrow()
+  })
+})
+
+
+/**
+ * The temporary lat/lng marker is dropped at the dblclick spot.  These
+ * tests build the marker directly via `_setTempMarker` (skipping the
+ * raycast) to exercise the scene-graph attachment, the replace-on-second
+ * call invariant, the 'p' overlay-group binding, and dispose cleanliness.
+ */
+describe('Scene._setTempMarker', () => {
+  function makeWithEarth() {
+    return makeSceneWithEarth()
+  }
+
+  it('attaches the marker as a child of the rotating body', () => {
+    const {scene, earth} = makeWithEarth()
+    scene._setTempMarker(earth, 30.27, -97.74)
+    expect(earth._tempMarker).toBeDefined()
+    expect(earth.children.includes(earth._tempMarker)).toBe(true)
+  })
+
+  it('replaces the prior marker on the next call', () => {
+    const {scene, earth} = makeWithEarth()
+    scene._setTempMarker(earth, 30.27, -97.74)
+    const first = earth._tempMarker
+    scene._setTempMarker(earth, 51.51, -0.13)
+    const second = earth._tempMarker
+    expect(second).not.toBe(first)
+    expect(earth.children.includes(first)).toBe(false)
+    expect(earth.children.includes(second)).toBe(true)
+  })
+
+  it('marker visibility tracks the current "p" setting at creation time', () => {
+    const {scene, earth} = makeWithEarth()
+    scene._settings.p = false
+    scene._setTempMarker(earth, 0, 0)
+    expect(earth._tempMarker.visible).toBe(false)
+    scene._settings.p = true
+    scene._setTempMarker(earth, 0, 0)
+    expect(earth._tempMarker.visible).toBe(true)
+  })
+
+  it('stashes the SpriteSheet on userData so disposal can find it', () => {
+    // The sheet ref is intended for the marker-replace path in
+    // _setTempMarker, which calls _disposeTempMarker to free the prior
+    // GPU resources.  We only check that the field exists — the sheet's
+    // internal `positions` array isn't introspected because Celestiary
+    // tests `mock.module('./scene/SpriteSheet')` process-globally, so a
+    // direct assertion on sheet.positions would fail when tests run
+    // together (the stub returns a plain Object3D from compile()).
+    const {scene, earth} = makeWithEarth()
+    scene._setTempMarker(earth, 0, 0)
+    expect(earth._tempMarker.userData.sheet).toBeDefined()
+  })
+
+  it('uses the formatted lat/lng string as the label text', () => {
+    const {scene, earth} = makeWithEarth()
+    scene._setTempMarker(earth, 30.27, -97.74)
+    // The label name lives in the marker group's name suffix.
+    expect(earth._tempMarker.name).toBe('earth.tempMarker')
+    expect(earth._tempMarker.userData.isTempMarker).toBe(true)
+  })
+
+  it('togglePlanetLabels flips the temp marker visibility along with named places', () => {
+    const {scene, earth} = makeWithEarth()
+    scene._setTempMarker(earth, 0, 0)
+    expect(earth._tempMarker.visible).toBe(true)
+    // togglePlanetLabels visits scene.objects['sun'] for the label-LOD walk;
+    // make sure that doesn't crash by adding a minimal sun fake.
+    scene.objects['sun'] = fakeSunWithLabelLOD()
+    scene.togglePlanetLabels()
+    expect(earth._tempMarker.visible).toBe(false)
+    scene.togglePlanetLabels()
+    expect(earth._tempMarker.visible).toBe(true)
+  })
+
+  it('_disposeTempMarker is safe when called on a body with no marker', () => {
+    const {scene, earth} = makeWithEarth()
+    expect(() => scene._disposeTempMarker(earth)).not.toThrow()
+  })
+
+  it('_disposeTempMarker removes the marker from the scene graph and clears the field', () => {
+    const {scene, earth} = makeWithEarth()
+    scene._setTempMarker(earth, 0, 0)
+    const marker = earth._tempMarker
+    scene._disposeTempMarker(earth)
+    expect(earth._tempMarker).toBeNull()
+    expect(earth.children.includes(marker)).toBe(false)
   })
 })

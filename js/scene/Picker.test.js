@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'bun:test'
-import {Object3D, PerspectiveCamera} from 'three'
+import {Object3D, PerspectiveCamera, Quaternion} from 'three'
 import {latLngAltToBodyFixed} from '../coords.js'
-import {MAX_PICK_PX, queryPlaces} from './Picker.js'
+import {MAX_PICK_PX, pickSurfaceLatLng, queryPlaces} from './Picker.js'
 
 
 // Synthetic body & UI helpers — no WebGL, no DOM.
@@ -120,5 +120,121 @@ describe('queryPlaces', () => {
       picked = e
     })
     expect(picked?.n).toBe('Near')
+  })
+})
+
+
+describe('pickSurfaceLatLng', () => {
+  it('returns the lat/lng under the cursor for a body at origin', () => {
+    const ui = makeUI()
+    const body = makeBody()
+    // Cursor over the centre of the disc; with camera at +X looking at
+    // origin, the centre projects through (lat=0, lng=0) — the prime
+    // meridian point at +X body-fixed.
+    const center = project(ui, body, 0, 0)
+    const hit = pickSurfaceLatLng(ui, center, body)
+    expect(hit).not.toBeNull()
+    expect(hit.lat).toBeCloseTo(0, 3)
+    expect(hit.lng).toBeCloseTo(0, 3)
+    // Surface hit: alt ≈ 0 (within float precision of the radius).
+    expect(Math.abs(hit.alt)).toBeLessThan(1) // sub-metre
+  })
+
+  it('returns lat=45 at the equator-NE point on the visible disc', () => {
+    const ui = makeUI()
+    const body = makeBody()
+    const cursor = project(ui, body, 45, 0)
+    const hit = pickSurfaceLatLng(ui, cursor, body)
+    expect(hit).not.toBeNull()
+    expect(hit.lat).toBeCloseTo(45, 1)
+    expect(hit.lng).toBeCloseTo(0, 1)
+  })
+
+  it('respects the body world quaternion (rotated body)', () => {
+    // Rotate body 90° around Y.  The body-fixed +X axis now points to
+    // world −Z, so the disc centre (from a +X-looking camera) corresponds
+    // to a different lat/lng than the unrotated case.
+    const ui = makeUI()
+    const body = makeBody()
+    body.quaternion.setFromAxisAngle({x: 0, y: 1, z: 0}, Math.PI / 2)
+    body.updateMatrixWorld(true)
+    // Disc centre.
+    const hit = pickSurfaceLatLng(ui, {clientX: 640, clientY: 360}, body)
+    expect(hit).not.toBeNull()
+    // After the rotation, the camera-facing point on the surface is
+    // lng=−90° body-fixed (where +X-world now lives in the rotated frame).
+    expect(hit.lat).toBeCloseTo(0, 1)
+    expect(Math.abs(hit.lng + 90)).toBeLessThan(2) // |lng − (−90)| small
+  })
+
+  it('returns null when the click misses the sphere', () => {
+    const ui = makeUI()
+    const body = makeBody()
+    // Far-corner pixel — well off the disc with the camera at +X 5R.
+    const hit = pickSurfaceLatLng(ui, {clientX: 10, clientY: 10}, body)
+    expect(hit).toBeNull()
+  })
+
+  it('returns null when the body has no radius', () => {
+    const ui = makeUI()
+    const noRadius = new Object3D()
+    noRadius.props = {name: 'bad'}
+    expect(pickSurfaceLatLng(ui, {clientX: 640, clientY: 360}, noRadius)).toBeNull()
+  })
+
+  it('returns null when the body is missing props entirely', () => {
+    const ui = makeUI()
+    expect(pickSurfaceLatLng(ui, {clientX: 640, clientY: 360}, new Object3D())).toBeNull()
+  })
+
+  it('returns null when the sphere is behind the camera', () => {
+    const ui = makeUI()
+    const body = makeBody()
+    // Move the body behind the camera (camera looks at −X from +X·5R).
+    body.position.set(EARTH_R * 20, 0, 0)
+    body.updateMatrixWorld(true)
+    // Look the other way so the body sits in the rear hemisphere.
+    ui.camera.lookAt(-1e9, 0, 0)
+    ui.camera.updateMatrixWorld(true)
+    // Click anywhere in the viewport — the body's behind us, no hit.
+    expect(pickSurfaceLatLng(ui, {clientX: 640, clientY: 360}, body)).toBeNull()
+  })
+
+  it('preserves body world position offset', () => {
+    // The picker uses body world position from getWorldPosition, so a
+    // translated body must still resolve a sensible lat/lng.
+    const ui = makeUI()
+    const body = makeBody()
+    body.position.set(EARTH_R * 100, 0, 0)
+    body.updateMatrixWorld(true)
+    ui.camera.position.set(EARTH_R * 105, 0, 0) // 5R in front of the body
+    ui.camera.lookAt(EARTH_R * 100, 0, 0)
+    ui.camera.updateMatrixWorld(true)
+    const hit = pickSurfaceLatLng(ui, {clientX: 640, clientY: 360}, body)
+    expect(hit).not.toBeNull()
+    expect(hit.lat).toBeCloseTo(0, 1)
+    expect(hit.lng).toBeCloseTo(0, 1)
+  })
+
+  it('round-trips through latLngAltToBodyFixed for many points on the visible disc', () => {
+    // A regression smoke test that the ray-sphere math and the body-fixed
+    // conversion are consistent: pick a known body-fixed point, project it
+    // to screen, pick it back, and check we recover the same lat/lng.
+    const ui = makeUI()
+    const body = makeBody()
+    body.quaternion.copy(new Quaternion()) // identity
+    body.updateMatrixWorld(true)
+    const samples = [
+      [0, 0], [10, 0], [0, 10], [-15, 20], [30, -30], [45, 45], [-45, -45],
+    ]
+    for (const [lat, lng] of samples) {
+      const cursor = project(ui, body, lat, lng)
+      const hit = pickSurfaceLatLng(ui, cursor, body)
+      expect(hit).not.toBeNull()
+      // 1 deg tolerance: the projection→pick→recover chain has small
+      // floating-point error, and the test isn't trying to measure that.
+      expect(Math.abs(hit.lat - lat)).toBeLessThan(1)
+      expect(Math.abs(hit.lng - lng)).toBeLessThan(1)
+    }
   })
 })
