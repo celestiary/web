@@ -1,0 +1,39 @@
+name: Deploy production (celestiary.github.io)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Skip silently when the cross-repo deploy key hasn't been configured
+    # yet, so first-time setup doesn't fail the workflow.
+    if: ${{ secrets.CELESTIARY_GITHUB_IO_DEPLOY_KEY != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: ./.github/actions/build
+        with:
+          base-path: /
+
+      - name: Push built site to celestiary.github.io gh-pages
+        uses: JamesIves/github-pages-deploy-action@v4.8.0
+        with:
+          repository-name: celestiary/celestiary.github.io
+          branch: gh-pages
+          folder: docs
+          ssh-key: ${{ secrets.CELESTIARY_GITHUB_IO_DEPLOY_KEY }}
+          clean: true
+          commit-message: "sync from celestiary/web@${{ github.sha }}"
+          git-config-name: github-actions[bot]
+          git-config-email: 41898282+github-actions[bot]@users.noreply.github.com

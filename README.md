@@ -34,12 +34,18 @@ Edits in the source directory will be available in the app on a page refresh.
 For larger changes, it's also a good idea to step through the guide pages (in /guide) to make sure they'll all working.
 
 ## Deploy
-The app runs at https://celestiary.github.io/ and is in the celestiary.github.io repo.  From it grab the changes from the web repo and then push them:
+The app is served at https://celestiary.github.io/ (user page, short URL) and
+https://celestiary.github.io/web/ (project page).  Both deploy automatically
+on push to `main` from this repo:
 
-```
-git pull upstream main
-git push
-```
+- `.github/workflows/gh-pages.yml` builds with `BASE_PATH=/web/` and pushes
+  to this repo's `gh-pages` branch root, serving the project page.
+- `.github/workflows/deploy-prod.yml` builds with `BASE_PATH=/` and pushes
+  to `celestiary/celestiary.github.io`'s `gh-pages` branch via an SSH deploy
+  key (secret `CELESTIARY_GITHUB_IO_DEPLOY_KEY`), serving the user page.
+
+PR previews land at `celestiary.github.io/web/pr-preview/pr-NNN/` via
+`.github/workflows/pr-preview.yml`.
 
 ## Performance
 A first-time session downloads ~3-5MB, mostly of the stars data.  Planet textures are lazy-fetched as the user moves around the scene, but will bring that upwards to ~10MB in full.
