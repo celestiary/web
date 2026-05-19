@@ -6,23 +6,18 @@ import {latLngAltToBodyFixed} from '../coords.js'
 import {labelTextColor} from '../shared.js'
 
 
-// Tier reveal thresholds: planet apparent RADIUS in viewport pixels.
-// T0 marquee names appear when the body is a small recognizable disc;
-// finer tiers reveal as the camera closes in.  Indexed by entry's `t` field.
+// Tier reveal thresholds: planet apparent DIAMETER as a fraction of
+// viewport height.  Viewport-relative so the visual size at which each
+// tier reveals stays consistent across 720p / 1080p / 4K / 8K monitors —
+// an earlier absolute-pixel threshold (T1=400 px radius) gave a "planet
+// fills 74 % of screen" reveal on 1080p but only ~18 % on 8K, so users
+// on larger displays saw T1 cities at the initial d=10R fly-in.
 //
-// At the default FOV of 45° and the initial fly-in distance d=10R, the
-// body subtends:
-//   900-px viewport  → 113 px
-//   1080-px viewport → 137 px
-//   1440-px viewport → 183 px
-//   2160-px viewport → 274 px (4K — T1's earlier 200 fired here on goTo)
-//
-// T1 (400) keeps it suppressed at the initial view across all common
-// viewport sizes and reveals as the user zooms in past d≈3R on 1080p
-// (or d≈7R on 4K).  T2 (700) requires closer zoom still — d≈1.8R on
-// 1080p — for picking specific cities at "almost landed" range.  T3
-// (8000) is reserved for a future zoom-only level.
-const DEFAULT_TIER_PX = [30, 400, 700, 8000]
+// T0: tiny disc — marquee-only.  T1: planet has become a substantial
+// feature, fills ~3/4 of the screen vertically.  T2: planet fills the
+// screen and overflows — "almost-landed" picking zoom.  T3 reserved for
+// a future surface-detail level.
+const DEFAULT_TIER_FRAC = [0.06, 0.75, 1.3, 8.0]
 
 // Per-entry altitude (`a`, in m) is preserved as-is.  We don't add a fixed
 // surface lift any more: the surface-visibility SpriteSheet shader uses
@@ -41,17 +36,19 @@ const DEFAULT_TIER_PX = [30, 400, 700, 8000]
  * raw body-fixed XYZ from latLngAltToBodyFixed, no per-frame transform work.
  *
  * LOD: per-tier SpriteSheets are lazy-instantiated the first time their
- * reveal threshold (planet apparent radius in pixels) is crossed.  Per-frame
- * visibility toggling is driven by an invisible placeholder Points whose
- * onBeforeRender computes screenPx for the parent body.
+ * reveal threshold (planet diameter as fraction of viewport height) is
+ * crossed.  Per-frame visibility toggling is driven by an invisible
+ * placeholder Points whose onBeforeRender computes the apparent diameter
+ * for the parent body.
  */
 export default class Places extends Group {
   /**
    * @param {string} bodyName For node naming + debugging
    * @param {number} planetRadius Body radius in meters
-   * @param {number[]} [tierThresholds] Override DEFAULT_TIER_PX
+   * @param {number[]} [tierThresholds] Override DEFAULT_TIER_FRAC.  Each
+   *   entry is planet apparent diameter as a fraction of viewport height.
    */
-  constructor(bodyName, planetRadius, tierThresholds = DEFAULT_TIER_PX) {
+  constructor(bodyName, planetRadius, tierThresholds = DEFAULT_TIER_FRAC) {
     super()
     this.name = `${bodyName}.places`
     this.bodyName = bodyName
@@ -88,6 +85,8 @@ export default class Places extends Group {
 
   /**
    * Compute the body's apparent radius in viewport pixels at the camera.
+   * Kept for external use (tests, debugging) — internally
+   * `diameterFraction` is what drives tier reveal.
    *
    * @param {object} camera Three.js PerspectiveCamera (uses .fov)
    * @param {number} viewportH Viewport height in pixels
@@ -110,19 +109,38 @@ export default class Places extends Group {
 
 
   /**
-   * Visibility test for tier `t` at a given screenPx.  Exposed for tests so
-   * we don't need a real renderer/camera to verify the LOD logic.
+   * Compute the body's apparent DIAMETER as a fraction of viewport height.
+   * Viewport-relative so a single threshold reads the same on 1080p, 4K,
+   * 8K, etc — the basis for tier reveal.
+   *
+   * @param {object} camera Three.js PerspectiveCamera (uses .fov)
+   * @param {number} viewportH Viewport height in pixels
+   * @returns {number} fraction (1.0 means body diameter equals screen height)
+   */
+  diameterFraction(camera, viewportH) {
+    if (viewportH <= 0) {
+      return 0
+    }
+    // screenPx is the apparent RADIUS in pixels; diameter / vph = 2*sp/vph.
+    return (2 * this.screenPx(camera, viewportH)) / viewportH
+  }
+
+
+  /**
+   * Visibility test for tier `t` at a given diameter fraction.  Exposed
+   * for tests so we don't need a real renderer/camera to verify the LOD
+   * logic.
    *
    * @param {number} t
-   * @param {number} screenPx
+   * @param {number} fraction body diameter / viewport height
    * @returns {boolean}
    */
-  shouldShowTier(t, screenPx) {
+  shouldShowTier(t, fraction) {
     const threshold = this.tierThresholds[t]
     if (threshold === undefined) {
       return false
     }
-    return screenPx >= threshold
+    return fraction >= threshold
   }
 
 
@@ -168,12 +186,12 @@ export default class Places extends Group {
     // Hook runs only when the placeholder itself isn't culled.  It sits at
     // the parent's origin, so it's visible whenever the planet is in frame.
     placeholder.onBeforeRender = (renderer, _scene, camera) => {
-      const px = this.screenPx(camera, renderer.domElement.clientHeight)
+      const frac = this.diameterFraction(camera, renderer.domElement.clientHeight)
       for (let t = 0; t < this.tierThresholds.length; t++) {
         if (!this.byTier[t]) {
           continue
         }
-        const want = this.shouldShowTier(t, px)
+        const want = this.shouldShowTier(t, frac)
         if (want && !this.tierGroups[t]) {
           this._buildTier(t)
         }

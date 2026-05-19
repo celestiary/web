@@ -45,22 +45,58 @@ function placesAt(parentPos = new Vector3(0, 0, 0), radius = EARTH_R) {
 
 // ─── tests ────────────────────────────────────────────────────────────────
 describe('Places.shouldShowTier', () => {
+  // Thresholds are body-diameter / viewport-height fractions; the
+  // default table is DEFAULT_TIER_FRAC = [0.06, 0.75, 1.3].
   const {places} = placesAt()
-  it('reveals T0 above 30 px', () => {
-    expect(places.shouldShowTier(0, 29)).toBe(false)
-    expect(places.shouldShowTier(0, 30)).toBe(true)
-    expect(places.shouldShowTier(0, 1000)).toBe(true)
+  it('reveals T0 above 0.06 (~6% of screen)', () => {
+    expect(places.shouldShowTier(0, 0.059)).toBe(false)
+    expect(places.shouldShowTier(0, 0.06)).toBe(true)
+    expect(places.shouldShowTier(0, 5)).toBe(true)
   })
-  it('reveals T1 above 400 px', () => {
-    expect(places.shouldShowTier(1, 399)).toBe(false)
-    expect(places.shouldShowTier(1, 400)).toBe(true)
+  it('reveals T1 above 0.75 (planet ≥ 75% of screen)', () => {
+    expect(places.shouldShowTier(1, 0.749)).toBe(false)
+    expect(places.shouldShowTier(1, 0.75)).toBe(true)
   })
-  it('reveals T2 above 700 px', () => {
-    expect(places.shouldShowTier(2, 699)).toBe(false)
-    expect(places.shouldShowTier(2, 700)).toBe(true)
+  it('reveals T2 above 1.3 (planet larger than screen — almost landed)', () => {
+    expect(places.shouldShowTier(2, 1.299)).toBe(false)
+    expect(places.shouldShowTier(2, 1.3)).toBe(true)
   })
   it('returns false for a tier with no threshold', () => {
     expect(places.shouldShowTier(99, 1e9)).toBe(false)
+  })
+})
+
+
+describe('Places.diameterFraction', () => {
+  // The metric that actually drives tier reveal — verifies it's viewport-
+  // relative so a single threshold reads identically across screen sizes.
+  const cam = new PerspectiveCamera(45, 16 / 9, 1, 1e12)
+
+  it('returns 0 when viewport height is zero or negative', () => {
+    const {places} = placesAt()
+    expect(places.diameterFraction(cam, 0)).toBe(0)
+    expect(places.diameterFraction(cam, -1)).toBe(0)
+  })
+
+  it('reads the same fraction on 1080p and 4K at the same camera distance', () => {
+    // Regression: an earlier absolute-pixel threshold gave wildly different
+    // visual sizes across viewports.  With the fraction-based metric,
+    // the visual size at which a tier reveals is viewport-independent.
+    const {places} = placesAt(new Vector3(0, 0, 0))
+    cam.position.set(0, 0, EARTH_R * 3)
+    cam.updateMatrixWorld(true)
+    const frac1080 = places.diameterFraction(cam, 1080)
+    const frac2160 = places.diameterFraction(cam, 2160)
+    expect(frac1080).toBeCloseTo(frac2160, 4)
+  })
+
+  it('= 2 × screenPx / viewportH', () => {
+    const {places} = placesAt(new Vector3(0, 0, 0))
+    cam.position.set(0, 0, EARTH_R * 5)
+    cam.updateMatrixWorld(true)
+    const vph = 1080
+    expect(places.diameterFraction(cam, vph)).toBeCloseTo(
+        (2 * places.screenPx(cam, vph)) / vph, 6)
   })
 })
 

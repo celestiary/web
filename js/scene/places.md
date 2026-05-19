@@ -51,28 +51,37 @@ of homogeneous coordinates.
 Visibility = f(tier, planet apparent screen radius in pixels).  Computed
 per-frame in `Places._installLODHook`'s `onBeforeRender`:
 
-| Tier | screenPx ≥ | UX intent |
+| Tier | diameterFraction ≥ | UX intent |
 |---|---|---|
-| T0 | 30 | small recognizable disc → only marquee names |
-| T1 | 400 | one step past the initial fly-in — major cities |
-| T2 | 700 | "almost landed" zoom — secondary cities |
-| T3 | (Phase 2 lazy chunks) | — |
+| T0 | 0.06 | small recognizable disc — only marquee names |
+| T1 | 0.75 | planet fills ~3/4 of the screen — major cities |
+| T2 | 1.30 | planet bigger than screen — "almost landed" picking |
+| T3 | (8.0, reserved) | — |
 
-`screenPx` is the body's apparent *radius* in viewport pixels (see
-`Places.screenPx`).  At the default FOV (45°) and a 1080-px-tall
-viewport, the camera distance → screenPx mapping is roughly:
+`diameterFraction` is the body's apparent diameter as a fraction of
+viewport height, e.g. `0.75` means the body's screen diameter ≈ 75 %
+of the viewport's vertical extent.  Viewport-relative on purpose: an
+earlier absolute-pixel threshold (T1 = 400 px radius) gave a "planet
+fills 74 %" reveal on 1080p but only ~18 % on 8K, so users on larger
+displays saw T1 names at the initial d=10R fly-in.
 
-| Camera distance | screenPx | Visible tiers |
+At the default FOV (45°), the camera-distance → diameter-fraction
+mapping is roughly:
+
+| Camera distance | diameter / vph | Visible tiers |
 |---|---|---|
-| 10 R (initial fly-in) | 137 | T0 |
-| 3.3 R | 400 | T0, T1 |
-| 1.8 R | 700 | T0, T1, T2 |
-| R (surface)            | 1080 | T0, T1, T2 |
+| 10 R (initial fly-in) | 0.25 | T0 |
+| 3.3 R                 | 0.75 | T0, T1 |
+| 1.8 R                 | 1.30 | T0, T1, T2 |
+| R (surface)           | 2.0  | T0, T1, T2 |
 
-(Where `R` is the body's surface radius.)  Earlier T1 was 200 which let
-the T1 sheet fire at the initial fly-in on 4K displays (screenPx≈274 at
-d=10R); T1=400 keeps the initial view clean across all common
-viewports.
+(Where `R` is the body's surface radius.)  The mapping is independent
+of viewport size — `Places.diameterFraction` divides by viewport
+height, so the table holds for 720p / 1080p / 4K / 8K alike.
+
+`Places.screenPx` is still exposed for tests and debugging (it returns
+the absolute pixel-radius), but tier reveal goes through
+`diameterFraction`.
 
 Per-tier SpriteSheets are lazy-instantiated the first time their
 threshold is crossed — most users browsing the solar system will never
