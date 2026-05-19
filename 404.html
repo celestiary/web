@@ -9,7 +9,8 @@
     // MIT License
     // https://github.com/rafgraph/spa-github-pages
     // This page needs to be > 512 bytes to work for IE.  Currently 968.
-    var pathSegmentsToKeep = 0 // window.location.pathname.startsWith('/instalPrefix') ? 1 : 0
+    // Injected at build time from $BASE_PATH; see esbuild/build.js.
+    var pathSegmentsToKeep = 1
 
     var l = window.location
     l.replace(

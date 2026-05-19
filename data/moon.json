@@ -9,6 +9,7 @@
 "radius": "1.7381E6 m",
 "siderealRotationPeriod": 3.144952566E7,
 "axialInclination": 1.543,
+"has_locations": true,
 "location": {
 "coord": {
 "ra": 1.0,

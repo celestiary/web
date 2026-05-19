@@ -6,7 +6,10 @@
 #endif
 
 uniform sampler2D texSampler;
+
 varying vec3 vColor;
+varying float vBrightness;
+
 void main() {
-  gl_FragColor = vec4(vColor, 1.) * TEXTURE2D(texSampler, gl_PointCoord.xy);
+  gl_FragColor = vec4(vColor * vBrightness, 1.) * TEXTURE2D(texSampler, gl_PointCoord.xy);
 }
