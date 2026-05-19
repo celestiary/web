@@ -46,20 +46,20 @@ function placesAt(parentPos = new Vector3(0, 0, 0), radius = EARTH_R) {
 // ─── tests ────────────────────────────────────────────────────────────────
 describe('Places.shouldShowTier', () => {
   // Thresholds are body-diameter / viewport-height fractions; the
-  // default table is DEFAULT_TIER_FRAC = [0.06, 0.75, 1.3].
+  // default table is DEFAULT_TIER_FRAC = [0.75, 1.0, 1.5].
   const {places} = placesAt()
-  it('reveals T0 above 0.06 (~6% of screen)', () => {
-    expect(places.shouldShowTier(0, 0.059)).toBe(false)
-    expect(places.shouldShowTier(0, 0.06)).toBe(true)
+  it('reveals T0 above 0.75 (planet ≥ 75% of screen)', () => {
+    expect(places.shouldShowTier(0, 0.749)).toBe(false)
+    expect(places.shouldShowTier(0, 0.75)).toBe(true)
     expect(places.shouldShowTier(0, 5)).toBe(true)
   })
-  it('reveals T1 above 0.75 (planet ≥ 75% of screen)', () => {
-    expect(places.shouldShowTier(1, 0.749)).toBe(false)
-    expect(places.shouldShowTier(1, 0.75)).toBe(true)
+  it('reveals T1 above 1.0 (planet just fills the screen)', () => {
+    expect(places.shouldShowTier(1, 0.999)).toBe(false)
+    expect(places.shouldShowTier(1, 1.0)).toBe(true)
   })
-  it('reveals T2 above 1.3 (planet larger than screen — almost landed)', () => {
-    expect(places.shouldShowTier(2, 1.299)).toBe(false)
-    expect(places.shouldShowTier(2, 1.3)).toBe(true)
+  it('reveals T2 above 1.5 (planet 1.5× screen — close zoom)', () => {
+    expect(places.shouldShowTier(2, 1.499)).toBe(false)
+    expect(places.shouldShowTier(2, 1.5)).toBe(true)
   })
   it('returns false for a tier with no threshold', () => {
     expect(places.shouldShowTier(99, 1e9)).toBe(false)

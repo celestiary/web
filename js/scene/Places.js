@@ -8,16 +8,17 @@ import {labelTextColor} from '../shared.js'
 
 // Tier reveal thresholds: planet apparent DIAMETER as a fraction of
 // viewport height.  Viewport-relative so the visual size at which each
-// tier reveals stays consistent across 720p / 1080p / 4K / 8K monitors —
-// an earlier absolute-pixel threshold (T1=400 px radius) gave a "planet
-// fills 74 % of screen" reveal on 1080p but only ~18 % on 8K, so users
-// on larger displays saw T1 cities at the initial d=10R fly-in.
+// tier reveals stays consistent across 720p / 1080p / 4K / 8K monitors.
 //
-// T0: tiny disc — marquee-only.  T1: planet has become a substantial
-// feature, fills ~3/4 of the screen vertically.  T2: planet fills the
-// screen and overflows — "almost-landed" picking zoom.  T3 reserved for
-// a future surface-detail level.
-const DEFAULT_TIER_FRAC = [0.06, 0.75, 1.3, 8.0]
+// The whole reveal sequence sits in the "planet fills most of the
+// screen" regime — earlier tunings let T0 fire at fraction ≈ 0.06
+// (planet a small disc), which made even the marquee names crowd the
+// view long before the user was close enough to read them.  Now nothing
+// reveals until the planet is ~3/4 of the screen height.
+//
+// T0 reveals at d ≈ 3.3 R, T1 at d ≈ 2.4 R, T2 at d ≈ 1.5 R.  T3
+// reserved for a future surface-detail level.
+const DEFAULT_TIER_FRAC = [0.75, 1.0, 1.5, 8.0]
 
 // Per-entry altitude (`a`, in m) is preserved as-is.  We don't add a fixed
 // surface lift any more: the surface-visibility SpriteSheet shader uses

@@ -53,9 +53,9 @@ per-frame in `Places._installLODHook`'s `onBeforeRender`:
 
 | Tier | diameterFraction ≥ | UX intent |
 |---|---|---|
-| T0 | 0.06 | small recognizable disc — only marquee names |
-| T1 | 0.75 | planet fills ~3/4 of the screen — major cities |
-| T2 | 1.30 | planet bigger than screen — "almost landed" picking |
+| T0 | 0.75 | planet fills ~3/4 of the screen — marquee names appear |
+| T1 | 1.00 | planet fills the screen — major cities add |
+| T2 | 1.50 | planet 1.5× screen — close-zoom picking, all cities |
 | T3 | (8.0, reserved) | — |
 
 `diameterFraction` is the body's apparent diameter as a fraction of
@@ -65,14 +65,16 @@ earlier absolute-pixel threshold (T1 = 400 px radius) gave a "planet
 fills 74 %" reveal on 1080p but only ~18 % on 8K, so users on larger
 displays saw T1 names at the initial d=10R fly-in.
 
-At the default FOV (45°), the camera-distance → diameter-fraction
-mapping is roughly:
+The whole reveal sequence is intentionally in the "planet is large"
+regime — at the default FOV (45°), the camera-distance →
+diameter-fraction mapping is:
 
 | Camera distance | diameter / vph | Visible tiers |
 |---|---|---|
-| 10 R (initial fly-in) | 0.25 | T0 |
-| 3.3 R                 | 0.75 | T0, T1 |
-| 1.8 R                 | 1.30 | T0, T1, T2 |
+| 10 R (initial fly-in) | 0.25 | (none) |
+| 3.3 R                 | 0.75 | T0 |
+| 2.4 R                 | 1.00 | T0, T1 |
+| 1.5 R                 | 1.50 | T0, T1, T2 |
 | R (surface)           | 2.0  | T0, T1, T2 |
 
 (Where `R` is the body's surface radius.)  The mapping is independent
