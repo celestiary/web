@@ -10,18 +10,19 @@ import {labelTextColor} from '../shared.js'
 // T0 marquee names appear when the body is a small recognizable disc;
 // finer tiers reveal as the camera closes in.  Indexed by entry's `t` field.
 //
-// At the default FOV of 45° on a 900-pixel-tall viewport, the body
-// subtends roughly:
-//   d=10R → 114 px   (only T0)
-//   d=5.5R → 200 px  (T1 reveals)
-//   d=2.3R → 500 px  (T2 reveals — "close orbital view", whole hemisphere)
-//   d=R   → 900 px  (camera at the surface)
+// At the default FOV of 45° and the initial fly-in distance d=10R, the
+// body subtends:
+//   900-px viewport  → 113 px
+//   1080-px viewport → 137 px
+//   1440-px viewport → 183 px
+//   2160-px viewport → 274 px (4K — T1's earlier 200 fired here on goTo)
 //
-// Earlier T2 was 1500 which never fired at the default FOV (max is ~900
-// at d=R), making T2 entries effectively dead unless the user narrowed
-// FOV via the `,` key.  T3 (8000) remains reserved for a possible future
-// zoom-only level.
-const DEFAULT_TIER_PX = [30, 200, 500, 8000]
+// T1 (400) keeps it suppressed at the initial view across all common
+// viewport sizes and reveals as the user zooms in past d≈3R on 1080p
+// (or d≈7R on 4K).  T2 (700) requires closer zoom still — d≈1.8R on
+// 1080p — for picking specific cities at "almost landed" range.  T3
+// (8000) is reserved for a future zoom-only level.
+const DEFAULT_TIER_PX = [30, 400, 700, 8000]
 
 // Per-entry altitude (`a`, in m) is preserved as-is.  We don't add a fixed
 // surface lift any more: the surface-visibility SpriteSheet shader uses

@@ -54,22 +54,25 @@ per-frame in `Places._installLODHook`'s `onBeforeRender`:
 | Tier | screenPx ≥ | UX intent |
 |---|---|---|
 | T0 | 30 | small recognizable disc → only marquee names |
-| T1 | 200 | planet fills ~half the screen |
-| T2 | 500 | close orbital view — whole hemisphere visible |
+| T1 | 400 | one step past the initial fly-in — major cities |
+| T2 | 700 | "almost landed" zoom — secondary cities |
 | T3 | (Phase 2 lazy chunks) | — |
 
 `screenPx` is the body's apparent *radius* in viewport pixels (see
-`Places.screenPx`).  At the default FOV (45°) and a 900-px-tall viewport,
-the camera distance → screenPx mapping is roughly:
+`Places.screenPx`).  At the default FOV (45°) and a 1080-px-tall
+viewport, the camera distance → screenPx mapping is roughly:
 
 | Camera distance | screenPx | Visible tiers |
 |---|---|---|
-| 10 R | 114 | T0 |
-| 5.5 R | 200 | T0, T1 |
-| 2.3 R | 500 | T0, T1, T2 |
-| R (surface) | 900 | T0, T1, T2 |
+| 10 R (initial fly-in) | 137 | T0 |
+| 3.3 R | 400 | T0, T1 |
+| 1.8 R | 700 | T0, T1, T2 |
+| R (surface)            | 1080 | T0, T1, T2 |
 
-(Where `R` is the body's surface radius.)
+(Where `R` is the body's surface radius.)  Earlier T1 was 200 which let
+the T1 sheet fire at the initial fly-in on 4K displays (screenPx≈274 at
+d=10R); T1=400 keeps the initial view clean across all common
+viewports.
 
 Per-tier SpriteSheets are lazy-instantiated the first time their
 threshold is crossed — most users browsing the solar system will never
