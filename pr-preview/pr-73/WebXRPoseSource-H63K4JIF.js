@@ -1,2 +1,0 @@
-import{A as s}from"./chunk-QOHQBSGW.js";import{a as r}from"./chunk-NVZUP5ZV.js";var e=class e{constructor(){this.kind="webxr",this.needsCalibration=!1,this._q=new s}static isSupported(){return Promise.resolve(!1)}start(){return Promise.reject(new Error("WebXRPoseSource not yet implemented (stage 1b)"))}stop(){}getQuaternion(n){return!1}getStatus(){return{fresh:!1,source:this.kind}}};r(e,"WebXRPoseSource");var t=e;export{t as default};
-//# sourceMappingURL=WebXRPoseSource-H63K4JIF.js.map
