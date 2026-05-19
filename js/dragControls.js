@@ -41,9 +41,14 @@ import {resolveDragMode} from './dragMode'
  * @param {Function} [options.onClick] Called with the pointerup event when
  *   the gesture moved less than CLICK_PX_THRESHOLD — distinguishes a true
  *   click (e.g., to pick a label) from a drag-rotate.
+ * @param {Function} [options.onDblClick] Called with the pointerup event of
+ *   the second of two clicks that fall within DBLCLICK_MS and DBLCLICK_PX.
+ *   Browser-style semantics: `onClick` fires on every click, `onDblClick`
+ *   additionally fires on the second click — handlers should treat the
+ *   dblclick as an override (latest action wins).
  */
 export function attachPointerDrag(el, camera, options = {}) {
-  const {onChange, getDragMode, getTarget, onClick} = options
+  const {onChange, getDragMode, getTarget, onClick, onDblClick} = options
   let lastX = 0
   let lastY = 0
   let downX = 0
@@ -56,6 +61,15 @@ export function attachPointerDrag(el, camera, options = {}) {
   // Below this, pointerup fires onClick (after which dragControls also runs its
   // pointerend cleanup).  Tuned for finger-tap jitter on touch devices.
   const CLICK_PX_THRESHOLD = 5
+  // Two clicks within DBLCLICK_MS *and* DBLCLICK_PX of each other promote to a
+  // dblclick.  350 ms matches the default browser dblclick window; 8 px is a
+  // touch above CLICK_PX_THRESHOLD so finger-tap jitter on the second tap
+  // doesn't disqualify it.
+  const DBLCLICK_MS = 350
+  const DBLCLICK_PX = 8
+  let lastClickTime = 0
+  let lastClickX = 0
+  let lastClickY = 0
 
   // Suppress browser touch gestures (pan / pinch-to-zoom-page / double-tap-zoom)
   // on the canvas so single-finger drags reach our handler instead of being
@@ -83,8 +97,29 @@ export function attachPointerDrag(el, camera, options = {}) {
     if (e.pointerId === activePointerId) {
       const dx = e.clientX - downX
       const dy = e.clientY - downY
-      if (onClick && (dx * dx) + (dy * dy) < CLICK_PX_THRESHOLD * CLICK_PX_THRESHOLD) {
-        onClick(e)
+      if ((dx * dx) + (dy * dy) < CLICK_PX_THRESHOLD * CLICK_PX_THRESHOLD) {
+        if (onClick) {
+          onClick(e)
+        }
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now())
+        const ddx = e.clientX - lastClickX
+        const ddy = e.clientY - lastClickY
+        if (onDblClick &&
+            (now - lastClickTime) < DBLCLICK_MS &&
+            ((ddx * ddx) + (ddy * ddy)) < DBLCLICK_PX * DBLCLICK_PX) {
+          onDblClick(e)
+          // Push lastClickTime far in the past so a third quick tap doesn't
+          // immediately register as another dblclick — the user has to
+          // do two more taps for the next one.  Setting to 0 isn't enough
+          // because performance.now() can be small early in a session
+          // (e.g. unit-test environments) and `now - 0 < DBLCLICK_MS` would
+          // still hold.
+          lastClickTime = Number.NEGATIVE_INFINITY
+        } else {
+          lastClickTime = now
+          lastClickX = e.clientX
+          lastClickY = e.clientY
+        }
       }
       activePointerId = null
     }

@@ -74,6 +74,7 @@ export default class ThreeUi {
     window.camera = this.camera
     // Adapted from https://threejs.org/docs/#api/en/core/Raycaster
     this.clickCbs = []
+    this.dblClickCbs = []
     this.mouse = new Vector2
     this.clicked = false
     this.useStore = undefined // TODO(pablo): passed into and set in Scene
@@ -99,6 +100,7 @@ export default class ThreeUi {
       getDragMode: () => this.useStore?.getState().dragMode,
       getTarget: () => targets.obj,
       onClick: (e) => this._fireClickCbs(e),
+      onDblClick: (e) => this._fireDblClickCbs(e),
     })
 
     this.renderer.setAnimationLoop((time) => {
@@ -145,6 +147,12 @@ export default class ThreeUi {
   }
 
 
+  /** */
+  addDblClickCb(cb) {
+    this.dblClickCbs.push(cb)
+  }
+
+
   /**
    * Dispatch a real click (no-drag pointerup) to every registered callback.
    * The original mouse-coords plumbing is dead; clickCbs receive the raw
@@ -154,6 +162,14 @@ export default class ThreeUi {
    */
   _fireClickCbs(e) {
     for (const cb of this.clickCbs) {
+      cb(e)
+    }
+  }
+
+
+  /** @param {PointerEvent} e */
+  _fireDblClickCbs(e) {
+    for (const cb of this.dblClickCbs) {
       cb(e)
     }
   }

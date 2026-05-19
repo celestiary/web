@@ -55,9 +55,9 @@ describe('Places.shouldShowTier', () => {
     expect(places.shouldShowTier(1, 199)).toBe(false)
     expect(places.shouldShowTier(1, 200)).toBe(true)
   })
-  it('reveals T2 above 1500 px', () => {
-    expect(places.shouldShowTier(2, 1499)).toBe(false)
-    expect(places.shouldShowTier(2, 1500)).toBe(true)
+  it('reveals T2 above 500 px', () => {
+    expect(places.shouldShowTier(2, 499)).toBe(false)
+    expect(places.shouldShowTier(2, 500)).toBe(true)
   })
   it('returns false for a tier with no threshold', () => {
     expect(places.shouldShowTier(99, 1e9)).toBe(false)

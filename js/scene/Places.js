@@ -9,7 +9,19 @@ import {labelTextColor} from '../shared.js'
 // Tier reveal thresholds: planet apparent RADIUS in viewport pixels.
 // T0 marquee names appear when the body is a small recognizable disc;
 // finer tiers reveal as the camera closes in.  Indexed by entry's `t` field.
-const DEFAULT_TIER_PX = [30, 200, 1500, 8000]
+//
+// At the default FOV of 45° on a 900-pixel-tall viewport, the body
+// subtends roughly:
+//   d=10R → 114 px   (only T0)
+//   d=5.5R → 200 px  (T1 reveals)
+//   d=2.3R → 500 px  (T2 reveals — "close orbital view", whole hemisphere)
+//   d=R   → 900 px  (camera at the surface)
+//
+// Earlier T2 was 1500 which never fired at the default FOV (max is ~900
+// at d=R), making T2 entries effectively dead unless the user narrowed
+// FOV via the `,` key.  T3 (8000) remains reserved for a possible future
+// zoom-only level.
+const DEFAULT_TIER_PX = [30, 200, 500, 8000]
 
 // Per-entry altitude (`a`, in m) is preserved as-is.  We don't add a fixed
 // surface lift any more: the surface-visibility SpriteSheet shader uses
