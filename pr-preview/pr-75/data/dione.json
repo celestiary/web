@@ -1,0 +1,38 @@
+{
+"type":"moon",
+
+"name":"dione",
+"parent":"saturn",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": "1.096E24 g",
+"density": 1.24,
+"radius": "5.59E5 m",
+"siderealRotationPeriod": 236465.0,
+"axialInclination": 0.0060,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.55,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+"eccentricity": 0.0022,
+"inclination": 1.0,
+"longitudeOfAscendingNode": 1.0,
+"longitudeOfPericenter": 1.0,
+"meanLongitude": 1.0,
+"semiMajorAxis": 3.774E8,
+"siderealOrbitPeriod": 236465.0
+}
+,
+"system": []
+}
