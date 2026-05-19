@@ -20,7 +20,7 @@ export default function Orbit() {
       <p>An example orbit.<br/>
         <a href="https://en.wikipedia.org/wiki/Orbital_elements">https://en.wikipedia.org/wiki/Orbital_elements</a>
           <br/>
-        <img src="/images/Orbit1.png"
+        <img src="images/Orbit1.png"
           style={{width: '400px'}}
           alt="By Lasunncty at the English Wikipedia, CC BY-SA 3.0, https://commons.wikimedia.org/w/index.php?curid=8971052"/>
       </p>

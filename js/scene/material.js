@@ -22,7 +22,7 @@ export function loadTexture(texPath) {
  */
 export function pathTexture(filebase, ext) {
   ext = ext || '.jpg'
-  return loadTexture(`/textures/${ filebase }${ext}`)
+  return loadTexture(`textures/${ filebase }${ext}`)
 }
 
 const materials = []

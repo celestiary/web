@@ -4,6 +4,16 @@ import ARController from './ARController.js'
 import {CalibrationStore} from './Calibration.js'
 import NullPoseSource from './NullPoseSource.js'
 import {enuToBodyFixedQuat} from './enuFrame.js'
+import * as Shared from '../shared.js'
+
+
+// Shared.targets is module-level state mutated by Scene.js when other test
+// files exercise body targeting; reset before each test so _observerFromCamera
+// doesn't pick up a stale body and silently override caller-supplied lat/lng.
+beforeEach(() => {
+  Shared.targets.cur = null
+  Shared.targets.obj = null
+})
 
 
 /**

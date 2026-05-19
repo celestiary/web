@@ -21,8 +21,14 @@ export default function Routed() {
   const App = lazy(() => import('./App'))
   const Guide = lazy(() => import('./guide/Guide'))
 
+  // Base path the site is deployed under (e.g. '' at the user-page root,
+  // '/web' for this repo's project page, '/web/pr-preview/pr-42' for previews).
+  // Derived from the <base href> tag injected at build time so the same
+  // bundle works under any subpath.
+  const base = new URL(document.baseURI).pathname.replace(/\/$/, '')
+
   return (
-    <Router>
+    <Router base={base}>
       <Switch>
         <Route path='/guide' nest>
           <Suspense fallback={<>Loading...</>}>

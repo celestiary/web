@@ -87,7 +87,7 @@ export default class Loader {
       this.loaded[name] = 'pending'
       const fileLoader = new FileLoader()
       fileLoader.setResponseType('json')
-      fileLoader.load(`/data/${ name }.json`, (obj) => {
+      fileLoader.load(`data/${ name }.json`, (obj) => {
         this.loaded[name] = obj
         const path = prefix ? `${prefix}/${name}` : name
         this.pathByName[name] = path

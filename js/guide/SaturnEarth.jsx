@@ -29,7 +29,7 @@ export default function SaturnEarth() {
         photo <a href='https://www.facebook.com/fxsoyris/posts/4859941050713774'>shared</a> by
         François Xavier Soyris, Jan 19 2021.</p>
 
-      <img alt='image of Saturn from Earth in its orbit' src='/guide/saturn-earth-fb-photo.jpg' width='400'/>
+      <img alt='image of Saturn from Earth in its orbit' src='guide/saturn-earth-fb-photo.jpg' width='400'/>
     </>)
 }
 

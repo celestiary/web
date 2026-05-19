@@ -207,7 +207,7 @@ export default class Places extends Group {
  */
 export async function fetchPlaces(bodyName) {
   try {
-    const rsp = await fetch(`/data/places/${bodyName}.json`)
+    const rsp = await fetch(`data/places/${bodyName}.json`)
     if (!rsp.ok) {
       return []
     }

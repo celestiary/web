@@ -4,31 +4,33 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  build-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v3
-        id: pages
-      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - run: npm install
-      - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+          submodules: recursive
+
+      - uses: ./.github/actions/build
         with:
-          path: ./docs
-  deploy:
-    needs: build
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{steps.deployment.outputs.page_url}}
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/deploy-pages@v4
-      id: deployment
+          base-path: /${{ github.event.repository.name }}/
+
+      - name: Deploy main to gh-pages root
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: docs
+          clean: true
+          clean-exclude: |
+            pr-preview
+          commit-message: "deploy main from ${{ github.sha }}"
