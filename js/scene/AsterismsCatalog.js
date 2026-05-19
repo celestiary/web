@@ -17,7 +17,7 @@ export default class AsterismsCatalog {
    * @param {Function} cb
    */
   load(cb) {
-    fetch('/data/asterisms.dat').then((rsp) => {
+    fetch('data/asterisms.dat').then((rsp) => {
       rsp.text().then((text) => {
         this.read(text)
         if (cb) {
