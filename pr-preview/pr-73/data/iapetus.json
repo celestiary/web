@@ -1,0 +1,38 @@
+{
+"type":"moon",
+
+"name":"iapetus",
+"parent":"saturn",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": "1.88E24 g",
+"density": 1.02,
+"radius": "7.18E5 m",
+"siderealRotationPeriod": 6854112.0,
+"axialInclination": 7.52,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.2,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+"eccentricity": 0.028,
+"inclination": 1.0,
+"longitudeOfAscendingNode": 1.0,
+"longitudeOfPericenter": 1.0,
+"meanLongitude": 1.0,
+"semiMajorAxis": 3.5613E9,
+"siderealOrbitPeriod": 6854127.90192
+}
+,
+"system": []
+}
