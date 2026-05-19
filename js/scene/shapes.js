@@ -90,7 +90,7 @@ export function sphere(opts) {
 
 /** @returns {Sprite} */
 export function marker() {
-  const map = new TextureLoader().load('/textures/crosshairs.png')
+  const map = new TextureLoader().load('textures/crosshairs.png')
   const m = new Sprite(new SpriteMaterial({
     map: map,
     sizeAttenuation: false,
