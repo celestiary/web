@@ -1,0 +1,37 @@
+{
+"type":"moon",
+"name":"deimos",
+"parent":"mars",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": "1.4762E18 g",
+"density": 1.0,
+"radius": "6.2E3 m",
+"siderealRotationPeriod": 108864.0,
+"axialInclination": 1.0,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+},
+"albedo": 0.07,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+"eccentricity": 0.0,
+"inclination": 1.79,
+"longitudeOfAscendingNode": 1.0,
+"longitudeOfPericenter": 1.0,
+"meanLongitude": 1.0,
+"semiMajorAxis": 2.3459E7,
+"siderealOrbitPeriod": 109074.82464
+}
+,
+"system": []
+}
