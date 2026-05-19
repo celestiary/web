@@ -15,9 +15,6 @@ permissions:
 
 jobs:
   deploy:
-    # Skip silently when the cross-repo deploy key hasn't been configured
-    # yet, so first-time setup doesn't fail the workflow.
-    if: ${{ secrets.CELESTIARY_GITHUB_IO_DEPLOY_KEY != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
