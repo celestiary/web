@@ -38,7 +38,7 @@ export default function Orbit() {
           </tr>
         </tbody>
       </table>
-      <em style={{fontSize: 'small'}}>(<a href="#test">emulate image above</a> and refresh)</em>
+      <em style={{fontSize: 'small'}}>(<a href={`${location.pathname}#test`}>emulate image above</a> and refresh)</em>
     </>)
 }
 

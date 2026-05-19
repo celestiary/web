@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import esbuild from 'esbuild'
+import {normalizeBasePath} from './basePath.js'
 import config from './common.js'
 
 
@@ -33,20 +34,4 @@ function substitutePlaceholders(filePath) {
       .replaceAll('{{BASE_PATH}}', BASE_PATH)
       .replaceAll('{{PATH_SEGMENTS_TO_KEEP}}', String(PATH_SEGMENTS_TO_KEEP))
   fs.writeFileSync(filePath, result)
-}
-
-
-/**
- * Coerce a deploy base into the form `/foo/` (leading and trailing slash).
- * Empty or "/" stays "/".
- *
- * @param {string} input
- * @returns {string}
- */
-function normalizeBasePath(input) {
-  let p = input.trim()
-  if (!p || p === '/') return '/'
-  if (!p.startsWith('/')) p = `/${p}`
-  if (!p.endsWith('/')) p = `${p}/`
-  return p
 }
