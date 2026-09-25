@@ -101,10 +101,28 @@ relates to real time.
 
 ## Phases
 
-1. **Earth** — layer infrastructure, UI, Earth. Mergeable on its own.
+1. **Earth** — layer infrastructure, UI, Earth. *Done; verified in
+   headless Chromium without an ion token (Natural Earth II imagery):
+   in-place composite, coastlines coincide with celestiary's texture,
+   terminator matches, works from orbit down to 150 km, switching back
+   restores celestiary's Earth and atmosphere.*
 2. **Moon, Mars** — `Ellipsoid.MOON` / `Ellipsoid.MARS` with the Cesium
-   ion Moon and Mars 3D-tiles datasets (these need an ion token; without
-   one the options don't appear).
+   ion Moon Terrain (asset 2684829) and Cesium Mars (asset 3644333)
+   3D-tiles datasets, no globe. These need an ion token; without one the
+   layer control doesn't appear for them. *Implemented but not yet seen
+   running: the dev sandbox had no token and no network route to ion. The
+   same is true of Earth's ion path (World Terrain + ion imagery).*
+
+## Follow-ups
+
+- Picking / inspection through Cesium (click → lat/lng, entity info):
+  forward celestiary's clicks to `scene.pick` on the active widget.
+- Night lights on Cesium's Earth (ion Black Marble as a night layer).
+- Persist the layer choice in the permalink.
+- Perf: the shadow context executes every Cesium draw as well as the
+  replay (2× GPU for the globe). Cesium needs the shadow's pixels only
+  for readback (picking, camera collision); a no-draw shadow mode in
+  portal-netgl would halve the cost when those aren't in use.
 
 ## Files
 

@@ -1,9 +1,15 @@
+/* global __CESIUM_ION_TOKEN__ */
 /**
  * Bodies the Cesium layer can render, and how.  See CESIUM.md.
  *
  * `radii` are Cesium's ellipsoid radii [x, y, z] in ECEF (z = polar).  The
  * stencil shell that marks where Cesium's pixels go is this ellipsoid,
- * scaled out by ATMOSPHERE_SHELL_SCALE to include Cesium's sky atmosphere.
+ * scaled by `shellScale`: out to Cesium's sky atmosphere for Earth, and just
+ * past the highest terrain for airless bodies.
+ *
+ * `ionTileset` bodies are Cesium ion 3D-tiles datasets rendered without
+ * Cesium's globe; they need an ion access token, and without one they
+ * aren't offered.
  */
 
 
@@ -19,19 +25,54 @@ export const ATMOSPHERE_SHELL_SCALE = 1.025
 export const LAYER_NEAR_RADII = 20
 
 
+// Airless bodies: 1% of radius clears the Moon's highlands (~11 km) and
+// Olympus Mons (~22 km above Mars's datum).
+const TERRAIN_SHELL_SCALE = 1.01
+
 export const CESIUM_BODIES = {
   earth: {
     ellipsoid: 'WGS84',
     radii: [6378137, 6378137, 6356752.314245179],
     atmosphere: true,
+    shellScale: ATMOSPHERE_SHELL_SCALE,
+  },
+  moon: {
+    ellipsoid: 'MOON',
+    radii: [1737400, 1737400, 1737400],
+    atmosphere: false,
+    shellScale: TERRAIN_SHELL_SCALE,
+    // Cesium Moon Terrain (ion).
+    ionTileset: 2684829,
+  },
+  mars: {
+    ellipsoid: 'MARS',
+    radii: [3396190, 3396190, 3376200],
+    atmosphere: false,
+    shellScale: TERRAIN_SHELL_SCALE,
+    // Cesium Mars (ion).
+    ionTileset: 3644333,
   },
 }
 
 
 /**
+ * The Cesium ion access token, from the build-time CESIUM_ION_TOKEN env var
+ * (esbuild/common.js).  Empty when unset.
+ *
+ * @returns {string}
+ */
+export function ionToken() {
+  return typeof __CESIUM_ION_TOKEN__ === 'string' ? __CESIUM_ION_TOKEN__ : ''
+}
+
+
+/**
  * @param {string} name Body name, e.g. 'earth'
- * @returns {boolean}
+ * @returns {boolean} Whether a Cesium layer can be offered for the body
  */
 export function isCesiumBody(name) {
-  return Object.hasOwn(CESIUM_BODIES, name)
+  if (!Object.hasOwn(CESIUM_BODIES, name)) {
+    return false
+  }
+  return !CESIUM_BODIES[name].ionTileset || ionToken() !== ''
 }

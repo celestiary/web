@@ -1,4 +1,3 @@
-/* global __CESIUM_ION_TOKEN__ */
 import {
   AlwaysStencilFunc,
   DoubleSide,
@@ -12,7 +11,7 @@ import {
   Vector3,
 } from 'three'
 import {toRad} from '../../shared.js'
-import {ATMOSPHERE_SHELL_SCALE, CESIUM_BODIES, LAYER_NEAR_RADII, isCesiumBody} from './bodies.js'
+import {CESIUM_BODIES, LAYER_NEAR_RADII, ionToken, isCesiumBody} from './bodies.js'
 import {cameraToEcefView, cesiumFov, sphericalLatLngAlt, sunLightDirectionEcef} from './frames.js'
 
 
@@ -113,8 +112,7 @@ export default class CesiumLayers {
 
     // 1. Stencil = 1 wherever the body's (atmosphere-sized) ellipsoid is
     // visible past celestiary's own geometry.
-    const [rx, ry, rz] = CESIUM_BODIES[this.activeName].radii
-    const s = ATMOSPHERE_SHELL_SCALE
+    const {radii: [rx, ry, rz], shellScale: s} = CESIUM_BODIES[this.activeName]
     // ECEF (x, y, z) radii → body frame (x, z, y); see frames.js.
     this.shell.matrix.copy(node.matrixWorld).multiply(this._shellScale.makeScale(rx * s, rz * s, ry * s))
     this.shell.matrixWorldNeedsUpdate = true
@@ -125,6 +123,10 @@ export default class CesiumLayers {
 
     // 2. Cesium, from celestiary's camera, into the stencilled pixels.
     this._setCesiumView(body, node)
+    // Ellipsoid.default is global and read lazily all over Cesium; with more
+    // than one body's widget in the page, it must be this body's while it
+    // renders.
+    body.Cesium.Ellipsoid.default = body.ellipsoid
     try {
       body.link.frame(() => {
         body.widget.resize()
@@ -258,8 +260,7 @@ export default class CesiumLayers {
   _createWidget(name, Cesium, netgl) {
     const {renderer} = this.ui
     const config = CESIUM_BODIES[name]
-    // Build-time define (esbuild/common.js), from the CESIUM_ION_TOKEN env var.
-    const token = typeof __CESIUM_ION_TOKEN__ === 'string' ? __CESIUM_ION_TOKEN__ : ''
+    const token = ionToken()
     if (token) {
       Cesium.Ion.defaultAccessToken = token
     }
@@ -304,6 +305,14 @@ export default class CesiumLayers {
     const guest = netgl.makeNetGLCesiumGuest({transport: link.transport, webgl: {alpha: true}})
 
     const ellipsoid = Cesium.Ellipsoid[config.ellipsoid]
+    Cesium.Ellipsoid.default = ellipsoid
+    const surface = config.ionTileset ?
+      // An ion 3D-tiles body (Moon, Mars): no globe, the tileset is the surface.
+      {globe: false, baseLayer: false} :
+      token ?
+        {terrain: Cesium.Terrain.fromWorldTerrain()} : // + ion's default imagery
+        {baseLayer: Cesium.ImageryLayer.fromProviderAsync(
+            Cesium.TileMapServiceImageryProvider.fromUrl(Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')))}
     widget = new Cesium.CesiumWidget(container, {
       contextOptions: guest.contextOptions,
       useDefaultRenderLoop: false,
@@ -312,12 +321,13 @@ export default class CesiumLayers {
       scene3DOnly: true,
       skyBox: false,
       msaaSamples: 1,
-      baseLayer: token ?
-        undefined : // Cesium ion's default imagery
-        Cesium.ImageryLayer.fromProviderAsync(
-            Cesium.TileMapServiceImageryProvider.fromUrl(Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII'))),
-      terrain: token ? Cesium.Terrain.fromWorldTerrain() : undefined,
+      ...surface,
     })
+    if (config.ionTileset) {
+      Cesium.Cesium3DTileset.fromIonAssetId(config.ionTileset)
+          .then((tileset) => widget.scene.primitives.add(tileset))
+          .catch((err) => this._fail(name, err))
+    }
     guest.attach(widget.scene)
     // Cesium's widgets.css normally sizes its canvas to the container;
     // without it the canvas stays 300×150 and renders blocky.
@@ -338,7 +348,9 @@ export default class CesiumLayers {
     // Lit by celestiary's Sun, not Cesium's ephemeris: the day/night line
     // then matches celestiary's whatever its sidereal phase.
     scene.light = new Cesium.DirectionalLight({direction: new Cesium.Cartesian3(1, 0, 0)})
-    scene.globe.enableLighting = true
+    if (scene.globe) {
+      scene.globe.enableLighting = true
+    }
     scene.atmosphere.dynamicLighting = Cesium.DynamicAtmosphereLightingType.SCENE_LIGHT
     if (scene.skyAtmosphere) {
       scene.skyAtmosphere.show = config.atmosphere
