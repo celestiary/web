@@ -548,6 +548,11 @@
   dependencies:
     "@pablo-mayrgundter/testing.js" "^1.0.0"
 
+"@pablo-mayrgundter/portal-netgl@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@pablo-mayrgundter/portal-netgl/-/portal-netgl-0.2.0.tgz#c7921112e7a950ab8f184c2ab2c69e0162790687"
+  integrity sha512-c8XSjFtVf1e6l3oJX4/P+yNGjOOCWfCoZvf/thSAIY8RaZvj7tbHh7OgoyBhjlmxAeAHiF/Yu3dPw56XFEqzZw==
+
 "@pablo-mayrgundter/testing.js@^1.0.0":
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/@pablo-mayrgundter/testing.js/-/testing.js-1.1.2.tgz#7c1a96eb81b93af3e3cb5e26fcfc8295d69407f1"
