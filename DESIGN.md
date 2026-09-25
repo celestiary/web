@@ -261,6 +261,16 @@ scene graph alone.
 
 LOD (`THREE.LOD`) is used throughout to swap between detailed meshes, point sprites, and invisible placeholders based on camera distance.
 
+### Cesium layers
+
+Near Earth, a Layers control (`js/ui/LayersButton.jsx`) offers a Cesium
+"data view" in place of celestiary's own Earth: Cesium runs in the page
+against a shadow WebGL context, and its GL calls replay into celestiary's
+scene render target through a stencil of the Earth's silhouette
+(portal-netgl's same-page link).  Camera and sunlight are coupled so the
+globe sits and is lit exactly where celestiary's would be.  Design, data
+sources and phases: [CESIUM.md](CESIUM.md).
+
 ## Overlays & visibility groups
 
 Every visual feature in the app must opt into one of two top-level

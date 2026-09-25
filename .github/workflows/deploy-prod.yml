@@ -22,6 +22,7 @@ jobs:
       - uses: ./.github/actions/build
         with:
           base-path: /
+          cesium-ion-token: ${{ secrets.CESIUM_ION_TOKEN }}
 
       - name: Push built site to celestiary.github.io gh-pages
         uses: JamesIves/github-pages-deploy-action@v4.8.0

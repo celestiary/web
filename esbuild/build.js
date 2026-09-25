@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import esbuild from 'esbuild'
 import {normalizeBasePath} from './basePath.js'
+import {copyCesiumAssets} from './cesiumAssets.js'
 import config from './common.js'
 
 
@@ -13,6 +14,7 @@ esbuild
     .then((result) => {
       substitutePlaceholders(`${config.outdir}/index.html`)
       substitutePlaceholders(`${config.outdir}/404.html`)
+      copyCesiumAssets(config.outdir)
       console.log(`Build succeeded.  BASE_PATH=${BASE_PATH}`)
     })
     .catch((err) => {

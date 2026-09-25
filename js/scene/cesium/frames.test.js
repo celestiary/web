@@ -1,7 +1,7 @@
 import {Euler, Matrix4, PerspectiveCamera, Quaternion, Vector3} from 'three'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {toRad} from '../../shared.js'
-import {bodyToEcef, cameraToEcefView, cesiumFov, ecefToBody, sunLightDirectionEcef} from './frames.js'
+import {bodyToEcef, cameraToEcefView, cesiumFov, ecefToBody, sphericalLatLngAlt, sunLightDirectionEcef} from './frames.js'
 
 
 const R = 6378137
@@ -98,5 +98,16 @@ describe('cesiumFov', () => {
   it('widens to the horizontal fov for landscape canvases', () => {
     const fov = cesiumFov(2 * Math.atan(1), 2)
     expect(Math.tan(fov / 2)).toBeCloseTo(2, 10)
+  })
+})
+
+
+describe('sphericalLatLngAlt', () => {
+  it('recovers celestiary lat/lng/alt from the ECEF of a body-frame point', () => {
+    const earth = 6371010
+    const {lat, lng, alt} = sphericalLatLngAlt(bodyToEcef(latLngAltToBodyFixed(-33.9, 18.4, 5000, earth)), earth)
+    expect(lat / toRad).toBeCloseTo(-33.9, 9)
+    expect(lng / toRad).toBeCloseTo(18.4, 9)
+    expect(alt).toBeCloseTo(5000, 3)
   })
 })

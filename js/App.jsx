@@ -11,6 +11,7 @@ import About from './ui/About'
 import ARButton from './ui/ARButton'
 import ARDebugHUD from './ui/ARDebugHUD'
 import DragModeToggle from './ui/DragModeToggle'
+import LayersButton from './ui/LayersButton'
 import SearchBar from './ui/SearchBar'
 import Settings from './ui/Settings'
 import TimePanel from './ui/TimePanel'
@@ -66,6 +67,7 @@ export default function App() {
       <Stack id='top-right' className='panel' direction='column' justifyContent='flex-start' alignItems='flex-end'>
         {celestiary && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
         {celestiary && <DragModeToggle/>}
+        {celestiary && <LayersButton/>}
         {celestiary && isMobile && <ARButton celestiary={celestiary}/>}
         {celestiary && <ARDebugHUD celestiary={celestiary}/>}
         <div id='text-buttons'>

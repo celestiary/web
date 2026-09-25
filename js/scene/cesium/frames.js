@@ -91,3 +91,25 @@ export function sunLightDirectionEcef(bodyWorld, sunWorldPos) {
 export function cesiumFov(fovyRad, aspect) {
   return aspect > 1 ? 2 * Math.atan(Math.tan(fovyRad / 2) * aspect) : fovyRad
 }
+
+
+/**
+ * Latitude, longitude and altitude of an ECEF point relative to a sphere —
+ * celestiary's bodies are spheres.  Used to place Cesium's camera at the
+ * same latitude, longitude and *altitude* on Cesium's ellipsoid, so a camera
+ * 5 km above celestiary's 6,371 km Earth is 5 km above Cesium's WGS84 Earth
+ * (up to 7 km larger at the equator) rather than underground.
+ *
+ * @param {Array<number>} ecef ECEF [x, y, z]
+ * @param {number} radius Sphere radius, metres
+ * @returns {{lat: number, lng: number, alt: number}} Radians, radians, metres
+ */
+export function sphericalLatLngAlt(ecef, radius) {
+  const [x, y, z] = ecef
+  const r = Math.hypot(x, y, z)
+  return {
+    lat: Math.asin(Math.max(-1, Math.min(1, z / r))),
+    lng: Math.atan2(y, x),
+    alt: r - radius,
+  }
+}

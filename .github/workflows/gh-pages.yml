@@ -22,6 +22,7 @@ jobs:
       - uses: ./.github/actions/build
         with:
           base-path: /${{ github.event.repository.name }}/
+          cesium-ion-token: ${{ secrets.CESIUM_ION_TOKEN }}
 
       - name: Deploy main to gh-pages root
         uses: JamesIves/github-pages-deploy-action@v4.8.0
