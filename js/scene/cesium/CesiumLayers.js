@@ -309,10 +309,10 @@ export default class CesiumLayers {
     const surface = config.ionTileset ?
       // An ion 3D-tiles body (Moon, Mars): no globe, the tileset is the surface.
       {globe: false, baseLayer: false} :
-      token ?
-        {terrain: Cesium.Terrain.fromWorldTerrain()} : // + ion's default imagery
-        {baseLayer: Cesium.ImageryLayer.fromProviderAsync(
-            Cesium.TileMapServiceImageryProvider.fromUrl(Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')))}
+      // The globe always starts on the offline Natural Earth II imagery and
+      // the plain ellipsoid, so it draws whatever ion does (addIonEarth).
+      {baseLayer: Cesium.ImageryLayer.fromProviderAsync(
+          Cesium.TileMapServiceImageryProvider.fromUrl(Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')))}
     widget = new Cesium.CesiumWidget(container, {
       contextOptions: guest.contextOptions,
       useDefaultRenderLoop: false,
@@ -324,9 +324,19 @@ export default class CesiumLayers {
       ...surface,
     })
     if (config.ionTileset) {
-      Cesium.Cesium3DTileset.fromIonAssetId(config.ionTileset)
+      Cesium.Cesium3DTileset.fromIonAssetId(config.ionTileset, {
+        // Celestiary's bodies turn under its camera, so Cesium's camera
+        // moves every frame.  These two optimizations defer tile requests
+        // until the camera stops, which here is never: off-centre tiles
+        // stayed coarse until a zoom forced a reload.
+        foveatedScreenSpaceError: false,
+        cullRequestsWhileMoving: false,
+        customShader: sunlitShader(Cesium),
+      })
           .then((tileset) => widget.scene.primitives.add(tileset))
           .catch((err) => this._fail(name, err))
+    } else if (token) {
+      addIonEarth(Cesium, widget)
     }
     guest.attach(widget.scene)
     // Cesium's widgets.css normally sizes its canvas to the container;
@@ -391,6 +401,74 @@ export default class CesiumLayers {
 }
 
 
+/**
+ * Upgrade the Earth globe to ion's World Terrain and imagery, each only once
+ * it has loaded.  If the token can't reach an asset (no network, or a token
+ * scoped to other assets) the globe keeps its offline surface.  Handing
+ * CesiumWidget `terrain: Terrain.fromWorldTerrain()` instead would unset the
+ * globe's terrain until ion answered, and leave it unset on failure: an
+ * empty globe.
+ *
+ * @param {object} Cesium
+ * @param {object} widget
+ */
+function addIonEarth(Cesium, widget) {
+  Cesium.createWorldTerrainAsync({requestVertexNormals: true, requestWaterMask: true})
+      .then((terrain) => {
+        if (!widget.isDestroyed()) {
+          widget.scene.globe.terrainProvider = terrain
+        }
+      })
+      .catch((err) => console.warn(
+          '[cesium layer] ion World Terrain unavailable (is it in the token\'s assets?); using the ellipsoid', err))
+  const imagery = Cesium.ImageryLayer.fromWorldImagery()
+  imagery.errorEvent.addEventListener((err) => {
+    console.warn('[cesium layer] ion imagery unavailable (is it in the token\'s assets?); using Natural Earth II', err)
+    if (!widget.isDestroyed()) {
+      widget.imageryLayers.remove(imagery)
+    }
+  })
+  widget.imageryLayers.add(imagery)
+}
+
+
+/**
+ * Lights an ion 3D-tiles surface (Moon, Mars) by celestiary's Sun.  The
+ * tilesets come unlit, so without this the night side is as bright as the
+ * day side.
+ *
+ * Two Lambert terms, blended: the smooth sphere (a clean terminator from
+ * any distance) and the surface relief, from screen-space derivatives of
+ * position (the tilesets carry no normals), which shades craters and
+ * ridges toward the Sun.  Relief alone would show the facets of distant,
+ * coarse tiles.
+ *
+ * @param {object} Cesium
+ * @returns {object} Cesium.CustomShader
+ */
+function sunlitShader(Cesium) {
+  const f = (x) => x.toFixed(3)
+  return new Cesium.CustomShader({
+    lightingModel: Cesium.LightingModel.UNLIT,
+    fragmentShaderText: `
+      void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
+        vec3 up = czm_viewRotation * normalize(fsInput.attributes.positionWC);
+        vec3 p = fsInput.attributes.positionEC;
+        vec3 n = normalize(cross(dFdx(p), dFdy(p)));
+        n = dot(n, up) < 0.0 ? -n : n; // outward
+        float sphere = max(dot(up, czm_lightDirectionEC), 0.0);
+        float relief = max(dot(n, czm_lightDirectionEC), 0.0);
+        float lambert = mix(sphere, relief, ${f(SURFACE_RELIEF)});
+        material.diffuse *= ${f(SURFACE_AMBIENT)} + ${f(1 - SURFACE_AMBIENT)} * lambert;
+      }`,
+  })
+}
+
+
 const STENCIL_REF = 1
+// Night-side floor for sunlitShader: dark, but not a hole in the sky.
+const SURFACE_AMBIENT = 0.02
+// sunlitShader's weight on surface relief vs the smooth sphere.
+const SURFACE_RELIEF = 0.7
 // The lazily-added near shape of a Planet (Planet.nearShape).
 const SURFACE_GROUP_NAME = 'planet surface and guides'
