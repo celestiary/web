@@ -90,14 +90,33 @@ relates to real time.
 
 ### Data
 
-- Earth: with a Cesium ion token, Cesium World Terrain + ion default
-  imagery. Without one, the ellipsoid with the Natural Earth II imagery
-  bundled with Cesium (offline, low-res).
-- Token: build-time `CESIUM_ION_TOKEN` env var → `__CESIUM_ION_TOKEN__`.
+- Earth: the globe always starts on the plain ellipsoid with the Natural
+  Earth II imagery bundled with Cesium (offline, low-res).  With a Cesium
+  ion token, ion's World Terrain and default imagery replace them as each
+  loads; if the token can't reach one (no network, or a token scoped to
+  other assets) the globe keeps its offline surface.  (Passing CesiumWidget
+  `terrain: Terrain.fromWorldTerrain()` instead leaves the globe with no
+  terrain, drawing nothing, until ion answers, and forever if it fails.)
+- Moon, Mars: Cesium ion 3D-tiles datasets, token only (see Phases).
+- Token: build-time `CESIUM_ION_TOKEN` env var → `__CESIUM_ION_TOKEN__`,
+  set from the repository secret of the same name.  It ships in the page,
+  so restrict it on ion to celestiary's URLs, with World Terrain, the
+  default imagery, Moon Terrain and Cesium Mars in its assets.
 - Cesium is dynamically imported the first time a Cesium layer is chosen,
   so the default app pays nothing. Its static assets (Workers, Assets,
   ThirdParty) are copied into `docs/cesium/` by the build;
   `window.CESIUM_BASE_URL` points there.
+
+### Tiles and lighting (ion 3D tiles)
+
+- Celestiary's bodies turn under its camera, so Cesium's camera moves
+  every frame.  The tilesets' `foveatedScreenSpaceError` and
+  `cullRequestsWhileMoving` optimizations wait for the camera to stop
+  before requesting detail, so they're off: detail loads at any distance.
+- The tilesets are unlit.  A custom shader lights them by celestiary's
+  Sun (Cesium's `scene.light`): Lambert on the sphere (terminator) blended
+  with Lambert on screen-space-derivative normals (crater and ridge relief;
+  the tilesets have no normals).
 
 ## Phases
 
@@ -109,15 +128,24 @@ relates to real time.
 2. **Moon, Mars** — `Ellipsoid.MOON` / `Ellipsoid.MARS` with the Cesium
    ion Moon Terrain (asset 2684829) and Cesium Mars (asset 3644333)
    3D-tiles datasets, no globe. These need an ion token; without one the
-   layer control doesn't appear for them. *Implemented but not yet seen
-   running: the dev sandbox had no token and no network route to ion. The
-   same is true of Earth's ion path (World Terrain + ion imagery).*
+   layer control doesn't appear for them. *Done; seen running on the PR
+   preview with the production token, as was Earth's ion path.*
+3. **Fixes after first use** — Earth's globe no longer goes empty when ion
+   can't serve World Terrain; tiles load full detail while the camera
+   moves; Moon and Mars lit by the Sun.
 
 ## Follow-ups
 
 - Picking / inspection through Cesium (click → lat/lng, entity info):
   forward celestiary's clicks to `scene.pick` on the active widget.
 - Night lights on Cesium's Earth (ion Black Marble as a night layer).
+- Celestiary's atmosphere over Cesium's Mars.  Cesium's sky atmosphere is
+  Earth's and its ground atmosphere needs a globe, so Mars in the Cesium
+  layer has none.  Celestiary's Bruneton post-pass could run over it
+  instead: it reads `_sceneRT`'s depth, so after Cesium draws, write the
+  depth of a body-radius sphere (depth only, within the stencil) where
+  Cesium's pixels are, and keep the pass on for Mars.  Needs Cesium's
+  draws kept out of that depth (its log depth doesn't match).
 - Persist the layer choice in the permalink.
 - Perf: the shadow context executes every Cesium draw as well as the
   replay (2× GPU for the globe). Cesium needs the shadow's pixels only
