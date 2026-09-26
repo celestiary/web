@@ -18,7 +18,8 @@ jobs:
 
       - uses: actions/setup-node@v6.4.0
         with:
-          node-version: '20'
+          # Cesium requires Node >= 22, and yarn enforces engines.
+          node-version: '22'
           cache: yarn
 
       - uses: oven-sh/setup-bun@v2.2.0

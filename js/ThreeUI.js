@@ -1,4 +1,5 @@
 import {
+  DepthStencilFormat,
   DepthTexture,
   LinearSRGBColorSpace,
   NeutralToneMapping,
@@ -7,7 +8,7 @@ import {
   Quaternion,
   PerspectiveCamera,
   Scene,
-  UnsignedIntType,
+  UnsignedInt248Type,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -15,6 +16,7 @@ import {
 } from 'three'
 import {newAtmospherePass} from './scene/atmos/Atmosphere'
 import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
+import CesiumLayers from './scene/cesium/CesiumLayers'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import {attachPointerDrag} from './dragControls'
 import {resolveDragMode} from './dragMode'
@@ -61,6 +63,8 @@ export default class ThreeUi {
     this._lastAtmPlanet = null
     this._transmittanceRT = null
     this._inScatterRT = null
+    // Optional Cesium rendering of nearby bodies; see CESIUM.md.
+    this.layers = new CesiumLayers(this)
     this.initControls(this.camera)
     this.fs = new Fullscreen(this.container, () => this.onResize())
     window.addEventListener('resize', () => {
@@ -109,11 +113,17 @@ export default class ThreeUi {
   }
 
 
-  /** @returns {WebGLRenderTarget} with a depth texture */
+  /**
+   * @returns {WebGLRenderTarget} with a depth-stencil texture.  The atmosphere
+   * pass samples its depth; Cesium layers (CESIUM.md) stencil into it.
+   * DEPTH24_STENCIL8: the same 24-bit depth the previous DEPTH_COMPONENT24
+   * texture had.
+   */
   _makeSceneRT() {
-    const rt = new WebGLRenderTarget(this.width, this.height)
+    const rt = new WebGLRenderTarget(this.width, this.height, {stencilBuffer: true})
     rt.depthTexture = new DepthTexture()
-    rt.depthTexture.type = UnsignedIntType
+    rt.depthTexture.format = DepthStencilFormat
+    rt.depthTexture.type = UnsignedInt248Type
     // Three.js only applies tone mapping when _currentRenderTarget is null
     // (screen) or isXRRenderTarget. Tag ours so PBR materials get tone-mapped
     // into [0,1] instead of writing raw HDR values that saturate to white.
@@ -319,9 +329,13 @@ export default class ThreeUi {
       this.arController.updateFrame()
     }
     this._publishEffectiveDragMode()
-    // Render scene to RT, then composite atmosphere fullscreen pass to screen
+    // Render scene to RT, then composite atmosphere fullscreen pass to screen.
+    // An active Cesium layer hides the body's own surface before the scene
+    // render and composites Cesium's globe into the RT after it.
+    this.layers.beforeRender(targets.obj)
     this.renderer.setRenderTarget(this._sceneRT)
     this.renderer.render(this.scene, this.camera)
+    this.layers.composite()
     this.renderer.setRenderTarget(null)
     this._updateAtmUniforms()
     this.renderer.render(this._atmScene, this._atmCamera)
@@ -410,6 +424,12 @@ export default class ThreeUi {
       // can't simply "push the planet far away" as a sentinel because the
       // in-shader rsi() squares |eyePos|, and any sentinel large enough to
       // miss the atmosphere would itself overflow float32.
+      u.uAtmEnabled.value = 0.0
+      return
+    }
+    if (this.layers.isActiveFor(atmTarget)) {
+      // A Cesium layer is standing in for this body and draws its own
+      // atmosphere (CESIUM.md).
       u.uAtmEnabled.value = 0.0
       return
     }
