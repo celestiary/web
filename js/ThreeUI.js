@@ -427,9 +427,9 @@ export default class ThreeUi {
       u.uAtmEnabled.value = 0.0
       return
     }
-    if (this.layers.isActiveFor(atmTarget)) {
+    if (this.layers.drawsAtmosphereFor(atmTarget)) {
       // A Cesium layer is standing in for this body and draws its own
-      // atmosphere (CESIUM.md).
+      // atmosphere (Earth; CESIUM.md).  Over Cesium's Mars the pass runs.
       u.uAtmEnabled.value = 0.0
       return
     }
