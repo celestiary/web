@@ -38,10 +38,10 @@
   "atmosphere": {
     "height": "1.6e5 m",
     "sunIntensity": 18,
-    "rayleigh": [7.0e-6, 1.1e-5, 1.8e-5],
+    "rayleigh": [1.75e-6, 2.75e-6, 4.5e-6],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "1.58e4 m",
-    "mieCoeff": 2.5e-4,
+    "mieCoeff": 2.5e-5,
     "mieCoeff_unit": "1/m",
     "mieScaleHeight": "8e3 m",
     "miePolarity": 0.85
