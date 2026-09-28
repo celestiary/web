@@ -22,14 +22,6 @@
 export const ATMOSPHERE_SHELL_SCALE = 1.025
 
 
-/**
- * Show the layer control (and render an active Cesium layer) only within
- * this many body radii of the target body's centre.  At 20 radii the Earth
- * spans about 6° of a 45° field of view.
- */
-export const LAYER_NEAR_RADII = 20
-
-
 // Airless bodies: 1% of radius clears the Moon's highlands (~11 km) and
 // Olympus Mons (~22 km above Mars's datum).
 const TERRAIN_SHELL_SCALE = 1.01

@@ -13,7 +13,8 @@ import {
   Vector3,
 } from 'three'
 import {toRad} from '../../shared.js'
-import {CESIUM_BODIES, LAYER_NEAR_RADII, ionToken, isCesiumBody} from './bodies.js'
+import {bodyLayer} from '../../store/LayersSlice.js'
+import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
 import {cameraToEcefView, cesiumFov, sphericalLatLngAlt, sunLightDirectionEcef} from './frames.js'
 
 
@@ -91,7 +92,7 @@ export default class CesiumLayers {
 
 
   /**
-   * Choose the active body for this frame and publish the nearby
+   * Choose the active body for this frame and publish the in-range
    * Cesium-capable body for the layers control.
    *
    * @param {object} target targets.obj — the selected body's rotating node
@@ -102,7 +103,7 @@ export default class CesiumLayers {
     if (store?.setLayerBody && store.layerBody !== near) {
       store.setLayerBody(near)
     }
-    const wanted = near && store?.bodyLayers?.[near] === 'cesium' ? near : null
+    const wanted = near && bodyLayer(store?.bodyLayers, near) === 'cesium' ? near : null
     if (wanted && !this.bodies[wanted]) {
       this._load(wanted)
     }
@@ -112,9 +113,7 @@ export default class CesiumLayers {
       this._restore()
       this.activeName = ready ? wanted : null
       this.activeNode = node
-      if (this.credits) {
-        this.credits.style.display = node ? 'block' : 'none'
-      }
+      this._showCredits()
     }
     if (node) {
       this._hideSurface(node)
@@ -207,18 +206,20 @@ export default class CesiumLayers {
 
 
   /**
+   * The Cesium layer is in range wherever celestiary would draw the body as
+   * a mesh rather than a point (see meshRange).
+   *
    * @param {object} target
-   * @returns {string|null}
+   * @returns {string|null} The target's name, if in range of a Cesium layer
    */
   _nearBody(target) {
     const name = target?.props?.name
     if (!name || !isCesiumBody(name)) {
       return null
     }
-    const radius = target.props.radius.scalar
     target.getWorldPosition(this._bodyPos)
     this.ui.camera.getWorldPosition(this._camPos)
-    return this._camPos.distanceTo(this._bodyPos) < LAYER_NEAR_RADII * radius ? name : null
+    return this._camPos.distanceTo(this._bodyPos) < meshRange(target) ? name : null
   }
 
 
@@ -231,6 +232,20 @@ export default class CesiumLayers {
       }
       if (obj) {
         obj.visible = false
+      }
+    }
+  }
+
+
+  /** Show the active body's Cesium credits, and no other body's. */
+  _showCredits() {
+    if (!this.credits) {
+      return
+    }
+    this.credits.style.display = this.activeNode ? 'block' : 'none'
+    for (const [name, body] of Object.entries(this.bodies)) {
+      if (body.credits) {
+        body.credits.style.display = name === this.activeName ? 'block' : 'none'
       }
     }
   }
@@ -264,6 +279,11 @@ export default class CesiumLayers {
         up: new Cesium.Cartesian3(...view.up),
       },
     })
+    // Cesium's default far plane (5e8 m) would clip the body from beyond
+    // ~80 Earth radii; the layer is in range out to the mesh range.
+    const {radii, shellScale} = CESIUM_BODIES[this.activeName]
+    const bodyExtent = 2 * shellScale * Math.max(...radii)
+    cesiumCamera.frustum.far = Math.max(DEFAULT_FAR, Math.hypot(...view.position) + bodyExtent)
     const canvas = widget.canvas
     cesiumCamera.frustum.fov = cesiumFov(camera.fov * toRad, canvas.clientWidth / Math.max(1, canvas.clientHeight))
 
@@ -339,6 +359,11 @@ export default class CesiumLayers {
       })
       document.body.appendChild(this.credits)
     }
+    // Each widget writes its own credits into its container, so every body
+    // gets one; _showCredits shows the active body's.
+    const credits = document.createElement('div')
+    credits.style.display = 'none'
+    this.credits.appendChild(credits)
 
     const sceneRT = this.ui._sceneRT
     let widget = null
@@ -375,7 +400,7 @@ export default class CesiumLayers {
       contextOptions: guest.contextOptions,
       useDefaultRenderLoop: false,
       showRenderLoopErrors: false,
-      creditContainer: this.credits,
+      creditContainer: credits,
       scene3DOnly: true,
       skyBox: false,
       msaaSamples: 1,
@@ -389,6 +414,9 @@ export default class CesiumLayers {
         // stayed coarse until a zoom forced a reload.
         foveatedScreenSpaceError: false,
         cullRequestsWhileMoving: false,
+        // Finer tiles than Cesium's default (16): sharper imagery and
+        // smaller facets.
+        maximumScreenSpaceError: TILE_SCREEN_SPACE_ERROR,
         customShader: sunlitShader(Cesium),
       })
           .then((tileset) => widget.scene.primitives.add(tileset))
@@ -425,7 +453,7 @@ export default class CesiumLayers {
     }
     scene.renderError.addEventListener((_scene, err) => this._fail(name, err))
 
-    return {Cesium, widget, link, guest, container, ellipsoid}
+    return {Cesium, widget, link, guest, container, ellipsoid, credits}
   }
 
 
@@ -446,6 +474,7 @@ export default class CesiumLayers {
     if (this.bodies[name]?.status !== 'error') {
       console.error(`[cesium layer] ${name} failed; falling back to celestiary rendering`, err)
     }
+    this.bodies[name]?.credits?.remove()
     this.bodies[name] = {status: 'error'}
     this._publishStatus(name, 'error')
     // Drop back to celestiary's rendering; the control shows the error.
@@ -454,6 +483,7 @@ export default class CesiumLayers {
       this._restore()
       this.activeName = null
       this.activeNode = null
+      this._showCredits()
     }
   }
 }
@@ -498,8 +528,15 @@ function addIonEarth(Cesium, widget) {
  * Two Lambert terms, blended: the smooth sphere (a clean terminator from
  * any distance) and the surface relief, from screen-space derivatives of
  * position (the tilesets carry no normals), which shades craters and
- * ridges toward the Sun.  Relief alone would show the facets of distant,
- * coarse tiles.
+ * ridges toward the Sun.
+ *
+ * The relief normals are flat per triangle, and a coarse tile's triangles
+ * tilt a few degrees off the sphere they approximate.  Near the
+ * terminator, where Lambert is steepest, that tilt shows as facets.  The
+ * tiles are coarse when far (Cesium refines them to a fixed size on
+ * screen), and relief can't be made out then anyway, so the relief weight
+ * fades out with the camera's distance from the surface point, in body
+ * radii: full within RELIEF_NEAR, none past RELIEF_FAR.
  *
  * @param {object} Cesium
  * @returns {object} Cesium.CustomShader
@@ -512,11 +549,13 @@ function sunlitShader(Cesium) {
       void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
         vec3 up = czm_viewRotation * normalize(fsInput.attributes.positionWC);
         vec3 p = fsInput.attributes.positionEC;
+        float range = length(p) / length(fsInput.attributes.positionWC);
+        float reliefWeight = ${f(SURFACE_RELIEF)} * (1.0 - smoothstep(${f(RELIEF_NEAR)}, ${f(RELIEF_FAR)}, range));
         vec3 n = normalize(cross(dFdx(p), dFdy(p)));
         n = dot(n, up) < 0.0 ? -n : n; // outward
         float sphere = max(dot(up, czm_lightDirectionEC), 0.0);
         float relief = max(dot(n, czm_lightDirectionEC), 0.0);
-        float lambert = mix(sphere, relief, ${f(SURFACE_RELIEF)});
+        float lambert = mix(sphere, relief, reliefWeight);
         material.diffuse *= ${f(SURFACE_AMBIENT)} + ${f(1 - SURFACE_AMBIENT)} * lambert;
       }`,
   })
@@ -526,7 +565,33 @@ function sunlitShader(Cesium) {
 const STENCIL_REF = 1
 // Night-side floor for sunlitShader: dark, but not a hole in the sky.
 const SURFACE_AMBIENT = 0.02
-// sunlitShader's weight on surface relief vs the smooth sphere.
+// sunlitShader's weight on surface relief vs the smooth sphere, up close.
 const SURFACE_RELIEF = 0.7
+// sunlitShader's relief fade, in body radii from camera to surface point.
+const RELIEF_NEAR = 0.25
+const RELIEF_FAR = 1
+// ion tilesets' maximumScreenSpaceError, in pixels.
+const TILE_SCREEN_SPACE_ERROR = 8
+// Cesium's default PerspectiveFrustum far plane, metres.
+const DEFAULT_FAR = 5e8
+// Planet.newPlanet's LOD: the body's mesh, then a point, then nothing.
+const PLANET_LOD_NAME = 'planet LOD'
 // The lazily-added near shape of a Planet (Planet.nearShape).
 const SURFACE_GROUP_NAME = 'planet surface and guides'
+
+
+/**
+ * How far out celestiary draws the body as a mesh rather than a point: the
+ * distance at which its 'planet LOD' (Planet.newPlanet) swaps in the next
+ * level.
+ *
+ * @param {object} node A body's rotating node
+ * @returns {number} Metres from the body's centre; 0 if it has no such LOD
+ */
+export function meshRange(node) {
+  const lod = node.parent
+  if (!lod?.isLOD || lod.name !== PLANET_LOD_NAME || lod.levels[0]?.object !== node) {
+    return 0
+  }
+  return lod.levels[1]?.distance ?? Infinity
+}

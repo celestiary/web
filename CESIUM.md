@@ -1,26 +1,33 @@
 # Cesium layers — plan
 
-An optional **Cesium** layer for bodies Cesium can render (Earth; later the
-Moon and Mars). Celestiary's own rendering stays the default: tuned to look
-right from orbit (Bruneton atmosphere, surface textures, night lights). The
-Cesium layer is the *data view*: Cesium's globe, terrain, imagery and
-datasets, composited in place of celestiary's body, for inspecting the
-planet up close.
+A **Cesium** layer for bodies Cesium can render (Earth, and the Moon and
+Mars with an ion token), and the default for them: Cesium's globe,
+terrain, imagery and datasets, composited in place of celestiary's body.
+Celestiary's own rendering (Bruneton atmosphere, surface textures, night
+lights) stays one click away in the layers control, and is what a body
+falls back to if its Cesium layer can't load.
 
 ## UX
 
-- When the camera is near a Cesium-capable body (target is that body and
-  camera distance < `LAYER_NEAR_RADII` × its radius), a **Layers** button
-  appears in the top-right control stack, under the drag-mode toggle.
-- Clicking it expands (Google-Maps-style) to two tiles: **Celestiary**
-  (default) and **Cesium**. Choosing one applies it to that body; the
-  choice is remembered per body for the session.
-- The layer is only *active* while near; flying away drops back to
+- A Cesium-capable body is *in range* when it's the target and the camera
+  is within its mesh range: as far out as celestiary draws the body as a
+  mesh rather than a point (the distance of the next level in its
+  `planet LOD`, Planet.newPlanet; 10 AU today).  In range, a **Layers**
+  button appears in the top-right control stack, under the drag-mode
+  toggle.
+- Clicking it expands (Google-Maps-style) to two tiles: **Celestiary** and
+  **Cesium** (default, `DEFAULT_BODY_LAYER` in LayersSlice.js). Choosing one
+  applies it to that body; the choice is remembered per body for the
+  session.  A body whose Cesium layer fails to load drops back to
+  Celestiary, and the control shows the error.
+- The layer is only *active* while in range; flying away drops back to
   celestiary's own rendering (Cesium is not rendered at all), and coming
   back re-activates it.
 - The button is HTML chrome, so it follows the `v` visibility group.
 - Cesium's credits (required data attribution) show as a small overlay
-  while the layer is active.
+  while the layer is active: the active body's only.  Each body's widget
+  writes its credits into its own container inside the overlay (one shared
+  container stacked a copy per body visited).
 
 ## Architecture
 
@@ -103,8 +110,8 @@ relates to real time.
   set from the repository secret of the same name.  It ships in the page,
   so restrict it on ion to celestiary's URLs, with World Terrain, the
   default imagery, Moon Terrain and Cesium Mars in its assets.
-- Cesium is dynamically imported the first time a Cesium layer is chosen,
-  so the default app pays nothing. Its static assets (Workers, Assets,
+- Cesium is dynamically imported the first time a Cesium layer comes into
+  range, so views away from Earth, the Moon and Mars don't load it. Its static assets (Workers, Assets,
   ThirdParty) are copied into `docs/cesium/` by the build;
   `window.CESIUM_BASE_URL` points there.
 
@@ -130,10 +137,21 @@ relates to real time.
   every frame.  The tilesets' `foveatedScreenSpaceError` and
   `cullRequestsWhileMoving` optimizations wait for the camera to stop
   before requesting detail, so they're off: detail loads at any distance.
+- `maximumScreenSpaceError` 8 (Cesium's default is 16): sharper imagery
+  and smaller facets, for about four times the tiles.
 - The tilesets are unlit.  A custom shader lights them by celestiary's
   Sun (Cesium's `scene.light`): Lambert on the sphere (terminator) blended
   with Lambert on screen-space-derivative normals (crater and ridge relief;
   the tilesets have no normals).
+- Those relief normals are flat per triangle, and a coarse tile's
+  triangles tilt a few degrees off the sphere; near the terminator that
+  showed as facets from orbit.  Tiles are coarse when the camera is far,
+  and relief can't be made out then anyway, so the relief weight fades
+  with the camera's distance from the surface point: full within 0.25 body
+  radii, none past 1.
+- From out of range down to the surface, Cesium's camera far plane is
+  raised past the body (its default, 5e8 m, would clip the Earth beyond
+  ~80 radii).
 
 ## Phases
 
@@ -154,7 +172,14 @@ relates to real time.
    (see Atmospheres).  *The mechanism is checked on Earth in the sandbox
    (Cesium's offline globe under celestiary's atmosphere): from orbit and at
    20 km it matches celestiary's own Earth; without the depth rewrite, at
-   20 km the ground is hazed white.  Not yet seen on Mars itself.*
+   20 km the ground is hazed white.  Seen on Mars on the PR preview.*
+5. **Cesium by default** — the Cesium layer is the default for Earth, the
+   Moon and Mars, in range out to celestiary's mesh range; Moon and Mars
+   shading no longer facets from orbit; one body's credits at a time.
+   *Checked in the sandbox (Earth, offline globe): active with no click at
+   2,500 km and at 1,000,000 km (past Cesium's default far plane); one
+   credits container, shown.  The shading on a coarse synthetic tileset:
+   smooth terminator from 2.5 radii, relief at full weight at 0.2.*
 
 ## Follow-ups
 
@@ -174,10 +199,11 @@ New:
 - `js/scene/cesium/frames.js` (+ test) — body frame ↔ ECEF, camera/light
   conversion. Pure.
 - `js/scene/cesium/bodies.js` — per-body config (ellipsoid radii, data).
-- `js/scene/cesium/CesiumLayer.js` — lazy Cesium + NetGL link, stencil
+- `js/scene/cesium/CesiumLayers.js` (+ test) — lazy Cesium + NetGL link, stencil
   shell, per-frame coupling, activation.
-- `js/store/LayersSlice.js` — `layerBody` (nearby capable body or null),
-  `bodyLayers` (per-body choice).
+- `js/store/LayersSlice.js` — `layerBody` (in-range capable body or
+  null), `bodyLayers` (per-body choice; `bodyLayer()` applies the
+  default).
 - `js/ui/LayersButton.jsx` — the control.
 
 Changed:
@@ -196,7 +222,9 @@ Changed:
 - `yarn precommit` (lint, bun tests, bundle check).
 - frames.test.js: round trips, known points (lat/lng → ECEF matches Cesium's
   `Cartesian3.fromDegrees` on a sphere), handedness.
-- In a browser: near Earth the button appears; far away it doesn't.
+- In a browser: with Earth targeted the button appears and the Cesium
+  layer is on without a click; targeting a body Cesium can't render, it
+  doesn't.
   Choosing Cesium swaps the globe in place with no visible offset or lag
   while orbiting; the Moon occludes/is occluded correctly; the terminator
   matches celestiary's; switching back restores celestiary's Earth and
