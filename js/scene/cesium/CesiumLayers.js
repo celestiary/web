@@ -535,6 +535,11 @@ export default class CesiumLayers {
       scene3DOnly: true,
       skyBox: false,
       msaaSamples: 1,
+      // OIT's composite pass makes every pixel that isn't background fully
+      // opaque, including the sky atmosphere's faint ones, which then hid
+      // celestiary's stars behind it.  Cesium's layers here draw nothing
+      // translucent, so plain alpha blending loses nothing.
+      orderIndependentTranslucency: false,
       ...surface,
     })
     if (config.ionTileset) {
