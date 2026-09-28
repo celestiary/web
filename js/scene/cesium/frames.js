@@ -94,22 +94,28 @@ export function cesiumFov(fovyRad, aspect) {
 
 
 /**
- * Latitude, longitude and altitude of an ECEF point relative to a sphere —
- * celestiary's bodies are spheres.  Used to place Cesium's camera at the
- * same latitude, longitude and *altitude* on Cesium's ellipsoid, so a camera
- * 5 km above celestiary's 6,371 km Earth is 5 km above Cesium's WGS84 Earth
- * (up to 7 km larger at the equator) rather than underground.
+ * Where to put Cesium's camera for a camera at `ecef` over celestiary's
+ * sphere: on the same ray from the body's centre, at the same height over
+ * Cesium's ellipsoid (along that ray) as over the sphere.  So a camera 5 km
+ * above celestiary's 6,371 km Earth is 5 km above Cesium's WGS84 Earth (up
+ * to 7 km larger at the equator) rather than underground, and from orbit
+ * the body is exactly where celestiary draws it: the radial correction
+ * only changes the distance, never the direction to the body's centre.
  *
- * @param {Array<number>} ecef ECEF [x, y, z]
- * @param {number} radius Sphere radius, metres
- * @returns {{lat: number, lng: number, alt: number}} Radians, radians, metres
+ * Handing Cesium the sphere's latitude, longitude and altitude instead
+ * (Cartesian3.fromRadians) put the camera on the ellipsoid's normal, not
+ * the ray: from 30,000 km over Mars at 25° S, 16 km off, about a pixel.
+ *
+ * @param {Array<number>} ecef Camera ECEF [x, y, z], metres
+ * @param {number} radius Celestiary's sphere radius, metres
+ * @param {Array<number>} radii Cesium's ellipsoid radii [x, y, z], metres
+ * @returns {Array<number>} Cesium camera ECEF [x, y, z], metres
  */
-export function sphericalLatLngAlt(ecef, radius) {
+export function ellipsoidCameraPosition(ecef, radius, radii) {
   const [x, y, z] = ecef
   const r = Math.hypot(x, y, z)
-  return {
-    lat: Math.asin(Math.max(-1, Math.min(1, z / r))),
-    lng: Math.atan2(y, x),
-    alt: r - radius,
-  }
+  const [a, b, c] = radii
+  const surface = 1 / Math.hypot(x / r / a, y / r / b, z / r / c)
+  const k = (surface + r - radius) / r
+  return [x * k, y * k, z * k]
 }

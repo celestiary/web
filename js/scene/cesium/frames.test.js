@@ -1,7 +1,7 @@
 import {Euler, Matrix4, PerspectiveCamera, Quaternion, Vector3} from 'three'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {toRad} from '../../shared.js'
-import {bodyToEcef, cameraToEcefView, cesiumFov, ecefToBody, sphericalLatLngAlt, sunLightDirectionEcef} from './frames.js'
+import {bodyToEcef, cameraToEcefView, cesiumFov, ecefToBody, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
 
 
 const R = 6378137
@@ -102,12 +102,34 @@ describe('cesiumFov', () => {
 })
 
 
-describe('sphericalLatLngAlt', () => {
-  it('recovers celestiary lat/lng/alt from the ECEF of a body-frame point', () => {
-    const earth = 6371010
-    const {lat, lng, alt} = sphericalLatLngAlt(bodyToEcef(latLngAltToBodyFixed(-33.9, 18.4, 5000, earth)), earth)
-    expect(lat / toRad).toBeCloseTo(-33.9, 9)
-    expect(lng / toRad).toBeCloseTo(18.4, 9)
-    expect(alt).toBeCloseTo(5000, 3)
+describe('ellipsoidCameraPosition', () => {
+  const mars = 3389500
+  const marsRadii = [3396190, 3396190, 3376200]
+
+  it('keeps the camera on the same ray from the body centre', () => {
+    // 30,000 km over Mars at 25° S: where lat/lng/alt placement erred.
+    const cam = bodyToEcef(latLngAltToBodyFixed(-25, -160, 3e7, mars))
+    const out = ellipsoidCameraPosition(cam, mars, marsRadii)
+    const r0 = Math.hypot(...cam)
+    const r1 = Math.hypot(...out)
+    for (let i = 0; i < 3; i++) {
+      expect(out[i] / r1).toBeCloseTo(cam[i] / r0, 12)
+    }
+  })
+
+  it('keeps the height over the ellipsoid, along the ray', () => {
+    const cam = bodyToEcef(latLngAltToBodyFixed(-33.9, 18.4, 5000, 6371010))
+    const out = ellipsoidCameraPosition(cam, 6371010, [R, R, 6356752.314245179])
+    const r = Math.hypot(...out)
+    const [x, y, z] = out.map((v) => v / r)
+    const surface = 1 / Math.hypot(x / R, y / R, z / 6356752.314245179)
+    expect(r - surface).toBeCloseTo(5000, 6)
+  })
+
+  it('puts an equatorial camera over the equatorial radius', () => {
+    const out = ellipsoidCameraPosition([6371010 + 5000, 0, 0], 6371010, [R, R, 6356752.314245179])
+    expect(out[0]).toBeCloseTo(R + 5000, 6)
+    expect(out[1]).toBe(0)
+    expect(out[2]).toBe(0)
   })
 })

@@ -17,7 +17,7 @@ import {
 import {toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
-import {cameraToEcefView, cesiumFov, sphericalLatLngAlt, sunLightDirectionEcef} from './frames.js'
+import {cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
 
 
 /**
@@ -347,23 +347,28 @@ export default class CesiumLayers {
    * @param {object} node
    */
   _setCesiumView(name, body, node) {
-    const {Cesium, widget, ellipsoid} = body
+    const {Cesium, widget} = body
     const {camera} = this.ui
     const view = cameraToEcefView(camera.matrixWorld, node.matrixWorld)
-    // Same latitude, longitude and altitude on Cesium's ellipsoid as on
-    // celestiary's sphere (see frames.sphericalLatLngAlt).
-    const {lat, lng, alt} = sphericalLatLngAlt(view.position, node.props.radius.scalar)
+    // On the same ray from the body's centre, at the same height over
+    // Cesium's ellipsoid as over celestiary's sphere (see
+    // frames.ellipsoidCameraPosition).
+    const {radii, shellScale} = CESIUM_BODIES[name]
+    const position = ellipsoidCameraPosition(view.position, node.props.radius.scalar, radii)
+    // Set directly, not through camera.setView: setView converts direction
+    // and up to heading, pitch and roll in the local east-north-up frame and
+    // back, and near pitch −90° (looking at the body's centre, as on
+    // arrival) that round trip turned the camera by several degrees.
+    // Cesium's body then sat off celestiary's stencil and atmosphere, worst
+    // off-centre on screen.  The camera's transform stays the identity.
     const cesiumCamera = widget.scene.camera
-    cesiumCamera.setView({
-      destination: Cesium.Cartesian3.fromRadians(lng, lat, alt, ellipsoid),
-      orientation: {
-        direction: new Cesium.Cartesian3(...view.direction),
-        up: new Cesium.Cartesian3(...view.up),
-      },
-    })
+    const {Cartesian3} = Cesium
+    Cartesian3.fromArray(position, 0, cesiumCamera.position)
+    Cartesian3.fromArray(view.direction, 0, cesiumCamera.direction)
+    Cartesian3.fromArray(view.up, 0, cesiumCamera.up)
+    Cartesian3.cross(cesiumCamera.direction, cesiumCamera.up, cesiumCamera.right)
     // Cesium's default far plane (5e8 m) would clip the body from beyond
     // ~80 Earth radii; the layer is in range out to the mesh range.
-    const {radii, shellScale} = CESIUM_BODIES[name]
     const bodyExtent = 2 * shellScale * Math.max(...radii)
     cesiumCamera.frustum.far = Math.max(DEFAULT_FAR, Math.hypot(...view.position) + bodyExtent)
     const canvas = widget.canvas

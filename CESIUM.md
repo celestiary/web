@@ -82,9 +82,22 @@ east longitude toward −Z. Cesium ECEF: +Z north, +X prime meridian, +Y 90°E.
 So `ecef = (x, −z, y)`, a proper rotation. Both are in metres, scale 1.
 
 Per frame: camera world pose → body frame (inverse of the rotating planet
-node's world matrix, in JS doubles) → ECEF → `camera.setView`; Cesium's
-`frustum.fov` from celestiary's vertical fov (Cesium's fov spans the wider
-canvas dimension).
+node's world matrix, in JS doubles) → ECEF → Cesium's camera `position`,
+`direction`, `up` and `right`, set directly; Cesium's `frustum.fov` from
+celestiary's vertical fov (Cesium's fov spans the wider canvas dimension).
+
+- Not `camera.setView`: it converts direction and up to heading, pitch
+  and roll in the local east-north-up frame and back, and near pitch −90°
+  (looking at the body's centre, as on arrival with `g`) that turned the
+  camera several degrees.  Cesium's body then sat off the stencil shell
+  and celestiary's atmosphere: a halo off to one side of Mars, and the
+  Moon clipped to a lens when off-centre on screen.
+- The camera's position keeps its direction from the body's centre, at the
+  same height over Cesium's ellipsoid as over celestiary's sphere
+  (`frames.ellipsoidCameraPosition`).  Placing it by the sphere's latitude,
+  longitude and altitude instead (`Cartesian3.fromRadians`, geodetic) put
+  it up to ~16 km off on the flattened Earth and Mars, about a pixel from
+  orbit.
 
 Lighting: celestiary's Sun is at the world origin. Its direction in the
 body frame, mapped to ECEF, drives a Cesium `DirectionalLight` and
@@ -193,7 +206,11 @@ relates to real time.
    out with distance, still showed facets on the Moon at 46 km, so relief
    lighting was dropped.  The Moon went back to celestiary's with Earth
    targeted; in the sandbox, at the Moon, Earth is now Cesium's with
-   either the Moon or Earth targeted.*
+   either the Moon or Earth targeted.  Mars arriving with a halo off to
+   one side, and the Moon clipped to a lens off-centre: reproduced in the
+   sandbox with a local Moon tileset (Cesium's Moon centre 65 px off
+   three's); with the camera set directly, both centres project to the
+   same pixel.*
 
 ## Follow-ups
 
