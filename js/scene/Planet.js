@@ -24,7 +24,6 @@ import {
   sphere,
 } from './shapes.js'
 import Rings from './rings/Rings.js'
-import {newAtmosphere} from './atmos/Atmosphere'
 import * as Material from './material.js'
 import {ASTRO_UNIT_METER, FAR_OBJ, labelTextColor, halfPi, toRad} from '../shared.js'
 import {capitalize, named} from '../utils.js'
@@ -389,11 +388,13 @@ export default class Planet extends Object {
       ringsObj.injectPlanetShadow(surfaceMaterial)
       surface.add(ringsObj)
     }
+    // No glow for a body without atmosphere data: those are airless (or,
+    // like Europa, have an exosphere far too thin to see), so their limb is
+    // sharp.  A decorative rim shell here used to glow all the way round,
+    // shadow side included; bodies with an atmosphere get a physically lit
+    // limb from the atmosphere pass.
     const group = new Group
     group.add(surface)
-    if (!this.props.atmosphere) {
-      group.add(named(newAtmosphere(this.props.radius.scalar * 1.02), 'atmosphere'))
-    }
     const internalGuidesRadius = this.props.radius.scalar * 0.9
     group.add(new AxesHelper(internalGuidesRadius))
     // group.add(sphere({radius: internalGuidesRadius, wireframe: true, color: 0x808080}))
