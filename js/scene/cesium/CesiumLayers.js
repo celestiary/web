@@ -8,27 +8,33 @@ import {
   Mesh,
   MeshBasicMaterial,
   ReplaceStencilOp,
+  Frustum,
   Scene,
+  Sphere,
   SphereGeometry,
   Vector3,
 } from 'three'
 import {toRad} from '../../shared.js'
-import {CESIUM_BODIES, LAYER_NEAR_RADII, ionToken, isCesiumBody} from './bodies.js'
-import {cameraToEcefView, cesiumFov, sphericalLatLngAlt, sunLightDirectionEcef} from './frames.js'
+import {bodyLayer} from '../../store/LayersSlice.js'
+import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
+import {cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
 
 
 /**
- * Optional Cesium rendering of nearby bodies ("data view").  See CESIUM.md.
+ * Cesium rendering of Earth, the Moon and Mars.  See CESIUM.md.
  *
  * Per frame, ThreeUi calls:
- *   beforeRender()  pick the active body; hide/show celestiary's surface
- *   composite()     after the scene renders into _sceneRT: stencil the
- *                   body's silhouette, then render Cesium synchronously into
- *                   the same target through a same-page NetGL link
+ *   beforeRender()  pick the active bodies (every Cesium body in range, on
+ *                   screen and set to its Cesium layer, not only the
+ *                   target); hide/show celestiary's surfaces
+ *   composite()     after the scene renders into _sceneRT, per active body,
+ *                   far to near: stencil the body's silhouette, then render
+ *                   Cesium synchronously into the same target through a
+ *                   same-page NetGL link
  *   drawsAtmosphereFor(node)  so the atmosphere post-pass can stand down
  *
  * Cesium and portal-netgl are dynamically imported the first time a body's
- * Cesium layer is chosen.
+ * Cesium layer comes into view.
  */
 export default class CesiumLayers {
   /** @param {object} ui ThreeUi */
@@ -36,8 +42,9 @@ export default class CesiumLayers {
     this.ui = ui
     // Per body name: {status: 'loading'|'ready'|'error', ...}
     this.bodies = {}
-    this.activeName = null
-    this.activeNode = null
+    // This frame's active bodies, far to near: [{name, node}]
+    this.active = []
+    this._activeKey = ''
     // Celestiary objects hidden while a Cesium layer shows: Map<Object3D, wasVisible>
     this.hidden = new Map()
     this.credits = null
@@ -87,12 +94,15 @@ export default class CesiumLayers {
     this._camPos = new Vector3()
     this._bodyPos = new Vector3()
     this._sunPos = new Vector3()
+    this._frustum = new Frustum()
+    this._sphere = new Sphere()
+    this._viewProj = new Matrix4()
   }
 
 
   /**
-   * Choose the active body for this frame and publish the nearby
-   * Cesium-capable body for the layers control.
+   * Choose this frame's active bodies, and publish the target, if it's a
+   * Cesium-capable body in range, for the layers control.
    *
    * @param {object} target targets.obj — the selected body's rotating node
    */
@@ -102,42 +112,75 @@ export default class CesiumLayers {
     if (store?.setLayerBody && store.layerBody !== near) {
       store.setLayerBody(near)
     }
-    const wanted = near && store?.bodyLayers?.[near] === 'cesium' ? near : null
-    if (wanted && !this.bodies[wanted]) {
-      this._load(wanted)
-    }
-    const ready = wanted && this.bodies[wanted].status === 'ready'
-    const node = ready ? target : null
-    if (node !== this.activeNode) {
-      this._restore()
-      this.activeName = ready ? wanted : null
-      this.activeNode = node
-      if (this.credits) {
-        this.credits.style.display = node ? 'block' : 'none'
+    const active = []
+    for (const name of Object.keys(CESIUM_BODIES)) {
+      const node = this.ui.sceneManager?.objects?.[name]
+      if (!node || !isCesiumBody(name) || bodyLayer(store?.bodyLayers, name) !== 'cesium') {
+        continue
+      }
+      const distance = this._visibleAt(name, node)
+      if (distance === null) {
+        continue
+      }
+      if (!this.bodies[name]) {
+        this._load(name)
+      }
+      if (this.bodies[name].status === 'ready') {
+        active.push({name, node, distance})
       }
     }
-    if (node) {
+    active.sort((a, b) => b.distance - a.distance)
+    const key = active.map((a) => a.name).join()
+    if (key !== this._activeKey) {
+      this._restore()
+      this.active = active
+      this._activeKey = key
+      this._showCredits()
+    } else {
+      this.active = active
+    }
+    for (const {node} of active) {
       this._hideSurface(node)
     }
   }
 
 
   /**
-   * Composite the active body's Cesium rendering into the currently bound
-   * render target (_sceneRT), which holds celestiary's colour, depth and
-   * stencil for this frame.
+   * Composite the active bodies' Cesium renderings into _sceneRT, which
+   * holds celestiary's colour, depth and stencil for this frame.
+   *
+   * Far to near: each body's Cesium frame clears _sceneRT's depth, so a
+   * later body's stencil shell can't be occluded by an earlier one.  Drawn
+   * nearer, it is in front where they overlap.
    */
   composite() {
-    if (!this.activeNode) {
-      return
+    const {renderer} = this.ui
+    for (const [i, {name, node}] of [...this.active].entries()) {
+      if (this.bodies[name]?.status !== 'ready') {
+        continue
+      }
+      // resetState() after a Cesium frame also unbinds three's render
+      // target; and the last body's stencil must not admit this one.
+      renderer.setRenderTarget(this.ui._sceneRT)
+      if (i > 0) {
+        renderer.clear(false, false, true)
+      }
+      this._compositeBody(name, node)
     }
-    const body = this.bodies[this.activeName]
+  }
+
+
+  /**
+   * @param {string} name
+   * @param {object} node
+   */
+  _compositeBody(name, node) {
+    const body = this.bodies[name]
     const {renderer, camera} = this.ui
-    const node = this.activeNode
 
     // 1. Stencil = 1 wherever the body's (atmosphere-sized) ellipsoid is
     // visible past celestiary's own geometry.
-    const {radii: [rx, ry, rz], shellScale: s} = CESIUM_BODIES[this.activeName]
+    const {radii: [rx, ry, rz], shellScale: s} = CESIUM_BODIES[name]
     // ECEF (x, y, z) radii → body frame (x, z, y); see frames.js.
     this.shell.matrix.copy(node.matrixWorld).multiply(this._shellScale.makeScale(rx * s, rz * s, ry * s))
     this.shell.matrixWorldNeedsUpdate = true
@@ -147,7 +190,7 @@ export default class CesiumLayers {
     renderer.autoClear = autoClear
 
     // 2. Cesium, from celestiary's camera, into the stencilled pixels.
-    this._setCesiumView(body, node)
+    this._setCesiumView(name, body, node)
     // Ellipsoid.default is global and read lazily all over Cesium; with more
     // than one body's widget in the page, it must be this body's while it
     // renders.
@@ -158,12 +201,12 @@ export default class CesiumLayers {
         body.widget.render()
       })
     } catch (err) {
-      this._fail(this.activeName, err)
+      this._fail(name, err)
     }
     renderer.resetState()
 
     // 3. Celestiary draws this body's atmosphere: give its pass the ground.
-    if (!CESIUM_BODIES[this.activeName].atmosphere && node.props.atmosphere) {
+    if (!CESIUM_BODIES[name].atmosphere && node.props.atmosphere) {
       this._writeGroundDepth(node)
     }
   }
@@ -175,7 +218,7 @@ export default class CesiumLayers {
    *   and draws its atmosphere, so celestiary's atmosphere pass stands down
    */
   drawsAtmosphereFor(node) {
-    return node !== null && node === this.activeNode && CESIUM_BODIES[this.activeName].atmosphere
+    return node !== null && this.active.some((a) => a.node === node && CESIUM_BODIES[a.name].atmosphere)
   }
 
 
@@ -207,18 +250,53 @@ export default class CesiumLayers {
 
 
   /**
+   * The Cesium layer is in range wherever celestiary would draw the body as
+   * a mesh rather than a point (see meshRange).
+   *
    * @param {object} target
-   * @returns {string|null}
+   * @returns {string|null} The target's name, if in range of a Cesium layer
    */
   _nearBody(target) {
     const name = target?.props?.name
     if (!name || !isCesiumBody(name)) {
       return null
     }
-    const radius = target.props.radius.scalar
     target.getWorldPosition(this._bodyPos)
     this.ui.camera.getWorldPosition(this._camPos)
-    return this._camPos.distanceTo(this._bodyPos) < LAYER_NEAR_RADII * radius ? name : null
+    return this._camPos.distanceTo(this._bodyPos) < meshRange(target) ? name : null
+  }
+
+
+  /**
+   * A Cesium body is drawn when it's in range (see _nearBody), in the
+   * camera's view, and at least MIN_PIXEL_RADIUS across: smaller, Cesium
+   * would draw nothing celestiary's own mesh doesn't.
+   *
+   * @param {string} name
+   * @param {object} node
+   * @returns {number|null} Camera distance to the body's centre, or null if
+   *   it isn't drawn this frame
+   */
+  _visibleAt(name, node) {
+    const {camera} = this.ui
+    node.getWorldPosition(this._bodyPos)
+    camera.getWorldPosition(this._camPos)
+    const distance = this._camPos.distanceTo(this._bodyPos)
+    if (distance >= meshRange(node)) {
+      return null
+    }
+    const {radii, shellScale} = CESIUM_BODIES[name]
+    const radius = shellScale * Math.max(...radii)
+    if (distance > radius) {
+      const halfFov = camera.fov * toRad / 2
+      const pixels = Math.tan(Math.asin(radius / distance)) / Math.tan(halfFov) * this.ui.height / 2
+      if (pixels < MIN_PIXEL_RADIUS) {
+        return null
+      }
+    }
+    this._viewProj.copy(camera.matrixWorld).invert().premultiply(camera.projectionMatrix)
+    this._frustum.setFromProjectionMatrix(this._viewProj)
+    return this._frustum.intersectsSphere(this._sphere.set(this._bodyPos, radius)) ? distance : null
   }
 
 
@@ -231,6 +309,25 @@ export default class CesiumLayers {
       }
       if (obj) {
         obj.visible = false
+      }
+    }
+  }
+
+
+  /**
+   * Show one active body's Cesium credits: the nearest's.  Every widget
+   * carries the same ion logo and links, so showing each active body's
+   * stacks near-duplicate rows (Earth and the Moon, say).
+   */
+  _showCredits() {
+    if (!this.credits) {
+      return
+    }
+    const shown = this.active.at(-1)?.name
+    this.credits.style.display = shown ? 'block' : 'none'
+    for (const [name, body] of Object.entries(this.bodies)) {
+      if (body.credits) {
+        body.credits.style.display = name === shown ? 'block' : 'none'
       }
     }
   }
@@ -249,21 +346,31 @@ export default class CesiumLayers {
    * @param {object} body
    * @param {object} node
    */
-  _setCesiumView(body, node) {
-    const {Cesium, widget, ellipsoid} = body
+  _setCesiumView(name, body, node) {
+    const {Cesium, widget} = body
     const {camera} = this.ui
     const view = cameraToEcefView(camera.matrixWorld, node.matrixWorld)
-    // Same latitude, longitude and altitude on Cesium's ellipsoid as on
-    // celestiary's sphere (see frames.sphericalLatLngAlt).
-    const {lat, lng, alt} = sphericalLatLngAlt(view.position, node.props.radius.scalar)
+    // On the same ray from the body's centre, at the same height over
+    // Cesium's ellipsoid as over celestiary's sphere (see
+    // frames.ellipsoidCameraPosition).
+    const {radii, shellScale} = CESIUM_BODIES[name]
+    const position = ellipsoidCameraPosition(view.position, node.props.radius.scalar, radii)
+    // Set directly, not through camera.setView: setView converts direction
+    // and up to heading, pitch and roll in the local east-north-up frame and
+    // back, and near pitch −90° (looking at the body's centre, as on
+    // arrival) that round trip turned the camera by several degrees.
+    // Cesium's body then sat off celestiary's stencil and atmosphere, worst
+    // off-centre on screen.  The camera's transform stays the identity.
     const cesiumCamera = widget.scene.camera
-    cesiumCamera.setView({
-      destination: Cesium.Cartesian3.fromRadians(lng, lat, alt, ellipsoid),
-      orientation: {
-        direction: new Cesium.Cartesian3(...view.direction),
-        up: new Cesium.Cartesian3(...view.up),
-      },
-    })
+    const {Cartesian3} = Cesium
+    Cartesian3.fromArray(position, 0, cesiumCamera.position)
+    Cartesian3.fromArray(view.direction, 0, cesiumCamera.direction)
+    Cartesian3.fromArray(view.up, 0, cesiumCamera.up)
+    Cartesian3.cross(cesiumCamera.direction, cesiumCamera.up, cesiumCamera.right)
+    // Cesium's default far plane (5e8 m) would clip the body from beyond
+    // ~80 Earth radii; the layer is in range out to the mesh range.
+    const bodyExtent = 2 * shellScale * Math.max(...radii)
+    cesiumCamera.frustum.far = Math.max(DEFAULT_FAR, Math.hypot(...view.position) + bodyExtent)
     const canvas = widget.canvas
     cesiumCamera.frustum.fov = cesiumFov(camera.fov * toRad, canvas.clientWidth / Math.max(1, canvas.clientHeight))
 
@@ -339,6 +446,11 @@ export default class CesiumLayers {
       })
       document.body.appendChild(this.credits)
     }
+    // Each widget writes its own credits into its container, so every body
+    // gets one; _showCredits shows the active body's.
+    const credits = document.createElement('div')
+    credits.style.display = 'none'
+    this.credits.appendChild(credits)
 
     const sceneRT = this.ui._sceneRT
     let widget = null
@@ -375,7 +487,7 @@ export default class CesiumLayers {
       contextOptions: guest.contextOptions,
       useDefaultRenderLoop: false,
       showRenderLoopErrors: false,
-      creditContainer: this.credits,
+      creditContainer: credits,
       scene3DOnly: true,
       skyBox: false,
       msaaSamples: 1,
@@ -389,6 +501,9 @@ export default class CesiumLayers {
         // stayed coarse until a zoom forced a reload.
         foveatedScreenSpaceError: false,
         cullRequestsWhileMoving: false,
+        // Finer tiles than Cesium's default (16): sharper imagery and
+        // terrain.
+        maximumScreenSpaceError: TILE_SCREEN_SPACE_ERROR,
         customShader: sunlitShader(Cesium),
       })
           .then((tileset) => widget.scene.primitives.add(tileset))
@@ -425,7 +540,7 @@ export default class CesiumLayers {
     }
     scene.renderError.addEventListener((_scene, err) => this._fail(name, err))
 
-    return {Cesium, widget, link, guest, container, ellipsoid}
+    return {Cesium, widget, link, guest, container, ellipsoid, credits}
   }
 
 
@@ -446,14 +561,17 @@ export default class CesiumLayers {
     if (this.bodies[name]?.status !== 'error') {
       console.error(`[cesium layer] ${name} failed; falling back to celestiary rendering`, err)
     }
+    this.bodies[name]?.credits?.remove()
     this.bodies[name] = {status: 'error'}
     this._publishStatus(name, 'error')
     // Drop back to celestiary's rendering; the control shows the error.
     this.ui.useStore?.getState().setBodyLayer?.(name, 'default')
-    if (this.activeName === name) {
+    if (this.active.some((a) => a.name === name)) {
       this._restore()
-      this.activeName = null
-      this.activeNode = null
+      this.active = this.active.filter((a) => a.name !== name)
+      // Re-hides the remaining bodies' surfaces next frame.
+      this._activeKey = null
+      this._showCredits()
     }
   }
 }
@@ -495,11 +613,12 @@ function addIonEarth(Cesium, widget) {
  * tilesets come unlit, so without this the night side is as bright as the
  * day side.
  *
- * Two Lambert terms, blended: the smooth sphere (a clean terminator from
- * any distance) and the surface relief, from screen-space derivatives of
- * position (the tilesets carry no normals), which shades craters and
- * ridges toward the Sun.  Relief alone would show the facets of distant,
- * coarse tiles.
+ * Lambert on the smooth sphere, which gives a clean terminator at any
+ * distance.  Not on the terrain: the tilesets carry no normals, and
+ * normals from the geometry (screen-space derivatives of position) are
+ * flat per triangle.  The terrain meshes are much coarser than their
+ * imagery, so lighting them outlined every triangle, from orbit down to
+ * the surface, while the imagery already shows the craters' shading.
  *
  * @param {object} Cesium
  * @returns {object} Cesium.CustomShader
@@ -511,12 +630,7 @@ function sunlitShader(Cesium) {
     fragmentShaderText: `
       void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
         vec3 up = czm_viewRotation * normalize(fsInput.attributes.positionWC);
-        vec3 p = fsInput.attributes.positionEC;
-        vec3 n = normalize(cross(dFdx(p), dFdy(p)));
-        n = dot(n, up) < 0.0 ? -n : n; // outward
-        float sphere = max(dot(up, czm_lightDirectionEC), 0.0);
-        float relief = max(dot(n, czm_lightDirectionEC), 0.0);
-        float lambert = mix(sphere, relief, ${f(SURFACE_RELIEF)});
+        float lambert = max(dot(up, czm_lightDirectionEC), 0.0);
         material.diffuse *= ${f(SURFACE_AMBIENT)} + ${f(1 - SURFACE_AMBIENT)} * lambert;
       }`,
   })
@@ -524,9 +638,32 @@ function sunlitShader(Cesium) {
 
 
 const STENCIL_REF = 1
+// Smallest on-screen radius, in pixels, at which a body is drawn by Cesium.
+const MIN_PIXEL_RADIUS = 1
 // Night-side floor for sunlitShader: dark, but not a hole in the sky.
 const SURFACE_AMBIENT = 0.02
-// sunlitShader's weight on surface relief vs the smooth sphere.
-const SURFACE_RELIEF = 0.7
+// ion tilesets' maximumScreenSpaceError, in pixels.
+const TILE_SCREEN_SPACE_ERROR = 8
+// Cesium's default PerspectiveFrustum far plane, metres.
+const DEFAULT_FAR = 5e8
+// Planet.newPlanet's LOD: the body's mesh, then a point, then nothing.
+const PLANET_LOD_NAME = 'planet LOD'
 // The lazily-added near shape of a Planet (Planet.nearShape).
 const SURFACE_GROUP_NAME = 'planet surface and guides'
+
+
+/**
+ * How far out celestiary draws the body as a mesh rather than a point: the
+ * distance at which its 'planet LOD' (Planet.newPlanet) swaps in the next
+ * level.
+ *
+ * @param {object} node A body's rotating node
+ * @returns {number} Metres from the body's centre; 0 if it has no such LOD
+ */
+export function meshRange(node) {
+  const lod = node.parent
+  if (!lod?.isLOD || lod.name !== PLANET_LOD_NAME || lod.levels[0]?.object !== node) {
+    return 0
+  }
+  return lod.levels[1]?.distance ?? Infinity
+}

@@ -6,6 +6,7 @@ import ToggleButton from '@mui/material/ToggleButton'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import useStore from '../store/useStore'
+import {bodyLayer} from '../store/LayersSlice'
 import {capitalize} from '../utils'
 import LayersIcon from '@mui/icons-material/Layers'
 import PublicIcon from '@mui/icons-material/Public'
@@ -31,8 +32,8 @@ const TILE_PX = 64
 
 
 /**
- * Render-layer picker for the body the camera is near (see CESIUM.md).
- * Hidden unless the camera is near a Cesium-capable body.  Collapsed it is
+ * Render-layer picker for the body the camera is on (see CESIUM.md).
+ * Hidden unless the camera is in range of a Cesium-capable body.  Collapsed it is
  * one Layers button; expanded, Google-Maps-style tiles for each layer.
  *
  * @returns {ReactElement|null}
@@ -47,7 +48,7 @@ export default function LayersButton() {
   if (!layerBody) {
     return null
   }
-  const current = bodyLayers[layerBody] ?? 'default'
+  const current = bodyLayer(bodyLayers, layerBody)
   const status = layerStatus[layerBody]
   const bodyName = capitalize(layerBody)
 
