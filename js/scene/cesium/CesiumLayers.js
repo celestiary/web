@@ -415,7 +415,7 @@ export default class CesiumLayers {
         foveatedScreenSpaceError: false,
         cullRequestsWhileMoving: false,
         // Finer tiles than Cesium's default (16): sharper imagery and
-        // smaller facets.
+        // terrain.
         maximumScreenSpaceError: TILE_SCREEN_SPACE_ERROR,
         customShader: sunlitShader(Cesium),
       })
@@ -525,18 +525,12 @@ function addIonEarth(Cesium, widget) {
  * tilesets come unlit, so without this the night side is as bright as the
  * day side.
  *
- * Two Lambert terms, blended: the smooth sphere (a clean terminator from
- * any distance) and the surface relief, from screen-space derivatives of
- * position (the tilesets carry no normals), which shades craters and
- * ridges toward the Sun.
- *
- * The relief normals are flat per triangle, and a coarse tile's triangles
- * tilt a few degrees off the sphere they approximate.  Near the
- * terminator, where Lambert is steepest, that tilt shows as facets.  The
- * tiles are coarse when far (Cesium refines them to a fixed size on
- * screen), and relief can't be made out then anyway, so the relief weight
- * fades out with the camera's distance from the surface point, in body
- * radii: full within RELIEF_NEAR, none past RELIEF_FAR.
+ * Lambert on the smooth sphere, which gives a clean terminator at any
+ * distance.  Not on the terrain: the tilesets carry no normals, and
+ * normals from the geometry (screen-space derivatives of position) are
+ * flat per triangle.  The terrain meshes are much coarser than their
+ * imagery, so lighting them outlined every triangle, from orbit down to
+ * the surface, while the imagery already shows the craters' shading.
  *
  * @param {object} Cesium
  * @returns {object} Cesium.CustomShader
@@ -548,14 +542,7 @@ function sunlitShader(Cesium) {
     fragmentShaderText: `
       void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
         vec3 up = czm_viewRotation * normalize(fsInput.attributes.positionWC);
-        vec3 p = fsInput.attributes.positionEC;
-        float range = length(p) / length(fsInput.attributes.positionWC);
-        float reliefWeight = ${f(SURFACE_RELIEF)} * (1.0 - smoothstep(${f(RELIEF_NEAR)}, ${f(RELIEF_FAR)}, range));
-        vec3 n = normalize(cross(dFdx(p), dFdy(p)));
-        n = dot(n, up) < 0.0 ? -n : n; // outward
-        float sphere = max(dot(up, czm_lightDirectionEC), 0.0);
-        float relief = max(dot(n, czm_lightDirectionEC), 0.0);
-        float lambert = mix(sphere, relief, reliefWeight);
+        float lambert = max(dot(up, czm_lightDirectionEC), 0.0);
         material.diffuse *= ${f(SURFACE_AMBIENT)} + ${f(1 - SURFACE_AMBIENT)} * lambert;
       }`,
   })
@@ -565,11 +552,6 @@ function sunlitShader(Cesium) {
 const STENCIL_REF = 1
 // Night-side floor for sunlitShader: dark, but not a hole in the sky.
 const SURFACE_AMBIENT = 0.02
-// sunlitShader's weight on surface relief vs the smooth sphere, up close.
-const SURFACE_RELIEF = 0.7
-// sunlitShader's relief fade, in body radii from camera to surface point.
-const RELIEF_NEAR = 0.25
-const RELIEF_FAR = 1
 // ion tilesets' maximumScreenSpaceError, in pixels.
 const TILE_SCREEN_SPACE_ERROR = 8
 // Cesium's default PerspectiveFrustum far plane, metres.

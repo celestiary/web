@@ -138,17 +138,15 @@ relates to real time.
   `cullRequestsWhileMoving` optimizations wait for the camera to stop
   before requesting detail, so they're off: detail loads at any distance.
 - `maximumScreenSpaceError` 8 (Cesium's default is 16): sharper imagery
-  and smaller facets, for about four times the tiles.
+  and terrain, for about four times the tiles.
 - The tilesets are unlit.  A custom shader lights them by celestiary's
-  Sun (Cesium's `scene.light`): Lambert on the sphere (terminator) blended
-  with Lambert on screen-space-derivative normals (crater and ridge relief;
-  the tilesets have no normals).
-- Those relief normals are flat per triangle, and a coarse tile's
-  triangles tilt a few degrees off the sphere; near the terminator that
-  showed as facets from orbit.  Tiles are coarse when the camera is far,
-  and relief can't be made out then anyway, so the relief weight fades
-  with the camera's distance from the surface point: full within 0.25 body
-  radii, none past 1.
+  Sun (Cesium's `scene.light`): Lambert on the smooth sphere, for the
+  terminator.  Not on the terrain: the tilesets have no normals, and
+  normals from screen-space derivatives of position are flat per triangle.
+  The terrain meshes are much coarser than their imagery, so lighting them
+  outlined every triangle, from orbit (worst at the terminator) down to
+  46 km on the Moon, while the imagery already carries the craters'
+  shading.
 - From out of range down to the surface, Cesium's camera far plane is
   raised past the body (its default, 5e8 m, would clip the Earth beyond
   ~80 radii).
@@ -175,11 +173,14 @@ relates to real time.
    20 km the ground is hazed white.  Seen on Mars on the PR preview.*
 5. **Cesium by default** — the Cesium layer is the default for Earth, the
    Moon and Mars, in range out to celestiary's mesh range; Moon and Mars
-   shading no longer facets from orbit; one body's credits at a time.
+   lit by the sphere alone, so no terrain facets; one body's credits at a
+   time.
    *Checked in the sandbox (Earth, offline globe): active with no click at
    2,500 km and at 1,000,000 km (past Cesium's default far plane); one
-   credits container, shown.  The shading on a coarse synthetic tileset:
-   smooth terminator from 2.5 radii, relief at full weight at 0.2.*
+   credits container, shown.  On the preview: on by default for all
+   three, one set of credits; a first shader, which faded terrain relief
+   out with distance, still showed facets on the Moon at 46 km, so relief
+   lighting was dropped.*
 
 ## Follow-ups
 
