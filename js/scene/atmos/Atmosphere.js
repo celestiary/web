@@ -178,7 +178,7 @@ vec4 scatter(
   float pol2  = polarity * polarity;
   float pRlh  = 3.0 / (16.0 * PI) * (1.0 + mumu);
   float pMie  = 3.0 / (8.0 * PI) * ((1.0 - pol2) * (1.0 + mumu))
-                * (2.0 + pol2) / pow(1.0 + pol2 - 2.0 * polarity * mu, 1.5);
+                / ((2.0 + pol2) * pow(1.0 + pol2 - 2.0 * polarity * mu, 1.5));
 
   vec3  totalRlh = vec3(0.0);
   vec3  totalMie = vec3(0.0);
@@ -501,7 +501,7 @@ vec4 scatter(
   float pol2  = polarity * polarity;
   float pRlh  = 3.0 / (16.0 * PI) * (1.0 + mumu);
   float pMie  = 3.0 / (8.0 * PI) * ((1.0 - pol2) * (1.0 + mumu))
-                * (2.0 + pol2) / pow(1.0 + pol2 - 2.0 * polarity * mu, 1.5);
+                / ((2.0 + pol2) * pow(1.0 + pol2 - 2.0 * polarity * mu, 1.5));
 
   vec3  totalRlh = vec3(0.0);
   vec3  totalMie = vec3(0.0);
@@ -643,8 +643,11 @@ void main() {
     float mumu  = mu * mu;
     float pol2  = uMiePolarity * uMiePolarity;
     float pRlh  = 3.0/(16.0*PI) * (1.0 + mumu);
+    // Cornette-Shanks: (2 + g²) divides.  Multiplying, as this did, made
+    // the Mie term (2 + g²)² ≈ 7 times too bright, which showed on dusty
+    // Mars (Mie-dominated) and hardly on Earth (Rayleigh-dominated).
     float pMie  = 3.0/(8.0*PI) * ((1.0-pol2)*(1.0+mumu))
-                  * (2.0+pol2) / pow(1.0+pol2 - 2.0*uMiePolarity*mu, 1.5);
+                  / ((2.0+pol2) * pow(1.0+pol2 - 2.0*uMiePolarity*mu, 1.5));
     vec3 scattered = uSunIntensity * (pRlh * inS.rgb + vec3(pMie * inS.a));
 
     // Extinction alpha via transmittance LUT along view ray.

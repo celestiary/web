@@ -30,7 +30,8 @@ falls back to if its Cesium layer can't load.
   widget writes its credits into its own container inside the overlay (one
   shared container stacked a copy per body visited).  Every widget carries
   the same ion logo and links; with two bodies on screen, the farther
-  one's data attribution isn't shown.
+  one's data attribution isn't shown.  The overlay is HTML chrome too:
+  `v` hides it with the other panels.
 
 ## Architecture
 

@@ -484,6 +484,9 @@ export default class CesiumLayers {
       Object.assign(this.credits.style, {
         position: 'fixed', bottom: '0.5em', left: '50%', transform: 'translateX(-50%)',
         fontSize: '11px', color: '#aaa', display: 'none', zIndex: '10',
+        // HTML chrome: 'v' hides it with the other panels (Celestiary
+        // _toggleNav sets visibility; _showCredits owns display).
+        visibility: this.ui.sceneManager?.getSetting?.('v') === false ? 'hidden' : '',
       })
       document.body.appendChild(this.credits)
     }
