@@ -579,6 +579,10 @@ void main() {
   float tMax = (2.0 * uNear * scatterFar)
                / (uNear + scatterFar - z_ndc * (scatterFar - uNear));
   tMax = max(tMax, uNear);
+  // That is the pixel's view-space depth; along the ray it's farther by
+  // 1/cos of the ray's angle off the view axis (−Z), as the ray-sphere
+  // distances it's compared with are.
+  tMax /= max(-rayDir.z, 1.0e-6);
 
   vec3 eyePos = -uPlanetCenter;             // camera in planet-centred space
 
@@ -594,6 +598,12 @@ void main() {
       return;
     }
     float t_entry = max(pAtm.x, 0.0);
+    if (tMax < t_entry) {
+      // Something in front of the atmosphere (Phobos before Mars): the ray
+      // ends before it enters, so no in-scatter or extinction.
+      gl_FragColor = texture2D(tDiffuse, vUv);
+      return;
+    }
     vec3  entryPos = eyePos + rayDir * t_entry;
     float r_e  = length(entryPos);
     vec3  zen  = normalize(entryPos);

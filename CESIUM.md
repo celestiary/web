@@ -44,8 +44,9 @@ ThreeUi.renderLoop
   layers.beforeRender()          pick the active bodies; hide/show their
                                  celestiary surfaces
   render(scene) → _sceneRT       celestiary as usual (body surfaces hidden)
-  layers.composite()             ↓ per active body, far to near (stencil
-                                   cleared between bodies)
+  layers.composite()             save celestiary's depth; ↓ per active
+                                   body, far to near (stencil cleared
+                                   between bodies)
     stencil pass → _sceneRT        WGS84-shaped shell, depth-tested against
                                    celestiary's depth: stencil = 1 where the
                                    body (or its atmosphere) is visible
@@ -54,6 +55,8 @@ ThreeUi.renderLoop
       widget.render()              ← screen draws redirected into _sceneRT,
     })                               clipped to stencil = 1, premultiplied-
     renderer.resetState()            over blended, colour clears dropped
+    restore celestiary's depth     Cesium's frame cleared it
+  ground-sphere depths           each active body, depth-tested
   _updateAtmUniforms()           celestiary atmosphere off for this body
   render(atm pass) → screen
 ```
@@ -139,20 +142,26 @@ relates to real time.
   true` in bodies.js), and celestiary's atmosphere pass stands down.
 - Mars: Cesium has no Mars atmosphere (its sky atmosphere is Earth's and
   its ground atmosphere needs a globe), so celestiary's Bruneton pass runs
-  over the Cesium layer.  The pass reads `_sceneRT`'s depth to tell ground
-  from sky (inside the atmosphere, ground-ray pixels whose depth reads as
-  background are taken for mesh gaps and hazed over), and Cesium's frame
-  clears that depth.  So after Cesium draws, a depth-only sphere of the
-  body's radius, stencil-tested to Cesium's pixels with depth test ALWAYS,
-  rewrites it: the same ground sphere the pass integrates against.
-- Known gap: Cesium's depth clear also wipes celestiary's depth outside
-  the stencil.  Only the gap test reads it, so an object (Phobos) in front
-  of Mars while the camera is inside Mars's atmosphere can be hazed over.
-- The same clear is why active bodies composite far to near: a nearer
-  body's shell can't be occluded by the farther one's (cleared) depth, and
-  drawn later it lands in front.  It also can't be occluded by celestiary
-  objects in front of it, and Mars's ground depth survives only when Mars
-  is the nearest active body.
+  over the Cesium layer.
+- The pass reads `_sceneRT`'s depth: where each ray ends (an object in
+  front of the atmosphere, like Phobos before Mars, gets none of it), and,
+  inside the atmosphere, ground from sky (ground-ray pixels whose depth
+  reads as background are taken for mesh gaps and hazed over).
+- Each Cesium frame clears `_sceneRT`'s whole depth buffer.  So
+  celestiary's depth is saved before the Cesium frames (a depth blit to a
+  twin depth-stencil target) and restored after each one, and then each
+  active body's ground sphere (its celestiary radius, the sphere the pass
+  integrates against) is drawn depth-only, depth-tested: whatever
+  celestiary drew in front of the body keeps its depth.
+- Active bodies still composite far to near: a body's own pixels hold no
+  depth until the ground spheres go in at the end, so a nearer body is
+  drawn after, and over, a farther one.
+- The pass's lookup-table path used to ignore where the ray ends, so
+  Phobos in front of Mars was hazed by Mars's atmosphere, over
+  celestiary's Mars too.  It now passes the scene through when the pixel
+  is nearer than the ray's atmosphere entry, with the linearised depth
+  (view-space z) divided by the ray's cosine off the view axis to compare
+  distances along the ray.
 
 ### Tiles and lighting (ion 3D tiles)
 

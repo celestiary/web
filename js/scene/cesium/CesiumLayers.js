@@ -1,18 +1,21 @@
 import {
-  AlwaysDepth,
   AlwaysStencilFunc,
+  DepthStencilFormat,
+  DepthTexture,
   DoubleSide,
-  EqualStencilFunc,
+  Frustum,
   KeepStencilOp,
+  LessEqualDepth,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
   ReplaceStencilOp,
-  Frustum,
   Scene,
   Sphere,
   SphereGeometry,
+  UnsignedInt248Type,
   Vector3,
+  WebGLRenderTarget,
 } from 'three'
 import {toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
@@ -68,24 +71,14 @@ export default class CesiumLayers {
     this.shell.frustumCulled = false
     this.shellScene.add(this.shell)
 
-    // Depth of the body's ground sphere, written into the pixels Cesium
-    // drew, for celestiary's atmosphere pass when it runs over a Cesium
-    // layer (Mars).  Cesium clears _sceneRT's depth; without this the pass
-    // would take the Cesium surface for background (see _writeGroundDepth).
+    // Depth of each Cesium body's ground sphere, for celestiary's
+    // atmosphere pass (see _writeGroundDepths).
     this.groundScene = new Scene()
     this.ground = new Mesh(new SphereGeometry(1, 128, 96), new MeshBasicMaterial({
       colorWrite: false,
       depthWrite: true,
       depthTest: true,
-      depthFunc: AlwaysDepth,
-      // Stencil test only: EQUAL 1 and keep.
-      stencilWrite: true,
-      stencilWriteMask: 0,
-      stencilRef: STENCIL_REF,
-      stencilFunc: EqualStencilFunc,
-      stencilZPass: KeepStencilOp,
-      stencilFail: KeepStencilOp,
-      stencilZFail: KeepStencilOp,
+      depthFunc: LessEqualDepth,
     }))
     this.ground.matrixAutoUpdate = false
     this.ground.frustumCulled = false
@@ -97,6 +90,8 @@ export default class CesiumLayers {
     this._frustum = new Frustum()
     this._sphere = new Sphere()
     this._viewProj = new Matrix4()
+    // Celestiary's depth, saved before the Cesium frames clear it.
+    this._depthSave = null
   }
 
 
@@ -149,24 +144,36 @@ export default class CesiumLayers {
    * Composite the active bodies' Cesium renderings into _sceneRT, which
    * holds celestiary's colour, depth and stencil for this frame.
    *
-   * Far to near: each body's Cesium frame clears _sceneRT's depth, so a
-   * later body's stencil shell can't be occluded by an earlier one.  Drawn
-   * nearer, it is in front where they overlap.
+   * Each Cesium frame clears _sceneRT's whole depth buffer, so celestiary's
+   * depth is saved first and restored after each one: a later body's
+   * stencil shell is still occluded by celestiary's objects, and so is the
+   * atmosphere pass's ray (Phobos in front of Mars).  Far to near: a
+   * body's own pixels hold no depth, so a nearer body drawn later lands in
+   * front of it.  Last, each body's ground sphere depth.
    */
   composite() {
     const {renderer} = this.ui
-    for (const [i, {name, node}] of [...this.active].entries()) {
+    const sceneRT = this.ui._sceneRT
+    const drawn = this.active.filter(({name}) => this.bodies[name]?.status === 'ready')
+    if (drawn.length === 0) {
+      return
+    }
+    const depthSave = this._depthSaveFor(sceneRT)
+    this._blitDepth(sceneRT, depthSave)
+    for (const [i, {name, node}] of drawn.entries()) {
       if (this.bodies[name]?.status !== 'ready') {
         continue
       }
-      // resetState() after a Cesium frame also unbinds three's render
-      // target; and the last body's stencil must not admit this one.
-      renderer.setRenderTarget(this.ui._sceneRT)
+      // resetState() also unbinds three's render target; and the last
+      // body's stencil must not admit this one.
+      renderer.setRenderTarget(sceneRT)
       if (i > 0) {
         renderer.clear(false, false, true)
       }
       this._compositeBody(name, node)
+      this._blitDepth(depthSave, sceneRT)
     }
+    this._writeGroundDepths(drawn)
   }
 
 
@@ -204,11 +211,6 @@ export default class CesiumLayers {
       this._fail(name, err)
     }
     renderer.resetState()
-
-    // 3. Celestiary draws this body's atmosphere: give its pass the ground.
-    if (!CESIUM_BODIES[name].atmosphere && node.props.atmosphere) {
-      this._writeGroundDepth(node)
-    }
   }
 
 
@@ -223,29 +225,68 @@ export default class CesiumLayers {
 
 
   /**
-   * Celestiary's atmosphere pass reads _sceneRT's depth to tell ground from
-   * sky: inside the atmosphere, a pixel whose ray meets the ground sphere
-   * but whose depth reads as background is taken for a gap in the surface
-   * mesh and hazed over completely.  Cesium's frame clears that depth, so
-   * rewrite it where Cesium drew (stencil = 1) with the depth of the
-   * body's ground sphere, the same sphere the pass integrates against.
-   * Pixels in the stencil but off the sphere (above the limb) keep
-   * whatever Cesium left; their rays miss the ground, so the pass treats
-   * them as sky either way.
+   * Celestiary's atmosphere pass reads _sceneRT's depth: how far each ray
+   * travels through the atmosphere, and, inside it, ground from sky (a ray
+   * that meets the ground sphere but reads as background is taken for a
+   * gap in the surface mesh and hazed over).  A Cesium body's pixels hold
+   * celestiary's depth with the body's own surface hidden: background.  So
+   * write each body's ground sphere, the sphere the pass integrates
+   * against, depth-tested: whatever celestiary drew in front of it (Phobos)
+   * keeps its depth.
    *
-   * @param {object} node
+   * @param {Array<{node: object}>} drawn
    */
-  _writeGroundDepth(node) {
+  _writeGroundDepths(drawn) {
     const {renderer, camera} = this.ui
-    const r = node.props.radius.scalar
-    this.ground.matrix.copy(node.matrixWorld).multiply(this._shellScale.makeScale(r, r, r))
-    this.ground.matrixWorldNeedsUpdate = true
-    // resetState() after Cesium's frame also unbinds three's render target.
     renderer.setRenderTarget(this.ui._sceneRT)
     const autoClear = renderer.autoClear
     renderer.autoClear = false
-    renderer.render(this.groundScene, camera)
+    for (const {node} of drawn) {
+      const r = node.props.radius.scalar
+      this.ground.matrix.copy(node.matrixWorld).multiply(this._shellScale.makeScale(r, r, r))
+      this.ground.matrixWorldNeedsUpdate = true
+      renderer.render(this.groundScene, camera)
+    }
     renderer.autoClear = autoClear
+  }
+
+
+  /**
+   * @param {object} sceneRT
+   * @returns {object} A depth-stencil render target the size of sceneRT
+   */
+  _depthSaveFor(sceneRT) {
+    if (!this._depthSave) {
+      const rt = new WebGLRenderTarget(sceneRT.width, sceneRT.height, {stencilBuffer: true})
+      rt.depthTexture = new DepthTexture()
+      rt.depthTexture.format = DepthStencilFormat
+      rt.depthTexture.type = UnsignedInt248Type
+      this._depthSave = rt
+    }
+    const rt = this._depthSave
+    if (rt.width !== sceneRT.width || rt.height !== sceneRT.height) {
+      rt.setSize(sceneRT.width, sceneRT.height)
+    }
+    this.ui.renderer.initRenderTarget(rt)
+    return rt
+  }
+
+
+  /**
+   * Copy depth between two same-size DEPTH24_STENCIL8 render targets.
+   *
+   * @param {object} from
+   * @param {object} to
+   */
+  _blitDepth(from, to) {
+    const {renderer} = this.ui
+    const gl = renderer.getContext()
+    // The blit honours the scissor test.
+    renderer.resetState()
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.properties.get(from).__webglFramebuffer)
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.properties.get(to).__webglFramebuffer)
+    gl.blitFramebuffer(0, 0, from.width, from.height, 0, 0, to.width, to.height, gl.DEPTH_BUFFER_BIT, gl.NEAREST)
+    renderer.resetState()
   }
 
 
