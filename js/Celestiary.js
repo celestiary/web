@@ -591,6 +591,12 @@ export default class Celestiary {
         panel.style.display = this.navVisible ? 'none' : ''
       }
     })
+    // Cesium's credits overlay: its display is the Cesium layers' (shown
+    // only while a layer is active), so 'v' hides it by visibility.
+    const credits = elt('cesium-credits')
+    if (credits) {
+      credits.style.visibility = this.navVisible ? 'hidden' : ''
+    }
     this.navVisible = !this.navVisible
     this.scene.flipSetting('v')
   }

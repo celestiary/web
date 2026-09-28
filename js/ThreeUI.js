@@ -21,7 +21,7 @@ import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.j
 import {attachPointerDrag} from './dragControls'
 import {resolveDragMode} from './dragMode'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
-import {GALAXY_RADIUS_METER, INITIAL_FOV, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets} from './shared.js'
+import {GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets} from './shared.js'
 import {named} from './utils.js'
 import {asymptoticZoomDist, dynamicNear} from './zoom.js'
 
@@ -339,6 +339,14 @@ export default class ThreeUi {
     this.renderer.setRenderTarget(null)
     this._updateAtmUniforms()
     this.renderer.render(this._atmScene, this._atmCamera)
+    // Labels last, over the atmosphere: the scene again, overlay layer
+    // only, depth-tested against the scene depth the atmosphere pass wrote.
+    const autoClear = this.renderer.autoClear
+    this.renderer.autoClear = false
+    this.camera.layers.set(OVERLAY_LAYER)
+    this.renderer.render(this.scene, this.camera)
+    this.camera.layers.set(0)
+    this.renderer.autoClear = autoClear
   }
 
 

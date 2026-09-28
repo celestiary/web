@@ -30,7 +30,8 @@ falls back to if its Cesium layer can't load.
   widget writes its credits into its own container inside the overlay (one
   shared container stacked a copy per body visited).  Every widget carries
   the same ion logo and links; with two bodies on screen, the farther
-  one's data attribution isn't shown.
+  one's data attribution isn't shown.  The overlay is HTML chrome too:
+  `v` hides it with the other panels.
 
 ## Architecture
 
@@ -72,6 +73,12 @@ Why these pieces:
   resolves occlusion against celestiary's objects (the Moon in front of the
   Earth keeps its pixels; behind it, it's covered). Cesium's final pass
   then only fills stencilled pixels.
+- **No OIT.** Premultiplied-over needs Cesium's alpha to be coverage.
+  Cesium's order-independent translucency composite sets alpha to 1 on
+  every non-background pixel, so the faint upper sky atmosphere (alpha
+  ≈ 0.01) went opaque and blacked out celestiary's stars. The widgets are
+  built with `orderIndependentTranslucency: false`; they draw nothing
+  translucent.
 - **Zero lag.** `link.frame` renders Cesium in the same frame, from the same
   camera, as the stencil shell. A postMessage/iframe guest lags a frame and
   slides against its stencil.

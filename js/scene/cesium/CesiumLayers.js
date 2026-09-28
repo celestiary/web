@@ -484,6 +484,9 @@ export default class CesiumLayers {
       Object.assign(this.credits.style, {
         position: 'fixed', bottom: '0.5em', left: '50%', transform: 'translateX(-50%)',
         fontSize: '11px', color: '#aaa', display: 'none', zIndex: '10',
+        // HTML chrome: 'v' hides it with the other panels (Celestiary
+        // _toggleNav sets visibility; _showCredits owns display).
+        visibility: this.ui.sceneManager?.getSetting?.('v') === false ? 'hidden' : '',
       })
       document.body.appendChild(this.credits)
     }
@@ -532,6 +535,11 @@ export default class CesiumLayers {
       scene3DOnly: true,
       skyBox: false,
       msaaSamples: 1,
+      // OIT's composite pass makes every pixel that isn't background fully
+      // opaque, including the sky atmosphere's faint ones, which then hid
+      // celestiary's stars behind it.  Cesium's layers here draw nothing
+      // translucent, so plain alpha blending loses nothing.
+      orderIndependentTranslucency: false,
       ...surface,
     })
     if (config.ionTileset) {

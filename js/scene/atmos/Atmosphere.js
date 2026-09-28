@@ -3,6 +3,7 @@
 import {
   AddEquation,
   AdditiveBlending,
+  AlwaysDepth,
   BackSide,
   CustomBlending,
   DoubleSide,
@@ -178,7 +179,7 @@ vec4 scatter(
   float pol2  = polarity * polarity;
   float pRlh  = 3.0 / (16.0 * PI) * (1.0 + mumu);
   float pMie  = 3.0 / (8.0 * PI) * ((1.0 - pol2) * (1.0 + mumu))
-                * (2.0 + pol2) / pow(1.0 + pol2 - 2.0 * polarity * mu, 1.5);
+                / ((2.0 + pol2) * pow(1.0 + pol2 - 2.0 * polarity * mu, 1.5));
 
   vec3  totalRlh = vec3(0.0);
   vec3  totalMie = vec3(0.0);
@@ -357,8 +358,13 @@ export function newAtmospherePass() {
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
-    depthTest: false,
-    depthWrite: false,
+    // Writes the scene's depth to the screen (gl_FragDepth) so the label
+    // overlay drawn after it (ThreeUI.render) is depth-tested as it would
+    // be in the scene.  A depth test that always passes, as writes need
+    // the test on.
+    depthTest: true,
+    depthFunc: AlwaysDepth,
+    depthWrite: true,
     toneMapped: false,
   })
   const mesh = new Mesh(geo, mat)
@@ -501,7 +507,7 @@ vec4 scatter(
   float pol2  = polarity * polarity;
   float pRlh  = 3.0 / (16.0 * PI) * (1.0 + mumu);
   float pMie  = 3.0 / (8.0 * PI) * ((1.0 - pol2) * (1.0 + mumu))
-                * (2.0 + pol2) / pow(1.0 + pol2 - 2.0 * polarity * mu, 1.5);
+                / ((2.0 + pol2) * pow(1.0 + pol2 - 2.0 * polarity * mu, 1.5));
 
   vec3  totalRlh = vec3(0.0);
   vec3  totalMie = vec3(0.0);
@@ -551,6 +557,9 @@ vec4 scatter(
 }
 
 void main() {
+  // The scene's depth, for the label overlay after this pass.  First, as
+  // every path out of main() must write it.
+  gl_FragDepth = texture2D(tDepth, vUv).r;
   // Hard kill-switch: when the camera is too far for the in-shader rsi() to
   // remain numerically stable (or there's simply no atmosphere target), pass
   // the scene through unchanged.  Must happen before any rsi() / scatter()
@@ -579,10 +588,17 @@ void main() {
   float tMax = (2.0 * uNear * scatterFar)
                / (uNear + scatterFar - z_ndc * (scatterFar - uNear));
   tMax = max(tMax, uNear);
+  // The 24-bit depth buffer's step at this depth: depth ≈ 1 − near/z, so
+  // one step (2⁻²⁴) is z²/near·2⁻²⁴ of distance.  From afar it's coarse
+  // (≈ 200 km at Jupiter from 1.5 Gm, with near = 600 km), as coarse as an
+  // atmosphere shell is thick.
+  float tMaxErr = tMax * tMax / uNear * (2.0 / 16777216.0);
   // That is the pixel's view-space depth; along the ray it's farther by
   // 1/cos of the ray's angle off the view axis (−Z), as the ray-sphere
   // distances it's compared with are.
-  tMax /= max(-rayDir.z, 1.0e-6);
+  float invCos = 1.0 / max(-rayDir.z, 1.0e-6);
+  tMax *= invCos;
+  tMaxErr *= invCos;
 
   vec3 eyePos = -uPlanetCenter;             // camera in planet-centred space
 
@@ -598,9 +614,12 @@ void main() {
       return;
     }
     float t_entry = max(pAtm.x, 0.0);
-    if (tMax < t_entry) {
+    if (tMax + tMaxErr < t_entry) {
       // Something in front of the atmosphere (Phobos before Mars): the ray
-      // ends before it enters, so no in-scatter or extinction.
+      // ends before it enters, so no in-scatter or extinction.  Only when
+      // it's in front by more than the depth buffer can resolve: the
+      // planet's own surface, a shell's thickness behind the entry, read
+      // as in front of it from afar and speckled the disc.
       gl_FragColor = texture2D(tDiffuse, vUv);
       return;
     }
@@ -643,8 +662,11 @@ void main() {
     float mumu  = mu * mu;
     float pol2  = uMiePolarity * uMiePolarity;
     float pRlh  = 3.0/(16.0*PI) * (1.0 + mumu);
+    // Cornette-Shanks: (2 + g²) divides.  Multiplying, as this did, made
+    // the Mie term (2 + g²)² ≈ 7 times too bright, which showed on dusty
+    // Mars (Mie-dominated) and hardly on Earth (Rayleigh-dominated).
     float pMie  = 3.0/(8.0*PI) * ((1.0-pol2)*(1.0+mumu))
-                  * (2.0+pol2) / pow(1.0+pol2 - 2.0*uMiePolarity*mu, 1.5);
+                  / ((2.0+pol2) * pow(1.0+pol2 - 2.0*uMiePolarity*mu, 1.5));
     vec3 scattered = uSunIntensity * (pRlh * inS.rgb + vec3(pMie * inS.a));
 
     // Extinction alpha via transmittance LUT along view ray.

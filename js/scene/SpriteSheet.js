@@ -190,6 +190,18 @@ export default class SpriteSheet {
   }
 
 
+  /**
+   * Move the compiled sprites toward the eye along their line of sight, so
+   * they stay put on screen but depth-test nearer.  Plain vertex shader
+   * only.
+   *
+   * @param {number} dist In the sprites' world units
+   */
+  setTowardEye(dist) {
+    this.sprites.material.uniforms.towardEye.value = dist
+  }
+
+
   /** @returns {ShaderMaterial} */
   createMaterial() {
     const texture = new CanvasTexture(this.canvas)
@@ -198,6 +210,10 @@ export default class SpriteSheet {
     const uniforms = {
       map: {value: texture},
       padding: {value: new Vector2(this.padding[0], this.padding[1])},
+      // Plain vertex shader only: how far to move the sprite toward the
+      // eye, along its line of sight so it stays put on screen.  A body's
+      // label, anchored at its centre, then isn't hidden by its own body.
+      towardEye: {value: 0},
     }
     if (this.useRTE) {
       uniforms.uCamPosWorldHigh = {value: new Vector3()}
@@ -232,12 +248,14 @@ export default class SpriteSheet {
 
 const vertexShader = `
   uniform vec2 padding;
+  uniform float towardEye;
   attribute vec2 size;
   attribute vec4 spriteCoord;
   varying vec4 spriteCoordVarying;
   void main() {
     vec3 offsetPos = vec3(position.x + padding.x, position.y + padding.y, position.z);
     vec4 mvPosition = modelViewMatrix * vec4(offsetPos, 1.0);
+    mvPosition.xyz -= normalize(mvPosition.xyz) * towardEye;
     spriteCoordVarying = spriteCoord;
     gl_PointSize = size[0];
     gl_Position = projectionMatrix * mvPosition;

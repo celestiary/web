@@ -685,9 +685,9 @@ export default class Scene {
     //      the close ground, leaving only the distant lit limb visible.
     //      The PointLight sunlight (3.7e28 lm) + tone-mapping exposure
     //      (3e-16, tuned for from-space viewing) clips that limb to white.
-    //   2. `'atmosphere'` — the additive `BackSide` halo shells from
-    //      `newAtmosphere()` on bodies without a physical atmosphere,
-    //      which flash orange/white when the camera aims at them.
+    //   2. `'atmosphere'` — the Sun's additive `BackSide` halo shell
+    //      from `newAtmosphere()`, which flashes when the camera aims
+    //      at it.
     //   3. `'MilkyWay'` — the procedural galaxy is intentionally noisy
     //      (additive yellow-orange bulge particles, sparse bright
     //      cluster stand-ins).  At AR sensor jitter scale, those bright
