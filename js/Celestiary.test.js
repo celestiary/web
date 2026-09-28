@@ -173,6 +173,7 @@ mock.module('./scene/SpriteSheet', () => ({
     compile() {
       return new Object3D()
     }
+    setTowardEye() {}
   },
 }))
 

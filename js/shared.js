@@ -53,6 +53,13 @@ export const FAR_OBJ = named(new Object3D, 'LODFarObj')
 export const labelTextColor = '#7fa0e0'
 export const labelTextFont = 'medium arial'
 
+/**
+ * three.js layer drawn after the atmosphere pass, straight to the screen
+ * and depth-tested against the scene's depth, which that pass writes:
+ * bodies' name labels, which the atmosphere would otherwise haze over.
+ */
+export const OVERLAY_LAYER = 1
+
 // Deprecated: moving to real sizes
 export const LENGTH_SCALE = 1e-5 // one scene unit per million meters
 export const STARS_SCALE = LIGHTYEAR_METER

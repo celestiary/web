@@ -3,6 +3,7 @@
 import {
   AddEquation,
   AdditiveBlending,
+  AlwaysDepth,
   BackSide,
   CustomBlending,
   DoubleSide,
@@ -357,8 +358,13 @@ export function newAtmospherePass() {
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
-    depthTest: false,
-    depthWrite: false,
+    // Writes the scene's depth to the screen (gl_FragDepth) so the label
+    // overlay drawn after it (ThreeUI.render) is depth-tested as it would
+    // be in the scene.  A depth test that always passes, as writes need
+    // the test on.
+    depthTest: true,
+    depthFunc: AlwaysDepth,
+    depthWrite: true,
     toneMapped: false,
   })
   const mesh = new Mesh(geo, mat)
@@ -551,6 +557,9 @@ vec4 scatter(
 }
 
 void main() {
+  // The scene's depth, for the label overlay after this pass.  First, as
+  // every path out of main() must write it.
+  gl_FragDepth = texture2D(tDepth, vUv).r;
   // Hard kill-switch: when the camera is too far for the in-shader rsi() to
   // remain numerically stable (or there's simply no atmosphere target), pass
   // the scene through unchanged.  Must happen before any rsi() / scatter()

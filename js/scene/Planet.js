@@ -25,7 +25,7 @@ import {
 } from './shapes.js'
 import Rings from './rings/Rings.js'
 import * as Material from './material.js'
-import {ASTRO_UNIT_METER, FAR_OBJ, labelTextColor, halfPi, toRad} from '../shared.js'
+import {ASTRO_UNIT_METER, FAR_OBJ, OVERLAY_LAYER, labelTextColor, halfPi, toRad} from '../shared.js'
 import {capitalize, named} from '../utils.js'
 
 
@@ -213,8 +213,14 @@ export default class Planet extends Object {
     // TODO: single sheet for all planets/moons
     const labelSheet = named(new SpriteSheet(1, name), 'label')
     labelSheet.add(0, 0, 0, name, labelTextColor)
+    const labelSprites = labelSheet.compile()
+    // Drawn after the atmosphere pass, so it doesn't haze the label; still
+    // depth-tested against the scene (ThreeUI.render).
+    labelSprites.layers.set(OVERLAY_LAYER)
+    // Depth at the body's near side, so the body itself doesn't hide it.
+    labelSheet.setTowardEye(surfaceRadius)
     labelLOD.addLevel(FAR_OBJ, labelTooNearDist)
-    labelLOD.addLevel(labelSheet.compile(), labelTooNearDist)
+    labelLOD.addLevel(labelSprites, labelTooNearDist)
     labelLOD.addLevel(FAR_OBJ, labelTooFarDist)
     // Initial visibility from the scene's current settings (see newOrbit
     // above) — guards against the load-order race where a planet appears
