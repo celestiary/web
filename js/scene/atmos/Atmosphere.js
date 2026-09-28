@@ -579,10 +579,17 @@ void main() {
   float tMax = (2.0 * uNear * scatterFar)
                / (uNear + scatterFar - z_ndc * (scatterFar - uNear));
   tMax = max(tMax, uNear);
+  // The 24-bit depth buffer's step at this depth: depth ≈ 1 − near/z, so
+  // one step (2⁻²⁴) is z²/near·2⁻²⁴ of distance.  From afar it's coarse
+  // (≈ 200 km at Jupiter from 1.5 Gm, with near = 600 km), as coarse as an
+  // atmosphere shell is thick.
+  float tMaxErr = tMax * tMax / uNear * (2.0 / 16777216.0);
   // That is the pixel's view-space depth; along the ray it's farther by
   // 1/cos of the ray's angle off the view axis (−Z), as the ray-sphere
   // distances it's compared with are.
-  tMax /= max(-rayDir.z, 1.0e-6);
+  float invCos = 1.0 / max(-rayDir.z, 1.0e-6);
+  tMax *= invCos;
+  tMaxErr *= invCos;
 
   vec3 eyePos = -uPlanetCenter;             // camera in planet-centred space
 
@@ -598,9 +605,12 @@ void main() {
       return;
     }
     float t_entry = max(pAtm.x, 0.0);
-    if (tMax < t_entry) {
+    if (tMax + tMaxErr < t_entry) {
       // Something in front of the atmosphere (Phobos before Mars): the ray
-      // ends before it enters, so no in-scatter or extinction.
+      // ends before it enters, so no in-scatter or extinction.  Only when
+      // it's in front by more than the depth buffer can resolve: the
+      // planet's own surface, a shell's thickness behind the entry, read
+      // as in front of it from afar and speckled the disc.
       gl_FragColor = texture2D(tDiffuse, vUv);
       return;
     }
