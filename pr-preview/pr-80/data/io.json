@@ -1,0 +1,38 @@
+{
+"type":"moon",
+
+"name":"io",
+"parent":"jupiter",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": "8.94E25 g",
+"density": 3.57,
+"radius": "1.821E6 m",
+"siderealRotationPeriod": 152928.0,
+"axialInclination": 1.0,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.61,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+"eccentricity": 0.041,
+"inclination": 0.04,
+"longitudeOfAscendingNode": 1.0,
+"longitudeOfPericenter": 1.0,
+"meanLongitude": 1.0,
+"semiMajorAxis": 4.216E8,
+"siderealOrbitPeriod": 152853.509808
+}
+,
+"system": []
+}
