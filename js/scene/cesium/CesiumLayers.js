@@ -1,6 +1,8 @@
 import {
+  AlwaysDepth,
   AlwaysStencilFunc,
   DoubleSide,
+  EqualStencilFunc,
   KeepStencilOp,
   Matrix4,
   Mesh,
@@ -23,7 +25,7 @@ import {cameraToEcefView, cesiumFov, sphericalLatLngAlt, sunLightDirectionEcef} 
  *   composite()     after the scene renders into _sceneRT: stencil the
  *                   body's silhouette, then render Cesium synchronously into
  *                   the same target through a same-page NetGL link
- *   isActiveFor(node)  so the atmosphere post-pass can stand down
+ *   drawsAtmosphereFor(node)  so the atmosphere post-pass can stand down
  *
  * Cesium and portal-netgl are dynamically imported the first time a body's
  * Cesium layer is chosen.
@@ -58,6 +60,29 @@ export default class CesiumLayers {
     this.shell.matrixAutoUpdate = false
     this.shell.frustumCulled = false
     this.shellScene.add(this.shell)
+
+    // Depth of the body's ground sphere, written into the pixels Cesium
+    // drew, for celestiary's atmosphere pass when it runs over a Cesium
+    // layer (Mars).  Cesium clears _sceneRT's depth; without this the pass
+    // would take the Cesium surface for background (see _writeGroundDepth).
+    this.groundScene = new Scene()
+    this.ground = new Mesh(new SphereGeometry(1, 128, 96), new MeshBasicMaterial({
+      colorWrite: false,
+      depthWrite: true,
+      depthTest: true,
+      depthFunc: AlwaysDepth,
+      // Stencil test only: EQUAL 1 and keep.
+      stencilWrite: true,
+      stencilWriteMask: 0,
+      stencilRef: STENCIL_REF,
+      stencilFunc: EqualStencilFunc,
+      stencilZPass: KeepStencilOp,
+      stencilFail: KeepStencilOp,
+      stencilZFail: KeepStencilOp,
+    }))
+    this.ground.matrixAutoUpdate = false
+    this.ground.frustumCulled = false
+    this.groundScene.add(this.ground)
     this._shellScale = new Matrix4()
     this._camPos = new Vector3()
     this._bodyPos = new Vector3()
@@ -136,15 +161,48 @@ export default class CesiumLayers {
       this._fail(this.activeName, err)
     }
     renderer.resetState()
+
+    // 3. Celestiary draws this body's atmosphere: give its pass the ground.
+    if (!CESIUM_BODIES[this.activeName].atmosphere && node.props.atmosphere) {
+      this._writeGroundDepth(node)
+    }
   }
 
 
   /**
    * @param {object} node A body's rotating node
-   * @returns {boolean} Whether a Cesium layer is standing in for it now
+   * @returns {boolean} Whether a Cesium layer stands in for the body now
+   *   and draws its atmosphere, so celestiary's atmosphere pass stands down
    */
-  isActiveFor(node) {
-    return node !== null && node === this.activeNode
+  drawsAtmosphereFor(node) {
+    return node !== null && node === this.activeNode && CESIUM_BODIES[this.activeName].atmosphere
+  }
+
+
+  /**
+   * Celestiary's atmosphere pass reads _sceneRT's depth to tell ground from
+   * sky: inside the atmosphere, a pixel whose ray meets the ground sphere
+   * but whose depth reads as background is taken for a gap in the surface
+   * mesh and hazed over completely.  Cesium's frame clears that depth, so
+   * rewrite it where Cesium drew (stencil = 1) with the depth of the
+   * body's ground sphere, the same sphere the pass integrates against.
+   * Pixels in the stencil but off the sphere (above the limb) keep
+   * whatever Cesium left; their rays miss the ground, so the pass treats
+   * them as sky either way.
+   *
+   * @param {object} node
+   */
+  _writeGroundDepth(node) {
+    const {renderer, camera} = this.ui
+    const r = node.props.radius.scalar
+    this.ground.matrix.copy(node.matrixWorld).multiply(this._shellScale.makeScale(r, r, r))
+    this.ground.matrixWorldNeedsUpdate = true
+    // resetState() after Cesium's frame also unbinds three's render target.
+    renderer.setRenderTarget(this.ui._sceneRT)
+    const autoClear = renderer.autoClear
+    renderer.autoClear = false
+    renderer.render(this.groundScene, camera)
+    renderer.autoClear = autoClear
   }
 
 

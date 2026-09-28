@@ -85,8 +85,9 @@ relates to real time.
 - The body's celestiary surface group (surface, clouds, atmosphere shell,
   axes) is hidden, as are its place labels (they'd sit under Cesium's
   globe; Cesium's own data layers replace them).
-- Celestiary's atmosphere post-pass is disabled for that body; Cesium draws
-  its own sky and ground atmosphere.
+- Earth: celestiary's atmosphere post-pass is disabled; Cesium draws its
+  own sky and ground atmosphere.  Mars keeps celestiary's (see
+  Atmospheres).
 
 ### Data
 
@@ -106,6 +107,22 @@ relates to real time.
   so the default app pays nothing. Its static assets (Workers, Assets,
   ThirdParty) are copied into `docs/cesium/` by the build;
   `window.CESIUM_BASE_URL` points there.
+
+### Atmospheres
+
+- Earth: Cesium draws its own sky and ground atmosphere (`atmosphere:
+  true` in bodies.js), and celestiary's atmosphere pass stands down.
+- Mars: Cesium has no Mars atmosphere (its sky atmosphere is Earth's and
+  its ground atmosphere needs a globe), so celestiary's Bruneton pass runs
+  over the Cesium layer.  The pass reads `_sceneRT`'s depth to tell ground
+  from sky (inside the atmosphere, ground-ray pixels whose depth reads as
+  background are taken for mesh gaps and hazed over), and Cesium's frame
+  clears that depth.  So after Cesium draws, a depth-only sphere of the
+  body's radius, stencil-tested to Cesium's pixels with depth test ALWAYS,
+  rewrites it: the same ground sphere the pass integrates against.
+- Known gap: Cesium's depth clear also wipes celestiary's depth outside
+  the stencil.  Only the gap test reads it, so an object (Phobos) in front
+  of Mars while the camera is inside Mars's atmosphere can be hazed over.
 
 ### Tiles and lighting (ion 3D tiles)
 
@@ -133,19 +150,17 @@ relates to real time.
 3. **Fixes after first use** — Earth's globe no longer goes empty when ion
    can't serve World Terrain; tiles load full detail while the camera
    moves; Moon and Mars lit by the Sun.
+4. **Mars atmosphere** — celestiary's Bruneton pass over Cesium's Mars
+   (see Atmospheres).  *The mechanism is checked on Earth in the sandbox
+   (Cesium's offline globe under celestiary's atmosphere): from orbit and at
+   20 km it matches celestiary's own Earth; without the depth rewrite, at
+   20 km the ground is hazed white.  Not yet seen on Mars itself.*
 
 ## Follow-ups
 
 - Picking / inspection through Cesium (click → lat/lng, entity info):
   forward celestiary's clicks to `scene.pick` on the active widget.
 - Night lights on Cesium's Earth (ion Black Marble as a night layer).
-- Celestiary's atmosphere over Cesium's Mars.  Cesium's sky atmosphere is
-  Earth's and its ground atmosphere needs a globe, so Mars in the Cesium
-  layer has none.  Celestiary's Bruneton post-pass could run over it
-  instead: it reads `_sceneRT`'s depth, so after Cesium draws, write the
-  depth of a body-radius sphere (depth only, within the stencil) where
-  Cesium's pixels are, and keep the pass on for Mars.  Needs Cesium's
-  draws kept out of that depth (its log depth doesn't match).
 - Persist the layer choice in the permalink.
 - Perf: the shadow context executes every Cesium draw as well as the
   replay (2× GPU for the globe). Cesium needs the shadow's pixels only

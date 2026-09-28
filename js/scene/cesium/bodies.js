@@ -7,6 +7,11 @@
  * scaled by `shellScale`: out to Cesium's sky atmosphere for Earth, and just
  * past the highest terrain for airless bodies.
  *
+ * `atmosphere`: Cesium draws the body's atmosphere (Earth: its sky and
+ * ground atmosphere), so celestiary's atmosphere pass stands down.  When
+ * false and the body has an atmosphere in celestiary's data (Mars),
+ * celestiary's pass runs over the Cesium layer instead.
+ *
  * `ionTileset` bodies are Cesium ion 3D-tiles datasets rendered without
  * Cesium's globe; they need an ion access token, and without one they
  * aren't offered.
