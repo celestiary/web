@@ -93,8 +93,10 @@ The Sun is a `PointLight` of `SUN_LUMINOUS_INTENSITY` falling off as
 1/d^`SUN_LIGHT_DECAY` (shared.js).  The renderer's tone-mapping exposure
 follows the targeted body (`exposure.js`, `ThreeUI._updateExposure`):
 π·d^decay / I for its distance d from the Sun, so its sunlit side renders
-at its albedo — a surface facing the Sun shows its texture's colour, as
-Cesium's layers do — easing between targets over ~0.5 s.  Looking at a far
+at its albedo — a surface facing the Sun shows its texture's colour
+× `DISPLAY_GAIN` (1.5), as Cesium's layers do — easing between targets over
+~0.5 s.  A body's `texture_gain` (e.g. the Moon's) scales its texture for
+both, where the source mosaic's stretch is darker than its albedo.  Looking at a far
 planet (targeting it) makes it the exposure target; the Sun and stars keep
 the last body's.  Surfaces are non-metallic (metalness 0) except where an
 ocean map adds shine.
@@ -108,3 +110,12 @@ ocean map adds shine.
   256 px):
   `https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/3/{row}/{col}.jpg`,
   stitched and saved as JPEG at quality 0.85.
+- **Moon** (`moon.jpg`, 4096×2048): the LRO WAC global mosaic (NASA/GSFC/
+  Arizona State University, via the USGS; public domain), the imagery of
+  Cesium's Moon.  Same layout and recipe, from
+  `https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/3/{row}/{col}.jpg`.
+  Its stretch leaves it darker than Mars's for about the same albedo
+  (0.12 vs 0.15), so `moon.json` sets `texture_gain` 1.3 (mean 76/255 vs
+  Mars's 121, scaled by the albedo ratio) and Cesium's Moon takes the same
+  gain (`CESIUM_BODIES.moon.textureGain`), over ion's copy being stored
+  0.82× as bright (`imageryScale`).

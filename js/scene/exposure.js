@@ -1,4 +1,4 @@
-import {SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
+import {DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
 
 
 /**
@@ -11,16 +11,18 @@ import {SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
  *
  * Celestiary's Sun is a PointLight: a surface d metres out facing it gets
  * irradiance E = I / d^decay, and a Lambertian one reflects E·albedo/π.
- * Scaled by exposure π·d^decay / I that is the albedo.
+ * Scaled by exposure π·d^decay / I that is the albedo; DISPLAY_GAIN (shared
+ * with Cesium's layers) brightens both alike.
  */
 
 
 /**
  * @param {number} distanceMeters The body's distance from the Sun
  * @returns {number} toneMappingExposure for which it renders at its albedo
+ *   times DISPLAY_GAIN
  */
 export function exposureAt(distanceMeters) {
-  return Math.PI * Math.pow(distanceMeters, SUN_LIGHT_DECAY) / SUN_LUMINOUS_INTENSITY
+  return DISPLAY_GAIN * Math.PI * Math.pow(distanceMeters, SUN_LIGHT_DECAY) / SUN_LUMINOUS_INTENSITY
 }
 
 

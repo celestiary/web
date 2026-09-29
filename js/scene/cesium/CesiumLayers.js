@@ -17,7 +17,7 @@ import {
   Vector3,
   WebGLRenderTarget,
 } from 'three'
-import {FADE_LAYER, toRad} from '../../shared.js'
+import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
 import {cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
@@ -692,7 +692,7 @@ export default class CesiumLayers {
         // Finer tiles than Cesium's default (16): sharper imagery and
         // terrain.
         maximumScreenSpaceError: TILE_SCREEN_SPACE_ERROR,
-        customShader: sunlitShader(Cesium),
+        customShader: sunlitShader(Cesium, (config.textureGain ?? 1) / (config.imageryScale ?? 1)),
       })
           .then((tileset) => {
             widget.scene.primitives.add(tileset)
@@ -723,7 +723,9 @@ export default class CesiumLayers {
     scene.screenSpaceCameraController.enableInputs = false
     // Lit by celestiary's Sun, not Cesium's ephemeris: the day/night line
     // then matches celestiary's whatever its sidereal phase.
-    scene.light = new Cesium.DirectionalLight({direction: new Cesium.Cartesian3(1, 0, 0)})
+    // DISPLAY_GAIN: Earth's globe as bright, relative to its imagery, as
+    // the Moon's and Mars's (sunlitShader) and celestiary's surfaces.
+    scene.light = new Cesium.DirectionalLight({direction: new Cesium.Cartesian3(1, 0, 0), intensity: DISPLAY_GAIN})
     if (scene.globe) {
       scene.globe.enableLighting = true
     }
@@ -813,10 +815,22 @@ function addIonEarth(Cesium, widget) {
  * imagery, so lighting them outlined every triangle, from orbit down to
  * the surface, while the imagery already shows the craters' shading.
  *
+ * Lit as celestiary lights its own surfaces, so the two match across the
+ * swap: celestiary scales the texture's stored (sRGB) values and
+ * tone-maps them (PBR Neutral, three's and Cesium's alike) straight to the
+ * screen, with no sRGB decode or encode.  Cesium hands the shader the
+ * imagery decoded to linear and sRGB-encodes what it returns.  Lighting
+ * that linear colour instead lifted the dark side and the terminator and
+ * dimmed the day side (the Moon: 18 vs 0 at night, 122 vs 190 by the
+ * limb, of 255).  So: back to stored values, light and tone-map there,
+ * then decode for Cesium's encode to undo.
+ *
  * @param {object} Cesium
+ * @param {number} gain Brightness scale for the imagery (textureGain over
+ *   imageryScale)
  * @returns {object} Cesium.CustomShader
  */
-function sunlitShader(Cesium) {
+function sunlitShader(Cesium, gain) {
   const f = (x) => x.toFixed(3)
   return new Cesium.CustomShader({
     lightingModel: Cesium.LightingModel.UNLIT,
@@ -824,7 +838,9 @@ function sunlitShader(Cesium) {
       void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
         vec3 up = czm_viewRotation * normalize(fsInput.attributes.positionWC);
         float lambert = max(dot(up, czm_lightDirectionEC), 0.0);
-        material.diffuse *= ${f(SURFACE_AMBIENT)} + ${f(1 - SURFACE_AMBIENT)} * lambert;
+        float light = ${f(DISPLAY_GAIN * gain)} * (${f(SURFACE_AMBIENT)} + ${f(1 - SURFACE_AMBIENT)} * lambert);
+        vec3 shown = czm_pbrNeutralTonemapping(czm_linearToSrgb(material.diffuse) * light);
+        material.diffuse = czm_srgbToLinear(shown);
       }`,
   })
 }

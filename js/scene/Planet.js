@@ -25,13 +25,16 @@ import {
 } from './shapes.js'
 import Rings from './rings/Rings.js'
 import * as Material from './material.js'
-import {ASTRO_UNIT_METER, FAR_OBJ, OVERLAY_LAYER, labelTextColor, halfPi, toRad} from '../shared.js'
+import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, halfPi, toRad} from '../shared.js'
 import {capitalize, named} from '../utils.js'
 
 
 // Earth's city lights, as rendered before tone mapping: what 5e15 came to
 // under the old fixed exposure (3e-16).
 const NIGHT_LIGHT = 1.5
+
+// Radii out to which a body is drawn as a mesh; a point beyond.
+const POINT_AT_RADII = 500
 
 
 /** */
@@ -194,13 +197,17 @@ export default class Planet extends Object {
     planet.add(placeholder)
 
     const farPoint = point({
-      color: 0xffffff,
+      // Moons dimmer: many sit by their planet's point.
+      color: isMoon ? 0x808080 : 0xffffff,
       size: isMoon ? 1 : 2,
       sizeAttenuation: false,
       blending: AdditiveBlending,
       depthTest: false,
       depthWrite: false,
       transparent: true,
+      // A marker, not a lit surface: tone mapping at the target-keyed
+      // exposure (~1e-17) made it black.
+      toneMapped: false,
     })
 
     const farDist = surfaceRadius * 3e2
@@ -210,7 +217,11 @@ export default class Planet extends Object {
 
     const planetLOD = new LOD()
     planetLOD.addLevel(planet, 1)
-    planetLOD.addLevel(farPoint, 10 * ASTRO_UNIT_METER) // tuned on jupiter
+    // A point once the mesh would be under ~1.6 px across (45° fov over
+    // 640 px): a sub-pixel mesh, lit at its albedo, fades to nothing.  (It
+    // was 10 AU, when a fixed, blown-out exposure kept sub-pixel meshes
+    // bright.)  CesiumLayers.meshRange reads this too.
+    planetLOD.addLevel(farPoint, surfaceRadius * POINT_AT_RADII)
     planetLOD.addLevel(FAR_OBJ, pointTooFarDist)
 
     const labelLOD = new LOD()
@@ -273,6 +284,8 @@ export default class Planet extends Object {
     // the hydrosphere metalness map, which scales this.
     surfaceMaterial.metalness = this.props.texture_hydrosphere ? 0.2 : 0
     surfaceMaterial.roughness = 0.8
+    // A mosaic stretched darker than the body's albedo (Planet.md).
+    surfaceMaterial.color.setScalar(this.props.texture_gain ?? 1)
     if (this.props.texture_terrain) {
       const terrainTex = Material.pathTexture(`${texDir}${this.name}_terrain`)
       surfaceMaterial.bumpMap = terrainTex

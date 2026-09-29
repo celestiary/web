@@ -1,13 +1,13 @@
-import {ASTRO_UNIT_METER, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
+import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
 import {easeExposure, exposureAt} from './exposure.js'
 
 
 describe('exposureAt', () => {
-  it('renders a surface facing the Sun at its albedo', () => {
+  it('renders a surface facing the Sun at its albedo, times the display gain', () => {
     for (const d of [0.39, 1, 1.52, 5.2, 30].map((au) => au * ASTRO_UNIT_METER)) {
       const irradiance = SUN_LUMINOUS_INTENSITY / Math.pow(d, SUN_LIGHT_DECAY)
       const albedo = 0.25
-      expect(irradiance * albedo / Math.PI * exposureAt(d)).toBeCloseTo(albedo, 10)
+      expect(irradiance * albedo / Math.PI * exposureAt(d)).toBeCloseTo(albedo * DISPLAY_GAIN, 10)
     }
   })
 
