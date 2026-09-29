@@ -60,6 +60,13 @@ export const labelTextFont = 'medium arial'
  */
 export const OVERLAY_LAYER = 1
 
+/**
+ * three.js layer for redrawing a body's surface, fading, over its Cesium
+ * layer as that takes over (CesiumLayers crossfade).  The scene's lights
+ * join it too.
+ */
+export const FADE_LAYER = 2
+
 // Deprecated: moving to real sizes
 export const LENGTH_SCALE = 1e-5 // one scene unit per million meters
 export const STARS_SCALE = LIGHTYEAR_METER

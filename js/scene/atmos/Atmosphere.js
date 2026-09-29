@@ -355,6 +355,9 @@ export function newAtmospherePass() {
       // unchanged — no rsi(), no scatter, no risk of float32 overflow at
       // interstellar distances.  Set by ThreeUI._updateAtmUniforms.
       uAtmEnabled: {value: 0.0},
+      // How much of the pass to apply, 0 to 1: less while a Cesium layer's
+      // own atmosphere fades in over it (CesiumLayers.atmosphereShare).
+      uAtmStrength: {value: 1.0},
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
@@ -406,6 +409,7 @@ uniform float     uUseTransmittanceLUT;
 uniform sampler2D tInScatter;
 uniform float     uUseInScatterLUT;
 uniform float     uAtmEnabled;
+uniform float     uAtmStrength;
 
 #define PI        3.141592
 #define I_STEPS   64
@@ -749,7 +753,7 @@ void main() {
     }
 
     vec4 scene = texture2D(tDiffuse, vUv);
-    gl_FragColor = vec4(color + scene.rgb * (1.0 - alpha), 1.0);
+    gl_FragColor = vec4(mix(scene.rgb, color + scene.rgb * (1.0 - alpha), uAtmStrength), 1.0);
     return;
   }
 
@@ -777,6 +781,6 @@ void main() {
     result.a = max(result.a, smoothstep(0.01, 0.1, skyBrightness) * altWeightFb);
   }
   vec4 scene = texture2D(tDiffuse, vUv);
-  gl_FragColor = vec4(color + scene.rgb * (1.0 - result.a), 1.0);
+  gl_FragColor = vec4(mix(scene.rgb, color + scene.rgb * (1.0 - result.a), uAtmStrength), 1.0);
 }
 `

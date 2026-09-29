@@ -24,6 +24,17 @@ falls back to if its Cesium layer can't load.
   Celestiary, and the control shows the error.
 - A body's layer is only *active* while it's in range and on screen;
   otherwise celestiary draws it (Cesium is not rendered for it at all).
+- Loading (Cesium's import, the body's widget) starts when the body, or a
+  moon of it, is targeted, not only once it's in range.  In range, Cesium
+  first renders unseen (no stencil) until its tiles for the view are
+  loaded, and celestiary's surface and atmosphere show meanwhile; only
+  then does the layer go active.  Tiles can't be fetched ahead of that:
+  Cesium requests them from its render loop, for the view it renders.
+- Going active, the layer crossfades in over a second (`FADE_MS`):
+  celestiary's surface is drawn again over Cesium's, fading out (on its
+  own three.js layer, `FADE_LAYER`, with the scene's lights), and for
+  Earth celestiary's atmosphere pass fades out (`uAtmStrength`) as
+  Cesium's sky fades in (its `brightnessShift`).
 - The button is HTML chrome, so it follows the `v` visibility group.
 - Cesium's credits (required data attribution) show as a small overlay
   while a layer is active: the nearest active body's only.  Each body's
