@@ -657,6 +657,9 @@ void main() {
     bool  isGap   = insideAtm
                     && (tMax > uAtmosphereRadius * 2.0)
                     && (tG_ray.x > 0.0 && tG_ray.x <= tG_ray.y);
+    // A body drew here (the depth isn't the cleared far plane), beyond the
+    // atmosphere and not behind the ground.
+    bool  beyondAtm = depthSample < 1.0 && tMax > uAtmosphereRadius * 2.0 && !isGap;
     float mu_horiz = -sqrt(max(0.0, 1.0 - uGroundRadius*uGroundRadius / (r_e*r_e)));
     float mu_v_lut = isGap ? max(mu_v, mu_horiz) : mu_v;
 
@@ -732,7 +735,11 @@ void main() {
     float camAlt = r_e - uGroundRadius;
     float atmHeight = uAtmosphereRadius - uGroundRadius;
     float altWeight = clamp(1.0 - camAlt / atmHeight, 0.0, 1.0);
-    if (insideAtm) {
+    // Not over a body beyond the atmosphere (the Moon, the Sun, a planet's
+    // disc): it's bright and extended, and a bright sky doesn't hide it
+    // (the daytime Moon), only the stars and the galaxy, which draw no
+    // depth.  The boost made the day sky opaque over the Moon too.
+    if (insideAtm && !beyondAtm) {
       float boostAlpha = smoothstep(lowerBrightBound, upperBrightBound, skyBrightness) * altWeight;
       transmittance = min(transmittance, vec3(1.0 - boostAlpha));
     }
@@ -783,7 +790,11 @@ void main() {
   float camAltFb = r_eFb - uGroundRadius;
   float atmHeightFb = uAtmosphereRadius - uGroundRadius;
   float altWeightFb = clamp(1.0 - camAltFb / atmHeightFb, 0.0, 1.0);
-  if (insideAtmFb) {
+  // Not over a body beyond the atmosphere; see the LUT branch.
+  vec2 tGFb = rsi(eyePos, rayDir, uGroundRadius);
+  bool behindGroundFb = tGFb.x > 0.0 && tGFb.x <= tGFb.y;
+  bool beyondAtmFb = depthSample < 1.0 && tMax > uAtmosphereRadius * 2.0 && !behindGroundFb;
+  if (insideAtmFb && !beyondAtmFb) {
     result.a = max(result.a, smoothstep(0.01, 0.1, skyBrightness) * altWeightFb);
   }
   vec4 scene = texture2D(tDiffuse, vUv);

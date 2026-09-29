@@ -40,6 +40,13 @@ export const CESIUM_BODIES = {
     shellScale: TERRAIN_SHELL_SCALE,
     // Cesium Moon Terrain (ion).
     ionTileset: 2684829,
+    // moon.json's texture_gain: celestiary's Moon is the same LRO WAC
+    // mosaic, scaled (Planet.md).
+    textureGain: 1.3,
+    // ion's copy of the mosaic is stored darker than NASA Trek's, which
+    // celestiary's texture is from: 0.82× (median over the lit disk, both
+    // rendered alike; Mars's two copies measure 0.99×).
+    imageryScale: 0.82,
   },
   mars: {
     ellipsoid: 'MARS',

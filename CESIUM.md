@@ -12,9 +12,9 @@ falls back to if its Cesium layer can't load.
 - A Cesium-capable body is *in range* when the camera is within its mesh
   range: as far out as celestiary draws the body as a mesh rather than a
   point (the distance of the next level in its `planet LOD`,
-  Planet.newPlanet; 10 AU today).  Every body in range and on screen
-  (at least a pixel across) shows its layer, target or not: at the Moon
-  with Earth targeted, both are Cesium's.
+  Planet.newPlanet; 500 radii, where it's ~1.6 px across).  Every body
+  in range and on screen (at least a pixel across) shows its layer,
+  target or not: at the Moon with Earth targeted, both are Cesium's.
 - When the target is in range, a **Layers** button for it appears in the
   top-right control stack, under the drag-mode toggle.
 - Clicking it expands (Google-Maps-style) to two tiles: **Celestiary** and

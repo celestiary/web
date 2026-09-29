@@ -42,6 +42,14 @@ export const SUN_RADIUS_METER = 6.957e8
 export const SUN_LUMINOUS_INTENSITY = 3.7e28
 export const SUN_LIGHT_DECAY = 1.01
 
+/**
+ * How bright a sunlit surface facing the Sun shows, relative to its
+ * texture's albedo, in celestiary (exposure.js) and in Cesium's layers
+ * alike, so the two match across the swap.  At 1 the Moon and Mars read
+ * dark; this is a display choice, like a camera's exposure bias.
+ */
+export const DISPLAY_GAIN = 1.5
+
 // three.js Objects
 export const targets = {
   origin: new Vector3,

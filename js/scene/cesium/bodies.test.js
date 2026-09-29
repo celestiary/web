@@ -1,3 +1,4 @@
+import moonProps from '../../../public/data/moon.json'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
 
 
@@ -16,5 +17,12 @@ describe('isCesiumBody', () => {
   it('is false for bodies Cesium has no data for', () => {
     expect(isCesiumBody('venus')).toBe(false)
     expect(isCesiumBody('toString')).toBe(false)
+  })
+})
+
+
+describe('CESIUM_BODIES', () => {
+  it('scales the Moon\'s imagery as celestiary scales the same mosaic', () => {
+    expect(CESIUM_BODIES.moon.textureGain).toBe(moonProps.texture_gain)
   })
 })
