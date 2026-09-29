@@ -25,7 +25,11 @@ falls back to if its Cesium layer can't load.
 - A body's layer is only *active* while it's in range and on screen;
   otherwise celestiary draws it (Cesium is not rendered for it at all).
 - Loading (Cesium's import, the body's widget) starts when the body, or a
-  moon of it, is targeted, not only once it's in range.  In range, Cesium
+  moon of it, is targeted, not only once it's in range.  So does loading
+  celestiary's own surface (Planet `preloadNear`), which is otherwise
+  built when the camera first comes within its mesh range; until its
+  colour map is in, neither the surface nor its atmosphere is drawn (a
+  black ground under the haze read as a blue disc first).  In range, Cesium
   first renders unseen (no stencil) until its tiles for the view are
   loaded, and celestiary's surface and atmosphere show meanwhile; only
   then does the layer go active.  Tiles can't be fetched ahead of that:
@@ -137,11 +141,18 @@ relates to real time.
 
 ### Data
 
-- Earth: the globe always starts on the plain ellipsoid with the Natural
-  Earth II imagery bundled with Cesium (offline, low-res).  With a Cesium
-  ion token, ion's World Terrain and default imagery replace them as each
-  loads; if the token can't reach one (no network, or a token scoped to
-  other assets) the globe keeps its offline surface.  (Passing CesiumWidget
+- Earth: the globe always starts on the plain ellipsoid with the
+  simulation month's Blue Marble as its base imagery, tiles bundled with
+  celestiary and cut from the same mosaics as its own Earth texture
+  (bodies.js `monthlyImagery`; Planet.md), so the two match across the
+  swap; when the month changes, the new month's layer goes in above the
+  old, which is dropped once its tiles are in.  With a Cesium ion token,
+  ion's World Terrain loads, and ion's world imagery (Bing) adds detail
+  from globe tile level 5 (`detailFromLevel`), below which the base's
+  ~5 km texels would show: from orbit the Earth is Blue Marble.  If the
+  token can't reach one (no network, or a token scoped to other assets)
+  the globe keeps its offline surface.  (Sentinel-2 was the choice for the
+  detail layer, but isn't in ion's asset depot for this account.)  (Passing CesiumWidget
   `terrain: Terrain.fromWorldTerrain()` instead leaves the globe with no
   terrain, drawing nothing, until ion answers, and forever if it fails.)
 - Moon, Mars: Cesium ion 3D-tiles datasets, token only (see Phases).

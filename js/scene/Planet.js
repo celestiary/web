@@ -4,11 +4,13 @@ import {
   BufferGeometry,
   EllipseCurve,
   Group,
+  ImageLoader,
   LOD,
   Line,
   LineBasicMaterial,
   MeshPhongMaterial,
   Object3D,
+  Texture,
   Vector3,
 } from 'three'
 import {
@@ -25,6 +27,7 @@ import {
 } from './shapes.js'
 import Rings from './rings/Rings.js'
 import * as Material from './material.js'
+import {monthOfJulianDay, monthlyPath} from './monthly.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, halfPi, toRad} from '../shared.js'
 import {capitalize, named} from '../utils.js'
 
@@ -191,9 +194,28 @@ export default class Planet extends Object {
       transparent: true,
     })
     // Delay load and render for planet to only the first time camera is close
-    // enough to see it
+    // enough to see it, or it's targeted (preloadNear, Scene.setTarget):
+    // then its textures load while the camera travels there.
+    let near = null
+    const buildNear = () => {
+      if (!near) {
+        near = this.nearShape()
+        planet.add(near)
+      }
+    }
+    // A request, served on the next animation frame (Animation calls
+    // preAnimCb), so a target change doesn't build meshes and start
+    // downloads synchronously.
+    planet.preloadNear = () => {
+      planet.preAnimCb = () => {
+        buildNear()
+        planet.preAnimCb = null
+      }
+    }
+    // False while the near shape's colour map is loading.
+    planet.surfaceReady = () => near !== null && near.userData.ready()
     placeholder.onBeforeRender = () => {
-      planet.add(this.nearShape())
+      buildNear()
       placeholder.onBeforeRender = null
       delete placeholder['onBeforeRender']
     }
@@ -275,6 +297,36 @@ export default class Planet extends Object {
 
 
   /**
+   * A colour map that follows the simulation date's month (monthly.js).
+   * One texture, whose image is replaced when the month changes, once the
+   * new month's has loaded: no shader rebuild, and the old month shows
+   * meanwhile rather than nothing.
+   *
+   * @param {string} pattern Under textures/, with `{MM}` for the month
+   * @returns {Texture}
+   */
+  monthlyMap(pattern) {
+    const map = new Texture()
+    const loader = new ImageLoader()
+    let wanted = 0
+    this.preAnimCb = (time) => {
+      const month = monthOfJulianDay(time.simTimeJulianDay())
+      if (month === wanted) {
+        return
+      }
+      wanted = month
+      loader.load(`textures/${monthlyPath(pattern, month)}.jpg`, (image) => {
+        if (month === wanted) {
+          map.image = image
+          map.needsUpdate = true
+        }
+      })
+    }
+    return map
+  }
+
+
+  /**
    * A surface with a shiny hydrosphere and bumpy terrain materials.
    * TODO(pablo): get shaders working again.
    *
@@ -284,7 +336,9 @@ export default class Planet extends Object {
     // Optional per-body subdirectory under /textures/ — keeps a
     // body's many maps (terrain, hydro, atmos, night…) organized.
     const texDir = this.props.texture_dir || ''
-    const surfaceMaterial = Material.cacheMaterial(this.name, undefined, texDir)
+    const monthly = this.props.texture_monthly
+    const surfaceMaterial = Material.cacheMaterial(
+        this.name, undefined, texDir, monthly ? this.monthlyMap(monthly) : undefined)
     // Rock and cloud aren't metallic, and metalness takes from the diffuse
     // light that exposure.js calibrates against.  Oceans' shine comes from
     // the hydrosphere metalness map, which scales this.
@@ -434,6 +488,19 @@ export default class Planet extends Object {
     const internalGuidesRadius = this.props.radius.scalar * 0.9
     group.add(new AxesHelper(internalGuidesRadius))
     // group.add(sphere({radius: internalGuidesRadius, wireframe: true, color: 0x808080}))
+    // Not drawn until its colour map is in: a map without its image draws
+    // black, and the atmosphere pass hazed that into a blue disc before the
+    // surface appeared (ThreeUI gates the pass on this too).
+    group.userData.ready = () => Boolean(surfaceMaterial.map?.image)
+    surface.visible = group.userData.ready()
+    if (!surface.visible) {
+      group.preAnimCb = () => {
+        if (group.userData.ready()) {
+          surface.visible = true
+          group.preAnimCb = null
+        }
+      }
+    }
     return named(group, 'planet surface and guides')
   }
 

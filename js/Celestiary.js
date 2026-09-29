@@ -52,6 +52,7 @@ export default class Celestiary {
       }
     }
     this.ui = new ThreeUi(canvasContainer, animCb)
+    this.ui.layers.time = this.time
     this.ui.configLargeScene()
     this.ui.useStore = useStore
     this.ui.onCameraChange = () => this._schedulePermalinkUpdate()
