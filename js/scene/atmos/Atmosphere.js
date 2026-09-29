@@ -683,12 +683,16 @@ void main() {
     vec2 uvT_v    = transmittanceUV(r_e, mu_v_lut, uGroundRadius, uAtmosphereRadius);
     vec2 odView   = texture2D(tTransmittance, uvT_v).rg;
     vec3 extVec   = uRayleigh * odView.r + vec3(uMieCoeff * odView.g);
-    float alpha   = 1.0 - exp(-max(extVec.r, max(extVec.g, extVec.b)));
-    // Cap raw extinction-alpha so horizon-grazing rays at night still let
-    // some starlight through (real physics says they shouldn't but the eye
-    // adapts; we don't simulate that yet).
-    alpha = min(alpha, 0.92);
-    // Tie alpha to inscatter brightness via a steep smoothstep — bright
+    // Per channel: dimming red and green by blue's extinction too (one
+    // alpha from the strongest channel, as before) greyed whatever lay
+    // behind — Jupiter's and Venus's cloud decks — once exposure stopped
+    // washing them out.
+    vec3 transmittance = exp(-extVec);
+    // Floor it (extinction-alpha capped at 0.92) so horizon-grazing rays at
+    // night still let some starlight through (real physics says they
+    // shouldn't but the eye adapts; we don't simulate that yet).
+    transmittance = max(transmittance, vec3(1.0 - 0.92));
+    // Tie extinction-alpha to inscatter brightness via a steep smoothstep — bright
     // day sky becomes opaque (washes out star labels behind it), dim/dark
     // night sky stays transparent.  Models eye iris dilation: the eye
     // can't see faint sources once the sky is even faintly bright.
@@ -729,7 +733,8 @@ void main() {
     float atmHeight = uAtmosphereRadius - uGroundRadius;
     float altWeight = clamp(1.0 - camAlt / atmHeight, 0.0, 1.0);
     if (insideAtm) {
-      alpha = max(alpha, smoothstep(lowerBrightBound, upperBrightBound, skyBrightness) * altWeight);
+      float boostAlpha = smoothstep(lowerBrightBound, upperBrightBound, skyBrightness) * altWeight;
+      transmittance = min(transmittance, vec3(1.0 - boostAlpha));
     }
     // TODO(future): tune the surface-vs-atmosphere blend coloring.  From
     // space looking at the day side, the LUT inscatter mixes additively
@@ -745,15 +750,16 @@ void main() {
     // ground is in front of whatever the depth buffer recorded — i.e. a
     // sub-pixel rasterization gap let the background (sun, stars, distant
     // planets) leak through where Earth's tessellated surface should have
-    // covered.  Force alpha=1 so the scene contribution drops out and the
-    // gap shows only inscatter (bright haze by day, dark by night) — visually
-    // matches the surrounding surface and gives a crisp horizon edge.
+    // covered.  Zero transmittance so the scene contribution drops out and
+    // the gap shows only inscatter (bright haze by day, dark by night) —
+    // visually matches the surrounding surface and gives a crisp horizon
+    // edge.
     if (isGap) {
-      alpha = 1.0;
+      transmittance = vec3(0.0);
     }
 
     vec4 scene = texture2D(tDiffuse, vUv);
-    gl_FragColor = vec4(mix(scene.rgb, color + scene.rgb * (1.0 - alpha), uAtmStrength), 1.0);
+    gl_FragColor = vec4(mix(scene.rgb, color + scene.rgb * transmittance, uAtmStrength), 1.0);
     return;
   }
 

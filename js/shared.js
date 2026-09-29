@@ -34,6 +34,14 @@ export const GALAXY_RADIUS_METER = LIGHTYEAR_METER * 5e4
 export const SMALLEST_SIZE_METER = 6e5
 export const SUN_RADIUS_METER = 6.957e8
 
+/**
+ * Celestiary's Sun light (Star.js): a PointLight of this intensity, whose
+ * light falls off as 1/d^SUN_LIGHT_DECAY (not the physical 2; tuned so the
+ * outer planets aren't lost).  exposure.js calibrates against it.
+ */
+export const SUN_LUMINOUS_INTENSITY = 3.7e28
+export const SUN_LIGHT_DECAY = 1.01
+
 // three.js Objects
 export const targets = {
   origin: new Vector3,

@@ -17,11 +17,14 @@ import {
 import {newAtmospherePass} from './scene/atmos/Atmosphere'
 import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
+import {easeExposure, exposureAt} from './scene/exposure.js'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import {attachPointerDrag} from './dragControls'
 import {resolveDragMode} from './dragMode'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
-import {GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets} from './shared.js'
+import {
+  ASTRO_UNIT_METER, GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets,
+} from './shared.js'
 import {named} from './utils.js'
 import {asymptoticZoomDist, dynamicNear} from './zoom.js'
 
@@ -61,6 +64,11 @@ export default class ThreeUi {
     this._pWorldAtm = new Vector3()
     this._camWorldAtm = new Vector3()
     this._lastAtmPlanet = null
+    // Target-keyed exposure (_updateExposure).
+    this._exposureGoal = exposureAt(ASTRO_UNIT_METER)
+    this._lastExposureMs = null
+    this._exposureBodyPos = new Vector3()
+    this._exposureSunPos = new Vector3()
     this._transmittanceRT = null
     this._inScatterRT = null
     // Optional Cesium rendering of nearby bodies; see CESIUM.md.
@@ -203,7 +211,9 @@ export default class ThreeUi {
     //   'vec3 CustomToneMapping( vec3 color ) { return color; }',
     //   CUSTOM_TONE_FRAG_GLSL
     // )
-    renderer.toneMappingExposure = 3e-16
+    // As for a body 1 AU from the Sun until one is targeted; see
+    // _updateExposure.
+    renderer.toneMappingExposure = exposureAt(ASTRO_UNIT_METER)
     renderer.outputColorSpace = LinearSRGBColorSpace
     this.width = this.container.offsetWidth
     this.height = this.container.offsetHeight
@@ -332,6 +342,7 @@ export default class ThreeUi {
     // Render scene to RT, then composite atmosphere fullscreen pass to screen.
     // An active Cesium layer hides the body's own surface before the scene
     // render and composites Cesium's globe into the RT after it.
+    this._updateExposure()
     this.layers.beforeRender(targets.obj)
     this.renderer.setRenderTarget(this._sceneRT)
     this.renderer.render(this.scene, this.camera)
@@ -385,6 +396,35 @@ export default class ThreeUi {
         this._arrowKeys[map[e.key]] = false
       }
     })
+  }
+
+
+  /**
+   * Adapt the tone-mapping exposure to the targeted body, so its sunlit
+   * side shows at its albedo (exposure.js), easing between targets.  The
+   * target is what the camera looks at, so looking at a far planet from
+   * near another makes it the exposure target.  The Sun and other stars
+   * keep the last body's exposure.
+   */
+  _updateExposure() {
+    const target = targets.obj
+    if (target?.props?.radius && target.props.type !== 'star') {
+      this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
+      target.getWorldPosition(this._exposureBodyPos)
+      if (this._worldGroup) {
+        this._worldGroup.getWorldPosition(this._exposureSunPos)
+      } else {
+        this._exposureSunPos.set(0, 0, 0)
+      }
+      const distance = this._exposureBodyPos.distanceTo(this._exposureSunPos)
+      if (distance > 0) {
+        this._exposureGoal = exposureAt(distance)
+      }
+    }
+    const now = performance.now()
+    const dt = this._lastExposureMs === null ? Infinity : (now - this._lastExposureMs) / 1000
+    this._lastExposureMs = now
+    this.renderer.toneMappingExposure = easeExposure(this.renderer.toneMappingExposure, this._exposureGoal, dt)
   }
 
 
