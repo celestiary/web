@@ -1,11 +1,157 @@
 # AGENTS.md
 
-This file defines autonomous and semi-autonomous agents used in this repository.
+Working norms for AI agents (Claude Code, Codex, etc.) contributing to
+celestiary. `CLAUDE.md` is a symlink to this file. Read it before
+starting work, and keep it current when you learn something the next
+session would otherwise rediscover.
 
-## References
+Always read these three:
 
-Please read all of these:
+- [DESIGN.md](DESIGN.md): architecture and design overview.
+- [STYLE.md](STYLE.md): code style (ESLint enforces most of it).
+- [PLAYBOOK.md](PLAYBOOK.md): how we plan, debug, test and collaborate.
 
-- [DESIGN.md](DESIGN.md) — Architecture and design overview
-- [STYLE.md](STYLE.md) — Code style guidelines
-- [PLAYBOOK.md](PLAYBOOK.md) — Project planning and team approach
+## Where to look
+
+Read the doc for the area you're touching before reading code. The docs
+record why things are the way they are, including approaches that were
+tried and dropped.
+
+| Working on | Read first |
+|---|---|
+| Class hierarchy, scene graph, animation loop | DESIGN.md: [core classes](DESIGN.md#core-class-hierarchy), [scene graph](DESIGN.md#scene-graph-structure-per-planet), [animation loop](DESIGN.md#animation-loop) |
+| Units, frames, coordinates | DESIGN.md [coordinate system & scale](DESIGN.md#coordinate-system--scale); [js/permalink.md](js/permalink.md#coordinate-system) |
+| Camera, navigation, targeting (`goTo`, `setTarget`, keys) | DESIGN.md: [camera controls](DESIGN.md#camera-controls), [navigation](DESIGN.md#navigation-goto-flow), [setTarget and lookAtTarget](DESIGN.md#settarget-lookattarget-c-key) |
+| Rendering, overlays and the `v` visibility groups | DESIGN.md: [rendering techniques](DESIGN.md#rendering-techniques), [overlays & visibility groups](DESIGN.md#overlays--visibility-groups) |
+| Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [follow-ups](CESIUM.md#follow-ups) |
+| Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
+| The atmosphere pass | [js/scene/atmos/composition.md](js/scene/atmos/composition.md) (what it does and its knobs); [BRUNETON.md](js/scene/atmos/BRUNETON.md) (the LUT design) |
+| Permalinks (`#path@lat,lng,alt;t=…;cq=…;fov=…`) | [js/permalink.md](js/permalink.md) |
+| Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
+| Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
+| Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
+| Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
+| Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |
+| The compositing library under the Cesium layers (portal-netgl) | [portal AGENTS.md](https://github.com/pablo-mayrgundter/portal/blob/main/AGENTS.md), its [DESIGN.md](https://github.com/pablo-mayrgundter/portal/blob/main/packages/portal-netgl/DESIGN.md) and the [portal-layers design](https://github.com/pablo-mayrgundter/portal/blob/main/docs/portal-layers.md) |
+| Filed next steps | [#86](https://github.com/celestiary/web/issues/86) physically based sky, stars and exposure; [#87](https://github.com/celestiary/web/issues/87) Moon orbit; [#88](https://github.com/celestiary/web/issues/88) Earth clouds |
+
+## Working efficiently
+
+- **Toolchain: yarn and bun, Node 22.**
+  - `bun test path/to/file.test.js` runs one test file.
+  - `yarn lint` runs ESLint.
+  - `yarn precommit` runs lint, all tests and the bundle check. The git
+    pre-commit hook runs it too, so a commit that fails it doesn't
+    happen.
+  - Frequent lint catches: `no-mixed-operators` (parenthesise
+    `a / b + c`) and unused `catch (err)` (write `catch {`).
+- **`yarn build` replaces `docs/` wholesale** (`docs/` is build output:
+  never edit it). A static server started inside `docs/` then serves
+  nothing, so restart it after each build, e.g.
+  `(cd docs && python3 -m http.server 5400 &)`.
+- **Tests run in bun with no real DOM**, and `Celestiary.test.js`
+  replaces ThreeUI with a stub (`StubThreeUI`):
+  - When Celestiary starts using a new ThreeUI member, add it to the
+    stub.
+  - Keep DOM work (image loads, element creation) out of synchronous
+    paths that tests drive, such as `Scene.setTarget`. Defer it to the
+    animation loop: `preAnimCb` on a scene node runs every frame.
+- **Driving the app from a browser (headless Chromium on
+  SwiftShader).**
+  - Launch with `--use-angle=swiftshader --enable-unsafe-swiftshader`.
+    Chromium is preinstalled in cloud sessions, so don't run
+    `playwright install`.
+  - `window.c` is the `Celestiary` instance: `c.ui` (ThreeUI: camera,
+    renderer, `layers`), `c.scene` (`objects`, `setTarget`, `land`),
+    `c.time` (`setTime(ms)`, `simTimeJulianDay()`).
+  - Read state with `page.evaluate` rather than inferring it from
+    pixels.
+  - Call the function under test directly (e.g.
+    `c.ui._applyAsymptoticZoom`) instead of replaying dozens of wheel
+    events: SwiftShader is slow, and a screenshot of a landed view can
+    take many seconds.
+  - Use small viewports and few screenshots, and put long runs in the
+    background.
+- **A permalink restores its time and view only with a camera
+  quaternion (`cq=`).** Without one the whole fragment is ignored, and
+  the app runs at the current real time. To test a date, set it with
+  `c.time.setTime(ms)` after load.
+- **Compare Cesium with celestiary numerically.**
+  - Force a body's layer fully on or off with `c.ui.layers.fadeOf =
+    () => 1` or `() => 0`, and render the same view both ways.
+  - Compare median pixel ratios over the lit disc, plus brightness
+    profiles across the terminator.
+  - Check at partial phase, not full: colour-pipeline mismatches hide
+    near full phase.
+- **Known SwiftShader quirk:** `gl_PointCoord` flips in point shaders
+  that `discard` or sample a depth texture. Use depth state instead.
+- **Network hosts this work needs in the sandbox:**
+  - `api.cesium.com` and `assets.ion.cesium.com` (Cesium ion);
+  - `trek.nasa.gov` (Moon and Mars mosaics);
+  - `eoimages.gsfc.nasa.gov` and `gibs.earthdata.nasa.gov` (Earth).
+
+  If one is denied, ask the user to add it to the environment's allowed
+  hosts, and carry on with what doesn't need it.
+- **Large assets are fine in the repo**, e.g. the Blue Marble textures
+  and tile pyramids. Document how each was built in
+  `js/scene/Planet.md`, so it can be rebuilt.
+- **Ask early for anything only the user can supply:** tokens, dataset
+  access (e.g. an ion asset not in the account), allowed hosts, account
+  settings. Say exactly what's needed.
+
+## Secrets
+
+- **`CESIUM_ION_TOKEN`** is a build-time env var and a repository secret.
+  It's restricted by Referer to `https://celestiary.github.io/`.
+- Never print, log, commit or paste it, including in PR text or test
+  output.
+- **Ion's error bodies echo the token:** a not-found response repeats
+  the request URL, access token included. Strip response bodies before
+  printing them.
+- **Testing ion from Playwright:** the token needs that Referer. Route
+  `api.cesium.com` and `assets.ion.cesium.com` requests through Node
+  with the header set (`page.route` → `route.fetch({headers: {referer,
+  origin}})`), then fulfill them with
+  `access-control-allow-origin: *`.
+- **A session's env holds the token from when the session started.**
+  After the user rotates it, ion answers 401 here. Say so, and leave
+  ion-dependent checks to the PR preview.
+
+## Verification and reporting
+
+- **Rendering changes need visual evidence:** screenshots, or the PR
+  preview at `https://celestiary.github.io/web/pr-preview/pr-<n>/`,
+  which builds with the repository's ion token.
+- **Report what you couldn't verify**, and say why (no ion access, no
+  real device, a host denied). Name what the user should check on the
+  preview.
+- **Merges to `main` deploy to production** (`deploy-prod.yml`).
+
+## Pull requests
+
+- **Subscribe to PR activity as soon as the PR is open**, so CI
+  failures and review comments arrive in the session. In Claude Code,
+  use `subscribe_pr_activity`. Where it's available, also schedule a
+  check-in about an hour out, since events don't cover everything.
+  Cancel it once the PR merges.
+- **Handle each event as it arrives:**
+  - fix small, clear issues directly;
+  - ask before changes that are architecturally significant or
+    ambiguous;
+  - skip events that don't need action.
+- **Merge only when the user says so.** A green PR waits for their
+  go-ahead.
+- **Keep the PR description current:** when later pushes change what the
+  PR does or fixes, update the description to match.
+
+## Recording what you learn
+
+- **Collaboration and debugging lessons** go in PLAYBOOK.md.
+- **Architecture** goes in DESIGN.md.
+- **Cesium layer behaviour** goes in CESIUM.md.
+- **Planet rendering, and texture sources and their recipes**, go in
+  `js/scene/Planet.md`.
+- **Anything about the compositing library** goes in the portal repo:
+  its DESIGN.md, or the gotchas in portal-layers.md.
+- **Workflow tips** for future sessions go here, in *Working
+  efficiently*.
