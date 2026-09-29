@@ -36,6 +36,9 @@ const NIGHT_LIGHT = 1.5
 // Radii out to which a body is drawn as a mesh; a point beyond.
 const POINT_AT_RADII = 500
 
+// A label's depth, in radii toward the eye from the body's centre.
+const LABEL_LIFT = 1.1
+
 
 /** */
 export default class Planet extends Object {
@@ -233,8 +236,11 @@ export default class Planet extends Object {
     // Drawn after the atmosphere pass, so it doesn't haze the label; still
     // depth-tested against the scene (ThreeUI.render).
     labelSprites.layers.set(OVERLAY_LAYER)
-    // Depth at the body's near side, so the body itself doesn't hide it.
-    labelSheet.setTowardEye(surfaceRadius)
+    // Depth in front of the body's near side, so the body itself doesn't
+    // hide it: at exactly the near side it tied with the body's own depth
+    // (and Cesium's ground sphere, CesiumLayers._writeGroundDepths) where
+    // they overlap, and the two fought.
+    labelSheet.setTowardEye(surfaceRadius * LABEL_LIFT)
     labelLOD.addLevel(FAR_OBJ, labelTooNearDist)
     labelLOD.addLevel(labelSprites, labelTooNearDist)
     labelLOD.addLevel(FAR_OBJ, labelTooFarDist)
