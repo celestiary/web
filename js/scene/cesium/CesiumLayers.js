@@ -17,7 +17,7 @@ import {
   Vector3,
   WebGLRenderTarget,
 } from 'three'
-import {toRad} from '../../shared.js'
+import {FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
 import {cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
@@ -34,10 +34,12 @@ import {cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionE
  *                   far to near: stencil the body's silhouette, then render
  *                   Cesium synchronously into the same target through a
  *                   same-page NetGL link
- *   drawsAtmosphereFor(node)  so the atmosphere post-pass can stand down
+ *   atmosphereShare(node)  how much of the body's atmosphere Cesium
+ *                   draws, so the atmosphere post-pass fades out and stands
+ *                   down
  *
- * Cesium and portal-netgl are dynamically imported the first time a body's
- * Cesium layer comes into view.
+ * Cesium and portal-netgl are dynamically imported the first time a Cesium
+ * body is targeted or comes into view.
  */
 export default class CesiumLayers {
   /** @param {object} ui ThreeUi */
@@ -53,6 +55,10 @@ export default class CesiumLayers {
     this.warming = []
     // The target whose Cesium bodies were last preloaded.
     this._preloadedFor = null
+    // This frame's time, for the crossfades (performance.now, ms).
+    this._now = 0
+    // Whether the scene's lights have joined FADE_LAYER.
+    this._lightsInFadeLayer = false
     this._activeKey = ''
     // Celestiary objects hidden while a Cesium layer shows: Map<Object3D, wasVisible>
     this.hidden = new Map()
@@ -113,6 +119,7 @@ export default class CesiumLayers {
     if (store?.setLayerBody && store.layerBody !== near) {
       store.setLayerBody(near)
     }
+    this._now = performance.now()
     const wanted = (name) => isCesiumBody(name) && bodyLayer(store?.bodyLayers, name) === 'cesium'
     this._preload(target, wanted)
     const active = []
@@ -135,7 +142,11 @@ export default class CesiumLayers {
       }
       // Swap celestiary's surface for Cesium's only once Cesium has tiles
       // to draw; until then the body is empty, or only its atmosphere.
-      body.shown ||= tilesReady(body)
+      // Then crossfade (fadeOf).
+      if (!body.shown && tilesReady(body)) {
+        body.shown = true
+        body.fadeStart = this._now
+      }
       if (body.shown) {
         active.push({name, node, distance})
       } else {
@@ -194,7 +205,63 @@ export default class CesiumLayers {
       this._compositeBody(name, node, unseen)
       this._blitDepth(depthSave, sceneRT)
     }
+    this._drawFadingSurfaces(drawn)
     this._writeGroundDepths(drawn)
+  }
+
+
+  /**
+   * Crossfade: over a body's Cesium layer as it takes over, draw
+   * celestiary's own surface again, fading from opaque to clear (fadeOf).
+   * The surface is hidden for the scene render (_hideSurface), so it's
+   * drawn here alone, on FADE_LAYER with the scene's lights.
+   *
+   * @param {Array<{name: string, node: object}>} drawn
+   */
+  _drawFadingSurfaces(drawn) {
+    const fading = drawn.filter(({name}) => this.fadeOf(name) < 1)
+    if (fading.length === 0) {
+      return
+    }
+    const {renderer, camera, scene} = this.ui
+    if (!this._lightsInFadeLayer) {
+      scene.traverse((obj) => {
+        if (obj.isLight) {
+          obj.layers.enable(FADE_LAYER)
+        }
+      })
+      this._lightsInFadeLayer = true
+    }
+    renderer.setRenderTarget(this.ui._sceneRT)
+    const autoClear = renderer.autoClear
+    renderer.autoClear = false
+    for (const {name, node} of fading) {
+      const surface = node.getObjectByName(SURFACE_GROUP_NAME)
+      if (!surface) {
+        continue
+      }
+      const opacity = 1 - this.fadeOf(name)
+      const restore = []
+      surface.traverse((obj) => {
+        obj.layers.enable(FADE_LAYER)
+        for (const m of [obj.material ?? []].flat()) {
+          restore.push([m, m.transparent, m.opacity])
+          m.transparent = true
+          m.opacity *= opacity
+        }
+      })
+      const visible = surface.visible
+      surface.visible = true
+      camera.layers.set(FADE_LAYER)
+      renderer.render(scene, camera)
+      camera.layers.set(0)
+      surface.visible = visible
+      for (const [m, transparent, o] of restore) {
+        m.transparent = transparent
+        m.opacity = o
+      }
+    }
+    renderer.autoClear = autoClear
   }
 
 
@@ -223,6 +290,12 @@ export default class CesiumLayers {
 
     // 2. Cesium, from celestiary's camera, into the stencilled pixels.
     this._setCesiumView(name, body, node)
+    const sky = body.widget.scene.skyAtmosphere
+    if (sky && CESIUM_BODIES[name].atmosphere) {
+      // Crossfade Cesium's sky in (off the body's disc, where celestiary's
+      // surface doesn't cover it): -1 is black, and so transparent.
+      sky.brightnessShift = this.fadeOf(name) - 1
+    }
     // Ellipsoid.default is global and read lazily all over Cesium; with more
     // than one body's widget in the page, it must be this body's while it
     // renders.
@@ -242,11 +315,25 @@ export default class CesiumLayers {
 
   /**
    * @param {object} node A body's rotating node
-   * @returns {boolean} Whether a Cesium layer stands in for the body now
-   *   and draws its atmosphere, so celestiary's atmosphere pass stands down
+   * @returns {number} How much of the body's atmosphere its Cesium layer
+   *   draws, 0 to 1: 0 when it doesn't (celestiary's pass draws it all),
+   *   rising to 1 over the crossfade as the layer takes over.
    */
-  drawsAtmosphereFor(node) {
-    return node !== null && this.active.some((a) => a.node === node && CESIUM_BODIES[a.name].atmosphere)
+  atmosphereShare(node) {
+    const a = node === null ? null : this.active.find((x) => x.node === node)
+    return a && CESIUM_BODIES[a.name].atmosphere ? this.fadeOf(a.name) : 0
+  }
+
+
+  /**
+   * @param {string} name
+   * @returns {number} How far the body's crossfade from celestiary's
+   *   surface to Cesium's has got, 0 to 1 over FADE_MS from when its tiles
+   *   were in; 1 if it had none.
+   */
+  fadeOf(name) {
+    const start = this.bodies[name]?.fadeStart
+    return start === undefined ? 1 : Math.min(1, (this._now - start) / FADE_MS)
   }
 
 
@@ -745,6 +832,8 @@ const MIN_PIXEL_RADIUS = 1
 const SURFACE_AMBIENT = 0.02
 // ion tilesets' maximumScreenSpaceError, in pixels.
 const TILE_SCREEN_SPACE_ERROR = 8
+// The crossfade from celestiary's surface to Cesium's, ms.
+const FADE_MS = 1000
 // Cesium's default PerspectiveFrustum far plane, metres.
 const DEFAULT_FAR = 5e8
 // Planet.newPlanet's LOD: the body's mesh, then a point, then nothing.

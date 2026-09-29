@@ -435,12 +435,15 @@ export default class ThreeUi {
       u.uAtmEnabled.value = 0.0
       return
     }
-    if (this.layers.drawsAtmosphereFor(atmTarget)) {
-      // A Cesium layer is standing in for this body and draws its own
-      // atmosphere (Earth; CESIUM.md).  Over Cesium's Mars the pass runs.
+    // A Cesium layer standing in for this body may draw its own atmosphere
+    // (Earth; CESIUM.md), all of it once it's taken over, fading in as it
+    // does.  Over Cesium's Mars the pass runs.
+    const cesiumShare = this.layers.atmosphereShare(atmTarget)
+    if (cesiumShare >= 1) {
       u.uAtmEnabled.value = 0.0
       return
     }
+    u.uAtmStrength.value = 1 - cesiumShare
     const atmos = atmTarget.props.atmosphere
     const R = atmTarget.props.radius.scalar
 
