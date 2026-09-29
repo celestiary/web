@@ -26,7 +26,7 @@ import {
   ASTRO_UNIT_METER, GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets,
 } from './shared.js'
 import {named} from './utils.js'
-import {asymptoticZoomDist, dynamicNear} from './zoom.js'
+import {GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, groundRadius} from './zoom.js'
 
 
 /** */
@@ -332,6 +332,8 @@ export default class ThreeUi {
       }
     }
     this._applyCameraArrowKeys()
+    // After everything that moves the camera (controls, tweens, keys).
+    this._keepAboveGround()
     // AR mode (when active) owns camera.quaternion absolutely.  Run last so
     // anything else's writes are overwritten.  Set by Celestiary.enterAR
     // through this.arController; null when AR is inactive (the common case).
@@ -592,7 +594,10 @@ export default class ThreeUi {
     if (!targetObj || !targetObj.props || !targetObj.props.radius) {
       return
     }
-    const surfaceR = targetObj.props.radius.scalar
+    // The ground, not the sphere: Cesium's terrain rises kilometres over
+    // celestiary's sphere (Olympus Mons ~21 km), and zooming towards the
+    // sphere went into it.
+    const surfaceR = groundRadius(targetObj.props.radius.scalar, this.layers.groundHeight(targetObj))
     const distAfter = this.camera.position.distanceTo(this.controls.target)
     const altAfter = Math.max(0, distAfter - surfaceR)
 
@@ -602,7 +607,7 @@ export default class ThreeUi {
       this.camera.updateProjectionMatrix()
     }
 
-    const distDesired = asymptoticZoomDist(distBefore, distAfter, surfaceR)
+    const distDesired = asymptoticZoomDist(distBefore, distAfter, surfaceR + GROUND_CLEARANCE_M)
     if (distDesired === distAfter) {
       return // no zoom this frame
     }
@@ -612,5 +617,28 @@ export default class ThreeUi {
       this.camera.position.copy(this.controls.target).add(this._zoomEye)
     }
     this.onCameraChange?.()
+  }
+
+  /**
+   * Never below the ground: whatever moved the camera this frame (a pan
+   * along the surface, a landing tween, arrow keys), lift it back to
+   * GROUND_CLEARANCE_M over the ground under it, radially from the target's
+   * centre.  Over Cesium terrain the camera rides over hills and mountains;
+   * over celestiary's sphere it stays just over the sphere.
+   */
+  _keepAboveGround() {
+    const targetObj = targets.obj
+    if (!targetObj?.props?.radius || (this.arController && this.arController.isActive())) {
+      return
+    }
+    const floor = groundRadius(targetObj.props.radius.scalar, this.layers.groundHeight(targetObj)) +
+      GROUND_CLEARANCE_M
+    this._zoomEye.subVectors(this.camera.position, this.controls.target)
+    const dist = this._zoomEye.length()
+    if (dist > 0 && dist < floor) {
+      this._zoomEye.setLength(floor)
+      this.camera.position.copy(this.controls.target).add(this._zoomEye)
+      this.onCameraChange?.()
+    }
   }
 }

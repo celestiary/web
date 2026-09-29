@@ -1,4 +1,4 @@
-import {asymptoticZoomDist, dynamicNear} from './zoom.js'
+import {asymptoticZoomDist, dynamicNear, groundRadius} from './zoom.js'
 import {SMALLEST_SIZE_METER} from './shared.js'
 
 
@@ -83,5 +83,24 @@ describe('dynamicNear', () => {
     const nearC = dynamicNear(100e3) // 100 km
     expect(nearA).toBeLessThan(nearB)
     expect(nearB).toBeLessThan(nearC)
+  })
+})
+
+
+describe('groundRadius', () => {
+  it('is the radius raised by the terrain, or the radius where the terrain is unknown', () => {
+    expect(groundRadius(3389500, 21000)).toBe(3410500)
+    expect(groundRadius(3389500, -7000)).toBe(3382500)
+    expect(groundRadius(3389500, null)).toBe(3389500)
+  })
+
+  it('is what zoom approaches: over a mountain, never into it', () => {
+    const floor = groundRadius(3389500, 21000)
+    let dist = floor + 1e6
+    for (let i = 0; i < 200; i++) {
+      dist = asymptoticZoomDist(dist, dist * 0.8, floor)
+    }
+    expect(dist).toBeGreaterThanOrEqual(floor)
+    expect(dist - floor).toBeLessThan(1)
   })
 })
