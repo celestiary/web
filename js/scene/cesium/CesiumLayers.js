@@ -335,6 +335,15 @@ export default class CesiumLayers {
 
 
   /**
+   * @param {object} node A body's rotating node
+   * @returns {boolean} Whether a Cesium layer draws it this frame
+   */
+  isActive(node) {
+    return this.active.some((a) => a.node === node)
+  }
+
+
+  /**
    * @param {string} name
    * @returns {number} How far the body's crossfade from celestiary's
    *   surface to Cesium's has got, 0 to 1 over FADE_MS from when its tiles

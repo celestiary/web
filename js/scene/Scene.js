@@ -397,6 +397,10 @@ export default class Scene {
       throw new Error(`scene#setTarget: no matching target: ${name}`)
     }
     Shared.targets.obj = obj
+    // Start loading its surface (and, for a moon, its planet's) now, not
+    // when the camera arrives.
+    obj.preloadNear?.()
+    this.objects[obj.props?.parent]?.preloadNear?.()
     // Animated in ThreeUI.renderLoop
     Shared.targets.tween = newCameraLookTween(this.ui.camera, obj.matrixWorld)
 

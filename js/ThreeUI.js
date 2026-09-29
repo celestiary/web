@@ -479,7 +479,11 @@ export default class ThreeUi {
     // (Earth; CESIUM.md), all of it once it's taken over, fading in as it
     // does.  Over Cesium's Mars the pass runs.
     const cesiumShare = this.layers.atmosphereShare(atmTarget)
-    if (cesiumShare >= 1) {
+    // Nor over a body with no surface drawn yet: its colour map is loading
+    // (Planet.surfaceReady) and no Cesium layer stands in.  The haze over
+    // nothing read as a blue disc before the surface appeared.
+    const noSurface = atmTarget.surfaceReady?.() === false && !this.layers.isActive(atmTarget)
+    if (cesiumShare >= 1 || noSurface) {
       u.uAtmEnabled.value = 0.0
       return
     }

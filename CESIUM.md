@@ -25,7 +25,11 @@ falls back to if its Cesium layer can't load.
 - A body's layer is only *active* while it's in range and on screen;
   otherwise celestiary draws it (Cesium is not rendered for it at all).
 - Loading (Cesium's import, the body's widget) starts when the body, or a
-  moon of it, is targeted, not only once it's in range.  In range, Cesium
+  moon of it, is targeted, not only once it's in range.  So does loading
+  celestiary's own surface (Planet `preloadNear`), which is otherwise
+  built when the camera first comes within its mesh range; until its
+  colour map is in, neither the surface nor its atmosphere is drawn (a
+  black ground under the haze read as a blue disc first).  In range, Cesium
   first renders unseen (no stencil) until its tiles for the view are
   loaded, and celestiary's surface and atmosphere show meanwhile; only
   then does the layer go active.  Tiles can't be fetched ahead of that:

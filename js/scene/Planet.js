@@ -194,9 +194,28 @@ export default class Planet extends Object {
       transparent: true,
     })
     // Delay load and render for planet to only the first time camera is close
-    // enough to see it
+    // enough to see it, or it's targeted (preloadNear, Scene.setTarget):
+    // then its textures load while the camera travels there.
+    let near = null
+    const buildNear = () => {
+      if (!near) {
+        near = this.nearShape()
+        planet.add(near)
+      }
+    }
+    // A request, served on the next animation frame (Animation calls
+    // preAnimCb), so a target change doesn't build meshes and start
+    // downloads synchronously.
+    planet.preloadNear = () => {
+      planet.preAnimCb = () => {
+        buildNear()
+        planet.preAnimCb = null
+      }
+    }
+    // False while the near shape's colour map is loading.
+    planet.surfaceReady = () => near !== null && near.userData.ready()
     placeholder.onBeforeRender = () => {
-      planet.add(this.nearShape())
+      buildNear()
       placeholder.onBeforeRender = null
       delete placeholder['onBeforeRender']
     }
@@ -469,6 +488,19 @@ export default class Planet extends Object {
     const internalGuidesRadius = this.props.radius.scalar * 0.9
     group.add(new AxesHelper(internalGuidesRadius))
     // group.add(sphere({radius: internalGuidesRadius, wireframe: true, color: 0x808080}))
+    // Not drawn until its colour map is in: a map without its image draws
+    // black, and the atmosphere pass hazed that into a blue disc before the
+    // surface appeared (ThreeUI gates the pass on this too).
+    group.userData.ready = () => Boolean(surfaceMaterial.map?.image)
+    surface.visible = group.userData.ready()
+    if (!surface.visible) {
+      group.preAnimCb = () => {
+        if (group.userData.ready()) {
+          surface.visible = true
+          group.preAnimCb = null
+        }
+      }
+    }
     return named(group, 'planet surface and guides')
   }
 
