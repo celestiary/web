@@ -243,6 +243,11 @@ export default class CesiumLayers {
       const opacity = 1 - this.fadeOf(name)
       const restore = []
       surface.traverse((obj) => {
+        // Meshes only: the group's guides (an AxesHelper inside the
+        // planet) are hidden by the opaque surface, but not the fading one.
+        if (!obj.isMesh) {
+          return
+        }
         obj.layers.enable(FADE_LAYER)
         for (const m of [obj.material ?? []].flat()) {
           restore.push([m, m.transparent, m.opacity])
