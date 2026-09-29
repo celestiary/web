@@ -36,13 +36,14 @@ const materials = []
  * @param {string} name Body name; also the texture base filename
  * @param {string} [ext] Texture extension; defaults to '.jpg'
  * @param {string} [pathPrefix] Optional sub-path prefix under /textures/
+ * @param {Texture} [map] The colour map, instead of loading `name`'s
  * @returns {Material}
  */
-export function cacheMaterial(name, ext, pathPrefix = '') {
+export function cacheMaterial(name, ext, pathPrefix = '', map = undefined) {
   let m = materials[name]
   if (!m) {
     materials[name] = m = new MeshPhysicalMaterial({
-      map: pathTexture(`${pathPrefix}${name}`, ext),
+      map: map ?? pathTexture(`${pathPrefix}${name}`, ext),
       depthTest: true,
       depthWrite: true,
     })

@@ -41,6 +41,7 @@
   "texture_terrain": true,
   "texture_night": true,
   "texture_dir": "earth/",
+  "texture_monthly": "earth/blue-marble/2004-{MM}",
   "atmosphere": {
     "height": "8e4 m",
     "sunIntensity": 60,

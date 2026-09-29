@@ -96,3 +96,61 @@ describe('crossfade', () => {
     expect(L.atmosphereShare(null)).toBe(0)
   })
 })
+
+
+describe('monthly imagery', () => {
+  // Cesium, as far as monthlyImageryLayer and _updateMonthlyImagery use it.
+  const Cesium = {
+    ImageryLayer: class {
+      constructor(provider) {
+        this.url = provider.url
+      }
+    },
+    UrlTemplateImageryProvider: class {
+      constructor({url}) {
+        this.url = url
+      }
+    },
+    GeographicTilingScheme: class {},
+  }
+  let savedDocument
+  beforeEach(() => {
+    savedDocument = globalThis.document
+    globalThis.document = {baseURI: 'https://example.org/'}
+  })
+  afterEach(() => {
+    globalThis.document = savedDocument
+  })
+  const julianDayOf = (iso) => (Date.parse(iso) / 864e5) + 2440587.5
+  const setup = (iso) => {
+    const L = new CesiumLayers({})
+    L.time = {simTimeJulianDay: () => julianDayOf(iso)}
+    const list = [{url: 'base'}, {url: 'bing'}]
+    const globe = {tilesLoaded: false}
+    const layers = {
+      get: (i) => list[i],
+      add: (layer, i) => list.splice(i, 0, layer),
+      remove: (layer) => list.splice(list.indexOf(layer), 1),
+    }
+    const body = {Cesium, month: 3, widget: {imageryLayers: layers, scene: {globe}}}
+    return {L, list, globe, body, config: {monthlyImagery: {url: 't/2004-{MM}/{z}/{x}/{y}.jpg'}}}
+  }
+
+  it('adds the new month under the detail layer, and drops the old once the tiles are in', () => {
+    const {L, list, globe, body, config} = setup('2026-07-15T00:00:00Z')
+    L._updateMonthlyImagery(body, config)
+    expect(list.map((l) => l.url)).toEqual(['base', 'https://example.org/t/2004-07/{z}/{x}/{y}.jpg', 'bing'])
+    L._updateMonthlyImagery(body, config)
+    expect(list.length).toBe(3)
+    globe.tilesLoaded = true
+    L._updateMonthlyImagery(body, config)
+    expect(list.map((l) => l.url)).toEqual(['https://example.org/t/2004-07/{z}/{x}/{y}.jpg', 'bing'])
+    expect(body.month).toBe(7)
+  })
+
+  it('leaves the base alone within a month', () => {
+    const {L, list, body, config} = setup('2026-03-31T12:00:00Z')
+    L._updateMonthlyImagery(body, config)
+    expect(list.map((l) => l.url)).toEqual(['base', 'bing'])
+  })
+})

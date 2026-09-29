@@ -110,6 +110,17 @@ ocean map adds shine.
   256 px):
   `https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/3/{row}/{col}.jpg`,
   stitched and saved as JPEG at quality 0.85.
+- **Earth** (`earth/blue-marble/2004-MM.jpg`, 4096×2048, one per month):
+  NASA's Blue Marble Next Generation (NASA Earth Observatory, public
+  domain), the cloud-free mosaic for each month of 2004, from
+  `https://eoimages.gsfc.nasa.gov/images/imagerecords/{ID rounded down to 1000}/{ID}/world.2004MM.3x21600x10800.jpg`,
+  with record IDs, January to December: 73938, 73967, 73992, 74017, 74042,
+  (none), 74092, 74117, 74142, 74167, 74192, 74218.  Scaled to 8192×4096, and from
+  that to the 4096×2048 texture celestiary loads and to Cesium's base
+  layer: geographic 512 px tiles, levels 0-3 (`2004-MM/{z}/{x}/{y}.jpg`).
+  Same −180° left edge as before.  NASA has no June: it's May and July
+  blended.  `earth.json` `texture_monthly` makes the map follow the
+  simulation date's month (`monthly.js`, `Planet.monthlyMap`).
 - **Moon** (`moon.jpg`, 4096×2048): the LRO WAC global mosaic (NASA/GSFC/
   Arizona State University, via the USGS; public domain), the imagery of
   Cesium's Moon.  Same layout and recipe, from

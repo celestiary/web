@@ -4,11 +4,13 @@ import {
   BufferGeometry,
   EllipseCurve,
   Group,
+  ImageLoader,
   LOD,
   Line,
   LineBasicMaterial,
   MeshPhongMaterial,
   Object3D,
+  Texture,
   Vector3,
 } from 'three'
 import {
@@ -25,6 +27,7 @@ import {
 } from './shapes.js'
 import Rings from './rings/Rings.js'
 import * as Material from './material.js'
+import {monthOfJulianDay, monthlyPath} from './monthly.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, halfPi, toRad} from '../shared.js'
 import {capitalize, named} from '../utils.js'
 
@@ -275,6 +278,36 @@ export default class Planet extends Object {
 
 
   /**
+   * A colour map that follows the simulation date's month (monthly.js).
+   * One texture, whose image is replaced when the month changes, once the
+   * new month's has loaded: no shader rebuild, and the old month shows
+   * meanwhile rather than nothing.
+   *
+   * @param {string} pattern Under textures/, with `{MM}` for the month
+   * @returns {Texture}
+   */
+  monthlyMap(pattern) {
+    const map = new Texture()
+    const loader = new ImageLoader()
+    let wanted = 0
+    this.preAnimCb = (time) => {
+      const month = monthOfJulianDay(time.simTimeJulianDay())
+      if (month === wanted) {
+        return
+      }
+      wanted = month
+      loader.load(`textures/${monthlyPath(pattern, month)}.jpg`, (image) => {
+        if (month === wanted) {
+          map.image = image
+          map.needsUpdate = true
+        }
+      })
+    }
+    return map
+  }
+
+
+  /**
    * A surface with a shiny hydrosphere and bumpy terrain materials.
    * TODO(pablo): get shaders working again.
    *
@@ -284,7 +317,9 @@ export default class Planet extends Object {
     // Optional per-body subdirectory under /textures/ — keeps a
     // body's many maps (terrain, hydro, atmos, night…) organized.
     const texDir = this.props.texture_dir || ''
-    const surfaceMaterial = Material.cacheMaterial(this.name, undefined, texDir)
+    const monthly = this.props.texture_monthly
+    const surfaceMaterial = Material.cacheMaterial(
+        this.name, undefined, texDir, monthly ? this.monthlyMap(monthly) : undefined)
     // Rock and cloud aren't metallic, and metalness takes from the diffuse
     // light that exposure.js calibrates against.  Oceans' shine comes from
     // the hydrosphere metalness map, which scales this.

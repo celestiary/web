@@ -99,6 +99,7 @@ class StubThreeUI {
     this.scene.add(this.camera.platform)
     this.controls = {update: () => {}, handleResize: () => {}}
     this.onCameraChange = null
+    this.layers = {}
   }
   configLargeScene() {}
   setFov(fov) {

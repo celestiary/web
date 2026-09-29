@@ -137,11 +137,18 @@ relates to real time.
 
 ### Data
 
-- Earth: the globe always starts on the plain ellipsoid with the Natural
-  Earth II imagery bundled with Cesium (offline, low-res).  With a Cesium
-  ion token, ion's World Terrain and default imagery replace them as each
-  loads; if the token can't reach one (no network, or a token scoped to
-  other assets) the globe keeps its offline surface.  (Passing CesiumWidget
+- Earth: the globe always starts on the plain ellipsoid with the
+  simulation month's Blue Marble as its base imagery, tiles bundled with
+  celestiary and cut from the same mosaics as its own Earth texture
+  (bodies.js `monthlyImagery`; Planet.md), so the two match across the
+  swap; when the month changes, the new month's layer goes in above the
+  old, which is dropped once its tiles are in.  With a Cesium ion token,
+  ion's World Terrain loads, and ion's world imagery (Bing) adds detail
+  from globe tile level 5 (`detailFromLevel`), below which the base's
+  ~5 km texels would show: from orbit the Earth is Blue Marble.  If the
+  token can't reach one (no network, or a token scoped to other assets)
+  the globe keeps its offline surface.  (Sentinel-2 was the choice for the
+  detail layer, but isn't in ion's asset depot for this account.)  (Passing CesiumWidget
   `terrain: Terrain.fromWorldTerrain()` instead leaves the globe with no
   terrain, drawing nothing, until ion answers, and forever if it fails.)
 - Moon, Mars: Cesium ion 3D-tiles datasets, token only (see Phases).

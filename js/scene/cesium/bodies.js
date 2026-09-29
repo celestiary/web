@@ -32,6 +32,20 @@ export const CESIUM_BODIES = {
     radii: [6378137, 6378137, 6356752.314245179],
     atmosphere: true,
     shellScale: ATMOSPHERE_SHELL_SCALE,
+    // The globe's base imagery, the simulation date's month: tiles cut from
+    // the Blue Marble mosaics celestiary's own Earth texture is from
+    // (earth.json texture_monthly), so the two match across the swap.
+    // Geographic tiling, 512 px tiles, levels 0-3 (8192 x 4096 at 3).
+    monthlyImagery: {
+      url: 'textures/earth/blue-marble/2004-{MM}/{z}/{x}/{y}.jpg',
+      tileSize: 512,
+      maximumLevel: 3,
+      credit: 'Blue Marble Next Generation: NASA Earth Observatory',
+    },
+    // ion's world imagery (Bing) takes over from this globe tile level,
+    // where the base's ~5 km texels would show (an 8192-texel-wide base is
+    // sharp through level 4 of 256-texel tiles).
+    detailFromLevel: 5,
   },
   moon: {
     ellipsoid: 'MOON',
