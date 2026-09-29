@@ -154,3 +154,44 @@ describe('monthly imagery', () => {
     expect(list.map((l) => l.url)).toEqual(['base', 'bing'])
   })
 })
+
+
+describe('ground height', () => {
+  const setup = () => {
+    const L = new CesiumLayers({})
+    const moon = {}
+    const earth = {}
+    L.bodies.moon = {groundHeight: 4200}
+    L.active = [{name: 'moon', node: moon}]
+    return {L, moon, earth}
+  }
+
+  it('is the active layer\'s last sample for its body', () => {
+    const {L, moon, earth} = setup()
+    expect(L.groundHeight(moon)).toBe(4200)
+    expect(L.groundHeight(earth)).toBe(null)
+    L.active = []
+    expect(L.groundHeight(moon)).toBe(null)
+  })
+
+  it('is sampled no more often than every GROUND_SAMPLE_MS, and only near the surface', () => {
+    const L = new CesiumLayers({})
+    let height = 0
+    let calls = 0
+    const body = {
+      Cesium: {Cartographic: class {}, Ellipsoid: {}},
+      ellipsoid: {cartesianToCartographic: () => ({height})},
+      widget: {scene: {camera: {position: {}}, globe: {getHeight: () => ++calls * 10}}},
+    }
+    L._now = 1000
+    L._sampleGround(body, 'earth')
+    expect(body.groundHeight).toBe(10)
+    L._now = 1100
+    L._sampleGround(body, 'earth')
+    expect(calls).toBe(1)
+    L._now = 1300
+    height = 2e5
+    L._sampleGround(body, 'earth')
+    expect(body.groundHeight).toBe(null)
+  })
+})

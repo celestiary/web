@@ -1,4 +1,4 @@
-import {asymptoticZoomDist, dynamicNear} from './zoom.js'
+import {asymptoticZoomDist, dynamicNear, groundRadius, homeBody} from './zoom.js'
 import {SMALLEST_SIZE_METER} from './shared.js'
 
 
@@ -83,5 +83,42 @@ describe('dynamicNear', () => {
     const nearC = dynamicNear(100e3) // 100 km
     expect(nearA).toBeLessThan(nearB)
     expect(nearB).toBeLessThan(nearC)
+  })
+})
+
+
+describe('groundRadius', () => {
+  it('is the radius raised by the terrain, or the radius where the terrain is unknown', () => {
+    expect(groundRadius(3389500, 21000)).toBe(3410500)
+    expect(groundRadius(3389500, -7000)).toBe(3382500)
+    expect(groundRadius(3389500, null)).toBe(3389500)
+  })
+
+  it('is what zoom approaches: over a mountain, never into it', () => {
+    const floor = groundRadius(3389500, 21000)
+    let dist = floor + 1e6
+    for (let i = 0; i < 200; i++) {
+      dist = asymptoticZoomDist(dist, dist * 0.8, floor)
+    }
+    expect(dist).toBeGreaterThanOrEqual(floor)
+    expect(dist - floor).toBeLessThan(1)
+  })
+})
+
+
+describe('homeBody', () => {
+  const earthOrbit = {}
+  const earth = {orbitPosition: earthOrbit}
+  const moon = {orbitPosition: {}}
+
+  it('is the body the camera was landed on or went to, not the one it looks at', () => {
+    expect(homeBody(earth, earth, moon)).toBe(earth) // landed: platform on the body
+    expect(homeBody(earthOrbit, earth, moon)).toBe(earth) // went to: platform on its orbit position
+  })
+
+  it('is the target when the camera is at no body', () => {
+    const starAnchor = {}
+    expect(homeBody(starAnchor, earth, moon)).toBe(moon)
+    expect(homeBody(earth, null, moon)).toBe(moon)
   })
 })

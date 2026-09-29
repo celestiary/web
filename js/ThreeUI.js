@@ -26,7 +26,7 @@ import {
   ASTRO_UNIT_METER, GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets,
 } from './shared.js'
 import {named} from './utils.js'
-import {asymptoticZoomDist, dynamicNear} from './zoom.js'
+import {GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, groundRadius, homeBody} from './zoom.js'
 
 
 /** */
@@ -332,6 +332,8 @@ export default class ThreeUi {
       }
     }
     this._applyCameraArrowKeys()
+    // After everything that moves the camera (controls, tweens, keys).
+    this._keepAboveGround()
     // AR mode (when active) owns camera.quaternion absolutely.  Run last so
     // anything else's writes are overwritten.  Set by Celestiary.enterAR
     // through this.arController; null when AR is inactive (the common case).
@@ -583,34 +585,69 @@ export default class ThreeUi {
    * Linear zoom: new_dist = old_dist * factor  (passes through surface)
    * Altitude zoom: new_alt = old_alt * factor  (altitude → 0 but never negative)
    *
-   * Uses targets.obj (always current) rather than targets.cur (only set by goTo).
+   * About the body the camera is at (homeBody), not the one it looks at:
+   * with the Moon targeted from Earth's surface, the Moon's radius around
+   * Earth's centre made zoom steps kilometres long and the near plane
+   * hundreds of km, clipping Earth's sky.
    *
    * @param {number} distBefore Camera distance from controls target before update
    */
   _applyAsymptoticZoom(distBefore) {
-    const targetObj = targets.obj
+    const targetObj = this._homeBody()
     if (!targetObj || !targetObj.props || !targetObj.props.radius) {
       return
     }
-    const surfaceR = targetObj.props.radius.scalar
+    // The ground, not the sphere: Cesium's terrain rises kilometres over
+    // celestiary's sphere (Olympus Mons ~21 km), and zooming towards the
+    // sphere went into it.
+    const surfaceR = groundRadius(targetObj.props.radius.scalar, this.layers.groundHeight(targetObj))
     const distAfter = this.camera.position.distanceTo(this.controls.target)
-    const altAfter = Math.max(0, distAfter - surfaceR)
+    const distDesired = asymptoticZoomDist(distBefore, distAfter, surfaceR + GROUND_CLEARANCE_M)
+    if (distDesired !== distAfter) {
+      this._zoomEye.subVectors(this.camera.position, this.controls.target)
+      if (this._zoomEye.length() > 0) {
+        this._zoomEye.setLength(distDesired)
+        this.camera.position.copy(this.controls.target).add(this._zoomEye)
+      }
+      this.onCameraChange?.()
+    }
 
-    const newNear = dynamicNear(altAfter)
+    // From where the camera ends up: from the linear step before the remap,
+    // one frame's near plane was sized for an altitude the zoom never
+    // reached (a zoom out from the ground: ~0.25 radii, near ~160 km).
+    const newNear = dynamicNear(Math.max(0, distDesired - surfaceR))
     if (newNear !== this.camera.near) {
       this.camera.near = newNear
       this.camera.updateProjectionMatrix()
     }
+  }
 
-    const distDesired = asymptoticZoomDist(distBefore, distAfter, surfaceR)
-    if (distDesired === distAfter) {
-      return // no zoom this frame
+  /** @returns {object|null} The body the camera is at (zoom.js homeBody) */
+  _homeBody() {
+    return homeBody(this.camera.platform.parent, targets.cur, targets.obj)
+  }
+
+
+  /**
+   * Never below the ground: whatever moved the camera this frame (a pan
+   * along the surface, a landing tween, arrow keys), lift it back to
+   * GROUND_CLEARANCE_M over the ground under it, radially from the target's
+   * centre.  Over Cesium terrain the camera rides over hills and mountains;
+   * over celestiary's sphere it stays just over the sphere.
+   */
+  _keepAboveGround() {
+    const targetObj = this._homeBody()
+    if (!targetObj?.props?.radius || (this.arController && this.arController.isActive())) {
+      return
     }
+    const floor = groundRadius(targetObj.props.radius.scalar, this.layers.groundHeight(targetObj)) +
+      GROUND_CLEARANCE_M
     this._zoomEye.subVectors(this.camera.position, this.controls.target)
-    if (this._zoomEye.length() > 0) {
-      this._zoomEye.setLength(distDesired)
+    const dist = this._zoomEye.length()
+    if (dist > 0 && dist < floor) {
+      this._zoomEye.setLength(floor)
       this.camera.position.copy(this.controls.target).add(this._zoomEye)
+      this.onCameraChange?.()
     }
-    this.onCameraChange?.()
   }
 }

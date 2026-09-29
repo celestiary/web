@@ -124,6 +124,20 @@ celestiary's vertical fov (Cesium's fov spans the wider canvas dimension).
   it up to ~16 km off on the flattened Earth and Mars, about a pixel from
   orbit.
 
+Ground: Cesium's terrain rises kilometres over celestiary's sphere (Earth's
+mountains ~9 km, Olympus Mons ~21 km over Mars's datum), and zoom used to
+approach the sphere, taking the camera into the ground.  While a layer is
+active, the terrain height under the camera (Earth's `globe.getHeight`,
+the Moon's and Mars's `tileset.getHeight`, from loaded tiles) is sampled
+every 200 ms within 100 km of the surface (`groundHeight`).  Zoom
+approaches that ground instead (zoom.js `groundRadius`), and after every
+camera move (pan, tween, keys) the camera is lifted back to 1 m over it
+(ThreeUI `_keepAboveGround`), so it rides over hills rather than through
+them.  Landing on a place adds the terrain height there
+(`groundHeightAt`).  The height over the sphere is the height over
+Cesium's ellipsoid, since the camera keeps the same height over both
+(`frames.ellipsoidCameraPosition`).
+
 Lighting: celestiary's Sun is at the world origin. Its direction in the
 body frame, mapped to ECEF, drives a Cesium `DirectionalLight` and
 `atmosphere.dynamicLighting = SCENE_LIGHT`, so Cesium's day/night

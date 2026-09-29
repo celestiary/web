@@ -20,7 +20,8 @@ import {
 import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
-import {cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
+import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
+import {latLngAltToBodyFixed} from '../../coords.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
 
 
@@ -335,6 +336,57 @@ export default class CesiumLayers {
 
 
   /**
+   * Height of the terrain under the camera over the body's sphere (which
+   * matches its height over Cesium's ellipsoid: ellipsoidCameraPosition),
+   * for zoom and the camera's ground floor.  Sampled every GROUND_SAMPLE_MS
+   * while the camera is within GROUND_SAMPLE_BELOW_M of the surface.
+   *
+   * @param {object} node A body's rotating node
+   * @returns {number|null} Metres, or null when no active layer knows it
+   */
+  groundHeight(node) {
+    const a = this.active.find((x) => x.node === node)
+    return a ? this.bodies[a.name]?.groundHeight ?? null : null
+  }
+
+
+  /**
+   * Height of the terrain at a point, for landing there: over the body's
+   * sphere, as groundHeight.  From the tiles loaded so far, which may be
+   * coarse; the ground floor refines it as the camera arrives.
+   *
+   * @param {object} node A body's rotating node
+   * @param {number} lat Degrees
+   * @param {number} lng Degrees, east-positive
+   * @returns {number|null} Metres, or null when no active layer knows it
+   */
+  groundHeightAt(node, lat, lng) {
+    const a = this.active.find((x) => x.node === node)
+    const body = a && this.bodies[a.name]
+    if (!body?.widget) {
+      return null
+    }
+    const surface = bodyToEcef(latLngAltToBodyFixed(lat, lng, 0, node.props.radius.scalar))
+    const carto = body.ellipsoid.cartesianToCartographic(new body.Cesium.Cartesian3(...surface))
+    return carto ? terrainHeight(body, a.name, carto) : null
+  }
+
+
+  /**
+   * @param {object} body
+   * @param {string} name
+   */
+  _sampleGround(body, name) {
+    if (this._now - (body.groundAt ?? -Infinity) < GROUND_SAMPLE_MS) {
+      return
+    }
+    body.groundAt = this._now
+    const carto = body.ellipsoid.cartesianToCartographic(body.widget.scene.camera.position)
+    body.groundHeight = carto && carto.height < GROUND_SAMPLE_BELOW_M ? terrainHeight(body, name, carto) : null
+  }
+
+
+  /**
    * @param {object} node A body's rotating node
    * @returns {boolean} Whether a Cesium layer draws it this frame
    */
@@ -557,6 +609,7 @@ export default class CesiumLayers {
     if (CESIUM_BODIES[name].monthlyImagery) {
       this._updateMonthlyImagery(body, CESIUM_BODIES[name])
     }
+    this._sampleGround(body, name)
 
     const dir = sunLightDirectionEcef(node.matrixWorld, this._sunPos)
     widget.scene.light.direction = new Cesium.Cartesian3(...dir)
@@ -859,6 +912,31 @@ function addIonEarth(Cesium, widget, detailFromLevel) {
 
 
 /**
+ * Height over the ellipsoid of the loaded terrain (Earth's globe) or
+ * surface tiles (the Moon's and Mars's tilesets) at a place.
+ *
+ * @param {object} body
+ * @param {string} name
+ * @param {object} carto Cesium.Cartographic; its height is ignored
+ * @returns {number|null}
+ */
+function terrainHeight(body, name, carto) {
+  const {Cesium, widget, tileset} = body
+  const at = new Cesium.Cartographic(carto.longitude, carto.latitude, 0)
+  try {
+    Cesium.Ellipsoid.default = body.ellipsoid
+    const h = CESIUM_BODIES[name].ionTileset ?
+      tileset?.getHeight(at, widget.scene) :
+      widget.scene.globe?.getHeight(at)
+    return Number.isFinite(h) ? h : null
+  } catch {
+    // A pick over tiles still loading: no height this time.
+    return null
+  }
+}
+
+
+/**
  * @param {object} Cesium
  * @param {object} imagery A body's monthlyImagery config (bodies.js)
  * @param {number} month 1-12
@@ -928,6 +1006,10 @@ const STENCIL_REF = 1
 const MIN_PIXEL_RADIUS = 1
 // Night-side floor for sunlitShader: dark, but not a hole in the sky.
 const SURFACE_AMBIENT = 0.02
+// How often the terrain under the camera is sampled, ms, and from how high
+// over the surface (Olympus Mons, the highest, is ~21 km over Mars's), m.
+const GROUND_SAMPLE_MS = 200
+const GROUND_SAMPLE_BELOW_M = 1e5
 // ion tilesets' maximumScreenSpaceError, in pixels.
 const TILE_SCREEN_SPACE_ERROR = 8
 // The crossfade from celestiary's surface to Cesium's, ms.

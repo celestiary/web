@@ -621,7 +621,12 @@ export default class Scene {
 
     // Arrival local pose = body-fixed XYZ for (lat, lng, alt).  Platform is
     // identity at body origin, so platform-local == body-local.
-    const arrivalLocal = latLngAltToBodyFixed(lat, lng, alt, r)
+    // Over the terrain there, when a Cesium layer knows it (from the tiles
+    // loaded so far; ThreeUI keeps the camera over the ground as finer ones
+    // arrive).  Not for a permalink restore: its altitude was measured over
+    // the sphere, terrain included.
+    const ground = opts.instant ? 0 : this.ui.layers?.groundHeightAt?.(bodyNode, lat, lng) ?? 0
+    const arrivalLocal = latLngAltToBodyFixed(lat, lng, alt + ground, r)
 
     if (opts.instant) {
       // Snap into the landed pose; permalink restore will overwrite

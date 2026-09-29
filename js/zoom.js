@@ -1,6 +1,45 @@
 import {SMALLEST_SIZE_METER} from './shared.js'
 
 
+/** Closest the camera comes to the ground, metres. */
+export const GROUND_CLEARANCE_M = 1
+
+
+/**
+ * The body the camera is at, which zoom and the ground floor are about:
+ * the one its platform hangs off (landed on it, or gone to it, whose
+ * centre zoom moves towards), whatever it's looking at.  Targeting the Moon
+ * from Earth's surface ('1') looks at the Moon; the camera is still on
+ * Earth.  Falls back to the target (e.g. at a star).
+ *
+ * @param {object|null} platformParent The camera platform's parent
+ * @param {object|null} cur The body last gone to or landed on
+ * @param {object|null} target The looked-at body
+ * @returns {object|null}
+ */
+export function homeBody(platformParent, cur, target) {
+  if (cur && platformParent && (cur === platformParent || cur.orbitPosition === platformParent)) {
+    return cur
+  }
+  return target
+}
+
+
+/**
+ * The ground's distance from a body's centre under the camera: its radius,
+ * raised (or lowered) by the terrain there when a Cesium layer knows it.
+ * Zoom approaches it and the camera never goes below it.
+ *
+ * @param {number} surfaceR Body radius (celestiary's sphere), metres
+ * @param {number|null} groundHeight Terrain height over that sphere under
+ *   the camera, metres, or null when unknown
+ * @returns {number}
+ */
+export function groundRadius(surfaceR, groundHeight) {
+  return surfaceR + (groundHeight ?? 0)
+}
+
+
 /**
  * Remaps a zoom step from linear-distance space to altitude space so the
  * camera asymptotically approaches the surface rather than passing through it.
