@@ -47,6 +47,12 @@ export default class CesiumLayers {
     this.bodies = {}
     // This frame's active bodies, far to near: [{name, node}]
     this.active = []
+    // In range and loaded, but Cesium's tiles for the view aren't in yet:
+    // rendered unseen so they stream, while celestiary's surface still
+    // shows.  [{name, node}]
+    this.warming = []
+    // The target whose Cesium bodies were last preloaded.
+    this._preloadedFor = null
     this._activeKey = ''
     // Celestiary objects hidden while a Cesium layer shows: Map<Object3D, wasVisible>
     this.hidden = new Map()
@@ -107,10 +113,13 @@ export default class CesiumLayers {
     if (store?.setLayerBody && store.layerBody !== near) {
       store.setLayerBody(near)
     }
+    const wanted = (name) => isCesiumBody(name) && bodyLayer(store?.bodyLayers, name) === 'cesium'
+    this._preload(target, wanted)
     const active = []
+    const warming = []
     for (const name of Object.keys(CESIUM_BODIES)) {
       const node = this.ui.sceneManager?.objects?.[name]
-      if (!node || !isCesiumBody(name) || bodyLayer(store?.bodyLayers, name) !== 'cesium') {
+      if (!node || !wanted(name)) {
         continue
       }
       const distance = this._visibleAt(name, node)
@@ -120,10 +129,20 @@ export default class CesiumLayers {
       if (!this.bodies[name]) {
         this._load(name)
       }
-      if (this.bodies[name].status === 'ready') {
+      const body = this.bodies[name]
+      if (body.status !== 'ready') {
+        continue
+      }
+      // Swap celestiary's surface for Cesium's only once Cesium has tiles
+      // to draw; until then the body is empty, or only its atmosphere.
+      body.shown ||= tilesReady(body)
+      if (body.shown) {
         active.push({name, node, distance})
+      } else {
+        warming.push({name, node, distance})
       }
     }
+    this.warming = warming
     active.sort((a, b) => b.distance - a.distance)
     const key = active.map((a) => a.name).join()
     if (key !== this._activeKey) {
@@ -154,23 +173,25 @@ export default class CesiumLayers {
   composite() {
     const {renderer} = this.ui
     const sceneRT = this.ui._sceneRT
-    const drawn = this.active.filter(({name}) => this.bodies[name]?.status === 'ready')
-    if (drawn.length === 0) {
+    const ready = ({name}) => this.bodies[name]?.status === 'ready'
+    const drawn = this.active.filter(ready)
+    // Warming bodies first: they draw nothing (no stencil), and so can't
+    // cover the shown ones.
+    const passes = [...this.warming.filter(ready).map((w) => ({...w, unseen: true})), ...drawn]
+    if (passes.length === 0) {
       return
     }
     const depthSave = this._depthSaveFor(sceneRT)
     this._blitDepth(sceneRT, depthSave)
-    for (const [i, {name, node}] of drawn.entries()) {
+    for (const {name, node, unseen} of passes) {
       if (this.bodies[name]?.status !== 'ready') {
         continue
       }
       // resetState() also unbinds three's render target; and the last
       // body's stencil must not admit this one.
       renderer.setRenderTarget(sceneRT)
-      if (i > 0) {
-        renderer.clear(false, false, true)
-      }
-      this._compositeBody(name, node)
+      renderer.clear(false, false, true)
+      this._compositeBody(name, node, unseen)
       this._blitDepth(depthSave, sceneRT)
     }
     this._writeGroundDepths(drawn)
@@ -180,21 +201,25 @@ export default class CesiumLayers {
   /**
    * @param {string} name
    * @param {object} node
+   * @param {boolean} unseen Render Cesium's frame, so its tiles stream, but
+   *   show none of it: without the stencil shell, no pixel admits it.
    */
-  _compositeBody(name, node) {
+  _compositeBody(name, node, unseen = false) {
     const body = this.bodies[name]
     const {renderer, camera} = this.ui
 
     // 1. Stencil = 1 wherever the body's (atmosphere-sized) ellipsoid is
     // visible past celestiary's own geometry.
-    const {radii: [rx, ry, rz], shellScale: s} = CESIUM_BODIES[name]
-    // ECEF (x, y, z) radii → body frame (x, z, y); see frames.js.
-    this.shell.matrix.copy(node.matrixWorld).multiply(this._shellScale.makeScale(rx * s, rz * s, ry * s))
-    this.shell.matrixWorldNeedsUpdate = true
-    const autoClear = renderer.autoClear
-    renderer.autoClear = false
-    renderer.render(this.shellScene, camera)
-    renderer.autoClear = autoClear
+    if (!unseen) {
+      const {radii: [rx, ry, rz], shellScale: s} = CESIUM_BODIES[name]
+      // ECEF (x, y, z) radii → body frame (x, z, y); see frames.js.
+      this.shell.matrix.copy(node.matrixWorld).multiply(this._shellScale.makeScale(rx * s, rz * s, ry * s))
+      this.shell.matrixWorldNeedsUpdate = true
+      const autoClear = renderer.autoClear
+      renderer.autoClear = false
+      renderer.render(this.shellScene, camera)
+      renderer.autoClear = autoClear
+    }
 
     // 2. Cesium, from celestiary's camera, into the stencilled pixels.
     this._setCesiumView(name, body, node)
@@ -207,6 +232,7 @@ export default class CesiumLayers {
         body.widget.resize()
         body.widget.render()
       })
+      body.frames = (body.frames ?? 0) + 1
     } catch (err) {
       this._fail(name, err)
     }
@@ -436,6 +462,27 @@ export default class CesiumLayers {
 
 
   /**
+   * Start loading the target's Cesium bodies (preloadNames) when it
+   * changes, before they're in range: Cesium's import and the widget then
+   * aren't what the approach waits on.
+   *
+   * @param {object} target
+   * @param {function(string): boolean} wanted
+   */
+  _preload(target, wanted) {
+    if (target === this._preloadedFor) {
+      return
+    }
+    this._preloadedFor = target
+    for (const name of preloadNames(target)) {
+      if (wanted(name) && !this.bodies[name]) {
+        this._load(name)
+      }
+    }
+  }
+
+
+  /**
    * Load Cesium and set up the body's widget and NetGL link.
    *
    * @param {string} name
@@ -555,7 +602,12 @@ export default class CesiumLayers {
         maximumScreenSpaceError: TILE_SCREEN_SPACE_ERROR,
         customShader: sunlitShader(Cesium),
       })
-          .then((tileset) => widget.scene.primitives.add(tileset))
+          .then((tileset) => {
+            widget.scene.primitives.add(tileset)
+            if (this.bodies[name]) {
+              this.bodies[name].tileset = tileset
+            }
+          })
           .catch((err) => this._fail(name, err))
     } else if (token) {
       addIonEarth(Cesium, widget)
@@ -699,6 +751,41 @@ const DEFAULT_FAR = 5e8
 const PLANET_LOD_NAME = 'planet LOD'
 // The lazily-added near shape of a Planet (Planet.nearShape).
 const SURFACE_GROUP_NAME = 'planet surface and guides'
+
+
+/**
+ * Whether Cesium has the tiles for its current view: the globe's (Earth),
+ * or the ion tileset's (Moon, Mars; none until its metadata loads).  Only
+ * after a rendered frame: until then the globe has queued no tiles, and
+ * reads as loaded.
+ *
+ * @param {object} body A ready entry of CesiumLayers.bodies
+ * @returns {boolean}
+ */
+export function tilesReady(body) {
+  if (!(body.frames > 0)) {
+    return false
+  }
+  const scene = body.widget?.scene
+  if (scene?.globe) {
+    return scene.globe.tilesLoaded
+  }
+  return body.tileset?.tilesLoaded === true
+}
+
+
+/**
+ * The Cesium bodies to start loading when a body is targeted: the target
+ * and its parent, since from the Moon or Phobos their planet is in view.
+ *
+ * @param {object} target A body's rotating node, with props.name and
+ *   props.parent
+ * @returns {Array<string>}
+ */
+export function preloadNames(target) {
+  const props = target?.props
+  return [props?.name, props?.parent].filter((name) => Object.hasOwn(CESIUM_BODIES, name ?? ''))
+}
 
 
 /**
