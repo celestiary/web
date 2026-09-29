@@ -86,3 +86,25 @@ at world origin (worldGroup centre), so the direction from the planet to
 the sun is `−planetWorldPos.normalize()`, then `.transformDirection`
 into the camera's view matrix to match `vNormal` (which Three.js writes
 in view space).
+
+## Lighting and exposure
+
+The Sun is a `PointLight` of `SUN_LUMINOUS_INTENSITY` falling off as
+1/d^`SUN_LIGHT_DECAY` (shared.js).  The renderer's tone-mapping exposure
+follows the targeted body (`exposure.js`, `ThreeUI._updateExposure`):
+π·d^decay / I for its distance d from the Sun, so its sunlit side renders
+at its albedo — a surface facing the Sun shows its texture's colour, as
+Cesium's layers do — easing between targets over ~0.5 s.  Looking at a far
+planet (targeting it) makes it the exposure target; the Sun and stars keep
+the last body's.  Surfaces are non-metallic (metalness 0) except where an
+ocean map adds shine.
+
+## Surface texture sources
+
+- **Mars** (`mars.jpg`, 4096×2048): the USGS Viking MDIM2.1 colourized
+  global mosaic (NASA/USGS, public domain), the imagery of Cesium's Mars,
+  so the two match across the layer swap.  Equirectangular, −180° at the
+  left edge.  Rebuilt from NASA Trek's WMTS tiles at level 3 (16×8 tiles of
+  256 px):
+  `https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/3/{row}/{col}.jpg`,
+  stitched and saved as JPEG at quality 0.85.

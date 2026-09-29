@@ -29,6 +29,11 @@ import {ASTRO_UNIT_METER, FAR_OBJ, OVERLAY_LAYER, labelTextColor, halfPi, toRad}
 import {capitalize, named} from '../utils.js'
 
 
+// Earth's city lights, as rendered before tone mapping: what 5e15 came to
+// under the old fixed exposure (3e-16).
+const NIGHT_LIGHT = 1.5
+
+
 /** */
 export default class Planet extends Object {
   /**
@@ -263,13 +268,17 @@ export default class Planet extends Object {
     // body's many maps (terrain, hydro, atmos, night…) organized.
     const texDir = this.props.texture_dir || ''
     const surfaceMaterial = Material.cacheMaterial(this.name, undefined, texDir)
-    surfaceMaterial.metalness = 0.2
+    // Rock and cloud aren't metallic, and metalness takes from the diffuse
+    // light that exposure.js calibrates against.  Oceans' shine comes from
+    // the hydrosphere metalness map, which scales this.
+    surfaceMaterial.metalness = this.props.texture_hydrosphere ? 0.2 : 0
     surfaceMaterial.roughness = 0.8
     if (this.props.texture_terrain) {
       const terrainTex = Material.pathTexture(`${texDir}${this.name}_terrain`)
       surfaceMaterial.bumpMap = terrainTex
       surfaceMaterial.bumpScale = 0.10
-      surfaceMaterial.roughnessMap = terrainTex
+      // Not a roughness map too: elevation isn't gloss, and low, dark
+      // ground read as shiny, a glint at the subsolar point (Mars).
       surfaceMaterial.roughness = 1.0
     }
     // Build a chain of fragment-shader mods: hydrosphere ocean roughness +
@@ -332,14 +341,12 @@ export default class Planet extends Object {
         // string-replace silently failed and night lights didn't show.
         // vNormal is in VIEW space; uSunDirection is updated per-frame
         // (in onBeforeRender below) into the same view space.
-        // The intensity scalar compensates for the renderer's very small
-        // toneMappingExposure (3e-16, calibrated for sun lumens ~1e28).
-        // Day-side surface peaks at ~2e16 linear (sun illuminance × Earth
-        // albedo / π) → ~1.0 after tonemap.  For city peaks around 30%
-        // display brightness we want input·exposure ≈ 0.3, i.e. multiplier
-        // ≈ 1e15.  Tweak per texture: composite "Earth at night" textures
-        // (with land visible as faint grey) need a lower scalar than pure
-        // NASA Black Marble (mostly black with bright cities).
+        // The lights are divided by the renderer's toneMappingExposure, so
+        // they show at NIGHT_LIGHT after it whatever the exposure (which
+        // follows the target; exposure.js).  Tweak per texture: composite
+        // "Earth at night" textures (with land visible as faint grey) need
+        // a lower level than pure NASA Black Marble (mostly black with
+        // bright cities).
         shader.fragmentShader = shader.fragmentShader.replace(
             '#include <common>',
             `#include <common>
@@ -351,7 +358,11 @@ export default class Planet extends Object {
             `vec3 nightLight = texture2D(uNightMap, vMapUv).rgb;
              // smoothstep around terminator: 0 fully day, 1 fully night
              float nightFactor = smoothstep(-0.05, 0.05, -dot(normalize(vNormal), uSunDirection));
-             gl_FragColor.rgb += nightLight * nightFactor * 5e15;
+             #ifdef TONE_MAPPING
+               gl_FragColor.rgb += nightLight * nightFactor * (${NIGHT_LIGHT.toFixed(2)} / toneMappingExposure);
+             #else
+               gl_FragColor.rgb += nightLight * nightFactor * ${NIGHT_LIGHT.toFixed(2)};
+             #endif
              #include <tonemapping_fragment>`,
         )
       })
