@@ -13,6 +13,14 @@ import {eccentricAnomaly} from './meanElements.js'
 // rebuilt when the date has moved by REBUILD_FRACTION of a period (or
 // jumped), a few samples at a time, off the per-frame path: OrbitPaths.
 //
+// Once built, a line is never hidden.  A path's shape changes over decades
+// to millennia, so the last line stays a good picture while the next one is
+// built, even when the date runs faster than rebuilds finish (a high time
+// rate, where hiding a line whose window had passed its body made it
+// flicker) or has jumped.  A rebuild writes a scratch array and copies it
+// into the geometry in one step when it's done, so a part-built line is
+// never drawn.
+//
 // Two ways to sample (OrbitPath):
 // - Direct: every vertex is the ephemeris at its time.  For cheap
 //   ephemerides, the Moon's (lunarTheory.js, ~10 µs).
@@ -75,10 +83,11 @@ const VERTICES_PER_STEP = 64
 export const FRAME_BUDGET_MS = 4
 
 /**
- * And while the line being built isn't drawn (at load, or after a jump in
- * time), so the lines come back sooner.
+ * And while the line being built doesn't hold its body at the latest date
+ * (its first build, a jump, or a time rate faster than rebuilds), so it
+ * catches up sooner.
  */
-export const HIDDEN_BUDGET_MS = 12
+export const CATCH_UP_BUDGET_MS = 12
 
 const TWO_PI = 2 * Math.PI
 const LAGRANGE_POINTS = 4
@@ -246,15 +255,23 @@ export class OrbitPath {
    * @yields {undefined}
    */
   * build(jd) {
+    if (!Number.isFinite(jd)) {
+      return
+    }
     const out = this._scratch
     const halfWindow = yield* (this.mu ? this._sparse(jd, out) : this._direct(jd, out))
+    // An ephemeris evaluated where it isn't defined: keep the last line.
+    if (!allFinite(out)) {
+      return
+    }
+    // The whole line at once, so a part-built one is never drawn.
     const attr = this.line.geometry.attributes.position
     attr.array.set(out)
     attr.needsUpdate = true
     this.line.geometry.computeBoundingSphere()
     this.centre = jd
     this.halfWindow = halfWindow
-    // Animation hides it again next frame if the date has left the window.
+    // Hidden only until its first build (Animation.newOrbitPath).
     this.line.visible = true
   }
 
@@ -369,7 +386,22 @@ export class OrbitPath {
 
 
 /**
- * The rebuilds waiting, run a slice at a time within a per-frame budget.
+ * @param {Float32Array} xyz
+ * @returns {boolean} whether every value is finite
+ */
+function allFinite(xyz) {
+  for (let j = 0; j < xyz.length; j++) {
+    if (!Number.isFinite(xyz[j])) {
+      return false
+    }
+  }
+  return true
+}
+
+
+/**
+ * The rebuilds waiting, run a slice at a time within a per-frame budget,
+ * always for the latest date asked.
  */
 export class OrbitPaths {
   /** */
@@ -378,56 +410,80 @@ export class OrbitPaths {
     this.job = null
     /** Milliseconds of rebuilding per pump; Infinity finishes every rebuild. */
     this.budgetMs = FRAME_BUDGET_MS
-    /** The budget while the line being built is hidden. */
-    this.hiddenBudgetMs = HIDDEN_BUDGET_MS
+    /** The budget while the next line doesn't hold its body (see above). */
+    this.catchUpBudgetMs = CATCH_UP_BUDGET_MS
     /** The last complete rebuild's duration, ms of work, for diagnostics. */
     this.lastBuildMs = 0
+    /** Milliseconds, for the budget; tests set a deterministic one. */
+    this.clock = performance.now.bind(performance)
   }
 
 
   /**
-   * Queue a path's rebuild for jd.  A queued one takes the new date; one
-   * already building carries on, unless its window won't hold jd (a jump),
-   * when it starts over.
+   * Queue a path's rebuild for jd, the latest date.  A queued one takes
+   * the new date.  One already building carries on, unless its window
+   * won't hold jd (a jump), when it starts over for jd, once: a date that
+   * keeps running ahead of the rebuild (a high time rate) would otherwise
+   * restart it every frame, and it would never finish.  After it finishes,
+   * Animation asks again for the date then.
    *
    * @param {OrbitPath} path
    * @param {number} jd Julian Day (UTC)
    */
   request(path, jd) {
-    if (this.job && this.job.path === path) {
-      if (Math.abs(jd - path.pendingJd) > path.periodDays / 2) {
-        path.pendingJd = jd
-        this.job = null
+    if (!Number.isFinite(jd)) {
+      return
+    }
+    path.pendingJd = jd
+    const job = this.job
+    if (job && job.path === path) {
+      if (!job.retargeted && Math.abs(jd - job.jd) > path.periodDays / 2) {
+        this.job = this.newJob(path, true)
       }
-    } else if (this.queue.includes(path)) {
-      path.pendingJd = jd
-    } else {
-      path.pendingJd = jd
+    } else if (!this.queue.includes(path)) {
       this.queue.push(path)
     }
   }
 
 
   /**
+   * @param {OrbitPath} path
+   * @param {boolean} retargeted
+   * @returns {object} a rebuild of path for its pendingJd
+   */
+  newJob(path, retargeted) {
+    const jd = path.pendingJd
+    return {path, jd, it: path.build(jd), ms: 0, retargeted}
+  }
+
+
+  /**
    * Run queued rebuilds until the budget is spent: budgetMs, or
-   * hiddenBudgetMs while the next line to build isn't drawn.
+   * catchUpBudgetMs while the next line doesn't hold its body at the
+   * latest date.  A queued rebuild the date no longer needs (time turned
+   * back into the line's window) is dropped.
    *
    * @param {number} [budgetMs]
    */
   pump(budgetMs) {
     if (budgetMs === undefined) {
       const next = this.job ? this.job.path : this.queue[0]
-      budgetMs = (next && !next.line.visible) ? Math.max(this.budgetMs, this.hiddenBudgetMs) : this.budgetMs
+      const catchUp = next && !next.covers(next.pendingJd)
+      budgetMs = catchUp ? Math.max(this.budgetMs, this.catchUpBudgetMs) : this.budgetMs
     }
-    const start = performance.now()
-    while ((this.job || this.queue.length > 0) && performance.now() - start < budgetMs) {
+    const start = this.clock()
+    while ((this.job || this.queue.length > 0) && this.clock() - start < budgetMs) {
       if (!this.job) {
         const path = this.queue[0]
-        this.job = {path, it: path.build(path.pendingJd), ms: 0}
+        if (!path.isStale(path.pendingJd)) {
+          this.queue.shift()
+          continue
+        }
+        this.job = this.newJob(path, false)
       }
-      const sliceStart = performance.now()
+      const sliceStart = this.clock()
       const done = this.job.it.next().done
-      this.job.ms += performance.now() - sliceStart
+      this.job.ms += this.clock() - sliceStart
       if (done) {
         this.lastBuildMs = this.job.ms
         this.queue.shift()

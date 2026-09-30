@@ -83,6 +83,11 @@ export default class Animation {
   animate(scene) {
     this.time.updateTime()
     const jd = this.time.simTimeJulianDay()
+    // Time clamps the date to where the ephemerides hold; this is a
+    // second line of defence, so nothing is placed at NaN.
+    if (!Number.isFinite(jd)) {
+      return
+    }
     this.setDate(jd)
     this.animateSystem(scene)
     this.orbitPaths.pump()
@@ -97,6 +102,9 @@ export default class Animation {
    * @param {number} jd Julian Day number
    */
   animateAtJD(scene, jd) {
+    if (!Number.isFinite(jd)) {
+      return
+    }
     this.setDate(jd)
     this.animateSystem(scene)
     this.orbitPaths.pump()
@@ -211,7 +219,10 @@ export default class Animation {
         ({x, y, z} = vsopScene(vsopCoord, this._tmpVec))
         this.followPath(system)
       }
-      system.position.set(x, y, z)
+      // Never a non-finite position: keep the last good one.
+      if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+        system.position.set(x, y, z)
+      }
       if (sysName === 'earth') {
         debug().log(`SMA: ${system.orbit.semiMajorAxis.scalar}, syspos: ${system.position}, ` +
                     `vsopCoord: ${vsopCoord}, delta: ${vsopCoord.x - x}, ${vsopCoord.y - y}, ${vsopCoord.z - z}`)
@@ -227,10 +238,11 @@ export default class Animation {
 
   /**
    * Keep a planet's or the Moon's orbit line on its path: turn it from
-   * J2000 to the date, show it only while its window holds the body, and
-   * ask for a rebuild when the date has moved on (orbitPath.js).  Cheap
-   * unless a rebuild is due, and the rebuild itself is left to
-   * orbitPaths.pump.
+   * J2000 to the date, and ask for a rebuild when the date has moved on
+   * (orbitPath.js).  The line stays drawn meanwhile, even when its window
+   * no longer holds the body: an orbit's shape changes slowly, and hiding
+   * it made it flicker at high time rates.  Cheap unless a rebuild is due,
+   * and the rebuild itself is left to orbitPaths.pump.
    *
    * @param {Object3D} orbitPosition
    */
@@ -247,7 +259,6 @@ export default class Animation {
       return
     }
     shape.quaternion.copy(this.precession)
-    path.line.visible = path.covers(this.jd)
     if (path.isStale(this.jd) && (!path.usesVsop || this.vsopReady())) {
       this.orbitPaths.request(path, this.jd)
     }
@@ -270,6 +281,7 @@ export default class Animation {
     // The samples are in metres, in the ecliptic of J2000, around the primary.
     shape.scale.setScalar(1)
     shape.position.set(0, 0, 0)
+    // Until its first build: the unit ellipse isn't this path.
     line.visible = false
     const name = orbitPosition.name.split('.')[0]
     const periodDays = orbitPosition.orbit.siderealOrbitPeriod.scalar / SECONDS_PER_DAY

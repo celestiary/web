@@ -238,15 +238,41 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
   they're now from Standish's mean-longitude rates (JPL approximate
   positions, table 1), as Pluto's elements are.
 - **Rebuilds** happen when the date has moved 1/50 of a period from the
-  line's centre, or jumped. A line whose window no longer holds its body
-  (a jump) is hidden until rebuilt. Rebuilds are generators queued in
+  line's centre, or jumped. Rebuilds are generators queued in
   `Animation.orbitPaths` and run by `pump()` a slice at a time (a VSOP87C
   call, or 64 vertices) within 4 ms a frame (`FRAME_BUDGET_MS`), or 12 ms
-  while the line being built is hidden (`HIDDEN_BUDGET_MS`: at load, or
-  after a jump), so none is on the per-frame path. A rebuild costs 20–36
+  while the next line doesn't hold its body at the latest date
+  (`CATCH_UP_BUDGET_MS`: its first build, a jump, or a time rate faster
+  than rebuilds), so none is on the per-frame path. A rebuild costs 20–36
   VSOP87C calls (~2 ms each, in bun and Chromium alike), 35–60 ms of work
   in Chromium; Uranus's and Neptune's ~110 and ~200 ms; the Moon's ~5 ms.
   All nine lines after a jump are ~0.6 s of work, about 50 frames.
+- **A line is never hidden once built**, only before its first build.
+  A path's shape changes over decades to millennia, so the last line
+  stays a good picture until the next is ready, which then replaces it
+  whole: a rebuild writes a scratch array and copies it into the geometry
+  in one step, so a part-built line is never drawn. The first version
+  hid a line whose window had passed its body; at high time rates the
+  date outran the rebuilds (Mercury's is ~4 frames, and at 30 days a
+  frame its 88-day window is passed in 2), so the inner planets' lines
+  flickered, and worse, below.
+- **Always for the latest date.** A queued rebuild takes the latest date
+  asked; one the date no longer needs (time turned back into the line's
+  window) is dropped. A running rebuild whose window won't hold the new
+  date (a jump) restarts for it, **once**: the first version restarted
+  on every such request, so at a date running faster than a rebuild
+  (Mercury at 30 days a frame, any planet at a year a frame) it
+  restarted every frame, never finished, and held up the queue behind
+  it. Now it finishes, and Animation asks again for the date then, so
+  the lines take turns, each at most a couple of rebuilds behind the
+  date (`orbitPath.test.js`, *high time rates and jumps*, with a clock
+  paced by VSOP87C's real cost).
+- **Non-finite input is refused:** `OrbitPaths.request` ignores a
+  non-finite date, and a build whose samples aren't all finite leaves
+  the last line as it was. Animation skips a frame whose date isn't
+  finite and never sets a non-finite position. Time's clamp
+  ([Frames and time](#frames-and-time)) keeps dates in range in the
+  first place.
 - **Other moons and Pluto** keep their mean-element ellipse of date, laid
   each frame (`layOrbitShape`): that ellipse is their ephemeris.
 - **Bodies without elements** (demo descriptors) keep the flat ellipse.
@@ -262,6 +288,26 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
   - **Reading star positions:** raw `star.x/y/z` and the stars' geometry are J2000, the `StellarFrame`'s local frame. Take them to the scene with `Scene.starPosition(star)` (the `WorldGroup` frame) or the stars' `matrixWorld` (world space). `goTo(star)` rebases to `-starPosition(star)`, and re-rebases when the frame turns so the star stays at the origin; picking (`Picker.queryPoints`) takes the ray into the catalogue frame instead of rebuilding its tree. The RTE shaders apply the model rotation (see [RTE interaction](#rte-interaction)).
   - **Checked** against JPL Horizons at 1900, 2026 and 2500 (`StellarFrame.test.js`, offline fixture `StellarFrame.horizons.json`): the Moon's separation from reference stars (their catalogue direction) is within 3.1″ of Horizons', and its place among them within 4.3″. Proper motion, parallax and aberration are left out; proper motion over centuries is a separate refinement.
   - The equatorial grid and Earth's pole use the J2000 obliquity about the equinox of date, i.e. the mean equator of date to within the change in obliquity (47″ a century). `celestialFrame.precessEcliptic` converts coordinates between dates, e.g. to compare with Horizons' J2000 ecliptic vectors.
+- **Supported dates: J2000 ± 6000 Julian years** (JD 260045 to 4643045,
+  about 4000 BC to AD 8000; `Time.SUPPORTED_YEARS_FROM_J2000`). The clock
+  clamps at the source: `Time` holds the date at a bound rather than run
+  past it, `setTime` clamps (and ignores NaN), the time rate is capped at
+  2^40 (~35,000 years a second; 2^1024 is Infinity, and Infinity × a
+  zero frame delta is NaN), and a permalink's `t=` is clamped on decode
+  (a non-finite one makes it invalid). At a bound the rate readout says
+  "(date limit)". Why that range:
+  - VSOP87C here is the full series (the `vsop87` package), documented to
+    1″ over ±4000 years for Mercury to Mars, ±2000 for Jupiter and Saturn,
+    ±6000 for Uranus and Neptune. It's a series in powers of time from
+    J2000 and diverges beyond: evaluated, it's still plausible at ±8000
+    years, puts Jupiter at 7.6 AU at −20,000, thousands of AU out at
+    ±100,000 and ~3 × 10⁹ AU (50,000 light-years) at a million years.
+    Planets and their lines then agree on garbage: the light-year-sized
+    "Lissajous" orbits seen before the clamp.
+  - Meeus 47 (the Moon), the IAU 1976 precession, the ΔT polynomials and
+    the mean elements' rates are fitted over centuries to a few millennia.
+  - A JS `Date` ends at ±8.64e15 ms (±275,000 years); past it the date
+    readout showed NaN, while the clock itself stayed a finite number.
 - **Time:** the simulation clock is UTC. VSOP87C is fed the UTC Julian Day as it is (69 s of ΔT moves Earth ~2000 km). The Moon moves 0.01° in 69 s, so its series gets TT (`celestialFrame.utcToTtJulianDay`: 32.184 s + the leap seconds since 1972, the Espenak–Meeus ΔT polynomials before, continuous across 1972). The UTC Julian Day is `Time.toJulianDay`, with the Unix epoch at JD 2440587.5 exactly (it used to run 14.6 s ahead, ~8″ of lunar motion). After 2017 TT − UTC stays at 69.184 s, right for a UTC clock, but UT1 keeps drifting: Earth rotation for future dates needs UT1 − UTC or a ΔT model.
 
 ## Camera Controls
@@ -571,7 +617,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/Celestiary.js` | Top-level controller, keyboard bindings |
 | `js/ThreeUI.js` | Three.js renderer/camera/controls wrapper |
 | `js/Loader.js` | Recursive JSON asset loader |
-| `js/Time.js` | Simulation clock with time-scale control |
+| `js/Time.js` | Simulation clock with time-scale control, clamped to the supported dates (J2000 ± 6000 years) |
 | `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
 | `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment` |

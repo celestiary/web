@@ -6,6 +6,8 @@ import Planet from './Planet.js'
 import {meanElements, orbitAt} from './meanElements.js'
 import {
   JUPITER_SATURN_SAMPLES,
+  OrbitPath,
+  OrbitPaths,
   REBUILD_FRACTION,
   SUN_GM_M3_PER_DAY2,
   lagrange4,
@@ -54,7 +56,7 @@ const TOLERANCE = 1e-5
  */
 function budget(anim, ms) {
   anim.orbitPaths.budgetMs = ms
-  anim.orbitPaths.hiddenBudgetMs = ms
+  anim.orbitPaths.catchUpBudgetMs = ms
 }
 
 
@@ -202,8 +204,8 @@ describe('orbit lines follow the computed paths', () => {
       const g = orbitGraph(name, props)
       const periodDays = props.orbit.siderealOrbitPeriod / SECONDS_PER_DAY
       for (const jd of DATES) {
-        // A jump: the old line doesn't hold the body, so it's hidden, then
-        // rebuilt around the new date.
+        // A jump: the line is rebuilt around the new date, within the
+        // frame on an unlimited budget.
         time.jd = jd
         anim.animateAtJD(g.root, jd)
         expect(g.shape.line.visible).toBe(true)
@@ -225,20 +227,23 @@ describe('orbit lines follow the computed paths', () => {
   }
 
 
-  it('hides a line whose window no longer holds its body, until rebuilt', () => {
+  it('keeps drawing the old line after a jump, until the new one is built', () => {
     const time = newTime()
     const anim = new Animation(time, vsop87c)
     budget(anim, Infinity)
     const g = orbitGraph('mars', mars)
     anim.animateAtJD(g.root, JD_2026)
     expect(g.shape.line.visible).toBe(true)
+    const before = Float32Array.from(g.shape.line.geometry.attributes.position.array)
     budget(anim, 0)
     anim.animateAtJD(g.root, JD_2026 + 1000)
-    expect(g.shape.line.visible).toBe(false)
+    expect(g.shape.line.visible).toBe(true)
+    expect(g.orbitPosition.orbitPath.centre).toBe(JD_2026)
+    expect(g.shape.line.geometry.attributes.position.array).toEqual(before)
     budget(anim, Infinity)
     anim.animateAtJD(g.root, JD_2026 + 1000)
-    anim.animateAtJD(g.root, JD_2026 + 1000)
     expect(g.shape.line.visible).toBe(true)
+    expect(g.orbitPosition.orbitPath.centre).toBe(JD_2026 + 1000)
     expect(offLine(g)).toBeLessThan(TOLERANCE)
   })
 
@@ -280,6 +285,281 @@ describe('orbit lines follow the computed paths', () => {
     expect(calls).toBe(1 + 3 + JUPITER_SATURN_SAMPLES)
     expect(anim.orbitPaths.lastBuildMs).toBeGreaterThan(0)
     expect(g.shape.line.visible).toBe(true)
+  })
+})
+
+
+// What a VSOP87C call costs in Chromium (and bun), ms, and what the pump's
+// every clock reading adds: the paced clock below makes the per-frame
+// budgets deterministic.
+const VSOP_CALL_MS = 2
+const CLOCK_TICK_MS = 0.05
+const DAYS_PER_YEAR = 365.25
+
+
+/**
+ * An Animation whose orbit-line pump runs on a clock that VSOP87C calls
+ * advance by their real cost, with the app's own budgets.
+ *
+ * @param {object} time newTime
+ * @returns {Animation}
+ */
+function pacedAnimation(time) {
+  let ms = 0
+  const anim = new Animation(time, (jd) => {
+    ms += VSOP_CALL_MS
+    return vsop87c(jd)
+  })
+  anim.orbitPaths.clock = () => {
+    ms += CLOCK_TICK_MS
+    return ms
+  }
+  return anim
+}
+
+
+/**
+ * One frame at a date, as Animation.animate runs it.
+ *
+ * @param {Animation} anim
+ * @param {object} time newTime
+ * @param {Object3D} root
+ * @param {number} jd
+ */
+function frame(anim, time, root, jd) {
+  time.jd = jd
+  anim.animateAtJD(root, jd)
+}
+
+
+/**
+ * Watches an orbit line frame by frame: once drawn it must stay drawn, and
+ * its vertices may change only when a rebuild completes (a new centre),
+ * never part-way through one.
+ *
+ * @param {string} name
+ * @param {object} g orbitGraph
+ * @returns {object} with check(label) to call after each frame
+ */
+function lineWatch(name, g) {
+  const line = g.shape.line
+  const xyz = line.geometry.attributes.position.array
+  const w = {name, g, shown: false, builds: 0, centre: null, last: Float32Array.from(xyz)}
+  w.check = (label) => {
+    const path = g.orbitPosition.orbitPath
+    const centre = path ? path.centre : null
+    const rebuilt = centre !== w.centre
+    let changed = false
+    for (let j = 0; j < xyz.length && !changed; j++) {
+      changed = xyz[j] !== w.last[j]
+    }
+    expect(`${name} ${label}: vertices ${changed ? 'changed' : 'kept'}`)
+        .toBe(`${name} ${label}: vertices ${changed && !rebuilt ? 'kept' : (changed ? 'changed' : 'kept')}`)
+    if (rebuilt) {
+      w.builds++
+      w.centre = centre
+      w.last.set(xyz)
+    }
+    if (w.shown) {
+      expect(`${name} ${label}: ${line.visible ? 'drawn' : 'hidden'}`).toBe(`${name} ${label}: drawn`)
+    }
+    w.shown = w.shown || line.visible
+  }
+  return w
+}
+
+
+/**
+ * @param {object} g orbitGraph
+ * @returns {boolean} whether its line has been built
+ */
+function built(g) {
+  const path = g.orbitPosition.orbitPath
+  return Boolean(path) && path.centre !== null
+}
+
+
+describe('orbit lines under high time rates and jumps', () => {
+  it('keeps Mercury\'s line drawn at 30 days a frame, swapping in whole rebuilds', () => {
+    const time = newTime()
+    const anim = pacedAnimation(time)
+    const g = orbitGraph('mercury', mercury)
+    const w = lineWatch('mercury', g)
+    let jd = JD_2026
+    for (let i = 0; i < 20 && !built(g); i++) {
+      frame(anim, time, g.root, jd)
+      w.check(`start ${i}`)
+    }
+    expect(g.shape.line.visible).toBe(true)
+    const frames = 200
+    for (let i = 0; i < frames; i++) {
+      jd += 30
+      frame(anim, time, g.root, jd)
+      w.check(`frame ${i}`)
+    }
+    // It keeps up: a rebuild every few frames, each for a recent date.
+    expect(w.builds).toBeGreaterThan(frames / 8)
+    expect(jd - g.orbitPosition.orbitPath.centre).toBeLessThan(30 * 10)
+    // Standing still, it catches up (on the steady budget: the last line
+    // still holds the body), and holds the body.
+    for (let i = 0; i < 30 && g.orbitPosition.orbitPath.centre !== jd; i++) {
+      frame(anim, time, g.root, jd)
+      w.check(`still ${i}`)
+    }
+    expect(g.orbitPosition.orbitPath.centre).toBe(jd)
+    expect(offLine(g)).toBeLessThan(TOLERANCE)
+  })
+
+
+  it('keeps the lines drawn at a year a frame, and rebuilds them all in turn', () => {
+    const time = newTime()
+    const anim = pacedAnimation(time)
+    const root = new Object3D
+    // The cheapest and the dearest rebuilds (Neptune's is ~110 VSOP87
+    // calls), and the Moon's, which has none.
+    const watches = Object.entries({mercury, earth, jupiter, neptune, moon}).map(([name, props]) => {
+      const g = orbitGraph(name, props)
+      root.add(g.root)
+      return lineWatch(name, g)
+    })
+    let jd = JD_2026
+    const checkAll = (label) => watches.forEach((w) => w.check(label))
+    for (let i = 0; i < 200 && !watches.every((w) => built(w.g)); i++) {
+      frame(anim, time, root, jd)
+      checkAll(`start ${i}`)
+    }
+    expect(watches.every((w) => built(w.g) && w.g.shape.line.visible)).toBe(true)
+    // The rebuilds take turns: at 6 VSOP87 calls a frame, the five take
+    // ~60 frames between them (Neptune's alone ~20).  None starves.
+    const frames = 150
+    const maxAge = 80
+    const builds = watches.map((w) => w.builds)
+    const lastBuilt = watches.map(() => 0)
+    for (let i = 0; i < frames; i++) {
+      jd += DAYS_PER_YEAR
+      frame(anim, time, root, jd)
+      checkAll(`frame ${i}`)
+      watches.forEach((w, k) => {
+        if (w.builds !== builds[k]) {
+          builds[k] = w.builds
+          lastBuilt[k] = i
+        }
+        expect(`${w.name} frame ${i}: built ${i - lastBuilt[k] <= maxAge ? 'lately' : 'long ago'}`)
+            .toBe(`${w.name} frame ${i}: built lately`)
+      })
+    }
+    const caughtUp = () => watches.every((w) => w.g.orbitPosition.orbitPath.centre === jd)
+    for (let i = 0; i < 200 && !caughtUp(); i++) {
+      frame(anim, time, root, jd)
+      checkAll(`still ${i}`)
+    }
+    for (const w of watches) {
+      expect(`${w.name} ${w.g.orbitPosition.orbitPath.centre}`).toBe(`${w.name} ${jd}`)
+      expect(offLine(w.g)).toBeLessThan(TOLERANCE)
+    }
+  })
+
+
+  it('keeps Earth\'s old line through a jump of millennia, then swaps in the new one', () => {
+    const time = newTime()
+    const anim = pacedAnimation(time)
+    const g = orbitGraph('earth', earth)
+    const w = lineWatch('earth', g)
+    for (let i = 0; i < 20 && !built(g); i++) {
+      frame(anim, time, g.root, JD_2026)
+      w.check(`start ${i}`)
+    }
+    // Two jumps a frame apart: the second retargets the rebuild.
+    const jumps = [JD_2026 + (3000 * DAYS_PER_YEAR), JD_2026 - (3000 * DAYS_PER_YEAR)]
+    frame(anim, time, g.root, jumps[0])
+    w.check('jump 0')
+    frame(anim, time, g.root, jumps[1])
+    w.check('jump 1')
+    let i = 0
+    for (; i < 20 && g.orbitPosition.orbitPath.centre !== jumps[1]; i++) {
+      frame(anim, time, g.root, jumps[1])
+      w.check(`after ${i}`)
+    }
+    expect(g.orbitPosition.orbitPath.centre).toBe(jumps[1])
+    // Within a few frames of the catch-up budget.
+    expect(i).toBeLessThan(8)
+    expect(offLine(g)).toBeLessThan(TOLERANCE)
+  })
+})
+
+
+describe('orbit lines refuse non-finite dates and samples', () => {
+  /**
+   * @param {function(number, Vector3): Vector3} positionAt
+   * @returns {{path: OrbitPath, xyz: Float32Array}}
+   */
+  function moonLikePath(positionAt) {
+    const shape = Planet.prototype.newOrbit.call(null, {}, reified(moon))
+    const path = new OrbitPath(shape.line, {positionAt, periodDays: 27.3})
+    return {path, xyz: shape.line.geometry.attributes.position.array}
+  }
+  const circle = (jd, target) => target.set(Math.cos(jd), 0, Math.sin(jd)).multiplyScalar(4e8)
+
+
+  it('ignores a request for a non-finite date', () => {
+    const {path} = moonLikePath(circle)
+    const paths = new OrbitPaths
+    for (const jd of [NaN, Infinity, -Infinity]) {
+      paths.request(path, jd)
+    }
+    expect(paths.queue.length).toBe(0)
+    paths.request(path, JD_2026)
+    paths.request(path, NaN)
+    expect(path.pendingJd).toBe(JD_2026)
+  })
+
+
+  it('builds nothing for a non-finite date', () => {
+    const {path, xyz} = moonLikePath(circle)
+    const before = Float32Array.from(xyz)
+    for (const jd of [NaN, Infinity]) {
+      expect([...path.build(jd)].length).toBe(0)
+    }
+    expect(path.centre).toBeNull()
+    expect(xyz).toEqual(before)
+  })
+
+
+  it('keeps the last line when the ephemeris gives a non-finite sample', () => {
+    let bad = false
+    const {path, xyz} = moonLikePath((jd, target) => (bad ? target.set(NaN, 0, 0) : circle(jd, target)))
+    const paths = new OrbitPaths
+    paths.request(path, JD_2026)
+    paths.pump(Infinity)
+    expect(path.centre).toBe(JD_2026)
+    expect(path.line.visible).toBe(true)
+    const good = Float32Array.from(xyz)
+    bad = true
+    paths.request(path, JD_2026 + 100)
+    paths.pump(Infinity)
+    expect(path.centre).toBe(JD_2026)
+    expect(path.line.visible).toBe(true)
+    expect(xyz).toEqual(good)
+  })
+
+
+  it('leaves the bodies and lines where they were for a non-finite date', () => {
+    const time = newTime()
+    time.updateTime = () => {}
+    const anim = new Animation(time, vsop87c)
+    budget(anim, Infinity)
+    const g = orbitGraph('mars', mars)
+    anim.animateAtJD(g.root, JD_2026)
+    const position = g.orbitPosition.position.clone()
+    const xyz = Float32Array.from(g.shape.line.geometry.attributes.position.array)
+    for (const jd of [NaN, Infinity, -Infinity]) {
+      time.jd = jd
+      anim.animateAtJD(g.root, jd)
+      anim.animate(g.root)
+    }
+    expect(g.orbitPosition.position).toEqual(position)
+    expect(g.orbitPosition.orbitPath.centre).toBe(JD_2026)
+    expect(g.shape.line.geometry.attributes.position.array).toEqual(xyz)
   })
 })
 

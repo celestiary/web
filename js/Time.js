@@ -1,4 +1,8 @@
 /**
+ * The simulation clock.  Its date stays within the supported range,
+ * MIN_SIM_TIME_MS to MAX_SIM_TIME_MS (J2000 ± SUPPORTED_YEARS_FROM_J2000):
+ * time stops at a bound rather than running on to dates the ephemerides
+ * can't evaluate.
  */
 export default class Time {
   /**
@@ -20,6 +24,8 @@ export default class Time {
     this.lastUpdate = now
     this.simTime = now
     this.simTimeElapsed = 0
+    /** Whether the date is held at a bound of the supported range. */
+    this.atLimit = false
     this.setTimeStr = setTimeStr
     this.setTimeStr(timeToDateStr(this.simTime))
     this.isPaused = false
@@ -41,7 +47,7 @@ export default class Time {
     if (this.isPaused) {
       return
     }
-    this.simTime += timeDelta * this.timeScale
+    this._setSimTime(this.simTime + (timeDelta * this.timeScale))
     this.simTimeElapsed = this.simTime - this.startTime
     // console.log(`timeDelta: ${timeDelta}, sysTime: ${this.sysTime}, simTime: ${this.simTime}`
     //    + `simTimeSecs: ${this.simTimeSecs}, simTimeElapsed: ${this.simTimeElapsed}`);
@@ -49,9 +55,25 @@ export default class Time {
   }
 
 
-  /** @param {number} unixTime In seconds */
+  /**
+   * Set the date, clamped to the supported range, and show it (paused
+   * too).  A NaN is ignored.
+   *
+   * @param {number} unixTime Unix epoch milliseconds
+   */
   setTime(unixTime) {
-    this.simTime = unixTime
+    this._setSimTime(unixTime)
+    this.setTimeStr(timeToDateStr(this.simTime))
+  }
+
+
+  /** @param {number} ms Unix epoch milliseconds, clamped; NaN is ignored */
+  _setSimTime(ms) {
+    if (Number.isNaN(ms)) {
+      return
+    }
+    this.simTime = clampSimTime(ms)
+    this.atLimit = !(ms > MIN_SIM_TIME_MS && ms < MAX_SIM_TIME_MS)
   }
 
 
@@ -72,7 +94,7 @@ export default class Time {
     if (delta === 0) {
       this.timeScaleSteps = 0
     } else {
-      this.timeScaleSteps += delta
+      this.timeScaleSteps = Math.min(Math.max(this.timeScaleSteps + delta, -MAX_TIME_SCALE_STEPS), MAX_TIME_SCALE_STEPS)
     }
     this.timeScale = (this.timeScaleSteps < 0 ? -1 : 1) * Math.pow(2, Math.abs(this.timeScaleSteps))
   }
@@ -140,6 +162,54 @@ const daysJulianToUnix = 2440587.5
 const millisPerSec = 1000
 const secsPerDay = 86400
 const millisPerDay = millisPerSec * secsPerDay
+
+
+/**
+ * The simulation's dates are J2000 ± this many Julian years, JD 260045 to
+ * 4643045: 17 Nov −4001 (4002 BC, proleptic Gregorian, as Date counts) to
+ * 15 Feb 8000.  The ephemerides are series in powers of time from J2000, and
+ * degrade away from it:
+ * - VSOP87C (the full series, not truncated) is documented to 1″ over
+ *   ±4000 years for Mercury to Mars, ±2000 for Jupiter and Saturn and
+ *   ±6000 for Uranus and Neptune.  Evaluated further out it stays
+ *   plausible to about ±8000 years (Jupiter's distance first leaves its
+ *   4.95–5.46 AU there), is wrong by ±20,000 (Jupiter at 7.6 AU), and at
+ *   ±100,000 puts the planets thousands of AU out: light-year-sized orbits.
+ * - The Moon's series (Meeus 47), the IAU 1976 precession, the ΔT
+ *   polynomials and the mean elements' rates are fitted over centuries to
+ *   a few millennia.
+ * A JS Date ends at ±8.64e15 ms (±275,000 years), past which the readout
+ * shows NaN.
+ */
+export const SUPPORTED_YEARS_FROM_J2000 = 6000
+
+/** SUPPORTED_YEARS_FROM_J2000 in days, for Julian Day offsets. */
+export const SUPPORTED_DAYS_FROM_J2000 = SUPPORTED_YEARS_FROM_J2000 * 365.25
+
+// J2000.0, 2000-01-01 12:00 UTC (the clock is UTC; TT is 64 s ahead).
+const J2000_UNIX_MS = 946728000000
+
+/** The earliest simulation date, Unix epoch milliseconds. */
+export const MIN_SIM_TIME_MS = J2000_UNIX_MS - (SUPPORTED_DAYS_FROM_J2000 * millisPerDay)
+
+/** The latest, Unix epoch milliseconds. */
+export const MAX_SIM_TIME_MS = J2000_UNIX_MS + (SUPPORTED_DAYS_FROM_J2000 * millisPerDay)
+
+/**
+ * The time rate is 2^steps; this many steps is ~35,000 years a second,
+ * across the whole range in a third of a second.  Unbounded, 2^1024 is
+ * Infinity, and Infinity × a zero frame delta is NaN.
+ */
+export const MAX_TIME_SCALE_STEPS = 40
+
+
+/**
+ * @param {number} ms Unix epoch milliseconds
+ * @returns {number} ms within [MIN_SIM_TIME_MS, MAX_SIM_TIME_MS]; NaN stays NaN
+ */
+export function clampSimTime(ms) {
+  return Math.min(Math.max(ms, MIN_SIM_TIME_MS), MAX_SIM_TIME_MS)
+}
 
 
 /**
