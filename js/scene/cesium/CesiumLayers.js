@@ -28,9 +28,9 @@ import {
 import {dataUrl, isAbsoluteUrl} from '../../dataUrl.js'
 import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
-import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
+import {CESIUM_BODIES, cesiumOutput, ionToken, isCesiumBody} from './bodies.js'
 import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
-import {NEUTRAL_INVERSE_GLSL} from '../hdr.js'
+import {NEUTRAL_GLSL, NEUTRAL_INVERSE_GLSL} from '../hdr.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
 
@@ -848,11 +848,22 @@ export default class CesiumLayers {
     scene.screenSpaceCameraController.enableInputs = false
     // Lit by celestiary's Sun, not Cesium's ephemeris: the day/night line
     // then matches celestiary's whatever its sidereal phase.
-    // DISPLAY_GAIN: Earth's globe as bright, relative to its imagery, as
-    // the Moon's and Mars's (sunlitShader) and celestiary's surfaces.
-    scene.light = new Cesium.DirectionalLight({direction: new Cesium.Cartesian3(1, 0, 0), intensity: DISPLAY_GAIN})
+    const albedo = cesiumOutput(name) === 'albedo'
+    // A globe under celestiary's atmosphere draws its imagery lit, stored
+    // value × Lambert, which fits Cesium's 8-bit buffers, and the composite
+    // applies DISPLAY_GAIN (decodeOf).  Drawing its own look, DISPLAY_GAIN
+    // here: as bright, relative to its imagery, as sunlitShader's bodies
+    // and celestiary's surfaces.
+    scene.light = new Cesium.DirectionalLight({
+      direction: new Cesium.Cartesian3(1, 0, 0),
+      intensity: albedo ? 1 : DISPLAY_GAIN,
+    })
     if (scene.globe) {
       scene.globe.enableLighting = true
+      if (albedo) {
+        litSurfaceOnly(scene.globe)
+        scene.fog.enabled = false
+      }
     }
     scene.atmosphere.dynamicLighting = Cesium.DynamicAtmosphereLightingType.SCENE_LIGHT
     if (scene.skyAtmosphere) {
@@ -1066,21 +1077,56 @@ function sunlitShader(Cesium, gain) {
 /**
  * How a body's Cesium frame is brought into _sceneRT (HDR.md, "Cesium in
  * the same units"): a DECODE mode.  Cesium's frames reach celestiary through
- * 8-bit buffers, so they come encoded to fit [0, 1]: as display values, PBR
- * Neutral applied (sunlitShader's Moon and Mars, and Earth's globe while it
- * draws its own atmosphere), which the decode inverts exactly.  In the LDR
- * fallback _sceneRT holds display values too, and they go in as they are.
+ * 8-bit buffers, so they come encoded to fit [0, 1] (bodies.js
+ * cesiumOutput): as display values, PBR Neutral applied (sunlitShader's Moon
+ * and Mars), which the decode inverts exactly, or as albedo × Lambert
+ * (Earth's globe under celestiary's atmosphere), which it scales by
+ * DISPLAY_GAIN.  In the LDR fallback _sceneRT holds display values, and the
+ * decode produces those.
  *
  * @param {string} name
  * @param {boolean} hdr Whether _sceneRT is the linear HDR buffer
  * @returns {number} A DECODE value
  */
 export function decodeOf(name, hdr) {
+  if (cesiumOutput(name) === 'albedo') {
+    return hdr ? DECODE.LINEAR : DECODE.LINEAR_TO_DISPLAY
+  }
   return hdr ? DECODE.NEUTRAL_INVERSE : DECODE.NONE
 }
 
 
-export const DECODE = {NONE: 0, NEUTRAL_INVERSE: 1, LINEAR: 2}
+/**
+ * NONE: display values into the LDR buffer, as they are.  NEUTRAL_INVERSE:
+ * display values into the HDR buffer, PBR Neutral undone.  LINEAR: albedo ×
+ * Lambert into the HDR buffer, × DISPLAY_GAIN.  LINEAR_TO_DISPLAY: the same,
+ * then tone-mapped, into the LDR buffer.
+ */
+export const DECODE = {NONE: 0, NEUTRAL_INVERSE: 1, LINEAR: 2, LINEAR_TO_DISPLAY: 3}
+
+
+/**
+ * Make a Cesium globe draw only its lit surface, as celestiary lights its
+ * own: its imagery's stored values × Lambert (Cesium's defaults add 0.3 and
+ * scale Lambert by 0.9), with no ground atmosphere (celestiary's atmosphere
+ * pass draws it), lit at every distance (Cesium fades day-night shading out
+ * below lightingFadeOutDistance, ~10,000 km from Earth's centre, and with it
+ * the ground atmosphere).  With terrain normals (ion World Terrain) that's
+ * Lambert on the terrain; on the plain ellipsoid, Cesium's day-night shading,
+ * which is steeper than Lambert (5 × Lambert + 0.3, clamped).  No water
+ * effect: its sun glint and sky reflection lit the sunward ocean up to
+ * twice celestiary's (whose ocean shine is its own, Planet.md).
+ *
+ * @param {object} globe Cesium.Globe
+ */
+function litSurfaceOnly(globe) {
+  globe.showGroundAtmosphere = false
+  globe.showWaterEffect = false
+  globe.lambertDiffuseMultiplier = 1
+  globe.vertexShadowDarkness = 0
+  globe.lightingFadeOutDistance = 0
+  globe.lightingFadeInDistance = 1
+}
 
 
 /**
@@ -1106,12 +1152,15 @@ function newDecodeMaterial() {
       uniform float uMode;
       uniform float uLinearScale;
       varying vec2 vUv;
+      ${NEUTRAL_GLSL}
       ${NEUTRAL_INVERSE_GLSL}
       void main() {
         vec4 c = texture2D(tCesium, vUv);
         if (c.a <= 0.0) discard;
         vec3 rgb = c.rgb;
-        if (uMode > ${DECODE.LINEAR - 0.5}) {
+        if (uMode > ${DECODE.LINEAR_TO_DISPLAY - 0.5}) {
+          rgb = neutralToneMap(rgb / c.a * uLinearScale) * c.a;
+        } else if (uMode > ${DECODE.LINEAR - 0.5}) {
           rgb *= uLinearScale;
         } else if (uMode > ${DECODE.NEUTRAL_INVERSE - 0.5}) {
           // Premultiplied: invert the colour, then premultiply again.

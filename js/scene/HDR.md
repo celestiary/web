@@ -213,7 +213,9 @@ units exactly:
   them).  None of that is celestiary's lighting or in its units.  The matching
   path: Cesium draws only the lit surface, `stored × lambert` (its light at
   intensity 1, `lambertDiffuseMultiplier` 1, `vertexShadowDarkness` 0, ground
-  atmosphere and fog off), which is at most 1 for any albedo, and celestiary
+  atmosphere, fog and water effect off: the water effect's glint lit the
+  sunward ocean up to twice celestiary's), which is at most 1 for any albedo,
+  and celestiary
   multiplies by `DISPLAY_GAIN` to reach exposure units.  Earth's sky and
   ground haze then come from celestiary's atmosphere pass, over Cesium's globe
   as over its own, as Mars's already do (`bodies.js` `atmosphere: false`).

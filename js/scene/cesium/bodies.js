@@ -4,13 +4,14 @@
  *
  * `radii` are Cesium's ellipsoid radii [x, y, z] in ECEF (z = polar).  The
  * stencil shell that marks where Cesium's pixels go is this ellipsoid,
- * scaled by `shellScale`: out to Cesium's sky atmosphere for Earth, and just
- * past the highest terrain for airless bodies.
+ * scaled by `shellScale`: out to Cesium's sky atmosphere for a body that draws
+ * it (`atmosphere`), and just past the highest terrain otherwise.
  *
- * `atmosphere`: Cesium draws the body's atmosphere (Earth: its sky and
- * ground atmosphere), so celestiary's atmosphere pass stands down.  When
- * false and the body has an atmosphere in celestiary's data (Mars),
- * celestiary's pass runs over the Cesium layer instead.
+ * `atmosphere`: Cesium draws the body's atmosphere (its sky and ground
+ * atmosphere), so celestiary's atmosphere pass stands down.  When false and
+ * the body has an atmosphere in celestiary's data (Earth, Mars),
+ * celestiary's pass runs over the Cesium layer instead: one atmosphere, in
+ * celestiary's units, on both sides of the swap (js/scene/HDR.md).
  *
  * `ionTileset` bodies are Cesium ion 3D-tiles datasets rendered without
  * Cesium's globe; they need an ion access token, and without one they
@@ -18,11 +19,14 @@
  */
 
 
-/** Cesium's SkyAtmosphere outer shell is the ellipsoid scaled by 1.025. */
+/**
+ * Cesium's SkyAtmosphere outer shell is the ellipsoid scaled by 1.025: the
+ * shell for a body with `atmosphere: true`.
+ */
 export const ATMOSPHERE_SHELL_SCALE = 1.025
 
 
-// Airless bodies: 1% of radius clears the Moon's highlands (~11 km) and
+// Past the terrain: 1% of radius clears Everest (~9 km), the Moon's highlands (~11 km) and
 // Olympus Mons (~22 km above Mars's datum).
 const TERRAIN_SHELL_SCALE = 1.01
 
@@ -30,8 +34,9 @@ export const CESIUM_BODIES = {
   earth: {
     ellipsoid: 'WGS84',
     radii: [6378137, 6378137, 6356752.314245179],
-    atmosphere: true,
-    shellScale: ATMOSPHERE_SHELL_SCALE,
+    // Celestiary's atmosphere pass, over Cesium's lit surface (cesiumOutput).
+    atmosphere: false,
+    shellScale: TERRAIN_SHELL_SCALE,
     // The globe's base imagery, the simulation date's month: tiles cut from
     // the Blue Marble mosaics celestiary's own Earth texture is from
     // (earth.json texture_monthly), so the two match across the swap.
@@ -70,6 +75,25 @@ export const CESIUM_BODIES = {
     // Cesium Mars (ion).
     ionTileset: 3644333,
   },
+}
+
+
+/**
+ * What a body's Cesium frame holds, for CesiumLayers to bring into its
+ * scene buffer (js/scene/HDR.md, "Cesium in the same units"):
+ *
+ * - 'display': display values, PBR Neutral applied.  The ion tilesets (Moon,
+ *   Mars), lit by sunlitShader, and a globe that draws its own atmosphere
+ *   (Cesium's own look).
+ * - 'albedo': a globe under celestiary's atmosphere (Earth): lit imagery,
+ *   stored value × Lambert, which is at most 1, before DISPLAY_GAIN.
+ *
+ * @param {string} name
+ * @returns {string} 'display' or 'albedo'
+ */
+export function cesiumOutput(name) {
+  const config = CESIUM_BODIES[name]
+  return config && !config.ionTileset && !config.atmosphere ? 'albedo' : 'display'
 }
 
 

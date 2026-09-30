@@ -1,5 +1,6 @@
 import {LOD, Object3D} from 'three'
-import CesiumLayers, {meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
+import CesiumLayers, {DECODE, decodeOf, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
+import {CESIUM_BODIES} from './bodies.js'
 
 
 describe('meshRange', () => {
@@ -89,11 +90,33 @@ describe('crossfade', () => {
     const mars = {}
     L.bodies.earth = {fadeStart: 500}
     L.bodies.mars = {fadeStart: 500}
+    const drawsItsOwn = CESIUM_BODIES.earth.atmosphere
+    try {
+      // No body draws Cesium's atmosphere now (HDR.md); as if Earth did.
+      CESIUM_BODIES.earth.atmosphere = true
+      expect(L.atmosphereShare(earth)).toBe(0)
+      L.active = [{name: 'earth', node: earth}, {name: 'mars', node: mars}]
+      expect(L.atmosphereShare(earth)).toBe(0.5)
+      expect(L.atmosphereShare(mars)).toBe(0)
+      expect(L.atmosphereShare(null)).toBe(0)
+    } finally {
+      CESIUM_BODIES.earth.atmosphere = drawsItsOwn
+    }
     expect(L.atmosphereShare(earth)).toBe(0)
-    L.active = [{name: 'earth', node: earth}, {name: 'mars', node: mars}]
-    expect(L.atmosphereShare(earth)).toBe(0.5)
-    expect(L.atmosphereShare(mars)).toBe(0)
-    expect(L.atmosphereShare(null)).toBe(0)
+  })
+})
+
+
+describe('decodeOf', () => {
+  it('inverts the tone map for display values, scales albedo, into the HDR buffer', () => {
+    expect(decodeOf('moon', true)).toBe(DECODE.NEUTRAL_INVERSE)
+    expect(decodeOf('mars', true)).toBe(DECODE.NEUTRAL_INVERSE)
+    expect(decodeOf('earth', true)).toBe(DECODE.LINEAR)
+  })
+
+  it('hands the LDR buffer display values', () => {
+    expect(decodeOf('moon', false)).toBe(DECODE.NONE)
+    expect(decodeOf('earth', false)).toBe(DECODE.LINEAR_TO_DISPLAY)
   })
 })
 
