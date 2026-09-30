@@ -10,6 +10,7 @@ import {
 import {galacticToSceneMatrix, SUN_GALACTIC_RADIUS_LY} from './galacticFrame.js'
 import {pathTexture} from './material.js'
 import {LIGHTYEAR_METER} from '../shared.js'
+import {rteCameraLocal} from './rte.js'
 
 
 // Sun's distance from the galactic centre (Sgr A*) is ~26 kLY.  We park the
@@ -74,9 +75,9 @@ const LOCAL_CATALOG_HOLE_M = 1500 * LIGHTYEAR_METER
  *     Z=-ecl-Y); shared with StarsCatalog so the local Hipparcos slab
  *     and the procedural disk render in the same sky orientation.
  *
- * Sampling pipeline per particle (all baked into the position buffer in JS,
- * because the RTE shader uses `mat3(viewMatrix)` and bypasses the model
- * matrix — a points.matrix rotation would never reach the GPU):
+ * Sampling pipeline per particle (baked into the position buffer in JS; the
+ * only model rotation is the StellarFrame's J2000 → date precession above
+ * it, which the RTE shader applies with `mat3(modelViewMatrix)`):
  *   p_D = sample(D)
  *   p_F = R_Y(π + sunArmAngle) · p_D + (R_sun, 0, 0)   // sun → origin
  *   p_scene = M_F→scene · p_F                          // tilt to galactic plane
@@ -210,32 +211,19 @@ export default function newMilkyWay() {
   const points = new Points(geom, mat)
   points.name = 'MilkyWay'
   // Local transform stays identity — the disk-D → F → scene rotation chain
-  // is baked into the position buffer above (the RTE shader uses
-  // mat3(viewMatrix), so a points.matrix rotation would never reach the GPU).
-  // Galaxy sits on top of any rebase the worldGroup applies; positions are
-  // already in world coords, so identity local transform.
+  // is baked into the position buffer above, in the J2000 catalogue frame.
+  // The parent StellarFrame precesses it to the date, and the worldGroup
+  // rebases it; the RTE shader takes both from the model matrix.
   // Auto-computed bounding sphere is correct but huge — leave frustum
   // culling enabled.
   // RenderOrder < 0 so the additive cloud composites cleanly behind the
   // local star particles (which default to renderOrder 0).
   points.renderOrder = -2
 
-  // Drive the RTE camera-position uniforms each frame, mirroring Stars.js.
-  // worldGroup may translate during star navigation; subtract its position so
-  // the residual is in galaxy-local frame (= world frame for this object,
-  // since the galaxy itself sits in worldGroup with identity local).
-  const rtePos = new Vector3()
+  // Drive the RTE camera-position uniforms each frame, mirroring Stars.js:
+  // the camera in this object's local frame (see rte.js).
   points.onBeforeRender = (renderer, scene, camera) => {
-    camera.getWorldPosition(rtePos)
-    const wg = scene.getObjectByName('WorldGroup')
-    if (wg) {
-      rtePos.sub(wg.position)
-    }
-    const hx = Math.fround(rtePos.x)
-    const hy = Math.fround(rtePos.y)
-    const hz = Math.fround(rtePos.z)
-    mat.uniforms.uCamPosWorldHigh.value.set(hx, hy, hz)
-    mat.uniforms.uCamPosWorldLow.value.set(rtePos.x - hx, rtePos.y - hy, rtePos.z - hz)
+    rteCameraLocal(points, camera, mat.uniforms.uCamPosWorldHigh.value, mat.uniforms.uCamPosWorldLow.value)
   }
 
   return points
@@ -416,7 +404,7 @@ void main() {
   vec3 highDiff = position    - uCamPosWorldHigh;
   vec3 lowDiff  = positionLow - uCamPosWorldLow;
   vec3 eyePos   = highDiff + lowDiff;
-  vec4 mvPosition = vec4(mat3(viewMatrix) * eyePos, 1.0);
+  vec4 mvPosition = vec4(mat3(modelViewMatrix) * eyePos, 1.0);
   // Per-particle pixel size: the JS-side sampler hands out a mix of small
   // background dots (1–2 px), medium stars (2.5–4 px), and bright cluster
   // clumps (5–7 px).  Constant in screen space (no 1/dist) so close-by

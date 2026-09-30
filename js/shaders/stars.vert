@@ -6,7 +6,8 @@ uniform float MIN_STAR_SIZE_PX;
 uniform float MAX_STAR_SIZE_PX;
 uniform float STAR_MAGNIFY;
 uniform float STAR_MAGNIFY_2;
-// RTE (Relative-To-Eye): camera position in star catalog coordinates, split into
+// RTE (Relative-To-Eye): camera position in star catalog coordinates (the
+// Points' local frame, J2000; see rte.js), split into
 // high (Math.fround) and low (residual) parts.  Together they carry full float64
 // precision so that (position - camera) is computed without subtractive cancellation
 // even at light-year distances.
@@ -31,13 +32,13 @@ void main() {
 
   // RTE: compute star position relative to camera eye in catalog space.
   // highDiff and lowDiff have matched magnitudes so float32 arithmetic is exact.
-  // Stars carry no model rotation (WorldGroup is translation-only), so we apply
-  // only view rotation via mat3(viewMatrix), bypassing the translation that
-  // modelViewMatrix would add (already handled above).
+  // Then rotate only: mat3(modelViewMatrix) is the model's rotation (the
+  // StellarFrame's J2000 -> date precession) and the view's, without the
+  // translation, which the camera uniforms already carry.
   vec3 highDiff = position - uCamPosWorldHigh;
   vec3 lowDiff = positionLow - uCamPosWorldLow;
   vec3 eyePos = highDiff + lowDiff;
-  vec4 mvPosition = vec4(mat3(viewMatrix) * eyePos, 1.);
+  vec4 mvPosition = vec4(mat3(modelViewMatrix) * eyePos, 1.);
   float dist = -mvPosition.z;
   float distSq = dist * dist;
 
