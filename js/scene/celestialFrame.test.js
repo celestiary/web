@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import {Matrix4, Vector3} from 'three'
-import {gmstRad, J2000_JD} from './celestialFrame.js'
+import {gmstRad, J2000_JD, ttMinusUtcSeconds, utcToTtJulianDay} from './celestialFrame.js'
 
 
 // Conversion helpers — kept local so the test independently re-derives any
@@ -184,5 +184,29 @@ describe('Earth orientation chain (tilt + spin)', () => {
     const ncp = new Vector3(0, Math.cos(eps), -Math.sin(eps))
     const angleDeg = Math.acos(Math.min(1, oldPole.dot(ncp))) * toDeg
     expect(angleDeg).toBeGreaterThan(20) // ≈ 2ε, well clear of 0
+  })
+})
+
+
+describe('ttMinusUtcSeconds', () => {
+  it('is 32.184 s + the leap seconds since 1972', () => {
+    // 2000-01-01: TAI − UTC = 32 s.  2026: 37 s (since 2017-01-01).
+    expect(ttMinusUtcSeconds(2451544.5)).toBeCloseTo(64.184, 6)
+    expect(ttMinusUtcSeconds(2461313.1)).toBeCloseTo(69.184, 6)
+    // 1980-06-01: 19 s.
+    expect(ttMinusUtcSeconds(2444391.5)).toBeCloseTo(51.184, 6)
+  })
+
+
+  it('falls back to the long-term ΔT parabola before 1972', () => {
+    // 1900: −20 + 32·0.8² = 0.48 s (observed ΔT was about −3 s).
+    const dt = ttMinusUtcSeconds(2415020.5)
+    expect(dt).toBeGreaterThan(-5)
+    expect(dt).toBeLessThan(5)
+  })
+
+
+  it('utcToTtJulianDay adds it in days', () => {
+    expect((utcToTtJulianDay(2461313.1) - 2461313.1) * 86400).toBeCloseTo(69.184, 3)
   })
 })
