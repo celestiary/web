@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import {Object3D, Quaternion, Vector3} from 'three'
+import {Matrix4, Object3D, Quaternion, Vector3} from 'three'
 import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
 import Animation from './Animation.js'
 import Planet from './Planet.js'
@@ -13,6 +13,7 @@ import {
   lagrange4,
   osculatingEllipse,
 } from './orbitPath.js'
+import charon from '../../public/data/charon.json'
 import earth from '../../public/data/earth.json'
 import europa from '../../public/data/europa.json'
 import io from '../../public/data/io.json'
@@ -111,8 +112,20 @@ function orbitGraph(name, props) {
   orbitPosition.orbit = orbit
   orbitPosition.elements = meanElements(orbit)
   orbitPosition.orbitShape = shape
+  // As Planet.load sets it, from the reified radius.
+  orbitPosition.bodyRadius = parseFloat(props.radius)
   orbitPlane.add(orbitPosition)
   return {root, orbitPosition, shape}
+}
+
+
+/**
+ * @param {object} line a three Line
+ * @returns {number} the vertices it draws
+ */
+function drawnCount(line) {
+  const geom = line.geometry
+  return Math.min(geom.drawRange.count, geom.attributes.position.count - geom.drawRange.start)
 }
 
 
@@ -122,15 +135,16 @@ function orbitGraph(name, props) {
  * @param {Vector3} p
  * @param {Float32Array} xyz the line's vertices
  * @param {object} matrix the line's transform to p's frame
+ * @param {number} [count] vertices drawn
  * @returns {number}
  */
-function distanceToLine(p, xyz, matrix) {
+function distanceToLine(p, xyz, matrix, count = xyz.length / 3) {
   const a = new Vector3
   const b = new Vector3
   const ab = new Vector3
   const ap = new Vector3
   let best = Infinity
-  for (let j = 0; j + 5 < xyz.length; j += 3) {
+  for (let j = 0; j + 5 < 3 * count; j += 3) {
     a.fromArray(xyz, j).applyMatrix4(matrix)
     b.fromArray(xyz, j + 3).applyMatrix4(matrix)
     ab.subVectors(b, a)
@@ -153,8 +167,48 @@ function offLine(g) {
   g.shape.line.updateMatrix()
   const matrix = g.shape.matrix.clone().multiply(g.shape.line.matrix)
   const xyz = g.shape.line.geometry.attributes.position.array
-  return distanceToLine(g.orbitPosition.position, xyz, matrix) / g.orbitPosition.orbit.semiMajorAxis.scalar
+  return distanceToLine(g.orbitPosition.position, xyz, matrix, drawnCount(g.shape.line)) /
+    g.orbitPosition.orbit.semiMajorAxis.scalar
 }
+
+
+/**
+ * How far the body's centre is from its orbit line as the GPU draws it,
+ * relative to the body's radius: the camera at the body's centre, the
+ * model-view matrix rounded to float32 as it's uploaded, and each vertex
+ * (float32, as stored) taken through it in float32, as a vertex shader
+ * does.  What the eye sees close up.
+ *
+ * @param {object} g orbitGraph
+ * @returns {number}
+ */
+function renderedMiss(g) {
+  const {shape, orbitPosition} = g
+  const line = shape.line
+  shape.updateMatrix()
+  line.updateMatrix()
+  const p = orbitPosition.position
+  const mv = new Matrix4().makeTranslation(-p.x, -p.y, -p.z).multiply(shape.matrix).multiply(line.matrix)
+  const m = mv.elements.map(Math.fround)
+  const f = Math.fround
+  const xyz = line.geometry.attributes.position.array
+  const count = drawnCount(line)
+  const view = new Float64Array(3 * count)
+  for (let j = 0; j < count; j++) {
+    const x = xyz[3 * j]
+    const y = xyz[(3 * j) + 1]
+    const z = xyz[(3 * j) + 2]
+    for (let r = 0; r < 3; r++) {
+      view[(3 * j) + r] = f(f(f(f(m[r] * x) + f(m[4 + r] * y)) + f(m[8 + r] * z)) + m[12 + r])
+    }
+  }
+  return distanceToLine(new Vector3, view, new Matrix4, count) / orbitPosition.bodyRadius
+}
+
+
+// The body's centre within this many of its radii of its line as drawn:
+// sub-pixel with the body filling the screen.
+const RENDERED_TOLERANCE = 1e-3
 
 
 describe('orbitPath helpers', () => {
@@ -234,12 +288,13 @@ describe('orbit lines follow the computed paths', () => {
     const g = orbitGraph('mars', mars)
     anim.animateAtJD(g.root, JD_2026)
     expect(g.shape.line.visible).toBe(true)
-    const before = Float32Array.from(g.shape.line.geometry.attributes.position.array)
+    const coarse = g.orbitPosition.orbitPath.drawn.coarse
+    const before = Float64Array.from(coarse)
     budget(anim, 0)
     anim.animateAtJD(g.root, JD_2026 + 1000)
     expect(g.shape.line.visible).toBe(true)
     expect(g.orbitPosition.orbitPath.centre).toBe(JD_2026)
-    expect(g.shape.line.geometry.attributes.position.array).toEqual(before)
+    expect(coarse).toEqual(before)
     budget(anim, Infinity)
     anim.animateAtJD(g.root, JD_2026 + 1000)
     expect(g.shape.line.visible).toBe(true)
@@ -334,8 +389,9 @@ function frame(anim, time, root, jd) {
 
 /**
  * Watches an orbit line frame by frame: once drawn it must stay drawn, and
- * its vertices may change only when a rebuild completes (a new centre),
- * never part-way through one.
+ * its path (the coarse line; the fine arc around the body is redrawn as
+ * the body moves) may change only when a rebuild completes (a new
+ * centre), never part-way through one.
  *
  * @param {string} name
  * @param {object} g orbitGraph
@@ -343,22 +399,26 @@ function frame(anim, time, root, jd) {
  */
 function lineWatch(name, g) {
   const line = g.shape.line
-  const xyz = line.geometry.attributes.position.array
-  const w = {name, g, shown: false, builds: 0, centre: null, last: Float32Array.from(xyz)}
+  const w = {name, g, shown: false, builds: 0, centre: null, last: null}
   w.check = (label) => {
     const path = g.orbitPosition.orbitPath
     const centre = path ? path.centre : null
     const rebuilt = centre !== w.centre
+    const xyz = path ? path.drawn.coarse : null
     let changed = false
-    for (let j = 0; j < xyz.length && !changed; j++) {
-      changed = xyz[j] !== w.last[j]
+    if (xyz && w.last) {
+      for (let j = 0; j < xyz.length && !changed; j++) {
+        changed = xyz[j] !== w.last[j]
+      }
+    } else if (xyz) {
+      w.last = Float64Array.from(xyz)
     }
     expect(`${name} ${label}: vertices ${changed ? 'changed' : 'kept'}`)
         .toBe(`${name} ${label}: vertices ${changed && !rebuilt ? 'kept' : (changed ? 'changed' : 'kept')}`)
     if (rebuilt) {
       w.builds++
       w.centre = centre
-      w.last.set(xyz)
+      w.last = Float64Array.from(xyz)
     }
     if (w.shown) {
       expect(`${name} ${label}: ${line.visible ? 'drawn' : 'hidden'}`).toBe(`${name} ${label}: drawn`)
@@ -561,6 +621,36 @@ describe('orbit lines refuse non-finite dates and samples', () => {
     expect(g.orbitPosition.orbitPath.centre).toBe(JD_2026)
     expect(g.shape.line.geometry.attributes.position.array).toEqual(xyz)
   })
+})
+
+
+describe('orbit lines pass through their bodies\' centres, as rendered', () => {
+  const bodies = {...PLANETS, moon, pluto, charon, io, titan, phobos}
+  for (const [name, props] of Object.entries(bodies)) {
+    it(`draws ${name}'s line through its centre, after a rebuild and across the window`, () => {
+      const time = newTime()
+      const anim = new Animation(time, vsop87c)
+      budget(anim, Infinity)
+      const g = orbitGraph(name, props)
+      const periodDays = props.orbit.siderealOrbitPeriod / SECONDS_PER_DAY
+      for (const jd of DATES) {
+        time.jd = jd
+        anim.animateAtJD(g.root, jd)
+        const misses = [renderedMiss(g)]
+        budget(anim, 0)
+        for (const f of [REBUILD_FRACTION * 0.537, 0.0123, 0.2331, -0.3117, 0.4893]) {
+          const later = jd + (f * periodDays)
+          time.jd = later
+          anim.animateAtJD(g.root, later)
+          misses.push(renderedMiss(g))
+        }
+        budget(anim, Infinity)
+        const worst = Math.max(...misses)
+        expect(`${name} at ${jd}: ${worst < RENDERED_TOLERANCE ? 'through' : `${worst.toPrecision(3)} radii off`}`)
+            .toBe(`${name} at ${jd}: through`)
+      }
+    })
+  }
 })
 
 

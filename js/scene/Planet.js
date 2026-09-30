@@ -90,6 +90,9 @@ export default class Planet extends Object {
     orbitPosition.elements = meanElements(this.props.orbit)
     // For bodies whose orbit line Animation re-lays each frame.
     orbitPosition.orbitShape = orbitShape
+    // Close up, the line is drawn through the body's centre to a small
+    // fraction of this (bodyLine.js).
+    orbitPosition.bodyRadius = this.props.radius.scalar
 
     const planetTilt = this.scene.newGroup(`${this.name}.planetTilt`)
     orbitPosition.add(planetTilt)

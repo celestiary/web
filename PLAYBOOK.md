@@ -245,6 +245,21 @@ any "restart on new input" needs a progress guarantee (here: restart at
 most once), or fast input starves it.  Test it with a deterministic clock
 paced by the real cost of the work, at the rates users will reach.
 
+### Test in the units the eye sees
+
+The orbit-line test allowed the body 1e-5 of the orbit's size off its
+line, and passed; close up, Neptune's line ran near its limb and Pluto's
+was 24 radii away.  1e-5 of 6e12 m is 60,000 km.  The error that mattered
+was relative to the body (and the view), and it had two causes a
+float64 test couldn't see alone: chord sag, and float32 on the GPU.  A
+test that emulates the render (float32 vertices through a float32
+model-view, camera at the body) and bounds the miss in body radii failed
+on every planet and on Pluto at once.
+
+**Rule:** state a visual tolerance in what's on screen (pixels, or the
+size of the thing looked at), and compute the check the way the GPU does,
+float32 included.
+
 ### Clamp a model's inputs to where it is valid, at the source
 
 Pressing "faster" long enough took the date a million years out, where

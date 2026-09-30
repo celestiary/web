@@ -267,6 +267,45 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
   the lines take turns, each at most a couple of rebuilds behind the
   date (`orbitPath.test.js`, *high time rates and jumps*, with a clock
   paced by VSOP87C's real cost).
+- **Through the body's centre, close up** (`js/scene/bodyLine.js`,
+  `BodyLine`). Within 1e-3 of the body's radius as the GPU draws it
+  (`orbitPath.test.js`, *as rendered*: float32 vertices through a float32
+  model-view with the camera at the body), for the planets, the Moon,
+  Pluto and the mean-element moons. Two things kept the lines off by up
+  to 0.8 of Neptune's radius and 24 of Pluto's:
+  - **Chord sag.** 1000 segments over an orbit bow inside the curve by up
+    to a·(2π/1000)²/8 ≈ 4.9e-6·a: Earth 740 km, Mars 1,100 km, Neptune
+    22,000 km, Pluto 29,000 km. The 1e-5·a test allowed it. So a fine arc
+    of the same curve (the sparse paths' ellipse plus interpolated
+    departure, no new VSOP87C calls; the Moon's series; the unit ellipse)
+    is spliced in over the body's coarse segment and one each side, at a
+    spacing whose sag is under 2.5e-4 radii (`fineSteps`: Moon 3 steps a
+    segment, Earth 22, Neptune 61, Pluto 256, capped). An interpolated
+    path's small offset from the body's own position is added to the arc,
+    faded out to nothing at its ends, where it joins the coarse vertices
+    exactly.
+  - **float32.** The vertices (in the geometry, and on the GPU with the
+    camera offset) are good to ~6e-8 of their size: ~0.3 radii for Pluto,
+    ~0.01 for Neptune. The coarse line is kept in float64 and written
+    relative to an origin at the body, which the line's `position` puts
+    back (three composes matrices in float64): near the body the numbers
+    are small, and far vertices lose precision only where it's invisible.
+    It's the same problem `rte.js` solves for the stars, solved here on
+    the CPU, as a line has few vertices.
+  - **Cost.** Each frame is a comparison or two per body; the arc and
+    origin are redone when the body leaves its coarse segment, moves
+    1000 radii from the origin, or is 5e-4 radii off the arc: a few
+    hundred curve points and one upload of the drawn range. Lines that
+    need neither (one step a segment, and float32 already fine: most
+    moons) are left as built. For the whole solar system in Chromium
+    (SwiftShader, a loaded machine): 0.06–0.09 ms a frame at real time,
+    0.4–0.5 ms at a day a second, 0.7–1.0 ms at 30 days a frame. Earth's
+    arc is the dearest: its monthly wobble comes from the lunar series,
+    per point.
+  - A new build is spliced around the body at once. Off its window (a
+    stale line after a jump), a line is drawn plain until rebuilt.
+  - The mean-element ellipses are redrawn when e has drifted enough to
+    move them 1e-4 of the body's radius (Pluto's, by Standish's rates).
 - **Non-finite input is refused:** `OrbitPaths.request` ignores a
   non-finite date, and a build whose samples aren't all finite leaves
   the last line as it was. Animation skips a frame whose date isn't
@@ -650,6 +689,7 @@ and the provider extension contract.
 | `js/scene/lunarTheory.js` | The Moon: Meeus ch. 47 position, Cassini-law orientation, mean orbit of date |
 | `js/scene/meanElements.js` | Pluto and the moons: mean elements in their reference planes, Kepler's equation, IAU poles |
 | `js/scene/orbitPath.js` | Orbit lines sampled from the planets' and the Moon's ephemerides, and their budgeted rebuilds |
+| `js/scene/bodyLine.js` | An orbit line as drawn: a fine arc around the body and a float64 line written relative to it, so it passes through the body's centre close up |
 | `js/scene/celestialFrame.js` | GMST, TT − UTC, ecliptic precession between dates (coordinates and scene rotation) |
 | `js/scene/StellarFrame.js` | Parent of the J2000 catalogues: precesses them to the simulation date |
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |

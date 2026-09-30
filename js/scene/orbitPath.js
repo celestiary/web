@@ -1,5 +1,6 @@
 import {Quaternion, Vector3} from 'three'
 import {ASTRO_UNIT_METER} from '../shared.js'
+import {BodyLine, fineSteps} from './bodyLine.js'
 import {J2000_JD, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
 import {eccentricAnomaly} from './meanElements.js'
 
@@ -38,7 +39,10 @@ import {eccentricAnomaly} from './meanElements.js'
 //   barycentre, which 17 samples a year would alias.
 //
 // A 1000-segment line's chords are within 5e-6 of the orbit's size of the
-// curve; the interpolation stays within that too (orbitPath.test.js).
+// curve; the interpolation stays within that too (orbitPath.test.js).  Close
+// up that's still up to 0.8 of Neptune's radius, so the line is drawn
+// through a BodyLine (bodyLine.js): a fine arc of the same curve around the
+// body, bent onto the body's own position, and float32 made exact near it.
 
 
 /** Vertices in an orbit line (as the old ellipse had). */
@@ -213,19 +217,51 @@ export class OrbitPath {
    * @param {function(number, Vector3): Vector3} [opts.offsetAt] a sparse
    *     path's fast wobble, of date, left out of positionAt and added back
    * @param {number} [opts.samples] a sparse path's samples a period, at least
+   * @param {number} [opts.a] the orbit's semi-major axis, metres, and
+   * @param {number} [opts.e] its eccentricity, and
+   * @param {number} [opts.radius] the body's radius, metres: for the fine
+   *     arc drawn around the body (bodyLine.js)
    */
-  constructor(line, {positionAt, periodDays, mu = 0, offsetAt = null, samples = SPARSE_SAMPLES}) {
+  constructor(line, {positionAt, periodDays, mu = 0, offsetAt = null, samples = SPARSE_SAMPLES,
+    a = 0, e = 0, radius = 0}) {
     this.line = line
     this.positionAt = positionAt
     this.periodDays = periodDays
     this.mu = mu
     this.offsetAt = offsetAt
     this.samples = samples
+    this.radius = radius
     /** The Julian Day the line is centred on, or null before the first build. */
     this.centre = null
     /** Half the drawn window, days. */
     this.halfWindow = 0
-    this._scratch = new Float32Array(line.geometry.attributes.position.array.length)
+    /** The coarse index of a date on the built line; null before it. */
+    this.paramAt = null
+    const n = line.geometry.attributes.position.count
+    /** The drawn line: coarse, fine arc, origin. */
+    this.drawn = new BodyLine(line, {n})
+    this._fineSteps = radius > 0 && a > 0 ? fineSteps(a, e, radius, n) : 1
+    this._scratch = new Float64Array(3 * n)
+    this._mid = new Vector3
+    // The body as last followed, to splice a new build around at once.
+    this._body = new Vector3
+    this._bodyJd = NaN
+  }
+
+
+  /**
+   * Keep the drawn line through the body at jd (bodyLine.js).
+   *
+   * @param {number} jd Julian Day (UTC)
+   * @param {Vector3} body its position in the line's frame (the ecliptic of
+   *     J2000, relative to the primary), metres
+   */
+  follow(jd, body) {
+    this._bodyJd = jd
+    this._body.copy(body)
+    if (this.paramAt && this.radius > 0) {
+      this.drawn.follow(body, this.paramAt(jd), this.radius)
+    }
   }
 
 
@@ -259,18 +295,22 @@ export class OrbitPath {
       return
     }
     const out = this._scratch
-    const halfWindow = yield* (this.mu ? this._sparse(jd, out) : this._direct(jd, out))
+    const built = yield* (this.mu ? this._sparse(jd, out) : this._direct(jd, out))
     // An ephemeris evaluated where it isn't defined: keep the last line.
     if (!allFinite(out)) {
       return
     }
     // The whole line at once, so a part-built one is never drawn.
-    const attr = this.line.geometry.attributes.position
-    attr.array.set(out)
-    attr.needsUpdate = true
-    this.line.geometry.computeBoundingSphere()
+    const n = out.length / 3
+    const mid = this._mid.fromArray(out, 3 * Math.floor(n / 2))
+    this.drawn.setCoarse(out, {at: built.at, correct: true}, this._fineSteps, mid)
+    this.paramAt = built.paramAt
     this.centre = jd
-    this.halfWindow = halfWindow
+    this.halfWindow = built.halfWindow
+    // Around the body at once, not a frame later.
+    if (Number.isFinite(this._bodyJd)) {
+      this.follow(this._bodyJd, this._body)
+    }
     // Hidden only until its first build (Animation.newOrbitPath).
     this.line.visible = true
   }
@@ -280,22 +320,27 @@ export class OrbitPath {
    * Every vertex the ephemeris at its time, evenly over one period.
    *
    * @param {number} jd centre
-   * @param {Float32Array} out
+   * @param {Float64Array} out
    * @yields {undefined}
-   * @returns {number} the half window
+   * @returns {object} {halfWindow, at, paramAt}: the half window, days; the
+   *     curve at a coarse index (fractional); and a date's coarse index
    */
   * _direct(jd, out) {
     const n = out.length / 3
     const period = this.periodDays
+    const t0 = jd - (period / 2)
+    const at = (u, target) => {
+      const t = t0 + (period * u / (n - 1))
+      return ofDateToJ2000(t, this.positionAt(t, target))
+    }
     const v = new Vector3
     for (let j = 0; j < n; j++) {
-      const t = jd + (period * ((j / (n - 1)) - 0.5))
-      ofDateToJ2000(t, this.positionAt(t, v)).toArray(out, 3 * j)
+      at(j, v).toArray(out, 3 * j)
       if (j % VERTICES_PER_STEP === VERTICES_PER_STEP - 1) {
         yield
       }
     }
-    return period / 2
+    return {halfWindow: period / 2, at, paramAt: (t) => (t - t0) * (n - 1) / period}
   }
 
 
@@ -316,9 +361,9 @@ export class OrbitPath {
    * The two-body ellipse plus the interpolated departure from it.
    *
    * @param {number} jd centre
-   * @param {Float32Array} out
+   * @param {Float64Array} out
    * @yields {undefined}
-   * @returns {number} the half window
+   * @returns {object} as _direct's
    */
   * _sparse(jd, out) {
     // The osculating ellipse at the centre, from a central difference.
@@ -354,39 +399,50 @@ export class OrbitPath {
       yield
     }
     // Vertices even in the ellipse's eccentric anomaly over the window (in
-    // time without an ellipse).
+    // time without an ellipse).  The fine arc drawn around the body is the
+    // same curve, at fractional indices.
     const n = out.length / 3
     const halfTurn = el ? el.n * period / 2 : 0
     const eStart = el ? eccentricAnomaly(el.m0 - halfTurn, el.e) : 0
     const eSpan = el ? eccentricAnomaly(el.m0 + halfTurn, el.e) - eStart : 0
-    const v = new Vector3
+    const dep = new Vector3
     const off = new Vector3
-    for (let j = 0; j < n; j++) {
+    const curveAt = (u, v) => {
       let t
       if (el) {
-        const E = eStart + (eSpan * j / (n - 1))
+        const E = eStart + (eSpan * u / (n - 1))
         t = jd + ((E - (el.e * Math.sin(E)) - el.m0) / el.n)
         ellipseAtAnomaly(el, E, v)
       } else {
-        t = t0 + (period * j / (n - 1))
+        t = t0 + (period * u / (n - 1))
         v.set(0, 0, 0)
       }
-      v.add(lagrange4(departures, (t - t0) / step, ref))
+      v.add(lagrange4(departures, (t - t0) / step, dep))
       if (this.offsetAt) {
         v.add(ofDateToJ2000(t, this.offsetAt(t, off)))
       }
-      v.toArray(out, 3 * j)
+      return v
+    }
+    const paramAt = (t) => {
+      if (!el) {
+        return (t - t0) * (n - 1) / period
+      }
+      return (eccentricAnomaly(el.m0 + (el.n * (t - jd)), el.e) - eStart) * (n - 1) / eSpan
+    }
+    const v = new Vector3
+    for (let j = 0; j < n; j++) {
+      curveAt(j, v).toArray(out, 3 * j)
       if (j % VERTICES_PER_STEP === VERTICES_PER_STEP - 1) {
         yield
       }
     }
-    return period / 2
+    return {halfWindow: period / 2, at: curveAt, paramAt}
   }
 }
 
 
 /**
- * @param {Float32Array} xyz
+ * @param {Float64Array} xyz
  * @returns {boolean} whether every value is finite
  */
 function allFinite(xyz) {

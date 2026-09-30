@@ -4,9 +4,11 @@ import * as Shared from '../shared'
 import debug from '../debug'
 import {J2000_JD, gmstRad, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
 import {moonArguments, moonOrientation, moonScenePosition} from './lunarTheory.js'
+import {BodyLine, fineSteps} from './bodyLine.js'
 import {orbitAt, poleAt} from './meanElements.js'
 import {
   JUPITER_SATURN_SAMPLES,
+  ORBIT_LINE_POINTS,
   OrbitPath,
   OrbitPaths,
   SUN_GM_M3_PER_DAY2,
@@ -20,9 +22,11 @@ const SECONDS_PER_DAY = 86400
 // Earth's wobble about the barycentre is this much of the Moon's position.
 const MOON_MASS_FRACTION = 1 / (1 + 81.30056)
 
-// A mean-element line's ellipse is redrawn when the eccentricity has
-// drifted this much (Pluto's, by Standish's rates): b moves by e·Δe.
-const ECCENTRICITY_REDRAW = 1e-6
+// A mean-element line's ellipse is redrawn when its eccentricity has
+// drifted (Pluto's, by Standish's rates) enough to move it by this much of
+// the body's radius: b moves by a·e·Δe.
+const ECCENTRICITY_REDRAW_RADII = 1e-4
+const TWO_PI = 2 * Math.PI
 
 
 /**
@@ -59,6 +63,8 @@ export default class Animation {
     this.precession = new Quaternion
     this._orbitQuat = new Quaternion
     this._orbitPos = new Vector3
+    this._lineBody = new Vector3
+    this._invQuat = new Quaternion
     // Orbit line rebuilds, run within a per-frame budget.
     this.orbitPaths = new OrbitPaths
   }
@@ -222,6 +228,7 @@ export default class Animation {
       // Never a non-finite position: keep the last good one.
       if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
         system.position.set(x, y, z)
+        this.lineThroughBody(system)
       }
       if (sysName === 'earth') {
         debug().log(`SMA: ${system.orbit.semiMajorAxis.scalar}, syspos: ${system.position}, ` +
@@ -266,6 +273,39 @@ export default class Animation {
 
 
   /**
+   * Keep a body's orbit line through its centre close up: the fine arc and
+   * origin around the body (bodyLine.js).  For a sampled path, in the
+   * line's frame (the ecliptic of J2000, turned by this.precession); for a
+   * mean-element ellipse, in its unit ellipse's.
+   *
+   * @param {Object3D} orbitPosition just placed
+   */
+  lineThroughBody(orbitPosition) {
+    const radius = orbitPosition.bodyRadius
+    const shape = orbitPosition.orbitShape
+    if (!(radius > 0) || !shape) {
+      return
+    }
+    const body = this._lineBody.copy(orbitPosition.position)
+    const path = orbitPosition.orbitPath
+    if (path) {
+      path.follow(this.jd, body.applyQuaternion(this._invQuat.copy(this.precession).invert()))
+      return
+    }
+    const bodyLine = shape.bodyLine
+    if (bodyLine) {
+      // Into the unit ellipse's frame: undo layOrbitShape's shift,
+      // rotation and scale.
+      const a = shape.scale.x
+      body.sub(shape.position).applyQuaternion(this._invQuat.copy(shape.quaternion).invert()).divideScalar(a)
+      const e = bodyLine.e
+      const E = Math.atan2(body.z / Math.sqrt(1 - (e * e)), body.x)
+      bodyLine.follow(body, (((E / TWO_PI) + 1) % 1) * (bodyLine.n - 1), radius / a)
+    }
+  }
+
+
+  /**
    * The OrbitPath for a planet's or the Moon's orbit line, sampling the
    * ephemeris its body is placed by.
    *
@@ -286,11 +326,17 @@ export default class Animation {
     const name = orbitPosition.name.split('.')[0]
     const periodDays = orbitPosition.orbit.siderealOrbitPeriod.scalar / SECONDS_PER_DAY
     const moonAt = (jd, target) => moonScenePosition(utcToTtJulianDay(jd), target)
+    // For the fine arc around the body.
+    const size = {
+      a: orbitPosition.orbit.semiMajorAxis.scalar,
+      e: orbitPosition.orbit.eccentricity || 0,
+      radius: orbitPosition.bodyRadius || 0,
+    }
     if (name === 'moon') {
-      return new OrbitPath(line, {positionAt: moonAt, periodDays})
+      return new OrbitPath(line, {positionAt: moonAt, periodDays, ...size})
     }
     const planetAt = (jd, target) => vsopScene(this.vsopAt(jd)[name], target)
-    const opts = {positionAt: planetAt, periodDays, mu: SUN_GM_M3_PER_DAY2}
+    const opts = {positionAt: planetAt, periodDays, mu: SUN_GM_M3_PER_DAY2, ...size}
     if (name === 'jupiter' || name === 'saturn') {
       opts.samples = JUPITER_SATURN_SAMPLES
     }
@@ -322,7 +368,7 @@ export default class Animation {
     const {a, e} = orbitAt(orbitPosition.elements, this.jde, q, pos)
     q.premultiply(this.precession)
     pos.applyQuaternion(this.precession)
-    this.layOrbitShape(orbitPosition.orbitShape, q, a, e)
+    this.layOrbitShape(orbitPosition.orbitShape, q, a, e, orbitPosition.bodyRadius)
     return pos
   }
 
@@ -337,18 +383,34 @@ export default class Animation {
    * @param {Quaternion} quat the orbit's orientation, pericentre along +X
    * @param {number} a semi-major axis, metres
    * @param {number} e eccentricity
+   * @param {number} [radius] the body's, metres: the line is drawn through
+   *     its centre to a small fraction of it (bodyLine.js)
    */
-  layOrbitShape(shape, quat, a, e) {
+  layOrbitShape(shape, quat, a, e, radius = 0) {
     if (!shape) {
       return
     }
     const line = shape.line
-    if (line && !(Math.abs(e - line.userData.e) < ECCENTRICITY_REDRAW)) {
-      const attr = line.geometry.attributes.position
-      unitEllipse(e, attr.array)
-      attr.needsUpdate = true
-      line.geometry.computeBoundingSphere()
-      line.userData.e = e
+    if (line) {
+      if (!shape.bodyLine) {
+        shape.bodyLine = new BodyLine(line, {n: ORBIT_LINE_POINTS, closed: true})
+        shape.bodyLine.e = NaN
+      }
+      const bodyLine = shape.bodyLine
+      const redraw = radius > 0 ? ECCENTRICITY_REDRAW_RADII * radius / (a * Math.max(e, 1e-3)) : 1e-6
+      if (!(Math.abs(e - bodyLine.e) < redraw)) {
+        const b = Math.sqrt(1 - (e * e))
+        const curve = {
+          at: (u, target) => {
+            const E = TWO_PI * u / (ORBIT_LINE_POINTS - 1)
+            return target.set(Math.cos(E), 0, b * Math.sin(E))
+          },
+          correct: false,
+        }
+        const steps = radius > 0 ? fineSteps(a, e, radius, ORBIT_LINE_POINTS) : 1
+        bodyLine.setCoarse(unitEllipse(e, new Float64Array(3 * ORBIT_LINE_POINTS)), curve, steps, bodyLine.origin)
+        bodyLine.e = e
+      }
     }
     shape.quaternion.copy(quat)
     shape.scale.setScalar(a)
