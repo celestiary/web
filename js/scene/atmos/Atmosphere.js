@@ -774,7 +774,13 @@ void main() {
     // disc): it's bright and extended, and a bright sky doesn't hide it
     // (the daytime Moon), only the stars and the galaxy, which draw no
     // depth.  The boost made the day sky opaque over the Moon too.
-    if (insideAtm && !beyondAtm) {
+    // Nor over the ground, or anything else drawn inside the atmosphere:
+    // what's between it and the eye is air the LUT already integrates, and
+    // the boost, which grows as the camera descends (altWeight), hid the
+    // day ground under 91% of in-scatter from 7.5 km and all of it near the
+    // surface.
+    bool groundDrawn = depthSample < 1.0 && !beyondAtm;
+    if (insideAtm && !beyondAtm && !groundDrawn) {
       float boostAlpha = smoothstep(lowerBrightBound, upperBrightBound, skyBrightness) * altWeight;
       transmittance = min(transmittance, vec3(1.0 - boostAlpha));
     }
@@ -832,7 +838,9 @@ void main() {
   vec2 tGFb = rsi(eyePos, rayDir, uGroundRadius);
   bool behindGroundFb = tGFb.x > 0.0 && tGFb.x <= tGFb.y;
   bool beyondAtmFb = depthSample < 1.0 && tMax > uAtmosphereRadius * 2.0 && !behindGroundFb;
-  if (insideAtmFb && !beyondAtmFb) {
+  // Nor over the ground; see the LUT branch.
+  bool groundDrawnFb = depthSample < 1.0 && !beyondAtmFb;
+  if (insideAtmFb && !beyondAtmFb && !groundDrawnFb) {
     result.a = max(result.a, smoothstep(0.01, 0.1, skyBrightness) * altWeightFb);
   }
   gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, result.rgb * uSkyExposure, vec3(1.0 - result.a));

@@ -80,7 +80,12 @@ the ray-march fallback applies the same rules with corresponding variables.
 4. **`insideAtm` gate** — the brightness boost is also conditional on
    the camera being inside the atmosphere shell. From space the LUT alone
    correctly captures the thin-column transmittance; boosting it would
-   over-occlude.
+   over-occlude.  Nor does it apply where anything drew depth: bodies
+   beyond the atmosphere (`beyondAtm`, the daytime Moon) or the ground
+   and anything else inside it (`groundDrawn`).  It's for the stars and
+   the galaxy, which draw none.  Over the ground it hid the day surface
+   under the haze, more the lower the camera: T 0.094 from 7.5 km,
+   instead of 0.5-0.87 (#141).
 5. **Gap-pixel hard occlusion** — if `isGap` (geometric ground in front
    of recorded depth), force `alpha = 1.0`. The sub-pixel holes show
    only inscatter (bright haze by day, dark by night) instead of leaking

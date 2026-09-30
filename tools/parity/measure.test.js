@@ -263,6 +263,13 @@ describe('measureView and evaluateView', () => {
     expect(rows.filter((r) => !r.pass).map((r) => r.metric)).toEqual(['ratio luma', 'profile max'])
   })
 
+  it('bounds each render\'s own luma, which a ratio can\'t: both washed out alike', () => {
+    const washed = image(16, 16, () => [230, 225, 180])
+    const rows = evaluateView('washed', measureView(washed, washed, view), {ratio: [0.95, 1.05], luma: [20, 150]})
+    expect(rows.filter((r) => !r.pass).map((r) => r.metric)).toEqual(['luma on', 'luma off'])
+    expect(allPass(evaluateView('fine', measureView(off, off, view), {luma: [20, 150]}))).toBe(true)
+  })
+
   it('fails a view that measured nothing', () => {
     const dark = image(16, 16, () => [0, 0, 0])
     const rows = evaluateView('empty', measureView(dark, dark, view), {ratio: [0.9, 1.1]})

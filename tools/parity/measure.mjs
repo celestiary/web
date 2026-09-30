@@ -246,6 +246,19 @@ export function measureView(on, off, view) {
   const mask = regionMask(off, view.region, view.minLuma)
   const ratios = medianRatios(on, off, mask)
   ratios.fraction = mask.reduce((a, b) => a + b, 0) / mask.length
+  // Each render's own median luma, for views where both sides could go
+  // wrong alike (a bug in the atmosphere pass, which draws over both).
+  const lumas = (img) => {
+    const values = []
+    for (let i = 0; i < mask.length; i++) {
+      if (mask[i]) {
+        values.push(lumaAt(img.data, i))
+      }
+    }
+    return median(values)
+  }
+  ratios.lumaOn = lumas(on)
+  ratios.lumaOff = lumas(off)
   let profile = null
   if (view.profile) {
     const {from, to, samples, band} = view.profile
@@ -304,6 +317,8 @@ export function describeTolerance(tolerance) {
  *     with a [lo, hi] each;
  *   - `profileMax`, `profileMean`: max bound on the profile deviation
  *     (luma levels of 255), as a number;
+ *   - `luma`: [lo, hi] for each render's own median luma (of 255), on and
+ *     off: catches what the ratios can't, both sides wrong alike;
  *   - `minPixels`: least measured pixels (default 200), so an empty region
  *     fails rather than passing on nothing.
  *
@@ -328,6 +343,10 @@ export function evaluateView(id, measured, tolerance) {
     for (const name of CHANNELS) {
       add(`ratio ${name}`, ratios[name], perChannel ? tolerance.channelRatio[name] : tolerance.channelRatio)
     }
+  }
+  if (tolerance.luma) {
+    add('luma on', ratios.lumaOn, tolerance.luma)
+    add('luma off', ratios.lumaOff, tolerance.luma)
   }
   if (profile && tolerance.profileMax !== undefined) {
     add('profile max', profile.max, {max: tolerance.profileMax})

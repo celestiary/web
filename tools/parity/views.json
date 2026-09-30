@@ -52,6 +52,18 @@
         "profileMax": 7,
         "profileMean": 2.5
       }
+    },
+    {
+      "id": "earth-low-land-day",
+      "body": "earth",
+      "description": "Earth from 7.5 km over the Ganges plain, looking east with the Sun 8 degrees up: the day ground through celestiary's atmosphere pass, on both sides.  The eye-adaptation boost once hid it under the haze on both, alike, so the view also bounds each render's own luma",
+      "hash": "#sun/earth@25.3376,84.3167,7.502km;t=10054.5173jd;cq=-0.3466,0.1022,-0.5386,0.7612;fov=45deg;s=alpoU",
+      "region": {"box": [0, 0.6, 1, 1]},
+      "profile": null,
+      "tolerance": {
+        "ratio": [0.94, 1.01],
+        "luma": [65, 90]
+      }
     }
   ]
 }

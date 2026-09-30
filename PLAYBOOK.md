@@ -144,6 +144,13 @@ top, dMin = 0). Both produce 0/0. Guard with `max(denominator, 1e-3)` rather tha
 special-casing, since the output at those exact boundaries is either physically zero (no
 atmosphere above top) or unobservable (camera exactly on ground).
 
+**Correction (#141):** "unobservable" was wrong.  The lookup blends r-slices by altitude,
+so the ground slice is most of what a camera below the next slice (1.3 km on Earth) sees.
+The guard turned its ground rows into horizontal rays (mu = 0/1e-3 = 0), which integrated the
+whole horizon: from 16 m the day ground was a bright yellow glow.  The fix special-cases them
+to zero.  **Rule:** a guarded degenerate value is still a value; check what a blend or filter
+makes of it, not only whether it's finite.
+
 ---
 
 ## Testing
