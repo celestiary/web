@@ -133,7 +133,7 @@ surface.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87) (done), [#6](https://github.com/celestiary/web/issues/6) (done), [#133](https://github.com/celestiary/web/issues/133) (done), [#96](https://github.com/celestiary/web/issues/96), [#97](https://github.com/celestiary/web/issues/97), [#132](https://github.com/celestiary/web/issues/132) (done) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
+| [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87) (done), [#6](https://github.com/celestiary/web/issues/6) (done), [#133](https://github.com/celestiary/web/issues/133) (done), [#96](https://github.com/celestiary/web/issues/96), [#97](https://github.com/celestiary/web/issues/97), [#132](https://github.com/celestiary/web/issues/132) (done), [#138](https://github.com/celestiary/web/issues/138), [#139](https://github.com/celestiary/web/issues/139), [#140](https://github.com/celestiary/web/issues/140) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
 | [#113](https://github.com/celestiary/web/issues/113) Surfaces for every body | [#9](https://github.com/celestiary/web/issues/9), [#10](https://github.com/celestiary/web/issues/10), [#43](https://github.com/celestiary/web/issues/43) | data policy for bundled DEMs | [Planet.md](js/scene/Planet.md), [CESIUM.md, ground](CESIUM.md#camera-and-light-coupling) |
 
 The orbit gap is closed: the Moon has its own theory and orbital frame
