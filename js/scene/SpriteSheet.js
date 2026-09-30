@@ -10,6 +10,7 @@ import {
   Vector3,
 } from 'three'
 import * as Utils from '../utils.js'
+import {sceneReferred} from './hdr.js'
 import {
   labelTextColor as defaultTextColor,
   labelTextFont as sharedDefaultFont,
@@ -227,7 +228,9 @@ export default class SpriteSheet {
     } else if (this.useRTE) {
       vertSrc = rteVertexShader
     }
-    const material = new ShaderMaterial({
+    // Drawn in the scene pass as scene-referred values (hdr.js); a label on
+    // the overlay layer, after the tone map, as they are.
+    const material = sceneReferred(new ShaderMaterial({
       uniforms,
       vertexShader: vertSrc,
       fragmentShader: fragSrc,
@@ -240,7 +243,7 @@ export default class SpriteSheet {
       depthWrite: false,
       transparent: true,
       toneMapped: false,
-    })
+    }))
     return material
   }
 }

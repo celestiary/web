@@ -17,6 +17,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three'
+import {NEUTRAL_GLSL, NEUTRAL_INVERSE_GLSL, sceneReferred} from '../hdr.js'
 import {sphere} from '../shapes'
 
 
@@ -263,7 +264,8 @@ export function newAtmosphere(radiusMeters) {
     radius: radiusMeters,
     // wireframe: true,
     // color: 0x0000ff,
-    matr: new ShaderMaterial({
+    // A glow in display values (hdr.js).
+    matr: sceneReferred(new ShaderMaterial({
       vertexShader: `varying vec3 vNormal;
 varying vec3 eyeVector;
 
@@ -315,7 +317,7 @@ void main() {
       depthWrite: false,
       transparent: true,
       // toneMapped: false,
-    }),
+    })),
   })
   return shape
 }
@@ -358,6 +360,10 @@ export function newAtmospherePass() {
       // How much of the pass to apply, 0 to 1: less while a Cesium layer's
       // own atmosphere fades in over it (CesiumLayers.atmosphereShare).
       uAtmStrength: {value: 1.0},
+      // 1: tDiffuse is the linear HDR scene, in exposure units, and this pass
+      // composites the sky with it there and tone-maps once, last (HDR.md).
+      // 0: the LDR fallback: tDiffuse holds display values; no tone map.
+      uHdr: {value: 0.0},
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
@@ -410,11 +416,33 @@ uniform sampler2D tInScatter;
 uniform float     uUseInScatterLUT;
 uniform float     uAtmEnabled;
 uniform float     uAtmStrength;
+uniform float     uHdr;
 
 #define PI        3.141592
 #define I_STEPS   64
 #define J_STEPS   8
 #define R_SLICES  64.0
+
+${NEUTRAL_GLSL}
+${NEUTRAL_INVERSE_GLSL}
+
+// The scene with no atmosphere over it, to the screen: the one tone map
+// (HDR), or as it is (the LDR fallback's scene is display values already).
+vec4 sceneToScreen(vec3 scene) {
+  return vec4(uHdr > 0.5 ? neutralToneMap(scene) : scene, 1.0);
+}
+
+// The sky over the scene: in-scatter plus the scene through the
+// transmittance, faded by uAtmStrength, to the screen.  sky is in exposure
+// units, as the HDR scene is: composited there, then tone-mapped once.  The
+// LDR fallback's scene is display values, so the sky is tone-mapped alone
+// and added to it.
+vec4 atmToScreen(vec3 scene, vec3 sky, vec3 transmittance) {
+  if (uHdr > 0.5) {
+    return vec4(neutralToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)), 1.0);
+  }
+  return vec4(mix(scene, neutralToneMap(sky) + scene * transmittance, uAtmStrength), 1.0);
+}
 
 // Map (r, mu_sun) → UV for the precomputed transmittance LUT.
 // Simple linear parameterisation.
@@ -570,7 +598,7 @@ void main() {
   // call — eyePos² overflows float32 once |eyePos| ≳ 1.8e19 m, and a sentinel
   // "push planet far away" value would itself trip that limit.
   if (uAtmEnabled < 0.5) {
-    gl_FragColor = texture2D(tDiffuse, vUv);
+    gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb);
     return;
   }
   vec2 ndc = vUv * 2.0 - 1.0;
@@ -614,7 +642,7 @@ void main() {
     vec2 pAtm = rsi(eyePos, rayDir, uAtmosphereRadius);
     if (pAtm.x > pAtm.y) {
       // Ray misses atmosphere entirely — pass scene through unchanged.
-      gl_FragColor = texture2D(tDiffuse, vUv);
+      gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb);
       return;
     }
     float t_entry = max(pAtm.x, 0.0);
@@ -624,7 +652,7 @@ void main() {
       // it's in front by more than the depth buffer can resolve: the
       // planet's own surface, a shell's thickness behind the entry, read
       // as in front of it from afar and speckled the disc.
-      gl_FragColor = texture2D(tDiffuse, vUv);
+      gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb);
       return;
     }
     vec3  entryPos = eyePos + rayDir * t_entry;
@@ -765,8 +793,10 @@ void main() {
       transmittance = vec3(0.0);
     }
 
-    vec4 scene = texture2D(tDiffuse, vUv);
-    gl_FragColor = vec4(mix(scene.rgb, color + scene.rgb * transmittance, uAtmStrength), 1.0);
+    // The sky, soft-saturated in display units as before, taken to exposure
+    // units by the final tone map's inverse, so it shows as it did.
+    vec3 sky = neutralInverse(color);
+    gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, sky, transmittance);
     return;
   }
 
@@ -797,7 +827,6 @@ void main() {
   if (insideAtmFb && !beyondAtmFb) {
     result.a = max(result.a, smoothstep(0.01, 0.1, skyBrightness) * altWeightFb);
   }
-  vec4 scene = texture2D(tDiffuse, vUv);
-  gl_FragColor = vec4(mix(scene.rgb, color + scene.rgb * (1.0 - result.a), uAtmStrength), 1.0);
+  gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, neutralInverse(color), vec3(1.0 - result.a));
 }
 `

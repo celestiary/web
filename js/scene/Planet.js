@@ -20,6 +20,7 @@ import {
 import Object from './object.js'
 import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
+import {sceneReferred} from './hdr.js'
 import {
   ellipseSemiMinorAxisCurve,
   point,
@@ -132,14 +133,14 @@ export default class Planet extends Object {
         0, Math.PI * 2)
     const ellipsePoints = ellipseCurve.getPoints(1000)
     const ellipseGeometry = new BufferGeometry().setFromPoints(ellipsePoints)
-    const orbitMaterial = new LineBasicMaterial({
+    const orbitMaterial = sceneReferred(new LineBasicMaterial({
       color: 0x0000ff,
       blending: AdditiveBlending,
       depthTest: true,
       depthWrite: true,
       transparent: false,
       toneMapped: false,
-    })
+    }))
     const pathShape = new Line(ellipseGeometry, orbitMaterial)
     // Orbit is in the x/y plane, so rotate it around x by 90 deg to put
     // it in the x/z plane (top comes towards camera until it's flat

@@ -16,6 +16,7 @@ import {assertDefined} from '../assert.js'
 import * as Material from './material.js'
 import {FAR_OBJ, STARS_RADIUS_METER, SUN_RADIUS_METER} from '../shared.js'
 import {named} from '../utils.js'
+import {sceneReferred} from './hdr.js'
 
 
 // > 10k is too much for my old laptop.
@@ -116,7 +117,7 @@ export default class Stars extends Object {
   show() {
     this.geom = new StarsBufferGeometry(this.catalog)
     const starImage = Material.pathTexture('star_glow', '.png')
-    const starsMaterial = new ShaderMaterial({
+    const starsMaterial = sceneReferred(new ShaderMaterial({
       uniforms: {
         texSampler: {value: starImage},
         CAMERA_FOV_DEGREES: {value: this.ui.camera.fov},
@@ -144,7 +145,7 @@ export default class Stars extends Object {
       depthWrite: false,
       transparent: true,
       toneMapped: false,
-    })
+    }))
     this.ui.camera.onChange = (camera) => {
       starsMaterial.uniforms.CAMERA_FOV_DEGREES.value = camera.fov
     }

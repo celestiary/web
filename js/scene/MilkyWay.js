@@ -10,6 +10,7 @@ import {
 import {galacticToSceneMatrix, SUN_GALACTIC_RADIUS_LY} from './galacticFrame.js'
 import {pathTexture} from './material.js'
 import {LIGHTYEAR_METER} from '../shared.js'
+import {sceneReferred} from './hdr.js'
 
 
 // Sun's distance from the galactic centre (Sgr A*) is ~26 kLY.  We park the
@@ -192,7 +193,7 @@ export default function newMilkyWay() {
   // USE_COLOR define and may wire the standard Points chunks into the
   // pipeline, which silently overrides the shader's gl_PointSize and
   // produces giant fixed-size sprites instead of our intended size.
-  const mat = new ShaderMaterial({
+  const mat = sceneReferred(new ShaderMaterial({
     uniforms: {
       texSampler: {value: glowTex},
       uCamPosWorldHigh: {value: new Vector3()},
@@ -205,7 +206,7 @@ export default function newMilkyWay() {
     depthWrite: false,
     transparent: true,
     toneMapped: false,
-  })
+  }))
 
   const points = new Points(geom, mat)
   points.name = 'MilkyWay'

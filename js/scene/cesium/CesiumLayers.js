@@ -1,5 +1,8 @@
 import {
+  AddEquation,
   AlwaysStencilFunc,
+  Color,
+  CustomBlending,
   DepthStencilFormat,
   DepthTexture,
   DoubleSide,
@@ -9,8 +12,13 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  OneFactor,
+  OneMinusSrcAlphaFactor,
+  OrthographicCamera,
+  PlaneGeometry,
   ReplaceStencilOp,
   Scene,
+  ShaderMaterial,
   Sphere,
   SphereGeometry,
   UnsignedInt248Type,
@@ -22,6 +30,7 @@ import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
 import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
+import {NEUTRAL_INVERSE_GLSL} from '../hdr.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
 
@@ -34,9 +43,10 @@ import {monthOfJulianDay, monthlyPath} from '../monthly.js'
  *                   screen and set to its Cesium layer, not only the
  *                   target); hide/show celestiary's surfaces
  *   composite()     after the scene renders into _sceneRT, per active body,
- *                   far to near: stencil the body's silhouette, then render
- *                   Cesium synchronously into the same target through a
- *                   same-page NetGL link
+ *                   far to near: stencil the body's silhouette, render
+ *                   Cesium synchronously into _cesiumRT through a same-page
+ *                   NetGL link, and composite that into _sceneRT in its
+ *                   units (HDR.md)
  *   atmosphereShare(node)  how much of the body's atmosphere Cesium
  *                   draws, so the atmosphere post-pass fades out and stands
  *                   down
@@ -108,8 +118,15 @@ export default class CesiumLayers {
     this._frustum = new Frustum()
     this._sphere = new Sphere()
     this._viewProj = new Matrix4()
-    // Celestiary's depth, saved before the Cesium frames clear it.
-    this._depthSave = null
+    // Where Cesium's frames draw (see composite), and the pass that brings
+    // each into _sceneRT.
+    this._cesiumRT = null
+    this.decodeScene = new Scene()
+    this.decodeCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
+    this.decode = new Mesh(new PlaneGeometry(2, 2), newDecodeMaterial())
+    this.decode.frustumCulled = false
+    this.decodeScene.add(this.decode)
+    this._clearColor = new Color()
   }
 
 
@@ -178,14 +195,18 @@ export default class CesiumLayers {
 
   /**
    * Composite the active bodies' Cesium renderings into _sceneRT, which
-   * holds celestiary's colour, depth and stencil for this frame.
+   * holds celestiary's colour and depth for this frame.
    *
-   * Each Cesium frame clears _sceneRT's whole depth buffer, so celestiary's
-   * depth is saved first and restored after each one: a later body's
-   * stencil shell is still occluded by celestiary's objects, and so is the
-   * atmosphere pass's ray (Phobos in front of Mars).  Far to near: a
-   * body's own pixels hold no depth, so a nearer body drawn later lands in
-   * front of it.  Last, each body's ground sphere depth.
+   * Each Cesium frame draws into _cesiumRT, cleared to transparent black,
+   * not straight into _sceneRT: Cesium's colour reaches celestiary through
+   * its own 8-bit buffers, so it comes encoded, and a pass decodes it into
+   * _sceneRT's units (decodeOf; HDR.md).  _cesiumRT gets celestiary's depth
+   * first, for the stencil shell's depth test (a body behind the Moon is
+   * covered by it); Cesium's frame then clears that copy, and _sceneRT's
+   * own depth stays celestiary's, for a later body's shell and for the
+   * atmosphere pass's ray (Phobos in front of Mars).  Far to near: a body's
+   * own pixels hold no depth, so a nearer body drawn later lands in front
+   * of it.  Last, each body's ground sphere depth.
    */
   composite() {
     const {renderer} = this.ui
@@ -198,21 +219,48 @@ export default class CesiumLayers {
     if (passes.length === 0) {
       return
     }
-    const depthSave = this._depthSaveFor(sceneRT)
-    this._blitDepth(sceneRT, depthSave)
+    const cesiumRT = this._cesiumTarget()
     for (const {name, node, unseen} of passes) {
       if (this.bodies[name]?.status !== 'ready') {
         continue
       }
+      this._blitDepth(sceneRT, cesiumRT)
       // resetState() also unbinds three's render target; and the last
-      // body's stencil must not admit this one.
-      renderer.setRenderTarget(sceneRT)
-      renderer.clear(false, false, true)
+      // body's stencil and colour must not carry over to this one.
+      renderer.setRenderTarget(cesiumRT)
+      renderer.getClearColor(this._clearColor)
+      const clearAlpha = renderer.getClearAlpha()
+      renderer.setClearColor(0x000000, 0)
+      renderer.clear(true, false, true)
+      renderer.setClearColor(this._clearColor, clearAlpha)
       this._compositeBody(name, node, unseen)
-      this._blitDepth(depthSave, sceneRT)
+      if (!unseen && this.bodies[name]?.status === 'ready') {
+        this._decodeInto(sceneRT, cesiumRT, name)
+      }
     }
     this._drawFadingSurfaces(drawn)
     this._writeGroundDepths(drawn)
+  }
+
+
+  /**
+   * Bring one body's Cesium frame from _cesiumRT into _sceneRT,
+   * premultiplied-over, in _sceneRT's units.
+   *
+   * @param {object} sceneRT
+   * @param {object} cesiumRT
+   * @param {string} name
+   */
+  _decodeInto(sceneRT, cesiumRT, name) {
+    const {renderer} = this.ui
+    const u = this.decode.material.uniforms
+    u.tCesium.value = cesiumRT.texture
+    u.uMode.value = decodeOf(name, this.ui.hdr === true)
+    renderer.setRenderTarget(sceneRT)
+    const autoClear = renderer.autoClear
+    renderer.autoClear = false
+    renderer.render(this.decodeScene, this.decodeCamera)
+    renderer.autoClear = autoClear
   }
 
 
@@ -436,18 +484,20 @@ export default class CesiumLayers {
 
 
   /**
-   * @param {object} sceneRT
-   * @returns {object} A depth-stencil render target the size of sceneRT
+   * @returns {object} _cesiumRT: where Cesium's frames draw, the size of
+   *   _sceneRT, 8-bit colour (what Cesium hands over is 8-bit already) and
+   *   a depth-stencil texture like _sceneRT's, for the depth copy
    */
-  _depthSaveFor(sceneRT) {
-    if (!this._depthSave) {
+  _cesiumTarget() {
+    const sceneRT = this.ui._sceneRT
+    if (!this._cesiumRT) {
       const rt = new WebGLRenderTarget(sceneRT.width, sceneRT.height, {stencilBuffer: true})
       rt.depthTexture = new DepthTexture()
       rt.depthTexture.format = DepthStencilFormat
       rt.depthTexture.type = UnsignedInt248Type
-      this._depthSave = rt
+      this._cesiumRT = rt
     }
-    const rt = this._depthSave
+    const rt = this._cesiumRT
     if (rt.width !== sceneRT.width || rt.height !== sceneRT.height) {
       rt.setSize(sceneRT.width, sceneRT.height)
     }
@@ -706,20 +756,21 @@ export default class CesiumLayers {
     credits.style.display = 'none'
     this.credits.appendChild(credits)
 
-    const sceneRT = this.ui._sceneRT
     let widget = null
     const link = netgl.makeNetGLImmediateLink({
       gl: renderer.getContext(),
       replay: {
-        // Cesium's "screen" is celestiary's scene render target.
-        screenFramebuffer: () => renderer.properties.get(sceneRT).__webglFramebuffer,
+        // Cesium's "screen" is _cesiumRT, which composite() then brings into
+        // celestiary's scene render target.
+        screenFramebuffer: () => renderer.properties.get(this._cesiumTarget()).__webglFramebuffer,
         remapScreenViewport: (x, y, w, h) => {
           const canvas = widget?.canvas
-          if (!canvas?.width || !canvas?.height) {
+          const target = this._cesiumRT
+          if (!canvas?.width || !canvas?.height || !target) {
             return null
           }
-          const sx = sceneRT.width / canvas.width
-          const sy = sceneRT.height / canvas.height
+          const sx = target.width / canvas.width
+          const sy = target.height / canvas.height
           return [Math.round(x * sx), Math.round(y * sy), Math.round(w * sx), Math.round(h * sy)]
         },
         screen: {stencil: {ref: STENCIL_REF}, blend: 'premultiplied-over', clear: 'depth-only'},
@@ -1008,6 +1059,76 @@ function sunlitShader(Cesium, gain) {
         vec3 shown = czm_pbrNeutralTonemapping(czm_linearToSrgb(material.diffuse) * light);
         material.diffuse = czm_srgbToLinear(shown);
       }`,
+  })
+}
+
+
+/**
+ * How a body's Cesium frame is brought into _sceneRT (HDR.md, "Cesium in
+ * the same units"): a DECODE mode.  Cesium's frames reach celestiary through
+ * 8-bit buffers, so they come encoded to fit [0, 1]: as display values, PBR
+ * Neutral applied (sunlitShader's Moon and Mars, and Earth's globe while it
+ * draws its own atmosphere), which the decode inverts exactly.  In the LDR
+ * fallback _sceneRT holds display values too, and they go in as they are.
+ *
+ * @param {string} name
+ * @param {boolean} hdr Whether _sceneRT is the linear HDR buffer
+ * @returns {number} A DECODE value
+ */
+export function decodeOf(name, hdr) {
+  return hdr ? DECODE.NEUTRAL_INVERSE : DECODE.NONE
+}
+
+
+export const DECODE = {NONE: 0, NEUTRAL_INVERSE: 1, LINEAR: 2}
+
+
+/**
+ * @returns {object} The ShaderMaterial of composite's decode pass: _cesiumRT
+ *   (premultiplied, transparent black where Cesium drew nothing) over
+ *   _sceneRT, decoded per DECODE.
+ */
+function newDecodeMaterial() {
+  return new ShaderMaterial({
+    uniforms: {
+      tCesium: {value: null},
+      uMode: {value: DECODE.NONE},
+      uLinearScale: {value: DISPLAY_GAIN},
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }`,
+    fragmentShader: `
+      uniform sampler2D tCesium;
+      uniform float uMode;
+      uniform float uLinearScale;
+      varying vec2 vUv;
+      ${NEUTRAL_INVERSE_GLSL}
+      void main() {
+        vec4 c = texture2D(tCesium, vUv);
+        if (c.a <= 0.0) discard;
+        vec3 rgb = c.rgb;
+        if (uMode > ${DECODE.LINEAR - 0.5}) {
+          rgb *= uLinearScale;
+        } else if (uMode > ${DECODE.NEUTRAL_INVERSE - 0.5}) {
+          // Premultiplied: invert the colour, then premultiply again.
+          rgb = neutralInverse(min(rgb / c.a, vec3(1.0))) * c.a;
+        }
+        gl_FragColor = vec4(rgb, c.a);
+      }`,
+    blending: CustomBlending,
+    blendEquation: AddEquation,
+    blendSrc: OneFactor,
+    blendDst: OneMinusSrcAlphaFactor,
+    blendSrcAlpha: OneFactor,
+    blendDstAlpha: OneMinusSrcAlphaFactor,
+    depthTest: false,
+    depthWrite: false,
+    transparent: true,
+    toneMapped: false,
   })
 }
 
