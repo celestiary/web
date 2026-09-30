@@ -25,14 +25,23 @@
 "equatorialGravity": 1.0,
 "escapeVelocity": 1.0,
 "orbit": {
-"eccentricity": 0.0,
-"inclination": 1.0,
-"longitudeOfAscendingNode": 1.0,
-"longitudeOfPericenter": 1.0,
-"meanLongitude": 1.0,
-"semiMajorAxis": 1.9405E7,
-"siderealOrbitPeriod": 552096.0
-}
+    "elements": "JPL SSD planetary satellite mean elements (ssd.jpl.nasa.gov/sats/elem), ephemeris PLU060, retrieved 2026-09-30",
+    "referencePlane": "equatorial",
+    "referencePole": {"ra": 132.993, "dec": -6.163},
+    "notes": "referencePole: Pluto's pole, IAU WGCCRE 2015 (Archinal et al. 2018).",
+    "epoch": 2451545.0,
+    "semiMajorAxis": 1.96E7,
+    "eccentricity": 0.0,
+    "inclination": 0.0,
+    "longitudeOfAscendingNode": 0.0,
+    "argumentOfPericenter": 0.0,
+    "meanAnomaly": 304.1,
+    "period": 6.387222,
+    "periodOf": "meanAnomaly",
+    "apsidalPeriod": 0,
+    "nodalPeriod": 0,
+    "siderealOrbitPeriod": 552096.0
+  }
 ,
 "system": []
 }

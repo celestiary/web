@@ -1,8 +1,14 @@
 import {describe, expect, it} from 'bun:test'
 import {Object3D, Quaternion, Vector3} from 'three'
 import Animation from './Animation.js'
-import {utcToTtJulianDay} from './celestialFrame.js'
+import {J2000_JD, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
 import {moonArguments, moonOrientation, moonScenePosition} from './lunarTheory.js'
+import {meanElements, orbitAt, poleAt} from './meanElements.js'
+import io from '../../public/data/io.json'
+import pluto from '../../public/data/pluto.json'
+import saturn from '../../public/data/saturn.json'
+import titan from '../../public/data/titan.json'
+import triton from '../../public/data/triton.json'
 
 
 const toRad = Math.PI / 180
@@ -18,7 +24,8 @@ const JD = 2461313.1007
  *
  * @param {string} name
  * @param {number} axialInclinationDeg
- * @returns {{root: Object3D, orbitPosition: Object3D, orbitShape: Object3D, planet: Object3D}}
+ * @returns {{root: Object3D, orbitPosition: Object3D, orbitShape: Object3D, planetTilt: Object3D,
+ *     planet: Object3D}}
  */
 function moonGraph(name, axialInclinationDeg) {
   const root = new Object3D
@@ -50,7 +57,7 @@ function moonGraph(name, axialInclinationDeg) {
   planet.siderealRotationPeriod = 1
   planet.orbitPosition = orbitPosition
   lod.add(planet)
-  return {root, orbitPosition, orbitShape, planet}
+  return {root, orbitPosition, orbitShape, planetTilt, planet}
 }
 
 
@@ -102,10 +109,80 @@ describe('Animation, the Moon', () => {
   })
 
 
-  it('leaves other moons on their ellipse in the ecliptic', () => {
-    const {root, orbitPosition} = moonGraph('phobos', 0)
+  it('keeps a body without elements on a flat ellipse in the ecliptic', () => {
+    const {root, orbitPosition} = moonGraph('earth-as-moon', 0)
     new Animation(stubTime).animateAtJD(root, JD)
     expect(orbitPosition.position.y).toBe(0)
     expect(orbitPosition.position.length()).toBeGreaterThan(3.6E8)
+  })
+})
+
+
+/**
+ * moonGraph with what Planet.load adds for a body with mean elements and
+ * an IAU pole.
+ *
+ * @param {string} name
+ * @param {object} props the body's JSON descriptor
+ * @returns {object} moonGraph's nodes
+ */
+function bodyGraph(name, props) {
+  const g = moonGraph(name, props.axialInclination)
+  g.orbitPosition.orbit = props.orbit
+  g.orbitPosition.elements = meanElements(props.orbit)
+  if (props.pole) {
+    g.planetTilt.pole = props.pole
+  }
+  return g
+}
+
+
+describe('Animation, bodies with mean elements', () => {
+  it('places Titan by its elements, precessed to date, at TT', () => {
+    const {root, orbitPosition} = bodyGraph('titan', titan)
+    new Animation(stubTime).animateAtJD(root, JD)
+    const jde = utcToTtJulianDay(JD)
+    const want = new Vector3
+    orbitAt(meanElements(titan.orbit), jde, new Quaternion, want)
+    want.applyQuaternion(precessionQuaternion(J2000_JD, jde))
+    expect(orbitPosition.position.distanceTo(want)).toBeLessThan(1)
+    // Out of the ecliptic, as the old flat ellipse (y = 0) never was.
+    expect(Math.abs(orbitPosition.position.y)).toBeGreaterThan(1e7)
+  })
+
+
+  it('lays the orbit line through the body, in its plane', () => {
+    for (const [name, props] of [['titan', titan], ['io', io], ['triton', triton], ['pluto', pluto]]) {
+      const {root, orbitPosition, orbitShape} = bodyGraph(name, props)
+      new Animation(stubTime).animateAtJD(root, JD)
+      // In the shape's frame (the flat unit ellipse, centred, in its XZ
+      // plane, scaled by a): in the plane, and on the ellipse.
+      const local = orbitPosition.position.clone().sub(orbitShape.position)
+          .applyQuaternion(orbitShape.quaternion.clone().invert()).divideScalar(orbitShape.scale.x)
+      const e = props.orbit.eccentricity
+      const b = Math.sqrt(1 - (e * e))
+      expect(Math.abs(local.y)).toBeLessThan(1e-9)
+      expect((local.x ** 2) + ((local.z / b) ** 2)).toBeCloseTo(1, 3)
+    }
+  })
+
+
+  it('points a planet\'s pole at its IAU pole, of date', () => {
+    const {root, planetTilt} = bodyGraph('saturn', saturn)
+    new Animation(stubTime).animateAtJD(root, JD)
+    const jde = utcToTtJulianDay(JD)
+    const want = poleAt(saturn.pole, jde).applyQuaternion(precessionQuaternion(J2000_JD, jde))
+    const got = new Vector3(0, 1, 0).applyQuaternion(planetTilt.quaternion)
+    expect(got.distanceTo(want)).toBeLessThan(1e-9)
+    // 28.05° from the ecliptic pole (26.73° is to Saturn's own orbit).
+    expect(got.angleTo(new Vector3(0, 1, 0)) / toRad).toBeCloseTo(28.05, 1)
+  })
+
+
+  it('leaves Earth\'s tilt alone', () => {
+    const {root, planetTilt} = moonGraph('earth', 23.4392811)
+    const before = planetTilt.quaternion.clone()
+    new Animation(stubTime).animateAtJD(root, JD)
+    expect(planetTilt.quaternion.equals(before)).toBe(true)
   })
 })

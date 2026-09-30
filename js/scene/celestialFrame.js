@@ -152,6 +152,12 @@ const ARCSEC = toRad / 3600
 const DAYS_PER_CENTURY = 36525
 
 
+// Obliquity of the ecliptic at J2000 as JPL Horizons and the JPL satellite
+// elements use it, to define the "ecliptic of J2000" from the ICRF equator
+// (84381.448″, IAU 1976).
+export const J2000_OBLIQUITY_DEG = 84381.448 / 3600
+
+
 /**
  * The three angles of ecliptic precession from the mean ecliptic and
  * equinox of one date to another's (Meeus 21.5, IAU 1976): η, the

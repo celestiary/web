@@ -25,14 +25,22 @@
 "equatorialGravity": 1.0,
 "escapeVelocity": 1.0,
 "orbit": {
-"eccentricity": 0.0,
-"inclination": 1.0,
-"longitudeOfAscendingNode": 1.0,
-"longitudeOfPericenter": 1.0,
-"meanLongitude": 1.0,
-"semiMajorAxis": 1.17647E8,
-"siderealOrbitPeriod": 96940.8
-}
+    "elements": "JPL SSD planetary satellite mean elements (ssd.jpl.nasa.gov/sats/elem), ephemeris NEP097, retrieved 2026-09-30",
+    "referencePlane": "Laplace",
+    "referencePole": {"ra": 299.8, "dec": 42.6},
+    "epoch": 2451545.0,
+    "semiMajorAxis": 1.176E8,
+    "eccentricity": 0.0,
+    "inclination": 0.0,
+    "longitudeOfAscendingNode": 0.0,
+    "argumentOfPericenter": 0.0,
+    "meanAnomaly": 276.8,
+    "period": 1.122315,
+    "periodOf": "meanAnomaly",
+    "apsidalPeriod": 0,
+    "nodalPeriod": 0,
+    "siderealOrbitPeriod": 96940.8
+  }
 ,
 "system": []
 }
