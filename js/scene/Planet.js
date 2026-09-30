@@ -1,8 +1,8 @@
 import {
   AdditiveBlending,
   AxesHelper,
+  BufferAttribute,
   BufferGeometry,
-  EllipseCurve,
   Group,
   ImageLoader,
   LOD,
@@ -22,16 +22,16 @@ import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
 import {newFarPoint, pointSwitchDistance} from './farPoint.js'
 import {
-  ellipseSemiMinorAxisCurve,
   point,
   sphere,
 } from './shapes.js'
 import Rings from './rings/Rings.js'
 import * as Material from './material.js'
 import {meanElements} from './meanElements.js'
+import {ORBIT_LINE_POINTS, unitEllipse} from './orbitPath.js'
 import {dataUrl} from '../dataUrl.js'
 import {monthOfJulianDay, monthlyPath} from './monthly.js'
-import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, halfPi, toRad} from '../shared.js'
+import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
 import {capitalize, named} from '../utils.js'
 
 
@@ -71,9 +71,9 @@ export default class Planet extends Object {
 
     // Unrotated, as are group and the parent's orbitPosition: positions
     // Animation writes are in the scene's frame, relative to the primary.
-    // The orbital plane is the orbit line's own rotation, which Animation
-    // lays each frame for the Moon (lunarTheory.js) and for bodies with
-    // mean elements (meanElements.js); the VSOP87 planets' lines stay flat.
+    // The orbit line is laid by Animation: on the mean-element ellipse of
+    // date (meanElements.js), or, for the planets and the Moon, as the
+    // body's path sampled from its ephemeris (orbitPath.js).
     const orbitPlane = this.scene.newGroup(`${this.name}.orbitPlane`)
     group.add(orbitPlane)
 
@@ -90,6 +90,9 @@ export default class Planet extends Object {
     orbitPosition.elements = meanElements(this.props.orbit)
     // For bodies whose orbit line Animation re-lays each frame.
     orbitPosition.orbitShape = orbitShape
+    // Close up, the line is drawn through the body's centre to a small
+    // fraction of this (bodyLine.js).
+    orbitPosition.bodyRadius = this.props.radius.scalar
 
     const planetTilt = this.scene.newGroup(`${this.name}.planetTilt`)
     orbitPosition.add(planetTilt)
@@ -125,18 +128,21 @@ export default class Planet extends Object {
 
 
   /**
+   * The orbit line: a group holding a Line (`group.line`), which starts as
+   * the orbit's unit ellipse, centred, in the XZ plane, scaled to the
+   * semi-major axis.  Animation lays it on a mean-element orbit
+   * (layOrbitShape), or, for the planets and the Moon, rewrites its
+   * vertices in place with the body's sampled path (orbitPath.js).
+   *
    * @param {object} scene
    * @param {object} orbit
    * @returns {Object3D}
    */
   newOrbit(scene, orbit) {
     const group = named(new Group(), 'orbit')
-    const ellipseCurve = new EllipseCurve(
-        0, 0,
-        1, ellipseSemiMinorAxisCurve(assertInRange(orbit.eccentricity, 0, 1)),
-        0, Math.PI * 2)
-    const ellipsePoints = ellipseCurve.getPoints(1000)
-    const ellipseGeometry = new BufferGeometry().setFromPoints(ellipsePoints)
+    const positions = unitEllipse(assertInRange(orbit.eccentricity, 0, 1), new Float32Array(ORBIT_LINE_POINTS * 3))
+    const ellipseGeometry = new BufferGeometry()
+    ellipseGeometry.setAttribute('position', new BufferAttribute(positions, 3))
     const orbitMaterial = new LineBasicMaterial({
       color: 0x0000ff,
       blending: AdditiveBlending,
@@ -146,11 +152,8 @@ export default class Planet extends Object {
       toneMapped: false,
     })
     const pathShape = new Line(ellipseGeometry, orbitMaterial)
-    // Orbit is in the x/y plane, so rotate it around x by 90 deg to put
-    // it in the x/z plane (top comes towards camera until it's flat
-    // edge on).
-    pathShape.rotation.x = halfPi
     group.add(pathShape)
+    group.line = pathShape
     const orbitScaled = orbit.semiMajorAxis.scalar
     group.scale.setScalar(orbitScaled)
     // Initial visibility from the scene's current settings — handles the

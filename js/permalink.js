@@ -1,3 +1,6 @@
+import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
+
+
 const SEPARATOR = '@'
 const PARAM_SEP = ';'
 const KV_SEP = '='
@@ -181,8 +184,10 @@ export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings)
 
 /**
  * Decode a hash fragment into view state.
- * Returns null for legacy path-only hashes (no '@') or malformed params.
- * Unknown parameter keys after the position prefix are silently ignored.
+ * Returns null for legacy path-only hashes (no '@') or malformed params,
+ * including a non-finite number.  The time is clamped to the dates Time
+ * supports (J2000 ± SUPPORTED_DAYS_FROM_J2000).  Unknown parameter keys
+ * after the position prefix are silently ignored.
  *
  * @param {string} fragment  Hash content without leading '#'
  * @returns {{path:string, d2000:number, lat:number, lng:number, alt:number,
@@ -235,13 +240,15 @@ export function decodePermalink(fragment) {
   const [qx, qy, qz, qw] = cqStr.split(',').map(Number)
   const fov = parseFloat(fovStr.slice(0, -3))
 
-  if ([lat, lng, alt, d2000, qx, qy, qz, qw, fov].some(isNaN)) {
+  if (![lat, lng, alt, d2000, qx, qy, qz, qw, fov].every(Number.isFinite)) {
     return null
   }
+  // Past the ephemerides' range the planets are garbage (Time.js).
+  const d2000InRange = Math.min(Math.max(d2000, -SUPPORTED_DAYS_FROM_J2000), SUPPORTED_DAYS_FROM_J2000)
   // Settings are always returned as a complete map (defaults + any flagged
   // overrides) so callers don't need to know the default table.
   const settings = decodeSettings(params['s'])
-  return {path, d2000, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov, settings}
+  return {path, d2000: d2000InRange, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov, settings}
 }
 
 

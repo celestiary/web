@@ -377,6 +377,11 @@ export default class Celestiary {
         'Hide/show all scene annotations (labels, orbits, asterisms, grids)',
         undefined,
         'Info')
+    // three's FPS/MS/MB panel, for judging frame cost on a real GPU.
+    k.map('`', () => this.ui.togglePerfPanel(),
+        'Toggle performance panel',
+        () => this.ui.isPerfPanelVisible(),
+        'Info')
 
     // === Labels ===
     k.map('p', () => {

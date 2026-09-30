@@ -37,7 +37,7 @@ Hashes without `@` are legacy path-only URLs and continue to work unchanged.
 
 | Key | Type | Example | Meaning |
 |-----|------|---------|---------|
-| `t` | Measure: days from J2000 | `9233.1234jd` | Simulation time |
+| `t` | Measure: days from J2000 | `9233.1234jd` | Simulation time, clamped on decode to ±2191500 days (J2000 ± 6000 years, Time.js's supported dates); a non-finite `t` makes the fragment invalid |
 | `cq` | 4× dimensionless float | `0,0,0,1` | Camera quaternion (platform-local) |
 | `fov` | Measure: degrees | `45deg` | Camera field of view |
 

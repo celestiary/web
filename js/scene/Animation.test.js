@@ -98,17 +98,6 @@ describe('Animation, the Moon', () => {
   })
 
 
-  it('lays the orbit line through the Moon', () => {
-    const {root, orbitPosition, orbitShape} = moonGraph('moon', 1.543)
-    new Animation(stubTime).animateAtJD(root, JD)
-    // Moon in the orbit shape's frame (the flat unit ellipse scaled by a,
-    // in its XZ plane): close to the plane.
-    const local = orbitPosition.position.clone().sub(orbitShape.position)
-        .applyQuaternion(orbitShape.quaternion.clone().invert())
-    expect(Math.abs(local.y) / local.length()).toBeLessThan(0.01)
-  })
-
-
   it('keeps a body without elements on a flat ellipse in the ecliptic', () => {
     const {root, orbitPosition} = moonGraph('earth-as-moon', 0)
     new Animation(stubTime).animateAtJD(root, JD)
