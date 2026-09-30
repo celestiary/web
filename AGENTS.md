@@ -5,7 +5,8 @@ celestiary. `CLAUDE.md` is a symlink to this file. Read it before
 starting work, and keep it current when you learn something the next
 session would otherwise rediscover.
 
-Always read these three:
+Always read these three, and [ROADMAP.md](ROADMAP.md) before picking up
+new work:
 
 - [DESIGN.md](DESIGN.md): architecture and design overview.
 - [STYLE.md](STYLE.md): code style (ESLint enforces most of it).
@@ -19,6 +20,7 @@ tried and dropped.
 
 | Working on | Read first |
 |---|---|
+| What's planned, in what order, and cross-track decisions (data policy) | [ROADMAP.md](ROADMAP.md): [now / next / later](ROADMAP.md#now--next--later), [tracks](ROADMAP.md#tracks), [the galaxy plan](ROADMAP.md#the-galaxy-plan); epics are issues labelled [`epic`](https://github.com/celestiary/web/issues?q=is%3Aopen+label%3Aepic) |
 | Class hierarchy, scene graph, animation loop | DESIGN.md: [core classes](DESIGN.md#core-class-hierarchy), [scene graph](DESIGN.md#scene-graph-structure-per-planet), [animation loop](DESIGN.md#animation-loop) |
 | Units, frames, coordinates | DESIGN.md [coordinate system & scale](DESIGN.md#coordinate-system--scale); [js/permalink.md](js/permalink.md#coordinate-system) |
 | Camera, navigation, targeting (`goTo`, `setTarget`, keys) | DESIGN.md: [camera controls](DESIGN.md#camera-controls), [navigation](DESIGN.md#navigation-goto-flow), [setTarget and lookAtTarget](DESIGN.md#settarget-lookattarget-c-key) |
@@ -33,7 +35,6 @@ tried and dropped.
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
 | Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |
 | The compositing library under the Cesium layers (portal-netgl) | [portal AGENTS.md](https://github.com/pablo-mayrgundter/portal/blob/main/AGENTS.md), its [DESIGN.md](https://github.com/pablo-mayrgundter/portal/blob/main/packages/portal-netgl/DESIGN.md) and the [portal-layers design](https://github.com/pablo-mayrgundter/portal/blob/main/docs/portal-layers.md) |
-| Filed next steps | [#86](https://github.com/celestiary/web/issues/86) physically based sky, stars and exposure; [#87](https://github.com/celestiary/web/issues/87) Moon orbit; [#88](https://github.com/celestiary/web/issues/88) Earth clouds |
 
 ## Working efficiently
 
@@ -148,6 +149,8 @@ tried and dropped.
 
 - **Collaboration and debugging lessons** go in PLAYBOOK.md.
 - **Architecture** goes in DESIGN.md.
+- **Priorities, sequencing and cross-track decisions** go in
+  ROADMAP.md; the details of each piece of work go in its issue.
 - **Cesium layer behaviour** goes in CESIUM.md.
 - **Planet rendering, and texture sources and their recipes**, go in
   `js/scene/Planet.md`.
