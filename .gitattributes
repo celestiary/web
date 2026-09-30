@@ -1,0 +1,5 @@
+# Git LFS: bundled data over ~1 MB goes under public/large/ (DESIGN.md, "Data
+# policy").  Don't add patterns that match files already committed as plain
+# blobs (public/textures/, public/data/stars.dat): git would report them as
+# modified.
+public/large/** filter=lfs diff=lfs merge=lfs -text

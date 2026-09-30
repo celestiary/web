@@ -1,0 +1,36 @@
+name: Fetch Git LFS files
+description: >
+  Replace the LFS pointer files in the checkout with the real files, restoring
+  the LFS objects from the Actions cache when it has them. Run it after
+  actions/checkout (with its default lfs: false). This is what `lfs: true`
+  does, except that the checkout would download the objects before any cache
+  could be consulted, and every download counts against the repository's LFS
+  bandwidth quota.
+runs:
+  using: composite
+  steps:
+    # `git lfs ls-files -l` lists each tracked file with its full object id,
+    # from the index, so it needs no download. The key changes exactly when
+    # an LFS object does.
+    - id: lfs
+      shell: bash
+      run: |
+        git lfs install --local
+        ids="$(git lfs ls-files -l | cut -d' ' -f1 | sort)"
+        if [ -z "$ids" ]; then
+          echo "files=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "files=true" >> "$GITHUB_OUTPUT"
+          echo "key=lfs-$(printf '%s' "$ids" | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        fi
+
+    - if: steps.lfs.outputs.files == 'true'
+      uses: actions/cache@v4.2.0
+      with:
+        path: .git/lfs
+        key: ${{ steps.lfs.outputs.key }}
+
+    # Downloads only what the cache lacked.
+    - if: steps.lfs.outputs.files == 'true'
+      shell: bash
+      run: git lfs pull

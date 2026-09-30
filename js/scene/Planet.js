@@ -27,6 +27,7 @@ import {
 } from './shapes.js'
 import Rings from './rings/Rings.js'
 import * as Material from './material.js'
+import {dataUrl} from '../dataUrl.js'
 import {monthOfJulianDay, monthlyPath} from './monthly.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, halfPi, toRad} from '../shared.js'
 import {capitalize, named} from '../utils.js'
@@ -315,7 +316,7 @@ export default class Planet extends Object {
         return
       }
       wanted = month
-      loader.load(`textures/${monthlyPath(pattern, month)}.jpg`, (image) => {
+      loader.load(dataUrl(`textures/${monthlyPath(pattern, month)}.jpg`), (image) => {
         if (month === wanted) {
           map.image = image
           map.needsUpdate = true

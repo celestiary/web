@@ -22,11 +22,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
+        with:
+          # The PR merged into its base is HEAD (a merge commit), so HEAD^1
+          # is the base, to see what the PR changes.
+          fetch-depth: 2
+
+      # Large data (.github/large-data-paths) is not copied into every
+      # preview: the app loads it from production, unless this PR changes
+      # it, when the preview needs its own full copy. Unsure means copy.
+      - name: Does this PR change large data?
+        id: data
+        run: |
+          copy=true
+          if git rev-parse --verify --quiet HEAD^2 > /dev/null; then
+            copy="$(.github/scripts/large-data.sh changed HEAD^1 HEAD)"
+          fi
+          echo "copy=${copy}" >> "$GITHUB_OUTPUT"
+          echo "Full copy of large data in the preview: ${copy}"
 
       - uses: ./.github/actions/build
         with:
           base-path: /${{ github.event.repository.name }}/pr-preview/pr-${{ github.event.number }}/
           cesium-ion-token: ${{ secrets.CESIUM_ION_TOKEN }}
+          # Production is main, deployed to the project page.
+          data-base-url: ${{ steps.data.outputs.copy != 'true' && format('https://celestiary.github.io/{0}/', github.event.repository.name) || '' }}
+          # The large data is dropped below, so its LFS files aren't needed.
+          lfs: ${{ steps.data.outputs.copy }}
+
+      - name: Leave large data out of the preview
+        if: steps.data.outputs.copy != 'true'
+        run: .github/scripts/large-data.sh strip docs
 
       - name: Deploy preview
         uses: rossjrw/pr-preview-action@v1.8.1

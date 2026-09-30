@@ -14,9 +14,27 @@ inputs:
       without it Earth's Cesium layer uses Cesium's bundled offline imagery.
     required: false
     default: ''
+  data-base-url:
+    description: >
+      Where the app fetches large data (textures, stars.dat, public/large/)
+      from: a URL, e.g. https://celestiary.github.io/web/. Empty means the
+      site's own origin and path. PR previews set the production URL rather
+      than copy the data (DESIGN.md, "Data policy").
+    required: false
+    default: ''
+  lfs:
+    description: >
+      Whether to fetch the Git LFS files first. Set false only when the large
+      data is dropped from the output afterwards (a preview that loads it from
+      production), since the pointer files would be useless.
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
+    - if: inputs.lfs == 'true'
+      uses: ./.github/actions/lfs
+
     - uses: actions/setup-node@v6.4.0
       with:
         # Cesium requires Node >= 22, and yarn enforces engines.
@@ -30,4 +48,5 @@ runs:
       env:
         BASE_PATH: ${{ inputs.base-path }}
         CESIUM_ION_TOKEN: ${{ inputs.cesium-ion-token }}
+        DATA_BASE_URL: ${{ inputs.data-base-url }}
       run: yarn build

@@ -35,6 +35,7 @@ import {
   Vector3,
 } from 'three'
 import SpriteSheet from './SpriteSheet.js'
+import {dataUrl} from '../dataUrl.js'
 import * as Shared from '../shared.js'
 import {named} from '../utils.js'
 
@@ -90,7 +91,7 @@ export function sphere(opts) {
 
 /** @returns {Sprite} */
 export function marker() {
-  const map = new TextureLoader().load('textures/crosshairs.png')
+  const map = new TextureLoader().load(dataUrl('textures/crosshairs.png'))
   const m = new Sprite(new SpriteMaterial({
     map: map,
     sizeAttenuation: false,

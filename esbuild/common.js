@@ -19,5 +19,9 @@ export default {
     // Cesium ion access token for the Cesium layers (CESIUM.md).  Empty =
     // no ion data; Earth falls back to Cesium's bundled offline imagery.
     __CESIUM_ION_TOKEN__: JSON.stringify(process.env.CESIUM_ION_TOKEN ?? ''),
+    // Where large data (textures, stars.dat, public/large/) is fetched from
+    // (js/dataUrl.js).  Empty = the page's own origin and path.  PR previews
+    // set the production site's URL rather than copy the data.
+    __DATA_BASE_URL__: JSON.stringify(process.env.DATA_BASE_URL ?? ''),
   },
 }

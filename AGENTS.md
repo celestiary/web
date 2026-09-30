@@ -34,6 +34,7 @@ tried and dropped.
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
 | Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |
+| Adding bundled data (Git LFS, `dataUrl`), what a PR preview copies | DESIGN.md [data policy](DESIGN.md#data-policy) |
 | The compositing library under the Cesium layers (portal-netgl) | [portal AGENTS.md](https://github.com/pablo-mayrgundter/portal/blob/main/AGENTS.md), its [DESIGN.md](https://github.com/pablo-mayrgundter/portal/blob/main/packages/portal-netgl/DESIGN.md) and the [portal-layers design](https://github.com/pablo-mayrgundter/portal/blob/main/docs/portal-layers.md) |
 
 ## Working efficiently
@@ -96,6 +97,20 @@ tried and dropped.
 - **Large assets are fine in the repo**, e.g. the Blue Marble textures
   and tile pyramids. Document how each was built in
   `js/scene/Planet.md`, so it can be rebuilt.
+- **New bundled data over about 1 MB goes in Git LFS.**
+  - Put it under `public/large/<dataset>/`, which `.gitattributes`
+    tracks. Install git-lfs and run `git lfs install` once, or the
+    files are committed as plain blobs. `git lfs ls-files` lists what's
+    tracked.
+  - Load it with `dataUrl('large/<dataset>/<file>')` (`js/dataUrl.js`),
+    never a bare relative path. Previews load large data from
+    production, so a bare path 404s there.
+  - A checkout without git-lfs holds pointer files, not data. Run
+    `git lfs pull`.
+  - A PR that changes files under `public/textures/`,
+    `public/data/stars.dat` or `public/large/` gets a full preview copy;
+    any other PR previews against production's data.
+  - Details: DESIGN.md [data policy](DESIGN.md#data-policy).
 - **Ask early for anything only the user can supply:** tokens, dataset
   access (e.g. an ion asset not in the account), allowed hosts, account
   settings. Say exactly what's needed.

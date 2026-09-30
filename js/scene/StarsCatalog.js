@@ -1,3 +1,4 @@
+import {dataUrl} from '../dataUrl.js'
 import {LENGTH_SCALE, LIGHTYEAR_METER} from '../shared.js'
 import {assertEquals, assertNotNullOrUndefined} from '../assert.js'
 
@@ -78,7 +79,7 @@ export default class StarsCatalog {
     if (!cb) {
       throw new Error('Undefined callback')
     }
-    fetch('data/stars.dat').then((starsData) => {
+    fetch(dataUrl('data/stars.dat')).then((starsData) => {
       starsData.arrayBuffer().then(
           /**
            * @param {ArrayBuffer} buffer

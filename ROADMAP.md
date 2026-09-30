@@ -35,12 +35,13 @@ changes, say what replaced it and why.
 
 - **Data: bundle up to hundreds of MB, fetch beyond.** External data in
   the tens to hundreds of MB is bundled in the repo, with large binaries
-  in Git LFS. Gaia-scale data (GB and up) is fetched over the network.
-  Before the first large bundle, the workflows need LFS support and PR
-  previews must stop copying large data (a Pages site is capped at about
-  1 GB, and every preview is a full copy of the site); see [#107](https://github.com/celestiary/web/issues/107).
-  Document each dataset's source, licence and rebuild recipe next to the
-  code that uses it (e.g. [Planet.md](js/scene/Planet.md#surface-texture-sources)).
+  in Git LFS, under `public/large/`. Gaia-scale data (GB and up) is
+  fetched over the network. The workflows fetch LFS files (cached), and
+  PR previews load large data from production instead of copying it
+  (a Pages site is capped at about 1 GB), unless the PR changes that
+  data; see [DESIGN.md, data policy](DESIGN.md#data-policy)
+  ([#107](https://github.com/celestiary/web/issues/107)). Document each dataset's source, licence and rebuild recipe
+  next to the code that uses it (e.g. [Planet.md](js/scene/Planet.md#surface-texture-sources)).
 - **Physically based first.** New visual work is tuned against the HDR
   pipeline of [#86](https://github.com/celestiary/web/issues/86) once it lands, not the current LDR one, so it isn't
   tuned twice. Until then, keep new constants few and documented.
@@ -58,32 +59,30 @@ order is a suggestion.
 **Now**
 1. **Moon orbit** ([#87](https://github.com/celestiary/web/issues/87), in [#112](https://github.com/celestiary/web/issues/112)). Small, and it unblocks the daytime-Moon
    benchmark of [#86](https://github.com/celestiary/web/issues/86). Then [#6](https://github.com/celestiary/web/issues/6), the other moons and Pluto.
-2. **Data policy** ([#107](https://github.com/celestiary/web/issues/107)). A prerequisite for every bundled dataset
-   below; mostly workflow changes.
-3. **Physically based light and exposure** ([#86](https://github.com/celestiary/web/issues/86), [#109](https://github.com/celestiary/web/issues/109)). The foundation of
+2. **Physically based light and exposure** ([#86](https://github.com/celestiary/web/issues/86), [#109](https://github.com/celestiary/web/issues/109)). The foundation of
    the rendering track: it changes the scene buffer, so it goes before
    more visual tuning.
-4. **Scripted parity check** ([#105](https://github.com/celestiary/web/issues/105), in [#121](https://github.com/celestiary/web/issues/121)). Turns the by-hand
+3. **Scripted parity check** ([#105](https://github.com/celestiary/web/issues/105), in [#121](https://github.com/celestiary/web/issues/121)). Turns the by-hand
    Cesium-vs-celestiary comparison into one command; [#92](https://github.com/celestiary/web/issues/92) and [#93](https://github.com/celestiary/web/issues/93) need it
    for their "done when".
 
 **Next**
-5. **Earth across the swap** ([#110](https://github.com/celestiary/web/issues/110)): night lights ([#93](https://github.com/celestiary/web/issues/93)), then the imagery
+4. **Earth across the swap** ([#110](https://github.com/celestiary/web/issues/110)): night lights ([#93](https://github.com/celestiary/web/issues/93)), then the imagery
    detail layer ([#92](https://github.com/celestiary/web/issues/92)), then clouds ([#88](https://github.com/celestiary/web/issues/88)).
-6. **Milky Way** ([#116](https://github.com/celestiary/web/issues/116)): the realistic shape ([#99](https://github.com/celestiary/web/issues/99)), then the brightest
+5. **Milky Way** ([#116](https://github.com/celestiary/web/issues/116)): the realistic shape ([#99](https://github.com/celestiary/web/issues/99)), then the brightest
    ~1M Gaia stars ([#98](https://github.com/celestiary/web/issues/98)), then galactic dynamics with a dark-matter toggle
    ([#106](https://github.com/celestiary/web/issues/106)). See [the galaxy plan](#the-galaxy-plan).
-7. **Sharing and picking through Cesium** ([#118](https://github.com/celestiary/web/issues/118)): the layer choice and
+6. **Sharing and picking through Cesium** ([#118](https://github.com/celestiary/web/issues/118)): the layer choice and
    follow state in the permalink (small), then picking on Cesium's globes.
 
 **Later**
-8. Small bodies and satellites ([#114](https://github.com/celestiary/web/issues/114)), starting with the asteroid data
+7. Small bodies and satellites ([#114](https://github.com/celestiary/web/issues/114)), starting with the asteroid data
    already in the repo ([#30](https://github.com/celestiary/web/issues/30)).
-9. Lookup beyond the bundled catalogue and exoplanet systems ([#115](https://github.com/celestiary/web/issues/115)).
-10. Distinctive appearances: Sun, gas giants, rings, auroras ([#111](https://github.com/celestiary/web/issues/111)).
-11. Surfaces and relief for bodies Cesium doesn't cover ([#113](https://github.com/celestiary/web/issues/113)).
-12. Deep sky: nebulae, other galaxies, Sgr A\* ([#117](https://github.com/celestiary/web/issues/117)).
-13. Spacecraft: integrator, then flight simulation ([#119](https://github.com/celestiary/web/issues/119)); missions and
+8. Lookup beyond the bundled catalogue and exoplanet systems ([#115](https://github.com/celestiary/web/issues/115)).
+9. Distinctive appearances: Sun, gas giants, rings, auroras ([#111](https://github.com/celestiary/web/issues/111)).
+10. Surfaces and relief for bodies Cesium doesn't cover ([#113](https://github.com/celestiary/web/issues/113)).
+11. Deep sky: nebulae, other galaxies, Sgr A\* ([#117](https://github.com/celestiary/web/issues/117)).
+12. Spacecraft: integrator, then flight simulation ([#119](https://github.com/celestiary/web/issues/119)); missions and
     models ([#120](https://github.com/celestiary/web/issues/120)).
 
 Housekeeping ([#122](https://github.com/celestiary/web/issues/122)) happens alongside, whenever it's cheap.
