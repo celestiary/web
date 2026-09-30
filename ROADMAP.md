@@ -6,9 +6,11 @@ each epic is a GitHub issue labelled `epic` whose sub-issues are the work.
 This doc holds what an issue can't: the order, the dependencies between
 tracks, and the decisions that apply across them.
 
-Keep it current: when an epic lands, or priorities change, update the
-**Now / Next / Later** list and the track tables. When a decision here
-changes, say what replaced it and why.
+Keep it current, in the PR that makes the change: a PR that closes an
+issue, lands an epic's piece or shifts priorities updates the
+**Now / Next / Later** list and the track tables itself, so there are no
+separate roadmap PRs. When a decision here changes, say what replaced
+it and why.
 
 ## Where we are
 
@@ -62,7 +64,8 @@ order is a suggestion.
 
 **Done recently:** the Moon orbit ([#87](https://github.com/celestiary/web/issues/87), PR [#130](https://github.com/celestiary/web/pull/130)); the data policy
 ([#107](https://github.com/celestiary/web/issues/107), PR [#129](https://github.com/celestiary/web/pull/129)); the scripted parity check, `yarn parity`
-([#105](https://github.com/celestiary/web/issues/105), PR [#134](https://github.com/celestiary/web/pull/134); see [CESIUM.md](CESIUM.md#parity-check)).
+([#105](https://github.com/celestiary/web/issues/105), PR [#134](https://github.com/celestiary/web/pull/134); see [CESIUM.md](CESIUM.md#parity-check)); the Moon's rotation
+and orbital periods in `moon.json` ([#132](https://github.com/celestiary/web/issues/132), PR [#135](https://github.com/celestiary/web/pull/135)).
 
 **Now**
 1. **The other moons and Pluto** ([#6](https://github.com/celestiary/web/issues/6), in [#112](https://github.com/celestiary/web/issues/112)): real orbital planes and
@@ -123,7 +126,7 @@ surface.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87) (done), [#6](https://github.com/celestiary/web/issues/6), [#133](https://github.com/celestiary/web/issues/133), [#96](https://github.com/celestiary/web/issues/96), [#97](https://github.com/celestiary/web/issues/97), [#132](https://github.com/celestiary/web/issues/132) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
+| [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87) (done), [#6](https://github.com/celestiary/web/issues/6), [#133](https://github.com/celestiary/web/issues/133), [#96](https://github.com/celestiary/web/issues/96), [#97](https://github.com/celestiary/web/issues/97), [#132](https://github.com/celestiary/web/issues/132) (done) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
 | [#113](https://github.com/celestiary/web/issues/113) Surfaces for every body | [#9](https://github.com/celestiary/web/issues/9), [#10](https://github.com/celestiary/web/issues/10), [#43](https://github.com/celestiary/web/issues/43) | data policy for bundled DEMs | [Planet.md](js/scene/Planet.md), [CESIUM.md, ground](CESIUM.md#camera-and-light-coupling) |
 
 The orbit gap is structural: `Animation.js` moves non-planets on

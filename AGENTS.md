@@ -185,6 +185,10 @@ tried and dropped.
 - **Architecture** goes in DESIGN.md.
 - **Priorities, sequencing and cross-track decisions** go in
   ROADMAP.md; the details of each piece of work go in its issue.
+- **Every PR updates ROADMAP.md for its own change**, in the same PR:
+  mark the issues it closes as done in the track tables, add it to
+  *Done recently*, and move the *Now / Next* items it affects. No
+  separate roadmap PRs.
 - **Cesium layer behaviour** goes in CESIUM.md.
 - **Planet rendering, and texture sources and their recipes**, go in
   `js/scene/Planet.md`.
