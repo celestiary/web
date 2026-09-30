@@ -440,13 +440,15 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 
 | View | Luma | R / G / B | Profile max / mean (of 255) |
 |---|---|---|---|
-| `earth-orbit-gibbous` | 0.990 | 0.976 / 0.989 / 1.000 | 36.6 / 2.5 |
+| `earth-orbit-gibbous` | 0.990 | 0.976 / 0.988 / 1.000 | 29.5 / 2.4 |
 | `moon-quarter` | 0.967 | 0.967 / 0.967 / 0.967 | 19.4 / 5.5 |
-| `mars-gibbous` | 0.990 | 1.000 / 0.987 / 0.987 | 5.5 / 1.2 |
-| `earth-low-dusk` | 1.002 | 1.000 / 1.000 / 1.000 | 2.8 / 1.1 |
+| `mars-gibbous` | 0.988 | 1.000 / 0.985 / 0.986 | 9.5 / 1.8 |
+| `earth-low-dusk` | 1.001 | 1.000 / 1.000 / 1.000 | 3.2 / 1.2 |
 
 Measured after #86's PR A (one HDR buffer; Earth under celestiary's
-atmosphere pass on both sides).  Before it, on the same machine:
+atmosphere pass on both sides), with #137's IAU poles (Mars's turned the
+view: its profile max went from 5.5 to 9.5).  Earth's orbit profile max
+ranged 29.5 to 36.6 over runs.  Before it, on the same machine:
 
 | View | Luma | R / G / B | Profile max / mean |
 |---|---|---|---|
