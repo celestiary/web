@@ -1,0 +1,12 @@
+# Large data: paths under public/, one per line (a directory or a file).
+#
+# A PR preview doesn't copy these into pr-preview/pr-N/.  It loads them from
+# the production site (the DATA_BASE_URL build define, js/dataUrl.js).  A PR
+# that changes any of them gets a full preview copy instead.
+#
+# Everything the app loads through dataUrl() and that is bigger than a
+# few hundred KB belongs here.  New datasets go under large/ (Git LFS,
+# .gitattributes).  See DESIGN.md, "Data policy".
+textures
+data/stars.dat
+large

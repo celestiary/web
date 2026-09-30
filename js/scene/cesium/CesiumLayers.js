@@ -17,6 +17,7 @@ import {
   Vector3,
   WebGLRenderTarget,
 } from 'three'
+import {dataUrl, isAbsoluteUrl} from '../../dataUrl.js'
 import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
@@ -937,6 +938,15 @@ function terrainHeight(body, name, carto) {
 
 
 /**
+ * @param {string} url Absolute, or relative to the page's base
+ * @returns {string} Absolute
+ */
+function absoluteUrl(url) {
+  return isAbsoluteUrl(url) ? url : new URL('.', document.baseURI).href + url
+}
+
+
+/**
  * @param {object} Cesium
  * @param {object} imagery A body's monthlyImagery config (bodies.js)
  * @param {number} month 1-12
@@ -945,10 +955,11 @@ function terrainHeight(body, name, carto) {
 function monthlyImageryLayer(Cesium, imagery, month) {
   const {url, tileSize, maximumLevel, credit} = imagery
   return new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
-    // Resolved against the page's base (celestiary may be served under a
-    // path).  Not with new URL(url, base), which escapes the {z}/{x}/{y}
-    // placeholders.
-    url: new URL('.', document.baseURI).href + monthlyPath(url, month),
+    // Cesium wants an absolute URL: the data base URL if the build has one
+    // (DESIGN.md, data policy), else the page's base (celestiary may be
+    // served under a path).  Not new URL(url, base), which escapes the
+    // {z}/{x}/{y} placeholders.
+    url: absoluteUrl(dataUrl(monthlyPath(url, month))),
     tilingScheme: new Cesium.GeographicTilingScheme(),
     tileWidth: tileSize,
     tileHeight: tileSize,

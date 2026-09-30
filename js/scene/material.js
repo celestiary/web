@@ -6,6 +6,7 @@ import {
   Texture,
   TextureLoader,
 } from 'three'
+import {dataUrl} from '../dataUrl.js'
 
 
 const loader = new TextureLoader()
@@ -22,7 +23,7 @@ export function loadTexture(texPath) {
  */
 export function pathTexture(filebase, ext) {
   ext = ext || '.jpg'
-  return loadTexture(`textures/${ filebase }${ext}`)
+  return loadTexture(dataUrl(`textures/${ filebase }${ext}`))
 }
 
 const materials = []

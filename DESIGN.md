@@ -83,6 +83,35 @@ Loading is cached per name; the URL hash (e.g. `#sun/earth`) drives the target p
 
 Stars are loaded separately from the Celestia binary star catalog (`StarsCatalog`), not from JSON.
 
+Large files (textures, `stars.dat`, anything under `public/large/`) are fetched through `dataUrl()`, not a bare relative path; see [Data policy](#data-policy).
+
+### Data policy
+
+Where external data goes depends on its size. The decision is recorded in [ROADMAP.md](ROADMAP.md#decisions-that-apply-across-tracks); this is the mechanism.
+
+| Size | Where it lives |
+|---|---|
+| Small (JSON descriptors, places, name lists) | `public/data/`, plain git, relative URLs |
+| Up to a few hundred MB (textures, DEMs, catalogues) | Bundled in the repo. Anything over about 1 MB goes under `public/large/<dataset>/`, which `.gitattributes` puts in Git LFS |
+| GB and up (Gaia) | Fetched over the network at run time, never bundled |
+
+**Git LFS.** `.gitattributes` tracks `public/large/**`. The patterns must not match files already committed as plain blobs (`public/textures/`, `public/data/stars.dat`): git would report them as modified. Those existing assets stay as they are. Moving them into LFS would not shrink history (it isn't rewritten), would add LFS bandwidth for every clone, and the Blue Marble pyramid is about 2000 small tiles, a poor fit. The policy applies to new data. To add a dataset:
+
+1. Put the files under `public/large/<dataset>/` and commit them (`git lfs install` once per clone, so the clean filter runs; check with `git lfs ls-files`).
+2. Load them through `dataUrl('large/<dataset>/<file>')` (below), never a bare relative path.
+3. Document the source, licence and rebuild recipe next to the code that uses it (e.g. [Planet.md](js/scene/Planet.md#surface-texture-sources)).
+
+**Actions and LFS.** Workflows check out with the default `lfs: false`, then run `.github/actions/lfs`. It restores `.git/lfs` from an `actions/cache` entry keyed on the hash of `git lfs ls-files -l` (each object's id) and runs `git lfs pull`, so a build downloads only the objects the cache lacks. `lfs: true` on the checkout would download everything before any cache could help, and every download counts against the repository's LFS bandwidth quota. `ci.yml` uses the action directly, and `.github/actions/build` (used by `deploy-prod.yml`, `gh-pages.yml` and `pr-preview.yml`) runs it first. A cache entry is visible only to the branch that saved it and to PRs against it, so builds on `main` warm it for PRs.
+
+**The data base URL.** `js/dataUrl.js` is the one place large-data paths are resolved: `dataUrl('textures/mars.jpg')`. The base comes from the `DATA_BASE_URL` env var at build time (an esbuild `define`, `__DATA_BASE_URL__`, in `esbuild/common.js`). Empty, the default, leaves the path relative, so it resolves against the page's `<base href>` as before. Set, it prefixes the path (a plain string join, so `{z}/{x}/{y}` tile templates survive). It's used for textures (`material.js`, the monthly Earth map in `Planet.js`, the crosshairs in `shapes.js`), `stars.dat` (`StarsCatalog.js`) and the Blue Marble tiles Cesium loads (`CesiumLayers.js`, which needs an absolute URL). Anything under `textures/`, `data/stars.dat` or `large/` must go through it. Cross-origin images need CORS, which github.io serves (`Access-Control-Allow-Origin: *`), and three's loaders request them with `crossOrigin = 'anonymous'`.
+
+**PR previews.** `pr-preview.yml` deploys the built site under `pr-preview/pr-N/` of the `gh-pages` branch, so every preview used to carry every bundled asset (about 90 MB of textures alone) against a Pages limit of about 1 GB. `.github/large-data-paths` lists the large-data paths under `public/`. Then:
+
+- If the PR changes none of them (`.github/scripts/large-data.sh changed`, comparing the merge commit with its first parent), the preview is built with `DATA_BASE_URL` set to the production site (`https://celestiary.github.io/web/`, `main` as deployed by `gh-pages.yml`), the listed paths are deleted from `docs/` before the deploy, and LFS isn't fetched at all.
+- If the PR changes any, or the check can't tell, the preview is a full copy with a same-origin base, as before.
+
+So a PR that adds or changes a dataset previews its own data, and every other PR previews against the data on `main`. The catch: a preview of a PR that depends on data another unmerged PR added will 404 on it, because production doesn't have it yet. To bring a new path under this policy, add it to `.github/large-data-paths`.
+
 ## Scene Graph Structure (per planet)
 
 ```
@@ -349,6 +378,8 @@ A separate interactive tutorial route (`/guide`) built with React Three Fiber (`
 2. Copies shaders and public assets
 3. Runs esbuild bundler
 
+Build-time env vars: `BASE_PATH` (the URL prefix the site is served under), `CESIUM_ION_TOKEN` and `DATA_BASE_URL` (where large data is fetched from; see [Data policy](#data-policy)).
+
 `yarn bundle-check` (`esbuild/check.js`) does a dry-run bundle (`write: false`) to verify all imports resolve without writing any output — used in `yarn precommit` alongside lint and tests.
 
 Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionally; `index.tsx` opens an `EventSource('/esbuild')` that reloads on `change` events and closes itself on error (silent in production).
@@ -369,6 +400,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment` |
 | `js/coords.js` | Geographic coordinate conversions: `worldToLatLngAlt`, `latLngAltToLocal` |
 | `js/store/useStore.js` | Zustand store root |
+| `js/dataUrl.js` | `dataUrl()`: resolves large-data paths against the build's data base URL ([Data policy](#data-policy)) |
 | `public/data/*.json` | Celestial object descriptors |
 
 ### Search (`js/search/`)
