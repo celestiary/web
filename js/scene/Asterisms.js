@@ -11,9 +11,11 @@ import AsterismsCatalog from './AsterismsCatalog.js'
 import {assertDefined} from '../assert.js'
 import {labelTextColor} from '../shared.js'
 import {sceneReferred} from './hdr.js'
+import {rteCameraLocal} from './rte.js'
 
 
-// RTE line shader — same Relative-To-Eye technique as stars.vert.
+// RTE line shader — same Relative-To-Eye technique as stars.vert: the model
+// rotation (the StellarFrame's precession) and the view's, no translation.
 const asterismsVertexShader = `
   uniform vec3 uCamPosWorldHigh;
   uniform vec3 uCamPosWorldLow;
@@ -21,7 +23,7 @@ const asterismsVertexShader = `
   void main() {
     vec3 highDiff = position - uCamPosWorldHigh;
     vec3 lowDiff  = positionLow - uCamPosWorldLow;
-    gl_Position = projectionMatrix * vec4(mat3(viewMatrix) * (highDiff + lowDiff), 1.0);
+    gl_Position = projectionMatrix * vec4(mat3(modelViewMatrix) * (highDiff + lowDiff), 1.0);
   }
 `
 
@@ -139,19 +141,9 @@ export default class Asterisms extends Object3D {
       fragmentShader: asterismsFragmentShader,
       toneMapped: false,
     }))
-    const rtePos = new Vector3()
     const lines = new LineSegments(geom, mat)
     lines.onBeforeRender = (renderer, scene, camera) => {
-      camera.getWorldPosition(rtePos)
-      const wg = scene.getObjectByName('WorldGroup')
-      if (wg) {
-        rtePos.sub(wg.position)
-      }
-      const hx = Math.fround(rtePos.x)
-      const hy = Math.fround(rtePos.y)
-      const hz = Math.fround(rtePos.z)
-      mat.uniforms.uCamPosWorldHigh.value.set(hx, hy, hz)
-      mat.uniforms.uCamPosWorldLow.value.set(rtePos.x - hx, rtePos.y - hy, rtePos.z - hz)
+      rteCameraLocal(lines, camera, mat.uniforms.uCamPosWorldHigh.value, mat.uniforms.uCamPosWorldLow.value)
     }
     this.add(lines)
     this._posHigh = null

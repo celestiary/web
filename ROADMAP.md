@@ -6,16 +6,20 @@ each epic is a GitHub issue labelled `epic` whose sub-issues are the work.
 This doc holds what an issue can't: the order, the dependencies between
 tracks, and the decisions that apply across them.
 
-Keep it current: when an epic lands, or priorities change, update the
-**Now / Next / Later** list and the track tables. When a decision here
-changes, say what replaced it and why.
+Keep it current, in the PR that makes the change: a PR that closes an
+issue, lands an epic's piece or shifts priorities updates the
+**Now / Next / Later** list and the track tables itself, so there are no
+separate roadmap PRs. When a decision here changes, say what replaced
+it and why.
 
 ## Where we are
 
-- **Solar system:** planets on VSOP87, the Moon on Meeus's truncated
-  ELP-2000/82; Pluto and every other moon on flat ecliptic ellipses (the
-  weakest accuracy area; see
-  [track B](#b-solar-system-accuracy-and-surfaces)).
+- **Solar system:** planets on VSOP87C and the Moon on Meeus's truncated
+  ELP-2000/82 (within ~4″ of JPL Horizons, 1950–2050), both in the
+  ecliptic of date, while the stars are J2000 (0.37° apart in 2026;
+  [#133](https://github.com/celestiary/web/issues/133)). Pluto and every
+  other moon are still on flat ecliptic ellipses (the weakest accuracy
+  area; see [track B](#b-solar-system-accuracy-and-surfaces)).
 - **Surfaces:** Earth, the Moon and Mars swap in place to Cesium's
   globes (terrain, imagery, ground-following zoom and landing), matched in
   colour and lighting to celestiary's own bodies. See
@@ -38,9 +42,10 @@ changes, say what replaced it and why.
   the tens to hundreds of MB is bundled in the repo, with large binaries
   in Git LFS, under `public/large/`. Gaia-scale data (GB and up) is
   fetched over the network. The workflows fetch LFS files (cached), and
-  PR previews load large data from production instead of copying it
-  (a Pages site is capped at about 1 GB), unless the PR changes that
-  data; see [DESIGN.md, data policy](DESIGN.md#data-policy)
+  PR previews load large data from `main`'s deploy at
+  `celestiary.github.io/web/` (same origin as the previews) instead of
+  copying it (a Pages site is capped at about 1 GB), unless the PR
+  changes that data; see [DESIGN.md, data policy](DESIGN.md#data-policy)
   ([#107](https://github.com/celestiary/web/issues/107)). Document each dataset's source, licence and rebuild recipe
   next to the code that uses it (e.g. [Planet.md](js/scene/Planet.md#surface-texture-sources)).
 - **Physically based first.** New visual work is tuned against the HDR
@@ -57,34 +62,43 @@ changes, say what replaced it and why.
 The recommended order. "Now" is what to pick up first; within a group the
 order is a suggestion.
 
+**Done recently:** the Moon orbit ([#87](https://github.com/celestiary/web/issues/87), PR [#130](https://github.com/celestiary/web/pull/130)); the data policy
+([#107](https://github.com/celestiary/web/issues/107), PR [#129](https://github.com/celestiary/web/pull/129)); the scripted parity check, `yarn parity`
+([#105](https://github.com/celestiary/web/issues/105), PR [#134](https://github.com/celestiary/web/pull/134); see [CESIUM.md](CESIUM.md#parity-check)); the Moon's rotation
+and orbital periods in `moon.json` ([#132](https://github.com/celestiary/web/issues/132), PR [#135](https://github.com/celestiary/web/pull/135)).
+
 **Now**
-1. **Moon orbit** ([#87](https://github.com/celestiary/web/issues/87), in [#112](https://github.com/celestiary/web/issues/112)). Small, and it unblocks the daytime-Moon
-   benchmark of [#86](https://github.com/celestiary/web/issues/86). Then [#6](https://github.com/celestiary/web/issues/6), the other moons and Pluto.
+1. **The other moons and Pluto** ([#6](https://github.com/celestiary/web/issues/6), in [#112](https://github.com/celestiary/web/issues/112)): real orbital planes and
+   elements, checked against Horizons. Then one scene frame for the
+   solar system and the stars ([#133](https://github.com/celestiary/web/issues/133)).
 2. **Physically based light and exposure** ([#86](https://github.com/celestiary/web/issues/86), [#109](https://github.com/celestiary/web/issues/109)). The foundation of
    the rendering track: it changes the scene buffer, so it goes before
-   more visual tuning.
-3. **Scripted parity check** ([#105](https://github.com/celestiary/web/issues/105), in [#121](https://github.com/celestiary/web/issues/121)). Turns the by-hand
-   Cesium-vs-celestiary comparison into one command; [#92](https://github.com/celestiary/web/issues/92) and [#93](https://github.com/celestiary/web/issues/93) need it
-   for their "done when". *Built: `yarn parity`, see
-   [CESIUM.md](CESIUM.md#parity-check).*
+   more visual tuning. PR A (linear half-float scene, one tone map, the
+   sky in exposure units, Cesium in the same units) first, then PR B
+   (physical stars, metered exposure, removing the hacks). `yarn parity`
+   is its check across the swap: the Moon is 9.5% darker on Cesium's
+   side, and Earth's Cesium side is redder and lacks the blue haze
+   close in.
 
 **Next**
-4. **Earth across the swap** ([#110](https://github.com/celestiary/web/issues/110)): night lights ([#93](https://github.com/celestiary/web/issues/93)), then the imagery
-   detail layer ([#92](https://github.com/celestiary/web/issues/92)), then clouds ([#88](https://github.com/celestiary/web/issues/88)).
-5. **Milky Way** ([#116](https://github.com/celestiary/web/issues/116)): the realistic shape ([#99](https://github.com/celestiary/web/issues/99)), then the brightest
+3. **Earth across the swap** ([#110](https://github.com/celestiary/web/issues/110)): night lights ([#93](https://github.com/celestiary/web/issues/93)), then the imagery
+   detail layer ([#92](https://github.com/celestiary/web/issues/92)), then clouds ([#88](https://github.com/celestiary/web/issues/88)). After #86's PR A, so
+   they're tuned once. #92's low views need `dev.virtualearth.net`
+   (Bing) reachable from the sandbox.
+4. **Milky Way** ([#116](https://github.com/celestiary/web/issues/116)): the realistic shape ([#99](https://github.com/celestiary/web/issues/99)), then the brightest
    ~1M Gaia stars ([#98](https://github.com/celestiary/web/issues/98)), then galactic dynamics with a dark-matter toggle
    ([#106](https://github.com/celestiary/web/issues/106)). See [the galaxy plan](#the-galaxy-plan).
-6. **Sharing and picking through Cesium** ([#118](https://github.com/celestiary/web/issues/118)): the layer choice and
+5. **Sharing and picking through Cesium** ([#118](https://github.com/celestiary/web/issues/118)): the layer choice and
    follow state in the permalink (small), then picking on Cesium's globes.
 
 **Later**
-7. Small bodies and satellites ([#114](https://github.com/celestiary/web/issues/114)), starting with the asteroid data
+6. Small bodies and satellites ([#114](https://github.com/celestiary/web/issues/114)), starting with the asteroid data
    already in the repo ([#30](https://github.com/celestiary/web/issues/30)).
-8. Lookup beyond the bundled catalogue and exoplanet systems ([#115](https://github.com/celestiary/web/issues/115)).
-9. Distinctive appearances: Sun, gas giants, rings, auroras ([#111](https://github.com/celestiary/web/issues/111)).
-10. Surfaces and relief for bodies Cesium doesn't cover ([#113](https://github.com/celestiary/web/issues/113)).
-11. Deep sky: nebulae, other galaxies, Sgr A\* ([#117](https://github.com/celestiary/web/issues/117)).
-12. Spacecraft: integrator, then flight simulation ([#119](https://github.com/celestiary/web/issues/119)); missions and
+7. Lookup beyond the bundled catalogue and exoplanet systems ([#115](https://github.com/celestiary/web/issues/115)).
+8. Distinctive appearances: Sun, gas giants, rings, auroras ([#111](https://github.com/celestiary/web/issues/111)).
+9. Surfaces and relief for bodies Cesium doesn't cover ([#113](https://github.com/celestiary/web/issues/113)).
+10. Deep sky: nebulae, other galaxies, Sgr A\* ([#117](https://github.com/celestiary/web/issues/117)).
+11. Spacecraft: integrator, then flight simulation ([#119](https://github.com/celestiary/web/issues/119)); missions and
     models ([#120](https://github.com/celestiary/web/issues/120)).
 
 Housekeeping ([#122](https://github.com/celestiary/web/issues/122)) happens alongside, whenever it's cheap.
@@ -112,14 +126,17 @@ surface.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87), [#6](https://github.com/celestiary/web/issues/6), [#96](https://github.com/celestiary/web/issues/96), [#97](https://github.com/celestiary/web/issues/97) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
+| [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87) (done), [#6](https://github.com/celestiary/web/issues/6), [#133](https://github.com/celestiary/web/issues/133), [#96](https://github.com/celestiary/web/issues/96), [#97](https://github.com/celestiary/web/issues/97), [#132](https://github.com/celestiary/web/issues/132) (done) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
 | [#113](https://github.com/celestiary/web/issues/113) Surfaces for every body | [#9](https://github.com/celestiary/web/issues/9), [#10](https://github.com/celestiary/web/issues/10), [#43](https://github.com/celestiary/web/issues/43) | data policy for bundled DEMs | [Planet.md](js/scene/Planet.md), [CESIUM.md, ground](CESIUM.md#camera-and-light-coupling) |
 
 The orbit gap is structural: `Animation.js` moves non-planets on
 ellipses in the ecliptic, and the code that would tilt their orbital
 planes is commented out in `Planet.js` because it also rotated the
-VSOP-driven planets. The fix gives moons and Pluto their own orbital
-frame, then checks every body against JPL Horizons ([#97](https://github.com/celestiary/web/issues/97)).
+VSOP-driven planets. The Moon now has its own theory and orbital frame
+([#130](https://github.com/celestiary/web/pull/130)), with an offline JPL Horizons fixture test; [#6](https://github.com/celestiary/web/issues/6) does the same for the
+other moons and Pluto, and [#97](https://github.com/celestiary/web/issues/97) extends the Horizons tests to every body.
+The scene is in the ecliptic of date and the stars are J2000; [#133](https://github.com/celestiary/web/issues/133)
+puts them in one frame.
 
 ### C. Catalogues and external data
 
@@ -163,8 +180,8 @@ repo lean.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#121](https://github.com/celestiary/web/issues/121) Cesium performance and verification | [#105](https://github.com/celestiary/web/issues/105), [#104](https://github.com/celestiary/web/issues/104), [#103](https://github.com/celestiary/web/issues/103) | [#103](https://github.com/celestiary/web/issues/103) is upstream in portal-netgl | [CESIUM.md](CESIUM.md#follow-ups), portal's [open problems](https://github.com/pablo-mayrgundter/portal/blob/main/packages/portal-netgl/DESIGN.md#open-problems-the-next-pr) |
-| [#122](https://github.com/celestiary/web/issues/122) Housekeeping and data policy | [#107](https://github.com/celestiary/web/issues/107) | | [AGENTS.md](AGENTS.md) |
+| [#121](https://github.com/celestiary/web/issues/121) Cesium performance and verification | [#105](https://github.com/celestiary/web/issues/105) (done), [#104](https://github.com/celestiary/web/issues/104), [#103](https://github.com/celestiary/web/issues/103) | [#103](https://github.com/celestiary/web/issues/103) is upstream in portal-netgl | [CESIUM.md](CESIUM.md#follow-ups), portal's [open problems](https://github.com/pablo-mayrgundter/portal/blob/main/packages/portal-netgl/DESIGN.md#open-problems-the-next-pr) |
+| [#122](https://github.com/celestiary/web/issues/122) Housekeeping and data policy | [#107](https://github.com/celestiary/web/issues/107) (done) | | [AGENTS.md](AGENTS.md) |
 
 ## The galaxy plan
 

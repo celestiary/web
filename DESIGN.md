@@ -68,7 +68,7 @@ Distances are stored in **real SI meters**. Key constants from `js/shared.js`:
 
 Three.js scene units equal meters. Planets use VSOP87 coordinates scaled by `ASTRO_UNIT_METER`; stars use Celestia binary catalog coordinates scaled by `LIGHTYEAR_METER`.
 
-All celestial bodies (sun, planets, stars, asterisms) live under a single `WorldGroup` `Object3D`. Shifting `worldGroup.position` rebases the entire universe in one operation — used by star navigation to bring the current target star to world origin, so camera world coordinates stay small for float32 precision even across light-year distances. See [Navigation (goTo flow)](#navigation-goto-flow).
+All celestial bodies (sun, planets, stars, asterisms) live under a single `WorldGroup` `Object3D`; the J2000 catalogues (stars, asterisms, star labels, Milky Way) sit one level further down, in the `StellarFrame`, which precesses them to the date (see [Frames and time](#frames-and-time)). Shifting `worldGroup.position` rebases the entire universe in one operation — used by star navigation to bring the current target star to world origin, so camera world coordinates stay small for float32 precision even across light-year distances. See [Navigation (goTo flow)](#navigation-goto-flow).
 
 ## Data Loading
 
@@ -170,7 +170,12 @@ The node Animation spins (the one carrying `siderealRotationPeriod`, and
 - **The scene frame is the mean ecliptic and equinox *of date*,** not J2000: VSOP87**C** is the of-date series (VSOP87A is J2000). Checked against Meeus example 25.b: VSOP87C gives the Sun's longitude as 199.9073° at 1992 Oct 13.0 (Meeus: 199.907372°), while VSOP87A gives 200.008°. Meeus ch. 47 is in the same frame, so the Moon's geocentric (λ, β, Δ) goes straight in, with no precession.
 - **Axis remap**, for VSOP87C's `(x, y, z)` and any ecliptic vector: scene `(x, z, −y)`, i.e. X = equinox, Y = north ecliptic pole, Z = −ecliptic Y. A rotation about ecliptic Z is a rotation about scene Y by the same angle.
 - **Body frames** (coords.js): +Y the north pole, +X the prime meridian, east longitude toward −Z. The same remap from a body's (x = longitude 0, y = 90° E, z = north), so an ecliptic rotation such as the Moon's Rz(Ω)·Rx(−I)·Rz(F + 180°) becomes Ry(Ω)·Rx(−I)·Ry(F + 180°) in the scene.
-- **The stars are J2000** (Celestia's stars.dat, `galacticFrame.js`). The planets and the stars therefore differ by precession: 50.3″ a year in longitude, ~0.37° by 2026. `celestialFrame.precessEcliptic` (Meeus 21.5) converts between the two, e.g. to compare with JPL Horizons' J2000 ecliptic vectors. Making them consistent is #133.
+- **One scene frame, the stars included.** The catalogues are J2000: Celestia's stars.dat (and so the asterisms and star labels, placed from it) and the Milky Way and galactic grid (`galacticFrame.js`). They'd sit displaced from the planets by precession, 50.3″ a year in longitude: ~0.37° in 2026, ~28° at year 0 (#133). So they hang under `StellarFrame` (`js/scene/StellarFrame.js`), a group at the Sun (the catalogue is heliocentric) whose rotation is `celestialFrame.precessionQuaternion(J2000, date)`, Meeus 21.5's Rz(Π + p)·Rx(−η)·Rz(−Π), in scene axes.
+  - The chain is `WorldGroup` (rebase) → `milkyway` → `StellarFrame` (J2000 → date) → `Stars` (catalogue positions, J2000) → points, labels, asterisms; and `StellarFrame` → `MilkyWay`. The Sun and planets are under `WorldGroup` directly, so the planets, the Moon, Earth's GMST spin, places, and Cesium's camera coupling (built from body node matrices) are untouched. The galactic grid gets the same rotation on top of its own.
+  - **Updates:** Animation calls its `preAnimCb` with the Julian Day animated (so `animateAtJD`, e.g. a permalink restore, sets it too). It's rebuilt only when the date moves by more than a day (0.14″ of precession), in place.
+  - **Reading star positions:** raw `star.x/y/z` and the stars' geometry are J2000, the `StellarFrame`'s local frame. Take them to the scene with `Scene.starPosition(star)` (the `WorldGroup` frame) or the stars' `matrixWorld` (world space). `goTo(star)` rebases to `-starPosition(star)`, and re-rebases when the frame turns so the star stays at the origin; picking (`Picker.queryPoints`) takes the ray into the catalogue frame instead of rebuilding its tree. The RTE shaders apply the model rotation (see [RTE interaction](#rte-interaction)).
+  - **Checked** against JPL Horizons at 1900, 2026 and 2500 (`StellarFrame.test.js`, offline fixture `StellarFrame.horizons.json`): the Moon's separation from reference stars (their catalogue direction) is within 3.1″ of Horizons', and its place among them within 4.3″. Proper motion, parallax and aberration are left out; proper motion over centuries is a separate refinement.
+  - The equatorial grid and Earth's pole use the J2000 obliquity about the equinox of date, i.e. the mean equator of date to within the change in obliquity (47″ a century). `celestialFrame.precessEcliptic` converts coordinates between dates, e.g. to compare with Horizons' J2000 ecliptic vectors.
 - **Time:** the simulation clock is UTC. VSOP87C is fed the UTC Julian Day as it is (69 s of ΔT moves Earth ~2000 km). The Moon moves 0.01° in 69 s, so its series gets TT (`celestialFrame.utcToTtJulianDay`: 32.184 s + the leap seconds since 1972, the Espenak–Meeus ΔT polynomials before, continuous across 1972). The UTC Julian Day is `Time.toJulianDay`, with the Unix epoch at JD 2440587.5 exactly (it used to run 14.6 s ahead, ~8″ of lunar motion). After 2017 TT − UTC stays at 69.184 s, right for a UTC clock, but UT1 keeps drifting: Earth rotation for future dates needs UT1 − UTC or a ΔT model.
 
 ## Camera Controls
@@ -219,15 +224,16 @@ The camera platform is parented differently depending on target type:
 | Target | Parent after `goTo()` | Notes |
 |---|---|---|
 | Planet / sun | `obj.orbitPosition` | That group is what orbital animation writes into, so the camera follows the body's orbit automatically. |
-| Star (catalog entry) | `_starAnchor` | A scene-root `Object3D` permanently fixed at world `(0, 0, 0)`, paired with `worldGroup.position = -star.xyz` so the target star lands at world origin. |
+| Star (catalog entry) | `_starAnchor` | A scene-root `Object3D` permanently fixed at world `(0, 0, 0)`, paired with `worldGroup.position = -scene.starPosition(star)` (the catalogue position precessed to the date) so the target star lands at world origin. |
 
 ### goTo flow
 
 Six synchronous steps before any tween runs:
 
 1. Capture pre-rebase camera world pos, world quat, and `wgOld = worldGroup.position`.
-2. Rebase `worldGroup.position` to `(0, 0, 0)` for planet targets or `-star.xyz` for
-   star targets.
+2. Rebase `worldGroup.position` to `(0, 0, 0)` for planet targets or
+   `-scene.starPosition(star)` for star targets.  While a star is the target, the
+   rebase follows it as the `StellarFrame` turns.
 3. Compute `wgDelta = worldGroup.position − wgOld` and shift the captured camera world
    pos by `wgDelta`. (See Invariant below.)
 4. Reparent `camera.platform` to the new anchor and reset its local transform to
@@ -277,6 +283,13 @@ Stars, asterisms, and catalog star-name labels use Relative-To-Eye shaders that 
 camera-relative positions every frame from double-precision emulation (high + low
 float32 split). They are visually stable across a `WorldGroup` rebase: the uniforms
 update one frame, the rendered positions on screen don't change.
+
+The camera uniforms are the camera's position in the drawn object's own frame,
+`rte.js`'s `rteCameraLocal`: Rᵀ·(camera − t) from the object's `matrixWorld`.
+The shaders turn the eye-relative vector by `mat3(modelViewMatrix)`, so a parent
+rotation (the `StellarFrame`'s precession) reaches the GPU; the translation stays
+out of float32.  An RTE object must live in the frame its positions are in (the
+picked-star label is a child of `Stars` for that reason).
 
 Non-RTE objects — the sun and planet meshes — are ordinary Three.js objects under
 `WorldGroup`, so they *do* visibly teleport when the rebase shifts their world
@@ -453,7 +466,9 @@ and the provider extension contract.
 | `js/scene/Scene.js` | Scene object registry, targeting, raycasting |
 | `js/scene/Animation.js` | VSOP87 + Keplerian orbit/rotation animation |
 | `js/scene/lunarTheory.js` | The Moon: Meeus ch. 47 position, Cassini-law orientation, mean orbit of date |
-| `js/scene/celestialFrame.js` | GMST, TT − UTC, ecliptic precession between dates |
+| `js/scene/celestialFrame.js` | GMST, TT − UTC, ecliptic precession between dates (coordinates and scene rotation) |
+| `js/scene/StellarFrame.js` | Parent of the J2000 catalogues: precesses them to the simulation date |
+| `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
 | `js/scene/Star.js` | Named star with noise shader |
 | `js/scene/Stars.js` | Star field from Celestia catalog |

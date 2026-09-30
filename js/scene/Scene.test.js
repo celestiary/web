@@ -682,3 +682,74 @@ describe('Scene._setTempMarker', () => {
     expect(earth.children.includes(marker)).toBe(false)
   })
 })
+
+
+describe('Scene stellar frame', () => {
+  const LY = 9.4607304725808e15
+  const star = {hipId: 32349, x: -1.613 * LY, y: -5.483 * LY, z: -6.428 * LY, radius: 1.2e9}
+
+
+  /**
+   * @param {Scene} s
+   * @returns {Vector3} the star's world position, drawn through the frame
+   */
+  function starWorld(s) {
+    s.ui.scene.updateMatrixWorld()
+    return new Vector3(star.x, star.y, star.z).applyMatrix4(s.stellarFrame.matrixWorld)
+  }
+
+
+  it('parents the galaxy\'s catalogues to the stellar frame, and the Sun to worldGroup', () => {
+    const {scene: s} = makeSceneWithEarth()
+    s.newGalaxy({name: 'milkyway'})
+    expect(s.objects['milkyway.orbitPosition']).toBe(s.stellarFrame)
+    expect(s.stellarFrame.getObjectByName('MilkyWay')).toBeDefined()
+    expect(s.stellarFrame.parent).toBe(s.objects['milkyway'])
+  })
+
+
+  it('goTo(star) rebases to where the frame draws the star, and keeps it there as the frame turns', () => {
+    const {scene: s} = makeSceneWithEarth()
+    const saved = {...Shared.targets}
+    try {
+      s.worldGroup.add(s.stellarFrame)
+      s.stellarFrame.update(2461313.1)
+      s.goTo(star)
+      expect(starWorld(s).length()).toBeLessThan(1e3)
+      // Year 2500: the frame turns ~6.7° about the Sun, and the star, 8.6 ly
+      // out, would move ~1 ly.  The rebase follows it.
+      s.stellarFrame.update(2634233.5)
+      expect(starWorld(s).length()).toBeLessThan(1e3)
+    } finally {
+      Object.assign(Shared.targets, saved)
+    }
+  })
+
+
+  it('leaves worldGroup alone on a frame change once back at a planet', () => {
+    const {scene: s, earth} = makeSceneWithEarth()
+    const saved = {...Shared.targets}
+    try {
+      s.worldGroup.add(s.stellarFrame)
+      s.goTo(star)
+      earth.orbitPosition = new Object3D()
+      Shared.targets.obj = earth
+      s.goTo()
+      expect(s.worldGroup.position.length()).toBe(0)
+      s.stellarFrame.update(2634233.5)
+      expect(s.worldGroup.position.length()).toBe(0)
+    } finally {
+      Object.assign(Shared.targets, saved)
+    }
+  })
+
+
+  it('turns the galactic grid with the stars', () => {
+    const {scene: s} = makeSceneWithEarth()
+    const j2000 = s.grids.galactic.quaternion.clone()
+    s.stellarFrame.update(2634233.5)
+    const want = s.stellarFrame.quaternion.clone().multiply(j2000)
+    expect(s.grids.galactic.quaternion.angleTo(want)).toBeLessThan(1e-12)
+    expect(s.grids.ecliptic.quaternion.angleTo(new Quaternion)).toBe(0)
+  })
+})

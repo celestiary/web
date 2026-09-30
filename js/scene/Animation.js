@@ -24,6 +24,8 @@ export default class Animation {
     this.moonOrbitQuat = new Quaternion
     this._tmpQuat = new Quaternion
     this._tmpVec = new Vector3
+    // The Julian Day of the last animate / animateAtJD.
+    this.jd = null
   }
 
 
@@ -31,6 +33,7 @@ export default class Animation {
   animate(scene) {
     this.time.updateTime()
     const jd = this.time.simTimeJulianDay()
+    this.jd = jd
     this.curVsopCoords = vsop87c(jd)
     this.updateMoon(jd)
     this.animateSystem(scene)
@@ -45,6 +48,7 @@ export default class Animation {
    * @param {number} jd Julian Day number
    */
   animateAtJD(scene, jd) {
+    this.jd = jd
     this.curVsopCoords = vsop87c(jd)
     this.updateMoon(jd)
     this.animateSystem(scene)
@@ -73,7 +77,9 @@ export default class Animation {
    */
   animateSystem(system) {
     if (system.preAnimCb) {
-      system.preAnimCb(this.time)
+      // The Julian Day being animated, for callbacks that follow the date
+      // (StellarFrame's precession); animateAtJD's needn't be the clock's.
+      system.preAnimCb(this.time, this.jd)
     }
 
     if (system.siderealRotationPeriod) {
