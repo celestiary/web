@@ -25,7 +25,9 @@ up to it: Bruneton's aerial perspective, `S(eye) − T(eye→P)·S(P)`, with
 `T(eye→P)` from a 16-step march of the segment's optical depth, and the
 scene seen through that `T`.  That's Cesium's terrain over celestiary's
 sphere: a ridge seen from a valley, above the sphere's horizon, which the
-table's ray took for sky (#141; Cesium's distance reaches the pass as depth,
+table's ray took for sky, and, below the horizon, the ground of any land
+above sea level, which the table hazed as if it were the sphere, farther
+off (#141; Cesium's distance reaches the pass as depth from below 20 km,
 `cesium/distance.js`).  Celestiary's own ground is the sphere, a mesh a
 little below it, so it never takes that path.
 

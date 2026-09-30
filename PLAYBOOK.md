@@ -151,6 +151,32 @@ whole horizon: from 16 m the day ground was a bright yellow glow.  The fix speci
 to zero.  **Rule:** a guarded degenerate value is still a value; check what a blend or filter
 makes of it, not only whether it's finite.
 
+### A library's depth texture may not be the depth it drew
+
+Cesium's terrain distance, for celestiary's atmosphere pass, came from a
+post-process stage reading Cesium's depth texture.  The first cut put every
+ridge at the encoding's limit (~310 km, where they were 3 to 25 km off), and
+it still looked right, as the pass only asked whether a pixel had depth.
+With `depthTestAgainstTerrain` off (the default) Cesium clears the globe's
+depth after drawing it and draws its ellipsoid's instead: the texture held
+the ellipsoid below the horizon and the far plane above it.  A test stage
+writing log10(distance) into alpha showed it in one run.
+
+**Rule:** before encoding a value, decode a probe of it into something you
+can read (a column of numbers, not a picture), and check it against a
+distance you know.  A fix that works for a boolean reason can hide a wrong
+value.
+
+### Sample a frame nearest when its alpha carries data
+
+The decode pass read Cesium's frame through a bilinear texture.  At texel
+centres that's exact in theory; on SwiftShader, a pixel just off a ridge's
+silhouette read a sliver of its neighbour's alpha, which as a distance is
+~0: a depth at the camera, no air, and a black fringe.  Premultiplied colour
+blends that sliver harmlessly; a code in alpha doesn't.  **Rule:** a
+texture whose channels are codes (distances, ids) gets `NearestFilter`,
+and the decode treats less than half a level as nothing.
+
 ---
 
 ## Testing

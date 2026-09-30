@@ -212,7 +212,11 @@ relates to real time.
   bits and dithered (`cesium/distance.js`; D grows with the camera's
   height).  The composite's decode pass turns it back into celestiary's
   depth, depth-tested, and the atmosphere pass hazes the terrain for that
-  distance (aerial perspective; composition.md).  The globe needs
+  distance (aerial perspective; composition.md), with the camera below
+  20 km: from higher up the ridges that matter are a pixel or two, and 8
+  bits over the ground in view are too coarse (from 37 km, the first cut
+  drew rings of speckle in the ground's haze), so the ground sphere's
+  exact depth serves, as before.  The globe needs
   `depthTestAgainstTerrain`: without it Cesium clears the globe's depth
   once drawn and draws the ellipsoid's instead (its depth plane), so the
   stage read the ellipsoid below the horizon and the cleared far plane
@@ -438,6 +442,7 @@ of `views`, each:
 | `hash` | the permalink, with `cq=` (js/permalink.md; without it the time and view aren't restored).  Include `s=alpoU` to turn off labels, lines and the Milky Way, which are drawn on both renders and dilute the ratios |
 | `region` | `{"disc": true, "inner": 0.9}` (the body's disc, computed from the camera) or `{"box": [x0, y0, x1, y1]}` in fractions of the image; `minLuma` (default 12) |
 | `profile` | `{"across": "terminator", "samples": 40, "band": 5, "reach": 0.9}`, or `{"from": [x, y], "to": [x, y]}` in fractions of the image; omit for none |
+| `freeze` | `true` stops the simulation clock as soon as the app is up, not once the tiles have settled: for views low over relief, where the ground turning under the camera while tiles load (hundreds of m/s) would frame different mountains each run |
 | `reference` | optional `{"box": [x0, y0, x1, y1]}`: a second region of the same render, for what has no counterpart in celestiary's render (Cesium's terrain above celestiary's sphere), measured against the ground beside it in Cesium's render |
 | `tolerance` | `ratio` `[lo, hi]`; `channelRatio` `[lo, hi]` or `{r, g, b}`; `profileMax`, `profileMean` (luma levels); `luma` `[lo, hi]` (each render's own median luma, on and off: for views where both sides could go wrong alike, as they share the atmosphere pass); `reference` `{luma, blueRed}`, each `[lo, hi]` (the on render's median luma, and median blue/red, over the region over the same over `reference`: the ridge looks like ground, not sky); `minPixels` (default 200) |
 

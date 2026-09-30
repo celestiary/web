@@ -68,13 +68,14 @@
     {
       "id": "earth-ridge-day",
       "body": "earth",
-      "description": "Earth from 6.5 km near Everest, looking over the Himalaya with ridges rising above celestiary's sphere's horizon: Cesium's terrain there has no counterpart in celestiary, so the ridge (the region) is checked against the ground below it (the reference) in Cesium's render, not against celestiary's, which has sky there.  Without the terrain's distance the atmosphere pass took the ridge for sky and drew the sky over it",
+      "description": "Earth from 6.5 km near Everest, looking up a valley at a ridge rising above celestiary's sphere's horizon: Cesium's terrain there has no counterpart in celestiary, so the ridge (the region) is checked against the ground below it (the reference) in Cesium's render, not against celestiary's, which has sky there.  Without the terrain's distance the atmosphere pass took the ridge for sky and drew the sky over it",
       "hash": "#sun/earth@27.85,86.7736,6.5km;t=10054.7603jd;cq=-0.278,0.7164,-0.6342,0.0853;fov=45deg;s=alpoU",
-      "region": {"box": [0.1, 0.48, 0.28, 0.56]},
-      "reference": {"box": [0.05, 0.7, 0.35, 0.95]},
+      "freeze": true,
+      "region": {"box": [0.8, 0.42, 0.95, 0.55]},
+      "reference": {"box": [0.3, 0.8, 0.7, 0.95]},
       "profile": null,
       "tolerance": {
-        "reference": {"luma": [0.8, 1.1], "blueRed": [0.85, 1.4]}
+        "reference": {"luma": [0.85, 1.1], "blueRed": [0.9, 1.15]}
       }
     }
   ]

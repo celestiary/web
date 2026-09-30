@@ -26,7 +26,7 @@ describe('distance encoding', () => {
 
   it('grows the scale with height, up to a cap', () => {
     expect(distanceScale(0)).toBe(DISTANCE_SCALE_M)
-    expect(distanceScale(9e3)).toBeGreaterThan(3 * DISTANCE_SCALE_M)
+    expect(distanceScale(9e3)).toBeCloseTo(8.5e4, 6)
     expect(distanceScale(1e6)).toBe(2e6)
   })
 

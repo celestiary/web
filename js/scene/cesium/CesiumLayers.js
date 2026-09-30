@@ -260,12 +260,12 @@ export default class CesiumLayers {
     u.uMode.value = decodeOf(name, this.ui.hdr === true)
     // Not while celestiary's own surface is still drawn over it, fading
     // (_drawFadingSurfaces): the terrain's depth, nearer than the sphere,
-    // would hide it.  Nor from high up: the pass needs the terrain's
-    // distance only from inside the atmosphere (a ridge over the sphere's
-    // horizon), and from afar 8 bits are too coarse for it (steps of 100
-    // km and more; past 7 D, the limit, the terrain would read nearer than
-    // the atmosphere's edge, and the pass would leave it unhazed), where
-    // the sphere's depth (_writeGroundDepths) is exact.
+    // would hide it.  Nor from high up (TERRAIN_DEPTH_MAX_HEIGHT_M): the
+    // pass needs the terrain's distance for a ridge over the sphere's
+    // horizon, seen from low, and from afar 8 bits are too coarse for it
+    // (from orbit, past the encoding's limit, the terrain would read in
+    // front of the atmosphere and go unhazed), where the sphere's depth
+    // (_writeGroundDepths) is exact.
     this.decode.material.depthWrite = cesiumOutput(name) === 'albedo' && this.fadeOf(name) >= 1 &&
       (this.bodies[name]?.heightM ?? Infinity) < TERRAIN_DEPTH_MAX_HEIGHT_M
     u.uDistanceScale.value = this.bodies[name]?.distanceScale ?? 1
@@ -1256,9 +1256,11 @@ const TILE_SCREEN_SPACE_ERROR = 8
 // The crossfade from celestiary's surface to Cesium's, ms.
 const FADE_MS = 1000
 // Highest camera, over the surface, m, at which the terrain's distance
-// becomes celestiary's depth (_decodeInto): Earth's atmosphere pass reaches
-// 100 km, and from 200 km an 8-bit step is ~15 km at the horizon.
-const TERRAIN_DEPTH_MAX_HEIGHT_M = 2e5
+// becomes celestiary's depth (_decodeInto).  Higher, a ridge over the
+// sphere's horizon is hundreds of km off and a pixel or two high, and 8
+// bits over the ground in view are too coarse: from 37 km up, steps of
+// several km at the ground showed as rings of speckle in its haze.
+const TERRAIN_DEPTH_MAX_HEIGHT_M = 2e4
 // Cesium's default PerspectiveFrustum far plane, metres.
 const DEFAULT_FAR = 5e8
 // Planet.newPlanet's LOD: the body's mesh, then a point, then nothing.

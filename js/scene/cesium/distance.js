@@ -13,19 +13,22 @@
  *
  * Encoding, 8 bits: 0 is "no globe"; 1..255 is 1 − e^(−d/D), so the steps
  * are even in how much haze a distance puts over the ground (at sea level
- * blue light falls to 1/e in ~30 km).  D grows with the camera's height
- * (DISTANCE_SCALE_M × e^(h/8 km)), as the air thins and the ground seen
- * gets farther: 40 km at the ground, 124 km at 9 km up.  A step is then
- * under 1% of the haze, and dithering hides it.  The top levels (from
- * ~5.5 D: 220 km at the ground) read as "farther than that": no depth,
- * where the ground sphere's serves (CesiumLayers' decode).
+ * blue light falls to 1/e in ~30 km).  D grows with the camera's height,
+ * as the ground seen gets farther: DISTANCE_SCALE_M + 5 h, 40 km at the
+ * ground, 85 km at 9 km up, 140 km at 20 km (the highest the terrain's
+ * distance is used from; CesiumLayers).  A step, at the distances in view,
+ * is then a few hundred metres to a kilometre or so, and dithering hides
+ * it; faster growth (e^(h/8 km) was tried) left steps of ~8 km from 37 km
+ * up, which showed as rings of speckle over the ground.  The top levels
+ * (from ~5.5 D: 220 km at the ground) read as "farther than that": no
+ * depth, where the ground sphere's serves (CesiumLayers' decode).
  */
 
 
 /** D at the ground, metres. */
 export const DISTANCE_SCALE_M = 4e4
-/** Atmospheric scale height for D's growth with altitude, metres. */
-const DISTANCE_SCALE_HEIGHT_M = 8e3
+/** D's growth with the camera's height, metres per metre. */
+const DISTANCE_SCALE_PER_HEIGHT = 5
 /** D's cap, metres: beyond, the distance hardly changes the haze. */
 const MAX_DISTANCE_SCALE_M = 2e6
 /** Alpha's levels: 0 is "no globe", 1 to 255 the distance. */
@@ -38,7 +41,7 @@ const LEVELS = DISTANCE_LEVELS
  * @returns {number} D for this frame, metres
  */
 export function distanceScale(heightM) {
-  return Math.min(MAX_DISTANCE_SCALE_M, DISTANCE_SCALE_M * Math.exp(Math.max(0, heightM) / DISTANCE_SCALE_HEIGHT_M))
+  return Math.min(MAX_DISTANCE_SCALE_M, DISTANCE_SCALE_M + (DISTANCE_SCALE_PER_HEIGHT * Math.max(0, heightM)))
 }
 
 
