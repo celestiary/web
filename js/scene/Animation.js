@@ -1,14 +1,16 @@
-import {Object3D, Vector3} from 'three'
-import {gmstRad} from './celestialFrame.js'
+import {Object3D, Quaternion, Vector3} from 'three'
 import {loadVsop87c} from '../vsop'
 import * as Shared from '../shared'
 import debug from '../debug'
+import {gmstRad, utcToTtJulianDay} from './celestialFrame.js'
+import {moonArguments, moonOrbitOrientation, moonOrientation, moonScenePosition} from './lunarTheory.js'
 
 
 /**
- * Animate scene, currently just orbits.  For major planets Uses vsop87. For
- * Pluto and moons, uses a (very incorrect) elliptical orbit based on orbital
- * params.
+ * Animate scene, currently just orbits.  For major planets uses VSOP87C, and
+ * for the Moon the truncated ELP-2000/82 of Meeus 47 (lunarTheory.js), both
+ * in the mean ecliptic and equinox of date.  For Pluto and the other moons,
+ * uses a (very incorrect) elliptical orbit based on orbital params (#6).
  */
 export default class Animation {
   /** @param {object} time */
@@ -16,6 +18,12 @@ export default class Animation {
     this.time = time
     this.curVsopCoords = vsop87c('ignored')
     this.Y_AXIS = new Vector3(0, 1, 0)
+    // Per-frame Moon state, from updateMoon.
+    this.moonPos = new Vector3
+    this.moonQuat = new Quaternion
+    this.moonOrbitQuat = new Quaternion
+    this._tmpQuat = new Quaternion
+    this._tmpVec = new Vector3
   }
 
 
@@ -24,6 +32,7 @@ export default class Animation {
     this.time.updateTime()
     const jd = this.time.simTimeJulianDay()
     this.curVsopCoords = vsop87c(jd)
+    this.updateMoon(jd)
     this.animateSystem(scene)
   }
 
@@ -37,7 +46,23 @@ export default class Animation {
    */
   animateAtJD(scene, jd) {
     this.curVsopCoords = vsop87c(jd)
+    this.updateMoon(jd)
     this.animateSystem(scene)
+  }
+
+
+  /**
+   * The Moon's geocentric position, orientation and mean orbit for this
+   * frame.  Meeus's series is in TT; the simulation clock is UTC.
+   *
+   * @param {number} jd Julian Day (UTC)
+   */
+  updateMoon(jd) {
+    const jde = utcToTtJulianDay(jd)
+    const args = moonArguments(jde)
+    moonScenePosition(jde, this.moonPos)
+    moonOrientation(args, this.moonQuat)
+    moonOrbitOrientation(args, this.moonOrbitQuat)
   }
 
 
@@ -63,13 +88,21 @@ export default class Animation {
       // J2000" datum, so we fall back to the legacy hand-calibrated
       // formula — strictly no worse than before, but a candidate for
       // refinement (proper IAU WGCCRE rotation models per body).
-      let angle
-      if (system.props && system.props.name === 'earth') {
-        angle = gmstRad(this.time.simTimeJulianDay())
+      const name = system.props && system.props.name
+      if (name === 'moon') {
+        // The Moon's whole orientation (pole and spin, by Cassini's laws)
+        // is in moonQuat, relative to the unrotated orbitPosition; undo the
+        // planetTilt it's parented under.
+        system.quaternion.copy(this._tmpQuat.copy(system.parent.quaternion).invert()).multiply(this.moonQuat)
       } else {
-        angle = Math.PI + (this.time.simTimeDays() * Shared.twoPi)
+        let angle
+        if (name === 'earth') {
+          angle = gmstRad(this.time.simTimeJulianDay())
+        } else {
+          angle = Math.PI + (this.time.simTimeDays() * Shared.twoPi)
+        }
+        system.setRotationFromAxisAngle(this.Y_AXIS, angle)
       }
-      system.setRotationFromAxisAngle(this.Y_AXIS, angle)
     }
 
     // This is referred to by a comment in scene.js#addOrbitingPlanet.
@@ -81,7 +114,10 @@ export default class Animation {
       let x
       let y
       let z
-      if (vsopCoord === undefined) {
+      if (sysName === 'moon') {
+        ({x, y, z} = this.moonPos)
+        this.placeMoonOrbit(system)
+      } else if (vsopCoord === undefined) {
         const eccentricity = system.orbit.eccentricity
         const aRadius = system.orbit.semiMajorAxis.scalar
         const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(eccentricity, 2.0))
@@ -108,6 +144,28 @@ export default class Animation {
     }
 
     system.children.forEach((child) => this.animateSystem(child))
+  }
+
+
+  /**
+   * Lay the Moon's orbit line (Planet.newOrbit's flat ellipse, centred on
+   * its parent) on its mean orbit of date: inclined about the node line,
+   * the major axis toward the mean perigee, and shifted so Earth is at the
+   * focus.  The Moon itself departs from this mean ellipse by up to a few
+   * per cent (evection, variation).
+   *
+   * @param {Object3D} orbitPosition the Moon's orbitPosition
+   */
+  placeMoonOrbit(orbitPosition) {
+    const shape = orbitPosition.orbitShape
+    if (!shape) {
+      return
+    }
+    shape.quaternion.copy(this.moonOrbitQuat)
+    const {eccentricity, semiMajorAxis} = orbitPosition.orbit
+    // Ellipse centre = focus - a·e toward perigee.
+    shape.position.copy(this._tmpVec.set(1, 0, 0).applyQuaternion(this.moonOrbitQuat))
+        .multiplyScalar(-semiMajorAxis.scalar * eccentricity)
   }
 }
 
