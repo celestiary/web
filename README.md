@@ -15,7 +15,9 @@ https://celestiary.github.io/
 - Time controls for rate and direction of time
 - Kinda works on mobile! :)
 
-See [open issues](https://github.com/celestiary/celestiary/issues) page for upcoming features.
+See [ROADMAP.md](ROADMAP.md) for what's planned and in what order, and
+the [epics](https://github.com/celestiary/web/issues?q=is%3Aopen+label%3Aepic)
+for the work in each area.
 
 ## Design
 
