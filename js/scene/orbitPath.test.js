@@ -351,6 +351,10 @@ const VSOP_CALL_MS = 2
 const CLOCK_TICK_MS = 0.05
 const DAYS_PER_YEAR = 365.25
 
+// These drive hundreds of frames with real VSOP87C calls, ~2 s alone and
+// ~6 s on a loaded machine: headroom over bun's 5 s default.
+const PUMP_TEST_TIMEOUT_MS = 20000
+
 
 /**
  * An Animation whose orbit-line pump runs on a clock that VSOP87C calls
@@ -404,21 +408,21 @@ function lineWatch(name, g) {
     const path = g.orbitPosition.orbitPath
     const centre = path ? path.centre : null
     const rebuilt = centre !== w.centre
-    const xyz = path ? path.drawn.coarse : null
+    const xyz = path && path.drawn ? path.drawn.coarse : null
     let changed = false
     if (xyz && w.last) {
       for (let j = 0; j < xyz.length && !changed; j++) {
         changed = xyz[j] !== w.last[j]
       }
     } else if (xyz) {
-      w.last = Float64Array.from(xyz)
+      w.last = xyz ? Float64Array.from(xyz) : null
     }
     expect(`${name} ${label}: vertices ${changed ? 'changed' : 'kept'}`)
         .toBe(`${name} ${label}: vertices ${changed && !rebuilt ? 'kept' : (changed ? 'changed' : 'kept')}`)
     if (rebuilt) {
       w.builds++
       w.centre = centre
-      w.last = Float64Array.from(xyz)
+      w.last = xyz ? Float64Array.from(xyz) : null
     }
     if (w.shown) {
       expect(`${name} ${label}: ${line.visible ? 'drawn' : 'hidden'}`).toBe(`${name} ${label}: drawn`)
@@ -468,7 +472,7 @@ describe('orbit lines under high time rates and jumps', () => {
     }
     expect(g.orbitPosition.orbitPath.centre).toBe(jd)
     expect(offLine(g)).toBeLessThan(TOLERANCE)
-  })
+  }, PUMP_TEST_TIMEOUT_MS)
 
 
   it('keeps the lines drawn at a year a frame, and rebuilds them all in turn', () => {
@@ -490,8 +494,9 @@ describe('orbit lines under high time rates and jumps', () => {
     }
     expect(watches.every((w) => built(w.g) && w.g.shape.line.visible)).toBe(true)
     // The rebuilds take turns: at 6 VSOP87 calls a frame, the five take
-    // ~60 frames between them (Neptune's alone ~20).  None starves.
-    const frames = 150
+    // ~60 frames between them (Neptune's alone ~20).  None starves: over
+    // more frames than maxAge, a line never rebuilt would fail.
+    const frames = 100
     const maxAge = 80
     const builds = watches.map((w) => w.builds)
     const lastBuilt = watches.map(() => 0)
@@ -508,16 +513,20 @@ describe('orbit lines under high time rates and jumps', () => {
             .toBe(`${w.name} frame ${i}: built lately`)
       })
     }
-    const caughtUp = () => watches.every((w) => w.g.orbitPosition.orbitPath.centre === jd)
+    // Standing still, every line catches up (a line built within its
+    // rebuild fraction of the date, as Neptune's may be, needn't again),
+    // and holds its body.
+    const caughtUp = () => watches.every((w) => !w.g.orbitPosition.orbitPath.isStale(jd))
     for (let i = 0; i < 200 && !caughtUp(); i++) {
       frame(anim, time, root, jd)
       checkAll(`still ${i}`)
     }
     for (const w of watches) {
-      expect(`${w.name} ${w.g.orbitPosition.orbitPath.centre}`).toBe(`${w.name} ${jd}`)
+      expect(`${w.name} ${w.g.orbitPosition.orbitPath.isStale(jd) ? 'stale' : 'current'}`).toBe(`${w.name} current`)
       expect(offLine(w.g)).toBeLessThan(TOLERANCE)
+      expect(renderedMiss(w.g)).toBeLessThan(RENDERED_TOLERANCE)
     }
-  })
+  }, PUMP_TEST_TIMEOUT_MS)
 
 
   it('keeps Earth\'s old line through a jump of millennia, then swaps in the new one', () => {
@@ -544,7 +553,7 @@ describe('orbit lines under high time rates and jumps', () => {
     // Within a few frames of the catch-up budget.
     expect(i).toBeLessThan(8)
     expect(offLine(g)).toBeLessThan(TOLERANCE)
-  })
+  }, PUMP_TEST_TIMEOUT_MS)
 })
 
 
