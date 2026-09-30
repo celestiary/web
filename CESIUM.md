@@ -110,6 +110,10 @@ Per frame: camera world pose → body frame (inverse of the rotating planet
 node's world matrix, in JS doubles) → ECEF → Cesium's camera `position`,
 `direction`, `up` and `right`, set directly; Cesium's `frustum.fov` from
 celestiary's vertical fov (Cesium's fov spans the wider canvas dimension).
+Cesium's globe therefore takes its position and orientation from
+celestiary's body and computes neither itself: the Moon's (Meeus ch. 47
+position, Cassini-law orientation; DESIGN.md
+[orbital mechanics](DESIGN.md#orbital-mechanics)) carries straight over.
 
 - Not `camera.setView`: it converts direction and up to heading, pitch
   and roll in the local east-north-up frame and back, and near pitch −90°

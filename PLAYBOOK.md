@@ -153,6 +153,20 @@ stylistic tidying step, which silently shadowed the value that `load()` had just
 initialised before that method is called.  "Tidy field listing at the bottom" is not worth
 the hazard.
 
+### Clear timers a test leaves behind
+
+bun runs every test file in one process, and `Shared.targets` is a module
+global.  `Celestiary.test.js` left `_schedulePermalinkUpdate`'s 1 s timer
+pending; it fired during whichever file ran next and read the plain-object
+`targets.cur` a Scene test had set, as "unhandled error between tests".
+Nothing failed on main, only because the files after it finished first.
+Adding two slower test files (they load the 2 MB VSOP87 JS series) shifted
+the timing and exposed it.
+
+**Rule:** a suite that starts an app clears its timers in `afterAll`.  An
+unhandled error attributed to an unrelated file is usually a timer from an
+earlier one.
+
 ### Test code belongs in test files, not one-off shell scripts
 
 When debugging a codec, the instinct is to run a quick `bun -e "..."` snippet to verify

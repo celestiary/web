@@ -118,6 +118,7 @@ Moons follow the same pattern, parented to their planet's `orbitPosition`.
 6. `animationCb(scene)` → `Animation.animate(scene)`:
    - `Time.updateTime()` advances simulation clock by `timeDelta * timeScale`
    - `vsop87c(julianDay)` computes heliocentric XYZ for 8 major planets
+   - `updateMoon(julianDay)` computes the Moon's geocentric position, orientation and mean orbit (lunarTheory.js)
    - `animateSystem()` recurses the scene graph, setting orbit positions and sidereal rotations
    - If `targets.track` is set, calls `lookAtTarget()` each frame
 7. Camera-look tween update (`targets.tween`)
@@ -127,7 +128,16 @@ Moons follow the same pattern, parented to their planet's `orbitPosition`.
 ## Orbital Mechanics
 
 - **Major planets** (Mercury–Neptune): VSOP87c theory via the `vsop87` npm package, giving high-accuracy heliocentric ecliptic coordinates
-- **Minor bodies / moons / Pluto**: Simple Keplerian ellipse parameterized by `semiMajorAxis`, `eccentricity`, `siderealOrbitPeriod`
+- **The Moon**: the truncated ELP-2000/82 of Meeus, *Astronomical Algorithms* ch. 47 (`js/scene/lunarTheory.js`), geocentric, ~10″. Its orientation follows Cassini's laws (Meeus ch. 53: equator inclined 1.54° about the node line, prime meridian toward Earth at the mean longitude), so the near side faces Earth with the real optical libration. The orbit line is the mean ellipse of date (node, inclination, perigee), Earth at the focus.
+- **Other moons / Pluto**: Simple Keplerian ellipse parameterized by `semiMajorAxis`, `eccentricity`, `siderealOrbitPeriod`, flat in the ecliptic (#6)
+
+### Frames and time
+
+- **The scene frame is the mean ecliptic and equinox *of date*,** not J2000: VSOP87**C** is the of-date series (VSOP87A is J2000). Checked against Meeus example 25.b: VSOP87C gives the Sun's longitude as 199.9073° at 1992 Oct 13.0 (Meeus: 199.907372°), while VSOP87A gives 200.008°. Meeus ch. 47 is in the same frame, so the Moon's geocentric (λ, β, Δ) goes straight in, with no precession.
+- **Axis remap**, for VSOP87C's `(x, y, z)` and any ecliptic vector: scene `(x, z, −y)`, i.e. X = equinox, Y = north ecliptic pole, Z = −ecliptic Y. A rotation about ecliptic Z is a rotation about scene Y by the same angle.
+- **Body frames** (coords.js): +Y the north pole, +X the prime meridian, east longitude toward −Z. The same remap from a body's (x = longitude 0, y = 90° E, z = north), so an ecliptic rotation such as the Moon's Rz(Ω)·Rx(−I)·Rz(F + 180°) becomes Ry(Ω)·Rx(−I)·Ry(F + 180°) in the scene.
+- **The stars are J2000** (Celestia's stars.dat, `galacticFrame.js`). The planets and the stars therefore differ by precession: 50.3″ a year in longitude, ~0.37° by 2026. `celestialFrame.precessEcliptic` (Meeus 21.5) converts between the two, e.g. to compare with JPL Horizons' J2000 ecliptic vectors.
+- **Time:** the simulation clock is UTC. VSOP87C is fed the UTC Julian Day as it is (69 s of ΔT moves Earth ~2000 km). The Moon moves 0.01° in 69 s, so its series gets TT (`celestialFrame.utcToTtJulianDay`: 32.184 s + the leap seconds since 1972).
 
 ## Camera Controls
 
@@ -392,6 +402,8 @@ and the provider extension contract.
 |---|---|
 | `js/scene/Scene.js` | Scene object registry, targeting, raycasting |
 | `js/scene/Animation.js` | VSOP87 + Keplerian orbit/rotation animation |
+| `js/scene/lunarTheory.js` | The Moon: Meeus ch. 47 position, Cassini-law orientation, mean orbit of date |
+| `js/scene/celestialFrame.js` | GMST, TT − UTC, ecliptic precession between dates |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
 | `js/scene/Star.js` | Named star with noise shader |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
