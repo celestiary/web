@@ -132,13 +132,11 @@ export default class Time {
 }
 
 
-// See "Unix time" in table https://en.wikipedia.org/wiki/Julian_day
-const unixEpoch = 1970
-const julianEpoch = -4712
-// TODO(pablo): hand searched to yield daysJulianToUnix ~= 2440587.5, as per article
-const daysPerYear = 365.2480545
-// 2440587.500169
-const daysJulianToUnix = ((unixEpoch - julianEpoch) * daysPerYear)
+// Julian Day of the Unix epoch, 1970-01-01 00:00 UTC: exactly 2440587.5
+// (https://en.wikipedia.org/wiki/Julian_day, "Unix time").  It used to be
+// derived as (1970 + 4712) × 365.2480545 = 2440587.500169, which ran every
+// Julian Day 14.6 s ahead.
+const daysJulianToUnix = 2440587.5
 const millisPerSec = 1000
 const secsPerDay = 86400
 const millisPerDay = millisPerSec * secsPerDay

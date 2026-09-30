@@ -2,6 +2,7 @@ import {describe, expect, it} from 'bun:test'
 import {Quaternion, Vector3} from 'three'
 import vsop87a from 'vsop87/dist/vsop87a'
 import vsop87c from 'vsop87/dist/vsop87c'
+import {toJulianDay} from '../Time.js'
 import {precessEcliptic, utcToTtJulianDay} from './celestialFrame.js'
 import {
   LUNAR_EQUATOR_INCLINATION_DEG,
@@ -125,6 +126,35 @@ describe('moonEcliptic against JPL Horizons', () => {
       expect(Math.abs(dLonArcsec)).toBeLessThan(10)
       expect(Math.abs(dLatArcsec)).toBeLessThan(4)
       expect(Math.abs(m.distanceKm - r)).toBeLessThan(10)
+    })
+  }
+})
+
+
+describe('the simulation clock against the Horizons epochs', () => {
+  // The same instants as UTC wall-clock times (TT − UTC from the leap
+  // seconds then), through Time.toJulianDay and utcToTtJulianDay as
+  // Animation does.  Time.toJulianDay used to run 14.6 s ahead, ~8″ of
+  // lunar motion.
+  const cases = [
+    [Date.UTC(1992, 3, 11, 23, 59, 1, 816), 2448724.5], // TT − UTC 58.184 s
+    [Date.UTC(2000, 0, 1, 11, 58, 55, 816), 2451545.0], // 64.184 s
+    [Date.UTC(2026, 8, 26, 16, 48, 38, 816), 2461310.20125], // 69.184 s
+    [Date.UTC(2026, 8, 29, 14, 23, 50, 432), 2461313.10069],
+    [Date.UTC(2049, 11, 31, 23, 58, 50, 816), 2469807.5],
+  ]
+  for (const [ms, jdTT] of cases) {
+    it(`maps ${new Date(ms).toISOString()} UTC to JDE ${jdTT}`, () => {
+      const jde = utcToTtJulianDay(toJulianDay(ms))
+      // Float64 JDs resolve ~40 µs.
+      expect(Math.abs(jde - jdTT) * 86400).toBeLessThan(0.01)
+      const row = horizons.rows.find((r) => r[0] === jdTT)
+      const [, , x, y] = row
+      const m = moonEcliptic(jde)
+      const p = precessEcliptic(m.lambda, m.beta, jde, 2451545.0)
+      const lonH = ((Math.atan2(y, x) * toDeg) + 360) % 360
+      const dLonArcsec = ((((p.lambda - lonH) + 540) % 360) - 180) * 3600
+      expect(Math.abs(dLonArcsec)).toBeLessThan(10)
     })
   }
 })

@@ -1,4 +1,4 @@
-import {timeToDateStr} from './Time'
+import {fromJulianDay, timeToDateStr, toJulianDay} from './Time'
 
 
 // `toLocaleDateString` formats with an ICU-version-dependent separator
@@ -24,6 +24,22 @@ describe('Time', () => {
     it('handles past', () => {
       expect(timeToDateStr(-1000000000000000).toString())
           .toMatch(new RegExp(`^-29,719 Apr 5${SEP} 10:13:20 PM$`))
+    })
+  })
+
+  describe('toJulianDay', () => {
+    it('puts the Unix epoch at JD 2440587.5 exactly', () => {
+      expect(toJulianDay(0)).toBe(2440587.5)
+    })
+
+    it('puts J2000.0 (2000-01-01 12:00) at JD 2451545.0', () => {
+      // Within a microsecond (float64 JD resolution near 2.4e6 days).
+      expect(Math.abs(toJulianDay(Date.UTC(2000, 0, 1, 12)) - 2451545.0) * 86400).toBeLessThan(1e-4)
+    })
+
+    it('round-trips with fromJulianDay', () => {
+      const t = Date.UTC(2026, 8, 29, 14, 25)
+      expect(Math.abs(fromJulianDay(toJulianDay(t)) - t)).toBeLessThan(1)
     })
   })
 })
