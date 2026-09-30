@@ -98,9 +98,17 @@ tried and dropped.
   - `api.cesium.com` and `assets.ion.cesium.com` (Cesium ion);
   - `trek.nasa.gov` (Moon and Mars mosaics);
   - `eoimages.gsfc.nasa.gov` and `gibs.earthdata.nasa.gov` (Earth).
+  - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
+    Record Horizons results as offline test fixtures with the query that
+    produced them; tests never hit the network.
 
   If one is denied, ask the user to add it to the environment's allowed
   hosts, and carry on with what doesn't need it.
+- **Parallel agents share this machine.** The shared yarn cache can
+  end up corrupt when several installs run at once: if `yarn install`
+  fails on a package's contents, install with a private
+  `--cache-folder`. Don't `kill` browser or server processes you didn't
+  start.
 - **Large assets are fine in the repo**, e.g. the Blue Marble textures
   and tile pyramids. Document how each was built in
   `js/scene/Planet.md`, so it can be rebuilt.
