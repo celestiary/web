@@ -17,7 +17,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three'
-import {NEUTRAL_GLSL, NEUTRAL_INVERSE_GLSL, sceneReferred} from '../hdr.js'
+import {NEUTRAL_GLSL, sceneReferred} from '../hdr.js'
 import {sphere} from '../shapes'
 
 
@@ -364,6 +364,10 @@ export function newAtmospherePass() {
       // composites the sky with it there and tone-maps once, last (HDR.md).
       // 0: the LDR fallback: tDiffuse holds display values; no tone map.
       uHdr: {value: 0.0},
+      // Carries the in-scatter (times uSunIntensity) into exposure units at
+      // the renderer's current exposure: 1 when the planet is the exposure
+      // target (exposure.js skyExposure; HDR.md).
+      uSkyExposure: {value: 1.0},
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
@@ -402,7 +406,7 @@ uniform float     uFar;
 uniform mat4      uProjectionMatrixInverse;
 uniform vec3      uPlanetCenter;
 uniform vec3      uSunDirection;
-uniform float     uSunIntensity;
+uniform float     uSunIntensity;  // the body's sky gain (HDR.md)
 uniform float     uGroundRadius;
 uniform float     uAtmosphereRadius;
 uniform vec3      uRayleigh;
@@ -417,6 +421,7 @@ uniform float     uUseInScatterLUT;
 uniform float     uAtmEnabled;
 uniform float     uAtmStrength;
 uniform float     uHdr;
+uniform float     uSkyExposure;
 
 #define PI        3.141592
 #define I_STEPS   64
@@ -424,7 +429,6 @@ uniform float     uHdr;
 #define R_SLICES  64.0
 
 ${NEUTRAL_GLSL}
-${NEUTRAL_INVERSE_GLSL}
 
 // The scene with no atmosphere over it, to the screen: the one tone map
 // (HDR), or as it is (the LDR fallback's scene is display values already).
@@ -741,6 +745,9 @@ void main() {
     // thin upper-atmosphere column — the LUT alpha already captures the
     // real optical depth of that column, and forcing it to ~1 would hide
     // the surface texture behind a featureless blue disc.
+    //
+    // The boost reads the sky's brightness as it always has, soft-saturated
+    // (1 − e^−S), so it behaves as before; #86's PR B removes it.
     vec3 color = 1.0 - exp(-scattered);
     float skyBrightness = max(color.r, max(color.g, color.b));
     // Two knobs in the smoothstep:
@@ -793,9 +800,10 @@ void main() {
       transmittance = vec3(0.0);
     }
 
-    // The sky, soft-saturated in display units as before, taken to exposure
-    // units by the final tone map's inverse, so it shows as it did.
-    vec3 sky = neutralInverse(color);
+    // The sky in exposure units: the in-scatter per unit of the Sun's
+    // irradiance, times the irradiance and the exposure (uSkyExposure), with
+    // uSunIntensity as the body's gain over single scattering (HDR.md).
+    vec3 sky = scattered * uSkyExposure;
     gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, sky, transmittance);
     return;
   }
@@ -827,6 +835,6 @@ void main() {
   if (insideAtmFb && !beyondAtmFb) {
     result.a = max(result.a, smoothstep(0.01, 0.1, skyBrightness) * altWeightFb);
   }
-  gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, neutralInverse(color), vec3(1.0 - result.a));
+  gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, result.rgb * uSkyExposure, vec3(1.0 - result.a));
 }
 `

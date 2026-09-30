@@ -20,7 +20,7 @@ import {
 import {newAtmospherePass} from './scene/atmos/Atmosphere'
 import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
-import {easeExposure, exposureAt} from './scene/exposure.js'
+import {easeExposure, exposureAt, skyExposure} from './scene/exposure.js'
 import {hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import {attachPointerDrag} from './dragControls'
@@ -546,6 +546,16 @@ export default class ThreeUi {
     u.uGroundRadius.value = R
     u.uAtmosphereRadius.value = R + atmos.height.scalar
     u.uSunIntensity.value = atmos.sunIntensity ?? 22
+    // The sky in exposure units: its planet's sunlight at the renderer's
+    // exposure (HDR.md).  The Sun is at the world group's origin.
+    this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
+    if (this._worldGroup) {
+      this._worldGroup.getWorldPosition(this._exposureSunPos)
+    } else {
+      this._exposureSunPos.set(0, 0, 0)
+    }
+    const sunDist = this._pWorldAtm.distanceTo(this._exposureSunPos)
+    u.uSkyExposure.value = sunDist > 0 ? skyExposure(sunDist, this.renderer.toneMappingExposure) : 1
     u.uRayleigh.value.set(...atmos.rayleigh)
     u.uRayleighScaleHeight.value = atmos.rayleighScaleHeight.scalar
     u.uMieCoeff.value = atmos.mieCoeff

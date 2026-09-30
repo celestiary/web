@@ -12,16 +12,29 @@ viewpoint, day or night, surface or orbit.
 ## Composition equation
 
 Final pixel = inscatter (sky color) + scene background (stars, surface, etc.)
-attenuated by transmittance:
+attenuated by transmittance, tone-mapped once:
 
 ```glsl
-gl_FragColor.rgb = color + scene.rgb * (1.0 - alpha)
+sky = scattered * uSkyExposure;                     // exposure units
+gl_FragColor.rgb = neutralToneMap(sky + scene.rgb * transmittance)
 ```
 
-where `color = 1.0 - exp(-scattered)` (soft saturation of LUT inscatter), and
-`alpha = 1 - transmittance` from the LUT. This is the standard
-single-scattering equation: forward-scattered atmospheric light, plus
-attenuated background.
+`scene` is the linear HDR scene buffer, in exposure units (1.0 is a white
+Lambertian surface lit by the Sun at the exposure target, before
+`DISPLAY_GAIN`), and `scattered = uSunIntensity × LUT in-scatter`.
+`uSkyExposure` carries the in-scatter to the renderer's exposure: the
+Sun's irradiance at the planet times the exposure, over the
+`π·DISPLAY_GAIN` that `exposure.js` normalizes a sunlit surface by
+(`skyExposure`), so 1 when the planet is the exposure target.  This is the
+standard single-scattering equation: forward-scattered atmospheric light,
+plus attenuated background, then the display's one tone map (PBR Neutral).
+See [HDR.md](../HDR.md) for the pipeline, the units and a worked number.
+
+Before #86's PR A the scene buffer held display values (already
+tone-mapped) and the sky was soft-saturated on its own,
+`1.0 - exp(-scattered)`, and added to it.  The LDR fallback (no float
+render targets) still composites that way, with `neutralToneMap(sky)` for
+the sky.
 
 ## Why the raw equation isn't enough
 
@@ -50,7 +63,10 @@ the ray-march fallback applies the same rules with corresponding variables.
 2. **Cap at 0.92** — `alpha = min(alpha, 0.92)`. Floor of 8% transmittance
    for any background. Earlier revs forced the inside-atmosphere alpha
    to ~1; that hid stars at the night horizon along with everything else.
-3. **Brightness-tied opacity** — `alpha = max(alpha, smoothstep(0.01, 0.1, sky_max_ch) * altWeight)`. Models eye adaptation. Two factors:
+3. **Brightness-tied opacity** — `alpha = max(alpha, smoothstep(0.01, 0.1, sky_max_ch) * altWeight)`,
+   with `sky_max_ch` the max channel of `1 - exp(-scattered)`, the sky's
+   brightness as it was measured before the HDR buffer, so the rule behaves
+   as it did.  Models eye adaptation. Two factors:
    - `smoothstep` snaps alpha to 1 once the sky is even faintly bright,
      so day blue overrides stars without needing physically-implausible
      extinction.
@@ -73,12 +89,13 @@ the ray-march fallback applies the same rules with corresponding variables.
 
 ## Per-body sun intensity
 
-`atmosphere.sunIntensity` in each body's JSON descriptor is a tuneable
-knob that controls how bright the inscatter feels relative to the
-renderer's `toneMappingExposure` (3e-16, calibrated for sun-lumens
-scale). Earth's value is currently 60 — bumped from 20 so the day-side
-inscatter cleanly saturates the smoothstep, hides labels through the
-brightness-tied alpha, and feels like real daylight.
+`atmosphere.sunIntensity` in each body's JSON descriptor is the sky's
+gain: with the planet as the exposure target, the sky in exposure units is
+`sunIntensity × in-scatter`.  The physical single-scattering value is
+`π·DISPLAY_GAIN` ≈ 4.71; Earth's 30 (matched to Cesium's Earth; Planet.md)
+is 6.4× that, standing in for multiple scattering and a real aerosol load.
+#86's PR B tunes it against physical stars and metered exposure.  The rings
+reuse it as their brightness.
 
 ## Knobs you might want to tune
 
@@ -105,7 +122,8 @@ brightness-tied alpha, and feels like real daylight.
   would sample average scene luminance and adjust `toneMappingExposure`
   with a temporal smoothing filter (~2 s constant) — letting the same
   rendering work for stars-from-orbit and sun-disc-up-close without
-  per-context tuning.
+  per-context tuning.  Now that the sky and the scene share one linear
+  buffer ([HDR.md](../HDR.md)), that's #86's PR B.
 - **Multiple-scattering.** Current LUT is single-scatter only; the
   twilight glow on the antisolar horizon is a multi-scattering
   phenomenon that would need additional precompute passes.

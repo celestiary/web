@@ -157,7 +157,7 @@ The node Animation spins (the one carrying `siderealRotationPeriod`, and
    - If `targets.track` is set, calls `lookAtTarget()` each frame
 7. Camera-look tween update (`targets.tween`)
 8. `_applyCameraArrowKeys()` — apply held-key pitch/roll last so they always win
-9. `renderer.render(scene, camera)`
+9. Render: the scene into `_sceneRT` (linear, half-float, in exposure units), Cesium's layers composited into it, then the atmosphere pass to the screen, which adds the sky and tone-maps once (PBR Neutral), then the label overlay.  See [HDR pipeline](#hdr-pipeline).
 
 ## Orbital Mechanics
 
@@ -297,13 +297,26 @@ scene graph alone.
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
 | Named star (e.g. Sun) | Procedural Perlin noise GLSL surface shader (convection-like texture) |
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
-| Atmospheres | Semi-transparent additive-blend sphere shell |
+| Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
 | Saturn rings | Double-sided `RingGeometry` with texture |
 | Orbit paths | `EllipseCurve` → `Line` with additive blending |
 | Labels | Canvas-rendered `SpriteSheet` compiled to a single `Points` geometry |
 | Asterisms | Line segments loaded from `asterisms-clean.dat` |
 
 LOD (`THREE.LOD`) is used throughout to swap between detailed meshes, point sprites, and invisible placeholders based on camera distance.
+
+### HDR pipeline
+
+One linear brightness scale, one tone map ([js/scene/HDR.md](js/scene/HDR.md), #86):
+
+| Pass | Target | Holds |
+|---|---|---|
+| Scene | `_sceneRT`, RGBA16F | lit surfaces × the target-keyed exposure (exposure-only tone mapping); display-referred content (stars, labels, lines) through the inverse of the final tone map (`hdr.js` `sceneReferred`) |
+| Cesium layers | `_cesiumRT` (8-bit) → `_sceneRT` | each body's Cesium frame, decoded into exposure units |
+| Atmosphere | screen | `PBR Neutral(sky + scene × T)`, the sky in exposure units |
+| Label overlay | screen | display values, depth-tested against the scene |
+
+Without float render targets (`EXT_color_buffer_float`), or with `?hdr=0`, the old LDR order: an 8-bit `_sceneRT` tone-mapped in the scene pass, and the sky added in display space.
 
 ### Cesium layers
 
@@ -458,6 +471,8 @@ and the provider extension contract.
 | `js/scene/Picker.js` | Raycasting for 3D object picking |
 | `js/scene/PickLabels.js` | Label picking and marker display |
 | `js/scene/atmos/Atmosphere.js` | Atmosphere mesh + fullscreen post-process pass |
+| `js/scene/hdr.js` | The HDR pipeline's tone map (PBR Neutral), its inverse, `sceneReferred` for display-referred materials |
+| `js/scene/exposure.js` | Target-keyed exposure; the sky's scale in exposure units |
 | `js/scene/atmos/AtmospherePrecompute.js` | Bruneton transmittance + in-scatter LUT precomputation |
 
 ### AR sky view (`js/ar/`)
