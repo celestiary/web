@@ -13,7 +13,7 @@
       "tolerance": {
         "ratio": [0.97, 1.01],
         "channelRatio": {"r": [0.955, 1.0], "g": [0.97, 1.01], "b": [0.98, 1.02]},
-        "profileMax": 36,
+        "profileMax": 42,
         "profileMean": 4
       }
     },

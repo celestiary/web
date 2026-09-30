@@ -115,6 +115,28 @@ a spurious glow blob. Fix: clamp μ_s_t half a texel inward from each tile edge.
 **Rule:** Any 2D texture that encodes a 3D or 4D table with tile packing needs half-texel
 boundary clamps on the packed dimension.
 
+### Trace a value's precision through every buffer it crosses
+
+The HDR plan had Cesium's Moon shader write exposure-unit values above 1
+into celestiary's new half-float buffer.  portal-netgl would have carried
+them faithfully, but they never reached it: Cesium renders into its own
+globe-depth framebuffer, `UNSIGNED_BYTE` unless its HDR is on, and copies
+that to the screen.  Reading `Scene.js` and `GlobeDepth.js` found it before
+any code was written; the fix was an encoding (PBR Neutral, inverted on
+celestiary's side) rather than a change of units.
+
+**Rule:** before relying on a range or precision end to end, list every
+buffer the value passes through, including a library's internal ones, and
+check each one's format.
+
+### Inverting a tone map is exact for one draw, not for blends
+
+Display-referred content (stars, labels) goes into the HDR buffer through
+N⁻¹, so N gives it back.  For a single draw that's exact, but additive
+overlaps of N⁻¹ values tone-map brighter than the old clamped sum (the toe
+is square-root-like, so √a + √b > √(a + b)): overlapping star glows came
+out ~13% brighter.  Measure blends separately from single draws.
+
 ### GPU shader degenerate cases need explicit guards
 
 The Bruneton decode has two degenerate cases: r = rG (ground, rho = 0) and r = rA (atmosphere

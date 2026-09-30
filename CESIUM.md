@@ -440,20 +440,20 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 
 | View | Luma | R / G / B | Profile max / mean (of 255) |
 |---|---|---|---|
-| `earth-orbit-gibbous` | 0.990 | 0.976 / 0.989 / 1.000 | 31.2 / 2.4 |
+| `earth-orbit-gibbous` | 0.990 | 0.976 / 0.989 / 1.000 | 36.6 / 2.5 |
 | `moon-quarter` | 0.967 | 0.967 / 0.967 / 0.967 | 19.4 / 5.5 |
-| `mars-gibbous` | 0.990 | 1.000 / 0.987 / 0.986 | 5.0 / 1.1 |
-| `earth-low-dusk` | 1.002 | 1.000 / 1.000 / 1.000 | 3.2 / 1.2 |
+| `mars-gibbous` | 0.990 | 1.000 / 0.987 / 0.987 | 5.5 / 1.2 |
+| `earth-low-dusk` | 1.002 | 1.000 / 1.000 / 1.000 | 2.8 / 1.1 |
 
 Measured after #86's PR A (one HDR buffer; Earth under celestiary's
 atmosphere pass on both sides).  Before it, on the same machine:
 
 | View | Luma | R / G / B | Profile max / mean |
 |---|---|---|---|
-| `earth-orbit-gibbous` | 0.975 | 1.125 / 0.973 / 0.736 | 23.1 / 9.3 |
+| `earth-orbit-gibbous` | 0.975 | 1.125 / 0.973 / 0.736 | 23.1 / 9.4 |
 | `moon-quarter` | 0.967 | 0.967 / 0.967 / 0.967 | 19.4 / 5.5 |
-| `mars-gibbous` | 0.992 | 1.000 / 1.000 / 1.000 | 5.5 / 1.4 |
-| `earth-low-dusk` | 0.897 | 1.198 / 0.865 / 0.507 | 27.1 / 9.0 |
+| `mars-gibbous` | 0.992 | 1.000 / 0.991 / 1.000 | 5.9 / 1.1 |
+| `earth-low-dusk` | 0.899 | 1.198 / 0.866 / 0.511 | 25.0 / 8.8 |
 
 (The Moon measured 0.905 when the check was written; by the time #134
 merged, #130's new lunar orientation had turned a different face to this
@@ -472,7 +472,7 @@ view, and it read 0.967 on main, outside its first tolerance.)
   separate from #86.
 - **Earth matches**, since #86's PR A put its Cesium globe under
   celestiary's atmosphere pass: within 1% in luma, 2.4% in red, from orbit
-  and from 400 km.  Before, Cesium drew its own sky and ground atmosphere:
+  and from 400 km; profile means of 1-2.5 levels.  Before, Cesium drew its own sky and ground atmosphere:
   from orbit, its `1 − e^(−2x)` curve over the lit surface plus its haze
   made the disc 12% redder and 26% less blue than celestiary's; from 400 km
   its ground atmosphere had faded out (Cesium's `lightingFadeOutDistance`,
@@ -480,7 +480,8 @@ view, and it read 0.967 on main, outside its first tolerance.)
   where celestiary's Bruneton pass gives a blue haze.  Neither was
   celestiary's atmosphere failing to reach Cesium's ground: the pass stood
   down for Earth by design (`atmosphere: true`).  The remaining profile
-  maximum is a coastline pixel at the limb.
+  maximum, from orbit, is one sample where the coast meets the lit limb,
+  and moves by several levels between runs.
 - The night side is left out of the ratios (under luma 12), so #93's city
   lights, which only celestiary draws, don't enter them; only the
   profile's dark end sees them.

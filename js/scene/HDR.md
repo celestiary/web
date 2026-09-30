@@ -275,4 +275,56 @@ baseline numerically.
 
 ## Results
 
-Filled in as the steps land.
+SwiftShader, 480×300, against `main` at the same commit.  "Pixel ratio" is
+the median per-pixel luma ratio after/before over the region (bodies: the
+pixels over luma 12 of 255); "mean" is the ratio of mean luma, which the
+star field moves.  `off` forces Cesium's layers off (celestiary's own
+bodies); `on` is the default, Cesium where it's in range.
+
+| View | Region | Pixel ratio | R / G / B | Mean |
+|---|---|---|---|---|
+| Earth, 20,000 km, 25° phase, off | lit | 1.000 | 1.00 / 1.00 / 1.14 | 1.04 |
+| Earth, 20,000 km, 90° phase, off | lit | 1.000 | 1.00 / 1.00 / 1.00 | 1.06 |
+| Earth's surface, Sun 50° up, off | sky | 1.059 | 0.88 / 1.06 / 1.27 | 1.07 |
+| | sea | 0.884 | 0.63 / 0.89 / 1.08 | 0.94 |
+| Earth's surface, Sun 3° down, off | sky | 0.715 | 0.74 / 0.71 / 0.44 | 0.78 |
+| | glow | 0.962 | 1.05 / 0.93 / 0.57 | 1.01 |
+| The Moon, 5,000 km, quarter, on and off | lit | 1.000 | 1.00 / 1.00 / 1.00 | 1.03 |
+| Mars, 12,000 km, on and off | lit | 1.000 | 1.00 / 1.00 / 1.00 | 1.02 |
+| Saturn and its rings | lit | 1.000 | 1.00 / 1.00 / 1.00 | 1.06 |
+| Star field, 100 AU, labels and asterisms on | all | 1.000 | | 1.05 |
+| Daytime Moon, quarter, Sun and Moon 45° up, off | sky | 0.904 | 0.64 / 0.90 / 1.12 | 0.91 |
+| | Moon | 1.038 | 1.01 / 1.04 / 1.12 | 1.03 |
+
+- **Bodies without sky over them are unchanged**: every lit body's pixel
+  ratio is 1.000, on either side of the swap.  Cesium's frames decode
+  exactly (`N⁻¹` of `N`).
+- **The star field's mean rises 3-6%** (the "mean" column of the space
+  views; 12% in the densest field, behind the Sun): single stars are exact,
+  but overlapping glows now add in linear light before the tone map, and
+  the toe's inverse is square-root-like, so a pair tone-maps brighter than
+  their old clamped sum (+13% in pixels of luma 20-80, -11% in the few over
+  160, label edges over glows).  PR B replaces the stars' values anyway.
+- **The sky changes model, as expected.**  The midday sky is 6% brighter in
+  luma and more saturated (red 0.88, blue 1.27): `1 − e^(−S)` desaturated
+  it, compressing the strong blue channel more than the weak red, and PBR
+  Neutral doesn't.  Twilight is 29% dimmer, with the least blue left:
+  Neutral's toe crushes dim values (the worked number above).  The sea
+  under the midday haze is 12% darker (its haze is sky, and redder before).
+- Earth's night lights (celestiary's only; #93) and the Sun's glow ring are
+  unchanged.  The Sun's disc is black in SwiftShader on `main` and here
+  alike.
+
+**Across the swap** (Cesium's layer over celestiary's own, per view): on
+`main` the Cesium-drawn Earth differed wherever its own atmosphere showed,
+up to 2× (the midday sea 2.02, sky 1.47, the twilight glow 1.9; the daytime
+Moon 0.69 behind Cesium's sky).  Now its sky and haze are celestiary's:
+1.000 for the sky at midday and at twilight, 1.000 for the midday sea, and
+0.966 for the daytime Moon (the Moon's own gap, CESIUM.md).  `yarn parity`:
+Earth from orbit 0.990 in luma (was 0.975, with R/G/B 1.13/0.97/0.74, now
+0.98/0.99/1.00), from 400 km at dusk 1.002 (was 0.899, 1.20/0.87/0.51, now
+1.00 in each); the Moon (0.967) and Mars (0.990) as before.  Details:
+[CESIUM.md, baselines](../../CESIUM.md#baselines-and-what-they-show).
+
+The LDR fallback (`?hdr=0`) matches `main` exactly on the Moon and the star
+field, and shows the sky as the HDR path does.
