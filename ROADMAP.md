@@ -65,7 +65,8 @@ order is a suggestion.
    more visual tuning.
 4. **Scripted parity check** ([#105](https://github.com/celestiary/web/issues/105), in [#121](https://github.com/celestiary/web/issues/121)). Turns the by-hand
    Cesium-vs-celestiary comparison into one command; [#92](https://github.com/celestiary/web/issues/92) and [#93](https://github.com/celestiary/web/issues/93) need it
-   for their "done when".
+   for their "done when". *Built: `yarn parity`, see
+   [CESIUM.md](CESIUM.md#parity-check).*
 
 **Next**
 5. **Earth across the swap** ([#110](https://github.com/celestiary/web/issues/110)): night lights ([#93](https://github.com/celestiary/web/issues/93)), then the imagery

@@ -25,7 +25,7 @@ tried and dropped.
 | Units, frames, coordinates | DESIGN.md [coordinate system & scale](DESIGN.md#coordinate-system--scale); [js/permalink.md](js/permalink.md#coordinate-system) |
 | Camera, navigation, targeting (`goTo`, `setTarget`, keys) | DESIGN.md: [camera controls](DESIGN.md#camera-controls), [navigation](DESIGN.md#navigation-goto-flow), [setTarget and lookAtTarget](DESIGN.md#settarget-lookattarget-c-key) |
 | Rendering, overlays and the `v` visibility groups | DESIGN.md: [rendering techniques](DESIGN.md#rendering-techniques), [overlays & visibility groups](DESIGN.md#overlays--visibility-groups) |
-| Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [follow-ups](CESIUM.md#follow-ups) |
+| Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [parity check](CESIUM.md#parity-check), [follow-ups](CESIUM.md#follow-ups) |
 | Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
 | The atmosphere pass | [js/scene/atmos/composition.md](js/scene/atmos/composition.md) (what it does and its knobs); [BRUNETON.md](js/scene/atmos/BRUNETON.md) (the LUT design) |
 | Permalinks (`#path@lat,lng,alt;t=…;cq=…;fov=…`) | [js/permalink.md](js/permalink.md) |
@@ -77,13 +77,20 @@ tried and dropped.
   quaternion (`cq=`).** Without one the whole fragment is ignored, and
   the app runs at the current real time. To test a date, set it with
   `c.time.setTime(ms)` after load.
-- **Compare Cesium with celestiary numerically.**
-  - Force a body's layer fully on or off with `c.ui.layers.fadeOf =
-    () => 1` or `() => 0`, and render the same view both ways.
-  - Compare median pixel ratios over the lit disc, plus brightness
-    profiles across the terminator.
-  - Check at partial phase, not full: colour-pipeline mismatches hide
-    near full phase.
+- **Compare Cesium with celestiary numerically: `yarn parity`.**
+  - Run `yarn build` first (with `CESIUM_ION_TOKEN` set); the script
+    serves `docs/` and doesn't build. `yarn parity --out parity-out`
+    also writes the image pairs and `report.json`, for PR evidence.
+  - It renders each view in `tools/parity/views.json` with the body's
+    layer forced fully on and off, once tiles have settled, and prints
+    median pixel ratios over the lit disc and terminator brightness
+    profiles against tolerances. It exits non-zero on a FAIL. What it
+    measures, and how to add a view: [CESIUM.md](CESIUM.md#parity-check).
+  - Views are at partial phase, not full: colour-pipeline mismatches
+    hide near full phase.
+  - By hand, force a layer with `c.ui.layers.fadeOf = () => 1` (or
+    `() => 0`), and render the same view both ways.
+  - Not in `yarn precommit`: it takes minutes and needs ion.
 - **Known SwiftShader quirk:** `gl_PointCoord` flips in point shaders
   that `discard` or sample a depth texture. Use depth state instead.
 - **Network hosts this work needs in the sandbox:**
@@ -114,6 +121,10 @@ tried and dropped.
   with the header set (`page.route` → `route.fetch({headers: {referer,
   origin}})`), then fulfill them with
   `access-control-allow-origin: *`.
+  `route.fetch({headers})` replaces the request's headers, so spread in
+  `await route.request().allHeaders()`: without it ion's bearer token is
+  dropped, and its asset requests (terrain, tilesets) answer 401 while
+  the token is fine. `tools/parity/parity.mjs` does this.
 - **A session's env holds the token from when the session started.**
   After the user rotates it, ion answers 401 here. Say so, and leave
   ion-dependent checks to the PR preview.

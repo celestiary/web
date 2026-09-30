@@ -312,3 +312,141 @@ Changed:
   while orbiting; the Moon occludes/is occluded correctly; the terminator
   matches celestiary's; switching back restores celestiary's Earth and
   atmosphere exactly.
+
+## Parity check
+
+`yarn parity` compares celestiary's rendering of a body with its Cesium
+layer, numerically, for a list of permalink views.  It's the by-hand
+procedure of AGENTS.md as one command, and what the "done when" of the
+Earth-appearance issues (#92 imagery, #93 night lights, and #86 exposure,
+#88 clouds) cite.
+
+Not part of `yarn precommit`: it takes minutes (30 to 80 s a view on
+SwiftShader, four cores) and needs the network (ion).  The arithmetic is in
+`tools/parity/measure.mjs`, with bun tests that do run in precommit.
+
+### Running it
+
+```
+CESIUM_ION_TOKEN=... yarn build     # the Moon and Mars need the token, Earth's terrain too
+yarn parity                         # every view in tools/parity/views.json
+yarn parity --only moon-quarter --out parity-out
+```
+
+- It serves `docs/` itself and doesn't build: without a build it says so
+  and exits 2.  The token is read at build time, so it isn't needed to run
+  the script.  Never print it: ion's error bodies echo it, and the script
+  logs ion answers by status only.
+- ion is fetched through Node with celestiary's production Referer, the
+  token being restricted to it (AGENTS.md, Secrets), and answered to the
+  page with CORS open.  If ion answers 401 the token in the build is stale
+  or not scoped to the site; the Moon and Mars then never load and their
+  views fail as "not settled", saying so.
+- Options: `--only id,id`, `--out dir` (a PNG pair per view and
+  `report.json`; `parity-out/` is gitignored), `--views file`, `--docs dir`,
+  `--viewport WxH`, `--timeout seconds` (per view, default 1800), `--list`.
+- Exit code: 0 all pass, 1 a check failed, 2 couldn't run.
+
+### What it does
+
+Per view, in headless Chromium (SwiftShader), in a fresh page:
+
+1. Loads the view's permalink, forces the layer on
+   (`c.ui.layers.fadeOf = () => 1`), and waits, with no fixed sleep, until
+   the app has restored the view, the body's layer is `ready`, `shown` and
+   in `layers.active` (its tiles were in: `tilesReady`), Cesium's tiles read
+   loaded, no request is in flight, and six more frames have gone by.
+2. Pauses the simulation clock, then renders twice in one task with
+   `c.ui.renderLoop` and reads the frame back with `readPixels`: the layer
+   forced fully on (`fadeOf = () => 1`), then fully off (`() => 0`, so
+   celestiary's own surface and atmosphere draw over Cesium's).
+3. Measures, over the lit part of the body's disc (its inner 90%, so the
+   limb, where silhouettes and atmospheres differ, is left out; pixels
+   under luma 12 of 255 in the off render, the night side, are left out):
+   - the median per-pixel ratio on/off of the luma, and of R, G and B.  Per
+     pixel first, then the median, so coastlines, craters and a pixel of
+     misregistration don't move it.
+   - a brightness profile across the terminator: 40 samples (each a 5-pixel
+     strip) along the Sun's direction on screen through the disc's centre,
+     dark side to lit, on both renders; the max and the mean of the
+     absolute difference, in luma levels of 255.
+4. Prints a table of view, metric, value, tolerance and PASS/FAIL, and adds
+   a check that the layer was active when the frames were read.
+
+The values are display values (sRGB, after tone mapping), as a viewer sees
+them.  Ratios are Cesium over celestiary: below 1 is Cesium darker.
+
+### Views and tolerances
+
+`tools/parity/views.json`: `defaults` (viewport, region, profile) and a list
+of `views`, each:
+
+| Field | Meaning |
+|---|---|
+| `id`, `description` | name in the table and `--only`; what the view exercises |
+| `body` | `earth`, `moon` or `mars`: the layer to force and the disc to measure |
+| `hash` | the permalink, with `cq=` (js/permalink.md; without it the time and view aren't restored).  Include `s=alpoU` to turn off labels, lines and the Milky Way, which are drawn on both renders and dilute the ratios |
+| `region` | `{"disc": true, "inner": 0.9}` (the body's disc, computed from the camera) or `{"box": [x0, y0, x1, y1]}` in fractions of the image; `minLuma` (default 12) |
+| `profile` | `{"across": "terminator", "samples": 40, "band": 5, "reach": 0.9}`, or `{"from": [x, y], "to": [x, y]}` in fractions of the image; omit for none |
+| `tolerance` | `ratio` `[lo, hi]`; `channelRatio` `[lo, hi]` or `{r, g, b}`; `profileMax`, `profileMean` (luma levels); `minPixels` (default 200) |
+
+To add a view: fly to it in the app (the URL follows the camera, one second
+after it settles) and copy the hash; pick a **partial phase**, as colour
+mismatches hide near full; check the body's Cesium layer is engaged there
+(in range, above); add an entry with loose tolerances, run `yarn parity
+--only <id> --out parity-out`, look at the images, and set the tolerances
+from the numbers.  The camera should be about 90 degrees from the Sun for a
+half-lit disc; the app's Sun direction is at the origin, so the phase is the
+angle between the camera's and the Sun's directions from the body.
+
+The tolerances are **baselines, not targets**: each is the measured value
+with margin (runs differ by about 0.002 in ratio and a few levels in the
+profile max, which sits at the limb), so a change that moves the two
+renderings apart fails, and one that brings them together shows as a value
+well inside its range.  When #92, #93 or #86 close a gap, tighten that
+view's tolerance to the new value with the same margin.  Ratios ought to
+come to about 1 (0.95 to 1.05); the baselines aren't there yet, see below.
+
+### Baselines and what they show
+
+SwiftShader, 480x300, `t=9233.1234jd`, ion token from the repository
+secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
+
+| View | Luma | R / G / B | Profile max / mean (of 255) |
+|---|---|---|---|
+| `earth-orbit-gibbous` | 0.975 | 1.125 / 0.973 / 0.736 | 23.1 / 9.6 |
+| `moon-quarter` | 0.905 | 0.905 / 0.905 / 0.905 | 21.0 / 3.6 |
+| `mars-gibbous` | 0.991 | 1.000 / 0.989 / 1.000 | 6.0 / 1.5 |
+| `earth-low-dusk` | 0.898 | 1.198 / 0.866 / 0.510 | 24.5 / 9.0 |
+
+- **Mars matches**: its Cesium tiles under celestiary's atmosphere pass are
+  within 1% and 6 levels of celestiary's own.
+- **The Moon is 9.5% darker** in Cesium across the lit half at quarter
+  phase, equally in all channels, and more so toward the terminator than
+  at the bright limb.  `imageryScale` (bodies.js) was fitted at another
+  phase, so it's a shape difference (the Lambert falloff on the smooth
+  sphere against celestiary's lighting), not only a gain.
+- **Earth's colour differs while its brightness matches**: over the lit
+  disc Cesium is 12% redder and 26% less blue (land olive where celestiary's
+  is tan, the ocean and haze less blue).  From 400 km with the Sun 14 degrees
+  up it is warm brown (blue at half) where celestiary's Bruneton pass gives
+  a blue haze.  The script doesn't separate imagery from atmosphere; #92
+  and #86 would start by forcing the atmosphere off on both sides.
+- The night side is left out of the ratios (under luma 12), so #93's city
+  lights, which only celestiary draws, don't enter them; only the
+  profile's dark end sees them.
+
+### Caveats
+
+- Numbers are SwiftShader's; a real GPU may differ a little.  Keep
+  baselines from one machine, and re-measure them if the environment
+  changes.
+- The views are at 20,000 km and below, where Blue Marble is Earth's whole
+  surface: ion's world imagery (Bing) only comes in from globe tile level 5.
+  In the sandbox `dev.virtualearth.net` is also denied, so that path is
+  unchecked here.  Add a low, terrain-level Earth view (with Bing reachable)
+  when #92 lands.
+- At low altitude the disc fills the frame, so the "disc" region is the
+  whole image and the profile runs to the image's edge, not the limb.
+- The page's own time is paused, so both renders are the same instant;
+  celestiary's animation frames carry on around the two forced ones.
