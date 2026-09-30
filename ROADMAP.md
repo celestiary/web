@@ -75,7 +75,9 @@ order is a suggestion.
 and orbital periods in `moon.json` ([#132](https://github.com/celestiary/web/issues/132), PR [#135](https://github.com/celestiary/web/pull/135)); the stars in the
 ecliptic of date, one scene frame ([#133](https://github.com/celestiary/web/issues/133), PR [#136](https://github.com/celestiary/web/pull/136)); the other moons' and
 Pluto's orbital planes and elements, and the planets' IAU poles
-([#6](https://github.com/celestiary/web/issues/6), PR [#137](https://github.com/celestiary/web/pull/137)); [#86](https://github.com/celestiary/web/issues/86)'s PR A (PR [#141](https://github.com/celestiary/web/pull/141)), one linear
+([#6](https://github.com/celestiary/web/issues/6), PR [#137](https://github.com/celestiary/web/pull/137)); the far points, a debugging aid for track B: moons'
+points visible again, and hidden behind nearer bodies (PR [#143](https://github.com/celestiary/web/pull/143); see DESIGN.md
+[the far point](DESIGN.md#the-far-point)); [#86](https://github.com/celestiary/web/issues/86)'s PR A (PR [#141](https://github.com/celestiary/web/pull/141)), one linear
 HDR buffer and one tone map, the sky in exposure units, and Earth's
 Cesium layer under celestiary's atmosphere ([HDR.md](js/scene/HDR.md)).
 

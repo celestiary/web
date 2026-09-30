@@ -359,6 +359,60 @@ One linear brightness scale, one tone map ([js/scene/HDR.md](js/scene/HDR.md), #
 
 Without float render targets (`EXT_color_buffer_float`), or with `?hdr=0`, the old LDR order: an 8-bit `_sceneRT` tone-mapped in the scene pass, and the sky added in display space.
 
+### The far point
+
+A planet or moon is a mesh out to `POINT_AT_RADII` (500) radii and a
+single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
+`Planet.newPlanet`).  The point is a marker, not a lit surface:
+
+- **Colour and size.**  A planet's is white and 2 px; a moon's is half
+  brightness and also 2 px, since many sit by their planet's.  The
+  colour is a *display value* (`farPointColor`): the scene is drawn
+  unencoded (`outputColorSpace` is linear, `ThreeUI.initRenderer`), so a
+  hex colour like `0x808080`, which three reads as sRGB and converts to
+  linear, came out at 22%, not 50%, and a lone 1 px dot at 22% is lost
+  among the stars.  `size` is in CSS px (three multiplies it by the
+  renderer's pixel ratio), so it stays at least one drawn pixel at any
+  display density.
+- **Not tone mapped** (`toneMapped: false`): the exposure follows the
+  targeted body (~1e-17 far out), which drew the marker black (#85).  The
+  colour is a display value, so it must be made with `point()`
+  (`shapes.js`), not `new Points`: `point()` is where, under the HDR
+  pipeline (#141, HDR.md), a display-referred material is wrapped
+  (`sceneReferred`), which keeps it the same through the final tone map,
+  whose toe would otherwise darken a dim marker.
+- **Depth.**  Depth-tested, no depth write, in the scene pass: three draws
+  transparent objects after the opaque ones, so the planets' meshes are in
+  the depth buffer by then, and a moon behind its planet is hidden.  It
+  writes none, so points don't hide one another (and a body has no mesh
+  where its point is drawn).  `depthTest: false` was how it began, which
+  drew a point over whatever was nearer.  It stays in the scene pass, not
+  the overlay one the labels use, so the atmosphere pass treats it as it
+  does the stars: a bright day sky hides it.  In the overlay pass it drew
+  over the day sky.
+- **Depth precision.**  The depth buffer is 24-bit and standard (near is
+  `dynamicNear`, at most 6e5 m; far is 6 galaxy radii), so its resolution
+  at a distance z is about z² · 6e-8 / near: ~1e7 m at 1e10 m, ~1e8 m at
+  3.5e10 m.  That's enough to hide a Galilean moon behind Jupiter's disc (it's
+  at least 4e8 m behind the centre) while Jupiter is a mesh (out to 3.5e10
+  m).  Where it runs out (the camera near a surface, where near shrinks to
+  100 m, looking far), equal depths pass the test (`LessEqual`), so the
+  failure is a point showing that should hide, never one hidden that
+  should show; and points far beyond everything sit at the cleared depth
+  (1.0), which they pass.  A logarithmic depth buffer would fix the
+  precision, but changes the atmosphere pass's depth linearisation and
+  the Cesium layers' depth blits, so it isn't worth it for this.
+- **Cesium.**  A body drawn by its Cesium layer has no celestiary mesh in
+  the scene pass (`CesiumLayers._hideSurface`), so no depth there: a point
+  behind it is drawn, and then covered by Cesium's opaque globe, which
+  composites over the scene after.  A point *in front of* a Cesium globe
+  (the Moon's, in a lunar transit seen from beyond it) is covered too,
+  which the old `depthTest: false` did as well.  Drawing it after the
+  composite would fix that; the ground-sphere depths the composite
+  writes are there to test against.
+- **Not in the `V` groups.**  Bodies aren't annotations; the far point
+  stays with the body.
+
 ### Cesium layers
 
 Near Earth, a Layers control (`js/ui/LayersButton.jsx`) offers a Cesium
@@ -499,6 +553,7 @@ and the provider extension contract.
 | `js/scene/StellarFrame.js` | Parent of the J2000 catalogues: precesses them to the simulation date |
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
+| `js/scene/farPoint.js` | A body's far point: its mesh range, colour, size and depth state |
 | `js/scene/Star.js` | Named star with noise shader |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |

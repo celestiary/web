@@ -75,6 +75,17 @@ tried and dropped.
     take many seconds.
   - Use small viewports and few screenshots, and put long runs in the
     background.
+  - `page.screenshot` times out when the machine is busy (SwiftShader,
+    other agents). Instead stop the page's loop
+    (`c.ui.renderer.setAnimationLoop(null)`), call
+    `c.ui.renderLoop(performance.now())` yourself, and read the canvas
+    with `toDataURL` in the same task (its buffer is cleared once the
+    task ends). Null `c.shared.targets.tween` before each frame, or the
+    `goTo` tween moves the camera off your view.
+  - To see what one object adds to a frame, render with and without it
+    (`material.visible = false`) and compare pixels at its projected
+    spot, rather than reading absolute values off a starfield. Hide the
+    label LODs and orbit lines first.
 - **A permalink restores its time and view only with a camera
   quaternion (`cq=`).** Without one the whole fragment is ignored, and
   the app runs at the current real time. To test a date, set it with
