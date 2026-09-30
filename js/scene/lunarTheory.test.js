@@ -12,6 +12,7 @@ import {
   moonOrientation,
   moonScenePosition,
 } from './lunarTheory.js'
+import horizons from './lunarTheory.horizons.json'
 
 
 const toDeg = 180 / Math.PI
@@ -99,6 +100,33 @@ describe('moonEcliptic', () => {
       expect(distanceKm).toBeLessThan(407000)
     }
   })
+})
+
+
+describe('moonEcliptic against JPL Horizons', () => {
+  // Geocentric geometric Moon vectors, ecliptic J2000, from
+  // lunarTheory.horizons.json (the query is recorded there; offline).  Meeus
+  // 47 is of date, so precess to J2000 first: without that, 2026 is ~1350″
+  // off.  Measured 2026-09-30: separation 0.3-4.3″ (longitude ≤ 3.9″,
+  // latitude ≤ 1.8″), distance ≤ 4.2 km, 1950 to 2050.  Tolerances are
+  // Meeus's stated accuracy (~10″ longitude, ~4″ latitude), which 1950 and
+  // 2050 also meet here, though the truncated series degrades away from
+  // J2000.
+  const J2000 = 2451545.0
+  for (const [jde, date, x, y, z] of horizons.rows) {
+    it(`agrees at ${date}`, () => {
+      const m = moonEcliptic(jde)
+      const p = precessEcliptic(m.lambda, m.beta, jde, J2000)
+      const r = Math.hypot(x, y, z)
+      const lonH = ((Math.atan2(y, x) * toDeg) + 360) % 360
+      const latH = Math.asin(z / r) * toDeg
+      const dLonArcsec = ((((p.lambda - lonH) + 540) % 360) - 180) * 3600
+      const dLatArcsec = (p.beta - latH) * 3600
+      expect(Math.abs(dLonArcsec)).toBeLessThan(10)
+      expect(Math.abs(dLatArcsec)).toBeLessThan(4)
+      expect(Math.abs(m.distanceKm - r)).toBeLessThan(10)
+    })
+  }
 })
 
 

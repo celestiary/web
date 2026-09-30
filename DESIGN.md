@@ -133,7 +133,7 @@ The node Animation spins (the one carrying `siderealRotationPeriod`, and
 ## Orbital Mechanics
 
 - **Major planets** (Mercury–Neptune): VSOP87c theory via the `vsop87` npm package, giving high-accuracy heliocentric ecliptic coordinates
-- **The Moon**: the truncated ELP-2000/82 of Meeus, *Astronomical Algorithms* ch. 47 (`js/scene/lunarTheory.js`), geocentric, ~10″. Its orientation follows Cassini's laws (Meeus ch. 53: equator inclined 1.54° about the node line, prime meridian toward Earth at the mean longitude), so the near side faces Earth with the real optical libration. The orbit line is the mean ellipse of date (node, inclination, perigee), Earth at the focus.
+- **The Moon**: the truncated ELP-2000/82 of Meeus, *Astronomical Algorithms* ch. 47 (`js/scene/lunarTheory.js`), geocentric. Against JPL Horizons from 1950 to 2050 (offline fixture `lunarTheory.horizons.json`) it's within 4.3″ and 4.2 km. Its orientation follows Cassini's laws (Meeus ch. 53: equator inclined 1.54° about the node line, prime meridian toward Earth at the mean longitude), so the near side faces Earth with the real optical libration. The orbit line is the mean ellipse of date (node, inclination, perigee), Earth at the focus.
 - **Other moons / Pluto**: Simple Keplerian ellipse parameterized by `semiMajorAxis`, `eccentricity`, `siderealOrbitPeriod`, flat in the ecliptic (#6)
 
 ### Frames and time
