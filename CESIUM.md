@@ -476,6 +476,7 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `mars-gibbous` | 0.988 | 1.000 / 0.985 / 0.986 | 9.5 / 1.8 |
 | `earth-low-dusk` | 1.001 | 1.000 / 1.000 / 1.000 | 3.2 / 1.2 |
 | `earth-low-land-day` | 0.939-0.972 | median luma 73-75 on, 77-78 off (was 55, washed out, both) | (no profile) |
+| `earth-ridge-day` | ridge over valley ground, on: luma 0.971, blue/red 0.992 (was 0.69 and 2.24, sky over the ridge) | (no off comparison) | (no profile) |
 
 Measured after #86's PR A (one HDR buffer; Earth under celestiary's
 atmosphere pass on both sides), with #137's IAU poles (Mars's turned the
@@ -527,6 +528,14 @@ view, and it read 0.967 on main, outside its first tolerance.)
   [composition.md](js/scene/atmos/composition.md).  A 16 m view isn't in
   the list: at ground level Cesium's tiles never all read loaded, so it
   never settles.
+- **Terrain over the sphere's horizon** (`earth-ridge-day`, 6.5 km near
+  Everest, looking up a valley at a ridge): celestiary's sphere has no
+  ridge there, so the view checks Cesium's ridge against the valley ground
+  below it in the same render (`reference`).  Before #141's terrain depth
+  the atmosphere pass drew sky over the ridge (luma 0.69 of the ground's,
+  blue/red 2.24 of it); now 0.97 and 0.99.  The view stops the clock at
+  load (`freeze`): with the clock running while tiles load, the ground
+  turned under the camera and each run framed different mountains.
 - The night side is left out of the ratios (under luma 12), so #93's city
   lights, which only celestiary draws, don't enter them; only the
   profile's dark end sees them.

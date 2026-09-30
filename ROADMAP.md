@@ -81,7 +81,8 @@ with moons' points visible again and hidden behind nearer bodies (PR [#143](http
 so the bodies sit on them (PR [#142](https://github.com/celestiary/web/pull/142)), which also limits the simulation to the
 dates its ephemerides hold, J2000 ± 6000 years (DESIGN.md [frames and time](DESIGN.md#frames-and-time)); [#86](https://github.com/celestiary/web/issues/86)'s PR A (PR [#141](https://github.com/celestiary/web/pull/141)), one linear
 HDR buffer and one tone map, the sky in exposure units, and Earth's
-Cesium layer under celestiary's atmosphere ([HDR.md](js/scene/HDR.md)).
+Cesium layer under celestiary's atmosphere, hazing Cesium's terrain for
+its own distance ([HDR.md](js/scene/HDR.md)).
 
 **Now**
 1. **Body orientation** ([#96](https://github.com/celestiary/web/issues/96), in [#112](https://github.com/celestiary/web/issues/112)): with the moons' planes ([#6](https://github.com/celestiary/web/issues/6)) and one

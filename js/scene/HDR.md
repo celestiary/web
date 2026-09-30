@@ -340,3 +340,22 @@ gave every ground ray the horizon's in-scatter (from 16 m the sky term over
 the ground was 2.7 in exposure units, with T 0; now 0.001, with T 0.99).
 See [composition.md](atmos/composition.md) and the `earth-low-land-day`
 parity view.
+
+**Terrain above the sphere's horizon** (found on the preview, in Canyon de
+Chelly): with the wash-out fixed, terrain that rose above celestiary's
+sphere's horizon, a ridge seen from a valley, was drawn as sky, cut off
+along a straight line.  Nothing gave it depth, so the pass took it for
+sky: T at its 0.08 floor and the full ray's sky over it (on a ridge near
+Everest from 6.5 km: T 0.08, sky 0.35 / 0.69 / 1.16, the ridge's own
+1.04 let through at 8%, against the valley floor's T 0.82 / 0.66 / 0.38).
+Cesium's terrain distance now reaches the pass as depth
+([CESIUM.md](../../CESIUM.md), `cesium/distance.js`), and the pass hazes
+the segment to it (composition.md): on a ridge 17 km off, T 0.96 /
+0.91 / 0.79 and a sky of 0.07 / 0.16 / 0.33.  The `earth-ridge-day`
+parity view looks up a valley at such a ridge and checks it against the
+valley's ground in the same render: the ridge's median luma is 0.97 of
+the ground's and its blue/red 0.99 of it (before, 0.69 and 2.24: sky).
+The ground itself, from below 20 km, is hazed for its own distance too,
+not the sphere's; over the Ganges plain, where they're the same, the
+four Himalaya views read as before (T and sky within 0.01 across the
+swap), and `earth-low-land-day` holds (0.969).
