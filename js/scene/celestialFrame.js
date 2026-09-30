@@ -1,3 +1,4 @@
+import {Quaternion, Vector3} from 'three'
 import {toRad} from '../shared.js'
 
 
@@ -152,6 +153,34 @@ const DAYS_PER_CENTURY = 36525
 
 
 /**
+ * The three angles of ecliptic precession from the mean ecliptic and
+ * equinox of one date to another's (Meeus 21.5, IAU 1976): η, the
+ * inclination of the new ecliptic on the old; Π, the longitude (in the old
+ * frame) of its ascending node on the old; and p, the general precession in
+ * longitude.
+ *
+ * @param {number} jdeFrom Julian Ephemeris Day of the starting frame
+ * @param {number} jdeTo Julian Ephemeris Day of the target frame
+ * @param {object} [target] receives the angles
+ * @returns {{eta: number, bigPi: number, p: number}} radians
+ */
+export function eclipticPrecessionAngles(jdeFrom, jdeTo, target = {}) {
+  const T = (jdeFrom - J2000_JD) / DAYS_PER_CENTURY
+  const t = (jdeTo - jdeFrom) / DAYS_PER_CENTURY
+  const eta = (((47.0029 - (0.06603 * T) + (0.000598 * T * T)) * t) +
+    ((-0.03302 + (0.000598 * T)) * t * t) + (0.000060 * t * t * t)) * ARCSEC
+  const bigPi = (174.876384 * toRad) +
+    (((3289.4789 * T) + (0.60622 * T * T) - ((869.8089 + (0.50491 * T)) * t) + (0.03536 * t * t)) * ARCSEC)
+  const p = (((5029.0966 + (2.22226 * T) - (0.000042 * T * T)) * t) +
+    ((1.11113 - (0.000042 * T)) * t * t) - (0.000006 * t * t * t)) * ARCSEC
+  target.eta = eta
+  target.bigPi = bigPi
+  target.p = p
+  return target
+}
+
+
+/**
  * Precess ecliptic coordinates from the mean ecliptic and equinox of one
  * date to another's (Meeus 21.5-21.7, IAU 1976).  E.g. from of date (the
  * scene's frame, VSOP87C's) to J2000 (JPL Horizons' ecliptic vectors, the
@@ -164,14 +193,7 @@ const DAYS_PER_CENTURY = 36525
  * @returns {{lambda: number, beta: number}} degrees, lambda in [0, 360)
  */
 export function precessEcliptic(lambdaDeg, betaDeg, jdeFrom, jdeTo) {
-  const T = (jdeFrom - J2000_JD) / DAYS_PER_CENTURY
-  const t = (jdeTo - jdeFrom) / DAYS_PER_CENTURY
-  const eta = (((47.0029 - (0.06603 * T) + (0.000598 * T * T)) * t) +
-    ((-0.03302 + (0.000598 * T)) * t * t) + (0.000060 * t * t * t)) * ARCSEC
-  const bigPi = (174.876384 * toRad) +
-    (((3289.4789 * T) + (0.60622 * T * T) - ((869.8089 + (0.50491 * T)) * t) + (0.03536 * t * t)) * ARCSEC)
-  const p = (((5029.0966 + (2.22226 * T) - (0.000042 * T * T)) * t) +
-    ((1.11113 - (0.000042 * T)) * t * t) - (0.000006 * t * t * t)) * ARCSEC
+  const {eta, bigPi, p} = eclipticPrecessionAngles(jdeFrom, jdeTo)
   const l0 = lambdaDeg * toRad
   const b0 = betaDeg * toRad
   const a = (Math.cos(eta) * Math.cos(b0) * Math.sin(bigPi - l0)) - (Math.sin(eta) * Math.sin(b0))
@@ -180,4 +202,36 @@ export function precessEcliptic(lambdaDeg, betaDeg, jdeFrom, jdeTo) {
   let lambda = (p + bigPi - Math.atan2(a, b)) / toRad
   lambda = ((lambda % 360) + 360) % 360
   return {lambda, beta: Math.asin(c) / toRad}
+}
+
+
+const X_AXIS = new Vector3(1, 0, 0)
+const Y_AXIS = new Vector3(0, 1, 0)
+const tmpQ = new Quaternion
+const tmpAngles = {eta: 0, bigPi: 0, p: 0}
+
+
+/**
+ * Ecliptic precession between two dates as a rotation in the scene's axes
+ * (X = equinox, Y = north ecliptic pole, Z = −ecliptic Y): the rotation
+ * that takes a direction in the mean ecliptic and equinox of `jdeFrom` to
+ * the same direction in `jdeTo`'s, as {@link precessEcliptic} does for
+ * (λ, β).  E.g. J2000 → date carries the star catalogue into the scene
+ * frame of the planets and the Moon.
+ *
+ * In ecliptic axes it is Rz(Π + p)·Rx(−η)·Rz(−Π): measure longitude from
+ * the node, tilt the old ecliptic onto the new, and measure from the new
+ * equinox.  The scene's axis remap takes a rotation about ecliptic Z (X) to
+ * one about scene Y (X) by the same angle.  Allocates nothing.
+ *
+ * @param {number} jdeFrom Julian Ephemeris Day of the starting frame
+ * @param {number} jdeTo Julian Ephemeris Day of the target frame
+ * @param {Quaternion} [target]
+ * @returns {Quaternion}
+ */
+export function precessionQuaternion(jdeFrom, jdeTo, target = new Quaternion) {
+  const {eta, bigPi, p} = eclipticPrecessionAngles(jdeFrom, jdeTo, tmpAngles)
+  target.setFromAxisAngle(Y_AXIS, bigPi + p)
+  target.multiply(tmpQ.setFromAxisAngle(X_AXIS, -eta))
+  return target.multiply(tmpQ.setFromAxisAngle(Y_AXIS, -bigPi))
 }

@@ -263,7 +263,8 @@ const vertexShader = `
 `
 
 
-// RTE variant — same Relative-To-Eye technique as stars.vert/Asterisms.js.
+// RTE variant — same Relative-To-Eye technique as stars.vert/Asterisms.js:
+// set the camera uniforms with rte.js, in the sprites' local frame.
 const rteVertexShader = `
   uniform vec2 padding;
   uniform vec3 uCamPosWorldHigh;
@@ -280,7 +281,7 @@ const rteVertexShader = `
     vec3 eyePos = highDiff + lowDiff;
     eyePos.x += padding.x;
     eyePos.y += padding.y;
-    gl_Position = projectionMatrix * vec4(mat3(viewMatrix) * eyePos, 1.0);
+    gl_Position = projectionMatrix * vec4(mat3(modelViewMatrix) * eyePos, 1.0);
   }
 `
 

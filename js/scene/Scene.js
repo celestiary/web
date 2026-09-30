@@ -13,6 +13,7 @@ import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
+import StellarFrame from './StellarFrame.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {pickSurfaceLatLng, queryPlaces} from './Picker.js'
@@ -86,6 +87,21 @@ export default class Scene {
     // default; toggled via keyboard.
     this.grids = newGrids()
     this.worldGroup.add(this.grids.group)
+    // The J2000 catalogues (stars, labels, asterisms, Milky Way) hang under
+    // stellarFrame, which precesses them to the simulation date so they share
+    // the planets' frame, the ecliptic of date (DESIGN.md "Frames and
+    // time").  Parented in newGalaxy; Animation drives it.  The galactic grid
+    // is J2000 too, so it follows; and a star the camera has travelled to
+    // stays at the world origin as the frame turns about the Sun.
+    this.stellarFrame = new StellarFrame()
+    this._galacticGridJ2000 = this.grids.galactic.quaternion.clone()
+    this._starTarget = null
+    this.stellarFrame.onChange((q) => {
+      this.grids.galactic.quaternion.multiplyQuaternions(q, this._galacticGridJ2000)
+      if (this._starTarget) {
+        this.worldGroup.position.copy(this.starPosition(this._starTarget, this.worldGroup.position)).negate()
+      }
+    })
     this.mouse = new Vector2
     this.raycaster = new Raycaster
     // this.raycaster = new CustomRaycaster;
@@ -454,6 +470,21 @@ export default class Scene {
 
 
   /**
+   * A catalogue star's position relative to the Sun in the scene frame
+   * (ecliptic of date): its J2000 catalogue position turned by the
+   * stellarFrame's precession.  Use it wherever a star's raw x/y/z would
+   * otherwise meet scene positions.
+   *
+   * @param {object} star StarProps entry from StarsCatalog (x, y, z in m)
+   * @param {Vector3} [target]
+   * @returns {Vector3}
+   */
+  starPosition(star, target = new Vector3) {
+    return this.stellarFrame.toParent(target.set(star.x, star.y, star.z))
+  }
+
+
+  /**
    * Navigate camera to a planet (star=null) or a star catalog entry.
    *
    * Flow:
@@ -490,12 +521,15 @@ export default class Scene {
     this.ui.camera.getWorldQuaternion(camWorldQuat)
     const wgOld = this.worldGroup.position.clone()
 
-    // Rebase WorldGroup so the target lands at world origin.
-    this.worldGroup.position.set(
-      isPlanet ? 0 : -star.x,
-      isPlanet ? 0 : -star.y,
-      isPlanet ? 0 : -star.z,
-    )
+    // Rebase WorldGroup so the target lands at world origin.  A star is
+    // where the stellarFrame puts it (precessed), and is kept there as the
+    // frame turns (the onChange in the constructor).
+    this._starTarget = star
+    if (isPlanet) {
+      this.worldGroup.position.set(0, 0, 0)
+    } else {
+      this.starPosition(star, this.worldGroup.position).negate()
+    }
     this.ui.scene.updateMatrixWorld()
 
     // Shift the captured camera world pos by the same wg delta, so the camera
@@ -1066,12 +1100,17 @@ export default class Scene {
     const group = this.newObject(galaxyProps.name, galaxyProps, (click) => {
       // console.log('Well done, you found the galaxy!');
     })
-    this.objects[`${galaxyProps.name}.orbitPosition`] = group
+    // The galaxy's children (the stars, and through them the asterisms and
+    // star labels) are J2000 catalogues: they go in the stellarFrame, which
+    // precesses them to the date.  The Sun is parented to worldGroup instead
+    // (Scene.add).
+    group.add(this.stellarFrame)
+    this.objects[`${galaxyProps.name}.orbitPosition`] = this.stellarFrame
     // Procedural barred-spiral Milky Way as a background star cloud.  Built in
     // galactic-centre coords and translated so the Sun (world origin) lands on
     // a spiral arm.  Lives in worldGroup so star-navigation rebases shift it
     // along with everything else, keeping the universe coherent.
-    group.add(newMilkyWay())
+    this.stellarFrame.add(newMilkyWay())
     return group
   }
 }
