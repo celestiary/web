@@ -25,14 +25,23 @@
 "equatorialGravity": 1.0,
 "escapeVelocity": 1.0,
 "orbit": {
-"eccentricity": 0.0,
-"inclination": 1.0,
-"longitudeOfAscendingNode": 1.0,
-"longitudeOfPericenter": 1.0,
-"meanLongitude": 1.0,
-"semiMajorAxis": 2.9466E8,
-"siderealOrbitPeriod": 163106.0
-}
+    "elements": "JPL SSD planetary satellite mean elements (ssd.jpl.nasa.gov/sats/elem), ephemeris SAT441, retrieved 2026-09-30",
+    "referencePlane": "Laplace",
+    "referencePole": {"ra": 40.6, "dec": 83.5},
+    "notes": "e, argumentOfPericenter and meanAnomaly: JPL Horizons osculating elements at J2000 TDB (js/scene/meanElements.horizons.json), re-referred to this Laplace plane. SAT441's tabulated angles put the moon 61° from Horizons at their own epoch.",
+    "epoch": 2451545.0,
+    "semiMajorAxis": 2.95E8,
+    "eccentricity": 0.0009699,
+    "inclination": 1.1,
+    "longitudeOfAscendingNode": 273.0,
+    "argumentOfPericenter": 283.66,
+    "meanAnomaly": 350.38,
+    "period": 1.887802,
+    "periodOf": "meanLongitude",
+    "apsidalPeriod": 0.005,
+    "nodalPeriod": -4.982,
+    "siderealOrbitPeriod": 163106.0
+  }
 ,
 "system": []
 }

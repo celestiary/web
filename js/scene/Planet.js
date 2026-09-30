@@ -27,6 +27,7 @@ import {
 } from './shapes.js'
 import Rings from './rings/Rings.js'
 import * as Material from './material.js'
+import {meanElements} from './meanElements.js'
 import {dataUrl} from '../dataUrl.js'
 import {monthOfJulianDay, monthlyPath} from './monthly.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, halfPi, toRad} from '../shared.js'
@@ -70,12 +71,13 @@ export default class Planet extends Object {
     const orbit = this.props.orbit
     const group = this.scene.newGroup(`${this.name}.group`)
 
+    // Unrotated, as are group and the parent's orbitPosition: positions
+    // Animation writes are in the scene's frame, relative to the primary.
+    // The orbital plane is the orbit line's own rotation, which Animation
+    // lays each frame for the Moon (lunarTheory.js) and for bodies with
+    // mean elements (meanElements.js); the VSOP87 planets' lines stay flat.
     const orbitPlane = this.scene.newGroup(`${this.name}.orbitPlane`)
     group.add(orbitPlane)
-
-    // TODO(pablo): these break vsop for the planets.
-    // orbitPlane.rotation.x = assertInRange(orbit.inclination, 0, 360) * toRad
-    // orbitPlane.rotation.y = assertInRange(orbit.longitudeOfPericenter, 0, 360) * toRad
 
     const orbitShape = this.newOrbit(this.scene, orbit, this.name)
     orbitPlane.add(orbitShape)
@@ -86,7 +88,9 @@ export default class Planet extends Object {
     // Attaching this property triggers orbit of planet during animation.
     // See animation.js#animateSystem.
     orbitPosition.orbit = this.props.orbit
-    // For bodies whose orbit line Animation re-lays each frame (the Moon).
+    // Published mean elements (Pluto, the moons), or null.
+    orbitPosition.elements = meanElements(this.props.orbit)
+    // For bodies whose orbit line Animation re-lays each frame.
     orbitPosition.orbitShape = orbitShape
 
     const planetTilt = this.scene.newGroup(`${this.name}.planetTilt`)
@@ -102,12 +106,15 @@ export default class Planet extends Object {
     // X-Y plane, 90° away from NCP, and any subsequent spin then turns the
     // body around the wrong axis.
     planetTilt.rotateX(-assertInRange(this.props.axialInclination, 0, 360) * toRad)
+    // Bodies with an IAU pole (the planets with moons, and Pluto) are tilted
+    // to it by Animation instead: rotateX can only lean a pole toward
+    // ecliptic longitude 90°, which is right for Earth alone.
+    if (this.props.pole) {
+      planetTilt.pole = this.props.pole
+    }
 
     const planet = this.newPlanet(this.scene, orbitPosition, this.isMoon)
     planetTilt.add(named(planet, 'new planet'))
-
-    // group.rotation.y = orbit.longitudeOfAscendingNode * toRad;
-    // Children centered at this planet's orbit position.
 
     this.add(group)
   }
