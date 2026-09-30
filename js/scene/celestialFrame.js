@@ -60,19 +60,65 @@ const SECS_PER_DAY = 86400
 // JD of 2000-01-01 0h, the origin for decimal years here.
 const JD_2000_JAN_1 = 2451544.5
 const YEAR_2000 = 2000
-// Morrison & Stephenson's long-term parabola, ΔT = -20 + 32 u² s with
-// u = (year - 1820) / 100 (Espenak & Meeus); a few seconds off in the 20th
-// century, which moves the Moon well under an arcminute.
-const DT_PARABOLA_EPOCH = 1820
-const DT_PARABOLA_A = -20
-const DT_PARABOLA_B = 32
-const YEARS_PER_CENTURY = 100
+
+
+// ΔT = TT − UT before 1972: Espenak & Meeus's piecewise polynomials
+// (NASA Five Millennium Canon of Solar Eclipses, 2006; "Polynomial
+// expressions for Delta T", eclipse.gsfc.nasa.gov/SEhelp/deltatpoly2004.html).
+// Each row: [from year, origin year, scale in years, coefficients lowest
+// order first], ΔT = Σ c_i ((year − origin) / scale)^i seconds.  Before
+// −500 it's Morrison & Stephenson's long-term parabola, −20 + 32 u² with
+// u = (year − 1820) / 100.  Adjacent segments meet within ~0.2 s, and the
+// 1961-1986 segment meets the leap-second table at 1972.0 within 0.1 s.
+const DELTA_T_SEGMENTS = [
+  [-Infinity, 1820, 100, [-20, 0, 32]],
+  [-500, 0, 100, [10583.6, -1014.41, 33.78311, -5.952053, -0.1798452, 0.022174192, 0.0090316521]],
+  [500, 1000, 100, [1574.2, -556.01, 71.23472, 0.319781, -0.8503463, -0.005050998, 0.0083572073]],
+  [1600, 1600, 1, [120, -0.9808, -0.01532, 1 / 7129]],
+  [1700, 1700, 1, [8.83, 0.1603, -0.0059285, 0.00013336, -1 / 1174000]],
+  [1800, 1800, 1, [13.72, -0.332447, 0.0068612, 0.0041116, -0.00037436, 0.0000121272, -0.0000001699, 0.000000000875]],
+  [1860, 1860, 1, [7.62, 0.5737, -0.251754, 0.01680668, -0.0004473624, 1 / 233174]],
+  [1900, 1900, 1, [-2.79, 1.494119, -0.0598939, 0.0061966, -0.000197]],
+  [1920, 1920, 1, [21.20, 0.84493, -0.076100, 0.0020936]],
+  [1941, 1950, 1, [29.07, 0.407, -1 / 233, 1 / 2547]],
+  [1961, 1975, 1, [45.45, 1.067, -1 / 260, -1 / 718]],
+]
 
 
 /**
- * TT − UTC in seconds at a UTC Julian Day: 32.184 s + the leap seconds
- * from 1972 on (exact, to the day), and the long-term ΔT parabola before.
- * UT1 − UTC (< 0.9 s) is ignored.
+ * ΔT before 1972 from DELTA_T_SEGMENTS.
+ *
+ * @param {number} year decimal year
+ * @returns {number} seconds
+ */
+function deltaTBefore1972(year) {
+  let seg = DELTA_T_SEGMENTS[0]
+  for (const s of DELTA_T_SEGMENTS) {
+    if (year >= s[0]) {
+      seg = s
+    }
+  }
+  const [, origin, scale, c] = seg
+  const t = (year - origin) / scale
+  let v = 0
+  for (let i = c.length - 1; i >= 0; i--) {
+    v = (v * t) + c[i]
+  }
+  return v
+}
+
+
+/**
+ * TT − UTC in seconds at a UTC Julian Day.
+ *
+ * - From 1972: 32.184 s + the leap seconds (exact, to the day; it steps by
+ *   1 s at each leap second, as UTC does).  UT1 − UTC (< 0.9 s) is ignored.
+ * - Before 1972, when there was no UTC as now: ΔT = TT − UT from the
+ *   Espenak-Meeus polynomials, continuous with the table at 1972.0.
+ * - After the last leap second (2017) it stays at 69.184 s.  That is right
+ *   for a UTC clock, since leap seconds stop by 2035, but UT1 (Earth's
+ *   rotation) will keep drifting from UTC.  Earth-rotation work (GMST for
+ *   future dates, #96) needs UT1 − UTC or a ΔT model, not this function.
  *
  * @param {number} jdUtc Julian Day (UTC)
  * @returns {number} seconds
@@ -80,8 +126,7 @@ const YEARS_PER_CENTURY = 100
 export function ttMinusUtcSeconds(jdUtc) {
   const year = YEAR_2000 + ((jdUtc - JD_2000_JAN_1) / DAYS_PER_JULIAN_YEAR)
   if (year < FIRST_LEAP_YEAR) {
-    const u = (year - DT_PARABOLA_EPOCH) / YEARS_PER_CENTURY
-    return DT_PARABOLA_A + (DT_PARABOLA_B * u * u)
+    return deltaTBefore1972(year)
   }
   let leap = LEAP_SECONDS[0][1]
   for (const [from, secs] of LEAP_SECONDS) {

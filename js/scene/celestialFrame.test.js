@@ -198,11 +198,26 @@ describe('ttMinusUtcSeconds', () => {
   })
 
 
-  it('falls back to the long-term ΔT parabola before 1972', () => {
-    // 1900: −20 + 32·0.8² = 0.48 s (observed ΔT was about −3 s).
-    const dt = ttMinusUtcSeconds(2415020.5)
-    expect(dt).toBeGreaterThan(-5)
-    expect(dt).toBeLessThan(5)
+  it('follows the Espenak-Meeus ΔT polynomials before 1972', () => {
+    // Their values at the segment origins: 1800 13.72 s, 1900 −2.79 s,
+    // 1950 29.07 s.
+    const jdOfYear = (y) => 2451544.5 + ((y - 2000) * 365.25)
+    expect(ttMinusUtcSeconds(jdOfYear(1800))).toBeCloseTo(13.72, 2)
+    expect(ttMinusUtcSeconds(jdOfYear(1900))).toBeCloseTo(-2.79, 2)
+    expect(ttMinusUtcSeconds(jdOfYear(1950))).toBeCloseTo(29.07, 2)
+  })
+
+
+  it('is continuous (≤ 1 s) across every segment boundary, 1972.0 included', () => {
+    // A jump of 11.7 s at 1972 moved the Moon ~6″.  Leap seconds after
+    // 1972 step by 1 s by definition and aren't boundaries here.
+    const jdOfYear = (y) => 2451544.5 + ((y - 2000) * 365.25)
+    const eps = 1e-6
+    for (const y of [-500, 500, 1600, 1700, 1800, 1860, 1900, 1920, 1941, 1961, 1972]) {
+      const before = ttMinusUtcSeconds(jdOfYear(y - eps))
+      const after = ttMinusUtcSeconds(jdOfYear(y + eps))
+      expect(Math.abs(after - before)).toBeLessThan(1)
+    }
   })
 
 
