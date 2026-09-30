@@ -1,0 +1,17 @@
+{
+  "source": "JPL Horizons API, retrieved 2026-09-30",
+  "query": "https://ssd.jpl.nasa.gov/api/horizons.api?format=text&COMMAND='301'&CENTER='500@399'&EPHEM_TYPE=VECTORS&REF_PLANE=ECLIPTIC&REF_SYSTEM=ICRF&VEC_CORR=NONE&OUT_UNITS=KM-S&VEC_TABLE=2&CSV_FORMAT=YES&TIME_TYPE=TT&TLIST='2415045.6666666667' '2461183.7916666667' '2461313.10069' '2634233.5'",
+  "target": "301 Moon",
+  "center": "500@399 Earth geocentre",
+  "frame": "Ecliptic of J2000.0 (ICRF), geometric (VEC_CORR=NONE)",
+  "units": "km",
+  "time": "JD TT",
+  "stars": "Reference stars by HIP number, compared at their J2000 direction in Celestia's stars.dat (public/data/stars.dat): no proper motion, parallax or aberration, on either side",
+  "columns": ["jdTT", "date", "x", "y", "z", "stars"],
+  "rows": [
+    [2415045.666666667, "1900-01-26 04:00 TT, the Moon 0.37° from Dschubba", -1.765451800871067E+05, -3.401554904713459E+05, -1.081733414780522E+04, [[78401, "Dschubba"], [80763, "Antares"]]],
+    [2461183.791666667, "2026-05-23 07:00 TT, the Moon 0.19° from Regulus", -3.279413562720170E+05, 1.920441291392451E+05, 2.721371734048429E+03, [[49669, "Regulus"], [50583, "Algieba"]]],
+    [2461313.10069, "2026-09-29 14:24:59.616 TT (#87, #130), the Moon 7.7° from Hamal", 2.678339526442122E+05, 2.549064365147892E+05, 3.223961395806819E+04, [[9884, "Hamal"], [8903, "Sheratan"]]],
+    [2634233.5, "2500-03-09 00:00 TT, the Moon 0.16° from Aldebaran", 1.392703620778655E+05, 3.765312503828433E+05, -3.750950974653316E+04, [[21421, "Aldebaran"], [25428, "Elnath"]]]
+  ]
+}

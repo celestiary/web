@@ -1,13 +1,21 @@
+import {readFileSync} from 'fs'
 import {describe, expect, it} from 'bun:test'
-import {Quaternion, Vector3} from 'three'
+import {Object3D, PerspectiveCamera, Quaternion, Vector3} from 'three'
+import createTree from '@pablo-mayrgundter/yaot2'
 import {
   J2000_JD,
   precessEcliptic,
   precessionQuaternion,
+  ttMinusUtcSeconds,
   utcToTtJulianDay,
 } from './celestialFrame.js'
-import {eclipticToScene} from './lunarTheory.js'
+import {eclipticToScene, moonScenePosition} from './lunarTheory.js'
+import {queryPoints} from './Picker.js'
+import {rteCameraLocal} from './rte.js'
+import StarsCatalog from './StarsCatalog.js'
 import StellarFrame, {STELLAR_FRAME_EPSILON_DAYS} from './StellarFrame.js'
+import {toArrayBuffer} from '../utils.js'
+import horizons from './StellarFrame.horizons.json'
 
 
 const ARCSEC_PER_RAD = 206264.806247
@@ -23,6 +31,21 @@ const DAYS_PER_YEAR = 365.25
  */
 function sepArcsec(a, b) {
   return Math.atan2(new Vector3().crossVectors(a, b).length(), a.dot(b)) * ARCSEC_PER_RAD
+}
+
+
+/**
+ * The UTC Julian Day whose TT (as the app converts it) is jde.
+ *
+ * @param {number} jde
+ * @returns {number}
+ */
+function utcForTt(jde) {
+  let jd = jde
+  for (let i = 0; i < 3; i++) {
+    jd = jde - (ttMinusUtcSeconds(jd) / 86400)
+  }
+  return jd
 }
 
 
@@ -133,3 +156,119 @@ describe('StellarFrame', () => {
   })
 })
 
+
+describe('The Moon among the stars, against JPL Horizons', () => {
+  // Geocentric geometric Moon vectors in the ecliptic of J2000 from
+  // StellarFrame.horizons.json (the query is recorded there; offline), and
+  // reference stars at their J2000 catalogue direction from stars.dat.  The
+  // scene puts the Moon in the ecliptic of date (Meeus 47) and the stars
+  // through the StellarFrame, at the same UTC Julian Day, as Animation does.
+  // Proper motion, parallax (< 0.05″ for these stars) and aberration are
+  // left out on both sides.  Measured 2026-09-30: every separation within
+  // 3.1″ of Horizons', and the Moon's place among the stars within 4.3″;
+  // without the StellarFrame, up to 6.7° off (2500).
+  const catalog = new StarsCatalog()
+  catalog.read(toArrayBuffer(readFileSync('./public/data/stars.dat')))
+
+  for (const [jde, date, x, y, z, stars] of horizons.rows) {
+    it(`agrees at ${date}`, () => {
+      const jdUtc = utcForTt(jde)
+      expect(utcToTtJulianDay(jdUtc)).toBeCloseTo(jde, 9)
+      const frame = new StellarFrame()
+      frame.update(jdUtc)
+      frame.updateMatrixWorld()
+      const moonScene = moonScenePosition(utcToTtJulianDay(jdUtc))
+      // Horizons' ecliptic (x, y, z) in the scene's axes: (x, z, -y).
+      const moonJ2000 = new Vector3(x, z, -y)
+      for (const [hip, name] of stars) {
+        const star = catalog.starByHip.get(hip)
+        expect(star, name).toBeDefined()
+        const starJ2000 = new Vector3(star.x, star.y, star.z)
+        const starScene = starJ2000.clone().applyMatrix4(frame.matrixWorld)
+        const dSep = sepArcsec(moonScene, starScene) - sepArcsec(moonJ2000, starJ2000)
+        expect(Math.abs(dSep), `${name} ${dSep.toFixed(2)}″`).toBeLessThan(10)
+      }
+      // The whole 2D offset: the scene's stars are the catalogue's turned by
+      // the frame, so the Moon's place among them is the frame's inverse on
+      // the Moon, against Horizons' J2000 Moon.
+      const moonAmongStars = moonScene.clone().applyQuaternion(frame.quaternion.clone().invert())
+      expect(sepArcsec(moonAmongStars, moonJ2000)).toBeLessThan(10)
+    })
+  }
+})
+
+
+describe('rteCameraLocal', () => {
+  it('puts the camera in the object\'s rotated, translated frame', () => {
+    const world = new Object3D()
+    world.position.set(-8.1e16, 2.3e16, 5.5e16)
+    const frame = new StellarFrame()
+    frame.update(1721057.5)
+    const points = new Object3D()
+    world.add(frame)
+    frame.add(points)
+    const camera = new PerspectiveCamera()
+    camera.position.set(1.5e11, -2e10, 3e9)
+    world.updateMatrixWorld()
+    camera.updateMatrixWorld()
+    const high = new Vector3()
+    const low = new Vector3()
+    rteCameraLocal(points, camera, high, low)
+    const want = points.worldToLocal(camera.position.clone())
+    const got = high.clone().add(low)
+    expect(got.distanceTo(want) / want.length()).toBeLessThan(1e-12)
+    expect(Math.fround(high.x)).toBe(high.x)
+    expect(Math.abs(low.x)).toBeLessThan(Math.abs(high.x) * 1e-7)
+  })
+})
+
+
+describe('queryPoints in the stellar frame', () => {
+  it('picks a star where the precessed field draws it, not at its raw position', () => {
+    // Year 0: precession ~28°, so the raw position is far off screen.
+    const worldGroup = new Object3D()
+    worldGroup.position.set(1e12, 0, 0)
+    const frame = new StellarFrame()
+    frame.update(1721057.5)
+    worldGroup.add(frame)
+    const LY = 9.4607304725808e15
+    const raw = new Vector3(10 * LY, 1 * LY, -3 * LY)
+    const stars = new Object3D()
+    // The Sun (as in the catalogue), the star, and two more.
+    stars.geom = {
+      coords: new Float32Array([0, 0, 0, raw.x, raw.y, raw.z, -raw.x, raw.y, raw.z, 5 * LY, 0, 0]),
+      idsByNdx: new Int32Array([0, 7, 8, 9]),
+    }
+    const star7 = {hipId: 7, x: raw.x, y: raw.y, z: raw.z}
+    stars.catalog = {starByHip: new Map([[0, {hipId: 0}], [7, star7], [8, {hipId: 8}], [9, {hipId: 9}]])}
+    frame.add(stars)
+    worldGroup.updateMatrixWorld()
+    const tree = createTree()
+    tree.init(stars.geom.coords)
+
+    const width = 800
+    const height = 600
+    const camera = new PerspectiveCamera(30, width / height, 1, 1e20)
+    const ui = {renderer: {domElement: {clientWidth: width, clientHeight: height}}, camera}
+    const click = {clientX: width / 2, clientY: height / 2}
+
+    // Aim at the precessed star: picked.
+    camera.lookAt(new Vector3().copy(raw).applyMatrix4(stars.matrixWorld))
+    camera.updateMatrixWorld()
+    let picked = null
+    queryPoints(ui, click, tree, stars, (pick) => {
+      picked = pick
+    })
+    expect(picked?.star).toBe(star7)
+    expect(picked.x).toBeCloseTo(Math.fround(raw.x), -3)
+
+    // Aim at the raw catalogue position: nothing there any more.
+    camera.lookAt(new Vector3().copy(raw).add(worldGroup.position))
+    camera.updateMatrixWorld()
+    picked = null
+    queryPoints(ui, click, tree, stars, (pick) => {
+      picked = pick
+    })
+    expect(picked).toBeNull()
+  })
+})

@@ -9,6 +9,8 @@ const _raycaster = new Raycaster
 const _itemVec = new Vector3
 const _mouseVec = new Vector3
 const _rayOrigin = new Vector3
+const _rayDir = new Vector3
+const _starsQuat = new Quaternion
 
 // Reject picks whose closest hit is farther than this many screen pixels.
 export const MAX_PICK_PX = 100
@@ -20,7 +22,7 @@ export const MAX_PICK_PX = 100
  * @param {object} ui
  * @param {MouseEvent} e
  * @param {object} tree  Spatial index built from stars.geom.coords
- * @param {object} stars Stars scene object (has .geom, .catalog)
+ * @param {object} stars Stars scene object (has .geom, .catalog, .matrixWorld)
  * @param {Function} pickCb Called with {star, x, y, z} in catalog coords
  */
 export function queryPoints(ui, e, tree, stars, pickCb) {
@@ -32,19 +34,20 @@ export function queryPoints(ui, e, tree, stars, pickCb) {
   _raycaster.setFromCamera(mouse, ui.camera)
   const ray = _raycaster.ray
 
-  // Stars are stored in catalog coordinates.  WorldGroup.position shifts the
-  // entire star field in world space, so world_pos = catalog_pos + wg.position.
-  // The ray origin comes from the camera's world position — subtract wg.position
-  // to bring it into catalog space before querying the spatial index.
+  // Stars are stored in catalog coordinates (J2000), and drawn through the
+  // stars' matrixWorld: the StellarFrame's precession to the date, then the
+  // WorldGroup's rebase.  Bring the ray into catalog space instead of
+  // rebuilding the spatial index: origin by the inverse matrixWorld,
+  // direction by the inverse rotation.
+  stars.updateWorldMatrix(true, false)
   _rayOrigin.copy(ray.origin)
-  const wg = ui.scene.getObjectByName('WorldGroup')
-  if (wg) {
-    _rayOrigin.sub(wg.position)
-  }
+  stars.worldToLocal(_rayOrigin)
+  stars.getWorldQuaternion(_starsQuat).invert()
+  _rayDir.copy(ray.direction).applyQuaternion(_starsQuat)
 
-  const items = tree.intersectRay(_rayOrigin, ray.direction)
+  const items = tree.intersectRay(_rayOrigin, _rayDir)
   if (items.length > 0) {
-    mark(ui, items, mouse, stars, wg, pickCb)
+    mark(ui, items, mouse, stars, pickCb)
   }
 }
 
@@ -56,17 +59,13 @@ export function queryPoints(ui, e, tree, stars, pickCb) {
  *                       a multiple of 3, one entry per matching star).
  * @param {{x,y}} mouse  NDC mouse position
  * @param {object} stars
- * @param {object|null} wg  WorldGroup (may be null)
  * @param {Function} pickCb
  */
-function mark(ui, items, mouse, stars, wg, pickCb) {
+function mark(ui, items, mouse, stars, pickCb) {
   const coords = stars.geom.coords
   const el = ui.renderer.domElement
   const clientW = el.clientWidth
   const clientH = el.clientHeight
-  const wgX = wg ? wg.position.x : 0
-  const wgY = wg ? wg.position.y : 0
-  const wgZ = wg ? wg.position.z : 0
 
   _mouseVec.set(mouse.x, mouse.y, 0)
 
@@ -79,7 +78,7 @@ function mark(ui, items, mouse, stars, wg, pickCb) {
     const ndx = items[i]
     const x = coords[ndx]; const y = coords[ndx + 1]; const z = coords[ndx + 2]
     // Project world-space position into NDC for screen-distance comparison.
-    _itemVec.set(x + wgX, y + wgY, z + wgZ)
+    _itemVec.set(x, y, z).applyMatrix4(stars.matrixWorld)
     _itemVec.project(ui.camera)
     // Compute screen distance in pixels (ignore z/depth).
     const pxDx = (_itemVec.x - mouse.x) * clientW / 2

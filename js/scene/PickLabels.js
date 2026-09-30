@@ -1,9 +1,9 @@
-import {Vector3} from 'three'
 import createTree from '@pablo-mayrgundter/yaot2'
 import {assertDefined} from '../assert'
 import {queryPoints} from './Picker'
 import SpriteSheet from './SpriteSheet.js'
 import {marker as createMarker} from './shapes'
+import {rteCameraLocal} from './rte.js'
 
 
 const HOVER_SYNC_MS = 80
@@ -68,9 +68,8 @@ export default class PickLabels {
   traceCb(e) {
     queryPoints(this.ui, e, this.tree, this.stars, (pick) => {
       // pick.x/y/z are catalog coords; marker lives in world space.
-      const wg = this.ui.scene.getObjectByName('WorldGroup')
-      const wgPos = wg ? wg.position : {x: 0, y: 0, z: 0}
-      this.marker.position.set(pick.x + wgPos.x, pick.y + wgPos.y, pick.z + wgPos.z)
+      this.marker.position.set(pick.x, pick.y, pick.z)
+      this.stars.localToWorld(this.marker.position)
       this.clearTrace()
       const name = this.stars.catalog.getNameOrId(pick.star.hipId)
       if (!this.stars.labelCenterPosByName[name]) {
@@ -165,20 +164,12 @@ export default class PickLabels {
     // time the camera's float32 camHigh steps by one ULP (~5e11 m).
     labelSheet.add(pick.star.x, pick.star.y, pick.star.z, starName)
     const label = labelSheet.compile()
-    const rtePos = new Vector3()
     label.onBeforeRender = (renderer, scene, camera) => {
-      camera.getWorldPosition(rtePos)
-      const wg = scene.getObjectByName('WorldGroup')
-      if (wg) {
-        rtePos.sub(wg.position)
-      }
-      const hx = Math.fround(rtePos.x)
-      const hy = Math.fround(rtePos.y)
-      const hz = Math.fround(rtePos.z)
-      label.material.uniforms.uCamPosWorldHigh.value.set(hx, hy, hz)
-      label.material.uniforms.uCamPosWorldLow.value.set(rtePos.x - hx, rtePos.y - hy, rtePos.z - hz)
+      const u = label.material.uniforms
+      rteCameraLocal(label, camera, u.uCamPosWorldHigh.value, u.uCamPosWorldLow.value)
     }
-    this.ui.scene.add(label)
+    // In the stars' frame, like the catalogue labels: the position is J2000.
+    this.stars.add(label)
     return label
   }
 }
