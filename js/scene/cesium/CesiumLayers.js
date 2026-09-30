@@ -12,6 +12,7 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  NearestFilter,
   OneFactor,
   OneMinusSrcAlphaFactor,
   OrthographicCamera,
@@ -505,7 +506,11 @@ export default class CesiumLayers {
   _cesiumTarget() {
     const sceneRT = this.ui._sceneRT
     if (!this._cesiumRT) {
-      const rt = new WebGLRenderTarget(sceneRT.width, sceneRT.height, {stencilBuffer: true})
+      // Nearest: the decode reads each texel as it is.  Filtered, a pixel
+      // just off the terrain's edge read a sliver of its alpha, a distance
+      // of ~0, and drew black, nearest the camera.
+      const rt = new WebGLRenderTarget(sceneRT.width, sceneRT.height,
+          {stencilBuffer: true, minFilter: NearestFilter, magFilter: NearestFilter})
       rt.depthTexture = new DepthTexture()
       rt.depthTexture.format = DepthStencilFormat
       rt.depthTexture.type = UnsignedInt248Type
@@ -1192,7 +1197,7 @@ function newDecodeMaterial() {
       ${DECODE_DISTANCE_GLSL}
       void main() {
         vec4 c = texture2D(tCesium, vUv);
-        if (c.a <= 0.0) discard;
+        if (c.a < 0.5 / 255.0) discard;
         vec3 rgb = c.rgb;
         // Whatever doesn't carry a distance (the display-encoded bodies)
         // passes the depth test and writes no depth (depthWrite is off).
