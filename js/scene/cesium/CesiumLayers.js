@@ -31,7 +31,7 @@ import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, cesiumOutput, ionToken, isCesiumBody} from './bodies.js'
 import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
 import {NEUTRAL_GLSL, NEUTRAL_INVERSE_GLSL} from '../hdr.js'
-import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
+import {DECODE_DISTANCE_GLSL, DISTANCE_LEVELS, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
 
@@ -259,8 +259,14 @@ export default class CesiumLayers {
     u.uMode.value = decodeOf(name, this.ui.hdr === true)
     // Not while celestiary's own surface is still drawn over it, fading
     // (_drawFadingSurfaces): the terrain's depth, nearer than the sphere,
-    // would hide it.
-    this.decode.material.depthWrite = cesiumOutput(name) === 'albedo' && this.fadeOf(name) >= 1
+    // would hide it.  Nor from high up: the pass needs the terrain's
+    // distance only from inside the atmosphere (a ridge over the sphere's
+    // horizon), and from afar 8 bits are too coarse for it (steps of 100
+    // km and more; past 7 D, the limit, the terrain would read nearer than
+    // the atmosphere's edge, and the pass would leave it unhazed), where
+    // the sphere's depth (_writeGroundDepths) is exact.
+    this.decode.material.depthWrite = cesiumOutput(name) === 'albedo' && this.fadeOf(name) >= 1 &&
+      (this.bodies[name]?.heightM ?? Infinity) < TERRAIN_DEPTH_MAX_HEIGHT_M
     u.uDistanceScale.value = this.bodies[name]?.distanceScale ?? 1
     u.uProjection.value.copy(this.ui.camera.projectionMatrix)
     u.uProjectionInverse.value.copy(this.ui.camera.projectionMatrixInverse)
@@ -639,7 +645,8 @@ export default class CesiumLayers {
     const {radii, shellScale} = CESIUM_BODIES[name]
     const position = ellipsoidCameraPosition(view.position, node.props.radius.scalar, radii)
     // The scale of the distance this frame carries in alpha (distance.js).
-    body.distanceScale = distanceScale(Math.hypot(...view.position) - node.props.radius.scalar)
+    body.heightM = Math.hypot(...view.position) - node.props.radius.scalar
+    body.distanceScale = distanceScale(body.heightM)
     // Set directly, not through camera.setView: setView converts direction
     // and up to heading, pitch and roll in the local east-north-up frame and
     // back, and near pitch −90° (looking at the body's centre, as on
@@ -1200,7 +1207,10 @@ function newDecodeMaterial() {
           vec4 v = uProjectionInverse * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
           vec3 dir = normalize(v.xyz / v.w);
           vec4 clip = uProjection * vec4(dir * d, 1.0);
-          gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+          // At the encoding's limit the distance is only "farther than
+          // 7 D": no depth (the far plane), and the ground sphere's.
+          gl_FragDepth = c.a >= ${(DISTANCE_LEVELS - 1).toFixed(1)} / ${DISTANCE_LEVELS.toFixed(1)} ?
+            1.0 : clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
           gl_FragColor = vec4(rgb, 1.0);
           return;
         }
@@ -1240,6 +1250,10 @@ const GROUND_SAMPLE_BELOW_M = 1e5
 const TILE_SCREEN_SPACE_ERROR = 8
 // The crossfade from celestiary's surface to Cesium's, ms.
 const FADE_MS = 1000
+// Highest camera, over the surface, m, at which the terrain's distance
+// becomes celestiary's depth (_decodeInto): Earth's atmosphere pass reaches
+// 100 km, and from 200 km an 8-bit step is ~15 km at the horizon.
+const TERRAIN_DEPTH_MAX_HEIGHT_M = 2e5
 // Cesium's default PerspectiveFrustum far plane, metres.
 const DEFAULT_FAR = 5e8
 // Planet.newPlanet's LOD: the body's mesh, then a point, then nothing.

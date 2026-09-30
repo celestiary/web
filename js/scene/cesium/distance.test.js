@@ -1,4 +1,6 @@
-import {DECODE_DISTANCE_GLSL, DISTANCE_STAGE_GLSL, decodeDistance, distanceScale, encodeDistance} from './distance.js'
+import {
+  DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, decodeDistance, distanceScale, encodeDistance,
+} from './distance.js'
 
 
 describe('distance encoding', () => {
@@ -23,8 +25,8 @@ describe('distance encoding', () => {
   })
 
   it('grows the scale with height, up to a cap', () => {
-    expect(distanceScale(0)).toBe(2e4)
-    expect(distanceScale(9e3)).toBeGreaterThan(6e4)
+    expect(distanceScale(0)).toBe(DISTANCE_SCALE_M)
+    expect(distanceScale(9e3)).toBeGreaterThan(3 * DISTANCE_SCALE_M)
     expect(distanceScale(1e6)).toBe(2e6)
   })
 

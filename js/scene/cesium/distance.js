@@ -15,18 +15,22 @@
  * are even in how much haze a distance puts over the ground (at sea level
  * blue light falls to 1/e in ~30 km).  D grows with the camera's height
  * (DISTANCE_SCALE_M × e^(h/8 km)), as the air thins and the ground seen
- * gets farther: 20 km at the ground, 62 km at 9 km up.  A step is then
- * ~0.4% of the haze, and dithering hides it.
+ * gets farther: 40 km at the ground, 124 km at 9 km up.  A step is then
+ * under 1% of the haze, and dithering hides it.  The top levels (from
+ * ~5.5 D: 220 km at the ground) read as "farther than that": no depth,
+ * where the ground sphere's serves (CesiumLayers' decode).
  */
 
 
 /** D at the ground, metres. */
-export const DISTANCE_SCALE_M = 2e4
+export const DISTANCE_SCALE_M = 4e4
 /** Atmospheric scale height for D's growth with altitude, metres. */
 const DISTANCE_SCALE_HEIGHT_M = 8e3
 /** D's cap, metres: beyond, the distance hardly changes the haze. */
 const MAX_DISTANCE_SCALE_M = 2e6
-const LEVELS = 255
+/** Alpha's levels: 0 is "no globe", 1 to 255 the distance. */
+export const DISTANCE_LEVELS = 255
+const LEVELS = DISTANCE_LEVELS
 
 
 /**
