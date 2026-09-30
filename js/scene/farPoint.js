@@ -80,5 +80,8 @@ export function farPointOptions(isMoon) {
  * @returns {object} The Points: one vertex, at the body's centre
  */
 export function newFarPoint(isMoon) {
+  // Through point(): where a display-referred material is wrapped for the
+  // HDR pipeline (hdr.js sceneReferred), so the marker's colour comes out
+  // of the final tone map unchanged.
   return named(point(farPointOptions(isMoon)), 'far point')
 }

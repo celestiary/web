@@ -362,7 +362,12 @@ single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
   renderer's pixel ratio), so it stays at least one drawn pixel at any
   display density.
 - **Not tone mapped** (`toneMapped: false`): the exposure follows the
-  targeted body (~1e-17 far out), which drew the marker black (#85).
+  targeted body (~1e-17 far out), which drew the marker black (#85).  The
+  colour is a display value, so it must be made with `point()`
+  (`shapes.js`), not `new Points`: `point()` is where, under the HDR
+  pipeline (#141, HDR.md), a display-referred material is wrapped
+  (`sceneReferred`), which keeps it the same through the final tone map,
+  whose toe would otherwise darken a dim marker.
 - **Depth.**  Depth-tested, no depth write, in the scene pass: three draws
   transparent objects after the opaque ones, so the planets' meshes are in
   the depth buffer by then, and a moon behind its planet is hidden.  It
