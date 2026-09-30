@@ -169,6 +169,8 @@ same frame, so a body and its line share one transform chain: see
 8. `_applyCameraArrowKeys()` — apply held-key pitch/roll last so they always win
 9. `renderer.render(scene, camera)`
 
+The whole of `renderLoop()` is bracketed by `stats.begin()`/`stats.end()` while the performance panel is showing ([Performance panel](#performance-panel)); hidden, it costs nothing.
+
 ## Orbital Mechanics
 
 - **Major planets** (Mercury–Neptune): VSOP87c theory via the `vsop87` npm package, giving high-accuracy heliocentric ecliptic coordinates
@@ -442,6 +444,15 @@ single 'p' shortcut and the global 'V' both pick them up automatically.
 Failing to opt in means the user has no way to hide the new element
 short of reloading the page — and `V` (presentation mode) won't be
 truly bare.
+
+## Performance panel
+
+The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click it to cycle the view), for judging frame cost, e.g. on a real GPU.  `ThreeUi.togglePerfPanel()` builds it on the first press (`three/examples/jsm/libs/stats.module.js`, no new dependency) and afterwards only shows or hides it, so startup and the tests never touch the DOM for it.  It's listed in Settings under Info as "Toggle performance panel".
+
+- **Place:** bottom-right, above the fullscreen control: top-left is the search and info panel (its system list can run down the left side), top-right the time controls, bottom-left the settings icons, and bottom-centre the Cesium credits.  It's `position: fixed` at `z-index` 1000 above the canvas, and only its own box takes pointer events.
+- **What it measures:** `Stats.begin()`/`end()` bracket `renderLoop()`, so MS is the CPU time to issue the frame (scene update and GL calls), not GPU time, and FPS is the frame rate the browser delivers.  On a GPU-bound view the FPS drops while MS stays low.  MB only exists in Chromium.
+- **Outside the visibility groups:** it's a developer tool, not a scene or chrome feature, so neither `v` nor `V` hides it.
+- **Typing:** `Keys.onKeyDown` ignores every key while an `INPUT`, `TEXTAREA`, `SELECT` or contenteditable element has focus, so the search box still takes a backtick.
 
 ## State Management (Zustand)
 

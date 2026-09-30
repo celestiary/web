@@ -19,6 +19,7 @@ import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/Atmosp
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {easeExposure, exposureAt} from './scene/exposure.js'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
+import Stats from 'three/examples/jsm/libs/stats.module.js'
 import {attachPointerDrag} from './dragControls'
 import {resolveDragMode} from './dragMode'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
@@ -100,6 +101,11 @@ export default class ThreeUi {
       this.container.appendChild(vrButtonContainer);
       this.scene.add(controllerGrip);
     */
+
+    // three's Stats panel (FPS / MS / MB): built on first toggle, so startup
+    // and the tests never touch the DOM for it.  See togglePerfPanel.
+    this._stats = null
+    this._perfVisible = false
 
     this._arrowKeys = {up: false, down: false, left: false, right: false}
     this._savedCamQuat = new Quaternion() // preserved across controls.update()
@@ -299,6 +305,10 @@ export default class ThreeUi {
 
   /** */
   renderLoop(time) {
+    // Timing runs only while the panel is showing.  Visibility flips from
+    // key events, never mid-frame, so begin() and end() always pair.
+    const stats = this._perfVisible ? this._stats : null
+    stats?.begin()
     this.camera.updateMatrixWorld()
     if (this.clicked) {
       for (const i in this.clickCbs) {
@@ -360,6 +370,43 @@ export default class ThreeUi {
     this.renderer.render(this.scene, this.camera)
     this.camera.layers.set(0)
     this.renderer.autoClear = autoClear
+    stats?.end()
+  }
+
+
+  /** @returns {boolean} whether the performance panel is showing. */
+  isPerfPanelVisible() {
+    return this._perfVisible
+  }
+
+
+  /**
+   * Show or hide three's Stats panel (FPS, MS, MB; click it to cycle).  The
+   * element is created on the first show and then only hidden, so it costs
+   * nothing until asked for.  It sits bottom-right above the fullscreen
+   * control, the corner the HUD leaves free (the info list can run long
+   * down the left), over the canvas; only its own 80x48 box takes pointer
+   * events.
+   *
+   * @returns {boolean} whether the panel is now showing.
+   */
+  togglePerfPanel() {
+    this._perfVisible = !this._perfVisible
+    if (this._perfVisible && !this._stats) {
+      this._stats = new Stats
+      const style = this._stats.dom.style
+      style.top = 'auto'
+      style.left = 'auto'
+      style.bottom = '3.5em'
+      style.right = '0.5em'
+      style.zIndex = '1000'
+      this._stats.dom.id = 'perf-panel'
+      document.body.appendChild(this._stats.dom)
+    }
+    if (this._stats) {
+      this._stats.dom.style.display = this._perfVisible ? 'block' : 'none'
+    }
+    return this._perfVisible
   }
 
 

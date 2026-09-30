@@ -108,6 +108,13 @@ class StubThreeUI {
     this.onCameraChange?.()
   }
   addClickCb() {}
+  togglePerfPanel() {
+    this.perfToggles = (this.perfToggles || 0) + 1
+    return true
+  }
+  isPerfPanelVisible() {
+    return !!this.perfToggles
+  }
 }
 
 
@@ -255,6 +262,13 @@ describe('Celestiary permalink restore', () => {
   // The debounced permalink update (1 s) would otherwise fire during a later
   // test file and read whatever Shared.targets.cur that file left behind.
   afterAll(() => clearTimeout(app._permalinkTimer))
+
+  it('binds the backtick key to the performance panel toggle', () => {
+    expect(app.keys.msgs['`']).toBe('Toggle performance panel')
+    app.keys.onKeyDown({key: '`'})
+    expect(app.ui.perfToggles).toBe(1)
+    expect(app.keys.toggleStates['`']()).toBe(true)
+  })
 
   it('cancels the GoTo navigation tween (no animation)', () => {
     expect(Shared.targets.tween).toBeNull()
