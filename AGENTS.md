@@ -108,7 +108,9 @@ tried and dropped.
   end up corrupt when several installs run at once: if `yarn install`
   fails on a package's contents, install with a private
   `--cache-folder`. Don't `kill` browser or server processes you didn't
-  start.
+  start. The scratchpad directory can be shared between them too: give
+  your files and directories names of your own (a prefix), not `main`
+  or `before`.
 - **Large assets are fine in the repo**, e.g. the Blue Marble textures
   and tile pyramids. Document how each was built in
   `js/scene/Planet.md`, so it can be rebuilt.

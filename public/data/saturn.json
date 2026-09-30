@@ -38,7 +38,7 @@
     "longitudeOfPericenter": 92.43194,
     "meanLongitude": 49.94432,
     "semiMajorAxis": 1.43353E12,
-    "siderealOrbitPeriod": 9.28656296928E8
+    "siderealOrbitPeriod": 929308406.6
   },
   "system": ["titan","rhea","dione","tethys","iapetus","hyperion","janus"],
   "rings": {

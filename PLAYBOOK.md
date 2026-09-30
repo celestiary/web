@@ -205,6 +205,28 @@ different causes.
 with an independent reference at its own epoch, then away from it, and
 record what was taken as is and what wasn't, next to the data.
 
+### Time one call before choosing a sample count
+
+The orbit lines were planned as "a few hundred VSOP87 samples per
+planet".  One VSOP87C call evaluates all eight planets' full series and
+takes ~2 ms, so that plan was seconds per rebuild.  Timing a call first
+turned the design into a two-body ellipse plus 17 to 33 samples of the
+departure from it, rebuilt a slice per frame.
+
+**Rule:** before a design that calls an ephemeris (or any series) N times,
+time one call in the browser and multiply.
+
+### An osculating element isn't a mean one
+
+The first sampled orbit lines used the osculating ellipse's period as
+their window, and Neptune's line didn't close by 3% of its orbit: the
+heliocentric velocity carries the Sun's own reflex motion (Jupiter's
+pull), which puts the osculating period ~1% off the mean one.  The JSON's
+periods, the fallback, were 0.07% short too: 365-day years.
+
+**Rule:** an ellipse fitted at one instant carries the shape between
+samples, but take periods and rates from mean elements.
+
 ### Test across the full planet range, not just Earth
 
 Earth's atmosphere (8 km Rayleigh scale height, mild Mie) is the most forgiving. Mars (3 km
