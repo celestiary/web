@@ -242,9 +242,9 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
   call, or 64 vertices) within 4 ms a frame (`FRAME_BUDGET_MS`), or 12 ms
   while the line being built is hidden (`HIDDEN_BUDGET_MS`: at load, or
   after a jump), so none is on the per-frame path. A rebuild costs 20–36
-  VSOP87C calls (~2 ms each, in bun and Chromium alike), 40–85 ms of work;
-  Uranus's and Neptune's ~120 and ~230 ms; the Moon's ~10 ms. All nine
-  lines after a jump are ~0.8 s of work, about 70 frames.
+  VSOP87C calls (~2 ms each, in bun and Chromium alike), 35–60 ms of work
+  in Chromium; Uranus's and Neptune's ~110 and ~200 ms; the Moon's ~5 ms.
+  All nine lines after a jump are ~0.6 s of work, about 50 frames.
 - **Other moons and Pluto** keep their mean-element ellipse of date, laid
   each frame (`layOrbitShape`): that ellipse is their ephemeris.
 - **Bodies without elements** (demo descriptors) keep the flat ellipse.
