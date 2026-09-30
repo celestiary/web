@@ -237,7 +237,8 @@ export function profileDeviation(on, off) {
  * @param {object} on
  * @param {object} off
  * @param {object} view
- * @returns {object} {ratios, profile: {on, off, max, mean} | null}
+ * @returns {object} {ratios, profile: {on, off, max, mean} | null,
+ *   reference: {luma, blueRed, region, reference} | null}
  */
 export function measureView(on, off, view) {
   if (on.width !== off.width || on.height !== off.height) {
@@ -259,6 +260,28 @@ export function measureView(on, off, view) {
   }
   ratios.lumaOn = lumas(on)
   ratios.lumaOff = lumas(off)
+  // The on render's region against another region of the same render
+  // (`view.reference`, a box): for what has no counterpart in the off
+  // render, e.g. Cesium's terrain above celestiary's sphere, which should
+  // look like the ground below it, not the sky.
+  let reference = null
+  if (view.reference) {
+    const refMask = regionMask(off, view.reference, view.minLuma)
+    const stats = (m) => {
+      const luma = []
+      const blueRed = []
+      for (let i = 0; i < m.length; i++) {
+        if (m[i]) {
+          luma.push(lumaAt(on.data, i))
+          blueRed.push(on.data[(i * BYTES_PER_PIXEL) + 2] / Math.max(on.data[i * BYTES_PER_PIXEL], 1))
+        }
+      }
+      return {count: luma.length, luma: median(luma), blueRed: median(blueRed)}
+    }
+    const region = stats(mask)
+    const ref = stats(refMask)
+    reference = {region, reference: ref, luma: region.luma / ref.luma, blueRed: region.blueRed / ref.blueRed}
+  }
   let profile = null
   if (view.profile) {
     const {from, to, samples, band} = view.profile
@@ -266,7 +289,7 @@ export function measureView(on, off, view) {
     const offProfile = sampleProfile(off, from, to, samples, band)
     profile = {on: onProfile, off: offProfile, ...profileDeviation(onProfile, offProfile)}
   }
-  return {ratios, profile}
+  return {ratios, profile, reference}
 }
 
 
@@ -320,7 +343,10 @@ export function describeTolerance(tolerance) {
  *   - `luma`: [lo, hi] for each render's own median luma (of 255), on and
  *     off: catches what the ratios can't, both sides wrong alike;
  *   - `minPixels`: least measured pixels (default 200), so an empty region
- *     fails rather than passing on nothing.
+ *     fails rather than passing on nothing;
+ *   - `reference`: `{luma, blueRed}`, each [lo, hi], for views with a
+ *     `reference` box: the on render's median luma, and median blue/red,
+ *     over the region, over the same over the reference.
  *
  * @param {string} id The view's id
  * @param {object} measured measureView's result
@@ -347,6 +373,15 @@ export function evaluateView(id, measured, tolerance) {
   if (tolerance.luma) {
     add('luma on', ratios.lumaOn, tolerance.luma)
     add('luma off', ratios.lumaOff, tolerance.luma)
+  }
+  const {reference} = measured
+  if (tolerance.reference) {
+    if (tolerance.reference.luma) {
+      add('ref luma', reference?.luma ?? NaN, tolerance.reference.luma)
+    }
+    if (tolerance.reference.blueRed) {
+      add('ref blue/red', reference?.blueRed ?? NaN, tolerance.reference.blueRed)
+    }
   }
   if (profile && tolerance.profileMax !== undefined) {
     add('profile max', profile.max, {max: tolerance.profileMax})

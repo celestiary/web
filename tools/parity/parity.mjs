@@ -405,6 +405,7 @@ async function runView(context, baseUrl, view, opts) {
       rows,
       ratios: measured.ratios,
       profile: measured.profile,
+      reference: measured.reference,
       geometry,
       state: {before: state, after},
       ion,

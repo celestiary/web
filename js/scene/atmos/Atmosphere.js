@@ -697,6 +697,34 @@ void main() {
 
     // In-scatter from atlas (trilinear, no loops)
     vec4  inS   = sampleInScatter(r_e, mu_v_lut, mu_s);
+    // The table's ray ends at the ground sphere, or leaves the atmosphere.
+    // Where a surface was drawn nearer than that (Cesium's terrain over the
+    // sphere: a ridge seen from a valley, above the sphere's horizon, where
+    // the table's ray would be sky), the air is only the segment up to it:
+    // Bruneton's aerial perspective, S(eye) − T(eye→P)·S(P), with T from a
+    // short march of the segment's optical depth.  Celestiary's own ground
+    // is the sphere, a mesh a little below it, so it never takes this path.
+    vec2  pGround = rsi(eyePos, rayDir, uGroundRadius);
+    float tEnd    = (pGround.x > 0.0 && pGround.x <= pGround.y) ? pGround.x : pAtm.y;
+    bool  shortRay = insideAtm && depthSample < 1.0 && !isGap && tMax + tMaxErr < tEnd - 1.0;
+    vec3  segT = vec3(1.0);
+    if (shortRay) {
+      vec3  P    = eyePos + rayDir * tMax;
+      float r_p  = length(P);
+      vec3  zenP = P / r_p;
+      vec4  inSP = sampleInScatter(r_p, dot(rayDir, zenP), dot(zenP, uSunDirection));
+      float odR = 0.0;
+      float odM = 0.0;
+      float ds  = (tMax - t_entry) / 16.0;
+      for (int i = 0; i < 16; i++) {
+        float h = max(length(eyePos + rayDir * (t_entry + (float(i) + 0.5) * ds)) - uGroundRadius, 0.0);
+        odR += exp(-h / uRayleighScaleHeight) * ds;
+        odM += exp(-h / uMieScaleHeight) * ds;
+      }
+      segT = exp(-(uRayleigh * odR + vec3(uMieCoeff * odM)));
+      // Mie's in-scatter is grey, attenuated as red (as in the table).
+      inS = max(inS - vec4(segT, segT.r) * inSP, vec4(0.0));
+    }
     float mu    = dot(rayDir, uSunDirection);
     float mumu  = mu * mu;
     float pol2  = uMiePolarity * uMiePolarity;
@@ -722,7 +750,7 @@ void main() {
     // alpha from the strongest channel, as before) greyed whatever lay
     // behind — Jupiter's and Venus's cloud decks — once exposure stopped
     // washing them out.
-    vec3 transmittance = exp(-extVec);
+    vec3 transmittance = shortRay ? segT : exp(-extVec);
     // Floor it (extinction-alpha capped at 0.92) so horizon-grazing rays at
     // night still let some starlight through (real physics says they
     // shouldn't but the eye adapts; we don't simulate that yet).

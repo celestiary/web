@@ -31,6 +31,7 @@ import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, cesiumOutput, ionToken, isCesiumBody} from './bodies.js'
 import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
 import {NEUTRAL_GLSL, NEUTRAL_INVERSE_GLSL} from '../hdr.js'
+import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
 
@@ -256,6 +257,13 @@ export default class CesiumLayers {
     const u = this.decode.material.uniforms
     u.tCesium.value = cesiumRT.texture
     u.uMode.value = decodeOf(name, this.ui.hdr === true)
+    // Not while celestiary's own surface is still drawn over it, fading
+    // (_drawFadingSurfaces): the terrain's depth, nearer than the sphere,
+    // would hide it.
+    this.decode.material.depthWrite = cesiumOutput(name) === 'albedo' && this.fadeOf(name) >= 1
+    u.uDistanceScale.value = this.bodies[name]?.distanceScale ?? 1
+    u.uProjection.value.copy(this.ui.camera.projectionMatrix)
+    u.uProjectionInverse.value.copy(this.ui.camera.projectionMatrixInverse)
     renderer.setRenderTarget(sceneRT)
     const autoClear = renderer.autoClear
     renderer.autoClear = false
@@ -630,6 +638,8 @@ export default class CesiumLayers {
     // frames.ellipsoidCameraPosition).
     const {radii, shellScale} = CESIUM_BODIES[name]
     const position = ellipsoidCameraPosition(view.position, node.props.radius.scalar, radii)
+    // The scale of the distance this frame carries in alpha (distance.js).
+    body.distanceScale = distanceScale(Math.hypot(...view.position) - node.props.radius.scalar)
     // Set directly, not through camera.setView: setView converts direction
     // and up to heading, pitch and roll in the local east-north-up frame and
     // back, and near pitch −90° (looking at the body's centre, as on
@@ -863,6 +873,18 @@ export default class CesiumLayers {
       if (albedo) {
         litSurfaceOnly(scene.globe)
         scene.fog.enabled = false
+        // Each globe pixel's distance, in alpha, for celestiary's
+        // atmosphere pass (distance.js).  From the terrain's depth: without
+        // depthTestAgainstTerrain, Cesium clears the globe's depth after
+        // drawing it and draws the ellipsoid's in its place, so the stage
+        // read the ellipsoid, and the cleared far plane above its horizon,
+        // where the ridges are.
+        scene.globe.depthTestAgainstTerrain = true
+        scene.postProcessStages.add(new Cesium.PostProcessStage({
+          name: 'celestiary_distance',
+          fragmentShader: DISTANCE_STAGE_GLSL,
+          uniforms: {distanceScale: () => this.bodies[name]?.distanceScale ?? DISTANCE_SCALE_M},
+        }))
       }
     }
     scene.atmosphere.dynamicLighting = Cesium.DynamicAtmosphereLightingType.SCENE_LIGHT
@@ -1140,6 +1162,9 @@ function newDecodeMaterial() {
       tCesium: {value: null},
       uMode: {value: DECODE.NONE},
       uLinearScale: {value: DISPLAY_GAIN},
+      uDistanceScale: {value: 1},
+      uProjection: {value: new Matrix4()},
+      uProjectionInverse: {value: new Matrix4()},
     },
     vertexShader: `
       varying vec2 vUv;
@@ -1151,18 +1176,35 @@ function newDecodeMaterial() {
       uniform sampler2D tCesium;
       uniform float uMode;
       uniform float uLinearScale;
+      uniform float uDistanceScale;
+      uniform mat4 uProjection;
+      uniform mat4 uProjectionInverse;
       varying vec2 vUv;
       ${NEUTRAL_GLSL}
       ${NEUTRAL_INVERSE_GLSL}
+      ${DECODE_DISTANCE_GLSL}
       void main() {
         vec4 c = texture2D(tCesium, vUv);
         if (c.a <= 0.0) discard;
         vec3 rgb = c.rgb;
-        if (uMode > ${DECODE.LINEAR_TO_DISPLAY - 0.5}) {
-          rgb = neutralToneMap(rgb / c.a * uLinearScale) * c.a;
-        } else if (uMode > ${DECODE.LINEAR - 0.5}) {
-          rgb *= uLinearScale;
-        } else if (uMode > ${DECODE.NEUTRAL_INVERSE - 0.5}) {
+        // Whatever doesn't carry a distance (the display-encoded bodies)
+        // passes the depth test and writes no depth (depthWrite is off).
+        gl_FragDepth = 0.0;
+        if (uMode > ${DECODE.LINEAR - 0.5}) {
+          // An opaque globe with its distance in alpha (distance.js): the
+          // colour is albedo × Lambert, and the distance becomes this
+          // pixel's depth, for the atmosphere pass (terrain above the sphere).
+          rgb = uMode > ${DECODE.LINEAR_TO_DISPLAY - 0.5} ?
+            neutralToneMap(rgb * uLinearScale) : rgb * uLinearScale;
+          float d = decodeDistance(c.a, uDistanceScale);
+          vec4 v = uProjectionInverse * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
+          vec3 dir = normalize(v.xyz / v.w);
+          vec4 clip = uProjection * vec4(dir * d, 1.0);
+          gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+          gl_FragColor = vec4(rgb, 1.0);
+          return;
+        }
+        if (uMode > ${DECODE.NEUTRAL_INVERSE - 0.5}) {
           // Premultiplied: invert the colour, then premultiply again.
           rgb = neutralInverse(min(rgb / c.a, vec3(1.0))) * c.a;
         }
@@ -1174,7 +1216,10 @@ function newDecodeMaterial() {
     blendDst: OneMinusSrcAlphaFactor,
     blendSrcAlpha: OneFactor,
     blendDstAlpha: OneMinusSrcAlphaFactor,
-    depthTest: false,
+    // Tested, so whatever celestiary drew nearer keeps its depth; written
+    // only for bodies that carry a distance (_decodeInto).
+    depthTest: true,
+    depthFunc: LessEqualDepth,
     depthWrite: false,
     transparent: true,
     toneMapped: false,

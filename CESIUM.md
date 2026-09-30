@@ -199,7 +199,32 @@ relates to real time.
   Cesium's globe draws only its lit surface: stored value × Lambert
   (`litSurfaceOnly`: light intensity 1, `lambertDiffuseMultiplier` 1,
   `vertexShadowDarkness` 0), no ground atmosphere, fog or water effect,
-  and the composite applies `DISPLAY_GAIN`.  Until #86's PR A, Earth used
+  and the composite applies `DISPLAY_GAIN`.
+- **Terrain depth.**  The pass needs to know where Cesium's terrain is and
+  how far: its terrain rises over celestiary's sphere, and a ridge seen
+  from a valley sits above the sphere's horizon, where the pass took it
+  for sky and painted it over (the first cut of #141 did, with a straight
+  "horizon" across the mountains).  Cesium's depth doesn't reach
+  celestiary (its frames arrive through its 8-bit colour buffer), so a
+  Cesium post-process stage (public API, with the scene's depth texture)
+  writes each globe pixel's distance from the camera into alpha, which is
+  otherwise always 1 on the opaque globe, encoded as 1 − e^(−d/D) in 8
+  bits and dithered (`cesium/distance.js`; D grows with the camera's
+  height).  The composite's decode pass turns it back into celestiary's
+  depth, depth-tested, and the atmosphere pass hazes the terrain for that
+  distance (aerial perspective; composition.md).  The globe needs
+  `depthTestAgainstTerrain`: without it Cesium clears the globe's depth
+  once drawn and draws the ellipsoid's instead (its depth plane), so the
+  stage read the ellipsoid below the horizon and the cleared far plane
+  above it, and every ridge came out at the encoding's limit (7 D, ~310 km
+  from 6.5 km up, where they were 3 to 25 km off).  Not during the
+  crossfade, while celestiary's own surface, at the sphere, is drawn over
+  it: a ridge above the sphere's horizon shows as sky until the crossfade
+  ends (1 s), then as terrain.  A float or 16-bit depth from Cesium would do better than 8 bits:
+  portal-netgl could expose the host object a guest texture replays to
+  (Cesium's globe depth texture), or give screen draws a depth attachment
+  of their own (its "guest-private depth" roadmap item).
+- Until #86's PR A, Earth used
   Cesium's own sky and ground atmosphere (`atmosphere: true`): from orbit it
   applied `1 − e^(−2x)` to the lit surface plus its haze, and below
   `lightingFadeOutDistance` (10,000 km from the centre) it faded its ground
@@ -413,7 +438,8 @@ of `views`, each:
 | `hash` | the permalink, with `cq=` (js/permalink.md; without it the time and view aren't restored).  Include `s=alpoU` to turn off labels, lines and the Milky Way, which are drawn on both renders and dilute the ratios |
 | `region` | `{"disc": true, "inner": 0.9}` (the body's disc, computed from the camera) or `{"box": [x0, y0, x1, y1]}` in fractions of the image; `minLuma` (default 12) |
 | `profile` | `{"across": "terminator", "samples": 40, "band": 5, "reach": 0.9}`, or `{"from": [x, y], "to": [x, y]}` in fractions of the image; omit for none |
-| `tolerance` | `ratio` `[lo, hi]`; `channelRatio` `[lo, hi]` or `{r, g, b}`; `profileMax`, `profileMean` (luma levels); `luma` `[lo, hi]` (each render's own median luma, on and off: for views where both sides could go wrong alike, as they share the atmosphere pass); `minPixels` (default 200) |
+| `reference` | optional `{"box": [x0, y0, x1, y1]}`: a second region of the same render, for what has no counterpart in celestiary's render (Cesium's terrain above celestiary's sphere), measured against the ground beside it in Cesium's render |
+| `tolerance` | `ratio` `[lo, hi]`; `channelRatio` `[lo, hi]` or `{r, g, b}`; `profileMax`, `profileMean` (luma levels); `luma` `[lo, hi]` (each render's own median luma, on and off: for views where both sides could go wrong alike, as they share the atmosphere pass); `reference` `{luma, blueRed}`, each `[lo, hi]` (the on render's median luma, and median blue/red, over the region over the same over `reference`: the ridge looks like ground, not sky); `minPixels` (default 200) |
 
 To add a view: fly to it in the app (the URL follows the camera, one second
 after it settles) and copy the hash; pick a **partial phase**, as colour

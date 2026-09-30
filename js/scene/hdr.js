@@ -62,11 +62,16 @@ export function neutral(rgb) {
  * @returns {Array<number>} Scene-referred values that neutral maps to them
  */
 export function neutralInverse(display) {
-  let c = display
-  let q = Math.max(...display)
-  if (q >= START_COMPRESSION) {
-    q = Math.min(q, MAX_DISPLAY)
-    const y = display.map((v) => Math.min(v, q))
+  let c = display.map((v) => Math.max(v, 0))
+  const q0 = Math.max(...c)
+  if (q0 >= START_COMPRESSION) {
+    // PBR Neutral desaturates what it compresses, so a bright saturated
+    // colour (a pure blue line at 1) is outside what it can produce: the
+    // exact inverse would need negative channels.  Keep the hue, and scale
+    // the colour down to the brightest the tone map can show at that
+    // saturation (maxNeutralPeak).
+    const q = Math.min(q0, MAX_DISPLAY, maxNeutralPeak(Math.min(...c) / q0))
+    const y = c.map((v) => v * q / q0)
     const d = 1 - START_COMPRESSION
     const peak = START_COMPRESSION - d + (d * d / (1 - q))
     const g = 1 - (1 / ((DESATURATION * (peak - q)) + 1))
@@ -75,6 +80,29 @@ export function neutralInverse(display) {
   const m = Math.max(Math.min(...c), 0)
   const offset = m >= TOE_OFFSET ? TOE_OFFSET : (0.4 * Math.sqrt(m)) - m
   return c.map((v) => v + offset)
+}
+
+
+/**
+ * The brightest peak PBR Neutral can put out for a colour of this
+ * saturation: its shoulder mixes toward white by g, so a colour whose
+ * weakest channel is `rho` of its strongest needs g ≤ rho.  With u = 1 − q,
+ * p − q = K where g = 1 − 1/(0.15·K + 1), and p = 0.52 + 0.0576/u, so
+ * u + 0.0576/u = K + 0.48.  0.76 (no shoulder) for a pure primary, 1 for
+ * grey.
+ *
+ * @param {number} rho min channel over max channel, 0 to 1
+ * @returns {number}
+ */
+export function maxNeutralPeak(rho) {
+  if (rho >= 1) {
+    return 1
+  }
+  const d = 1 - START_COMPRESSION
+  const k = rho / (DESATURATION * (1 - rho))
+  const b = k + (2 * d)
+  const u = (b - Math.sqrt(Math.max((b * b) - (4 * d * d), 0))) / 2
+  return Math.max(1 - u, START_COMPRESSION)
 }
 
 
@@ -102,12 +130,19 @@ export const NEUTRAL_INVERSE_GLSL = `
 vec3 neutralInverse(vec3 y) {
   const float startCompression = ${START_COMPRESSION.toFixed(2)};
   const float desaturation = ${DESATURATION.toFixed(2)};
+  y = max(y, vec3(0.0));
   vec3 c = y;
-  float q = max(y.r, max(y.g, y.b));
-  if (q >= startCompression) {
-    q = min(q, ${MAX_DISPLAY});
-    y = min(y, vec3(q));
+  float q0 = max(y.r, max(y.g, y.b));
+  if (q0 >= startCompression) {
+    // Out of the tone map's gamut (bright and saturated): keep the hue,
+    // scale to the brightest it can show (maxNeutralPeak in hdr.js).
     float d = 1.0 - startCompression;
+    float rho = min(y.r, min(y.g, y.b)) / q0;
+    float k = rho / (desaturation * max(1.0 - rho, 1.0e-6));
+    float b = k + 2.0 * d;
+    float u = (b - sqrt(max(b * b - 4.0 * d * d, 0.0))) * 0.5;
+    float q = min(q0, min(${MAX_DISPLAY}, max(1.0 - u, startCompression)));
+    y *= q / q0;
     float peak = startCompression - d + d * d / (1.0 - q);
     float g = 1.0 - 1.0 / (desaturation * (peak - q) + 1.0);
     c = (y - g * q) / (1.0 - g) * peak / q;

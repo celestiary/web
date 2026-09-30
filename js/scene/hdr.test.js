@@ -13,6 +13,7 @@ import {
 import {
   MAX_DISPLAY,
   NEUTRAL_GLSL,
+  maxNeutralPeak,
   NEUTRAL_INVERSE_GLSL,
   alphaScaled,
   installExposureOnlyToneMapping,
@@ -71,6 +72,19 @@ describe('neutralInverse', () => {
     for (const y of [[0.01, 0.02, 0.03], [0.2, 0.5, 0.9], [0.9, 0.3, 0.1], [0.5, 0.5, 0.5]]) {
       close(neutral(neutralInverse(y)), y, 1e-6)
     }
+  })
+
+  it('keeps the hue of colours the tone map can\'t reach, at the brightest it can', () => {
+    for (const y of [[0, 0, 1], [0.2, 0.3, 1], [1, 0.9, 0]]) {
+      const back = neutral(neutralInverse(y))
+      // The same colour, scaled: as bright as the tone map can show it.
+      const k = Math.max(...back) / Math.max(...y)
+      expect(k).toBeGreaterThanOrEqual(0.76 - 1e-6)
+      close(back, y.map((v) => v * k), 1e-5)
+      expect(Math.min(...neutralInverse(y))).toBeGreaterThanOrEqual(0)
+    }
+    expect(maxNeutralPeak(0)).toBeCloseTo(0.76, 10)
+    expect(maxNeutralPeak(1)).toBe(1)
   })
 
   it('clamps display values of 1, so saturated stays saturated', () => {

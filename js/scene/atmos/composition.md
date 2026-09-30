@@ -19,6 +19,16 @@ sky = scattered * uSkyExposure;                     // exposure units
 gl_FragColor.rgb = neutralToneMap(sky + scene.rgb * transmittance)
 ```
 
+For a pixel whose surface is nearer than where the in-scatter table's ray
+ends (the ground sphere, or the atmosphere's top), the sky is only the air
+up to it: Bruneton's aerial perspective, `S(eye) − T(eye→P)·S(P)`, with
+`T(eye→P)` from a 16-step march of the segment's optical depth, and the
+scene seen through that `T`.  That's Cesium's terrain over celestiary's
+sphere: a ridge seen from a valley, above the sphere's horizon, which the
+table's ray took for sky (#141; Cesium's distance reaches the pass as depth,
+`cesium/distance.js`).  Celestiary's own ground is the sphere, a mesh a
+little below it, so it never takes that path.
+
 `scene` is the linear HDR scene buffer, in exposure units (1.0 is a white
 Lambertian surface lit by the Sun at the exposure target, before
 `DISPLAY_GAIN`), and `scattered = uSunIntensity × LUT in-scatter`.
