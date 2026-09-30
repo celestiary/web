@@ -93,9 +93,10 @@ Stars are loaded separately from the Celestia binary star catalog (`StarsCatalog
                     ├── orbit (ellipse Line)
                     └── orbitPosition  ← animation sets position here
                           └── planetTilt
-                                └── planet (Object3D)
+                                └── 'new planet' (Object3D, unrotated)
                                       ├── planetLOD
-                                      │     ├── [near] surface mesh + atmosphere + clouds
+                                      │     ├── [near] planet: spun node, scene.objects[name]
+                                      │     │         (surface mesh + atmosphere + clouds, places)
                                       │     ├── [far]  single Point sprite
                                       │     └── [very far] FAR_OBJ (invisible)
                                       └── labelLOD
@@ -105,6 +106,10 @@ Stars are loaded separately from the Celestia binary star catalog (`StarsCatalog
 ```
 
 Moons follow the same pattern, parented to their planet's `orbitPosition`.
+The node Animation spins (the one carrying `siderealRotationPeriod`, and
+`scene.objects[name]`) is the LOD's near level, two levels below
+`planetTilt`, not its child: code that sets a body's whole orientation
+(the Moon's, in Animation) composes every rotation up to `orbitPosition`.
 
 ## Animation Loop
 

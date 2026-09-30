@@ -12,7 +12,9 @@ const JD = 2461313.1007
 
 /**
  * Mirror Planet.load's scene graph for a moon: orbitPosition (with orbit
- * and orbitShape) → planetTilt (rotateX(-axialInclination)) → planet.
+ * and orbitShape) → planetTilt (rotateX(-axialInclination)) → the 'new
+ * planet' group → 'planet LOD' → planet, the node Animation spins
+ * (Planet.newPlanet).  The spun node is not planetTilt's child.
  *
  * @param {string} name
  * @param {number} axialInclinationDeg
@@ -36,11 +38,18 @@ function moonGraph(name, axialInclinationDeg) {
   const planetTilt = new Object3D
   planetTilt.rotateX(-axialInclinationDeg * toRad)
   orbitPosition.add(planetTilt)
+  const wrapper = new Object3D
+  wrapper.name = 'new planet'
+  planetTilt.add(wrapper)
+  const lod = new Object3D
+  lod.name = 'planet LOD'
+  wrapper.add(lod)
   const planet = new Object3D
   planet.name = name
   planet.props = {name}
   planet.siderealRotationPeriod = 1
-  planetTilt.add(planet)
+  planet.orbitPosition = orbitPosition
+  lod.add(planet)
   return {root, orbitPosition, orbitShape, planet}
 }
 

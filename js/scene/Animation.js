@@ -91,9 +91,14 @@ export default class Animation {
       const name = system.props && system.props.name
       if (name === 'moon') {
         // The Moon's whole orientation (pole and spin, by Cassini's laws)
-        // is in moonQuat, relative to the unrotated orbitPosition; undo the
-        // planetTilt it's parented under.
-        system.quaternion.copy(this._tmpQuat.copy(system.parent.quaternion).invert()).multiply(this.moonQuat)
+        // is in moonQuat, relative to the unrotated orbitPosition.  Undo
+        // every rotation between the two: the node sits in its planet LOD,
+        // in the 'new planet' group, under planetTilt (Planet.load).
+        const parentRel = this._tmpQuat.identity()
+        for (let o = system.parent; o && o !== system.orbitPosition && !o.orbit; o = o.parent) {
+          parentRel.premultiply(o.quaternion)
+        }
+        system.quaternion.copy(parentRel.invert()).multiply(this.moonQuat)
       } else {
         let angle
         if (name === 'earth') {
