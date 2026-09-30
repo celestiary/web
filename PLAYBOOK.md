@@ -167,6 +167,16 @@ the timing and exposed it.
 unhandled error attributed to an unrelated file is usually a timer from an
 earlier one.
 
+### A test's hand-built scene graph must match the app's
+
+The Moon's orientation test built orbitPosition → planetTilt → node and
+passed, while in the app the spun node sits two levels below planetTilt
+(inside its planet LOD), so the tilt was applied twice.  Reading the chain
+of `parent`s in the browser (`page.evaluate`) found it in one run.
+
+**Rule:** before writing a test that mirrors the scene graph, print the
+real ancestor chain from the running app and copy it.
+
 ### Test code belongs in test files, not one-off shell scripts
 
 When debugging a codec, the instinct is to run a quick `bun -e "..."` snippet to verify
