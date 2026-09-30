@@ -319,6 +319,16 @@ describe('Celestiary permalink restore', () => {
     // Relative error on alt (large absolute value)
     expect(alt / PL.alt).toBeCloseTo(1, 3)
   })
+
+  it('gives a body a depth-tested far point', () => {
+    // The body's LOD (Planet.newPlanet): mesh, then its point, then nothing.
+    const lod = app.scene.objects['earth'].parent
+    expect(lod.isLOD).toBe(true)
+    const farPoint = lod.levels[1].object
+    expect(farPoint.name).toBe('far point')
+    expect(farPoint.material.depthTest).toBe(true)
+    expect(farPoint.material.depthWrite).toBe(false)
+  })
 })
 
 

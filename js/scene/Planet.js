@@ -20,6 +20,7 @@ import {
 import Object from './object.js'
 import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
+import {newFarPoint, pointSwitchDistance} from './farPoint.js'
 import {
   point,
   sphere,
@@ -37,9 +38,6 @@ import {capitalize, named} from '../utils.js'
 // Earth's city lights, as rendered before tone mapping: what 5e15 came to
 // under the old fixed exposure (3e-16).
 const NIGHT_LIGHT = 1.5
-
-// Radii out to which a body is drawn as a mesh; a point beyond.
-const POINT_AT_RADII = 500
 
 // A label's depth, in radii toward the eye from the body's centre.
 const LABEL_LIFT = 1.1
@@ -231,19 +229,7 @@ export default class Planet extends Object {
     }
     planet.add(placeholder)
 
-    const farPoint = point({
-      // Moons dimmer: many sit by their planet's point.
-      color: isMoon ? 0x808080 : 0xffffff,
-      size: isMoon ? 1 : 2,
-      sizeAttenuation: false,
-      blending: AdditiveBlending,
-      depthTest: false,
-      depthWrite: false,
-      transparent: true,
-      // A marker, not a lit surface: tone mapping at the target-keyed
-      // exposure (~1e-17) made it black.
-      toneMapped: false,
-    })
+    const farPoint = newFarPoint(isMoon)
 
     const farDist = surfaceRadius * 3e2
     const labelTooNearDist = surfaceRadius * 3e1
@@ -256,7 +242,7 @@ export default class Planet extends Object {
     // 640 px): a sub-pixel mesh, lit at its albedo, fades to nothing.  (It
     // was 10 AU, when a fixed, blown-out exposure kept sub-pixel meshes
     // bright.)  CesiumLayers.meshRange reads this too.
-    planetLOD.addLevel(farPoint, surfaceRadius * POINT_AT_RADII)
+    planetLOD.addLevel(farPoint, pointSwitchDistance(surfaceRadius))
     planetLOD.addLevel(FAR_OBJ, pointTooFarDist)
 
     const labelLOD = new LOD()
