@@ -72,7 +72,12 @@ measure.js later.
 
 ### Time — `jd` (days from J2000.0)
 
-`d2000 = JD − 2451545.0` where JD is the Julian Day number.
+`d2000 = JD − 2451545.0` where JD is the Julian Day number, on the simulation's UTC clock
+(`Time.toJulianDay`: the Unix epoch is JD 2440587.5 exactly).
+
+Links made before that constant was fixed (it was 2440587.500169, 14.6 s ahead) restore
+the clock 14.6 s later than they showed.  The JD is the one they saved, so the bodies and the
+view come back where they were.
 
 VSOP87 planetary theory uses T = d2000 / 36525 (Julian centuries from J2000), so this is the
 natural time axis for the simulator.  4 decimal places ≈ 8-second precision, more than adequate

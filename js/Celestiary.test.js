@@ -8,7 +8,7 @@
  * Mocked: ThreeUI (no WebGL), ControlPanel, Keys, Loader (filesystem),
  *         scene/SpriteSheet (no canvas), vsop (fixed coordinates).
  */
-import {beforeAll, describe, expect, it, mock} from 'bun:test'
+import {afterAll, beforeAll, describe, expect, it, mock} from 'bun:test'
 import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
 import {encodePermalink} from './permalink.js'
@@ -252,6 +252,10 @@ describe('Celestiary permalink restore', () => {
     await new Promise((resolve) => setTimeout(resolve, 50))
   })
 
+  // The debounced permalink update (1 s) would otherwise fire during a later
+  // test file and read whatever Shared.targets.cur that file left behind.
+  afterAll(() => clearTimeout(app._permalinkTimer))
+
   it('cancels the GoTo navigation tween (no animation)', () => {
     expect(Shared.targets.tween).toBeNull()
   })
@@ -328,6 +332,8 @@ describe('Scene.goTo navigation', () => {
     )
     await new Promise((resolve) => setTimeout(resolve, 50))
   })
+
+  afterAll(() => clearTimeout(app2._permalinkTimer))
 
   // Bring the scene back to a clean, known state before each navigation test.
   // Camera world position is set to a non-trivial value so position-preservation

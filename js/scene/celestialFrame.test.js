@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import {Matrix4, Vector3} from 'three'
-import {gmstRad, J2000_JD} from './celestialFrame.js'
+import {gmstRad, J2000_JD, ttMinusUtcSeconds, utcToTtJulianDay} from './celestialFrame.js'
 
 
 // Conversion helpers — kept local so the test independently re-derives any
@@ -184,5 +184,44 @@ describe('Earth orientation chain (tilt + spin)', () => {
     const ncp = new Vector3(0, Math.cos(eps), -Math.sin(eps))
     const angleDeg = Math.acos(Math.min(1, oldPole.dot(ncp))) * toDeg
     expect(angleDeg).toBeGreaterThan(20) // ≈ 2ε, well clear of 0
+  })
+})
+
+
+describe('ttMinusUtcSeconds', () => {
+  it('is 32.184 s + the leap seconds since 1972', () => {
+    // 2000-01-01: TAI − UTC = 32 s.  2026: 37 s (since 2017-01-01).
+    expect(ttMinusUtcSeconds(2451544.5)).toBeCloseTo(64.184, 6)
+    expect(ttMinusUtcSeconds(2461313.1)).toBeCloseTo(69.184, 6)
+    // 1980-06-01: 19 s.
+    expect(ttMinusUtcSeconds(2444391.5)).toBeCloseTo(51.184, 6)
+  })
+
+
+  it('follows the Espenak-Meeus ΔT polynomials before 1972', () => {
+    // Their values at the segment origins: 1800 13.72 s, 1900 −2.79 s,
+    // 1950 29.07 s.
+    const jdOfYear = (y) => 2451544.5 + ((y - 2000) * 365.25)
+    expect(ttMinusUtcSeconds(jdOfYear(1800))).toBeCloseTo(13.72, 2)
+    expect(ttMinusUtcSeconds(jdOfYear(1900))).toBeCloseTo(-2.79, 2)
+    expect(ttMinusUtcSeconds(jdOfYear(1950))).toBeCloseTo(29.07, 2)
+  })
+
+
+  it('is continuous (≤ 1 s) across every segment boundary, 1972.0 included', () => {
+    // A jump of 11.7 s at 1972 moved the Moon ~6″.  Leap seconds after
+    // 1972 step by 1 s by definition and aren't boundaries here.
+    const jdOfYear = (y) => 2451544.5 + ((y - 2000) * 365.25)
+    const eps = 1e-6
+    for (const y of [-500, 500, 1600, 1700, 1800, 1860, 1900, 1920, 1941, 1961, 1972]) {
+      const before = ttMinusUtcSeconds(jdOfYear(y - eps))
+      const after = ttMinusUtcSeconds(jdOfYear(y + eps))
+      expect(Math.abs(after - before)).toBeLessThan(1)
+    }
+  })
+
+
+  it('utcToTtJulianDay adds it in days', () => {
+    expect((utcToTtJulianDay(2461313.1) - 2461313.1) * 86400).toBeCloseTo(69.184, 3)
   })
 })

@@ -86,6 +86,8 @@ export default class Planet extends Object {
     // Attaching this property triggers orbit of planet during animation.
     // See animation.js#animateSystem.
     orbitPosition.orbit = this.props.orbit
+    // For bodies whose orbit line Animation re-lays each frame (the Moon).
+    orbitPosition.orbitShape = orbitShape
 
     const planetTilt = this.scene.newGroup(`${this.name}.planetTilt`)
     orbitPosition.add(planetTilt)

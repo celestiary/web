@@ -12,8 +12,9 @@ changes, say what replaced it and why.
 
 ## Where we are
 
-- **Solar system:** planets on VSOP87; the Moon, Pluto and every other
-  moon on flat ecliptic ellipses (the weakest accuracy area; see
+- **Solar system:** planets on VSOP87, the Moon on Meeus's truncated
+  ELP-2000/82; Pluto and every other moon on flat ecliptic ellipses (the
+  weakest accuracy area; see
   [track B](#b-solar-system-accuracy-and-surfaces)).
 - **Surfaces:** Earth, the Moon and Mars swap in place to Cesium's
   globes (terrain, imagery, ground-following zoom and landing), matched in
