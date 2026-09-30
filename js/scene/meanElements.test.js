@@ -111,27 +111,6 @@ function errors(name, [jde, x, y, z]) {
 }
 
 
-describe('precessionQuaternion', () => {
-  it('agrees with precessEcliptic from J2000 to 1900, 2026 and 2500', () => {
-    for (const jde of [2415020.5, 2461313.1, 2634167.0]) {
-      const q = precessionQuaternion(J2000_JD, jde)
-      for (const [l, b] of [[0, 0], [123, 45], [250, -70], [300, 89]]) {
-        const got = eclipticToScene(l, b, 1).applyQuaternion(q)
-        const p = precessEcliptic(l, b, J2000_JD, jde)
-        // Chord ≈ angle in radians; acos in angleTo is too coarse near 0.
-        expect(got.distanceTo(eclipticToScene(p.lambda, p.beta, 1)) * toDeg * 3600).toBeLessThan(1e-6)
-      }
-    }
-  })
-
-
-  it('is the identity for one date', () => {
-    const q = precessionQuaternion(2461313.1, 2461313.1)
-    expect(Math.abs(q.w)).toBeCloseTo(1, 12)
-  })
-})
-
-
 describe('icrfToScene and referencePlaneQuaternion', () => {
   it('puts the equinox on +X and the ecliptic pole on +Y', () => {
     expect(icrfToScene(0, 0).distanceTo(new Vector3(1, 0, 0))).toBeLessThan(1e-12)

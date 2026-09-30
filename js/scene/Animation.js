@@ -26,9 +26,10 @@ export default class Animation {
     this.moonOrbitQuat = new Quaternion
     this._tmpQuat = new Quaternion
     this._tmpVec = new Vector3
-    // Per-frame frame state, from setDate: the date in TT, and the rotation
-    // from the ecliptic of J2000 (mean elements, IAU poles) to the scene's,
-    // of date.
+    // Per-frame date state, from setDate: the Julian Day of the last
+    // animate / animateAtJD, the same in TT, and the rotation from the
+    // ecliptic of J2000 (mean elements, IAU poles) to the scene's, of date.
+    this.jd = null
     this.jde = J2000_JD
     this.precession = new Quaternion
     this._orbitQuat = new Quaternion
@@ -64,6 +65,7 @@ export default class Animation {
    * @param {number} jd Julian Day (UTC)
    */
   setDate(jd) {
+    this.jd = jd
     this.curVsopCoords = vsop87c(jd)
     this.jde = utcToTtJulianDay(jd)
     precessionQuaternion(J2000_JD, this.jde, this.precession)
@@ -93,7 +95,9 @@ export default class Animation {
    */
   animateSystem(system) {
     if (system.preAnimCb) {
-      system.preAnimCb(this.time)
+      // The Julian Day being animated, for callbacks that follow the date
+      // (StellarFrame's precession); animateAtJD's needn't be the clock's.
+      system.preAnimCb(this.time, this.jd)
     }
 
     if (system.pole) {

@@ -16,6 +16,7 @@ import {assertDefined} from '../assert.js'
 import * as Material from './material.js'
 import {FAR_OBJ, STARS_RADIUS_METER, SUN_RADIUS_METER} from '../shared.js'
 import {named} from '../utils.js'
+import {rteCameraLocal} from './rte.js'
 
 
 // > 10k is too much for my old laptop.
@@ -154,26 +155,20 @@ export default class Stars extends Object {
       starPoints.sortParticles = true
       starPoints.renderOrder = 0
       // RTE: update camera-position uniforms every frame so the high/low split
-      // tracks the current camera position in star catalog coordinates.
-      const rtePos = new Vector3()
+      // tracks the current camera position in star catalog coordinates (this
+      // object's local frame: under the StellarFrame, J2000; see rte.js).
+      const camHigh = starsMaterial.uniforms.uCamPosWorldHigh.value
+      const camLow = starsMaterial.uniforms.uCamPosWorldLow.value
       starPoints.onBeforeRender = (renderer, scene, camera) => {
-        camera.getWorldPosition(rtePos)
-        const wg = scene.getObjectByName('WorldGroup')
-        if (wg) {
-          rtePos.sub(wg.position)
-        }
-        const hx = Math.fround(rtePos.x)
-        const hy = Math.fround(rtePos.y)
-        const hz = Math.fround(rtePos.z)
-        starsMaterial.uniforms.uCamPosWorldHigh.value.set(hx, hy, hz)
-        starsMaterial.uniforms.uCamPosWorldLow.value.set(rtePos.x - hx, rtePos.y - hy, rtePos.z - hz)
+        rteCameraLocal(starPoints, camera, camHigh, camLow)
         // Catalog labels sit inside a LOD wrapper; their onBeforeRender is not
         // guaranteed to fire every frame after a WorldGroup rebase.  Update from
         // here instead — starPoints is a direct child of Stars and always renders.
+        // The labels are in the same frame (the LOD and its group are unrotated).
         const lm = this.starLabelSpriteSheet?.sprites?.material
         if (lm) {
-          lm.uniforms.uCamPosWorldHigh.value.set(hx, hy, hz)
-          lm.uniforms.uCamPosWorldLow.value.set(rtePos.x - hx, rtePos.y - hy, rtePos.z - hz)
+          lm.uniforms.uCamPosWorldHigh.value.copy(camHigh)
+          lm.uniforms.uCamPosWorldLow.value.copy(camLow)
         }
       }
       this.add(starPoints)

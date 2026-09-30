@@ -152,21 +152,25 @@ const ARCSEC = toRad / 3600
 const DAYS_PER_CENTURY = 36525
 
 
-// Obliquity of the ecliptic at J2000, as JPL Horizons uses to define its
-// "ecliptic of J2000" from the ICRF equator (84381.448″, IAU 1976).
+// Obliquity of the ecliptic at J2000 as JPL Horizons and the JPL satellite
+// elements use it, to define the "ecliptic of J2000" from the ICRF equator
+// (84381.448″, IAU 1976).
 export const J2000_OBLIQUITY_DEG = 84381.448 / 3600
 
 
 /**
- * Meeus 21.5's angles, in radians: the inclination η of the ecliptic of
- * jdeTo on that of jdeFrom, the longitude Π of its node (in jdeFrom's
- * frame), and the general precession p.
+ * The three angles of ecliptic precession from the mean ecliptic and
+ * equinox of one date to another's (Meeus 21.5, IAU 1976): η, the
+ * inclination of the new ecliptic on the old; Π, the longitude (in the old
+ * frame) of its ascending node on the old; and p, the general precession in
+ * longitude.
  *
- * @param {number} jdeFrom
- * @param {number} jdeTo
- * @returns {{eta: number, bigPi: number, p: number}}
+ * @param {number} jdeFrom Julian Ephemeris Day of the starting frame
+ * @param {number} jdeTo Julian Ephemeris Day of the target frame
+ * @param {object} [target] receives the angles
+ * @returns {{eta: number, bigPi: number, p: number}} radians
  */
-function precessionAngles(jdeFrom, jdeTo) {
+export function eclipticPrecessionAngles(jdeFrom, jdeTo, target = {}) {
   const T = (jdeFrom - J2000_JD) / DAYS_PER_CENTURY
   const t = (jdeTo - jdeFrom) / DAYS_PER_CENTURY
   const eta = (((47.0029 - (0.06603 * T) + (0.000598 * T * T)) * t) +
@@ -175,35 +179,9 @@ function precessionAngles(jdeFrom, jdeTo) {
     (((3289.4789 * T) + (0.60622 * T * T) - ((869.8089 + (0.50491 * T)) * t) + (0.03536 * t * t)) * ARCSEC)
   const p = (((5029.0966 + (2.22226 * T) - (0.000042 * T * T)) * t) +
     ((1.11113 - (0.000042 * T)) * t * t) - (0.000006 * t * t * t)) * ARCSEC
-  return {eta, bigPi, p}
-}
-
-
-const SCENE_Y = new Vector3(0, 1, 0)
-const SCENE_X = new Vector3(1, 0, 0)
-const tmpQuat = new Quaternion
-
-
-/**
- * precessEcliptic as a rotation of the scene frame: it takes a vector in
- * the scene's axes for the mean ecliptic and equinox of jdeFrom to the same
- * vector in jdeTo's.  In ecliptic terms it is Rz(Π + p)·Rx(-η)·Rz(-Π): turn
- * the node of the moving ecliptic to the x-axis, tilt by η, and turn back
- * past the precession in longitude.  The scene's axis remap (ecliptic
- * (x, y, z) → scene (x, z, -y)) turns rotations about ecliptic Z into
- * rotations about scene Y by the same angle, and about ecliptic X into scene
- * X.  E.g. J2000 → the scene's frame (of date) for data referred to J2000.
- *
- * @param {number} jdeFrom Julian Ephemeris Day of the starting frame
- * @param {number} jdeTo Julian Ephemeris Day of the target frame
- * @param {Quaternion} [target]
- * @returns {Quaternion}
- */
-export function precessionQuaternion(jdeFrom, jdeTo, target = new Quaternion) {
-  const {eta, bigPi, p} = precessionAngles(jdeFrom, jdeTo)
-  target.setFromAxisAngle(SCENE_Y, bigPi + p)
-  target.multiply(tmpQuat.setFromAxisAngle(SCENE_X, -eta))
-  target.multiply(tmpQuat.setFromAxisAngle(SCENE_Y, -bigPi))
+  target.eta = eta
+  target.bigPi = bigPi
+  target.p = p
   return target
 }
 
@@ -221,7 +199,7 @@ export function precessionQuaternion(jdeFrom, jdeTo, target = new Quaternion) {
  * @returns {{lambda: number, beta: number}} degrees, lambda in [0, 360)
  */
 export function precessEcliptic(lambdaDeg, betaDeg, jdeFrom, jdeTo) {
-  const {eta, bigPi, p} = precessionAngles(jdeFrom, jdeTo)
+  const {eta, bigPi, p} = eclipticPrecessionAngles(jdeFrom, jdeTo)
   const l0 = lambdaDeg * toRad
   const b0 = betaDeg * toRad
   const a = (Math.cos(eta) * Math.cos(b0) * Math.sin(bigPi - l0)) - (Math.sin(eta) * Math.sin(b0))
@@ -230,4 +208,36 @@ export function precessEcliptic(lambdaDeg, betaDeg, jdeFrom, jdeTo) {
   let lambda = (p + bigPi - Math.atan2(a, b)) / toRad
   lambda = ((lambda % 360) + 360) % 360
   return {lambda, beta: Math.asin(c) / toRad}
+}
+
+
+const X_AXIS = new Vector3(1, 0, 0)
+const Y_AXIS = new Vector3(0, 1, 0)
+const tmpQ = new Quaternion
+const tmpAngles = {eta: 0, bigPi: 0, p: 0}
+
+
+/**
+ * Ecliptic precession between two dates as a rotation in the scene's axes
+ * (X = equinox, Y = north ecliptic pole, Z = −ecliptic Y): the rotation
+ * that takes a direction in the mean ecliptic and equinox of `jdeFrom` to
+ * the same direction in `jdeTo`'s, as {@link precessEcliptic} does for
+ * (λ, β).  E.g. J2000 → date carries the star catalogue into the scene
+ * frame of the planets and the Moon.
+ *
+ * In ecliptic axes it is Rz(Π + p)·Rx(−η)·Rz(−Π): measure longitude from
+ * the node, tilt the old ecliptic onto the new, and measure from the new
+ * equinox.  The scene's axis remap takes a rotation about ecliptic Z (X) to
+ * one about scene Y (X) by the same angle.  Allocates nothing.
+ *
+ * @param {number} jdeFrom Julian Ephemeris Day of the starting frame
+ * @param {number} jdeTo Julian Ephemeris Day of the target frame
+ * @param {Quaternion} [target]
+ * @returns {Quaternion}
+ */
+export function precessionQuaternion(jdeFrom, jdeTo, target = new Quaternion) {
+  const {eta, bigPi, p} = eclipticPrecessionAngles(jdeFrom, jdeTo, tmpAngles)
+  target.setFromAxisAngle(Y_AXIS, bigPi + p)
+  target.multiply(tmpQ.setFromAxisAngle(X_AXIS, -eta))
+  return target.multiply(tmpQ.setFromAxisAngle(Y_AXIS, -bigPi))
 }

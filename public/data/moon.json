@@ -7,7 +7,7 @@
 "mass": "7.34767309E25 g",
 "density": 3.344,
 "radius": "1.7381E6 m",
-"siderealRotationPeriod": 3.144952566E7,
+"siderealRotationPeriod": 2.3605915E6,
 "axialInclination": 1.543,
 "has_locations": true,
 "location": {
@@ -32,7 +32,7 @@
 "longitudeOfPericenter": 0.0,
 "meanLongitude": 0.0,
 "semiMajorAxis": 3.84467E8,
-"siderealOrbitPeriod": 2548108.8
+"siderealOrbitPeriod": 2360591.5
 }
 ,
 "system": []
