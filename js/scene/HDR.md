@@ -328,3 +328,15 @@ Earth from orbit 0.990 in luma (was 0.975, with R/G/B 1.13/0.97/0.74, now
 
 The LDR fallback (`?hdr=0`) matches `main` exactly on the Moon and the star
 field, and shows the sky as the HDR path does.
+
+**Low over the day ground** (found on the preview, on a real GPU): once
+Cesium's Earth was under celestiary's atmosphere pass, the day ground
+washed out below ~40 km, to a yellow glow near the surface.  It did on
+celestiary's own Earth too, on `main`; Cesium's own atmosphere had hidden
+it on that side.  Two causes in the pass, both fixed: the eye-adaptation
+boost covered the ground (over it, from 7.5 km, T was 0.094 instead of
+0.87 / 0.75 / 0.50 in R / G / B), and the in-scatter table's ground slice
+gave every ground ray the horizon's in-scatter (from 16 m the sky term over
+the ground was 2.7 in exposure units, with T 0; now 0.001, with T 0.99).
+See [composition.md](atmos/composition.md) and the `earth-low-land-day`
+parity view.

@@ -444,6 +444,7 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `moon-quarter` | 0.967 | 0.967 / 0.967 / 0.967 | 19.4 / 5.5 |
 | `mars-gibbous` | 0.988 | 1.000 / 0.985 / 0.986 | 9.5 / 1.8 |
 | `earth-low-dusk` | 1.001 | 1.000 / 1.000 / 1.000 | 3.2 / 1.2 |
+| `earth-low-land-day` | 0.939-0.972 | median luma 73-75 on, 77-78 off (was 55, washed out, both) | (no profile) |
 
 Measured after #86's PR A (one HDR buffer; Earth under celestiary's
 atmosphere pass on both sides), with #137's IAU poles (Mars's turned the
@@ -484,6 +485,17 @@ view, and it read 0.967 on main, outside its first tolerance.)
   down for Earth by design (`atmosphere: true`).  The remaining profile
   maximum, from orbit, is one sample where the coast meets the lit limb,
   and moves by several levels between runs.
+- **Earth low over land by day** (`earth-low-land-day`, 7.5 km, Sun 8° up):
+  Cesium's ground is 3-6% darker than celestiary's (its imagery and terrain
+  Lambert against celestiary's texture), under the same haze.  Until #141's
+  fix the atmosphere pass washed the day ground out on both sides alike,
+  which the ratio (1.0) couldn't see, so the view also bounds each render's
+  own median luma (`luma`, 65-90; it read 55).  The eye-adaptation boost
+  covered the ground (T 0.094 over it from 7.5 km), and below 1.3 km the
+  in-scatter table's ground slice gave the ground the horizon's glow; see
+  [composition.md](js/scene/atmos/composition.md).  A 16 m view isn't in
+  the list: at ground level Cesium's tiles never all read loaded, so it
+  never settles.
 - The night side is left out of the ratios (under luma 12), so #93's city
   lights, which only celestiary draws, don't enter them; only the
   profile's dark end sees them.

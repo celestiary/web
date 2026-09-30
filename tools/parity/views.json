@@ -61,7 +61,7 @@
       "region": {"box": [0, 0.6, 1, 1]},
       "profile": null,
       "tolerance": {
-        "ratio": [0.94, 1.01],
+        "ratio": [0.92, 1.01],
         "luma": [65, 90]
       }
     }
