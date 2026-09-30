@@ -98,9 +98,17 @@ tried and dropped.
   - `api.cesium.com` and `assets.ion.cesium.com` (Cesium ion);
   - `trek.nasa.gov` (Moon and Mars mosaics);
   - `eoimages.gsfc.nasa.gov` and `gibs.earthdata.nasa.gov` (Earth).
+  - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
+    Record Horizons results as offline test fixtures with the query that
+    produced them; tests never hit the network.
 
   If one is denied, ask the user to add it to the environment's allowed
   hosts, and carry on with what doesn't need it.
+- **Parallel agents share this machine.** The shared yarn cache can
+  end up corrupt when several installs run at once: if `yarn install`
+  fails on a package's contents, install with a private
+  `--cache-folder`. Don't `kill` browser or server processes you didn't
+  start.
 - **Large assets are fine in the repo**, e.g. the Blue Marble textures
   and tile pyramids. Document how each was built in
   `js/scene/Planet.md`, so it can be rebuilt.
@@ -177,6 +185,10 @@ tried and dropped.
 - **Architecture** goes in DESIGN.md.
 - **Priorities, sequencing and cross-track decisions** go in
   ROADMAP.md; the details of each piece of work go in its issue.
+- **Every PR updates ROADMAP.md for its own change**, in the same PR:
+  mark the issues it closes as done in the track tables, add it to
+  *Done recently*, and move the *Now / Next* items it affects. No
+  separate roadmap PRs.
 - **Cesium layer behaviour** goes in CESIUM.md.
 - **Planet rendering, and texture sources and their recipes**, go in
   `js/scene/Planet.md`.
