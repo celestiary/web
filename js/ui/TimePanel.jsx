@@ -81,7 +81,8 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
 
 /**
  * Either 'real-time', '(paused)' or a friendly ratio of simTime /
- * realTime, e.g. 1 day/s
+ * realTime, e.g. 1 day/s, and '(date limit)' while time holds at a bound
+ * of the supported dates
  *
  * @param {Time} time
  * @param {boolean} isPaused React state
@@ -116,6 +117,10 @@ function updateTimeMsg(time, isPaused) {
   }
   if (isPaused) {
     msg += ' (paused)'
+  }
+  if (time.atLimit) {
+    // Time holds at a bound of the supported dates (Time.js).
+    msg += ' (date limit)'
   }
   return msg
 }

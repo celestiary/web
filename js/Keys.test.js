@@ -29,6 +29,25 @@ describe('Keys', () => {
     expect(cbVUpper).toHaveBeenCalledTimes(1)
   })
 
+  it('dispatches the backtick key, and not while typing in an input', () => {
+    const doc = {activeElement: null}
+    const keys = new Keys({addEventListener: mock(), document: doc})
+    const toggle = mock()
+    keys.map('`', toggle, 'Toggle performance panel')
+
+    keys.onKeyDown({key: '`'})
+    expect(toggle).toHaveBeenCalledTimes(1)
+
+    // The search box (INPUT) and other text fields still take the character.
+    doc.activeElement = {tagName: 'INPUT'}
+    keys.onKeyDown({key: '`'})
+    doc.activeElement = {tagName: 'TEXTAREA'}
+    keys.onKeyDown({key: '`'})
+    doc.activeElement = {tagName: 'DIV', isContentEditable: true}
+    keys.onKeyDown({key: '`'})
+    expect(toggle).toHaveBeenCalledTimes(1)
+  })
+
   it('addAction queues click-only actions visible in keys.actions', () => {
     const keys = new Keys({addEventListener: mock()})
     const fn = mock()

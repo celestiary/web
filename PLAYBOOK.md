@@ -234,6 +234,74 @@ different causes.
 with an independent reference at its own epoch, then away from it, and
 record what was taken as is and what wasn't, next to the data.
 
+### Time one call before choosing a sample count
+
+The orbit lines were planned as "a few hundred VSOP87 samples per
+planet".  One VSOP87C call evaluates all eight planets' full series and
+takes ~2 ms, so that plan was seconds per rebuild.  Timing a call first
+turned the design into a two-body ellipse plus 17 to 33 samples of the
+departure from it, rebuilt a slice per frame.
+
+**Rule:** before a design that calls an ephemeris (or any series) N times,
+time one call in the browser and multiply.
+
+### An osculating element isn't a mean one
+
+The first sampled orbit lines used the osculating ellipse's period as
+their window, and Neptune's line didn't close by 3% of its orbit: the
+heliocentric velocity carries the Sun's own reflex motion (Jupiter's
+pull), which puts the osculating period ~1% off the mean one.  The JSON's
+periods, the fallback, were 0.07% short too: 365-day years.
+
+**Rule:** an ellipse fitted at one instant carries the shape between
+samples, but take periods and rates from mean elements.
+
+### A staleness check that hides visuals flickers under load
+
+The first orbit lines hid a line whose window had passed its body until
+its rebuild finished, and restarted a rebuild whenever the date jumped
+past its window.  Both were right at real-time rates.  At 30 days a
+frame, Mercury's date left its window every two frames while a rebuild
+took four: the line was hidden 199 frames of 200, and the restart meant
+no rebuild ever finished.  The maintainer saw lines "pop in and out" at
+high rates, and smaller steps made it vanish, which is the signature of
+work that can't keep up with its input.  An orbit's shape changes over
+millennia, so the stale line was a fine picture all along.
+
+**Rule:** when derived visuals lag their input, keep drawing the last
+good result and swap in the new one whole; don't hide on staleness.  And
+any "restart on new input" needs a progress guarantee (here: restart at
+most once), or fast input starves it.  Test it with a deterministic clock
+paced by the real cost of the work, at the rates users will reach.
+
+### Test in the units the eye sees
+
+The orbit-line test allowed the body 1e-5 of the orbit's size off its
+line, and passed; close up, Neptune's line ran near its limb and Pluto's
+was 24 radii away.  1e-5 of 6e12 m is 60,000 km.  The error that mattered
+was relative to the body (and the view), and it had two causes a
+float64 test couldn't see alone: chord sag, and float32 on the GPU.  A
+test that emulates the render (float32 vertices through a float32
+model-view, camera at the body) and bounds the miss in body radii failed
+on every planet and on Pluto at once.
+
+**Rule:** state a visual tolerance in what's on screen (pixels, or the
+size of the thing looked at), and compute the check the way the GPU does,
+float32 included.
+
+### Clamp a model's inputs to where it is valid, at the source
+
+Pressing "faster" long enough took the date a million years out, where
+VSOP87's powers of time put the planets 50,000 light-years away, on
+orbit lines that agreed with them.  Nothing was NaN until the Date
+formatter gave up at ±275,000 years, so no guard fired.  The fix clamps
+the clock itself to the ephemerides' range, with finite-value guards
+downstream as a second line of defence.
+
+**Rule:** a series or polynomial model has a validity range; clamp the
+input where it enters (the clock, the permalink parser), and show the
+user when it's held.  Finite-value checks catch only the last symptom.
+
 ### Test across the full planet range, not just Earth
 
 Earth's atmosphere (8 km Rayleigh scale height, mild Mie) is the most forgiving. Mars (3 km

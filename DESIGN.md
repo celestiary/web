@@ -119,7 +119,7 @@ So a PR that adds or changes a dataset previews its own data, and every other PR
   └── Planet (Object3D)
         └── group
               └── orbitPlane
-                    ├── orbit (ellipse Line)
+                    ├── orbit (Line: the sampled path, or an ellipse)
                     └── orbitPosition  ← animation sets position here
                           └── planetTilt
                                 └── 'new planet' (Object3D, unrotated)
@@ -141,10 +141,10 @@ The node Animation spins (the one carrying `siderealRotationPeriod`, and
 (the Moon's, in Animation) composes every rotation up to `orbitPosition`.
 
 `group`, `orbitPlane` and `orbitPosition` are unrotated, so the position
-Animation writes is in the scene's axes relative to the primary. An orbit's
-plane is the rotation of its line (`orbitPosition.orbitShape`), which
-Animation lays each frame for the Moon and for bodies with mean elements;
-the VSOP87 planets' lines stay flat in the ecliptic. `planetTilt` is
+Animation writes is in the scene's axes relative to the primary. The orbit
+line (`orbitPosition.orbitShape`) is a sibling of `orbitPosition`, in the
+same frame, so a body and its line share one transform chain: see
+[Orbit lines](#orbit-lines). `planetTilt` is
 `rotateX(-axialInclination)` for Earth, and points at the IAU pole
 (`planetTilt.pole`) for bodies that have one.
 
@@ -162,16 +162,19 @@ the VSOP87 planets' lines stay flat in the ecliptic. `planetTilt` is
    - `vsop87c(julianDay)` computes heliocentric XYZ for 8 major planets
    - `updateMoon(julianDay)` computes the Moon's geocentric position, orientation and mean orbit (lunarTheory.js)
    - the J2000 → date precession rotation, for the mean elements and IAU poles (`setDate`)
-   - `animateSystem()` recurses the scene graph, setting orbit positions and sidereal rotations
+   - `animateSystem()` recurses the scene graph, setting orbit positions and sidereal rotations, and turning the orbit lines to the date (asking for a rebuild when one is due)
+   - `orbitPaths.pump()` runs queued orbit-line rebuilds, a few milliseconds a frame ([Orbit lines](#orbit-lines))
    - If `targets.track` is set, calls `lookAtTarget()` each frame
 7. Camera-look tween update (`targets.tween`)
 8. `_applyCameraArrowKeys()` — apply held-key pitch/roll last so they always win
 9. Render: the scene into `_sceneRT` (linear, half-float, in exposure units), Cesium's layers composited into it, then the atmosphere pass to the screen, which adds the sky and tone-maps once (PBR Neutral), then the label overlay.  See [HDR pipeline](#hdr-pipeline).
 
+The whole of `renderLoop()` is bracketed by `stats.begin()`/`stats.end()` while the performance panel is showing ([Performance panel](#performance-panel)); hidden, it costs nothing.
+
 ## Orbital Mechanics
 
 - **Major planets** (Mercury–Neptune): VSOP87c theory via the `vsop87` npm package, giving high-accuracy heliocentric ecliptic coordinates
-- **The Moon**: the truncated ELP-2000/82 of Meeus, *Astronomical Algorithms* ch. 47 (`js/scene/lunarTheory.js`), geocentric. Against JPL Horizons from 1950 to 2050 (offline fixture `lunarTheory.horizons.json`) it's within 4.3″ and 4.2 km. Its orientation follows Cassini's laws (Meeus ch. 53: equator inclined 1.54° about the node line, prime meridian toward Earth at the mean longitude), so the near side faces Earth with the real optical libration. The orbit line is the mean ellipse of date (node, inclination, perigee), Earth at the focus.
+- **The Moon**: the truncated ELP-2000/82 of Meeus, *Astronomical Algorithms* ch. 47 (`js/scene/lunarTheory.js`), geocentric. Against JPL Horizons from 1950 to 2050 (offline fixture `lunarTheory.horizons.json`) it's within 4.3″ and 4.2 km. Its orientation follows Cassini's laws (Meeus ch. 53: equator inclined 1.54° about the node line, prime meridian toward Earth at the mean longitude), so the near side faces Earth with the real optical libration. Its orbit line is its path over a sidereal month ([Orbit lines](#orbit-lines)); the mean ellipse of date, which it used to be, misses the Moon by up to a few per cent (evection, variation).
 - **Other moons and Pluto** (#6): Keplerian ellipses from published mean elements (`js/scene/meanElements.js`), with the source, reference plane and epoch in each body's JSON `orbit` block. Details below.
 - **Planet poles**: the planets with moons, and Pluto, carry an IAU WGCCRE `pole` (RA and Dec in ICRF, with linear rates) in their JSON. Animation points `planetTilt`'s +Y at it, precessed to date (`Animation.orientPole`), so the moons' planes and Saturn's rings agree with the drawn equator. Before, `rotateX(-axialInclination)` could only lean a pole toward ecliptic longitude 90°, right for Earth alone: Jupiter's and Saturn's poles were 5° off, Mars's 37°, Neptune's 51°, Uranus's 168°. The prime meridian is still the legacy one-turn-a-day spin (#96). Earth and the Moon keep their own paths.
 
@@ -179,7 +182,7 @@ the VSOP87 planets' lines stay flat in the ecliptic. `planetTilt` is
 
 - **Sources.** The moons: JPL SSD's planetary satellite mean elements (https://ssd.jpl.nasa.gov/sats/elem/, epoch J2000 TDB), a precessing ellipse fitted to each JPL satellite ephemeris. Pluto: Standish's Keplerian elements for approximate positions of the planets, table 1 (1800–2050), ecliptic and equinox of J2000, with rates per century.
 - **Reference planes.** The satellite elements are referred to a plane given by its pole in ICRF: the moon's **Laplace plane** (the plane its orbit precesses about, between the planet's equator and its orbit; the Galileans, Saturn's, Mars's and Neptune's moons) or the planet's **equator** (URA182's Uranian moons and Charon, with the IAU pole). The node Ω is measured from that plane's ascending node on the ICRF equator. So the orbit is Rx(−ε₀)·Rz(α + 90°)·Rx(90° − δ) (plane → ecliptic J2000) · Rz(Ω)·Rx(i)·Rz(ω) (orbit → plane), in scene axes Ry for Rz. ε₀ is 84381.448″ (`celestialFrame.J2000_OBLIQUITY_DEG`), Horizons' definition of the J2000 ecliptic. Saturn's equator is 28° from the ecliptic, so "relative to the ecliptic" against "relative to the equator" is the whole difference for Titan.
-- **To date.** Everything is computed in the ecliptic of J2000 and turned into the scene's frame by `precessionQuaternion(J2000, date)`, once a frame (`Animation.setDate`), at TT. The orbit line gets the same rotation, scale and focus offset as the body (`Animation.layOrbitShape`, shared with the Moon), so it passes through it.
+- **To date.** Everything is computed in the ecliptic of J2000 and turned into the scene's frame by `precessionQuaternion(J2000, date)`, once a frame (`Animation.setDate`), at TT. The orbit line is the same ellipse, laid with the same rotation, scale and focus offset as the body (`Animation.layOrbitShape`), so it passes through it; its unit ellipse is redrawn when e drifts (Pluto's, by Standish's rates).
 - **Precession.** ω and Ω move at constant rates. The table lists the periods as magnitudes; the JSON's `apsidalPeriod` and `nodalPeriod` are signed. Nodes regress on prograde orbits and advance on Triton's retrograde one. Apsides advance, except where a resonance drives them backwards: Io and Europa (Laplace resonance, ϖ̇ = 2n(Europa) − n(Io) = −0.74°/day) and Hyperion (4:3 with Titan).
 - **What the table's period means varies by ephemeris.** `period` with `periodOf`: JUP365's P is the period of the mean anomaly (Io's 1.762732 d, where its sidereal period is 1.769138 d), SAT441's is that of the mean longitude. Each reading was chosen by fitting Horizons, where the other is tens of degrees off within a decade.
 - **Where the table isn't used as is** (each noted in the body's JSON):
@@ -193,6 +196,126 @@ the VSOP87 planets' lines stay flat in the ecliptic. `planetTilt` is
   - A better model per system: Lieske's E5 for the Galileans, TASS 1.7 for Saturn's moons, GUST86 for Uranus's, or the JPL ephemerides themselves.
 - **Bodies without elements** (only the demo descriptors, e.g. `earth-as-moon.json`) keep the old flat ellipse in the ecliptic, centred on the primary.
 
+### Orbit lines
+
+Each orbit line is drawn from the ephemeris its body is placed by, so the
+body sits on it (within 1e-5 of the orbit's size, `orbitPath.test.js`,
+at 1900, 2026 and 2500). Before, every line was a flat ellipse from the
+JSON's a and e, centred on the primary: the planets' had no inclination,
+node or perihelion direction, and sat a·e off centre, so their points
+were visibly off their lines (Mercury by ~10 px in an inner-system view).
+
+- **Planets and the Moon: the sampled path** (`js/scene/orbitPath.js`,
+  `OrbitPath`). One sidereal period of the body's path around its primary,
+  centred on the simulation date, 1001 vertices in a `Line` whose one
+  `BufferGeometry` is rewritten in place. The line is open: a perturbed
+  path doesn't close, and the gap sits opposite the body. It's under 0.2%
+  of the orbit for the planets (Saturn's reaches 0.8% at 2500, the great
+  inequality) and ~1% for the Moon (2,500–5,000 km: evection and the
+  perigee's advance).
+- **Frame.** The samples are in the ecliptic of J2000: each is taken out
+  of the frame of its own date with the inverse of the rotation Animation
+  applies at that date. The line's group is turned by that frame's
+  `this.precession` (J2000 → date), as the mean-element orbits are, so
+  precession never needs a rebuild, and at any date the line passes
+  through the body's position exactly where the samples do.
+- **The Moon** is sampled directly: Meeus 47 costs ~10 µs a call.
+- **Planets** are sparse. VSOP87C evaluates all eight planets in every
+  call, ~2 ms (wasm), so a few hundred samples for eight planets would be
+  seconds. A two-body ellipse osculating the path at the centre date
+  (velocity by central difference) carries the shape; VSOP87C is sampled
+  at even times over the period only for the departure from it, which is
+  interpolated (four-point Lagrange): 17 samples for the terrestrial
+  planets, 33 for Jupiter and Saturn (their mutual perturbations), and at
+  least eight a Jupiter year for the Sun's wobble in heliocentric
+  positions (Uranus 58, Neptune 112).
+  Vertices are even in eccentric anomaly. Earth's path is the Earth–Moon
+  barycentre's, which is smooth, plus its monthly ~4,700 km wobble added
+  per vertex from the lunar theory.
+- **The window is the JSON's `siderealOrbitPeriod`,** not the osculating
+  period: the Sun's reflex velocity puts Neptune's osculating period off
+  by ~1%. The planets' periods were 365-day-year values, 0.07% short;
+  they're now from Standish's mean-longitude rates (JPL approximate
+  positions, table 1), as Pluto's elements are.
+- **Rebuilds** happen when the date has moved 1/50 of a period from the
+  line's centre, or jumped. Rebuilds are generators queued in
+  `Animation.orbitPaths` and run by `pump()` a slice at a time (a VSOP87C
+  call, or 64 vertices) within 4 ms a frame (`FRAME_BUDGET_MS`), or 12 ms
+  while the next line doesn't hold its body at the latest date
+  (`CATCH_UP_BUDGET_MS`: its first build, a jump, or a time rate faster
+  than rebuilds), so none is on the per-frame path. A rebuild costs 20–36
+  VSOP87C calls (~2 ms each, in bun and Chromium alike), 35–60 ms of work
+  in Chromium; Uranus's and Neptune's ~110 and ~200 ms; the Moon's ~5 ms.
+  All nine lines after a jump are ~0.6 s of work, about 50 frames.
+- **A line is never hidden once built**, only before its first build.
+  A path's shape changes over decades to millennia, so the last line
+  stays a good picture until the next is ready, which then replaces it
+  whole: a rebuild writes a scratch array and copies it into the geometry
+  in one step, so a part-built line is never drawn. The first version
+  hid a line whose window had passed its body; at high time rates the
+  date outran the rebuilds (Mercury's is ~4 frames, and at 30 days a
+  frame its 88-day window is passed in 2), so the inner planets' lines
+  flickered, and worse, below.
+- **Always for the latest date.** A queued rebuild takes the latest date
+  asked; one the date no longer needs (time turned back into the line's
+  window) is dropped. A running rebuild whose window won't hold the new
+  date (a jump) restarts for it, **once**: the first version restarted
+  on every such request, so at a date running faster than a rebuild
+  (Mercury at 30 days a frame, any planet at a year a frame) it
+  restarted every frame, never finished, and held up the queue behind
+  it. Now it finishes, and Animation asks again for the date then, so
+  the lines take turns, each at most a couple of rebuilds behind the
+  date (`orbitPath.test.js`, *high time rates and jumps*, with a clock
+  paced by VSOP87C's real cost).
+- **Through the body's centre, close up** (`js/scene/bodyLine.js`,
+  `BodyLine`). Within 1e-3 of the body's radius as the GPU draws it
+  (`orbitPath.test.js`, *as rendered*: float32 vertices through a float32
+  model-view with the camera at the body), for the planets, the Moon,
+  Pluto and the mean-element moons. Two things kept the lines off by up
+  to 0.8 of Neptune's radius and 24 of Pluto's:
+  - **Chord sag.** 1000 segments over an orbit bow inside the curve by up
+    to a·(2π/1000)²/8 ≈ 4.9e-6·a: Earth 740 km, Mars 1,100 km, Neptune
+    22,000 km, Pluto 29,000 km. The 1e-5·a test allowed it. So a fine arc
+    of the same curve (the sparse paths' ellipse plus interpolated
+    departure, no new VSOP87C calls; the Moon's series; the unit ellipse)
+    is spliced in over the body's coarse segment and one each side, at a
+    spacing whose sag is under 2.5e-4 radii (`fineSteps`: Moon 3 steps a
+    segment, Earth 22, Neptune 61, Pluto 256, capped). An interpolated
+    path's small offset from the body's own position is added to the arc,
+    faded out to nothing at its ends, where it joins the coarse vertices
+    exactly.
+  - **float32.** The vertices (in the geometry, and on the GPU with the
+    camera offset) are good to ~6e-8 of their size: ~0.3 radii for Pluto,
+    ~0.01 for Neptune. The coarse line is kept in float64 and written
+    relative to an origin at the body, which the line's `position` puts
+    back (three composes matrices in float64): near the body the numbers
+    are small, and far vertices lose precision only where it's invisible.
+    It's the same problem `rte.js` solves for the stars, solved here on
+    the CPU, as a line has few vertices.
+  - **Cost.** Each frame is a comparison or two per body; the arc and
+    origin are redone when the body leaves its coarse segment, moves
+    1000 radii from the origin, or is 5e-4 radii off the arc: a few
+    hundred curve points and one upload of the drawn range. Lines that
+    need neither (one step a segment, and float32 already fine: most
+    moons) are left as built. For the whole solar system in Chromium
+    (SwiftShader, a loaded machine): 0.06–0.09 ms a frame at real time,
+    0.4–0.5 ms at a day a second, 0.7–1.0 ms at 30 days a frame. Earth's
+    arc is the dearest: its monthly wobble comes from the lunar series,
+    per point.
+  - A new build is spliced around the body at once. Off its window (a
+    stale line after a jump), a line is drawn plain until rebuilt.
+  - The mean-element ellipses are redrawn when e has drifted enough to
+    move them 1e-4 of the body's radius (Pluto's, by Standish's rates).
+- **Non-finite input is refused:** `OrbitPaths.request` ignores a
+  non-finite date, and a build whose samples aren't all finite leaves
+  the last line as it was. Animation skips a frame whose date isn't
+  finite and never sets a non-finite position. Time's clamp
+  ([Frames and time](#frames-and-time)) keeps dates in range in the
+  first place.
+- **Other moons and Pluto** keep their mean-element ellipse of date, laid
+  each frame (`layOrbitShape`): that ellipse is their ephemeris.
+- **Bodies without elements** (demo descriptors) keep the flat ellipse.
+
 ### Frames and time
 
 - **The scene frame is the mean ecliptic and equinox *of date*,** not J2000: VSOP87**C** is the of-date series (VSOP87A is J2000). Checked against Meeus example 25.b: VSOP87C gives the Sun's longitude as 199.9073° at 1992 Oct 13.0 (Meeus: 199.907372°), while VSOP87A gives 200.008°. Meeus ch. 47 is in the same frame, so the Moon's geocentric (λ, β, Δ) goes straight in, with no precession.
@@ -204,6 +327,26 @@ the VSOP87 planets' lines stay flat in the ecliptic. `planetTilt` is
   - **Reading star positions:** raw `star.x/y/z` and the stars' geometry are J2000, the `StellarFrame`'s local frame. Take them to the scene with `Scene.starPosition(star)` (the `WorldGroup` frame) or the stars' `matrixWorld` (world space). `goTo(star)` rebases to `-starPosition(star)`, and re-rebases when the frame turns so the star stays at the origin; picking (`Picker.queryPoints`) takes the ray into the catalogue frame instead of rebuilding its tree. The RTE shaders apply the model rotation (see [RTE interaction](#rte-interaction)).
   - **Checked** against JPL Horizons at 1900, 2026 and 2500 (`StellarFrame.test.js`, offline fixture `StellarFrame.horizons.json`): the Moon's separation from reference stars (their catalogue direction) is within 3.1″ of Horizons', and its place among them within 4.3″. Proper motion, parallax and aberration are left out; proper motion over centuries is a separate refinement.
   - The equatorial grid and Earth's pole use the J2000 obliquity about the equinox of date, i.e. the mean equator of date to within the change in obliquity (47″ a century). `celestialFrame.precessEcliptic` converts coordinates between dates, e.g. to compare with Horizons' J2000 ecliptic vectors.
+- **Supported dates: J2000 ± 6000 Julian years** (JD 260045 to 4643045,
+  about 4000 BC to AD 8000; `Time.SUPPORTED_YEARS_FROM_J2000`). The clock
+  clamps at the source: `Time` holds the date at a bound rather than run
+  past it, `setTime` clamps (and ignores NaN), the time rate is capped at
+  2^40 (~35,000 years a second; 2^1024 is Infinity, and Infinity × a
+  zero frame delta is NaN), and a permalink's `t=` is clamped on decode
+  (a non-finite one makes it invalid). At a bound the rate readout says
+  "(date limit)". Why that range:
+  - VSOP87C here is the full series (the `vsop87` package), documented to
+    1″ over ±4000 years for Mercury to Mars, ±2000 for Jupiter and Saturn,
+    ±6000 for Uranus and Neptune. It's a series in powers of time from
+    J2000 and diverges beyond: evaluated, it's still plausible at ±8000
+    years, puts Jupiter at 7.6 AU at −20,000, thousands of AU out at
+    ±100,000 and ~3 × 10⁹ AU (50,000 light-years) at a million years.
+    Planets and their lines then agree on garbage: the light-year-sized
+    "Lissajous" orbits seen before the clamp.
+  - Meeus 47 (the Moon), the IAU 1976 precession, the ΔT polynomials and
+    the mean elements' rates are fitted over centuries to a few millennia.
+  - A JS `Date` ends at ±8.64e15 ms (±275,000 years); past it the date
+    readout showed NaN, while the clock itself stayed a finite number.
 - **Time:** the simulation clock is UTC. VSOP87C is fed the UTC Julian Day as it is (69 s of ΔT moves Earth ~2000 km). The Moon moves 0.01° in 69 s, so its series gets TT (`celestialFrame.utcToTtJulianDay`: 32.184 s + the leap seconds since 1972, the Espenak–Meeus ΔT polynomials before, continuous across 1972). The UTC Julian Day is `Time.toJulianDay`, with the Unix epoch at JD 2440587.5 exactly (it used to run 14.6 s ahead, ~8″ of lunar motion). After 2017 TT − UTC stays at 69.184 s, right for a UTC clock, but UT1 keeps drifting: Earth rotation for future dates needs UT1 − UTC or a ΔT model.
 
 ## Camera Controls
@@ -340,7 +483,7 @@ scene graph alone.
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
 | Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
 | Saturn rings | Double-sided `RingGeometry` with texture |
-| Orbit paths | `EllipseCurve` → `Line` with additive blending |
+| Orbit paths | `Line` with additive blending: the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
 | Labels | Canvas-rendered `SpriteSheet` compiled to a single `Points` geometry |
 | Asterisms | Line segments loaded from `asterisms-clean.dat` |
 
@@ -454,6 +597,15 @@ Failing to opt in means the user has no way to hide the new element
 short of reloading the page — and `V` (presentation mode) won't be
 truly bare.
 
+## Performance panel
+
+The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click it to cycle the view), for judging frame cost, e.g. on a real GPU.  `ThreeUi.togglePerfPanel()` builds it on the first press (`three/examples/jsm/libs/stats.module.js`, no new dependency) and afterwards only shows or hides it, so startup and the tests never touch the DOM for it.  It's listed in Settings under Info as "Toggle performance panel".
+
+- **Place:** bottom-right, above the fullscreen control: top-left is the search and info panel (its system list can run down the left side), top-right the time controls, bottom-left the settings icons, and bottom-centre the Cesium credits.  It's `position: fixed` at `z-index` 1000 above the canvas, and only its own box takes pointer events.
+- **What it measures:** `Stats.begin()`/`end()` bracket `renderLoop()`, so MS is the CPU time to issue the frame (scene update and GL calls), not GPU time, and FPS is the frame rate the browser delivers.  On a GPU-bound view the FPS drops while MS stays low.  MB only exists in Chromium.
+- **Outside the visibility groups:** it's a developer tool, not a scene or chrome feature, so neither `v` nor `V` hides it.
+- **Typing:** `Keys.onKeyDown` ignores every key while an `INPUT`, `TEXTAREA`, `SELECT` or contenteditable element has focus, so the search box still takes a backtick.
+
 ## State Management (Zustand)
 
 `js/store/useStore.js` composes four slices:
@@ -517,7 +669,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/Celestiary.js` | Top-level controller, keyboard bindings |
 | `js/ThreeUI.js` | Three.js renderer/camera/controls wrapper |
 | `js/Loader.js` | Recursive JSON asset loader |
-| `js/Time.js` | Simulation clock with time-scale control |
+| `js/Time.js` | Simulation clock with time-scale control, clamped to the supported dates (J2000 ± 6000 years) |
 | `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
 | `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment` |
@@ -549,6 +701,8 @@ and the provider extension contract.
 | `js/scene/Animation.js` | VSOP87 + Keplerian orbit/rotation animation |
 | `js/scene/lunarTheory.js` | The Moon: Meeus ch. 47 position, Cassini-law orientation, mean orbit of date |
 | `js/scene/meanElements.js` | Pluto and the moons: mean elements in their reference planes, Kepler's equation, IAU poles |
+| `js/scene/orbitPath.js` | Orbit lines sampled from the planets' and the Moon's ephemerides, and their budgeted rebuilds |
+| `js/scene/bodyLine.js` | An orbit line as drawn: a fine arc around the body and a float64 line written relative to it, so it passes through the body's centre close up |
 | `js/scene/celestialFrame.js` | GMST, TT − UTC, ecliptic precession between dates (coordinates and scene rotation) |
 | `js/scene/StellarFrame.js` | Parent of the J2000 catalogues: precesses them to the simulation date |
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |

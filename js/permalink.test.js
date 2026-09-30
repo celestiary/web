@@ -6,6 +6,7 @@ import {
   encodeSettings,
   pathFromFragment,
 } from './permalink.js'
+import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
 
 
 describe('encodePermalink / decodePermalink round-trip', () => {
@@ -100,6 +101,28 @@ describe('decodePermalink returns null for invalid input', () => {
 
   it('returns null when a number is NaN', () => {
     expect(decodePermalink('sun/earth@NaN,0,0m;t=9233.1234jd;cq=0,0,0,1;fov=45deg')).toBeNull()
+  })
+
+  it('returns null when a number is infinite', () => {
+    expect(decodePermalink('sun/earth@0,0,0m;t=Infinityjd;cq=0,0,0,1;fov=45deg')).toBeNull()
+    expect(decodePermalink('sun/earth@0,0,0m;t=-1e999jd;cq=0,0,0,1;fov=45deg')).toBeNull()
+    expect(decodePermalink('sun/earth@0,0,0m;t=9233jd;cq=0,0,Infinity,1;fov=45deg')).toBeNull()
+  })
+})
+
+
+describe('decodePermalink clamps the time to the supported dates', () => {
+  it('clamps an absurd t= to the bounds', () => {
+    const max = SUPPORTED_DAYS_FROM_J2000
+    for (const [t, d2000] of [['1e9', max], ['1e300', max], ['-3.65e8', -max], [`${max + 1}`, max]]) {
+      const decoded = decodePermalink(`sun/earth@0,0,0m;t=${t}jd;cq=0,0,0,1;fov=45deg`)
+      expect(decoded.d2000).toBe(d2000)
+    }
+  })
+
+  it('keeps a t= in range as it is', () => {
+    const decoded = decodePermalink('sun/earth@0,0,0m;t=-1000000.5jd;cq=0,0,0,1;fov=45deg')
+    expect(decoded.d2000).toBe(-1000000.5)
   })
 })
 
