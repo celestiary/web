@@ -25,14 +25,23 @@
 "equatorialGravity": 1.0,
 "escapeVelocity": 1.0,
 "orbit": {
-"eccentricity": 0.0020,
-"inclination": 1.0,
-"longitudeOfAscendingNode": 1.0,
-"longitudeOfPericenter": 1.0,
-"meanLongitude": 1.0,
-"semiMajorAxis": 4.3591E8,
-"siderealOrbitPeriod": 752187.2112
-}
+    "elements": "JPL SSD planetary satellite mean elements (ssd.jpl.nasa.gov/sats/elem), ephemeris URA182, retrieved 2026-09-30",
+    "referencePlane": "equatorial",
+    "referencePole": {"ra": 257.311, "dec": -15.175},
+    "notes": "referencePole: Uranus's pole, IAU WGCCRE 2015 (Archinal et al. 2018).",
+    "epoch": 2451545.0,
+    "semiMajorAxis": 4.36298E8,
+    "eccentricity": 0.002,
+    "inclination": 0.1,
+    "longitudeOfAscendingNode": 29.5,
+    "argumentOfPericenter": 184.0,
+    "meanAnomaly": 68.1,
+    "period": 8.705869,
+    "periodOf": "meanAnomaly",
+    "apsidalPeriod": 579.928,
+    "nodalPeriod": -1644.649,
+    "siderealOrbitPeriod": 752187.2112
+  }
 ,
 "system": []
 }

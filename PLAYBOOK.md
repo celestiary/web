@@ -207,6 +207,26 @@ is readable, and survives the session.
 
 **Rule:** One-off `bun -e` / `node -e` invocations should become test cases instead.
 
+### Check a published table against the reference at its own epoch
+
+JPL's satellite mean-element table (#6) looked uniform, but wasn't:
+- its period is the mean anomaly's for Jupiter's moons and the mean
+  longitude's for Saturn's;
+- it lists precession periods without signs, while Io's and Europa's
+  apsides regress;
+- Saturn's tabulated ω and M are 60–160° off JPL Horizons at the
+  table's own epoch, while their planes agree;
+- Triton's node period is half the one Neptune's IAU pole model implies.
+
+Each showed up only by comparing with Horizons, first at the epoch, where
+only the angles can be wrong, then decades out, where the rates show.
+Separate the out-of-plane error from the along-track one: they have
+different causes.
+
+**Rule:** before trusting a table of elements or constants, compare it
+with an independent reference at its own epoch, then away from it, and
+record what was taken as is and what wasn't, next to the data.
+
 ### Test across the full planet range, not just Earth
 
 Earth's atmosphere (8 km Rayleigh scale height, mild Mie) is the most forgiving. Mars (3 km

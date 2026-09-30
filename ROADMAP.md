@@ -15,11 +15,13 @@ it and why.
 ## Where we are
 
 - **Solar system:** planets on VSOP87C and the Moon on Meeus's truncated
-  ELP-2000/82 (within ~4″ of JPL Horizons, 1950–2050), both in the
-  ecliptic of date, while the stars are J2000 (0.37° apart in 2026;
-  [#133](https://github.com/celestiary/web/issues/133)). Pluto and every
-  other moon are still on flat ecliptic ellipses (the weakest accuracy
-  area; see [track B](#b-solar-system-accuracy-and-surfaces)).
+  ELP-2000/82 (within ~4″ of JPL Horizons, 1950–2050); Pluto and the other
+  moons on published mean elements in their real orbital planes (Laplace
+  planes or equators), with the planets' IAU poles. The Galileans, Titan
+  and Pluto are within 0.3° of Horizons' planes, and in phase within 3°
+  (Europa, by 2050) and 0.02°. All in the ecliptic of date, the stars
+  included. Body rotation (prime meridians) is still a placeholder
+  ([#96](https://github.com/celestiary/web/issues/96)).
 - **Surfaces:** Earth, the Moon and Mars swap in place to Cesium's
   globes (terrain, imagery, ground-following zoom and landing), matched in
   colour and lighting to celestiary's own bodies. See
@@ -70,14 +72,19 @@ order is a suggestion.
 **Done recently:** the Moon orbit ([#87](https://github.com/celestiary/web/issues/87), PR [#130](https://github.com/celestiary/web/pull/130)); the data policy
 ([#107](https://github.com/celestiary/web/issues/107), PR [#129](https://github.com/celestiary/web/pull/129)); the scripted parity check, `yarn parity`
 ([#105](https://github.com/celestiary/web/issues/105), PR [#134](https://github.com/celestiary/web/pull/134); see [CESIUM.md](CESIUM.md#parity-check)); the Moon's rotation
-and orbital periods in `moon.json` ([#132](https://github.com/celestiary/web/issues/132), PR [#135](https://github.com/celestiary/web/pull/135)); [#86](https://github.com/celestiary/web/issues/86)'s PR A (PR [#141](https://github.com/celestiary/web/pull/141)), one linear
+and orbital periods in `moon.json` ([#132](https://github.com/celestiary/web/issues/132), PR [#135](https://github.com/celestiary/web/pull/135)); the stars in the
+ecliptic of date, one scene frame ([#133](https://github.com/celestiary/web/issues/133), PR [#136](https://github.com/celestiary/web/pull/136)); the other moons' and
+Pluto's orbital planes and elements, and the planets' IAU poles
+([#6](https://github.com/celestiary/web/issues/6), PR [#137](https://github.com/celestiary/web/pull/137)); [#86](https://github.com/celestiary/web/issues/86)'s PR A (PR [#141](https://github.com/celestiary/web/pull/141)), one linear
 HDR buffer and one tone map, the sky in exposure units, and Earth's
 Cesium layer under celestiary's atmosphere ([HDR.md](js/scene/HDR.md)).
 
 **Now**
-1. **The other moons and Pluto** ([#6](https://github.com/celestiary/web/issues/6), in [#112](https://github.com/celestiary/web/issues/112)): real orbital planes and
-   elements, checked against Horizons. Then one scene frame for the
-   solar system and the stars ([#133](https://github.com/celestiary/web/issues/133)).
+1. **Body orientation** ([#96](https://github.com/celestiary/web/issues/96), in [#112](https://github.com/celestiary/web/issues/112)): with the moons' planes ([#6](https://github.com/celestiary/web/issues/6)) and one
+   scene frame ([#133](https://github.com/celestiary/web/issues/133)) done, the IAU prime meridians (the poles landed with
+   #6; every body but Earth and the Moon still spins once a day), with
+   synchronous moons facing their planets. Then Horizons regression tests
+   for every body ([#97](https://github.com/celestiary/web/issues/97)).
 2. **Physically based light and exposure** ([#86](https://github.com/celestiary/web/issues/86), [#109](https://github.com/celestiary/web/issues/109)). The foundation of
    the rendering track. PR A is done (linear half-float scene, one tone
    map, the sky in exposure units, Cesium in the same units); next is PR B:
@@ -134,17 +141,20 @@ surface.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87) (done), [#6](https://github.com/celestiary/web/issues/6), [#133](https://github.com/celestiary/web/issues/133), [#96](https://github.com/celestiary/web/issues/96), [#97](https://github.com/celestiary/web/issues/97), [#132](https://github.com/celestiary/web/issues/132) (done) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
+| [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87) (done), [#6](https://github.com/celestiary/web/issues/6) (done), [#133](https://github.com/celestiary/web/issues/133) (done), [#96](https://github.com/celestiary/web/issues/96), [#97](https://github.com/celestiary/web/issues/97), [#132](https://github.com/celestiary/web/issues/132) (done), [#138](https://github.com/celestiary/web/issues/138), [#139](https://github.com/celestiary/web/issues/139), [#140](https://github.com/celestiary/web/issues/140) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
 | [#113](https://github.com/celestiary/web/issues/113) Surfaces for every body | [#9](https://github.com/celestiary/web/issues/9), [#10](https://github.com/celestiary/web/issues/10), [#43](https://github.com/celestiary/web/issues/43) | data policy for bundled DEMs | [Planet.md](js/scene/Planet.md), [CESIUM.md, ground](CESIUM.md#camera-and-light-coupling) |
 
-The orbit gap is structural: `Animation.js` moves non-planets on
-ellipses in the ecliptic, and the code that would tilt their orbital
-planes is commented out in `Planet.js` because it also rotated the
-VSOP-driven planets. The Moon now has its own theory and orbital frame
-([#130](https://github.com/celestiary/web/pull/130)), with an offline JPL Horizons fixture test; [#6](https://github.com/celestiary/web/issues/6) does the same for the
-other moons and Pluto, and [#97](https://github.com/celestiary/web/issues/97) extends the Horizons tests to every body.
-The scene is in the ecliptic of date and the stars are J2000; [#133](https://github.com/celestiary/web/issues/133)
-puts them in one frame.
+The orbit gap is closed: the Moon has its own theory and orbital frame
+([#130](https://github.com/celestiary/web/pull/130)), and Pluto and the other moons follow published mean elements
+in their Laplace planes or equators, precessed to date, with offline JPL
+Horizons fixture tests ([#6](https://github.com/celestiary/web/issues/6); see DESIGN.md [mean elements](DESIGN.md#mean-elements-pluto-and-the-moons)). Mean
+elements leave phase errors of a few degrees over decades for the
+resonant Galileans, and tens of degrees for Mars's, Uranus's and
+Neptune's moons, whose tabulated periods or epoch angles are too coarse:
+a per-system theory (Lieske E5, TASS, GUST86) or the JPL ephemerides is
+the refinement. [#97](https://github.com/celestiary/web/issues/97) extends the Horizons tests to every body, and [#96](https://github.com/celestiary/web/issues/96) turns
+the bodies to their IAU prime meridians. The whole scene, stars
+included, is in the ecliptic of date ([#133](https://github.com/celestiary/web/issues/133)).
 
 ### C. Catalogues and external data
 
