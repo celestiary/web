@@ -520,7 +520,10 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `earth-ridge-day` | ridge over valley ground, on: luma 0.971, blue/red 0.992 (was 0.69 and 2.24, sky over the ridge) | (no off comparison) | (no profile) |
 | `mars-low-horizon` | 0.952 over the ground; median luma 42.0 on, 43.8 off | (no profile) | (no profile) |
 | `mars-low-horizon-band` | horizon band over the sky above it, on: luma 0.801, blue/red 1.038 (was 0.484 and 0.901, ground with the stars through it) | (no off comparison) | (no profile) |
-| `mars-near-ridge` | the rows on the sphere's horizon line across a near ridge, over the ridge below them, on: luma 1.069, blue/red 1.040 (was 1.114 and 1.093, a seam through the ridge) | (no off comparison) | (no profile) |
+| `mars-near-ridge` | the rows on the sphere's horizon line across a near ridge, over the ridge below them, on: luma 1.069, blue/red 1.040 (was 1.114 and 1.093, a seam through the ridge); 1.078 / 1.038 since the exact step integral (#145) | (no off comparison) | (no profile) |
+| `mars-below-datum-band` | from 658 m under the datum, away from the Sun: the band between the terrain's horizon and the horizontal over the sky above it, on: luma 0.792, blue/red 1.113 (#145; the band flickered black on a real GPU before it) | (no off comparison) | (no profile) |
+| `mars-below-datum-sunward` | the same spot facing the Sun, the band on the right over the sky above it, on: 0.996 / 1.000 (#145) | (no off comparison) | (no profile) |
+| `earth-dead-sea-band` | from 16 m under the datum at the Dead Sea, the band (two rows) over the sky above it, on: 0.985 / 0.914 (#145) | (no off comparison) | (no profile) |
 
 Measured after #86's PR A (one HDR buffer; Earth under celestiary's
 atmosphere pass on both sides), with #137's IAU poles (Mars's turned the
