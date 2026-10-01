@@ -150,7 +150,7 @@ export default class CesiumLayers {
       store.setLayerBody(near)
     }
     this._now = performance.now()
-    const wanted = (name) => isCesiumBody(name) && bodyLayer(store?.bodyLayers, name) === 'cesium'
+    const wanted = (name) => this._wanted(name)
     this._preload(target, wanted)
     const active = []
     const warming = []
@@ -440,6 +440,39 @@ export default class CesiumLayers {
   groundHeight(node) {
     const a = this.active.find((x) => x.node === node)
     return a ? this.bodies[a.name]?.groundHeight ?? null : null
+  }
+
+
+  /**
+   * Whether the terrain height under the camera is still to come: the
+   * body's Cesium layer is wanted (isCesiumBody, and chosen) and hasn't
+   * failed, and no height is known yet (the layer is loading, or loaded
+   * but not active until its tiles for the view are in).  The camera's
+   * ground floor (ThreeUI._keepAboveGround) waits for it instead of lifting
+   * a camera restored below the sphere (a permalink from Valles Marineris,
+   * or the Dead Sea) to the sphere, where it then stayed, hundreds of
+   * metres over the ground, once the terrain came in.
+   *
+   * @param {object} node A body's rotating node
+   * @returns {boolean}
+   */
+  groundPending(node) {
+    const name = node?.props?.name
+    if (!name || !this._wanted(name) || this.groundHeight(node) !== null) {
+      return false
+    }
+    return this.bodies[name]?.status !== 'error'
+  }
+
+
+  /**
+   * @param {string} name
+   * @returns {boolean} Whether the body's Cesium layer is to be drawn: the
+   *   body has one on offer (isCesiumBody) and the user's choice for it, or
+   *   the default, is Cesium
+   */
+  _wanted(name) {
+    return isCesiumBody(name) && bodyLayer(this.ui.useStore?.getState()?.bodyLayers, name) === 'cesium'
   }
 
 

@@ -212,6 +212,48 @@ already did that occlusion; the test only had to be on for the write.
 **Rule:** when a pass that draws a body gains a depth test, look at the
 body with lines and points behind it, not only at what the test was for.
 
+### Don't let a shader decide a boundary it was handed a point on
+
+The atmosphere pass clamped gap rays to the sphere's horizon, then the
+table encode decided which side of the horizon the ray was on by
+recomputing the horizon from `r` (`r² − rG²`, with most of its bits gone
+a metre over a 3,000 km sphere in float32) and comparing.  The clamped ray
+sat exactly on that boundary, so the side was rounding: SwiftShader's put
+it in the sky rows (bright haze), the user's GPU in the ground slice's
+zero rows (black), frame by frame ("flickering horizon").  Nudging the
+clamp 0.006° to the ground side reproduced the black in the sandbox.  The
+fix decides the side once, from the ray's geometry, and passes it in.
+**Rule:** when code clamps a value to a boundary, no later stage may
+re-derive that boundary and classify the value against it; carry the
+side along.  And when a bug shows on the user's GPU and not in the
+sandbox, look for a comparison at a boundary.
+
+### Extend a table's domain by integrating outside it, not by moving the eye
+
+The tables cover the shell from the ground sphere up.  For an eye below
+the sphere (Cesium's terrain under a datum), #141 lifted the eye to the
+sphere, which put its horizon within float32 noise of the rays clamped
+to it (above), and would have moved the sky with the eye.  Treating the
+table's lower bound like its upper one, marching the ray to where it
+enters the domain and looking the table up there, needed no special case
+and is continuous at the sphere (±5 m renders agree to 0.001).  **Rule:**
+when a precomputed table's domain doesn't contain the ray's start,
+integrate to the domain's boundary and hand over there, the same way at
+every boundary.
+
+### A quaternion from text isn't unit
+
+The permalink writes the camera quaternion to four decimals, and the
+restore set it as it was; three's `compose` doesn't normalize, so the
+camera's world matrix carried a scale of 0.99999 and the atmosphere
+pass saw the planet's centre 30-80 m too far: a camera 16 m under the
+Dead Sea's datum read as 61 m over it, so the below-sphere path never
+ran there.  Found by reading the pass's eye altitude back and comparing
+it with the camera's.  **Rule:** normalize a quaternion that came from
+serialized or rounded numbers before using it, and when two readings of
+one quantity disagree by parts per million at planetary scale, suspect a
+scale in a matrix chain.
+
 ---
 
 ## Testing

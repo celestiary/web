@@ -732,15 +732,22 @@ export default class ThreeUi {
    * along the surface, a landing tween, arrow keys), lift it back to
    * GROUND_CLEARANCE_M over the ground under it, radially from the target's
    * centre.  Over Cesium terrain the camera rides over hills and mountains;
-   * over celestiary's sphere it stays just over the sphere.
+   * over celestiary's sphere it stays just over the sphere.  Not while the
+   * terrain's height under the camera is still to come from a Cesium layer
+   * (CesiumLayers.groundPending): a permalink restored below the sphere
+   * (Valles Marineris, the Dead Sea) was lifted to the sphere before the
+   * tiles were in, and stayed there, hundreds of metres over the ground.
    */
   _keepAboveGround() {
     const targetObj = this._homeBody()
     if (!targetObj?.props?.radius || (this.arController && this.arController.isActive())) {
       return
     }
-    const floor = groundRadius(targetObj.props.radius.scalar, this.layers.groundHeight(targetObj)) +
-      GROUND_CLEARANCE_M
+    const groundHeight = this.layers.groundHeight(targetObj)
+    if (groundHeight === null && this.layers.groundPending(targetObj)) {
+      return
+    }
+    const floor = groundRadius(targetObj.props.radius.scalar, groundHeight) + GROUND_CLEARANCE_M
     this._zoomEye.subVectors(this.camera.position, this.controls.target)
     const dist = this._zoomEye.length()
     if (dist > 0 && dist < floor) {

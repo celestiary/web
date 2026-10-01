@@ -232,7 +232,7 @@ export default class Celestiary {
               // because that path leaves the camera in an orbit-relative
               // frame, but landed cq is body-relative.
               this.scene.land(tObj.props.name, pl.lat, pl.lng, pl.alt, {instant: true})
-              this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w)
+              this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
             } else {
               // Orbit-style restore: scene.goTo() has already rebased
               // WorldGroup + reparented platform to the target body, so
@@ -248,7 +248,7 @@ export default class Celestiary {
                   planetWorldQuat, platformWorldQuat,
               )
               this.ui.camera.position.copy(camPos)
-              this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w)
+              this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
             }
             // Permalink restore takes precedence over any pending goTo animations.
             Shared.targets.tween = null

@@ -283,12 +283,19 @@ describe('Celestiary permalink restore', () => {
     expect(app.camera.fov).toBeCloseTo(PL.fov, 2)
   })
 
-  it('restores camera orientation (quaternion)', () => {
+  it('restores camera orientation (quaternion), normalized', () => {
+    // The permalink writes cq to 4 decimals, so the saved quaternion isn't
+    // quite unit; set as it is, it scaled the camera's matrix (three's
+    // compose doesn't normalize), and the atmosphere pass then saw the
+    // planet's centre 30-80 m farther than it was: a camera 16 m under the
+    // Dead Sea's datum read as 61 m over it.
     const q = app.camera.quaternion
-    expect(q.x).toBeCloseTo(PL.quat.x, 3)
-    expect(q.y).toBeCloseTo(PL.quat.y, 3)
-    expect(q.z).toBeCloseTo(PL.quat.z, 3)
-    expect(q.w).toBeCloseTo(PL.quat.w, 3)
+    const n = Math.hypot(PL.quat.x, PL.quat.y, PL.quat.z, PL.quat.w)
+    expect(q.x).toBeCloseTo(PL.quat.x / n, 6)
+    expect(q.y).toBeCloseTo(PL.quat.y / n, 6)
+    expect(q.z).toBeCloseTo(PL.quat.z / n, 6)
+    expect(q.w).toBeCloseTo(PL.quat.w / n, 6)
+    expect(q.length()).toBeCloseTo(1, 9)
   })
 
   it('places camera at saved altitude above Earth', () => {

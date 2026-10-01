@@ -44,15 +44,84 @@ its ground rows: at the horizon the filter blended the brightest
 in-scatter with the dimmest, and that band came out darker than the sky
 above it.
 
-When the eye itself is below the sphere (low over Mars, or under a Cesium
-datum anywhere), the tables have no rows for it: they start at the ground
-radius, and the lookups clamped into the ground slice, whose ground rows
-are 0.  The sky pixels look up from the sphere straight above the eye (and
-keep the transmittance lookup four rows clear of the horizon, which from
-the sphere is within a row or two of straight across in that table); the
-surface's march starts at the eye itself; heights below the sphere count
-at the sphere's density, as the tables do (a ground mesh's faces sag
-inside its sphere, and denser air there doubled the haze from 37 km).
+## The tables' domain, and rays that start outside it
+
+The tables cover the shell between the ground sphere (`rG`, the body's
+radius) and the atmosphere's top (`rA`).  The pass composes every ray from
+one rule: **the part of a ray outside the shell is integrated by the pass
+itself, and the table takes over where the ray enters the shell.**  From
+orbit that is the ray's entry at the top (`entryPos`, as it always was).
+From an eye **below the sphere**, which Cesium's terrain allows (Valles
+Marineris is 4-7 km under Mars's datum, the Dead Sea 430 m under Earth's),
+it's the segment from the eye to where the ray leaves the sphere, marched
+(`marchSegment`), then the table from that point: there the ray points
+outward, a sky ray with `mu ≥ 0`, well inside the sky rows.  Its
+in-scatter is the march's plus the table's through the march's
+transmittance, and its transmittance the product.  At the sphere itself the
+segment vanishes and the two cases meet.
+
+Nothing is moved to make that work.  #141 had lifted the eye to the sphere
+and looked up from there, which put the eye's horizon within float32 noise
+of the rays clamped to it (below), and those flickered black on a real GPU
+(the user's screenshots: a black band at the horizon on Mars and a black
+wedge at the Dead Sea, "flickering horizon issues").  Nor is the table's
+ground lowered to a body's deepest terrain: from orbit the table's rays
+would then run 8 km past the real sphere through the densest air, tripling
+Mars's disc haze unless cut, which is the cut #141 rejected.  Nor is the
+atmosphere measured from the terrain under the camera (`rG` lowered by the
+ground height there): the sky would then change with the ground under the
+camera, a cliff edge away.
+
+Surface pixels take the march from the eye where it is, as before (above).
+Heights below the sphere count at the sphere's density, as the tables do: a
+ground mesh's faces sag inside its sphere, and `e^(−h/H)` below it doubled
+the haze from 37 km (#141); physically the air under a datum is denser, by
+about `e^(δ/H_pressure)`, 1.8× at the floor of Hellas, but the Mie scale
+height is a look, not the pressure's, and would give 10×.  A knob for
+later.
+
+**Which side of the horizon a table lookup is on is decided once, from the
+ray's geometry** (`underHorizon`: from above the sphere the ray meets it
+ahead; from below, it heads down into it), and passed to the encode.  The
+encode used to decide for itself by comparing `mu_v` with the horizon's
+cosine recomputed from `r` (`r² − rG²`, which loses most of its bits a
+metre over a 3,000 km sphere), so a ray clamped to the horizon could land
+on either side from one frame to the next.  The ground side of the ground
+slice is zero, so that was the black: 0.006° to the ground side of the
+clamp, the band's in-scatter drops from 2.14 to 0.06 (SwiftShader rounds
+the other way, and shows the haze; the user's GPU doesn't).
+
+**Gap pixels** (nothing drawn where the ray goes under the horizon: holes
+in a ground mesh; the band between Cesium's terrain's horizon, under the
+datum, and the sphere's) get the horizon's haze, the ray clamped to the
+horizon as a sky ray, with no transmittance.  From below the sphere the
+clamp is to the horizontal ray from the eye, which leaves the sphere where
+the horizon ray from just above it would: the limit as the eye crosses the
+sphere.  A body beyond the atmosphere seen under the sphere's horizon (the
+Moon over the Dead Sea's far shore) takes the same horizon ray, with its
+transmittance.
+
+**The march integrates each step exactly** for its density
+(`stepIntegral`, shared with the in-scatter precompute): the sunlight
+reaching the step, through the ray's transmittance so far, times
+`(1 − e^(−σ·ds)) / σ`.  Summing `e^(−τ)` at the end of each step, as both
+did, lost 11% of each step at Mars's horizon (the table's 5.8 km steps at
+ground density) and a third of a 280 km ground-level segment's; from below
+the sphere a segment to the sphere's exit is 66 km at the sphere's density
+for an eye 658 m under it, and a step of that lost most of its light.
+
+## Probing the pass
+
+`uDebug` on the pass's material writes its intermediates instead of the
+pixel, as raw floats, for a float render target: 1 the transmittance, 2
+the sky (exposure units), 3 `(depthSample, tMax, flags)` with flags 1 gap,
+2 beyond the atmosphere, 4 marched surface, 8 eye below the sphere, 16
+under the horizon, 4 the in-scatter sample (Rayleigh rgb, Mie a), 5 the
+ray's zenith cosine at the eye, the Sun's, and the eye's altitude.  In a
+page: set it, render `ui._atmScene` with `ui._atmCamera` into a
+`FloatType` target, `readRenderTargetPixels`.  Read a column of numbers
+down a feature (the band at the horizon), not a picture: every cause in
+#141 and here was found that way.
 
 `scene` is the linear HDR scene buffer, in exposure units (1.0 is a white
 Lambertian surface lit by the Sun at the exposure target, before

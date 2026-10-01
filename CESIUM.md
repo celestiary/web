@@ -165,7 +165,15 @@ camera move (pan, tween, keys) the camera is lifted back to 1 m over it
 them.  Landing on a place adds the terrain height there
 (`groundHeightAt`).  The height over the sphere is the height over
 Cesium's ellipsoid, since the camera keeps the same height over both
-(`frames.ellipsoidCameraPosition`).
+(`frames.ellipsoidCameraPosition`).  While the height is still to come
+(the layer is wanted and loading, or loaded but without tiles for the
+view yet: `groundPending`), the floor waits rather than lift the camera
+to the sphere: a permalink from under a datum (Valles Marineris is 4-7 km
+under Mars's, the Dead Sea 430 m under Earth's) was lifted to the sphere
+before the tiles were in and stayed there, hundreds of metres over the
+ground, so the user's below-datum views never restored (they zoomed back
+down each time).  Until the tiles are in, a camera under the sphere sees
+celestiary's sky over the horizon's haze (composition.md).
 
 Lighting: celestiary's Sun is at the world origin. Its direction in the
 body frame, mapped to ECEF, drives a Cesium `DirectionalLight` and
@@ -253,7 +261,12 @@ relates to real time.
   without depth, the pass takes that band for a gap in the ground and
   draws the horizon's haze there.  A pixel whose terrain is too far to
   encode gets the sphere's depth from the decode itself.  A camera below
-  the datum is the atmosphere pass's to handle (composition.md).  A float or 16-bit depth from Cesium would do better than 8 bits:
+  the datum is the atmosphere pass's to handle: it marches the ray to
+  where it leaves the sphere and takes the tables from there, and the
+  band between the terrain's horizon and the sphere's is the horizon's
+  haze on the sky side of the tables by construction, not by rounding
+  (composition.md, "The tables' domain"; on a real GPU it flickered black
+  while that was rounding).  A float or 16-bit depth from Cesium would do better than 8 bits:
   portal-netgl could expose the host object a guest texture replays to
   (Cesium's globe depth texture), or give screen draws a depth attachment
   of their own (its "guest-private depth" roadmap item).

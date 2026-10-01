@@ -13,6 +13,27 @@ import {
 
 
 /**
+ * GLSL `vec3 stepIntegral(vec3 sigma, float ds)`: the integral over a step
+ * of length ds (metres) of e^(−sigma·s), per channel, for a constant
+ * extinction sigma (per metre): (1 − e^(−sigma·ds)) / sigma, or ds where
+ * sigma·ds is too small for that quotient to be exact in float32.  With it
+ * a march's in-scatter is exact for the step's density, however thick the
+ * step: summing e^(−τ) at the end of each step (the first cut) lost 11% of
+ * each step's in-scatter at Mars's horizon, and a third of a 280 km
+ * ground-level segment's.  Shared by the in-scatter precompute and the
+ * atmosphere pass's segment march, so the two agree where they meet.
+ */
+export const STEP_INTEGRAL_GLSL = `
+vec3 stepIntegral(vec3 sigma, float ds) {
+  vec3 od = sigma * ds;
+  vec3 exact = (1.0 - exp(-od)) / max(sigma, vec3(1.0e-30));
+  vec3 series = ds * (1.0 - 0.5 * od);
+  return mix(exact, series, step(od, vec3(1.0e-3)));
+}
+`
+
+
+/**
  * Precomputes Bruneton transmittance LUT T(r, μ_sun) for the given atmosphere.
  *
  * Returns a 256×256 FloatType WebGLRenderTarget whose texture stores:
@@ -221,6 +242,8 @@ uniform sampler2D tTransmittance;
 #define R_SLICES        64
 #define INSCATTER_STEPS 128
 
+${STEP_INTEGRAL_GLSL}
+
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
   float a = dot(rd, rd);
   float b = 2.0 * dot(rd, r0);
@@ -297,16 +320,14 @@ void main() {
 
   vec3  totalRlh = vec3(0.0);
   float totalMie = 0.0;
-  float iOdRlh   = 0.0;
-  float iOdMie   = 0.0;
+  // The ray's transmittance so far, per channel.
+  vec3  T = vec3(1.0);
 
   for (int i = 0; i < INSCATTER_STEPS; i++) {
     vec3  iPos    = eyePos + rayDir * (iTime + iStepSize * 0.5);
     float iHeight = max(length(iPos) - uGroundRadius, 0.0);
-    float odRlh   = exp(-iHeight / uRayleighScaleHeight) * iStepSize;
-    float odMie   = exp(-iHeight / uMieScaleHeight) * iStepSize;
-    iOdRlh += odRlh;
-    iOdMie += odMie;
+    float dRlh    = exp(-iHeight / uRayleighScaleHeight);
+    float dMie    = exp(-iHeight / uMieScaleHeight);
 
     // Shadow: transmittance LUT lookup from iPos toward sun.
     // The transmittance LUT encodes only atmospheric opacity; it does NOT
@@ -328,9 +349,15 @@ void main() {
                     mu_s * 0.5 + 0.5)).rg;
     }
 
-    vec3  attn = exp(-(uMieCoeff*(iOdMie + jOd.g) + uRayleigh*(iOdRlh + jOd.r)));
-    totalRlh  += odRlh * attn;
-    totalMie  += odMie * attn.r;   // grayscale Mie (kMie is wavelength-independent)
+    // The step's in-scatter: its density times the sunlight reaching it,
+    // through the ray's transmittance so far and the step's own, integrated
+    // exactly over the step (stepIntegral).
+    vec3  sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r));
+    vec3  sigma = uRayleigh * dRlh + vec3(uMieCoeff * dMie);
+    vec3  w     = T * sunT * stepIntegral(sigma, iStepSize);
+    totalRlh  += dRlh * w;
+    totalMie  += dMie * w.r;   // grayscale Mie (kMie is wavelength-independent)
+    T         *= exp(-sigma * iStepSize);
     iTime     += iStepSize;
   }
 
