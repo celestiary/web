@@ -19,6 +19,7 @@ import {
 } from 'three'
 import {NEUTRAL_GLSL, sceneReferred} from '../hdr.js'
 import {sphere} from '../shapes'
+import {STEP_INTEGRAL_GLSL} from './AtmospherePrecompute.js'
 
 
 /**
@@ -368,6 +369,9 @@ export function newAtmospherePass() {
       // the renderer's current exposure: 1 when the planet is the exposure
       // target (exposure.js skyExposure; HDR.md).
       uSkyExposure: {value: 1.0},
+      // A probe (composition.md, "Probing the pass"): 0 renders; 1 to 5
+      // write the pass's intermediates as raw floats, for a float target.
+      uDebug: {value: 0.0},
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
@@ -422,6 +426,7 @@ uniform float     uAtmEnabled;
 uniform float     uAtmStrength;
 uniform float     uHdr;
 uniform float     uSkyExposure;
+uniform float     uDebug;
 
 #define PI        3.141592
 #define I_STEPS   64
@@ -460,19 +465,27 @@ vec2 transmittanceUV(float r, float mu_s, float rG, float rA) {
 
 // Bruneton horizon-aware mu_view encode (inverse of bruneton_decode_mu_v in precompute).
 // Concentrates atlas rows near the local horizon where scatter changes fastest.
-float bruneton_encode_mu_v(float r, float mu_v, float rG, float rA) {
-  float rho  = sqrt(max(0.0, r*r - rG*rG));
-  float H    = sqrt(max(0.0, rA*rA - rG*rG));
-  float mu_h = (r > 0.0) ? -rho/r : 0.0;
-  if (mu_v >= mu_h) {
-    float disc = max(0.0, r*r*mu_v*mu_v - r*r + rA*rA);
+// ground says which side of the horizon the ray is on (it meets the ground
+// sphere ahead, or not): the caller decides it once, from the ray's
+// geometry, so a ray clamped to the horizon itself (a gap in the ground)
+// lands in the sky rows by construction.  Deciding it here, by comparing
+// mu_v with the horizon's cosine recomputed from r (r² − rG² loses most of
+// its bits in float32 a metre over a 3,000 km sphere), put such rays on
+// either side from one frame to the next, and the ground side of the ground
+// slice is zero: a black band flickered at the horizon on Mars and at the
+// Dead Sea, on a real GPU (SwiftShader happened to round the other way).
+float bruneton_encode_mu_v(float r, float mu_v, float rG, float rA, bool ground) {
+  float rho  = sqrt(max(0.0, (r - rG) * (r + rG)));
+  float H    = sqrt(max(0.0, (rA - rG) * (rA + rG)));
+  if (!ground) {
+    float disc = max(0.0, r*r*mu_v*mu_v + (rA - r) * (rA + r));
     float d    = -r*mu_v + sqrt(disc);
     float dMin = rA - r;
     float dMax = rho + H;
     float u    = (dMax > dMin) ? (dMax - d) / (dMax - dMin) : 1.0;
     return 0.5 + 0.5*clamp(u, 0.0, 1.0);
   } else {
-    float disc = max(0.0, r*r*mu_v*mu_v - r*r + rG*rG);
+    float disc = max(0.0, r*r*mu_v*mu_v - rho * rho);
     float d    = -r*mu_v - sqrt(disc);
     float dMin = r - rG;
     float dMax = rho;
@@ -484,7 +497,7 @@ float bruneton_encode_mu_v(float r, float mu_v, float rG, float rA) {
 // Trilinear in-scatter atlas lookup.
 // Atlas: 64 r-slices × 32 μ_sun steps = 2048px wide, 512 μ_view steps tall.
 // Manual r-slice blend; GPU handles μ_sun/μ_view bilinear within each slice.
-vec4 sampleInScatter(float r, float mu_view, float mu_sun) {
+vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground) {
   float r_t    = clamp((r - uGroundRadius) / (uAtmosphereRadius - uGroundRadius), 0.0, 1.0);
   float r_f    = r_t * (R_SLICES - 1.0);
   float r0     = floor(r_f);
@@ -492,14 +505,14 @@ vec4 sampleInScatter(float r, float mu_view, float mu_sun) {
   float rBlend = fract(r_f);
 
   float mu_s_t = mu_sun  * 0.5 + 0.5;
-  float mu_v_t = bruneton_encode_mu_v(r, mu_view, uGroundRadius, uAtmosphereRadius);
+  float mu_v_t = bruneton_encode_mu_v(r, mu_view, uGroundRadius, uAtmosphereRadius, ground);
   // Keep a sky ray in the sky rows and a ground ray in the ground rows: at
   // the horizon (v = 0.5) the filter blended the horizon's in-scatter, the
   // brightest, with a ground ray's, the dimmest, and a ray clamped to the
   // horizon (a gap in the ground, isGap) drew a dark band there: low over
   // Cesium's Mars, between its terrain's horizon and the sphere's.
   const float ROW_HALF = 0.5 / 512.0;  // half a row (atlas 512 rows tall)
-  mu_v_t = mu_v_t >= 0.5 ? max(mu_v_t, 0.5 + ROW_HALF) : min(mu_v_t, 0.5 - ROW_HALF);
+  mu_v_t = ground ? min(mu_v_t, 0.5 - ROW_HALF) : max(mu_v_t, 0.5 + ROW_HALF);
 
   // Each tile is (atlasWidth / R_SLICES) = 2048/64 = 32 texels wide.
   // Clamp mu_s_t half a texel inward from each tile edge so the GPU bilinear
@@ -516,29 +529,32 @@ vec4 sampleInScatter(float r, float mu_view, float mu_sun) {
 
 vec2 rsi(vec3 r0, vec3 rd, float sr);
 
+${STEP_INTEGRAL_GLSL}
+
 // Single scattering (as the in-scatter table stores it: Rayleigh rgb
 // already times its coefficients, Mie in a) and transmittance along the view
-// ray from the eye to a surface tMax away, by a march, as
+// ray from the eye to a point tMax away, by a march, as
 // AtmospherePrecompute integrates the table: each step's sunlight through
-// the transmittance table.  Heights below the ground sphere (Cesium's
-// terrain under a datum, a camera there, and the faces of a ground mesh,
-// which sag inside its sphere) count at the sphere's density, as the tables
-// do: e^(−h/H) below it put five times Earth's Mie density at the bottom of
-// the ground sphere's 2 km sag and doubled the haze from 37 km.
+// the transmittance table, and the step's own extinction integrated exactly
+// for its density (a segment from an eye below the sphere to where its ray
+// leaves it can be 100 km of ground-density air, and a step of that at the
+// end-of-step attenuation lost a third of the in-scatter).  Heights below
+// the ground sphere (Cesium's terrain under a datum, a camera there, and the
+// faces of a ground mesh, which sag inside its sphere) count at the sphere's
+// density, as the tables do: e^(−h/H) below it put five times Earth's Mie
+// density at the bottom of the ground sphere's 2 km sag and doubled the
+// haze from 37 km.
 void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 T) {
   float ds = tMax / float(SEG_STEPS);
   vec3  totalR = vec3(0.0);
   float totalM = 0.0;
-  float odR = 0.0;
-  float odM = 0.0;
+  T = vec3(1.0);
   for (int i = 0; i < SEG_STEPS; i++) {
     vec3  pos = eye + dir * ((float(i) + 0.5) * ds);
     float r   = length(pos);
     float h   = max(r - uGroundRadius, 0.0);
-    float dR  = exp(-h / uRayleighScaleHeight) * ds;
-    float dM  = exp(-h / uMieScaleHeight) * ds;
-    odR += dR;
-    odM += dM;
+    float dR  = exp(-h / uRayleighScaleHeight);
+    float dM  = exp(-h / uMieScaleHeight);
     vec2  jOd;
     vec2  pPlanet = rsi(pos, uSunDirection, uGroundRadius);
     if (r >= uGroundRadius && pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) {
@@ -547,12 +563,14 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 T) {
       jOd = texture2D(tTransmittance,
           vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rg;
     }
-    vec3 attn = exp(-(uMieCoeff * (odM + jOd.g) + uRayleigh * (odR + jOd.r)));
-    totalR += dR * attn;
-    totalM += dM * attn.r;
+    vec3 sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r));
+    vec3 sigma = uRayleigh * dR + vec3(uMieCoeff * dM);
+    vec3 w     = T * sunT * stepIntegral(sigma, ds);
+    totalR += dR * w;
+    totalM += dM * w.r;
+    T *= exp(-sigma * ds);
   }
   inS = vec4(uRayleigh * totalR, uMieCoeff * totalM);
-  T   = exp(-(uRayleigh * odR + vec3(uMieCoeff * odM)));
 }
 
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
@@ -689,22 +707,17 @@ void main() {
 
   // ── Phase 2: in-scatter LUT path (no loops, smooth) ──────────────────────
   if (uUseInScatterLUT > 0.5) {
-    // Below the ground sphere (a camera low over Cesium's Mars, whose
-    // terrain is mostly under the datum; Earth's Dead Sea), the tables have
-    // no rows: they start at the ground radius, and the lookups clamp into
-    // the ground slice, whose ground rows are 0, which went dark.  Look up
-    // from the sphere instead, straight above: the air between is the
-    // densest, but a few km of it, and the segment march below counts it.
-    float rEye = length(eyePos);
-    // The camera where it is, for the surface's segment (below).
-    vec3  eyeTrue = eyePos;
-    bool  eyeLifted = rEye < uGroundRadius + 1.0;
-    if (eyeLifted) {
-      eyePos *= (uGroundRadius + 1.0) / max(rEye, 1.0);
-    }
-    // Use the ray's atmosphere entry point as the LUT index.
-    // When camera is inside atmosphere: t_entry=0 → entryPos=eyePos (camera).
-    // When camera is outside: t_entry=p.x → entryPos on atmosphere sphere.
+    // The tables cover the shell from the ground sphere to the atmosphere's
+    // top.  Where a ray starts outside it, the pass gets it there itself and
+    // looks the table up from where it enters: from above, at the
+    // atmosphere's top (entryPos); from below the sphere (a camera low over
+    // Cesium's Mars, whose terrain is mostly under the datum, or at the Dead
+    // Sea), by marching the air to where the ray leaves the sphere, then the
+    // table from there, where the ray is a sky ray (it points outward) well
+    // inside the sky rows.  Nothing is moved: the first cut of #141 lifted
+    // the eye to the sphere, which put its horizon within float32 noise of
+    // the rays clamped to it, and those flickered black (see
+    // bruneton_encode_mu_v).
     vec2 pAtm = rsi(eyePos, rayDir, uAtmosphereRadius);
     if (pAtm.x > pAtm.y) {
       // Ray misses atmosphere entirely — pass scene through unchanged.
@@ -721,77 +734,104 @@ void main() {
       gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb);
       return;
     }
-    vec3  entryPos = eyePos + rayDir * t_entry;
-    float r_e  = length(entryPos);
-    vec3  zen  = normalize(entryPos);
-    float mu_v = dot(rayDir, zen);
-    float mu_s = dot(zen, uSunDirection);
-
-    // Gap-pixel fix: at low altitude some pixels have no tessellated surface
-    // but the math ground sphere would block them.  The LUT gives near-zero
-    // scatter for sub-horizon rays (short path to surface), letting stars bleed
-    // through.  For these gap pixels only, clamp mu_v to the local horizon
-    // angle so we use the maximum-path (near-tangent) scatter instead.
-    // For all other pixels (real surface, sky, from-space) mu_v is used as-is.
-    //
-    // Use tMax (linearised depth distance) rather than raw depthSample to
-    // detect background pixels.  When dynamicNear is very small (e.g. 1 m
-    // during descent), the depth buffer is heavily compressed and real surface
-    // pixels at ~10 km get depthSample ≈ 0.9999, falsely triggering the clamp
-    // for the entire visible surface and flooding the screen with horizon haze.
-    // tMax is independent of near-plane compression: background = ~1e15 m,
-    // any in-atmosphere surface << uAtmosphereRadius * 2.
+    float rEye = length(eyePos);
+    bool  eyeBelow = rEye < uGroundRadius;
     // pAtm.x <= 0 means the camera is inside the atmosphere sphere.
-    // Gap pixels only occur at low altitude (camera inside), so skip the
-    // clamp entirely when the camera is outside the atmosphere — otherwise
-    // distant surface pixels (tMax >> uAtmosphereRadius) also trigger it,
-    // blanketing the whole planet in haze from far away.
     bool  insideAtm = (pAtm.x <= 0.0);
-    vec2  tG_ray  = rsi(eyePos, rayDir, uGroundRadius);
-    bool  isGap   = insideAtm
-                    && (tMax > uAtmosphereRadius * 2.0)
-                    && (tG_ray.x > 0.0 && tG_ray.x <= tG_ray.y);
-    // A body drew here (the depth isn't the cleared far plane), beyond the
-    // atmosphere and not behind the ground.
-    bool  beyondAtm = depthSample < 1.0 && tMax > uAtmosphereRadius * 2.0 && !isGap;
-    float mu_horiz = -sqrt(max(0.0, 1.0 - uGroundRadius*uGroundRadius / (r_e*r_e)));
-    float mu_v_lut = isGap ? max(mu_v, mu_horiz) : mu_v;
+    // Nothing drew here (the cleared far plane): sky, or a gap in the ground.
+    bool  background = depthSample >= 1.0;
+    // A body drew here beyond where the ray leaves the atmosphere (the
+    // daytime Moon, the Sun's disc): the whole ray's air is before it.
+    bool  beyondAtm = !background && tMax - tMaxErr > pAtm.y;
+    // A surface drawn inside the atmosphere, seen from inside it:
+    // celestiary's own ground, and Cesium's terrain, which rises above the
+    // sphere and sinks below it.  The air is the segment from the eye to
+    // it, single scattering and transmittance marched along it as the
+    // in-scatter table integrates them (marchSegment), from the camera where
+    // it is.  The table's ray ends at the sphere or the atmosphere's top,
+    // wherever the surface is, and it is linear in mu, coarse at the
+    // horizon: the first cuts of #141 took the table's in-scatter and depth
+    // along the view ray and cut them at the surface, which drew a seam
+    // through near terrain at the sphere's horizon (sky rays above it,
+    // ground rays below), and left the ground under a camera below the
+    // datum without haze.  Sky pixels keep the table.
+    bool  shortRay = insideAtm && !background && !beyondAtm;
+    // The ray's zenith cosine at the eye, and whether it goes under the
+    // sphere's horizon: from above, it meets the sphere ahead; from below,
+    // it heads down into it (every ray from inside leaves the sphere
+    // somewhere, but a downward one only on the far side of the planet).
+    float mu_e = dot(rayDir, eyePos) / rEye;
+    vec2  tG_ray = rsi(eyePos, rayDir, uGroundRadius);
+    bool  underHorizon = eyeBelow ? mu_e < 0.0 : (tG_ray.x > 0.0 && tG_ray.x <= tG_ray.y);
+    // Gap pixels: at low altitude some pixels have no tessellated surface
+    // (sub-pixel holes in the ground mesh; Cesium's terrain below the
+    // datum, the band between its horizon and the sphere's) but the
+    // geometric ground would block them.  They get the horizon's haze: the
+    // ray clamped to the horizon, a sky ray.  Only from inside the
+    // atmosphere: from space, distant surface pixels would trigger it and
+    // blanket the planet in haze.
+    bool  isGap = insideAtm && background && underHorizon;
+    // A body beyond the atmosphere under the sphere's horizon (the Moon
+    // rising over the Dead Sea's far shore, which lies below the sphere)
+    // sees the horizon's air too.
+    bool  atHorizon = underHorizon && (isGap || beyondAtm);
 
-    // In-scatter from atlas (trilinear, no loops)
-    vec4  inS   = sampleInScatter(r_e, mu_v_lut, mu_s);
-    // The table's optical depth along the view ray, to where its ray ends.
-    // Use the same mu_v_lut clamp (horizon angle) so extinction matches
-    // scatter.
-    // From the sphere (the eye lifted to it) the horizon is within a row or
-    // two of straight across in the transmittance table (linear in mu, 256
-    // rows; its first column a few hundred metres up, where the horizon is
-    // lower), and a ground ray's lookup there blended in the horizontal sky
-    // ray's depth, the largest: the terrain at eye level came out black.
-    // Keep the lookup four rows clear of the horizon, on its own side.
-    float mu_t = mu_v_lut;
-    if (eyeLifted) {
-      float mu_hT = -sqrt(max(0.0, 1.0 - uGroundRadius * uGroundRadius / (r_e * r_e)));
-      mu_t = mu_v_lut < mu_hT ? min(mu_v_lut, mu_hT - 4.0 / 256.0) : max(mu_v_lut, mu_hT + 4.0 / 256.0);
-    }
-    vec2 uvT_v    = transmittanceUV(r_e, mu_t, uGroundRadius, uAtmosphereRadius);
-    vec2 odView   = texture2D(tTransmittance, uvT_v).rg;
-    vec3 extVec   = uRayleigh * odView.r + vec3(uMieCoeff * odView.g);
-    // A surface drawn inside the atmosphere (celestiary's own ground, and
-    // Cesium's terrain, which rises above the sphere and sinks below it):
-    // the air is the segment from the eye to it, single scattering and
-    // transmittance marched along it as the in-scatter table integrates
-    // them (marchSegment), from the camera where it is.  The table's ray
-    // ends at the sphere or the atmosphere's top, wherever the surface is,
-    // and it is linear in mu, coarse at the horizon: the first cuts of #141
-    // took the table's in-scatter and depth along the view ray and cut them
-    // at the surface, which drew a seam through near terrain at the
-    // sphere's horizon (sky rays above it, ground rays below), and left the
-    // ground under a camera below the datum without haze.  Sky pixels keep
-    // the table.
-    bool  shortRay = insideAtm && depthSample < 1.0 && !isGap && !beyondAtm && tMax < pAtm.y;
-    vec3  segT = vec3(1.0);
+    vec4  inS;
+    vec3  transmittance;
+    // For the eye-adaptation boost, below: the eye's altitude.
+    float camAlt = rEye - uGroundRadius;
     if (shortRay) {
-      marchSegment(eyeTrue, rayDir, tMax, inS, segT);
+      marchSegment(eyePos, rayDir, tMax, inS, transmittance);
+    } else if (eyeBelow) {
+      // From below the sphere: the ray to where it leaves the sphere, then
+      // the table from there.  A ray under the horizon (a gap, or a body
+      // beyond) counts as the horizontal one from the eye: it leaves the
+      // sphere where that would, the limit of the horizon from just above
+      // the sphere as the eye crosses it.
+      float mu_x = atHorizon ? 0.0 : mu_e;
+      float tExit = -rEye * mu_x + sqrt(max(0.0, rEye * rEye * (mu_x * mu_x - 1.0) + uGroundRadius * uGroundRadius));
+      // The ray's zenith cosine where it leaves the sphere: r·mu there is
+      // the eye's plus the distance travelled.
+      float mu_exit = clamp((rEye * mu_x + tExit) / uGroundRadius, 0.0, 1.0);
+      vec3  zenExit = normalize(eyePos + rayDir * tExit);
+      float mu_sExit = dot(zenExit, uSunDirection);
+      vec4  inSBelow;
+      vec3  tBelow;
+      marchSegment(eyePos, rayDir, tExit, inSBelow, tBelow);
+      vec4  inSAbove = sampleInScatter(uGroundRadius, mu_exit, mu_sExit, false);
+      vec2  odAbove  = texture2D(tTransmittance, transmittanceUV(uGroundRadius, mu_exit, uGroundRadius, uAtmosphereRadius)).rg;
+      inS = inSBelow + vec4(tBelow * inSAbove.rgb, tBelow.r * inSAbove.a);
+      transmittance = tBelow * exp(-(uRayleigh * odAbove.r + vec3(uMieCoeff * odAbove.g)));
+    } else {
+      // Use the ray's atmosphere entry point as the LUT index.
+      // When camera is inside atmosphere: t_entry=0 → entryPos=eyePos (camera).
+      // When camera is outside: t_entry=p.x → entryPos on atmosphere sphere.
+      vec3  entryPos = eyePos + rayDir * t_entry;
+      float r_e  = length(entryPos);
+      vec3  zen  = normalize(entryPos);
+      float mu_v = dot(rayDir, zen);
+      float mu_s = dot(zen, uSunDirection);
+      camAlt = r_e - uGroundRadius;
+      // A ray clamped to the horizon (atHorizon) is a sky ray at the
+      // horizon's cosine; a ray that meets the sphere with the eye outside
+      // the atmosphere (the disc from orbit, holes in it included) is a
+      // ground ray.
+      float mu_horiz = -sqrt(max(0.0, 1.0 - uGroundRadius * uGroundRadius / (r_e * r_e)));
+      float mu_lut = atHorizon ? max(mu_v, mu_horiz) : mu_v;
+      bool  ground = underHorizon && !atHorizon;
+      inS = sampleInScatter(r_e, mu_lut, mu_s, ground);
+      // Extinction via the transmittance LUT along the view ray, to where
+      // its ray ends.  Trust the LUT: at zenith from sea level the
+      // visible-band optical depth is ~0.15, giving ~86% transmittance for
+      // the background (stars, milky way, distant planets).  Earlier revs
+      // forced alpha to ~1 whenever the camera was inside the atmosphere;
+      // that made the day sky look opaque blue but blocked stars on the
+      // night side.  Per channel: dimming red and green by blue's
+      // extinction too (one alpha from the strongest channel, as before)
+      // greyed whatever lay behind — Jupiter's and Venus's cloud decks —
+      // once exposure stopped washing them out.
+      vec2 odView = texture2D(tTransmittance, transmittanceUV(r_e, mu_lut, uGroundRadius, uAtmosphereRadius)).rg;
+      transmittance = exp(-(uRayleigh * odView.r + vec3(uMieCoeff * odView.g)));
     }
     float mu    = dot(rayDir, uSunDirection);
     float mumu  = mu * mu;
@@ -804,19 +844,6 @@ void main() {
                   / ((2.0+pol2) * pow(1.0+pol2 - 2.0*uMiePolarity*mu, 1.5));
     vec3 scattered = uSunIntensity * (pRlh * inS.rgb + vec3(pMie * inS.a));
 
-    // Extinction alpha via transmittance LUT along view ray.
-    // Use the same mu_v_lut clamp (horizon angle) so extinction matches scatter.
-    // Trust the LUT: at zenith from sea level the visible-band optical
-    // depth is ~0.15, giving alpha ~0.14 — i.e. ~86% transmittance for the
-    // background (stars, milky way, distant planets).  Earlier revs forced
-    // alpha to ~1 whenever the camera was inside the atmosphere; that made
-    // the day sky look opaque blue but blocked stars on the night side.
-    // (odView and extVec, above.)
-    // Per channel: dimming red and green by blue's extinction too (one
-    // alpha from the strongest channel, as before) greyed whatever lay
-    // behind — Jupiter's and Venus's cloud decks — once exposure stopped
-    // washing them out.
-    vec3 transmittance = shortRay ? segT : exp(-extVec);
     // Floor it (extinction-alpha capped at 0.92) so horizon-grazing rays at
     // night still let some starlight through (real physics says they
     // shouldn't but the eye adapts; we don't simulate that yet).
@@ -861,7 +888,6 @@ void main() {
     // to scatter, so iris dilation isn't being pushed by ambient
     // brightness — the eye effectively becomes a camera and the LUT
     // extinction alone is correct.
-    float camAlt = r_e - uGroundRadius;
     float atmHeight = uAtmosphereRadius - uGroundRadius;
     float altWeight = clamp(1.0 - camAlt / atmHeight, 0.0, 1.0);
     // Not over a body beyond the atmosphere (the Moon, the Sun, a planet's
@@ -873,7 +899,7 @@ void main() {
     // the boost, which grows as the camera descends (altWeight), hid the
     // day ground under 91% of in-scatter from 7.5 km and all of it near the
     // surface.
-    bool groundDrawn = depthSample < 1.0 && !beyondAtm;
+    bool groundDrawn = !background && !beyondAtm;
     if (insideAtm && !beyondAtm && !groundDrawn) {
       float boostAlpha = smoothstep(lowerBrightBound, upperBrightBound, skyBrightness) * altWeight;
       transmittance = min(transmittance, vec3(1.0 - boostAlpha));
@@ -904,6 +930,17 @@ void main() {
     // irradiance, times the irradiance and the exposure (uSkyExposure), with
     // uSunIntensity as the body's gain over single scattering (HDR.md).
     vec3 sky = scattered * uSkyExposure;
+    if (uDebug > 0.5) {
+      // The probe's intermediates, raw (composition.md).
+      if (uDebug < 1.5) gl_FragColor = vec4(transmittance, 1.0);
+      else if (uDebug < 2.5) gl_FragColor = vec4(sky, 1.0);
+      else if (uDebug < 3.5) gl_FragColor = vec4(depthSample, tMax,
+          (isGap ? 1.0 : 0.0) + (beyondAtm ? 2.0 : 0.0) + (shortRay ? 4.0 : 0.0) + (eyeBelow ? 8.0 : 0.0)
+          + (underHorizon ? 16.0 : 0.0), 1.0);
+      else if (uDebug < 4.5) gl_FragColor = inS;
+      else gl_FragColor = vec4(mu_e, dot(normalize(eyePos), uSunDirection), camAlt, texture2D(tDiffuse, vUv).r);
+      return;
+    }
     gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, sky, transmittance);
     return;
   }

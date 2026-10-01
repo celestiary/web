@@ -19,9 +19,14 @@
  * distance is used from; CesiumLayers).  A step, at the distances in view,
  * is then a few hundred metres to a kilometre or so, and dithering hides
  * it; faster growth (e^(h/8 km) was tried) left steps of ~8 km from 37 km
- * up, which showed as rings of speckle over the ground.  The top levels
- * (from ~5.5 D: 220 km at the ground) read as "farther than that": no
- * depth, where the ground sphere's serves (CesiumLayers' decode).
+ * up, which showed as rings of speckle over the ground.  The top two levels
+ * (254 and 255: from ~5.5 D, 220 km at the ground) both read as "at least
+ * that far" (MAX_U), and decode to a surface there: the pass hazes it as
+ * one, which at that distance is the horizon's haze.  The first cut gave
+ * such a pixel the ground sphere's depth where the ray met it, else the
+ * far plane; from a few metres up a ray under the sphere's horizon meets
+ * it a few hundred metres off, so far mountains at 150-280 km were drawn
+ * as if 170 m away, dark, with dithered edges where the code crossed 254.
  */
 
 
@@ -66,8 +71,10 @@ export function decodeDistance(a, scale) {
 }
 
 
-// The largest encoded fraction decoded: 1 - e^-7, 7 D.
-const MAX_U = 0.999
+// The largest encoded fraction decoded: level 254's, 1 − e^(−5.5), 5.5 D.
+// Level 255 decodes the same, so the dither between the two at the top of
+// the range (half a level of noise) moves nothing.
+const MAX_U = (LEVELS - 2) / (LEVELS - 1)
 
 
 /** GLSL for Cesium's post-process stage: `float encodeDistance(float d, float scale)`. */

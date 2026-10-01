@@ -84,6 +84,7 @@ HDR buffer and one tone map, the sky in exposure units, and Earth's
 Cesium layer under celestiary's atmosphere, hazing Cesium's terrain for
 its own distance ([HDR.md](js/scene/HDR.md)).
 Orbit drag slows with proximity: `rotateScale` turns it by `1 - exp(-alt / R)` of full speed, so a drag moves a similar share of the visible ground at 200 m as at 20,000 km (PR [#144](https://github.com/celestiary/web/pull/144); DESIGN.md [proximity-scaled orbit drag](DESIGN.md#proximity-scaled-orbit-drag)).
+The atmosphere pass from under a body's datum (Valles Marineris, the Dead Sea), one model: a ray from an eye below the ground sphere is marched to where it leaves the sphere and the tables take over there, the horizon side of a lookup is decided once from the ray's geometry (the black band that flickered at the horizon on a real GPU was rounding), the march integrates each step exactly, below-datum permalinks restore (the ground floor waits for Cesium's terrain height), and the restored camera quaternion is normalized (PR #145; [composition.md](js/scene/atmos/composition.md#the-tables-domain-and-rays-that-start-outside-it)).  Mars's sky away from the Sun is as dim as its single-scatter parameters make it (0.04 of a sunlit white surface at the zenith): the two-lobe dust phase function and the sky's gain are #86's PR B.
 
 **Now**
 1. **Body orientation** ([#96](https://github.com/celestiary/web/issues/96), in [#112](https://github.com/celestiary/web/issues/112)): with the moons' planes ([#6](https://github.com/celestiary/web/issues/6)) and one

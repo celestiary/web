@@ -200,6 +200,30 @@ describe('ground height', () => {
     expect(L.groundHeight(moon)).toBe(null)
   })
 
+  it('is pending while a wanted layer has no height yet, not once it has one or has failed', () => {
+    const L = new CesiumLayers({useStore: {getState: () => ({bodyLayers: {}})}})
+    const earth = {props: {name: 'earth'}}
+    // Not loaded yet, loading, and loaded but not active: pending.
+    expect(L.groundPending(earth)).toBe(true)
+    L.bodies.earth = {status: 'loading'}
+    expect(L.groundPending(earth)).toBe(true)
+    L.bodies.earth = {status: 'ready'}
+    expect(L.groundPending(earth)).toBe(true)
+    // Active with a height: known.
+    L.bodies.earth.groundHeight = -400
+    L.active = [{name: 'earth', node: earth}]
+    expect(L.groundPending(earth)).toBe(false)
+    expect(L.groundHeight(earth)).toBe(-400)
+    // Failed: the sphere is the ground.
+    L.active = []
+    L.bodies.earth = {status: 'error'}
+    expect(L.groundPending(earth)).toBe(false)
+    // Not wanted: celestiary's own body is chosen, or the body has no layer.
+    const chosen = new CesiumLayers({useStore: {getState: () => ({bodyLayers: {earth: 'celestiary'}})}})
+    expect(chosen.groundPending(earth)).toBe(false)
+    expect(L.groundPending({props: {name: 'venus'}})).toBe(false)
+  })
+
   it('is sampled no more often than every GROUND_SAMPLE_MS, and only near the surface', () => {
     const L = new CesiumLayers({})
     let height = 0

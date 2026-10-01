@@ -372,7 +372,10 @@ stars through it (T 0.79 over the star field), and with the camera below
 the datum the tables had no rows for the eye and the ground's in-scatter
 went to 0 (the view darkened).  Now Mars carries the distance too, the
 sphere's depth isn't written under a terrain depth (that band is the
-horizon's haze), and the eye is looked up from the sphere when below it.
+horizon's haze), and the eye is looked up from the sphere when below it
+(since replaced: the ray from an eye below the sphere is marched to where
+it leaves the sphere and the table taken from there; composition.md, "The
+tables' domain").
 Parity views `mars-low-horizon` and `mars-low-horizon-band`.
 
 **Mars's near ridges** (found on the preview): a seam ran through near

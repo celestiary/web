@@ -165,7 +165,15 @@ camera move (pan, tween, keys) the camera is lifted back to 1 m over it
 them.  Landing on a place adds the terrain height there
 (`groundHeightAt`).  The height over the sphere is the height over
 Cesium's ellipsoid, since the camera keeps the same height over both
-(`frames.ellipsoidCameraPosition`).
+(`frames.ellipsoidCameraPosition`).  While the height is still to come
+(the layer is wanted and loading, or loaded but without tiles for the
+view yet: `groundPending`), the floor waits rather than lift the camera
+to the sphere: a permalink from under a datum (Valles Marineris is 4-7 km
+under Mars's, the Dead Sea 430 m under Earth's) was lifted to the sphere
+before the tiles were in and stayed there, hundreds of metres over the
+ground, so the user's below-datum views never restored (they zoomed back
+down each time).  Until the tiles are in, a camera under the sphere sees
+celestiary's sky over the horizon's haze (composition.md).
 
 Lighting: celestiary's Sun is at the world origin. Its direction in the
 body frame, mapped to ECEF, drives a Cesium `DirectionalLight` and
@@ -252,8 +260,20 @@ relates to real time.
   Cesium draws nothing, read as ground with the stars through it.  Left
   without depth, the pass takes that band for a gap in the ground and
   draws the horizon's haze there.  A pixel whose terrain is too far to
-  encode gets the sphere's depth from the decode itself.  A camera below
-  the datum is the atmosphere pass's to handle (composition.md).  A float or 16-bit depth from Cesium would do better than 8 bits:
+  encode (the top two levels, 5.5 D and up: 220 km from the ground) is a
+  surface 5.5 D away, hazed as one, which at that distance is the
+  horizon's haze.  The first cut gave it the ground sphere's depth where
+  the ray met it: from 6 m up a ray under the sphere's horizon meets it
+  170 m off, so mountains 150-280 km away on Mars's horizon were drawn
+  dark and near, in fragments with dithered edges where the code crossed
+  into the top level, and more of them as the camera dropped (D shrinks
+  with height; `horizon-terrain-far` in the parity views).  A camera below
+  the datum is the atmosphere pass's to handle: it marches the ray to
+  where it leaves the sphere and takes the tables from there, and the
+  band between the terrain's horizon and the sphere's is the horizon's
+  haze on the sky side of the tables by construction, not by rounding
+  (composition.md, "The tables' domain"; on a real GPU it flickered black
+  while that was rounding).  A float or 16-bit depth from Cesium would do better than 8 bits:
   portal-netgl could expose the host object a guest texture replays to
   (Cesium's globe depth texture), or give screen draws a depth attachment
   of their own (its "guest-private depth" roadmap item).
@@ -507,7 +527,11 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `earth-ridge-day` | ridge over valley ground, on: luma 0.971, blue/red 0.992 (was 0.69 and 2.24, sky over the ridge) | (no off comparison) | (no profile) |
 | `mars-low-horizon` | 0.952 over the ground; median luma 42.0 on, 43.8 off | (no profile) | (no profile) |
 | `mars-low-horizon-band` | horizon band over the sky above it, on: luma 0.801, blue/red 1.038 (was 0.484 and 0.901, ground with the stars through it) | (no off comparison) | (no profile) |
-| `mars-near-ridge` | the rows on the sphere's horizon line across a near ridge, over the ridge below them, on: luma 1.069, blue/red 1.040 (was 1.114 and 1.093, a seam through the ridge) | (no off comparison) | (no profile) |
+| `mars-near-ridge` | the rows on the sphere's horizon line across a near ridge, over the ridge below them, on: luma 1.069, blue/red 1.040 (was 1.114 and 1.093, a seam through the ridge); 1.078 / 1.038 since the exact step integral (#145) | (no off comparison) | (no profile) |
+| `mars-below-datum-band` | from 658 m under the datum, away from the Sun: the band between the terrain's horizon and the horizontal over the sky above it, on: luma 0.792, blue/red 1.113 (#145; the band flickered black on a real GPU before it) | (no off comparison) | (no profile) |
+| `mars-below-datum-sunward` | the same spot facing the Sun, the band on the right over the sky above it, on: 0.996 / 1.000 (#145) | (no off comparison) | (no profile) |
+| `earth-dead-sea-band` | from 16 m under the datum at the Dead Sea, the band (two rows) over the sky above it, on: 0.985 / 0.914 (#145) | (no off comparison) | (no profile) |
+| `horizon-terrain-far` | from 6 m on Mars, mountains 150-280 km off on the horizon (past the distance code's range) over the sky above them, on: 0.992 / 0.996 (#145; before it, dark fragments at the sphere's depth, ~0.2) | (no off comparison) | (no profile) |
 
 Measured after #86's PR A (one HDR buffer; Earth under celestiary's
 atmosphere pass on both sides), with #137's IAU poles (Mars's turned the

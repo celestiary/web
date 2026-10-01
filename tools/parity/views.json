@@ -116,6 +116,60 @@
       "tolerance": {
         "reference": {"luma": [0.95, 1.09], "blueRed": [0.97, 1.05]}
       }
+    },
+    {
+      "id": "mars-below-datum-band",
+      "body": "mars",
+      "description": "Mars from 658 m under its datum in Valles Marineris (the floor is 4.7 km under it), looking away from the Sun: the band between Cesium's terrain's horizon and the horizontal (the region) against the sky above it (the reference), in Cesium's render.  The eye is below the ground sphere, so the pass marches each ray to where it leaves the sphere and takes the tables from there; the band is the horizon's haze, on the sky side of the tables by construction.  With the eye lifted to the sphere and the band's rays clamped to its horizon, the side was float32 rounding, and on a real GPU the band was black (the user's 'flickering horizon')",
+      "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.7343jd;cq=-0.2197,-0.0929,-0.5872,-0.7735;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0.3, 0.753, 0.7, 0.78]},
+      "reference": {"box": [0.3, 0.65, 0.7, 0.717]},
+      "profile": null,
+      "tolerance": {
+        "reference": {"luma": [0.6, 1.1], "blueRed": [0.95, 1.25]}
+      }
+    },
+    {
+      "id": "mars-below-datum-sunward",
+      "body": "mars",
+      "description": "The same spot, facing the Sun: the band on the right between the terrain's horizon and the horizontal (the region) against the bright sky above it (the reference), in Cesium's render.  Here the band read black under a white sky on the user's GPU; it is the horizon's haze, continuous with the sky above and the hazed terrain below",
+      "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.7343jd;cq=0.6053,-0.7873,-0.0884,0.0771;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0.75, 0.55, 0.95, 0.593]},
+      "reference": {"box": [0.75, 0.467, 0.95, 0.527]},
+      "profile": null,
+      "tolerance": {
+        "reference": {"luma": [0.8, 1.05], "blueRed": [0.95, 1.05]}
+      }
+    },
+    {
+      "id": "earth-dead-sea-band",
+      "body": "earth",
+      "description": "Earth from 16 m under its datum at the Dead Sea (the shore is 395 m under it in Cesium's terrain), looking north: the band between the far shore's horizon and the horizontal (the region, a few rows) against the sky just above it (the reference), in Cesium's render.  The user saw a black wedge there; it is the horizon's haze, as on Mars",
+      "hash": "#sun/earth@31.5476,35.5027,-16m;t=9771.0988jd;cq=0.2829,-0.1917,0.0105,0.9397;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0.28, 0.4467, 0.38, 0.4533]},
+      "reference": {"box": [0.28, 0.41, 0.38, 0.44]},
+      "profile": null,
+      "tolerance": {
+        "reference": {"luma": [0.7, 1.1], "blueRed": [0.8, 1.1]},
+        "minPixels": 40
+      }
+    },
+    {
+      "id": "horizon-terrain-far",
+      "body": "mars",
+      "description": "Mars from 6 m, facing the Sun, with mountains 150-280 km off on the horizon: past the terrain distance's encodable range (5.5 D, 220 km from the ground).  The region is where their fragments stood in the first cut, which gave such pixels the ground sphere's depth, 170 m off from 6 m up, so they came out dark and near with dithered edges; the reference is the sky above.  They are a surface at least 5.5 D away, hazed into the horizon like the sky",
+      "hash": "#sun/mars@-8.3522,-77.2993,6m;t=9771.134jd;cq=0.8566,0.4418,0.1698,0.2054;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0.704, 0.48, 0.75, 0.4933]},
+      "reference": {"box": [0.6, 0.40, 0.85, 0.43]},
+      "profile": null,
+      "tolerance": {
+        "reference": {"luma": [0.8, 1.05], "blueRed": [0.95, 1.05]},
+        "minPixels": 40
+      }
     }
   ]
 }

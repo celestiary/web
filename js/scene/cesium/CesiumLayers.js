@@ -33,7 +33,7 @@ import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
 import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
 import {NEUTRAL_GLSL} from '../hdr.js'
-import {DECODE_DISTANCE_GLSL, DISTANCE_LEVELS, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
+import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
 
@@ -150,7 +150,7 @@ export default class CesiumLayers {
       store.setLayerBody(near)
     }
     this._now = performance.now()
-    const wanted = (name) => isCesiumBody(name) && bodyLayer(store?.bodyLayers, name) === 'cesium'
+    const wanted = (name) => this._wanted(name)
     this._preload(target, wanted)
     const active = []
     const warming = []
@@ -281,11 +281,6 @@ export default class CesiumLayers {
     // (_writeGroundDepths) is exact.
     this.decode.material.depthWrite = this._terrainDepth(name)
     u.uDistanceScale.value = this.bodies[name]?.distanceScale ?? 1
-    const node = this.ui.sceneManager?.objects?.[name]
-    if (node) {
-      node.getWorldPosition(u.uBodyCenter.value).applyMatrix4(this.ui.camera.matrixWorldInverse)
-      u.uGroundRadius.value = node.props.radius.scalar
-    }
     u.uProjection.value.copy(this.ui.camera.projectionMatrix)
     u.uProjectionInverse.value.copy(this.ui.camera.projectionMatrixInverse)
     renderer.setRenderTarget(sceneRT)
@@ -440,6 +435,39 @@ export default class CesiumLayers {
   groundHeight(node) {
     const a = this.active.find((x) => x.node === node)
     return a ? this.bodies[a.name]?.groundHeight ?? null : null
+  }
+
+
+  /**
+   * Whether the terrain height under the camera is still to come: the
+   * body's Cesium layer is wanted (isCesiumBody, and chosen) and hasn't
+   * failed, and no height is known yet (the layer is loading, or loaded
+   * but not active until its tiles for the view are in).  The camera's
+   * ground floor (ThreeUI._keepAboveGround) waits for it instead of lifting
+   * a camera restored below the sphere (a permalink from Valles Marineris,
+   * or the Dead Sea) to the sphere, where it then stayed, hundreds of
+   * metres over the ground, once the terrain came in.
+   *
+   * @param {object} node A body's rotating node
+   * @returns {boolean}
+   */
+  groundPending(node) {
+    const name = node?.props?.name
+    if (!name || !this._wanted(name) || this.groundHeight(node) !== null) {
+      return false
+    }
+    return this.bodies[name]?.status !== 'error'
+  }
+
+
+  /**
+   * @param {string} name
+   * @returns {boolean} Whether the body's Cesium layer is to be drawn: the
+   *   body has one on offer (isCesiumBody) and the user's choice for it, or
+   *   the default, is Cesium
+   */
+  _wanted(name) {
+    return isCesiumBody(name) && bodyLayer(this.ui.useStore?.getState()?.bodyLayers, name) === 'cesium'
   }
 
 
@@ -1194,10 +1222,6 @@ function newDecodeMaterial() {
       uDistanceScale: {value: 1},
       uProjection: {value: new Matrix4()},
       uProjectionInverse: {value: new Matrix4()},
-      // The body's centre in view space, and its sphere's radius: the depth
-      // where the terrain is too far to encode.
-      uBodyCenter: {value: new Vector3()},
-      uGroundRadius: {value: 1},
     },
     vertexShader: `
       varying vec2 vUv;
@@ -1212,8 +1236,6 @@ function newDecodeMaterial() {
       uniform float uDistanceScale;
       uniform mat4 uProjection;
       uniform mat4 uProjectionInverse;
-      uniform vec3 uBodyCenter;
-      uniform float uGroundRadius;
       varying vec2 vUv;
       ${NEUTRAL_GLSL}
       ${DECODE_DISTANCE_GLSL}
@@ -1232,17 +1254,14 @@ function newDecodeMaterial() {
         // on (_decodeInto).
         vec4 v = uProjectionInverse * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
         vec3 dir = normalize(v.xyz / v.w);
+        // At the encoding's limit the distance is "at least 5.5 D"
+        // (distance.js MAX_U), and that is the depth: a surface that far,
+        // which the pass hazes as one.  Not the ground sphere's depth where
+        // the ray meets it (the first cut): from a few metres up that is a
+        // few hundred metres off, and far mountains came out dark and near.
         float d = decodeDistance(c.a, uDistanceScale);
-        if (c.a >= ${(DISTANCE_LEVELS - 1).toFixed(1)} / ${DISTANCE_LEVELS.toFixed(1)}) {
-          // At the encoding's limit the distance is only "farther than
-          // 5.5 D": the ground sphere's, where the ray meets it, else none
-          // (the far plane).
-          float b = dot(dir, uBodyCenter);
-          float disc = b * b - dot(uBodyCenter, uBodyCenter) + uGroundRadius * uGroundRadius;
-          d = disc > 0.0 && b - sqrt(disc) > 0.0 ? b - sqrt(disc) : -1.0;
-        }
         vec4 clip = uProjection * vec4(dir * max(d, 1.0), 1.0);
-        gl_FragDepth = d < 0.0 ? 1.0 : clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+        gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
         gl_FragColor = vec4(rgb, 1.0);
       }`,
     blending: CustomBlending,

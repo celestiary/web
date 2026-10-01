@@ -20,8 +20,12 @@ describe('distance encoding', () => {
     expect(encodeDistance(1e12, 2e4)).toBeLessThanOrEqual(1)
   })
 
-  it('stays finite at the top of the range', () => {
+  it('decodes the top two levels alike, to about 5.5 D: a surface that far, not the sphere', () => {
     expect(Number.isFinite(decodeDistance(1, 2e4))).toBe(true)
+    expect(decodeDistance(1, 2e4)).toBe(decodeDistance(254 / 255, 2e4))
+    expect(decodeDistance(1, 2e4) / 2e4).toBeCloseTo(5.54, 2)
+    expect(decodeDistance(253 / 255, 2e4)).toBeLessThan(decodeDistance(1, 2e4))
+    expect(DECODE_DISTANCE_GLSL).toContain(`${(253 / 254).toString().slice(0, 8)}`)
   })
 
   it('grows the scale with height, up to a cap', () => {
