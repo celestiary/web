@@ -359,3 +359,17 @@ The ground itself, from below 20 km, is hazed for its own distance too,
 not the sphere's; over the Ganges plain, where they're the same, the
 four Himalaya views read as before (T and sky within 0.01 across the
 swap), and `earth-low-land-day` holds (0.969).
+
+**Mars's horizon** (found on the preview): Mars's Cesium layer, a
+tileset, didn't carry its terrain's distance (only Earth's globe did), so
+its terrain above the sphere's horizon was drawn as sky (from 232 m: T
+0.004, the full ray's sky over it).  And its terrain lies mostly below
+Mars's datum: the ground sphere's depth, nearer, covered it, so the band
+between the terrain's horizon and the sphere's read as ground with the
+stars through it (T 0.79 over the star field), and with the camera below
+the datum the tables had no rows for the eye and the ground's in-scatter
+went to 0 (the view darkened).  Now Mars carries the distance too, the
+sphere's depth isn't written under a terrain depth (that band is the
+horizon's haze), and the eye is looked up from the sphere when below it.
+Over the ground both sides keep the table's haze to the sphere; parity
+views `mars-low-horizon` and `mars-low-horizon-band`.

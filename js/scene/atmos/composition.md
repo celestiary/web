@@ -51,9 +51,18 @@ above it.
 When the eye itself is below the sphere (low over Mars, or under a Cesium
 datum anywhere), the tables have no rows for it: they start at the ground
 radius, and the lookups clamped into the ground slice, whose ground rows
-are 0, so the whole view went dark at 0 m.  The pass looks up from the
-sphere straight above the eye instead: the air between is a few km of
-the densest, which the tables have no rows for either.
+are 0, so the ground's in-scatter went to 0 and the view darkened
+below 0 m.  The pass looks up from the sphere straight above the eye
+instead (and keeps its transmittance lookup four rows clear of the
+horizon, which from the sphere is within a row or two of straight across
+in that table, linear in `mu`: a ground ray there blended in the
+horizontal sky ray's depth, and terrain at eye level drew black).  The
+ground below the eye then gets the table's ray from the sphere to the
+sphere, next to nothing: its haze is under-counted, the same way the
+table under-counts any terrain below the sphere.  Moving the ground
+radius down to Mars's lowest terrain (Hellas, −8 km) would count it, but
+would remake Mars's atmosphere: the tables, its density at the datum and
+celestiary's own surface's look; left for later.
 
 `scene` is the linear HDR scene buffer, in exposure units (1.0 is a white
 Lambertian surface lit by the Sun at the exposure target, before

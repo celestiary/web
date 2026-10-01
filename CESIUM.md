@@ -490,6 +490,8 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `earth-low-dusk` | 1.001 | 1.000 / 1.000 / 1.000 | 3.2 / 1.2 |
 | `earth-low-land-day` | 0.939-0.972 | median luma 73-75 on, 77-78 off (was 55, washed out, both) | (no profile) |
 | `earth-ridge-day` | ridge over valley ground, on: luma 0.971, blue/red 0.992 (was 0.69 and 2.24, sky over the ridge) | (no off comparison) | (no profile) |
+| `mars-low-horizon` | 0.942 over the ground; median luma 41.7 on, 43.0 off | (no profile) | (no profile) |
+| `mars-low-horizon-band` | horizon band over the sky above it, on: luma 0.695, blue/red 1.018 (was 0.484 and 0.901, ground with the stars through it) | (no off comparison) | (no profile) |
 
 Measured after #86's PR A (one HDR buffer; Earth under celestiary's
 atmosphere pass on both sides), with #137's IAU poles (Mars's turned the
@@ -549,6 +551,13 @@ view, and it read 0.967 on main, outside its first tolerance.)
   blue/red 2.24 of it); now 0.97 and 0.99.  The view stops the clock at
   load (`freeze`): with the clock running while tiles load, the ground
   turned under the camera and each run framed different mountains.
+- **Mars low** (`mars-low-horizon`, 232 m over Coprates, Sun low on the
+  left): Cesium's Mars terrain lies mostly below the datum, under
+  celestiary's sphere.  Over the ground both sides get the table's haze to
+  the sphere (0.942, Cesium's imagery a little darker); the band on the
+  right between the terrain's horizon and the sphere's
+  (`mars-low-horizon-band`) read as ground with the stars through it until
+  #141's Mars fix, and is now the horizon's haze.
 - The night side is left out of the ratios (under luma 12), so #93's city
   lights, which only celestiary draws, don't enter them; only the
   profile's dark end sees them.
