@@ -103,9 +103,13 @@ export default class CesiumLayers {
     this.shellScene.add(this.shell)
 
     // Depth of each Cesium body's ground sphere, for celestiary's
-    // atmosphere pass (see _writeGroundDepths).
+    // atmosphere pass (see _writeGroundDepths).  Tessellated as
+    // celestiary's own planet mesh (Planet.js, 512 × 256): the pass hazes a
+    // surface for its distance, and at 128 × 96 the faces sagged up to 2 km
+    // inside the sphere, which from 37 km read 7% farther than celestiary's
+    // own ground and hazed Cesium's Earth half again as much.
     this.groundScene = new Scene()
-    this.ground = new Mesh(new SphereGeometry(1, 128, 96), new MeshBasicMaterial({
+    this.ground = new Mesh(new SphereGeometry(1, 512, 256), new MeshBasicMaterial({
       colorWrite: false,
       depthWrite: true,
       depthTest: true,
