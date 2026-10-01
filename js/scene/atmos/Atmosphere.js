@@ -427,10 +427,6 @@ uniform float     uSkyExposure;
 #define I_STEPS   64
 #define J_STEPS   8
 #define R_SLICES  64.0
-// How far inside its sphere a ground mesh's faces sag, in its radii: the
-// 128x96 ground sphere CesiumLayers writes the depth of sags ~3e-4 between
-// vertices (2 km on Earth).  A surface deeper than this is below the sphere.
-#define SPHERE_SAG 4.0e-4
 
 ${NEUTRAL_GLSL}
 
@@ -711,47 +707,55 @@ void main() {
 
     // In-scatter from atlas (trilinear, no loops)
     vec4  inS   = sampleInScatter(r_e, mu_v_lut, mu_s);
+    // The table's optical depth along the view ray, to where its ray ends.
+    // Use the same mu_v_lut clamp (horizon angle) so extinction matches
+    // scatter.
+    vec2 uvT_v    = transmittanceUV(r_e, mu_v_lut, uGroundRadius, uAtmosphereRadius);
+    vec2 odView   = texture2D(tTransmittance, uvT_v).rg;
+    vec3 extVec   = uRayleigh * odView.r + vec3(uMieCoeff * odView.g);
     // The table's ray ends at the ground sphere, or leaves the atmosphere.
     // Where a surface was drawn nearer than that (Cesium's terrain over the
     // sphere: a ridge seen from a valley, above the sphere's horizon, where
     // the table's ray would be sky), the air is only the segment up to it:
-    // Bruneton's aerial perspective, S(eye) − T(eye→P)·S(P), with T from a
-    // short march of the segment's optical depth.  Celestiary's own ground
-    // is the sphere, a mesh a little below it, so it never takes this path.
+    // Bruneton's aerial perspective, S(eye) − T(eye→P)·S(P).  Celestiary's
+    // own ground is the sphere, a mesh a little below it, so it never takes
+    // this path; nor does terrain below the sphere (Cesium's Mars, under
+    // its datum), whose ray the table already ends at the sphere, the look
+    // celestiary's own surface there has.
     vec2  pGround = rsi(eyePos, rayDir, uGroundRadius);
     float tEnd    = (pGround.x > 0.0 && pGround.x <= pGround.y) ? pGround.x : pAtm.y;
-    // Or a surface below the sphere (Cesium's terrain under the datum): the
-    // table's ray stops at the sphere, short of it; the segment's T counts
-    // the air down to it.
-    bool  belowSphere = length(eyePos + rayDir * tMax) < uGroundRadius * (1.0 - SPHERE_SAG);
-    bool  shortRay = insideAtm && depthSample < 1.0 && !isGap &&
-                     (tMax + tMaxErr < tEnd - 1.0 || belowSphere);
+    bool  shortRay = insideAtm && depthSample < 1.0 && !isGap && tMax + tMaxErr < tEnd - 1.0;
     vec3  segT = vec3(1.0);
     if (shortRay) {
       vec3  P    = eyePos + rayDir * tMax;
       float r_p  = length(P);
       vec3  zenP = P / r_p;
       vec4  inSP = sampleInScatter(r_p, dot(rayDir, zenP), dot(zenP, uSunDirection));
-      // Beyond the sphere (terrain under the datum), the table's own T up
-      // to the sphere, as celestiary's surface there gets, and the march
-      // only for the rest: the table is linear in mu, coarse at the
-      // horizon, where Mars's ground is seen, and a march from the eye
-      // didn't match it there, which the swap would show.
-      bool  pastSphere = belowSphere && tEnd < tMax;
-      float t0  = pastSphere ? tEnd : t_entry;
+      // T(eye→P): the table's optical depth to the ray's end, times the
+      // share of it that lies before P, from a march of the whole ray.
+      // The table's own depth keeps it the table's look as P nears the
+      // ray's end, celestiary's surface there; a march alone came out far
+      // darker over Mars's ground, where the table (linear in mu, coarse at
+      // the horizon) and a march disagree by up to 4x.
       float odR = 0.0;
       float odM = 0.0;
-      float ds  = (tMax - t0) / 16.0;
+      float odRP = 0.0;
+      float odMP = 0.0;
+      float ds  = (tEnd - t_entry) / 16.0;
       for (int i = 0; i < 16; i++) {
-        float h = max(length(eyePos + rayDir * (t0 + (float(i) + 0.5) * ds)) - uGroundRadius, 0.0);
-        odR += exp(-h / uRayleighScaleHeight) * ds;
-        odM += exp(-h / uMieScaleHeight) * ds;
+        float a = t_entry + float(i) * ds;
+        float h = max(length(eyePos + rayDir * (a + 0.5 * ds)) - uGroundRadius, 0.0);
+        float dR = exp(-h / uRayleighScaleHeight);
+        float dM = exp(-h / uMieScaleHeight);
+        float inP = clamp(tMax - a, 0.0, ds);
+        odR += dR * ds;
+        odM += dM * ds;
+        odRP += dR * inP;
+        odMP += dM * inP;
       }
-      segT = exp(-(uRayleigh * odR + vec3(uMieCoeff * odM)));
-      if (pastSphere) {
-        vec2 odSphere = texture2D(tTransmittance, transmittanceUV(r_e, mu_v, uGroundRadius, uAtmosphereRadius)).rg;
-        segT *= exp(-(uRayleigh * odSphere.r + vec3(uMieCoeff * odSphere.g)));
-      }
+      float fR = odR > 0.0 ? odRP / odR : 1.0;
+      float fM = odM > 0.0 ? odMP / odM : 1.0;
+      segT = exp(-(uRayleigh * odView.r * fR + vec3(uMieCoeff * odView.g * fM)));
       // Mie's in-scatter is grey, attenuated as red (as in the table).
       inS = max(inS - vec4(segT, segT.r) * inSP, vec4(0.0));
     }
@@ -773,9 +777,7 @@ void main() {
     // background (stars, milky way, distant planets).  Earlier revs forced
     // alpha to ~1 whenever the camera was inside the atmosphere; that made
     // the day sky look opaque blue but blocked stars on the night side.
-    vec2 uvT_v    = transmittanceUV(r_e, mu_v_lut, uGroundRadius, uAtmosphereRadius);
-    vec2 odView   = texture2D(tTransmittance, uvT_v).rg;
-    vec3 extVec   = uRayleigh * odView.r + vec3(uMieCoeff * odView.g);
+    // (odView and extVec, above.)
     // Per channel: dimming red and green by blue's extinction too (one
     // alpha from the strongest channel, as before) greyed whatever lay
     // behind — Jupiter's and Venus's cloud decks — once exposure stopped

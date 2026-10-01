@@ -21,27 +21,31 @@ gl_FragColor.rgb = neutralToneMap(sky + scene.rgb * transmittance)
 
 For a pixel whose surface is nearer than where the in-scatter table's ray
 ends (the ground sphere, or the atmosphere's top), the sky is only the air
-up to it: Bruneton's aerial perspective, `S(eye) − T(eye→P)·S(P)`, with
-`T(eye→P)` from a 16-step march of the segment's optical depth, and the
-scene seen through that `T`.  That's Cesium's terrain over celestiary's
-sphere: a ridge seen from a valley, above the sphere's horizon, which the
-table's ray took for sky, and, below the horizon, the ground of any land
-above sea level, which the table hazed as if it were the sphere, farther
-off (#141; Cesium's distance reaches the pass as depth from below 20 km,
-`cesium/distance.js`).  Also a surface *below* the sphere, by more than a
-ground mesh's sag (4e-4 radii): Cesium's Mars, most of whose terrain lies
-under its datum, where the table's ray stops at the sphere, short of the
-ground; `S(P)` there is 0 (a ray from the ground into it), so the sky is
-the table's, and `T` is the table's to the sphere (as celestiary's own
-surface there gets) times a march of the rest, down to the terrain.  Celestiary's own ground is the sphere,
-a mesh a little below it, so it never takes that path.
+up to it: Bruneton's aerial perspective, `S(eye) − T(eye→P)·S(P)`, and the
+scene seen through that `T`.  `T(eye→P)` is the table's optical depth to
+the ray's end times the share of it before `P`, from a 16-step march of
+the ray: the table's own depth, so that as `P` nears the ray's end the
+look is the table's, celestiary's own surface's.  (A march alone was the
+first cut; on Earth it agreed with the table to 0.01, but over Mars's
+ground, seen near the horizon where the table, linear in `mu`, is coarse,
+it came out up to 4x the table's depth, and Cesium's ground far darker
+than celestiary's.)  That's Cesium's terrain over celestiary's sphere: a
+ridge seen from a valley, above the sphere's horizon, which the table's
+ray took for sky, and, below the horizon, the ground of any land above
+the datum, which the table hazed as if it were the sphere, farther off
+(#141; Cesium's distance reaches the pass as depth from below 20 km,
+`cesium/distance.js`).  Terrain below the sphere (most of Cesium's Mars,
+under its datum) doesn't take that path: the table's ray ends at the
+sphere, short of it, the look celestiary's own surface there has.
+Celestiary's own ground is the sphere, a mesh a little below it, so it
+never does either.
 
 When the eye itself is below the sphere (low over Mars, or under a Cesium
 datum anywhere), the tables have no rows for it: they start at the ground
 radius, and the lookups clamped into the ground slice, whose ground rows
 are 0, so the whole view went dark at 0 m.  The pass looks up from the
-sphere straight above the eye instead; the segment march counts the air
-below it (at the datum's density, the most there is in the tables).
+sphere straight above the eye instead: the air between is a few km of
+the densest, which the tables have no rows for either.
 
 `scene` is the linear HDR scene buffer, in exposure units (1.0 is a white
 Lambertian surface lit by the Sun at the exposure target, before
