@@ -156,6 +156,20 @@
         "reference": {"luma": [0.7, 1.1], "blueRed": [0.8, 1.1]},
         "minPixels": 40
       }
+    },
+    {
+      "id": "horizon-terrain-far",
+      "body": "mars",
+      "description": "Mars from 6 m, facing the Sun, with mountains 150-280 km off on the horizon: past the terrain distance's encodable range (5.5 D, 220 km from the ground).  The region is where their fragments stood in the first cut, which gave such pixels the ground sphere's depth, 170 m off from 6 m up, so they came out dark and near with dithered edges; the reference is the sky above.  They are a surface at least 5.5 D away, hazed into the horizon like the sky",
+      "hash": "#sun/mars@-8.3522,-77.2993,6m;t=9771.134jd;cq=0.8566,0.4418,0.1698,0.2054;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0.704, 0.48, 0.75, 0.4933]},
+      "reference": {"box": [0.6, 0.40, 0.85, 0.43]},
+      "profile": null,
+      "tolerance": {
+        "reference": {"luma": [0.8, 1.05], "blueRed": [0.95, 1.05]},
+        "minPixels": 40
+      }
     }
   ]
 }

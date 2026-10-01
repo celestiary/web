@@ -260,7 +260,14 @@ relates to real time.
   Cesium draws nothing, read as ground with the stars through it.  Left
   without depth, the pass takes that band for a gap in the ground and
   draws the horizon's haze there.  A pixel whose terrain is too far to
-  encode gets the sphere's depth from the decode itself.  A camera below
+  encode (the top two levels, 5.5 D and up: 220 km from the ground) is a
+  surface 5.5 D away, hazed as one, which at that distance is the
+  horizon's haze.  The first cut gave it the ground sphere's depth where
+  the ray met it: from 6 m up a ray under the sphere's horizon meets it
+  170 m off, so mountains 150-280 km away on Mars's horizon were drawn
+  dark and near, in fragments with dithered edges where the code crossed
+  into the top level, and more of them as the camera dropped (D shrinks
+  with height; `horizon-terrain-far` in the parity views).  A camera below
   the datum is the atmosphere pass's to handle: it marches the ray to
   where it leaves the sphere and takes the tables from there, and the
   band between the terrain's horizon and the sphere's is the horizon's
