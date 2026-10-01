@@ -40,6 +40,14 @@ sphere, short of it, the look celestiary's own surface there has.
 Celestiary's own ground is the sphere, a mesh a little below it, so it
 never does either.
 
+Where the ray meets the sphere but nothing was drawn (a gap in the
+ground: the band between Cesium's Mars's horizon, under its datum, and
+the sphere's), the pass draws the in-scatter of a ray at the horizon.
+The table's lookups keep a sky ray in its sky rows and a ground ray in
+its ground rows: at the horizon the filter blended the brightest
+in-scatter with the dimmest, and that band came out darker than the sky
+above it.
+
 When the eye itself is below the sphere (low over Mars, or under a Cesium
 datum anywhere), the tables have no rows for it: they start at the ground
 radius, and the lookups clamped into the ground slice, whose ground rows

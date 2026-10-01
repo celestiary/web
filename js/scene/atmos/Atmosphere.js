@@ -492,6 +492,13 @@ vec4 sampleInScatter(float r, float mu_view, float mu_sun) {
 
   float mu_s_t = mu_sun  * 0.5 + 0.5;
   float mu_v_t = bruneton_encode_mu_v(r, mu_view, uGroundRadius, uAtmosphereRadius);
+  // Keep a sky ray in the sky rows and a ground ray in the ground rows: at
+  // the horizon (v = 0.5) the filter blended the horizon's in-scatter, the
+  // brightest, with a ground ray's, the dimmest, and a ray clamped to the
+  // horizon (a gap in the ground, isGap) drew a dark band there: low over
+  // Cesium's Mars, between its terrain's horizon and the sphere's.
+  const float ROW_HALF = 0.5 / 512.0;  // half a row (atlas 512 rows tall)
+  mu_v_t = mu_v_t >= 0.5 ? max(mu_v_t, 0.5 + ROW_HALF) : min(mu_v_t, 0.5 - ROW_HALF);
 
   // Each tile is (atlasWidth / R_SLICES) = 2048/64 = 32 texels wide.
   // Clamp mu_s_t half a texel inward from each tile edge so the GPU bilinear

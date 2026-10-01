@@ -229,15 +229,15 @@ relates to real time.
   from 6.5 km up, where they were 3 to 25 km off).  Not during the
   crossfade, while celestiary's own surface, at the sphere, is drawn over
   it: a ridge above the sphere's horizon shows as sky until the crossfade
-  ends (1 s), then as terrain.  The ground sphere's depth
-  (`_writeGroundDepths`) goes only where the decode wrote no terrain depth
-  (a stencil mark): Mars's terrain lies mostly below its datum, and the
-  sphere's depth, nearer, had covered it, so the pass hazed the ground at
-  the sphere's distance and the band between the terrain's horizon and the
-  sphere's, where Cesium draws nothing, read as ground with the stars
-  through it.  A pixel whose terrain is too far to encode gets the
-  sphere's depth from the decode itself.  A camera below the datum is the
-  atmosphere pass's to handle (composition.md).  A float or 16-bit depth from Cesium would do better than 8 bits:
+  ends (1 s), then as terrain.  While the terrain's depth is written, the
+  body's ground sphere's isn't (`_writeGroundDepths`): Mars's terrain lies
+  mostly below its datum, and the sphere's depth, nearer, had covered it,
+  and the band between the terrain's horizon and the sphere's, where
+  Cesium draws nothing, read as ground with the stars through it.  Left
+  without depth, the pass takes that band for a gap in the ground and
+  draws the horizon's haze there.  A pixel whose terrain is too far to
+  encode gets the sphere's depth from the decode itself.  A camera below
+  the datum is the atmosphere pass's to handle (composition.md).  A float or 16-bit depth from Cesium would do better than 8 bits:
   portal-netgl could expose the host object a guest texture replays to
   (Cesium's globe depth texture), or give screen draws a depth attachment
   of their own (its "guest-private depth" roadmap item).

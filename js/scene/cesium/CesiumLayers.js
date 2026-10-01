@@ -14,7 +14,6 @@ import {
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
-  NotEqualStencilFunc,
   OneFactor,
   OneMinusSrcAlphaFactor,
   OrthographicCamera,
@@ -111,13 +110,6 @@ export default class CesiumLayers {
       depthWrite: true,
       depthTest: true,
       depthFunc: LessEqualDepth,
-      // Not where the decode wrote the terrain's own depth (_decodeInto).
-      stencilWrite: true,
-      stencilRef: TERRAIN_DEPTH_STENCIL,
-      stencilFunc: NotEqualStencilFunc,
-      stencilFail: KeepStencilOp,
-      stencilZFail: KeepStencilOp,
-      stencilZPass: KeepStencilOp,
     }))
     this.ground.matrixAutoUpdate = false
     this.ground.frustumCulled = false
@@ -250,7 +242,14 @@ export default class CesiumLayers {
       }
     }
     this._drawFadingSurfaces(drawn)
-    this._writeGroundDepths(drawn)
+    // Not for a body whose terrain wrote its own depth (_decodeInto): where
+    // its terrain sinks below the sphere (most of Mars, under its datum)
+    // the sphere's depth, nearer, covered it, and the band between the
+    // terrain's horizon and the sphere's, where Cesium draws nothing, read
+    // as ground with the stars through it.  Left without depth, the pass
+    // takes that band for a gap in the ground and draws it the horizon's
+    // haze.
+    this._writeGroundDepths(drawn.filter(({name}) => !this._terrainDepth(name)))
   }
 
 
@@ -275,16 +274,7 @@ export default class CesiumLayers {
     // (from orbit, past the encoding's limit, the terrain would read in
     // front of the atmosphere and go unhazed), where the sphere's depth
     // (_writeGroundDepths) is exact.
-    const terrainDepth = carriesDistance(name) && this.fadeOf(name) >= 1 &&
-      (this.bodies[name]?.heightM ?? Infinity) < TERRAIN_DEPTH_MAX_HEIGHT_M
-    const m = this.decode.material
-    m.depthWrite = terrainDepth
-    // And mark where it wrote one, so the ground sphere's depth
-    // (_writeGroundDepths) goes only where the terrain left none: where the
-    // terrain sinks below the sphere (most of Mars, under its datum), the
-    // sphere's depth, nearer, had covered it, and the band between the
-    // terrain's horizon and the sphere's read as ground with stars through.
-    m.stencilWrite = terrainDepth
+    this.decode.material.depthWrite = this._terrainDepth(name)
     u.uDistance.value = carriesDistance(name) ? 1 : 0
     u.uDistanceScale.value = this.bodies[name]?.distanceScale ?? 1
     const node = this.ui.sceneManager?.objects?.[name]
@@ -299,6 +289,18 @@ export default class CesiumLayers {
     renderer.autoClear = false
     renderer.render(this.decodeScene, this.decodeCamera)
     renderer.autoClear = autoClear
+  }
+
+
+  /**
+   * @param {string} name
+   * @returns {boolean} Whether the body's terrain depth becomes
+   *   celestiary's this frame (_decodeInto), in place of its ground
+   *   sphere's (_writeGroundDepths)
+   */
+  _terrainDepth(name) {
+    return carriesDistance(name) && this.fadeOf(name) >= 1 &&
+      (this.bodies[name]?.heightM ?? Infinity) < TERRAIN_DEPTH_MAX_HEIGHT_M
   }
 
 
@@ -1287,14 +1289,6 @@ function newDecodeMaterial() {
     depthTest: true,
     depthFunc: AlwaysDepth,
     depthWrite: false,
-    // Marks where it writes the terrain's depth (on with depthWrite,
-    // _decodeInto), for _writeGroundDepths.
-    stencilWrite: false,
-    stencilRef: TERRAIN_DEPTH_STENCIL,
-    stencilFunc: AlwaysStencilFunc,
-    stencilFail: KeepStencilOp,
-    stencilZFail: KeepStencilOp,
-    stencilZPass: ReplaceStencilOp,
     transparent: true,
     toneMapped: false,
   })
@@ -1302,8 +1296,6 @@ function newDecodeMaterial() {
 
 
 const STENCIL_REF = 1
-// In _sceneRT's stencil: where the decode wrote a body's terrain depth.
-const TERRAIN_DEPTH_STENCIL = 2
 // Smallest on-screen radius, in pixels, at which a body is drawn by Cesium.
 const MIN_PIXEL_RADIUS = 1
 // Night-side floor for sunlitShader: dark, but not a hole in the sky.
