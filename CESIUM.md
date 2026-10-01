@@ -207,8 +207,10 @@ relates to real time.
   "horizon" across the mountains).  Cesium's depth doesn't reach
   celestiary (its frames arrive through its 8-bit colour buffer), so a
   Cesium post-process stage (public API, with the scene's depth texture)
-  writes each globe pixel's distance from the camera into alpha, which is
-  otherwise always 1 on the opaque globe, encoded as 1 − e^(−d/D) in 8
+  writes each pixel's distance from the camera into alpha, which is
+  otherwise always 1 on the opaque globe or tileset, for the bodies under
+  celestiary's atmosphere (Earth's globe, Mars's tileset; bodies.js
+  `terrainDistance`), encoded as 1 − e^(−d/D) in 8
   bits and dithered (`cesium/distance.js`; D grows with the camera's
   height).  The composite's decode pass turns it back into celestiary's
   depth (written whatever the depth buffer holds: the stencil shell has
@@ -227,7 +229,15 @@ relates to real time.
   from 6.5 km up, where they were 3 to 25 km off).  Not during the
   crossfade, while celestiary's own surface, at the sphere, is drawn over
   it: a ridge above the sphere's horizon shows as sky until the crossfade
-  ends (1 s), then as terrain.  A float or 16-bit depth from Cesium would do better than 8 bits:
+  ends (1 s), then as terrain.  The ground sphere's depth
+  (`_writeGroundDepths`) goes only where the decode wrote no terrain depth
+  (a stencil mark): Mars's terrain lies mostly below its datum, and the
+  sphere's depth, nearer, had covered it, so the pass hazed the ground at
+  the sphere's distance and the band between the terrain's horizon and the
+  sphere's, where Cesium draws nothing, read as ground with the stars
+  through it.  A pixel whose terrain is too far to encode gets the
+  sphere's depth from the decode itself.  A camera below the datum is the
+  atmosphere pass's to handle (composition.md).  A float or 16-bit depth from Cesium would do better than 8 bits:
   portal-netgl could expose the host object a guest texture replays to
   (Cesium's globe depth texture), or give screen draws a depth attachment
   of their own (its "guest-private depth" roadmap item).

@@ -732,15 +732,26 @@ void main() {
       float r_p  = length(P);
       vec3  zenP = P / r_p;
       vec4  inSP = sampleInScatter(r_p, dot(rayDir, zenP), dot(zenP, uSunDirection));
+      // Beyond the sphere (terrain under the datum), the table's own T up
+      // to the sphere, as celestiary's surface there gets, and the march
+      // only for the rest: the table is linear in mu, coarse at the
+      // horizon, where Mars's ground is seen, and a march from the eye
+      // didn't match it there, which the swap would show.
+      bool  pastSphere = belowSphere && tEnd < tMax;
+      float t0  = pastSphere ? tEnd : t_entry;
       float odR = 0.0;
       float odM = 0.0;
-      float ds  = (tMax - t_entry) / 16.0;
+      float ds  = (tMax - t0) / 16.0;
       for (int i = 0; i < 16; i++) {
-        float h = max(length(eyePos + rayDir * (t_entry + (float(i) + 0.5) * ds)) - uGroundRadius, 0.0);
+        float h = max(length(eyePos + rayDir * (t0 + (float(i) + 0.5) * ds)) - uGroundRadius, 0.0);
         odR += exp(-h / uRayleighScaleHeight) * ds;
         odM += exp(-h / uMieScaleHeight) * ds;
       }
       segT = exp(-(uRayleigh * odR + vec3(uMieCoeff * odM)));
+      if (pastSphere) {
+        vec2 odSphere = texture2D(tTransmittance, transmittanceUV(r_e, mu_v, uGroundRadius, uAtmosphereRadius)).rg;
+        segT *= exp(-(uRayleigh * odSphere.r + vec3(uMieCoeff * odSphere.g)));
+      }
       // Mie's in-scatter is grey, attenuated as red (as in the table).
       inS = max(inS - vec4(segT, segT.r) * inSP, vec4(0.0));
     }

@@ -28,8 +28,20 @@ sphere: a ridge seen from a valley, above the sphere's horizon, which the
 table's ray took for sky, and, below the horizon, the ground of any land
 above sea level, which the table hazed as if it were the sphere, farther
 off (#141; Cesium's distance reaches the pass as depth from below 20 km,
-`cesium/distance.js`).  Celestiary's own ground is the sphere, a mesh a
-little below it, so it never takes that path.
+`cesium/distance.js`).  Also a surface *below* the sphere, by more than a
+ground mesh's sag (4e-4 radii): Cesium's Mars, most of whose terrain lies
+under its datum, where the table's ray stops at the sphere, short of the
+ground; `S(P)` there is 0 (a ray from the ground into it), so the sky is
+the table's, and `T` is the table's to the sphere (as celestiary's own
+surface there gets) times a march of the rest, down to the terrain.  Celestiary's own ground is the sphere,
+a mesh a little below it, so it never takes that path.
+
+When the eye itself is below the sphere (low over Mars, or under a Cesium
+datum anywhere), the tables have no rows for it: they start at the ground
+radius, and the lookups clamped into the ground slice, whose ground rows
+are 0, so the whole view went dark at 0 m.  The pass looks up from the
+sphere straight above the eye instead; the segment march counts the air
+below it (at the datum's density, the most there is in the tables).
 
 `scene` is the linear HDR scene buffer, in exposure units (1.0 is a white
 Lambertian surface lit by the Sun at the exposure target, before
