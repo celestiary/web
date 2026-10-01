@@ -57,6 +57,16 @@ thread, behind the drawer's "Computing…" state.
   precess and rebase with the stars.  Each segment is trimmed to the near
   plane in view space before projecting, as a hop passing behind the
   camera would otherwise project through infinity.
+- **Draw order.** The lines blend without writing depth, so they
+  composite in the order they're drawn, and depth couldn't order them
+  anyway: past ~70 AU every distance is the same 24-bit depth (1 − n/d
+  rounds to 1).  In build (BFS) order the far hops landed on top of the
+  near ones, and overlapping edges flickered like z-fighting.  So the
+  instances are sorted far to near by each segment's closest distance to
+  the camera (`sortFarToNear`: log-distance buckets, linear time, ~25 ms
+  for the catalogue), re-sorted when the camera has moved 0.05 ly plus 2%
+  of its distance from the Sun, at most every 250 ms.  Only position
+  matters, so turning the view never re-sorts.
 - **Visibility.** A scene annotation: the `x` setting (`x` key, in
   Settings under Labels, and the drawer's "Show lines" switch, kept in
   step through the store's `isColonizationVisible`) and so the global

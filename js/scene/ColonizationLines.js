@@ -53,6 +53,14 @@ const MS_PER_SEC = 1000
 const PATH_RENDER_ORDER = 10
 // A time after every arrival (a uniform can't hold Infinity reliably).
 const ALWAYS = 1e30
+// Painter's order (sortFarToNear): log-distance buckets.  Enough that hops
+// sharing a bucket are within ~1% of each other's distance.
+const SORT_BUCKETS = 4096
+// Re-sort when the camera has moved this much plus this share of its
+// distance from the origin star, at most this often.
+const RESORT_MIN_LY = 0.05
+const RESORT_FRACTION = 0.02
+const RESORT_MIN_MS = 250
 
 
 // Each segment is an instance of one quad, extruded in screen space so it
@@ -223,6 +231,8 @@ export default class ColonizationLines extends Object3D {
     this._pulseStartMs = 0
     this._maxHop = 1
     this._years = 0
+    this._sortedAt = null // camera position, local metres, of the last sort
+    this._sortedMs = 0
   }
 
 
@@ -247,6 +257,7 @@ export default class ColonizationLines extends Object3D {
       })
     }
     this.tree = this._newMesh('ColonizationSegments', segments, pos)
+    this._sortedAt = null
     this._applyStyle()
     this.add(this.tree)
   }
@@ -365,6 +376,10 @@ export default class ColonizationLines extends Object3D {
     geom.setAttribute('aTimes', new InstancedBufferAttribute(times, 2))
     geom.setAttribute('aHop', new InstancedBufferAttribute(hop, 1))
     geom.instanceCount = n
+    // The arrays in build order, which sorting permutes into the attributes.
+    geom.userData.master = Object.fromEntries(
+        ['startHigh', 'startLow', 'endHigh', 'endLow', 'aColor', 'aTimes', 'aHop']
+            .map((key) => [key, geom.attributes[key].array.slice()]))
     const mesh = new Mesh(geom, newLineMaterial(this._years))
     mesh.name = name
     // Vertices are placed in the shader, so three's bounds don't apply, and
@@ -384,12 +399,55 @@ export default class ColonizationLines extends Object3D {
       u.uResolution.value.copy(res)
       u.uPixelRatio.value = renderer.getPixelRatio()
       u.uNear.value = camera.near
+      if (mesh === this.tree) {
+        this._maybeSort(u.uCamPosWorldHigh.value, u.uCamPosWorldLow.value)
+      }
       if (this.pulse.on) {
         const steps = (performance.now() - this._pulseStartMs) / MS_PER_SEC / this.pulse.stepSec
         u.uPulseHop.value = 1 + (steps % pulseCycle(this._maxHop, this.pulse.trail))
       }
     }
     return mesh
+  }
+
+
+  /**
+   * Keep the spread drawn far to near from the camera.  The lines blend
+   * without writing depth, so they composite in draw order, and depth can't
+   * order them anyway: past ~70 AU every distance is the same 24-bit depth.
+   * Only the camera's position matters, so turning the view never re-sorts.
+   * Applies from the next frame: three has uploaded this frame's attributes.
+   *
+   * @param {Vector3} high Camera position in the lines' frame, float32 part
+   * @param {Vector3} low The residual
+   */
+  _maybeSort(high, low) {
+    const cam = [high.x + low.x, high.y + low.y, high.z + low.z]
+    const now = performance.now()
+    if (this._sortedAt) {
+      const moved = Math.hypot(...cam.map((v, c) => v - this._sortedAt[c]))
+      const threshold = (LIGHTYEAR_METER * RESORT_MIN_LY) + (RESORT_FRACTION * Math.hypot(...cam))
+      if (moved < threshold || now - this._sortedMs < RESORT_MIN_MS) {
+        return
+      }
+    }
+    this._sortedAt = cam
+    this._sortedMs = now
+    const geom = this.tree.geometry
+    const {master} = geom.userData
+    const order = sortFarToNear(master.startHigh, master.startLow, master.endHigh, master.endLow, cam)
+    for (const [key, src] of Object.entries(master)) {
+      const attr = geom.attributes[key]
+      const size = attr.itemSize
+      const dst = attr.array
+      for (let k = 0; k < order.length; k++) {
+        const from = order[k] * size
+        for (let c = 0; c < size; c++) {
+          dst[(k * size) + c] = src[from + c]
+        }
+      }
+      attr.needsUpdate = true
+    }
   }
 
 
@@ -434,6 +492,68 @@ function newLineMaterial(years) {
     blending: NormalBlending,
     depthWrite: false,
   }))
+}
+
+
+/**
+ * Segment indices ordered far to near from a point, by each segment's
+ * closest distance to it, bucketed on log distance (linear time; order
+ * within a bucket, ~1% of distance, is arbitrary).
+ *
+ * @param {Float32Array} startHigh Segment starts, packed xyz, float32 part
+ * @param {Float32Array} startLow The residuals
+ * @param {Float32Array} endHigh Segment ends, packed xyz
+ * @param {Float32Array} endLow The residuals
+ * @param {Array<number>} cam The point, xyz, in the same frame and units
+ * @returns {Uint32Array} Indices, farthest first
+ */
+export function sortFarToNear(startHigh, startLow, endHigh, endLow, cam) {
+  const n = startHigh.length / 3
+  const logDist = new Float64Array(n)
+  let lo = Infinity
+  let hi = -Infinity
+  const [cx, cy, cz] = cam
+  for (let i = 0; i < n; i++) {
+    const j = 3 * i
+    const sx = startHigh[j] + startLow[j] - cx
+    const sy = startHigh[j + 1] + startLow[j + 1] - cy
+    const sz = startHigh[j + 2] + startLow[j + 2] - cz
+    const dx = endHigh[j] + endLow[j] - cx - sx
+    const dy = endHigh[j + 1] + endLow[j + 1] - cy - sy
+    const dz = endHigh[j + 2] + endLow[j + 2] - cz - sz
+    // Closest point to the camera on start + t d, t in [0, 1].
+    const dd = (dx * dx) + (dy * dy) + (dz * dz)
+    let t = dd > 0 ? -((sx * dx) + (sy * dy) + (sz * dz)) / dd : 0
+    t = t < 0 ? 0 : (t > 1 ? 1 : t)
+    const px = sx + (t * dx)
+    const py = sy + (t * dy)
+    const pz = sz + (t * dz)
+    // Half the log of the squared distance: the same order, no sqrt.
+    const v = 0.5 * Math.log(Math.max((px * px) + (py * py) + (pz * pz), 1))
+    logDist[i] = v
+    if (v < lo) {
+      lo = v
+    }
+    if (v > hi) {
+      hi = v
+    }
+  }
+  const scale = hi > lo ? (SORT_BUCKETS - 1) / (hi - lo) : 0
+  const bucket = new Uint32Array(n)
+  const count = new Uint32Array(SORT_BUCKETS + 1)
+  for (let i = 0; i < n; i++) {
+    // Farthest in bucket 0.
+    bucket[i] = SORT_BUCKETS - 1 - Math.floor((logDist[i] - lo) * scale)
+    count[bucket[i] + 1]++
+  }
+  for (let b = 1; b <= SORT_BUCKETS; b++) {
+    count[b] += count[b - 1]
+  }
+  const order = new Uint32Array(n)
+  for (let i = 0; i < n; i++) {
+    order[count[bucket[i]]++] = i
+  }
+  return order
 }
 
 
