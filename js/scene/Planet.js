@@ -21,6 +21,7 @@ import Object from './object.js'
 import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
 import {newFarPoint, pointSwitchDistance} from './farPoint.js'
+import {sceneReferred} from './hdr.js'
 import {
   point,
   sphere,
@@ -143,14 +144,14 @@ export default class Planet extends Object {
     const positions = unitEllipse(assertInRange(orbit.eccentricity, 0, 1), new Float32Array(ORBIT_LINE_POINTS * 3))
     const ellipseGeometry = new BufferGeometry()
     ellipseGeometry.setAttribute('position', new BufferAttribute(positions, 3))
-    const orbitMaterial = new LineBasicMaterial({
+    const orbitMaterial = sceneReferred(new LineBasicMaterial({
       color: 0x0000ff,
       blending: AdditiveBlending,
       depthTest: true,
       depthWrite: true,
       transparent: false,
       toneMapped: false,
-    })
+    }))
     const pathShape = new Line(ellipseGeometry, orbitMaterial)
     group.add(pathShape)
     group.line = pathShape

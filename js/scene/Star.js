@@ -12,6 +12,7 @@ import Object from './object.js'
 import * as Shaders from './star-shaders.js'
 import {sphere} from './shapes.js'
 import {newAtmosphere} from './atmos/Atmosphere'
+import {sceneReferred} from './hdr.js'
 import * as Shared from '../shared.js'
 import {named} from '../utils.js'
 
@@ -107,7 +108,9 @@ export default class Star extends Object {
       [8152, 10060], // 14, T
       [8152, 10060]]// 15, Carbon star?
     const temp = tempRanges[props.spectralType]
-    this.shaderMaterial = new ShaderMaterial({
+    // The surface's colour is a display value (hdr.js); PR B of #86 gives
+    // the Sun a physical radiance.
+    this.shaderMaterial = sceneReferred(new ShaderMaterial({
       uniforms: {
         uColor: {value: new Vector3(1.0, 1.0, 1.0)},
         uLowTemp: {value: parseFloat(temp[0])},
@@ -119,7 +122,7 @@ export default class Star extends Object {
       },
       vertexShader: Shaders.VERTEX_SHADER,
       fragmentShader: Shaders.FRAGMENT_SHADER,
-    })
+    }))
     const surface = sphere({matr: this.shaderMaterial})
     surface.scale.setScalar(props.radius.scalar)
     this.setupAnim()

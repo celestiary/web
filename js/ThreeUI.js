@@ -1,6 +1,8 @@
 import {
+  CustomToneMapping,
   DepthStencilFormat,
   DepthTexture,
+  HalfFloatType,
   LinearSRGBColorSpace,
   NeutralToneMapping,
   Object3D,
@@ -8,6 +10,7 @@ import {
   Quaternion,
   PerspectiveCamera,
   Scene,
+  UnsignedByteType,
   UnsignedInt248Type,
   Vector2,
   Vector3,
@@ -17,7 +20,8 @@ import {
 import {newAtmospherePass} from './scene/atmos/Atmosphere'
 import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
-import {easeExposure, exposureAt} from './scene/exposure.js'
+import {easeExposure, exposureAt, skyExposure} from './scene/exposure.js'
+import {hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import {attachPointerDrag} from './dragControls'
@@ -56,11 +60,21 @@ export default class ThreeUi {
 
     this.renderer = renderer ||
       this.initRenderer(this.threeContainer, backgroundColor || 0x000000)
+    // One HDR pipeline (js/scene/HDR.md): the scene renders into a linear,
+    // half-float _sceneRT in exposure units (tone-mapped by exposure only),
+    // and the atmosphere pass tone-maps once, with PBR Neutral, last.
+    // Without float render targets, the old LDR order.
+    this.hdr = hdrSupported(this.renderer)
+    if (this.hdr) {
+      installExposureOnlyToneMapping()
+      this.renderer.toneMapping = CustomToneMapping
+    }
     // Post-process atmosphere pass
     this._sceneRT = this._makeSceneRT()
     this._atmScene = new Scene()
     this._atmCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
     this._atmMesh = newAtmospherePass()
+    this._atmMesh.material.uniforms.uHdr.value = this.hdr ? 1 : 0
     this._atmScene.add(this._atmMesh)
     this._pWorldAtm = new Vector3()
     this._camWorldAtm = new Vector3()
@@ -130,18 +144,23 @@ export default class ThreeUi {
 
   /**
    * @returns {WebGLRenderTarget} with a depth-stencil texture.  The atmosphere
-   * pass samples its depth; Cesium layers (CESIUM.md) stencil into it.
+   * pass samples its depth; Cesium layers (CESIUM.md) copy it.
    * DEPTH24_STENCIL8: the same 24-bit depth the previous DEPTH_COMPONENT24
-   * texture had.
+   * texture had.  Colour: half-float, linear, in exposure units (HDR.md), or
+   * 8-bit display values in the LDR fallback.
    */
   _makeSceneRT() {
-    const rt = new WebGLRenderTarget(this.width, this.height, {stencilBuffer: true})
+    const rt = new WebGLRenderTarget(this.width, this.height, {
+      stencilBuffer: true,
+      type: this.hdr ? HalfFloatType : UnsignedByteType,
+    })
     rt.depthTexture = new DepthTexture()
     rt.depthTexture.format = DepthStencilFormat
     rt.depthTexture.type = UnsignedInt248Type
     // Three.js only applies tone mapping when _currentRenderTarget is null
-    // (screen) or isXRRenderTarget. Tag ours so PBR materials get tone-mapped
-    // into [0,1] instead of writing raw HDR values that saturate to white.
+    // (screen) or isXRRenderTarget.  Tag ours so lit materials get the scene
+    // pass's tone mapping: exposure only (HDR), or PBR Neutral into [0, 1]
+    // (LDR fallback).
     rt.isXRRenderTarget = true
     rt.texture.colorSpace = LinearSRGBColorSpace
     return rt
@@ -358,6 +377,9 @@ export default class ThreeUi {
     this._updateExposure()
     this.layers.beforeRender(targets.obj)
     this.renderer.setRenderTarget(this._sceneRT)
+    // Display-referred materials (stars, lines, labels) write the values the
+    // final tone map gives back unchanged (hdr.js sceneReferred).
+    sceneReferredUniform.value = this.hdr ? 1 : 0
     this.renderer.render(this.scene, this.camera)
     this.layers.composite()
     this.renderer.setRenderTarget(null)
@@ -365,6 +387,8 @@ export default class ThreeUi {
     this.renderer.render(this._atmScene, this._atmCamera)
     // Labels last, over the atmosphere: the scene again, overlay layer
     // only, depth-tested against the scene depth the atmosphere pass wrote.
+    // After the tone map, so as display values.
+    sceneReferredUniform.value = 0
     const autoClear = this.renderer.autoClear
     this.renderer.autoClear = false
     this.camera.layers.set(OVERLAY_LAYER)
@@ -570,6 +594,16 @@ export default class ThreeUi {
     u.uGroundRadius.value = R
     u.uAtmosphereRadius.value = R + atmos.height.scalar
     u.uSunIntensity.value = atmos.sunIntensity ?? 22
+    // The sky in exposure units: its planet's sunlight at the renderer's
+    // exposure (HDR.md).  The Sun is at the world group's origin.
+    this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
+    if (this._worldGroup) {
+      this._worldGroup.getWorldPosition(this._exposureSunPos)
+    } else {
+      this._exposureSunPos.set(0, 0, 0)
+    }
+    const sunDist = this._pWorldAtm.distanceTo(this._exposureSunPos)
+    u.uSkyExposure.value = sunDist > 0 ? skyExposure(sunDist, this.renderer.toneMappingExposure) : 1
     u.uRayleigh.value.set(...atmos.rayleigh)
     u.uRayleighScaleHeight.value = atmos.rayleighScaleHeight.scalar
     u.uMieCoeff.value = atmos.mieCoeff

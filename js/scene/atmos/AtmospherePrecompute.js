@@ -264,6 +264,17 @@ void main() {
   float mu_sun  = fract(atlas_x) * 2.0 - 1.0;
   float r_t     = r_idx / float(R_SLICES - 1);
   float r       = uGroundRadius + r_t * (uAtmosphereRadius - uGroundRadius);
+  // The ground slice's ground rows (r = rG, looking below the horizon): a
+  // ray from the ground into the ground has no length, so no in-scatter.
+  // The decode is degenerate there (d = dMin = dMax = 0 gives mu_view = 0,
+  // a horizontal ray, and rsi finds no ground ahead of a ray that grazes it
+  // at t = 0), and integrated the whole horizon: a bright, yellow glow over
+  // the ground whenever the camera was below the next slice (1.3 km on
+  // Earth), since the lookup blends slices by altitude.
+  if (vUv.y < 0.5 && r_idx < 0.5) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
   float mu_view = bruneton_decode_mu_v(r, vUv.y, uGroundRadius, uAtmosphereRadius);
 
   // Primary ray from (0, r, 0) with zenith cosine mu_view

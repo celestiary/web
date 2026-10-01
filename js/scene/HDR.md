@@ -1,0 +1,387 @@
+# One HDR pipeline: linear scene buffer, one tone map
+
+The plan and design for [#86](https://github.com/celestiary/web/issues/86)
+PR A: steps 1, 2 and 5 of its proposal.  The scene renders into a linear,
+bright-range buffer in exposure units; the sky joins it in the same units;
+Cesium's layers composite into it in the same units; and one tone map, PBR
+Neutral, runs once, last.  Little visual change is intended: what this buys
+is PR B (physical stars, metered exposure, removing the eye-adaptation hacks),
+which needs every source on one scale.
+
+Background: [Planet.md, lighting and exposure](Planet.md#lighting-and-exposure)
+(the target-keyed exposure), [atmos/composition.md](atmos/composition.md) (the
+atmosphere pass), [CESIUM.md](../../CESIUM.md) (the layers).
+
+## Colour spaces: "stored values"
+
+Celestiary never decodes or encodes sRGB.  Textures load with no colour space
+(three's `NoColorSpace`), and the renderer's output colour space is linear, so
+three's `colorspace_fragment` does nothing.  A texture's stored 8-bit value,
+itself sRGB-encoded, is lit as if it were linear, and the result goes to the
+screen as it is.  This doc calls that space **stored values**.  "Linear" below
+means linear in light over stored values: doubling the Sun doubles the value.
+Cesium's layers follow the same convention (`sunlitShader`, below).
+
+Two kinds of value then live in the pipeline:
+
+- **Scene-referred** (exposure units): lit surfaces, the sky.  1.0 is a white
+  Lambertian surface facing the Sun at the exposure target, times
+  `DISPLAY_GAIN` (so a sunlit white surface is 1.5).  Unbounded.
+- **Display-referred**: what reaches the screen, 0 to 1, after the tone map.
+  Also what the stars, the Milky Way, labels, lines, the Sun's surface shader
+  and the rings write today: they are drawn with `toneMapped: false` and their
+  values are meant as display values.
+
+## Before
+
+| Step | Target | Format | Holds |
+|---|---|---|---|
+| scene pass (`renderer.render(scene)`) | `_sceneRT` | RGBA8 | lit materials: `N(k·L)`, display; unlit: their own display values; clamped to 1 |
+| Cesium composite (`layers.composite`) | `_sceneRT` | RGBA8 | Cesium's display values, premultiplied-over (netgl replay) |
+| atmosphere pass | screen | RGBA8 | `mix(s, (1 − e^(−S)) + s·T, strength)`, display; no tone map |
+| label overlay | screen | RGBA8 | display |
+
+`N` is PBR Neutral, `k` the target-keyed exposure (`exposure.js`), `L` a
+surface's radiance in three's units, `S` the atmosphere pass's in-scatter
+(`uSunIntensity × LUT`), `T` its transmittance.  The sky and the scene meet in
+display space: the sky's `1 − e^(−S)` is its own soft saturation, not the
+scene's tone map.
+
+## After
+
+| Step | Target | Format | Holds |
+|---|---|---|---|
+| scene pass | `_sceneRT` | **RGBA16F** | lit materials: `k·L` (exposure-only tone map); display-referred ones: `N⁻¹(value)`; scene-referred |
+| Cesium composite | `_cesiumRT` (RGBA8) → `_sceneRT` | | Cesium renders into its own target; a pass decodes it to scene-referred and composites it premultiplied-over |
+| atmosphere pass | screen | RGBA8 | `N(mix(v, sky + v·T, strength))`: **the one tone map** |
+| label overlay | screen | RGBA8 | display, as before |
+
+### Scene pass: exposure only
+
+`renderer.toneMapping = CustomToneMapping`, with three's custom tone-mapping
+hook replaced by
+
+    vec3 CustomToneMapping(vec3 color) { return toneMappingExposure * color; }
+
+so a lit material writes `v = k·L` and nothing clamps it (three's
+`LinearToneMapping` saturates to 1).  `_sceneRT` keeps `isXRRenderTarget`, the
+tag that makes three tone-map into a render target at all.  Everything that
+used `toneMappingExposure` (Earth's night lights divide by it) keeps working:
+they still see the same exposure.
+
+### Final tone map: PBR Neutral, once
+
+Khronos PBR Neutral, as three's `NeutralToneMapping` without the exposure
+multiply (the buffer already holds `k·L`):
+
+    x = min(c.r, c.g, c.b)
+    offset = x < 0.08 ? x − 6.25·x² : 0.04          (toe)
+    c −= offset
+    p = max(c.r, c.g, c.b)
+    if p < 0.76: return c
+    q = 1 − 0.24² / (p − 0.52)                      (shoulder: new peak)
+    c *= q / p
+    g = 1 − 1 / (0.15·(p − q) + 1)                  (desaturation)
+    return mix(c, vec3(q), g)
+
+It runs at the end of the atmosphere pass, on every path through it (the
+pass-through when there's no atmosphere too).  A lit surface with no sky over
+it therefore shows `N(k·L)` exactly as before.
+
+### Display-referred content: `N⁻¹`
+
+The stars, galaxy, labels and lines would otherwise go through `N` for the
+first time: its toe maps a grey 0.02 to 0.0025, which would thin the star field
+and the Milky Way.  So each of those materials converts its output with the
+exact inverse of `N`, and the final tone map gives back the value it showed
+before:
+
+    q = max(y)                                       (undo the shoulder)
+    if q ≥ 0.76:
+      q = min(q, 0.999)
+      p = 0.52 + 0.0576 / (1 − q);  g = 1 − 1 / (0.15·(p − q) + 1)
+      c = (y − g·q) / (1 − g) · p / q
+    else c = y
+    m = max(min(c), 0)                               (undo the toe)
+    offset = m ≥ 0.04 ? 0.04 : 0.4·√m − m
+    return c + offset
+
+Under `SrcAlpha` blending (additive stars, alpha-blended labels) the colour is
+scaled by alpha after the shader, so the inverse is taken of the premultiplied
+colour: `rgb = N⁻¹(rgb·a) / a`.  Over black that is exact; over something else,
+and where several overlap, it's close (blending now adds in linear light, then
+tone-maps).  Display values of 1 are clamped to 0.999 first (`N⁻¹(0.999)` ≈
+58), so a saturated star stays saturated.
+
+One helper, `sceneReferred(material)` in `hdr.js`, does this for any material,
+built-in or `ShaderMaterial`: at compile time it renames the shader's `main`
+and wraps it, so no shader's own code changes.  A shared uniform switches it
+on only while drawing into the HDR buffer: the label overlay, drawn to the
+screen after the tone map, gets its values unchanged.
+
+PR B replaces the stars' and the Sun's display values with physical ones; the
+labels, lines and grids stay display-referred.
+
+### Blending in linear light
+
+Translucent lit surfaces now blend before the tone map, not after: Earth's
+clouds over the ground, and a Cesium layer's crossfade.  That is the
+physically right order, and it changes those pixels: a half-covering cloud
+(1.5 over 0.1, alpha 0.5) showed 0.50 and now shows `N(0.8)` = 0.76.  It's the
+one expected brightening on Earth's disc; measured below.
+
+## The sky in exposure units
+
+The in-scatter LUT gives `x = pRlh·inS.rgb + pMie·inS.a`: the sky's radiance
+per unit of solar irradiance at the top of the atmosphere, per steradian.  So
+the sky's radiance is `x·E`, with `E = I / d^decay` the Sun's irradiance at the
+planet (`shared.js`: `SUN_LUMINOUS_INTENSITY`, `SUN_LIGHT_DECAY`), and in
+exposure units that is `x·E·k`.  When the planet is the exposure target,
+`E·k = π·DISPLAY_GAIN` (`exposure.js`), so
+
+    sky = x · E·k                       = π·DISPLAY_GAIN · x   (physical)
+    sky = uSunIntensity · x · E·k / (π·DISPLAY_GAIN)           (what we draw)
+
+The second line keeps each body's `sunIntensity` as the knob: it's the sky's
+brightness relative to the physical single-scattering value, times
+`π·DISPLAY_GAIN` = 4.71.  With the planet as the exposure target the factor
+`E·k / (π·DISPLAY_GAIN)` is 1, and the sky gets exactly `S = uSunIntensity·x`
+in exposure units, where before it got `1 − e^(−S)` in display units.  From
+another body's exposure (the Moon's, looking back at Earth) the factor is the
+ratio of the two bodies' irradiances; while exposure eases between targets,
+the sky eases with it, as the surface does.
+
+### Worked number: Earth's midday sky
+
+Earth's atmosphere (`earth.json`): Rayleigh `β = (5.8, 13.5, 33.1)×10⁻⁶ /m`,
+scale height 8 km, so vertical optical depth `τ = (0.046, 0.108, 0.265)`; Mie
+`τ ≈ 0.006`.  For the zenith sky with the Sun 45° up (scattering angle 45°,
+`pRlh = 3/(16π)·(1 + cos² 45°) = 0.0895`), single scattering gives about
+`x ≈ pRlh·τ·e^(−1.2τ)` = (0.0039, 0.0085, 0.017) per steradian.
+
+- **Physical, single scattering:** `π·1.5·x` = (0.018, 0.040, 0.081): luma
+  0.039, about 4% of a sunlit white surface (1.5 × cos 45° = 1.06).  A real
+  clear sky's zenith is about 15-25% of a sunlit white surface: multiple
+  scattering and a real aerosol load (τ ≈ 0.1, not 0.006) make up the rest.
+- **Before:** `1 − e^(−30x)` = (0.11, 0.23, 0.40) displayed: luma 0.21.
+- **After:** `30x` = (0.12, 0.26, 0.52) in exposure units, `N` of it
+  = (0.077, 0.215, 0.476) displayed: luma 0.20, within 4% of before.
+
+So `sunIntensity` 30 keeps its value and the midday sky its brightness.  The
+shape of the curve changes: `1 − e^(−S)` rises steeply from 0, while `N` has a
+toe, so the dim sky (twilight, `S` ≈ 0.05) comes out about half as bright, and
+more saturated (the toe takes more from the weakest channel); the bright limb
+and horizon come out a little less red.  That shift is the sky changing model,
+not a bug: PR B's metered exposure raises twilight on its own.
+
+`sunIntensity`'s physical value is `π·DISPLAY_GAIN` = 4.71; Earth's 30 is 6.4×
+that.  The factor stands in for multiple scattering and aerosols, and it's
+what PR B tunes against, once stars are physical too.
+
+The eye-adaptation boost keeps reading the sky's brightness as `1 − e^(−S)`,
+so it behaves exactly as before; PR B removes it.
+
+## Cesium in the same units
+
+Cesium renders in its own (shadow) context; portal-netgl replays its GL calls
+into celestiary's.  What reaches celestiary is Cesium's final draw to its
+default framebuffer.
+
+**Cesium's frame goes through 8-bit buffers.**  With `highDynamicRange` off (its
+default), Cesium draws the scene into its globe-depth framebuffer, which is
+`UNSIGNED_BYTE` unless HDR is on (`GlobeDepth.js`: `pixelDatatype = hdr ?
+HALF_FLOAT : UNSIGNED_BYTE`), then copies that to the screen
+(`Scene.js`, `globeDepth.executeCopyColor`).  So whatever a Cesium shader
+writes is clamped to [0, 1] and quantized to 8 bits before netgl ever sees it;
+portal-netgl carries the copy's values faithfully into a float target, but
+they are already LDR.  Turning Cesium's HDR on makes its buffers float, but
+also forces its own tone-mapping stage (there's no "none" tonemapper), and
+lights the imagery in linear sRGB, not stored values.  So Cesium's layers hand
+over values that fit in [0, 1], encoded so celestiary can recover exposure
+units exactly:
+
+- **Moon and Mars** (`sunlitShader`): `stored · lambert` (with a night floor),
+  at most 1, as Earth's globe below; the decode multiplies by the body's gain,
+  `DISPLAY_GAIN · textureGain / imageryScale`.  (They first returned `N(v)` of
+  their exposure-unit value, which the decode inverted with `N⁻¹`; #141's review
+  made every body one path, and the 8-bit Neutral round trip had lost
+  highlights.)
+- **Earth**: Cesium's globe lighting is its own (`GlobeFS.glsl`): from orbit it
+  adds its ground atmosphere and applies `1 − e^(−2x)`; below ~10,000 km from
+  Earth's centre (`lightingFadeOutDistance`) the ground atmosphere fades out
+  and the lit imagery is written as it is; and its day side is flat
+  (`clamp(5·lambert + 0.3)` without terrain normals, `0.9·lambert + 0.3` with
+  them).  None of that is celestiary's lighting or in its units.  The matching
+  path: Cesium draws only the lit surface, `stored × lambert` (its light at
+  intensity 1, `lambertDiffuseMultiplier` 1, `vertexShadowDarkness` 0, ground
+  atmosphere, fog and water effect off: the water effect's glint lit the
+  sunward ocean up to twice celestiary's), which is at most 1 for any albedo,
+  and celestiary
+  multiplies by `DISPLAY_GAIN` to reach exposure units.  Earth's sky and
+  ground haze then come from celestiary's atmosphere pass, over Cesium's globe
+  as over its own, as Mars's already do (`bodies.js` `atmosphere: false`).
+  One atmosphere model, in one set of units, on both sides of the swap: which
+  PR B needs, since Cesium's sky is display-referred and would cover the
+  daytime Moon and the stars with its own alpha.
+
+Compositing: each Cesium frame now draws into `_cesiumRT`, an RGBA8 target
+cleared to transparent black, with its own depth-stencil: celestiary's depth
+is copied in (for the stencil shell's depth test), the shell writes the
+stencil, and Cesium's frame is clipped to it.  Then a fullscreen pass
+composites `_cesiumRT` into `_sceneRT`, the same for every body: `rgb ×
+bodyGain`, opaque, with the terrain's distance from alpha as depth
+(CESIUM.md).
+Cesium's frame no longer clears `_sceneRT`'s depth, so the depth save and
+restore around each frame go.
+
+## Fallback: no float render targets
+
+Rendering to RGBA16F needs `EXT_color_buffer_float` (WebGL2; it covers half
+floats) or `EXT_color_buffer_half_float`.  Nearly every WebGL2 device has one,
+mobile included, but without either the target is incomplete and draws
+nothing.  So `ThreeUi` checks at start-up and, without one (or with `?hdr=0` in
+the URL, for testing), keeps the old order: an RGBA8 `_sceneRT`, Neutral in
+the scene pass, `sceneReferred` off, Cesium composited undecoded, and the
+atmosphere pass adding `N(sky)` to the display-space scene with no final tone
+map.
+
+## Steps
+
+1. This doc.
+2. The buffer and the tone map: RGBA16F `_sceneRT`, exposure-only scene tone
+   map, `N` at the end of the atmosphere pass, `sceneReferred` on the
+   display-referred materials, `_cesiumRT` and the decode (with `N⁻¹` for every
+   Cesium body at this step, Earth still Cesium's own display values), the
+   fallback.  The sky still `1 − e^(−S)`, converted with `N⁻¹`, so the look
+   holds while the buffer changes.
+3. The sky in exposure units.
+4. Earth's Cesium layer on the matching path, under celestiary's atmosphere.
+
+After each: rebuild, `yarn parity`, the screenshot set, and compare with the
+baseline numerically.
+
+## Verification
+
+- A fixed set of views on main and after each step, 480×300 on SwiftShader:
+  Earth from 20,000 km (day side, and at 90° phase), Earth's surface at midday
+  and at twilight, the Moon, Mars, Saturn with its rings, the Sun, a star field
+  from 100 AU, and #86's daytime-Moon permalink; Cesium's layers on (the
+  default) and forced off.  Per view, the median luma of each region and the
+  median per-pixel ratio after/before.  Target: within ±5% where the sky
+  doesn't change model.
+- `yarn parity`, before and after.
+- Unit tests: `N` and `N⁻¹` in JS (`hdr.js`, mirroring the GLSL), round trips
+  and known points; the sky's scale (`exposure.js`).
+- Not verifiable in the sandbox: a real GPU's float targets and blending, and
+  mobile.  The fallback is exercised with `?hdr=0`.
+
+## Results
+
+SwiftShader, 480×300, against `main` at the same commit.  "Pixel ratio" is
+the median per-pixel luma ratio after/before over the region (bodies: the
+pixels over luma 12 of 255); "mean" is the ratio of mean luma, which the
+star field moves.  `off` forces Cesium's layers off (celestiary's own
+bodies); `on` is the default, Cesium where it's in range.
+
+| View | Region | Pixel ratio | R / G / B | Mean |
+|---|---|---|---|---|
+| Earth, 20,000 km, 25° phase, off | lit | 1.000 | 1.00 / 1.00 / 1.14 | 1.04 |
+| Earth, 20,000 km, 90° phase, off | lit | 1.000 | 1.00 / 1.00 / 1.00 | 1.06 |
+| Earth's surface, Sun 50° up, off | sky | 1.059 | 0.88 / 1.06 / 1.27 | 1.07 |
+| | sea | 0.884 | 0.63 / 0.89 / 1.08 | 0.94 |
+| Earth's surface, Sun 3° down, off | sky | 0.715 | 0.74 / 0.71 / 0.44 | 0.78 |
+| | glow | 0.962 | 1.05 / 0.93 / 0.57 | 1.01 |
+| The Moon, 5,000 km, quarter, on and off | lit | 1.000 | 1.00 / 1.00 / 1.00 | 1.03 |
+| Mars, 12,000 km, on and off | lit | 1.000 | 1.00 / 1.00 / 1.00 | 1.02 |
+| Saturn and its rings | lit | 1.000 | 1.00 / 1.00 / 1.00 | 1.06 |
+| Star field, 100 AU, labels and asterisms on | all | 1.000 | | 1.05 |
+| Daytime Moon, quarter, Sun and Moon 45° up, off | sky | 0.904 | 0.64 / 0.90 / 1.12 | 0.91 |
+| | Moon | 1.038 | 1.01 / 1.04 / 1.12 | 1.03 |
+
+- **Bodies without sky over them are unchanged**: every lit body's pixel
+  ratio is 1.000, on either side of the swap.  Cesium's frames decode
+  exactly (`N⁻¹` of `N`).
+- **The star field's mean rises 3-6%** (the "mean" column of the space
+  views; 12% in the densest field, behind the Sun): single stars are exact,
+  but overlapping glows now add in linear light before the tone map, and
+  the toe's inverse is square-root-like, so a pair tone-maps brighter than
+  their old clamped sum (+13% in pixels of luma 20-80, -11% in the few over
+  160, label edges over glows).  PR B replaces the stars' values anyway.
+- **The sky changes model, as expected.**  The midday sky is 6% brighter in
+  luma and more saturated (red 0.88, blue 1.27): `1 − e^(−S)` desaturated
+  it, compressing the strong blue channel more than the weak red, and PBR
+  Neutral doesn't.  Twilight is 29% dimmer, with the least blue left:
+  Neutral's toe crushes dim values (the worked number above).  The sea
+  under the midday haze is 12% darker (its haze is sky, and redder before).
+- Earth's night lights (celestiary's only; #93) and the Sun's glow ring are
+  unchanged.  The Sun's disc is black in SwiftShader on `main` and here
+  alike.
+
+**Across the swap** (Cesium's layer over celestiary's own, per view): on
+`main` the Cesium-drawn Earth differed wherever its own atmosphere showed,
+up to 2× (the midday sea 2.02, sky 1.47, the twilight glow 1.9; the daytime
+Moon 0.69 behind Cesium's sky).  Now its sky and haze are celestiary's:
+1.000 for the sky at midday and at twilight, 1.000 for the midday sea, and
+0.966 for the daytime Moon (the Moon's own gap, CESIUM.md).  `yarn parity`:
+Earth from orbit 0.990 in luma (was 0.975, with R/G/B 1.13/0.97/0.74, now
+0.98/0.99/1.00), from 400 km at dusk 1.002 (was 0.899, 1.20/0.87/0.51, now
+1.00 in each); the Moon (0.967) and Mars (0.990) as before.  Details:
+[CESIUM.md, baselines](../../CESIUM.md#baselines-and-what-they-show).
+
+The LDR fallback (`?hdr=0`) matches `main` exactly on the Moon and the star
+field, and shows the sky as the HDR path does.
+
+**Low over the day ground** (found on the preview, on a real GPU): once
+Cesium's Earth was under celestiary's atmosphere pass, the day ground
+washed out below ~40 km, to a yellow glow near the surface.  It did on
+celestiary's own Earth too, on `main`; Cesium's own atmosphere had hidden
+it on that side.  Two causes in the pass, both fixed: the eye-adaptation
+boost covered the ground (over it, from 7.5 km, T was 0.094 instead of
+0.87 / 0.75 / 0.50 in R / G / B), and the in-scatter table's ground slice
+gave every ground ray the horizon's in-scatter (from 16 m the sky term over
+the ground was 2.7 in exposure units, with T 0; now 0.001, with T 0.99).
+See [composition.md](atmos/composition.md) and the `earth-low-land-day`
+parity view.
+
+**Terrain above the sphere's horizon** (found on the preview, in Canyon de
+Chelly): with the wash-out fixed, terrain that rose above celestiary's
+sphere's horizon, a ridge seen from a valley, was drawn as sky, cut off
+along a straight line.  Nothing gave it depth, so the pass took it for
+sky: T at its 0.08 floor and the full ray's sky over it (on a ridge near
+Everest from 6.5 km: T 0.08, sky 0.35 / 0.69 / 1.16, the ridge's own
+1.04 let through at 8%, against the valley floor's T 0.82 / 0.66 / 0.38).
+Cesium's terrain distance now reaches the pass as depth
+([CESIUM.md](../../CESIUM.md), `cesium/distance.js`), and the pass hazes
+the segment to it (composition.md): on a ridge 17 km off, T 0.96 /
+0.91 / 0.79 and a sky of 0.07 / 0.16 / 0.33.  The `earth-ridge-day`
+parity view looks up a valley at such a ridge and checks it against the
+valley's ground in the same render: the ridge's median luma is 0.97 of
+the ground's and its blue/red 0.99 of it (before, 0.69 and 2.24: sky).
+The ground itself, from below 20 km, is hazed for its own distance too,
+not the sphere's; over the Ganges plain, where they're the same, the
+four Himalaya views read as before (T and sky within 0.01 across the
+swap), and `earth-low-land-day` holds (0.969).
+
+**Mars's horizon** (found on the preview): Mars's Cesium layer, a
+tileset, didn't carry its terrain's distance (only Earth's globe did), so
+its terrain above the sphere's horizon was drawn as sky (from 232 m: T
+0.004, the full ray's sky over it).  And its terrain lies mostly below
+Mars's datum: the ground sphere's depth, nearer, covered it, so the band
+between the terrain's horizon and the sphere's read as ground with the
+stars through it (T 0.79 over the star field), and with the camera below
+the datum the tables had no rows for the eye and the ground's in-scatter
+went to 0 (the view darkened).  Now Mars carries the distance too, the
+sphere's depth isn't written under a terrain depth (that band is the
+horizon's haze), and the eye is looked up from the sphere when below it.
+Parity views `mars-low-horizon` and `mars-low-horizon-band`.
+
+**Mars's near ridges** (found on the preview): a seam ran through near
+terrain at the sphere's horizon, as if the far horizon showed through the
+ridge (from 4.4 km, one row on the line: T 0.754 and sky 0.156 against
+0.829 and 0.111 a row away), and low over Mars the near ground had no
+haze.  The pass had cut the table's in-scatter and depth at the surface;
+the table's rays end at the sphere or the top, sky above the line and
+ground below.  The surface's segment is now marched (composition.md): on
+that row T 0.826 and sky 0.116, smooth.  Not Cesium's alpha: the decode
+draws every body opaque.  And every Cesium body now takes one path
+(CESIUM.md, architecture).

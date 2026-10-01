@@ -1,5 +1,9 @@
 import {
+  AddEquation,
+  AlwaysDepth,
   AlwaysStencilFunc,
+  Color,
+  CustomBlending,
   DepthStencilFormat,
   DepthTexture,
   DoubleSide,
@@ -9,8 +13,14 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  NearestFilter,
+  OneFactor,
+  OneMinusSrcAlphaFactor,
+  OrthographicCamera,
+  PlaneGeometry,
   ReplaceStencilOp,
   Scene,
+  ShaderMaterial,
   Sphere,
   SphereGeometry,
   UnsignedInt248Type,
@@ -22,6 +32,8 @@ import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
 import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
+import {NEUTRAL_GLSL} from '../hdr.js'
+import {DECODE_DISTANCE_GLSL, DISTANCE_LEVELS, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
 
@@ -34,9 +46,10 @@ import {monthOfJulianDay, monthlyPath} from '../monthly.js'
  *                   screen and set to its Cesium layer, not only the
  *                   target); hide/show celestiary's surfaces
  *   composite()     after the scene renders into _sceneRT, per active body,
- *                   far to near: stencil the body's silhouette, then render
- *                   Cesium synchronously into the same target through a
- *                   same-page NetGL link
+ *                   far to near: stencil the body's silhouette, render
+ *                   Cesium synchronously into _cesiumRT through a same-page
+ *                   NetGL link, and composite that into _sceneRT in its
+ *                   units (HDR.md)
  *   atmosphereShare(node)  how much of the body's atmosphere Cesium
  *                   draws, so the atmosphere post-pass fades out and stands
  *                   down
@@ -90,9 +103,13 @@ export default class CesiumLayers {
     this.shellScene.add(this.shell)
 
     // Depth of each Cesium body's ground sphere, for celestiary's
-    // atmosphere pass (see _writeGroundDepths).
+    // atmosphere pass (see _writeGroundDepths).  Tessellated as
+    // celestiary's own planet mesh (Planet.js, 512 × 256): the pass hazes a
+    // surface for its distance, and at 128 × 96 the faces sagged up to 2 km
+    // inside the sphere, which from 37 km read 7% farther than celestiary's
+    // own ground and hazed Cesium's Earth half again as much.
     this.groundScene = new Scene()
-    this.ground = new Mesh(new SphereGeometry(1, 128, 96), new MeshBasicMaterial({
+    this.ground = new Mesh(new SphereGeometry(1, 512, 256), new MeshBasicMaterial({
       colorWrite: false,
       depthWrite: true,
       depthTest: true,
@@ -108,8 +125,15 @@ export default class CesiumLayers {
     this._frustum = new Frustum()
     this._sphere = new Sphere()
     this._viewProj = new Matrix4()
-    // Celestiary's depth, saved before the Cesium frames clear it.
-    this._depthSave = null
+    // Where Cesium's frames draw (see composite), and the pass that brings
+    // each into _sceneRT.
+    this._cesiumRT = null
+    this.decodeScene = new Scene()
+    this.decodeCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
+    this.decode = new Mesh(new PlaneGeometry(2, 2), newDecodeMaterial())
+    this.decode.frustumCulled = false
+    this.decodeScene.add(this.decode)
+    this._clearColor = new Color()
   }
 
 
@@ -178,14 +202,18 @@ export default class CesiumLayers {
 
   /**
    * Composite the active bodies' Cesium renderings into _sceneRT, which
-   * holds celestiary's colour, depth and stencil for this frame.
+   * holds celestiary's colour and depth for this frame.
    *
-   * Each Cesium frame clears _sceneRT's whole depth buffer, so celestiary's
-   * depth is saved first and restored after each one: a later body's
-   * stencil shell is still occluded by celestiary's objects, and so is the
-   * atmosphere pass's ray (Phobos in front of Mars).  Far to near: a
-   * body's own pixels hold no depth, so a nearer body drawn later lands in
-   * front of it.  Last, each body's ground sphere depth.
+   * Each Cesium frame draws into _cesiumRT, cleared to transparent black,
+   * not straight into _sceneRT: Cesium's colour reaches celestiary through
+   * its own 8-bit buffers, so it comes encoded, and a pass decodes it into
+   * _sceneRT's units (bodyGain; HDR.md).  _cesiumRT gets celestiary's depth
+   * first, for the stencil shell's depth test (a body behind the Moon is
+   * covered by it); Cesium's frame then clears that copy, and _sceneRT's
+   * own depth stays celestiary's, for a later body's shell and for the
+   * atmosphere pass's ray (Phobos in front of Mars).  Far to near: a body's
+   * own pixels hold no depth, so a nearer body drawn later lands in front
+   * of it.  Last, each body's ground sphere depth.
    */
   composite() {
     const {renderer} = this.ui
@@ -198,21 +226,85 @@ export default class CesiumLayers {
     if (passes.length === 0) {
       return
     }
-    const depthSave = this._depthSaveFor(sceneRT)
-    this._blitDepth(sceneRT, depthSave)
+    const cesiumRT = this._cesiumTarget()
     for (const {name, node, unseen} of passes) {
       if (this.bodies[name]?.status !== 'ready') {
         continue
       }
+      this._blitDepth(sceneRT, cesiumRT)
       // resetState() also unbinds three's render target; and the last
-      // body's stencil must not admit this one.
-      renderer.setRenderTarget(sceneRT)
-      renderer.clear(false, false, true)
+      // body's stencil and colour must not carry over to this one.
+      renderer.setRenderTarget(cesiumRT)
+      renderer.getClearColor(this._clearColor)
+      const clearAlpha = renderer.getClearAlpha()
+      renderer.setClearColor(0x000000, 0)
+      renderer.clear(true, false, true)
+      renderer.setClearColor(this._clearColor, clearAlpha)
       this._compositeBody(name, node, unseen)
-      this._blitDepth(depthSave, sceneRT)
+      if (!unseen && this.bodies[name]?.status === 'ready') {
+        this._decodeInto(sceneRT, cesiumRT, name)
+      }
     }
     this._drawFadingSurfaces(drawn)
-    this._writeGroundDepths(drawn)
+    // Not for a body whose terrain wrote its own depth (_decodeInto): where
+    // its terrain sinks below the sphere (most of Mars, under its datum)
+    // the sphere's depth, nearer, covered it, and the band between the
+    // terrain's horizon and the sphere's, where Cesium draws nothing, read
+    // as ground with the stars through it.  Left without depth, the pass
+    // takes that band for a gap in the ground and draws it the horizon's
+    // haze.
+    this._writeGroundDepths(drawn.filter(({name}) => !this._terrainDepth(name)))
+  }
+
+
+  /**
+   * Bring one body's Cesium frame from _cesiumRT into _sceneRT,
+   * premultiplied-over, in _sceneRT's units.
+   *
+   * @param {object} sceneRT
+   * @param {object} cesiumRT
+   * @param {string} name
+   */
+  _decodeInto(sceneRT, cesiumRT, name) {
+    const {renderer} = this.ui
+    const u = this.decode.material.uniforms
+    u.tCesium.value = cesiumRT.texture
+    u.uHdr.value = this.ui.hdr === true ? 1 : 0
+    u.uGain.value = bodyGain(name)
+    // Not while celestiary's own surface is still drawn over it, fading
+    // (_drawFadingSurfaces): the terrain's depth, nearer than the sphere,
+    // would hide it.  Nor from high up (TERRAIN_DEPTH_MAX_HEIGHT_M): the
+    // pass needs the terrain's distance for a ridge over the sphere's
+    // horizon, seen from low, and from afar 8 bits are too coarse for it
+    // (from orbit, past the encoding's limit, the terrain would read in
+    // front of the atmosphere and go unhazed), where the sphere's depth
+    // (_writeGroundDepths) is exact.
+    this.decode.material.depthWrite = this._terrainDepth(name)
+    u.uDistanceScale.value = this.bodies[name]?.distanceScale ?? 1
+    const node = this.ui.sceneManager?.objects?.[name]
+    if (node) {
+      node.getWorldPosition(u.uBodyCenter.value).applyMatrix4(this.ui.camera.matrixWorldInverse)
+      u.uGroundRadius.value = node.props.radius.scalar
+    }
+    u.uProjection.value.copy(this.ui.camera.projectionMatrix)
+    u.uProjectionInverse.value.copy(this.ui.camera.projectionMatrixInverse)
+    renderer.setRenderTarget(sceneRT)
+    const autoClear = renderer.autoClear
+    renderer.autoClear = false
+    renderer.render(this.decodeScene, this.decodeCamera)
+    renderer.autoClear = autoClear
+  }
+
+
+  /**
+   * @param {string} name
+   * @returns {boolean} Whether the body's terrain depth becomes
+   *   celestiary's this frame (_decodeInto), in place of its ground
+   *   sphere's (_writeGroundDepths)
+   */
+  _terrainDepth(name) {
+    return this.fadeOf(name) >= 1 &&
+      (this.bodies[name]?.heightM ?? Infinity) < TERRAIN_DEPTH_MAX_HEIGHT_M
   }
 
 
@@ -436,18 +528,24 @@ export default class CesiumLayers {
 
 
   /**
-   * @param {object} sceneRT
-   * @returns {object} A depth-stencil render target the size of sceneRT
+   * @returns {object} _cesiumRT: where Cesium's frames draw, the size of
+   *   _sceneRT, 8-bit colour (what Cesium hands over is 8-bit already) and
+   *   a depth-stencil texture like _sceneRT's, for the depth copy
    */
-  _depthSaveFor(sceneRT) {
-    if (!this._depthSave) {
-      const rt = new WebGLRenderTarget(sceneRT.width, sceneRT.height, {stencilBuffer: true})
+  _cesiumTarget() {
+    const sceneRT = this.ui._sceneRT
+    if (!this._cesiumRT) {
+      // Nearest: the decode reads each texel as it is.  Filtered, a pixel
+      // just off the terrain's edge read a sliver of its alpha, a distance
+      // of ~0, and drew black, nearest the camera.
+      const rt = new WebGLRenderTarget(sceneRT.width, sceneRT.height,
+          {stencilBuffer: true, minFilter: NearestFilter, magFilter: NearestFilter})
       rt.depthTexture = new DepthTexture()
       rt.depthTexture.format = DepthStencilFormat
       rt.depthTexture.type = UnsignedInt248Type
-      this._depthSave = rt
+      this._cesiumRT = rt
     }
-    const rt = this._depthSave
+    const rt = this._cesiumRT
     if (rt.width !== sceneRT.width || rt.height !== sceneRT.height) {
       rt.setSize(sceneRT.width, sceneRT.height)
     }
@@ -580,6 +678,9 @@ export default class CesiumLayers {
     // frames.ellipsoidCameraPosition).
     const {radii, shellScale} = CESIUM_BODIES[name]
     const position = ellipsoidCameraPosition(view.position, node.props.radius.scalar, radii)
+    // The scale of the distance this frame carries in alpha (distance.js).
+    body.heightM = Math.hypot(...view.position) - node.props.radius.scalar
+    body.distanceScale = distanceScale(body.heightM)
     // Set directly, not through camera.setView: setView converts direction
     // and up to heading, pitch and roll in the local east-north-up frame and
     // back, and near pitch −90° (looking at the body's centre, as on
@@ -706,20 +807,21 @@ export default class CesiumLayers {
     credits.style.display = 'none'
     this.credits.appendChild(credits)
 
-    const sceneRT = this.ui._sceneRT
     let widget = null
     const link = netgl.makeNetGLImmediateLink({
       gl: renderer.getContext(),
       replay: {
-        // Cesium's "screen" is celestiary's scene render target.
-        screenFramebuffer: () => renderer.properties.get(sceneRT).__webglFramebuffer,
+        // Cesium's "screen" is _cesiumRT, which composite() then brings into
+        // celestiary's scene render target.
+        screenFramebuffer: () => renderer.properties.get(this._cesiumTarget()).__webglFramebuffer,
         remapScreenViewport: (x, y, w, h) => {
           const canvas = widget?.canvas
-          if (!canvas?.width || !canvas?.height) {
+          const target = this._cesiumRT
+          if (!canvas?.width || !canvas?.height || !target) {
             return null
           }
-          const sx = sceneRT.width / canvas.width
-          const sy = sceneRT.height / canvas.height
+          const sx = target.width / canvas.width
+          const sy = target.height / canvas.height
           return [Math.round(x * sx), Math.round(y * sy), Math.round(w * sx), Math.round(h * sy)]
         },
         screen: {stencil: {ref: STENCIL_REF}, blend: 'premultiplied-over', clear: 'depth-only'},
@@ -766,7 +868,7 @@ export default class CesiumLayers {
         // Finer tiles than Cesium's default (16): sharper imagery and
         // terrain.
         maximumScreenSpaceError: TILE_SCREEN_SPACE_ERROR,
-        customShader: sunlitShader(Cesium, (config.textureGain ?? 1) / (config.imageryScale ?? 1)),
+        customShader: sunlitShader(Cesium, config.nightFloor ?? 0),
       })
           .then((tileset) => {
             widget.scene.primitives.add(tileset)
@@ -797,12 +899,37 @@ export default class CesiumLayers {
     scene.screenSpaceCameraController.enableInputs = false
     // Lit by celestiary's Sun, not Cesium's ephemeris: the day/night line
     // then matches celestiary's whatever its sidereal phase.
-    // DISPLAY_GAIN: Earth's globe as bright, relative to its imagery, as
-    // the Moon's and Mars's (sunlitShader) and celestiary's surfaces.
-    scene.light = new Cesium.DirectionalLight({direction: new Cesium.Cartesian3(1, 0, 0), intensity: DISPLAY_GAIN})
+    // Every body draws the same thing, whether Cesium loads it as a globe
+    // (Earth: terrain and imagery) or as a 3D tileset (the Moon, Mars:
+    // imagery baked in): its imagery's stored values × Lambert, at most 1,
+    // which fits Cesium's 8-bit buffers, and its distance in alpha; the
+    // composite's one decode scales it into _sceneRT (bodyGain), and
+    // celestiary's atmosphere pass, where the body has one, hazes it.  A
+    // globe that drew its own atmosphere (config.atmosphere; none does
+    // now) would light at DISPLAY_GAIN, its own look.
+    scene.light = new Cesium.DirectionalLight({
+      direction: new Cesium.Cartesian3(1, 0, 0),
+      intensity: config.atmosphere ? DISPLAY_GAIN : 1,
+    })
     if (scene.globe) {
       scene.globe.enableLighting = true
+      if (!config.atmosphere) {
+        litSurfaceOnly(scene.globe)
+        scene.fog.enabled = false
+      }
+      // The terrain's own depth for the distance stage: without
+      // depthTestAgainstTerrain, Cesium clears a globe's depth after
+      // drawing it and draws the ellipsoid's in its place, so the stage
+      // read the ellipsoid, and the cleared far plane above its horizon,
+      // where the ridges are.  A tileset keeps its own.
+      scene.globe.depthTestAgainstTerrain = true
     }
+    // Each pixel's distance, in alpha (distance.js).
+    scene.postProcessStages.add(new Cesium.PostProcessStage({
+      name: 'celestiary_distance',
+      fragmentShader: DISTANCE_STAGE_GLSL,
+      uniforms: {distanceScale: () => this.bodies[name]?.distanceScale ?? DISTANCE_SCALE_M},
+    }))
     scene.atmosphere.dynamicLighting = Cesium.DynamicAtmosphereLightingType.SCENE_LIGHT
     if (scene.skyAtmosphere) {
       scene.skyAtmosphere.show = config.atmosphere
@@ -996,18 +1123,146 @@ function monthlyImageryLayer(Cesium, imagery, month) {
  *   imageryScale)
  * @returns {object} Cesium.CustomShader
  */
-function sunlitShader(Cesium, gain) {
+function sunlitShader(Cesium, nightFloor) {
   const f = (x) => x.toFixed(3)
   return new Cesium.CustomShader({
     lightingModel: Cesium.LightingModel.UNLIT,
+    // Stored value × Lambert, as Earth's globe draws (litSurfaceOnly): the
+    // texture's stored values, not Cesium's linear ones, lit; Cesium's
+    // output encodes linear back to stored.
     fragmentShaderText: `
       void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
         vec3 up = czm_viewRotation * normalize(fsInput.attributes.positionWC);
         float lambert = max(dot(up, czm_lightDirectionEC), 0.0);
-        float light = ${f(DISPLAY_GAIN * gain)} * (${f(SURFACE_AMBIENT)} + ${f(1 - SURFACE_AMBIENT)} * lambert);
-        vec3 shown = czm_pbrNeutralTonemapping(czm_linearToSrgb(material.diffuse) * light);
-        material.diffuse = czm_srgbToLinear(shown);
+        float light = ${f(nightFloor)} + ${f(1 - nightFloor)} * lambert;
+        material.diffuse = czm_srgbToLinear(czm_linearToSrgb(material.diffuse) * light);
       }`,
+  })
+}
+
+
+/**
+ * The decode's scale from a body's Cesium frame (stored value × Lambert)
+ * into _sceneRT's units: DISPLAY_GAIN, as celestiary's own surfaces, and
+ * the body's imagery against celestiary's texture (bodies.js textureGain,
+ * imageryScale).
+ *
+ * @param {string} name
+ * @returns {number}
+ */
+export function bodyGain(name) {
+  const config = CESIUM_BODIES[name] ?? {}
+  return DISPLAY_GAIN * (config.textureGain ?? 1) / (config.imageryScale ?? 1)
+}
+
+
+/**
+ * Make a Cesium globe draw only its lit surface, as celestiary lights its
+ * own: its imagery's stored values × Lambert (Cesium's defaults add 0.3 and
+ * scale Lambert by 0.9), with no ground atmosphere (celestiary's atmosphere
+ * pass draws it), lit at every distance (Cesium fades day-night shading out
+ * below lightingFadeOutDistance, ~10,000 km from Earth's centre, and with it
+ * the ground atmosphere).  With terrain normals (ion World Terrain) that's
+ * Lambert on the terrain; on the plain ellipsoid, Cesium's day-night shading,
+ * which is steeper than Lambert (5 × Lambert + 0.3, clamped).  No water
+ * effect: its sun glint and sky reflection lit the sunward ocean up to
+ * twice celestiary's (whose ocean shine is its own, Planet.md).
+ *
+ * @param {object} globe Cesium.Globe
+ */
+function litSurfaceOnly(globe) {
+  globe.showGroundAtmosphere = false
+  globe.showWaterEffect = false
+  globe.lambertDiffuseMultiplier = 1
+  globe.vertexShadowDarkness = 0
+  globe.lightingFadeOutDistance = 0
+  globe.lightingFadeInDistance = 1
+}
+
+
+/**
+ * @returns {object} The ShaderMaterial of composite's decode pass: _cesiumRT
+ *   (transparent black where Cesium drew nothing) into _sceneRT, scaled by
+ *   the body's gain (bodyGain).
+ */
+function newDecodeMaterial() {
+  return new ShaderMaterial({
+    uniforms: {
+      tCesium: {value: null},
+      uHdr: {value: 1},
+      uGain: {value: DISPLAY_GAIN},
+      uDistanceScale: {value: 1},
+      uProjection: {value: new Matrix4()},
+      uProjectionInverse: {value: new Matrix4()},
+      // The body's centre in view space, and its sphere's radius: the depth
+      // where the terrain is too far to encode.
+      uBodyCenter: {value: new Vector3()},
+      uGroundRadius: {value: 1},
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }`,
+    fragmentShader: `
+      uniform sampler2D tCesium;
+      uniform float uHdr;
+      uniform float uGain;
+      uniform float uDistanceScale;
+      uniform mat4 uProjection;
+      uniform mat4 uProjectionInverse;
+      uniform vec3 uBodyCenter;
+      uniform float uGroundRadius;
+      varying vec2 vUv;
+      ${NEUTRAL_GLSL}
+      ${DECODE_DISTANCE_GLSL}
+      void main() {
+        vec4 c = texture2D(tCesium, vUv);
+        if (c.a < 0.5 / 255.0) discard;
+        // Every body's frame: stored value × Lambert, opaque, its distance
+        // in alpha (distance.js).  Into the HDR buffer scaled by the body's
+        // gain; into the LDR fallback's display values, tone-mapped too.
+        vec3 rgb = c.rgb * uGain;
+        if (uHdr < 0.5) {
+          rgb = neutralToneMap(rgb);
+        }
+        // The distance becomes this pixel's depth, for the atmosphere pass
+        // (terrain above and below the sphere), written while depthWrite is
+        // on (_decodeInto).
+        vec4 v = uProjectionInverse * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
+        vec3 dir = normalize(v.xyz / v.w);
+        float d = decodeDistance(c.a, uDistanceScale);
+        if (c.a >= ${(DISTANCE_LEVELS - 1).toFixed(1)} / ${DISTANCE_LEVELS.toFixed(1)}) {
+          // At the encoding's limit the distance is only "farther than
+          // 5.5 D": the ground sphere's, where the ray meets it, else none
+          // (the far plane).
+          float b = dot(dir, uBodyCenter);
+          float disc = b * b - dot(uBodyCenter, uBodyCenter) + uGroundRadius * uGroundRadius;
+          d = disc > 0.0 && b - sqrt(disc) > 0.0 ? b - sqrt(disc) : -1.0;
+        }
+        vec4 clip = uProjection * vec4(dir * max(d, 1.0), 1.0);
+        gl_FragDepth = d < 0.0 ? 1.0 : clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+        gl_FragColor = vec4(rgb, 1.0);
+      }`,
+    blending: CustomBlending,
+    blendEquation: AddEquation,
+    blendSrc: OneFactor,
+    blendDst: OneMinusSrcAlphaFactor,
+    blendSrcAlpha: OneFactor,
+    blendDstAlpha: OneMinusSrcAlphaFactor,
+    // Always passes: where Cesium's frame has a pixel, its stencil shell
+    // already passed celestiary's depth (_blitDepth), so nothing celestiary
+    // drew is nearer there.  A real test failed wherever a line or point
+    // behind the body had written a depth nearer than the one decoded
+    // (from space, the far plane), and drew it over the globe.  On only
+    // so the depth can be written, for bodies that carry a distance
+    // (_decodeInto).
+    depthTest: true,
+    depthFunc: AlwaysDepth,
+    depthWrite: false,
+    transparent: true,
+    toneMapped: false,
   })
 }
 
@@ -1015,8 +1270,6 @@ function sunlitShader(Cesium, gain) {
 const STENCIL_REF = 1
 // Smallest on-screen radius, in pixels, at which a body is drawn by Cesium.
 const MIN_PIXEL_RADIUS = 1
-// Night-side floor for sunlitShader: dark, but not a hole in the sky.
-const SURFACE_AMBIENT = 0.02
 // How often the terrain under the camera is sampled, ms, and from how high
 // over the surface (Olympus Mons, the highest, is ~21 km over Mars's), m.
 const GROUND_SAMPLE_MS = 200
@@ -1025,6 +1278,12 @@ const GROUND_SAMPLE_BELOW_M = 1e5
 const TILE_SCREEN_SPACE_ERROR = 8
 // The crossfade from celestiary's surface to Cesium's, ms.
 const FADE_MS = 1000
+// Highest camera, over the surface, m, at which the terrain's distance
+// becomes celestiary's depth (_decodeInto).  Higher, a ridge over the
+// sphere's horizon is hundreds of km off and a pixel or two high, and 8
+// bits over the ground in view are too coarse: from 37 km up, steps of
+// several km at the ground showed as rings of speckle in its haze.
+const TERRAIN_DEPTH_MAX_HEIGHT_M = 2e4
 // Cesium's default PerspectiveFrustum far plane, metres.
 const DEFAULT_FAR = 5e8
 // Planet.newPlanet's LOD: the body's mesh, then a point, then nothing.

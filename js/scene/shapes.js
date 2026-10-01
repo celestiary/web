@@ -35,6 +35,7 @@ import {
   Vector3,
 } from 'three'
 import SpriteSheet from './SpriteSheet.js'
+import {sceneReferred} from './hdr.js'
 import {dataUrl} from '../dataUrl.js'
 import * as Shared from '../shared.js'
 import {named} from '../utils.js'
@@ -69,7 +70,7 @@ export function sphere(opts) {
   const geom = new SphereGeometry(opts.radius, opts.resolution, opts.resolution / 2)
   if (opts.matr === undefined) {
     opts.matr = opts.wireframe ?
-      new MeshBasicMaterial({
+      sceneReferred(new MeshBasicMaterial({
         color: opts.color || 0x808080,
         wireframe: true,
         depthTest: true,
@@ -77,7 +78,7 @@ export function sphere(opts) {
         toneMapped: false,
         transparent: false,
         side: BackSide,
-      }) :
+      })) :
       new MeshPhongMaterial({
         flatShading: true,
         color: 0xffffff,
@@ -161,13 +162,13 @@ export function solidEllipse(eccentricity, opts) {
       semiMajorAxisLength, ellipseSemiMinorAxisCurve(eccentricity), // xRadius, yRadius
       0, Math.PI / 2, // start and finish angles
       false, 0) // clockwise, offset rotation
-  const material = new MeshBasicMaterial({
+  const material = sceneReferred(new MeshBasicMaterial({
     color: opts.color || 0x888888,
     opacity: opts.opacity || 1,
     transparent: opts.opacity < 1,
     side: DoubleSide,
     toneMapped: false,
-  })
+  }))
   return new Mesh(
       new ShapeGeometry(ellipsePath),
       material)
@@ -183,13 +184,13 @@ export function solidArc(opts) {
   }
   const shape = new Mesh(
       new CircleGeometry(1, 32, opts.from, opts.to),
-      new MeshLambertMaterial({
+      sceneReferred(new MeshLambertMaterial({
         color: opts.color || 0x888888,
         opacity: opts.opacity || 1,
         transparent: opts.opacity < 1,
         side: DoubleSide,
         toneMapped: false,
-      }))
+      })))
   return shape
 }
 
@@ -246,7 +247,8 @@ export function point(optsOrRadius) {
   }
   const geom = new BufferGeometry()
   geom.setAttribute('position', new BufferAttribute(new Float32Array(3), 3))
-  const pointMaterial = new PointsMaterial(opts)
+  // A marker drawn toneMapped: false writes display values (hdr.js).
+  const pointMaterial = sceneReferred(new PointsMaterial(opts))
   // return new CustomPoints(geom, pointMaterial);
   return new Points(geom, pointMaterial)
 }
@@ -306,7 +308,7 @@ export function line(vec1, vec2, ...rest) {
   points.push(vec1)
   points.push(vec2)
   const geom = new BufferGeometry().setFromPoints(points)
-  return new Line(geom, new LineBasicMaterial(opts))
+  return new Line(geom, sceneReferred(new LineBasicMaterial(opts)))
 }
 
 
@@ -444,7 +446,7 @@ export function lineGrid(params) {
   const divisions = params.numSteps || 10
   const color = params.color || 0x0000af
 
-  grids.material = new LineBasicMaterial({color: color, toneMapped: false})
+  grids.material = sceneReferred(new LineBasicMaterial({color: color, toneMapped: false}))
 
   const xzGrid = new GridHelper(size, divisions, color, color)
   xzGrid.material = grids.material

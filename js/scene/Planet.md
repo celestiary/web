@@ -101,6 +101,14 @@ planet (targeting it) makes it the exposure target; the Sun and stars keep
 the last body's.  Surfaces are non-metallic (metalness 0) except where an
 ocean map adds shine.
 
+The exposure scales, and tone-mapping waits: surfaces render into a linear,
+half-float buffer in these exposure units, the atmosphere pass adds the sky
+in the same units, and PBR Neutral runs once, last ([HDR.md](HDR.md)).  So a
+sunlit white surface is 1.5 in the buffer (`DISPLAY_GAIN`) and shows as
+`N(1.5)`, as before.  Content drawn as display values (stars, labels, lines)
+goes into the buffer through the tone map's inverse (`hdr.js`
+`sceneReferred`).
+
 ## Surface texture sources
 
 - **Mars** (`mars.jpg`, 4096×2048): the USGS Viking MDIM2.1 colourized

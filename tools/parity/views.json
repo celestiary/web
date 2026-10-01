@@ -8,13 +8,13 @@
     {
       "id": "earth-orbit-gibbous",
       "body": "earth",
-      "description": "Earth from 20,000 km at about 64 degrees phase: the Blue Marble base and Cesium's sky and ground atmosphere, against celestiary's texture and Bruneton pass",
+      "description": "Earth from 20,000 km at about 64 degrees phase: the Blue Marble base on Cesium's globe and on celestiary's sphere, both under celestiary's Bruneton pass",
       "hash": "#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=alpoU",
       "tolerance": {
-        "ratio": [0.92, 1.03],
-        "channelRatio": {"r": [1.06, 1.19], "g": [0.92, 1.03], "b": [0.68, 0.79]},
-        "profileMax": 30,
-        "profileMean": 12
+        "ratio": [0.97, 1.01],
+        "channelRatio": {"r": [0.955, 1.0], "g": [0.97, 1.01], "b": [0.98, 1.02]},
+        "profileMax": 42,
+        "profileMean": 4
       }
     },
     {
@@ -23,10 +23,10 @@
       "description": "The Moon from 5,000 km at quarter phase: ion's LRO WAC tiles, lit by celestiary's Sun, against celestiary's texture",
       "hash": "#sun/earth/moon@10,68.6276,5Mm;t=9233.1234jd;cq=0.02,0.9773,0.0723,-0.1983;fov=45deg;s=alpoU",
       "tolerance": {
-        "ratio": [0.85, 0.96],
-        "channelRatio": [0.85, 0.96],
-        "profileMax": 28,
-        "profileMean": 5
+        "ratio": [0.95, 0.98],
+        "channelRatio": [0.95, 0.98],
+        "profileMax": 24,
+        "profileMean": 6.5
       }
     },
     {
@@ -44,13 +44,77 @@
     {
       "id": "earth-low-dusk",
       "body": "earth",
-      "description": "Earth from 400 km, straight down with the Sun about 14 degrees up (76 degrees phase): the low-sun ground atmosphere, and the terminator's soft edge",
+      "description": "Earth from 400 km, straight down with the Sun about 14 degrees up (76 degrees phase): the low-sun haze over the ground, and the terminator's soft edge",
       "hash": "#sun/earth@15,33.7441,400km;t=9233.1234jd;cq=0.0265,0.994,-0.0734,-0.076;fov=45deg;s=alpoU",
       "tolerance": {
-        "ratio": [0.82, 0.98],
-        "channelRatio": {"r": [1.1, 1.3], "g": [0.79, 0.94], "b": [0.44, 0.58]},
-        "profileMax": 34,
-        "profileMean": 12
+        "ratio": [0.98, 1.02],
+        "channelRatio": [0.98, 1.02],
+        "profileMax": 7,
+        "profileMean": 2.5
+      }
+    },
+    {
+      "id": "earth-low-land-day",
+      "body": "earth",
+      "description": "Earth from 7.5 km over the Ganges plain, looking east with the Sun 8 degrees up: the day ground through celestiary's atmosphere pass, on both sides.  The eye-adaptation boost once hid it under the haze on both, alike, so the view also bounds each render's own luma",
+      "hash": "#sun/earth@25.3376,84.3167,7.502km;t=10054.5173jd;cq=-0.3466,0.1022,-0.5386,0.7612;fov=45deg;s=alpoU",
+      "region": {"box": [0, 0.6, 1, 1]},
+      "profile": null,
+      "tolerance": {
+        "ratio": [0.92, 1.01],
+        "luma": [65, 90]
+      }
+    },
+    {
+      "id": "earth-ridge-day",
+      "body": "earth",
+      "description": "Earth from 6.5 km near Everest, looking up a valley at a ridge rising above celestiary's sphere's horizon: Cesium's terrain there has no counterpart in celestiary, so the ridge (the region) is checked against the ground below it (the reference) in Cesium's render, not against celestiary's, which has sky there.  Without the terrain's distance the atmosphere pass took the ridge for sky and drew the sky over it",
+      "hash": "#sun/earth@27.85,86.7736,6.5km;t=10054.7603jd;cq=-0.278,0.7164,-0.6342,0.0853;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0.8, 0.42, 0.95, 0.55]},
+      "reference": {"box": [0.3, 0.8, 0.7, 0.95]},
+      "profile": null,
+      "tolerance": {
+        "reference": {"luma": [0.85, 1.1], "blueRed": [0.9, 1.15]}
+      }
+    },
+    {
+      "id": "mars-low-horizon",
+      "body": "mars",
+      "description": "Mars from 232 m in Valles Marineris, the Sun low on the left: Cesium's terrain lies mostly below Mars's datum, under celestiary's sphere.  Before #141's Mars fix the ground sphere's depth covered the terrain, the band between the terrain's horizon and the sphere's read as ground with the stars through it (mars-low-horizon-band), and terrain above the sphere's horizon was drawn as sky.  Over the ground, on against off: the table's haze to the sphere on both sides",
+      "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9770.1166jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0, 0.6, 1, 1]},
+      "profile": null,
+      "tolerance": {
+        "ratio": [0.92, 0.97],
+        "luma": [35, 50]
+      }
+    },
+    {
+      "id": "mars-low-horizon-band",
+      "body": "mars",
+      "description": "The same view, the band on the right between Cesium's terrain's horizon and the sphere's, against the sky above it in Cesium's render.  Before #141's Mars fix it read as ground, with the stars through it (luma 0.48 of the sky's, blue/red 0.90); now the horizon's haze over far terrain",
+      "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9770.1166jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0.6, 0.40, 1.0, 0.43]},
+      "reference": {"box": [0.6, 0.30, 1.0, 0.36]},
+      "profile": null,
+      "tolerance": {
+        "reference": {"luma": [0.6, 1.2], "blueRed": [0.95, 1.15]}
+      }
+    },
+    {
+      "id": "mars-near-ridge",
+      "body": "mars",
+      "description": "Mars from 4.4 km, a near ridge on the right crossing the sphere's horizon line, the far horizon on the left.  Before the surface's segment was marched, the pass cut the table's in-scatter and depth at the ridge, sky rays above that line and ground rays below, and a seam ran through the near ridge as if the far horizon showed through it: the rows on the line (the region) against the ridge just below (the reference), in Cesium's render",
+      "hash": "#sun/mars@-6.1583,-90.1384,4.352km;t=9770.1157jd;cq=0.8272,0.389,0.1618,0.3718;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0.72, 0.545, 0.95, 0.556]},
+      "reference": {"box": [0.72, 0.56, 0.95, 0.6]},
+      "profile": null,
+      "tolerance": {
+        "reference": {"luma": [0.95, 1.09], "blueRed": [0.97, 1.05]}
       }
     }
   ]

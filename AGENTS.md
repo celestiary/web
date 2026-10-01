@@ -27,6 +27,7 @@ tried and dropped.
 | Rendering, overlays and the `v` visibility groups | DESIGN.md: [rendering techniques](DESIGN.md#rendering-techniques), [overlays & visibility groups](DESIGN.md#overlays--visibility-groups) |
 | Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [parity check](CESIUM.md#parity-check), [follow-ups](CESIUM.md#follow-ups) |
 | Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
+| The HDR pipeline: the scene buffer, units, the one tone map, display-referred materials | [js/scene/HDR.md](js/scene/HDR.md); DESIGN.md [HDR pipeline](DESIGN.md#hdr-pipeline) |
 | The atmosphere pass | [js/scene/atmos/composition.md](js/scene/atmos/composition.md) (what it does and its knobs); [BRUNETON.md](js/scene/atmos/BRUNETON.md) (the LUT design) |
 | Permalinks (`#path@lat,lng,alt;t=…;cq=…;fov=…`) | [js/permalink.md](js/permalink.md) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
@@ -122,6 +123,11 @@ tried and dropped.
   start. The scratchpad directory can be shared between them too: give
   your files and directories names of your own (a prefix), not `main`
   or `before`.
+- **The scene buffer is linear HDR** (js/scene/HDR.md).  Anything new
+  drawn with `toneMapped: false`, whose values are meant as display
+  values (a marker, a line, a label), goes through `sceneReferred()`
+  (`hdr.js`), or PBR Neutral's toe will darken it.  `?hdr=0` in the URL
+  forces the LDR fallback, for testing it.
 - **Large assets are fine in the repo**, e.g. the Blue Marble textures
   and tile pyramids. Document how each was built in
   `js/scene/Planet.md`, so it can be rebuilt.

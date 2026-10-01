@@ -1,5 +1,6 @@
-import {LOD, Object3D} from 'three'
-import CesiumLayers, {meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
+import {AlwaysDepth, LOD, Object3D} from 'three'
+import CesiumLayers, {bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
+import {CESIUM_BODIES} from './bodies.js'
 
 
 describe('meshRange', () => {
@@ -89,11 +90,36 @@ describe('crossfade', () => {
     const mars = {}
     L.bodies.earth = {fadeStart: 500}
     L.bodies.mars = {fadeStart: 500}
+    const drawsItsOwn = CESIUM_BODIES.earth.atmosphere
+    try {
+      // No body draws Cesium's atmosphere now (HDR.md); as if Earth did.
+      CESIUM_BODIES.earth.atmosphere = true
+      expect(L.atmosphereShare(earth)).toBe(0)
+      L.active = [{name: 'earth', node: earth}, {name: 'mars', node: mars}]
+      expect(L.atmosphereShare(earth)).toBe(0.5)
+      expect(L.atmosphereShare(mars)).toBe(0)
+      expect(L.atmosphereShare(null)).toBe(0)
+    } finally {
+      CESIUM_BODIES.earth.atmosphere = drawsItsOwn
+    }
     expect(L.atmosphereShare(earth)).toBe(0)
-    L.active = [{name: 'earth', node: earth}, {name: 'mars', node: mars}]
-    expect(L.atmosphereShare(earth)).toBe(0.5)
-    expect(L.atmosphereShare(mars)).toBe(0)
-    expect(L.atmosphereShare(null)).toBe(0)
+  })
+})
+
+
+describe('decode', () => {
+  it('scales every body by DISPLAY_GAIN and its imagery against celestiary\'s texture', () => {
+    expect(bodyGain('earth')).toBeCloseTo(bodyGain('mars'), 10)
+    expect(bodyGain('moon') / bodyGain('earth')).toBeCloseTo(1.3 / 0.82, 10)
+  })
+
+  it('draws the globe over whatever its stencil admitted, depth or not', () => {
+    // A depth test here failed where a line or point behind the body had
+    // written a nearer depth than the decoded one, and drew it over the
+    // globe (#141's review).  The stencil shell does the occlusion.
+    const {material} = new CesiumLayers({}).decode
+    expect(material.depthTest).toBe(true)
+    expect(material.depthFunc).toBe(AlwaysDepth)
   })
 })
 

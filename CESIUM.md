@@ -36,9 +36,10 @@ falls back to if its Cesium layer can't load.
   Cesium requests them from its render loop, for the view it renders.
 - Going active, the layer crossfades in over a second (`FADE_MS`):
   celestiary's surface is drawn again over Cesium's, fading out (on its
-  own three.js layer, `FADE_LAYER`, with the scene's lights), and for
-  Earth celestiary's atmosphere pass fades out (`uAtmStrength`) as
-  Cesium's sky fades in (its `brightnessShift`).
+  own three.js layer, `FADE_LAYER`, with the scene's lights).  A body whose
+  Cesium layer drew its own atmosphere (`atmosphere: true` in bodies.js;
+  none now) would also fade celestiary's atmosphere pass out
+  (`uAtmStrength`) as Cesium's sky fades in (its `brightnessShift`).
 - The button is HTML chrome, so it follows the `v` visibility group.
 - Cesium's credits (required data attribution) show as a small overlay
   while a layer is active: the nearest active body's only.  Each body's
@@ -59,30 +60,54 @@ celestiary's context at a chosen point in celestiary's frame.
 ThreeUi.renderLoop
   layers.beforeRender()          pick the active bodies; hide/show their
                                  celestiary surfaces
-  render(scene) → _sceneRT       celestiary as usual (body surfaces hidden)
-  layers.composite()             save celestiary's depth; ↓ per active
-                                   body, far to near (stencil cleared
-                                   between bodies)
-    stencil pass → _sceneRT        WGS84-shaped shell, depth-tested against
+  render(scene) → _sceneRT       celestiary as usual (body surfaces hidden);
+                                 linear, half-float, exposure units (HDR.md)
+  layers.composite()             ↓ per active body, far to near
+    depth _sceneRT → _cesiumRT     a copy of celestiary's depth; _cesiumRT's
+                                   colour and stencil cleared
+    stencil pass → _cesiumRT       WGS84-shaped shell, depth-tested against
                                    celestiary's depth: stencil = 1 where the
-                                   body (or its atmosphere) is visible
+                                   body is visible
     link.frame(() => {             Cesium renders synchronously; each GL call
       set Cesium camera              replays into celestiary's context now
-      widget.render()              ← screen draws redirected into _sceneRT,
+      widget.render()              ← screen draws redirected into _cesiumRT,
     })                               clipped to stencil = 1, premultiplied-
     renderer.resetState()            over blended, colour clears dropped
-    restore celestiary's depth     Cesium's frame cleared it
+    decode → _sceneRT              Cesium's 8-bit frame into exposure units
+                                   (decodeOf), premultiplied-over
   ground-sphere depths           each active body, depth-tested
-  _updateAtmUniforms()           celestiary atmosphere off for this body
-  render(atm pass) → screen
+  _updateAtmUniforms()
+  render(atm pass) → screen      sky + scene × T, tone-mapped once
 ```
 
 Why these pieces:
 
-- **In `_sceneRT`, not on screen.** Celestiary's depth lives in `_sceneRT`
-  (its atmosphere post-pass reads it), so the stencil shell must depth-test
-  there. `_sceneRT` gets a depth-*stencil* texture.
-  `replay.screenFramebuffer` maps Cesium's default framebuffer onto it.
+- **In `_cesiumRT`, then decoded into `_sceneRT`.** Celestiary's depth
+  lives in `_sceneRT` (its atmosphere post-pass reads it), so the stencil
+  shell depth-tests against a copy of it in `_cesiumRT`, which has its own
+  depth-stencil texture; `replay.screenFramebuffer` maps Cesium's default
+  framebuffer onto `_cesiumRT`.  Cesium's frames reach celestiary through
+  Cesium's own 8-bit buffers (with `highDynamicRange` off, its globe-depth
+  framebuffer is `UNSIGNED_BYTE`, and its final draw is a copy of it), so
+  they can't hold exposure units above 1: each body's frame holds its
+  imagery's stored values × Lambert, at most 1, with its distance in alpha,
+  and a fullscreen pass decodes it into `_sceneRT`'s linear HDR units
+  ([HDR.md](js/scene/HDR.md#cesium-in-the-same-units)).
+- **One path for every body.** What Cesium loads is the data's fork: Earth
+  is a globe (terrain and imagery layers), the Moon and Mars are ion 3D
+  tilesets with their imagery baked in, so a globe is lit by Cesium's own
+  lighting with its extras off (`litSurfaceOnly`, and
+  `depthTestAgainstTerrain` for its depth), a tileset by `sunlitShader`.
+  After that every body is the same: stored × Lambert, the distance stage,
+  one decode (× `bodyGain`: `DISPLAY_GAIN` × `textureGain` /
+  `imageryScale`), the terrain's depth from below 20 km, and celestiary's
+  atmosphere pass where the body has an atmosphere.  The per-body
+  differences are data in `bodies.js` (`textureGain`, `imageryScale`,
+  `nightFloor`, `atmosphere`, `shellScale`).  Until #141's review the
+  tilesets returned PBR Neutral of their exposure-unit value and the decode
+  inverted it, and only Earth carried its distance; the Neutral round trip
+  through 8 bits lost highlights, and Mars's horizon kept the bugs Earth's
+  had lost.
 - **Stencil, not depth, decides visibility.** Cesium's depth convention
   (log depth, multi-frustum) doesn't match celestiary's; the shell pass
   resolves occlusion against celestiary's objects (the Moon in front of the
@@ -153,9 +178,8 @@ relates to real time.
 - The body's celestiary surface group (surface, clouds, atmosphere shell,
   axes) is hidden, as are its place labels (they'd sit under Cesium's
   globe; Cesium's own data layers replace them).
-- Earth: celestiary's atmosphere post-pass is disabled; Cesium draws its
-  own sky and ground atmosphere.  Mars keeps celestiary's (see
-  Atmospheres).
+- Earth and Mars keep celestiary's atmosphere post-pass, over Cesium's
+  surface (see Atmospheres).
 
 ### Data
 
@@ -185,21 +209,75 @@ relates to real time.
 
 ### Atmospheres
 
-- Earth: Cesium draws its own sky and ground atmosphere (`atmosphere:
-  true` in bodies.js), and celestiary's atmosphere pass stands down.
+- Earth: celestiary's Bruneton pass runs over Cesium's globe, as it does
+  over Mars's tiles: one atmosphere, in celestiary's exposure units, on both
+  sides of the swap ([HDR.md](js/scene/HDR.md#cesium-in-the-same-units)).
+  Cesium's globe draws only its lit surface: stored value × Lambert
+  (`litSurfaceOnly`: light intensity 1, `lambertDiffuseMultiplier` 1,
+  `vertexShadowDarkness` 0), no ground atmosphere, fog or water effect,
+  and the composite applies `DISPLAY_GAIN`.
+- **Terrain depth.**  The pass needs to know where Cesium's terrain is and
+  how far: its terrain rises over celestiary's sphere, and a ridge seen
+  from a valley sits above the sphere's horizon, where the pass took it
+  for sky and painted it over (the first cut of #141 did, with a straight
+  "horizon" across the mountains).  Cesium's depth doesn't reach
+  celestiary (its frames arrive through its 8-bit colour buffer), so a
+  Cesium post-process stage (public API, with the scene's depth texture)
+  writes each pixel's distance from the camera into alpha, which is
+  otherwise always 1 on the opaque globe or tileset, for the bodies under
+  celestiary's atmosphere (Earth's globe, Mars's tileset; bodies.js
+  `terrainDistance`), encoded as 1 − e^(−d/D) in 8
+  bits and dithered (`cesium/distance.js`; D grows with the camera's
+  height).  The composite's decode pass turns it back into celestiary's
+  depth (written whatever the depth buffer holds: the stencil shell has
+  already admitted only pixels where nothing celestiary drew is nearer; a
+  real depth test there let lines and points behind Earth show through
+  the globe), and the atmosphere pass hazes the terrain for that
+  distance (aerial perspective; composition.md), with the camera below
+  20 km: from higher up the ridges that matter are a pixel or two, and 8
+  bits over the ground in view are too coarse (from 37 km, the first cut
+  drew rings of speckle in the ground's haze), so the ground sphere's
+  exact depth serves, as before.  The globe needs
+  `depthTestAgainstTerrain`: without it Cesium clears the globe's depth
+  once drawn and draws the ellipsoid's instead (its depth plane), so the
+  stage read the ellipsoid below the horizon and the cleared far plane
+  above it, and every ridge came out at the encoding's limit (7 D, ~310 km
+  from 6.5 km up, where they were 3 to 25 km off).  Not during the
+  crossfade, while celestiary's own surface, at the sphere, is drawn over
+  it: a ridge above the sphere's horizon shows as sky until the crossfade
+  ends (1 s), then as terrain.  While the terrain's depth is written, the
+  body's ground sphere's isn't (`_writeGroundDepths`): Mars's terrain lies
+  mostly below its datum, and the sphere's depth, nearer, had covered it,
+  and the band between the terrain's horizon and the sphere's, where
+  Cesium draws nothing, read as ground with the stars through it.  Left
+  without depth, the pass takes that band for a gap in the ground and
+  draws the horizon's haze there.  A pixel whose terrain is too far to
+  encode gets the sphere's depth from the decode itself.  A camera below
+  the datum is the atmosphere pass's to handle (composition.md).  A float or 16-bit depth from Cesium would do better than 8 bits:
+  portal-netgl could expose the host object a guest texture replays to
+  (Cesium's globe depth texture), or give screen draws a depth attachment
+  of their own (its "guest-private depth" roadmap item).
+- Until #86's PR A, Earth used
+  Cesium's own sky and ground atmosphere (`atmosphere: true`): from orbit it
+  applied `1 − e^(−2x)` to the lit surface plus its haze, and below
+  `lightingFadeOutDistance` (10,000 km from the centre) it faded its ground
+  atmosphere out altogether, so from 400 km the ground showed unhazed and
+  brown where celestiary's was blue; and its translucent sky covered the
+  daytime Moon.  The mechanism was already checked on Earth for Mars
+  (Phase 4, below).
 - Mars: Cesium has no Mars atmosphere (its sky atmosphere is Earth's and
   its ground atmosphere needs a globe), so celestiary's Bruneton pass runs
-  over the Cesium layer.
+  over the Cesium layer, as over Earth's globe (one path, above).
 - The pass reads `_sceneRT`'s depth: where each ray ends (an object in
   front of the atmosphere, like Phobos before Mars, gets none of it), and,
   inside the atmosphere, ground from sky (ground-ray pixels whose depth
   reads as background are taken for mesh gaps and hazed over).
-- Each Cesium frame clears `_sceneRT`'s whole depth buffer.  So
-  celestiary's depth is saved before the Cesium frames (a depth blit to a
-  twin depth-stencil target) and restored after each one, and then each
-  active body's ground sphere (its celestiary radius, the sphere the pass
-  integrates against) is drawn depth-only, depth-tested: whatever
-  celestiary drew in front of the body keeps its depth.
+- Each Cesium frame clears its target's whole depth buffer: `_cesiumRT`'s,
+  a copy of celestiary's, so `_sceneRT` keeps celestiary's depth.  Then
+  each active body's ground sphere (its celestiary radius, the sphere the
+  pass integrates against) is drawn into `_sceneRT` depth-only,
+  depth-tested: whatever celestiary drew in front of the body keeps its
+  depth.
 - Active bodies still composite far to near: a body's own pixels hold no
   depth until the ground spheres go in at the end, so a nearer body is
   drawn after, and over, a farther one.
@@ -295,7 +373,7 @@ New:
 
 Changed:
 
-- `js/ThreeUI.js` — depth-stencil `_sceneRT`; layer hooks in `renderLoop`;
+- `js/ThreeUI.js` — depth-stencil, half-float `_sceneRT`; layer hooks in `renderLoop`;
   atmosphere disabled for a Cesium-layered body; publish `layerBody`.
 - `js/App.jsx` — mount `LayersButton`.
 - `js/store/useStore.js` — add the slice.
@@ -392,7 +470,9 @@ of `views`, each:
 | `hash` | the permalink, with `cq=` (js/permalink.md; without it the time and view aren't restored).  Include `s=alpoU` to turn off labels, lines and the Milky Way, which are drawn on both renders and dilute the ratios |
 | `region` | `{"disc": true, "inner": 0.9}` (the body's disc, computed from the camera) or `{"box": [x0, y0, x1, y1]}` in fractions of the image; `minLuma` (default 12) |
 | `profile` | `{"across": "terminator", "samples": 40, "band": 5, "reach": 0.9}`, or `{"from": [x, y], "to": [x, y]}` in fractions of the image; omit for none |
-| `tolerance` | `ratio` `[lo, hi]`; `channelRatio` `[lo, hi]` or `{r, g, b}`; `profileMax`, `profileMean` (luma levels); `minPixels` (default 200) |
+| `freeze` | `true` stops the simulation clock as soon as the app is up, not once the tiles have settled: for views low over relief, where the ground turning under the camera while tiles load (hundreds of m/s) would frame different mountains each run |
+| `reference` | optional `{"box": [x0, y0, x1, y1]}`: a second region of the same render, for what has no counterpart in celestiary's render (Cesium's terrain above celestiary's sphere), measured against the ground beside it in Cesium's render |
+| `tolerance` | `ratio` `[lo, hi]`; `channelRatio` `[lo, hi]` or `{r, g, b}`; `profileMax`, `profileMean` (luma levels); `luma` `[lo, hi]` (each render's own median luma, on and off: for views where both sides could go wrong alike, as they share the atmosphere pass); `reference` `{luma, blueRed}`, each `[lo, hi]` (the on render's median luma, and median blue/red, over the region over the same over `reference`: the ridge looks like ground, not sky); `minPixels` (default 200) |
 
 To add a view: fly to it in the app (the URL follows the camera, one second
 after it settles) and copy the hash; pick a **partial phase**, as colour
@@ -409,7 +489,8 @@ profile max, which sits at the limb), so a change that moves the two
 renderings apart fails, and one that brings them together shows as a value
 well inside its range.  When #92, #93 or #86 close a gap, tighten that
 view's tolerance to the new value with the same margin.  Ratios ought to
-come to about 1 (0.95 to 1.05); the baselines aren't there yet, see below.
+come to about 1 (0.95 to 1.05); since #86's PR A all four views are within
+that, see below.
 
 ### Baselines and what they show
 
@@ -418,24 +499,81 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 
 | View | Luma | R / G / B | Profile max / mean (of 255) |
 |---|---|---|---|
-| `earth-orbit-gibbous` | 0.975 | 1.125 / 0.973 / 0.736 | 23.1 / 9.6 |
-| `moon-quarter` | 0.905 | 0.905 / 0.905 / 0.905 | 21.0 / 3.6 |
-| `mars-gibbous` | 0.991 | 1.000 / 0.989 / 1.000 | 6.0 / 1.5 |
-| `earth-low-dusk` | 0.898 | 1.198 / 0.866 / 0.510 | 24.5 / 9.0 |
+| `earth-orbit-gibbous` | 0.990 | 0.976 / 0.988 / 1.000 | 29.5 / 2.4 |
+| `moon-quarter` | 0.967 | 0.967 / 0.967 / 0.967 | 19.4 / 5.5 |
+| `mars-gibbous` | 0.988 | 1.000 / 0.985 / 0.986 | 9.5 / 1.8 |
+| `earth-low-dusk` | 1.001 | 1.000 / 1.000 / 1.000 | 3.2 / 1.2 |
+| `earth-low-land-day` | 0.938-0.972 | median luma 80 on, 85 off since the surface's segment is marched (73-75 and 77-78 with the table's; 55, washed out, before #141's fix) | (no profile) |
+| `earth-ridge-day` | ridge over valley ground, on: luma 0.971, blue/red 0.992 (was 0.69 and 2.24, sky over the ridge) | (no off comparison) | (no profile) |
+| `mars-low-horizon` | 0.952 over the ground; median luma 42.0 on, 43.8 off | (no profile) | (no profile) |
+| `mars-low-horizon-band` | horizon band over the sky above it, on: luma 0.801, blue/red 1.038 (was 0.484 and 0.901, ground with the stars through it) | (no off comparison) | (no profile) |
+| `mars-near-ridge` | the rows on the sphere's horizon line across a near ridge, over the ridge below them, on: luma 1.069, blue/red 1.040 (was 1.114 and 1.093, a seam through the ridge) | (no off comparison) | (no profile) |
+
+Measured after #86's PR A (one HDR buffer; Earth under celestiary's
+atmosphere pass on both sides), with #137's IAU poles (Mars's turned the
+view: its profile max went from 5.5 to 9.5).  Earth's orbit profile max
+ranged 29.5 to 36.6 over runs.  Before it, on the same machine:
+
+| View | Luma | R / G / B | Profile max / mean |
+|---|---|---|---|
+| `earth-orbit-gibbous` | 0.975 | 1.125 / 0.973 / 0.736 | 23.1 / 9.4 |
+| `moon-quarter` | 0.967 | 0.967 / 0.967 / 0.967 | 19.4 / 5.5 |
+| `mars-gibbous` | 0.992 | 1.000 / 0.991 / 1.000 | 5.9 / 1.1 |
+| `earth-low-dusk` | 0.899 | 1.198 / 0.866 / 0.511 | 25.0 / 8.8 |
+
+(The Moon measured 0.905 when the check was written; by the time #134
+merged, #130's new lunar orientation had turned a different face to this
+view, and it read 0.967 on main, outside its first tolerance.)
 
 - **Mars matches**: its Cesium tiles under celestiary's atmosphere pass are
-  within 1% and 6 levels of celestiary's own.
-- **The Moon is 9.5% darker** in Cesium across the lit half at quarter
-  phase, equally in all channels, and more so toward the terminator than
-  at the bright limb.  `imageryScale` (bodies.js) was fitted at another
-  phase, so it's a shape difference (the Lambert falloff on the smooth
-  sphere against celestiary's lighting), not only a gain.
-- **Earth's colour differs while its brightness matches**: over the lit
-  disc Cesium is 12% redder and 26% less blue (land olive where celestiary's
-  is tan, the ocean and haze less blue).  From 400 km with the Sun 14 degrees
-  up it is warm brown (blue at half) where celestiary's Bruneton pass gives
-  a blue haze.  The script doesn't separate imagery from atmosphere; #92
-  and #86 would start by forcing the atmosphere off on both sides.
+  within 1.5% and 5 levels of celestiary's own.
+- **The Moon is 3% darker** in Cesium, equally in all channels, and the
+  whole difference is at the bright limb (the profile agrees to 1-3% from
+  the terminator to the disc's middle, then falls to 0.75 at the limb).  It
+  is celestiary's specular: its Moon is a `MeshPhysicalMaterial` (F0 0.04,
+  roughness 0.8), whose Fresnel term brightens grazing views, while
+  `sunlitShader` is Lambert only.  With the Moon's `specularIntensity` set to
+  0, celestiary's lit disc is 4.5% darker and Cesium's is 1.4% brighter
+  than it.  Whether the Moon should have that sheen is a lighting question,
+  separate from #86.
+- **Earth matches**, since #86's PR A put its Cesium globe under
+  celestiary's atmosphere pass: within 1% in luma, 2.4% in red, from orbit
+  and from 400 km; profile means of 1-2.5 levels.  Before, Cesium drew its own sky and ground atmosphere:
+  from orbit, its `1 − e^(−2x)` curve over the lit surface plus its haze
+  made the disc 12% redder and 26% less blue than celestiary's; from 400 km
+  its ground atmosphere had faded out (Cesium's `lightingFadeOutDistance`,
+  10,000 km from the centre), leaving the lit imagery unhazed and brown
+  where celestiary's Bruneton pass gives a blue haze.  Neither was
+  celestiary's atmosphere failing to reach Cesium's ground: the pass stood
+  down for Earth by design (`atmosphere: true`).  The remaining profile
+  maximum, from orbit, is one sample where the coast meets the lit limb,
+  and moves by several levels between runs.
+- **Earth low over land by day** (`earth-low-land-day`, 7.5 km, Sun 8° up):
+  Cesium's ground is 3-6% darker than celestiary's (its imagery and terrain
+  Lambert against celestiary's texture), under the same haze.  Until #141's
+  fix the atmosphere pass washed the day ground out on both sides alike,
+  which the ratio (1.0) couldn't see, so the view also bounds each render's
+  own median luma (`luma`, 65-90; it read 55).  The eye-adaptation boost
+  covered the ground (T 0.094 over it from 7.5 km), and below 1.3 km the
+  in-scatter table's ground slice gave the ground the horizon's glow; see
+  [composition.md](js/scene/atmos/composition.md).  A 16 m view isn't in
+  the list: at ground level Cesium's tiles never all read loaded, so it
+  never settles.
+- **Terrain over the sphere's horizon** (`earth-ridge-day`, 6.5 km near
+  Everest, looking up a valley at a ridge): celestiary's sphere has no
+  ridge there, so the view checks Cesium's ridge against the valley ground
+  below it in the same render (`reference`).  Before #141's terrain depth
+  the atmosphere pass drew sky over the ridge (luma 0.69 of the ground's,
+  blue/red 2.24 of it); now 0.97 and 0.99.  The view stops the clock at
+  load (`freeze`): with the clock running while tiles load, the ground
+  turned under the camera and each run framed different mountains.
+- **Mars low** (`mars-low-horizon`, 232 m in Valles Marineris, Sun low on the
+  left): Cesium's Mars terrain lies mostly below the datum, under
+  celestiary's sphere.  Over the ground both sides get the table's haze to
+  the sphere (0.942, Cesium's imagery a little darker); the band on the
+  right between the terrain's horizon and the sphere's
+  (`mars-low-horizon-band`) read as ground with the stars through it until
+  #141's Mars fix, and is now the horizon's haze.
 - The night side is left out of the ratios (under luma 12), so #93's city
   lights, which only celestiary draws, don't enter them; only the
   profile's dark end sees them.
