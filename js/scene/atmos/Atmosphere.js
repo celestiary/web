@@ -521,7 +521,10 @@ vec2 rsi(vec3 r0, vec3 rd, float sr);
 // ray from the eye to a surface tMax away, by a march, as
 // AtmospherePrecompute integrates the table: each step's sunlight through
 // the transmittance table.  Heights below the ground sphere (Cesium's
-// terrain under a datum, a camera there) are denser, as they are.
+// terrain under a datum, a camera there, and the faces of a ground mesh,
+// which sag inside its sphere) count at the sphere's density, as the tables
+// do: e^(−h/H) below it put five times Earth's Mie density at the bottom of
+// the ground sphere's 2 km sag and doubled the haze from 37 km.
 void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 T) {
   float ds = tMax / float(SEG_STEPS);
   vec3  totalR = vec3(0.0);
@@ -531,7 +534,7 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 T) {
   for (int i = 0; i < SEG_STEPS; i++) {
     vec3  pos = eye + dir * ((float(i) + 0.5) * ds);
     float r   = length(pos);
-    float h   = r - uGroundRadius;
+    float h   = max(r - uGroundRadius, 0.0);
     float dR  = exp(-h / uRayleighScaleHeight) * ds;
     float dM  = exp(-h / uMieScaleHeight) * ds;
     odR += dR;
@@ -542,7 +545,7 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 T) {
       jOd = vec2(1.0e6);  // the Sun behind the planet
     } else {
       jOd = texture2D(tTransmittance,
-          vec2(max(h, 0.0) / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rg;
+          vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rg;
     }
     vec3 attn = exp(-(uMieCoeff * (odM + jOd.g) + uRayleigh * (odR + jOd.r)));
     totalR += dR * attn;

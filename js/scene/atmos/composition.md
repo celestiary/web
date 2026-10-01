@@ -50,7 +50,9 @@ radius, and the lookups clamped into the ground slice, whose ground rows
 are 0.  The sky pixels look up from the sphere straight above the eye (and
 keep the transmittance lookup four rows clear of the horizon, which from
 the sphere is within a row or two of straight across in that table); the
-surface's march starts at the eye itself, in air denser than the datum's.
+surface's march starts at the eye itself; heights below the sphere count
+at the sphere's density, as the tables do (a ground mesh's faces sag
+inside its sphere, and denser air there doubled the haze from 37 km).
 
 `scene` is the linear HDR scene buffer, in exposure units (1.0 is a white
 Lambertian surface lit by the Sun at the exposure target, before
