@@ -117,6 +117,25 @@ describe('attachPointerDrag', () => {
     expect(Math.abs(camera.position.length() - startPos.length())).toBeLessThan(1e-6)
   })
 
+  it('getOrbitScale scales an orbit drag, read at each move, and leaves pan alone', () => {
+    const turn = (mode, scale) => {
+      const el = makeFakeElement()
+      const camera = new PerspectiveCamera()
+      camera.position.set(10, 0, 0)
+      attachPointerDrag(el, camera, {getDragMode: () => mode, getOrbitScale: () => scale})
+      el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+      el.fire('pointermove', {pointerId: 1, clientX: 140, clientY: 100})
+      return {angle: Math.atan2(camera.position.z, camera.position.x), quat: camera.quaternion.clone()}
+    }
+    const full = turn('orbit', 1)
+    const slow = turn('orbit', 0.1)
+    expect(Math.abs(full.angle)).toBeCloseTo(40 * 0.005, 6)
+    expect(Math.abs(slow.angle)).toBeCloseTo(40 * 0.005 * 0.1, 6)
+    const panFull = turn('pan', 1)
+    const panSlow = turn('pan', 0.1)
+    expect(panSlow.quat.equals(panFull.quat)).toBe(true)
+  })
+
   it('latches mode at pointerdown — getDragMode flipping mid-drag does not switch behavior', () => {
     const el = makeFakeElement()
     const camera = new PerspectiveCamera()

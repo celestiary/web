@@ -27,7 +27,7 @@ import {
   ASTRO_UNIT_METER, GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets,
 } from './shared.js'
 import {named} from './utils.js'
-import {GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, groundRadius, homeBody} from './zoom.js'
+import {GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, groundRadius, homeBody, rotateScale} from './zoom.js'
 
 
 /** */
@@ -117,6 +117,7 @@ export default class ThreeUi {
       // ThreeUI construction; both accessors run lazily at pointerdown.
       getDragMode: () => this.useStore?.getState().dragMode,
       getTarget: () => targets.obj,
+      getOrbitScale: () => this.orbitScale(),
       onClick: (e) => this._fireClickCbs(e),
       onDblClick: (e) => this._fireDblClickCbs(e),
     })
@@ -667,6 +668,23 @@ export default class ThreeUi {
       this.camera.near = newNear
       this.camera.updateProjectionMatrix()
     }
+  }
+
+  /**
+   * Orbit-drag speed as a fraction of full, from the camera's altitude over
+   * the ground of the body it is at (zoom.js rotateScale).  1 when that body
+   * has no radius (a star).
+   *
+   * @returns {number}
+   */
+  orbitScale() {
+    const body = this._homeBody()
+    const radius = body?.props?.radius?.scalar
+    if (!radius) {
+      return 1
+    }
+    const ground = groundRadius(radius, this.layers.groundHeight(body))
+    return rotateScale(this.camera.position.distanceTo(this.controls.target) - ground, radius)
   }
 
   /** @returns {object|null} The body the camera is at (zoom.js homeBody) */
