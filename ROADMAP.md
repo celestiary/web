@@ -27,16 +27,19 @@ it and why.
   colour and lighting to celestiary's own bodies. See
   [CESIUM.md](CESIUM.md).
 - **Earth:** the simulation month's Blue Marble on both sides of the swap,
-  Bing detail close in, celestiary's night lights and clouds on its own
-  side only.
+  under celestiary's atmosphere on both, Bing detail close in,
+  celestiary's night lights and clouds on its own side only.
 - **Stars:** ~120k stars from Celestia's Hipparcos-based `stars.dat`,
   asterisms, search over named stars and HIP numbers, pick-to-travel.
 - **Galaxy:** a procedural 60k-point barred spiral (`MilkyWay.js`),
   hand-tuned, with a disc several times too thick so it contains the
   local catalogue.
-- **Rendering:** PBR Neutral tone mapping, target-keyed exposure, a
-  Bruneton atmosphere pass; an 8-bit LDR scene buffer, so stars and sky
-  are held in balance by tuned constants, not physics.
+- **Rendering:** one linear, half-float scene buffer in exposure units
+  (target-keyed exposure), the Bruneton sky added in the same units, and
+  one tone map, PBR Neutral, last ([HDR.md](js/scene/HDR.md)); Cesium's
+  layers composite in the same units. The stars are still display values
+  and the day sky still hides them with an eye-adaptation boost: tuned
+  constants, not physics, until #86's PR B.
 
 ## Decisions that apply across tracks
 
@@ -51,8 +54,10 @@ it and why.
   ([#107](https://github.com/celestiary/web/issues/107)). Document each dataset's source, licence and rebuild recipe
   next to the code that uses it (e.g. [Planet.md](js/scene/Planet.md#surface-texture-sources)).
 - **Physically based first.** New visual work is tuned against the HDR
-  pipeline of [#86](https://github.com/celestiary/web/issues/86) once it lands, not the current LDR one, so it isn't
-  tuned twice. Until then, keep new constants few and documented.
+  pipeline of [#86](https://github.com/celestiary/web/issues/86), not the old LDR one, so it isn't tuned twice. Its
+  buffer and single tone map are in (PR A); until PR B makes the stars
+  physical and the exposure metered, keep new constants few and
+  documented.
 - **One look across the Cesium swap.** Anything drawn on a body Cesium can
   replace (Earth, the Moon, Mars) must look the same on both sides, and is
   verified numerically: median pixel ratios with the layer forced on and
@@ -74,7 +79,10 @@ Pluto's orbital planes and elements, and the planets' IAU poles
 with moons' points visible again and hidden behind nearer bodies (PR [#143](https://github.com/celestiary/web/pull/143); see DESIGN.md
 [the far point](DESIGN.md#the-far-point)), and orbit lines drawn from each body's own ephemeris,
 so the bodies sit on them (PR [#142](https://github.com/celestiary/web/pull/142)), which also limits the simulation to the
-dates its ephemerides hold, J2000 ± 6000 years (DESIGN.md [frames and time](DESIGN.md#frames-and-time)).
+dates its ephemerides hold, J2000 ± 6000 years (DESIGN.md [frames and time](DESIGN.md#frames-and-time)); [#86](https://github.com/celestiary/web/issues/86)'s PR A (PR [#141](https://github.com/celestiary/web/pull/141)), one linear
+HDR buffer and one tone map, the sky in exposure units, and Earth's
+Cesium layer under celestiary's atmosphere, hazing Cesium's terrain for
+its own distance ([HDR.md](js/scene/HDR.md)).
 
 **Now**
 1. **Body orientation** ([#96](https://github.com/celestiary/web/issues/96), in [#112](https://github.com/celestiary/web/issues/112)): with the moons' planes ([#6](https://github.com/celestiary/web/issues/6)) and one
@@ -83,18 +91,19 @@ dates its ephemerides hold, J2000 ± 6000 years (DESIGN.md [frames and time](DES
    synchronous moons facing their planets. Then Horizons regression tests
    for every body ([#97](https://github.com/celestiary/web/issues/97)).
 2. **Physically based light and exposure** ([#86](https://github.com/celestiary/web/issues/86), [#109](https://github.com/celestiary/web/issues/109)). The foundation of
-   the rendering track: it changes the scene buffer, so it goes before
-   more visual tuning. PR A (linear half-float scene, one tone map, the
-   sky in exposure units, Cesium in the same units) first, then PR B
-   (physical stars, metered exposure, removing the hacks). `yarn parity`
-   is its check across the swap: the Moon is 9.5% darker on Cesium's
-   side, and Earth's Cesium side is redder and lacks the blue haze
-   close in.
+   the rendering track. PR A is done (linear half-float scene, one tone
+   map, the sky in exposure units, Cesium in the same units); next is PR B:
+   physical stars, metered exposure, and removing the eye-adaptation
+   boost, the transmittance floor and `beyondAtm`. `yarn parity` is its
+   check across the swap: Earth now matches within 1% (it was 12% redder
+   and 26% less blue, and brown against blue haze close in); the Moon is
+   3% darker on Cesium's side, from celestiary's specular at the limb
+   ([CESIUM.md](CESIUM.md#baselines-and-what-they-show)).
 
 **Next**
 3. **Earth across the swap** ([#110](https://github.com/celestiary/web/issues/110)): night lights ([#93](https://github.com/celestiary/web/issues/93)), then the imagery
-   detail layer ([#92](https://github.com/celestiary/web/issues/92)), then clouds ([#88](https://github.com/celestiary/web/issues/88)). After #86's PR A, so
-   they're tuned once. #92's low views need `dev.virtualearth.net`
+   detail layer ([#92](https://github.com/celestiary/web/issues/92)), then clouds ([#88](https://github.com/celestiary/web/issues/88)). Tuned against #86's HDR
+   buffer, which is in. #92's low views need `dev.virtualearth.net`
    (Bing) reachable from the sandbox.
 4. **Milky Way** ([#116](https://github.com/celestiary/web/issues/116)): the realistic shape ([#99](https://github.com/celestiary/web/issues/99)), then the brightest
    ~1M Gaia stars ([#98](https://github.com/celestiary/web/issues/98)), then galactic dynamics with a dark-matter toggle
@@ -126,7 +135,7 @@ based light scale, and the same on both sides of the Cesium swap.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure | [#86](https://github.com/celestiary/web/issues/86), [#59](https://github.com/celestiary/web/issues/59), [#71](https://github.com/celestiary/web/issues/71) | [#87](https://github.com/celestiary/web/issues/87) for the daytime-Moon benchmark | [Planet.md, lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [atmosphere composition](js/scene/atmos/composition.md) |
+| [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure | [#86](https://github.com/celestiary/web/issues/86), [#59](https://github.com/celestiary/web/issues/59), [#71](https://github.com/celestiary/web/issues/71) | [#87](https://github.com/celestiary/web/issues/87) for the daytime-Moon benchmark | [HDR.md](js/scene/HDR.md) (PR A done), [Planet.md, lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [atmosphere composition](js/scene/atmos/composition.md) |
 | [#110](https://github.com/celestiary/web/issues/110) Earth across the Cesium swap | [#93](https://github.com/celestiary/web/issues/93), [#92](https://github.com/celestiary/web/issues/92), [#88](https://github.com/celestiary/web/issues/88) | [#105](https://github.com/celestiary/web/issues/105); re-check after [#109](https://github.com/celestiary/web/issues/109) | [CESIUM.md](CESIUM.md#data), [Planet.md, texture sources](js/scene/Planet.md#surface-texture-sources) |
 | [#111](https://github.com/celestiary/web/issues/111) Sun, gas giants, rings, auroras | [#21](https://github.com/celestiary/web/issues/21), [#41](https://github.com/celestiary/web/issues/41), [#23](https://github.com/celestiary/web/issues/23), [#95](https://github.com/celestiary/web/issues/95) | [#109](https://github.com/celestiary/web/issues/109) for anything emissive | [rings.md](js/scene/rings/rings.md), DESIGN.md [rendering techniques](DESIGN.md#rendering-techniques) |
 

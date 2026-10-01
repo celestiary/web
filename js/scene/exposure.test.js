@@ -1,5 +1,5 @@
 import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
-import {easeExposure, exposureAt} from './exposure.js'
+import {easeExposure, exposureAt, irradianceAt, skyExposure} from './exposure.js'
 
 
 describe('exposureAt', () => {
@@ -13,6 +13,28 @@ describe('exposureAt', () => {
 
   it('grows with distance from the Sun', () => {
     expect(exposureAt(5.2 * ASTRO_UNIT_METER)).toBeGreaterThan(exposureAt(ASTRO_UNIT_METER))
+  })
+})
+
+
+describe('skyExposure', () => {
+  it('is 1 at the body\'s own exposure, wherever it is', () => {
+    for (const d of [0.72, 1, 1.52, 9.5].map((au) => au * ASTRO_UNIT_METER)) {
+      expect(skyExposure(d, exposureAt(d))).toBeCloseTo(1, 12)
+    }
+  })
+
+  it('is the ratio of irradiances at another body\'s exposure', () => {
+    const earth = ASTRO_UNIT_METER
+    const mars = 1.52 * ASTRO_UNIT_METER
+    // Earth's sky seen at Mars's exposure: Earth is lit more, so brighter.
+    expect(skyExposure(earth, exposureAt(mars))).toBeCloseTo(irradianceAt(earth) / irradianceAt(mars), 12)
+    expect(skyExposure(earth, exposureAt(mars))).toBeGreaterThan(1)
+  })
+
+  it('scales with the exposure, as a lit surface does', () => {
+    const d = ASTRO_UNIT_METER
+    expect(skyExposure(d, 4 * exposureAt(d))).toBeCloseTo(4, 12)
   })
 })
 

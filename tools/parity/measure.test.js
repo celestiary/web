@@ -263,6 +263,26 @@ describe('measureView and evaluateView', () => {
     expect(rows.filter((r) => !r.pass).map((r) => r.metric)).toEqual(['ratio luma', 'profile max'])
   })
 
+  it('bounds each render\'s own luma, which a ratio can\'t: both washed out alike', () => {
+    const washed = image(16, 16, () => [230, 225, 180])
+    const rows = evaluateView('washed', measureView(washed, washed, view), {ratio: [0.95, 1.05], luma: [20, 150]})
+    expect(rows.filter((r) => !r.pass).map((r) => r.metric)).toEqual(['luma on', 'luma off'])
+    expect(allPass(evaluateView('fine', measureView(off, off, view), {luma: [20, 150]}))).toBe(true)
+  })
+
+  it('compares a region of the on render with a reference region of it', () => {
+    // Top half sky-blue, bottom half ground-grey, in the on render; the off
+    // render has sky over both (no terrain there).
+    const on = image(16, 16, (x, y) => (y < 8 ? [60, 110, 200] : [180, 180, 175]))
+    const offSky = image(16, 16, () => [60, 110, 200])
+    const ridge = {region: {box: [0, 0, 1, 0.5]}, reference: {box: [0, 0.5, 1, 1]}, profile: null}
+    const tol = {minPixels: 1, reference: {luma: [0.8, 1.2], blueRed: [0.8, 1.3]}}
+    const sky = evaluateView('sky', measureView(on, offSky, ridge), tol)
+    expect(sky.filter((r) => !r.pass).map((r) => r.metric)).toEqual(['ref luma', 'ref blue/red'])
+    const ground = {...ridge, region: {box: [0, 0.5, 1, 0.75]}}
+    expect(allPass(evaluateView('ground', measureView(on, offSky, ground), tol))).toBe(true)
+  })
+
   it('fails a view that measured nothing', () => {
     const dark = image(16, 16, () => [0, 0, 0])
     const rows = evaluateView('empty', measureView(dark, dark, view), {ratio: [0.9, 1.1]})

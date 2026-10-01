@@ -13,6 +13,7 @@ import {
   Vector3,
 } from 'three'
 import {galacticToSceneMatrix} from './galacticFrame.js'
+import {sceneReferred} from './hdr.js'
 import {named} from '../utils.js'
 import {toRad} from '../shared.js'
 
@@ -191,7 +192,7 @@ function buildWireSphereGeometry() {
  * @returns {Group}
  */
 function wrapWithMaterial(geom, color, name) {
-  const mat = new ShaderMaterial({
+  const mat = sceneReferred(new ShaderMaterial({
     uniforms: {
       uColor: {value: color},
       uOpacity: {value: 0.45},
@@ -202,7 +203,7 @@ function wrapWithMaterial(geom, color, name) {
     depthWrite: false,
     transparent: true,
     toneMapped: false,
-  })
+  }))
   const lines = new LineSegments(geom, mat)
   lines.frustumCulled = false
   // Render after the milky way (-2) but before any opaque geometry would
@@ -804,7 +805,7 @@ function buildLabelsPoints(items, color) {
   tex.magFilter = LinearFilter
   tex.needsUpdate = true
 
-  const mat = new ShaderMaterial({
+  const mat = sceneReferred(new ShaderMaterial({
     uniforms: {map: {value: tex}},
     vertexShader: LABEL_VERT,
     fragmentShader: LABEL_FRAG,
@@ -812,7 +813,7 @@ function buildLabelsPoints(items, color) {
     depthTest: true,
     depthWrite: false,
     toneMapped: false,
-  })
+  }))
   const points = new Points(geom, mat)
   points.frustumCulled = false
   // Render after the lines (also at -1) within the transparent batch so

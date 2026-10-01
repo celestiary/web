@@ -22,7 +22,35 @@ import {DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.j
  *   times DISPLAY_GAIN
  */
 export function exposureAt(distanceMeters) {
-  return DISPLAY_GAIN * Math.PI * Math.pow(distanceMeters, SUN_LIGHT_DECAY) / SUN_LUMINOUS_INTENSITY
+  return DISPLAY_GAIN * Math.PI / irradianceAt(distanceMeters)
+}
+
+
+/**
+ * @param {number} distanceMeters Distance from the Sun
+ * @returns {number} The Sun's irradiance there, in three's units (the
+ *   PointLight's intensity over d^decay)
+ */
+export function irradianceAt(distanceMeters) {
+  return SUN_LUMINOUS_INTENSITY / Math.pow(distanceMeters, SUN_LIGHT_DECAY)
+}
+
+
+/**
+ * The atmosphere pass's sky scale (HDR.md, "The sky in exposure units"): its
+ * in-scatter times a body's `sunIntensity` is the sky in exposure units when
+ * the body is the exposure target, and this factor carries it to any other
+ * exposure: the Sun's irradiance at the body, times the exposure, over the
+ * π·DISPLAY_GAIN that exposureAt normalizes a sunlit surface by.  So 1 at
+ * the body's own exposure; and the sky dims or brightens with the exposure
+ * as the surface under it does.
+ *
+ * @param {number} distanceMeters The body's distance from the Sun
+ * @param {number} exposure The renderer's toneMappingExposure
+ * @returns {number}
+ */
+export function skyExposure(distanceMeters, exposure) {
+  return irradianceAt(distanceMeters) * exposure / (DISPLAY_GAIN * Math.PI)
 }
 
 

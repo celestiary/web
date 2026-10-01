@@ -8,6 +8,7 @@ import {
   Vector3,
 } from 'three'
 import * as Material from '../material.js'
+import {sceneReferred} from '../hdr.js'
 import {VERT} from './rings-vert.js'
 import {FRAG} from './rings-frag.js'
 
@@ -129,7 +130,8 @@ export default class Rings extends Mesh {
     }
     geometry.setAttribute('uv', new BufferAttribute(uvs, 2))
 
-    const material = new ShaderMaterial({
+    // Its colour is a display value, not lit in exposure units (hdr.js).
+    const material = sceneReferred(new ShaderMaterial({
       uniforms: {
         uColorMap: {value: Material.pathTexture(`${texture}ringcolor`, '.png')},
         uAlphaMap: {value: Material.pathTexture(`${texture}ringalpha`, '.png')},
@@ -147,7 +149,7 @@ export default class Rings extends Mesh {
       side: DoubleSide,
       depthTest: true,
       depthWrite: false,
-    })
+    }))
 
     super(geometry, material)
     this.renderOrder = 2

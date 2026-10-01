@@ -383,9 +383,15 @@ async function runView(context, baseUrl, view, opts) {
     await page.goto(`${baseUrl}${view.hash}`)
     await page.waitForFunction(() => window.c?.ui?.layers, null, {timeout: opts.timeout * 1000})
     // Force the layer fully on from the start: no crossfade to wait out.
-    await page.evaluate(() => {
+    // A `freeze` view stops the clock now, not once settled: low over
+    // relief, the ground turning under the camera while tiles load (400 m/s
+    // at 28 degrees north) would show different mountains each run.
+    await page.evaluate((freeze) => {
       window.c.ui.layers.fadeOf = () => 1
-    })
+      if (freeze) {
+        window.c.time.isPaused = true
+      }
+    }, view.freeze === true)
     const state = await waitSettled(page, view, requests, opts.timeout)
     // Freeze the simulation, so the two renders are of the same instant.
     await page.evaluate(() => {
@@ -405,6 +411,7 @@ async function runView(context, baseUrl, view, opts) {
       rows,
       ratios: measured.ratios,
       profile: measured.profile,
+      reference: measured.reference,
       geometry,
       state: {before: state, after},
       ion,

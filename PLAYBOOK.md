@@ -115,12 +115,102 @@ a spurious glow blob. Fix: clamp μ_s_t half a texel inward from each tile edge.
 **Rule:** Any 2D texture that encodes a 3D or 4D table with tile packing needs half-texel
 boundary clamps on the packed dimension.
 
+### Trace a value's precision through every buffer it crosses
+
+The HDR plan had Cesium's Moon shader write exposure-unit values above 1
+into celestiary's new half-float buffer.  portal-netgl would have carried
+them faithfully, but they never reached it: Cesium renders into its own
+globe-depth framebuffer, `UNSIGNED_BYTE` unless its HDR is on, and copies
+that to the screen.  Reading `Scene.js` and `GlobeDepth.js` found it before
+any code was written; the fix was an encoding (PBR Neutral, inverted on
+celestiary's side) rather than a change of units.
+
+**Rule:** before relying on a range or precision end to end, list every
+buffer the value passes through, including a library's internal ones, and
+check each one's format.
+
+### Inverting a tone map is exact for one draw, not for blends
+
+Display-referred content (stars, labels) goes into the HDR buffer through
+N⁻¹, so N gives it back.  For a single draw that's exact, but additive
+overlaps of N⁻¹ values tone-map brighter than the old clamped sum (the toe
+is square-root-like, so √a + √b > √(a + b)): overlapping star glows came
+out ~13% brighter.  Measure blends separately from single draws.
+
 ### GPU shader degenerate cases need explicit guards
 
 The Bruneton decode has two degenerate cases: r = rG (ground, rho = 0) and r = rA (atmosphere
 top, dMin = 0). Both produce 0/0. Guard with `max(denominator, 1e-3)` rather than
 special-casing, since the output at those exact boundaries is either physically zero (no
 atmosphere above top) or unobservable (camera exactly on ground).
+
+**Correction (#141):** "unobservable" was wrong.  The lookup blends r-slices by altitude,
+so the ground slice is most of what a camera below the next slice (1.3 km on Earth) sees.
+The guard turned its ground rows into horizontal rays (mu = 0/1e-3 = 0), which integrated the
+whole horizon: from 16 m the day ground was a bright yellow glow.  The fix special-cases them
+to zero.  **Rule:** a guarded degenerate value is still a value; check what a blend or filter
+makes of it, not only whether it's finite.
+
+### A library's depth texture may not be the depth it drew
+
+Cesium's terrain distance, for celestiary's atmosphere pass, came from a
+post-process stage reading Cesium's depth texture.  The first cut put every
+ridge at the encoding's limit (~310 km, where they were 3 to 25 km off), and
+it still looked right, as the pass only asked whether a pixel had depth.
+With `depthTestAgainstTerrain` off (the default) Cesium clears the globe's
+depth after drawing it and draws its ellipsoid's instead: the texture held
+the ellipsoid below the horizon and the far plane above it.  A test stage
+writing log10(distance) into alpha showed it in one run.
+
+**Rule:** before encoding a value, decode a probe of it into something you
+can read (a column of numbers, not a picture), and check it against a
+distance you know.  A fix that works for a boolean reason can hide a wrong
+value.
+
+### Sample a frame nearest when its alpha carries data
+
+The decode pass read Cesium's frame through a bilinear texture.  At texel
+centres that's exact in theory; on SwiftShader, a pixel just off a ridge's
+silhouette read a sliver of its neighbour's alpha, which as a distance is
+~0: a depth at the camera, no air, and a black fringe.  Premultiplied colour
+blends that sliver harmlessly; a code in alpha doesn't.  **Rule:** a
+texture whose channels are codes (distances, ids) gets `NearestFilter`,
+and the decode treats less than half a level as nothing.
+
+### A fix for one body: check every body that shares the path
+
+The terrain-distance fix was Earth's (its globe, `albedo` output), and
+Mars's Cesium layer, a tileset under the same atmosphere pass, kept the
+bug: its terrain above the sphere's horizon was still drawn as sky.  And
+Mars brought cases Earth hadn't: terrain mostly below the datum, a camera
+below it.  **Rule:** when a fix keys on a property ("the albedo globe"),
+list the other bodies that reach the same code, and look at each low and
+at partial phase before calling it done.
+
+### Don't cut a table's ray where the table can't see the cut
+
+For terrain nearer than where the atmosphere tables' rays end, the pass
+first took the table's values along the view ray and cut them at the
+surface (S(eye) − T·S(P), then T from the table's depth times a marched
+share).  The tables' rays end at the sphere or the atmosphere's top, sky
+above the sphere's horizon and ground below, and they're coarse there: the
+cut drew a seam across near ridges at that line, and was wrong for terrain
+below the sphere and for a camera below it.  Each fix of a case found the
+next.  Marching the segment itself, as the table integrates its rays, had
+none of them.  **Rule:** when a precomputed table's parameterisation
+doesn't contain the quantity you need (a ray ending at arbitrary terrain),
+compute it directly rather than deriving it from the table's neighbours.
+
+### A new depth test needs a check of what it now hides
+
+To write the terrain's depth, the Cesium decode pass got a depth test
+(`LessEqual`) as well as the write.  Every terrain check passed; but the
+pass draws the globe after the scene, and where an orbit line or a point
+behind Earth had written its depth, the decoded depth (from space, the far
+plane) lost, and the line showed through the globe.  The stencil shell
+already did that occlusion; the test only had to be on for the write.
+**Rule:** when a pass that draws a body gains a depth test, look at the
+body with lines and points behind it, not only at what the test was for.
 
 ---
 

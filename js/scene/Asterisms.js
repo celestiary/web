@@ -10,6 +10,7 @@ import {
 import AsterismsCatalog from './AsterismsCatalog.js'
 import {assertDefined} from '../assert.js'
 import {labelTextColor} from '../shared.js'
+import {sceneReferred} from './hdr.js'
 import {rteCameraLocal} from './rte.js'
 
 
@@ -130,7 +131,7 @@ export default class Asterisms extends Object3D {
     const geom = new BufferGeometry()
     geom.setAttribute('position', new BufferAttribute(new Float32Array(this._posHigh), 3))
     geom.setAttribute('positionLow', new BufferAttribute(new Float32Array(this._posLow), 3))
-    const mat = new ShaderMaterial({
+    const mat = sceneReferred(new ShaderMaterial({
       uniforms: {
         uCamPosWorldHigh: {value: new Vector3()},
         uCamPosWorldLow: {value: new Vector3()},
@@ -139,7 +140,7 @@ export default class Asterisms extends Object3D {
       vertexShader: asterismsVertexShader,
       fragmentShader: asterismsFragmentShader,
       toneMapped: false,
-    })
+    }))
     const lines = new LineSegments(geom, mat)
     lines.onBeforeRender = (renderer, scene, camera) => {
       rteCameraLocal(lines, camera, mat.uniforms.uCamPosWorldHigh.value, mat.uniforms.uCamPosWorldLow.value)
