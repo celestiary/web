@@ -503,10 +503,11 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `moon-quarter` | 0.967 | 0.967 / 0.967 / 0.967 | 19.4 / 5.5 |
 | `mars-gibbous` | 0.988 | 1.000 / 0.985 / 0.986 | 9.5 / 1.8 |
 | `earth-low-dusk` | 1.001 | 1.000 / 1.000 / 1.000 | 3.2 / 1.2 |
-| `earth-low-land-day` | 0.939-0.972 | median luma 73-75 on, 77-78 off (was 55, washed out, both) | (no profile) |
+| `earth-low-land-day` | 0.938-0.972 | median luma 80 on, 85 off since the surface's segment is marched (73-75 and 77-78 with the table's; 55, washed out, before #141's fix) | (no profile) |
 | `earth-ridge-day` | ridge over valley ground, on: luma 0.971, blue/red 0.992 (was 0.69 and 2.24, sky over the ridge) | (no off comparison) | (no profile) |
-| `mars-low-horizon` | 0.942 over the ground; median luma 41.7 on, 43.0 off | (no profile) | (no profile) |
-| `mars-low-horizon-band` | horizon band over the sky above it, on: luma 0.695, blue/red 1.018 (was 0.484 and 0.901, ground with the stars through it) | (no off comparison) | (no profile) |
+| `mars-low-horizon` | 0.952 over the ground; median luma 42.0 on, 43.8 off | (no profile) | (no profile) |
+| `mars-low-horizon-band` | horizon band over the sky above it, on: luma 0.801, blue/red 1.038 (was 0.484 and 0.901, ground with the stars through it) | (no off comparison) | (no profile) |
+| `mars-near-ridge` | the rows on the sphere's horizon line across a near ridge, over the ridge below them, on: luma 1.069, blue/red 1.040 (was 1.114 and 1.093, a seam through the ridge) | (no off comparison) | (no profile) |
 
 Measured after #86's PR A (one HDR buffer; Earth under celestiary's
 atmosphere pass on both sides), with #137's IAU poles (Mars's turned the
