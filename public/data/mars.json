@@ -48,13 +48,16 @@
   "texture_terrain": true,
   "atmosphere": {
     "height": "8e4 m",
-    "sunIntensity": 14,
-    "rayleigh": [2.5e-6, 1.8e-6, 9.0e-7],
+    "sunIntensity": 4.71,
+    "rayleigh": [1.2e-7, 2.3e-7, 5.2e-7],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "1.11e4 m",
-    "mieCoeff": 4.2e-5,
+    "mieCoeff": 4.5e-5,
     "mieCoeff_unit": "1/m",
-    "mieScaleHeight": "3e3 m",
-    "miePolarity": 0.76
+    "mieScaleHeight": "1.11e4 m",
+    "mieAlbedo": [0.95, 0.91, 0.86],
+    "miePolarity": [0.66, 0.70, 0.74],
+    "mieBackPolarity": -0.3,
+    "mieForwardWeight": 0.92
   }
 }

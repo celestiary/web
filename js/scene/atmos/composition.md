@@ -196,15 +196,81 @@ the ray-march fallback applies the same rules with corresponding variables.
    background. Side effect: a crisp horizon edge regardless of mesh
    tessellation density.
 
-## Per-body sun intensity
+## Multiple scattering
 
-`atmosphere.sunIntensity` in each body's JSON descriptor is the sky's
-gain: with the planet as the exposure target, the sky in exposure units is
-`sunIntensity × in-scatter`.  The physical single-scattering value is
-`π·DISPLAY_GAIN` ≈ 4.71; Earth's 30 (matched to Cesium's Earth; Planet.md)
-is 6.4× that, standing in for multiple scattering and a real aerosol load.
-#86's PR B tunes it against physical stars and metered exposure.  The rings
-reuse it as their brightness.
+The tables are single scattering (BRUNETON.md): light scattered once out
+of the Sun's beam into the ray.  The light scattered twice or more is a
+second term, after Hillaire 2020 ("A Scalable and Production Ready Sky and
+Atmosphere Rendering Technique", EGSR): from the second scattering on it
+is taken as isotropic, so at each point it is one number per channel,
+`Ψ(r, μ_sun)`, the radiance (per unit of the Sun's irradiance) the point
+receives from all the higher orders.  `precomputeMultiScatter` makes it a
+64×64 table from the transmittance table: at each (r, μ_sun) the
+single-scattered radiance arriving from 64 directions, averaged (the
+second scattering's uniform phase), with the sunlit ground's reflection
+(the body's `albedo`) where a direction meets the ground, over one minus
+the average share of light leaving the point that is scattered again
+before it escapes: the geometric sum of every order.  Along a ray the
+in-scatter then adds `σ_s(x)·Ψ(x)` per metre through the ray's
+transmittance, with no phase function: `precomputeInScatterMs` makes a
+second atlas of it, laid out as the single-scatter atlas and read with
+it (`sampleInScatter`'s `ms`), and the segment march adds it per step.
+In the composition it is the third term of `scattered`.
+
+What it does: Mars's dust (albedo 0.86-0.95) at optical depth 0.5 sends
+most of its light round more than once, and the anti-solar sky, which
+single scattering through a forward-peaked phase function leaves nearly
+black (0.04 of a sunlit white surface at the zenith, 70° from the Sun),
+fills in.  Earth's sky gains the same term; its gain (`sunIntensity`,
+below) is re-fitted so its look holds.  The approximation's limit is a
+thick atmosphere (τ of several) or one whose multiple scattering is still
+strongly forward: Venus, Titan.  There the isotropic sum under-counts the
+forward glow; those bodies keep the single-term look they have.
+
+## Per-body data
+
+Each body's atmosphere is data in its JSON descriptor (`atmosphere`), and
+the pass has one path for every body:
+
+- `height`, `rayleigh` (rgb, per metre), `rayleighScaleHeight`: the gas.
+- `mieCoeff` (extinction per metre at the ground), `mieScaleHeight`: the
+  aerosol or dust.  Its vertical optical depth is the product.
+- `mieAlbedo` (one number or rgb; default 1): the aerosol's
+  single-scattering albedo, the share of what it takes from the beam that
+  it scatters.  Mars's dust absorbs blue: 0.95 / 0.91 / 0.86 (Tomasko et
+  al. 1999, Pathfinder, 0.84 at 443 nm to 0.92 at 671 nm; Wolff et al.
+  2009, CRISM, 0.86-0.90 at 440 nm, 0.94-0.96 at 650 nm), which is the
+  butterscotch: the sky is the dust's colour, not the gas's.
+- `miePolarity` (one number or rgb), `mieBackPolarity`,
+  `mieForwardWeight` (defaults 0, 1): the phase function, two
+  Cornette-Shanks lobes, the forward one's asymmetry per channel with
+  weight w, and a back lobe.  One number and w = 1 is the single lobe
+  Earth has always had (0.8).  Mars: forward 0.66 / 0.70 / 0.74, back
+  −0.3, w 0.92, an effective asymmetry of 0.58 (red) to 0.66 (blue),
+  within the 0.6-0.7 of Tomasko et al. 1999 and Pollack et al. 1995; the
+  sharper forward peak in the blue is the bluish aureole round the Sun,
+  which those authors trace to the micron-sized dust scattering shorter
+  wavelengths more nearly forward.
+- `sunIntensity`: the sky's gain.  With the planet as the exposure target,
+  the sky in exposure units is `sunIntensity × in-scatter`, and the
+  physical value is `π·DISPLAY_GAIN` ≈ 4.71 (HDR.md).  Mars has it: its
+  sky's brightness is its dust's.  Earth's 21 (30 before multiple
+  scattering was in; matched to Cesium's Earth, Planet.md) is 4.5×
+  physical, standing in for its aerosol load; #86's PR B tunes it against
+  physical stars and metered exposure.  The rings reuse it as their
+  brightness.
+- The body's own `albedo` is the ground's share of the multiple
+  scattering.
+
+Mars's numbers: optical depth 0.5 (`mieCoeff` 4.5e-5 over an 11.1 km
+scale height, the gas's, as the dust is well mixed: Conrath's profile;
+MSL and MER measure 0.3-1 outside storms, Lemmon et al. 2004, 2015), and a
+physical Rayleigh for CO2 at 6 mbar (τ 0.006 in the blue, 1/50 of
+Earth's).  The first data had a 3 km dust scale height (τ 0.126), a
+single lobe at 0.76, a gain of 14 and a red-heavy "Rayleigh" standing in
+for the colour: the sky was 0.04 of a sunlit white surface at the zenith
+and 0.13 at the anti-solar horizon, black after the tone map, and white
+within 30° of the Sun.
 
 ## Knobs you might want to tune
 

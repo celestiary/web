@@ -75,9 +75,36 @@ describe('atmosphere JSON data', () => {
       }
     })
 
-    it('scatters red more than blue (reddish sky)', () => {
-      // Mars: iron-oxide dust and CO2 shift scattering toward red
-      expect(atm.rayleigh[0]).toBeGreaterThan(atm.rayleigh[2])
+    it('scatters blue more than red, with a hundredth of Earth\'s air', () => {
+      // Rayleigh: CO2 at 6 mbar, physical.  Mars's colour is its dust's
+      // (mieAlbedo), not its gas's: the first data had a red-heavy
+      // Rayleigh standing in for the butterscotch.
+      const earth = loadPlanet('earth').atmosphere
+      expect(atm.rayleigh[2]).toBeGreaterThan(atm.rayleigh[0])
+      expect(atm.rayleigh[2]).toBeLessThan(earth.rayleigh[2] / 50)
+    })
+
+    it('has dust of optical depth about 0.5, mixed through the gas scale height', () => {
+      // MSL and MER records: 0.3-1 outside storms (Lemmon et al. 2004, 2015).
+      const tau = atm.mieCoeff * scalar(atm.mieScaleHeight)
+      expect(tau).toBeGreaterThan(0.3)
+      expect(tau).toBeLessThan(1)
+      expect(scalar(atm.mieScaleHeight)).toBe(scalar(atm.rayleighScaleHeight))
+    })
+
+    it('has dust that absorbs blue more than red, and scatters it more sharply forward', () => {
+      // Single-scattering albedo 0.83-0.90 in the blue, 0.92-0.96 in the red
+      // (Tomasko et al. 1999; Wolff et al. 2009); the forward lobe sharper
+      // in the blue, the bluish aureole round the Sun.
+      expect(atm.mieAlbedo[0]).toBeGreaterThan(atm.mieAlbedo[2])
+      for (const w of atm.mieAlbedo) {
+        expect(w).toBeGreaterThan(0.8)
+        expect(w).toBeLessThan(1)
+      }
+      expect(atm.miePolarity[2]).toBeGreaterThan(atm.miePolarity[0])
+      expect(atm.mieBackPolarity).toBeLessThan(0)
+      expect(atm.mieForwardWeight).toBeGreaterThan(0.8)
+      expect(atm.mieForwardWeight).toBeLessThan(1)
     })
 
     it('has higher Mie coefficient than Earth (more dust)', () => {
@@ -90,9 +117,17 @@ describe('atmosphere JSON data', () => {
       expect(atm.sunIntensity).toBeLessThan(earth.sunIntensity)
     })
 
-    it('miePolarity is in valid Henyey-Greenstein range (-1, 1)', () => {
-      expect(atm.miePolarity).toBeGreaterThan(-1)
-      expect(atm.miePolarity).toBeLessThan(1)
+    it('miePolarity is in valid Henyey-Greenstein range (-1, 1), per channel', () => {
+      for (const g of atm.miePolarity) {
+        expect(g).toBeGreaterThan(-1)
+        expect(g).toBeLessThan(1)
+      }
+    })
+
+    it('sun intensity is the physical single-scattering gain', () => {
+      // π·DISPLAY_GAIN (HDR.md): the sky's brightness is the dust's, not a
+      // gain's.
+      expect(atm.sunIntensity).toBeCloseTo(Math.PI * 1.5, 1)
     })
   })
 })
