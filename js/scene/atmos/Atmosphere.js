@@ -718,15 +718,16 @@ void main() {
     // The table's optical depth along the view ray, to where its ray ends.
     // Use the same mu_v_lut clamp (horizon angle) so extinction matches
     // scatter.
-    // From the sphere (the eye lifted to it) the horizon is a row of the
-    // transmittance table (linear in mu, 256 rows) from straight across, and
-    // a ground ray's lookup there blended in the horizontal sky ray's depth,
-    // the largest: the terrain at eye level came out black.  Keep the
-    // lookup a row clear of the horizon, on its own side.
+    // From the sphere (the eye lifted to it) the horizon is within a row or
+    // two of straight across in the transmittance table (linear in mu, 256
+    // rows; its first column a few hundred metres up, where the horizon is
+    // lower), and a ground ray's lookup there blended in the horizontal sky
+    // ray's depth, the largest: the terrain at eye level came out black.
+    // Keep the lookup four rows clear of the horizon, on its own side.
     float mu_t = mu_v_lut;
     if (eyeLifted) {
       float mu_hT = -sqrt(max(0.0, 1.0 - uGroundRadius * uGroundRadius / (r_e * r_e)));
-      mu_t = mu_v_lut < mu_hT ? min(mu_v_lut, mu_hT - 2.0 / 256.0) : max(mu_v_lut, mu_hT + 2.0 / 256.0);
+      mu_t = mu_v_lut < mu_hT ? min(mu_v_lut, mu_hT - 4.0 / 256.0) : max(mu_v_lut, mu_hT + 4.0 / 256.0);
     }
     vec2 uvT_v    = transmittanceUV(r_e, mu_t, uGroundRadius, uAtmosphereRadius);
     vec2 odView   = texture2D(tTransmittance, uvT_v).rg;
