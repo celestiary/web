@@ -496,6 +496,7 @@ scene graph alone.
 | Orbit paths | `Line` with additive blending: the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
 | Labels | Canvas-rendered `SpriteSheet` compiled to a single `Points` geometry |
 | Asterisms | Line segments loaded from `asterisms-clean.dat` |
+| Human expansion | RTE `LineSegments`, one per hop of a BFS across the catalogue, grown in the shader by a time uniform ([Colonization.md](js/scene/Colonization.md)) |
 
 LOD (`THREE.LOD`) is used throughout to swap between detailed meshes, point sprites, and invisible placeholders based on camera distance.
 
@@ -594,8 +595,8 @@ visibility groups so the user has predictable global hide/show controls:
 
 Each scene-annotation feature also has its OWN scoped lowercase toggle
 (`a` asterisms, `p` planet+moon+place labels, `s` star labels, `o` orbits,
-`;` equatorial grid, etc.).  `V` is the union of all the lowercase
-scene-annotation toggles.
+`;` equatorial grid, `x` human expansion lines, etc.).  `V` is the union
+of all the lowercase scene-annotation toggles.
 
 **When adding a new visual feature, decide which group it belongs in and
 wire it through the corresponding toggle method.**  Surface place labels,
@@ -643,6 +644,8 @@ The hash is extended with optional camera/time state to form a **permalink** —
 Thin MUI-based overlay panels:
 
 - `TimePanel` — displays sim time, pause/play, time-scale controls
+- `ColonizationDrawer` — right side drawer behind the Widgets button: human
+  expansion parameters, timeline and stats ([Colonization.md](js/scene/Colonization.md))
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `SearchBar` — breadcrumb-anchored search (chips, MUI `Autocomplete`,
@@ -722,6 +725,8 @@ and the provider extension contract.
 | `js/scene/Stars.js` | Star field from Celestia catalog |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |
 | `js/scene/Asterisms.js` | Constellation line drawings |
+| `js/scene/Colonization.js` | Human expansion: kNN star graph and layered BFS spread from the Sun |
+| `js/scene/ColonizationLines.js` | Human expansion lines, coloured by hop and grown over time |
 | `js/scene/Orbit.js` | Orbital path visualization |
 | `js/scene/StarsCatalog.js` | Celestia binary star catalog parser |
 | `js/scene/AsterismsCatalog.js` | Constellation pattern definitions |

@@ -10,15 +10,18 @@ import useStore from './store/useStore'
 import About from './ui/About'
 import ARButton from './ui/ARButton'
 import ARDebugHUD from './ui/ARDebugHUD'
+import ColonizationDrawer from './ui/ColonizationDrawer'
 import DragModeToggle from './ui/DragModeToggle'
 import LayersButton from './ui/LayersButton'
 import SearchBar from './ui/SearchBar'
 import Settings from './ui/Settings'
 import TimePanel from './ui/TimePanel'
+import TooltipIconButton from './ui/TooltipIconButton'
 import TooltipToggleButton from './ui/TooltipToggleButton'
 import {capitalize} from './utils'
 import SettingsIcon from '@mui/icons-material/Settings'
 import StarsIcon from '@mui/icons-material/AutoAwesome'
+import WidgetsIcon from '@mui/icons-material/WidgetsOutlined'
 import './index.css'
 
 
@@ -29,6 +32,7 @@ export default function App() {
   const [celestiary, setCelestiary] = useState(null)
   const [isPaused, setIsPaused] = useState(false)
   const [timeStr, setTimeStr] = useState('')
+  const [isWidgetsOpen, setIsWidgetsOpen] = useState(false)
   const isMobile = useIsMobile()
 
   const sceneRef = useRef(null)
@@ -65,6 +69,8 @@ export default function App() {
         <div ref={navInfoRef} id='nav-info-id'>Welcome to Celestiary!  Loading...</div>
       </div>
       <Stack id='top-right' className='panel' direction='column' justifyContent='flex-start' alignItems='flex-end'>
+        {celestiary &&
+          <TooltipIconButton tip='Widgets' onClick={() => setIsWidgetsOpen(!isWidgetsOpen)} icon={<WidgetsIcon/>}/>}
         {celestiary && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
         {celestiary && <DragModeToggle/>}
         {celestiary && <LayersButton/>}
@@ -85,5 +91,11 @@ export default function App() {
           }
         </div>
       </Stack>
+      {celestiary &&
+        <ColonizationDrawer
+          scene={celestiary.scene}
+          isOpen={isWidgetsOpen}
+          onClose={() => setIsWidgetsOpen(false)}
+        />}
     </>)
 }

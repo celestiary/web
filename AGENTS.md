@@ -33,6 +33,7 @@ tried and dropped.
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
+| Human expansion (the Widgets drawer's BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
 | Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |
 | Adding bundled data (Git LFS, `dataUrl`), what a PR preview copies | DESIGN.md [data policy](DESIGN.md#data-policy) |

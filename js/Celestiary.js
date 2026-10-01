@@ -25,7 +25,7 @@ import {elt} from './utils'
 // keys here are the lowercase per-overlay toggles ('a' asterisms, 'p'
 // planet labels, etc.); the HTML chrome key 'v' is deliberately not in
 // this list so users can hide overlays and chrome independently.
-const SCENE_INFO_KEYS = ['a', 'l', 'p', 'o', 'e', 'c', 'g']
+const SCENE_INFO_KEYS = ['a', 'l', 'p', 'o', 'e', 'c', 'g', 'x']
 
 
 /** Main application class. */
@@ -408,6 +408,12 @@ export default class Celestiary {
     'Milky Way (procedural background galaxy)',
     () => this.scene.getSetting('U'),
     'Labels')
+    k.map('x', () => {
+      this.scene.toggleColonization()
+    },
+    'Human expansion lines',
+    () => this.scene.getSetting('x'),
+    'Labels')
 
     // === Orbits ===
     k.map('o', () => {
@@ -591,7 +597,7 @@ export default class Celestiary {
    * entirely so descendants can't punch back through.
    */
   _toggleNav() {
-    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar')]
+    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('colonization-drawer')]
     panels.forEach((panel) => {
       if (panel) {
         panel.style.display = this.navVisible ? 'none' : ''

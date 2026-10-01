@@ -7,6 +7,7 @@ import {
   Vector3,
 } from 'three'
 import Asterisms from './Asterisms.js'
+import ColonizationLines from './ColonizationLines.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import Planet from './Planet.js'
@@ -117,6 +118,8 @@ export default class Scene {
     // Loaded later
     this.stars = null
     this.asterisms = null
+    // Human expansion lines (ColonizationLines), built by the expansion drawer.
+    this.colonization = null
     this.orbitsVisible = true
     // Toggleable settings.  Initialized to the runtime state right after
     // Scene construction (before any user / firstTime toggle): asterisms
@@ -134,6 +137,7 @@ export default class Scene {
       c: false, // ecliptic grid
       g: false, // galactic grid
       U: true, // Milky Way galaxy
+      x: true, // human expansion lines, once computed
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
     // Custom appliers for settings keys that the Scene doesn't own directly
@@ -232,6 +236,7 @@ export default class Scene {
       c: () => this.toggleGridEcliptic(),
       g: () => this.toggleGridGalactic(),
       U: () => this.toggleGalaxy(),
+      x: () => this.toggleColonization(),
       ...this._customAppliers,
     }
     for (const key of Object.keys(dispatch)) {
@@ -997,6 +1002,50 @@ export default class Scene {
       this.asterisms.visible = !this.asterisms.visible
       this._flipSetting('a')
     }
+  }
+
+
+  /**
+   * The human expansion lines (ColonizationLines), added to the stars on
+   * first use.  A scene annotation: shown per the 'x' setting, so 'x' and
+   * the global 'V' both hide them.  See DESIGN.md "Overlays & visibility
+   * groups".
+   *
+   * @returns {ColonizationLines|null} null until the stars are loaded
+   */
+  getColonization() {
+    if (this.colonization === null && this.stars !== null) {
+      this.colonization = new ColonizationLines()
+      this.colonization.visible = this._settings.x
+      this.stars.add(this.colonization)
+    }
+    return this.colonization
+  }
+
+
+  /** Show or hide the human expansion lines ('x'). */
+  toggleColonization() {
+    this._flipSetting('x')
+    if (this.colonization) {
+      this.colonization.visible = this._settings.x
+    }
+  }
+
+
+  /**
+   * Move the camera along its line to the target, as a zoom would.
+   *
+   * @param {number} lightYears Distance from the target
+   */
+  setCameraDistance(lightYears) {
+    const {camera, controls} = this.ui
+    const eye = camera.position.clone().sub(controls.target)
+    if (eye.length() === 0) {
+      return
+    }
+    eye.setLength(lightYears * Shared.LIGHTYEAR_METER)
+    camera.position.copy(controls.target).add(eye)
+    this.ui.onCameraChange?.()
   }
 
 
