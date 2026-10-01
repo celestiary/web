@@ -200,11 +200,12 @@ lights the imagery in linear sRGB, not stored values.  So Cesium's layers hand
 over values that fit in [0, 1], encoded so celestiary can recover exposure
 units exactly:
 
-- **Moon and Mars** (`sunlitShader`): already compute `v = stored · gain ·
-  DISPLAY_GAIN · lambert`, in exposure units, and return `N(v)` (the same PBR
-  Neutral).  `N` is the encoding: it fits `v` into [0, 1] with the display's own
-  8-bit precision, and celestiary's `N⁻¹` recovers `v`.  The shader is
-  unchanged.
+- **Moon and Mars** (`sunlitShader`): `stored · lambert` (with a night floor),
+  at most 1, as Earth's globe below; the decode multiplies by the body's gain,
+  `DISPLAY_GAIN · textureGain / imageryScale`.  (They first returned `N(v)` of
+  their exposure-unit value, which the decode inverted with `N⁻¹`; #141's review
+  made every body one path, and the 8-bit Neutral round trip had lost
+  highlights.)
 - **Earth**: Cesium's globe lighting is its own (`GlobeFS.glsl`): from orbit it
   adds its ground atmosphere and applies `1 − e^(−2x)`; below ~10,000 km from
   Earth's centre (`lightingFadeOutDistance`) the ground atmosphere fades out
@@ -227,8 +228,9 @@ Compositing: each Cesium frame now draws into `_cesiumRT`, an RGBA8 target
 cleared to transparent black, with its own depth-stencil: celestiary's depth
 is copied in (for the stencil shell's depth test), the shell writes the
 stencil, and Cesium's frame is clipped to it.  Then a fullscreen pass
-composites `_cesiumRT` into `_sceneRT`, premultiplied-over, decoding per body:
-`N⁻¹(rgb/a)·a` for `sunlitShader` bodies, `DISPLAY_GAIN·rgb` for Earth.
+composites `_cesiumRT` into `_sceneRT`, the same for every body: `rgb ×
+bodyGain`, opaque, with the terrain's distance from alpha as depth
+(CESIUM.md).
 Cesium's frame no longer clears `_sceneRT`'s depth, so the depth save and
 restore around each frame go.
 
@@ -371,5 +373,15 @@ the datum the tables had no rows for the eye and the ground's in-scatter
 went to 0 (the view darkened).  Now Mars carries the distance too, the
 sphere's depth isn't written under a terrain depth (that band is the
 horizon's haze), and the eye is looked up from the sphere when below it.
-Over the ground both sides keep the table's haze to the sphere; parity
-views `mars-low-horizon` and `mars-low-horizon-band`.
+Parity views `mars-low-horizon` and `mars-low-horizon-band`.
+
+**Mars's near ridges** (found on the preview): a seam ran through near
+terrain at the sphere's horizon, as if the far horizon showed through the
+ridge (from 4.4 km, one row on the line: T 0.754 and sky 0.156 against
+0.829 and 0.111 a row away), and low over Mars the near ground had no
+haze.  The pass had cut the table's in-scatter and depth at the surface;
+the table's rays end at the sphere or the top, sky above the line and
+ground below.  The surface's segment is now marched (composition.md): on
+that row T 0.826 and sky 0.116, smooth.  Not Cesium's alpha: the decode
+draws every body opaque.  And every Cesium body now takes one path
+(CESIUM.md, architecture).

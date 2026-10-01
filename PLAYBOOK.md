@@ -187,6 +187,20 @@ below it.  **Rule:** when a fix keys on a property ("the albedo globe"),
 list the other bodies that reach the same code, and look at each low and
 at partial phase before calling it done.
 
+### Don't cut a table's ray where the table can't see the cut
+
+For terrain nearer than where the atmosphere tables' rays end, the pass
+first took the table's values along the view ray and cut them at the
+surface (S(eye) − T·S(P), then T from the table's depth times a marched
+share).  The tables' rays end at the sphere or the atmosphere's top, sky
+above the sphere's horizon and ground below, and they're coarse there: the
+cut drew a seam across near ridges at that line, and was wrong for terrain
+below the sphere and for a camera below it.  Each fix of a case found the
+next.  Marching the segment itself, as the table integrates its rays, had
+none of them.  **Rule:** when a precomputed table's parameterisation
+doesn't contain the quantity you need (a ray ending at arbitrary terrain),
+compute it directly rather than deriving it from the table's neighbours.
+
 ### A new depth test needs a check of what it now hides
 
 To write the terrain's depth, the Cesium decode pass got a depth test

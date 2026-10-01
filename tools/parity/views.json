@@ -81,7 +81,7 @@
     {
       "id": "mars-low-horizon",
       "body": "mars",
-      "description": "Mars from 232 m over Coprates, the Sun low on the left: Cesium's terrain lies mostly below Mars's datum, under celestiary's sphere.  Before #141's Mars fix the ground sphere's depth covered the terrain, the band between the terrain's horizon and the sphere's read as ground with the stars through it (mars-low-horizon-band), and terrain above the sphere's horizon was drawn as sky.  Over the ground, on against off: the table's haze to the sphere on both sides",
+      "description": "Mars from 232 m in Valles Marineris, the Sun low on the left: Cesium's terrain lies mostly below Mars's datum, under celestiary's sphere.  Before #141's Mars fix the ground sphere's depth covered the terrain, the band between the terrain's horizon and the sphere's read as ground with the stars through it (mars-low-horizon-band), and terrain above the sphere's horizon was drawn as sky.  Over the ground, on against off: the table's haze to the sphere on both sides",
       "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9770.1166jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {"box": [0, 0.6, 1, 1]},
@@ -102,6 +102,19 @@
       "profile": null,
       "tolerance": {
         "reference": {"luma": [0.6, 1.2], "blueRed": [0.95, 1.15]}
+      }
+    },
+    {
+      "id": "mars-near-ridge",
+      "body": "mars",
+      "description": "Mars from 4.4 km, a near ridge on the right crossing the sphere's horizon line, the far horizon on the left.  Before the surface's segment was marched, the pass cut the table's in-scatter and depth at the ridge, sky rays above that line and ground rays below, and a seam ran through the near ridge as if the far horizon showed through it: the rows on the line (the region) against the ridge just below (the reference), in Cesium's render",
+      "hash": "#sun/mars@-6.1583,-90.1384,4.352km;t=9770.1157jd;cq=0.8272,0.389,0.1618,0.3718;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0.72, 0.545, 0.95, 0.556]},
+      "reference": {"box": [0.72, 0.56, 0.95, 0.6]},
+      "profile": null,
+      "tolerance": {
+        "reference": {"luma": [0.95, 1.09], "blueRed": [0.97, 1.05]}
       }
     }
   ]

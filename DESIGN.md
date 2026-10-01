@@ -496,7 +496,7 @@ One linear brightness scale, one tone map ([js/scene/HDR.md](js/scene/HDR.md), #
 | Pass | Target | Holds |
 |---|---|---|
 | Scene | `_sceneRT`, RGBA16F | lit surfaces × the target-keyed exposure (exposure-only tone mapping); display-referred content (stars, labels, lines) through the inverse of the final tone map (`hdr.js` `sceneReferred`) |
-| Cesium layers | `_cesiumRT` (8-bit) → `_sceneRT` | each body's Cesium frame, decoded into exposure units; Earth's terrain distance (in its alpha, `cesium/distance.js`) becomes depth, from below 20 km |
+| Cesium layers | `_cesiumRT` (8-bit) → `_sceneRT` | each body's Cesium frame (stored × Lambert, one path for every body), decoded into exposure units; its terrain distance (in alpha, `cesium/distance.js`) becomes depth, from below 20 km |
 | Atmosphere | screen | `PBR Neutral(sky + scene × T)`, the sky in exposure units |
 | Label overlay | screen | display values, depth-tested against the scene |
 

@@ -19,26 +19,22 @@ sky = scattered * uSkyExposure;                     // exposure units
 gl_FragColor.rgb = neutralToneMap(sky + scene.rgb * transmittance)
 ```
 
-For a pixel whose surface is nearer than where the in-scatter table's ray
-ends (the ground sphere, or the atmosphere's top), the sky is only the air
-up to it: Bruneton's aerial perspective, `S(eye) − T(eye→P)·S(P)`, and the
-scene seen through that `T`.  `T(eye→P)` is the table's optical depth to
-the ray's end times the share of it before `P`, from a 16-step march of
-the ray: the table's own depth, so that as `P` nears the ray's end the
-look is the table's, celestiary's own surface's.  (A march alone was the
-first cut; on Earth it agreed with the table to 0.01, but over Mars's
-ground, seen near the horizon where the table, linear in `mu`, is coarse,
-it came out up to 4x the table's depth, and Cesium's ground far darker
-than celestiary's.)  That's Cesium's terrain over celestiary's sphere: a
-ridge seen from a valley, above the sphere's horizon, which the table's
-ray took for sky, and, below the horizon, the ground of any land above
-the datum, which the table hazed as if it were the sphere, farther off
-(#141; Cesium's distance reaches the pass as depth from below 20 km,
-`cesium/distance.js`).  Terrain below the sphere (most of Cesium's Mars,
-under its datum) doesn't take that path: the table's ray ends at the
-sphere, short of it, the look celestiary's own surface there has.
-Celestiary's own ground is the sphere, a mesh a little below it, so it
-never does either.
+For a pixel whose surface lies inside the atmosphere (celestiary's own
+ground, and Cesium's terrain, which rises above the sphere and sinks below
+it), the sky is the air between the eye and it: single scattering and
+transmittance marched along that segment (16 steps, each step's sunlight
+through the transmittance table), as the in-scatter table integrates its
+rays (`marchSegment`), from the camera where it is.  The tables stay for
+sky pixels.  The first cuts of #141 cut the table's in-scatter and depth at
+the surface instead (Bruneton's `S(eye) − T·S(P)`), but the table's ray
+ends at the sphere or the atmosphere's top wherever the surface is, and the
+table is linear in `mu`, coarse at the horizon: a seam ran through near
+terrain at the sphere's horizon (sky rays above it, ground rays below, the
+far horizon's haze showing through the ridge), the ground under a camera
+low over Mars got almost no haze, and terrain below the sphere was hazed
+as if at the sphere.  Celestiary's own ground takes the same march, so the
+look is one on both sides of the swap.  (Cesium's distance reaches the pass
+as depth from below 20 km, `cesium/distance.js`; above, the sphere's depth.)
 
 Where the ray meets the sphere but nothing was drawn (a gap in the
 ground: the band between Cesium's Mars's horizon, under its datum, and
@@ -51,18 +47,10 @@ above it.
 When the eye itself is below the sphere (low over Mars, or under a Cesium
 datum anywhere), the tables have no rows for it: they start at the ground
 radius, and the lookups clamped into the ground slice, whose ground rows
-are 0, so the ground's in-scatter went to 0 and the view darkened
-below 0 m.  The pass looks up from the sphere straight above the eye
-instead (and keeps its transmittance lookup four rows clear of the
-horizon, which from the sphere is within a row or two of straight across
-in that table, linear in `mu`: a ground ray there blended in the
-horizontal sky ray's depth, and terrain at eye level drew black).  The
-ground below the eye then gets the table's ray from the sphere to the
-sphere, next to nothing: its haze is under-counted, the same way the
-table under-counts any terrain below the sphere.  Moving the ground
-radius down to Mars's lowest terrain (Hellas, −8 km) would count it, but
-would remake Mars's atmosphere: the tables, its density at the datum and
-celestiary's own surface's look; left for later.
+are 0.  The sky pixels look up from the sphere straight above the eye (and
+keep the transmittance lookup four rows clear of the horizon, which from
+the sphere is within a row or two of straight across in that table); the
+surface's march starts at the eye itself, in air denser than the datum's.
 
 `scene` is the linear HDR scene buffer, in exposure units (1.0 is a white
 Lambertian surface lit by the Sun at the exposure target, before

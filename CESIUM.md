@@ -89,9 +89,25 @@ Why these pieces:
   framebuffer onto `_cesiumRT`.  Cesium's frames reach celestiary through
   Cesium's own 8-bit buffers (with `highDynamicRange` off, its globe-depth
   framebuffer is `UNSIGNED_BYTE`, and its final draw is a copy of it), so
-  they can't hold exposure units above 1: each body's frame comes encoded
-  (`bodies.js` `cesiumOutput`) and a fullscreen pass decodes it into
-  `_sceneRT`'s linear HDR units ([HDR.md](js/scene/HDR.md#cesium-in-the-same-units)).
+  they can't hold exposure units above 1: each body's frame holds its
+  imagery's stored values × Lambert, at most 1, with its distance in alpha,
+  and a fullscreen pass decodes it into `_sceneRT`'s linear HDR units
+  ([HDR.md](js/scene/HDR.md#cesium-in-the-same-units)).
+- **One path for every body.** What Cesium loads is the data's fork: Earth
+  is a globe (terrain and imagery layers), the Moon and Mars are ion 3D
+  tilesets with their imagery baked in, so a globe is lit by Cesium's own
+  lighting with its extras off (`litSurfaceOnly`, and
+  `depthTestAgainstTerrain` for its depth), a tileset by `sunlitShader`.
+  After that every body is the same: stored × Lambert, the distance stage,
+  one decode (× `bodyGain`: `DISPLAY_GAIN` × `textureGain` /
+  `imageryScale`), the terrain's depth from below 20 km, and celestiary's
+  atmosphere pass where the body has an atmosphere.  The per-body
+  differences are data in `bodies.js` (`textureGain`, `imageryScale`,
+  `nightFloor`, `atmosphere`, `shellScale`).  Until #141's review the
+  tilesets returned PBR Neutral of their exposure-unit value and the decode
+  inverted it, and only Earth carried its distance; the Neutral round trip
+  through 8 bits lost highlights, and Mars's horizon kept the bugs Earth's
+  had lost.
 - **Stencil, not depth, decides visibility.** Cesium's depth convention
   (log depth, multi-frustum) doesn't match celestiary's; the shell pass
   resolves occlusion against celestiary's objects (the Moon in front of the
@@ -251,8 +267,7 @@ relates to real time.
   (Phase 4, below).
 - Mars: Cesium has no Mars atmosphere (its sky atmosphere is Earth's and
   its ground atmosphere needs a globe), so celestiary's Bruneton pass runs
-  over the Cesium layer.  `sunlitShader` returns PBR Neutral of its lit
-  value (exposure units), which the composite inverts.
+  over the Cesium layer, as over Earth's globe (one path, above).
 - The pass reads `_sceneRT`'s depth: where each ray ends (an object in
   front of the atmosphere, like Phobos before Mars, gets none of it), and,
   inside the atmosphere, ground from sky (ground-ray pixels whose depth
@@ -551,7 +566,7 @@ view, and it read 0.967 on main, outside its first tolerance.)
   blue/red 2.24 of it); now 0.97 and 0.99.  The view stops the clock at
   load (`freeze`): with the clock running while tiles load, the ground
   turned under the camera and each run framed different mountains.
-- **Mars low** (`mars-low-horizon`, 232 m over Coprates, Sun low on the
+- **Mars low** (`mars-low-horizon`, 232 m in Valles Marineris, Sun low on the
   left): Cesium's Mars terrain lies mostly below the datum, under
   celestiary's sphere.  Over the ground both sides get the table's haze to
   the sphere (0.942, Cesium's imagery a little darker); the band on the
