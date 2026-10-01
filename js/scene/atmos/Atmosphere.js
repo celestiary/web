@@ -427,6 +427,10 @@ uniform float     uSkyExposure;
 #define I_STEPS   64
 #define J_STEPS   8
 #define R_SLICES  64.0
+// How far inside its sphere a ground mesh's faces sag, in its radii: the
+// 128x96 ground sphere CesiumLayers writes the depth of sags ~3e-4 between
+// vertices (2 km on Earth).  A surface deeper than this is below the sphere.
+#define SPHERE_SAG 4.0e-4
 
 ${NEUTRAL_GLSL}
 
@@ -640,6 +644,16 @@ void main() {
 
   // ── Phase 2: in-scatter LUT path (no loops, smooth) ──────────────────────
   if (uUseInScatterLUT > 0.5) {
+    // Below the ground sphere (a camera low over Cesium's Mars, whose
+    // terrain is mostly under the datum; Earth's Dead Sea), the tables have
+    // no rows: they start at the ground radius, and the lookups clamp into
+    // the ground slice, whose ground rows are 0, which went dark.  Look up
+    // from the sphere instead, straight above: the air between is the
+    // densest, but a few km of it, and the segment march below counts it.
+    float rEye = length(eyePos);
+    if (rEye < uGroundRadius + 1.0) {
+      eyePos *= (uGroundRadius + 1.0) / max(rEye, 1.0);
+    }
     // Use the ray's atmosphere entry point as the LUT index.
     // When camera is inside atmosphere: t_entry=0 → entryPos=eyePos (camera).
     // When camera is outside: t_entry=p.x → entryPos on atmosphere sphere.
@@ -706,7 +720,12 @@ void main() {
     // is the sphere, a mesh a little below it, so it never takes this path.
     vec2  pGround = rsi(eyePos, rayDir, uGroundRadius);
     float tEnd    = (pGround.x > 0.0 && pGround.x <= pGround.y) ? pGround.x : pAtm.y;
-    bool  shortRay = insideAtm && depthSample < 1.0 && !isGap && tMax + tMaxErr < tEnd - 1.0;
+    // Or a surface below the sphere (Cesium's terrain under the datum): the
+    // table's ray stops at the sphere, short of it; the segment's T counts
+    // the air down to it.
+    bool  belowSphere = length(eyePos + rayDir * tMax) < uGroundRadius * (1.0 - SPHERE_SAG);
+    bool  shortRay = insideAtm && depthSample < 1.0 && !isGap &&
+                     (tMax + tMaxErr < tEnd - 1.0 || belowSphere);
     vec3  segT = vec3(1.0);
     if (shortRay) {
       vec3  P    = eyePos + rayDir * tMax;

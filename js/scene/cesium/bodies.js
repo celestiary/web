@@ -36,6 +36,9 @@ export const CESIUM_BODIES = {
     radii: [6378137, 6378137, 6356752.314245179],
     // Celestiary's atmosphere pass, over Cesium's lit surface (cesiumOutput).
     atmosphere: false,
+    // Its terrain's distance reaches celestiary's atmosphere pass
+    // (distance.js; carriesDistance).
+    terrainDistance: true,
     shellScale: TERRAIN_SHELL_SCALE,
     // The globe's base imagery, the simulation date's month: tiles cut from
     // the Blue Marble mosaics celestiary's own Earth texture is from
@@ -71,6 +74,7 @@ export const CESIUM_BODIES = {
     ellipsoid: 'MARS',
     radii: [3396190, 3396190, 3376200],
     atmosphere: false,
+    terrainDistance: true,
     shellScale: TERRAIN_SHELL_SCALE,
     // Cesium Mars (ion).
     ionTileset: 3644333,
@@ -117,4 +121,18 @@ export function isCesiumBody(name) {
     return false
   }
   return !CESIUM_BODIES[name].ionTileset || ionToken() !== ''
+}
+
+
+/**
+ * Whether a body's Cesium frame carries its terrain's distance in alpha
+ * (distance.js), for celestiary's atmosphere pass: the bodies under it
+ * (Earth, Mars), whose terrain rises above and sinks below celestiary's
+ * sphere.  Its colour is then opaque wherever alpha isn't 0.
+ *
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function carriesDistance(name) {
+  return CESIUM_BODIES[name]?.terrainDistance === true
 }

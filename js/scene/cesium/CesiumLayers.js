@@ -14,6 +14,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
+  NotEqualStencilFunc,
   OneFactor,
   OneMinusSrcAlphaFactor,
   OrthographicCamera,
@@ -30,7 +31,7 @@ import {
 import {dataUrl, isAbsoluteUrl} from '../../dataUrl.js'
 import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
-import {CESIUM_BODIES, cesiumOutput, ionToken, isCesiumBody} from './bodies.js'
+import {CESIUM_BODIES, carriesDistance, cesiumOutput, ionToken, isCesiumBody} from './bodies.js'
 import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
 import {NEUTRAL_GLSL, NEUTRAL_INVERSE_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_LEVELS, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
@@ -110,6 +111,13 @@ export default class CesiumLayers {
       depthWrite: true,
       depthTest: true,
       depthFunc: LessEqualDepth,
+      // Not where the decode wrote the terrain's own depth (_decodeInto).
+      stencilWrite: true,
+      stencilRef: TERRAIN_DEPTH_STENCIL,
+      stencilFunc: NotEqualStencilFunc,
+      stencilFail: KeepStencilOp,
+      stencilZFail: KeepStencilOp,
+      stencilZPass: KeepStencilOp,
     }))
     this.ground.matrixAutoUpdate = false
     this.ground.frustumCulled = false
@@ -267,9 +275,23 @@ export default class CesiumLayers {
     // (from orbit, past the encoding's limit, the terrain would read in
     // front of the atmosphere and go unhazed), where the sphere's depth
     // (_writeGroundDepths) is exact.
-    this.decode.material.depthWrite = cesiumOutput(name) === 'albedo' && this.fadeOf(name) >= 1 &&
+    const terrainDepth = carriesDistance(name) && this.fadeOf(name) >= 1 &&
       (this.bodies[name]?.heightM ?? Infinity) < TERRAIN_DEPTH_MAX_HEIGHT_M
+    const m = this.decode.material
+    m.depthWrite = terrainDepth
+    // And mark where it wrote one, so the ground sphere's depth
+    // (_writeGroundDepths) goes only where the terrain left none: where the
+    // terrain sinks below the sphere (most of Mars, under its datum), the
+    // sphere's depth, nearer, had covered it, and the band between the
+    // terrain's horizon and the sphere's read as ground with stars through.
+    m.stencilWrite = terrainDepth
+    u.uDistance.value = carriesDistance(name) ? 1 : 0
     u.uDistanceScale.value = this.bodies[name]?.distanceScale ?? 1
+    const node = this.ui.sceneManager?.objects?.[name]
+    if (node) {
+      node.getWorldPosition(u.uBodyCenter.value).applyMatrix4(this.ui.camera.matrixWorldInverse)
+      u.uGroundRadius.value = node.props.radius.scalar
+    }
     u.uProjection.value.copy(this.ui.camera.projectionMatrix)
     u.uProjectionInverse.value.copy(this.ui.camera.projectionMatrixInverse)
     renderer.setRenderTarget(sceneRT)
@@ -886,19 +908,23 @@ export default class CesiumLayers {
       if (albedo) {
         litSurfaceOnly(scene.globe)
         scene.fog.enabled = false
-        // Each globe pixel's distance, in alpha, for celestiary's
-        // atmosphere pass (distance.js).  From the terrain's depth: without
-        // depthTestAgainstTerrain, Cesium clears the globe's depth after
-        // drawing it and draws the ellipsoid's in its place, so the stage
-        // read the ellipsoid, and the cleared far plane above its horizon,
-        // where the ridges are.
-        scene.globe.depthTestAgainstTerrain = true
-        scene.postProcessStages.add(new Cesium.PostProcessStage({
-          name: 'celestiary_distance',
-          fragmentShader: DISTANCE_STAGE_GLSL,
-          uniforms: {distanceScale: () => this.bodies[name]?.distanceScale ?? DISTANCE_SCALE_M},
-        }))
       }
+    }
+    if (carriesDistance(name)) {
+      // Each pixel's distance, in alpha, for celestiary's atmosphere pass
+      // (distance.js): Earth's globe, and Mars's tileset.  From the
+      // terrain's depth: without depthTestAgainstTerrain, Cesium clears a
+      // globe's depth after drawing it and draws the ellipsoid's in its
+      // place, so the stage read the ellipsoid, and the cleared far plane
+      // above its horizon, where the ridges are.  A tileset keeps its own.
+      if (scene.globe) {
+        scene.globe.depthTestAgainstTerrain = true
+      }
+      scene.postProcessStages.add(new Cesium.PostProcessStage({
+        name: 'celestiary_distance',
+        fragmentShader: DISTANCE_STAGE_GLSL,
+        uniforms: {distanceScale: () => this.bodies[name]?.distanceScale ?? DISTANCE_SCALE_M},
+      }))
     }
     scene.atmosphere.dynamicLighting = Cesium.DynamicAtmosphereLightingType.SCENE_LIGHT
     if (scene.skyAtmosphere) {
@@ -1175,9 +1201,14 @@ function newDecodeMaterial() {
       tCesium: {value: null},
       uMode: {value: DECODE.NONE},
       uLinearScale: {value: DISPLAY_GAIN},
+      uDistance: {value: 0},
       uDistanceScale: {value: 1},
       uProjection: {value: new Matrix4()},
       uProjectionInverse: {value: new Matrix4()},
+      // The body's centre in view space, and its sphere's radius: the depth
+      // where the terrain is too far to encode.
+      uBodyCenter: {value: new Vector3()},
+      uGroundRadius: {value: 1},
     },
     vertexShader: `
       varying vec2 vUv;
@@ -1189,9 +1220,12 @@ function newDecodeMaterial() {
       uniform sampler2D tCesium;
       uniform float uMode;
       uniform float uLinearScale;
+      uniform float uDistance;
       uniform float uDistanceScale;
       uniform mat4 uProjection;
       uniform mat4 uProjectionInverse;
+      uniform vec3 uBodyCenter;
+      uniform float uGroundRadius;
       varying vec2 vUv;
       ${NEUTRAL_GLSL}
       ${NEUTRAL_INVERSE_GLSL}
@@ -1203,20 +1237,31 @@ function newDecodeMaterial() {
         // Whatever doesn't carry a distance (the display-encoded bodies)
         // passes the depth test and writes no depth (depthWrite is off).
         gl_FragDepth = 0.0;
-        if (uMode > ${DECODE.LINEAR - 0.5}) {
-          // An opaque globe with its distance in alpha (distance.js): the
-          // colour is albedo × Lambert, and the distance becomes this
-          // pixel's depth, for the atmosphere pass (terrain above the sphere).
-          rgb = uMode > ${DECODE.LINEAR_TO_DISPLAY - 0.5} ?
-            neutralToneMap(rgb * uLinearScale) : rgb * uLinearScale;
-          float d = decodeDistance(c.a, uDistanceScale);
+        if (uDistance > 0.5) {
+          // Opaque, with its distance in alpha (distance.js): Earth's
+          // globe (albedo × Lambert) or Mars's tileset (display values),
+          // and the distance becomes this pixel's depth, for the
+          // atmosphere pass (terrain above and below the sphere).
+          if (uMode > ${DECODE.LINEAR_TO_DISPLAY - 0.5}) {
+            rgb = neutralToneMap(rgb * uLinearScale);
+          } else if (uMode > ${DECODE.LINEAR - 0.5}) {
+            rgb = rgb * uLinearScale;
+          } else if (uMode > ${DECODE.NEUTRAL_INVERSE - 0.5}) {
+            rgb = neutralInverse(min(rgb, vec3(1.0)));
+          }
           vec4 v = uProjectionInverse * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
           vec3 dir = normalize(v.xyz / v.w);
-          vec4 clip = uProjection * vec4(dir * d, 1.0);
-          // At the encoding's limit the distance is only "farther than
-          // 7 D": no depth (the far plane), and the ground sphere's.
-          gl_FragDepth = c.a >= ${(DISTANCE_LEVELS - 1).toFixed(1)} / ${DISTANCE_LEVELS.toFixed(1)} ?
-            1.0 : clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+          float d = decodeDistance(c.a, uDistanceScale);
+          if (c.a >= ${(DISTANCE_LEVELS - 1).toFixed(1)} / ${DISTANCE_LEVELS.toFixed(1)}) {
+            // At the encoding's limit the distance is only "farther than
+            // 5.5 D": the ground sphere's, where the ray meets it, else
+            // none (the far plane).
+            float b = dot(dir, uBodyCenter);
+            float disc = b * b - dot(uBodyCenter, uBodyCenter) + uGroundRadius * uGroundRadius;
+            d = disc > 0.0 && b - sqrt(disc) > 0.0 ? b - sqrt(disc) : -1.0;
+          }
+          vec4 clip = uProjection * vec4(dir * max(d, 1.0), 1.0);
+          gl_FragDepth = d < 0.0 ? 1.0 : clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
           gl_FragColor = vec4(rgb, 1.0);
           return;
         }
@@ -1242,6 +1287,14 @@ function newDecodeMaterial() {
     depthTest: true,
     depthFunc: AlwaysDepth,
     depthWrite: false,
+    // Marks where it writes the terrain's depth (on with depthWrite,
+    // _decodeInto), for _writeGroundDepths.
+    stencilWrite: false,
+    stencilRef: TERRAIN_DEPTH_STENCIL,
+    stencilFunc: AlwaysStencilFunc,
+    stencilFail: KeepStencilOp,
+    stencilZFail: KeepStencilOp,
+    stencilZPass: ReplaceStencilOp,
     transparent: true,
     toneMapped: false,
   })
@@ -1249,6 +1302,8 @@ function newDecodeMaterial() {
 
 
 const STENCIL_REF = 1
+// In _sceneRT's stencil: where the decode wrote a body's terrain depth.
+const TERRAIN_DEPTH_STENCIL = 2
 // Smallest on-screen radius, in pixels, at which a body is drawn by Cesium.
 const MIN_PIXEL_RADIUS = 1
 // Night-side floor for sunlitShader: dark, but not a hole in the sky.
