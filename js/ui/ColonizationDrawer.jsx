@@ -3,33 +3,42 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
+import FormControlLabel from '@mui/material/FormControlLabel'
 import IconButton from '@mui/material/IconButton'
+import Paper from '@mui/material/Paper'
 import Slider from '@mui/material/Slider'
 import Stack from '@mui/material/Stack'
+import Switch from '@mui/material/Switch'
 import TextField from '@mui/material/TextField'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Typography from '@mui/material/Typography'
+import useStore from '../store/useStore'
+import {DEFAULT_PARAMS, catalogPositions, computeSpread, pathTo, statsAt, yearsAtProgress} from '../scene/Colonization'
+import {DEFAULT_PULSE, DEFAULT_STYLE, hopColorCss, pathColorCss} from '../scene/ColonizationLines'
+import useIsMobile from '../useIsMobile'
 import CloseIcon from '@mui/icons-material/Close'
 import PauseIcon from '@mui/icons-material/Pause'
 import PlayIcon from '@mui/icons-material/PlayArrow'
 import RestartIcon from '@mui/icons-material/Replay'
-import {DEFAULT_PARAMS, catalogPositions, computeSpread, statsAt, yearsAtProgress} from '../scene/Colonization'
-import {hopColorCss} from '../scene/ColonizationLines'
-import useIsMobile from '../useIsMobile'
 
 
-const DRAWER_WIDTH = 340
+const DRAWER_WIDTH = 360
 const DEFAULT_PLAY_SECONDS = 30
 const ZOOM_OUT_LY = 3000
 // Long enough for the drawer to paint its busy state before the ~1 s compute.
 const COMPUTE_DELAY_MS = 50
 const MS_PER_SEC = 1000
+const MAX_WIDTH_PX = 12
+// Size attenuation's reference distance, on a log slider: 10 to 10,000 ly.
+const ATTENUATION_LOG_MIN = 1
+const ATTENUATION_LOG_MAX = 4
+const MAX_TRAIL = 30
 
 
 /**
- * Side drawer with parameters and playback for a BFS of humans spreading
- * from the Sun to neighboring stars (scene/Colonization.md).
+ * Side drawer with parameters, playback and line controls for a BFS of
+ * humans spreading from the Sun to neighboring stars (scene/Colonization.md).
  *
  * @property {object} scene Celestiary Scene
  * @property {boolean} isOpen
@@ -37,20 +46,27 @@ const MS_PER_SEC = 1000
  * @returns {ReactElement}
  */
 export default function ColonizationDrawer({scene, isOpen, onClose}) {
+  const isColonizationVisible = useStore((state) => state.isColonizationVisible)
+  const committedStar = useStore((state) => state.committedStar)
   const [speedC, setSpeedC] = useState(DEFAULT_PARAMS.speedC)
   const [numNeighbors, setNumNeighbors] = useState(DEFAULT_PARAMS.numNeighbors)
   const [launchDelayYears, setLaunchDelayYears] = useState(DEFAULT_PARAMS.launchDelayYears)
   const [playSeconds, setPlaySeconds] = useState(DEFAULT_PLAY_SECONDS)
-  const [spread, setSpread] = useState(null)
+  const [run, setRun] = useState(null) // {spread, pos, hipToNdx, speedC}
   const [isComputing, setIsComputing] = useState(false)
   const [error, setError] = useState(null)
   const [pacing, setPacing] = useState('stars')
   const [progress, setProgressState] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [style, setStyle] = useState(DEFAULT_STYLE)
+  const [pulse, setPulse] = useState(DEFAULT_PULSE)
   const progressRef = useRef(0)
   const isMobile = useIsMobile()
+  const spread = run ? run.spread : null
   const years = spread ? yearsAtProgress(spread, progress, pacing) : 0
   const stats = spread ? statsAt(spread, years) : null
+  const selectedNdx = run && committedStar ? run.hipToNdx.get(committedStar.hipId) : undefined
+  const route = selectedNdx === undefined ? null : pathTo(spread, run.pos, selectedNdx, run.speedC)
 
   // Progress is 0 to 1 along the timeline, mapped to years by pacing.
   const setProgress = useCallback((p) => {
@@ -58,7 +74,7 @@ export default function ColonizationDrawer({scene, isOpen, onClose}) {
     setProgressState(p)
   }, [])
 
-  const run = () => {
+  const compute = () => {
     const catalog = scene.stars && scene.stars.catalog
     if (!catalog || catalog.starByHip.size <= 1) {
       setError('Stars are still loading')
@@ -67,18 +83,18 @@ export default function ColonizationDrawer({scene, isOpen, onClose}) {
     setError(null)
     setIsPlaying(false)
     setIsComputing(true)
-    // Let the drawer render its busy state before the ~1s computation.
     setTimeout(() => {
       try {
-        const {pos, originNdx} = catalogPositions(catalog)
+        const {pos, originNdx, hipIds} = catalogPositions(catalog)
         const s = computeSpread(pos, originNdx, {speedC, numNeighbors, launchDelayYears})
-        const lines = scene.getColonization()
-        lines.setSpread(s, pos)
+        const hipToNdx = new Map()
+        hipIds.forEach((hipId, i) => hipToNdx.set(hipId, i))
+        scene.getColonization().setSpread(s, pos)
         // A new run is meant to be seen, even after 'x' or 'V' hid the lines.
         if (!scene.getSetting('x')) {
           scene.toggleColonization()
         }
-        setSpread(s)
+        setRun({spread: s, pos, hipToNdx, speedC})
         setProgress(0)
         setIsPlaying(true)
       } catch (e) {
@@ -96,12 +112,25 @@ export default function ColonizationDrawer({scene, isOpen, onClose}) {
     setIsPlaying(!isPlaying)
   }
 
+  const changeStyle = (change) => setStyle((s) => ({...s, ...change}))
+  const changePulse = (change) => setPulse((p) => ({...p, ...change}))
+
   useEffect(() => {
-    const lines = scene.getColonization()
-    if (lines) {
-      lines.setTime(years)
-    }
+    scene.getColonization()?.setTime(years)
   }, [scene, years])
+
+  useEffect(() => {
+    scene.getColonization()?.setStyle(style)
+  }, [scene, style])
+
+  useEffect(() => {
+    scene.getColonization()?.setPulse(pulse)
+  }, [scene, pulse])
+
+  useEffect(() => {
+    const path = selectedNdx === undefined ? null : pathTo(run.spread, run.pos, selectedNdx, run.speedC)
+    scene.getColonization()?.setPath(path ? path.path : null, run?.pos)
+  }, [scene, run, selectedNdx])
 
   useEffect(() => {
     if (!isPlaying || !spread) {
@@ -139,32 +168,62 @@ export default function ColonizationDrawer({scene, isOpen, onClose}) {
         <Typography variant='body2' color='text.secondary'>
           Breadth-first spread from the Sun across the star catalog.  Each star links to
           its nearest neighbors; a colony waits the launch delay, then sends ships onward.
-          Segments are colored by hop, near-white for the first hop to near-black for the last.
         </Typography>
+        <FormControlLabel
+          label='Show lines (x)'
+          control={
+            <Switch
+              checked={isColonizationVisible}
+              onChange={() => scene.toggleColonization()}
+              data-testid='colonization-drawer-show'
+            />
+          }
+        />
 
-        <ParamField label='Speed (fraction of c)' value={speedC} onChange={setSpeedC} min={0.001} max={1} step={0.05}/>
-        <ParamField label='Nearest neighbors per star' value={numNeighbors} onChange={setNumNeighbors} min={1} max={32} step={1} isInt/>
-        <ParamField label='Launch delay per colony (years)' value={launchDelayYears} onChange={setLaunchDelayYears} min={0} step={50}/>
-        <ParamField label='Playback duration (seconds)' value={playSeconds} onChange={setPlaySeconds} min={1} step={5}/>
-
-        <Stack direction='row' spacing={1}>
-          <Button variant='contained' onClick={run} disabled={isComputing} sx={{borderRadius: 1}} data-testid='colonization-drawer-run'>
-            {isComputing ? 'Computing…' : spread ? 'Recompute' : 'Run'}
-          </Button>
-          <Button variant='outlined' onClick={() => scene.setCameraDistance(ZOOM_OUT_LY)} sx={{borderRadius: 1}} data-testid='colonization-drawer-zoom-out'>
-            Zoom out
-          </Button>
-        </Stack>
-        {error && <Typography color='error'>{error}</Typography>}
+        <Section title='Model'>
+          <ParamField label='Speed (fraction of c)' value={speedC} onChange={setSpeedC} min={0.001} max={1} step={0.05}/>
+          <ParamField label='Nearest neighbors per star' value={numNeighbors} onChange={setNumNeighbors} min={1} max={32} step={1} isInt/>
+          <ParamField label='Launch delay per colony (years)' value={launchDelayYears} onChange={setLaunchDelayYears} min={0} step={50}/>
+          <ParamField label='Playback duration (seconds)' value={playSeconds} onChange={setPlaySeconds} min={1} step={5}/>
+          <Stack direction='row' spacing={1}>
+            <Button
+              variant='contained'
+              onClick={compute}
+              disabled={isComputing}
+              sx={{borderRadius: 1}}
+              data-testid='colonization-drawer-run'
+            >
+              {isComputing ? 'Computing…' : spread ? 'Recompute' : 'Run'}
+            </Button>
+            <Button
+              variant='outlined'
+              onClick={() => scene.setCameraDistance(ZOOM_OUT_LY)}
+              sx={{borderRadius: 1}}
+              data-testid='colonization-drawer-zoom-out'
+            >
+              Zoom out
+            </Button>
+          </Stack>
+          {error && <Typography color='error'>{error}</Typography>}
+        </Section>
 
         {spread && (
-          <>
-            <Divider/>
+          <Section title='Timeline'>
             <Stack direction='row' alignItems='center' spacing={1}>
-              <IconButton onClick={togglePlay} aria-label={isPlaying ? 'Pause expansion' : 'Play expansion'} data-testid='colonization-drawer-play'>
+              <IconButton
+                onClick={togglePlay}
+                aria-label={isPlaying ? 'Pause expansion' : 'Play expansion'}
+                data-testid='colonization-drawer-play'
+              >
                 {isPlaying ? <PauseIcon/> : <PlayIcon/>}
               </IconButton>
-              <IconButton onClick={() => setProgress(0)} aria-label='Restart expansion' data-testid='colonization-drawer-restart'><RestartIcon/></IconButton>
+              <IconButton
+                onClick={() => setProgress(0)}
+                aria-label='Restart expansion'
+                data-testid='colonization-drawer-restart'
+              >
+                <RestartIcon/>
+              </IconButton>
               <Slider
                 aria-label='Expansion timeline'
                 data-testid='colonization-drawer-timeline'
@@ -197,7 +256,99 @@ export default function ColonizationDrawer({scene, isOpen, onClose}) {
               <Stat label='Hop reached' value={`${stats.hop} / ${spread.maxHop}`}/>
             </Box>
             <HopLegend maxHop={spread.maxHop} hop={stats.hop}/>
-            <Divider/>
+          </Section>
+        )}
+
+        {spread && (
+          <Section title='Selected star'>
+            {route ?
+              <RouteInfo name={committedStar.displayName || `HIP ${committedStar.hipId}`} route={route}/> :
+              <Typography variant='body2' color='text.secondary'>
+                Pick a star (the search bar&apos;s crosshair) to trace its route from the Sun.
+              </Typography>}
+          </Section>
+        )}
+
+        <Section title='Lines'>
+          <LabeledSlider
+            label='Width, first hop'
+            value={style.widthFirst}
+            min={0.5}
+            max={MAX_WIDTH_PX}
+            step={0.5}
+            format={(v) => `${v} px`}
+            onChange={(v) => changeStyle({widthFirst: v})}
+            testId='colonization-drawer-width-first'
+          />
+          <LabeledSlider
+            label='Width, last hop'
+            value={style.widthLast}
+            min={0.5}
+            max={MAX_WIDTH_PX}
+            step={0.5}
+            format={(v) => `${v} px`}
+            onChange={(v) => changeStyle({widthLast: v})}
+            testId='colonization-drawer-width-last'
+          />
+          <LabeledSlider
+            label='Opacity'
+            value={style.opacity}
+            min={0.05}
+            max={1}
+            step={0.05}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(v) => changeStyle({opacity: v})}
+            testId='colonization-drawer-opacity'
+          />
+          <FormControlLabel
+            label='Size attenuation'
+            control={
+              <Switch
+                checked={style.sizeAttenuation}
+                onChange={(e) => changeStyle({sizeAttenuation: e.target.checked})}
+                data-testid='colonization-drawer-attenuation'
+              />
+            }
+          />
+          {style.sizeAttenuation &&
+            <LabeledSlider
+              label='Full width at'
+              value={Math.log10(style.attenuationLy)}
+              min={ATTENUATION_LOG_MIN}
+              max={ATTENUATION_LOG_MAX}
+              step={0.05}
+              format={(v) => `${fmt(10 ** v)} ly`}
+              onChange={(v) => changeStyle({attenuationLy: 10 ** v})}
+              testId='colonization-drawer-attenuation-distance'
+            />}
+        </Section>
+
+        <Section title='Pulse'>
+          <FormControlLabel
+            label='Pulse along the hops'
+            control={
+              <Switch
+                checked={pulse.on}
+                onChange={(e) => changePulse({on: e.target.checked})}
+                data-testid='colonization-drawer-pulse'
+              />
+            }
+          />
+          <ParamField label='Seconds per hop (T)' value={pulse.stepSec} onChange={(v) => changePulse({stepSec: v})} min={0.02} step={0.05}/>
+          <LabeledSlider
+            label='Trail (N hops)'
+            value={pulse.trail}
+            min={0}
+            max={MAX_TRAIL}
+            step={1}
+            format={(v) => (v ? `${v}` : 'none')}
+            onChange={(v) => changePulse({trail: v})}
+            testId='colonization-drawer-trail'
+          />
+        </Section>
+
+        {spread && (
+          <Section title='Whole spread'>
             <Box>
               <Stat label='Longest path' value={`${spread.maxHop} hops`}/>
               <Stat label='Time to reach all' value={`${fmt(spread.maxYears)} years`}/>
@@ -206,10 +357,72 @@ export default function ColonizationDrawer({scene, isOpen, onClose}) {
               <Stat label='Hop length, max' value={`${fmt(spread.maxHopLy)} ly`}/>
               {spread.numBridges > 0 && <Stat label='Bridges between clusters' value={spread.numBridges}/>}
             </Box>
-          </>
+          </Section>
         )}
       </Stack>
     </Drawer>
+  )
+}
+
+
+/** @returns {ReactElement} */
+function Section({title, children}) {
+  return (
+    <>
+      <Divider/>
+      <Typography variant='overline' color='text.secondary' sx={{lineHeight: 1}}>{title}</Typography>
+      {children}
+    </>
+  )
+}
+
+
+/** @returns {ReactElement} */
+function RouteInfo({name, route}) {
+  return (
+    <Paper
+      variant='outlined'
+      sx={{p: 1.5, borderColor: pathColorCss(), backgroundColor: 'transparent'}}
+      data-testid='colonization-drawer-route'
+    >
+      <Typography variant='subtitle2' sx={{color: pathColorCss()}}>Sun → {name}</Typography>
+      {route.hops === 0 ?
+        <Typography variant='body2' color='text.secondary'>The origin.</Typography> :
+        <>
+          <Stat label='Hops' value={route.hops}/>
+          <Stat label='Arrives after' value={`${fmt(route.arriveYears)} years`}/>
+          <Stat label='In transit' value={`${fmt(route.transitYears)} years`}/>
+          <Stat label='Waiting at colonies' value={`${fmt(route.waitYears)} years`}/>
+          <Stat label='Route length' value={`${fmtLy(route.pathLy)} ly`}/>
+          <Stat label='Straight-line distance' value={`${fmtLy(route.directLy)} ly`}/>
+          <Stat label='Hop length, min' value={`${fmtLy(route.minHopLy)} ly`}/>
+          <Stat label='Hop length, max' value={`${fmtLy(route.maxHopLy)} ly`}/>
+          <Stat label='Hop length, mean' value={`${fmtLy(route.meanHopLy)} ly`}/>
+        </>}
+    </Paper>
+  )
+}
+
+
+/** @returns {ReactElement} */
+function LabeledSlider({label, value, min, max, step, format, onChange, testId}) {
+  return (
+    <Box>
+      <Stack direction='row' justifyContent='space-between'>
+        <Typography variant='body2' color='text.secondary'>{label}</Typography>
+        <Typography variant='body2'>{format(value)}</Typography>
+      </Stack>
+      <Slider
+        size='small'
+        aria-label={label}
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e, v) => onChange(v)}
+        data-testid={testId}
+      />
+    </Box>
   )
 }
 
@@ -280,4 +493,10 @@ function HopLegend({maxHop, hop}) {
 /** @returns {string} */
 function fmt(num) {
   return Math.round(num).toLocaleString()
+}
+
+
+/** @returns {string} Light-years, a decimal below 100 */
+function fmtLy(ly) {
+  return ly < 100 ? ly.toFixed(1) : fmt(ly)
 }

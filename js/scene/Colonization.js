@@ -219,6 +219,114 @@ export function computeSpread(pos, originNdx, params = {}) {
 
 
 /**
+ * @typedef {{
+ *   path: Array<number>,
+ *   hops: number,
+ *   arriveYears: number,
+ *   transitYears: number,
+ *   waitYears: number,
+ *   pathLy: number,
+ *   directLy: number,
+ *   minHopLy: number,
+ *   maxHopLy: number,
+ *   meanHopLy: number,
+ * }} PathStats
+ */
+
+
+/**
+ * The route the spread took from the origin to a star, by parent links.
+ *
+ * @param {Spread} spread
+ * @param {Float64Array} pos Star positions in light-years, packed xyz
+ * @param {number} ndx Star index
+ * @param {number} speedC The speed the spread was computed with
+ * @returns {PathStats|null} null if the star wasn't reached; path runs
+ *   origin first, ndx last
+ */
+export function pathTo(spread, pos, ndx, speedC) {
+  if (spread.hop[ndx] === -1) {
+    return null
+  }
+  const path = []
+  for (let i = ndx; i !== -1; i = spread.parent[i]) {
+    path.push(i)
+  }
+  path.reverse()
+  let pathLy = 0
+  let minHopLy = Infinity
+  let maxHopLy = 0
+  for (let h = 1; h < path.length; h++) {
+    const d = dist(pos, path[h - 1], path[h])
+    pathLy += d
+    minHopLy = Math.min(minHopLy, d)
+    maxHopLy = Math.max(maxHopLy, d)
+  }
+  const hops = path.length - 1
+  const arriveYears = spread.arriveYears[ndx]
+  const transitYears = pathLy / speedC
+  return {
+    path,
+    hops,
+    arriveYears,
+    transitYears,
+    waitYears: arriveYears - transitYears,
+    pathLy,
+    directLy: dist(pos, path[0], ndx),
+    minHopLy: hops ? minHopLy : 0,
+    maxHopLy,
+    meanHopLy: hops ? pathLy / hops : 0,
+  }
+}
+
+
+/**
+ * Line width for a hop: linear from the first hop's width to the last's.
+ * Mirrors the lines' vertex shader.
+ *
+ * @param {number} hop 1-based
+ * @param {number} maxHop
+ * @param {number} first Width at hop 1
+ * @param {number} last Width at maxHop
+ * @returns {number}
+ */
+export function hopWidth(hop, maxHop, first, last) {
+  const t = maxHop > 1 ? (hop - 1) / (maxHop - 1) : 0
+  return first + ((last - first) * t)
+}
+
+
+/**
+ * How much the pulse brightens a hop's segments, 0 to 1.  The pulse sits T
+ * seconds on each hop in turn: the hop it's on is 1, and with a trail the N
+ * hops behind it step back down to 0.  Mirrors the lines' vertex shader.
+ *
+ * @param {number} pulseHop The hop the pulse is on (fractions ignored)
+ * @param {number} hop 1-based
+ * @param {number} trail N, hops a trail takes to fade; 0 for none
+ * @returns {number}
+ */
+export function pulseBoost(pulseHop, hop, trail) {
+  const behind = Math.floor(pulseHop) - hop
+  if (behind < 0 || behind > trail) {
+    return 0
+  }
+  return 1 - (behind / (trail + 1))
+}
+
+
+/**
+ * @param {number} maxHop
+ * @param {number} trail
+ * @returns {number} Steps in one pulse cycle: through every hop, then until
+ *   the trail has faded off the last one
+ */
+export function pulseCycle(maxHop, trail) {
+  return maxHop + trail + 1
+}
+
+
+/**
  * Symmetric k-nearest-neighbor adjacency lists.
  *
  * @param {KdTree} tree

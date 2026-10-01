@@ -204,6 +204,15 @@ describe('Scene settings tracking', () => {
     expect(lines.visible).toBe(true)
   })
 
+  it('toggleColonization mirrors x into the store, for the drawer\'s switch', () => {
+    const s = makeScene()
+    const states = []
+    s.ui.useStore = {setState: (st) => states.push(st)}
+    s.toggleColonization()
+    s.toggleColonization()
+    expect(states).toEqual([{isColonizationVisible: false}, {isColonizationVisible: true}])
+  })
+
   it('toggleStarLabels flips the l flag and notifies onSettingsChange', () => {
     const s = makeScene()
     s.stars = fakeStars()

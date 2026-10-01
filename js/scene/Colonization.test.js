@@ -1,5 +1,14 @@
 import {readFileSync} from 'fs'
-import {KdTree, catalogPositions, computeSpread, statsAt, yearsAtProgress} from './Colonization.js'
+import {
+  KdTree,
+  catalogPositions,
+  computeSpread,
+  hopWidth,
+  pathTo,
+  pulseBoost,
+  statsAt,
+  yearsAtProgress,
+} from './Colonization.js'
 import StarsCatalog from './StarsCatalog.js'
 import {toArrayBuffer} from '../utils.js'
 
@@ -37,6 +46,39 @@ describe('Colonization', () => {
     expect(yearsAtProgress(s, 1 / 3, 'stars')).toBeCloseTo(10)
     expect(yearsAtProgress(s, 1, 'stars')).toEqual(230)
     expect(yearsAtProgress(s, 0, 'stars')).toEqual(0)
+  })
+
+  it('pathTo follows parents and sums the route', () => {
+    const pos = new Float64Array([0, 0, 0, 5, 0, 0, 10, 0, 0, 15, 0, 0])
+    const s = computeSpread(pos, 0, {speedC: 0.5, numNeighbors: 1, launchDelayYears: 100})
+    const p = pathTo(s, pos, 3, 0.5)
+    expect(p.path).toEqual([0, 1, 2, 3])
+    expect(p.hops).toEqual(3)
+    expect(p.arriveYears).toEqual(230)
+    expect(p.transitYears).toEqual(30)
+    expect(p.waitYears).toEqual(200)
+    expect(p.pathLy).toEqual(15)
+    expect(p.directLy).toEqual(15)
+    expect([p.minHopLy, p.maxHopLy, p.meanHopLy]).toEqual([5, 5, 5])
+    const origin = pathTo(s, pos, 0, 0.5)
+    expect(origin.path).toEqual([0])
+    expect(origin.hops).toEqual(0)
+    expect(origin.meanHopLy).toEqual(0)
+  })
+
+  it('hopWidth ramps from the first hop to the last', () => {
+    expect(hopWidth(1, 61, 10, 1)).toEqual(10)
+    expect(hopWidth(31, 61, 10, 1)).toEqual(5.5)
+    expect(hopWidth(61, 61, 10, 1)).toEqual(1)
+    expect(hopWidth(1, 1, 10, 1)).toEqual(10)
+  })
+
+  it('pulseBoost lights the current hop, and a trail steps down behind it', () => {
+    expect(pulseBoost(3.7, 3, 0)).toEqual(1)
+    expect(pulseBoost(4, 3, 0)).toEqual(0)
+    expect(pulseBoost(2.9, 3, 0)).toEqual(0)
+    // Trail of 3: the hop behind is 3/4, then 1/2, 1/4, then off.
+    expect([3, 4, 5, 6, 7].map((p) => pulseBoost(p, 3, 3))).toEqual([1, 0.75, 0.5, 0.25, 0])
   })
 
   it('computeSpread bridges disconnected clusters', () => {

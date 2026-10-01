@@ -137,6 +137,21 @@ overlaps of N⁻¹ values tone-map brighter than the old clamped sum (the toe
 is square-root-like, so √a + √b > √(a + b)): overlapping star glows came
 out ~13% brighter.  Measure blends separately from single draws.
 
+### At light-years, clip-space w underflows the rasterizer's varyings
+
+The human expansion lines (screen-space quads, js/scene/Colonization.md)
+drew every triangle and showed nothing.  Clip-space w is the distance in
+metres, ~1e18 a few hundred light-years out, and perspective-corrected
+varyings are computed through 1/w products, which underflow float32 there:
+a varying across the line's width came out pinned at its endpoint values.
+Rendering the varyings as colours, and averaging them over the covered
+pixels, found it in one run; the depth and colour probes before it didn't.
+**Rule:** a shader drawing light-year geometry with varyings that must
+interpolate (anything but flat colour) divides its clip coordinates
+through to w = 1 once its vertices are known to be in front of the near
+plane.  It's the same point and depth, and the varyings then interpolate
+linearly on screen.
+
 ### GPU shader degenerate cases need explicit guards
 
 The Bruneton decode has two degenerate cases: r = rG (ground, rho = 0) and r = rA (atmosphere

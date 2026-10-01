@@ -8,8 +8,9 @@ stats; the spread is drawn like the asterisms, one line per hop.
 | File | Holds |
 |---|---|
 | `Colonization.js` | the graph and the spread: k-d tree, kNN graph, bridging, layered BFS, timeline helpers (pure, tested) |
-| `ColonizationLines.js` | the lines: one `LineSegments`, RTE, coloured by hop, grown in the shader |
-| `../ui/ColonizationDrawer.jsx` | the drawer: parameters, playback, stats, legend |
+| `ColonizationLines.js` | the lines: instanced screen-space quads, RTE, coloured and sized by hop, grown, pulsed, and the selected star's route |
+| `../ui/ColonizationDrawer.jsx` | the drawer: show switch, model parameters, timeline, selected star's route, line and pulse controls, stats |
+| `../store/ColonizationSlice.js` | `isColonizationVisible`, the `x` setting mirrored for the drawer |
 
 ## The model
 
@@ -37,20 +38,78 @@ thread, behind the drawer's "Computing…" state.
 
 ## Drawing
 
+- **Wide lines.** WebGL draws `LINES` 1 px wide whatever `linewidth`
+  says, so each hop is an instance of one quad (`InstancedBufferGeometry`,
+  ~107k instances), extruded across its screen direction in the vertex
+  shader, with square caps so consecutive hops meet, and a pixel of
+  antialiased edge (a 1 px line is fully covered at its centre, like a GL
+  line).
 - **Colour.** One colour per hop, stepped evenly along the longest path:
   near white (hop 1) through blue to near black (the last hop).  Display
   values, through `sceneReferred` (HDR.md), so the tone map gives them back.
 - **Growth.** Each segment's child end moves from its parent star at
   departure to its own star at arrival (`aTimes`), so ships in transit
-  show as growing lines, and a segment is discarded before departure.
-  The timeline is one uniform (`uTime`): scrubbing rebuilds nothing.
+  show as growing lines, and a segment is culled before departure.  The
+  timeline is one uniform (`uTime`): scrubbing rebuilds nothing.
 - **RTE.** As the asterisms: float32 high + low positions about the
   camera, turned by `mat3(modelViewMatrix)`, a child of `Stars` in the
   `StellarFrame`.  Light-year coordinates stay exact, and the lines
-  precess and rebase with the stars.
+  precess and rebase with the stars.  Each segment is trimmed to the near
+  plane in view space before projecting, as a hop passing behind the
+  camera would otherwise project through infinity.
 - **Visibility.** A scene annotation: the `x` setting (`x` key, in
-  Settings under Labels) and so the global `V`.  Running a spread turns
-  `x` back on.  The drawer is HTML chrome, so `v` hides it.
+  Settings under Labels, and the drawer's "Show lines" switch, kept in
+  step through the store's `isColonizationVisible`) and so the global
+  `V`.  Running a spread turns `x` back on.  The drawer is HTML chrome,
+  so `v` hides it.
+
+### Line controls
+
+- **Width:** the first hop's and the last hop's, linear between
+  (`hopWidth`; default 6 px to 1 px).
+- **Opacity:** one alpha for every hop; blended over the stars.
+- **Size attenuation:** off by default.  On, a line is its width at a
+  reference distance from the camera ("Full width at", 10 to 10,000 ly)
+  and scales inversely with distance, per end, so a hop running away
+  from the camera tapers.  Never wider than 4x.  Under 1 px a line's
+  coverage, so its brightness, falls with its width: far lines fade.
+
+### Pulse
+
+Off by default.  The pulse sits T seconds on each hop in turn, from hop
+1 to the last, then loops: the hop it's on is whitened (85%) and drawn
+twice as wide.  With a trail of N hops, the hops behind it step back to
+normal over N steps (`pulseBoost`: 1, then N/(N+1) down to 1/(N+1)), and
+the cycle runs N steps past the last hop so the trail clears before it
+restarts (`pulseCycle`).  The clock is `performance.now()` in the
+segments' `onBeforeRender`, so the pulse runs whether or not the
+timeline plays.  It shows only on segments that exist at the timeline's
+time.
+
+### Selected star's route
+
+When a star is committed (the search bar's crosshair picker, or a search
+for it: `committedStar` in the store), the drawer follows its parents
+back to the Sun (`pathTo`) and draws that route over everything: amber,
+4 px, whole whatever the timeline's time, without depth test.  The
+"Selected star" box gives its hops, arrival, the years in transit and
+waiting at colonies (arrival = transit + one launch delay per colony on
+the way), route length against the straight-line distance, and its hop
+lengths (min, max, mean).
+
+### Lessons (GPU)
+
+- **Winding.** The quad's perpendicular is the screen direction turned
+  left; with the index order backwards every quad was a back face and
+  culled, which looked exactly like "nothing draws".
+- **Huge w.** Clip-space w is the distance in metres, ~1e18 at a few
+  hundred light-years.  The rasterizer's perspective-corrected varyings
+  work in 1/w products that underflow float32 there: the side-of-line
+  varying came out pinned at +-1 and the edge coverage 0, so the lines
+  were drawn but invisible.  The shader divides clip coordinates through
+  to w = 1 (same point and depth; safe as both ends are in front of the
+  near plane), which also makes varyings interpolate linearly on screen,
+  as wanted across a line's width.
 
 ## Timeline pacing
 

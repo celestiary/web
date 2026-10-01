@@ -1029,6 +1029,7 @@ export default class Scene {
     if (this.colonization) {
       this.colonization.visible = this._settings.x
     }
+    this.ui.useStore?.setState?.({isColonizationVisible: this._settings.x})
   }
 
 

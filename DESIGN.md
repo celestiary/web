@@ -622,6 +622,7 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
 `js/store/useStore.js` composes four slices:
 
 - `AsterismsSlice` — asterisms visibility and catalog state
+- `ColonizationSlice` — mirrors the `x` setting (human expansion lines) for the drawer's switch
 - `SearchSlice` — search-bar state, anchor index, committed path / star,
   preview fields; `setCommittedPath` and `setCommittedStar` are mutually
   exclusive
