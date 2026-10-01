@@ -211,7 +211,10 @@ relates to real time.
   otherwise always 1 on the opaque globe, encoded as 1 − e^(−d/D) in 8
   bits and dithered (`cesium/distance.js`; D grows with the camera's
   height).  The composite's decode pass turns it back into celestiary's
-  depth, depth-tested, and the atmosphere pass hazes the terrain for that
+  depth (written whatever the depth buffer holds: the stencil shell has
+  already admitted only pixels where nothing celestiary drew is nearer; a
+  real depth test there let lines and points behind Earth show through
+  the globe), and the atmosphere pass hazes the terrain for that
   distance (aerial perspective; composition.md), with the camera below
   20 km: from higher up the ridges that matter are a pixel or two, and 8
   bits over the ground in view are too coarse (from 37 km, the first cut

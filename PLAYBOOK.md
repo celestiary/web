@@ -177,6 +177,17 @@ blends that sliver harmlessly; a code in alpha doesn't.  **Rule:** a
 texture whose channels are codes (distances, ids) gets `NearestFilter`,
 and the decode treats less than half a level as nothing.
 
+### A new depth test needs a check of what it now hides
+
+To write the terrain's depth, the Cesium decode pass got a depth test
+(`LessEqual`) as well as the write.  Every terrain check passed; but the
+pass draws the globe after the scene, and where an orbit line or a point
+behind Earth had written its depth, the decoded depth (from space, the far
+plane) lost, and the line showed through the globe.  The stencil shell
+already did that occlusion; the test only had to be on for the write.
+**Rule:** when a pass that draws a body gains a depth test, look at the
+body with lines and points behind it, not only at what the test was for.
+
 ---
 
 ## Testing
