@@ -129,10 +129,11 @@ goes into the buffer through the tone map's inverse (`hdr.js`
   Same −180° left edge as before.  NASA has no June: it's May and July
   blended.  `earth.json` `texture_monthly` makes the map follow the
   simulation date's month (`monthly.js`, `Planet.monthlyMap`).  Earth's
-  atmosphere `sunIntensity` is 30, matched to Cesium's Earth over the same
+  atmosphere `sunIntensity` was 30, matched to Cesium's Earth over the same
   imagery (median ratio 1.00 over the disc from 20,000 km; at 60 the haze
   made celestiary's Earth ~1.7x as bright, and the swap to Cesium darkened
-  it).
+  it); it is 21 since the atmosphere pass integrates multiple scattering
+  (composition.md), re-fitted to hold the sky's luma.
 - **Moon** (`moon.jpg`, 4096×2048): the LRO WAC global mosaic (NASA/GSFC/
   Arizona State University, via the USGS; public domain), the imagery of
   Cesium's Moon.  Same layout and recipe, from
