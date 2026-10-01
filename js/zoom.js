@@ -74,3 +74,41 @@ export function asymptoticZoomDist(distBefore, distAfter, surfaceR) {
 export function dynamicNear(altitude) {
   return Math.min(SMALLEST_SIZE_METER, Math.max(1e2, altitude * 0.1))
 }
+
+
+/** Floor of rotateScale: a drag near the ground slows to this, never to a stall. */
+export const MIN_ROTATE_SCALE = 1e-6
+
+
+/**
+ * How much of its full speed an orbit drag turns at an altitude: 1 from a few
+ * body radii out (rotation as it always was), falling smoothly as the camera
+ * nears the ground, never below MIN_ROTATE_SCALE.
+ *
+ * Why this curve.  An orbit drag turns the camera about the body's centre by
+ * `speed * scale` radians a pixel, which carries the view over the ground by
+ * that angle times (R + alt).  What's on screen is a patch about alt across
+ * (the field of view is fixed).  Keeping a drag worth a similar fraction of
+ * the patch at every altitude wants the angle to go as alt / (R + alt), so
+ * near the ground it is proportional to altitude (a power law of exponent 1;
+ * a log is too gentle, leaving kilometres a pixel at 5 km up, and a higher
+ * power crawls).  1 - exp(-alt / R) has the same slope at the ground
+ * (alt / R) but, unlike
+ * alt / (R + alt), is already 0.95 at 3 radii and 0.99 at 5, so far views
+ * keep their feel instead of being slowed a third at 2 radii.  It is smooth,
+ * monotonic and has no tunables.
+ *
+ * Only orbit drags use it.  A free-look drag (pan) and the arrow keys turn
+ * the camera in place and move nothing over the ground, so they stay as they
+ * were, and so can look about from the surface.
+ *
+ * @param {number} altitude Camera height above the ground, metres
+ * @param {number} radius Body radius, metres
+ * @returns {number} In [MIN_ROTATE_SCALE, 1]
+ */
+export function rotateScale(altitude, radius) {
+  if (!(radius > 0) || !(altitude > 0)) {
+    return radius > 0 ? MIN_ROTATE_SCALE : 1
+  }
+  return Math.min(1, Math.max(MIN_ROTATE_SCALE, -Math.expm1(-altitude / radius)))
+}

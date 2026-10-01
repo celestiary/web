@@ -83,6 +83,7 @@ dates its ephemerides hold, J2000 ± 6000 years (DESIGN.md [frames and time](DES
 HDR buffer and one tone map, the sky in exposure units, and Earth's
 Cesium layer under celestiary's atmosphere, hazing Cesium's terrain for
 its own distance ([HDR.md](js/scene/HDR.md)).
+Orbit drag slows with proximity: `rotateScale` turns it by `1 - exp(-alt / R)` of full speed, so a drag moves a similar share of the visible ground at 200 m as at 20,000 km (PR [#144](https://github.com/celestiary/web/pull/144); DESIGN.md [proximity-scaled orbit drag](DESIGN.md#proximity-scaled-orbit-drag)).
 
 **Now**
 1. **Body orientation** ([#96](https://github.com/celestiary/web/issues/96), in [#112](https://github.com/celestiary/web/issues/112)): with the moons' planes ([#6](https://github.com/celestiary/web/issues/6)) and one

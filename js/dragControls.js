@@ -38,6 +38,10 @@ import {resolveDragMode} from './dragMode'
  * @param {Function} [options.getTarget] Returns the current target object
  *   (with `.props.radius.scalar` and optional `.props.atmosphere.height.scalar`).
  *   Required for `'auto'` to resolve to anything other than `'pan'`.
+ * @param {Function} [options.getOrbitScale] Returns the fraction of full
+ *   speed an orbit drag turns at (zoom.js `rotateScale`: slower near the
+ *   ground).  Read on every move, since altitude changes over terrain.
+ *   Pan is unscaled.  Treated as 1 when omitted.
  * @param {Function} [options.onClick] Called with the pointerup event when
  *   the gesture moved less than CLICK_PX_THRESHOLD — distinguishes a true
  *   click (e.g., to pick a label) from a drag-rotate.
@@ -48,7 +52,7 @@ import {resolveDragMode} from './dragMode'
  *   dblclick as an override (latest action wins).
  */
 export function attachPointerDrag(el, camera, options = {}) {
-  const {onChange, getDragMode, getTarget, onClick, onDblClick} = options
+  const {onChange, getDragMode, getTarget, getOrbitScale, onClick, onDblClick} = options
   let lastX = 0
   let lastY = 0
   let downX = 0
@@ -138,14 +142,15 @@ export function attachPointerDrag(el, camera, options = {}) {
     const speed = 0.005 // radians per pixel
 
     if (activeMode === 'orbit') {
+      const orbitSpeed = speed * (getOrbitScale?.() ?? 1)
       // Horizontal → around platform-local Y
       orbitAxis.set(0, 1, 0)
-      orbitRot.setFromAxisAngle(orbitAxis, -dx * speed)
+      orbitRot.setFromAxisAngle(orbitAxis, -dx * orbitSpeed)
       camera.position.applyQuaternion(orbitRot)
       camera.quaternion.premultiply(orbitRot)
       // Vertical → around camera's current right axis
       orbitAxis.set(1, 0, 0).applyQuaternion(camera.quaternion)
-      orbitRot.setFromAxisAngle(orbitAxis, -dy * speed)
+      orbitRot.setFromAxisAngle(orbitAxis, -dy * orbitSpeed)
       camera.position.applyQuaternion(orbitRot)
       camera.quaternion.premultiply(orbitRot)
     } else {

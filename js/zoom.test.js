@@ -1,4 +1,4 @@
-import {asymptoticZoomDist, dynamicNear, groundRadius, homeBody} from './zoom.js'
+import {MIN_ROTATE_SCALE, asymptoticZoomDist, dynamicNear, groundRadius, homeBody, rotateScale} from './zoom.js'
 import {SMALLEST_SIZE_METER} from './shared.js'
 
 
@@ -120,5 +120,55 @@ describe('homeBody', () => {
     const starAnchor = {}
     expect(homeBody(starAnchor, earth, moon)).toBe(moon)
     expect(homeBody(earth, null, moon)).toBe(moon)
+  })
+})
+
+
+describe('rotateScale', () => {
+  const EARTH_R = 6.371e6
+
+  it('is 1 (rotation as before) from a few radii out and beyond', () => {
+    expect(rotateScale(5 * EARTH_R, EARTH_R)).toBeGreaterThan(0.99)
+    expect(rotateScale(3 * EARTH_R, EARTH_R)).toBeGreaterThan(0.94)
+    expect(rotateScale(1e3 * EARTH_R, EARTH_R)).toBe(1)
+    expect(rotateScale(Infinity, EARTH_R)).toBe(1)
+  })
+
+  it('goes with altitude over radius close in (a drag worth the same part of the view)', () => {
+    // The ground a radian sweeps is scale * (R + alt); that over alt is ~1.
+    for (const alt of [200, 5e3, 4e5]) {
+      expect(rotateScale(alt, EARTH_R) * (EARTH_R + alt) / alt).toBeGreaterThan(0.99)
+      expect(rotateScale(alt, EARTH_R) * (EARTH_R + alt) / alt).toBeLessThan(1.3)
+    }
+  })
+
+  it('never goes up as the camera nears the ground', () => {
+    let prev = 1
+    for (let alt = 1e9; alt >= 1; alt /= 1.5) {
+      const s = rotateScale(alt, EARTH_R)
+      expect(s).toBeLessThanOrEqual(prev)
+      prev = s
+    }
+    expect(rotateScale(1e6, EARTH_R)).toBeLessThan(rotateScale(2e6, EARTH_R))
+  })
+
+  it('is never zero or above 1, whatever the altitude', () => {
+    for (const alt of [1e12, EARTH_R, 1e3, 1, 1e-9, 0, -5, NaN]) {
+      const s = rotateScale(alt, EARTH_R)
+      expect(s).toBeGreaterThanOrEqual(MIN_ROTATE_SCALE)
+      expect(s).toBeLessThanOrEqual(1)
+    }
+    expect(rotateScale(0, EARTH_R)).toBe(MIN_ROTATE_SCALE)
+    expect(rotateScale(-5, EARTH_R)).toBe(MIN_ROTATE_SCALE)
+  })
+
+  it('falls back to 1 when the body has no usable radius', () => {
+    expect(rotateScale(1e3, 0)).toBe(1)
+    expect(rotateScale(1e3, undefined)).toBe(1)
+  })
+
+  it('scales with the body: the same altitude is nearer the ground of a larger body', () => {
+    expect(rotateScale(5e3, 7e7)).toBeLessThan(rotateScale(5e3, 3.4e6))
+    expect(rotateScale(5e3, 1e4)).toBeGreaterThan(0.39)
   })
 })

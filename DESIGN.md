@@ -357,13 +357,23 @@ Camera orientation and position are separated across three input modes, all accu
 |---|---|
 | Scroll wheel | Zoom (TrackballControls, asymptotic near surface) |
 | Mouse drag | Free look — pitch (up/down) and yaw (left/right) around camera's local axes |
-| Option+drag | Orbit — rotates camera as a rigid body around the planet center (position + orientation rotate together) |
+| Option+drag | Orbit — rotates camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) |
 | ↑ / ↓ arrow keys (hold) | Pitch camera nose up/down |
 | ← / → arrow keys (hold) | Roll camera left/right |
 | `t` | Toggle continuous tracking (camera auto-looks at target as it orbits) |
 | `c` | Snap look at current target |
 
 **Asymptotic zoom** (`js/zoom.js`): scroll zoom is remapped from distance-space to altitude-space so the camera approaches the surface asymptotically. The `camera.near` plane is dynamically scaled to `altitude * 0.1` (clamped 100 m – `SMALLEST_SIZE_METER`) so the surface remains visible without clipping.
+
+### Proximity-scaled orbit drag
+
+An orbit drag turns the camera about the body's centre by 0.005 rad a pixel, which carries the view over the ground by that angle times `R + alt`. Unscaled, that is 32 km a pixel at 5 km up on Earth, while the screen shows a patch about `alt` across: no way to move a few km over the ground. `rotateScale(alt, R)` (`js/zoom.js`) multiplies the speed by `1 - exp(-alt / R)`, where `alt` is the height over the *ground* (Cesium terrain where a layer knows it, as in zoom) and `R` the radius of the body the camera is at (`homeBody`, as in zoom). `ThreeUI.orbitScale()` supplies it to `dragControls` (`getOrbitScale`), read on every move.
+
+- **Near the ground** it is `alt / R`, so a radian of drag sweeps `~alt` of ground, a similar fraction of the visible patch at every altitude. The exact ratio for that is `alt / (R + alt)`.
+- **From a few radii out** it is 1 (0.95 at 3 R, 0.99 at 5 R), so far views drag as they always did. Plain `alt / (R + alt)` would still be slowed by a third at 2 R, so the saturating exponential takes its place: same slope at the ground, no tunables, smooth and monotonic.
+- **Never zero**: floored at `MIN_ROTATE_SCALE` (1e-6, a few cm a pixel on Earth), so a drag at the ground still turns the view.
+- **Curves ruled out**: a log of altitude is too gentle (kilometres a pixel at 5 km up), and a power above 1 crawls close in and falls out of step with the patch.
+- **Only orbit drags are scaled.** Free-look drag (pan) and the arrow keys (pitch and roll) turn the camera in place and move nothing over the ground, so slowing them would only keep you from looking about the horizon.
 
 **Camera platform**: the camera is a child of `camera.platform`, a scene-root `Object3D` reparented on each `goTo()`. For planet targets the new parent is `obj.orbitPosition` so the camera tracks orbital motion automatically; for star targets it's `_starAnchor`, a dedicated scene-root anchor at world origin (paired with a `WorldGroup` rebase that moves the target star to origin). See [Navigation (goTo flow)](#navigation-goto-flow) for the full flow.
 
