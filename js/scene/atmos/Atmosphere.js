@@ -427,6 +427,7 @@ uniform float     uSkyExposure;
 #define I_STEPS   64
 #define J_STEPS   8
 #define R_SLICES  64.0
+#define SEG_STEPS 16
 
 ${NEUTRAL_GLSL}
 
@@ -511,6 +512,44 @@ vec4 sampleInScatter(float r, float mu_view, float mu_sun) {
   vec4 s0 = texture2D(tInScatter, vec2((r0 + mu_s_t) / R_SLICES, mu_v_t));
   vec4 s1 = texture2D(tInScatter, vec2((r1 + mu_s_t) / R_SLICES, mu_v_t));
   return mix(s0, s1, rBlend);
+}
+
+vec2 rsi(vec3 r0, vec3 rd, float sr);
+
+// Single scattering (as the in-scatter table stores it: Rayleigh rgb
+// already times its coefficients, Mie in a) and transmittance along the view
+// ray from the eye to a surface tMax away, by a march, as
+// AtmospherePrecompute integrates the table: each step's sunlight through
+// the transmittance table.  Heights below the ground sphere (Cesium's
+// terrain under a datum, a camera there) are denser, as they are.
+void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 T) {
+  float ds = tMax / float(SEG_STEPS);
+  vec3  totalR = vec3(0.0);
+  float totalM = 0.0;
+  float odR = 0.0;
+  float odM = 0.0;
+  for (int i = 0; i < SEG_STEPS; i++) {
+    vec3  pos = eye + dir * ((float(i) + 0.5) * ds);
+    float r   = length(pos);
+    float h   = r - uGroundRadius;
+    float dR  = exp(-h / uRayleighScaleHeight) * ds;
+    float dM  = exp(-h / uMieScaleHeight) * ds;
+    odR += dR;
+    odM += dM;
+    vec2  jOd;
+    vec2  pPlanet = rsi(pos, uSunDirection, uGroundRadius);
+    if (r >= uGroundRadius && pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) {
+      jOd = vec2(1.0e6);  // the Sun behind the planet
+    } else {
+      jOd = texture2D(tTransmittance,
+          vec2(max(h, 0.0) / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rg;
+    }
+    vec3 attn = exp(-(uMieCoeff * (odM + jOd.g) + uRayleigh * (odR + jOd.r)));
+    totalR += dR * attn;
+    totalM += dM * attn.r;
+  }
+  inS = vec4(uRayleigh * totalR, uMieCoeff * totalM);
+  T   = exp(-(uRayleigh * odR + vec3(uMieCoeff * odM)));
 }
 
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
@@ -654,6 +693,8 @@ void main() {
     // from the sphere instead, straight above: the air between is the
     // densest, but a few km of it, and the segment march below counts it.
     float rEye = length(eyePos);
+    // The camera where it is, for the surface's segment (below).
+    vec3  eyeTrue = eyePos;
     bool  eyeLifted = rEye < uGroundRadius + 1.0;
     if (eyeLifted) {
       eyePos *= (uGroundRadius + 1.0) / max(rEye, 1.0);
@@ -732,51 +773,22 @@ void main() {
     vec2 uvT_v    = transmittanceUV(r_e, mu_t, uGroundRadius, uAtmosphereRadius);
     vec2 odView   = texture2D(tTransmittance, uvT_v).rg;
     vec3 extVec   = uRayleigh * odView.r + vec3(uMieCoeff * odView.g);
-    // The table's ray ends at the ground sphere, or leaves the atmosphere.
-    // Where a surface was drawn nearer than that (Cesium's terrain over the
-    // sphere: a ridge seen from a valley, above the sphere's horizon, where
-    // the table's ray would be sky), the air is only the segment up to it:
-    // Bruneton's aerial perspective, S(eye) − T(eye→P)·S(P).  Celestiary's
-    // own ground is the sphere, a mesh a little below it, so it never takes
-    // this path; nor does terrain below the sphere (Cesium's Mars, under
-    // its datum), whose ray the table already ends at the sphere, the look
-    // celestiary's own surface there has.
-    vec2  pGround = rsi(eyePos, rayDir, uGroundRadius);
-    float tEnd    = (pGround.x > 0.0 && pGround.x <= pGround.y) ? pGround.x : pAtm.y;
-    bool  shortRay = insideAtm && depthSample < 1.0 && !isGap && tMax + tMaxErr < tEnd - 1.0;
+    // A surface drawn inside the atmosphere (celestiary's own ground, and
+    // Cesium's terrain, which rises above the sphere and sinks below it):
+    // the air is the segment from the eye to it, single scattering and
+    // transmittance marched along it as the in-scatter table integrates
+    // them (marchSegment), from the camera where it is.  The table's ray
+    // ends at the sphere or the atmosphere's top, wherever the surface is,
+    // and it is linear in mu, coarse at the horizon: the first cuts of #141
+    // took the table's in-scatter and depth along the view ray and cut them
+    // at the surface, which drew a seam through near terrain at the
+    // sphere's horizon (sky rays above it, ground rays below), and left the
+    // ground under a camera below the datum without haze.  Sky pixels keep
+    // the table.
+    bool  shortRay = insideAtm && depthSample < 1.0 && !isGap && !beyondAtm && tMax < pAtm.y;
     vec3  segT = vec3(1.0);
     if (shortRay) {
-      vec3  P    = eyePos + rayDir * tMax;
-      float r_p  = length(P);
-      vec3  zenP = P / r_p;
-      vec4  inSP = sampleInScatter(r_p, dot(rayDir, zenP), dot(zenP, uSunDirection));
-      // T(eye→P): the table's optical depth to the ray's end, times the
-      // share of it that lies before P, from a march of the whole ray.
-      // The table's own depth keeps it the table's look as P nears the
-      // ray's end, celestiary's surface there; a march alone came out far
-      // darker over Mars's ground, where the table (linear in mu, coarse at
-      // the horizon) and a march disagree by up to 4x.
-      float odR = 0.0;
-      float odM = 0.0;
-      float odRP = 0.0;
-      float odMP = 0.0;
-      float ds  = (tEnd - t_entry) / 16.0;
-      for (int i = 0; i < 16; i++) {
-        float a = t_entry + float(i) * ds;
-        float h = max(length(eyePos + rayDir * (a + 0.5 * ds)) - uGroundRadius, 0.0);
-        float dR = exp(-h / uRayleighScaleHeight);
-        float dM = exp(-h / uMieScaleHeight);
-        float inP = clamp(tMax - a, 0.0, ds);
-        odR += dR * ds;
-        odM += dM * ds;
-        odRP += dR * inP;
-        odMP += dM * inP;
-      }
-      float fR = odR > 0.0 ? odRP / odR : 1.0;
-      float fM = odM > 0.0 ? odMP / odM : 1.0;
-      segT = exp(-(uRayleigh * odView.r * fR + vec3(uMieCoeff * odView.g * fM)));
-      // Mie's in-scatter is grey, attenuated as red (as in the table).
-      inS = max(inS - vec4(segT, segT.r) * inSP, vec4(0.0));
+      marchSegment(eyeTrue, rayDir, tMax, inS, segT);
     }
     float mu    = dot(rayDir, uSunDirection);
     float mumu  = mu * mu;

@@ -1,5 +1,5 @@
 import {AlwaysDepth, LOD, Object3D} from 'three'
-import CesiumLayers, {DECODE, decodeOf, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
+import CesiumLayers, {bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
 import {CESIUM_BODIES} from './bodies.js'
 
 
@@ -107,16 +107,10 @@ describe('crossfade', () => {
 })
 
 
-describe('decodeOf', () => {
-  it('inverts the tone map for display values, scales albedo, into the HDR buffer', () => {
-    expect(decodeOf('moon', true)).toBe(DECODE.NEUTRAL_INVERSE)
-    expect(decodeOf('mars', true)).toBe(DECODE.NEUTRAL_INVERSE)
-    expect(decodeOf('earth', true)).toBe(DECODE.LINEAR)
-  })
-
-  it('hands the LDR buffer display values', () => {
-    expect(decodeOf('moon', false)).toBe(DECODE.NONE)
-    expect(decodeOf('earth', false)).toBe(DECODE.LINEAR_TO_DISPLAY)
+describe('decode', () => {
+  it('scales every body by DISPLAY_GAIN and its imagery against celestiary\'s texture', () => {
+    expect(bodyGain('earth')).toBeCloseTo(bodyGain('mars'), 10)
+    expect(bodyGain('moon') / bodyGain('earth')).toBeCloseTo(1.3 / 0.82, 10)
   })
 
   it('draws the globe over whatever its stencil admitted, depth or not', () => {

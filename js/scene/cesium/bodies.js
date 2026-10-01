@@ -15,7 +15,15 @@
  *
  * `ionTileset` bodies are Cesium ion 3D-tiles datasets rendered without
  * Cesium's globe; they need an ion access token, and without one they
- * aren't offered.
+ * aren't offered.  That fork, globe or tileset, is the data's; everything
+ * after it is one path for every body (CESIUM.md, architecture): each draws
+ * its stored values × Lambert with its distance in alpha, and differs only
+ * by the data here:
+ *
+ * - `textureGain`, `imageryScale`: the decode's scale for the body's
+ *   imagery against celestiary's texture (CesiumLayers bodyGain).
+ * - `nightFloor`: a tileset's light on its night side, as a fraction of
+ *   full sun (sunlitShader); a globe's lighting is Cesium's.
  */
 
 
@@ -34,11 +42,8 @@ export const CESIUM_BODIES = {
   earth: {
     ellipsoid: 'WGS84',
     radii: [6378137, 6378137, 6356752.314245179],
-    // Celestiary's atmosphere pass, over Cesium's lit surface (cesiumOutput).
+    // Celestiary's atmosphere pass, over Cesium's lit surface.
     atmosphere: false,
-    // Its terrain's distance reaches celestiary's atmosphere pass
-    // (distance.js; carriesDistance).
-    terrainDistance: true,
     shellScale: TERRAIN_SHELL_SCALE,
     // The globe's base imagery, the simulation date's month: tiles cut from
     // the Blue Marble mosaics celestiary's own Earth texture is from
@@ -62,6 +67,8 @@ export const CESIUM_BODIES = {
     shellScale: TERRAIN_SHELL_SCALE,
     // Cesium Moon Terrain (ion).
     ionTileset: 2684829,
+    // Dark, but not a hole in the sky.
+    nightFloor: 0.02,
     // moon.json's texture_gain: celestiary's Moon is the same LRO WAC
     // mosaic, scaled (Planet.md).
     textureGain: 1.3,
@@ -74,30 +81,11 @@ export const CESIUM_BODIES = {
     ellipsoid: 'MARS',
     radii: [3396190, 3396190, 3376200],
     atmosphere: false,
-    terrainDistance: true,
     shellScale: TERRAIN_SHELL_SCALE,
     // Cesium Mars (ion).
     ionTileset: 3644333,
+    nightFloor: 0.02,
   },
-}
-
-
-/**
- * What a body's Cesium frame holds, for CesiumLayers to bring into its
- * scene buffer (js/scene/HDR.md, "Cesium in the same units"):
- *
- * - 'display': display values, PBR Neutral applied.  The ion tilesets (Moon,
- *   Mars), lit by sunlitShader, and a globe that draws its own atmosphere
- *   (Cesium's own look).
- * - 'albedo': a globe under celestiary's atmosphere (Earth): lit imagery,
- *   stored value × Lambert, which is at most 1, before DISPLAY_GAIN.
- *
- * @param {string} name
- * @returns {string} 'display' or 'albedo'
- */
-export function cesiumOutput(name) {
-  const config = CESIUM_BODIES[name]
-  return config && !config.ionTileset && !config.atmosphere ? 'albedo' : 'display'
 }
 
 
@@ -121,18 +109,4 @@ export function isCesiumBody(name) {
     return false
   }
   return !CESIUM_BODIES[name].ionTileset || ionToken() !== ''
-}
-
-
-/**
- * Whether a body's Cesium frame carries its terrain's distance in alpha
- * (distance.js), for celestiary's atmosphere pass: the bodies under it
- * (Earth, Mars), whose terrain rises above and sinks below celestiary's
- * sphere.  Its colour is then opaque wherever alpha isn't 0.
- *
- * @param {string} name
- * @returns {boolean}
- */
-export function carriesDistance(name) {
-  return CESIUM_BODIES[name]?.terrainDistance === true
 }
