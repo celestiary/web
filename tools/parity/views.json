@@ -81,14 +81,27 @@
     {
       "id": "mars-low-horizon",
       "body": "mars",
-      "description": "Mars from 232 m over Coprates, the Sun low on the left: Cesium's terrain lies mostly below Mars's datum, under celestiary's sphere.  Before #141's Mars fix the ground sphere's depth covered the terrain, the band between the terrain's horizon and the sphere's read as ground with the stars through it, and terrain above the sphere's horizon was drawn as sky",
+      "description": "Mars from 232 m over Coprates, the Sun low on the left: Cesium's terrain lies mostly below Mars's datum, under celestiary's sphere.  Before #141's Mars fix the ground sphere's depth covered the terrain, the band between the terrain's horizon and the sphere's read as ground with the stars through it (mars-low-horizon-band), and terrain above the sphere's horizon was drawn as sky.  Over the ground, on against off: the table's haze to the sphere on both sides",
       "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9770.1166jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {"box": [0, 0.6, 1, 1]},
       "profile": null,
       "tolerance": {
-        "ratio": [0.5, 2.0],
-        "luma": [5, 200]
+        "ratio": [0.92, 0.97],
+        "luma": [35, 50]
+      }
+    },
+    {
+      "id": "mars-low-horizon-band",
+      "body": "mars",
+      "description": "The same view, the band on the right between Cesium's terrain's horizon and the sphere's, against the sky above it in Cesium's render.  Before #141's Mars fix it read as ground, with the stars through it (luma 0.48 of the sky's, blue/red 0.90); now the horizon's haze over far terrain",
+      "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9770.1166jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0.6, 0.40, 1.0, 0.43]},
+      "reference": {"box": [0.6, 0.30, 1.0, 0.36]},
+      "profile": null,
+      "tolerance": {
+        "reference": {"luma": [0.6, 1.2], "blueRed": [0.95, 1.15]}
       }
     }
   ]

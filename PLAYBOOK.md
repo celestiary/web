@@ -177,6 +177,16 @@ blends that sliver harmlessly; a code in alpha doesn't.  **Rule:** a
 texture whose channels are codes (distances, ids) gets `NearestFilter`,
 and the decode treats less than half a level as nothing.
 
+### A fix for one body: check every body that shares the path
+
+The terrain-distance fix was Earth's (its globe, `albedo` output), and
+Mars's Cesium layer, a tileset under the same atmosphere pass, kept the
+bug: its terrain above the sphere's horizon was still drawn as sky.  And
+Mars brought cases Earth hadn't: terrain mostly below the datum, a camera
+below it.  **Rule:** when a fix keys on a property ("the albedo globe"),
+list the other bodies that reach the same code, and look at each low and
+at partial phase before calling it done.
+
 ### A new depth test needs a check of what it now hides
 
 To write the terrain's depth, the Cesium decode pass got a depth test
