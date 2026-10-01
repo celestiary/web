@@ -77,6 +77,19 @@
       "tolerance": {
         "reference": {"luma": [0.85, 1.1], "blueRed": [0.9, 1.15]}
       }
+    },
+    {
+      "id": "mars-low-horizon",
+      "body": "mars",
+      "description": "Mars from 232 m over Coprates, the Sun low on the left: Cesium's terrain lies mostly below Mars's datum, under celestiary's sphere.  Before #141's Mars fix the ground sphere's depth covered the terrain, the band between the terrain's horizon and the sphere's read as ground with the stars through it, and terrain above the sphere's horizon was drawn as sky",
+      "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9770.1166jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {"box": [0, 0.6, 1, 1]},
+      "profile": null,
+      "tolerance": {
+        "ratio": [0.5, 2.0],
+        "luma": [5, 200]
+      }
     }
   ]
 }

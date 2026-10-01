@@ -654,7 +654,8 @@ void main() {
     // from the sphere instead, straight above: the air between is the
     // densest, but a few km of it, and the segment march below counts it.
     float rEye = length(eyePos);
-    if (rEye < uGroundRadius + 1.0) {
+    bool  eyeLifted = rEye < uGroundRadius + 1.0;
+    if (eyeLifted) {
       eyePos *= (uGroundRadius + 1.0) / max(rEye, 1.0);
     }
     // Use the ray's atmosphere entry point as the LUT index.
@@ -717,7 +718,17 @@ void main() {
     // The table's optical depth along the view ray, to where its ray ends.
     // Use the same mu_v_lut clamp (horizon angle) so extinction matches
     // scatter.
-    vec2 uvT_v    = transmittanceUV(r_e, mu_v_lut, uGroundRadius, uAtmosphereRadius);
+    // From the sphere (the eye lifted to it) the horizon is a row of the
+    // transmittance table (linear in mu, 256 rows) from straight across, and
+    // a ground ray's lookup there blended in the horizontal sky ray's depth,
+    // the largest: the terrain at eye level came out black.  Keep the
+    // lookup a row clear of the horizon, on its own side.
+    float mu_t = mu_v_lut;
+    if (eyeLifted) {
+      float mu_hT = -sqrt(max(0.0, 1.0 - uGroundRadius * uGroundRadius / (r_e * r_e)));
+      mu_t = mu_v_lut < mu_hT ? min(mu_v_lut, mu_hT - 2.0 / 256.0) : max(mu_v_lut, mu_hT + 2.0 / 256.0);
+    }
+    vec2 uvT_v    = transmittanceUV(r_e, mu_t, uGroundRadius, uAtmosphereRadius);
     vec2 odView   = texture2D(tTransmittance, uvT_v).rg;
     vec3 extVec   = uRayleigh * odView.r + vec3(uMieCoeff * odView.g);
     // The table's ray ends at the ground sphere, or leaves the atmosphere.
