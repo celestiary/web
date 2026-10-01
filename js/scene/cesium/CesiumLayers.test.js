@@ -1,4 +1,4 @@
-import {LOD, Object3D} from 'three'
+import {AlwaysDepth, LOD, Object3D} from 'three'
 import CesiumLayers, {DECODE, decodeOf, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
 import {CESIUM_BODIES} from './bodies.js'
 
@@ -117,6 +117,15 @@ describe('decodeOf', () => {
   it('hands the LDR buffer display values', () => {
     expect(decodeOf('moon', false)).toBe(DECODE.NONE)
     expect(decodeOf('earth', false)).toBe(DECODE.LINEAR_TO_DISPLAY)
+  })
+
+  it('draws the globe over whatever its stencil admitted, depth or not', () => {
+    // A depth test here failed where a line or point behind the body had
+    // written a nearer depth than the decoded one, and drew it over the
+    // globe (#141's review).  The stencil shell does the occlusion.
+    const {material} = new CesiumLayers({}).decode
+    expect(material.depthTest).toBe(true)
+    expect(material.depthFunc).toBe(AlwaysDepth)
   })
 })
 

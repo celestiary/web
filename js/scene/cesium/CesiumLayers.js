@@ -1,5 +1,6 @@
 import {
   AddEquation,
+  AlwaysDepth,
   AlwaysStencilFunc,
   Color,
   CustomBlending,
@@ -1231,10 +1232,15 @@ function newDecodeMaterial() {
     blendDst: OneMinusSrcAlphaFactor,
     blendSrcAlpha: OneFactor,
     blendDstAlpha: OneMinusSrcAlphaFactor,
-    // Tested, so whatever celestiary drew nearer keeps its depth; written
-    // only for bodies that carry a distance (_decodeInto).
+    // Always passes: where Cesium's frame has a pixel, its stencil shell
+    // already passed celestiary's depth (_blitDepth), so nothing celestiary
+    // drew is nearer there.  A real test failed wherever a line or point
+    // behind the body had written a depth nearer than the one decoded
+    // (from space, the far plane), and drew it over the globe.  On only
+    // so the depth can be written, for bodies that carry a distance
+    // (_decodeInto).
     depthTest: true,
-    depthFunc: LessEqualDepth,
+    depthFunc: AlwaysDepth,
     depthWrite: false,
     transparent: true,
     toneMapped: false,
