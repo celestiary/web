@@ -174,9 +174,12 @@ more saturated (the toe takes more from the weakest channel); the bright limb
 and horizon come out a little less red.  That shift is the sky changing model,
 not a bug: PR B's metered exposure raises twilight on its own.
 
-`sunIntensity`'s physical value is `π·DISPLAY_GAIN` = 4.71; Earth's 30 is 6.4×
-that.  The factor stands in for multiple scattering and aerosols, and it's
-what PR B tunes against, once stars are physical too.
+`sunIntensity`'s physical value is `π·DISPLAY_GAIN` = 4.71; Earth's 30 was 6.4×
+that.  The factor stood in for multiple scattering and aerosols; since the
+precompute integrates multiple scattering (composition.md, "Multiple
+scattering") Earth's gain is 21, 4.5×, re-fitted to hold its sky's luma,
+and the rest is the aerosol load PR B tunes against, once stars are
+physical too.  Mars has the physical value: its sky is its dust's.
 
 The eye-adaptation boost keeps reading the sky's brightness as `1 − e^(−S)`,
 so it behaves exactly as before; PR B removes it.

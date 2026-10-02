@@ -226,24 +226,9 @@ void main() {
 }
 `
 
-const INSCATTER_FRAG = `
-precision highp float;
-
-varying vec2 vUv;
-
-uniform float     uGroundRadius;
-uniform float     uAtmosphereRadius;
-uniform float     uRayleighScaleHeight;
-uniform float     uMieScaleHeight;
-uniform vec3      uRayleigh;
-uniform float     uMieCoeff;
-uniform sampler2D tTransmittance;
-
-#define R_SLICES        64
-#define INSCATTER_STEPS 128
-
-${STEP_INTEGRAL_GLSL}
-
+// Ray-sphere intersection (sphere at the origin): `vec2 rsi(r0, rd, sr)`,
+// (tNear, tFar); no intersection when tNear > tFar.
+const RSI_GLSL = `
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
   float a = dot(rd, rd);
   float b = 2.0 * dot(rd, r0);
@@ -253,7 +238,12 @@ vec2 rsi(vec3 r0, vec3 rd, float sr) {
   return vec2((-b - sqrt(d)) / (2.0*a),
               (-b + sqrt(d)) / (2.0*a));
 }
+`
 
+
+// The in-scatter atlas's row decode, `float bruneton_decode_mu_v(r, t, rG, rA)`
+// (the inverse of the pass's encode).
+const BRUNETON_DECODE_GLSL = `
 // Bruneton horizon-aware mu_view decode.
 // t ∈ [0.5, 1.0] → sky rays (mu_v ≥ local horizon), rows concentrated near horizon.
 // t ∈ [0.0, 0.5) → ground rays (mu_v < local horizon).
@@ -276,6 +266,30 @@ float bruneton_decode_mu_v(float r, float t, float rG, float rA) {
     return (rG*rG - r*r - d*d) / max(2.0*r*d, 1e-3);
   }
 }
+`
+
+
+const INSCATTER_FRAG = `
+precision highp float;
+
+varying vec2 vUv;
+
+uniform float     uGroundRadius;
+uniform float     uAtmosphereRadius;
+uniform float     uRayleighScaleHeight;
+uniform float     uMieScaleHeight;
+uniform vec3      uRayleigh;
+uniform float     uMieCoeff;
+uniform sampler2D tTransmittance;
+
+#define R_SLICES        64
+#define INSCATTER_STEPS 128
+
+${STEP_INTEGRAL_GLSL}
+
+${RSI_GLSL}
+
+${BRUNETON_DECODE_GLSL}
 
 void main() {
   // Decode atlas UV → (r, mu_view, mu_sun)
@@ -364,5 +378,319 @@ void main() {
   // RGB = kRlh * totalRlh  (apply phase + sunIntensity at lookup time)
   // A   = kMie * totalMie
   gl_FragColor = vec4(uRayleigh * totalRlh, uMieCoeff * totalMie);
+}
+`
+
+
+/**
+ * The Mie (aerosol, dust) parameters of a body's atmosphere, with their
+ * defaults, from its JSON (composition.md, "Per-body data"):
+ *
+ * - `miePolarity`: the forward lobe's asymmetry g, one number or [r, g, b]
+ *   (Mars's dust scatters blue more sharply forward than red, which is the
+ *   bluish aureole round the Sun).
+ * - `mieBackPolarity`, `mieForwardWeight`: a second, backward lobe with
+ *   asymmetry g2 and the forward lobe's share w (two-term Henyey-Greenstein;
+ *   w = 1, the default, is the one lobe Earth has always had).
+ * - `mieAlbedo`: the single-scattering albedo, one number or [r, g, b]; 1
+ *   (the default) scatters everything it takes out of the beam.  Mars's
+ *   dust absorbs blue.
+ *
+ * @param {object} atmos A body's reified atmosphere props
+ * @returns {{polarity: Vector3, backPolarity: number, forwardWeight: number, albedo: Vector3}}
+ */
+export function mieParams(atmos) {
+  const vec = (v, dflt) => {
+    const a = Array.isArray(v) ? v : [v ?? dflt, v ?? dflt, v ?? dflt]
+    return new Vector3(...a)
+  }
+  return {
+    polarity: vec(atmos.miePolarity, 0),
+    backPolarity: atmos.mieBackPolarity ?? 0,
+    forwardWeight: atmos.mieForwardWeight ?? 1,
+    albedo: vec(atmos.mieAlbedo, 1),
+  }
+}
+
+
+/**
+ * GLSL for the Mie phase function: `float csPhase(float mu, float g)`,
+ * Cornette-Shanks for asymmetry g at mu = cos(scattering angle), and
+ * `vec3 miePhase(float mu, vec3 g1, float g2, float w)`, the two-term form
+ * per channel (mieParams).  Shared by the pass and the precompute.
+ */
+export const MIE_PHASE_GLSL = `
+float csPhase(float mu, float g) {
+  float g2 = g * g;
+  return 3.0 / (8.0 * 3.14159265) * ((1.0 - g2) * (1.0 + mu * mu))
+      / ((2.0 + g2) * pow(1.0 + g2 - 2.0 * g * mu, 1.5));
+}
+vec3 miePhase(float mu, vec3 g1, float g2, float w) {
+  return w * vec3(csPhase(mu, g1.r), csPhase(mu, g1.g), csPhase(mu, g1.b)) + (1.0 - w) * csPhase(mu, g2);
+}
+`
+
+
+/**
+ * The uniforms every precompute of an atmosphere shares.
+ *
+ * @param {object} atmos
+ * @param {number} rGround
+ * @returns {object}
+ */
+function atmosUniforms(atmos, rGround) {
+  const mie = mieParams(atmos)
+  return {
+    uGroundRadius: {value: rGround},
+    uAtmosphereRadius: {value: rGround + atmos.height.scalar},
+    uRayleighScaleHeight: {value: atmos.rayleighScaleHeight.scalar},
+    uMieScaleHeight: {value: atmos.mieScaleHeight.scalar},
+    uRayleigh: {value: new Vector3(...atmos.rayleigh)},
+    uMieCoeff: {value: atmos.mieCoeff},
+    uMieAlbedo: {value: mie.albedo},
+    uMiePolarity: {value: mie.polarity},
+    uMieBackPolarity: {value: mie.backPolarity},
+    uMieForwardWeight: {value: mie.forwardWeight},
+  }
+}
+
+
+/**
+ * Render a fullscreen fragment shader into a new float render target.
+ *
+ * @param {object} renderer
+ * @param {number} width
+ * @param {number} height
+ * @param {object} uniforms
+ * @param {string} fragmentShader
+ * @returns {WebGLRenderTarget}
+ */
+function renderLut(renderer, width, height, uniforms, fragmentShader) {
+  const rt = new WebGLRenderTarget(width, height, {type: FloatType})
+  const mat = new ShaderMaterial({
+    uniforms, vertexShader: INSCATTER_VERT, fragmentShader, depthTest: false, depthWrite: false,
+  })
+  const scene = new Scene()
+  const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
+  const geo = new PlaneGeometry(2, 2)
+  const mesh = new Mesh(geo, mat)
+  mesh.frustumCulled = false
+  scene.add(mesh)
+  renderer.setRenderTarget(rt)
+  renderer.render(scene, camera)
+  renderer.setRenderTarget(null)
+  mat.dispose()
+  geo.dispose()
+  return rt
+}
+
+
+/**
+ * Precomputes the multiple-scattering factor Ψ(r, μ_sun): the radiance,
+ * per unit of the Sun's irradiance, that a point at radius r with the Sun
+ * at zenith cosine μ_sun receives from the light scattered twice or more,
+ * taken as isotropic from the second scattering on (Hillaire 2020, "A
+ * Scalable and Production Ready Sky and Atmosphere Rendering Technique",
+ * EGSR; BRUNETON.md).  Per texel: the single-scattered radiance arriving
+ * from 64 directions (through the transmittance LUT for the Sun; the
+ * sunlit ground's reflection, with the body's albedo, where a direction
+ * meets it), averaged, over one minus the average fraction of light
+ * scattered again before it escapes: the geometric sum of all orders.
+ * The in-scatter along a ray then adds σ_s·Ψ per metre (precomputeInScatterMs,
+ * the pass's march).
+ *
+ * @param {object} renderer
+ * @param {object} atmos
+ * @param {number} rGround
+ * @param {WebGLRenderTarget} transmittanceRT
+ * @param {number} groundAlbedo The body's albedo (its JSON)
+ * @returns {WebGLRenderTarget} 64×64 RGBA FloatType: Ψ in rgb, over
+ *   u = altitude, v = μ_sun·0.5 + 0.5
+ */
+export function precomputeMultiScatter(renderer, atmos, rGround, transmittanceRT, groundAlbedo) {
+  return renderLut(renderer, 64, 64, {
+    ...atmosUniforms(atmos, rGround),
+    uGroundAlbedo: {value: groundAlbedo},
+    tTransmittance: {value: transmittanceRT.texture},
+  }, MULTISCATTER_FRAG)
+}
+
+
+/**
+ * Precomputes the multiply-scattered in-scatter atlas, laid out as
+ * precomputeInScatter's: along the same rays, σ_s(x)·Ψ(x) through the
+ * ray's transmittance to x, in rgb (no phase function: it's isotropic).
+ *
+ * @param {object} renderer
+ * @param {object} atmos
+ * @param {number} rGround
+ * @param {WebGLRenderTarget} transmittanceRT
+ * @param {WebGLRenderTarget} multiScatterRT precomputeMultiScatter's
+ * @returns {WebGLRenderTarget} 2048×512 RGBA FloatType atlas
+ */
+export function precomputeInScatterMs(renderer, atmos, rGround, transmittanceRT, multiScatterRT) {
+  return renderLut(renderer, 2048, 512, {
+    ...atmosUniforms(atmos, rGround),
+    tTransmittance: {value: transmittanceRT.texture},
+    tMultiScatter: {value: multiScatterRT.texture},
+  }, INSCATTER_MS_FRAG)
+}
+
+
+// The Sun's transmittance to a point, through the LUT: none behind the
+// planet.
+const SUN_TRANSMITTANCE_GLSL = `
+vec3 sunTransmittance(vec3 pos, vec3 sun) {
+  float r = length(pos);
+  float h = max(r - uGroundRadius, 0.0);
+  vec2 pP = rsi(pos, sun, uGroundRadius);
+  if (r >= uGroundRadius && pP.x > 0.0 && pP.x < pP.y) {
+    return vec3(0.0);
+  }
+  vec2 od = texture2D(tTransmittance,
+      vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, sun) * 0.5 + 0.5)).rg;
+  return exp(-(uMieCoeff * od.g + uRayleigh * od.r));
+}
+`
+
+
+const MULTISCATTER_FRAG = `
+precision highp float;
+
+varying vec2 vUv;
+
+uniform float     uGroundRadius;
+uniform float     uAtmosphereRadius;
+uniform float     uRayleighScaleHeight;
+uniform float     uMieScaleHeight;
+uniform vec3      uRayleigh;
+uniform float     uMieCoeff;
+uniform vec3      uMieAlbedo;
+uniform vec3      uMiePolarity;
+uniform float     uMieBackPolarity;
+uniform float     uMieForwardWeight;
+uniform float     uGroundAlbedo;
+uniform sampler2D tTransmittance;
+
+#define MS_DIRS  64
+#define MS_STEPS 32
+#define PI 3.14159265
+
+${RSI_GLSL}
+${STEP_INTEGRAL_GLSL}
+${MIE_PHASE_GLSL}
+${SUN_TRANSMITTANCE_GLSL}
+
+void main() {
+  float r    = uGroundRadius + vUv.x * (uAtmosphereRadius - uGroundRadius);
+  float mu_s = vUv.y * 2.0 - 1.0;
+  vec3  x    = vec3(0.0, r, 0.0);
+  vec3  sun  = vec3(sqrt(max(1.0 - mu_s * mu_s, 0.0)), mu_s, 0.0);
+  vec3  L    = vec3(0.0);  // the single-scattered radiance arriving at x, summed over directions
+  vec3  f    = vec3(0.0);  // the share of light leaving x scattered again, summed
+  const float GOLDEN = 2.39996323;
+  for (int i = 0; i < MS_DIRS; i++) {
+    // A direction of a Fibonacci sphere.
+    float z   = 1.0 - 2.0 * (float(i) + 0.5) / float(MS_DIRS);
+    float rho = sqrt(max(0.0, 1.0 - z * z));
+    float phi = GOLDEN * float(i);
+    vec3  dir = vec3(rho * cos(phi), z, rho * sin(phi));
+    vec2  pG  = rsi(x, dir, uGroundRadius);
+    bool  ground = pG.x > 0.0 && pG.x < pG.y;
+    float tMax = ground ? pG.x : rsi(x, dir, uAtmosphereRadius).y;
+    float nu   = dot(dir, sun);
+    float pR   = 3.0 / (16.0 * PI) * (1.0 + nu * nu);
+    vec3  pM   = miePhase(nu, uMiePolarity, uMieBackPolarity, uMieForwardWeight);
+    vec3  T    = vec3(1.0);
+    float ds   = tMax / float(MS_STEPS);
+    for (int j = 0; j < MS_STEPS; j++) {
+      vec3  pos = x + dir * ((float(j) + 0.5) * ds);
+      float h   = max(length(pos) - uGroundRadius, 0.0);
+      float dR  = exp(-h / uRayleighScaleHeight);
+      float dM  = exp(-h / uMieScaleHeight);
+      vec3  sigma  = uRayleigh * dR + vec3(uMieCoeff * dM);
+      vec3  sigmaS = uRayleigh * dR + uMieCoeff * uMieAlbedo * dM;
+      vec3  g = T * stepIntegral(sigma, ds);
+      L += g * sunTransmittance(pos, sun) * (uRayleigh * dR * pR + uMieCoeff * uMieAlbedo * dM * pM);
+      f += g * sigmaS;
+      T *= exp(-sigma * ds);
+    }
+    if (ground) {
+      // The sunlit ground, a Lambertian reflector of the body's albedo.
+      vec3  xg = x + dir * tMax;
+      float c  = max(dot(normalize(xg), sun), 0.0);
+      L += T * sunTransmittance(xg, sun) * uGroundAlbedo / PI * c;
+    }
+  }
+  L /= float(MS_DIRS);
+  f /= float(MS_DIRS);
+  gl_FragColor = vec4(L / max(1.0 - f, 1.0e-3), 1.0);
+}
+`
+
+
+const INSCATTER_MS_FRAG = `
+precision highp float;
+
+varying vec2 vUv;
+
+uniform float     uGroundRadius;
+uniform float     uAtmosphereRadius;
+uniform float     uRayleighScaleHeight;
+uniform float     uMieScaleHeight;
+uniform vec3      uRayleigh;
+uniform float     uMieCoeff;
+uniform vec3      uMieAlbedo;
+uniform sampler2D tTransmittance;
+uniform sampler2D tMultiScatter;
+
+#define R_SLICES        64
+#define INSCATTER_STEPS 128
+
+${RSI_GLSL}
+${STEP_INTEGRAL_GLSL}
+${BRUNETON_DECODE_GLSL}
+
+void main() {
+  float atlas_x = vUv.x * float(R_SLICES);
+  float r_idx   = floor(atlas_x);
+  float mu_sun  = fract(atlas_x) * 2.0 - 1.0;
+  float r_t     = r_idx / float(R_SLICES - 1);
+  float r       = uGroundRadius + r_t * (uAtmosphereRadius - uGroundRadius);
+  // The ground slice's ground rows: zero, as in the single-scatter atlas.
+  if (vUv.y < 0.5 && r_idx < 0.5) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
+  float mu_view = bruneton_decode_mu_v(r, vUv.y, uGroundRadius, uAtmosphereRadius);
+  vec3 eyePos = vec3(0.0, r, 0.0);
+  vec3 rayDir = vec3(sqrt(max(1.0 - mu_view*mu_view, 0.0)), mu_view, 0.0);
+  vec3 sunDir = vec3(sqrt(max(1.0 - mu_sun*mu_sun, 0.0)), mu_sun, 0.0);
+  vec2 p  = rsi(eyePos, rayDir, uAtmosphereRadius);
+  vec2 pG = rsi(eyePos, rayDir, uGroundRadius);
+  if (pG.x > 0.0 && pG.x < pG.y) p.y = min(p.y, pG.x);
+  float iTime     = max(p.x, 0.0);
+  float iStepSize = (p.y - iTime) / float(INSCATTER_STEPS);
+  if (iStepSize <= 0.0) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    return;
+  }
+  vec3 total = vec3(0.0);
+  vec3 T = vec3(1.0);
+  for (int i = 0; i < INSCATTER_STEPS; i++) {
+    vec3  iPos = eyePos + rayDir * (iTime + iStepSize * 0.5);
+    float iR   = length(iPos);
+    float h    = max(iR - uGroundRadius, 0.0);
+    float dRlh = exp(-h / uRayleighScaleHeight);
+    float dMie = exp(-h / uMieScaleHeight);
+    vec3  sigma  = uRayleigh * dRlh + vec3(uMieCoeff * dMie);
+    vec3  sigmaS = uRayleigh * dRlh + uMieCoeff * uMieAlbedo * dMie;
+    vec3  psi = texture2D(tMultiScatter,
+        vec2(h / (uAtmosphereRadius - uGroundRadius), dot(iPos / iR, sunDir) * 0.5 + 0.5)).rgb;
+    total += sigmaS * psi * T * stepIntegral(sigma, iStepSize);
+    T     *= exp(-sigma * iStepSize);
+    iTime += iStepSize;
+  }
+  gl_FragColor = vec4(total, 1.0);
 }
 `

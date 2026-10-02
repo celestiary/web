@@ -531,7 +531,18 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `mars-below-datum-band` | from 658 m under the datum, away from the Sun: the band between the terrain's horizon and the horizontal over the sky above it, on: luma 0.792, blue/red 1.113 (#145; the band flickered black on a real GPU before it) | (no off comparison) | (no profile) |
 | `mars-below-datum-sunward` | the same spot facing the Sun, the band on the right over the sky above it, on: 0.996 / 1.000 (#145) | (no off comparison) | (no profile) |
 | `earth-dead-sea-band` | from 16 m under the datum at the Dead Sea, the band (two rows) over the sky above it, on: 0.985 / 0.914 (#145) | (no off comparison) | (no profile) |
-| `horizon-terrain-far` | from 6 m on Mars, mountains 150-280 km off on the horizon (past the distance code's range) over the sky above them, on: 0.992 / 0.996 (#145; before it, dark fragments at the sphere's depth, ~0.2) | (no off comparison) | (no profile) |
+| `horizon-terrain-far` | from 6 m on Mars, mountains 150-280 km off on the horizon (past the distance code's range) over the sky above them, on: 0.992 / 0.996 (#145; before it, dark fragments at the sphere's depth, ~0.2); 0.835 / 0.958 with the new Mars sky (#147: the mountains' haze is tan and thinner, the sky above it less bright) | (no off comparison) | (no profile) |
+| `mars-sky-zenith` | Mars's day sky looking up, the zenith over the sky 35° lower: luma 0.277, blue/red 0.897 (#147; tan, with a gradient) | (no off comparison) | (no profile) |
+| `mars-sky-antisolar` | the sky over the anti-solar horizon over the sky 30° up: 1.643 / 1.078 (#147; before it the anti-solar sky was nearly black) | (no off comparison) | (no profile) |
+| `mars-sky-aureole` | the aureole within 10° of the Sun over the sky 40° off: 2.418 / 1.768 (#147: bluer, as the rovers see it; before, white across the frame) | (no off comparison) | (no profile) |
+
+With #147 (multiple scattering for every body; Earth's gain 30 → 21):
+`earth-orbit-gibbous` 0.991, `mars-gibbous` 0.995 (profile max 5.1),
+`earth-low-land-day` 0.940 with luma 71 on and 76 off (77.9 / 80.8 before),
+`mars-low-horizon` 0.949 (42.8 / 44.0), `mars-low-horizon-band` 0.903 /
+1.001, `mars-near-ridge` 1.054 / 1.028, `mars-below-datum-band` 0.928 /
+1.016, `mars-below-datum-sunward` 0.846 / 0.977, `earth-dead-sea-band`
+1.006 / 0.897; nothing re-baselined.
 
 Measured after #86's PR A (one HDR buffer; Earth under celestiary's
 atmosphere pass on both sides), with #137's IAU poles (Mars's turned the

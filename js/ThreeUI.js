@@ -18,7 +18,9 @@ import {
   WebGLRenderTarget,
 } from 'three'
 import {newAtmospherePass} from './scene/atmos/Atmosphere'
-import {precomputeTransmittance, precomputeInScatter} from './scene/atmos/AtmospherePrecompute'
+import {
+  mieParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
+} from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {easeExposure, exposureAt, skyExposure} from './scene/exposure.js'
 import {hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
@@ -608,21 +610,30 @@ export default class ThreeUi {
     u.uRayleighScaleHeight.value = atmos.rayleighScaleHeight.scalar
     u.uMieCoeff.value = atmos.mieCoeff
     u.uMieScaleHeight.value = atmos.mieScaleHeight.scalar
-    u.uMiePolarity.value = atmos.miePolarity
+    const mie = mieParams(atmos)
+    u.uMiePolarity.value.copy(mie.polarity)
+    u.uMieBackPolarity.value = mie.backPolarity
+    u.uMieForwardWeight.value = mie.forwardWeight
+    u.uMieAlbedo.value.copy(mie.albedo)
 
     if (this._lastAtmPlanet !== atmTarget) {
       this._lastAtmPlanet = atmTarget
-      if (this._transmittanceRT) {
-        this._transmittanceRT.dispose()
-      }
-      if (this._inScatterRT) {
-        this._inScatterRT.dispose()
+      for (const rt of [this._transmittanceRT, this._inScatterRT, this._multiScatterRT, this._inScatterMsRT]) {
+        rt?.dispose()
       }
       this._transmittanceRT = precomputeTransmittance(this.renderer, atmos, R)
       this._inScatterRT = precomputeInScatter(this.renderer, atmos, R, this._transmittanceRT)
+      // The light scattered more than once (composition.md): from the
+      // transmittance, with the body's albedo for the ground's share.
+      this._multiScatterRT = precomputeMultiScatter(
+          this.renderer, atmos, R, this._transmittanceRT, atmTarget.props.albedo ?? 0)
+      this._inScatterMsRT = precomputeInScatterMs(
+          this.renderer, atmos, R, this._transmittanceRT, this._multiScatterRT)
       u.tTransmittance.value = this._transmittanceRT.texture
       u.uUseTransmittanceLUT.value = 1.0
       u.tInScatter.value = this._inScatterRT.texture
+      u.tMultiScatter.value = this._multiScatterRT.texture
+      u.tInScatterMs.value = this._inScatterMsRT.texture
     }
     // Always re-enable after returning from a no-atmosphere target.
     u.uUseInScatterLUT.value = this._inScatterRT ? 1.0 : 0.0

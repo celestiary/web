@@ -280,3 +280,23 @@ No loops at all — completely eliminates all stepping artifacts.
 - Mercury (no atmosphere): no effect ✓
 - Guide `#/atmosphere` still works ✓
 - LUT is recomputed only when planet changes, not every frame ✓
+
+---
+
+## Phase 3 — Multiple scattering (done)
+
+Single scattering leaves a high-albedo, forward-scattering atmosphere
+(Mars's dust) nearly black away from the Sun.  Rather than Bruneton's
+iterated orders (a 4D table, with the view-sun azimuth, per order),
+`precomputeMultiScatter` takes Hillaire's (EGSR 2020) approximation: from
+the second scattering on the light is isotropic, so one 2D table
+`Ψ(r, μ_sun)` holds the sum of every higher order at a point: the mean
+over 64 directions of the single-scattered radiance arriving there (with
+the sunlit ground's Lambertian reflection, the body's albedo, where a
+direction meets it), divided by one minus the mean share scattered again
+before escaping.  `precomputeInScatterMs` integrates `σ_s·Ψ` along the
+in-scatter atlas's rays into a second atlas (rgb, no phase function), and
+the pass's segment march adds the same per step.  The single-scatter atlas
+is unchanged; the pass applies the phase functions (now per channel, two
+lobes) and the aerosol's single-scattering albedo at lookup, as before.
+See composition.md, "Multiple scattering" and "Per-body data".

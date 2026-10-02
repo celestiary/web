@@ -19,7 +19,7 @@ import {
 } from 'three'
 import {NEUTRAL_GLSL, sceneReferred} from '../hdr.js'
 import {sphere} from '../shapes'
-import {STEP_INTEGRAL_GLSL} from './AtmospherePrecompute.js'
+import {MIE_PHASE_GLSL, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
 
 
 /**
@@ -60,7 +60,8 @@ export function newPhysicalAtmosphere(planetRadius, atmos) {
         uRayleighScaleHeight: {value: atmos.rayleighScaleHeight?.scalar ?? atmos.rayleighScaleHeight},
         uMieCoeff: {value: atmos.mieCoeff},
         uMieScaleHeight: {value: atmos.mieScaleHeight?.scalar ?? atmos.mieScaleHeight},
-        uMiePolarity: {value: atmos.miePolarity},
+        // The forward lobe's red asymmetry: this shader's Mie is one lobe.
+        uMiePolarity: {value: mieParams(atmos).polarity.x},
       },
       vertexShader: PHYS_VERT,
       fragmentShader: PHYS_FRAG,
@@ -349,10 +350,19 @@ export function newAtmospherePass() {
       uRayleighScaleHeight: {value: 1},
       uMieCoeff: {value: 0},
       uMieScaleHeight: {value: 1},
-      uMiePolarity: {value: 0},
+      // The Mie phase function and albedo per channel (AtmospherePrecompute
+      // mieParams; composition.md "Per-body data").
+      uMiePolarity: {value: new Vector3()},
+      uMieBackPolarity: {value: 0},
+      uMieForwardWeight: {value: 1},
+      uMieAlbedo: {value: new Vector3(1, 1, 1)},
       tTransmittance: {value: null},
       uUseTransmittanceLUT: {value: 0.0},
       tInScatter: {value: null},
+      // The multiply-scattered in-scatter atlas, and the multiple-scattering
+      // factor Ψ(r, μ_sun) the march integrates (precomputeMultiScatter).
+      tInScatterMs: {value: null},
+      tMultiScatter: {value: null},
       uUseInScatterLUT: {value: 0.0},
       // Hard kill-switch.  When false the shader composites the scene RT
       // unchanged — no rsi(), no scatter, no risk of float32 overflow at
@@ -417,10 +427,15 @@ uniform vec3      uRayleigh;
 uniform float     uRayleighScaleHeight;
 uniform float     uMieCoeff;
 uniform float     uMieScaleHeight;
-uniform float     uMiePolarity;
+uniform vec3      uMiePolarity;
+uniform float     uMieBackPolarity;
+uniform float     uMieForwardWeight;
+uniform vec3      uMieAlbedo;
 uniform sampler2D tTransmittance;
 uniform float     uUseTransmittanceLUT;
 uniform sampler2D tInScatter;
+uniform sampler2D tInScatterMs;
+uniform sampler2D tMultiScatter;
 uniform float     uUseInScatterLUT;
 uniform float     uAtmEnabled;
 uniform float     uAtmStrength;
@@ -435,6 +450,7 @@ uniform float     uDebug;
 #define SEG_STEPS 16
 
 ${NEUTRAL_GLSL}
+${MIE_PHASE_GLSL}
 
 // The scene with no atmosphere over it, to the screen: the one tone map
 // (HDR), or as it is (the LDR fallback's scene is display values already).
@@ -494,10 +510,12 @@ float bruneton_encode_mu_v(float r, float mu_v, float rG, float rA, bool ground)
   }
 }
 
-// Trilinear in-scatter atlas lookup.
+// Trilinear in-scatter atlas lookup: single scattering (Rayleigh rgb, Mie
+// a; the phase functions apply at lookup), and the multiply-scattered
+// in-scatter (ms, rgb, isotropic) from its own atlas at the same place.
 // Atlas: 64 r-slices × 32 μ_sun steps = 2048px wide, 512 μ_view steps tall.
 // Manual r-slice blend; GPU handles μ_sun/μ_view bilinear within each slice.
-vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground) {
+vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground, out vec3 ms) {
   float r_t    = clamp((r - uGroundRadius) / (uAtmosphereRadius - uGroundRadius), 0.0, 1.0);
   float r_f    = r_t * (R_SLICES - 1.0);
   float r0     = floor(r_f);
@@ -522,9 +540,10 @@ vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground) {
   const float TILE_HALF = 0.5 / 32.0;  // 32 texels per tile (atlas 2048 / R_SLICES 64)
   mu_s_t = clamp(mu_s_t, TILE_HALF, 1.0 - TILE_HALF);
 
-  vec4 s0 = texture2D(tInScatter, vec2((r0 + mu_s_t) / R_SLICES, mu_v_t));
-  vec4 s1 = texture2D(tInScatter, vec2((r1 + mu_s_t) / R_SLICES, mu_v_t));
-  return mix(s0, s1, rBlend);
+  vec2 uv0 = vec2((r0 + mu_s_t) / R_SLICES, mu_v_t);
+  vec2 uv1 = vec2((r1 + mu_s_t) / R_SLICES, mu_v_t);
+  ms = mix(texture2D(tInScatterMs, uv0).rgb, texture2D(tInScatterMs, uv1).rgb, rBlend);
+  return mix(texture2D(tInScatter, uv0), texture2D(tInScatter, uv1), rBlend);
 }
 
 vec2 rsi(vec3 r0, vec3 rd, float sr);
@@ -544,10 +563,11 @@ ${STEP_INTEGRAL_GLSL}
 // density, as the tables do: e^(−h/H) below it put five times Earth's Mie
 // density at the bottom of the ground sphere's 2 km sag and doubled the
 // haze from 37 km.
-void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 T) {
+void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 ms, out vec3 T) {
   float ds = tMax / float(SEG_STEPS);
   vec3  totalR = vec3(0.0);
   float totalM = 0.0;
+  ms = vec3(0.0);
   T = vec3(1.0);
   for (int i = 0; i < SEG_STEPS; i++) {
     vec3  pos = eye + dir * ((float(i) + 0.5) * ds);
@@ -565,9 +585,16 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 T) {
     }
     vec3 sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r));
     vec3 sigma = uRayleigh * dR + vec3(uMieCoeff * dM);
-    vec3 w     = T * sunT * stepIntegral(sigma, ds);
+    vec3 g     = T * stepIntegral(sigma, ds);
+    vec3 w     = g * sunT;
     totalR += dR * w;
     totalM += dM * w.r;
+    // The light scattered twice or more, isotropic: the step's scattering
+    // coefficient times the multiple-scattering factor there
+    // (precomputeMultiScatter).
+    vec3 psi = texture2D(tMultiScatter,
+        vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rgb;
+    ms += (uRayleigh * dR + uMieCoeff * uMieAlbedo * dM) * psi * g;
     T *= exp(-sigma * ds);
   }
   inS = vec4(uRayleigh * totalR, uMieCoeff * totalM);
@@ -777,11 +804,12 @@ void main() {
     bool  atHorizon = underHorizon && (isGap || beyondAtm);
 
     vec4  inS;
+    vec3  inSMs;
     vec3  transmittance;
     // For the eye-adaptation boost, below: the eye's altitude.
     float camAlt = rEye - uGroundRadius;
     if (shortRay) {
-      marchSegment(eyePos, rayDir, tMax, inS, transmittance);
+      marchSegment(eyePos, rayDir, tMax, inS, inSMs, transmittance);
     } else if (eyeBelow) {
       // From below the sphere: the ray to where it leaves the sphere, then
       // the table from there.  A ray under the horizon (a gap, or a body
@@ -796,11 +824,14 @@ void main() {
       vec3  zenExit = normalize(eyePos + rayDir * tExit);
       float mu_sExit = dot(zenExit, uSunDirection);
       vec4  inSBelow;
+      vec3  msBelow;
+      vec3  msAbove;
       vec3  tBelow;
-      marchSegment(eyePos, rayDir, tExit, inSBelow, tBelow);
-      vec4  inSAbove = sampleInScatter(uGroundRadius, mu_exit, mu_sExit, false);
+      marchSegment(eyePos, rayDir, tExit, inSBelow, msBelow, tBelow);
+      vec4  inSAbove = sampleInScatter(uGroundRadius, mu_exit, mu_sExit, false, msAbove);
       vec2  odAbove  = texture2D(tTransmittance, transmittanceUV(uGroundRadius, mu_exit, uGroundRadius, uAtmosphereRadius)).rg;
       inS = inSBelow + vec4(tBelow * inSAbove.rgb, tBelow.r * inSAbove.a);
+      inSMs = msBelow + tBelow * msAbove;
       transmittance = tBelow * exp(-(uRayleigh * odAbove.r + vec3(uMieCoeff * odAbove.g)));
     } else {
       // Use the ray's atmosphere entry point as the LUT index.
@@ -819,7 +850,7 @@ void main() {
       float mu_horiz = -sqrt(max(0.0, 1.0 - uGroundRadius * uGroundRadius / (r_e * r_e)));
       float mu_lut = atHorizon ? max(mu_v, mu_horiz) : mu_v;
       bool  ground = underHorizon && !atHorizon;
-      inS = sampleInScatter(r_e, mu_lut, mu_s, ground);
+      inS = sampleInScatter(r_e, mu_lut, mu_s, ground, inSMs);
       // Extinction via the transmittance LUT along the view ray, to where
       // its ray ends.  Trust the LUT: at zenith from sea level the
       // visible-band optical depth is ~0.15, giving ~86% transmittance for
@@ -834,15 +865,13 @@ void main() {
       transmittance = exp(-(uRayleigh * odView.r + vec3(uMieCoeff * odView.g)));
     }
     float mu    = dot(rayDir, uSunDirection);
-    float mumu  = mu * mu;
-    float pol2  = uMiePolarity * uMiePolarity;
-    float pRlh  = 3.0/(16.0*PI) * (1.0 + mumu);
-    // Cornette-Shanks: (2 + g²) divides.  Multiplying, as this did, made
-    // the Mie term (2 + g²)² ≈ 7 times too bright, which showed on dusty
-    // Mars (Mie-dominated) and hardly on Earth (Rayleigh-dominated).
-    float pMie  = 3.0/(8.0*PI) * ((1.0-pol2)*(1.0+mumu))
-                  / ((2.0+pol2) * pow(1.0+pol2 - 2.0*uMiePolarity*mu, 1.5));
-    vec3 scattered = uSunIntensity * (pRlh * inS.rgb + vec3(pMie * inS.a));
+    float pRlh  = 3.0/(16.0*PI) * (1.0 + mu * mu);
+    // The Mie phase per channel (miePhase: Cornette-Shanks, two lobes), and
+    // the dust's single-scattering albedo: the atlas's Mie is what the beam
+    // lost, of which the albedo's share was scattered.  Then the multiply
+    // scattered light, isotropic, from its own atlas.
+    vec3 pMie   = miePhase(mu, uMiePolarity, uMieBackPolarity, uMieForwardWeight) * uMieAlbedo;
+    vec3 scattered = uSunIntensity * (pRlh * inS.rgb + pMie * inS.a + inSMs);
 
     // Floor it (extinction-alpha capped at 0.92) so horizon-grazing rays at
     // night still let some starlight through (real physics says they
@@ -938,6 +967,7 @@ void main() {
           (isGap ? 1.0 : 0.0) + (beyondAtm ? 2.0 : 0.0) + (shortRay ? 4.0 : 0.0) + (eyeBelow ? 8.0 : 0.0)
           + (underHorizon ? 16.0 : 0.0), 1.0);
       else if (uDebug < 4.5) gl_FragColor = inS;
+      else if (uDebug < 5.5) gl_FragColor = vec4(inSMs, 1.0);
       else gl_FragColor = vec4(mu_e, dot(normalize(eyePos), uSunDirection), camAlt, texture2D(tDiffuse, vUv).r);
       return;
     }
@@ -951,7 +981,7 @@ void main() {
   vec4 result = scatter(rayDir, eyePos, uSunDirection, uSunIntensity,
                         uGroundRadius, uAtmosphereRadius,
                         uRayleigh, uRayleighScaleHeight,
-                        uMieCoeff, uMieScaleHeight, uMiePolarity,
+                        uMieCoeff, uMieScaleHeight, uMiePolarity.r,
                         tMax);
   // Cap and brightness-tie — see the LUT branch above for the rationale.
   // Boost weighted by camera altitude (full at surface, zero at top of
