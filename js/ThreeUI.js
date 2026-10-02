@@ -276,14 +276,11 @@ export default class ThreeUi {
   /** */
   onResize() {
     // https://threejsfundamentals.org/threejs/lessons/threejs-responsive.html
-    let width; let height
-    if (this.fs.isFullscreen()) {
-      width = window.innerWidth
-      height = window.innerHeight
-    } else {
-      width = this.container.offsetWidth
-      height = this.container.offsetHeight
-    }
+    // The container's size, which its owner keeps (Celestiary._layout: the
+    // window less the widgets dock and sheet).  Not the window's, even when
+    // the container started out filling it, or the canvas runs under them.
+    const width = this.container.offsetWidth
+    const height = this.container.offsetHeight
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
