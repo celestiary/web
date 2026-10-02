@@ -59,6 +59,7 @@ export default class Celestiary {
     this.ui.onCameraChange = () => this._schedulePermalinkUpdate()
     this.camera = this.ui.camera
     this.scene = new Scene(this.ui)
+    this.scene.onLabelDblClick = (label) => this.goToLabel(label)
     // Any settings toggle (asterisms, grids, etc.) updates the permalink so
     // the URL always reflects the live view configuration.
     this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
@@ -305,6 +306,26 @@ export default class Celestiary {
         }, 1000)
       })
     })
+  }
+
+
+  /**
+   * Go to what a double-clicked or tapped label labels (Scene.onDblClick),
+   * as 'g' goes to the target: a body by its path, a star as the star picker
+   * commits it.
+   *
+   * @param {{kind: string, name: string, star?: object}} label
+   */
+  goToLabel(label) {
+    if (label.kind === 'star' && label.star) {
+      this.scene.goTo(label.star)
+      this.useStore.getState().setCommittedStar({hipId: label.star.hipId, displayName: label.name, star: label.star})
+      return
+    }
+    const path = this.loader.pathByName[label.name]
+    if (path) {
+      window.location.hash = path
+    }
   }
 
 

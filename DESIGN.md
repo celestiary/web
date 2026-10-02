@@ -373,6 +373,8 @@ Camera orientation and position are separated across three input modes, all accu
 | ← / → arrow keys (hold) | Roll camera left/right |
 | `t` | Toggle continuous tracking (camera auto-looks at target as it orbits) |
 | `c` | Snap look at current target |
+| Double-click / double-tap a label | Go to the planet, moon or star it names, as `g` does (`js/scene/labelPick.js`: the label's text box on screen, 8 px of slop; off while the star picker is on) |
+| Double-click / double-tap elsewhere on a body | Land there |
 
 **Asymptotic zoom** (`js/zoom.js`): scroll zoom is remapped from distance-space to altitude-space so the camera approaches the surface asymptotically. The `camera.near` plane is dynamically scaled to `altitude * 0.1` (clamped 100 m – `SMALLEST_SIZE_METER`) so the surface remains visible without clipping.
 
