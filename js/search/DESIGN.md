@@ -121,6 +121,11 @@ camera still turns to face it.  Per kind:
 - **Places:** `Scene.lookAtPlace(body, lat, lng, alt)` targets the body and
   aims the tween at the surface point.
 
+Zooming on the target is the FOV, which moves nothing, so a body's mesh LOD
+must follow the FOV, not just the distance: `FovLOD` scales it
+([DESIGN.md](../../DESIGN.md#the-far-point)).  Without that, Jupiter from
+Earth stayed a far point at any zoom.
+
 `c` (`lookAtTarget`) looks at `Shared.targets.obj`, so after targeting a star
 it still means the last body, not the star.  The aim is a one-shot: a camera
 landed on a spinning body drifts off a distant target as the body turns,

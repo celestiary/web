@@ -16,6 +16,8 @@ import {
   POINT_AT_RADII,
   farPointColor,
   farPointOptions,
+  FovLOD,
+  fovScale,
   newFarPoint,
   pointSwitchDistance,
 } from './farPoint.js'
@@ -147,5 +149,74 @@ describe('the planet LOD', () => {
     expect(point.visible).toBe(true)
     const d = new Vector3().setFromMatrixPosition(lod.matrixWorld).distanceTo(new Vector3(0, 0, 1e10))
     expect(d / radius).toBeGreaterThan(POINT_AT_RADII)
+  })
+})
+
+
+describe('fovScale', () => {
+  it('is 1 at the reference field of view', () => {
+    expect(fovScale({fov: 45})).toBe(1)
+  })
+
+  it('is the ratio of the tangent half-angles', () => {
+    const toRad = Math.PI / 180
+    expect(fovScale({fov: 1})).toBeCloseTo(Math.tan(0.5 * toRad) / Math.tan(22.5 * toRad), 12)
+    expect(fovScale({fov: 1})).toBeLessThan(0.025)
+    expect(fovScale({fov: 90})).toBeGreaterThan(2)
+  })
+})
+
+
+describe('FovLOD', () => {
+  const R = JUPITER_RADIUS
+
+  // A LOD of mesh and point at the planet's switch distance, with the camera
+  // `distance` away on +z.
+  function levelAt(distance, fov, zoom = 1) {
+    const lod = new FovLOD()
+    const mesh = new Object3D()
+    const point = new Object3D()
+    lod.addLevel(mesh, 1)
+    lod.addLevel(point, pointSwitchDistance(R))
+    const camera = new PerspectiveCamera(fov, 1, 1, 1e20)
+    camera.position.set(0, 0, distance)
+    camera.zoom = zoom
+    camera.updateMatrixWorld()
+    lod.updateMatrixWorld()
+    lod.update(camera)
+    return mesh.visible ? 'mesh' : 'point'
+  }
+
+  it('is a LOD', () => {
+    expect(new FovLOD().isLOD).toBe(true)
+  })
+
+  it('at 45 degrees chooses as three\'s LOD does', () => {
+    const d = pointSwitchDistance(R)
+    expect(levelAt(d * 0.99, 45)).toBe('mesh')
+    expect(levelAt(d * 1.01, 45)).toBe('point')
+  })
+
+  it('draws the mesh at a distance that is a point at 45, when the FOV is narrow', () => {
+    const d = pointSwitchDistance(R) * 10
+    expect(levelAt(d, 45)).toBe('point')
+    expect(levelAt(d, 1)).toBe('mesh')
+  })
+
+  it('draws a point nearer than the switch distance, when the FOV is wide', () => {
+    const d = pointSwitchDistance(R) * 0.8
+    expect(levelAt(d, 45)).toBe('mesh')
+    expect(levelAt(d, 120)).toBe('point')
+  })
+
+  it('keeps camera.zoom', () => {
+    const d = pointSwitchDistance(R) * 10
+    expect(levelAt(d, 45, 20)).toBe('mesh')
+  })
+
+  it('switches where the body has the same apparent size', () => {
+    const d = pointSwitchDistance(R) / fovScale({fov: 1})
+    expect(levelAt(d * 0.99, 1)).toBe('mesh')
+    expect(levelAt(d * 1.01, 1)).toBe('point')
   })
 })

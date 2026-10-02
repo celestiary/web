@@ -1,4 +1,5 @@
-import {AdditiveBlending, Color, LinearSRGBColorSpace} from 'three'
+import {AdditiveBlending, Color, LOD, LinearSRGBColorSpace, Matrix4} from 'three'
+import {INITIAL_FOV, toRad} from '../shared.js'
 import {named} from '../utils.js'
 import {point} from './shapes.js'
 
@@ -26,8 +27,47 @@ export const MOON_POINT_LEVEL = 0.5
 
 
 /**
+ * How much nearer a body looks than it is, at the camera's field of view:
+ * the ratio of its tangent half-angle to the one at INITIAL_FOV, which
+ * the distances here were tuned at (45° over 640 px).  A body at distance d
+ * is as big on screen as one at `d * fovScale(camera)` at 45°, so narrowing
+ * the FOV (the zoom: it moves nothing) brings the mesh in at a greater
+ * distance, and widening it, a lesser.  1 at INITIAL_FOV.
+ *
+ * @param {{fov: number}} camera
+ * @returns {number}
+ */
+export function fovScale(camera) {
+  return Math.tan(camera.fov * toRad / 2) / Math.tan(INITIAL_FOV * toRad / 2)
+}
+
+
+/**
+ * three's LOD picks a level by distance / camera.zoom, which ignores the
+ * FOV, so a body zoomed on by narrowing the FOV stayed a point however big
+ * it drew.  This one picks by apparent size: the distance is scaled by
+ * `fovScale`, as if zoomed by 1/scale.  LOD.update reads only the camera's
+ * matrixWorld and zoom, so it's handed those with the zoom divided by the
+ * scale.
+ */
+export class FovLOD extends LOD {
+  /** @param {object} camera */
+  update(camera) {
+    if (this.levels.length > 1) {
+      _cam.matrixWorld = camera.matrixWorld
+      _cam.zoom = camera.zoom / fovScale(camera)
+      super.update(_cam)
+    }
+  }
+}
+
+const _cam = {matrixWorld: new Matrix4(), zoom: 1}
+
+
+/**
  * @param {number} surfaceRadius The body's radius in metres
- * @returns {number} The camera distance past which the body is a point
+ * @returns {number} The camera distance past which the body is a point, at
+ *   INITIAL_FOV (see fovScale)
  */
 export function pointSwitchDistance(surfaceRadius) {
   return surfaceRadius * POINT_AT_RADII

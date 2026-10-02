@@ -536,6 +536,20 @@ A planet or moon is a mesh out to `POINT_AT_RADII` (500) radii and a
 single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
 `Planet.newPlanet`).  The point is a marker, not a lit surface:
 
+- **By apparent size, so the FOV counts.**  500 radii is 1.6 px across at a
+  45° FOV over 640 px.  three's `LOD` picks a level by `distance /
+  camera.zoom`, which ignores the FOV, so a body zoomed on by narrowing the
+  FOV (which moves nothing: Look at Jupiter from Earth, then 1°) stayed a
+  point however big it drew.  The planet and label LODs are `FovLOD`
+  (`farPoint.js`): the distance is scaled by `fovScale(camera)`, the
+  tangent of the half-FOV over its value at 45° (`INITIAL_FOV`), so a body
+  switches where it has the same size on screen.  1 at 45°, so the choices
+  there are unchanged; 0.021 at 1° (the mesh out to ~24,000 radii, which is
+  1.7e12 m for Jupiter); more than 1 wider than 45°.  `CesiumLayers` scales the
+  distance the same way against `meshRange`.  Not scaled: the stars' LODs
+  (`Star`, `Stars.labelLOD`), whose distances are not a size threshold,
+  and the places' own pixel-based LOD, which already reads the FOV.
+
 - **Colour and size.**  A planet's is white and 2 px; a moon's is half
   brightness and also 2 px, since many sit by their planet's.  The
   colour is a *display value* (`farPointColor`): the scene is drawn
@@ -769,7 +783,7 @@ and the provider extension contract.
 | `js/scene/StellarFrame.js` | Parent of the J2000 catalogues: precesses them to the simulation date |
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
-| `js/scene/farPoint.js` | A body's far point: its mesh range, colour, size and depth state |
+| `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |
 | `js/scene/Star.js` | Named star with noise shader |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |
