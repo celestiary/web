@@ -436,6 +436,47 @@ export default class Scene {
 
 
   /**
+   * Turn the camera in place to face a catalogue star, without moving it:
+   * the star counterpart of `setTarget` (a rotation-only look tween, same
+   * 600 ms, same roll-preserving convention).  A star has no scene object
+   * to target, so the world position is where the stellarFrame puts it,
+   * shifted by the current worldGroup rebase.  Breadcrumb and store are
+   * the caller's: SearchBar sets committedStar, as for a go.
+   *
+   * @param {object} star StarProps entry from StarsCatalog (x, y, z in m)
+   */
+  lookAtStar(star) {
+    this.ui.scene.updateMatrixWorld()
+    const pos = this.worldGroup.localToWorld(this.starPosition(star))
+    Shared.targets.tween = newCameraLookTween(this.ui.camera, pos)
+  }
+
+
+  /**
+   * Turn the camera in place to face a surface point (lat/lng in degrees,
+   * alt in m over the sphere) on a body.  Targets the body (`setTarget`:
+   * target, breadcrumb, preload), then aims the same look tween at the
+   * point rather than the body centre.
+   *
+   * @param {string} bodyName
+   * @param {number} lat
+   * @param {number} lng
+   * @param {number} [alt]
+   */
+  lookAtPlace(bodyName, lat, lng, alt = 0) {
+    this.setTarget(bodyName)
+    const bodyNode = this.objects[bodyName]
+    const r = bodyNode.props?.radius?.scalar
+    if (!r) {
+      return
+    }
+    this.ui.scene.updateMatrixWorld()
+    const pos = bodyNode.localToWorld(latLngAltToBodyFixed(lat, lng, alt, r))
+    Shared.targets.tween = newCameraLookTween(this.ui.camera, pos)
+  }
+
+
+  /**
    * Walk the parent chain up from `name` via scene.objects' stored props
    * until we hit the milkyway root.  Used by setTarget to compute the
    * breadcrumb path without depending on the Loader's lazy pathByName.

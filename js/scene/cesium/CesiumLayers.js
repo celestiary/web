@@ -32,6 +32,7 @@ import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
 import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
+import {fovScale} from '../farPoint.js'
 import {NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
@@ -614,7 +615,8 @@ export default class CesiumLayers {
     }
     target.getWorldPosition(this._bodyPos)
     this.ui.camera.getWorldPosition(this._camPos)
-    return this._camPos.distanceTo(this._bodyPos) < meshRange(target) ? name : null
+    const distance = this._camPos.distanceTo(this._bodyPos) * fovScale(this.ui.camera)
+    return distance < meshRange(target) ? name : null
   }
 
 
@@ -633,7 +635,7 @@ export default class CesiumLayers {
     node.getWorldPosition(this._bodyPos)
     camera.getWorldPosition(this._camPos)
     const distance = this._camPos.distanceTo(this._bodyPos)
-    if (distance >= meshRange(node)) {
+    if (distance * fovScale(camera) >= meshRange(node)) {
       return null
     }
     const {radii, shellScale} = CESIUM_BODIES[name]
@@ -1349,7 +1351,7 @@ export function preloadNames(target) {
 /**
  * How far out celestiary draws the body as a mesh rather than a point: the
  * distance at which its 'planet LOD' (Planet.newPlanet) swaps in the next
- * level.
+ * level, at INITIAL_FOV: callers scale the camera distance by `fovScale`.
  *
  * @param {object} node A body's rotating node
  * @returns {number} Metres from the body's centre; 0 if it has no such LOD
