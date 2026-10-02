@@ -13,24 +13,25 @@ import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Typography from '@mui/material/Typography'
 import useStore from '../store/useStore'
-import {DEFAULT_PARAMS, catalogPositions, computeSpread, pathTo, statsAt, yearsAtProgress} from '../scene/Colonization'
-import {DEFAULT_PULSE, DEFAULT_STYLE, hopColorCss, pathColorCss} from '../scene/ColonizationLines'
+import {DEFAULT_EXPANSION, EXPANSION_APP_ID, LIMITS} from '../store/ColonizationSlice'
+import {catalogPositions, computeSpread, pathTo, statsAt, yearsAtProgress} from '../scene/Colonization'
+import {hopColorCss, pathColorCss} from '../scene/ColonizationLines'
 import MyLocationIcon from '@mui/icons-material/MyLocation'
 import PauseIcon from '@mui/icons-material/Pause'
 import PlayIcon from '@mui/icons-material/PlayArrow'
 import RestartIcon from '@mui/icons-material/Replay'
 
 
-const DEFAULT_PLAY_SECONDS = 30
 const ZOOM_OUT_LY = 3000
 // Long enough for the drawer to paint its busy state before the ~1 s compute.
 const COMPUTE_DELAY_MS = 50
+// A permalink's run waits for the stars, checking this often.
+const RESTORE_POLL_MS = 250
 const MS_PER_SEC = 1000
-const MAX_WIDTH_PX = 12
+const [MIN_WIDTH_PX, MAX_WIDTH_PX] = LIMITS.width
 // Size attenuation's reference distance, on a log slider: 10 to 10,000 ly.
-const ATTENUATION_LOG_MIN = 1
-const ATTENUATION_LOG_MAX = 4
-const MAX_TRAIL = 30
+const [ATTENUATION_LOG_MIN, ATTENUATION_LOG_MAX] = LIMITS.attenuationLy.map(Math.log10)
+const MAX_TRAIL = LIMITS.trail[1]
 
 
 /**
@@ -39,6 +40,11 @@ const MAX_TRAIL = 30
  * stars (scene/Colonization.md).  Stopping the app removes its lines
  * (Scene.removeColonization).
  *
+ * Its state is in the permalink (design/URLs.md): it reports it to the
+ * widgets slice as it changes, and starts from what's there, which a
+ * permalink may have set.  A permalink's run is recomputed once the stars
+ * have loaded, then put back at its place on the timeline.
+ *
  * @property {object} celestiary
  * @returns {ReactElement}
  */
@@ -46,25 +52,36 @@ export default function ColonizationApp({celestiary}) {
   const isColonizationVisible = useStore((state) => state.isColonizationVisible)
   const committedStar = useStore((state) => state.committedStar)
   const openSearch = useStore((state) => state.openSearch)
-  const [speedC, setSpeedC] = useState(DEFAULT_PARAMS.speedC)
-  const [numNeighbors, setNumNeighbors] = useState(DEFAULT_PARAMS.numNeighbors)
-  const [launchDelayYears, setLaunchDelayYears] = useState(DEFAULT_PARAMS.launchDelayYears)
-  const [playSeconds, setPlaySeconds] = useState(DEFAULT_PLAY_SECONDS)
-  const [run, setRun] = useState(null) // {spread, pos, hipToNdx, speedC}
+  const dispatchWidgets = useStore((state) => state.dispatchWidgets)
+  // Where it starts: the defaults, or as a permalink left it.
+  const [saved] = useState(() => useStore.getState().widgets.appStates[EXPANSION_APP_ID] ?? DEFAULT_EXPANSION)
+  const [speedC, setSpeedC] = useState(saved.speedC)
+  const [numNeighbors, setNumNeighbors] = useState(saved.numNeighbors)
+  const [launchDelayYears, setLaunchDelayYears] = useState(saved.launchDelayYears)
+  const [playSeconds, setPlaySeconds] = useState(saved.playSeconds)
+  const [run, setRun] = useState(null) // {spread, pos, hipToNdx, params}
   const [isComputing, setIsComputing] = useState(false)
   const [error, setError] = useState(null)
-  const [pacing, setPacing] = useState('stars')
+  const [pacing, setPacing] = useState(saved.pacing)
   const [progress, setProgressState] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [style, setStyle] = useState(DEFAULT_STYLE)
-  const [pulse, setPulse] = useState(DEFAULT_PULSE)
+  const [style, setStyle] = useState(saved.style)
+  const [pulse, setPulse] = useState(saved.pulse)
+  // The star whose route is drawn: the committed star, as picked or
+  // searched for, or a permalink's.
+  const [routeHip, setRouteHip] = useState(saved.routeHip ?? committedStar?.hipId ?? null)
+  const committedStarRef = useRef(committedStar)
+  // A permalink's run, still to compute: {progress, isPlaying}.
+  const restoreRef = useRef(saved.isRun ? {progress: saved.progress, isPlaying: saved.isPlaying} : null)
   const progressRef = useRef(0)
   const scene = celestiary.scene
   const spread = run ? run.spread : null
   const years = spread ? yearsAtProgress(spread, progress, pacing) : 0
   const stats = spread ? statsAt(spread, years) : null
-  const selectedNdx = run && committedStar ? run.hipToNdx.get(committedStar.hipId) : undefined
-  const route = selectedNdx === undefined ? null : pathTo(spread, run.pos, selectedNdx, run.speedC)
+  const selectedNdx = run && routeHip !== null ? run.hipToNdx.get(routeHip) : undefined
+  const route = selectedNdx === undefined ? null : pathTo(spread, run.pos, selectedNdx, run.params.speedC)
+  const routeName = committedStar && committedStar.hipId === routeHip ?
+    committedStar.displayName : String(scene.stars?.catalog?.getNameOrId(routeHip) ?? '')
 
   // Progress is 0 to 1 along the timeline, mapped to years by pacing.
   const setProgress = useCallback((p) => {
@@ -72,9 +89,10 @@ export default function ColonizationApp({celestiary}) {
     setProgressState(p)
   }, [])
 
-  const compute = () => {
+  /** @param {object} [restore] A permalink's {progress, isPlaying} */
+  const compute = (restore) => {
     const catalog = scene.stars && scene.stars.catalog
-    if (!catalog || catalog.starByHip.size <= 1) {
+    if (!isCatalogReady(scene)) {
       setError('Stars are still loading')
       return
     }
@@ -83,25 +101,76 @@ export default function ColonizationApp({celestiary}) {
     setIsComputing(true)
     setTimeout(() => {
       try {
+        const params = {speedC, numNeighbors, launchDelayYears}
         const {pos, originNdx, hipIds} = catalogPositions(catalog)
-        const s = computeSpread(pos, originNdx, {speedC, numNeighbors, launchDelayYears})
+        const s = computeSpread(pos, originNdx, params)
         const hipToNdx = new Map()
         hipIds.forEach((hipId, i) => hipToNdx.set(hipId, i))
         scene.getColonization().setSpread(s, pos)
-        // A new run is meant to be seen, even after 'x' or 'V' hid the lines.
-        if (!scene.getSetting('x')) {
+        // A new run is meant to be seen, even after 'x' or 'V' hid the
+        // lines.  A permalink's run follows the link's own `x`.
+        if (!restore && !scene.getSetting('x')) {
           scene.toggleColonization()
         }
-        setRun({spread: s, pos, hipToNdx, speedC})
-        setProgress(0)
-        setIsPlaying(true)
+        setRun({spread: s, pos, hipToNdx, params})
+        setProgress(restore ? restore.progress : 0)
+        setIsPlaying(restore ? restore.isPlaying : true)
       } catch (e) {
         setError(e.message)
       } finally {
+        restoreRef.current = null
         setIsComputing(false)
       }
     }, COMPUTE_DELAY_MS)
   }
+
+  // A permalink's run, once the stars are in.
+  useEffect(() => {
+    if (!restoreRef.current) {
+      return undefined
+    }
+    const timer = setInterval(() => {
+      if (isCatalogReady(scene)) {
+        clearInterval(timer)
+        compute(restoreRef.current)
+      }
+    }, RESTORE_POLL_MS)
+    return () => clearInterval(timer)
+  }, [])
+
+  // A star committed (picked or searched for) is the route's; leaving it
+  // (to a planet, say) clears the route.
+  useEffect(() => {
+    if (committedStar !== committedStarRef.current) {
+      committedStarRef.current = committedStar
+      setRouteHip(committedStar ? committedStar.hipId : null)
+    }
+  }, [committedStar])
+
+  // Report the state, for the permalink.  While it plays, the place on the
+  // timeline is the one it started from; it's written again when it stops.
+  // Not while a permalink's run is still to compute: that's the state.
+  useEffect(() => {
+    if (restoreRef.current) {
+      return
+    }
+    dispatchWidgets({
+      type: 'appState',
+      id: EXPANSION_APP_ID,
+      appState: {
+        ...(run ? run.params : {speedC, numNeighbors, launchDelayYears}),
+        playSeconds,
+        isRun: run !== null,
+        progress: progressRef.current,
+        isPlaying,
+        pacing,
+        routeHip,
+        style,
+        pulse,
+      },
+    })
+  }, [dispatchWidgets, run, speedC, numNeighbors, launchDelayYears, playSeconds,
+    isPlaying, isPlaying ? null : progress, pacing, routeHip, style, pulse])
 
   const togglePlay = () => {
     if (!isPlaying && progressRef.current >= 1) {
@@ -124,13 +193,15 @@ export default function ColonizationApp({celestiary}) {
     scene.getColonization()?.setTime(years)
   }, [scene, years])
 
+  // Again with each run: a link's style is set before the stars, so the
+  // lines, exist.
   useEffect(() => {
     scene.getColonization()?.setStyle(style)
-  }, [scene, style])
+  }, [scene, style, run])
 
   useEffect(() => {
     scene.getColonization()?.setPulse(pulse)
-  }, [scene, pulse])
+  }, [scene, pulse, run])
 
   useEffect(() => {
     const path = selectedNdx === undefined ? null : pathTo(run.spread, run.pos, selectedNdx, run.speedC)
@@ -181,7 +252,7 @@ export default function ColonizationApp({celestiary}) {
         <Stack direction='row' spacing={1}>
           <Button
             variant='contained'
-            onClick={compute}
+            onClick={() => compute()}
             disabled={isComputing}
             sx={{borderRadius: 1}}
             data-testid='colonization-drawer-run'
@@ -255,7 +326,7 @@ export default function ColonizationApp({celestiary}) {
       {spread && (
         <Section title='Selected star'>
           {route ?
-            <RouteInfo name={committedStar.displayName || `HIP ${committedStar.hipId}`} route={route}/> :
+            <RouteInfo name={routeName || `HIP ${routeHip}`} route={route}/> :
             <Typography variant='body2' color='text.secondary'>
               Pick a star to trace its route from the Sun.
             </Typography>}
@@ -278,7 +349,7 @@ export default function ColonizationApp({celestiary}) {
         <LabeledSlider
           label='Width, first hop'
           value={style.widthFirst}
-          min={0.5}
+          min={MIN_WIDTH_PX}
           max={MAX_WIDTH_PX}
           step={0.5}
           format={(v) => `${v} px`}
@@ -288,7 +359,7 @@ export default function ColonizationApp({celestiary}) {
         <LabeledSlider
           label='Width, last hop'
           value={style.widthLast}
-          min={0.5}
+          min={MIN_WIDTH_PX}
           max={MAX_WIDTH_PX}
           step={0.5}
           format={(v) => `${v} px`}
@@ -366,6 +437,13 @@ export default function ColonizationApp({celestiary}) {
       )}
     </Stack>
   )
+}
+
+
+/** @returns {boolean} Whether the star catalog has loaded */
+function isCatalogReady(scene) {
+  const catalog = scene.stars && scene.stars.catalog
+  return Boolean(catalog && catalog.starByHip.size > 1)
 }
 
 

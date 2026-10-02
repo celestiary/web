@@ -635,7 +635,7 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
 
 - `AsterismsSlice` — asterisms visibility and catalog state
 - `ColonizationSlice` — mirrors the `x` setting (human expansion lines) for the drawer's switch
-- `WidgetsSlice` — the widgets drawer and dock: open, docked, the app showing, running and pinned apps
+- `WidgetsSlice` — the widgets drawer and dock: open, docked, the app showing, running and pinned apps, and the running apps' state for the permalink
 - `SearchSlice` — search-bar state, anchor index, committed path / star,
   preview fields; `setCommittedPath` and `setCommittedStar` are mutually
   exclusive
@@ -651,7 +651,7 @@ Two routing layers coexist:
 - **Wouter path routing** (`/`, `/guide`, `/about`, `/settings`) — controls which React panels are shown
 - **URL hash** (`#sun/earth/moon`) — drives which celestial object is targeted and loaded; managed imperatively by `Celestiary` via `hashchange` events
 
-The hash is extended with optional camera/time state to form a **permalink** — see [js/permalink.md](js/permalink.md) for the format specification.
+The hash is extended with optional camera/time state to form a **permalink** — see [js/permalink.md](js/permalink.md) for the format specification — and with **state tokens** for the widgets drawer and its apps ([design/URLs.md](design/URLs.md)).
 
 ## React UI Components (`js/ui/`)
 
@@ -691,6 +691,10 @@ State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
   in the dock to reopen it.  The dock can't be closed while an app is
   pinned.
 - **Chrome.** The drawer and dock are HTML chrome: `v` hides them.
+- **Permalink.** All of it is in the link: the `apps` state token, and
+  each running app's state as its own `apps.<id>` token (an app reports
+  its state to the slice, which drops it when the app stops;
+  `store/appTokens.js` encodes it).  Spec: [design/URLs.md](design/URLs.md).
 
 ## Guide (`js/guide/`)
 
@@ -723,7 +727,8 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/Time.js` | Simulation clock with time-scale control, clamped to the supported dates (J2000 ± 6000 years) |
 | `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
-| `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment` |
+| `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment`; state token values (`parseTokenValue`, `formatTokenValue`) |
+| `js/store/appTokens.js` | The widgets drawer and its apps as state tokens (`apps`, `apps.<id>`; [design/URLs.md](design/URLs.md)) |
 | `js/coords.js` | Geographic coordinate conversions: `worldToLatLngAlt`, `latLngAltToLocal` |
 | `js/store/useStore.js` | Zustand store root |
 | `js/dataUrl.js` | `dataUrl()`: resolves large-data paths against the build's data base URL ([Data policy](#data-policy)) |

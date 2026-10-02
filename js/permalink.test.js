@@ -4,6 +4,9 @@ import {
   decodeSettings,
   encodePermalink,
   encodeSettings,
+  formatTokenValue,
+  parseTokenValue,
+  parseValueList,
   pathFromFragment,
 } from './permalink.js'
 import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
@@ -371,5 +374,48 @@ describe('A (AR-fallback) flag', () => {
     const decoded = decodePermalink(encoded)
     expect(decoded.settings.L).toBe(true)
     expect(decoded.settings.A).toBe(true)
+  })
+})
+
+
+describe('state tokens', () => {
+  const view = ['sun/earth', 9233.1234, 30.2638, -97.7526, 3282, {x: 0, y: 0, z: 0, w: 1}, 45]
+
+  it('are written after the view and settings, in order, as label:value', () => {
+    const frag = encodePermalink(...view, {...SETTINGS_DEFAULTS, a: false},
+        {'apps': 'open,view=expansion', 'apps.expansion': 'k=6,run=1', 'none': null})
+    expect(frag).toBe('sun/earth@30.2638,-97.7526,3.282km;t=9233.1234jd;cq=0,0,0,1;fov=45deg;s=a;' +
+      'apps:open,view=expansion;apps.expansion:k=6,run=1')
+  })
+
+  it('round-trip, the view params unchanged', () => {
+    const tokens = {'apps': 'open,dock,pin=expansion', 'apps.expansion': 'c=0.25,at=0.5'}
+    const decoded = decodePermalink(encodePermalink(...view, undefined, tokens))
+    expect(decoded.tokens).toEqual(tokens)
+    expect(decoded.fov).toBe(45)
+    expect(decoded.settings).toEqual(SETTINGS_DEFAULTS)
+  })
+
+  it('a bare label: is an empty value', () => {
+    const decoded = decodePermalink('sun@0,0,1km;t=0jd;cq=0,0,0,1;fov=45deg;apps:')
+    expect(decoded.tokens).toEqual({apps: ''})
+  })
+
+  it('an empty token map writes nothing', () => {
+    expect(encodePermalink(...view, undefined, {})).toBe(encodePermalink(...view))
+  })
+
+  it('values split into flags and named values', () => {
+    expect(parseTokenValue('open,dock,view=a,pin=a+b')).toEqual(
+        {flags: ['open', 'dock'], named: {view: 'a', pin: 'a+b'}})
+    expect(parseTokenValue('')).toEqual({flags: [], named: {}})
+    expect(parseTokenValue(undefined)).toEqual({flags: [], named: {}})
+    expect(parseValueList('a+b')).toEqual(['a', 'b'])
+    expect(parseValueList(undefined)).toEqual([])
+  })
+
+  it('values format flags first, leaving out empty named values', () => {
+    expect(formatTokenValue(['open'], {view: 'a', pin: ['a', 'b'], run: [], x: null, y: undefined, k: 0}))
+        .toBe('open,view=a,pin=a+b,k=0')
   })
 })
