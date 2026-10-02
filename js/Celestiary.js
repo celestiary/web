@@ -17,6 +17,7 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment} from './permalink'
+import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {elt} from './utils'
 
 
@@ -81,6 +82,12 @@ export default class Celestiary {
     this.ui.arController = this.ar
     this._registerSearchProviders()
     this._subscribePreview()
+    // The widgets drawer and its apps are in the permalink too.
+    this.useStore.subscribe((state, prev) => {
+      if (state.widgets !== prev.widgets) {
+        this._schedulePermalinkUpdate()
+      }
+    })
     this.load()
     this.setupPathListeners()
     this.setupKeyListeners(useStore)
@@ -176,6 +183,14 @@ export default class Celestiary {
     if (rawHash) {
       this._pendingPermalink = decodePermalink(rawHash)
       path = pathFromFragment(rawHash)
+      // The drawer and its apps, as the link left them (design/URLs.md).
+      // On first load only, as the scene settings.  Each app restores its
+      // own state from its entry here, waiting for what it needs (the
+      // stars, for the Human Expansion app).
+      const widgets = decodeAppTokens(this._pendingPermalink?.tokens)
+      if (widgets) {
+        this.useStore.getState().dispatchWidgets({type: 'restore', widgets})
+      }
     } else {
       path = DEFAULT_TARGET
       location.hash = path
@@ -693,7 +708,8 @@ export default class Celestiary {
         settings.A = true
       }
       const fragment = encodePermalink(
-          path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings)
+          path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings,
+          encodeAppTokens(this.useStore.getState().widgets))
       history.replaceState(null, '', `#${fragment}`)
     }, 1000)
   }

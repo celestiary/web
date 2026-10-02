@@ -54,4 +54,26 @@ describe('WidgetsSlice', () => {
     expect(isDockVisible(s)).toBe(true)
     expect(isDockVisible(widgetsReducer(s, {type: 'toggleDock'}))).toBe(false)
   })
+
+  it('keeps a running app\'s state, and drops it when the app stops', () => {
+    let s = run([{type: 'openApp', id: 'a'}, {type: 'appState', id: 'a', appState: {k: 1}}])
+    expect(s.appStates).toEqual({a: {k: 1}})
+    expect(widgetsReducer(s, {type: 'appState', id: 'b', appState: {k: 2}})).toBe(s)
+    s = widgetsReducer(s, {type: 'stop', id: 'a'})
+    expect(s.appStates).toEqual({})
+  })
+
+  it('closing drops the state of the apps it stops, not the pinned', () => {
+    const s = run([
+      {type: 'openApp', id: 'a'}, {type: 'appState', id: 'a', appState: {k: 1}},
+      {type: 'openApp', id: 'b'}, {type: 'appState', id: 'b', appState: {k: 2}},
+      {type: 'pin', id: 'b'}, {type: 'close'},
+    ])
+    expect(s.appStates).toEqual({b: {k: 2}})
+  })
+
+  it('restores all of it at once', () => {
+    const widgets = {isOpen: true, view: 'a', running: ['a'], appStates: {a: {k: 1}}}
+    expect(run([{type: 'toggleDock'}, {type: 'restore', widgets}])).toEqual({...INITIAL_WIDGETS, ...widgets})
+  })
 })

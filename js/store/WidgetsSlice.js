@@ -8,6 +8,11 @@
  * - An app runs from when it's opened until it's stopped (its X), or, if not
  *   pinned, until the drawer closes.  A pinned app keeps running with the
  *   drawer closed, its icon in the dock.
+ * - A running app keeps its state here (appStates, by app ID), for the
+ *   permalink; it's dropped when the app stops.
+ *
+ * All of it is in the permalink as the `apps` token, and each app's state
+ * as its own `apps.<id>` token (design/URLs.md, store/appTokens.js).
  *
  * @param {Function} set
  * @param {Function} get
@@ -29,13 +34,16 @@ export const INITIAL_WIDGETS = Object.freeze({
   view: TRAY,
   running: [],
   pinned: [],
+  appStates: {},
 })
 
 
 /**
  * @param {object} state
  * @param {object} action {type, id?}: toggle, open, close, openApp, tray,
- *   pin, unpin, stop, toggleDock
+ *   pin, unpin, stop, toggleDock; {type: 'appState', id, appState}, a
+ *   running app's state; {type: 'restore', widgets}, all of it at once
+ *   (from a permalink)
  * @returns {object} The next state
  */
 export function widgetsReducer(state, action) {
@@ -56,8 +64,13 @@ export function widgetsReducer(state, action) {
       view: state.view === id ? TRAY : state.view,
       running: remove(state.running, id),
       pinned: remove(state.pinned, id),
+      appStates: only(state.appStates, remove(state.running, id)),
     }
     case 'toggleDock': return {...state, isDocked: !state.isDocked}
+    case 'appState': return state.running.includes(id) ?
+      {...state, appStates: {...state.appStates, [id]: action.appState}} :
+      state
+    case 'restore': return {...INITIAL_WIDGETS, ...action.widgets}
     default: return state
   }
 }
@@ -80,7 +93,14 @@ function close(state) {
     isOpen: false,
     running,
     view: running.includes(state.view) ? state.view : TRAY,
+    appStates: only(state.appStates, running),
   }
+}
+
+
+/** @returns {object} appStates of just the apps in ids */
+function only(appStates, ids) {
+  return Object.fromEntries(Object.entries(appStates).filter(([id]) => ids.includes(id)))
 }
 
 
