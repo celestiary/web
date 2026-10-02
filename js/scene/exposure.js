@@ -134,10 +134,13 @@ export const EYE_POINT_RAD = 10 / 60 * Math.PI / 180
  * the frame than that anchors the exposure, while a star field, whose
  * sprites cover less, runs to the dark-adapted gain.
  *
- * And the one way down: where that highlight is over METER_HIGHLIGHT_MAX,
- * brighter than a sunlit white surface (the Sun's disc, 46,000 of them,
- * filling the frame), the gain falls to bring it there, to METER_GAIN_MIN
- * at most.  A sunlit surface is never over it, so no planet is darkened.
+ * And the one way down: where the luminance METER_BLOWN_FRACTION (a
+ * quarter) of the frame exceeds is over METER_HIGHLIGHT_MAX, brighter than
+ * a sunlit white surface (the Sun's disc, 46,000 of them, filling the
+ * frame), the gain falls to bring it there, to METER_GAIN_MIN at most.  A
+ * sunlit surface is never over it, so no planet is darkened; nor is a
+ * frame for a small highlight that is (the sky round a low Sun, 2% of it
+ * at 6), which clips, as a camera lets it.
  *
  * A frame with nothing in it at all (every pixel under METER_FLOOR: a
  * planet's texture, or the star catalogue, still loading) asks for
@@ -145,21 +148,22 @@ export const EYE_POINT_RAD = 10 / 60 * Math.PI / 180
  * dark-adapted gain on a black loading frame rendered the planet 3e6
  * times too bright when it came.
  *
- * @param {{meanLog: number, highlight: number, max: number}} metered
+ * @param {{meanLog: number, highlight: number, blown: number, max: number}} metered
  *   meanLogLuminance's measure of the frame as it was rendered
  * @param {number} renderedOverKeyed The exposure the frame was rendered at
  *   over the target-keyed exposure (its gain at the time)
  * @returns {number|null} The gain the scene asks for; null for no scene
  */
-export function meteredGain({meanLog, highlight, max}, renderedOverKeyed) {
+export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed) {
   if (!(max > METER_FLOOR)) {
     return null
   }
   const rendered = Math.max(renderedOverKeyed, 1e-30)
   const lumaAtKeyed = Math.exp(meanLog) / rendered
   const highlightAtKeyed = highlight / rendered
-  if (highlightAtKeyed > METER_HIGHLIGHT_MAX) {
-    return Math.max(METER_HIGHLIGHT_MAX / highlightAtKeyed, METER_GAIN_MIN)
+  const blownAtKeyed = blown / rendered
+  if (blownAtKeyed > METER_HIGHLIGHT_MAX) {
+    return Math.max(METER_HIGHLIGHT_MAX / blownAtKeyed, METER_GAIN_MIN)
   }
   const byMean = METER_KEY / Math.max(lumaAtKeyed, METER_FLOOR)
   const byHighlight = METER_HIGHLIGHT / Math.max(highlightAtKeyed, METER_FLOOR)
@@ -171,10 +175,11 @@ export function meteredGain({meanLog, highlight, max}, renderedOverKeyed) {
  * @param {Float32Array|Uint8Array} rgba Pixels, RGBA: floats, or bytes
  *   (the LDR fallback's target), which count as their value over 255
  * @param {number} count How many pixels
- * @returns {{meanLog: number, highlight: number, max: number}} The mean of
- *   ln(max(luma, METER_FLOOR)), the luminance METER_HIGHLIGHT_FRACTION of
- *   the pixels exceed, and the brightest; a pixel that isn't finite
- *   (overflowed) counts as the buffer's most, HDR_MAX_VALUE
+ * @returns {{meanLog: number, highlight: number, blown: number, max: number}}
+ *   The mean of ln(max(luma, METER_FLOOR)), the luminance
+ *   METER_HIGHLIGHT_FRACTION of the pixels exceed, the one
+ *   METER_BLOWN_FRACTION of them exceed, and the brightest; a pixel that
+ *   isn't finite (overflowed) counts as the buffer's most, HDR_MAX_VALUE
  */
 export function meanLogLuminance(rgba, count) {
   const scale = rgba instanceof Uint8Array ? 1 / 255 : 1
@@ -189,11 +194,16 @@ export function meanLogLuminance(rgba, count) {
     lumas.push(luma)
   }
   if (lumas.length === 0) {
-    return {meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, max: 0}
+    return {meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, blown: METER_FLOOR, max: 0}
   }
   lumas.sort((a, b) => b - a)
-  const highlight = lumas[Math.min(lumas.length - 1, Math.floor(METER_HIGHLIGHT_FRACTION * lumas.length))]
-  return {meanLog: sum / lumas.length, highlight: Math.max(highlight, METER_FLOOR), max: lumas[0]}
+  const exceeded = (fraction) => Math.max(lumas[Math.min(lumas.length - 1, Math.floor(fraction * lumas.length))], METER_FLOOR)
+  return {
+    meanLog: sum / lumas.length,
+    highlight: exceeded(METER_HIGHLIGHT_FRACTION),
+    blown: exceeded(METER_BLOWN_FRACTION),
+    max: lumas[0],
+  }
 }
 
 
@@ -218,6 +228,8 @@ export const METER_HIGHLIGHT = 0.6
  * white surface (DISPLAY_GAIN); over it the gain falls below 1.
  */
 export const METER_HIGHLIGHT_MAX = DISPLAY_GAIN
+/** The share of the frame that must be over it for the gain to fall. */
+export const METER_BLOWN_FRACTION = 0.25
 /** The least the metered exposure falls to under the target-keyed one. */
 export const METER_GAIN_MIN = 1e-5
 /**

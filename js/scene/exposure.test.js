@@ -61,7 +61,8 @@ describe('easeExposure', () => {
 
 
 describe('metered exposure', () => {
-  const m = (luma, highlight = luma, max = Math.max(luma, highlight)) => ({meanLog: Math.log(luma), highlight, max})
+  const m = (luma, highlight = luma, max = Math.max(luma, highlight), blown = Math.min(luma, highlight)) =>
+    ({meanLog: Math.log(luma), highlight, blown, max})
 
   it('leaves a sunlit scene at the keyed exposure, and lifts a dim one to the key', () => {
     expect(meteredGain(m(0.4), 1)).toBe(1)
@@ -92,15 +93,19 @@ describe('metered exposure', () => {
     expect(meteredGain(m(3e-7, METER_FLOOR), 1)).toBeCloseTo(METER_KEY / 3e-7, 6)
   })
 
-  it('falls below 1 only for a highlight brighter than a sunlit white surface: the Sun\'s disc', () => {
+  it('falls below 1 only for a quarter of the frame brighter than a sunlit white: the Sun\'s disc', () => {
     // A sunlit white (1.5) is the keyed exposure's own: left alone.
-    expect(meteredGain(m(0.5, METER_HIGHLIGHT_MAX), 1)).toBe(1)
-    // The Sun's disc, 46,000 whites, over 2% of the frame: brought to a white.
-    expect(meteredGain(m(100, 6.9e4), 1)).toBeCloseTo(METER_HIGHLIGHT_MAX / 6.9e4, 12)
-    expect(meteredGain(m(100, 1e9), 1)).toBe(METER_GAIN_MIN)
+    expect(meteredGain(m(0.5, METER_HIGHLIGHT_MAX, 1.5, 1.5), 1)).toBe(1)
+    // The sky round a low Sun: 2% of the frame at 6, a quarter at 0.5.
+    // A clipped highlight, not a frame to darken.
+    expect(meteredGain(m(0.4, 6, 12, 0.5), 1)).toBe(1)
+    // The Sun's disc, 46,000 whites, over a quarter of the frame: brought
+    // to a white.
+    expect(meteredGain(m(100, 6.9e4, 6.9e4, 6.9e4), 1)).toBeCloseTo(METER_HIGHLIGHT_MAX / 6.9e4, 12)
+    expect(meteredGain(m(100, 1e9, 1e9, 1e9), 1)).toBe(METER_GAIN_MIN)
     // Rendered at that gain, the disc reads as a white and asks for the same.
     const g = METER_HIGHLIGHT_MAX / 6.9e4
-    expect(meteredGain(m(100 * g, 6.9e4 * g), g)).toBeCloseTo(g, 12)
+    expect(meteredGain(m(100 * g, 6.9e4 * g, 6.9e4 * g, 6.9e4 * g), g)).toBeCloseTo(g, 12)
   })
 
   it('reads bytes as their value over 255', () => {
@@ -127,7 +132,16 @@ describe('metered exposure', () => {
     // Two pixels: 2% of them is the brightest.
     expect(got.highlight).toBe(1)
     expect(got.max).toBe(1)
-    expect(meanLogLuminance(new Float32Array(0), 0)).toEqual({meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, max: 0})
+    expect(meanLogLuminance(new Float32Array(0), 0))
+        .toEqual({meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, blown: METER_FLOOR, max: 0})
+    // 100 pixels: `blown` is what a quarter of them, 25 pixels, exceed.
+    const quarter = new Float32Array(400).fill(0)
+    for (let i = 0; i < 25; i++) {
+      quarter.set([2, 2, 2, 1], i * 4)
+    }
+    expect(meanLogLuminance(quarter, 100).blown).toBe(METER_FLOOR)
+    quarter.set([2, 2, 2, 1], 25 * 4)
+    expect(meanLogLuminance(quarter, 100).blown).toBeCloseTo(2, 12)
     // An overflowed pixel (Inf, or NaN out of the tone map) is the buffer's most.
     const over = meanLogLuminance(new Float32Array([Infinity, 0, 0, 1, NaN, 0, 0, 1]), 2)
     expect(over.max).toBe(HDR_MAX_VALUE)

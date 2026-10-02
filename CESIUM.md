@@ -100,8 +100,11 @@ Why these pieces:
   `depthTestAgainstTerrain` for its depth), a tileset by `sunlitShader`.
   After that every body is the same: stored × Lambert, the distance stage,
   one decode (× `bodyGain`: `DISPLAY_GAIN` × `textureGain` /
-  `imageryScale`), the terrain's depth from below 20 km, and celestiary's
-  atmosphere pass where the body has an atmosphere.  The per-body
+  `imageryScale`, times the renderer's exposure over the body's keyed one,
+  `ThreeUi.exposureOf`, so the metered gain and the easing between
+  targets move Cesium's side with celestiary's; HDR.md), the terrain's
+  depth from below 20 km, and celestiary's atmosphere pass where the body
+  has an atmosphere.  The per-body
   differences are data in `bodies.js` (`textureGain`, `imageryScale`,
   `nightFloor`, `atmosphere`, `shellScale`).  Until #141's review the
   tilesets returned PBR Neutral of their exposure-unit value and the decode
@@ -588,7 +591,8 @@ view, and it read 0.967 on main, outside its first tolerance.)
   Lambert against celestiary's texture), under the same haze.  Until #141's
   fix the atmosphere pass washed the day ground out on both sides alike,
   which the ratio (1.0) couldn't see, so the view also bounds each render's
-  own median luma (`luma`, 65-90; it read 55).  The eye-adaptation boost
+  own median luma (`luma`, 65-90; it read 55).  The eye-adaptation boost,
+  since removed (#86 PR B),
   covered the ground (T 0.094 over it from 7.5 km), and below 1.3 km the
   in-scatter table's ground slice gave the ground the horizon's glow; see
   [composition.md](js/scene/atmos/composition.md).  A 16 m view isn't in

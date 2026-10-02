@@ -590,6 +590,7 @@ export default class ThreeUi {
     this._meterLast = {
       mean: Math.exp(metered.meanLog) / renderedOverKeyed,
       highlight: metered.highlight / renderedOverKeyed,
+      blown: metered.blown / renderedOverKeyed,
       max: metered.max / renderedOverKeyed,
       gain,
     }

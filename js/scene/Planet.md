@@ -95,7 +95,10 @@ follows the targeted body (`exposure.js`, `ThreeUI._updateExposure`):
 π·d^decay / I for its distance d from the Sun, so its sunlit side renders
 at its albedo — a surface facing the Sun shows its texture's colour
 × `DISPLAY_GAIN` (1.5), as Cesium's layers do — easing between targets over
-~0.5 s.  A body's `texture_gain` (e.g. the Moon's) scales its texture for
+~0.5 s.  Over that keyed exposure a metered gain adapts to the frame
+([HDR.md, metered exposure](HDR.md#metered-exposure)): 1 wherever a
+sunlit surface is in view, more at a low Sun, at twilight, at night and in
+deep space, less for the Sun's disc.  A body's `texture_gain` (e.g. the Moon's) scales its texture for
 both, where the source mosaic's stretch is darker than its albedo.  Looking at a far
 planet (targeting it) makes it the exposure target; the Sun and stars keep
 the last body's.  Surfaces are non-metallic (metalness 0) except where an
@@ -105,9 +108,10 @@ The exposure scales, and tone-mapping waits: surfaces render into a linear,
 half-float buffer in these exposure units, the atmosphere pass adds the sky
 in the same units, and PBR Neutral runs once, last ([HDR.md](HDR.md)).  So a
 sunlit white surface is 1.5 in the buffer (`DISPLAY_GAIN`) and shows as
-`N(1.5)`, as before.  Content drawn as display values (stars, labels, lines)
+`N(1.5)`, as before.  Content drawn as display values (labels, lines, grids)
 goes into the buffer through the tone map's inverse (`hdr.js`
-`sceneReferred`).
+`sceneReferred`); the stars and the Sun's disc are in exposure units
+([HDR.md, physical stars](HDR.md#physical-stars)).
 
 ## Surface texture sources
 
