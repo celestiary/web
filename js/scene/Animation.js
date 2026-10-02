@@ -3,9 +3,10 @@ import {loadVsop87c} from '../vsop'
 import * as Shared from '../shared'
 import debug from '../debug'
 import {J2000_JD, gmstRad, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
-import {moonArguments, moonOrientation, moonScenePosition} from './lunarTheory.js'
+import {moonScenePosition} from './lunarTheory.js'
 import {BodyLine, fineSteps} from './bodyLine.js'
-import {orbitAt, poleAt} from './meanElements.js'
+import {equatorQuaternion, poleAndMeridian, textureTurn} from './iauRotation.js'
+import {orbitAt} from './meanElements.js'
 import {
   JUPITER_SATURN_SAMPLES,
   ORBIT_LINE_POINTS,
@@ -34,7 +35,8 @@ const TWO_PI = 2 * Math.PI
  * for the Moon the truncated ELP-2000/82 of Meeus 47 (lunarTheory.js), both
  * in the mean ecliptic and equinox of date.  Pluto and the other moons
  * follow published mean elements (meanElements.js), referred to J2000 and
- * precessed to date here.  Bodies with a `pole` (IAU) are tilted to it.
+ * precessed to date here.  Every body but Earth (GMST) is turned to its IAU
+ * WGCCRE pole and prime meridian (iauRotation.js).
  * The planets' and the Moon's orbit lines are their paths, sampled from
  * the same ephemerides (orbitPath.js); the other bodies' are their
  * mean-element ellipses of date.
@@ -50,10 +52,8 @@ export default class Animation {
     this.vsop = vsop
     this.curVsopCoords = this.vsopAt(J2000_JD)
     this.Y_AXIS = new Vector3(0, 1, 0)
-    // Per-frame Moon state, from updateMoon.
+    // Per-frame Moon position, from updateMoon.
     this.moonPos = new Vector3
-    this.moonQuat = new Quaternion
-    this._tmpQuat = new Quaternion
     this._tmpVec = new Vector3
     // Per-frame date state, from setDate: the Julian Day of the last
     // animate / animateAtJD, the same in TT, and the rotation from the
@@ -65,6 +65,8 @@ export default class Animation {
     this._orbitPos = new Vector3
     this._lineBody = new Vector3
     this._invQuat = new Quaternion
+    // A body's pole and meridian, from poleAndMeridian.
+    this._pm = {ra: 0, dec: 0, w: 0}
     // Orbit line rebuilds, run within a per-frame budget.
     this.orbitPaths = new OrbitPaths
   }
@@ -132,16 +134,14 @@ export default class Animation {
 
 
   /**
-   * The Moon's geocentric position and orientation for this frame.
-   * Meeus's series is in TT; the simulation clock is UTC.
+   * The Moon's geocentric position for this frame.  Meeus's series is in
+   * TT; the simulation clock is UTC.  Its orientation is the IAU model's,
+   * like every body's but Earth's.
    *
    * @param {number} jd Julian Day (UTC)
    */
   updateMoon(jd) {
-    const jde = utcToTtJulianDay(jd)
-    const args = moonArguments(jde)
-    moonScenePosition(jde, this.moonPos)
-    moonOrientation(args, this.moonQuat)
+    moonScenePosition(utcToTtJulianDay(jd), this.moonPos)
   }
 
 
@@ -157,41 +157,33 @@ export default class Animation {
       system.preAnimCb(this.time, this.jd)
     }
 
-    if (system.pole) {
+    if (system.poleModel) {
       this.orientPole(system)
     }
 
-    if (system.siderealRotationPeriod) {
-      // Spin around the body's local +Y axis (= rotational axis after
-      // planetTilt's rotateX(-ε)).  For Earth we use Greenwich Mean
-      // Sidereal Time directly: with the corrected tilt, rotation by
-      // angle α around local +Y places the prime meridian at RA = α on
-      // the celestial equator, so α = GMST puts Earth's geography in
-      // the correct sky orientation at the given Julian day.
-      //
-      // For other bodies we don't have a per-planet "prime-meridian RA at
-      // J2000" datum, so we fall back to the legacy hand-calibrated
-      // formula — strictly no worse than before, but a candidate for
-      // refinement (proper IAU WGCCRE rotation models per body).
+    if (system.siderealRotationPeriod || system.meridianModel) {
+      // Spin about the body's local +Y, its pole as planetTilt has it, so
+      // that +X, the prime meridian, is where its rotation model says.
       const name = system.props && system.props.name
-      if (name === 'moon') {
-        // The Moon's whole orientation (pole and spin, by Cassini's laws)
-        // is in moonQuat, relative to the unrotated orbitPosition.  Undo
-        // every rotation between the two: the node sits in its planet LOD,
-        // in the 'new planet' group, under planetTilt (Planet.load).
-        const parentRel = this._tmpQuat.identity()
-        for (let o = system.parent; o && o !== system.orbitPosition && !o.orbit; o = o.parent) {
-          parentRel.premultiply(o.quaternion)
+      if (name === 'earth') {
+        // Greenwich Mean Sidereal Time: planetTilt's rotateX(-ε) leaves +X
+        // at the equinox of date on the equator, so a turn by GMST puts
+        // Greenwich at its right ascension (iauRotation.test.js checks it
+        // against the IAU model and Horizons).
+        system.setRotationFromAxisAngle(this.Y_AXIS, gmstRad(this.time.simTimeJulianDay()))
+      } else if (system.meridianModel) {
+        // The IAU prime meridian W, measured from the equator's node,
+        // which planetTilt's +X points at (orientPole).
+        const w = poleAndMeridian(system.meridianModel, this.jde, this._pm).w
+        system.setRotationFromAxisAngle(this.Y_AXIS, w * Shared.toRad)
+        if (system.surface && system.textureRotation) {
+          system.surface.rotation.y = textureTurn(system.textureRotation, this.jde, w) * Shared.toRad
         }
-        system.quaternion.copy(parentRel.invert()).multiply(this.moonQuat)
       } else {
-        let angle
-        if (name === 'earth') {
-          angle = gmstRad(this.time.simTimeJulianDay())
-        } else {
-          angle = Math.PI + (this.time.simTimeDays() * Shared.twoPi)
-        }
-        system.setRotationFromAxisAngle(this.Y_AXIS, angle)
+        // No model (only the demo descriptors): a turn per sidereal
+        // period, from an arbitrary meridian.
+        const period = system.siderealRotationPeriod.scalar ?? system.siderealRotationPeriod
+        system.setRotationFromAxisAngle(this.Y_AXIS, Shared.twoPi * ((this.time.simTimeSecs() / period) % 1))
       }
     }
 
@@ -420,17 +412,18 @@ export default class Animation {
 
 
   /**
-   * Tilt a planetTilt node so its +Y, the body's north pole, points at the
-   * body's IAU pole, of date.  Replaces Planet.load's rotateX(-obliquity),
-   * which could only lean the pole toward ecliptic longitude 90°.  The
-   * minimal rotation from +Y is used: the prime meridian is not modelled
-   * yet (#96).
+   * Turn a planetTilt node to the plane of the body's equator: +Y, the
+   * body's north pole, at its IAU pole, and +X at the ascending node of its
+   * equator on the ICRF equator, where the prime meridian W is measured
+   * from; both of date.  Replaces Planet.load's rotateX(-obliquity), which
+   * could only lean a pole toward ecliptic longitude 90°.  The spun node
+   * below it turns by W.
    *
-   * @param {Object3D} planetTilt with `pole` ({ra, dec, raRate, decRate})
+   * @param {Object3D} planetTilt with `poleModel` (iauRotation.js)
    */
   orientPole(planetTilt) {
-    const pole = poleAt(planetTilt.pole, this.jde, this._tmpVec).applyQuaternion(this.precession)
-    planetTilt.quaternion.setFromUnitVectors(this.Y_AXIS, pole)
+    const pm = poleAndMeridian(planetTilt.poleModel, this.jde, this._pm)
+    equatorQuaternion(pm, planetTilt.quaternion).premultiply(this.precession)
   }
 }
 

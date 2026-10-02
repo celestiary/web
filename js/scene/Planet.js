@@ -28,6 +28,7 @@ import {
 } from './shapes.js'
 import Rings from './rings/Rings.js'
 import * as Material from './material.js'
+import {rotationModel} from './iauRotation.js'
 import {meanElements} from './meanElements.js'
 import {ORBIT_LINE_POINTS, unitEllipse} from './orbitPath.js'
 import {dataUrl} from '../dataUrl.js'
@@ -43,6 +44,12 @@ const NIGHT_LIGHT = 1.5
 // A label's depth, in radii toward the eye from the body's centre.
 const LABEL_LIFT = 1.1
 
+// Bodies that keep their own orientation rather than the IAU model: Earth,
+// turned by Greenwich Mean Sidereal Time, which follows Horizons' Earth
+// (ITRF93) to 0.002°, where the IAU's own low-precision Earth model is
+// 0.14° off.  iauRotation.test.js checks both.
+const OWN_ORIENTATION = new Set(['earth'])
+
 
 /** */
 export default class Planet extends Object {
@@ -57,6 +64,8 @@ export default class Planet extends Object {
     this.scene = scene
     this.initialCameraDistance = this.props.radius.scalar * 10
     this.isMoon = isMoon
+    // The IAU WGCCRE pole and prime meridian (iauRotation.js), or null.
+    this.iauModel = OWN_ORIENTATION.has(this.name) ? null : rotationModel(this.name)
     if (isTest) {
       this.loadNoOrbit()
     } else {
@@ -108,11 +117,13 @@ export default class Planet extends Object {
     // X-Y plane, 90° away from NCP, and any subsequent spin then turns the
     // body around the wrong axis.
     planetTilt.rotateX(-assertInRange(this.props.axialInclination, 0, 360) * toRad)
-    // Bodies with an IAU pole (the planets with moons, and Pluto) are tilted
-    // to it by Animation instead: rotateX can only lean a pole toward
-    // ecliptic longitude 90°, which is right for Earth alone.
-    if (this.props.pole) {
-      planetTilt.pole = this.props.pole
+    // Bodies with an IAU rotation model are turned by Animation instead:
+    // planetTilt to the body's equator (its pole, and the node its prime
+    // meridian is measured from), the spun node below by the meridian W.
+    // rotateX can only lean a pole toward ecliptic longitude 90°, which is
+    // right for Earth alone.
+    if (this.iauModel) {
+      planetTilt.poleModel = this.iauModel
     }
 
     const planet = this.newPlanet(this.scene, orbitPosition, this.isMoon)
@@ -178,6 +189,10 @@ export default class Planet extends Object {
     const surfaceRadius = assertFinite(this.props.radius.scalar)
     // Attaching this property triggers rotation of planet during animation.
     planet.siderealRotationPeriod = this.props.siderealRotationPeriod
+    // Its prime meridian, and a texture that follows the clouds rather
+    // than the meridian (Jupiter), for Animation.
+    planet.meridianModel = this.iauModel
+    planet.textureRotation = this.props.texture_rotation
     // Attaching this is used by scene#goTo.
     planet.orbitPosition = orbitPosition
     planet.props = this.props
@@ -213,6 +228,7 @@ export default class Planet extends Object {
       if (!near) {
         near = this.nearShape()
         planet.add(near)
+        planet.surface = near.userData.surface
       }
     }
     // A request, served on the next animation frame (Animation calls
@@ -470,6 +486,10 @@ export default class Planet extends Object {
     }
     // const surface = named(sphere({radius: this.props.radius.scalar, wireframe: true, color: 0x00ff00}), 'planet surface')
     surface.renderOrder = 1
+    // The texture's centre column is at east longitude texture_longitude,
+    // where three's sphere puts longitude 0 (coords.js).  Planet.md lists
+    // each texture's, and how it was checked.
+    surface.rotation.y = (this.props.texture_longitude || 0) * toRad
     if (this.props.texture_atmosphere && !this.props.atmosphere) {
       surface.add(this.newClouds())
     }
@@ -492,6 +512,7 @@ export default class Planet extends Object {
     // black, and the atmosphere pass hazed that into a blue disc before the
     // surface appeared (ThreeUI gates the pass on this too).
     group.userData.ready = () => Boolean(surfaceMaterial.map?.image)
+    group.userData.surface = surface
     surface.visible = group.userData.ready()
     if (!surface.visible) {
       group.preAnimCb = () => {

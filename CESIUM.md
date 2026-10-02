@@ -544,6 +544,20 @@ With #147 (multiple scattering for every body; Earth's gain 30 → 21):
 1.016, `mars-below-datum-sunward` 0.846 / 0.977, `earth-dead-sea-band`
 1.006 / 0.897; nothing re-baselined.
 
+With #96 (the IAU prime meridians) Mars turns differently at every date,
+and a permalink holds the camera in the body frame, so the Mars views'
+`t` moved back by under half a sol (0.011 d for `mars-gibbous`, 0.41-0.44 d
+for the rest), to where the new orientation matches the old one to
+0.001°: the same ground, the same camera, the Sun within 0.25° of where it
+was.  The Moon's orientation moved to the IAU model, 0.04° from Cassini's
+laws, and its view kept its `t`.  Measured then: `moon-quarter` 0.967
+(profile 18.8 / 5.6), `mars-gibbous` 0.995 (4.9 / 1.1), `mars-low-horizon`
+0.948 (42.3 / 43.8), `mars-low-horizon-band` 0.918 / 1.001,
+`mars-near-ridge` 1.050 / 1.024, `mars-below-datum-band` 0.907 / 1.016,
+`mars-below-datum-sunward` 0.847 / 0.977, `horizon-terrain-far` 0.836 /
+0.958, `mars-sky-zenith` 0.271 / 0.896, `mars-sky-antisolar` 1.643 / 1.086,
+`mars-sky-aureole` 2.396 / 1.768; nothing re-baselined.
+
 Measured after #86's PR A (one HDR buffer; Earth under celestiary's
 atmosphere pass on both sides), with #137's IAU poles (Mars's turned the
 view: its profile max went from 5.5 to 9.5).  Earth's orbit profile max

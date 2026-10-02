@@ -3,8 +3,11 @@ import {Object3D, Quaternion, Vector3} from 'three'
 import Animation from './Animation.js'
 import {J2000_JD, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
 import {moonArguments, moonOrientation, moonScenePosition} from './lunarTheory.js'
-import {meanElements, orbitAt, poleAt} from './meanElements.js'
+import {bodyQuaternion, poleVector, rotationModel} from './iauRotation.js'
+import {meanElements, orbitAt} from './meanElements.js'
 import io from '../../public/data/io.json'
+import jupiter from '../../public/data/jupiter.json'
+import mars from '../../public/data/mars.json'
 import pluto from '../../public/data/pluto.json'
 import saturn from '../../public/data/saturn.json'
 import titan from '../../public/data/titan.json'
@@ -20,7 +23,8 @@ const JD = 2461313.1007
  * Mirror Planet.load's scene graph for a moon: orbitPosition (with orbit
  * and orbitShape) → planetTilt (rotateX(-axialInclination)) → the 'new
  * planet' group → 'planet LOD' → planet, the node Animation spins
- * (Planet.newPlanet).  The spun node is not planetTilt's child.
+ * (Planet.newPlanet).  The spun node is not planetTilt's child.  As in
+ * Planet, every body with an IAU model but Earth gets it.
  *
  * @param {string} name
  * @param {number} axialInclinationDeg
@@ -57,6 +61,11 @@ function moonGraph(name, axialInclinationDeg) {
   planet.siderealRotationPeriod = 1
   planet.orbitPosition = orbitPosition
   lod.add(planet)
+  const model = name === 'earth' ? null : rotationModel(name)
+  if (model) {
+    planetTilt.poleModel = model
+    planet.meridianModel = model
+  }
   return {root, orbitPosition, orbitShape, planetTilt, planet}
 }
 
@@ -77,13 +86,17 @@ describe('Animation, the Moon', () => {
   })
 
 
-  it('orients the Moon by Cassini\'s laws whatever its planetTilt', () => {
+  it('orients the Moon by the IAU model, as Cassini\'s laws did to 0.04°', () => {
     const {root, planet} = moonGraph('moon', 1.543)
     new Animation(stubTime).animateAtJD(root, JD)
     root.updateMatrixWorld(true)
     const got = planet.getWorldQuaternion(new Quaternion)
-    const want = moonOrientation(moonArguments(utcToTtJulianDay(JD)))
+    const jde = utcToTtJulianDay(JD)
+    const want = bodyQuaternion(rotationModel('moon'), jde).premultiply(precessionQuaternion(J2000_JD, jde))
     expect(Math.abs(got.dot(want))).toBeCloseTo(1, 12)
+    // Its orientation before #96 (Meeus 53, no physical libration).
+    const cassini = moonOrientation(moonArguments(jde))
+    expect(2 * Math.acos(Math.min(1, Math.abs(got.dot(cassini)))) / toRad).toBeLessThan(0.04)
   })
 
 
@@ -109,7 +122,7 @@ describe('Animation, the Moon', () => {
 
 /**
  * moonGraph with what Planet.load adds for a body with mean elements and
- * an IAU pole.
+ * an IAU rotation model.
  *
  * @param {string} name
  * @param {object} props the body's JSON descriptor
@@ -119,9 +132,7 @@ function bodyGraph(name, props) {
   const g = moonGraph(name, props.axialInclination)
   g.orbitPosition.orbit = props.orbit
   g.orbitPosition.elements = meanElements(props.orbit)
-  if (props.pole) {
-    g.planetTilt.pole = props.pole
-  }
+  g.planet.props = props
   return g
 }
 
@@ -160,7 +171,7 @@ describe('Animation, bodies with mean elements', () => {
     const {root, planetTilt} = bodyGraph('saturn', saturn)
     new Animation(stubTime).animateAtJD(root, JD)
     const jde = utcToTtJulianDay(JD)
-    const want = poleAt(saturn.pole, jde).applyQuaternion(precessionQuaternion(J2000_JD, jde))
+    const want = poleVector(rotationModel('saturn'), jde).applyQuaternion(precessionQuaternion(J2000_JD, jde))
     const got = new Vector3(0, 1, 0).applyQuaternion(planetTilt.quaternion)
     expect(got.distanceTo(want)).toBeLessThan(1e-9)
     // 28.05° from the ecliptic pole (26.73° is to Saturn's own orbit).
@@ -173,5 +184,39 @@ describe('Animation, bodies with mean elements', () => {
     const before = planetTilt.quaternion.clone()
     new Animation(stubTime).animateAtJD(root, JD)
     expect(planetTilt.quaternion.equals(before)).toBe(true)
+  })
+})
+
+
+describe('Animation, IAU prime meridians (#96)', () => {
+  it('turns a body to its whole IAU orientation, of date', () => {
+    for (const [name, props] of [['mars', mars], ['jupiter', jupiter], ['io', io], ['titan', titan],
+      ['triton', triton], ['pluto', pluto]]) {
+      const {root, planet} = bodyGraph(name, props)
+      new Animation(stubTime).animateAtJD(root, JD)
+      root.updateMatrixWorld(true)
+      const jde = utcToTtJulianDay(JD)
+      const want = bodyQuaternion(rotationModel(name), jde).premultiply(precessionQuaternion(J2000_JD, jde))
+      const got = planet.getWorldQuaternion(new Quaternion)
+      expect(Math.abs(got.dot(want))).toBeCloseTo(1, 12)
+    }
+  })
+
+
+  it('turns at the body\'s own rate, not once a day', () => {
+    const at = (jd) => {
+      const time = {...stubTime, simTimeJulianDay: () => jd}
+      const {root, planet} = bodyGraph('jupiter', jupiter)
+      new Animation(time).animateAtJD(root, jd)
+      root.updateMatrixWorld(true)
+      return planet.getWorldQuaternion(new Quaternion)
+    }
+    // Jupiter's System III day is 9h 55m 29.7s: a quarter of it later the
+    // prime meridian has turned 90°.
+    const day = 360 / 870.536
+    const a = at(JD)
+    const b = at(JD + (day / 4))
+    const x = new Vector3(1, 0, 0)
+    expect(x.clone().applyQuaternion(a).angleTo(x.clone().applyQuaternion(b)) / toRad).toBeCloseTo(90, 1)
   })
 })
