@@ -1,5 +1,5 @@
 import {hopWidth} from './Colonization.js'
-import {hopColor, sortFarToNear} from './ColonizationLines.js'
+import {hopColor, sortFarToNear, trimToFront} from './ColonizationLines.js'
 
 
 /**
@@ -36,6 +36,25 @@ describe('ColonizationLines', () => {
     ]
     const order = sortFarToNear(...pack(segments), [1e11, 0, 0])
     expect(Array.from(order)).toEqual([1, 2, 3, 0])
+  })
+
+  it('trimToFront cuts a hop crossing the camera plane in front of the camera, in float32', () => {
+    // A far hop from the flicker report: one end 3.5e18 m behind the camera,
+    // the other 4.4e18 m ahead.  Cut at the near plane (6e5 m), float32
+    // landed at z = 0 (w = 0); the cut at a fraction of the length is in
+    // front, and on the segment.
+    const behind = [1e17, 2e17, 3.51e18]
+    const ahead = [-3e17, 1e17, -4.40e18]
+    const [a, b] = trimToFront(behind, ahead, 6e5, Math.fround)
+    expect(a[2]).toBeLessThan(0)
+    expect(b).toEqual(ahead)
+    const t = (a[2] - behind[2]) / (ahead[2] - behind[2])
+    const onLine = behind.map((v, c) => v + (t * (ahead[c] - v)))
+    // Within 1e-3 of the cut's depth sideways: a fraction of a pixel.
+    expect(Math.hypot(a[0] - onLine[0], a[1] - onLine[1]) / -a[2]).toBeLessThan(1e-3)
+    expect(trimToFront([0, 0, 10], [0, 0, 20], 1)).toBeNull()
+    const front = [[0, 0, -10], [1, 0, -20]]
+    expect(trimToFront(...front, 1)).toEqual(front)
   })
 
   it('hop colours run from near white to near black, one step per hop', () => {

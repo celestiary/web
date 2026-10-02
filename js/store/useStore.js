@@ -7,6 +7,7 @@ import createLayersSlice from './LayersSlice'
 import createSearchSlice from './SearchSlice'
 import createStarsSlice from './StarsSlice'
 import createTimeSlice from './TimeSlice'
+import createWidgetsSlice from './WidgetsSlice'
 
 
 const useStore = create((set, get) => ({
@@ -18,6 +19,7 @@ const useStore = create((set, get) => ({
   ...createSearchSlice(set, get),
   ...createStarsSlice(set, get),
   ...createTimeSlice(set, get),
+  ...createWidgetsSlice(set, get),
 }))
 
 export default useStore

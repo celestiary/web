@@ -2,7 +2,6 @@ import React, {ReactElement, useCallback, useEffect, useRef, useState} from 'rea
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Divider from '@mui/material/Divider'
-import Drawer from '@mui/material/Drawer'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import IconButton from '@mui/material/IconButton'
 import Paper from '@mui/material/Paper'
@@ -16,14 +15,12 @@ import Typography from '@mui/material/Typography'
 import useStore from '../store/useStore'
 import {DEFAULT_PARAMS, catalogPositions, computeSpread, pathTo, statsAt, yearsAtProgress} from '../scene/Colonization'
 import {DEFAULT_PULSE, DEFAULT_STYLE, hopColorCss, pathColorCss} from '../scene/ColonizationLines'
-import useIsMobile from '../useIsMobile'
-import CloseIcon from '@mui/icons-material/Close'
+import MyLocationIcon from '@mui/icons-material/MyLocation'
 import PauseIcon from '@mui/icons-material/Pause'
 import PlayIcon from '@mui/icons-material/PlayArrow'
 import RestartIcon from '@mui/icons-material/Replay'
 
 
-const DRAWER_WIDTH = 360
 const DEFAULT_PLAY_SECONDS = 30
 const ZOOM_OUT_LY = 3000
 // Long enough for the drawer to paint its busy state before the ~1 s compute.
@@ -37,17 +34,18 @@ const MAX_TRAIL = 30
 
 
 /**
- * Side drawer with parameters, playback and line controls for a BFS of
- * humans spreading from the Sun to neighboring stars (scene/Colonization.md).
+ * The Human Expansion app (a widget, ui/apps.js): parameters, playback and
+ * line controls for a BFS of humans spreading from the Sun to neighboring
+ * stars (scene/Colonization.md).  Stopping the app removes its lines
+ * (Scene.removeColonization).
  *
- * @property {object} scene Celestiary Scene
- * @property {boolean} isOpen
- * @property {Function} onClose
+ * @property {object} celestiary
  * @returns {ReactElement}
  */
-export default function ColonizationDrawer({scene, isOpen, onClose}) {
+export default function ColonizationApp({celestiary}) {
   const isColonizationVisible = useStore((state) => state.isColonizationVisible)
   const committedStar = useStore((state) => state.committedStar)
+  const openSearch = useStore((state) => state.openSearch)
   const [speedC, setSpeedC] = useState(DEFAULT_PARAMS.speedC)
   const [numNeighbors, setNumNeighbors] = useState(DEFAULT_PARAMS.numNeighbors)
   const [launchDelayYears, setLaunchDelayYears] = useState(DEFAULT_PARAMS.launchDelayYears)
@@ -61,7 +59,7 @@ export default function ColonizationDrawer({scene, isOpen, onClose}) {
   const [style, setStyle] = useState(DEFAULT_STYLE)
   const [pulse, setPulse] = useState(DEFAULT_PULSE)
   const progressRef = useRef(0)
-  const isMobile = useIsMobile()
+  const scene = celestiary.scene
   const spread = run ? run.spread : null
   const years = spread ? yearsAtProgress(spread, progress, pacing) : 0
   const stats = spread ? statsAt(spread, years) : null
@@ -112,6 +110,13 @@ export default function ColonizationDrawer({scene, isOpen, onClose}) {
     setIsPlaying(!isPlaying)
   }
 
+  // As the search bar's crosshair: open search with the picker on.  A pick
+  // commits the star (committedStar), which draws its route here.
+  const pickStar = () => {
+    openSearch()
+    useStore.setState({isStarsSelectActive: true})
+  }
+
   const changeStyle = (change) => setStyle((s) => ({...s, ...change}))
   const changePulse = (change) => setPulse((p) => ({...p, ...change}))
 
@@ -152,215 +157,214 @@ export default function ColonizationDrawer({scene, isOpen, onClose}) {
   }, [isPlaying, spread, playSeconds, setProgress])
 
   return (
-    <Drawer
-      anchor='right'
-      variant='persistent'
-      open={isOpen}
-      PaperProps={{sx: {width: isMobile ? '100%' : DRAWER_WIDTH, backgroundColor: '#121212'}}}
-      id='colonization-drawer'
-      data-testid='colonization-drawer'
-    >
-      <Stack spacing={2} sx={{p: 2}}>
-        <Stack direction='row' justifyContent='space-between' alignItems='center'>
-          <Typography variant='h5'>Human Expansion</Typography>
-          <IconButton onClick={onClose} aria-label='Close' data-testid='colonization-drawer-close'><CloseIcon/></IconButton>
+    <Stack spacing={2} sx={{p: 2, pt: 0}} data-testid='colonization-drawer'>
+      <Typography variant='body2' color='text.secondary'>
+        Breadth-first spread from the Sun across the star catalog.  Each star links to
+        its nearest neighbors; a colony waits the launch delay, then sends ships onward.
+      </Typography>
+      <FormControlLabel
+        label='Show lines (x)'
+        control={
+          <Switch
+            checked={isColonizationVisible}
+            onChange={() => scene.toggleColonization()}
+            data-testid='colonization-drawer-show'
+          />
+        }
+      />
+
+      <Section title='Model'>
+        <ParamField label='Speed (fraction of c)' value={speedC} onChange={setSpeedC} min={0.001} max={1} step={0.05}/>
+        <ParamField label='Nearest neighbors per star' value={numNeighbors} onChange={setNumNeighbors} min={1} max={32} step={1} isInt/>
+        <ParamField label='Launch delay per colony (years)' value={launchDelayYears} onChange={setLaunchDelayYears} min={0} step={50}/>
+        <ParamField label='Playback duration (seconds)' value={playSeconds} onChange={setPlaySeconds} min={1} step={5}/>
+        <Stack direction='row' spacing={1}>
+          <Button
+            variant='contained'
+            onClick={compute}
+            disabled={isComputing}
+            sx={{borderRadius: 1}}
+            data-testid='colonization-drawer-run'
+          >
+            {isComputing ? 'Computing…' : spread ? 'Recompute' : 'Run'}
+          </Button>
+          <Button
+            variant='outlined'
+            onClick={() => scene.setCameraDistance(ZOOM_OUT_LY)}
+            sx={{borderRadius: 1}}
+            data-testid='colonization-drawer-zoom-out'
+          >
+            Zoom out
+          </Button>
         </Stack>
-        <Typography variant='body2' color='text.secondary'>
-          Breadth-first spread from the Sun across the star catalog.  Each star links to
-          its nearest neighbors; a colony waits the launch delay, then sends ships onward.
-        </Typography>
+        {error && <Typography color='error'>{error}</Typography>}
+      </Section>
+
+      {spread && (
+        <Section title='Timeline'>
+          <Stack direction='row' alignItems='center' spacing={1}>
+            <IconButton
+              onClick={togglePlay}
+              aria-label={isPlaying ? 'Pause expansion' : 'Play expansion'}
+              data-testid='colonization-drawer-play'
+            >
+              {isPlaying ? <PauseIcon/> : <PlayIcon/>}
+            </IconButton>
+            <IconButton
+              onClick={() => setProgress(0)}
+              aria-label='Restart expansion'
+              data-testid='colonization-drawer-restart'
+            >
+              <RestartIcon/>
+            </IconButton>
+            <Slider
+              aria-label='Expansion timeline'
+              data-testid='colonization-drawer-timeline'
+              value={progress}
+              min={0}
+              max={1}
+              step={0.001}
+              onChange={(e, v) => {
+                setIsPlaying(false)
+                setProgress(v)
+              }}
+            />
+          </Stack>
+          <Stack direction='row' alignItems='center' justifyContent='space-between'>
+            <Typography variant='body2' color='text.secondary'>Pace timeline</Typography>
+            <ToggleButtonGroup
+              size='small'
+              exclusive
+              value={pacing}
+              onChange={(e, v) => v && setPacing(v)}
+              sx={{'& .MuiToggleButton-root': {borderRadius: 1, px: 1.5, textTransform: 'none'}}}
+            >
+              <ToggleButton value='stars'>By stars</ToggleButton>
+              <ToggleButton value='years'>By years</ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
+          <Box>
+            <Stat label='Years since launch' value={fmt(years)}/>
+            <Stat label='Stars colonized' value={`${fmt(stats.numColonized)} / ${fmt(spread.numStars)}`}/>
+            <Stat label='Hop reached' value={`${stats.hop} / ${spread.maxHop}`}/>
+          </Box>
+          <HopLegend maxHop={spread.maxHop} hop={stats.hop}/>
+        </Section>
+      )}
+
+      {spread && (
+        <Section title='Selected star'>
+          {route ?
+            <RouteInfo name={committedStar.displayName || `HIP ${committedStar.hipId}`} route={route}/> :
+            <Typography variant='body2' color='text.secondary'>
+              Pick a star to trace its route from the Sun.
+            </Typography>}
+          <Box>
+            <Button
+              variant='outlined'
+              size='small'
+              startIcon={<MyLocationIcon fontSize='small'/>}
+              onClick={pickStar}
+              sx={{borderRadius: 1}}
+              data-testid='colonization-drawer-pick'
+            >
+              {route ? 'Pick another star' : 'Pick a star'}
+            </Button>
+          </Box>
+        </Section>
+      )}
+
+      <Section title='Lines'>
+        <LabeledSlider
+          label='Width, first hop'
+          value={style.widthFirst}
+          min={0.5}
+          max={MAX_WIDTH_PX}
+          step={0.5}
+          format={(v) => `${v} px`}
+          onChange={(v) => changeStyle({widthFirst: v})}
+          testId='colonization-drawer-width-first'
+        />
+        <LabeledSlider
+          label='Width, last hop'
+          value={style.widthLast}
+          min={0.5}
+          max={MAX_WIDTH_PX}
+          step={0.5}
+          format={(v) => `${v} px`}
+          onChange={(v) => changeStyle({widthLast: v})}
+          testId='colonization-drawer-width-last'
+        />
+        <LabeledSlider
+          label='Opacity'
+          value={style.opacity}
+          min={0.05}
+          max={1}
+          step={0.05}
+          format={(v) => `${Math.round(v * 100)}%`}
+          onChange={(v) => changeStyle({opacity: v})}
+          testId='colonization-drawer-opacity'
+        />
         <FormControlLabel
-          label='Show lines (x)'
+          label='Size attenuation'
           control={
             <Switch
-              checked={isColonizationVisible}
-              onChange={() => scene.toggleColonization()}
-              data-testid='colonization-drawer-show'
+              checked={style.sizeAttenuation}
+              onChange={(e) => changeStyle({sizeAttenuation: e.target.checked})}
+              data-testid='colonization-drawer-attenuation'
             />
           }
         />
-
-        <Section title='Model'>
-          <ParamField label='Speed (fraction of c)' value={speedC} onChange={setSpeedC} min={0.001} max={1} step={0.05}/>
-          <ParamField label='Nearest neighbors per star' value={numNeighbors} onChange={setNumNeighbors} min={1} max={32} step={1} isInt/>
-          <ParamField label='Launch delay per colony (years)' value={launchDelayYears} onChange={setLaunchDelayYears} min={0} step={50}/>
-          <ParamField label='Playback duration (seconds)' value={playSeconds} onChange={setPlaySeconds} min={1} step={5}/>
-          <Stack direction='row' spacing={1}>
-            <Button
-              variant='contained'
-              onClick={compute}
-              disabled={isComputing}
-              sx={{borderRadius: 1}}
-              data-testid='colonization-drawer-run'
-            >
-              {isComputing ? 'Computing…' : spread ? 'Recompute' : 'Run'}
-            </Button>
-            <Button
-              variant='outlined'
-              onClick={() => scene.setCameraDistance(ZOOM_OUT_LY)}
-              sx={{borderRadius: 1}}
-              data-testid='colonization-drawer-zoom-out'
-            >
-              Zoom out
-            </Button>
-          </Stack>
-          {error && <Typography color='error'>{error}</Typography>}
-        </Section>
-
-        {spread && (
-          <Section title='Timeline'>
-            <Stack direction='row' alignItems='center' spacing={1}>
-              <IconButton
-                onClick={togglePlay}
-                aria-label={isPlaying ? 'Pause expansion' : 'Play expansion'}
-                data-testid='colonization-drawer-play'
-              >
-                {isPlaying ? <PauseIcon/> : <PlayIcon/>}
-              </IconButton>
-              <IconButton
-                onClick={() => setProgress(0)}
-                aria-label='Restart expansion'
-                data-testid='colonization-drawer-restart'
-              >
-                <RestartIcon/>
-              </IconButton>
-              <Slider
-                aria-label='Expansion timeline'
-                data-testid='colonization-drawer-timeline'
-                value={progress}
-                min={0}
-                max={1}
-                step={0.001}
-                onChange={(e, v) => {
-                  setIsPlaying(false)
-                  setProgress(v)
-                }}
-              />
-            </Stack>
-            <Stack direction='row' alignItems='center' justifyContent='space-between'>
-              <Typography variant='body2' color='text.secondary'>Pace timeline</Typography>
-              <ToggleButtonGroup
-                size='small'
-                exclusive
-                value={pacing}
-                onChange={(e, v) => v && setPacing(v)}
-                sx={{'& .MuiToggleButton-root': {borderRadius: 1, px: 1.5, textTransform: 'none'}}}
-              >
-                <ToggleButton value='stars'>By stars</ToggleButton>
-                <ToggleButton value='years'>By years</ToggleButton>
-              </ToggleButtonGroup>
-            </Stack>
-            <Box>
-              <Stat label='Years since launch' value={fmt(years)}/>
-              <Stat label='Stars colonized' value={`${fmt(stats.numColonized)} / ${fmt(spread.numStars)}`}/>
-              <Stat label='Hop reached' value={`${stats.hop} / ${spread.maxHop}`}/>
-            </Box>
-            <HopLegend maxHop={spread.maxHop} hop={stats.hop}/>
-          </Section>
-        )}
-
-        {spread && (
-          <Section title='Selected star'>
-            {route ?
-              <RouteInfo name={committedStar.displayName || `HIP ${committedStar.hipId}`} route={route}/> :
-              <Typography variant='body2' color='text.secondary'>
-                Pick a star (the search bar&apos;s crosshair) to trace its route from the Sun.
-              </Typography>}
-          </Section>
-        )}
-
-        <Section title='Lines'>
+        {style.sizeAttenuation &&
           <LabeledSlider
-            label='Width, first hop'
-            value={style.widthFirst}
-            min={0.5}
-            max={MAX_WIDTH_PX}
-            step={0.5}
-            format={(v) => `${v} px`}
-            onChange={(v) => changeStyle({widthFirst: v})}
-            testId='colonization-drawer-width-first'
-          />
-          <LabeledSlider
-            label='Width, last hop'
-            value={style.widthLast}
-            min={0.5}
-            max={MAX_WIDTH_PX}
-            step={0.5}
-            format={(v) => `${v} px`}
-            onChange={(v) => changeStyle({widthLast: v})}
-            testId='colonization-drawer-width-last'
-          />
-          <LabeledSlider
-            label='Opacity'
-            value={style.opacity}
-            min={0.05}
-            max={1}
+            label='Full width at'
+            value={Math.log10(style.attenuationLy)}
+            min={ATTENUATION_LOG_MIN}
+            max={ATTENUATION_LOG_MAX}
             step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
-            onChange={(v) => changeStyle({opacity: v})}
-            testId='colonization-drawer-opacity'
-          />
-          <FormControlLabel
-            label='Size attenuation'
-            control={
-              <Switch
-                checked={style.sizeAttenuation}
-                onChange={(e) => changeStyle({sizeAttenuation: e.target.checked})}
-                data-testid='colonization-drawer-attenuation'
-              />
-            }
-          />
-          {style.sizeAttenuation &&
-            <LabeledSlider
-              label='Full width at'
-              value={Math.log10(style.attenuationLy)}
-              min={ATTENUATION_LOG_MIN}
-              max={ATTENUATION_LOG_MAX}
-              step={0.05}
-              format={(v) => `${fmt(10 ** v)} ly`}
-              onChange={(v) => changeStyle({attenuationLy: 10 ** v})}
-              testId='colonization-drawer-attenuation-distance'
-            />}
-        </Section>
+            format={(v) => `${fmt(10 ** v)} ly`}
+            onChange={(v) => changeStyle({attenuationLy: 10 ** v})}
+            testId='colonization-drawer-attenuation-distance'
+          />}
+      </Section>
 
-        <Section title='Pulse'>
-          <FormControlLabel
-            label='Pulse along the hops'
-            control={
-              <Switch
-                checked={pulse.on}
-                onChange={(e) => changePulse({on: e.target.checked})}
-                data-testid='colonization-drawer-pulse'
-              />
-            }
-          />
-          <ParamField label='Seconds per hop (T)' value={pulse.stepSec} onChange={(v) => changePulse({stepSec: v})} min={0.02} step={0.05}/>
-          <LabeledSlider
-            label='Trail (N hops)'
-            value={pulse.trail}
-            min={0}
-            max={MAX_TRAIL}
-            step={1}
-            format={(v) => (v ? `${v}` : 'none')}
-            onChange={(v) => changePulse({trail: v})}
-            testId='colonization-drawer-trail'
-          />
-        </Section>
+      <Section title='Pulse'>
+        <FormControlLabel
+          label='Pulse along the hops'
+          control={
+            <Switch
+              checked={pulse.on}
+              onChange={(e) => changePulse({on: e.target.checked})}
+              data-testid='colonization-drawer-pulse'
+            />
+          }
+        />
+        <ParamField label='Seconds per hop (T)' value={pulse.stepSec} onChange={(v) => changePulse({stepSec: v})} min={0.02} step={0.05}/>
+        <LabeledSlider
+          label='Trail (N hops)'
+          value={pulse.trail}
+          min={0}
+          max={MAX_TRAIL}
+          step={1}
+          format={(v) => (v ? `${v}` : 'none')}
+          onChange={(v) => changePulse({trail: v})}
+          testId='colonization-drawer-trail'
+        />
+      </Section>
 
-        {spread && (
-          <Section title='Whole spread'>
-            <Box>
-              <Stat label='Longest path' value={`${spread.maxHop} hops`}/>
-              <Stat label='Time to reach all' value={`${fmt(spread.maxYears)} years`}/>
-              <Stat label='Hop length, median' value={`${spread.medianHopLy.toFixed(1)} ly`}/>
-              <Stat label='Hop length, mean' value={`${spread.meanHopLy.toFixed(1)} ly`}/>
-              <Stat label='Hop length, max' value={`${fmt(spread.maxHopLy)} ly`}/>
-              {spread.numBridges > 0 && <Stat label='Bridges between clusters' value={spread.numBridges}/>}
-            </Box>
-          </Section>
-        )}
-      </Stack>
-    </Drawer>
+      {spread && (
+        <Section title='Whole spread'>
+          <Box>
+            <Stat label='Longest path' value={`${spread.maxHop} hops`}/>
+            <Stat label='Time to reach all' value={`${fmt(spread.maxYears)} years`}/>
+            <Stat label='Hop length, median' value={`${spread.medianHopLy.toFixed(1)} ly`}/>
+            <Stat label='Hop length, mean' value={`${spread.meanHopLy.toFixed(1)} ly`}/>
+            <Stat label='Hop length, max' value={`${fmt(spread.maxHopLy)} ly`}/>
+            {spread.numBridges > 0 && <Stat label='Bridges between clusters' value={spread.numBridges}/>}
+          </Box>
+        </Section>
+      )}
+    </Stack>
   )
 }
 

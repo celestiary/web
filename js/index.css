@@ -197,7 +197,8 @@ button {
 #top-right {
   position: fixed;
   top: 0;
-  right: 0;
+  /* Left of the widgets dock, when it shows (ui/WidgetsDrawer.jsx). */
+  right: var(--dock-width, 0px);
   text-align: right;
 }
 

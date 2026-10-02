@@ -28,17 +28,17 @@ const RAMP = [
 ]
 
 export const DEFAULT_STYLE = {
-  widthFirst: 6, // px at hop 1
-  widthLast: 1, // px at the last hop
-  sizeAttenuation: false,
-  attenuationLy: 300, // distance at which an attenuated line is its full width
-  opacity: 1,
+  widthFirst: 5, // px at hop 1
+  widthLast: 0.5, // px at the last hop
+  sizeAttenuation: true,
+  attenuationLy: 32, // distance at which an attenuated line is its full width
+  opacity: 0.25,
 }
 
 export const DEFAULT_PULSE = {
   on: false,
-  stepSec: 0.25, // T, seconds the pulse sits on each hop
-  trail: 0, // N, hops a trail takes to fade back
+  stepSec: 0.05, // T, seconds the pulse sits on each hop
+  trail: 10, // N, hops a trail takes to fade back
 }
 
 // The route to a selected star: amber, over the spread's blues.
@@ -61,6 +61,13 @@ const SORT_BUCKETS = 4096
 const RESORT_MIN_LY = 0.05
 const RESORT_FRACTION = 0.02
 const RESORT_MIN_MS = 250
+// A segment crossing the camera plane is cut at this fraction of its length
+// in front of the camera (or the near plane, if farther).  float32 resolves
+// a point on a segment to ~1e-7 of its length (~1e12 m for a hop thousands
+// of light-years long), so a cut at the near plane (~6e5 m) landed anywhere
+// within that: at or behind the camera, where w <= 0.  1e-5 keeps the cut a
+// hundred times its error in front, so on screen within about a pixel.
+const TRIM_FRACTION = 1e-5
 
 
 // Each segment is an instance of one quad, extruded in screen space so it
@@ -71,9 +78,10 @@ const RESORT_MIN_MS = 250
 // camera, turned by mat3(modelViewMatrix) (the StellarFrame's precession and
 // the view) and never translated in float32.  The end grows from the start
 // while the ship is in transit: at the start at departure (aTimes.x), at its
-// star at arrival (aTimes.y).  The segment is trimmed to the near plane in
-// view space before projecting, as a line that passes behind the camera
-// would otherwise project through infinity.
+// star at arrival (aTimes.y).  A segment crossing the camera plane is cut in
+// front of the camera in view space before projecting (trimToFront), as a
+// line that passes behind the camera would otherwise project through
+// infinity.
 const vertexShader = `
   uniform vec3 uCamPosWorldHigh;
   uniform vec3 uCamPosWorldLow;
@@ -115,15 +123,19 @@ const vertexShader = `
     e = mix(s, e, clamp((uTime - aTimes.x) / span, 0.0, 1.0));
     vec3 vs = mat3(modelViewMatrix) * s;
     vec3 ve = mat3(modelViewMatrix) * e;
-    float zNear = -uNear;
-    if (vs.z > zNear && ve.z > zNear) {
+    // As trimToFront.  The cut's depth is set, not computed: computed, it
+    // carries the mix's float32 error, which can put it behind the camera.
+    float zCut = -max(uNear, ${TRIM_FRACTION.toExponential()} * length(ve - vs));
+    if (vs.z > zCut && ve.z > zCut) {
       gl_Position = CULLED;
       return;
     }
-    if (vs.z > zNear) {
-      vs = mix(vs, ve, (zNear - vs.z) / (ve.z - vs.z));
-    } else if (ve.z > zNear) {
-      ve = mix(ve, vs, (zNear - ve.z) / (vs.z - ve.z));
+    if (vs.z > zCut) {
+      vs = mix(vs, ve, (zCut - vs.z) / (ve.z - vs.z));
+      vs.z = zCut;
+    } else if (ve.z > zCut) {
+      ve = mix(ve, vs, (zCut - ve.z) / (vs.z - ve.z));
+      ve.z = zCut;
     }
     vec4 cs = projectionMatrix * vec4(vs, 1.0);
     vec4 ce = projectionMatrix * vec4(ve, 1.0);
@@ -451,6 +463,15 @@ export default class ColonizationLines extends Object3D {
   }
 
 
+  /** Free the GPU buffers and materials of the spread and the route. */
+  dispose() {
+    this._dispose(this.tree)
+    this._dispose(this.path)
+    this.tree = null
+    this.path = null
+  }
+
+
   /** @param {Mesh|null} mesh */
   _dispose(mesh) {
     if (mesh) {
@@ -554,6 +575,40 @@ export function sortFarToNear(startHigh, startLow, endHigh, endLow, cam) {
     order[count[bucket[i]]++] = i
   }
   return order
+}
+
+
+/**
+ * Cut a view-space segment to the part in front of the camera, as the
+ * vertex shader does.  `round` emulates the GPU's float32 (Math.fround) for
+ * tests; the default is exact.
+ *
+ * @param {Array<number>} vs Start, view space (the camera looks down -z)
+ * @param {Array<number>} ve End
+ * @param {number} near Camera near plane distance
+ * @param {Function} [round]
+ * @returns {Array<Array<number>>|null} [start, end], or null if all behind
+ */
+export function trimToFront(vs, ve, near, round = (x) => x) {
+  const r = round
+  const len = r(Math.hypot(...ve.map((v, c) => r(v - vs[c]))))
+  const zCut = r(-Math.max(near, r(TRIM_FRACTION * len)))
+  if (vs[2] > zCut && ve[2] > zCut) {
+    return null
+  }
+  const cut = (a, b) => {
+    const t = r(r(zCut - a[2]) / r(b[2] - a[2]))
+    const p = a.map((v, c) => r(v + r(t * r(b[c] - v))))
+    p[2] = zCut
+    return p
+  }
+  if (vs[2] > zCut) {
+    return [cut(vs, ve), ve]
+  }
+  if (ve[2] > zCut) {
+    return [vs, cut(ve, vs)]
+  }
+  return [vs, ve]
 }
 
 

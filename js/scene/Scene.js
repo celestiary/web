@@ -1023,6 +1023,16 @@ export default class Scene {
   }
 
 
+  /** Remove the human expansion lines (its app stopped), freeing them. */
+  removeColonization() {
+    if (this.colonization) {
+      this.colonization.dispose()
+      this.colonization.removeFromParent()
+      this.colonization = null
+    }
+  }
+
+
   /** Show or hide the human expansion lines ('x'). */
   toggleColonization() {
     this._flipSetting('x')

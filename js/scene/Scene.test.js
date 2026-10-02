@@ -204,6 +204,18 @@ describe('Scene settings tracking', () => {
     expect(lines.visible).toBe(true)
   })
 
+  it('removeColonization takes the lines out, and a later use builds new ones', () => {
+    const s = makeScene()
+    s.stars = new Object3D()
+    const lines = s.getColonization()
+    expect(lines.parent).toBe(s.stars)
+    s.removeColonization()
+    expect(s.colonization).toBeNull()
+    expect(lines.parent).toBeNull()
+    s.removeColonization() // idempotent
+    expect(s.getColonization()).not.toBe(lines)
+  })
+
   it('toggleColonization mirrors x into the store, for the drawer\'s switch', () => {
     const s = makeScene()
     const states = []

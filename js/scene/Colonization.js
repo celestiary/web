@@ -19,7 +19,7 @@ import {LIGHTYEAR_METER} from '../shared.js'
 
 export const DEFAULT_PARAMS = {
   speedC: 0.5,
-  numNeighbors: 6,
+  numNeighbors: 10,
   launchDelayYears: 100,
 }
 

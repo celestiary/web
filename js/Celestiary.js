@@ -585,6 +585,18 @@ export default class Celestiary {
 
 
   /**
+   * Narrow the canvas from the right, for the widgets dock (ui/WidgetsDrawer),
+   * so the dock sits beside the scene rather than over it.
+   *
+   * @param {number} px Width the dock takes, 0 for none
+   */
+  setRightInset(px) {
+    this.ui.container.style.width = `${window.innerWidth - px}px`
+    this.ui.onResize()
+  }
+
+
+  /**
    * Single-source-of-truth toggle for the nav panels (heads-up display).
    * Used both by the 'v' keypress and by Scene.applySettings on permalink
    * restore — the latter goes through the applier registered in the
@@ -597,7 +609,7 @@ export default class Celestiary {
    * entirely so descendants can't punch back through.
    */
   _toggleNav() {
-    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('colonization-drawer')]
+    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('widgets-drawer'), elt('widgets-dock')]
     panels.forEach((panel) => {
       if (panel) {
         panel.style.display = this.navVisible ? 'none' : ''

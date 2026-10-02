@@ -623,6 +623,7 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
 
 - `AsterismsSlice` — asterisms visibility and catalog state
 - `ColonizationSlice` — mirrors the `x` setting (human expansion lines) for the drawer's switch
+- `WidgetsSlice` — the widgets drawer and dock: open, docked, the app showing, running and pinned apps
 - `SearchSlice` — search-bar state, anchor index, committed path / star,
   preview fields; `setCommittedPath` and `setCommittedStar` are mutually
   exclusive
@@ -645,8 +646,10 @@ The hash is extended with optional camera/time state to form a **permalink** —
 Thin MUI-based overlay panels:
 
 - `TimePanel` — displays sim time, pause/play, time-scale controls
-- `ColonizationDrawer` — right side drawer behind the Widgets button: human
-  expansion parameters, timeline and stats ([Colonization.md](js/scene/Colonization.md))
+- `WidgetsDrawer` — the widgets drawer and dock, behind the Widgets button
+  (below)
+- `ColonizationApp` — the Human Expansion app's panel
+  ([Colonization.md](js/scene/Colonization.md))
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `SearchBar` — breadcrumb-anchored search (chips, MUI `Autocomplete`,
@@ -654,6 +657,28 @@ Thin MUI-based overlay panels:
   [js/search/DESIGN.md](js/search/DESIGN.md) for the index architecture.
 - `DatePicker`, `NumberField`, `NumberInput` — supporting inputs
 - `TooltipToggleButton`, `TooltipIconButton`, `NavToggleButton` — icon button wrappers
+
+### Widgets drawer and dock
+
+Optional tools ("apps") live in a drawer on the right, opened by the
+Widgets button (top right).  `ui/apps.jsx` lists them: a name, an icon, a
+panel, and a `stop` that removes whatever the app added to the scene.
+State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
+
+- **Three states.** Closed; open, the drawer over the right of the canvas,
+  showing the app tray or one app; and dock, a 56 px bar of icons right of
+  the canvas.  The dock shows while docked (the drawer's dock button) or
+  while any app is pinned.  The canvas narrows for it
+  (`Celestiary.setRightInset`), and `#top-right` moves left of it
+  (`--dock-width`), so it never covers the scene; an open drawer sits left
+  of it.
+- **Running.** An app runs from when it's opened until stopped.  Its
+  header has a pin and an X.  X stops it (`stop`, out of the scene, back
+  to the tray).  Closing the drawer stops every app that isn't pinned; a
+  pinned app keeps running, panel mounted and state kept, with its icon
+  in the dock to reopen it.  The dock can't be closed while an app is
+  pinned.
+- **Chrome.** The drawer and dock are HTML chrome: `v` hides them.
 
 ## Guide (`js/guide/`)
 
