@@ -1,13 +1,9 @@
 import {
   AdditiveBlending,
   AxesHelper,
-  BufferAttribute,
-  BufferGeometry,
   Group,
   ImageLoader,
   LOD,
-  Line,
-  LineBasicMaterial,
   MeshPhongMaterial,
   Object3D,
   Texture,
@@ -21,7 +17,6 @@ import Object from './object.js'
 import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
 import {newFarPoint, pointSwitchDistance} from './farPoint.js'
-import {sceneReferred} from './hdr.js'
 import {
   point,
   sphere,
@@ -30,10 +25,16 @@ import Rings from './rings/Rings.js'
 import * as Material from './material.js'
 import {meanElements} from './meanElements.js'
 import {ORBIT_LINE_POINTS, unitEllipse} from './orbitPath.js'
+import {newWideLineStrip} from './wideLines.js'
 import {dataUrl} from '../dataUrl.js'
 import {monthOfJulianDay, monthlyPath} from './monthly.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
 import {capitalize, named} from '../utils.js'
+
+
+// Orbit lines: blue, added over the scene, as before as 1 px GL lines.
+const ORBIT_COLOR = 0x0000ff
+const ORBIT_WIDTH_PX = 1.5
 
 
 // Earth's city lights, as rendered before tone mapping: what 5e15 came to
@@ -129,7 +130,8 @@ export default class Planet extends Object {
 
 
   /**
-   * The orbit line: a group holding a Line (`group.line`), which starts as
+   * The orbit line: a group holding a wide line strip (`group.line`, a
+   * Line's position attribute and draw range; wideLines.js), which starts as
    * the orbit's unit ellipse, centred, in the XZ plane, scaled to the
    * semi-major axis.  Animation lays it on a mean-element orbit
    * (layOrbitShape), or, for the planets and the Moon, rewrites its
@@ -142,17 +144,15 @@ export default class Planet extends Object {
   newOrbit(scene, orbit) {
     const group = named(new Group(), 'orbit')
     const positions = unitEllipse(assertInRange(orbit.eccentricity, 0, 1), new Float32Array(ORBIT_LINE_POINTS * 3))
-    const ellipseGeometry = new BufferGeometry()
-    ellipseGeometry.setAttribute('position', new BufferAttribute(positions, 3))
-    const orbitMaterial = sceneReferred(new LineBasicMaterial({
-      color: 0x0000ff,
-      blending: AdditiveBlending,
-      depthTest: true,
-      depthWrite: true,
-      transparent: false,
-      toneMapped: false,
-    }))
-    const pathShape = new Line(ellipseGeometry, orbitMaterial)
+    // Wide lines (wideLines.js), as the asterisms: a strip with a Line's
+    // position attribute and draw range, which orbitPath.js and bodyLine.js
+    // rewrite in place.
+    const pathShape = newWideLineStrip(positions, {
+      name: 'orbit line',
+      color: ORBIT_COLOR,
+      width: ORBIT_WIDTH_PX,
+      material: {blending: AdditiveBlending, depthTest: true, depthWrite: true, transparent: false},
+    })
     group.add(pathShape)
     group.line = pathShape
     const orbitScaled = orbit.semiMajorAxis.scalar

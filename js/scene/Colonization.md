@@ -11,7 +11,7 @@ one line per hop.
 |---|---|
 | `Colonization.js` | the graph and the spread: k-d tree, kNN graph, bridging, layered BFS, timeline helpers (pure, tested) |
 | `ColonizationLines.js` | the lines: coloured and sized by hop, grown, pulsed, and the selected star's route |
-| `wideLines.js` | the line renderer, shared with the asterisms: instanced screen-space quads, RTE, the near cut, w = 1, far-to-near sort |
+| `wideLines.js` | the line renderer, shared with the asterisms and orbits: instanced screen-space quads, RTE, the near cut, w = 1, far-to-near sort, strips |
 | `../ui/ColonizationApp.jsx` | the app's panel: show switch, model parameters, timeline, selected star's route and picker, line and pulse controls, stats |
 | `../store/ColonizationSlice.js` | `isColonizationVisible`, the `x` setting mirrored for the drawer |
 
@@ -42,9 +42,10 @@ compute, on the main thread, behind the app's "Computing…" state.
 
 ## Drawing
 
-The renderer is `wideLines.js`, shared with the asterisms, which moved to
-it from 1 px GL lines: those flickered from Earth's surface while time
-ran (the view turning with Earth), where these lines didn't.
+The renderer is `wideLines.js`, shared with the asterisms and (as a
+strip, `newWideLineStrip`) the orbit lines, which moved to it from 1 px
+GL lines: the asterisms' flickered from Earth's surface while time ran
+(the view turning with Earth), where these lines didn't.
 
 - **Wide lines.** WebGL draws `LINES` 1 px wide whatever `linewidth`
   says, so each hop is an instance of one quad (`InstancedBufferGeometry`,

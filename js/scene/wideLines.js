@@ -1,7 +1,11 @@
 import {
+  Color,
+  DynamicDrawUsage,
   Float32BufferAttribute,
   InstancedBufferAttribute,
   InstancedBufferGeometry,
+  InstancedInterleavedBuffer,
+  InterleavedBufferAttribute,
   Mesh,
   NormalBlending,
   ShaderMaterial,
@@ -22,9 +26,15 @@ import {rteCameraLocal} from './rte.js'
  * (ColonizationLines.js) and the asterisms (Asterisms.js).  Design and the
  * GPU lessons behind it: Colonization.md, "Drawing".
  *
- * Per segment: start and end (metres, in the mesh's frame), colour, hop
- * (for a width ramp and a pulse) and times (to grow it over time).  Static
- * lines leave hop and times at their defaults and are always whole.
+ * Two kinds:
+ *
+ * - Segments (newWideLines): per segment, start and end (metres, in the
+ *   mesh's frame), colour, hop (for a width ramp and a pulse) and times (to
+ *   grow it over time), RTE.  Static lines leave hop and times at their
+ *   defaults and are always whole.
+ * - A strip (newWideLineStrip): a polyline in a `position` attribute, as a
+ *   three Line's, drawn through the ordinary model-view (its owner keeps
+ *   float32 precision, as the orbit lines do, bodyLine.js), one colour.
  */
 
 
@@ -53,10 +63,14 @@ const ATTRIBUTES = ['startHigh', 'startLow', 'endHigh', 'endLow', 'aColor', 'aTi
 
 
 // Each segment is an instance of one quad, extruded in screen space so it
-// can be wider than WebGL's 1 px lines.  position.x is the side (-1, 1),
-// position.y the end (0 start, 1 end).
+// can be wider than WebGL's 1 px lines.  corner.x is the side (-1, 1),
+// corner.y the end (0 start, 1 end).
 //
-// RTE: endpoints are float32 high + low parts about the
+// STRIP (a polyline): segment i is vertex i to i + 1, through the ordinary
+// model-view; one colour (uOverride), no growth, no caps (consecutive
+// segments share their ends, and a cap would double them, additive).
+//
+// Otherwise, RTE: endpoints are float32 high + low parts about the
 // camera, turned by mat3(modelViewMatrix) (the StellarFrame's precession and
 // the view) and never translated in float32.  The end grows from the start
 // while the ship is in transit: at the start at departure (aTimes.x), at its
@@ -80,6 +94,11 @@ const vertexShader = `
   uniform float uPulseHop;
   uniform float uTrail;
   uniform vec4 uOverride;
+  attribute vec3 corner;
+#ifdef STRIP
+  attribute vec3 stripStart;
+  attribute vec3 stripEnd;
+#else
   attribute vec3 startHigh;
   attribute vec3 startLow;
   attribute vec3 endHigh;
@@ -87,6 +106,7 @@ const vertexShader = `
   attribute vec2 aTimes;
   attribute vec3 aColor;
   attribute float aHop;
+#endif
   varying vec3 vColor;
   varying float vAlpha;
   varying float vSide;
@@ -95,6 +115,13 @@ const vertexShader = `
   const vec4 CULLED = vec4(0.0, 0.0, 2.0, 1.0);
 
   void main() {
+#ifdef STRIP
+    vec3 vs = (modelViewMatrix * vec4(stripStart, 1.0)).xyz;
+    vec3 ve = (modelViewMatrix * vec4(stripEnd, 1.0)).xyz;
+    vec3 color = uOverride.rgb;
+    float hop = 1.0;
+    float cap = 0.0;
+#else
     if (uTime < aTimes.x) {
       gl_Position = CULLED;
       return;
@@ -105,6 +132,10 @@ const vertexShader = `
     e = mix(s, e, clamp((uTime - aTimes.x) / span, 0.0, 1.0));
     vec3 vs = mat3(modelViewMatrix) * s;
     vec3 ve = mat3(modelViewMatrix) * e;
+    vec3 color = aColor;
+    float hop = aHop;
+    float cap = 1.0;
+#endif
     // As trimToFront.  The cut's depth is set, not computed: computed, it
     // carries the mix's float32 error, which can put it behind the camera.
     float zCut = -max(uNear, ${TRIM_FRACTION.toExponential()} * length(ve - vs));
@@ -126,13 +157,13 @@ const vertexShader = `
     float len = length(d);
     vec2 dir = len > 1e-6 ? d / len : vec2(1.0, 0.0);
     vec2 perp = vec2(-dir.y, dir.x);
-    bool atEnd = position.y > 0.5;
+    bool atEnd = corner.y > 0.5;
 
-    float t = uMaxHop > 1.0 ? (aHop - 1.0) / (uMaxHop - 1.0) : 0.0;
+    float t = uMaxHop > 1.0 ? (hop - 1.0) / (uMaxHop - 1.0) : 0.0;
     float w = mix(uWidthFirst, uWidthLast, t);
     float boost = 0.0;
     if (uPulseOn > 0.5) {
-      float behind = floor(uPulseHop) - aHop;
+      float behind = floor(uPulseHop) - hop;
       if (behind >= 0.0 && behind <= uTrail) {
         boost = 1.0 - (behind / (uTrail + 1.0));
       }
@@ -146,7 +177,7 @@ const vertexShader = `
     float halfW = (0.5 * w) + 1.0;
     vec4 clip = atEnd ? ce : cs;
     // Square caps: out along the segment by halfW, so hops meet without gaps.
-    vec2 offset = (perp * position.x + dir * (atEnd ? 1.0 : -1.0)) * halfW;
+    vec2 offset = (perp * corner.x + dir * (cap * (atEnd ? 1.0 : -1.0))) * halfW;
     clip.xy += offset / halfRes * clip.w;
     // Divided through to w = 1: the same point and depth, with w out of the
     // way.  w is the distance in metres, ~1e18 at light-years, and the
@@ -156,9 +187,9 @@ const vertexShader = `
     // line's width.  Safe because both ends are in front of the near plane.
     gl_Position = vec4(clip.xyz / clip.w, 1.0);
 
-    vColor = mix(mix(aColor, vec3(1.0), ${PULSE_WHITEN} * boost), uOverride.rgb, uOverride.a);
+    vColor = mix(mix(color, vec3(1.0), ${PULSE_WHITEN} * boost), uOverride.rgb, uOverride.a);
     vAlpha = max(uOpacity, boost);
-    vSide = position.x;
+    vSide = corner.x;
     vHalf = halfW;
   }
 `
@@ -211,10 +242,7 @@ export function newWideLines(segments, {name = 'WideLines', sort = false, onFram
     arrays.endLow[j] = end[j] - arrays.endHigh[j]
   }
   const geom = new InstancedBufferGeometry()
-  geom.setAttribute('position', new Float32BufferAttribute([-1, 0, 0, 1, 0, 0, -1, 1, 0, 1, 1, 0], 3))
-  // Counter-clockwise on screen (front faces): perp is dir turned left, so
-  // side -1 is the right edge.
-  geom.setIndex([1, 0, 2, 1, 2, 3])
+  setQuad(geom)
   const sizes = {aTimes: 2, aHop: 1}
   for (const key of ATTRIBUTES) {
     geom.setAttribute(key, new InstancedBufferAttribute(arrays[key], sizes[key] || 3))
@@ -248,6 +276,111 @@ export function newWideLines(segments, {name = 'WideLines', sort = false, onFram
     onFrame?.(u)
   }
   return mesh
+}
+
+
+/**
+ * A polyline as wide lines, in place of a three Line: its geometry keeps a
+ * Line's `position` attribute and `setDrawRange`, which its owner rewrites
+ * as it would a Line's (bodyLine.js), and draws vertex i to i + 1.
+ *
+ * @param {Float32Array} positions The polyline, packed xyz, in the mesh's frame
+ * @param {object} options
+ * @param {string} [options.name]
+ * @param {number|string} options.color As three's Color takes
+ * @param {number} [options.width] px
+ * @param {number} [options.opacity]
+ * @param {object} [options.material] More ShaderMaterial parameters
+ *   (blending, depthWrite, transparent)
+ * @returns {Mesh}
+ */
+export function newWideLineStrip(positions, {name = 'WideLineStrip', color, width = 1, opacity = 1, material = {}}) {
+  const mesh = new Mesh(new WideLineStripGeometry(new Float32BufferAttribute(positions, 3)),
+      newWideLineMaterial({defines: {STRIP: ''}, ...material}))
+  mesh.name = name
+  mesh.frustumCulled = false
+  mesh.raycast = noRaycast
+  const u = mesh.material.uniforms
+  u.uOverride.value.set(...new Color(color).toArray(), 1)
+  u.uWidthFirst.value = u.uWidthLast.value = width
+  u.uOpacity.value = opacity
+  const res = new Vector2()
+  mesh.onBeforeRender = (renderer, scene, camera) => {
+    const target = renderer.getRenderTarget()
+    if (target) {
+      res.set(target.width, target.height)
+    } else {
+      renderer.getDrawingBufferSize(res)
+    }
+    u.uResolution.value.copy(res)
+    u.uPixelRatio.value = renderer.getPixelRatio()
+    u.uNear.value = camera.near
+  }
+  return mesh
+}
+
+
+/**
+ * A polyline's geometry for the STRIP shader.  `position` holds the
+ * vertices, as a Line's; an instanced, interleaved view of the same array
+ * gives each segment its start (vertex i) and end (i + 1).  Setting
+ * `position` (a new array) rewires the view; flagging it for upload flags
+ * the view too; the draw range sets the segment count.
+ */
+export class WideLineStripGeometry extends InstancedBufferGeometry {
+  /** @param {object} position A BufferAttribute of the polyline, itemSize 3 */
+  constructor(position) {
+    super()
+    setQuad(this)
+    this.setAttribute('position', position)
+  }
+
+
+  /**
+   * @param {string} name
+   * @param {object} attribute
+   * @returns {WideLineStripGeometry}
+   */
+  setAttribute(name, attribute) {
+    super.setAttribute(name, attribute)
+    if (name === 'position') {
+      const view = new InstancedInterleavedBuffer(attribute.array, 3, 1)
+      view.setUsage(DynamicDrawUsage)
+      super.setAttribute('stripStart', new InterleavedBufferAttribute(view, 3, 0))
+      super.setAttribute('stripEnd', new InterleavedBufferAttribute(view, 3, 3))
+      Object.defineProperty(attribute, 'needsUpdate', {
+        configurable: true,
+        set(value) {
+          if (value === true) {
+            attribute.version++
+            view.needsUpdate = true
+          }
+        },
+      })
+      this._vertices = attribute.count
+      this.instanceCount = Math.max(this._vertices - 1, 0)
+    }
+    return this
+  }
+
+
+  /**
+   * @param {number} start Must be 0: instances can't start part way
+   * @param {number} count Vertices drawn
+   */
+  setDrawRange(start, count) {
+    super.setDrawRange(start, count)
+    this.instanceCount = Math.max(Math.min(count, this._vertices) - 1, 0)
+  }
+}
+
+
+/** Give an instanced geometry the one quad each segment is drawn as. */
+function setQuad(geom) {
+  geom.setAttribute('corner', new Float32BufferAttribute([-1, 0, 0, 1, 0, 0, -1, 1, 0, 1, 1, 0], 3))
+  // Counter-clockwise on screen (front faces): perp is dir turned left, so
+  // side -1 is the right edge.
+  geom.setIndex([1, 0, 2, 1, 2, 3])
 }
 
 
@@ -300,8 +433,11 @@ function maybeSort(geom, sorted, high, low) {
 }
 
 
-/** @returns {ShaderMaterial} */
-function newWideLineMaterial() {
+/**
+ * @param {object} [params] More ShaderMaterial parameters, overriding these
+ * @returns {ShaderMaterial}
+ */
+function newWideLineMaterial(params = {}) {
   return sceneReferred(new ShaderMaterial({
     uniforms: {
       uCamPosWorldHigh: {value: new Vector3()},
@@ -326,6 +462,7 @@ function newWideLineMaterial() {
     transparent: true,
     blending: NormalBlending,
     depthWrite: false,
+    ...params,
   }))
 }
 

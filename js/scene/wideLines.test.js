@@ -1,6 +1,7 @@
 import {hopWidth} from './Colonization.js'
 import {hopColor} from './ColonizationLines.js'
-import {sortFarToNear, trimToFront} from './wideLines.js'
+import {Float32BufferAttribute} from 'three'
+import {WideLineStripGeometry, sortFarToNear, trimToFront} from './wideLines.js'
 
 
 /**
@@ -56,6 +57,28 @@ describe('wideLines', () => {
     expect(trimToFront([0, 0, 10], [0, 0, 20], 1)).toBeNull()
     const front = [[0, 0, -10], [1, 0, -20]]
     expect(trimToFront(...front, 1)).toEqual(front)
+  })
+
+  it('WideLineStripGeometry keeps a Line\'s position and draw range, and its segment view in step', () => {
+    const geom = new WideLineStripGeometry(new Float32BufferAttribute(new Float32Array(3 * 10), 3))
+    expect(geom.instanceCount).toBe(9)
+    expect(geom.attributes.stripStart.data.array).toBe(geom.attributes.position.array)
+    expect(geom.attributes.stripEnd.offset).toBe(3)
+    // Drawn range: segments between the drawn vertices.
+    geom.setDrawRange(0, 6)
+    expect(geom.instanceCount).toBe(5)
+    // An upload of the position flags the segment view for upload too.
+    const view = geom.attributes.stripStart.data
+    const before = view.version
+    geom.attributes.position.needsUpdate = true
+    expect(view.version).toBe(before + 1)
+    // A new position array (as BodyLine sets) rewires the view.
+    const bigger = new Float32BufferAttribute(new Float32Array(3 * 40), 3)
+    geom.setAttribute('position', bigger)
+    expect(geom.attributes.stripEnd.data.array).toBe(bigger.array)
+    expect(geom.instanceCount).toBe(39)
+    geom.setDrawRange(0, 25)
+    expect(geom.instanceCount).toBe(24)
   })
 
   it('hop colours run from near white to near black, one step per hop', () => {
