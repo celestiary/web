@@ -3,7 +3,6 @@ import {
   AxesHelper,
   Group,
   ImageLoader,
-  LOD,
   MeshPhongMaterial,
   Object3D,
   Texture,
@@ -16,7 +15,7 @@ import {
 import Object from './object.js'
 import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
-import {newFarPoint, pointSwitchDistance} from './farPoint.js'
+import {FovLOD, newFarPoint, pointSwitchDistance} from './farPoint.js'
 import {
   point,
   sphere,
@@ -265,16 +264,18 @@ export default class Planet extends Object {
     const labelTooFarDist = isMoon ? farDist * 5e1 : farDist * 5e4
     const pointTooFarDist = farDist * 1e12
 
-    const planetLOD = new LOD()
+    const planetLOD = new FovLOD()
     planetLOD.addLevel(planet, 1)
     // A point once the mesh would be under ~1.6 px across (45° fov over
     // 640 px): a sub-pixel mesh, lit at its albedo, fades to nothing.  (It
     // was 10 AU, when a fixed, blown-out exposure kept sub-pixel meshes
-    // bright.)  CesiumLayers.meshRange reads this too.
+    // bright.)  The distances are at 45°; FovLOD scales them to the camera's
+    // fov, so zooming by narrowing it brings the mesh in.
+    // CesiumLayers.meshRange reads this too.
     planetLOD.addLevel(farPoint, pointSwitchDistance(surfaceRadius))
     planetLOD.addLevel(FAR_OBJ, pointTooFarDist)
 
-    const labelLOD = new LOD()
+    const labelLOD = new FovLOD()
     const name = capitalize(this.name)
     // TODO: single sheet for all planets/moons
     const labelSheet = named(new SpriteSheet(1, name), 'label')

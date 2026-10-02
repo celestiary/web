@@ -84,6 +84,11 @@ GL lines: the asterisms' flickered from Earth's surface while time ran
   HTML chrome, so `v` hides them.  Stopping the app (its X, or closing
   the drawer with it unpinned) removes the lines
   (`Scene.removeColonization`).
+- **Permalink.** The app's state, every control and the run on screen
+  (its parameters, the place on the timeline, the selected star's route),
+  is in the link as the `apps.expansion` state token
+  ([design/URLs.md](../../design/URLs.md#human-expansion-token)).  A
+  link's run is recomputed once the stars load.
 
 ### Line controls
 

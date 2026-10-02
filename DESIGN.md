@@ -494,6 +494,11 @@ Out of scope for the goTo flow. These use `newCameraLookTween` (rotation-only, 6
 and do not rebase or reparent. They only change `camera.quaternion` while leaving the
 scene graph alone.
 
+The search bar's Look at button is a caller of this path: `setTarget` for a body,
+`Scene.lookAtStar` / `Scene.lookAtPlace` (same tween, aimed at a star's world position
+or a surface point) for results with no scene object.  See
+[js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at).
+
 
 ## Rendering Techniques
 
@@ -530,6 +535,20 @@ Without float render targets (`EXT_color_buffer_float`), or with `?hdr=0`, the o
 A planet or moon is a mesh out to `POINT_AT_RADII` (500) radii and a
 single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
 `Planet.newPlanet`).  The point is a marker, not a lit surface:
+
+- **By apparent size, so the FOV counts.**  500 radii is 1.6 px across at a
+  45° FOV over 640 px.  three's `LOD` picks a level by `distance /
+  camera.zoom`, which ignores the FOV, so a body zoomed on by narrowing the
+  FOV (which moves nothing: Look at Jupiter from Earth, then 1°) stayed a
+  point however big it drew.  The planet and label LODs are `FovLOD`
+  (`farPoint.js`): the distance is scaled by `fovScale(camera)`, the
+  tangent of the half-FOV over its value at 45° (`INITIAL_FOV`), so a body
+  switches where it has the same size on screen.  1 at 45°, so the choices
+  there are unchanged; 0.021 at 1° (the mesh out to ~24,000 radii, which is
+  1.7e12 m for Jupiter); more than 1 wider than 45°.  `CesiumLayers` scales the
+  distance the same way against `meshRange`.  Not scaled: the stars' LODs
+  (`Star`, `Stars.labelLOD`), whose distances are not a size threshold,
+  and the places' own pixel-based LOD, which already reads the FOV.
 
 - **Colour and size.**  A planet's is white and 2 px; a moon's is half
   brightness and also 2 px, since many sit by their planet's.  The
@@ -635,7 +654,7 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
 
 - `AsterismsSlice` — asterisms visibility and catalog state
 - `ColonizationSlice` — mirrors the `x` setting (human expansion lines) for the drawer's switch
-- `WidgetsSlice` — the widgets drawer and dock: open, docked, the app showing, running and pinned apps
+- `WidgetsSlice` — the widgets drawer and dock: open, docked, the app showing, running and pinned apps, and the running apps' state for the permalink
 - `SearchSlice` — search-bar state, anchor index, committed path / star,
   preview fields; `setCommittedPath` and `setCommittedStar` are mutually
   exclusive
@@ -651,7 +670,7 @@ Two routing layers coexist:
 - **Wouter path routing** (`/`, `/guide`, `/about`, `/settings`) — controls which React panels are shown
 - **URL hash** (`#sun/earth/moon`) — drives which celestial object is targeted and loaded; managed imperatively by `Celestiary` via `hashchange` events
 
-The hash is extended with optional camera/time state to form a **permalink** — see [js/permalink.md](js/permalink.md) for the format specification.
+The hash is extended with optional camera/time state to form a **permalink** — see [js/permalink.md](js/permalink.md) for the format specification — and with **state tokens** for the widgets drawer and its apps ([design/URLs.md](design/URLs.md)).
 
 ## React UI Components (`js/ui/`)
 
@@ -665,7 +684,7 @@ Thin MUI-based overlay panels:
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `SearchBar` — breadcrumb-anchored search (chips, MUI `Autocomplete`,
-  crosshair picker toggle, preview + commit flow). See
+  Go / Look at buttons, crosshair picker toggle, preview + commit flow). See
   [js/search/DESIGN.md](js/search/DESIGN.md) for the index architecture.
 - `DatePicker`, `NumberField`, `NumberInput` — supporting inputs
 - `TooltipToggleButton`, `TooltipIconButton`, `NavToggleButton` — icon button wrappers
@@ -691,6 +710,10 @@ State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
   in the dock to reopen it.  The dock can't be closed while an app is
   pinned.
 - **Chrome.** The drawer and dock are HTML chrome: `v` hides them.
+- **Permalink.** All of it is in the link: the `apps` state token, and
+  each running app's state as its own `apps.<id>` token (an app reports
+  its state to the slice, which drops it when the app stops;
+  `store/appTokens.js` encodes it).  Spec: [design/URLs.md](design/URLs.md).
 
 ## Guide (`js/guide/`)
 
@@ -723,7 +746,8 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/Time.js` | Simulation clock with time-scale control, clamped to the supported dates (J2000 ± 6000 years) |
 | `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
-| `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment` |
+| `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment`; state token values (`parseTokenValue`, `formatTokenValue`) |
+| `js/store/appTokens.js` | The widgets drawer and its apps as state tokens (`apps`, `apps.<id>`; [design/URLs.md](design/URLs.md)) |
 | `js/coords.js` | Geographic coordinate conversions: `worldToLatLngAlt`, `latLngAltToLocal` |
 | `js/store/useStore.js` | Zustand store root |
 | `js/dataUrl.js` | `dataUrl()`: resolves large-data paths against the build's data base URL ([Data policy](#data-policy)) |
@@ -736,6 +760,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/search/SearchIndex.js` | Tiered index + app-wide singleton |
 | `js/search/SearchRegistry.js` | Provider registration singleton |
 | `js/search/SearchProvider.js` | JSDoc typedefs for `SearchEntry` / provider contract |
+| `js/search/commitEntry.js` | Go and Look at actions for a result |
 | `js/search/providers/SceneProvider.js` | Bodies loaded by `Loader` |
 | `js/search/providers/StarsProvider.js` | Named stars + exact HIP resolver |
 | `js/search/providers/PlacesProvider.js` | Future surface-place stub |
@@ -758,7 +783,7 @@ and the provider extension contract.
 | `js/scene/StellarFrame.js` | Parent of the J2000 catalogues: precesses them to the simulation date |
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
-| `js/scene/farPoint.js` | A body's far point: its mesh range, colour, size and depth state |
+| `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |
 | `js/scene/Star.js` | Named star with noise shader |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |
