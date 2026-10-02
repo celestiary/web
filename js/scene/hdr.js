@@ -180,6 +180,20 @@ export const sceneReferredUniform = {value: 0}
 
 
 /**
+ * Shared by the materials of absolute brightness (the stars, the Milky Way,
+ * the Sun's disc; HDR.md "Physical stars"): the renderer's exposure over
+ * Earth's keyed one (exposure.js exposureRelative), and the viewport's
+ * height and vertical field of view, for a pixel's solid angle.  ThreeUi
+ * sets them each frame.
+ */
+export const absoluteUniforms = {
+  uExposureRelative: {value: 1},
+  uViewportHeight: {value: 1024},
+  uFovDegrees: {value: 45},
+}
+
+
+/**
  * Make a material that writes display values (stars, labels, lines: drawn
  * `toneMapped: false`) write, while sceneReferredUniform is on, the
  * scene-referred values the final tone map turns back into them: N⁻¹ of its

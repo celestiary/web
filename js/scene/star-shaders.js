@@ -19,6 +19,7 @@ varying vec3 vTexCoord3D;
 uniform float uHighTemp;
 uniform float uLowTemp;
 uniform float iDist;
+uniform float uExposureRelative;
 // const float highTemp = 5778.;
 // const float lowTemp = highTemp / 4.;
 
@@ -211,6 +212,10 @@ void main(void) {
   r += mult;
   g += mult;
   b += mult;
-  gl_FragColor = vec4(vColor, 1.) * vec4(vec3(r/255.0, g/255.0, b/255.0), 1.0);
+  // The disc's radiance in exposure units: DISPLAY_GAIN / θ², θ the Sun's
+  // angular radius from 1 AU (6.957e8 m over 1.496e11 m), times the
+  // exposure over Earth's keyed one (js/scene/HDR.md, "Physical stars").
+  const float SUN_RADIANCE = 1.5 * 46238.0;
+  gl_FragColor = vec4(vColor * SUN_RADIANCE * uExposureRelative, 1.) * vec4(vec3(r/255.0, g/255.0, b/255.0), 1.0);
 }
 `

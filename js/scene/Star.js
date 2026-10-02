@@ -12,7 +12,7 @@ import Object from './object.js'
 import * as Shaders from './star-shaders.js'
 import {sphere} from './shapes.js'
 import {newAtmosphere} from './atmos/Atmosphere'
-import {sceneReferred} from './hdr.js'
+import {absoluteUniforms} from './hdr.js'
 import * as Shared from '../shared.js'
 import {named} from '../utils.js'
 
@@ -108,10 +108,13 @@ export default class Star extends Object {
       [8152, 10060], // 14, T
       [8152, 10060]]// 15, Carbon star?
     const temp = tempRanges[props.spectralType]
-    // The surface's colour is a display value (hdr.js); PR B of #86 gives
-    // the Sun a physical radiance.
-    this.shaderMaterial = sceneReferred(new ShaderMaterial({
+    // The surface's radiance is physical (HDR.md, "Physical stars"): the
+    // Sun's disc is 1/θ² of a white surface facing it, θ its angular
+    // radius from 1 AU, scaled by the exposure over Earth's keyed one
+    // (absoluteUniforms); the shader's texture is its granulation, ~1.
+    this.shaderMaterial = new ShaderMaterial({
       uniforms: {
+        uExposureRelative: absoluteUniforms.uExposureRelative,
         uColor: {value: new Vector3(1.0, 1.0, 1.0)},
         uLowTemp: {value: parseFloat(temp[0])},
         uHighTemp: {value: parseFloat(temp[1])},
@@ -122,7 +125,8 @@ export default class Star extends Object {
       },
       vertexShader: Shaders.VERTEX_SHADER,
       fragmentShader: Shaders.FRAGMENT_SHADER,
-    }))
+      toneMapped: false,
+    })
     const surface = sphere({matr: this.shaderMaterial})
     surface.scale.setScalar(props.radius.scalar)
     this.setupAnim()

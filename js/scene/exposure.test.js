@@ -1,5 +1,8 @@
 import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
-import {easeExposure, exposureAt, irradianceAt, skyExposure} from './exposure.js'
+import {
+  METER_FLOOR, METER_GAIN_MAX, METER_HIGHLIGHT, METER_KEY, easeExposure, exposureAt, exposureRelative, irradianceAt, meanLogLuminance,
+  meteredGain, pixelSolidAngle, skyExposure,
+} from './exposure.js'
 
 
 describe('exposureAt', () => {
@@ -52,5 +55,71 @@ describe('easeExposure', () => {
 
   it('stays put with no time elapsed', () => {
     expect(easeExposure(2, 8, 0)).toBe(2)
+  })
+})
+
+
+describe('metered exposure', () => {
+  const m = (luma, highlight = luma) => ({meanLog: Math.log(luma), highlight})
+
+  it('leaves a sunlit scene at the keyed exposure, and lifts a dim one to the key', () => {
+    expect(meteredGain(m(0.4), 1)).toBe(1)
+    expect(meteredGain(m(METER_KEY, 0.1), 1)).toBeCloseTo(1, 12)
+    expect(meteredGain(m(METER_KEY / 2, 0.1), 1)).toBeCloseTo(2, 12)
+    expect(meteredGain(m(1e-4, 1e-4), 1)).toBeCloseTo(METER_KEY / 1e-4, 6)
+  })
+
+  it('caps a black frame at the floor\'s gain', () => {
+    expect(meteredGain(m(METER_FLOOR), 1)).toBeCloseTo(METER_GAIN_MAX, 6)
+    expect(meteredGain(m(1e-12), 1)).toBeCloseTo(METER_GAIN_MAX, 6)
+    expect(METER_GAIN_MAX).toBeCloseTo(3e6, 0)
+  })
+
+  it('keeps a sunlit body on black space anchored: its highlight stays under METER_HIGHLIGHT', () => {
+    // The Moon at quarter: 20% of the frame at ~0.4, the rest black.  The
+    // mean asks for 5e4; the highlight (the luminance 2% of the frame
+    // exceeds, 0.4) allows less than 1, so the keyed exposure stands.
+    expect(meteredGain({meanLog: Math.log(3.5e-6), highlight: 0.4}, 1)).toBe(1)
+    // A dimmer body, 0.1: the highlight allows 3.
+    expect(meteredGain({meanLog: Math.log(3.5e-6), highlight: 0.1}, 1)).toBeCloseTo(METER_HIGHLIGHT / 0.1, 9)
+    // A star field: its sprites are under 2% of the frame, so the
+    // highlight is the floor, and the dark-adapted gain stands.
+    expect(meteredGain({meanLog: Math.log(3e-7), highlight: METER_FLOOR}, 1)).toBeCloseTo(METER_KEY / 3e-7, 6)
+  })
+
+  it('asks the same of a scene whatever exposure it was rendered at: no feedback loop', () => {
+    // Rendered at gain 100 the frame reads 100× brighter; the gain asked for
+    // is the scene's, not the frame's.
+    expect(meteredGain(m(1e-3), 1)).toBeCloseTo(meteredGain(m(1e-3 * 100), 100), 9)
+    expect(meteredGain({meanLog: Math.log(3.5e-6), highlight: 0.4}, 1))
+        .toBeCloseTo(meteredGain({meanLog: Math.log(3.5e-5), highlight: 4}, 10), 9)
+  })
+
+  it('averages the log luminance, floored, skipping NaN, and finds the highlight', () => {
+    const px = new Float32Array([1, 1, 1, 1, 0, 0, 0, 1, NaN, 0, 0, 1])
+    const want = (Math.log(1) + Math.log(METER_FLOOR)) / 2
+    const got = meanLogLuminance(px, 3)
+    expect(got.meanLog).toBeCloseTo(want, 12)
+    // Two pixels: 2% of them is the brightest.
+    expect(got.highlight).toBe(1)
+    expect(meanLogLuminance(new Float32Array(0), 0)).toEqual({meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR})
+    // 100 pixels: the highlight is what 2% of them, two pixels, exceed.
+    // Two bright pixels (a star or two) don't set it; three do.
+    const many = new Float32Array(400).fill(0)
+    const white = (i, v) => many.set([v, v, v, 1], i * 4)
+    white(0, 1); white(1, 1)
+    expect(meanLogLuminance(many, 100).highlight).toBe(METER_FLOOR)
+    white(2, 0.5)
+    expect(meanLogLuminance(many, 100).highlight).toBeCloseTo(0.5, 12)
+  })
+
+  it('scales absolute brightness by the exposure over Earth\'s keyed one', () => {
+    expect(exposureRelative(exposureAt(ASTRO_UNIT_METER))).toBeCloseTo(1, 12)
+    expect(exposureRelative(exposureAt(1.52 * ASTRO_UNIT_METER))).toBeGreaterThan(1)
+  })
+
+  it('a pixel\'s solid angle', () => {
+    // 45 degrees over 300 pixels: 2.6e-3 rad a pixel.
+    expect(pixelSolidAngle(45, 300)).toBeCloseTo(6.85e-6, 8)
   })
 })

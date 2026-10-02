@@ -16,7 +16,7 @@ import {assertDefined} from '../assert.js'
 import * as Material from './material.js'
 import {FAR_OBJ, STARS_RADIUS_METER, SUN_RADIUS_METER} from '../shared.js'
 import {named} from '../utils.js'
-import {sceneReferred} from './hdr.js'
+import {absoluteUniforms} from './hdr.js'
 import {rteCameraLocal} from './rte.js'
 
 
@@ -118,21 +118,16 @@ export default class Stars extends Object {
   show() {
     this.geom = new StarsBufferGeometry(this.catalog)
     const starImage = Material.pathTexture('star_glow', '.png')
-    const starsMaterial = sceneReferred(new ShaderMaterial({
+    // Physical brightness, in exposure units (shaders/stars.vert; HDR.md):
+    // the exposure, viewport and field of view are the shared
+    // absoluteUniforms, which ThreeUi sets each frame.
+    const starsMaterial = new ShaderMaterial({
       uniforms: {
         texSampler: {value: starImage},
-        CAMERA_FOV_DEGREES: {value: this.ui.camera.fov},
-        // Tuned for 0xFF max on a close-up star.
-        // CAMERA_EXPOSURE: {value: 3e16 * 3.7e-38},
-        STAR_MAGNIFY: {value: 8}, // to fit Star/sun
+        ...absoluteUniforms,
         // This is tuned for Star zoom e.g. on Sun to have
         // surface just meet the glow in the png image.
-        // STAR_MAGNIFY_2: {value: 2e4}, // 2e4, 2e9
-        // CAMERA_EXPOSURE: {value: 3e16 * 3.7e-38},
         STAR_MAGNIFY_2: {value: 1 / SUN_RADIUS_METER * 1e1},
-        CAMERA_EXPOSURE: {value: 1},
-        MIN_BRIGHT: {value: 1},
-        MAX_BRIGHT: {value: 2e16}, // half-float max
         MIN_STAR_SIZE_PX: {value: 3},
         MAX_STAR_SIZE_PX: {value: 512},
         // RTE uniforms: camera position in star catalog coords, split high/low
@@ -146,10 +141,7 @@ export default class Stars extends Object {
       depthWrite: false,
       transparent: true,
       toneMapped: false,
-    }))
-    this.ui.camera.onChange = (camera) => {
-      starsMaterial.uniforms.CAMERA_FOV_DEGREES.value = camera.fov
-    }
+    })
     const me = this
     new Loader().loadShaders(starsMaterial, () => {
       const starPoints = named(new Points(this.geom, starsMaterial), 'StarsPoints')

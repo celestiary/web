@@ -1,10 +1,15 @@
-uniform float CAMERA_FOV_DEGREES; // Allows zoom into stars
-uniform float CAMERA_EXPOSURE;
-uniform float MIN_BRIGHT;
-uniform float MAX_BRIGHT;
+// Physical star brightness (js/scene/HDR.md, "Physical stars"): a star's
+// pixel value is its illuminance over the Sun's at 1 AU, times
+// π·DISPLAY_GAIN over a pixel's solid angle (a point source's light over
+// one pixel is that radiance), times the exposure over Earth's keyed one
+// (uExposureRelative).  Spread over its sprite, whose texture integrates to
+// GLOW_MEAN of its area, so the sprite's total is the star's light whatever
+// its size.
+uniform float uFovDegrees;      // vertical
+uniform float uViewportHeight;  // pixels
+uniform float uExposureRelative;
 uniform float MIN_STAR_SIZE_PX;
 uniform float MAX_STAR_SIZE_PX;
-uniform float STAR_MAGNIFY;
 uniform float STAR_MAGNIFY_2;
 // RTE (Relative-To-Eye): camera position in star catalog coordinates (the
 // Points' local frame, J2000; see rte.js), split into
@@ -22,10 +27,16 @@ attribute vec3 positionLow; // float64 residual: star.xyz - Math.fround(star.xyz
 varying vec3 vColor;
 varying float vBrightness;        // Pass brightness to fragment
 
-const float screenHeight = 1024.; // TODO
-
-const vec3 unitVec = vec3(1., 1., 1.);
-const float twoTau = 2. * 6.2831853070;
+const float PI = 3.14159265;
+const float fourPi = 4. * PI;
+// The Sun's illuminance at 1 AU in the catalog's units: its lumens
+// (StarsCatalog, 3.0e28) over 4π AU².
+const float SUN_ILLUMINANCE_1AU = 3.0e28 / (fourPi * 1.495978707e11 * 1.495978707e11);
+const float DISPLAY_GAIN = 1.5;
+// The mean of the star sprite's texture (star_glow.png) over its area.
+const float GLOW_MEAN = 0.0914;
+// Half-float's largest value, the scene buffer's.
+const float MAX_VALUE = 6.0e4;
 
 void main() {
   vColor = color;
@@ -42,61 +53,27 @@ void main() {
   float dist = -mvPosition.z;
   float distSq = dist * dist;
 
-  // -----------------------------------
-  // 2) Inverse-square law for brightness at distance
-  //    E = lumens / (4π * dist^2)
-  // -----------------------------------
-  float illuminance = lumens / (twoTau * distSq);
+  // Inverse-square law: the star's illuminance here, E = lumens / (4π d²).
+  float illuminance = lumens / (fourPi * distSq);
 
-  //// Physical size
-  // This is useful for zooming in on a star during a flyby,
-  // and maybe neat to see relative sizes eg in a multi-star
-  // system.
-  // ------------------------------------------------
-  // 1) Compute angular diameter of the star (radians)
-  //    Approximation if dist >> radius:
-  //       angularDiameter ≈ 2 * radius / dist
-  //    For smaller distances, you might do a more precise:
-  //       2.0 * atan(radius / dist)
-  // ------------------------------------------------
-  float angularDiameter = 2. * radius / dist;
-  // or: float angularDiameter = 2. * atan(radius / dist);
-
-  // ------------------------------------------------
-  // 2) Convert angular diameter to *pixel* size
-  //    Assume CAMERA_FOV_DEGREES is vertical FOV. So each radian
-  //    in vertical FOV spans `resolution.y` pixels.
-  // ------------------------------------------------
-  float cameraFovRad = radians(CAMERA_FOV_DEGREES);
-  float pixelsPerRad = screenHeight / cameraFovRad;
-  float physicalSizeInPixels  = angularDiameter * pixelsPerRad;
-
-  // Final point size: blend of mostly brightness and some
-  // physical size
-  float sizeInPixels = physicalSizeInPixels * STAR_MAGNIFY;
-  // gl_PointSize = clamp(
-  //   sizeInPixels, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
-
-  vBrightness = clamp(
-    illuminance * CAMERA_EXPOSURE,
-    MIN_BRIGHT,
-    MAX_BRIGHT
-  );
-
-  // But this looks better
+  // The sprite's size: the look's law, by the star's radius and distance
+  // (larger than ~250 px makes no difference).
   float maxDist = 9.461e15*2e4;
-  float cDist = clamp(dist, 0., maxDist);
-
   float lDist = log(-mvPosition.z);
   float lMaxDist = log(maxDist);
   float cLDist = clamp(lDist, 0., lMaxDist);
-
   float art = STAR_MAGNIFY_2;
   float scaledSize = art * radius / cLDist;
-  // Larger than 250 doesn't seem to make a difference.
   float cSize = clamp(
     scaledSize, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
   gl_PointSize = cSize;
-  
+
+  // The star's light over one pixel, in exposure units, spread over the
+  // sprite.
+  float radPerPx = radians(uFovDegrees) / max(uViewportHeight, 1.);
+  float pixelSolidAngle = radPerPx * radPerPx;
+  float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / pixelSolidAngle * uExposureRelative;
+  vBrightness = min(value / (GLOW_MEAN * cSize * cSize), MAX_VALUE);
+
   gl_Position  = projectionMatrix * mvPosition;
 }
