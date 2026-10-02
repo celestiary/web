@@ -1,8 +1,13 @@
 // Physical star brightness (js/scene/HDR.md, "Physical stars"): a star's
 // pixel value is its illuminance over the Sun's at 1 AU, times
-// π·DISPLAY_GAIN over a pixel's solid angle (a point source's light over
-// one pixel is that radiance), times the exposure over Earth's keyed one
-// (uExposureRelative).  Spread over its sprite, whose texture integrates to
+// π·DISPLAY_GAIN over the solid angle its light lands in (a point source's
+// light over that patch is its radiance), times the exposure over Earth's
+// keyed one (uExposureRelative).  The patch is a pixel, or the eye's
+// resolution where that's coarser: dark adapted, the eye resolves a point
+// no finer than about 10 arcmin (rod acuity, ~20/200), so a 1080 px
+// screen (2.5 arcmin a pixel at 45°) and a 300 px test viewport (9
+// arcmin) show the same star field; per pixel alone, the screen would show
+// it 13× brighter.  Spread over its sprite, whose texture integrates to
 // GLOW_MEAN of its area, so the sprite's total is the star's light whatever
 // its size.
 uniform float uFovDegrees;      // vertical
@@ -37,6 +42,8 @@ const float DISPLAY_GAIN = 1.5;
 const float GLOW_MEAN = 0.0914;
 // Half-float's largest value, the scene buffer's.
 const float MAX_VALUE = 6.0e4;
+// The eye's resolution of a point, dark adapted: 10 arcmin, in radians.
+const float EYE_POINT_RAD = 10.0 / 60.0 * PI / 180.0;
 
 void main() {
   vColor = color;
@@ -70,9 +77,9 @@ void main() {
 
   // The star's light over one pixel, in exposure units, spread over the
   // sprite.
-  float radPerPx = radians(uFovDegrees) / max(uViewportHeight, 1.);
-  float pixelSolidAngle = radPerPx * radPerPx;
-  float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / pixelSolidAngle * uExposureRelative;
+  float radPerPx = max(radians(uFovDegrees) / max(uViewportHeight, 1.), EYE_POINT_RAD);
+  float pointSolidAngle = radPerPx * radPerPx;
+  float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / pointSolidAngle * uExposureRelative;
   vBrightness = min(value / (GLOW_MEAN * cSize * cSize), MAX_VALUE);
 
   gl_Position  = projectionMatrix * mvPosition;

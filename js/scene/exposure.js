@@ -1,4 +1,5 @@
 import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
+import {HDR_MAX_VALUE} from './hdr.js'
 
 
 /**
@@ -97,26 +98,33 @@ export function exposureRelative(exposure) {
 
 
 /**
- * The solid angle of one pixel, steradians, for a vertical field of view
- * over a viewport height.
+ * The solid angle a point source's light lands in, steradians: one pixel,
+ * for a vertical field of view over a viewport height, or the dark-adapted
+ * eye's resolution of a point (EYE_POINT_RAD) where a pixel is finer.  The
+ * stars' shader does the same (shaders/stars.vert; HDR.md "Physical
+ * stars").
  *
  * @param {number} fovDegrees
  * @param {number} heightPx
  * @returns {number}
  */
-export function pixelSolidAngle(fovDegrees, heightPx) {
-  const radPerPx = (fovDegrees * Math.PI / 180) / Math.max(heightPx, 1)
+export function pointSolidAngle(fovDegrees, heightPx) {
+  const radPerPx = Math.max((fovDegrees * Math.PI / 180) / Math.max(heightPx, 1), EYE_POINT_RAD)
   return radPerPx * radPerPx
 }
+
+
+/** The eye's resolution of a point, dark adapted: 10 arcmin, in radians. */
+export const EYE_POINT_RAD = 10 / 60 * Math.PI / 180
 
 
 /**
  * Metered exposure (HDR.md, "Metered exposure"): the mean log luminance of
  * the frame, in exposure units at the target-keyed exposure, over METER_KEY
- * gives a gain over that exposure, never below 1 (a sunlit target keeps the
- * look the keyed exposure gives it) and at most METER_GAIN_MAX (a star
- * field, with nothing but stars to meter, is lifted to where sixth
- * magnitude shows).  Pixels darker than METER_FLOOR count as METER_FLOOR, so
+ * gives a gain over that exposure, never below 1 for a sunlit target (it
+ * keeps the look the keyed exposure gives it) and at most METER_GAIN_MAX (a
+ * star field, with nothing but stars to meter, is lifted to the eye's dark
+ * adaptation).  Pixels darker than METER_FLOOR count as METER_FLOOR, so
  * black is the floor's gain, not infinity.
  *
  * A sunlit body on black space (the Moon at quarter, 20% of the frame)
@@ -126,16 +134,33 @@ export function pixelSolidAngle(fovDegrees, heightPx) {
  * the frame than that anchors the exposure, while a star field, whose
  * sprites cover less, runs to the dark-adapted gain.
  *
- * @param {{meanLog: number, highlight: number}} metered meanLogLuminance's
- *   measure of the frame as it was rendered
+ * And the one way down: where that highlight is over METER_HIGHLIGHT_MAX,
+ * brighter than a sunlit white surface (the Sun's disc, 46,000 of them,
+ * filling the frame), the gain falls to bring it there, to METER_GAIN_MIN
+ * at most.  A sunlit surface is never over it, so no planet is darkened.
+ *
+ * A frame with nothing in it at all (every pixel under METER_FLOOR: a
+ * planet's texture, or the star catalogue, still loading) asks for
+ * nothing: null, and the gain stays where it is.  Running to the
+ * dark-adapted gain on a black loading frame rendered the planet 3e6
+ * times too bright when it came.
+ *
+ * @param {{meanLog: number, highlight: number, max: number}} metered
+ *   meanLogLuminance's measure of the frame as it was rendered
  * @param {number} renderedOverKeyed The exposure the frame was rendered at
  *   over the target-keyed exposure (its gain at the time)
- * @returns {number} The gain the scene asks for
+ * @returns {number|null} The gain the scene asks for; null for no scene
  */
-export function meteredGain({meanLog, highlight}, renderedOverKeyed) {
+export function meteredGain({meanLog, highlight, max}, renderedOverKeyed) {
+  if (!(max > METER_FLOOR)) {
+    return null
+  }
   const rendered = Math.max(renderedOverKeyed, 1e-30)
   const lumaAtKeyed = Math.exp(meanLog) / rendered
   const highlightAtKeyed = highlight / rendered
+  if (highlightAtKeyed > METER_HIGHLIGHT_MAX) {
+    return Math.max(METER_HIGHLIGHT_MAX / highlightAtKeyed, METER_GAIN_MIN)
+  }
   const byMean = METER_KEY / Math.max(lumaAtKeyed, METER_FLOOR)
   const byHighlight = METER_HIGHLIGHT / Math.max(highlightAtKeyed, METER_FLOOR)
   return Math.min(Math.max(Math.min(byMean, byHighlight), 1), METER_GAIN_MAX)
@@ -143,28 +168,32 @@ export function meteredGain({meanLog, highlight}, renderedOverKeyed) {
 
 
 /**
- * @param {Float32Array} rgba Pixels, RGBA float
+ * @param {Float32Array|Uint8Array} rgba Pixels, RGBA: floats, or bytes
+ *   (the LDR fallback's target), which count as their value over 255
  * @param {number} count How many pixels
- * @returns {{meanLog: number, highlight: number}} The mean of
- *   ln(max(luma, METER_FLOOR)), and the luminance METER_HIGHLIGHT_FRACTION
- *   of the pixels exceed; NaN pixels are skipped
+ * @returns {{meanLog: number, highlight: number, max: number}} The mean of
+ *   ln(max(luma, METER_FLOOR)), the luminance METER_HIGHLIGHT_FRACTION of
+ *   the pixels exceed, and the brightest; a pixel that isn't finite
+ *   (overflowed) counts as the buffer's most, HDR_MAX_VALUE
  */
 export function meanLogLuminance(rgba, count) {
+  const scale = rgba instanceof Uint8Array ? 1 / 255 : 1
   let sum = 0
   const lumas = []
   for (let i = 0; i < count; i++) {
-    const luma = (0.2126 * rgba[i * 4]) + (0.7152 * rgba[(i * 4) + 1]) + (0.0722 * rgba[(i * 4) + 2])
-    if (Number.isFinite(luma)) {
-      sum += Math.log(Math.max(luma, METER_FLOOR))
-      lumas.push(luma)
+    let luma = ((0.2126 * rgba[i * 4]) + (0.7152 * rgba[(i * 4) + 1]) + (0.0722 * rgba[(i * 4) + 2])) * scale
+    if (!Number.isFinite(luma)) {
+      luma = HDR_MAX_VALUE
     }
+    sum += Math.log(Math.max(luma, METER_FLOOR))
+    lumas.push(luma)
   }
   if (lumas.length === 0) {
-    return {meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR}
+    return {meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, max: 0}
   }
   lumas.sort((a, b) => b - a)
   const highlight = lumas[Math.min(lumas.length - 1, Math.floor(METER_HIGHLIGHT_FRACTION * lumas.length))]
-  return {meanLog: sum / lumas.length, highlight: Math.max(highlight, METER_FLOOR)}
+  return {meanLog: sum / lumas.length, highlight: Math.max(highlight, METER_FLOOR), max: lumas[0]}
 }
 
 
@@ -176,9 +205,28 @@ export const METER_FLOOR = 1e-7
 export const METER_GAIN_MAX = METER_KEY / METER_FLOOR
 /** The share of the frame whose luminance the highlight cap looks at. */
 export const METER_HIGHLIGHT_FRACTION = 0.02
-/** The most that luminance is lifted to, in exposure units. */
-export const METER_HIGHLIGHT = 0.3
-/** The metered gain's adaptation time constant, seconds (log space). */
-export const METER_TAU_SECONDS = 1.5
+/**
+ * The most that luminance is lifted to, in exposure units: a sunlit
+ * surface of albedo 0.4 (DISPLAY_GAIN × 0.4).  Brighter than that, the
+ * frame holds a sunlit surface and the keyed exposure stands (the Moon at
+ * quarter, Mars from orbit, Earth's clouds); dimmer (a low Sun's sky and
+ * ground, twilight), the frame is lifted toward the key.
+ */
+export const METER_HIGHLIGHT = 0.6
+/**
+ * The most that luminance is let stand at, in exposure units: a sunlit
+ * white surface (DISPLAY_GAIN); over it the gain falls below 1.
+ */
+export const METER_HIGHLIGHT_MAX = DISPLAY_GAIN
+/** The least the metered exposure falls to under the target-keyed one. */
+export const METER_GAIN_MIN = 1e-5
+/**
+ * The metered gain's adaptation time constants, seconds (log space): up,
+ * as the eye adapts to the dark, slowly; down, to the light, fast, as a
+ * camera's auto-exposure, so a planet come upon from a star field is
+ * blown out for a second, not five.
+ */
+export const METER_TAU_UP_SECONDS = 1.5
+export const METER_TAU_DOWN_SECONDS = 0.3
 /** Frames between meterings. */
 export const METER_EVERY_FRAMES = 4
