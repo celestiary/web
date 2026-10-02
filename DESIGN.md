@@ -495,8 +495,9 @@ scene graph alone.
 | Saturn rings | Double-sided `RingGeometry` with texture |
 | Orbit paths | `Line` with additive blending: the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
 | Labels | Canvas-rendered `SpriteSheet` compiled to a single `Points` geometry |
-| Asterisms | Line segments loaded from `asterisms-clean.dat` |
-| Human expansion | RTE `LineSegments`, one per hop of a BFS across the catalogue, grown in the shader by a time uniform ([Colonization.md](js/scene/Colonization.md)) |
+| Asterisms | Wide lines (`wideLines.js`) between the stars of `asterisms-clean.dat` |
+| Human expansion | Wide lines (`wideLines.js`), one per hop of a BFS across the catalogue, grown in the shader by a time uniform ([Colonization.md](js/scene/Colonization.md)) |
+| Wide lines (`wideLines.js`) | Instanced screen-space quads: any width, antialiased, RTE, cut in front of the camera, divided through to w = 1, optionally sorted far to near; for lines at light-years, where GL lines are 1 px and their w ~1e17 m ([Colonization.md, Drawing](js/scene/Colonization.md#drawing)) |
 
 LOD (`THREE.LOD`) is used throughout to swap between detailed meshes, point sprites, and invisible placeholders based on camera distance.
 
@@ -753,6 +754,7 @@ and the provider extension contract.
 | `js/scene/Asterisms.js` | Constellation line drawings |
 | `js/scene/Colonization.js` | Human expansion: kNN star graph and layered BFS spread from the Sun |
 | `js/scene/ColonizationLines.js` | Human expansion lines, coloured by hop and grown over time |
+| `js/scene/wideLines.js` | Wide antialiased lines at light-years (asterisms, human expansion) |
 | `js/scene/Orbit.js` | Orbital path visualization |
 | `js/scene/StarsCatalog.js` | Celestia binary star catalog parser |
 | `js/scene/AsterismsCatalog.js` | Constellation pattern definitions |

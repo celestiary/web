@@ -1,5 +1,6 @@
 import {hopWidth} from './Colonization.js'
-import {hopColor, sortFarToNear, trimToFront} from './ColonizationLines.js'
+import {hopColor} from './ColonizationLines.js'
+import {sortFarToNear, trimToFront} from './wideLines.js'
 
 
 /**
@@ -24,7 +25,7 @@ function pack(segments) {
 }
 
 
-describe('ColonizationLines', () => {
+describe('wideLines', () => {
   it('sortFarToNear orders segments by their closest distance, farthest first', () => {
     const LY = 9.461e15
     const segments = [
