@@ -494,6 +494,11 @@ Out of scope for the goTo flow. These use `newCameraLookTween` (rotation-only, 6
 and do not rebase or reparent. They only change `camera.quaternion` while leaving the
 scene graph alone.
 
+The search bar's Look at button is a caller of this path: `setTarget` for a body,
+`Scene.lookAtStar` / `Scene.lookAtPlace` (same tween, aimed at a star's world position
+or a surface point) for results with no scene object.  See
+[js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at).
+
 
 ## Rendering Techniques
 
@@ -665,7 +670,7 @@ Thin MUI-based overlay panels:
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `SearchBar` — breadcrumb-anchored search (chips, MUI `Autocomplete`,
-  crosshair picker toggle, preview + commit flow). See
+  Go / Look at buttons, crosshair picker toggle, preview + commit flow). See
   [js/search/DESIGN.md](js/search/DESIGN.md) for the index architecture.
 - `DatePicker`, `NumberField`, `NumberInput` — supporting inputs
 - `TooltipToggleButton`, `TooltipIconButton`, `NavToggleButton` — icon button wrappers
@@ -736,6 +741,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/search/SearchIndex.js` | Tiered index + app-wide singleton |
 | `js/search/SearchRegistry.js` | Provider registration singleton |
 | `js/search/SearchProvider.js` | JSDoc typedefs for `SearchEntry` / provider contract |
+| `js/search/commitEntry.js` | Go and Look at actions for a result |
 | `js/search/providers/SceneProvider.js` | Bodies loaded by `Loader` |
 | `js/search/providers/StarsProvider.js` | Named stars + exact HIP resolver |
 | `js/search/providers/PlacesProvider.js` | Future surface-place stub |

@@ -14,7 +14,9 @@ craters on Earth/Mars) can be plugged in without re-architecting.
 | `providers/SceneProvider.js` | Entries for every body in `Loader.loaded` (sun, planets, moons, galaxy nodes) |
 | `providers/StarsProvider.js` | Entries for named stars + exact HIP resolver |
 | `providers/PlacesProvider.js` | Stub for future surface-place data (lazy, `collectUnder`-only) |
+| `commitEntry.js` | `goToEntry` and `lookAtEntry`: what the Go and Look at buttons do with a result |
 | `SearchIndex.test.js` | Scoping, fuzzy, HIP-exact, dedupe coverage |
+| `commitEntry.test.js` | Go calls `goTo`/`land`/the hash; Look at calls the target path and never `goTo` |
 
 ## Data model
 
@@ -87,7 +89,52 @@ before. Anchor position is an index into the breadcrumb:
 `anchorPathFor(committedPath, anchorIndex)` in `store/SearchSlice.js`
 produces the rooted string the index consumes.
 
-## Commit flow
+## Go and Look at
+
+The expanded bar has two actions on the selected result, both disabled until
+one is selected:
+
+| Button | Icon | aria-label | Does | Code |
+|---|---|---|---|---|
+| Go | arrow | "Go to" | Travels to the result.  Enter in the field does this too. | `goToEntry` |
+| Look at | magnifier | "Look at" | Targets the result and turns the camera in place to centre it.  The camera doesn't move. | `lookAtEntry` |
+
+Look at is for orientation debugging: from Earth, search Jupiter, press it,
+and Jupiter is centred; narrow the FOV to zoom on it from where you stand
+(which face of a body, or of a moon, points at the viewer).  Like Go, it
+closes the bar.
+
+It reuses the `c`/`0`-`9` path, not a second implementation: the same
+rotation-only `newCameraLookTween` (600 ms, roll kept), with no rebase and
+no reparent, so the camera position is untouched
+([DESIGN.md](../../DESIGN.md#settarget-lookattarget-c-key)).  The tween
+slerps by the shortest arc, so a target below the horizon or behind the
+camera still turns to face it.  Per kind:
+
+- **Planets, moons, the Sun:** `Scene.setTarget(name)`.  It also syncs
+  `committedPath`, so the breadcrumb and info panel follow the target and a
+  later `g` (or Go) travels there.
+- **Stars:** `Scene.lookAtStar(star)`, the same tween aimed at
+  `worldGroup.localToWorld(starPosition(star))`, because a star has no scene
+  object to `setTarget`.  `setCommittedStar` follows, as for Go, so `g`
+  travels to it.
+- **Places:** `Scene.lookAtPlace(body, lat, lng, alt)` targets the body and
+  aims the tween at the surface point.
+
+`c` (`lookAtTarget`) looks at `Shared.targets.obj`, so after targeting a star
+it still means the last body, not the star.  The aim is a one-shot: a camera
+landed on a spinning body drifts off a distant target as the body turns,
+unless tracking (`t`) is on.
+
+The crosshair picker is untouched: its hover fills the field, its
+double-click is still `scene.goTo` + `setCommittedStar` + close (`PickLabels`),
+and the Human Expansion widget ([#146]) opens the bar with the picker on.
+
+Layout: the field's 260 px minimum overflowed a phone, so under 500 px wide
+(`index.css`) the open bar's field flexes and the row wraps; all four buttons
+stay on screen.
+
+## Commit flow (Go)
 
 Planets and moons: `window.location.hash = loader.pathByName[name]` →
 existing hashchange listener → `loadPath` → `onDone` → `setCommittedPath`.

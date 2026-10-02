@@ -194,6 +194,19 @@ button {
   background: rgba(127, 160, 224, 0.15);
 }
 
+/* Narrow screens: the field gives way (its 260px minimum would push Go, Look
+   at, picker and Clear off the right edge), and the row wraps rather than
+   overflow if the buttons still don't fit. */
+@media (max-width: 500px) {
+  #search-bar.open {
+    flex-wrap: wrap;
+  }
+  #search-bar.open .MuiAutocomplete-root {
+    min-width: 0;
+    flex: 1 1 7em;
+  }
+}
+
 #top-right {
   position: fixed;
   top: 0;
