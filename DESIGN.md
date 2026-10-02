@@ -374,6 +374,14 @@ Camera orientation and position are separated across three input modes, all accu
 | `t` | Toggle continuous tracking (camera auto-looks at target as it orbits) |
 | `c` | Snap look at current target |
 
+**Touch.** Pinch zooms, through `TouchSafeTrackballControls`
+(`js/TouchSafeTrackballControls.js`): TrackballControls with its list of
+touching pointers kept right.  As three ships it, it captures only the
+first finger, so a second one lifted over HTML (the widgets sheet, the info
+panel) never sends it its pointerup; once that pointer ID is reused, every
+touch move throws.  The subclass captures every pointer and lists each
+once.
+
 **Asymptotic zoom** (`js/zoom.js`): scroll zoom is remapped from distance-space to altitude-space so the camera approaches the surface asymptotically. The `camera.near` plane is dynamically scaled to `altitude * 0.1` (clamped 100 m – `SMALLEST_SIZE_METER`) so the surface remains visible without clipping.
 
 ### Proximity-scaled orbit drag

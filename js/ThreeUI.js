@@ -24,8 +24,8 @@ import {
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {easeExposure, exposureAt, skyExposure} from './scene/exposure.js'
 import {hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
-import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
+import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
 import {resolveDragMode} from './dragMode'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
@@ -258,7 +258,8 @@ export default class ThreeUi {
 
   /** */
   initControls(camera) {
-    const controls = new TrackballControls(camera, this.threeContainer)
+    // TrackballControls, its touch bookkeeping fixed (TouchSafeTrackballControls).
+    const controls = new TouchSafeTrackballControls(camera, this.threeContainer)
     // Rotation speed is changed in scene.js depending on target
     // type: faster for sun, slow for planets.
     controls.noZoom = false
