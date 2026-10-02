@@ -10,11 +10,6 @@
   "radius": "1.151E6 m",
   "siderealRotationPeriod": 551808.0,
   "axialInclination": 122.0,
-  "pole": {
-    "source": "IAU WGCCRE (Archinal et al. 2018, Celest. Mech. 130:22)",
-    "ra": 132.993,
-    "dec": -6.163
-  },
   "location": {
     "coord": {
       "ra": 1.0,

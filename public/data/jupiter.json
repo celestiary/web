@@ -8,15 +8,21 @@
   "mass": "1.8986E30 g",
   "density": 1.326,
   "radius": "6.9911E7 m",
+  "texture_rotation": {
+    "note": "The clouds turn with System II, not the IAU meridian (System III, the interior's): the texture is turned so the Great Red Spot sits at its observed System II longitude (js/scene/Planet.md)",
+    "w": [43.3, 870.27],
+    "wSource": "System II, W = 43.3° + 870.270° d (the conventional meridian; as in Stellarium's ssystem_major.ini)",
+    "feature": {
+      "name": "Great Red Spot",
+      "textureLongitude": 91.7,
+      "longitude": 46,
+      "epoch": 2460218.5,
+      "driftPerYear": 21,
+      "source": "System II longitude 216° on 2014-09-08, 349° in 2021 January (Sky & Telescope's transit tool, from JUPOS) and 46° on 2023-10-01 (Stellarium's default), all within 1° of 46° + 21°/yr; good to ~20° within a few years of 2023"
+    }
+  },
   "siderealRotationPeriod": 35727.3,
   "axialInclination": 3.08,
-  "pole": {
-    "source": "IAU WGCCRE (Archinal et al. 2018, Celest. Mech. 130:22)",
-    "ra": 268.056595,
-    "dec": 64.495303,
-    "raRate": -0.006499,
-    "decRate": 0.002413
-  },
   "location": {
     "coord": {
       "ra": 1.0,

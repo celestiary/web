@@ -20,7 +20,8 @@ it and why.
   planes or equators), with the planets' IAU poles. The Galileans, Titan
   and Pluto are within 0.3° of Horizons' planes, and in phase within 3°
   (Europa, by 2050) and 0.02°. All in the ecliptic of date, the stars
-  included. Body rotation (prime meridians) is still a placeholder
+  included. Every body turns by its IAU WGCCRE pole and prime meridian,
+  within 0.003° of Horizons' sub-observer points, Earth by GMST
   ([#96](https://github.com/celestiary/web/issues/96)).
 - **Surfaces:** Earth, the Moon and Mars swap in place to Cesium's
   globes (terrain, imagery, ground-following zoom and landing), matched in
@@ -85,14 +86,15 @@ Cesium layer under celestiary's atmosphere, hazing Cesium's terrain for
 its own distance ([HDR.md](js/scene/HDR.md)).
 Orbit drag slows with proximity: `rotateScale` turns it by `1 - exp(-alt / R)` of full speed, so a drag moves a similar share of the visible ground at 200 m as at 20,000 km (PR [#144](https://github.com/celestiary/web/pull/144); DESIGN.md [proximity-scaled orbit drag](DESIGN.md#proximity-scaled-orbit-drag)).
 The atmosphere pass from under a body's datum (Valles Marineris, the Dead Sea), one model: a ray from an eye below the ground sphere is marched to where it leaves the sphere and the tables take over there, the horizon side of a lookup is decided once from the ray's geometry (the black band that flickered at the horizon on a real GPU was rounding), the march integrates each step exactly, below-datum permalinks restore (the ground floor waits for Cesium's terrain height), and the restored camera quaternion is normalized (PR #145; [composition.md](js/scene/atmos/composition.md#the-tables-domain-and-rays-that-start-outside-it)).  Mars's sky away from the Sun was as dim as its single-scatter parameters made it (0.04 of a sunlit white surface at the zenith).
+Body orientation ([#96](https://github.com/celestiary/web/issues/96), PR [#149](https://github.com/celestiary/web/pull/149)): every body but Earth turns by the IAU WGCCRE 2015 rotation model, pole and prime meridian with the periodic terms (the Moon too, from Cassini's laws, 0.035° away), within 0.003° of JPL Horizons' sub-observer points from 1950 to 2050 (offline fixture; the first of [#97](https://github.com/celestiary/web/issues/97)'s tests); before, every body but Earth and the Moon turned once a day from an arbitrary meridian.  Synchronous moons face their planets as a result, where their mean elements keep their phase; five textures centred on 180° are turned to match (`texture_longitude`), and Jupiter's clouds follow System II with the Great Red Spot at its observed longitude (DESIGN.md [body rotation](DESIGN.md#body-rotation-iau-prime-meridians), [Planet.md](js/scene/Planet.md#texture-longitudes)).
 Mars's day sky (PR #147): multiple scattering in the precompute, for every body (Hillaire's isotropic sum from the transmittance table; [composition.md](js/scene/atmos/composition.md#multiple-scattering)), and Mars's dust as published data: optical depth 0.5 through the gas scale height, a single-scattering albedo that absorbs blue, a two-lobe phase function sharper forward in the blue, the physical gain; the zenith sky went from 0.040 to 0.092 of a sunlit white surface (tan, three quarters of it multiply scattered), the anti-solar horizon from 0.13 to 0.19, and the sunward sky 20° from the Sun from 2.9 to 0.6, so near terrain reads again.  Earth gains the same term with its gain re-fitted (30 → 21).  What's left for #86's PR B is exposure: at a low Sun the whole scene, sky included, sits in Neutral's toe.
 
 **Now**
-1. **Body orientation** ([#96](https://github.com/celestiary/web/issues/96), in [#112](https://github.com/celestiary/web/issues/112)): with the moons' planes ([#6](https://github.com/celestiary/web/issues/6)) and one
-   scene frame ([#133](https://github.com/celestiary/web/issues/133)) done, the IAU prime meridians (the poles landed with
-   #6; every body but Earth and the Moon still spins once a day), with
-   synchronous moons facing their planets. Then Horizons regression tests
-   for every body ([#97](https://github.com/celestiary/web/issues/97)).
+1. **Horizons regression tests for every body** ([#97](https://github.com/celestiary/web/issues/97), in [#112](https://github.com/celestiary/web/issues/112)): orientation is
+   done ([#96](https://github.com/celestiary/web/issues/96)), with its sub-observer fixture. Positions next, and the
+   moons whose mean elements lose their phase, so they no longer face their
+   planets as drawn: Phobos and Deimos (up to 170° by 1950 and 2050), Janus,
+   Triton, and Titania and Oberon at every date (URA182's epoch angles).
 2. **Physically based light and exposure** ([#86](https://github.com/celestiary/web/issues/86), [#109](https://github.com/celestiary/web/issues/109)). The foundation of
    the rendering track. PR A is done (linear half-float scene, one tone
    map, the sky in exposure units, Cesium in the same units); next is PR B:
@@ -149,7 +151,7 @@ surface.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87) (done), [#6](https://github.com/celestiary/web/issues/6) (done), [#133](https://github.com/celestiary/web/issues/133) (done), [#96](https://github.com/celestiary/web/issues/96), [#97](https://github.com/celestiary/web/issues/97), [#132](https://github.com/celestiary/web/issues/132) (done), [#138](https://github.com/celestiary/web/issues/138), [#139](https://github.com/celestiary/web/issues/139), [#140](https://github.com/celestiary/web/issues/140) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
+| [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87) (done), [#6](https://github.com/celestiary/web/issues/6) (done), [#133](https://github.com/celestiary/web/issues/133) (done), [#96](https://github.com/celestiary/web/issues/96) (done), [#97](https://github.com/celestiary/web/issues/97), [#132](https://github.com/celestiary/web/issues/132) (done), [#138](https://github.com/celestiary/web/issues/138), [#139](https://github.com/celestiary/web/issues/139), [#140](https://github.com/celestiary/web/issues/140) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
 | [#113](https://github.com/celestiary/web/issues/113) Surfaces for every body | [#9](https://github.com/celestiary/web/issues/9), [#10](https://github.com/celestiary/web/issues/10), [#43](https://github.com/celestiary/web/issues/43) | data policy for bundled DEMs | [Planet.md](js/scene/Planet.md), [CESIUM.md, ground](CESIUM.md#camera-and-light-coupling) |
 
 The orbit gap is closed: the Moon has its own theory and orbital frame
@@ -160,8 +162,9 @@ elements leave phase errors of a few degrees over decades for the
 resonant Galileans, and tens of degrees for Mars's, Uranus's and
 Neptune's moons, whose tabulated periods or epoch angles are too coarse:
 a per-system theory (Lieske E5, TASS, GUST86) or the JPL ephemerides is
-the refinement. [#97](https://github.com/celestiary/web/issues/97) extends the Horizons tests to every body, and [#96](https://github.com/celestiary/web/issues/96) turns
-the bodies to their IAU prime meridians. The whole scene, stars
+the refinement. [#96](https://github.com/celestiary/web/issues/96) turned the bodies to their IAU prime meridians, checked against
+Horizons' sub-observer points, and [#97](https://github.com/celestiary/web/issues/97) extends the Horizons tests to every
+body's position. The whole scene, stars
 included, is in the ecliptic of date ([#133](https://github.com/celestiary/web/issues/133)).
 
 ### C. Catalogues and external data
