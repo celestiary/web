@@ -188,6 +188,43 @@ describe('Scene settings tracking', () => {
     }
   })
 
+  it('expansion lines follow the x setting, before and after they exist', () => {
+    const s = makeScene()
+    expect(s.getColonization()).toBeNull() // no stars yet
+    s.stars = fakeStars()
+    let fired = 0
+    s.onSettingsChange = () => fired++
+    s.toggleColonization()
+    expect(s.getSettings().x).toBe(false)
+    expect(fired).toBe(1)
+    const lines = s.getColonization()
+    expect(lines.visible).toBe(false)
+    expect(s.getColonization()).toBe(lines)
+    s.applySettings({x: true})
+    expect(lines.visible).toBe(true)
+  })
+
+  it('removeColonization takes the lines out, and a later use builds new ones', () => {
+    const s = makeScene()
+    s.stars = new Object3D()
+    const lines = s.getColonization()
+    expect(lines.parent).toBe(s.stars)
+    s.removeColonization()
+    expect(s.colonization).toBeNull()
+    expect(lines.parent).toBeNull()
+    s.removeColonization() // idempotent
+    expect(s.getColonization()).not.toBe(lines)
+  })
+
+  it('toggleColonization mirrors x into the store, for the drawer\'s switch', () => {
+    const s = makeScene()
+    const states = []
+    s.ui.useStore = {setState: (st) => states.push(st)}
+    s.toggleColonization()
+    s.toggleColonization()
+    expect(states).toEqual([{isColonizationVisible: false}, {isColonizationVisible: true}])
+  })
+
   it('toggleStarLabels flips the l flag and notifies onSettingsChange', () => {
     const s = makeScene()
     s.stars = fakeStars()
@@ -316,7 +353,7 @@ describe('Scene.applySettings', () => {
     const milkyWay = new Object3D()
     milkyWay.name = 'MilkyWay'
     s.ui.scene.add(milkyWay)
-    const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, v: false}
+    const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, x: false, v: false}
     s.registerSettingApplier('v', () => s.flipSetting('v'))
     s.applySettings(target)
     // L isn't in `target` but is added to getSettings by reading

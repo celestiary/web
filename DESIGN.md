@@ -205,6 +205,17 @@ JSON's a and e, centred on the primary: the planets' had no inclination,
 node or perihelion direction, and sat a·e off centre, so their points
 were visibly off their lines (Mercury by ~10 px in an inner-system view).
 
+- **Drawn as a wide line strip** (`wideLines.js`, `newWideLineStrip`), as
+  the asterisms are: 1.5 px, antialiased, additive.  Its geometry keeps a
+  `Line`'s `position` attribute and `setDrawRange`, which everything below
+  writes as before; an instanced view of the same array draws vertex i to
+  i + 1, through the ordinary model-view, so the float64-origin precision
+  below carries over unchanged.  It's on the overlay layer, with the
+  labels: drawn after the atmosphere pass, depth-tested against the scene
+  depth that pass writes, writing none.  In the scene pass its depth told
+  the atmosphere there was something at that distance, so from Earth's
+  surface its own orbit (end-on, near) cut the sky's ray short: a dark
+  blotch in the sky.
 - **Planets and the Moon: the sampled path** (`js/scene/orbitPath.js`,
   `OrbitPath`). One sidereal period of the body's path around its primary,
   centred on the simulation date, 1001 vertices in a `Line` whose one
@@ -493,9 +504,11 @@ scene graph alone.
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
 | Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
 | Saturn rings | Double-sided `RingGeometry` with texture |
-| Orbit paths | `Line` with additive blending: the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
+| Orbit paths | A wide line strip (`wideLines.js`, 1.5 px, additive, on the overlay layer after the atmosphere): the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
 | Labels | Canvas-rendered `SpriteSheet` compiled to a single `Points` geometry |
-| Asterisms | Line segments loaded from `asterisms-clean.dat` |
+| Asterisms | Wide lines (`wideLines.js`) between the stars of `asterisms-clean.dat` |
+| Human expansion | Wide lines (`wideLines.js`), one per hop of a BFS across the catalogue, grown in the shader by a time uniform ([Colonization.md](js/scene/Colonization.md)) |
+| Wide lines (`wideLines.js`) | Instanced screen-space quads: any width, antialiased, cut in front of the camera, divided through to w = 1.  Segments (RTE, optionally sorted far to near: the asterisms, the human expansion) or a strip (a Line's position attribute and draw range, through the model-view: the orbits).  GL lines are 1 px, and at light-years their w ~1e17 m ([Colonization.md, Drawing](js/scene/Colonization.md#drawing)) |
 
 LOD (`THREE.LOD`) is used throughout to swap between detailed meshes, point sprites, and invisible placeholders based on camera distance.
 
@@ -594,8 +607,8 @@ visibility groups so the user has predictable global hide/show controls:
 
 Each scene-annotation feature also has its OWN scoped lowercase toggle
 (`a` asterisms, `p` planet+moon+place labels, `s` star labels, `o` orbits,
-`;` equatorial grid, etc.).  `V` is the union of all the lowercase
-scene-annotation toggles.
+`;` equatorial grid, `x` human expansion lines, etc.).  `V` is the union
+of all the lowercase scene-annotation toggles.
 
 **When adding a new visual feature, decide which group it belongs in and
 wire it through the corresponding toggle method.**  Surface place labels,
@@ -621,6 +634,8 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
 `js/store/useStore.js` composes four slices:
 
 - `AsterismsSlice` — asterisms visibility and catalog state
+- `ColonizationSlice` — mirrors the `x` setting (human expansion lines) for the drawer's switch
+- `WidgetsSlice` — the widgets drawer and dock: open, docked, the app showing, running and pinned apps
 - `SearchSlice` — search-bar state, anchor index, committed path / star,
   preview fields; `setCommittedPath` and `setCommittedStar` are mutually
   exclusive
@@ -643,6 +658,10 @@ The hash is extended with optional camera/time state to form a **permalink** —
 Thin MUI-based overlay panels:
 
 - `TimePanel` — displays sim time, pause/play, time-scale controls
+- `WidgetsDrawer` — the widgets drawer and dock, behind the Widgets button
+  (below)
+- `ColonizationApp` — the Human Expansion app's panel
+  ([Colonization.md](js/scene/Colonization.md))
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `SearchBar` — breadcrumb-anchored search (chips, MUI `Autocomplete`,
@@ -650,6 +669,28 @@ Thin MUI-based overlay panels:
   [js/search/DESIGN.md](js/search/DESIGN.md) for the index architecture.
 - `DatePicker`, `NumberField`, `NumberInput` — supporting inputs
 - `TooltipToggleButton`, `TooltipIconButton`, `NavToggleButton` — icon button wrappers
+
+### Widgets drawer and dock
+
+Optional tools ("apps") live in a drawer on the right, opened by the
+Widgets button (top right).  `ui/apps.jsx` lists them: a name, an icon, a
+panel, and a `stop` that removes whatever the app added to the scene.
+State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
+
+- **Three states.** Closed; open, the drawer over the right of the canvas,
+  showing the app tray or one app; and dock, a 56 px bar of icons right of
+  the canvas.  The dock shows while docked (the drawer's dock button) or
+  while any app is pinned.  The canvas narrows for it
+  (`Celestiary.setRightInset`), and `#top-right` moves left of it
+  (`--dock-width`), so it never covers the scene; an open drawer sits left
+  of it.
+- **Running.** An app runs from when it's opened until stopped.  Its
+  header has a pin and an X.  X stops it (`stop`, out of the scene, back
+  to the tray).  Closing the drawer stops every app that isn't pinned; a
+  pinned app keeps running, panel mounted and state kept, with its icon
+  in the dock to reopen it.  The dock can't be closed while an app is
+  pinned.
+- **Chrome.** The drawer and dock are HTML chrome: `v` hides them.
 
 ## Guide (`js/guide/`)
 
@@ -722,6 +763,9 @@ and the provider extension contract.
 | `js/scene/Stars.js` | Star field from Celestia catalog |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |
 | `js/scene/Asterisms.js` | Constellation line drawings |
+| `js/scene/Colonization.js` | Human expansion: kNN star graph and layered BFS spread from the Sun |
+| `js/scene/ColonizationLines.js` | Human expansion lines, coloured by hop and grown over time |
+| `js/scene/wideLines.js` | Wide antialiased lines: segments (asterisms, human expansion) and strips (orbits) |
 | `js/scene/Orbit.js` | Orbital path visualization |
 | `js/scene/StarsCatalog.js` | Celestia binary star catalog parser |
 | `js/scene/AsterismsCatalog.js` | Constellation pattern definitions |
