@@ -1,0 +1,43 @@
+{
+  "_attribution": "Coordinates from IAU Gazetteer of Planetary Nomenclature (USGS Astrogeology, public domain). Apollo/Luna landing sites from NASA mission records.",
+  "_body": "moon",
+  "_lngConvention": "east-positive (+E), -180..+180",
+  "places": [
+    {"n": "Apollo 11",         "t": 0, "lat":   0.674, "lng":  23.473, "k": "landing"},
+    {"n": "Apollo 12",         "t": 0, "lat":  -3.013, "lng": -23.422, "k": "landing"},
+    {"n": "Apollo 14",         "t": 0, "lat":  -3.646, "lng": -17.472, "k": "landing"},
+    {"n": "Apollo 15",         "t": 0, "lat":  26.132, "lng":   3.633, "k": "landing"},
+    {"n": "Apollo 16",         "t": 0, "lat":  -8.973, "lng":  15.501, "k": "landing"},
+    {"n": "Apollo 17",         "t": 0, "lat":  20.190, "lng":  30.772, "k": "landing"},
+    {"n": "Luna 9",            "t": 0, "lat":   7.080, "lng": -64.370, "k": "landing"},
+    {"n": "Luna 16",           "t": 0, "lat":  -0.683, "lng":  56.300, "k": "landing"},
+    {"n": "Chang'e 4",         "t": 0, "lat": -45.444, "lng": 177.601, "k": "landing"},
+
+    {"n": "Mare Imbrium",      "t": 0, "lat":  32.80, "lng": -15.60, "k": "mare"},
+    {"n": "Mare Tranquillitatis","t": 0, "lat":   8.50, "lng":  31.40, "k": "mare"},
+    {"n": "Mare Serenitatis",  "t": 0, "lat":  28.00, "lng":  17.50, "k": "mare"},
+    {"n": "Mare Crisium",      "t": 0, "lat":  17.00, "lng":  59.10, "k": "mare"},
+    {"n": "Oceanus Procellarum","t": 0, "lat":  18.40, "lng": -57.40, "k": "mare"},
+    {"n": "Mare Nectaris",     "t": 1, "lat": -15.20, "lng":  35.50, "k": "mare"},
+    {"n": "Mare Fecunditatis", "t": 1, "lat":  -7.80, "lng":  51.30, "k": "mare"},
+    {"n": "Mare Nubium",       "t": 1, "lat": -21.30, "lng": -16.60, "k": "mare"},
+    {"n": "Mare Humorum",      "t": 1, "lat": -24.40, "lng": -38.60, "k": "mare"},
+    {"n": "Mare Frigoris",     "t": 1, "lat":  56.00, "lng":   1.40, "k": "mare"},
+    {"n": "Mare Orientale",    "t": 1, "lat": -19.40, "lng": -92.80, "k": "mare"},
+    {"n": "Mare Moscoviense",  "t": 1, "lat":  27.30, "lng": 147.90, "k": "mare"},
+
+    {"n": "Tycho",             "t": 0, "lat": -43.31, "lng": -11.36, "k": "crater"},
+    {"n": "Copernicus",        "t": 0, "lat":   9.62, "lng": -20.08, "k": "crater"},
+    {"n": "Kepler",            "t": 1, "lat":   8.12, "lng": -38.01, "k": "crater"},
+    {"n": "Aristarchus",       "t": 1, "lat":  23.73, "lng": -47.49, "k": "crater"},
+    {"n": "Plato",             "t": 1, "lat":  51.62, "lng":  -9.38, "k": "crater"},
+    {"n": "Clavius",           "t": 1, "lat": -58.40, "lng": -14.41, "k": "crater"},
+    {"n": "Theophilus",        "t": 1, "lat": -11.45, "lng":  26.40, "k": "crater"},
+    {"n": "Grimaldi",          "t": 1, "lat":  -5.20, "lng": -68.60, "k": "crater"},
+    {"n": "Schickard",         "t": 1, "lat": -44.30, "lng": -55.30, "k": "crater"},
+
+    {"n": "South Pole-Aitken", "t": 0, "lat": -53.00, "lng": 169.00, "k": "basin"},
+    {"n": "South Pole",        "t": 0, "lat": -90.00, "lng":   0.00, "k": "pole"},
+    {"n": "North Pole",        "t": 0, "lat":  90.00, "lng":   0.00, "k": "pole"}
+  ]
+}
