@@ -269,6 +269,21 @@ within 30° of the Sun.
   slightly washed. Plausible knobs: per-channel inscatter scaling, a
   soft saturation curve on the composite, or proper aerial-perspective
   integration over the segment from surface depth back to camera.
+- **Twilight's stars.**  The metered exposure is a whole-frame meter;
+  at −10° the horizon band toward the Sun (1.8e-3 of a sunlit white) or
+  away from it (5.7e-4) caps the gain at a few hundred to a thousand,
+  and the stars, Sirius at 4.4e-5, reach threshold only once the sky is
+  under ~1e-5, about −20°.  The eye adapts to where it looks (the zenith
+  at −10° is 1.2e-5, 10 cd/m² in the model's terms): a centre-weighted
+  meter would bring the first stars out at nautical twilight looking up.
+- **Gap pixels at twilight.**  A gap (a sub-pixel hole in the ground
+  mesh at the horizon) takes the horizon ray's haze, which at twilight is
+  the sunlit air above the shadow while the ground beside it is dark, so
+  the holes show as specks along the horizon on the night side (visible
+  since the night lights stopped lighting the whole land).  Marching the
+  segment to the sphere instead, as a surface there, would darken them;
+  it would also change the below-datum bands (`mars-low-horizon-band`,
+  `earth-dead-sea-band`), which take the same path on purpose.
 - **Airglow and the night sky's own light.**  With the Sun under the
   horizon the pass's sky is zero: no airglow, zodiacal light or
   scattered moonlight, so the night sky is as black as space and the

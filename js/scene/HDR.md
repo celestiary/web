@@ -307,7 +307,76 @@ that overflowed it; a non-finite pixel in the meter counts as the maximum.
 
 ### Results
 
-(Filled from the captures below.)
+SwiftShader, 480×300, Cesium's layers off (celestiary's own bodies; the
+swap is `yarn parity`'s, below), against `main` at the same commit.
+Medians of the display luma (of 255) over a region; "gain" is the metered
+gain the frame settled on, and "meter" what it read at the keyed exposure
+(the mean log luminance, and the luminance the brightest 2% exceed).
+
+| View | Gain | Meter (mean / 2%) | Region | Before | After |
+|---|---|---|---|---|---|
+| Earth's surface, outback, Sun 43° up | 1 | 0.67 / 1.9 | sky / ground | 90.8 / 191 | 90.8 / 191 |
+| Earth's surface, Ganges plain, Sun 60° up | 1 | 0.76 / 2.1 | sky / ground | 98.5 / 191 | 98.6 / 191 |
+| Earth from 400 km, Sun 14° up (`earth-low-dusk`) | 1 | 0.34 / 0.41 | all | 74.1 | 74.1 |
+| Earth from 20,000 km, 64° phase | 1 | 1e-6 / 0.76 | disc / space | 58.3 / 0 | 55.9 / 0 |
+| Earth from 20,000 km, at the terminator | 1.02 | 6e-7 / 0.59 | disc | mean 41.7 | mean 32.9 |
+| Earth's night side from 20,000 km | 7.3e4 | 1e-10 / 8e-6 | disc median / 90th pct | 5.9 / 37 | 6.8 / 96 |
+| Civil twilight, outback, Sun −4°, toward it | 4.4 | 0.017 / 0.13 | sky / glow / ground | 1 / 7.8 / 115 | 11.6 / 47.8 / 0 |
+| Twilight from 3 km, Sun −5°, toward it | 7.2 | 0.002 / 0.08 | sky (lower half) | 10 | 55.6 |
+| Nautical twilight, Sun −10°, toward it | 268 | 7e-5 / 1.8e-3 | sky / horizon | 0 / 0.2 | 0 / 55 |
+| Nautical twilight, Sun −10°, away from it | 1,000 | 5e-5 / 5.7e-4 | sky 50° up / all | 0 / 0 | 0.9 / 1.9 |
+| Night, Sun −35°, looking up | 3e6 | 2e-12 / 3e-9 | stars: pixels over 20 / 100 | 22,460 / 196 (display values) | 132 / 25 |
+| Deep space, 4.7 AU from the Sun, away from it | 3e6 (2.4e6 at 6 s) | 2e-12 / 2e-9 | stars: pixels over 20 / 100 | 22,690 / 324 (display values) | 68 / 14 |
+| The Moon from 5,000 km, quarter | 1.22 | 2e-6 / 0.49 | lit disc | 61 | 77 |
+| The daytime Moon, quarter, Sun 42° and Moon 38° up, 4.7° fov | 1 | 0.32 / 0.34 | sky / Moon | 72.4 / 127 | 72.4 / 127 |
+| Mars, Valles Marineris, Sun 18° up, zenith (`mars-sky-zenith`) | 2.1 | 0.13 / 0.29 | zenith / 35° lower | 11 / 44 | 34 / 104 |
+| Mars, same, away from the Sun (`mars-sky-antisolar`) | 1.9 | 0.16 / 0.19 | sky 50° up / horizon / ground | 19 / 36 / 34 | 47 / 77 / 76 |
+| Mars, same, toward the Sun (`mars-sky-aureole`) | 1 | 0.53 / 2.3 | aureole / 40° off / ground | 210 / 92 / 48 | 210 / 92 / 52 |
+| Mars from 232 m, Sun 26° up (`mars-low-horizon`) | 1.25 | 0.24 / 0.48 | ground / sky | 44 / 53 | 56 / 68 |
+| The Sun from 7 radii | 1 | 5e-7 / 6e4 | disc | black (SwiftShader; its rim 6e4) | the same |
+
+- **A sunlit scene is untouched**: the midday surface, Earth from orbit by
+  day and at the terminator, the daytime Moon, Mars toward the Sun and
+  from 400 km all read as before, at gain 1.  Earth's disc from 20,000 km
+  is 4% darker in its median: the night lights' floor (the texture's grey
+  land, 0.02-0.09, at a fixed display value) is gone from the dark limb.
+- **The stars are gone from a sunlit frame** (space 0 instead of 6.8 mean
+  beside Earth; the daytime sky): their light is under a sunlit surface's
+  by 1e4 or more, so the keyed exposure can't show them, as a camera
+  can't.  They are back where the frame is dark: at night and in deep
+  space the gain reaches 3e6 (2.4e6 after 6 s, the 1.5 s constant), and a
+  45° field holds some 50 stars over 20 of 255 and 10 over 100, the
+  brightest first; the display-valued catalogue showed thousands at every
+  exposure.
+- **Mars's low Sun comes up**: 2.1× at the zenith (11 → 34, the lower sky
+  44 → 104), 1.9× away from the Sun, 1.25× from 232 m; the view toward the
+  Sun, whose top 2% is the aureole at 2.3, stays.  The sky's colour holds.
+- **Twilight on Earth lifts 4× at −4°** (the sunset glow 7.8 → 48, the
+  sky 1 → 12), 270-1,000× at −10°; the horizon band toward the Sun (1.8e-3
+  of a white; away from it 5.7e-4, 8° up) caps the gain, so the stars,
+  Sirius at 4.4e-5, reach threshold only once the sky is below ~1e-5,
+  about −20°: later than the eye, which adapts to where it looks (the
+  zenith at −10° is 1.2e-5), not the whole frame.  A centre-weighted meter
+  is the follow-up.
+- **The quarter Moon brightens 1.26×** (61 → 77): its top 2% is 0.49, under
+  the 0.6 cap; from the dark-adapted night side of Earth it is white.
+- **The night side from orbit** shows its cities at 7e4 gain (90th
+  percentile 37 → 96): the night lights are a radiance now (3e-5 of a
+  white for the texture's full white), invisible beside the day side at
+  the terminator (as #93 will tune) and brought up with the frame.
+- **The gain settles without pumping**: at a fixed view the goal is a
+  constant and the gain approaches it monotonically (the star field: 57 →
+  9.7e4 → 8.5e5 → 1.8e6 → 2.4e6 at 0, 1.9, 3.4, 4.8, 6.2 s); the last
+  eight frames of every settled view agree to 1e-3.  A planet loading from
+  a black frame keeps the gain (step 5).
+- **The LDR fallback** (`?hdr=0`) meters its 8-bit composite: the star
+  field reaches the dark-adapted gain and shows its stars; a planet that
+  loads from black is blown out while the gain comes down through clipped
+  readings, ×0.3 per metering, a few seconds.
+- **The Sun up close** can't be judged here: its disc's interior renders
+  black on SwiftShader (its noise shader, on `main` too); only the rim
+  reads 6e4.  On a real GPU the disc should fill the frame, the gain fall
+  to 2e-5 and the granulation show (`meteredGain`'s tests).
 
 ## Cesium in the same units
 

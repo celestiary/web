@@ -586,6 +586,17 @@ view, and it read 0.967 on main, outside its first tolerance.)
   down for Earth by design (`atmosphere: true`).  The remaining profile
   maximum, from orbit, is one sample where the coast meets the lit limb,
   and moves by several levels between runs.
+- **Earth at twilight, metered** (`earth-twilight-metered`, 3 km over the
+  outback, Sun 5° under the horizon, landed): the metered exposure lifts
+  the frame about 14× with Cesium's terrain in it (#86's PR B), and the
+  decode, scaled by the exposure over Earth's keyed one, keeps Cesium's
+  side with celestiary's: the sky band on against off 1.000.  Rendered
+  before the exposure had settled, the two sides differed by a third, so
+  parity now waits for the gain to reach its goal before its two renders;
+  and the view's `cq` is in the landed frame (the `L` in `s=`), without
+  which the restore looked up at the zenith.  The ground under the band
+  is left out: at night it is two models, Cesium's night floor against an
+  unlit sphere.
 - **Earth low over land by day** (`earth-low-land-day`, 7.5 km, Sun 8° up):
   Cesium's ground is 3-6% darker than celestiary's (its imagery and terrain
   Lambert against celestiary's texture), under the same haze.  Until #141's
