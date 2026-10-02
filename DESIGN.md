@@ -210,7 +210,12 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
   `Line`'s `position` attribute and `setDrawRange`, which everything below
   writes as before; an instanced view of the same array draws vertex i to
   i + 1, through the ordinary model-view, so the float64-origin precision
-  below carries over unchanged.
+  below carries over unchanged.  It's on the overlay layer, with the
+  labels: drawn after the atmosphere pass, depth-tested against the scene
+  depth that pass writes, writing none.  In the scene pass its depth told
+  the atmosphere there was something at that distance, so from Earth's
+  surface its own orbit (end-on, near) cut the sky's ray short: a dark
+  blotch in the sky.
 - **Planets and the Moon: the sampled path** (`js/scene/orbitPath.js`,
   `OrbitPath`). One sidereal period of the body's path around its primary,
   centred on the simulation date, 1001 vertices in a `Line` whose one
@@ -499,7 +504,7 @@ scene graph alone.
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
 | Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
 | Saturn rings | Double-sided `RingGeometry` with texture |
-| Orbit paths | A wide line strip (`wideLines.js`, 1.5 px, additive): the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
+| Orbit paths | A wide line strip (`wideLines.js`, 1.5 px, additive, on the overlay layer after the atmosphere): the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
 | Labels | Canvas-rendered `SpriteSheet` compiled to a single `Points` geometry |
 | Asterisms | Wide lines (`wideLines.js`) between the stars of `asterisms-clean.dat` |
 | Human expansion | Wide lines (`wideLines.js`), one per hop of a BFS across the catalogue, grown in the shader by a time uniform ([Colonization.md](js/scene/Colonization.md)) |

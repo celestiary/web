@@ -146,13 +146,20 @@ export default class Planet extends Object {
     const positions = unitEllipse(assertInRange(orbit.eccentricity, 0, 1), new Float32Array(ORBIT_LINE_POINTS * 3))
     // Wide lines (wideLines.js), as the asterisms: a strip with a Line's
     // position attribute and draw range, which orbitPath.js and bodyLine.js
-    // rewrite in place.
+    // rewrite in place.  On the overlay layer, as the labels: drawn after
+    // the atmosphere pass, depth-tested against the scene depth it writes,
+    // so the bodies still hide what's behind them, and writing no depth of
+    // its own.  In the scene pass a quad's depth told the atmosphere there
+    // was something there, at that distance: from Earth's surface its own
+    // orbit, end-on and near, cut the sky's ray short and showed as a dark
+    // blotch, and lines farther off were hazed into gaps.
     const pathShape = newWideLineStrip(positions, {
       name: 'orbit line',
       color: ORBIT_COLOR,
       width: ORBIT_WIDTH_PX,
-      material: {blending: AdditiveBlending, depthTest: true, depthWrite: true, transparent: false},
+      material: {blending: AdditiveBlending, depthTest: true, depthWrite: false, transparent: true},
     })
+    pathShape.layers.set(OVERLAY_LAYER)
     group.add(pathShape)
     group.line = pathShape
     const orbitScaled = orbit.semiMajorAxis.scalar
