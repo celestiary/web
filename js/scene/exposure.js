@@ -142,20 +142,25 @@ export const EYE_POINT_RAD = 10 / 60 * Math.PI / 180
  * frame for a small highlight that is (the sky round a low Sun, 2% of it
  * at 6), which clips, as a camera lets it.
  *
- * A frame with nothing in it at all (every pixel under METER_FLOOR: a
+ * A frame with nothing in it at all (every sample exactly zero: a
  * planet's texture, or the star catalogue, still loading) asks for
  * nothing: null, and the gain stays where it is.  Running to the
  * dark-adapted gain on a black loading frame rendered the planet 3e6
- * times too bright when it came.
+ * times too bright when it came.  Exactly zero, not under the floor: the
+ * 32×32 meter samples under 1% of the pixels and mostly misses 3 px star
+ * sprites, so a star field read a most of 6e-8 and, taken for empty, stayed
+ * black.  The LDR fallback's bytes quantize a star field to zero, so it
+ * can't tell empty from dark (`canBeEmpty` false) and takes the dark.
  *
  * @param {{meanLog: number, highlight: number, blown: number, max: number}} metered
  *   meanLogLuminance's measure of the frame as it was rendered
  * @param {number} renderedOverKeyed The exposure the frame was rendered at
  *   over the target-keyed exposure (its gain at the time)
+ * @param {boolean} canBeEmpty Whether a frame of zeros means nothing drawn
  * @returns {number|null} The gain the scene asks for; null for no scene
  */
-export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed) {
-  if (!(max > METER_FLOOR)) {
+export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed, canBeEmpty = true) {
+  if (canBeEmpty && !(max > 0)) {
     return null
   }
   const rendered = Math.max(renderedOverKeyed, 1e-30)

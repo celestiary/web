@@ -585,7 +585,7 @@ export default class ThreeUi {
     this.renderer.readRenderTargetPixels(this._meterRT, 0, 0, METER_SIZE, METER_SIZE, this._meterPixels)
     const renderedOverKeyed = this.renderer.toneMappingExposure / this._exposureGoal
     const metered = meanLogLuminance(this._meterPixels, METER_SIZE * METER_SIZE)
-    const gain = meteredGain(metered, renderedOverKeyed)
+    const gain = meteredGain(metered, renderedOverKeyed, this.hdr)
     // What was read, at the keyed exposure, for probing (HDR.md).
     this._meterLast = {
       mean: Math.exp(metered.meanLog) / renderedOverKeyed,

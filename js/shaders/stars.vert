@@ -10,12 +10,20 @@
 // it 13× brighter.  Spread over its sprite, whose texture integrates to
 // GLOW_MEAN of its area, so the sprite's total is the star's light whatever
 // its size.
+//
+// The sprite's size is the light's: MIN_STAR_SIZE_PX (3 px, about the
+// eye's patch on a 1080 px screen) up to the value a pixel shows as white
+// (1), and growing with the log of the value above it, as a saturated
+// point blooms in the eye and on a sensor, so the brightest stars are
+// bigger, with their light conserved; MAX_STAR_SIZE_PX caps it.  The
+// sprite was sized by the star's radius (the catalogue's, from its
+// luminosity), which spread a luminous star's light over a blob (Deneb
+// 110 px, Rigel 85) that the physical value made invisible.
 uniform float uFovDegrees;      // vertical
 uniform float uViewportHeight;  // pixels
 uniform float uExposureRelative;
 uniform float MIN_STAR_SIZE_PX;
 uniform float MAX_STAR_SIZE_PX;
-uniform float STAR_MAGNIFY_2;
 // RTE (Relative-To-Eye): camera position in star catalog coordinates (the
 // Points' local frame, J2000; see rte.js), split into
 // high (Math.fround) and low (residual) parts.  Together they carry full float64
@@ -38,8 +46,14 @@ const float fourPi = 4. * PI;
 // (StarsCatalog, 3.0e28) over 4π AU².
 const float SUN_ILLUMINANCE_1AU = 3.0e28 / (fourPi * 1.495978707e11 * 1.495978707e11);
 const float DISPLAY_GAIN = 1.5;
-// The mean of the star sprite's texture (star_glow.png) over its area.
-const float GLOW_MEAN = 0.0914;
+// The mean of the star sprite's texture (star_glow.png) over its area:
+// 0.098 sampled finely, 0.145 at the 3×3 samples of a 3 px sprite (the
+// samples a third of the way in see the core's shoulder).
+const float GLOW_MEAN = 0.098;
+const float GLOW_MEAN_3PX = 0.145;
+// The sprite grows this many pixels per decade of light over a white
+// pixel's.
+const float BLOOM_PX_PER_DECADE = 3.0;
 // Half-float's largest value, the scene buffer's.
 const float MAX_VALUE = 6.0e4;
 // The eye's resolution of a point, dark adapted: 10 arcmin, in radians.
@@ -57,30 +71,23 @@ void main() {
   vec3 lowDiff = positionLow - uCamPosWorldLow;
   vec3 eyePos = highDiff + lowDiff;
   vec4 mvPosition = vec4(mat3(modelViewMatrix) * eyePos, 1.);
-  float dist = -mvPosition.z;
-  float distSq = dist * dist;
+  // Inverse-square law: the star's illuminance here, E = lumens / (4π d²),
+  // with d in Gm: d² in metres overflowed float32 past 1,900 ly and
+  // zeroed Deneb, Rigel and every star beyond.
+  float distGm = -mvPosition.z * 1.0e-9;
+  float illuminance = (lumens * 1.0e-18) / (fourPi * distGm * distGm);
 
-  // Inverse-square law: the star's illuminance here, E = lumens / (4π d²).
-  float illuminance = lumens / (fourPi * distSq);
-
-  // The sprite's size: the look's law, by the star's radius and distance
-  // (larger than ~250 px makes no difference).
-  float maxDist = 9.461e15*2e4;
-  float lDist = log(-mvPosition.z);
-  float lMaxDist = log(maxDist);
-  float cLDist = clamp(lDist, 0., lMaxDist);
-  float art = STAR_MAGNIFY_2;
-  float scaledSize = art * radius / cLDist;
-  float cSize = clamp(
-    scaledSize, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
-  gl_PointSize = cSize;
-
-  // The star's light over one pixel, in exposure units, spread over the
-  // sprite.
+  // The star's light over the eye's patch, in exposure units.
   float radPerPx = max(radians(uFovDegrees) / max(uViewportHeight, 1.), EYE_POINT_RAD);
   float pointSolidAngle = radPerPx * radPerPx;
   float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / pointSolidAngle * uExposureRelative;
-  vBrightness = min(value / (GLOW_MEAN * cSize * cSize), MAX_VALUE);
+
+  // The sprite's size from the light (bloom), and the light spread over it.
+  float decadesOverWhite = max(log2(max(value, 1.0e-30)) / log2(10.0), 0.0);
+  float cSize = clamp(MIN_STAR_SIZE_PX + BLOOM_PX_PER_DECADE * decadesOverWhite, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
+  gl_PointSize = cSize;
+  float glowMean = cSize < 4.0 ? GLOW_MEAN_3PX : GLOW_MEAN;
+  vBrightness = min(value / (glowMean * cSize * cSize), MAX_VALUE);
 
   gl_Position  = projectionMatrix * mvPosition;
 }

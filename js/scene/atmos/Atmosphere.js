@@ -589,7 +589,9 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 ms, out
     bool sunBlocked = r >= uGroundRadius ?
         (pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) : dot(pos, uSunDirection) < 0.0;
     if (sunBlocked) {
-      jOd = vec2(1.0e6);
+      // Enough path for the smallest coefficient (AtmospherePrecompute:
+      // 1e6 m let 0.3% of the Sun through in Earth's red).
+      jOd = vec2(1.0e12);
     } else {
       jOd = texture2D(tTransmittance,
           vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rg;

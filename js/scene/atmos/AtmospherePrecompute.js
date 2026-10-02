@@ -353,10 +353,14 @@ void main() {
     vec2  pPlanet = rsi(iPos, sunDir, uGroundRadius);
     if (pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) {
       // Sun is behind the planet body — completely opaque.
-      // jOd stores density-weighted path lengths in metres; kMie ~ 2e-5 m⁻¹
-      // so we need jOd >> 1/kMie ~ 5e4 m to drive exp(-k*jOd) to zero.
-      // 1e6 m gives τ_Mie ≈ 21, τ_Rayleigh ≈ 33 → attn < 1e-9.
-      jOd = vec2(1.0e6, 1.0e6);
+      // jOd stores density-weighted path lengths in metres, so this must
+      // drive exp(-k*jOd) to zero for the smallest coefficient: Earth's
+      // Rayleigh red is 5.8e-6 /m, and 1e6 m let e^-5.8 = 0.3% of the Sun
+      // through every blocked step, which the metered exposure (HDR.md)
+      // showed as a red sky with the Sun 35° under the horizon.  1e12 m
+      // is τ > 1e4 for any coefficient over 1e-8 /m (Mars's Rayleigh is
+      // 1.2e-7); exp underflows to 0, no NaN.
+      jOd = vec2(1.0e12, 1.0e12);
     } else {
       jOd = texture2D(tTransmittance,
                vec2((iR - uGroundRadius) / (uAtmosphereRadius - uGroundRadius),

@@ -28,7 +28,8 @@ import {ORBIT_LINE_POINTS, unitEllipse} from './orbitPath.js'
 import {newWideLineStrip} from './wideLines.js'
 import {dataUrl} from '../dataUrl.js'
 import {monthOfJulianDay, monthlyPath} from './monthly.js'
-import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
+import {ASTRO_UNIT_METER, FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
+import {irradianceAt} from './exposure.js'
 import {capitalize, named} from '../utils.js'
 
 
@@ -37,9 +38,26 @@ const ORBIT_COLOR = 0x0000ff
 const ORBIT_WIDTH_PX = 1.5
 
 
-// Earth's city lights, as rendered before tone mapping: what 5e15 came to
-// under the old fixed exposure (3e-16).
-const NIGHT_LIGHT = 1.5
+// Earth's city lights' radiance, as a fraction of a white Lambertian
+// surface facing the Sun at 1 AU, for the texture's full white: 1 cd/m²,
+// a city core seen from above, against ~3e4 cd/m² for the white (HDR.md,
+// "Physical stars").  In exposure units, with DISPLAY_GAIN as every surface
+// has it, and scaled by the exposure as a surface is (the add is before
+// the scene pass's exposure multiply), so the metered exposure reads the
+// lights as scene luminance: at the keyed exposure 4.5e-5, black beside a
+// sunlit day side (as a camera at the terminator sees them), and at the
+// night side's own gain 0.6 at most.  They were 1.5 / toneMappingExposure,
+// a display value whatever the exposure, which the meter read as
+// luminance over the gain, asking for a gain proportional to the one it
+// had: a loop, with the night-side ground running up and away.  #93 tunes
+// the texture and this against the HDR pipeline.
+const NIGHT_LIGHT_RADIANCE = 3e-5
+
+
+/** @returns {number} The night lights' radiance for a full-white texel, in three's units */
+export function nightLightRadiance() {
+  return NIGHT_LIGHT_RADIANCE * irradianceAt(ASTRO_UNIT_METER) / Math.PI
+}
 
 // A label's depth, in radii toward the eye from the body's centre.
 const LABEL_LIFT = 1.1
@@ -421,12 +439,12 @@ export default class Planet extends Object {
         // string-replace silently failed and night lights didn't show.
         // vNormal is in VIEW space; uSunDirection is updated per-frame
         // (in onBeforeRender below) into the same view space.
-        // The lights are divided by the renderer's toneMappingExposure, so
-        // they show at NIGHT_LIGHT after it whatever the exposure (which
-        // follows the target; exposure.js).  Tweak per texture: composite
-        // "Earth at night" textures (with land visible as faint grey) need
-        // a lower level than pure NASA Black Marble (mostly black with
-        // bright cities).
+        // The lights are a radiance in three's units (NIGHT_LIGHT_RADIANCE
+        // of a sunlit white's, irradianceAt(1 AU) / π), which the exposure
+        // multiply in tonemapping_fragment then scales as it does the lit
+        // surface.  Tweak per texture: composite "Earth at night" textures
+        // (with land visible as faint grey) need a lower level than pure
+        // NASA Black Marble (mostly black with bright cities).
         shader.fragmentShader = shader.fragmentShader.replace(
             '#include <common>',
             `#include <common>
@@ -438,11 +456,7 @@ export default class Planet extends Object {
             `vec3 nightLight = texture2D(uNightMap, vMapUv).rgb;
              // smoothstep around terminator: 0 fully day, 1 fully night
              float nightFactor = smoothstep(-0.05, 0.05, -dot(normalize(vNormal), uSunDirection));
-             #ifdef TONE_MAPPING
-               gl_FragColor.rgb += nightLight * nightFactor * (${NIGHT_LIGHT.toFixed(2)} / toneMappingExposure);
-             #else
-               gl_FragColor.rgb += nightLight * nightFactor * ${NIGHT_LIGHT.toFixed(2)};
-             #endif
+             gl_FragColor.rgb += nightLight * nightFactor * ${nightLightRadiance().toExponential(4)};
              #include <tonemapping_fragment>`,
         )
       })

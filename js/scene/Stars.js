@@ -14,7 +14,7 @@ import StarsBufferGeometry from './StarsBufferGeometry.js'
 import StarsCatalog, {FAVES} from './StarsCatalog.js'
 import {assertDefined} from '../assert.js'
 import * as Material from './material.js'
-import {FAR_OBJ, STARS_RADIUS_METER, SUN_RADIUS_METER} from '../shared.js'
+import {FAR_OBJ, STARS_RADIUS_METER} from '../shared.js'
 import {named} from '../utils.js'
 import {absoluteUniforms} from './hdr.js'
 import {rteCameraLocal} from './rte.js'
@@ -125,11 +125,10 @@ export default class Stars extends Object {
       uniforms: {
         texSampler: {value: starImage},
         ...absoluteUniforms,
-        // This is tuned for Star zoom e.g. on Sun to have
-        // surface just meet the glow in the png image.
-        STAR_MAGNIFY_2: {value: 1 / SUN_RADIUS_METER * 1e1},
+        // A star's sprite: 3 px, growing with its light past a white
+        // pixel's (bloom; stars.vert), to 64 px at most.
         MIN_STAR_SIZE_PX: {value: 3},
-        MAX_STAR_SIZE_PX: {value: 512},
+        MAX_STAR_SIZE_PX: {value: 64},
         // RTE uniforms: camera position in star catalog coords, split high/low
         uCamPosWorldHigh: {value: new Vector3()},
         uCamPosWorldLow: {value: new Vector3()},

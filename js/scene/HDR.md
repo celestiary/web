@@ -220,10 +220,16 @@ transmittance (0.86 at the zenith from sea level), with no boost; so does
 a sunlit Moon in view.  At the dark-adapted gain (`METER_GAIN_MAX`, 3e6,
 below) Sirius is 130, white, and sixth magnitude 0.14, which spread over
 its sprite peaks at 0.17 and shows at 38 of 255: the naked-eye limit, faint.
-The sprite's size stays the look's law (by radius and distance, 3 px for
-nearly every star); its total is the star's light whatever the size, the
-texture's mean over its area (`GLOW_MEAN`, 0.09) dividing it.  Values are
-clamped to what the half-float buffer holds (`HDR_MAX_VALUE`, 6e4).
+The sprite is 3 px (about the eye's patch on a 1080 px screen) up to the
+value a pixel shows as white, and grows 3 px per decade of light above it
+(to 64 px), as a saturated point blooms in the eye and on a sensor: the
+brightest stars are bigger, with their light conserved, the texture's mean
+over the sprite's area dividing it (`GLOW_MEAN`).  It was sized by the
+star's radius, which the catalogue takes from its luminosity, so a luminous
+star's light went into a blob (Deneb 110 px, Rigel 85) that the physical
+value made invisible; and `d²` in metres overflowed float32 past 1,900 ly
+and zeroed every star beyond.  Values are clamped to what the half-float
+buffer holds (`HDR_MAX_VALUE`, 6e4).
 
 **The Sun's disc** (`star-shaders.js`) is `DISPLAY_GAIN / θ²` times the
 granulation texture, θ its angular radius from 1 AU: 69,000 at Earth's
@@ -266,10 +272,15 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    the gain falls to bring it there, to `METER_GAIN_MIN` (1e-5) at most:
    the Sun's disc, 46,000 whites, fills the frame and shows its
    granulation.
-5. A frame with nothing in it (every pixel under the floor: a texture or
+5. A frame with nothing in it (every sample exactly zero: a texture or
    the star catalogue still loading) asks for nothing, and the gain stays.
    Without this the gain ran to 3e6 on the black loading frame and the
-   planet, when it came, overflowed the buffer.
+   planet, when it came, overflowed the buffer.  Exactly zero: the 32×32
+   meter samples under 1% of the pixels and mostly misses 3 px star
+   sprites, so a star field read a most of 6e-8 and, taken for empty under
+   the floor, stayed black.  The LDR fallback's bytes quantize a star
+   field to zero, so it takes every black frame as dark, and a planet
+   loading there is blown out for the second the gain takes to fall.
 6. The gain **eases in log space** (`easeExposure`), with a time constant
    of `METER_TAU_UP_SECONDS` (1.5 s) rising, the eye adapting to the dark,
    and `METER_TAU_DOWN_SECONDS` (0.3 s) falling, a camera catching up with a

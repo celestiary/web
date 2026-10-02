@@ -77,7 +77,10 @@ describe('metered exposure', () => {
     expect(METER_GAIN_MAX).toBeCloseTo(3e6, 0)
     // Nothing drawn yet (a texture loading): the gain stays as it is.
     expect(meteredGain(m(1e-12, 1e-12, 0), 1)).toBeNull()
-    expect(meteredGain(m(1e-12, 1e-12, 1e-8), 1)).toBeNull()
+    // A star field the meter's samples mostly miss: dark, not empty.
+    expect(meteredGain(m(1e-12, 1e-12, 6e-8), 1)).toBeCloseTo(METER_GAIN_MAX, 6)
+    // The LDR fallback can't tell: its zeros are dark.
+    expect(meteredGain(m(1e-12, 1e-12, 0), 1, false)).toBeCloseTo(METER_GAIN_MAX, 6)
   })
 
   it('keeps a sunlit body on black space anchored: its highlight stays under METER_HIGHLIGHT', () => {

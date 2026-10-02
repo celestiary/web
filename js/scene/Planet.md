@@ -56,8 +56,17 @@ Two `onBeforeCompile` patches, chained via `shaderMods` so multiple mods
 2. Before `<tonemapping_fragment>` — sample the night map at `vMapUv`,
    compute `nightFactor = smoothstep(-0.05, 0.05, -dot(normalize(vNormal), uSunDirection))`
    (0 fully day → 1 fully night, soft 6° band around the terminator), and
-   add `nightLight * nightFactor * INTENSITY` to `gl_FragColor.rgb`
-   *before* tonemapping so city lights pass through the same tonemap +
+   add `nightLight * nightFactor * RADIANCE` to `gl_FragColor.rgb`
+   *before* tonemapping so city lights pass through the same exposure and
+   tonemap chain as the rest of the surface.  `RADIANCE` is
+   `NIGHT_LIGHT_RADIANCE` (3e-5, the texture's full white as 1 cd/m²
+   against a sunlit white's 3e4) times a sunlit white's radiance in three's
+   units, so the lights are in exposure units like the lit surface
+   ([HDR.md](HDR.md#metered-exposure)): beside a sunlit day side they are
+   black, as a camera at the terminator sees them, and on the night side
+   alone the metered exposure brings them to 0.6 at most.  They were a
+   fixed display value (`1.5 / toneMappingExposure`), which the meter
+   read as a luminance falling with its own gain, and ran away on.
    gamma chain as the rest of the surface.
 
 Earlier versions tried `<output_fragment>` — that chunk was renamed
