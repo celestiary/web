@@ -18,6 +18,7 @@ import {assertArgs} from './assert'
 import {latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment} from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
+import {goToEntry} from './search/commitEntry'
 import {elt} from './utils'
 
 
@@ -315,21 +316,15 @@ export default class Celestiary {
 
   /**
    * Go to what a double-clicked or tapped label labels (Scene.onDblClick),
-   * as 'g' goes to the target: a body by its path, a star as the star picker
-   * commits it.
+   * as the search's Go does (goToEntry): a body by its path, a star by
+   * scene.goTo, committed.
    *
    * @param {{kind: string, name: string, star?: object}} label
    */
   goToLabel(label) {
-    if (label.kind === 'star' && label.star) {
-      this.scene.goTo(label.star)
-      this.useStore.getState().setCommittedStar({hipId: label.star.hipId, displayName: label.name, star: label.star})
-      return
-    }
-    const path = this.loader.pathByName[label.name]
-    if (path) {
-      window.location.hash = path
-    }
+    goToEntry(label.kind === 'star' ?
+      {kind: 'star', displayName: label.name, payload: {star: label.star, hipId: label.star.hipId}} :
+      {kind: 'body', displayName: label.name, payload: {name: label.name}}, this)
   }
 
 
