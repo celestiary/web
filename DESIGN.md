@@ -374,6 +374,14 @@ Camera orientation and position are separated across three input modes, all accu
 | `t` | Toggle continuous tracking (camera auto-looks at target as it orbits) |
 | `c` | Snap look at current target |
 
+**Touch.** Pinch zooms, through `TouchSafeTrackballControls`
+(`js/TouchSafeTrackballControls.js`): TrackballControls with its list of
+touching pointers kept right.  As three ships it, it captures only the
+first finger, so a second one lifted over HTML (the widgets sheet, the info
+panel) never sends it its pointerup; once that pointer ID is reused, every
+touch move throws.  The subclass captures every pointer and lists each
+once.
+
 **Asymptotic zoom** (`js/zoom.js`): scroll zoom is remapped from distance-space to altitude-space so the camera approaches the surface asymptotically. The `camera.near` plane is dynamically scaled to `altitude * 0.1` (clamped 100 m – `SMALLEST_SIZE_METER`) so the surface remains visible without clipping.
 
 ### Proximity-scaled orbit drag
@@ -700,9 +708,19 @@ State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
   showing the app tray or one app; and dock, a 56 px bar of icons right of
   the canvas.  The dock shows while docked (the drawer's dock button) or
   while any app is pinned.  The canvas narrows for it
-  (`Celestiary.setRightInset`), and `#top-right` moves left of it
+  (`Celestiary.setInsets`), and `#top-right` moves left of it
   (`--dock-width`), so it never covers the scene; an open drawer sits left
   of it.
+- **Phones** (`useIsMobile`, 600 px wide or less).  The open drawer is a
+  sheet over the bottom half of the screen instead, and the scene shrinks
+  to the half above it (`setInsets`' bottom), so an app's effects show
+  while it's used.  The bottom controls move up above the sheet
+  (`--sheet-height`).
+- **Sizing.**  `Celestiary` owns the scene's size: the window less the
+  dock and sheet, redone on every resize (a phone rotating, its browser
+  bars coming and going).  `ThreeUI.onResize` reads the container's size,
+  never the window's.  The target's info panel scrolls within the scene's
+  height (`--scene-height`).
 - **Running.** An app runs from when it's opened until stopped.  Its
   header has a pin and an X.  X stops it (`stop`, out of the scene, back
   to the tray).  Closing the drawer stops every app that isn't pinned; a

@@ -28,8 +28,8 @@ import {
   meanLogLuminance, meteredGain, skyExposure,
 } from './scene/exposure.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
-import {TrackballControls} from 'three/examples/jsm/controls/TrackballControls.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
+import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
 import {resolveDragMode} from './dragMode'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
@@ -270,7 +270,8 @@ export default class ThreeUi {
 
   /** */
   initControls(camera) {
-    const controls = new TrackballControls(camera, this.threeContainer)
+    // TrackballControls, its touch bookkeeping fixed (TouchSafeTrackballControls).
+    const controls = new TouchSafeTrackballControls(camera, this.threeContainer)
     // Rotation speed is changed in scene.js depending on target
     // type: faster for sun, slow for planets.
     controls.noZoom = false
@@ -288,14 +289,11 @@ export default class ThreeUi {
   /** */
   onResize() {
     // https://threejsfundamentals.org/threejs/lessons/threejs-responsive.html
-    let width; let height
-    if (this.fs.isFullscreen()) {
-      width = window.innerWidth
-      height = window.innerHeight
-    } else {
-      width = this.container.offsetWidth
-      height = this.container.offsetHeight
-    }
+    // The container's size, which its owner keeps (Celestiary._layout: the
+    // window less the widgets dock and sheet).  Not the window's, even when
+    // the container started out filling it, or the canvas runs under them.
+    const width = this.container.offsetWidth
+    const height = this.container.offsetHeight
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)

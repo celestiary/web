@@ -11,6 +11,7 @@ import Typography from '@mui/material/Typography'
 import {TRAY, isDockVisible} from '../store/WidgetsSlice'
 import useStore from '../store/useStore'
 import useIsMobile from '../useIsMobile'
+import useWindowDimensions from '../useWindowDimensions'
 import {APPS, appById} from './apps'
 import AppsIcon from '@mui/icons-material/AppsOutlined'
 import BackIcon from '@mui/icons-material/ArrowBack'
@@ -23,6 +24,9 @@ import StopIcon from '@mui/icons-material/Close'
 
 const DRAWER_WIDTH = 360
 export const DOCK_WIDTH = 56
+// On a phone the drawer is a sheet over the bottom of the screen, this much
+// of its height, and the scene fits above it.
+const SHEET_HEIGHT_FRACTION = 0.5
 const PANEL_BG = '#121212'
 
 
@@ -36,6 +40,10 @@ const PANEL_BG = '#121212'
  *   the tray, and each pinned app.  Shows while docked or any app is
  *   pinned; the drawer, when open too, sits left of it.
  *
+ * On a phone (useIsMobile) the open drawer is a sheet over the bottom half
+ * of the screen instead, the scene above it, so an app's effects show while
+ * it's used.
+ *
  * @property {object} celestiary
  * @returns {ReactElement}
  */
@@ -44,8 +52,10 @@ export default function WidgetsDrawer({celestiary}) {
   const dispatch = useStore((state) => state.dispatchWidgets)
   const runningRef = useRef([])
   const isMobile = useIsMobile()
+  const {height: windowHeight} = useWindowDimensions()
   const isDocked = isDockVisible(widgets)
   const inset = isDocked ? DOCK_WIDTH : 0
+  const sheetHeight = isMobile && widgets.isOpen ? Math.round(windowHeight * SHEET_HEIGHT_FRACTION) : 0
   const app = appById(widgets.view)
 
   // An app leaving `running` (stopped, or the drawer closed with it
@@ -61,20 +71,23 @@ export default function WidgetsDrawer({celestiary}) {
 
   useEffect(() => {
     document.documentElement.style.setProperty('--dock-width', `${inset}px`)
-    celestiary.setRightInset(inset)
-  }, [inset, celestiary])
+    document.documentElement.style.setProperty('--sheet-height', `${sheetHeight}px`)
+    celestiary.setInsets({right: inset, bottom: sheetHeight})
+  }, [inset, sheetHeight, celestiary])
 
   return (
     <>
       <Drawer
-        anchor='right'
+        anchor={isMobile ? 'bottom' : 'right'}
         variant='persistent'
         open={widgets.isOpen}
         id='widgets-drawer'
         data-testid='widgets-drawer'
         PaperProps={{
           sx: {
-            width: isMobile ? `calc(100% - ${inset}px)` : DRAWER_WIDTH,
+            ...(isMobile ?
+              {width: `calc(100% - ${inset}px)`, height: sheetHeight, left: 0} :
+              {width: DRAWER_WIDTH}),
             right: inset,
             backgroundColor: PANEL_BG,
           },
