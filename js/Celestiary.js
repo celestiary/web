@@ -44,8 +44,11 @@ export default class Celestiary {
     this.time = new Time(setTimeStr)
     this.setIsPaused = setIsPaused
     this.animation = new Animation(this.time)
-    canvasContainer.style.width = `${window.innerWidth}px`
-    canvasContainer.style.height = `${window.innerHeight}px`
+    // The scene fills the window, less the widgets dock and, on a phone,
+    // the drawer's sheet (setInsets).  Kept so on every resize, as a phone
+    // rotates or its browser bars come and go.
+    this._insets = {right: 0, bottom: 0}
+    this._sizeContainer(canvasContainer)
     const animCb = (scene) => {
       this.animation.animate(scene)
       if (Shared.targets.track) {
@@ -53,6 +56,7 @@ export default class Celestiary {
       }
     }
     this.ui = new ThreeUi(canvasContainer, animCb)
+    window.addEventListener('resize', () => this._layout())
     this.ui.layers.time = this.time
     this.ui.configLargeScene()
     this.ui.useStore = useStore
@@ -600,14 +604,38 @@ export default class Celestiary {
 
 
   /**
-   * Narrow the canvas from the right, for the widgets dock (ui/WidgetsDrawer),
-   * so the dock sits beside the scene rather than over it.
+   * Shrink the scene from the right and the bottom, for the widgets dock and,
+   * on a phone, the drawer's sheet (ui/WidgetsDrawer), so they sit beside
+   * the scene rather than over it.
    *
-   * @param {number} px Width the dock takes, 0 for none
+   * @param {{right: number, bottom: number}} insets Pixels each takes, 0 for none
    */
-  setRightInset(px) {
-    this.ui.container.style.width = `${window.innerWidth - px}px`
+  setInsets({right = 0, bottom = 0}) {
+    if (right === this._insets.right && bottom === this._insets.bottom) {
+      return
+    }
+    this._insets = {right, bottom}
+    this._layout()
+  }
+
+
+  /** Size the scene to the window less the insets. */
+  _layout() {
+    this._sizeContainer(this.ui.container)
     this.ui.onResize()
+  }
+
+
+  /**
+   * Also sets `--scene-height`, which the info panel fits in (index.css).
+   *
+   * @param {HTMLElement} container
+   */
+  _sizeContainer(container) {
+    const height = Math.max(window.innerHeight - this._insets.bottom, 1)
+    container.style.width = `${Math.max(window.innerWidth - this._insets.right, 1)}px`
+    container.style.height = `${height}px`
+    document.documentElement?.style.setProperty('--scene-height', `${height}px`)
   }
 
 
