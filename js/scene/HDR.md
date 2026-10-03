@@ -1,12 +1,14 @@
 # One HDR pipeline: linear scene buffer, one tone map
 
-The plan and design for [#86](https://github.com/celestiary/web/issues/86)
-PR A: steps 1, 2 and 5 of its proposal.  The scene renders into a linear,
+The design for [#86](https://github.com/celestiary/web/issues/86).  PR A
+(steps 1, 2 and 5 of its proposal): the scene renders into a linear,
 bright-range buffer in exposure units; the sky joins it in the same units;
 Cesium's layers composite into it in the same units; and one tone map, PBR
-Neutral, runs once, last.  Little visual change is intended: what this buys
-is PR B (physical stars, metered exposure, removing the eye-adaptation hacks),
-which needs every source on one scale.
+Neutral, runs once, last.  PR B (steps 3, 4 and 6): the stars, the Milky
+Way and the Sun's disc in the same units ([physical stars](#physical-stars)),
+the exposure metered from the buffer ([metered exposure](#metered-exposure)),
+and the eye-adaptation boost, the transmittance floor and the `beyondAtm`
+exemption gone.
 
 Background: [Planet.md, lighting and exposure](Planet.md#lighting-and-exposure)
 (the target-keyed exposure), [atmos/composition.md](atmos/composition.md) (the
@@ -28,9 +30,10 @@ Two kinds of value then live in the pipeline:
   Lambertian surface facing the Sun at the exposure target, times
   `DISPLAY_GAIN` (so a sunlit white surface is 1.5).  Unbounded.
 - **Display-referred**: what reaches the screen, 0 to 1, after the tone map.
-  Also what the stars, the Milky Way, labels, lines, the Sun's surface shader
-  and the rings write today: they are drawn with `toneMapped: false` and their
-  values are meant as display values.
+  Also what labels, lines, grids and the rings write: they are drawn with
+  `toneMapped: false` and their values are meant as display values.  The
+  stars, the Milky Way and the Sun's disc wrote display values too until PR
+  B made them scene-referred (below).
 
 ## Before
 
@@ -119,7 +122,7 @@ and wraps it, so no shader's own code changes.  A shared uniform switches it
 on only while drawing into the HDR buffer: the label overlay, drawn to the
 screen after the tone map, gets its values unchanged.
 
-PR B replaces the stars' and the Sun's display values with physical ones; the
+PR B replaced the stars' and the Sun's display values with physical ones; the
 labels, lines and grids stay display-referred.
 
 ### Blending in linear light
@@ -181,8 +184,199 @@ scattering") Earth's gain is 21, 4.5×, re-fitted to hold its sky's luma,
 and the rest is the aerosol load PR B tunes against, once stars are
 physical too.  Mars has the physical value: its sky is its dust's.
 
-The eye-adaptation boost keeps reading the sky's brightness as `1 − e^(−S)`,
-so it behaves exactly as before; PR B removes it.
+The eye-adaptation boost kept reading the sky's brightness as `1 − e^(−S)`,
+so it behaved exactly as before, until PR B removed it.
+
+## Physical stars
+
+A star is a point: what reaches the eye is an illuminance `E_star`, not a
+radiance.  Over the patch it lands in, of solid angle `Ω`, it is the
+radiance `E_star / Ω`, and relative to a white Lambertian surface facing the
+Sun, whose radiance is `E_sun / π`, that is `π·E_star / (E_sun·Ω)`.  In
+exposure units, with `DISPLAY_GAIN` as every surface has it, a star's value is
+
+    value = DISPLAY_GAIN · π · (E_star / E_sun,1AU) / Ω · exposureRelative
+
+`E_star / E_sun,1AU` is the star's illuminance here over the Sun's at 1 AU,
+from the catalogue's lumens and the inverse square law (`shaders/stars.vert`;
+the Sun's 3.0e28 in those units over 4π AU²); Sirius is 7.9e-11 of the Sun.
+`exposureRelative` (`exposure.js`) is the renderer's exposure over Earth's
+keyed one, so the value is right at any exposure (the shared
+`absoluteUniforms` in `hdr.js`, set every frame).
+
+**The patch is a pixel, or the eye's resolution where a pixel is finer.**
+Dark adapted, the eye resolves a point no finer than about 10 arcmin (rod
+acuity, ~20/200), so `Ω = max(Ω_pixel, (10′)²)` = 8.5e-6 sr at least.  A
+1080 px screen at 45° has 2.5′ pixels, a 300 px test viewport 9′: per
+pixel alone the screen would show every star 13× brighter than the test
+render, and the whole Hipparcos catalogue (to magnitude 9-12) as white
+dots.  With the eye's floor the two agree, and the sky's depth is set by the
+exposure, not the display.
+
+With it, at Earth's keyed exposure (`exposureRelative` 1): Sirius 4.4e-5,
+a sixth-magnitude star 4.6e-8, of a sunlit white surface.  The day sky is
+0.1-0.5, so it covers them by its light, through the physical
+transmittance (0.86 at the zenith from sea level), with no boost; so does
+a sunlit Moon in view.  At the dark-adapted gain (`METER_GAIN_MAX`, 3e6,
+below) Sirius is 130, white, and sixth magnitude 0.14, which spread over
+its sprite peaks at 0.17 and shows at 38 of 255: the naked-eye limit, faint.
+The sprite is 3 px (about the eye's patch on a 1080 px screen) up to the
+value a pixel shows as white, and grows 3 px per decade of light above it
+(to 64 px), as a saturated point blooms in the eye and on a sensor: the
+brightest stars are bigger, with their light conserved, the texture's mean
+over the sprite's area dividing it (`GLOW_MEAN`).  It was sized by the
+star's radius, which the catalogue takes from its luminosity, so a luminous
+star's light went into a blob (Deneb 110 px, Rigel 85) that the physical
+value made invisible; and `d²` in metres overflowed float32 past 1,900 ly
+and zeroed every star beyond.  Values are clamped to what the half-float
+buffer holds (`HDR_MAX_VALUE`, 6e4).
+
+**The Sun's disc** (`star-shaders.js`) is `DISPLAY_GAIN / θ²` times the
+granulation texture, θ its angular radius from 1 AU: 69,000 at Earth's
+keyed exposure, clamped to 6e4.  At that exposure it is white; the metered
+exposure brings it down to show the granulation when it fills the frame
+(below).
+
+**The Milky Way** (`MilkyWay.js`) is drawn at its surface brightness: its
+bright regions are 21-22 mag/arcsec², 2e-4 cd/m², against 3-4e4 cd/m² for
+a sunlit white, 5e-9; times `DISPLAY_GAIN`, 2e-8 at the keyed exposure, 0.06
+at the dark-adapted gain: faint, as it is.
+
+## Metered exposure
+
+The target-keyed exposure ([Planet.md](Planet.md#lighting-and-exposure))
+shows a sunlit target at its albedo and is the anchor.  Over it a **metered
+gain** adapts to what's in the frame, as the eye or an auto-exposing camera
+does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
+
+1. Every `METER_EVERY_FRAMES` (4) frames the atmosphere pass renders its
+   linear composite, sky plus scene through the transmittance in exposure
+   units before the tone map (its probe view 7, `composition.md`), into a
+   32×32 float target, which is read back.
+2. The frame's **mean log luminance**, divided by the gain it was rendered
+   at so it is the scene's at the keyed exposure, asks for the gain that
+   brings it to `METER_KEY` (0.3, middle grey for a white of 1.5).  Pixels
+   under `METER_FLOOR` (1e-7) count as the floor, so black asks for
+   `METER_GAIN_MAX` = `METER_KEY / METER_FLOOR` = 3e6, not infinity.  That
+   is the eye's dark adaptation: a scene of 0.01 cd/m² (a moonlit
+   landscape) shown as a sunlit one.
+3. **Never below 1 for a sunlit scene.**  The luminance the brightest
+   `METER_HIGHLIGHT_FRACTION` (2%) of the frame exceeds is lifted to at
+   most `METER_HIGHLIGHT` (0.6, a sunlit surface of albedo 0.4): a frame
+   holding a sunlit surface (the Moon at quarter, Mars from orbit, Earth's
+   clouds, a midday sky) keeps the keyed exposure; a low Sun's sky and
+   ground, a twilight, are lifted toward the key; a star field, whose
+   sprites cover less than 2% of the frame, runs to the dark-adapted gain.
+4. **Below 1 only for a blown highlight.**  Where that 2% is over
+   `METER_HIGHLIGHT_MAX` (1.5, a sunlit white: no planet is ever over it),
+   the gain falls to bring it there, to `METER_GAIN_MIN` (1e-5) at most:
+   the Sun's disc, 46,000 whites, fills the frame and shows its
+   granulation.
+5. A frame with nothing in it (every sample exactly zero: a texture or
+   the star catalogue still loading) asks for nothing, and the gain stays.
+   Without this the gain ran to 3e6 on the black loading frame and the
+   planet, when it came, overflowed the buffer.  Exactly zero: the 32×32
+   meter samples under 1% of the pixels and mostly misses 3 px star
+   sprites, so a star field read a most of 6e-8 and, taken for empty under
+   the floor, stayed black.  The LDR fallback's bytes quantize a star
+   field to zero, so it takes every black frame as dark, and a planet
+   loading there is blown out for the second the gain takes to fall.
+6. The gain **eases in log space** (`easeExposure`), with a time constant
+   of `METER_TAU_UP_SECONDS` (1.5 s) rising, the eye adapting to the dark,
+   and `METER_TAU_DOWN_SECONDS` (0.3 s) falling, a camera catching up with a
+   planet come upon from a star field; the keyed exposure itself keeps its
+   0.5 s between targets.  The gain asked for is the scene's whatever
+   exposure the frame was rendered at (step 2), so there is no loop to
+   oscillate: at a fixed view the goal is a constant and the gain settles
+   on it; as the view moves the goal moves with the frame's content and
+   the easing smooths it.
+
+The exposure then reaches everything in the buffer's units: the surfaces
+(the scene pass), the sky (`uSkyExposure`), the stars (`exposureRelative`),
+and Cesium's frames, whose decode is scaled by the exposure over the body's
+keyed one (`ThreeUi.exposureOf`) so the two sides of the swap move together.
+In the LDR fallback the meter reads the 8-bit composite, display values: in
+the dark, where the gain matters, Neutral's toe is near linear and the gain
+is close; in the bright it is under-read and the gain stays at 1.
+
+The overflow in step 5 is guarded everywhere: the scene pass's exposure
+multiply, the decode, the stars and the Sun's disc clamp to `HDR_MAX_VALUE`
+(6e4, under half-float's 65504), since a value past it becomes Inf, NaN out
+of the tone map, a black pixel, and a meter that reads black holds the gain
+that overflowed it; a non-finite pixel in the meter counts as the maximum.
+
+### Results
+
+SwiftShader, 480×300, Cesium's layers off (celestiary's own bodies; the
+swap is `yarn parity`'s, below), against `main` at the same commit.
+Medians of the display luma (of 255) over a region; "gain" is the metered
+gain the frame settled on, and "meter" what it read at the keyed exposure
+(the mean log luminance, and the luminance the brightest 2% exceed).
+
+| View | Gain | Meter (mean / 2%) | Region | Before | After |
+|---|---|---|---|---|---|
+| Earth's surface, outback, Sun 43° up | 1 | 0.67 / 1.9 | sky / ground | 90.8 / 191 | 90.8 / 191 |
+| Earth's surface, Ganges plain, Sun 60° up | 1 | 0.76 / 2.1 | sky / ground | 98.5 / 191 | 98.6 / 191 |
+| Earth from 400 km, Sun 14° up (`earth-low-dusk`) | 1 | 0.34 / 0.41 | all | 74.1 | 74.1 |
+| Earth from 20,000 km, 64° phase | 1 | 1e-6 / 0.76 | disc / space | 58.3 / 0 | 55.9 / 0 |
+| Earth from 20,000 km, at the terminator | 1.02 | 6e-7 / 0.59 | disc | mean 41.7 | mean 32.9 |
+| Earth's night side from 20,000 km | 7.3e4 | 1e-10 / 8e-6 | disc median / 90th pct | 5.9 / 37 | 6.8 / 96 |
+| Civil twilight, outback, Sun −4°, toward it | 4.4 | 0.017 / 0.13 | sky / glow / ground | 1 / 7.8 / 115 | 11.6 / 47.8 / 0 |
+| Twilight from 3 km, Sun −5°, toward it | 7.2 | 0.002 / 0.08 | sky (lower half) | 10 | 55.6 |
+| Nautical twilight, Sun −10°, toward it | 268 | 7e-5 / 1.8e-3 | sky / horizon | 0 / 0.2 | 0 / 55 |
+| Nautical twilight, Sun −10°, away from it | 1,000 | 5e-5 / 5.7e-4 | sky 50° up / all | 0 / 0 | 0.9 / 1.9 |
+| Night, Sun −35°, looking up | 3e6 | 2e-12 / 3e-9 | stars: pixels over 20 / 100 | 22,460 / 196 (display values) | 132 / 25 |
+| Deep space, 4.7 AU from the Sun, away from it | 3e6 (2.4e6 at 6 s) | 2e-12 / 2e-9 | stars: pixels over 20 / 100 | 22,690 / 324 (display values) | 68 / 14 |
+| The Moon from 5,000 km, quarter | 1.22 | 2e-6 / 0.49 | lit disc | 61 | 77 |
+| The daytime Moon, quarter, Sun 42° and Moon 38° up, 4.7° fov | 1 | 0.32 / 0.34 | sky / Moon | 72.4 / 127 | 72.4 / 127 |
+| Mars, Valles Marineris, Sun 18° up, zenith (`mars-sky-zenith`) | 2.1 | 0.13 / 0.29 | zenith / 35° lower | 11 / 44 | 34 / 104 |
+| Mars, same, away from the Sun (`mars-sky-antisolar`) | 1.9 | 0.16 / 0.19 | sky 50° up / horizon / ground | 19 / 36 / 34 | 47 / 77 / 76 |
+| Mars, same, toward the Sun (`mars-sky-aureole`) | 1 | 0.53 / 2.3 | aureole / 40° off / ground | 210 / 92 / 48 | 210 / 92 / 52 |
+| Mars from 232 m, Sun 26° up (`mars-low-horizon`) | 1.25 | 0.24 / 0.48 | ground / sky | 44 / 53 | 56 / 68 |
+| The Sun from 7 radii | 1 | 5e-7 / 6e4 | disc | black (SwiftShader; its rim 6e4) | the same |
+
+- **A sunlit scene is untouched**: the midday surface, Earth from orbit by
+  day and at the terminator, the daytime Moon, Mars toward the Sun and
+  from 400 km all read as before, at gain 1.  Earth's disc from 20,000 km
+  is 4% darker in its median: the night lights' floor (the texture's grey
+  land, 0.02-0.09, at a fixed display value) is gone from the dark limb.
+- **The stars are gone from a sunlit frame** (space 0 instead of 6.8 mean
+  beside Earth; the daytime sky): their light is under a sunlit surface's
+  by 1e4 or more, so the keyed exposure can't show them, as a camera
+  can't.  They are back where the frame is dark: at night and in deep
+  space the gain reaches 3e6 (2.4e6 after 6 s, the 1.5 s constant), and a
+  45° field holds some 50 stars over 20 of 255 and 10 over 100, the
+  brightest first; the display-valued catalogue showed thousands at every
+  exposure.
+- **Mars's low Sun comes up**: 2.1× at the zenith (11 → 34, the lower sky
+  44 → 104), 1.9× away from the Sun, 1.25× from 232 m; the view toward the
+  Sun, whose top 2% is the aureole at 2.3, stays.  The sky's colour holds.
+- **Twilight on Earth lifts 4× at −4°** (the sunset glow 7.8 → 48, the
+  sky 1 → 12), 270-1,000× at −10°; the horizon band toward the Sun (1.8e-3
+  of a white; away from it 5.7e-4, 8° up) caps the gain, so the stars,
+  Sirius at 4.4e-5, reach threshold only once the sky is below ~1e-5,
+  about −20°: later than the eye, which adapts to where it looks (the
+  zenith at −10° is 1.2e-5), not the whole frame.  A centre-weighted meter
+  is the follow-up.
+- **The quarter Moon brightens 1.26×** (61 → 77): its top 2% is 0.49, under
+  the 0.6 cap; from the dark-adapted night side of Earth it is white.
+- **The night side from orbit** shows its cities at 7e4 gain (90th
+  percentile 37 → 96): the night lights are a radiance now (3e-5 of a
+  white for the texture's full white), invisible beside the day side at
+  the terminator (as #93 will tune) and brought up with the frame.
+- **The gain settles without pumping**: at a fixed view the goal is a
+  constant and the gain approaches it monotonically (the star field: 57 →
+  9.7e4 → 8.5e5 → 1.8e6 → 2.4e6 at 0, 1.9, 3.4, 4.8, 6.2 s); the last
+  eight frames of every settled view agree to 1e-3.  A planet loading from
+  a black frame keeps the gain (step 5).
+- **The LDR fallback** (`?hdr=0`) meters its 8-bit composite: the star
+  field reaches the dark-adapted gain and shows its stars; a planet that
+  loads from black is blown out while the gain comes down through clipped
+  readings, ×0.3 per metering, a few seconds.
+- **The Sun up close** can't be judged here: its disc's interior renders
+  black on SwiftShader (its noise shader, on `main` too); only the rim
+  reads 6e4.  On a real GPU the disc should fill the frame, the gain fall
+  to 2e-5 and the granulation show (`meteredGain`'s tests).
 
 ## Cesium in the same units
 

@@ -10,7 +10,7 @@ import {
 import {galacticToSceneMatrix, SUN_GALACTIC_RADIUS_LY} from './galacticFrame.js'
 import {pathTexture} from './material.js'
 import {LIGHTYEAR_METER} from '../shared.js'
-import {sceneReferred} from './hdr.js'
+import {absoluteUniforms} from './hdr.js'
 import {rteCameraLocal} from './rte.js'
 
 
@@ -194,9 +194,13 @@ export default function newMilkyWay() {
   // USE_COLOR define and may wire the standard Points chunks into the
   // pipeline, which silently overrides the shader's gl_PointSize and
   // produces giant fixed-size sprites instead of our intended size.
-  const mat = sceneReferred(new ShaderMaterial({
+  // Physical brightness (HDR.md): the galaxy's surface brightness is an
+  // absolute radiance, scaled by the exposure over Earth's keyed one
+  // (absoluteUniforms, set by ThreeUi each frame).
+  const mat = new ShaderMaterial({
     uniforms: {
       texSampler: {value: glowTex},
+      uExposureRelative: absoluteUniforms.uExposureRelative,
       uCamPosWorldHigh: {value: new Vector3()},
       uCamPosWorldLow: {value: new Vector3()},
     },
@@ -207,7 +211,7 @@ export default function newMilkyWay() {
     depthWrite: false,
     transparent: true,
     toneMapped: false,
-  }))
+  })
 
   const points = new Points(geom, mat)
   points.name = 'MilkyWay'
@@ -424,9 +428,16 @@ void main() {
 
 const FRAG = `
 uniform sampler2D texSampler;
+uniform float uExposureRelative;
 varying vec3 vColor;
+// The Milky Way's surface brightness relative to a white surface facing
+// the Sun at 1 AU: its bright regions are ~21-22 mag/arcsec², 2e-4 cd/m²,
+// against ~4e4 cd/m² for the white, 5e-9; the particle cloud's full value
+// is set to that, times DISPLAY_GAIN, so at a dark sky's metered exposure
+// (gain ~1e6, HDR.md) it shows at a few percent, faint, as it is.
+const float GALAXY_RADIANCE = 1.5 * 1.3e-8;
 void main() {
   vec4 tex = texture2D(texSampler, gl_PointCoord);
-  gl_FragColor = vec4(vColor, 1.0) * tex;
+  gl_FragColor = vec4(vColor * GALAXY_RADIANCE * uExposureRelative, 1.0) * tex;
 }
 `

@@ -455,7 +455,10 @@ ${MIE_PHASE_GLSL}
 // The scene with no atmosphere over it, to the screen: the one tone map
 // (HDR), or as it is (the LDR fallback's scene is display values already).
 vec4 sceneToScreen(vec3 scene) {
-  return vec4(uHdr > 0.5 ? neutralToneMap(scene) : scene, 1.0);
+  // The metering's view (uDebug 7, ThreeUi._meter) wants the linear scene
+  // on every path: tone-mapped, a body rendered 1e5 over white would read
+  // as 1 and the meter would call it dark, and run away.
+  return vec4(uHdr > 0.5 && uDebug < 6.5 ? neutralToneMap(scene) : scene, 1.0);
 }
 
 // The sky over the scene: in-scatter plus the scene through the
@@ -577,8 +580,18 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 ms, out
     float dM  = exp(-h / uMieScaleHeight);
     vec2  jOd;
     vec2  pPlanet = rsi(pos, uSunDirection, uGroundRadius);
-    if (r >= uGroundRadius && pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) {
-      jOd = vec2(1.0e6);  // the Sun behind the planet
+    // The Sun behind the planet: from above the sphere, the ray to it meets
+    // the sphere ahead; from below it (a march from an eye or to terrain
+    // under the datum, where every ray to the Sun leaves the sphere), the
+    // Sun is under the local horizontal.  Reading the table there instead
+    // gave a Sun 47° under the horizon a 200 m path to the ground, and the
+    // Dead Sea a blue sky at midnight once the metered exposure lifted it.
+    bool sunBlocked = r >= uGroundRadius ?
+        (pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) : dot(pos, uSunDirection) < 0.0;
+    if (sunBlocked) {
+      // Enough path for the smallest coefficient (AtmospherePrecompute:
+      // 1e6 m let 0.3% of the Sun through in Earth's red).
+      jOd = vec2(1.0e12);
     } else {
       jOd = texture2D(tTransmittance,
           vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rg;
@@ -768,8 +781,11 @@ void main() {
     // Nothing drew here (the cleared far plane): sky, or a gap in the ground.
     bool  background = depthSample >= 1.0;
     // A body drew here beyond where the ray leaves the atmosphere (the
-    // daytime Moon, the Sun's disc): the whole ray's air is before it.
-    bool  beyondAtm = !background && tMax - tMaxErr > pAtm.y;
+    // daytime Moon, the Sun's disc): the whole ray's air is before it, so
+    // the table's full ray, not a march to it.  Geometry only: #85's
+    // exemption of such bodies from the eye-adaptation boost went with
+    // the boost (#86 PR B); the day sky covers the Moon by its light.
+    bool  pastAtmosphere = !background && tMax - tMaxErr > pAtm.y;
     // A surface drawn inside the atmosphere, seen from inside it:
     // celestiary's own ground, and Cesium's terrain, which rises above the
     // sphere and sinks below it.  The air is the segment from the eye to
@@ -782,7 +798,7 @@ void main() {
     // through near terrain at the sphere's horizon (sky rays above it,
     // ground rays below), and left the ground under a camera below the
     // datum without haze.  Sky pixels keep the table.
-    bool  shortRay = insideAtm && !background && !beyondAtm;
+    bool  shortRay = insideAtm && !background && !pastAtmosphere;
     // The ray's zenith cosine at the eye, and whether it goes under the
     // sphere's horizon: from above, it meets the sphere ahead; from below,
     // it heads down into it (every ray from inside leaves the sphere
@@ -801,7 +817,7 @@ void main() {
     // A body beyond the atmosphere under the sphere's horizon (the Moon
     // rising over the Dead Sea's far shore, which lies below the sphere)
     // sees the horizon's air too.
-    bool  atHorizon = underHorizon && (isGap || beyondAtm);
+    bool  atHorizon = underHorizon && (isGap || pastAtmosphere);
 
     vec4  inS;
     vec3  inSMs;
@@ -873,66 +889,11 @@ void main() {
     vec3 pMie   = miePhase(mu, uMiePolarity, uMieBackPolarity, uMieForwardWeight) * uMieAlbedo;
     vec3 scattered = uSunIntensity * (pRlh * inS.rgb + pMie * inS.a + inSMs);
 
-    // Floor it (extinction-alpha capped at 0.92) so horizon-grazing rays at
-    // night still let some starlight through (real physics says they
-    // shouldn't but the eye adapts; we don't simulate that yet).
-    transmittance = max(transmittance, vec3(1.0 - 0.92));
-    // Tie extinction-alpha to inscatter brightness via a steep smoothstep — bright
-    // day sky becomes opaque (washes out star labels behind it), dim/dark
-    // night sky stays transparent.  Models eye iris dilation: the eye
-    // can't see faint sources once the sky is even faintly bright.
-    //
-    // Why smoothstep instead of a plain max(alpha, brightness): the
-    // Bruneton LUT inscatter for our atmosphere parameters tops out at
-    // ~0.5–0.7 max-channel even at noon, so a linear coupling leaves
-    // alpha at 0.7 → 30% transmittance, and the (HDR-valued) star label
-    // sprites still show through.  smoothstep snaps alpha to 1 as soon
-    // as brightness exceeds the upper bound (well below sunset).
-    //
-    // Gated on insideAtm: this boost models EYE adaptation, which only
-    // makes sense when you are the eye inside the atmosphere.  From space
-    // looking down at the day side, you're a camera viewing through a
-    // thin upper-atmosphere column — the LUT alpha already captures the
-    // real optical depth of that column, and forcing it to ~1 would hide
-    // the surface texture behind a featureless blue disc.
-    //
-    // The boost reads the sky's brightness as it always has, soft-saturated
-    // (1 − e^−S), so it behaves as before; #86's PR B removes it.
-    vec3 color = 1.0 - exp(-scattered);
-    float skyBrightness = max(color.r, max(color.g, color.b));
-    // Two knobs in the smoothstep:
-    // - Lower bound = brightness at which stars start fading
-    // - Upper bound = brightness at which sky goes fully opaque
-    float lowerBrightBound = 0.01;
-    float upperBrightBound = 0.1;
-    // Altitude weighting on the boost: full strength at the surface where
-    // the eye is deeply embedded in the atmosphere column, smoothly
-    // weakening to zero at the atmosphere's upper edge.  Reason: from
-    // high altitude looking at the limb, sky pixels in the dim transition
-    // zone above the bright glow have moderate brightness — full boost
-    // would push alpha to ~0.5 there, which hides stars but isn't bright
-    // enough to compensate (sky color is dim too), producing an additive
-    // "trough" that reads as a dark band between glow and starfield.
-    // Real-eye basis: at the top of the atmosphere there's barely any air
-    // to scatter, so iris dilation isn't being pushed by ambient
-    // brightness — the eye effectively becomes a camera and the LUT
-    // extinction alone is correct.
-    float atmHeight = uAtmosphereRadius - uGroundRadius;
-    float altWeight = clamp(1.0 - camAlt / atmHeight, 0.0, 1.0);
-    // Not over a body beyond the atmosphere (the Moon, the Sun, a planet's
-    // disc): it's bright and extended, and a bright sky doesn't hide it
-    // (the daytime Moon), only the stars and the galaxy, which draw no
-    // depth.  The boost made the day sky opaque over the Moon too.
-    // Nor over the ground, or anything else drawn inside the atmosphere:
-    // what's between it and the eye is air the LUT already integrates, and
-    // the boost, which grows as the camera descends (altWeight), hid the
-    // day ground under 91% of in-scatter from 7.5 km and all of it near the
-    // surface.
-    bool groundDrawn = !background && !beyondAtm;
-    if (insideAtm && !beyondAtm && !groundDrawn) {
-      float boostAlpha = smoothstep(lowerBrightBound, upperBrightBound, skyBrightness) * altWeight;
-      transmittance = min(transmittance, vec3(1.0 - boostAlpha));
-    }
+    // The transmittance is the physical one, whole: the stars behind the
+    // day sky are hidden by its light, not by a boost, now that they're in
+    // exposure units (HDR.md, "Physical stars"); #86's PR B removed the
+    // eye-adaptation boost, its altitude weight, the 0.08 floor and the
+    // exemption of bodies beyond the atmosphere (the daytime Moon).
     // TODO(future): tune the surface-vs-atmosphere blend coloring.  From
     // space looking at the day side, the LUT inscatter mixes additively
     // with the surface texture: where atmospheric column is thick (limb)
@@ -959,12 +920,19 @@ void main() {
     // irradiance, times the irradiance and the exposure (uSkyExposure), with
     // uSunIntensity as the body's gain over single scattering (HDR.md).
     vec3 sky = scattered * uSkyExposure;
+    if (uDebug > 6.5) {
+      // The metering's view (ThreeUi._meter): the linear composite, in
+      // exposure units, before the tone map.
+      gl_FragColor = vec4(mix(texture2D(tDiffuse, vUv).rgb, sky + texture2D(tDiffuse, vUv).rgb * transmittance,
+          uAtmStrength), 1.0);
+      return;
+    }
     if (uDebug > 0.5) {
       // The probe's intermediates, raw (composition.md).
       if (uDebug < 1.5) gl_FragColor = vec4(transmittance, 1.0);
       else if (uDebug < 2.5) gl_FragColor = vec4(sky, 1.0);
       else if (uDebug < 3.5) gl_FragColor = vec4(depthSample, tMax,
-          (isGap ? 1.0 : 0.0) + (beyondAtm ? 2.0 : 0.0) + (shortRay ? 4.0 : 0.0) + (eyeBelow ? 8.0 : 0.0)
+          (isGap ? 1.0 : 0.0) + (pastAtmosphere ? 2.0 : 0.0) + (shortRay ? 4.0 : 0.0) + (eyeBelow ? 8.0 : 0.0)
           + (underHorizon ? 16.0 : 0.0), 1.0);
       else if (uDebug < 4.5) gl_FragColor = inS;
       else if (uDebug < 5.5) gl_FragColor = vec4(inSMs, 1.0);
@@ -983,27 +951,7 @@ void main() {
                         uRayleigh, uRayleighScaleHeight,
                         uMieCoeff, uMieScaleHeight, uMiePolarity.r,
                         tMax);
-  // Cap and brightness-tie — see the LUT branch above for the rationale.
-  // Boost weighted by camera altitude (full at surface, zero at top of
-  // atmosphere) and gated on insideAtm; both keep the boost confined to
-  // the eye-adaptation regime where it's physically meaningful.
-  result.a = min(result.a, 0.92);
-  vec3 color = 1.0 - exp(-result.rgb);
-  float skyBrightness = max(color.r, max(color.g, color.b));
-  float r_eFb = length(eyePos);
-  bool insideAtmFb = (r_eFb <= uAtmosphereRadius);
-  float camAltFb = r_eFb - uGroundRadius;
-  float atmHeightFb = uAtmosphereRadius - uGroundRadius;
-  float altWeightFb = clamp(1.0 - camAltFb / atmHeightFb, 0.0, 1.0);
-  // Not over a body beyond the atmosphere; see the LUT branch.
-  vec2 tGFb = rsi(eyePos, rayDir, uGroundRadius);
-  bool behindGroundFb = tGFb.x > 0.0 && tGFb.x <= tGFb.y;
-  bool beyondAtmFb = depthSample < 1.0 && tMax > uAtmosphereRadius * 2.0 && !behindGroundFb;
-  // Nor over the ground; see the LUT branch.
-  bool groundDrawnFb = depthSample < 1.0 && !beyondAtmFb;
-  if (insideAtmFb && !beyondAtmFb && !groundDrawnFb) {
-    result.a = max(result.a, smoothstep(0.01, 0.1, skyBrightness) * altWeightFb);
-  }
+  // The physical extinction, whole (the LUT branch, above).
   gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, result.rgb * uSkyExposure, vec3(1.0 - result.a));
 }
 `

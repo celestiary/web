@@ -160,7 +160,8 @@ function trackRequests(page) {
  */
 function layerState(page, body) {
   return page.evaluate((name) => {
-    const layers = window.c.ui.layers
+    const {ui} = window.c
+    const layers = ui.layers
     const b = layers.bodies[name]
     const scene = b?.widget?.scene
     return {
@@ -172,6 +173,10 @@ function layerState(page, body) {
       frame: window.c.ui.renderer.info.render.frame,
       restored: window.c.firstTime === false,
       target: window.c.shared.targets.cur?.props?.name ?? null,
+      // The metered exposure (HDR.md) eases toward its goal over seconds;
+      // the two renders must be at the same gain, so wait until it's there.
+      exposureSettled: Math.abs(Math.log(
+          ui.renderer.toneMappingExposure / (ui._exposureGoal * (ui._meterGainGoal ?? 1)))) < 0.02,
     }
   }, body)
 }
@@ -200,11 +205,12 @@ async function waitSettled(page, view, requests, timeoutS) {
       throw new Error(`the ${view.body} Cesium layer failed to load (see the page's console.error above)`)
     }
     const ready = state.restored && state.target === view.body && state.status === 'ready' &&
-      state.shown && state.active && state.tilesLoaded && requests.pending() === 0
+      state.shown && state.active && state.tilesLoaded && requests.pending() === 0 && state.exposureSettled
     if (Date.now() - lastNote > NOTE_EVERY_MS) {
       lastNote = Date.now()
       console.warn(`  ${view.id}: waiting; layer ${state.status}${state.tilesLoaded ? ', tiles loaded' : ''}` +
-        `${state.active ? ', active' : ''}, ${requests.pending()} requests, frame ${state.frame}`)
+        `${state.active ? ', active' : ''}${state.exposureSettled ? '' : ', exposure settling'}, ` +
+        `${requests.pending()} requests, frame ${state.frame}`)
     }
     if (!ready) {
       stableSince = null

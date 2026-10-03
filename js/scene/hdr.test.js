@@ -149,7 +149,7 @@ describe('installExposureOnlyToneMapping', () => {
     installExposureOnlyToneMapping()
     installExposureOnlyToneMapping()
     const chunk = ShaderChunk.tonemapping_pars_fragment
-    expect(chunk).toContain('vec3 CustomToneMapping( vec3 color ) { return toneMappingExposure * color; }')
+    expect(chunk).toContain('vec3 CustomToneMapping( vec3 color ) { return min(toneMappingExposure * color, vec3(60000.0)); }')
     expect(chunk.match(/CustomToneMapping\( vec3 color \)/g).length).toBe(1)
   })
 })

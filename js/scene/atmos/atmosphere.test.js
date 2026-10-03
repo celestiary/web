@@ -131,3 +131,22 @@ describe('atmosphere JSON data', () => {
     })
   })
 })
+
+
+describe('the blocked Sun', () => {
+  // The "Sun behind the planet" sentinel is a density-weighted path in
+  // metres; it must drive exp(-k·path) to nothing for the smallest
+  // coefficient, Earth's Rayleigh red (5.8e-6 /m).  At 1e6 m, 0.3% of the
+  // Sun came through every blocked step and the metered exposure showed a
+  // red sky with the Sun 35° under the horizon (HDR.md).
+  for (const file of ['AtmospherePrecompute.js', 'Atmosphere.js']) {
+    it(`${file} blocks the Sun for any coefficient over 1e-8 /m`, () => {
+      const source = readFileSync(`./js/scene/atmos/${file}`, 'utf8')
+      const sentinels = [...source.matchAll(/jOd = vec2\(([0-9.e]+)/g)].map((m) => Number(m[1]))
+      expect(sentinels.length).toBeGreaterThan(0)
+      for (const path of sentinels) {
+        expect(Math.exp(-1e-8 * path)).toBeLessThan(1e-40)
+      }
+    })
+  }
+})

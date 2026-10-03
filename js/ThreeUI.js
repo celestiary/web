@@ -2,6 +2,7 @@ import {
   CustomToneMapping,
   DepthStencilFormat,
   DepthTexture,
+  FloatType,
   HalfFloatType,
   LinearSRGBColorSpace,
   NeutralToneMapping,
@@ -22,8 +23,11 @@ import {
   mieParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
 } from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
-import {easeExposure, exposureAt, skyExposure} from './scene/exposure.js'
-import {hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
+import {
+  METER_EVERY_FRAMES, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, easeExposure, exposureAt, exposureRelative,
+  meanLogLuminance, meteredGain, skyExposure,
+} from './scene/exposure.js'
+import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
@@ -37,6 +41,10 @@ import {GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, groundRadius, homeB
 
 
 /** */
+// The metering target's size, pixels a side (_meter).
+const METER_SIZE = 32
+
+
 export default class ThreeUi {
   /** */
   constructor(container, animationCb, backgroundColor, renderer) {
@@ -84,6 +92,10 @@ export default class ThreeUi {
     // Target-keyed exposure (_updateExposure).
     this._exposureGoal = exposureAt(ASTRO_UNIT_METER)
     this._lastExposureMs = null
+    // The metered gain over it (_meter), and its goal.
+    this._meterGain = 1
+    this._meterGainGoal = 1
+    this._frame = 0
     this._exposureBodyPos = new Vector3()
     this._exposureSunPos = new Vector3()
     this._transmittanceRT = null
@@ -385,6 +397,7 @@ export default class ThreeUi {
     this.renderer.setRenderTarget(null)
     this._updateAtmUniforms()
     this.renderer.render(this._atmScene, this._atmCamera)
+    this._meter()
     // Labels last, over the atmosphere: the scene again, overlay layer
     // only, depth-tested against the scene depth the atmosphere pass wrote.
     // After the tone map, so as display values.
@@ -498,7 +511,90 @@ export default class ThreeUi {
     const now = performance.now()
     const dt = this._lastExposureMs === null ? Infinity : (now - this._lastExposureMs) / 1000
     this._lastExposureMs = now
-    this.renderer.toneMappingExposure = easeExposure(this.renderer.toneMappingExposure, this._exposureGoal, dt)
+    // The metered gain over the keyed exposure (_meter), eased in log
+    // space with its own, slower time constant: the eye adapting to a dark
+    // scene.
+    this._meterGain = easeExposure(this._meterGain, this._meterGainGoal, dt,
+        this._meterGainGoal < this._meterGain ? METER_TAU_DOWN_SECONDS : METER_TAU_UP_SECONDS)
+    this.renderer.toneMappingExposure =
+      easeExposure(this.renderer.toneMappingExposure, this._exposureGoal * this._meterGain, dt)
+    // Everything of absolute brightness (stars, the Milky Way, the Sun's
+    // disc) scales with the exposure itself (hdr.js absoluteUniforms).
+    absoluteUniforms.uExposureRelative.value = exposureRelative(this.renderer.toneMappingExposure)
+    absoluteUniforms.uViewportHeight.value = this.height
+    absoluteUniforms.uFovDegrees.value = this.camera.fov
+  }
+
+
+  /**
+   * The renderer's exposure relative to a body's keyed one: 1 when it is
+   * the exposure target at its own exposure, and whatever the metered gain
+   * and the easing between targets make it otherwise.  What a Cesium
+   * layer's frame, lit at the body's own irradiance, is scaled by to reach
+   * the HDR buffer's units (CesiumLayers), as the sky is (uSkyExposure).
+   *
+   * @param {object} node The body's node
+   * @returns {number}
+   */
+  exposureOf(node) {
+    this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
+    node.getWorldPosition(this._exposureBodyPos)
+    if (this._worldGroup) {
+      this._worldGroup.getWorldPosition(this._exposureSunPos)
+    } else {
+      this._exposureSunPos.set(0, 0, 0)
+    }
+    const distance = this._exposureBodyPos.distanceTo(this._exposureSunPos)
+    return distance > 0 ? skyExposure(distance, this.renderer.toneMappingExposure) : 1
+  }
+
+
+  /**
+   * Metered exposure (HDR.md): every METER_EVERY_FRAMES frames, the
+   * atmosphere pass renders its linear composite (sky and scene, in
+   * exposure units, before the tone map) into a 32×32 float target, whose
+   * mean log luminance asks for a gain over the target-keyed exposure
+   * (exposure.js meteredGain): 1 for a sunlit target, more for twilight,
+   * the night side and deep space, less for the Sun's disc.  The gain asked
+   * for is the scene's, whatever exposure the frame was rendered at, so
+   * there is no loop to oscillate; _updateExposure eases toward it.
+   *
+   * The LDR fallback has no float target: its composite is display values
+   * (the scene pass tone-mapped them), read into bytes.  In the dark, where
+   * the gain matters, Neutral's toe is near linear, so the gain asked for
+   * is close; in the bright it's under-read, and the gain stays at 1.
+   */
+  _meter() {
+    if ((this._frame++ % METER_EVERY_FRAMES) !== 0) {
+      return
+    }
+    const u = this._atmMesh.material.uniforms
+    if (u.uDebug.value !== 0) {
+      return
+    }
+    this._meterRT ??= new WebGLRenderTarget(METER_SIZE, METER_SIZE,
+        {type: this.hdr ? FloatType : UnsignedByteType, depthBuffer: false})
+    this._meterPixels ??= new (this.hdr ? Float32Array : Uint8Array)(METER_SIZE * METER_SIZE * 4)
+    u.uDebug.value = 7
+    this.renderer.setRenderTarget(this._meterRT)
+    this.renderer.render(this._atmScene, this._atmCamera)
+    this.renderer.setRenderTarget(null)
+    u.uDebug.value = 0
+    this.renderer.readRenderTargetPixels(this._meterRT, 0, 0, METER_SIZE, METER_SIZE, this._meterPixels)
+    const renderedOverKeyed = this.renderer.toneMappingExposure / this._exposureGoal
+    const metered = meanLogLuminance(this._meterPixels, METER_SIZE * METER_SIZE)
+    const gain = meteredGain(metered, renderedOverKeyed, this.hdr)
+    // What was read, at the keyed exposure, for probing (HDR.md).
+    this._meterLast = {
+      mean: Math.exp(metered.meanLog) / renderedOverKeyed,
+      highlight: metered.highlight / renderedOverKeyed,
+      blown: metered.blown / renderedOverKeyed,
+      max: metered.max / renderedOverKeyed,
+      gain,
+    }
+    if (Number.isFinite(gain)) {
+      this._meterGainGoal = gain
+    }
   }
 
 

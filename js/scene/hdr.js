@@ -155,16 +155,27 @@ vec3 neutralInverse(vec3 y) {
 
 
 /**
+ * The most the HDR scene buffer holds: half-float's largest value, rounded
+ * down.  Everything written into it is clamped here (the scene pass,
+ * Cesium's decode, the stars, the Sun's disc): past it a value becomes
+ * Inf, the tone map makes NaN of it, the pixel goes black, and the metered
+ * exposure, reading black, holds the gain that overflowed it.
+ */
+export const HDR_MAX_VALUE = 6.0e4
+
+
+/**
  * The scene pass's tone mapping: exposure only.  three's
  * LinearToneMapping saturates to 1, which would clip the HDR buffer; its
- * CustomToneMapping hook is replaced with a plain multiply.  Global (three's
- * shader chunks are), and harmless to anything not using CustomToneMapping.
+ * CustomToneMapping hook is replaced with a plain multiply, clamped to what
+ * the buffer holds (HDR_MAX_VALUE).  Global (three's shader chunks are),
+ * and harmless to anything not using CustomToneMapping.
  */
 export function installExposureOnlyToneMapping() {
   const custom = 'vec3 CustomToneMapping( vec3 color ) { return color; }'
   if (ShaderChunk.tonemapping_pars_fragment.includes(custom)) {
     ShaderChunk.tonemapping_pars_fragment = ShaderChunk.tonemapping_pars_fragment.replace(
-        custom, 'vec3 CustomToneMapping( vec3 color ) { return toneMappingExposure * color; }')
+        custom, `vec3 CustomToneMapping( vec3 color ) { return min(toneMappingExposure * color, vec3(${HDR_MAX_VALUE.toFixed(1)})); }`)
   }
 }
 
@@ -177,6 +188,20 @@ export function installExposureOnlyToneMapping() {
  * around its passes.
  */
 export const sceneReferredUniform = {value: 0}
+
+
+/**
+ * Shared by the materials of absolute brightness (the stars, the Milky Way,
+ * the Sun's disc; HDR.md "Physical stars"): the renderer's exposure over
+ * Earth's keyed one (exposure.js exposureRelative), and the viewport's
+ * height and vertical field of view, for a pixel's solid angle.  ThreeUi
+ * sets them each frame.
+ */
+export const absoluteUniforms = {
+  uExposureRelative: {value: 1},
+  uViewportHeight: {value: 1024},
+  uFovDegrees: {value: 45},
+}
 
 
 /**

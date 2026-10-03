@@ -117,7 +117,9 @@ pixel, as raw floats, for a float render target: 1 the transmittance, 2
 the sky (exposure units), 3 `(depthSample, tMax, flags)` with flags 1 gap,
 2 beyond the atmosphere, 4 marched surface, 8 eye below the sphere, 16
 under the horizon, 4 the in-scatter sample (Rayleigh rgb, Mie a), 5 the
-ray's zenith cosine at the eye, the Sun's, and the eye's altitude.  In a
+ray's zenith cosine at the eye, the Sun's, and the eye's altitude; 7 the
+linear composite before the tone map, which the metered exposure reads
+(ThreeUi `_meter`).  In a
 page: set it, render `ui._atmScene` with `ui._atmCamera` into a
 `FloatType` target, `readRenderTargetPixels`.  Read a column of numbers
 down a feature (the band at the horizon), not a picture: every cause in
@@ -140,61 +142,42 @@ tone-mapped) and the sky was soft-saturated on its own,
 render targets) still composites that way, with `neutralToneMap(sky)` for
 the sky.
 
-## Why the raw equation isn't enough
+The transmittance is used whole.  From an eye below the sphere, the march
+takes the Sun as blocked wherever it is under the local horizontal
+(`dot(pos, sunDir) < 0`): the table's rule, "the ray to the Sun meets the
+sphere ahead", holds only from above it, and from below gave a Sun 47°
+under the horizon a 200 m path to the ground, which lit the Dead Sea a
+blue sky at midnight once the metered exposure lifted it.
 
-Two real-world phenomena aren't captured by the LUTs alone:
+## What the composite leaves to exposure, and what it still forces
 
-1. **Eye adaptation under bright sky.** Real eyes' iris constricts under
-   daylight, so faint background sources (stars, distant planets) become
-   sub-threshold even though physics says ~14% of their light reaches the
-   retina at zenith from sea level. Without compensating in the renderer,
-   star labels and Hipparcos points clearly poke through the day blue.
-2. **Sub-pixel rasterization gaps in the surface mesh.** Earth's world
+The composite is the physical one: in-scatter plus the scene through the
+transmittance, whole.  Two things used to be forced on it, and one still
+is:
+
+1. **Stars by day.**  The stars, the Milky Way and the Sun's disc are in
+   exposure units (HDR.md, "Physical stars"): Sirius is a few 10⁻⁴ of a
+   sunlit white surface, so the day sky, 0.1 to 0.5 of one, covers it by
+   its light, and so does a sunlit Moon in view.  At twilight and at night
+   the metered exposure (HDR.md, "Metered exposure") rises and they come
+   through the physical transmittance (86% at the zenith from sea level).
+   Before #86's PR B the stars were display values, and an
+   "eye-adaptation boost" made the sky opaque wherever it was even faintly
+   bright: a smoothstep on the sky's brightness, weighted by the camera's
+   depth in the atmosphere, with a 0.08 transmittance floor so the night
+   horizon still let starlight through, and #85's exemption of bodies
+   beyond the atmosphere (the daytime Moon) and the ground.  All of it is
+   gone.
+2. **Sub-pixel rasterization gaps in the surface mesh.**  Earth's world
    position is ~1.5e11 m; float32 precision in the model-view matrix
-   degrades to ~1m, which produces sub-pixel holes at extreme close range.
+   degrades to ~1 m, which produces sub-pixel holes at extreme close range.
    The depth buffer at those pixels reads "far" (sun, stars), and naive
-   compositing leaks the background through where the surface should
-   have covered.
-
-## The five composition rules
-
-Computed in this order in the LUT branch (lines ~640–700 of `Atmosphere.js`);
-the ray-march fallback applies the same rules with corresponding variables.
-
-1. **LUT alpha** — `alpha = 1 - exp(-tau_max_channel)`. Trust the
-   precompute. At zenith from sea level this is ~0.14, giving ~86% star
-   transmittance — physically correct.
-2. **Cap at 0.92** — `alpha = min(alpha, 0.92)`. Floor of 8% transmittance
-   for any background. Earlier revs forced the inside-atmosphere alpha
-   to ~1; that hid stars at the night horizon along with everything else.
-3. **Brightness-tied opacity** — `alpha = max(alpha, smoothstep(0.01, 0.1, sky_max_ch) * altWeight)`,
-   with `sky_max_ch` the max channel of `1 - exp(-scattered)`, the sky's
-   brightness as it was measured before the HDR buffer, so the rule behaves
-   as it did.  Models eye adaptation. Two factors:
-   - `smoothstep` snaps alpha to 1 once the sky is even faintly bright,
-     so day blue overrides stars without needing physically-implausible
-     extinction.
-   - `altWeight = clamp(1 - camAlt/atmHeight, 0, 1)` weakens the boost
-     with altitude. At the surface (full weight) the eye is deeply
-     embedded in the column and adapts fully; at the top of the
-     atmosphere (zero weight) the eye effectively becomes a camera, no
-     iris dilation, just LUT extinction. Without this gate, looking
-     down at the day side from space turned the disc into featureless
-     blue and hid the surface texture.
-4. **`insideAtm` gate** — the brightness boost is also conditional on
-   the camera being inside the atmosphere shell. From space the LUT alone
-   correctly captures the thin-column transmittance; boosting it would
-   over-occlude.  Nor does it apply where anything drew depth: bodies
-   beyond the atmosphere (`beyondAtm`, the daytime Moon) or the ground
-   and anything else inside it (`groundDrawn`).  It's for the stars and
-   the galaxy, which draw none.  Over the ground it hid the day surface
-   under the haze, more the lower the camera: T 0.094 from 7.5 km,
-   instead of 0.5-0.87 (#141).
-5. **Gap-pixel hard occlusion** — if `isGap` (geometric ground in front
-   of recorded depth), force `alpha = 1.0`. The sub-pixel holes show
-   only inscatter (bright haze by day, dark by night) instead of leaking
-   background. Side effect: a crisp horizon edge regardless of mesh
-   tessellation density.
+   compositing leaks the background through where the surface should have
+   covered.  Where the ray meets the sphere ahead of the recorded depth
+   (`isGap`) the transmittance is forced to 0, so the hole shows only the
+   in-scatter (bright haze by day, dark by night), which matches the
+   surrounding surface and gives a crisp horizon edge whatever the mesh's
+   tessellation.
 
 ## Multiple scattering
 
@@ -274,15 +257,9 @@ within 30° of the Sun.
 
 ## Knobs you might want to tune
 
-- `0.92` extinction cap — lower = stars peek through more at night
-  horizon; higher = more opaque
-- `(0.01, 0.1)` smoothstep bounds — lower bound = brightness at which
-  stars start fading at dawn; upper bound = brightness at which sky
-  goes fully opaque. Narrower band = sharper twilight star-fade.
-- `altWeight` curve — currently linear `1 - camAlt/atmHeight`. Could
-  be steepened (e.g. `pow(1 - alt/H, 2)`) so eye-adaptation drops off
-  faster with altitude.
 - Per-body `sunIntensity` — primary lever on overall day brightness.
+- The metered exposure's constants (`exposure.js`: the key, the highlight
+  cap, the gain's range and time constant), documented in HDR.md.
 
 ## Known gaps / future work
 
@@ -292,13 +269,26 @@ within 30° of the Sun.
   slightly washed. Plausible knobs: per-channel inscatter scaling, a
   soft saturation curve on the composite, or proper aerial-perspective
   integration over the segment from surface depth back to camera.
-- **Auto-exposure (eye adaptation over time).** The `altWeight` boost
-  is a static per-pixel proxy for eye adaptation. A real implementation
-  would sample average scene luminance and adjust `toneMappingExposure`
-  with a temporal smoothing filter (~2 s constant) — letting the same
-  rendering work for stars-from-orbit and sun-disc-up-close without
-  per-context tuning.  Now that the sky and the scene share one linear
-  buffer ([HDR.md](../HDR.md)), that's #86's PR B.
-- **Multiple-scattering.** Current LUT is single-scatter only; the
-  twilight glow on the antisolar horizon is a multi-scattering
-  phenomenon that would need additional precompute passes.
+- **Twilight's stars.**  The metered exposure is a whole-frame meter;
+  at −10° the horizon band toward the Sun (1.8e-3 of a sunlit white) or
+  away from it (5.7e-4) caps the gain at a few hundred to a thousand,
+  and the stars, Sirius at 4.4e-5, reach threshold only once the sky is
+  under ~1e-5, about −20°.  The eye adapts to where it looks (the zenith
+  at −10° is 1.2e-5, 10 cd/m² in the model's terms): a centre-weighted
+  meter would bring the first stars out at nautical twilight looking up.
+- **Gap pixels at twilight.**  A gap (a sub-pixel hole in the ground
+  mesh at the horizon) takes the horizon ray's haze, which at twilight is
+  the sunlit air above the shadow while the ground beside it is dark, so
+  the holes show as specks along the horizon on the night side (visible
+  since the night lights stopped lighting the whole land).  Marching the
+  segment to the sphere instead, as a surface there, would darken them;
+  it would also change the below-datum bands (`mars-low-horizon-band`,
+  `earth-dead-sea-band`), which take the same path on purpose.
+- **Airglow and the night sky's own light.**  With the Sun under the
+  horizon the pass's sky is zero: no airglow, zodiacal light or
+  scattered moonlight, so the night sky is as black as space and the
+  metered exposure runs to its dark-adapted limit.  A floor of a few
+  10⁻⁹ of a sunlit white (21-22 mag/arcsec²) would be the next step.
+- **Multiple scattering** is the isotropic sum above; the twilight glow
+  on the antisolar horizon (the Earth's shadow and the Belt of Venus)
+  is still single-scatter geometry plus that sum.
