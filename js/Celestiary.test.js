@@ -8,11 +8,11 @@
  * Mocked: ThreeUI (no WebGL), ControlPanel, Keys, Loader (filesystem),
  *         scene/SpriteSheet (no canvas), vsop (fixed coordinates).
  */
-import {afterAll, beforeAll, describe, expect, it, mock} from 'bun:test'
+import {afterAll, beforeAll, beforeEach, describe, expect, it, mock} from 'bun:test'
 import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
 import {encodePermalink} from './permalink.js'
-import {worldToLatLngAlt} from './coords.js'
+import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
 import * as Shared from './shared.js'
 
 
@@ -545,6 +545,77 @@ describe('Scene.goTo navigation', () => {
 
     it('reparents camera platform to sun.orbitPosition after star → sun', () => {
       expect(app2.ui.camera.platform.parent).toBe(sunObj.orbitPosition)
+    })
+  })
+  // The search bar's "Look at": turn in place, never travel.  Scene.setTarget
+  // (bodies), lookAtStar and lookAtPlace share the rotation-only look tween.
+  describe('search "look at" (turn in place)', () => {
+    // Run the current look tween to its end.
+    function finishTween() {
+      Shared.targets.tween.update(performance.now() + 10000)
+      Shared.targets.tween = null
+    }
+
+    // Angle (deg) between the camera's view direction and a world point.
+    function angleTo(worldPos) {
+      app2.ui.scene.updateMatrixWorld()
+      const camPos = new Vector3()
+      app2.ui.camera.getWorldPosition(camPos)
+      const view = new Vector3(0, 0, -1)
+          .applyQuaternion(app2.ui.camera.getWorldQuaternion(new Quaternion()))
+      return view.angleTo(worldPos.clone().sub(camPos)) * 180 / Math.PI
+    }
+
+    beforeEach(() => {
+      resetScene()
+    })
+
+    it('turns to a body, behind the camera too, without moving', () => {
+      const sun = app2.scene.objects.sun
+      const before = app2.ui.camera.position.clone()
+      app2.scene.setTarget('sun')
+      finishTween()
+      const pos = new Vector3().setFromMatrixPosition(sun.matrixWorld)
+      expect(angleTo(pos)).toBeLessThan(0.01)
+      expect(app2.ui.camera.position.distanceTo(before)).toBe(0)
+      // And from the other side: the camera faces away from the sun.
+      app2.ui.camera.quaternion.setFromAxisAngle(new Vector3(0, 1, 0), Math.PI)
+      app2.scene.setTarget('sun')
+      finishTween()
+      expect(angleTo(pos)).toBeLessThan(0.01)
+      expect(app2.ui.camera.position.distanceTo(before)).toBe(0)
+    })
+
+    it('turns to a star at its rebased position, without moving', () => {
+      app2.scene.worldGroup.position.set(1e12, 0, 0)
+      app2.ui.scene.updateMatrixWorld()
+      const before = app2.ui.camera.position.clone()
+      app2.scene.lookAtStar(FAKE_STAR)
+      finishTween()
+      const world = app2.scene.worldGroup.localToWorld(app2.scene.starPosition(FAKE_STAR))
+      expect(angleTo(world)).toBeLessThan(0.01)
+      expect(app2.ui.camera.position.distanceTo(before)).toBe(0)
+    })
+
+    it('turns to a surface place, without moving', () => {
+      const sun = app2.scene.objects.sun
+      const before = app2.ui.camera.position.clone()
+      app2.scene.lookAtPlace('sun', 48.8, 2.3, 0)
+      finishTween()
+      const world = sun.localToWorld(
+          latLngAltToBodyFixed(48.8, 2.3, 0, sun.props.radius.scalar))
+      expect(angleTo(world)).toBeLessThan(0.01)
+      expect(app2.ui.camera.position.distanceTo(before)).toBe(0)
+      expect(Shared.targets.obj).toBe(sun)
+    })
+
+    it('does not rebase or reparent', () => {
+      const parent = app2.ui.camera.platform.parent
+      app2.scene.worldGroup.position.set(5, 6, 7)
+      app2.scene.setTarget('sun')
+      app2.scene.lookAtStar(FAKE_STAR)
+      expect(app2.ui.camera.platform.parent).toBe(parent)
+      expect(app2.scene.worldGroup.position.toArray()).toEqual([5, 6, 7])
     })
   })
 })

@@ -3,10 +3,12 @@ import Autocomplete from '@mui/material/Autocomplete'
 import IconButton from '@mui/material/IconButton'
 import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
+import {goToEntry, lookAtEntry} from '../search/commitEntry'
 import {searchIndex} from '../search/SearchIndex'
 import {anchorPathFor} from '../store/SearchSlice'
 import useStore from '../store/useStore'
 import {capitalize} from '../utils'
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import CloseIcon from '@mui/icons-material/Close'
 import MyLocationIcon from '@mui/icons-material/MyLocation'
 import SearchIcon from '@mui/icons-material/Search'
@@ -24,7 +26,8 @@ const BLUR_COLLAPSE_MS = 3000
  * it (visually scoping the search to that element's level — peers + below).
  *
  * Expanded: the clicked anchor position is frozen; elements right of the
- * anchor are hidden; an Autocomplete + Go / Picker / Clear buttons follow.
+ * anchor are hidden; an Autocomplete + Go (arrow) / Look at (magnifier) /
+ * Picker / Clear buttons follow.  Enter is Go.
  *
  * @returns {ReactElement}
  */
@@ -205,11 +208,22 @@ export default function SearchBar({celestiary}) {
     }
   }, [isSearchOpen, closeSearch])
 
+  // Go: travel to the selection.  Enter in the field does this too.
   const handleCommit = () => {
     if (!searchSelection) {
       return
     }
-    commitEntry(searchSelection, celestiary)
+    goToEntry(searchSelection, celestiary)
+    closeSearch()
+  }
+
+  // Look at: select the selection as the target and turn the camera in
+  // place to face it; the camera doesn't travel.
+  const handleLookAt = () => {
+    if (!searchSelection) {
+      return
+    }
+    lookAtEntry(searchSelection, celestiary)
     closeSearch()
   }
 
@@ -369,14 +383,27 @@ export default function SearchBar({celestiary}) {
               </li>
             )}
           />
-          <Tooltip title='Go (Enter)' describeChild>
+          <Tooltip title='Go to (Enter): travel there' describeChild>
             <span>
               <IconButton
                 size='small'
                 disabled={!searchSelection}
                 onClick={handleCommit}
-                aria-label='Go to selection'
+                aria-label='Go to'
                 data-testid='search-bar-go'
+              >
+                <ArrowForwardIcon fontSize='small'/>
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title='Look at: turn to face it, without moving' describeChild>
+            <span>
+              <IconButton
+                size='small'
+                disabled={!searchSelection}
+                onClick={handleLookAt}
+                aria-label='Look at'
+                data-testid='search-bar-target'
               >
                 <SearchIcon fontSize='small'/>
               </IconButton>
@@ -439,37 +466,4 @@ function setPreviewForEntry(entry, {setPreviewPath, setPreviewStar, clearPreview
     parts.push(entry.id)
   }
   setPreviewPath(parts)
-}
-
-
-/**
- * @param {SearchEntry} entry
- * @param {object} celestiary
- */
-function commitEntry(entry, celestiary) {
-  if (!entry || !celestiary) {
-    return
-  }
-  if (entry.kind === 'star' && entry.payload && entry.payload.star) {
-    celestiary.scene.goTo(entry.payload.star)
-    celestiary.useStore.getState().setCommittedStar({
-      hipId: entry.payload.hipId,
-      displayName: entry.displayName,
-      star: entry.payload.star,
-    })
-    return
-  }
-  if (entry.kind === 'place' && entry.payload) {
-    const {body, lat, lng, alt} = entry.payload
-    celestiary.scene.land(body, lat, lng, alt)
-    return
-  }
-  const name = entry.payload && entry.payload.name
-  if (!name) {
-    return
-  }
-  const path = celestiary.loader.pathByName[name]
-  if (path) {
-    window.location.hash = path
-  }
 }
