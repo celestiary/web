@@ -18,6 +18,7 @@ import StellarFrame from './StellarFrame.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {pickSurfaceLatLng, queryPlaces} from './Picker.js'
+import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
@@ -923,7 +924,12 @@ export default class Scene {
 
 
   /**
-   * Double-click handler — ray-sphere intersects the click against the
+   * Double-click handler.  On a label (a planet's, a moon's or a star's),
+   * goes to what it labels, as 'g' does (onLabelDblClick, set by
+   * Celestiary): on a phone, the way to a body or star without a keyboard.
+   * Not while the star picker is on, whose own dblclick picks the star.
+   *
+   * Otherwise ray-sphere intersects the click against the
    * current body and, on hit, drops a temporary lat/lng marker at the spot
    * and lands there.  Works on any body with a `props.radius.scalar` that
    * isn't a star (stars are excluded so a dblclick on the Sun doesn't
@@ -934,6 +940,11 @@ export default class Scene {
    * @param {PointerEvent} e
    */
   onDblClick(e) {
+    const label = this.ui.useStore?.getState?.().isStarsSelectActive ? null : this.pickLabel(e)
+    if (label) {
+      this.onLabelDblClick?.(label)
+      return
+    }
     const cur = Shared.targets.cur
     if (!cur || !cur.props || !cur.props.radius?.scalar) {
       return
@@ -950,6 +961,22 @@ export default class Scene {
     }
     this._setTempMarker(cur, pick.lat, pick.lng)
     this.land(cur.props.name, pick.lat, pick.lng)
+  }
+
+
+  /**
+   * @param {PointerEvent} e
+   * @returns {object|null} The target of the label at e (labelPick.js):
+   *   {kind: 'body', name} or {kind: 'star', star, name}; null if none
+   */
+  pickLabel(e) {
+    const canvas = this.ui.renderer?.domElement
+    if (!canvas?.getBoundingClientRect) {
+      return null
+    }
+    const boxes = labelBoxes(this.ui.scene, this.ui.camera, canvas.getBoundingClientRect(),
+        this.ui.renderer.getPixelRatio?.() ?? 1)
+    return hitLabel(e.clientX, e.clientY, boxes)
   }
 
 
