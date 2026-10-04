@@ -266,6 +266,8 @@ export default class Planet extends Object {
     // Drawn after the atmosphere pass, so it doesn't haze the label; still
     // depth-tested against the scene (ThreeUI.render).
     labelSprites.layers.set(OVERLAY_LAYER)
+    // A double click or tap on it goes to the body (labelPick.js).
+    labelSprites.userData.labelTargets = [{kind: 'body', name: this.name}]
     // Depth in front of the body's near side, so the body itself doesn't
     // hide it: at exactly the near side it tied with the body's own depth
     // (and Cesium's ground sphere, CesiumLayers._writeGroundDepths) where

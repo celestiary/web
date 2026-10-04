@@ -66,6 +66,9 @@ export default class SpriteSheet {
     this.positions = []
     this._posLow = useRTE ? [] : null
     this.sizes = []
+    // Each label's text, width and height in px: drawn along the top of its
+    // square sprite, which is centred on the label's position (labelPick.js).
+    this.textSizes = []
     this.spriteCoords = []
     this.positionAttribute = null
     this.sprites = null
@@ -86,6 +89,7 @@ export default class SpriteSheet {
     }
     this.ctx.font = this.labelTextFont
     let bounds = Utils.measureText(this.ctx, labelText)
+    this.textSizes.push(bounds.width, bounds.height)
     const size = Math.max(bounds.width, bounds.height)
     if (this.curX + size > this.canvas.width) {
       this.curX = 0
@@ -187,6 +191,8 @@ export default class SpriteSheet {
     geometry.computeBoundingBox()
     this.sprites = new Points(geometry, this.createMaterial())
     this.sprites.renderOrder = 0
+    // For picking a label on screen (labelPick.js).
+    this.sprites.userData.sheet = this
     return this.sprites
   }
 
