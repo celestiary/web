@@ -201,6 +201,9 @@ export const absoluteUniforms = {
   uExposureRelative: {value: 1},
   uViewportHeight: {value: 1024},
   uFovDegrees: {value: 45},
+  // The user's gain on the stars' light (ThreeUi.setStarGain): 1 is
+  // physical.
+  uStarGain: {value: 1},
 }
 
 

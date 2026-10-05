@@ -72,9 +72,9 @@ describe('metered exposure', () => {
   })
 
   it('caps a dark frame at the floor\'s gain, and asks nothing of an empty one', () => {
-    expect(meteredGain(m(METER_FLOOR, METER_FLOOR, 2e-7), 1)).toBeCloseTo(METER_GAIN_MAX, 6)
+    expect(meteredGain(m(METER_FLOOR, METER_FLOOR, 1e-7), 1)).toBeCloseTo(METER_GAIN_MAX, 6)
     expect(meteredGain(m(1e-12, 1e-12, 1e-6), 1)).toBeCloseTo(METER_GAIN_MAX, 6)
-    expect(METER_GAIN_MAX).toBeCloseTo(3e6, 0)
+    expect(METER_GAIN_MAX).toBeCloseTo(4e6, 0)
     // Nothing drawn yet (a texture loading): the gain stays as it is.
     expect(meteredGain(m(1e-12, 1e-12, 0), 1)).toBeNull()
     // A star field the meter's samples mostly miss: dark, not empty.

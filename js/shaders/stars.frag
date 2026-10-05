@@ -5,11 +5,15 @@
 #define TEXTURE2D texture
 #endif
 
-uniform sampler2D texSampler;
-
 varying vec3 vColor;
 varying float vBrightness;
+varying float vSize;
+varying float vSigma;
 
+// The star's kernel: a Gaussian over the sprite, in pixels from its centre
+// (stars.vert sets vBrightness so the pixels sum to the star's light).
 void main() {
-  gl_FragColor = vec4(vColor * vBrightness, 1.) * TEXTURE2D(texSampler, gl_PointCoord.xy);
+  vec2 px = (gl_PointCoord.xy - 0.5) * vSize;
+  float k = exp(-dot(px, px) / (2.0 * vSigma * vSigma));
+  gl_FragColor = vec4(vColor * vBrightness * k, 1.);
 }

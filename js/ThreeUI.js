@@ -527,6 +527,18 @@ export default class ThreeUi {
 
 
   /**
+   * A gain on every star's light over the physical value (HDR.md,
+   * "Physical stars"): 2 shows a magnitude more, 0.5 one less.  Not in the
+   * settings or the permalink yet (those hold switches).
+   *
+   * @param {number} gain
+   */
+  setStarGain(gain) {
+    absoluteUniforms.uStarGain.value = gain > 0 ? gain : 1
+  }
+
+
+  /**
    * The renderer's exposure relative to a body's keyed one: 1 when it is
    * the exposure target at its own exposure, and whatever the metered gain
    * and the easing between targets make it otherwise.  What a Cesium

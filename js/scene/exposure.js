@@ -214,8 +214,18 @@ export function meanLogLuminance(rgba, count) {
 
 /** The mean luminance, in exposure units, the metered exposure aims for. */
 export const METER_KEY = 0.3
-/** Pixels darker than this, in exposure units, count as this. */
-export const METER_FLOOR = 1e-7
+/**
+ * Pixels darker than this, in exposure units, count as this: it sets the
+ * dark-adapted gain, METER_KEY over it, 4e6, which shows a scene of
+ * 8e-3 cd/m² (a sunlit white is 3e4) as a sunlit one.  The eye adapts to
+ * 1e-6 cd/m², so this is well within its range; it is set so that a star
+ * of magnitude 6.5, 2.9e-8 of a sunlit white over the eye's patch, just
+ * shows, 0.12 in exposure units, 12 of 255 through Neutral's toe (HDR.md,
+ * "Physical stars": the naked-eye limit at a dark site).  At 1e-7, 3e6,
+ * the limit was magnitude 6; at 3e-8, 1e7, magnitude 7.5: the toe makes
+ * the faint end steeper than the light.
+ */
+export const METER_FLOOR = 7.5e-8
 /** The most the metered exposure rises over the target-keyed one. */
 export const METER_GAIN_MAX = METER_KEY / METER_FLOOR
 /** The share of the frame whose luminance the highlight cap looks at. */

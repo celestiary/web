@@ -213,23 +213,41 @@ render, and the whole Hipparcos catalogue (to magnitude 9-12) as white
 dots.  With the eye's floor the two agree, and the sky's depth is set by the
 exposure, not the display.
 
-With it, at Earth's keyed exposure (`exposureRelative` 1): Sirius 4.4e-5,
-a sixth-magnitude star 4.6e-8, of a sunlit white surface.  The day sky is
-0.1-0.5, so it covers them by its light, through the physical
-transmittance (0.86 at the zenith from sea level), with no boost; so does
-a sunlit Moon in view.  At the dark-adapted gain (`METER_GAIN_MAX`, 3e6,
-below) Sirius is 130, white, and sixth magnitude 0.14, which spread over
-its sprite peaks at 0.17 and shows at 38 of 255: the naked-eye limit, faint.
-The sprite is 3 px (about the eye's patch on a 1080 px screen) up to the
-value a pixel shows as white, and grows 3 px per decade of light above it
-(to 64 px), as a saturated point blooms in the eye and on a sensor: the
-brightest stars are bigger, with their light conserved, the texture's mean
-over the sprite's area dividing it (`GLOW_MEAN`).  It was sized by the
-star's radius, which the catalogue takes from its luminosity, so a luminous
-star's light went into a blob (Deneb 110 px, Rigel 85) that the physical
-value made invisible; and `d²` in metres overflowed float32 past 1,900 ly
-and zeroed every star beyond.  Values are clamped to what the half-float
-buffer holds (`HDR_MAX_VALUE`, 6e4).
+**The sprite is the patch in pixels**, 1 px on the test viewport and 4 px
+on a 1080 px screen, and its pixels carry the star's light, `L × patch²`,
+over a Gaussian kernel of width size/4 (`shaders/stars.frag`; the kernel's
+sum over the sprite, 2πσ², or 1 for one pixel, normalises it).  Past the
+value a pixel shows as white the sprite grows 3 px per decade of light
+(bloom, to 64 px), as a saturated point does in the eye and on a sensor:
+the brightest stars are bigger, their light still conserved.  A texture
+(`star_glow.png`) did this at first, and lost two magnitudes: its flat
+core is 6% of the sprite's half-width, so a 2 px sprite sampled it at
+0.06 and a 4 px one at 0.27, and mipmaps flattened a 3 px sprite's peak to
+a third of the core (a star of magnitude 4 reached 10 of 255 where the
+arithmetic gave 97).  Before that the sprite was sized by the catalogue's
+radius, which spread Deneb over 110 px; and `d²` in metres overflowed
+float32 past 1,900 ly and zeroed every star beyond.  Values are clamped
+to what the half-float buffer holds (`HDR_MAX_VALUE`, 6e4).
+
+**Calibration: the naked-eye limit.**  At the dark-adapted gain
+(`METER_GAIN_MAX`, 4e6, below) a star of magnitude 6.5 (2.9e-8 of a sunlit
+white over the patch) is 0.12 in exposure units, 12 of 255 through
+Neutral's toe: just visible, the limit at a dark site; 6.0 is 25, 5.0 110,
+4.0 white and blooming, 7.0 a dusting at 5, 8 and beyond black.  Each
+magnitude is 2.5× in light, compressed by the tone map above 0.76 and
+steepened by its toe below 0.08 (×4 in light near the toe is ×8 on
+screen), which is why the ceiling is set by this star and not by a
+luminance: 3e6 put the limit at 6.0, 1e7 at 7.5.  Measured (the probe
+projects every catalogue star and reads its pixel): the night sky from the
+outback at 4e6 shows 242 stars over 10 of 255 to magnitude 6.5 in the 45°
+field (its 2,665 catalogue stars: 114 of 114 in the 6.0 bin at 18 mean,
+32 of 172 in the 6.5 bin at 8), the deep-space field 410; a dark site's
+2,500 stars above the horizon to 6.5 are about 150-270 in such a field.
+Rendered peaks are 0.6-0.8 of the arithmetic (a 1 px point straddling
+pixels).  All 106,747 catalogue stars are drawn (`renderer.info`), none
+culled.  `ThreeUi.setStarGain(g)` scales every star's light (2 is a
+magnitude deeper); a settings and permalink knob would need a numeric
+setting, which `s=` (switches) has no pattern for yet.
 
 **The Sun's disc** (`star-shaders.js`) is `DISPLAY_GAIN / θ²` times the
 granulation texture, θ its angular radius from 1 AU: 69,000 at Earth's
@@ -256,10 +274,11 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
 2. The frame's **mean log luminance**, divided by the gain it was rendered
    at so it is the scene's at the keyed exposure, asks for the gain that
    brings it to `METER_KEY` (0.3, middle grey for a white of 1.5).  Pixels
-   under `METER_FLOOR` (1e-7) count as the floor, so black asks for
-   `METER_GAIN_MAX` = `METER_KEY / METER_FLOOR` = 3e6, not infinity.  That
-   is the eye's dark adaptation: a scene of 0.01 cd/m² (a moonlit
-   landscape) shown as a sunlit one.
+   under `METER_FLOOR` (7.5e-8) count as the floor, so black asks for
+   `METER_GAIN_MAX` = `METER_KEY / METER_FLOOR` = 4e6, not infinity.  That
+   is the eye's dark adaptation: a scene of 8e-3 cd/m² (a moonlit
+   landscape) shown as a sunlit one, set so that magnitude 6.5 just shows
+   (above).
 3. **Never below 1 for a sunlit scene.**  The luminance the brightest
    `METER_HIGHLIGHT_FRACTION` (2%) of the frame exceeds is lifted to at
    most `METER_HIGHLIGHT` (0.6, a sunlit surface of albedo 0.4): a frame
@@ -325,8 +344,8 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
 | Twilight from 3 km, Sun −5°, toward it | 7.2 | 0.002 / 0.08 | sky (lower half) | 10 | 55.6 |
 | Nautical twilight, Sun −10°, toward it | 268 | 7e-5 / 1.8e-3 | sky / horizon | 0 / 0.2 | 0 / 55 |
 | Nautical twilight, Sun −10°, away from it | 1,000 | 5e-5 / 5.7e-4 | sky 50° up / all | 0 / 0 | 0.9 / 1.9 |
-| Night, Sun −35°, looking up | 3e6 | 2e-12 / 3e-9 | stars: pixels over 20 / 100 | 22,460 / 196 (display values) | 132 / 25 |
-| Deep space, 4.7 AU from the Sun, away from it | 3e6 (2.4e6 at 6 s) | 2e-12 / 2e-9 | stars: pixels over 20 / 100 | 22,690 / 324 (display values) | 68 / 14 |
+| Night, Sun −35°, looking up | 4e6 | 6e-14 / 3e-9 | stars: pixels over 20 / 100 | 22,460 / 196 (display values) | 426 / 102 (242 stars over 10, to mag 6.5) |
+| Deep space, 4.7 AU from the Sun, away from it | 4e6 (3.1e6 at 120 frames) | 6e-14 / 4e-9 | stars: pixels over 20 / 100 | 22,690 / 324 (display values) | 281 / 72 (410 stars over 10) |
 | The Moon from 5,000 km, quarter | 1.22 | 2e-6 / 0.49 | lit disc | 61 | 77 |
 | The daytime Moon, quarter, Sun 42° and Moon 38° up, 4.7° fov | 1 | 0.32 / 0.34 | sky / Moon | 72.4 / 127 | 72.4 / 127 |
 | Mars, Valles Marineris, Sun 18° up, zenith (`mars-sky-zenith`) | 2.1 | 0.13 / 0.29 | zenith / 35° lower | 11 / 44 | 34 / 104 |
@@ -344,9 +363,9 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
   beside Earth; the daytime sky): their light is under a sunlit surface's
   by 1e4 or more, so the keyed exposure can't show them, as a camera
   can't.  They are back where the frame is dark: at night and in deep
-  space the gain reaches 3e6 (2.4e6 after 6 s, the 1.5 s constant), and a
-  45° field holds some 50 stars over 20 of 255 and 10 over 100, the
-  brightest first; the display-valued catalogue showed thousands at every
+  space the gain reaches 4e6 (the 1.5 s constant), and a 45° field holds
+  240-410 stars over 10 of 255, to magnitude 6.5, the brightest first and
+  blooming; the display-valued catalogue showed thousands at every
   exposure.
 - **Mars's low Sun comes up**: 2.1× at the zenith (11 → 34, the lower sky
   44 → 104), 1.9× away from the Sun, 1.25× from 232 m; the view toward the

@@ -13,7 +13,6 @@ import SpriteSheet from './SpriteSheet.js'
 import StarsBufferGeometry from './StarsBufferGeometry.js'
 import StarsCatalog, {FAVES} from './StarsCatalog.js'
 import {assertDefined} from '../assert.js'
-import * as Material from './material.js'
 import {FAR_OBJ, STARS_RADIUS_METER} from '../shared.js'
 import {named} from '../utils.js'
 import {absoluteUniforms} from './hdr.js'
@@ -117,17 +116,17 @@ export default class Stars extends Object {
   /** */
   show() {
     this.geom = new StarsBufferGeometry(this.catalog)
-    const starImage = Material.pathTexture('star_glow', '.png')
     // Physical brightness, in exposure units (shaders/stars.vert; HDR.md):
-    // the exposure, viewport and field of view are the shared
-    // absoluteUniforms, which ThreeUi sets each frame.
+    // the exposure, viewport, field of view and the user's star gain are
+    // the shared absoluteUniforms, which ThreeUi sets each frame.  The
+    // sprite is an analytic Gaussian (stars.frag), not a texture.
     const starsMaterial = new ShaderMaterial({
       uniforms: {
-        texSampler: {value: starImage},
         ...absoluteUniforms,
-        // A star's sprite: 3 px, growing with its light past a white
-        // pixel's (bloom; stars.vert), to 64 px at most.
-        MIN_STAR_SIZE_PX: {value: 3},
+        // A star's sprite: the eye's patch in pixels (1 px here, 4 on a
+        // 1080 px screen), growing with its light past a white pixel's
+        // (bloom; stars.vert), to 64 px at most.
+        MIN_STAR_SIZE_PX: {value: 1},
         MAX_STAR_SIZE_PX: {value: 64},
         // RTE uniforms: camera position in star catalog coords, split high/low
         uCamPosWorldHigh: {value: new Vector3()},
