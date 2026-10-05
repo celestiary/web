@@ -185,7 +185,10 @@ const vertexShader = `
     // underflow float32 there (the coverage across the width came out 0).
     // With w = 1 they interpolate linearly on screen, as wanted across a
     // line's width.  Safe because both ends are in front of the near plane.
-    gl_Position = vec4(clip.xyz / clip.w, 1.0);
+    // And z pulled inside the far plane as the stars' is (stars.vert
+    // FAR_PLANE_INSIDE): a star's clip z is w exactly, the clip boundary,
+    // and a line to it would be clipped or not by the GPU's rounding.
+    gl_Position = vec4(clip.xy / clip.w, min(clip.z / clip.w, 0.999999), 1.0);
 
     vColor = mix(mix(color, vec3(1.0), ${PULSE_WHITEN} * boost), uOverride.rgb, uOverride.a);
     vAlpha = max(uOpacity, boost);

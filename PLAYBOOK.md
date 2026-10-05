@@ -164,6 +164,18 @@ a cut at 1e-5 of the length), and set what must hold exactly (the cut's
 depth) rather than computing it.  To debug a GPU number, replay it with
 `Math.fround`, not pixels.
 
+**And a point can sit exactly on the far plane** (#153).  Stars dropped
+out and came back with a slight yaw on an M2, never on SwiftShader.  The
+probe's ndc z for them read 1.00000000: with the far plane at the
+galaxy's scale and the near plane at metres, (f + n) / (f − n) is 1 in
+float32 and a star's clip z is d − 2n, which rounds to d = w, the clip
+boundary.  A GPU with an approximate reciprocal in its perspective divide
+puts z / w on either side of 1 by the bits of w; SwiftShader divides
+exactly.  `starClipZ` replays it with `Math.fround`, and `stars.vert`
+pulls z a few ulps inside.  **Rule:** never leave geometry on a clip
+plane by arithmetic; when a probe reads a coordinate at exactly ±1,
+treat it as a bug on some GPU.
+
 ### GPU shader degenerate cases need explicit guards
 
 The Bruneton decode has two degenerate cases: r = rG (ground, rho = 0) and r = rA (atmosphere
@@ -459,6 +471,73 @@ entire classes of state-management bugs.
 When a fix doesn't work, "nope, still there" closes the loop immediately so we can pivot.
 Don't assume a fix worked and move on to the next thing. Confirm each fix visually before
 moving to the next bug.
+
+### A shader edit that was only checked by arithmetic was never checked
+
+PR #153's second follow-up rewrote the star kernel and declared `float half` in
+`stars.frag`.  `half` is a reserved word in GLSL ES (with `fixed`, `double`,
+`long`, `short`, `input`, `output`, `sizeof`, `namespace`, ...), so the fragment
+shader failed to compile and the star Points drew nothing: "sun shape is
+fixed, but not seeing any stars" on the preview.  The change had been
+verified by working the sprite law through in JS, and its unit tests
+passed; nobody rendered it.  A failed compile is silent in a test that
+never creates a GL context: three logs it as a console error and marks the
+program `runnable: false` (`renderer.properties.get(material).currentProgram.diagnostics`).
+
+**Rule:** a shader change isn't done until a frame has been rendered with
+it and the console checked for `THREE.WebGLProgram: Shader Error`, however
+small the edit.  Keep the shader's law mirrored in JS (`exposure.js
+starSprite`) so the arithmetic is tested, and scan the sources for GLSL
+reserved words (`exposure.test.js`, "the shaders"), but neither replaces
+the render.
+
+**And SwiftShader is not the user's GPU.**  With the compile fixed the
+user's M2 Mac (ANGLE on Metal) still showed no stars, with nothing in the
+console: the metered exposure took a star field for an empty frame and
+held its gain at 1.  Its rule was "every meter tap exactly zero", and a
+star field at the keyed exposure is a few hundred 2 px points of 1e-5 to
+1e-7, all under half-float's smallest normal value (6.1e-5): a GPU may
+flush them to zero, and 1,024 taps over the frame can miss them anyway.
+SwiftShader keeps half-float denormals, so it saw one star's edge at 4e-8
+and carried on.  **Rule:** never decide "nothing drawn" from pixel values
+near a buffer's floor; use what the scene knows (`frameCanBeEmpty`: the
+catalogue loaded, the target's surface in).  Where a check depends on the
+GPU, give the user a way to read the state on their machine
+(`c.ui.starsDebug()`) rather than guessing from here.
+
+### A whole-frame meter can't see a small lit thing; the scene can
+
+PR #153's metered exposure keyed on percentiles of a 32×32 readback: the
+brightest 2% held the gain at 1 for a sunlit scene.  Earth's crescent from
+94,000 km is 0.4% of the frame, so the frame read as a dark field, ran to
+the dark-adapted gain, and the crescent was a flat white.  A lower
+percentile is hit by the stars' own pixels and would pin the dark gain a
+magnitude short, flickering with the taps.  The scene knows what is lit:
+every planet and moon's angular size, phase and albedo are a few vector
+ops per meter tick (`sunlitBodyCap`), and from them the gain at which the
+body's brightest sunlit surface is a white.  Checking the rule against the
+night-side cases found two guards it needed (the disc must fit the frame;
+a twentieth of it must be lit) before the first render.  Its "resolved"
+test was the eye's 10′ patch, an angle, and it failed at the one field
+where the frame's and the body's rules hand over: Jupiter at a
+telescope's 0.04° is 300 px across yet 40″, never anchored, held at 0.6
+by the 2% rule alone, and a step of zoom that took its disc under 2% of
+the frame stepped the gain 0.6 to 4e6.  Anything the rule keys on is a
+quantity on screen (pixels, share of the frame), and every hand-over
+between rules is a blend in log gain over a range of it
+(`sunlitBodyGain`, as `luminousDiscGain`), never a threshold.
+
+**Rule:** when a pixel statistic has to tell two things apart (a small
+lit body from a star field; an empty frame from a dark one), ask whether
+the scene already knows, and use that.  And before rendering a new
+exposure rule, walk it through the night-side and landed views by hand:
+they are where "in view" and "lit" come apart.
+
+**SwiftShader's Sun is non-finite**, not black: its noise shader yields
+NaN, the tone map makes it black, and the meter counts a non-finite pixel
+as the maximum, so any frame with the Sun's disc in it runs the gain to
+its floor here.  Read the state, and reason the real GPU's number from
+the rule; don't tune the Sun's exposure against a SwiftShader frame.
 
 ### Screenshots communicate visual bugs better than words
 

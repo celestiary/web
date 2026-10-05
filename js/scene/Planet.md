@@ -56,8 +56,17 @@ Two `onBeforeCompile` patches, chained via `shaderMods` so multiple mods
 2. Before `<tonemapping_fragment>` — sample the night map at `vMapUv`,
    compute `nightFactor = smoothstep(-0.05, 0.05, -dot(normalize(vNormal), uSunDirection))`
    (0 fully day → 1 fully night, soft 6° band around the terminator), and
-   add `nightLight * nightFactor * INTENSITY` to `gl_FragColor.rgb`
-   *before* tonemapping so city lights pass through the same tonemap +
+   add `nightLight * nightFactor * RADIANCE` to `gl_FragColor.rgb`
+   *before* tonemapping so city lights pass through the same exposure and
+   tonemap chain as the rest of the surface.  `RADIANCE` is
+   `NIGHT_LIGHT_RADIANCE` (3e-5, the texture's full white as 1 cd/m²
+   against a sunlit white's 3e4) times a sunlit white's radiance in three's
+   units, so the lights are in exposure units like the lit surface
+   ([HDR.md](HDR.md#metered-exposure)): beside a sunlit day side they are
+   black, as a camera at the terminator sees them, and on the night side
+   alone the metered exposure brings them to 0.6 at most.  They were a
+   fixed display value (`1.5 / toneMappingExposure`), which the meter
+   read as a luminance falling with its own gain, and ran away on.
    gamma chain as the rest of the surface.
 
 Earlier versions tried `<output_fragment>` — that chunk was renamed
@@ -95,7 +104,10 @@ follows the targeted body (`exposure.js`, `ThreeUI._updateExposure`):
 π·d^decay / I for its distance d from the Sun, so its sunlit side renders
 at its albedo — a surface facing the Sun shows its texture's colour
 × `DISPLAY_GAIN` (1.5), as Cesium's layers do — easing between targets over
-~0.5 s.  A body's `texture_gain` (e.g. the Moon's) scales its texture for
+~0.5 s.  Over that keyed exposure a metered gain adapts to the frame
+([HDR.md, metered exposure](HDR.md#metered-exposure)): 1 wherever a
+sunlit surface is in view, more at a low Sun, at twilight, at night and in
+deep space, less for the Sun's disc.  A body's `texture_gain` (e.g. the Moon's) scales its texture for
 both, where the source mosaic's stretch is darker than its albedo.  Looking at a far
 planet (targeting it) makes it the exposure target; the Sun and stars keep
 the last body's.  Surfaces are non-metallic (metalness 0) except where an
@@ -105,9 +117,10 @@ The exposure scales, and tone-mapping waits: surfaces render into a linear,
 half-float buffer in these exposure units, the atmosphere pass adds the sky
 in the same units, and PBR Neutral runs once, last ([HDR.md](HDR.md)).  So a
 sunlit white surface is 1.5 in the buffer (`DISPLAY_GAIN`) and shows as
-`N(1.5)`, as before.  Content drawn as display values (stars, labels, lines)
+`N(1.5)`, as before.  Content drawn as display values (labels, lines, grids)
 goes into the buffer through the tone map's inverse (`hdr.js`
-`sceneReferred`).
+`sceneReferred`); the stars and the Sun's disc are in exposure units
+([HDR.md, physical stars](HDR.md#physical-stars)).
 
 ## Surface texture sources
 

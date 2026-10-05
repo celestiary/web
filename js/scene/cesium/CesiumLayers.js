@@ -33,7 +33,7 @@ import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
 import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
 import {fovScale} from '../farPoint.js'
-import {NEUTRAL_GLSL} from '../hdr.js'
+import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
@@ -243,7 +243,7 @@ export default class CesiumLayers {
       renderer.setClearColor(this._clearColor, clearAlpha)
       this._compositeBody(name, node, unseen)
       if (!unseen && this.bodies[name]?.status === 'ready') {
-        this._decodeInto(sceneRT, cesiumRT, name)
+        this._decodeInto(sceneRT, cesiumRT, name, node)
       }
     }
     this._drawFadingSurfaces(drawn)
@@ -265,13 +265,19 @@ export default class CesiumLayers {
    * @param {object} sceneRT
    * @param {object} cesiumRT
    * @param {string} name
+   * @param {object} node The body's node
    */
-  _decodeInto(sceneRT, cesiumRT, name) {
+  _decodeInto(sceneRT, cesiumRT, name, node) {
     const {renderer} = this.ui
     const u = this.decode.material.uniforms
     u.tCesium.value = cesiumRT.texture
     u.uHdr.value = this.ui.hdr === true ? 1 : 0
-    u.uGain.value = bodyGain(name)
+    // The frame is lit at the body's own irradiance: the body's gain takes
+    // it to exposure units at the body's keyed exposure, and the renderer's
+    // exposure over that (the metered gain, the easing between targets,
+    // another body targeted; ThreeUi.exposureOf) to the buffer's, as
+    // celestiary's own surface and the sky are.
+    u.uGain.value = bodyGain(name) * (this.ui.exposureOf?.(node) ?? 1)
     // Not while celestiary's own surface is still drawn over it, fading
     // (_drawFadingSurfaces): the terrain's depth, nearer than the sphere,
     // would hide it.  Nor from high up (TERRAIN_DEPTH_MAX_HEIGHT_M): the
@@ -1247,7 +1253,7 @@ function newDecodeMaterial() {
         // Every body's frame: stored value × Lambert, opaque, its distance
         // in alpha (distance.js).  Into the HDR buffer scaled by the body's
         // gain; into the LDR fallback's display values, tone-mapped too.
-        vec3 rgb = c.rgb * uGain;
+        vec3 rgb = min(c.rgb * uGain, vec3(${HDR_MAX_VALUE.toFixed(1)}));
         if (uHdr < 0.5) {
           rgb = neutralToneMap(rgb);
         }

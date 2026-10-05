@@ -1,3 +1,6 @@
+import {LUMINOUS_SHOULDER_GLSL} from './hdr.js'
+
+
 export const VERTEX_SHADER = `
 uniform vec3 uColor;
 uniform float iScale;
@@ -13,12 +16,13 @@ void main() {
 
 
 export const FRAGMENT_SHADER = `
+${LUMINOUS_SHOULDER_GLSL}
 varying vec3 vColor;
 varying vec3 vTexCoord3D;
 
 uniform float uHighTemp;
 uniform float uLowTemp;
-uniform float iDist;
+uniform float uExposureRelative;
 // const float highTemp = 5778.;
 // const float lowTemp = highTemp / 4.;
 
@@ -207,10 +211,18 @@ void main(void) {
     float(bbucket4) * (247.0 + (i - 173.0) * 0.1379) +
     float(bbucket5) * 255.0;
 
-  float mult = iDist;
-  r += mult;
-  g += mult;
-  b += mult;
-  gl_FragColor = vec4(vColor, 1.) * vec4(vec3(r/255.0, g/255.0, b/255.0), 1.0);
+  // (A lift of the colour with the camera's distance, iDist, is gone: it
+  // was white past 0.2 AU, so the disc had no granulation from 1 AU at a
+  // narrow field; the radiance below carries the distance.)
+  // The disc's radiance in exposure units: DISPLAY_GAIN / θ², θ the Sun's
+  // angular radius from 1 AU (6.957e8 m over 1.496e11 m), times the
+  // exposure over Earth's keyed one (js/scene/HDR.md, "Physical stars"),
+  // within what the half-float scene buffer holds (65504).
+  const float SUN_RADIANCE = 1.5 * 46238.0;
+  // Through the luminous shoulder (hdr.js), not a clamp: the texture's
+  // granulation and limb darkening survive in the buffer, and the disc
+  // stays under the buffer's ceiling with its glow and sprite added.
+  vec3 disc = vColor * vec3(r/255.0, g/255.0, b/255.0) * luminousShoulder(SUN_RADIANCE * uExposureRelative);
+  gl_FragColor = vec4(max(disc, vec3(0.0)), 1.0);
 }
 `

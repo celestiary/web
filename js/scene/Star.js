@@ -12,7 +12,7 @@ import Object from './object.js'
 import * as Shaders from './star-shaders.js'
 import {sphere} from './shapes.js'
 import {newAtmosphere} from './atmos/Atmosphere'
-import {sceneReferred} from './hdr.js'
+import {absoluteUniforms} from './hdr.js'
 import * as Shared from '../shared.js'
 import {named} from '../utils.js'
 
@@ -36,6 +36,25 @@ import {named} from '../utils.js'
  * star and use it to mix in a representation of differential plasma
  * flows along the field lines.
  */
+/**
+ * The surface noise's time from the simulated time elapsed since the app
+ * started, in ms: slow (the Sun looks bad changing quickly), the log of
+ * it, and finite for any elapsed time.  It was log(1 + elapsed × 8e-7),
+ * which is NaN once the simulated time is 21 minutes before the start,
+ * every permalink with a past `t=`: the whole disc NaN, black through the
+ * tone map, inside its limb glow (the user's black Sun; and every
+ * SwiftShader render of the disc, which was taken for a SwiftShader
+ * limitation).
+ *
+ * @param {number} simTimeElapsedMs
+ * @returns {number}
+ */
+export function noiseTime(simTimeElapsedMs) {
+  const elapsed = Number.isFinite(simTimeElapsedMs) ? Math.abs(simTimeElapsedMs) : 0
+  return 4 * Math.log1p(elapsed * 8e-7)
+}
+
+
 export default class Star extends Object {
   /** */
   constructor(props, sceneObjects, ui, shadowProps = {}) {
@@ -108,21 +127,24 @@ export default class Star extends Object {
       [8152, 10060], // 14, T
       [8152, 10060]]// 15, Carbon star?
     const temp = tempRanges[props.spectralType]
-    // The surface's colour is a display value (hdr.js); PR B of #86 gives
-    // the Sun a physical radiance.
-    this.shaderMaterial = sceneReferred(new ShaderMaterial({
+    // The surface's radiance is physical (HDR.md, "Physical stars"): the
+    // Sun's disc is 1/θ² of a white surface facing it, θ its angular
+    // radius from 1 AU, scaled by the exposure over Earth's keyed one
+    // (absoluteUniforms); the shader's texture is its granulation, ~1.
+    this.shaderMaterial = new ShaderMaterial({
       uniforms: {
+        uExposureRelative: absoluteUniforms.uExposureRelative,
         uColor: {value: new Vector3(1.0, 1.0, 1.0)},
         uLowTemp: {value: parseFloat(temp[0])},
         uHighTemp: {value: parseFloat(temp[1])},
         iTime: {value: 1.0},
         iResolution: {value: new Vector2},
         iScale: {value: 100.0},
-        iDist: {value: 1.0},
       },
       vertexShader: Shaders.VERTEX_SHADER,
       fragmentShader: Shaders.FRAGMENT_SHADER,
-    }))
+      toneMapped: false,
+    })
     const surface = sphere({matr: this.shaderMaterial})
     surface.scale.setScalar(props.radius.scalar)
     this.setupAnim()
@@ -133,12 +155,8 @@ export default class Star extends Object {
   /** */
   setupAnim() {
     this.preAnimCb = (time) => {
-      // Sun looks bad changing too quickly.
-      time = Math.log(1 + (time.simTimeElapsed * 8E-7))
       if (Shared.targets.pos) {
-        this.shaderMaterial.uniforms.iTime.value = time * 4
-        const d = Shared.targets.pos.distanceTo(this.ui.camera.position)
-        this.shaderMaterial.uniforms.iDist.value = d * 8E-9
+        this.shaderMaterial.uniforms.iTime.value = noiseTime(time.simTimeElapsed)
       }
     }
   }

@@ -2,6 +2,7 @@ import {
   CustomToneMapping,
   DepthStencilFormat,
   DepthTexture,
+  FloatType,
   HalfFloatType,
   LinearSRGBColorSpace,
   NeutralToneMapping,
@@ -22,8 +23,12 @@ import {
   mieParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
 } from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
-import {easeExposure, exposureAt, skyExposure} from './scene/exposure.js'
-import {hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
+import {
+  METER_EVERY_FRAMES, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, easeExposure, exposureAt, exposureRelative,
+  LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, illuminanceRatio, limitingMagnitude, luminousDiscGain,
+  meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap, sunlitBodyGain,
+} from './scene/exposure.js'
+import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
@@ -37,6 +42,10 @@ import {GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, groundRadius, homeB
 
 
 /** */
+// The metering target's size, pixels a side (_meter).
+const METER_SIZE = 32
+
+
 export default class ThreeUi {
   /** */
   constructor(container, animationCb, backgroundColor, renderer) {
@@ -84,6 +93,10 @@ export default class ThreeUi {
     // Target-keyed exposure (_updateExposure).
     this._exposureGoal = exposureAt(ASTRO_UNIT_METER)
     this._lastExposureMs = null
+    // The metered gain over it (_meter), and its goal.
+    this._meterGain = 1
+    this._meterGainGoal = 1
+    this._frame = 0
     this._exposureBodyPos = new Vector3()
     this._exposureSunPos = new Vector3()
     this._transmittanceRT = null
@@ -385,6 +398,7 @@ export default class ThreeUi {
     this.renderer.setRenderTarget(null)
     this._updateAtmUniforms()
     this.renderer.render(this._atmScene, this._atmCamera)
+    this._meter()
     // Labels last, over the atmosphere: the scene again, overlay layer
     // only, depth-tested against the scene depth the atmosphere pass wrote.
     // After the tone map, so as display values.
@@ -498,7 +512,438 @@ export default class ThreeUi {
     const now = performance.now()
     const dt = this._lastExposureMs === null ? Infinity : (now - this._lastExposureMs) / 1000
     this._lastExposureMs = now
-    this.renderer.toneMappingExposure = easeExposure(this.renderer.toneMappingExposure, this._exposureGoal, dt)
+    // The metered gain over the keyed exposure (_meter), eased in log
+    // space with its own, slower time constant: the eye adapting to a dark
+    // scene.
+    this._meterGain = easeExposure(this._meterGain, this._meterGainGoal, dt,
+        this._meterGainGoal < this._meterGain ? METER_TAU_DOWN_SECONDS : METER_TAU_UP_SECONDS)
+    this.renderer.toneMappingExposure =
+      easeExposure(this.renderer.toneMappingExposure, this._exposureGoal * this._meterGain, dt)
+    // Everything of absolute brightness (stars, the Milky Way, the Sun's
+    // disc) scales with the exposure itself (hdr.js absoluteUniforms).
+    absoluteUniforms.uExposureRelative.value = exposureRelative(this.renderer.toneMappingExposure)
+    absoluteUniforms.uViewportHeight.value = this.height
+    absoluteUniforms.uFovDegrees.value = this.camera.fov
+  }
+
+
+  /**
+   * A gain on every star's light over the physical value (HDR.md,
+   * "Physical stars"): 2 shows a magnitude more, 0.5 one less.  Not in the
+   * settings or the permalink yet (those hold switches).
+   *
+   * @param {number} gain
+   */
+  setStarGain(gain) {
+    absoluteUniforms.uStarGain.value = gain > 0 ? gain : 1
+  }
+
+
+  /**
+   * The star field's limiting magnitude at a dark site, as the user sets
+   * it (HDR.md, "Physical stars"): LIMITING_MAGNITUDE (6.5, the naked
+   * eye's) at the physical star gain, a magnitude more for 2.5× the light.
+   * Celestiary's `[` and `]` keys step it by 0.5, as Celestia's do.
+   *
+   * @param {number} magnitude
+   */
+  setLimitingMagnitude(magnitude) {
+    this.setStarGain(starGainForLimit(Number.isFinite(magnitude) ? magnitude : LIMITING_MAGNITUDE))
+  }
+
+
+  /** @returns {number} The limiting magnitude the user set (setLimitingMagnitude) */
+  userLimitingMagnitude() {
+    return LIMITING_MAGNITUDE + (2.5 * Math.log10(absoluteUniforms.uStarGain.value))
+  }
+
+
+  /** @returns {number} The limiting magnitude at the current exposure and star gain */
+  limitingMagnitude() {
+    return limitingMagnitude(absoluteUniforms.uExposureRelative.value, absoluteUniforms.uStarGain.value)
+  }
+
+
+  /**
+   * The renderer's exposure relative to a body's keyed one: 1 when it is
+   * the exposure target at its own exposure, and whatever the metered gain
+   * and the easing between targets make it otherwise.  What a Cesium
+   * layer's frame, lit at the body's own irradiance, is scaled by to reach
+   * the HDR buffer's units (CesiumLayers), as the sky is (uSkyExposure).
+   *
+   * @param {object} node The body's node
+   * @returns {number}
+   */
+  exposureOf(node) {
+    this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
+    node.getWorldPosition(this._exposureBodyPos)
+    if (this._worldGroup) {
+      this._worldGroup.getWorldPosition(this._exposureSunPos)
+    } else {
+      this._exposureSunPos.set(0, 0, 0)
+    }
+    const distance = this._exposureBodyPos.distanceTo(this._exposureSunPos)
+    return distance > 0 ? skyExposure(distance, this.renderer.toneMappingExposure) : 1
+  }
+
+
+  /**
+   * Metered exposure (HDR.md): every METER_EVERY_FRAMES frames, the
+   * atmosphere pass renders its linear composite (sky and scene, in
+   * exposure units, before the tone map) into a 32×32 float target, whose
+   * mean log luminance asks for a gain over the target-keyed exposure
+   * (exposure.js meteredGain): 1 for a sunlit target, more for twilight,
+   * the night side and deep space, less for the Sun's disc.  The gain asked
+   * for is the scene's, whatever exposure the frame was rendered at, so
+   * there is no loop to oscillate; _updateExposure eases toward it.
+   *
+   * The LDR fallback has no float target: its composite is display values
+   * (the scene pass tone-mapped them), read into bytes.  In the dark, where
+   * the gain matters, Neutral's toe is near linear, so the gain asked for
+   * is close; in the bright it's under-read, and the gain stays at 1.
+   */
+  _meter() {
+    if ((this._frame++ % METER_EVERY_FRAMES) !== 0) {
+      return
+    }
+    const u = this._atmMesh.material.uniforms
+    if (u.uDebug.value !== 0) {
+      return
+    }
+    this._meterRT ??= new WebGLRenderTarget(METER_SIZE, METER_SIZE,
+        {type: this.hdr ? FloatType : UnsignedByteType, depthBuffer: false})
+    this._meterPixels ??= new (this.hdr ? Float32Array : Uint8Array)(METER_SIZE * METER_SIZE * 4)
+    u.uDebug.value = 7
+    this.renderer.setRenderTarget(this._meterRT)
+    this.renderer.render(this._atmScene, this._atmCamera)
+    this.renderer.setRenderTarget(null)
+    u.uDebug.value = 0
+    this.renderer.readRenderTargetPixels(this._meterRT, 0, 0, METER_SIZE, METER_SIZE, this._meterPixels)
+    const renderedOverKeyed = this.renderer.toneMappingExposure / this._exposureGoal
+    const metered = meanLogLuminance(this._meterPixels, METER_SIZE * METER_SIZE)
+    // The dark end is absolute, over Earth's keyed exposure (meteredGain).
+    // A frame of zeros means "nothing drawn yet" only while the scene
+    // loads (frameCanBeEmpty): once loaded, black is dark.
+    // A sunlit body in the frame anchors the gain, continuously in its size
+    // on screen (sunlitBodyGain); the hard cap is logged (starsDebug).
+    const halfFov = this.camera.fov * Math.PI / 360
+    this._sunlit = this._sunlitBodies()
+    this._meterCap = sunlitBodyCap(this._sunlit, this._exposureGoal, halfFov)
+    const keyedOverEarth = this._exposureGoal / exposureAt(ASTRO_UNIT_METER)
+    const metered0 = sunlitBodyGain(meteredGain(metered, renderedOverKeyed, this._frameCanBeEmpty(), keyedOverEarth),
+        this._sunlit, this._exposureGoal, halfFov, this.renderer.getPixelRatio())
+    // A resolved self-luminous disc (the Sun's) brings the gain to what
+    // shows its surface, blended in as it grows (luminousDiscGain).
+    this._luminous = this._luminousDiscs()
+    const gain = luminousDiscGain(metered0, this._luminous, keyedOverEarth, this.renderer.getPixelRatio())
+    // What was read, at the keyed exposure, for probing (HDR.md).
+    this._meterLast = {
+      mean: Math.exp(metered.meanLog) / renderedOverKeyed,
+      highlight: metered.highlight / renderedOverKeyed,
+      blown: metered.blown / renderedOverKeyed,
+      max: metered.max / renderedOverKeyed,
+      gain,
+    }
+    if (Number.isFinite(gain)) {
+      this._meterGainGoal = gain
+    }
+  }
+
+
+  /**
+   * Whether a black frame can be the scene still loading (exposure.js
+   * frameCanBeEmpty): the star catalogue not yet drawn, or the exposure
+   * target's surface not yet in (Planet.surfaceReady).  Deciding it from
+   * the meter's pixels missed a star field (its points are sparse and
+   * faint at the keyed exposure, and a GPU may flush them to zero) and
+   * held the gain at 1: no stars, and nothing in the console.
+   *
+   * @returns {boolean}
+   */
+  _frameCanBeEmpty() {
+    this._starsPoints ??= this.scene.getObjectByName('StarsPoints') ?? null
+    const target = targets.obj
+    return frameCanBeEmpty(this.hdr, Boolean(this._starsPoints), !target || target.surfaceReady?.() !== false)
+  }
+
+
+  /**
+   * The planets and moons in the frame, for the meter's sunlit-body anchor
+   * (exposure.js sunlitBodyGain, and sunlitBodyCap for starsDebug): each
+   * one's angular radius, lit fraction (from its phase angle), keyed
+   * exposure at its distance from the Sun, Bond albedo, disc diameter in
+   * pixels and share of the frame's pixels.  A body whose centre projects
+   * within the frame plus its own radius counts; one not drawn (its LOD,
+   * or hidden) doesn't.
+   *
+   * @returns {Array<{angularRadius: number, litFraction: number, keyedExposure: number, albedo: number,
+   *   diameterPx: number, frameFraction: number}>}
+   */
+  _sunlitBodies() {
+    const objects = this.sceneManager?.objects
+    if (!objects) {
+      return []
+    }
+    this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
+    this._sunlitVectors ??= [new Vector3(), new Vector3(), new Vector3(), new Vector3()]
+    const [sun, cam, body, ndc] = this._sunlitVectors
+    if (this._worldGroup) {
+      this._worldGroup.getWorldPosition(sun)
+    } else {
+      sun.set(0, 0, 0)
+    }
+    this.camera.getWorldPosition(cam)
+    const bodies = []
+    for (const name of Object.keys(objects)) {
+      const o = objects[name]
+      const type = o?.props?.type
+      if ((type !== 'planet' && type !== 'moon') || !o.props.radius || !o.visible || name.endsWith('.orbitPosition')) {
+        continue
+      }
+      o.getWorldPosition(body)
+      const distance = body.distanceTo(cam)
+      const radius = o.props.radius.scalar
+      if (!(distance > radius)) {
+        continue
+      }
+      const angularRadius = Math.asin(radius / distance)
+      ndc.copy(body).project(this.camera)
+      const marginY = angularRadius / (this.camera.fov * Math.PI / 360)
+      const marginX = marginY / Math.max(this.camera.aspect, 1e-6)
+      if (!(ndc.z < 1 && ndc.z > -1 && Math.abs(ndc.x) < 1 + marginX && Math.abs(ndc.y) < 1 + marginY)) {
+        continue
+      }
+      const toSun = sun.clone().sub(body)
+      const toCam = cam.clone().sub(body)
+      const cosPhase = toSun.lengthSq() > 0 ? toSun.normalize().dot(toCam.normalize()) : 1
+      const pxRad = (this.camera.fov * Math.PI / 180) / Math.max(this.height, 1)
+      const diameterPx = 2 * angularRadius / pxRad
+      bodies.push({
+        angularRadius,
+        litFraction: (1 + cosPhase) / 2,
+        keyedExposure: exposureAt(Math.max(body.distanceTo(sun), 1)),
+        albedo: o.props.albedo,
+        diameterPx,
+        frameFraction: (Math.PI * ((diameterPx / 2) ** 2)) / Math.max(this.width * this.height, 1),
+      })
+    }
+    return bodies
+  }
+
+
+  /**
+   * Bisects what hides one star on the machine at hand (the user's M2 lost
+   * Alnilam at some views; no render here did): renders the frame and
+   * reads the star's pixel, then again with each candidate group hidden
+   * in turn (the asterism and expansion lines, the Milky Way, the galaxy,
+   * labels, the Sun and planets with their sprites and shells), and
+   * restores them.  Logs the star's projection, its sprite by the
+   * shader's law (starSprite), its clip z by float32 (starClipZ), and the
+   * pixel's luma per configuration: a configuration that brings the star
+   * back names the occluder; none, and the loss is in the star draw
+   * itself on that GPU.  `c.ui.starProbe('Alnilam')` in the console.
+   *
+   * @param {string} name A star's name in the catalogue
+   * @returns {object} What it logs
+   */
+  starProbe(name) {
+    const points = this._starsPoints ?? this.scene.getObjectByName('StarsPoints') ?? null
+    const catalog = this.useStore?.getState?.()?.starsCatalog
+    const hip = catalog?.hipByName?.get(name)
+    if (!points || hip === undefined) {
+      console.log('starProbe: no star', name)
+      return null
+    }
+    const g = points.geometry
+    const index = Array.from(g.idsByNdx).indexOf(hip)
+    const hi = g.getAttribute('position').array
+    const lo = g.getAttribute('positionLow').array
+    const lumens = g.getAttribute('lumens').array[index]
+    points.updateMatrixWorld(true)
+    const world = new Vector3(hi[index * 3] + lo[index * 3], hi[(index * 3) + 1] + lo[(index * 3) + 1],
+        hi[(index * 3) + 2] + lo[(index * 3) + 2]).applyMatrix4(points.matrixWorld)
+    const cam = this.camera.getWorldPosition(new Vector3())
+    const distance = world.distanceTo(cam)
+    const ndc = world.clone().project(this.camera)
+    const px = Math.round((ndc.x + 1) / 2 * this.width)
+    const py = Math.round((1 - ndc.y) / 2 * this.height)
+    const sun1au = 3.0e28 / (4 * Math.PI * (1.495978707e11 ** 2))
+    const ratio = lumens / (4 * Math.PI * distance * distance) / sun1au
+    const gl = this.renderer.getContext()
+    const one = new Uint8Array(4)
+    // The brightest pixel within 2 px of the projection, and within 16 px
+    // (a point drawn off its projection shows there and not here).
+    const readLuma = (reach = 2) => {
+      this.renderLoop(performance.now())
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      let best = 0
+      let at = null
+      for (let dy = -reach; dy <= reach; dy++) {
+        for (let dx = -reach; dx <= reach; dx++) {
+          const x = px + dx
+          const y = gl.drawingBufferHeight - 1 - (py + dy)
+          if (x < 0 || y < 0 || x >= gl.drawingBufferWidth || y >= gl.drawingBufferHeight) {
+            continue
+          }
+          gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, one)
+          const l = (0.2126 * one[0]) + (0.7152 * one[1]) + (0.0722 * one[2])
+          if (l > best) {
+            best = l
+            at = [dx, dy]
+          }
+        }
+      }
+      return reach > 2 ? {luma: +best.toFixed(1), at} : +best.toFixed(1)
+    }
+    const groups = {
+      asterisms: (o) => o.name === 'AsterismLines',
+      expansion: (o) => /Colonization|Expansion/i.test(o.name) && o.isMesh,
+      milkyWay: (o) => /MilkyWay/i.test(o.name) && (o.isPoints || o.isMesh),
+      galaxy: (o) => /^Galaxy/i.test(o.name) && (o.isPoints || o.isMesh),
+      labels: (o) => (o.isSprite || o.isMesh) && /label/i.test(o.name),
+      sunAndPlanets: (o) => (o.isMesh || o.isPoints || o.isSprite) && o.name !== 'StarsPoints' &&
+        !/AsterismLines|MilkyWay|^Galaxy|label/i.test(o.name) && o.props === undefined && this._underBody(o),
+    }
+    const luma = {asIs: readLuma(), within16px: readLuma(16)}
+    for (const [key, test] of Object.entries(groups)) {
+      const hidden = []
+      this.scene.traverse((o) => {
+        if (o !== points && o.visible && test(o)) {
+          o.visible = false
+          hidden.push(o)
+        }
+      })
+      luma[key] = hidden.length ? readLuma() : null
+      hidden.forEach((o) => (o.visible = true))
+      luma[`${key}Hidden`] = hidden.length
+    }
+    const radius = g.getAttribute('radius').array[index]
+    const sprite = starSprite(ratio, absoluteUniforms.uExposureRelative.value,
+        {fovDegrees: this.camera.fov, heightPx: this.height, starGain: absoluteUniforms.uStarGain.value})
+    const clipZ = starClipZ(distance, this.camera.near, this.camera.far)
+    const out = {
+      name, hip, index, distanceLy: distance / 9.461e15, px, py, ndc: [ndc.x, ndc.y, ndc.z],
+      attributes: {lumens, radius, finite: Number.isFinite(lumens) && Number.isFinite(radius)},
+      sprite, clipZ, meterGain: this._meterGain, luma,
+    }
+    // One line, so a console screenshot carries it all.
+    const f = (v) => (typeof v === 'number' ? +v.toPrecision(4) : v)
+    const flat = [`star ${name} hip ${hip} ${f(distance / 9.461e15)} ly at px ${px},${py}`,
+      `ndc ${ndc.x.toFixed(4)},${ndc.y.toFixed(4)},${ndc.z.toFixed(8)}`,
+      `lumens ${f(lumens)} radius ${f(radius)}`,
+      `sprite size ${f(sprite.sizePx)} sigma ${f(sprite.sigma)} peak ${f(sprite.peak)} flat ${sprite.flat} capped ${sprite.glareCapped}`,
+      `clip onFarPlane ${clipZ.onFarPlane} ulpsInside ${f(clipZ.ulpsInside)}`,
+      `gain ${f(this._meterGain)}`,
+      `luma ${Object.entries(luma).map(([k, v]) => `${k}=${typeof v === 'object' && v ? `${v.luma}@${v.at}` : v}`).join(' ')}`]
+    console.log(`starProbe: ${flat.join(' | ')}`)
+    console.log('starProbe', out)
+    return out
+  }
+
+
+  /**
+   * @param {object} o A scene node
+   * @returns {boolean} Whether it hangs under a planet, moon or star object
+   */
+  _underBody(o) {
+    for (let p = o.parent; p; p = p.parent) {
+      if (p.props?.type === 'planet' || p.props?.type === 'moon' || p.props?.type === 'star') {
+        return true
+      }
+    }
+    return false
+  }
+
+
+  /**
+   * The self-luminous discs in the frame, for the meter (exposure.js
+   * luminousDiscGain): each star object (the Sun) whose mesh is in the
+   * frame, with its disc's diameter in pixels and its surface radiance at
+   * Earth's keyed exposure (Star.js draws every star's disc at the Sun's).
+   *
+   * @returns {Array<{diameterPx: number, radianceAtEarthKeyed: number}>}
+   */
+  _luminousDiscs() {
+    const objects = this.sceneManager?.objects
+    if (!objects) {
+      return []
+    }
+    this._sunlitVectors ??= [new Vector3(), new Vector3(), new Vector3(), new Vector3()]
+    const [, cam, body, ndc] = this._sunlitVectors
+    this.camera.getWorldPosition(cam)
+    const pxRad = (this.camera.fov * Math.PI / 180) / Math.max(this.height, 1)
+    const discs = []
+    for (const name of Object.keys(objects)) {
+      const o = objects[name]
+      if (o?.props?.type !== 'star' || !o.props.radius || !o.visible || name.endsWith('.orbitPosition')) {
+        continue
+      }
+      o.getWorldPosition(body)
+      const distance = body.distanceTo(cam)
+      const radius = o.props.radius.scalar
+      if (!(distance > radius)) {
+        continue
+      }
+      const angularRadius = Math.asin(radius / distance)
+      ndc.copy(body).project(this.camera)
+      const marginY = angularRadius / (this.camera.fov * Math.PI / 360)
+      const marginX = marginY / Math.max(this.camera.aspect, 1e-6)
+      if (!(ndc.z < 1 && ndc.z > -1 && Math.abs(ndc.x) < 1 + marginX && Math.abs(ndc.y) < 1 + marginY)) {
+        continue
+      }
+      discs.push({diameterPx: 2 * angularRadius / pxRad, radianceAtEarthKeyed: SUN_DISC_RADIANCE})
+    }
+    return discs
+  }
+
+
+  /**
+   * The star field's state, for checking a build on a machine at hand
+   * (`c.ui.starsDebug()` in the console; HDR.md "Physical stars"): the
+   * exposure and the metered gain with the meter's last reading, the
+   * limiting magnitude, the GPU's point-size range and fragment precision,
+   * whether the star program compiled, and a few stars' sprites by the
+   * shader's law (exposure.js starSprite) at this exposure.
+   *
+   * @returns {object} What it logs
+   */
+  starsDebug() {
+    const gl = this.renderer.getContext()
+    const points = this._starsPoints ?? this.scene.getObjectByName('StarsPoints') ?? null
+    const program = points ? this.renderer.properties.get(points.material)?.currentProgram : null
+    const gain = absoluteUniforms.uExposureRelative.value
+    const starGain = absoluteUniforms.uStarGain.value
+    const opts = {fovDegrees: this.camera.fov, heightPx: this.height, starGain}
+    const stars = {}
+    for (const [name, magnitude] of [['Sirius', -1.46], ['Vega', 0.03], ['mag 3', 3], ['mag 6', 6], ['mag 6.5', 6.5]]) {
+      stars[name] = starSprite(illuminanceRatio(magnitude), gain, opts)
+    }
+    const highp = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT)
+    const out = {
+      size: [this.width, this.height],
+      pixelRatio: this.renderer.getPixelRatio(),
+      hdr: this.hdr,
+      exposure: this.renderer.toneMappingExposure,
+      keyedExposure: this._exposureGoal,
+      meterGain: this._meterGain,
+      meterGainGoal: this._meterGainGoal,
+      meterLast: this._meterLast ?? null,
+      meterCap: this._meterCap ?? Infinity,
+      sunlitBodies: this._sunlitBodies(),
+      luminousDiscs: this._luminousDiscs(),
+      frameCanBeEmpty: this._frameCanBeEmpty(),
+      exposureRelative: gain,
+      starGain,
+      limitingMagnitude: limitingMagnitude(gain, starGain),
+      pointSizeRange: Array.from(gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)),
+      fragmentHighp: highp ? {rangeMin: highp.rangeMin, rangeMax: highp.rangeMax, precision: highp.precision} : null,
+      starsDrawn: Boolean(points),
+      program: program ? (program.diagnostics ?? 'compiled') : 'none',
+      maxStarSizePx: points?.material.uniforms.MAX_STAR_SIZE_PX.value,
+      stars,
+    }
+    console.log('stars', out)
+    return out
   }
 
 

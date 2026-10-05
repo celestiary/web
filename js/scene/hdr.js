@@ -40,6 +40,10 @@ export const MAX_DISPLAY = 0.999
  * @returns {Array<number>} Display values, 0 to 1
  */
 export function neutral(rgb) {
+  if (!rgb.every(Number.isFinite)) {
+    // As the GLSL: a non-finite value is the white point, not NaN.
+    return rgb.map(() => 1)
+  }
   const x = Math.min(...rgb)
   const offset = x < TOE_END ? x - (6.25 * x * x) : TOE_OFFSET
   let c = rgb.map((v) => v - offset)
@@ -109,6 +113,12 @@ export function maxNeutralPeak(rho) {
 /** GLSL: vec3 neutralToneMap(vec3), as neutral(). */
 export const NEUTRAL_GLSL = `
 vec3 neutralToneMap(vec3 color) {
+  // A non-finite input shows as the white point, never as the NaN the
+  // curve makes of Inf (a black pixel): the Sun's disc went black inside
+  // its limb where the buffer overflowed (HDR.md, "The Sun's disc").
+  if (any(isnan(color)) || any(isinf(color))) {
+    return vec3(1.0);
+  }
   const float startCompression = ${START_COMPRESSION.toFixed(2)};
   const float desaturation = ${DESATURATION.toFixed(2)};
   float x = min(color.r, min(color.g, color.b));
@@ -155,16 +165,81 @@ vec3 neutralInverse(vec3 y) {
 
 
 /**
+ * The most the HDR scene buffer holds: half-float's largest value, rounded
+ * down.  Everything written into it is clamped here (the scene pass,
+ * Cesium's decode, the stars, the Sun's disc): past it a value becomes
+ * Inf, the tone map makes NaN of it, the pixel goes black, and the metered
+ * exposure, reading black, holds the gain that overflowed it.
+ */
+export const HDR_MAX_VALUE = 6.0e4
+
+
+/**
+ * A self-luminous source's radiance within the half-float buffer, with a
+ * shoulder rather than a clamp: itself to LUMINOUS_KNEE, then compressed
+ * toward LUMINOUS_CEILING (at most it, 1e4 under the buffer's
+ * HDR_MAX_VALUE for what adds on the same pixel), so the Sun's disc keeps its
+ * granulation and limb darkening in the buffer at any exposure, and so
+ * the disc, its glow and its point sprite, which add, stay under the
+ * buffer's 65,504 (over it a half-float is Inf, NaN through the tone
+ * map, a black pixel: the user's black Sun inside a bright limb).
+ * Monotone and continuous, with slope 1 at the knee.
+ *
+ * @param {number} radiance In exposure units
+ * @returns {number} Within [0, LUMINOUS_CEILING]
+ */
+export function luminousShoulder(radiance) {
+  if (!(radiance > LUMINOUS_KNEE)) {
+    return Math.max(radiance, 0)
+  }
+  const span = LUMINOUS_CEILING - LUMINOUS_KNEE
+  return LUMINOUS_CEILING - (span * Math.exp(-(radiance - LUMINOUS_KNEE) / span))
+}
+
+
+/**
+ * The luminous shoulder's ceiling, in exposure units: what a disc may
+ * reach, leaving LUMINOUS_GLOW_MAX of the buffer's HDR_MAX_VALUE for
+ * what adds on the same pixel.  At 71 Gm the depth buffer can't tell the
+ * Sun's rim from its glow shell 0.07 radii behind it, so the glow added
+ * to the rim: with the disc at 6e4 the red channel passed 65,504, Inf in
+ * half-float, NaN once sampled, 29 pixels round the disc (the user's
+ * white specks, black before the tone map's guard).
+ */
+export const LUMINOUS_CEILING = 5e4
+/** The most the Sun's glow shell adds to a pixel (newAtmosphere), in exposure units. */
+export const LUMINOUS_GLOW_MAX = HDR_MAX_VALUE - LUMINOUS_CEILING
+/** Where the luminous shoulder begins, in exposure units. */
+export const LUMINOUS_KNEE = 3e4
+
+
+/** GLSL: float luminousShoulder(float), as luminousShoulder(). */
+export const LUMINOUS_SHOULDER_GLSL = `
+float luminousShoulder(float radiance) {
+  const float knee = ${LUMINOUS_KNEE.toExponential()};
+  const float ceiling = ${LUMINOUS_CEILING.toExponential()};
+  if (!(radiance > knee)) {
+    return max(radiance, 0.0);
+  }
+  float span = ceiling - knee;
+  return ceiling - span * exp(-(radiance - knee) / span);
+}
+const float LUMINOUS_GLOW_MAX = ${LUMINOUS_GLOW_MAX.toExponential()};
+`
+
+
+/**
  * The scene pass's tone mapping: exposure only.  three's
  * LinearToneMapping saturates to 1, which would clip the HDR buffer; its
- * CustomToneMapping hook is replaced with a plain multiply.  Global (three's
- * shader chunks are), and harmless to anything not using CustomToneMapping.
+ * CustomToneMapping hook is replaced with a plain multiply, clamped to what
+ * the buffer holds (HDR_MAX_VALUE).  Global (three's shader chunks are),
+ * and harmless to anything not using CustomToneMapping.
  */
 export function installExposureOnlyToneMapping() {
   const custom = 'vec3 CustomToneMapping( vec3 color ) { return color; }'
   if (ShaderChunk.tonemapping_pars_fragment.includes(custom)) {
     ShaderChunk.tonemapping_pars_fragment = ShaderChunk.tonemapping_pars_fragment.replace(
-        custom, 'vec3 CustomToneMapping( vec3 color ) { return toneMappingExposure * color; }')
+        custom, `vec3 CustomToneMapping( vec3 color ) { return min(toneMappingExposure * color, vec3(${HDR_MAX_VALUE.toFixed(1)})); }`)
   }
 }
 
@@ -177,6 +252,26 @@ export function installExposureOnlyToneMapping() {
  * around its passes.
  */
 export const sceneReferredUniform = {value: 0}
+
+
+/**
+ * Shared by the materials of absolute brightness (the stars, the Milky Way,
+ * the Sun's disc; HDR.md "Physical stars"): the renderer's exposure over
+ * Earth's keyed one (exposure.js exposureRelative), and the viewport's
+ * height and vertical field of view, for a pixel's solid angle.  ThreeUi
+ * sets them each frame.
+ */
+export const absoluteUniforms = {
+  uExposureRelative: {value: 1},
+  uViewportHeight: {value: 1024},
+  uFovDegrees: {value: 45},
+  // The user's gain on the stars' light (ThreeUi.setLimitingMagnitude): 1
+  // is the naked eye's limit.
+  uStarGain: {value: 1},
+  // The eye's patch's side, radians (exposure.js EYE_POINT_RAD; ThreeUi
+  // sets it).
+  uEyePointRad: {value: 10 / 60 * Math.PI / 180},
+}
 
 
 /**

@@ -15,7 +15,7 @@ import {
 import {galacticToSceneMatrix} from './galacticFrame.js'
 import {sceneReferred} from './hdr.js'
 import {named} from '../utils.js'
-import {toRad} from '../shared.js'
+import {toRad, overlay} from '../shared.js'
 
 
 // Earth's obliquity at J2000 — angle between the celestial equator (Earth's
@@ -112,6 +112,8 @@ export default function newGrids() {
   group.add(equatorial)
   group.add(ecliptic)
   group.add(galactic)
+  // On the overlay layer (shared.js overlay): out of the meter's frame.
+  overlay(group)
 
   // Default: all hidden.  Toggled in by the user.
   equatorial.visible = false

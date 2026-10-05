@@ -1,5 +1,5 @@
 import {Object3D} from 'three'
-import {LIGHTYEAR_METER} from '../shared.js'
+import {LIGHTYEAR_METER, overlay} from '../shared.js'
 import {pulseCycle} from './Colonization.js'
 import {ALWAYS, disposeWideLines, newWideLines} from './wideLines.js'
 
@@ -122,6 +122,7 @@ export default class ColonizationLines extends Object3D {
     })
     this.tree.material.uniforms.uTime.value = this._years
     this._applyStyle()
+    overlay(this.tree)
     this.add(this.tree)
   }
 
@@ -154,6 +155,7 @@ export default class ColonizationLines extends Object3D {
     mesh.material.depthTest = false
     mesh.renderOrder = PATH_RENDER_ORDER
     this.path = mesh
+    overlay(mesh)
     this.add(mesh)
   }
 

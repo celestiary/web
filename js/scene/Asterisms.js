@@ -1,7 +1,7 @@
 import {Color, Object3D} from 'three'
 import AsterismsCatalog from './AsterismsCatalog.js'
 import {assertDefined} from '../assert.js'
-import {labelTextColor} from '../shared.js'
+import {labelTextColor, overlay} from '../shared.js'
 import {newWideLines} from './wideLines.js'
 
 
@@ -115,7 +115,8 @@ export default class Asterisms extends Object3D {
       }
       color.set(rgb, 3 * k)
     }
-    const lines = newWideLines({start, end, color}, {name: 'AsterismLines'})
+    // On the overlay layer (shared.js overlay): out of the meter's frame.
+    const lines = overlay(newWideLines({start, end, color}, {name: 'AsterismLines'}))
     const u = lines.material.uniforms
     u.uWidthFirst.value = u.uWidthLast.value = ASTERISM_WIDTH_PX
     u.uOpacity.value = ASTERISM_OPACITY

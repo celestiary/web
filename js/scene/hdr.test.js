@@ -11,17 +11,9 @@ import {
   SrcAlphaFactor,
 } from 'three'
 import {
-  MAX_DISPLAY,
-  NEUTRAL_GLSL,
-  maxNeutralPeak,
-  NEUTRAL_INVERSE_GLSL,
-  alphaScaled,
-  installExposureOnlyToneMapping,
-  neutral,
-  neutralInverse,
-  sceneReferred,
-  sceneReferredUniform,
-  wrapMain,
+  MAX_DISPLAY, NEUTRAL_GLSL, maxNeutralPeak, NEUTRAL_INVERSE_GLSL, alphaScaled,
+  installExposureOnlyToneMapping, neutral, neutralInverse, sceneReferred, sceneReferredUniform, wrapMain,
+  luminousShoulder, LUMINOUS_KNEE, HDR_MAX_VALUE, LUMINOUS_CEILING, LUMINOUS_GLOW_MAX,
 } from './hdr.js'
 
 
@@ -118,6 +110,51 @@ describe('GLSL', () => {
 })
 
 
+describe('the luminous shoulder', () => {
+  it('is itself to the knee, then compressed toward the ceiling, at most it: finite and monotone to any radiance', () => {
+    expect(luminousShoulder(0)).toBe(0)
+    expect(luminousShoulder(-5)).toBe(0)
+    expect(luminousShoulder(0.6)).toBe(0.6)
+    expect(luminousShoulder(LUMINOUS_KNEE)).toBe(LUMINOUS_KNEE)
+    // Slope 1 at the knee.
+    expect((luminousShoulder(LUMINOUS_KNEE + 1) - LUMINOUS_KNEE)).toBeCloseTo(1, 3)
+    let last = 0
+    for (let r = 1; r < 1e12; r *= 1.5) {
+      const v = luminousShoulder(r)
+      expect(Number.isFinite(v)).toBe(true)
+      expect(v).toBeLessThanOrEqual(LUMINOUS_CEILING)
+      expect(v).toBeGreaterThanOrEqual(last)
+      last = v
+    }
+    // The Sun's disc at Earth's keyed exposure (69,357) and at the dark
+    // gain (2.8e11) both land under the ceiling, the first near it.
+    expect(luminousShoulder(69357)).toBeGreaterThan(4e4)
+    expect(luminousShoulder(2.8e11)).toBeLessThanOrEqual(LUMINOUS_CEILING)
+    expect(luminousShoulder(2.8e11)).toBeGreaterThan(luminousShoulder(69357))
+  })
+
+  it('leaves the glow room: the disc at its ceiling plus the glow at its most is within the buffer', () => {
+    // At 71 Gm the depth buffer can't separate the disc's rim from its glow
+    // shell, so the two add on the rim's pixels: 6e4 + 1e4 did, to Inf.
+    expect(LUMINOUS_CEILING + LUMINOUS_GLOW_MAX).toBeLessThanOrEqual(HDR_MAX_VALUE)
+    expect(HDR_MAX_VALUE).toBeLessThan(65504)
+    expect(luminousShoulder(1e12) + LUMINOUS_GLOW_MAX).toBeLessThanOrEqual(HDR_MAX_VALUE)
+  })
+})
+
+
+describe('the tone map\'s guard', () => {
+  it('shows a non-finite input as the white point, never NaN', () => {
+    expect(neutral([Infinity, 1, 1])).toEqual([1, 1, 1])
+    expect(neutral([NaN, NaN, NaN])).toEqual([1, 1, 1])
+    expect(neutral([0.5, -Infinity, 0.5])).toEqual([1, 1, 1])
+    const white = neutral([6e4, 6e4, 6e4])
+    expect(white.every(Number.isFinite)).toBe(true)
+    expect(white[0]).toBeGreaterThan(0.99)
+  })
+})
+
+
 describe('sceneReferred', () => {
   it('scales by alpha only where the blend does', () => {
     expect(alphaScaled(new ShaderMaterial({blending: AdditiveBlending}))).toBe(true)
@@ -149,7 +186,7 @@ describe('installExposureOnlyToneMapping', () => {
     installExposureOnlyToneMapping()
     installExposureOnlyToneMapping()
     const chunk = ShaderChunk.tonemapping_pars_fragment
-    expect(chunk).toContain('vec3 CustomToneMapping( vec3 color ) { return toneMappingExposure * color; }')
+    expect(chunk).toContain('vec3 CustomToneMapping( vec3 color ) { return min(toneMappingExposure * color, vec3(60000.0)); }')
     expect(chunk.match(/CustomToneMapping\( vec3 color \)/g).length).toBe(1)
   })
 })
