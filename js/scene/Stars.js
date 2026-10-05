@@ -123,11 +123,11 @@ export default class Stars extends Object {
     const starsMaterial = new ShaderMaterial({
       uniforms: {
         ...absoluteUniforms,
-        // A star's sprite: the eye's patch in pixels (1 px here, 4 on a
-        // 1080 px screen), growing with its light past a white pixel's
-        // (bloom; stars.vert), to 64 px at most.
+        // A star's quad: as large as the visible star (stars.vert), from
+        // the eye's patch in pixels (1 px here, 4 on a 1080 px screen) to
+        // 96 px for the Sun from the outer planets.
         MIN_STAR_SIZE_PX: {value: 1},
-        MAX_STAR_SIZE_PX: {value: 64},
+        MAX_STAR_SIZE_PX: {value: 96},
         // RTE uniforms: camera position in star catalog coords, split high/low
         uCamPosWorldHigh: {value: new Vector3()},
         uCamPosWorldLow: {value: new Vector3()},

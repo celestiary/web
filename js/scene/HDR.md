@@ -206,8 +206,8 @@ keyed one, so the value is right at any exposure (the shared
 
 **The limiting magnitude is the parameter** (`exposure.js`
 `LIMITING_MAGNITUDE`, 6.5): the naked eye's at a dark site, dark adapted,
-which is the metered exposure's dark-adapted gain (`METER_GAIN_MAX`, 4e6,
-below).  A star of that magnitude shows `LIMIT_VALUE` there, 0.12 in
+which is the metered exposure's dark-adapted gain (`METER_GAIN_MAX`, 4e6
+over Earth's keyed exposure, wherever the camera is; below).  A star of that magnitude shows `LIMIT_VALUE` there, 0.12 in
 exposure units, 12 of 255 through Neutral's toe: just visible.  Brighter
 stars have 2.5× more light per magnitude (6.0 is 25 of 255, 5.0 110, 4.0
 white and blooming), fainter ones less, down into black smoothly (7.0 a
@@ -236,13 +236,27 @@ whole Hipparcos catalogue (to magnitude 9-12) as white dots.  With the
 patch the two agree, and the sky's depth is set by the exposure, not the
 display.
 
-**The sprite is the patch in pixels**, 1 px on the test viewport and 4 px
-on a 1080 px screen, and its pixels carry the star's light, `L × patch²`,
-over a Gaussian kernel of width size/4 (`shaders/stars.frag`; the kernel's
-sum over the sprite, 2πσ², or 1 for one pixel, normalises it).  Past the
-value a pixel shows as white the sprite grows 3 px per decade of light
-(bloom, to 64 px), as a saturated point does in the eye and on a sensor:
-the brightest stars are bigger, their light still conserved.  A texture
+**The sprite's pixels carry the star's light**, `L × patch²`, over a
+Gaussian kernel (`shaders/stars.frag`) of width σ = 0.4 × patch (in
+pixels: 0.4 on the test viewport, 1.6 on a 1080 px screen), whose sum,
+2πσ², is patch², so the kernel's peak is L and one law holds from the
+faintest star up.  Past the value a pixel shows as white, σ grows 0.75 px
+per decade of light (bloom): the peak passes white, and the radius where
+it does is a saturated core that grows with the log of the light, with
+the halo outside it, as a bright star looks to the eye and on a sensor
+(Sirius at the dark-adapted gain: a core of radius 4 px in an 18 px halo
+on the test viewport).  The quad is sized from the radius where the
+kernel falls under `VISIBLE_VALUE` (0.004, under 1 of 255), plus a
+pixel, so it is as large as the visible star and no larger (to 96 px),
+and an edge window in the fragment shader takes the kernel to zero
+inside it: a bright star is round at every exposure.  The first cut's
+quad grew 3 px per decade with σ a quarter of it, and at a high gain the
+Gaussian was over white out to the quad's edge, so the brightest stars,
+and the Sun from Pluto, drew as squares (the user's preview).  **A
+resolved disc is no point**: the sprite's light fades by (patch/θ)² once
+the star's disc, θ = 2r/d, outgrows the patch, so the Sun's mesh and a
+halo take over from the point within a few AU (from Earth, 0.1 of it).
+A texture
 (`star_glow.png`) did this at first, and lost two magnitudes: its flat
 core is 6% of the sprite's half-width, so a 2 px sprite sampled it at
 0.06 and a 4 px one at 0.27, and mipmaps flattened a 3 px sprite's peak to
@@ -293,7 +307,17 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    `METER_GAIN_MAX` = `METER_KEY / METER_FLOOR` = 4e6, not infinity.  That
    is the eye's dark adaptation: a scene of 8e-3 cd/m² (a moonlit
    landscape) shown as a sunlit one, set so that magnitude 6.5 just shows
-   (above).
+   (above).  **The dark end is absolute**, over Earth's keyed exposure:
+   the keyed exposure scales with the Sun's irradiance at the target
+   (0.4× Earth's at Mercury, 40× at Pluto), and a floor and ceiling in
+   keyed units made a dark frame's exposure, and the stars' limit with it,
+   depend on the target, a magnitude shallower at Mercury and four deeper
+   at Pluto (the user's preview: Mercury few stars, Pluto nearly all).
+   So the floor is `METER_FLOOR × keyedOverEarth` and the ceiling
+   `METER_GAIN_MAX / keyedOverEarth` in keyed units (`meteredGain`), and
+   a dark frame reaches the same exposure, and the same limit, from
+   Mercury to Pluto; the sunlit end (never below 1, the highlight cap)
+   stays keyed, so a sunlit target shows at its albedo.
 3. **Never below 1 for a sunlit scene.**  The luminance the brightest
    `METER_HIGHLIGHT_FRACTION` (2%) of the frame exceeds is lifted to at
    most `METER_HIGHLIGHT` (0.6, a sunlit surface of albedo 0.4): a frame

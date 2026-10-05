@@ -120,6 +120,15 @@ describe('metered exposure', () => {
     expect(b.highlight).toBeCloseTo(f.highlight, 12)
   })
 
+  it('reaches the same dark exposure wherever the camera is: the ceiling is over Earth\'s keyed one', () => {
+    // At Pluto the keyed exposure is 40× Earth's: a black frame asks for
+    // 1e5 over it, 4e6 over Earth's; at Mercury 0.4×: 1e7 over it.
+    expect(meteredGain(m(1e-12, 1e-12, 1e-6), 1, true, 40)).toBeCloseTo(METER_GAIN_MAX / 40, 6)
+    expect(meteredGain(m(1e-12, 1e-12, 1e-6), 1, true, 0.4)).toBeCloseTo(METER_GAIN_MAX / 0.4, 6)
+    // The sunlit end stays keyed: Pluto's lit disc at 0.6 holds 1.
+    expect(meteredGain(m(0.01, 0.6), 1, true, 40)).toBe(1)
+  })
+
   it('asks the same of a scene whatever exposure it was rendered at: no feedback loop', () => {
     // Rendered at gain 100 the frame reads 100× brighter; the gain asked for
     // is the scene's, not the frame's.

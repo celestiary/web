@@ -147,14 +147,27 @@ export function pointSolidAngle(fovDegrees, heightPx) {
  * black.  The LDR fallback's bytes quantize a star field to zero, so it
  * can't tell empty from dark (`canBeEmpty` false) and takes the dark.
  *
+ * The dark end is absolute.  The target-keyed exposure scales with the
+ * Sun's irradiance at the target (exposureAt: 0.4× Earth's at Mercury,
+ * 40× at Pluto), and the gain is over it; a floor and a ceiling in keyed
+ * units would make a dark frame's exposure, and the stars' limit with it,
+ * depend on the target (a magnitude shallower at Mercury, four deeper at
+ * Pluto, which the user saw).  So the floor is METER_FLOOR at Earth's
+ * keyed exposure, METER_FLOOR × keyedOverEarth at this one, and a black
+ * frame asks for METER_GAIN_MAX over Earth's keyed exposure wherever the
+ * camera is: the dark-adapted eye, the same everywhere.  The sunlit end
+ * (never below 1, the highlight cap) stays relative to the keyed exposure:
+ * a sunlit target shows at its albedo.
+ *
  * @param {{meanLog: number, highlight: number, blown: number, max: number}} metered
  *   meanLogLuminance's measure of the frame as it was rendered
  * @param {number} renderedOverKeyed The exposure the frame was rendered at
  *   over the target-keyed exposure (its gain at the time)
  * @param {boolean} canBeEmpty Whether a frame of zeros means nothing drawn
+ * @param {number} keyedOverEarth The target-keyed exposure over Earth's
  * @returns {number|null} The gain the scene asks for; null for no scene
  */
-export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed, canBeEmpty = true) {
+export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed, canBeEmpty = true, keyedOverEarth = 1) {
   if (canBeEmpty && !(max > 0)) {
     return null
   }
@@ -165,9 +178,10 @@ export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed,
   if (blownAtKeyed > METER_HIGHLIGHT_MAX) {
     return Math.max(METER_HIGHLIGHT_MAX / blownAtKeyed, METER_GAIN_MIN)
   }
-  const byMean = METER_KEY / Math.max(lumaAtKeyed, METER_FLOOR)
-  const byHighlight = METER_HIGHLIGHT / Math.max(highlightAtKeyed, METER_FLOOR)
-  return Math.min(Math.max(Math.min(byMean, byHighlight), 1), METER_GAIN_MAX)
+  const floor = METER_FLOOR * Math.max(keyedOverEarth, 1e-30)
+  const byMean = METER_KEY / Math.max(lumaAtKeyed, floor)
+  const byHighlight = METER_HIGHLIGHT / Math.max(highlightAtKeyed, floor)
+  return Math.min(Math.max(Math.min(byMean, byHighlight), 1), METER_GAIN_MAX / Math.max(keyedOverEarth, 1e-30))
 }
 
 
@@ -211,8 +225,9 @@ export function meanLogLuminance(rgba, count) {
 export const METER_KEY = 0.3
 /**
  * Pixels darker than this, in exposure units, count as this: it sets the
- * dark-adapted gain, METER_KEY over it, 4e6, which shows a scene of
- * 8e-3 cd/m² (a sunlit white is 3e4) as a sunlit one.  The eye adapts to
+ * dark-adapted gain, METER_KEY over it, 4e6 over Earth's keyed exposure
+ * wherever the camera is (meteredGain), which shows a scene of 8e-3 cd/m²
+ * (a sunlit white is 3e4) as a sunlit one.  The eye adapts to
  * 1e-6 cd/m², so this is well within its range; it is set so that a star
  * of magnitude 6.5, 2.9e-8 of a sunlit white over the eye's patch, just
  * shows, 0.12 in exposure units, 12 of 255 through Neutral's toe (HDR.md,
