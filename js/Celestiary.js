@@ -18,6 +18,7 @@ import {assertArgs} from './assert'
 import {latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment} from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
+import {goToEntry} from './search/commitEntry'
 import {elt} from './utils'
 
 
@@ -63,6 +64,7 @@ export default class Celestiary {
     this.ui.onCameraChange = () => this._schedulePermalinkUpdate()
     this.camera = this.ui.camera
     this.scene = new Scene(this.ui)
+    this.scene.onLabelDblClick = (label) => this.goToLabel(label)
     // Any settings toggle (asterisms, grids, etc.) updates the permalink so
     // the URL always reflects the live view configuration.
     this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
@@ -309,6 +311,20 @@ export default class Celestiary {
         }, 1000)
       })
     })
+  }
+
+
+  /**
+   * Go to what a double-clicked or tapped label labels (Scene.onDblClick),
+   * as the search's Go does (goToEntry): a body by its path, a star by
+   * scene.goTo, committed.
+   *
+   * @param {{kind: string, name: string, star?: object}} label
+   */
+  goToLabel(label) {
+    goToEntry(label.kind === 'star' ?
+      {kind: 'star', displayName: label.name, payload: {star: label.star, hipId: label.star.hipId}} :
+      {kind: 'body', displayName: label.name, payload: {name: label.name}}, this)
   }
 
 

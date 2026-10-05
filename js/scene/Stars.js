@@ -197,6 +197,8 @@ export default class Stars extends Object {
       this.showStarName(star, name)
     }
     const labelPoints = this.starLabelSpriteSheet.compile()
+    // A double click or tap on one goes to its star (labelPick.js).
+    labelPoints.userData.labelTargets = toShow.map(([star, name]) => ({kind: 'star', star, name}))
     this.labelsGroup.add(labelPoints)
   }
 
