@@ -306,8 +306,10 @@ void main() {
     // half-float buffer), so the glow follows the exposure as the disc does.
     float radiance = min(1.5 * 46238.0 * uExposureRelative, 6.0e4);
     vec3 atmColor = vec3(intensity, intensity, intensity) * radiance;
-    // use atmOpacity to control the overall intensity of the atmospheric color
-    gl_FragColor = vec4(atmColor, atmOpacity) * factor;
+    // use atmOpacity to control the overall intensity of the atmospheric color;
+    // within the half-float buffer (the shell's factor reaches 9.5, and a
+    // value past 65504 is Inf, NaN through the tone map, a black pixel).
+    gl_FragColor = vec4(min(atmColor * factor, vec3(6.0e4)), min(atmOpacity * factor, 1.0));
 }`,
       uniforms: {
         atmOpacity: {value: 0.9},

@@ -164,6 +164,18 @@ a cut at 1e-5 of the length), and set what must hold exactly (the cut's
 depth) rather than computing it.  To debug a GPU number, replay it with
 `Math.fround`, not pixels.
 
+**And a point can sit exactly on the far plane** (#153).  Stars dropped
+out and came back with a slight yaw on an M2, never on SwiftShader.  The
+probe's ndc z for them read 1.00000000: with the far plane at the
+galaxy's scale and the near plane at metres, (f + n) / (f − n) is 1 in
+float32 and a star's clip z is d − 2n, which rounds to d = w, the clip
+boundary.  A GPU with an approximate reciprocal in its perspective divide
+puts z / w on either side of 1 by the bits of w; SwiftShader divides
+exactly.  `starClipZ` replays it with `Math.fround`, and `stars.vert`
+pulls z a few ulps inside.  **Rule:** never leave geometry on a clip
+plane by arithmetic; when a probe reads a coordinate at exactly ±1,
+treat it as a bug on some GPU.
+
 ### GPU shader degenerate cases need explicit guards
 
 The Bruneton decode has two degenerate cases: r = rG (ground, rho = 0) and r = rA (atmosphere

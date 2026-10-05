@@ -298,6 +298,20 @@ radius, which spread Deneb over 110 px; and `d²` in metres overflowed
 float32 past 1,900 ly and zeroed every star beyond.  Values are clamped
 to what the half-float buffer holds (`HDR_MAX_VALUE`, 6e4).
 
+**Every star sits on the far-plane boundary** unless pulled inside.  The
+camera's far plane is six galaxy radii and its near plane metres, so the
+projection's (f + n) / (f − n) is 1 in float32 and a star's clip z is
+d − 2n, which rounds to d = w for any star.  A GPU whose perspective
+divide is an approximate reciprocal lands z / w on either side of 1 by
+the bits of w, and the star is clipped or not with the camera's
+position: Alnilam gone at one yaw and back at the next on the user's
+M2, while SwiftShader, which divides exactly, drew it at both.
+`stars.vert` pulls z to `FAR_PLANE_INSIDE` × w (1 − 1e-6: 8 ulps of 1,
+8 steps of the 24-bit depth buffer): still behind every planet that was
+in front (only one past 8 AU, a sub-pixel point, shares the stars'
+depth), and over the Milky Way, which pins its z to the far plane.
+`starClipZ` (`exposure.js`) replays the float32 arithmetic for tests.
+
 **Measured** (a probe projects every catalogue star, computes its
 apparent magnitude and reads its pixel): the night sky from the outback
 at 4e6 shows 234 stars over 10 of 255 to magnitude 6.5 in the 45° field
@@ -394,20 +408,25 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    clouds, a midday sky) keeps the keyed exposure; a low Sun's sky and
    ground, a twilight, are lifted toward the key; a star field, whose
    sprites cover less than 2% of the frame, runs to the dark-adapted gain.
-4. **Below 1 only for a blown highlight.**  Where a quarter of the frame
-   (`METER_BLOWN_FRACTION`) is over `METER_HIGHLIGHT_MAX` (1.5, a sunlit
-   white: no planet is ever over it), the gain falls to bring that
-   quarter to `METER_HIGHLIGHT` (0.6, a sunlit surface), to
-   `METER_GAIN_MIN` (5e-6) at most: the Sun's disc, 46,000 whites, fills
-   the frame and shows its granulation and limb.  Brought to a white
+4. **Below 1 only for a blown highlight.**  Where a twentieth of the
+   frame (`METER_BLOWN_FRACTION`, 0.05) is over `METER_BLOWN_VALUE` (20
+   sunlit whites: only a self-luminous surface is, the Sun's disc at
+   46,000; the sky round a low Sun peaks at a few whites over 2% of the
+   frame, a sunlit surface is never over 1.5), the gain falls to bring
+   that twentieth to `METER_HIGHLIGHT` (0.6, a sunlit surface), to
+   `METER_GAIN_MIN` (5e-6) at most: the Sun's disc, from within 12 radii
+   or a 2° field from 1 AU, shows its granulation and limb.  A quarter of
+   the frame over a white (the first cut) missed the user's view from 2.5
+   radii, where the disc was 22% of the frame and stayed a white at gain
+   1 (`meterLast`: highlight 46,810, `blown` at the floor).  Brought to a white
    (the first cut) it was a flat light grey: the tone map's shoulder
    compressed the texture's 0.5-1 into 0.78-0.95 of the display (the
    user's preview, 0xEE), and its limb glow, a display-valued shell,
    stayed white round it; the glow now carries the disc's radiance
    (`newAtmosphere`), and a lift of the disc's colour with the camera's
    distance, white past 0.2 AU, is gone, so the disc keeps its
-   granulation wherever it fills the quarter (from 1 AU, a field under
-   about 1.3°).  Smaller in the frame it is a white disc in its glow at
+   granulation wherever it fills the twentieth (from 1 AU, a field under
+   about 2°).  Smaller in the frame it is a white disc in its glow at
    whatever gain the rest of the frame asks (from 1 AU at 5°, 4e6: the
    stars round it), as a whole-frame meter has it; a sunlit planet in
    view would hold the gain (next).

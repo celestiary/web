@@ -1,9 +1,10 @@
 import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
 import {
-  METER_FLOOR, METER_GAIN_MAX, METER_GAIN_MIN, METER_HIGHLIGHT, METER_HIGHLIGHT_MAX, METER_KEY, easeExposure, exposureAt,
+  METER_BLOWN_VALUE, METER_FLOOR, METER_GAIN_MAX, METER_GAIN_MIN, METER_HIGHLIGHT, METER_HIGHLIGHT_MAX, METER_KEY,
+  easeExposure, exposureAt,
   EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
-  sunlitBodyCap, HIGHLIGHT_ALBEDO_FACTOR, STAR_GLARE_CORE_PATCHES, STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE,
+  starClipZ, sunlitBodyCap, HIGHLIGHT_ALBEDO_FACTOR, STAR_GLARE_CORE_PATCHES, STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE,
 } from './exposure.js'
 import {readFileSync} from 'fs'
 import {HDR_MAX_VALUE} from './hdr.js'
@@ -99,13 +100,14 @@ describe('metered exposure', () => {
     expect(meteredGain(m(3e-7, METER_FLOOR), 1)).toBeCloseTo(METER_KEY / 3e-7, 6)
   })
 
-  it('falls below 1 only for a quarter of the frame brighter than a sunlit white: the Sun\'s disc', () => {
+  it('falls below 1 only for a twentieth of the frame over 20 whites: the Sun\'s disc', () => {
     // A sunlit white (1.5) is the keyed exposure's own: left alone.
     expect(meteredGain(m(0.5, METER_HIGHLIGHT_MAX, 1.5, 1.5), 1)).toBe(1)
-    // The sky round a low Sun: 2% of the frame at 6, a quarter at 0.5.
+    // The sky round a low Sun: 2% of the frame at 6, a twentieth at 4.
     // A clipped highlight, not a frame to darken.
-    expect(meteredGain(m(0.4, 6, 12, 0.5), 1)).toBe(1)
-    // The Sun's disc, 46,000 whites, over a quarter of the frame: brought
+    expect(meteredGain(m(0.4, 6, 12, 4), 1)).toBe(1)
+    expect(meteredGain(m(0.4, 6, 12, METER_BLOWN_VALUE), 1)).toBe(1)
+    // The Sun's disc, 46,000 whites, over a twentieth of the frame: brought
     // to a sunlit surface (0.6), where the tone map keeps its
     // granulation's contrast; at a white (1.5) the shoulder flattened it.
     expect(meteredGain(m(100, 6.9e4, 6.9e4, 6.9e4), 1)).toBeCloseTo(METER_HIGHLIGHT / 6.9e4, 12)
@@ -113,6 +115,51 @@ describe('metered exposure', () => {
     // Rendered at that gain, the disc reads as it did and asks for the same.
     const g = METER_HIGHLIGHT / 6.9e4
     expect(meteredGain(m(100 * g, 6.9e4 * g, 6.9e4 * g, 6.9e4 * g), g)).toBeCloseTo(g, 12)
+  })
+
+  it('meters the Sun\'s disc from a readback like the M2\'s: a fifth of the taps at the buffer\'s ceiling, some non-finite', () => {
+    // The user's view from 2.5 radii: the disc 22% of the frame (a quarter
+    // of it missed the old 25% rule, gain 1, a flat white disc).  Taps on
+    // the disc read 46,000-65,504; its glow shell can overflow the
+    // half-float buffer to Inf, and a NaN can come through the tone map.
+    const n = 32 * 32
+    const taps = new Float32Array(n * 4)
+    for (let i = 0; i < n; i++) {
+      let v = 0
+      if (i % 100 < 22) {
+        v = i % 7 === 0 ? 65504 : 46810
+        if (i % 50 === 1) {
+          v = Infinity
+        }
+        if (i % 50 === 2) {
+          v = NaN
+        }
+      }
+      taps[i * 4] = taps[(i * 4) + 1] = taps[(i * 4) + 2] = v
+      taps[(i * 4) + 3] = 1
+    }
+    const read = meanLogLuminance(taps, n)
+    // A non-finite tap counts as the buffer's ceiling; a finite 65,504 as itself.
+    expect(read.max).toBeGreaterThanOrEqual(HDR_MAX_VALUE)
+    expect(read.highlight).toBeGreaterThan(4e4)
+    expect(read.blown).toBeGreaterThan(4e4)
+    expect(read.meanLog).toBeCloseTo((0.22 * Math.log(5e4)) + (0.78 * Math.log(METER_FLOOR)), 0)
+    const gain = meteredGain(read, 1, false, 1)
+    expect(gain).toBeLessThan(2e-5)
+    expect(gain).toBeGreaterThan(5e-6)
+    // At 5% of the taps it still fires; at 4% it doesn't: a white disc
+    // in a frame that keeps its gain.
+    const share = (fraction) => {
+      const t = new Float32Array(n * 4)
+      for (let i = 0; i < n; i++) {
+        const v = i < fraction * n ? 6e4 : 0
+        t[i * 4] = t[(i * 4) + 1] = t[(i * 4) + 2] = v
+        t[(i * 4) + 3] = 1
+      }
+      return meteredGain(meanLogLuminance(t, n), 1, false, 1)
+    }
+    expect(share(0.06)).toBeCloseTo(METER_HIGHLIGHT / 6e4, 9)
+    expect(share(0.04)).toBe(1)
   })
 
   it('reads bytes as their value over 255', () => {
@@ -150,13 +197,13 @@ describe('metered exposure', () => {
     expect(got.max).toBe(1)
     expect(meanLogLuminance(new Float32Array(0), 0))
         .toEqual({meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, blown: METER_FLOOR, max: 0})
-    // 100 pixels: `blown` is what a quarter of them, 25 pixels, exceed.
+    // 100 pixels: `blown` is what a twentieth of them, 5 pixels, exceed.
     const quarter = new Float32Array(400).fill(0)
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 5; i++) {
       quarter.set([2, 2, 2, 1], i * 4)
     }
     expect(meanLogLuminance(quarter, 100).blown).toBe(METER_FLOOR)
-    quarter.set([2, 2, 2, 1], 25 * 4)
+    quarter.set([2, 2, 2, 1], 5 * 4)
     expect(meanLogLuminance(quarter, 100).blown).toBeCloseTo(2, 12)
     // An overflowed pixel (Inf, or NaN out of the tone map) is the buffer's most.
     const over = meanLogLuminance(new Float32Array([Infinity, 0, 0, 1, NaN, 0, 0, 1]), 2)
@@ -285,6 +332,36 @@ describe('a sunlit body in the frame', () => {
     // for 0.03; the floor is 1.
     const pluto = exposureAt(39.5 * ASTRO_UNIT_METER)
     expect(sunlitBodyCap([{...moon, albedo: 1}], pluto)).toBe(1)
+  })
+})
+
+
+describe('a star\'s clip z', () => {
+  // The camera as ThreeUi.configLargeScene sets it: near 6e5 m, far six
+  // galaxy radii.
+  const near = 6e5
+  const far = 9.461e15 * 5e4 * 6
+  const ly = 9.461e15
+
+  it('is on the far-plane boundary for every star, by float32: Alnilam, Sirius, the nearest', () => {
+    for (const d of [1985 * ly, 8.6 * ly, 4.2 * ly, 0.01 * ly]) {
+      const {z, w, onFarPlane} = starClipZ(d, near, far)
+      expect(onFarPlane).toBe(true)
+      expect(z).toBe(w)
+    }
+  })
+
+  it('is pulled 8 ulps inside, 8 steps of the depth buffer, by stars.vert', () => {
+    for (const d of [1985 * ly, 4.2 * ly]) {
+      const {w, zInside, ulpsInside} = starClipZ(d, near, far)
+      expect(zInside).toBeLessThan(w)
+      expect(ulpsInside).toBeGreaterThanOrEqual(7)
+      expect(ulpsInside).toBeLessThanOrEqual(10)
+    }
+    // A planet 1e9 m out is well inside already (its own depth, untouched).
+    const planet = starClipZ(1e9, near, far)
+    expect(planet.onFarPlane).toBe(false)
+    expect(planet.zInside).toBe(planet.z)
   })
 })
 

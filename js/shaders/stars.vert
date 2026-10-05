@@ -70,6 +70,19 @@ const float VISIBLE_VALUE = 0.004;
 // light (the Sun from 52 AU was a 120 px disc without this); past the
 // cap the light is lost, as it is to a saturated retina.
 const float GLARE_CORE_PATCHES = 2.0;
+// Every star's clip z is pulled this far inside the far plane (as a
+// fraction of w).  The camera's far plane is the galaxy's scale and its
+// near plane metres, so the projection's (f + n) / (f - n) is 1 in
+// float32 and a star's clip z is d - 2n, which rounds to d = w for any
+// star: on the far-plane boundary exactly.  A GPU whose perspective
+// divide is an approximate reciprocal lands z / w on either side of 1 by
+// the bits of w, and the star is clipped or not with the camera's
+// position (Alnilam gone at one yaw and back at the next, on an M2;
+// SwiftShader divides exactly).  8 ulps of 1 inside (2^-23 each) is 8
+// steps of the 24-bit depth buffer: still behind every planet that was
+// in front (only one past 8 AU, a sub-pixel point, shares the stars'
+// depth), and over the Milky Way, which pins its z to the far plane.
+const float FAR_PLANE_INSIDE = 0.999999;
 // A user's gain on every star's light (ThreeUi.setStarGain; 1 is physical).
 uniform float uStarGain;
 // Half-float's largest value, the scene buffer's.
@@ -129,6 +142,7 @@ void main() {
     gl_PointSize = 1.0;
     vBrightness = min(value, MAX_VALUE);
     gl_Position  = projectionMatrix * mvPosition;
+    gl_Position.z = min(gl_Position.z, gl_Position.w * FAR_PLANE_INSIDE);
     return;
   }
   float decadesOverWhite = max(log2(max(peak0, 1.0e-30)) / log2(10.0), 0.0);
@@ -145,4 +159,5 @@ void main() {
   vBrightness = peak;
 
   gl_Position  = projectionMatrix * mvPosition;
+  gl_Position.z = min(gl_Position.z, gl_Position.w * FAR_PLANE_INSIDE);
 }

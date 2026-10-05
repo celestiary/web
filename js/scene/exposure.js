@@ -187,7 +187,7 @@ export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed,
   const lumaAtKeyed = Math.exp(meanLog) / rendered
   const highlightAtKeyed = highlight / rendered
   const blownAtKeyed = blown / rendered
-  if (blownAtKeyed > METER_HIGHLIGHT_MAX) {
+  if (blownAtKeyed > METER_BLOWN_VALUE) {
     // Brought to a sunlit surface (METER_HIGHLIGHT), not to a white: at
     // a white the tone map's shoulder flattened the Sun's granulation
     // (0.5-1 of its texture into 0.78-0.95 of the display: a flat grey
@@ -344,11 +344,26 @@ export const METER_HIGHLIGHT_FRACTION = 0.02
 export const METER_HIGHLIGHT = 0.6
 /**
  * The most that luminance is let stand at, in exposure units: a sunlit
- * white surface (DISPLAY_GAIN); over it the gain falls below 1.
+ * white surface (DISPLAY_GAIN): a sunlit body's brightest surface is
+ * brought to at most this (sunlitBodyCap).
  */
 export const METER_HIGHLIGHT_MAX = DISPLAY_GAIN
-/** The share of the frame that must be over it for the gain to fall. */
-export const METER_BLOWN_FRACTION = 0.25
+/**
+ * The share of the frame that must be over METER_BLOWN_VALUE for the gain
+ * to fall below 1: the Sun's disc filling a twentieth of the frame (a
+ * diameter a quarter of its height: from within 12 radii, or a 2° field
+ * from 1 AU).  A quarter missed the user's view from 2.5 radii, where the
+ * disc was 22% of the frame and stayed a white at gain 1.
+ */
+export const METER_BLOWN_FRACTION = 0.05
+/**
+ * What that share must exceed, in exposure units: 20 sunlit whites.  Only
+ * a self-luminous surface is over it (the Sun's disc, 46,000 whites); the
+ * sky round a low Sun peaks at a few whites over 2% of the frame, and a
+ * sunlit surface is never over 1.5, so neither is darkened for a bright
+ * twentieth.
+ */
+export const METER_BLOWN_VALUE = 20 * DISPLAY_GAIN
 /**
  * The least the metered exposure falls to under the target-keyed one: the
  * Sun's disc, 6e4 in the buffer, brought to METER_HIGHLIGHT needs 1e-5,
@@ -480,6 +495,43 @@ export function starSprite(ratio, gainOverEarth, {fovDegrees = 45, heightPx = 30
   const coreRadiusPx = sigma * Math.sqrt(2 * Math.log(Math.max(peak / 0.76, 1)))
   return {value, patchPx, sigma, peak, sizePx, coreRadiusPx, flat: false, glareCapped: peak < peakRaw}
 }
+
+
+/**
+ * A star's clip z and w as stars.vert computes them in float32, for tests
+ * (HDR.md, "Physical stars"): the camera's projection with near n and far f
+ * puts a point at distance d at z = -(f + n) / (f - n) × (-d) - 2fn / (f - n),
+ * w = d.  With f the galaxy's scale and n metres, the first coefficient
+ * rounds to 1 and the second to 2n, and d - 2n rounds to d for any star:
+ * z == w, on the far-plane boundary, where a GPU's approximate perspective
+ * divide puts z / w on either side of 1 by the bits of w, and a star is
+ * clipped or not with the camera's position.  stars.vert pulls z inside by
+ * STAR_FAR_PLANE_INSIDE, 8 ulps of 1 (2^-23 each), 8 steps of the 24-bit
+ * depth buffer.
+ *
+ * @param {number} distanceMeters d
+ * @param {number} near
+ * @param {number} far
+ * @returns {{z: number, w: number, zInside: number, onFarPlane: boolean, ulpsInside: number}}
+ *   z and w as the projection gives them; zInside after the pull-in;
+ *   onFarPlane whether z == w; ulpsInside how many ulps of w zInside is
+ *   under w
+ */
+export function starClipZ(distanceMeters, near, far) {
+  const f32 = Math.fround
+  const a = f32(-(far + near) / (far - near))
+  const b = f32(-2 * far * near / (far - near))
+  const zEye = f32(-distanceMeters)
+  const z = f32(f32(a * zEye) + b)
+  const w = f32(-zEye)
+  const zInside = Math.min(z, f32(w * f32(STAR_FAR_PLANE_INSIDE)))
+  const ulp = f32(w * (2 ** -23))
+  return {z, w, zInside, onFarPlane: z === w, ulpsInside: (w - zInside) / ulp}
+}
+
+
+/** How far inside the far plane a star's clip z is pulled, as a fraction of w (stars.vert). */
+export const STAR_FAR_PLANE_INSIDE = 0.999999
 
 
 /**
