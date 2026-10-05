@@ -362,10 +362,27 @@ star-field permalink Sirius renders 234 at its centre with a saturated
 8×8 px core that fills 0.77 of its bounding box inside a 5 px halo.
 
 **The Sun's disc** (`star-shaders.js`) is `DISPLAY_GAIN / θ²` times the
-granulation texture, θ its angular radius from 1 AU: 69,000 at Earth's
-keyed exposure, clamped to 6e4.  At that exposure it is white; the metered
-exposure brings it down to show the granulation when it fills the frame
-(below).
+granulation texture, θ its angular radius from 1 AU: 69,357 at Earth's
+keyed exposure, through the luminous shoulder (`hdr.js`
+`luminousShoulder`: itself to 3e4, then compressed toward 6e4, at most
+it), as its limb glow (`newAtmosphere`) is, so the texture's granulation
+and limb darkening survive in the buffer at any exposure and the disc,
+its glow and its point sprite, which add, stay under half-float's
+65,504 (over it a value is Inf, NaN through the tone map, a black
+pixel).  At that exposure it is white; the metered exposure brings it
+down to show the granulation (rule 6 below).  **The black disc inside a
+bright limb** the user saw on zooming in, and every SwiftShader render
+of the disc, which was taken for a SwiftShader limitation, was neither
+overflow nor SwiftShader: the disc's noise took its time from
+log(1 + elapsed × 8e-7) with elapsed the simulated time since the app
+started, NaN once that is 21 minutes in the past, every permalink with a
+past `t=`.  The linear readback showed the disc NaN with its base at 0.6
+as at 6e4.  `Star.js` `noiseTime` is finite for any time now, and the
+tone map maps a non-finite input to the white point, never black.  The
+ring of white dots round the disc, one per segment of the glow shell,
+was the shell's `pow(dotP, 1.1)` of a negative normal dot at the
+silhouette's vertices, NaN, which the clamp on its output turned into
+the ceiling on a GPU whose `min` drops the NaN; `dotP` is floored at 0.
 
 **The Milky Way** (`MilkyWay.js`) is drawn at its surface brightness: its
 bright regions are 21-22 mag/arcsec², 2e-4 cd/m², against 3-4e4 cd/m² for
@@ -561,6 +578,7 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
 | Earth's crescent from 94,000 km, 30% lit, in a star field (`sunlitBodyCap`) | 1.09 (the cap) | 7.5e-8 / 6.9e-8 | crescent (0.3% of the frame) | white, 4e6 (the second cut) | peak 238, median 100, none saturated; 7 stars |
 | The Moon from the outback at night, 77% lit, 10° field (`sunlitBodyCap`) | 3.33 (the cap) | 2.3e-8 / 2.3e-8 | the disc | white, 4e6 (the second cut) | 47-232 with its phase |
 | The Sun's disc, zooming in from 232 Gm to 8 Gm (`luminousDiscGain`; 1000×595, bare) | 4.0e6 at 4.5 px across (232 Gm), 1.8e6 at 10.5 px (100 Gm), 3,700 at 16 px (65 Gm), 1.67 at 21 px (50 Gm), 8.65e-6 from 35 px (30 Gm) | — | the disc | white to 5 Gm, then 0.6 | 6e4 to 50 Gm, 0.600 from 30 Gm; monotone, no jump |
+| The Sun's disc at 71 Gm, 8 Gm and 2 Gm, the clock set by the permalink (`noiseTime`, the shoulder) | SUN_DISC_ROW |
 | The Sun from 7 radii | 5e-6 (the floor: SwiftShader's disc is non-finite, which the meter counts as the maximum) | 66 / 1.2e10 | disc | black (SwiftShader; its rim 6e4) | the same |
 
 - **A sunlit scene is untouched**: the midday surface, Earth from orbit by
@@ -601,10 +619,12 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
   field reaches the dark-adapted gain and shows its stars; a planet that
   loads from black is blown out while the gain comes down through clipped
   readings, ×0.3 per metering, a few seconds.
-- **The Sun up close** can't be judged here: its disc's interior renders
-  non-finite on SwiftShader (its noise shader, on `main` too), black
-  after the tone map, and the meter counts a non-finite pixel as the
-  maximum, so the gain runs to its floor whatever the frame.  On a real
+- **The Sun up close** was taken as unjudgeable here: its disc's interior
+  rendered non-finite on SwiftShader, black after the tone map, and the
+  meter counted a non-finite pixel as the maximum, so the gain ran to
+  its floor whatever the frame.  That was the noise's time going NaN for
+  a permalink's past `t=` (above), on every GPU; with `noiseTime` the
+  disc renders here (the rows above).  On a real
   GPU (the user's M2, 1.74 Gm, the disc 40% of the frame) the quarter
   reads 69,357 × the texture, about 59,000, the gain falls to 1.0e-5
   and the disc shows at 0.35-0.7 with its granulation and limb, the glow

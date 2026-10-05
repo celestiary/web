@@ -1,5 +1,5 @@
 import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
-import {HDR_MAX_VALUE} from './hdr.js'
+import {HDR_MAX_VALUE, luminousShoulder} from './hdr.js'
 
 
 /**
@@ -303,6 +303,20 @@ export function luminousDiscGain(gain, discs, keyedOverEarth, pixelRatio = 1) {
 export const LUMINOUS_DISC_PX = [8, 32]
 /** The Sun's disc radiance in exposure units at Earth's keyed exposure (star-shaders.js SUN_RADIANCE). */
 export const SUN_DISC_RADIANCE = DISPLAY_GAIN * 46238
+
+
+/**
+ * The Sun's disc base in the buffer at an exposure, as star-shaders.js
+ * computes it: its radiance through the luminous shoulder (hdr.js), so
+ * finite and under the buffer's ceiling at any exposure, and its own
+ * value at the luminous-disc gain (0.6, far under the knee).
+ *
+ * @param {number} gainOverEarth The exposure over Earth's keyed one
+ * @returns {number}
+ */
+export function sunDiscValue(gainOverEarth) {
+  return luminousShoulder(SUN_DISC_RADIANCE * gainOverEarth)
+}
 
 
 /**

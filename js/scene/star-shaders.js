@@ -1,3 +1,6 @@
+import {LUMINOUS_SHOULDER_GLSL} from './hdr.js'
+
+
 export const VERTEX_SHADER = `
 uniform vec3 uColor;
 uniform float iScale;
@@ -13,6 +16,7 @@ void main() {
 
 
 export const FRAGMENT_SHADER = `
+${LUMINOUS_SHOULDER_GLSL}
 varying vec3 vColor;
 varying vec3 vTexCoord3D;
 
@@ -215,8 +219,10 @@ void main(void) {
   // exposure over Earth's keyed one (js/scene/HDR.md, "Physical stars"),
   // within what the half-float scene buffer holds (65504).
   const float SUN_RADIANCE = 1.5 * 46238.0;
-  const float MAX_VALUE = 6.0e4;
-  vec3 disc = vColor * vec3(r/255.0, g/255.0, b/255.0) * min(SUN_RADIANCE * uExposureRelative, MAX_VALUE);
-  gl_FragColor = vec4(disc, 1.0);
+  // Through the luminous shoulder (hdr.js), not a clamp: the texture's
+  // granulation and limb darkening survive in the buffer, and the disc
+  // stays under the buffer's ceiling with its glow and sprite added.
+  vec3 disc = vColor * vec3(r/255.0, g/255.0, b/255.0) * luminousShoulder(SUN_RADIANCE * uExposureRelative);
+  gl_FragColor = vec4(max(disc, vec3(0.0)), 1.0);
 }
 `

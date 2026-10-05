@@ -36,6 +36,25 @@ import {named} from '../utils.js'
  * star and use it to mix in a representation of differential plasma
  * flows along the field lines.
  */
+/**
+ * The surface noise's time from the simulated time elapsed since the app
+ * started, in ms: slow (the Sun looks bad changing quickly), the log of
+ * it, and finite for any elapsed time.  It was log(1 + elapsed × 8e-7),
+ * which is NaN once the simulated time is 21 minutes before the start,
+ * every permalink with a past `t=`: the whole disc NaN, black through the
+ * tone map, inside its limb glow (the user's black Sun; and every
+ * SwiftShader render of the disc, which was taken for a SwiftShader
+ * limitation).
+ *
+ * @param {number} simTimeElapsedMs
+ * @returns {number}
+ */
+export function noiseTime(simTimeElapsedMs) {
+  const elapsed = Number.isFinite(simTimeElapsedMs) ? Math.abs(simTimeElapsedMs) : 0
+  return 4 * Math.log1p(elapsed * 8e-7)
+}
+
+
 export default class Star extends Object {
   /** */
   constructor(props, sceneObjects, ui, shadowProps = {}) {
@@ -136,10 +155,8 @@ export default class Star extends Object {
   /** */
   setupAnim() {
     this.preAnimCb = (time) => {
-      // Sun looks bad changing too quickly.
-      time = Math.log(1 + (time.simTimeElapsed * 8E-7))
       if (Shared.targets.pos) {
-        this.shaderMaterial.uniforms.iTime.value = time * 4
+        this.shaderMaterial.uniforms.iTime.value = noiseTime(time.simTimeElapsed)
       }
     }
   }

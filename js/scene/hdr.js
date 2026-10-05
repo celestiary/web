@@ -40,6 +40,10 @@ export const MAX_DISPLAY = 0.999
  * @returns {Array<number>} Display values, 0 to 1
  */
 export function neutral(rgb) {
+  if (!rgb.every(Number.isFinite)) {
+    // As the GLSL: a non-finite value is the white point, not NaN.
+    return rgb.map(() => 1)
+  }
   const x = Math.min(...rgb)
   const offset = x < TOE_END ? x - (6.25 * x * x) : TOE_OFFSET
   let c = rgb.map((v) => v - offset)
@@ -109,6 +113,12 @@ export function maxNeutralPeak(rho) {
 /** GLSL: vec3 neutralToneMap(vec3), as neutral(). */
 export const NEUTRAL_GLSL = `
 vec3 neutralToneMap(vec3 color) {
+  // A non-finite input shows as the white point, never as the NaN the
+  // curve makes of Inf (a black pixel): the Sun's disc went black inside
+  // its limb where the buffer overflowed (HDR.md, "The Sun's disc").
+  if (any(isnan(color)) || any(isinf(color))) {
+    return vec3(1.0);
+  }
   const float startCompression = ${START_COMPRESSION.toFixed(2)};
   const float desaturation = ${DESATURATION.toFixed(2)};
   float x = min(color.r, min(color.g, color.b));
@@ -162,6 +172,47 @@ vec3 neutralInverse(vec3 y) {
  * exposure, reading black, holds the gain that overflowed it.
  */
 export const HDR_MAX_VALUE = 6.0e4
+
+
+/**
+ * A self-luminous source's radiance within the half-float buffer, with a
+ * shoulder rather than a clamp: itself to LUMINOUS_KNEE, then compressed
+ * toward HDR_MAX_VALUE (at most it, 5,504 under half-float's 65,504), so
+ * the Sun's disc keeps its
+ * granulation and limb darkening in the buffer at any exposure, and so
+ * the disc, its glow and its point sprite, which add, stay under the
+ * buffer's 65,504 (over it a half-float is Inf, NaN through the tone
+ * map, a black pixel: the user's black Sun inside a bright limb).
+ * Monotone and continuous, with slope 1 at the knee.
+ *
+ * @param {number} radiance In exposure units
+ * @returns {number} Within [0, HDR_MAX_VALUE]
+ */
+export function luminousShoulder(radiance) {
+  if (!(radiance > LUMINOUS_KNEE)) {
+    return Math.max(radiance, 0)
+  }
+  const span = HDR_MAX_VALUE - LUMINOUS_KNEE
+  return HDR_MAX_VALUE - (span * Math.exp(-(radiance - LUMINOUS_KNEE) / span))
+}
+
+
+/** Where the luminous shoulder begins, in exposure units: half the buffer's ceiling. */
+export const LUMINOUS_KNEE = HDR_MAX_VALUE / 2
+
+
+/** GLSL: float luminousShoulder(float), as luminousShoulder(). */
+export const LUMINOUS_SHOULDER_GLSL = `
+float luminousShoulder(float radiance) {
+  const float knee = ${LUMINOUS_KNEE.toExponential()};
+  const float ceiling = ${HDR_MAX_VALUE.toExponential()};
+  if (!(radiance > knee)) {
+    return max(radiance, 0.0);
+  }
+  float span = ceiling - knee;
+  return ceiling - span * exp(-(radiance - knee) / span);
+}
+`
 
 
 /**

@@ -4,8 +4,8 @@ import {
   easeExposure, exposureAt,
   EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
-  luminousDiscGain, starClipZ, sunlitBodyCap, HIGHLIGHT_ALBEDO_FACTOR, STAR_GLARE_CORE_PATCHES, STAR_MAX_SIZE_PX,
-  STAR_PEAK_OVER_RADIANCE, SUN_DISC_RADIANCE,
+  luminousDiscGain, starClipZ, sunDiscValue, sunlitBodyCap, HIGHLIGHT_ALBEDO_FACTOR, STAR_GLARE_CORE_PATCHES,
+  STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, SUN_DISC_RADIANCE,
 } from './exposure.js'
 import {readFileSync} from 'fs'
 import {HDR_MAX_VALUE} from './hdr.js'
@@ -374,6 +374,20 @@ describe('a self-luminous disc in the frame', () => {
     expect(luminousDiscGain(1e-5, sun(70), 1)).toBeCloseTo(discGain, 12)
     expect(luminousDiscGain(METER_GAIN_MAX, [], 1)).toBe(METER_GAIN_MAX)
     expect(luminousDiscGain(null, sun(70), 1)).toBeNull()
+  })
+})
+
+
+describe('the Sun\'s disc in the buffer', () => {
+  it('is finite under the ceiling at any exposure, and 0.6 at the luminous-disc gain', () => {
+    for (const gain of [1e-6, 1, 4e6, 1e9]) {
+      const v = sunDiscValue(gain)
+      expect(Number.isFinite(v)).toBe(true)
+      expect(v).toBeLessThanOrEqual(HDR_MAX_VALUE)
+    }
+    const discGain = luminousDiscGain(METER_GAIN_MAX, [{diameterPx: 70, radianceAtEarthKeyed: SUN_DISC_RADIANCE}], 1)
+    expect(sunDiscValue(discGain)).toBeCloseTo(METER_HIGHLIGHT, 9)
+    expect(sunDiscValue(1)).toBeGreaterThan(sunDiscValue(1e-2))
   })
 })
 

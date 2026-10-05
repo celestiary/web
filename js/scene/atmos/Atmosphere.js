@@ -17,7 +17,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three'
-import {NEUTRAL_GLSL, absoluteUniforms} from '../hdr.js'
+import {LUMINOUS_SHOULDER_GLSL, NEUTRAL_GLSL, absoluteUniforms} from '../hdr.js'
 import {sphere} from '../shapes'
 import {MIE_PHASE_GLSL, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
 
@@ -288,6 +288,7 @@ void main() {
     gl_Position = projectionMatrix * mvPos;
 }`,
       fragmentShader: `// reference from https://youtu.be/vM8M4QloVL0?si=CKD5ELVrRm3GjDnN
+${LUMINOUS_SHOULDER_GLSL}
 varying vec3 vNormal;
 varying vec3 eyeVector;
 uniform float atmOpacity;
@@ -296,20 +297,25 @@ uniform float atmMultiplier;
 uniform float uExposureRelative;
 
 void main() {
-    // Starting from the rim to the center at the back, dotP would increase from 0 to 1
-    float dotP = dot( vNormal, eyeVector );
+    // Starting from the rim to the center at the back, dotP would increase from 0 to 1.
+    // Never under 0: at the silhouette's vertices the interpolated normal dips
+    // below it, and pow() of a negative is NaN, which a clamp turns into the
+    // buffer's ceiling on a GPU whose min() drops the NaN: a ring of white
+    // dots round the Sun, one per segment (the user's preview).
+    float dotP = max(dot( vNormal, eyeVector ), 0.0);
     // This factor is to create the effect of a realistic thickening of the atmosphere coloring
     float factor = pow(dotP, atmPowFactor) * atmMultiplier;
     // Adding in a bit of dotP to the color to make it whiter while the color intensifies
     float intensity = dotP;
     // The disc's radiance (star-shaders.js SUN_RADIANCE, within the
     // half-float buffer), so the glow follows the exposure as the disc does.
-    float radiance = min(1.5 * 46238.0 * uExposureRelative, 6.0e4);
+    float radiance = luminousShoulder(1.5 * 46238.0 * uExposureRelative);
     vec3 atmColor = vec3(intensity, intensity, intensity) * radiance;
     // use atmOpacity to control the overall intensity of the atmospheric color;
     // within the half-float buffer (the shell's factor reaches 9.5, and a
     // value past 65504 is Inf, NaN through the tone map, a black pixel).
-    gl_FragColor = vec4(min(atmColor * factor, vec3(6.0e4)), min(atmOpacity * factor, 1.0));
+    // The glow adds to the disc beside it: held to a share of the ceiling.
+    gl_FragColor = vec4(min(atmColor * factor, vec3(2.0e4)), min(atmOpacity * factor, 1.0));
 }`,
       uniforms: {
         atmOpacity: {value: 0.9},
