@@ -6,10 +6,10 @@ import {
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
   luminousDiscGain, starClipZ, sunDiscValue, sunlitBodyCap, sunlitBodyGain, HIGHLIGHT_ALBEDO_FACTOR,
   METER_HIGHLIGHT_FRACTION, STAR_GLARE_CORE_PATCHES, SUNLIT_DISC_PX, SUNLIT_FRAME_FRACTION,
-  STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, SUN_DISC_RADIANCE,
+  STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, STAR_VISIBLE_VALUE, SUN_DISC_RADIANCE, MILKY_WAY_RADIANCE,
 } from './exposure.js'
 import {readFileSync} from 'fs'
-import {HDR_MAX_VALUE} from './hdr.js'
+import {HDR_MAX_VALUE, HDR_MIN_NORMAL, emitted, neutral} from './hdr.js'
 
 
 describe('exposureAt', () => {
@@ -516,6 +516,97 @@ describe('the Sun\'s disc in the buffer', () => {
 })
 
 
+describe('pre-exposure: the buffer holds emitted radiance at the gain the frame renders with', () => {
+  // HDR.md, "Pre-exposure".  uExposureRelative is keyedOverEarth × the
+  // metered gain; each source's value in the buffer is its radiance at
+  // Earth's keyed exposure times it.  Half-float holds 6.1e-5 to 65,504
+  // as normal values; the sources that matter land well inside.
+  const mag = (m) => illuminanceRatio(m)
+  const inRange = (v) => {
+    expect(v).toBeGreaterThanOrEqual(HDR_MIN_NORMAL)
+    expect(v).toBeLessThanOrEqual(HDR_MAX_VALUE)
+  }
+
+  it('a star field at the dark-adapted gain: magnitude 6 to Sirius, on the test viewport and a screen', () => {
+    for (const heightPx of [300, 1080, 2160]) {
+      const six = starSprite(mag(6), METER_GAIN_MAX, {heightPx})
+      inRange(six.value)
+      inRange(six.peak)
+      expect(six.value).toBeGreaterThan(0.1)
+      const sirius = starSprite(mag(-1.46), METER_GAIN_MAX, {heightPx})
+      inRange(sirius.value)
+      inRange(sirius.peak)
+      expect(sirius.value).toBeGreaterThan(100)
+      expect(sirius.value).toBeLessThan(1000)
+      // The limit star itself, and the faintest that shows at all (a
+      // display step, 1 of 255, is 0.004 in exposure units): both normal.
+      inRange(starSprite(mag(LIMITING_MAGNITUDE), METER_GAIN_MAX, {heightPx}).peak)
+      inRange(starSprite(mag(10), METER_GAIN_MAX, {heightPx}).peak)
+    }
+    // From Pluto, where the keyed exposure is 37× Earth's, the dark gain
+    // is 4e6 / 37 over it, the same absolute exposure: the same values.
+    const keyedOverEarth = 36.9
+    const gain = meteredGain({meanLog: Math.log(1e-12), highlight: 1e-12, blown: 1e-12, max: 1e-6}, 1, true, keyedOverEarth)
+    expect(starSprite(mag(6), gain * keyedOverEarth).value).toBeCloseTo(starSprite(mag(6), METER_GAIN_MAX).value, 6)
+  })
+
+  it('the Sun\'s disc at the luminous-disc gain, and the Milky Way at the dark gain', () => {
+    const discGain = luminousDiscGain(METER_GAIN_MAX, [{diameterPx: 70, radianceAtEarthKeyed: SUN_DISC_RADIANCE}], 1)
+    inRange(sunDiscValue(discGain))
+    expect(sunDiscValue(discGain)).toBeCloseTo(METER_HIGHLIGHT, 9)
+    // A dark field with the Sun a point in it: the disc's mesh is under a
+    // pixel but still drawn, at 1e9 over white, through the shoulder.
+    inRange(sunDiscValue(METER_GAIN_MAX))
+    inRange(MILKY_WAY_RADIANCE * METER_GAIN_MAX)
+    expect(MILKY_WAY_RADIANCE * METER_GAIN_MAX).toBeCloseTo(0.078, 2)
+  })
+
+  it('at the keyed exposure the same stars are subnormal, and invisible: why frameCanBeEmpty stays for the loading frame', () => {
+    // The loading frame renders at gain 1; a star field there is under
+    // half-float's smallest normal value (a GPU may flush it to zero) and
+    // under a display step through the tone map, so the meter can't tell
+    // it from nothing drawn and the scene has to say (frameCanBeEmpty).
+    for (const m of [6, 1.7, 0]) {
+      const star = starSprite(mag(m), 1, {heightPx: 1080})
+      expect(star.peak).toBeLessThan(HDR_MIN_NORMAL)
+      expect(star.peak).toBeLessThan(STAR_VISIBLE_VALUE)
+      expect(neutral([star.peak, star.peak, star.peak])[0] * 255).toBeLessThan(0.02)
+    }
+    // Sirius alone peaks over the floor on a screen (1.2e-4, the kernel's
+    // 2.5× over its 4.4e-5), still 1/35 of a display step.
+    const sirius = starSprite(mag(-1.46), 1, {heightPx: 1080}).peak
+    expect(sirius).toBeGreaterThan(HDR_MIN_NORMAL)
+    expect(sirius).toBeLessThan(STAR_VISIBLE_VALUE / 30)
+    // Emitted radiance under the floor is written as zero (hdr.js emitted):
+    // what Metal does to it anyway, and nothing visible.
+    const alnilam = starSprite(mag(1.7), 1, {heightPx: 1080}).peak
+    expect(emitted([alnilam, alnilam, alnilam])).toEqual([0, 0, 0])
+    expect(emitted([HDR_MIN_NORMAL, 0.12, 1.5])).toEqual([HDR_MIN_NORMAL, 0.12, 1.5])
+    expect(neutral([HDR_MIN_NORMAL, HDR_MIN_NORMAL, HDR_MIN_NORMAL])[0] * 255).toBeLessThan(1 / 60)
+  })
+
+  it('the meter divides its readback by the gain the frame rendered with: not the goal, not the eased meter gain', () => {
+    // A scene whose mean luminance at the keyed exposure is 1e-3 and whose
+    // highlight 0.02, rendered while the gain eases: the frame holds the
+    // scene times the rendered gain, and only that divisor gives the
+    // scene's own answer back.
+    const scene = (gain) => ({meanLog: Math.log(1e-3 * gain), highlight: 0.02 * gain, blown: 1e-4 * gain, max: 0.5 * gain})
+    const want = meteredGain(scene(1), 1)
+    expect(want).toBeCloseTo(METER_HIGHLIGHT / 0.02, 9)
+    const rendered = 37.2 // toneMappingExposure / keyed, mid-ease
+    const meterGain = 120 // _meterGain, ahead of the exposure's own easing
+    const goal = 4e6 // _meterGainGoal
+    expect(meteredGain(scene(rendered), rendered)).toBeCloseTo(want, 9)
+    expect(meteredGain(scene(rendered), meterGain)).toBeCloseTo(want * meterGain / rendered, 6)
+    expect(meteredGain(scene(rendered), goal)).not.toBeCloseTo(want, 0)
+    // Through the dark end too: a black frame rendered at any gain asks
+    // for the ceiling, whichever divisor (the floor is in keyed units).
+    const dark = (gain) => ({meanLog: Math.log(1e-12 * gain), highlight: 1e-12 * gain, blown: 1e-12 * gain, max: 1e-6 * gain})
+    expect(meteredGain(dark(rendered), rendered)).toBeCloseTo(METER_GAIN_MAX, 6)
+  })
+})
+
+
 describe('a star\'s clip z', () => {
   // The camera as ThreeUi.configLargeScene sets it: near 6e5 m, far six
   // galaxy radii.
@@ -682,4 +773,13 @@ describe('the shaders', () => {
       }
     })
   }
+
+  it('stars.frag floors emitted radiance at the buffer\'s smallest normal value, the same constant as hdr.js', () => {
+    // The shader is a file, not a template, so it carries its own copy.
+    const source = readFileSync('./js/shaders/stars.frag', 'utf8')
+    const declared = source.match(/const float HDR_MIN_NORMAL = ([0-9.e+-]+);/)
+    expect(declared).not.toBeNull()
+    expect(Number(declared[1])).toBeCloseTo(HDR_MIN_NORMAL, 10)
+    expect(source).toMatch(/gl_FragColor = vec4\(emitted\(/)
+  })
 })

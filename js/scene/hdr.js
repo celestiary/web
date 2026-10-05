@@ -172,6 +172,39 @@ vec3 neutralInverse(vec3 y) {
  * exposure, reading black, holds the gain that overflowed it.
  */
 export const HDR_MAX_VALUE = 6.0e4
+/**
+ * The least the HDR scene buffer holds as a normal half-float, 2^-14.
+ * Under it a value is subnormal: a GPU may flush it to zero (ANGLE on
+ * Metal does; SwiftShader keeps it), and one that keeps it has 10 bits of
+ * mantissa or fewer.  Emitted radiance under it is written as zero
+ * (emitted / EMITTED_GLSL), so every GPU holds the same buffer, and
+ * nothing visible goes: it is 1/65 of a display step (1/255) through the
+ * tone map.  With the frame's gain in the buffer (HDR.md,
+ * "Pre-exposure") what falls under it is a star fainter than magnitude
+ * 15 or the filtered edge of a Milky Way sprite, invisible either way.
+ */
+export const HDR_MIN_NORMAL = 2 ** -14
+
+
+/**
+ * Emitted radiance as the buffer takes it (EMITTED_GLSL): each channel
+ * under HDR_MIN_NORMAL is zero.
+ *
+ * @param {Array<number>} rgb Exposure units
+ * @returns {Array<number>}
+ */
+export function emitted(rgb) {
+  return rgb.map((v) => (v >= HDR_MIN_NORMAL ? v : 0))
+}
+
+
+/** GLSL: vec3 emitted(vec3), as emitted(). */
+export const EMITTED_GLSL = `
+const float HDR_MIN_NORMAL = ${HDR_MIN_NORMAL.toExponential(6)};
+vec3 emitted(vec3 radiance) {
+  return radiance * step(vec3(HDR_MIN_NORMAL), radiance);
+}
+`
 
 
 /**
@@ -256,10 +289,17 @@ export const sceneReferredUniform = {value: 0}
 
 /**
  * Shared by the materials of absolute brightness (the stars, the Milky Way,
- * the Sun's disc; HDR.md "Physical stars"): the renderer's exposure over
- * Earth's keyed one (exposure.js exposureRelative), and the viewport's
- * height and vertical field of view, for a pixel's solid angle.  ThreeUi
- * sets them each frame.
+ * the Sun's disc and its glow; HDR.md "Physical stars"): the exposure the
+ * frame renders with over Earth's keyed one (exposure.js exposureRelative:
+ * the target-keyed exposure over Earth's, times the metered gain), and the
+ * viewport's height and vertical field of view, for a pixel's solid angle.
+ * ThreeUi sets them each frame, before the scene pass.
+ *
+ * uExposureRelative is the pre-exposure (HDR.md, "Pre-exposure"): every
+ * emitted source multiplies its radiance by it before writing the buffer,
+ * as a lit surface is multiplied by the renderer's exposure, so the buffer
+ * holds the frame as exposed and the meter divides its readback by the
+ * same gain (ThreeUi._renderedGain).
  */
 export const absoluteUniforms = {
   uExposureRelative: {value: 1},

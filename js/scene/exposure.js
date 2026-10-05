@@ -303,6 +303,13 @@ export function luminousDiscGain(gain, discs, keyedOverEarth, pixelRatio = 1) {
 export const LUMINOUS_DISC_PX = [8, 32]
 /** The Sun's disc radiance in exposure units at Earth's keyed exposure (star-shaders.js SUN_RADIANCE). */
 export const SUN_DISC_RADIANCE = DISPLAY_GAIN * 46238
+/**
+ * The Milky Way's surface brightness in exposure units at Earth's keyed
+ * exposure, for the particle cloud's full value (MilkyWay.js): its bright
+ * regions are 21-22 mag/arcsec², 2e-4 cd/m², against 3-4e4 cd/m² for a
+ * sunlit white, 5e-9, times DISPLAY_GAIN (HDR.md, "The Milky Way").
+ */
+export const MILKY_WAY_RADIANCE = DISPLAY_GAIN * 1.3e-8
 
 
 /**

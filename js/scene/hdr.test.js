@@ -14,6 +14,7 @@ import {
   MAX_DISPLAY, NEUTRAL_GLSL, maxNeutralPeak, NEUTRAL_INVERSE_GLSL, alphaScaled,
   installExposureOnlyToneMapping, neutral, neutralInverse, sceneReferred, sceneReferredUniform, wrapMain,
   luminousShoulder, LUMINOUS_KNEE, HDR_MAX_VALUE, LUMINOUS_CEILING, LUMINOUS_GLOW_MAX,
+  EMITTED_GLSL, HDR_MIN_NORMAL, emitted,
 } from './hdr.js'
 
 
@@ -139,6 +140,29 @@ describe('the luminous shoulder', () => {
     expect(LUMINOUS_CEILING + LUMINOUS_GLOW_MAX).toBeLessThanOrEqual(HDR_MAX_VALUE)
     expect(HDR_MAX_VALUE).toBeLessThan(65504)
     expect(luminousShoulder(1e12) + LUMINOUS_GLOW_MAX).toBeLessThanOrEqual(HDR_MAX_VALUE)
+  })
+})
+
+
+describe('the buffer\'s floor for emitted radiance', () => {
+  it('is half-float\'s smallest normal value, 2^-14, under a display step through the tone map', () => {
+    expect(HDR_MIN_NORMAL).toBe(6.103515625e-5)
+    // A float32 to half conversion keeps this value exactly; anything
+    // under it is subnormal, which a GPU may flush.
+    expect(neutral([HDR_MIN_NORMAL, HDR_MIN_NORMAL, HDR_MIN_NORMAL])[0]).toBeLessThan(1 / 255 / 60)
+  })
+
+  it('zeroes each channel under it and leaves the rest alone', () => {
+    expect(emitted([1e-5, HDR_MIN_NORMAL, 1.5])).toEqual([0, HDR_MIN_NORMAL, 1.5])
+    expect(emitted([0.12, 0.12, 0.12])).toEqual([0.12, 0.12, 0.12])
+    expect(emitted([0, -1, 3e-5])).toEqual([0, 0, 0])
+  })
+
+  it('declares the GLSL the Milky Way and the Sun\'s glow include, with the same constant', () => {
+    expect(EMITTED_GLSL).toContain('vec3 emitted(vec3 radiance)')
+    expect(EMITTED_GLSL).toMatch(/step\(vec3\(HDR_MIN_NORMAL\), radiance\)/)
+    const declared = EMITTED_GLSL.match(/const float HDR_MIN_NORMAL = ([0-9.e+-]+);/)
+    expect(Number(declared[1])).toBeCloseTo(HDR_MIN_NORMAL, 10)
   })
 })
 

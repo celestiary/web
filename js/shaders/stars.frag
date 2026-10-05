@@ -10,6 +10,17 @@ varying float vBrightness;
 varying float vSize;
 varying float vSigma;
 
+// The least the half-float scene buffer holds as a normal value (hdr.js
+// HDR_MIN_NORMAL, 2^-14; a test keeps them equal): a channel under it is
+// written as zero, so a GPU that flushes subnormals and one that keeps
+// them hold the same buffer.  Nothing visible goes: it is 1/65 of a
+// display step.
+const float HDR_MIN_NORMAL = 6.103516e-5;
+
+vec3 emitted(vec3 radiance) {
+  return radiance * step(vec3(HDR_MIN_NORMAL), radiance);
+}
+
 // The star's kernel: a Gaussian over the sprite, in pixels from its centre
 // (stars.vert sets vBrightness so the pixels sum to the star's light),
 // windowed to zero at the quad's edge, so that a bright star, whose
@@ -18,7 +29,7 @@ varying float vSigma;
 void main() {
   if (vSigma <= 0.0) {
     // One pixel, flat: the pixel is the patch (stars.vert).
-    gl_FragColor = vec4(vColor * vBrightness, 1.);
+    gl_FragColor = vec4(emitted(vColor * vBrightness), 1.);
     return;
   }
   vec2 px = (gl_PointCoord.xy - 0.5) * vSize;
@@ -28,5 +39,5 @@ void main() {
   // drew no stars at all.)
   float halfSize = vSize * 0.5;
   float edge = 1.0 - smoothstep(0.6 * halfSize * halfSize, halfSize * halfSize, r2);
-  gl_FragColor = vec4(vColor * vBrightness * k * edge, 1.);
+  gl_FragColor = vec4(emitted(vColor * vBrightness * k * edge), 1.);
 }
