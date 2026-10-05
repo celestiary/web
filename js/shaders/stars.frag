@@ -19,7 +19,9 @@ void main() {
   vec2 px = (gl_PointCoord.xy - 0.5) * vSize;
   float r2 = dot(px, px);
   float k = exp(-r2 / (2.0 * vSigma * vSigma));
-  float half = vSize * 0.5;
-  float edge = 1.0 - smoothstep(0.6 * half * half, half * half, r2);
+  // (Not `half`: a GLSL ES reserved word, which failed the compile and
+  // drew no stars at all.)
+  float halfSize = vSize * 0.5;
+  float edge = 1.0 - smoothstep(0.6 * halfSize * halfSize, halfSize * halfSize, r2);
   gl_FragColor = vec4(vColor * vBrightness * k * edge, 1.);
 }

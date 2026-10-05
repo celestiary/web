@@ -335,3 +335,48 @@ export function limitingMagnitude(gainOverKeyed, starGain = 1) {
 export function starGainForLimit(magnitude) {
   return Math.pow(10, 0.4 * (magnitude - LIMITING_MAGNITUDE))
 }
+
+
+/**
+ * The star sprite's law, as shaders/stars.vert computes it, for tests and
+ * probes (HDR.md, "Physical stars"): the star's radiance over the eye's
+ * patch at this exposure, the kernel's width and peak, and the quad.
+ *
+ * @param {number} ratio The star's illuminance over the Sun's at 1 AU
+ * @param {number} gainOverEarth The exposure over Earth's keyed one (exposureRelative)
+ * @param {object} [opts]
+ * @param {number} [opts.fovDegrees] Vertical field of view
+ * @param {number} [opts.heightPx] Viewport height
+ * @param {number} [opts.starGain] The user's gain
+ * @param {number} [opts.discRad] The star's disc's angular diameter, radians
+ * @returns {{value: number, patchPx: number, sigma: number, peak: number,
+ *   sizePx: number, coreRadiusPx: number}} value is the radiance in
+ *   exposure units; coreRadiusPx where the kernel passes white (0.76 after
+ *   the tone map's shoulder), 0 for a star under it
+ */
+export function starSprite(ratio, gainOverEarth, {fovDegrees = 45, heightPx = 300, starGain = 1, discRad = 0} = {}) {
+  const pxRad = (fovDegrees * Math.PI / 180) / Math.max(heightPx, 1)
+  const patchRad = Math.max(pxRad, EYE_POINT_RAD)
+  const patchPx = Math.max(Math.floor((patchRad / pxRad) + 0.5), 1)
+  let value = DISPLAY_GAIN * Math.PI * ratio / (patchRad * patchRad) * gainOverEarth * starGain
+  if (discRad > 0) {
+    value *= Math.min(1, (patchRad * patchRad) / (discRad * discRad))
+  }
+  const decades = Math.max(Math.log10(Math.max(value, 1e-30)), 0)
+  const sigma = (STAR_SIGMA_PER_PATCH * patchPx) + (STAR_BLOOM_SIGMA_PX_PER_DECADE * decades)
+  const peak = Math.min(value * patchPx * patchPx / (2 * Math.PI * sigma * sigma), HDR_MAX_VALUE)
+  const visibleRadius = sigma * Math.sqrt(2 * Math.log(Math.max(peak / STAR_VISIBLE_VALUE, 1)))
+  const sizePx = Math.min(Math.max((2 * visibleRadius) + 2, 1), STAR_MAX_SIZE_PX)
+  const coreRadiusPx = sigma * Math.sqrt(2 * Math.log(Math.max(peak / 0.76, 1)))
+  return {value, patchPx, sigma, peak, sizePx, coreRadiusPx}
+}
+
+
+/** The kernel's width as a fraction of the patch (stars.vert): its sum is then patch². */
+export const STAR_SIGMA_PER_PATCH = 0.4
+/** The kernel's width grows this many pixels per decade of light over white (bloom). */
+export const STAR_BLOOM_SIGMA_PX_PER_DECADE = 0.75
+/** The quad holds the kernel out to where it falls under this, exposure units. */
+export const STAR_VISIBLE_VALUE = 0.004
+/** The quad's largest side, pixels (Stars.js MAX_STAR_SIZE_PX). */
+export const STAR_MAX_SIZE_PX = 96

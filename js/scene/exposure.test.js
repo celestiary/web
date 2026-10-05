@@ -2,8 +2,9 @@ import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY}
 import {
   METER_FLOOR, METER_GAIN_MAX, METER_GAIN_MIN, METER_HIGHLIGHT, METER_HIGHLIGHT_MAX, METER_KEY, easeExposure, exposureAt,
   EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
-  meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit,
+  meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite, STAR_MAX_SIZE_PX,
 } from './exposure.js'
+import {readFileSync} from 'fs'
 import {HDR_MAX_VALUE} from './hdr.js'
 
 
@@ -200,4 +201,79 @@ describe('metered exposure', () => {
     expect(pointSolidAngle(45, 1080)).toBeCloseTo(EYE_POINT_RAD * EYE_POINT_RAD, 9)
     expect(pointSolidAngle(45, 300)).toBeCloseTo(EYE_POINT_RAD * EYE_POINT_RAD, 9)
   })
+})
+
+
+describe('the star sprite', () => {
+  const mag = (m) => illuminanceRatio(m)
+  const sunDiscFromEarth = 2 * 6.957e8 / 1.496e11
+
+  it('at the dark-adapted gain: the limit a pixel just over black, a bright star a round core in a halo', () => {
+    const faint = starSprite(mag(LIMITING_MAGNITUDE), METER_GAIN_MAX)
+    expect(faint.peak).toBeCloseTo(LIMIT_VALUE, 2)
+    expect(faint.coreRadiusPx).toBe(0)
+    expect(faint.sizePx).toBeGreaterThanOrEqual(1)
+    expect(faint.sizePx).toBeLessThan(6)
+    const six = starSprite(mag(6), METER_GAIN_MAX)
+    expect(six.peak).toBeGreaterThan(faint.peak)
+    expect(six.peak).toBeLessThan(0.5)
+    const first = starSprite(mag(1), METER_GAIN_MAX)
+    expect(first.peak).toBeGreaterThan(1)
+    expect(first.coreRadiusPx).toBeGreaterThan(1)
+    expect(first.coreRadiusPx).toBeLessThan(first.sizePx / 2)
+    expect(first.sizePx).toBeLessThan(STAR_MAX_SIZE_PX)
+    // Every size and peak is finite and positive.
+    for (const m of [-1.46, 0, 1, 3, 5, 6.5, 8]) {
+      const star = starSprite(mag(m), METER_GAIN_MAX)
+      expect(Number.isFinite(star.sizePx) && star.sizePx >= 1).toBe(true)
+      expect(Number.isFinite(star.peak) && star.peak > 0).toBe(true)
+    }
+  })
+
+  it('by day only the planets: a first-magnitude star is under a pixel\'s black', () => {
+    expect(starSprite(mag(1), 1).peak).toBeLessThan(0.004)
+  })
+
+  it('the Sun: a point from Pluto, its disc from Earth', () => {
+    const fromPluto = starSprite(1 / (39.5 * 39.5), METER_GAIN_MAX, {discRad: 2 * 6.957e8 / 5.9e12})
+    expect(fromPluto.peak).toBe(HDR_MAX_VALUE)
+    expect(fromPluto.sizePx).toBeGreaterThan(60)
+    expect(fromPluto.sizePx).toBeLessThanOrEqual(STAR_MAX_SIZE_PX)
+    expect(fromPluto.coreRadiusPx).toBeLessThan(fromPluto.sizePx / 2)
+    // From Earth the disc is 32 arcmin, over the patch's 10: the point
+    // fades by (10/32)², and the mesh draws the disc.
+    const point = starSprite(1, 1)
+    const fromEarth = starSprite(1, 1, {discRad: sunDiscFromEarth})
+    expect(fromEarth.value / point.value).toBeCloseTo((EYE_POINT_RAD / sunDiscFromEarth) ** 2, 9)
+    // An ordinary star's disc is far under the patch: no fade.
+    const sirius = starSprite(mag(-1.46), METER_GAIN_MAX, {discRad: 2 * 1.2e9 / 8.1e16})
+    expect(sirius.value).toBeCloseTo(starSprite(mag(-1.46), METER_GAIN_MAX).value, 9)
+  })
+
+  it('a dark frame reaches the same absolute exposure at Earth and at Pluto', () => {
+    const dark = {meanLog: Math.log(1e-12), highlight: 1e-12, blown: 1e-12, max: 1e-6}
+    for (const keyedOverEarth of [1, 40, 0.4]) {
+      const gain = meteredGain(dark, 1, true, keyedOverEarth)
+      expect(gain * keyedOverEarth).toBeCloseTo(METER_GAIN_MAX, 6)
+    }
+  })
+})
+
+
+describe('the shaders', () => {
+  // GLSL ES reserves words it doesn't use; `half` as a variable failed the
+  // stars' fragment shader to compile and drew no stars at all.
+  const RESERVED = ['half', 'fixed', 'double', 'long', 'short', 'input', 'output', 'sizeof', 'cast', 'namespace',
+    'using', 'asm', 'class', 'union', 'enum', 'typedef', 'template', 'this', 'goto', 'inline', 'noinline', 'volatile',
+    'public', 'static', 'extern', 'external', 'interface', 'unsigned', 'superp', 'hvec2', 'hvec3', 'hvec4', 'fvec2',
+    'fvec3', 'fvec4', 'filter', 'packed', 'sampler1D', 'sampler3D', 'sampler1DShadow', 'sampler2DShadow',
+    'sampler2DRect', 'sampler3DRect', 'sampler2DRectShadow', 'sizeof', 'switch', 'default']
+  for (const file of ['stars.vert', 'stars.frag']) {
+    it(`${file} declares no GLSL reserved word`, () => {
+      const source = readFileSync(`./js/shaders/${file}`, 'utf8').replace(/\/\/.*$/gm, '')
+      for (const word of RESERVED) {
+        expect(source).not.toMatch(new RegExp(`\\b(float|int|vec[234]|bool)\\s+${word}\\b`))
+      }
+    })
+  }
 })
