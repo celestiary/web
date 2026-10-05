@@ -44,9 +44,15 @@ const float fourPi = 4. * PI;
 // (StarsCatalog, 3.0e28) over 4π AU².
 const float SUN_ILLUMINANCE_1AU = 3.0e28 / (fourPi * 1.495978707e11 * 1.495978707e11);
 const float DISPLAY_GAIN = 1.5;
-// The sprite grows this many pixels per decade of light over a white
-// pixel's.
-const float BLOOM_PX_PER_DECADE = 3.0;
+// The kernel's width grows this many pixels per decade of light over a
+// white pixel's (bloom): a saturated core, whose radius grows with the
+// log of the light, and a halo.
+const float BLOOM_SIGMA_PX_PER_DECADE = 0.75;
+// The quad holds the kernel out to where it falls under this value
+// (exposure units: under 1 of 255 through the tone map), and its edge
+// window (stars.frag) takes it to zero inside the quad, so a star is
+// round at every exposure; a quad that saturated to its edge was a square.
+const float VISIBLE_VALUE = 0.004;
 // A user's gain on every star's light (ThreeUi.setStarGain; 1 is physical).
 uniform float uStarGain;
 // Half-float's largest value, the scene buffer's.
@@ -80,15 +86,30 @@ void main() {
   float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / (patchRad * patchRad)
       * uExposureRelative * uStarGain;
 
-  // The sprite: the patch, plus bloom; the light, L × patch², over a
-  // Gaussian of width size/4 whose sum over the sprite's pixels is 2πσ²
-  // (one pixel: the one sample, 1).
+  // A resolved disc (the Sun from within a few AU; its mesh draws the
+  // surface) is no point: the sprite's light fades as the disc outgrows
+  // the patch, so the mesh and a halo take over from the point.
+  float discRad = 2.0 * radius / max(-mvPosition.z, 1.0);
+  value *= min(1.0, (patchRad * patchRad) / max(discRad * discRad, 1.0e-30));
+
+  // The kernel: the light, L × patch², over a Gaussian whose width is the
+  // patch's, plus the bloom, and whose sum over the pixels is 2πσ²; its
+  // peak may pass white, and the radius where it does is the saturated
+  // core.  The quad holds the kernel out
+  // to where it falls under VISIBLE_VALUE, so it is as large as the
+  // visible star and no larger.
   float decadesOverWhite = max(log2(max(value, 1.0e-30)) / log2(10.0), 0.0);
-  vSize = clamp(patchPx + BLOOM_PX_PER_DECADE * decadesOverWhite, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
+  // σ = 0.4 × patch: the Gaussian's sum, 2πσ², is then patch², one for a
+  // one-pixel patch, so the pixel shows L and the law is continuous as
+  // the light crosses white and the bloom begins.
+  vSigma = 0.4 * patchPx + BLOOM_SIGMA_PX_PER_DECADE * decadesOverWhite;
+  float light = value * patchPx * patchPx;
+  float kernelSum = 2.0 * PI * vSigma * vSigma;
+  float peak = min(light / kernelSum, MAX_VALUE);
+  float visibleRadius = vSigma * sqrt(2.0 * log(max(peak / VISIBLE_VALUE, 1.0)));
+  vSize = clamp(2.0 * visibleRadius + 2.0, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
   gl_PointSize = vSize;
-  vSigma = max(vSize / 4.0, 0.5);
-  float kernelSum = vSize <= 1.5 ? 1.0 : 2.0 * PI * vSigma * vSigma;
-  vBrightness = min(value * patchPx * patchPx / kernelSum, MAX_VALUE);
+  vBrightness = peak;
 
   gl_Position  = projectionMatrix * mvPosition;
 }
