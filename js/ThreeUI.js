@@ -760,22 +760,29 @@ export default class ThreeUi {
     const ratio = lumens / (4 * Math.PI * distance * distance) / sun1au
     const gl = this.renderer.getContext()
     const one = new Uint8Array(4)
-    const readLuma = () => {
+    // The brightest pixel within 2 px of the projection, and within 16 px
+    // (a point drawn off its projection shows there and not here).
+    const readLuma = (reach = 2) => {
       this.renderLoop(performance.now())
       gl.bindFramebuffer(gl.FRAMEBUFFER, null)
       let best = 0
-      for (let dy = -2; dy <= 2; dy++) {
-        for (let dx = -2; dx <= 2; dx++) {
+      let at = null
+      for (let dy = -reach; dy <= reach; dy++) {
+        for (let dx = -reach; dx <= reach; dx++) {
           const x = px + dx
           const y = gl.drawingBufferHeight - 1 - (py + dy)
           if (x < 0 || y < 0 || x >= gl.drawingBufferWidth || y >= gl.drawingBufferHeight) {
             continue
           }
           gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, one)
-          best = Math.max(best, (0.2126 * one[0]) + (0.7152 * one[1]) + (0.0722 * one[2]))
+          const l = (0.2126 * one[0]) + (0.7152 * one[1]) + (0.0722 * one[2])
+          if (l > best) {
+            best = l
+            at = [dx, dy]
+          }
         }
       }
-      return +best.toFixed(1)
+      return reach > 2 ? {luma: +best.toFixed(1), at} : +best.toFixed(1)
     }
     const groups = {
       asterisms: (o) => o.name === 'AsterismLines',
@@ -786,7 +793,7 @@ export default class ThreeUi {
       sunAndPlanets: (o) => (o.isMesh || o.isPoints || o.isSprite) && o.name !== 'StarsPoints' &&
         !/AsterismLines|MilkyWay|^Galaxy|label/i.test(o.name) && o.props === undefined && this._underBody(o),
     }
-    const luma = {asIs: readLuma()}
+    const luma = {asIs: readLuma(), within16px: readLuma(16)}
     for (const [key, test] of Object.entries(groups)) {
       const hidden = []
       this.scene.traverse((o) => {
@@ -799,14 +806,25 @@ export default class ThreeUi {
       hidden.forEach((o) => (o.visible = true))
       luma[`${key}Hidden`] = hidden.length
     }
+    const radius = g.getAttribute('radius').array[index]
+    const sprite = starSprite(ratio, absoluteUniforms.uExposureRelative.value,
+        {fovDegrees: this.camera.fov, heightPx: this.height, starGain: absoluteUniforms.uStarGain.value})
+    const clipZ = starClipZ(distance, this.camera.near, this.camera.far)
     const out = {
       name, hip, index, distanceLy: distance / 9.461e15, px, py, ndc: [ndc.x, ndc.y, ndc.z],
-      sprite: starSprite(ratio, absoluteUniforms.uExposureRelative.value,
-          {fovDegrees: this.camera.fov, heightPx: this.height, starGain: absoluteUniforms.uStarGain.value}),
-      clipZ: starClipZ(distance, this.camera.near, this.camera.far),
-      meterGain: this._meterGain,
-      luma,
+      attributes: {lumens, radius, finite: Number.isFinite(lumens) && Number.isFinite(radius)},
+      sprite, clipZ, meterGain: this._meterGain, luma,
     }
+    // One line, so a console screenshot carries it all.
+    const f = (v) => (typeof v === 'number' ? +v.toPrecision(4) : v)
+    const flat = [`star ${name} hip ${hip} ${f(distance / 9.461e15)} ly at px ${px},${py}`,
+      `ndc ${ndc.x.toFixed(4)},${ndc.y.toFixed(4)},${ndc.z.toFixed(8)}`,
+      `lumens ${f(lumens)} radius ${f(radius)}`,
+      `sprite size ${f(sprite.sizePx)} sigma ${f(sprite.sigma)} peak ${f(sprite.peak)} flat ${sprite.flat} capped ${sprite.glareCapped}`,
+      `clip onFarPlane ${clipZ.onFarPlane} ulpsInside ${f(clipZ.ulpsInside)}`,
+      `gain ${f(this._meterGain)}`,
+      `luma ${Object.entries(luma).map(([k, v]) => `${k}=${typeof v === 'object' && v ? `${v.luma}@${v.at}` : v}`).join(' ')}`]
+    console.log(`starProbe: ${flat.join(' | ')}`)
     console.log('starProbe', out)
     return out
   }

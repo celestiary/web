@@ -76,6 +76,25 @@ export const labelTextFont = 'medium arial'
  */
 export const OVERLAY_LAYER = 1
 
+
+/**
+ * Puts a display-valued overlay (labels, asterism and expansion lines,
+ * grids, the pick marker) on the overlay layer, every node of it: drawn
+ * after the atmosphere pass and the exposure meter's readback, as
+ * display values, depth-tested against the scene's depth.  In the scene
+ * pass, through sceneReferred, their fixed values fed the meter: with
+ * labels and lines on, a star field's gain settled where their pixels
+ * read as the frame's 2% highlight, and the faint stars went (HDR.md,
+ * "Metered exposure").  Layers aren't inherited, so each node is set.
+ *
+ * @param {object} object A three Object3D
+ * @returns {object} The same object
+ */
+export function overlay(object) {
+  object.traverse((node) => node.layers.set(OVERLAY_LAYER))
+  return object
+}
+
 /**
  * three.js layer for redrawing a body's surface, fading, over its Cesium
  * layer as that takes over (CesiumLayers crossfade).  The scene's lights

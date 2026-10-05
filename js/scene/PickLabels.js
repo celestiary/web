@@ -4,6 +4,7 @@ import {queryPoints} from './Picker'
 import SpriteSheet from './SpriteSheet.js'
 import {marker as createMarker} from './shapes'
 import {rteCameraLocal} from './rte.js'
+import {overlay} from '../shared.js'
 
 
 const HOVER_SYNC_MS = 80
@@ -48,7 +49,7 @@ export default class PickLabels {
       this.tree = createTree()
       this.tree.init(this.stars.geom.coords)
     }
-    this.marker = createMarker()
+    this.marker = overlay(createMarker())
     this.ui.scene.add(this.marker)
     const me = this
     this.mcb = (e) => me.markCb(e)
@@ -163,7 +164,7 @@ export default class PickLabels {
     // Math.fround(pick.x) === pick.x so positionLow=0 and the label jumps each
     // time the camera's float32 camHigh steps by one ULP (~5e11 m).
     labelSheet.add(pick.star.x, pick.star.y, pick.star.z, starName)
-    const label = labelSheet.compile()
+    const label = overlay(labelSheet.compile())
     label.onBeforeRender = (renderer, scene, camera) => {
       const u = label.material.uniforms
       rteCameraLocal(label, camera, u.uCamPosWorldHigh.value, u.uCamPosWorldLow.value)

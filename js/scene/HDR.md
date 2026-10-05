@@ -493,7 +493,20 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    logs the meter's last reading, the gain and its cap with the bodies
    that set it, the GPU's point-size range and fragment precision and a
    few stars' sprites, for checking a build on a machine at hand.
-8. The gain **eases in log space** (`easeExposure`), with a time constant
+8. **The meter sees only the physical scene.**  Labels, orbit paths,
+   asterism and expansion lines, grids and the pick marker are drawn in
+   the overlay pass, after the readback (`shared.js` `overlay` puts every
+   node of one on `OVERLAY_LAYER`).  In the scene pass, through
+   `sceneReferred`, their values were fixed display values, so their
+   keyed reading fell as the gain rose and the highlight rule found a
+   fixed point wherever the gain was when their pixels reached the
+   frame's 2%: the user's star field with labels and orbits on settled
+   at 1,700-1e4 instead of 4e6 and lost its faint stars.  With them out,
+   a frame meters the same with every overlay on as off.  What still
+   reaches the buffer display-valued is a body's far point (a few pixels,
+   kept in the scene pass so the day sky hides it as it does the stars;
+   DESIGN.md) and the rings (`Rings.js`), which should become physical.
+9. The gain **eases in log space** (`easeExposure`), with a time constant
    of `METER_TAU_UP_SECONDS` (1.5 s) rising, the eye adapting to the dark,
    and `METER_TAU_DOWN_SECONDS` (0.3 s) falling, a camera catching up with a
    planet come upon from a star field; the keyed exposure itself keeps its

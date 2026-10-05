@@ -13,7 +13,7 @@ import SpriteSheet from './SpriteSheet.js'
 import StarsBufferGeometry from './StarsBufferGeometry.js'
 import StarsCatalog, {FAVES} from './StarsCatalog.js'
 import {assertDefined} from '../assert.js'
-import {FAR_OBJ, STARS_RADIUS_METER} from '../shared.js'
+import {FAR_OBJ, STARS_RADIUS_METER, overlay} from '../shared.js'
 import {named} from '../utils.js'
 import {absoluteUniforms} from './hdr.js'
 import {rteCameraLocal} from './rte.js'
@@ -43,6 +43,8 @@ export default class Stars extends Object {
     this.labelLOD.visible = showLabels
     this.labelLOD.addLevel(this.labelsGroup, 1)
     this.labelLOD.addLevel(FAR_OBJ, STARS_RADIUS_METER)
+    // On the overlay layer (shared.js overlay): out of the meter's frame.
+    overlay(this.labelLOD)
     this.add(this.labelLOD)
     this.geom = null
     // Catalog readiness signalling.  The catalog object is mutated in place
@@ -195,7 +197,7 @@ export default class Stars extends Object {
       const [star, name] = toShow[i]
       this.showStarName(star, name)
     }
-    const labelPoints = this.starLabelSpriteSheet.compile()
+    const labelPoints = overlay(this.starLabelSpriteSheet.compile())
     // A double click or tap on one goes to its star (labelPick.js).
     labelPoints.userData.labelTargets = toShow.map(([star, name]) => ({kind: 'star', star, name}))
     this.labelsGroup.add(labelPoints)

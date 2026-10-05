@@ -3,7 +3,7 @@ import {assertFinite} from '@pablo-mayrgundter/testing.js/testing.js'
 import SpriteSheet from './SpriteSheet.js'
 import {point} from './shapes.js'
 import {latLngAltToBodyFixed} from '../coords.js'
-import {labelTextColor} from '../shared.js'
+import {labelTextColor, overlay} from '../shared.js'
 
 
 // Tier reveal thresholds: planet apparent DIAMETER as a fraction of
@@ -163,7 +163,7 @@ export default class Places extends Group {
       const xyz = latLngAltToBodyFixed(e.lat, e.lng, e.a ?? 0, this.planetRadius)
       sheet.add(xyz.x, xyz.y, xyz.z, e.n, labelTextColor)
     }
-    const points = sheet.compile()
+    const points = overlay(sheet.compile())
     const g = new Group()
     g.name = `${this.bodyName}.places.t${t}`
     g.userData.tier = t

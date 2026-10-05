@@ -790,3 +790,29 @@ describe('Scene stellar frame', () => {
     expect(s.grids.ecliptic.quaternion.angleTo(new Quaternion)).toBe(0)
   })
 })
+
+
+describe('the overlays', () => {
+  it('are on the overlay layer, every node of them, so the meter never sees them', async () => {
+    const {OVERLAY_LAYER, overlay} = await import('../shared.js')
+    const {Group, Mesh, Object3D: Node} = await import('three')
+    const root = new Group()
+    const child = new Mesh()
+    const grandchild = new Node()
+    child.add(grandchild)
+    root.add(child)
+    expect(overlay(root)).toBe(root)
+    for (const node of [root, child, grandchild]) {
+      expect(node.layers.mask).toBe(1 << OVERLAY_LAYER)
+      expect(node.layers.isEnabled(0)).toBe(false)
+    }
+    // A built scene's grids are overlays.
+    const s = makeScene()
+    let nodes = 0
+    s.grids.group.traverse((node) => {
+      nodes++
+      expect(node.layers.mask).toBe(1 << OVERLAY_LAYER)
+    })
+    expect(nodes).toBeGreaterThan(1)
+  })
+})
