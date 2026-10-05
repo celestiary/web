@@ -100,5 +100,5 @@ describe('Colonization', () => {
     expect(s.maxHop).toBeGreaterThan(10)
     // Alpha Centauri A (HIP 71683) is a first hop.
     expect(s.hop[Array.from(hipIds).indexOf(71683)]).toEqual(1)
-  })
+  }, 30000) // ~2 s alone, 5-8 s when other agents load the machine
 })
