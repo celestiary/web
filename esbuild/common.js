@@ -23,5 +23,8 @@ export default {
     // (js/dataUrl.js).  Empty = the page's own origin and path.  PR previews
     // set the production site's URL rather than copy the data.
     __DATA_BASE_URL__: JSON.stringify(process.env.DATA_BASE_URL ?? ''),
+    // Development mode: true in `yarn serve`, false in production builds.
+    // Used to enable dev-only features like esbuild hot reload (js/index.tsx).
+    __DEV__: JSON.stringify(false),
   },
 }
