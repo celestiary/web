@@ -611,7 +611,7 @@ One linear brightness scale, one tone map ([js/scene/HDR.md](js/scene/HDR.md), #
 
 | Pass | Target | Holds |
 |---|---|---|
-| Scene | `_sceneRT`, RGBA16F | lit surfaces × the target-keyed exposure (exposure-only tone mapping); display-referred content (stars, labels, lines) through the inverse of the final tone map (`hdr.js` `sceneReferred`) |
+| Scene | `_sceneRT`, RGBA16F | lit surfaces × the exposure the frame renders with (the target-keyed exposure × the metered gain; exposure-only tone mapping); emitted sources (the stars, the Milky Way, the Sun's disc and glow) × the same gain before the buffer, pre-exposed (`hdr.js` `absoluteUniforms`; [HDR.md, pre-exposure](js/scene/HDR.md#pre-exposure)), with nothing under half-float's smallest normal value; display-referred content (the rings, a body's far point) through the inverse of the final tone map (`hdr.js` `sceneReferred`) |
 | Cesium layers | `_cesiumRT` (8-bit) → `_sceneRT` | each body's Cesium frame (stored × Lambert, one path for every body), decoded into exposure units; its terrain distance (in alpha, `cesium/distance.js`) becomes depth, from below 20 km |
 | Atmosphere | screen | `PBR Neutral(sky + scene × T)`, the sky in exposure units |
 | Overlay | screen | display values (labels, orbit paths, asterism and expansion lines, grids, the pick marker: `shared.js` `overlay`), after the exposure meter's readback, depth-tested against the scene |
