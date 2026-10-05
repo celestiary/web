@@ -623,9 +623,9 @@ step, and the filtered edges of the Milky Way's sprites (an 8-bit texel
 of 1/255 at a bilinear weight of 1/256, times 0.078, is 1e-6).
 SwiftShader keeps such values as subnormals; a GPU that flushes them
 (ANGLE on Metal) stores zero.  `emitted()` (`hdr.js`, its GLSL in the
-Milky Way's and the glow's shaders, and a copy in `stars.frag`, which is
-a file; a test keeps the constants equal) writes a channel under the
-floor as zero, so every GPU holds the same buffer and a probe here reads
+Milky Way's, the Sun's disc's and the glow's shaders, and a copy in
+`stars.frag`, which is a file; a test keeps the constants equal) writes a
+channel under the floor as zero, so every GPU holds the same buffer and a probe here reads
 what the user's Mac holds.  It costs nothing visible: 6.1e-5 is 1/65 of a
 display step through the tone map, and the star counts and pixels below
 are unchanged.  The Milky Way and the glow output premultiplied with
@@ -663,7 +663,30 @@ Mac, at the view where it is missing, is still the measurement to make.
 half floats, each pixel's brightest channel classified against 6.1e-5
 and 65,504; the meter's composite, which adds the sky, read as floats):
 
-PRE_EXPOSURE_TABLE
+| View | Absolute gain | Stars ≥ 10 of 255 to 6.5 (to 6.0) / in view, before → after | Scene buffer: pixels > 0, before → after | Subnormal pixels in it, before → after | Smallest value after | At gain 1: subnormal, before → after |
+|---|---|---|---|---|---|---|
+| Earth from 65 Mm, the Moon's 4 px disc in the frame (`sunlitBodyGain` holds it at 40) | 40 | 0 (0) / 975 → the same | 5,767 → 19 | 5,748 → 0 | 7.7e-5 | 617 → 0 |
+| Pluto from 12 Mm, 60° up and away from the Sun | 4.0e6 | 790 (490) / 844 → 793 (490) | 7,042 → 6,924 | 122 → 0 | 6.13e-5 | 6,108 → 0 |
+| Orion from 232 Gm, the Milky Way on (the user's Alnilam permalink, `s=lpo`) | 4.0e6 | 1,227 (775) / 1,309 → the same | 19,906 → 19,298 | 258 → 0 | 6.13e-5 | 868 → 0 |
+| The Sun from 300 Gm, bare | 3.97e6 | 1,300 (810) / 1,418 → the same | 11,180 → 10,898 | 283 → 0 | 6.12e-5 | 948 → 0 |
+
+The buffer's largest value is the Sun's, 59,968, in the two views that
+hold it, and no pixel is non-finite in any.  Every named star reads the
+same before and after (Alnilam 106.6 of 255 at its exact pixel in the
+Orion view, 159-171 in the Sun views; Sirius 96.7 / 194; a mag 6 star
+32-55 at its brightest neighbour), the gains agree within the easing's
+noise (under 1%), and the pixels lost are the ones under the floor.  The
+Sun series at 71, 8 and 2 Gm and Jupiter at the telescope field from
+0.04° to 0.3° read as PR B's tables have them (the gains 3.97e6, 8.65e-6,
+8.65e-6; 2.16, 2.48, 4.37, 5.40; the disc at 0.600 and Jupiter's centre
+at 0.43-1.07), before and after alike; a single pixel of the Sun's disc
+varies run to run on `main` as here, since its granulation's clock is
+the wall-clock start.  The meter's composite (`uDebug` 7, floats) still
+holds values under 6.1e-5 after the floor: the sky's in-scatter where
+the pass runs (Pluto's thin atmosphere with the Sun 8° up, 6,400
+pixels), and its resampling of the buffer's pixels next to black (the
+Sun views, 7,000); the half-float buffer, read directly, holds none.
+`yarn parity`: 17 views, 87 checks, 0 failed, no baseline moved.
 
 ### Results
 

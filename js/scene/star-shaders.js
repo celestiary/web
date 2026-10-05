@@ -1,4 +1,4 @@
-import {LUMINOUS_SHOULDER_GLSL} from './hdr.js'
+import {EMITTED_GLSL, LUMINOUS_SHOULDER_GLSL} from './hdr.js'
 
 
 export const VERTEX_SHADER = `
@@ -17,6 +17,7 @@ void main() {
 
 export const FRAGMENT_SHADER = `
 ${LUMINOUS_SHOULDER_GLSL}
+${EMITTED_GLSL}
 varying vec3 vColor;
 varying vec3 vTexCoord3D;
 
@@ -222,7 +223,9 @@ void main(void) {
   // Through the luminous shoulder (hdr.js), not a clamp: the texture's
   // granulation and limb darkening survive in the buffer, and the disc
   // stays under the buffer's ceiling with its glow and sprite added.
+  // Pre-exposed (uExposureRelative carries the frame's gain), and nothing
+  // under what the buffer holds as a normal value (hdr.js emitted).
   vec3 disc = vColor * vec3(r/255.0, g/255.0, b/255.0) * luminousShoulder(SUN_RADIANCE * uExposureRelative);
-  gl_FragColor = vec4(max(disc, vec3(0.0)), 1.0);
+  gl_FragColor = vec4(emitted(max(disc, vec3(0.0))), 1.0);
 }
 `
