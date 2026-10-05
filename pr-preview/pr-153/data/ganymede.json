@@ -8,6 +8,8 @@
 "mass": "1.48E26 g",
 "density": 1.936,
 "radius": "2.634E6 m",
+"texture_longitude": 180,
+"texture_longitude_source": "Galileo Regio, Osiris (38.1°S, 166.3°W) and Tros (11°N, 27°W) land on their USGS positions only with the map centred on 180° (js/scene/Planet.md)",
 "siderealRotationPeriod": 617760.0,
 "axialInclination": 1.0,
 "location": {
