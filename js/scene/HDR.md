@@ -278,11 +278,12 @@ the core grew without limit and the Sun from 52 AU, 1e9 over white at
 the dark gain, was a 120 px disc on the user's screen; it is now a 16 px
 core in a halo of about 50 px, Venus 16 px in 32, Sirius 16 px in 27, and
 from 5 AU the halo is 66 px: disc, to dazzling star, to star (from a
-light-year, magnitude 4.8, a point just at white).  Rendered on the
+light-year, magnitude −2.7, a star like Sirius; from 10 pc, its absolute
+4.8, a point just at white).  Rendered on the
 480×300 test viewport (a 1 px patch: a 2 px cap), labels and orbits off,
 at the dark gain: from 52 AU a saturated core of 2-3 px radius in a glow
 of 13 px at 30 of 255 and 16 px at 10; from 5 AU 2 px in 16 and 19; from
-1,000 AU 2-3 px in 10 and 12; SUN_1LY_HDR; from 1 AU at a 5° field the
+1,000 AU 2-3 px in 10 and 12; from a light-year a 2×2 px core in 6-7 px; from 1 AU at a 5° field the
 mesh's 32 px disc and its glow ring cover the sprite's capped core.  **A resolved disc is no point**: the sprite's
 light fades by (patch/θ)² once the star's disc, θ = 2r/d, outgrows the
 patch, so the Sun's mesh and a halo take over from the point within a

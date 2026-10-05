@@ -226,8 +226,8 @@ describe('the glare cap', () => {
     expect(sun5.sizePx).toBeGreaterThan(sun52.sizePx)
     // The Sun from 52 AU: a 16 px core in a halo under 60 px, not 120 px.
     expect(sun52.sizePx).toBeLessThan(60)
-    // From a light-year it is a star of magnitude 4.8: no cap, a point
-    // just at white (1.14 on a screen at the dark gain).
+    // From 10 pc it is a star of its absolute magnitude, 4.8: no cap, a
+    // point just at white (1.14 on a screen at the dark gain).
     const sunLy = starSprite(mag(4.83), METER_GAIN_MAX, {heightPx: 1080})
     expect(sunLy.glareCapped).toBe(false)
     expect(sunLy.coreRadiusPx).toBeLessThan(1.5)
