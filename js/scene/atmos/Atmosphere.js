@@ -314,8 +314,10 @@ void main() {
     // use atmOpacity to control the overall intensity of the atmospheric color;
     // within the half-float buffer (the shell's factor reaches 9.5, and a
     // value past 65504 is Inf, NaN through the tone map, a black pixel).
-    // The glow adds to the disc beside it: held to a share of the ceiling.
-    gl_FragColor = vec4(min(atmColor * factor, vec3(2.0e4)), min(atmOpacity * factor, 1.0));
+    // The glow adds to the disc where the depth buffer can't tell its rim
+    // from the shell (hdr.js LUMINOUS_CEILING): held to what the buffer has
+    // left over the disc's ceiling, so the sum never overflows half-float.
+    gl_FragColor = vec4(min(atmColor * factor, vec3(LUMINOUS_GLOW_MAX)), min(atmOpacity * factor, 1.0));
 }`,
       uniforms: {
         atmOpacity: {value: 0.9},

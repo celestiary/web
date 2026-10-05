@@ -177,8 +177,8 @@ export const HDR_MAX_VALUE = 6.0e4
 /**
  * A self-luminous source's radiance within the half-float buffer, with a
  * shoulder rather than a clamp: itself to LUMINOUS_KNEE, then compressed
- * toward HDR_MAX_VALUE (at most it, 5,504 under half-float's 65,504), so
- * the Sun's disc keeps its
+ * toward LUMINOUS_CEILING (at most it, 1e4 under the buffer's
+ * HDR_MAX_VALUE for what adds on the same pixel), so the Sun's disc keeps its
  * granulation and limb darkening in the buffer at any exposure, and so
  * the disc, its glow and its point sprite, which add, stay under the
  * buffer's 65,504 (over it a half-float is Inf, NaN through the tone
@@ -186,32 +186,45 @@ export const HDR_MAX_VALUE = 6.0e4
  * Monotone and continuous, with slope 1 at the knee.
  *
  * @param {number} radiance In exposure units
- * @returns {number} Within [0, HDR_MAX_VALUE]
+ * @returns {number} Within [0, LUMINOUS_CEILING]
  */
 export function luminousShoulder(radiance) {
   if (!(radiance > LUMINOUS_KNEE)) {
     return Math.max(radiance, 0)
   }
-  const span = HDR_MAX_VALUE - LUMINOUS_KNEE
-  return HDR_MAX_VALUE - (span * Math.exp(-(radiance - LUMINOUS_KNEE) / span))
+  const span = LUMINOUS_CEILING - LUMINOUS_KNEE
+  return LUMINOUS_CEILING - (span * Math.exp(-(radiance - LUMINOUS_KNEE) / span))
 }
 
 
-/** Where the luminous shoulder begins, in exposure units: half the buffer's ceiling. */
-export const LUMINOUS_KNEE = HDR_MAX_VALUE / 2
+/**
+ * The luminous shoulder's ceiling, in exposure units: what a disc may
+ * reach, leaving LUMINOUS_GLOW_MAX of the buffer's HDR_MAX_VALUE for
+ * what adds on the same pixel.  At 71 Gm the depth buffer can't tell the
+ * Sun's rim from its glow shell 0.07 radii behind it, so the glow added
+ * to the rim: with the disc at 6e4 the red channel passed 65,504, Inf in
+ * half-float, NaN once sampled, 29 pixels round the disc (the user's
+ * white specks, black before the tone map's guard).
+ */
+export const LUMINOUS_CEILING = 5e4
+/** The most the Sun's glow shell adds to a pixel (newAtmosphere), in exposure units. */
+export const LUMINOUS_GLOW_MAX = HDR_MAX_VALUE - LUMINOUS_CEILING
+/** Where the luminous shoulder begins, in exposure units. */
+export const LUMINOUS_KNEE = 3e4
 
 
 /** GLSL: float luminousShoulder(float), as luminousShoulder(). */
 export const LUMINOUS_SHOULDER_GLSL = `
 float luminousShoulder(float radiance) {
   const float knee = ${LUMINOUS_KNEE.toExponential()};
-  const float ceiling = ${HDR_MAX_VALUE.toExponential()};
+  const float ceiling = ${LUMINOUS_CEILING.toExponential()};
   if (!(radiance > knee)) {
     return max(radiance, 0.0);
   }
   float span = ceiling - knee;
   return ceiling - span * exp(-(radiance - knee) / span);
 }
+const float LUMINOUS_GLOW_MAX = ${LUMINOUS_GLOW_MAX.toExponential()};
 `
 
 

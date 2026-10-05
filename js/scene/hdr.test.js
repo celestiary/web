@@ -13,7 +13,7 @@ import {
 import {
   MAX_DISPLAY, NEUTRAL_GLSL, maxNeutralPeak, NEUTRAL_INVERSE_GLSL, alphaScaled,
   installExposureOnlyToneMapping, neutral, neutralInverse, sceneReferred, sceneReferredUniform, wrapMain,
-  luminousShoulder, LUMINOUS_KNEE, HDR_MAX_VALUE,
+  luminousShoulder, LUMINOUS_KNEE, HDR_MAX_VALUE, LUMINOUS_CEILING, LUMINOUS_GLOW_MAX,
 } from './hdr.js'
 
 
@@ -122,15 +122,23 @@ describe('the luminous shoulder', () => {
     for (let r = 1; r < 1e12; r *= 1.5) {
       const v = luminousShoulder(r)
       expect(Number.isFinite(v)).toBe(true)
-      expect(v).toBeLessThanOrEqual(HDR_MAX_VALUE)
+      expect(v).toBeLessThanOrEqual(LUMINOUS_CEILING)
       expect(v).toBeGreaterThanOrEqual(last)
       last = v
     }
     // The Sun's disc at Earth's keyed exposure (69,357) and at the dark
     // gain (2.8e11) both land under the ceiling, the first near it.
     expect(luminousShoulder(69357)).toBeGreaterThan(4e4)
-    expect(luminousShoulder(2.8e11)).toBeLessThanOrEqual(HDR_MAX_VALUE)
+    expect(luminousShoulder(2.8e11)).toBeLessThanOrEqual(LUMINOUS_CEILING)
     expect(luminousShoulder(2.8e11)).toBeGreaterThan(luminousShoulder(69357))
+  })
+
+  it('leaves the glow room: the disc at its ceiling plus the glow at its most is within the buffer', () => {
+    // At 71 Gm the depth buffer can't separate the disc's rim from its glow
+    // shell, so the two add on the rim's pixels: 6e4 + 1e4 did, to Inf.
+    expect(LUMINOUS_CEILING + LUMINOUS_GLOW_MAX).toBeLessThanOrEqual(HDR_MAX_VALUE)
+    expect(HDR_MAX_VALUE).toBeLessThan(65504)
+    expect(luminousShoulder(1e12) + LUMINOUS_GLOW_MAX).toBeLessThanOrEqual(HDR_MAX_VALUE)
   })
 })
 

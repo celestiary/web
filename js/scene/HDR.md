@@ -364,12 +364,23 @@ star-field permalink Sirius renders 234 at its centre with a saturated
 **The Sun's disc** (`star-shaders.js`) is `DISPLAY_GAIN / θ²` times the
 granulation texture, θ its angular radius from 1 AU: 69,357 at Earth's
 keyed exposure, through the luminous shoulder (`hdr.js`
-`luminousShoulder`: itself to 3e4, then compressed toward 6e4, at most
-it), as its limb glow (`newAtmosphere`) is, so the texture's granulation
-and limb darkening survive in the buffer at any exposure and the disc,
-its glow and its point sprite, which add, stay under half-float's
-65,504 (over it a value is Inf, NaN through the tone map, a black
-pixel).  At that exposure it is white; the metered exposure brings it
+`luminousShoulder`: itself to 3e4, then compressed toward 5e4, at most
+it), as its limb glow (`newAtmosphere`, held to the 1e4 the buffer has
+left over that) is, so the texture's granulation and limb darkening
+survive in the buffer at any exposure and the disc and its glow, which
+add where the depth buffer can't tell the rim from the shell 0.07 radii
+behind it (from 71 Gm its resolution is 5e8 m), sum to at most 6e4,
+under half-float's 65,504 (over it a value is Inf, NaN once sampled, a
+black pixel: with the disc at 6e4 and the glow at 2e4 the rim's red
+channel overflowed, 29 pixels round the disc).  The point sprites add
+single digits at most there (the glare cap).  The shoulder, and the tone map's rule that a non-finite input
+shows as the white point, are belt and braces: the buffer holds
+physical radiance at the keyed exposure, 1e-6 to 1e5, against
+half-float's 6.1e-5 to 65,504, and the fix at the root is pre-exposure,
+[#157](https://github.com/celestiary/web/issues/157): emitted radiance
+times the frame's gain before the buffer, so its values stay O(0.01-10)
+and neither end of half-float is near (its overflow, and the flush of
+a star field's values to zero on Metal, go with it).  At that exposure it is white; the metered exposure brings it
 down to show the granulation (rule 6 below).  **The black disc inside a
 bright limb** the user saw on zooming in, and every SwiftShader render
 of the disc, which was taken for a SwiftShader limitation, was neither
@@ -578,7 +589,7 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
 | Earth's crescent from 94,000 km, 30% lit, in a star field (`sunlitBodyCap`) | 1.09 (the cap) | 7.5e-8 / 6.9e-8 | crescent (0.3% of the frame) | white, 4e6 (the second cut) | peak 238, median 100, none saturated; 7 stars |
 | The Moon from the outback at night, 77% lit, 10° field (`sunlitBodyCap`) | 3.33 (the cap) | 2.3e-8 / 2.3e-8 | the disc | white, 4e6 (the second cut) | 47-232 with its phase |
 | The Sun's disc, zooming in from 232 Gm to 8 Gm (`luminousDiscGain`; 1000×595, bare) | 4.0e6 at 4.5 px across (232 Gm), 1.8e6 at 10.5 px (100 Gm), 3,700 at 16 px (65 Gm), 1.67 at 21 px (50 Gm), 8.65e-6 from 35 px (30 Gm) | — | the disc | white to 5 Gm, then 0.6 | 6e4 to 50 Gm, 0.600 from 30 Gm; monotone, no jump |
-| The Sun's disc at 71 Gm, 8 Gm and 2 Gm, the clock set by the permalink (`noiseTime`, the shoulder) | 8.65e-6 at 8 and 2 Gm, 2.5e4 at 71 Gm | — | the disc, linear | NaN (black) at every distance | 0.600 at the centre with the texture's colour at 8 and 2 Gm, no non-finite pixel; 6e4 at 71 Gm, 29 NaN pixels in the frame still (open) |
+| The Sun's disc at 71 Gm, 8 Gm and 2 Gm, the clock set by the permalink (`noiseTime`, the shoulder, the glow's share) | 8.65e-6 at 8 and 2 Gm, 2.5e4 at 71 Gm | — | the disc, linear | NaN (black) at every distance; then 29 NaN on the rim at 71 Gm | 0.600 at the centre with the texture's colour at 8 and 2 Gm (limb 0.165); 49,980 at 71 Gm with the glow on its rim; no non-finite pixel in any frame |
 | The Sun from 7 radii | 5e-6 (the floor: SwiftShader's disc is non-finite, which the meter counts as the maximum) | 66 / 1.2e10 | disc | black (SwiftShader; its rim 6e4) | the same |
 
 - **A sunlit scene is untouched**: the midday surface, Earth from orbit by

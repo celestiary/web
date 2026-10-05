@@ -99,7 +99,13 @@ The search bar's two actions: Go (an arrow; travels, as Enter does) and Look at 
    planets as drawn: Phobos and Deimos (up to 170° by 1950 and 2050), Janus,
    Triton, and Titania and Oberon at every date (URA182's epoch angles).
 2. **Physically based light and exposure** ([#109](https://github.com/celestiary/web/issues/109)): [#86](https://github.com/celestiary/web/issues/86) is done
-   (PR A and PR B, below); what's left of the epic is its benchmarks,
+   (PR A and PR B, below).  Next in the track is pre-exposure,
+   [#157](https://github.com/celestiary/web/issues/157): emitted radiance
+   times the frame's gain before the buffer, so its values stay O(0.01-10)
+   and half-float's overflow at the Sun's disc and the flush of a star
+   field to zero on Metal go with it (PR B holds them off with a shoulder
+   and a tone-map guard, [HDR.md](js/scene/HDR.md#physical-stars)).  What's
+   left of the epic after that is its benchmarks,
    the Artemis photo ([#59](https://github.com/celestiary/web/issues/59)) and the atmosphere QA ([#71](https://github.com/celestiary/web/issues/71)),
    and the night sky's own light (airglow, the zodiacal light), which
    the pass has none of, so a night sky is as black as space
@@ -140,7 +146,7 @@ based light scale, and the same on both sides of the Cesium swap.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure | [#86](https://github.com/celestiary/web/issues/86) (done), [#59](https://github.com/celestiary/web/issues/59), [#71](https://github.com/celestiary/web/issues/71) | [#87](https://github.com/celestiary/web/issues/87) for the daytime-Moon benchmark | [HDR.md](js/scene/HDR.md) (PR A and PR B done), [Planet.md, lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [atmosphere composition](js/scene/atmos/composition.md) |
+| [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure | [#86](https://github.com/celestiary/web/issues/86) (done), [#59](https://github.com/celestiary/web/issues/59), [#71](https://github.com/celestiary/web/issues/71), [#157](https://github.com/celestiary/web/issues/157) (next: pre-exposure) | [#87](https://github.com/celestiary/web/issues/87) for the daytime-Moon benchmark | [HDR.md](js/scene/HDR.md) (PR A and PR B done), [Planet.md, lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [atmosphere composition](js/scene/atmos/composition.md) |
 | [#110](https://github.com/celestiary/web/issues/110) Earth across the Cesium swap | [#93](https://github.com/celestiary/web/issues/93), [#92](https://github.com/celestiary/web/issues/92), [#88](https://github.com/celestiary/web/issues/88) | [#105](https://github.com/celestiary/web/issues/105); re-check after [#109](https://github.com/celestiary/web/issues/109) | [CESIUM.md](CESIUM.md#data), [Planet.md, texture sources](js/scene/Planet.md#surface-texture-sources) |
 | [#111](https://github.com/celestiary/web/issues/111) Sun, gas giants, rings, auroras | [#21](https://github.com/celestiary/web/issues/21), [#41](https://github.com/celestiary/web/issues/41), [#23](https://github.com/celestiary/web/issues/23), [#95](https://github.com/celestiary/web/issues/95) | [#109](https://github.com/celestiary/web/issues/109) for anything emissive | [rings.md](js/scene/rings/rings.md), DESIGN.md [rendering techniques](DESIGN.md#rendering-techniques) |
 
