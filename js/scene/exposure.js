@@ -192,7 +192,7 @@ export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed,
     // a white the tone map's shoulder flattened the Sun's granulation
     // (0.5-1 of its texture into 0.78-0.95 of the display: a flat grey
     // disc on the user's preview).
-    return Math.max(METER_HIGHLIGHT / blownAtKeyed, METER_GAIN_MIN)
+    return Math.max(METER_HIGHLIGHT / blownAtKeyed, METER_GAIN_MIN / Math.max(keyedOverEarth, 1e-30))
   }
   const floor = METER_FLOOR * Math.max(keyedOverEarth, 1e-30)
   const byMean = METER_KEY / Math.max(lumaAtKeyed, floor)
@@ -248,6 +248,72 @@ export function sunlitBodyCap(bodies, targetKeyedExposure, halfFov = Math.PI) {
     cap = Math.min(cap, METER_HIGHLIGHT_MAX / (white * highlightAlbedo))
   }
   return Math.max(cap, 1)
+}
+
+
+/**
+ * A self-luminous disc in the frame, the Sun's, brings the gain to what
+ * shows its surface, as a camera pointed at the Sun stops down: once the
+ * disc is resolved on screen the gain is blended, in log gain, from the
+ * meter's answer at LUMINOUS_DISC_PX[0] of diameter to the disc's own at
+ * LUMINOUS_DISC_PX[1], the gain at which the disc's radiance
+ * (SUN_DISC_RADIANCE at Earth's keyed exposure; Star.js) shows as
+ * METER_HIGHLIGHT, a sunlit surface, with its granulation and limb.  So
+ * the Sun from 5-52 AU is a point in a dark-adapted field, and from
+ * within about 60 Gm its disc shows its surface, with no jump between:
+ * the blown rule (a twentieth of the frame) fired only from 5 Gm, and the
+ * user saw a white disc from 50 Gm in.  The stars go as the disc takes
+ * the frame, as they do for a camera.  A disc with a mesh under a pixel
+ * (an unresolved star) doesn't count.
+ *
+ * @param {number|null} gain The meter's gain over the target-keyed exposure
+ * @param {Array<{diameterPx: number, radianceAtEarthKeyed: number}>} discs
+ *   Each self-luminous disc in the frame: its diameter in pixels, and its
+ *   surface radiance in exposure units at Earth's keyed exposure
+ * @param {number} keyedOverEarth The target-keyed exposure over Earth's
+ * @param {number} [pixelRatio] The renderer's, scaling the diameters
+ * @returns {number|null} The gain, blended toward the disc's where one is resolved
+ */
+export function luminousDiscGain(gain, discs, keyedOverEarth, pixelRatio = 1) {
+  if (!(gain > 0)) {
+    return gain
+  }
+  let out = gain
+  for (const {diameterPx, radianceAtEarthKeyed} of discs) {
+    const [lo, hi] = LUMINOUS_DISC_PX.map((px) => px * Math.max(pixelRatio, 1e-6))
+    const t = smoothstep(lo, hi, diameterPx)
+    if (!(t > 0) || !(radianceAtEarthKeyed > 0)) {
+      continue
+    }
+    // The disc's radiance at the target-keyed exposure is its radiance at
+    // Earth's times keyedOverEarth; the gain that shows it at the highlight.
+    const discGain = METER_HIGHLIGHT / (radianceAtEarthKeyed * Math.max(keyedOverEarth, 1e-30))
+    out = Math.min(out, Math.exp(((1 - t) * Math.log(gain)) + (t * Math.log(discGain))))
+  }
+  return Math.max(out, METER_GAIN_MIN / Math.max(keyedOverEarth, 1e-30))
+}
+
+
+/**
+ * The disc diameters, in pixels, over which a self-luminous disc's gain
+ * blends in (luminousDiscGain): none under the first, all of it from the
+ * second.  The Sun from 1 AU at 45° on a 1080 px screen is 13 px, from
+ * 60 Gm 32 px.
+ */
+export const LUMINOUS_DISC_PX = [8, 32]
+/** The Sun's disc radiance in exposure units at Earth's keyed exposure (star-shaders.js SUN_RADIANCE). */
+export const SUN_DISC_RADIANCE = DISPLAY_GAIN * 46238
+
+
+/**
+ * @param {number} lo
+ * @param {number} hi
+ * @param {number} x
+ * @returns {number} Hermite smoothstep of x between lo and hi, 0 to 1
+ */
+export function smoothstep(lo, hi, x) {
+  const t = Math.min(Math.max((x - lo) / (hi - lo), 0), 1)
+  return t * t * (3 - (2 * t))
 }
 
 
@@ -365,9 +431,11 @@ export const METER_BLOWN_FRACTION = 0.05
  */
 export const METER_BLOWN_VALUE = 20 * DISPLAY_GAIN
 /**
- * The least the metered exposure falls to under the target-keyed one: the
- * Sun's disc, 6e4 in the buffer, brought to METER_HIGHLIGHT needs 1e-5,
- * with room.
+ * The least the metered exposure falls to, over Earth's keyed exposure
+ * (METER_GAIN_MIN / keyedOverEarth in target-keyed units, as the ceiling
+ * is absolute): the Sun's disc, 6e4 at Earth's keyed exposure, brought to
+ * METER_HIGHLIGHT needs 1e-5, with room; from Pluto's keyed exposure, 37×
+ * Earth's, the same disc needs 37× less.
  */
 export const METER_GAIN_MIN = 5e-6
 /**

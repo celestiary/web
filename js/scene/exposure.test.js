@@ -4,7 +4,8 @@ import {
   easeExposure, exposureAt,
   EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
-  starClipZ, sunlitBodyCap, HIGHLIGHT_ALBEDO_FACTOR, STAR_GLARE_CORE_PATCHES, STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE,
+  luminousDiscGain, starClipZ, sunlitBodyCap, HIGHLIGHT_ALBEDO_FACTOR, STAR_GLARE_CORE_PATCHES, STAR_MAX_SIZE_PX,
+  STAR_PEAK_OVER_RADIANCE, SUN_DISC_RADIANCE,
 } from './exposure.js'
 import {readFileSync} from 'fs'
 import {HDR_MAX_VALUE} from './hdr.js'
@@ -332,6 +333,47 @@ describe('a sunlit body in the frame', () => {
     // for 0.03; the floor is 1.
     const pluto = exposureAt(39.5 * ASTRO_UNIT_METER)
     expect(sunlitBodyCap([{...moon, albedo: 1}], pluto)).toBe(1)
+  })
+})
+
+
+describe('a self-luminous disc in the frame', () => {
+  const sun = (diameterPx) => [{diameterPx, radianceAtEarthKeyed: SUN_DISC_RADIANCE}]
+  const discGain = METER_HIGHLIGHT / SUN_DISC_RADIANCE
+
+  it('brings the gain to what shows the disc\'s surface once it is 32 px across, none at 4 px', () => {
+    expect(luminousDiscGain(METER_GAIN_MAX, sun(4), 1)).toBe(METER_GAIN_MAX)
+    expect(luminousDiscGain(METER_GAIN_MAX, sun(8), 1)).toBe(METER_GAIN_MAX)
+    // The Sun from 50 Gm on a 2000 px window: 70 px.  Its disc, 69,357 at
+    // Earth's keyed exposure, shows at 0.6.
+    const g70 = luminousDiscGain(METER_GAIN_MAX, sun(70), 1)
+    expect(g70).toBeCloseTo(discGain, 12)
+    expect(g70 * SUN_DISC_RADIANCE).toBeCloseTo(METER_HIGHLIGHT, 9)
+    expect(g70).toBeGreaterThan(METER_GAIN_MIN)
+    // At Pluto's keyed exposure (37× Earth's) the disc is 37× brighter in
+    // keyed units: the gain 37× lower, the disc still at 0.6.
+    expect(luminousDiscGain(1e5, sun(70), 36.9) * SUN_DISC_RADIANCE * 36.9).toBeCloseTo(METER_HIGHLIGHT, 9)
+  })
+
+  it('is monotone and continuous in the disc\'s diameter, from the field\'s gain to the disc\'s', () => {
+    let last = METER_GAIN_MAX
+    let maxStep = 0
+    for (let px = 0; px <= 40; px += 0.25) {
+      const g = luminousDiscGain(METER_GAIN_MAX, sun(px), 1)
+      expect(g).toBeLessThanOrEqual(last * (1 + 1e-9))
+      maxStep = Math.max(maxStep, Math.abs(Math.log10(last / g)))
+      last = g
+    }
+    // 11.6 decades over 24 px in steps of a quarter pixel: under 0.2 a step.
+    expect(maxStep).toBeLessThan(0.2)
+    expect(luminousDiscGain(METER_GAIN_MAX, sun(20), 1)).toBeCloseTo(Math.sqrt(METER_GAIN_MAX * discGain), 6)
+  })
+
+  it('scales its diameters by the pixel ratio, never lifts the gain, and leaves a frame without a disc alone', () => {
+    expect(luminousDiscGain(METER_GAIN_MAX, sun(16), 1, 2)).toBe(METER_GAIN_MAX)
+    expect(luminousDiscGain(1e-5, sun(70), 1)).toBeCloseTo(discGain, 12)
+    expect(luminousDiscGain(METER_GAIN_MAX, [], 1)).toBe(METER_GAIN_MAX)
+    expect(luminousDiscGain(null, sun(70), 1)).toBeNull()
   })
 })
 

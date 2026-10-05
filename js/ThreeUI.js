@@ -25,8 +25,8 @@ import {
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   METER_EVERY_FRAMES, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, easeExposure, exposureAt, exposureRelative,
-  LIMITING_MAGNITUDE, frameCanBeEmpty, illuminanceRatio, limitingMagnitude, meanLogLuminance, meteredGain,
-  skyExposure, starGainForLimit, starSprite, sunlitBodyCap,
+  LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, illuminanceRatio, limitingMagnitude, luminousDiscGain,
+  meanLogLuminance, meteredGain, skyExposure, starGainForLimit, starSprite, sunlitBodyCap,
 } from './scene/exposure.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
@@ -626,8 +626,12 @@ export default class ThreeUi {
     // loads (frameCanBeEmpty): once loaded, black is dark.
     // A resolved sunlit body in the frame anchors the gain (sunlitBodyCap).
     this._meterCap = sunlitBodyCap(this._sunlitBodies(), this._exposureGoal, this.camera.fov * Math.PI / 360)
-    const gain = meteredGain(metered, renderedOverKeyed, this._frameCanBeEmpty(),
-        this._exposureGoal / exposureAt(ASTRO_UNIT_METER), this._meterCap)
+    const keyedOverEarth = this._exposureGoal / exposureAt(ASTRO_UNIT_METER)
+    const metered0 = meteredGain(metered, renderedOverKeyed, this._frameCanBeEmpty(), keyedOverEarth, this._meterCap)
+    // A resolved self-luminous disc (the Sun's) brings the gain to what
+    // shows its surface, blended in as it grows (luminousDiscGain).
+    this._luminous = this._luminousDiscs()
+    const gain = luminousDiscGain(metered0, this._luminous, keyedOverEarth, this.renderer.getPixelRatio())
     // What was read, at the keyed exposure, for probing (HDR.md).
     this._meterLast = {
       mean: Math.exp(metered.meanLog) / renderedOverKeyed,
@@ -717,6 +721,48 @@ export default class ThreeUi {
 
 
   /**
+   * The self-luminous discs in the frame, for the meter (exposure.js
+   * luminousDiscGain): each star object (the Sun) whose mesh is in the
+   * frame, with its disc's diameter in pixels and its surface radiance at
+   * Earth's keyed exposure (Star.js draws every star's disc at the Sun's).
+   *
+   * @returns {Array<{diameterPx: number, radianceAtEarthKeyed: number}>}
+   */
+  _luminousDiscs() {
+    const objects = this.sceneManager?.objects
+    if (!objects) {
+      return []
+    }
+    this._sunlitVectors ??= [new Vector3(), new Vector3(), new Vector3(), new Vector3()]
+    const [, cam, body, ndc] = this._sunlitVectors
+    this.camera.getWorldPosition(cam)
+    const pxRad = (this.camera.fov * Math.PI / 180) / Math.max(this.height, 1)
+    const discs = []
+    for (const name of Object.keys(objects)) {
+      const o = objects[name]
+      if (o?.props?.type !== 'star' || !o.props.radius || !o.visible || name.endsWith('.orbitPosition')) {
+        continue
+      }
+      o.getWorldPosition(body)
+      const distance = body.distanceTo(cam)
+      const radius = o.props.radius.scalar
+      if (!(distance > radius)) {
+        continue
+      }
+      const angularRadius = Math.asin(radius / distance)
+      ndc.copy(body).project(this.camera)
+      const marginY = angularRadius / (this.camera.fov * Math.PI / 360)
+      const marginX = marginY / Math.max(this.camera.aspect, 1e-6)
+      if (!(ndc.z < 1 && ndc.z > -1 && Math.abs(ndc.x) < 1 + marginX && Math.abs(ndc.y) < 1 + marginY)) {
+        continue
+      }
+      discs.push({diameterPx: 2 * angularRadius / pxRad, radianceAtEarthKeyed: SUN_DISC_RADIANCE})
+    }
+    return discs
+  }
+
+
+  /**
    * The star field's state, for checking a build on a machine at hand
    * (`c.ui.starsDebug()` in the console; HDR.md "Physical stars"): the
    * exposure and the metered gain with the meter's last reading, the
@@ -749,6 +795,7 @@ export default class ThreeUi {
       meterLast: this._meterLast ?? null,
       meterCap: this._meterCap ?? Infinity,
       sunlitBodies: this._sunlitBodies(),
+      luminousDiscs: this._luminousDiscs(),
       frameCanBeEmpty: this._frameCanBeEmpty(),
       exposureRelative: gain,
       starGain,

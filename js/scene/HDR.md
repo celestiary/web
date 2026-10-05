@@ -425,11 +425,10 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    stayed white round it; the glow now carries the disc's radiance
    (`newAtmosphere`), and a lift of the disc's colour with the camera's
    distance, white past 0.2 AU, is gone, so the disc keeps its
-   granulation wherever it fills the twentieth (from 1 AU, a field under
-   about 2°).  Smaller in the frame it is a white disc in its glow at
-   whatever gain the rest of the frame asks (from 1 AU at 5°, 4e6: the
-   stars round it), as a whole-frame meter has it; a sunlit planet in
-   view would hold the gain (next).
+   granulation wherever it fills the twentieth.  Smaller in the frame,
+   rule 6 brings the gain to its surface once its disc is resolved
+   (from 8 to 32 px across), and under that it is a point in whatever
+   the rest of the frame asks.
 5. **A resolved sunlit body in the frame anchors the gain**
    (`sunlitBodyCap`, from `ThreeUi._sunlitBodies`: every planet and moon
    whose disc is in the frame and wider than the eye's patch, with its lit
@@ -453,7 +452,24 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    (`LIT_FRACTION_MIN`): a limb crescent past 154° of phase doesn't put
    out the night side's cities from orbit.  Never under 1: the target's
    own sunlit side keeps its keyed exposure.
-6. **While the scene loads**, a frame with nothing in it (every sample
+6. **A self-luminous disc in the frame brings the gain to its surface**
+   (`luminousDiscGain`, from `ThreeUi._luminousDiscs`: the Sun's mesh
+   when it is in the frame, with its diameter in pixels).  Once the disc
+   is resolved the gain is blended, in log gain, from the meter's answer
+   at 8 px of diameter to the disc's own at 32 px (`LUMINOUS_DISC_PX`,
+   scaled by the pixel ratio): the gain at which the disc's radiance
+   (`SUN_DISC_RADIANCE`, 69,357 at Earth's keyed exposure) shows as
+   `METER_HIGHLIGHT`, with its granulation and limb.  So the Sun from
+   5-52 AU is a point in a dark-adapted field; from 1 AU at 45° on a
+   1080 px screen (13 px) the blend has begun; from within about 60 Gm
+   (32 px) its disc shows its surface; and there is no jump between, as a
+   camera pointed at the Sun stops down.  The stars go as the disc takes
+   the frame.  The blown rule above needed a twentieth of the frame, which
+   the disc reaches only from 5 Gm, and the user saw a white disc from
+   50 Gm in.  The floor `METER_GAIN_MIN` is absolute, over Earth's keyed
+   exposure, as the ceiling is: from Pluto's keyed exposure the same disc
+   needs 37× less.
+7. **While the scene loads**, a frame with nothing in it (every sample
    exactly zero: a texture or the star catalogue still to come) asks for
    nothing, and the gain stays (`frameCanBeEmpty`: the star catalogue not
    yet drawn, or the exposure target's surface not ready and no Cesium
@@ -477,7 +493,7 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    logs the meter's last reading, the gain and its cap with the bodies
    that set it, the GPU's point-size range and fragment precision and a
    few stars' sprites, for checking a build on a machine at hand.
-7. The gain **eases in log space** (`easeExposure`), with a time constant
+8. The gain **eases in log space** (`easeExposure`), with a time constant
    of `METER_TAU_UP_SECONDS` (1.5 s) rising, the eye adapting to the dark,
    and `METER_TAU_DOWN_SECONDS` (0.3 s) falling, a camera catching up with a
    planet come upon from a star field; the keyed exposure itself keeps its
