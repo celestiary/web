@@ -330,15 +330,30 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    the gain falls to bring it there, to `METER_GAIN_MIN` (1e-5) at most:
    the Sun's disc, 46,000 whites, fills the frame and shows its
    granulation.
-5. A frame with nothing in it (every sample exactly zero: a texture or
-   the star catalogue still loading) asks for nothing, and the gain stays.
-   Without this the gain ran to 3e6 on the black loading frame and the
-   planet, when it came, overflowed the buffer.  Exactly zero: the 32×32
-   meter samples under 1% of the pixels and mostly misses 3 px star
-   sprites, so a star field read a most of 6e-8 and, taken for empty under
-   the floor, stayed black.  The LDR fallback's bytes quantize a star
-   field to zero, so it takes every black frame as dark, and a planet
-   loading there is blown out for the second the gain takes to fall.
+5. **While the scene loads**, a frame with nothing in it (every sample
+   exactly zero: a texture or the star catalogue still to come) asks for
+   nothing, and the gain stays (`frameCanBeEmpty`: the star catalogue not
+   yet drawn, or the exposure target's surface not ready and no Cesium
+   layer standing in).  Without this the gain ran to 3e6 on the black
+   loading frame and the planet, when it came, overflowed the buffer.
+   Once loaded, a black frame is a dark one and runs to the dark-adapted
+   gain: the pixels can't tell the two apart.  The first cut decided it
+   from them (empty if the meter's maximum was exactly zero), and that
+   missed the user's star field on an M2 Mac with nothing in the console:
+   the meter is 1,024 single taps over the frame, under 1% of its pixels,
+   and a star field at the keyed exposure is a few hundred 2 px points of
+   1e-5 to 1e-7 (Sirius 4e-5), so every tap can miss them, and under
+   half-float's smallest normal value (6.1e-5) a GPU may flush them to
+   zero outright (the 4 px sprites before the round kernel put Sirius's
+   centre at 8e-5, which survived); the frame read zero, the gain held at
+   1, and the stars stayed 1e-5 of white.  On SwiftShader, which keeps
+   half-float denormals, the meter's brightest tap at 1080p was one star's
+   edge at 4e-8.  The LDR fallback's bytes quantize a star field to zero,
+   so it takes every black frame as dark, and a planet loading there is
+   blown out for the second the gain takes to fall.  `c.ui.starsDebug()`
+   logs the meter's last reading and the gain, with the GPU's point-size
+   range and fragment precision and a few stars' sprites, for checking a
+   build on a machine at hand.
 6. The gain **eases in log space** (`easeExposure`), with a time constant
    of `METER_TAU_UP_SECONDS` (1.5 s) rising, the eye adapting to the dark,
    and `METER_TAU_DOWN_SECONDS` (0.3 s) falling, a camera catching up with a

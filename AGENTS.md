@@ -106,6 +106,21 @@ tried and dropped.
   - By hand, force a layer with `c.ui.layers.fadeOf = () => 1` (or
     `() => 0`), and render the same view both ways.
   - Not in `yarn precommit`: it takes minutes and needs ion.
+- **A shader edit needs a rendered check**, not only its arithmetic: a
+  compile failure (e.g. a GLSL ES reserved word such as `half` as a
+  variable, #153) draws nothing and fails no unit test. Collect the page's
+  console errors (`THREE.WebGLProgram: Shader Error`) in any render
+  probe, or read
+  `c.ui.renderer.properties.get(material).currentProgram.diagnostics`
+  (`undefined` when the program compiled). `c.ui.starsDebug()` logs the
+  star field's state: the exposure and metered gain with the meter's last
+  reading, the limiting magnitude, the GPU's point-size range and
+  fragment precision, and a few stars' sprites by the shader's law.
+- **A frame can read as empty on a real GPU and not on SwiftShader:**
+  half-float values under 6.1e-5 are denormals, which a GPU may flush to
+  zero (a star field at the keyed exposure is all under it), and the
+  32×32 meter taps under 1% of the pixels. Never decide "nothing drawn"
+  from pixel values; use the scene's readiness (`frameCanBeEmpty`).
 - **Known SwiftShader quirk:** `gl_PointCoord` flips in point shaders
   that `discard` or sample a depth texture. Use depth state instead.
 - **Network hosts this work needs in the sandbox:**

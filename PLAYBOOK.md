@@ -460,6 +460,39 @@ When a fix doesn't work, "nope, still there" closes the loop immediately so we c
 Don't assume a fix worked and move on to the next thing. Confirm each fix visually before
 moving to the next bug.
 
+### A shader edit that was only checked by arithmetic was never checked
+
+PR #153's second follow-up rewrote the star kernel and declared `float half` in
+`stars.frag`.  `half` is a reserved word in GLSL ES (with `fixed`, `double`,
+`long`, `short`, `input`, `output`, `sizeof`, `namespace`, ...), so the fragment
+shader failed to compile and the star Points drew nothing: "sun shape is
+fixed, but not seeing any stars" on the preview.  The change had been
+verified by working the sprite law through in JS, and its unit tests
+passed; nobody rendered it.  A failed compile is silent in a test that
+never creates a GL context: three logs it as a console error and marks the
+program `runnable: false` (`renderer.properties.get(material).currentProgram.diagnostics`).
+
+**Rule:** a shader change isn't done until a frame has been rendered with
+it and the console checked for `THREE.WebGLProgram: Shader Error`, however
+small the edit.  Keep the shader's law mirrored in JS (`exposure.js
+starSprite`) so the arithmetic is tested, and scan the sources for GLSL
+reserved words (`exposure.test.js`, "the shaders"), but neither replaces
+the render.
+
+**And SwiftShader is not the user's GPU.**  With the compile fixed the
+user's M2 Mac (ANGLE on Metal) still showed no stars, with nothing in the
+console: the metered exposure took a star field for an empty frame and
+held its gain at 1.  Its rule was "every meter tap exactly zero", and a
+star field at the keyed exposure is a few hundred 2 px points of 1e-5 to
+1e-7, all under half-float's smallest normal value (6.1e-5): a GPU may
+flush them to zero, and 1,024 taps over the frame can miss them anyway.
+SwiftShader keeps half-float denormals, so it saw one star's edge at 4e-8
+and carried on.  **Rule:** never decide "nothing drawn" from pixel values
+near a buffer's floor; use what the scene knows (`frameCanBeEmpty`: the
+catalogue loaded, the target's surface in).  Where a check depends on the
+GPU, give the user a way to read the state on their machine
+(`c.ui.starsDebug()`) rather than guessing from here.
+
 ### Screenshots communicate visual bugs better than words
 
 "A grid of large blooms on the ocean texture" and "distinct rings floating up in space" were

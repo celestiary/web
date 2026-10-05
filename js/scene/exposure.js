@@ -137,15 +137,22 @@ export function pointSolidAngle(fovDegrees, heightPx) {
  * frame for a small highlight that is (the sky round a low Sun, 2% of it
  * at 6), which clips, as a camera lets it.
  *
- * A frame with nothing in it at all (every sample exactly zero: a
- * planet's texture, or the star catalogue, still loading) asks for
- * nothing: null, and the gain stays where it is.  Running to the
- * dark-adapted gain on a black loading frame rendered the planet 3e6
- * times too bright when it came.  Exactly zero, not under the floor: the
- * 32×32 meter samples under 1% of the pixels and mostly misses 3 px star
- * sprites, so a star field read a most of 6e-8 and, taken for empty, stayed
- * black.  The LDR fallback's bytes quantize a star field to zero, so it
- * can't tell empty from dark (`canBeEmpty` false) and takes the dark.
+ * While the scene is loading (`canBeEmpty`: frameCanBeEmpty), a frame
+ * with nothing in it at all (every sample exactly zero: a planet's
+ * texture, or the star catalogue, still to come) asks for nothing: null,
+ * and the gain stays where it is.  Running to the dark-adapted gain on a
+ * black loading frame rendered the planet 3e6 times too bright when it
+ * came.  Once the scene is loaded a black frame is a dark one, and asks
+ * for the dark-adapted gain: the pixels can't be trusted to tell the two
+ * apart.  The 32×32 meter samples under 1% of the pixels, one tap each,
+ * and a star field at the keyed exposure is a few hundred 2 px points of
+ * 1e-5 to 1e-7 (Sirius 4e-5), so on a large frame every tap can miss
+ * them, and under half-float's smallest normal value (6.1e-5) a GPU may
+ * flush them to zero outright; either way the meter read zero, took the
+ * frame for empty, held the gain at 1 and showed no stars, with nothing
+ * in the console (the user's M2 Mac, #153).  The LDR fallback's bytes
+ * quantize a star field to zero, so it can't tell empty from dark
+ * (`canBeEmpty` false) and takes the dark.
  *
  * The dark end is absolute.  The target-keyed exposure scales with the
  * Sun's irradiance at the target (exposureAt: 0.4× Earth's at Mercury,
@@ -164,6 +171,7 @@ export function pointSolidAngle(fovDegrees, heightPx) {
  * @param {number} renderedOverKeyed The exposure the frame was rendered at
  *   over the target-keyed exposure (its gain at the time)
  * @param {boolean} canBeEmpty Whether a frame of zeros means nothing drawn
+ *   yet (frameCanBeEmpty), rather than a dark scene
  * @param {number} keyedOverEarth The target-keyed exposure over Earth's
  * @returns {number|null} The gain the scene asks for; null for no scene
  */
@@ -184,6 +192,24 @@ export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed,
   return Math.min(Math.max(Math.min(byMean, byHighlight), 1), METER_GAIN_MAX / Math.max(keyedOverEarth, 1e-30))
 }
 
+
+/**
+ * Whether a frame of zeros can mean "nothing drawn yet" (meteredGain's
+ * canBeEmpty): only while the scene is loading, in the HDR path.  Once
+ * the star catalogue is drawn and the exposure target's surface is in, a
+ * black frame is a dark scene and asks for the dark-adapted gain; deciding
+ * it from the pixels missed sparse, faint stars (above).  The LDR fallback
+ * never takes a frame for empty: its bytes can't tell.
+ *
+ * @param {boolean} hdr The HDR path (a float meter)
+ * @param {boolean} starsDrawn The star catalogue is loaded and in the scene
+ * @param {boolean} surfaceReady The exposure target's surface is drawn (no
+ *   target, or one whose surface is ready)
+ * @returns {boolean}
+ */
+export function frameCanBeEmpty(hdr, starsDrawn, surfaceReady) {
+  return Boolean(hdr) && !(Boolean(starsDrawn) && Boolean(surfaceReady))
+}
 
 /**
  * @param {Float32Array|Uint8Array} rgba Pixels, RGBA: floats, or bytes

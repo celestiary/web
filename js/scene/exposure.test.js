@@ -2,7 +2,8 @@ import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY}
 import {
   METER_FLOOR, METER_GAIN_MAX, METER_GAIN_MIN, METER_HIGHLIGHT, METER_HIGHLIGHT_MAX, METER_KEY, easeExposure, exposureAt,
   EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
-  meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite, STAR_MAX_SIZE_PX,
+  frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
+  STAR_MAX_SIZE_PX,
 } from './exposure.js'
 import {readFileSync} from 'fs'
 import {HDR_MAX_VALUE} from './hdr.js'
@@ -200,6 +201,27 @@ describe('metered exposure', () => {
     // Over 1080 pixels: 0.73e-3 rad a pixel; the eye's 2.9e-3 rad stands.
     expect(pointSolidAngle(45, 1080)).toBeCloseTo(EYE_POINT_RAD * EYE_POINT_RAD, 9)
     expect(pointSolidAngle(45, 300)).toBeCloseTo(EYE_POINT_RAD * EYE_POINT_RAD, 9)
+  })
+})
+
+
+describe('an empty frame', () => {
+  it('can only be the scene loading: once the stars and the target\'s surface are in, black is dark', () => {
+    expect(frameCanBeEmpty(true, false, true)).toBe(true)
+    expect(frameCanBeEmpty(true, true, false)).toBe(true)
+    expect(frameCanBeEmpty(true, true, true)).toBe(false)
+    // The LDR fallback's bytes can't tell empty from dark: never empty.
+    expect(frameCanBeEmpty(false, false, false)).toBe(false)
+  })
+
+  it('a loaded star field the meter read as zeros still asks for the dark-adapted gain', () => {
+    // The user's M2 Mac: every meter tap missed the 2 px points, or Metal
+    // flushed their half-float values (Sirius 4e-5, under 6.1e-5) to zero,
+    // so the frame read exactly zero.  Loaded, that is dark, not empty.
+    const zeros = {meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, blown: METER_FLOOR, max: 0}
+    expect(meteredGain(zeros, 1, frameCanBeEmpty(true, true, true))).toBeCloseTo(METER_GAIN_MAX, 6)
+    // Loading, it asks nothing and the gain holds.
+    expect(meteredGain(zeros, 1, frameCanBeEmpty(true, false, true))).toBeNull()
   })
 })
 

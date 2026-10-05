@@ -25,7 +25,8 @@ import {
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   METER_EVERY_FRAMES, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, easeExposure, exposureAt, exposureRelative,
-  meanLogLuminance, meteredGain, skyExposure,
+  LIMITING_MAGNITUDE, frameCanBeEmpty, illuminanceRatio, limitingMagnitude, meanLogLuminance, meteredGain,
+  skyExposure, starGainForLimit, starSprite,
 } from './scene/exposure.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
@@ -539,6 +540,31 @@ export default class ThreeUi {
 
 
   /**
+   * The star field's limiting magnitude at a dark site, as the user sets
+   * it (HDR.md, "Physical stars"): LIMITING_MAGNITUDE (6.5, the naked
+   * eye's) at the physical star gain, a magnitude more for 2.5× the light.
+   * Celestiary's `[` and `]` keys step it by 0.5, as Celestia's do.
+   *
+   * @param {number} magnitude
+   */
+  setLimitingMagnitude(magnitude) {
+    this.setStarGain(starGainForLimit(Number.isFinite(magnitude) ? magnitude : LIMITING_MAGNITUDE))
+  }
+
+
+  /** @returns {number} The limiting magnitude the user set (setLimitingMagnitude) */
+  userLimitingMagnitude() {
+    return LIMITING_MAGNITUDE + (2.5 * Math.log10(absoluteUniforms.uStarGain.value))
+  }
+
+
+  /** @returns {number} The limiting magnitude at the current exposure and star gain */
+  limitingMagnitude() {
+    return limitingMagnitude(absoluteUniforms.uExposureRelative.value, absoluteUniforms.uStarGain.value)
+  }
+
+
+  /**
    * The renderer's exposure relative to a body's keyed one: 1 when it is
    * the exposure target at its own exposure, and whatever the metered gain
    * and the easing between targets make it otherwise.  What a Cesium
@@ -596,7 +622,10 @@ export default class ThreeUi {
     const renderedOverKeyed = this.renderer.toneMappingExposure / this._exposureGoal
     const metered = meanLogLuminance(this._meterPixels, METER_SIZE * METER_SIZE)
     // The dark end is absolute, over Earth's keyed exposure (meteredGain).
-    const gain = meteredGain(metered, renderedOverKeyed, this.hdr, this._exposureGoal / exposureAt(ASTRO_UNIT_METER))
+    // A frame of zeros means "nothing drawn yet" only while the scene
+    // loads (frameCanBeEmpty): once loaded, black is dark.
+    const gain = meteredGain(metered, renderedOverKeyed, this._frameCanBeEmpty(),
+        this._exposureGoal / exposureAt(ASTRO_UNIT_METER))
     // What was read, at the keyed exposure, for probing (HDR.md).
     this._meterLast = {
       mean: Math.exp(metered.meanLog) / renderedOverKeyed,
@@ -608,6 +637,70 @@ export default class ThreeUi {
     if (Number.isFinite(gain)) {
       this._meterGainGoal = gain
     }
+  }
+
+
+  /**
+   * Whether a black frame can be the scene still loading (exposure.js
+   * frameCanBeEmpty): the star catalogue not yet drawn, or the exposure
+   * target's surface not yet in (Planet.surfaceReady).  Deciding it from
+   * the meter's pixels missed a star field (its points are sparse and
+   * faint at the keyed exposure, and a GPU may flush them to zero) and
+   * held the gain at 1: no stars, and nothing in the console.
+   *
+   * @returns {boolean}
+   */
+  _frameCanBeEmpty() {
+    this._starsPoints ??= this.scene.getObjectByName('StarsPoints') ?? null
+    const target = targets.obj
+    return frameCanBeEmpty(this.hdr, Boolean(this._starsPoints), !target || target.surfaceReady?.() !== false)
+  }
+
+
+  /**
+   * The star field's state, for checking a build on a machine at hand
+   * (`c.ui.starsDebug()` in the console; HDR.md "Physical stars"): the
+   * exposure and the metered gain with the meter's last reading, the
+   * limiting magnitude, the GPU's point-size range and fragment precision,
+   * whether the star program compiled, and a few stars' sprites by the
+   * shader's law (exposure.js starSprite) at this exposure.
+   *
+   * @returns {object} What it logs
+   */
+  starsDebug() {
+    const gl = this.renderer.getContext()
+    const points = this._starsPoints ?? this.scene.getObjectByName('StarsPoints') ?? null
+    const program = points ? this.renderer.properties.get(points.material)?.currentProgram : null
+    const gain = absoluteUniforms.uExposureRelative.value
+    const starGain = absoluteUniforms.uStarGain.value
+    const opts = {fovDegrees: this.camera.fov, heightPx: this.height, starGain}
+    const stars = {}
+    for (const [name, magnitude] of [['Sirius', -1.46], ['Vega', 0.03], ['mag 3', 3], ['mag 6', 6], ['mag 6.5', 6.5]]) {
+      stars[name] = starSprite(illuminanceRatio(magnitude), gain, opts)
+    }
+    const highp = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT)
+    const out = {
+      size: [this.width, this.height],
+      pixelRatio: this.renderer.getPixelRatio(),
+      hdr: this.hdr,
+      exposure: this.renderer.toneMappingExposure,
+      keyedExposure: this._exposureGoal,
+      meterGain: this._meterGain,
+      meterGainGoal: this._meterGainGoal,
+      meterLast: this._meterLast ?? null,
+      frameCanBeEmpty: this._frameCanBeEmpty(),
+      exposureRelative: gain,
+      starGain,
+      limitingMagnitude: limitingMagnitude(gain, starGain),
+      pointSizeRange: Array.from(gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)),
+      fragmentHighp: highp ? {rangeMin: highp.rangeMin, rangeMax: highp.rangeMax, precision: highp.precision} : null,
+      starsDrawn: Boolean(points),
+      program: program ? (program.diagnostics ?? 'compiled') : 'none',
+      maxStarSizePx: points?.material.uniforms.MAX_STAR_SIZE_PX.value,
+      stars,
+    }
+    console.log('stars', out)
+    return out
   }
 
 
