@@ -204,14 +204,37 @@ the Sun's 3.0e28 in those units over 4π AU²); Sirius is 7.9e-11 of the Sun.
 keyed one, so the value is right at any exposure (the shared
 `absoluteUniforms` in `hdr.js`, set every frame).
 
-**The patch is a pixel, or the eye's resolution where a pixel is finer.**
-Dark adapted, the eye resolves a point no finer than about 10 arcmin (rod
-acuity, ~20/200), so `Ω = max(Ω_pixel, (10′)²)` = 8.5e-6 sr at least.  A
-1080 px screen at 45° has 2.5′ pixels, a 300 px test viewport 9′: per
-pixel alone the screen would show every star 13× brighter than the test
-render, and the whole Hipparcos catalogue (to magnitude 9-12) as white
-dots.  With the eye's floor the two agree, and the sky's depth is set by the
-exposure, not the display.
+**The limiting magnitude is the parameter** (`exposure.js`
+`LIMITING_MAGNITUDE`, 6.5): the naked eye's at a dark site, dark adapted,
+which is the metered exposure's dark-adapted gain (`METER_GAIN_MAX`, 4e6,
+below).  A star of that magnitude shows `LIMIT_VALUE` there, 0.12 in
+exposure units, 12 of 255 through Neutral's toe: just visible.  Brighter
+stars have 2.5× more light per magnitude (6.0 is 25 of 255, 5.0 110, 4.0
+white and blooming), fainter ones less, down into black smoothly (7.0 a
+dusting at 5, 8 and beyond black): no pop at the limit.  Each magnitude's
+2.5× is compressed by the tone map above 0.76 and steepened by its toe
+below 0.08.  At any other exposure the limit moves with the gain
+(`limitingMagnitude(exposureRelative, starGain)` = 6.5 + 2.5·log10(gain ×
+starGain / 4e6)): by day, at the keyed exposure, −10, so only the Sun,
+the Moon and Venus pass, the same arithmetic at a lower gain; with the
+user's star gain (`ThreeUi.setLimitingMagnitude(m)`, the `[` and `]` keys
+step it by 0.5, as Celestia's do), fainter, as a longer exposure or a
+telescope does: a magnitude more is 2.5× every star's light.  The
+settings and the permalink hold switches (`s=` letters), so the numeric
+limit isn't in them yet.
+
+**The patch** a star's light is spread over follows from the limit: the
+solid angle `EYE_PATCH_SR` at which a star at the limit, at the
+dark-adapted gain, shows `LIMIT_VALUE` (a star's value is
+`DISPLAY_GAIN·π·ratio/Ω·gain`): 8.2e-6 sr, a 9.7 arcmin square, which is
+the dark-adapted eye's resolution of a point (rod acuity, ~20/200, 10
+arcmin).  That coincidence is why the calibration is physical.  The
+patch is that, or a pixel where a pixel is coarser: a 1080 px screen at
+45° has 2.5′ pixels, a 300 px test viewport 9′: per pixel alone the
+screen would show every star 13× brighter than the test render, and the
+whole Hipparcos catalogue (to magnitude 9-12) as white dots.  With the
+patch the two agree, and the sky's depth is set by the exposure, not the
+display.
 
 **The sprite is the patch in pixels**, 1 px on the test viewport and 4 px
 on a 1080 px screen, and its pixels carry the star's light, `L × patch²`,
@@ -229,25 +252,17 @@ radius, which spread Deneb over 110 px; and `d²` in metres overflowed
 float32 past 1,900 ly and zeroed every star beyond.  Values are clamped
 to what the half-float buffer holds (`HDR_MAX_VALUE`, 6e4).
 
-**Calibration: the naked-eye limit.**  At the dark-adapted gain
-(`METER_GAIN_MAX`, 4e6, below) a star of magnitude 6.5 (2.9e-8 of a sunlit
-white over the patch) is 0.12 in exposure units, 12 of 255 through
-Neutral's toe: just visible, the limit at a dark site; 6.0 is 25, 5.0 110,
-4.0 white and blooming, 7.0 a dusting at 5, 8 and beyond black.  Each
-magnitude is 2.5× in light, compressed by the tone map above 0.76 and
-steepened by its toe below 0.08 (×4 in light near the toe is ×8 on
-screen), which is why the ceiling is set by this star and not by a
-luminance: 3e6 put the limit at 6.0, 1e7 at 7.5.  Measured (the probe
-projects every catalogue star and reads its pixel): the night sky from the
-outback at 4e6 shows 242 stars over 10 of 255 to magnitude 6.5 in the 45°
-field (its 2,665 catalogue stars: 114 of 114 in the 6.0 bin at 18 mean,
-32 of 172 in the 6.5 bin at 8), the deep-space field 410; a dark site's
-2,500 stars above the horizon to 6.5 are about 150-270 in such a field.
-Rendered peaks are 0.6-0.8 of the arithmetic (a 1 px point straddling
-pixels).  All 106,747 catalogue stars are drawn (`renderer.info`), none
-culled.  `ThreeUi.setStarGain(g)` scales every star's light (2 is a
-magnitude deeper); a settings and permalink knob would need a numeric
-setting, which `s=` (switches) has no pattern for yet.
+**Measured** (a probe projects every catalogue star, computes its
+apparent magnitude and reads its pixel): the night sky from the outback
+at 4e6 shows 234 stars over 10 of 255 to magnitude 6.5 in the 45° field
+(of its 2,665 catalogue stars: 55 of 102 in the 6.0 bin at a mean of 17,
+36 of 166 in the 6.5 bin at 10), the deep-space field 410 (read at 3.1e6
+of its 4e6, still rising); a dark site's 2,500 stars above the horizon
+to 6.5 are about 150-270 in such a field.  Rendered peaks are 0.6-0.8 of
+the arithmetic (a 1 px point straddling pixels).  All 106,747 catalogue
+stars are drawn (`renderer.info`), none culled.  The ceiling was set by
+this star, not by a luminance: 3e6 put the limit at 6.0, 1e7 at 7.5 (×4
+in light near the toe is ×8 on screen).
 
 **The Sun's disc** (`star-shaders.js`) is `DISPLAY_GAIN / θ²` times the
 granulation texture, θ its angular radius from 1 AU: 69,000 at Earth's

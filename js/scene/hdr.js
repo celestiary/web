@@ -201,9 +201,12 @@ export const absoluteUniforms = {
   uExposureRelative: {value: 1},
   uViewportHeight: {value: 1024},
   uFovDegrees: {value: 45},
-  // The user's gain on the stars' light (ThreeUi.setStarGain): 1 is
-  // physical.
+  // The user's gain on the stars' light (ThreeUi.setLimitingMagnitude): 1
+  // is the naked eye's limit.
   uStarGain: {value: 1},
+  // The eye's patch's side, radians (exposure.js EYE_POINT_RAD; ThreeUi
+  // sets it).
+  uEyePointRad: {value: 10 / 60 * Math.PI / 180},
 }
 
 

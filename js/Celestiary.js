@@ -417,6 +417,16 @@ export default class Celestiary {
         'Toggle performance panel',
         () => this.ui.isPerfPanelVisible(),
         'Info')
+    // The stars' limiting magnitude at a dark site (HDR.md), stepped as
+    // Celestia steps it: 6.5 is the naked eye's.
+    k.map('[', () => this.ui.setLimitingMagnitude(this.ui.userLimitingMagnitude() - 0.5),
+        'Fewer stars (limiting magnitude down 0.5)',
+        undefined,
+        'Info')
+    k.map(']', () => this.ui.setLimitingMagnitude(this.ui.userLimitingMagnitude() + 0.5),
+        'More stars (limiting magnitude up 0.5)',
+        undefined,
+        'Info')
 
     // === Labels ===
     k.map('p', () => {

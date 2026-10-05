@@ -99,10 +99,9 @@ export function exposureRelative(exposure) {
 
 /**
  * The solid angle a point source's light lands in, steradians: one pixel,
- * for a vertical field of view over a viewport height, or the dark-adapted
- * eye's resolution of a point (EYE_POINT_RAD) where a pixel is finer.  The
- * stars' shader does the same (shaders/stars.vert; HDR.md "Physical
- * stars").
+ * for a vertical field of view over a viewport height, or the eye's patch
+ * (EYE_POINT_RAD) where a pixel is finer.  The stars' shader does the same
+ * (shaders/stars.vert; HDR.md "Physical stars").
  *
  * @param {number} fovDegrees
  * @param {number} heightPx
@@ -112,10 +111,6 @@ export function pointSolidAngle(fovDegrees, heightPx) {
   const radPerPx = Math.max((fovDegrees * Math.PI / 180) / Math.max(heightPx, 1), EYE_POINT_RAD)
   return radPerPx * radPerPx
 }
-
-
-/** The eye's resolution of a point, dark adapted: 10 arcmin, in radians. */
-export const EYE_POINT_RAD = 10 / 60 * Math.PI / 180
 
 
 /**
@@ -257,3 +252,71 @@ export const METER_TAU_UP_SECONDS = 1.5
 export const METER_TAU_DOWN_SECONDS = 0.3
 /** Frames between meterings. */
 export const METER_EVERY_FRAMES = 4
+
+
+/**
+ * The limiting magnitude (HDR.md, "Physical stars"): the naked eye's at a
+ * dark site, dark adapted, which is the metered exposure's dark-adapted
+ * gain (METER_GAIN_MAX).  The one parameter the star field is calibrated
+ * on: a star of this magnitude shows LIMIT_VALUE there, brighter ones
+ * 2.5× more light per magnitude, fainter ones less, down into black
+ * smoothly (no pop); the eye's patch, over which a star's light is
+ * spread, follows from it (EYE_PATCH_SR).  At any other exposure the
+ * limit moves with the gain (limitingMagnitude): by day only the planets
+ * and the brightest stars; with a user's star gain, fainter (a longer
+ * exposure, a telescope).
+ */
+export const LIMITING_MAGNITUDE = 6.5
+/**
+ * What a star at the limit shows, in exposure units: 12 of 255 through
+ * Neutral's toe, just visible.
+ */
+export const LIMIT_VALUE = 0.12
+/** The Sun's apparent magnitude. */
+export const SUN_APPARENT_MAGNITUDE = -26.74
+
+
+/**
+ * @param {number} magnitude Apparent
+ * @returns {number} The star's illuminance over the Sun's at 1 AU
+ */
+export function illuminanceRatio(magnitude) {
+  return Math.pow(10, -0.4 * (magnitude - SUN_APPARENT_MAGNITUDE))
+}
+
+
+/**
+ * The eye's patch, steradians: the solid angle a point's light is spread
+ * over, so that a star at LIMITING_MAGNITUDE shows LIMIT_VALUE at the
+ * dark-adapted gain (a star's value is DISPLAY_GAIN·π·ratio/Ω·gain,
+ * stars.vert).  8.2e-6 sr, a 9.9 arcmin square: the dark-adapted eye's
+ * resolution of a point (rod acuity, ~20/200, 10 arcmin), which is why
+ * the calibration is physical.
+ */
+export const EYE_PATCH_SR = DISPLAY_GAIN * Math.PI * illuminanceRatio(LIMITING_MAGNITUDE) * METER_GAIN_MAX / LIMIT_VALUE
+/** The eye's patch's side, radians. */
+export const EYE_POINT_RAD = Math.sqrt(EYE_PATCH_SR)
+
+
+/**
+ * The limiting magnitude at an exposure: the magnitude whose star shows
+ * LIMIT_VALUE at this gain over Earth's keyed exposure (exposureRelative)
+ * times the user's star gain.  6.5 at the dark-adapted gain; −10 at the
+ * keyed exposure by day, where only the Sun, the Moon and Venus pass.
+ *
+ * @param {number} gainOverKeyed The exposure over Earth's keyed one (exposureRelative)
+ * @param {number} starGain
+ * @returns {number}
+ */
+export function limitingMagnitude(gainOverKeyed, starGain = 1) {
+  return LIMITING_MAGNITUDE + (2.5 * Math.log10(Math.max(gainOverKeyed * starGain, 1e-300) / METER_GAIN_MAX))
+}
+
+
+/**
+ * @param {number} magnitude The limit wanted at the dark-adapted gain
+ * @returns {number} The star gain that puts it there (1 at LIMITING_MAGNITUDE)
+ */
+export function starGainForLimit(magnitude) {
+  return Math.pow(10, 0.4 * (magnitude - LIMITING_MAGNITUDE))
+}

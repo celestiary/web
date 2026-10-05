@@ -1,7 +1,8 @@
 import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
 import {
   METER_FLOOR, METER_GAIN_MAX, METER_GAIN_MIN, METER_HIGHLIGHT, METER_HIGHLIGHT_MAX, METER_KEY, easeExposure, exposureAt,
-  exposureRelative, irradianceAt, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure,
+  EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
+  meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit,
 } from './exposure.js'
 import {HDR_MAX_VALUE} from './hdr.js'
 
@@ -164,11 +165,30 @@ describe('metered exposure', () => {
     expect(exposureRelative(exposureAt(1.52 * ASTRO_UNIT_METER))).toBeGreaterThan(1)
   })
 
-  it('a point\'s solid angle: a pixel, or the eye\'s 10 arcmin where a pixel is finer', () => {
+  it('the limiting magnitude: the naked eye\'s at the dark-adapted gain, moving with the exposure', () => {
+    expect(limitingMagnitude(METER_GAIN_MAX)).toBeCloseTo(LIMITING_MAGNITUDE, 12)
+    // A magnitude is 2.5× in light: 2.5× the gain is a magnitude fainter.
+    expect(limitingMagnitude(METER_GAIN_MAX * 2.512)).toBeCloseTo(LIMITING_MAGNITUDE + 1, 3)
+    expect(limitingMagnitude(METER_GAIN_MAX, 2.512)).toBeCloseTo(LIMITING_MAGNITUDE + 1, 3)
+    // By day, at the keyed exposure: the Sun, the Moon and Venus (−4.5).
+    expect(limitingMagnitude(1)).toBeLessThan(-4.5)
+    expect(limitingMagnitude(1)).toBeGreaterThan(-13)
+    expect(starGainForLimit(LIMITING_MAGNITUDE)).toBeCloseTo(1, 12)
+    expect(starGainForLimit(LIMITING_MAGNITUDE + 2.5)).toBeCloseTo(10, 9)
+    // The eye's patch follows: a star at the limit shows LIMIT_VALUE at the
+    // dark-adapted gain, and the patch is the dark-adapted eye's 10 arcmin.
+    const value = DISPLAY_GAIN * Math.PI * illuminanceRatio(LIMITING_MAGNITUDE) / (EYE_POINT_RAD * EYE_POINT_RAD) * METER_GAIN_MAX
+    expect(value).toBeCloseTo(LIMIT_VALUE, 12)
+    expect(EYE_POINT_RAD * 180 / Math.PI * 60).toBeCloseTo(10, 0)
+    // Sirius is 7.9e-11 of the Sun; the Sun is magnitude −26.74.
+    expect(illuminanceRatio(-1.46)).toBeCloseTo(7.73e-11, 13)
+  })
+
+  it('a point\'s solid angle: a pixel, or the eye\'s patch where a pixel is finer', () => {
     // 45 degrees over 200 pixels: 3.9e-3 rad a pixel, coarser than the eye.
     expect(pointSolidAngle(45, 200)).toBeCloseTo(1.54e-5, 7)
     // Over 1080 pixels: 0.73e-3 rad a pixel; the eye's 2.9e-3 rad stands.
-    expect(pointSolidAngle(45, 1080)).toBeCloseTo(8.46e-6, 8)
-    expect(pointSolidAngle(45, 300)).toBeCloseTo(8.46e-6, 8)
+    expect(pointSolidAngle(45, 1080)).toBeCloseTo(EYE_POINT_RAD * EYE_POINT_RAD, 9)
+    expect(pointSolidAngle(45, 300)).toBeCloseTo(EYE_POINT_RAD * EYE_POINT_RAD, 9)
   })
 })

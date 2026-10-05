@@ -108,6 +108,12 @@ class StubThreeUI {
     this.onCameraChange?.()
   }
   addClickCb() {}
+  setLimitingMagnitude() {}
+
+  userLimitingMagnitude() {
+    return 6.5
+  }
+
   togglePerfPanel() {
     this.perfToggles = (this.perfToggles || 0) + 1
     return true
