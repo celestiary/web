@@ -16,6 +16,11 @@ varying float vSigma;
 // Gaussian is over white across most of the quad, is a round saturated
 // core with a soft halo and never the quad's square.
 void main() {
+  if (vSigma <= 0.0) {
+    // One pixel, flat: the pixel is the patch (stars.vert).
+    gl_FragColor = vec4(vColor * vBrightness, 1.);
+    return;
+  }
   vec2 px = (gl_PointCoord.xy - 0.5) * vSize;
   float r2 = dot(px, px);
   float k = exp(-r2 / (2.0 * vSigma * vSigma));
