@@ -121,7 +121,6 @@ export default class Star extends Object {
         iTime: {value: 1.0},
         iResolution: {value: new Vector2},
         iScale: {value: 100.0},
-        iDist: {value: 1.0},
       },
       vertexShader: Shaders.VERTEX_SHADER,
       fragmentShader: Shaders.FRAGMENT_SHADER,
@@ -141,8 +140,6 @@ export default class Star extends Object {
       time = Math.log(1 + (time.simTimeElapsed * 8E-7))
       if (Shared.targets.pos) {
         this.shaderMaterial.uniforms.iTime.value = time * 4
-        const d = Shared.targets.pos.distanceTo(this.ui.camera.position)
-        this.shaderMaterial.uniforms.iDist.value = d * 8E-9
       }
     }
   }

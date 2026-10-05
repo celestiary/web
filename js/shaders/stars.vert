@@ -65,6 +65,11 @@ const float BLOOM_SIGMA_PX_PER_DECADE = 0.75;
 // window (stars.frag) takes it to zero inside the quad, so a star is
 // round at every exposure; a quad that saturated to its edge was a square.
 const float VISIBLE_VALUE = 0.004;
+// The saturated core's largest radius, in patches: the eye's glare has a
+// core of about 20′ with the halo falling off round it, whatever the
+// light (the Sun from 52 AU was a 120 px disc without this); past the
+// cap the light is lost, as it is to a saturated retina.
+const float GLARE_CORE_PATCHES = 2.0;
 // A user's gain on every star's light (ThreeUi.setStarGain; 1 is physical).
 uniform float uStarGain;
 // Half-float's largest value, the scene buffer's.
@@ -130,6 +135,10 @@ void main() {
   vSigma = sigma0 + BLOOM_SIGMA_PX_PER_DECADE * decadesOverWhite;
   float kernelSum = 2.0 * PI * vSigma * vSigma;
   float peak = min(light / kernelSum, MAX_VALUE);
+  // The glare cap: the peak is at most what puts the kernel at white
+  // (0.76, the tone map's shoulder) GLARE_CORE_PATCHES patches out.
+  float coreMax = GLARE_CORE_PATCHES * patchPx;
+  peak = min(peak, 0.76 * exp(coreMax * coreMax / (2.0 * vSigma * vSigma)));
   float visibleRadius = vSigma * sqrt(2.0 * log(max(peak / VISIBLE_VALUE, 1.0)));
   vSize = clamp(2.0 * visibleRadius + 2.0, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
   gl_PointSize = vSize;

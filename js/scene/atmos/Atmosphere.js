@@ -17,7 +17,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three'
-import {NEUTRAL_GLSL, sceneReferred} from '../hdr.js'
+import {NEUTRAL_GLSL, absoluteUniforms} from '../hdr.js'
 import {sphere} from '../shapes'
 import {MIE_PHASE_GLSL, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
 
@@ -266,8 +266,12 @@ export function newAtmosphere(radiusMeters) {
     radius: radiusMeters,
     // wireframe: true,
     // color: 0x0000ff,
-    // A glow in display values (hdr.js).
-    matr: sceneReferred(new ShaderMaterial({
+    // The Sun's limb glow, in exposure units as its disc is (Star.js,
+    // star-shaders.js): the disc's radiance times the shell's falloff.
+    // As a glow in display values it stayed white while the metered
+    // exposure brought the disc down to show its granulation: a bright
+    // rim round a grey disc (the user's preview).
+    matr: new ShaderMaterial({
       vertexShader: `varying vec3 vNormal;
 varying vec3 eyeVector;
 
@@ -289,6 +293,7 @@ varying vec3 eyeVector;
 uniform float atmOpacity;
 uniform float atmPowFactor;
 uniform float atmMultiplier;
+uniform float uExposureRelative;
 
 void main() {
     // Starting from the rim to the center at the back, dotP would increase from 0 to 1
@@ -297,7 +302,10 @@ void main() {
     float factor = pow(dotP, atmPowFactor) * atmMultiplier;
     // Adding in a bit of dotP to the color to make it whiter while the color intensifies
     float intensity = dotP;
-    vec3 atmColor = vec3(intensity, intensity, intensity);
+    // The disc's radiance (star-shaders.js SUN_RADIANCE, within the
+    // half-float buffer), so the glow follows the exposure as the disc does.
+    float radiance = min(1.5 * 46238.0 * uExposureRelative, 6.0e4);
+    vec3 atmColor = vec3(intensity, intensity, intensity) * radiance;
     // use atmOpacity to control the overall intensity of the atmospheric color
     gl_FragColor = vec4(atmColor, atmOpacity) * factor;
 }`,
@@ -305,6 +313,7 @@ void main() {
         atmOpacity: {value: 0.9},
         atmPowFactor: {value: 1.1},
         atmMultiplier: {value: 9.5},
+        uExposureRelative: absoluteUniforms.uExposureRelative,
       },
       // Such that it does not overlays on top of the earth; this points the
       // normal in opposite direction in vertex shader
@@ -318,8 +327,8 @@ void main() {
       depthTest: true,
       depthWrite: false,
       transparent: true,
-      // toneMapped: false,
-    })),
+      toneMapped: false,
+    }),
   })
   return shape
 }

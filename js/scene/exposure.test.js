@@ -3,7 +3,7 @@ import {
   METER_FLOOR, METER_GAIN_MAX, METER_GAIN_MIN, METER_HIGHLIGHT, METER_HIGHLIGHT_MAX, METER_KEY, easeExposure, exposureAt,
   EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
-  STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE,
+  sunlitBodyCap, HIGHLIGHT_ALBEDO_FACTOR, STAR_GLARE_CORE_PATCHES, STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE,
 } from './exposure.js'
 import {readFileSync} from 'fs'
 import {HDR_MAX_VALUE} from './hdr.js'
@@ -106,11 +106,12 @@ describe('metered exposure', () => {
     // A clipped highlight, not a frame to darken.
     expect(meteredGain(m(0.4, 6, 12, 0.5), 1)).toBe(1)
     // The Sun's disc, 46,000 whites, over a quarter of the frame: brought
-    // to a white.
-    expect(meteredGain(m(100, 6.9e4, 6.9e4, 6.9e4), 1)).toBeCloseTo(METER_HIGHLIGHT_MAX / 6.9e4, 12)
+    // to a sunlit surface (0.6), where the tone map keeps its
+    // granulation's contrast; at a white (1.5) the shoulder flattened it.
+    expect(meteredGain(m(100, 6.9e4, 6.9e4, 6.9e4), 1)).toBeCloseTo(METER_HIGHLIGHT / 6.9e4, 12)
     expect(meteredGain(m(100, 1e9, 1e9, 1e9), 1)).toBe(METER_GAIN_MIN)
-    // Rendered at that gain, the disc reads as a white and asks for the same.
-    const g = METER_HIGHLIGHT_MAX / 6.9e4
+    // Rendered at that gain, the disc reads as it did and asks for the same.
+    const g = METER_HIGHLIGHT / 6.9e4
     expect(meteredGain(m(100 * g, 6.9e4 * g, 6.9e4 * g, 6.9e4 * g), g)).toBeCloseTo(g, 12)
   })
 
@@ -201,6 +202,89 @@ describe('metered exposure', () => {
     // Over 1080 pixels: 0.73e-3 rad a pixel; the eye's 2.9e-3 rad stands.
     expect(pointSolidAngle(45, 1080)).toBeCloseTo(EYE_POINT_RAD * EYE_POINT_RAD, 9)
     expect(pointSolidAngle(45, 300)).toBeCloseTo(EYE_POINT_RAD * EYE_POINT_RAD, 9)
+  })
+})
+
+
+describe('the glare cap', () => {
+  const mag = (m) => illuminanceRatio(m)
+
+  it('bounds the saturated core at two patches from Sirius to the Sun at 5 AU, the halo growing with the log of the light', () => {
+    // At 1080p (a 4 px patch): Sirius's core just reaches the cap; Venus,
+    // the Sun from 52 AU and from 5 AU are held there, their halos wider.
+    const sirius = starSprite(mag(-1.46), METER_GAIN_MAX, {heightPx: 1080})
+    const venus = starSprite(mag(-4.6), METER_GAIN_MAX, {heightPx: 1080})
+    const sun52 = starSprite(1 / (52 * 52), METER_GAIN_MAX, {heightPx: 1080})
+    const sun5 = starSprite(1 / (5 * 5), METER_GAIN_MAX, {heightPx: 1080})
+    for (const star of [sirius, venus, sun52, sun5]) {
+      expect(star.coreRadiusPx).toBeLessThanOrEqual((STAR_GLARE_CORE_PATCHES * star.patchPx) + 1e-9)
+      expect(star.sizePx).toBeLessThan(STAR_MAX_SIZE_PX)
+      expect(Number.isFinite(star.peak) && star.peak > 0.76).toBe(true)
+    }
+    expect(venus.sizePx).toBeGreaterThan(sirius.sizePx)
+    expect(sun52.sizePx).toBeGreaterThan(venus.sizePx)
+    expect(sun5.sizePx).toBeGreaterThan(sun52.sizePx)
+    // The Sun from 52 AU: a 16 px core in a halo under 60 px, not 120 px.
+    expect(sun52.sizePx).toBeLessThan(60)
+    // From a light-year it is a star of magnitude 4.8: no cap, a point
+    // just at white (1.14 on a screen at the dark gain).
+    const sunLy = starSprite(mag(4.83), METER_GAIN_MAX, {heightPx: 1080})
+    expect(sunLy.glareCapped).toBe(false)
+    expect(sunLy.coreRadiusPx).toBeLessThan(1.5)
+  })
+
+  it('leaves the fainter stars alone', () => {
+    for (const m of [0, 1, 3, 6]) {
+      expect(starSprite(mag(m), METER_GAIN_MAX, {heightPx: 1080}).glareCapped).toBe(false)
+    }
+  })
+})
+
+
+describe('a sunlit body in the frame', () => {
+  const earth = exposureAt(ASTRO_UNIT_METER)
+  const moonRad = 1.7381e6 / 3.844e8
+  const moon = {angularRadius: moonRad, litFraction: 1, keyedExposure: earth, albedo: 0.12}
+
+  it('anchors the gain so its brightest surface is a white: the full Moon from Earth\'s night side at 3.3', () => {
+    const cap = sunlitBodyCap([moon], earth)
+    expect(cap).toBeCloseTo(METER_HIGHLIGHT_MAX / (DISPLAY_GAIN * Math.min(HIGHLIGHT_ALBEDO_FACTOR * 0.12, 1)), 9)
+    expect(cap).toBeCloseTo(3.33, 1)
+    // The dark frame round it, which asked for 4e6, is held there.
+    const dark = {meanLog: Math.log(1e-12), highlight: 1e-12, blown: 1e-12, max: 1e-6}
+    expect(meteredGain(dark, 1, true, 1, cap)).toBeCloseTo(cap, 9)
+    // A crescent Earth from 94,000 km, 3.9° across, albedo 0.37: about 1.1.
+    const crescent = {angularRadius: 6.371e6 / 9.4e7, litFraction: 0.2, keyedExposure: earth, albedo: 0.367}
+    expect(sunlitBodyCap([crescent], earth)).toBeCloseTo(1.09, 1)
+  })
+
+  it('is a point unless its disc is wider than the eye\'s patch, and dark at new', () => {
+    // Jupiter from Earth, 40″: a star of the night.
+    expect(sunlitBodyCap([{...moon, angularRadius: 20 / 3600 * Math.PI / 180}], earth)).toBe(Infinity)
+    expect(sunlitBodyCap([{...moon, litFraction: 0}], earth)).toBe(Infinity)
+    expect(sunlitBodyCap([], earth)).toBe(Infinity)
+    // Infinity leaves meteredGain's own answer alone.
+    const dark = {meanLog: Math.log(1e-12), highlight: 1e-12, blown: 1e-12, max: 1e-6}
+    expect(meteredGain(dark, 1, true, 1, Infinity)).toBeCloseTo(METER_GAIN_MAX, 6)
+  })
+
+  it('needs the disc in the frame and a twentieth of it lit: not the ground from its night side, nor a limb crescent', () => {
+    const halfFov = 22.5 * Math.PI / 180
+    // Earth from 20 m up: a disc of 90°, far over the frame; its lit side
+    // is beyond the horizon.
+    expect(sunlitBodyCap([{...moon, angularRadius: 89 * Math.PI / 180, litFraction: 0.2}], earth, halfFov)).toBe(Infinity)
+    // From 20,000 km (14°) it fits; at 64° phase it anchors, at 165°
+    // (a limb crescent, 2% of the disc) it doesn't: the cities show.
+    const orbit = {...moon, angularRadius: 14 * Math.PI / 180, albedo: 0.367}
+    expect(sunlitBodyCap([{...orbit, litFraction: (1 + Math.cos(64 * Math.PI / 180)) / 2}], earth, halfFov)).toBeCloseTo(1.09, 1)
+    expect(sunlitBodyCap([{...orbit, litFraction: (1 + Math.cos(165 * Math.PI / 180)) / 2}], earth, halfFov)).toBe(Infinity)
+  })
+
+  it('never takes the gain under 1: the target keeps its keyed exposure', () => {
+    // From Pluto's keyed exposure (40× Earth's), a resolved Earth would ask
+    // for 0.03; the floor is 1.
+    const pluto = exposureAt(39.5 * ASTRO_UNIT_METER)
+    expect(sunlitBodyCap([{...moon, albedo: 1}], pluto)).toBe(1)
   })
 })
 
@@ -298,11 +382,13 @@ describe('the star sprite', () => {
   })
 
   it('the Sun: a point from Pluto, its disc from Earth', () => {
-    const fromPluto = starSprite(1 / (39.5 * 39.5), METER_GAIN_MAX, {discRad: 2 * 6.957e8 / 5.9e12})
-    expect(fromPluto.peak).toBe(HDR_MAX_VALUE)
-    expect(fromPluto.sizePx).toBeGreaterThan(60)
-    expect(fromPluto.sizePx).toBeLessThanOrEqual(STAR_MAX_SIZE_PX)
-    expect(fromPluto.coreRadiusPx).toBeLessThan(fromPluto.sizePx / 2)
+    const fromPluto = starSprite(1 / (39.5 * 39.5), METER_GAIN_MAX, {discRad: 2 * 6.957e8 / 5.9e12, heightPx: 1080})
+    // 1e9 over white: the glare cap holds its core to two patches (8 px at
+    // 1080p) with the halo falling off round it, not a 120 px disc.
+    expect(fromPluto.glareCapped).toBe(true)
+    expect(fromPluto.coreRadiusPx).toBeCloseTo(STAR_GLARE_CORE_PATCHES * fromPluto.patchPx, 6)
+    expect(fromPluto.sizePx).toBeGreaterThan(2 * fromPluto.coreRadiusPx)
+    expect(fromPluto.sizePx).toBeLessThan(STAR_MAX_SIZE_PX)
     // From Earth the disc is 32 arcmin, over the patch's 10: the point
     // fades by (10/32)², and the mesh draws the disc.
     const point = starSprite(1, 1)

@@ -26,7 +26,7 @@ import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   METER_EVERY_FRAMES, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, easeExposure, exposureAt, exposureRelative,
   LIMITING_MAGNITUDE, frameCanBeEmpty, illuminanceRatio, limitingMagnitude, meanLogLuminance, meteredGain,
-  skyExposure, starGainForLimit, starSprite,
+  skyExposure, starGainForLimit, starSprite, sunlitBodyCap,
 } from './scene/exposure.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
@@ -624,8 +624,10 @@ export default class ThreeUi {
     // The dark end is absolute, over Earth's keyed exposure (meteredGain).
     // A frame of zeros means "nothing drawn yet" only while the scene
     // loads (frameCanBeEmpty): once loaded, black is dark.
+    // A resolved sunlit body in the frame anchors the gain (sunlitBodyCap).
+    this._meterCap = sunlitBodyCap(this._sunlitBodies(), this._exposureGoal, this.camera.fov * Math.PI / 360)
     const gain = meteredGain(metered, renderedOverKeyed, this._frameCanBeEmpty(),
-        this._exposureGoal / exposureAt(ASTRO_UNIT_METER))
+        this._exposureGoal / exposureAt(ASTRO_UNIT_METER), this._meterCap)
     // What was read, at the keyed exposure, for probing (HDR.md).
     this._meterLast = {
       mean: Math.exp(metered.meanLog) / renderedOverKeyed,
@@ -654,6 +656,63 @@ export default class ThreeUi {
     this._starsPoints ??= this.scene.getObjectByName('StarsPoints') ?? null
     const target = targets.obj
     return frameCanBeEmpty(this.hdr, Boolean(this._starsPoints), !target || target.surfaceReady?.() !== false)
+  }
+
+
+  /**
+   * The planets and moons in the frame, for the meter's sunlit-body anchor
+   * (exposure.js sunlitBodyCap): each one's angular radius, lit fraction
+   * (from its phase angle), keyed exposure at its distance from the Sun,
+   * and Bond albedo.  A body whose centre projects within the frame plus
+   * its own radius counts; one not drawn (its LOD, or hidden) doesn't.
+   *
+   * @returns {Array<{angularRadius: number, litFraction: number, keyedExposure: number, albedo: number}>}
+   */
+  _sunlitBodies() {
+    const objects = this.sceneManager?.objects
+    if (!objects) {
+      return []
+    }
+    this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
+    this._sunlitVectors ??= [new Vector3(), new Vector3(), new Vector3(), new Vector3()]
+    const [sun, cam, body, ndc] = this._sunlitVectors
+    if (this._worldGroup) {
+      this._worldGroup.getWorldPosition(sun)
+    } else {
+      sun.set(0, 0, 0)
+    }
+    this.camera.getWorldPosition(cam)
+    const bodies = []
+    for (const name of Object.keys(objects)) {
+      const o = objects[name]
+      const type = o?.props?.type
+      if ((type !== 'planet' && type !== 'moon') || !o.props.radius || !o.visible || name.endsWith('.orbitPosition')) {
+        continue
+      }
+      o.getWorldPosition(body)
+      const distance = body.distanceTo(cam)
+      const radius = o.props.radius.scalar
+      if (!(distance > radius)) {
+        continue
+      }
+      const angularRadius = Math.asin(radius / distance)
+      ndc.copy(body).project(this.camera)
+      const marginY = angularRadius / (this.camera.fov * Math.PI / 360)
+      const marginX = marginY / Math.max(this.camera.aspect, 1e-6)
+      if (!(ndc.z < 1 && ndc.z > -1 && Math.abs(ndc.x) < 1 + marginX && Math.abs(ndc.y) < 1 + marginY)) {
+        continue
+      }
+      const toSun = sun.clone().sub(body)
+      const toCam = cam.clone().sub(body)
+      const cosPhase = toSun.lengthSq() > 0 ? toSun.normalize().dot(toCam.normalize()) : 1
+      bodies.push({
+        angularRadius,
+        litFraction: (1 + cosPhase) / 2,
+        keyedExposure: exposureAt(Math.max(body.distanceTo(sun), 1)),
+        albedo: o.props.albedo,
+      })
+    }
+    return bodies
   }
 
 
@@ -688,6 +747,8 @@ export default class ThreeUi {
       meterGain: this._meterGain,
       meterGainGoal: this._meterGainGoal,
       meterLast: this._meterLast ?? null,
+      meterCap: this._meterCap ?? Infinity,
+      sunlitBodies: this._sunlitBodies(),
       frameCanBeEmpty: this._frameCanBeEmpty(),
       exposureRelative: gain,
       starGain,

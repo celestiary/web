@@ -493,6 +493,32 @@ catalogue loaded, the target's surface in).  Where a check depends on the
 GPU, give the user a way to read the state on their machine
 (`c.ui.starsDebug()`) rather than guessing from here.
 
+### A whole-frame meter can't see a small lit thing; the scene can
+
+PR #153's metered exposure keyed on percentiles of a 32×32 readback: the
+brightest 2% held the gain at 1 for a sunlit scene.  Earth's crescent from
+94,000 km is 0.4% of the frame, so the frame read as a dark field, ran to
+the dark-adapted gain, and the crescent was a flat white.  A lower
+percentile is hit by the stars' own pixels and would pin the dark gain a
+magnitude short, flickering with the taps.  The scene knows what is lit:
+every planet and moon's angular size, phase and albedo are a few vector
+ops per meter tick (`sunlitBodyCap`), and from them the gain at which the
+body's brightest sunlit surface is a white.  Checking the rule against the
+night-side cases found two guards it needed (the disc must fit the frame;
+a twentieth of it must be lit) before the first render.
+
+**Rule:** when a pixel statistic has to tell two things apart (a small
+lit body from a star field; an empty frame from a dark one), ask whether
+the scene already knows, and use that.  And before rendering a new
+exposure rule, walk it through the night-side and landed views by hand:
+they are where "in view" and "lit" come apart.
+
+**SwiftShader's Sun is non-finite**, not black: its noise shader yields
+NaN, the tone map makes it black, and the meter counts a non-finite pixel
+as the maximum, so any frame with the Sun's disc in it runs the gain to
+its floor here.  Read the state, and reason the real GPU's number from
+the rule; don't tune the Sun's exposure against a SwiftShader frame.
+
 ### Screenshots communicate visual bugs better than words
 
 "A grid of large blooms on the ocean texture" and "distinct rings floating up in space" were

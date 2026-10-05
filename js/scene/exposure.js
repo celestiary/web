@@ -173,9 +173,13 @@ export function pointSolidAngle(fovDegrees, heightPx) {
  * @param {boolean} canBeEmpty Whether a frame of zeros means nothing drawn
  *   yet (frameCanBeEmpty), rather than a dark scene
  * @param {number} keyedOverEarth The target-keyed exposure over Earth's
+ * @param {number} gainCap A ceiling on the gain from what is known to be in
+ *   the frame (sunlitBodyCap): a resolved sunlit body anchors the exposure
+ *   whatever fraction of the frame it is.  Never under 1.
  * @returns {number|null} The gain the scene asks for; null for no scene
  */
-export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed, canBeEmpty = true, keyedOverEarth = 1) {
+export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed, canBeEmpty = true, keyedOverEarth = 1,
+    gainCap = Infinity) {
   if (canBeEmpty && !(max > 0)) {
     return null
   }
@@ -184,13 +188,77 @@ export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed,
   const highlightAtKeyed = highlight / rendered
   const blownAtKeyed = blown / rendered
   if (blownAtKeyed > METER_HIGHLIGHT_MAX) {
-    return Math.max(METER_HIGHLIGHT_MAX / blownAtKeyed, METER_GAIN_MIN)
+    // Brought to a sunlit surface (METER_HIGHLIGHT), not to a white: at
+    // a white the tone map's shoulder flattened the Sun's granulation
+    // (0.5-1 of its texture into 0.78-0.95 of the display: a flat grey
+    // disc on the user's preview).
+    return Math.max(METER_HIGHLIGHT / blownAtKeyed, METER_GAIN_MIN)
   }
   const floor = METER_FLOOR * Math.max(keyedOverEarth, 1e-30)
   const byMean = METER_KEY / Math.max(lumaAtKeyed, floor)
   const byHighlight = METER_HIGHLIGHT / Math.max(highlightAtKeyed, floor)
-  return Math.min(Math.max(Math.min(byMean, byHighlight), 1), METER_GAIN_MAX / Math.max(keyedOverEarth, 1e-30))
+  const gain = Math.min(Math.max(Math.min(byMean, byHighlight), 1), METER_GAIN_MAX / Math.max(keyedOverEarth, 1e-30))
+  return Math.min(gain, Math.max(gainCap, 1))
 }
+
+
+/**
+ * A resolved sunlit body in the frame anchors the exposure, whatever
+ * fraction of the frame it is (the meter's percentile rules miss a
+ * crescent under 2% of the pixels, and ran a frame with Earth's crescent
+ * in it to the dark-adapted gain: the crescent a flat white, the user's
+ * preview).  An eye or a camera does the same: it won't blow out the
+ * one lit thing in view.  The cap is the gain at which the body's
+ * brightest sunlit pixel is a white (METER_HIGHLIGHT_MAX): its sunlit
+ * white at the target-keyed exposure is DISPLAY_GAIN × keyed(target) /
+ * keyed(body), and its brightest surface is HIGHLIGHT_ALBEDO_FACTOR
+ * times its Bond albedo (Earth's clouds 0.9 over 0.37, the Moon's
+ * highlands 0.2 over 0.12), to 1.  The Moon from Earth's night side:
+ * 3.3, its highlands white and its maria at 0.6; Earth's crescent from
+ * 94,000 km: 1.1, the clouds just white.  A body is resolved when its
+ * disc is wider than the eye's patch (EYE_POINT_RAD): Jupiter from Earth
+ * (40″) is a point and stays a star of the night; the Moon (31′) and a
+ * planet from orbit anchor.  Only a disc that fits in the frame
+ * (angularRadius at most halfFov) anchors: the lit fraction is the whole
+ * disc's, and from the ground or low orbit on a body's night side the lit
+ * part is outside the frame; there the keyed exposure and the percentile
+ * rules have the sunlit ground, and the dark ground adapts.  And only
+ * when at least LIT_FRACTION_MIN of the disc is lit: a thin limb crescent
+ * (phase past 154°) doesn't hold the night side of Earth from orbit at
+ * the keyed exposure and put out its cities.  Never under 1: the
+ * target's own sunlit side keeps its keyed exposure.
+ *
+ * @param {Array<{angularRadius: number, litFraction: number, keyedExposure: number, albedo: number}>} bodies
+ *   Each body in view: its angular radius (radians), its lit fraction
+ *   ((1 + cos phase) / 2), exposureAt its distance from the Sun, and its
+ *   Bond albedo
+ * @param {number} targetKeyedExposure exposureAt the exposure target's distance
+ * @param {number} [halfFov] Half the vertical field of view, radians
+ * @returns {number} The gain cap; Infinity for no resolved sunlit body
+ */
+export function sunlitBodyCap(bodies, targetKeyedExposure, halfFov = Math.PI) {
+  let cap = Infinity
+  for (const {angularRadius, litFraction, keyedExposure, albedo} of bodies) {
+    if (!(angularRadius >= EYE_POINT_RAD / 2) || !(angularRadius <= halfFov) || !(litFraction >= LIT_FRACTION_MIN) ||
+        !(keyedExposure > 0)) {
+      continue
+    }
+    const white = DISPLAY_GAIN * targetKeyedExposure / keyedExposure
+    const highlightAlbedo = Math.min(HIGHLIGHT_ALBEDO_FACTOR * (albedo > 0 ? albedo : 0.3), 1)
+    cap = Math.min(cap, METER_HIGHLIGHT_MAX / (white * highlightAlbedo))
+  }
+  return Math.max(cap, 1)
+}
+
+
+/**
+ * A body's brightest sunlit surface over its Bond albedo (sunlitBodyCap):
+ * Earth's clouds are 0.9 over its 0.37, the Moon's highlands 0.2 over
+ * its 0.12.
+ */
+export const HIGHLIGHT_ALBEDO_FACTOR = 2.5
+/** The least of a body's disc that must be lit for it to anchor the gain (sunlitBodyCap). */
+export const LIT_FRACTION_MIN = 0.05
 
 
 /**
@@ -281,8 +349,12 @@ export const METER_HIGHLIGHT = 0.6
 export const METER_HIGHLIGHT_MAX = DISPLAY_GAIN
 /** The share of the frame that must be over it for the gain to fall. */
 export const METER_BLOWN_FRACTION = 0.25
-/** The least the metered exposure falls to under the target-keyed one. */
-export const METER_GAIN_MIN = 1e-5
+/**
+ * The least the metered exposure falls to under the target-keyed one: the
+ * Sun's disc, 6e4 in the buffer, brought to METER_HIGHLIGHT needs 1e-5,
+ * with room.
+ */
+export const METER_GAIN_MIN = 5e-6
 /**
  * The metered gain's adaptation time constants, seconds (log space): up,
  * as the eye adapts to the dark, slowly; down, to the light, fast, as a
@@ -376,7 +448,7 @@ export function starGainForLimit(magnitude) {
  * @param {number} [opts.starGain] The user's gain
  * @param {number} [opts.discRad] The star's disc's angular diameter, radians
  * @returns {{value: number, patchPx: number, sigma: number, peak: number,
- *   sizePx: number, coreRadiusPx: number, flat: boolean}} value is the
+ *   sizePx: number, coreRadiusPx: number, flat: boolean, glareCapped: boolean}} value is the
  *   radiance in exposure units; coreRadiusPx where the kernel passes white
  *   (0.76 after the tone map's shoulder), 0 for a star under it; flat for
  *   the one-pixel sprite of a coarse viewport (sigma 0)
@@ -397,11 +469,16 @@ export function starSprite(ratio, gainOverEarth, {fovDegrees = 45, heightPx = 30
   }
   const decades = Math.max(Math.log10(Math.max(peak0, 1e-30)), 0)
   const sigma = sigma0 + (STAR_BLOOM_SIGMA_PX_PER_DECADE * decades)
-  const peak = Math.min(light / (2 * Math.PI * sigma * sigma), HDR_MAX_VALUE)
+  const peakRaw = Math.min(light / (2 * Math.PI * sigma * sigma), HDR_MAX_VALUE)
+  // The glare cap: the saturated core is at most STAR_GLARE_CORE_PATCHES
+  // patches in radius, so the peak is at most what puts the kernel at
+  // white (0.76) there; the halo falls off from it.
+  const coreMax = STAR_GLARE_CORE_PATCHES * patchPx
+  const peak = Math.min(peakRaw, 0.76 * Math.exp(coreMax * coreMax / (2 * sigma * sigma)))
   const visibleRadius = sigma * Math.sqrt(2 * Math.log(Math.max(peak / STAR_VISIBLE_VALUE, 1)))
   const sizePx = Math.min(Math.max((2 * visibleRadius) + 2, 1), STAR_MAX_SIZE_PX)
   const coreRadiusPx = sigma * Math.sqrt(2 * Math.log(Math.max(peak / 0.76, 1)))
-  return {value, patchPx, sigma, peak, sizePx, coreRadiusPx, flat: false}
+  return {value, patchPx, sigma, peak, sizePx, coreRadiusPx, flat: false, glareCapped: peak < peakRaw}
 }
 
 
@@ -422,3 +499,13 @@ export const STAR_BLOOM_SIGMA_PX_PER_DECADE = 0.75
 export const STAR_VISIBLE_VALUE = 0.004
 /** The quad's largest side, pixels (Stars.js MAX_STAR_SIZE_PX). */
 export const STAR_MAX_SIZE_PX = 96
+/**
+ * The saturated core's largest radius, in patches (stars.vert): the
+ * bloom's core grew with the log of the light without limit, and the Sun
+ * from 52 AU, 1e9 over white at the dark gain, was a 120 px disc on the
+ * user's screen where it should read as a dazzling star.  The eye's
+ * glare has a core of about this size (20′: two patches), with the halo
+ * falling off round it; past the cap the light is lost, as it is to a
+ * saturated retina.
+ */
+export const STAR_GLARE_CORE_PATCHES = 2

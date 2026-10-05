@@ -269,7 +269,21 @@ takes the kernel to zero inside it: a bright star is round at every
 exposure.  The first cut's quad grew 3 px per decade with σ a quarter of
 it, and at a high gain the Gaussian was over white out to the quad's
 edge, so the brightest stars, and the Sun from Pluto, drew as squares
-(the user's preview).  **A resolved disc is no point**: the sprite's
+(the user's preview).  **The glare cap** (`STAR_GLARE_CORE_PATCHES`, 2):
+the saturated core's radius is at most two patches (20′, 8 px at 1080p),
+the peak held to what puts the kernel at white there, with the halo
+falling off from it and still widening with the log of the light; past
+the cap the light is lost, as it is to a saturated retina.  Without it
+the core grew without limit and the Sun from 52 AU, 1e9 over white at
+the dark gain, was a 120 px disc on the user's screen; it is now a 16 px
+core in a halo of about 50 px, Venus 16 px in 32, Sirius 16 px in 27, and
+from 5 AU the halo is 66 px: disc, to dazzling star, to star (from a
+light-year, magnitude 4.8, a point just at white).  Rendered on the
+480×300 test viewport (a 1 px patch: a 2 px cap), labels and orbits off,
+at the dark gain: from 52 AU a saturated core of 2-3 px radius in a glow
+of 13 px at 30 of 255 and 16 px at 10; from 5 AU 2 px in 16 and 19; from
+1,000 AU 2-3 px in 10 and 12; SUN_1LY_HDR; from 1 AU at a 5° field the
+mesh's 32 px disc and its glow ring cover the sprite's capped core.  **A resolved disc is no point**: the sprite's
 light fades by (patch/θ)² once the star's disc, θ = 2r/d, outgrows the
 patch, so the Sun's mesh and a halo take over from the point within a
 few AU (from Earth, 0.1 of it).
@@ -379,12 +393,47 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    clouds, a midday sky) keeps the keyed exposure; a low Sun's sky and
    ground, a twilight, are lifted toward the key; a star field, whose
    sprites cover less than 2% of the frame, runs to the dark-adapted gain.
-4. **Below 1 only for a blown highlight.**  Where that 2% is over
-   `METER_HIGHLIGHT_MAX` (1.5, a sunlit white: no planet is ever over it),
-   the gain falls to bring it there, to `METER_GAIN_MIN` (1e-5) at most:
-   the Sun's disc, 46,000 whites, fills the frame and shows its
-   granulation.
-5. **While the scene loads**, a frame with nothing in it (every sample
+4. **Below 1 only for a blown highlight.**  Where a quarter of the frame
+   (`METER_BLOWN_FRACTION`) is over `METER_HIGHLIGHT_MAX` (1.5, a sunlit
+   white: no planet is ever over it), the gain falls to bring that
+   quarter to `METER_HIGHLIGHT` (0.6, a sunlit surface), to
+   `METER_GAIN_MIN` (5e-6) at most: the Sun's disc, 46,000 whites, fills
+   the frame and shows its granulation and limb.  Brought to a white
+   (the first cut) it was a flat light grey: the tone map's shoulder
+   compressed the texture's 0.5-1 into 0.78-0.95 of the display (the
+   user's preview, 0xEE), and its limb glow, a display-valued shell,
+   stayed white round it; the glow now carries the disc's radiance
+   (`newAtmosphere`), and a lift of the disc's colour with the camera's
+   distance, white past 0.2 AU, is gone, so the disc keeps its
+   granulation wherever it fills the quarter (from 1 AU, a field under
+   about 1.3°).  Smaller in the frame it is a white disc in its glow at
+   whatever gain the rest of the frame asks (from 1 AU at 5°, 4e6: the
+   stars round it), as a whole-frame meter has it; a sunlit planet in
+   view would hold the gain (next).
+5. **A resolved sunlit body in the frame anchors the gain**
+   (`sunlitBodyCap`, from `ThreeUi._sunlitBodies`: every planet and moon
+   whose disc is in the frame and wider than the eye's patch, with its lit
+   fraction from its phase).  The gain is at most what shows the body's
+   brightest sunlit surface as a white: its sunlit white at the
+   target-keyed exposure (`DISPLAY_GAIN × keyed(target) / keyed(body)`)
+   times `HIGHLIGHT_ALBEDO_FACTOR` (2.5) × its Bond albedo, to 1 (Earth's
+   clouds are 0.9 over its 0.37, the Moon's highlands 0.2 over its 0.12).
+   The Moon from Earth's night side: 3.3, its highlands white and its
+   maria at 0.6, the stars to magnitude 3; Earth's crescent from
+   94,000 km: 1.1, its clouds just white, no stars.  The percentile rules
+   above miss a body under 2% of the pixels, and ran a frame with Earth's
+   crescent in it to the dark-adapted gain: the crescent a flat white (the
+   user's preview).  An eye or a camera won't blow out the one lit thing in
+   view, and with it in view the stars legitimately go.  Jupiter from Earth
+   (40″) is a point and stays a star of the night; with no lit body in
+   view the field keeps its dark adaptation.  Only a disc that fits in the
+   frame anchors (the lit fraction is the whole disc's: from the ground or
+   low orbit on the night side the lit part is beyond the frame, and the
+   dark ground adapts), and only with a twentieth of it lit
+   (`LIT_FRACTION_MIN`): a limb crescent past 154° of phase doesn't put
+   out the night side's cities from orbit.  Never under 1: the target's
+   own sunlit side keeps its keyed exposure.
+6. **While the scene loads**, a frame with nothing in it (every sample
    exactly zero: a texture or the star catalogue still to come) asks for
    nothing, and the gain stays (`frameCanBeEmpty`: the star catalogue not
    yet drawn, or the exposure target's surface not ready and no Cesium
@@ -405,10 +454,10 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    edge at 4e-8.  The LDR fallback's bytes quantize a star field to zero,
    so it takes every black frame as dark, and a planet loading there is
    blown out for the second the gain takes to fall.  `c.ui.starsDebug()`
-   logs the meter's last reading and the gain, with the GPU's point-size
-   range and fragment precision and a few stars' sprites, for checking a
-   build on a machine at hand.
-6. The gain **eases in log space** (`easeExposure`), with a time constant
+   logs the meter's last reading, the gain and its cap with the bodies
+   that set it, the GPU's point-size range and fragment precision and a
+   few stars' sprites, for checking a build on a machine at hand.
+7. The gain **eases in log space** (`easeExposure`), with a time constant
    of `METER_TAU_UP_SECONDS` (1.5 s) rising, the eye adapting to the dark,
    and `METER_TAU_DOWN_SECONDS` (0.3 s) falling, a camera catching up with a
    planet come upon from a star field; the keyed exposure itself keeps its
@@ -460,7 +509,9 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
 | Mars, same, away from the Sun (`mars-sky-antisolar`) | 1.9 | 0.16 / 0.19 | sky 50° up / horizon / ground | 19 / 36 / 34 | 47 / 77 / 76 |
 | Mars, same, toward the Sun (`mars-sky-aureole`) | 1 | 0.53 / 2.3 | aureole / 40° off / ground | 210 / 92 / 48 | 210 / 92 / 52 |
 | Mars from 232 m, Sun 26° up (`mars-low-horizon`) | 1.25 | 0.24 / 0.48 | ground / sky | 44 / 53 | 56 / 68 |
-| The Sun from 7 radii | 1 | 5e-7 / 6e4 | disc | black (SwiftShader; its rim 6e4) | the same |
+| Earth's crescent from 94,000 km, 30% lit, in a star field (`sunlitBodyCap`) | 1.09 (the cap) | 7.5e-8 / 6.9e-8 | crescent (0.3% of the frame) | white, 4e6 (the second cut) | peak 238, median 100, none saturated; 7 stars |
+| The Moon from the outback at night, 77% lit, 10° field (`sunlitBodyCap`) | 3.33 (the cap) | 2.3e-8 / 2.3e-8 | the disc | white, 4e6 (the second cut) | 47-232 with its phase |
+| The Sun from 7 radii | 5e-6 (the floor: SwiftShader's disc is non-finite, which the meter counts as the maximum) | 66 / 1.2e10 | disc | black (SwiftShader; its rim 6e4) | the same |
 
 - **A sunlit scene is untouched**: the midday surface, Earth from orbit by
   day and at the terminator, the daytime Moon, Mars toward the Sun and
@@ -501,9 +552,14 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
   loads from black is blown out while the gain comes down through clipped
   readings, ×0.3 per metering, a few seconds.
 - **The Sun up close** can't be judged here: its disc's interior renders
-  black on SwiftShader (its noise shader, on `main` too); only the rim
-  reads 6e4.  On a real GPU the disc should fill the frame, the gain fall
-  to 2e-5 and the granulation show (`meteredGain`'s tests).
+  non-finite on SwiftShader (its noise shader, on `main` too), black
+  after the tone map, and the meter counts a non-finite pixel as the
+  maximum, so the gain runs to its floor whatever the frame.  On a real
+  GPU (the user's M2, 1.74 Gm, the disc 40% of the frame) the quarter
+  reads 69,357 × the texture, about 59,000, the gain falls to 1.0e-5
+  and the disc shows at 0.35-0.7 with its granulation and limb, the glow
+  shell under it (`meteredGain`'s tests); brought to a white in the first
+  cut it was a flat 0xEE.
 
 ## Cesium in the same units
 
