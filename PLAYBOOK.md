@@ -137,6 +137,33 @@ overlaps of N⁻¹ values tone-map brighter than the old clamped sum (the toe
 is square-root-like, so √a + √b > √(a + b)): overlapping star glows came
 out ~13% brighter.  Measure blends separately from single draws.
 
+### At light-years, clip-space w underflows the rasterizer's varyings
+
+The human expansion lines (screen-space quads, js/scene/Colonization.md)
+drew every triangle and showed nothing.  Clip-space w is the distance in
+metres, ~1e18 a few hundred light-years out, and perspective-corrected
+varyings are computed through 1/w products, which underflow float32 there:
+a varying across the line's width came out pinned at its endpoint values.
+Rendering the varyings as colours, and averaging them over the covered
+pixels, found it in one run; the depth and colour probes before it didn't.
+**Rule:** a shader drawing light-year geometry with varyings that must
+interpolate (anything but flat colour) divides its clip coordinates
+through to w = 1 once its vertices are known to be in front of the near
+plane.  It's the same point and depth, and the varyings then interpolate
+linearly on screen.
+
+The same lines then flickered close up, from the same root: float32
+across a light-year span.  A hop crossing the camera plane was cut at the
+near plane (~6e5 m), but a point on a hop is resolved to ~1e-7 of its
+length (~1e12 m), so the cut fell at or behind the camera depending on
+the last bit.  A zoom sweep of pixel counts didn't show it; replaying the
+shader's arithmetic in JS with `Math.fround` at the reported view did,
+in one run.  **Rule:** when a shader computes a point between two
+distant ones, size every threshold to the error of that computation (here
+a cut at 1e-5 of the length), and set what must hold exactly (the cut's
+depth) rather than computing it.  To debug a GPU number, replay it with
+`Math.fround`, not pixels.
+
 ### GPU shader degenerate cases need explicit guards
 
 The Bruneton decode has two degenerate cases: r = rG (ground, rho = 0) and r = rA (atmosphere

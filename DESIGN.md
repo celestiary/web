@@ -283,6 +283,17 @@ JSON's a and e, centred on the primary: the planets' had no inclination,
 node or perihelion direction, and sat a·e off centre, so their points
 were visibly off their lines (Mercury by ~10 px in an inner-system view).
 
+- **Drawn as a wide line strip** (`wideLines.js`, `newWideLineStrip`), as
+  the asterisms are: 1.5 px, antialiased, additive.  Its geometry keeps a
+  `Line`'s `position` attribute and `setDrawRange`, which everything below
+  writes as before; an instanced view of the same array draws vertex i to
+  i + 1, through the ordinary model-view, so the float64-origin precision
+  below carries over unchanged.  It's on the overlay layer, with the
+  labels: drawn after the atmosphere pass, depth-tested against the scene
+  depth that pass writes, writing none.  In the scene pass its depth told
+  the atmosphere there was something at that distance, so from Earth's
+  surface its own orbit (end-on, near) cut the sky's ray short: a dark
+  blotch in the sky.
 - **Planets and the Moon: the sampled path** (`js/scene/orbitPath.js`,
   `OrbitPath`). One sidereal period of the body's path around its primary,
   centred on the simulation date, 1001 vertices in a `Line` whose one
@@ -440,6 +451,16 @@ Camera orientation and position are separated across three input modes, all accu
 | ← / → arrow keys (hold) | Roll camera left/right |
 | `t` | Toggle continuous tracking (camera auto-looks at target as it orbits) |
 | `c` | Snap look at current target |
+| Double-click / double-tap a label | Go to the planet, moon or star it names, as `g` does (`js/scene/labelPick.js`: the label's text box on screen, 8 px of slop; off while the star picker is on) |
+| Double-click / double-tap elsewhere on a body | Land there |
+
+**Touch.** Pinch zooms, through `TouchSafeTrackballControls`
+(`js/TouchSafeTrackballControls.js`): TrackballControls with its list of
+touching pointers kept right.  As three ships it, it captures only the
+first finger, so a second one lifted over HTML (the widgets sheet, the info
+panel) never sends it its pointerup; once that pointer ID is reused, every
+touch move throws.  The subclass captures every pointer and lists each
+once.
 
 **Asymptotic zoom** (`js/zoom.js`): scroll zoom is remapped from distance-space to altitude-space so the camera approaches the surface asymptotically. The `camera.near` plane is dynamically scaled to `altitude * 0.1` (clamped 100 m – `SMALLEST_SIZE_METER`) so the surface remains visible without clipping.
 
@@ -561,6 +582,11 @@ Out of scope for the goTo flow. These use `newCameraLookTween` (rotation-only, 6
 and do not rebase or reparent. They only change `camera.quaternion` while leaving the
 scene graph alone.
 
+The search bar's Look at button is a caller of this path: `setTarget` for a body,
+`Scene.lookAtStar` / `Scene.lookAtPlace` (same tween, aimed at a star's world position
+or a surface point) for results with no scene object.  See
+[js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at).
+
 
 ## Rendering Techniques
 
@@ -571,9 +597,11 @@ scene graph alone.
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
 | Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
 | Saturn rings | Double-sided `RingGeometry` with texture |
-| Orbit paths | `Line` with additive blending: the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
+| Orbit paths | A wide line strip (`wideLines.js`, 1.5 px, additive, on the overlay layer after the atmosphere): the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
 | Labels | Canvas-rendered `SpriteSheet` compiled to a single `Points` geometry |
-| Asterisms | Line segments loaded from `asterisms-clean.dat` |
+| Asterisms | Wide lines (`wideLines.js`) between the stars of `asterisms-clean.dat` |
+| Human expansion | Wide lines (`wideLines.js`), one per hop of a BFS across the catalogue, grown in the shader by a time uniform ([Colonization.md](js/scene/Colonization.md)) |
+| Wide lines (`wideLines.js`) | Instanced screen-space quads: any width, antialiased, cut in front of the camera, divided through to w = 1.  Segments (RTE, optionally sorted far to near: the asterisms, the human expansion) or a strip (a Line's position attribute and draw range, through the model-view: the orbits).  GL lines are 1 px, and at light-years their w ~1e17 m ([Colonization.md, Drawing](js/scene/Colonization.md#drawing)) |
 
 LOD (`THREE.LOD`) is used throughout to swap between detailed meshes, point sprites, and invisible placeholders based on camera distance.
 
@@ -595,6 +623,20 @@ Without float render targets (`EXT_color_buffer_float`), or with `?hdr=0`, the o
 A planet or moon is a mesh out to `POINT_AT_RADII` (500) radii and a
 single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
 `Planet.newPlanet`).  The point is a marker, not a lit surface:
+
+- **By apparent size, so the FOV counts.**  500 radii is 1.6 px across at a
+  45° FOV over 640 px.  three's `LOD` picks a level by `distance /
+  camera.zoom`, which ignores the FOV, so a body zoomed on by narrowing the
+  FOV (which moves nothing: Look at Jupiter from Earth, then 1°) stayed a
+  point however big it drew.  The planet and label LODs are `FovLOD`
+  (`farPoint.js`): the distance is scaled by `fovScale(camera)`, the
+  tangent of the half-FOV over its value at 45° (`INITIAL_FOV`), so a body
+  switches where it has the same size on screen.  1 at 45°, so the choices
+  there are unchanged; 0.021 at 1° (the mesh out to ~24,000 radii, which is
+  1.7e12 m for Jupiter); more than 1 wider than 45°.  `CesiumLayers` scales the
+  distance the same way against `meshRange`.  Not scaled: the stars' LODs
+  (`Star`, `Stars.labelLOD`), whose distances are not a size threshold,
+  and the places' own pixel-based LOD, which already reads the FOV.
 
 - **Colour and size.**  A planet's is white and 2 px; a moon's is half
   brightness and also 2 px, since many sit by their planet's.  The
@@ -672,8 +714,8 @@ visibility groups so the user has predictable global hide/show controls:
 
 Each scene-annotation feature also has its OWN scoped lowercase toggle
 (`a` asterisms, `p` planet+moon+place labels, `s` star labels, `o` orbits,
-`;` equatorial grid, etc.).  `V` is the union of all the lowercase
-scene-annotation toggles.
+`;` equatorial grid, `x` human expansion lines, etc.).  `V` is the union
+of all the lowercase scene-annotation toggles.
 
 **When adding a new visual feature, decide which group it belongs in and
 wire it through the corresponding toggle method.**  Surface place labels,
@@ -699,6 +741,8 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
 `js/store/useStore.js` composes four slices:
 
 - `AsterismsSlice` — asterisms visibility and catalog state
+- `ColonizationSlice` — mirrors the `x` setting (human expansion lines) for the drawer's switch
+- `WidgetsSlice` — the widgets drawer and dock: open, docked, the app showing, running and pinned apps, and the running apps' state for the permalink
 - `SearchSlice` — search-bar state, anchor index, committed path / star,
   preview fields; `setCommittedPath` and `setCommittedStar` are mutually
   exclusive
@@ -714,20 +758,60 @@ Two routing layers coexist:
 - **Wouter path routing** (`/`, `/guide`, `/about`, `/settings`) — controls which React panels are shown
 - **URL hash** (`#sun/earth/moon`) — drives which celestial object is targeted and loaded; managed imperatively by `Celestiary` via `hashchange` events
 
-The hash is extended with optional camera/time state to form a **permalink** — see [js/permalink.md](js/permalink.md) for the format specification.
+The hash is extended with optional camera/time state to form a **permalink** — see [js/permalink.md](js/permalink.md) for the format specification — and with **state tokens** for the widgets drawer and its apps ([design/URLs.md](design/URLs.md)).
 
 ## React UI Components (`js/ui/`)
 
 Thin MUI-based overlay panels:
 
 - `TimePanel` — displays sim time, pause/play, time-scale controls
+- `WidgetsDrawer` — the widgets drawer and dock, behind the Widgets button
+  (below)
+- `ColonizationApp` — the Human Expansion app's panel
+  ([Colonization.md](js/scene/Colonization.md))
 - `Settings` — keyboard shortcut reference
 - `About` — app info and star catalog stats
 - `SearchBar` — breadcrumb-anchored search (chips, MUI `Autocomplete`,
-  crosshair picker toggle, preview + commit flow). See
+  Go / Look at buttons, crosshair picker toggle, preview + commit flow). See
   [js/search/DESIGN.md](js/search/DESIGN.md) for the index architecture.
 - `DatePicker`, `NumberField`, `NumberInput` — supporting inputs
 - `TooltipToggleButton`, `TooltipIconButton`, `NavToggleButton` — icon button wrappers
+
+### Widgets drawer and dock
+
+Optional tools ("apps") live in a drawer on the right, opened by the
+Widgets button (top right).  `ui/apps.jsx` lists them: a name, an icon, a
+panel, and a `stop` that removes whatever the app added to the scene.
+State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
+
+- **Three states.** Closed; open, the drawer over the right of the canvas,
+  showing the app tray or one app; and dock, a 56 px bar of icons right of
+  the canvas.  The dock shows while docked (the drawer's dock button) or
+  while any app is pinned.  The canvas narrows for it
+  (`Celestiary.setInsets`), and `#top-right` moves left of it
+  (`--dock-width`), so it never covers the scene; an open drawer sits left
+  of it.
+- **Phones** (`useIsMobile`, 600 px wide or less).  The open drawer is a
+  sheet over the bottom half of the screen instead, and the scene shrinks
+  to the half above it (`setInsets`' bottom), so an app's effects show
+  while it's used.  The bottom controls move up above the sheet
+  (`--sheet-height`).
+- **Sizing.**  `Celestiary` owns the scene's size: the window less the
+  dock and sheet, redone on every resize (a phone rotating, its browser
+  bars coming and going).  `ThreeUI.onResize` reads the container's size,
+  never the window's.  The target's info panel scrolls within the scene's
+  height (`--scene-height`).
+- **Running.** An app runs from when it's opened until stopped.  Its
+  header has a pin and an X.  X stops it (`stop`, out of the scene, back
+  to the tray).  Closing the drawer stops every app that isn't pinned; a
+  pinned app keeps running, panel mounted and state kept, with its icon
+  in the dock to reopen it.  The dock can't be closed while an app is
+  pinned.
+- **Chrome.** The drawer and dock are HTML chrome: `v` hides them.
+- **Permalink.** All of it is in the link: the `apps` state token, and
+  each running app's state as its own `apps.<id>` token (an app reports
+  its state to the slice, which drops it when the app stops;
+  `store/appTokens.js` encodes it).  Spec: [design/URLs.md](design/URLs.md).
 
 ## Guide (`js/guide/`)
 
@@ -760,7 +844,8 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/Time.js` | Simulation clock with time-scale control, clamped to the supported dates (J2000 ± 6000 years) |
 | `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
-| `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment` |
+| `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment`; state token values (`parseTokenValue`, `formatTokenValue`) |
+| `js/store/appTokens.js` | The widgets drawer and its apps as state tokens (`apps`, `apps.<id>`; [design/URLs.md](design/URLs.md)) |
 | `js/coords.js` | Geographic coordinate conversions: `worldToLatLngAlt`, `latLngAltToLocal` |
 | `js/store/useStore.js` | Zustand store root |
 | `js/dataUrl.js` | `dataUrl()`: resolves large-data paths against the build's data base URL ([Data policy](#data-policy)) |
@@ -773,6 +858,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/search/SearchIndex.js` | Tiered index + app-wide singleton |
 | `js/search/SearchRegistry.js` | Provider registration singleton |
 | `js/search/SearchProvider.js` | JSDoc typedefs for `SearchEntry` / provider contract |
+| `js/search/commitEntry.js` | Go and Look at actions for a result |
 | `js/search/providers/SceneProvider.js` | Bodies loaded by `Loader` |
 | `js/search/providers/StarsProvider.js` | Named stars + exact HIP resolver |
 | `js/search/providers/PlacesProvider.js` | Future surface-place stub |
@@ -796,11 +882,14 @@ and the provider extension contract.
 | `js/scene/StellarFrame.js` | Parent of the J2000 catalogues: precesses them to the simulation date |
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
-| `js/scene/farPoint.js` | A body's far point: its mesh range, colour, size and depth state |
+| `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |
 | `js/scene/Star.js` | Named star with noise shader |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |
 | `js/scene/Asterisms.js` | Constellation line drawings |
+| `js/scene/Colonization.js` | Human expansion: kNN star graph and layered BFS spread from the Sun |
+| `js/scene/ColonizationLines.js` | Human expansion lines, coloured by hop and grown over time |
+| `js/scene/wideLines.js` | Wide antialiased lines: segments (asterisms, human expansion) and strips (orbits) |
 | `js/scene/Orbit.js` | Orbital path visualization |
 | `js/scene/StarsCatalog.js` | Celestia binary star catalog parser |
 | `js/scene/AsterismsCatalog.js` | Constellation pattern definitions |

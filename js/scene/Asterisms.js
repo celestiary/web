@@ -1,38 +1,16 @@
-import {
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  LineSegments,
-  Object3D,
-  ShaderMaterial,
-  Vector3,
-} from 'three'
+import {Color, Object3D} from 'three'
 import AsterismsCatalog from './AsterismsCatalog.js'
 import {assertDefined} from '../assert.js'
 import {labelTextColor} from '../shared.js'
-import {sceneReferred} from './hdr.js'
-import {rteCameraLocal} from './rte.js'
+import {newWideLines} from './wideLines.js'
 
 
-// RTE line shader — same Relative-To-Eye technique as stars.vert: the model
-// rotation (the StellarFrame's precession) and the view's, no translation.
-const asterismsVertexShader = `
-  uniform vec3 uCamPosWorldHigh;
-  uniform vec3 uCamPosWorldLow;
-  attribute vec3 positionLow;
-  void main() {
-    vec3 highDiff = position - uCamPosWorldHigh;
-    vec3 lowDiff  = positionLow - uCamPosWorldLow;
-    gl_Position = projectionMatrix * vec4(mat3(modelViewMatrix) * (highDiff + lowDiff), 1.0);
-  }
-`
-
-const asterismsFragmentShader = `
-  uniform vec3 uColor;
-  void main() {
-    gl_FragColor = vec4(uColor, 1.0);
-  }
-`
+// Drawn as the human expansion lines are (wideLines.js): antialiased
+// screen-space quads, RTE, cut in front of the camera, w divided through.
+// As 1 px GL lines at w ~1e17 m they flickered from Earth's surface while
+// time ran (the view turning with Earth), where the wide lines didn't.
+export const ASTERISM_WIDTH_PX = 1.5
+export const ASTERISM_OPACITY = 0.8
 
 
 /** */
@@ -48,8 +26,7 @@ export default class Asterisms extends Object3D {
     this.useStore = ui.useStore
     this.name = 'Asterisms'
     this.stars = stars
-    this._posHigh = []
-    this._posLow = []
+    this._ends = []
     this.catalog = new AsterismsCatalog(stars.catalog)
     this.catalog.load(() => {
       this.catalog.byName.forEach((astr, name) => this.show(name))
@@ -115,39 +92,35 @@ export default class Asterisms extends Object3D {
   }
 
 
-  /** Push one segment endpoint into the high/low accumulators. */
+  /** Push one segment endpoint (metres, catalogue frame) into the accumulator. */
   _pushEndpoint(x, y, z) {
-    const hx = Math.fround(x); const hy = Math.fround(y); const hz = Math.fround(z)
-    this._posHigh.push(hx, hy, hz)
-    this._posLow.push(x - hx, y - hy, z - hz)
+    this._ends.push(x, y, z)
   }
 
 
   /**
-   * Pack all accumulated segment endpoints into a single LineSegments with
-   * an RTE ShaderMaterial, then clear the accumulators.
+   * Pack all accumulated segments into one set of wide lines (wideLines.js),
+   * then clear the accumulator.
    */
   _compile() {
-    const geom = new BufferGeometry()
-    geom.setAttribute('position', new BufferAttribute(new Float32Array(this._posHigh), 3))
-    geom.setAttribute('positionLow', new BufferAttribute(new Float32Array(this._posLow), 3))
-    const mat = sceneReferred(new ShaderMaterial({
-      uniforms: {
-        uCamPosWorldHigh: {value: new Vector3()},
-        uCamPosWorldLow: {value: new Vector3()},
-        uColor: {value: new Color(labelTextColor)},
-      },
-      vertexShader: asterismsVertexShader,
-      fragmentShader: asterismsFragmentShader,
-      toneMapped: false,
-    }))
-    const lines = new LineSegments(geom, mat)
-    lines.onBeforeRender = (renderer, scene, camera) => {
-      rteCameraLocal(lines, camera, mat.uniforms.uCamPosWorldHigh.value, mat.uniforms.uCamPosWorldLow.value)
+    const n = this._ends.length / 6
+    const start = new Float64Array(n * 3)
+    const end = new Float64Array(n * 3)
+    const color = new Float32Array(n * 3)
+    const rgb = new Color(labelTextColor).toArray()
+    for (let k = 0; k < n; k++) {
+      for (let c = 0; c < 3; c++) {
+        start[(3 * k) + c] = this._ends[(6 * k) + c]
+        end[(3 * k) + c] = this._ends[(6 * k) + 3 + c]
+      }
+      color.set(rgb, 3 * k)
     }
+    const lines = newWideLines({start, end, color}, {name: 'AsterismLines'})
+    const u = lines.material.uniforms
+    u.uWidthFirst.value = u.uWidthLast.value = ASTERISM_WIDTH_PX
+    u.uOpacity.value = ASTERISM_OPACITY
     this.add(lines)
-    this._posHigh = null
-    this._posLow = null
+    this._ends = null
   }
 
 

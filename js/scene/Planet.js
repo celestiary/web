@@ -1,13 +1,8 @@
 import {
   AdditiveBlending,
   AxesHelper,
-  BufferAttribute,
-  BufferGeometry,
   Group,
   ImageLoader,
-  LOD,
-  Line,
-  LineBasicMaterial,
   MeshPhongMaterial,
   Object3D,
   Texture,
@@ -20,8 +15,7 @@ import {
 import Object from './object.js'
 import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
-import {newFarPoint, pointSwitchDistance} from './farPoint.js'
-import {sceneReferred} from './hdr.js'
+import {FovLOD, newFarPoint, pointSwitchDistance} from './farPoint.js'
 import {
   point,
   sphere,
@@ -31,10 +25,16 @@ import * as Material from './material.js'
 import {rotationModel} from './iauRotation.js'
 import {meanElements} from './meanElements.js'
 import {ORBIT_LINE_POINTS, unitEllipse} from './orbitPath.js'
+import {newWideLineStrip} from './wideLines.js'
 import {dataUrl} from '../dataUrl.js'
 import {monthOfJulianDay, monthlyPath} from './monthly.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
 import {capitalize, named} from '../utils.js'
+
+
+// Orbit lines: blue, added over the scene, as before as 1 px GL lines.
+const ORBIT_COLOR = 0x0000ff
+const ORBIT_WIDTH_PX = 1.5
 
 
 // Earth's city lights, as rendered before tone mapping: what 5e15 came to
@@ -140,7 +140,8 @@ export default class Planet extends Object {
 
 
   /**
-   * The orbit line: a group holding a Line (`group.line`), which starts as
+   * The orbit line: a group holding a wide line strip (`group.line`, a
+   * Line's position attribute and draw range; wideLines.js), which starts as
    * the orbit's unit ellipse, centred, in the XZ plane, scaled to the
    * semi-major axis.  Animation lays it on a mean-element orbit
    * (layOrbitShape), or, for the planets and the Moon, rewrites its
@@ -153,17 +154,22 @@ export default class Planet extends Object {
   newOrbit(scene, orbit) {
     const group = named(new Group(), 'orbit')
     const positions = unitEllipse(assertInRange(orbit.eccentricity, 0, 1), new Float32Array(ORBIT_LINE_POINTS * 3))
-    const ellipseGeometry = new BufferGeometry()
-    ellipseGeometry.setAttribute('position', new BufferAttribute(positions, 3))
-    const orbitMaterial = sceneReferred(new LineBasicMaterial({
-      color: 0x0000ff,
-      blending: AdditiveBlending,
-      depthTest: true,
-      depthWrite: true,
-      transparent: false,
-      toneMapped: false,
-    }))
-    const pathShape = new Line(ellipseGeometry, orbitMaterial)
+    // Wide lines (wideLines.js), as the asterisms: a strip with a Line's
+    // position attribute and draw range, which orbitPath.js and bodyLine.js
+    // rewrite in place.  On the overlay layer, as the labels: drawn after
+    // the atmosphere pass, depth-tested against the scene depth it writes,
+    // so the bodies still hide what's behind them, and writing no depth of
+    // its own.  In the scene pass a quad's depth told the atmosphere there
+    // was something there, at that distance: from Earth's surface its own
+    // orbit, end-on and near, cut the sky's ray short and showed as a dark
+    // blotch, and lines farther off were hazed into gaps.
+    const pathShape = newWideLineStrip(positions, {
+      name: 'orbit line',
+      color: ORBIT_COLOR,
+      width: ORBIT_WIDTH_PX,
+      material: {blending: AdditiveBlending, depthTest: true, depthWrite: false, transparent: true},
+    })
+    pathShape.layers.set(OVERLAY_LAYER)
     group.add(pathShape)
     group.line = pathShape
     const orbitScaled = orbit.semiMajorAxis.scalar
@@ -256,16 +262,18 @@ export default class Planet extends Object {
     const labelTooFarDist = isMoon ? farDist * 5e1 : farDist * 5e4
     const pointTooFarDist = farDist * 1e12
 
-    const planetLOD = new LOD()
+    const planetLOD = new FovLOD()
     planetLOD.addLevel(planet, 1)
     // A point once the mesh would be under ~1.6 px across (45° fov over
     // 640 px): a sub-pixel mesh, lit at its albedo, fades to nothing.  (It
     // was 10 AU, when a fixed, blown-out exposure kept sub-pixel meshes
-    // bright.)  CesiumLayers.meshRange reads this too.
+    // bright.)  The distances are at 45°; FovLOD scales them to the camera's
+    // fov, so zooming by narrowing it brings the mesh in.
+    // CesiumLayers.meshRange reads this too.
     planetLOD.addLevel(farPoint, pointSwitchDistance(surfaceRadius))
     planetLOD.addLevel(FAR_OBJ, pointTooFarDist)
 
-    const labelLOD = new LOD()
+    const labelLOD = new FovLOD()
     const name = capitalize(this.name)
     // TODO: single sheet for all planets/moons
     const labelSheet = named(new SpriteSheet(1, name), 'label')
@@ -274,6 +282,8 @@ export default class Planet extends Object {
     // Drawn after the atmosphere pass, so it doesn't haze the label; still
     // depth-tested against the scene (ThreeUI.render).
     labelSprites.layers.set(OVERLAY_LAYER)
+    // A double click or tap on it goes to the body (labelPick.js).
+    labelSprites.userData.labelTargets = [{kind: 'body', name: this.name}]
     // Depth in front of the body's near side, so the body itself doesn't
     // hide it: at exactly the near side it tied with the body's own depth
     // (and Cesium's ground sphere, CesiumLayers._writeGroundDepths) where

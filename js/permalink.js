@@ -4,6 +4,11 @@ import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
 const SEPARATOR = '@'
 const PARAM_SEP = ';'
 const KV_SEP = '='
+// State tokens (design/URLs.md): `;label:value`, the value a `,` list of
+// flags and `name=value`s, a named value's list joined by `+`.
+const TOKEN_SEP = ':'
+const LIST_SEP = ','
+const VALUE_LIST_SEP = '+'
 
 // SI meter prefixes, descending so first match wins
 const METER_PREFIXES = [
@@ -45,6 +50,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   c: false, // ecliptic reference grid
   g: false, // galactic reference grid
   U: true, // procedural Milky Way galaxy (Celestia convention: 'U')
+  x: true, // human expansion lines (shown once computed)
   v: true, // nav panels / heads-up display
   L: false, // landed at surface — see Scene.land
   A: false, // AR-fallback — enter AR sky view if device supports
@@ -154,7 +160,9 @@ function parseMeters(s) {
  * etc.) — see SETTINGS_DEFAULTS / encodeSettings.  Omitted when every
  * setting is at its default, so the common case stays short.
  *
- * See design/permalink.md for the full specification.
+ * State tokens (`;label:value`, design/URLs.md) follow, in the order given.
+ *
+ * See js/permalink.md for the full specification.
  *
  * @param {string} path  Celestial path, e.g. 'sun/earth/moon'
  * @param {number} d2000  Days from J2000.0 (= simTimeJulianDay() − 2451545.0)
@@ -164,9 +172,11 @@ function parseMeters(s) {
  * @param {{x:number, y:number, z:number, w:number}} quat  camera.quaternion (platform-local)
  * @param {number} fov  camera.fov in degrees
  * @param {object} [settings]  Scene settings map matching SETTINGS_DEFAULTS
+ * @param {object} [tokens]  State tokens, {label: value}; a null or undefined
+ *   value is left out, an empty string written as a bare `label:`
  * @returns {string}  Hash fragment without leading '#'
  */
-export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings) {
+export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens) {
   const pos = `${trimFloat(lat)},${trimFloat(lng)},${formatMeters(Math.round(alt))}`
   const t = `${parseFloat(d2000.toFixed(4))}jd`
   const cq = [quat.x, quat.y, quat.z, quat.w].map(trimFloat).join(',')
@@ -178,6 +188,11 @@ export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings)
       frag += `${PARAM_SEP}s=${flags}`
     }
   }
+  for (const [label, value] of Object.entries(tokens ?? {})) {
+    if (value !== null && value !== undefined) {
+      frag += `${PARAM_SEP}${label}${TOKEN_SEP}${value}`
+    }
+  }
   return frag
 }
 
@@ -187,11 +202,12 @@ export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings)
  * Returns null for legacy path-only hashes (no '@') or malformed params,
  * including a non-finite number.  The time is clamped to the dates Time
  * supports (J2000 ± SUPPORTED_DAYS_FROM_J2000).  Unknown parameter keys
- * after the position prefix are silently ignored.
+ * after the position prefix are silently ignored.  State tokens
+ * (`label:value`) are returned as given, in `tokens`.
  *
  * @param {string} fragment  Hash content without leading '#'
  * @returns {{path:string, d2000:number, lat:number, lng:number, alt:number,
- *            quat:{x,y,z,w}, fov:number}|null}
+ *            quat:{x,y,z,w}, fov:number, settings:object, tokens:object}|null}
  */
 export function decodePermalink(fragment) {
   const atIdx = fragment.indexOf(SEPARATOR)
@@ -218,8 +234,15 @@ export function decodePermalink(fragment) {
   const alt = parseMeters(posParts[2])
 
   const params = {}
+  const tokens = {}
   for (const pair of paramsStr.split(PARAM_SEP)) {
     const eq = pair.indexOf(KV_SEP)
+    const colon = pair.indexOf(TOKEN_SEP)
+    // A state token's label comes before any `=` in its value.
+    if (colon !== -1 && (eq === -1 || colon < eq)) {
+      tokens[pair.substring(0, colon)] = pair.substring(colon + 1)
+      continue
+    }
     if (eq === -1) {
       continue
     }
@@ -248,7 +271,74 @@ export function decodePermalink(fragment) {
   // Settings are always returned as a complete map (defaults + any flagged
   // overrides) so callers don't need to know the default table.
   const settings = decodeSettings(params['s'])
-  return {path, d2000: d2000InRange, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov, settings}
+  return {path, d2000: d2000InRange, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov, settings, tokens}
+}
+
+
+/**
+ * Split a state token's value into its flags and named values:
+ * `open,view=a,pin=a+b` → {flags: ['open'], named: {view: 'a', pin: 'a+b'}}.
+ *
+ * @param {string} [value]
+ * @returns {{flags: Array<string>, named: object}}
+ */
+export function parseTokenValue(value) {
+  const flags = []
+  const named = {}
+  for (const part of (value ?? '').split(LIST_SEP)) {
+    if (!part) {
+      continue
+    }
+    const eq = part.indexOf(KV_SEP)
+    if (eq === -1) {
+      flags.push(part)
+    } else {
+      named[part.substring(0, eq)] = part.substring(eq + 1)
+    }
+  }
+  return {flags, named}
+}
+
+
+/**
+ * The inverse of parseTokenValue: flags first, then named values, each
+ * left out if null, undefined or an empty list.  Names and values are
+ * plain words and numbers (letters, digits, `.`, `-`, `_`), as written.
+ *
+ * @param {Array<string>} flags
+ * @param {object} named {name: string|number|Array}
+ * @returns {string}
+ */
+export function formatTokenValue(flags, named = {}) {
+  const parts = [...flags]
+  for (const [name, value] of Object.entries(named)) {
+    if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) {
+      continue
+    }
+    parts.push(`${name}${KV_SEP}${Array.isArray(value) ? value.join(VALUE_LIST_SEP) : value}`)
+  }
+  return parts.join(LIST_SEP)
+}
+
+
+/**
+ * @param {string} [value] A named value's list, `a+b`
+ * @returns {Array<string>}
+ */
+export function parseValueList(value) {
+  return value ? value.split(VALUE_LIST_SEP).filter(Boolean) : []
+}
+
+
+/**
+ * A number for a state token: at most 4 decimal places, trailing zeros
+ * trimmed, as the view's floats.
+ *
+ * @param {number} v
+ * @returns {string}
+ */
+export function formatTokenNumber(v) {
+  return trimFloat(v)
 }
 
 

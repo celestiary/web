@@ -7,6 +7,7 @@ import {
   Vector3,
 } from 'three'
 import Asterisms from './Asterisms.js'
+import ColonizationLines from './ColonizationLines.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import Planet from './Planet.js'
@@ -17,6 +18,7 @@ import StellarFrame from './StellarFrame.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {pickSurfaceLatLng, queryPlaces} from './Picker.js'
+import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
@@ -117,6 +119,8 @@ export default class Scene {
     // Loaded later
     this.stars = null
     this.asterisms = null
+    // Human expansion lines (ColonizationLines), built by the expansion drawer.
+    this.colonization = null
     this.orbitsVisible = true
     // Toggleable settings.  Initialized to the runtime state right after
     // Scene construction (before any user / firstTime toggle): asterisms
@@ -134,6 +138,7 @@ export default class Scene {
       c: false, // ecliptic grid
       g: false, // galactic grid
       U: true, // Milky Way galaxy
+      x: true, // human expansion lines, once computed
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
     // Custom appliers for settings keys that the Scene doesn't own directly
@@ -232,6 +237,7 @@ export default class Scene {
       c: () => this.toggleGridEcliptic(),
       g: () => this.toggleGridGalactic(),
       U: () => this.toggleGalaxy(),
+      x: () => this.toggleColonization(),
       ...this._customAppliers,
     }
     for (const key of Object.keys(dispatch)) {
@@ -427,6 +433,47 @@ export default class Scene {
         setter(this._pathFor(name))
       }
     }
+  }
+
+
+  /**
+   * Turn the camera in place to face a catalogue star, without moving it:
+   * the star counterpart of `setTarget` (a rotation-only look tween, same
+   * 600 ms, same roll-preserving convention).  A star has no scene object
+   * to target, so the world position is where the stellarFrame puts it,
+   * shifted by the current worldGroup rebase.  Breadcrumb and store are
+   * the caller's: SearchBar sets committedStar, as for a go.
+   *
+   * @param {object} star StarProps entry from StarsCatalog (x, y, z in m)
+   */
+  lookAtStar(star) {
+    this.ui.scene.updateMatrixWorld()
+    const pos = this.worldGroup.localToWorld(this.starPosition(star))
+    Shared.targets.tween = newCameraLookTween(this.ui.camera, pos)
+  }
+
+
+  /**
+   * Turn the camera in place to face a surface point (lat/lng in degrees,
+   * alt in m over the sphere) on a body.  Targets the body (`setTarget`:
+   * target, breadcrumb, preload), then aims the same look tween at the
+   * point rather than the body centre.
+   *
+   * @param {string} bodyName
+   * @param {number} lat
+   * @param {number} lng
+   * @param {number} [alt]
+   */
+  lookAtPlace(bodyName, lat, lng, alt = 0) {
+    this.setTarget(bodyName)
+    const bodyNode = this.objects[bodyName]
+    const r = bodyNode.props?.radius?.scalar
+    if (!r) {
+      return
+    }
+    this.ui.scene.updateMatrixWorld()
+    const pos = bodyNode.localToWorld(latLngAltToBodyFixed(lat, lng, alt, r))
+    Shared.targets.tween = newCameraLookTween(this.ui.camera, pos)
   }
 
 
@@ -877,7 +924,12 @@ export default class Scene {
 
 
   /**
-   * Double-click handler — ray-sphere intersects the click against the
+   * Double-click handler.  On a label (a planet's, a moon's or a star's),
+   * goes to what it labels, as 'g' does (onLabelDblClick, set by
+   * Celestiary): on a phone, the way to a body or star without a keyboard.
+   * Not while the star picker is on, whose own dblclick picks the star.
+   *
+   * Otherwise ray-sphere intersects the click against the
    * current body and, on hit, drops a temporary lat/lng marker at the spot
    * and lands there.  Works on any body with a `props.radius.scalar` that
    * isn't a star (stars are excluded so a dblclick on the Sun doesn't
@@ -888,6 +940,11 @@ export default class Scene {
    * @param {PointerEvent} e
    */
   onDblClick(e) {
+    const label = this.ui.useStore?.getState?.().isStarsSelectActive ? null : this.pickLabel(e)
+    if (label) {
+      this.onLabelDblClick?.(label)
+      return
+    }
     const cur = Shared.targets.cur
     if (!cur || !cur.props || !cur.props.radius?.scalar) {
       return
@@ -904,6 +961,22 @@ export default class Scene {
     }
     this._setTempMarker(cur, pick.lat, pick.lng)
     this.land(cur.props.name, pick.lat, pick.lng)
+  }
+
+
+  /**
+   * @param {PointerEvent} e
+   * @returns {object|null} The target of the label at e (labelPick.js):
+   *   {kind: 'body', name} or {kind: 'star', star, name}; null if none
+   */
+  pickLabel(e) {
+    const canvas = this.ui.renderer?.domElement
+    if (!canvas?.getBoundingClientRect) {
+      return null
+    }
+    const boxes = labelBoxes(this.ui.scene, this.ui.camera, canvas.getBoundingClientRect(),
+        this.ui.renderer.getPixelRatio?.() ?? 1)
+    return hitLabel(e.clientX, e.clientY, boxes)
   }
 
 
@@ -997,6 +1070,61 @@ export default class Scene {
       this.asterisms.visible = !this.asterisms.visible
       this._flipSetting('a')
     }
+  }
+
+
+  /**
+   * The human expansion lines (ColonizationLines), added to the stars on
+   * first use.  A scene annotation: shown per the 'x' setting, so 'x' and
+   * the global 'V' both hide them.  See DESIGN.md "Overlays & visibility
+   * groups".
+   *
+   * @returns {ColonizationLines|null} null until the stars are loaded
+   */
+  getColonization() {
+    if (this.colonization === null && this.stars !== null) {
+      this.colonization = new ColonizationLines()
+      this.colonization.visible = this._settings.x
+      this.stars.add(this.colonization)
+    }
+    return this.colonization
+  }
+
+
+  /** Remove the human expansion lines (its app stopped), freeing them. */
+  removeColonization() {
+    if (this.colonization) {
+      this.colonization.dispose()
+      this.colonization.removeFromParent()
+      this.colonization = null
+    }
+  }
+
+
+  /** Show or hide the human expansion lines ('x'). */
+  toggleColonization() {
+    this._flipSetting('x')
+    if (this.colonization) {
+      this.colonization.visible = this._settings.x
+    }
+    this.ui.useStore?.setState?.({isColonizationVisible: this._settings.x})
+  }
+
+
+  /**
+   * Move the camera along its line to the target, as a zoom would.
+   *
+   * @param {number} lightYears Distance from the target
+   */
+  setCameraDistance(lightYears) {
+    const {camera, controls} = this.ui
+    const eye = camera.position.clone().sub(controls.target)
+    if (eye.length() === 0) {
+      return
+    }
+    eye.setLength(lightYears * Shared.LIGHTYEAR_METER)
+    camera.position.copy(controls.target).add(eye)
+    this.ui.onCameraChange?.()
   }
 
 

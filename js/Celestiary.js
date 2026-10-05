@@ -17,6 +17,8 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment} from './permalink'
+import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
+import {goToEntry} from './search/commitEntry'
 import {elt} from './utils'
 
 
@@ -25,7 +27,7 @@ import {elt} from './utils'
 // keys here are the lowercase per-overlay toggles ('a' asterisms, 'p'
 // planet labels, etc.); the HTML chrome key 'v' is deliberately not in
 // this list so users can hide overlays and chrome independently.
-const SCENE_INFO_KEYS = ['a', 'l', 'p', 'o', 'e', 'c', 'g']
+const SCENE_INFO_KEYS = ['a', 'l', 'p', 'o', 'e', 'c', 'g', 'x']
 
 
 /** Main application class. */
@@ -43,8 +45,11 @@ export default class Celestiary {
     this.time = new Time(setTimeStr)
     this.setIsPaused = setIsPaused
     this.animation = new Animation(this.time)
-    canvasContainer.style.width = `${window.innerWidth}px`
-    canvasContainer.style.height = `${window.innerHeight}px`
+    // The scene fills the window, less the widgets dock and, on a phone,
+    // the drawer's sheet (setInsets).  Kept so on every resize, as a phone
+    // rotates or its browser bars come and go.
+    this._insets = {right: 0, bottom: 0}
+    this._sizeContainer(canvasContainer)
     const animCb = (scene) => {
       this.animation.animate(scene)
       if (Shared.targets.track) {
@@ -52,12 +57,14 @@ export default class Celestiary {
       }
     }
     this.ui = new ThreeUi(canvasContainer, animCb)
+    window.addEventListener('resize', () => this._layout())
     this.ui.layers.time = this.time
     this.ui.configLargeScene()
     this.ui.useStore = useStore
     this.ui.onCameraChange = () => this._schedulePermalinkUpdate()
     this.camera = this.ui.camera
     this.scene = new Scene(this.ui)
+    this.scene.onLabelDblClick = (label) => this.goToLabel(label)
     // Any settings toggle (asterisms, grids, etc.) updates the permalink so
     // the URL always reflects the live view configuration.
     this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
@@ -81,6 +88,12 @@ export default class Celestiary {
     this.ui.arController = this.ar
     this._registerSearchProviders()
     this._subscribePreview()
+    // The widgets drawer and its apps are in the permalink too.
+    this.useStore.subscribe((state, prev) => {
+      if (state.widgets !== prev.widgets) {
+        this._schedulePermalinkUpdate()
+      }
+    })
     this.load()
     this.setupPathListeners()
     this.setupKeyListeners(useStore)
@@ -176,6 +189,14 @@ export default class Celestiary {
     if (rawHash) {
       this._pendingPermalink = decodePermalink(rawHash)
       path = pathFromFragment(rawHash)
+      // The drawer and its apps, as the link left them (design/URLs.md).
+      // On first load only, as the scene settings.  Each app restores its
+      // own state from its entry here, waiting for what it needs (the
+      // stars, for the Human Expansion app).
+      const widgets = decodeAppTokens(this._pendingPermalink?.tokens)
+      if (widgets) {
+        this.useStore.getState().dispatchWidgets({type: 'restore', widgets})
+      }
     } else {
       path = DEFAULT_TARGET
       location.hash = path
@@ -294,6 +315,20 @@ export default class Celestiary {
 
 
   /**
+   * Go to what a double-clicked or tapped label labels (Scene.onDblClick),
+   * as the search's Go does (goToEntry): a body by its path, a star by
+   * scene.goTo, committed.
+   *
+   * @param {{kind: string, name: string, star?: object}} label
+   */
+  goToLabel(label) {
+    goToEntry(label.kind === 'star' ?
+      {kind: 'star', displayName: label.name, payload: {star: label.star, hipId: label.star.hipId}} :
+      {kind: 'body', displayName: label.name, payload: {name: label.name}}, this)
+  }
+
+
+  /**
    * Travel to the current committed target.  Precedence: a committed star
    * (set via search or crosshair dblclick) wins over the planet target —
    * otherwise 'g' from a star-scoped body would always bounce back to the
@@ -407,6 +442,12 @@ export default class Celestiary {
     },
     'Milky Way (procedural background galaxy)',
     () => this.scene.getSetting('U'),
+    'Labels')
+    k.map('x', () => {
+      this.scene.toggleColonization()
+    },
+    'Human expansion lines',
+    () => this.scene.getSetting('x'),
     'Labels')
 
     // === Orbits ===
@@ -579,6 +620,42 @@ export default class Celestiary {
 
 
   /**
+   * Shrink the scene from the right and the bottom, for the widgets dock and,
+   * on a phone, the drawer's sheet (ui/WidgetsDrawer), so they sit beside
+   * the scene rather than over it.
+   *
+   * @param {{right: number, bottom: number}} insets Pixels each takes, 0 for none
+   */
+  setInsets({right = 0, bottom = 0}) {
+    if (right === this._insets.right && bottom === this._insets.bottom) {
+      return
+    }
+    this._insets = {right, bottom}
+    this._layout()
+  }
+
+
+  /** Size the scene to the window less the insets. */
+  _layout() {
+    this._sizeContainer(this.ui.container)
+    this.ui.onResize()
+  }
+
+
+  /**
+   * Also sets `--scene-height`, which the info panel fits in (index.css).
+   *
+   * @param {HTMLElement} container
+   */
+  _sizeContainer(container) {
+    const height = Math.max(window.innerHeight - this._insets.bottom, 1)
+    container.style.width = `${Math.max(window.innerWidth - this._insets.right, 1)}px`
+    container.style.height = `${height}px`
+    document.documentElement?.style.setProperty('--scene-height', `${height}px`)
+  }
+
+
+  /**
    * Single-source-of-truth toggle for the nav panels (heads-up display).
    * Used both by the 'v' keypress and by Scene.applySettings on permalink
    * restore — the latter goes through the applier registered in the
@@ -591,7 +668,7 @@ export default class Celestiary {
    * entirely so descendants can't punch back through.
    */
   _toggleNav() {
-    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar')]
+    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('widgets-drawer'), elt('widgets-dock')]
     panels.forEach((panel) => {
       if (panel) {
         panel.style.display = this.navVisible ? 'none' : ''
@@ -675,7 +752,8 @@ export default class Celestiary {
         settings.A = true
       }
       const fragment = encodePermalink(
-          path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings)
+          path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings,
+          encodeAppTokens(this.useStore.getState().widgets))
       history.replaceState(null, '', `#${fragment}`)
     }, 1000)
   }

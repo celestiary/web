@@ -19,6 +19,10 @@ unknown keys are ignored (forward compatibility).
 
 Hashes without `@` are legacy path-only URLs and continue to work unchanged.
 
+After the view params come **state tokens**, `label:value` (the `:` before any `=`), for the
+widgets drawer and its apps: `apps:open,view=expansion;apps.expansion:k=6,run=1`.  They're
+returned as given in `decodePermalink(...).tokens`.  Spec: [design/URLs.md](../design/URLs.md).
+
 ### Example
 
 ```

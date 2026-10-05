@@ -111,6 +111,14 @@ button {
   top: 0px;
 }
 
+/* The target's info scrolls within the scene, clear of the search bar above
+   and the buttons below, rather than running off a phone's screen or under
+   the widgets sheet (--scene-height: Celestiary._sizeContainer). */
+#nav-info-id {
+  max-height: calc(var(--scene-height, 100vh) - 10em);
+  overflow-y: auto;
+}
+
 #search-bar {
   display: flex;
   align-items: center;
@@ -194,10 +202,24 @@ button {
   background: rgba(127, 160, 224, 0.15);
 }
 
+/* Narrow screens: the field gives way (its 260px minimum would push Go, Look
+   at, picker and Clear off the right edge), and the row wraps rather than
+   overflow if the buttons still don't fit. */
+@media (max-width: 500px) {
+  #search-bar.open {
+    flex-wrap: wrap;
+  }
+  #search-bar.open .MuiAutocomplete-root {
+    min-width: 0;
+    flex: 1 1 7em;
+  }
+}
+
 #top-right {
   position: fixed;
   top: 0;
-  right: 0;
+  /* Left of the widgets dock, when it shows (ui/WidgetsDrawer.jsx). */
+  right: var(--dock-width, 0px);
   text-align: right;
 }
 
@@ -229,7 +251,8 @@ button {
 @media (max-width: 500px) {
   #top-right {
     top: initial;
-    bottom: 0;
+    /* Above the widgets drawer's sheet, when it's open (ui/WidgetsDrawer.jsx). */
+    bottom: var(--sheet-height, 0px);
     display: flex;
     flex-direction: column-reverse;
   }
