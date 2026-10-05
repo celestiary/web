@@ -237,25 +237,42 @@ patch the two agree, and the sky's depth is set by the exposure, not the
 display.
 
 **The sprite's pixels carry the star's light**, `L × patch²`, over a
-Gaussian kernel (`shaders/stars.frag`) of width σ = 0.4 × patch (in
-pixels: 0.4 on the test viewport, 1.6 on a 1080 px screen), whose sum,
-2πσ², is patch², so the kernel's peak is L and one law holds from the
-faintest star up.  Past the value a pixel shows as white, σ grows 0.75 px
-per decade of light (bloom): the peak passes white, and the radius where
-it does is a saturated core that grows with the log of the light, with
-the halo outside it, as a bright star looks to the eye and on a sensor
-(Sirius at the dark-adapted gain: a core of radius 4 px in an 18 px halo
-on the test viewport).  The quad is sized from the radius where the
-kernel falls under `VISIBLE_VALUE` (0.004, under 1 of 255), plus a
-pixel, so it is as large as the visible star and no larger (to 96 px),
-and an edge window in the fragment shader takes the kernel to zero
-inside it: a bright star is round at every exposure.  The first cut's
-quad grew 3 px per decade with σ a quarter of it, and at a high gain the
-Gaussian was over white out to the quad's edge, so the brightest stars,
-and the Sun from Pluto, drew as squares (the user's preview).  **A
-resolved disc is no point**: the sprite's light fades by (patch/θ)² once
-the star's disc, θ = 2r/d, outgrows the patch, so the Sun's mesh and a
-halo take over from the point within a few AU (from Earth, 0.1 of it).
+Gaussian kernel (`shaders/stars.frag`) a quarter of the patch wide (σ =
+patch/4: 1 px on a 1080 px screen, 2 px at 2160), whose sum, 2πσ², is
+0.39 patch², so the kernel's peak is 2.5 L (`STAR_PEAK_OVER_RADIANCE`):
+narrower than the patch, as a point's spread on a sensor or the retina is
+narrower than the eye's resolution element, which detects rather than
+blurs; and the light stays above the tone map's toe (quadratic under
+0.08) instead of dying in it across a wide halo.  So a limit star peaks
+at 0.3 on a screen, 60 of 255, with its halo falling into the toe.  σ is
+never under 0.6 px, so the peak doesn't depend on where the star falls
+between pixel centres (the nearest centre, at most 0.7 px off, reads 0.5
+of it at worst, 0.85 typically).  On a viewport so coarse that the pixel
+is the patch (the 300 px test render: a 9′ pixel) a star under white is
+that one pixel at L, flat, wherever it falls, so the limit star reads
+`LIMIT_VALUE` exactly, and the screen's 2.5 L is the one difference
+between the two.  The second cut had σ = 0.4 × patch, whose sum is
+patch² and whose peak is L: "one law from the faintest star up", and
+exactly the calibration on the test viewport, but on the user's screen
+a magnitude fewer stars than the first cut (σ = sprite/4, the same
+quarter), whose peak was 2.5 L there and L × (0.4-1) on the test
+viewport, where its sub-pixel Gaussian straddled.  Past the value the
+peak shows as white, σ grows 0.75 px per decade of light (bloom): the
+peak passes white, and the radius where it does is a saturated core that
+grows with the log of the light, with the halo outside it, as a bright
+star looks to the eye and on a sensor (Sirius at the dark-adapted gain:
+a core of radius 4 px in an 18 px halo on the test viewport).  The quad is
+sized from the radius where the kernel falls under `VISIBLE_VALUE`
+(0.004, under 1 of 255), plus a pixel, so it is as large as the visible
+star and no larger (to 96 px), and an edge window in the fragment shader
+takes the kernel to zero inside it: a bright star is round at every
+exposure.  The first cut's quad grew 3 px per decade with σ a quarter of
+it, and at a high gain the Gaussian was over white out to the quad's
+edge, so the brightest stars, and the Sun from Pluto, drew as squares
+(the user's preview).  **A resolved disc is no point**: the sprite's
+light fades by (patch/θ)² once the star's disc, θ = 2r/d, outgrows the
+patch, so the Sun's mesh and a halo take over from the point within a
+few AU (from Earth, 0.1 of it).
 A texture
 (`star_glow.png`) did this at first, and lost two magnitudes: its flat
 core is 6% of the sprite's half-width, so a 2 px sprite sampled it at
@@ -277,6 +294,43 @@ the arithmetic (a 1 px point straddling pixels).  All 106,747 catalogue
 stars are drawn (`renderer.info`), none culled.  The ceiling was set by
 this star, not by a luminance: 3e6 put the limit at 6.0, 1e7 at 7.5 (×4
 in light near the toe is ×8 on screen).
+
+**Per body**, with the dark end absolute and the quarter-patch kernel
+(the same probe, 480×300 at 45°, each view 60° up and away from the Sun
+from 2-4 radii over the body, settled at the dark gain): the absolute
+gain is 4e6 everywhere, and a mag 6 star is the one pixel it falls in
+at 0.16-0.19 in exposure units (the test viewport's pixel is the patch),
+from Mercury to Pluto.  92-94% of the stars to 6.5 in view render at 10
+of 255 or more in every field (the rest straddle the frame's edge or sit
+under a brighter star), against 28% at Mercury and 100% at Jupiter and
+Pluto in the first cut, when the gain followed the keyed exposure (0.45×
+Earth's at Mercury, 37× at Pluto), and 57-65% with the second cut's
+σ = 0.4 × patch, whose sub-pixel Gaussian lost up to 5× of a faint
+star's peak with where it fell.
+
+| From | Keyed / Earth's | Absolute gain | Stars ≥ 10 of 255 to 6.5 (to 6.0) / in view | First cut (7cb678a): rendered / in view, at | σ = 0.4 × patch (cc83a76) |
+|---|---|---|---|---|---|
+| Mercury | 0.45 | 4.00e6 | 1,015 (666) / 1,088 | 285 / 1,006 at 1.8e6 | 687 |
+| Earth | 1.00 | 3.98e6 | 897 (528) / 975 | 663 / 975 at 4.0e6 | 559 |
+| Mars | 1.57 | 3.98e6 | 1,230 (784) / 1,336 | 691 / 728 at 6.3e6 | 855 |
+| Jupiter | 5.4 | 3.98e6 | 710 (421) / 764 | 769 / 770 at 2.2e7 | 442 |
+| Pluto | 36.9 | 4.00e6 | 793 (490) / 844 | 1,239 / 1,239 at 5.8e7 | 522 |
+| Earth's surface at night, Sun −35°, 50° up | 1.02 | 3.99e6 | 314 (221) / 425 | 234 | 206 |
+| Deep space, 4.7 AU, away from the Sun | 1.00 | 3.98e6 | 718 (446) / 768 | 410 | 447 |
+| The user's Pluto star field (its permalink) | 36.9 | 4.00e6 | 1,477 (911) / 1,579 | — | 1,033 / 1,579 |
+
+At 1080p (a 4 px patch, σ = 1 px) the deep-space field holds 822 of its
+823 stars to 6.5 and the night field 380 of 481: a mag 6 star is an 8 px
+quad peaking at 0.42-0.49, about 100 of 255, and a mag 2 star a 16 px
+quad with a round 5-6 px saturated core (0.73-0.83 of its bounding box;
+a disc fills 0.785, a square 1).  **The Sun from Pluto** (the user's permalink at 11.3 Tm, 480×300, its
+point centred): its disc is 0.4′, under a pixel, so the sprite is all of
+it: a round saturated core of 29×23 px, 0.92 of its circle, in a halo of
+radius 24-35 px (a 59 px quad), at a metered gain its own highlight caps
+near 1,500-2,000 over the keyed exposure (5e4 absolute), with 394 stars
+to 6.5 beside it; the first cut drew it as a 64 px square.  In the user's
+star-field permalink Sirius renders 234 at its centre with a saturated
+8×8 px core that fills 0.77 of its bounding box inside a 5 px halo.
 
 **The Sun's disc** (`star-shaders.js`) is `DISPLAY_GAIN / θ²` times the
 granulation texture, θ its angular radius from 1 AU: 69,000 at Earth's

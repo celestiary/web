@@ -3,7 +3,7 @@ import {
   METER_FLOOR, METER_GAIN_MAX, METER_GAIN_MIN, METER_HIGHLIGHT, METER_HIGHLIGHT_MAX, METER_KEY, easeExposure, exposureAt,
   EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
-  STAR_MAX_SIZE_PX,
+  STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE,
 } from './exposure.js'
 import {readFileSync} from 'fs'
 import {HDR_MAX_VALUE} from './hdr.js'
@@ -250,6 +250,47 @@ describe('the star sprite', () => {
       expect(Number.isFinite(star.sizePx) && star.sizePx >= 1).toBe(true)
       expect(Number.isFinite(star.peak) && star.peak > 0).toBe(true)
     }
+  })
+
+  it('on a coarse viewport the pixel is the patch: one flat pixel at the radiance, wherever the star falls', () => {
+    // 300 px at 45°: a 9′ pixel, the 10′ patch is 1 px.  Under white the
+    // sprite is that pixel at L (no Gaussian sampled off its centre), so
+    // the limit star reads LIMIT_VALUE whatever its sub-pixel position.
+    for (const m of [LIMITING_MAGNITUDE, 6, 5, 4.5]) {
+      const star = starSprite(mag(m), METER_GAIN_MAX)
+      expect(star.flat).toBe(true)
+      expect(star.sizePx).toBe(1)
+      expect(star.sigma).toBe(0)
+      expect(star.peak).toBeCloseTo(star.value, 9)
+    }
+    // Over white the bloom takes over: a Gaussian whose peak is white.
+    const bright = starSprite(mag(2), METER_GAIN_MAX)
+    expect(bright.flat).toBe(false)
+    expect(bright.peak).toBeGreaterThan(1)
+    expect(bright.sigma).toBeGreaterThan(0.6)
+  })
+
+  it('on a screen the kernel is a quarter of the patch: the peak 2.5 × the radiance, the same from 1080 to 2160 px', () => {
+    // The patch is 4 px at 1080 and 8 px at 2160; the kernel's sum is
+    // 2π(patch/4)² = 0.39 patch², so a limit star peaks at 2.5 × 0.12 =
+    // 0.3 (as it did at 7cb678a, where σ was a quarter of the sprite),
+    // not at 0.12 with a halo lost in the tone map's toe.
+    expect(STAR_PEAK_OVER_RADIANCE).toBeCloseTo(2.546, 2)
+    for (const heightPx of [1080, 1440, 2160]) {
+      const faint = starSprite(mag(LIMITING_MAGNITUDE), METER_GAIN_MAX, {heightPx})
+      expect(faint.flat).toBe(false)
+      expect(faint.peak / faint.value).toBeCloseTo(STAR_PEAK_OVER_RADIANCE, 6)
+      expect(faint.peak).toBeCloseTo(LIMIT_VALUE * STAR_PEAK_OVER_RADIANCE, 3)
+      expect(faint.sigma).toBeCloseTo(faint.patchPx / 4, 9)
+      // Its light is conserved: the kernel's sum is the patch's pixels times L.
+      expect(faint.peak * 2 * Math.PI * faint.sigma * faint.sigma).toBeCloseTo(faint.value * faint.patchPx * faint.patchPx, 6)
+    }
+    // A 2 px patch (a 600 px viewport) keeps the kernel at its least
+    // width, 0.6 px, for a peak that doesn't depend on the star's position.
+    const two = starSprite(mag(LIMITING_MAGNITUDE), METER_GAIN_MAX, {heightPx: 600})
+    expect(two.patchPx).toBe(2)
+    expect(two.sigma).toBe(0.6)
+    expect(two.peak).toBeGreaterThan(LIMIT_VALUE)
   })
 
   it('by day only the planets: a first-magnitude star is under a pixel\'s black', () => {

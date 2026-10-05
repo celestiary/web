@@ -376,9 +376,10 @@ export function starGainForLimit(magnitude) {
  * @param {number} [opts.starGain] The user's gain
  * @param {number} [opts.discRad] The star's disc's angular diameter, radians
  * @returns {{value: number, patchPx: number, sigma: number, peak: number,
- *   sizePx: number, coreRadiusPx: number}} value is the radiance in
- *   exposure units; coreRadiusPx where the kernel passes white (0.76 after
- *   the tone map's shoulder), 0 for a star under it
+ *   sizePx: number, coreRadiusPx: number, flat: boolean}} value is the
+ *   radiance in exposure units; coreRadiusPx where the kernel passes white
+ *   (0.76 after the tone map's shoulder), 0 for a star under it; flat for
+ *   the one-pixel sprite of a coarse viewport (sigma 0)
  */
 export function starSprite(ratio, gainOverEarth, {fovDegrees = 45, heightPx = 300, starGain = 1, discRad = 0} = {}) {
   const pxRad = (fovDegrees * Math.PI / 180) / Math.max(heightPx, 1)
@@ -388,18 +389,33 @@ export function starSprite(ratio, gainOverEarth, {fovDegrees = 45, heightPx = 30
   if (discRad > 0) {
     value *= Math.min(1, (patchRad * patchRad) / (discRad * discRad))
   }
-  const decades = Math.max(Math.log10(Math.max(value, 1e-30)), 0)
-  const sigma = (STAR_SIGMA_PER_PATCH * patchPx) + (STAR_BLOOM_SIGMA_PX_PER_DECADE * decades)
-  const peak = Math.min(value * patchPx * patchPx / (2 * Math.PI * sigma * sigma), HDR_MAX_VALUE)
+  const light = value * patchPx * patchPx
+  const sigma0 = Math.max(STAR_SIGMA_PER_PATCH * patchPx, STAR_SIGMA_MIN_PX)
+  const peak0 = light / (2 * Math.PI * sigma0 * sigma0)
+  if (patchPx < 1.5 && peak0 < 1) {
+    return {value, patchPx, sigma: 0, peak: Math.min(value, HDR_MAX_VALUE), sizePx: 1, coreRadiusPx: 0, flat: true}
+  }
+  const decades = Math.max(Math.log10(Math.max(peak0, 1e-30)), 0)
+  const sigma = sigma0 + (STAR_BLOOM_SIGMA_PX_PER_DECADE * decades)
+  const peak = Math.min(light / (2 * Math.PI * sigma * sigma), HDR_MAX_VALUE)
   const visibleRadius = sigma * Math.sqrt(2 * Math.log(Math.max(peak / STAR_VISIBLE_VALUE, 1)))
   const sizePx = Math.min(Math.max((2 * visibleRadius) + 2, 1), STAR_MAX_SIZE_PX)
   const coreRadiusPx = sigma * Math.sqrt(2 * Math.log(Math.max(peak / 0.76, 1)))
-  return {value, patchPx, sigma, peak, sizePx, coreRadiusPx}
+  return {value, patchPx, sigma, peak, sizePx, coreRadiusPx, flat: false}
 }
 
 
-/** The kernel's width as a fraction of the patch (stars.vert): its sum is then patch². */
-export const STAR_SIGMA_PER_PATCH = 0.4
+/**
+ * The kernel's width as a fraction of the patch (stars.vert): narrower
+ * than the patch, so its peak is patch² / 2πσ² = 2.5 × the patch's
+ * radiance (STAR_PEAK_OVER_RADIANCE) and a faint star stays above the
+ * tone map's toe.
+ */
+export const STAR_SIGMA_PER_PATCH = 0.25
+/** The kernel's least width, pixels, so the peak doesn't depend on where the star falls. */
+export const STAR_SIGMA_MIN_PX = 0.6
+/** A star's peak over its radiance on a screen whose patch is 3 px or more. */
+export const STAR_PEAK_OVER_RADIANCE = 1 / (2 * Math.PI * STAR_SIGMA_PER_PATCH * STAR_SIGMA_PER_PATCH)
 /** The kernel's width grows this many pixels per decade of light over white (bloom). */
 export const STAR_BLOOM_SIGMA_PX_PER_DECADE = 0.75
 /** The quad holds the kernel out to where it falls under this, exposure units. */

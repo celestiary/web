@@ -6,11 +6,12 @@
 // radiance L = light / Ω_patch, in exposure units.  The sprite is the
 // patch in pixels (1 px on a 300 px test viewport at 45°, 4 px on a 1080
 // px screen), so the two show the same field; its pixels carry
-// L × patch² in all, over a Gaussian kernel (shaders/stars.frag), so the
-// light is conserved whatever the kernel's width.  Past the value a pixel
-// shows as white (1) the sprite grows BLOOM_PX_PER_DECADE per decade of
-// light, as a saturated point blooms in the eye and on a sensor: the
-// brightest stars are bigger, their light still conserved.  A texture
+// L × patch² in all, over a Gaussian kernel (shaders/stars.frag) a
+// quarter of the patch wide, so the light is conserved whatever the
+// kernel's width.  Past the value a pixel shows as white (1) the kernel
+// widens BLOOM_SIGMA_PX_PER_DECADE per decade of light, as a saturated
+// point blooms in the eye and on a sensor: the brightest stars are
+// bigger, their light still conserved.  A texture
 // did this before: its flat core is 6% of the sprite's half-width, so a
 // 2 px sprite sampled it at 0.06 and a 4 px one at 0.27, and mipmaps
 // flattened a 3 px sprite's peak to a third: a mag 4 star reached 10 of
@@ -44,6 +45,17 @@ const float fourPi = 4. * PI;
 // (StarsCatalog, 3.0e28) over 4π AU².
 const float SUN_ILLUMINANCE_1AU = 3.0e28 / (fourPi * 1.495978707e11 * 1.495978707e11);
 const float DISPLAY_GAIN = 1.5;
+// The kernel's width is this fraction of the patch: narrower than the
+// patch, as a point's spread on a sensor or the retina is narrower than
+// the eye's resolution element (which detects, not blurs), so the peak is
+// patch² / 2πσ² = 2.5 × the patch's radiance and a faint star's light
+// stays above the tone map's toe instead of dying in it across a wide
+// halo: the user saw a magnitude fewer stars at σ = 0.4 × patch.
+const float KERNEL_SIGMA_PER_PATCH = 0.25;
+// And never narrower than this, in pixels, so the peak doesn't depend on
+// where the star falls between pixel centres (0.6: the nearest centre,
+// at most 0.7 px off, reads 0.5 of the peak at worst, 0.85 typically).
+const float KERNEL_SIGMA_MIN_PX = 0.6;
 // The kernel's width grows this many pixels per decade of light over a
 // white pixel's (bloom): a saturated core, whose radius grows with the
 // log of the light, and a halo.
@@ -92,18 +104,30 @@ void main() {
   float discRad = 2.0 * radius / max(-mvPosition.z, 1.0);
   value *= min(1.0, (patchRad * patchRad) / max(discRad * discRad, 1.0e-30));
 
-  // The kernel: the light, L × patch², over a Gaussian whose width is the
-  // patch's, plus the bloom, and whose sum over the pixels is 2πσ²; its
-  // peak may pass white, and the radius where it does is the saturated
-  // core.  The quad holds the kernel out
-  // to where it falls under VISIBLE_VALUE, so it is as large as the
-  // visible star and no larger.
-  float decadesOverWhite = max(log2(max(value, 1.0e-30)) / log2(10.0), 0.0);
-  // σ = 0.4 × patch: the Gaussian's sum, 2πσ², is then patch², one for a
-  // one-pixel patch, so the pixel shows L and the law is continuous as
-  // the light crosses white and the bloom begins.
-  vSigma = 0.4 * patchPx + BLOOM_SIGMA_PX_PER_DECADE * decadesOverWhite;
+  // The kernel: the light, L × patch², over a Gaussian of width
+  // KERNEL_SIGMA_PER_PATCH × patch (at least KERNEL_SIGMA_MIN_PX), plus
+  // the bloom, whose sum over the pixels is 2πσ²; its peak may pass
+  // white, and the radius where it does is the saturated core.  The quad
+  // holds the kernel out to where it falls under VISIBLE_VALUE, so it is
+  // as large as the visible star and no larger.
   float light = value * patchPx * patchPx;
+  float sigma0 = max(KERNEL_SIGMA_PER_PATCH * patchPx, KERNEL_SIGMA_MIN_PX);
+  float peak0 = light / (2.0 * PI * sigma0 * sigma0);
+  if (patchPx < 1.5 && peak0 < 1.0) {
+    // The pixel is the patch (a coarse viewport: a 300 px test render),
+    // so the star is the one pixel it falls in, showing L flat (vSigma 0
+    // tells stars.frag): a Gaussian narrower than a pixel sampled at the
+    // pixel's centre read 0.2-1 of the peak with where the star fell,
+    // and the faint end with it.  Past white the bloom takes over.
+    vSigma = 0.0;
+    vSize = 1.0;
+    gl_PointSize = 1.0;
+    vBrightness = min(value, MAX_VALUE);
+    gl_Position  = projectionMatrix * mvPosition;
+    return;
+  }
+  float decadesOverWhite = max(log2(max(peak0, 1.0e-30)) / log2(10.0), 0.0);
+  vSigma = sigma0 + BLOOM_SIGMA_PX_PER_DECADE * decadesOverWhite;
   float kernelSum = 2.0 * PI * vSigma * vSigma;
   float peak = min(light / kernelSum, MAX_VALUE);
   float visibleRadius = vSigma * sqrt(2.0 * log(max(peak / VISIBLE_VALUE, 1.0)));
