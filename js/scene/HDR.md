@@ -457,23 +457,52 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    rule 6 brings the gain to its surface once its disc is resolved
    (from 8 to 32 px across), and under that it is a point in whatever
    the rest of the frame asks.
-5. **A resolved sunlit body in the frame anchors the gain**
-   (`sunlitBodyCap`, from `ThreeUi._sunlitBodies`: every planet and moon
-   whose disc is in the frame and wider than the eye's patch, with its lit
-   fraction from its phase).  The gain is at most what shows the body's
-   brightest sunlit surface as a white: its sunlit white at the
+5. **A sunlit body in the frame anchors the gain, continuously in its
+   size on screen** (`sunlitBodyGain`, from `ThreeUi._sunlitBodies`:
+   every planet and moon whose disc is in the frame, with its lit
+   fraction from its phase, its diameter in pixels and its share of the
+   frame's pixels).  The anchor is the gain at which the body's brightest
+   sunlit surface is at a target value: its sunlit white at the
    target-keyed exposure (`DISPLAY_GAIN × keyed(target) / keyed(body)`)
    times `HIGHLIGHT_ALBEDO_FACTOR` (2.5) × its Bond albedo, to 1 (Earth's
    clouds are 0.9 over its 0.37, the Moon's highlands 0.2 over its 0.12).
+   Two blends, both in log gain, so a step of zoom never steps the
+   exposure:
+   - **how much of the anchor applies, by the disc's diameter**
+     (`SUNLIT_DISC_PX`, 1.5 to 6 px, scaled by the pixel ratio): none for
+     a point-like planet, which blows out in a star field as a bright
+     point does (Jupiter from Earth at 45°, 40″, stays a star of the
+     night); all of it from 6 px (the Moon at 45° on a 1080 px screen is
+     7 px);
+   - **the target, by the disc's share of the frame**
+     (`SUNLIT_FRAME_FRACTION`, 0.2% to 2%): a white
+     (`METER_HIGHLIGHT_MAX`) for a small disc, falling to a sunlit
+     surface (`METER_HIGHLIGHT`, 0.6) as the share reaches the 2% the
+     highlight rule above keys on, so the two rules agree where they
+     meet and the disc is exposed alike whichever holds.  A ±15% step of
+     zoom moves the gain under 20%.
+
    The Moon from Earth's night side: 3.3, its highlands white and its
    maria at 0.6, the stars to magnitude 3; Earth's crescent from
-   94,000 km: 1.1, its clouds just white, no stars.  The percentile rules
+   94,000 km: 1.1, its clouds just white, no stars; Jupiter at a
+   telescope's 0.04° field from Earth, 275 px across on a 1140 px frame
+   (2.3% of it): 2.16 (its keyed exposure is 5.3× Earth's by
+   `exposureAt`), its brightest band at 0.6 and its centre at 0.43, and
+   2.16 and 2.20 at the next two steps of zoom out (255 and 230 px, the
+   last under 2%), where the first cut gave 2.16, 2.16 and 4e6.  The
+   percentile rules
    above miss a body under 2% of the pixels, and ran a frame with Earth's
    crescent in it to the dark-adapted gain: the crescent a flat white (the
    user's preview).  An eye or a camera won't blow out the one lit thing in
-   view, and with it in view the stars legitimately go.  Jupiter from Earth
-   (40″) is a point and stays a star of the night; with no lit body in
-   view the field keeps its dark adaptation.  Only a disc that fits in the
+   view, and with it in view the stars legitimately go; with no lit body
+   in view the field keeps its dark adaptation.  The first cut
+   (`sunlitBodyCap`, kept for `starsDebug`) was a hard cap that took a
+   body as resolved by its angular size against the eye's 10′ patch,
+   whatever the field of view: at the telescope field Jupiter, 300 px
+   across but 40″, never anchored, the 2% rule alone held it at 0.6, and
+   when a step of zoom took the disc under 2% of the frame the rule
+   dropped it and the gain went to 4e6, the disc from its bands to a
+   flat white at once (the user's preview).  Only a disc that fits in the
    frame anchors (the lit fraction is the whole disc's: from the ground or
    low orbit on the night side the lit part is beyond the frame, and the
    dark ground adapts), and only with a twentieth of it lit
@@ -586,9 +615,10 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
 | Mars, same, away from the Sun (`mars-sky-antisolar`) | 1.9 | 0.16 / 0.19 | sky 50° up / horizon / ground | 19 / 36 / 34 | 47 / 77 / 76 |
 | Mars, same, toward the Sun (`mars-sky-aureole`) | 1 | 0.53 / 2.3 | aureole / 40° off / ground | 210 / 92 / 48 | 210 / 92 / 52 |
 | Mars from 232 m, Sun 26° up (`mars-low-horizon`) | 1.25 | 0.24 / 0.48 | ground / sky | 44 / 53 | 56 / 68 |
-| Earth's crescent from 94,000 km, 30% lit, in a star field (`sunlitBodyCap`) | 1.09 (the cap) | 7.5e-8 / 6.9e-8 | crescent (0.3% of the frame) | white, 4e6 (the second cut) | peak 238, median 100, none saturated; 7 stars |
+| Earth's crescent from 94,000 km, 30% lit, in a star field (`sunlitBodyCap`; with `sunlitBodyGain` the cap's target at 0.3% of the frame is 1.39, the gain 1.01, by the function) | 1.09 (the cap) | 7.5e-8 / 6.9e-8 | crescent (0.3% of the frame) | white, 4e6 (the second cut) | peak 238, median 100, none saturated; 7 stars |
 | The Moon from the outback at night, 77% lit, 10° field (`sunlitBodyCap`) | 3.33 (the cap) | 2.3e-8 / 2.3e-8 | the disc | white, 4e6 (the second cut) | 47-232 with its phase |
 | The Sun's disc, zooming in from 232 Gm to 8 Gm (`luminousDiscGain`; 1000×595, bare) | 4.0e6 at 4.5 px across (232 Gm), 1.8e6 at 10.5 px (100 Gm), 3,700 at 16 px (65 Gm), 1.67 at 21 px (50 Gm), 8.65e-6 from 35 px (30 Gm) | — | the disc | white to 5 Gm, then 0.6 | 6e4 to 50 Gm, 0.600 from 30 Gm; monotone, no jump |
+| Jupiter from Earth at a telescope's field, zooming out, 0.04° to 0.3° (`sunlitBodyGain`; 1000×570, bare, the user's permalink) | 2.16 at 130 px across (2.3% of the frame), 2.16 at 121 px (2.0%), 2.20 at 109 px (1.6%), 2.58 at 87 px (1.0%), 4.57 at 52 px (0.37%), 5.37 at 17 px (0.04%) | — | the disc's centre, linear | 2.16, 2.16, then 4e6 (the hard cap, which never took Jupiter: 40″) | 0.43, 0.43, 0.44, 0.52, 0.93, 1.05: its bands at every step, a white only as a small disc; no step of gain over 14% between steps of 15-20% in zoom |
 | The Sun's disc at 71 Gm, 8 Gm and 2 Gm, the clock set by the permalink (`noiseTime`, the shoulder, the glow's share) | 8.65e-6 at 8 and 2 Gm, 2.5e4 at 71 Gm | — | the disc, linear | NaN (black) at every distance; then 29 NaN on the rim at 71 Gm | 0.600 at the centre with the texture's colour at 8 and 2 Gm (limb 0.165); 49,980 at 71 Gm with the glow on its rim; no non-finite pixel in any frame |
 | The Sun from 7 radii | 5e-6 (the floor: SwiftShader's disc is non-finite, which the meter counts as the maximum) | 66 / 1.2e10 | disc | black (SwiftShader; its rim 6e4) | the same |
 

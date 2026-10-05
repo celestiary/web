@@ -332,6 +332,79 @@ export function smoothstep(lo, hi, x) {
 
 
 /**
+ * The sunlit-body anchor as the meter applies it (ThreeUi._meter), in
+ * place of the hard cap: continuous in the disc's size on screen, so the
+ * exposure changes gradually with zoom and a planet that fills a similar
+ * share of the screen is exposed alike.  Two blends, both in log gain:
+ *
+ * - **The cap's weight, by the disc's diameter in pixels**
+ *   (SUNLIT_DISC_PX, 1.5 to 6 px, scaled by the pixel ratio): none for a
+ *   point-like planet, which blows out in a star field as a bright point
+ *   does; all of it from 6 px.  The first cut took a body as resolved by
+ *   its angular size against the eye's 10′ patch, which at a telescope's
+ *   field left Jupiter, 300 px across, unanchored: the meter's 2% rule
+ *   alone held it, and when the disc fell under 2% of the frame at a
+ *   step of zoom the rule dropped it, 0.6 to blown white at once (the
+ *   user's preview).
+ * - **The cap's target, by the disc's share of the frame**: a white
+ *   (METER_HIGHLIGHT_MAX) for a small disc, as before, falling to a
+ *   sunlit surface (METER_HIGHLIGHT) as the share reaches the 2% the
+ *   highlight rule keys on (SUNLIT_FRAME_FRACTION), so the two rules
+ *   agree where they meet and the disc is exposed as the 2% rule exposes
+ *   it, whichever holds.
+ *
+ * The result is never above the meter's gain (a cap), never under 1
+ * (the target's own sunlit side keeps its keyed exposure), and the
+ * frame-fit and lit-fraction guards of sunlitBodyCap hold.
+ *
+ * @param {number|null} gain The meter's gain over the target-keyed exposure
+ * @param {Array<{angularRadius: number, litFraction: number, keyedExposure: number, albedo: number,
+ *   diameterPx: number, frameFraction: number}>} bodies As sunlitBodyCap's, plus each body's disc
+ *   diameter in pixels and its share of the frame's pixels
+ * @param {number} targetKeyedExposure exposureAt the exposure target's distance
+ * @param {number} [halfFov] Half the vertical field of view, radians
+ * @param {number} [pixelRatio] The renderer's
+ * @returns {number|null} The gain, capped as the bodies in view ask
+ */
+export function sunlitBodyGain(gain, bodies, targetKeyedExposure, halfFov = Math.PI, pixelRatio = 1) {
+  if (!(gain > 0)) {
+    return gain
+  }
+  let out = gain
+  const [lo, hi] = SUNLIT_DISC_PX.map((px) => px * Math.max(pixelRatio, 1e-6))
+  const [fLo, fHi] = SUNLIT_FRAME_FRACTION
+  for (const body of bodies) {
+    const {angularRadius, litFraction, keyedExposure, albedo, diameterPx, frameFraction} = body
+    if (!(angularRadius <= halfFov) || !(litFraction >= LIT_FRACTION_MIN) || !(keyedExposure > 0) || !(diameterPx > 0)) {
+      continue
+    }
+    const weight = smoothstep(Math.log(lo), Math.log(hi), Math.log(diameterPx))
+    if (!(weight > 0)) {
+      continue
+    }
+    const share = smoothstep(Math.log(fLo), Math.log(fHi), Math.log(Math.max(frameFraction, 1e-12)))
+    const target = Math.exp(((1 - share) * Math.log(METER_HIGHLIGHT_MAX)) + (share * Math.log(METER_HIGHLIGHT)))
+    const white = DISPLAY_GAIN * targetKeyedExposure / keyedExposure
+    const highlightAlbedo = Math.min(HIGHLIGHT_ALBEDO_FACTOR * (albedo > 0 ? albedo : 0.3), 1)
+    const cap = Math.max(target / (white * highlightAlbedo), 1)
+    if (cap < gain) {
+      out = Math.min(out, Math.exp(((1 - weight) * Math.log(gain)) + (weight * Math.log(cap))))
+    }
+  }
+  return out
+}
+
+
+/**
+ * The disc diameters, in pixels, over which a sunlit body's cap weighs
+ * in (sunlitBodyGain), none at the first, all from the second: a planet a
+ * pixel or two across blows out as a bright point; the Moon at 45° on a
+ * 1080 px screen (7 px) is anchored as it was.
+ */
+export const SUNLIT_DISC_PX = [1.5, 6]
+
+
+/**
  * A body's brightest sunlit surface over its Bond albedo (sunlitBodyCap):
  * Earth's clouds are 0.9 over its 0.37, the Moon's highlands 0.2 over
  * its 0.12.
@@ -414,6 +487,12 @@ export const METER_FLOOR = 7.5e-8
 export const METER_GAIN_MAX = METER_KEY / METER_FLOOR
 /** The share of the frame whose luminance the highlight cap looks at. */
 export const METER_HIGHLIGHT_FRACTION = 0.02
+/**
+ * The disc's share of the frame over which the cap's target falls from a
+ * white to a sunlit surface (sunlitBodyGain): the second is the meter's
+ * highlight fraction, where the 2% rule takes the disc itself.
+ */
+export const SUNLIT_FRAME_FRACTION = [0.002, METER_HIGHLIGHT_FRACTION]
 /**
  * The most that luminance is lifted to, in exposure units: a sunlit
  * surface of albedo 0.4 (DISPLAY_GAIN × 0.4).  Brighter than that, the

@@ -517,7 +517,15 @@ every planet and moon's angular size, phase and albedo are a few vector
 ops per meter tick (`sunlitBodyCap`), and from them the gain at which the
 body's brightest sunlit surface is a white.  Checking the rule against the
 night-side cases found two guards it needed (the disc must fit the frame;
-a twentieth of it must be lit) before the first render.
+a twentieth of it must be lit) before the first render.  Its "resolved"
+test was the eye's 10′ patch, an angle, and it failed at the one field
+where the frame's and the body's rules hand over: Jupiter at a
+telescope's 0.04° is 300 px across yet 40″, never anchored, held at 0.6
+by the 2% rule alone, and a step of zoom that took its disc under 2% of
+the frame stepped the gain 0.6 to 4e6.  Anything the rule keys on is a
+quantity on screen (pixels, share of the frame), and every hand-over
+between rules is a blend in log gain over a range of it
+(`sunlitBodyGain`, as `luminousDiscGain`), never a threshold.
 
 **Rule:** when a pixel statistic has to tell two things apart (a small
 lit body from a star field; an empty frame from a dark one), ask whether

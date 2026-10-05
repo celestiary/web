@@ -4,7 +4,8 @@ import {
   easeExposure, exposureAt,
   EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
-  luminousDiscGain, starClipZ, sunDiscValue, sunlitBodyCap, HIGHLIGHT_ALBEDO_FACTOR, STAR_GLARE_CORE_PATCHES,
+  luminousDiscGain, starClipZ, sunDiscValue, sunlitBodyCap, sunlitBodyGain, HIGHLIGHT_ALBEDO_FACTOR,
+  METER_HIGHLIGHT_FRACTION, STAR_GLARE_CORE_PATCHES, SUNLIT_DISC_PX, SUNLIT_FRAME_FRACTION,
   STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, SUN_DISC_RADIANCE,
 } from './exposure.js'
 import {readFileSync} from 'fs'
@@ -333,6 +334,129 @@ describe('a sunlit body in the frame', () => {
     // for 0.03; the floor is 1.
     const pluto = exposureAt(39.5 * ASTRO_UNIT_METER)
     expect(sunlitBodyCap([{...moon, albedo: 1}], pluto)).toBe(1)
+  })
+})
+
+
+describe('a sunlit body in the frame, continuously in its size on screen', () => {
+  const earth = exposureAt(ASTRO_UNIT_METER)
+  const jupiterKeyed = exposureAt(5.2 * ASTRO_UNIT_METER)
+  const [width, height] = [2000, 1140]
+  const fovDeg = 0.04
+  // Jupiter in the user's telescope view (#153 follow-up 10): the frame's
+  // target Earth, Jupiter 0.52 albedo, nearly full, diameterPx tall on a
+  // 1140 px frame at a 0.04° field.
+  const jupiter = (diameterPx) => ({
+    angularRadius: (diameterPx / 2) * (fovDeg * Math.PI / 180) / height,
+    litFraction: 0.99,
+    keyedExposure: jupiterKeyed,
+    albedo: 0.52,
+    diameterPx,
+    frameFraction: (Math.PI * ((diameterPx / 2) ** 2)) / (width * height),
+  })
+  const halfFov = fovDeg * Math.PI / 360
+  const white = DISPLAY_GAIN * earth / jupiterKeyed
+  const dark = METER_GAIN_MAX
+  const gainAt = (px) => sunlitBodyGain(dark, [jupiter(px)], earth, halfFov)
+
+  it('holds Jupiter\'s disc at a sunlit surface over the user\'s three steps of zoom, within 10% of each other', () => {
+    // 313 px: 3% of the frame, the 2% rule's own case; 275 and 255 px over
+    // 2%; 230 px (1.8%) under it, where the first cut let the gain go to
+    // 4e6 and the disc went flat white.
+    const gains = [313, 275, 255, 230].map(gainAt)
+    for (const g of gains) {
+      expect(g * white).toBeGreaterThanOrEqual(METER_HIGHLIGHT * 0.999)
+      expect(g * white).toBeLessThanOrEqual(0.61)
+    }
+    expect(Math.max(...gains) / Math.min(...gains)).toBeLessThan(1.1)
+    // Where the disc fills the 2%, the cap is what the 2% rule gives: 0.6.
+    expect(gainAt(313) * white).toBeCloseTo(METER_HIGHLIGHT, 6)
+  })
+
+  it('is continuous and monotone in the disc\'s diameter: no step over a ±15% change in size', () => {
+    // Up to the frame's height: a disc past the frame doesn't anchor (the
+    // lit part may be out of it), and the 2% rule holds it by then.
+    let prev = gainAt(0.5)
+    let worst15 = 1
+    for (let px = 0.5; px * 1.15 < height; px *= 1.01) {
+      const g = gainAt(px)
+      expect(Number.isFinite(g)).toBe(true)
+      expect(g).toBeLessThanOrEqual(prev * (1 + 1e-9))
+      // A 1% step in size moves the gain by at most 20%: continuous, where
+      // the first cut stepped 0.6 to 4e6 at once.
+      expect(prev / g).toBeLessThan(1.2)
+      const g15 = gainAt(px * 1.15)
+      worst15 = Math.max(worst15, g / g15)
+      prev = g
+    }
+    // The steepest ±15% step is where a point becomes a disc (1.5-6 px),
+    // and even there under three stops.
+    expect(worst15).toBeLessThan(8)
+    // Over the resolved disc, a ±15% step of zoom moves the gain under 20%
+    // (a quarter stop): the target's blend over the share of the frame.
+    for (const px of [20, 50, 100, 150, 200, 230, 255, 275, 313, 500, 900]) {
+      expect(gainAt(px) / gainAt(px * 1.15)).toBeLessThan(1.2)
+      expect(gainAt(px / 1.15) / gainAt(px)).toBeLessThan(1.2)
+    }
+  })
+
+  it('leaves a point-like planet to the frame, blends from 1.5 px and anchors from 6 px', () => {
+    const [lo, hi] = SUNLIT_DISC_PX
+    expect(gainAt(1)).toBe(dark)
+    expect(gainAt(lo)).toBe(dark)
+    expect(gainAt(Math.sqrt(lo * hi))).toBeLessThan(dark)
+    expect(gainAt(Math.sqrt(lo * hi))).toBeGreaterThan(gainAt(hi))
+    // At 6 px the cap holds fully: Jupiter's disc a white (1.5), 0.0001%
+    // of the frame.
+    expect(gainAt(hi) * white).toBeCloseTo(METER_HIGHLIGHT_MAX, 6)
+    // The pixel ratio scales the diameters: at 2×, 6 px is 3 CSS px.
+    expect(sunlitBodyGain(dark, [jupiter(hi)], earth, halfFov, 2)).toBeGreaterThan(gainAt(hi))
+    expect(sunlitBodyGain(dark, [jupiter(2 * hi)], earth, halfFov, 2)).toBeCloseTo(gainAt(hi), 9)
+  })
+
+  it('exposes the disc from a white to a sunlit surface as its share of the frame grows to the 2% rule\'s', () => {
+    const [fLo, fHi] = SUNLIT_FRAME_FRACTION
+    expect(fHi).toBe(METER_HIGHLIGHT_FRACTION)
+    const pxFor = (fraction) => 2 * Math.sqrt(fraction * width * height / Math.PI)
+    expect(gainAt(pxFor(fLo)) * white).toBeCloseTo(METER_HIGHLIGHT_MAX, 6)
+    expect(gainAt(pxFor(fHi)) * white).toBeCloseTo(METER_HIGHLIGHT, 6)
+    const mid = gainAt(pxFor(Math.sqrt(fLo * fHi))) * white
+    expect(mid).toBeGreaterThan(METER_HIGHLIGHT)
+    expect(mid).toBeLessThan(METER_HIGHLIGHT_MAX)
+  })
+
+  it('keeps the Moon from Earth\'s night side at 3.3, as the hard cap had it', () => {
+    // The Moon in a 10° field on 1080 px: 31 px, 0.2% of a 1920×1080 frame.
+    const moonRad = 1.7381e6 / 3.844e8
+    const diameterPx = 2 * moonRad / ((10 * Math.PI / 180) / 1080)
+    expect(diameterPx).toBeCloseTo(56, 0)
+    const moon = {angularRadius: moonRad, litFraction: 1, keyedExposure: earth, albedo: 0.12, diameterPx,
+      frameFraction: (Math.PI * ((diameterPx / 2) ** 2)) / (1920 * 1080)}
+    const cap = sunlitBodyCap([moon], earth)
+    expect(cap).toBeCloseTo(3.33, 1)
+    // 0.12% of the frame: the target is between a white and 0.6, nearer the white.
+    const g = sunlitBodyGain(dark, [moon], earth, 5 * Math.PI / 180)
+    expect(g).toBeGreaterThan(cap * 0.8)
+    expect(g).toBeLessThanOrEqual(cap * (1 + 1e-9))
+    // At 45° on 1080 px (7 px) the cap holds fully too.
+    const wide = {...moon, diameterPx: 7, frameFraction: (Math.PI * 3.5 * 3.5) / (1920 * 1080)}
+    expect(sunlitBodyGain(dark, [wide], earth, 22.5 * Math.PI / 180)).toBeCloseTo(cap, 9)
+  })
+
+  it('keeps the hard cap\'s guards: the disc in the frame, a twentieth lit, never under 1, and a cap only', () => {
+    const wide = 22.5 * Math.PI / 180
+    const moon = {angularRadius: 14 * Math.PI / 180, litFraction: 1, keyedExposure: earth, albedo: 0.367, diameterPx: 700,
+      frameFraction: 0.3}
+    expect(sunlitBodyGain(dark, [{...moon, angularRadius: 89 * Math.PI / 180}], earth, wide)).toBe(dark)
+    expect(sunlitBodyGain(dark, [{...moon, litFraction: 0.02}], earth, wide)).toBe(dark)
+    expect(sunlitBodyGain(dark, [], earth, wide)).toBe(dark)
+    expect(sunlitBodyGain(null, [moon], earth, wide)).toBe(null)
+    expect(sunlitBodyGain(0, [moon], earth, wide)).toBe(0)
+    // A gain under the cap stays: the meter's 0.5 with Earth in view.
+    expect(sunlitBodyGain(0.5, [moon], earth, wide)).toBe(0.5)
+    // From Pluto's keyed exposure a resolved Earth asks for 0.03: the floor is 1.
+    const pluto = exposureAt(39.5 * ASTRO_UNIT_METER)
+    expect(sunlitBodyGain(dark, [{...moon, albedo: 1}], pluto, wide)).toBe(1)
   })
 })
 

@@ -26,7 +26,7 @@ import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   METER_EVERY_FRAMES, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, easeExposure, exposureAt, exposureRelative,
   LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, illuminanceRatio, limitingMagnitude, luminousDiscGain,
-  meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap,
+  meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap, sunlitBodyGain,
 } from './scene/exposure.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
@@ -624,10 +624,14 @@ export default class ThreeUi {
     // The dark end is absolute, over Earth's keyed exposure (meteredGain).
     // A frame of zeros means "nothing drawn yet" only while the scene
     // loads (frameCanBeEmpty): once loaded, black is dark.
-    // A resolved sunlit body in the frame anchors the gain (sunlitBodyCap).
-    this._meterCap = sunlitBodyCap(this._sunlitBodies(), this._exposureGoal, this.camera.fov * Math.PI / 360)
+    // A sunlit body in the frame anchors the gain, continuously in its size
+    // on screen (sunlitBodyGain); the hard cap is logged (starsDebug).
+    const halfFov = this.camera.fov * Math.PI / 360
+    this._sunlit = this._sunlitBodies()
+    this._meterCap = sunlitBodyCap(this._sunlit, this._exposureGoal, halfFov)
     const keyedOverEarth = this._exposureGoal / exposureAt(ASTRO_UNIT_METER)
-    const metered0 = meteredGain(metered, renderedOverKeyed, this._frameCanBeEmpty(), keyedOverEarth, this._meterCap)
+    const metered0 = sunlitBodyGain(meteredGain(metered, renderedOverKeyed, this._frameCanBeEmpty(), keyedOverEarth),
+        this._sunlit, this._exposureGoal, halfFov, this.renderer.getPixelRatio())
     // A resolved self-luminous disc (the Sun's) brings the gain to what
     // shows its surface, blended in as it grows (luminousDiscGain).
     this._luminous = this._luminousDiscs()
@@ -665,12 +669,15 @@ export default class ThreeUi {
 
   /**
    * The planets and moons in the frame, for the meter's sunlit-body anchor
-   * (exposure.js sunlitBodyCap): each one's angular radius, lit fraction
-   * (from its phase angle), keyed exposure at its distance from the Sun,
-   * and Bond albedo.  A body whose centre projects within the frame plus
-   * its own radius counts; one not drawn (its LOD, or hidden) doesn't.
+   * (exposure.js sunlitBodyGain, and sunlitBodyCap for starsDebug): each
+   * one's angular radius, lit fraction (from its phase angle), keyed
+   * exposure at its distance from the Sun, Bond albedo, disc diameter in
+   * pixels and share of the frame's pixels.  A body whose centre projects
+   * within the frame plus its own radius counts; one not drawn (its LOD,
+   * or hidden) doesn't.
    *
-   * @returns {Array<{angularRadius: number, litFraction: number, keyedExposure: number, albedo: number}>}
+   * @returns {Array<{angularRadius: number, litFraction: number, keyedExposure: number, albedo: number,
+   *   diameterPx: number, frameFraction: number}>}
    */
   _sunlitBodies() {
     const objects = this.sceneManager?.objects
@@ -709,11 +716,15 @@ export default class ThreeUi {
       const toSun = sun.clone().sub(body)
       const toCam = cam.clone().sub(body)
       const cosPhase = toSun.lengthSq() > 0 ? toSun.normalize().dot(toCam.normalize()) : 1
+      const pxRad = (this.camera.fov * Math.PI / 180) / Math.max(this.height, 1)
+      const diameterPx = 2 * angularRadius / pxRad
       bodies.push({
         angularRadius,
         litFraction: (1 + cosPhase) / 2,
         keyedExposure: exposureAt(Math.max(body.distanceTo(sun), 1)),
         albedo: o.props.albedo,
+        diameterPx,
+        frameFraction: (Math.PI * ((diameterPx / 2) ** 2)) / Math.max(this.width * this.height, 1),
       })
     }
     return bodies
