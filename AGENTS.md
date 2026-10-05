@@ -116,6 +116,12 @@ tried and dropped.
   star field's state: the exposure and metered gain with the meter's last
   reading, the limiting magnitude, the GPU's point-size range and
   fragment precision, and a few stars' sprites by the shader's law.
+- **A star missing on the user's GPU and not here:** `c.ui.starProbe('Name')`
+  renders and reads the star's pixel as is and with each candidate group
+  hidden in turn (asterisms, expansion lines, the Milky Way, the galaxy,
+  labels, the bodies), and logs the sprite's law and its clip z by
+  float32. Ask the user to run it at the failing view and paste the
+  output, rather than guessing the occluder from here.
 - **A frame can read as empty on a real GPU and not on SwiftShader:**
   half-float values under 6.1e-5 are denormals, which a GPU may flush to
   zero (a star field at the keyed exposure is all under it), and the

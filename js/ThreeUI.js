@@ -26,7 +26,7 @@ import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   METER_EVERY_FRAMES, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, easeExposure, exposureAt, exposureRelative,
   LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, illuminanceRatio, limitingMagnitude, luminousDiscGain,
-  meanLogLuminance, meteredGain, skyExposure, starGainForLimit, starSprite, sunlitBodyCap,
+  meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap,
 } from './scene/exposure.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
@@ -717,6 +717,112 @@ export default class ThreeUi {
       })
     }
     return bodies
+  }
+
+
+  /**
+   * Bisects what hides one star on the machine at hand (the user's M2 lost
+   * Alnilam at some views; no render here did): renders the frame and
+   * reads the star's pixel, then again with each candidate group hidden
+   * in turn (the asterism and expansion lines, the Milky Way, the galaxy,
+   * labels, the Sun and planets with their sprites and shells), and
+   * restores them.  Logs the star's projection, its sprite by the
+   * shader's law (starSprite), its clip z by float32 (starClipZ), and the
+   * pixel's luma per configuration: a configuration that brings the star
+   * back names the occluder; none, and the loss is in the star draw
+   * itself on that GPU.  `c.ui.starProbe('Alnilam')` in the console.
+   *
+   * @param {string} name A star's name in the catalogue
+   * @returns {object} What it logs
+   */
+  starProbe(name) {
+    const points = this._starsPoints ?? this.scene.getObjectByName('StarsPoints') ?? null
+    const catalog = this.useStore?.getState?.()?.starsCatalog
+    const hip = catalog?.hipByName?.get(name)
+    if (!points || hip === undefined) {
+      console.log('starProbe: no star', name)
+      return null
+    }
+    const g = points.geometry
+    const index = Array.from(g.idsByNdx).indexOf(hip)
+    const hi = g.getAttribute('position').array
+    const lo = g.getAttribute('positionLow').array
+    const lumens = g.getAttribute('lumens').array[index]
+    points.updateMatrixWorld(true)
+    const world = new Vector3(hi[index * 3] + lo[index * 3], hi[(index * 3) + 1] + lo[(index * 3) + 1],
+        hi[(index * 3) + 2] + lo[(index * 3) + 2]).applyMatrix4(points.matrixWorld)
+    const cam = this.camera.getWorldPosition(new Vector3())
+    const distance = world.distanceTo(cam)
+    const ndc = world.clone().project(this.camera)
+    const px = Math.round((ndc.x + 1) / 2 * this.width)
+    const py = Math.round((1 - ndc.y) / 2 * this.height)
+    const sun1au = 3.0e28 / (4 * Math.PI * (1.495978707e11 ** 2))
+    const ratio = lumens / (4 * Math.PI * distance * distance) / sun1au
+    const gl = this.renderer.getContext()
+    const one = new Uint8Array(4)
+    const readLuma = () => {
+      this.renderLoop(performance.now())
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      let best = 0
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const x = px + dx
+          const y = gl.drawingBufferHeight - 1 - (py + dy)
+          if (x < 0 || y < 0 || x >= gl.drawingBufferWidth || y >= gl.drawingBufferHeight) {
+            continue
+          }
+          gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, one)
+          best = Math.max(best, (0.2126 * one[0]) + (0.7152 * one[1]) + (0.0722 * one[2]))
+        }
+      }
+      return +best.toFixed(1)
+    }
+    const groups = {
+      asterisms: (o) => o.name === 'AsterismLines',
+      expansion: (o) => /Colonization|Expansion/i.test(o.name) && o.isMesh,
+      milkyWay: (o) => /MilkyWay/i.test(o.name) && (o.isPoints || o.isMesh),
+      galaxy: (o) => /^Galaxy/i.test(o.name) && (o.isPoints || o.isMesh),
+      labels: (o) => (o.isSprite || o.isMesh) && /label/i.test(o.name),
+      sunAndPlanets: (o) => (o.isMesh || o.isPoints || o.isSprite) && o.name !== 'StarsPoints' &&
+        !/AsterismLines|MilkyWay|^Galaxy|label/i.test(o.name) && o.props === undefined && this._underBody(o),
+    }
+    const luma = {asIs: readLuma()}
+    for (const [key, test] of Object.entries(groups)) {
+      const hidden = []
+      this.scene.traverse((o) => {
+        if (o !== points && o.visible && test(o)) {
+          o.visible = false
+          hidden.push(o)
+        }
+      })
+      luma[key] = hidden.length ? readLuma() : null
+      hidden.forEach((o) => (o.visible = true))
+      luma[`${key}Hidden`] = hidden.length
+    }
+    const out = {
+      name, hip, index, distanceLy: distance / 9.461e15, px, py, ndc: [ndc.x, ndc.y, ndc.z],
+      sprite: starSprite(ratio, absoluteUniforms.uExposureRelative.value,
+          {fovDegrees: this.camera.fov, heightPx: this.height, starGain: absoluteUniforms.uStarGain.value}),
+      clipZ: starClipZ(distance, this.camera.near, this.camera.far),
+      meterGain: this._meterGain,
+      luma,
+    }
+    console.log('starProbe', out)
+    return out
+  }
+
+
+  /**
+   * @param {object} o A scene node
+   * @returns {boolean} Whether it hangs under a planet, moon or star object
+   */
+  _underBody(o) {
+    for (let p = o.parent; p; p = p.parent) {
+      if (p.props?.type === 'planet' || p.props?.type === 'moon' || p.props?.type === 'star') {
+        return true
+      }
+    }
+    return false
   }
 
 
