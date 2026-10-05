@@ -118,6 +118,12 @@ tried and dropped.
 
   If one is denied, ask the user to add it to the environment's allowed
   hosts, and carry on with what doesn't need it.
+- **IAU rotation constants** (`js/scene/iauRotation.json`) come from
+  NAIF's `pck00011.tpc`. `naif.jpl.nasa.gov` is denied in the sandbox, but
+  GitHub has byte-identical copies (e.g. `nyx-space/anise`'s
+  `data/pck00011.tpc` on raw.githubusercontent.com; the table records the
+  md5). `tools/iau/pckRotation.mjs` rebuilds the table and
+  `tools/iau/fetchHorizons.mjs` the Horizons sub-observer fixture.
 - **Parallel agents share this machine.** The shared yarn cache can
   end up corrupt when several installs run at once: if `yarn install`
   fails on a package's contents, install with a private

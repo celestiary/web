@@ -137,16 +137,22 @@ So a PR that adds or changes a dataset previews its own data, and every other PR
 Moons follow the same pattern, parented to their planet's `orbitPosition`.
 The node Animation spins (the one carrying `siderealRotationPeriod`, and
 `scene.objects[name]`) is the LOD's near level, two levels below
-`planetTilt`, not its child: code that sets a body's whole orientation
-(the Moon's, in Animation) composes every rotation up to `orbitPosition`.
+`planetTilt`, not its child; the levels between are unrotated, so a turn
+of the spun node about its +Y is a turn about the body's pole.
 
 `group`, `orbitPlane` and `orbitPosition` are unrotated, so the position
 Animation writes is in the scene's axes relative to the primary. The orbit
 line (`orbitPosition.orbitShape`) is a sibling of `orbitPosition`, in the
 same frame, so a body and its line share one transform chain: see
 [Orbit lines](#orbit-lines). `planetTilt` is
-`rotateX(-axialInclination)` for Earth, and points at the IAU pole
-(`planetTilt.pole`) for bodies that have one.
+`rotateX(-axialInclination)` for Earth; for every other body with an IAU
+rotation model (`planetTilt.poleModel`) Animation turns it to the body's
+equator: +Y at the pole, +X at the equator's ascending node on the ICRF
+equator, where the prime meridian is measured from. The spun node then
+turns by the prime meridian W (`meridianModel`), so the body frame
+(coords.js: +X longitude 0) is the IAU body-fixed frame. The surface mesh
+inside it is turned by the texture's own offset, `texture_longitude`, or
+for Jupiter by `texture_rotation` ([Body rotation](#body-rotation-iau-prime-meridians)).
 
 ## Animation Loop
 
@@ -160,9 +166,9 @@ same frame, so a body and its line share one transform chain: see
 6. `animationCb(scene)` → `Animation.animate(scene)`:
    - `Time.updateTime()` advances simulation clock by `timeDelta * timeScale`
    - `vsop87c(julianDay)` computes heliocentric XYZ for 8 major planets
-   - `updateMoon(julianDay)` computes the Moon's geocentric position, orientation and mean orbit (lunarTheory.js)
-   - the J2000 → date precession rotation, for the mean elements and IAU poles (`setDate`)
-   - `animateSystem()` recurses the scene graph, setting orbit positions and sidereal rotations, and turning the orbit lines to the date (asking for a rebuild when one is due)
+   - `updateMoon(julianDay)` computes the Moon's geocentric position (lunarTheory.js)
+   - the J2000 → date precession rotation, for the mean elements and the IAU rotation models (`setDate`)
+   - `animateSystem()` recurses the scene graph, setting orbit positions and body orientations (IAU pole and prime meridian; Earth's GMST), and turning the orbit lines to the date (asking for a rebuild when one is due)
    - `orbitPaths.pump()` runs queued orbit-line rebuilds, a few milliseconds a frame ([Orbit lines](#orbit-lines))
    - If `targets.track` is set, calls `lookAtTarget()` each frame
 7. Camera-look tween update (`targets.tween`)
@@ -174,9 +180,9 @@ The whole of `renderLoop()` is bracketed by `stats.begin()`/`stats.end()` while 
 ## Orbital Mechanics
 
 - **Major planets** (Mercury–Neptune): VSOP87c theory via the `vsop87` npm package, giving high-accuracy heliocentric ecliptic coordinates
-- **The Moon**: the truncated ELP-2000/82 of Meeus, *Astronomical Algorithms* ch. 47 (`js/scene/lunarTheory.js`), geocentric. Against JPL Horizons from 1950 to 2050 (offline fixture `lunarTheory.horizons.json`) it's within 4.3″ and 4.2 km. Its orientation follows Cassini's laws (Meeus ch. 53: equator inclined 1.54° about the node line, prime meridian toward Earth at the mean longitude), so the near side faces Earth with the real optical libration. Its orbit line is its path over a sidereal month ([Orbit lines](#orbit-lines)); the mean ellipse of date, which it used to be, misses the Moon by up to a few per cent (evection, variation).
+- **The Moon**: the truncated ELP-2000/82 of Meeus, *Astronomical Algorithms* ch. 47 (`js/scene/lunarTheory.js`), geocentric. Against JPL Horizons from 1950 to 2050 (offline fixture `lunarTheory.horizons.json`) it's within 4.3″ and 4.2 km. Its orientation is the IAU model's ([Body rotation](#body-rotation-iau-prime-meridians)), so the near side faces Earth with the real optical and physical libration; it used to follow Cassini's laws (Meeus ch. 53), which agree to 0.04°. Its orbit line is its path over a sidereal month ([Orbit lines](#orbit-lines)); the mean ellipse of date, which it used to be, misses the Moon by up to a few per cent (evection, variation).
 - **Other moons and Pluto** (#6): Keplerian ellipses from published mean elements (`js/scene/meanElements.js`), with the source, reference plane and epoch in each body's JSON `orbit` block. Details below.
-- **Planet poles**: the planets with moons, and Pluto, carry an IAU WGCCRE `pole` (RA and Dec in ICRF, with linear rates) in their JSON. Animation points `planetTilt`'s +Y at it, precessed to date (`Animation.orientPole`), so the moons' planes and Saturn's rings agree with the drawn equator. Before, `rotateX(-axialInclination)` could only lean a pole toward ecliptic longitude 90°, right for Earth alone: Jupiter's and Saturn's poles were 5° off, Mars's 37°, Neptune's 51°, Uranus's 168°. The prime meridian is still the legacy one-turn-a-day spin (#96). Earth and the Moon keep their own paths.
+- **Body orientation**: every body but Earth is turned by its IAU WGCCRE rotation model, pole and prime meridian ([Body rotation](#body-rotation-iau-prime-meridians)), so the moons' planes and Saturn's rings agree with the drawn equator and each body's longitude 0 is where the report puts it. Before #6, `rotateX(-axialInclination)` could only lean a pole toward ecliptic longitude 90°, right for Earth alone (Jupiter's and Saturn's poles were 5° off, Mars's 37°, Neptune's 51°, Uranus's 168°); before #96, every body but Earth and the Moon turned once a day from an arbitrary meridian.
 
 ### Mean elements (Pluto and the moons)
 
@@ -195,6 +201,78 @@ The whole of `renderLoop()` is bracketed by `stats.begin()`/`stats.end()` while 
   - Planes only, since their phase drifts by tens of degrees: Phobos ≤ 1.6° (its 2.3 yr node period is printed to two figures, and 50 years is 22 turns), Hyperion 1.5° (chaotic), the rest ≤ 0.3°. The table's periods are too coarse for Phobos, Deimos and Triton over decades, URA182's epoch angles don't match Horizons, and Janus swaps orbits with Epimetheus every four years.
   - A better model per system: Lieske's E5 for the Galileans, TASS 1.7 for Saturn's moons, GUST86 for Uranus's, or the JPL ephemerides themselves.
 - **Bodies without elements** (only the demo descriptors, e.g. `earth-as-moon.json`) keep the old flat ellipse in the ecliptic, centred on the primary.
+
+### Body rotation (IAU prime meridians)
+
+Each body's orientation is the IAU WGCCRE model (#96): its north pole's
+right ascension α0 and declination δ0 in ICRF and its prime meridian W,
+the angle along its equator, eastward, from the equator's ascending node
+on the ICRF equator to longitude 0, as functions of TDB:
+W = W0 + Ẇ·d (+ a quadratic term for Phobos and the Moon) plus the
+report's periodic terms in the system's angles (Mars and its moons,
+Jupiter and its moons, Saturn's, Uranus's and Neptune's moons, Neptune, the
+Moon, Mercury's libration).
+
+- **Source.** `js/scene/iauRotation.json`, generated by
+  `tools/iau/pckRotation.mjs` from NAIF's `pck00011.tpc`, which transcribes
+  the 2015 report (Archinal et al. 2018, Celest. Mech. Dyn. Astr. 130:22),
+  with its correction for Phobos and the 2009 report's Moon and Earth (the
+  2015 report gives neither). The JSON's `source`, and each body's, says
+  which. The bodies' JSON no longer carry a `pole`.
+- **In the scene.** `iauRotation.bodyQuaternion` is
+  Rz(α0 + 90°)·Rx(90° − δ0)·Rz(W) (body frame → ICRF), in scene axes and
+  the ecliptic of J2000 (`meanElements.referencePlaneQuaternion` for the
+  first two), and Animation premultiplies the J2000 → date precession.
+  `planetTilt` takes the equator (pole and node), the spun node W
+  ([Scene graph](#scene-graph-structure-per-planet)). The time argument is
+  TT, within 2 ms of TDB.
+- **Retrograde rotators** (Venus, Uranus, Triton, Titania, Oberon) have a
+  decreasing W about the IAU north pole, and Pluto and Charon's pole is the
+  one they turn prograde about, south of the ecliptic (the 2009 report's
+  rule for dwarf planets). The same formula serves all of them.
+- **Earth keeps GMST** (Planet.js `OWN_ORIENTATION`), with `planetTilt`'s
+  rotateX(−ε): against Horizons' ITRF93 it's within 0.002° in longitude
+  and 0.007° in latitude (nutation and the obliquity of date left out),
+  where the IAU's own low-precision Earth (2009; its W is in TDB, while
+  Earth turns with UT1) is 0.14° off. **The Moon** moved onto the IAU model:
+  within 0.0024° of Horizons' mean-Earth frame, where Cassini's laws
+  (its orientation before) were 0.035° off, without physical libration.
+- **Checked** against JPL Horizons' sub-observer points (offline fixture
+  `iauRotation.horizons.json`, `tools/iau/fetchHorizons.mjs`; tests in
+  `iauRotation.test.js`) at 1950, 2000, 2026 and 2050: every modelled body
+  from Earth or from its planet within 0.0025° (Horizons' `IAU_*` frames are
+  the same report). The test rebuilds each point from the row's light time
+  and astrometric direction, so it checks the orientation alone.
+- **Light time isn't modelled**: the scene is geometric, so a body is drawn
+  turned as it is at the simulation time, while from Earth it's seen as it
+  was a light time earlier. Jupiter's central meridian as drawn from Earth
+  runs ahead of what a telescope shows by Ẇ·τ, 20° to 30°; Mars's by 2° to 7°.
+- **Synchronous moons face their planets** as a result, not by
+  construction: by Horizons, every modelled moon's sub-planet longitude is
+  within 6° of 0 from 1950 to 2050 (eccentricity's optical libration). As
+  drawn, with the mean-element positions, the Galileans are within 4°,
+  Tethys, Dione, Rhea, Titan and Iapetus 6°, Proteus 7°, Charon 2°, the Moon
+  within its libration. Phobos, Deimos, Janus, Triton, Titania and Oberon
+  aren't: their mean elements lose their orbital phase (Phobos and Deimos
+  up to 170° by 1950 and 2050, Titania and Oberon at every date), which is
+  a position error for #97, not an orientation one.
+- **Textures** must put their own 0° at the prime meridian. Three's sphere
+  maps the texture's centre column to longitude 0; a texture centred
+  elsewhere says so with `texture_longitude` (the east longitude of its
+  centre), which turns the surface mesh in the body frame. Io's, Europa's,
+  Ganymede's, Callisto's and Iapetus's are centred on 180°. Jupiter's clouds
+  turn with System II, not the IAU's System III, so its texture is turned by
+  `texture_rotation` instead, putting the Great Red Spot at its observed
+  System II longitude. Each texture's check is in
+  [Planet.md](js/scene/Planet.md#texture-longitudes).
+- **Hyperion** has no model (its rotation is chaotic) and keeps its
+  tilt; demo descriptors without a model turn once per sidereal period
+  from an arbitrary meridian.
+- **Permalinks** hold the camera in the body frame (lat, lng), so a link
+  to any body other than Earth and the Moon made before #96 restores to a
+  different place around the body. `tools/parity/views.json`'s Mars views
+  were re-timed (by under half a sol) so the body sits as it did, and the
+  Sun within 0.25° of where it was.
 
 ### Orbit lines
 
@@ -331,7 +409,7 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
 
 - **The scene frame is the mean ecliptic and equinox *of date*,** not J2000: VSOP87**C** is the of-date series (VSOP87A is J2000). Checked against Meeus example 25.b: VSOP87C gives the Sun's longitude as 199.9073° at 1992 Oct 13.0 (Meeus: 199.907372°), while VSOP87A gives 200.008°. Meeus ch. 47 is in the same frame, so the Moon's geocentric (λ, β, Δ) goes straight in, with no precession.
 - **Axis remap**, for VSOP87C's `(x, y, z)` and any ecliptic vector: scene `(x, z, −y)`, i.e. X = equinox, Y = north ecliptic pole, Z = −ecliptic Y. A rotation about ecliptic Z is a rotation about scene Y by the same angle.
-- **Body frames** (coords.js): +Y the north pole, +X the prime meridian, east longitude toward −Z. The same remap from a body's (x = longitude 0, y = 90° E, z = north), so an ecliptic rotation such as the Moon's Rz(Ω)·Rx(−I)·Rz(F + 180°) becomes Ry(Ω)·Rx(−I)·Ry(F + 180°) in the scene.
+- **Body frames** (coords.js): +Y the north pole, +X the prime meridian, east longitude toward −Z. The same remap from a body's (x = longitude 0, y = 90° E, z = north), so an ecliptic rotation such as Rz(Ω)·Rx(−I)·Rz(F + 180°) becomes Ry(Ω)·Rx(−I)·Ry(F + 180°) in the scene. Since #96 the body frame is the IAU body-fixed frame of the 2015 report for every body but Earth (GMST), at TT for TDB ([Body rotation](#body-rotation-iau-prime-meridians)).
 - **One scene frame, the stars included.** The catalogues are J2000: Celestia's stars.dat (and so the asterisms and star labels, placed from it) and the Milky Way and galactic grid (`galacticFrame.js`). They'd sit displaced from the planets by precession, 50.3″ a year in longitude: ~0.37° in 2026, ~28° at year 0 (#133). So they hang under `StellarFrame` (`js/scene/StellarFrame.js`), a group at the Sun (the catalogue is heliocentric) whose rotation is `celestialFrame.precessionQuaternion(J2000, date)`, Meeus 21.5's Rz(Π + p)·Rx(−η)·Rz(−Π), in scene axes.
   - The chain is `WorldGroup` (rebase) → `milkyway` → `StellarFrame` (J2000 → date) → `Stars` (catalogue positions, J2000) → points, labels, asterisms; and `StellarFrame` → `MilkyWay`. The Sun and planets are under `WorldGroup` directly, so the planets, the Moon, Earth's GMST spin, places, and Cesium's camera coupling (built from body node matrices) are untouched. The galactic grid gets the same rotation on top of its own.
   - **Updates:** Animation calls its `preAnimCb` with the Julian Day animated (so `animateAtJD`, e.g. a permalink restore, sets it too). It's rebuilt only when the date moves by more than a day (0.14″ of precession), in place.
@@ -358,7 +436,7 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
     the mean elements' rates are fitted over centuries to a few millennia.
   - A JS `Date` ends at ±8.64e15 ms (±275,000 years); past it the date
     readout showed NaN, while the clock itself stayed a finite number.
-- **Time:** the simulation clock is UTC. VSOP87C is fed the UTC Julian Day as it is (69 s of ΔT moves Earth ~2000 km). The Moon moves 0.01° in 69 s, so its series gets TT (`celestialFrame.utcToTtJulianDay`: 32.184 s + the leap seconds since 1972, the Espenak–Meeus ΔT polynomials before, continuous across 1972). The UTC Julian Day is `Time.toJulianDay`, with the Unix epoch at JD 2440587.5 exactly (it used to run 14.6 s ahead, ~8″ of lunar motion). After 2017 TT − UTC stays at 69.184 s, right for a UTC clock, but UT1 keeps drifting: Earth rotation for future dates needs UT1 − UTC or a ΔT model.
+- **Time:** the simulation clock is UTC. VSOP87C is fed the UTC Julian Day as it is (69 s of ΔT moves Earth ~2000 km). The Moon moves 0.01° in 69 s, so its series gets TT (`celestialFrame.utcToTtJulianDay`: 32.184 s + the leap seconds since 1972, the Espenak–Meeus ΔT polynomials before, continuous across 1972). So do the mean elements and the IAU rotation models, TT standing in for TDB (within 2 ms; Jupiter turns 0.00002° in it); Earth alone turns with the UTC clock, by GMST ([Body rotation](#body-rotation-iau-prime-meridians)). The UTC Julian Day is `Time.toJulianDay`, with the Unix epoch at JD 2440587.5 exactly (it used to run 14.6 s ahead, ~8″ of lunar motion). After 2017 TT − UTC stays at 69.184 s, right for a UTC clock, but UT1 keeps drifting: Earth rotation for future dates needs UT1 − UTC or a ΔT model.
 
 ## Camera Controls
 
@@ -795,8 +873,9 @@ and the provider extension contract.
 |---|---|
 | `js/scene/Scene.js` | Scene object registry, targeting, raycasting |
 | `js/scene/Animation.js` | VSOP87 + Keplerian orbit/rotation animation |
-| `js/scene/lunarTheory.js` | The Moon: Meeus ch. 47 position, Cassini-law orientation, mean orbit of date |
-| `js/scene/meanElements.js` | Pluto and the moons: mean elements in their reference planes, Kepler's equation, IAU poles |
+| `js/scene/lunarTheory.js` | The Moon: Meeus ch. 47 position, mean orbit of date (and Cassini-law orientation, now only a check) |
+| `js/scene/meanElements.js` | Pluto and the moons: mean elements in their reference planes, Kepler's equation |
+| `js/scene/iauRotation.js` | IAU WGCCRE rotation models: pole, prime meridian, body orientation; Jupiter's System II cloud texture turn. Data in `iauRotation.json` (`tools/iau/pckRotation.mjs`) |
 | `js/scene/orbitPath.js` | Orbit lines sampled from the planets' and the Moon's ephemerides, and their budgeted rebuilds |
 | `js/scene/bodyLine.js` | An orbit line as drawn: a fine arc around the body and a float64 line written relative to it, so it passes through the body's centre close up |
 | `js/scene/celestialFrame.js` | GMST, TT − UTC, ecliptic precession between dates (coordinates and scene rotation) |

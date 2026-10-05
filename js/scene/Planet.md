@@ -143,3 +143,47 @@ goes into the buffer through the tone map's inverse (`hdr.js`
   Mars's 121, scaled by the albedo ratio) and Cesium's Moon takes the same
   gain (`CESIUM_BODIES.moon.textureGain`), over ion's copy being stored
   0.82× as bright (`imageryScale`).
+
+## Texture longitudes
+
+Each body turns by its IAU prime meridian (#96; DESIGN.md
+[body rotation](../../DESIGN.md#body-rotation-iau-prime-meridians)), so a
+texture's 0° must be the IAU's 0°.  Three's sphere puts the texture's
+centre column at longitude 0 (coords.js), east to the right.  A texture
+centred elsewhere sets `texture_longitude`, the east longitude of its centre
+column, which turns the surface mesh in the body frame (`Planet.nearShape`);
+the body frame itself, and so places, permalinks and Cesium's globe, is
+untouched.
+
+Checked by marking named features at their USGS Gazetteer positions on each
+texture, under 0 and under 180 (east longitude; the Galilean moons' and
+Iapetus's are published as west longitude, east = −west):
+
+| Body | `texture_longitude` | Evidence |
+|---|---|---|
+| Mars | 0 | Olympus Mons's caldera (18.65°N, 226.2°E) lands within 1° of its mark, Airy (5.1°S, 0°, which holds Airy-0) within 0.1° (MDIM 2.1, centred on 0° by construction) |
+| Earth, Moon | 0 | The Blue Marble and LRO WAC mosaics, −180° at the left edge (above) |
+| Io | 180 | Pele (18.7°S, 255.3°W), Loki (13°N, 309°W), Prometheus (1.5°S, 153°W): on the 180 marks, 105° off the 0 ones |
+| Europa | 180 | Pwyll's ray crater (25.2°S, 271.4°W) at 25.6°S, 88.6°E under 180 |
+| Ganymede | 180 | Galileo Regio, Osiris (38.1°S, 166.3°W), Tros (11°N, 27°W) |
+| Callisto | 180 | Valhalla's rings (14.7°N, 56°W), Asgard (32.2°N, 140°W) |
+| Iapetus | 180 | Cassini Regio, the dark leading hemisphere, centred on 90°W |
+| Tethys | 0 | Odysseus (32.8°N, 128.9°W) |
+| Dione, Rhea | 0 | The trailing hemisphere's wisps, centred near 270°W |
+| Titania | 0 | Ursula (12.4°S, 45.2°E) and Messina Chasmata; Voyager's southern hemisphere only |
+| Oberon | 0 | Hamlet's dark floor (46.1°S, 44.4°E) |
+| Jupiter | (`texture_rotation`) | Below |
+| Mercury, Venus, Saturn, Uranus, Neptune, Titan, Pluto, Charon, Triton, Phobos, Deimos, Janus, Hyperion, Proteus | 0, unverified | No identifiable feature: Mercury's map has no Caloris and looks synthetic; Venus's and Titan's are clouds and haze; the giants' are bands (Neptune's 1989 dark spot is long gone); Pluto's, Charon's and Triton's are 128 px pre-New Horizons maps; the small moons' are generic cratered textures, Phobos's in a square projection |
+
+**Jupiter's clouds** turn with System II (W = 43.3° + 870.270° d), not the
+IAU's System III (the interior's, from the radio period), 0.266°/day
+faster, about 97° a year.  A texture fixed in System III would put the
+Great Red Spot anywhere.  So `jupiter.json`'s `texture_rotation` turns the
+surface mesh (`iauRotation.textureTurn`) to put the texture's spot, which
+is at 91.7°E in the texture (the centroid of its reddest pixels, 26°S), at
+its observed System II longitude: 46° + 21°/yr from 2023-10-01, which fits
+216° on 2014-09-08 and 349° in 2021 January (Sky & Telescope's transit
+predictions, from JUPOS) and 46° on 2023-10-01 (Stellarium's default)
+within 1°.  The spot's drift isn't steady, so it's good to ~20° within a
+few years of 2023, worse further out.  The body frame stays System III, so
+Horizons' sub-observer longitudes, which are System III, match it.

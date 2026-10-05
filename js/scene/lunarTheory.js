@@ -333,8 +333,11 @@ const tmpQ = new Quaternion
  *
  * The Earth's selenographic longitude under this orientation is Meeus's
  * optical libration l' (up to ±8°), and its latitude b' (up to ±7°).
- * Physical libration (a few hundredths of a degree) is left out; the IAU
- * rotation model is #96.
+ * Physical libration (a few hundredths of a degree) is left out.  Since
+ * #96 the Moon is drawn by the IAU model instead (iauRotation.js), which
+ * has it, and which this agrees with to 0.04°; this stays as the
+ * independent check of the optical libration (lunarTheory.test.js,
+ * iauRotation.test.js).
  *
  * @param {object} args moonArguments(jde)
  * @param {Quaternion} [target]

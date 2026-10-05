@@ -1,8 +1,9 @@
 import {describe, expect, it} from 'bun:test'
 import {Quaternion, Vector3} from 'three'
 import {J2000_JD, J2000_OBLIQUITY_DEG, precessEcliptic, precessionQuaternion} from './celestialFrame.js'
+import {poleVector, rotationModel} from './iauRotation.js'
 import {eclipticToScene} from './lunarTheory.js'
-import {icrfToScene, meanElements, orbitAt, poleAt, referencePlaneQuaternion} from './meanElements.js'
+import {icrfToScene, meanElements, orbitAt, referencePlaneQuaternion} from './meanElements.js'
 import horizons from './meanElements.horizons.json'
 import callisto from '../../public/data/callisto.json'
 import charon from '../../public/data/charon.json'
@@ -244,7 +245,7 @@ describe('Saturn\'s moons\' epoch state', () => {
 function tiltToEquator(moon, planet, jde) {
   const q = new Quaternion
   orbitAt(meanElements(moon.orbit), jde, q, new Vector3)
-  return SCENE_Y.clone().applyQuaternion(q).angleTo(poleAt(planet.pole, jde)) * toDeg
+  return SCENE_Y.clone().applyQuaternion(q).angleTo(poleVector(rotationModel(planet.name), jde)) * toDeg
 }
 
 
@@ -303,7 +304,7 @@ describe('orbitAt', () => {
       const a = at(moon, JDE)
       const b = at(moon, JDE + 0.01)
       const h = a.clone().cross(b)
-      expect(Math.sign(h.dot(poleAt(planet.pole, JDE)))).toBe(sign)
+      expect(Math.sign(h.dot(poleVector(rotationModel(planet.name), JDE)))).toBe(sign)
     }
   })
 
