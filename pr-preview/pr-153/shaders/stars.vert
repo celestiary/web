@@ -1,24 +1,20 @@
 // Physical star brightness (js/scene/HDR.md, "Physical stars"): a star's
-// pixel value is its illuminance over the Sun's at 1 AU, times
-// π·DISPLAY_GAIN over the solid angle its light lands in (a point source's
-// light over that patch is its radiance), times the exposure over Earth's
-// keyed one (uExposureRelative).  The patch is a pixel, or the eye's
-// resolution where that's coarser: dark adapted, the eye resolves a point
-// no finer than about 10 arcmin (rod acuity, ~20/200), so a 1080 px
-// screen (2.5 arcmin a pixel at 45°) and a 300 px test viewport (9
-// arcmin) show the same star field; per pixel alone, the screen would show
-// it 13× brighter.  Spread over its sprite, whose texture integrates to
-// GLOW_MEAN of its area, so the sprite's total is the star's light whatever
-// its size.
-//
-// The sprite's size is the light's: MIN_STAR_SIZE_PX (3 px, about the
-// eye's patch on a 1080 px screen) up to the value a pixel shows as white
-// (1), and growing with the log of the value above it, as a saturated
-// point blooms in the eye and on a sensor, so the brightest stars are
-// bigger, with their light conserved; MAX_STAR_SIZE_PX caps it.  The
-// sprite was sized by the star's radius (the catalogue's, from its
-// luminosity), which spread a luminous star's light over a blob (Deneb
-// 110 px, Rigel 85) that the physical value made invisible.
+// light is its illuminance over the Sun's at 1 AU, times π·DISPLAY_GAIN,
+// times the exposure over Earth's keyed one (uExposureRelative), and lands
+// in the eye's patch: a pixel, or the dark-adapted eye's resolution of a
+// point (10 arcmin) where a pixel is finer.  Over that patch it is a
+// radiance L = light / Ω_patch, in exposure units.  The sprite is the
+// patch in pixels (1 px on a 300 px test viewport at 45°, 4 px on a 1080
+// px screen), so the two show the same field; its pixels carry
+// L × patch² in all, over a Gaussian kernel (shaders/stars.frag), so the
+// light is conserved whatever the kernel's width.  Past the value a pixel
+// shows as white (1) the sprite grows BLOOM_PX_PER_DECADE per decade of
+// light, as a saturated point blooms in the eye and on a sensor: the
+// brightest stars are bigger, their light still conserved.  A texture
+// did this before: its flat core is 6% of the sprite's half-width, so a
+// 2 px sprite sampled it at 0.06 and a 4 px one at 0.27, and mipmaps
+// flattened a 3 px sprite's peak to a third: a mag 4 star reached 10 of
+// 255 where the arithmetic gave 97, two magnitudes lost.
 uniform float uFovDegrees;      // vertical
 uniform float uViewportHeight;  // pixels
 uniform float uExposureRelative;
@@ -38,7 +34,9 @@ attribute float lumens;
 attribute vec3 positionLow; // float64 residual: star.xyz - Math.fround(star.xyz)
 
 varying vec3 vColor;
-varying float vBrightness;        // Pass brightness to fragment
+varying float vBrightness;        // the kernel's peak, exposure units
+varying float vSize;              // the sprite's side, px
+varying float vSigma;             // the kernel's width, px
 
 const float PI = 3.14159265;
 const float fourPi = 4. * PI;
@@ -46,14 +44,11 @@ const float fourPi = 4. * PI;
 // (StarsCatalog, 3.0e28) over 4π AU².
 const float SUN_ILLUMINANCE_1AU = 3.0e28 / (fourPi * 1.495978707e11 * 1.495978707e11);
 const float DISPLAY_GAIN = 1.5;
-// The mean of the star sprite's texture (star_glow.png) over its area:
-// 0.098 sampled finely, 0.145 at the 3×3 samples of a 3 px sprite (the
-// samples a third of the way in see the core's shoulder).
-const float GLOW_MEAN = 0.098;
-const float GLOW_MEAN_3PX = 0.145;
 // The sprite grows this many pixels per decade of light over a white
 // pixel's.
 const float BLOOM_PX_PER_DECADE = 3.0;
+// A user's gain on every star's light (ThreeUi.setStarGain; 1 is physical).
+uniform float uStarGain;
 // Half-float's largest value, the scene buffer's.
 const float MAX_VALUE = 6.0e4;
 // The eye's resolution of a point, dark adapted: 10 arcmin, in radians.
@@ -77,17 +72,23 @@ void main() {
   float distGm = -mvPosition.z * 1.0e-9;
   float illuminance = (lumens * 1.0e-18) / (fourPi * distGm * distGm);
 
-  // The star's light over the eye's patch, in exposure units.
-  float radPerPx = max(radians(uFovDegrees) / max(uViewportHeight, 1.), EYE_POINT_RAD);
-  float pointSolidAngle = radPerPx * radPerPx;
-  float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / pointSolidAngle * uExposureRelative;
+  // The star's radiance over the eye's patch, in exposure units, and the
+  // patch in pixels.
+  float pxRad = radians(uFovDegrees) / max(uViewportHeight, 1.);
+  float patchRad = max(pxRad, EYE_POINT_RAD);
+  float patchPx = max(floor(patchRad / pxRad + 0.5), 1.0);
+  float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / (patchRad * patchRad)
+      * uExposureRelative * uStarGain;
 
-  // The sprite's size from the light (bloom), and the light spread over it.
+  // The sprite: the patch, plus bloom; the light, L × patch², over a
+  // Gaussian of width size/4 whose sum over the sprite's pixels is 2πσ²
+  // (one pixel: the one sample, 1).
   float decadesOverWhite = max(log2(max(value, 1.0e-30)) / log2(10.0), 0.0);
-  float cSize = clamp(MIN_STAR_SIZE_PX + BLOOM_PX_PER_DECADE * decadesOverWhite, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
-  gl_PointSize = cSize;
-  float glowMean = cSize < 4.0 ? GLOW_MEAN_3PX : GLOW_MEAN;
-  vBrightness = min(value / (glowMean * cSize * cSize), MAX_VALUE);
+  vSize = clamp(patchPx + BLOOM_PX_PER_DECADE * decadesOverWhite, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
+  gl_PointSize = vSize;
+  vSigma = max(vSize / 4.0, 0.5);
+  float kernelSum = vSize <= 1.5 ? 1.0 : 2.0 * PI * vSigma * vSigma;
+  vBrightness = min(value * patchPx * patchPx / kernelSum, MAX_VALUE);
 
   gl_Position  = projectionMatrix * mvPosition;
 }
