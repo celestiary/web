@@ -66,7 +66,7 @@
       "id": "mars-gibbous",
       "body": "mars",
       "description": "Mars from 12,000 km at about 65 degrees phase: ion's Cesium Mars tiles under celestiary's atmosphere pass, against celestiary's texture",
-      "hash": "#sun/mars@15,-7.099,12Mm;t=9233.1234jd;cq=-0.1482,0.8932,-0.0701,0.4187;fov=45deg;s=alpoU",
+      "hash": "#sun/mars@15,-7.099,12Mm;t=9233.11246jd;cq=-0.1482,0.8932,-0.0701,0.4187;fov=45deg;s=alpoU",
       "tolerance": {
         "ratio": [
           0.95,
@@ -162,8 +162,8 @@
     {
       "id": "mars-low-horizon",
       "body": "mars",
-      "description": "Mars from 232 m in Valles Marineris, the Sun low on the left: Cesium's terrain lies mostly below Mars's datum, under celestiary's sphere.  Before #141's Mars fix the ground sphere's depth covered the terrain, the band between the terrain's horizon and the sphere's read as ground with the stars through it (mars-low-horizon-band), and terrain above the sphere's horizon was drawn as sky.  Over the ground, on against off: the table's haze to the sphere on both sides.  The metered exposure lifts this low-Sun frame 1.25\u00d7 (#86's PR B; its brightest 2% is 0.48 of a sunlit white), so the luma bounds moved from 35-50 to 45-65",
-      "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9770.1166jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
+      "description": "Mars from 232 m in Valles Marineris, the Sun low on the left: Cesium's terrain lies mostly below Mars's datum, under celestiary's sphere.  Before #141's Mars fix the ground sphere's depth covered the terrain, the band between the terrain's horizon and the sphere's read as ground with the stars through it (mars-low-horizon-band), and terrain above the sphere's horizon was drawn as sky.  Over the ground, on against off: the table's haze to the sphere on both sides",
+      "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9769.68081jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
         "box": [
@@ -189,7 +189,7 @@
       "id": "mars-low-horizon-band",
       "body": "mars",
       "description": "The same view, the band on the right between Cesium's terrain's horizon and the sphere's, against the sky above it in Cesium's render.  Before #141's Mars fix it read as ground, with the stars through it (luma 0.48 of the sky's, blue/red 0.90); now the horizon's haze over far terrain",
-      "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9770.1166jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
+      "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9769.68081jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
         "box": [
@@ -225,7 +225,7 @@
       "id": "mars-near-ridge",
       "body": "mars",
       "description": "Mars from 4.4 km, a near ridge on the right crossing the sphere's horizon line, the far horizon on the left.  Before the surface's segment was marched, the pass cut the table's in-scatter and depth at the ridge, sky rays above that line and ground rays below, and a seam ran through the near ridge as if the far horizon showed through it: the rows on the line (the region) against the ridge just below (the reference), in Cesium's render",
-      "hash": "#sun/mars@-6.1583,-90.1384,4.352km;t=9770.1157jd;cq=0.8272,0.389,0.1618,0.3718;fov=45deg;s=alpoU",
+      "hash": "#sun/mars@-6.1583,-90.1384,4.352km;t=9769.67989jd;cq=0.8272,0.389,0.1618,0.3718;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
         "box": [
@@ -261,7 +261,7 @@
       "id": "mars-below-datum-band",
       "body": "mars",
       "description": "Mars from 658 m under its datum in Valles Marineris (the floor is 4.7 km under it), looking away from the Sun: the band between Cesium's terrain's horizon and the horizontal (the region) against the sky above it (the reference), in Cesium's render.  The eye is below the ground sphere, so the pass marches each ray to where it leaves the sphere and takes the tables from there; the band is the horizon's haze, on the sky side of the tables by construction.  With the eye lifted to the sphere and the band's rays clamped to its horizon, the side was float32 rounding, and on a real GPU the band was black (the user's 'flickering horizon')",
-      "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.7343jd;cq=-0.2197,-0.0929,-0.5872,-0.7735;fov=45deg;s=alpoU",
+      "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.31455jd;cq=-0.2197,-0.0929,-0.5872,-0.7735;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
         "box": [
@@ -297,7 +297,7 @@
       "id": "mars-below-datum-sunward",
       "body": "mars",
       "description": "The same spot, facing the Sun: the band on the right between the terrain's horizon and the horizontal (the region) against the bright sky above it (the reference), in Cesium's render.  Here the band read black under a white sky on the user's GPU; it is the horizon's haze, continuous with the sky above and the hazed terrain below",
-      "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.7343jd;cq=0.6053,-0.7873,-0.0884,0.0771;fov=45deg;s=alpoU",
+      "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.31455jd;cq=0.6053,-0.7873,-0.0884,0.0771;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
         "box": [
@@ -370,7 +370,7 @@
       "id": "horizon-terrain-far",
       "body": "mars",
       "description": "Mars from 6 m, facing the Sun, with mountains 150-280 km off on the horizon: past the terrain distance's encodable range (5.5 D, 220 km from the ground).  The region is where their fragments stood in the first cut, which gave such pixels the ground sphere's depth, 170 m off from 6 m up, so they came out dark and near with dithered edges; the reference is the sky above.  They are a surface at least 5.5 D away, hazed into the horizon like the sky",
-      "hash": "#sun/mars@-8.3522,-77.2993,6m;t=9771.134jd;cq=0.8566,0.4418,0.1698,0.2054;fov=45deg;s=alpoU",
+      "hash": "#sun/mars@-8.3522,-77.2993,6m;t=9770.72462jd;cq=0.8566,0.4418,0.1698,0.2054;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
         "box": [
@@ -407,7 +407,7 @@
       "id": "mars-sky-zenith",
       "body": "mars",
       "description": "Mars's day sky from Valles Marineris looking up, the Sun 18 degrees up and behind the camera: the zenith (the region, the top of the frame) against the sky 35 degrees lower (the reference, the bottom): the sky's gradient and its tan colour (blue/red under 1).  Before multiple scattering and the dust's published properties the zenith was 0.04 of a sunlit white surface and black on screen",
-      "hash": "#sun/mars@-10.7408,-68.893,-796m;t=9770.7343jd;cq=-0.5182,0.7149,-0.3829,0.2716;fov=45deg;s=alpoU",
+      "hash": "#sun/mars@-10.7408,-68.893,-796m;t=9770.31455jd;cq=-0.5182,0.7149,-0.3829,0.2716;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
         "box": [
@@ -443,7 +443,7 @@
       "id": "mars-sky-antisolar",
       "body": "mars",
       "description": "The same spot, looking away from the Sun: the sky just over the anti-solar horizon (the region) against the sky 30 degrees up (the reference).  Single scattering through the dust's forward lobe left this sky nearly black; multiply scattered light fills it, a little brighter at the horizon than above",
-      "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.7343jd;cq=-0.2197,-0.0929,-0.5872,-0.7735;fov=45deg;s=alpoU",
+      "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.31455jd;cq=-0.2197,-0.0929,-0.5872,-0.7735;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
         "box": [
@@ -479,7 +479,7 @@
       "id": "mars-sky-aureole",
       "body": "mars",
       "description": "The same spot, facing the Sun: the aureole within 10 degrees of the Sun (the region) against the sky 40 degrees from it (the reference): brighter, and bluer (the dust scatters blue more sharply forward: blue/red 1.5 against 0.8), where the sky used to be white across the frame",
-      "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.7343jd;cq=0.6053,-0.7873,-0.0884,0.0771;fov=45deg;s=alpoU",
+      "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.31455jd;cq=0.6053,-0.7873,-0.0884,0.0771;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
         "box": [

@@ -1,6 +1,6 @@
 import {Quaternion, Vector3} from 'three'
 import {ASTRO_UNIT_METER, toRad} from '../shared.js'
-import {J2000_JD, J2000_OBLIQUITY_DEG} from './celestialFrame.js'
+import {J2000_OBLIQUITY_DEG} from './celestialFrame.js'
 
 
 // Keplerian motion from published mean elements, for the bodies neither
@@ -210,20 +210,4 @@ export function orbitAt(el, jde, quat, pos) {
   // Perifocal (x toward pericentre, y 90° ahead) → scene axes (x, 0, -y).
   pos.set(a * (Math.cos(E) - e), 0, -a * Math.sqrt(1 - (e * e)) * Math.sin(E)).applyQuaternion(quat)
   return {a, e}
-}
-
-
-/**
- * A body's rotation pole (IAU WGCCRE: right ascension and declination in
- * ICRF, with optional linear rates in degrees per Julian century) as a unit
- * vector in the ecliptic of J2000, in scene axes.
- *
- * @param {{ra: number, dec: number, raRate: number, decRate: number}} pole
- * @param {number} jde Julian Ephemeris Day (TT)
- * @param {Vector3} [target]
- * @returns {Vector3}
- */
-export function poleAt(pole, jde, target = new Vector3) {
-  const T = (jde - J2000_JD) / DAYS_PER_CENTURY
-  return icrfToScene(pole.ra + ((pole.raRate || 0) * T), pole.dec + ((pole.decRate || 0) * T), target)
 }
