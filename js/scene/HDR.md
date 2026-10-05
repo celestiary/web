@@ -578,7 +578,7 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
 | Earth's crescent from 94,000 km, 30% lit, in a star field (`sunlitBodyCap`) | 1.09 (the cap) | 7.5e-8 / 6.9e-8 | crescent (0.3% of the frame) | white, 4e6 (the second cut) | peak 238, median 100, none saturated; 7 stars |
 | The Moon from the outback at night, 77% lit, 10° field (`sunlitBodyCap`) | 3.33 (the cap) | 2.3e-8 / 2.3e-8 | the disc | white, 4e6 (the second cut) | 47-232 with its phase |
 | The Sun's disc, zooming in from 232 Gm to 8 Gm (`luminousDiscGain`; 1000×595, bare) | 4.0e6 at 4.5 px across (232 Gm), 1.8e6 at 10.5 px (100 Gm), 3,700 at 16 px (65 Gm), 1.67 at 21 px (50 Gm), 8.65e-6 from 35 px (30 Gm) | — | the disc | white to 5 Gm, then 0.6 | 6e4 to 50 Gm, 0.600 from 30 Gm; monotone, no jump |
-| The Sun's disc at 71 Gm, 8 Gm and 2 Gm, the clock set by the permalink (`noiseTime`, the shoulder) | SUN_DISC_ROW |
+| The Sun's disc at 71 Gm, 8 Gm and 2 Gm, the clock set by the permalink (`noiseTime`, the shoulder) | 8.65e-6 at 8 and 2 Gm, 2.5e4 at 71 Gm | — | the disc, linear | NaN (black) at every distance | 0.600 at the centre with the texture's colour at 8 and 2 Gm, no non-finite pixel; 6e4 at 71 Gm, 29 NaN pixels in the frame still (open) |
 | The Sun from 7 radii | 5e-6 (the floor: SwiftShader's disc is non-finite, which the meter counts as the maximum) | 66 / 1.2e10 | disc | black (SwiftShader; its rim 6e4) | the same |
 
 - **A sunlit scene is untouched**: the midday surface, Earth from orbit by
