@@ -8,6 +8,8 @@
 "mass": "4.8E25 g",
 "density": 3.018,
 "radius": "1.565E6 m",
+"texture_longitude": 180,
+"texture_longitude_source": "Pwyll's ray crater (25.2°S, 271.4°W) lands on its USGS position only with the map centred on 180° (js/scene/Planet.md)",
 "siderealRotationPeriod": 306720.0,
 "axialInclination": 1.0,
 "location": {
