@@ -263,7 +263,7 @@ void main() {
  * @param {object} [star] The star's disc, as Star.js draws it
  * @param {Array<number>} [star.color] Its colour, linear sRGB at a luminance of 1 (stellar.js blackbodyColor)
  * @param {number} [star.radiance] Its disc's radiance over the Sun's
- * @param {number} [star.radius] Its disc's radius, m: the glow behind it is not drawn
+ * @param {number} [star.radius] Its disc's radius, m, in the shell's frame: the glow behind it is not drawn
  * @returns {Object3D}
  */
 export function newAtmosphere(radiusMeters, {color = [1, 1, 1], radiance = 1, radius = 0} = {}) {
@@ -280,8 +280,8 @@ export function newAtmosphere(radiusMeters, {color = [1, 1, 1], radiance = 1, ra
     matr: new ShaderMaterial({
       vertexShader: `varying vec3 vNormal;
 varying vec3 eyeVector;
-varying vec3 vViewPos;
-varying vec3 vCenter;
+varying vec3 vObjPos;
+varying vec3 vCamObj;
 
 void main() {
     // modelMatrix transforms the coordinates local to the model into world space
@@ -292,8 +292,11 @@ void main() {
 
     // vector pointing from camera to vertex in view space
     eyeVector = normalize(mvPos.xyz);
-    vViewPos = mvPos.xyz;
-    vCenter = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    // The camera in the shell's own frame, where the disc is a sphere of
+    // uOccluderRadius at the origin whatever the mesh's scale (an oblate
+    // star's shell is scaled with its disc: Star.js).
+    vObjPos = position;
+    vCamObj = (inverse(modelViewMatrix) * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
 
     gl_Position = projectionMatrix * mvPos;
 }`,
@@ -311,8 +314,8 @@ uniform vec3 uGlowColor;
 uniform float uRadianceScale;
 // The disc's radius: the shell behind the disc is hidden by it.
 uniform float uOccluderRadius;
-varying vec3 vViewPos;
-varying vec3 vCenter;
+varying vec3 vObjPos;
+varying vec3 vCamObj;
 
 void main() {
     // Starting from the rim to the center at the back, dotP would increase from 0 to 1.
@@ -343,8 +346,9 @@ void main() {
     // from tens of gigametres (its resolution there is ~1e8 m), so the
     // glow showed through the disc's limb in blocks (the Sun from 1 AU
     // at a narrow field).  The ray's closest approach as a cross product,
-    // which keeps its precision where the ray points at the centre.
-    float closest = length(cross(vCenter, normalize(vViewPos)));
+    // which keeps its precision where the ray points at the centre; in the
+    // shell's frame, so an oblate disc (Vega, Altair) hides its own.
+    float closest = length(cross(vCamObj, normalize(vObjPos - vCamObj)));
     glow *= 1.0 - step(closest, uOccluderRadius * 0.999);
     gl_FragColor = vec4(emitted(glow), 1.0);
 }`,

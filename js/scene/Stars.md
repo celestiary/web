@@ -9,7 +9,9 @@ piece of the parametric body renderer (ROADMAP, *Shared engines*).
 | Piece | Where |
 |---|---|
 | Temperature from class, colour, surface brightness, limb darkening, granulation and spot laws | `stellar.js` (pure functions, `stellar.test.js`) |
+| A star's physical parameters: measured, or from its class and magnitude; rotation; activity | `starParams.js` (`starParams.test.js`) |
 | The photosphere's parameters for one star | `Star.js` `photosphere(props)` |
+| A catalogue star's disc when travelled to | `Scene.js` `showCatalogueStar` |
 | The disc's shader | `star-shaders.js` |
 | The limb glow | `atmos/Atmosphere.js` `newAtmosphere` |
 | The field stars' colours (points) | `StarsBufferGeometry.js`, through the same blackbody table |
@@ -27,8 +29,8 @@ subclass and luminosity class as indices (`StarsCatalog.js`;
   luminosity class over the whole HR diagram (their eqs. 2a, 2b; the
   coefficients as PyAstronomy's `SpecTypeDeJager` carries them, which
   reproduces their Table 5's K0 V, log Teff 3.712). An unknown subclass is
-  5, an unknown luminosity class V (#166 infers it from the absolute
-  magnitude). Within 8% of every measured star in the test (the Sun,
+  5; an unknown luminosity class is inferred from the absolute magnitude
+  ([every star](#every-star-from-its-parameters)). Within 8% of every measured star in the test (the Sun,
   Sirius, Vega, Proxima, Arcturus, Rigel); it runs ~3% cool for G
   dwarfs (G2 V 5,590 K).
 - **K1 to M5 supergiants and bright giants**: Levesque et al. 2005 (ApJ
@@ -41,7 +43,8 @@ subclass and luminosity class as indices (`StarsCatalog.js`;
 - **Carbon and S stars, L and T dwarfs**: approximate ranges (see
   `teffFromClass`); 177 catalogue stars, no L or T.
 - **The Sun**: 5,772 K (IAU 2015 Resolution B3), by name or HIP 0. A
-  star's own `teff` overrides its class (#166's measured stars).
+  star's own `teff` overrides its class, and the measured stars'
+  (`starParams.js` `MEASURED_STARS`) theirs.
 
 ## Colour
 
@@ -88,7 +91,8 @@ is the visual analogue of σT⁴, which counts the light the eye doesn't see:
 | Vega (A0 V) | 10,205 | 7.6 | 9.8 |
 | 20,000 K | | 34 | 144 |
 
-`stefanBoltzmannRatio` is there for the bolometric uses (#166's radius).
+`stefanBoltzmannRatio` is there for the bolometric uses (the radius,
+below).
 The meter (`luminousDiscGain`) reads each star's own radiance
 (`Star.discRadianceRelSun`), so a hot star's disc is stopped down more
 than the Sun's and a red dwarf's less, and the glow shell takes the
@@ -136,8 +140,8 @@ field). Three layers, each a temperature fluctuation δT/T:
   cell in 696 Mm). Their size follows the pressure scale height,
   H_p ∝ T/g (Freytag et al. 1997; Trampedach et al. 2013), so a star's
   count is the Sun's × (R/R☉)(g/g☉)(T☉/T): `granulesPerRadius`, at least
-  1.5 (a supergiant's few giant cells). Without a star's gravity (until
-  #166 supplies it) the Sun's scale.
+  1.5 (a supergiant's few giant cells), the gravity and radius from
+  `starParams.js`: Proxima 820 across its radius, Betelgeuse 20.
 - **Mesogranules**, 5× the granules' size, 0.3 of their amplitude.
 - **Supergranules**, 25×, with almost no intensity of their own in the
   Sun (0.03 of the granules'), more at low gravity, and their boundaries
@@ -177,7 +181,7 @@ of the 2×2 quads the derivatives are taken over.
 temperature rise times (1 − μ)²: nothing at disc centre and 15% at
 μ = 0.2, as the Sun's do. Above 7,000 K a star has no convective
 envelope, so no granules, spots or faculae (Ap stars' chemical spots
-aside); spot coverage by type is #166's.
+aside); spots by type are below.
 
 ## The limb glow
 
@@ -190,6 +194,85 @@ change). The shell now drops any fragment whose ray passes within the
 disc's radius of its centre, the closest approach taken as a cross
 product, which keeps its precision where the ray points at the centre.
 
+## Every star from its parameters
+
+[#166](https://github.com/celestiary/web/issues/166): `starParams(props)`
+gives every star its temperature, radius, mass, gravity, rotation and
+activity, and the photosphere is drawn from them, so a catalogue star is
+the same renderer as the Sun with its own numbers.
+
+**Measured stars** (`MEASURED_STARS`, by HIP) take their published
+values:
+
+| Star | Teff (K) | R (R☉) | M (M☉) | log g | Granules / R | Rotation | Spots | Sources |
+|---|---:|---:|---:|---:|---:|---|---|---|
+| Sun | 5,772 | 1 | 1 | 4.44 | 535 | (slow; not modelled) | the Sun's, in the belts 5°-35° | IAU 2015 B2, B3 |
+| Sirius A | 9,845 | 1.714 | 2.063 | 4.28 | none (radiative) | slow | none | Davis et al. 2011; Bond et al. 2017 |
+| Vega | 10,060 pole, 8,152 equator | 2.362 pole, 2.818 equator | 2.15 | 4.02 | none | pole-on, i = 4.98°; β 0.25 | none | Yoon et al. 2010 |
+| Altair | 8,450 pole, 6,860 equator | 1.636 pole, 2.029 equator | 1.791 | 4.26 | 449, weak | i = 57.2°, PA −61.8°; β 0.19 | none | Monnier et al. 2007 |
+| Betelgeuse | 3,600 | 764 | 18 | −0.07 | 20 (giant cells) | slow | none (no solar-type dynamo) | Levesque & Massey 2020; Joyce et al. 2020 |
+| Proxima Cen | 2,980 | 0.1542 | 0.122 | 5.15 | 820 | slow (83 d) | flare star: many, large, all latitudes | Ribas et al. 2017; Boyajian et al. 2012 |
+
+**Every other star** from the catalogue:
+
+- **Luminosity class**: the catalogue's where it has one, else DJ87's
+  continuous b at which its luminosity for the star's type, through the
+  bolometric correction, gives the star's absolute magnitude
+  (`inferLuminosityB`): Polaris, F7 with no class, comes out b 1.6, a
+  supergiant (it is F7 Ib). A star at or under its type's dwarf magnitude
+  is a dwarf.
+- **Temperature** from the class and b (above).
+- **Radius by Stefan-Boltzmann**, R = √L (T☉/T)², L the bolometric
+  luminosity from the absolute magnitude and the bolometric correction
+  (`bolometricCorrectionV`: Flower 1996 with Torres 2010's coefficients).
+  It was √L_V, the visual luminosity's square root, which leaves out the
+  temperature: Betelgeuse was 115 R☉ (it is 764), Proxima 0.01 (0.15).
+  Within a factor of 2 of eight interferometric radii (tested: Rigel
+  73 against 79, Arcturus 23/25, Procyon 2.0/2.05, Tau Ceti 0.86/0.79,
+  Spica 7.2/7.5, Canopus 74/71, Polaris 50/46, Aldebaran 36/44). Late M
+  dwarfs come out large: the bolometric correction's cool end is fitted
+  to giants (Barnard's Star 0.32 against 0.19). The catalogue's `radius`
+  (the goTo distance, the point's fade into its disc) and `teff` are set
+  from these as it loads (`StarsCatalog.read`, ~0.2 s for 106,748
+  stars).
+- **Mass** from the main-sequence mass-luminosity relation
+  (`massFromLuminosity`), rough for evolved stars (Arcturus 4 M☉ for its
+  ~1); the gravity it gives enters the granule size as a power, so a
+  factor of 4 in mass is one of 4 in the cells' size.
+- **Spots by type** (`spotsByType`; Berdyugina 2005, Strassmeier 2009):
+  none for hot stars or supergiants; a few for giants; the Sun's for G
+  dwarfs; more, to 60° latitude, for K dwarfs; and for M dwarfs large
+  ones (8 lattice cells across the radius, not 25) at all latitudes,
+  poles included, over much of the star, more for a known flare star. The
+  umbra's contrast falls with temperature, so an M dwarf's spots are
+  many but shallow.
+
+**Rotation** where measured (Vega, Altair): the Roche model through the
+pole and the equator, Ω² = 2(1 − 1/e)/e² in units of GM/R_pole³ (e the
+equator over the pole), the disc an oblate spheroid, and gravity
+darkening T = T_pole (g_eff/g_pole)^β (von Zeipel 1924), β from the two
+measured temperatures (Vega's comes out 0.250, von Zeipel's) or as
+published (Altair's 0.19). The shader computes g_eff per fragment
+(`gravityDarkening`, mirrored by `effectiveGravity`); the star's colour
+and mean brightness are its area-weighted mean T⁴'s (Vega 8,914 K,
+Altair 7,529 K). The axis is set from the inclination and position angle
+against the line of sight from the Sun and the celestial north pole in
+the catalogue's frame (`rotationAxis`, `CATALOGUE_NORTH`: the frame is
+the J2000 ecliptic with the scene's axes, so the pole is
+(0, cos ε, −sin ε); Polaris is 0.7° from it), so Altair from the Sun's
+side shows its measured tilt; in the guide, as seen from Earth with
+north up. The glow shell is scaled and turned with the disc.
+
+**Approaching any catalogue star** (`Scene.goTo(star)`) draws its disc:
+`showCatalogueStar` builds a `Star` from its props in the stellarFrame,
+where the catalogue puts it, one at a time (the next replaces it), with
+no light (the Sun's point light and shadows stay the Sun's). It is in
+the scene's objects as `catalogue star <HIP>`, so the meter stops down
+for its disc as for the Sun's (`_luminousDiscs`), and the zoom
+approaches its surface and stops there (`ThreeUI._homeBody`): the floor
+was the last targeted body's radius, which kept the camera 6 radii from
+Proxima and let it into Betelgeuse.
+
 ## Evidence (PR #21's)
 
 Rendered on SwiftShader, 480×360, labels and orbits off, the meter
@@ -198,12 +281,21 @@ radii (at the limb), 1.1 and 1.02 radii (granules); the guide's Sol,
 Vega, Sirius, Betelgeuse and Proxima at 90% of the canvas; before and
 after. Paths are in the PR.
 
+## Evidence (PR #166's)
+
+Approached in the app, 3 radii from each on the Sun's side (the view
+from Earth), the meter settled: Betelgeuse, Altair, Sirius, Proxima, the
+Sun and Vega; and the guide's Sol, Vega, Sirius, Betelgeuse, Proxima and
+Altair, against #21's. Paths are in the PR.
+
 ## Follow-ups
 
 - Claret's limb darkening (needs VizieR or CDS reachable).
-- #166: every star's radius (Stefan-Boltzmann with a bolometric
-  correction), gravity, rotation and activity, and approaching any
-  catalogue star in the app.
+- A dwarf-specific bolometric correction for late M dwarfs (Pecaut &
+  Mamajek's, or Mann et al. 2015's), whose radii come out large.
+- Rotation for more stars (Regulus, Achernar, α Cep, α Oph: all imaged
+  by interferometry), and the Sun's own axis (it is drawn with the
+  ecliptic pole's, 7.25° off).
 - The chromosphere, prominences and flares (#167); the corona and the
   solar wind (#168).
 - Pecaut & Mamajek's dwarf sequence for class V (its site isn't

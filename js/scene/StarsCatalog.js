@@ -1,6 +1,7 @@
 import {dataUrl} from '../dataUrl.js'
 import {LENGTH_SCALE, LIGHTYEAR_METER} from '../shared.js'
 import {assertEquals, assertNotNullOrUndefined} from '../assert.js'
+import {starParams} from './starParams.js'
 
 
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
@@ -23,8 +24,9 @@ const littleEndian = true
  *   spectralType: number,
  *   sub: number,
  *   lumClass: number,
- *   lumRelSun: number,
  *   radius: number,
+ *   teff: number,
+ *   lumens: number,
  * }} StarProps
  */
 
@@ -136,13 +138,6 @@ export default class StarsCatalog {
       const sub = (clazz & 0x00F0) >>> 4
       const lumClass = clazz & 0x000F
 
-      // http://cas.sdss.org/dr4/en/proj/advanced/hr/radius1.asp
-      // Omitting the temperature factor for now as it changes radius by
-      // only a factor of 3 up or down.
-      const absMagDelta = sun.absMag - absMag
-      const lumRelSun = Math.pow(2.512, absMagDelta)
-      const radiusRelSun = Math.pow(lumRelSun, 0.5)
-
       // Compute star's luminous flux from absolute magnitude, from ChatG
       //    ratio = 10^((M_sun - M_star)/2.5)
       const magFactor = Math.pow(10.0, (sun.absMag - absMag) / 2.5)
@@ -159,10 +154,17 @@ export default class StarsCatalog {
         spectralType: type,
         sub: sub,
         lumClass: lumClass,
-        radius: radiusRelSun * sun.radius,
         // Used by stars.vert
         lumens: lumens,
       }
+      // Its radius by Stefan-Boltzmann from its luminosity and temperature
+      // (it was the square root of its visual luminosity: Betelgeuse 115
+      // R☉ where it is 764, Proxima 0.01 where it is 0.15), and its
+      // temperature, from its class and magnitude or as measured
+      // (starParams.js, Stars.md).
+      const params = starParams(star)
+      star.radius = params.radius * sun.radius
+      star.teff = params.teffMean
       this.starByHip.set(hipId, star)
     }
     return this
