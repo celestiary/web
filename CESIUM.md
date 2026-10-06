@@ -438,6 +438,55 @@ twilight ones) have no clouds in them.
   raised past the body (its default, 5e8 m, would clip the Earth beyond
   ~80 radii).
 
+### Detail at narrow fields of view
+
+The rule: **Cesium is never asked for finer detail than a pixel of
+`MIN_PIXEL_ANGLE` (1e-4 rad, ~21″) would get**, whatever the field of
+view (`cesium/detail.js`, applied each frame in `_setCesiumView`).  Where
+a pixel spans less, the globe's `maximumScreenSpaceError` (2, Cesium's
+default) and the tilesets' (8) are multiplied by how much less
+(`detailScale`), so every tile's screen-space error against the limit is
+what it would be with pixels of that size.  The tiles Cesium walks and
+loads are then at most those of that wider field from the same place, of
+which the narrow view sees a part.  The night lights' second frame
+(#179) renders the same globe from the same camera within the frame, so
+it walks the same bounded tiles.  Every ordinary field is untouched: at
+45° a pixel spans 5 to 28 times the floor (on a 1,500 to 300 px tall
+canvas); the floor is a 1.7° field at 300 px, 5.7° at 1,000 px.
+
+Why (#176): Cesium's screen-space error is the tile's geometric error ×
+the canvas height / (distance × 2 tan(fovy / 2)), so at a telescope's
+field it asked for sub-metre detail kilometres off.  The user's view:
+156 m over the sphere in Amapá, Brazil, 13 m over World Terrain's ground,
+Jupiter tracked (`t`) at 0.01-0.04° as it sets.  Headless on main
+(480x300), at 0.1° with Jupiter 4-6° up, Earth's globe visited 210,000 to
+230,000 tiles a frame, down to level 27, and the heap went to 1.4-1.8
+GB; at 0.04° and 0.01° the tab died of V8 out of memory before Jupiter
+was down to 6°.  None of those tiles was drawn: the frustum passed over
+the ground's tiles near the camera, whose bounding boxes reach their
+ancestors' terrain heights until they load, and World Terrain has no data
+past level ~15 there, but the globe only learns a tile is upsampled from
+its parent once it has loaded it, so it walked the subtree under each
+first.  As Jupiter crossed the horizon and the ground came into the
+frame, the count rose again, from ~400 to 6,700 a frame at 0.1° (more on a
+larger canvas, and at a narrower field).  From that spot, per frame, the
+globe visited 75 tiles at 45°, 420 at 5°, 1,000-1,500 at 2°, 3,000-4,500
+at 1°, 5,000-18,000 at 0.5°: faster than 1 / fov.  With the floor, setting
+from 6° to -1.25° at 0.1°, 0.04° and 0.01°: at most ~1,500 tiles a frame,
+and the heap peaks at 141, 193 and 178 MB (166 MB at 0.01° on 1280x800),
+against ~150 MB at 45°.  At night, with the lights' frame too (Jupiter
+rising, before dawn), 155 MB at 0.01° and 190 MB at 0.04°.  `node tools/narrow-fov/narrowFov.mjs <fov>`
+reruns it (its header has the options); the counts are the globe's
+`_surface._debug.tilesVisited` and its replacement queue, which say what
+Cesium did that frame rather than what it drew.
+
+The cost: below the floor, the terrain is no sharper than at the floor's
+field, so through a telescope's field a ridge on the horizon is magnified
+but no more detailed.  `tileCacheSize` and the load queues were not the
+problem (the cache trims only tiles unused this frame; these were all in
+use), and clamping the frustum handed to Cesium would have widened what it
+draws, not just what it selects.
+
 ## Phases
 
 1. **Earth** — layer infrastructure, UI, Earth. *Done; verified in

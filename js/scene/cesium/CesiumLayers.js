@@ -45,6 +45,7 @@ import {fovScale} from '../farPoint.js'
 import {nightLightRadiance} from '../exposure.js'
 import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
+import {detailScale} from './detail.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
 
@@ -851,6 +852,16 @@ export default class CesiumLayers {
     cesiumCamera.frustum.far = Math.max(DEFAULT_FAR, Math.hypot(...view.position) + bodyExtent)
     const canvas = widget.canvas
     cesiumCamera.frustum.fov = cesiumFov(camera.fov * toRad, canvas.clientWidth / Math.max(1, canvas.clientHeight))
+    // No finer detail than for pixels of MIN_PIXEL_ANGLE (detail.js): at a
+    // telescope's field, Cesium asked for sub-metre tiles kilometres off
+    // and ran the page out of memory (#176).
+    const detail = detailScale(camera.fov * toRad, canvas.clientHeight)
+    if (widget.scene.globe) {
+      widget.scene.globe.maximumScreenSpaceError = GLOBE_SCREEN_SPACE_ERROR * detail
+    }
+    if (body.tileset) {
+      body.tileset.maximumScreenSpaceError = TILE_SCREEN_SPACE_ERROR * detail
+    }
 
     // Celestiary's Sun is at the world origin of its world group.
     this._sunPos.set(0, 0, 0)
@@ -1525,8 +1536,11 @@ const MIN_PIXEL_RADIUS = 1
 // over the surface (Olympus Mons, the highest, is ~21 km over Mars's), m.
 const GROUND_SAMPLE_MS = 200
 const GROUND_SAMPLE_BELOW_M = 1e5
-// ion tilesets' maximumScreenSpaceError, in pixels.
+// ion tilesets' maximumScreenSpaceError, in pixels, and the globe's
+// (Cesium's default), where a pixel spans MIN_PIXEL_ANGLE or more: every
+// ordinary field of view (detail.js).
 const TILE_SCREEN_SPACE_ERROR = 8
+const GLOBE_SCREEN_SPACE_ERROR = 2
 // The crossfade from celestiary's surface to Cesium's, ms.
 const FADE_MS = 1000
 // Highest camera, over the surface, m, at which the terrain's distance
