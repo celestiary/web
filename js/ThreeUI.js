@@ -1125,6 +1125,8 @@ export default class ThreeUi {
     u.uMieBackPolarity.value = mie.backPolarity
     u.uMieForwardWeight.value = mie.forwardWeight
     u.uMieAlbedo.value.copy(mie.albedo)
+    u.uMiePeakPolarity.value.copy(mie.peakPolarity)
+    u.uMiePeakWeight.value.copy(mie.peakWeight)
 
     if (this._lastAtmPlanet !== atmTarget) {
       this._lastAtmPlanet = atmTarget
