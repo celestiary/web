@@ -733,14 +733,14 @@ describe('Scene.goTo navigation', () => {
       expect(lookAngleTo(sun.localToWorld(latLngAltToBodyFixed(10, 20, 0, sun.props.radius.scalar))))
           .toBeLessThan(0.01)
       app2.goTo()
-      expect(calls).toEqual([['land', 'sun', 10, 20, undefined]])
+      expect(calls).toEqual([['land', 'sun', 10, 20, undefined, {target: SUN_PLACE}]])
 
       calls.length = 0
       click(STAR_LABEL)
       app2.scene.lookAtTarget()
       expect(lookAngleTo(app2.scene.worldGroup.localToWorld(app2.scene.starPosition(FAKE_STAR)))).toBeLessThan(0.01)
       app2.goTo()
-      expect(calls).toEqual([['goTo', FAKE_STAR]])
+      expect(calls).toEqual([['goTo', FAKE_STAR, 'Fake']])
 
       click(ASTERISM)
       app2.scene.lookAtTarget()
@@ -756,10 +756,10 @@ describe('Scene.goTo navigation', () => {
 
     it('a double click on a place or star goes to it, once', () => {
       dblClick(SUN_PLACE)
-      expect(calls).toEqual([['land', 'sun', 10, 20, undefined]])
+      expect(calls).toEqual([['land', 'sun', 10, 20, undefined, {target: SUN_PLACE}]])
       calls.length = 0
       dblClick(STAR_LABEL)
-      expect(calls).toEqual([['goTo', FAKE_STAR]])
+      expect(calls).toEqual([['goTo', FAKE_STAR, 'Fake']])
       expect(store.committedStar.hipId).toBe(99)
     })
 
@@ -783,13 +783,15 @@ describe('Scene.goTo navigation', () => {
       expect(calls).toEqual([])
     })
 
-    it('targeting a body, or going anywhere, drops a targeted point', () => {
+    it('targeting a body drops a targeted point; targeting anything else replaces it', () => {
       click(SUN_PLACE)
       app2.scene.setTarget('sun')
       expect(Shared.targets.label).toBe(null)
       click(ASTERISM)
       app2.scene.lookAtStar(FAKE_STAR)
-      expect(Shared.targets.label).toBe(null)
+      expect(Shared.targets.label.kind).toBe('star')
+      expect(Shared.targets.label.star).toBe(FAKE_STAR)
+      expect(store.committedStar.hipId).toBe(99)
     })
   })
 })

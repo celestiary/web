@@ -19,6 +19,8 @@ import {latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment} from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry} from './search/commitEntry'
+import {fetchPlaces} from './scene/Places'
+import {parseTargetPath, resolvePlace, slug, targetFramePath, targetPath} from './targetPath'
 import {elt} from './utils'
 
 
@@ -65,6 +67,8 @@ export default class Celestiary {
     this.camera = this.ui.camera
     this.scene = new Scene(this.ui)
     this.scene.onLabelDblClick = (label) => this.goToLabel(label)
+    // The link names the target (targetPath.js), so a new one rewrites it.
+    this.scene.onTargetChange = () => this._schedulePermalinkUpdate()
     // Any settings toggle (asterisms, grids, etc.) updates the permalink so
     // the URL always reflects the live view configuration.
     this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
@@ -74,8 +78,9 @@ export default class Celestiary {
     this.loader = new Loader()
     this.controlPanel = new ControlPanel(navElt, this.loader)
     this.firstTime = true
-    this._pendingPermalink = null
     this._permalinkTimer = null
+    // Callbacks waiting for a body to load, by name (_loadBody).
+    this._bodyWaiters = {}
     // AR (mobile sky-view).  Constructed lazily — most users won't enter
     // AR mode, and the controller has no per-frame cost when inactive
     // (ThreeUI.renderLoop checks isActive() before calling updateFrame).
@@ -182,122 +187,337 @@ export default class Celestiary {
   }
 
 
-  /** */
+  /**
+   * Load the scene for the link in the location hash, or the Sun.  The
+   * drawer and its apps are restored here, on the first load only.
+   */
   load() {
-    let path
     const rawHash = location.hash ? location.hash.substring(1) : ''
     if (rawHash) {
-      this._pendingPermalink = decodePermalink(rawHash)
-      path = pathFromFragment(rawHash)
       // The drawer and its apps, as the link left them (design/URLs.md).
       // On first load only, as the scene settings.  Each app restores its
       // own state from its entry here, waiting for what it needs (the
       // stars, for the Human Expansion app).
-      const widgets = decodeAppTokens(this._pendingPermalink?.tokens)
+      const widgets = decodeAppTokens(decodePermalink(rawHash)?.tokens)
       if (widgets) {
         this.useStore.getState().dispatchWidgets({type: 'restore', widgets})
       }
     } else {
-      path = DEFAULT_TARGET
-      location.hash = path
+      location.hash = DEFAULT_TARGET
     }
     this.onLoad = (name, obj) => {
       reifyMeasures(obj)
       this.scene.add(obj)
-    }
-    this.onDone = (loadedPath, obj) => {
-      const pathParts = loadedPath.split('/')
-      // Updating committedPath fires the preview subscription (_subscribePreview)
-      // which owns info-panel rendering; no direct showNavDisplay here.
-      this.useStore.getState().setCommittedPath(pathParts)
-      // TODO(pablo): Hack to handle load order.  The path is loaded,
-      // but not yet animated so positions will be incorrect.  So
-      // schedule this after the next pass.
-      setTimeout(() => {
-        const parts = loadedPath.split('/')
-        let targetName = parts[parts.length - 1]
-        if (targetName.indexOf('-') >= 0) {
-          targetName = targetName.split('-')[0]
-        }
-        const pl = this._pendingPermalink
-        this._pendingPermalink = null
-        if (pl) {
-          // Position planets at the saved time before goTo() orients the platform
-          this.time.setTime(fromJulianDay(pl.d2000 + J2000_JD))
-          this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
-          this.ui.scene.updateMatrixWorld()
-        }
-        this.scene.targetNamed(targetName)
-        this.scene.goTo()
-        if (pl) {
-          try {
-            this.ui.scene.updateMatrixWorld()
-            const tObj = Shared.targets.cur
-            if (pl.settings?.L) {
-              // Landed restore: reparent to the rotating body, snap to the
-              // saved lat/lng/alt, then overwrite quaternion to recover the
-              // saved look direction.  Skips the orbit-style restore below
-              // because that path leaves the camera in an orbit-relative
-              // frame, but landed cq is body-relative.
-              this.scene.land(tObj.props.name, pl.lat, pl.lng, pl.alt, {instant: true})
-              this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
-            } else {
-              // Orbit-style restore: scene.goTo() has already rebased
-              // WorldGroup + reparented platform to the target body, so
-              // lat/lng resolve against the platform directly.
-              const planetWorldPos = new THREE.Vector3()
-              tObj.getWorldPosition(planetWorldPos)
-              const planetWorldQuat = new THREE.Quaternion()
-              tObj.getWorldQuaternion(planetWorldQuat)
-              const platformWorldQuat = new THREE.Quaternion()
-              this.ui.camera.platform.getWorldQuaternion(platformWorldQuat)
-              const camPos = latLngAltToLocal(
-                  pl.lat, pl.lng, pl.alt, tObj.props.radius.scalar,
-                  planetWorldQuat, platformWorldQuat,
-              )
-              this.ui.camera.position.copy(camPos)
-              this.ui.camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
-            }
-            // Permalink restore takes precedence over any pending goTo animations.
-            Shared.targets.tween = null
-            Shared.targets.tweenNextFn = null
-            this.ui.setFov(pl.fov)
-          } catch (e) {
-            console.error('Permalink restore failed:', e)
-          }
-        }
-        if (this.firstTime) {
-          // Apply scene settings — either from the permalink's `s=` flags
-          // or the SETTINGS_DEFAULTS table.  applySettings is idempotent;
-          // any setting already at its target state is a no-op, so this
-          // does the equivalent of the old "toggleAsterisms / toggleStarLabels"
-          // pair for a fresh viewer, and additionally honors the
-          // permalink for returning users.
-          const wantedSettings = pl?.settings ?? decodeSettings(undefined)
-          this.scene.applySettings(wantedSettings)
-          this.firstTime = false
-        }
-        // AR-fallback resolution: if the permalink was captured in AR
-        // mode (s=A), try to re-enter AR at the saved lat/lng.
-        // Best-effort — on iOS Safari `requestPermission()` requires a
-        // user gesture, so this auto-attempt rejects silently and the
-        // user can tap the AR button (which is a real gesture) to enter.
-        if (pl?.settings?.A && typeof pl.lat === 'number' && typeof pl.lng === 'number') {
-          this.ar?.enter({lat: pl.lat, lng: pl.lng, alt: pl.alt}).catch(() => {
-            // Silent — sensor unavailability or permission denial just
-            // leaves the static permalink view as the visible result.
-          })
-        }
-      }, this._pendingPermalink ? 0 : (this.firstTime ? 1000 : 0))
+      const waiters = this._bodyWaiters[name]
+      if (waiters) {
+        delete this._bodyWaiters[name]
+        waiters.forEach((cb) => cb())
+      }
     }
     this.loader.loadPath('milkyway', this.onLoad, () => {
-      this.loader.loadPath(path, this.onLoad, this.onDone, () => {
+      this._navigate(rawHash || DEFAULT_TARGET, () => {
         // On error.
         setTimeout(() => {
           location.hash = DEFAULT_TARGET
         }, 1000)
       })
     })
+  }
+
+
+  /**
+   * Follow a link (design/URLs.md): its path is the target (targetPath.js),
+   * and the view, if it has one, is the camera in its frame (`from=`, else
+   * the target's body).
+   *
+   * - With a view (`@…;t=…;cq=…`): the time is set, the camera is put back
+   *   in its frame where the link had it, and the target is set without
+   *   turning the camera, so the page shows what the link's did.
+   * - A path alone goes to the target: a body flies there, a place lands,
+   *   a star travels, an asterism turns to face it (from the Sun).
+   *
+   * @param {string} raw The hash, without its '#'
+   * @param {Function} [onErr] Called if the path doesn't load
+   */
+  _navigate(raw, onErr) {
+    const pl = decodePermalink(raw)
+    const ref = parseTargetPath(pathFromFragment(raw))
+    if (!ref) {
+      onErr?.()
+      return
+    }
+    this._resolveRef(ref, (resolved) => {
+      const framePath = pl?.from ?? REF_FRAME[resolved.kind](resolved)
+      this._loadFrame(framePath, (frame) => {
+        // TODO(pablo): Hack to handle load order.  The path is loaded,
+        // but not yet animated so positions will be incorrect.  So
+        // schedule this after the next pass.
+        setTimeout(() => this._arrive(pl, frame, resolved), pl ? 0 : (this.firstTime ? 1000 : 0))
+      }, onErr)
+    }, onErr)
+  }
+
+
+  /**
+   * Put the camera in its frame, where the link had it or travelling to
+   * the target, then set the target.
+   *
+   * @param {?object} pl The decoded link, or null for a path alone
+   * @param {{kind: string, name?: string, star?: object}} frame The body or
+   *   star the camera is at (_loadFrame)
+   * @param {object} resolved The target's path, resolved (_resolveRef)
+   */
+  _arrive(pl, frame, resolved) {
+    if (pl) {
+      // Position planets at the saved time before goTo() orients the platform
+      this.time.setTime(fromJulianDay(pl.d2000 + J2000_JD))
+      this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
+      this.ui.scene.updateMatrixWorld()
+      try {
+        this._restoreView(pl, frame)
+      } catch (e) {
+        console.error('Permalink restore failed:', e)
+      }
+      this._resolveTarget(resolved, (target) => this.scene.setTarget(target, {look: false}))
+    } else {
+      this._goToResolved(resolved, frame)
+    }
+    if (this.firstTime) {
+      // Apply scene settings — either from the permalink's `s=` flags
+      // or the SETTINGS_DEFAULTS table.  applySettings is idempotent;
+      // any setting already at its target state is a no-op, so this
+      // does the equivalent of the old "toggleAsterisms / toggleStarLabels"
+      // pair for a fresh viewer, and additionally honors the
+      // permalink for returning users.
+      const wantedSettings = pl?.settings ?? decodeSettings(undefined)
+      this.scene.applySettings(wantedSettings)
+      this.firstTime = false
+    }
+    // AR-fallback resolution: if the permalink was captured in AR
+    // mode (s=A), try to re-enter AR at the saved lat/lng.
+    // Best-effort — on iOS Safari `requestPermission()` requires a
+    // user gesture, so this auto-attempt rejects silently and the
+    // user can tap the AR button (which is a real gesture) to enter.
+    if (pl?.settings?.A && typeof pl.lat === 'number' && typeof pl.lng === 'number') {
+      this.ar?.enter({lat: pl.lat, lng: pl.lng, alt: pl.alt}).catch(() => {
+        // Silent — sensor unavailability or permission denial just
+        // leaves the static permalink view as the visible result.
+      })
+    }
+  }
+
+
+  /**
+   * Put the camera back where a link had it, in its frame, with no
+   * animation: the inverse of `permalink()`.
+   *
+   * @param {object} pl The decoded link
+   * @param {{kind: string, name?: string, star?: object}} frame
+   */
+  _restoreView(pl, frame) {
+    const camera = this.ui.camera
+    if (frame.kind === 'star') {
+      // The platform at the star, the world rebased so it's at the origin
+      // (Scene.goTo); its frame's axes are the scene's.
+      this.scene.goTo(frame.star)
+      this.ui.scene.updateMatrixWorld()
+      const starWorldPos = this.scene.worldGroup.localToWorld(this.scene.starPosition(frame.star))
+      const platformWorldQuat = camera.platform.getWorldQuaternion(new THREE.Quaternion())
+      camera.position.copy(latLngAltToLocal(
+          pl.lat, pl.lng, pl.alt, frame.star.radius, new THREE.Quaternion(), platformWorldQuat))
+          .add(camera.platform.worldToLocal(starWorldPos))
+      camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
+    } else if (pl.settings?.L) {
+      // Landed restore: reparent to the rotating body, snap to the
+      // saved lat/lng/alt, then overwrite quaternion to recover the
+      // saved look direction.  Skips the orbit-style restore below
+      // because that path leaves the camera in an orbit-relative
+      // frame, but landed cq is body-relative.
+      this.scene.land(frame.name, pl.lat, pl.lng, pl.alt, {instant: true})
+      camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
+    } else {
+      // Orbit-style restore: scene.goTo() rebases WorldGroup and
+      // reparents the platform to the frame body, so lat/lng resolve
+      // against the platform directly.
+      this.scene.setTarget(frame.name, {look: false})
+      this.scene.goTo()
+      this.ui.scene.updateMatrixWorld()
+      const tObj = this.scene.objects[frame.name]
+      const planetWorldQuat = tObj.getWorldQuaternion(new THREE.Quaternion())
+      const platformWorldQuat = camera.platform.getWorldQuaternion(new THREE.Quaternion())
+      camera.position.copy(latLngAltToLocal(
+          pl.lat, pl.lng, pl.alt, tObj.props.radius.scalar, planetWorldQuat, platformWorldQuat))
+      camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
+    }
+    // Permalink restore takes precedence over any pending goTo animations.
+    Shared.targets.tween = null
+    Shared.targets.tweenNextFn = null
+    this.ui.setFov(pl.fov)
+  }
+
+
+  /**
+   * A path alone: go to its target, as 'g' would.
+   *
+   * @param {object} resolved The target's path, resolved (_resolveRef)
+   * @param {{kind: string, name?: string, star?: object}} frame
+   */
+  _goToResolved(resolved, frame) {
+    if (resolved.kind === 'star') {
+      this.scene.goTo(frame.star)
+      return
+    }
+    if (resolved.kind === 'place') {
+      this._resolveTarget(resolved, (place) => {
+        this.scene.land(place.body, place.lat, place.lng, place.alt, {target: place})
+      }, () => {
+        // Not in the catalogue: go to its body.
+        this.scene.setTarget(resolved.body)
+        this.scene.goTo()
+      })
+      return
+    }
+    this.scene.setTarget(frame.name)
+    this.scene.goTo()
+    if (resolved.kind === 'asterism') {
+      // From the Sun, turn to face it once there.
+      this._resolveTarget(resolved, (asterism) => {
+        this.scene.setTarget(asterism, {look: false})
+        Shared.targets.tweenNextFn = () => {
+          this.scene.lookAtLabel(asterism)
+          return Shared.targets.tween
+        }
+      })
+    }
+  }
+
+
+  /**
+   * Resolve a parsed path (targetPath.js parseTargetPath) far enough to
+   * load: a body path's last segment is a body or a place (resolvePlace),
+   * which needs the body above it loaded.  The target's body is loaded.
+   *
+   * @param {object} ref As parseTargetPath gives
+   * @param {Function} cb Called with {kind: 'body', path, name},
+   *   {kind: 'place', path, body, slug}, {kind: 'star', hipId} or
+   *   {kind: 'asterism', slug}
+   * @param {Function} [onErr]
+   */
+  _resolveRef(ref, cb, onErr) {
+    if (ref.kind !== 'bodies') {
+      cb(ref)
+      return
+    }
+    const resolved = resolvePlace(ref.parts, this.loader.loaded)
+    if (resolved) {
+      this._loadBody(resolved.path, () => cb(resolved), onErr)
+      return
+    }
+    this._loadBody(ref.parts.slice(0, -1).join('/'), () => this._resolveRef(ref, cb, onErr), onErr)
+  }
+
+
+  /**
+   * @param {string} framePath A body's path, or a star's (`hip:N`)
+   * @param {Function} cb Called with {kind: 'body', name} or
+   *   {kind: 'star', star} once it's loaded
+   * @param {Function} [onErr]
+   */
+  _loadFrame(framePath, cb, onErr) {
+    const ref = parseTargetPath(framePath)
+    if (ref?.kind === 'star') {
+      this._whenStar(ref.hipId, (star) => cb({kind: 'star', star}), onErr)
+      return
+    }
+    if (ref?.kind !== 'bodies') {
+      onErr?.()
+      return
+    }
+    this._loadBody(framePath, () => cb({kind: 'body', name: sceneName(ref.parts[ref.parts.length - 1])}), onErr)
+  }
+
+
+  /**
+   * Load a body by its path, and call back once it's in the scene: now if
+   * it is.  Waits on `onLoad` for it, rather than on the loader's done
+   * callback, which never comes for a body another load already has in
+   * flight.
+   *
+   * @param {string} path e.g. 'sun/earth'
+   * @param {Function} cb
+   * @param {Function} [onErr]
+   */
+  _loadBody(path, cb, onErr) {
+    const name = path.split('/').pop()
+    if (typeof this.loader.loaded[name] === 'object') {
+      cb()
+      return
+    }
+    (this._bodyWaiters[name] ??= []).push(cb)
+    this.loader.loadPath(path, this.onLoad, () => {/* waited on in onLoad */}, onErr)
+  }
+
+
+  /**
+   * @param {number} hipId
+   * @param {Function} cb Called with the catalogue star once the stars load
+   * @param {Function} [onErr] Called if there's no such star
+   */
+  _whenStar(hipId, cb, onErr) {
+    this.scene.onStarsReady(() => this.scene.stars.onCatalogReady(() => {
+      const star = this.scene.stars.catalog.starByHip.get(hipId)
+      if (star) {
+        cb(star)
+      } else {
+        console.warn(`No star HIP ${hipId}`)
+        onErr?.()
+      }
+    }))
+  }
+
+
+  /**
+   * The target a resolved path names, as Scene.setTarget takes it, once
+   * what it needs has loaded: a place's catalogue, the stars, the
+   * asterisms (never, while 'a' has been off from the start).
+   *
+   * @param {object} resolved As _resolveRef gives
+   * @param {Function} cb Called with the target
+   * @param {Function} [onMissing] Called if it isn't in its catalogue
+   */
+  _resolveTarget(resolved, cb, onMissing) {
+    switch (resolved.kind) {
+      case 'body':
+        cb(sceneName(resolved.name))
+        return
+      case 'place':
+        fetchPlaces(resolved.body).then((places) => {
+          const e = places.find((p) => slug(p.n) === resolved.slug)
+          if (e) {
+            cb({kind: 'place', body: resolved.body, name: e.n, lat: e.lat, lng: e.lng, alt: e.a ?? undefined})
+          } else {
+            console.warn(`No place ${resolved.slug} on ${resolved.body}`)
+            onMissing?.()
+          }
+        })
+        return
+      case 'star':
+        this._whenStar(resolved.hipId, (star) => cb({kind: 'star', star}), onMissing)
+        return
+      case 'asterism':
+        this.scene.onAsterismsReady((asterisms) => {
+          const t = asterisms.targetNamed(resolved.slug)
+          if (t) {
+            cb(t)
+          } else {
+            console.warn(`No asterism ${resolved.slug}`)
+            onMissing?.()
+          }
+        })
+        return
+      default:
+        onMissing?.()
+    }
   }
 
 
@@ -316,11 +536,7 @@ export default class Celestiary {
       return
     }
     if (label.kind === 'place') {
-      goToEntry({
-        kind: 'place',
-        displayName: label.name,
-        payload: {body: label.body, lat: label.lat, lng: label.lng, alt: label.alt},
-      }, this)
+      this.scene.land(label.body, label.lat, label.lng, label.alt, {target: label})
       return
     }
     goToEntry(label.kind === 'star' ?
@@ -330,21 +546,14 @@ export default class Celestiary {
 
 
   /**
-   * Travel to the current target.  Precedence: a targeted label's subject
-   * (a place or an asterism, left by a click or the search), then a
-   * committed star (set via search or crosshair dblclick), which wins over
-   * the planet target: otherwise 'g' from a star-scoped body would always
-   * bounce back to the last-set planet via the stale Shared.targets.obj.
+   * Travel to the current target ('g'): a place, star or asterism
+   * (`Shared.targets.label`) as a double click on its label does, a body
+   * by its path.
    */
   goTo() {
     const label = this.shared.targets.label
     if (label) {
       this.goToLabel(label)
-      return
-    }
-    const state = this.useStore.getState()
-    if (state.committedStar && state.committedStar.star) {
-      this.scene.goTo(state.committedStar.star)
       return
     }
     const tObj = this.shared.targets.obj
@@ -366,11 +575,8 @@ export default class Celestiary {
 
 
   setupPathListeners() {
-    window.addEventListener('hashchange', (e) => {
-      const raw = (window.location.hash || '#').substring(1)
-      const path = pathFromFragment(raw)
-      this._pendingPermalink = decodePermalink(raw)
-      this.loader.loadPath(path, this.onLoad, this.onDone)
+    window.addEventListener('hashchange', () => {
+      this._navigate((window.location.hash || '#').substring(1))
     }, false)
   }
 
@@ -734,45 +940,92 @@ export default class Celestiary {
   }
 
 
-  /** Schedule a debounced permalink URL update 1 s after the camera settles. */
+  /**
+   * Schedule a debounced permalink URL update 1 s after the camera settles,
+   * a setting or the drawer changes, or the target changes.
+   */
   _schedulePermalinkUpdate() {
-    if (Shared.targets.tween !== null || !Shared.targets.cur) {
+    if (Shared.targets.tween !== null) {
       return
     }
     clearTimeout(this._permalinkTimer)
     this._permalinkTimer = setTimeout(() => {
-      const tObj = Shared.targets.cur
-      if (!tObj?.props?.name || !tObj.props.radius?.scalar) {
-        return
+      const fragment = this.permalink()
+      if (fragment) {
+        history.replaceState(null, '', `#${fragment}`)
       }
-      const path = this.loader.pathByName[tObj.props.name]
-      if (!path) {
-        return
-      }
-      const cam = this.ui.camera
-      const camWorldPos = new THREE.Vector3()
-      cam.getWorldPosition(camWorldPos)
-      const planetWorldPos = new THREE.Vector3()
-      tObj.getWorldPosition(planetWorldPos)
-      const planetWorldQuat = new THREE.Quaternion()
-      tObj.getWorldQuaternion(planetWorldQuat)
-      const {lat, lng, alt} = worldToLatLngAlt(
-          camWorldPos, planetWorldPos, planetWorldQuat, tObj.props.radius.scalar,
-      )
-      const d2000 = this.time.simTimeJulianDay() - J2000_JD
-      const settings = this.scene.getSettings ? this.scene.getSettings() : null
-      // Mark AR-active so a recipient device with sensors can re-enter
-      // AR at this lat/lng.  Saved quaternion is left as-is; the AR
-      // resolution path overwrites camera orientation from sensors each
-      // frame, so the saved value is harmlessly ignored on AR replay.
-      if (settings && this.ar && this.ar.isActive()) {
-        settings.A = true
-      }
-      const fragment = encodePermalink(
-          path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings,
-          encodeAppTokens(this.useStore.getState().widgets))
-      history.replaceState(null, '', `#${fragment}`)
     }, 1000)
+  }
+
+
+  /**
+   * The link to this view (js/permalink.md): the target's path, the camera
+   * in its frame (the body or star it's at, named by `from=` when that
+   * isn't the target's), the time, the settings and the drawer.  The
+   * target changing changes only the path and `from`: the camera is in the
+   * same frame, where it was.
+   *
+   * @returns {?string} The hash, without its '#'; null before there's a
+   *   frame (or at one with no radius, the galaxy)
+   */
+  permalink() {
+    const frame = this._cameraFrame()
+    if (!frame) {
+      return null
+    }
+    const cam = this.ui.camera
+    const camWorldPos = cam.getWorldPosition(new THREE.Vector3())
+    const {lat, lng, alt} = worldToLatLngAlt(camWorldPos, frame.pos, frame.quat, frame.radius)
+    const bodyPath = (name) => this.loader.pathByName[name] ?? null
+    const target = this.scene.getTarget()
+    const path = targetPath(target, bodyPath) ?? frame.path
+    const from = targetFramePath(target, bodyPath) === frame.path ? null : frame.path
+    const d2000 = this.time.simTimeJulianDay() - J2000_JD
+    const settings = this.scene.getSettings ? this.scene.getSettings() : null
+    // Mark AR-active so a recipient device with sensors can re-enter
+    // AR at this lat/lng.  Saved quaternion is left as-is; the AR
+    // resolution path overwrites camera orientation from sensors each
+    // frame, so the saved value is harmlessly ignored on AR replay.
+    if (settings && this.ar && this.ar.isActive()) {
+      settings.A = true
+    }
+    return encodePermalink(
+        path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings,
+        encodeAppTokens(this.useStore.getState().widgets), from)
+  }
+
+
+  /**
+   * @returns {?{path: string, pos: object, quat: object, radius: number}}
+   *   The frame the camera is in: the star it went to, else the body it's
+   *   at (`Shared.targets.cur`); its path, centre and orientation (world)
+   *   and radius.  A star's axes are the scene's.  Null if none.
+   */
+  _cameraFrame() {
+    const star = this.scene._starTarget
+    if (star && this.ui.camera.platform.parent === this.scene._starAnchor) {
+      this.ui.scene.updateMatrixWorld()
+      return {
+        path: `hip:${star.hipId}`,
+        pos: this.scene.worldGroup.localToWorld(this.scene.starPosition(star)),
+        quat: new THREE.Quaternion(),
+        radius: star.radius,
+      }
+    }
+    const tObj = Shared.targets.cur
+    if (!tObj?.props?.name || !tObj.props.radius?.scalar) {
+      return null
+    }
+    const path = this.loader.pathByName[tObj.props.name]
+    if (!path) {
+      return null
+    }
+    return {
+      path,
+      pos: tObj.getWorldPosition(new THREE.Vector3()),
+      quat: tObj.getWorldQuaternion(new THREE.Quaternion()),
+      radius: tObj.props.radius.scalar,
+    }
   }
 
 
@@ -861,6 +1114,25 @@ export default class Celestiary {
 
 const DEFAULT_TARGET = 'sun'
 const J2000_JD = 2451545.0
+// The frame a link's camera is in when it names none (`from=`), by its
+// target's kind: a body's own, a place's body's, the star's (the camera at
+// it), and the Sun's for an asterism.
+/**
+ * @param {string} name A body's name in a path, as the loader has it
+ * @returns {string} Its name in the scene: a variant's data file
+ *   ('saturn-with-earth-moon') names the body before its first '-'
+ */
+function sceneName(name) {
+  return name.split('-')[0]
+}
+
+
+const REF_FRAME = {
+  body: (r) => r.path,
+  place: (r) => r.path,
+  star: (r) => `hip:${r.hipId}`,
+  asterism: () => DEFAULT_TARGET,
+}
 
 
 /**
