@@ -24,7 +24,7 @@ function setup() {
   const ui = new ThreeUi(uiId)
   ui.configLargeScene()
   ui.camera.position.z = ASTRO_UNIT_METER
-  ui.useStore = {setState: () => {}, subscribe: () => {}}
+  ui.useStore = {getState: () => ({}), setState: () => {}, subscribe: () => {}}
 
   const props = {
     radius: {

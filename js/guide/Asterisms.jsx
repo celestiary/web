@@ -3,7 +3,6 @@ import {useLocation} from 'wouter'
 import AsterismsFromApp from '../scene/Asterisms.js'
 import Keys from '../Keys.js'
 import Stars from '../scene/Stars.js'
-import StarsCatalog from '../scene/StarsCatalog.js'
 import ThreeUi from '../ThreeUI.js'
 import {assertDefined} from '../assert.js'
 import * as Shared from '../shared.js'
@@ -96,18 +95,16 @@ function setup(setAsterisms) {
   }
   // Mock store for demo
   ui.useStore = {getState: () => {}, setState: () => {}, subscribe: () => {}}
-  const stars = new Stars(
-      props,
-      ui,
-      new StarsCatalog(),
-      () => {
-        new AsterismsFromApp(ui, stars, (asterisms) => {
-          stars.add(asterisms)
-          setupFavesTable(stars, asterisms)
-          setAsterisms(asterisms)
-        })
-      },
-      false)
+  // No catalog given, so Stars loads its own; given an (empty) StarsCatalog
+  // it showed that, and never called back.
+  const stars = new Stars(props, ui, undefined, undefined, false)
+  stars.onCatalogReady(() => {
+    new AsterismsFromApp(ui, stars, (asterisms) => {
+      stars.add(asterisms)
+      setupFavesTable(stars, asterisms)
+      setAsterisms(asterisms)
+    })
+  })
   ui.scene.add(stars)
   ui.camera.position.z = 1e2
   return stars
@@ -157,7 +154,7 @@ function setupFavesTable(stars, asterisms) {
     }
     favesTable.innerHTML +=
       `<tr>
-        <td><a href="#${asterismName}">${asterismName}</a></td>
+        <td><a href="${window.location.pathname}#${asterismName}">${asterismName}</a></td>
         <td>${name}</td>
         <td>${hipId}</td>
       </tr>`

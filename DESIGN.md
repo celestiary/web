@@ -817,6 +817,8 @@ State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
 
 A separate interactive tutorial route (`/guide`) built with React Three Fiber (`@react-three/fiber`) and Drei. Each guide section is an isolated demo (Cube, Sphere, Star, Planet, Orbit, Stars, Asterisms, Atmosphere, Galaxy, VSOP, Labels, etc.) navigated via a side-drawer TOC. The guide and main app are fully independent bundles — the guide does not use the `Celestiary` class.
 
+A guide page drives a bare `ThreeUi`, so it must supply what the app's `Scene`/`Animation` give it: a star's disc is metered only if `ui.sceneManager.objects` holds it with `props.type = 'star'` (`guide/starScene.js`; without it the Sun shader saturates white, HDR.md "Physical stars"), `ui.useStore` needs a `getState`, a planet's surface shows only once its `preAnimCb` has run, and the Sun's light is `SUN_LUMINOUS_INTENSITY` with `SUN_LIGHT_DECAY`.  Links within a page use `${window.location.pathname}#name`: with `<base href="/">` a bare `#name` resolves to the app root.
+
 ## Build & Output
 
 `esbuild` bundles `js/index.tsx` to `docs/` (GitHub Pages target). The `build` script:

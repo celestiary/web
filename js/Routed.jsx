@@ -19,7 +19,10 @@ export default function Routed() {
     const referrer = document.referrer
     if (referrer) {
       const path = new URL(document.referrer).pathname
-      if (path.length > 1) {
+      // After the 404 bounce the referrer is the page itself, which the
+      // address bar already holds with its hash (/guide/star#Sol):
+      // navigating to the bare path would drop the hash.
+      if (path.length > 1 && path !== window.location.pathname) {
         navigate(path)
       }
     }
