@@ -675,7 +675,7 @@ turns to it; Go and Enter travel
 | Object | Technique |
 |---|---|
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
-| Milky Way | Its integrated light: a full-screen pass at the far plane that ray-marches a published structural model (discs, bulge and bar, arms, dust) in the galactocentric frame, into a cached target re-marched when the view moves, less the light the star catalogue draws as points round the Sun; the atmosphere pass draws it with the rest of the night sky's light (the zodiacal light, airglow) through the eye's response to extended light ([MilkyWay.md](js/scene/MilkyWay.md), [HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |
+| Milky Way | Its integrated light: a full-screen pass at the far plane that ray-marches a published structural model (discs, bulge and bar, arms, dust) in the galactocentric frame, into a cached target re-marched when the view moves by more than it can show, less the light the star catalogue draws as points round the Sun; the atmosphere pass draws it with the rest of the night sky's light (the zodiacal light, airglow) through the eye's response to extended light ([MilkyWay.md](js/scene/MilkyWay.md), [HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |
 | Star discs (the Sun, and any catalogue star travelled to) | A photosphere from physical parameters: temperature from class, blackbody colour and luminance, limb darkening by temperature, granulation at three scales, spots and faculae ([js/scene/Stars.md](js/scene/Stars.md)) |
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
 | Earth's clouds | A shell 6 km up on its own layer, drawn after the Cesium composite so it covers both sides: the date's NASA GIBS true colour unmixed into coverage, Lambert-lit in exposure units, shadowing the ground ([Planet.md, clouds](js/scene/Planet.md#clouds)) |
@@ -978,7 +978,9 @@ and the provider extension contract.
 | `js/scene/MilkyWay.js` | The Milky Way's integrated light: the march pass and its cache, which the atmosphere pass draws ([MilkyWay.md](js/scene/MilkyWay.md)) |
 | `js/scene/galaxyModel.js` | The Milky Way's structural model: its components, the baked in-plane map, the normalisation, the share the star catalogue resolves, the JS and GLSL march |
 | `js/scene/eye.js` | The dark-adapted eye's threshold against field size (Ricco, Piper), the extended response's gain, scotopic colour, surface brightness in exposure units ([HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |
-| `js/scene/nightSky.js` | The night sky's own light: the zodiacal light and gegenschein, airglow's path (JS and GLSL) |
+| `js/scene/nightSky.js` | The night sky's own light: the interplanetary dust cloud (Kelsall et al. 1998) integrated along a ray from anywhere, for the zodiacal light and gegenschein, and airglow's path (JS and GLSL) |
+| `js/scene/ZodiacalLight.js` | The zodiacal light's cache: the dust cloud's integral from the camera into a reduced-size half-float target, rendered when the view changes by more than it can show |
+| `js/scene/viewCache.js` | When a cached view of something smooth (the galaxy's march, the zodiacal light) needs rendering again: moved, turned half a texel, or reprojected |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |
 | `js/scene/Asterisms.js` | Constellation line drawings |
 | `js/scene/Colonization.js` | Human expansion: kNN star graph and layered BFS spread from the Sun |

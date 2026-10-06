@@ -24,6 +24,7 @@ import {
   STORE_SCALE, bakeMapSteps, catalogToGalactic, galaxyGlsl, galaxyNormUniforms, normalize, outsideWeight,
   sceneToGalacticRotation,
 } from './galaxyModel.js'
+import {viewChanged} from './viewCache.js'
 
 
 /**
@@ -32,6 +33,11 @@ import {
  * the march is the expensive part.
  */
 export const MARCH_MAX_HEIGHT = 540
+/**
+ * How far the camera may move before the march re-runs, kpc: 1e-6, 0.2 AU,
+ * nothing the galaxy shows (viewCache.js).  It turns half a texel.
+ */
+export const MARCH_MOVE_KPC = 1e-6
 
 
 /**
@@ -133,8 +139,9 @@ export default function newMilkyWay({bake = typeof requestAnimationFrame === 'fu
   sceneToG.set(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8])
   const size = new Vector2()
   let direct = null
-  let lastKey = null
-  const debug = {cameraG: [0, 0, 0], outsideWeight: 0, marches: 0, ready: false, bakeMs: 0, target: marchTarget}
+  let last = null
+  const debug = {cameraG: [0, 0, 0], outsideWeight: 0, marches: 0, ready: false, bakeMs: 0, target: marchTarget,
+    skip: false}
   mesh.userData.galaxy = debug
 
   mesh.onBeforeRender = (renderer, scene, camera) => {
@@ -165,10 +172,13 @@ export default function newMilkyWay({bake = typeof requestAnimationFrame === 'fu
     march.uViewToG.value.copy(sceneToG).multiply(objRotation).multiply(viewToLocal)
     const p = camera.projectionMatrix.elements
     march.uProj.value.set(p[0], p[5], p[8], p[9])
-    if (direct) {
+    if (direct || debug.skip) {
+      // The LDR fallback marches in its composite; and the night sky's light
+      // can't show in this frame (ThreeUi._updateNightSkyShown: by day).
       return
     }
-    // The march, into its target, when the view has changed.
+    // The march, into its target, when the view has changed by more than
+    // the target shows (viewCache.js).
     const current = renderer.getRenderTarget()
     if (current) {
       size.set(current.width, current.height)
@@ -183,14 +193,15 @@ export default function newMilkyWay({bake = typeof requestAnimationFrame === 'fu
       marchTarget.value = new WebGLRenderTarget(w, h, {type: HalfFloatType, depthBuffer: false,
         minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false})
       marchTexture.value = marchTarget.value.texture
-      lastKey = null
+      last = null
     }
     material.uniforms.uMarchSize.value.set(w, h)
-    const key = [...camG, ...march.uViewToG.value.elements, p[0], p[5], p[8], p[9], w, h, debug.ready]
-    if (lastKey && key.every((v, i) => v === lastKey[i])) {
+    const proj = [p[0], p[5], p[8], p[9], debug.ready ? 1 : 0]
+    const texel = 2 * Math.atan(1 / Math.max(p[5], 1e-12)) / h
+    if (!viewChanged(last, camG, march.uViewToG.value, proj, MARCH_MOVE_KPC, texel)) {
       return
     }
-    lastKey = key
+    last = {position: [...camG], view: march.uViewToG.value.clone(), proj}
     const autoClear = renderer.autoClear
     renderer.autoClear = false
     renderer.setRenderTarget(marchTarget.value)

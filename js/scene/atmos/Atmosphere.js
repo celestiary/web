@@ -449,8 +449,9 @@ export function newAtmospherePass() {
       // STORE_SCALE, and 1 / STORE_SCALE while it's shown, else 0.
       uGalaxy: {value: null},
       uGalaxyScale: {value: 0.0},
-      uZodiacalSun: {value: new Vector3(0, 0, -1)},
-      uZodiacalPole: {value: new Vector3(0, 1, 0)},
+      // The zodiacal light's cache (ZodiacalLight.js), and an S10⊙ in
+      // exposure units over its store scale; 0 while it's skipped.
+      uZodiacal: {value: null},
       uZodiacalScale: {value: 0.0},
       // The airglow layer's inner and outer radii (m), its zenith value at
       // Earth's keyed exposure, and 1 / its thickness; zero for none.
@@ -543,9 +544,9 @@ const float NIGHT_SKY_DEPTH = 0.9999499;
 // night sky's own light"): the zodiacal light and the galaxy's march.  In
 // the HDR path only: the LDR fallback draws the galaxy in its scene pass,
 // as before, and nothing else.
-vec3 nightBeyond(vec3 rayView, float depth) {
+vec3 nightBeyond(float depth) {
   if (uHdr < 0.5 || depth < NIGHT_SKY_DEPTH) return vec3(0.0);
-  vec3 light = zodiacalLight(rayView);
+  vec3 light = zodiacalLight();
   if (uGalaxyScale > 0.0) light += texture2D(uGalaxy, vUv).rgb * uGalaxyScale;
   return light * uExposureRelative;
 }
@@ -830,7 +831,7 @@ void main() {
   viewDir4 /= viewDir4.w;
   vec3 rayDir = normalize(viewDir4.xyz);
   // The night sky's light from beyond the air, where nothing nearer drew.
-  vec3 beyond = nightBeyond(rayDir, depthSample);
+  vec3 beyond = nightBeyond(depthSample);
 
   // Hard kill-switch: when the camera is too far for the in-shader rsi() to
   // remain numerically stable (or there's simply no atmosphere target), pass

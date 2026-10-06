@@ -1,4 +1,4 @@
-import {s10Value, surfaceBrightnessValue} from './eye.js'
+import {surfaceBrightnessValue} from './eye.js'
 import {smoothstep} from './exposure.js'
 
 
@@ -29,29 +29,23 @@ function unitLuma(rgb) {
 
 
 /**
- * The zodiacal light at 1 AU, in S10⊙ (V), as a function of the line of
- * sight's elongation from the Sun ε and its ecliptic latitude β: a fit to
- * Leinert et al. (1998)'s table of it (their Table 17), as recalled:
+ * Leinert et al. (1998)'s table of the zodiacal light seen from 1 AU in the
+ * ecliptic (their Table 17), in S10⊙ (V), as a function of the line of
+ * sight's elongation from the Sun ε and its ecliptic latitude β: a fit to it
+ * as recalled, the reference the dust cloud (ZODIACAL_CLOUD) is normalised to
+ * and tested against, not drawn:
  *
  * - along the ecliptic, `base + scale·(90°/ε)^power`: about 2,000 at 30°
- *   from the Sun, 750 at 45°, 400 at 60°, 215 at 90° (21.9 mag/arcsec²),
+ *   from the Sun, 750 at 45°, 400 at 60°, 215 at 90° (21.95 mag/arcsec²),
  *   145 at 150°;
  * - the gegenschein, a glow of `gegenschein` round the antisolar point,
  *   `gegenscheinWidthDeg` wide, so 165 there;
- * - toward the ecliptic poles it falls to `pole`, 64 (23.3 mag/arcsec²),
- *   as e^(−|β|/latitudeWidthDeg) does, rescaled to reach the pole's value
- *   there;
- * - within `minElongationDeg` of the Sun it is held (the F-corona's, which
- *   the Sun's own glare covers).
+ * - toward the ecliptic poles it falls to `pole`, 64 (23.3 mag/arcsec²), as
+ *   e^(−|β|/latitudeWidthDeg) does, rescaled to reach the pole's value there.
  *
- * Its colour is sunlight's, a little reddened.  Away from 1 AU it goes as
- * r^−`heliocentricPower` (Helios, 0.3-1 AU: Leinert et al. 1981), and is
- * gone past the asteroid belt (`outerAU`: Pioneer 10 lost it beyond 3.3
- * AU, Hanner et al. 1974); and it fades as the camera leaves the dust's
- * plane (`heightAU`, a rough stand-in for the cloud's thickness).  These
- * are recalled values, to perhaps 30%.
+ * Recalled values, to perhaps 30%.
  */
-export const ZODIACAL = Object.freeze({
+export const LEINERT = Object.freeze({
   base: 120,
   scale: 95,
   power: 2.72,
@@ -59,23 +53,17 @@ export const ZODIACAL = Object.freeze({
   gegenschein: 30,
   gegenscheinWidthDeg: 10,
   latitudeWidthDeg: 30,
-  minElongationDeg: 3,
-  heliocentricPower: 2.3,
-  minAU: 0.3,
-  outerAU: Object.freeze([2.8, 3.5]),
-  heightAU: 0.5,
-  color: Object.freeze(unitLuma([1.04, 1.0, 0.94])),
 })
 
 
 /**
- * @param {number} elongation ε, radians
+ * @param {number} elongation ε, radians (5° at least)
  * @param {number} beta Ecliptic latitude, radians
- * @returns {number} The zodiacal light at 1 AU, S10⊙ (ZODIACAL)
+ * @returns {number} The zodiacal light seen from 1 AU, S10⊙ (LEINERT)
  */
-export function zodiacalS10(elongation, beta) {
-  const z = ZODIACAL
-  const e = Math.max(elongation / DEG, z.minElongationDeg)
+export function leinertS10(elongation, beta) {
+  const z = LEINERT
+  const e = Math.max(elongation / DEG, 5)
   const ecliptic = z.base + (z.scale * ((90 / e) ** z.power)) +
     (z.gegenschein * Math.exp(-(((180 - e) / z.gegenscheinWidthDeg) ** 2)))
   const floor = Math.exp(-90 / z.latitudeWidthDeg)
@@ -85,19 +73,160 @@ export function zodiacalS10(elongation, beta) {
 
 
 /**
- * The zodiacal light's scale for a camera away from 1 AU in the ecliptic
- * (ZODIACAL), times what one S10⊙ is in exposure units at Earth's keyed
- * exposure: the factor the shader multiplies zodiacalS10 by.
+ * The interplanetary dust cloud, in 3D (#186's second cut): the smooth cloud
+ * of Kelsall et al. (1998, COBE/DIRBE), its density n ∝ r^−α·f(ζ), α = 1.34,
+ * with ζ = |Z|/r the height over its symmetry plane over the distance from the
+ * Sun and f Kelsall's "widened fan", e^(−β·g^γ) with g = ζ²/2μ under μ and
+ * ζ − μ/2 over it; the plane inclined 2.03° to the ecliptic, its ascending
+ * node at 77.7°.  Sunlight falls as r^−2 and is scattered by Hong (1985)'s
+ * phase function for the visible, three Henyey-Greenstein lobes (forward
+ * 0.665 at g 0.7, backward 0.33 at −0.2, and 0.005 at −0.81, the
+ * gegenschein's).  The brightness along a ray from anywhere is the
+ * integral of density × sunlight × phase (zodiacalAlong), normalised so that
+ * from 1 AU, 90° from the Sun in the ecliptic, it is LEINERT's 215 S10⊙; its
+ * other anchors it reproduces as tested (nightSky.test.js).
  *
- * @param {number} rAU The camera's distance from the Sun, AU
- * @param {number} zAU Its height over the ecliptic plane, AU
+ * The first cut drew LEINERT's table, scaled as r^−2.3 with a fade off the
+ * ecliptic, from anywhere: a viewer's table can't be moved, and away from 1
+ * AU or off the plane the light round the Sun came out as a disc with a hard
+ * rim (its elongation cut-off, held at 3°) or a blob 15° across (the user's
+ * preview from 0.8 and 2.1 AU, 24° over the ecliptic).
+ *
+ * The cloud is gone past the asteroid belt (`outerAU`: Pioneer 10 lost the
+ * zodiacal light beyond 3.3 AU, Hanner et al. 1974; Kelsall's cloud ends at
+ * 5.2 AU).  Inside `minImpactAU` of the Sun (2 solar radii, the F-corona,
+ * 0.5° from 1 AU) the integral is held: the Sun's disc and glow are there.
+ */
+export const ZODIACAL_CLOUD = Object.freeze({
+  alpha: 1.34,
+  fanBeta: 4.14,
+  fanGamma: 0.942,
+  fanMu: 0.189,
+  inclinationDeg: 2.03,
+  nodeDeg: 77.7,
+  phase: Object.freeze([Object.freeze([0.665, 0.7]), Object.freeze([0.33, -0.2]), Object.freeze([0.005, -0.81])]),
+  minImpactAU: 0.0093,
+  outerAU: Object.freeze([3.3, 5.2]),
+  steps: 32,
+  color: Object.freeze(unitLuma([1.04, 1.0, 0.94])),
+})
+
+
+/**
+ * The cloud's symmetry plane's normal, in the scene's ecliptic axes (X the
+ * equinox, Y the ecliptic's north pole, Z = −ecliptic Y: celestialFrame.js).
+ *
+ * @returns {Array<number>}
+ */
+export function cloudNormal() {
+  const i = ZODIACAL_CLOUD.inclinationDeg * DEG
+  const node = ZODIACAL_CLOUD.nodeDeg * DEG
+  // Ecliptic (x, y, z) = (sin i sin Ω, −sin i cos Ω, cos i); scene = (x, z, −y).
+  return [Math.sin(i) * Math.sin(node), Math.cos(i), Math.sin(i) * Math.cos(node)]
+}
+
+
+/**
+ * @param {number} zeta |Z|/r
+ * @returns {number} Kelsall's widened fan, 1 in the plane
+ */
+export function fanProfile(zeta) {
+  const {fanBeta, fanGamma, fanMu} = ZODIACAL_CLOUD
+  const g = zeta < fanMu ? (zeta * zeta) / (2 * fanMu) : zeta - (fanMu / 2)
+  return Math.exp(-fanBeta * (g ** fanGamma))
+}
+
+
+/**
+ * @param {number} mu The cosine of the scattering angle, 1 forward
+ * @returns {number} Hong (1985)'s phase function, up to a constant
+ */
+export function hongPhase(mu) {
+  let p = 0
+  for (const [w, g] of ZODIACAL_CLOUD.phase) {
+    p += w * (1 - (g * g)) / (((1 + (g * g)) - (2 * g * mu)) ** 1.5)
+  }
+  return p
+}
+
+
+/**
+ * The dust's scattered sunlight along a ray, unnormalised.  With the ray's
+ * closest approach b to the Sun, a point on it is at r = b·sec φ, and
+ * density × sunlight × path is b^−(α+1)·cos^α φ dφ: smooth in φ, so a
+ * midpoint sum over φ from the eye's angle to 90° (the ray's far end)
+ * takes it in `steps` steps wherever the Sun is.  The scattering angle's
+ * cosine is −sin φ, and the height over the plane over r is cos φ·(q̂·n) +
+ * sin φ·(d·n), q̂ the closest approach's direction.  The same arithmetic as
+ * ZODIACAL_GLSL.
+ *
+ * @param {Array<number>} o The eye from the Sun, AU, scene ecliptic axes
+ * @param {Array<number>} d The ray, unit
  * @returns {number}
  */
-export function zodiacalScale(rAU, zAU) {
-  const z = ZODIACAL
-  const r = Math.max(rAU, z.minAU)
-  return s10Value(1) * (r ** -z.heliocentricPower) * (1 - smoothstep(z.outerAU[0], z.outerAU[1], rAU)) *
-    Math.exp(-Math.abs(zAU) / z.heightAU)
+export function zodiacalRaw(o, d) {
+  const c = ZODIACAL_CLOUD
+  const n = cloudNormal()
+  const tc = -((o[0] * d[0]) + (o[1] * d[1]) + (o[2] * d[2]))
+  const q = [o[0] + (d[0] * tc), o[1] + (d[1] * tc), o[2] + (d[2] * tc)]
+  const b0 = Math.hypot(...q)
+  const b = Math.max(b0, c.minImpactAU)
+  const qn = b0 > 1e-9 ? ((q[0] * n[0]) + (q[1] * n[1]) + (q[2] * n[2])) / b0 : 0
+  const dn = (d[0] * n[0]) + (d[1] * n[1]) + (d[2] * n[2])
+  const phi0 = Math.atan2(-tc, b)
+  const dphi = ((Math.PI / 2) - phi0) / c.steps
+  let sum = 0
+  for (let k = 0; k < c.steps; k++) {
+    const phi = phi0 + ((k + 0.5) * dphi)
+    const cos = Math.cos(phi)
+    const sin = Math.sin(phi)
+    const r = b / cos
+    const zeta = Math.abs((cos * qn) + (sin * dn))
+    const outer = 1 - smoothstep(c.outerAU[0], c.outerAU[1], r)
+    sum += (cos ** c.alpha) * fanProfile(zeta) * hongPhase(-sin) * outer
+  }
+  return sum * dphi * (b ** -(c.alpha + 1))
+}
+
+
+/**
+ * The zodiacal light along a ray, S10⊙.
+ *
+ * @param {Array<number>} o The eye from the Sun, AU, scene ecliptic axes
+ * @param {Array<number>} d The ray, unit
+ * @returns {number}
+ */
+export function zodiacalAlong(o, d) {
+  return zodiacalRaw(o, d) * zodiacalNorm()
+}
+
+
+let norm = null
+
+
+/** @returns {number} The cloud's normalisation, S10⊙ per unit of zodiacalRaw */
+export function zodiacalNorm() {
+  if (norm === null) {
+    norm = leinertS10(90 * DEG, 0) / zodiacalRaw([1, 0, 0], [0, 0, 1])
+  }
+  return norm
+}
+
+
+/**
+ * The brightest the zodiacal light can be from a point: toward the Sun,
+ * where the integral is held at minImpactAU.  For the skip of the night sky
+ * by day (ThreeUi).
+ *
+ * @param {Array<number>} o The eye from the Sun, AU
+ * @returns {number} S10⊙
+ */
+export function zodiacalBrightest(o) {
+  const r = Math.hypot(...o)
+  if (!(r > 1e-9)) {
+    return zodiacalAlong([0, 0, 0], [1, 0, 0])
+  }
+  return zodiacalAlong(o, o.map((v) => -v / r))
 }
 
 
@@ -188,33 +317,77 @@ export function airglowOf(atmosphere) {
 
 
 /**
- * GLSL: `vec3 zodiacalLight(vec3 ray)`, the zodiacal light along a view
- * ray (zodiacalS10 × uZodiacalScale × ZODIACAL.color), with `uniform vec3
- * uZodiacalSun` (the Sun's direction from the camera) and `uZodiacalPole`
- * (the ecliptic's north pole), both in view space, and `uniform float
- * uZodiacalScale` (zodiacalScale, pre-exposed by the caller); and `vec2
- * airglowPath(vec3 eye, vec3 dir, float tEnd)` (airglowPath), with
+ * The zodiacal light's cache holds S10⊙ × this, in half floats: 64 at the
+ * poles is 0.064, and the brightest, by the Sun, a few 1e6, under 1e4.
+ */
+export const ZODIACAL_STORE = 1e-3
+
+
+/**
+ * GLSL: `float zodiacalAlong(vec3 o, vec3 d)`, zodiacalAlong (S10⊙), for the
+ * zodiacal light's cache (ZodiacalLight.js).  The same arithmetic.
+ *
+ * @returns {string}
+ */
+export function zodiacalGlsl() {
+  const c = ZODIACAL_CLOUD
+  const n = cloudNormal()
+  const f = (v) => Number(v).toExponential(8)
+  const lobes = c.phase.map(([w, g]) =>
+    `${f(w * (1 - (g * g)))} / pow(${f(1 + (g * g))} - ${f(2 * g)} * mu, 1.5)`).join(' + ')
+  return `
+const vec3 ZL_NORMAL = vec3(${n.map(f).join(', ')});
+float zlFan(float zeta) {
+  float g = zeta < ${f(c.fanMu)} ? zeta * zeta / ${f(2 * c.fanMu)} : zeta - ${f(c.fanMu / 2)};
+  return exp(-${f(c.fanBeta)} * pow(max(g, 1.0e-12), ${f(c.fanGamma)}));
+}
+float zlPhase(float mu) {
+  return ${lobes};
+}
+float zodiacalAlong(vec3 o, vec3 d) {
+  float tc = -dot(o, d);
+  vec3 q = o + d * tc;
+  float b0 = length(q);
+  float b = max(b0, ${f(c.minImpactAU)});
+  float qn = b0 > 1.0e-9 ? dot(q, ZL_NORMAL) / b0 : 0.0;
+  float dn = dot(d, ZL_NORMAL);
+  float phi0 = atan(-tc, b);
+  float dphi = (${f(Math.PI / 2)} - phi0) / ${f(c.steps)};
+  float sum = 0.0;
+  for (int k = 0; k < ${c.steps}; k++) {
+    float phi = phi0 + (float(k) + 0.5) * dphi;
+    float cs = cos(phi);
+    float sn = sin(phi);
+    float r = b / cs;
+    float zeta = abs(cs * qn + sn * dn);
+    float t = clamp((r - ${f(c.outerAU[0])}) / ${f(c.outerAU[1] - c.outerAU[0])}, 0.0, 1.0);
+    float outer = 1.0 - t * t * (3.0 - 2.0 * t);
+    sum += pow(cs, ${f(c.alpha)}) * zlFan(zeta) * zlPhase(-sn) * outer;
+  }
+  return sum * dphi * pow(b, -${f(c.alpha + 1)}) * ${f(zodiacalNorm())};
+}
+`
+}
+
+
+/**
+ * GLSL: `vec3 zodiacalLight()`, the zodiacal light at this pixel from its
+ * cache (ZodiacalLight.js; `uniform sampler2D uZodiacal`), times `uniform
+ * float uZodiacalScale` (an S10⊙ in exposure units at Earth's keyed
+ * exposure over ZODIACAL_STORE; 0 while it's skipped) and its colour; and
+ * `vec2 airglowPath(vec3 eye, vec3 dir, float tEnd)` (airglowPath), with
  * `uniform vec4 uAirglow` (the layer's inner and outer radii, m, and its
- * zenith value, pre-exposed, and 1 / its thickness).
+ * zenith value, pre-exposed, and 1 / its thickness).  Needs `varying vec2
+ * vUv`.
  */
 export const NIGHT_SKY_GLSL = `
-uniform vec3 uZodiacalSun;
-uniform vec3 uZodiacalPole;
+uniform sampler2D uZodiacal;
 uniform float uZodiacalScale;
 uniform vec4 uAirglow;
 uniform vec3 uAirglowColor;
-vec3 zodiacalLight(vec3 ray) {
+vec3 zodiacalLight() {
   if (!(uZodiacalScale > 0.0)) return vec3(0.0);
-  float e = max(acos(clamp(dot(ray, uZodiacalSun), -1.0, 1.0)) * ${(180 / Math.PI).toFixed(8)},
-    ${ZODIACAL.minElongationDeg.toFixed(1)});
-  float ecliptic = ${ZODIACAL.base.toFixed(1)} + ${ZODIACAL.scale.toFixed(1)} * pow(90.0 / e, ${ZODIACAL.power.toFixed(4)})
-    + ${ZODIACAL.gegenschein.toFixed(1)} * exp(-((180.0 - e) / ${ZODIACAL.gegenscheinWidthDeg.toFixed(1)})
-      * ((180.0 - e) / ${ZODIACAL.gegenscheinWidthDeg.toFixed(1)}));
-  float beta = asin(clamp(dot(ray, uZodiacalPole), -1.0, 1.0)) * ${(180 / Math.PI).toFixed(8)};
-  float floorW = ${Math.exp(-90 / ZODIACAL.latitudeWidthDeg).toExponential(8)};
-  float across = (exp(-abs(beta) / ${ZODIACAL.latitudeWidthDeg.toFixed(1)}) - floorW) / (1.0 - floorW);
-  float s10 = ${ZODIACAL.pole.toFixed(1)} + (ecliptic - ${ZODIACAL.pole.toFixed(1)}) * across;
-  return s10 * uZodiacalScale * vec3(${ZODIACAL.color.map((v) => v.toFixed(6)).join(', ')});
+  return texture2D(uZodiacal, vUv).r * uZodiacalScale * vec3(${ZODIACAL_CLOUD.color.map((v) => v.toFixed(6)).join(', ')});
 }
 float insideLength(vec3 eye, vec3 dir, float radius, float t0, float t1) {
   float b = dot(eye, dir);

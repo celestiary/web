@@ -100,13 +100,22 @@ from 13 to 19 kpc.
 
 Drimmel & Spergel's 2.3 kpc scale length gave A_V = 5.0 through Baade's
 window, against a measured 1.5-2; 3.5 kpc, within the published range
-(Misiriotis et al. 2006 fit 5 kpc), gives 3.8.
+(Misiriotis et al. 2006 fit 5 kpc), gives 2.0 from the disc, its lanes and
+clumps.  With the named clouds below it is 2.07 ([calibrated](#the-inner-galaxy-calibrated)).
 
 **The nearby dark clouds** make the Great Rift and the naked eye's dark
 lanes: Aquila Rift, Serpens-Scutum, Cygnus Rift, Ophiuchus-Pipe, Coalsack,
-Taurus and Orion.  Their positions and sizes are approximate, after Dame et
-al. 2001 and Lallement et al. 2019.  Each is a Gaussian flattened to the
-plane, drawn as a screen at its distance along each ray (`CLOUDS`).  They are
+Taurus and Orion, and the Vulpecula Rift between Aquila and Cygnus.  Their
+positions and sizes are approximate, after Dame et al. 2001 and Lallement et
+al. 2019.  Each is a Gaussian flattened to the plane (`CLOUDS`).  Along each
+ray its column is spread as the cloud's own Gaussian along the ray, round
+the ray's closest approach to it (`cloudOverStep`), so a camera inside a
+cloud's reach sees its near half and not its far one.  It was a screen at
+the closest approach, all or nothing: from 126 pc, 1.5σ from the Taurus
+cloud, the rays whose closest approach fell just behind the camera lost
+the cloud's whole column at once, a great circle with a hard edge across
+the sky (#187's review; on `main` since #185, and shown by #186's
+response).  They are
 the local instances of the dust's clumps, so they fade out as the camera
 goes 2-5 kpc from the Sun (`CLOUDS_NEAR_KPC`).  From outside they made the
 Sun's neighbourhood the one spot of the disc with dark specks.
@@ -146,10 +155,11 @@ exposure (`uExposureRelative`, pre-exposure), as the stars and the Sun do.
 | Sky at the galactic poles, from the Sun | 23.6-23.8 mag/arcsec² | 24.6-24.7; with the catalogue's points, 23.6 | 23.5-24 (integrated starlight, Leinert et al. 1998) |
 | The band, l = 330°, b = −5° | 20.9 | 21.0 | |
 | Carina, l = 287°, b = −1° | 21.2 | 21.4 | |
-| Baade's window, l = 1°, b = −4° | 21.8, A_V 3.8 | 22.0 | A_V 1.5-2 |
-| The Scutum cloud, l = 27°, b = −3° | 22.7 | 23.2 | about 20.5 (the band's brightest; see "From inside") |
-| Cygnus in the plane | 22.6, A_V 9.7 | 23.2 | |
-| Anticentre in the plane | 22.2 | 22.6 | |
+| Baade's window, l = 1°, b = −4° | 20.4, A_V 2.1 | 20.4 | A_V 1.5-2 |
+| The Sagittarius star cloud, l = 2°, b = −6° | 20.3, A_V 1.3 | 20.4 | about 20-20.5 |
+| The Scutum cloud, l = 27°, b = −3° | 21.4, A_V 4.0 | 21.5 | about 20.5 |
+| Cygnus in the plane, l = 78° | 22.6, A_V 9.8 | 23.2 | about 21 |
+| Anticentre in the plane | 22.3 | 22.6 | about 22 |
 | Face-on: centre / 4 kpc / the Sun's radius / 15 kpc | 19.5 / 21.2 / 23.0 / 25.3 | | |
 
 At the dark-adapted gain (4e6) the band is 0.01-0.07 in exposure units and
@@ -269,16 +279,59 @@ the sky is black between the band's 30-40 and the zodiacal light.  The
 numbers are in HDR.md ([measured](HDR.md#measured)), the evidence in
 [#187](https://github.com/celestiary/web/pull/187).
 
-**The inner Galaxy is too faint.**  Measured photometry puts the band's
-brightest, the Sagittarius and Scutum star clouds, at about 20-20.5
-mag/arcsec² (Pioneer 10's integrated starlight, as recalled), the brightest
-parts of the sky's starlight.  The model's band is brightest at l = 330°
-(21.0) and in Carina (21.4); toward the centre, Scutum and Cygnus it is
-22-23.5, because the dust there is too thick: A_V 3.8 through Baade's
-window where 1.5-2 is measured (above), and the Aquila Rift's screen (A_V
-3, σ 60 pc at 220 pc, so 15° by 8°) reaches over the Scutum cloud.  So the
-band shows, but its brightest parts are where the model puts them, not
-where the sky does.  A follow-up for the model, below.
+### The inner Galaxy, calibrated
+
+#186's first cut showed the band, but its brightest parts were where the
+model put them, not where the sky does: Sagittarius, Scutum and Cygnus at
+22-23.5 mag/arcsec², against about 20-20.5 measured (#187's review).  The
+dust was too thick toward the inner Galaxy: A_V 3.8 through Baade's window
+where 1.5-2 is measured, of which 1.9 was the named clouds' tails (the
+Ophiuchus-Pipe cloud's, 10° away, and the Aquila Rift's and
+Serpens-Scutum's, whose Gaussians, 8-15° across, reached over the Scutum
+and Sagittarius clouds).  The disc, its lanes and clumps alone give 2.0.
+So the clouds were tightened to their measured extents (Dame et al. 2001's
+CO, Lallement et al. 2019's 3D dust), as Gaussians' σ: the Aquila Rift
+from 60 by 30 pc to 45 by 15 pc at 220 pc (15° by 8° to 12° by 4°), its
+centre to (30°, +5°), north of the plane, where the rift is; Serpens-Scutum
+from 100 by 40 pc to 60 by 25 at 450 pc, at b = 3°; the Pipe from 20 to 12
+pc at 135 pc (5°); the Cygnus Rift from 200 to 80 pc along the plane at 800
+pc; and the Vulpecula Rift added (A_V 2 at 400 pc, l = 55°), so the Great
+Rift runs on from Aquila to Cygnus.  Peak A_V are unchanged.  The band from the Sun, the
+brightest within 10° of the plane and in it, in mag/arcsec² (V), all the
+model's light, `main` against this change:
+
+| l | Brightest, `main` → now (at b) | b = 0°, `main` → now | Measured, about |
+|---|---|---|---|
+| 0° | 21.2 → 20.3 (−5°) | 23.1 → 21.4 | 20-20.5 (Sagittarius) |
+| 7° | 21.3 → 20.4 (−6°) | 23.2 → 21.7 | 20-20.5 |
+| 17° | 21.6 → 20.7 (−6.5°) | 23.1 → 22.4 | 20.5 |
+| 27° | 21.9 → 21.0 (−6°) | 23.0 → 22.4 | 20.5 (Scutum) |
+| 45° | 22.0 → 21.4 (−5.5°) | 22.5 → 22.3 | 21 |
+| 60° | 22.2 → 21.8 (−5.5°) | 22.6 → 22.6 | 21 |
+| 78° | 22.3 → 22.1 (−6°) | 22.6 → 22.6 | 21 (Cygnus) |
+| 100° | 22.0 → 21.7 (1.5°) | 22.1 → 21.7 | |
+| 180° | 22.2 → 22.2 (3°) | 22.2 → 22.3 | 22 (anticentre) |
+| 240° | 22.0 → 22.0 | 22.0 → 22.0 | |
+| 287° | 21.2 → 21.2 | 21.2 → 21.2 | 21 (Carina) |
+| 330° | 20.8 → 20.7 (4°) | 21.0 → 21.0 | 20.5-21 |
+| The poles | 23.8 / 23.6, unchanged | | 23.5-24 |
+
+A_V through Baade's window is 2.07 (3.84), through the Sagittarius star
+cloud at (2°, −6°) 1.3 (2.6), and over the Scutum cloud at (27°, −3°) 4.0
+(6.6).  The Great Rift still reads as a rift: at l = 30° the band 3° north
+of the plane is 0.26 of the band 3° south (0.72 before: the old screen
+darkened both sides), and at l = 45° the plane is 0.44 of b = −5° (0.66).
+`galaxyModel.test.js` holds Baade's A_V at 1.5-2.25, the brightest of the
+band toward the centre under 20.8, and the rift's contrast.
+
+The measured column is Pioneer 10's integrated starlight, mapped from
+beyond the zodiacal cloud (Toller 1981; as tabulated by Leinert et al.
+1998), as recalled, to perhaps 0.3 mag.  Toward the centre the band now
+agrees.  Scutum is 0.5 mag faint, and Cygnus about 1 mag: looking down the
+Local Arm, the model's A_V is 7-10 in the plane and its band's brightest is
+6° south of it, where the sky's Cygnus star cloud is north of the rift at b
+≈ +2°.  That is the Local Arm's dust and light, the in-plane map's, a
+follow-up (below).
 
 ## Double counting
 
@@ -335,7 +388,13 @@ median of seven:
 | From the Sun toward the centre | 197 ms | 204 ms | 83 ms |
 
 The galaxy is two draw calls: the march into its target when the view has
-changed, and the composite.  The scene drops the cloud's 60,000 points
+changed, and the composite.  "Changed" is by more than the target can
+show (`viewCache.js`): the view turned half a texel, the camera moved a
+micro-kiloparsec, or the projection changed.  It was any change at all, so
+with time running the sky's turning re-marched it every frame; now from the
+ground at 2 minutes a second it is re-marched every few frames.  And where
+the night sky can't show, by day and in most of twilight, it isn't marched
+(HDR.md, [cost](HDR.md#cost-by-day-and-with-time-running)).  The scene drops the cloud's 60,000 points
 (106,753 points drawn, the stars, against 166,753).  The march costs
 (the frame's pixels / 4, at most 540 rows) × 30-100 steps × a map read
 and the density's arithmetic.  At 1080p it is 518k march pixels, at most
@@ -372,6 +431,9 @@ The bake is about 0.6 s of arithmetic, done in slices between frames.
 - Rattenbury, N. J. et al. 2007, MNRAS 378, 1064: the bulge's scales.
 - Reid, M. J. et al. 2019, ApJ 885, 131: R₀ and the arms; Reid et al. 2014,
   ApJ 783, 130: arm widths.
+- Toller, G. N. 1981, PhD thesis, SUNY Stony Brook; Toller, G. N. et al.
+  1987, A&A 188, 24: the integrated starlight from Pioneer 10, beyond the
+  zodiacal cloud.
 - Vallée, J. P. 2017, Astronomical Review 13, 113: the mean pitch.
 - Wegg, C., Gerhard, O. & Portail, M. 2015, MNRAS 450, 4050: the long bar.
 
@@ -387,10 +449,14 @@ better than 10-20%.
   light, so the band shows from inside at the dark-adapted gain (#186;
   above), and the hole round the Sun for what the catalogue resolves
   ([double counting](#double-counting)).
-- The inner Galaxy's dust: through Baade's window and over the Scutum and
-  Sagittarius clouds the model is 1.5-3 magnitudes too faint (the Aquila
-  Rift's screen too large, the inner dust too thick), so the band's
-  brightest parts aren't Sagittarius's and Scutum's as they are in the sky.
+- Done: the inner Galaxy's dust, calibrated to Baade's window and the
+  Sagittarius clouds ([above](#the-inner-galaxy-calibrated)), and the
+  clouds' columns spread along the ray, so no cloud has an edge from
+  inside its reach.
+- Cygnus and the Local Arm: the band there is about 1 mag faint, its
+  brightest 6° south of the plane where the sky's is 2° north; the Local
+  Arm's dust lane and young stars, as the in-plane map has them, need
+  checking against Lallement et al.'s 3D dust.
 - Gaia's stars over this light (#98): `RESOLVED` refitted to what they
   resolve, by the same measurement.
 - The far side's arms are extrapolations of the near side's fits.

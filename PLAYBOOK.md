@@ -608,6 +608,25 @@ to their steps over it.  And measure a point's visibility as its step
 over what's under it (render with and without it), never as a pixel
 value over a fixed threshold, which counts the background too.
 
+### A model fitted from one viewpoint breaks when the viewpoint moves
+
+#186's first cut drew the zodiacal light as a fit to Leinert's table, seen
+from 1 AU in the ecliptic, scaled by distance from the Sun.  From 0.8 AU,
+24° over the ecliptic, its 3° hold showed as a disc with a hard rim, and
+from 2 AU as a blob 15° across.  #185's dark clouds were screens at each
+ray's closest approach to them: right from far away, but from 126 pc out,
+inside one cloud's reach, the rays whose closest approach fell behind the
+camera lost its whole column at once, a great circle with a hard edge.
+Both were fixed by integrating the thing itself along the ray (the dust
+cloud in 3D; each cloud's column spread along the ray as its own
+Gaussian).
+
+**Rule:** a shortcut that holds from where it was measured needs a test
+from where the camera can go: off the plane, inside the object, at the
+next scale out.  Sweep the view across where the shortcut changes regime
+and test for smoothness (neighbouring rays' ratio, a log-log curvature),
+not only the anchors.
+
 ### Screenshots communicate visual bugs better than words
 
 "A grid of large blooms on the ocean texture" and "distinct rings floating up in space" were

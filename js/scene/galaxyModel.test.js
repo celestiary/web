@@ -2,7 +2,8 @@ import {readFileSync} from 'node:fs'
 import {
   ARMS, BOUNDS, CLOUDS, DUST, FRACTIONS, KPC_METER, L_TOTAL_LSUN, RESOLVED, SUN_G, SUN_R_KPC, VALUE_PER_LSUN_KPC2, WARP,
   armOffset, azimuth, bakeMap, bakeMapSteps, barFrame, catalogToGalactic, cloudCenter, density, galaxyGlsl, galaxyModel,
-  galaxyNormUniforms, integrateRay, outsideWeight, resolvedFraction, resolvedNear, resolvedOverStep, sampleMap,
+  cloudOverStep, galaxyNormUniforms, integrateRay, normalCdf, outsideWeight, resolvedFraction, resolvedNear,
+  resolvedOverStep, sampleMap,
   warpHeight,
 } from './galaxyModel.js'
 import {DISPLAY_GAIN} from '../shared.js'
@@ -256,6 +257,59 @@ describe('the galaxy\'s light: at the Sun', () => {
       expect(through.transmittance[1]).toBeLessThan(0.2 * beside.transmittance[1])
       const c = cloudCenter(cloud)
       expect(Math.hypot(c[0] - SUN_G[0], c[1] - SUN_G[1], c[2] - SUN_G[2])).toBeCloseTo(cloud.d, 9)
+    }
+  })
+
+  it('sees the inner Galaxy\'s star clouds through windows of measured extinction, with the rift dark (#186)', () => {
+    // Baade's window, A_V 1.5-2 measured (Stanek 1996), within a quarter
+    // magnitude; the first cut's clouds made it 3.8.
+    const av = (l, b) => -2.5 * Math.log10(integrateRay(model, SUN_G, dir(l, b)).transmittance[1])
+    expect(av(1, -4)).toBeGreaterThan(1.5)
+    expect(av(1, -4)).toBeLessThan(2.25)
+    // The Sagittarius star clouds, the band's brightest, about 20-20.5
+    // mag/arcsec² (Pioneer 10's maps, as recalled): within half a magnitude.
+    let best = 0
+    for (let l = 0; l <= 10; l += 2) {
+      for (let b = -8; b <= -2; b += 1) {
+        best = Math.max(best, luma(integrateRay(model, SUN_G, dir(l, b), 0.5, 0).rgb))
+      }
+    }
+    expect(magPerArcsec2(best)).toBeLessThan(20.8)
+    // The Great Rift through Aquila: the band north of the plane a third of
+    // what it is south of it.
+    const aquila = (b) => luma(integrateRay(model, SUN_G, dir(30, b), 0.5, 0).rgb)
+    expect(aquila(3) / aquila(-3)).toBeLessThan(0.4)
+  })
+
+  it('spreads a cloud\'s column along the ray, so a camera within its reach sees no edge (#186)', () => {
+    // The column's shares over a ray's steps sum to the whole, and half of
+    // it lies past the closest approach.
+    let sum = 0
+    for (let t = -1; t < 1; t += 0.013) {
+      sum += cloudOverStep(t, 0.013, 0.2, 0.03)
+    }
+    expect(sum).toBeCloseTo(1, 6)
+    expect(cloudOverStep(0.2, 10, 0.2, 0.03)).toBeCloseTo(0.5, 6)
+    expect(normalCdf(0)).toBeCloseTo(0.5, 7)
+    expect(normalCdf(1.959964)).toBeCloseTo(0.975, 6)
+    // The user's view, 126 pc from the Sun and 1.5σ from the Taurus
+    // cloud's centre: pairs of rays 0.6° apart, swept across the great
+    // circle where the cloud's closest approach is at the camera (in the
+    // cloud's flattened space, 15° off the perpendicular).  As screens, all
+    // or nothing at the closest approach, the pair there differed by 24%.
+    const cam = [-8.2657, 0.0161, 0.0498]
+    const c = cloudCenter(CLOUDS.find((x) => x.name === 'Taurus'))
+    const to = [c[0] - cam[0], c[1] - cam[1], c[2] - cam[2]]
+    const n = Math.hypot(...to)
+    // A direction perpendicular to the cloud's, tilted a little toward and away from it.
+    const perp = [to[1], -to[0], 0].map((v) => v / Math.hypot(to[1], to[0]))
+    const ray = (tilt) => {
+      const d = perp.map((v, i) => v + (tilt * to[i] / n))
+      const k = Math.hypot(...d)
+      return luma(integrateRay(model, cam, d.map((v) => v / k)).rgb)
+    }
+    for (let tilt = -0.3; tilt < 0.3; tilt += 0.01) {
+      expect(Math.abs((ray(tilt + 0.005) / ray(tilt - 0.005)) - 1)).toBeLessThan(0.05)
     }
   })
 

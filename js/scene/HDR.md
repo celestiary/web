@@ -994,7 +994,12 @@ luminance), so it is 1 by day and in civil twilight (gain under 1,600)
 and 1.15 at nautical twilight looking away from the Sun (7,700), where the
 night sky is far under the twilight's light anyway.  And it is 1 where
 the frame is a photograph of the galaxy from outside (rule 10: the
-galaxy's `outsideWeight`), not an eye.
+galaxy's `outsideWeight`), not an eye.  And per pixel it is the rods':
+the night sky's light at a pixel takes G by the share of it the rods see
+(`scotopicWeight` of its own luminance, as its grey below), so light the
+cones see takes the stars' gain.  That is the inner zodiacal light near the
+Sun, 0.03-2 cd/m² within 10° of it from 1 AU: with G whole it was raised
+as if the rods pooled it, and its white core was a degree or two wider.
 
 **Composition.**  The night sky's display values are added to the image of
 the stars and bodies, to white at most (`displaySum`):
@@ -1035,18 +1040,39 @@ are, and through the air's transmittance (composition.md):
   (Earth), where the atmosphere pass runs, and within 20 of the body's
   radii: the chord is a difference of squares of the eye's distance, which
   float32 loses from farther (a speck of it at Earth's place, from 1 AU).
-- **The zodiacal light and the gegenschein** (`zodiacalS10`), a fit to
-  Leinert et al. (1998)'s table: 64 S10⊙ (23.3) at the ecliptic's poles;
-  along it 2,000 at 30° from the Sun (19.5), 400 at 60°, 215 at 90° (21.95),
-  145 at 150° and 165 in the gegenschein; falling away from the ecliptic
-  as e^(−|β|/30°).  Toward the Sun the fit keeps rising, as the F-corona
-  does (6,000 at 20°, 37,000 at 10°: 16.3 mag/arcsec²), held only inside
-  3°, where the Sun's glow covers it (held at 10°, its plateau showed as a
-  disc round the Sun).  Its brightness goes as r^−2.3 from the Sun and is
-  gone past 3.5 AU (`zodiacalScale`), so it is there from anywhere in the
-  inner solar system, from Earth's surface through the air.  It is the
-  one part of the night sky's light over the meter's floor: within about
-  25° of the Sun at 1 AU, so a field with the Sun in it adapts to it
+- **The zodiacal light and the gegenschein**: sunlight scattered by the
+  interplanetary dust, a 3D cloud integrated along each view ray from
+  wherever the camera is (`nightSky.js` `ZODIACAL_CLOUD`, `zodiacalAlong`).
+  The cloud is Kelsall et al. (1998)'s smooth one, fitted to COBE/DIRBE:
+  density ∝ r^−1.34, its "widened fan" profile across its symmetry plane,
+  which is inclined 2.03° to the ecliptic (node at 77.7°).  Sunlight falls
+  as r^−2 and the dust scatters it by Hong (1985)'s three-lobe phase
+  function (forward-peaked, with a backward lobe for the gegenschein).
+  With the ray's closest approach b to the Sun, a point on it is at r = b·sec
+  φ and the integrand is b^−2.34·cos^1.34 φ·fan·phase dφ, smooth in φ, so 32
+  midpoint steps over φ take it from any viewpoint.  It is normalised to
+  Leinert et al. (1998)'s 215 S10⊙ (21.95 mag/arcsec²) at 90° from the Sun
+  in the ecliptic, from 1 AU.  The rest of their table, as recalled and fitted
+  (kept as `LEINERT`, `leinertS10`, for the tests), it reproduces within 10%
+  from 90° to the gegenschein and toward the poles (61 S10⊙ at the
+  ecliptic's poles against 64; 138 at 150°, 174 in the gegenschein), and
+  20-30% over it from 15° to 60° along the ecliptic (2,650 at 30° against
+  2,000).  Off the ecliptic near the Sun (30° from it, 30° up) it is half
+  the fit's, whose fall-off with latitude was one exponential for every
+  elongation; the cloud's fan is the measured shape.  It is gone past the asteroid belt (3.3-5.2 AU; Pioneer 10
+  lost it beyond 3.3, Hanner et al. 1974), and held inside 2 solar radii
+  of the Sun (0.5° from 1 AU), where the Sun's disc is.  Off 1 AU and off
+  the plane it is what the cloud gives, not a table moved: from 2 AU it is
+  a lens round the Sun along the ecliptic, 2.4 mag fainter at a given
+  elongation (b^−2.34); from 5 AU, 6 mag fainter, and the gegenschein gone
+  (31.9 mag/arcsec² at the antisolar point); over the ecliptic's pole,
+  fainter and rounder.
+  The integral costs 32 steps a pixel, so it is drawn into a cache at a
+  quarter of the frame's size (at most 270 rows; `ZodiacalLight.js`), which
+  is rendered again only when the view has changed by more than it can
+  show (`viewCache.js`; [cost](#cost-by-day-and-with-time-running)).  It is
+  the one part of the night sky's light over the meter's floor: within
+  about 25° of the Sun at 1 AU, so a field with the Sun in it adapts to it
   (measured below).
 - **The integrated starlight**: the galaxy's march (MilkyWay.md), less the
   share the catalogue draws as points (MilkyWay.md, "Double counting").
@@ -1054,6 +1080,77 @@ are, and through the air's transmittance (composition.md):
 At the zenith of a dark site, away from the ecliptic and the band, they sum
 to 21.7 mag/arcsec² (`nightSky.test.js`): a dark site between solar
 minimum (21.9-22.0) and maximum (21.3-21.5).
+
+### Round the Sun: the rim and the jump
+
+On #187's preview, flying out from the Sun 24° over the ecliptic, the
+light round the Sun was fine at 94 and 101 Gm, a grey disc of 5° radius with a
+hard rim at 120 Gm, and a white blob 15° across at 319 Gm.  Two causes,
+reproduced at 1440×900:
+
+- **The rim was the first cut's elongation hold.**  Its fit to Leinert's
+  table, held flat inside 3° of the Sun, drew a plateau with an edge
+  wherever the gain showed it, and moved from 1 AU by r^−2.3 it was the
+  same shape from anywhere, too large off the plane.  The 3D cloud has no
+  hold but the Sun's own 2 radii, so it has no edge: from 0.8 AU, 24° up, a
+  lens round the Sun along the ecliptic (`nightSky.test.js` holds its
+  log-log profile smooth from 2° out, from 0.8 to 5 AU and off the plane).
+- **The jump is the meter's**, on `main` as well: the Sun's disc brings
+  the gain down as it grows on screen from 8 to 32 px (rule 6,
+  `luminousDiscGain`), blending in log gain over nine decades, from the
+  dark-adapted field's to the disc's own.  So the gain changes 25-fold
+  between 101 and 120 Gm, as the disc goes from 15.6 to 13.2 px on a 1440
+  px screen: 6,400 → 161,000 on `main`, 400 → 9,200 with the zodiacal
+  light (it is light in the field, so the meter reads it).  What #186 added
+  is something to see at the higher gain.  The blend's width is the
+  meter's, unchanged here: easing it over a wider range of disc sizes is a
+  follow-up for the meter.
+
+What remains bright is the light that is bright.  The inner zodiacal light
+and the F-corona are 12-16 mag/arcsec² within 10° of the Sun from 1 AU,
+100-10,000 times the night sky, and in a field the eye has adapted to
+darkness (the Sun's disc under 8 px, as it is from beyond about 1 AU on a
+laptop's screen) they show white within 5-8° of it: from 2 AU, 17
+mag/arcsec² 5° from the Sun and 19.4 at 12°; from 5 AU, 18.5 at 5°.  A real
+eye there would be dazzled by the Sun (veiling glare, not modelled), which
+would hide most of it.
+
+### Cost: by day, and with time running
+
+On #187's preview, looking at the Sun from Earth's surface by day with time
+running at −2 minutes a second, a Mac's GPU drew 18-19 frames a second.
+The sky turns with time, and the galaxy's march was rendered again on any
+change of view, so every frame, by day as by night, for light a billionth
+of the frame's.  Three changes (ThreeUi `_updateNightSkyShown`,
+`viewCache.js`):
+
+- **Skipped where it can't show.**  Each frame the night sky's brightest
+  possible light (the galaxy's brightest from anywhere, 1e-6 at Earth's
+  keyed exposure; the zodiacal light toward the Sun, `zodiacalBrightest`,
+  from where the camera is; airglow at the horizon, 7× its zenith) times
+  the exposure and G is set against half a display step through the toe,
+  √(0.5/255/6.25) = 0.018.  Under it nothing is drawn: no march, no
+  zodiacal cache, no airglow path, and the pass's night term is zero.  By
+  day (gain 1) the brightest is 1.3e-3 (the zodiacal light held at 2 solar
+  radii, 4e7 S10⊙), 14 times under; it is drawn from a gain of about 14,
+  late in civil twilight.
+- **Re-rendered when the view changes by more than the cache shows**: the
+  view turned half a texel, the camera moved (a micro-kiloparsec for the
+  march; a thousandth of its distance from the Sun for the zodiacal
+  light), or the projection changed.  From the ground at −2 min/s the sky
+  turns 1.5e-4 rad a frame at 60 frames a second, so at 1080p the march
+  (540 rows over 45°) is rendered every 5 frames, not every frame.
+- **The zodiacal light at a quarter of the frame's size** (at most 270
+  rows), in its own cache, so its 32 steps a pixel are paid once per view.
+
+Measured on SwiftShader at 800×500 over 32-40 frames at −2 min/s: by day
+`main` marched the galaxy in every frame (40 of 40) and this change in
+none, with no zodiacal render; with the night sky shown, `main` 32 of 32,
+this change 2 of 32, and one zodiacal render.  SwiftShader's frame times
+don't resolve it: every fourth frame its time is the meter's synchronous
+readback of its 32×32 float target (2.2-3.8 s there, on `main` too), the
+rest 15-60 ms.  On a real GPU that readback is a pipeline stall every
+fourth frame; reading it back asynchronously is a follow-up.
 
 ### Measured
 
@@ -1064,47 +1161,66 @@ The dark site is Cerro Tololo (−30.2°, 2,200 m).  "Sky" and "band" are the
 median and the 99th percentile of the display's luma with the star points
 hidden; stars are counted to magnitude 6.5 (6.0) when their step on screen
 over what's under them (rendered with the points and without) is 10 of 255
-or more.
+or more.  Space views look toward the galactic centre (70° fields) from the
+Sun's side away from it ("the Sun behind") or toward it ("the Sun in
+view", 5.6° off the field's centre), in the ecliptic or 45° over it; "over
+the ecliptic, the Sun in view" looks 10° off the Sun.
 
 | View | Gain, before → after | Sky / band, of 255 | Stars to 6.5 (6.0) over 10 / in view |
 |---|---|---|---|
-| Dark site, toward the centre (70° field, the centre 65° up) | 3.93e6 → 3.93e6 | 1.4 / 9 → 15 / 42 | 950 (587) → 893 (587) / 1,031 (610) |
-| The same, galaxy hidden | 3.93e6 → 3.93e6 | | 896 (587) → 897 (587) |
-| Dark site, the zenith (90° field) | 3.93e6 → 3.93e6 | 1.1 / 9 → 14 / 41 | 1,111 (784) → 1,007 (748) / 1,382 (822) |
-| The same, galaxy hidden | 3.93e6 → 3.93e6 | | 1,007 (751) → 1,011 (750) |
-| Space, 1 AU, the Sun behind, toward Sagittarius (70°) | 4e6 → 4e6 | 1.1 / 10 → 4 / 32 | 1,260 (741) → 1,217 (741) / 1,281 (741); galaxy hidden, 1,220 → 1,221 |
-| Space, 1 AU, the Sun 90° off, toward Sagittarius (70°) | 4e6 → 4e6 | 1.1 / 10 → 7 / 40 | 1,260 (741) → 1,216 (741) / 1,281 (741); galaxy hidden, 1,220 → 1,215 |
-| Deep space, 4.7 AU, away from the Sun (45°) | 4e6 → 4e6 | 0.2 / 1.4 → 0 / 2 | 694 (409) → 694 (409) / 694 (409) |
-| Space, 1 AU, the Sun in a 70° field, 5.6° off its centre | 3.9e6 → 3.5e5 | 0.9 / 10 → 1 / 246 | 1,258 → 113 / 1,282 |
-| Earth's night side from 20,000 km, the Sun 17° off Earth | 1.9e5 → 5.5e4 | | |
+| Dark site, toward the centre (70° field, the centre 65° up) | 3.93e6 → 3.93e6 | 1.4 / 9 → 18 / 57 | 950 (587) → 898 (587) / 1,031 (610) |
+| The same, galaxy hidden | 3.93e6 → 3.93e6 | | 896 (587) → 893 (587) |
+| Dark site, the zenith (90° field) | 3.93e6 → 3.93e6 | 1.1 / 9 → 15 / 54 | 1,111 (784) → 1,015 (753) / 1,382 (822) |
+| The same, galaxy hidden | 3.93e6 → 3.93e6 | | 1,007 (751) → 1,012 (752) |
+| Space, 0.8 AU, the Sun behind | 4e6 → 4e6 | 1.1 / 10 → 12 / 61 | 1,260 (741) → 1,215 (741) / 1,281 |
+| Space, 1 AU, the Sun behind | 4e6 → 4e6 | 1.1 / 10 → 6 / 54 | 1,252 (741) → 1,216 (741) / 1,281; galaxy hidden, 1,220 → 1,211 |
+| Space, 1 AU, the Sun 90° off | 4e6 → 4e6 | 1.1 / 10 → 12 / 64 | 1,237 (741) → 1,218 (741) / 1,281 |
+| Space, 2 AU, the Sun behind | 4e6 → 4e6 | 1.1 / 10 → 2 / 46 | 1,260 (741) → 1,216 (741) / 1,281 |
+| Space, 5 AU, the Sun behind | 4e6 → 4e6 | 1.1 / 10 → 1 / 44 | 1,260 (741) → 1,218 (741) / 1,281 |
+| Space, 1 AU over the ecliptic, the Sun behind | 4e6 → 4e6 | 1.1 / 10 → 3 / 47 | 1,260 (741) → 1,218 (741) / 1,281 |
+| Space, 2 AU over the ecliptic, the Sun behind | 4e6 → 4e6 | 1.1 / 10 → 1 / 45 | 1,260 (741) → 1,216 (741) / 1,281 |
+| Deep space, 4.7 AU, away from the Sun (45°) | 4e6 → 4e6 | 0.2 / 1 → 0 / 3 | 694 (409) → 694 (409) / 694 |
+| Space, 0.8 AU, the Sun in view | 4e6 → 3.2e5 | 1.1 / 10 → 1 / 243 | 1,267 → 118 / 1,282; limit 3.8 |
+| Space, 1 AU, the Sun in view | 4e6 → 5.8e5 | 0.9 / 9 → 2 / 246 | 1,211 → 184 / 1,282; limit 4.4 |
+| Space, 2 AU, the Sun in view | 4e6 → 2.9e6 | 1.1 / 11 → 5 / 251 | 1,267 → 959 / 1,282; limit 6.1 |
+| Space, 5 AU, the Sun in view | 4e6 → 4e6 | 1.1 / 11 → 2 / 178 | 1,266 → 1,213 / 1,282 |
+| Space, 1 AU over the ecliptic, the Sun in view | 4e6 → 1.0e6 | 0.9 / 10 → 3 / 246 | 1,429 → 379 / 1,432; limit 5.0 |
+| Space, 2 AU over the ecliptic, the Sun in view | 4e6 → 4e6 | 0.9 / 10 → 6 / 247 | 1,429 → 1,344 / 1,432 |
+| Earth's night side from 20,000 km, the Sun 17° off Earth | 1.9e5 → 1.2e5 | | 35 → 20 / 677 |
 | Day (the Sun 36° up), civil and nautical twilight (−4°, −10° toward and away from the Sun), the Moon at quarter | 1, 4.02, 180, 7,720, 1.33: unchanged | | no pixel more than 1 of 255 apart |
-| The LDR fallback (`?hdr=0`), the zenith | 3.93e6 | 3 → 2: the galaxy less the catalogue's share; no night-sky light | |
+| The LDR fallback (`?hdr=0`), the zenith | 3.93e6 | 2.9 / 17 → 2.2 / 21: the galaxy less the catalogue's share; no night-sky light | 1,327 → 1,331 |
 
 - **The band shows** from the dark site, grey, over a dark-grey sky:
-  its brightest, south of the plane toward the centre, 33-42 of 255, the
-  sky between 12-15.  The night sky's light read back alone (`uDebug` 8):
-  the darkest sky 21.4-21.7 mag/arcsec² (airglow, the zodiacal light near
-  the ecliptic, the starlight), the band 20.6-21.0 total.  From space the
-  sky is black between the band and the zodiacal light (a gegenschein of
-  4 of 255 toward Sagittarius from 1 AU with the Sun behind).
+  its brightest, south of the plane toward the centre, 54-57 of 255, the
+  sky 15-18.  The night sky's light read back alone (`uDebug` 8): the
+  darkest sky 21.7 mag/arcsec² (airglow, the zodiacal light near the
+  ecliptic, the starlight), the band 20.3 total.  From space at 1 AU the
+  sky is dark between the band and the zodiacal light; from 2 and 5 AU,
+  and over the ecliptic, the zodiacal light fades (the darkest sky 23.5-24
+  mag/arcsec²) and the band is what's left.
 - **The gain holds**: 3.93e6 at the dark site and 4e6 in space wherever the
-  Sun is out of the field, as before.  The night sky's light is under the
-  meter's floor everywhere but within about 25° of the Sun.
+  Sun is out of the field, from 0.8 to 5 AU and over the ecliptic, as
+  before.  The night sky's light is under the meter's floor everywhere but
+  near the Sun.
 - **The stars are as calibrated.**  With the galaxy hidden the counts are
-  the same, before and after, to the display's rounding: the night sky's
-  light is added over the stars in display values, so a star's step is
-  its step over black.  With the galaxy shown, `main`'s counts were 3-10%
-  higher, because its band, in the scene buffer, raised the faint stars on
-  it through the toe (PLAYBOOK, "A pedestal under a tone map's toe").
-  Magnitude 6.5 still just shows: the limit is 6.50 at the dark site.
-- **With the Sun in the field** the inner zodiacal light, 16-19
-  mag/arcsec² within 20° of it (37,000 S10⊙ at 10°), is over the meter's
-  floor, and the field adapts to it: from 1 AU with the Sun in a 70° field
-  the gain is 3.5e5 and the limit 3.9; Earth's night side with the Sun
-  beside it adapts 3.4× lower.  That is light in the field, as the eye's
-  veiling glare round the Sun (not drawn yet) is, and brighter there.  On
-  a 1080 px screen the Sun's disc at 1 AU (13 px) had already begun to
-  bring the gain down (rule 6).
+  the same, before and after, to the display's rounding (a star at the
+  10-of-255 threshold can lose a step in the sum's 8 bits): the night
+  sky's light is added over the stars in display values, so a star's step
+  is its step over black.  With the galaxy shown, `main`'s counts were
+  3-10% higher, because its band, in the scene buffer, raised the faint
+  stars on it through the toe (PLAYBOOK, "A pedestal under a tone map's
+  toe").  Magnitude 6.5 still just shows: the limit is 6.50 at the dark
+  site.
+- **With the Sun in the field** the inner zodiacal light, 12-16
+  mag/arcsec² within 10° of it from 1 AU, is over the meter's floor, and
+  the field adapts to it: from 0.8 AU the gain is 3.2e5 (limit 3.8), from
+  1 AU 5.8e5 (4.4), from 2 AU 2.9e6 (6.1); from 5 AU and from 2 AU over
+  the ecliptic it is under the floor's reach and the gain holds 4e6, the
+  lens round the Sun white within a few degrees of it ([round the
+  Sun](#round-the-sun-the-rim-and-the-jump)).  Earth's night side with the
+  Sun beside it adapts 1.5× lower.  That is light in the field, as the
+  eye's veiling glare round the Sun (not drawn yet) is, and brighter
+  there.
 - **Day, twilight and the Moon are unchanged** to the pixel, and `yarn
   parity` passes (23 views, 124 checks).
 
@@ -1129,7 +1245,11 @@ should be checked before anything leans on it to better than 20-30%:
 - Leinert, Ch. et al. 1998, A&AS 127, 1: the zodiacal light's table,
   airglow and the integrated starlight.
 - Leinert, Ch. et al. 1981, A&A 103, 177 (Helios): the zodiacal light's
-  r^−2.3.
+  r^−2.3, which the cloud's r^−1.34 gives (b^−2.34 along a ray).
+- Kelsall, T. et al. 1998, ApJ 508, 44 (COBE/DIRBE): the smooth cloud,
+  its density's power, widened fan, inclination and node.
+- Hong, S. S. 1985, A&A 146, 67: the three-lobe Henyey-Greenstein phase
+  function for the visible.
 - Hanner, M. S. et al. 1974, JGR 79, 3671 (Pioneer 10): no zodiacal light
   past 3.3 AU.
 - Benn, C. R. & Ellison, S. L. 1998, New Astron. Rev. 42, 503; Krisciunas,

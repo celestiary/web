@@ -141,14 +141,23 @@ export const DUST = Object.freeze({hR: 3.5, hz: 0.134, holeR: 4.0, avPerKpc: 1.0
  * dark lanes: (l, b) degrees, distance kpc, size (Gaussian σ) kpc in the
  * plane and across it, peak A_V through the centre.  Approximate positions
  * and sizes, from the CO survey (Dame et al. 2001) and 3D dust maps
- * (Lallement et al. 2019).  Drawn as screens at their distance along each
- * ray (galaxyGlsl).
+ * (Lallement et al. 2019).  Each is a Gaussian along each ray, its column
+ * spread over the march's steps (cloudOverStep).
+ *
+ * #186 tightened the Great Rift's clouds: the first cut's Gaussians had
+ * tails over the star clouds the naked eye sees between them, the Aquila
+ * Rift's (σ 15° by 8°) and Serpens-Scutum's over the Scutum cloud, and the
+ * Pipe's over Baade's window, where they added 1.9 mag of the window's 3.8
+ * (measured: 1.5-2).  They now cover the rift (Dame et al. 2001's CO puts
+ * the Aquila Rift at l = 20-40°, b = 0-10°), and a Vulpecula segment
+ * carries the rift from Aquila to Cygnus, where the first cut had a gap.
  */
 export const CLOUDS = Object.freeze([
-  Object.freeze({name: 'Aquila Rift', l: 28, b: 4, d: 0.22, sigma: 0.06, sigmaY: 0.03, av: 3}),
-  Object.freeze({name: 'Serpens-Scutum', l: 16, b: 2, d: 0.45, sigma: 0.1, sigmaY: 0.04, av: 2.5}),
-  Object.freeze({name: 'Cygnus Rift', l: 75, b: 1, d: 0.8, sigma: 0.2, sigmaY: 0.05, av: 3.5}),
-  Object.freeze({name: 'Ophiuchus-Pipe', l: 358, b: 10, d: 0.135, sigma: 0.02, sigmaY: 0.02, av: 3}),
+  Object.freeze({name: 'Aquila Rift', l: 30, b: 5, d: 0.22, sigma: 0.045, sigmaY: 0.015, av: 3}),
+  Object.freeze({name: 'Serpens-Scutum', l: 16, b: 3, d: 0.45, sigma: 0.06, sigmaY: 0.025, av: 2.5}),
+  Object.freeze({name: 'Vulpecula Rift', l: 55, b: 1, d: 0.4, sigma: 0.06, sigmaY: 0.02, av: 2}),
+  Object.freeze({name: 'Cygnus Rift', l: 75, b: 1, d: 0.8, sigma: 0.08, sigmaY: 0.04, av: 3.5}),
+  Object.freeze({name: 'Ophiuchus-Pipe', l: 358, b: 10, d: 0.135, sigma: 0.012, sigmaY: 0.012, av: 3}),
   Object.freeze({name: 'Coalsack', l: 301, b: -1, d: 0.18, sigma: 0.012, sigmaY: 0.012, av: 2}),
   Object.freeze({name: 'Taurus', l: 172, b: -15, d: 0.14, sigma: 0.03, sigmaY: 0.02, av: 2.5}),
   Object.freeze({name: 'Orion', l: 209, b: -19, d: 0.4, sigma: 0.05, sigmaY: 0.03, av: 2}),
@@ -921,6 +930,45 @@ export function resolvedOverStep(t0, ds, tc, b2) {
 
 
 /**
+ * The share of a cloud's column, through its centre's closest approach,
+ * that lies in a step of a ray: the Gaussian's mass along the ray between
+ * the step's ends, a difference of its cumulative distribution.  The first
+ * cut drew each cloud as a screen at its closest approach, all or nothing
+ * as the step held it, so from a camera inside a cloud's reach (126 pc
+ * from the Sun, 1.5σ from the Taurus cloud's centre) the rays whose closest
+ * approach was behind the camera lost the cloud, and those ahead had its
+ * whole column: a straight edge across the sky, along the great circle
+ * where the closest approach is at the camera (the user's preview).  Here
+ * only the part ahead of the camera counts, and the sky is smooth.
+ *
+ * @param {number} t0 The step's start along the ray
+ * @param {number} ds Its length
+ * @param {number} tc The cloud's closest approach along the ray
+ * @param {number} width The cloud's σ along the ray, in the same units
+ * @returns {number} 0 to 1
+ */
+export function cloudOverStep(t0, ds, tc, width) {
+  return normalCdf((t0 + ds - tc) / width) - normalCdf((t0 - tc) / width)
+}
+
+
+/**
+ * The standard normal distribution's cumulative, by Abramowitz & Stegun
+ * 7.1.26's erf (to 1.5e-7), as the GLSL computes it.
+ *
+ * @param {number} x
+ * @returns {number}
+ */
+export function normalCdf(x) {
+  const z = Math.abs(x) / Math.SQRT2
+  const k = 1 / (1 + (0.3275911 * z))
+  const poly = k * (0.254829592 + (k * (-0.284496736 + (k * (1.421413741 + (k * (-1.453152027 + (k * 1.061405429))))))))
+  const erf = 1 - (poly * Math.exp(-z * z))
+  return 0.5 * (1 + (x < 0 ? -erf : erf))
+}
+
+
+/**
  * The ray's segment inside BOUNDS.
  *
  * @param {Array<number>} o origin, G kpc
@@ -950,7 +998,8 @@ export function boundsSegment(o, d) {
 /**
  * The galaxy's light along a ray, in exposure units at Earth's keyed
  * exposure (times the frame's exposureRelative on screen), as the shader
- * marches it: emission and extinction per step, the clouds as screens.
+ * marches it: emission and extinction per step, each cloud's column spread
+ * over the steps as its Gaussian along the ray (cloudOverStep).
  *
  * @param {object} model galaxyModel's
  * @param {Array<number>} o origin, G kpc
@@ -978,7 +1027,10 @@ export function integrateRay(model, o, d, jitter = 0.5, resolved = resolvedNear(
     const tc = ((rel[0] * ds[0]) + (rel[1] * ds[1]) + (rel[2] * ds[2])) / ((ds[0] ** 2) + (ds[1] ** 2) + (ds[2] ** 2))
     const b2 = ((rel[0] - (ds[0] * tc)) ** 2) + ((rel[1] - (ds[1] * tc)) ** 2) + ((rel[2] - (ds[2] * tc)) ** 2)
     const tau = cloud.av / (2.5 * Math.LOG10E) * Math.exp(-b2 / (2 * cloud.sigma * cloud.sigma)) * near
-    return {tc, tau}
+    // The cloud's σ along the ray, in t: the scaled direction's length is
+    // how far the round cloud's space moves per unit of t.
+    const width = cloud.sigma / Math.hypot(...ds)
+    return {tc, tau, width}
   })
   const plane = Math.max(STEPS.PLANE, (t1 - t0) / STEPS.PLANE_STEPS)
   const dy = Math.max(Math.abs(d[1]), 1e-4)
@@ -1013,10 +1065,9 @@ export function integrateRay(model, o, d, jitter = 0.5, resolved = resolvedNear(
       T[c] *= att
     }
     for (const cloud of clouds) {
-      if (cloud.tc >= t && cloud.tc < t + ds) {
-        for (let c = 0; c < 3; c++) {
-          T[c] *= Math.exp(-cloud.tau * DUST.rgb[c])
-        }
+      const tau = cloud.tau * cloudOverStep(t, ds, cloud.tc, cloud.width)
+      for (let c = 0; c < 3; c++) {
+        T[c] *= Math.exp(-tau * DUST.rgb[c])
       }
     }
     t += ds
@@ -1167,6 +1218,15 @@ float galVert(float y, float h) {
   return exp(-abs(y) / h) / (2.0 * h);
 }
 
+// The standard normal cumulative (normalCdf), for the clouds' columns.
+float galNormalCdf(float x) {
+  float z = abs(x) * 0.70710678;
+  float k = 1.0 / (1.0 + 0.3275911 * z);
+  float poly = k * (0.254829592 + k * (-0.284496736 + k * (1.421413741 + k * (-1.453152027 + k * 1.061405429))));
+  float e = 1.0 - poly * exp(-z * z);
+  return 0.5 * (1.0 + (x < 0.0 ? -e : e));
+}
+
 // Emission (rgb, exposure units × STORE_SCALE per kpc) and V-band extinction (per kpc).
 void galDensity(vec3 p, out vec3 emit, out float kappa) {
   float r = length(p.xz);
@@ -1210,6 +1270,7 @@ vec3 galaxyMarch(vec3 o, vec3 d, float jitter) {
   float cloudTau[GAL_CLOUDS];
 ${cloudLines}
   float cloudT[GAL_CLOUDS];
+  float cloudW[GAL_CLOUDS];
   float near = 1.0 - galSmooth(${f(CLOUDS_NEAR_KPC[0])}, ${f(CLOUDS_NEAR_KPC[1])}, length(o - GAL_SUN));
   for (int i = 0; i < GAL_CLOUDS; i++) {
     vec3 scale = vec3(1.0, cloudK[i], 1.0);
@@ -1219,6 +1280,7 @@ ${cloudLines}
     vec3 miss = rel - ds * tc;
     float b2 = dot(miss, miss);
     cloudT[i] = tc;
+    cloudW[i] = cloudC[i].w / length(ds);
     cloudTau[i] *= exp(-b2 / (2.0 * cloudC[i].w * cloudC[i].w)) * near;
   }
   float plane = max(${f(STEPS.PLANE)}, (t1 - t0) / ${f(STEPS.PLANE_STEPS)});
@@ -1251,7 +1313,13 @@ ${cloudLines}
     L += T * emit * path * (1.0 - hole * resolved);
     T *= att;
     for (int c = 0; c < GAL_CLOUDS; c++) {
-      if (cloudT[c] >= t && cloudT[c] < t + ds) T *= exp(-cloudTau[c] * GAL_DUST_RGB);
+      // Only where the step is within 5σ of the cloud and the ray passes
+      // close enough to it to matter: elsewhere its share is under 3e-7.
+      float lo = (t - cloudT[c]) / cloudW[c];
+      float hi = (t + ds - cloudT[c]) / cloudW[c];
+      if (cloudTau[c] > 1.0e-4 && hi > -5.0 && lo < 5.0) {
+        T *= exp(-cloudTau[c] * (galNormalCdf(hi) - galNormalCdf(lo)) * GAL_DUST_RGB);
+      }
     }
     t += ds;
     if (max(T.r, max(T.g, T.b)) < 1.0e-3) break;

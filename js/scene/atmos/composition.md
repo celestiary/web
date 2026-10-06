@@ -51,11 +51,11 @@ extended light](../HDR.md#the-eye-and-extended-light), #186), in the HDR
 path only, each part pre-exposed (times `uExposureRelative`):
 
 - **From beyond the air** (`nightBeyond`): the zodiacal light
-  (`nightSky.js` `zodiacalLight`, from the Sun's direction and the
-  ecliptic's pole in view space, `uZodiacalSun`, `uZodiacalPole`, and its
-  scale at the camera's distance from the Sun, `uZodiacalScale`) and the
-  galaxy's march (`uGalaxy`, MilkyWay.js's cached target, unexposed ×
-  1e8), where the scene's depth is at or behind the galaxy's far-plane
+  (`nightSky.js` `zodiacalLight`: `uZodiacal`, ZodiacalLight.js's cached
+  target, the dust cloud integrated from the camera, S10⊙ × 1e-3, and
+  `uZodiacalScale` to exposure units) and the galaxy's march (`uGalaxy`,
+  MilkyWay.js's cached target, unexposed × 1e8), both at the frame's
+  screen coordinates, where the scene's depth is at or behind the galaxy's far-plane
   depth (0.99995): behind every body, under the stars, where the galaxy
   was drawn in the scene pass before.  It goes through the transmittance as
   the scene does, so it is extinguished toward the horizon and gone in a
@@ -76,6 +76,9 @@ tone-mapped composite in display values (`extendedToDisplay`,
 pass runs without an atmosphere (deep space, the hard kill-switch) the
 night sky's light from beyond is drawn the same way, over the scene.  The
 LDR fallback draws none of it: its galaxy is in the scene pass, as before.
+Where its brightest possible contribution is under half a display step (by
+day, in most of twilight) none of it is drawn and neither cache is
+rendered (ThreeUi `_updateNightSkyShown`).
 
 ## Clouds
 

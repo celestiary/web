@@ -115,6 +115,23 @@ describe('the extended response', () => {
     expect(photo[2]).toBeGreaterThan(photo[0])
   })
 
+  it('gives the rods\' gain to rod-level light only: light the cones see takes the stars\' gain (#187)', () => {
+    // A pixel of 0.5 cd/m² (the zodiacal light a few degrees from the Sun)
+    // is mesopic, well into the cones' range; at an exposure that shows it
+    // at 0.3 it takes the gain by the rods' share of its light.
+    const rods = scotopicWeight(0.5)
+    expect(rods).toBeGreaterThan(0.1)
+    expect(rods).toBeLessThan(0.5)
+    const gain = 0.3 / (0.5 / EXPOSURE_UNIT_CD_M2)
+    const shown = extendedToDisplay(grey(0.3), gain, EXTENDED_GAIN_DARK)[1]
+    expect(shown).toBeCloseTo(neutral(grey(0.3 * (1 + ((EXTENDED_GAIN_DARK - 1) * rods))))[1], 9)
+    expect(shown).toBeLessThan(neutral(grey(0.3 * EXTENDED_GAIN_DARK))[1] - (10 * DISPLAY_STEP))
+    // Rod-level light keeps the whole gain.
+    const sky = surfaceBrightnessValue(DARK_SKY_MAG) * METER_GAIN_MAX
+    expect(extendedToDisplay(grey(sky), METER_GAIN_MAX, EXTENDED_GAIN_DARK)[1])
+        .toBeCloseTo(neutral(grey(sky * EXTENDED_GAIN_DARK))[1], 9)
+  })
+
   it('adds over the stars without hiding or raising them: a limit star keeps its step over the dark sky', () => {
     const sky = extendedToDisplay(grey(surfaceBrightnessValue(DARK_SKY_MAG) * METER_GAIN_MAX), METER_GAIN_MAX,
         EXTENDED_GAIN_DARK)

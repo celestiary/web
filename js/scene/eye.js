@@ -234,8 +234,8 @@ const LUMA = [0.2126, 0.7152, 0.0722]
  * The night sky's diffuse light to the display, as EYE_GLSL does it: its
  * physical luminance decides how much of it is seen by rods alone, which
  * see no colour (scotopicWeight: the band, at 1e-4 to 1e-3 cd/m², is grey
- * to the eye, the Purkinje regime), then the extended gain and the tone
- * map.
+ * to the eye, the Purkinje regime) and pool it over large areas (the
+ * extended gain, by the same share), then the tone map.
  *
  * @param {Array<number>} rgb Pre-exposed, exposure units at the frame's exposure
  * @param {number} gainOverEarth The frame's exposure over Earth's keyed one
@@ -246,8 +246,13 @@ const LUMA = [0.2126, 0.7152, 0.0722]
 export function extendedToDisplay(rgb, gainOverEarth, gain, eye = 1) {
   const l = (LUMA[0] * rgb[0]) + (LUMA[1] * rgb[1]) + (LUMA[2] * rgb[2])
   const cd = l / Math.max(gainOverEarth, 1e-30) * EXPOSURE_UNIT_CD_M2
-  const grey = scotopicWeight(cd) * eye
-  return neutral(rgb.map((v) => (v + ((l - v) * grey)) * gain))
+  const rods = scotopicWeight(cd)
+  const grey = rods * eye
+  // The rods' summation, the extended gain's reason, is theirs: light the
+  // cones see (the zodiacal light within a few degrees of the Sun, 0.03-2
+  // cd/m²) takes the stars' gain, as its colour comes back.
+  const g = 1 + ((gain - 1) * rods)
+  return neutral(rgb.map((v) => (v + ((l - v) * grey)) * g))
 }
 
 
@@ -278,12 +283,13 @@ uniform float uEyeMode;
 const float EXPOSURE_UNIT_CD_M2 = ${EXPOSURE_UNIT_CD_M2.toExponential(6)};
 vec3 extendedToDisplay(vec3 rgb) {
   float l = dot(rgb, vec3(${LUMA.join(', ')}));
+  if (!(l > 0.0)) return vec3(0.0);
   float cd = l / max(uExposureRelative, 1.0e-30) * EXPOSURE_UNIT_CD_M2;
   float lo = ${Math.log10(MESOPIC_CD_M2[0]).toFixed(6)};
   float hi = ${Math.log10(MESOPIC_CD_M2[1]).toFixed(6)};
   float t = clamp((log(max(cd, 1.0e-12)) / log(10.0) - lo) / (hi - lo), 0.0, 1.0);
-  float grey = (1.0 - t * t * (3.0 - 2.0 * t)) * uEyeMode;
-  return neutralToneMap(mix(rgb, vec3(l), grey) * uExtendedGain);
+  float rods = 1.0 - t * t * (3.0 - 2.0 * t);
+  return neutralToneMap(mix(rgb, vec3(l), rods * uEyeMode) * (1.0 + (uExtendedGain - 1.0) * rods));
 }
 vec3 displaySum(vec3 a, vec3 b) {
   return min(max(a, 0.0) + max(b, 0.0), vec3(1.0));
