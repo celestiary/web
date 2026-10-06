@@ -12,6 +12,7 @@ import * as Shaders from './star-shaders.js'
 import {sphere} from './shapes.js'
 import {newAtmosphere} from './atmos/Atmosphere'
 import {absoluteUniforms} from './hdr.js'
+import {seedUniforms, starSeed} from './starSeed.js'
 import * as Shared from '../shared.js'
 import {named} from '../utils.js'
 
@@ -124,6 +125,7 @@ export default class Star extends Object {
       [8152, 10060], // 14, T
       [8152, 10060]]// 15, Carbon star?
     const temp = tempRanges[props.spectralType]
+    const seed = seedUniforms(starSeed(props))
     // The surface's radiance is physical (HDR.md, "Physical stars"): the
     // Sun's disc is 1/θ² of a white surface facing it, θ its angular
     // radius from 1 AU, scaled by the exposure over Earth's keyed one
@@ -131,6 +133,9 @@ export default class Star extends Object {
     this.shaderMaterial = new ShaderMaterial({
       uniforms: {
         uExposureRelative: absoluteUniforms.uExposureRelative,
+        // Its own spots and granules, from its id (starSeed.js).
+        uSeedOffset: {value: new Vector3(...seed.offset)},
+        uSpotBias: {value: seed.spotBias},
         uColor: {value: new Vector3(1.0, 1.0, 1.0)},
         uLowTemp: {value: parseFloat(temp[0])},
         uHighTemp: {value: parseFloat(temp[1])},

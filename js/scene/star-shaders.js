@@ -24,6 +24,11 @@ varying vec3 vTexCoord3D;
 uniform float uHighTemp;
 uniform float uLowTemp;
 uniform float uExposureRelative;
+// The star's own pattern (starSeed.js): an offset of the noise domain, so
+// every layer, granulation and spots, is a different patch of the field, and
+// the sunspot threshold.  Zero and 1.9 are the original, unseeded Sun.
+uniform vec3 uSeedOffset;
+uniform float uSpotBias;
 // const float highTemp = 5778.;
 // const float lowTemp = highTemp / 4.;
 
@@ -161,14 +166,16 @@ float noise(vec3 position, float frequency, float persistence, float footprint) 
 //  https://www.seedofandromeda.com/blogs/51-procedural-star-rendering
 void main(void) {
 
-  // How far the noise coordinates move across a pixel.
+  // How far the noise coordinates move across a pixel (the offset is a
+  // constant, so it is the same with or without it).
   float footprint = max(length(dFdx(vTexCoord3D)), length(dFdy(vTexCoord3D)));
-  float noiseBase = (noise(vTexCoord3D, .4, 0.7, footprint) + 1.0)/2.0;
+  vec3 p = vTexCoord3D + uSeedOffset;
+  float noiseBase = (noise(p, .4, 0.7, footprint) + 1.0)/2.0;
 
   // Sunspots
   float frequency = 0.04;
-  float t1 = snoise(vTexCoord3D * frequency) * resolved(frequency, footprint) * 2.7 - 1.9;
-  float brightNoise= snoise(vTexCoord3D * .02) * resolved(.02, footprint) * 1.4 - .9;
+  float t1 = snoise(p * frequency) * resolved(frequency, footprint) * 2.7 - uSpotBias;
+  float brightNoise= snoise(p * .02) * resolved(.02, footprint) * 1.4 - .9;
 
   float ss = max(0.0, t1);
   float brightSpot = max(0.0, brightNoise);
