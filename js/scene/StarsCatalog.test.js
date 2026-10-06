@@ -50,6 +50,10 @@ describe('StarsCatalog', () => {
     catalog.read(toArrayBuffer(readFileSync(STARS_DAT)))
     catalog.readNames(readFileSync(STAR_NAMES_DAT, 'utf-8'))
     // TODO(pablo): was 5699
-    expect(catalog.hipByName.size).toEqual(5672)
+    expect(catalog.hipByName.size).toEqual(5671)
+    // Trailing colons leave empty names: '' names no star (the guide's
+    // no-hash page looked it up and drew whichever came last, #165).
+    expect(catalog.hipByName.has('')).toBe(false)
+    expect(catalog.hipByName.get('Sol')).toEqual(0)
   })
 })

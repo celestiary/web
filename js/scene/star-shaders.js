@@ -24,6 +24,11 @@ varying vec3 vTexCoord3D;
 uniform float uHighTemp;
 uniform float uLowTemp;
 uniform float uExposureRelative;
+// The star's own pattern (starSeed.js): an offset of the noise domain, so
+// every layer, granulation and spots, is a different patch of the field, and
+// the sunspot threshold.  Zero and 1.9 are the original, unseeded Sun.
+uniform vec3 uSeedOffset;
+uniform float uSpotBias;
 // const float highTemp = 5778.;
 // const float lowTemp = highTemp / 4.;
 
@@ -123,13 +128,29 @@ float snoise( vec3 v ) {
 
 const int octaves = 4;
 
-float noise(vec3 position, float frequency, float persistence) {
+// Band-limiting (the guide's small discs were speckle, #165 follow-up): the
+// noise's coordinates run about 100 across the disc's radius, and the
+// octaves 40, 80, 160 and 320 cycles per radius, so on a disc of a few tens
+// of pixels the finer octaves are far under a pixel and alias into noise.
+// Each octave, and the sunspot terms, is faded out as its feature (the
+// reciprocal of its frequency, in coordinate units) shrinks toward the
+// pixel's footprint, from 6 px down to 2.5 px a cycle: a small disc shows
+// the mean surface colour (the faded noise averages to 0, so the colour it
+// is mapped through stays at the middle), and the granulation comes in as the
+// disc grows, as granules resolve.  Frequencies are cycles per coordinate
+// unit, the footprint coordinate units per pixel, so their product is
+// cycles per pixel.
+float resolved(float frequency, float footprint) {
+  return 1.0 - smoothstep(0.15, 0.4, frequency * footprint);
+}
+
+float noise(vec3 position, float frequency, float persistence, float footprint) {
   float total = 0.0; // Total value so far
   float maxAmplitude = 0.0; // Accumulates highest theoretical amplitude
   float amplitude = 1.0;
   for (int i = 0; i < octaves; i++) {
     // Get the noise sample
-    total += snoise(position * frequency) * amplitude;
+    total += snoise(position * frequency) * amplitude * resolved(frequency, footprint);
     // Make the wavelength twice as small
     frequency *= 2.0;
     // Add to our maximum possible amplitude
@@ -145,12 +166,16 @@ float noise(vec3 position, float frequency, float persistence) {
 //  https://www.seedofandromeda.com/blogs/51-procedural-star-rendering
 void main(void) {
 
-  float noiseBase = (noise(vTexCoord3D, .4, 0.7) + 1.0)/2.0;
+  // How far the noise coordinates move across a pixel (the offset is a
+  // constant, so it is the same with or without it).
+  float footprint = max(length(dFdx(vTexCoord3D)), length(dFdy(vTexCoord3D)));
+  vec3 p = vTexCoord3D + uSeedOffset;
+  float noiseBase = (noise(p, .4, 0.7, footprint) + 1.0)/2.0;
 
   // Sunspots
   float frequency = 0.04;
-  float t1 = snoise(vTexCoord3D * frequency) * 2.7 - 1.9;
-  float brightNoise= snoise(vTexCoord3D * .02) * 1.4 - .9;
+  float t1 = snoise(p * frequency) * resolved(frequency, footprint) * 2.7 - uSpotBias;
+  float brightNoise= snoise(p * .02) * resolved(.02, footprint) * 1.4 - .9;
 
   float ss = max(0.0, t1);
   float brightSpot = max(0.0, brightNoise);
