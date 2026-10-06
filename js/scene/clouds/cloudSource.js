@@ -211,6 +211,10 @@ export function coverageFromColour(r, g, b, gr, gg, gb) {
 }
 
 
+// 1 / (255 · (W − G)) for each ground level G, 0-255: unmix's divisor.
+const UNMIX = Float32Array.from({length: 256}, (_, g) => 1 / 255 / Math.max(CLOUD_WHITE - (g / 255), MIN_CONTRAST))
+
+
 /**
  * @param {number} o The mosaic's channel, 0-255
  * @param {number} ground The ground's, 0-255
@@ -223,11 +227,14 @@ function unmix(o, ground) {
 
 /**
  * The bundled cloud texture's grey levels as coverage: it is an infrared
- * picture, whose warm ground shows grey (0.3-0.45 over the deserts and
- * Australia), and whose cold, high cloud is white.
+ * picture, whose warm ground shows grey (0.29-0.36 over Australia, the
+ * quartiles to the 90th percentile), and whose cold, high cloud is white.
+ * Stretched from just over that ground, its mean coverage between 60° N
+ * and S is 0.26; a daily mosaic's unmixes to about 0.46, so the fallback
+ * is the less cloudy of the two (the picture misses low, warm cloud).
  */
-export const BUNDLED_CLEAR = 0.4
-export const BUNDLED_FULL = 0.9
+export const BUNDLED_CLEAR = 0.37
+export const BUNDLED_FULL = 0.65
 
 
 /**
@@ -258,18 +265,42 @@ export function coverageFromBundled(v) {
  */
 export function unmixTile(obs, obsStride, region, ground, out, fill, unseen, mapWidth, gapsOnly = false) {
   const {x, y, w, h} = region
-  const cov = new Float32Array(w * h)
+  // coverageFromColour, inlined over a table of 1 / (W − G) (a few ms a
+  // tile, where the calls took tens).
+  const cov = new Uint8Array(w * h)
   const gap = new Uint8Array(w * h)
+  const scale = 255 / (COVERAGE_FULL - COVERAGE_CLEAR)
+  let gaps = 0
   for (let j = 0; j < h; j++) {
-    for (let i = 0; i < w; i++) {
-      const o = 4 * ((j * obsStride) + i)
-      const gi = 4 * (((y + j) * mapWidth) + x + i)
-      const c = coverageFromColour(obs[o], obs[o + 1], obs[o + 2], ground[gi], ground[gi + 1], ground[gi + 2])
-      cov[(j * w) + i] = c
-      gap[(j * w) + i] = c < 0 ? 1 : 0
+    let o = 4 * j * obsStride
+    let gi = 4 * (((y + j) * mapWidth) + x)
+    let k = j * w
+    for (let i = 0; i < w; i++, o += 4, gi += 4, k++) {
+      const r = obs[o]
+      const g = obs[o + 1]
+      const b = obs[o + 2]
+      if (r <= NO_DATA_MAX && g <= NO_DATA_MAX && b <= NO_DATA_MAX) {
+        gap[k] = 1
+        gaps++
+        continue
+      }
+      const gr = ground[gi]
+      const gg = ground[gi + 1]
+      const gb = ground[gi + 2]
+      let c = (r - gr) * UNMIX[gr]
+      const cg = (g - gg) * UNMIX[gg]
+      const cb = (b - gb) * UNMIX[gb]
+      if (cg < c) {
+        c = cg
+      }
+      if (cb < c) {
+        c = cb
+      }
+      const v = (c - COVERAGE_CLEAR) * scale
+      cov[k] = v <= 0 ? 0 : (v >= 255 ? 255 : Math.round(v))
     }
   }
-  const near = dilate(gap, w, h, GAP_MARGIN)
+  const near = gaps > 0 ? dilate(gap, w, h, GAP_MARGIN) : gap
   let missing = 0
   for (let j = 0; j < h; j++) {
     for (let i = 0; i < w; i++) {
@@ -284,7 +315,7 @@ export function unmixTile(obs, obsStride, region, ground, out, fill, unseen, map
         out[m] = fill[m]
       } else {
         unseen[m] = 0
-        out[m] = Math.round(cov[k] * 255)
+        out[m] = cov[k]
       }
     }
   }
@@ -326,4 +357,95 @@ export function dilate(mask, w, h, radius) {
     }
   }
   return out
+}
+
+
+/**
+ * Gaps no layer saw, narrower than this (pixels), are filled from the
+ * pixels either side of them: MODIS's gaps between swaths, where Aqua's and
+ * Terra's cross near the equator (a few degrees wide).  Wider ones (polar
+ * night) keep the bundled texture's coverage.
+ */
+export const GAP_FILL_MAX_PX = 96
+
+// Rows each way the filled pixels are smoothed over, so a fill isn't a
+// stack of horizontal streaks.
+const GAP_SMOOTH_ROWS = 3
+
+
+/**
+ * Fill the region's narrow unseen gaps from the coverage either side, row
+ * by row, then smooth the filled pixels down the columns.  Unseen pixels
+ * that were filled are marked seen.
+ *
+ * @param {Uint8Array} out The map's coverage
+ * @param {Uint8Array} unseen The map's unseen mask
+ * @param {object} rect The region, {x, y, w, h}
+ * @param {number} width The map's
+ * @param {number} [maxRun]
+ * @returns {number} How many pixels were filled
+ */
+export function fillNarrowGaps(out, unseen, rect, width, maxRun = GAP_FILL_MAX_PX) {
+  const {x, y, w, h} = rect
+  const filled = new Uint8Array(w * h)
+  let count = 0
+  for (let j = 0; j < h; j++) {
+    const row = ((y + j) * width) + x
+    let i = 0
+    while (i < w) {
+      if (!unseen[row + i]) {
+        i++
+        continue
+      }
+      const start = i
+      while (i < w && unseen[row + i]) {
+        i++
+      }
+      const run = i - start
+      if (start === 0 || i === w || run > maxRun) {
+        continue
+      }
+      const a = out[row + start - 1]
+      const b = out[row + i]
+      for (let k = start; k < i; k++) {
+        out[row + k] = Math.round(a + ((b - a) * (k - start + 1) / (run + 1)))
+        filled[(j * w) + k] = 1
+        count++
+      }
+    }
+  }
+  if (count === 0) {
+    return 0
+  }
+  // Down the columns: each filled pixel the mean of the column's pixels
+  // within GAP_SMOOTH_ROWS that were filled or seen.
+  const before = new Uint8Array(w * h)
+  for (let j = 0; j < h; j++) {
+    const start = ((y + j) * width) + x
+    before.set(out.subarray(start, start + w), j * w)
+  }
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      if (!filled[(j * w) + i]) {
+        continue
+      }
+      let sum = 0
+      let n = 0
+      for (let d = Math.max(0, j - GAP_SMOOTH_ROWS); d <= Math.min(h - 1, j + GAP_SMOOTH_ROWS); d++) {
+        if (filled[(d * w) + i] || !unseen[((y + d) * width) + x + i]) {
+          sum += before[(d * w) + i]
+          n++
+        }
+      }
+      out[((y + j) * width) + x + i] = Math.round(sum / n)
+    }
+  }
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      if (filled[(j * w) + i]) {
+        unseen[((y + j) * width) + x + i] = 0
+      }
+    }
+  }
+  return count
 }

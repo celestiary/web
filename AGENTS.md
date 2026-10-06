@@ -88,6 +88,15 @@ tried and dropped.
     (`material.visible = false`) and compare pixels at its projected
     spot, rather than reading absolute values off a starfield. Hide the
     label LODs and orbit lines first.
+- **Earth's clouds load from NASA GIBS** a second after the date settles
+  (js/scene/Planet.md#clouds). Wait on
+  `c.ui.sceneManager.objects.earth.clouds.userData.map.status`
+  (`tilesDone === tilesTotal`, or `loaded` for the bundled fallback)
+  before reading a frame, and after `c.time.setTime(ms)` run one
+  `renderLoop` before placing the camera by latitude and longitude: the
+  Earth turns to the new time only when the frame animates. To compare
+  with and without clouds, move the shell off its layer
+  (`clouds.layers.set(31)`); its `visible` is rewritten every frame.
 - **A permalink restores its time and view only with a camera
   quaternion (`cq=`).** Without one the whole fragment is ignored, and
   the app runs at the current real time. To test a date, set it with

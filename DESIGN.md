@@ -125,7 +125,8 @@ So a PR that adds or changes a dataset previews its own data, and every other PR
                                 └── 'new planet' (Object3D, unrotated)
                                       ├── planetLOD
                                       │     ├── [near] planet: spun node, scene.objects[name]
-                                      │     │         (surface mesh + atmosphere + clouds, places)
+                                      │     │         (surface mesh + atmosphere, places;
+                                      │     │          Earth's cloud shell, on CLOUD_LAYER)
                                       │     ├── [far]  single Point sprite
                                       │     └── [very far] FAR_OBJ (invisible)
                                       └── labelLOD
@@ -173,7 +174,7 @@ for Jupiter by `texture_rotation` ([Body rotation](#body-rotation-iau-prime-meri
    - If `targets.track` is set, calls `lookAtTarget()` each frame
 7. Camera-look tween update (`targets.tween`)
 8. `_applyCameraArrowKeys()` — apply held-key pitch/roll last so they always win
-9. Render: the scene into `_sceneRT` (linear, half-float, in exposure units), Cesium's layers composited into it, then the atmosphere pass to the screen, which adds the sky and tone-maps once (PBR Neutral), then the label overlay.  See [HDR pipeline](#hdr-pipeline).
+9. Render: the scene into `_sceneRT` (linear, half-float, in exposure units), Cesium's layers composited into it, Earth's cloud shell over both ([Planet.md, clouds](js/scene/Planet.md#clouds)), then the atmosphere pass to the screen, which adds the sky and tone-maps once (PBR Neutral), then the label overlay.  See [HDR pipeline](#hdr-pipeline).
 
 The whole of `renderLoop()` is bracketed by `stats.begin()`/`stats.end()` while the performance panel is showing ([Performance panel](#performance-panel)); hidden, it costs nothing.
 
@@ -638,6 +639,7 @@ Go and Enter travel ([js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at)).
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
 | Named star (e.g. Sun) | Procedural Perlin noise GLSL surface shader (convection-like texture) |
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
+| Earth's clouds | A shell 6 km up on its own layer, drawn after the Cesium composite so it covers both sides: the date's NASA GIBS true colour unmixed into coverage, Lambert-lit in exposure units, shadowing the ground ([Planet.md, clouds](js/scene/Planet.md#clouds)) |
 | Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
 | Saturn rings | Double-sided `RingGeometry` with texture |
 | Orbit paths | A wide line strip (`wideLines.js`, 1.5 px, additive, on the overlay layer after the atmosphere): the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
@@ -927,6 +929,7 @@ and the provider extension contract.
 | `js/scene/StellarFrame.js` | Parent of the J2000 catalogues: precesses them to the simulation date |
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
+| `js/scene/clouds/` | Earth's clouds: `cloudSource.js` (date to GIBS layer, unmixing; pure), `CloudMap.js` (loading, the coverage texture), `CloudShell.js` (the shell and its shader) |
 | `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |
 | `js/scene/Star.js` | Named star with noise shader |
 | `js/scene/Stars.js` | Star field from Celestia catalog |

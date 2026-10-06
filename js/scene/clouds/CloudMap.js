@@ -14,6 +14,7 @@ import {
   TILE_PX,
   cloudSource,
   coverageFromBundled,
+  fillNarrowGaps,
   tileGrid,
   tileRect,
   tileUrl,
@@ -30,9 +31,9 @@ import {
  * (nothing, at first).  Planet.md, "Clouds".
  *
  * update() is called every frame (the shell's preAnimCb); it starts a load
- * when the date's source changes and has stayed changed for SETTLE_MS (a
- * clock running at days a second doesn't start a load a frame).  A load
- * for a stale date is abandoned between tiles.
+ * once the date's source has stayed the same for SETTLE_MS (a clock running
+ * at days a second doesn't start a load a frame).  A load for a stale date
+ * is abandoned between tiles.
  */
 export default class CloudMap {
   /**
@@ -90,8 +91,9 @@ export default class CloudMap {
     if (key === this._loadingKey) {
       return
     }
-    // The first load straight away; later ones once the date has settled.
-    if (this._loadingKey !== null && now - this._wantedSince < SETTLE_MS) {
+    // Once the date has settled: a permalink sets the clock just after the
+    // app starts, and a clock running at days a second passes through.
+    if (now - this._wantedSince < SETTLE_MS) {
       return
     }
     this._loadingKey = key
@@ -151,6 +153,8 @@ export default class CloudMap {
     this.status = {
       kind: 'daily', date, satellites: layers.map((l) => l.satellite),
       tilesDone: 0, tilesTotal: cols * rows, tilesFailed: 0,
+      // Main-thread time spent unmixing, ms.
+      unmixMs: 0,
     }
     const status = this.status
     const month = Number(date.slice(5, 7))
@@ -185,9 +189,15 @@ export default class CloudMap {
           markRegion(unseen, rect, this.width, 1)
         }
         any = true
+        const t0 = performance.now()
         missing = unmixTile(pixels, TILE_PX, rect, ground, this.coverage, bundled, unseen, this.width, true)
+        status.unmixMs += performance.now() - t0
       }
-      if (!any) {
+      if (any) {
+        const t0 = performance.now()
+        fillNarrowGaps(this.coverage, unseen, rect, this.width)
+        status.unmixMs += performance.now() - t0
+      } else {
         // No clouds there, rather than the last day's.
         fillRegion(this.coverage, rect, this.width, 0)
         status.tilesFailed++
@@ -240,7 +250,7 @@ export default class CloudMap {
 }
 
 
-// A changed date waits this long, ms, before its clouds load.
+// A date is wanted for this long, ms, before its clouds load.
 const SETTLE_MS = 1000
 
 // Tiles fetched at once.

@@ -8,6 +8,7 @@ import {
   coverageFromBundled,
   coverageFromColour,
   dilate,
+  fillNarrowGaps,
   tileGrid,
   tileRect,
   tileUrl,
@@ -145,9 +146,10 @@ describe('coverageFromColour', () => {
 describe('coverageFromBundled', () => {
   it('drops the infrared picture\'s warm grey ground and keeps its white cloud', () => {
     expect(coverageFromBundled(0)).toBe(0)
-    expect(coverageFromBundled(100)).toBe(0) // Australia, the Sahara: 0.3-0.4
+    expect(coverageFromBundled(92)).toBe(0) // Australia: 0.29-0.36
     expect(coverageFromBundled(255)).toBe(1)
-    expect(coverageFromBundled(166)).toBeGreaterThan(0.2)
+    expect(coverageFromBundled(166)).toBe(1)
+    expect(coverageFromBundled(130)).toBeGreaterThan(0.4)
   })
 })
 
@@ -233,5 +235,40 @@ describe('farFieldOpacity', () => {
     expect(farFieldOpacity(CLOUD_HEIGHT_M + lo)).toBe(0)
     expect(farFieldOpacity(0)).toBe(0)
     expect(farFieldOpacity(CLOUD_HEIGHT_M + ((hi + lo) / 2))).toBeCloseTo(0.5, 6)
+  })
+})
+
+
+describe('fillNarrowGaps', () => {
+  it('fills a narrow gap from either side and leaves a wide one', () => {
+    const w = 12
+    const h = 3
+    const out = new Uint8Array(w * h)
+    const unseen = new Uint8Array(w * h)
+    for (let j = 0; j < h; j++) {
+      for (let i = 0; i < w; i++) {
+        out[(j * w) + i] = i < 6 ? 100 : 200
+      }
+      // A 2-pixel gap at 5-6 in every row.
+      unseen[(j * w) + 5] = 1
+      unseen[(j * w) + 6] = 1
+      out[(j * w) + 5] = 7
+      out[(j * w) + 6] = 7
+    }
+    // A run to the region's edge isn't filled.
+    unseen[(1 * w) + 11] = 1
+    out[(1 * w) + 11] = 7
+    const n = fillNarrowGaps(out, unseen, {x: 0, y: 0, w, h}, w, 4)
+    expect(n).toBe(2 * h)
+    expect(out[5]).toBe(133)
+    expect(out[6]).toBe(167)
+    expect(unseen[5]).toBe(0)
+    expect(out[(1 * w) + 11]).toBe(7)
+    expect(unseen[(1 * w) + 11]).toBe(1)
+    // Wider than maxRun: left alone.
+    const out2 = new Uint8Array(w).fill(50)
+    const unseen2 = new Uint8Array(w)
+    unseen2.fill(1, 2, 9)
+    expect(fillNarrowGaps(out2, unseen2, {x: 0, y: 0, w, h: 1}, w, 4)).toBe(0)
   })
 })

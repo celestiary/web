@@ -130,6 +130,163 @@ the sun is `−planetWorldPos.normalize()`, then `.transformDirection`
 into the camera's view matrix to match `vNormal` (which Three.js writes
 in view space).
 
+## Clouds
+
+Earth's clouds are a layer of their own (#88), not baked into the surface:
+the Blue Marble on both sides of the Cesium swap is cloud-free, so one cloud
+shell is drawn over whichever surface is there.  `earth.json` turns it on
+(`"clouds": "gibs"`); the code is `js/scene/clouds/`.
+
+### Source: NASA GIBS's daily true colour
+
+The simulation date's **Corrected Reflectance (true colour)** mosaic from
+NASA GIBS (Global Imagery Browse Services), WMTS in plate carrée (EPSG:4326,
+`best`), the `250m` matrix set at **level 2**: 5 × 3 tiles of 512 px (the
+last row half past the south pole), a 2560 × 1280 map, about 16 km a pixel
+at the equator, about 1.2 MB of JPEG a day.  Fetched from
+`gibs.earthdata.nasa.gov`, which sends CORS headers; no key.  NASA imagery,
+public domain; GIBS asks to be acknowledged ("imagery provided by services
+from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth
+Science Data and Information System (ESDIS)").
+
+The layer, by date (`cloudSource.js`, `cloudSource`; start dates from
+GIBS's GetCapabilities, 2026-10):
+
+| Date | Primary | Fills its gaps |
+|---|---|---|
+| from 2018-01-05 | `VIIRS_NOAA20_CorrectedReflectance_TrueColor` | `VIIRS_SNPP_…` |
+| 2015-11-24 to 2018-01-04 | `VIIRS_SNPP_CorrectedReflectance_TrueColor` | `MODIS_Aqua_…` |
+| 2002-07-03 to 2015-11-23 | `MODIS_Aqua_CorrectedReflectance_TrueColor` | `MODIS_Terra_…` |
+| 2000-02-24 to 2002-07-02 | `MODIS_Terra_CorrectedReflectance_TrueColor` | |
+| the present (the last ~27 h) | the latest complete UTC day's, as above | |
+| before 2000-02-24, or the future | the bundled texture (below) | |
+
+A day's mosaic is one UTC day of the satellite's swaths, each place seen once
+at its local overpass time (13:30 for Aqua and the VIIRS, 10:30 for Terra).
+So the clouds don't move with the simulation's time of day: they are that
+day's early-afternoon clouds everywhere.  VIIRS's swaths overlap, so its
+gaps are polar night; MODIS's leave wedges between swaths at the equator,
+which the second satellite's cross.  GIBS answers 404 for a day missing from
+a layer (there are a few in each), and the secondary covers it.
+
+**Why true colour.**  It is what NASA's photographs of Earth show (thin
+cloud translucent, thick cloud white), from the same instruments as the
+Blue Marble under it, at the map's full resolution, in a JPEG that needs no
+colour table.  The alternatives on GIBS:
+
+- Cloud fraction (`MODIS_*_Cloud_Fraction_Day`) and the cloud mask: a
+  fraction of a 5 km cell, not an appearance (thin cirrus counts as fully
+  cloudy), in a colour-mapped PNG to decode.
+- Cloud-top temperature, height or pressure, and the infrared brightness
+  temperature (`MODIS_*_Brightness_Temp_Band31_*`): day and night, but warm,
+  low cloud reads as ground; colour-mapped.  Worth having for the night
+  side, and for #169's cloud heights.
+- The geostationary infrared (`GOES-East_ABI_Band13_Clean_Infrared`,
+  `Himawari_AHI_…`): near real time, but each only its own disc, and only
+  for recent years.
+- Monthly fields (`MERRA2_ISCCP_Cloud_Albedo_Monthly`, from 1980): smooth
+  50 km means, which look like haze, not clouds.
+
+### From a picture to coverage: unmixing over the Blue Marble
+
+Each pixel of the mosaic is taken as a white cloud of coverage `c` over the
+known ground `G`, the month's Blue Marble (stored values, 0-1), scaled to the
+map: `O = c·W + (1 − c)·G`, with `W` = `CLOUD_WHITE` 0.92 (a thick cloud top
+in the mosaics, just short of saturating).  Each channel gives `c = (O − G) /
+(W − G)` (its denominator floored at 0.05, for snow and ice); the least of the
+three is taken, as a cloud brightens all three, and a shift in one (smoke,
+greener vegetation than 2004's, a different stretch) isn't cloud.  Then 0.15
+to 0.85 is stretched to 0-1 (`COVERAGE_CLEAR`, `COVERAGE_FULL`): over a MODIS
+Aqua day (2005-08-28) and a VIIRS NOAA-20 day (2025-04-12), against the
+month's Blue Marble, clear ocean unmixes to 0.05-0.15 (the mosaics' ocean is
+hazier than the Blue Marble's), clear land to about 0, and thick cloud to
+0.9-1.0.
+
+Because the clouds are unmixed against the very ground they are drawn over,
+cloud over ground in the scene buffer (`c × the lit cloud + (1 − c) × the lit
+ground`, both stored × Lambert) gives back the mosaic, in the same stored
+values as every surface (HDR.md, "Colour spaces").
+
+- **No data** is black (every channel 3 or under, of 255), and so are the
+  two pixels round it (JPEG darkens a gap's edges, which would unmix as
+  clear).  It is filled from the secondary layer's tile, fetched when more
+  than 0.2% of the tile is unseen; then, where the gap is under 96 px wide
+  (MODIS's wedges where Aqua's and Terra's cross), from the coverage either
+  side along the row, smoothed down the column; and what's left (polar
+  night) from the bundled texture.  Polar night is dark, so there the fill
+  shows only in the night lights it dims.
+- **A tile neither layer can serve** (the network, or a day missing from
+  both) has no clouds, and the load logs one warning.  Each tile is tried
+  twice.
+- **Known flaws.**  Sun glint over the ocean, grey streaks along the
+  swaths' centres, unmixes as thin cloud (0.2-0.5).  Snow and sea ice that
+  differ from 2004's unmix as cloud, and snow under cloud is hard to see
+  through (the floor of 0.05).  Neither has a simple fix without the
+  viewing geometry or a snow mask.
+
+**The bundled texture**, `earth/earth_atmos.jpg` (2048 × 1024, greyscale; its
+source wasn't recorded), stands in where there is no daily mosaic.  It is an
+infrared cloud picture: cold, high cloud white, and the warm ground grey
+(0.29-0.36 over Australia), so 0.37 to 0.65 is stretched to 0-1
+(`BUNDLED_CLEAR`, `BUNDLED_FULL`).  Its mean coverage between 60° N and S
+is then 0.26, against about 0.46 for a daily mosaic: the picture misses
+low, warm cloud, so the fallback is the less cloudy.
+
+**Loading** (`CloudMap.js`) never holds up a frame.  The map is a one-byte
+`DataTexture` (2560 × 1280, mipmapped), empty at first; once the simulation
+date has been the same for a second (a permalink sets the clock just after
+start-up; a clock running at days a second passes dates by), its tiles are
+fetched four at a time, decoded (`createImageBitmap`, a canvas), unmixed on
+the main thread (a few ms a tile) and uploaded as each arrives, so the
+clouds fill in region by region.  A new date's tiles replace the old date's
+as they come; a load for a date no longer wanted stops between tiles.  The
+month's Blue Marble is fetched again for its pixels (the browser's cache
+has it).  Tests have no DOM, so `CloudMap` doesn't load there.
+
+### Drawing: one shell over both sides of the swap
+
+A sphere 6 km over the ground sphere (`CLOUD_HEIGHT_M`), a child of the
+rotating planet node, outside the surface group (which a Cesium layer
+hides), on its own layer (`CLOUD_LAYER`).  ThreeUi draws that layer into the
+scene buffer after the Cesium composite and before the atmosphere pass
+(`ThreeUi._drawClouds`), so:
+
+- **One renderer, nothing to match.**  The same shell covers celestiary's
+  surface and Cesium's globe (and the crossfade between them): `yarn
+  parity`'s cloudy view reads the same on both (CESIUM.md).
+- **Lit in exposure units.**  A white cloud's radiance in three's units,
+  `CLOUD_WHITE × E / π × max(N·L, 0)` (E the Sun's irradiance at Earth,
+  `irradianceAt`), through three's tone-mapping chunk: the scene pass's
+  exposure in the HDR buffer, PBR Neutral in the LDR fallback.  So a sunlit
+  cloud is 0.92 × 1.5 at the keyed exposure, as a surface of that albedo
+  is, and the terminator is Lambert's, as the ground's.
+- **Inside the atmosphere.**  The shell writes no depth: the atmosphere pass
+  reads the ground's behind it and hazes the cloud as the ground 6 km under
+  it, which from orbit is the same haze.
+- **Over the night lights.**  Both sides' lights are in the buffer by then
+  (celestiary's surface shader, Cesium's lights pass), and a cloud of
+  coverage `c` passes `1 − c` of them: an unlit cloud is a dark patch over
+  the cities.
+- **Shadows.**  Per pixel, the ground behind the cloud along the view ray,
+  and the cloud between that ground and the Sun; that coverage (at a coarser
+  mip), times `SHADOW_STRENGTH` 0.6 (the direct beam, less the sky's light),
+  darkens the ground.  From high up the shadow sits under its cloud; near the
+  terminator it falls tens of km off (6 km / tan of the Sun's elevation).
+- **Premultiplied-over, coverage alpha.**  Colour × coverage over the
+  buffer, one minus the alpha passing what's under it: `1 − (1 − c)(1 − s)`,
+  the cloud's coverage and its shadow's.  The alpha is coverage, as
+  portal's alpha contract has it.
+- **The far field only.**  Its texels are 16 km, a blur from close up, so the
+  shell fades out as the camera comes down to the deck: fully drawn 24 km
+  over it (30 km up), gone 4 km over it (10 km up), smoothstep between
+  (`FAR_FIELD_FADE_M`, `farFieldOpacity`), and never drawn from below it.
+  This is the seam for #169's volumetric clouds, seeded from this map,
+  which cross in over that band.
+
+Cost: a sphere of 256 × 128 segments and one more scene traversal a frame
+for the layer (as the label overlay's), the coverage texture's 3.3 MB (4.4
+with mips), and per pixel two texture reads and two ray-sphere solves.
+
 ## Lighting and exposure
 
 The Sun is a `PointLight` of `SUN_LUMINOUS_INTENSITY` falling off as
