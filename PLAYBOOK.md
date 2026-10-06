@@ -176,19 +176,21 @@ pulls z a few ulps inside.  **Rule:** never leave geometry on a clip
 plane by arithmetic; when a probe reads a coordinate at exactly ±1,
 treat it as a bug on some GPU.
 
-**And sqrt(FLT_MAX) is 2^64 m, 1,950 ly.**  With the far plane fixed,
-Alnilam (1,977 ly) still vanished on the M2 near the screen's centre
-and came back with a yaw.  The shader squared no distance (its inverse
-square was already in Gm, after `4π·d²` in metres zeroed every star
-past 550 ly), but clip-space w is the distance along the view axis in
-metres, and the GPU's own arithmetic after the shader squares it, or
-multiplies two clip coordinates: past 2^64, Inf, within acos(2^64 / d)
-of the axis.  The probe's numbers (finite lumens, an ordinary sprite,
-no occluder) ruled out everything in the star's own maths; the angle,
-9.4°, matched w alone.  **Rule:** no squared distance in metres in a
-float32 shader, and no clip coordinates in metres past 2^64 handed to
-the GPU: divide through to w = 1 (`stars.vert` `clipToW1`, as the wide
-lines do), or work in a scaled unit before squaring.
+**And sqrt(FLT_MAX) is 2^64 m, 1,950 ly, after the compiler too.**
+With the far plane fixed, stars past 1,950 ly from the camera still
+went black on the M2 and never on SwiftShader.  The source squared only
+Gm, (z·1e-9)² against a 1e-18; but Metal compiles with fast math, which
+may reassociate and cancel those constants into z² in metres: Inf, a
+star of no light.  A first fix that divided clip w out changed nothing
+on the user's Mac; what found it was writing the folded form into the
+shader on SwiftShader, which reproduced the user's frames exactly
+(Alnilam black within 9.4° of the axis, Thabit and Na'ir al Saif going
+as the camera passed 2^64 m from each).  **Rule:** in a float32 shader,
+no square or dot of a distance in metres, and no scale factor the
+compiler could cancel back into one: take an inverse square in logs, a
+length through a non-algebraic barrier (`clamp`, `max`: `rte.js`
+`SAFE_LENGTH_GLSL`).  And to test a fix for a GPU you don't have,
+render the forms its compiler may legally produce, not only the source.
 
 ### GPU shader degenerate cases need explicit guards
 

@@ -15,7 +15,7 @@ import {
 } from 'three'
 import {LIGHTYEAR_METER} from '../shared.js'
 import {sceneReferred} from './hdr.js'
-import {rteCameraLocal} from './rte.js'
+import {SAFE_LENGTH_GLSL, rteCameraLocal} from './rte.js'
 
 
 /**
@@ -113,6 +113,8 @@ const vertexShader = `
   varying float vHalf;
 
   const vec4 CULLED = vec4(0.0, 0.0, 2.0, 1.0);
+  // Lengths in metres, light-years out: no metres squared (rte.js).
+  ${SAFE_LENGTH_GLSL}
 
   void main() {
 #ifdef STRIP
@@ -138,7 +140,7 @@ const vertexShader = `
 #endif
     // As trimToFront.  The cut's depth is set, not computed: computed, it
     // carries the mix's float32 error, which can put it behind the camera.
-    float zCut = -max(uNear, ${TRIM_FRACTION.toExponential()} * length(ve - vs));
+    float zCut = -max(uNear, ${TRIM_FRACTION.toExponential()} * safeLength(ve - vs));
     if (vs.z > zCut && ve.z > zCut) {
       gl_Position = CULLED;
       return;
@@ -170,7 +172,7 @@ const vertexShader = `
     }
     w *= 1.0 + boost;
     if (uAttenuation > 0.0) {
-      w *= min(uAttenuation / length(atEnd ? ve : vs), ${MAX_ATTENUATION_GAIN.toFixed(1)});
+      w *= min(uAttenuation / safeLength(atEnd ? ve : vs), ${MAX_ATTENUATION_GAIN.toFixed(1)});
     }
     w *= uPixelRatio;
     // Half the quad's width: half the line's, and a pixel for its edge.

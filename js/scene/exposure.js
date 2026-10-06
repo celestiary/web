@@ -707,9 +707,11 @@ export const FLOAT32_SQRT_MAX = Math.sqrt(FLOAT32_MAX)
  * (what stars.vert handed the GPU before), and as stars.vert hands it on,
  * divided through to w = 1 (clipToW1), for tests (HDR.md, "Physical
  * stars").  The star is at distance d, θ off the view axis.  The clip
- * coordinates' w is d·cos θ in metres, and its square, which the GPU's
- * side of the shader computes in some form, is Inf once that passes
- * FLOAT32_SQRT_MAX: Alnilam, 1,977 ly, within 9.4° of the axis.
+ * coordinates' w is d·cos θ in metres, and its square, should the GPU's
+ * side of the shader compute one, is Inf once that passes
+ * FLOAT32_SQRT_MAX: Alnilam, 1,977 ly, within 9.4° of the axis.  (A
+ * precaution: what dropped such stars on an M2 was the inverse square
+ * folded by fast math, starClip.test.js.)
  *
  * @param {number} distanceMeters d
  * @param {number} offAxisRad θ, toward the top of the screen

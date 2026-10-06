@@ -11,6 +11,7 @@ import {
 } from 'three'
 import * as Utils from '../utils.js'
 import {sceneReferred} from './hdr.js'
+import {SAFE_LENGTH_GLSL} from './rte.js'
 import {
   labelTextColor as defaultTextColor,
   labelTextFont as sharedDefaultFont,
@@ -261,10 +262,12 @@ const vertexShader = `
   attribute vec2 size;
   attribute vec4 spriteCoord;
   varying vec4 spriteCoordVarying;
+  ${SAFE_LENGTH_GLSL}
   void main() {
     vec3 offsetPos = vec3(position.x + padding.x, position.y + padding.y, position.z);
     vec4 mvPosition = modelViewMatrix * vec4(offsetPos, 1.0);
-    mvPosition.xyz -= normalize(mvPosition.xyz) * towardEye;
+    // Not normalize(): metres squared (rte.js SAFE_LENGTH_GLSL).
+    mvPosition.xyz -= safeNormalize(mvPosition.xyz) * towardEye;
     spriteCoordVarying = spriteCoord;
     gl_PointSize = size[0];
     gl_Position = projectionMatrix * mvPosition;
@@ -322,6 +325,7 @@ const surfaceVertexShader = `
   attribute vec4 spriteCoord;
   varying vec4 spriteCoordVarying;
   varying float vVisible;
+  ${SAFE_LENGTH_GLSL}
   void main() {
     vec3 offsetPos = vec3(position.x + padding.x, position.y + padding.y, position.z);
     vec4 mvPosition = modelViewMatrix * vec4(offsetPos, 1.0);
@@ -329,7 +333,7 @@ const surfaceVertexShader = `
     vec3 bodyCentreView = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vec3 normalView = normalize(mvPosition.xyz - bodyCentreView);
     // Camera at origin in view space; direction from sprite to camera = -mvPosition.
-    vec3 viewDir = normalize(-mvPosition.xyz);
+    vec3 viewDir = safeNormalize(-mvPosition.xyz);
     vVisible = dot(normalView, viewDir) > 0.0 ? 1.0 : 0.0;
     spriteCoordVarying = spriteCoord;
     gl_PointSize = size[0];

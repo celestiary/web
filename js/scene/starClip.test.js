@@ -103,3 +103,129 @@ describe('a star past 2^64 m (1,950 ly)', () => {
     expect(worst).toBeLessThanOrEqual(1)
   })
 })
+
+
+// What a fast-math compiler (Metal's) may legally make of stars.vert's
+// inverse square, replayed in float32: it may reassociate and cancel the
+// constant scales, so (z·1e-9)² against the 1e-18 becomes z² in metres.
+// SwiftShader computes the source as written.  stars.vert now takes the
+// inverse square in logs, past a max(): no algebra makes a square of d.
+describe('a star\'s light under fast math', () => {
+  const ly = LIGHTYEAR_METER
+  const f32 = Math.fround
+  const deg = Math.PI / 180
+  const fourPi = f32(4 * Math.PI)
+  const alnilam = 1976.826 * ly
+  const alnilamLumens = 1.98e33
+  // main's source, as written and as folded; the fixed source, in logs.
+  const asWritten = (lumens, z) => {
+    const distGm = f32(f32(z) * f32(1e-9))
+    return f32(f32(f32(lumens) * f32(1e-18)) / f32(f32(fourPi * distGm) * distGm))
+  }
+  const foldedOld = (lumens, z) => f32(f32(f32(lumens) / f32(f32(z) * f32(z))) / fourPi)
+  const inLogs = (lumens, z) => {
+    const distGm = Math.max(f32(f32(z) * f32(1e-9)), f32(1e-30))
+    const logE = f32(f32(Math.log2(f32(f32(lumens) * f32(1e-18 / (4 * Math.PI))))) - f32(2 * f32(Math.log2(distGm))))
+    return f32(2 ** logE)
+  }
+
+  it('folded, main\'s source zeroes Alnilam within 9.4° of the view axis, as the user\'s M2 did, and not past it', () => {
+    for (const theta of [0, 3, 6, 9]) {
+      const z = alnilam * Math.cos(theta * deg)
+      expect(asWritten(alnilamLumens, z)).toBeGreaterThan(0)
+      expect(foldedOld(alnilamLumens, z)).toBe(0)
+    }
+    for (const theta of [9.8, 12, 20]) {
+      expect(foldedOld(alnilamLumens, alnilam * Math.cos(theta * deg))).toBeGreaterThan(0)
+    }
+  })
+
+  it('the fixed source, in logs, keeps every star\'s light from cameras out to 100 ly', () => {
+    const catalog = new StarsCatalog().read(toArrayBuffer(readFileSync('./public/data/stars.dat')))
+    const stars = []
+    catalog.starByHip.forEach((star) => stars.push(star))
+    const cameras = [[0, 0, 0]]
+    for (const r of [10, 100]) {
+      for (const axis of [0, 1, 2]) {
+        for (const sign of [1, -1]) {
+          const c = [0, 0, 0]
+          c[axis] = sign * r * ly
+          cameras.push(c)
+        }
+      }
+    }
+    let zeroedOld = 0
+    let worstNew = 0
+    for (const [cx, cy, cz] of cameras) {
+      for (const star of stars) {
+        // On the view axis, the worst case: z is the whole distance.
+        const z = Math.hypot(star.x - cx, star.y - cy, star.z - cz)
+        if (z < 1e9) {
+          continue // The camera at the Sun's centre
+        }
+        if (foldedOld(star.lumens, z) === 0) {
+          zeroedOld++
+        }
+        const exact = star.lumens / (4 * Math.PI * z * z)
+        const got = inLogs(star.lumens, z)
+        expect(got).toBeGreaterThan(0)
+        worstNew = Math.max(worstNew, Math.abs((got / exact) - 1))
+      }
+    }
+    // main's, folded, lost thousands per camera; the fix none, to float32's precision.
+    expect(zeroedOld).toBeGreaterThan(cameras.length * 6000)
+    expect(worstNew).toBeLessThan(1e-5)
+  })
+
+  // The user's sequence on #162's preview (an M2, ANGLE on Metal): the
+  // camera backing toward the Sun along the line to Orion, its orientation
+  // fixed.  Thabit vanished between the first two, Na'ir al Saif between
+  // the last two.  Camera and view direction in the catalogue's frame
+  // (the StarsPoints' local frame), read from the app at each permalink.
+  const STEPS = [
+    {permalink: 'sun@-11.5262,78.8431,9766718.302289Tm;t=9774.6146jd;cq=-0.3224,0.0069,0.0162,0.9464;fov=45deg',
+      camera: [1.912928135e18, -1.952126589e18, -9.376496901e18], gone: []},
+    {permalink: 'sun@-9.9144,78.2679,9252405.953885Tm;t=9774.6153jd;cq=-0.3224,0.0069,0.0162,0.9464;fov=45deg',
+      camera: [1.911432136e18, -1.593600198e18, -8.911446658e18], gone: ['Thabit']},
+    {permalink: 'sun@12.6651,70.3926,5697611.579685Tm;t=9774.6159jd;cq=-0.3224,0.0069,0.0162,0.9464;fov=45deg',
+      camera: [1.899582068e18, 1.248884719e18, -5.224428451e18], gone: ['Thabit']},
+    {permalink: 'sun@14.373,69.7694,5570594.138746Tm;t=9774.6165jd;cq=-0.3224,0.0069,0.0162,0.9464;fov=45deg',
+      camera: [1.8990224e18, 1.382490484e18, -5.051133838e18], gone: ['Thabit', 'Na\'ir al Saif']},
+  ]
+  const VIEW_DIR = [0.00254997, -0.61055631, -0.79196874]
+
+  it('replays the user\'s sequence: each star goes as the camera passes 2^64 m from it, folded, and stays in logs', () => {
+    const catalog = new StarsCatalog().read(toArrayBuffer(readFileSync('./public/data/stars.dat')))
+    catalog.readNames(readFileSync('./public/data/starnames.dat', 'utf-8'))
+    for (const {camera, gone} of STEPS) {
+      for (const name of ['Alnilam', 'Thabit', 'Na\'ir al Saif']) {
+        const star = catalog.starByHip.get(catalog.hipByName.get(name))
+        const v = [star.x - camera[0], star.y - camera[1], star.z - camera[2]]
+        // z: the distance along the view axis, as stars.vert has it.
+        const z = (v[0] * VIEW_DIR[0]) + (v[1] * VIEW_DIR[1]) + (v[2] * VIEW_DIR[2])
+        const past = z > FLOAT32_SQRT_MAX
+        expect(past).toBe(gone.includes(name))
+        expect(foldedOld(star.lumens, z) === 0).toBe(past)
+        expect(asWritten(star.lumens, z)).toBeGreaterThan(0)
+        expect(inLogs(star.lumens, z) / (star.lumens / (4 * Math.PI * z * z))).toBeCloseTo(1, 5)
+      }
+    }
+  })
+
+  it('a length in metres through safeLength (rte.js) is finite where length() overflows', () => {
+    // safeLength: the largest component out, through clamp(), then length().
+    const safeLength = (v) => {
+      const a = v.map((x) => Math.abs(f32(x)))
+      const m = Math.max(a[0], a[1], a[2], f32(1e-30))
+      const u = v.map((x) => Math.min(Math.max(f32(f32(x) / m), -1), 1))
+      return f32(m * f32(Math.sqrt(f32(f32(f32(u[0] * u[0]) + f32(u[1] * u[1])) + f32(u[2] * u[2])))))
+    }
+    const naiveLength = (v) => f32(Math.sqrt(f32(f32(f32(v[0] * v[0]) + f32(v[1] * v[1])) + f32(v[2] * v[2]))))
+    for (const v of [[alnilam, 0, 0], [3e3 * ly, -4e3 * ly, 12e3 * ly], [1.2e4 * ly, 1.2e4 * ly, 1.2e4 * ly]]) {
+      const exact = Math.hypot(...v)
+      expect(naiveLength(v)).toBe(Infinity)
+      expect(safeLength(v) / exact).toBeCloseTo(1, 6)
+    }
+    expect(safeLength([1, 2, 2])).toBeCloseTo(3, 6)
+  })
+})
