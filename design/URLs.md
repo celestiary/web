@@ -29,9 +29,66 @@ https://celestiary.github.io/web/#sun@12.3,-45.6,20.5Tm;t=9771.1jd;cq=0.1,0.2,0.
 
 # Path
 
-The celestial target, as the loader names it: `#sun`, `#sun/earth`,
-`#sun/earth/moon`.  A hash that's just a path still works, and flies to
-the target as it always has.
+The target: what the breadcrumb shows, what `c` faces, `g` goes to and `t`
+tracks (DESIGN.md [the target](../DESIGN.md#the-target)).  It changes with
+every targeting, a click on a label included, so the link always names
+it (`js/targetPath.js`):
+
+```
+#sun/earth              a body, as the loader names it
+#sun/earth/moon         a moon
+#sun/earth/new-york     a place on a body: the body's path, then the
+                        place's name as a slug (lower case, accents dropped,
+                        anything else `-`)
+#sun/earth/moon/apollo-11
+#hip:32349              a catalogue star, by HIP number (the search's id)
+#asterism:ursa-major    an asterism, by its name as a slug
+```
+
+- **A place or a body?**  A last segment in the body above's `system` is a
+  body; anything else under a body with places (`has_locations`) is a place
+  in that body's catalogue.  Bodies win, so every old link means what it
+  did.
+- **A path alone** goes to the target, as `g` does: a body flies there (as
+  it always has), a place lands there, a star travels, an asterism turns
+  to face it (from the Sun).
+- **With a view** (`@…`, below) the camera is put back where the link had
+  it, in its frame, and the target is set without turning it.
+
+## The camera's frame, `from=`
+
+The view's position and `cq` are in the frame of the body the camera is
+at (Celestiary `permalink()`): the path's body, or the place's body, unless
+`from=` names another.  Targeting changes the path and `from`, never the
+camera or its frame:
+
+```
+#sun/earth@30.26,-97.75,400km;t=…           at Earth, Earth the target
+#sun/earth/austin@30.26,-97.75,400km;t=…    the same view, Austin targeted
+#sun/jupiter@30.26,-97.75,400km;from=sun/earth;t=…
+                                            the same view, Jupiter targeted
+#hip:32349@30.26,-97.75,400km;from=sun/earth;t=…
+                                            the same view, Sirius targeted
+#hip:32349@0,12.5,1.2Tm;t=…                 at Sirius (gone there), its target
+```
+
+`from=` is a body's path or a star's (`hip:N`: the camera went to that
+star; its frame's axes are the scene's, its radius the star's).  It's left
+out when it would name the path's own body.
+
+Why not re-express the camera in the target's frame instead: a body's
+frame far from the camera loses it (4 decimal places of a degree is 2,300
+km at Saturn's distance from Earth, and the altitude's 6 significant
+figures 1,000 km at a Tm), a star or an asterism has no frame to give a
+landed camera, and the reloaded camera would ride the target's orbit, not
+the body it was at.
+
+## Old links
+
+A link with no `from=` and a body path is read as it always was: the path
+is the target and the frame.  A path that doesn't resolve (a place not in
+the catalogue, a star not in it) restores the view with the frame's body
+as the target.
 
 # View
 
@@ -39,7 +96,8 @@ the target as it always has.
 params.  Specified in [js/permalink.md](../js/permalink.md).
 
 ```
-@lat,lng,alt        the camera, in the target's body-fixed frame
+@lat,lng,alt        the camera, in its frame's body-fixed frame
+from=sun/earth      the camera's frame, when not the path's body (above)
 t=9233.1234jd       simulation time, days from J2000
 cq=x,y,z,w          camera orientation
 fov=45deg           field of view

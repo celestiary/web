@@ -3,15 +3,15 @@
  * granulation and spots, the same on every load and in the app and the guide.
  *
  * The seed is the star's Hipparcos id where it has one (Sol is 0), else a hash
- * of its name; the Sun by either name is 0 too.  Seed 0 is the shader's
- * original, unshifted noise, so the Sun looks as it always has.
+ * of its name; the Sun by either name is 0 too.  Seed 0 is the unshifted
+ * noise field.
  */
 
-// The noise coordinates span about +/-100 across a disc; an offset up to this
+// The noise coordinates span up to ~+/-800 across a disc (granules); an offset up to this
 // puts a star's patch well away from every other's, and is small enough for
 // float32 to keep the noise's fine octaves (at 1e3, a step of 6e-5).
 const OFFSET_RANGE = 1e3
-// The sunspot threshold's base (star-shaders.js) and how far a seed moves it:
+// The active regions' threshold's base (star-shaders.js) and how far a seed moves it:
 // a little more or less of the disc in spots, within what the Sun's own
 // activity varies, not the type-dependent activity of a real star (#166).
 export const SPOT_BIAS_BASE = 1.9

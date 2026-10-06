@@ -1,3 +1,7 @@
+import {slug} from '../targetPath.js'
+import {capitalize} from '../utils.js'
+
+
 /**
  * Search feature state.
  *
@@ -7,14 +11,35 @@
  */
 export default function createSearchSlice(set, get) {
   return {
-    // Breadcrumb path of the currently navigated body.  Source of truth for the
-    // SearchBar's inline breadcrumb.  Empty array before first load.  Stars
-    // (no hash/loader path) use committedStar instead; the two are mutually
-    // exclusive — setting one clears the other.
+    // The target (Scene.setTarget, its one writer): {kind: 'body', name},
+    // {kind: 'place', body, name, lat, lng, alt}, {kind: 'star', star, name,
+    // hipId} or {kind: 'asterism', name, position}; null before the first.
+    // committedPath and committedStar are views of it, for their readers:
+    // the path of the body it is or is on (empty for a star or an
+    // asterism), and a star as {hipId, displayName, star}.  The breadcrumb
+    // is the path, then a place's, star's or asterism's name.
+    committedTarget: null,
+    setCommittedTarget: (target, path = []) => set(() => ({
+      committedTarget: target,
+      committedPath: target?.kind === 'body' || target?.kind === 'place' ? path : [],
+      committedStar: target?.kind === 'star' ?
+        {hipId: target.star.hipId, displayName: target.name, star: target.star} : null,
+    })),
+    // The breadcrumb's body path.  Empty array before first load.
     committedPath: [],
-    setCommittedPath: (path) => set(() => ({committedPath: path, committedStar: null})),
+    // As setCommittedTarget, for a body by its path.
+    setCommittedPath: (path) => set(() => ({
+      committedPath: path,
+      committedStar: null,
+      committedTarget: path.length > 0 ? {kind: 'body', name: path[path.length - 1]} : null,
+    })),
     committedStar: null,
-    setCommittedStar: (s) => set(() => ({committedStar: s, committedPath: []})),
+    // As setCommittedTarget, for a star as {hipId, displayName, star}.
+    setCommittedStar: (s) => set(() => ({
+      committedStar: s,
+      committedPath: [],
+      committedTarget: s ? {kind: 'star', star: s.star, name: s.displayName, hipId: s.hipId} : null,
+    })),
 
     // Search bar expanded/collapsed state.  Crosshair picking mode is scoped
     // to the bar's lifecycle: every open starts with picker OFF, every close
@@ -81,4 +106,31 @@ export function anchorPathFor(committedPath, anchorIndex) {
   }
   const take = Math.min(anchorIndex, committedPath.length)
   return `milkyway/${committedPath.slice(0, take).join('/')}`
+}
+
+
+/**
+ * The breadcrumb's elements for a target: its body path, each element a
+ * link to its own path, then a place's name; a star's or an asterism's
+ * name alone.
+ *
+ * @param {?object} target committedTarget
+ * @param {string[]} committedPath
+ * @returns {Array<{label: string, hash: string}>}
+ */
+export function breadcrumbItems(target, committedPath) {
+  if (target?.kind === 'star') {
+    return [{label: target.name || `HIP ${target.star.hipId}`, hash: `hip:${target.star.hipId}`}]
+  }
+  if (target?.kind === 'asterism') {
+    return [{label: target.name, hash: `asterism:${slug(target.name)}`}]
+  }
+  const items = committedPath.map((name, i) => ({
+    label: capitalize(name),
+    hash: committedPath.slice(0, i + 1).join('/'),
+  }))
+  if (target?.kind === 'place' && committedPath.length > 0) {
+    items.push({label: target.name, hash: `${committedPath.join('/')}/${slug(target.name)}`})
+  }
+  return items
 }

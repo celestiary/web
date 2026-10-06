@@ -1,5 +1,5 @@
 import {BufferAttribute, BufferGeometry} from 'three'
-import {StarSpectra} from './StarsCatalog.js'
+import {blackbodyFromLut, sharedBlackbodyLut, starTeff} from './stellar.js'
 
 
 /** Pack the data from a StarsCatalog into a BufferGeometry. */
@@ -14,7 +14,8 @@ export default class StarsBufferGeometry extends BufferGeometry {
     const colors = new Float32Array(numStars * 3)
     const radii = new Float32Array(numStars)
     const lumens = new Float32Array(numStars)
-    const sunSpectrum = StarSpectra[4]
+    const lut = sharedBlackbodyLut()
+    const colorByClass = new Map
     // const maxLum = Math.pow(8, 4)
     // positionLow stores the float64 residual after quantising to float32.
     // Together, coords (high) + positionLow (low) represent the full double-precision
@@ -34,15 +35,17 @@ export default class StarsBufferGeometry extends BufferGeometry {
       positionLow[off] = star.x - hx
       positionLow[off + 1] = star.y - hy
       positionLow[off + 2] = star.z - hz
-      let rgb = StarSpectra[star.spectralType]
-      rgb = rgb || sunSpectrum
-      // const lumRelSun = star.lumRelSun
-      const r = rgb[0] / 255
-      const g = rgb[1] / 255
-      const b = rgb[2] / 255
-      colors[off] = r
-      colors[off + 1] = g
-      colors[off + 2] = b
+      // Its blackbody's colour at a luminance of 1 (stellar.js), so its
+      // brightness is its lumens' alone, and the same colour as its disc.
+      const key = `${star.kind}:${star.spectralType}:${star.sub}:${star.lumClass}:${star.teff}`
+      let rgb = colorByClass.get(key)
+      if (!rgb) {
+        rgb = blackbodyFromLut(lut, starTeff(star))
+        colorByClass.set(key, rgb)
+      }
+      colors[off] = rgb[0]
+      colors[off + 1] = rgb[1]
+      colors[off + 2] = rgb[2]
       radii[i] = star.radius
       lumens[i] = star.lumens
       i++
