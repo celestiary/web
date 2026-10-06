@@ -330,13 +330,6 @@ export function luminousDiscGain(gain, discs, keyedOverEarth, pixelRatio = 1) {
 export const LUMINOUS_DISC_PX = [8, 32]
 /** The Sun's disc radiance in exposure units at Earth's keyed exposure (star-shaders.js SUN_RADIANCE). */
 export const SUN_DISC_RADIANCE = DISPLAY_GAIN * 46238
-/**
- * The Milky Way's surface brightness in exposure units at Earth's keyed
- * exposure, for the particle cloud's full value (MilkyWay.js): its bright
- * regions are 21-22 mag/arcsec², 2e-4 cd/m², against 3-4e4 cd/m² for a
- * sunlit white, 5e-9, times DISPLAY_GAIN (HDR.md, "The Milky Way").
- */
-export const MILKY_WAY_RADIANCE = DISPLAY_GAIN * 1.3e-8
 
 
 /**
@@ -481,11 +474,15 @@ export function frameCanBeEmpty(hdr, starsDrawn, surfaceReady) {
  * @param {Float32Array|Uint8Array} rgba Pixels, RGBA: floats, or bytes
  *   (the LDR fallback's target), which count as their value over 255
  * @param {number} count How many pixels
- * @returns {{meanLog: number, highlight: number, blown: number, max: number}}
- *   The mean of ln(max(luma, METER_FLOOR)), the luminance
- *   METER_HIGHLIGHT_FRACTION of the pixels exceed, the one
+ * @returns {{meanLog: number, highlight: number, blown: number, max: number, litHighlight: number,
+ *   litFraction: number}} The mean of ln(max(luma, METER_FLOOR)), the
+ *   luminance METER_HIGHLIGHT_FRACTION of the pixels exceed, the one
  *   METER_BLOWN_FRACTION of them exceed, and the brightest; a pixel that
- *   isn't finite (overflowed) counts as the buffer's most, HDR_MAX_VALUE
+ *   isn't finite (overflowed) counts as the buffer's most, HDR_MAX_VALUE.
+ *   And the lit part of the frame, for the galaxy's anchor (galaxyGain):
+ *   the pixels over GALAXY_LIT_RELATIVE of the highlight, their share of
+ *   the frame, and the luminance the brightest GALAXY_HIGHLIGHT_FRACTION
+ *   of them exceed
  */
 export function meanLogLuminance(rgba, count) {
   const scale = rgba instanceof Uint8Array ? 1 / 255 : 1
@@ -500,17 +497,84 @@ export function meanLogLuminance(rgba, count) {
     lumas.push(luma)
   }
   if (lumas.length === 0) {
-    return {meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, blown: METER_FLOOR, max: 0}
+    return {meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, blown: METER_FLOOR, max: 0, litHighlight: 0, litFraction: 0}
   }
   lumas.sort((a, b) => b - a)
   const exceeded = (fraction) => Math.max(lumas[Math.min(lumas.length - 1, Math.floor(fraction * lumas.length))], METER_FLOOR)
+  const highlight = exceeded(METER_HIGHLIGHT_FRACTION)
+  // The lit part: what's within GALAXY_LIT_RELATIVE of the highlight, and over 0.
+  const litFloor = lumas[Math.min(lumas.length - 1, Math.floor(METER_HIGHLIGHT_FRACTION * lumas.length))] * GALAXY_LIT_RELATIVE
+  let lit = 0
+  while (lit < lumas.length && lumas[lit] > litFloor && lumas[lit] > 0) {
+    lit++
+  }
   return {
     meanLog: sum / lumas.length,
-    highlight: exceeded(METER_HIGHLIGHT_FRACTION),
+    highlight,
     blown: exceeded(METER_BLOWN_FRACTION),
     max: lumas[0],
+    litHighlight: lit > 0 ? lumas[Math.floor(GALAXY_HIGHLIGHT_FRACTION * lit)] : 0,
+    litFraction: lit / lumas.length,
   }
 }
+
+
+/**
+ * The galaxy, seen from outside, anchors the exposure as a photograph of
+ * it would (MilkyWay.md, "Exposure"): a camera framing a galaxy exposes
+ * for the galaxy, not for the black around it.  The meter's own rules
+ * take the frame's mean, which the black sky floors, and stop at the
+ * dark-adapted eye's gain (METER_GAIN_MAX), where a disc of 21-24
+ * mag/arcsec² is 0.01-0.1 in exposure units, in the tone map's toe:
+ * faint arms round a small bar, the user's view (#99).  Here the frame's
+ * lit part (meanLogLuminance: the pixels within GALAXY_LIT_RELATIVE of
+ * its highlight) has its brightest GALAXY_HIGHLIGHT_FRACTION, the bulge
+ * and the inner disc, brought to GALAXY_HIGHLIGHT, blended in log gain by how far
+ * outside the galaxy the camera is (galaxyModel.js outsideWeight, 0
+ * anywhere in the disc, so the night sky and the star field keep the
+ * eye's gain) and by the lit part's share of the frame (GALAXY_FRAME, 0.5%
+ * to 5%: a smudge in the field leaves the gain to the frame).  The gain
+ * may then pass METER_GAIN_MAX, as a long exposure does; the stars'
+ * limit deepens with it (limitingMagnitude), and from outside the
+ * catalogue's stars are fainter than magnitude 11.
+ *
+ * @param {number|null} gain The meter's gain over the target-keyed exposure
+ * @param {{litHighlight: number, litFraction: number}} metered meanLogLuminance's, of the frame as rendered
+ * @param {number} renderedOverKeyed The gain the frame was rendered at
+ * @param {number} weight How far outside the galaxy the camera is, 0 to 1
+ * @param {number} keyedOverEarth The target-keyed exposure over Earth's
+ * @returns {number|null}
+ */
+export function galaxyGain(gain, {litHighlight, litFraction}, renderedOverKeyed, weight, keyedOverEarth = 1) {
+  if (!(gain > 0) || !(weight > 0) || !(litFraction > 0) || !(litHighlight > 0)) {
+    return gain
+  }
+  const w = weight * smoothstep(Math.log(GALAXY_FRAME[0]), Math.log(GALAXY_FRAME[1]), Math.log(litFraction))
+  if (!(w > 0)) {
+    return gain
+  }
+  const litAtKeyed = litHighlight / Math.max(renderedOverKeyed, 1e-30)
+  const target = Math.min(Math.max(GALAXY_HIGHLIGHT / litAtKeyed, 1),
+      GALAXY_GAIN_MAX / Math.max(keyedOverEarth, 1e-30))
+  return Math.exp(((1 - w) * Math.log(gain)) + (w * Math.log(target)))
+}
+
+
+/**
+ * What the brightest of the galaxy is brought to, in exposure units
+ * (galaxyGain): a white surface's, at the tone map's shoulder, as a
+ * photograph of a galaxy keeps its bulge just short of blown and its
+ * arms, 10-30× fainter, in the mid-tones.
+ */
+export const GALAXY_HIGHLIGHT = 1.5
+/** The brightest share of the lit part that GALAXY_HIGHLIGHT keys (meanLogLuminance). */
+export const GALAXY_HIGHLIGHT_FRACTION = 0.02
+/** The lit part: pixels over this share of the frame's highlight (meanLogLuminance). */
+export const GALAXY_LIT_RELATIVE = 1e-3
+/** The lit part's share of the frame over which the galaxy's anchor weighs in (galaxyGain). */
+export const GALAXY_FRAME = [0.005, 0.05]
+/** The most the galaxy's anchor takes the gain to, over Earth's keyed exposure. */
+export const GALAXY_GAIN_MAX = 1e10
 
 
 /** The mean luminance, in exposure units, the metered exposure aims for. */

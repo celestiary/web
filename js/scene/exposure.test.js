@@ -6,7 +6,8 @@ import {
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
   luminousDiscGain, starClipZ, sunDiscValue, sunlitBodyCap, sunlitBodyGain, HIGHLIGHT_ALBEDO_FACTOR,
   METER_HIGHLIGHT_FRACTION, STAR_GLARE_CORE_PATCHES, SUNLIT_FRAME_WEIGHT, SUNLIT_FRAME_FRACTION,
-  STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, STAR_VISIBLE_VALUE, SUN_DISC_RADIANCE, MILKY_WAY_RADIANCE,
+  STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, STAR_VISIBLE_VALUE, SUN_DISC_RADIANCE,
+  GALAXY_FRAME, GALAXY_GAIN_MAX, GALAXY_HIGHLIGHT, GALAXY_HIGHLIGHT_FRACTION, GALAXY_LIT_RELATIVE, galaxyGain,
 } from './exposure.js'
 import {readFileSync} from 'fs'
 import {HDR_MAX_VALUE, HDR_MIN_NORMAL, emitted, neutral} from './hdr.js'
@@ -198,7 +199,8 @@ describe('metered exposure', () => {
     expect(got.highlight).toBe(1)
     expect(got.max).toBe(1)
     expect(meanLogLuminance(new Float32Array(0), 0))
-        .toEqual({meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, blown: METER_FLOOR, max: 0})
+        .toEqual({meanLog: Math.log(METER_FLOOR), highlight: METER_FLOOR, blown: METER_FLOOR, max: 0, litHighlight: 0,
+          litFraction: 0})
     // 100 pixels: `blown` is what a twentieth of them, 5 pixels, exceed.
     const quarter = new Float32Array(400).fill(0)
     for (let i = 0; i < 5; i++) {
@@ -625,15 +627,13 @@ describe('pre-exposure: the buffer holds emitted radiance at the gain the frame 
     expect(starSprite(mag(6), gain * keyedOverEarth).value).toBeCloseTo(starSprite(mag(6), METER_GAIN_MAX).value, 6)
   })
 
-  it('the Sun\'s disc at the luminous-disc gain, and the Milky Way at the dark gain', () => {
+  it('the Sun\'s disc at the luminous-disc gain', () => {
     const discGain = luminousDiscGain(METER_GAIN_MAX, [{diameterPx: 70, radianceAtEarthKeyed: SUN_DISC_RADIANCE}], 1)
     inRange(sunDiscValue(discGain))
     expect(sunDiscValue(discGain)).toBeCloseTo(METER_HIGHLIGHT, 9)
     // A dark field with the Sun a point in it: the disc's mesh is under a
     // pixel but still drawn, at 1e9 over white, through the shoulder.
     inRange(sunDiscValue(METER_GAIN_MAX))
-    inRange(MILKY_WAY_RADIANCE * METER_GAIN_MAX)
-    expect(MILKY_WAY_RADIANCE * METER_GAIN_MAX).toBeCloseTo(0.078, 2)
   })
 
   it('at the keyed exposure the same stars are subnormal, and invisible: why frameCanBeEmpty stays for the loading frame', () => {
@@ -856,5 +856,68 @@ describe('the shaders', () => {
     expect(declared).not.toBeNull()
     expect(Number(declared[1])).toBeCloseTo(HDR_MIN_NORMAL, 10)
     expect(source).toMatch(/gl_FragColor = vec4\(emitted\(/)
+  })
+})
+
+
+describe('the galaxy from outside', () => {
+  // A frame of n pixels, the first `lit` of them at `values` (cycled), the rest black.
+  const frame = (n, lit, values) => {
+    const px = new Float32Array(n * 4)
+    for (let i = 0; i < lit; i++) {
+      const v = values[i % values.length]
+      px.set([v, v, v, 1], i * 4)
+    }
+    return px
+  }
+
+  it('meters the lit part: its share of the frame, and the luminance its brightest share exceeds', () => {
+    // 300 lit pixels of 1024: 30 at 1e-6 (the bulge), 270 from 1e-8 to 1e-7 (the disc).
+    const values = [...Array(30).fill(1e-6), ...Array.from({length: 270}, (_, i) => 1e-8 * (1 + (9 * i / 269)))]
+    const m = meanLogLuminance(frame(1024, 300, values), 1024)
+    expect(m.litFraction).toBeCloseTo(300 / 1024, 6)
+    // The brightest 2% of the 300 lit are bulge.
+    expect(m.litHighlight).toBeCloseTo(1e-6, 12)
+    // A pixel under GALAXY_LIT_RELATIVE of the frame's highlight isn't lit.
+    const faint = meanLogLuminance(frame(1024, 300, [...values.slice(0, 299), 1e-6 * GALAXY_LIT_RELATIVE / 2]), 1024)
+    expect(faint.litFraction).toBeCloseTo(299 / 1024, 6)
+    expect(GALAXY_HIGHLIGHT_FRACTION).toBeLessThan(0.1)
+  })
+
+  it('brings the brightest of the galaxy to GALAXY_HIGHLIGHT from outside, past the dark-adapted gain', () => {
+    const metered = {litHighlight: 1e-7, litFraction: 0.3}
+    const gain = galaxyGain(METER_GAIN_MAX, metered, 1, 1)
+    expect(gain).toBeCloseTo(GALAXY_HIGHLIGHT / 1e-7, 0)
+    expect(gain).toBeGreaterThan(METER_GAIN_MAX)
+    // Whatever gain the frame was rendered at: the reading is divided by it.
+    expect(galaxyGain(METER_GAIN_MAX, {litHighlight: 1e-7 * 50, litFraction: 0.3}, 50, 1)).toBeCloseTo(gain, 0)
+  })
+
+  it('leaves the gain alone from inside the galaxy, and for a smudge in the field', () => {
+    const metered = {litHighlight: 1e-7, litFraction: 0.3}
+    expect(galaxyGain(METER_GAIN_MAX, metered, 1, 0)).toBe(METER_GAIN_MAX)
+    expect(galaxyGain(METER_GAIN_MAX, {litHighlight: 1e-7, litFraction: GALAXY_FRAME[0] / 2}, 1, 1)).toBe(METER_GAIN_MAX)
+    expect(galaxyGain(METER_GAIN_MAX, {litHighlight: 0, litFraction: 0}, 1, 1)).toBe(METER_GAIN_MAX)
+    expect(galaxyGain(null, metered, 1, 1)).toBe(null)
+  })
+
+  it('blends in log gain with how far out the camera is and how much of the frame the galaxy is', () => {
+    const metered = {litHighlight: 1e-7, litFraction: 0.3}
+    const full = galaxyGain(METER_GAIN_MAX, metered, 1, 1)
+    const half = galaxyGain(METER_GAIN_MAX, metered, 1, 0.5)
+    expect(Math.log(half)).toBeCloseTo((Math.log(full) + Math.log(METER_GAIN_MAX)) / 2, 6)
+    let last = METER_GAIN_MAX
+    for (const f of [0.006, 0.01, 0.02, 0.04, 0.05]) {
+      const g = galaxyGain(METER_GAIN_MAX, {litHighlight: 1e-7, litFraction: f}, 1, 1)
+      expect(g).toBeGreaterThanOrEqual(last)
+      last = g
+    }
+    expect(last).toBeCloseTo(full, 0)
+  })
+
+  it('is held under GALAXY_GAIN_MAX, absolute over Earth\'s keyed exposure, and never under 1', () => {
+    expect(galaxyGain(METER_GAIN_MAX, {litHighlight: 1e-20, litFraction: 0.3}, 1, 1)).toBeCloseTo(GALAXY_GAIN_MAX, 0)
+    expect(galaxyGain(METER_GAIN_MAX, {litHighlight: 1e-20, litFraction: 0.3}, 1, 1, 10)).toBeCloseTo(GALAXY_GAIN_MAX / 10, 0)
+    expect(galaxyGain(METER_GAIN_MAX, {litHighlight: 1e3, litFraction: 0.3}, 1, 1)).toBe(1)
   })
 })
