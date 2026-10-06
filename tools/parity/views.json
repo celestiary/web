@@ -47,24 +47,24 @@
     {
       "id": "earth-clouds-katrina",
       "body": "earth",
-      "description": "Earth from 8,000 km over the Gulf of Mexico on 2005-08-28, the day before Hurricane Katrina's landfall, the Sun about 60 degrees to the west: the day's NASA GIBS true colour (MODIS Aqua, Terra in its gaps) unmixed into cloud coverage and drawn as one shell over both sides of the swap (#88).  The ratios check the clouds are the same on both sides; the luma bound that they are there at all",
+      "description": "Earth from 8,000 km over the Gulf of Mexico on 2005-08-28, the day before Hurricane Katrina's landfall, the Sun about 60 degrees to the west: the day's NASA GIBS true colour (MODIS Aqua, Terra in its gaps) unmixed into cloud coverage and drawn as one shell over both sides of the swap (#88).  The ratios check the clouds are the same on both sides; the luma bound that they are there at all (the disc's median luma is 114 with them, about 75 without)",
       "hash": "#sun/earth@25,-88,8Mm;t=2066.4167jd;cq=-0.3707,-0.4287,-0.0058,0.8239;fov=45deg;s=alpoU",
       "freeze": true,
       "tolerance": {
         "ratio": [
-          0.95,
-          1.05
+          0.98,
+          1.02
         ],
         "channelRatio": [
-          0.95,
-          1.05
+          0.98,
+          1.02
         ],
         "luma": [
-          0,
-          255
+          100,
+          135
         ],
-        "profileMax": 60,
-        "profileMean": 10
+        "profileMax": 25,
+        "profileMean": 4
       }
     },
     {
