@@ -418,11 +418,18 @@ void main() {
   // blend into the galaxy at the catalog-hole boundary.
   gl_PointSize = aSize;
   vec4 clip = projectionMatrix * mvPosition;
-  // Pin to (just inside) far plane in clip space so the additive galaxy
-  // never "wins" a depth comparison against any nearer geometry.  z = w
-  // would map to the far plane exactly; pull a touch in to avoid ties.
-  clip.z = clip.w * 0.9999;
-  gl_Position = clip;
+  // Pin to (just inside) far plane so the additive galaxy never "wins" a
+  // depth comparison against any nearer geometry.  z = w would map to the
+  // far plane exactly; pull a touch in to avoid ties.  And divided through
+  // to w = 1, as stars.vert's clipToW1: w is kiloparsecs in metres here,
+  // past 2^64 m (1,950 ly), whose square is Inf in float32 on the GPU's
+  // side of the shader.  Behind the eye (w <= 0) is culled, as the clipper
+  // had it.
+  if (!(clip.w > 0.0)) {
+    gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+    return;
+  }
+  gl_Position = vec4(clip.xy / clip.w, 0.9999, 1.0);
 }
 `
 

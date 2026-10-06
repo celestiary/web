@@ -820,7 +820,9 @@ export default class ThreeUi {
     const radius = g.getAttribute('radius').array[index]
     const sprite = starSprite(ratio, absoluteUniforms.uExposureRelative.value,
         {fovDegrees: this.camera.fov, heightPx: this.height, starGain: absoluteUniforms.uStarGain.value})
-    const clipZ = starClipZ(distance, this.camera.near, this.camera.far)
+    // Clip w: the distance along the view axis.
+    const viewZ = -world.clone().applyMatrix4(this.camera.matrixWorldInverse).z
+    const clipZ = starClipZ(viewZ, this.camera.near, this.camera.far)
     const out = {
       name, hip, index, distanceLy: distance / 9.461e15, px, py, ndc: [ndc.x, ndc.y, ndc.z],
       attributes: {lumens, radius, finite: Number.isFinite(lumens) && Number.isFinite(radius)},
@@ -832,7 +834,7 @@ export default class ThreeUi {
       `ndc ${ndc.x.toFixed(4)},${ndc.y.toFixed(4)},${ndc.z.toFixed(8)}`,
       `lumens ${f(lumens)} radius ${f(radius)}`,
       `sprite size ${f(sprite.sizePx)} sigma ${f(sprite.sigma)} peak ${f(sprite.peak)} flat ${sprite.flat} capped ${sprite.glareCapped}`,
-      `clip onFarPlane ${clipZ.onFarPlane} ulpsInside ${f(clipZ.ulpsInside)}`,
+      `clip w ${f(clipZ.w)} w²Inf ${clipZ.wSquaredOverflows} onFarPlane ${clipZ.onFarPlane} ulpsInside ${f(clipZ.ulpsInside)}`,
       `gain ${f(this._meterGain)}`,
       `luma ${Object.entries(luma).map(([k, v]) => `${k}=${typeof v === 'object' && v ? `${v.luma}@${v.at}` : v}`).join(' ')}`]
     console.log(`starProbe: ${flat.join(' | ')}`)

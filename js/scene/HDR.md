@@ -294,8 +294,8 @@ core is 6% of the sprite's half-width, so a 2 px sprite sampled it at
 0.06 and a 4 px one at 0.27, and mipmaps flattened a 3 px sprite's peak to
 a third of the core (a star of magnitude 4 reached 10 of 255 where the
 arithmetic gave 97).  Before that the sprite was sized by the catalogue's
-radius, which spread Deneb over 110 px; and `d²` in metres overflowed
-float32 past 1,900 ly and zeroed every star beyond.  Values are clamped
+radius, which spread Deneb over 110 px; and `4π·d²` in metres overflowed
+float32 past 550 ly and zeroed every star beyond.  Values are clamped
 to what the half-float buffer holds (`HDR_MAX_VALUE`, 6e4).
 
 **Every star sits on the far-plane boundary** unless pulled inside.  The
@@ -311,6 +311,44 @@ M2, while SwiftShader, which divides exactly, drew it at both.
 in front (only one past 8 AU, a sub-pixel point, shares the stars'
 depth), and over the Milky Way, which pins its z to the far plane.
 `starClipZ` (`exposure.js`) replays the float32 arithmetic for tests.
+
+**Nor a square of d, even one the compiler makes.**  With the pull-in
+in, the user's M2 still lost Alnilam (1,977 ly) within about 9° of the
+view axis, with its lumens and sprite ordinary and nothing in front of
+it (`starProbe`: ulpsInside 8.9), and on #162's preview lost Thabit and
+Na'ir al Saif as the camera backed along the line to Orion past 1,950 ly
+from each (at 0.979 and 1.011 of 2^64 m along the view axis for Thabit,
+0.993 and 1.005 for Na'ir al Saif).  2^64 m is sqrt(FLT_MAX): a square
+of a distance in metres past it is Inf in float32.  The source squared
+no metres: E = (lumens·1e-18) / (4π·(z·1e-9)²), z the distance along the
+view axis.  But under fast math, which ANGLE's Metal backend compiles
+with, a compiler may reassociate and cancel the constant scales, to
+lumens / z² × 1/4π, and z² is Inf past 2^64 m: E = 0, a black star.
+SwiftShader computes the source as written and drew every one.  Swapping
+that folded form into `stars.vert` reproduces the user's frames on
+SwiftShader exactly: Alnilam black from 0° to 9° off the axis and back
+at 10°, Aludra and the Garnet Star black at the centre, Deneb (1,412 ly
+in the catalogue) untouched, and in the user's four steps Thabit and
+Na'ir al Saif black where they vanished and nowhere else.  `stars.vert`
+now takes the inverse square in logs, `exp2(log2(lumens·1e-18 / 4π) −
+2·log2(d_Gm))`, past a `max()` that keeps the scale from being folded
+through: no algebra makes a square of d from that.  It renders
+identically on SwiftShader (the same peaks and pixel counts at the
+user's views and at Alnilam, Deneb, Aludra and the Garnet Star centred).
+Nothing else in `stars.vert` squares or dots a vector in metres.  The
+wide lines' lengths and the labels' directions, which did (`length()`,
+`normalize()`: sqrt and rsqrt of a dot), now go through `safeLength` and
+`safeNormalize` (`rte.js` `SAFE_LENGTH_GLSL`): the largest component out
+first, through `clamp()`, which no fold passes through.  And as a
+precaution, the stars' and the Milky Way's clip coordinates leave their
+shaders divided through to w = 1 (`clipToW1`, as `wideLines.js`), so no
+GPU's own arithmetic after the shader meets a clip w in metres past
+2^64; that alone didn't bring Alnilam back.  7,002 of the catalogue's
+106,748 stars are past 2^64 m from the Sun (Alnilam, Aludra, Na'ir al
+Saif, Thabit, the Garnet Star; the farthest 11,649 ly), and from a
+camera elsewhere a different set.  `starClip.test.js` replays the
+source as written, as folded and in logs in float32, over the whole
+catalogue from cameras out to 100 ly and over the user's four steps.
 
 **Measured** (a probe projects every catalogue star, computes its
 apparent magnitude and reads its pixel): the night sky from the outback

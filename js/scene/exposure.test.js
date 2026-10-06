@@ -533,15 +533,15 @@ describe('a star\'s clip z', () => {
 
   it('is pulled 8 ulps inside, 8 steps of the depth buffer, by stars.vert', () => {
     for (const d of [1985 * ly, 4.2 * ly]) {
-      const {w, zInside, ulpsInside} = starClipZ(d, near, far)
-      expect(zInside).toBeLessThan(w)
+      const {zInside, ulpsInside} = starClipZ(d, near, far)
+      expect(zInside).toBeLessThan(1)
       expect(ulpsInside).toBeGreaterThanOrEqual(7)
       expect(ulpsInside).toBeLessThanOrEqual(10)
     }
     // A planet 1e9 m out is well inside already (its own depth, untouched).
     const planet = starClipZ(1e9, near, far)
     expect(planet.onFarPlane).toBe(false)
-    expect(planet.zInside).toBe(planet.z)
+    expect(planet.zInside).toBe(Math.fround(planet.z / planet.w))
   })
 })
 

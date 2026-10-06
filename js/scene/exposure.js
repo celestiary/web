@@ -666,17 +666,19 @@ export function starSprite(ratio, gainOverEarth, {fovDegrees = 45, heightPx = 30
  * rounds to 1 and the second to 2n, and d - 2n rounds to d for any star:
  * z == w, on the far-plane boundary, where a GPU's approximate perspective
  * divide puts z / w on either side of 1 by the bits of w, and a star is
- * clipped or not with the camera's position.  stars.vert pulls z inside by
- * STAR_FAR_PLANE_INSIDE, 8 ulps of 1 (2^-23 each), 8 steps of the 24-bit
- * depth buffer.
+ * clipped or not with the camera's position.  stars.vert divides through
+ * to w = 1 (starClipPosition) and pulls z inside by STAR_FAR_PLANE_INSIDE,
+ * 8 ulps of 1 (2^-23 each), 8 steps of the 24-bit depth buffer.
  *
- * @param {number} distanceMeters d
+ * @param {number} distanceMeters d, along the view axis (clip w)
  * @param {number} near
  * @param {number} far
- * @returns {{z: number, w: number, zInside: number, onFarPlane: boolean, ulpsInside: number}}
- *   z and w as the projection gives them; zInside after the pull-in;
- *   onFarPlane whether z == w; ulpsInside how many ulps of w zInside is
- *   under w
+ * @returns {{z: number, w: number, zInside: number, onFarPlane: boolean, ulpsInside: number,
+ *   wSquaredOverflows: boolean}}
+ *   z and w as the projection gives them; zInside the depth stars.vert
+ *   hands on, in NDC; onFarPlane whether z == w; ulpsInside how many ulps
+ *   of 1 zInside is under 1; wSquaredOverflows whether w² is Inf in
+ *   float32, as w was handed to the GPU before stars.vert divided it out
  */
 export function starClipZ(distanceMeters, near, far) {
   const f32 = Math.fround
@@ -685,9 +687,57 @@ export function starClipZ(distanceMeters, near, far) {
   const zEye = f32(-distanceMeters)
   const z = f32(f32(a * zEye) + b)
   const w = f32(-zEye)
-  const zInside = Math.min(z, f32(w * f32(STAR_FAR_PLANE_INSIDE)))
-  const ulp = f32(w * (2 ** -23))
-  return {z, w, zInside, onFarPlane: z === w, ulpsInside: (w - zInside) / ulp}
+  const zInside = Math.min(f32(z / w), f32(STAR_FAR_PLANE_INSIDE))
+  return {z, w, zInside, onFarPlane: z === w, ulpsInside: (1 - zInside) / (2 ** -23),
+    wSquaredOverflows: f32(w * w) === Infinity}
+}
+
+
+/** The largest float32. */
+export const FLOAT32_MAX = 3.4028234663852886e38
+/**
+ * sqrt(FLOAT32_MAX), 2^64 m, 1,950 ly: a float32 square of a distance in
+ * metres past it, or a product of two, is Inf.
+ */
+export const FLOAT32_SQRT_MAX = Math.sqrt(FLOAT32_MAX)
+
+
+/**
+ * A star's gl_Position, replayed in float32: as the projection gives it
+ * (what stars.vert handed the GPU before), and as stars.vert hands it on,
+ * divided through to w = 1 (clipToW1), for tests (HDR.md, "Physical
+ * stars").  The star is at distance d, θ off the view axis.  The clip
+ * coordinates' w is d·cos θ in metres, and its square, should the GPU's
+ * side of the shader compute one, is Inf once that passes
+ * FLOAT32_SQRT_MAX: Alnilam, 1,977 ly, within 9.4° of the axis.  (A
+ * precaution: what dropped such stars on an M2 was the inverse square
+ * folded by fast math, starClip.test.js.)
+ *
+ * @param {number} distanceMeters d
+ * @param {number} offAxisRad θ, toward the top of the screen
+ * @param {number} near
+ * @param {number} far
+ * @param {number} [fovDegrees] Vertical field of view
+ * @returns {{clip: number[], position: number[], clipMaxSquare: number, positionMaxSquare: number,
+ *   culled: boolean}} clip as the projection gives it (z pulled inside,
+ *   as stars.vert did); position as stars.vert hands it on; each one's
+ *   largest component squared, in float32; culled for a star behind the eye
+ */
+export function starClipPosition(distanceMeters, offAxisRad, near, far, fovDegrees = 45) {
+  const f32 = Math.fround
+  const a = f32(-(far + near) / (far - near))
+  const b = f32(-2 * far * near / (far - near))
+  const p11 = f32(1 / Math.tan(fovDegrees * Math.PI / 360))
+  const yEye = f32(distanceMeters * Math.sin(offAxisRad))
+  const zEye = f32(-distanceMeters * Math.cos(offAxisRad))
+  const w = f32(-zEye)
+  const z = f32(f32(a * zEye) + b)
+  const clip = [0, f32(p11 * yEye), Math.min(z, f32(w * f32(STAR_FAR_PLANE_INSIDE))), w]
+  const culled = !(w > 0)
+  const position = culled ? [0, 0, 2, 1] :
+    [0, f32(clip[1] / w), Math.min(f32(z / w), f32(STAR_FAR_PLANE_INSIDE)), 1]
+  const maxSquare = (v) => Math.max(...v.map((c) => f32(c * c)))
+  return {clip, position, clipMaxSquare: maxSquare(clip), positionMaxSquare: maxSquare(position), culled}
 }
 
 

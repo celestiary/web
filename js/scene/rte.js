@@ -41,3 +41,26 @@ export function rteCameraLocal(object, camera, high, low) {
   high.set(hx, hy, hz)
   low.set(x - hx, y - hy, z - hz)
 }
+
+
+/**
+ * GLSL: the length and direction of a vector in metres without squaring
+ * metres (js/scene/HDR.md, "Physical stars": nor past 2^64 m).  length()
+ * and normalize() are sqrt(dot) and v·rsqrt(dot), and dot(v, v) is Inf in
+ * float32 once |v| passes 2^64 m (1,950 ly).  These divide by the largest
+ * component first, through clamp(), which no fast-math fold passes
+ * through: a compiler may move a plain scale (v·s, or v / m) out of the
+ * dot and square metres again.
+ */
+export const SAFE_LENGTH_GLSL = `
+float safeLength(vec3 v) {
+  vec3 a = abs(v);
+  float m = max(max(a.x, a.y), max(a.z, 1.0e-30));
+  return m * length(clamp(v / m, -1.0, 1.0));
+}
+vec3 safeNormalize(vec3 v) {
+  vec3 a = abs(v);
+  float m = max(max(a.x, a.y), max(a.z, 1.0e-30));
+  return normalize(clamp(v / m, -1.0, 1.0));
+}
+`
