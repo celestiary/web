@@ -403,7 +403,8 @@ star-field permalink Sirius renders 234 at its centre with a saturated
 the disc, its limb darkening divided by its mean and its granulation,
 spots and faculae a blackbody's at each fragment's temperature (every
 star's disc is that times its surface brightness over the Sun's, its
-luminance, not σT⁴: [Stars.md](Stars.md)),
+luminance, not σT⁴: [Stars.md](Stars.md); a catalogue star travelled to
+is drawn so and metered as the Sun is),
 θ its angular radius from 1 AU: 69,357 at Earth's
 keyed exposure, through the luminous shoulder (`hdr.js`
 `luminousShoulder`: itself to 3e4, then compressed toward 5e4, at most

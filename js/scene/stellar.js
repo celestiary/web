@@ -340,7 +340,8 @@ const DJ87_S = [['O', 1, 0.1, 0.1], ['O', 9, 0.9, 0.3], ['B', 2, 1.8, 0.15], ['A
   ['F', 0, 4.0, 0.1], ['G', 0, 5.0, 0.05], ['K', 0, 5.5, 0.1], ['M', 0, 6.5, 0.2]]
 // DJ87 Table 2: b for each of the catalogue's luminosity classes (VI as V).
 const DJ87_B = [0.0, 0.6, 1.4, 2.0, 3.0, 4.0, 5.0, 5.0]
-const DJ87_LETTERS = 'OBAFGKM'
+/** The classes DJ87 calibrates. */
+export const DJ87_LETTERS = 'OBAFGKM'
 
 
 /**
@@ -449,12 +450,12 @@ export function teffFromClass(props, b) {
     sub = 5
   }
   const letter = SPECTRAL_CLASSES[type]
-  const lum = parseInt(props?.lumClass)
-  if (b === undefined && lum >= 0 && lum <= LUM_CLASS_II && ((letter === 'K' && sub >= 1) || letter === 'M')) {
+  const lumB = b ?? deJagerB(parseInt(props?.lumClass))
+  if (lumB <= DJ87_B[LUM_CLASS_II] && ((letter === 'K' && sub >= 1) || letter === 'M')) {
     return redSupergiantTeff(letter, sub)
   }
   if (DJ87_LETTERS.includes(letter ?? '-')) {
-    return clampTemp(deJager(letter, sub, b ?? deJagerB(lum)).teff)
+    return clampTemp(deJager(letter, sub, lumB).teff)
   }
   switch (letter) {
     case 'WC': case 'WN': return TEMP_MAX
