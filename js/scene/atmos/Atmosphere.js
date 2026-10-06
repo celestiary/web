@@ -463,6 +463,9 @@ export function newAtmospherePass() {
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
+    // The night sky's code, compiled in only while it can show (ThreeUi
+    // _updateNightSky sets it; three keeps both programs once built).
+    defines: {NIGHT_SKY: 0},
     // Writes the scene's depth to the screen (gl_FragDepth) so the label
     // overlay drawn after it (ThreeUI.render) is depth-tested as it would
     // be in the scene.  A depth test that always passes, as writes need
@@ -544,6 +547,13 @@ const float NIGHT_SKY_DEPTH = 0.9999499;
 // night sky's own light"): the zodiacal light and the galaxy's march.  In
 // the HDR path only: the LDR fallback draws the galaxy in its scene pass,
 // as before, and nothing else.
+//
+// NIGHT_SKY is 0 wherever the night sky's light can't show (by day, most of
+// twilight, the ground filling the view: ThreeUi._updateNightSkyShown), and
+// then none of its code is in the pass: by day the pass is the one it was
+// before #186, with nothing of the night sky's left live through the
+// scattering's loops.
+#if NIGHT_SKY
 vec3 nightBeyond(float depth) {
   if (uHdr < 0.5 || depth < NIGHT_SKY_DEPTH) return vec3(0.0);
   vec3 light = zodiacalLight();
@@ -558,6 +568,22 @@ vec3 airglow(vec2 path, vec3 transmittance) {
   return uAirglow.z * uExposureRelative * uAirglowColor * (path.x + path.y * transmittance);
 }
 
+// The night sky's light over the image, in display values (eye.js).
+vec3 overNight(vec3 display, vec3 night) {
+  return displaySum(display, extendedToDisplay(night));
+}
+#else
+vec3 nightBeyond(float depth) {
+  return vec3(0.0);
+}
+vec3 airglow(vec2 path, vec3 transmittance) {
+  return vec3(0.0);
+}
+vec3 overNight(vec3 display, vec3 night) {
+  return display;
+}
+#endif
+
 // The scene with no atmosphere over it, to the screen: the one tone map
 // (HDR), or as it is (the LDR fallback's scene is display values already).
 // The night sky's light is added over it in display values, through the
@@ -571,7 +597,7 @@ vec4 sceneToScreen(vec3 scene, vec3 night) {
     return vec4(uDebug < 7.5 ? scene + night : night, 1.0);
   }
   if (uHdr > 0.5) {
-    return vec4(displaySum(neutralToneMap(scene), extendedToDisplay(night)), 1.0);
+    return vec4(overNight(neutralToneMap(scene), night), 1.0);
   }
   return vec4(scene, 1.0);
 }
@@ -584,8 +610,7 @@ vec4 sceneToScreen(vec3 scene, vec3 night) {
 // added to it.
 vec4 atmToScreen(vec3 scene, vec3 sky, vec3 transmittance, vec3 night) {
   if (uHdr > 0.5) {
-    return vec4(displaySum(neutralToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)),
-        extendedToDisplay(night)), 1.0);
+    return vec4(overNight(neutralToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)), night), 1.0);
   }
   return vec4(mix(scene, neutralToneMap(sky) + scene * transmittance, uAtmStrength), 1.0);
 }
@@ -866,11 +891,15 @@ void main() {
   vec3 eyePos = -uPlanetCenter;             // camera in planet-centred space
   // Airglow (nightSky.js): its layer's path along the ray, to the surface
   // the ray ends on, or past the planet for the sky and the bodies beyond.
+#if NIGHT_SKY
   bool skyPixel = depthSample >= 1.0;
   vec2 tGround = rsi(eyePos, rayDir, uGroundRadius);
   bool meetsGround = tGround.x > 0.0 && tGround.x <= tGround.y;
   float tGlowEnd = skyPixel ? (meetsGround ? tGround.x : 1.0e30) : tMax;
   vec2 glowPath = airglowPath(eyePos, rayDir, tGlowEnd);
+#else
+  vec2 glowPath = vec2(0.0);
+#endif
 
   // ── Phase 2: in-scatter LUT path (no loops, smooth) ──────────────────────
   if (uUseInScatterLUT > 0.5) {

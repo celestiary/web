@@ -117,7 +117,10 @@ export default function newMilkyWay({bake = typeof requestAnimationFrame === 'fu
   // by its own HDR flag, so it only runs the march; the LDR fallback
   // composites it here.  (Not by this draw's own check: `?hdr=0` is gone
   // from the URL by its first frame, so it takes the float path there.)
-  const mesh = new Mesh(geometry, material)
+  // Its own triangle: in the HDR path its draw is emptied (below), and the
+  // march's must not be.
+  const compositeGeometry = fullScreenTriangle()
+  const mesh = new Mesh(compositeGeometry, material)
   mesh.name = 'MilkyWay'
   mesh.frustumCulled = false
   // Behind the stars (renderOrder 0), as the point cloud was.
@@ -151,6 +154,10 @@ export default function newMilkyWay({bake = typeof requestAnimationFrame === 'fu
       material.fragmentShader = direct ? `${galaxyGlsl()}${FRAG_COMPOSITE}` : FRAG_COMPOSITE
       material.needsUpdate = true
     }
+    // With its colour writes off (the HDR path: ThreeUi) the composite draws
+    // nothing, so it is drawn with no vertices: this hook still runs the
+    // march, and the frame spends no full-screen pass on it (#187).
+    compositeGeometry.setDrawRange(0, material.colorWrite ? Infinity : 0)
     // The camera in G, kpc: its position in this object's frame (the
     // catalogue's, metres from the Sun; the StellarFrame's precession and
     // the worldGroup's rebase above it), as rte.js does it, in float64.

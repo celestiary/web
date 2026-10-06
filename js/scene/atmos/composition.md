@@ -78,7 +78,8 @@ night sky's light from beyond is drawn the same way, over the scene.  The
 LDR fallback draws none of it: its galaxy is in the scene pass, as before.
 Where its brightest possible contribution is under half a display step (by
 day, in most of twilight) none of it is drawn and neither cache is
-rendered (ThreeUi `_updateNightSkyShown`).
+rendered (ThreeUi `_updateNightSkyShown`), nor where the ground fills the
+view; and then its code isn't in the pass at all (`#if NIGHT_SKY`).
 
 ## Clouds
 

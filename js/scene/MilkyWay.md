@@ -453,6 +453,10 @@ better than 10-20%.
   Sagittarius clouds ([above](#the-inner-galaxy-calibrated)), and the
   clouds' columns spread along the ray, so no cloud has an edge from
   inside its reach.
+- The inner zodiacal cloud is too flat near the Sun (HDR.md, [round the
+  Sun](HDR.md#round-the-sun-the-rim-and-the-jump)): Kelsall's fan, fitted
+  from 1 AU, makes the lens 5 times fainter across the ecliptic than along
+  it at 2-5° from the Sun, where the F-corona is nearly round.
 - Cygnus and the Local Arm: the band there is about 1 mag faint, its
   brightest 6° south of the plane where the sky's is 2° north; the Local
   Arm's dust lane and young stars, as the in-plane map has them, need

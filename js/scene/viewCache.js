@@ -42,3 +42,29 @@ export function viewChanged(last, position, view, proj, moveTolerance, texelRad)
   }
   return rotationAngle(last.view, view) > 0.5 * texelRad
 }
+
+
+/**
+ * Whether every ray from a point outside a sphere hits it: the view's four
+ * corner rays are enough, as the rays that hit a sphere from outside make
+ * a round cone, and the frustum's rays a convex set its corners span.  So
+ * the ground fills the view, and nothing beyond it can show (#187: the
+ * night sky's light, from the surface looking down).
+ *
+ * @param {Array<number>} origin The camera
+ * @param {Array<Array<number>>} dirs The rays, unit
+ * @param {Array<number>} center The sphere's centre
+ * @param {number} radius Its radius
+ * @returns {boolean} False from inside the sphere, or if any ray misses it
+ */
+export function raysAllHitSphere(origin, dirs, center, radius) {
+  const oc = center.map((v, i) => v - origin[i])
+  const c = (oc[0] * oc[0]) + (oc[1] * oc[1]) + (oc[2] * oc[2]) - (radius * radius)
+  if (!(c > 0)) {
+    return false
+  }
+  return dirs.every((d) => {
+    const b = (d[0] * oc[0]) + (d[1] * oc[1]) + (d[2] * oc[2])
+    return b > 0 && (b * b) - c > 0
+  })
+}

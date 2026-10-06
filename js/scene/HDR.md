@@ -1115,6 +1115,23 @@ mag/arcsec² 5° from the Sun and 19.4 at 12°; from 5 AU, 18.5 at 5°.  A real
 eye there would be dazzled by the Sun (veiling glare, not modelled), which
 would hide most of it.
 
+**Its orientation is the ecliptic's.**  Read back from the GPU in the
+review's views at 1000×600 (and after a resize from 500×500 to 1200×500),
+the cache matches `zodiacalAlong` texel by texel within 0.3%, and the
+lens's long axis, from its second moments, lies along the ecliptic at the
+Sun: 88° from the screen's horizontal at 222 km, 83° at 4.6 and 78 Mm
+(the ecliptic runs up the screen there, so the lens is a tall ellipse),
+12° in a view from 1 AU with Earth in front of the Sun (the ecliptic at
+11°).  With the Sun hidden there the gain is 1.9e5, and along the ecliptic
+the light is 8e-10 B☉ (12.1 mag/arcsec²) 2° from the Sun, 1e-10 (14.4) at
+5°, 2e-11 (16.2) at 10° and 3e-12 (18.1) at 20°: the F-corona's and the
+inner zodiacal light's measured run, ε^−2.3 to within 2×.  So the core is
+white to about 7° along the ecliptic.  Across it the model is too flat
+near the Sun: 5 times fainter than along it at 2-5°, where the F-corona is
+nearly round (1-1.5 at 7-20 solar radii) and flattens to about 2 by 10-20°.
+Kelsall's fan was fitted from 1 AU, in the infrared; a cloud that rounds
+up inside 0.2 AU is a follow-up.
+
 ### Cost: by day, and with time running
 
 On #187's preview, looking at the Sun from Earth's surface by day with time
@@ -1142,6 +1159,33 @@ of the frame's.  Three changes (ThreeUi `_updateNightSkyShown`,
   (540 rows over 45°) is rendered every 5 frames, not every frame.
 - **The zodiacal light at a quarter of the frame's size** (at most 270
   rows), in its own cache, so its 32 steps a pixel are paid once per view.
+- **Skipped where the ground fills the view** (`viewCache.js`
+  `raysAllHitSphere`): from the surface looking down, the view's four
+  corner rays all meet the body's sphere, and nothing beyond it shows.
+  Only under the body's airglow layer: from over it (Earth's night side
+  from orbit) the layer's light is between the eye and the ground.
+- **Not even compiled in where it can't show.**  The atmosphere pass's
+  night-sky code (the light from beyond, airglow's path, the eye's
+  response) is under `#if NIGHT_SKY`, set only while the night sky is
+  shown.  So by day, and with the ground filling the view, the pass is the
+  one it was before #186: on a GPU that allocates registers for a
+  shader's worst path, values held live across the scattering's loops cost
+  occupancy even when a uniform's branch skips them.  three keeps both
+  programs once built, so the switch at dusk costs one compile.
+- **The galaxy's composite draws nothing in the HDR path.**  Its draw is
+  what runs the march, and the pass draws its light, so in the HDR path it
+  is drawn with no vertices (an empty draw range), not as a full-screen
+  triangle with its colour writes off.
+
+#187's second review measured about 20 frames a second on the surface
+looking down on a Mac, against 30-40 on `main`.  Counted per frame on
+SwiftShader at 1000×600 over 12 frames at −2 min/s (draw calls,
+framebuffer binds, readbacks), the change was already under `main`'s
+counts: 37.3 draws and 5.1 binds against 38.3 and 7.1 by day looking down,
+and no march.  What was left was per pixel: the pass's night-sky code,
+compiled in by day.  Now it isn't, and every pixel of a daytime or
+ground-filled frame runs `main`'s pass.  SwiftShader can't time a GPU's
+occupancy; the preview is the check.
 
 Measured on SwiftShader at 800×500 over 32-40 frames at −2 min/s: by day
 `main` marched the galaxy in every frame (40 of 40) and this change in

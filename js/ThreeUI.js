@@ -35,6 +35,7 @@ import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import {AIRGLOW_COLOR, ZODIACAL_STORE, airglowOf, zodiacalBrightest} from './scene/nightSky.js'
 import ZodiacalLight from './scene/ZodiacalLight.js'
+import {raysAllHitSphere} from './scene/viewCache.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
@@ -779,11 +780,43 @@ export default class ThreeUi {
     const glow = this._lastAtmPlanet ? (airglowOf(this._lastAtmPlanet.props.atmosphere)?.zenithValue ?? 0) * 7 : 0
     const brightest = (GALAXY_BRIGHTEST + zodiacal + glow) * exposure *
       extendedGain(exposure, this._galaxyOutsideWeight())
-    this._nightSkyShown = this.hdr && brightest > NIGHT_SKY_SKIP_VALUE
+    this._nightSkyShown = this.hdr && brightest > NIGHT_SKY_SKIP_VALUE && !this._groundFillsView()
     this._milkyWay ??= this.scene.getObjectByName('MilkyWay') ?? null
     if (this._milkyWay?.userData.galaxy) {
       this._milkyWay.userData.galaxy.skip = this.hdr && !this._nightSkyShown
     }
+  }
+
+
+  /**
+   * Whether the ground of the body whose atmosphere the pass draws fills
+   * the view (viewCache.js raysAllHitSphere, its four corner rays), seen
+   * from under its airglow's layer: then nothing of the night sky's light
+   * shows (#187: from the surface looking down).
+   *
+   * @returns {boolean}
+   */
+  _groundFillsView() {
+    const planet = this._lastAtmPlanet
+    const radius = planet?.props?.radius?.scalar
+    if (!(radius > 0)) {
+      return false
+    }
+    this._groundCheck ??= {centre: new Vector3(), eye: new Vector3(), corner: new Vector3(), dirs: [[], [], [], []]}
+    const g = this._groundCheck
+    planet.getWorldPosition(g.centre)
+    this.camera.getWorldPosition(g.eye)
+    // Over its airglow's layer, the layer is between the eye and the
+    // ground: Earth's night side from orbit has it.
+    const glow = airglowOf(planet.props.atmosphere)
+    if (glow && g.eye.distanceTo(g.centre) > radius + glow.height - (glow.thickness / 2)) {
+      return false
+    }
+    for (let i = 0; i < 4; i++) {
+      g.corner.set(i % 2 ? 1 : -1, i < 2 ? -1 : 1, 0.5).unproject(this.camera).sub(g.eye).normalize()
+      g.dirs[i] = g.corner.toArray(g.dirs[i])
+    }
+    return raysAllHitSphere(g.eye.toArray(), g.dirs, g.centre.toArray(), radius)
   }
 
 
@@ -806,6 +839,12 @@ export default class ThreeUi {
       this._milkyWay.material.colorWrite = !this.hdr
     }
     const shown = this._nightSkyShown === true
+    // The pass's night-sky code is compiled in only while it can show.
+    const mat = this._atmMesh.material
+    if (mat.defines && mat.defines.NIGHT_SKY !== (shown ? 1 : 0)) {
+      mat.defines.NIGHT_SKY = shown ? 1 : 0
+      mat.needsUpdate = true
+    }
     const target = shown ? this._galaxyShown()?.userData.galaxy.target?.value : null
     u.uGalaxy.value = target?.texture ?? null
     u.uGalaxyScale.value = target ? 1 / STORE_SCALE : 0
