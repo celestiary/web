@@ -3,6 +3,7 @@ import {goToEntry, lookAtEntry, targetEntry} from './commitEntry.js'
 
 
 const STAR = {x: 1, y: 2, z: 3}
+const PARIS = {kind: 'place', body: 'earth', name: 'Paris', lat: 48.8, lng: 2.3, alt: 35}
 
 const entries = {
   jupiter: {id: 'jupiter', displayName: 'Jupiter', kind: 'planet', path: 'milkyway/sun/jupiter', payload: {name: 'jupiter'}},
@@ -23,9 +24,6 @@ function makeCelestiary() {
       goTo: rec('goTo'),
       land: rec('land'),
       setTarget: rec('setTarget'),
-      lookAtStar: rec('lookAtStar'),
-      lookAtPlace: rec('lookAtPlace'),
-      targetLabel: rec('targetLabel'),
     },
     useStore: {getState: () => ({setCommittedStar: rec('setCommittedStar')})},
     loader: {pathByName: {jupiter: 'sun/jupiter'}},
@@ -44,19 +42,14 @@ describe('lookAtEntry (target)', () => {
     expect(c.calls).toEqual([['setTarget', 'jupiter']])
   })
 
-  it('looks at a star in place and commits it, without goTo', () => {
+  it('targets a star with setTarget, turning to it, without goTo', () => {
     lookAtEntry(entries.star, c)
-    expect(c.calls.map((x) => x[0])).toEqual(['lookAtStar', 'setCommittedStar'])
-    expect(c.calls[0][1]).toBe(STAR)
-    expect(c.calls[1][1]).toEqual({hipId: 32349, displayName: 'Sirius', star: STAR})
+    expect(c.calls).toEqual([['setTarget', {kind: 'star', star: STAR, name: 'Sirius'}]])
   })
 
-  it('looks at a place in place, without land, and leaves the point targeted for g', () => {
+  it('targets a place with setTarget, turning to it, without land', () => {
     lookAtEntry(entries.place, c)
-    expect(c.calls).toEqual([
-      ['lookAtPlace', 'earth', 48.8, 2.3, 35],
-      ['targetLabel', {kind: 'place', body: 'earth', name: 'Paris', lat: 48.8, lng: 2.3, alt: 35}, {path: false}],
-    ])
+    expect(c.calls).toEqual([['setTarget', PARIS]])
   })
 
   it('ignores a body with no scene object, and a missing entry', () => {
@@ -88,32 +81,41 @@ describe('goToEntry (go)', () => {
     expect(c.calls).toEqual([])
   })
 
-  it('travels to a star and commits it', () => {
+  it('travels to a star, which targets it', () => {
     goToEntry(entries.star, c)
-    expect(c.calls.map((x) => x[0])).toEqual(['goTo', 'setCommittedStar'])
+    expect(c.calls).toEqual([['goTo', STAR, 'Sirius']])
   })
 
-  it('lands on a place', () => {
+  it('lands on a place, which stays the target', () => {
     goToEntry(entries.place, c)
-    expect(c.calls).toEqual([['land', 'earth', 48.8, 2.3, 35]])
+    expect(c.calls).toEqual([['land', 'earth', 48.8, 2.3, 35, {target: PARIS}]])
   })
 })
 
 
 describe('targetEntry (pick in the dropdown)', () => {
-  it('targets a place as a click on its label does, keeping the breadcrumb (it would close the bar)', () => {
+  it('targets each kind as a click on its label does, without turning', () => {
     const c = makeCelestiary()
     targetEntry(entries.place, c)
+    targetEntry(entries.jupiter, c)
+    targetEntry(entries.star, c)
     expect(c.calls).toEqual([
-      ['targetLabel', {kind: 'place', body: 'earth', name: 'Paris', lat: 48.8, lng: 2.3, alt: 35}, {path: false}],
+      ['setTarget', PARIS, {look: false}],
+      ['setTarget', 'jupiter', {look: false}],
+      ['setTarget', {kind: 'star', star: STAR, name: 'Sirius'}, {look: false}],
     ])
   })
 
-  it('leaves bodies and stars to the preview, and ignores no entry', () => {
+  it('ignores no entry, and a body not in the scene', () => {
     const c = makeCelestiary()
-    targetEntry(entries.jupiter, c)
-    targetEntry(entries.star, c)
-    targetEntry(null, c)
+    const warn = console.warn
+    console.warn = () => {}
+    try {
+      targetEntry(null, c)
+      targetEntry({...entries.jupiter, payload: {name: 'nope'}}, c)
+    } finally {
+      console.warn = warn
+    }
     expect(c.calls).toEqual([])
   })
 })

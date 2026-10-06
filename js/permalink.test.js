@@ -419,3 +419,40 @@ describe('state tokens', () => {
         .toBe('open,view=a,pin=a+b,k=0')
   })
 })
+
+
+describe('from= (the camera\'s frame, when not the target\'s)', () => {
+  const Q = {x: 0, y: 0, z: 0, w: 1}
+
+  it('round-trips, written after the position', () => {
+    const frag = encodePermalink('sun/jupiter', 0, 1, 2, 3e6, Q, 45, undefined, undefined, 'sun/earth')
+    expect(frag).toBe('sun/jupiter@1,2,3Mm;from=sun/earth;t=0jd;cq=0,0,0,1;fov=45deg')
+    expect(decodePermalink(frag).from).toBe('sun/earth')
+    const atStar = encodePermalink('hip:32349', 0, 1, 2, 3e6, Q, 45, undefined, undefined, 'sun/earth')
+    expect(decodePermalink(atStar).from).toBe('sun/earth')
+    expect(decodePermalink(encodePermalink('sun', 0, 1, 2, 3, Q, 45, undefined, undefined, 'hip:7')).from)
+        .toBe('hip:7')
+  })
+
+  it('is left out when it is the path, or none', () => {
+    expect(encodePermalink('sun/earth', 0, 1, 2, 3, Q, 45, undefined, undefined, 'sun/earth')).not.toContain('from=')
+    expect(encodePermalink('sun/earth', 0, 1, 2, 3, Q, 45)).not.toContain('from=')
+    expect(decodePermalink('sun/earth@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg').from).toBe(null)
+    expect(decodePermalink('sun/earth@1,2,3m;from=sun/earth;t=0jd;cq=0,0,0,1;fov=45deg').from).toBe(null)
+  })
+
+  it('ignores a malformed one, keeping the rest of the link', () => {
+    for (const bad of ['', 'Sun/Earth', 'sun//earth', 'hip:x', '../x', 'sun/earth/']) {
+      const pl = decodePermalink(`sun@1,2,3m;from=${bad};t=0jd;cq=0,0,0,1;fov=45deg`)
+      expect(pl.from).toBe(null)
+      expect(pl.lat).toBe(1)
+    }
+  })
+
+  it('is a view param, not a state token', () => {
+    const pl = decodePermalink('hip:7@1,2,3m;from=hip:9;t=0jd;cq=0,0,0,1;fov=45deg;apps:open')
+    expect(pl.path).toBe('hip:7')
+    expect(pl.from).toBe('hip:9')
+    expect(pl.tokens).toEqual({apps: 'open'})
+  })
+})

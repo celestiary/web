@@ -9,6 +9,8 @@ const KV_SEP = '='
 const TOKEN_SEP = ':'
 const LIST_SEP = ','
 const VALUE_LIST_SEP = '+'
+// A `from=` frame path: a body path ('sun/earth') or a star ('hip:32349').
+const FRAME_PATH = /^([a-z0-9_-]+(\/[a-z0-9_-]+)*|hip:\d+)$/
 
 // SI meter prefixes, descending so first match wins
 const METER_PREFIXES = [
@@ -160,11 +162,16 @@ function parseMeters(s) {
  * etc.) — see SETTINGS_DEFAULTS / encodeSettings.  Omitted when every
  * setting is at its default, so the common case stays short.
  *
+ * `from=` names the body (or star) whose frame the position and `cq` are in,
+ * when it isn't the path's own (the target's): the camera's frame stays
+ * where the camera is when the target changes (targetPath.js).  Written
+ * after the position.
+ *
  * State tokens (`;label:value`, design/URLs.md) follow, in the order given.
  *
  * See js/permalink.md for the full specification.
  *
- * @param {string} path  Celestial path, e.g. 'sun/earth/moon'
+ * @param {string} path  The target's path, e.g. 'sun/earth/moon', 'sun/earth/austin', 'hip:32349'
  * @param {number} d2000  Days from J2000.0 (= simTimeJulianDay() − 2451545.0)
  * @param {number} lat  Latitude in degrees (body-fixed, −90…+90)
  * @param {number} lng  Longitude in degrees (body-fixed, −180…+180)
@@ -174,14 +181,20 @@ function parseMeters(s) {
  * @param {object} [settings]  Scene settings map matching SETTINGS_DEFAULTS
  * @param {object} [tokens]  State tokens, {label: value}; a null or undefined
  *   value is left out, an empty string written as a bare `label:`
+ * @param {string} [from]  The path of the camera's frame body (or star), if
+ *   not the path's own; left out if null or equal to `path`
  * @returns {string}  Hash fragment without leading '#'
  */
-export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens) {
+export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens, from) {
   const pos = `${trimFloat(lat)},${trimFloat(lng)},${formatMeters(Math.round(alt))}`
   const t = `${parseFloat(d2000.toFixed(4))}jd`
   const cq = [quat.x, quat.y, quat.z, quat.w].map(trimFloat).join(',')
   const f = `${parseFloat(fov.toFixed(2))}deg`
-  let frag = `${path}${SEPARATOR}${pos}${PARAM_SEP}t=${t}${PARAM_SEP}cq=${cq}${PARAM_SEP}fov=${f}`
+  let frag = `${path}${SEPARATOR}${pos}`
+  if (from && from !== path) {
+    frag += `${PARAM_SEP}from=${from}`
+  }
+  frag += `${PARAM_SEP}t=${t}${PARAM_SEP}cq=${cq}${PARAM_SEP}fov=${f}`
   if (settings) {
     const flags = encodeSettings(settings)
     if (flags) {
@@ -203,11 +216,14 @@ export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings,
  * including a non-finite number.  The time is clamped to the dates Time
  * supports (J2000 ± SUPPORTED_DAYS_FROM_J2000).  Unknown parameter keys
  * after the position prefix are silently ignored.  State tokens
- * (`label:value`) are returned as given, in `tokens`.
+ * (`label:value`) are returned as given, in `tokens`.  `from` is the
+ * camera's frame path when the link names one (else null: the path's own);
+ * a malformed one is null.
  *
  * @param {string} fragment  Hash content without leading '#'
  * @returns {{path:string, d2000:number, lat:number, lng:number, alt:number,
- *            quat:{x,y,z,w}, fov:number, settings:object, tokens:object}|null}
+ *            quat:{x,y,z,w}, fov:number, settings:object, tokens:object,
+ *            from:?string}|null}
  */
 export function decodePermalink(fragment) {
   const atIdx = fragment.indexOf(SEPARATOR)
@@ -271,7 +287,8 @@ export function decodePermalink(fragment) {
   // Settings are always returned as a complete map (defaults + any flagged
   // overrides) so callers don't need to know the default table.
   const settings = decodeSettings(params['s'])
-  return {path, d2000: d2000InRange, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov, settings, tokens}
+  const from = FRAME_PATH.test(params['from'] ?? '') && params['from'] !== path ? params['from'] : null
+  return {path, d2000: d2000InRange, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov, settings, tokens, from}
 }
 
 

@@ -5,6 +5,7 @@ import {labelTextColor, overlay} from '../shared.js'
 import {newWideLines} from './wideLines.js'
 import {rteCameraLocal} from './rte.js'
 import SpriteSheet from './SpriteSheet.js'
+import {slug} from '../targetPath.js'
 
 
 // Drawn as the human expansion lines are (wideLines.js): antialiased
@@ -160,6 +161,19 @@ export default class Asterisms extends Object3D {
       rteCameraLocal(points, camera, u.uCamPosWorldHigh.value, u.uCamPosWorldLow.value)
     }
     this.add(points)
+  }
+
+
+  /**
+   * @param {string} name An asterism's name, or its slug as a path has it
+   *   (targetPath.js: `asterism:ursa-major`)
+   * @returns {?{kind: string, name: string, position: object}} The asterism
+   *   as a target, as its label has it; null if there's none of that name
+   */
+  targetNamed(name) {
+    const s = slug(name)
+    const found = this._centroids.find((c) => slug(c.name) === s)
+    return found ? {kind: 'asterism', name: found.name, position: found.position} : null
   }
 
 
