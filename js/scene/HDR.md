@@ -669,8 +669,9 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    the lit part's share of the frame (0.5% to 5%).  It may pass
    `METER_GAIN_MAX`, as a long exposure does, to `GALAXY_GAIN_MAX` (1e10);
    the stars' limit deepens with it, and from outside the catalogue's stars
-   are fainter than magnitude 11.  Face-on from 100 kpc the gain settles at
-   1.2e8, oblique from 50 kpc at 7.5e7, edge-on from 80 kpc at 4.1e7.
+   are fainter than magnitude 11.  Face-on from 45 or 100 kpc the gain
+   settles at 1.2e8, oblique from 50 kpc at 8.3e7, edge-on from 80 kpc at
+   5.2e7; from 3 kpc over the Sun it stays at 4e6.
 
 The exposure then reaches everything in the buffer's units: the surfaces
 (the scene pass), the sky (`uSkyExposure`), the stars (`exposureRelative`),

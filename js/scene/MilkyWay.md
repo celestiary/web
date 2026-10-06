@@ -222,6 +222,9 @@ are most of the lit pixels, so it ran the gain to 5e8 and blew the whole
 inner disc to a cream white.  Keying the brightest tenth to 1.0 still blew
 the bar.
 
+Settled gains in the evidence: face-on from 45 or 100 kpc 1.2e8, oblique
+from 50 kpc 8.3e7, edge-on from 80 kpc 5.2e7.
+
 **Inside the galaxy the eye's gain stays.**  `outsideWeight` is 0 anywhere
 in the disc, so the night sky, the star field and its limit are untouched.
 From 3 kpc over the Sun the disc below shows at the dark gain.
@@ -257,13 +260,23 @@ what the catalogue resolves, is the fix when it matters.
 
 ## Performance
 
-SwiftShader (the evidence's 480×360): about 100-260 ms a frame while the
-march runs (camera moving) and the scene pass alone otherwise.  The galaxy
-is one draw call in the scene pass, plus one into the march target when the
-view changes.  The march costs about (pixels / 4) × 30-100 steps × 2 texture
-reads: on a 1080p laptop screen at pixel ratio 2, 2M march pixels.  It
-re-runs only while the camera moves; a still view samples the cached
-target.
+Measured on SwiftShader at 480×360, a frame timed to `gl.finish`, the
+median of seven:
+
+| View | Point cloud, camera moving | Integrated light, camera moving (re-marched each frame) | Integrated light, camera still (cached) |
+|---|---|---|---|
+| Face-on from 45 kpc | 244 ms | 197 ms | 103 ms |
+| From the Sun toward the centre | 197 ms | 204 ms | 83 ms |
+
+The galaxy is two draw calls: the march into its target when the view has
+changed, and the composite.  The scene drops the cloud's 60,000 points
+(106,753 points drawn, the stars, against 166,753).  The march costs
+(the frame's pixels / 4, at most 540 rows) × 30-100 steps × a map read
+and the density's arithmetic.  At 1080p it is 518k march pixels, at most
+about 50M steps while the camera moves, none while it's still.  Not
+measured on a real GPU here: the user's preview is the check.
+
+The bake is about 0.6 s of arithmetic, done in slices between frames.
 
 ## Sources
 
