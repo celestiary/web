@@ -81,6 +81,64 @@
       }
     },
     {
+      "id": "earth-night-europe",
+      "body": "earth",
+      "description": "Earth from 4,000 km at night over Europe, the Sun behind the planet: the city lights, NASA's Black Marble, on Cesium's globe (GIBS tiles, drawn in a pass of their own) and on celestiary's sphere (its night texture), under celestiary's atmosphere pass, at the exposure the meter picks for the dark frame.  Before #93 the Cesium side was black (ratio 0.00).  The region is the lit land (pixels of 6 or more, of 255): the ocean floor's few levels are quantisation noise",
+      "hash": "#sun/earth@40,9.9942,4Mm;t=9851.4722jd;cq=0.0005,0.9896,0.1439,-0.0037;fov=45deg;s=alpoU",
+      "freeze": true,
+      "minLuma": 6,
+      "region": {
+        "box": [
+          0.25,
+          0.2,
+          0.75,
+          0.8
+        ]
+      },
+      "profile": null,
+      "tolerance": {
+        "ratio": [
+          0.97,
+          1.03
+        ],
+        "channelRatio": [
+          0.97,
+          1.03
+        ],
+        "meanRatio": [
+          0.93,
+          1.03
+        ],
+        "luma": [
+          30,
+          80
+        ]
+      }
+    },
+    {
+      "id": "earth-night-dusk",
+      "body": "earth",
+      "description": "Earth from 400 km over Italy, straight down at dusk with the Sun 16 degrees under the horizon: the lights through celestiary's atmosphere pass.  From this low, GIBS's 600 m tiles are sharp where celestiary's 11 km texture is a blur, so the median ratio of pixels (0.69) isn't the measure: the region's mean is, over every pixel.  Red read 0.89 to 0.95 over runs (the tiles' level settles differently), so 0.85",
+      "hash": "#sun/earth@41,11.9952,400km;t=9851.2188jd;cq=-0.1803,0.7775,0.2572,0.5449;fov=45deg;s=alpoU",
+      "freeze": true,
+      "minLuma": 0,
+      "region": {
+        "box": [
+          0.15,
+          0.15,
+          0.85,
+          0.85
+        ]
+      },
+      "profile": null,
+      "tolerance": {
+        "meanRatio": [
+          0.85,
+          1.05
+        ]
+      }
+    },
+    {
       "id": "earth-low-dusk",
       "body": "earth",
       "description": "Earth from 400 km, straight down with the Sun about 14 degrees up (76 degrees phase): the low-sun haze over the ground, and the terminator's soft edge",

@@ -37,6 +37,33 @@ export function irradianceAt(distanceMeters) {
 }
 
 
+// Earth's city lights' radiance, as a fraction of a white Lambertian
+// surface facing the Sun at 1 AU, for the texture's full white: 1 cd/m²,
+// a city core seen from above, against ~3e4 cd/m² for the white (HDR.md,
+// "Physical stars").  In exposure units, with DISPLAY_GAIN as every surface
+// has it, and scaled by the exposure as a surface is (the add is before
+// the scene pass's exposure multiply), so the metered exposure reads the
+// lights as scene luminance: at the keyed exposure 4.5e-5, black beside a
+// sunlit day side (as a camera at the terminator sees them), and at the
+// night side's own gain 0.6 at most.  They were 1.5 / toneMappingExposure,
+// a display value whatever the exposure, which the meter read as
+// luminance over the gain, asking for a gain proportional to the one it
+// had: a loop, with the night-side ground running up and away.  One scale
+// for both sides of the Cesium swap: celestiary's surface shader (Planet.js)
+// and Cesium's lights pass (CesiumLayers) both use it, over the same Black
+// Marble (Planet.md, #93).
+export const NIGHT_LIGHT_RADIANCE = 3e-5
+
+
+/**
+ * @returns {number} The night lights' radiance for a full-white texel, in
+ *   three's units (before the renderer's exposure)
+ */
+export function nightLightRadiance() {
+  return NIGHT_LIGHT_RADIANCE * irradianceAt(ASTRO_UNIT_METER) / Math.PI
+}
+
+
 /**
  * The atmosphere pass's sky scale (HDR.md, "The sky in exposure units"): its
  * in-scatter times a body's `sunIntensity` is the sky in exposure units when
