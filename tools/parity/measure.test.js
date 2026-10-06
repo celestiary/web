@@ -1,5 +1,5 @@
 import {
-  allPass, describeTolerance, evaluateView, formatTable, lumaAt, mean, measureView, median, medianRatios,
+  allPass, describeTolerance, evaluateView, formatTable, lumaAt, mean, meanRatios, measureView, median, medianRatios,
   profileDeviation, regionMask, sampleProfile, terminatorLine, within,
 } from './measure.mjs'
 
@@ -139,6 +139,32 @@ describe('medianRatios', () => {
 })
 
 
+describe('meanRatios', () => {
+  const off = image(8, 8, (x, y) => [80 + x, 100 + y, 120])
+
+  it('is 1 for identical images and recovers a gain', () => {
+    const mask = regionMask(off, {box: [0, 0, 1, 1]})
+    expect(meanRatios(off, off, mask).luma).toBeCloseTo(1, 9)
+    const r = meanRatios(scaled(off, 0.5), off, mask)
+    for (const key of ['luma', 'r', 'g', 'b']) {
+      expect(r[key]).toBeCloseTo(0.5, 9)
+    }
+  })
+
+  it('holds where a blur moves the per-pixel medians: the same energy, spread', () => {
+    // One bright pixel in black, against the same light spread over four.
+    const sharp = image(8, 8, (x, y) => (x === 3 && y === 3 ? [200, 200, 200] : [0, 0, 0]))
+    const blurred = image(8, 8, (x, y) => (x >= 3 && x <= 4 && y >= 3 && y <= 4 ? [50, 50, 50] : [0, 0, 0]))
+    const mask = new Uint8Array(64).fill(1)
+    expect(meanRatios(sharp, blurred, mask).luma).toBeCloseTo(1, 9)
+  })
+
+  it('is NaN with nothing measured', () => {
+    expect(meanRatios(off, off, new Uint8Array(64)).luma).toBeNaN()
+  })
+})
+
+
 describe('sampleProfile', () => {
   // Brightness rising left to right: 0, 10, ..., 90.
   const ramp = image(10, 4, (x) => [x * 10, x * 10, x * 10])
@@ -246,6 +272,15 @@ describe('measureView and evaluateView', () => {
     expect(rows.map((r) => r.metric)).toEqual(
         ['pixels', 'ratio luma', 'ratio r', 'ratio g', 'ratio b', 'profile max', 'profile mean'])
     expect(allPass(rows)).toBe(true)
+  })
+
+  it('bounds the mean ratio, overall and per channel', () => {
+    const measured = measureView(scaled(off, 0.8), off, view)
+    const rows = evaluateView('dim', measured, {meanRatio: [0.75, 0.85]})
+    expect(rows.map((r) => r.metric)).toEqual(
+        ['pixels', 'mean ratio luma', 'mean ratio r', 'mean ratio g', 'mean ratio b'])
+    expect(allPass(rows)).toBe(true)
+    expect(allPass(evaluateView('dim', measured, {meanRatio: [0.95, 1.05]}))).toBe(false)
   })
 
   it('takes a range per channel', () => {

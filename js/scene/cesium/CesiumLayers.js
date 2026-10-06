@@ -26,13 +26,23 @@ import {
   UnsignedInt248Type,
   Vector3,
   WebGLRenderTarget,
+  ZeroFactor,
 } from 'three'
 import {dataUrl, isAbsoluteUrl} from '../../dataUrl.js'
 import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
-import {bodyToEcef, cameraToEcefView, cesiumFov, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
+import {
+  bodyToEcef,
+  cameraToEcefView,
+  cesiumFov,
+  ellipsoidCameraPosition,
+  NIGHT_LIGHT_EDGE,
+  nightVisible,
+  sunLightDirectionEcef,
+} from './frames.js'
 import {fovScale} from '../farPoint.js'
+import {nightLightRadiance} from '../exposure.js'
 import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
@@ -134,6 +144,13 @@ export default class CesiumLayers {
     this.decode = new Mesh(new PlaneGeometry(2, 2), newDecodeMaterial())
     this.decode.frustumCulled = false
     this.decodeScene.add(this.decode)
+    // The night lights' pass (_drawNightLights): added on top of the decode.
+    this.lightsScene = new Scene()
+    this.lights = new Mesh(new PlaneGeometry(2, 2), newLightsMaterial())
+    this.lights.frustumCulled = false
+    this.lightsScene.add(this.lights)
+    this._lightsCenter = new Vector3()
+    this._lightsSun = new Vector3()
     this._clearColor = new Color()
   }
 
@@ -244,6 +261,7 @@ export default class CesiumLayers {
       this._compositeBody(name, node, unseen)
       if (!unseen && this.bodies[name]?.status === 'ready') {
         this._decodeInto(sceneRT, cesiumRT, name, node)
+        this._drawNightLights(sceneRT, cesiumRT, name, node)
       }
     }
     this._drawFadingSurfaces(drawn)
@@ -294,6 +312,95 @@ export default class CesiumLayers {
     const autoClear = renderer.autoClear
     renderer.autoClear = false
     renderer.render(this.decodeScene, this.decodeCamera)
+    renderer.autoClear = autoClear
+  }
+
+
+  /**
+   * Night lights, for a body with a `nightImagery` layer (Earth): a second
+   * Cesium frame of the globe with only that layer on, unlit, added to
+   * _sceneRT as emitted light.  CESIUM.md, "Night lights".
+   *
+   * Not through the day frame: Cesium multiplies a globe's imagery by its
+   * lighting, which is 0 on the night side (and its night alpha only
+   * chooses which imagery is blended in before that), and the frame's 8
+   * bits hold the lit surface up to 1, where the lights are ~1e-5 of a
+   * sunlit white.  The lights pass has the whole frame: the layer's stored
+   * values, as celestiary's night texture is read, and the decode scales
+   * them to exposure units (newLightsMaterial), where each pixel's
+   * terminator band is computed as celestiary's surface does it.
+   *
+   * Runs in the stencil the day frame left in _cesiumRT (only its colour is
+   * cleared), after the day decode, since that wrote the terrain's depth,
+   * which the stencil shell's depth test would hit.  Skipped where no night
+   * can be in view.
+   *
+   * @param {object} sceneRT
+   * @param {object} cesiumRT
+   * @param {string} name
+   * @param {object} node The body's node
+   */
+  _drawNightLights(sceneRT, cesiumRT, name, node) {
+    const body = this.bodies[name]
+    if (!body?.night || !body.nightVisible) {
+      return
+    }
+    const {renderer, camera} = this.ui
+    const {Cesium, widget} = body
+    const {globe} = widget.scene
+    const layers = widget.imageryLayers
+    // Only the night layer, unlit, on black: the others are skipped, not
+    // hidden, so their tiles stay loaded for the day frame.
+    const alphas = []
+    for (let i = 0; i < layers.length; i++) {
+      const layer = layers.get(i)
+      alphas.push([layer, layer.alpha])
+      layer.alpha = layer === body.night ? 1 : 0
+    }
+    const baseColor = globe.baseColor
+    globe.baseColor = Cesium.Color.BLACK
+    globe.enableLighting = false
+    renderer.setRenderTarget(cesiumRT)
+    renderer.getClearColor(this._clearColor)
+    const clearAlpha = renderer.getClearAlpha()
+    renderer.setClearColor(0x000000, 0)
+    renderer.clear(true, false, false)
+    renderer.setClearColor(this._clearColor, clearAlpha)
+    body.Cesium.Ellipsoid.default = body.ellipsoid
+    try {
+      body.link.frame(() => {
+        body.widget.render()
+      })
+    } catch (err) {
+      this._fail(name, err)
+      return
+    } finally {
+      for (const [layer, alpha] of alphas) {
+        layer.alpha = alpha
+      }
+      globe.baseColor = baseColor
+      globe.enableLighting = true
+    }
+    renderer.resetState()
+
+    // The decode: the body's sphere and the Sun in view space, for each
+    // pixel's N·L.
+    const u = this.lights.material.uniforms
+    u.tCesium.value = cesiumRT.texture
+    u.uHdr.value = this.ui.hdr === true ? 1 : 0
+    u.uGain.value = nightLightRadiance() * renderer.toneMappingExposure
+    u.uProjectionInverse.value.copy(camera.projectionMatrixInverse)
+    node.getWorldPosition(this._lightsCenter)
+    this._lightsSun.copy(this._sunPos).sub(this._lightsCenter).normalize()
+        .transformDirection(camera.matrixWorldInverse)
+    this._lightsCenter.applyMatrix4(camera.matrixWorldInverse)
+    u.uCenter.value.copy(this._lightsCenter)
+    u.uSun.value.copy(this._lightsSun)
+    u.uRadius.value = node.props.radius.scalar
+    renderer.setRenderTarget(sceneRT)
+    const autoClear = renderer.autoClear
+    renderer.autoClear = false
+    renderer.render(this.lightsScene, this.decodeCamera)
     renderer.autoClear = autoClear
   }
 
@@ -751,6 +858,7 @@ export default class CesiumLayers {
 
     const dir = sunLightDirectionEcef(node.matrixWorld, this._sunPos)
     widget.scene.light.direction = new Cesium.Cartesian3(...dir)
+    body.nightVisible = body.night ? nightVisible(view.position, dir, node.props.radius.scalar) : false
 
     // Keep Cesium's canvas the size of celestiary's.
     const {width, height} = this.ui
@@ -916,6 +1024,8 @@ export default class CesiumLayers {
     } else if (token) {
       addIonEarth(Cesium, widget, config.detailFromLevel)
     }
+    const night = widget.scene.globe && config.nightImagery ?
+      addNightLights(Cesium, widget, config.nightImagery) : null
     guest.attach(widget.scene)
     // Cesium's widgets.css normally sizes its canvas to the container;
     // without it the canvas stays 300×150 and renders blocky.
@@ -972,7 +1082,7 @@ export default class CesiumLayers {
     }
     scene.renderError.addEventListener((_scene, err) => this._fail(name, err))
 
-    return {Cesium, widget, link, guest, container, ellipsoid, credits, month: this._month()}
+    return {Cesium, widget, link, guest, container, ellipsoid, credits, night, month: this._month()}
   }
 
 
@@ -1072,6 +1182,40 @@ function addIonEarth(Cesium, widget, detailFromLevel) {
     }
   })
   widget.imageryLayers.add(imagery)
+}
+
+
+/**
+ * Add a globe's night lights imagery layer, with alpha 0: its tiles load
+ * and stay cached, and the day frame skips it (Cesium draws no layer at
+ * alpha 0); _drawNightLights turns it on for its own frame.  On top of the
+ * stack, though in its frame it is the only layer drawn.
+ *
+ * @param {object} Cesium
+ * @param {object} widget
+ * @param {object} imagery A body's nightImagery config (bodies.js)
+ * @returns {object} Cesium.ImageryLayer
+ */
+function addNightLights(Cesium, widget, imagery) {
+  const {url, tileSize, maximumLevel, credit} = imagery
+  const layer = new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
+    url,
+    // GIBS's EPSG:3857 tile matrix set: one 256 px tile at level 0.
+    tilingScheme: new Cesium.WebMercatorTilingScheme(),
+    tileWidth: tileSize,
+    tileHeight: tileSize,
+    maximumLevel,
+    credit,
+  }), {alpha: 0})
+  let warned = false
+  layer.errorEvent.addEventListener((err) => {
+    if (!warned) {
+      warned = true
+      console.warn('[cesium layer] night lights imagery unavailable (NASA GIBS); no lights on Cesium\'s Earth', err)
+    }
+  })
+  widget.imageryLayers.add(layer)
+  return layer
 }
 
 
@@ -1213,6 +1357,77 @@ function litSurfaceOnly(globe) {
   globe.vertexShadowDarkness = 0
   globe.lightingFadeOutDistance = 0
   globe.lightingFadeInDistance = 1
+}
+
+
+/**
+ * @returns {object} The ShaderMaterial of the night lights' decode
+ *   (_drawNightLights): the lights frame (the layer's stored values on
+ *   black, opaque where the globe is) into _sceneRT, added, as emitted
+ *   light in exposure units.  Each pixel's N·L comes from the view ray
+ *   against the body's sphere, and the band from it as celestiary's surface
+ *   shader has it, `smoothstep(-0.05, 0.05, -N·L)` (Planet.js), so the two
+ *   sides of the swap light the same ground alike.
+ */
+function newLightsMaterial() {
+  return new ShaderMaterial({
+    uniforms: {
+      tCesium: {value: null},
+      uHdr: {value: 1},
+      // nightLightRadiance() × the renderer's exposure.
+      uGain: {value: 0},
+      uProjectionInverse: {value: new Matrix4()},
+      uCenter: {value: new Vector3()},
+      uSun: {value: new Vector3(0, 0, -1)},
+      uRadius: {value: 1},
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }`,
+    fragmentShader: `
+      uniform sampler2D tCesium;
+      uniform float uHdr;
+      uniform float uGain;
+      uniform mat4 uProjectionInverse;
+      uniform vec3 uCenter;
+      uniform vec3 uSun;
+      uniform float uRadius;
+      varying vec2 vUv;
+      ${NEUTRAL_GLSL}
+      void main() {
+        vec4 c = texture2D(tCesium, vUv);
+        if (c.a < 0.5 / 255.0) discard;
+        // The view ray's first hit on the body's sphere, or where it passes
+        // nearest (a limb pixel of the ellipsoid, a ridge over the horizon).
+        vec4 v = uProjectionInverse * vec4(vUv * 2.0 - 1.0, -1.0, 1.0);
+        vec3 dir = normalize(v.xyz / v.w);
+        float along = dot(uCenter, dir);
+        float miss = dot(uCenter, uCenter) - along * along;
+        float chord = sqrt(max(uRadius * uRadius - miss, 0.0));
+        float t = along - chord;
+        if (t < 0.0) t = along + chord;
+        vec3 normal = normalize(dir * max(t, 0.0) - uCenter);
+        float nightFactor = smoothstep(-${NIGHT_LIGHT_EDGE.toFixed(2)}, ${NIGHT_LIGHT_EDGE.toFixed(2)}, -dot(normal, uSun));
+        vec3 rgb = min(c.rgb * nightFactor * uGain, vec3(${HDR_MAX_VALUE.toFixed(1)}));
+        if (uHdr < 0.5) {
+          rgb = neutralToneMap(rgb);
+        }
+        gl_FragColor = vec4(rgb, 1.0);
+      }`,
+    blending: CustomBlending,
+    blendEquation: AddEquation,
+    blendSrc: OneFactor,
+    blendDst: OneFactor,
+    blendSrcAlpha: ZeroFactor,
+    blendDstAlpha: OneFactor,
+    depthTest: false,
+    depthWrite: false,
+    transparent: true,
+    toneMapped: false,
+  })
 }
 
 

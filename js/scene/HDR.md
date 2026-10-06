@@ -901,6 +901,15 @@ bodyGain`, opaque, with the terrain's distance from alpha as depth
 Cesium's frame no longer clears `_sceneRT`'s depth, so the depth save and
 restore around each frame go.
 
+**Emitted light doesn't fit that frame.**  The frame holds a lit surface, at
+most 1; Earth's night lights are ~4.5e-5 of a lit white at the keyed exposure
+and are meant to be seen at the night side's gain (up to 4e6), under one
+level of the day's 8 bits.  So they are a second Cesium frame, the night
+imagery's stored values on black, decoded by a pass that adds them to
+`_sceneRT` as `stored × nightFactor × NIGHT_LIGHT_RADIANCE × toneMappingExposure`,
+the form celestiary's own surface shader has, before the atmosphere pass and
+the meter ([CESIUM.md, night lights](../../CESIUM.md#night-lights)).
+
 ## Fallback: no float render targets
 
 Rendering to RGBA16F needs `EXT_color_buffer_float` (WebGL2; it covers half
@@ -980,7 +989,7 @@ bodies); `on` is the default, Cesium where it's in range.
   Neutral doesn't.  Twilight is 29% dimmer, with the least blue left:
   Neutral's toe crushes dim values (the worked number above).  The sea
   under the midday haze is 12% darker (its haze is sky, and redder before).
-- Earth's night lights (celestiary's only; #93) and the Sun's glow ring are
+- Earth's night lights (celestiary's only then; Cesium's now draws them, #93, [CESIUM.md](../../CESIUM.md#night-lights)) and the Sun's glow ring are
   unchanged.  The Sun's disc is black in SwiftShader on `main` and here
   alike.
 

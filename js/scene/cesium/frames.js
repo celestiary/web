@@ -119,3 +119,43 @@ export function ellipsoidCameraPosition(ecef, radius, radii) {
   const k = (surface + r - radius) / r
   return [x * k, y * k, z * k]
 }
+
+
+/**
+ * N·L at which the night lights are gone: the upper edge of celestiary's
+ * `smoothstep(-0.05, 0.05, -N·L)` terminator band (Planet.md), about 3° into
+ * the day side.
+ */
+export const NIGHT_LIGHT_EDGE = 0.05
+// A margin on the sphere's radius for the horizon: terrain and the ellipsoid
+// reach a little past it, so the visible cap is a little larger.
+const HORIZON_RADIUS_MARGIN = 0.99
+
+
+/**
+ * Whether any of the body's surface in view can be on its night side, where
+ * the lights pass has something to draw: a cheap, conservative test from
+ * the camera's angle to the Sun and the angle of the cap of the sphere the
+ * camera can see, ignoring the frustum.  Not the pass's own coverage: the
+ * pass computes each pixel's N·L.
+ *
+ * @param {Array<number>} cameraEcef Camera ECEF [x, y, z], metres
+ * @param {Array<number>} lightDirection Unit ECEF direction sunlight travels
+ *   (sunLightDirectionEcef)
+ * @param {number} radius The body's sphere radius, metres
+ * @returns {boolean}
+ */
+export function nightVisible(cameraEcef, lightDirection, radius) {
+  const [x, y, z] = cameraEcef
+  const r = Math.hypot(x, y, z)
+  if (!(r > 0)) {
+    return true
+  }
+  // Angle from the sub-solar point to the camera's sub-point.
+  const towardSun = -((x * lightDirection[0]) + (y * lightDirection[1]) + (z * lightDirection[2])) / r
+  const fromSun = Math.acos(Math.max(-1, Math.min(1, towardSun)))
+  // The camera sees the sphere out to this angle from its sub-point (a
+  // quarter turn from the surface).
+  const sees = r > radius * HORIZON_RADIUS_MARGIN ? Math.acos(radius * HORIZON_RADIUS_MARGIN / r) : Math.PI / 2
+  return fromSun + sees > Math.acos(NIGHT_LIGHT_EDGE)
+}

@@ -208,6 +208,12 @@ relates to real time.
   detail layer, but isn't in ion's asset depot for this account.)  (Passing CesiumWidget
   `terrain: Terrain.fromWorldTerrain()` instead leaves the globe with no
   terrain, drawing nothing, until ion answers, and forever if it fails.)
+- Earth's city lights: NASA GIBS's VIIRS Black Marble (the 2016 composite),
+  WMTS in Web Mercator, levels 0-8 of 256 px PNG tiles (~600 m a pixel at
+  the equator), as a Cesium imagery layer on the globe (bodies.js
+  `nightImagery`).  Needs no token, and is public domain (NASA); fetched
+  from `gibs.earthdata.nasa.gov`, which sends CORS headers.  Drawn by a
+  pass of its own, not through the globe's lighting: see Night lights.
 - Moon, Mars: Cesium ion 3D-tiles datasets, token only (see Phases).
 - Token: build-time `CESIUM_ION_TOKEN` env var → `__CESIUM_ION_TOKEN__`,
   set from the repository secret of the same name.  It ships in the page,
@@ -311,6 +317,71 @@ relates to real time.
   (view-space z) divided by the ray's cosine off the view axis to compare
   distances along the ray.
 
+### Night lights
+
+Earth's city lights are the same data as celestiary's, NASA's Black Marble
+(Planet.md, texture_night), at the same scale, as emitted light in exposure
+units: `NIGHT_LIGHT_RADIANCE` (`exposure.js`) of a sunlit white for a texel
+of full white, times the renderer's exposure, times `smoothstep(−0.05, 0.05,
+−N·L)`.  Celestiary adds them in its surface shader; Cesium's side is its
+own frame (`CesiumLayers._drawNightLights`).
+
+**Why not Cesium's `nightAlpha`.**  The plan was a night layer shown only
+by dark: `dayAlpha` 0, `nightAlpha` 1.  It can't work here, for two reasons
+(GlobeFS.glsl):
+
+- Cesium blends the imagery, choosing between a layer's day and night alpha by
+  `1 − clamp(5·N·L, 0, 1)`, and then multiplies the *blend* by its lighting:
+  `clamp(N·L · lambertDiffuseMultiplier + vertexShadowDarkness, 0, 1)`
+  (0.3 more on the plain ellipsoid).  The night alpha only picks which
+  imagery is there to be lit; and the lit surface here is `stored × Lambert`
+  with no ambient (`litSurfaceOnly`), 0 on the night side.  The lights are
+  multiplied away, or, with an ambient to carry them, tinted and capped by
+  it, and the day side's Lambert is bent with them.
+- Cesium's frame reaches celestiary through 8 bits ([HDR.md](js/scene/HDR.md#cesium-in-the-same-units)),
+  the lit surface up to 1, where the lights are 4.5e-5 of a lit white: a
+  light that is bright after the night's gain (up to 4e6) is under a level
+  of the day's.  They can't share the frame's channels, and the alpha holds the
+  terrain's distance.
+
+**What it does.**  The Black Marble is an imagery layer on the globe at
+alpha 0 (`addNightLights`): the day frame skips it (Cesium draws no layer at
+alpha 0), and its tiles load all the same.  After the body's day frame is
+decoded into the scene buffer, a second Cesium frame renders the globe with
+lighting off, every other layer at alpha 0 and the night layer at 1, on a
+black base: the layer's stored values, opaque where the globe is.  Only its
+colour clears from `_cesiumRT`, so the day frame's stencil still limits it,
+and it runs after the day decode, not before: the decode wrote the terrain's
+depth, which the stencil shell's depth test would otherwise hit from inside
+the shell (below 64 km).  A second decode adds it to `_sceneRT`
+(`newLightsMaterial`, blending One, One, no depth): `texel × nightFactor ×
+nightLightRadiance() × toneMappingExposure`, with the stored value read as
+celestiary reads it (no sRGB decode), and `nightFactor` from the same
+smoothstep on each pixel's N·L, taken from the view ray against the body's
+sphere, as celestiary's surface does from its sphere's normal.  So the lights
+join the scene before the atmosphere pass, which dims them by the same
+transmittance on both sides, and before the meter, which reads them as scene
+luminance.
+
+**When.**  Only when some of the surface in view can be on the night side
+(`frames.nightVisible`: the camera's angle to the Sun plus the angle of the
+cap it sees, against the band's edge at N·L 0.05); the pass is a second
+render of the globe, and from a day-side view it is skipped.  And only while
+Cesium's layer is on: during the crossfade the surface fading over it
+carries celestiary's lights, and the blend does the rest.
+
+**Resolution.**  GIBS's level 8 is ~600 m a pixel; celestiary's texture is
+3600×1800 (11 km).  From 4,000 km they agree pixel for pixel; from 400 km
+Cesium's lights are sharp (Rome, Naples) where celestiary's are a blur, and
+the two agree in the region's mean (`earth-night-dusk`) and not in its
+pixels' median (0.69).
+
+**Not done.**  Clouds should dim the lights beneath them (#88); the layer
+isn't offline (GIBS is a network host, like ion's imagery, and a failed tile
+is black: no lights there, a warning logged once); GIBS's imagery is a
+picture, not calibrated radiance, so the scale is calibrated by eye
+(Planet.md, brightness).
+
 ### Tiles and lighting (ion 3D tiles)
 
 - Celestiary's bodies turn under its camera, so Cesium's camera moves
@@ -373,7 +444,9 @@ relates to real time.
 
 - Picking / inspection through Cesium (click → lat/lng, entity info):
   forward celestiary's clicks to `scene.pick` on the active widget.
-- Night lights on Cesium's Earth (ion Black Marble as a night layer).
+- Night lights: done in #93 (Night lights, above).  Left: a bundled low-level
+  copy of the Black Marble for offline use, and clouds dimming the lights
+  (#88).
 - Persist the layer choice in the permalink.
 - Perf: the shadow context executes every Cesium draw as well as the
   replay (2× GPU for the globe). Cesium needs the shadow's pixels only
@@ -447,6 +520,10 @@ yarn parity --only moon-quarter --out parity-out
   page with CORS open.  If ion answers 401 the token in the build is stale
   or not scoped to the site; the Moon and Mars then never load and their
   views fail as "not settled", saying so.
+- NASA GIBS (Earth's night lights) is fetched through Node too, with no
+  headers: a sandbox's Chromium doesn't trust its egress proxy's CA
+  (`ERR_CERT_AUTHORITY_INVALID`), so direct, the tiles never load and the
+  night views show Cesium's Earth black.
 - Options: `--only id,id`, `--out dir` (a PNG pair per view and
   `report.json`; `parity-out/` is gitignored), `--views file`, `--docs dir`,
   `--viewport WxH`, `--timeout seconds` (per view, default 1800), `--list`.
@@ -495,7 +572,7 @@ of `views`, each:
 | `profile` | `{"across": "terminator", "samples": 40, "band": 5, "reach": 0.9}`, or `{"from": [x, y], "to": [x, y]}` in fractions of the image; omit for none |
 | `freeze` | `true` stops the simulation clock as soon as the app is up, not once the tiles have settled: for views low over relief, where the ground turning under the camera while tiles load (hundreds of m/s) would frame different mountains each run |
 | `reference` | optional `{"box": [x0, y0, x1, y1]}`: a second region of the same render, for what has no counterpart in celestiary's render (Cesium's terrain above celestiary's sphere), measured against the ground beside it in Cesium's render |
-| `tolerance` | `ratio` `[lo, hi]`; `channelRatio` `[lo, hi]` or `{r, g, b}`; `profileMax`, `profileMean` (luma levels); `luma` `[lo, hi]` (each render's own median luma, on and off: for views where both sides could go wrong alike, as they share the atmosphere pass); `reference` `{luma, blueRed}`, each `[lo, hi]` (the on render's median luma, and median blue/red, over the region over the same over `reference`: the ridge looks like ground, not sky); `minPixels` (default 200) |
+| `tolerance` | `ratio` `[lo, hi]`; `channelRatio` `[lo, hi]` or `{r, g, b}`; `meanRatio` `[lo, hi]` (the ratio of the region's mean luma and of each channel's mean, on/off: for views where the two renders differ in resolution, which moves the per-pixel medians but not the energy); `profileMax`, `profileMean` (luma levels); `luma` `[lo, hi]` (each render's own median luma, on and off: for views where both sides could go wrong alike, as they share the atmosphere pass); `reference` `{luma, blueRed}`, each `[lo, hi]` (the on render's median luma, and median blue/red, over the region over the same over `reference`: the ridge looks like ground, not sky); `minPixels` (default 200) |
 
 To add a view: fly to it in the app (the URL follows the camera, one second
 after it settles) and copy the hash; pick a **partial phase**, as colour
