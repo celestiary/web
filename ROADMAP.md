@@ -71,7 +71,7 @@ it and why.
 The recommended order. "Now" is what to pick up first; within a group the
 order is a suggestion.
 
-**Done recently:** a 30 s timeout on the Colonization whole-catalog test, which outran bun's 5 s default under load; patched transitive dependencies fflate (^0.8.3) and uuid (^11.1.1) with yarn resolutions to clear moderate dependabot alerts; the Moon orbit ([#87](https://github.com/celestiary/web/issues/87), PR [#130](https://github.com/celestiary/web/pull/130)); the data policy
+**Done recently:** fixed moon radius data errors (Triton 10x, Janus 10x, Rhea 2x); a 30 s timeout on the Colonization whole-catalog test, which outran bun's 5 s default under load; patched transitive dependencies fflate (^0.8.3) and uuid (^11.1.1) with yarn resolutions to clear moderate dependabot alerts; the Moon orbit ([#87](https://github.com/celestiary/web/issues/87), PR [#130](https://github.com/celestiary/web/pull/130)); the data policy
 ([#107](https://github.com/celestiary/web/issues/107), PR [#129](https://github.com/celestiary/web/pull/129)); the scripted parity check, `yarn parity`
 ([#105](https://github.com/celestiary/web/issues/105), PR [#134](https://github.com/celestiary/web/pull/134); see [CESIUM.md](CESIUM.md#parity-check)); the Moon's rotation
 and orbital periods in `moon.json` ([#132](https://github.com/celestiary/web/issues/132), PR [#135](https://github.com/celestiary/web/pull/135)); the stars in the
