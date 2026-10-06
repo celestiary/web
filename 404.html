@@ -13,6 +13,15 @@
     var pathSegmentsToKeep = 1
 
     var l = window.location
+    // GitHub Pages serves this one file (production's) for every 404 on the
+    // site, including a PR preview's deep links (/web/pr-preview/pr-N/guide/
+    // star).  Keep the preview's two segments too, or the bounce lands on
+    // production's index.html, which runs production's app at the preview's
+    // URL.  The preview's own index.html then restores the path.
+    if (l.pathname.split('/')[1 + pathSegmentsToKeep] === 'pr-preview' &&
+        /^pr-\d+$/.test(l.pathname.split('/')[2 + pathSegmentsToKeep] || '')) {
+      pathSegmentsToKeep += 2
+    }
     l.replace(
       l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
       l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
