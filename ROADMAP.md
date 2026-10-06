@@ -71,7 +71,7 @@ it and why.
 The recommended order. "Now" is what to pick up first; within a group the
 order is a suggestion.
 
-**Done recently:** the debug axes inside the Sun and planets removed from the production scene (they showed at extreme zooms); esbuild hot-reload guarded by build-time `__DEV__` flag, so production and PR previews no longer log 404 errors for the nonexistent `/esbuild` endpoint; fixed moon radius data errors (Triton 10x, Janus 10x, Rhea 2x); a 30 s timeout on the Colonization whole-catalog test, which outran bun's 5 s default under load; patched transitive dependencies fflate (^0.8.3) and uuid (^11.1.1) with yarn resolutions to clear moderate dependabot alerts; the Moon orbit ([#87](https://github.com/celestiary/web/issues/87), PR [#130](https://github.com/celestiary/web/pull/130)); the data policy
+**Done recently:** a planning pass (2026-10-06): the Sun and stars split into their own epic (#164), the Gazetteer, volumetric-cloud and procedural-exoplanet issues filed, #88 and #99 rescoped, the place-names regression found (#172), and three shared engines named to order the work; the debug axes inside the Sun and planets removed from the production scene (they showed at extreme zooms); esbuild hot-reload guarded by build-time `__DEV__` flag, so production and PR previews no longer log 404 errors for the nonexistent `/esbuild` endpoint; fixed moon radius data errors (Triton 10x, Janus 10x, Rhea 2x); a 30 s timeout on the Colonization whole-catalog test, which outran bun's 5 s default under load; patched transitive dependencies fflate (^0.8.3) and uuid (^11.1.1) with yarn resolutions to clear moderate dependabot alerts; the Moon orbit ([#87](https://github.com/celestiary/web/issues/87), PR [#130](https://github.com/celestiary/web/pull/130)); the data policy
 ([#107](https://github.com/celestiary/web/issues/107), PR [#129](https://github.com/celestiary/web/pull/129)); the scripted parity check, `yarn parity`
 ([#105](https://github.com/celestiary/web/issues/105), PR [#134](https://github.com/celestiary/web/pull/134); see [CESIUM.md](CESIUM.md#parity-check)); the Moon's rotation
 and orbital periods in `moon.json` ([#132](https://github.com/celestiary/web/issues/132), PR [#135](https://github.com/celestiary/web/pull/135)); the stars in the
@@ -94,44 +94,77 @@ Mars's day sky (PR #147): multiple scattering in the precompute, for every body 
 The search bar's two actions: Go (an arrow; travels, as Enter does) and Look at (the magnifier; targets the result and turns the camera in place, without moving), for checking which face of a body points at the viewer ([js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at)) (PR [#151](https://github.com/celestiary/web/pull/151)).
 Pre-exposure ([#157](https://github.com/celestiary/web/issues/157)): the HDR buffer was found to hold every emitted source at the frame's gain already (PR B's `uExposureRelative` is the target-keyed exposure over Earth's times the metered gain), so a mag 6 star at the dark gain is 0.17 in the buffer and Sirius 170, not 1e-6 as the issue feared; the gain the frame renders with is now recorded once and divides the meter's readback, emitted radiance under half-float's smallest normal value (6.1e-5, 1/65 of a display step) is written as zero so a GPU that flushes subnormals and one that keeps them hold the same buffer, and the half-float ends are measured: the Sun's disc in a dark-adapted frame is the one source that reaches the top, physically (1e9 over white), and the shoulder holds it, so the shoulder is the fix there, not a stopgap ([HDR.md, pre-exposure](js/scene/HDR.md#pre-exposure)); and the sunlit-body anchor weighs by a disc's share of the field (its solid angle), not its size in pixels, so the Moon at 45° leaves a star field at the dark gain where the pixel weight had taken it to 40 and shown no stars (HDR.md, metered exposure rule 5; veiling glare and the moonlit sky are the recorded next steps).
 
-**Now**
-1. **Horizons regression tests for every body** ([#97](https://github.com/celestiary/web/issues/97), in [#112](https://github.com/celestiary/web/issues/112)): orientation is
-   done ([#96](https://github.com/celestiary/web/issues/96)), with its sub-observer fixture. Positions next, and the
-   moons whose mean elements lose their phase, so they no longer face their
-   planets as drawn: Phobos and Deimos (up to 170° by 1950 and 2050), Janus,
-   Triton, and Titania and Oberon at every date (URA182's epoch angles).
-2. **Physically based light and exposure** ([#109](https://github.com/celestiary/web/issues/109)): [#86](https://github.com/celestiary/web/issues/86) is done
-   (PR A and PR B, below), and pre-exposure
-   ([#157](https://github.com/celestiary/web/issues/157)) with it: the
-   buffer holds every emitted source at the frame's gain, with nothing
-   under half-float's smallest normal value, and the Sun's disc in a
-   dark-adapted frame is held by the shoulder ([HDR.md](js/scene/HDR.md#pre-exposure)).  What's
-   left of the epic is its benchmarks,
-   the Artemis photo ([#59](https://github.com/celestiary/web/issues/59)) and the atmosphere QA ([#71](https://github.com/celestiary/web/issues/71)),
-   and the night sky's own light (airglow, the zodiacal light), which
-   the pass has none of, so a night sky is as black as space
-   ([composition.md](js/scene/atmos/composition.md#known-gaps--future-work)).
+**Now** (small, visible, unblocked)
+1. **Place names back on Earth, the Moon and Mars** ([#172](https://github.com/celestiary/web/issues/172)): the
+   Cesium layer hides each body's places group, a leftover from before
+   labels drew in the overlay pass; and the star guide demo ([#165](https://github.com/celestiary/web/issues/165)),
+   the star renderer's workbench, whose links and exposure broke.
+2. **Night lights on Cesium's Earth** ([#93](https://github.com/celestiary/web/issues/93)): ion's Earth at Night
+   (asset 3812) isn't in the account; add it from the Asset Depot, or tile
+   the bundled night map, then match it to celestiary's side numerically.
+3. **The galaxy's integrated light** ([#99](https://github.com/celestiary/web/issues/99), rescoped): a smooth disc and
+   bulge carrying the Milky Way's luminosity, the arms as density and
+   colour, dust and HII regions, so the galaxy from outside reads like a
+   photograph and the meter needs no help. See [the galaxy plan](#the-galaxy-plan).
 
-**Next**
-3. **Earth across the swap** ([#110](https://github.com/celestiary/web/issues/110)): night lights ([#93](https://github.com/celestiary/web/issues/93)), then the imagery
-   detail layer ([#92](https://github.com/celestiary/web/issues/92)), then clouds ([#88](https://github.com/celestiary/web/issues/88)). Tuned against #86's HDR
-   buffer, which is in. #92's low views need `dev.virtualearth.net`
-   (Bing) reachable from the sandbox.
-4. **Milky Way** ([#116](https://github.com/celestiary/web/issues/116)): the realistic shape ([#99](https://github.com/celestiary/web/issues/99)), then the brightest
-   ~1M Gaia stars ([#98](https://github.com/celestiary/web/issues/98)), then galactic dynamics with a dark-matter toggle
-   ([#106](https://github.com/celestiary/web/issues/106)). See [the galaxy plan](#the-galaxy-plan).
-5. **Sharing and picking through Cesium** ([#118](https://github.com/celestiary/web/issues/118)): the layer choice and
+**Next** (the shared engines, below)
+
+4. **Stars up close** ([#164](https://github.com/celestiary/web/issues/164)): the photosphere ([#21](https://github.com/celestiary/web/issues/21)), then every star
+   from its parameters ([#166](https://github.com/celestiary/web/issues/166)), on one star renderer: the first of the
+   parametric body renderer.
+5. **Place names for every body** ([#170](https://github.com/celestiary/web/issues/170)) from the IAU Gazetteer: the
+   labels engine.
+6. **Earth's clouds from data** ([#88](https://github.com/celestiary/web/issues/88)): daily NASA GIBS imagery where it
+   exists, a shell over both sides of the swap; then the imagery detail
+   layer ([#92](https://github.com/celestiary/web/issues/92)), which needs `dev.virtualearth.net` reachable from the
+   sandbox.
+7. **Gaia's brightest ~1M stars** ([#98](https://github.com/celestiary/web/issues/98)): the point-population engine,
+   designed under its heaviest load.
+8. **Sharing and picking through Cesium** ([#118](https://github.com/celestiary/web/issues/118)): the layer choice and
    follow state in the permalink (small), then picking on Cesium's globes.
 
 **Later**
-6. Small bodies and satellites ([#114](https://github.com/celestiary/web/issues/114)), starting with the asteroid data
-   already in the repo ([#30](https://github.com/celestiary/web/issues/30)).
-7. Lookup beyond the bundled catalogue and exoplanet systems ([#115](https://github.com/celestiary/web/issues/115)).
-8. Distinctive appearances: Sun, gas giants, rings, auroras ([#111](https://github.com/celestiary/web/issues/111)).
-9. Surfaces and relief for bodies Cesium doesn't cover ([#113](https://github.com/celestiary/web/issues/113)).
-10. Deep sky: nebulae, other galaxies, Sgr A\* ([#117](https://github.com/celestiary/web/issues/117)).
-11. Spacecraft: integrator, then flight simulation ([#119](https://github.com/celestiary/web/issues/119)); missions and
+9. The Sun's dynamic layers ([#167](https://github.com/celestiary/web/issues/167)) and its corona and wind ([#168](https://github.com/celestiary/web/issues/168)).
+10. Volumetric clouds up close ([#169](https://github.com/celestiary/web/issues/169)), seeded from #88's map; then
+    Venus, Titan and the giants.
+11. Gas giants on the parametric renderer ([#41](https://github.com/celestiary/web/issues/41)); rings ([#95](https://github.com/celestiary/web/issues/95)); auroras ([#23](https://github.com/celestiary/web/issues/23)).
+12. Exoplanet systems ([#12](https://github.com/celestiary/web/issues/12)) drawn procedurally ([#171](https://github.com/celestiary/web/issues/171)); lookup beyond the
+    catalogue ([#39](https://github.com/celestiary/web/issues/39)).
+13. Small bodies and satellites ([#114](https://github.com/celestiary/web/issues/114)) on the point-population engine,
+    starting with the asteroid data already in the repo ([#30](https://github.com/celestiary/web/issues/30)).
+14. Surfaces and relief for bodies Cesium doesn't cover ([#113](https://github.com/celestiary/web/issues/113)).
+15. Deep sky: nebulae, other galaxies, Sgr A\* ([#117](https://github.com/celestiary/web/issues/117)); galactic dynamics ([#106](https://github.com/celestiary/web/issues/106)).
+16. Spacecraft: integrator, then flight simulation ([#119](https://github.com/celestiary/web/issues/119)); missions and
     models ([#120](https://github.com/celestiary/web/issues/120)).
+
+**Background** (alongside, whenever there's room)
+- **Horizons regression tests for every body** ([#97](https://github.com/celestiary/web/issues/97), in [#112](https://github.com/celestiary/web/issues/112)): orientation
+  is done ([#96](https://github.com/celestiary/web/issues/96)), with its sub-observer fixture. Positions next, and the
+  moons whose mean elements lose their phase: Phobos and Deimos (up to
+  170° by 1950 and 2050), Janus, Triton, and Titania and Oberon at every
+  date (URA182's epoch angles); the per-system theories ([#138](https://github.com/celestiary/web/issues/138), [#139](https://github.com/celestiary/web/issues/139), [#140](https://github.com/celestiary/web/issues/140)).
+- **What's left of physically based light** ([#109](https://github.com/celestiary/web/issues/109)): [#86](https://github.com/celestiary/web/issues/86) and pre-exposure
+  ([#157](https://github.com/celestiary/web/issues/157)) are done ([HDR.md](js/scene/HDR.md#pre-exposure)); left are the benchmarks, the
+  Artemis photo ([#59](https://github.com/celestiary/web/issues/59)) and the atmosphere QA ([#71](https://github.com/celestiary/web/issues/71)), the moonlit sky
+  ([#163](https://github.com/celestiary/web/issues/163)), veiling glare round bright discs, and the night sky's own light
+  (airglow, the zodiacal light;
+  [composition.md](js/scene/atmos/composition.md#known-gaps--future-work)).
+
+### Shared engines
+
+Most of the list rests on three pieces of infrastructure; building each
+once covers several features, so the order above builds them first.
+
+- **A parametric body renderer**: one shader family driven by physical
+  parameters (temperature, radius, composition, rotation), the same rule
+  as the atmospheres. The Sun is its reference case ([#164](https://github.com/celestiary/web/issues/164)); every star
+  ([#166](https://github.com/celestiary/web/issues/166)), the gas giants ([#41](https://github.com/celestiary/web/issues/41)) and procedural exoplanets ([#171](https://github.com/celestiary/web/issues/171)) reuse it.
+- **Labels and nomenclature**: one catalogue pipeline (the IAU Gazetteer
+  plus Earth's places) and one label renderer that is the same on both
+  sides of the Cesium swap ([#170](https://github.com/celestiary/web/issues/170), [#172](https://github.com/celestiary/web/issues/172)); later spacecraft and exoplanet names.
+- **Point populations**: one tiled, instanced point renderer with LOD and
+  magnitude cuts, for Gaia ([#98](https://github.com/celestiary/web/issues/98)), asteroids and comets ([#30](https://github.com/celestiary/web/issues/30)),
+  satellites ([#50](https://github.com/celestiary/web/issues/50)) and the telescope mode ([#155](https://github.com/celestiary/web/issues/155)).
 
 Housekeeping ([#122](https://github.com/celestiary/web/issues/122)) happens alongside, whenever it's cheap.
 
@@ -147,9 +180,10 @@ based light scale, and the same on both sides of the Cesium swap.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure | [#86](https://github.com/celestiary/web/issues/86) (done), [#59](https://github.com/celestiary/web/issues/59), [#71](https://github.com/celestiary/web/issues/71), [#157](https://github.com/celestiary/web/issues/157) (done: pre-exposure) | [#87](https://github.com/celestiary/web/issues/87) for the daytime-Moon benchmark | [HDR.md](js/scene/HDR.md) (PR A, PR B and pre-exposure done), [Planet.md, lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [atmosphere composition](js/scene/atmos/composition.md) |
+| [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure | [#86](https://github.com/celestiary/web/issues/86) (done), [#59](https://github.com/celestiary/web/issues/59), [#71](https://github.com/celestiary/web/issues/71), [#157](https://github.com/celestiary/web/issues/157) (done: pre-exposure), [#163](https://github.com/celestiary/web/issues/163) | [#87](https://github.com/celestiary/web/issues/87) for the daytime-Moon benchmark | [HDR.md](js/scene/HDR.md) (PR A, PR B and pre-exposure done), [Planet.md, lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [atmosphere composition](js/scene/atmos/composition.md) |
 | [#110](https://github.com/celestiary/web/issues/110) Earth across the Cesium swap | [#93](https://github.com/celestiary/web/issues/93), [#92](https://github.com/celestiary/web/issues/92), [#88](https://github.com/celestiary/web/issues/88) | [#105](https://github.com/celestiary/web/issues/105); re-check after [#109](https://github.com/celestiary/web/issues/109) | [CESIUM.md](CESIUM.md#data), [Planet.md, texture sources](js/scene/Planet.md#surface-texture-sources) |
-| [#111](https://github.com/celestiary/web/issues/111) Sun, gas giants, rings, auroras | [#21](https://github.com/celestiary/web/issues/21), [#41](https://github.com/celestiary/web/issues/41), [#23](https://github.com/celestiary/web/issues/23), [#95](https://github.com/celestiary/web/issues/95) | [#109](https://github.com/celestiary/web/issues/109) for anything emissive | [rings.md](js/scene/rings/rings.md), DESIGN.md [rendering techniques](DESIGN.md#rendering-techniques) |
+| [#164](https://github.com/celestiary/web/issues/164) Stars up close: a dynamic Sun, every star from its parameters | [#165](https://github.com/celestiary/web/issues/165), [#21](https://github.com/celestiary/web/issues/21), [#166](https://github.com/celestiary/web/issues/166), [#167](https://github.com/celestiary/web/issues/167), [#168](https://github.com/celestiary/web/issues/168) | [#109](https://github.com/celestiary/web/issues/109) (emissive, in exposure units) | [HDR.md, physical stars](js/scene/HDR.md#physical-stars) |
+| [#111](https://github.com/celestiary/web/issues/111) Gas giants, rings, auroras, clouds | [#41](https://github.com/celestiary/web/issues/41), [#23](https://github.com/celestiary/web/issues/23), [#95](https://github.com/celestiary/web/issues/95), [#169](https://github.com/celestiary/web/issues/169) | [#109](https://github.com/celestiary/web/issues/109) for anything emissive; [#164](https://github.com/celestiary/web/issues/164)'s renderer for [#41](https://github.com/celestiary/web/issues/41); [#88](https://github.com/celestiary/web/issues/88) for [#169](https://github.com/celestiary/web/issues/169) | [rings.md](js/scene/rings/rings.md), DESIGN.md [rendering techniques](DESIGN.md#rendering-techniques) |
 
 ### B. Solar-system accuracy and surfaces
 
@@ -159,7 +193,7 @@ surface.
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
 | [#112](https://github.com/celestiary/web/issues/112) Ephemerides and orientation | [#87](https://github.com/celestiary/web/issues/87) (done), [#6](https://github.com/celestiary/web/issues/6) (done), [#133](https://github.com/celestiary/web/issues/133) (done), [#96](https://github.com/celestiary/web/issues/96) (done), [#97](https://github.com/celestiary/web/issues/97), [#132](https://github.com/celestiary/web/issues/132) (done), [#138](https://github.com/celestiary/web/issues/138), [#139](https://github.com/celestiary/web/issues/139), [#140](https://github.com/celestiary/web/issues/140) | nothing | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics), [coordinates](DESIGN.md#coordinate-system--scale) |
-| [#113](https://github.com/celestiary/web/issues/113) Surfaces for every body | [#9](https://github.com/celestiary/web/issues/9), [#10](https://github.com/celestiary/web/issues/10), [#43](https://github.com/celestiary/web/issues/43) | data policy for bundled DEMs | [Planet.md](js/scene/Planet.md), [CESIUM.md, ground](CESIUM.md#camera-and-light-coupling) |
+| [#113](https://github.com/celestiary/web/issues/113) Surfaces for every body | [#9](https://github.com/celestiary/web/issues/9), [#10](https://github.com/celestiary/web/issues/10), [#43](https://github.com/celestiary/web/issues/43), [#170](https://github.com/celestiary/web/issues/170) | data policy for bundled DEMs | [Planet.md](js/scene/Planet.md), [CESIUM.md, ground](CESIUM.md#camera-and-light-coupling) |
 
 The orbit gap is closed: the Moon has its own theory and orbital frame
 ([#130](https://github.com/celestiary/web/pull/130)), and Pluto and the other moons follow published mean elements
@@ -181,7 +215,7 @@ Real populations from public catalogues, under the data policy.
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
 | [#114](https://github.com/celestiary/web/issues/114) Asteroids, comets, satellites | [#30](https://github.com/celestiary/web/issues/30), [#50](https://github.com/celestiary/web/issues/50) | data policy; [#112](https://github.com/celestiary/web/issues/112)'s orbital frames; 3D models ([#25](https://github.com/celestiary/web/issues/25)) for satellites | DESIGN.md [data loading](DESIGN.md#data-loading) |
-| [#115](https://github.com/celestiary/web/issues/115) Lookup beyond the catalogue, and exoplanets | [#39](https://github.com/celestiary/web/issues/39), [#12](https://github.com/celestiary/web/issues/12) | [#112](https://github.com/celestiary/web/issues/112) for multi-planet orbits | [search design](js/search/DESIGN.md) |
+| [#115](https://github.com/celestiary/web/issues/115) Lookup beyond the catalogue, and exoplanets | [#39](https://github.com/celestiary/web/issues/39), [#12](https://github.com/celestiary/web/issues/12), [#171](https://github.com/celestiary/web/issues/171) | [#112](https://github.com/celestiary/web/issues/112) for multi-planet orbits | [search design](js/search/DESIGN.md) |
 
 ### D. Stars and deep sky
 
@@ -198,7 +232,7 @@ Everything the user does keeps working where Cesium draws the ground.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing | [#101](https://github.com/celestiary/web/issues/101), [#102](https://github.com/celestiary/web/issues/102), [#100](https://github.com/celestiary/web/issues/100), [#42](https://github.com/celestiary/web/issues/42) | picking needs readback from portal-netgl's shadow context | [permalink.md](js/permalink.md), DESIGN.md [navigation](DESIGN.md#navigation-goto-flow), [CESIUM.md follow-ups](CESIUM.md#follow-ups) |
+| [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing | [#172](https://github.com/celestiary/web/issues/172), [#101](https://github.com/celestiary/web/issues/101), [#102](https://github.com/celestiary/web/issues/102), [#100](https://github.com/celestiary/web/issues/100), [#42](https://github.com/celestiary/web/issues/42) | picking needs readback from portal-netgl's shadow context | [permalink.md](js/permalink.md), DESIGN.md [navigation](DESIGN.md#navigation-goto-flow), [CESIUM.md follow-ups](CESIUM.md#follow-ups) |
 
 ### F. Spacecraft and missions
 
@@ -233,6 +267,10 @@ that needs dark matter.
    ten thousand light years), and the bulge and stellar halo. The disc
    no longer needs to be thick enough to hold the local catalogue once
    Gaia supplies the stars around the Sun.
+   It also carries the galaxy's integrated light, the unresolved light of
+   billions of stars that makes a galaxy's look from outside: a smooth disc
+   and bulge with the Milky Way's total luminosity in exposure units, the
+   arms as density and colour on it, so the meter needs no help.
 2. **The brightest ~1M Gaia stars** ([#98](https://github.com/celestiary/web/issues/98)). Gaia DR3 has about 1.8
    billion sources; a magnitude cut at around G ≈ 11 leaves on the order
    of a million (pick the exact cut from the archive's counts), which carries the look of the real sky. At the
