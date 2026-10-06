@@ -33,9 +33,12 @@ it and why.
   sides, clouds on celestiary's own side only.
 - **Stars:** ~120k stars from Celestia's Hipparcos-based `stars.dat`,
   asterisms, search over named stars and HIP numbers, pick-to-travel.
-- **Galaxy:** a procedural 60k-point barred spiral (`MilkyWay.js`),
-  hand-tuned, with a disc several times too thick so it contains the
-  local catalogue.
+- **Galaxy:** the Milky Way's integrated light from published structural
+  models (thin and thick discs, boxy bulge and long bar, four arms as Reid
+  et al. measured them, dust and the Great Rift's clouds, HII regions,
+  warp and flare), 2.5e10 L☉ in exposure units, ray-marched
+  ([MilkyWay.md](js/scene/MilkyWay.md)); from outside the meter frames it
+  as a photograph.
 - **Rendering:** one linear, half-float scene buffer in exposure units
   (target-keyed exposure), the Bruneton sky added in the same units, and
   one tone map, PBR Neutral, last ([HDR.md](js/scene/HDR.md)); Cesium's
@@ -99,11 +102,12 @@ Night lights on Cesium's Earth ([#93](https://github.com/celestiary/web/issues/9
 
 The star guide demo ([#165](https://github.com/celestiary/web/issues/165), the star renderer's workbench): its star links resolved against `<base href="/">` to the app root, and the router's referrer redirect then dropped the hash, so no `#Name` ever selected a star; the disc was never metered, because ThreeUI meters a resolved star's disc from its scene manager's objects and the guide had none (the Sun shader's radiance assumes the metered exposure, so it saturated white), now `guide/starScene.js`; with no hash the page showed whichever star the empty name `''` mapped to (`starnames.dat`'s trailing colons: HIP 24160), now Sol by default, and an empty name names no star.  The other guide pages were checked against the same pipeline: Planet (its Sun light had decay 0 where the exposure is calibrated to the app's 1.01, its surface waits on a `preAnimCb` the guide never ran), Stars (its store stub had no `getState`, which threw every frame) and Asterisms (it passed an empty catalog, so no asterisms were ever built) drew nothing or black, and draw now.  The star shader's noise is now band-limited by pixel footprint (octaves fade out as their features near a pixel), so a small disc, in the guide or the Sun in the app from afar, shows its mean surface colour instead of aliased speckle; the guide frames each star at 90% of its canvas.  Each star's surface noise is seeded from its Hipparcos id (`starSeed.js`: an offset of the noise domain for every layer, and a mild shift of the spot threshold; Sol and the app's Sun are seed 0, the original pattern), so no two stars share a pattern; spot density by star type is [#166](https://github.com/celestiary/web/issues/166)'s.  Left: the Atmosphere page, a work-in-progress demo with its own shader, still draws only its axes.
 
+The galaxy's integrated light ([#99](https://github.com/celestiary/web/issues/99), PR [#PRNUM](https://github.com/celestiary/web/pull/PRNUM)): the 60k-point cloud, which carried the arms' points but almost none of the galaxy's light (at physical exposure faint arms round a small bar, with the meter lifted by hand), is replaced by a luminosity density from published structural models, thin and thick discs (Jurić et al. 2008), a boxy bulge and the long bar at 27° (Wegg et al. 2015), four arms placed and pitched as Reid et al. (2019) measured them with the young stars and HII regions on them, dust with lanes on the arms' inner edges, the Local Bubble and the Great Rift's clouds, and the warp and flare, normalised to 2.5e10 L☉ in exposure units and ray-marched through the volume (cached at up to 540 rows, re-marched only when the view moves).  From the Sun the poles are 23.8 mag/arcsec², as the integrated starlight there is.  From outside the meter anchors on the galaxy's brightest 2% (`galaxyGain`), so face-on from 100 kpc it settles at a gain of 1.2e8 with no help, a warm bar and bulge in blue arms with dust lanes and pink knots; edge-on a thin disc with its lane.  Inside the disc the eye's gain stays, and the night sky from Earth is unchanged; the band from inside is physically faint, in the tone map's toe at the dark-adapted gain ([MilkyWay.md](js/scene/MilkyWay.md), [HDR.md](js/scene/HDR.md#metered-exposure) rule 10).
+
 **Now** (small, visible, unblocked)
-1. **The galaxy's integrated light** ([#99](https://github.com/celestiary/web/issues/99), rescoped): a smooth disc and
-   bulge carrying the Milky Way's luminosity, the arms as density and
-   colour, dust and HII regions, so the galaxy from outside reads like a
-   photograph and the meter needs no help. See [the galaxy plan](#the-galaxy-plan).
+1. Done: **the galaxy's integrated light** ([#99](https://github.com/celestiary/web/issues/99), PR [#PRNUM](https://github.com/celestiary/web/pull/PRNUM); Done recently).
+   Its follow-up, the band from inside at the eye's gain, goes with the
+   night sky's own light under [#109](https://github.com/celestiary/web/issues/109) (Background, below).
 
 **Next** (the shared engines, below)
 
@@ -221,7 +225,7 @@ The universe past the Hipparcos neighbourhood.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#116](https://github.com/celestiary/web/issues/116) Milky Way: structure, Gaia stars, dynamics | [#99](https://github.com/celestiary/web/issues/99), [#98](https://github.com/celestiary/web/issues/98), [#106](https://github.com/celestiary/web/issues/106), [#108](https://github.com/celestiary/web/issues/108) | data policy | [the galaxy plan](#the-galaxy-plan) |
+| [#116](https://github.com/celestiary/web/issues/116) Milky Way: structure, Gaia stars, dynamics | [#99](https://github.com/celestiary/web/issues/99) (done), [#98](https://github.com/celestiary/web/issues/98), [#106](https://github.com/celestiary/web/issues/106), [#108](https://github.com/celestiary/web/issues/108) | data policy | [the galaxy plan](#the-galaxy-plan), [MilkyWay.md](js/scene/MilkyWay.md) |
 | [#117](https://github.com/celestiary/web/issues/117) Nebulae, galaxies, Sgr A\* | [#20](https://github.com/celestiary/web/issues/20), [#40](https://github.com/celestiary/web/issues/40), [#22](https://github.com/celestiary/web/issues/22) | [#116](https://github.com/celestiary/web/issues/116)'s frame and scale | DESIGN.md [coordinates](DESIGN.md#coordinate-system--scale) |
 
 ### E. Navigation, time and sharing
@@ -257,18 +261,20 @@ The goal is a Milky Way that looks like the real one from inside and
 outside, and moves like it over billions of years, including the part
 that needs dark matter.
 
-1. **Shape from published models** ([#99](https://github.com/celestiary/web/issues/99)). Replace the hand-tuned
-   parameters of `MilkyWay.js` with a published structural model: the
-   bar and its angle, four major arms with measured pitch angles, dust
-   lanes that absorb, the warp and flare of the outer disc, a thin and a
-   thick disc at real scale heights (hundreds of parsecs, not the current
-   ten thousand light years), and the bulge and stellar halo. The disc
-   no longer needs to be thick enough to hold the local catalogue once
-   Gaia supplies the stars around the Sun.
-   It also carries the galaxy's integrated light, the unresolved light of
-   billions of stars that makes a galaxy's look from outside: a smooth disc
-   and bulge with the Milky Way's total luminosity in exposure units, the
-   arms as density and colour on it, so the meter needs no help.
+1. **Shape from published models** ([#99](https://github.com/celestiary/web/issues/99), done: PR [#PRNUM](https://github.com/celestiary/web/pull/PRNUM),
+   [MilkyWay.md](js/scene/MilkyWay.md)). The hand-tuned point cloud is
+   replaced by a published structural model: the bar at 27°, four major
+   arms placed and pitched as Reid et al. (2019) measured them, dust lanes
+   that absorb and the Great Rift's clouds, the warp and flare of the outer
+   disc, a thin and a thick disc at real scale heights (300 and 900 pc),
+   and the boxy bulge (the stellar halo is left out: under 1% of the
+   light). It carries the galaxy's integrated light, 2.5e10 L☉ in exposure
+   units, ray-marched through the volume, and from outside the meter frames
+   it as a photograph with no help. Left: the band from inside is
+   physically faint, under what the eye's calibration shows at the
+   dark-adapted gain (the night sky's own light, #109); and the local
+   catalogue's light is counted in the integrated light too, which matters
+   once Gaia's stars come in.
 2. **The brightest ~1M Gaia stars** ([#98](https://github.com/celestiary/web/issues/98)). Gaia DR3 has about 1.8
    billion sources; a magnitude cut at around G ≈ 11 leaves on the order
    of a million (pick the exact cut from the archive's counts), which carries the look of the real sky. At the

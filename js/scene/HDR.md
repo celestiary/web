@@ -433,10 +433,19 @@ was the shell's `pow(dotP, 1.1)` of a negative normal dot at the
 silhouette's vertices, NaN, which the clamp on its output turned into
 the ceiling on a GPU whose `min` drops the NaN; `dotP` is floored at 0.
 
-**The Milky Way** (`MilkyWay.js`) is drawn at its surface brightness: its
-bright regions are 21-22 mag/arcsec², 2e-4 cd/m², against 3-4e4 cd/m² for
-a sunlit white, 5e-9; times `DISPLAY_GAIN`, 2e-8 at the keyed exposure, 0.06
-at the dark-adapted gain: faint, as it is.
+**The Milky Way** ([MilkyWay.md](MilkyWay.md), #99) is its integrated
+light: a luminosity density from published structural models, 2.5e10 L☉
+in all, ray-marched with its dust.  A column of 1 L☉/kpc² along the line
+of sight is DISPLAY_GAIN·π·(AU/kpc)² in exposure units at Earth's keyed
+exposure (`galaxyModel.js` `VALUE_PER_LSUN_KPC2`): the Sun's light at 1 AU
+over the column's, per steradian, as a star's is over its patch.  1 L☉/pc²
+(26.4 mag/arcsec² in V) is 1.1e-10.  From the Sun the poles are 23.8
+mag/arcsec², 1.2e-9 (the integrated starlight there is 23.5-24), and the
+band 21-22.6, 0.3-1.7e-8: at the dark-adapted gain 0.005 and 0.01-0.07, in
+the tone map's toe, so the band barely shows.  That is the eye's
+calibration for extended light (MilkyWay.md, "From inside"), not the
+galaxy's.  From outside, the bulge face-on is 6e-8, and the meter frames
+it as a photograph (rule 10 below).
 
 ## Metered exposure
 
@@ -646,6 +655,22 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    oscillate: at a fixed view the goal is a constant and the gain settles
    on it; as the view moves the goal moves with the frame's content and
    the easing smooths it.
+10. **The galaxy from outside anchors the gain** (`galaxyGain`;
+   [MilkyWay.md, "Exposure"](MilkyWay.md#exposure-framed-as-a-photograph-from-outside)),
+   as a camera framing a galaxy exposes for the galaxy.  The rules above
+   key the frame's mean, which the black round it floors, and stop at the
+   dark-adapted 4e6, where a disc of 21-24 mag/arcsec² is 0.01-0.1: faint
+   arms round a small bar, which the user had to lift by hand.  Instead the
+   brightest 2% of the frame's lit part (`meanLogLuminance`: the pixels
+   within 1e-3 of its 2% highlight) is brought to `GALAXY_HIGHLIGHT` (1.5,
+   at the shoulder).  This is blended in log gain by how far outside the
+   galaxy the camera is (`galaxyModel.js` `outsideWeight`, 0 anywhere in
+   the disc, so the night sky and its stars keep the eye's gain), and by
+   the lit part's share of the frame (0.5% to 5%).  It may pass
+   `METER_GAIN_MAX`, as a long exposure does, to `GALAXY_GAIN_MAX` (1e10);
+   the stars' limit deepens with it, and from outside the catalogue's stars
+   are fainter than magnitude 11.  Face-on from 100 kpc the gain settles at
+   1.2e8, oblique from 50 kpc at 7.5e7, edge-on from 80 kpc at 4.1e7.
 
 The exposure then reaches everything in the buffer's units: the surfaces
 (the scene pass), the sky (`uSkyExposure`), the stars (`exposureRelative`),
@@ -675,8 +700,8 @@ its glow) multiplies its radiance at Earth's keyed exposure by it before
 writing (`absoluteUniforms`); the sky's `uSkyExposure` and Cesium's
 decode (`exposureOf`) carry the same exposure.  So a mag 6 star at the
 dark gain is 0.17 in the buffer, Alnilam 9.4 (its kernel's peak 1.3 on
-the 300 px viewport, 5.8 at 1080p), Sirius 170, the Milky Way's full
-value 0.078, and the Sun's disc at the luminous-disc gain 0.600.
+the 300 px viewport, 5.8 at 1080p), Sirius 170, the Milky Way's band
+0.01-0.07, and the Sun's disc at the luminous-disc gain 0.600.
 `ThreeUi._renderedGain` records the gain the frame renders with, once,
 before the scene pass, and `_meter` divides its readback by that record:
 not by the meter's goal, nor by `_meterGain`, which the exposure's own
@@ -689,8 +714,8 @@ measurement.
 (`HDR_MIN_NORMAL`, 6.1e-5) at the dark gain is invisible: a star fainter
 than magnitude 15 (the limit star is 0.12, 2.5× less per magnitude), the
 Gaussian halo past where the quad's window has taken it under a display
-step, and the filtered edges of the Milky Way's sprites (an 8-bit texel
-of 1/255 at a bilinear weight of 1/256, times 0.078, is 1e-6).
+step, and the Milky Way's outer disc from outside at a low gain (it
+was the filtered edges of the point cloud's sprites, before #99).
 SwiftShader keeps such values as subnormals; a GPU that flushes them
 (ANGLE on Metal) stores zero.  `emitted()` (`hdr.js`, its GLSL in the
 Milky Way's, the Sun's disc's and the glow's shaders, and a copy in
@@ -700,7 +725,9 @@ what the user's Mac holds.  It costs nothing visible: 6.1e-5 is 1/65 of a
 display step through the tone map, and the star counts and pixels below
 are unchanged.  The Milky Way and the glow output premultiplied with
 alpha 1 (their additive blend adds the colour as is), so the floor applies
-to what reaches the buffer.  The LDR fallback can't hold under 1/255 and
+to what reaches the buffer.  The Milky Way's march holds its light in a
+half-float target unexposed, times 1e8 (`STORE_SCALE`), where it is 1e-3
+to 10, and the pass applies the exposure and the floor after it.  The LDR fallback can't hold under 1/255 and
 is unchanged to the pixel.
 
 **At the keyed exposure** (gain 1: the loading frame, or a frame a sunlit

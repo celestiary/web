@@ -24,9 +24,10 @@ export const ASTRO_UNIT_METER = 149597870700
 export const INITIAL_FOV = 45
 // largest coords for stars in Celestia dataset
 export const STARS_RADIUS_METER = LIGHTYEAR_METER * 1e4
-// Outer radius of the procedural Milky Way (see scene/MilkyWay.js).  Camera
-// far-plane is sized off this so the whole galaxy + a navigation buffer fits
-// without clipping when zoomed out.
+// A round outer radius of the Milky Way's disc (scene/galaxyModel.js holds
+// the model).  Camera far-plane is sized off this so the whole galaxy + a
+// navigation buffer fits when zoomed out; the galaxy itself is drawn at
+// the far plane, whatever the distance.
 export const GALAXY_RADIUS_METER = LIGHTYEAR_METER * 5e4
 // This size is chosen to allow for the maximum object and distance size range
 // in the scene.  The smallest object in the scene is Mars's moon Deimos, which

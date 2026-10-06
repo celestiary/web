@@ -181,7 +181,7 @@ export const HDR_MAX_VALUE = 6.0e4
  * nothing visible goes: it is 1/65 of a display step (1/255) through the
  * tone map.  With the frame's gain in the buffer (HDR.md,
  * "Pre-exposure") what falls under it is a star fainter than magnitude
- * 15 or the filtered edge of a Milky Way sprite, invisible either way.
+ * 15 or the outskirts of the Milky Way's disc, invisible either way.
  */
 export const HDR_MIN_NORMAL = 2 ** -14
 

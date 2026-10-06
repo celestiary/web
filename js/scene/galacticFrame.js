@@ -69,10 +69,10 @@ export function equatorialToSceneUnit(raDeg, decDeg) {
  * is exactly orthogonal even though the published NGP and GC directions
  * aren't perfectly perpendicular.
  *
- * Used by MilkyWay.js to orient the procedural disk: with this matrix on the
- * Points object, samples written in F-frame coordinates render in the
- * physically-correct sky position (disk plane = galactic plane, GC in
- * Sagittarius).
+ * Used by galaxyModel.js to orient the Milky Way: its transpose takes the
+ * catalogue frame into F (and the galactocentric frame G, F shifted by the
+ * Sun's position), so the disc's plane is the galactic plane and the
+ * centre is in Sagittarius.
  *
  * @returns {Matrix4} pure rotation, ready to assign to Object3D.matrix or
  *     decompose into a quaternion via setFromRotationMatrix.

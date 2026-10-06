@@ -636,6 +636,7 @@ Go and Enter travel ([js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at)).
 | Object | Technique |
 |---|---|
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
+| Milky Way | Its integrated light: a full-screen pass at the far plane that ray-marches a published structural model (discs, bulge and bar, arms, dust) in the galactocentric frame, into a cached target re-marched when the view moves ([MilkyWay.md](js/scene/MilkyWay.md)) |
 | Named star (e.g. Sun) | Procedural Perlin noise GLSL surface shader (convection-like texture) |
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
 | Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
@@ -930,6 +931,8 @@ and the provider extension contract.
 | `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |
 | `js/scene/Star.js` | Named star with noise shader |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
+| `js/scene/MilkyWay.js` | The Milky Way's integrated light: the march pass and its cache ([MilkyWay.md](js/scene/MilkyWay.md)) |
+| `js/scene/galaxyModel.js` | The Milky Way's structural model: its components, the baked in-plane map, the normalisation, the JS and GLSL march |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |
 | `js/scene/Asterisms.js` | Constellation line drawings |
 | `js/scene/Colonization.js` | Human expansion: kNN star graph and layered BFS spread from the Sun |
