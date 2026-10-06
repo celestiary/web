@@ -145,6 +145,30 @@ tried and dropped.
   zero (a star field at the keyed exposure is all under it), and the
   32×32 meter taps under 1% of the pixels. Never decide "nothing drawn"
   from pixel values; use the scene's readiness (`frameCanBeEmpty`).
+- **Real-GPU cost: ask the user for a `?perf=1` snapshot.** SwiftShader
+  has the timer extension but its times are a CPU's emulation, so
+  frame-rate questions (#189) go to the user's machine.  The overlay is
+  in the PR preview: `https://celestiary.github.io/web/pr-preview/pr-<n>/?perf=1#<permalink>`
+  (design: DESIGN.md [Perf overlay](DESIGN.md#perf-overlay)).
+  - **Ask:** give the preview URL for each view that matters (e.g.
+    Earth's surface looking down, the day sky with time running, space),
+    and say: load it, wait about ten seconds, press **Copy JSON**, paste
+    it back, one paste per view.  For a bisect add `&off=a,b` (keys:
+    `atmosphere`, `clouds`, `nightlights`, `galaxy`, `cesium`, `meter`,
+    `overlay`) and ask for the FPS in the title line with each switched
+    off in turn, if there is no GPU timing.
+  - **Read it:** `timer.host` false means no GPU timer: use the CPU
+    columns, the counts and the toggles' FPS.  Otherwise
+    `timings.passes[].gpu.mean` and `.p95` are ms per frame, a pass that
+    didn't run counting 0 (`runShare`); `timings.total.gpu.mean` against
+    `timings.frame.intervalMs.mean` says GPU-bound (close) or something
+    else (the gap: CPU, vsync, the compositor).  A big `cpu` on `meter`
+    is the readPixels stall: the GPU's backlog.  `cesium.shadow.<body>`
+    is the second GL context's time, outside the total.  `counts` are per
+    frame, by pass.  `gpu.unmaskedRenderer` and `devicePixelRatio` say
+    which GPU and how many pixels.
+  - **Add a pass's marker** when you add a pass: `perf.begin('name')` /
+    `perf.end('name')` in the loop and a line in `js/perf/passes.js`.
 - **Known SwiftShader quirk:** `gl_PointCoord` flips in point shaders
   that `discard` or sample a depth texture. Use depth state instead.
 - **Network hosts this work needs in the sandbox:**

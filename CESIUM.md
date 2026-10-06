@@ -83,6 +83,13 @@ ThreeUi.renderLoop
   render(atm pass) → screen      sky + scene × T, tone-mapped once
 ```
 
+Under `?perf=1` each step is a timed pass (`cesium.blit`, `.shell`,
+`.replay`, `.decode`, `.nightlights`, `.ground`; `cesium` is the
+composite's own remainder), and the shadow context, the second GL context
+Cesium's draws also run on, gets a timer and counts of its own
+([DESIGN.md, Perf overlay](DESIGN.md#perf-overlay)).  With the `Cesium
+layer` toggle off no body is wanted, so celestiary draws its own.
+
 Why these pieces:
 
 - **In `_cesiumRT`, then decoded into `_sceneRT`.** Celestiary's depth

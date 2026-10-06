@@ -176,7 +176,7 @@ for Jupiter by `texture_rotation` ([Body rotation](#body-rotation-iau-prime-meri
 8. `_applyCameraArrowKeys()` — apply held-key pitch/roll last so they always win
 9. Render: the scene into `_sceneRT` (linear, half-float, in exposure units), Cesium's layers composited into it, Earth's cloud shell over both ([Planet.md, clouds](js/scene/Planet.md#clouds)), then the atmosphere pass to the screen, which adds the sky and tone-maps once (PBR Neutral), then the label overlay.  See [HDR pipeline](#hdr-pipeline).
 
-The whole of `renderLoop()` is bracketed by `stats.begin()`/`stats.end()` while the performance panel is showing ([Performance panel](#performance-panel)); hidden, it costs nothing.
+The whole of `renderLoop()` is bracketed by `stats.begin()`/`stats.end()` while the performance panel is showing ([Performance panel](#performance-panel)); hidden, it costs nothing.  Under `?perf=1` it is bracketed again by `perf.frameBegin()`/`perf.frameEnd()`, and each pass by `perf.begin(name)`/`perf.end(name)` ([Perf overlay](#perf-overlay)); without `?perf=1` those return at their first line.
 
 ## Orbital Mechanics
 
@@ -820,6 +820,45 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
 - **Outside the visibility groups:** it's a developer tool, not a scene or chrome feature, so neither `v` nor `V` hides it.
 - **Typing:** `Keys.onKeyDown` ignores every key while an `INPUT`, `TEXTAREA`, `SELECT` or contenteditable element has focus, so the search box still takes a backtick.
 
+## Perf overlay
+
+`?perf=1` shows per-pass cost on the machine at hand ([#189](https://github.com/celestiary/web/issues/189), the measuring step of [#121](https://github.com/celestiary/web/issues/121)'s surface work).  The [performance panel](#performance-panel) says how fast the frame is; this says where its time goes, and it can tell a GPU-bound frame from a CPU-bound one, which the sandbox's SwiftShader can't.  It is instrumentation only: it changes no pass.  Code: `js/perf/`.
+
+- **Off by default, at no cost.**  `perf.install(this)` in the `ThreeUi` constructor reads `?perf=1`.  Without it `perf.enabled` is false and every hook returns at its first line: no timer queries, no wrapped GL calls, no DOM, `renderer.info` left alone, no `window.perf`.  A frame makes the same GL calls as before.
+- **In the DOM, not the scene,** bottom-left above the settings icons (top-left is the info list, top-right the time controls, bottom-right the Stats panel), updated twice a second, so it adds nothing to the frame it measures.  Click the `-` to fold it to its title line.
+- **The table.**  One row per pass, a `total`, then Cesium's shadow context and a line of the counts that aren't columns:
+  - **GPU** (mean and p95 over the last 240 frames, ms) from `EXT_disjoint_timer_query_webgl2` (`GpuTimer.js`).  A query is read frames after its frame (never waited for), and `GPU_DISJOINT_EXT` drops every frame in flight.  A pass that didn't run in a frame counts as 0 in it (`runShare`, in the JSON, is the share of frames it did).
+  - **CPU** (mean and p95): the time to issue the pass.  It is the GPU's only where something waits for the GPU: a `readPixels` (the `meter` row's CPU is how far the GPU is behind when the meter reads back).
+  - **draws, rt, rb**: draw calls, render-target switches and readbacks into client memory, per frame, by the pass they happened in.  The line under the table adds full-screen passes, clears, blits, texture uploads (with their size), pixel-pack-buffer reads, program changes and triangles.  `renderer.info` counts only three's draws (`three` in the JSON); the wrapped GL calls (`glCounters.js`) count the replayed Cesium ones too.  "Full-screen" is a heuristic: a draw of at most six vertices into a viewport of at least a fifth of the canvas.
+  - Without the extension (Safari doesn't have it; a browser's privacy settings may hide it, as Brave's can) the GPU columns read `n/a`, a note says so, and the CPU times, counts and toggles remain.
+- **Sections that nest.**  One `TIME_ELAPSED` query can run at a time, so a pass inside another (the galaxy's march inside the scene render, Cesium's replay inside the composite) can't have its own query running inside the outer one's.  `sections.js` makes a pass a series of segments: opening one stops the one under it, closing it starts that one again.  Each pass's time is its own, the inner ones taken out, and the rows add up to the frame (`other` is whatever runs under no pass: the base of every frame).  `TIMESTAMP` queries would do without this, but not every browser with the extension reports timestamp bits, so it isn't used.
+- **The passes** (`passes.js` has the list, and a line for each as the row's tooltip):
+
+  | Pass | What it is |
+  |---|---|
+  | `update` | The animation callback, camera and navigation, before any rendering. |
+  | `scene` | `renderer.render(scene)` into the scene buffer: bodies, stars, the Sun, the galaxy's composite. |
+  | `galaxy` | The Milky Way's march into its cached target (`MilkyWay.js`), only on a frame where the view changed. |
+  | `cesium` | The composite's own work: clears, the fading celestiary surface, the JS between steps. |
+  | `cesium.blit` | Copying the scene's depth into Cesium's target, per body. |
+  | `cesium.shell` | The stencil shell: where the body shows. |
+  | `cesium.replay` | Cesium's frame, replayed on this context by portal-netgl: Cesium's draws, post-process stages and queued uploads.  The GPU time of the draws, here; the JS of `widget.render()` in CPU. |
+  | `cesium.decode` | The full-screen decode of Cesium's 8-bit frame into the scene buffer's units. |
+  | `cesium.nightlights` | Earth's second Cesium frame (lights only, unlit), replayed and decoded: the same costs as the day frame's, in one row. |
+  | `cesium.ground` | Each Cesium body's ground-sphere depth, for the atmosphere pass. |
+  | `clouds` | Earth's cloud shell. |
+  | `atmosphere` | The full-screen pass to the screen: sky, the scene through its transmittance, and the one tone map. |
+  | `meter` | The exposure meter's render into 32x32 and its `readPixels`, every fourth frame. |
+  | `overlay` | Labels, orbit lines and grids over the tone-mapped frame. |
+  | `other` | GL work in no pass above. |
+
+  The dotted `cesium.*` names are children by name only: `cesium`'s own row doesn't include them.
+- **Cesium's shadow context.**  Cesium draws into a second, hidden WebGL context (the NetGL guest's shadow), and every draw runs there as well as in the replay ([#103](https://github.com/celestiary/web/issues/103)).  That context is reachable (`guest.core.shadow`), so it gets a timer of its own and its own counts, shown as `cesium.shadow.<body> (own GL context)`: the GPU time of Cesium's frames on it, which is not in the `total` (another context's clock; its work shares the GPU with the page's).  A readback there (Cesium's picking) shows in its `rb`.
+- **Toggles** (`toggles.js`): `?perf=1&off=atmosphere,clouds` or the checkboxes switch a pass off, to bisect cost by frame rate where there is no GPU timer, and the numbers restart.  Each leaves the rest drawing; the picture differs while one is off.  Three kinds: `skip` (the pass's own `if (perf.begin(...))` doesn't run it: `clouds`, `nightlights`, `meter`, `overlay`), `gate` (`atmosphere`: the pass is also the frame's one trip to the screen and its tone map, so it runs with the sky off, `uAtmEnabled` 0) and `hide` (`galaxy`: the object is hidden and put back as it was).  `cesium` is `skip` at the source: with it off no body is wanted, so celestiary draws its own Earth, Moon and Mars.  With the meter off the exposure stops adapting.
+- **Copy JSON** puts a snapshot on the clipboard (`snapshot.js`; where the clipboard is refused, a text box to copy from): the page's URL (the view's permalink), the viewport and drawing buffer sizes, `devicePixelRatio`, the GPU (`WEBGL_debug_renderer_info` where the browser shows it), the user agent, whether the GPU timers work, the target and active Cesium bodies, the toggles, every pass's GPU, CPU and counts, and the totals.  `window.perf.snapshot()` gives it in the console.
+- **Adding a pass** (a later change's own render pass, e.g. the night sky's): bracket it, `perf.begin('name')` before and `perf.end('name')` after, one line each in the loop; and add `{name, what}` to `PASSES` in `passes.js`, which orders the rows and writes the tooltip (a pass left out is still timed and listed, after the others).  A pass that can be switched off is `if (perf.begin('name')) {...; perf.end('name')}`, with an entry in `TOGGLES`.  Nesting is fine; name a child with a dot.  An exception between `begin` and `end` is covered: the frame's end closes whatever is open.
+- **What it can't see:** the compositor and the swap (the gap between the frame interval and the GPU total), a browser that rounds timer results, and work that runs between frames.  In the sandbox's headless Chromium (SwiftShader) the extension exists, so the code path runs, but its times are a CPU's emulation of a GPU: evidence of the plumbing, not of cost.
+
 ## State Management (Zustand)
 
 `js/store/useStore.js` composes four slices:
@@ -936,6 +975,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/coords.js` | Geographic coordinate conversions: `worldToLatLngAlt`, `latLngAltToLocal` |
 | `js/store/useStore.js` | Zustand store root |
 | `js/dataUrl.js` | `dataUrl()`: resolves large-data paths against the build's data base URL ([Data policy](#data-policy)) |
+| `js/perf/` | The `?perf=1` overlay ([Perf overlay](#perf-overlay)): `perf.js` (the hooks and the install), `GpuTimer.js`, `sections.js`, `glCounters.js`, `PerfStats.js`, `Overlay.js`, `snapshot.js`, `toggles.js`, `passes.js` |
 | `public/data/*.json` | Celestial object descriptors |
 
 ### Search (`js/search/`)
