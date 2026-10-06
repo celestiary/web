@@ -176,6 +176,20 @@ pulls z a few ulps inside.  **Rule:** never leave geometry on a clip
 plane by arithmetic; when a probe reads a coordinate at exactly ±1,
 treat it as a bug on some GPU.
 
+**And sqrt(FLT_MAX) is 2^64 m, 1,950 ly.**  With the far plane fixed,
+Alnilam (1,977 ly) still vanished on the M2 near the screen's centre
+and came back with a yaw.  The shader squared no distance (its inverse
+square was already in Gm, after `4π·d²` in metres zeroed every star
+past 550 ly), but clip-space w is the distance along the view axis in
+metres, and the GPU's own arithmetic after the shader squares it, or
+multiplies two clip coordinates: past 2^64, Inf, within acos(2^64 / d)
+of the axis.  The probe's numbers (finite lumens, an ordinary sprite,
+no occluder) ruled out everything in the star's own maths; the angle,
+9.4°, matched w alone.  **Rule:** no squared distance in metres in a
+float32 shader, and no clip coordinates in metres past 2^64 handed to
+the GPU: divide through to w = 1 (`stars.vert` `clipToW1`, as the wide
+lines do), or work in a scaled unit before squaring.
+
 ### GPU shader degenerate cases need explicit guards
 
 The Bruneton decode has two degenerate cases: r = rG (ground, rho = 0) and r = rA (atmosphere

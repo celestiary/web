@@ -70,9 +70,9 @@ const float VISIBLE_VALUE = 0.004;
 // light (the Sun from 52 AU was a 120 px disc without this); past the
 // cap the light is lost, as it is to a saturated retina.
 const float GLARE_CORE_PATCHES = 2.0;
-// Every star's clip z is pulled this far inside the far plane (as a
-// fraction of w).  The camera's far plane is the galaxy's scale and its
-// near plane metres, so the projection's (f + n) / (f - n) is 1 in
+// Every star's z is pulled this far inside the far plane (in NDC, after
+// clipToW1's divide; a fraction of w before it).  The camera's far plane
+// is the galaxy's scale and its near plane metres, so the projection's (f + n) / (f - n) is 1 in
 // float32 and a star's clip z is d - 2n, which rounds to d = w for any
 // star: on the far-plane boundary exactly.  A GPU whose perspective
 // divide is an approximate reciprocal lands z / w on either side of 1 by
@@ -83,6 +83,22 @@ const float GLARE_CORE_PATCHES = 2.0;
 // in front (only one past 8 AU, a sub-pixel point, shares the stars'
 // depth), and over the Milky Way, which pins its z to the far plane.
 const float FAR_PLANE_INSIDE = 0.999999;
+// Clip coordinates leave this shader divided through to w = 1 (as
+// wideLines.js does): the same point and depth, with w out of the
+// rasterizer's way.  w is the star's distance along the view axis in
+// metres, and past sqrt(FLT_MAX) = 2^64 m (1,950 ly) its square is Inf in
+// float32: Alnilam (1,977 ly) vanished on the user's M2 within ~9° of the
+// view axis, where w = d·cos θ passes 2^64, and came back with a yaw.  Not
+// this shader's arithmetic (it squares no distance in metres, nor w): the
+// GPU's, after it.  A star behind the eye (w ≤ 0) would turn round in the
+// divide, so it is culled, as the clipper had it.
+const vec4 CULLED = vec4(0.0, 0.0, 2.0, 1.0);
+vec4 clipToW1(vec4 clip) {
+  if (!(clip.w > 0.0)) {
+    return CULLED;
+  }
+  return vec4(clip.xy / clip.w, min(clip.z / clip.w, FAR_PLANE_INSIDE), 1.0);
+}
 // A user's gain on every star's light (ThreeUi.setStarGain; 1 is physical).
 uniform float uStarGain;
 // Half-float's largest value, the scene buffer's.
@@ -103,8 +119,8 @@ void main() {
   vec3 eyePos = highDiff + lowDiff;
   vec4 mvPosition = vec4(mat3(modelViewMatrix) * eyePos, 1.);
   // Inverse-square law: the star's illuminance here, E = lumens / (4π d²),
-  // with d in Gm: d² in metres overflowed float32 past 1,900 ly and
-  // zeroed Deneb, Rigel and every star beyond.
+  // with d in Gm: 4π·d² in metres overflowed float32 past 550 ly and
+  // zeroed Rigel, Deneb and every star beyond.
   float distGm = -mvPosition.z * 1.0e-9;
   float illuminance = (lumens * 1.0e-18) / (fourPi * distGm * distGm);
 
@@ -141,8 +157,7 @@ void main() {
     vSize = 1.0;
     gl_PointSize = 1.0;
     vBrightness = min(value, MAX_VALUE);
-    gl_Position  = projectionMatrix * mvPosition;
-    gl_Position.z = min(gl_Position.z, gl_Position.w * FAR_PLANE_INSIDE);
+    gl_Position = clipToW1(projectionMatrix * mvPosition);
     return;
   }
   float decadesOverWhite = max(log2(max(peak0, 1.0e-30)) / log2(10.0), 0.0);
@@ -158,6 +173,5 @@ void main() {
   gl_PointSize = vSize;
   vBrightness = peak;
 
-  gl_Position  = projectionMatrix * mvPosition;
-  gl_Position.z = min(gl_Position.z, gl_Position.w * FAR_PLANE_INSIDE);
+  gl_Position = clipToW1(projectionMatrix * mvPosition);
 }
