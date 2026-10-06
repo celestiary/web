@@ -13,7 +13,7 @@ craters on Earth/Mars) can be plugged in without re-architecting.
 | `SearchIndex.js` | Tiered index, query, per-anchor cache; exports the app-wide singleton `searchIndex` |
 | `providers/SceneProvider.js` | Entries for every body in `Loader.loaded` (sun, planets, moons, galaxy nodes) |
 | `providers/StarsProvider.js` | Entries for named stars + exact HIP resolver |
-| `providers/PlacesProvider.js` | Stub for future surface-place data (lazy, `collectUnder`-only) |
+| `providers/PlacesProvider.js` | Surface places (cities, craters, landing sites) per body; lazy, loaded when a scope includes the body ([Places in the index](#places-in-the-index)) |
 | `commitEntry.js` | `goToEntry` and `lookAtEntry`: what the Go and Look at buttons do with a result |
 | `SearchIndex.test.js` | Scoping, fuzzy, HIP-exact, dedupe coverage |
 | `commitEntry.test.js` | Go calls `goTo`/`land`/the hash; Look at calls the target path and never `goTo` |
@@ -54,8 +54,33 @@ contributes *named* stars (~8k) to Tier A; full 120k fuzzy-scan would be
 200–500 ms per keystroke and unnamed stars have nothing meaningful to fuzzy
 match against. Unnamed stars are still reachable via Tier B (numeric input).
 
-Tier C is empty today — `PlacesProvider` is a stub. It exists so the index
-doesn't need restructuring when place data lands.
+Tier C is the places: one Fuse per body, keyed by the body's rooted path
+(`milkyway/sun/earth`), from `PlacesProvider.collectUnder`.  See below.
+
+### Places in the index
+
+A place is searchable from every scope that includes its body, so "austin"
+finds Austin under Earth, under the Sun (the icon before Earth, with
+Sun › Earth in the breadcrumb: the solar system) and from the root.
+
+- `SearchIndex.ensureScope(anchorPath)` loads, once each, the places of every
+  body in scope: `PlacesProvider.bodiesUnder` lists the loader's bodies with
+  `has_locations` inside the scope, and `collectUnder` fetches
+  `data/places/<body>.json` (`n`, `lat`, `lng`, optional `a` and `k`).  The
+  SearchBar calls it when the scope changes and queries again when it
+  resolves with a count; Earth is fetched only when a search is scoped to
+  include it.
+- `query` searches the Fuse of every loaded body in scope with Tier A's.
+  From a scope wider than the body (the Sun's, the root's) a place's score
+  is 0.1 worse, so bodies and stars that match as well come first.  Under
+  Earth the Moon's places are in scope too.
+- It was dead before this: Tier C was seeded under the loader's path
+  (`sun/earth`) when a body was navigated to and read under the search's
+  (`milkyway/sun/earth`), so no query ever saw it.
+- A result is `kind: 'place'` with `payload {body, lat, lng, alt}` (`alt` only
+  if the catalogue has one, so landing uses the eye-height default, as a
+  click on the label does) and path `milkyway/sun/earth/austin`; the panel
+  previews its body.
 
 ## Fuse.js configuration
 
@@ -119,15 +144,20 @@ camera still turns to face it.  Per kind:
   object to `setTarget`.  `setCommittedStar` follows, as for Go, so `g`
   travels to it.
 - **Places:** `Scene.lookAtPlace(body, lat, lng, alt)` targets the body and
-  aims the tween at the surface point.
+  aims the tween at the surface point; the point stays the target
+  (`Scene.targetLabel`, `Shared.targets.label`), so `g` lands there.
 
 Zooming on the target is the FOV, which moves nothing, so a body's mesh LOD
 must follow the FOV, not just the distance: `FovLOD` scales it
 ([DESIGN.md](../../DESIGN.md#the-far-point)).  Without that, Jupiter from
 Earth stayed a far point at any zoom.
 
-`c` (`lookAtTarget`) looks at `Shared.targets.obj`, so after targeting a star
-it still means the last body, not the star.  The aim is a one-shot: a camera
+`c` (`lookAtTarget`) faces a targeted place or asterism
+(`Shared.targets.label`), else a committed star, else `Shared.targets.obj`.
+Picking a place in the dropdown targets it too (`targetEntry`: the point
+only, not the breadcrumb, as moving the breadcrumb closes the bar), and a
+click on a label on the canvas targets what it names (DESIGN.md
+[Picking labels](../../DESIGN.md#picking-labels)).  The aim is a one-shot: a camera
 landed on a spinning body drifts off a distant target as the body turns,
 unless tracking (`t`) is on.
 

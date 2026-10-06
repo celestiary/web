@@ -451,7 +451,8 @@ Camera orientation and position are separated across three input modes, all accu
 | ← / → arrow keys (hold) | Roll camera left/right |
 | `t` | Toggle continuous tracking (camera auto-looks at target as it orbits) |
 | `c` | Snap look at current target |
-| Double-click / double-tap a label | Go to the planet, moon or star it names, as `g` does (`js/scene/labelPick.js`: the label's text box on screen, 8 px of slop; off while the star picker is on) |
+| Click / tap a label (a star, planet, moon, asterism or place name) | Target it and do nothing else: `c` then faces it, `g` goes ([Picking labels](#picking-labels)) |
+| Double-click / double-tap a label | Go to it, as `g` does |
 | Double-click / double-tap elsewhere on a body | Land there |
 
 **Touch.** Pinch zooms, through `TouchSafeTrackballControls`
@@ -586,6 +587,48 @@ The search bar's Look at button is a caller of this path: `setTarget` for a body
 `Scene.lookAtStar` / `Scene.lookAtPlace` (same tween, aimed at a star's world position
 or a surface point) for results with no scene object.  See
 [js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at).
+
+### Picking labels
+
+One model for every label, on the canvas and in the search: **a click or tap
+targets what the label names and does nothing else; a double click or tap
+goes to it.**  The camera doesn't move or turn on a click, so `c` (face it)
+and `g` (go) are the next step, as for any target.
+
+The hit test is one for all of them (`js/scene/labelPick.js`).  A label sheet
+that can be picked carries `userData.labelTargets`, what each label is of, by
+label index; `labelBoxes` projects the visible sheets' labels to their text
+boxes on screen, and `hitLabel` takes the one under the pointer (8 px of
+slop; the nearest centre, then the nearest the camera).  A sheet of surface
+labels (the places) also carries `userData.labelBody`, so the far side of
+the body, where the shader discards them, isn't hit.  It's off while the star
+picker is on, whose own double click picks a star.  A click on a body's disc
+or on empty sky does nothing; a double click on a body's disc still lands
+there.
+
+| Label | Target (`Scene.targetLabel`, a click) | Go (`Celestiary.goToLabel`, a double click, and `g`) |
+|---|---|---|
+| Planet, moon, Sun (`kind: 'body'`) | `setTarget(name, {look: false})`: the target, breadcrumb and info panel, without the look tween | the body's path in the hash, as search Go |
+| Star (`'star'`) | `setCommittedStar`, as the search does: the panel and breadcrumb follow | `scene.goTo(star)` |
+| Place (`'place'`, on a body) | its body is targeted, and the point is `Shared.targets.label` | `scene.land(body, lat, lng, alt)`: the camera lands there at the catalogue's altitude, or `DEFAULT_LAND_ALT_M` (eye height) without one |
+| Asterism (`'asterism'`, named at the centroid of its stars) | `Shared.targets.label` only: it isn't a body, so the panel and breadcrumb stay | `lookAtLabel`: the look tween toward the centroid, no travel (it's a direction, with nowhere to arrive) |
+
+`Shared.targets.label` is what `c` (`Scene.lookAtTarget`, which also faces a
+committed star) and `g` (`Celestiary.goTo`) read first.  `setTarget`,
+`lookAtStar`, `goTo` and `land` clear it, so it's the target only until
+something else is.  An asterism's name sits at the mean direction of its
+stars from the Sun, at their mean distance (`Asterisms.centroid`), and is
+shown with the lines (`a`).
+
+dragControls fires `onClick` on both clicks of a double and then
+`onDblClick`, so a double click targets, then goes; nothing conflicts.  It's
+pointer events throughout (a tap is a click, two taps within 350 ms and 8 px
+a double), so touch needs nothing of its own; `TouchSafeTrackballControls`
+keeps the second finger from breaking the first's pointer ID.
+
+The search bar follows the same model: picking a place in the dropdown
+targets it (`targetEntry`) and Look at does too, as well as turning to it;
+Go and Enter travel ([js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at)).
 
 
 ## Rendering Techniques
@@ -901,7 +944,8 @@ and the provider extension contract.
 | `js/scene/SpriteSheet.js` | Canvas-based label sprite atlas |
 | `js/scene/GalaxyBufferGeometry.js` | Packed vertex data for galaxy particles |
 | `js/scene/StarsBufferGeometry.js` | Packed vertex data for star catalog |
-| `js/scene/Picker.js` | Raycasting for 3D object picking |
+| `js/scene/Picker.js` | Star picking by ray (`queryPoints`) and the surface point under the pointer (`pickSurfaceLatLng`) |
+| `js/scene/labelPick.js` | The label hit test for every label ([Picking labels](#picking-labels)) |
 | `js/scene/PickLabels.js` | Label picking and marker display |
 | `js/scene/atmos/Atmosphere.js` | Atmosphere mesh + fullscreen post-process pass |
 | `js/scene/hdr.js` | The HDR pipeline's tone map (PBR Neutral), its inverse, `sceneReferred` for display-referred materials |

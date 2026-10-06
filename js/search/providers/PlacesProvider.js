@@ -1,4 +1,6 @@
 import {fetchPlaces} from '../../scene/Places.js'
+import {inScope} from '../SearchIndex.js'
+import {buildPath} from './SceneProvider.js'
 
 
 /** @typedef {import('../SearchProvider.js').SearchEntry} SearchEntry */
@@ -6,18 +8,23 @@ import {fetchPlaces} from '../../scene/Places.js'
 
 /**
  * Surface places (cities, craters, landing sites…) on bodies with
- * `has_locations: true`.  Lazy: places can reach millions of entries for
- * Earth alone, so they're only fetched per-body when the user anchors the
- * search at the relevant body.
+ * `has_locations: true`.  Lazy: the catalogs can grow large (#170), so a
+ * body's is fetched only when a search is scoped to include it
+ * (`SearchIndex.ensureScope`, which asks `bodiesUnder` which those are).
  *
  * collectUnder is async because the catalog may not be cached yet — the
  * SearchIndex caller awaits it once per (body) lifetime and then re-uses
  * the cached entries.
  */
 export default class PlacesProvider {
-  constructor() {
+  /**
+   * @param {object} [loader] The Loader, for which bodies have places
+   *   (`has_locations` in their descriptors) and where they are in the tree
+   */
+  constructor(loader = null) {
     this.id = 'places'
     this.lazy = true
+    this.loader = loader
     this._cache = new Map() // bodyName → SearchEntry[]
     this._loading = new Map() // bodyName → in-flight Promise
   }
@@ -47,7 +54,9 @@ export default class PlacesProvider {
         // body-relative tail and let collectUnder prefix the anchorPath.
         path: '',
         parent: bodyName,
-        payload: {body: bodyName, lat: e.lat, lng: e.lng, alt: e.a ?? 0},
+        // alt: undefined unless the catalog has one, so landing there is at
+        // Scene.land's default (eye height), as a click on its label does.
+        payload: {body: bodyName, lat: e.lat, lng: e.lng, alt: e.a ?? undefined},
       }))
       this._cache.set(bodyName, out)
       this._loading.delete(bodyName)
@@ -55,6 +64,34 @@ export default class PlacesProvider {
     })
     this._loading.set(bodyName, p)
     return p
+  }
+
+
+  /**
+   * @param {string} anchorPath A search scope, e.g. 'milkyway' or 'milkyway/sun'
+   * @returns {string[]} The rooted paths of the bodies with places inside it
+   *   ('milkyway/sun/earth', ...), as far as the loader knows them; a scope
+   *   that is a body, or inside one, has just that body, or none.  A place
+   *   is searchable from every scope that includes its body, not only from
+   *   the body's own.
+   */
+  bodiesUnder(anchorPath) {
+    const loaded = this.loader?.loaded
+    if (!loaded) {
+      return []
+    }
+    const paths = []
+    for (const name of Object.keys(loaded)) {
+      const obj = loaded[name]
+      if (!obj || typeof obj !== 'object' || !obj.has_locations) {
+        continue
+      }
+      const path = buildPath(name, loaded)
+      if (path && inScope(path, anchorPath)) {
+        paths.push(path)
+      }
+    }
+    return paths
   }
 
 

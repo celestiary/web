@@ -71,7 +71,7 @@ it and why.
 The recommended order. "Now" is what to pick up first; within a group the
 order is a suggestion.
 
-**Done recently:** a planning pass (2026-10-06): the Sun and stars split into their own epic (#164), the Gazetteer, volumetric-cloud and procedural-exoplanet issues filed, #88 and #99 rescoped, the place-names regression found (#172), and three shared engines named to order the work; the debug axes inside the Sun and planets removed from the production scene (they showed at extreme zooms); esbuild hot-reload guarded by build-time `__DEV__` flag, so production and PR previews no longer log 404 errors for the nonexistent `/esbuild` endpoint; fixed moon radius data errors (Triton 10x, Janus 10x, Rhea 2x); a 30 s timeout on the Colonization whole-catalog test, which outran bun's 5 s default under load; patched transitive dependencies fflate (^0.8.3) and uuid (^11.1.1) with yarn resolutions to clear moderate dependabot alerts; the Moon orbit ([#87](https://github.com/celestiary/web/issues/87), PR [#130](https://github.com/celestiary/web/pull/130)); the data policy
+**Done recently:** place names back on Earth, the Moon and Mars ([#172](https://github.com/celestiary/web/issues/172)): `CesiumLayers._hideSurface` hid each body's places group along with its surface, from before the labels drew in the overlay pass (after the composite, no depth test, back hemisphere discarded in the shader), so no place name showed while Cesium was the layer; it now hides only the surface group, a unit test holds it, and three `labels` parity views (`earth-labels`, `moon-labels`, `mars-labels`; the others' `s=alpoU` turns labels off, so none could have caught it) count the pixels the labels add over Cesium's render ([CESIUM.md](CESIUM.md#views-and-tolerances)); one picking model for every label ([#177](https://github.com/celestiary/web/pull/177), DESIGN.md [Picking](DESIGN.md#picking-labels)): a click or tap on a star, planet or moon, asterism or place name targets it and does nothing else, so `c` faces it and `g` goes; a double click or tap goes (a place by landing there, an asterism by turning to face it); asterisms get name labels at their stars' centroid; and a place is searchable under its body, the solar system and the root (the places index was keyed by a path the search never asked for, so no place had ever been found), where picking a result targets it and Go travels; no white dashes over Jupiter and Saturn at a telescope FOV from Earth's surface: the atmosphere pass takes a body whose depth sits near the far plane as past the air, not as a short ray through it ([composition.md](js/scene/atmos/composition.md#the-rays-end)); a planning pass (2026-10-06): the Sun and stars split into their own epic (#164), the Gazetteer, volumetric-cloud and procedural-exoplanet issues filed, #88 and #99 rescoped, the place-names regression found (#172), and three shared engines named to order the work; the debug axes inside the Sun and planets removed from the production scene (they showed at extreme zooms); esbuild hot-reload guarded by build-time `__DEV__` flag, so production and PR previews no longer log 404 errors for the nonexistent `/esbuild` endpoint; fixed moon radius data errors (Triton 10x, Janus 10x, Rhea 2x); a 30 s timeout on the Colonization whole-catalog test, which outran bun's 5 s default under load; patched transitive dependencies fflate (^0.8.3) and uuid (^11.1.1) with yarn resolutions to clear moderate dependabot alerts; the Moon orbit ([#87](https://github.com/celestiary/web/issues/87), PR [#130](https://github.com/celestiary/web/pull/130)); the data policy
 ([#107](https://github.com/celestiary/web/issues/107), PR [#129](https://github.com/celestiary/web/pull/129)); the scripted parity check, `yarn parity`
 ([#105](https://github.com/celestiary/web/issues/105), PR [#134](https://github.com/celestiary/web/pull/134); see [CESIUM.md](CESIUM.md#parity-check)); the Moon's rotation
 and orbital periods in `moon.json` ([#132](https://github.com/celestiary/web/issues/132), PR [#135](https://github.com/celestiary/web/pull/135)); the stars in the
@@ -94,34 +94,31 @@ Mars's day sky (PR #147): multiple scattering in the precompute, for every body 
 The search bar's two actions: Go (an arrow; travels, as Enter does) and Look at (the magnifier; targets the result and turns the camera in place, without moving), for checking which face of a body points at the viewer ([js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at)) (PR [#151](https://github.com/celestiary/web/pull/151)).
 Pre-exposure ([#157](https://github.com/celestiary/web/issues/157)): the HDR buffer was found to hold every emitted source at the frame's gain already (PR B's `uExposureRelative` is the target-keyed exposure over Earth's times the metered gain), so a mag 6 star at the dark gain is 0.17 in the buffer and Sirius 170, not 1e-6 as the issue feared; the gain the frame renders with is now recorded once and divides the meter's readback, emitted radiance under half-float's smallest normal value (6.1e-5, 1/65 of a display step) is written as zero so a GPU that flushes subnormals and one that keeps them hold the same buffer, and the half-float ends are measured: the Sun's disc in a dark-adapted frame is the one source that reaches the top, physically (1e9 over white), and the shoulder holds it, so the shoulder is the fix there, not a stopgap ([HDR.md, pre-exposure](js/scene/HDR.md#pre-exposure)); and the sunlit-body anchor weighs by a disc's share of the field (its solid angle), not its size in pixels, so the Moon at 45° leaves a star field at the dark gain where the pixel weight had taken it to 40 and shown no stars (HDR.md, metered exposure rule 5; veiling glare and the moonlit sky are the recorded next steps).
 
-The star guide demo ([#165](https://github.com/celestiary/web/issues/165), the star renderer's workbench): its star links resolved against `<base href="/">` to the app root, and the router's referrer redirect then dropped the hash, so no `#Name` ever selected a star; the disc was never metered, because ThreeUI meters a resolved star's disc from its scene manager's objects and the guide had none (the Sun shader's radiance assumes the metered exposure, so it saturated white), now `guide/starScene.js`; with no hash the page showed whichever star the empty name `''` mapped to (`starnames.dat`'s trailing colons: HIP 24160), now Sol by default, and an empty name names no star.  The other guide pages were checked against the same pipeline: Planet (its Sun light had decay 0 where the exposure is calibrated to the app's 1.01, its surface waits on a `preAnimCb` the guide never ran), Stars (its store stub had no `getState`, which threw every frame) and Asterisms (it passed an empty catalog, so no asterisms were ever built) drew nothing or black, and draw now.  Left: the Atmosphere page, a work-in-progress demo with its own shader, still draws only its axes.
+The star guide demo ([#165](https://github.com/celestiary/web/issues/165), the star renderer's workbench): its star links resolved against `<base href="/">` to the app root, and the router's referrer redirect then dropped the hash, so no `#Name` ever selected a star; the disc was never metered, because ThreeUI meters a resolved star's disc from its scene manager's objects and the guide had none (the Sun shader's radiance assumes the metered exposure, so it saturated white), now `guide/starScene.js`; with no hash the page showed whichever star the empty name `''` mapped to (`starnames.dat`'s trailing colons: HIP 24160), now Sol by default, and an empty name names no star.  The other guide pages were checked against the same pipeline: Planet (its Sun light had decay 0 where the exposure is calibrated to the app's 1.01, its surface waits on a `preAnimCb` the guide never ran), Stars (its store stub had no `getState`, which threw every frame) and Asterisms (it passed an empty catalog, so no asterisms were ever built) drew nothing or black, and draw now.  The star shader's noise is now band-limited by pixel footprint (octaves fade out as their features near a pixel), so a small disc, in the guide or the Sun in the app from afar, shows its mean surface colour instead of aliased speckle; the guide frames each star at 90% of its canvas.  Left: the Atmosphere page, a work-in-progress demo with its own shader, still draws only its axes.
 
 **Now** (small, visible, unblocked)
-1. **Place names back on Earth, the Moon and Mars** ([#172](https://github.com/celestiary/web/issues/172)): the
-   Cesium layer hides each body's places group, a leftover from before
-   labels drew in the overlay pass.
-2. **Night lights on Cesium's Earth** ([#93](https://github.com/celestiary/web/issues/93)): ion's Earth at Night
+1. **Night lights on Cesium's Earth** ([#93](https://github.com/celestiary/web/issues/93)): ion's Earth at Night
    (asset 3812) isn't in the account; add it from the Asset Depot, or tile
    the bundled night map, then match it to celestiary's side numerically.
-3. **The galaxy's integrated light** ([#99](https://github.com/celestiary/web/issues/99), rescoped): a smooth disc and
+2. **The galaxy's integrated light** ([#99](https://github.com/celestiary/web/issues/99), rescoped): a smooth disc and
    bulge carrying the Milky Way's luminosity, the arms as density and
    colour, dust and HII regions, so the galaxy from outside reads like a
    photograph and the meter needs no help. See [the galaxy plan](#the-galaxy-plan).
 
 **Next** (the shared engines, below)
 
-4. **Stars up close** ([#164](https://github.com/celestiary/web/issues/164)): the photosphere ([#21](https://github.com/celestiary/web/issues/21)), then every star
+3. **Stars up close** ([#164](https://github.com/celestiary/web/issues/164)): the photosphere ([#21](https://github.com/celestiary/web/issues/21)), then every star
    from its parameters ([#166](https://github.com/celestiary/web/issues/166)), on one star renderer: the first of the
    parametric body renderer.
-5. **Place names for every body** ([#170](https://github.com/celestiary/web/issues/170)) from the IAU Gazetteer: the
+4. **Place names for every body** ([#170](https://github.com/celestiary/web/issues/170)) from the IAU Gazetteer: the
    labels engine.
-6. **Earth's clouds from data** ([#88](https://github.com/celestiary/web/issues/88)): daily NASA GIBS imagery where it
+5. **Earth's clouds from data** ([#88](https://github.com/celestiary/web/issues/88)): daily NASA GIBS imagery where it
    exists, a shell over both sides of the swap; then the imagery detail
    layer ([#92](https://github.com/celestiary/web/issues/92)), which needs `dev.virtualearth.net` reachable from the
    sandbox.
-7. **Gaia's brightest ~1M stars** ([#98](https://github.com/celestiary/web/issues/98)): the point-population engine,
+6. **Gaia's brightest ~1M stars** ([#98](https://github.com/celestiary/web/issues/98)): the point-population engine,
    designed under its heaviest load.
-8. **Sharing and picking through Cesium** ([#118](https://github.com/celestiary/web/issues/118)): the layer choice and
+7. **Sharing and picking through Cesium** ([#118](https://github.com/celestiary/web/issues/118)): the layer choice and
    follow state in the permalink (small), then picking on Cesium's globes.
 
 **Later**
@@ -162,7 +159,7 @@ once covers several features, so the order above builds them first.
   ([#166](https://github.com/celestiary/web/issues/166)), the gas giants ([#41](https://github.com/celestiary/web/issues/41)) and procedural exoplanets ([#171](https://github.com/celestiary/web/issues/171)) reuse it.
 - **Labels and nomenclature**: one catalogue pipeline (the IAU Gazetteer
   plus Earth's places) and one label renderer that is the same on both
-  sides of the Cesium swap ([#170](https://github.com/celestiary/web/issues/170), [#172](https://github.com/celestiary/web/issues/172)); later spacecraft and exoplanet names.
+  sides of the Cesium swap ([#170](https://github.com/celestiary/web/issues/170), [#172](https://github.com/celestiary/web/issues/172), done); later spacecraft and exoplanet names.
 - **Point populations**: one tiled, instanced point renderer with LOD and
   magnitude cuts, for Gaia ([#98](https://github.com/celestiary/web/issues/98)), asteroids and comets ([#30](https://github.com/celestiary/web/issues/30)),
   satellites ([#50](https://github.com/celestiary/web/issues/50)) and the telescope mode ([#155](https://github.com/celestiary/web/issues/155)).
@@ -233,7 +230,7 @@ Everything the user does keeps working where Cesium draws the ground.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing | [#172](https://github.com/celestiary/web/issues/172), [#101](https://github.com/celestiary/web/issues/101), [#102](https://github.com/celestiary/web/issues/102), [#100](https://github.com/celestiary/web/issues/100), [#42](https://github.com/celestiary/web/issues/42) | picking needs readback from portal-netgl's shadow context | [permalink.md](js/permalink.md), DESIGN.md [navigation](DESIGN.md#navigation-goto-flow), [CESIUM.md follow-ups](CESIUM.md#follow-ups) |
+| [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing | [#172](https://github.com/celestiary/web/issues/172) (done), [#101](https://github.com/celestiary/web/issues/101), [#102](https://github.com/celestiary/web/issues/102), [#100](https://github.com/celestiary/web/issues/100), [#42](https://github.com/celestiary/web/issues/42) | picking needs readback from portal-netgl's shadow context | [permalink.md](js/permalink.md), DESIGN.md [navigation](DESIGN.md#navigation-goto-flow), [CESIUM.md follow-ups](CESIUM.md#follow-ups) |
 
 ### F. Spacecraft and missions
 

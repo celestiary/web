@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, it} from 'bun:test'
-import {goToEntry, lookAtEntry} from './commitEntry.js'
+import {goToEntry, lookAtEntry, targetEntry} from './commitEntry.js'
 
 
 const STAR = {x: 1, y: 2, z: 3}
@@ -25,6 +25,7 @@ function makeCelestiary() {
       setTarget: rec('setTarget'),
       lookAtStar: rec('lookAtStar'),
       lookAtPlace: rec('lookAtPlace'),
+      targetLabel: rec('targetLabel'),
     },
     useStore: {getState: () => ({setCommittedStar: rec('setCommittedStar')})},
     loader: {pathByName: {jupiter: 'sun/jupiter'}},
@@ -50,9 +51,12 @@ describe('lookAtEntry (target)', () => {
     expect(c.calls[1][1]).toEqual({hipId: 32349, displayName: 'Sirius', star: STAR})
   })
 
-  it('looks at a place in place, without land', () => {
+  it('looks at a place in place, without land, and leaves the point targeted for g', () => {
     lookAtEntry(entries.place, c)
-    expect(c.calls).toEqual([['lookAtPlace', 'earth', 48.8, 2.3, 35]])
+    expect(c.calls).toEqual([
+      ['lookAtPlace', 'earth', 48.8, 2.3, 35],
+      ['targetLabel', {kind: 'place', body: 'earth', name: 'Paris', lat: 48.8, lng: 2.3, alt: 35}, {path: false}],
+    ])
   })
 
   it('ignores a body with no scene object, and a missing entry', () => {
@@ -92,5 +96,24 @@ describe('goToEntry (go)', () => {
   it('lands on a place', () => {
     goToEntry(entries.place, c)
     expect(c.calls).toEqual([['land', 'earth', 48.8, 2.3, 35]])
+  })
+})
+
+
+describe('targetEntry (pick in the dropdown)', () => {
+  it('targets a place as a click on its label does, keeping the breadcrumb (it would close the bar)', () => {
+    const c = makeCelestiary()
+    targetEntry(entries.place, c)
+    expect(c.calls).toEqual([
+      ['targetLabel', {kind: 'place', body: 'earth', name: 'Paris', lat: 48.8, lng: 2.3, alt: 35}, {path: false}],
+    ])
+  })
+
+  it('leaves bodies and stars to the preview, and ignores no entry', () => {
+    const c = makeCelestiary()
+    targetEntry(entries.jupiter, c)
+    targetEntry(entries.star, c)
+    targetEntry(null, c)
+    expect(c.calls).toEqual([])
   })
 })

@@ -86,7 +86,7 @@ export default class SceneProvider {
  * @param {object} loaded
  * @returns {string} '/'-joined rooted path, or '' if name not loaded.
  */
-function buildPath(name, loaded) {
+export function buildPath(name, loaded) {
   const parts = []
   let cur = name
   const seen = new Set()

@@ -10,12 +10,12 @@ that opt in via `has_locations: true` in their JSON descriptor.
   + sidereal rotation through the scene graph, so entries don't need
   per-frame quaternion math.
 - `Places.test.js` — LOD math, tier bucketing, lazy SpriteSheet build.
-- `Picker.queryPlaces` — O(N) screen-projection pick with back-hemisphere
-  culling.  N is small (10s..few-thousand per body); a yaot2 spatial tree
-  buys nothing at this size and would require transforming the ray into the
-  body's rotated frame.
+- `../labelPick.js` — picking: each tier's sheet carries `labelTargets` (what
+  each label is of) and `labelBody`, and a click is a hit on a label's own
+  text box, the far side's excluded (see below).
 - `../search/providers/PlacesProvider.js` — lazy search provider for
-  Tier C (per-anchor Fuse).  Caches per-body.
+  Tier C (a Fuse per body).  Caches per-body; loaded when a search's scope
+  includes the body (see Search below).
 
 ## Catalog file format
 
@@ -106,16 +106,43 @@ shader variant that:
   than the anchor (curvature delta `(1 − cos Δθ) · camDist` exceeds 100 km
   for big labels at limb).  Without depth testing, labels render cleanly.
 
-Picking (`Picker.queryPlaces`) reads body-fixed XYZ at the same un-lifted
-altitude as the visual, so click zones match what the user sees.
+### Picking
+
+One model for every label (DESIGN.md [Picking labels](../../DESIGN.md#picking-labels)):
+a click or tap on a place name targets it (its body, and the point: `c`
+faces it, `g` lands there), a double click or tap lands there.  The hit is
+on the label's own text box on screen (`labelPick.labelBoxes`), from the
+same body-fixed positions as the drawing, so click zones are what the user
+sees; labels on the far side aren't hit, as the shader discards them.
+
+It used to be a click anywhere within 100 px of a place (`Picker.queryPlaces`,
+removed) that landed at the nearest one.
+
+### Search
+
+Every place is searchable from any scope that includes its body: Earth's
+from under Earth, the Sun (the solar system) or the root, with the root's and
+the Sun's ranking below bodies and stars that match as well.  The Moon's
+are in Earth's scope too, as the Moon is.  Picking a result in the dropdown
+targets it, Go lands there
+([js/search/DESIGN.md](../search/DESIGN.md#places-in-the-index)).
+
+## Under a Cesium layer
+
+The labels stay on while a Cesium layer is active on Earth, the Moon or Mars:
+they draw in the overlay pass after the composite, so Cesium's globe doesn't
+cover them, and the shader's back-hemisphere discard hides the far side.
+`CesiumLayers._hideSurface` hides only the surface group
+([CESIUM.md](../../CESIUM.md#what-changes-while-a-cesium-layer-is-active),
+#172).
 
 ## Currently catalogued bodies
 
 - **moon** — 33 entries: Apollo/Luna/Chang'e landings, major maria,
   prominent craters, poles.  Source: IAU Gazetteer + NASA mission records.
-- **earth** — ~165 entries.  Tier 0 = 15 world-iconic megacities + Everest,
-  Grand Canyon, Pyramids, poles; Tier 1 = ~30 major cities and landmarks
-  (>1M pop); Tier 2 = ~115 secondary cities (~500k-3M) and regional
+- **earth** — 178 entries.  Tier 0 (20) = world-iconic megacities + Everest,
+  Grand Canyon, Pyramids, poles; Tier 1 (23) = major cities and landmarks
+  (>1M pop); Tier 2 (135) = secondary cities (~500k-3M) and regional
   capitals worldwide — Austin, Denver, Madrid, São Paulo, Shanghai,
   Melbourne, etc.  Reveal-threshold tuning means T2 only paints at
   continent-scale zoom, so the from-space view stays uncluttered.

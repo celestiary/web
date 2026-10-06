@@ -129,6 +129,25 @@ celestiary's side) rather than a change of units.
 buffer the value passes through, including a library's internal ones, and
 check each one's format.
 
+### A distance read from depth near the far plane is noise: decide by its error
+
+Jupiter at a telescope FOV from Earth's surface showed white dashes in
+concentric arcs, only from inside the atmosphere.  The near plane there
+is 100 m, so Jupiter's depth is the far plane on most of its disc and one
+step under it on the rest, which linearises to 1.5e9 ± 3.4e9 m.  The
+atmosphere pass took "not surely past the air" as "inside it", and
+marched those pixels as short rays through empty space: no extinction,
+where the rest of the disc had it.  The pass already carried the error
+(`tMaxErr`); one comparison used it the wrong way round for an eye inside
+the air.  It was first taken for stars drawing through the planet (the
+same far-plane crush); hiding the background changed nothing, and the
+pass's debug output (`uDebug` 3: depth, tMax, flags) named the pixels
+outright.
+
+**Rule:** when a distance comes from depth, carry its error and decide
+each case by which way the error should break; and before blaming the
+draw order, read the pass's own classification of the pixels.
+
 ### Inverting a tone map is exact for one draw, not for blends
 
 Display-referred content (stars, labels) goes into the HDR buffer through

@@ -4,7 +4,7 @@ import http from 'node:http'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {chromium} from 'playwright'
-import {allPass, evaluateView, formatTable, measureView, terminatorLine} from './measure.mjs'
+import {allPass, changedPixels, evaluateView, formatTable, measureView, terminatorLine} from './measure.mjs'
 
 
 /**
@@ -277,6 +277,28 @@ async function capture(page, fade, wantPng) {
 
 
 /**
+ * Render the Cesium view again with the body's place labels hidden, and read
+ * the frame back (as `capture` does, with the layer forced on).
+ *
+ * @param {object} page
+ * @param {string} body
+ * @returns {Promise<object>} The image
+ */
+async function captureWithoutPlaces(page, body) {
+  await page.evaluate((name) => {
+    window.c.ui.sceneManager.objects[name].places.visible = false
+  }, body)
+  try {
+    return (await capture(page, 1, false)).image
+  } finally {
+    await page.evaluate((name) => {
+      window.c.ui.sceneManager.objects[name].places.visible = true
+    }, body)
+  }
+}
+
+
+/**
  * Where the body's disc lies in the render, and which way the Sun is from
  * it, in pixels.
  *
@@ -406,9 +428,15 @@ async function runView(context, baseUrl, view, opts) {
     const geometry = await discGeometry(page, view.body)
     const on = await capture(page, 1, Boolean(opts.out))
     const off = await capture(page, 0, Boolean(opts.out))
+    // A view with labels on: what the body's place labels add to the
+    // Cesium render (#172: the layer used to hide them).
+    const withoutLabels = view.labels ? await captureWithoutPlaces(page, view.body) : null
     const after = await layerState(page, view.body)
     const resolved = resolveView(view, geometry, on.image)
     const measured = measureView(on.image, off.image, resolved)
+    if (withoutLabels) {
+      measured.labelPixels = changedPixels(on.image, withoutLabels)
+    }
     const rows = [
       {view: view.id, metric: 'cesium layer active', value: after.active ? 1 : 0, tolerance: '= 1', pass: after.active},
       ...evaluateView(view.id, measured, view.tolerance),

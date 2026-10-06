@@ -245,3 +245,36 @@ describe('ground height', () => {
     expect(body.groundHeight).toBe(null)
   })
 })
+
+
+describe('hiding the celestiary surface', () => {
+  const body = () => {
+    const node = new Object3D()
+    const surface = new Object3D()
+    surface.name = 'planet surface and guides'
+    const places = new Object3D()
+    node.add(surface)
+    node.add(places)
+    node.places = places
+    return {node, surface, places}
+  }
+
+  it('hides the surface group but leaves the place labels, which draw over Cesium (#172)', () => {
+    const L = new CesiumLayers({})
+    const {node, surface, places} = body()
+    L._hideSurface(node)
+    expect(surface.visible).toBe(false)
+    expect(places.visible).toBe(true)
+    expect(L.hidden.has(places)).toBe(false)
+  })
+
+  it('puts the surface back, and tolerates a body without one', () => {
+    const L = new CesiumLayers({})
+    const {node, surface} = body()
+    L._hideSurface(node)
+    L._hideSurface(node)
+    L._restore()
+    expect(surface.visible).toBe(true)
+    expect(() => L._hideSurface(new Object3D())).not.toThrow()
+  })
+})

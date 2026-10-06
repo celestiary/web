@@ -55,6 +55,9 @@ export const targets = {
   origin: new Vector3,
   cur: null,
   obj: null,
+  // A label's subject that isn't a body or a committed star: a place or an
+  // asterism (Scene.targetLabel).  What 'c' faces and 'g' goes to, while set.
+  label: null,
   pos: new Vector3,
   track: null,
   follow: null,
