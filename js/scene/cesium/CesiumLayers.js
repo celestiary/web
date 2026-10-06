@@ -769,17 +769,23 @@ export default class CesiumLayers {
   }
 
 
-  /** @param {object} node */
+  /**
+   * Hide the body's celestiary surface group.  Not its places: the labels
+   * draw in the overlay pass after the composite, with no depth test and a
+   * back-hemisphere discard, so they sit over Cesium's globe and drop off
+   * its far side (#172).
+   *
+   * @param {object} node
+   */
   _hideSurface(node) {
     const surface = node.getObjectByName(SURFACE_GROUP_NAME)
-    for (const obj of [surface, node.places]) {
-      if (obj && !this.hidden.has(obj)) {
-        this.hidden.set(obj, obj.visible)
-      }
-      if (obj) {
-        obj.visible = false
-      }
+    if (!surface) {
+      return
     }
+    if (!this.hidden.has(surface)) {
+      this.hidden.set(surface, surface.visible)
+    }
+    surface.visible = false
   }
 
 

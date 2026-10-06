@@ -23,6 +23,8 @@ const DEFAULT_PROFILE_SAMPLES = 32
 const DEFAULT_PROFILE_BAND = 3
 // Fewest pixels a view must measure, so an empty region fails, not passes.
 const DEFAULT_MIN_PIXELS = 200
+// changedPixels: ignores rounding and dither, counts a label's glyphs.
+const DEFAULT_CHANGE_THRESHOLD = 12
 // Terminator profiles stop this far from the image's edge, in pixels.
 const EDGE_MARGIN_PX = 4
 
@@ -35,6 +37,28 @@ const EDGE_MARGIN_PX = 4
 export function lumaAt(data, i) {
   const o = i * BYTES_PER_PIXEL
   return (LUMA[0] * data[o]) + (LUMA[1] * data[o + 1]) + (LUMA[2] * data[o + 2])
+}
+
+
+/**
+ * Count the pixels where two renders of the same size differ: what one
+ * element adds to a frame, taken by rendering with and without it.
+ *
+ * @param {{data: Uint8ClampedArray|Uint8Array}} a
+ * @param {{data: Uint8ClampedArray|Uint8Array}} b
+ * @param {number} [threshold] Least summed absolute channel difference (of 765) to count
+ * @returns {number} Pixels that differ by more than `threshold`
+ */
+export function changedPixels(a, b, threshold = DEFAULT_CHANGE_THRESHOLD) {
+  let count = 0
+  for (let o = 0; o + 2 < a.data.length; o += BYTES_PER_PIXEL) {
+    const d = Math.abs(a.data[o] - b.data[o]) + Math.abs(a.data[o + 1] - b.data[o + 1]) +
+      Math.abs(a.data[o + 2] - b.data[o + 2])
+    if (d > threshold) {
+      count++
+    }
+  }
+  return count
 }
 
 
@@ -384,6 +408,8 @@ export function describeTolerance(tolerance) {
  *     (luma levels of 255), as a number;
  *   - `luma`: [lo, hi] for each render's own median luma (of 255), on and
  *     off: catches what the ratios can't, both sides wrong alike;
+ *   - `labelPixels`: `{min}` or `[lo, hi]` for `measured.labelPixels`, the pixels
+ *     the place labels add (parity.mjs, views with `labels: true`);
  *   - `minPixels`: least measured pixels (default 200), so an empty region
  *     fails rather than passing on nothing;
  *   - `reference`: `{luma, blueRed}`, each [lo, hi], for views with a
@@ -421,6 +447,9 @@ export function evaluateView(id, measured, tolerance) {
   if (tolerance.luma) {
     add('luma on', ratios.lumaOn, tolerance.luma)
     add('luma off', ratios.lumaOff, tolerance.luma)
+  }
+  if (tolerance.labelPixels) {
+    add('label pixels', measured.labelPixels ?? NaN, tolerance.labelPixels)
   }
   const {reference} = measured
   if (tolerance.reference) {

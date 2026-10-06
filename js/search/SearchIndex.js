@@ -25,9 +25,18 @@ const HIP_RE = /^(?:HIP\s*)?(\d+)$/i
  *   once on first `ensureReady()`.
  * - Tier B: exact-match for HIP/numeric input, bypasses Fuse and is served
  *   directly by a star-exact-lookup delegate (`StarsProvider.resolveHip`).
- * - Tier C: per-anchor Fuse cache populated from `lazy` providers' output
- *   when a scoped query arrives.  Reserved for the future PlacesProvider.
+ * - Tier C: one Fuse per body, keyed by the body's rooted path, from the
+ *   `lazy` providers' output (the places on a body).  A query searches the
+ *   Fuses of every body in its scope, so a place resolves from any scope
+ *   that includes its body: the body's, the solar system's, the root's.
+ *   `ensureScope` loads them.
  */
+
+// A place found from a scope wider than its body ranks below the bodies and
+// stars that match as well: Fuse scores run 0 (exact) to 1, and a match
+// worth listing is under FUSE_OPTS.threshold.
+const PLACE_WIDER_SCOPE_PENALTY = 0.1
+
 export default class SearchIndex {
   constructor() {
     this._ready = false
@@ -132,34 +141,65 @@ export default class SearchIndex {
         }
       }
     }
-    // Tier C: per-anchor lazy provider entries (e.g. PlacesProvider).
-    // Caller seeds the cache via populateTierC; we just merge the matches
-    // here in score order alongside Tier A hits.
-    const tierC = this._tierCCache.get(anchorPath)
-    if (tierC && filtered.length < limit) {
-      const cResults = tierC.search(trimmed, {limit: limit * 4})
-      for (const r of cResults) {
-        if (seenIds.has(r.item.id)) {
-          continue
-        }
-        filtered.push({entry: r.item, score: r.score ?? 0})
-        if (filtered.length >= limit) {
-          break
+    // Tier C: the places on every loaded body in scope (ensureScope loads
+    // them), merged in score order with the Tier A hits.
+    let placed = false
+    for (const [bodyPath, fuse] of this._tierCCache) {
+      if (!inScope(bodyPath, anchorPath)) {
+        continue
+      }
+      const penalty = bodyPath === anchorPath ? 0 : PLACE_WIDER_SCOPE_PENALTY
+      for (const r of fuse.search(trimmed, {limit: limit * 4})) {
+        if (!seenIds.has(r.item.id)) {
+          filtered.push({entry: r.item, score: (r.score ?? 0) + penalty})
+          placed = true
         }
       }
-      // Re-sort so Tier C entries interleave by score with Tier A results.
+    }
+    if (placed) {
+      // Stable, so a tie keeps the Tier A hit first.
       filtered.sort((a, b) => a.score - b.score)
     }
-    return filtered
+    return filtered.slice(0, limit)
   }
 
 
   /**
-   * Build a Tier C Fuse for `anchorPath` from a precomputed entry list.
-   * Caller (typically Celestiary, via PlacesProvider.collectUnder) is
-   * responsible for the await; this method is sync so query() can stay sync.
+   * Load what a scoped query needs from the lazy providers: the places of
+   * every body inside `anchorPath` that has a catalogue, once each.  Call it
+   * when the scope changes and query again when it resolves with a count.
    *
-   * @param {string} anchorPath
+   * @param {string} [anchorPath]
+   * @returns {Promise<number>} How many bodies' places were loaded just now
+   */
+  async ensureScope(anchorPath = 'milkyway') {
+    await this.ensureReady()
+    let loaded = 0
+    for (const p of SearchRegistry.list()) {
+      if (!p.lazy || typeof p.bodiesUnder !== 'function' || typeof p.collectUnder !== 'function') {
+        continue
+      }
+      for (const bodyPath of p.bodiesUnder(anchorPath)) {
+        if (this._tierCCache.has(bodyPath)) {
+          continue
+        }
+        const entries = await p.collectUnder(bodyPath)
+        if (entries.length > 0) {
+          this.populateTierC(bodyPath, entries)
+          loaded++
+        }
+      }
+    }
+    return loaded
+  }
+
+
+  /**
+   * Build a Tier C Fuse for the body at `anchorPath` from a precomputed
+   * entry list (ensureScope does this, via PlacesProvider.collectUnder).
+   * Sync, so query() can stay sync.
+   *
+   * @param {string} anchorPath The body's rooted path, e.g. 'milkyway/sun/earth'
    * @param {Array} entries SearchEntry[]
    */
   populateTierC(anchorPath, entries) {

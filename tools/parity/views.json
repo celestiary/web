@@ -594,6 +594,45 @@
           160
         ]
       }
+    },
+    {
+      "id": "earth-labels",
+      "body": "earth",
+      "description": "Earth from 12,000 km, filling about 0.85 of the view height, with the place labels on (the stars' labels, lines and Milky Way are off): the tier-0 labels (London, Cairo, Cape Town) must draw over Cesium's globe, so a render with the body's places hidden differs from one with them by hundreds of pixels (about 3,000 at this size, Mars's four labels about 2,000; 0 when the layer hid them, #172).  No ratio: this checks the labels, not the surface",
+      "hash": "#sun/earth@15,20.7446,12Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=aloU",
+      "labels": true,
+      "profile": null,
+      "tolerance": {
+        "labelPixels": {
+          "min": 400
+        }
+      }
+    },
+    {
+      "id": "moon-labels",
+      "body": "moon",
+      "description": "The Moon from 3,300 km at about 0.85 of the view height, labels on: the Apollo sites and maria must draw over Cesium's Moon (#172)",
+      "hash": "#sun/earth/moon@10,68.6276,3.3Mm;t=9233.1234jd;cq=0.02,0.9773,0.0723,-0.1983;fov=45deg;s=aloU",
+      "labels": true,
+      "profile": null,
+      "tolerance": {
+        "labelPixels": {
+          "min": 400
+        }
+      }
+    },
+    {
+      "id": "mars-labels",
+      "body": "mars",
+      "description": "Mars from 6,400 km at about 0.85 of the view height, labels on: Viking 1, Pathfinder, Opportunity and Valles Marineris must draw over Cesium's Mars (#172)",
+      "hash": "#sun/mars@15,-7.099,6.4Mm;t=9233.11246jd;cq=-0.1482,0.8932,-0.0701,0.4187;fov=45deg;s=aloU",
+      "labels": true,
+      "profile": null,
+      "tolerance": {
+        "labelPixels": {
+          "min": 400
+        }
+      }
     }
   ]
 }

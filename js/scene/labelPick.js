@@ -6,13 +6,20 @@ export const LABEL_SLOP_PX = 8
 
 
 /**
- * Labels on screen, for picking one with a click or tap (Scene.onDblClick).
+ * Labels on screen, for picking one with a click or tap (Scene.onClick,
+ * Scene.onDblClick).
  *
  * A label is a square point sprite centred on its position, its side the
  * longer of its text's width and height, and its text drawn along the top
  * (SpriteSheet.js).  A label sheet that can be picked carries, in its
  * sprites' userData.labelTargets, what each of its labels is of, by label
- * index (Planet.js: the body; Stars.js: the star).
+ * index: {kind: 'body', name} (Planet.js), {kind: 'star', star, name}
+ * (Stars.js), {kind: 'place', body, name, lat, lng, alt} (Places.js) and
+ * {kind: 'asterism', name, position} (Asterisms.js).
+ *
+ * A sheet of surface labels (Places) also carries userData.labelBody, the
+ * body they're on: the shader discards the labels on its far side, so
+ * they're not boxes either.
  *
  * @param {object} root The scene graph to look in
  * @param {object} camera
@@ -26,6 +33,8 @@ export const LABEL_SLOP_PX = 8
 export function labelBoxes(root, camera, rect, pixelRatio = 1) {
   const boxes = []
   const v = new Vector3()
+  const centre = new Vector3()
+  const eye = new Vector3()
   // Only what's shown: the label LODs hide their levels out of range.
   root.traverseVisible((obj) => {
     const sheet = obj.userData?.sheet
@@ -34,6 +43,11 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1) {
       return
     }
     obj.updateWorldMatrix(true, false)
+    const body = obj.userData.labelBody
+    if (body) {
+      body.getWorldPosition(centre)
+      camera.getWorldPosition(eye)
+    }
     const {positions, sizes, textSizes} = sheet
     const low = sheet._posLow
     for (let i = 0; i < sheet.labelCount; i++) {
@@ -46,7 +60,11 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1) {
         v.y += low[(3 * i) + 1]
         v.z += low[(3 * i) + 2]
       }
-      v.applyMatrix4(obj.matrixWorld).project(camera)
+      v.applyMatrix4(obj.matrixWorld)
+      if (body && onFarSide(v, centre, eye)) {
+        continue
+      }
+      v.project(camera)
       if (!(v.z > -1 && v.z < 1) || !Number.isFinite(v.x) || !Number.isFinite(v.y)) {
         continue // behind the camera, or past near or far
       }
@@ -64,6 +82,22 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1) {
     }
   })
   return boxes
+}
+
+
+/**
+ * @param {Vector3} point A point on a body's surface, world space
+ * @param {Vector3} centre The body's centre
+ * @param {Vector3} eye The camera
+ * @returns {boolean} Whether the point is on the side of the body away from
+ *   the camera (the surface normal there against the way to the camera, as
+ *   the label shader tests it)
+ */
+function onFarSide(point, centre, eye) {
+  const nx = point.x - centre.x
+  const ny = point.y - centre.y
+  const nz = point.z - centre.z
+  return ((nx * (eye.x - point.x)) + (ny * (eye.y - point.y)) + (nz * (eye.z - point.z))) < 0
 }
 
 

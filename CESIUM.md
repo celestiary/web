@@ -187,8 +187,12 @@ relates to real time.
 ### What changes while a Cesium layer is active
 
 - The body's celestiary surface group (surface, clouds, atmosphere shell,
-  axes) is hidden, as are its place labels (they'd sit under Cesium's
-  globe; Cesium's own data layers replace them).
+  axes) is hidden.  Its place labels stay: they draw in the overlay pass
+  after the composite (no depth test, a back-hemisphere discard in the
+  shader), so they sit over Cesium's globe and drop off its far side
+  ([#172](https://github.com/celestiary/web/issues/172); `_hideSurface`
+  hid them until then, from when they drew in the main pass, under
+  Cesium's globe).
 - Earth and Mars keep celestiary's atmosphere post-pass, over Cesium's
   surface (see Atmospheres).
 
@@ -570,9 +574,10 @@ of `views`, each:
 | `hash` | the permalink, with `cq=` (js/permalink.md; without it the time and view aren't restored).  Include `s=alpoU` to turn off labels, lines and the Milky Way, which are drawn on both renders and dilute the ratios |
 | `region` | `{"disc": true, "inner": 0.9}` (the body's disc, computed from the camera) or `{"box": [x0, y0, x1, y1]}` in fractions of the image; `minLuma` (default 12) |
 | `profile` | `{"across": "terminator", "samples": 40, "band": 5, "reach": 0.9}`, or `{"from": [x, y], "to": [x, y]}` in fractions of the image; omit for none |
+| `labels` | `true` for a view that checks the body's place labels draw over Cesium's render: parity renders it once more with the body's `places` hidden and counts the pixels that differ (`label pixels`, tolerance `labelPixels` `{min}`).  Its hash leaves `p` out of `s=` (the places' toggle, on by default), as the `*-labels` views do (`s=aloU`: no star labels, asterisms, orbits or Milky Way).  Such a view has no ratio tolerance, as it checks the labels, not the surface.  It exists because the other views' `s=alpoU` turns the labels off, so none of them could see the layer hiding them (#172) |
 | `freeze` | `true` stops the simulation clock as soon as the app is up, not once the tiles have settled: for views low over relief, where the ground turning under the camera while tiles load (hundreds of m/s) would frame different mountains each run |
 | `reference` | optional `{"box": [x0, y0, x1, y1]}`: a second region of the same render, for what has no counterpart in celestiary's render (Cesium's terrain above celestiary's sphere), measured against the ground beside it in Cesium's render |
-| `tolerance` | `ratio` `[lo, hi]`; `channelRatio` `[lo, hi]` or `{r, g, b}`; `meanRatio` `[lo, hi]` (the ratio of the region's mean luma and of each channel's mean, on/off: for views where the two renders differ in resolution, which moves the per-pixel medians but not the energy); `profileMax`, `profileMean` (luma levels); `luma` `[lo, hi]` (each render's own median luma, on and off: for views where both sides could go wrong alike, as they share the atmosphere pass); `reference` `{luma, blueRed}`, each `[lo, hi]` (the on render's median luma, and median blue/red, over the region over the same over `reference`: the ridge looks like ground, not sky); `minPixels` (default 200) |
+| `tolerance` | `ratio` `[lo, hi]`; `channelRatio` `[lo, hi]` or `{r, g, b}`; `meanRatio` `[lo, hi]` (the ratio of the region's mean luma and of each channel's mean, on/off: for views where the two renders differ in resolution, which moves the per-pixel medians but not the energy); `profileMax`, `profileMean` (luma levels); `luma` `[lo, hi]` (each render's own median luma, on and off: for views where both sides could go wrong alike, as they share the atmosphere pass); `reference` `{luma, blueRed}`, each `[lo, hi]` (the on render's median luma, and median blue/red, over the region over the same over `reference`: the ridge looks like ground, not sky); `labelPixels` `{min}` (a `labels` view: the pixels the place labels add); `minPixels` (default 200) |
 
 To add a view: fly to it in the app (the URL follows the camera, one second
 after it settles) and copy the hash; pick a **partial phase**, as colour
@@ -617,6 +622,11 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `mars-sky-zenith` | Mars's day sky looking up, the zenith over the sky 35° lower: luma 0.277, blue/red 0.897 (#147; tan, with a gradient) | (no off comparison) | (no profile) |
 | `mars-sky-antisolar` | the sky over the anti-solar horizon over the sky 30° up: 1.643 / 1.078 (#147; before it the anti-solar sky was nearly black) | (no off comparison) | (no profile) |
 | `mars-sky-aureole` | the aureole within 10° of the Sun over the sky 40° off: 2.418 / 1.768 (#147: bluer, as the rovers see it; before, white across the frame) | (no off comparison) | (no profile) |
+
+The `*-labels` views (#172) measure no ratio: label pixels (what the
+place labels add over Cesium's render; the tolerance is at least 400) read
+`earth-labels` 3280, `moon-labels` 3614, `mars-labels` 1939 at 480x300,
+and 0 with the layer hiding the places, as `_hideSurface` did.
 
 With #147 (multiple scattering for every body; Earth's gain 30 → 21):
 `earth-orbit-gibbous` 0.991, `mars-gibbous` 0.995 (profile max 5.1),
