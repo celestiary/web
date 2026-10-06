@@ -950,6 +950,10 @@ export default class Celestiary {
     }
     clearTimeout(this._permalinkTimer)
     this._permalinkTimer = setTimeout(() => {
+      // A tween started since (a goTo targets first): its end reschedules.
+      if (Shared.targets.tween !== null) {
+        return
+      }
       const fragment = this.permalink()
       if (fragment) {
         history.replaceState(null, '', `#${fragment}`)

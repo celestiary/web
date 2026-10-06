@@ -21,15 +21,16 @@ const ASTERISM_PREFIX = 'asterism:'
 
 
 /**
- * A name as it appears in a path: lower case, runs of anything but letters
- * and digits as one `-`, none at the ends.  The places' search ids use it
- * too (PlacesProvider).
+ * A name as it appears in a path: lower case, accents dropped, runs of
+ * anything but letters and digits as one `-`, none at the ends.  The
+ * places' search ids use it too (PlacesProvider).
  *
  * @param {string} s
  * @returns {string}
  */
 export function slug(s) {
-  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
 

@@ -218,6 +218,8 @@ function makeStubStore() {
     dragMode: 'pan',
     // Recorded: tests can read state.dragModeCalls to assert auto-pick fired.
     dragModeCalls: [],
+    // The widgets drawer at its defaults: no state tokens (appTokens.js).
+    widgets: {isOpen: false, isDocked: false, view: null, running: [], pinned: [], appStates: {}},
   }
   state.setDragMode = (m) => {
     state.dragMode = m
@@ -793,5 +795,149 @@ describe('Scene.goTo navigation', () => {
       expect(Shared.targets.label.star).toBe(FAKE_STAR)
       expect(store.committedStar.hipId).toBe(99)
     })
+  })
+})
+
+
+// The link's path names the target (targetPath.js); the camera stays in its
+// frame, the body it's at (`from=` when that isn't the target's).  So
+// targeting rewrites the link without moving the camera, and the new link,
+// reloaded, shows the same view with the same target.
+describe('the target in the link', () => {
+  const AUSTIN = {kind: 'place', body: 'earth', name: 'Austin', lat: 30.2672, lng: -97.7431}
+  const savedFetch = global.fetch
+  const apps = []
+
+  beforeAll(() => {
+    // Earth's places, for a link to Austin.
+    global.fetch = (url) => Promise.resolve(String(url).endsWith('places/earth.json') ?
+      {ok: true, json: () => Promise.resolve({places: [{n: 'Austin', lat: AUSTIN.lat, lng: AUSTIN.lng}]})} :
+      {ok: false, json: () => Promise.resolve({})})
+  })
+
+  afterAll(() => {
+    global.fetch = savedFetch
+    apps.forEach((a) => clearTimeout(a._permalinkTimer))
+    Shared.targets.label = null
+  })
+
+  /**
+   * @param {string} fragment
+   * @returns {Promise<object>} A Celestiary loaded from #fragment, restored
+   */
+  async function open(fragment) {
+    global.location.hash = `#${fragment}`
+    const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+        {}, () => {}, () => {}, () => {})
+    apps.push(app)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    return app
+  }
+
+  /**
+   * @param {object} app
+   * @returns {{pos: Vector3, quat: Quaternion}} The camera, world orientation,
+   *   and position from Earth's centre, in Earth's body-fixed axes
+   */
+  function viewFromEarth(app) {
+    app.ui.scene.updateMatrixWorld()
+    const earth = app.scene.objects.earth
+    const earthQuat = earth.getWorldQuaternion(new Quaternion())
+    const pos = app.ui.camera.getWorldPosition(new Vector3())
+        .sub(earth.getWorldPosition(new Vector3()))
+        .applyQuaternion(earthQuat.clone().invert())
+    // Orientation relative to Earth too: the scene's world axes are the
+    // same in both apps, but this is what a reload must reproduce.
+    const quat = earthQuat.clone().invert().multiply(app.ui.camera.getWorldQuaternion(new Quaternion()))
+    return {pos, quat}
+  }
+
+  /**
+   * Target in app, check the camera didn't move, and reload its link.
+   *
+   * @param {object} app
+   * @param {string|object} target
+   * @returns {Promise<{before: object, link: string, reloaded: object}>}
+   */
+  async function targetAndReload(app, target) {
+    const before = viewFromEarth(app)
+    const camPos = app.ui.camera.position.clone()
+    const camQuat = app.ui.camera.quaternion.clone()
+    app.scene.setTarget(target, {look: false})
+    expect(app.ui.camera.position.equals(camPos)).toBe(true)
+    expect(app.ui.camera.quaternion.equals(camQuat)).toBe(true)
+    expect(Shared.targets.tween).toBe(null)
+    const link = app.permalink()
+    const reloaded = await open(link)
+    return {before, link, reloaded}
+  }
+
+  /**
+   * The view after a reload is the one before, within the link's
+   * precision: 4 decimal places of a degree (12 m on Earth's surface), and
+   * of the quaternion's components.
+   *
+   * @param {object} a viewFromEarth
+   * @param {object} b
+   */
+  function expectSameView(a, b) {
+    expect(a.pos.distanceTo(b.pos)).toBeLessThan(20)
+    expect(Math.abs(a.quat.dot(b.quat))).toBeGreaterThan(1 - 1e-6)
+  }
+
+  it('a body elsewhere: its path, the camera from Earth', async () => {
+    const app = await open(TEST_FRAGMENT)
+    const {before, link, reloaded} = await targetAndReload(app, 'sun')
+    expect(link.startsWith('sun@30.2638,-97.7526,400km;from=sun/earth;t=9233jd;')).toBe(true)
+    expect(Shared.targets.obj).toBe(reloaded.scene.objects.sun)
+    expect(Shared.targets.label).toBe(null)
+    expect(Shared.targets.cur).toBe(reloaded.scene.objects.earth)
+    expectSameView(before, viewFromEarth(reloaded))
+  })
+
+  it('a place on Earth: its path, no from', async () => {
+    const app = await open(TEST_FRAGMENT)
+    const {before, link, reloaded} = await targetAndReload(app, AUSTIN)
+    expect(link.startsWith('sun/earth/austin@30.2638,-97.7526,400km;t=9233jd;')).toBe(true)
+    expect(Shared.targets.obj).toBe(reloaded.scene.objects.earth)
+    expect(Shared.targets.label).toEqual({...AUSTIN, alt: undefined})
+    expectSameView(before, viewFromEarth(reloaded))
+    // And back to Earth from the place's link: the same link as Earth's own.
+    reloaded.scene.setTarget('earth', {look: false})
+    expect(reloaded.permalink().startsWith('sun/earth@30.2638,-97.7526,400km;t=9233jd;')).toBe(true)
+  })
+
+  it('an old link, with no from: the path is the target and the frame', async () => {
+    const app = await open(TEST_FRAGMENT)
+    expect(Shared.targets.obj).toBe(app.scene.objects.earth)
+    expect(Shared.targets.cur).toBe(app.scene.objects.earth)
+    expect(app.permalink().startsWith('sun/earth@30.2638,-97.7526,400km;t=9233jd;')).toBe(true)
+  })
+
+  it('"t" tracks the target: a place, as Earth turns', async () => {
+    const app = await open(TEST_FRAGMENT)
+    app.scene.setTarget(AUSTIN, {look: false})
+    app.keys.onKeyDown({key: 't'})
+    expect(Shared.targets.track).toBe(true)
+    const angleToAustin = () => {
+      app.ui.scene.updateMatrixWorld()
+      const camPos = app.ui.camera.getWorldPosition(new Vector3())
+      const view = new Vector3(0, 0, -1).applyQuaternion(app.ui.camera.getWorldQuaternion(new Quaternion()))
+      return view.angleTo(app.scene.labelPosition(AUSTIN).sub(camPos)) * 180 / Math.PI
+    }
+    expect(angleToAustin()).toBeGreaterThan(1)
+    // Each hour Austin turns 15 degrees with Earth.  Each frame, Earth turns
+    // (the animation, which here would build its surface), then the
+    // tracking look (Celestiary's animCb).
+    const earth = app.scene.objects.earth
+    for (let hour = 0; hour < 3; hour++) {
+      earth.rotateY(Math.PI / 12)
+      app.ui.scene.updateMatrixWorld()
+      expect(angleToAustin()).toBeGreaterThan(1)
+      app.scene.lookAtTarget()
+      expect(angleToAustin()).toBeLessThan(0.01)
+    }
+    app.keys.onKeyDown({key: 't'})
+    expect(Shared.targets.track).toBe(false)
   })
 })
