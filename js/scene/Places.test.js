@@ -196,3 +196,21 @@ describe('Places._buildTier (lazy)', () => {
     expect(places.tierGroups[0]).toBeUndefined()
   })
 })
+
+
+describe('Places labels as pick targets', () => {
+  it('tags each tier\'s sheet with what its labels are of, in sheet order, and the body they are on', () => {
+    const {places} = placesAt()
+    places.setEntries([
+      {n: 'Tycho', t: 0, lat: -43.31, lng: -11.36},
+      {n: 'Plato', t: 0, lat: 51.62, lng: -9.38, a: 2000},
+    ])
+    places._buildTier(0)
+    const {labelTargets, labelBody} = places.tierGroups[0].userData
+    expect(labelTargets).toEqual([
+      {kind: 'place', body: 'test', name: 'Tycho', lat: -43.31, lng: -11.36, alt: undefined},
+      {kind: 'place', body: 'test', name: 'Plato', lat: 51.62, lng: -9.38, alt: 2000},
+    ])
+    expect(labelBody).toBe(places)
+  })
+})

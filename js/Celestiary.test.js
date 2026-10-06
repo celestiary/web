@@ -8,7 +8,7 @@
  * Mocked: ThreeUI (no WebGL), ControlPanel, Keys, Loader (filesystem),
  *         scene/SpriteSheet (no canvas), vsop (fixed coordinates).
  */
-import {afterAll, beforeAll, beforeEach, describe, expect, it, mock} from 'bun:test'
+import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock} from 'bun:test'
 import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
 import {encodePermalink} from './permalink.js'
@@ -622,6 +622,174 @@ describe('Scene.goTo navigation', () => {
       app2.scene.lookAtStar(FAKE_STAR)
       expect(app2.ui.camera.platform.parent).toBe(parent)
       expect(app2.scene.worldGroup.position.toArray()).toEqual([5, 6, 7])
+    })
+  })
+
+  // One picking model for every label (DESIGN.md, Picking): a click or tap
+  // targets what it names and nothing else, so 'c' faces it and 'g' goes;
+  // a double click goes.  The labels' hit test is labelPick.test.js; here
+  // the hit is stubbed (Scene.pickLabel), to see what each kind does.
+  describe('picking a label: click targets, double click goes', () => {
+    const SUN_PLACE = {kind: 'place', body: 'sun', name: 'Spot', lat: 10, lng: 20}
+    const STAR_LABEL = {kind: 'star', star: FAKE_STAR, name: 'Fake'}
+    const ASTERISM = {kind: 'asterism', name: 'Fakus', position: {x: 4e13, y: 1e13, z: -2e13}}
+    const EVENT = {clientX: 1, clientY: 1}
+    const BODY_LABEL = {kind: 'body', name: 'sun'}
+    let store
+    let calls
+    let saved
+
+    function lookAngleTo(worldPos) {
+      app2.ui.scene.updateMatrixWorld()
+      const camPos = app2.ui.camera.getWorldPosition(new Vector3())
+      const view = new Vector3(0, 0, -1).applyQuaternion(app2.ui.camera.getWorldQuaternion(new Quaternion()))
+      return view.angleTo(worldPos.clone().sub(camPos)) * 180 / Math.PI
+    }
+
+    beforeEach(() => {
+      resetScene()
+      Shared.targets.label = null
+      store = app2.useStore.getState()
+      store.committedStar = null
+      store.isStarsSelectActive = false
+      store.setCommittedStar = (s) => {
+        store.committedStar = s
+      }
+      calls = []
+      // Travel, recorded: the click must not go anywhere.
+      saved = {land: app2.scene.land, goTo: app2.scene.goTo, hash: global.location.hash}
+      app2.scene.land = (...args) => calls.push(['land', ...args])
+      app2.scene.goTo = (...args) => calls.push(['goTo', ...args])
+      app2.scene.stars = {localToWorld: (v) => v}
+    })
+
+    afterEach(() => {
+      Object.assign(app2.scene, {land: saved.land, goTo: saved.goTo})
+      global.location.hash = saved.hash
+      delete app2.scene.stars
+      Shared.targets.label = null
+      store.committedStar = null
+    })
+
+    const click = (label) => {
+      app2.scene.pickLabel = () => label
+      app2.scene.onClick(EVENT)
+    }
+    const dblClick = (label) => {
+      app2.scene.pickLabel = () => label
+      // dragControls: onClick on both clicks, then onDblClick.
+      app2.scene.onClick(EVENT)
+      app2.scene.onClick(EVENT)
+      app2.scene.onDblClick(EVENT)
+    }
+
+    it('a click on a body label targets it, without turning or moving the camera', () => {
+      const quat = app2.ui.camera.quaternion.clone()
+      const pos = app2.ui.camera.position.clone()
+      click(BODY_LABEL)
+      expect(Shared.targets.obj).toBe(app2.scene.objects.sun)
+      expect(Shared.targets.tween).toBe(null)
+      expect(app2.ui.camera.quaternion.equals(quat)).toBe(true)
+      expect(app2.ui.camera.position.equals(pos)).toBe(true)
+      expect(calls).toEqual([])
+    })
+
+    it('a click on a star label commits it as the target, as the search does', () => {
+      click(STAR_LABEL)
+      expect(store.committedStar).toEqual({hipId: 99, displayName: 'Fake', star: FAKE_STAR})
+      expect(Shared.targets.tween).toBe(null)
+      expect(calls).toEqual([])
+    })
+
+    it('a click on a place label targets its body and the point, without landing', () => {
+      click(SUN_PLACE)
+      expect(Shared.targets.obj).toBe(app2.scene.objects.sun)
+      expect(Shared.targets.label).toBe(SUN_PLACE)
+      expect(Shared.targets.tween).toBe(null)
+      expect(calls).toEqual([])
+    })
+
+    it('a click on an asterism label targets its point only', () => {
+      Shared.targets.obj = app2.scene.objects.sun
+      click(ASTERISM)
+      expect(Shared.targets.label).toBe(ASTERISM)
+      expect(Shared.targets.obj).toBe(app2.scene.objects.sun)
+      expect(Shared.targets.tween).toBe(null)
+      expect(calls).toEqual([])
+    })
+
+    it('a click on nothing, or with the star picker on, targets nothing', () => {
+      click(null)
+      expect(Shared.targets.obj).toBe(null)
+      store.isStarsSelectActive = true
+      click(SUN_PLACE)
+      expect(Shared.targets.label).toBe(null)
+    })
+
+    it('"c" faces a targeted place, star and asterism, and "g" goes to them', () => {
+      const sun = app2.scene.objects.sun
+      click(SUN_PLACE)
+      app2.scene.lookAtTarget()
+      expect(lookAngleTo(sun.localToWorld(latLngAltToBodyFixed(10, 20, 0, sun.props.radius.scalar))))
+          .toBeLessThan(0.01)
+      app2.goTo()
+      expect(calls).toEqual([['land', 'sun', 10, 20, undefined]])
+
+      calls.length = 0
+      click(STAR_LABEL)
+      app2.scene.lookAtTarget()
+      expect(lookAngleTo(app2.scene.worldGroup.localToWorld(app2.scene.starPosition(FAKE_STAR)))).toBeLessThan(0.01)
+      app2.goTo()
+      expect(calls).toEqual([['goTo', FAKE_STAR]])
+
+      click(ASTERISM)
+      app2.scene.lookAtTarget()
+      expect(lookAngleTo(new Vector3(4e13, 1e13, -2e13))).toBeLessThan(0.01)
+      // Going to an asterism turns to face it: a look tween, no travel.
+      calls.length = 0
+      resetScene()
+      Shared.targets.label = ASTERISM
+      app2.goTo()
+      expect(calls).toEqual([])
+      expect(Shared.targets.tween).not.toBe(null)
+    })
+
+    it('a double click on a place or star goes to it, once', () => {
+      dblClick(SUN_PLACE)
+      expect(calls).toEqual([['land', 'sun', 10, 20, undefined]])
+      calls.length = 0
+      dblClick(STAR_LABEL)
+      expect(calls).toEqual([['goTo', FAKE_STAR]])
+      expect(store.committedStar.hipId).toBe(99)
+    })
+
+    it('a double click on a body label goes to its path, as search Go does', () => {
+      app2.loader.pathByName.sun = 'sun'
+      const hadLocation = global.window.location
+      global.window.location = {hash: ''}
+      try {
+        dblClick(BODY_LABEL)
+        expect(global.window.location.hash).toBe('sun')
+      } finally {
+        global.window.location = hadLocation
+      }
+      expect(Shared.targets.obj).toBe(app2.scene.objects.sun)
+    })
+
+    it('a double click on an asterism turns to face it, without travelling', () => {
+      dblClick(ASTERISM)
+      expect(Shared.targets.label).toBe(ASTERISM)
+      expect(Shared.targets.tween).not.toBe(null)
+      expect(calls).toEqual([])
+    })
+
+    it('targeting a body, or going anywhere, drops a targeted point', () => {
+      click(SUN_PLACE)
+      app2.scene.setTarget('sun')
+      expect(Shared.targets.label).toBe(null)
+      click(ASTERISM)
+      app2.scene.lookAtStar(FAKE_STAR)
+      expect(Shared.targets.label).toBe(null)
     })
   })
 })

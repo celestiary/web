@@ -168,6 +168,12 @@ export default class Places extends Group {
     g.name = `${this.bodyName}.places.t${t}`
     g.userData.tier = t
     g.userData.sheet = sheet
+    // A click or tap on a label targets its place, a double click goes to it
+    // (labelPick.js, Scene.onClick); the far side's are not hit.
+    g.userData.labelTargets = entries.map((e) => ({
+      kind: 'place', body: this.bodyName, name: e.n, lat: e.lat, lng: e.lng, alt: e.a ?? undefined,
+    }))
+    g.userData.labelBody = this
     g.add(points)
     g.visible = false // _updateLOD will turn on this same frame
     this.tierGroups[t] = g
