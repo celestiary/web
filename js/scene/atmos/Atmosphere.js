@@ -257,10 +257,15 @@ void main() {
 
 
 /**
+ * A star's limb glow: a shell a little larger than its disc.
+ *
  * @param {number} radiusMeters
+ * @param {object} [star] The star's disc, as Star.js draws it
+ * @param {Array<number>} [star.color] Its colour, linear sRGB at a luminance of 1 (stellar.js blackbodyColor)
+ * @param {number} [star.radiance] Its disc's radiance over the Sun's
  * @returns {Object3D}
  */
-export function newAtmosphere(radiusMeters) {
+export function newAtmosphere(radiusMeters, {color = [1, 1, 1], radiance = 1} = {}) {
   // https://franky-arkon-digital.medium.com/make-your-own-earth-in-three-js-8b875e281b1e
   const shape = sphere({
     radius: radiusMeters,
@@ -296,6 +301,9 @@ uniform float atmOpacity;
 uniform float atmPowFactor;
 uniform float atmMultiplier;
 uniform float uExposureRelative;
+// The star's colour and its disc's radiance over the Sun's (Star.js).
+uniform vec3 uGlowColor;
+uniform float uRadianceScale;
 
 void main() {
     // Starting from the rim to the center at the back, dotP would increase from 0 to 1.
@@ -310,8 +318,8 @@ void main() {
     float intensity = dotP;
     // The disc's radiance (star-shaders.js SUN_RADIANCE, within the
     // half-float buffer), so the glow follows the exposure as the disc does.
-    float radiance = luminousShoulder(1.5 * 46238.0 * uExposureRelative);
-    vec3 atmColor = vec3(intensity, intensity, intensity) * radiance;
+    float radiance = luminousShoulder(1.5 * 46238.0 * uRadianceScale * uExposureRelative);
+    vec3 atmColor = intensity * uGlowColor * radiance;
     // use atmOpacity to control the overall intensity of the atmospheric color;
     // within the half-float buffer (the shell's factor reaches 9.5, and a
     // value past 65504 is Inf, NaN through the tone map, a black pixel).
@@ -328,6 +336,8 @@ void main() {
         atmPowFactor: {value: 1.1},
         atmMultiplier: {value: 9.5},
         uExposureRelative: absoluteUniforms.uExposureRelative,
+        uGlowColor: {value: new Vector3(...color)},
+        uRadianceScale: {value: radiance},
       },
       // Such that it does not overlays on top of the earth; this points the
       // normal in opposite direction in vertex shader

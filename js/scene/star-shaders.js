@@ -1,256 +1,278 @@
-import {EMITTED_GLSL, LUMINOUS_SHOULDER_GLSL} from './hdr.js'
+import {EMITTED_GLSL, LUMINOUS_CEILING, LUMINOUS_SHOULDER_GLSL} from './hdr.js'
+import {BLACKBODY_GLSL} from './stellar.js'
 
 
+/**
+ * A star's photosphere (js/scene/Stars.md): each fragment's temperature,
+ * from the star's effective temperature and its surface structure
+ * (granules, mesogranules, supergranules and their network, spots and
+ * faculae), through a blackbody (stellar.js) to a colour and a luminance,
+ * times the limb darkening, times the disc's mean radiance in exposure
+ * units (HDR.md, "Physical stars").
+ *
+ * The geometry is a unit sphere (Star.js scales the mesh), so `position`
+ * is the direction from the star's centre in its own frame, whose y axis
+ * is its rotation axis.
+ */
 export const VERTEX_SHADER = `
-uniform vec3 uColor;
-uniform float iScale;
-uniform float iTime;
-varying vec3 vTexCoord3D;
-varying vec3 vColor;
+varying vec3 vUnit;
+varying vec3 vViewPos;
+varying vec3 vViewNormal;
 void main() {
-  // Time is being used here to morph the noise field.
-  vColor = uColor;
-  vTexCoord3D = iScale * ( position.xyz + vec3( iTime, iTime, iTime ) );
-  gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+  vUnit = position;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vViewPos = mv.xyz;
+  vViewNormal = normalMatrix * normal;
+  gl_Position = projectionMatrix * mv;
 }`
 
 
 export const FRAGMENT_SHADER = `
 ${LUMINOUS_SHOULDER_GLSL}
 ${EMITTED_GLSL}
-varying vec3 vColor;
-varying vec3 vTexCoord3D;
+${BLACKBODY_GLSL}
+varying vec3 vUnit;
+varying vec3 vViewPos;
+varying vec3 vViewNormal;
 
-uniform float uHighTemp;
-uniform float uLowTemp;
 uniform float uExposureRelative;
-// The star's own pattern (starSeed.js): an offset of the noise domain, so
-// every layer, granulation and spots, is a different patch of the field, and
-// the sunspot threshold.  Zero and 1.9 are the original, unseeded Sun.
+// The star's effective temperature, K, and its disc's mean radiance in
+// exposure units at Earth's keyed exposure (the Sun's 69,357 times its
+// surface brightness over the Sun's; Star.js).
+uniform float uTeff;
+uniform float uRadiance;
+// The limb darkening, per channel: the power-2 law's c and α, and its mean
+// over the disc, which the law is divided by so the disc's mean is uRadiance.
+uniform vec3 uLimbC;
+uniform vec3 uLimbAlpha;
+uniform vec3 uLimbMean;
+// Granules across the radius, and each layer's rms temperature
+// fluctuation, δT/T: granules, mesogranules (5× the granules' size),
+// supergranules (25×) and the supergranules' bright network.
+uniform float uGranuleFreq;
+uniform float uGranuleDT;
+uniform float uMesoDT;
+uniform float uSuperDT;
+uniform float uNetworkDT;
+// Spots: the cells across the radius their lattice has, each cell's chance
+// of a spot, its largest radius in cells, the umbra's and penumbra's
+// temperature deficits (K), the faculae's δT/T, and the band of |sin
+// latitude| the active regions are in.
+uniform float uSpotFreq;
+uniform float uSpotProb;
+uniform float uSpotRadius;
+uniform float uUmbraDT;
+uniform float uPenumbraDT;
+uniform float uFaculaDT;
+uniform vec2 uSpotBelt;
+// The star's own pattern (starSeed.js): an offset of the noise domain, and
+// the active regions' threshold.
 uniform vec3 uSeedOffset;
 uniform float uSpotBias;
-// const float highTemp = 5778.;
-// const float lowTemp = highTemp / 4.;
+uniform float iTime;
 
-// Noise fnunctions are taken from here:
-//
-// Description : Array and textureless GLSL 2D/3D/4D simplex
-//               noise functions.
-//      Author : Ian McEwan, Ashima Arts.
-//  Maintainer : ijm
-//     Lastmod : 20110822 (ijm)
-//     License : Copyright (C) 2011 Ashima Arts. All rights reserved.
-//               Distributed under the MIT License. See LICENSE file.
-//               https://github.com/ashima/webgl-noise
-//
-vec4 permute( vec4 x ) {
-  return mod( ( ( x * 34.0 ) + 1.0 ) * x, 289.0 );
+const float LUMINOUS_CEILING = ${LUMINOUS_CEILING.toExponential()};
+const float TAU = 6.28318531;
+
+// Simplex noise: Ian McEwan, Ashima Arts, MIT License,
+// https://github.com/ashima/webgl-noise
+vec4 permute(vec4 x) {
+  return mod(((x * 34.0) + 1.0) * x, 289.0);
 }
 
-vec4 taylorInvSqrt( vec4 r ) {
+vec4 taylorInvSqrt(vec4 r) {
   return 1.79284291400159 - 0.85373472095314 * r;
 }
 
-float snoise( vec3 v ) {
-
-  const vec2 C = vec2( 1.0 / 6.0, 1.0 / 3.0 );
-  const vec4 D = vec4( 0.0, 0.5, 1.0, 2.0 );
-
-  // First corner
-  vec3 i  = floor( v + dot( v, C.yyy ) );
-  vec3 x0 = v - i + dot( i, C.xxx );
-
-  // Other corners
-  vec3 g = step( x0.yzx, x0.xyz );
+float snoise(vec3 v) {
+  const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g = step(x0.yzx, x0.xyz);
   vec3 l = 1.0 - g;
-  vec3 i1 = min( g.xyz, l.zxy );
-  vec3 i2 = max( g.xyz, l.zxy );
-
-  //  x0 = x0 - 0. + 0.0 * C
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
   vec3 x1 = x0 - i1 + 1.0 * C.xxx;
   vec3 x2 = x0 - i2 + 2.0 * C.xxx;
   vec3 x3 = x0 - 1. + 3.0 * C.xxx;
-
-  // Permutations
-  i = mod( i, 289.0 );
-  vec4 p = permute( permute( permute(
-                                     i.z + vec4( 0.0, i1.z, i2.z, 1.0 ) )
-                             + i.y + vec4( 0.0, i1.y, i2.y, 1.0 ) )
-                    + i.x + vec4( 0.0, i1.x, i2.x, 1.0 ) );
-
-  // Gradients
-  // ( N*N points uniformly over a square, mapped onto an octahedron.)
-
-  float n_ = 1.0 / 7.0; // N=7
-
+  i = mod(i, 289.0);
+  vec4 p = permute(permute(permute(
+      i.z + vec4(0.0, i1.z, i2.z, 1.0))
+      + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+      + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+  float n_ = 1.0 / 7.0;
   vec3 ns = n_ * D.wyz - D.xzx;
-
-  vec4 j = p - 49.0 * floor( p * ns.z *ns.z );  //  mod(p,N*N)
-
-  vec4 x_ = floor( j * ns.z );
-  vec4 y_ = floor( j - 7.0 * x_ );    // mod(j,N)
-
-  vec4 x = x_ *ns.x + ns.yyyy;
-  vec4 y = y_ *ns.x + ns.yyyy;
-  vec4 h = 1.0 - abs( x ) - abs( y );
-
-  vec4 b0 = vec4( x.xy, y.xy );
-  vec4 b1 = vec4( x.zw, y.zw );
-
-  vec4 s0 = floor( b0 ) * 2.0 + 1.0;
-  vec4 s1 = floor( b1 ) * 2.0 + 1.0;
-  vec4 sh = -step( h, vec4( 0.0 ) );
-
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+  vec4 x = x_ * ns.x + ns.yyyy;
+  vec4 y = y_ * ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+  vec4 s0 = floor(b0) * 2.0 + 1.0;
+  vec4 s1 = floor(b1) * 2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
   vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
   vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
-
-  vec3 p0 = vec3( a0.xy, h.x );
-  vec3 p1 = vec3( a0.zw, h.y );
-  vec3 p2 = vec3( a1.xy, h.z );
-  vec3 p3 = vec3( a1.zw, h.w );
-
-  // Normalise gradients
-
-  vec4 norm = taylorInvSqrt( vec4( dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3) ) );
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
   p0 *= norm.x;
   p1 *= norm.y;
   p2 *= norm.z;
   p3 *= norm.w;
-
-  // Mix final noise value
-
-  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3) ), 0.0 );
+  vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
   m = m * m;
-  return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
-                                dot(p2,x2), dot(p3,x3) ) );
-
+  return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
 }
 
-const int octaves = 4;
+// A hash of a lattice cell to three numbers in [0, 1) (Dave Hoskins,
+// "Hash without Sine", MIT License).
+vec3 hash33(vec3 p) {
+  p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+  p += dot(p, p.yxz + 33.33);
+  return fract((p.xxy + p.yxx) * p.zyx);
+}
 
-// Band-limiting (the guide's small discs were speckle, #165 follow-up): the
-// noise's coordinates run about 100 across the disc's radius, and the
-// octaves 40, 80, 160 and 320 cycles per radius, so on a disc of a few tens
-// of pixels the finer octaves are far under a pixel and alias into noise.
-// Each octave, and the sunspot terms, is faded out as its feature (the
-// reciprocal of its frequency, in coordinate units) shrinks toward the
-// pixel's footprint, from 6 px down to 2.5 px a cycle: a small disc shows
-// the mean surface colour (the faded noise averages to 0, so the colour it
-// is mapped through stays at the middle), and the granulation comes in as the
-// disc grows, as granules resolve.  Frequencies are cycles per coordinate
-// unit, the footprint coordinate units per pixel, so their product is
-// cycles per pixel.
+// Convection cells: the distances to the nearest and second-nearest of a
+// jittered lattice's points (Worley's F1 and F2), the points wandering
+// with time so the cells evolve.  F2 - F1 is 0 on a cell's boundary, the
+// dark intergranular lane where the cooled gas sinks.
+vec2 cells(vec3 p, float t) {
+  vec3 i = floor(p);
+  vec3 f = p - i;
+  float f1 = 8.0;
+  float f2 = 8.0;
+  for (int z = -1; z <= 1; z++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        vec3 o = vec3(float(x), float(y), float(z));
+        vec3 h = hash33(i + o);
+        vec3 d = o + 0.5 + 0.4 * sin(t + TAU * h) - f;
+        float dd = dot(d, d);
+        if (dd < f1) {
+          f2 = f1;
+          f1 = dd;
+        } else if (dd < f2) {
+          f2 = dd;
+        }
+      }
+    }
+  }
+  return sqrt(vec2(f1, f2));
+}
+
+// A granule's brightness, normalised to a mean of 0 and an rms of 1 over
+// the surface (the constants measured over 10^6 points: Stars.md): bright
+// at the cell's centre, falling into a dark lane at its edge.
+const float GRANULE_MEAN = 0.5577;
+const float GRANULE_RMS = 0.3310;
+float granule(vec2 f) {
+  float g = smoothstep(0.0, 0.2, f.y - f.x) * (1.0 - 0.35 * f.x);
+  return (g - GRANULE_MEAN) / GRANULE_RMS;
+}
+
+// Band-limiting: a feature of the given frequency (cycles per noise
+// coordinate) is faded out as it shrinks toward the pixel's footprint
+// (noise coordinates per pixel), from 6 px down to 2.5 px a cycle, so a
+// small disc shows the mean surface (each layer's mean is 0) and the
+// structure comes in as it resolves, without aliasing into speckle.
 float resolved(float frequency, float footprint) {
   return 1.0 - smoothstep(0.15, 0.4, frequency * footprint);
 }
 
-float noise(vec3 position, float frequency, float persistence, float footprint) {
-  float total = 0.0; // Total value so far
-  float maxAmplitude = 0.0; // Accumulates highest theoretical amplitude
-  float amplitude = 1.0;
-  for (int i = 0; i < octaves; i++) {
-    // Get the noise sample
-    total += snoise(position * frequency) * amplitude * resolved(frequency, footprint);
-    // Make the wavelength twice as small
-    frequency *= 2.0;
-    // Add to our maximum possible amplitude
-    maxAmplitude += amplitude;
-    // Reduce amplitude according to persistence for the next octave
-    amplitude *= persistence;
-  }
-  // Scale the result by the maximum amplitude
-  return total / maxAmplitude;
+float footprintOf(vec3 p) {
+  return max(length(dFdx(p)), length(dFdy(p)));
 }
 
-//  star rendering heavily borrows from the tips here:
-//  https://www.seedofandromeda.com/blogs/51-procedural-star-rendering
+// The nearest spot's distance from its centre over its radius (under 1 in
+// the spot), or a large number for none: a lattice whose cells each hold
+// a spot with chance uSpotProb, of a random radius up to uSpotRadius
+// cells, scaled by the active region's strength where it falls.
+float spotDistance(vec3 p, float scale) {
+  vec3 i = floor(p);
+  vec3 f = p - i;
+  float best = 8.0;
+  for (int z = -1; z <= 1; z++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        vec3 o = vec3(float(x), float(y), float(z));
+        vec3 h = hash33(i + o + 71.0);
+        if (h.x < uSpotProb) {
+          vec3 c = o + 0.25 + 0.5 * h.yzx;
+          float r = uSpotRadius * (0.35 + 0.65 * h.z) * scale;
+          best = min(best, length(c - f) / max(r, 1.0e-4));
+        }
+      }
+    }
+  }
+  return best;
+}
+
 void main(void) {
+  vec3 unit = normalize(vUnit);
+  vec3 n = normalize(vViewNormal);
+  float mu = clamp(dot(n, normalize(-vViewPos)), 0.0, 1.0);
 
-  // How far the noise coordinates move across a pixel (the offset is a
-  // constant, so it is the same with or without it).
-  float footprint = max(length(dFdx(vTexCoord3D)), length(dFdy(vTexCoord3D)));
-  vec3 p = vTexCoord3D + uSeedOffset;
-  float noiseBase = (noise(p, .4, 0.7, footprint) + 1.0)/2.0;
+  // Granules, mesogranules and supergranules, each in its own coordinates
+  // (cells per radius), each a different patch of the field (the seed).
+  vec3 pg = unit * uGranuleFreq + uSeedOffset;
+  float fpg = footprintOf(pg);
+  float gran = granule(cells(pg, iTime)) * resolved(1.0, fpg);
+  vec3 pm = unit * (uGranuleFreq / 5.0) + uSeedOffset.zxy;
+  float meso = snoise(pm + 0.2 * iTime) * 1.4 * resolved(1.0, footprintOf(pm));
+  vec3 ps = unit * (uGranuleFreq / 25.0) + uSeedOffset.yzx;
+  float fps = footprintOf(ps);
+  vec2 sup = cells(ps, 0.05 * iTime);
+  float superCell = granule(sup) * resolved(1.0, fps);
+  // The network: the supergranules' boundaries, where the field gathers.
+  float network = (1.0 - smoothstep(0.0, 0.03, sup.y - sup.x)) * resolved(4.0, fps);
+  float limb = (1.0 - mu) * (1.0 - mu);
+  float dT = uGranuleDT * gran + uMesoDT * meso + uSuperDT * superCell + uNetworkDT * network * limb;
 
-  // Sunspots
-  float frequency = 0.04;
-  float t1 = snoise(p * frequency) * resolved(frequency, footprint) * 2.7 - uSpotBias;
-  float brightNoise= snoise(p * .02) * resolved(.02, footprint) * 1.4 - .9;
+  // Active regions: a smooth field over the star, in the latitude belt,
+  // over a threshold (the seed moves it); spots in them, and faculae
+  // round the spots and over them, bright toward the limb.
+  float lat = abs(unit.y);
+  float belt = smoothstep(uSpotBelt.x - 0.05, uSpotBelt.x + 0.05, lat) *
+      (1.0 - smoothstep(uSpotBelt.y - 0.08, uSpotBelt.y + 0.08, lat));
+  float activity = smoothstep(0.0, 0.6, snoise(unit * 2.5 + uSeedOffset * 0.01) * 2.7 - uSpotBias + 1.2) * belt;
+  float temp = uTeff * (1.0 + dT);
+  if (uSpotProb > 0.0 && activity > 0.0) {
+    vec3 psp = unit * uSpotFreq + uSeedOffset.zyx * 0.1;
+    // A spot's edge, widened to the pixel so a small spot is a smooth
+    // darkening of its area, not a flickering point.
+    float edge = max(0.05, footprintOf(psp) / max(uSpotRadius, 1.0e-4));
+    float s = spotDistance(psp, activity);
+    float umbra = 1.0 - smoothstep(0.42 - edge, 0.42 + edge, s);
+    float spot = 1.0 - smoothstep(1.0 - edge, 1.0 + edge, s);
+    // Penumbral filaments: streaks across the penumbra.
+    float fil = 0.8 + 0.4 * snoise(psp * 9.0);
+    temp -= mix(uPenumbraDT * fil, uUmbraDT, umbra) * spot;
+    float plage = activity * (1.0 - smoothstep(1.0, 2.5, s)) * (1.0 - spot);
+    temp += uTeff * uFaculaDT * (0.4 * activity + plage) * limb;
+  }
 
-  float ss = max(0.0, t1);
-  float brightSpot = max(0.0, brightNoise);
-  float total = noiseBase - ss + brightSpot;
+  // The colour and luminance at this temperature, the luminance relative to
+  // the effective temperature's: so a granule's, a spot's or a facula's
+  // brightness and colour are a blackbody's at its temperature.
+  vec4 bb = blackbody(temp);
+  vec4 bb0 = blackbody(uTeff);
+  vec3 surface = bb.rgb * exp2(bb.a - bb0.a);
+  vec3 limbDark = (1.0 - uLimbC * (1.0 - pow(vec3(max(mu, 1.0e-4)), uLimbAlpha))) / uLimbMean;
 
-  float temp = (uHighTemp * (total) + (1.0-total) * uLowTemp);
-  // these equations reproduce the RGB values of this image:
-  // https://www.seedofandromeda.com/assets/images/blogs/star_spectrum_3.png
-  float i = (temp - 800.0)*0.035068;
-
-  //  for R
-  bool rbucket1 = i < 60.0;                //  0, 255 in 60
-  bool rbucket2 = i >= 60.0 && i < 236.0;  // 255,255
-  bool rbucket3 = i >= 236.0 && i < 288.0; // 255,128
-  bool rbucket4 = i >= 288.0 && i < 377.0; // 128,60
-  bool rbucket5 = i >= 377.0 && i < 511.0; // 60,0
-  bool rbucket6 = i >= 511.0;  //  0,0
-
-  bool gbucket1 = i <60.0;
-  bool gbucket2 = i >= 60.0 && i < 103.0;  // 0,100
-  bool gbucket3 = i >= 103.0 && i < 133.0; // 100,233
-  bool gbucket4 = i >= 133.0 && i < 174.0; // 233, 255
-  bool gbucket5 = i >= 174.0 && i < 236.0; // 255,255
-  bool gbucket6 = i >= 236.0 && i < 286.0; // 255,193
-  bool gbucket7 = i >= 286.0 && i < 367.0; // 193,129
-  bool gbucket8 = i >= 367.0 && i < 511.0; // 129,64
-  bool gbucket9 = i >= 511.0; // 64,32
-
-  // for B
-  bool bbucket1 = i < 103.0;
-  bool bbucket2 = i >= 103.0 && i < 133.0; // 0,211
-  bool bbucket3 = i >= 133.0 && i < 173.0; // 211,247
-  bool bbucket4 = i >= 173.0 && i < 231.0; // 247,255
-  bool bbucket5 = i>= 231.0;
-
-  float r =
-    float(rbucket1) * (0.0 + i * 4.25) +
-    float(rbucket2) * (255.0) +
-    float(rbucket3) * (255.0 + (i - 236.0) * -2.442) +
-    float(rbucket4) * (128.0 + (i - 288.0) * -0.764) +
-    float(rbucket5) * (60.0 + (i - 377.0) * -0.4477) +
-    float(rbucket6) * 0.0;
-
-  float g =
-    float(gbucket1) * (0.0) +
-    float(gbucket2) * (0.0 + (i - 60.0) * 2.3255) +
-    float(gbucket3) * (100.0 + (i - 103.0) * 4.433) +
-    float(gbucket4) * (233.0 + (i - 133.0) * 0.53658) +
-    float(gbucket5) * (255.0) +
-    float(gbucket6) * (255.0 +(i - 236.0) * -1.24) +
-    float(gbucket7) * (193.0 + (i - 286.0) * -0.7901) +
-    float(gbucket8) * (129.0 + (i - 367.0) * -0.45138) +
-    float(gbucket9) * (64.0 + (i - 511.0) * -0.06237);
-
-  float b =
-    float(bbucket1) * 0.0+
-    float(bbucket2) * (0.0 + (i - 103.0) * 7.0333) +
-    float(bbucket3) * (211.0 + (i - 133.0) * 0.9) +
-    float(bbucket4) * (247.0 + (i - 173.0) * 0.1379) +
-    float(bbucket5) * 255.0;
-
-  // (A lift of the colour with the camera's distance, iDist, is gone: it
-  // was white past 0.2 AU, so the disc had no granulation from 1 AU at a
-  // narrow field; the radiance below carries the distance.)
-  // The disc's radiance in exposure units: DISPLAY_GAIN / θ², θ the Sun's
-  // angular radius from 1 AU (6.957e8 m over 1.496e11 m), times the
-  // exposure over Earth's keyed one (js/scene/HDR.md, "Physical stars"),
-  // within what the half-float scene buffer holds (65504).
-  const float SUN_RADIANCE = 1.5 * 46238.0;
-  // Through the luminous shoulder (hdr.js), not a clamp: the texture's
-  // granulation and limb darkening survive in the buffer, and the disc
-  // stays under the buffer's ceiling with its glow and sprite added.
-  // Pre-exposed (uExposureRelative carries the frame's gain), and nothing
-  // under what the buffer holds as a normal value (hdr.js emitted).
-  vec3 disc = vColor * vec3(r/255.0, g/255.0, b/255.0) * luminousShoulder(SUN_RADIANCE * uExposureRelative);
+  // Pre-exposed (uExposureRelative carries the frame's gain), within the
+  // half-float buffer through the luminous shoulder (hdr.js), which keeps
+  // the structure at any exposure; the brightest channel held to its
+  // ceiling (a hot star's blue is twice its luminance).
+  float base = luminousShoulder(uRadiance * uExposureRelative);
+  vec3 disc = surface * limbDark * base;
+  float peak = max(disc.r, max(disc.g, disc.b));
+  disc *= min(1.0, LUMINOUS_CEILING / max(peak, 1.0e-30));
   gl_FragColor = vec4(emitted(max(disc, vec3(0.0))), 1.0);
 }
 `

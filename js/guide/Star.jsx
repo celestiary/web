@@ -1,7 +1,8 @@
 import React, {ReactElement, useEffect, useState} from 'react'
 import {useHashLocation} from 'wouter/use-hash-location'
 import {addStarToScene, frameStar} from './starScene.js'
-import StarsCatalog, {FAVES, StarSpectra} from '../scene/StarsCatalog.js'
+import StarsCatalog, {FAVES} from '../scene/StarsCatalog.js'
+import {spectralTypeName, starTeff} from '../scene/stellar.js'
 import ThreeUi from '../ThreeUI.js'
 import Time from '../Time.js'
 import * as Shared from '../shared.js'
@@ -37,27 +38,23 @@ export default function Star() {
     <>
       <h1>Star</h1>
       <div id={uiId}></div>
-      <p>See <a href='https://www.seedofandromeda.com/blogs/51-procedural-star-rendering'>Seed
-          of Andromeda</a> for a nice overall approach.</p>
-
-      <p>Borrowed heavily from
-      code <a href='https://bpodgursky.com/2017/02/01/procedural-star-rendering-with-three-js-and-webgl-shaders/'>here</a>.</p>
-
-      <p>Added differential color range based on distance.  This makes the
-        star appear white from far away and reveal surface structure as
-        false-color on closer approach.</p>
+      <p>Each star is drawn from its physical parameters: its effective
+        temperature from its spectral class gives its colour (a blackbody
+        through the CIE observer), its surface brightness and its limb
+        darkening; its granulation, spots and faculae follow from its
+        temperature and gravity.  See <code>js/scene/Stars.md</code>.</p>
 
       <table id='faves'>
         <tbody>
-          <tr><th>Star</th><th>Spectral Type</th><th>Hip ID</th></tr>
+          <tr><th>Star</th><th>Spectral Type</th><th>T<sub>eff</sub> (K)</th><th>Hip ID</th></tr>
           {catalog && Array.from(FAVES.keys()).map((hipId) => {
             const name = FAVES.get(hipId)
             const catStar = catalog.starByHip.get(hipId)
-            const spectralType = StarSpectra[catStar.spectralType][3]
             return (
               <tr key={`${hipId}`}>
                 <td><a href={`${window.location.pathname}#${name}`}>{name}</a></td>
-                <td>{spectralType}</td>
+                <td>{spectralTypeName(catStar)}</td>
+                <td>{Math.round(starTeff(catStar))}</td>
                 <td>{hipId}</td>
               </tr>
             )

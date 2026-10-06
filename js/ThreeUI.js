@@ -872,7 +872,8 @@ export default class ThreeUi {
    * The self-luminous discs in the frame, for the meter (exposure.js
    * luminousDiscGain): each star object (the Sun) whose mesh is in the
    * frame, with its disc's diameter in pixels and its surface radiance at
-   * Earth's keyed exposure (Star.js draws every star's disc at the Sun's).
+   * Earth's keyed exposure: the Sun's times the star's surface brightness over
+   * the Sun's (Star.js discRadianceRelSun).
    *
    * @returns {Array<{diameterPx: number, radianceAtEarthKeyed: number}>}
    */
@@ -904,7 +905,7 @@ export default class ThreeUi {
       if (!(ndc.z < 1 && ndc.z > -1 && Math.abs(ndc.x) < 1 + marginX && Math.abs(ndc.y) < 1 + marginY)) {
         continue
       }
-      discs.push({diameterPx: 2 * angularRadius / pxRad, radianceAtEarthKeyed: SUN_DISC_RADIANCE})
+      discs.push({diameterPx: 2 * angularRadius / pxRad, radianceAtEarthKeyed: SUN_DISC_RADIANCE * (o.discRadianceRelSun ?? 1)})
     }
     return discs
   }
