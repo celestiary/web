@@ -15,11 +15,10 @@ import {newAtmosphere} from './atmos/Atmosphere'
 import {SUN_DISC_RADIANCE} from './exposure.js'
 import {absoluteUniforms} from './hdr.js'
 import {seedUniforms, starSeed} from './starSeed.js'
+import {CATALOGUE_NORTH, rotationAxis, starParams} from './starParams.js'
 import {
   PENUMBRA_FRACTION,
-  SUN_GRANULES_PER_RADIUS,
   SUN_LOGG,
-  SUN_RADIUS,
   SUN_TEFF,
   blackbodyColor,
   blackbodyLuminance,
@@ -28,7 +27,6 @@ import {
   limbDarkening,
   luminanceSlope,
   sharedBlackbodyLut,
-  starTeff,
   umbraDeltaT,
 } from './stellar.js'
 import * as Shared from '../shared.js'
@@ -43,12 +41,6 @@ import {named} from '../utils.js'
  */
 
 
-// The Sun's sunspots: a lattice of 25 cells across the radius (28 Mm
-// cells), a third of the cells in an active region holding a spot of up
-// to 0.45 cells' radius (a large sunspot's 12 Mm, penumbra included), in
-// the belts 5° to 35° from the equator (as sin latitude), where sunspots
-// form.
-const SUN_SPOTS = {freq: 25, prob: 0.35, radius: 0.45, belt: [Math.sin(5 * Math.PI / 180), Math.sin(35 * Math.PI / 180)]}
 // Above this a star's envelope is radiative: no convection, so no granules,
 // spots or faculae (Stars.md).
 const CONVECTIVE_TEFF_MAX = 7000
@@ -60,43 +52,72 @@ const NEAR_LIMB_FACTOR = 0.64
 
 /**
  * The photosphere's parameters for the shader (star-shaders.js), from the
- * star's own where it has them (teff, logg, radius) and its class where not
- * (stellar.js starTeff).
+ * star's physical parameters (starParams.js): measured where published,
+ * else from its class and magnitude.  The Sun's spots are a lattice of 25
+ * cells across the radius (28 Mm cells), a third of an active region's
+ * cells holding a spot of up to 0.45 cells' radius (a large sunspot's 12
+ * Mm, penumbra included), in the belts 5° to 35° from the equator, where
+ * sunspots form; other stars' by type (starParams.js spotsByType).
  *
  * @param {object} props A star's props: a body file's (the Sun) or a catalogue entry's
  * @returns {object}
  */
 export function photosphere(props) {
-  const teff = starTeff(props)
-  const radiusScalar = props.radius?.scalar ?? props.radius
-  const hasGravity = Number.isFinite(props.logg) && radiusScalar > 0
-  const logg = hasGravity ? props.logg : SUN_LOGG
-  const contrast = granulationContrast(teff, logg)
-  const slope = luminanceSlope(teff)
+  const params = starParams(props)
+  // The pole's, for a rotator: the shader darkens the rest by gravity.
+  const teff = params.teff
+  const mean = params.teffMean
+  const logg = params.logg
+  const contrast = granulationContrast(mean, logg)
+  const slope = luminanceSlope(mean)
   const granuleDT = contrast / slope
   // Large cells matter more at low gravity: a supergiant's few giant cells.
   const lowG = Math.min(Math.max((SUN_LOGG - logg) / SUN_LOGG, 0), 1)
-  const convective = teff < CONVECTIVE_TEFF_MAX ? Math.min(contrast / granulationContrast(SUN_TEFF), 1) : 0
+  const convective = mean < CONVECTIVE_TEFF_MAX ? Math.min(contrast / granulationContrast(SUN_TEFF), 1) : 0
   const faculaDT = convective * FACULA_CONTRAST_NEAR_LIMB / (slope * NEAR_LIMB_FACTOR)
-  const umbraDT = umbraDeltaT(teff)
+  const umbraDT = umbraDeltaT(mean)
   return {
+    params,
     teff,
-    color: blackbodyColor(teff),
-    radianceRelSun: blackbodyLuminance(teff),
-    limb: limbDarkening(teff),
-    granulesPerRadius: hasGravity ? granulesPerRadius(teff, logg, radiusScalar / SUN_RADIUS) : SUN_GRANULES_PER_RADIUS,
+    teffMean: mean,
+    color: blackbodyColor(mean),
+    // The disc's mean surface brightness over the Sun's, for the meter and
+    // the glow; and the pole's, the shader's reference.
+    radianceRelSun: blackbodyLuminance(mean),
+    poleRadianceRelSun: blackbodyLuminance(teff),
+    limb: limbDarkening(mean),
+    granulesPerRadius: granulesPerRadius(mean, logg, params.radiusPole),
     granuleDT,
     mesoDT: 0.3 * granuleDT,
     superDT: granuleDT * (0.03 + (0.8 * lowG)),
     networkDT: 0.3 * faculaDT,
     faculaDT,
     spots: {
-      ...SUN_SPOTS,
-      prob: convective > 0 ? SUN_SPOTS.prob : 0,
+      ...params.spots,
+      prob: convective > 0 ? params.spots.prob : 0,
       umbraDT,
       penumbraDT: PENUMBRA_FRACTION * umbraDT,
     },
+    rotation: params.rotation,
   }
+}
+
+
+/**
+ * The direction of a rotating star's axis in its parent's frame: from its
+ * catalogue position (the line of sight from the Sun, near enough Earth's,
+ * in the catalogue's frame, with its north) where it has one, else as the
+ * guide shows it, seen from the camera on +z with north up.
+ *
+ * @param {object} props
+ * @param {object} rotation starParams' rotation
+ * @returns {Vector3}
+ */
+export function starAxis(props, rotation) {
+  const pos = [props.x, props.y, props.z].map((c) => (Number.isFinite(c) ? c : 0))
+  const placed = Math.hypot(...pos) > 0
+  const axis = placed ? rotationAxis(rotation, pos, CATALOGUE_NORTH) : rotationAxis(rotation, [0, 0, -1], [0, 1, 0])
+  return new Vector3(...axis)
 }
 
 
@@ -134,8 +155,16 @@ export function noiseTime(simTimeElapsedMs) {
 
 
 export default class Star extends Object {
-  /** */
-  constructor(props, sceneObjects, ui, shadowProps = {}) {
+  /**
+   * @param {object} props
+   * @param {object} [sceneObjects] Registered in, by name
+   * @param {object} [ui]
+   * @param {object} [shadowProps]
+   * @param {object} [opts]
+   * @param {boolean} [opts.light] Whether it lights the scene: the Sun does, a
+   *   catalogue star drawn on approach (Scene.goTo) doesn't
+   */
+  constructor(props, sceneObjects, ui, shadowProps = {}, {light = true} = {}) {
     super(props.name, props)
     if (!this.props || !(this.props.radius)) {
       throw new Error(`Props undefined: props(${props}), radius(${props.radius})`)
@@ -153,15 +182,17 @@ export default class Star extends Object {
     // Falloff 1/d^1.01 rather than the physical 1/d² (see shared.js); the
     // renderer's exposure follows the targeted body (exposure.js), so each
     // shows at its albedo whatever its distance.
-    const sunlight = new PointLight(0xffffff, Shared.SUN_LUMINOUS_INTENSITY, 0, Shared.SUN_LIGHT_DECAY)
-    // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
-    sunlight.castShadow = true
-    sunlight.shadow.mapSize.width = shadowProps.width || 512 // default: 512
-    sunlight.shadow.mapSize.height = shadowProps.height || 512 // default: 512
-    sunlight.shadow.camera.near = shadowProps.near || 0.5 // default: 0.5
-    sunlight.shadow.camera.far = shadowProps.far || 500 // default: 500
-    sunlight.shadow.bias = shadowProps.bias || -0.01
-    this.add(sunlight)
+    if (light) {
+      const sunlight = new PointLight(0xffffff, Shared.SUN_LUMINOUS_INTENSITY, 0, Shared.SUN_LIGHT_DECAY)
+      // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2
+      sunlight.castShadow = true
+      sunlight.shadow.mapSize.width = shadowProps.width || 512 // default: 512
+      sunlight.shadow.mapSize.height = shadowProps.height || 512 // default: 512
+      sunlight.shadow.camera.near = shadowProps.near || 0.5 // default: 0.5
+      sunlight.shadow.camera.far = shadowProps.far || 500 // default: 500
+      sunlight.shadow.bias = shadowProps.bias || -0.01
+      this.add(sunlight)
+    }
 
     const lod = new LOD
 
@@ -175,8 +206,12 @@ export default class Star extends Object {
     // — the additive BackSide shell flashes orange across the AR sky-view
     // when the camera sweeps through the Sun direction.  Its colour and
     // radiance are the disc's.
+    // An oblate star's glow is its disc's shape, scaled and turned with it.
+    const surface = surfaceGroup.children[0]
     const glow = newAtmosphere(props.radius.scalar * 1.07,
         {color: this.color, radiance: this.discRadianceRelSun, radius: props.radius.scalar})
+    glow.scale.set(1, 1 / this.oblate, 1)
+    glow.quaternion.copy(surface.quaternion)
     surfaceGroup.add(named(glow, 'atmosphere'))
     lod.addLevel(surfaceGroup, props.radius.scalar)
 
@@ -191,8 +226,12 @@ export default class Star extends Object {
     const photo = photosphere(props)
     // What the meter reads of its disc (ThreeUI._luminousDiscs), and its glow.
     this.discRadianceRelSun = photo.radianceRelSun
-    this.teff = photo.teff
+    this.teff = photo.teffMean
     this.color = photo.color
+    this.params = photo.params
+    const rotation = photo.rotation
+    // A rotator is an oblate spheroid, its radius the equator's.
+    this.oblate = rotation?.oblate ?? 1
     const seed = seedUniforms(starSeed(props))
     const v3 = (a) => new Vector3(...a)
     // The surface's radiance is physical (HDR.md, "Physical stars"): the
@@ -204,7 +243,11 @@ export default class Star extends Object {
         uExposureRelative: absoluteUniforms.uExposureRelative,
         uBlackbody: blackbodyUniform(),
         uTeff: {value: photo.teff},
-        uRadiance: {value: SUN_DISC_RADIANCE * photo.radianceRelSun},
+        uRadiance: {value: SUN_DISC_RADIANCE * photo.poleRadianceRelSun},
+        // Its rotation (none: 0): the equator over the pole, Ω² and β (starParams.js rocheModel).
+        uOblate: {value: this.oblate},
+        uOmega2: {value: rotation?.omega2 ?? 0},
+        uBeta: {value: rotation?.beta ?? 0},
         uLimbC: {value: v3(photo.limb.c)},
         uLimbAlpha: {value: v3(photo.limb.alpha)},
         uLimbMean: {value: v3(photo.limb.mean)},
@@ -222,7 +265,7 @@ export default class Star extends Object {
         uSpotBelt: {value: new Vector2(...photo.spots.belt)},
         // Its own spots and granules, from its id (starSeed.js).
         uSeedOffset: {value: v3(seed.offset)},
-        uSpotBias: {value: seed.spotBias},
+        uSpotBias: {value: seed.spotBias + (photo.spots.bias ?? 0)},
         iTime: {value: 1.0},
       },
       vertexShader: Shaders.VERTEX_SHADER,
@@ -230,7 +273,11 @@ export default class Star extends Object {
       toneMapped: false,
     })
     const surface = sphere({matr: this.shaderMaterial})
-    surface.scale.setScalar(props.radius.scalar)
+    const r = props.radius.scalar
+    surface.scale.set(r, r / this.oblate, r)
+    if (rotation) {
+      surface.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), starAxis(props, rotation))
+    }
     this.setupAnim()
     return surface
   }

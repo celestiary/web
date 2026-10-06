@@ -41,6 +41,13 @@ uniform float uExposureRelative;
 // surface brightness over the Sun's; Star.js).
 uniform float uTeff;
 uniform float uRadiance;
+// A rotating star (starParams.js rocheModel): its equatorial radius over
+// its polar one (the mesh is scaled so), Ω² in units of GM / R_pole³ (0
+// for no rotation), and the gravity-darkening exponent β.  uTeff and
+// uRadiance are then the pole's.
+uniform float uOblate;
+uniform float uOmega2;
+uniform float uBeta;
 // The limb darkening, per channel: the power-2 law's c and α, and its mean
 // over the disc, which the law is divided by so the disc's mean is uRadiance.
 uniform vec3 uLimbC;
@@ -176,6 +183,23 @@ float granule(vec2 f) {
   return (g - GRANULE_MEAN) / GRANULE_RMS;
 }
 
+// Gravity darkening (von Zeipel 1924): the effective temperature over the
+// pole's, (g_eff / g_pole)^β, g_eff the Roche model's gravity less the
+// centrifugal acceleration at this point of the spheroid, in units of
+// GM / R_pole² (starParams.js effectiveGravity).
+float gravityDarkening(vec3 unit) {
+  if (uOmega2 <= 0.0) {
+    return 1.0;
+  }
+  vec2 xy = vec2(length(unit.xz) * uOblate, unit.y);
+  float r = length(xy);
+  float sinT = xy.x / r;
+  float cosT = xy.y / r;
+  float gr = -1.0 / (r * r) + uOmega2 * r * sinT * sinT;
+  float gt = uOmega2 * r * sinT * cosT;
+  return pow(length(vec2(gr, gt)), uBeta);
+}
+
 // Band-limiting: a feature of the given frequency (cycles per noise
 // coordinate) is faded out as it shrinks toward the pixel's footprint
 // (noise coordinates per pixel), from 6 px down to 2.5 px a cycle, so a
@@ -248,7 +272,8 @@ void main(void) {
   float belt = smoothstep(uSpotBelt.x - 0.05, uSpotBelt.x + 0.05, lat) *
       (1.0 - smoothstep(uSpotBelt.y - 0.08, uSpotBelt.y + 0.08, lat));
   float activity = smoothstep(0.0, 0.6, snoise(unit * 2.5 + uSeedOffset * 0.01) * 2.7 - uSpotBias + 1.2) * belt;
-  float temp = uTeff * (1.0 + dT);
+  float teffHere = uTeff * gravityDarkening(unit);
+  float temp = teffHere * (1.0 + dT);
   if (uSpotProb > 0.0 && activity > 0.0) {
     vec3 psp = unit * uSpotFreq + uSeedOffset.zyx * 0.1;
     // A spot's edge is softened over a pixel, at most half its radius;
@@ -265,7 +290,7 @@ void main(void) {
     float fil = 1.0 + 0.3 * snoise(psp * 9.0) * resolved(9.0, fpsp);
     temp -= mix(uPenumbraDT * fil, uUmbraDT, umbra) * spot * seen;
     float plage = activity * (1.0 - smoothstep(1.0, 2.5, s)) * (1.0 - spot);
-    temp += uTeff * uFaculaDT * (0.4 * activity + plage * seen) * limb;
+    temp += teffHere * uFaculaDT * (0.4 * activity + plage * seen) * limb;
   }
 
   // The colour and luminance at this temperature, the luminance relative to

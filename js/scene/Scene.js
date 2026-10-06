@@ -683,6 +683,7 @@ export default class Scene {
       this.worldGroup.position.set(0, 0, 0)
     } else {
       this.starPosition(star, this.worldGroup.position).negate()
+      this.showCatalogueStar(star)
     }
     this.ui.scene.updateMatrixWorld()
 
@@ -966,6 +967,56 @@ export default class Scene {
     if (snapshot.settings) {
       this.applySettings(snapshot.settings)
     }
+  }
+
+
+  /**
+   * Draws a catalogue star's disc, as the Sun's is drawn, from its own
+   * parameters (Star.js, starParams.js; js/scene/Stars.md), where the
+   * catalogue puts it: in the stellarFrame, whose local frame the
+   * catalogue's positions and its rotation axis are in.  One at a time:
+   * the star travelled to, which replaces the last.  It doesn't light the
+   * scene, and its disc is metered as the Sun's is (the scene's objects,
+   * ThreeUI._luminousDiscs).  The Sun (HIP 0) is the scene's own.
+   *
+   * @param {object} star StarProps entry from StarsCatalog
+   * @returns {?Star} The star's object, or null for the Sun or a star without a radius
+   */
+  showCatalogueStar(star) {
+    if (!star || star.hipId === 0 || !(star.radius > 0)) {
+      return null
+    }
+    if (this._catalogueStar?.props.hipId === star.hipId) {
+      return this._catalogueStar
+    }
+    this.removeCatalogueStar()
+    const name = this.stars?.catalog?.getNameOrId?.(star.hipId) ?? `HIP ${star.hipId}`
+    const props = {...star, type: 'star', name, radius: {scalar: star.radius}}
+    const obj = new Star(props, null, this.ui, {}, {light: false})
+    obj.position.set(star.x, star.y, star.z)
+    this.stellarFrame.add(obj)
+    this._catalogueStarKey = `catalogue star ${star.hipId}`
+    this.objects[this._catalogueStarKey] = obj
+    this._catalogueStar = obj
+    return obj
+  }
+
+
+  /** Removes the catalogue star showCatalogueStar drew, if any. */
+  removeCatalogueStar() {
+    if (!this._catalogueStar) {
+      return
+    }
+    this._catalogueStar.removeFromParent()
+    this._catalogueStar.traverse((o) => {
+      o.geometry?.dispose?.()
+      if (o.material && o.material !== this._catalogueStar.shaderMaterial) {
+        o.material.dispose?.()
+      }
+    })
+    this._catalogueStar.shaderMaterial?.dispose()
+    delete this.objects[this._catalogueStarKey]
+    this._catalogueStar = null
   }
 
 

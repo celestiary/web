@@ -1192,6 +1192,14 @@ export default class ThreeUi {
 
   /** @returns {object|null} The body the camera is at (zoom.js homeBody) */
   _homeBody() {
+    // At a catalogue star (Scene.goTo(star)) its drawn disc, so the zoom
+    // approaches its surface and stops there, as at a planet; it was the
+    // last body targeted, and its radius the floor (the Sun's kept the
+    // camera 6 radii from Proxima, and a planet's let it into Betelgeuse).
+    const scene = this.sceneManager
+    if (scene?._starTarget && scene._catalogueStar && this.camera.platform.parent?.name === 'StarAnchor') {
+      return scene._catalogueStar
+    }
     return homeBody(this.camera.platform.parent, targets.cur, targets.obj)
   }
 
