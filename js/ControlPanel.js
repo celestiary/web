@@ -1,6 +1,6 @@
 import Measure from '@pablo-mayrgundter/measure.js'
 import * as collapsor from './collapsor.js'
-import {StarSpectra} from './scene/StarsCatalog.js'
+import {spectralTypeName} from './scene/stellar.js'
 import {LIGHTYEAR_METER} from './shared.js'
 import {capitalize} from './utils.js'
 
@@ -59,8 +59,7 @@ export default class ControlPanel {
       return
     }
     const {hipId, star} = preview
-    const specNdx = typeof star.spectralType === 'number' ? star.spectralType : -1
-    const specClass = specNdx >= 0 && specNdx < StarSpectra.length ? StarSpectra[specNdx][3] : '?'
+    const specClass = spectralTypeName(star)
     const distanceLy = Math.sqrt(
         (star.x * star.x) + (star.y * star.y) + (star.z * star.z)) /
         LIGHTYEAR_METER
@@ -158,10 +157,7 @@ export default class ControlPanel {
           } else {
             switch (prop) {
               case 'spectralType': {
-                const ndx = parseInt(val)
-                if (ndx >= 0) {
-                  val = StarSpectra[ndx][3]
-                }
+                val = spectralTypeName(obj)
                 break
               }
               case 'equatorialGravity':
