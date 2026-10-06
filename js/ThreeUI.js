@@ -35,7 +35,8 @@ import {attachPointerDrag} from './dragControls'
 import {resolveDragMode} from './dragMode'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
 import {
-  ASTRO_UNIT_METER, GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets,
+  ASTRO_UNIT_METER, CLOUD_LAYER, GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER,
+  SUN_RADIUS_METER, targets,
 } from './shared.js'
 import {named} from './utils.js'
 import {GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, groundRadius, homeBody, rotateScale} from './zoom.js'
@@ -397,6 +398,7 @@ export default class ThreeUi {
     sceneReferredUniform.value = this.hdr ? 1 : 0
     this.renderer.render(this.scene, this.camera)
     this.layers.composite()
+    this._drawClouds()
     this.renderer.setRenderTarget(null)
     this._updateAtmUniforms()
     this.renderer.render(this._atmScene, this._atmCamera)
@@ -412,6 +414,24 @@ export default class ThreeUi {
     this.camera.layers.set(0)
     this.renderer.autoClear = autoClear
     stats?.end()
+  }
+
+
+  /**
+   * Earth's cloud shell (CLOUD_LAYER), into the scene buffer after the
+   * Cesium composite, so over both sides of the swap, and before the
+   * atmosphere pass, which hazes it with the ground under it (Planet.md,
+   * "Clouds").  Depth-tested against the scene's depth, which by now holds
+   * the ground (celestiary's sphere, or Cesium's ground sphere or terrain).
+   */
+  _drawClouds() {
+    const autoClear = this.renderer.autoClear
+    this.renderer.autoClear = false
+    this.renderer.setRenderTarget(this._sceneRT)
+    this.camera.layers.set(CLOUD_LAYER)
+    this.renderer.render(this.scene, this.camera)
+    this.camera.layers.set(0)
+    this.renderer.autoClear = autoClear
   }
 
 

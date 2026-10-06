@@ -105,6 +105,13 @@ export function overlay(object) {
  */
 export const FADE_LAYER = 2
 
+/**
+ * three.js layer for Earth's cloud shell: drawn by ThreeUi after the Cesium
+ * composite, so one shell covers both sides of the swap (Planet.md,
+ * "Clouds").
+ */
+export const CLOUD_LAYER = 3
+
 // Deprecated: moving to real sizes
 export const LENGTH_SCALE = 1e-5 // one scene unit per million meters
 export const STARS_SCALE = LIGHTYEAR_METER
