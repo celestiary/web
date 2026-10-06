@@ -43,11 +43,12 @@ import {named} from '../utils.js'
  */
 
 
-// The Sun's sunspots: a lattice of 40 cells across the radius (17 Mm
-// cells), half of the cells in an active region holding a spot of up to
-// 0.45 cells' radius (a large sunspot's 8 Mm), in the belts 5° to 35°
-// from the equator (as sin latitude), where sunspots form.
-const SUN_SPOTS = {freq: 40, prob: 0.5, radius: 0.45, belt: [Math.sin(5 * Math.PI / 180), Math.sin(35 * Math.PI / 180)]}
+// The Sun's sunspots: a lattice of 25 cells across the radius (28 Mm
+// cells), a third of the cells in an active region holding a spot of up
+// to 0.45 cells' radius (a large sunspot's 12 Mm, penumbra included), in
+// the belts 5° to 35° from the equator (as sin latitude), where sunspots
+// form.
+const SUN_SPOTS = {freq: 25, prob: 0.35, radius: 0.45, belt: [Math.sin(5 * Math.PI / 180), Math.sin(35 * Math.PI / 180)]}
 // Above this a star's envelope is radiative: no convection, so no granules,
 // spots or faculae (Stars.md).
 const CONVECTIVE_TEFF_MAX = 7000
@@ -86,7 +87,7 @@ export function photosphere(props) {
     granulesPerRadius: hasGravity ? granulesPerRadius(teff, logg, radiusScalar / SUN_RADIUS) : SUN_GRANULES_PER_RADIUS,
     granuleDT,
     mesoDT: 0.3 * granuleDT,
-    superDT: granuleDT * (0.15 + (0.6 * lowG)),
+    superDT: granuleDT * (0.03 + (0.8 * lowG)),
     networkDT: 0.3 * faculaDT,
     faculaDT,
     spots: {
@@ -174,7 +175,8 @@ export default class Star extends Object {
     // — the additive BackSide shell flashes orange across the AR sky-view
     // when the camera sweeps through the Sun direction.  Its colour and
     // radiance are the disc's.
-    const glow = newAtmosphere(props.radius.scalar * 1.07, {color: this.color, radiance: this.discRadianceRelSun})
+    const glow = newAtmosphere(props.radius.scalar * 1.07,
+        {color: this.color, radiance: this.discRadianceRelSun, radius: props.radius.scalar})
     surfaceGroup.add(named(glow, 'atmosphere'))
     lod.addLevel(surfaceGroup, props.radius.scalar)
 

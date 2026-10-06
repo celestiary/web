@@ -636,7 +636,7 @@ Go and Enter travel ([js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at)).
 | Object | Technique |
 |---|---|
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
-| Named star (e.g. Sun) | Procedural Perlin noise GLSL surface shader (convection-like texture) |
+| Star discs (the Sun) | A photosphere from physical parameters: temperature from class, blackbody colour and luminance, limb darkening by temperature, granulation at three scales, spots and faculae ([js/scene/Stars.md](js/scene/Stars.md)) |
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
 | Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
 | Saturn rings | Double-sided `RingGeometry` with texture |
@@ -928,7 +928,8 @@ and the provider extension contract.
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
 | `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |
-| `js/scene/Star.js` | Named star with noise shader |
+| `js/scene/Star.js` | A star: its light, its photosphere (`photosphere(props)`, `star-shaders.js`) and its limb glow |
+| `js/scene/stellar.js` | Stars' physics: temperature from class, blackbody colour and luminance, bolometric correction, limb darkening, granulation and spot laws ([Stars.md](js/scene/Stars.md)) |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |
 | `js/scene/Asterisms.js` | Constellation line drawings |

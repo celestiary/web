@@ -263,9 +263,10 @@ void main() {
  * @param {object} [star] The star's disc, as Star.js draws it
  * @param {Array<number>} [star.color] Its colour, linear sRGB at a luminance of 1 (stellar.js blackbodyColor)
  * @param {number} [star.radiance] Its disc's radiance over the Sun's
+ * @param {number} [star.radius] Its disc's radius, m: the glow behind it is not drawn
  * @returns {Object3D}
  */
-export function newAtmosphere(radiusMeters, {color = [1, 1, 1], radiance = 1} = {}) {
+export function newAtmosphere(radiusMeters, {color = [1, 1, 1], radiance = 1, radius = 0} = {}) {
   // https://franky-arkon-digital.medium.com/make-your-own-earth-in-three-js-8b875e281b1e
   const shape = sphere({
     radius: radiusMeters,
@@ -279,6 +280,8 @@ export function newAtmosphere(radiusMeters, {color = [1, 1, 1], radiance = 1} = 
     matr: new ShaderMaterial({
       vertexShader: `varying vec3 vNormal;
 varying vec3 eyeVector;
+varying vec3 vViewPos;
+varying vec3 vCenter;
 
 void main() {
     // modelMatrix transforms the coordinates local to the model into world space
@@ -289,6 +292,8 @@ void main() {
 
     // vector pointing from camera to vertex in view space
     eyeVector = normalize(mvPos.xyz);
+    vViewPos = mvPos.xyz;
+    vCenter = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
 
     gl_Position = projectionMatrix * mvPos;
 }`,
@@ -304,6 +309,10 @@ uniform float uExposureRelative;
 // The star's colour and its disc's radiance over the Sun's (Star.js).
 uniform vec3 uGlowColor;
 uniform float uRadianceScale;
+// The disc's radius: the shell behind the disc is hidden by it.
+uniform float uOccluderRadius;
+varying vec3 vViewPos;
+varying vec3 vCenter;
 
 void main() {
     // Starting from the rim to the center at the back, dotP would increase from 0 to 1.
@@ -329,6 +338,14 @@ void main() {
     // Premultiplied here (the additive blend adds it as is), with nothing
     // under what the buffer holds as a normal value (hdr.js emitted).
     vec3 glow = min(atmColor * factor, vec3(LUMINOUS_GLOW_MAX)) * min(atmOpacity * factor, 1.0);
+    // Behind the disc: the ray passes within its radius of its centre.  The
+    // depth buffer can't tell the disc from the shell 0.07 radii behind it
+    // from tens of gigametres (its resolution there is ~1e8 m), so the
+    // glow showed through the disc's limb in blocks (the Sun from 1 AU
+    // at a narrow field).  The ray's closest approach as a cross product,
+    // which keeps its precision where the ray points at the centre.
+    float closest = length(cross(vCenter, normalize(vViewPos)));
+    glow *= 1.0 - step(closest, uOccluderRadius * 0.999);
     gl_FragColor = vec4(emitted(glow), 1.0);
 }`,
       uniforms: {
@@ -338,6 +355,7 @@ void main() {
         uExposureRelative: absoluteUniforms.uExposureRelative,
         uGlowColor: {value: new Vector3(...color)},
         uRadianceScale: {value: radiance},
+        uOccluderRadius: {value: radius},
       },
       // Such that it does not overlays on top of the earth; this points the
       // normal in opposite direction in vertex shader

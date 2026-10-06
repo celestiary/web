@@ -167,7 +167,7 @@ vec2 cells(vec3 p, float t) {
 }
 
 // A granule's brightness, normalised to a mean of 0 and an rms of 1 over
-// the surface (the constants measured over 10^6 points: Stars.md): bright
+// the surface (the constants measured over 3x10^5 points: Stars.md): bright
 // at the cell's centre, falling into a dark lane at its edge.
 const float GRANULE_MEAN = 0.5577;
 const float GRANULE_RMS = 0.3310;
@@ -222,7 +222,14 @@ void main(void) {
   // (cells per radius), each a different patch of the field (the seed).
   vec3 pg = unit * uGranuleFreq + uSeedOffset;
   float fpg = footprintOf(pg);
-  float gran = granule(cells(pg, iTime)) * resolved(1.0, fpg);
+  float granSeen = resolved(1.0, fpg);
+  // Warped a little, so the cells are rounded, irregular granules rather
+  // than a Voronoi diagram's straight-edged polygons.
+  if (granSeen > 0.0) {
+    vec3 q = pg * 0.7;
+    pg += 0.22 * vec3(snoise(q), snoise(q + 17.0), snoise(q + 31.0));
+  }
+  float gran = granSeen > 0.0 ? granule(cells(pg, iTime)) * granSeen : 0.0;
   vec3 pm = unit * (uGranuleFreq / 5.0) + uSeedOffset.zxy;
   float meso = snoise(pm + 0.2 * iTime) * 1.4 * resolved(1.0, footprintOf(pm));
   vec3 ps = unit * (uGranuleFreq / 25.0) + uSeedOffset.yzx;
@@ -244,17 +251,21 @@ void main(void) {
   float temp = uTeff * (1.0 + dT);
   if (uSpotProb > 0.0 && activity > 0.0) {
     vec3 psp = unit * uSpotFreq + uSeedOffset.zyx * 0.1;
-    // A spot's edge, widened to the pixel so a small spot is a smooth
-    // darkening of its area, not a flickering point.
-    float edge = max(0.05, footprintOf(psp) / max(uSpotRadius, 1.0e-4));
+    // A spot's edge is softened over a pixel, at most half its radius;
+    // past that the spots fade as they go under a few pixels (their light
+    // is a small share of the disc's), not into blocks of the 2×2 pixel
+    // quads the footprint is taken over.
+    float fpsp = footprintOf(psp);
+    float edge = clamp(fpsp / max(uSpotRadius, 1.0e-4), 0.05, 0.5);
+    float seen = resolved(0.5 / max(uSpotRadius, 1.0e-4), fpsp);
     float s = spotDistance(psp, activity);
-    float umbra = 1.0 - smoothstep(0.42 - edge, 0.42 + edge, s);
+    float umbra = 1.0 - smoothstep(0.42 - edge * 0.42, 0.42 + edge * 0.42, s);
     float spot = 1.0 - smoothstep(1.0 - edge, 1.0 + edge, s);
-    // Penumbral filaments: streaks across the penumbra.
-    float fil = 0.8 + 0.4 * snoise(psp * 9.0);
-    temp -= mix(uPenumbraDT * fil, uUmbraDT, umbra) * spot;
+    // Penumbral filaments: streaks across the penumbra, where resolved.
+    float fil = 1.0 + 0.3 * snoise(psp * 9.0) * resolved(9.0, fpsp);
+    temp -= mix(uPenumbraDT * fil, uUmbraDT, umbra) * spot * seen;
     float plage = activity * (1.0 - smoothstep(1.0, 2.5, s)) * (1.0 - spot);
-    temp += uTeff * uFaculaDT * (0.4 * activity + plage) * limb;
+    temp += uTeff * uFaculaDT * (0.4 * activity + plage * seen) * limb;
   }
 
   // The colour and luminance at this temperature, the luminance relative to
