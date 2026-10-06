@@ -808,7 +808,17 @@ void main() {
     // the table's full ray, not a march to it.  Geometry only: #85's
     // exemption of such bodies from the eye-adaptation boost went with
     // the boost (#86 PR B); the day sky covers the Moon by its light.
-    bool  pastAtmosphere = !background && tMax - tMaxErr > pAtm.y;
+    // From inside the atmosphere, past it unless the depth puts it surely
+    // inside (rayEnd.js): from the ground the near plane is metres, and a
+    // planet hundreds of Gm off sits within a step or two of the far plane,
+    // where the depth's distance is noise (Jupiter from 156 m: one step
+    // under far, 1.5 Gm ± 3.4 Gm).  Taken as inside, those pixels marched
+    // a segment of that length with no air in its samples, and showed
+    // Jupiter unextinguished, in bright dashes along the depth's rounding
+    // contours.  From outside, past only when surely past: the planet's own
+    // limb, seen from afar through coarse depth, stays ground.
+    float tEnd = insideAtm ? tMax + tMaxErr : tMax - tMaxErr;
+    bool  pastAtmosphere = !background && tEnd > pAtm.y;
     // A surface drawn inside the atmosphere, seen from inside it:
     // celestiary's own ground, and Cesium's terrain, which rises above the
     // sphere and sinks below it.  The air is the segment from the eye to
