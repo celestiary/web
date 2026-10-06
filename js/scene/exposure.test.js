@@ -10,7 +10,10 @@ import {
   GALAXY_FRAME, GALAXY_GAIN_MAX, GALAXY_HIGHLIGHT, GALAXY_HIGHLIGHT_FRACTION, GALAXY_LIT_RELATIVE, galaxyGain,
 } from './exposure.js'
 import {readFileSync} from 'fs'
+import {EYE_GLSL} from './eye.js'
+import {galaxyGlsl} from './galaxyModel.js'
 import {HDR_MAX_VALUE, HDR_MIN_NORMAL, emitted, neutral} from './hdr.js'
+import {NIGHT_SKY_GLSL} from './nightSky.js'
 
 
 describe('exposureAt', () => {
@@ -848,6 +851,15 @@ describe('the shaders', () => {
       }
     })
   }
+
+  it('the night sky\'s and the eye\'s GLSL declare no reserved word', () => {
+    for (const source of [EYE_GLSL, NIGHT_SKY_GLSL, galaxyGlsl()]) {
+      const code = source.replace(/\/\/.*$/gm, '')
+      for (const word of RESERVED) {
+        expect(code).not.toMatch(new RegExp(`\\b(float|int|vec[234]|bool)\\s+${word}\\b`))
+      }
+    }
+  })
 
   it('stars.frag floors emitted radiance at the buffer\'s smallest normal value, the same constant as hdr.js', () => {
     // The shader is a file, not a template, so it carries its own copy.

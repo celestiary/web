@@ -44,6 +44,39 @@ its ground rows: at the horizon the filter blended the brightest
 in-scatter with the dimmest, and that band came out darker than the sky
 above it.
 
+## The night sky's own light
+
+The pass also draws the night sky's diffuse light ([HDR.md, the eye and
+extended light](../HDR.md#the-eye-and-extended-light), #186), in the HDR
+path only, each part pre-exposed (times `uExposureRelative`):
+
+- **From beyond the air** (`nightBeyond`): the zodiacal light
+  (`nightSky.js` `zodiacalLight`, from the Sun's direction and the
+  ecliptic's pole in view space, `uZodiacalSun`, `uZodiacalPole`, and its
+  scale at the camera's distance from the Sun, `uZodiacalScale`) and the
+  galaxy's march (`uGalaxy`, MilkyWay.js's cached target, unexposed ×
+  1e8), where the scene's depth is at or behind the galaxy's far-plane
+  depth (0.99995): behind every body, under the stars, where the galaxy
+  was drawn in the scene pass before.  It goes through the transmittance as
+  the scene does, so it is extinguished toward the horizon and gone in a
+  gap.
+- **Airglow** (`airglow`): the layer's path along the ray (`airglowPath`:
+  the chord through a shell 10 km thick at 90 km, which is the van Rhijn
+  factor from below and finite at the limb from orbit, cut where the ray
+  meets the ground or the surface it ends on), times its zenith light; the
+  crossing beyond the ray's closest approach to the planet's centre (all of
+  it, from under the layer) through the transmittance.  `uAirglow` holds
+  the layer's radii, its zenith value and 1 / its thickness, from the
+  body's `atmosphere.airglow`; zero for a body without.
+
+The meter reads them as light (`uDebug` 7: the composite plus the night
+sky's light); the display gets the eye's response to them, added over the
+tone-mapped composite in display values (`extendedToDisplay`,
+`displaySum`): `min(N(sky + scene·T) + N(G·grey(night)), 1)`.  Where the
+pass runs without an atmosphere (deep space, the hard kill-switch) the
+night sky's light from beyond is drawn the same way, over the scene.  The
+LDR fallback draws none of it: its galaxy is in the scene pass, as before.
+
 ## Clouds
 
 Earth's cloud shell (#88; [Planet.md, clouds](../Planet.md#clouds)) is in
@@ -162,8 +195,11 @@ the sky (exposure units), 3 `(depthSample, tMax, flags)` with flags 1 gap,
 2 beyond the atmosphere, 4 marched surface, 8 eye below the sphere, 16
 under the horizon, 4 the in-scatter sample (Rayleigh rgb, Mie a), 5 the
 ray's zenith cosine at the eye, the Sun's, and the eye's altitude; 7 the
-linear composite before the tone map, which the metered exposure reads
-(ThreeUi `_meter`).  In a
+linear composite before the tone map, the night sky's light in it, which
+the metered exposure reads (ThreeUi `_meter`); 8 the night sky's light
+alone (galaxy, zodiacal light, airglow, through the air), linear and
+pre-exposed: divide by the exposure over Earth's keyed one for its
+surface brightness.  In a
 page: set it, render `ui._atmScene` with `ui._atmCamera` into a
 `FloatType` target, `readRenderTargetPixels`.  Read a column of numbers
 down a feature (the band at the horizon), not a picture: every cause in
@@ -328,11 +364,12 @@ within 30° of the Sun.
   segment to the sphere instead, as a surface there, would darken them;
   it would also change the below-datum bands (`mars-low-horizon-band`,
   `earth-dead-sea-band`), which take the same path on purpose.
-- **Airglow and the night sky's own light.**  With the Sun under the
-  horizon the pass's sky is zero: no airglow, zodiacal light or
-  scattered moonlight, so the night sky is as black as space and the
-  metered exposure runs to its dark-adapted limit.  A floor of a few
-  10⁻⁹ of a sunlit white (21-22 mag/arcsec²) would be the next step.
+- **The night sky's own light** is drawn: airglow, the zodiacal light and
+  the galaxy (above, #186).  Not yet: scattered moonlight (the moonlit sky,
+  [#163](https://github.com/celestiary/web/issues/163)), airglow scattered
+  by the lower atmosphere (it brightens the sky near the horizon by a
+  further 10-20%), and the night sky's light lighting the ground (a
+  moonless landscape is lit by it, at about 1e-4 lux).
 - **Multiple scattering** is the isotropic sum above; the twilight glow
   on the antisolar horizon (the Earth's shadow and the Belt of Venus)
   is still single-scatter geometry plus that sum.

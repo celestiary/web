@@ -856,6 +856,71 @@ function cloudsNear(o) {
 
 
 /**
+ * The light the star catalogue resolves (MilkyWay.md, "Double counting").
+ * The catalogue's stars (stars.dat, Hipparcos-based, complete to about
+ * magnitude 8) are drawn as points over this light, so near the Sun the
+ * same light was counted twice: measured from the Sun, the catalogue holds
+ * 0.9-1.0 of the model's emission within 200 pc, half at 250 pc, a third
+ * at 350, a tenth at 700 and none past 1.5 kpc (its giants reach farther
+ * than its dwarfs), which is 26% of the model's light in the plane and
+ * 56% at the poles.  The march leaves out that share of the emission,
+ * h(s) = 1 / (1 + (s / halfKpc)²) at a distance s from the Sun, so the
+ * points and the diffuse light together make the measured integrated
+ * starlight.  The form integrates in closed form over a step
+ * (resolvedOverStep), so the march's quarter-kiloparsec steps in the
+ * plane take it exactly.
+ *
+ * Only while the catalogue's light near the Sun shows as points: from
+ * farther than `near` kpc (a giant at the Sun is under magnitude 6.5 from
+ * 0.2-0.3 kpc) the stars are under the eye's limit, their light lost in
+ * the tone map's toe, and the hole would read as a dark dimple round the
+ * Sun; it fades out over `near` of the camera's distance from the Sun.
+ */
+export const RESOLVED = Object.freeze({halfKpc: 0.234, near: Object.freeze([0.1, 0.4])})
+
+
+/**
+ * @param {Array<number>} o The camera, G kpc
+ * @returns {number} How much of the resolved light to leave out (RESOLVED)
+ */
+export function resolvedNear(o) {
+  return 1 - smoothstep(RESOLVED.near[0], RESOLVED.near[1], Math.hypot(o[0] - SUN_G[0], o[1] - SUN_G[1], o[2] - SUN_G[2]))
+}
+
+
+/**
+ * @param {number} s Distance from the Sun, kpc
+ * @returns {number} The share of the model's emission there that the
+ *   catalogue resolves (RESOLVED)
+ */
+export function resolvedFraction(s) {
+  return 1 / (1 + ((s / RESOLVED.halfKpc) ** 2))
+}
+
+
+/**
+ * The mean of resolvedFraction over a step of a ray: along a ray whose
+ * closest approach to the Sun is b at t = tc, s² = b² + (t − tc)², so
+ * the integral of 1 / (1 + s²/a²) is a²/c · atan((t − tc)/c), with c² =
+ * a² + b².  The same arithmetic as the march's GLSL.
+ *
+ * @param {number} t0 The step's start along the ray, kpc
+ * @param {number} ds Its length, kpc
+ * @param {number} tc Where the ray passes closest to the Sun, kpc
+ * @param {number} b2 That distance, squared, kpc²
+ * @returns {number}
+ */
+export function resolvedOverStep(t0, ds, tc, b2) {
+  const a2 = RESOLVED.halfKpc * RESOLVED.halfKpc
+  const c = Math.sqrt(a2 + Math.max(b2, 0))
+  if (!(ds > 1e-9)) {
+    return resolvedFraction(Math.sqrt(Math.max(b2, 0) + ((t0 - tc) ** 2)))
+  }
+  return a2 / (c * ds) * (Math.atan((t0 + ds - tc) / c) - Math.atan((t0 - tc) / c))
+}
+
+
+/**
  * The ray's segment inside BOUNDS.
  *
  * @param {Array<number>} o origin, G kpc
@@ -891,9 +956,12 @@ export function boundsSegment(o, d) {
  * @param {Array<number>} o origin, G kpc
  * @param {Array<number>} d direction, unit
  * @param {number} [jitter] the first step's offset, 0 to 1
+ * @param {number} [resolved] How much of the catalogue's share to leave out
+ *   (RESOLVED): resolvedNear the camera, as the shader does; 0 for the whole
+ *   integrated light
  * @returns {{rgb: Array<number>, steps: number, transmittance: Array<number>}}
  */
-export function integrateRay(model, o, d, jitter = 0.5) {
+export function integrateRay(model, o, d, jitter = 0.5, resolved = resolvedNear(o)) {
   const seg = boundsSegment(o, d)
   const out = {rgb: [0, 0, 0], steps: 0, transmittance: [1, 1, 1]}
   if (!seg) {
@@ -916,6 +984,11 @@ export function integrateRay(model, o, d, jitter = 0.5) {
   const dy = Math.max(Math.abs(d[1]), 1e-4)
   const T = [1, 1, 1]
   const L = [0, 0, 0]
+  // The catalogue's share of the emission round the Sun (RESOLVED).
+  const toSun = [SUN_G[0] - o[0], SUN_G[1] - o[1], SUN_G[2] - o[2]]
+  const tcSun = (toSun[0] * d[0]) + (toSun[1] * d[1]) + (toSun[2] * d[2])
+  const b2Sun = (toSun[0] ** 2) + (toSun[1] ** 2) + (toSun[2] ** 2) - (tcSun * tcSun)
+  const hole = resolved
   let t = t0
   let first = true
   for (let i = 0; i < STEPS.MAX && t < t1; i++) {
@@ -931,11 +1004,12 @@ export function integrateRay(model, o, d, jitter = 0.5) {
     ds = Math.min(ds, t1 - t)
     const tm = t + (0.5 * ds)
     const s = density(model, o[0] + (d[0] * tm), o[1] + (d[1] * tm), o[2] + (d[2] * tm))
+    const unresolved = hole > 0 ? 1 - (hole * resolvedOverStep(t, ds, tcSun, b2Sun)) : 1
     for (let c = 0; c < 3; c++) {
       const k = s.kappa * DUST.rgb[c]
       const att = Math.exp(-k * ds)
       const path = k > 1e-6 ? (1 - att) / k : ds
-      L[c] += T[c] * s.rgb[c] * path
+      L[c] += T[c] * s.rgb[c] * unresolved * path
       T[c] *= att
     }
     for (const cloud of clouds) {
@@ -1151,6 +1225,13 @@ ${cloudLines}
   float dy = max(abs(d.y), 1.0e-4);
   vec3 T = vec3(1.0);
   vec3 L = vec3(0.0);
+  // The catalogue's share of the emission round the Sun (RESOLVED,
+  // resolvedOverStep): the ray's closest approach to the Sun, and the
+  // integral of 1 / (1 + s²/a²) over each step in closed form.
+  vec3 toSun = GAL_SUN - o;
+  float tcSun = dot(toSun, d);
+  float cSun = sqrt(${f(RESOLVED.halfKpc * RESOLVED.halfKpc)} + max(dot(toSun, toSun) - tcSun * tcSun, 0.0));
+  float hole = 1.0 - galSmooth(${f(RESOLVED.near[0])}, ${f(RESOLVED.near[1])}, length(toSun));
   float t = t0;
   for (int i = 0; i < ${STEPS.MAX}; i++) {
     if (t >= t1) break;
@@ -1165,7 +1246,9 @@ ${cloudLines}
     vec3 k = kappa * GAL_DUST_RGB;
     vec3 att = exp(-k * ds);
     vec3 path = mix(vec3(ds), (1.0 - att) / max(k, vec3(1.0e-6)), step(vec3(1.0e-6), k));
-    L += T * emit * path;
+    float resolved = ${f(RESOLVED.halfKpc * RESOLVED.halfKpc)} / (cSun * max(ds, 1.0e-6))
+      * (atan((t + ds - tcSun) / cSun) - atan((t - tcSun) / cSun));
+    L += T * emit * path * (1.0 - hole * resolved);
     T *= att;
     for (int c = 0; c < GAL_CLOUDS; c++) {
       if (cloudT[c] >= t && cloudT[c] < t + ds) T *= exp(-cloudTau[c] * GAL_DUST_RGB);

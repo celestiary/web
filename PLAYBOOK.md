@@ -590,6 +590,24 @@ as the maximum, so any frame with the Sun's disc in it runs the gain to
 its floor here.  Read the state, and reason the real GPU's number from
 the rule; don't tune the Sun's exposure against a SwiftShader frame.
 
+### A pedestal under a tone map's toe raises what sits on it
+
+#186 had to put the night sky's light under the stars.  Into the scene
+buffer, under PBR Neutral's quadratic toe, the dark sky (0.026 at the
+dark gain) took the limit star's step on screen from 0.080 to 0.102 and a
+magnitude 7.5 star's twofold: the limit deepened where the sky
+brightened, the opposite of what a brighter background does to the eye.
+#185's galaxy, drawn there, had done it already: star counts over the
+band were 10% higher than the calibration's, and the counts on `main`
+looked like the reference until the galaxy was hidden.  The night sky's
+light is now tone-mapped on its own and added in display values.
+
+**Rule:** before adding a faint, wide light under calibrated small things
+in a buffer a nonlinear curve maps, work out what the curve's slope does
+to their steps over it.  And measure a point's visibility as its step
+over what's under it (render with and without it), never as a pixel
+value over a fixed threshold, which counts the background too.
+
 ### Screenshots communicate visual bugs better than words
 
 "A grid of large blooms on the ocean texture" and "distinct rings floating up in space" were

@@ -675,7 +675,7 @@ turns to it; Go and Enter travel
 | Object | Technique |
 |---|---|
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
-| Milky Way | Its integrated light: a full-screen pass at the far plane that ray-marches a published structural model (discs, bulge and bar, arms, dust) in the galactocentric frame, into a cached target re-marched when the view moves ([MilkyWay.md](js/scene/MilkyWay.md)) |
+| Milky Way | Its integrated light: a full-screen pass at the far plane that ray-marches a published structural model (discs, bulge and bar, arms, dust) in the galactocentric frame, into a cached target re-marched when the view moves, less the light the star catalogue draws as points round the Sun; the atmosphere pass draws it with the rest of the night sky's light (the zodiacal light, airglow) through the eye's response to extended light ([MilkyWay.md](js/scene/MilkyWay.md), [HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |
 | Star discs (the Sun, and any catalogue star travelled to) | A photosphere from physical parameters: temperature from class, blackbody colour and luminance, limb darkening by temperature, granulation at three scales, spots and faculae ([js/scene/Stars.md](js/scene/Stars.md)) |
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
 | Earth's clouds | A shell 6 km up on its own layer, drawn after the Cesium composite so it covers both sides: the date's NASA GIBS true colour unmixed into coverage, Lambert-lit in exposure units, shadowing the ground ([Planet.md, clouds](js/scene/Planet.md#clouds)) |
@@ -695,9 +695,9 @@ One linear brightness scale, one tone map ([js/scene/HDR.md](js/scene/HDR.md), #
 
 | Pass | Target | Holds |
 |---|---|---|
-| Scene | `_sceneRT`, RGBA16F | lit surfaces × the exposure the frame renders with (the target-keyed exposure × the metered gain; exposure-only tone mapping); emitted sources (the stars, the Milky Way, the Sun's disc and glow) × the same gain before the buffer, pre-exposed (`hdr.js` `absoluteUniforms`; [HDR.md, pre-exposure](js/scene/HDR.md#pre-exposure)), with nothing under half-float's smallest normal value; display-referred content (the rings, a body's far point) through the inverse of the final tone map (`hdr.js` `sceneReferred`) |
+| Scene | `_sceneRT`, RGBA16F | lit surfaces × the exposure the frame renders with (the target-keyed exposure × the metered gain; exposure-only tone mapping); emitted sources (the stars, the Sun's disc and glow) × the same gain before the buffer, pre-exposed (`hdr.js` `absoluteUniforms`; [HDR.md, pre-exposure](js/scene/HDR.md#pre-exposure)), with nothing under half-float's smallest normal value; display-referred content (the rings, a body's far point) through the inverse of the final tone map (`hdr.js` `sceneReferred`) |
 | Cesium layers | `_cesiumRT` (8-bit) → `_sceneRT` | each body's Cesium frame (stored × Lambert, one path for every body), decoded into exposure units; its terrain distance (in alpha, `cesium/distance.js`) becomes depth, from below 20 km |
-| Atmosphere | screen | `PBR Neutral(sky + scene × T)`, the sky in exposure units |
+| Atmosphere | screen | `PBR Neutral(sky + scene × T)`, the sky in exposure units; over it, in display values, the night sky's own light (the galaxy's march, the zodiacal light, airglow, through T) by the eye's response to extended light, while the meter reads it as light ([HDR.md, the eye and extended light](js/scene/HDR.md#the-eye-and-extended-light)) |
 | Overlay | screen | display values (labels, orbit paths, asterism and expansion lines, grids, the pick marker: `shared.js` `overlay`), after the exposure meter's readback, depth-tested against the scene |
 
 Without float render targets (`EXT_color_buffer_float`), or with `?hdr=0`, the old LDR order: an 8-bit `_sceneRT` tone-mapped in the scene pass, and the sky added in display space.
@@ -975,8 +975,10 @@ and the provider extension contract.
 | `js/scene/stellar.js` | Stars' physics: temperature from class, blackbody colour and luminance, bolometric correction, limb darkening, granulation and spot laws ([Stars.md](js/scene/Stars.md)) |
 | `js/scene/starParams.js` | Every star's parameters: measured where published, else luminosity class, radius (Stefan-Boltzmann), mass and gravity from the catalogue; rotation (Roche, von Zeipel) and spots by type |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
-| `js/scene/MilkyWay.js` | The Milky Way's integrated light: the march pass and its cache ([MilkyWay.md](js/scene/MilkyWay.md)) |
-| `js/scene/galaxyModel.js` | The Milky Way's structural model: its components, the baked in-plane map, the normalisation, the JS and GLSL march |
+| `js/scene/MilkyWay.js` | The Milky Way's integrated light: the march pass and its cache, which the atmosphere pass draws ([MilkyWay.md](js/scene/MilkyWay.md)) |
+| `js/scene/galaxyModel.js` | The Milky Way's structural model: its components, the baked in-plane map, the normalisation, the share the star catalogue resolves, the JS and GLSL march |
+| `js/scene/eye.js` | The dark-adapted eye's threshold against field size (Ricco, Piper), the extended response's gain, scotopic colour, surface brightness in exposure units ([HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |
+| `js/scene/nightSky.js` | The night sky's own light: the zodiacal light and gegenschein, airglow's path (JS and GLSL) |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |
 | `js/scene/Asterisms.js` | Constellation line drawings |
 | `js/scene/Colonization.js` | Human expansion: kNN star graph and layered BFS spread from the Sun |

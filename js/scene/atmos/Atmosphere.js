@@ -16,8 +16,11 @@ import {
   PlaneGeometry,
   ShaderMaterial,
   Vector3,
+  Vector4,
 } from 'three'
+import {EYE_GLSL} from '../eye.js'
 import {EMITTED_GLSL, LUMINOUS_SHOULDER_GLSL, NEUTRAL_GLSL, absoluteUniforms} from '../hdr.js'
+import {NIGHT_SKY_GLSL} from '../nightSky.js'
 import {sphere} from '../shapes'
 import {MIE_PHASE_GLSL, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
 
@@ -435,8 +438,27 @@ export function newAtmospherePass() {
       // target (exposure.js skyExposure; HDR.md).
       uSkyExposure: {value: 1.0},
       // A probe (composition.md, "Probing the pass"): 0 renders; 1 to 5
-      // write the pass's intermediates as raw floats, for a float target.
+      // write the pass's intermediates as raw floats, for a float target;
+      // 7 the meter's linear composite, 8 the night sky's light alone.
       uDebug: {value: 0.0},
+      // The night sky's own light (HDR.md, "The night sky's own light";
+      // nightSky.js, eye.js), drawn here so it can be tone-mapped by the
+      // eye's response to extended light and added over the scene's display,
+      // while the meter reads it as light.  ThreeUi._updateNightSky sets
+      // them each frame.  The galaxy's march (MilkyWay.js), unexposed ×
+      // STORE_SCALE, and 1 / STORE_SCALE while it's shown, else 0.
+      uGalaxy: {value: null},
+      uGalaxyScale: {value: 0.0},
+      uZodiacalSun: {value: new Vector3(0, 0, -1)},
+      uZodiacalPole: {value: new Vector3(0, 1, 0)},
+      uZodiacalScale: {value: 0.0},
+      // The airglow layer's inner and outer radii (m), its zenith value at
+      // Earth's keyed exposure, and 1 / its thickness; zero for none.
+      uAirglow: {value: new Vector4(0, 0, 0, 0)},
+      uAirglowColor: {value: new Vector3(1, 1, 1)},
+      uExtendedGain: {value: 1.0},
+      uEyeMode: {value: 1.0},
+      uExposureRelative: absoluteUniforms.uExposureRelative,
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
@@ -506,24 +528,63 @@ uniform float     uDebug;
 
 ${NEUTRAL_GLSL}
 ${MIE_PHASE_GLSL}
+uniform float uExposureRelative;
+${EYE_GLSL}
+${NIGHT_SKY_GLSL}
+uniform sampler2D uGalaxy;
+uniform float uGalaxyScale;
+
+// The galaxy's depth, pinned to the far plane (MilkyWay.js: NDC 0.9999):
+// the night sky's light is where the galaxy was drawn, behind every body
+// and under the stars.
+const float NIGHT_SKY_DEPTH = 0.9999499;
+
+// The night sky's light from beyond the air, pre-exposed (HDR.md, "The
+// night sky's own light"): the zodiacal light and the galaxy's march.  In
+// the HDR path only: the LDR fallback draws the galaxy in its scene pass,
+// as before, and nothing else.
+vec3 nightBeyond(vec3 rayView, float depth) {
+  if (uHdr < 0.5 || depth < NIGHT_SKY_DEPTH) return vec3(0.0);
+  vec3 light = zodiacalLight(rayView);
+  if (uGalaxyScale > 0.0) light += texture2D(uGalaxy, vUv).rgb * uGalaxyScale;
+  return light * uExposureRelative;
+}
+
+// The airglow along the ray, pre-exposed: the layer's path (airglowPath)
+// times its zenith light, the far crossing through the air's transmittance.
+vec3 airglow(vec2 path, vec3 transmittance) {
+  if (uHdr < 0.5) return vec3(0.0);
+  return uAirglow.z * uExposureRelative * uAirglowColor * (path.x + path.y * transmittance);
+}
 
 // The scene with no atmosphere over it, to the screen: the one tone map
 // (HDR), or as it is (the LDR fallback's scene is display values already).
-vec4 sceneToScreen(vec3 scene) {
+// The night sky's light is added over it in display values, through the
+// eye's extended response (eye.js).
+vec4 sceneToScreen(vec3 scene, vec3 night) {
   // The metering's view (uDebug 7, ThreeUi._meter) wants the linear scene
   // on every path: tone-mapped, a body rendered 1e5 over white would read
-  // as 1 and the meter would call it dark, and run away.
-  return vec4(uHdr > 0.5 && uDebug < 6.5 ? neutralToneMap(scene) : scene, 1.0);
+  // as 1 and the meter would call it dark, and run away.  It reads the
+  // night sky as light, as the eye adapts to it.
+  if (uDebug > 6.5) {
+    return vec4(uDebug < 7.5 ? scene + night : night, 1.0);
+  }
+  if (uHdr > 0.5) {
+    return vec4(displaySum(neutralToneMap(scene), extendedToDisplay(night)), 1.0);
+  }
+  return vec4(scene, 1.0);
 }
 
 // The sky over the scene: in-scatter plus the scene through the
 // transmittance, faded by uAtmStrength, to the screen.  sky is in exposure
-// units, as the HDR scene is: composited there, then tone-mapped once.  The
-// LDR fallback's scene is display values, so the sky is tone-mapped alone
-// and added to it.
-vec4 atmToScreen(vec3 scene, vec3 sky, vec3 transmittance) {
+// units, as the HDR scene is: composited there, then tone-mapped once, and
+// the night sky's light added over it (sceneToScreen).  The LDR
+// fallback's scene is display values, so the sky is tone-mapped alone and
+// added to it.
+vec4 atmToScreen(vec3 scene, vec3 sky, vec3 transmittance, vec3 night) {
   if (uHdr > 0.5) {
-    return vec4(neutralToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)), 1.0);
+    return vec4(displaySum(neutralToneMap(mix(scene, sky + scene * transmittance, uAtmStrength)),
+        extendedToDisplay(night)), 1.0);
   }
   return vec4(mix(scene, neutralToneMap(sky) + scene * transmittance, uAtmStrength), 1.0);
 }
@@ -758,15 +819,6 @@ void main() {
   // The scene's depth, for the label overlay after this pass.  First, as
   // every path out of main() must write it.
   gl_FragDepth = texture2D(tDepth, vUv).r;
-  // Hard kill-switch: when the camera is too far for the in-shader rsi() to
-  // remain numerically stable (or there's simply no atmosphere target), pass
-  // the scene through unchanged.  Must happen before any rsi() / scatter()
-  // call — eyePos² overflows float32 once |eyePos| ≳ 1.8e19 m, and a sentinel
-  // "push planet far away" value would itself trip that limit.
-  if (uAtmEnabled < 0.5) {
-    gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb);
-    return;
-  }
   vec2 ndc = vUv * 2.0 - 1.0;
   float depthSample = texture2D(tDepth, vUv).r;
 
@@ -777,6 +829,18 @@ void main() {
   vec4 viewDir4 = uProjectionMatrixInverse * vec4(ndc, -1.0, 1.0);
   viewDir4 /= viewDir4.w;
   vec3 rayDir = normalize(viewDir4.xyz);
+  // The night sky's light from beyond the air, where nothing nearer drew.
+  vec3 beyond = nightBeyond(rayDir, depthSample);
+
+  // Hard kill-switch: when the camera is too far for the in-shader rsi() to
+  // remain numerically stable (or there's simply no atmosphere target), pass
+  // the scene through unchanged.  Must happen before any rsi() / scatter()
+  // call — eyePos² overflows float32 once |eyePos| ≳ 1.8e19 m, and a sentinel
+  // "push planet far away" value would itself trip that limit.
+  if (uAtmEnabled < 0.5) {
+    gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb, beyond);
+    return;
+  }
 
   // Distance to the pixel: linearise the depth buffer value.
   // Clamp the effective far to 1e15 m (far larger than any atmosphere, but safe
@@ -799,6 +863,13 @@ void main() {
   tMaxErr *= invCos;
 
   vec3 eyePos = -uPlanetCenter;             // camera in planet-centred space
+  // Airglow (nightSky.js): its layer's path along the ray, to the surface
+  // the ray ends on, or past the planet for the sky and the bodies beyond.
+  bool skyPixel = depthSample >= 1.0;
+  vec2 tGround = rsi(eyePos, rayDir, uGroundRadius);
+  bool meetsGround = tGround.x > 0.0 && tGround.x <= tGround.y;
+  float tGlowEnd = skyPixel ? (meetsGround ? tGround.x : 1.0e30) : tMax;
+  vec2 glowPath = airglowPath(eyePos, rayDir, tGlowEnd);
 
   // ── Phase 2: in-scatter LUT path (no loops, smooth) ──────────────────────
   if (uUseInScatterLUT > 0.5) {
@@ -815,8 +886,9 @@ void main() {
     // bruneton_encode_mu_v).
     vec2 pAtm = rsi(eyePos, rayDir, uAtmosphereRadius);
     if (pAtm.x > pAtm.y) {
-      // Ray misses atmosphere entirely — pass scene through unchanged.
-      gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb);
+      // Ray misses atmosphere entirely — pass scene through unchanged (the
+      // airglow layer, over the atmosphere's top, can still be on it).
+      gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb, beyond + airglow(glowPath, vec3(1.0)));
       return;
     }
     float t_entry = max(pAtm.x, 0.0);
@@ -826,7 +898,7 @@ void main() {
       // it's in front by more than the depth buffer can resolve: the
       // planet's own surface, a shell's thickness behind the entry, read
       // as in front of it from afar and speckled the disc.
-      gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb);
+      gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb, beyond + airglow(glowPath, vec3(1.0)));
       return;
     }
     float rEye = length(eyePos);
@@ -985,11 +1057,16 @@ void main() {
     // irradiance, times the irradiance and the exposure (uSkyExposure), with
     // uSunIntensity as the body's gain over single scattering (HDR.md).
     vec3 sky = scattered * uSkyExposure;
+    // The night sky's light: from beyond the air through it, and the
+    // airglow in it (zero over the ground: a gap's transmittance is 0, and
+    // the layer's path ends at the ground).
+    vec3 night = mix(beyond, beyond * transmittance, uAtmStrength) + airglow(glowPath, transmittance) * uAtmStrength;
     if (uDebug > 6.5) {
       // The metering's view (ThreeUi._meter): the linear composite, in
-      // exposure units, before the tone map.
-      gl_FragColor = vec4(mix(texture2D(tDiffuse, vUv).rgb, sky + texture2D(tDiffuse, vUv).rgb * transmittance,
-          uAtmStrength), 1.0);
+      // exposure units, before the tone map, the night sky's light in it;
+      // 8, that light alone.
+      gl_FragColor = vec4(uDebug < 7.5 ? mix(texture2D(tDiffuse, vUv).rgb,
+          sky + texture2D(tDiffuse, vUv).rgb * transmittance, uAtmStrength) + night : night, 1.0);
       return;
     }
     if (uDebug > 0.5) {
@@ -1004,7 +1081,7 @@ void main() {
       else gl_FragColor = vec4(mu_e, dot(normalize(eyePos), uSunDirection), camAlt, texture2D(tDiffuse, vUv).r);
       return;
     }
-    gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, sky, transmittance);
+    gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, sky, transmittance, night);
     return;
   }
 
@@ -1017,6 +1094,14 @@ void main() {
                         uMieCoeff, uMieScaleHeight, uMiePolarity.r,
                         tMax);
   // The physical extinction, whole (the LUT branch, above).
-  gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, result.rgb * uSkyExposure, vec3(1.0 - result.a));
+  vec3 tFallback = vec3(1.0 - result.a);
+  vec3 nightFallback = mix(beyond, beyond * tFallback, uAtmStrength) + airglow(glowPath, tFallback) * uAtmStrength;
+  if (uDebug > 6.5) {
+    gl_FragColor = vec4(uDebug < 7.5 ? mix(texture2D(tDiffuse, vUv).rgb,
+        result.rgb * uSkyExposure + texture2D(tDiffuse, vUv).rgb * tFallback, uAtmStrength) + nightFallback
+        : nightFallback, 1.0);
+    return;
+  }
+  gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, result.rgb * uSkyExposure, tFallback, nightFallback);
 }
 `

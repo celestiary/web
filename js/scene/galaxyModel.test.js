@@ -1,10 +1,14 @@
+import {readFileSync} from 'node:fs'
 import {
-  ARMS, BOUNDS, CLOUDS, DUST, FRACTIONS, KPC_METER, L_TOTAL_LSUN, SUN_G, SUN_R_KPC, VALUE_PER_LSUN_KPC2, WARP,
+  ARMS, BOUNDS, CLOUDS, DUST, FRACTIONS, KPC_METER, L_TOTAL_LSUN, RESOLVED, SUN_G, SUN_R_KPC, VALUE_PER_LSUN_KPC2, WARP,
   armOffset, azimuth, bakeMap, bakeMapSteps, barFrame, catalogToGalactic, cloudCenter, density, galaxyGlsl, galaxyModel,
-  galaxyNormUniforms, integrateRay, outsideWeight, sampleMap, warpHeight,
+  galaxyNormUniforms, integrateRay, outsideWeight, resolvedFraction, resolvedNear, resolvedOverStep, sampleMap,
+  warpHeight,
 } from './galaxyModel.js'
+import {DISPLAY_GAIN} from '../shared.js'
+import StarsCatalog from './StarsCatalog.js'
 import {equatorialToSceneUnit} from './galacticFrame.js'
-import {METER_GAIN_MAX} from './exposure.js'
+import {METER_GAIN_MAX, illuminanceRatio} from './exposure.js'
 import {HDR_MAX_VALUE} from './hdr.js'
 
 
@@ -120,12 +124,93 @@ describe('the galaxy\'s light: at the Sun', () => {
   })
 
   it('makes the sky at the galactic poles as bright as the integrated starlight there', () => {
-    // About 23.5-24 mag/arcsec² in V toward the poles (Leinert et al. 1998).
+    // About 23.5-24 mag/arcsec² in V toward the poles (Leinert et al. 1998),
+    // all the stars' light: the model's whole, with the catalogue's share in it.
     for (const b of [90, -90]) {
-      const mu = magPerArcsec2(luma(integrateRay(model, SUN_G, dir(0, b)).rgb))
+      const mu = magPerArcsec2(luma(integrateRay(model, SUN_G, dir(0, b), 0.5, 0).rgb))
       expect(mu).toBeGreaterThan(23)
       expect(mu).toBeLessThan(24.5)
     }
+  })
+
+  it('leaves out what the catalogue resolves round the Sun, and only near it', () => {
+    // All of it at the Sun, half at 234 pc, a tenth by 700 pc.
+    expect(resolvedFraction(0)).toBe(1)
+    expect(resolvedFraction(RESOLVED.halfKpc)).toBeCloseTo(0.5, 12)
+    expect(resolvedFraction(0.7)).toBeLessThan(0.11)
+    // The step's mean in closed form, against a fine sum, for steps through
+    // and past the Sun.
+    for (const [t0, ds, tc, b2] of [[0, 0.25, 0, 0], [0.1, 0.4, 0.3, 0.01], [-0.5, 1, 0, 0.04], [2, 0.3, 0, 0]]) {
+      let sum = 0
+      const n = 4000
+      for (let i = 0; i < n; i++) {
+        const t = t0 + ((i + 0.5) * ds / n)
+        sum += resolvedFraction(Math.sqrt(b2 + ((t - tc) ** 2)))
+      }
+      expect(resolvedOverStep(t0, ds, tc, b2)).toBeCloseTo(sum / n, 6)
+    }
+    // From the Sun the poles lose about half their light, the plane a
+    // quarter; from 0.4 kpc away, none.
+    const pole = (o, resolved) => luma(integrateRay(model, o, dir(0, 90), 0.5, resolved).rgb)
+    expect(pole(SUN_G) / pole(SUN_G, 0)).toBeGreaterThan(0.35)
+    expect(pole(SUN_G) / pole(SUN_G, 0)).toBeLessThan(0.6)
+    const plane = (resolved) => luma(integrateRay(model, SUN_G, dir(90, 0), 0.5, resolved).rgb)
+    expect(plane() / plane(0)).toBeGreaterThan(0.6)
+    expect(plane() / plane(0)).toBeLessThan(0.9)
+    expect(resolvedNear(SUN_G)).toBe(1)
+    expect(resolvedNear([SUN_G[0] + RESOLVED.near[1], SUN_G[1], SUN_G[2]])).toBe(0)
+  })
+
+  it('leaves out as much light as the catalogue draws as points, so the two make the integrated starlight', () => {
+    // The whole sky from the Sun, by galactic latitude: the model's light
+    // with and without the catalogue's share, and the catalogue's stars'.
+    const n = 1500
+    const ga = Math.PI * (3 - Math.sqrt(5))
+    const high = {whole: 0, kept: 0, solid: 0}
+    let whole = 0
+    let kept = 0
+    for (let i = 0; i < n; i++) {
+      const y = 1 - (2 * (i + 0.5) / n)
+      const r = Math.sqrt(1 - (y * y))
+      const d = [r * Math.cos(ga * i), y, r * Math.sin(ga * i)]
+      const w = luma(integrateRay(model, SUN_G, d, 0.5, 0).rgb) * 4 * Math.PI / n
+      const k = luma(integrateRay(model, SUN_G, d).rgb) * 4 * Math.PI / n
+      whole += w
+      kept += k
+      if (Math.abs(y) > Math.sin(60 * DEG)) {
+        high.whole += w
+        high.kept += k
+        high.solid += 4 * Math.PI / n
+      }
+    }
+    const catalog = new StarsCatalog()
+    catalog.read(readFileSync('./public/data/stars.dat').buffer)
+    let points = 0
+    let highPoints = 0
+    for (const [hip, s] of catalog.starByHip) {
+      const dist = Math.hypot(s.x, s.y, s.z)
+      if (hip === 0 || !(dist > 0)) {
+        continue
+      }
+      const m = s.absMag + (5 * Math.log10(dist / 3.0857e16)) - 5
+      // A star's light in exposure units × sr (HDR.md, "Physical stars").
+      const v = DISPLAY_GAIN * Math.PI * illuminanceRatio(m)
+      points += v
+      const g = catalogToGalactic(s.x, s.y, s.z)
+      if (Math.abs(g[1] - SUN_G[1]) / Math.hypot(g[0] - SUN_G[0], g[1] - SUN_G[1], g[2] - SUN_G[2]) > Math.sin(60 * DEG)) {
+        highPoints += v
+      }
+    }
+    // The light left out is the catalogue's, within 15%: a third of the model's.
+    expect((whole - kept) / points).toBeGreaterThan(0.85)
+    expect((whole - kept) / points).toBeLessThan(1.15)
+    // Toward the poles the points and the diffuse light make 23.3-24 mag/arcsec²,
+    // as the integrated starlight there (Leinert et al. 1998); without the
+    // hole the two made 23.1.
+    const mu = magPerArcsec2((high.kept + highPoints) / high.solid)
+    expect(mu).toBeGreaterThan(23.3)
+    expect(mu).toBeLessThan(24)
+    expect(magPerArcsec2((high.whole + highPoints) / high.solid)).toBeLessThan(23.3)
   })
 
   it('makes a band: the plane brighter than the poles, toward the centre most', () => {

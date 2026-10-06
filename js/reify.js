@@ -47,6 +47,10 @@ export default function reifyMeasures(obj) {
     reify(atm, 'height', name)
     reify(atm, 'rayleighScaleHeight', name)
     reify(atm, 'mieScaleHeight', name)
+    if (atm['airglow']) {
+      reify(atm['airglow'], 'height', name)
+      reify(atm['airglow'], 'thickness', name)
+    }
   }
   if (obj['rings']) {
     reify(obj['rings'], 'innerRadius', name)

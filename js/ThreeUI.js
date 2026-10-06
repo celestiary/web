@@ -29,7 +29,10 @@ import {
   luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap,
   sunlitBodyGain,
 } from './scene/exposure.js'
+import {extendedGain} from './scene/eye.js'
+import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
+import {AIRGLOW_COLOR, airglowOf, zodiacalScale} from './scene/nightSky.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
@@ -401,6 +404,7 @@ export default class ThreeUi {
     this.layers.composite()
     this._drawClouds()
     this.renderer.setRenderTarget(null)
+    this._updateNightSky()
     this._updateAtmUniforms()
     this.renderer.render(this._atmScene, this._atmCamera)
     this._meter()
@@ -697,18 +701,70 @@ export default class ThreeUi {
    * @returns {number}
    */
   _galaxyOutsideWeight() {
+    return this._galaxyShown()?.userData.galaxy.outsideWeight ?? 0
+  }
+
+
+  /**
+   * @returns {object|null} The Milky Way's mesh, when it is baked and
+   *   shown (its own and every parent's visibility: the `U` toggle, AR)
+   */
+  _galaxyShown() {
     this._milkyWay ??= this.scene.getObjectByName('MilkyWay') ?? null
     const mw = this._milkyWay
     const state = mw?.userData?.galaxy
     if (!mw || !state?.ready || !mw.visible || !mw.material?.visible) {
-      return 0
+      return null
     }
     for (let p = mw.parent; p; p = p.parent) {
       if (!p.visible) {
-        return 0
+        return null
       }
     }
-    return state.outsideWeight
+    return mw
+  }
+
+
+  /**
+   * The night sky's own light, for the atmosphere pass (HDR.md, "The night
+   * sky's own light"; nightSky.js, eye.js): the galaxy's march while it's
+   * shown; the zodiacal light's geometry, the Sun's direction and the
+   * ecliptic's pole from the camera in view space, and its scale at the
+   * camera's distance from the Sun; and the eye's response to extended
+   * light at this exposure, its gain and whether the frame is an eye's or
+   * a photograph's (the galaxy from outside, exposure.js galaxyGain).  The
+   * airglow is the atmosphere's (_updateAtmUniforms).  After
+   * _updateExposure, whose exposure it reads.
+   */
+  _updateNightSky() {
+    const u = this._atmMesh.material.uniforms
+    const target = this.hdr ? this._galaxyShown()?.userData.galaxy.target?.value : null
+    u.uGalaxy.value = target?.texture ?? null
+    u.uGalaxyScale.value = target ? 1 / STORE_SCALE : 0
+    this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
+    this._nightVectors ??= [new Vector3(), new Vector3(), new Vector3(), new Vector3()]
+    const [sun, cam, pole, helio] = this._nightVectors
+    if (this._worldGroup) {
+      this._worldGroup.getWorldPosition(sun)
+      // The scene's frame is the ecliptic of date, its +Y the ecliptic's
+      // north pole (celestialFrame.js).
+      pole.set(0, 1, 0).transformDirection(this._worldGroup.matrixWorld)
+    } else {
+      sun.set(0, 0, 0)
+      pole.set(0, 1, 0)
+    }
+    this.camera.getWorldPosition(cam)
+    helio.copy(cam).sub(sun)
+    const r = helio.length()
+    u.uZodiacalScale.value = this.hdr && r > 0 ?
+      zodiacalScale(r / ASTRO_UNIT_METER, helio.dot(pole) / ASTRO_UNIT_METER) : 0
+    if (r > 0) {
+      u.uZodiacalSun.value.copy(helio).negate().transformDirection(this.camera.matrixWorldInverse)
+    }
+    u.uZodiacalPole.value.copy(pole).transformDirection(this.camera.matrixWorldInverse)
+    const outside = this._galaxyOutsideWeight()
+    u.uExtendedGain.value = extendedGain(absoluteUniforms.uExposureRelative.value, outside)
+    u.uEyeMode.value = 1 - outside
   }
 
 
@@ -996,6 +1052,12 @@ export default class ThreeUi {
       meterLast: this._meterLast ?? null,
       meterCap: this._meterCap ?? Infinity,
       galaxyOutsideWeight: this._galaxyOutsideWeight(),
+      // The night sky's light and the eye's response to it (HDR.md, "The
+      // eye and extended light").
+      nightSky: (({uExtendedGain, uEyeMode, uZodiacalScale, uGalaxyScale, uAirglow}) => ({
+        extendedGain: uExtendedGain.value, eyeMode: uEyeMode.value, zodiacalScale: uZodiacalScale.value,
+        galaxy: uGalaxyScale.value > 0, airglowZenith: uAirglow.value.z,
+      }))(this._atmMesh.material.uniforms),
       sunlitBodies: this._sunlitBodies(),
       luminousDiscs: this._luminousDiscs(),
       frameCanBeEmpty: this._frameCanBeEmpty(),
@@ -1096,6 +1158,16 @@ export default class ThreeUi {
       return
     }
     u.uAtmEnabled.value = 1.0
+    // The body's airglow (nightSky.js airglowOf): its layer's radii, its
+    // zenith light at Earth's keyed exposure, and 1 / its thickness.
+    const glow = airglowOf(atmos)
+    if (glow) {
+      const rIn = R + glow.height - (glow.thickness / 2)
+      u.uAirglow.value.set(rIn, rIn + glow.thickness, glow.zenithValue, 1 / glow.thickness)
+      u.uAirglowColor.value.set(...AIRGLOW_COLOR)
+    } else {
+      u.uAirglow.value.set(0, 0, 0, 0)
+    }
     u.uPlanetCenter.value
         .copy(this._pWorldAtm)
         .applyMatrix4(this.camera.matrixWorldInverse)
