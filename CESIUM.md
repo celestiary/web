@@ -603,6 +603,8 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `moon-quarter` | 0.967 | 0.967 / 0.967 / 0.967 | 19.4 / 5.5 |
 | `mars-gibbous` | 0.988 | 1.000 / 0.985 / 0.986 | 9.5 / 1.8 |
 | `earth-low-dusk` | 1.001 | 1.000 / 1.000 / 1.000 | 3.2 / 1.2 |
+| `earth-night-europe` | Europe at night from 4,000 km (#93; `t=9851.4722jd`): median ratio 1.004 over the lit land (pixels of 6 or more), 1.000 / 1.000 / 1.000 per channel, mean 0.983 / 0.974 / 0.985 / 0.997 (luma, R, G, B); median luma 54.4 on, 54.3 off.  Cesium's side was black (0.000) before | (no profile) |
+| `earth-night-dusk` | Italy from 400 km straight down, Sun 16° under the horizon (#93): mean ratio 0.973 luma, 0.946 (0.894 once) / 0.979 / 1.006 (R, G, B) over the whole frame, GIBS's 600 m tiles sharp against celestiary's 11 km texture (the median pixel ratio there is 0.69, which is why the view is judged by the mean).  Before: 0.918 and 0.672 (red), Cesium's frame showing the twilight glow and no lights | (no profile) |
 | `earth-low-land-day` | 0.938-0.972 | median luma 80 on, 85 off since the surface's segment is marched (73-75 and 77-78 with the table's; 55, washed out, before #141's fix) | (no profile) |
 | `earth-ridge-day` | ridge over valley ground, on: luma 0.971, blue/red 0.992 (was 0.69 and 2.24, sky over the ridge) | (no off comparison) | (no profile) |
 | `mars-low-horizon` | 0.952 over the ground; median luma 42.0 on, 43.8 off | (no profile) | (no profile) |

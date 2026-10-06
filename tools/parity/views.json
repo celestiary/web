@@ -118,7 +118,7 @@
     {
       "id": "earth-night-dusk",
       "body": "earth",
-      "description": "Earth from 400 km over Italy, straight down at dusk with the Sun 16 degrees under the horizon: the lights through celestiary's atmosphere pass.  From this low, GIBS's 600 m tiles are sharp where celestiary's 11 km texture is a blur, so the median ratio of pixels (0.69) isn't the measure: the region's mean is, over every pixel",
+      "description": "Earth from 400 km over Italy, straight down at dusk with the Sun 16 degrees under the horizon: the lights through celestiary's atmosphere pass.  From this low, GIBS's 600 m tiles are sharp where celestiary's 11 km texture is a blur, so the median ratio of pixels (0.69) isn't the measure: the region's mean is, over every pixel.  Red read 0.89 to 0.95 over runs (the tiles' level settles differently), so 0.85",
       "hash": "#sun/earth@41,11.9952,400km;t=9851.2188jd;cq=-0.1803,0.7775,0.2572,0.5449;fov=45deg;s=alpoU",
       "freeze": true,
       "minLuma": 0,
@@ -133,7 +133,7 @@
       "profile": null,
       "tolerance": {
         "meanRatio": [
-          0.9,
+          0.85,
           1.05
         ]
       }

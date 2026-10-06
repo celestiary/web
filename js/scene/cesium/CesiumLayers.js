@@ -372,7 +372,10 @@ export default class CesiumLayers {
         body.widget.render()
       })
     } catch (err) {
-      this._fail(name, err)
+      // The lights are an extra: without them the body's Cesium layer
+      // stays, as the day frame already drew.
+      console.warn(`[cesium layer] ${name} night lights pass failed; drawing no lights`, err)
+      body.night = null
       return
     } finally {
       for (const [layer, alpha] of alphas) {
