@@ -71,8 +71,17 @@ Several times a "fix" attacked the wrong cause:
   dynamicNear = 1 m compressed real surfaces at 10 km to depthSample ≈ 0.9999. Linearised
   `tMax` is robust to near-plane compression; raw depth samples are not.
 
+- **Telescope-field out of memory (#176):** the report pointed at terrain entering a narrow
+  frustum as Jupiter neared the horizon.  Counting what Cesium did per frame
+  (`globe._surface._debug.tilesVisited`, and the replacement queue by level) showed the worst
+  frames with Jupiter 4-6° up and at most one tile drawn: 230,000 tiles visited, down to level 27,
+  under a camera 13 m over the ground.  The fix (bound the detail asked for, by the size of a
+  pixel) holds either way, but the evidence and the docs would have described the wrong
+  mechanism.
+
 **Rule:** Before writing a fix, write out the proposed mechanism and check it numerically.
-A 2-minute back-of-envelope saves an iteration.
+A 2-minute back-of-envelope saves an iteration.  When a library runs away, count its own
+per-frame work before reasoning from what's on screen.
 
 ### State reset must be complete
 

@@ -29,6 +29,8 @@ import {dataUrl} from '../dataUrl.js'
 import {monthOfJulianDay, monthlyPath} from './monthly.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
 import {nightLightRadiance} from './exposure.js'
+import CloudMap from './clouds/CloudMap.js'
+import {newCloudShell} from './clouds/CloudShell.js'
 import {capitalize, named} from '../utils.js'
 
 
@@ -231,6 +233,12 @@ export default class Planet extends Object {
         near = this.nearShape()
         planet.add(near)
         planet.surface = near.userData.surface
+        if (this.props.clouds) {
+          // Outside the surface group: a Cesium layer hides that, and the
+          // clouds are drawn over Cesium's surface too (Planet.md, Clouds).
+          planet.clouds = this.newCloudShell(planet)
+          planet.add(planet.clouds)
+        }
       }
     }
     // A request, served on the next animation frame (Animation calls
@@ -525,7 +533,29 @@ export default class Planet extends Object {
   }
 
 
-  /** @returns {Object3D} */
+  /**
+   * The far-field cloud shell, from the simulation date's satellite
+   * pictures (clouds/; Planet.md, "Clouds").
+   *
+   * @param {Object3D} planet The rotating node
+   * @returns {Object3D}
+   */
+  newCloudShell(planet) {
+    const texDir = this.props.texture_dir || ''
+    const map = new CloudMap({
+      groundPattern: this.props.texture_monthly,
+      bundledPath: `${texDir}${this.name}_atmos.jpg`,
+    })
+    return newCloudShell(this.props.radius.scalar, map, {ready: () => planet.surfaceReady()})
+  }
+
+
+  /**
+   * The old cloud shell, for a body with a cloud texture and no atmosphere
+   * data (none now: Earth's are newCloudShell's).
+   *
+   * @returns {Object3D}
+   */
   newClouds() {
     // TODO: https://threejs.org/examples/webgl_shaders_sky.html
     const texDir = this.props.texture_dir || ''

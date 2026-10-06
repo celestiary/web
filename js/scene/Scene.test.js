@@ -781,6 +781,38 @@ describe('Scene stellar frame', () => {
   })
 
 
+  it('goTo(star) draws the star\'s disc where it is, one star at a time, for the meter and the zoom', () => {
+    const {scene: s} = makeSceneWithEarth()
+    const saved = {...Shared.targets}
+    try {
+      s.worldGroup.add(s.stellarFrame)
+      s.goTo(star)
+      const drawn = s._catalogueStar
+      expect(drawn).toBeTruthy()
+      expect(drawn.parent).toBe(s.stellarFrame)
+      expect(drawn.props.type).toBe('star')
+      expect(drawn.props.radius.scalar).toBe(star.radius)
+      // Unlit: the Sun's light stays the Sun's.
+      expect(drawn.children.some((c) => c.isLight)).toBe(false)
+      // At the world's origin, where goTo rebased the star to.
+      s.ui.scene.updateMatrixWorld()
+      expect(drawn.getWorldPosition(new Vector3).length()).toBeLessThan(1e3)
+      expect(Object.values(s.objects)).toContain(drawn)
+      // Sirius is a measured star: its own temperature.
+      expect(drawn.teff).toBe(9845)
+      // Another star replaces it; the Sun (HIP 0) draws none of its own.
+      const other = {...star, hipId: 70890, radius: 1.07e8}
+      s.goTo(other)
+      expect(drawn.parent).toBeNull()
+      expect(Object.values(s.objects)).not.toContain(drawn)
+      expect(s._catalogueStar.props.hipId).toBe(70890)
+      expect(s.showCatalogueStar({...star, hipId: 0})).toBeNull()
+    } finally {
+      Object.assign(Shared.targets, saved)
+    }
+  })
+
+
   it('turns the galactic grid with the stars', () => {
     const {scene: s} = makeSceneWithEarth()
     const j2000 = s.grids.galactic.quaternion.clone()

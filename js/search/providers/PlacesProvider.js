@@ -1,4 +1,5 @@
 import {fetchPlaces} from '../../scene/Places.js'
+import {slug} from '../../targetPath.js'
 import {inScope} from '../SearchIndex.js'
 import {buildPath} from './SceneProvider.js'
 
@@ -122,13 +123,3 @@ export default class PlacesProvider {
   }
 }
 
-
-/**
- * Slug a place name for use in ids and paths.
- *
- * @param {string} s
- * @returns {string}
- */
-function slug(s) {
-  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}

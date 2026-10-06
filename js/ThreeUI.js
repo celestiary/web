@@ -36,7 +36,8 @@ import {attachPointerDrag} from './dragControls'
 import {resolveDragMode} from './dragMode'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
 import {
-  ASTRO_UNIT_METER, GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER, SUN_RADIUS_METER, targets,
+  ASTRO_UNIT_METER, CLOUD_LAYER, GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER,
+  SUN_RADIUS_METER, targets,
 } from './shared.js'
 import {named} from './utils.js'
 import {GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, groundRadius, homeBody, rotateScale} from './zoom.js'
@@ -398,6 +399,7 @@ export default class ThreeUi {
     sceneReferredUniform.value = this.hdr ? 1 : 0
     this.renderer.render(this.scene, this.camera)
     this.layers.composite()
+    this._drawClouds()
     this.renderer.setRenderTarget(null)
     this._updateAtmUniforms()
     this.renderer.render(this._atmScene, this._atmCamera)
@@ -413,6 +415,24 @@ export default class ThreeUi {
     this.camera.layers.set(0)
     this.renderer.autoClear = autoClear
     stats?.end()
+  }
+
+
+  /**
+   * Earth's cloud shell (CLOUD_LAYER), into the scene buffer after the
+   * Cesium composite, so over both sides of the swap, and before the
+   * atmosphere pass, which hazes it with the ground under it (Planet.md,
+   * "Clouds").  Depth-tested against the scene's depth, which by now holds
+   * the ground (celestiary's sphere, or Cesium's ground sphere or terrain).
+   */
+  _drawClouds() {
+    const autoClear = this.renderer.autoClear
+    this.renderer.autoClear = false
+    this.renderer.setRenderTarget(this._sceneRT)
+    this.camera.layers.set(CLOUD_LAYER)
+    this.renderer.render(this.scene, this.camera)
+    this.camera.layers.set(0)
+    this.renderer.autoClear = autoClear
   }
 
 
@@ -903,7 +923,8 @@ export default class ThreeUi {
    * The self-luminous discs in the frame, for the meter (exposure.js
    * luminousDiscGain): each star object (the Sun) whose mesh is in the
    * frame, with its disc's diameter in pixels and its surface radiance at
-   * Earth's keyed exposure (Star.js draws every star's disc at the Sun's).
+   * Earth's keyed exposure: the Sun's times the star's surface brightness over
+   * the Sun's (Star.js discRadianceRelSun).
    *
    * @returns {Array<{diameterPx: number, radianceAtEarthKeyed: number}>}
    */
@@ -935,7 +956,7 @@ export default class ThreeUi {
       if (!(ndc.z < 1 && ndc.z > -1 && Math.abs(ndc.x) < 1 + marginX && Math.abs(ndc.y) < 1 + marginY)) {
         continue
       }
-      discs.push({diameterPx: 2 * angularRadius / pxRad, radianceAtEarthKeyed: SUN_DISC_RADIANCE})
+      discs.push({diameterPx: 2 * angularRadius / pxRad, radianceAtEarthKeyed: SUN_DISC_RADIANCE * (o.discRadianceRelSun ?? 1)})
     }
     return discs
   }
@@ -1223,6 +1244,14 @@ export default class ThreeUi {
 
   /** @returns {object|null} The body the camera is at (zoom.js homeBody) */
   _homeBody() {
+    // At a catalogue star (Scene.goTo(star)) its drawn disc, so the zoom
+    // approaches its surface and stops there, as at a planet; it was the
+    // last body targeted, and its radius the floor (the Sun's kept the
+    // camera 6 radii from Proxima, and a planet's let it into Betelgeuse).
+    const scene = this.sceneManager
+    if (scene?._starTarget && scene._catalogueStar && this.camera.platform.parent?.name === 'StarAnchor') {
+      return scene._catalogueStar
+    }
     return homeBody(this.camera.platform.parent, targets.cur, targets.obj)
   }
 

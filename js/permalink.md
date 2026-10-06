@@ -12,7 +12,12 @@ shareable, bookmarkable link that reproduces the exact view.
 #<path>@<lat>,<lng>,<alt>;<params>
 ```
 
-The `@` separates the existing celestial path from the camera/time state.  The first component
+The path is the target: a body, a place on one, a star or an asterism (`sun/earth`,
+`sun/earth/new-york`, `hip:32349`, `asterism:orion`; `js/targetPath.js`, and
+[design/URLs.md](../design/URLs.md#path) for the grammar).  It changes whenever the target does,
+a click on a label included, and the camera doesn't.
+
+The `@` separates the path from the camera/time state.  The first component
 after `@` is the geographic position prefix `lat,lng,alt` (Google Maps style).  The remaining
 **params** are semicolon-delimited `key=value` pairs.  Order of params is not significant;
 unknown keys are ignored (forward compatibility).
@@ -41,15 +46,29 @@ returned as given in `decodePermalink(...).tokens`.  Spec: [design/URLs.md](../d
 
 | Key | Type | Example | Meaning |
 |-----|------|---------|---------|
+| `from` | path | `sun/earth`, `hip:32349` | The camera's frame (below), when it isn't the path's body; written right after the position |
 | `t` | Measure: days from J2000 | `9233.1234jd` | Simulation time, clamped on decode to ±2191500 days (J2000 ± 6000 years, Time.js's supported dates); a non-finite `t` makes the fragment invalid |
 | `cq` | 4× dimensionless float | `0,0,0,1` | Camera quaternion (platform-local) |
 | `fov` | Measure: degrees | `45deg` | Camera field of view |
 
 ## Coordinate System
 
+### The camera's frame
+
+The position and `cq` are in the frame of the body the camera is at (`Shared.targets.cur`, the
+camera platform's parent): the path's body, or a place's body, unless `from=` names another.  When
+the camera has gone to a star, it's that star (`from=hip:N`, or the path itself when the star is
+the target): its centre, the scene's axes, and its radius.
+
+Targeting leaves the frame alone, so it changes only the path and `from`, never the position or
+`cq`.  Re-expressing the camera in the target's frame instead was ruled out: a far body's frame
+loses the camera (4 decimal places of a degree are 2,300 km at Saturn from Earth), a star or an
+asterism has none, a landed camera (`s=L`) belongs to the body it stands on, and a reload would
+leave the camera riding the target's orbit rather than its own body's.
+
 ### Body-fixed geographic frame
 
-Lat/lng are defined in the **body-fixed frame** of the target object.  The planet's world
+Lat/lng are defined in the **body-fixed frame** of the frame body.  The planet's world
 quaternion (including axial tilt and current sidereal rotation) maps body-local to world space:
 
 - **Y-axis** = rotation axis (geographic north pole)
@@ -115,7 +134,8 @@ imperceptible at any zoom level.
 ## Auto-update Behaviour
 
 The URL is updated automatically via `history.replaceState` 1 second after the camera settles
-(debounced).  `replaceState` does not fire a `hashchange` event, so no reload occurs.
+or the target changes (`Scene.onTargetChange`), debounced.  `replaceState` does not fire a
+`hashchange` event, so no reload occurs.
 
 Updates are suppressed while a camera tween (`Shared.targets.tween !== null`) is in progress,
 ensuring the permalink always represents a stable, settled view.  Updates are also suppressed
@@ -123,20 +143,26 @@ for objects without a defined radius (e.g. the galaxy root).
 
 ## Permalink Restore
 
-On page load from a permalink URL:
+On page load from a permalink URL, or a new one in the address bar (`Celestiary._navigate`):
 
-1. Simulation time is set to the saved `t` before any navigation.
-2. `Animation.animateAtJD(scene, jd)` positions all planets at that time without advancing the
+1. The path is resolved: a body path's last segment is a body or a place (the body above it is
+   loaded first to tell), and the target's body and the frame (`from`, else the target's) load.
+2. Simulation time is set to the saved `t` before any navigation.
+3. `Animation.animateAtJD(scene, jd)` positions all planets at that time without advancing the
    clock.
-3. `Scene.goTo()` reparents the camera platform to the target's `orbitPosition` and orients it
-   toward the origin.
-4. `latLngAltToLocal(lat, lng, alt, radius, planetWorldQuat, platformWorldQuat)` converts the
+4. `Scene.goTo()` reparents the camera platform to the frame body's `orbitPosition` (or
+   `Scene.land` to the body itself, for `s=L`; or `Scene.goTo(star)` for a star's frame).
+5. `latLngAltToLocal(lat, lng, alt, radius, planetWorldQuat, platformWorldQuat)` converts the
    saved geographic position back to platform-local camera position.
-5. The camera is snapped directly to that position (tween cancelled) — no fly-in animation.
+6. The camera is snapped directly to that position (tween cancelled) — no fly-in animation.
+7. The target is set (`Scene.setTarget`, without turning the camera) once what it needs has
+   loaded: a place's catalogue, the stars, the asterisms.  One that isn't in its catalogue leaves
+   the frame's body the target.
 
 ## Future Work
 
-- **Track/follow state:** `track=1` or `follow=1` params for the 't'/'f' key modes.  Better
+- **Track/follow state:** `track=1` or `follow=1` params for the 't'/'f' key modes (what 't'
+  tracks, the target, is in the link now).  Better
   suited to an explicit "share" action than auto-update (state is transient).
 - **E2E screenshot test:** Playwright + dev server opens a constructed permalink URL, waits for
   scene settle, takes a screenshot and compares to a stored reference.

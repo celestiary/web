@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import createSearchSlice, {anchorPathFor} from './SearchSlice.js'
+import createSearchSlice, {anchorPathFor, breadcrumbItems} from './SearchSlice.js'
 
 
 /** Run a slice against a toy store emulator so transitions can be asserted. */
@@ -111,5 +111,53 @@ describe('anchorPathFor', () => {
 
   it('anchorIndex beyond path length clamps', () => {
     expect(anchorPathFor(['sun', 'earth'], 99)).toBe('milkyway/sun/earth')
+  })
+})
+
+
+describe('the target (committedTarget) and the breadcrumb', () => {
+  const STAR = {hipId: 32349}
+  const AUSTIN = {kind: 'place', body: 'earth', name: 'Austin', lat: 30.27, lng: -97.74}
+
+  it('setCommittedTarget sets the path and star views of it', () => {
+    const slice = makeSlice()
+    slice.call('setCommittedTarget', AUSTIN, ['sun', 'earth'])
+    expect(slice.state.committedTarget).toBe(AUSTIN)
+    expect(slice.state.committedPath).toEqual(['sun', 'earth'])
+    expect(slice.state.committedStar).toBeNull()
+    slice.call('setCommittedTarget', {kind: 'star', star: STAR, name: 'Sirius', hipId: 32349}, ['sun'])
+    expect(slice.state.committedPath).toEqual([])
+    expect(slice.state.committedStar).toEqual({hipId: 32349, displayName: 'Sirius', star: STAR})
+    slice.call('setCommittedTarget', {kind: 'asterism', name: 'Orion', position: {}}, [])
+    expect(slice.state.committedStar).toBeNull()
+    expect(slice.state.committedPath).toEqual([])
+  })
+
+  it('the old setters keep committedTarget in step', () => {
+    const slice = makeSlice()
+    slice.call('setCommittedPath', ['sun', 'earth'])
+    expect(slice.state.committedTarget).toEqual({kind: 'body', name: 'earth'})
+    slice.call('setCommittedStar', {hipId: 7, displayName: 'X', star: STAR})
+    expect(slice.state.committedTarget).toEqual({kind: 'star', star: STAR, name: 'X', hipId: 7})
+  })
+
+  it('the breadcrumb is the body path, then a place, each a link to its path', () => {
+    expect(breadcrumbItems({kind: 'body', name: 'earth'}, ['sun', 'earth'])).toEqual([
+      {label: 'Sun', hash: 'sun'}, {label: 'Earth', hash: 'sun/earth'},
+    ])
+    expect(breadcrumbItems(AUSTIN, ['sun', 'earth'])).toEqual([
+      {label: 'Sun', hash: 'sun'}, {label: 'Earth', hash: 'sun/earth'},
+      {label: 'Austin', hash: 'sun/earth/austin'},
+    ])
+  })
+
+  it('a star or an asterism is its name alone', () => {
+    expect(breadcrumbItems({kind: 'star', star: STAR, name: 'Sirius'}, [])).toEqual([
+      {label: 'Sirius', hash: 'hip:32349'},
+    ])
+    expect(breadcrumbItems({kind: 'asterism', name: 'Ursa Major'}, [])).toEqual([
+      {label: 'Ursa Major', hash: 'asterism:ursa-major'},
+    ])
+    expect(breadcrumbItems(null, [])).toEqual([])
   })
 })

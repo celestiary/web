@@ -399,8 +399,13 @@ to 6.5 beside it; the first cut drew it as a 64 px square.  In the user's
 star-field permalink Sirius renders 234 at its centre with a saturated
 8×8 px core that fills 0.77 of its bounding box inside a 5 px halo.
 
-**The Sun's disc** (`star-shaders.js`) is `DISPLAY_GAIN / θ²` times the
-granulation texture, θ its angular radius from 1 AU: 69,357 at Earth's
+**The Sun's disc** (`star-shaders.js`) is `DISPLAY_GAIN / θ²` on average over
+the disc, its limb darkening divided by its mean and its granulation,
+spots and faculae a blackbody's at each fragment's temperature (every
+star's disc is that times its surface brightness over the Sun's, its
+luminance, not σT⁴: [Stars.md](Stars.md); a catalogue star travelled to
+is drawn so and metered as the Sun is),
+θ its angular radius from 1 AU: 69,357 at Earth's
 keyed exposure, through the luminous shoulder (`hdr.js`
 `luminousShoulder`: itself to 3e4, then compressed toward 5e4, at most
 it), as its limb glow (`newAtmosphere`, held to the 1e4 the buffer has
@@ -410,7 +415,10 @@ add where the depth buffer can't tell the rim from the shell 0.07 radii
 behind it (from 71 Gm its resolution is 5e8 m), sum to at most 6e4,
 under half-float's 65,504 (over it a value is Inf, NaN once sampled, a
 black pixel: with the disc at 6e4 and the glow at 2e4 the rim's red
-channel overflowed, 29 pixels round the disc).  The point sprites add
+channel overflowed, 29 pixels round the disc).  The shell now skips
+what lies behind the disc (a ray test in its shader: [Stars.md, the limb
+glow](Stars.md#the-limb-glow)), which also took out the glow's blocks
+through the limb from 1 AU at a narrow field.  The point sprites add
 single digits at most there (the glare cap).  The shoulder is the fix
 for the top of half-float, not a stopgap
 ([pre-exposure](#pre-exposure), [#157](https://github.com/celestiary/web/issues/157)):

@@ -54,13 +54,17 @@ export const DISPLAY_GAIN = 1.5
 // three.js Objects
 export const targets = {
   origin: new Vector3,
+  // The body the camera is at: its platform's parent (Scene.goTo, land).
   cur: null,
+  // The targeted body, or the body a targeted place is on (Scene.setTarget,
+  // the one writer of obj and label).
   obj: null,
-  // A label's subject that isn't a body or a committed star: a place or an
-  // asterism (Scene.targetLabel).  What 'c' faces and 'g' goes to, while set.
+  // The target when it isn't a body: a place, a star or an asterism.  What
+  // 'c' faces, 'g' goes to and 't' tracks, while set.
   label: null,
   pos: new Vector3,
-  track: null,
+  // Whether 't' is on: the camera faces the target every frame.
+  track: false,
   follow: null,
   tween: null,
   tweenNextFn: null, // factory called when tween completes; creates the follow-on tween
@@ -105,6 +109,13 @@ export function overlay(object) {
  * join it too.
  */
 export const FADE_LAYER = 2
+
+/**
+ * three.js layer for Earth's cloud shell: drawn by ThreeUi after the Cesium
+ * composite, so one shell covers both sides of the swap (Planet.md,
+ * "Clouds").
+ */
+export const CLOUD_LAYER = 3
 
 // Deprecated: moving to real sizes
 export const LENGTH_SCALE = 1e-5 // one scene unit per million meters

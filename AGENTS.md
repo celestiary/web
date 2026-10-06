@@ -34,6 +34,7 @@ tried and dropped.
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
 | The Milky Way: its structural model, its light in exposure units, the march, the meter's galaxy anchor | [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
+| Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
@@ -96,6 +97,15 @@ tried and dropped.
     `galaxyModel.js` `integrateRay`), iterate on its look with a CPU
     render of the mirror in bun, tone-mapped with `hdr.js` `neutral`: a
     200 px frame takes seconds, against minutes through SwiftShader.
+- **Earth's clouds load from NASA GIBS** a second after the date settles
+  (js/scene/Planet.md#clouds). Wait on
+  `c.ui.sceneManager.objects.earth.clouds.userData.map.status`
+  (`tilesDone === tilesTotal`, or `loaded` for the bundled fallback)
+  before reading a frame, and after `c.time.setTime(ms)` run one
+  `renderLoop` before placing the camera by latitude and longitude: the
+  Earth turns to the new time only when the frame animates. To compare
+  with and without clouds, move the shell off its layer
+  (`clouds.layers.set(31)`); its `visible` is rewritten every frame.
 - **A permalink restores its time and view only with a camera
   quaternion (`cq=`).** Without one the whole fragment is ignored, and
   the app runs at the current real time. To test a date, set it with

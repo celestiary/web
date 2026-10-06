@@ -44,6 +44,18 @@ its ground rows: at the horizon the filter blended the brightest
 in-scatter with the dimmest, and that band came out darker than the sky
 above it.
 
+## Clouds
+
+Earth's cloud shell (#88; [Planet.md, clouds](../Planet.md#clouds)) is in
+the scene buffer before the pass runs, drawn over the ground as
+premultiplied-over colour 6 km above it, and writes no depth.  So the pass
+needs nothing of its own for clouds: a cloud's pixel reads the ground's
+depth behind it, and is hazed as that ground, `sky + (cloud over ground) ×
+T`, which from orbit (the shell's range: it's gone below 10 km) is the
+cloud's own haze to within 6 km of air.  Seen from below the deck, a cloud
+would want the march to it, not to the ground; that is #169's, with its
+volumetric clouds.
+
 ## The ray's end
 
 The pass reads where each pixel's ray ends from the scene's depth: the

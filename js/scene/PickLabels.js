@@ -126,14 +126,11 @@ export default class PickLabels {
     queryPoints(this.ui, e, this.tree, this.stars, (pick) => {
       this.pickedStarLabels[pick.star.hipId] = this.traceLabel
       this.traceLabel = null
-      this.ui.sceneManager.goTo(pick.star)
+      // Goes, and targets the star (Scene.setTarget).
+      this.ui.sceneManager.goTo(pick.star, String(this.stars.catalog.getNameOrId(pick.star.hipId)))
       const store = this.ui.useStore
       if (store && typeof store.getState === 'function') {
         const state = store.getState()
-        if (typeof state.setCommittedStar === 'function') {
-          const displayName = String(this.stars.catalog.getNameOrId(pick.star.hipId))
-          state.setCommittedStar({hipId: pick.star.hipId, displayName, star: pick.star})
-        }
         // Resolve the search: dblclick commits just like Enter/Go would.
         // closeSearch also deactivates picking mode, which removes these
         // listeners — clean end to the interaction.

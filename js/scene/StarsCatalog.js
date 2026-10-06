@@ -1,6 +1,7 @@
 import {dataUrl} from '../dataUrl.js'
 import {LENGTH_SCALE, LIGHTYEAR_METER} from '../shared.js'
 import {assertEquals, assertNotNullOrUndefined} from '../assert.js'
+import {starParams} from './starParams.js'
 
 
 // Format description at https://en.wikibooks.org/wiki/Celestia/Binary_Star_File
@@ -23,8 +24,9 @@ const littleEndian = true
  *   spectralType: number,
  *   sub: number,
  *   lumClass: number,
- *   lumRelSun: number,
  *   radius: number,
+ *   teff: number,
+ *   lumens: number,
  * }} StarProps
  */
 
@@ -136,13 +138,6 @@ export default class StarsCatalog {
       const sub = (clazz & 0x00F0) >>> 4
       const lumClass = clazz & 0x000F
 
-      // http://cas.sdss.org/dr4/en/proj/advanced/hr/radius1.asp
-      // Omitting the temperature factor for now as it changes radius by
-      // only a factor of 3 up or down.
-      const absMagDelta = sun.absMag - absMag
-      const lumRelSun = Math.pow(2.512, absMagDelta)
-      const radiusRelSun = Math.pow(lumRelSun, 0.5)
-
       // Compute star's luminous flux from absolute magnitude, from ChatG
       //    ratio = 10^((M_sun - M_star)/2.5)
       const magFactor = Math.pow(10.0, (sun.absMag - absMag) / 2.5)
@@ -159,10 +154,17 @@ export default class StarsCatalog {
         spectralType: type,
         sub: sub,
         lumClass: lumClass,
-        radius: radiusRelSun * sun.radius,
         // Used by stars.vert
         lumens: lumens,
       }
+      // Its radius by Stefan-Boltzmann from its luminosity and temperature
+      // (it was the square root of its visual luminosity: Betelgeuse 115
+      // R☉ where it is 764, Proxima 0.01 where it is 0.15), and its
+      // temperature, from its class and magnitude or as measured
+      // (starParams.js, Stars.md).
+      const params = starParams(star)
+      star.radius = params.radius * sun.radius
+      star.teff = params.teffMean
       this.starByHip.set(hipId, star)
     }
     return this
@@ -349,33 +351,9 @@ export function genStar(tmpl, id, posScale = 1e10) {
 }
 
 
-// TODO: Unify with temperature-based color alg in shaders/star.frag.
-//
-// TODO: plenty of color work to do here based on
-// https://en.wikipedia.org/wiki/Stellar_classification. The
-// method used here to choose colors is to hover my mouse over the
-// color chart near the top of the page, above a given class, and
-// record the RGB values in the table below.
-//
-// TODO: use color lookup attributes:
-// https://threejs.org/examples/#webgl_geometry_colors_lookuptable
-export const StarSpectra = [
-  [142, 176, 255, 'O'], // 0,
-  [165, 191, 255, 'B'], // 1,
-  [205, 218, 255, 'A'], // 2,
-  [242, 239, 254, 'F'], // 3,
-  [255, 238, 229, 'G'], // 4,
-  [255, 219, 178, 'K'], // 5,
-  [255, 180, 80, 'M'], // 6,
-  [255, 180, 80, 'R'], // 7, like M
-  [255, 180, 80, 'S'], // 8, like M
-  [255, 180, 80, 'N'], // 9, like M
-  [142, 176, 255, 'WC'], // 10, like O
-  [142, 176, 255, 'WN'], // 11, like O
-  [142, 176, 255, 'Unk.'], // 12, like O?
-  [255, 118, 0, 'L'], // 13,
-  [255, 0, 0, 'T'], // 14,
-  [10, 10, 10, 'Carbon']] // 15, ?
+// A star's colour, as a point and as a disc, is its blackbody's at its
+// effective temperature (stellar.js blackbodyColor, starTeff); its class's
+// name is stellar.js spectralTypeName.
 
 
 /**
