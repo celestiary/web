@@ -243,7 +243,7 @@
     {
       "id": "mars-low-horizon",
       "body": "mars",
-      "description": "Mars from 232 m in Valles Marineris, the Sun low on the left: Cesium's terrain lies mostly below Mars's datum, under celestiary's sphere.  Before #141's Mars fix the ground sphere's depth covered the terrain, the band between the terrain's horizon and the sphere's read as ground with the stars through it (mars-low-horizon-band), and terrain above the sphere's horizon was drawn as sky.  Over the ground, on against off: the table's haze to the sphere on both sides",
+      "description": "Mars from 232 m in Valles Marineris, the Sun low on the left: Cesium's terrain lies mostly below Mars's datum, under celestiary's sphere.  Before #141's Mars fix the ground sphere's depth covered the terrain, the band between the terrain's horizon and the sphere's read as ground with the stars through it (mars-low-horizon-band), and terrain above the sphere's horizon was drawn as sky.  Over the ground, on against off: the table's haze to the sphere on both sides.  Since #188 (the dust's forward peak) the haze over the ground is about a third less and the brighter aureole meters the frame darker, so Cesium's darker ground shows more: the ground under the haze is 0.71 of celestiary's on both sides of #188 (linear, the composite less the sky), 0.835 in display luma over it",
       "hash": "#sun/mars@-12.2107,-72.3825,232m;t=9769.68081jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
@@ -257,12 +257,12 @@
       "profile": null,
       "tolerance": {
         "ratio": [
-          0.92,
-          0.97
+          0.8,
+          0.87
         ],
         "luma": [
-          45,
-          65
+          30,
+          55
         ]
       }
     },
@@ -523,7 +523,7 @@
     {
       "id": "mars-sky-antisolar",
       "body": "mars",
-      "description": "The same spot, looking away from the Sun: the sky just over the anti-solar horizon (the region) against the sky 30 degrees up (the reference).  Single scattering through the dust's forward lobe left this sky nearly black; multiply scattered light fills it, a little brighter at the horizon than above",
+      "description": "The same spot, looking away from the Sun: the sky just over the anti-solar horizon (the region) against the sky 30 degrees up (the reference).  Single scattering through the dust's forward lobe left this sky nearly black; multiply scattered light fills it, a little brighter at the horizon than above.  Since #188 the horizon is brighter against the sky above: the delta-M multiple scattering no longer spreads the forward peak's light over the sky; a Monte Carlo of the dust gives 2.3 (the data's phase function) to 3.8 (Mie spheres) for the radiance 3 degrees up over 30 degrees up, the method (emulated in a plane) 2.7",
       "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.31455jd;cq=-0.2197,-0.0929,-0.5872,-0.7735;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
@@ -546,8 +546,8 @@
       "tolerance": {
         "reference": {
           "luma": [
-            1.3,
-            2.0
+            2.4,
+            3.8
           ],
           "blueRed": [
             0.95,
@@ -559,7 +559,7 @@
     {
       "id": "mars-sky-aureole",
       "body": "mars",
-      "description": "The same spot, facing the Sun: the aureole within 10 degrees of the Sun (the region) against the sky 40 degrees from it (the reference): brighter, and bluer (the dust scatters blue more sharply forward: blue/red 1.5 against 0.8), where the sky used to be white across the frame",
+      "description": "The same spot, facing the Sun: the aureole within 10 degrees of the Sun (the region) against the sky 40 degrees from it (the reference): brighter, and bluer (the dust scatters blue more sharply forward), where the sky used to be white across the frame.  Since #188 the aureole is the dust's diffraction peak: a compact core, white after the tone map, bluish to about 6 degrees and butterscotch past it (B/R 2 at 0.5 degrees, 1 at 6, 0.8 at 10 in radiance), so over the region blue/red is 1.4 on screen, where the old flat blue disc 18 degrees across read 1.8",
       "hash": "#sun/mars@-10.7408,-68.893,-658m;t=9770.31455jd;cq=0.6053,-0.7873,-0.0884,0.0771;fov=45deg;s=alpoU",
       "freeze": true,
       "region": {
@@ -582,12 +582,12 @@
       "tolerance": {
         "reference": {
           "luma": [
-            1.8,
+            1.6,
             3.5
           ],
           "blueRed": [
-            1.5,
-            2.1
+            1.25,
+            1.65
           ]
         }
       }
