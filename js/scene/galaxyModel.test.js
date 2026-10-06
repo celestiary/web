@@ -266,6 +266,13 @@ describe('the model\'s geometry', () => {
     // The north galactic pole, up.
     const ngp = equatorialToSceneUnit(192.85948, 27.12825).multiplyScalar(KPC_METER)
     expect(catalogToGalactic(ngp.x, ngp.y, ngp.z)[1] - SUN_G[1]).toBeCloseTo(1, 6)
+    // l = 90° (RA 318.004°, Dec +48.330°), toward Cygnus, the way the Sun moves: +Z.
+    const l90 = equatorialToSceneUnit(318.004, 48.33).multiplyScalar(KPC_METER)
+    const g90 = catalogToGalactic(l90.x, l90.y, l90.z)
+    expect(g90[2] - SUN_G[2]).toBeCloseTo(1, 3)
+    // And the clouds where their longitudes say: the Aquila Rift at l = 28°, east of the centre.
+    const aquila = cloudCenter(CLOUDS.find((c) => c.name === 'Aquila Rift'))
+    expect(aquila[2]).toBeGreaterThan(0)
   })
 
   it('weighs the camera as outside only well out of the disc', () => {

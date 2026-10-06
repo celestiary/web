@@ -62,7 +62,8 @@ export function equatorialToSceneUnit(raDeg, decDeg) {
  * Build the rotation matrix that maps galaxy-local frame F into scene frame:
  *   F's +X axis = direction from the Sun toward the galactic center (l=0)
  *   F's +Y axis = north galactic pole
- *   F's +Z axis = right-handed completion (l=90° in the galactic plane)
+ *   F's +Z axis = right-handed completion, X × Y, which is l=270° in the
+ *     galactic plane (not l=90°: with Y the pole, l=90° is Y × X)
  *
  * Constructed from the IAU NGP and GC sky positions converted into the scene
  * frame via {@link equatorialToSceneUnit}, then orthonormalized so the basis

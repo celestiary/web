@@ -27,8 +27,13 @@ The Sun is at (−8.15, +0.0208, 0): R₀ = 8.15 kpc (Reid et al. 2019), 20.8 pc
 over the mid-plane (Bennett & Bovy 2019).  The azimuth β is Reid et al.'s: 0
 toward the Sun, growing with the Galaxy's rotation (clockwise from the north
 pole).  The catalogue frame (metres from the Sun, the StellarFrame's
-children) reaches G through galacticToSceneMatrix's transpose
-(`catalogToGalactic`).  So the disc lies in the IAU galactic plane, with its
+children) reaches G through galacticToSceneMatrix's transpose with Z
+negated (`catalogToGalactic`).  galacticFrame.js's F has +Z = X × Y, the
+centre × the pole, which is l = 270°.  The first cut took it for l = 90°
+and drew the Galaxy's mirror image: arms leading the rotation, the bar's
+near end at negative longitudes, the Aquila Rift at l = 332°.  A CPU render
+of the inside view put the bulge's brightest side and the Ophiuchus cloud
+on the wrong sides, and a test now holds l = 90° at +Z.  So the disc lies in the IAU galactic plane, with its
 centre in Sagittarius, as the local catalogue's stars are placed.
 
 ## The model

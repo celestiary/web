@@ -9,8 +9,9 @@ import {galacticToSceneMatrix} from './galacticFrame.js'
  * Everything here is in the galactocentric frame G, in kiloparsecs: the
  * origin at the centre (Sgr A*), +X along the Sun → centre line (the
  * galactic frame's l = 0, as galacticFrame.js's F), +Y the north galactic
- * pole, +Z toward l = 90°.  The Sun is at (-SUN_R_KPC, SUN_Z_KPC, 0): F is
- * G shifted by the Sun's position.  The azimuth β is Reid et al.'s: 0
+ * pole, +Z toward l = 90°.  The Sun is at (-SUN_R_KPC, SUN_Z_KPC, 0).  G is
+ * F shifted by the Sun's position and with its Z negated
+ * (sceneToGalacticRotation).  The azimuth β is Reid et al.'s: 0
  * toward the Sun, growing in the sense of the Galaxy's rotation (clockwise
  * seen from the north pole), so a point at radius R and azimuth β is
  * R·(-cos β, 0, sin β).
@@ -958,20 +959,28 @@ export function integrateRay(model, o, d, jitter = 0.5) {
 
 // ---- Frames ----------------------------------------------------------------
 
-let sceneToF = null
+let sceneToG = null
 
 
 /**
- * @returns {Array<number>} The rotation from the scene's J2000 catalogue frame to F (and G), row-major 3×3
+ * The turn from the scene's J2000 catalogue frame to G's axes, row-major
+ * 3×3.  galacticToSceneMatrix's columns are F's axes in the scene, so its
+ * transpose takes scene vectors into F; G is F with Z negated.  F's +Z is
+ * X × Y, the centre × the north pole, which points to l = 270°, and G's +Z
+ * is l = 90°, the way the Sun moves: the model's azimuth grows with the
+ * rotation, so its arms trail and its bar's near end is at l > 0.  (A
+ * reflection, which a ray march doesn't mind: the same matrix turns the
+ * view rays, MilkyWay.js.)  With F's Z, the first cut drew a mirror image:
+ * leading arms, the bar's near end at l < 0, the Aquila Rift at l = 332°.
+ *
+ * @returns {Array<number>}
  */
 export function sceneToGalacticRotation() {
-  if (!sceneToF) {
-    // galacticToSceneMatrix's columns are F's axes in the scene; its
-    // transpose takes scene vectors into F.
+  if (!sceneToG) {
     const e = galacticToSceneMatrix().elements
-    sceneToF = [e[0], e[1], e[2], e[4], e[5], e[6], e[8], e[9], e[10]]
+    sceneToG = [e[0], e[1], e[2], e[4], e[5], e[6], -e[8], -e[9], -e[10]]
   }
-  return sceneToF
+  return sceneToG
 }
 
 
