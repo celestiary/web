@@ -945,8 +945,8 @@ stars' gain, is a twentieth of a display step.
    levels raised): it applies to whatever is large, which is the general
    answer.  But a bright star's light, blurred into the coarse levels and
    raised, becomes a halo degrees wide (Sirius at the dark gain, 170 over
-   its patch, is 1.1 spread over 2°, ten times the band), so it needs the stars kept
-   out of the low-pass, a median or a second buffer; it raises lit
+   its patch, is 1.1 spread over 2°, ten times the band), so it needs the
+   stars kept out of the low-pass, a median or a second buffer; it raises lit
    surfaces at night as well (a moonlit landscape is extended too), which
    is a wider change than this issue's; and it costs a pyramid a frame.
    Not taken; a follow-up if night landscapes need it.
@@ -990,8 +990,9 @@ one or two steps; G goes as its square root (2.2 to 3.1).
 G applies where the eye is rod-adapted (`extendedGain`): the adapted
 luminance is `METER_KEY` over the gain, 2e-3 cd/m² at 4e6, and G is
 blended in from the CIE's mesopic range (5 to 0.005 cd/m², in log
-luminance), so it is 1 by day and through twilight (gain under ~3,000),
-where the night sky is far under the day's light anyway.  And it is 1 where
+luminance), so it is 1 by day and in civil twilight (gain under 1,600)
+and 1.15 at nautical twilight looking away from the Sun (7,700), where the
+night sky is far under the twilight's light anyway.  And it is 1 where
 the frame is a photograph of the galaxy from outside (rule 10: the
 galaxy's `outsideWeight`), not an eye.
 
@@ -1012,9 +1013,9 @@ sky's light and the gain is the light's, not the response's.
 greyed by how far its own luminance is under the cones' threshold
 (`scotopicWeight`, the CIE mesopic range): the band, at 1e-4 to 1e-3
 cd/m², is fully grey, as it is to the eye (the Purkinje regime).  Only the
-night sky's light: the stars, whose colours the eye does see in the
-brightest of them, and every lit surface, keep their colour, and by day and
-in twilight the night sky's light is under the display's step whatever its
+night sky's light is greyed: the stars (the eye does see the brightest
+ones' colours) and every lit surface keep theirs, and by day and in
+twilight the night sky's light is under the display's step whatever its
 colour.  From outside the galaxy (a photograph) it keeps its colours.  The
 rods' spectral sensitivity (blue brighter, red darker: the Purkinje
 shift's brightness) is not modelled: the grey is the photopic luma, the V
@@ -1031,14 +1032,22 @@ are, and through the air's transmittance (composition.md):
   the van Rhijn factor toward the horizon (1.9 at 60°, 3.3 at 75°, 6.1 at
   the horizon, before the air's extinction), finite at its limb seen from
   orbit, none on a ray that ends on the ground.  Only where a body has it
-  (Earth), and only where the atmosphere pass runs.
+  (Earth), where the atmosphere pass runs, and within 20 of the body's
+  radii: the chord is a difference of squares of the eye's distance, which
+  float32 loses from farther (a speck of it at Earth's place, from 1 AU).
 - **The zodiacal light and the gegenschein** (`zodiacalS10`), a fit to
   Leinert et al. (1998)'s table: 64 S10⊙ (23.3) at the ecliptic's poles;
   along it 2,000 at 30° from the Sun (19.5), 400 at 60°, 215 at 90° (21.95),
   145 at 150° and 165 in the gegenschein; falling away from the ecliptic
-  as e^(−|β|/30°).  Its brightness goes as r^−2.3 from the Sun and is gone
-  past 3.5 AU (`zodiacalScale`), so it is there from anywhere in the inner
-  solar system, from Earth's surface through the air.
+  as e^(−|β|/30°).  Toward the Sun the fit keeps rising, as the F-corona
+  does (6,000 at 20°, 37,000 at 10°: 16.3 mag/arcsec²), held only inside
+  3°, where the Sun's glow covers it (held at 10°, its plateau showed as a
+  disc round the Sun).  Its brightness goes as r^−2.3 from the Sun and is
+  gone past 3.5 AU (`zodiacalScale`), so it is there from anywhere in the
+  inner solar system, from Earth's surface through the air.  It is the
+  one part of the night sky's light over the meter's floor: within about
+  25° of the Sun at 1 AU, so a field with the Sun in it adapts to it
+  (measured below).
 - **The integrated starlight**: the galaxy's march (MilkyWay.md), less the
   share the catalogue draws as points (MilkyWay.md, "Double counting").
 
@@ -1048,7 +1057,56 @@ minimum (21.9-22.0) and maximum (21.3-21.5).
 
 ### Measured
 
-<!-- nsl: filled from the evidence runs -->
+SwiftShader, 480×300, Cesium's layers off, `main` at bc018a0 against this
+change, 2026-07-15 04:43 UTC (local midnight at 70.8° W, the night after
+new moon), each view settled and its gain then held at the meter's goal.
+The dark site is Cerro Tololo (−30.2°, 2,200 m).  "Sky" and "band" are the
+median and the 99th percentile of the display's luma with the star points
+hidden; stars are counted to magnitude 6.5 (6.0) when their step on screen
+over what's under them (rendered with the points and without) is 10 of 255
+or more.
+
+| View | Gain, before → after | Sky / band, of 255 | Stars to 6.5 (6.0) over 10 / in view |
+|---|---|---|---|
+| Dark site, toward the centre (70° field, the centre 65° up) | 3.93e6 → 3.93e6 | 1.4 / 9 → 15 / 42 | 950 (587) → 893 (587) / 1,031 (610) |
+| The same, galaxy hidden | 3.93e6 → 3.93e6 | | 896 (587) → 897 (587) |
+| Dark site, the zenith (90° field) | 3.93e6 → 3.93e6 | 1.1 / 9 → 14 / 41 | 1,111 (784) → 1,007 (748) / 1,382 (822) |
+| The same, galaxy hidden | 3.93e6 → 3.93e6 | | 1,007 (751) → 1,011 (750) |
+| Space, 1 AU, the Sun behind, toward Sagittarius (70°) | 4e6 → 4e6 | 1.1 / 10 → 4 / 32 | 1,260 (741) → 1,217 (741) / 1,281 (741); galaxy hidden, 1,220 → 1,221 |
+| Space, 1 AU, the Sun 90° off, toward Sagittarius (70°) | 4e6 → 4e6 | 1.1 / 10 → 7 / 40 | 1,260 (741) → 1,216 (741) / 1,281 (741); galaxy hidden, 1,220 → 1,215 |
+| Deep space, 4.7 AU, away from the Sun (45°) | 4e6 → 4e6 | 0.2 / 1.4 → 0 / 2 | 694 (409) → 694 (409) / 694 (409) |
+| Space, 1 AU, the Sun in a 70° field, 5.6° off its centre | 3.9e6 → 3.5e5 | 0.9 / 10 → 1 / 246 | 1,258 → 113 / 1,282 |
+| Earth's night side from 20,000 km, the Sun 17° off Earth | 1.9e5 → 5.5e4 | | |
+| Day (the Sun 36° up), civil and nautical twilight (−4°, −10° toward and away from the Sun), the Moon at quarter | 1, 4.02, 180, 7,720, 1.33: unchanged | | no pixel more than 1 of 255 apart |
+| The LDR fallback (`?hdr=0`), the zenith | 3.93e6 | 3 → 2: the galaxy less the catalogue's share; no night-sky light | |
+
+- **The band shows** from the dark site, grey, over a dark-grey sky:
+  its brightest, south of the plane toward the centre, 33-42 of 255, the
+  sky between 12-15.  The night sky's light read back alone (`uDebug` 8):
+  the darkest sky 21.4-21.7 mag/arcsec² (airglow, the zodiacal light near
+  the ecliptic, the starlight), the band 20.6-21.0 total.  From space the
+  sky is black between the band and the zodiacal light (a gegenschein of
+  4 of 255 toward Sagittarius from 1 AU with the Sun behind).
+- **The gain holds**: 3.93e6 at the dark site and 4e6 in space wherever the
+  Sun is out of the field, as before.  The night sky's light is under the
+  meter's floor everywhere but within about 25° of the Sun.
+- **The stars are as calibrated.**  With the galaxy hidden the counts are
+  the same, before and after, to the display's rounding: the night sky's
+  light is added over the stars in display values, so a star's step is
+  its step over black.  With the galaxy shown, `main`'s counts were 3-10%
+  higher, because its band, in the scene buffer, raised the faint stars on
+  it through the toe (PLAYBOOK, "A pedestal under a tone map's toe").
+  Magnitude 6.5 still just shows: the limit is 6.50 at the dark site.
+- **With the Sun in the field** the inner zodiacal light, 16-19
+  mag/arcsec² within 20° of it (37,000 S10⊙ at 10°), is over the meter's
+  floor, and the field adapts to it: from 1 AU with the Sun in a 70° field
+  the gain is 3.5e5 and the limit 3.9; Earth's night side with the Sun
+  beside it adapts 3.4× lower.  That is light in the field, as the eye's
+  veiling glare round the Sun (not drawn yet) is, and brighter there.  On
+  a 1080 px screen the Sun's disc at 1 AU (13 px) had already begun to
+  bring the gain down (rule 6).
+- **Day, twilight and the Moon are unchanged** to the pixel, and `yarn
+  parity` passes (23 views, 124 checks).
 
 ### Sources
 

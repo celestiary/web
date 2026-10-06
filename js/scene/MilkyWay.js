@@ -104,6 +104,13 @@ export default function newMilkyWay({bake = typeof requestAnimationFrame === 'fu
     toneMapped: false,
   })
   material.visible = false
+  // In the HDR path the atmosphere pass draws the march's light, as the
+  // night sky's (HDR.md, "The night sky's own light"): the eye's response
+  // to extended light tone-maps it apart from the stars, and the meter
+  // reads it as light.  ThreeUi then turns this draw's colour writes off,
+  // by its own HDR flag, so it only runs the march; the LDR fallback
+  // composites it here.  (Not by this draw's own check: `?hdr=0` is gone
+  // from the URL by its first frame, so it takes the float path there.)
   const mesh = new Mesh(geometry, material)
   mesh.name = 'MilkyWay'
   mesh.frustumCulled = false
@@ -135,12 +142,6 @@ export default function newMilkyWay({bake = typeof requestAnimationFrame === 'fu
       direct = !hdrSupported(renderer)
       material.defines.GALAXY_DIRECT = direct ? 1 : 0
       material.fragmentShader = direct ? `${galaxyGlsl()}${FRAG_COMPOSITE}` : FRAG_COMPOSITE
-      // With a float buffer the atmosphere pass draws the march's light, as
-      // the night sky's (HDR.md, "The night sky's own light"): the eye's
-      // response to extended light tone-maps it apart from the stars, and
-      // the meter reads it as light.  This draw then only runs the march.
-      // The LDR fallback composites it here, as before.
-      material.colorWrite = direct
       material.needsUpdate = true
     }
     // The camera in G, kpc: its position in this object's frame (the

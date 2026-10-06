@@ -597,8 +597,8 @@ buffer, under PBR Neutral's quadratic toe, the dark sky (0.026 at the
 dark gain) took the limit star's step on screen from 0.080 to 0.102 and a
 magnitude 7.5 star's twofold: the limit deepened where the sky
 brightened, the opposite of what a brighter background does to the eye.
-#185's galaxy, drawn there, had done it already: star counts over the
-band were 10% higher than the calibration's, and the counts on `main`
+#185's galaxy, drawn there, had done it already: star counts in views of the
+band were 3-10% higher than the calibration's, and the counts on `main`
 looked like the reference until the galaxy was hidden.  The night sky's
 light is now tone-mapped on its own and added in display values.
 

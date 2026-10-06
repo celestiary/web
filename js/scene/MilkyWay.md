@@ -261,10 +261,12 @@ the answer (HDR.md, [the eye and extended light](HDR.md#the-eye-and-extended-lig
   sky is the display's), greyed as rods see it, and added over the stars'
   image in display values, so the stars' calibration is untouched.
 
-From a dark site at −30° on a July night, local midnight, the sky shows 7-14
-of 255 and the band 20-40, grey, its bright side south of the plane toward
-the centre, with the dust lane along it; from space near the Sun the sky is
-black between the band's 20-50.  The evidence and the numbers are #186's PR.
+From a dark site at −30° on a July night, local midnight, the sky shows
+12-15 of 255 and the band up to 33-42, grey, its bright side south of the
+plane toward the centre, with the dust lane along it; from space at 1 AU
+the sky is black between the band's 30-40 and the zodiacal light.  The
+numbers are in HDR.md ([measured](HDR.md#measured)), the evidence in
+[#187](https://github.com/celestiary/web/pull/187).
 
 **The inner Galaxy is too faint.**  Measured photometry puts the band's
 brightest, the Sagittarius and Scutum star clouds, at about 20-20.5

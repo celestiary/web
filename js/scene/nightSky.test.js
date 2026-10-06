@@ -29,7 +29,7 @@ describe('the zodiacal light', () => {
     expect(ecl(60)).toBeGreaterThan(ecl(90))
     expect(ecl(150)).toBeLessThan(ecl(120))
     expect(ecl(180)).toBeGreaterThan(1.1 * ecl(150))
-    // Held inside the F-corona's 10°.
+    // Held inside 3° of the Sun.
     expect(ecl(2)).toBe(ecl(ZODIACAL.minElongationDeg))
     // Falls away from the ecliptic.
     let last = Infinity

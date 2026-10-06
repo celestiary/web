@@ -49,6 +49,8 @@ import {GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, groundRadius, homeB
 /** */
 // The metering target's size, pixels a side (_meter).
 const METER_SIZE = 32
+// How far from a body, in its radii, its airglow is drawn (_updateAtmUniforms).
+const AIRGLOW_MAX_RADII = 20
 
 
 export default class ThreeUi {
@@ -738,6 +740,12 @@ export default class ThreeUi {
    */
   _updateNightSky() {
     const u = this._atmMesh.material.uniforms
+    // The galaxy's own draw only runs its march where this pass draws its
+    // light (MilkyWay.js); the LDR fallback's draw composites it.
+    this._milkyWay ??= this.scene.getObjectByName('MilkyWay') ?? null
+    if (this._milkyWay) {
+      this._milkyWay.material.colorWrite = !this.hdr
+    }
     const target = this.hdr ? this._galaxyShown()?.userData.galaxy.target?.value : null
     u.uGalaxy.value = target?.texture ?? null
     u.uGalaxyScale.value = target ? 1 / STORE_SCALE : 0
@@ -756,7 +764,9 @@ export default class ThreeUi {
     this.camera.getWorldPosition(cam)
     helio.copy(cam).sub(sun)
     const r = helio.length()
-    u.uZodiacalScale.value = this.hdr && r > 0 ?
+    // Only round the app's Sun (the world group's origin): the guide's pages
+    // put their one star at the origin with no solar system round it.
+    u.uZodiacalScale.value = this.hdr && this._worldGroup && r > 0 ?
       zodiacalScale(r / ASTRO_UNIT_METER, helio.dot(pole) / ASTRO_UNIT_METER) : 0
     if (r > 0) {
       u.uZodiacalSun.value.copy(helio).negate().transformDirection(this.camera.matrixWorldInverse)
@@ -1159,9 +1169,13 @@ export default class ThreeUi {
     }
     u.uAtmEnabled.value = 1.0
     // The body's airglow (nightSky.js airglowOf): its layer's radii, its
-    // zenith light at Earth's keyed exposure, and 1 / its thickness.
+    // zenith light at Earth's keyed exposure, and 1 / its thickness.  Only
+    // within AIRGLOW_MAX_RADII of it: the layer's chord is a difference of
+    // squares of the eye's distance in float32, noise from much farther (a
+    // speck of it at Earth's place, from 1 AU), where the layer is under a
+    // pixel anyway.
     const glow = airglowOf(atmos)
-    if (glow) {
+    if (glow && camDist < AIRGLOW_MAX_RADII * R) {
       const rIn = R + glow.height - (glow.thickness / 2)
       u.uAirglow.value.set(rIn, rIn + glow.thickness, glow.zenithValue, 1 / glow.thickness)
       u.uAirglowColor.value.set(...AIRGLOW_COLOR)

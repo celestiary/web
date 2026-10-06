@@ -59,7 +59,7 @@ export const ZODIACAL = Object.freeze({
   gegenschein: 30,
   gegenscheinWidthDeg: 10,
   latitudeWidthDeg: 30,
-  minElongationDeg: 10,
+  minElongationDeg: 3,
   heliocentricPower: 2.3,
   minAU: 0.3,
   outerAU: Object.freeze([2.8, 3.5]),
