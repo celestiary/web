@@ -1,5 +1,5 @@
 import {
-  allPass, describeTolerance, evaluateView, formatTable, lumaAt, mean, measureView, median, medianRatios,
+  allPass, changedPixels, describeTolerance, evaluateView, formatTable, lumaAt, mean, measureView, median, medianRatios,
   profileDeviation, regionMask, sampleProfile, terminatorLine, within,
 } from './measure.mjs'
 
@@ -291,6 +291,27 @@ describe('measureView and evaluateView', () => {
 
   it('rejects images of different sizes', () => {
     expect(() => measureView(image(2, 2, () => [1, 1, 1]), image(3, 2, () => [1, 1, 1]), view)).toThrow()
+  })
+})
+
+
+describe('changedPixels and the label check', () => {
+  const plain = image(16, 16, () => [40, 40, 40])
+  // Eight pixels a label drew.
+  const labelled = image(16, 16, (x, y) => (y === 4 && x < 8 ? [250, 250, 250] : [40, 40, 40]))
+
+  it('counts the pixels a frame gained, ignoring rounding', () => {
+    expect(changedPixels(labelled, plain)).toBe(8)
+    expect(changedPixels(plain, plain)).toBe(0)
+    expect(changedPixels(scaled(plain, 1.1), plain)).toBe(0)
+  })
+
+  it('fails a view whose labels drew nothing (#172)', () => {
+    const measure = (labelPixels) => ({...measureView(labelled, plain, {region: {box: [0, 0, 1, 1]}, profile: null}), labelPixels})
+    const tol = {minPixels: 1, labelPixels: {min: 5}}
+    expect(allPass(evaluateView('on', measure(changedPixels(labelled, plain)), tol))).toBe(true)
+    const rows = evaluateView('hidden', measure(changedPixels(labelled, labelled)), tol)
+    expect(rows.filter((r) => !r.pass).map((r) => r.metric)).toEqual(['label pixels'])
   })
 })
 

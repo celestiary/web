@@ -109,13 +109,22 @@ shader variant that:
 Picking (`Picker.queryPlaces`) reads body-fixed XYZ at the same un-lifted
 altitude as the visual, so click zones match what the user sees.
 
+## Under a Cesium layer
+
+The labels stay on while a Cesium layer is active on Earth, the Moon or Mars:
+they draw in the overlay pass after the composite, so Cesium's globe doesn't
+cover them, and the shader's back-hemisphere discard hides the far side.
+`CesiumLayers._hideSurface` hides only the surface group
+([CESIUM.md](../../CESIUM.md#what-changes-while-a-cesium-layer-is-active),
+#172).
+
 ## Currently catalogued bodies
 
 - **moon** — 33 entries: Apollo/Luna/Chang'e landings, major maria,
   prominent craters, poles.  Source: IAU Gazetteer + NASA mission records.
-- **earth** — ~165 entries.  Tier 0 = 15 world-iconic megacities + Everest,
-  Grand Canyon, Pyramids, poles; Tier 1 = ~30 major cities and landmarks
-  (>1M pop); Tier 2 = ~115 secondary cities (~500k-3M) and regional
+- **earth** — 178 entries.  Tier 0 (20) = world-iconic megacities + Everest,
+  Grand Canyon, Pyramids, poles; Tier 1 (23) = major cities and landmarks
+  (>1M pop); Tier 2 (135) = secondary cities (~500k-3M) and regional
   capitals worldwide — Austin, Denver, Madrid, São Paulo, Shanghai,
   Melbourne, etc.  Reveal-threshold tuning means T2 only paints at
   continent-scale zoom, so the from-space view stays uncluttered.
