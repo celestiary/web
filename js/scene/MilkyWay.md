@@ -252,7 +252,8 @@ the answer (HDR.md, [the eye and extended light](HDR.md#the-eye-and-extended-lig
 - **The night sky's own light**: airglow, from Earth's surface, and the
   zodiacal light and gegenschein from anywhere in the inner solar system,
   with the galaxy's light, all in exposure units, so the meter adapts to
-  them (the dark-adapted gain stays 4e6: they are under its floor).
+  them (the dark-adapted gain stays 4e6: they are under its floor, but
+  for the zodiacal light within about 25° of the Sun).
 - **The eye's response to extended light**: the rods pool light over
   degrees, so their threshold for a large field is a tenth over the sky,
   where a point needs 4.7 times it.  The night sky's light is tone-mapped by
