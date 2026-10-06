@@ -44,6 +44,38 @@ its ground rows: at the horizon the filter blended the brightest
 in-scatter with the dimmest, and that band came out darker than the sky
 above it.
 
+## The ray's end
+
+The pass reads where each pixel's ray ends from the scene's depth: the
+distance `tMax`, and the depth buffer's step there as its error,
+`tMaxErr = tMax² / near · 2⁻²³` (`rayEnd.js` replays both in float32).
+Four cases: nothing drawn (`background`, the cleared far plane: sky); a
+body past where the ray leaves the atmosphere (`pastAtmosphere`: the
+table's whole ray, as the sky has); a surface inside the air seen from
+inside it (`shortRay`: the march to it); and from outside, the ground (the
+table's ray to it).
+
+**From inside, a body is past the air unless its depth puts it surely
+inside**: `tMax + tMaxErr` short of the exit.  From outside, it is past
+only when surely past, `tMax − tMaxErr` beyond the exit, so the planet's
+own limb, seen from afar through coarse depth, stays ground.  The reason
+is the near plane: from the ground it is metres (`dynamicNear`, 100 m at
+156 m up), and the 24-bit step at a distance z is z² / near · 6e-8, so a
+planet hundreds of Gm off lands on the far plane itself or a step or two
+under it, where the distance is noise.  Jupiter from Earth's surface (8.8e11
+m) writes the far plane on most of its disc and one step under it on the
+rest, which reads 1.5e9 ± 3.4e9 m.  With the old test (past only when
+surely past) those pixels were short rays: a 16-step march of 1.5e9 m,
+its first sample 4.7e7 m out, found no air, so they showed Jupiter with no
+extinction where the rest of the disc had it, in white dashes along the
+depth's rounding contours (concentric arcs round the point nearest the
+camera, fixed to the planet under zoom).  On SwiftShader 1% of the disc
+at 0.01° (531 of 53,304 px); on the user's M2, whose depth rounds
+differently, enough to cover it in dashes.  Above the atmosphere they went
+away: the camera is no longer inside, and the near plane is km.  The
+Moon (4 steps under far from the ground) was already past; Saturn's disc
+had the same dashes (43 px).
+
 ## The tables' domain, and rays that start outside it
 
 The tables cover the shell between the ground sphere (`rG`, the body's
