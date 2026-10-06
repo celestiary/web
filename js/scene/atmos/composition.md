@@ -365,7 +365,7 @@ and with this data's, τ 0.5:
 
 From 0.5° to 60° the red is within 13% of Mie's at every Sun and B/R
 within 11%; B/R falls through 1 at 5.8° / 6.0° / 7.5° from the Sun (Mie:
-about 5.5°, 5.6°, 6.6°; before, 18°); the far sky stays butterscotch, B/R
+about 5.7°, 5.8°, 6.6°; before, 18°); the far sky stays butterscotch, B/R
 0.71-0.81.  At 90° the sky is 1.4× Mie's at the lower Suns: the phase
 function there (1.3× Mie's at 90°, 3× at 120°) holds the measured mean
 cosine; against the Monte Carlo of this data it is 0.91-1.18 there.  At
@@ -378,8 +378,9 @@ pass, e^(−1/sin 10.45°) = 0.0040 in the plane).
 
 **The isotropic approximation's excess** 90-120° from the Sun, 1.2-1.75×
 against full multiple scattering at the Sun 45° and 10° before #188, is
-now 1.0-1.2×: the broad lobes' mean cosine (0.35-0.39) is much nearer
-isotropic than the whole phase function's.
+now 0.89-1.24× against a Monte Carlo of this data (τ 0.5 and 1): the
+broad lobes' mean cosine (0.35-0.39) is much nearer isotropic than the
+whole phase function's.
 
 **Curiosity.**  PIA19400 (Mastcam M-34, calibrated sunset, sol 956):
 blue over red relative to its value 8° from the Sun is 1.49 / 1.27 / 1.14
