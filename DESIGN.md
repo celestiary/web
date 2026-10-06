@@ -170,7 +170,7 @@ for Jupiter by `texture_rotation` ([Body rotation](#body-rotation-iau-prime-meri
    - the J2000 → date precession rotation, for the mean elements and the IAU rotation models (`setDate`)
    - `animateSystem()` recurses the scene graph, setting orbit positions and body orientations (IAU pole and prime meridian; Earth's GMST), and turning the orbit lines to the date (asking for a rebuild when one is due)
    - `orbitPaths.pump()` runs queued orbit-line rebuilds, a few milliseconds a frame ([Orbit lines](#orbit-lines))
-   - If `targets.track` is set, calls `lookAtTarget()` each frame
+   - If `targets.track` is on (`t`), calls `lookAtTarget()` each frame: the camera faces the target, whatever it is ([the target](#the-target))
 7. Camera-look tween update (`targets.tween`)
 8. `_applyCameraArrowKeys()` — apply held-key pitch/roll last so they always win
 9. Render: the scene into `_sceneRT` (linear, half-float, in exposure units), Cesium's layers composited into it, then the atmosphere pass to the screen, which adds the sky and tone-maps once (PBR Neutral), then the label overlay.  See [HDR pipeline](#hdr-pipeline).
@@ -449,7 +449,7 @@ Camera orientation and position are separated across three input modes, all accu
 | Option+drag | Orbit — rotates camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) |
 | ↑ / ↓ arrow keys (hold) | Pitch camera nose up/down |
 | ← / → arrow keys (hold) | Roll camera left/right |
-| `t` | Toggle continuous tracking (camera auto-looks at target as it orbits) |
+| `t` | Toggle continuous tracking: the camera faces the target every frame, following a place as its body turns ([the target](#the-target)) |
 | `c` | Snap look at current target |
 | Click / tap a label (a star, planet, moon, asterism or place name) | Target it and do nothing else: `c` then faces it, `g` goes ([Picking labels](#picking-labels)) |
 | Double-click / double-tap a label | Go to it, as `g` does |
@@ -583,10 +583,46 @@ Out of scope for the goTo flow. These use `newCameraLookTween` (rotation-only, 6
 and do not rebase or reparent. They only change `camera.quaternion` while leaving the
 scene graph alone.
 
-The search bar's Look at button is a caller of this path: `setTarget` for a body,
-`Scene.lookAtStar` / `Scene.lookAtPlace` (same tween, aimed at a star's world position
-or a surface point) for results with no scene object.  See
+The search bar's Look at button is a caller of this path: `setTarget` of the result, the
+tween aimed at a body, a star's world position or a surface point.  See
 [js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at).
+
+### The target
+
+One target, shown and used everywhere: what the breadcrumb shows, what the
+link's path names, what `c` faces, `g` goes to and `t` tracks.  It is a body,
+a place on one, a catalogue star or an asterism, and **`Scene.setTarget` is
+the only way it changes**: a click on a label, a pick in the search, Look
+at, Go, the keys (`h`, `u`, `0`-`9`), `Scene.goTo` and `Scene.land` (each
+makes where it went the target; a landing at a place keeps the place), and
+a link.  `setTarget(target, {look})` takes a body's name or a target as the
+labels carry them (`{kind: 'place', body, name, lat, lng, alt}`,
+`{kind: 'star', star, name}`, `{kind: 'asterism', name, position}`); it never
+moves the camera, and turns it only with `look` (the default, for the keys
+and Look at; a click passes `look: false`).  It sets:
+
+| State | For |
+|---|---|
+| `Shared.targets.obj` | the targeted body, or a place's body (kept for a star or an asterism) |
+| `Shared.targets.label` | a place, star or asterism; null for a body.  `c` (`lookAtTarget`), `g` (`Celestiary.goTo`) and `t` read it first |
+| the store's `committedTarget` (`setCommittedTarget`), with `committedPath` and `committedStar` as views of it | the breadcrumb (Sun › Earth › Austin; a star's or asterism's name alone), the info panel, the page title |
+| `onTargetChange` → `Celestiary._schedulePermalinkUpdate` | the link: its path is the target (`js/targetPath.js`, [design/URLs.md](design/URLs.md#path)) |
+
+Nothing else writes those, so the breadcrumb, the link and `t` can't
+disagree.  `Scene.getTarget()` reads it back.
+
+The camera's frame is separate: `Shared.targets.cur`, the body its platform
+hangs from (or the star it went to), set only by going and landing.  The
+link's position and `cq` are in that frame, named by `from=` when it isn't
+the target's, so targeting rewrites the link's path and not its view, and
+the new link reloads to the same view
+([js/permalink.md](js/permalink.md#the-cameras-frame)).
+
+`t` turns tracking on and off (`Shared.targets.track`): every frame,
+after the animation, the camera faces the target.  A place is placed on its
+body that frame, so tracking follows it round as the body turns; a body
+along its orbit; a star or an asterism holds still.  Changing the target
+while tracking tracks the new one.
 
 ### Picking labels
 
@@ -606,17 +642,18 @@ picker is on, whose own double click picks a star.  A click on a body's disc
 or on empty sky does nothing; a double click on a body's disc still lands
 there.
 
-| Label | Target (`Scene.targetLabel`, a click) | Go (`Celestiary.goToLabel`, a double click, and `g`) |
-|---|---|---|
-| Planet, moon, Sun (`kind: 'body'`) | `setTarget(name, {look: false})`: the target, breadcrumb and info panel, without the look tween | the body's path in the hash, as search Go |
-| Star (`'star'`) | `setCommittedStar`, as the search does: the panel and breadcrumb follow | `scene.goTo(star)` |
-| Place (`'place'`, on a body) | its body is targeted, and the point is `Shared.targets.label` | `scene.land(body, lat, lng, alt)`: the camera lands there at the catalogue's altitude, or `DEFAULT_LAND_ALT_M` (eye height) without one |
-| Asterism (`'asterism'`, named at the centroid of its stars) | `Shared.targets.label` only: it isn't a body, so the panel and breadcrumb stay | `lookAtLabel`: the look tween toward the centroid, no travel (it's a direction, with nowhere to arrive) |
+A click is `setTarget(label, {look: false})` for every kind ([the
+target](#the-target)): the breadcrumb, the link and the info panel follow,
+the camera stays.
 
-`Shared.targets.label` is what `c` (`Scene.lookAtTarget`, which also faces a
-committed star) and `g` (`Celestiary.goTo`) read first.  `setTarget`,
-`lookAtStar`, `goTo` and `land` clear it, so it's the target only until
-something else is.  An asterism's name sits at the mean direction of its
+| Label | Target (a click): breadcrumb, link path | Go (`Celestiary.goToLabel`, a double click, and `g`) |
+|---|---|---|
+| Planet, moon, Sun (`kind: 'body'`) | Sun › Earth › Moon, `#sun/earth/moon` | the body's path in the hash, as search Go |
+| Star (`'star'`) | Sirius, `#hip:32349` | `scene.goTo(star, name)` |
+| Place (`'place'`, on a body) | Sun › Earth › Austin, `#sun/earth/austin`; its body is `Shared.targets.obj` | `scene.land(body, lat, lng, alt, {target: place})`: the camera lands there at the catalogue's altitude, or `DEFAULT_LAND_ALT_M` (eye height) without one, and the place stays the target |
+| Asterism (`'asterism'`, named at the centroid of its stars) | Ursa Major, `#asterism:ursa-major` | `lookAtLabel`: the look tween toward the centroid, no travel (it's a direction, with nowhere to arrive) |
+
+An asterism's name sits at the mean direction of its
 stars from the Sun, at their mean distance (`Asterisms.centroid`), and is
 shown with the lines (`a`).
 
@@ -626,9 +663,10 @@ pointer events throughout (a tap is a click, two taps within 350 ms and 8 px
 a double), so touch needs nothing of its own; `TouchSafeTrackballControls`
 keeps the second finger from breaking the first's pointer ID.
 
-The search bar follows the same model: picking a place in the dropdown
-targets it (`targetEntry`) and Look at does too, as well as turning to it;
-Go and Enter travel ([js/search/DESIGN.md](js/search/DESIGN.md#go-and-look-at)).
+The search bar follows the same model: picking a result in the dropdown
+targets it (`targetEntry`), leaving the bar open; Look at targets it and
+turns to it; Go and Enter travel
+([js/search/DESIGN.md](js/search/DESIGN.md#picking-a-result-and-the-breadcrumb)).
 
 
 ## Rendering Techniques
@@ -786,9 +824,9 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
 - `AsterismsSlice` — asterisms visibility and catalog state
 - `ColonizationSlice` — mirrors the `x` setting (human expansion lines) for the drawer's switch
 - `WidgetsSlice` — the widgets drawer and dock: open, docked, the app showing, running and pinned apps, and the running apps' state for the permalink
-- `SearchSlice` — search-bar state, anchor index, committed path / star,
-  preview fields; `setCommittedPath` and `setCommittedStar` are mutually
-  exclusive
+- `SearchSlice` — search-bar state, anchor index, the target
+  (`committedTarget`, with `committedPath` and `committedStar` as views of
+  it; written only by `Scene.setTarget`), preview fields
 - `StarsSlice` — star selection / filter state
 - `TimeSlice` — time panel UI state
 
@@ -799,7 +837,7 @@ The store is passed into non-React classes (`ThreeUi`, `Stars`) to let them read
 Two routing layers coexist:
 
 - **Wouter path routing** (`/`, `/guide`, `/about`, `/settings`) — controls which React panels are shown
-- **URL hash** (`#sun/earth/moon`) — drives which celestial object is targeted and loaded; managed imperatively by `Celestiary` via `hashchange` events
+- **URL hash** (`#sun/earth/moon`, `#sun/earth/austin`, `#hip:32349`) — names the target ([the target](#the-target)) and drives what's loaded; managed imperatively by `Celestiary` via `hashchange` events (`_navigate`)
 
 The hash is extended with optional camera/time state to form a **permalink** — see [js/permalink.md](js/permalink.md) for the format specification — and with **state tokens** for the widgets drawer and its apps ([design/URLs.md](design/URLs.md)).
 
@@ -890,6 +928,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
 | `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment`; state token values (`parseTokenValue`, `formatTokenValue`) |
+| `js/targetPath.js` | The target's path in the hash: `targetPath`, `parseTargetPath`, `resolvePlace` (a body or a place), `slug` |
 | `js/store/appTokens.js` | The widgets drawer and its apps as state tokens (`apps`, `apps.<id>`; [design/URLs.md](design/URLs.md)) |
 | `js/coords.js` | Geographic coordinate conversions: `worldToLatLngAlt`, `latLngAltToLocal` |
 | `js/store/useStore.js` | Zustand store root |
