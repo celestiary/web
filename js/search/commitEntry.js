@@ -60,6 +60,8 @@ export function lookAtEntry(entry, celestiary) {
   if (entry.kind === 'place' && entry.payload) {
     const {body, lat, lng, alt} = entry.payload
     scene.lookAtPlace(body, lat, lng, alt)
+    // The point stays the target, for 'g' (lookAtPlace targets the body).
+    scene.targetLabel(placeLabel(entry), {path: false})
     return
   }
   const name = entry.payload && entry.payload.name
@@ -68,6 +70,33 @@ export function lookAtEntry(entry, celestiary) {
     return
   }
   scene.setTarget(name)
+}
+
+
+/**
+ * Pick a result in the dropdown: a place is targeted, as a click on its
+ * label does, so 'c' turns to face it and 'g' lands at it; the camera
+ * doesn't move.  The breadcrumb stays: moving it closes the search bar.
+ * Other kinds are previewed only, until Go or Look at.
+ *
+ * @param {SearchEntry} entry
+ * @param {object} celestiary
+ */
+export function targetEntry(entry, celestiary) {
+  if (entry && entry.kind === 'place' && entry.payload && celestiary) {
+    celestiary.scene.targetLabel(placeLabel(entry), {path: false})
+  }
+}
+
+
+/**
+ * @param {SearchEntry} entry A place
+ * @returns {{kind: string, body: string, name: string, lat: number, lng: number, alt: number|undefined}}
+ *   The place as a label target (labelPick.js), which Scene.targetLabel takes
+ */
+function placeLabel(entry) {
+  const {body, lat, lng, alt} = entry.payload
+  return {kind: 'place', body, name: entry.displayName, lat, lng, alt}
 }
 
 

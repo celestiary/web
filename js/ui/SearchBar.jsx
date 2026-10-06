@@ -3,7 +3,7 @@ import Autocomplete from '@mui/material/Autocomplete'
 import IconButton from '@mui/material/IconButton'
 import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
-import {goToEntry, lookAtEntry} from '../search/commitEntry'
+import {goToEntry, lookAtEntry, targetEntry} from '../search/commitEntry'
 import {searchIndex} from '../search/SearchIndex'
 import {anchorPathFor} from '../store/SearchSlice'
 import useStore from '../store/useStore'
@@ -98,6 +98,24 @@ export default function SearchBar({celestiary}) {
     }
   }, [isSearchOpen, ready])
 
+  // The places on the bodies in scope load as the scope changes (the
+  // query below runs again once they're in).
+  const [placesVersion, setPlacesVersion] = useState(0)
+  useEffect(() => {
+    if (!isSearchOpen) {
+      return
+    }
+    let cancelled = false
+    searchIndex.ensureScope(anchorPath).then((loaded) => {
+      if (!cancelled && loaded > 0) {
+        setPlacesVersion((v) => v + 1)
+      }
+    }).catch((e) => console.warn('Search: loading places failed:', e))
+    return () => {
+      cancelled = true
+    }
+  }, [isSearchOpen, anchorPath])
+
   useEffect(() => {
     if (!ready) {
       setOptions([])
@@ -105,7 +123,7 @@ export default function SearchBar({celestiary}) {
     }
     const results = searchIndex.query(searchQuery, anchorPath, 20)
     setOptions(results.map((r) => r.entry))
-  }, [searchQuery, anchorPath, ready])
+  }, [searchQuery, anchorPath, ready, placesVersion])
 
   // Pipe crosshair hover into the input + preview while picking mode is active
   // AND the user is not actively typing (no mutex: typed input wins over hover).
@@ -354,6 +372,7 @@ export default function SearchBar({celestiary}) {
             onChange={(e, v) => {
               setSearchSelection(v)
               setPreviewForEntry(v, {setPreviewPath, setPreviewStar, clearPreview})
+              targetEntry(v, celestiary)
             }}
             onHighlightChange={(e, option) => {
               setPreviewForEntry(option, {setPreviewPath, setPreviewStar, clearPreview})
@@ -461,6 +480,10 @@ function setPreviewForEntry(entry, {setPreviewPath, setPreviewStar, clearPreview
   const parts = entry.path.split('/')
   if (parts[0] === 'milkyway') {
     parts.shift()
+  }
+  if (entry.kind === 'place') {
+    // The panel shows the place's body: 'sun/earth/austin' → ['sun', 'earth'].
+    parts.pop()
   }
   if (parts.length === 0) {
     parts.push(entry.id)

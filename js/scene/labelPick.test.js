@@ -98,3 +98,30 @@ describe('hitLabel', () => {
     expect(hitLabel(400, 260, [box(350, 250, 'far', 0.9), box(350, 250, 'near', 0.5)])).toEqual({name: 'near'})
   })
 })
+
+
+describe('labelBoxes on a body\'s surface (place labels)', () => {
+  // A body of radius 1 at the origin with labels on its +z and -z poles, seen
+  // from z = 10: the -z one is on the far side, where the shader discards it.
+  const surface = (...ends) => {
+    const root = new Group()
+    const body = new Group()
+    const sheet = labelPoints(ends.map(([z]) => [0, 0, z, 10, 10, 10]), ends.map(([, name]) => ({kind: 'place', name})))
+    sheet.userData.labelBody = body
+    root.add(body)
+    body.add(sheet)
+    return root
+  }
+
+  it('leaves out the labels on the far side', () => {
+    const root = surface([1, 'near'], [-1, 'far'])
+    expect(labelBoxes(root, camera(), RECT).map((b) => b.target.name)).toEqual(['near'])
+  })
+
+  it('follows the body as it turns', () => {
+    const root = surface([1, 'near'], [-1, 'far'])
+    root.children[0].rotation.x = Math.PI
+    root.updateMatrixWorld(true)
+    expect(labelBoxes(root, camera(), RECT).map((b) => b.target.name)).toEqual(['far'])
+  })
+})

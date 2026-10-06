@@ -17,7 +17,7 @@ import Stars from './Stars.js'
 import StellarFrame from './StellarFrame.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
-import {pickSurfaceLatLng, queryPlaces} from './Picker.js'
+import {pickSurfaceLatLng} from './Picker.js'
 import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
@@ -26,24 +26,6 @@ import * as Utils from '../utils.js'
 
 /** Default observer altitude for Scene.land — eye height. */
 export const DEFAULT_LAND_ALT_M = 2
-
-
-/**
- * Walk a body's scene-graph subtree to find its Places group (a child of
- * the rotating Planet Object3D, attached in Planet.newPlanet).  Returns
- * null if the body wasn't built with `has_locations`.
- *
- * @param {Object3D} bodyNode
- * @returns {?object}
- */
-function _findPlaces(bodyNode) {
-  for (const c of bodyNode.children) {
-    if (c.bodyName !== undefined && Array.isArray(c.entries)) {
-      return c
-    }
-  }
-  return null
-}
 
 
 /**
@@ -412,19 +394,26 @@ export default class Scene {
    * reflect the new target rather than a stale star selection.
    *
    * @param {string} name
+   * @param {object} [opts]
+   * @param {boolean} [opts.look] Turn the camera to face it (default); false
+   *   to target it and leave the camera as it is, as a click on a label does
+   *   (targetLabel)
    */
-  setTarget(name) {
+  setTarget(name, {look = true} = {}) {
     const obj = this.objects[name]
     if (!obj) {
       throw new Error(`scene#setTarget: no matching target: ${name}`)
     }
     Shared.targets.obj = obj
+    Shared.targets.label = null
     // Start loading its surface (and, for a moon, its planet's) now, not
     // when the camera arrives.
     obj.preloadNear?.()
     this.objects[obj.props?.parent]?.preloadNear?.()
     // Animated in ThreeUI.renderLoop
-    Shared.targets.tween = newCameraLookTween(this.ui.camera, obj.matrixWorld)
+    if (look) {
+      Shared.targets.tween = newCameraLookTween(this.ui.camera, obj.matrixWorld)
+    }
 
     const store = this.ui && this.ui.useStore
     if (store && typeof store.getState === 'function') {
@@ -447,6 +436,7 @@ export default class Scene {
    * @param {object} star StarProps entry from StarsCatalog (x, y, z in m)
    */
   lookAtStar(star) {
+    Shared.targets.label = null
     this.ui.scene.updateMatrixWorld()
     const pos = this.worldGroup.localToWorld(this.starPosition(star))
     Shared.targets.tween = newCameraLookTween(this.ui.camera, pos)
@@ -502,8 +492,20 @@ export default class Scene {
   }
 
 
-  /** */
+  /**
+   * Turn the camera to face the target, at once ('c').  The target is what
+   * the last click or search left (a label's: a place or an asterism), else
+   * a committed star, else the targeted body.
+   */
   lookAtTarget() {
+    const label = Shared.targets.label ?? this._committedStarLabel()
+    if (label && label.kind !== 'body') {
+      const pos = this.labelPosition(label)
+      if (pos) {
+        this.ui.camera.lookAt(pos)
+      }
+      return
+    }
     if (!Shared.targets.obj) {
       console.error('scene.js#lookAtTarget: no target obj to look at.')
       return
@@ -513,6 +515,110 @@ export default class Scene {
     this.ui.scene.updateMatrixWorld()
     tPos.setFromMatrixPosition(obj.matrixWorld)
     this.ui.camera.lookAt(tPos)
+  }
+
+
+  /** @returns {?{kind: string, star: object}} The committed star, as a label target */
+  _committedStarLabel() {
+    const star = this.ui.useStore?.getState?.().committedStar?.star
+    return star ? {kind: 'star', star} : null
+  }
+
+
+  /**
+   * One model for every label (DESIGN.md, Picking): a click or tap targets
+   * what it names, a double click or tap goes to it.  This is the click:
+   * it leaves the camera where it is, so 'c' turns to face the target and
+   * 'g' travels to it.
+   *
+   * - body: `setTarget`, as the 0-9 keys do, without the look
+   * - star: committed, as the search does, so the panel and 'g' follow
+   * - place: its body is targeted, and the point (`Shared.targets.label`)
+   *   is what 'c' faces and 'g' lands at
+   * - asterism: the point (its centroid) only; it isn't a body, so the
+   *   panel and breadcrumb stay as they were, and 'g' turns to face it
+   *
+   * @param {object} label A labelPick.js target: {kind, ...}
+   * @param {object} [opts]
+   * @param {boolean} [opts.path] Also move the breadcrumb to the place's
+   *   body (default).  The search bar passes false, as moving it closes the bar.
+   */
+  targetLabel(label, {path = true} = {}) {
+    switch (label.kind) {
+      case 'body':
+        if (this.objects[label.name]) {
+          this.setTarget(label.name, {look: false})
+        }
+        break
+      case 'star': {
+        Shared.targets.label = null
+        const setter = this.ui.useStore?.getState?.().setCommittedStar
+        setter?.({hipId: label.star.hipId, displayName: label.name, star: label.star})
+        break
+      }
+      case 'place':
+        if (path && this.objects[label.body]) {
+          this.setTarget(label.body, {look: false})
+        }
+        Shared.targets.label = label
+        break
+      case 'asterism':
+        Shared.targets.label = label
+        break
+      default:
+        break
+    }
+  }
+
+
+  /**
+   * Turn the camera, over the look tween, to face a label's point:
+   * what going to an asterism comes to, as it is a direction, not a place
+   * to arrive at.  The camera doesn't move.
+   *
+   * @param {object} label An asterism, place or star label target
+   */
+  lookAtLabel(label) {
+    const pos = this.labelPosition(label)
+    if (pos) {
+      Shared.targets.tween = newCameraLookTween(this.ui.camera, pos)
+    }
+  }
+
+
+  /**
+   * @param {object} label A labelPick.js target
+   * @param {Vector3} [out]
+   * @returns {?Vector3} Where the label's subject is, world space; null if
+   *   it can't be placed (a body not in the scene, the stars not loaded)
+   */
+  labelPosition(label, out = new Vector3) {
+    this.ui.scene.updateMatrixWorld()
+    switch (label.kind) {
+      case 'star':
+        return this.worldGroup.localToWorld(this.starPosition(label.star, out))
+      case 'body': {
+        const node = this.objects[label.name]
+        return node ? node.getWorldPosition(out) : null
+      }
+      case 'place': {
+        const node = this.objects[label.body]
+        const r = node?.props?.radius?.scalar
+        if (!r) {
+          return null
+        }
+        return node.localToWorld(out.copy(latLngAltToBodyFixed(label.lat, label.lng, label.alt ?? 0, r)))
+      }
+      case 'asterism': {
+        if (!this.stars) {
+          return null
+        }
+        const {x, y, z} = label.position
+        return this.stars.localToWorld(out.set(x, y, z))
+      }
+      default:
+        return null
+    }
   }
 
 
@@ -553,6 +659,7 @@ export default class Scene {
    * @param {object|null} star StarProps entry from StarsCatalog, or null for planet.
    */
   goTo(star = null) {
+    Shared.targets.label = null
     const isPlanet = star === null
     const obj = isPlanet ? Shared.targets.obj : null
     if (isPlanet && !obj) {
@@ -669,6 +776,7 @@ export default class Scene {
     if (!bodyNode) {
       throw new Error(`Scene.land: no body ${bodyName}`)
     }
+    Shared.targets.label = null
     const r = bodyNode.props?.radius?.scalar
     if (!r) {
       throw new Error(`Scene.land: body ${bodyName} has no radius`)
@@ -897,50 +1005,47 @@ export default class Scene {
 
 
   /**
-   * Click handler — currently routes to place-picking on the active body.
-   * If the click hits a place sprite (within MAX_PICK_PX), `land` at it.
-   * Star picking lives in PickLabels and uses its own dblclick handler.
+   * Click or tap handler.  On a label (a star's, a planet's or moon's, an
+   * asterism's, a place's) it targets what the label names and does
+   * nothing else (`targetLabel`): 'c' turns to face it, 'g' goes.  A click
+   * on empty sky or on a body's disc does nothing.  The double click is
+   * `onDblClick`, which goes.  Not while the star picker is on, whose own
+   * double click picks the star.
    *
    * @param {PointerEvent} e
    */
   onClick(e) {
-    const cur = Shared.targets.cur
-    if (!cur || !cur.props || !cur.props.has_locations) {
-      return
+    const label = this._starPickerOn() ? null : this.pickLabel(e)
+    if (label) {
+      this.targetLabel(label)
     }
-    // The Planet attaches its Places under `planet` (= scene.objects[name]),
-    // and Planet caches the Places instance on itself.  Find the Planet
-    // wrapper to read .places — it lives on the Object that subclasses our
-    // ./object.js, but for Phase 1 we just walk children of `cur` looking
-    // for the Places group.  This avoids piping a Planet→places map.
-    const places = _findPlaces(cur)
-    if (!places || places.entries.length === 0) {
-      return
-    }
-    queryPlaces(this.ui, e, cur, places.entries, (entry) => {
-      this.land(cur.props.name, entry.lat, entry.lng, entry.a ?? undefined)
-    })
+  }
+
+
+  /** @returns {boolean} Whether the crosshair star picker is on */
+  _starPickerOn() {
+    return Boolean(this.ui.useStore?.getState?.().isStarsSelectActive)
   }
 
 
   /**
-   * Double-click handler.  On a label (a planet's, a moon's or a star's),
-   * goes to what it labels, as 'g' does (onLabelDblClick, set by
-   * Celestiary): on a phone, the way to a body or star without a keyboard.
-   * Not while the star picker is on, whose own dblclick picks the star.
+   * Double-click or double-tap handler.  On a label, goes to what it names
+   * (onLabelDblClick, set by Celestiary): a body or a star as 'g' does, a
+   * place by landing there, an asterism by turning to face it.  The click
+   * that began it already targeted it (`onClick` runs on both clicks).
+   * Not while the star picker is on.
    *
    * Otherwise ray-sphere intersects the click against the
    * current body and, on hit, drops a temporary lat/lng marker at the spot
    * and lands there.  Works on any body with a `props.radius.scalar` that
    * isn't a star (stars are excluded so a dblclick on the Sun doesn't
-   * teleport the user to its photosphere).  Complements `onClick`'s
-   * named-place picking: dblclick lets the user land anywhere on the
-   * surface, including bodies without a catalogued places file.
+   * teleport the user to its photosphere).  It lets the user land anywhere
+   * on the surface, including bodies without a catalogued places file.
    *
    * @param {PointerEvent} e
    */
   onDblClick(e) {
-    const label = this.ui.useStore?.getState?.().isStarsSelectActive ? null : this.pickLabel(e)
+    const label = this._starPickerOn() ? null : this.pickLabel(e)
     if (label) {
       this.onLabelDblClick?.(label)
       return

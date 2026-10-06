@@ -154,7 +154,7 @@ export default class Celestiary {
    */
   _registerSearchProviders() {
     searchIndex.register(new SceneProvider(this.loader))
-    this._placesProvider = new PlacesProvider()
+    this._placesProvider = new PlacesProvider(this.loader)
     searchIndex.register(this._placesProvider)
     // StarsCatalog mutates in place — after load, prev.starsCatalog and
     // state.starsCatalog are the same object (both already populated), so a
@@ -229,19 +229,6 @@ export default class Celestiary {
         }
         this.scene.targetNamed(targetName)
         this.scene.goTo()
-        // If the target body has a places catalog, eager-populate the
-        // search index's Tier C cache so 'Paris', 'Tycho', etc. are
-        // searchable while the body is anchored.  Fire-and-forget;
-        // collectUnder is async but search just shows them when ready.
-        const tNow = Shared.targets.cur
-        if (tNow?.props?.has_locations && this._placesProvider) {
-          const anchorPath = this.loader.pathByName[tNow.props.name]
-          if (anchorPath) {
-            this._placesProvider.collectUnder(anchorPath).then((entries) => {
-              searchIndex.populateTierC(anchorPath, entries)
-            }).catch((e) => console.warn('PlacesProvider Tier C populate failed:', e))
-          }
-        }
         if (pl) {
           try {
             this.ui.scene.updateMatrixWorld()
@@ -315,13 +302,27 @@ export default class Celestiary {
 
 
   /**
-   * Go to what a double-clicked or tapped label labels (Scene.onDblClick),
-   * as the search's Go does (goToEntry): a body by its path, a star by
-   * scene.goTo, committed.
+   * Go to what a label names: the double click or tap (Scene.onDblClick),
+   * and 'g' on a targeted place or asterism.  As the search's Go does
+   * (goToEntry): a body by its path, a star by scene.goTo, committed, a
+   * place by landing there.  An asterism is a direction, not a place to
+   * arrive at, so going to it turns the camera to face it.
    *
-   * @param {{kind: string, name: string, star?: object}} label
+   * @param {{kind: string, name: string, star?: object}} label A labelPick.js target
    */
   goToLabel(label) {
+    if (label.kind === 'asterism') {
+      this.scene.lookAtLabel(label)
+      return
+    }
+    if (label.kind === 'place') {
+      goToEntry({
+        kind: 'place',
+        displayName: label.name,
+        payload: {body: label.body, lat: label.lat, lng: label.lng, alt: label.alt},
+      }, this)
+      return
+    }
     goToEntry(label.kind === 'star' ?
       {kind: 'star', displayName: label.name, payload: {star: label.star, hipId: label.star.hipId}} :
       {kind: 'body', displayName: label.name, payload: {name: label.name}}, this)
@@ -329,12 +330,18 @@ export default class Celestiary {
 
 
   /**
-   * Travel to the current committed target.  Precedence: a committed star
-   * (set via search or crosshair dblclick) wins over the planet target —
-   * otherwise 'g' from a star-scoped body would always bounce back to the
-   * last-set planet via the stale Shared.targets.obj.
+   * Travel to the current target.  Precedence: a targeted label's subject
+   * (a place or an asterism, left by a click or the search), then a
+   * committed star (set via search or crosshair dblclick), which wins over
+   * the planet target: otherwise 'g' from a star-scoped body would always
+   * bounce back to the last-set planet via the stale Shared.targets.obj.
    */
   goTo() {
+    const label = this.shared.targets.label
+    if (label) {
+      this.goToLabel(label)
+      return
+    }
     const state = this.useStore.getState()
     if (state.committedStar && state.committedStar.star) {
       this.scene.goTo(state.committedStar.star)
