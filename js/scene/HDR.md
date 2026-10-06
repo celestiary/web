@@ -470,15 +470,17 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    frame's pixels (its solid angle over the field's), so a step of zoom
    never steps the exposure:
    - **how much of the anchor applies, by the disc's share of the frame**
-     (`SUNLIT_FRAME_WEIGHT`, 0.05% to 1%): adaptation follows the
+     (`SUNLIT_FRAME_WEIGHT`, 0.01% to 0.2%): adaptation follows the
      luminance integrated over the field, so a bright source weighs by
      its solid angle, not by its size in pixels.  None for a speck of the
      field: the full Moon at 45° is a 0.5° disc in 45° × 72°, 0.006%, and
      barely moves a dark-adapted eye in space, so it leaves the gain to
      the frame and is a dazzling white disc among the stars; Jupiter from
-     Earth at 45° (40″) a star of the night.  All of it by 1%, under the
-     2% at which the highlight rule takes the disc itself, so the two
-     agree over the user's telescope steps (1.8-2.3%).  The second cut
+     Earth at 45° (40″) a star of the night.  All of it by 0.2%, where
+     the target's own blend (next) begins, so the two blends chain, and
+     well under the 2% at which the highlight rule takes the disc itself,
+     so the rules agree over the user's telescope steps (1.8-2.3%) and
+     Jupiter at a 0.1° field (0.4-0.6%) keeps its bands.  The second cut
      weighed the anchor by the disc's diameter in pixels (1.5 to 6 px), a
      resolution, not a luminance: the Moon's 4 px disc on the 300 px test
      viewport took a star field from 4e6 to 40 and showed none of its 975
@@ -510,9 +512,10 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
 
    The Moon filling a 1° field: 1.33, its highlands at 0.6 and its
    maria dimmer (the hard cap's 3.3, a white, is what `starsDebug`
-   logs); in a 10° field, 0.13% of it, the gain comes down a decade from
-   4e6 and the Moon is a dazzling disc with the stars to magnitude 4;
-   at 45° the field keeps 4e6; Earth's crescent from
+   logs); in a 10° field, 0.13% of it, most of the way into the weight,
+   the gain is within a few times the anchor (7.4 here) and the
+   Moon a bright disc, its highlands over white, the brightest stars
+   left; at 45° the field keeps 4e6 and its stars; Earth's crescent from
    94,000 km (1.3% of the frame): 1.1, its clouds just white, no stars; Jupiter at a
    telescope's 0.04° field from Earth, 275 px across on a 1140 px frame
    (2.3% of it): 2.16 (its keyed exposure is 5.3× Earth's by
@@ -751,6 +754,11 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
 | Jupiter from Earth at a telescope's field, zooming out, 0.04° to 0.3° (`sunlitBodyGain`; 1000×570, bare, the user's permalink) | 2.16 at 130 px across (2.3% of the frame), 2.16 at 121 px (2.0%), 2.20 at 109 px (1.6%), 2.58 at 87 px (1.0%), 4.57 at 52 px (0.37%), 5.37 at 17 px (0.04%) | — | the disc's centre, linear | 2.16, 2.16, then 4e6 (the hard cap, which never took Jupiter: 40″) | 0.43, 0.43, 0.44, 0.52, 0.93, 1.05: its bands at every step, a white only as a small disc; no step of gain over 14% between steps of 15-20% in zoom |
 | The Sun's disc at 71 Gm, 8 Gm and 2 Gm, the clock set by the permalink (`noiseTime`, the shoulder, the glow's share) | 8.65e-6 at 8 and 2 Gm, 2.5e4 at 71 Gm | — | the disc, linear | NaN (black) at every distance; then 29 NaN on the rim at 71 Gm | 0.600 at the centre with the texture's colour at 8 and 2 Gm (limb 0.165); 49,980 at 71 Gm with the glow on its rim; no non-finite pixel in any frame |
 | The Sun from 7 radii | 5e-6 (the floor: SwiftShader's disc is non-finite, which the meter counts as the maximum) | 66 / 1.2e10 | disc | black (SwiftShader; its rim 6e4) | the same |
+| Earth star field from 65 Mm, 60° up and away from the Sun, the Moon's 3.5 px disc in the frame (0.006% of it) (`sunlitBodyGain` by the disc's share of the field, #157) | 4.0e6 (the pixel weight: 40) | 5e-14 / 1e-8 | stars ≥ 10 of 255 to 6.5 (to 6.0) / in view | 0 (0) / 975 at 40, the Moon's 4 px disc anchoring | 897 (528) / 975; the Moon a white disc |
+| The Moon from 20,000 km over Earth's night side, 45° (0.008% of the frame) | 4.0e6 (was 133) | 5e-14 / 6e-9 | stars to 6.5 / in view | 0 / 986 | 910 / 986 |
+| The Moon from the outback at night, 77% lit, 10° field (0.13% of the frame, `moon-night`) | 7.4 (was 3.33) | 1e-8 / 1e-8 | the disc | 47-232 with its phase | its highlands over white, the maria at 1.3; the brightest stars left (the limit −7.8) |
+| Jupiter at 0.1° from Earth (52 px, 0.37% of the frame) | 4.37 (unchanged) | — | the disc's centre, linear | 0.90 | 0.90 |
+| Jupiter at 0.3° (17 px, 0.04%) | 4,130 (was 5.4) | — | the disc's centre, linear | 1.05, just white | 815: a white point among the stars, the blow-out gradual over the zoom from 0.1° |
 
 - **A sunlit scene is untouched**: the midday surface, Earth from orbit by
   day and at the terminator, the daytime Moon, Mars toward the Sun and

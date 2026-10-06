@@ -389,8 +389,8 @@ describe('a sunlit body in the frame, continuously in its size on screen', () =>
       worst15 = Math.max(worst15, g / g15)
       prev = g
     }
-    // The steepest ±15% step is where the anchor weighs in (0.05% to 1% of
-    // the frame), and even there under three stops.
+    // The steepest ±15% step is where the anchor weighs in (0.01% to 0.2%
+    // of the frame), and even there under three stops.
     expect(worst15).toBeLessThan(8)
     // Over the anchored disc, a ±15% step of zoom moves the gain under 20%
     // (a quarter stop): the target's blend over the share of the frame.
@@ -400,7 +400,7 @@ describe('a sunlit body in the frame, continuously in its size on screen', () =>
     }
   })
 
-  it('weighs in by the disc\'s share of the frame, 0.05% to 1%, not its size in pixels', () => {
+  it('weighs in by the disc\'s share of the frame, 0.01% to 0.2%, not its size in pixels', () => {
     const [wLo, wHi] = SUNLIT_FRAME_WEIGHT
     const pxFor = (fraction) => 2 * Math.sqrt(fraction * width * height / Math.PI)
     // A point, and a disc that is a speck of the field: left to the frame.
@@ -409,12 +409,10 @@ describe('a sunlit body in the frame, continuously in its size on screen', () =>
     expect(gainAt(pxFor(wLo))).toBe(dark)
     expect(gainAt(pxFor(Math.sqrt(wLo * wHi)))).toBeLessThan(dark)
     expect(gainAt(pxFor(Math.sqrt(wLo * wHi)))).toBeGreaterThan(gainAt(pxFor(wHi)))
-    // By 1% the cap holds fully, at the target its share gives (between a
-    // white and a sunlit surface), and from there the gain follows the
-    // target alone.
+    // By 0.2% the cap holds fully, at the target its share gives (a white
+    // there), and from there the gain follows the target alone, down to 0.6.
     const full = gainAt(pxFor(wHi)) * white
-    expect(full).toBeGreaterThan(METER_HIGHLIGHT)
-    expect(full).toBeLessThan(METER_HIGHLIGHT_MAX)
+    expect(full).toBeCloseTo(METER_HIGHLIGHT_MAX, 6)
     const past = gainAt(pxFor(wHi * 1.5)) * white
     expect(past).toBeGreaterThan(METER_HIGHLIGHT)
     expect(past).toBeLessThan(full)
@@ -467,12 +465,13 @@ describe('a sunlit body in the frame, continuously in its size on screen', () =>
     expect(sunlitBodyGain(dark, [one], earth, 0.5 * Math.PI / 180)).toBeCloseTo(anchored, 9)
     // 2°: 3%, anchored too.
     expect(sunlitBodyGain(dark, [moonAt(2)], earth, Math.PI / 180)).toBeCloseTo(anchored, 9)
-    // 10°: 0.12% of the frame, part way into the weight: the gain comes
-    // down from 4e6 by a decade but the Moon is still a dazzling disc (the
-    // stars thinned, not gone).  Monotone in the field.
+    // 10°: 0.12% of the frame, most of the way into the weight: the gain
+    // comes down from 4e6 to within a few times the anchor, the Moon a
+    // bright disc with its highlands over white, the brightest stars left.
+    // Monotone in the field.
     const ten = sunlitBodyGain(dark, [moonAt(10)], earth, 5 * Math.PI / 180)
-    expect(ten).toBeLessThan(dark / 10)
-    expect(ten).toBeGreaterThan(cap * 100)
+    expect(ten).toBeLessThan(cap * 5)
+    expect(ten).toBeGreaterThan(cap)
     const gains = [1, 2, 4, 6, 10, 20, 45].map((fov) => sunlitBodyGain(dark, [moonAt(fov)], earth, fov * Math.PI / 360))
     for (let i = 1; i < gains.length; i++) {
       expect(gains[i]).toBeGreaterThanOrEqual(gains[i - 1] * (1 - 1e-9))
@@ -486,20 +485,23 @@ describe('a sunlit body in the frame, continuously in its size on screen', () =>
     expect(fHi).toBe(METER_HIGHLIGHT_FRACTION)
     expect(wHi).toBeLessThan(fHi)
     const pxFor = (fraction) => 2 * Math.sqrt(fraction * width * height / Math.PI)
-    // Where the anchor holds fully (from 1%) its target runs from between
-    // a white and 0.6 down to 0.6 at the 2% the highlight rule keys on,
-    // monotone; under 1% the weight fades the anchor out, so the small
-    // disc's white target is approached, not reached.
+    // The weight's blend ends where the target's begins (0.2%): there the
+    // anchor holds fully at a white, and from there its target falls,
+    // monotone, to 0.6 at the 2% the highlight rule keys on.
+    expect(wHi).toBe(fLo)
+    expect(gainAt(pxFor(fLo)) * white).toBeCloseTo(METER_HIGHLIGHT_MAX, 6)
     expect(gainAt(pxFor(fHi)) * white).toBeCloseTo(METER_HIGHLIGHT, 6)
-    let prev = gainAt(pxFor(wHi)) * white
-    expect(prev).toBeGreaterThan(METER_HIGHLIGHT)
-    expect(prev).toBeLessThan(METER_HIGHLIGHT_MAX)
-    for (let f = wHi * 1.05; f <= fHi; f *= 1.05) {
+    const mid = gainAt(pxFor(Math.sqrt(fLo * fHi))) * white
+    expect(mid).toBeGreaterThan(METER_HIGHLIGHT)
+    expect(mid).toBeLessThan(METER_HIGHLIGHT_MAX)
+    let prev = gainAt(pxFor(fLo)) * white
+    for (let f = fLo * 1.05; f <= fHi; f *= 1.05) {
       const target = gainAt(pxFor(f)) * white
       expect(target).toBeLessThanOrEqual(prev * (1 + 1e-9))
       prev = target
     }
-    expect(gainAt(pxFor(fLo)) * white).toBeGreaterThan(METER_HIGHLIGHT_MAX)
+    // Under 0.2% the weight fades the anchor out toward the frame's gain.
+    expect(gainAt(pxFor(fLo / 2))).toBeGreaterThan(gainAt(pxFor(fLo)))
   })
 
   it('keeps Earth\'s crescent from 94,000 km anchored: 1.3% of a 45° frame', () => {

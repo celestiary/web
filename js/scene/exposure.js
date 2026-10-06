@@ -349,11 +349,12 @@ export function smoothstep(lo, hi, x) {
  * weighs by its share of the field, not by its size in pixels.
  *
  * - **The cap's weight, by the disc's share of the frame**
- *   (SUNLIT_FRAME_WEIGHT, 0.05% to 1%): none for a disc that is a speck
- *   of the field, all of it by 1%, where the 2% highlight rule is about
- *   to take the disc itself, so the user's telescope view of Jupiter
- *   (2.3%, 2.0%, 1.8% of the frame over three steps of zoom) holds its
- *   bands at one gain.  The full Moon at 45° is 0.006% of the field (a
+ *   (SUNLIT_FRAME_WEIGHT, 0.01% to 0.2%): none for a disc that is a speck
+ *   of the field, all of it by 0.2%, where the target's own blend begins
+ *   and well under the 2% at which the highlight rule takes the disc
+ *   itself, so the user's telescope view of Jupiter (2.3%, 2.0%, 1.8% of
+ *   the frame over three steps of zoom) holds its bands at one gain, and
+ *   at a 0.1° field (0.4-0.6%) too.  The full Moon at 45° is 0.006% of the field (a
  *   0.5° disc in 45° × 72°): it barely moves the eye's dark adaptation
  *   in space, and here it leaves the gain to the frame, so the stars
  *   stay and the Moon is a dazzling white disc among them, as it is to a
@@ -419,19 +420,6 @@ export function sunlitBodyGain(gain, bodies, targetKeyedExposure, halfFov = Math
   }
   return out
 }
-
-
-/**
- * The disc's share of the frame over which a sunlit body's cap weighs in
- * (sunlitBodyGain), none at the first, all from the second: a speck of
- * the field (the full Moon at 45°, 0.006%; a planet a pixel or two
- * across) blows out as a bright point and leaves the gain to the frame;
- * by 1% the anchor holds, a share under the 2% at which the highlight
- * rule takes the disc itself, so the two agree over the user's telescope
- * steps (1.8-2.3%).  Earth's crescent from 94,000 km at 45° is 1.3%, the
- * Moon in a 10° field 0.13%, the Moon filling a 1° field 27%.
- */
-export const SUNLIT_FRAME_WEIGHT = [0.0005, 0.01]
 
 
 /**
@@ -522,7 +510,22 @@ export const METER_HIGHLIGHT_FRACTION = 0.02
  * white to a sunlit surface (sunlitBodyGain): the second is the meter's
  * highlight fraction, where the 2% rule takes the disc itself.
  */
-export const SUNLIT_FRAME_FRACTION = [0.002, METER_HIGHLIGHT_FRACTION]
+export const SUNLIT_FRAME_FRACTION_LO = 0.002
+export const SUNLIT_FRAME_FRACTION = [SUNLIT_FRAME_FRACTION_LO, METER_HIGHLIGHT_FRACTION]
+/**
+ * The disc's share of the frame over which a sunlit body's cap weighs in
+ * (sunlitBodyGain), none at the first, all from the second: a speck of
+ * the field (the full Moon at 45°, 0.006%: a 0.5° disc in 45° × 72°; a
+ * planet a pixel or two across) blows out as a bright point and leaves
+ * the gain to the frame; by 0.2% the anchor holds, where the target's
+ * own blend (SUNLIT_FRAME_FRACTION) takes over from a white toward a
+ * sunlit surface at the 2% the highlight rule keys on, so the two blends
+ * chain and the user's telescope steps (1.8-2.3%) are deep in the
+ * anchor.  Jupiter at a 0.1° field from Earth is 0.37-0.55% of the
+ * frame and keeps its bands; the Moon in a 10° field is 0.13%, most of
+ * the way to its anchor; Earth's crescent from 94,000 km at 45° is 1.3%.
+ */
+export const SUNLIT_FRAME_WEIGHT = [0.0001, SUNLIT_FRAME_FRACTION_LO]
 /**
  * The most that luminance is lifted to, in exposure units: a sunlit
  * surface of albedo 0.4 (DISPLAY_GAIN × 0.4).  Brighter than that, the
