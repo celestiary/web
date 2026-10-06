@@ -184,6 +184,12 @@ export default class StarsCatalog {
       this.numNamedStars++
       for (let j = 0; j < parts.length; j++) {
         const part = parts[j]
+        // A trailing colon ("13421:SIG Eri:") leaves an empty name, which
+        // would map '' to whichever star has one last (the guide's
+        // no-hash white disc, #165).
+        if (part === '') {
+          continue
+        }
         this.hipByName.set(part, hipId)
         this.numNames++
         // ZET1 Aqr -> ZET Aqr

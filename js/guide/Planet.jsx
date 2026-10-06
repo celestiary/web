@@ -2,8 +2,9 @@ import React, {ReactElement, useEffect, useState} from 'react'
 import {useHashLocation} from 'wouter/use-hash-location'
 import {MeshBasicMaterial, PointLight} from 'three'
 import ThreeUi from '../ThreeUI'
+import Time from '../Time.js'
 import * as Shapes from '../scene/shapes'
-import {LENGTH_SCALE, ASTRO_UNIT_METER} from '../shared'
+import {LENGTH_SCALE, ASTRO_UNIT_METER, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared'
 import {planetHelper} from '../scene/scene_utils'
 import {ui as uiId} from './index.module.css'
 
@@ -54,13 +55,15 @@ function setup() {
   planetNames.map((planetName) => {
     favesTable.innerHTML +=
           `<tr>
-            <td><a href="#${planetName.toLowerCase()}">${planetName}</a></td>
+            <td><a href="${window.location.pathname}#${planetName.toLowerCase()}">${planetName}</a></td>
           </tr>`
   })
   const ui = new ThreeUi(uiId)
   ui.configLargeScene()
-  const sunLumensSurface = 3.7e28 // Sun lumens
-  const sunlight = new PointLight(0xffffff, sunLumensSurface, 0)
+  // The app's Sun light (Star.js): its falloff is what the exposure is
+  // calibrated against (exposure.js).  A decay of 0 lit every planet at
+  // 3.7e28, off the end of the exposure.
+  const sunlight = new PointLight(0xffffff, SUN_LUMINOUS_INTENSITY, 0, SUN_LIGHT_DECAY)
   const dist = ASTRO_UNIT_METER
   sunlight.position.set(-dist, dist, dist)
   ui.scene.add(sunlight)
@@ -78,8 +81,14 @@ function showPlanet(ui, path, curPlanet, setPlanet) {
     ui.camera.position.z = p.initialCameraDistance
     ui.scene.add(p)
     setPlanet(p)
+    const time = new Time()
     ui.animationCb = () => {
       p.rotation.y += 0.001
+      // The app's Animation runs these; the guide has none.  The surface
+      // stays hidden until its colour map is in, and its own preAnimCb is
+      // what shows it, so without this the planet is never drawn.
+      time.updateTime()
+      p.traverse((o) => o.preAnimCb?.(time))
     }
   })
 }
