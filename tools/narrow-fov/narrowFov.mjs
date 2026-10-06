@@ -15,7 +15,9 @@
 //          [--frames N] [--viewport WxH] [--advance hours] [--from elevDeg]
 //          [--to elevDeg] [--step minutes]
 // The run in the PR: --advance 10 --from 6 --to -1 --step 1.5 --frames 20
-// (Jupiter is rising at the permalink's time; 10 h on it is setting).
+// (Jupiter is rising at the permalink's time; 10 h on it is setting).  At
+// night, with the night lights' frame (the last column): --from 6 --to -1
+// --step -1.5, back in time as Jupiter rises.
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
@@ -146,10 +148,12 @@ const sample = () => page.evaluate(async (frames) => {
     sse: b?.widget?.scene.globe.maximumScreenSpaceError,
     msPerFrame: ms,
     active: c.ui.layers.isActive(c.scene.objects.earth),
+    // #179's night lights render the globe a second time per frame.
+    night: b?.nightVisible === true,
   }
 }, FRAMES)
 
-console.log('elev°\theapMB\trender\tloadQ\tcached\tvisited\tmaxLvl\tSSE\tms/frame\tactive')
+console.log('elev°\theapMB\trender\tloadQ\tcached\tvisited\tmaxLvl\tSSE\tms/frame\tactive\tnight')
 let peak = 0
 while (!crashed) {
   let r
@@ -161,7 +165,7 @@ while (!crashed) {
   }
   peak = Math.max(peak, r.heapMB)
   console.log([el.toFixed(2), r.heapMB.toFixed(0), r.render, r.loadQ, r.cached, r.visited, r.maxLevel, r.sse,
-    r.msPerFrame.toFixed(0), r.active].join('\t'))
+    r.msPerFrame.toFixed(0), r.active, r.night].join('\t'))
   if (el < TO) {
     break
   }

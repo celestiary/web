@@ -416,7 +416,9 @@ default) and the tilesets' (8) are multiplied by how much less
 (`detailScale`), so every tile's screen-space error against the limit is
 what it would be with pixels of that size.  The tiles Cesium walks and
 loads are then at most those of that wider field from the same place, of
-which the narrow view sees a part.  Every ordinary field is untouched: at
+which the narrow view sees a part.  The night lights' second frame
+(#179) renders the same globe from the same camera within the frame, so
+it walks the same bounded tiles.  Every ordinary field is untouched: at
 45° a pixel spans 5 to 28 times the floor (on a 1,500 to 300 px tall
 canvas); the floor is a 1.7° field at 300 px, 5.7° at 1,000 px.
 
@@ -440,7 +442,8 @@ globe visited 75 tiles at 45°, 420 at 5°, 1,000-1,500 at 2°, 3,000-4,500
 at 1°, 5,000-18,000 at 0.5°: faster than 1 / fov.  With the floor, setting
 from 6° to -1.25° at 0.1°, 0.04° and 0.01°: at most ~1,500 tiles a frame,
 and the heap peaks at 141, 193 and 178 MB (166 MB at 0.01° on 1280x800),
-against ~150 MB at 45°.  `node tools/narrow-fov/narrowFov.mjs <fov>`
+against ~150 MB at 45°.  At night, with the lights' frame too (Jupiter
+rising, before dawn), 155 MB at 0.01° and 190 MB at 0.04°.  `node tools/narrow-fov/narrowFov.mjs <fov>`
 reruns it (its header has the options); the counts are the globe's
 `_surface._debug.tilesVisited` and its replacement queue, which say what
 Cesium did that frame rather than what it drew.
