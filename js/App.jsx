@@ -29,6 +29,7 @@ import './index.css'
 export default function App() {
   const committedPath = useStore((s) => s.committedPath)
   const committedStar = useStore((s) => s.committedStar)
+  const committedTarget = useStore((s) => s.committedTarget)
   const dispatchWidgets = useStore((s) => s.dispatchWidgets)
   const [celestiary, setCelestiary] = useState(null)
   const [isPaused, setIsPaused] = useState(false)
@@ -47,13 +48,15 @@ export default function App() {
     let leaf = null
     if (location === '/guide') {
       leaf = 'Guide'
+    } else if (committedTarget?.kind === 'place' || committedTarget?.kind === 'asterism') {
+      leaf = committedTarget.name
     } else if (committedStar && committedStar.displayName) {
       leaf = committedStar.displayName
     } else if (committedPath.length > 0) {
       leaf = capitalize(committedPath[committedPath.length - 1])
     }
     document.title = leaf ? `${leaf} — Celestiary` : 'Celestiary'
-  }, [location, committedPath, committedStar])
+  }, [location, committedPath, committedStar, committedTarget])
   useEffect(() => {
     const c = new Celestiary(useStore, sceneRef.current, navInfoRef.current, setTimeStr, setIsPaused)
     setCelestiary(c)

@@ -110,7 +110,9 @@ shader variant that:
 
 One model for every label (DESIGN.md [Picking labels](../../DESIGN.md#picking-labels)):
 a click or tap on a place name targets it (its body, and the point: `c`
-faces it, `g` lands there), a double click or tap lands there.  The hit is
+faces it, `g` lands there, `t` follows it as the body turns; the breadcrumb
+reads Sun › Earth › Austin and the link `#sun/earth/austin@…`, by the
+name's slug), a double click or tap lands there.  The hit is
 on the label's own text box on screen (`labelPick.labelBoxes`), from the
 same body-fixed positions as the drawing, so click zones are what the user
 sees; labels on the far side aren't hit, as the shader discards them.

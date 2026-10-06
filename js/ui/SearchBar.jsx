@@ -5,9 +5,8 @@ import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
 import {goToEntry, lookAtEntry, targetEntry} from '../search/commitEntry'
 import {searchIndex} from '../search/SearchIndex'
-import {anchorPathFor} from '../store/SearchSlice'
+import {anchorPathFor, breadcrumbItems as breadcrumbFor} from '../store/SearchSlice'
 import useStore from '../store/useStore'
-import {capitalize} from '../utils'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import CloseIcon from '@mui/icons-material/Close'
 import MyLocationIcon from '@mui/icons-material/MyLocation'
@@ -34,6 +33,7 @@ const BLUR_COLLAPSE_MS = 3000
 export default function SearchBar({celestiary}) {
   const committedPath = useStore((s) => s.committedPath)
   const committedStar = useStore((s) => s.committedStar)
+  const committedTarget = useStore((s) => s.committedTarget)
   const isSearchOpen = useStore((s) => s.isSearchOpen)
   const openSearch = useStore((s) => s.openSearch)
   const closeSearch = useStore((s) => s.closeSearch)
@@ -58,24 +58,23 @@ export default function SearchBar({celestiary}) {
   const hoverResetTimer = useRef(null)
   const blurCollapseTimer = useRef(null)
   const containerRef = useRef(null)
+  // The target the bar's own last pick set, which doesn't close it.
+  const ownPickRef = useRef(null)
 
   // When open, the anchorIndex is fixed; when closed, hover rules the visual.
   const effectiveIconIndex = isSearchOpen ?
     anchorIndex :
     (hoveredAnchorIndex !== null ? hoveredAnchorIndex : 0)
 
-  // Breadcrumb source: a star commit collapses the path to a single element
-  // (the star name).  Planet paths render as before.  The hover/anchor logic
-  // doesn't branch on which one is active.
-  const breadcrumbItems = useMemo(() => {
-    if (committedStar) {
-      return [{label: committedStar.displayName || `HIP ${committedStar.hipId}`, hash: null}]
-    }
-    return committedPath.map((name, i) => ({
-      label: capitalize(name),
-      hash: committedPath.slice(0, i + 1).join('/'),
-    }))
-  }, [committedStar, committedPath])
+  // Breadcrumb source: the target (committedTarget).  A body's path, then a
+  // place's name (Sun › Earth › Austin); a star or an asterism collapses it
+  // to its name alone.  Each element's hash is its path in the link
+  // (targetPath.js).  The hover/anchor logic doesn't branch on which one is
+  // active.
+  const breadcrumbItems = useMemo(
+      () => breadcrumbFor(committedTarget, committedPath),
+      [committedTarget, committedPath],
+  )
 
   const anchorPath = useMemo(
       () => (committedStar ? 'milkyway' :
@@ -176,15 +175,20 @@ export default function SearchBar({celestiary}) {
     return () => document.removeEventListener('mousedown', onDocMouseDown)
   }, [isSearchOpen, closeSearch])
 
-  // Any navigation (committedPath change) while the bar is open = cancel.
+  // Any target change from outside the bar while it's open = cancel.
   // Catches breadcrumb-link clicks inside the bar, 'h' key home, hash edits,
-  // etc.  The search's own commit also triggers this path but closeSearch is
-  // idempotent — handleCommit has already flipped isSearchOpen=false by then.
+  // a click on a label, etc.  The bar's own pick in the dropdown targets
+  // the result (targetEntry) and leaves it open: the breadcrumb then names
+  // the pick, and the scope is the same, as a result in scope is under the
+  // anchor.  Go and Look at close it themselves.
   useEffect(() => {
+    if (committedTarget !== null && committedTarget === ownPickRef.current) {
+      return
+    }
     if (useStore.getState().isSearchOpen) {
       closeSearch()
     }
-  }, [committedPath, closeSearch])
+  }, [committedTarget, closeSearch])
 
   // Blur-collapse: if bar is open and focus leaves, start a 3s timer.  Re-
   // focusing cancels it.  Escape / Clear collapse immediately.
@@ -373,6 +377,7 @@ export default function SearchBar({celestiary}) {
               setSearchSelection(v)
               setPreviewForEntry(v, {setPreviewPath, setPreviewStar, clearPreview})
               targetEntry(v, celestiary)
+              ownPickRef.current = useStore.getState().committedTarget
             }}
             onHighlightChange={(e, option) => {
               setPreviewForEntry(option, {setPreviewPath, setPreviewStar, clearPreview})

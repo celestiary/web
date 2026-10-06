@@ -249,6 +249,22 @@ export default class Scene {
   }
 
 
+  /**
+   * Call back with the asterisms (Asterisms) once they're built: now if
+   * they are, else when 'a' first shows them.  Never while they're off
+   * from the start.
+   *
+   * @param {Function} cb
+   */
+  onAsterismsReady(cb) {
+    if (this.asterisms) {
+      cb(this.asterisms)
+      return
+    }
+    (this._asterismsReadyCbs ??= []).push(cb)
+  }
+
+
   /** Internal: drain the stars-ready callback queue. */
   _markStarsReady() {
     const cbs = this._starsReadyCbs
@@ -388,82 +404,124 @@ export default class Scene {
 
 
   /**
-   * Abstract target setter — all target-changing entry points (keyboard 'h',
-   * 'u', '0'-'9', onDone, etc) funnel here.  Syncs the committed-path store
-   * field (which also clears committedStar) so the breadcrumb + info panel
-   * reflect the new target rather than a stale star selection.
+   * The one way the target changes (DESIGN.md, "The target").  Every entry
+   * point funnels here: a click on a label, the search (a pick, Look at,
+   * Go), the keys ('h', 'u', '0'-'9'), going and landing, and a link.  It
+   * sets what 'c' faces, 'g' goes to and 't' tracks (`Shared.targets.obj`,
+   * and `Shared.targets.label` for what isn't a body), and the store's
+   * `committedTarget`, which the breadcrumb, the info panel and the page
+   * title follow, then calls `onTargetChange` (Celestiary: the location
+   * hash).  The camera never moves.
    *
-   * @param {string} name
+   * - body: the target, and its surface preloads
+   * - place: its body is `obj`, the place `label`
+   * - star: `label`; `obj` stays the body it was
+   * - asterism: `label` (the centroid of its stars)
+   *
+   * @param {string|object} target A body's name, or a target as labelPick.js
+   *   gives them: {kind: 'body', name}, {kind: 'place', body, name, lat, lng,
+   *   alt}, {kind: 'star', star, name}, {kind: 'asterism', name, position}
    * @param {object} [opts]
-   * @param {boolean} [opts.look] Turn the camera to face it (default); false
-   *   to target it and leave the camera as it is, as a click on a label does
-   *   (targetLabel)
+   * @param {boolean} [opts.look] Turn the camera to face it, over the look
+   *   tween (default); false to leave the camera as it is, as a click on a
+   *   label does
    */
-  setTarget(name, {look = true} = {}) {
-    const obj = this.objects[name]
-    if (!obj) {
-      throw new Error(`scene#setTarget: no matching target: ${name}`)
+  setTarget(target, {look = true} = {}) {
+    const t = this._normalizeTarget(target)
+    let obj = null
+    if (t.kind === 'body' || t.kind === 'place') {
+      const name = t.kind === 'body' ? t.name : t.body
+      obj = this.objects[name]
+      if (!obj) {
+        throw new Error(`scene#setTarget: no matching target: ${name}`)
+      }
+      Shared.targets.obj = obj
+      // Start loading its surface (and, for a moon, its planet's) now, not
+      // when the camera arrives.
+      obj.preloadNear?.()
+      this.objects[obj.props?.parent]?.preloadNear?.()
     }
-    Shared.targets.obj = obj
-    Shared.targets.label = null
-    // Start loading its surface (and, for a moon, its planet's) now, not
-    // when the camera arrives.
-    obj.preloadNear?.()
-    this.objects[obj.props?.parent]?.preloadNear?.()
+    Shared.targets.label = t.kind === 'body' ? null : t
     // Animated in ThreeUI.renderLoop
     if (look) {
-      Shared.targets.tween = newCameraLookTween(this.ui.camera, obj.matrixWorld)
-    }
-
-    const store = this.ui && this.ui.useStore
-    if (store && typeof store.getState === 'function') {
-      const setter = store.getState().setCommittedPath
-      if (typeof setter === 'function') {
-        setter(this._pathFor(name))
+      const pos = t.kind === 'body' ? obj.matrixWorld : this.labelPosition(t)
+      if (pos) {
+        Shared.targets.tween = newCameraLookTween(this.ui.camera, pos)
       }
     }
+    const state = this.ui?.useStore?.getState?.()
+    const path = obj ? this._pathFor(t.kind === 'body' ? t.name : t.body) : []
+    if (typeof state?.setCommittedTarget === 'function') {
+      state.setCommittedTarget(t, path)
+    } else if (t.kind === 'star') {
+      state?.setCommittedStar?.({hipId: t.hipId, displayName: t.name, star: t.star})
+    } else if (obj) {
+      state?.setCommittedPath?.(path)
+    }
+    this.onTargetChange?.(t)
   }
 
 
   /**
-   * Turn the camera in place to face a catalogue star, without moving it:
-   * the star counterpart of `setTarget` (a rotation-only look tween, same
-   * 600 ms, same roll-preserving convention).  A star has no scene object
-   * to target, so the world position is where the stellarFrame puts it,
-   * shifted by the current worldGroup rebase.  Breadcrumb and store are
-   * the caller's: SearchBar sets committedStar, as for a go.
+   * @param {string|object} target As setTarget takes it
+   * @returns {object} The target as {kind, ...}; a star's with its hipId
+   *   and a name
+   */
+  _normalizeTarget(target) {
+    if (typeof target === 'string') {
+      return {kind: 'body', name: target}
+    }
+    if (!target?.kind) {
+      throw new Error(`scene#setTarget: not a target: ${target}`)
+    }
+    if (target.kind === 'star') {
+      const hipId = target.star.hipId
+      const name = target.name ?? this.stars?.catalog?.getNameOrId?.(hipId) ?? `HIP ${hipId}`
+      return {...target, hipId, name: String(name)}
+    }
+    return target
+  }
+
+
+  /**
+   * @returns {?object} The target, as setTarget took it: a place's, star's
+   *   or asterism's (`Shared.targets.label`), else the targeted body's
+   */
+  getTarget() {
+    if (Shared.targets.label) {
+      return Shared.targets.label
+    }
+    const name = Shared.targets.obj?.props?.name
+    return name ? {kind: 'body', name} : null
+  }
+
+
+  /**
+   * Target a catalogue star and turn the camera in place to face it
+   * (`setTarget` of the star, with the look tween).  It is where the
+   * stellarFrame puts it, shifted by the current worldGroup rebase.
    *
    * @param {object} star StarProps entry from StarsCatalog (x, y, z in m)
+   * @param {string} [name]
    */
-  lookAtStar(star) {
-    Shared.targets.label = null
-    this.ui.scene.updateMatrixWorld()
-    const pos = this.worldGroup.localToWorld(this.starPosition(star))
-    Shared.targets.tween = newCameraLookTween(this.ui.camera, pos)
+  lookAtStar(star, name) {
+    this.setTarget({kind: 'star', star, name})
   }
 
 
   /**
-   * Turn the camera in place to face a surface point (lat/lng in degrees,
-   * alt in m over the sphere) on a body.  Targets the body (`setTarget`:
-   * target, breadcrumb, preload), then aims the same look tween at the
-   * point rather than the body centre.
+   * Target a surface point (lat/lng in degrees, alt in m over the sphere)
+   * on a body and turn the camera in place to face it (`setTarget` of the
+   * place, with the look tween).
    *
    * @param {string} bodyName
    * @param {number} lat
    * @param {number} lng
    * @param {number} [alt]
+   * @param {string} [name] The place's name, else its coordinates
    */
-  lookAtPlace(bodyName, lat, lng, alt = 0) {
-    this.setTarget(bodyName)
-    const bodyNode = this.objects[bodyName]
-    const r = bodyNode.props?.radius?.scalar
-    if (!r) {
-      return
-    }
-    this.ui.scene.updateMatrixWorld()
-    const pos = bodyNode.localToWorld(latLngAltToBodyFixed(lat, lng, alt, r))
-    Shared.targets.tween = newCameraLookTween(this.ui.camera, pos)
+  lookAtPlace(bodyName, lat, lng, alt = 0, name = formatLatLng(lat, lng)) {
+    this.setTarget({kind: 'place', body: bodyName, name, lat, lng, alt})
   }
 
 
@@ -493,13 +551,14 @@ export default class Scene {
 
 
   /**
-   * Turn the camera to face the target, at once ('c').  The target is what
-   * the last click or search left (a label's: a place or an asterism), else
-   * a committed star, else the targeted body.
+   * Turn the camera to face the target, at once: 'c', and every frame while
+   * tracking ('t').  The target is setTarget's: a place, star or asterism
+   * (`Shared.targets.label`), else the targeted body.  A place is where it
+   * is on its body this frame, so tracking one follows it as the body turns.
    */
   lookAtTarget() {
-    const label = Shared.targets.label ?? this._committedStarLabel()
-    if (label && label.kind !== 'body') {
+    const label = Shared.targets.label
+    if (label) {
       const pos = this.labelPosition(label)
       if (pos) {
         this.ui.camera.lookAt(pos)
@@ -515,59 +574,6 @@ export default class Scene {
     this.ui.scene.updateMatrixWorld()
     tPos.setFromMatrixPosition(obj.matrixWorld)
     this.ui.camera.lookAt(tPos)
-  }
-
-
-  /** @returns {?{kind: string, star: object}} The committed star, as a label target */
-  _committedStarLabel() {
-    const star = this.ui.useStore?.getState?.().committedStar?.star
-    return star ? {kind: 'star', star} : null
-  }
-
-
-  /**
-   * One model for every label (DESIGN.md, Picking): a click or tap targets
-   * what it names, a double click or tap goes to it.  This is the click:
-   * it leaves the camera where it is, so 'c' turns to face the target and
-   * 'g' travels to it.
-   *
-   * - body: `setTarget`, as the 0-9 keys do, without the look
-   * - star: committed, as the search does, so the panel and 'g' follow
-   * - place: its body is targeted, and the point (`Shared.targets.label`)
-   *   is what 'c' faces and 'g' lands at
-   * - asterism: the point (its centroid) only; it isn't a body, so the
-   *   panel and breadcrumb stay as they were, and 'g' turns to face it
-   *
-   * @param {object} label A labelPick.js target: {kind, ...}
-   * @param {object} [opts]
-   * @param {boolean} [opts.path] Also move the breadcrumb to the place's
-   *   body (default).  The search bar passes false, as moving it closes the bar.
-   */
-  targetLabel(label, {path = true} = {}) {
-    switch (label.kind) {
-      case 'body':
-        if (this.objects[label.name]) {
-          this.setTarget(label.name, {look: false})
-        }
-        break
-      case 'star': {
-        Shared.targets.label = null
-        const setter = this.ui.useStore?.getState?.().setCommittedStar
-        setter?.({hipId: label.star.hipId, displayName: label.name, star: label.star})
-        break
-      }
-      case 'place':
-        if (path && this.objects[label.body]) {
-          this.setTarget(label.body, {look: false})
-        }
-        Shared.targets.label = label
-        break
-      case 'asterism':
-        Shared.targets.label = label
-        break
-      default:
-        break
-    }
   }
 
 
@@ -656,15 +662,22 @@ export default class Scene {
    * Arrival distance = radius × STEP_BACK so both bodies fill the same
    * apparent angular diameter regardless of absolute size.
    *
+   * Where it goes is the target after (`setTarget`, without the look).
+   *
    * @param {object|null} star StarProps entry from StarsCatalog, or null for planet.
+   * @param {string} [starName] The star's name, for the breadcrumb
    */
-  goTo(star = null) {
-    Shared.targets.label = null
+  goTo(star = null, starName = undefined) {
     const isPlanet = star === null
     const obj = isPlanet ? Shared.targets.obj : null
     if (isPlanet && !obj) {
       console.error('Scene.goTo called with no target obj.')
       return
+    }
+    if (isPlanet) {
+      this.setTarget(obj.props?.name ?? obj.name, {look: false})
+    } else {
+      this.setTarget({kind: 'star', star, name: starName}, {look: false})
     }
     this.ui.scene.updateMatrixWorld()
 
@@ -771,13 +784,14 @@ export default class Scene {
    * @param {boolean} [opts.instant] Snap into the landed pose with no tween
    *   (used by permalink restore); caller may then set camera.quaternion to
    *   the saved view direction.
+   * @param {object} [opts.target] The target after (`setTarget`, without
+   *   the look): a place being landed at; else the body
    */
   land(bodyName, lat, lng, alt = DEFAULT_LAND_ALT_M, opts = {}) {
     const bodyNode = this.objects[bodyName]
     if (!bodyNode) {
       throw new Error(`Scene.land: no body ${bodyName}`)
     }
-    Shared.targets.label = null
     const r = bodyNode.props?.radius?.scalar
     if (!r) {
       throw new Error(`Scene.land: body ${bodyName} has no radius`)
@@ -807,7 +821,6 @@ export default class Scene {
     this.ui.camera.quaternion.copy(platformWorldQuat.invert().multiply(camWorldQuat))
 
     Shared.targets.cur = bodyNode
-    Shared.targets.obj = bodyNode
 
     // Arrival local pose = body-fixed XYZ for (lat, lng, alt).  Platform is
     // identity at body origin, so platform-local == body-local.
@@ -844,10 +857,7 @@ export default class Scene {
     state?.setLanded?.(true)
     Shared.targets.landed = true
 
-    const setter = state?.setCommittedPath
-    if (typeof setter === 'function') {
-      setter(this._pathFor(bodyName))
-    }
+    this.setTarget(opts.target ?? bodyName, {look: false})
   }
 
 
@@ -1031,12 +1041,15 @@ export default class Scene {
   }
 
 
+  /**
+   * Track the target ('t'), on and off: every frame the camera faces it
+   * (`lookAtTarget`, from Celestiary's animation callback), whatever the
+   * target is then: a body, a star, an asterism, or a place, which it
+   * follows as its body turns.  Changing the target while tracking tracks
+   * the new one.
+   */
   track() {
-    if (Shared.targets.track) {
-      Shared.targets.track = null
-    } else {
-      Shared.targets.track = Shared.targets.obj
-    }
+    Shared.targets.track = !Shared.targets.track
   }
 
 
@@ -1058,7 +1071,8 @@ export default class Scene {
   /**
    * Click or tap handler.  On a label (a star's, a planet's or moon's, an
    * asterism's, a place's) it targets what the label names and does
-   * nothing else (`targetLabel`): 'c' turns to face it, 'g' goes.  A click
+   * nothing else (`setTarget`, without the look): 'c' turns to face it, 'g'
+   * goes.  A click
    * on empty sky or on a body's disc does nothing.  The double click is
    * `onDblClick`, which goes.  Not while the star picker is on, whose own
    * double click picks the star.
@@ -1068,7 +1082,7 @@ export default class Scene {
   onClick(e) {
     const label = this._starPickerOn() ? null : this.pickLabel(e)
     if (label) {
-      this.targetLabel(label)
+      this.setTarget(label, {look: false})
     }
   }
 
@@ -1218,6 +1232,9 @@ export default class Scene {
           this.asterisms = asterisms
           this.asterisms.visible = this._settings.a
           this._asterismsPending = false
+          const cbs = this._asterismsReadyCbs ?? []
+          this._asterismsReadyCbs = null
+          cbs.forEach((cb) => cb(asterisms))
         })
       })
       return
