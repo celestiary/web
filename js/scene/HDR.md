@@ -458,7 +458,7 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    (from 8 to 32 px across), and under that it is a point in whatever
    the rest of the frame asks.
 5. **A sunlit body in the frame anchors the gain, continuously in its
-   size on screen** (`sunlitBodyGain`, from `ThreeUi._sunlitBodies`:
+   share of the field** (`sunlitBodyGain`, from `ThreeUi._sunlitBodies`:
    every planet and moon whose disc is in the frame, with its lit
    fraction from its phase, its diameter in pixels and its share of the
    frame's pixels).  The anchor is the gain at which the body's brightest
@@ -466,25 +466,54 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    target-keyed exposure (`DISPLAY_GAIN × keyed(target) / keyed(body)`)
    times `HIGHLIGHT_ALBEDO_FACTOR` (2.5) × its Bond albedo, to 1 (Earth's
    clouds are 0.9 over its 0.37, the Moon's highlands 0.2 over its 0.12).
-   Two blends, both in log gain, so a step of zoom never steps the
-   exposure:
-   - **how much of the anchor applies, by the disc's diameter**
-     (`SUNLIT_DISC_PX`, 1.5 to 6 px, scaled by the pixel ratio): none for
-     a point-like planet, which blows out in a star field as a bright
-     point does (Jupiter from Earth at 45°, 40″, stays a star of the
-     night); all of it from 6 px (the Moon at 45° on a 1080 px screen is
-     7 px);
+   Two blends, both in log gain and both over the disc's share of the
+   frame's pixels (its solid angle over the field's), so a step of zoom
+   never steps the exposure:
+   - **how much of the anchor applies, by the disc's share of the frame**
+     (`SUNLIT_FRAME_WEIGHT`, 0.05% to 1%): adaptation follows the
+     luminance integrated over the field, so a bright source weighs by
+     its solid angle, not by its size in pixels.  None for a speck of the
+     field: the full Moon at 45° is a 0.5° disc in 45° × 72°, 0.006%, and
+     barely moves a dark-adapted eye in space, so it leaves the gain to
+     the frame and is a dazzling white disc among the stars; Jupiter from
+     Earth at 45° (40″) a star of the night.  All of it by 1%, under the
+     2% at which the highlight rule takes the disc itself, so the two
+     agree over the user's telescope steps (1.8-2.3%).  The second cut
+     weighed the anchor by the disc's diameter in pixels (1.5 to 6 px), a
+     resolution, not a luminance: the Moon's 4 px disc on the 300 px test
+     viewport took a star field from 4e6 to 40 and showed none of its 975
+     stars, and on a 1080 px screen (7 px) every field with the Moon in it
+     went to 3.3 ([#157](https://github.com/celestiary/web/issues/157)'s
+     PR).
    - **the target, by the disc's share of the frame**
      (`SUNLIT_FRAME_FRACTION`, 0.2% to 2%): a white
      (`METER_HIGHLIGHT_MAX`) for a small disc, falling to a sunlit
      surface (`METER_HIGHLIGHT`, 0.6) as the share reaches the 2% the
      highlight rule above keys on, so the two rules agree where they
      meet and the disc is exposed alike whichever holds.  A ±15% step of
-     zoom moves the gain under 20%.
+     zoom moves the gain under 20% over the anchored disc, and under
+     three stops where the anchor weighs in.
 
-   The Moon from Earth's night side: 3.3, its highlands white and its
-   maria at 0.6, the stars to magnitude 3; Earth's crescent from
-   94,000 km: 1.1, its clouds just white, no stars; Jupiter at a
+   What a bright small disc does take from the stars, physically, is
+   not the eye's gain: its **veiling glare** (Stiles-Holladay, `L_veil ≈
+   10·E/θ²` cd/m² for an illuminance E in lux at θ degrees from the
+   source: the full Moon's 0.25 lux veils 0.1 cd/m² at 5° and 0.006 at
+   20°, 50× and 3× a dark sky) is light in the field, which the meter
+   would read and which hides the stars near the disc; and from Earth's
+   surface the **moonlit sky** (0.001-0.003 cd/m² near full, 2-3
+   magnitudes over a dark site) hides the faint stars everywhere.
+   Neither is drawn yet: the glare is the next step for the anchor (a
+   halo on the Moon, Venus and Jupiter as the Sun has its glow shell,
+   metered like any light), the moonlit sky belongs to the atmosphere
+   pass (a second, weak source), and until then a wide field with the
+   Moon in it shows every star a dark site does, with the Moon white.
+
+   The Moon filling a 1° field: 1.33, its highlands at 0.6 and its
+   maria dimmer (the hard cap's 3.3, a white, is what `starsDebug`
+   logs); in a 10° field, 0.13% of it, the gain comes down a decade from
+   4e6 and the Moon is a dazzling disc with the stars to magnitude 4;
+   at 45° the field keeps 4e6; Earth's crescent from
+   94,000 km (1.3% of the frame): 1.1, its clouds just white, no stars; Jupiter at a
    telescope's 0.04° field from Earth, 275 px across on a 1140 px frame
    (2.3% of it): 2.16 (its keyed exposure is 5.3× Earth's by
    `exposureAt`), its brightest band at 0.6 and its centre at 0.43, and

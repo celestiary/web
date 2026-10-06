@@ -635,14 +635,14 @@ export default class ThreeUi {
     // The dark end is absolute, over Earth's keyed exposure (meteredGain).
     // A frame of zeros means "nothing drawn yet" only while the scene
     // loads (frameCanBeEmpty): once loaded, black is dark.
-    // A sunlit body in the frame anchors the gain, continuously in its size
-    // on screen (sunlitBodyGain); the hard cap is logged (starsDebug).
+    // A sunlit body in the frame anchors the gain, continuously in its
+    // share of the field (sunlitBodyGain); the hard cap is logged (starsDebug).
     const halfFov = this.camera.fov * Math.PI / 360
     this._sunlit = this._sunlitBodies()
     this._meterCap = sunlitBodyCap(this._sunlit, this._exposureGoal, halfFov)
     const keyedOverEarth = this._exposureGoal / exposureAt(ASTRO_UNIT_METER)
     const metered0 = sunlitBodyGain(meteredGain(metered, renderedOverKeyed, this._frameCanBeEmpty(), keyedOverEarth),
-        this._sunlit, this._exposureGoal, halfFov, this.renderer.getPixelRatio())
+        this._sunlit, this._exposureGoal, halfFov)
     // A resolved self-luminous disc (the Sun's) brings the gain to what
     // shows its surface, blended in as it grows (luminousDiscGain).
     this._luminous = this._luminousDiscs()

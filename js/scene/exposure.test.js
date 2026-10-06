@@ -5,7 +5,7 @@ import {
   EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
   luminousDiscGain, starClipZ, sunDiscValue, sunlitBodyCap, sunlitBodyGain, HIGHLIGHT_ALBEDO_FACTOR,
-  METER_HIGHLIGHT_FRACTION, STAR_GLARE_CORE_PATCHES, SUNLIT_DISC_PX, SUNLIT_FRAME_FRACTION,
+  METER_HIGHLIGHT_FRACTION, STAR_GLARE_CORE_PATCHES, SUNLIT_FRAME_WEIGHT, SUNLIT_FRAME_FRACTION,
   STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, STAR_VISIBLE_VALUE, SUN_DISC_RADIANCE, MILKY_WAY_RADIANCE,
 } from './exposure.js'
 import {readFileSync} from 'fs'
@@ -389,58 +389,131 @@ describe('a sunlit body in the frame, continuously in its size on screen', () =>
       worst15 = Math.max(worst15, g / g15)
       prev = g
     }
-    // The steepest ±15% step is where a point becomes a disc (1.5-6 px),
-    // and even there under three stops.
+    // The steepest ±15% step is where the anchor weighs in (0.05% to 1% of
+    // the frame), and even there under three stops.
     expect(worst15).toBeLessThan(8)
-    // Over the resolved disc, a ±15% step of zoom moves the gain under 20%
+    // Over the anchored disc, a ±15% step of zoom moves the gain under 20%
     // (a quarter stop): the target's blend over the share of the frame.
-    for (const px of [20, 50, 100, 150, 200, 230, 255, 275, 313, 500, 900]) {
+    for (const px of [200, 230, 255, 275, 313, 500, 900]) {
       expect(gainAt(px) / gainAt(px * 1.15)).toBeLessThan(1.2)
       expect(gainAt(px / 1.15) / gainAt(px)).toBeLessThan(1.2)
     }
   })
 
-  it('leaves a point-like planet to the frame, blends from 1.5 px and anchors from 6 px', () => {
-    const [lo, hi] = SUNLIT_DISC_PX
+  it('weighs in by the disc\'s share of the frame, 0.05% to 1%, not its size in pixels', () => {
+    const [wLo, wHi] = SUNLIT_FRAME_WEIGHT
+    const pxFor = (fraction) => 2 * Math.sqrt(fraction * width * height / Math.PI)
+    // A point, and a disc that is a speck of the field: left to the frame.
     expect(gainAt(1)).toBe(dark)
-    expect(gainAt(lo)).toBe(dark)
-    expect(gainAt(Math.sqrt(lo * hi))).toBeLessThan(dark)
-    expect(gainAt(Math.sqrt(lo * hi))).toBeGreaterThan(gainAt(hi))
-    // At 6 px the cap holds fully: Jupiter's disc a white (1.5), 0.0001%
-    // of the frame.
-    expect(gainAt(hi) * white).toBeCloseTo(METER_HIGHLIGHT_MAX, 6)
-    // The pixel ratio scales the diameters: at 2×, 6 px is 3 CSS px.
-    expect(sunlitBodyGain(dark, [jupiter(hi)], earth, halfFov, 2)).toBeGreaterThan(gainAt(hi))
-    expect(sunlitBodyGain(dark, [jupiter(2 * hi)], earth, halfFov, 2)).toBeCloseTo(gainAt(hi), 9)
+    expect(gainAt(6)).toBe(dark)
+    expect(gainAt(pxFor(wLo))).toBe(dark)
+    expect(gainAt(pxFor(Math.sqrt(wLo * wHi)))).toBeLessThan(dark)
+    expect(gainAt(pxFor(Math.sqrt(wLo * wHi)))).toBeGreaterThan(gainAt(pxFor(wHi)))
+    // By 1% the cap holds fully, at the target its share gives (between a
+    // white and a sunlit surface), and from there the gain follows the
+    // target alone.
+    const full = gainAt(pxFor(wHi)) * white
+    expect(full).toBeGreaterThan(METER_HIGHLIGHT)
+    expect(full).toBeLessThan(METER_HIGHLIGHT_MAX)
+    const past = gainAt(pxFor(wHi * 1.5)) * white
+    expect(past).toBeGreaterThan(METER_HIGHLIGHT)
+    expect(past).toBeLessThan(full)
+    // The same share of the frame gives the same gain on any screen: the
+    // weight is a solid angle, not a pixel count.
+    const small = {...jupiter(pxFor(wHi)), diameterPx: 3}
+    expect(sunlitBodyGain(dark, [small], earth, halfFov)).toBeCloseTo(gainAt(pxFor(wHi)), 9)
+  })
+
+  it('the Moon from Earth at 45°: a speck of the field, the stars stay near dark-adapted at any phase', () => {
+    // 0.5° in a 45° × 72° field is 0.006% of it; on a 300 px viewport a
+    // 4 px disc, on 1080 px 7 px.  The second cut's pixel weight took the
+    // 4 px disc to gain 40 and showed none of the field's 975 stars.
+    const moonRad = 1.7381e6 / 3.844e8
+    const [w, h] = [480, 300]
+    const pxRad = (45 * Math.PI / 180) / h
+    const diameterPx = 2 * moonRad / pxRad
+    const frameFraction = (Math.PI * ((diameterPx / 2) ** 2)) / (w * h)
+    expect(diameterPx).toBeCloseTo(3.5, 0)
+    expect(frameFraction).toBeLessThan(1e-4)
+    for (const litFraction of [1, 0.5, 0.2, 0.06]) {
+      const moon = {angularRadius: moonRad, litFraction, keyedExposure: earth, albedo: 0.12, diameterPx, frameFraction}
+      const g = sunlitBodyGain(dark, [moon], earth, 22.5 * Math.PI / 180)
+      expect(g).toBeGreaterThan(dark * 0.99)
+      expect(limitingMagnitude(g)).toBeGreaterThan(LIMITING_MAGNITUDE - 0.02)
+    }
+    // At 1080p the same Moon is 7 px and the same share: the same gain.
+    const hd = {angularRadius: moonRad, litFraction: 1, keyedExposure: earth, albedo: 0.12, diameterPx: 7,
+      frameFraction: (Math.PI * 3.5 * 3.5) / (1920 * 1080)}
+    expect(sunlitBodyGain(dark, [hd], earth, 22.5 * Math.PI / 180)).toBeGreaterThan(dark * 0.99)
+    // The hard cap, kept for starsDebug, still says 3.3 for this Moon.
+    expect(sunlitBodyCap([hd], earth)).toBeCloseTo(3.33, 1)
+  })
+
+  it('the Moon filling a narrow field is anchored: 1° shows its surface, 10° a small suppression', () => {
+    const moonRad = 1.7381e6 / 3.844e8
+    const moonAt = (fieldDeg, [w, h] = [1920, 1080]) => {
+      const diameterPx = 2 * moonRad / ((fieldDeg * Math.PI / 180) / h)
+      return {angularRadius: moonRad, litFraction: 1, keyedExposure: earth, albedo: 0.12, diameterPx,
+        frameFraction: (Math.PI * ((diameterPx / 2) ** 2)) / (w * h)}
+    }
+    const cap = sunlitBodyCap([moonAt(1)], earth)
+    expect(cap).toBeCloseTo(3.33, 1)
+    // 1°: the disc is 12% of the 16:9 frame, over the 2% rule's share: the
+    // anchor at the 2% rule's own target, its highlands at 0.6 (the hard
+    // cap's white, 3.33, is what starsDebug logs).
+    const one = moonAt(1)
+    const anchored = METER_HIGHLIGHT / (DISPLAY_GAIN * Math.min(HIGHLIGHT_ALBEDO_FACTOR * 0.12, 1))
+    expect(one.frameFraction).toBeGreaterThan(0.1)
+    expect(sunlitBodyGain(dark, [one], earth, 0.5 * Math.PI / 180)).toBeCloseTo(anchored, 9)
+    // 2°: 3%, anchored too.
+    expect(sunlitBodyGain(dark, [moonAt(2)], earth, Math.PI / 180)).toBeCloseTo(anchored, 9)
+    // 10°: 0.12% of the frame, part way into the weight: the gain comes
+    // down from 4e6 by a decade but the Moon is still a dazzling disc (the
+    // stars thinned, not gone).  Monotone in the field.
+    const ten = sunlitBodyGain(dark, [moonAt(10)], earth, 5 * Math.PI / 180)
+    expect(ten).toBeLessThan(dark / 10)
+    expect(ten).toBeGreaterThan(cap * 100)
+    const gains = [1, 2, 4, 6, 10, 20, 45].map((fov) => sunlitBodyGain(dark, [moonAt(fov)], earth, fov * Math.PI / 360))
+    for (let i = 1; i < gains.length; i++) {
+      expect(gains[i]).toBeGreaterThanOrEqual(gains[i - 1] * (1 - 1e-9))
+    }
+    expect(gains[gains.length - 1]).toBeGreaterThan(dark * 0.99)
   })
 
   it('exposes the disc from a white to a sunlit surface as its share of the frame grows to the 2% rule\'s', () => {
     const [fLo, fHi] = SUNLIT_FRAME_FRACTION
+    const [, wHi] = SUNLIT_FRAME_WEIGHT
     expect(fHi).toBe(METER_HIGHLIGHT_FRACTION)
+    expect(wHi).toBeLessThan(fHi)
     const pxFor = (fraction) => 2 * Math.sqrt(fraction * width * height / Math.PI)
-    expect(gainAt(pxFor(fLo)) * white).toBeCloseTo(METER_HIGHLIGHT_MAX, 6)
+    // Where the anchor holds fully (from 1%) its target runs from between
+    // a white and 0.6 down to 0.6 at the 2% the highlight rule keys on,
+    // monotone; under 1% the weight fades the anchor out, so the small
+    // disc's white target is approached, not reached.
     expect(gainAt(pxFor(fHi)) * white).toBeCloseTo(METER_HIGHLIGHT, 6)
-    const mid = gainAt(pxFor(Math.sqrt(fLo * fHi))) * white
-    expect(mid).toBeGreaterThan(METER_HIGHLIGHT)
-    expect(mid).toBeLessThan(METER_HIGHLIGHT_MAX)
+    let prev = gainAt(pxFor(wHi)) * white
+    expect(prev).toBeGreaterThan(METER_HIGHLIGHT)
+    expect(prev).toBeLessThan(METER_HIGHLIGHT_MAX)
+    for (let f = wHi * 1.05; f <= fHi; f *= 1.05) {
+      const target = gainAt(pxFor(f)) * white
+      expect(target).toBeLessThanOrEqual(prev * (1 + 1e-9))
+      prev = target
+    }
+    expect(gainAt(pxFor(fLo)) * white).toBeGreaterThan(METER_HIGHLIGHT_MAX)
   })
 
-  it('keeps the Moon from Earth\'s night side at 3.3, as the hard cap had it', () => {
-    // The Moon in a 10° field on 1080 px: 31 px, 0.2% of a 1920×1080 frame.
-    const moonRad = 1.7381e6 / 3.844e8
-    const diameterPx = 2 * moonRad / ((10 * Math.PI / 180) / 1080)
-    expect(diameterPx).toBeCloseTo(56, 0)
-    const moon = {angularRadius: moonRad, litFraction: 1, keyedExposure: earth, albedo: 0.12, diameterPx,
-      frameFraction: (Math.PI * ((diameterPx / 2) ** 2)) / (1920 * 1080)}
-    const cap = sunlitBodyCap([moon], earth)
-    expect(cap).toBeCloseTo(3.33, 1)
-    // 0.12% of the frame: the target is between a white and 0.6, nearer the white.
-    const g = sunlitBodyGain(dark, [moon], earth, 5 * Math.PI / 180)
-    expect(g).toBeGreaterThan(cap * 0.8)
-    expect(g).toBeLessThanOrEqual(cap * (1 + 1e-9))
-    // At 45° on 1080 px (7 px) the cap holds fully too.
-    const wide = {...moon, diameterPx: 7, frameFraction: (Math.PI * 3.5 * 3.5) / (1920 * 1080)}
-    expect(sunlitBodyGain(dark, [wide], earth, 22.5 * Math.PI / 180)).toBeCloseTo(cap, 9)
+  it('keeps Earth\'s crescent from 94,000 km anchored: 1.3% of a 45° frame', () => {
+    // Follow-up 5's case: the lit crescent 0.3% of the pixels, the disc
+    // 1.3%; the percentile rules miss it and ran the frame to 4e6.
+    const angularRadius = 3.6 * Math.PI / 180
+    const [w, h] = [480, 300]
+    const diameterPx = 2 * angularRadius / ((45 * Math.PI / 180) / h)
+    const crescent = {angularRadius, litFraction: 0.3, keyedExposure: earth, albedo: 0.367, diameterPx,
+      frameFraction: (Math.PI * ((diameterPx / 2) ** 2)) / (w * h)}
+    expect(crescent.frameFraction).toBeGreaterThan(0.01)
+    const g = sunlitBodyGain(dark, [crescent], earth, 22.5 * Math.PI / 180)
+    expect(g).toBeLessThan(1.5)
+    expect(g).toBeGreaterThanOrEqual(1)
   })
 
   it('keeps the hard cap\'s guards: the disc in the frame, a twentieth lit, never under 1, and a cap only', () => {
