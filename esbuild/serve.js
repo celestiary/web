@@ -5,6 +5,9 @@ import config from './common.js'
 import {createProxyServer} from './proxy.js'
 
 
+// Enable dev-only features (hot reload, debug builds, etc) in serve mode
+config.define.__DEV__ = JSON.stringify(true)
+
 const ctx = await esbuild.context(config)
 await ctx.watch()
 
