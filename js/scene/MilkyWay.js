@@ -10,7 +10,8 @@ import {
 import {galacticToSceneMatrix, SUN_GALACTIC_RADIUS_LY} from './galacticFrame.js'
 import {pathTexture} from './material.js'
 import {LIGHTYEAR_METER} from '../shared.js'
-import {absoluteUniforms} from './hdr.js'
+import {MILKY_WAY_RADIANCE} from './exposure.js'
+import {EMITTED_GLSL, absoluteUniforms} from './hdr.js'
 import {rteCameraLocal} from './rte.js'
 
 
@@ -434,17 +435,23 @@ void main() {
 `
 
 const FRAG = `
+${EMITTED_GLSL}
 uniform sampler2D texSampler;
 uniform float uExposureRelative;
 varying vec3 vColor;
 // The Milky Way's surface brightness relative to a white surface facing
-// the Sun at 1 AU: its bright regions are ~21-22 mag/arcsec², 2e-4 cd/m²,
-// against ~4e4 cd/m² for the white, 5e-9; the particle cloud's full value
-// is set to that, times DISPLAY_GAIN, so at a dark sky's metered exposure
-// (gain ~1e6, HDR.md) it shows at a few percent, faint, as it is.
-const float GALAXY_RADIANCE = 1.5 * 1.3e-8;
+// the Sun at 1 AU (exposure.js MILKY_WAY_RADIANCE): its bright regions are
+// ~21-22 mag/arcsec², 2e-4 cd/m², against ~4e4 cd/m² for the white, 5e-9;
+// the particle cloud's full value is set to that, times DISPLAY_GAIN, so
+// at a dark sky's metered exposure (gain ~1e6, HDR.md) it shows at a few
+// percent, faint, as it is.
+const float GALAXY_RADIANCE = ${MILKY_WAY_RADIANCE.toExponential(6)};
 void main() {
   vec4 tex = texture2D(texSampler, gl_PointCoord);
-  gl_FragColor = vec4(vColor * GALAXY_RADIANCE * uExposureRelative, 1.0) * tex;
+  // Pre-exposed (uExposureRelative carries the frame's gain), premultiplied
+  // here (the additive blend adds it as is), and nothing under what the
+  // buffer holds as a normal value: the sprites' filtered edges fell to
+  // 1e-7 there, subnormal, flushed on some GPUs and kept on others.
+  gl_FragColor = vec4(emitted(vColor * GALAXY_RADIANCE * uExposureRelative * tex.rgb * tex.a), 1.0);
 }
 `

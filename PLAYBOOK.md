@@ -541,7 +541,14 @@ by the 2% rule alone, and a step of zoom that took its disc under 2% of
 the frame stepped the gain 0.6 to 4e6.  Anything the rule keys on is a
 quantity on screen (pixels, share of the frame), and every hand-over
 between rules is a blend in log gain over a range of it
-(`sunlitBodyGain`, as `luminousDiscGain`), never a threshold.
+(`sunlitBodyGain`, as `luminousDiscGain`), never a threshold.  And the
+quantity has to be the physical one: the fix's first cut weighed the
+anchor by the disc's diameter in pixels, a resolution, so the Moon's 4 px
+disc on the 300 px test viewport took a star field from 4e6 to 40 and
+every star went (#157's PR).  Adaptation follows the luminance
+integrated over the field, so a bright source's weight is its share of
+the field, its solid angle; a pixel count stands in for it only at one
+viewport size.
 
 **Rule:** when a pixel statistic has to tell two things apart (a small
 lit body from a star field; an empty frame from a dark one), ask whether

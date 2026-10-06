@@ -93,9 +93,11 @@ export default class ThreeUi {
     // Target-keyed exposure (_updateExposure).
     this._exposureGoal = exposureAt(ASTRO_UNIT_METER)
     this._lastExposureMs = null
-    // The metered gain over it (_meter), and its goal.
+    // The metered gain over it (_meter), its goal, and the gain the frame
+    // renders with (_updateExposure).
     this._meterGain = 1
     this._meterGainGoal = 1
+    this._renderedGain = 1
     this._frame = 0
     this._exposureBodyPos = new Vector3()
     this._exposureSunPos = new Vector3()
@@ -519,8 +521,14 @@ export default class ThreeUi {
         this._meterGainGoal < this._meterGain ? METER_TAU_DOWN_SECONDS : METER_TAU_UP_SECONDS)
     this.renderer.toneMappingExposure =
       easeExposure(this.renderer.toneMappingExposure, this._exposureGoal * this._meterGain, dt)
-    // Everything of absolute brightness (stars, the Milky Way, the Sun's
-    // disc) scales with the exposure itself (hdr.js absoluteUniforms).
+    // The gain this frame renders with, over the target-keyed exposure:
+    // the eased exposure's, not the meter's goal nor _meterGain, which the
+    // exposure's own easing trails.  Pre-exposure (HDR.md): everything of
+    // absolute brightness (the stars, the Milky Way, the Sun's disc and
+    // glow) is multiplied by it before the buffer, through
+    // uExposureRelative (hdr.js absoluteUniforms), as a lit surface is by
+    // toneMappingExposure, and the meter divides its readback by it.
+    this._renderedGain = this.renderer.toneMappingExposure / this._exposureGoal
     absoluteUniforms.uExposureRelative.value = exposureRelative(this.renderer.toneMappingExposure)
     absoluteUniforms.uViewportHeight.value = this.height
     absoluteUniforms.uFovDegrees.value = this.camera.fov
@@ -619,19 +627,22 @@ export default class ThreeUi {
     this.renderer.setRenderTarget(null)
     u.uDebug.value = 0
     this.renderer.readRenderTargetPixels(this._meterRT, 0, 0, METER_SIZE, METER_SIZE, this._meterPixels)
-    const renderedOverKeyed = this.renderer.toneMappingExposure / this._exposureGoal
+    // The buffer holds the frame as exposed (pre-exposure, _updateExposure):
+    // the reading over the gain it was rendered with is the scene's at the
+    // keyed exposure, whatever the gain's goal or easing now.
+    const renderedOverKeyed = this._renderedGain
     const metered = meanLogLuminance(this._meterPixels, METER_SIZE * METER_SIZE)
     // The dark end is absolute, over Earth's keyed exposure (meteredGain).
     // A frame of zeros means "nothing drawn yet" only while the scene
     // loads (frameCanBeEmpty): once loaded, black is dark.
-    // A sunlit body in the frame anchors the gain, continuously in its size
-    // on screen (sunlitBodyGain); the hard cap is logged (starsDebug).
+    // A sunlit body in the frame anchors the gain, continuously in its
+    // share of the field (sunlitBodyGain); the hard cap is logged (starsDebug).
     const halfFov = this.camera.fov * Math.PI / 360
     this._sunlit = this._sunlitBodies()
     this._meterCap = sunlitBodyCap(this._sunlit, this._exposureGoal, halfFov)
     const keyedOverEarth = this._exposureGoal / exposureAt(ASTRO_UNIT_METER)
     const metered0 = sunlitBodyGain(meteredGain(metered, renderedOverKeyed, this._frameCanBeEmpty(), keyedOverEarth),
-        this._sunlit, this._exposureGoal, halfFov, this.renderer.getPixelRatio())
+        this._sunlit, this._exposureGoal, halfFov)
     // A resolved self-luminous disc (the Sun's) brings the gain to what
     // shows its surface, blended in as it grows (luminousDiscGain).
     this._luminous = this._luminousDiscs()
@@ -929,6 +940,7 @@ export default class ThreeUi {
       keyedExposure: this._exposureGoal,
       meterGain: this._meterGain,
       meterGainGoal: this._meterGainGoal,
+      renderedGain: this._renderedGain,
       meterLast: this._meterLast ?? null,
       meterCap: this._meterCap ?? Infinity,
       sunlitBodies: this._sunlitBodies(),

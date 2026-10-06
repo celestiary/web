@@ -303,6 +303,13 @@ export function luminousDiscGain(gain, discs, keyedOverEarth, pixelRatio = 1) {
 export const LUMINOUS_DISC_PX = [8, 32]
 /** The Sun's disc radiance in exposure units at Earth's keyed exposure (star-shaders.js SUN_RADIANCE). */
 export const SUN_DISC_RADIANCE = DISPLAY_GAIN * 46238
+/**
+ * The Milky Way's surface brightness in exposure units at Earth's keyed
+ * exposure, for the particle cloud's full value (MilkyWay.js): its bright
+ * regions are 21-22 mag/arcsec², 2e-4 cd/m², against 3-4e4 cd/m² for a
+ * sunlit white, 5e-9, times DISPLAY_GAIN (HDR.md, "The Milky Way").
+ */
+export const MILKY_WAY_RADIANCE = DISPLAY_GAIN * 1.3e-8
 
 
 /**
@@ -333,25 +340,45 @@ export function smoothstep(lo, hi, x) {
 
 /**
  * The sunlit-body anchor as the meter applies it (ThreeUi._meter), in
- * place of the hard cap: continuous in the disc's size on screen, so the
- * exposure changes gradually with zoom and a planet that fills a similar
- * share of the screen is exposed alike.  Two blends, both in log gain:
+ * place of the hard cap: continuous in the disc's share of the field, so
+ * the exposure changes gradually with zoom and a planet that fills a
+ * similar share of the screen is exposed alike.  Two blends, both in log
+ * gain, both over the disc's share of the frame's pixels (its solid
+ * angle over the field's), which is what adaptation follows: the eye
+ * adapts to the luminance integrated over its field, so a bright source
+ * weighs by its share of the field, not by its size in pixels.
  *
- * - **The cap's weight, by the disc's diameter in pixels**
- *   (SUNLIT_DISC_PX, 1.5 to 6 px, scaled by the pixel ratio): none for a
- *   point-like planet, which blows out in a star field as a bright point
- *   does; all of it from 6 px.  The first cut took a body as resolved by
- *   its angular size against the eye's 10′ patch, which at a telescope's
- *   field left Jupiter, 300 px across, unanchored: the meter's 2% rule
- *   alone held it, and when the disc fell under 2% of the frame at a
- *   step of zoom the rule dropped it, 0.6 to blown white at once (the
- *   user's preview).
+ * - **The cap's weight, by the disc's share of the frame**
+ *   (SUNLIT_FRAME_WEIGHT, 0.01% to 0.2%): none for a disc that is a speck
+ *   of the field, all of it by 0.2%, where the target's own blend begins
+ *   and well under the 2% at which the highlight rule takes the disc
+ *   itself, so the user's telescope view of Jupiter (2.3%, 2.0%, 1.8% of
+ *   the frame over three steps of zoom) holds its bands at one gain, and
+ *   at a 0.1° field (0.4-0.6%) too.  The full Moon at 45° is 0.006% of the field (a
+ *   0.5° disc in 45° × 72°): it barely moves the eye's dark adaptation
+ *   in space, and here it leaves the gain to the frame, so the stars
+ *   stay and the Moon is a dazzling white disc among them, as it is to a
+ *   dark-adapted eye that doesn't look straight at it.  The second cut
+ *   weighed the anchor by the disc's diameter in pixels (1.5 to 6 px),
+ *   a resolution, not a luminance: the Moon's 4 px disc on a 300 px
+ *   viewport took a star field from 4e6 to 40 and showed none of its 975
+ *   stars; on a 1080 px screen (7 px) it took every field the Moon was
+ *   in to 3.3.  (The first cut took a body as resolved by its angular
+ *   size against the eye's 10′ patch, whatever the field of view, which
+ *   at a telescope's field left Jupiter, 300 px across, unanchored, and
+ *   the 2% rule dropped it from 0.6 to blown white at a step of zoom.)
+ *   What the eye does lose round a bright disc is its veiling glare
+ *   (Stiles-Holladay, L ≈ 10·E/θ² cd/m² for E lux at θ degrees: the full
+ *   Moon's 0.25 lux veils 0.1 cd/m² at 5°, 50× a dark sky), which is
+ *   light in the field, not a change of gain; HDR.md records it as the
+ *   next step.  From Earth's surface the moonlit sky is the other
+ *   suppression, and belongs to the atmosphere pass.
  * - **The cap's target, by the disc's share of the frame**: a white
- *   (METER_HIGHLIGHT_MAX) for a small disc, as before, falling to a
- *   sunlit surface (METER_HIGHLIGHT) as the share reaches the 2% the
- *   highlight rule keys on (SUNLIT_FRAME_FRACTION), so the two rules
- *   agree where they meet and the disc is exposed as the 2% rule exposes
- *   it, whichever holds.
+ *   (METER_HIGHLIGHT_MAX) for a small disc, falling to a sunlit surface
+ *   (METER_HIGHLIGHT) as the share reaches the 2% the highlight rule
+ *   keys on (SUNLIT_FRAME_FRACTION), so the two rules agree where they
+ *   meet and the disc is exposed as the 2% rule exposes it, whichever
+ *   holds.
  *
  * The result is never above the meter's gain (a cap), never under 1
  * (the target's own sunlit side keeps its keyed exposure), and the
@@ -359,30 +386,30 @@ export function smoothstep(lo, hi, x) {
  *
  * @param {number|null} gain The meter's gain over the target-keyed exposure
  * @param {Array<{angularRadius: number, litFraction: number, keyedExposure: number, albedo: number,
- *   diameterPx: number, frameFraction: number}>} bodies As sunlitBodyCap's, plus each body's disc
- *   diameter in pixels and its share of the frame's pixels
+ *   frameFraction: number}>} bodies As sunlitBodyCap's, plus each body's disc's share of the
+ *   frame's pixels
  * @param {number} targetKeyedExposure exposureAt the exposure target's distance
  * @param {number} [halfFov] Half the vertical field of view, radians
- * @param {number} [pixelRatio] The renderer's
  * @returns {number|null} The gain, capped as the bodies in view ask
  */
-export function sunlitBodyGain(gain, bodies, targetKeyedExposure, halfFov = Math.PI, pixelRatio = 1) {
+export function sunlitBodyGain(gain, bodies, targetKeyedExposure, halfFov = Math.PI) {
   if (!(gain > 0)) {
     return gain
   }
   let out = gain
-  const [lo, hi] = SUNLIT_DISC_PX.map((px) => px * Math.max(pixelRatio, 1e-6))
+  const [wLo, wHi] = SUNLIT_FRAME_WEIGHT
   const [fLo, fHi] = SUNLIT_FRAME_FRACTION
   for (const body of bodies) {
-    const {angularRadius, litFraction, keyedExposure, albedo, diameterPx, frameFraction} = body
-    if (!(angularRadius <= halfFov) || !(litFraction >= LIT_FRACTION_MIN) || !(keyedExposure > 0) || !(diameterPx > 0)) {
+    const {angularRadius, litFraction, keyedExposure, albedo, frameFraction} = body
+    if (!(angularRadius <= halfFov) || !(litFraction >= LIT_FRACTION_MIN) || !(keyedExposure > 0) ||
+        !(frameFraction > 0)) {
       continue
     }
-    const weight = smoothstep(Math.log(lo), Math.log(hi), Math.log(diameterPx))
+    const weight = smoothstep(Math.log(wLo), Math.log(wHi), Math.log(frameFraction))
     if (!(weight > 0)) {
       continue
     }
-    const share = smoothstep(Math.log(fLo), Math.log(fHi), Math.log(Math.max(frameFraction, 1e-12)))
+    const share = smoothstep(Math.log(fLo), Math.log(fHi), Math.log(frameFraction))
     const target = Math.exp(((1 - share) * Math.log(METER_HIGHLIGHT_MAX)) + (share * Math.log(METER_HIGHLIGHT)))
     const white = DISPLAY_GAIN * targetKeyedExposure / keyedExposure
     const highlightAlbedo = Math.min(HIGHLIGHT_ALBEDO_FACTOR * (albedo > 0 ? albedo : 0.3), 1)
@@ -393,15 +420,6 @@ export function sunlitBodyGain(gain, bodies, targetKeyedExposure, halfFov = Math
   }
   return out
 }
-
-
-/**
- * The disc diameters, in pixels, over which a sunlit body's cap weighs
- * in (sunlitBodyGain), none at the first, all from the second: a planet a
- * pixel or two across blows out as a bright point; the Moon at 45° on a
- * 1080 px screen (7 px) is anchored as it was.
- */
-export const SUNLIT_DISC_PX = [1.5, 6]
 
 
 /**
@@ -492,7 +510,22 @@ export const METER_HIGHLIGHT_FRACTION = 0.02
  * white to a sunlit surface (sunlitBodyGain): the second is the meter's
  * highlight fraction, where the 2% rule takes the disc itself.
  */
-export const SUNLIT_FRAME_FRACTION = [0.002, METER_HIGHLIGHT_FRACTION]
+export const SUNLIT_FRAME_FRACTION_LO = 0.002
+export const SUNLIT_FRAME_FRACTION = [SUNLIT_FRAME_FRACTION_LO, METER_HIGHLIGHT_FRACTION]
+/**
+ * The disc's share of the frame over which a sunlit body's cap weighs in
+ * (sunlitBodyGain), none at the first, all from the second: a speck of
+ * the field (the full Moon at 45°, 0.006%: a 0.5° disc in 45° × 72°; a
+ * planet a pixel or two across) blows out as a bright point and leaves
+ * the gain to the frame; by 0.2% the anchor holds, where the target's
+ * own blend (SUNLIT_FRAME_FRACTION) takes over from a white toward a
+ * sunlit surface at the 2% the highlight rule keys on, so the two blends
+ * chain and the user's telescope steps (1.8-2.3%) are deep in the
+ * anchor.  Jupiter at a 0.1° field from Earth is 0.37-0.55% of the
+ * frame and keeps its bands; the Moon in a 10° field is 0.13%, most of
+ * the way to its anchor; Earth's crescent from 94,000 km at 45° is 1.3%.
+ */
+export const SUNLIT_FRAME_WEIGHT = [0.0001, SUNLIT_FRAME_FRACTION_LO]
 /**
  * The most that luminance is lifted to, in exposure units: a sunlit
  * surface of albedo 0.4 (DISPLAY_GAIN × 0.4).  Brighter than that, the

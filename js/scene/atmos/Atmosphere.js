@@ -17,7 +17,7 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three'
-import {LUMINOUS_SHOULDER_GLSL, NEUTRAL_GLSL, absoluteUniforms} from '../hdr.js'
+import {EMITTED_GLSL, LUMINOUS_SHOULDER_GLSL, NEUTRAL_GLSL, absoluteUniforms} from '../hdr.js'
 import {sphere} from '../shapes'
 import {MIE_PHASE_GLSL, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
 
@@ -289,6 +289,7 @@ void main() {
 }`,
       fragmentShader: `// reference from https://youtu.be/vM8M4QloVL0?si=CKD5ELVrRm3GjDnN
 ${LUMINOUS_SHOULDER_GLSL}
+${EMITTED_GLSL}
 varying vec3 vNormal;
 varying vec3 eyeVector;
 uniform float atmOpacity;
@@ -317,7 +318,10 @@ void main() {
     // The glow adds to the disc where the depth buffer can't tell its rim
     // from the shell (hdr.js LUMINOUS_CEILING): held to what the buffer has
     // left over the disc's ceiling, so the sum never overflows half-float.
-    gl_FragColor = vec4(min(atmColor * factor, vec3(LUMINOUS_GLOW_MAX)), min(atmOpacity * factor, 1.0));
+    // Premultiplied here (the additive blend adds it as is), with nothing
+    // under what the buffer holds as a normal value (hdr.js emitted).
+    vec3 glow = min(atmColor * factor, vec3(LUMINOUS_GLOW_MAX)) * min(atmOpacity * factor, 1.0);
+    gl_FragColor = vec4(emitted(glow), 1.0);
 }`,
       uniforms: {
         atmOpacity: {value: 0.9},

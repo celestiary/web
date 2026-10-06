@@ -411,15 +411,15 @@ behind it (from 71 Gm its resolution is 5e8 m), sum to at most 6e4,
 under half-float's 65,504 (over it a value is Inf, NaN once sampled, a
 black pixel: with the disc at 6e4 and the glow at 2e4 the rim's red
 channel overflowed, 29 pixels round the disc).  The point sprites add
-single digits at most there (the glare cap).  The shoulder, and the tone map's rule that a non-finite input
-shows as the white point, are belt and braces: the buffer holds
-physical radiance at the keyed exposure, 1e-6 to 1e5, against
-half-float's 6.1e-5 to 65,504, and the fix at the root is pre-exposure,
-[#157](https://github.com/celestiary/web/issues/157): emitted radiance
-times the frame's gain before the buffer, so its values stay O(0.01-10)
-and neither end of half-float is near (its overflow, and the flush of
-a star field's values to zero on Metal, go with it).  At that exposure it is white; the metered exposure brings it
-down to show the granulation (rule 6 below).  **The black disc inside a
+single digits at most there (the glare cap).  The shoulder is the fix
+for the top of half-float, not a stopgap
+([pre-exposure](#pre-exposure), [#157](https://github.com/celestiary/web/issues/157)):
+the buffer holds the disc at the frame's gain, and in a dark-adapted
+frame with the Sun a small disc or a point in it the disc is 1e9 over
+white, physically, which no buffer holds; the tone map's rule that a
+non-finite input shows as the white point is the second line.  At the
+keyed exposure the disc is white; the metered exposure brings it down
+to show the granulation (rule 6 below).  **The black disc inside a
 bright limb** the user saw on zooming in, and every SwiftShader render
 of the disc, which was taken for a SwiftShader limitation, was neither
 overflow nor SwiftShader: the disc's noise took its time from
@@ -496,7 +496,7 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    (from 8 to 32 px across), and under that it is a point in whatever
    the rest of the frame asks.
 5. **A sunlit body in the frame anchors the gain, continuously in its
-   size on screen** (`sunlitBodyGain`, from `ThreeUi._sunlitBodies`:
+   share of the field** (`sunlitBodyGain`, from `ThreeUi._sunlitBodies`:
    every planet and moon whose disc is in the frame, with its lit
    fraction from its phase, its diameter in pixels and its share of the
    frame's pixels).  The anchor is the gain at which the body's brightest
@@ -504,25 +504,57 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    target-keyed exposure (`DISPLAY_GAIN × keyed(target) / keyed(body)`)
    times `HIGHLIGHT_ALBEDO_FACTOR` (2.5) × its Bond albedo, to 1 (Earth's
    clouds are 0.9 over its 0.37, the Moon's highlands 0.2 over its 0.12).
-   Two blends, both in log gain, so a step of zoom never steps the
-   exposure:
-   - **how much of the anchor applies, by the disc's diameter**
-     (`SUNLIT_DISC_PX`, 1.5 to 6 px, scaled by the pixel ratio): none for
-     a point-like planet, which blows out in a star field as a bright
-     point does (Jupiter from Earth at 45°, 40″, stays a star of the
-     night); all of it from 6 px (the Moon at 45° on a 1080 px screen is
-     7 px);
+   Two blends, both in log gain and both over the disc's share of the
+   frame's pixels (its solid angle over the field's), so a step of zoom
+   never steps the exposure:
+   - **how much of the anchor applies, by the disc's share of the frame**
+     (`SUNLIT_FRAME_WEIGHT`, 0.01% to 0.2%): adaptation follows the
+     luminance integrated over the field, so a bright source weighs by
+     its solid angle, not by its size in pixels.  None for a speck of the
+     field: the full Moon at 45° is a 0.5° disc in 45° × 72°, 0.006%, and
+     barely moves a dark-adapted eye in space, so it leaves the gain to
+     the frame and is a dazzling white disc among the stars; Jupiter from
+     Earth at 45° (40″) a star of the night.  All of it by 0.2%, where
+     the target's own blend (next) begins, so the two blends chain, and
+     well under the 2% at which the highlight rule takes the disc itself,
+     so the rules agree over the user's telescope steps (1.8-2.3%) and
+     Jupiter at a 0.1° field (0.4-0.6%) keeps its bands.  The second cut
+     weighed the anchor by the disc's diameter in pixels (1.5 to 6 px), a
+     resolution, not a luminance: the Moon's 4 px disc on the 300 px test
+     viewport took a star field from 4e6 to 40 and showed none of its 975
+     stars, and on a 1080 px screen (7 px) every field with the Moon in it
+     went to 3.3 ([#157](https://github.com/celestiary/web/issues/157)'s
+     PR).
    - **the target, by the disc's share of the frame**
      (`SUNLIT_FRAME_FRACTION`, 0.2% to 2%): a white
      (`METER_HIGHLIGHT_MAX`) for a small disc, falling to a sunlit
      surface (`METER_HIGHLIGHT`, 0.6) as the share reaches the 2% the
      highlight rule above keys on, so the two rules agree where they
      meet and the disc is exposed alike whichever holds.  A ±15% step of
-     zoom moves the gain under 20%.
+     zoom moves the gain under 20% over the anchored disc, and under
+     three stops where the anchor weighs in.
 
-   The Moon from Earth's night side: 3.3, its highlands white and its
-   maria at 0.6, the stars to magnitude 3; Earth's crescent from
-   94,000 km: 1.1, its clouds just white, no stars; Jupiter at a
+   What a bright small disc does take from the stars, physically, is
+   not the eye's gain: its **veiling glare** (Stiles-Holladay, `L_veil ≈
+   10·E/θ²` cd/m² for an illuminance E in lux at θ degrees from the
+   source: the full Moon's 0.25 lux veils 0.1 cd/m² at 5° and 0.006 at
+   20°, 50× and 3× a dark sky) is light in the field, which the meter
+   would read and which hides the stars near the disc; and from Earth's
+   surface the **moonlit sky** (0.001-0.003 cd/m² near full, 2-3
+   magnitudes over a dark site) hides the faint stars everywhere.
+   Neither is drawn yet: the glare is the next step for the anchor (a
+   halo on the Moon, Venus and Jupiter as the Sun has its glow shell,
+   metered like any light), the moonlit sky belongs to the atmosphere
+   pass (a second, weak source), and until then a wide field with the
+   Moon in it shows every star a dark site does, with the Moon white.
+
+   The Moon filling a 1° field: 1.33, its highlands at 0.6 and its
+   maria dimmer (the hard cap's 3.3, a white, is what `starsDebug`
+   logs); in a 10° field, 0.13% of it, most of the way into the weight,
+   the gain is within a few times the anchor (7.4 here) and the
+   Moon a bright disc, its highlands over white, the brightest stars
+   left; at 45° the field keeps 4e6 and its stars; Earth's crescent from
+   94,000 km (1.3% of the frame): 1.1, its clouds just white, no stars; Jupiter at a
    telescope's 0.04° field from Earth, 275 px across on a 1140 px frame
    (2.3% of it): 2.16 (its keyed exposure is 5.3× Earth's by
    `exposureAt`), its brightest band at 0.6 and its centre at 0.43, and
@@ -582,7 +614,11 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    centre at 8e-5, which survived); the frame read zero, the gain held at
    1, and the stars stayed 1e-5 of white.  On SwiftShader, which keeps
    half-float denormals, the meter's brightest tap at 1080p was one star's
-   edge at 4e-8.  The LDR fallback's bytes quantize a star field to zero,
+   edge at 4e-8.  Since [pre-exposure](#pre-exposure) the floor is
+   explicit (`emitted`): a star field at gain 1 writes nothing to the
+   buffer on any GPU, so the rule stays for as long as the loading frame
+   renders at gain 1, and the scene, not the pixels, says whether the
+   frame can be empty.  The LDR fallback's bytes quantize a star field to zero,
    so it takes every black frame as dark, and a planet loading there is
    blown out for the second the gain takes to fall.  `c.ui.starsDebug()`
    logs the meter's last reading, the gain and its cap with the bodies
@@ -624,6 +660,103 @@ multiply, the decode, the stars and the Sun's disc clamp to `HDR_MAX_VALUE`
 (6e4, under half-float's 65504), since a value past it becomes Inf, NaN out
 of the tone map, a black pixel, and a meter that reads black holds the gain
 that overflowed it; a non-finite pixel in the meter counts as the maximum.
+The other end is floored: emitted radiance under `HDR_MIN_NORMAL` (6.1e-5,
+half-float's smallest normal value) is written as zero (below).
+
+### Pre-exposure
+
+[#157](https://github.com/celestiary/web/issues/157).  **The buffer holds
+the frame as exposed, every source alike.**  The scene pass multiplies a
+lit surface by `toneMappingExposure`, which `_updateExposure` sets to the
+target-keyed exposure times the metered gain (eased); `uExposureRelative`
+is that same exposure over Earth's keyed one, `keyedOverEarth × gain`,
+and every emitted source (the stars, the Milky Way, the Sun's disc and
+its glow) multiplies its radiance at Earth's keyed exposure by it before
+writing (`absoluteUniforms`); the sky's `uSkyExposure` and Cesium's
+decode (`exposureOf`) carry the same exposure.  So a mag 6 star at the
+dark gain is 0.17 in the buffer, Alnilam 9.4 (its kernel's peak 1.3 on
+the 300 px viewport, 5.8 at 1080p), Sirius 170, the Milky Way's full
+value 0.078, and the Sun's disc at the luminous-disc gain 0.600.
+`ThreeUi._renderedGain` records the gain the frame renders with, once,
+before the scene pass, and `_meter` divides its readback by that record:
+not by the meter's goal, nor by `_meterGain`, which the exposure's own
+0.5 s easing trails (`starsDebug` logs it as `renderedGain`).  The issue
+took the buffer for the keyed scene with the gain applied after it, 1e-6
+to 1e5; PR B had put the gain in the buffer already, and this is the
+measurement.
+
+**The floor.**  What falls under half-float's smallest normal value
+(`HDR_MIN_NORMAL`, 6.1e-5) at the dark gain is invisible: a star fainter
+than magnitude 15 (the limit star is 0.12, 2.5× less per magnitude), the
+Gaussian halo past where the quad's window has taken it under a display
+step, and the filtered edges of the Milky Way's sprites (an 8-bit texel
+of 1/255 at a bilinear weight of 1/256, times 0.078, is 1e-6).
+SwiftShader keeps such values as subnormals; a GPU that flushes them
+(ANGLE on Metal) stores zero.  `emitted()` (`hdr.js`, its GLSL in the
+Milky Way's, the Sun's disc's and the glow's shaders, and a copy in
+`stars.frag`, which is a file; a test keeps the constants equal) writes a
+channel under the floor as zero, so every GPU holds the same buffer and a probe here reads
+what the user's Mac holds.  It costs nothing visible: 6.1e-5 is 1/65 of a
+display step through the tone map, and the star counts and pixels below
+are unchanged.  The Milky Way and the glow output premultiplied with
+alpha 1 (their additive blend adds the colour as is), so the floor applies
+to what reaches the buffer.  The LDR fallback can't hold under 1/255 and
+is unchanged to the pixel.
+
+**At the keyed exposure** (gain 1: the loading frame, or a frame a sunlit
+body anchors) the star field as a whole is under the floor: Sirius alone
+peaks over it on a screen (1.2e-4, 1/35 of a display step), nothing on
+the test viewport.  That is why rule 7's `frameCanBeEmpty` stays: on any
+GPU the meter can't tell a loading frame from a star field at gain 1 by
+its pixels, and the scene has to say.  The star field is invisible there
+either way (Sirius 4.4e-5 of white).
+
+**The top of half-float** is reached by one source, the Sun's disc, and
+only in a frame whose gain the disc doesn't set: a dark-adapted field with
+the Sun a point or a small disc in it.  From 300 Gm at 4e6 the disc's
+mesh, under a pixel, is 69,357 × 4e6 = 3e11 before the shoulder; the
+buffer reads 5e4 in red, the shoulder's ceiling, with the glow's 1e4 on
+top.  That is physical, 1e9 over white, and no buffer holds it: the
+shoulder is the fix there, not a stopgap.  Once the disc is resolved the
+luminous-disc gain brings it to 0.6 (rule 6), and nothing else is within
+a decade of the ceiling: at 8 and 2 Gm the buffer's largest value is the
+disc's glow, 60.
+
+**Not the Alnilam dropout.**  Alnilam's buffer value at the dark gain is
+1.3 to 9.4, far from either end, and it renders here at every view it is
+in (106 to 171 of 255 at its exact pixel, 480×300).  A flush of
+subnormals can't take it.  `c.ui.starProbe('Alnilam')` on the user's
+Mac, at the view where it is missing, is still the measurement to make.
+
+**Measured** (SwiftShader, 480×300, Cesium's layers off, `main` at
+50bfcf8 against this change, each view settled; the scene buffer read as
+half floats, each pixel's brightest channel classified against 6.1e-5
+and 65,504; the meter's composite, which adds the sky, read as floats):
+
+| View | Absolute gain | Stars ≥ 10 of 255 to 6.5 (to 6.0) / in view, before → after | Scene buffer: pixels > 0, before → after | Subnormal pixels in it, before → after | Smallest value after | At gain 1: subnormal, before → after |
+|---|---|---|---|---|---|---|
+| Earth from 65 Mm, the Moon's 4 px disc in the frame (`sunlitBodyGain` holds it at 40) | 40 | 0 (0) / 975 → the same | 5,767 → 19 | 5,748 → 0 | 7.7e-5 | 617 → 0 |
+| Pluto from 12 Mm, 60° up and away from the Sun | 4.0e6 | 790 (490) / 844 → 793 (490) | 7,042 → 6,924 | 122 → 0 | 6.13e-5 | 6,108 → 0 |
+| Orion from 232 Gm, the Milky Way on (the user's Alnilam permalink, `s=lpo`) | 4.0e6 | 1,227 (775) / 1,309 → the same | 19,906 → 19,298 | 258 → 0 | 6.13e-5 | 868 → 0 |
+| The Sun from 300 Gm, bare | 3.97e6 | 1,300 (810) / 1,418 → the same | 11,180 → 10,898 | 283 → 0 | 6.12e-5 | 948 → 0 |
+
+The buffer's largest value is the Sun's, 59,968, in the two views that
+hold it, and no pixel is non-finite in any.  Every named star reads the
+same before and after (Alnilam 106.6 of 255 at its exact pixel in the
+Orion view, 159-171 in the Sun views; Sirius 96.7 / 194; a mag 6 star
+32-55 at its brightest neighbour), the gains agree within the easing's
+noise (under 1%), and the pixels lost are the ones under the floor.  The
+Sun series at 71, 8 and 2 Gm and Jupiter at the telescope field from
+0.04° to 0.3° read as PR B's tables have them (the gains 3.97e6, 8.65e-6,
+8.65e-6; 2.16, 2.48, 4.37, 5.40; the disc at 0.600 and Jupiter's centre
+at 0.43-1.07), before and after alike; a single pixel of the Sun's disc
+varies run to run on `main` as here, since its granulation's clock is
+the wall-clock start.  The meter's composite (`uDebug` 7, floats) still
+holds values under 6.1e-5 after the floor: the sky's in-scatter where
+the pass runs (Pluto's thin atmosphere with the Sun 8° up, 6,400
+pixels), and its resampling of the buffer's pixels next to black (the
+Sun views, 7,000); the half-float buffer, read directly, holds none.
+`yarn parity`: 17 views, 87 checks, 0 failed, no baseline moved.
 
 ### Results
 
@@ -659,6 +792,11 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
 | Jupiter from Earth at a telescope's field, zooming out, 0.04° to 0.3° (`sunlitBodyGain`; 1000×570, bare, the user's permalink) | 2.16 at 130 px across (2.3% of the frame), 2.16 at 121 px (2.0%), 2.20 at 109 px (1.6%), 2.58 at 87 px (1.0%), 4.57 at 52 px (0.37%), 5.37 at 17 px (0.04%) | — | the disc's centre, linear | 2.16, 2.16, then 4e6 (the hard cap, which never took Jupiter: 40″) | 0.43, 0.43, 0.44, 0.52, 0.93, 1.05: its bands at every step, a white only as a small disc; no step of gain over 14% between steps of 15-20% in zoom |
 | The Sun's disc at 71 Gm, 8 Gm and 2 Gm, the clock set by the permalink (`noiseTime`, the shoulder, the glow's share) | 8.65e-6 at 8 and 2 Gm, 2.5e4 at 71 Gm | — | the disc, linear | NaN (black) at every distance; then 29 NaN on the rim at 71 Gm | 0.600 at the centre with the texture's colour at 8 and 2 Gm (limb 0.165); 49,980 at 71 Gm with the glow on its rim; no non-finite pixel in any frame |
 | The Sun from 7 radii | 5e-6 (the floor: SwiftShader's disc is non-finite, which the meter counts as the maximum) | 66 / 1.2e10 | disc | black (SwiftShader; its rim 6e4) | the same |
+| Earth star field from 65 Mm, 60° up and away from the Sun, the Moon's 3.5 px disc in the frame (0.006% of it) (`sunlitBodyGain` by the disc's share of the field, #157) | 4.0e6 (the pixel weight: 40) | 5e-14 / 1e-8 | stars ≥ 10 of 255 to 6.5 (to 6.0) / in view | 0 (0) / 975 at 40, the Moon's 4 px disc anchoring | 897 (528) / 975; the Moon a white disc |
+| The Moon from 20,000 km over Earth's night side, 45° (0.008% of the frame) | 4.0e6 (was 133) | 5e-14 / 6e-9 | stars to 6.5 / in view | 0 / 986 | 910 / 986 |
+| The Moon from the outback at night, 77% lit, 10° field (0.13% of the frame, `moon-night`) | 7.4 (was 3.33) | 1e-8 / 1e-8 | the disc | 47-232 with its phase | its highlands over white, the maria at 1.3; the brightest stars left (the limit −7.8) |
+| Jupiter at 0.1° from Earth (52 px, 0.37% of the frame) | 4.37 (unchanged) | — | the disc's centre, linear | 0.90 | 0.90 |
+| Jupiter at 0.3° (17 px, 0.04%) | 4,130 (was 5.4) | — | the disc's centre, linear | 1.05, just white | 815: a white point among the stars, the blow-out gradual over the zoom from 0.1° |
 
 - **A sunlit scene is untouched**: the midday surface, Earth from orbit by
   day and at the terminator, the daytime Moon, Mars toward the Sun and
