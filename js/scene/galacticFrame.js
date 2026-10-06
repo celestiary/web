@@ -62,17 +62,18 @@ export function equatorialToSceneUnit(raDeg, decDeg) {
  * Build the rotation matrix that maps galaxy-local frame F into scene frame:
  *   F's +X axis = direction from the Sun toward the galactic center (l=0)
  *   F's +Y axis = north galactic pole
- *   F's +Z axis = right-handed completion (l=90° in the galactic plane)
+ *   F's +Z axis = right-handed completion, X × Y, which is l=270° in the
+ *     galactic plane (not l=90°: with Y the pole, l=90° is Y × X)
  *
  * Constructed from the IAU NGP and GC sky positions converted into the scene
  * frame via {@link equatorialToSceneUnit}, then orthonormalized so the basis
  * is exactly orthogonal even though the published NGP and GC directions
  * aren't perfectly perpendicular.
  *
- * Used by MilkyWay.js to orient the procedural disk: with this matrix on the
- * Points object, samples written in F-frame coordinates render in the
- * physically-correct sky position (disk plane = galactic plane, GC in
- * Sagittarius).
+ * Used by galaxyModel.js to orient the Milky Way: its transpose takes the
+ * catalogue frame into F (and the galactocentric frame G, F shifted by the
+ * Sun's position), so the disc's plane is the galactic plane and the
+ * centre is in Sagittarius.
  *
  * @returns {Matrix4} pure rotation, ready to assign to Object3D.matrix or
  *     decompose into a quaternion via setFromRotationMatrix.

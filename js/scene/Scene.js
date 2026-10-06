@@ -897,11 +897,11 @@ export default class Scene {
     //   2. `'atmosphere'` — the Sun's additive `BackSide` halo shell
     //      from `newAtmosphere()`, which flashes when the camera aims
     //      at it.
-    //   3. `'MilkyWay'` — the procedural galaxy is intentionally noisy
-    //      (additive yellow-orange bulge particles, sparse bright
-    //      cluster stand-ins).  At AR sensor jitter scale, those bright
-    //      particles pop in and out of the field as flicker.  The real
-    //      catalog stars + asterisms remain visible.
+    //   3. `'MilkyWay'` — the galaxy's integrated light (MilkyWay.md), a
+    //      ray march re-run whenever the view moves, which at AR sensor
+    //      jitter is every frame, for a band the dark-adapted exposure
+    //      barely shows.  The real catalog stars + asterisms remain
+    //      visible.
     // Stage 2 (camera passthrough + premultiplied-alpha atmosphere) will
     // reintroduce ground visuals.  Restored in `exitAR()`.
     snapshot.frozenLabelLODs = []
@@ -1373,11 +1373,10 @@ export default class Scene {
 
 
   /**
-   * Toggle the procedural Milky Way background.  Found by name traversal
-   * since the Points mesh is created inside `newGalaxy()` and not pinned
-   * to a Scene field.  Default-hidden by `enterAR()` (the additive bulge
-   * particles flicker badly at AR sensor jitter scale); the user can flip
-   * this back on with the 'U' shortcut once in AR.
+   * Toggle the Milky Way's integrated light (MilkyWay.md).  Found by name
+   * traversal since the mesh is created inside `newGalaxy()` and not
+   * pinned to a Scene field.  Default-hidden by `enterAR()`; the user can
+   * flip this back on with the 'U' shortcut once in AR.
    */
   toggleGalaxy() {
     let target = null
@@ -1407,9 +1406,9 @@ export default class Scene {
     // (Scene.add).
     group.add(this.stellarFrame)
     this.objects[`${galaxyProps.name}.orbitPosition`] = this.stellarFrame
-    // Procedural barred-spiral Milky Way as a background star cloud.  Built in
-    // galactic-centre coords and translated so the Sun (world origin) lands on
-    // a spiral arm.  Lives in worldGroup so star-navigation rebases shift it
+    // The Milky Way's integrated light, from a published structural model
+    // (MilkyWay.md), in the catalogue's frame with the Sun 8.15 kpc from
+    // the centre.  Lives in worldGroup so star-navigation rebases shift it
     // along with everything else, keeping the universe coherent.
     this.stellarFrame.add(newMilkyWay())
     return group

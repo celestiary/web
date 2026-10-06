@@ -675,6 +675,7 @@ turns to it; Go and Enter travel
 | Object | Technique |
 |---|---|
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
+| Milky Way | Its integrated light: a full-screen pass at the far plane that ray-marches a published structural model (discs, bulge and bar, arms, dust) in the galactocentric frame, into a cached target re-marched when the view moves ([MilkyWay.md](js/scene/MilkyWay.md)) |
 | Star discs (the Sun, and any catalogue star travelled to) | A photosphere from physical parameters: temperature from class, blackbody colour and luminance, limb darkening by temperature, granulation at three scales, spots and faculae ([js/scene/Stars.md](js/scene/Stars.md)) |
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
 | Earth's clouds | A shell 6 km up on its own layer, drawn after the Cesium composite so it covers both sides: the date's NASA GIBS true colour unmixed into coverage, Lambert-lit in exposure units, shadowing the ground ([Planet.md, clouds](js/scene/Planet.md#clouds)) |
@@ -974,6 +975,8 @@ and the provider extension contract.
 | `js/scene/stellar.js` | Stars' physics: temperature from class, blackbody colour and luminance, bolometric correction, limb darkening, granulation and spot laws ([Stars.md](js/scene/Stars.md)) |
 | `js/scene/starParams.js` | Every star's parameters: measured where published, else luminosity class, radius (Stefan-Boltzmann), mass and gravity from the catalogue; rotation (Roche, von Zeipel) and spots by type |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
+| `js/scene/MilkyWay.js` | The Milky Way's integrated light: the march pass and its cache ([MilkyWay.md](js/scene/MilkyWay.md)) |
+| `js/scene/galaxyModel.js` | The Milky Way's structural model: its components, the baked in-plane map, the normalisation, the JS and GLSL march |
 | `js/scene/Galaxy.js` | Animated galaxy particle system |
 | `js/scene/Asterisms.js` | Constellation line drawings |
 | `js/scene/Colonization.js` | Human expansion: kNN star graph and layered BFS spread from the Sun |

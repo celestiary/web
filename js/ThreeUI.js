@@ -25,8 +25,9 @@ import {
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   METER_EVERY_FRAMES, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, easeExposure, exposureAt, exposureRelative,
-  LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, illuminanceRatio, limitingMagnitude, luminousDiscGain,
-  meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap, sunlitBodyGain,
+  LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, galaxyGain, illuminanceRatio, limitingMagnitude,
+  luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap,
+  sunlitBodyGain,
 } from './scene/exposure.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
@@ -666,18 +667,48 @@ export default class ThreeUi {
     // A resolved self-luminous disc (the Sun's) brings the gain to what
     // shows its surface, blended in as it grows (luminousDiscGain).
     this._luminous = this._luminousDiscs()
-    const gain = luminousDiscGain(metered0, this._luminous, keyedOverEarth, this.renderer.getPixelRatio())
+    const gain1 = luminousDiscGain(metered0, this._luminous, keyedOverEarth, this.renderer.getPixelRatio())
+    // The galaxy from outside: exposed as a photograph of it (galaxyGain).
+    this._galaxyWeight = this._galaxyOutsideWeight()
+    const gain = galaxyGain(gain1, metered, renderedOverKeyed, this._galaxyWeight, keyedOverEarth)
     // What was read, at the keyed exposure, for probing (HDR.md).
     this._meterLast = {
       mean: Math.exp(metered.meanLog) / renderedOverKeyed,
       highlight: metered.highlight / renderedOverKeyed,
       blown: metered.blown / renderedOverKeyed,
       max: metered.max / renderedOverKeyed,
+      litHighlight: metered.litHighlight / renderedOverKeyed,
+      litFraction: metered.litFraction,
+      galaxyWeight: this._galaxyWeight,
       gain,
     }
     if (Number.isFinite(gain)) {
       this._meterGainGoal = gain
     }
+  }
+
+
+  /**
+   * How far outside the galaxy the camera is, for the meter's galaxy
+   * anchor (exposure.js galaxyGain): the Milky Way's own measure
+   * (MilkyWay.js, galaxyModel.js outsideWeight), 0 while it's hidden or
+   * not yet baked.
+   *
+   * @returns {number}
+   */
+  _galaxyOutsideWeight() {
+    this._milkyWay ??= this.scene.getObjectByName('MilkyWay') ?? null
+    const mw = this._milkyWay
+    const state = mw?.userData?.galaxy
+    if (!mw || !state?.ready || !mw.visible || !mw.material?.visible) {
+      return 0
+    }
+    for (let p = mw.parent; p; p = p.parent) {
+      if (!p.visible) {
+        return 0
+      }
+    }
+    return state.outsideWeight
   }
 
 
@@ -964,6 +995,7 @@ export default class ThreeUi {
       renderedGain: this._renderedGain,
       meterLast: this._meterLast ?? null,
       meterCap: this._meterCap ?? Infinity,
+      galaxyOutsideWeight: this._galaxyOutsideWeight(),
       sunlitBodies: this._sunlitBodies(),
       luminousDiscs: this._luminousDiscs(),
       frameCanBeEmpty: this._frameCanBeEmpty(),

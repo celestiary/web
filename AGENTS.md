@@ -33,6 +33,7 @@ tried and dropped.
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
+| The Milky Way: its structural model, its light in exposure units, the march, the meter's galaxy anchor | [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
@@ -89,6 +90,13 @@ tried and dropped.
     (`material.visible = false`) and compare pixels at its projected
     spot, rather than reading absolute values off a starfield. Hide the
     label LODs and orbit lines first.
+  - Reading a half-float render target back
+    (`renderer.readRenderTargetPixels`) needs a `Uint16Array`, decoded
+    from half floats; a `Float32Array` comes back all zeros, silently.
+  - Where a shader has a JS mirror (the Milky Way's march,
+    `galaxyModel.js` `integrateRay`), iterate on its look with a CPU
+    render of the mirror in bun, tone-mapped with `hdr.js` `neutral`: a
+    200 px frame takes seconds, against minutes through SwiftShader.
 - **Earth's clouds load from NASA GIBS** a second after the date settles
   (js/scene/Planet.md#clouds). Wait on
   `c.ui.sceneManager.objects.earth.clouds.userData.map.status`

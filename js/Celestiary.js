@@ -663,7 +663,7 @@ export default class Celestiary {
     k.map('U', () => {
       this.scene.toggleGalaxy()
     },
-    'Milky Way (procedural background galaxy)',
+    'Milky Way (its integrated light)',
     () => this.scene.getSetting('U'),
     'Labels')
     k.map('x', () => {

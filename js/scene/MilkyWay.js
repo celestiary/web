@@ -1,457 +1,327 @@
 import {
   AdditiveBlending,
   BufferGeometry,
+  ClampToEdgeWrapping,
+  DataTexture,
   Float32BufferAttribute,
-  Points,
+  HalfFloatType,
+  LinearFilter,
+  Matrix3,
+  Mesh,
+  NoBlending,
+  OrthographicCamera,
+  RGBAFormat,
+  Scene,
   ShaderMaterial,
-  Texture,
+  UnsignedByteType,
+  Vector2,
   Vector3,
+  Vector4,
+  WebGLRenderTarget,
 } from 'three'
-import {galacticToSceneMatrix, SUN_GALACTIC_RADIUS_LY} from './galacticFrame.js'
-import {pathTexture} from './material.js'
-import {LIGHTYEAR_METER} from '../shared.js'
-import {MILKY_WAY_RADIANCE} from './exposure.js'
-import {EMITTED_GLSL, absoluteUniforms} from './hdr.js'
-import {rteCameraLocal} from './rte.js'
-
-
-// Sun's distance from the galactic centre (Sgr A*) is ~26 kLY.  We park the
-// galactic centre at a fixed offset from the world origin so the Sun (which
-// already sits at the origin) lands on the inner edge of a spiral arm at
-// roughly its real galacto-centric radius.
-const SUN_GALACTIC_RADIUS_M = SUN_GALACTIC_RADIUS_LY * LIGHTYEAR_METER
-
-// Milky-Way-ish shape parameters.  Diameter (100 kly) matches the scene's
-// GALAXY_RADIUS_METER and the local Hipparcos catalog's outer scale.
-//
-// DISK_THICKNESS_M is the *peak* perpendicular spread (near the bar); the
-// arm sampler tapers it toward the rim.  10 kly is much thicker than a
-// real spiral disc but matches the perpendicular extent of the local
-// Hipparcos catalog so its stars sit visibly inside the cloud rather than
-// sticking out above/below.
-const DISK_RADIUS_M = 50000 * LIGHTYEAR_METER
-const DISK_THICKNESS_M = 10000 * LIGHTYEAR_METER
-const BAR_HALF_LEN_M = 7000 * LIGHTYEAR_METER
-const BAR_HALF_WIDTH_M = 1800 * LIGHTYEAR_METER
-// Bar perpendicular half-extent — decoupled from DISK_THICKNESS_M so a
-// thicker disc doesn't spread the bar into a fat slab.  ~1.2 kly keeps
-// the bar visually flat and bulge-like in the perpendicular direction.
-const BAR_HALF_HEIGHT_M = 1200 * LIGHTYEAR_METER
-const BULGE_RADIUS_M = 4500 * LIGHTYEAR_METER
-
-// Arm region volume is ~600× the bar volume, so arm density appears far
-// lower than bar density at equal particle counts.  Bumping the total budget
-// + shifting fractions toward the arms brings arm visibility close to the
-// bar's appearance without nuking framerate.
-const NUM_STARS = 60000
-const NUM_ARMS = 4 // four arms — Milky Way is a "multi-arm" / 4-arm design
-const ARM_PITCH = 0.22 // tan(pitch); ≈ 12.5° pitch angle, MW-ish
-const FRAC_BULGE = 0.08
-const FRAC_BAR = 0.06
-// Remainder (≈ 86%) goes into the spiral arms.
-
-// Choice of "Sun arm" controls the galactic orientation.  Arm 0's logarithmic
-// spiral is sampled at r = SUN_GALACTIC_RADIUS_M to find the Sun anchor; the
-// whole disk is then translated so that anchor sits at the world origin.
-const SUN_ARM_INDEX = 0
-
-// Carve a hole around the Sun where the local Hipparcos catalog already
-// renders real stars at full fidelity.  Galaxy points inside this hole would
-// (a) overlap individual catalog stars, (b) blow up gl_PointSize when the
-// camera is inside the hole, and (c) be much closer than the cloud is
-// designed for.  Sized just large enough to cover the bulk of nearby
-// Hipparcos stars.
-const LOCAL_CATALOG_HOLE_M = 1500 * LIGHTYEAR_METER
+import {EMITTED_GLSL, HDR_MAX_VALUE, absoluteUniforms, hdrSupported} from './hdr.js'
+import {
+  STORE_SCALE, bakeMapSteps, catalogToGalactic, galaxyGlsl, galaxyNormUniforms, normalize, outsideWeight,
+  sceneToGalacticRotation,
+} from './galaxyModel.js'
 
 
 /**
- * Procedural barred-spiral Milky Way as an additive Points cloud.
- *
- * Coordinate frames:
- *   - "disk-D"  : sampler output frame.  Galactic-centre at origin, disk in
- *     XZ plane, +Y = galactic north pole.  Bar long-axis along +X.  Spiral
- *     arms wind around +Y; arm 0 starts at +X.
- *   - "F"       : galaxy-local helio-galactic frame.  Sun at origin, GC at
- *     (+R_sun, 0, 0), +Y = galactic north pole, +Z = cross.
- *   - scene     : Celestia stars.dat frame (X=vernal equinox, Y=NEP,
- *     Z=-ecl-Y); shared with StarsCatalog so the local Hipparcos slab
- *     and the procedural disk render in the same sky orientation.
- *
- * Sampling pipeline per particle (baked into the position buffer in JS; the
- * only model rotation is the StellarFrame's J2000 → date precession above
- * it, which the RTE shader applies with `mat3(modelViewMatrix)`):
- *   p_D = sample(D)
- *   p_F = R_Y(π + sunArmAngle) · p_D + (R_sun, 0, 0)   // sun → origin
- *   p_scene = M_F→scene · p_F                          // tilt to galactic plane
- *
- * Uses Relative-To-Eye (RTE) emulated double precision in the shader so the
- * stars stay rock-solid when the camera is rebased during star navigation
- * (worldGroup shifts under the galaxy, but the eye-relative math cancels out).
- *
- * @returns {Points}
+ * The march's render target is at most this many pixels tall (and at most
+ * half the frame's height): the galaxy's light is smooth on that scale, and
+ * the march is the expensive part.
  */
-export default function newMilkyWay() {
-  const positions = new Float32Array(NUM_STARS * 3)
-  const positionLow = new Float32Array(NUM_STARS * 3)
-  const colors = new Float32Array(NUM_STARS * 3)
-  const sizes = new Float32Array(NUM_STARS)
+export const MARCH_MAX_HEIGHT = 540
 
-  // Sun sits on arm SUN_ARM_INDEX at radius SUN_GALACTIC_RADIUS_M.  In disk-D
-  // frame, the sun anchor is at (R cos θ, 0, R sin θ).  The disk-D → F
-  // rotation is a Y-axis rotation by (π + θ) which sends the sun anchor to
-  // (-R, 0, 0); a final shift by (+R, 0, 0) puts the sun at the F-origin
-  // and GC at (+R, 0, 0).
-  const sunArmAngle = armAngleAt(SUN_ARM_INDEX, SUN_GALACTIC_RADIUS_M)
-  const cosSun = Math.cos(sunArmAngle)
-  const sinSun = Math.sin(sunArmAngle)
 
-  // F → scene rotation, expanded into 3x3 column-major scalars for the
-  // per-particle hot path.  three.js Matrix4 elements are column-major:
-  //   m[i][j] = elements[i + 4j]   (i = row, j = col)
-  // We only need the upper-left 3x3 (it's a pure rotation).
-  const galToSceneEls = galacticToSceneMatrix().elements
-  const m00 = galToSceneEls[0]; const m10 = galToSceneEls[1]; const m20 = galToSceneEls[2]
-  const m01 = galToSceneEls[4]; const m11 = galToSceneEls[5]; const m21 = galToSceneEls[6]
-  const m02 = galToSceneEls[8]; const m12 = galToSceneEls[9]; const m22 = galToSceneEls[10]
-
-  const tmp = new Vector3()
-  const holeSq = LOCAL_CATALOG_HOLE_M * LOCAL_CATALOG_HOLE_M
-  let written = 0
-  // Rejection-sample: reroll any point that lands inside the local catalog
-  // hole.  Cap the rejection budget so a degenerate config (Sun far inside
-  // the bar, etc.) can't infinite-loop.
-  const MAX_TRIES = NUM_STARS * 8
-  for (let tries = 0; tries < MAX_TRIES && written < NUM_STARS; tries++) {
-    const r = Math.random()
-    let col; let sz
-    if (r < FRAC_BULGE) {
-      sampleBulge(tmp); col = bulgeColor(); sz = bulgeSize()
-    } else if (r < FRAC_BULGE + FRAC_BAR) {
-      sampleBar(tmp); col = barColor(); sz = bulgeSize()
-    } else {
-      sampleArm(tmp); col = armColor(); sz = armSize()
-    }
-    // disk-D → F: Y-axis rotation by (π + θ), then shift by (+R, 0, 0).
-    // R_Y(π+θ) matrix:
-    //   x' =  cos(π+θ) x + sin(π+θ) z = -cos θ · x - sin θ · z
-    //   z' = -sin(π+θ) x + cos(π+θ) z =  sin θ · x - cos θ · z
-    //   y unchanged
-    const xF = ((-cosSun * tmp.x) - (sinSun * tmp.z)) + SUN_GALACTIC_RADIUS_M
-    const yF = tmp.y
-    const zF = (sinSun * tmp.x) - (cosSun * tmp.z)
-    // F → scene rotation: tilts disk into galactic plane and rotates the bar
-    // azimuth so GC lands in Sagittarius.
-    const x = (m00 * xF) + (m01 * yF) + (m02 * zF)
-    const y = (m10 * xF) + (m11 * yF) + (m12 * zF)
-    const z = (m20 * xF) + (m21 * yF) + (m22 * zF)
-    // Reject if inside the local catalog hole around the Sun.  The Sun sits
-    // at the F-origin, and rotation preserves distances, so |p_scene|² =
-    // |p_F|² and we can test against holeSq directly.
-    if (((x * x) + (y * y) + (z * z)) < holeSq) {
-      continue
-    }
-    // RTE high/low split: hi = fround(x), lo = x - hi.  Magnitudes match,
-    // so float32 subtraction (position - camPos) is exact.
-    const hx = Math.fround(x); const hy = Math.fround(y); const hz = Math.fround(z)
-    const off3 = written * 3
-    positions[off3] = hx
-    positions[off3 + 1] = hy
-    positions[off3 + 2] = hz
-    positionLow[off3] = x - hx
-    positionLow[off3 + 1] = y - hy
-    positionLow[off3 + 2] = z - hz
-    colors[off3] = col[0]
-    colors[off3 + 1] = col[1]
-    colors[off3 + 2] = col[2]
-    sizes[written] = sz
-    written++
+/**
+ * The Milky Way (#99; MilkyWay.md): its integrated light, from a published
+ * structural model (galaxyModel.js), ray-marched through the volume in
+ * exposure units.
+ *
+ * One full-screen triangle, drawn in the scene pass behind everything (its
+ * depth is pinned to the far plane, as the point cloud's was): for each
+ * pixel the view ray, in the galactocentric frame G, integrates the model's
+ * emission through its dust, so the same pass gives the face of a barred
+ * spiral from outside, the edge-on disc with its dust lane, and the band
+ * across the sky from inside.  The light is radiance, not display values:
+ * the pass writes it times the frame's exposure (pre-exposure, HDR.md), as
+ * the stars and the Sun do.
+ *
+ * Where the buffer is float (HDR.md), the march runs into a render target
+ * at up to MARCH_MAX_HEIGHT rows, holding the light unexposed (times
+ * STORE_SCALE), and only when the view changes; each frame then samples it
+ * and applies the exposure, so a still view costs one texture read a
+ * pixel.  In the LDR fallback it marches in the pass itself.
+ *
+ * The model's in-plane map takes about 1.5 s to bake (galaxyModel.js
+ * bakeMapSteps); in a browser it bakes in slices between frames, and the
+ * galaxy appears when it is done.
+ *
+ * @param {object} [opts]
+ * @param {boolean} [opts.bake] Bake the map (default: in a browser); tests skip it
+ * @returns {Mesh}
+ */
+export default function newMilkyWay({bake = typeof requestAnimationFrame === 'function'} = {}) {
+  const geometry = fullScreenTriangle()
+  const mapTexture = new DataTexture(new Uint8Array(4), 1, 1, RGBAFormat, UnsignedByteType)
+  mapTexture.needsUpdate = true
+  const march = {
+    uGalaxyMap: {value: mapTexture},
+    uGalaxyMapScale: {value: new Vector4(1, 1, 1, 1)},
+    uGalaxyNorm0: {value: new Vector4()},
+    uGalaxyNorm1: {value: new Vector4()},
+    uCamG: {value: new Vector3()},
+    uViewToG: {value: new Matrix3()},
+    uProj: {value: new Vector4(1, 1, 0, 0)},
   }
-  // Trim attribute arrays if rejection sampling left us short.
-  const positionsFinal = (written === NUM_STARS) ? positions : positions.subarray(0, written * 3)
-  const positionLowFinal = (written === NUM_STARS) ? positionLow : positionLow.subarray(0, written * 3)
-  const colorsFinal = (written === NUM_STARS) ? colors : colors.subarray(0, written * 3)
-  const sizesFinal = (written === NUM_STARS) ? sizes : sizes.subarray(0, written)
-
-  const geom = new BufferGeometry()
-  geom.setAttribute('position', new Float32BufferAttribute(positionsFinal, 3))
-  geom.setAttribute('positionLow', new Float32BufferAttribute(positionLowFinal, 3))
-  geom.setAttribute('aGalaxyColor', new Float32BufferAttribute(colorsFinal, 3))
-  geom.setAttribute('aSize', new Float32BufferAttribute(sizesFinal, 1))
-
-  // pathTexture() routes through three's TextureLoader, which calls
-  // document.createElementNS synchronously to spin up an Image element.
-  // The bun test env supplies a stub document without that method, so
-  // guard the call: in headless we use a 1x1 placeholder texture (the
-  // Points cloud is never actually rendered there anyway).
-  let glowTex
-  try {
-    glowTex = pathTexture('star_glow', '.png')
-  } catch {
-    glowTex = new Texture()
-  }
-
-  // Note: do NOT set `vertexColors: true` on a ShaderMaterial whose vertex
-  // shader already declares `attribute vec3 color`.  Three injects a
-  // USE_COLOR define and may wire the standard Points chunks into the
-  // pipeline, which silently overrides the shader's gl_PointSize and
-  // produces giant fixed-size sprites instead of our intended size.
-  // Physical brightness (HDR.md): the galaxy's surface brightness is an
-  // absolute radiance, scaled by the exposure over Earth's keyed one
-  // (absoluteUniforms, set by ThreeUi each frame).
-  const mat = new ShaderMaterial({
+  // The march's render target, and its texture for the composite.
+  const marchTarget = {value: null}
+  const marchTexture = {value: null}
+  const marchMaterial = new ShaderMaterial({
+    uniforms: march,
+    vertexShader: VERT_MARCH,
+    fragmentShader: `${galaxyGlsl()}${FRAG_MARCH}`,
+    blending: NoBlending,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  })
+  const material = new ShaderMaterial({
     uniforms: {
-      texSampler: {value: glowTex},
+      ...march,
+      uMarch: marchTexture,
+      uMarchSize: {value: new Vector2(1, 1)},
       uExposureRelative: absoluteUniforms.uExposureRelative,
-      uCamPosWorldHigh: {value: new Vector3()},
-      uCamPosWorldLow: {value: new Vector3()},
     },
-    vertexShader: VERT,
-    fragmentShader: FRAG,
+    vertexShader: VERT_COMPOSITE,
+    fragmentShader: FRAG_COMPOSITE,
+    defines: {GALAXY_DIRECT: 0},
     blending: AdditiveBlending,
     depthTest: true,
     depthWrite: false,
     transparent: true,
     toneMapped: false,
   })
+  material.visible = false
+  const mesh = new Mesh(geometry, material)
+  mesh.name = 'MilkyWay'
+  mesh.frustumCulled = false
+  // Behind the stars (renderOrder 0), as the point cloud was.
+  mesh.renderOrder = -2
+  // A full-screen triangle has no place in the scene to be picked at.
+  mesh.raycast = noRaycast
 
-  const points = new Points(geom, mat)
-  points.name = 'MilkyWay'
-  // Local transform stays identity — the disk-D → F → scene rotation chain
-  // is baked into the position buffer above, in the J2000 catalogue frame.
-  // The parent StellarFrame precesses it to the date, and the worldGroup
-  // rebases it; the RTE shader takes both from the model matrix.
-  // Auto-computed bounding sphere is correct but huge — leave frustum
-  // culling enabled.
-  // RenderOrder < 0 so the additive cloud composites cleanly behind the
-  // local star particles (which default to renderOrder 0).
-  points.renderOrder = -2
+  const marchScene = new Scene()
+  const marchMesh = new Mesh(geometry, marchMaterial)
+  marchMesh.frustumCulled = false
+  marchScene.add(marchMesh)
+  const marchCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
 
-  // Drive the RTE camera-position uniforms each frame, mirroring Stars.js:
-  // the camera in this object's local frame (see rte.js).
-  points.onBeforeRender = (renderer, scene, camera) => {
-    rteCameraLocal(points, camera, mat.uniforms.uCamPosWorldHigh.value, mat.uniforms.uCamPosWorldLow.value)
+  const camWorld = new Vector3()
+  const viewToLocal = new Matrix3()
+  const objRotation = new Matrix3()
+  const sceneToG = new Matrix3()
+  const r = sceneToGalacticRotation()
+  sceneToG.set(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8])
+  const size = new Vector2()
+  let direct = null
+  let lastKey = null
+  const debug = {cameraG: [0, 0, 0], outsideWeight: 0, marches: 0, ready: false, bakeMs: 0, target: marchTarget}
+  mesh.userData.galaxy = debug
+
+  mesh.onBeforeRender = (renderer, scene, camera) => {
+    if (direct === null) {
+      direct = !hdrSupported(renderer)
+      material.defines.GALAXY_DIRECT = direct ? 1 : 0
+      material.fragmentShader = direct ? `${galaxyGlsl()}${FRAG_COMPOSITE}` : FRAG_COMPOSITE
+      material.needsUpdate = true
+    }
+    // The camera in G, kpc: its position in this object's frame (the
+    // catalogue's, metres from the Sun; the StellarFrame's precession and
+    // the worldGroup's rebase above it), as rte.js does it, in float64.
+    camera.getWorldPosition(camWorld)
+    const e = mesh.matrixWorld.elements
+    const dx = camWorld.x - e[12]
+    const dy = camWorld.y - e[13]
+    const dz = camWorld.z - e[14]
+    const camG = catalogToGalactic(
+        (e[0] * dx) + (e[1] * dy) + (e[2] * dz),
+        (e[4] * dx) + (e[5] * dy) + (e[6] * dz),
+        (e[8] * dx) + (e[9] * dy) + (e[10] * dz))
+    march.uCamG.value.set(camG[0], camG[1], camG[2])
+    debug.cameraG = camG
+    debug.outsideWeight = outsideWeight(camG)
+    // View direction → G: the camera's rotation, this object's inverse, the catalogue → G turn.
+    viewToLocal.setFromMatrix4(camera.matrixWorld)
+    objRotation.setFromMatrix4(mesh.matrixWorld).transpose()
+    march.uViewToG.value.copy(sceneToG).multiply(objRotation).multiply(viewToLocal)
+    const p = camera.projectionMatrix.elements
+    march.uProj.value.set(p[0], p[5], p[8], p[9])
+    if (direct) {
+      return
+    }
+    // The march, into its target, when the view has changed.
+    const current = renderer.getRenderTarget()
+    if (current) {
+      size.set(current.width, current.height)
+    } else {
+      renderer.getDrawingBufferSize(size)
+    }
+    const scale = Math.min(0.5, MARCH_MAX_HEIGHT / Math.max(size.y, 1))
+    const w = Math.max(1, Math.round(size.x * scale))
+    const h = Math.max(1, Math.round(size.y * scale))
+    if (!marchTarget.value || marchTarget.value.width !== w || marchTarget.value.height !== h) {
+      marchTarget.value?.dispose()
+      marchTarget.value = new WebGLRenderTarget(w, h, {type: HalfFloatType, depthBuffer: false,
+        minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false})
+      marchTexture.value = marchTarget.value.texture
+      lastKey = null
+    }
+    material.uniforms.uMarchSize.value.set(w, h)
+    const key = [...camG, ...march.uViewToG.value.elements, p[0], p[5], p[8], p[9], w, h, debug.ready]
+    if (lastKey && key.every((v, i) => v === lastKey[i])) {
+      return
+    }
+    lastKey = key
+    const autoClear = renderer.autoClear
+    renderer.autoClear = false
+    renderer.setRenderTarget(marchTarget.value)
+    renderer.render(marchScene, marchCamera)
+    renderer.setRenderTarget(current)
+    renderer.autoClear = autoClear
+    debug.marches++
   }
 
-  return points
+  if (bake) {
+    bakeInSlices(({map, norms, ms}) => {
+      const tex = new DataTexture(map.data, map.size, map.size, RGBAFormat, UnsignedByteType)
+      tex.minFilter = LinearFilter
+      tex.magFilter = LinearFilter
+      tex.wrapS = tex.wrapT = ClampToEdgeWrapping
+      tex.generateMipmaps = false
+      tex.needsUpdate = true
+      march.uGalaxyMap.value = tex
+      march.uGalaxyMapScale.value.set(...map.scale)
+      const u = galaxyNormUniforms(norms)
+      march.uGalaxyNorm0.value.set(...u.uGalaxyNorm0)
+      march.uGalaxyNorm1.value.set(...u.uGalaxyNorm1)
+      material.visible = true
+      debug.ready = true
+      debug.bakeMs = ms
+      mapTexture.dispose()
+    })
+  }
+  return mesh
 }
 
 
-// --- Disk component samplers ------------------------------------------------
-
-/** @param {Vector3} out */
-function sampleBulge(out) {
-  // Slightly oblate spheroid concentrated toward centre.
-  const u = Math.random(); const v = Math.random()
-  const theta = 2 * Math.PI * u
-  const phi = Math.acos((2 * v) - 1)
-  const r = Math.pow(Math.random(), 0.7) * BULGE_RADIUS_M
-  out.set(
-      r * Math.sin(phi) * Math.cos(theta),
-      r * Math.cos(phi) * 0.4, // flatter than wide
-      r * Math.sin(phi) * Math.sin(theta))
-}
-
-
-/** @param {Vector3} out */
-function sampleBar(out) {
-  // Bar oriented along X in galactic-centre frame.  Long-axis density
-  // peaks at centre via sqrt-of-uniform.  Perpendicular thickness uses
-  // BAR_HALF_HEIGHT_M (decoupled from disc thickness) so the bar stays
-  // flat regardless of how thick the surrounding disc is.
-  const tx = (Math.random() - 0.5) * 2.0
-  out.set(
-      Math.sign(tx) * Math.sqrt(Math.abs(tx)) * BAR_HALF_LEN_M,
-      (Math.random() - 0.5) * BAR_HALF_HEIGHT_M * 2.0,
-      (Math.random() - 0.5) * BAR_HALF_WIDTH_M * 2.0)
-}
-
-
-/** @param {Vector3} out */
-function sampleArm(out) {
-  const armIdx = Math.floor(Math.random() * NUM_ARMS)
-  // Distance from the bar end out to disk edge, biased outward gently.
-  const t = Math.random()
-  const r = BAR_HALF_LEN_M + (Math.pow(t, 0.5) * (DISK_RADIUS_M - BAR_HALF_LEN_M))
-  const angle = armAngleAt(armIdx, r)
-  // Arm taper: arms are wide near the bar (so they blend visually into it)
-  // and thin out toward the disc edge (revealing the spiral structure).
-  // Both in-plane scatter (armWidth) and perpendicular scatter (thickness)
-  // follow the same exponential taper in r, plus a small constant floor so
-  // the outer arms still have visible thickness rather than going to a
-  // hairline.
-  const taperR = Math.exp(-(r - BAR_HALF_LEN_M) / (DISK_RADIUS_M * 0.45))
-  // In-plane width: bar-width-like at the inner edge, tapering to a thin
-  // spiral lane at the outer edge.
-  const armWidth = (BAR_HALF_WIDTH_M * 1.0 * taperR) + (DISK_RADIUS_M * 0.012)
-  const dr = (Math.random() - 0.5) * armWidth * 1.6
-  const da = (Math.random() - 0.5) * 0.30
-  const finalR = Math.max(0, r + dr)
-  const finalA = angle + da
-  // Perpendicular thickness: matches DISK_THICKNESS_M near the bar, drops
-  // to ~15% at the rim.  Catalog stars near the Sun (≈ 26 kly out) end up
-  // inside the local thickness rather than sticking out perpendicular.
-  const thickness = (DISK_THICKNESS_M * taperR) + (DISK_THICKNESS_M * 0.15)
-  out.set(
-      finalR * Math.cos(finalA),
-      (Math.random() - 0.5) * thickness,
-      finalR * Math.sin(finalA))
+/** Mesh.raycast for the galaxy: it is never hit. */
+function noRaycast() {
+  // A full-screen triangle at the far plane covers no place in the scene.
 }
 
 
 /**
- * Logarithmic spiral arm angle at radius r for arm index armIdx.
+ * Bake the model's map a slice at a time, between frames.
  *
- * @param {number} armIdx
- * @param {number} r metres from galactic centre
- * @returns {number} radians
+ * @param {function({map: object, norms: object, ms: number}): void} done
  */
-function armAngleAt(armIdx, r) {
-  // θ = (1/pitch) · ln(r / r0) + arm_offset
-  const r0 = BAR_HALF_LEN_M
-  return ((1 / ARM_PITCH) * Math.log(Math.max(r, r0) / r0)) + ((armIdx * 2 * Math.PI) / NUM_ARMS)
-}
-
-
-// Slight color variation per region — bulge/bar populated by older yellower
-// stars, arms by hotter younger stars on average.  Each function returns a
-// random sample from its region's color distribution; the per-particle
-// variation is what gives the cloud its mottled, non-uniform appearance.
-
-/** @returns {Array<number>} [r, g, b] in 0..1 */
-function bulgeColor() {
-  // Yellow-orange core with a hint of red on the redder samples.
-  const j = Math.random() * 0.15
-  return [1.0, 0.78 - j, 0.55 - j]
-}
-
-/** @returns {Array<number>} [r, g, b] in 0..1 */
-function barColor() {
-  // Slightly cooler than the bulge — transitions toward the arm temperatures.
-  const j = Math.random() * 0.12
-  return [1.0, 0.85 - j, 0.65 - j]
-}
-
-/** @returns {Array<number>} [r, g, b] in 0..1 */
-function armColor() {
-  // Mostly blue-white (young hot OB stars + scatter), with the occasional
-  // yellow giant — matches the catalog's per-star color distribution at the
-  // hole boundary so the transition to the local catalog is seamless.
-  if (Math.random() < 0.06) {
-    return [1.0, 0.85, 0.6]
+function bakeInSlices(done) {
+  const steps = bakeMapSteps()
+  const start = performance.now()
+  const slice = () => {
+    const until = performance.now() + 16
+    let next = steps.next()
+    while (!next.done && performance.now() < until) {
+      next = steps.next()
+    }
+    if (next.done) {
+      const map = next.value
+      done({map, norms: normalize(map), ms: performance.now() - start})
+    } else {
+      setTimeout(slice, 0)
+    }
   }
-  const blueT = Math.random()
-  return [0.85 + ((1 - blueT) * 0.15), 0.92, 0.95 + (blueT * 0.05)]
+  setTimeout(slice, 0)
 }
 
 
-// --- Per-particle size --------------------------------------------------
-//
-// The galaxy's visual texture (clumpy bright spots in a sea of fainter
-// background) comes from per-particle size variation, not from real
-// brightness — at galactic distances every star projects to clamp-sized
-// (~3 px) under the catalog's standard rendering, so all the visible
-// "structure" has to be painted by the size distribution.  Most particles
-// are sub-3-px haze; a small fraction are the bright cluster / HII-region
-// stand-ins that show up as the discrete bright dots in Celestia-style
-// galaxy renders.
-//
-// Choices below produce a mix that visually matches the catalog stars at
-// the catalog-hole boundary (~10 kLY).
-
-
-/** @returns {number} pixels — bulge / bar particle */
-function bulgeSize() {
-  // Bulge has a denser, slightly larger average — concentrated mass.
-  const r = Math.random()
-  if (r < 0.05) {
-    return 4.5 + (Math.random() * 2.5)
-  } // bright cluster
-  if (r < 0.20) {
-    return 2.5 + (Math.random() * 1.5)
-  }
-  return 1.2 + (Math.random() * 1.0)
-}
-
-
-/** @returns {number} pixels — arm particle */
-function armSize() {
-  // Arms have more sparse bright spots (HII regions / O-star clusters)
-  // against a fainter background dot population.
-  const r = Math.random()
-  if (r < 0.04) {
-    return 4.0 + (Math.random() * 2.5)
-  } // bright clump
-  if (r < 0.15) {
-    return 2.2 + (Math.random() * 1.3)
-  }
-  return 1.0 + (Math.random() * 1.0)
+/** @returns {BufferGeometry} One triangle covering clip space, with its uv */
+function fullScreenTriangle() {
+  const g = new BufferGeometry()
+  g.setAttribute('position', new Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3))
+  g.setAttribute('uv', new Float32BufferAttribute([0, 0, 2, 0, 0, 2], 2))
+  return g
 }
 
 
 // ---- Shaders ---------------------------------------------------------------
-//
-// Vertex: RTE eye-relative position so worldGroup rebases stay precise.
-// Bias gl_Position.z to the far plane so the cloud composites strictly behind
-// every depth-writing object regardless of float32 depth-buffer crush at
-// galactic scales.
 
-// Custom attribute name aGalaxyColor (instead of plain `color`) sidesteps any
-// chance of three.js wiring its built-in vertex-color attribute on top of ours
-// — that path expects a different layout and silently breaks gl_PointSize.
-const VERT = `
-attribute vec3  aGalaxyColor;
-attribute vec3  positionLow;
-attribute float aSize;
-uniform vec3 uCamPosWorldHigh;
-uniform vec3 uCamPosWorldLow;
-varying vec3  vColor;
+const VERT_MARCH = `
+varying vec2 vNdc;
 void main() {
-  vColor = aGalaxyColor;
-  vec3 highDiff = position    - uCamPosWorldHigh;
-  vec3 lowDiff  = positionLow - uCamPosWorldLow;
-  vec3 eyePos   = highDiff + lowDiff;
-  vec4 mvPosition = vec4(mat3(modelViewMatrix) * eyePos, 1.0);
-  // Per-particle pixel size: the JS-side sampler hands out a mix of small
-  // background dots (1–2 px), medium stars (2.5–4 px), and bright cluster
-  // clumps (5–7 px).  Constant in screen space (no 1/dist) so close-by
-  // points don't blow up and overdraw stays bounded.  The size mix is
-  // what gives the cloud its texture and lets nearby Hipparcos stars
-  // blend into the galaxy at the catalog-hole boundary.
-  gl_PointSize = aSize;
-  vec4 clip = projectionMatrix * mvPosition;
-  // Pin to (just inside) far plane so the additive galaxy never "wins" a
-  // depth comparison against any nearer geometry.  z = w would map to the
-  // far plane exactly; pull a touch in to avoid ties.  And divided through
-  // to w = 1, as stars.vert's clipToW1: w is kiloparsecs in metres here,
-  // past 2^64 m (1,950 ly), whose square is Inf in float32 on the GPU's
-  // side of the shader.  Behind the eye (w <= 0) is culled, as the clipper
-  // had it.
-  if (!(clip.w > 0.0)) {
-    gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
-    return;
-  }
-  gl_Position = vec4(clip.xy / clip.w, 0.9999, 1.0);
+  vNdc = position.xy;
+  gl_Position = vec4(position.xy, 0.0, 1.0);
 }
 `
 
-const FRAG = `
-${EMITTED_GLSL}
-uniform sampler2D texSampler;
-uniform float uExposureRelative;
-varying vec3 vColor;
-// The Milky Way's surface brightness relative to a white surface facing
-// the Sun at 1 AU (exposure.js MILKY_WAY_RADIANCE): its bright regions are
-// ~21-22 mag/arcsec², 2e-4 cd/m², against ~4e4 cd/m² for the white, 5e-9;
-// the particle cloud's full value is set to that, times DISPLAY_GAIN, so
-// at a dark sky's metered exposure (gain ~1e6, HDR.md) it shows at a few
-// percent, faint, as it is.
-const float GALAXY_RADIANCE = ${MILKY_WAY_RADIANCE.toExponential(6)};
+// The view ray through this pixel, from the projection (its offsets too),
+// turned into G; the march from the camera's position in G.  Interleaved
+// gradient noise (Jimenez 2014) offsets the first step, fixed per pixel.
+const RAY_GLSL = `
+uniform vec3 uCamG;
+uniform mat3 uViewToG;
+uniform vec4 uProj;
+vec3 galaxyRay(vec2 ndc) {
+  vec3 view = vec3((ndc.x + uProj.z) / uProj.x, (ndc.y + uProj.w) / uProj.y, -1.0);
+  return normalize(uViewToG * normalize(view));
+}
+float galaxyJitter(vec2 frag) {
+  return fract(52.9829189 * fract(dot(frag, vec2(0.06711056, 0.00583715))));
+}
+`
+
+const FRAG_MARCH = `
+${RAY_GLSL}
+varying vec2 vNdc;
 void main() {
-  vec4 tex = texture2D(texSampler, gl_PointCoord);
-  // Pre-exposed (uExposureRelative carries the frame's gain), premultiplied
-  // here (the additive blend adds it as is), and nothing under what the
-  // buffer holds as a normal value: the sprites' filtered edges fell to
-  // 1e-7 there, subnormal, flushed on some GPUs and kept on others.
-  gl_FragColor = vec4(emitted(vColor * GALAXY_RADIANCE * uExposureRelative * tex.rgb * tex.a), 1.0);
+  vec3 light = galaxyMarch(uCamG, galaxyRay(vNdc), galaxyJitter(gl_FragCoord.xy));
+  gl_FragColor = vec4(min(light, vec3(${HDR_MAX_VALUE.toFixed(1)})), 1.0);
+}
+`
+
+// Pinned to the far plane, behind every depth-writing object.
+const VERT_COMPOSITE = `
+varying vec2 vUv;
+varying vec2 vNdc;
+void main() {
+  vUv = uv;
+  vNdc = position.xy;
+  gl_Position = vec4(position.xy, 0.9999, 1.0);
+}
+`
+
+const FRAG_COMPOSITE = `
+${EMITTED_GLSL}
+uniform float uExposureRelative;
+uniform sampler2D uMarch;
+uniform vec2 uMarchSize;
+#if GALAXY_DIRECT
+${RAY_GLSL}
+#endif
+varying vec2 vUv;
+varying vec2 vNdc;
+void main() {
+#if GALAXY_DIRECT
+  vec3 light = galaxyMarch(uCamG, galaxyRay(vNdc), galaxyJitter(gl_FragCoord.xy));
+#else
+  vec3 light = texture2D(uMarch, vUv).rgb;
+#endif
+  // Pre-exposed (HDR.md): the light at Earth's keyed exposure, times the
+  // frame's exposure over it; held under the buffer's ceiling, and nothing
+  // under its smallest normal value.
+  vec3 value = light * (${(1 / STORE_SCALE).toExponential(6)} * uExposureRelative);
+  gl_FragColor = vec4(emitted(min(value, vec3(${HDR_MAX_VALUE.toFixed(1)}))), 1.0);
 }
 `
