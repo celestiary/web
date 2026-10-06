@@ -75,7 +75,10 @@ ThreeUi.renderLoop
     renderer.resetState()            over blended, colour clears dropped
     decode → _sceneRT              Cesium's 8-bit frame into exposure units
                                    (decodeOf), premultiplied-over
+    night lights → _sceneRT        Earth: a second frame, added (Night lights)
   ground-sphere depths           each active body, depth-tested
+  _drawClouds() → _sceneRT       Earth's cloud shell, over whichever surface
+                                 is there (Clouds, below)
   _updateAtmUniforms()
   render(atm pass) → screen      sky + scene × T, tone-mapped once
 ```
@@ -186,8 +189,9 @@ relates to real time.
 
 ### What changes while a Cesium layer is active
 
-- The body's celestiary surface group (surface, clouds, atmosphere shell,
-  axes) is hidden.  Its place labels stay: they draw in the overlay pass
+- The body's celestiary surface group (surface, atmosphere shell, axes) is
+  hidden.  Earth's cloud shell isn't in it: it's drawn after the composite,
+  over Cesium's globe as over celestiary's sphere (Clouds, below).  Its place labels stay: they draw in the overlay pass
   after the composite (no depth test, a back-hemisphere discard in the
   shader), so they sit over Cesium's globe and drop off its far side
   ([#172](https://github.com/celestiary/web/issues/172); `_hideSurface`
@@ -218,6 +222,8 @@ relates to real time.
   `nightImagery`).  Needs no token, and is public domain (NASA); fetched
   from `gibs.earthdata.nasa.gov`, which sends CORS headers.  Drawn by a
   pass of its own, not through the globe's lighting: see Night lights.
+- Earth's clouds: NASA GIBS's daily true-colour mosaics, fetched and drawn
+  by celestiary, not Cesium (Clouds, below; Planet.md).
 - Moon, Mars: Cesium ion 3D-tiles datasets, token only (see Phases).
 - Token: build-time `CESIUM_ION_TOKEN` env var → `__CESIUM_ION_TOKEN__`,
   set from the repository secret of the same name.  It ships in the page,
@@ -380,11 +386,37 @@ Cesium's lights are sharp (Rome, Naples) where celestiary's are a blur, and
 the two agree in the region's mean (`earth-night-dusk`) and not in its
 pixels' median (0.69).
 
-**Not done.**  Clouds should dim the lights beneath them (#88); the layer
-isn't offline (GIBS is a network host, like ion's imagery, and a failed tile
+**Clouds** dim the lights under them, on both sides alike: the cloud shell
+is drawn over the scene buffer after this pass (Clouds, below).
+
+**Not done.**  The layer isn't offline (GIBS is a network host, like ion's imagery, and a failed tile
 is black: no lights there, a warning logged once); GIBS's imagery is a
 picture, not calibrated radiance, so the scale is calibrated by eye
 (Planet.md, brightness).
+
+### Clouds
+
+Earth's clouds (#88) are one shell, celestiary's, drawn over both sides of
+the swap: the simulation date's NASA GIBS true-colour mosaic, unmixed into
+cloud coverage over the month's Blue Marble, on a sphere 6 km up, lit by
+the Sun in exposure units (Planet.md, "Clouds", for the data and the
+drawing).  ThreeUi draws it into `_sceneRT` after `layers.composite()`,
+before the atmosphere pass, so:
+
+- there is one cloud renderer and nothing to match: not a Cesium imagery
+  layer, which would come through Cesium's lighting and its 8-bit frame
+  (the night lights' problem) and would need matching to celestiary's;
+- it covers Cesium's globe, celestiary's sphere and the crossfade between
+  them alike, and the night lights both sides drew under it;
+- it depth-tests against the depth the composite left (the ground sphere,
+  or the terrain's from below 20 km), and writes none: the atmosphere pass
+  hazes a cloud as the ground under it;
+- its alpha is coverage, premultiplied-over (portal's alpha contract),
+  though nothing composites `_sceneRT`'s alpha after it.
+
+The shell fades out below 30 km and is gone at 10 km (the far field;
+volumetric clouds up close are #169), so the low views (the terrain and the
+twilight ones) have no clouds in them.
 
 ### Tiles and lighting (ion 3D tiles)
 
@@ -498,8 +530,7 @@ draws, not just what it selects.
 - Picking / inspection through Cesium (click → lat/lng, entity info):
   forward celestiary's clicks to `scene.pick` on the active widget.
 - Night lights: done in #93 (Night lights, above).  Left: a bundled low-level
-  copy of the Black Marble for offline use, and clouds dimming the lights
-  (#88).
+  copy of the Black Marble for offline use.  Clouds dim them since #88.
 - Persist the layer choice in the permalink.
 - Perf: the shadow context executes every Cesium draw as well as the
   replay (2× GPU for the globe). Cesium needs the shadow's pixels only
@@ -658,6 +689,7 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `mars-gibbous` | 0.988 | 1.000 / 0.985 / 0.986 | 9.5 / 1.8 |
 | `earth-low-dusk` | 1.001 | 1.000 / 1.000 / 1.000 | 3.2 / 1.2 |
 | `earth-night-europe` | Europe at night from 4,000 km (#93; `t=9851.4722jd`): median ratio 1.004 over the lit land (pixels of 6 or more), 1.000 / 1.000 / 1.000 per channel, mean 0.983 / 0.974 / 0.985 / 0.997 (luma, R, G, B); median luma 54.4 on, 54.3 off.  Cesium's side was black (0.000) before | (no profile) |
+| `earth-clouds-katrina` | 1.000 (#88: the clouds of 2005-08-28 over the Gulf from 8,000 km, one shell on both sides); median luma 114.3 on, 115.0 off, about 75 without clouds | 1.000 / 1.000 / 1.000 | 15.5 / 2.0 |
 | `earth-night-dusk` | Italy from 400 km straight down, Sun 16° under the horizon (#93): mean ratio 0.973 luma, 0.946 (0.894 once) / 0.979 / 1.006 (R, G, B) over the whole frame, GIBS's 600 m tiles sharp against celestiary's 11 km texture (the median pixel ratio there is 0.69, which is why the view is judged by the mean).  Before: 0.918 and 0.672 (red), Cesium's frame showing the twilight glow and no lights | (no profile) |
 | `earth-low-land-day` | 0.938-0.972 | median luma 80 on, 85 off since the surface's segment is marched (73-75 and 77-78 with the table's; 55, washed out, before #141's fix) | (no profile) |
 | `earth-ridge-day` | ridge over valley ground, on: luma 0.971, blue/red 0.992 (was 0.69 and 2.24, sky over the ridge) | (no off comparison) | (no profile) |
@@ -671,6 +703,14 @@ secret.  Cesium over celestiary; runs repeat to about 0.002 in ratio.
 | `mars-sky-zenith` | Mars's day sky looking up, the zenith over the sky 35° lower: luma 0.277, blue/red 0.897 (#147; tan, with a gradient) | (no off comparison) | (no profile) |
 | `mars-sky-antisolar` | the sky over the anti-solar horizon over the sky 30° up: 1.643 / 1.078 (#147; before it the anti-solar sky was nearly black) | (no off comparison) | (no profile) |
 | `mars-sky-aureole` | the aureole within 10° of the Sun over the sky 40° off: 2.418 / 1.768 (#147: bluer, as the rovers see it; before, white across the frame) | (no off comparison) | (no profile) |
+
+With #88's clouds (one shell over both sides of the swap) every Earth
+view passes as before: `earth-orbit-gibbous` 1.000 in luma and per channel
+(profile 24.2 / 1.2; its date, 2025-04-12, has VIIRS clouds over the
+disc), `earth-night-europe` 1.001 (median luma 55.8 on and off; its date
+is in the future, so the bundled clouds), `earth-night-dusk` 0.973 mean,
+`earth-low-dusk` 1.002; the views below 10 km have no clouds (the shell's
+far-field fade) and read as before.  Nothing re-baselined.
 
 The `*-labels` views (#172) measure no ratio: label pixels (what the
 place labels add over Cesium's render; the tolerance is at least 400) read
