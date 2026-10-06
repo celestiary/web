@@ -1,7 +1,15 @@
 import {Euler, Matrix4, PerspectiveCamera, Quaternion, Vector3} from 'three'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {toRad} from '../../shared.js'
-import {bodyToEcef, cameraToEcefView, cesiumFov, ecefToBody, ellipsoidCameraPosition, sunLightDirectionEcef} from './frames.js'
+import {
+  bodyToEcef,
+  cameraToEcefView,
+  cesiumFov,
+  ecefToBody,
+  ellipsoidCameraPosition,
+  nightVisible,
+  sunLightDirectionEcef,
+} from './frames.js'
 
 
 const R = 6378137
@@ -131,5 +139,36 @@ describe('ellipsoidCameraPosition', () => {
     expect(out[0]).toBeCloseTo(R + 5000, 6)
     expect(out[1]).toBe(0)
     expect(out[2]).toBe(0)
+  })
+})
+
+
+describe('nightVisible', () => {
+  // Sunlight travels along -x: the Sun is at +x, the sub-solar point (r, 0, 0).
+  const light = [-1, 0, 0]
+  const deg = Math.PI / 180
+
+  it('is false over the day side from orbit', () => {
+    expect(nightVisible([R + 4e5, 0, 0], light, R)).toBe(false)
+    expect(nightVisible([R + 2e7, 0, 0], light, R)).toBe(false)
+  })
+
+  it('is true over the night side', () => {
+    expect(nightVisible([-(R + 4e5), 0, 0], light, R)).toBe(true)
+    expect(nightVisible([0, R + 4e5, 0], light, R)).toBe(true)
+  })
+
+  it('is true from the day side once the horizon reaches the night, not from low orbit', () => {
+    // From geostationary height the cap reaches 81 degrees from the
+    // sub-point: a camera 10 degrees round from the sub-solar point sees 91.
+    const at = (h) => [(R + h) * Math.cos(10 * deg), (R + h) * Math.sin(10 * deg), 0]
+    expect(nightVisible(at(3.6e7), light, R)).toBe(true)
+    expect(nightVisible(at(4e5), light, R)).toBe(false)
+  })
+
+  it('on the ground, is true where the Sun is under 3 degrees up, and not higher', () => {
+    const at = (angle) => [(R * Math.cos(angle * deg)) + 1, R * Math.sin(angle * deg), 0]
+    expect(nightVisible(at(86), light, R)).toBe(true)
+    expect(nightVisible(at(60), light, R)).toBe(false)
   })
 })

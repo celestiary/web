@@ -42,6 +42,10 @@ const ION_HOSTS = /^https:\/\/(api\.cesium\.com|assets\.ion\.cesium\.com)\//
 // ion's token is restricted by Referer to the production site (AGENTS.md,
 // Secrets).
 const ION_HEADERS = {referer: 'https://celestiary.github.io/', origin: 'https://celestiary.github.io'}
+// NASA GIBS (Earth's night lights): public, so no headers, but fetched from
+// Node too, since a sandbox's headless Chromium doesn't trust its egress
+// proxy's CA (ERR_CERT_AUTHORITY_INVALID) where Node does.
+const GIBS_HOSTS = /^https:\/\/gibs\.earthdata\.nasa\.gov\//
 const CHROMIUM_ARGS = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']
 const EXIT_FAIL = 1
 const EXIT_SETUP = 2
@@ -134,6 +138,25 @@ async function routeIon(page) {
     }
   })
   return stats
+}
+
+
+/**
+ * Fetch NASA GIBS tiles through Node (see GIBS_HOSTS), and hand them to the
+ * page as they came.
+ *
+ * @param {object} page
+ */
+async function routeGibs(page) {
+  await page.route(GIBS_HOSTS, async (route) => {
+    try {
+      const response = await route.fetch()
+      await route.fulfill({response, headers: {...response.headers(), 'access-control-allow-origin': '*'}})
+    } catch (err) {
+      console.warn(`  GIBS request failed: ${err.name}`)
+      await route.abort()
+    }
+  })
 }
 
 
@@ -405,6 +428,7 @@ async function runView(context, baseUrl, view, opts) {
       }
     })
     const ion = await routeIon(page)
+    await routeGibs(page)
     const requests = trackRequests(page)
     // Analytics: not needed, and a hang on it would hold the network busy.
     await page.route(/googletagmanager\.com/, (route) => route.abort())

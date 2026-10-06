@@ -132,7 +132,11 @@ tried and dropped.
 - **Network hosts this work needs in the sandbox:**
   - `api.cesium.com` and `assets.ion.cesium.com` (Cesium ion);
   - `trek.nasa.gov` (Moon and Mars mosaics);
-  - `eoimages.gsfc.nasa.gov` and `gibs.earthdata.nasa.gov` (Earth).
+  - `eoimages.gsfc.nasa.gov` and `gibs.earthdata.nasa.gov` (Earth; GIBS
+    is also Earth's night lights on the Cesium layer).  Headless Chromium
+    doesn't trust the sandbox proxy's CA, so GIBS tiles fetched by a page
+    fail with `ERR_CERT_AUTHORITY_INVALID`: route them through Node like
+    ion's (`tools/parity/parity.mjs` `routeGibs`).
   - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
     Record Horizons results as offline test fixtures with the query that
     produced them; tests never hit the network.

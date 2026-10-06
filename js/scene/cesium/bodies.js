@@ -22,6 +22,9 @@
  *
  * - `textureGain`, `imageryScale`: the decode's scale for the body's
  *   imagery against celestiary's texture (CesiumLayers bodyGain).
+ * - `nightImagery`: a globe's city lights, an imagery layer drawn in a
+ *   pass of its own on the night side (CesiumLayers, CESIUM.md "Night
+ *   lights"), not through Cesium's lighting, which would multiply them away.
  * - `nightFloor`: a tileset's light on its night side, as a fraction of
  *   full sun (sunlitShader); a globe's lighting is Cesium's.
  */
@@ -59,6 +62,21 @@ export const CESIUM_BODIES = {
     // where the base's ~5 km texels would show (an 8192-texel-wide base is
     // sharp through level 4 of 256-texel tiles).
     detailFromLevel: 5,
+    // City lights: NASA GIBS's VIIRS Black Marble (the 2016 composite, NASA
+    // Earth Observatory / Suomi NPP; public domain), the product celestiary's
+    // own earth_night.jpg is cut from (Planet.md), so the two sides of the
+    // swap show the same data.  WMTS, Web Mercator, levels 0-8 of 256 px
+    // tiles (~600 m a pixel at the equator).  The VIIRS_CityLights_2012
+    // layer is a JPEG of the older 2012 composite in a different stretch (a
+    // European tile's median 32 of 255 against the Black Marble's 20, which
+    // is celestiary's texture's), so it wouldn't match across the swap.
+    nightImagery: {
+      url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/' +
+        'GoogleMapsCompatible_Level8/{z}/{y}/{x}.png',
+      tileSize: 256,
+      maximumLevel: 8,
+      credit: 'NASA GIBS, VIIRS Black Marble (Suomi NPP)',
+    },
   },
   moon: {
     ellipsoid: 'MOON',
