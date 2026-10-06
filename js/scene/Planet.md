@@ -46,6 +46,53 @@ is set) or `/textures/<body>_night.jpg` (otherwise).  Missing file
 degrades silently — texture loader logs a warning and the night side just
 stays dark.
 
+**Earth's `earth/earth_night.jpg`** (3600×1800, equirectangular, −180° at
+the left edge) is NASA's VIIRS Black Marble 2016 composite (Suomi NPP, NASA
+Earth Observatory, public domain), the product NASA GIBS serves as the
+`VIIRS_Black_Marble` WMTS layer, which is the source of Cesium's Earth's
+lights ([CESIUM.md, night lights](../../CESIUM.md#night-lights)).  Checked
+against GIBS's own tiles (#93): at level 4, over six tiles from the
+Americas to Asia, the two agree in mean colour to within 4% per channel (the
+dark Pacific tile's red, 6.0 against 7.0, is the worst: 1 level), in the
+99th percentile of brightness to within 8%, and correlate 0.94-0.98 per pixel (the rest is the texture's 11 km pixels against a
+tile's 2.4 km).  So the texture stays: nothing was baked, no new data, and
+the two sides of the Cesium swap show the same data.  GIBS's other layer,
+`VIIRS_CityLights_2012`, is the older composite in another stretch (a
+European tile's median brightness 1.6× this one's), so it wouldn't match.
+
+If it is ever rebuilt at a higher resolution from GIBS, say for celestiary's
+own Earth seen from low down (Cesium's side has the 600 m tiles; the
+texture's pixel is 11 km): fetch
+`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{row}/{col}.png`
+at level 5 (32×32 tiles of 256 px: 8192 px of Web Mercator, ±85.05°),
+resample each output row to its latitude (the Mercator row `(1 − asinh(tan
+lat) / π) / 2`) into 8192×4096 equirectangular, repeating the edge rows to
+the poles, and save as JPEG.  That is over the 1 MB line, so under
+`public/large/` in Git LFS and loaded with `dataUrl()` ([DESIGN.md data
+policy](../../DESIGN.md#data-policy)), and 4× the texture memory of this one.
+
+### Brightness: what the texture's values are
+
+The tiles and the texture are the Black Marble as a picture (8-bit, stretched,
+the land's faint floor of moonlit snow and airglow lifted into blue), not the
+calibrated radiance (nW/cm²/sr) of the VIIRS day-night band, which these
+products don't carry, so the values can't be converted to physical units: a
+texel is a display value in 0-1, and the radiance for a full white texel is
+a scale calibrated by eye, `NIGHT_LIGHT_RADIANCE` in `exposure.js`: 3e-5 of
+a sunlit white (1 cd/m², a city core seen from above, against ~3e4 cd/m² for
+the white), so 4.5e-5 of the buffer at the keyed exposure, invisible beside
+a day side, and under the night side's metered gain (up to 4e6) the cities
+bright and the unlit ocean a dark blue.  The texel is used as stored, linearly
+(no sRGB decode, as every surface texture here is read).
+
+Both sides of the Cesium swap use the scale and the form.  Celestiary's
+surface shader adds `texel × smoothstep(−0.05, 0.05, −N·L) × radiance`
+before the exposure multiply; Cesium's Earth adds the GIBS texel by the same
+band, the same radiance and the renderer's exposure, in a pass of its own
+(`CesiumLayers._drawNightLights`).  Over Europe at night from 4,000 km the
+two renders agree to 0.4% in the median pixel (R, G and B alike 1.00) and
+within 3% in the mean (`earth-night-europe`).
+
 ### Shader injection
 
 Two `onBeforeCompile` patches, chained via `shaderMods` so multiple mods
@@ -59,7 +106,7 @@ Two `onBeforeCompile` patches, chained via `shaderMods` so multiple mods
    add `nightLight * nightFactor * RADIANCE` to `gl_FragColor.rgb`
    *before* tonemapping so city lights pass through the same exposure and
    tonemap chain as the rest of the surface.  `RADIANCE` is
-   `NIGHT_LIGHT_RADIANCE` (3e-5, the texture's full white as 1 cd/m²
+   `NIGHT_LIGHT_RADIANCE` (`exposure.js`, 3e-5, the texture's full white as 1 cd/m²
    against a sunlit white's 3e4) times a sunlit white's radiance in three's
    units, so the lights are in exposure units like the lit surface
    ([HDR.md](HDR.md#metered-exposure)): beside a sunlit day side they are
@@ -67,26 +114,13 @@ Two `onBeforeCompile` patches, chained via `shaderMods` so multiple mods
    alone the metered exposure brings them to 0.6 at most.  They were a
    fixed display value (`1.5 / toneMappingExposure`), which the meter
    read as a luminance falling with its own gain, and ran away on.
-   gamma chain as the rest of the surface.
 
 Earlier versions tried `<output_fragment>` — that chunk was renamed
 `<opaque_fragment>` in Three.js r155+, so the string-replace silently
 failed.  `<tonemapping_fragment>` is stable across versions.
 
-### Why such a large intensity multiplier (`5e15`)
-
-The renderer's `toneMappingExposure` is `3e-16`, calibrated for the sun's
-PointLight intensity (`3.7e28` lumens, roughly the absolute lumens output
-of the actual Sun).  Day-side surface peaks at ~`2e16` linear (sun
-illuminance × Earth albedo / π) → ~`1.0` after tonemap → white.  For city
-lights to peak around 30% display brightness (visible glow without
-overdrive), input × exposure ≈ 0.3 → multiplier ≈ `1e15`.  We use `5e15`
-for a slight cinematic boost — somewhat brighter than physical truth but
-the right tradeoff for the navigation-aid use case.
-
-Tweak the constant in `nearShape` if your night texture is a composite
-("Earth at night" with land visible as faint grey) vs. pure Black Marble
-(mostly black with bright cities only) — composites need a lower scalar.
+Cesium's Earth adds the same light in a pass of its own ([CESIUM.md, night
+lights](../../CESIUM.md#night-lights)).
 
 ### Per-frame sun direction
 

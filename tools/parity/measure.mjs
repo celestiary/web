@@ -163,6 +163,42 @@ export function medianRatios(on, off, mask) {
 
 
 /**
+ * Ratio of the means on/off over the masked pixels: of the luma, and of each
+ * channel.  The energy in the region, not its pixels' agreement: it holds
+ * where the two renders differ in resolution (a bright city sharp in one and
+ * a blur in the other), which the per-pixel median ratio can't see past.
+ *
+ * @param {object} on The Cesium-on image
+ * @param {object} off The Cesium-off image
+ * @param {Uint8Array} mask
+ * @returns {{luma: number, r: number, g: number, b: number}} NaN with
+ *   nothing measured, or a black off render
+ */
+export function meanRatios(on, off, mask) {
+  let lumaOn = 0
+  let lumaOff = 0
+  const sumOn = CHANNELS.map(() => 0)
+  const sumOff = CHANNELS.map(() => 0)
+  for (let i = 0; i < mask.length; i++) {
+    if (!mask[i]) {
+      continue
+    }
+    lumaOn += lumaAt(on.data, i)
+    lumaOff += lumaAt(off.data, i)
+    for (let c = 0; c < CHANNELS.length; c++) {
+      sumOn[c] += on.data[(i * BYTES_PER_PIXEL) + c]
+      sumOff[c] += off.data[(i * BYTES_PER_PIXEL) + c]
+    }
+  }
+  const out = {luma: lumaOn / lumaOff}
+  CHANNELS.forEach((name, c) => {
+    out[name] = sumOn[c] / sumOff[c]
+  })
+  return out
+}
+
+
+/**
  * Brightness (luma, 0-255) along a line, for a terminator profile: `samples`
  * points evenly from `from` to `to` (fractions of the image), each the mean
  * of a `band`-pixel-wide strip across the line, so a single noisy pixel or a
@@ -271,6 +307,7 @@ export function measureView(on, off, view) {
   const mask = regionMask(off, view.region, view.minLuma)
   const ratios = medianRatios(on, off, mask)
   ratios.fraction = mask.reduce((a, b) => a + b, 0) / mask.length
+  ratios.mean = meanRatios(on, off, mask)
   // Each render's own median luma, for views where both sides could go
   // wrong alike (a bug in the atmosphere pass, which draws over both).
   const lumas = (img) => {
@@ -362,6 +399,11 @@ export function describeTolerance(tolerance) {
  *   - `ratio`: [lo, hi] for the median luma ratio on/off;
  *   - `channelRatio`: [lo, hi] for each of the r, g, b ratios, or `{r, g, b}`
  *     with a [lo, hi] each;
+ *   - `meanRatio`: [lo, hi] for the ratio of the region's mean luma and of
+ *     each channel's mean, on/off (`mean ratio luma`, `mean ratio r`...), for
+ *     views where the two renders differ in resolution (Earth's night lights
+ *     from low down: GIBS's 600 m against celestiary's 11 km texture), which
+ *     moves the per-pixel medians but not the energy;
  *   - `profileMax`, `profileMean`: max bound on the profile deviation
  *     (luma levels of 255), as a number;
  *   - `luma`: [lo, hi] for each render's own median luma (of 255), on and
@@ -394,6 +436,12 @@ export function evaluateView(id, measured, tolerance) {
     const perChannel = !Array.isArray(tolerance.channelRatio)
     for (const name of CHANNELS) {
       add(`ratio ${name}`, ratios[name], perChannel ? tolerance.channelRatio[name] : tolerance.channelRatio)
+    }
+  }
+  if (tolerance.meanRatio) {
+    add('mean ratio luma', ratios.mean.luma, tolerance.meanRatio)
+    for (const name of CHANNELS) {
+      add(`mean ratio ${name}`, ratios.mean[name], tolerance.meanRatio)
     }
   }
   if (tolerance.luma) {
