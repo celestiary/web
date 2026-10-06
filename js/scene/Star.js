@@ -1,5 +1,4 @@
 import {
-  AxesHelper,
   Group,
   LOD,
   PointLight,
@@ -87,11 +86,9 @@ export default class Star extends Object {
 
     const lod = new LOD
 
-    const guideGroup = new Group
-    const internalGuidesRadius = props.radius.scalar * 0.999
-    guideGroup.add(new AxesHelper(internalGuidesRadius))
-    guideGroup.add(sphere({radius: internalGuidesRadius, wireframe: true}))
-    lod.addLevel(guideGroup, 0)
+    // Inside the star: nothing.  The debug axes and wireframe that were here
+    // showed at extreme zooms; a debug mode can bring them back.
+    lod.addLevel(new Group, 0)
 
     const surfaceGroup = new Group
     surfaceGroup.add(this.newSurface(props))
