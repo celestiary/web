@@ -1,6 +1,5 @@
 import {
   AdditiveBlending,
-  AxesHelper,
   Group,
   ImageLoader,
   MeshPhongMaterial,
@@ -529,9 +528,6 @@ export default class Planet extends Object {
     // limb from the atmosphere pass.
     const group = new Group
     group.add(surface)
-    const internalGuidesRadius = this.props.radius.scalar * 0.9
-    group.add(new AxesHelper(internalGuidesRadius))
-    // group.add(sphere({radius: internalGuidesRadius, wireframe: true, color: 0x808080}))
     // Not drawn until its colour map is in: a map without its image draws
     // black, and the atmosphere pass hazed that into a blue disc before the
     // surface appeared (ThreeUI gates the pass on this too).
