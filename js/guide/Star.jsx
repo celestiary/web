@@ -1,6 +1,6 @@
 import React, {ReactElement, useEffect, useState} from 'react'
 import {useHashLocation} from 'wouter/use-hash-location'
-import {addStarToScene} from './starScene.js'
+import {addStarToScene, frameStar} from './starScene.js'
 import StarsCatalog, {FAVES, StarSpectra} from '../scene/StarsCatalog.js'
 import ThreeUi from '../ThreeUI.js'
 import Time from '../Time.js'
@@ -87,8 +87,11 @@ function showStar(ui, path, curStar, setStar, catalog, time) {
     return
   }
   const star = addStarToScene(ui, catalog, parseInt(hipId), path, curStar, setStar)
-  ui.camera.position.z = star.initialCameraDistance
+  // The disc fills 90% of the canvas's smaller dimension, and stays so
+  // through a resize until the user zooms.
+  const reframe = frameStar(ui, star)
   ui.animationCb = () => {
+    reframe()
     time.updateTime()
     try {
       star.preAnimCb(time)
