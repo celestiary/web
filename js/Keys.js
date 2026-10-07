@@ -46,6 +46,10 @@ export default class Keys {
         return
       }
     }
+    // The browser's own shortcuts (Ctrl/Cmd with '-', '=', 'r', ...) aren't ours.
+    if (event.ctrlKey || event.metaKey) {
+      return
+    }
     const charStr = event.key
     // Case-sensitive lookup so 'v' (plain) and 'V' (Shift+v) can be bound
     // to different actions — the browser already distinguishes them in

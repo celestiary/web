@@ -50,6 +50,7 @@ returned as given in `decodePermalink(...).tokens`.  Spec: [design/URLs.md](../d
 | `t` | Measure: days from J2000 | `9233.1234jd` | Simulation time, clamped on decode to ±2191500 days (J2000 ± 6000 years, Time.js's supported dates); a non-finite `t` makes the fragment invalid |
 | `cq` | 4× dimensionless float | `0,0,0,1` | Camera quaternion (platform-local) |
 | `fov` | Measure: degrees | `45deg` | Camera field of view |
+| `ev` | dimensionless float, stops | `1.33` | The user's exposure compensation over the metered exposure (`evCompensation.js`): 2^ev as one multiplier on the exposure.  Written to 2 decimal places, left out at 0; read with or without a `+` (`ev=+1.3`), held to ±10, and 0 when absent or not a number.  Applied on every view restore, so a link without it sets 0 |
 
 ## Coordinate System
 
@@ -130,6 +131,14 @@ imperceptible at any zoom level.
 ### FOV — `deg` (degrees)
 
 `parseFloat(fov.toFixed(2)).toString()` + `deg`.  Trailing zeros trimmed, so `45.00` → `45deg`.
+
+### Exposure compensation — `ev` (stops)
+
+`parseFloat(ev.toFixed(2)).toString()`, no unit, no sign for a positive (`ev=1.33`, `ev=-0.67`),
+and the param is left out when it rounds to 0.  A third of a stop, what each key press steps, is
+`0.33`, and stepping from it snaps back to the thirds (`stepEv`), so the rounding doesn't
+accumulate.  Decoded with `parseFloat`, which takes a leading `+`, clamped to ±10 stops (`EV_MAX`).
+It's in the decoded view as `ev` (0 by default), and `encodePermalink` takes it as its last argument.
 
 ## Auto-update Behaviour
 

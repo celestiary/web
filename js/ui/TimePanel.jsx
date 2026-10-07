@@ -35,6 +35,11 @@ export default function TimePanel({time, timeStr, isPaused, setIsPaused}) {
     setTimeScale(updateTimeMsg(time, isPaused))
   }, [time, setTimeScale, timeStr, isPaused])
 
+  // The rate changes while paused too (j, k, l), when no clock tick
+  // updates timeStr: follow the change itself.
+  useEffect(() => time.onTimeScaleChange(() => setTimeScale(updateTimeMsg(time, time.isPaused))),
+      [time, setTimeScale])
+
 
   // TODO(pablo): redundant.. setting time state isn't reactive
   const onPauseClick = () => {

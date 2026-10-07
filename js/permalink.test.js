@@ -471,3 +471,55 @@ describe('permalinkHref', () => {
     expect(permalinkHref('sun', undefined, '?perf=1')).toBe('#sun')
   })
 })
+
+
+describe('the exposure compensation, ev=', () => {
+  const quat = {x: 0, y: 0, z: 0, w: 1}
+  const encode = (ev) => encodePermalink('sun/earth', 9000, 1, 2, 3, quat, 45, undefined, undefined, undefined, ev)
+
+  it('is left out at 0, so a link at the defaults is just the view', () => {
+    expect(encode(0)).toBe('sun/earth@1,2,3m;t=9000jd;cq=0,0,0,1;fov=45deg')
+    expect(encode(undefined)).toBe(encode(0))
+    expect(encode(0.001)).toBe(encode(0))
+    expect(encodePermalink('sun/earth', 9000, 1, 2, 3, quat, 45)).toBe(encode(0))
+    expect(decodePermalink(encode(0)).ev).toBe(0)
+  })
+
+  it('is written in stops, two decimal places, after the fov', () => {
+    expect(encode(1)).toBe('sun/earth@1,2,3m;t=9000jd;cq=0,0,0,1;fov=45deg;ev=1')
+    expect(encode(4 / 3)).toBe('sun/earth@1,2,3m;t=9000jd;cq=0,0,0,1;fov=45deg;ev=1.33')
+    expect(encode(-2 / 3)).toBe('sun/earth@1,2,3m;t=9000jd;cq=0,0,0,1;fov=45deg;ev=-0.67')
+  })
+
+  it('round-trips, alongside the settings and state tokens', () => {
+    for (const ev of [1, -1, 1.33, -0.67, 0.33, 10, -10]) {
+      expect(decodePermalink(encode(ev)).ev).toBe(ev)
+    }
+    const frag = encodePermalink('sun/earth', 9000, 1, 2, 3, quat, 45, {...SETTINGS_DEFAULTS, a: false},
+        {apps: 'open'}, 'sun/mars', -1.67)
+    expect(frag).toBe('sun/earth@1,2,3m;from=sun/mars;t=9000jd;cq=0,0,0,1;fov=45deg;ev=-1.67;s=a;apps:open')
+    const pl = decodePermalink(frag)
+    expect(pl.ev).toBe(-1.67)
+    expect(pl.settings.a).toBe(false)
+    expect(pl.tokens).toEqual({apps: 'open'})
+    expect(pl.from).toBe('sun/mars')
+  })
+
+  it('reads a + sign, as a camera shows it', () => {
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;ev=+1.3').ev).toBe(1.3)
+  })
+
+  it('is 0 when bad, and held to the range when out of it, keeping the rest of the link', () => {
+    for (const bad of ['', 'x', 'NaN', 'Infinity', '--1']) {
+      const pl = decodePermalink(`sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;ev=${bad}`)
+      expect(pl.ev).toBe(0)
+      expect(pl.lat).toBe(1)
+    }
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;ev=99').ev).toBe(10)
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;ev=-99').ev).toBe(-10)
+  })
+
+  it('is 0 in a link from before it', () => {
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;s=a').ev).toBe(0)
+  })
+})

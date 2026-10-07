@@ -155,3 +155,82 @@ describe('Time', () => {
     })
   })
 })
+
+
+describe('the rate while paused', () => {
+  afterEach(() => {
+    nowSpy?.mockRestore()
+    nowSpy = null
+  })
+
+  let nowSpy = null
+
+
+  /**
+   * A paused Time on a wall clock the test advances.
+   *
+   * @returns {{time: Time, tick: Function}}
+   */
+  function pausedClock() {
+    let now = Date.UTC(2026, 8, 30)
+    nowSpy = spyOn(Date, 'now').mockImplementation(() => now)
+    const time = new Time
+    time.togglePause()
+    return {time, tick: (ms) => {
+      now += ms
+      time.updateTime()
+    }}
+  }
+
+
+  it('j, k and l (reverse, slower, faster) change the step while paused, without resuming', () => {
+    const {time, tick} = pausedClock()
+    const start = time.simTime
+    time.changeTimeScale(1)
+    time.changeTimeScale(1)
+    expect(time.timeScale).toBe(4)
+    time.changeTimeScale(-1)
+    expect(time.timeScale).toBe(2)
+    time.invertTimeScale()
+    expect(time.timeScale).toBe(-2)
+    expect(time.timeScaleSteps).toBe(-1)
+    tick(1000)
+    expect(time.isPaused).toBe(true)
+    expect(time.simTime).toBe(start)
+    // And the backslash key, back to real time.
+    time.changeTimeScale(0)
+    expect(time.timeScale).toBe(1)
+  })
+
+  it('resuming runs at the step set while paused', () => {
+    const {time, tick} = pausedClock()
+    const start = time.simTime
+    for (let i = 0; i < 3; i++) {
+      time.changeTimeScale(1)
+    }
+    expect(time.timeScale).toBe(8)
+    time.togglePause()
+    tick(1000)
+    expect(time.simTime - start).toBe(8000)
+    time.togglePause()
+    time.invertTimeScale()
+    time.togglePause()
+    tick(1000)
+    expect(time.simTime - start).toBe(0)
+  })
+
+  it('tells listeners of each change, paused or not, until they stop listening', () => {
+    const {time} = pausedClock()
+    let heard = 0
+    const stop = time.onTimeScaleChange(() => heard++)
+    time.changeTimeScale(1)
+    time.changeTimeScale(-1)
+    time.invertTimeScale()
+    time.changeTimeScale(0)
+    time.setTimeToNow()
+    expect(heard).toBe(5)
+    stop()
+    time.changeTimeScale(1)
+    expect(heard).toBe(5)
+  })
+})

@@ -30,6 +30,7 @@ import {
   luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap,
   sunlitBodyGain,
 } from './scene/exposure.js'
+import {clampEv, renderExposure} from './scene/evCompensation.js'
 import {extendedGain, s10Value} from './scene/eye.js'
 import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
@@ -116,6 +117,8 @@ export default class ThreeUi {
     this._meterGain = 1
     this._meterGainGoal = 1
     this._renderedGain = 1
+    // The user's exposure compensation, stops (setExposureCompensation).
+    this._evStops = 0
     this._frame = 0
     this._exposureBodyPos = new Vector3()
     this._exposureSunPos = new Vector3()
@@ -582,8 +585,9 @@ export default class ThreeUi {
     // scene.
     this._meterGain = easeExposure(this._meterGain, this._meterGainGoal, dt,
         this._meterGainGoal < this._meterGain ? METER_TAU_DOWN_SECONDS : METER_TAU_UP_SECONDS)
-    this.renderer.toneMappingExposure =
-      easeExposure(this.renderer.toneMappingExposure, this._exposureGoal * this._meterGain, dt)
+    // The user's compensation, one multiplier over the metered exposure.
+    const exposureGoal = renderExposure(this._exposureGoal, this._meterGain, this._evStops)
+    this.renderer.toneMappingExposure = easeExposure(this.renderer.toneMappingExposure, exposureGoal, dt)
     // The gain this frame renders with, over the target-keyed exposure:
     // the eased exposure's, not the meter's goal nor _meterGain, which the
     // exposure's own easing trails.  Pre-exposure (HDR.md): everything of
@@ -595,6 +599,24 @@ export default class ThreeUi {
     absoluteUniforms.uExposureRelative.value = exposureRelative(this.renderer.toneMappingExposure)
     absoluteUniforms.uViewportHeight.value = this.height
     absoluteUniforms.uFovDegrees.value = this.camera.fov
+  }
+
+
+  /**
+   * The user's exposure compensation (evCompensation.js): stops over the
+   * metered exposure, to boost or cut the frame.  Eased in as the exposure
+   * is.
+   *
+   * @param {number} ev Stops, held to the range; anything but a number is 0
+   */
+  setExposureCompensation(ev) {
+    this._evStops = clampEv(ev)
+  }
+
+
+  /** @returns {number} The exposure compensation, stops */
+  exposureCompensation() {
+    return this._evStops
   }
 
 
@@ -1356,24 +1378,26 @@ export default class ThreeUi {
 
   /**
    * Rotate camera around its local axes based on held arrow keys.
-   * Up/down pitch the nose; left/right roll.
+   * Up/down pitch the nose; left/right roll.  While tracking only roll.
    * The quaternion persists because we save/restore it around controls.update().
    * Speed: ~34 deg/sec at 60 fps.
    */
   _applyCameraArrowKeys() {
-    if (targets.track) {
-      return // tracking owns orientation; arrow keys would fight it
-    }
     const k = this._arrowKeys
     if (!k.up && !k.down && !k.left && !k.right) {
       return
     }
     const speed = 0.01 // radians per frame
-    if (k.up) {
-      this.camera.rotateX(speed)
-    }
-    if (k.down) {
-      this.camera.rotateX(-speed)
+    // Tracking owns the pointing, so pitch would fight it (the target stays
+    // centred); roll about the view axis doesn't move the target, and is
+    // the user's.
+    if (!targets.track) {
+      if (k.up) {
+        this.camera.rotateX(speed)
+      }
+      if (k.down) {
+        this.camera.rotateX(-speed)
+      }
     }
     if (k.left) {
       this.camera.rotateZ(speed)

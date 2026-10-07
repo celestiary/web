@@ -101,12 +101,28 @@ from=sun/earth      the camera's frame, when not the path's body (above)
 t=9233.1234jd       simulation time, days from J2000
 cq=x,y,z,w          camera orientation
 fov=45deg           field of view
+ev=1.33             exposure compensation, stops over the metered exposure
+                    (left out at 0)
 s=al                scene settings not at their defaults, one letter each
 ```
 
 `s=` holds the scene's toggles (asterisms `a`, labels `l` `p`, orbits `o`,
 grids `e` `c` `g`, galaxy `U`, human expansion lines `x`, the HUD `v`),
 plus landed `L` and AR `A` (`permalink.js` `SETTINGS_DEFAULTS`).
+
+`ev=` is the user's exposure compensation (`[` and `]` are the stars; `-`
+and `=` step it a third of a stop, `e` resets it: DESIGN.md
+[camera controls](../DESIGN.md#camera-controls)), written in stops to two
+decimal places and left out at 0, so a link at the metered exposure is
+just the view.  It's read with or without a `+` (`ev=+1.3`, as a camera
+shows it), held to ±10 stops, and 0 when it isn't a number.  It's a view
+param, not a state token: it belongs with `fov`, the other half of how the
+frame is framed, and loads with the view on every link, not on the first
+load only.
+
+```
+#…;fov=0.91deg;ev=1.33;s=oL     a third of a stop over a stop, brighter
+```
 
 The view params predate state tokens and keep their `key=value` form.
 
