@@ -145,6 +145,44 @@ tried and dropped.
   zero (a star field at the keyed exposure is all under it), and the
   32×32 meter taps under 1% of the pixels. Never decide "nothing drawn"
   from pixel values; use the scene's readiness (`frameCanBeEmpty`).
+- **Real-GPU cost: ask the user for a `?perf=1` snapshot.** SwiftShader
+  has the timer extension but its times are a CPU's emulation, so
+  frame-rate questions (#189) go to the user's machine.  The overlay is
+  in the PR preview: `https://celestiary.github.io/web/pr-preview/pr-<n>/?perf=1#<permalink>`
+  (design: DESIGN.md [Perf overlay](DESIGN.md#perf-overlay)).
+  - **Ask:** give the preview URL for each view that matters (e.g.
+    Earth's surface looking down, the day sky with time running, space),
+    and say: load it, wait about ten seconds, press **Copy JSON**, paste
+    it back, one paste per view.  On an Apple GPU (ANGLE Metal) the GPU
+    timer queries are per encoder, not per pass, so ask for **sync
+    timing**: `?perf=sync` in place of `?perf=1`, which waits for the GPU
+    after every pass and times each by the wall clock (FPS is lower;
+    that's expected).  If the sum of the rows' `wall` is far under the
+    frame interval, `finish` doesn't wait there: ask again with
+    `&barrier=read`.  For a bisect add `&off=a,b` (keys: `atmosphere`,
+    `clouds`, `nightlights`, `galaxy`, `cesium`, `meter`, `overlay`) and
+    ask for the FPS in the title line with each switched off in turn.
+  - **Read it:** `timer.mode` is `query` or `sync`.  In `query` mode,
+    `timer.granularity` `encoder` means the GPU column is per encoder:
+    don't read passes from it, nor add it up (there is no total).
+    `timer.host` false means no GPU timer: use the CPU columns, the
+    counts and the toggles' FPS.  Otherwise
+    `timings.passes[].gpu.mean` and `.p95` are ms per frame, a pass that
+    didn't run counting 0 (`runShare`); `timings.total.gpu.mean` against
+    `timings.frame.intervalMs.mean` says GPU-bound (close) or something
+    else (the gap: CPU, vsync, the compositor).  In `sync` mode
+    (`timings.clock` `wall-synced`) `timings.passes[].cpu` is each pass's
+    wall-clock cost, GPU included.  Otherwise `cpu` is the time to issue
+    the pass; a big one on `meter` is the readPixels stall: the GPU's
+    backlog.  `counts.syncCalls` and `syncByName` are the calls that
+    round-trip to the GPU process (`getError`, `getParameter`,
+    `readPixels` ...), where the CPU waits without GPU work.
+    `cesium.shadow.<body>` is the second GL context, outside the total
+    (in sync mode, how long it was waited on).  `counts` are per frame,
+    by pass.  `gpu.unmaskedRenderer` and `devicePixelRatio` say which GPU
+    and how many pixels.
+  - **Add a pass's marker** when you add a pass: `perf.begin('name')` /
+    `perf.end('name')` in the loop and a line in `js/perf/passes.js`.
 - **Known SwiftShader quirk:** `gl_PointCoord` flips in point shaders
   that `discard` or sample a depth texture. Use depth state instead.
 - **Network hosts this work needs in the sandbox:**
