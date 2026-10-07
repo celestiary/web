@@ -11,6 +11,7 @@ import About from './ui/About'
 import ARButton from './ui/ARButton'
 import ARDebugHUD from './ui/ARDebugHUD'
 import DragModeToggle from './ui/DragModeToggle'
+import ExposureReadout from './ui/ExposureReadout'
 import LayersButton from './ui/LayersButton'
 import SearchBar from './ui/SearchBar'
 import Settings from './ui/Settings'
@@ -94,6 +95,7 @@ export default function App() {
           }
         </div>
       </Stack>
+      {celestiary && <ExposureReadout celestiary={celestiary}/>}
       {celestiary && <WidgetsDrawer celestiary={celestiary}/>}
     </>)
 }

@@ -19,6 +19,7 @@ import {latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment, permalinkHref} from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry} from './search/commitEntry'
+import {clampEv, stepEv} from './scene/evCompensation'
 import {fetchPlaces} from './scene/Places'
 import {parseTargetPath, resolvePlace, slug, targetFramePath, targetPath} from './targetPath'
 import {elt} from './utils'
@@ -55,7 +56,8 @@ export default class Celestiary {
     const animCb = (scene) => {
       this.animation.animate(scene)
       if (Shared.targets.track) {
-        this.scene.lookAtTarget()
+        // Centre the target, whatever roll the view has.
+        this.scene.lookAtTarget({keepRoll: true})
       }
     }
     this.ui = new ThreeUi(canvasContainer, animCb)
@@ -79,6 +81,8 @@ export default class Celestiary {
     this.controlPanel = new ControlPanel(navElt, this.loader)
     this.firstTime = true
     this._permalinkTimer = null
+    // Hear of a change of the exposure compensation (onExposureCompensation).
+    this._evListeners = new Set
     // Callbacks waiting for a body to load, by name (_loadBody).
     this._bodyWaiters = {}
     // AR (mobile sky-view).  Constructed lazily — most users won't enter
@@ -110,6 +114,41 @@ export default class Celestiary {
     this.three = THREE
     this.toggleHelp = null
     window.c = this
+  }
+
+
+  /**
+   * Set the user's exposure compensation, in stops over the metered
+   * exposure (ThreeUi.setExposureCompensation): the keys' and the link's
+   * (`ev=`).  A change is announced to the readout (onExposureCompensation)
+   * and written to the link.
+   *
+   * @param {number} ev Stops, held to the range
+   */
+  setExposureCompensation(ev) {
+    const next = clampEv(ev)
+    if (next === this.ui.exposureCompensation()) {
+      return
+    }
+    this.ui.setExposureCompensation(next)
+    this._evListeners.forEach((fn) => fn(next))
+    this._schedulePermalinkUpdate()
+  }
+
+
+  /** @param {number} steps Thirds of a stop; positive for brighter, 0 resets */
+  stepExposureCompensation(steps) {
+    this.setExposureCompensation(steps === 0 ? 0 : stepEv(this.ui.exposureCompensation(), steps))
+  }
+
+
+  /**
+   * @param {Function} fn Called with the new compensation, stops, on a change
+   * @returns {Function} Stops listening
+   */
+  onExposureCompensation(fn) {
+    this._evListeners.add(fn)
+    return () => this._evListeners.delete(fn)
   }
 
 
@@ -353,6 +392,7 @@ export default class Celestiary {
     Shared.targets.tween = null
     Shared.targets.tweenNextFn = null
     this.ui.setFov(pl.fov)
+    this.setExposureCompensation(pl.ev)
   }
 
 
@@ -640,6 +680,24 @@ export default class Celestiary {
         'More stars (limiting magnitude up 0.5)',
         undefined,
         'Info')
+
+    // The user's exposure compensation (evCompensation.js), a third of a
+    // stop a press, as a camera's dial: to boost or cut the frame to match a
+    // photograph.  '[' and ']' are the stars' limiting magnitude.
+    k.map('-', () => this.stepExposureCompensation(-1),
+        'Darker (exposure compensation down 1/3 EV)',
+        undefined,
+        'Camera')
+    k.map('=', () => this.stepExposureCompensation(1),
+        'Brighter (exposure compensation up 1/3 EV)',
+        undefined,
+        'Camera')
+    // Shift+= is '+': the same key, not listed twice in Settings.
+    k.keymap['+'] = k.keymap['=']
+    k.map('e', () => this.stepExposureCompensation(0),
+        'Reset exposure compensation to the metered exposure (EV 0)',
+        undefined,
+        'Camera')
 
     // === Labels ===
     k.map('p', () => {
@@ -995,7 +1053,7 @@ export default class Celestiary {
     }
     return encodePermalink(
         path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings,
-        encodeAppTokens(this.useStore.getState().widgets), from)
+        encodeAppTokens(this.useStore.getState().widgets), from, this.ui.exposureCompensation())
   }
 
 

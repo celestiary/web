@@ -1,4 +1,5 @@
 import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
+import {clampEv, roundEv} from './scene/evCompensation.js'
 
 
 const SEPARATOR = '@'
@@ -174,7 +175,7 @@ export function permalinkHref(fragment, baseHref, search) {
 /**
  * Encode a complete view state into a hash fragment.
  *
- * Format: path@<lat>,<lng>,<alt>;t=<d2000>jd;cq=<qx>,<qy>,<qz>,<qw>;fov=<fov>deg[;s=<flags>]
+ * Format: path@<lat>,<lng>,<alt>;t=<d2000>jd;cq=<qx>,<qy>,<qz>,<qw>;fov=<fov>deg[;ev=<stops>][;s=<flags>]
  *
  * Position is encoded as geographic coordinates (Google Maps style) in the
  * body-fixed frame of the target object.  lat/lng in degrees (4 dp trimmed),
@@ -187,6 +188,9 @@ export function permalinkHref(fragment, baseHref, search) {
  * when it isn't the path's own (the target's): the camera's frame stays
  * where the camera is when the target changes (targetPath.js).  Written
  * after the position.
+ *
+ * `ev=` is the user's exposure compensation in stops (evCompensation.js),
+ * 2 decimal places, left out at 0.
  *
  * State tokens (`;label:value`, design/URLs.md) follow, in the order given.
  *
@@ -204,9 +208,10 @@ export function permalinkHref(fragment, baseHref, search) {
  *   value is left out, an empty string written as a bare `label:`
  * @param {string} [from]  The path of the camera's frame body (or star), if
  *   not the path's own; left out if null or equal to `path`
+ * @param {number} [ev]  The exposure compensation, stops; left out if 0
  * @returns {string}  Hash fragment without leading '#'
  */
-export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens, from) {
+export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens, from, ev = 0) {
   const pos = `${trimFloat(lat)},${trimFloat(lng)},${formatMeters(Math.round(alt))}`
   const t = `${parseFloat(d2000.toFixed(4))}jd`
   const cq = [quat.x, quat.y, quat.z, quat.w].map(trimFloat).join(',')
@@ -216,6 +221,10 @@ export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings,
     frag += `${PARAM_SEP}from=${from}`
   }
   frag += `${PARAM_SEP}t=${t}${PARAM_SEP}cq=${cq}${PARAM_SEP}fov=${f}`
+  const evRounded = roundEv(ev)
+  if (evRounded !== 0) {
+    frag += `${PARAM_SEP}ev=${evRounded}`
+  }
   if (settings) {
     const flags = encodeSettings(settings)
     if (flags) {
@@ -239,11 +248,13 @@ export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings,
  * after the position prefix are silently ignored.  State tokens
  * (`label:value`) are returned as given, in `tokens`.  `from` is the
  * camera's frame path when the link names one (else null: the path's own);
- * a malformed one is null.
+ * a malformed one is null.  `ev` is the exposure compensation in stops, 0
+ * when the link has none or a bad one, and held to the range (a `+` sign is
+ * accepted).
  *
  * @param {string} fragment  Hash content without leading '#'
  * @returns {{path:string, d2000:number, lat:number, lng:number, alt:number,
- *            quat:{x,y,z,w}, fov:number, settings:object, tokens:object,
+ *            quat:{x,y,z,w}, fov:number, ev:number, settings:object, tokens:object,
  *            from:?string}|null}
  */
 export function decodePermalink(fragment) {
@@ -309,7 +320,8 @@ export function decodePermalink(fragment) {
   // overrides) so callers don't need to know the default table.
   const settings = decodeSettings(params['s'])
   const from = FRAME_PATH.test(params['from'] ?? '') && params['from'] !== path ? params['from'] : null
-  return {path, d2000: d2000InRange, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov, settings, tokens, from}
+  const ev = clampEv(parseFloat(params['ev']))
+  return {path, d2000: d2000InRange, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov, ev, settings, tokens, from}
 }
 
 

@@ -313,6 +313,41 @@ goes into the buffer through the tone map's inverse (`hdr.js`
 `sceneReferred`); the stars and the Sun's disc are in exposure units
 ([HDR.md, physical stars](HDR.md#physical-stars)).
 
+## Small discs
+
+A body a few pixels across (Jupiter from Earth through a telescope's
+field: 9 px at 0.91° over 879 px) is drawn smooth and at its size
+(`smallDisc.js`, #192).  The scene buffer has no multisampling, so the
+mesh lit each pixel all or nothing by whether its centre fell inside: a
+blocky octagon whose pixel count, and brightness, jumped as it moved.
+Under 24 px of radius, and farther than 20 radii:
+
+- **The mesh is grown** by 1.5 px (twice that for off the view's axis) in
+  the vertex shader (`uDiscInflate`), so every pixel the disc touches gets
+  a fragment.
+- **Each fragment covers what the disc covers** of its pixel: the ray's
+  closest approach to the body's centre against the radius, over the
+  pixel's width there (`fwidth` of the ray's direction, so off the axis
+  too).  The colour is scaled by it, over black (the surface stays
+  opaque), and a fragment the disc misses is discarded.  So the disc's
+  light is its area's, to the pixel, as it moves.
+- **Each fragment is shaded where its ray meets the sphere**, or for a
+  pixel the disc only partly covers, at the middle of the part it covers:
+  the normal and the texture coordinate are worked out from the ray (the
+  grown mesh's own are a bigger sphere's, which squeezed the texture and
+  the limb inward), the texture sampled with the gradients of a seam-free
+  copy of the longitude.  Jupiter's belts show at 13 px across (0.63°).
+  Bump and night-light maps keep the mesh's coordinates, which at these
+  sizes is a fraction of a pixel off.
+- **A moon a few pixels across in transit has a dark rim** over its
+  planet: what lies behind a partly covered pixel doesn't show through.
+- **The mesh reaches until its disc is the far point's size** (2 CSS px;
+  `farPoint.js` `meshReach`), not a fixed 500 radii: that was a 3.1 px disc
+  at 45° over 640 px, but 4.2 px over 879, where Jupiter from Earth turned
+  into a white 2 px square while still 4 px across, as the field widened
+  past 1.9°.  Never nearer than 500 radii, which CesiumLayers' `meshRange`
+  shares.
+
 ## Surface texture sources
 
 - **Mars** (`mars.jpg`, 4096×2048): the USGS Viking MDIM2.1 colourized

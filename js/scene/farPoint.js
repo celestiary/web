@@ -42,20 +42,71 @@ export function fovScale(camera) {
 }
 
 
+/** The canvas height the distances here were tuned at, in px. */
+export const REFERENCE_HEIGHT_PX = 640
+
+const drawing = {heightPx: REFERENCE_HEIGHT_PX, pixelRatio: 1}
+
+
+/**
+ * The drawing buffer the scene renders to, for meshReach.  ThreeUI sets it
+ * on every resize.
+ *
+ * @param {number} heightPx The buffer's height, in its own px
+ * @param {number} pixelRatio Buffer px per CSS px
+ */
+export function setDrawingBuffer(heightPx, pixelRatio) {
+  drawing.heightPx = heightPx > 0 ? heightPx : REFERENCE_HEIGHT_PX
+  drawing.pixelRatio = pixelRatio > 0 ? pixelRatio : 1
+}
+
+
+/**
+ * How much farther than POINT_AT_RADII (scaled by fovScale) a body stays a
+ * mesh on this canvas: out to where its disc is the far point's size
+ * (PLANET_POINT_PX CSS px), so the point only stands in once the disc is
+ * smaller than it.  500 radii is a disc 3.1 px across at 45° over 640 px,
+ * and 4.2 px over 879 (8.5 over 1,758, a Retina screen's buffer if the
+ * renderer drew at its pixel ratio): over 879, Jupiter from Earth, 4 px
+ * across, turned into a 2 px white square as the field widened past 1.9°
+ * (#192).  Now it's a disc down to 2 px (smallDisc.js draws it smooth).
+ * Never under 1: a small
+ * canvas keeps the old range, which CesiumLayers.meshRange shares (beyond
+ * it, the body's own mesh draws, Cesium's layer off).
+ *
+ * @returns {number} At least 1
+ */
+export function meshReach() {
+  const diameterAt500 = (2 / POINT_AT_RADII) / (2 * Math.tan(INITIAL_FOV * toRad / 2)) * drawing.heightPx
+  return Math.max(1, diameterAt500 / (PLANET_POINT_PX * drawing.pixelRatio))
+}
+
+
 /**
  * three's LOD picks a level by distance / camera.zoom, which ignores the
  * FOV, so a body zoomed on by narrowing the FOV stayed a point however big
  * it drew.  This one picks by apparent size: the distance is scaled by
  * `fovScale`, as if zoomed by 1/scale.  LOD.update reads only the camera's
  * matrixWorld and zoom, so it's handed those with the zoom divided by the
- * scale.
+ * scale.  With `drawnSize` (the planet LOD), the distances are scaled by
+ * meshReach too, to the canvas's own pixels.
  */
 export class FovLOD extends LOD {
+  /**
+   * @param {object} [opts]
+   * @param {boolean} [opts.drawnSize] Scale by meshReach too
+   */
+  constructor({drawnSize = false} = {}) {
+    super()
+    this.drawnSize = drawnSize
+  }
+
+
   /** @param {object} camera */
   update(camera) {
     if (this.levels.length > 1) {
       _cam.matrixWorld = camera.matrixWorld
-      _cam.zoom = camera.zoom / fovScale(camera)
+      _cam.zoom = camera.zoom / fovScale(camera) * (this.drawnSize ? meshReach() : 1)
       super.update(_cam)
     }
   }
