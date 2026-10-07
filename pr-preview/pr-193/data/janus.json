@@ -1,0 +1,46 @@
+{
+"type":"moon",
+
+"name":"janus",
+"parent":"saturn",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": "1.98E21 g",
+"density": 0.65,
+"radius": "8.99E4 m",
+"siderealRotationPeriod": 60000.0,
+"axialInclination": 0.14,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.5,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+    "elements": "JPL SSD planetary satellite mean elements (ssd.jpl.nasa.gov/sats/elem), ephemeris SAT415, retrieved 2026-09-30",
+    "referencePlane": "Laplace",
+    "referencePole": {"ra": 40.6, "dec": 83.5},
+    "epoch": 2451545.0,
+    "semiMajorAxis": 1.515E8,
+    "eccentricity": 0.007,
+    "inclination": 0.2,
+    "longitudeOfAscendingNode": 159.9,
+    "argumentOfPericenter": 11.1,
+    "meanAnomaly": 111.7,
+    "period": 0.697353,
+    "periodOf": "meanAnomaly",
+    "apsidalPeriod": 0.24,
+    "nodalPeriod": -0.482,
+    "siderealOrbitPeriod": 60000.0
+  }
+,
+"system": []
+}
