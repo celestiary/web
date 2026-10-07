@@ -697,9 +697,9 @@ turns to it; Go and Enter travel
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
 | Milky Way | Its integrated light: a full-screen pass at the far plane that ray-marches a published structural model (discs, bulge and bar, arms, dust) in the galactocentric frame, into a cached target re-marched when the view moves by more than it can show, less the light the star catalogue draws as points round the Sun; the atmosphere pass draws it with the rest of the night sky's light (the zodiacal light, airglow) through the eye's response to extended light ([MilkyWay.md](js/scene/MilkyWay.md), [HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |
 | Star discs (the Sun, and any catalogue star travelled to) | A photosphere from physical parameters: temperature from class, blackbody colour and luminance, limb darkening by temperature, granulation at three scales, spots and faculae ([js/scene/Stars.md](js/scene/Stars.md)) |
-| Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
+| Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures; a few pixels across, antialiased and shaded per fragment as the sphere ([Planet.md, small discs](js/scene/Planet.md#small-discs)) |
 | Earth's clouds | A shell 6 km up on its own layer, drawn after the Cesium composite so it covers both sides: the date's NASA GIBS true colour unmixed into coverage, Lambert-lit in exposure units, shadowing the ground ([Planet.md, clouds](js/scene/Planet.md#clouds)) |
-| Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
+| Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)); one body's air, the one the camera is in, else the target's ([which body's air](js/scene/atmos/composition.md#which-bodys-air)) |
 | Saturn rings | Double-sided `RingGeometry` with texture |
 | Orbit paths | A wide line strip (`wideLines.js`, 1.5 px, additive, on the overlay layer after the atmosphere): the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
 | Labels | Canvas-rendered `SpriteSheet` compiled to a single `Points` geometry |
@@ -738,7 +738,12 @@ single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
   switches where it has the same size on screen.  1 at 45°, so the choices
   there are unchanged; 0.021 at 1° (the mesh out to ~24,000 radii, which is
   1.7e12 m for Jupiter); more than 1 wider than 45°.  `CesiumLayers` scales the
-  distance the same way against `meshRange`.  Not scaled: the stars' LODs
+  distance the same way against `meshRange`.  The planet LOD is scaled by
+  the canvas too (`FovLOD({drawnSize})`, `meshReach`): the mesh until its
+  disc is smaller than the point (2 CSS px), never nearer than 500 radii,
+  and a few pixels across it's drawn antialiased and shaded as the sphere
+  ([Planet.md, small discs](js/scene/Planet.md#small-discs), #192).  Not
+  scaled: the stars' LODs
   (`Star`, `Stars.labelLOD`), whose distances are not a size threshold,
   and the places' own pixel-based LOD, which already reads the FOV.
 
@@ -1035,6 +1040,8 @@ and the provider extension contract.
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
 | `js/scene/clouds/` | Earth's clouds: `cloudSource.js` (date to GIBS layer, unmixing; pure), `CloudMap.js` (loading, the coverage texture), `CloudShell.js` (the shell and its shader) |
 | `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |
+| `js/scene/smallDisc.js` | A body's disc a few pixels across: antialiased coverage and the sphere's shading per fragment, patched into the surface material ([Planet.md](js/scene/Planet.md#small-discs)) |
+| `js/scene/atmos/atmosphereBody.js` | Which body's air the atmosphere pass draws, and how far off it can |
 | `js/scene/Star.js` | A star: its light, its photosphere (`photosphere(props)`, `star-shaders.js`) and its limb glow |
 | `js/scene/stellar.js` | Stars' physics: temperature from class, blackbody colour and luminance, bolometric correction, limb darkening, granulation and spot laws ([Stars.md](js/scene/Stars.md)) |
 | `js/scene/starParams.js` | Every star's parameters: measured where published, else luminosity class, radius (Stefan-Boltzmann), mass and gravity from the catalogue; rotation (Roche, von Zeipel) and spots by type |

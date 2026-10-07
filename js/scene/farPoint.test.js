@@ -18,8 +18,10 @@ import {
   farPointOptions,
   FovLOD,
   fovScale,
+  meshReach,
   newFarPoint,
   pointSwitchDistance,
+  setDrawingBuffer,
 } from './farPoint.js'
 
 
@@ -218,5 +220,58 @@ describe('FovLOD', () => {
     const d = pointSwitchDistance(R) / fovScale({fov: 1})
     expect(levelAt(d * 0.99, 1)).toBe('mesh')
     expect(levelAt(d * 1.01, 1)).toBe('point')
+  })
+})
+
+
+describe('meshReach', () => {
+  it('at the reference canvas (and before any is set), reaches past 500 radii, a 3.1 px disc, to a 2 px one', () => {
+    expect(meshReach()).toBeCloseTo(3.09 / PLANET_POINT_PX, 2)
+  })
+
+  it('reaches to where the disc is the point\'s size, on a taller canvas', () => {
+    setDrawingBuffer(879, 1)
+    try {
+      // 500 radii is 4.2 px across over 879 px at 45°; the point is 2.
+      expect(meshReach()).toBeCloseTo(4.245 / PLANET_POINT_PX, 2)
+      // At the reach, the disc is the point's size.
+      const toRad = Math.PI / 180
+      const d = pointSwitchDistance(JUPITER_RADIUS) * meshReach()
+      const px = 2 * JUPITER_RADIUS / d / (2 * Math.tan(22.5 * toRad)) * 879
+      expect(px).toBeCloseTo(PLANET_POINT_PX, 6)
+    } finally {
+      setDrawingBuffer(640, 1)
+    }
+  })
+
+  it('never shortens the range (CesiumLayers.meshRange shares it)', () => {
+    setDrawingBuffer(900, 3)
+    try {
+      expect(meshReach()).toBe(1)
+    } finally {
+      setDrawingBuffer(640, 1)
+    }
+  })
+
+  it('scales only a drawnSize FovLOD', () => {
+    setDrawingBuffer(1280, 1)
+    try {
+      const at = (drawnSize) => {
+        const lod = new FovLOD({drawnSize})
+        const mesh = new Object3D()
+        lod.addLevel(mesh, 1)
+        lod.addLevel(new Object3D(), pointSwitchDistance(JUPITER_RADIUS))
+        const camera = new PerspectiveCamera(45, 1, 1, 1e20)
+        camera.position.set(0, 0, pointSwitchDistance(JUPITER_RADIUS) * 1.5)
+        camera.updateMatrixWorld()
+        lod.updateMatrixWorld()
+        lod.update(camera)
+        return mesh.visible
+      }
+      expect(at(true)).toBe(true)
+      expect(at(false)).toBe(false)
+    } finally {
+      setDrawingBuffer(640, 1)
+    }
   })
 })
