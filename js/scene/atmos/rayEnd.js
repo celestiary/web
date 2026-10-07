@@ -91,3 +91,52 @@ export function depthOf(distance, near, far) {
   const steps = (2 ** 24) - 1
   return Math.round(((ndc * 0.5) + 0.5) * steps) / steps
 }
+
+
+/**
+ * Where a ray meets a sphere round the origin, as the pass's `rsi` computes
+ * it, in float32: the near and far distances along the ray, negative behind
+ * the eye; (1e5, -1e5) when the ray's line misses it.
+ *
+ * @param {Array<number>} eye The eye, relative to the sphere's centre, metres
+ * @param {Array<number>} dir The ray's direction, unit
+ * @param {number} radius Metres
+ * @returns {Array<number>} [near, far]
+ */
+export function raySphere(eye, dir, radius) {
+  const dot = (u, v) => f32(f32(f32(u[0] * v[0]) + f32(u[1] * v[1])) + f32(u[2] * v[2]))
+  const a = dot(dir, dir)
+  const b = f32(2 * dot(dir, eye))
+  const c = f32(dot(eye, eye) - f32(f32(radius) * f32(radius)))
+  const d = f32(f32(b * b) - f32(f32(4 * a) * c))
+  if (d < 0) {
+    return [1e5, -1e5]
+  }
+  const s = f32(Math.sqrt(d))
+  return [f32(f32(-b - s) / f32(2 * a)), f32(f32(-b + s) / f32(2 * a))]
+}
+
+
+/**
+ * Whether a ray goes through a shell at all, from its `rsi` interval: its
+ * line meets the sphere, and not wholly behind the eye.  The line of a ray
+ * pointing away from a planet the eye is outside of meets the planet's
+ * shell behind the eye, both distances negative; taking that for a hit drew
+ * the planet's atmosphere mirrored through the eye, a flat blue disc where
+ * the planet behind the camera would be seen in a mirror (the "blue Earth":
+ * looking toward the Sun from over Earth's day side).
+ *
+ * @param {Array<number>} interval [near, far], as raySphere
+ * @returns {boolean}
+ */
+export function shellAhead([near, far]) {
+  return near <= far && far > 0
+}
+
+
+/** The shader's shellAhead (FULLSCREEN_FRAG), for an `rsi` interval. */
+export const SHELL_AHEAD_GLSL = `
+bool shellAhead(vec2 p) {
+  return p.x <= p.y && p.y > 0.0;
+}
+`

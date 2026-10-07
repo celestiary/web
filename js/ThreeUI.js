@@ -25,7 +25,7 @@ import {
 } from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
-  METER_EVERY_FRAMES, adaptMeterGain, easeExposure, exposureAt, exposureRelative,
+  adaptMeterGain, easeExposure, exposureAt, exposureRelative,
   LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, galaxyGain, illuminanceRatio, limitingMagnitude,
   luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap,
   sunlitBodyGain,
@@ -35,7 +35,7 @@ import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import {AIRGLOW_COLOR, ZODIACAL_STORE, airglowOf, zodiacalBrightest} from './scene/nightSky.js'
 import ZodiacalLight from './scene/ZodiacalLight.js'
-import {AsyncReadback, asyncReadbackSupported} from './scene/meterReadback.js'
+import {AsyncReadback, MeterCadence, asyncReadbackSupported} from './scene/meterReadback.js'
 import {raysAllHitSphere} from './scene/viewCache.js'
 import {perf} from './perf/perf.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
@@ -117,7 +117,8 @@ export default class ThreeUi {
     this._meterGain = 1
     this._meterGainGoal = 1
     this._renderedGain = 1
-    this._frame = 0
+    // Which frames the meter samples (meterReadback.js).
+    this._meterCadence = new MeterCadence()
     this._exposureBodyPos = new Vector3()
     this._exposureSunPos = new Vector3()
     this._transmittanceRT = null
@@ -684,8 +685,8 @@ export default class ThreeUi {
    * is close; in the bright it's under-read, and the gain stays at 1.
    */
   _meter() {
-    const metering = this.isMeterFrame()
-    const frame = this._frame++
+    const frame = this._meterCadence.frame
+    const metering = this._meterCadence.advance()
     const readback = this._meterReadback()
     if (readback) {
       const reading = readback.poll(frame)
@@ -739,7 +740,7 @@ export default class ThreeUi {
    * @returns {boolean}
    */
   isMeterFrame() {
-    return (this._frame % METER_EVERY_FRAMES) === 0
+    return this._meterCadence.isSampleFrame()
   }
 
 

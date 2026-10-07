@@ -90,6 +90,15 @@ tried and dropped.
     (`material.visible = false`) and compare pixels at its projected
     spot, rather than reading absolute values off a starfield. Hide the
     label LODs and orbit lines first.
+  - To show a change to the Cesium layers leaves a frame unchanged, A/B
+    it in one page: override the method that decides (e.g.
+    `c.ui.layers._lightsShow`) and render both ways. Freeze Cesium's
+    tiles first (`c.ui.layers.bodies.earth.Cesium.RequestScheduler`
+    `.maximumRequests = 0`, then wait for requests to drain), and render
+    each side twice: low over the ground the tiles never settle on
+    SwiftShader, and between two renders they otherwise change more than
+    the rules do. A body whose tiles never read loaded stays warming; set
+    its `shown` to measure it active.
   - Reading a half-float render target back
     (`renderer.readRenderTargetPixels`) needs a `Uint16Array`, decoded
     from half floats; a `Float32Array` comes back all zeros, silently.

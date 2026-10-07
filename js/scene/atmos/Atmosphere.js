@@ -23,6 +23,7 @@ import {EMITTED_GLSL, LUMINOUS_SHOULDER_GLSL, NEUTRAL_GLSL, absoluteUniforms} fr
 import {NIGHT_SKY_GLSL} from '../nightSky.js'
 import {sphere} from '../shapes'
 import {MIE_PHASE_GLSL, PEAK_TAU_MAX, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
+import {SHELL_AHEAD_GLSL} from './rayEnd.js'
 
 
 /**
@@ -847,7 +848,7 @@ vec2 rsi(vec3 r0, vec3 rd, float sr) {
   return vec2((-b - sqrt(d)) / (2.0*a),
               (-b + sqrt(d)) / (2.0*a));
 }
-
+${SHELL_AHEAD_GLSL}
 // The narrow lobe's optical depth on the light's path to the eye, for its
 // orders of scattering (miePeakPhase; composition.md, "The dust's forward
 // peak"): the geometric mean of the view ray's (from its delta-M and true
@@ -1016,9 +1017,13 @@ void main() {
     // the rays clamped to it, and those flickered black (see
     // bruneton_encode_mu_v).
     vec2 pAtm = rsi(eyePos, rayDir, uAtmosphereRadius);
-    if (pAtm.x > pAtm.y) {
+    if (!shellAhead(pAtm)) {
       // Ray misses atmosphere entirely — pass scene through unchanged (the
       // airglow layer, over the atmosphere's top, can still be on it).
+      // Also when its line meets the shell only behind the eye (rayEnd.js
+      // shellAhead): from outside the air, looking away from the planet,
+      // that drew the planet's atmosphere mirrored through the eye, a flat
+      // blue disc.
       gl_FragColor = sceneToScreen(texture2D(tDiffuse, vUv).rgb, beyond + airglow(glowPath, vec3(1.0)));
       return;
     }

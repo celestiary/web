@@ -20,8 +20,43 @@
  */
 
 
+import {METER_EVERY_FRAMES} from './exposure.js'
+
+
 /** Buffers in the ring: a reading can be up to this many meterings late. */
 export const METER_RING_SIZE = 3
+
+
+/**
+ * Which frames the meter samples: every METER_EVERY_FRAMES-th, from the
+ * first.  The one place that says so (ThreeUi._meter asks `advance`,
+ * ThreeUi.isMeterFrame asks `isSampleFrame`, and through it CesiumLayers
+ * draws the night lights on every sampled frame).
+ */
+export class MeterCadence {
+  constructor() {
+    // Frames counted so far: the frame under way is this one.
+    this.frame = 0
+  }
+
+
+  /** @returns {boolean} Whether the frame under way is one the meter samples */
+  isSampleFrame() {
+    return (this.frame % METER_EVERY_FRAMES) === 0
+  }
+
+
+  /**
+   * End the frame (ThreeUi._meter, the frame's last GL work before the overlay).
+   *
+   * @returns {boolean} Whether the frame that ends was sampled
+   */
+  advance() {
+    const sampled = this.isSampleFrame()
+    this.frame++
+    return sampled
+  }
+}
 
 // The WebGL2 enums used, for a stand-in context without them.
 const GL = {

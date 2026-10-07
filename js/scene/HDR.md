@@ -838,6 +838,10 @@ pipeline stall.  It alone set the 5th-percentile frame rate of 10-15.
   18 frames at 60 Hz); a metering every frame would quadruple the CPU of
   each (the sort of 1,024 pixels, the bodies in view, the 32×32 pass) for
   a curve that moves under 6% between meterings.
+- **Which frames are sampled is said in one place**, `MeterCadence`
+  (`meterReadback.js`): `_meter` advances it, and `ThreeUi.isMeterFrame`
+  asks it, which is what Cesium's night lights draw by on frames they'd
+  otherwise skip (CESIUM.md, "Night lights").
 - **Synchronous where it must be**: without WebGL2's sync objects, in the
   LDR fallback (`?hdr=0`, whose bytes the path keeps as before), and with
   `?meter=sync`, for comparing the two on a machine at hand.

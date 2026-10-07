@@ -1,4 +1,7 @@
-import {AlwaysDepth, LOD, Object3D} from 'three'
+import {AlwaysDepth, LOD, Object3D, PerspectiveCamera, Vector3} from 'three'
+import {ASTRO_UNIT_METER} from '../../shared.js'
+import {exposureAt, METER_EVERY_FRAMES, nightLightRadiance} from '../exposure.js'
+import {MeterCadence} from '../meterReadback.js'
 import CesiumLayers, {bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
 import {CESIUM_BODIES} from './bodies.js'
 
@@ -276,5 +279,106 @@ describe('hiding the celestiary surface', () => {
     L._restore()
     expect(surface.visible).toBe(true)
     expect(() => L._hideSurface(new Object3D())).not.toThrow()
+  })
+})
+
+
+describe('night lights', () => {
+  // A stand-in ThreeUi, `frame` frames in, asking the meter's cadence as it does.
+  const layers = (exposure, frame) => {
+    const cadence = new MeterCadence()
+    cadence.frame = frame
+    return new CesiumLayers({renderer: {toneMappingExposure: exposure}, isMeterFrame: () => cadence.isSampleFrame()})
+  }
+  const body = {night: {}, nightInView: true}
+  // The renderer's exposure at which the brightest light is a display step.
+  const step = (1 / 255) / nightLightRadiance()
+
+  it('are skipped with no night side in the frame, or no night layer', () => {
+    expect(layers(step * 1e3, 1)._lightsShow({...body, nightInView: false})).toBe(false)
+    expect(layers(step * 1e3, 1)._lightsShow({nightInView: true})).toBe(false)
+  })
+
+  it('draw where the brightest could reach half a display step', () => {
+    expect(layers(step, 1)._lightsShow(body)).toBe(true)
+    expect(layers(step * 0.6, 1)._lightsShow(body)).toBe(true)
+  })
+
+  it('under it, are skipped but on the frames the meter reads', () => {
+    expect(layers(step * 0.4, 1)._lightsShow(body)).toBe(false)
+    expect(layers(step * 0.4, METER_EVERY_FRAMES * 3)._lightsShow(body)).toBe(true)
+    // By day the lights are far under it: Earth's keyed exposure, gain 1.
+    expect(layers(exposureAt(ASTRO_UNIT_METER), 2)._lightsShow(body)).toBe(false)
+  })
+
+  it('draw on exactly the frames the meter samples', () => {
+    // As ThreeUi: the composite asks isMeterFrame (the cadence's
+    // isSampleFrame), then _meter ends the frame with advance, metering when
+    // it returns true.
+    const cadence = new MeterCadence()
+    const L = new CesiumLayers({renderer: {toneMappingExposure: step * 0.4}, isMeterFrame: () => cadence.isSampleFrame()})
+    const drawn = []
+    const metered = []
+    for (let f = 0; f < 4 * METER_EVERY_FRAMES; f++) {
+      if (L._lightsShow(body)) {
+        drawn.push(f)
+      }
+      if (cadence.advance()) {
+        metered.push(f)
+      }
+    }
+    expect(metered).toEqual([0, 1, 2, 3].map((k) => k * METER_EVERY_FRAMES))
+    expect(drawn).toEqual(metered)
+  })
+
+  it('draw when the meter frames are unknown', () => {
+    expect(new CesiumLayers({renderer: {toneMappingExposure: step * 0.4}})._lightsShow(body)).toBe(true)
+  })
+})
+
+
+describe('activation', () => {
+  const planet = (name, radius, position) => {
+    const lod = new LOD()
+    lod.name = 'planet LOD'
+    const node = new Object3D()
+    node.props = {name, radius: {scalar: radius}}
+    lod.addLevel(node, 1)
+    lod.addLevel(new Object3D(), 1e12)
+    lod.position.copy(position)
+    lod.updateMatrixWorld(true)
+    return node
+  }
+  const setup = (cameraAt, lookAt) => {
+    const earth = planet('earth', 6371e3, new Vector3(0, 0, 0))
+    const moon = planet('moon', 1737.4e3, new Vector3(3.844e8, 0, 0))
+    const camera = new PerspectiveCamera(45, 16 / 9, 1, 1e13)
+    camera.position.copy(cameraAt)
+    camera.lookAt(lookAt)
+    camera.updateMatrixWorld(true)
+    const L = new CesiumLayers({camera, height: 837, sceneManager: {objects: {earth, moon}}})
+    return {L, earth, moon}
+  }
+
+  it('drops the Moon under the horizon from Earth\'s ground, looking down', () => {
+    // 7.5 km over the point facing away from the Moon, looking down at the
+    // ground, which hides the Moon behind it.
+    const {L, earth, moon} = setup(new Vector3(-(6371e3 + 7500), 0, 0), new Vector3(0, 0, 0))
+    expect(L._visibleAt('earth', earth)).not.toBe(null)
+    expect(L._visibleAt('moon', moon)).toBe(null)
+  })
+
+  it('keeps the Moon over the horizon, looking at it', () => {
+    const {L, moon} = setup(new Vector3(6371e3 + 7500, 0, 0), new Vector3(3.844e8, 0, 0))
+    expect(L._visibleAt('moon', moon)).not.toBe(null)
+  })
+
+  it('drops a body under MIN_PIXEL_RADIUS', () => {
+    // The Moon from 1,200,000 km past it, 1.5 px in radius at 837 px; at
+    // 600,000 km, 3 px.
+    const far = setup(new Vector3(3.844e8 + 1.2e9, 0, 0), new Vector3(3.844e8, 0, 0))
+    expect(far.L._visibleAt('moon', far.moon)).toBe(null)
+    const near = setup(new Vector3(3.844e8 + 6e8, 0, 0), new Vector3(3.844e8, 0, 0))
+    expect(near.L._visibleAt('moon', near.moon)).not.toBe(null)
   })
 })

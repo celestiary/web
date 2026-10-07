@@ -105,6 +105,26 @@ table's whole ray, as the sky has); a surface inside the air seen from
 inside it (`shortRay`: the march to it); and from outside, the ground (the
 table's ray to it).
 
+**A ray meets the atmosphere only ahead of the eye** (`shellAhead`,
+rayEnd.js, shared with the shader as `SHELL_AHEAD_GLSL`): `rsi` gives the
+two distances where the ray's *line* crosses the shell, and from outside
+the air, looking away from the planet, both are behind the eye.  The pass
+took any crossing (`pAtm.x <= pAtm.y`) for a hit, from #55 on, so it drew
+the planet's air mirrored through the eye: the entry clamped to the eye,
+far above the table's top, a sky ray's in-scatter.  That was the "blue
+Earth" the user saw on an M2 (`#sun/earth@10.0742,-72.1987,4.606397Mm;…`):
+looking toward the Sun from over Earth's day side, Earth behind the
+camera, a flat, hard-edged blue disc where Earth would be in a mirror,
+with no land or clouds, since Earth itself was behind; from 222 km the
+mirrored shell filled the frame, deep blue down to a black band (the rays
+past the mirrored limb).  At the keyed exposure the ghost is about 1e-6
+of a sunlit surface, invisible; the metered exposure (#86's PR B, PR
+#153) made it a saturated blue: with nothing sunlit in the frame the gain
+rises toward the dark sky's (×7e4 here), and the ghost was what it lifted.  The geometry draws nothing there (three
+culls Earth, behind the near plane), so the Cesium layer and the surface
+textures were never involved.  The pass's march (`scatter`) already gave
+nothing there: its step, `p.y − max(p.x, 0)`, is negative.
+
 **From inside, a body is past the air unless its depth puts it surely
 inside**: `tMax + tMaxErr` short of the exit.  From outside, it is past
 only when surely past, `tMax − tMaxErr` beyond the exit, so the planet's
