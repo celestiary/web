@@ -22,8 +22,9 @@ gl_FragColor.rgb = neutralToneMap(sky + scene.rgb * transmittance)
 For a pixel whose surface lies inside the atmosphere (celestiary's own
 ground, and Cesium's terrain, which rises above the sphere and sinks below
 it), the sky is the air between the eye and it: single scattering and
-transmittance marched along that segment (16 steps, each step's sunlight
-through the transmittance table), as the in-scatter table integrates its
+transmittance marched along that segment (4 to 16 steps by its optical
+depth, each step's sunlight through the transmittance table; [the march's
+cost](#the-marchs-cost)), as the in-scatter table integrates its
 rays (`marchSegment`), from the camera where it is.  The tables stay for
 sky pixels.  The first cuts of #141 cut the table's in-scatter and depth at
 the surface instead (Bruneton's `S(eye) − T·S(P)`), but the table's ray
@@ -210,6 +211,88 @@ did, lost 11% of each step at Mars's horizon (the table's 5.8 km steps at
 ground density) and a third of a 280 km ground-level segment's; from below
 the sphere a segment to the sphere's exit is 66 km at the sphere's density
 for an eye 658 m under it, and a step of that lost most of its light.
+
+## The march's cost
+
+[#189](https://github.com/celestiary/web/issues/189).  On the user's M2
+(the overlay's sync mode) the pass cost 7.5 ms looking down at Earth's
+ground from 7.5 km, 3.7 ms at the day sky and 1.1 ms from 20 Mm.  **The
+difference is the segment march** (`marchSegment`): a sky pixel, and the
+disc from orbit, is one in-scatter lookup (four fetches) and one
+transmittance fetch; a pixel whose ray ends on the ground inside the air
+was 16 steps, each with two fetches (the Sun's transmittance and Ψ), a
+ray-sphere test and, for the delta-M pair (the dust's narrow lobe), six
+`exp` of three channels.  Looking down every pixel marches; at the day sky
+a third do (the ground under the horizon); from orbit none.  On
+SwiftShader (960×600, timings relative only: a CPU's emulation, on a loaded
+machine, interleaved rounds), the pass looking down took 931 ms and 328 ms
+with the march's loop emptied: two thirds of it was the march.  Not the
+night sky's code (it isn't compiled in by day or with the ground filling
+the view), not the depth reconstruction (the same for every pixel), not
+the table lookups.
+
+Three changes, the picture unchanged:
+
+- **The step's density is its mean over the step** (`meanDensity`), from
+  the density at its two ends with the height taken as linear along it,
+  `(d0 − d1)/a` for `a = Δh/H`: exact for a straight step, where the
+  midpoint's density under-counts a step down through the haze by
+  `a²/24` (10% for a step of 1.5 Mie scale heights).  With the step's
+  extinction integrated exactly for that density (`stepIntegral`), a
+  step's in-scatter for one species is exact whatever its length, so the
+  count no longer has to resolve the haze's scale height.
+- **The step count follows the segment's optical depth, not its length**
+  (`segmentSteps`): an upper bound, the extinction at the segment's lowest
+  point (its end, or the ray's closest approach to the centre inside it)
+  times its length in the bluest channel, one step per 0.1 of it
+  (`SEG_STEP_TAU`), from 4 (`SEG_STEPS_MIN`) to 16.  From 7.5 km over
+  Earth (3.8e-5 per metre at the ground in the blue) the bound is 0.29
+  straight down and 0.40 at 45° (4 steps), 1.1 for ground 30 km off (12);
+  along the ground to the horizon, and under Mars's datum, it stays 16.  Two steps
+  at the least moved twilight's ground by 3 of 255 (the shadow's edge in
+  the air sampled too coarsely); four keep it within 1.
+- **The delta-M half only where there is a narrow lobe** (`#if
+  MIE_PEAK`, set per body from `miePeakWeight`, as `NIGHT_SKY` is): for
+  Earth the scaled and true transmittances are one, and the march computed
+  both.
+
+Measured in headless Chromium (SwiftShader, Cesium's layers off, the gain
+pinned, clouds off), the old march put back into the same page as a
+variant of the shader, so both render the same frame:
+
+| View | Pixels marched | Display, old → new: max difference (of 255), pixels over 1 | Pass time, median of 10 interleaved rounds, old → new (960×600) |
+|---|---|---|---|
+| Earth's ground from 7.5 km, looking down | 100% | 1, none | 931 → 462 ms (no march: 328) |
+| The day sky from 7.5 km, facing the Sun | 34% | 1, none | 377 → 356 ms |
+| Twilight from 3 km (`earth-twilight-metered`) | 100% | 1, none | 827 → 498 ms |
+| Earth from 20 Mm; the night side from 4 Mm and 400 km | 0% | 0 | unchanged |
+| The ridge from 6.5 km, Mars's ridge from 4.4 km | 36%, 45% | 1, none | |
+| Mars from 232 m, from 658 m under the datum (antisolar, aureole), the Dead Sea | 63%, below the sphere | 1, none | |
+
+Looking down, the march is 4.5 times cheaper (603 → 134 ms over the
+pass with no march); by day the sky's marched pixels are long rays near
+the horizon, which keep their 16 steps.  Against `main`'s build at the
+permalink's instant (`meter189-evidence/atmos`) the same views differ by
+at most 1 of 255, but for the ridge views, whose terrain had loaded in one
+run and not the other.  The user's M2 is the measure: the pass's `wall`
+looking down should fall from 7.5 ms toward the day sky's.
+
+**Not done, and why.**
+
+- **Half-resolution in-scatter**, depth-aware upsampling: the ground's
+  haze is smooth, but at every silhouette (a ridge against the sky, the
+  horizon) the two sides differ by the sky's whole brightness, and an
+  upsample there costs more than 1-2 of 255 on the edge pixels, which is
+  where the eye looks.  With the march at 4-7 steps the saving is a few
+  ms at most.
+- **A precomputed aerial-perspective volume** (Hillaire 2020's camera
+  froxels, 32×32×32 of in-scatter and transmittance per frame): the
+  structural fix where a surface pass's per-pixel cost matters, a lookup
+  in place of any march.  It is a new pass with its own resolution limits
+  near the camera (a froxel 32 slices deep over tens of km is a few
+  hundred metres: Cesium's terrain a few hundred metres off would take a
+  coarse slice) and in twilight's shadow edge, and the in-scatter table
+  stays for the sky.  Worth it if the pass is still a cost after this.
 
 ## Probing the pass
 

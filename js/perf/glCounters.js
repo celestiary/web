@@ -16,6 +16,7 @@ const GL = {
   TRIANGLE_FAN: 0x0006,
   FRAMEBUFFER: 0x8D40,
   DRAW_FRAMEBUFFER: 0x8CA9,
+  PIXEL_PACK_BUFFER: 0x88EB,
 }
 // A full-screen pass is at most a quad, into a viewport of at least this
 // share of the canvas.
@@ -149,7 +150,16 @@ export function installGlCounters(gl, sink) {
       wrap(name, () => sink.bumpSync(name))
     }
   }
-  wrap('getBufferSubData', () => sink.bump('readbacks'))
+  wrap('getBufferSubData', (a) => {
+    // From a pixel-pack buffer: the second half of a pixel-pack read, taken
+    // once its fence has signalled (meterReadback.js), so it waits for no
+    // GPU work; at most a round trip.  Any other buffer: a readback.
+    if (a[0] === GL.PIXEL_PACK_BUFFER) {
+      sink.bumpSync('getBufferSubData')
+    } else {
+      sink.bump('readbacks')
+    }
+  })
   wrap('finish', () => sink.bump('readbacks'))
   for (const name of UPLOAD_CALLS) {
     wrap(name, (a) => {

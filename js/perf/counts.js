@@ -20,14 +20,18 @@
  *   switches.
  * - readbacks: reads into client memory (`readPixels`, `getBufferSubData`,
  *   `finish`), which wait for the GPU to catch up.
- * - pboReads: `readPixels` into a pixel-pack buffer, which don't wait.
+ * - pboReads: `readPixels` into a pixel-pack buffer, which don't wait.  Its
+ *   pixels come out a frame or more later with `getBufferSubData` from the
+ *   pixel-pack buffer, once a fence says the GPU has got there: a sync call
+ *   (at most a round trip), not a readback.
  * - uploads, uploadBytes: texture uploads (`texImage2D`, `texSubImage2D`,
  *   and the 3D and compressed forms), with their approximate size.
  * - blits: `blitFramebuffer` and `copyTex*`.
  * - programs: `useProgram` calls.
  * - syncCalls: calls that round-trip to the browser's GPU process and wait
- *   for the answer (SYNC_CALLS, and `readPixels` into client memory), with
- *   a breakdown by name (`syncByName`).
+ *   for the answer (SYNC_CALLS, `readPixels` into client memory, and
+ *   `getBufferSubData` from a pixel-pack buffer), with a breakdown by name
+ *   (`syncByName`).
  */
 export const COUNT_KEYS = [
   'draws', 'fullscreen', 'triangles', 'clears', 'fbSwitches', 'readbacks', 'pboReads', 'uploads', 'uploadBytes',
