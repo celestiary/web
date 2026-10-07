@@ -177,8 +177,10 @@ tried and dropped.
     else (the gap: CPU, vsync, the compositor).  In `sync` mode
     (`timings.clock` `wall-synced`) `timings.passes[].cpu` is each pass's
     wall-clock cost, GPU included.  Otherwise `cpu` is the time to issue
-    the pass; a big one on `meter` is the readPixels stall: the GPU's
-    backlog.  `counts.syncCalls` and `syncByName` are the calls that
+    the pass; the meter reads back through a pixel-pack buffer
+    (`pboReads`) and waits for nothing, so a big `meter` CPU time with
+    `readbacks` on its row is the synchronous fallback (`?meter=sync`,
+    `?hdr=0`, no WebGL2 sync objects) stalling on the GPU's backlog.  `counts.syncCalls` and `syncByName` are the calls that
     round-trip to the GPU process (`getError`, `getParameter`,
     `readPixels` ...), where the CPU waits without GPU work.
     `cesium.shadow.<body>` is the second GL context, outside the total

@@ -469,7 +469,8 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
 1. Every `METER_EVERY_FRAMES` (4) frames the atmosphere pass renders its
    linear composite, sky plus scene through the transmittance in exposure
    units before the tone map (its probe view 7, `composition.md`), into a
-   32×32 float target, which is read back.
+   32×32 float target, which is read back asynchronously, a frame or more
+   late ([the meter's readback](#the-meters-readback)).
 2. The frame's **mean log luminance**, divided by the gain it was rendered
    at so it is the scene's at the keyed exposure, asks for the gain that
    brings it to `METER_KEY` (0.3, middle grey for a white of 1.5).  Pixels
@@ -797,6 +798,81 @@ the pass runs (Pluto's thin atmosphere with the Sun 8° up, 6,400
 pixels), and its resampling of the buffer's pixels next to black (the
 Sun views, 7,000); the half-float buffer, read directly, holds none.
 `yarn parity`: 17 views, 87 checks, 0 failed, no baseline moved.
+
+### The meter's readback
+
+[#189](https://github.com/celestiary/web/issues/189).  The meter read its
+32×32 target with a synchronous `readPixels`, which waits for everything
+queued ahead of it: on the user's M2 (Chrome, ANGLE Metal) 8-11 ms a frame
+on average, about 40 ms in the frame it ran, and 0.5 ms with the GPU already
+drained (the overlay's sync mode), so all but half a millisecond was the
+pipeline stall.  It alone set the 5th-percentile frame rate of 10-15.
+
+**Now it waits for nothing** (`meterReadback.js` `AsyncReadback`,
+`ThreeUi._meter`):
+
+- The metering frame's `readPixels` goes into a pixel-pack buffer (an
+  offset, not client memory), which queues a copy on the GPU and returns,
+  and a fence (`fenceSync`) goes in after it.
+- Every frame polls the fences in issue order with `getSyncParameter`,
+  which doesn't wait.  WebGL updates a fence's status between tasks, so the
+  soonest a read can be ready is the next frame.  The newest signalled
+  read is copied out (`getBufferSubData`, `STREAM_READ` usage: Chrome
+  serves it from a shadow copy once the fence is seen signalled); older
+  signalled reads are dropped unread, since the GPU finishes in order.
+- **A ring of three buffers** (`METER_RING_SIZE`), so a reading may be up to
+  three meterings (12 frames) late without a metering waiting on the one
+  before.  With every buffer in flight the metering is skipped, never
+  waited for (`skipped` counts them).
+- **What the frame was rendered with travels with its read**
+  (`_meterContext`): the gain it rendered at (pre-exposure, above), the
+  keyed exposure, the bodies and discs in view and the galaxy's weight.
+  The reading divided by its own frame's gain is that frame's scene at the
+  keyed exposure, so the gain asked for is the one the synchronous meter
+  would have asked for from that frame, only later.  Divided by the gain
+  at the reading's arrival instead, a reading three frames late in the
+  0.3 s fall reads the scene brighter by however far the gain fell in
+  those frames, and asks for too little (`meterReadback.test.js`).
+- **The cadence stays every fourth frame** (`METER_EVERY_FRAMES`).  A frame
+  or two of latency is under a tenth of the faster time constant (0.3 s,
+  18 frames at 60 Hz); a metering every frame would quadruple the CPU of
+  each (the sort of 1,024 pixels, the bodies in view, the 32×32 pass) for
+  a curve that moves under 6% between meterings.
+- **Synchronous where it must be**: without WebGL2's sync objects, in the
+  LDR fallback (`?hdr=0`, whose bytes the path keeps as before), and with
+  `?meter=sync`, for comparing the two on a machine at hand.
+
+**The adaptation is the same curve, later.**  The gain asked for depends on
+the frame's scene, not on the gain it was rendered at (step 2), so there is
+no loop for the latency to destabilise: the goal's timeline is the
+synchronous one shifted by the latency, and so is the eased gain's.  The
+bun tests run the ring and the easing together over a lit scene, a step to
+black and back to a twilight: at 1, 2 and 3 frames late the gain each frame
+renders with is the synchronous curve that many frames earlier (to the
+float32 buffer's rounding), it settles on the same gains (1, 4e6, 1,000),
+and it never overshoots.
+
+Measured in headless Chromium (SwiftShader, 320×200, Cesium's layers off,
+frames on a 60 Hz clock with a browser frame between them), Earth from
+20 Mm turned 180° away from it at frame 30 and back at frame 560, against
+the same build with `?meter=sync`:
+
+| | Synchronous | Asynchronous |
+|---|---|---|
+| Reads of the metering target (900 frames) | 225 `readPixels` into client memory | 192 into a pixel-pack buffer, none into client memory; 33 meterings skipped with the ring full |
+| A reading's age when used | 0 | 5 frames by day, 15 with the night sky's march running (SwiftShader's GPU process falls behind the page) |
+| Gain settled, looking away (frame 559) / back (899) | 1.094e5 / 1 | 1.084e5 (still easing, 8 frames behind) / 1 |
+| Overshoot past the settled gain, either way | none | none |
+| The curve against the synchronous one | | the same, 8-12 frames later |
+
+The overlay (`?perf=1`, Earth's surface looking down, 480×300, a minute):
+`main`'s `meter` row 757 ms of CPU a frame and 0.26 `readbacks`, SwiftShader's
+stall; this change's 0.27 ms, no readbacks, 0.26 `pboReads` and 0.26
+`getBufferSubData`; with `?meter=sync` 697 ms and 0.25 readbacks, as
+`main`.  SwiftShader's latency is no measure of a GPU's: on one that keeps
+up, a reading is a frame or two old.  `c.ui._meterLast.latency` (and
+`starsDebug`) shows it on a machine at hand.
+
 
 ### Results
 
@@ -1194,7 +1270,8 @@ this change 2 of 32, and one zodiacal render.  SwiftShader's frame times
 don't resolve it: every fourth frame its time is the meter's synchronous
 readback of its 32×32 float target (2.2-3.8 s there, on `main` too), the
 rest 15-60 ms.  On a real GPU that readback is a pipeline stall every
-fourth frame; reading it back asynchronously is a follow-up.
+fourth frame; it is asynchronous now ([the meter's
+readback](#the-meters-readback)).
 
 ### Measured
 

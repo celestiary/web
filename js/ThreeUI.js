@@ -25,7 +25,7 @@ import {
 } from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
-  METER_EVERY_FRAMES, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, easeExposure, exposureAt, exposureRelative,
+  METER_EVERY_FRAMES, adaptMeterGain, easeExposure, exposureAt, exposureRelative,
   LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, galaxyGain, illuminanceRatio, limitingMagnitude,
   luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap,
   sunlitBodyGain,
@@ -35,6 +35,7 @@ import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
 import {AIRGLOW_COLOR, ZODIACAL_STORE, airglowOf, zodiacalBrightest} from './scene/nightSky.js'
 import ZodiacalLight from './scene/ZodiacalLight.js'
+import {AsyncReadback, asyncReadbackSupported} from './scene/meterReadback.js'
 import {raysAllHitSphere} from './scene/viewCache.js'
 import {perf} from './perf/perf.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
@@ -580,8 +581,7 @@ export default class ThreeUi {
     // The metered gain over the keyed exposure (_meter), eased in log
     // space with its own, slower time constant: the eye adapting to a dark
     // scene.
-    this._meterGain = easeExposure(this._meterGain, this._meterGainGoal, dt,
-        this._meterGainGoal < this._meterGain ? METER_TAU_DOWN_SECONDS : METER_TAU_UP_SECONDS)
+    this._meterGain = adaptMeterGain(this._meterGain, this._meterGainGoal, dt)
     this.renderer.toneMappingExposure =
       easeExposure(this.renderer.toneMappingExposure, this._exposureGoal * this._meterGain, dt)
     // The gain this frame renders with, over the target-keyed exposure:
@@ -668,50 +668,150 @@ export default class ThreeUi {
    * for is the scene's, whatever exposure the frame was rendered at, so
    * there is no loop to oscillate; _updateExposure eases toward it.
    *
+   * The readback is asynchronous where it can be (HDR.md, "The meter's
+   * readback"; meterReadback.js): a pixel-pack buffer and a fence, the
+   * pixels taken a frame or more later, once the GPU has got there, so the
+   * frame never waits for the GPU's backlog.  What the frame was rendered
+   * with (its gain, the bodies in it) is kept with the read and used when
+   * its pixels come back, so a late reading asks for the gain its own frame
+   * asked for.  Every frame polls; the metering itself keeps its cadence.
+   * Synchronous (readPixels into client memory) without WebGL2's sync
+   * objects, in the LDR fallback (?hdr=0), and with ?meter=sync.
+   *
    * The LDR fallback has no float target: its composite is display values
    * (the scene pass tone-mapped them), read into bytes.  In the dark, where
    * the gain matters, Neutral's toe is near linear, so the gain asked for
    * is close; in the bright it's under-read, and the gain stays at 1.
    */
   _meter() {
-    if ((this._frame++ % METER_EVERY_FRAMES) !== 0) {
+    const metering = this.isMeterFrame()
+    const frame = this._frame++
+    const readback = this._meterReadback()
+    if (readback) {
+      const reading = readback.poll(frame)
+      if (reading) {
+        this._meterLatency = reading.latency
+        this._meterApply(reading.pixels, reading.meta)
+      }
+    }
+    if (!metering) {
       return
     }
     const u = this._atmMesh.material.uniforms
     if (u.uDebug.value !== 0) {
       return
     }
+    if (readback && !readback.canIssue()) {
+      // Every buffer still in flight: skip this metering rather than wait.
+      readback.skipped++
+      return
+    }
     this._meterRT ??= new WebGLRenderTarget(METER_SIZE, METER_SIZE,
         {type: this.hdr ? FloatType : UnsignedByteType, depthBuffer: false})
-    this._meterPixels ??= new (this.hdr ? Float32Array : Uint8Array)(METER_SIZE * METER_SIZE * 4)
     u.uDebug.value = 7
     this.renderer.setRenderTarget(this._meterRT)
     this.renderer.render(this._atmScene, this._atmCamera)
-    this.renderer.setRenderTarget(null)
     u.uDebug.value = 0
+    const meta = this._meterContext()
+    if (readback) {
+      // The metering target is still bound for reading.
+      readback.issue(meta, frame)
+      this.renderer.setRenderTarget(null)
+      return
+    }
+    this.renderer.setRenderTarget(null)
+    this._meterPixels ??= new (this.hdr ? Float32Array : Uint8Array)(METER_SIZE * METER_SIZE * 4)
     this.renderer.readRenderTargetPixels(this._meterRT, 0, 0, METER_SIZE, METER_SIZE, this._meterPixels)
-    // The buffer holds the frame as exposed (pre-exposure, _updateExposure):
-    // the reading over the gain it was rendered with is the scene's at the
-    // keyed exposure, whatever the gain's goal or easing now.
-    const renderedOverKeyed = this._renderedGain
-    const metered = meanLogLuminance(this._meterPixels, METER_SIZE * METER_SIZE)
+    this._meterLatency = 0
+    this._meterApply(this._meterPixels, meta)
+  }
+
+
+  /**
+   * Whether this frame is one the meter samples (_meter): true from the
+   * frame's start until _meter runs at its end.  The one place that says
+   * so, for work that must be drawn in a metered frame so the reading
+   * doesn't shift (CesiumLayers' night lights, #194).  The sampled frame's
+   * pixels are the ones read, whenever the asynchronous readback hands them
+   * back; a sample skipped with the ring full (meterReadback.js) still
+   * counts here, harmlessly.
+   *
+   * @returns {boolean}
+   */
+  isMeterFrame() {
+    return (this._frame % METER_EVERY_FRAMES) === 0
+  }
+
+
+  /**
+   * The asynchronous readback (meterReadback.js), made on first use, or null
+   * for the synchronous path: no WebGL2 sync objects, the LDR fallback, or
+   * `?meter=sync` (for comparing the two on a machine at hand).
+   *
+   * @returns {AsyncReadback|null}
+   */
+  _meterReadback() {
+    if (this._meterAsync === undefined) {
+      const gl = this.renderer.getContext()
+      const forcedSync = typeof location !== 'undefined' &&
+        new URLSearchParams(location.search).get('meter') === 'sync'
+      this._meterAsync = this.hdr && !forcedSync && asyncReadbackSupported(gl) ?
+        new AsyncReadback(gl, {width: METER_SIZE, height: METER_SIZE}) : null
+    }
+    return this._meterAsync
+  }
+
+
+  /**
+   * What the metering frame was rendered with, kept with its read: its
+   * pixels are taken a frame or more later (_meter), when the gain, the
+   * target and the bodies in view may have moved on.
+   *
+   * @returns {object}
+   */
+  _meterContext() {
+    return {
+      // The buffer holds the frame as exposed (pre-exposure, _updateExposure):
+      // the reading over the gain it was rendered with is the scene's at the
+      // keyed exposure, whatever the gain's goal or easing by the time it's read.
+      renderedOverKeyed: this._renderedGain,
+      exposureGoal: this._exposureGoal,
+      halfFov: this.camera.fov * Math.PI / 360,
+      canBeEmpty: this._frameCanBeEmpty(),
+      sunlit: this._sunlitBodies(),
+      luminous: this._luminousDiscs(),
+      galaxyWeight: this._galaxyOutsideWeight(),
+      pixelRatio: this.renderer.getPixelRatio(),
+    }
+  }
+
+
+  /**
+   * The gain a metering's pixels ask for, from what its frame was rendered
+   * with (_meterContext), set as the goal _updateExposure eases toward.
+   *
+   * @param {Float32Array|Uint8Array} pixels The 32×32 RGBA composite
+   * @param {object} ctx _meterContext's, from the frame they were rendered in
+   */
+  _meterApply(pixels, ctx) {
+    const {renderedOverKeyed, exposureGoal, halfFov} = ctx
+    const metered = meanLogLuminance(pixels, METER_SIZE * METER_SIZE)
     // The dark end is absolute, over Earth's keyed exposure (meteredGain).
     // A frame of zeros means "nothing drawn yet" only while the scene
     // loads (frameCanBeEmpty): once loaded, black is dark.
     // A sunlit body in the frame anchors the gain, continuously in its
     // share of the field (sunlitBodyGain); the hard cap is logged (starsDebug).
-    const halfFov = this.camera.fov * Math.PI / 360
-    this._sunlit = this._sunlitBodies()
-    this._meterCap = sunlitBodyCap(this._sunlit, this._exposureGoal, halfFov)
-    const keyedOverEarth = this._exposureGoal / exposureAt(ASTRO_UNIT_METER)
-    const metered0 = sunlitBodyGain(meteredGain(metered, renderedOverKeyed, this._frameCanBeEmpty(), keyedOverEarth),
-        this._sunlit, this._exposureGoal, halfFov)
+    this._sunlit = ctx.sunlit
+    this._meterCap = sunlitBodyCap(this._sunlit, exposureGoal, halfFov)
+    const keyedOverEarth = exposureGoal / exposureAt(ASTRO_UNIT_METER)
+    const metered0 = sunlitBodyGain(meteredGain(metered, renderedOverKeyed, ctx.canBeEmpty, keyedOverEarth),
+        this._sunlit, exposureGoal, halfFov)
     // A resolved self-luminous disc (the Sun's) brings the gain to what
     // shows its surface, blended in as it grows (luminousDiscGain).
-    this._luminous = this._luminousDiscs()
-    const gain1 = luminousDiscGain(metered0, this._luminous, keyedOverEarth, this.renderer.getPixelRatio())
+    this._luminous = ctx.luminous
+    const gain1 = luminousDiscGain(metered0, this._luminous, keyedOverEarth, ctx.pixelRatio)
     // The galaxy from outside: exposed as a photograph of it (galaxyGain).
-    this._galaxyWeight = this._galaxyOutsideWeight()
+    this._galaxyWeight = ctx.galaxyWeight
     const gain = galaxyGain(gain1, metered, renderedOverKeyed, this._galaxyWeight, keyedOverEarth)
     // What was read, at the keyed exposure, for probing (HDR.md).
     this._meterLast = {
@@ -722,6 +822,7 @@ export default class ThreeUi {
       litHighlight: metered.litHighlight / renderedOverKeyed,
       litFraction: metered.litFraction,
       galaxyWeight: this._galaxyWeight,
+      latency: this._meterLatency ?? 0,
       gain,
     }
     if (Number.isFinite(gain)) {
@@ -1329,6 +1430,13 @@ export default class ThreeUi {
     u.uMieAlbedo.value.copy(mie.albedo)
     u.uMiePeakPolarity.value.copy(mie.peakPolarity)
     u.uMiePeakWeight.value.copy(mie.peakWeight)
+    // The narrow lobe's half of the march, compiled in only for a body with one.
+    const peak = Math.max(mie.peakWeight.x, mie.peakWeight.y, mie.peakWeight.z) > 0 ? 1 : 0
+    const mat = this._atmMesh.material
+    if (mat.defines && mat.defines.MIE_PEAK !== peak) {
+      mat.defines.MIE_PEAK = peak
+      mat.needsUpdate = true
+    }
 
     if (this._lastAtmPlanet !== atmTarget) {
       this._lastAtmPlanet = atmTarget
