@@ -83,6 +83,27 @@ figures 1,000 km at a Tm), a star or an asterism has no frame to give a
 landed camera, and the reloaded camera would ride the target's orbit, not
 the body it was at.
 
+## The target survives a reload
+
+The path is the target, so a target picked in the search, by the Look at
+button, a click or the keys is in the link a second after it is picked
+(`Celestiary._schedulePermalinkUpdate`, run from `Scene.onTargetChange`, and
+again when a look tween ends), and a reload sets it again once the stars or
+the places it needs have loaded.  No separate token is needed: the path
+says what is targeted and `from=` where the camera is.  A view of Europa
+from Earth, then HIP 46635 targeted with the search's Look at:
+
+```
+#sun/jupiter/europa@41.2054,-82.3901,169m;from=sun/earth;t=9774.8983jd;cq=…;fov=0.07deg
+#hip:46635@41.2054,-82.3901,169m;from=sun/earth;t=9774.8984jd;cq=…;fov=0.07deg
+```
+
+(`cq` differs between the two because Look at turned the camera; a click
+doesn't.)  Unnamed catalogue stars are the same as named ones: the path
+is the HIP number (`hip:` plus the search's id), whichever name the search
+matched.  Tracking (`t`) is the one piece of targeting state that is not
+the target: it is the `T` setting, below.
+
 ## Old links
 
 A link with no `from=` and a body path is read as it always was: the path
@@ -103,12 +124,22 @@ cq=x,y,z,w          camera orientation
 fov=45deg           field of view
 ev=1.33             exposure compensation, stops over the metered exposure
                     (left out at 0)
+sm=1.5              the stars' setting, magnitudes over the naked eye's
+                    limit (left out at 0)
 s=al                scene settings not at their defaults, one letter each
 ```
 
 `s=` holds the scene's toggles (asterisms `a`, labels `l` `p`, orbits `o`,
 grids `e` `c` `g`, galaxy `U`, human expansion lines `x`, the HUD `v`),
-plus landed `L` and AR `A` (`permalink.js` `SETTINGS_DEFAULTS`).
+plus landed `L`, tracking `T` and AR `A` (`permalink.js`
+`SETTINGS_DEFAULTS`).  `T` is the `t` key: the camera keeps the target
+centred every frame, so a link made while tracking reloads tracking.
+
+`fov=` is written to four significant figures (`45deg`, `0.0714deg`,
+`120.5deg`), so a telescope's field survives the round trip to a part in
+2,000: two decimal places would turn 0.0714 into 0.07 (2% off) and any
+field under 0.005 degrees into 0, a camera that cannot draw.  A hand-written
+field is held to 0.0001 to 179 degrees.
 
 `ev=` is the user's exposure compensation (`[` and `]` are the stars; `-`
 and `=` step it a third of a stop, `e` resets it: DESIGN.md
@@ -122,6 +153,23 @@ load only.
 
 ```
 #…;fov=0.91deg;ev=1.33;s=oL     a third of a stop over a stop, brighter
+```
+
+`sm=` is the stars' setting, the `[` and `]` keys (the user's "exposure for
+just the stars": the limiting magnitude, 6.5 at the naked eye's).  It is the
+limit's offset from the naked eye's, in magnitudes, so 0 is the default for
+it as for `ev=`: it is left out at 0, the key presses step it by half a
+magnitude (`[` fewer stars, `]` more), the screen shows it as `Stars +1.0 mag`
+for two seconds, as `EV +1.3` shows the exposure, and stepping back to 0
+lands on exactly 0 (the offset is held, not the star gain, which is 10^(0.4 ×
+offset) and has no exact inverse).  It is in magnitudes, not stops, because
+the control is a limiting magnitude and each press is half of one, as in
+Celestia; a stop of light would be 0.753 mag, a step off the halves.  Read
+with or without a `+`, held to ±10, and 0 when absent or not a number; two
+decimal places, as `ev=`.  It is a view param for the reason `ev=` is.
+
+```
+#…;fov=0.91deg;ev=1.33;sm=1.5;s=oL   brighter, with 1.5 mag more stars
 ```
 
 The view params predate state tokens and keep their `key=value` form.
@@ -163,11 +211,61 @@ e.g.
 Each feature has its own label:
 
 ```
+"time":             the clock, when it is paused or not at real time
 "apps":             the widgets drawer and dock: open, docked, the app
                     showing, the apps pinned and running
 "apps.<id>":        one running app's own state, a sub-namespace of apps
 "apps.expansion":   the Human Expansion app
 ```
+
+### Time Token
+
+The clock (`Time.js`): paused, and the rate it runs at.
+
+```
+pause              the clock is paused
+rate=<n>           the rate, a signed multiplier on real time: 8 is eight
+                   times, -2 is backwards at twice (default 1)
+```
+
+```
+#…;t=9774.8984jd;…;time:pause                paused at that date
+#…;t=9774.8984jd;…;time:rate=8               running at 8x
+#…;t=9774.8984jd;…;time:pause,rate=-4        paused, resuming at 4x backwards
+```
+
+Decisions:
+
+- **Paused restores as paused, at `t=`.**  The clock does not run from the
+  link's date on load, so what was on screen when the link was copied is on
+  screen when it opens, and a moment (an occultation, a transit) can be
+  shared.  Unpausing runs from there.
+- **The rate is in the link, and is the one in force.**  A paused clock keeps
+  its rate (`j`, `k` and `l` set it while paused), so a link made paused at
+  8x resumes at 8x.  Real time (1) is the default and left out, and so is a
+  clock that is running at it, so the common link has no token.
+- **The rate is the multiplier, not Time's step count.**  The keys reach
+  only signed powers of two (`Time.timeScale`, up to 2^40), so the value is an
+  integer and reads as "8x"; a hand-written one snaps to the nearest power
+  of two (`Time.setRate`).  (Real time run backwards, `-1`, is a rate too:
+  `j` on real time gives it.)
+- **It belongs in a state token, not with the view params:** how the clock
+  runs is app state, not how the camera frames the scene, and the
+  view params are the camera's.
+- **A link restores the clock whole**, as it does `ev=`: on every link with a
+  view, one without a `time:` token runs at real time, so a link made running
+  and opened in a tab that is paused or at 8x opens running.
+- **The `cq=` rule stays.**  A link restores its time and view only when it
+  has a view (`@…;t=;cq=;fov=`), and the clock token is part of the view's
+  restore, so a path-only link, or one without `cq=`, still opens at the
+  current time at the current rate, going to its target.  Nothing needed the
+  rule changed: a link without a camera orientation isn't a view of anything
+  in particular, so there's no moment to hold still.
+
+The link is rewritten when the clock is paused, its rate set, or its date
+set (`Time.onTimeScaleChange`), as well as when the camera settles.  While
+it is running the link's `t=` is the date at the last rewrite, so a copied
+link may be a moment behind; paused it is exact.
 
 ### Apps Token
 
@@ -272,8 +370,9 @@ yet run aren't in the link.
 # Reading and writing
 
 - **Writing.**  The address bar is rewritten (`history.replaceState`, no
-  reload) 1 s after the camera settles, a scene setting changes, or the
-  drawer or an app's state changes (`Celestiary._schedulePermalinkUpdate`).
+  reload) 1 s after the camera settles, the target, a scene setting, the
+  exposure, the stars' setting or the clock changes, or the drawer or an
+  app's state changes (`Celestiary._schedulePermalinkUpdate`).
   The drawer state and the apps' states are in the widgets slice
   (store/WidgetsSlice.js); `store/appTokens.js` turns them into tokens and
   back.
@@ -291,6 +390,42 @@ yet run aren't in the link.
    `decode(value)` → a whole state (defaults for what's missing or bad).
    Register it in `APP_CODECS` (store/appTokens.js) under the app's ID.
 3. Document the token here.
+
+# What a link restores
+
+An audit of what a viewer can change that changes what is seen.  A link
+brings back all of the first group.
+
+**Restored**
+- the target and the camera's frame (path, `from=`), position, orientation
+  (`cq=`), field of view (`fov=`);
+- the date (`t=`), the clock's pause and rate (`time:`);
+- the exposure compensation (`ev=`) and the stars' setting (`sm=`);
+- the scene toggles (`s=`): asterisms, star and planet labels, orbits, the
+  three grids, the Milky Way, human expansion lines, the HUD (`v`), landed
+  (`L`), tracking (`T`), AR (`A`);
+- the widgets drawer, the dock, the apps pinned and running, and each app's
+  controls and run (`apps`, `apps.<id>`);
+- the page's query string (`?hdr=0`, `?perf=1`), kept when the address bar
+  is rewritten.
+
+**Added with this audit:** `time:`, `sm=`, `T`, and the telescope-safe `fov=`.
+
+**Left out, deliberately**
+- *Cesium or celestiary's own rendering for Earth, the Moon and Mars*
+  (the layers control, `bodyLayers`).  It changes what is seen, and is a
+  small token (`layers:earth=default`), but it needs Cesium ion to verify
+  and belongs with the layers work (CESIUM.md); left to a follow-up.
+- *Drag mode* (`m`: auto, pan, orbit): how the pointer moves the camera, not
+  what is seen, and `goTo` resets it.
+- *Follow* (`f`): the camera follows a body's orbit position; transient, and
+  it needs the body's identity to restore (the target, which is in the link,
+  is enough to follow again).
+- *Presentation mode* (`V`): the toggles it sets are in `s=`; the snapshot
+  it keeps to restore them is transient.
+- *The performance panel and the AR debug HUD*: developer tools.
+- *The search box's text and results, the open settings, about and guide
+  panels (routes), the tooltips and any dialog*: transient UI.
 
 # Future work
 

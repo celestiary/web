@@ -455,7 +455,7 @@ Camera orientation and position are separated across three input modes, all accu
 | `j` / `k` / `l` | Reverse, slow down, speed up time: paused too, when the step is often set; the display shows it and resuming runs at it |
 | `-` / `=` (or `+`) | Exposure compensation down / up a third of a stop (EV), over the metered exposure; the readout shows "EV +1.3" for two seconds |
 | `e` | Reset the exposure compensation to 0 |
-| `[` / `]` | The stars' limiting magnitude, 0.5 a press (not the exposure) |
+| `[` / `]` | The stars' setting: the limiting magnitude's offset from the naked eye's, 0.5 mag a press (not the exposure); 0 is the default, shown as "Stars +1.0 mag" and in the link as `sm=` ([design/URLs.md](design/URLs.md#view)) |
 | Click / tap a label (a star, planet, moon, asterism or place name) | Target it and do nothing else: `c` then faces it, `g` goes ([Picking labels](#picking-labels)) |
 | Double-click / double-tap a label | Go to it, as `g` does |
 | Double-click / double-tap elsewhere on a body | Land there |

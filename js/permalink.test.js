@@ -2,8 +2,10 @@ import {
   SETTINGS_DEFAULTS,
   decodePermalink,
   decodeSettings,
+  decodeTimeToken,
   encodePermalink,
   encodeSettings,
+  encodeTimeToken,
   formatTokenValue,
   parseTokenValue,
   parseValueList,
@@ -521,5 +523,127 @@ describe('the exposure compensation, ev=', () => {
 
   it('is 0 in a link from before it', () => {
     expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;s=a').ev).toBe(0)
+  })
+})
+
+
+describe('fov=', () => {
+  const Q = {x: 0, y: 0, z: 0, w: 1}
+  const fovOf = (fov) => decodePermalink(encodePermalink('sun', 0, 1, 2, 3, Q, fov)).fov
+
+  it('round-trips a telescope\'s field, to four figures', () => {
+    expect(encodePermalink('sun', 0, 1, 2, 3, Q, 0.07)).toContain(';fov=0.07deg')
+    expect(fovOf(0.07)).toBe(0.07)
+    expect(fovOf(0.0714)).toBe(0.0714)
+    expect(fovOf(0.07142857)).toBe(0.07143)
+    expect(fovOf(0.91)).toBe(0.91)
+    expect(fovOf(0.005)).toBe(0.005)
+  })
+
+  it('keeps the eye\'s and a wide field short', () => {
+    expect(encodePermalink('sun', 0, 1, 2, 3, Q, 45)).toContain(';fov=45deg')
+    expect(encodePermalink('sun', 0, 1, 2, 3, Q, 30.5)).toContain(';fov=30.5deg')
+    expect(fovOf(120.456)).toBe(120.5)
+  })
+
+  it('is held to a camera that works, for a hand-written one', () => {
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=0deg').fov).toBe(1e-4)
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=-5deg').fov).toBe(1e-4)
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=400deg').fov).toBe(179)
+  })
+
+  it('a shrinking field returns to a link\'s value within a part in a thousand', () => {
+    let fov = 45
+    for (let i = 0; i < 90; i++) {
+      fov *= 0.9
+    }
+    expect(fov).toBeLessThan(0.01)
+    expect(Math.abs(fovOf(fov) - fov) / fov).toBeLessThan(1e-3)
+  })
+})
+
+
+describe('sm= (the stars\' setting)', () => {
+  const Q = {x: 0, y: 0, z: 0, w: 1}
+  const encode = (sm) => encodePermalink('sun', 0, 1, 2, 3, Q, 45, undefined, undefined, undefined, 0, sm)
+
+  it('is left out at 0, and after ev, before s', () => {
+    expect(encode(0)).not.toContain('sm=')
+    expect(encode(1e-9)).not.toContain('sm=')
+    expect(encode(-0.001)).not.toContain('sm=')
+    const frag = encodePermalink('sun', 0, 1, 2, 3, Q, 45, {...SETTINGS_DEFAULTS, a: false}, undefined, undefined, 1, -1.5)
+    expect(frag).toBe('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;ev=1;sm=-1.5;s=a')
+  })
+
+  it('round-trips, with or without a +', () => {
+    for (const sm of [-10, -2.5, -0.5, 0.5, 1, 7.25, 10]) {
+      expect(decodePermalink(encode(sm)).sm).toBe(sm)
+    }
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;sm=+1.5').sm).toBe(1.5)
+  })
+
+  it('is 0 when absent or bad, and held to the range', () => {
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg').sm).toBe(0)
+    for (const bad of ['', 'x', 'NaN', 'Infinity']) {
+      expect(decodePermalink(`sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;sm=${bad}`).sm).toBe(0)
+    }
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;sm=99').sm).toBe(10)
+  })
+})
+
+
+describe('the T setting (tracking)', () => {
+  it('is off by default, and a flag in s= when on', () => {
+    expect(SETTINGS_DEFAULTS.T).toBe(false)
+    expect(encodeSettings({...SETTINGS_DEFAULTS, T: true})).toBe('T')
+    expect(decodeSettings('T').T).toBe(true)
+    expect(decodeSettings('oL').T).toBe(false)
+  })
+})
+
+
+describe('the time: token', () => {
+  it('is left out for a clock running at real time', () => {
+    expect(encodeTimeToken(false, 1)).toBe(null)
+    expect(encodeTimeToken(false, 0)).toBe(null)
+    expect(encodeTimeToken(false, NaN)).toBe(null)
+  })
+
+  it('is pause, rate, or both, the rate a signed multiplier', () => {
+    expect(encodeTimeToken(true, 1)).toBe('pause')
+    expect(encodeTimeToken(false, 8)).toBe('rate=8')
+    expect(encodeTimeToken(false, -2)).toBe('rate=-2')
+    expect(encodeTimeToken(true, 1024)).toBe('pause,rate=1024')
+    expect(encodeTimeToken(true, -1)).toBe('pause,rate=-1')
+  })
+
+  it('round-trips', () => {
+    for (const paused of [false, true]) {
+      for (const rate of [1, 2, 8, -1, -2, -4096, 2 ** 40]) {
+        expect(decodeTimeToken(encodeTimeToken(paused, rate) ?? undefined)).toEqual({paused, rate})
+      }
+    }
+  })
+
+  it('reads a link without it as running at real time, and a bad rate as 1', () => {
+    expect(decodeTimeToken(undefined)).toEqual({paused: false, rate: 1})
+    expect(decodeTimeToken('')).toEqual({paused: false, rate: 1})
+    for (const bad of ['rate=x', 'rate=0', 'rate=', 'rate=NaN']) {
+      expect(decodeTimeToken(`pause,${bad}`)).toEqual({paused: true, rate: 1})
+    }
+    expect(decodeTimeToken('future,rate=4,other=1')).toEqual({paused: false, rate: 4})
+  })
+
+  it('travels as a state token in the link, with the apps\'', () => {
+    const Q = {x: 0, y: 0, z: 0, w: 1}
+    const frag = encodePermalink('sun', 5, 1, 2, 3, Q, 45, undefined,
+        {time: encodeTimeToken(true, 4), apps: 'open'})
+    expect(frag).toBe('sun@1,2,3m;t=5jd;cq=0,0,0,1;fov=45deg;time:pause,rate=4;apps:open')
+    const pl = decodePermalink(frag)
+    expect(pl.tokens).toEqual({time: 'pause,rate=4', apps: 'open'})
+    expect(decodeTimeToken(pl.tokens.time)).toEqual({paused: true, rate: 4})
+    // None at real time.
+    expect(encodePermalink('sun', 5, 1, 2, 3, Q, 45, undefined, {time: encodeTimeToken(false, 1)}))
+        .toBe('sun@1,2,3m;t=5jd;cq=0,0,0,1;fov=45deg')
   })
 })

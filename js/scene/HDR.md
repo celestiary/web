@@ -217,11 +217,11 @@ below 0.08.  At any other exposure the limit moves with the gain
 (`limitingMagnitude(exposureRelative, starGain)` = 6.5 + 2.5·log10(gain ×
 starGain / 4e6)): by day, at the keyed exposure, −10, so only the Sun,
 the Moon and Venus pass, the same arithmetic at a lower gain; with the
-user's star gain (`ThreeUi.setLimitingMagnitude(m)`, the `[` and `]` keys
-step it by 0.5, as Celestia's do), fainter, as a longer exposure or a
-telescope does: a magnitude more is 2.5× every star's light.  The
-settings and the permalink hold switches (`s=` letters), so the numeric
-limit isn't in them yet.
+user's star gain (`ThreeUi.setStarMagnitudeOffset(m)`, the `[` and `]` keys
+step it by 0.5 mag, as Celestia's do), fainter, as a longer exposure or a
+telescope does: a magnitude more is 2.5× every star's light.  The setting is
+the offset of the limit from 6.5, 0 by default (`starMagnitude.js`), shown as
+"Stars +1.0 mag" and in the link as `sm=` (design/URLs.md).
 
 **The patch** a star's light is spread over follows from the limit: the
 solid angle `EYE_PATCH_SR` at which a star at the limit, at the
@@ -925,7 +925,7 @@ that record: the reading at the keyed exposure is the same at any compensation, 
 is what it was, and there is no loop (a boosted frame doesn't ask for less).  The compensation is
 not in `meteredGain` or the readback, so it merges with changes to either.
 
-Set by `-` and `=` (a third of a stop a press, `[` and `]` being the stars' limiting magnitude),
+Set by `-` and `=` (a third of a stop a press, `[` and `]` being the stars' setting, `sm=`),
 `e` (reset), and the link's `ev=` ([permalink.md](../permalink.md)); held to ±10 stops.  Measured
 in SwiftShader on the Moon from Bay Village, the exposure's ratio across 3 presses was 2.00 (the
 exposure is a pure multiplier), and the frame's mean luma went 2.5, 4.3, 6.3 at EV 0, +1, +2 and

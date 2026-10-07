@@ -49,8 +49,9 @@ returned as given in `decodePermalink(...).tokens`.  Spec: [design/URLs.md](../d
 | `from` | path | `sun/earth`, `hip:32349` | The camera's frame (below), when it isn't the path's body; written right after the position |
 | `t` | Measure: days from J2000 | `9233.1234jd` | Simulation time, clamped on decode to ±2191500 days (J2000 ± 6000 years, Time.js's supported dates); a non-finite `t` makes the fragment invalid |
 | `cq` | 4× dimensionless float | `0,0,0,1` | Camera quaternion (platform-local) |
-| `fov` | Measure: degrees | `45deg` | Camera field of view |
+| `fov` | Measure: degrees | `45deg`, `0.0714deg` | Camera field of view, written to 4 significant figures (a telescope's 0.0714 isn't 0.07); held on decode to 0.0001..179 |
 | `ev` | dimensionless float, stops | `1.33` | The user's exposure compensation over the metered exposure (`evCompensation.js`): 2^ev as one multiplier on the exposure.  Written to 2 decimal places, left out at 0; read with or without a `+` (`ev=+1.3`), held to ±10, and 0 when absent or not a number.  Applied on every view restore, so a link without it sets 0 |
+| `sm` | dimensionless float, magnitudes | `1.5` | The stars' setting (`[` and `]`, `starMagnitude.js`): the limiting magnitude's offset from the naked eye's 6.5, in magnitudes.  Written to 2 decimal places, left out at 0; read with or without a `+`, held to ±10, 0 when absent or not a number; applied on every view restore |
 
 ## Coordinate System
 
@@ -168,11 +169,21 @@ On page load from a permalink URL, or a new one in the address bar (`Celestiary.
    loaded: a place's catalogue, the stars, the asterisms.  One that isn't in its catalogue leaves
    the frame's body the target.
 
+### Clock and tracking
+
+The clock is the state token `time:` (design/URLs.md [Time Token](../design/URLs.md#time-token)):
+`pause` and `rate=<signed multiplier>`, left out when running at real time.  Decoded with
+`decodeTimeToken(decodePermalink(...).tokens.time)`; restored by `Celestiary._restoreClock` with
+`Time.setRate` and `Time.setPaused`, after `t` is set, on every restore of a view (a link without
+the token runs at real time).  `Time.onTimeScaleChange` (rate, pause, date set) schedules the
+link's rewrite.
+
+Tracking (`t`) is the `T` flag in `s=`: `Scene.getSettings()` reads it from
+`Shared.targets.track`, and `Celestiary._arrive` sets it (`Scene.setTracking`) after the target.
+
 ## Future Work
 
-- **Track/follow state:** `track=1` or `follow=1` params for the 't'/'f' key modes (what 't'
-  tracks, the target, is in the link now).  Better
-  suited to an explicit "share" action than auto-update (state is transient).
+- **Follow state:** a param for the 'f' key mode (tracking, 't', is the `T` setting now).
 - **E2E screenshot test:** Playwright + dev server opens a constructed permalink URL, waits for
   scene settle, takes a screenshot and compares to a stored reference.
 - **Upstream `jd` and `deg`** to `@pablo-mayrgundter/measure.js`.
