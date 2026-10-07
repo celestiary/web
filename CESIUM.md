@@ -83,6 +83,13 @@ ThreeUi.renderLoop
   render(atm pass) → screen      sky + scene × T, tone-mapped once
 ```
 
+Under `?perf=1` each step is a timed pass (`cesium.blit`, `.shell`,
+`.replay`, `.decode`, `.nightlights`, `.ground`; `cesium` is the
+composite's own remainder), and the shadow context, the second GL context
+Cesium's draws also run on, gets a timer and counts of its own
+([DESIGN.md, Perf overlay](DESIGN.md#perf-overlay)).  With the `Cesium
+layer` toggle off no body is wanted, so celestiary draws its own.
+
 Why these pieces:
 
 - **In `_cesiumRT`, then decoded into `_sceneRT`.** Celestiary's depth
@@ -724,6 +731,27 @@ With #147 (multiple scattering for every body; Earth's gain 30 → 21):
 1.001, `mars-near-ridge` 1.054 / 1.028, `mars-below-datum-band` 0.928 /
 1.016, `mars-below-datum-sunward` 0.846 / 0.977, `earth-dead-sea-band`
 1.006 / 0.897; nothing re-baselined.
+
+With #188 (Mars's dust forward peak; composition.md, "The dust's forward
+peak") every Earth view reads as before to run-to-run noise (rerun
+together: `earth-low-land-day` 0.932 / 0.932, `earth-low-dusk` 1.002 /
+1.002, `earth-orbit-gibbous` 1.000 / 1.000; Earth's tables are
+unchanged), and the Mars views move with the sky.  Re-baselined:
+`mars-low-horizon` 0.947 → 0.835 (luma 55.6 / 57.7 → 37.9 / 44.0): the
+haze over the ground is about a third less and the brighter aureole meters
+the frame darker, so Cesium's darker ground shows through; the ground
+under the haze is 0.71 of celestiary's before and after (linear, the
+composite less the sky, `uDebug` 7 and 2).  `mars-sky-antisolar` 1.515 →
+3.088 / 1.093: the anti-solar horizon over the sky 30° up, 2.3-3.8 in a
+Monte Carlo of the dust's radiance, 1.29 in the old method's (its
+isotropic excess) and 2.7 in the new.  `mars-sky-aureole` 2.407 / 1.759 →
+1.879 / 1.415: the compact core is white after the tone map and the blue
+ends about 6° out, where the old flat disc was blue to 18°.  The rest
+pass as they were: `mars-sky-zenith` 0.247 / 0.812 (0.334 / 0.966),
+`mars-below-datum-sunward` 0.967 / 0.988 (0.847 / 0.977),
+`horizon-terrain-far` 0.941 / 0.978 (0.802 / 0.966),
+`mars-near-ridge` 1.003 / 1.017, `mars-low-horizon-band` 0.889 / 0.995,
+`mars-below-datum-band` 0.964 / 1.000, `mars-gibbous` 0.993.
 
 With #96 (the IAU prime meridians) Mars turns differently at every date,
 and a permalink holds the camera in the body frame, so the Mars views'

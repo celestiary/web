@@ -16,7 +16,7 @@ import * as Shapes from './scene/shapes'
 import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToLocal, worldToLatLngAlt} from './coords'
-import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment} from './permalink'
+import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment, permalinkHref} from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry} from './search/commitEntry'
 import {fetchPlaces} from './scene/Places'
@@ -956,7 +956,7 @@ export default class Celestiary {
       }
       const fragment = this.permalink()
       if (fragment) {
-        history.replaceState(null, '', `#${fragment}`)
+        history.replaceState(null, '', permalinkHref(fragment, document.baseURI, location.search))
       }
     }, 1000)
   }

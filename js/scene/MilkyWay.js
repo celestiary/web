@@ -19,6 +19,7 @@ import {
   Vector4,
   WebGLRenderTarget,
 } from 'three'
+import {perf} from '../perf/perf.js'
 import {EMITTED_GLSL, HDR_MAX_VALUE, absoluteUniforms, hdrSupported} from './hdr.js'
 import {
   STORE_SCALE, bakeMapSteps, catalogToGalactic, galaxyGlsl, galaxyNormUniforms, normalize, outsideWeight,
@@ -186,9 +187,11 @@ export default function newMilkyWay({bake = typeof requestAnimationFrame === 'fu
     lastKey = key
     const autoClear = renderer.autoClear
     renderer.autoClear = false
+    perf.begin('galaxy')
     renderer.setRenderTarget(marchTarget.value)
     renderer.render(marchScene, marchCamera)
     renderer.setRenderTarget(current)
+    perf.end('galaxy')
     renderer.autoClear = autoClear
     debug.marches++
   }

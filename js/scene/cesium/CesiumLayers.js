@@ -48,6 +48,7 @@ import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {detailScale} from './detail.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
+import {perf} from '../../perf/perf.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
 
 
@@ -171,7 +172,9 @@ export default class CesiumLayers {
       store.setLayerBody(near)
     }
     this._now = performance.now()
-    const wanted = (name) => this._wanted(name)
+    // ?perf=1's "Cesium layer" toggle off: no body is wanted, so
+    // celestiary's own draw.
+    const wanted = (name) => perf.runs('cesium') && this._wanted(name)
     this._preload(target, wanted)
     const active = []
     const warming = []
@@ -252,7 +255,9 @@ export default class CesiumLayers {
       if (this.bodies[name]?.status !== 'ready') {
         continue
       }
+      perf.begin('cesium.blit')
       this._blitDepth(sceneRT, cesiumRT)
+      perf.end('cesium.blit')
       // resetState() also unbinds three's render target; and the last
       // body's stencil and colour must not carry over to this one.
       renderer.setRenderTarget(cesiumRT)
@@ -263,8 +268,13 @@ export default class CesiumLayers {
       renderer.setClearColor(this._clearColor, clearAlpha)
       this._compositeBody(name, node, unseen)
       if (!unseen && this.bodies[name]?.status === 'ready') {
+        perf.begin('cesium.decode')
         this._decodeInto(sceneRT, cesiumRT, name, node)
-        this._drawNightLights(sceneRT, cesiumRT, name, node)
+        perf.end('cesium.decode')
+        if (perf.begin('cesium.nightlights')) {
+          this._drawNightLights(sceneRT, cesiumRT, name, node)
+          perf.end('cesium.nightlights')
+        }
       }
     }
     this._drawFadingSurfaces(drawn)
@@ -275,7 +285,9 @@ export default class CesiumLayers {
     // as ground with the stars through it.  Left without depth, the pass
     // takes that band for a gap in the ground and draws it the horizon's
     // haze.
+    perf.begin('cesium.ground')
     this._writeGroundDepths(drawn.filter(({name}) => !this._terrainDepth(name)))
+    perf.end('cesium.ground')
   }
 
 
@@ -540,7 +552,9 @@ export default class CesiumLayers {
       this.shell.matrixWorldNeedsUpdate = true
       const autoClear = renderer.autoClear
       renderer.autoClear = false
+      perf.begin('cesium.shell')
       renderer.render(this.shellScene, camera)
+      perf.end('cesium.shell')
       renderer.autoClear = autoClear
     }
 
@@ -557,10 +571,12 @@ export default class CesiumLayers {
     // renders.
     body.Cesium.Ellipsoid.default = body.ellipsoid
     try {
+      perf.begin('cesium.replay')
       body.link.frame(() => {
         body.widget.resize()
         body.widget.render()
       })
+      perf.end('cesium.replay')
       body.frames = (body.frames ?? 0) + 1
     } catch (err) {
       this._fail(name, err)
@@ -1123,6 +1139,7 @@ export default class CesiumLayers {
     const night = widget.scene.globe && config.nightImagery ?
       addNightLights(Cesium, widget, config.nightImagery) : null
     guest.attach(widget.scene)
+    perf.attachCesium(name, link, guest)
     // Cesium's widgets.css normally sizes its canvas to the container;
     // without it the canvas stays 300×150 and renders blocky.
     for (const el of [widget.canvas.parentElement, widget.canvas]) {
