@@ -66,4 +66,15 @@ describe('Keys', () => {
     keys.onKeyDown({key: 'a'})
     expect(cb).not.toHaveBeenCalled()
   })
+
+  it('leaves the browser\'s own shortcuts (Ctrl or Cmd with a key) alone', () => {
+    const cb = mock()
+    const keys = new Keys({addEventListener: mock()})
+    keys.map('-', cb, 'minus')
+    keys.onKeyDown({key: '-', ctrlKey: true})
+    keys.onKeyDown({key: '-', metaKey: true})
+    expect(cb).not.toHaveBeenCalled()
+    keys.onKeyDown({key: '-'})
+    expect(cb).toHaveBeenCalledTimes(1)
+  })
 })

@@ -15,6 +15,7 @@ import Object from './object.js'
 import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
 import {FovLOD, newFarPoint, pointSwitchDistance} from './farPoint.js'
+import {newSmallDiscUniforms, smallDiscShaderMod, updateSmallDisc} from './smallDisc.js'
 import {
   point,
   sphere,
@@ -266,7 +267,9 @@ export default class Planet extends Object {
     const labelTooFarDist = isMoon ? farDist * 5e1 : farDist * 5e4
     const pointTooFarDist = farDist * 1e12
 
-    const planetLOD = new FovLOD()
+    // Scaled to the canvas's pixels too (farPoint.js meshReach): the mesh
+    // until its disc is smaller than the point.
+    const planetLOD = new FovLOD({drawnSize: true})
     planetLOD.addLevel(planet, 1)
     // A point once the mesh would be under ~1.6 px across (45° fov over
     // 640 px): a sub-pixel mesh, lit at its albedo, fades to nothing.  (It
@@ -466,12 +469,22 @@ export default class Planet extends Object {
         )
       })
     }
-    if (shaderMods.length > 0) {
-      surfaceMaterial.onBeforeCompile = (shader) => {
-        for (const fn of shaderMods) {
-          fn(shader)
-        }
+    // Last: a disc a few pixels across, antialiased and shaded as the
+    // sphere (smallDisc.js; Planet.md, "Small discs"), its coverage over
+    // whatever the mods above added.
+    const discUniforms = newSmallDiscUniforms()
+    shaderMods.push(smallDiscShaderMod(discUniforms))
+    const modCount = shaderMods.length
+    surfaceMaterial.onBeforeCompile = (shader) => {
+      for (const fn of shaderMods) {
+        fn(shader)
       }
+    }
+    // Every body's onBeforeCompile reads the same; which mods it runs
+    // doesn't.  Read when the program is built, so after Rings chains its
+    // own onBeforeCompile (Saturn's ring shadow).
+    surfaceMaterial.customProgramCacheKey = function() {
+      return `${this.onBeforeCompile.toString()}|mods:${modCount}`
     }
 
     // Bump surface resolution from sphere()'s default (128 segs ≈ 16k tris,
@@ -483,12 +496,14 @@ export default class Planet extends Object {
     // by the star catalog.
     const surface = named(sphere({radius: this.props.radius.scalar, resolution: 512, matr: surfaceMaterial}), 'planet surface')
 
-    // Per-frame: refresh sun direction (view space) for the night-lights
-    // shader.  Sun lives at world origin; transform direction-from-planet-
-    // to-sun into the camera's view frame.
-    if (nightSunDirUniform) {
-      const _planetWorld = new Vector3()
-      surface.onBeforeRender = (renderer, scene, camera) => {
+    // Per-frame: the small disc's uniforms, and the sun direction (view
+    // space) for the night-lights shader.  Sun lives at world origin;
+    // transform direction-from-planet-to-sun into the camera's view frame.
+    const _planetWorld = new Vector3()
+    const radius = this.props.radius.scalar
+    surface.onBeforeRender = (renderer, scene, camera) => {
+      updateSmallDisc(discUniforms, renderer, camera, surface, radius)
+      if (nightSunDirUniform) {
         surface.getWorldPosition(_planetWorld)
         nightSunDirUniform.value.copy(_planetWorld).negate().normalize()
         nightSunDirUniform.value.transformDirection(camera.matrixWorldInverse)

@@ -171,7 +171,7 @@ for Jupiter by `texture_rotation` ([Body rotation](#body-rotation-iau-prime-meri
    - the J2000 → date precession rotation, for the mean elements and the IAU rotation models (`setDate`)
    - `animateSystem()` recurses the scene graph, setting orbit positions and body orientations (IAU pole and prime meridian; Earth's GMST), and turning the orbit lines to the date (asking for a rebuild when one is due)
    - `orbitPaths.pump()` runs queued orbit-line rebuilds, a few milliseconds a frame ([Orbit lines](#orbit-lines))
-   - If `targets.track` is on (`t`), calls `lookAtTarget()` each frame: the camera faces the target, whatever it is ([the target](#the-target))
+   - If `targets.track` is on (`t`), calls `lookAtTarget({keepRoll: true})` each frame: the camera turns to centre the target, whatever it is, by the shortest turn, so the view's roll stays as it is ([the target](#the-target))
 7. Camera-look tween update (`targets.tween`)
 8. `_applyCameraArrowKeys()` — apply held-key pitch/roll last so they always win
 9. Render: the scene into `_sceneRT` (linear, half-float, in exposure units), Cesium's layers composited into it, Earth's cloud shell over both ([Planet.md, clouds](js/scene/Planet.md#clouds)), then the atmosphere pass to the screen, which adds the sky and tone-maps once (PBR Neutral), then the label overlay.  See [HDR pipeline](#hdr-pipeline).
@@ -449,9 +449,13 @@ Camera orientation and position are separated across three input modes, all accu
 | Mouse drag | Free look — pitch (up/down) and yaw (left/right) around camera's local axes |
 | Option+drag | Orbit — rotates camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) |
 | ↑ / ↓ arrow keys (hold) | Pitch camera nose up/down |
-| ← / → arrow keys (hold) | Roll camera left/right |
-| `t` | Toggle continuous tracking: the camera faces the target every frame, following a place as its body turns ([the target](#the-target)) |
-| `c` | Snap look at current target |
+| ← / → arrow keys (hold) | Roll camera left/right (while tracking too) |
+| `t` | Toggle continuous tracking: the target stays centred every frame, following a place as its body turns, and the roll stays yours ([the target](#the-target)) |
+| `c` | Snap look at current target, squaring the roll to the ecliptic's up |
+| `j` / `k` / `l` | Reverse, slow down, speed up time: paused too, when the step is often set; the display shows it and resuming runs at it |
+| `-` / `=` (or `+`) | Exposure compensation down / up a third of a stop (EV), over the metered exposure; the readout shows "EV +1.3" for two seconds |
+| `e` | Reset the exposure compensation to 0 |
+| `[` / `]` | The stars' limiting magnitude, 0.5 a press (not the exposure) |
 | Click / tap a label (a star, planet, moon, asterism or place name) | Target it and do nothing else: `c` then faces it, `g` goes ([Picking labels](#picking-labels)) |
 | Double-click / double-tap a label | Go to it, as `g` does |
 | Double-click / double-tap elsewhere on a body | Land there |
@@ -620,10 +624,26 @@ the new link reloads to the same view
 ([js/permalink.md](js/permalink.md#the-cameras-frame)).
 
 `t` turns tracking on and off (`Shared.targets.track`): every frame,
-after the animation, the camera faces the target.  A place is placed on its
+after the animation, the camera turns to centre the target.  A place is placed on its
 body that frame, so tracking follows it round as the body turns; a body
 along its orbit; a star or an asterism holds still.  Changing the target
 while tracking tracks the new one.
+
+**Tracking centres the target and leaves the roll free.**  It used to
+call `camera.lookAt`, which squares the view to the scene's up every call
+and so locked the roll: whatever the user rolled the camera to (the arrow
+keys, the trackball) was undone the next frame, and to find a moment by
+running time forwards and backwards with the target centred, the user had
+to turn tracking off and re-roll by hand.  `lookAtTarget({keepRoll: true})`
+(`faceKeepingRoll.js`) turns the camera by the shortest rotation that
+brings the target to the view axis, about an axis square to both the old
+and the new view, with no twist about the view axis: the roll is whatever
+it was.  Seen against the ecliptic's up it drifts a few degrees as the
+target crosses the sky (the turn carries the frame along, parallel
+transport), and returns as time runs back over the same path; it is never
+forced to a value.  `c` still squares the view (`lookAt`).  While
+tracking the roll arrow keys work and pitch is left out (it would fight the
+centring); a pitch or yaw drag is undone by the next frame, a roll is kept.
 
 ### Picking labels
 
@@ -677,9 +697,9 @@ turns to it; Go and Enter travel
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
 | Milky Way | Its integrated light: a full-screen pass at the far plane that ray-marches a published structural model (discs, bulge and bar, arms, dust) in the galactocentric frame, into a cached target re-marched when the view moves by more than it can show, less the light the star catalogue draws as points round the Sun; the atmosphere pass draws it with the rest of the night sky's light (the zodiacal light, airglow) through the eye's response to extended light ([MilkyWay.md](js/scene/MilkyWay.md), [HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |
 | Star discs (the Sun, and any catalogue star travelled to) | A photosphere from physical parameters: temperature from class, blackbody colour and luminance, limb darkening by temperature, granulation at three scales, spots and faculae ([js/scene/Stars.md](js/scene/Stars.md)) |
-| Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
+| Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures; a few pixels across, antialiased and shaded per fragment as the sphere ([Planet.md, small discs](js/scene/Planet.md#small-discs)) |
 | Earth's clouds | A shell 6 km up on its own layer, drawn after the Cesium composite so it covers both sides: the date's NASA GIBS true colour unmixed into coverage, Lambert-lit in exposure units, shadowing the ground ([Planet.md, clouds](js/scene/Planet.md#clouds)) |
-| Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
+| Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)); one body's air, the one the camera is in, else the target's ([which body's air](js/scene/atmos/composition.md#which-bodys-air)) |
 | Saturn rings | Double-sided `RingGeometry` with texture |
 | Orbit paths | A wide line strip (`wideLines.js`, 1.5 px, additive, on the overlay layer after the atmosphere): the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
 | Labels | Canvas-rendered `SpriteSheet` compiled to a single `Points` geometry |
@@ -695,7 +715,7 @@ One linear brightness scale, one tone map ([js/scene/HDR.md](js/scene/HDR.md), #
 
 | Pass | Target | Holds |
 |---|---|---|
-| Scene | `_sceneRT`, RGBA16F | lit surfaces × the exposure the frame renders with (the target-keyed exposure × the metered gain; exposure-only tone mapping); emitted sources (the stars, the Sun's disc and glow) × the same gain before the buffer, pre-exposed (`hdr.js` `absoluteUniforms`; [HDR.md, pre-exposure](js/scene/HDR.md#pre-exposure)), with nothing under half-float's smallest normal value; display-referred content (the rings, a body's far point) through the inverse of the final tone map (`hdr.js` `sceneReferred`) |
+| Scene | `_sceneRT`, RGBA16F | lit surfaces × the exposure the frame renders with (the target-keyed exposure × the metered gain × the user's exposure compensation, 2^EV: [HDR.md](js/scene/HDR.md#user-exposure-compensation); exposure-only tone mapping); emitted sources (the stars, the Sun's disc and glow) × the same gain before the buffer, pre-exposed (`hdr.js` `absoluteUniforms`; [HDR.md, pre-exposure](js/scene/HDR.md#pre-exposure)), with nothing under half-float's smallest normal value; display-referred content (the rings, a body's far point) through the inverse of the final tone map (`hdr.js` `sceneReferred`) |
 | Cesium layers | `_cesiumRT` (8-bit) → `_sceneRT` | each body's Cesium frame (stored × Lambert, one path for every body), decoded into exposure units; its terrain distance (in alpha, `cesium/distance.js`) becomes depth, from below 20 km |
 | Atmosphere | screen | `PBR Neutral(sky + scene × T)`, the sky in exposure units; over it, in display values, the night sky's own light (the galaxy's march, the zodiacal light, airglow, through T) by the eye's response to extended light, while the meter reads it as light ([HDR.md, the eye and extended light](js/scene/HDR.md#the-eye-and-extended-light)) |
 | Overlay | screen | display values (labels, orbit paths, asterism and expansion lines, grids, the pick marker: `shared.js` `overlay`), after the exposure meter's readback, depth-tested against the scene |
@@ -718,7 +738,12 @@ single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
   switches where it has the same size on screen.  1 at 45°, so the choices
   there are unchanged; 0.021 at 1° (the mesh out to ~24,000 radii, which is
   1.7e12 m for Jupiter); more than 1 wider than 45°.  `CesiumLayers` scales the
-  distance the same way against `meshRange`.  Not scaled: the stars' LODs
+  distance the same way against `meshRange`.  The planet LOD is scaled by
+  the canvas too (`FovLOD({drawnSize})`, `meshReach`): the mesh until its
+  disc is smaller than the point (2 CSS px), never nearer than 500 radii,
+  and a few pixels across it's drawn antialiased and shaded as the sphere
+  ([Planet.md, small discs](js/scene/Planet.md#small-discs), #192).  Not
+  scaled: the stars' LODs
   (`Star`, `Stars.labelLOD`), whose distances are not a size threshold,
   and the places' own pixel-based LOD, which already reads the FOV.
 
@@ -969,9 +994,10 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/Celestiary.js` | Top-level controller, keyboard bindings |
 | `js/ThreeUI.js` | Three.js renderer/camera/controls wrapper |
 | `js/Loader.js` | Recursive JSON asset loader |
-| `js/Time.js` | Simulation clock with time-scale control, clamped to the supported dates (J2000 ± 6000 years) |
+| `js/Time.js` | Simulation clock with time-scale control (settable while paused: `j`/`k`/`l` and the panel's buttons; `onTimeScaleChange` tells the display), clamped to the supported dates (J2000 ± 6000 years) |
 | `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
+| `js/faceKeepingRoll.js` | `faceKeepingRoll(camera, point)`: the shortest turn that centres a world point, leaving the camera's roll; what tracking (`t`) calls |
 | `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment`; state token values (`parseTokenValue`, `formatTokenValue`) |
 | `js/targetPath.js` | The target's path in the hash: `targetPath`, `parseTargetPath`, `resolvePlace` (a body or a place), `slug` |
 | `js/store/appTokens.js` | The widgets drawer and its apps as state tokens (`apps`, `apps.<id>`; [design/URLs.md](design/URLs.md)) |
@@ -1014,6 +1040,8 @@ and the provider extension contract.
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
 | `js/scene/clouds/` | Earth's clouds: `cloudSource.js` (date to GIBS layer, unmixing; pure), `CloudMap.js` (loading, the coverage texture), `CloudShell.js` (the shell and its shader) |
 | `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |
+| `js/scene/smallDisc.js` | A body's disc a few pixels across: antialiased coverage and the sphere's shading per fragment, patched into the surface material ([Planet.md](js/scene/Planet.md#small-discs)) |
+| `js/scene/atmos/atmosphereBody.js` | Which body's air the atmosphere pass draws, and how far off it can |
 | `js/scene/Star.js` | A star: its light, its photosphere (`photosphere(props)`, `star-shaders.js`) and its limb glow |
 | `js/scene/stellar.js` | Stars' physics: temperature from class, blackbody colour and luminance, bolometric correction, limb darkening, granulation and spot laws ([Stars.md](js/scene/Stars.md)) |
 | `js/scene/starParams.js` | Every star's parameters: measured where published, else luminosity class, radius (Stefan-Boltzmann), mass and gravity from the catalogue; rotation (Roche, von Zeipel) and spots by type |
@@ -1044,6 +1072,7 @@ and the provider extension contract.
 | `js/scene/atmos/Atmosphere.js` | Atmosphere mesh + fullscreen post-process pass |
 | `js/scene/hdr.js` | The HDR pipeline's tone map (PBR Neutral), its inverse, `sceneReferred` for display-referred materials |
 | `js/scene/exposure.js` | Target-keyed exposure; the sky's scale in exposure units |
+| `js/scene/evCompensation.js` | The user's exposure compensation in stops: `renderExposure` (keyed × metered gain × 2^EV, the one place it meets the gain), `stepEv`, `clampEv`, `roundEv`, `formatEv` |
 | `js/scene/atmos/AtmospherePrecompute.js` | Bruneton transmittance + in-scatter LUT precomputation |
 
 ### AR sky view (`js/ar/`)

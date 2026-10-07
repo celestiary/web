@@ -19,6 +19,9 @@ export default class Time {
     /** Controlled by UI clicks.. timeScale is basically 2^steps. */
     this.timeScaleSteps = 0
 
+    /** Called, with no arguments, when the rate changes (onTimeScaleChange). */
+    this._scaleListeners = new Set
+
     const now = Date.now()
     this.startTime = now
     this.lastUpdate = now
@@ -83,28 +86,55 @@ export default class Time {
     this.timeScaleSteps = 0
     this.simTime = this.sysTime
     this.updateTime()
+    this._notifyScaleChange()
   }
 
 
-  /** @param delta -1, 0 or 1 for slower, reset or faster. */
+  /**
+   * Set the rate by 'j', 'k', 'l' and the time panel's buttons, paused or
+   * not: paused is when the step is often set, and resuming runs at it.
+   *
+   * @param delta -1, 0 or 1 for slower, reset or faster.
+   */
   changeTimeScale(delta) {
-    if (this.isPaused) {
-      return
-    }
     if (delta === 0) {
       this.timeScaleSteps = 0
     } else {
       this.timeScaleSteps = Math.min(Math.max(this.timeScaleSteps + delta, -MAX_TIME_SCALE_STEPS), MAX_TIME_SCALE_STEPS)
     }
     this.timeScale = (this.timeScaleSteps < 0 ? -1 : 1) * Math.pow(2, Math.abs(this.timeScaleSteps))
+    this._notifyScaleChange()
   }
 
 
   /**
+   * Run time the other way, paused or not.
    */
   invertTimeScale() {
     this.timeScale *= -1
     this.timeScaleSteps *= -1
+    this._notifyScaleChange()
+  }
+
+
+  /**
+   * Hear of a change of the rate (the display's cue: paused, the clock's
+   * own updates, which the display otherwise follows, are not coming).
+   *
+   * @param {Function} fn
+   * @returns {Function} Stops listening
+   */
+  onTimeScaleChange(fn) {
+    this._scaleListeners.add(fn)
+    return () => this._scaleListeners.delete(fn)
+  }
+
+
+  /** */
+  _notifyScaleChange() {
+    for (const fn of this._scaleListeners) {
+      fn()
+    }
   }
 
 
