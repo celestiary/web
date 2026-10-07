@@ -31,6 +31,13 @@ const TOE_OFFSET = 0.04
 // Display values at or over this are clamped before inverting: N(x) only
 // approaches 1, and N⁻¹(0.999) ≈ 58 is already far into the shoulder.
 export const MAX_DISPLAY = 0.999
+/**
+ * The toe's curvature: under TOE_END a grey x shows as this × x² (6.25),
+ * so its slope is twice that times x (eye.js, the extended response).
+ */
+export const NEUTRAL_TOE_CURVATURE = TOE_OFFSET / (TOE_END * TOE_END)
+/** Where the toe ends, in exposure units: a grey there shows as TOE_OFFSET (0.04). */
+export const NEUTRAL_TOE_END = TOE_END
 
 
 /**

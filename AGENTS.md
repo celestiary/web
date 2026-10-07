@@ -119,6 +119,10 @@ tried and dropped.
   quaternion (`cq=`).** Without one the whole fragment is ignored, and
   the app runs at the current real time. To test a date, set it with
   `c.time.setTime(ms)` after load.
+- **A permalink's `s=` letters flip settings from their defaults**
+  (`permalink.js` `SETTINGS_DEFAULTS`): `U` in `s=` turns the Milky Way
+  *off*, as `a`, `l`, `p`, `o` turn the overlays off. Harnesses that hide
+  the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`.
 - **Compare Cesium with celestiary numerically: `yarn parity`.**
   - Run `yarn build` first (with `CESIUM_ION_TOKEN` set); the script
     serves `docs/` and doesn't build. `yarn parity --out parity-out`

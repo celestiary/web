@@ -52,6 +52,11 @@
     "mieCoeff": 5e-6,
     "mieCoeff_unit": "1/m",
     "mieScaleHeight": "1.2e3 m",
-    "miePolarity": 0.8
+    "miePolarity": 0.8,
+    "airglow": {
+      "zenithMag": 22.4,
+      "height": "9e4 m",
+      "thickness": "1e4 m"
+    }
   }
 }
