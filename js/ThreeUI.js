@@ -36,6 +36,7 @@ import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneRef
 import {AIRGLOW_COLOR, ZODIACAL_STORE, airglowOf, zodiacalBrightest} from './scene/nightSky.js'
 import ZodiacalLight from './scene/ZodiacalLight.js'
 import {raysAllHitSphere} from './scene/viewCache.js'
+import {perf} from './perf/perf.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
@@ -170,6 +171,8 @@ export default class ThreeUi {
       onDblClick: (e) => this._fireDblClickCbs(e),
     })
 
+    // ?perf=1 only (js/perf, DESIGN.md "Perf overlay"); otherwise nothing.
+    perf.install(this)
     this.renderer.setAnimationLoop((time) => {
       this.renderLoop(time)
     })
@@ -361,6 +364,8 @@ export default class ThreeUi {
     // key events, never mid-frame, so begin() and end() always pair.
     const stats = this._perfVisible ? this._stats : null
     stats?.begin()
+    perf.frameBegin()
+    perf.begin('update')
     this.camera.updateMatrixWorld()
     if (this.clicked) {
       for (const i in this.clickCbs) {
@@ -403,6 +408,7 @@ export default class ThreeUi {
       this.arController.updateFrame()
     }
     this._publishEffectiveDragMode()
+    perf.end('update')
     // Render scene to RT, then composite atmosphere fullscreen pass to screen.
     // An active Cesium layer hides the body's own surface before the scene
     // render and composites Cesium's globe into the RT after it.
@@ -413,14 +419,29 @@ export default class ThreeUi {
     // Display-referred materials (stars, lines, labels) write the values the
     // final tone map gives back unchanged (hdr.js sceneReferred).
     sceneReferredUniform.value = this.hdr ? 1 : 0
+    perf.begin('scene')
     this.renderer.render(this.scene, this.camera)
+    perf.end('scene')
+    perf.begin('cesium')
     this.layers.composite()
-    this._drawClouds()
+    perf.end('cesium')
+    if (perf.begin('clouds')) {
+      this._drawClouds()
+      perf.end('clouds')
+    }
     this.renderer.setRenderTarget(null)
+    perf.begin('nightsky')
     this._updateNightSky()
+    perf.end('nightsky')
     this._updateAtmUniforms()
+    perf.begin('atmosphere')
+    perf.gate('atmosphere', this._atmMesh.material.uniforms.uAtmEnabled)
     this.renderer.render(this._atmScene, this._atmCamera)
-    this._meter()
+    perf.end('atmosphere')
+    if (perf.begin('meter')) {
+      this._meter()
+      perf.end('meter')
+    }
     // Labels last, over the atmosphere: the scene again, overlay layer
     // only, depth-tested against the scene depth the atmosphere pass wrote.
     // After the tone map, so as display values.
@@ -428,9 +449,13 @@ export default class ThreeUi {
     const autoClear = this.renderer.autoClear
     this.renderer.autoClear = false
     this.camera.layers.set(OVERLAY_LAYER)
-    this.renderer.render(this.scene, this.camera)
+    if (perf.begin('overlay')) {
+      this.renderer.render(this.scene, this.camera)
+      perf.end('overlay')
+    }
     this.camera.layers.set(0)
     this.renderer.autoClear = autoClear
+    perf.frameEnd()
     stats?.end()
   }
 
@@ -1302,6 +1327,8 @@ export default class ThreeUi {
     u.uMieBackPolarity.value = mie.backPolarity
     u.uMieForwardWeight.value = mie.forwardWeight
     u.uMieAlbedo.value.copy(mie.albedo)
+    u.uMiePeakPolarity.value.copy(mie.peakPolarity)
+    u.uMiePeakWeight.value.copy(mie.peakWeight)
 
     if (this._lastAtmPlanet !== atmTarget) {
       this._lastAtmPlanet = atmTarget

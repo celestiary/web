@@ -22,7 +22,7 @@ import {EYE_GLSL} from '../eye.js'
 import {EMITTED_GLSL, LUMINOUS_SHOULDER_GLSL, NEUTRAL_GLSL, absoluteUniforms} from '../hdr.js'
 import {NIGHT_SKY_GLSL} from '../nightSky.js'
 import {sphere} from '../shapes'
-import {MIE_PHASE_GLSL, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
+import {MIE_PHASE_GLSL, PEAK_TAU_MAX, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
 
 
 /**
@@ -414,6 +414,10 @@ export function newAtmospherePass() {
       uMieBackPolarity: {value: 0},
       uMieForwardWeight: {value: 1},
       uMieAlbedo: {value: new Vector3(1, 1, 1)},
+      // The narrow forward lobe, its asymmetry and share per channel (none
+      // by default; composition.md, "The dust's forward peak").
+      uMiePeakPolarity: {value: new Vector3()},
+      uMiePeakWeight: {value: new Vector3()},
       tTransmittance: {value: null},
       uUseTransmittanceLUT: {value: 0.0},
       tInScatter: {value: null},
@@ -512,6 +516,8 @@ uniform vec3      uMiePolarity;
 uniform float     uMieBackPolarity;
 uniform float     uMieForwardWeight;
 uniform vec3      uMieAlbedo;
+uniform vec3      uMiePeakPolarity;
+uniform vec3      uMiePeakWeight;
 uniform sampler2D tTransmittance;
 uniform float     uUseTransmittanceLUT;
 uniform sampler2D tInScatter;
@@ -657,10 +663,12 @@ float bruneton_encode_mu_v(float r, float mu_v, float rG, float rA, bool ground)
 
 // Trilinear in-scatter atlas lookup: single scattering (Rayleigh rgb, Mie
 // a; the phase functions apply at lookup), and the multiply-scattered
-// in-scatter (ms, rgb, isotropic) from its own atlas at the same place.
+// in-scatter (ms, rgb, isotropic) from its own atlas at the same place,
+// with in its a the broad lobes' extra single scattering of the delta-M
+// beam (AtmospherePrecompute precomputeInScatterMs).
 // Atlas: 64 r-slices × 32 μ_sun steps = 2048px wide, 512 μ_view steps tall.
 // Manual r-slice blend; GPU handles μ_sun/μ_view bilinear within each slice.
-vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground, out vec3 ms) {
+vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground, out vec4 ms) {
   float r_t    = clamp((r - uGroundRadius) / (uAtmosphereRadius - uGroundRadius), 0.0, 1.0);
   float r_f    = r_t * (R_SLICES - 1.0);
   float r0     = floor(r_f);
@@ -687,7 +695,7 @@ vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground, out vec3
 
   vec2 uv0 = vec2((r0 + mu_s_t) / R_SLICES, mu_v_t);
   vec2 uv1 = vec2((r1 + mu_s_t) / R_SLICES, mu_v_t);
-  ms = mix(texture2D(tInScatterMs, uv0).rgb, texture2D(tInScatterMs, uv1).rgb, rBlend);
+  ms = mix(texture2D(tInScatterMs, uv0), texture2D(tInScatterMs, uv1), rBlend);
   return mix(texture2D(tInScatter, uv0), texture2D(tInScatter, uv1), rBlend);
 }
 
@@ -708,12 +716,21 @@ ${STEP_INTEGRAL_GLSL}
 // density, as the tables do: e^(−h/H) below it put five times Earth's Mie
 // density at the bottom of the ground sphere's 2 km sag and doubled the
 // haze from 37 km.
-void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 ms, out vec3 T) {
+// As the tables (AtmospherePrecompute): the gas's and the multiply
+// scattered light through the delta-M extinction, the aerosol's narrow
+// lobe taken as unscattered, and Ts its transmittance; the Mie of the
+// direct beam through the true one; and in ms.a the broad lobes' extra of
+// the delta-M beam.  With no narrow lobe the two are one.
+void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out vec3 T, out vec3 Ts) {
   float ds = tMax / float(SEG_STEPS);
   vec3  totalR = vec3(0.0);
   float totalM = 0.0;
-  ms = vec3(0.0);
+  float extraM = 0.0;
+  vec3  kMieS = uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight);
+  vec3  sMieS = uMieCoeff * uMieAlbedo * (1.0 - uMiePeakWeight);
+  ms = vec4(0.0);
   T = vec3(1.0);
+  Ts = vec3(1.0);
   for (int i = 0; i < SEG_STEPS; i++) {
     vec3  pos = eye + dir * ((float(i) + 0.5) * ds);
     float r   = length(pos);
@@ -739,20 +756,27 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec3 ms, out
           vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rg;
     }
     vec3 sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r));
+    vec3 sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r));
     vec3 sigma = uRayleigh * dR + vec3(uMieCoeff * dM);
+    vec3 sigmaScaled = uRayleigh * dR + kMieS * dM;
     vec3 g     = T * stepIntegral(sigma, ds);
+    vec3 gs    = Ts * stepIntegral(sigmaScaled, ds);
     vec3 w     = g * sunT;
-    totalR += dR * w;
+    vec3 ws    = gs * sunTs;
+    totalR += dR * ws;
     totalM += dM * w.r;
+    extraM += dM * (ws.r - w.r);
     // The light scattered twice or more, isotropic: the step's scattering
     // coefficient times the multiple-scattering factor there
     // (precomputeMultiScatter).
     vec3 psi = texture2D(tMultiScatter,
         vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rgb;
-    ms += (uRayleigh * dR + uMieCoeff * uMieAlbedo * dM) * psi * g;
+    ms.rgb += (uRayleigh * dR + sMieS * dM) * psi * gs;
     T *= exp(-sigma * ds);
+    Ts *= exp(-sigmaScaled * ds);
   }
   inS = vec4(uRayleigh * totalR, uMieCoeff * totalM);
+  ms.a = uMieCoeff * extraM;
 }
 
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
@@ -763,6 +787,24 @@ vec2 rsi(vec3 r0, vec3 rd, float sr) {
   if (d < 0.0) return vec2(1e5, -1e5);
   return vec2((-b - sqrt(d)) / (2.0*a),
               (-b + sqrt(d)) / (2.0*a));
+}
+
+// The narrow lobe's optical depth on the light's path to the eye, for its
+// orders of scattering (miePeakPhase; composition.md, "The dust's forward
+// peak"): the geometric mean of the view ray's (from its delta-M and true
+// transmittances, whose ratio is e^(albedo·f·τ_Mie)) and the Sun's from
+// where the ray starts in the air.  Symmetric in the two, as the light's
+// transmission is (reciprocity).  None with the Sun down there.
+vec3 peakDepth(vec3 start, vec3 T, vec3 Ts) {
+  float r = length(start);
+  vec2  pS = rsi(start, uSunDirection, uGroundRadius);
+  bool  sunDown = r >= uGroundRadius ? (pS.x > 0.0 && pS.x < pS.y) : dot(start, uSunDirection) < 0.0;
+  if (sunDown) return vec3(0.0);
+  vec2  od = texture2D(tTransmittance, vec2(max(r - uGroundRadius, 0.0) / (uAtmosphereRadius - uGroundRadius),
+      dot(start / r, uSunDirection) * 0.5 + 0.5)).rg;
+  vec3  sun  = uMieAlbedo * uMiePeakWeight * uMieCoeff * od.g;
+  vec3  view = log(max(Ts, vec3(1.0e-30)) / max(T, vec3(1.0e-30)));
+  return min(sqrt(max(sun * view, vec3(0.0))), vec3(${PEAK_TAU_MAX.toFixed(1)}));
 }
 
 vec4 scatter(
@@ -987,12 +1029,16 @@ void main() {
     bool  atHorizon = underHorizon && (isGap || pastAtmosphere);
 
     vec4  inS;
-    vec3  inSMs;
+    vec4  inSMs;
     vec3  transmittance;
+    // The delta-M beam's (marchSegment): for the narrow lobe's path, below.
+    vec3  transmittanceS;
     // For the eye-adaptation boost, below: the eye's altitude.
     float camAlt = rEye - uGroundRadius;
+    // The delta-M scaled Mie extinction (AtmospherePrecompute).
+    vec3  kMieS = uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight);
     if (shortRay) {
-      marchSegment(eyePos, rayDir, tMax, inS, inSMs, transmittance);
+      marchSegment(eyePos, rayDir, tMax, inS, inSMs, transmittance, transmittanceS);
     } else if (eyeBelow) {
       // From below the sphere: the ray to where it leaves the sphere, then
       // the table from there.  A ray under the horizon (a gap, or a body
@@ -1007,15 +1053,21 @@ void main() {
       vec3  zenExit = normalize(eyePos + rayDir * tExit);
       float mu_sExit = dot(zenExit, uSunDirection);
       vec4  inSBelow;
-      vec3  msBelow;
-      vec3  msAbove;
+      vec4  msBelow;
+      vec4  msAbove;
       vec3  tBelow;
-      marchSegment(eyePos, rayDir, tExit, inSBelow, msBelow, tBelow);
+      vec3  tBelowS;
+      marchSegment(eyePos, rayDir, tExit, inSBelow, msBelow, tBelow, tBelowS);
       vec4  inSAbove = sampleInScatter(uGroundRadius, mu_exit, mu_sExit, false, msAbove);
       vec2  odAbove  = texture2D(tTransmittance, transmittanceUV(uGroundRadius, mu_exit, uGroundRadius, uAtmosphereRadius)).rg;
-      inS = inSBelow + vec4(tBelow * inSAbove.rgb, tBelow.r * inSAbove.a);
-      inSMs = msBelow + tBelow * msAbove;
+      inS = inSBelow + vec4(tBelowS * inSAbove.rgb, tBelow.r * inSAbove.a);
+      // The table's delta-M single scattering (its a and the extra in
+      // msAbove.a) through the segment's delta-M transmittance, less the
+      // direct beam's through the true one.
+      inSMs = msBelow + vec4(tBelowS * msAbove.rgb,
+          tBelowS.r * (inSAbove.a + msAbove.a) - tBelow.r * inSAbove.a);
       transmittance = tBelow * exp(-(uRayleigh * odAbove.r + vec3(uMieCoeff * odAbove.g)));
+      transmittanceS = tBelowS * exp(-(uRayleigh * odAbove.r + kMieS * odAbove.g));
     } else {
       // Use the ray's atmosphere entry point as the LUT index.
       // When camera is inside atmosphere: t_entry=0 → entryPos=eyePos (camera).
@@ -1046,15 +1098,24 @@ void main() {
       // once exposure stopped washing them out.
       vec2 odView = texture2D(tTransmittance, transmittanceUV(r_e, mu_lut, uGroundRadius, uAtmosphereRadius)).rg;
       transmittance = exp(-(uRayleigh * odView.r + vec3(uMieCoeff * odView.g)));
+      transmittanceS = exp(-(uRayleigh * odView.r + kMieS * odView.g));
     }
     float mu    = dot(rayDir, uSunDirection);
     float pRlh  = 3.0/(16.0*PI) * (1.0 + mu * mu);
-    // The Mie phase per channel (miePhase: Cornette-Shanks, two lobes), and
-    // the dust's single-scattering albedo: the atlas's Mie is what the beam
-    // lost, of which the albedo's share was scattered.  Then the multiply
-    // scattered light, isotropic, from its own atlas.
-    vec3 pMie   = miePhase(mu, uMiePolarity, uMieBackPolarity, uMieForwardWeight) * uMieAlbedo;
-    vec3 scattered = uSunIntensity * (pRlh * inS.rgb + pMie * inS.a + inSMs);
+    // The Mie phase per channel (miePhase: Cornette-Shanks, the broad
+    // lobes; miePeakPhase, the narrow one), and the dust's single-scattering
+    // albedo: the atlas's Mie is what the beam lost, of which the albedo's
+    // share was scattered.  Then the broad lobes' extra of the delta-M beam
+    // (inSMs.a), and the multiply scattered light, isotropic, from its own
+    // atlas (composition.md, "The dust's forward peak").
+    vec3 pBroad = miePhase(mu, uMiePolarity, uMieBackPolarity, uMieForwardWeight);
+    vec3 pPeak  = vec3(0.0);
+    if (max(uMiePeakWeight.r, max(uMiePeakWeight.g, uMiePeakWeight.b)) > 0.0) {
+      pPeak = miePeakPhase(mu, uMiePeakPolarity, peakDepth(eyePos + rayDir * t_entry, transmittance, transmittanceS));
+    }
+    vec3 pMie   = (uMiePeakWeight * pPeak + (1.0 - uMiePeakWeight) * pBroad) * uMieAlbedo;
+    vec3 scattered = uSunIntensity * (pRlh * inS.rgb + pMie * inS.a
+        + (1.0 - uMiePeakWeight) * pBroad * uMieAlbedo * inSMs.a + inSMs.rgb);
 
     // The transmittance is the physical one, whole: the stars behind the
     // day sky are hidden by its light, not by a boost, now that they're in
@@ -1107,7 +1168,7 @@ void main() {
           (isGap ? 1.0 : 0.0) + (pastAtmosphere ? 2.0 : 0.0) + (shortRay ? 4.0 : 0.0) + (eyeBelow ? 8.0 : 0.0)
           + (underHorizon ? 16.0 : 0.0), 1.0);
       else if (uDebug < 4.5) gl_FragColor = inS;
-      else if (uDebug < 5.5) gl_FragColor = vec4(inSMs, 1.0);
+      else if (uDebug < 5.5) gl_FragColor = inSMs;
       else gl_FragColor = vec4(mu_e, dot(normalize(eyePos), uSunDirection), camAlt, texture2D(tDiffuse, vUv).r);
       return;
     }
