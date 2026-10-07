@@ -234,3 +234,68 @@ describe('the rate while paused', () => {
     expect(heard).toBe(5)
   })
 })
+
+
+describe('setRate and setPaused (a link\'s clock)', () => {
+  it('sets the rate the keys reach, and says so', () => {
+    const time = new Time
+    let heard = 0
+    time.onTimeScaleChange(() => heard++)
+    time.setRate(8)
+    expect([time.timeScale, time.timeScaleSteps]).toEqual([8, 3])
+    time.setRate(-4)
+    expect([time.timeScale, time.timeScaleSteps]).toEqual([-4, -2])
+    time.setRate(1)
+    expect([time.timeScale, time.timeScaleSteps]).toEqual([1, 0])
+    expect(heard).toBe(3)
+  })
+
+  it('l and k go on from it, as from the keys\' own', () => {
+    const time = new Time
+    time.setRate(16)
+    time.changeTimeScale(1)
+    expect(time.timeScale).toBe(32)
+    time.setRate(-16)
+    time.changeTimeScale(-1)
+    expect(time.timeScale).toBe(-32)
+  })
+
+  it('snaps to a power of two, within the range, and a bad one is real time', () => {
+    const time = new Time
+    time.setRate(10)
+    expect(time.timeScale).toBe(8)
+    time.setRate(1e30)
+    expect(time.timeScale).toBe(2 ** MAX_TIME_SCALE_STEPS)
+    time.setRate(0.2)
+    expect(time.timeScale).toBe(1)
+    for (const bad of [0, NaN, Infinity, undefined]) {
+      time.setRate(8)
+      time.setRate(bad)
+      expect([time.timeScale, time.timeScaleSteps]).toEqual([1, 0])
+    }
+  })
+
+  it('pauses and resumes to a given state, saying so once per change', () => {
+    const time = new Time
+    let heard = 0
+    time.onTimeScaleChange(() => heard++)
+    time.setPaused(false)
+    expect(heard).toBe(0)
+    time.setPaused(true)
+    time.setPaused(true)
+    expect(time.isPaused).toBe(true)
+    expect(heard).toBe(1)
+    time.setRate(4)
+    time.setPaused(false)
+    expect(time.isPaused).toBe(false)
+    expect(time.timeScale).toBe(4)
+  })
+
+  it('setting the date says so too, for the link', () => {
+    const time = new Time
+    let heard = 0
+    time.onTimeScaleChange(() => heard++)
+    time.setTime(0)
+    expect(heard).toBe(1)
+  })
+})

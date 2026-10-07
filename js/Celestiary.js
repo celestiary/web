@@ -16,10 +16,13 @@ import * as Shapes from './scene/shapes'
 import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToLocal, worldToLatLngAlt} from './coords'
-import {decodePermalink, decodeSettings, encodePermalink, pathFromFragment, permalinkHref} from './permalink'
+import {
+  decodePermalink, decodeSettings, decodeTimeToken, encodePermalink, encodeTimeToken, pathFromFragment, permalinkHref,
+} from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry} from './search/commitEntry'
 import {clampEv, stepEv} from './scene/evCompensation'
+import {clampStarMag, stepStarMag} from './scene/starMagnitude'
 import {fetchPlaces} from './scene/Places'
 import {parseTargetPath, resolvePlace, slug, targetFramePath, targetPath} from './targetPath'
 import {elt} from './utils'
@@ -83,6 +86,10 @@ export default class Celestiary {
     this._permalinkTimer = null
     // Hear of a change of the exposure compensation (onExposureCompensation).
     this._evListeners = new Set
+    // And of the stars' setting (onStarMagnitude).
+    this._starMagListeners = new Set
+    // The link holds the clock's pause, rate and date.
+    this.time.onTimeScaleChange(() => this._schedulePermalinkUpdate())
     // Callbacks waiting for a body to load, by name (_loadBody).
     this._bodyWaiters = {}
     // AR (mobile sky-view).  Constructed lazily — most users won't enter
@@ -139,6 +146,40 @@ export default class Celestiary {
   /** @param {number} steps Thirds of a stop; positive for brighter, 0 resets */
   stepExposureCompensation(steps) {
     this.setExposureCompensation(steps === 0 ? 0 : stepEv(this.ui.exposureCompensation(), steps))
+  }
+
+
+  /**
+   * Set the stars' setting (`[` and `]`; starMagnitude.js): magnitudes over
+   * the naked eye's limit, 0 by default.  A change is announced to the
+   * readout (onStarMagnitude) and written to the link.
+   *
+   * @param {number} mag Magnitudes, held to the range
+   */
+  setStarMagnitude(mag) {
+    const next = clampStarMag(mag)
+    if (next === this.ui.starMagnitudeOffset()) {
+      return
+    }
+    this.ui.setStarMagnitudeOffset(next)
+    this._starMagListeners.forEach((fn) => fn(next))
+    this._schedulePermalinkUpdate()
+  }
+
+
+  /** @param {number} steps Half magnitudes; positive for more stars */
+  stepStarMagnitude(steps) {
+    this.setStarMagnitude(stepStarMag(this.ui.starMagnitudeOffset(), steps))
+  }
+
+
+  /**
+   * @param {Function} fn Called with the new setting, magnitudes, on a change
+   * @returns {Function} Stops listening
+   */
+  onStarMagnitude(fn) {
+    this._starMagListeners.add(fn)
+    return () => this._starMagListeners.delete(fn)
   }
 
 
@@ -310,6 +351,7 @@ export default class Celestiary {
     if (pl) {
       // Position planets at the saved time before goTo() orients the platform
       this.time.setTime(fromJulianDay(pl.d2000 + J2000_JD))
+      this._restoreClock(pl)
       this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
       this.ui.scene.updateMatrixWorld()
       try {
@@ -317,7 +359,11 @@ export default class Celestiary {
       } catch (e) {
         console.error('Permalink restore failed:', e)
       }
-      this._resolveTarget(resolved, (target) => this.scene.setTarget(target, {look: false}))
+      this._resolveTarget(resolved, (target) => {
+        this.scene.setTarget(target, {look: false})
+        // Tracking is on top of the target, so it follows it.
+        this.scene.setTracking(pl.settings.T)
+      })
     } else {
       this._goToResolved(resolved, frame)
     }
@@ -393,6 +439,24 @@ export default class Celestiary {
     Shared.targets.tweenNextFn = null
     this.ui.setFov(pl.fov)
     this.setExposureCompensation(pl.ev)
+    this.setStarMagnitude(pl.sm)
+  }
+
+
+  /**
+   * Put the clock back as a link had it: paused or running, and at its
+   * rate (the `time:` token; none is running at real time).  The date is
+   * set already.  A link restores the clock whole, as it does `ev=`: one
+   * without the token runs at real time.
+   *
+   * @param {object} pl The decoded link
+   */
+  _restoreClock(pl) {
+    const {paused, rate} = decodeTimeToken(pl.tokens.time)
+    this.time.setRate(rate)
+    this.time.setPaused(paused)
+    // The time panel's React state.
+    this.setIsPaused(this.time.isPaused)
   }
 
 
@@ -672,11 +736,13 @@ export default class Celestiary {
         'Info')
     // The stars' limiting magnitude at a dark site (HDR.md), stepped as
     // Celestia steps it: 6.5 is the naked eye's.
-    k.map('[', () => this.ui.setLimitingMagnitude(this.ui.userLimitingMagnitude() - 0.5),
+    // The setting is the limit's offset from that, 0 by default, shown as
+    // "Stars +1.0 mag" and in the link as sm= (starMagnitude.js).
+    k.map('[', () => this.stepStarMagnitude(-1),
         'Fewer stars (limiting magnitude down 0.5)',
         undefined,
         'Info')
-    k.map(']', () => this.ui.setLimitingMagnitude(this.ui.userLimitingMagnitude() + 0.5),
+    k.map(']', () => this.stepStarMagnitude(1),
         'More stars (limiting magnitude up 0.5)',
         undefined,
         'Info')
@@ -1051,9 +1117,15 @@ export default class Celestiary {
     if (settings && this.ar && this.ar.isActive()) {
       settings.A = true
     }
+    // The clock when it isn't running at real time (the `time:` token), then
+    // the drawer and the apps.
+    const tokens = {
+      time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
+      ...encodeAppTokens(this.useStore.getState().widgets),
+    }
     return encodePermalink(
-        path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings,
-        encodeAppTokens(this.useStore.getState().widgets), from, this.ui.exposureCompensation())
+        path, d2000, lat, lng, alt, cam.quaternion, cam.fov, settings, tokens, from,
+        this.ui.exposureCompensation(), this.ui.starMagnitudeOffset())
   }
 
 
