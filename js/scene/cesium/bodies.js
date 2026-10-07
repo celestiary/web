@@ -97,9 +97,11 @@ export const CESIUM_BODIES = {
     // mosaic, scaled (Planet.md).
     textureGain: 1.3,
     // ion's copy of the mosaic is stored darker than NASA Trek's, which
-    // celestiary's texture is from: 0.82× (median over the lit disk, both
-    // rendered alike; Mars's two copies measure 0.99×).
-    imageryScale: 0.82,
+    // celestiary's texture is from: 0.78× (median over the lit disk, both
+    // rendered alike, parity's moon-quarter at 1.00; Mars's two copies
+    // measure 0.99×).  It was 0.82 measured with the 2% night floor, which
+    // lit the day side too (2% at full sun, 11% by the terminator).
+    imageryScale: 0.78,
   },
   mars: {
     ellipsoid: 'MARS',

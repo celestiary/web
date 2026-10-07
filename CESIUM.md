@@ -555,6 +555,13 @@ earthlit mare (~4e-6).
 - The regolith's opposition surge, up to ~2× for light returned toward its
   source, is left out, as the sunlit side's Lambert leaves out its own
   phase law.
+- The floor had lit the day side too (+2% at full sun, +11% by the
+  terminator), and the Moon's `imageryScale` (ion's copy of the mosaic
+  against Trek's) had been measured with it, at 0.82.  Measured again
+  without it, it is 0.78: parity's `moon-quarter` median ratio 1.00 (it was
+  0.97, and 0.93 with the floor gone and the old scale) and its terminator
+  profile 18.8 / 4.9 (was 23.6 / 6.9).  Its ratio band moved to 0.97-1.03
+  to centre on that.
 - Mars keeps its floor.
 - At EV +10 the earthlit side of #192's view shows its maria and craters
   smoothly, at 10-40 of 255.

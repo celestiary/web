@@ -381,7 +381,7 @@ Under 24 px of radius, and farther than 20 radii:
   (0.12 vs 0.15), so `moon.json` sets `texture_gain` 1.3 (mean 76/255 vs
   Mars's 121, scaled by the albedo ratio) and Cesium's Moon takes the same
   gain (`CESIUM_BODIES.moon.textureGain`), over ion's copy being stored
-  0.82× as bright (`imageryScale`).
+  0.78× as bright (`imageryScale`; CESIUM.md, "Precision").
 
 ## Texture longitudes
 
