@@ -91,6 +91,7 @@ global.fetch = () => Promise.resolve({ok: false, json: () => Promise.resolve({})
 
 class StubThreeUI {
   constructor(container, animCb) {
+    this.animCb = animCb
     this.scene = new Scene()
     this.camera = new PerspectiveCamera(45, 1, 1, 1e20)
     this.camera.platform = new Object3D()
@@ -109,6 +110,13 @@ class StubThreeUI {
   }
   addClickCb() {}
   setLimitingMagnitude() {}
+  setExposureCompensation(ev) {
+    this._ev = ev
+  }
+
+  exposureCompensation() {
+    return this._ev ?? 0
+  }
 
   userLimitingMagnitude() {
     return 6.5
@@ -939,5 +947,136 @@ describe('the target in the link', () => {
     }
     app.keys.onKeyDown({key: 't'})
     expect(Shared.targets.track).toBe(false)
+  })
+
+  describe('tracking leaves the roll to the user', () => {
+    /**
+     * @param {object} app
+     * @returns {number} Radians the camera is rolled about its view axis
+     *   from the roll `lookAt` gives (the ecliptic's up)
+     */
+    function rollOf(app) {
+      app.ui.scene.updateMatrixWorld()
+      const cam = app.ui.camera
+      const ref = cam.clone()
+      ref.parent = cam.parent
+      ref.lookAt(app.scene.labelPosition(AUSTIN))
+      ref.updateMatrixWorld()
+      const view = new Vector3(0, 0, -1).applyQuaternion(cam.getWorldQuaternion(new Quaternion()))
+      const up = (c) => new Vector3(0, 1, 0).applyQuaternion(c.getWorldQuaternion(new Quaternion()))
+      const a = up(cam)
+      const b = up(ref)
+      return Math.atan2(a.clone().cross(b).dot(view), a.dot(b))
+    }
+
+    it('the animation callback centres the target and keeps a roll, where "c" squares the view', async () => {
+      const app = await open(TEST_FRAGMENT)
+      app.animation.animate = () => {} // Earth's surface builds in the real one
+      app.scene.setTarget(AUSTIN, {look: false})
+      app.keys.onKeyDown({key: 't'})
+      app.ui.animCb(app.ui.scene)
+      expect(Math.abs(rollOf(app))).toBeLessThan(1)
+      // Roll the view as the arrow keys do, 0.5 radians.
+      app.ui.camera.rotateZ(0.5)
+      const rolled = rollOf(app)
+      expect(Math.abs(rolled)).toBeGreaterThan(0.3)
+      const earth = app.scene.objects.earth
+      const worldQuat = () => app.ui.camera.getWorldQuaternion(new Quaternion())
+      for (let step = 0; step < 4; step++) {
+        const before = worldQuat()
+        earth.rotateY(Math.PI / 48)
+        app.ui.scene.updateMatrixWorld()
+        app.ui.animCb(app.ui.scene)
+        app.ui.scene.updateMatrixWorld()
+        const camPos = app.ui.camera.getWorldPosition(new Vector3())
+        const view = new Vector3(0, 0, -1).applyQuaternion(worldQuat())
+        expect(view.angleTo(app.scene.labelPosition(AUSTIN).sub(camPos))).toBeLessThan(1e-4)
+        // The camera turned to follow the target by a swing alone: about an
+        // axis square to the view, no twist about it (where lookAt, resetting
+        // the roll, twists).
+        const turn = worldQuat().multiply(before.invert())
+        const angle = 2 * Math.acos(Math.min(1, Math.abs(turn.w)))
+        expect(angle).toBeGreaterThan(0.01)
+        const axis = new Vector3(turn.x, turn.y, turn.z).normalize()
+        expect(Math.abs(axis.dot(view))).toBeLessThan(0.02)
+      }
+      // 'c' still squares the view to the ecliptic's up.
+      app.keys.onKeyDown({key: 'c'})
+      expect(Math.abs(rollOf(app))).toBeLessThan(1e-6)
+    })
+  })
+
+  describe('the time step while paused', () => {
+    it('j, k and l set it with the clock stopped, and resuming runs at it', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const time = app.time
+      time.togglePause()
+      const start = time.simTime
+      let heard = 0
+      time.onTimeScaleChange(() => heard++)
+      app.keys.onKeyDown({key: 'l'})
+      app.keys.onKeyDown({key: 'l'})
+      expect(time.timeScale).toBe(4)
+      app.keys.onKeyDown({key: 'k'})
+      expect(time.timeScale).toBe(2)
+      app.keys.onKeyDown({key: 'j'})
+      expect(time.timeScale).toBe(-2)
+      expect(heard).toBe(4)
+      expect(time.isPaused).toBe(true)
+      expect(time.simTime).toBe(start)
+      time.togglePause()
+      expect(time.timeScale).toBe(-2)
+    })
+  })
+
+  describe('the exposure compensation', () => {
+    it('= and - step a third of a stop, + is =, e resets, and listeners hear each change', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const heard = []
+      const stop = app.onExposureCompensation((ev) => heard.push(ev))
+      expect(app.ui.exposureCompensation()).toBe(0)
+      for (let i = 0; i < 3; i++) {
+        app.keys.onKeyDown({key: '='})
+      }
+      expect(app.ui.exposureCompensation()).toBe(1)
+      app.keys.onKeyDown({key: '+'})
+      expect(app.ui.exposureCompensation()).toBeCloseTo(4 / 3, 10)
+      app.keys.onKeyDown({key: '-'})
+      app.keys.onKeyDown({key: '-'})
+      expect(app.ui.exposureCompensation()).toBeCloseTo(2 / 3, 10)
+      app.keys.onKeyDown({key: 'e'})
+      expect(app.ui.exposureCompensation()).toBe(0)
+      // A reset at 0 changes nothing, and says nothing.
+      app.keys.onKeyDown({key: 'e'})
+      expect(heard.length).toBe(7)
+      expect(heard[heard.length - 1]).toBe(0)
+      stop()
+      app.keys.onKeyDown({key: '='})
+      expect(heard.length).toBe(7)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('[ and ] are still the stars\' limiting magnitude, not the exposure', async () => {
+      const app = await open(TEST_FRAGMENT)
+      expect(app.keys.msgs['[']).toMatch(/stars/i)
+      expect(app.keys.msgs['-']).toMatch(/exposure/i)
+      expect(app.keys.msgs['=']).toMatch(/exposure/i)
+      expect(app.keys.msgs['e']).toMatch(/exposure/i)
+    })
+
+    it('is in the link as ev=, and a link restores it, and one without sets it back to 0', async () => {
+      const app = await open(TEST_FRAGMENT)
+      expect(app.permalink()).not.toContain(';ev=')
+      app.setExposureCompensation(4 / 3)
+      const link = app.permalink()
+      expect(link).toContain(';fov=30deg;ev=1.33')
+      const reloaded = await open(link)
+      expect(reloaded.ui.exposureCompensation()).toBeCloseTo(1.33, 10)
+      // A hand-written one, with the sign.
+      const typed = await open(`${TEST_FRAGMENT};ev=+2.5`)
+      expect(typed.ui.exposureCompensation()).toBe(2.5)
+      const cleared = await open(TEST_FRAGMENT)
+      expect(cleared.ui.exposureCompensation()).toBe(0)
+    })
   })
 })

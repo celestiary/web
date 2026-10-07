@@ -244,6 +244,26 @@ button {
   padding: 3px;
 }
 
+/* The exposure compensation, shown briefly when it changes (ui/ExposureReadout.jsx). */
+#ev-id {
+  position: fixed;
+  bottom: 4em;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.3em 0.8em;
+  border-radius: 1em;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 1.1em;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+#ev-id.shown {
+  opacity: 1;
+}
+
 #time-scale-id, #text-buttons {
   margin: 0.5em 0
 }
