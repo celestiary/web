@@ -1,4 +1,5 @@
-import {depthDistance, depthOf, rayEnd} from './rayEnd.js'
+import {readFileSync} from 'fs'
+import {depthDistance, depthOf, rayEnd, raySphere, shellAhead} from './rayEnd.js'
 
 
 // The camera's far plane: six galaxy radii (ThreeUI.configLargeScene).
@@ -83,5 +84,65 @@ describe('rayEnd', () => {
     const {tMaxErr} = depthDistance(depthSample, near, FAR)
     const exit = d + (tMaxErr / 2)
     expect(rayEnd({depthSample, near, far: FAR, exitDistance: exit, inside: false})).toBe('ground')
+  })
+})
+
+
+describe('shellAhead', () => {
+  /**
+   * A ray from `dist` metres from the planet's centre, `offDeg` degrees off
+   * the direction to its centre.
+   *
+   * @returns {Array<number>} The ray's interval through the atmosphere's shell
+   */
+  function shellInterval(dist, offDeg) {
+    const off = offDeg * Math.PI / 180
+    // The eye on +z, the centre at the origin: toward it is -z.
+    return raySphere([0, 0, dist], [Math.sin(off), 0, -Math.cos(off)], ATM_TOP)
+  }
+
+  it('takes a planet ahead, seen from orbit, as a hit', () => {
+    expect(shellAhead(shellInterval(EARTH_R + 4.6e6, 0))).toBe(true)
+    expect(shellAhead(shellInterval(EARTH_R + 4.6e6, 30))).toBe(true)
+  })
+
+  it('takes every ray from inside the air as a hit', () => {
+    for (const off of [0, 60, 90, 120, 180]) {
+      expect(shellAhead(shellInterval(EARTH_R + 1e3, off))).toBe(true)
+    }
+  })
+
+  it('takes a ray whose line misses the shell as a miss', () => {
+    expect(shellAhead(shellInterval(EARTH_R + 4.6e6, 60))).toBe(false)
+  })
+
+  describe('the "blue Earth": the shell behind the eye is no hit', () => {
+    // The user's views, looking toward the Sun from over Earth's day side
+    // with Earth behind the camera: the pass drew Earth's atmosphere
+    // mirrored through the eye, a flat blue disc.
+    const cases = [
+      // [name, eye's altitude, ray's angle off the direction to the centre]
+      ['from 222 km, straight up', 2.22524e5, 180],
+      ['from 222 km, 40° over the local horizontal', 2.22524e5, 130],
+      ['from 4.6 Mm, the view\'s axis', 4.606397e6, 151],
+      ['from 78 Mm, the disc\'s middle', 7.8475698e7, 178],
+    ]
+    for (const [name, alt, off] of cases) {
+      it(name, () => {
+        const interval = shellInterval(EARTH_R + alt, off)
+        // Its line does meet the shell, both distances behind the eye: the
+        // old test (near <= far) took it for a hit.
+        expect(interval[0]).toBeLessThanOrEqual(interval[1])
+        expect(interval[1]).toBeLessThan(0)
+        expect(shellAhead(interval)).toBe(false)
+      })
+    }
+  })
+
+  it('is what the pass tests a ray\'s atmosphere with', () => {
+    const source = readFileSync('./js/scene/atmos/Atmosphere.js', 'utf8')
+    expect(source).toContain('${SHELL_AHEAD_GLSL}')
+    expect(source).toContain('if (!shellAhead(pAtm))')
+    expect(source).not.toContain('if (pAtm.x > pAtm.y)')
   })
 })
