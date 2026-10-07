@@ -613,8 +613,8 @@ draws, not just what it selects.
   makes none, and `getUniformLocation` comes only with a new shader's
   link).  Each is a round trip to the GPU process that waits for the
   shadow's queued frame.  Tracking that scalar state from the recorded calls,
-  as the checkpoint already tracks bindings, would make none; proposed
-  upstream with #189.
+  as the checkpoint already tracks bindings, would make none; a patch
+  for portal-netgl is proposed in #189's Cesium PR.
 
 ## Files
 

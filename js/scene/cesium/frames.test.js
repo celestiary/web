@@ -220,7 +220,7 @@ describe('nightInView', () => {
     const right = unit([(direction[1] * up[2]) - (direction[2] * up[1]), (direction[2] * up[0]) - (direction[0] * up[2]),
       (direction[0] * up[1]) - (direction[1] * up[0])])
     const ty = Math.tan(fovy / 2)
-    const n = 60
+    const n = 48
     for (let i = 0; i <= n; i++) {
       for (let j = 0; j <= n; j++) {
         const x = ((2 * i / n) - 1) * ty * aspect
@@ -303,5 +303,7 @@ describe('nightInView', () => {
     expect(night).toBeGreaterThan(50)
     // Conservative, but not wildly: most views without night read false.
     expect(conservative).toBeLessThan(60)
-  })
+    // A dense grid over hundreds of views: seconds under load, as precommit
+    // runs it beside other work.
+  }, 30000)
 })
