@@ -6,7 +6,10 @@ import {
   cameraToEcefView,
   cesiumFov,
   ecefToBody,
+  angleToArc,
   ellipsoidCameraPosition,
+  NIGHT_LIGHT_EDGE,
+  nightInView,
   nightVisible,
   sunLightDirectionEcef,
 } from './frames.js'
@@ -170,5 +173,135 @@ describe('nightVisible', () => {
     const at = (angle) => [(R * Math.cos(angle * deg)) + 1, R * Math.sin(angle * deg), 0]
     expect(nightVisible(at(86), light, R)).toBe(true)
     expect(nightVisible(at(60), light, R)).toBe(false)
+  })
+})
+
+
+describe('angleToArc', () => {
+  const deg = Math.PI / 180
+  it('is the angle to the arc where the point projects inside it, else to the nearer end', () => {
+    const u = [1, 0, 0]
+    const v = [0, 1, 0]
+    expect(angleToArc([Math.SQRT1_2, Math.SQRT1_2, 0], u, v)).toBeCloseTo(0, 12)
+    expect(angleToArc([Math.cos(10 * deg) * Math.SQRT1_2, Math.cos(10 * deg) * Math.SQRT1_2, Math.sin(10 * deg)], u, v))
+        .toBeCloseTo(10 * deg, 12)
+    expect(angleToArc([0, -1, 0], u, v)).toBeCloseTo(90 * deg, 12)
+    expect(angleToArc([-1, 0, 0], u, v)).toBeCloseTo(90 * deg, 12)
+  })
+})
+
+
+describe('nightInView', () => {
+  // Sunlight travels along -x: the Sun is at +x.
+  const light = [-1, 0, 0]
+  const deg = Math.PI / 180
+  const fovy = 45 * deg
+  const cover = R * 1.01
+  const unit = (a) => a.map((x) => x / Math.hypot(...a))
+  const dot = (a, b) => (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2])
+
+  // The lights pass's own N·S for a ray (newLightsMaterial), in ECEF.
+  const passNS = (position, dir) => {
+    const c = position.map((x) => -x)
+    const along = dot(c, dir)
+    const miss = dot(c, c) - (along * along)
+    const chord = Math.sqrt(Math.max((R * R) - miss, 0))
+    let t = along - chord
+    if (t < 0) {
+      t = along + chord
+    }
+    const n = unit(dir.map((x, i) => (x * Math.max(t, 0)) - c[i]))
+    return -dot(n, light)
+  }
+  // Whether the pass draws a light anywhere, from a dense grid of rays that
+  // reach Cesium's cover.
+  const sampled = (view, aspect) => {
+    const {position, direction, up} = view
+    const right = unit([(direction[1] * up[2]) - (direction[2] * up[1]), (direction[2] * up[0]) - (direction[0] * up[2]),
+      (direction[0] * up[1]) - (direction[1] * up[0])])
+    const ty = Math.tan(fovy / 2)
+    const n = 60
+    for (let i = 0; i <= n; i++) {
+      for (let j = 0; j <= n; j++) {
+        const x = ((2 * i / n) - 1) * ty * aspect
+        const y = ((2 * j / n) - 1) * ty
+        const dir = unit(direction.map((v, k) => v + (x * right[k]) + (y * up[k])))
+        const along = -dot(position, dir)
+        const d2 = dot(position, position)
+        const hits = d2 <= cover * cover || (along > 0 && d2 - (along * along) <= cover * cover)
+        if (hits && passNS(position, dir) < NIGHT_LIGHT_EDGE) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+  // A camera at `position` looking along `direction`, with an up orthogonal to it.
+  const viewOf = (position, direction) => {
+    const d = unit(direction)
+    const helper = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]
+    const along = dot(helper, d)
+    return {position, direction: d, up: unit(helper.map((h, i) => h - (along * d[i])))}
+  }
+
+  it('is false looking down on the day side from the ground, and facing the Sun by day', () => {
+    // 7.5 km up, the Sun 30 degrees up.
+    const p = [(R + 7500) * Math.cos(60 * deg), (R + 7500) * Math.sin(60 * deg), 0]
+    expect(nightInView(viewOf(p, p.map((x) => -x)), fovy, 16 / 9, light, R, cover)).toBe(false)
+    expect(nightInView(viewOf(p, [1, -0.2, 0]), fovy, 16 / 9, light, R, cover)).toBe(false)
+  })
+
+  it('facing a low Sun is false, where the cap test said true; facing away, true', () => {
+    // The Sun 5 degrees up: the night is past the horizon behind the camera.
+    const p = [(R + 7500) * Math.cos(85 * deg), (R + 7500) * Math.sin(85 * deg), 0]
+    expect(nightVisible(p, light, R)).toBe(true)
+    // Toward the Sun's azimuth, along the ground.
+    expect(nightInView(viewOf(p, [1, -0.05, 0]), fovy, 16 / 9, light, R, cover)).toBe(false)
+    expect(nightInView(viewOf(p, [-1, -0.05, 0]), fovy, 16 / 9, light, R, cover)).toBe(true)
+  })
+
+  it('from orbit, is false with only the day side in the frame, true with the terminator in it', () => {
+    // 20,000 km over a point 60 degrees from the sub-solar point: the cap
+    // reaches the night, but a narrow look at the sub-solar side doesn't.
+    const p = [(R + 2e7) * Math.cos(60 * deg), (R + 2e7) * Math.sin(60 * deg), 0]
+    expect(nightVisible(p, light, R)).toBe(true)
+    const towardDay = [(R * Math.cos(20 * deg)) - p[0], (R * Math.sin(20 * deg)) - p[1], 0]
+    expect(nightInView(viewOf(p, towardDay), 5 * deg, 1, light, R, cover)).toBe(false)
+    expect(nightInView(viewOf(p, p.map((x) => -x)), fovy, 1, light, R, cover)).toBe(true)
+  })
+
+  it('is false looking away from the body', () => {
+    const p = [-(R + 4e5), 0, 0]
+    expect(nightInView(viewOf(p, [-1, 0, 0]), fovy, 1, light, R, cover)).toBe(false)
+  })
+
+  it('never misses a ray the pass would light (random views against a dense grid of rays)', () => {
+    let seed = 12345
+    const rand = () => {
+      seed = ((seed * 1103515245) + 12345) % 2147483648
+      return seed / 2147483648
+    }
+    let conservative = 0
+    let night = 0
+    for (let k = 0; k < 300; k++) {
+      const h = [10, 7500, 4e5, 4e6, 2e7, 3e8][k % 6]
+      const lat = (rand() - 0.5) * Math.PI
+      const lng = rand() * 2 * Math.PI
+      const p = [(R + h) * Math.cos(lat) * Math.cos(lng), (R + h) * Math.cos(lat) * Math.sin(lng), (R + h) * Math.sin(lat)]
+      const down = rand() < 0.5
+      const dir = [rand() - 0.5, rand() - 0.5, rand() - 0.5].map((x, i) => x - (down ? p[i] / (R + h) : 0))
+      const view = viewOf(p, dir)
+      const aspect = 0.5 + (rand() * 1.5)
+      const inView = nightInView(view, fovy, aspect, light, R, cover)
+      if (sampled(view, aspect)) {
+        night++
+        expect(inView).toBe(true)
+      } else if (inView) {
+        conservative++
+      }
+    }
+    expect(night).toBeGreaterThan(50)
+    // Conservative, but not wildly: most views without night read false.
+    expect(conservative).toBeLessThan(60)
   })
 })

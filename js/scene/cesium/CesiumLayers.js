@@ -38,11 +38,12 @@ import {
   cesiumFov,
   ellipsoidCameraPosition,
   NIGHT_LIGHT_EDGE,
-  nightVisible,
+  nightInView,
   sunLightDirectionEcef,
 } from './frames.js'
+import {hiddenBehind, OCCLUDER_SCALE} from './visibility.js'
 import {fovScale} from '../farPoint.js'
-import {nightLightRadiance} from '../exposure.js'
+import {METER_EVERY_FRAMES, nightLightRadiance} from '../exposure.js'
 import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {detailScale} from './detail.js'
@@ -133,6 +134,7 @@ export default class CesiumLayers {
     this._shellScale = new Matrix4()
     this._camPos = new Vector3()
     this._bodyPos = new Vector3()
+    this._occluderPos = new Vector3()
     this._sunPos = new Vector3()
     this._frustum = new Frustum()
     this._sphere = new Sphere()
@@ -333,8 +335,8 @@ export default class CesiumLayers {
    *
    * Runs in the stencil the day frame left in _cesiumRT (only its colour is
    * cleared), after the day decode, since that wrote the terrain's depth,
-   * which the stencil shell's depth test would hit.  Skipped where no night
-   * can be in view.
+   * which the stencil shell's depth test would hit.  Skipped where it can't
+   * show (_lightsShow).
    *
    * @param {object} sceneRT
    * @param {object} cesiumRT
@@ -343,7 +345,7 @@ export default class CesiumLayers {
    */
   _drawNightLights(sceneRT, cesiumRT, name, node) {
     const body = this.bodies[name]
-    if (!body?.night || !body.nightVisible) {
+    if (!this._lightsShow(body)) {
       return
     }
     const {renderer, camera} = this.ui
@@ -406,6 +408,44 @@ export default class CesiumLayers {
     renderer.autoClear = false
     renderer.render(this.lightsScene, this.decodeCamera)
     renderer.autoClear = autoClear
+  }
+
+
+  /**
+   * Whether the night lights' frame can show this frame (CESIUM.md, "Night
+   * lights", When).  Not where no ray in the frustum meets the night side
+   * (frames.nightInView, from _setCesiumView): the pass would add nothing.
+   * Nor where the brightest light it could add, a full-white texel fully on
+   * the night side (nightLightRadiance × the exposure: the pass's own gain),
+   * is under half a display step: the atmosphere pass only dims it (T ≤ 1)
+   * and the tone map's slope is at most 1, so no pixel moves by more than
+   * one level of 255 (by day the lights are 4.5e-5 of a sunlit white).
+   * Except on the frames the meter reads (ThreeUi._meter, every
+   * METER_EVERY_FRAMES): it takes the log of each pixel, and a light far
+   * under a display step is still far over its floor on black ground, so the
+   * gain would follow the lights' skipping.  Those frames draw them, and the
+   * meter reads what it always did.
+   *
+   * @param {object} body
+   * @returns {boolean}
+   */
+  _lightsShow(body) {
+    if (!body?.night || !body.nightInView) {
+      return false
+    }
+    const brightest = nightLightRadiance() * this.ui.renderer.toneMappingExposure
+    return !(brightest < LIGHTS_DISPLAY_STEP) || this._meterFrame()
+  }
+
+
+  /**
+   * @returns {boolean} Whether ThreeUi's meter reads this frame: _meter
+   *   runs after the composite and counts frames in _frame.  True when
+   *   that's unknown.
+   */
+  _meterFrame() {
+    const frame = this.ui._frame
+    return !Number.isFinite(frame) || frame % METER_EVERY_FRAMES === 0
   }
 
 
@@ -738,9 +778,13 @@ export default class CesiumLayers {
 
 
   /**
-   * A Cesium body is drawn when it's in range (see _nearBody), in the
-   * camera's view, and at least MIN_PIXEL_RADIUS across: smaller, Cesium
-   * would draw nothing celestiary's own mesh doesn't.
+   * A Cesium body is drawn when it can show (CESIUM.md, "Activation"): in
+   * range (see _nearBody), at least MIN_PIXEL_RADIUS in radius (smaller,
+   * Cesium would draw nothing celestiary's own mesh doesn't), not hidden
+   * behind another Cesium body's ground (from Earth's surface looking down,
+   * the Moon under the horizon was drawn, 21 draws and 11 full-screen passes
+   * in its shadow context and the replay), and in the camera's frustum
+   * (not off-screen, nor behind the camera).
    *
    * @param {string} name
    * @param {object} node
@@ -764,9 +808,37 @@ export default class CesiumLayers {
         return null
       }
     }
+    if (this._occluded(name, radius)) {
+      return null
+    }
     this._viewProj.copy(camera.matrixWorld).invert().premultiply(camera.projectionMatrix)
     this._frustum.setFromProjectionMatrix(this._viewProj)
     return this._frustum.intersectsSphere(this._sphere.set(this._bodyPos, radius)) ? distance : null
+  }
+
+
+  /**
+   * @param {string} name A Cesium body, its node's world position in
+   *   _bodyPos and the camera's in _camPos (_visibleAt)
+   * @param {number} radius Its stencil shell's radius
+   * @returns {boolean} Whether another Cesium body's ground hides all of it
+   *   (visibility.hiddenBehind): the Moon under Earth's horizon, Earth
+   *   behind the Moon from its far side
+   */
+  _occluded(name, radius) {
+    for (const other of Object.keys(CESIUM_BODIES)) {
+      const node = other === name ? null : this.ui.sceneManager?.objects?.[other]
+      const sphere = node?.props?.radius?.scalar
+      if (!sphere) {
+        continue
+      }
+      const ground = OCCLUDER_SCALE * Math.min(sphere, ...CESIUM_BODIES[other].radii)
+      node.getWorldPosition(this._occluderPos)
+      if (hiddenBehind(this._camPos, this._bodyPos, radius, this._occluderPos, ground)) {
+        return true
+      }
+    }
+    return false
   }
 
 
@@ -878,7 +950,11 @@ export default class CesiumLayers {
 
     const dir = sunLightDirectionEcef(node.matrixWorld, this._sunPos)
     widget.scene.light.direction = new Cesium.Cartesian3(...dir)
-    body.nightVisible = body.night ? nightVisible(view.position, dir, node.props.radius.scalar) : false
+    // Whether any of the night side is in the frame, for the lights' pass
+    // (_lightsShow): out to Cesium's shell, where its pixels end.
+    body.nightInView = body.night ?
+      nightInView(view, camera.fov * toRad, camera.aspect, dir, node.props.radius.scalar, shellScale * Math.max(...radii)) :
+      false
 
     // Keep Cesium's canvas the size of celestiary's.
     const {width, height} = this.ui
@@ -1530,8 +1606,12 @@ function newDecodeMaterial() {
 
 
 const STENCIL_REF = 1
-// Smallest on-screen radius, in pixels, at which a body is drawn by Cesium.
-const MIN_PIXEL_RADIUS = 1
+// Smallest on-screen radius, in pixels, at which a body is drawn by Cesium:
+// under a few pixels across, celestiary's own mesh shows the same.
+const MIN_PIXEL_RADIUS = 2
+// The night lights' frame is skipped when the brightest light it could add,
+// in exposure units, is under this: half a display step (_lightsShow).
+const LIGHTS_DISPLAY_STEP = 0.5 / 255
 // How often the terrain under the camera is sampled, ms, and from how high
 // over the surface (Olympus Mons, the highest, is ~21 km over Mars's), m.
 const GROUND_SAMPLE_MS = 200

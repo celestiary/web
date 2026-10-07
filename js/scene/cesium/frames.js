@@ -159,3 +159,178 @@ export function nightVisible(cameraEcef, lightDirection, radius) {
   const sees = r > radius * HORIZON_RADIUS_MARGIN ? Math.acos(radius * HORIZON_RADIUS_MARGIN / r) : Math.PI / 2
   return fromSun + sees > Math.acos(NIGHT_LIGHT_EDGE)
 }
+
+
+/**
+ * Whether any pixel of the night lights' pass can be on the night side:
+ * `nightVisible`, narrowed to the camera's frustum.  The pass computes each
+ * pixel's normal from its view ray against the body's sphere (the first hit,
+ * or for a ray that misses, the point where it passes nearest), and draws
+ * where N·S is under NIGHT_LIGHT_EDGE (S toward the Sun).  That normal
+ * depends on the ray's angle β off the nadir (straight down, toward the
+ * body's centre) and its azimuth φ about the nadir: it lies at an angle γ(β)
+ * from the camera's sub-point, at the same azimuth.  So the frustum's rays,
+ * bounded by their range of β and of φ, put every normal the pass can
+ * compute in a box of γ and φ, and the box's least N·S is a lower bound on
+ * the pass's.  Conservative: never false where the pass would draw a light.
+ *
+ * Rays past `coverRadius` (Cesium's stencil shell: the terrain's top) hold
+ * none of Cesium's pixels, and the pass discards them.  A camera inside the
+ * sphere (under the datum) falls back to nightVisible.
+ *
+ * @param {{position: Array<number>, direction: Array<number>, up: Array<number>}} view
+ *   The camera in the body's ECEF frame (cameraToEcefView)
+ * @param {number} fovyRad Vertical field of view, radians
+ * @param {number} aspect Width / height
+ * @param {Array<number>} lightDirection Unit ECEF direction sunlight travels
+ * @param {number} radius The sphere the pass computes its normals on, metres
+ * @param {number} coverRadius The farthest from the centre Cesium draws, metres
+ * @returns {boolean}
+ */
+export function nightInView(view, fovyRad, aspect, lightDirection, radius, coverRadius) {
+  const {position} = view
+  const d = Math.hypot(...position)
+  if (!(d > radius)) {
+    return nightVisible(position, lightDirection, radius)
+  }
+  const zenith = scale(position, 1 / d)
+  const nadir = scale(zenith, -1)
+  const frustum = frustumCorners(view, fovyRad, aspect)
+  const minNadir = angleToCone(nadir, frustum)
+  const maxNadir = Math.PI - angleToCone(zenith, frustum)
+  const cover = coverRadius >= d ? Math.PI : Math.asin(coverRadius / d)
+  if (minNadir > cover) {
+    return false
+  }
+  const b1 = minNadir
+  const b2 = Math.min(maxNadir, cover)
+  // γ(β): rises to the horizon's angle at the tangent ray, then falls back
+  // (a missed ray's nearest point), to 0 for a ray at or over the horizontal.
+  const gamma = (beta) => {
+    if (beta >= Math.PI / 2) {
+      return 0
+    }
+    const s = d * Math.sin(beta) / radius
+    return s < 1 ? Math.asin(s) - beta : (Math.PI / 2) - beta
+  }
+  const tangent = Math.asin(radius / d)
+  const gLo = Math.min(gamma(b1), gamma(b2))
+  const gHi = b1 <= tangent && tangent <= b2 ? Math.acos(radius / d) : Math.max(gamma(b1), gamma(b2))
+  // The Sun's angle from the sub-point, and its azimuth's: the least
+  // cos(φ − φS) over the frustum's azimuths.
+  const sun = scale(lightDirection, -1)
+  const cosSigma = clamp(dot(sun, zenith))
+  const sinSigma = Math.sqrt(1 - (cosSigma * cosSigma))
+  const cosAzimuth = minCosAzimuth(zenith, sun, frustum, b1 === 0 || maxNadir === Math.PI)
+  // N·S over γ at that azimuth: A·cos(γ − δ).
+  const a = Math.hypot(cosSigma, sinSigma * cosAzimuth)
+  const delta = Math.atan2(sinSigma * cosAzimuth, cosSigma)
+  let least = Math.min(a * Math.cos(gLo - delta), a * Math.cos(gHi - delta))
+  for (const g of [delta + Math.PI, delta - Math.PI]) {
+    if (g >= gLo && g <= gHi) {
+      least = -a
+    }
+  }
+  return least < NIGHT_LIGHT_EDGE
+}
+
+
+/**
+ * @param {{position: Array<number>, direction: Array<number>, up: Array<number>}} view
+ * @param {number} fovyRad
+ * @param {number} aspect
+ * @returns {{axis: Array<number>, right: Array<number>, up: Array<number>, tx: number, ty: number,
+ *   corners: Array<Array<number>>}} The frustum's axes, half-extents (tangents) and its corner
+ *   rays, unit, in order round it
+ */
+function frustumCorners({direction, up}, fovyRad, aspect) {
+  const axis = normalize(direction)
+  const upO = normalize(sub(up, scale(axis, dot(up, axis))))
+  const right = cross(axis, upO)
+  const ty = Math.tan(fovyRad / 2)
+  const tx = ty * aspect
+  const corner = (sx, sy) => normalize(add(axis, add(scale(right, sx * tx), scale(upO, sy * ty))))
+  return {axis, right, up: upO, tx, ty, corners: [corner(1, 1), corner(-1, 1), corner(-1, -1), corner(1, -1)]}
+}
+
+
+/**
+ * @param {Array<number>} p Unit direction
+ * @param {object} f frustumCorners
+ * @returns {number} The least angle from p to a ray in the frustum: 0 inside
+ */
+function angleToCone(p, f) {
+  const z = dot(p, f.axis)
+  if (z > 0 && Math.abs(dot(p, f.right)) <= f.tx * z && Math.abs(dot(p, f.up)) <= f.ty * z) {
+    return 0
+  }
+  let least = Math.PI
+  for (let i = 0; i < 4; i++) {
+    least = Math.min(least, angleToArc(p, f.corners[i], f.corners[(i + 1) % 4]))
+  }
+  return least
+}
+
+
+/**
+ * @param {Array<number>} p Unit direction
+ * @param {Array<number>} u Unit direction, the arc's start
+ * @param {Array<number>} v Unit direction, its end, under a half turn from u
+ * @returns {number} The least angle from p to the great-circle arc from u to v
+ */
+export function angleToArc(p, u, v) {
+  const n = normalize(cross(u, v))
+  const pn = dot(p, n)
+  const q = sub(p, scale(n, pn))
+  const qLength = Math.hypot(...q)
+  if (qLength > 1e-12) {
+    const qh = scale(q, 1 / qLength)
+    if (dot(cross(u, qh), n) >= 0 && dot(cross(qh, v), n) >= 0) {
+      return Math.atan2(Math.abs(pn), qLength)
+    }
+  }
+  return Math.min(Math.acos(clamp(dot(p, u))), Math.acos(clamp(dot(p, v))))
+}
+
+
+/**
+ * @param {Array<number>} zenith Unit: the camera's sub-point
+ * @param {Array<number>} sun Unit, toward the Sun
+ * @param {object} f frustumCorners
+ * @param {boolean} allRound The frustum holds the nadir or the zenith, so
+ *   every azimuth
+ * @returns {number} The least cos(φ − φS) over the frustum's azimuths about
+ *   the zenith
+ */
+function minCosAzimuth(zenith, sun, f, allRound) {
+  const e1 = normalize(Math.abs(zenith[0]) < 0.9 ? cross(zenith, [1, 0, 0]) : cross(zenith, [0, 1, 0]))
+  const e2 = cross(zenith, e1)
+  const azimuth = (p) => Math.atan2(dot(p, e2), dot(p, e1))
+  if (Math.hypot(dot(sun, e1), dot(sun, e2)) < 1e-12) {
+    return 1
+  }
+  const sunAz = azimuth(sun)
+  if (allRound) {
+    return -1
+  }
+  // The projected frustum spans under a half turn: its corners bound it.
+  const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a))
+  const first = azimuth(f.corners[0])
+  const offsets = f.corners.map((c) => wrap(azimuth(c) - first))
+  const lo = first + Math.min(...offsets)
+  const hi = first + Math.max(...offsets)
+  const anti = wrap(sunAz + Math.PI - lo)
+  if (anti >= 0 && anti <= hi - lo) {
+    return -1
+  }
+  return Math.min(Math.cos(lo - sunAz), Math.cos(hi - sunAz))
+}
+
+
+const dot = (a, b) => (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2])
+const cross = (a, b) => [(a[1] * b[2]) - (a[2] * b[1]), (a[2] * b[0]) - (a[0] * b[2]), (a[0] * b[1]) - (a[1] * b[0])]
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+const scale = (a, k) => [a[0] * k, a[1] * k, a[2] * k]
+const normalize = (a) => scale(a, 1 / Math.hypot(...a))
+const clamp = (x) => Math.max(-1, Math.min(1, x))
