@@ -2,13 +2,15 @@ import {describe, expect, it} from 'bun:test'
 import {Perf} from './perf.js'
 
 
+const NOT_METAL = 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060, OpenGL 4.5)'
+const METAL = 'ANGLE (Apple, ANGLE Metal Renderer: Apple M2, Unspecified Version)'
 const EXT = {TIME_ELAPSED_EXT: 1, GPU_DISJOINT_EXT: 2}
 const QUERY_RESULT = 4
 const QUERY_RESULT_AVAILABLE = 3
 
 
 /** A GL context: counts calls to getExtension, and has timer queries if asked. */
-function fakeGl({timer = true} = {}) {
+function fakeGl({timer = true, unmasked = NOT_METAL} = {}) {
   let queries = 0
   const gl = {
     drawingBufferWidth: 100,
@@ -18,15 +20,23 @@ function fakeGl({timer = true} = {}) {
     RENDERER: 'renderer',
     VENDOR: 'vendor',
     extensionCalls: 0,
+    getError: () => 0,
+    finishes: 0,
+    finish() {
+      gl.finishes++
+    },
     getExtension(name) {
       gl.extensionCalls++
+      if (name === 'WEBGL_debug_renderer_info') {
+        return {UNMASKED_RENDERER_WEBGL: 'UNMASKED', UNMASKED_VENDOR_WEBGL: 'UNMASKED_VENDOR'}
+      }
       return timer && name === 'EXT_disjoint_timer_query_webgl2' ? EXT : null
     },
     createQuery: () => ({id: queries++}),
     deleteQuery() {},
     beginQuery() {},
     endQuery() {},
-    getParameter: (p) => (p === 'renderer' ? 'ANGLE (fake)' : p === 'vendor' ? 'Fake Inc' : false),
+    getParameter: (p) => (p === 'renderer' ? 'ANGLE (fake)' : p === 'vendor' ? 'Fake Inc' : p === 'UNMASKED' ? unmasked : false),
     getQueryParameter: (q, p) => {
       if (p !== QUERY_RESULT && p !== QUERY_RESULT_AVAILABLE) {
         throw new Error('INVALID_ENUM')
@@ -300,5 +310,147 @@ describe('Perf on', () => {
     expect(gl.drawArrays).toBe(drawArrays)
     expect(perf.enabled).toBe(false)
     expect(perf.begin('clouds')).toBe(true)
+  })
+
+  it('counts the page sync calls per pass, but not the overlay own (the timer polls, the snapshot)', () => {
+    const gl = fakeGl({unmasked: NOT_METAL})
+    const {perf} = on('?perf=1', fakeUi(gl))
+    perf.frameBegin()
+    perf.begin('cesium.replay')
+    gl.getError()
+    gl.getParameter('x')
+    perf.end('cesium.replay')
+    perf.frameEnd()
+    perf.snapshot()
+    perf.frameBegin()
+    perf.frameEnd()
+    const sum = perf.stats.summary()
+    const replay = sum.passes.find((p) => p.name === 'cesium.replay')
+    expect(replay.counts.syncCalls).toBe(1)
+    expect(replay.syncByName).toEqual({getError: 0.5, getParameter: 0.5})
+    expect(sum.total.counts.syncCalls).toBe(1)
+  })
+
+  it('reads GPU timers per encoder on ANGLE Metal: marks them, and gives no total', () => {
+    const {perf} = on('?perf=1', fakeUi(fakeGl({unmasked: METAL})))
+    for (let i = 0; i < 3; i++) {
+      frame(perf)
+    }
+    expect(perf.timerGranularity()).toEqual({
+      granularity: 'encoder', reason: 'ANGLE Metal (the renderer string says Metal)',
+    })
+    expect(perf.gpuMode()).toBe('encoder')
+    expect(perf.note()).toContain('per encoder')
+    const snap = JSON.parse(JSON.stringify(perf.snapshot()))
+    expect(snap.timer.granularity).toBe('encoder')
+    expect(snap.timer.mode).toBe('query')
+    expect(snap.timings.total.gpu).toBe(null)
+    expect(snap.timings.passes.find((p) => p.name === 'scene').gpu.mean).toBeGreaterThan(0)
+  })
+
+  it('finds per-encoder timers elsewhere by the passes adding up to more than the frame', () => {
+    let t = 0
+    const gl = fakeGl({unmasked: NOT_METAL})
+    const perf = new Perf
+    perf.install(fakeUi(gl), {search: '?perf=1', overlay: false, now: () => t})
+    // 16 ms frames, whose passes read 2 ms each across 5 passes and 'other': 12 ms is under 1.5 x 16.
+    for (let i = 0; i < 40; i++) {
+      t += 16
+      frame(perf)
+    }
+    expect(perf.timerGranularity().granularity).toBe('pass')
+    expect(perf.gpuMode()).toBe('ok')
+    // Now 5 ms frames: the same 12 ms of passes is more than 1.5 x the frame.
+    perf.resetStats()
+    perf.stats.reset()
+    for (let i = 0; i < 40; i++) {
+      t += 5
+      frame(perf)
+    }
+    expect(perf.timerGranularity().granularity).toBe('encoder')
+    expect(perf.timerGranularity().reason).toContain('add up')
+    // Once seen, for good.
+    expect(perf.gpuMode()).toBe('encoder')
+  })
+
+  it('trusts GPU timers where it has no reason not to', () => {
+    const {perf} = on('?perf=1', fakeUi(fakeGl({unmasked: NOT_METAL})))
+    frame(perf)
+    expect(perf.timerGranularity().granularity).toBe(null)
+    expect(perf.gpuMode()).toBe('ok')
+    expect(perf.note()).toBe('')
+  })
+
+  it('?perf=sync waits for the GPU after every pass and times by the wall clock, with no timer queries', () => {
+    let t = 0
+    const gl = fakeGl({unmasked: NOT_METAL})
+    const perf = new Perf
+    perf.install(fakeUi(gl), {search: '?perf=sync', overlay: false, now: () => t})
+    expect(perf.sync).toBe(true)
+    expect(perf.gpu).toBe(null)
+    expect(perf.gpuMode()).toBe('none')
+    gl.drawArrays = ((orig) => function wrapped(...a) {
+      t += 4
+      return orig.apply(this, a)
+    })(gl.drawArrays)
+    perf.frameBegin()
+    perf.begin('scene')
+    gl.drawArrays(4, 0, 3)
+    perf.end('scene')
+    perf.begin('clouds')
+    perf.end('clouds')
+    perf.frameEnd()
+    // The barrier ran at the end of each segment: other, scene, other, clouds, other.
+    expect(gl.finishes).toBeGreaterThanOrEqual(4)
+    const sum = perf.stats.summary()
+    expect(sum.passes.find((p) => p.name === 'scene').cpu.mean).toBe(4)
+    expect(sum.total.gpu).toBe(null)
+    expect(perf.note()).toContain('SYNC TIMING')
+    // Its own finish() calls are not the page's readbacks.
+    expect(sum.total.counts.readbacks).toBe(0)
+    const snap = perf.snapshot()
+    expect(snap.timer.mode).toBe('sync')
+    expect(snap.timer.barrier).toBe('finish')
+    expect(snap.timings.clock).toBe('wall-synced')
+  })
+
+  it('sync timing can be switched on and off while running', () => {
+    const {perf} = on('?perf=1', fakeUi(fakeGl({unmasked: NOT_METAL})))
+    expect(perf.gpu).not.toBe(null)
+    perf.setSync(true)
+    expect(perf.gpu).toBe(null)
+    frame(perf)
+    expect(perf.stats.summary().total.gpu).toBe(null)
+    perf.setSync(false)
+    expect(perf.gpu).not.toBe(null)
+    frame(perf)
+    expect(perf.stats.summary().total.gpu).not.toBe(null)
+  })
+
+  it('waits on the Cesium shadow context too, and records the wait apart from the pass', () => {
+    let t = 0
+    const gl = fakeGl({unmasked: NOT_METAL})
+    const perf = new Perf
+    perf.install(fakeUi(gl), {search: '?perf=sync', overlay: false, now: () => t})
+    const shadow = fakeGl()
+    shadow.finish = function finish() {
+      t += 7
+      shadow.finishes++
+    }
+    const link = {frame(render) {
+      t += 2
+      render()
+    }}
+    perf.attachCesium('earth', link, {core: {shadow}})
+    perf.frameBegin()
+    perf.begin('cesium.replay')
+    link.frame(() => shadow.getError?.())
+    perf.end('cesium.replay')
+    perf.frameEnd()
+    const sum = perf.stats.summary()
+    expect(shadow.finishes).toBe(1)
+    expect(sum.contexts['cesium.shadow.earth'].gpu.mean).toBe(7)
+    // The replay pass has its own 2 ms, not the shadow 7.
+    expect(sum.passes.find((p) => p.name === 'cesium.replay').cpu.mean).toBe(2)
   })
 })

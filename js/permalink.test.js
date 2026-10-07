@@ -8,6 +8,7 @@ import {
   parseTokenValue,
   parseValueList,
   pathFromFragment,
+  permalinkHref,
 } from './permalink.js'
 import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
 
@@ -454,5 +455,19 @@ describe('from= (the camera\'s frame, when not the target\'s)', () => {
     expect(pl.path).toBe('hip:7')
     expect(pl.from).toBe('hip:9')
     expect(pl.tokens).toEqual({apps: 'open'})
+  })
+})
+
+
+describe('permalinkHref', () => {
+  it('keeps the query string, resolving the fragment against the base', () => {
+    expect(permalinkHref('sun/earth@1,2,3m', 'https://x.github.io/web/pr-preview/pr-1/', '?perf=1&off=clouds'))
+        .toBe('https://x.github.io/web/pr-preview/pr-1/?perf=1&off=clouds#sun/earth@1,2,3m')
+    expect(permalinkHref('sun', 'http://localhost:8080/', '')).toBe('http://localhost:8080/#sun')
+    expect(permalinkHref('sun', 'http://localhost:8080/', undefined)).toBe('http://localhost:8080/#sun')
+  })
+
+  it('falls back to the bare fragment with no usable base', () => {
+    expect(permalinkHref('sun', undefined, '?perf=1')).toBe('#sun')
   })
 })

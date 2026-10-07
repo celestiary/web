@@ -19,6 +19,53 @@ function counts(perPass) {
 }
 
 
+describe('sync calls', () => {
+  it('count by name, in total and by pass, and not while muted', () => {
+    const sink = new CountSink()
+    sink.setPass('cesium.replay')
+    sink.bumpSync('getError')
+    sink.bumpSync('getError')
+    sink.bumpSync('getParameter')
+    sink.setPass('meter')
+    sink.bumpSync('readPixels')
+    sink.muted = true
+    sink.bumpSync('getError')
+    sink.bump('draws')
+    sink.muted = false
+    const taken = sink.take()
+    expect(taken.total.syncCalls).toBe(4)
+    expect(taken.total.draws).toBe(0)
+    expect(taken.perPass['cesium.replay'].syncCalls).toBe(3)
+    expect(taken.sync.total).toEqual({getError: 2, getParameter: 1, readPixels: 1})
+    expect(taken.sync.perPass.meter).toEqual({readPixels: 1})
+    expect(sink.take().sync.total).toEqual({})
+  })
+
+  it('are summarised per pass and in total, with the breakdown', () => {
+    const s = new PerfStats(10)
+    for (let i = 0; i < 4; i++) {
+      const sink = new CountSink()
+      sink.setPass('cesium.replay')
+      sink.bumpSync('getError')
+      sink.bumpSync('getError')
+      if (i === 0) {
+        sink.setPass('meter')
+        sink.bumpSync('readPixels')
+      }
+      s.addCounts(sink.take(), {})
+    }
+    const sum = s.summary()
+    const byName = Object.fromEntries(sum.passes.map((p) => [p.name, p]))
+    expect(byName['cesium.replay'].counts.syncCalls).toBe(2)
+    expect(byName['cesium.replay'].syncByName).toEqual({getError: 2})
+    expect(byName.meter.syncByName).toEqual({readPixels: 0.25})
+    expect(sum.total.syncByName).toEqual({getError: 2, readPixels: 0.25})
+    expect(sum.total.counts.syncCalls).toBe(2.25)
+    expect(countsLine(sum)).toContain('sync calls 2.3 (getError 2, readPixels 0.3)')
+  })
+})
+
+
 describe('CountSink', () => {
   it('totals what the passes counted, and starts afresh on take', () => {
     const sink = new CountSink()
@@ -117,7 +164,7 @@ describe('format', () => {
     const s = new PerfStats()
     s.addCpu({'scene': 1.5, 'cesium.replay': 2}, 3.5)
     s.addCounts(counts({scene: {draws: 7}}), {})
-    const rows = tableRows(s.summary(), false)
+    const rows = tableRows(s.summary(), 'none')
     expect(rows.map((r) => r.name)).toEqual(['scene', 'cesium.replay', 'total'])
     expect(rows[1].depth).toBe(1)
     expect(rows[0].gpuMean).toBe('n/a')
@@ -125,6 +172,12 @@ describe('format', () => {
     expect(rows[0].draws).toBe('7')
     expect(rows[2].cpuMean).toBe('3.50')
     expect(countsLine(s.summary())).toContain('full-screen 0')
+    // GPU times per encoder are shown, with no total.
+    s.addGpu({ms: {scene: 3}, total: 3})
+    const encoder = tableRows(s.summary(), 'encoder')
+    expect(encoder[0].gpuMean).toBe('3.00')
+    expect(encoder[2].gpuMean).toBe('n/a')
+    expect(tableRows(s.summary(), 'ok')[2].gpuMean).toBe('3.00')
   })
 })
 

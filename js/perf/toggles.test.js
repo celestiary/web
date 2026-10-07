@@ -17,6 +17,16 @@ describe('parsePerfParams', () => {
     expect(p.off.size).toBe(0)
   })
 
+  it('takes perf=sync for perf=1 with sync timing, and barrier=read', () => {
+    const p = parsePerfParams('?perf=sync')
+    expect(p.enabled).toBe(true)
+    expect(p.sync).toBe(true)
+    expect(p.barrier).toBe('finish')
+    expect(parsePerfParams('?perf=sync&barrier=read').barrier).toBe('read')
+    expect(parsePerfParams('?perf=1').sync).toBe(false)
+    expect(parsePerfParams('?sync=1').enabled).toBe(false)
+  })
+
   it('reads the comma-separated off list, and ignores unknown keys', () => {
     const p = parsePerfParams('?perf=1&off=atmosphere,clouds,nonsense,%20galaxy')
     expect(Array.from(p.off).sort()).toEqual(['atmosphere', 'clouds', 'galaxy'])

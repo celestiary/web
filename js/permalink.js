@@ -151,6 +151,27 @@ function parseMeters(s) {
 
 
 /**
+ * The address-bar URL for a permalink fragment: relative to the document's
+ * base, as `#fragment` resolves, but with the page's query string kept, so a
+ * flag such as `?perf=1` or `?hdr=0` survives the app rewriting the hash.
+ *
+ * @param {string} fragment The fragment, without the '#'
+ * @param {string|undefined} baseHref document.baseURI
+ * @param {string|undefined} search location.search
+ * @returns {string}
+ */
+export function permalinkHref(fragment, baseHref, search) {
+  try {
+    const url = new URL(`#${fragment}`, baseHref)
+    url.search = search ?? ''
+    return url.href
+  } catch {
+    return `#${fragment}`
+  }
+}
+
+
+/**
  * Encode a complete view state into a hash fragment.
  *
  * Format: path@<lat>,<lng>,<alt>;t=<d2000>jd;cq=<qx>,<qy>,<qz>,<qw>;fov=<fov>deg[;s=<flags>]

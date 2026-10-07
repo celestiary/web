@@ -109,6 +109,15 @@ export class CpuClock {
   }
 
 
+  /**
+   * @param {string} name
+   * @param {number} ms Added to (or, negative, taken from) what a name has accumulated
+   */
+  credit(name, ms) {
+    this.ms[name] = (this.ms[name] ?? 0) + ms
+  }
+
+
   /** @returns {{[key: string]: number}} What accumulated; the clock starts afresh */
   take() {
     const ms = this.ms

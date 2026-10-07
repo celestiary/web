@@ -25,10 +25,24 @@
  *   and the 3D and compressed forms), with their approximate size.
  * - blits: `blitFramebuffer` and `copyTex*`.
  * - programs: `useProgram` calls.
+ * - syncCalls: calls that round-trip to the browser's GPU process and wait
+ *   for the answer (SYNC_CALLS, and `readPixels` into client memory), with
+ *   a breakdown by name (`syncByName`).
  */
 export const COUNT_KEYS = [
   'draws', 'fullscreen', 'triangles', 'clears', 'fbSwitches', 'readbacks', 'pboReads', 'uploads', 'uploadBytes',
-  'blits', 'programs',
+  'blits', 'programs', 'syncCalls',
+]
+
+
+/**
+ * GL calls that return something the page waits for: in Chrome each is a
+ * synchronous round trip to the GPU process (the call itself isn't GPU
+ * work; the stall is the trip, and what is queued ahead of it).
+ */
+export const SYNC_CALLS = [
+  'getError', 'getParameter', 'getProgramParameter', 'getShaderParameter', 'getUniformLocation', 'getAttribLocation',
+  'checkFramebufferStatus', 'getExtension', 'clientWaitSync', 'getQueryParameter', 'readPixels',
 ]
 
 
@@ -42,8 +56,17 @@ export function zeroCounts() {
 export class CountSink {
   constructor() {
     this.pass = 'other'
+    // While true nothing counts: the overlay's own calls (timer queries, barriers).
+    this.muted = false
+    this._reset()
+  }
+
+
+  _reset() {
     this.total = zeroCounts()
     this.perPass = new Map()
+    this.syncTotal = {}
+    this.syncPerPass = new Map()
   }
 
 
@@ -58,6 +81,9 @@ export class CountSink {
    * @param {number} [n]
    */
   bump(key, n = 1) {
+    if (this.muted) {
+      return
+    }
     this.total[key] += n
     let counts = this.perPass.get(this.pass)
     if (!counts) {
@@ -68,14 +94,34 @@ export class CountSink {
   }
 
 
+  /** @param {string} name A SYNC_CALLS call that was made */
+  bumpSync(name) {
+    if (this.muted) {
+      return
+    }
+    this.bump('syncCalls')
+    this.syncTotal[name] = (this.syncTotal[name] ?? 0) + 1
+    let byName = this.syncPerPass.get(this.pass)
+    if (!byName) {
+      byName = {}
+      this.syncPerPass.set(this.pass, byName)
+    }
+    byName[name] = (byName[name] ?? 0) + 1
+  }
+
+
   /**
-   * @returns {{total: {[key: string]: number}, perPass: {[key: string]: {[key: string]: number}}}}
+   * @returns {{total: {[key: string]: number}, perPass: {[key: string]: {[key: string]: number}},
+   *   sync: {total: {[key: string]: number}, perPass: {[key: string]: {[key: string]: number}}}}}
    *   The counts since the last take, and start afresh
    */
   take() {
-    const out = {total: this.total, perPass: Object.fromEntries(this.perPass)}
-    this.total = zeroCounts()
-    this.perPass = new Map()
+    const out = {
+      total: this.total,
+      perPass: Object.fromEntries(this.perPass),
+      sync: {total: this.syncTotal, perPass: Object.fromEntries(this.syncPerPass)},
+    }
+    this._reset()
     return out
   }
 }

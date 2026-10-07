@@ -1,3 +1,6 @@
+import {SYNC_CALLS} from './counts.js'
+
+
 /**
  * Counts GL calls by wrapping a context's methods (see counts.js for what is
  * counted).  Installed only under `?perf=1`; without it the context is
@@ -134,8 +137,18 @@ export function installGlCounters(gl, sink) {
   })
   wrap('readPixels', (a) => {
     // The last argument: client memory (a stall), or an offset into a pixel-pack buffer.
-    sink.bump(typeof a[a.length - 1] === 'number' ? 'pboReads' : 'readbacks')
+    if (typeof a[a.length - 1] === 'number') {
+      sink.bump('pboReads')
+    } else {
+      sink.bump('readbacks')
+      sink.bumpSync('readPixels')
+    }
   })
+  for (const name of SYNC_CALLS) {
+    if (name !== 'readPixels') {
+      wrap(name, () => sink.bumpSync(name))
+    }
+  }
   wrap('getBufferSubData', () => sink.bump('readbacks'))
   wrap('finish', () => sink.bump('readbacks'))
   for (const name of UPLOAD_CALLS) {

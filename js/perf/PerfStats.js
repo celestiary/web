@@ -29,9 +29,13 @@ export default class PerfStats {
     // clocks of their own, not part of the total, and their counts.
     this.contextGpu = new Map()
     this.contextCounts = new Map()
+    this.contextSync = new Map()
     this.countsTotal = new StatFamily(c)
     this.countsByPass = Object.fromEntries(COUNT_KEYS.map((k) => [k, new StatFamily(c)]))
     this.three = new StatFamily(c)
+    // Sync calls by name: in total, and by pass.
+    this.syncTotal = new StatFamily(c)
+    this.syncByPass = new Map()
   }
 
 
@@ -75,12 +79,15 @@ export default class PerfStats {
   /**
    * @param {string} name A context
    * @param {{[key: string]: number}} counts One frame's counts on it
+   * @param {{[key: string]: number}} [syncByName] Its sync calls, by name
    */
-  addContextCounts(name, counts) {
+  addContextCounts(name, counts, syncByName = {}) {
     if (!this.contextCounts.has(name)) {
       this.contextCounts.set(name, new StatFamily(this.capacity))
+      this.contextSync.set(name, new StatFamily(this.capacity))
     }
     this.contextCounts.get(name).add(counts)
+    this.contextSync.get(name).add(syncByName)
   }
 
 
@@ -98,6 +105,14 @@ export default class PerfStats {
       this.countsByPass[key].add(byPass)
     }
     this.three.add(three)
+    const sync = counts.sync ?? {total: {}, perPass: {}}
+    this.syncTotal.add(sync.total)
+    for (const pass of new Set([...this.syncByPass.keys(), ...Object.keys(sync.perPass)])) {
+      if (!this.syncByPass.has(pass)) {
+        this.syncByPass.set(pass, new StatFamily(this.capacity))
+      }
+      this.syncByPass.get(pass).add(sync.perPass[pass] ?? {})
+    }
   }
 
 
@@ -115,8 +130,17 @@ export default class PerfStats {
       for (const key of COUNT_KEYS) {
         counts[key] = round(this.countsByPass[key].get(name)?.mean() ?? 0)
       }
+      const syncByName = {}
+      const family = this.syncByPass.get(name)
+      for (const n of family?.names() ?? []) {
+        const mean = round(family.get(n).mean())
+        if (mean > 0) {
+          syncByName[n] = mean
+        }
+      }
       return {
         name,
+        syncByName,
         gpu: this.gpu.get(name)?.summary(digits) ?? null,
         cpu: this.cpu.get(name)?.summary(digits) ?? null,
         counts,
@@ -133,7 +157,15 @@ export default class PerfStats {
       for (const key of COUNT_KEYS) {
         counts[key] = round(this.contextCounts.get(name)?.get(key)?.mean() ?? 0)
       }
-      contexts[name] = {gpu: this.contextGpu.get(name)?.summary(digits) ?? null, counts}
+      const syncByName = {}
+      const family = this.contextSync.get(name)
+      for (const n of family?.names() ?? []) {
+        const mean = round(family.get(n).mean())
+        if (mean > 0) {
+          syncByName[n] = mean
+        }
+      }
+      contexts[name] = {gpu: this.contextGpu.get(name)?.summary(digits) ?? null, counts, syncByName}
     }
     const three = {}
     for (const name of this.three.names()) {
@@ -149,6 +181,8 @@ export default class PerfStats {
         gpu: this.gpuTotal.n > 0 ? this.gpuTotal.summary(digits) : null,
         cpu: this.cpuTotal.summary(digits),
         counts: countsTotal,
+        syncByName: Object.fromEntries(this.syncTotal.names()
+            .map((n) => [n, round(this.syncTotal.get(n).mean())]).filter(([, v]) => v > 0)),
       },
       passes,
       contexts,

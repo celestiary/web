@@ -1,5 +1,6 @@
 import {Vector2} from 'three'
 import {targets} from '../shared.js'
+import {makeBarrier} from './barrier.js'
 import {CountSink} from './counts.js'
 import GpuTimer from './GpuTimer.js'
 import {installGlCounters} from './glCounters.js'
@@ -17,7 +18,13 @@ const LOOKUP_EVERY_FRAMES = 60
 // The scene objects a `hide` toggle (toggles.js) hides, by toggle key.
 const HIDDEN_OBJECTS = {galaxy: 'MilkyWay'}
 const NO_TIMER_NOTE = 'GPU timer unavailable (EXT_disjoint_timer_query_webgl2 missing or hidden): CPU times, ' +
-  'which are the time to issue the work, not to run it.  Bisect with the toggles and the FPS.'
+  'which are the time to issue the work, not to run it.  Tick sync timing, or bisect with the toggles and the FPS.'
+const ENCODER_NOTE = 'GPU timer queries here read per encoder, not per pass (passes in one read alike, and the sum is ' +
+  'more than the frame): do not trust or add the GPU column.  Tick sync timing for per-pass cost.'
+// Timer queries are per encoder where the sum of the passes' means is this many times the frame interval.
+const ENCODER_SUM_RATIO = 1.5
+// Frames before that sum means anything.
+const ENCODER_MIN_FRAMES = 30
 
 
 /**
@@ -76,7 +83,16 @@ export class Perf {
     this.sink = new CountSink()
     this.cpuClock = new CpuClock(this._now)
     this.gl = this.renderer.getContext()
-    this.gpu = GpuTimer.create(this.gl)
+    // What the context says it is, before the counters, so the lookups don't count.
+    this._unmasked = unmaskedRenderer(this.gl)
+    const probe = GpuTimer.create(this.gl)
+    this._timerAvailable = probe !== null
+    this.sync = params.sync
+    this.barrierKind = params.barrier
+    this.barrier = makeBarrier(this.gl, this.barrierKind)
+    // Sync timing waits for the GPU at each pass's end and times by the wall clock; no queries then.
+    this.gpu = this.sync ? null : probe
+    this._granularity = null
     this.removeCounters = installGlCounters(this.gl, this.sink)
     // Three resets the counts at each render() call by default, and a frame
     // has a dozen; the frame resets them (frameBegin).
@@ -88,6 +104,9 @@ export class Perf {
         this.gpu?.start(name)
       },
       stop: (name) => {
+        if (this.sync) {
+          this._wait(this.sink, this.barrier)
+        }
         this.cpuClock.stop(name)
         this.gpu?.stop()
       },
@@ -111,6 +130,8 @@ export class Perf {
       this.overlay = new Overlay({
         doc: doc ?? document,
         off: this.off,
+        sync: this.sync,
+        onSync: (on) => this.setSync(on),
         onToggle: (key, runs) => this.setToggle(key, runs),
         onCopy: () => snapshotJson(this.snapshot()),
         onReset: () => this.resetStats(),
@@ -209,24 +230,36 @@ export class Perf {
     const r = this.renderer.info.render
     this.stats.addCounts(counts, {calls: r.calls, triangles: r.triangles, points: r.points, lines: r.lines})
     if (this.gpu) {
+      // The poll's own getParameter and getQueryParameter calls aren't the page's.
+      this.sink.muted = true
       for (const frame of this.gpu.poll()) {
         if (frame.id >= this._validFrom) {
           this.stats.addGpu(frame)
         }
       }
+      this.sink.muted = false
     }
     for (const [name, s] of this.shadows) {
-      this.stats.addContextCounts(name, s.sink.take().total)
+      const taken = s.sink.take()
+      this.stats.addContextCounts(name, taken.total, taken.sync.total)
+      if (this.sync) {
+        // The wait for the context to finish what it was given (sync timing).
+        this.stats.addContextGpu(name, s.waitMs)
+        s.waitMs = 0
+        continue
+      }
+      s.sink.muted = true
       for (const frame of s.timer?.poll() ?? []) {
         if (frame.id >= this._validFrom) {
           this.stats.addContextGpu(name, frame.total)
         }
       }
+      s.sink.muted = false
     }
     const now = this._now()
     if (this.overlay && now - this._lastOverlayAt >= OVERLAY_EVERY_MS) {
       this._lastOverlayAt = now
-      this.overlay.update({summary: this.stats.summary(), gpuTimed: this.gpu !== null, note: this.note()})
+      this.overlay.update({summary: this.stats.summary(), gpuMode: this.gpuMode(), sync: this.sync, note: this.note()})
     }
   }
 
@@ -262,17 +295,25 @@ export class Perf {
       return
     }
     const sink = new CountSink()
-    const timer = GpuTimer.create(shadow)
+    const timer = this.sync ? null : GpuTimer.create(shadow)
     const remove = installGlCounters(shadow, sink)
     const context = `cesium.shadow.${name}`
-    this.shadows.set(context, {timer, sink, remove})
+    const entry = {shadow, timer, sink, remove, barrier: makeBarrier(shadow, this.barrierKind), waitMs: 0}
+    this.shadows.set(context, entry)
     const frame = link.frame
     link.frame = (render) => {
-      timer?.start(context)
+      entry.timer?.start(context)
       try {
         return frame.call(link, render)
       } finally {
-        timer?.stop()
+        entry.timer?.stop()
+        if (this.sync && this._frameOpen) {
+          // Sync timing: wait for the shadow context's GPU work here, and
+          // take the wait out of the pass it happened in (it is the shadow's).
+          const waited = this._wait(entry.sink, entry.barrier)
+          entry.waitMs += waited
+          this.cpuClock.credit(this.sections.top, -waited)
+        }
       }
     }
   }
@@ -298,6 +339,84 @@ export class Perf {
   resetStats() {
     this.stats?.reset()
     this._validFrom = this.frameId + 1
+  }
+
+
+  /**
+   * Run a barrier (barrier.js) without counting its own GL calls.
+   *
+   * @param {object} sink The context's CountSink
+   * @param {function(): void} barrier
+   * @returns {number} How long it waited, ms
+   */
+  _wait(sink, barrier) {
+    const t0 = this._now()
+    sink.muted = true
+    try {
+      barrier()
+    } finally {
+      sink.muted = false
+    }
+    return this._now() - t0
+  }
+
+
+  /**
+   * Sync timing on or off (`?perf=sync`, or the checkbox): off the timer
+   * queries, on a wait for the GPU at the end of every pass.
+   *
+   * @param {boolean} on
+   */
+  setSync(on) {
+    if (on === this.sync) {
+      return
+    }
+    this.sync = on
+    this.gpu?.dispose()
+    this.gpu = on || !this._timerAvailable ? null : GpuTimer.create(this.gl)
+    for (const s of this.shadows.values()) {
+      s.timer?.dispose()
+      s.timer = on ? null : GpuTimer.create(s.shadow)
+      s.waitMs = 0
+    }
+    this.resetStats()
+  }
+
+
+  /**
+   * @returns {{granularity: string|null, reason: string|null}} What the GPU
+   *   timer reads: `pass` as it should; `encoder` where it reads per
+   *   Metal encoder (ANGLE Metal says so in its renderer string; or the
+   *   passes' means add up to more than the frame), once seen so for good;
+   *   null with no timer or in sync mode
+   */
+  timerGranularity() {
+    if (!this.gpu) {
+      return {granularity: null, reason: null}
+    }
+    if (!this._granularity) {
+      const s = this.stats
+      if (/metal/i.test(this._unmasked ?? '')) {
+        this._granularity = {granularity: 'encoder', reason: 'ANGLE Metal (the renderer string says Metal)'}
+      } else if (s.gpuTotal.n >= ENCODER_MIN_FRAMES && s.interval.n >= ENCODER_MIN_FRAMES &&
+          s.gpuTotal.mean() > ENCODER_SUM_RATIO * s.interval.mean()) {
+        this._granularity = {granularity: 'encoder', reason: 'the passes add up to more than the frame interval'}
+      } else if (s.gpuTotal.n >= ENCODER_MIN_FRAMES) {
+        return {granularity: 'pass', reason: null}
+      } else {
+        return {granularity: null, reason: null}
+      }
+    }
+    return this._granularity
+  }
+
+
+  /** @returns {string} 'ok' (GPU times per pass), 'encoder' (per encoder: not to be added up) or 'none' */
+  gpuMode() {
+    if (!this.gpu) {
+      return 'none'
+    }
+    return this.timerGranularity().granularity === 'encoder' ? 'encoder' : 'ok'
   }
 
 
@@ -337,8 +456,15 @@ export class Perf {
 
   /** @returns {string} What GPU timing does on this machine, for the overlay's top line */
   note() {
+    if (this.sync) {
+      return `SYNC TIMING (${this.barrierKind}): the GPU is waited for at the end of every pass, so each row is the ` +
+        'wall-clock ms of that pass, GPU work included, and the frame rate is lower than real.'
+    }
     if (!this.gpu) {
       return NO_TIMER_NOTE
+    }
+    if (this.timerGranularity().granularity === 'encoder') {
+      return ENCODER_NOTE
     }
     return this.gpu.disjoints > 0 ? `${this.gpu.disjoints} disjoint GPU timer events: the frames in flight were dropped` : ''
   }
@@ -346,10 +472,27 @@ export class Perf {
 
   /** @returns {object} What the Copy button copies (snapshot.js) */
   snapshot() {
+    this.sink.muted = true
+    try {
+      return this._snapshot()
+    } finally {
+      this.sink.muted = false
+    }
+  }
+
+
+  _snapshot() {
     const {renderer, gl, ui} = this
     const size = renderer.getDrawingBufferSize(new Vector2)
     const dbg = gl.getExtension('WEBGL_debug_renderer_info')
     const shadowTimers = Array.from(this.shadows.values()).map((s) => s.timer !== null)
+    const {granularity, reason} = this.timerGranularity()
+    const summary = this.stats.summary()
+    // GPU times that are per encoder don't add up to a frame: no total.
+    if (granularity === 'encoder' || this.sync) {
+      summary.total.gpu = null
+    }
+    summary.clock = this.sync ? 'wall-synced' : 'cpu-issue'
     return buildSnapshot({
       takenAt: new Date(),
       link: typeof location === 'undefined' ? '' : location.href,
@@ -365,12 +508,19 @@ export class Perf {
       },
       userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
       timer: {
-        host: this.gpu !== null,
+        // Whether the extension is there, and what the numbers are.
+        host: this._timerAvailable,
         shadow: shadowTimers.length === 0 ? null : shadowTimers.every(Boolean),
         disjoints: this.gpu?.disjoints ?? 0,
         dropped: this.gpu?.dropped ?? 0,
+        // 'query': GPU timer queries; 'sync': the GPU waited for after every pass, wall clock.
+        mode: this.sync ? 'sync' : 'query',
+        barrier: this.sync ? this.barrierKind : null,
+        // 'pass' as it should be; 'encoder' where it reads per Metal encoder (no total); null: unknown or off.
+        granularity,
+        granularityReason: reason,
       },
-      summary: this.stats.summary(),
+      summary,
       off: this.off,
       scene: {
         target: targets.obj?.props?.name ?? null,
@@ -390,6 +540,7 @@ export class Perf {
     this.enabled = false
     this.removeCounters()
     this.gpu?.dispose()
+    this.gpu = null
     for (const s of this.shadows.values()) {
       s.remove()
       s.timer?.dispose()
@@ -406,6 +557,20 @@ export class Perf {
     this._hidden.clear()
     this.off = new Set()
     this._syncToggles()
+  }
+}
+
+
+/**
+ * @param {object} gl
+ * @returns {string|null} The context's unmasked renderer string, if the browser shows it
+ */
+function unmaskedRenderer(gl) {
+  try {
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info')
+    return dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : null
+  } catch {
+    return null
   }
 }
 

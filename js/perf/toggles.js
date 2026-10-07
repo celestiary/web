@@ -37,13 +37,16 @@ export const TOGGLES = [
 
 /**
  * @param {string} search A URL's query string
- * @returns {{enabled: boolean, off: Set<string>}} Whether `perf=1` is there,
- *   and the toggle keys `off=` lists (comma-separated, e.g.
- *   `?perf=1&off=atmosphere,clouds`); an unknown key is ignored
+ * @returns {{enabled: boolean, off: Set<string>, sync: boolean, barrier: string}}
+ *   Whether `perf=1` (or `perf=sync`) is there; the toggle keys `off=` lists
+ *   (comma-separated, e.g. `?perf=1&off=atmosphere,clouds`, an unknown key
+ *   ignored); whether `perf=sync` asks for sync timing (barrier.js); and
+ *   its barrier, `finish` or, with `barrier=read`, `read`
  */
 export function parsePerfParams(search) {
   const params = new URLSearchParams(search ?? '')
-  const enabled = params.get('perf') === '1'
+  const mode = params.get('perf')
+  const enabled = mode === '1' || mode === 'sync'
   const known = new Set(TOGGLES.map((t) => t.key))
   const off = new Set()
   for (const raw of (params.get('off') ?? '').split(',')) {
@@ -52,7 +55,7 @@ export function parsePerfParams(search) {
       off.add(key)
     }
   }
-  return {enabled, off}
+  return {enabled, off, sync: mode === 'sync', barrier: params.get('barrier') === 'read' ? 'read' : 'finish'}
 }
 
 

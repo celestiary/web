@@ -7,15 +7,19 @@ import {TOGGLES} from './toggles.js'
 const STATUS_MS = 3000
 const COLUMNS = [
   ['pass', 'name'], ['GPU', 'gpuMean'], ['p95', 'gpuP95'], ['CPU', 'cpuMean'], ['p95', 'cpuP95'],
-  ['draws', 'draws'], ['rt', 'rt'], ['rb', 'rb'],
+  ['draws', 'draws'], ['rt', 'rt'], ['rb', 'rb'], ['sync', 'sync'],
 ]
 const COLUMN_TITLES = {
-  GPU: 'GPU ms per frame, mean over the window (EXT_disjoint_timer_query_webgl2)',
-  CPU: 'CPU ms per frame to issue the pass, mean over the window',
-  p95: '95th percentile over the window',
-  draws: 'draw calls per frame, including the replayed Cesium calls',
-  rt: 'render-target switches per frame',
-  rb: 'readbacks into client memory per frame (each waits for the GPU)',
+  'GPU': 'GPU ms per frame, mean over the window (EXT_disjoint_timer_query_webgl2)',
+  'GPU?': 'GPU ms from timer queries, which here read per encoder, not per pass: passes in one encoder read alike ' +
+    'and the sum is more than the frame.  Use sync timing.',
+  'CPU': 'CPU ms per frame to issue the pass, mean over the window',
+  'wall': 'Wall-clock ms per frame, GPU work included: the GPU is waited for at the end of every pass (sync timing)',
+  'p95': '95th percentile over the window',
+  'draws': 'draw calls per frame, including the replayed Cesium calls',
+  'rt': 'render-target switches per frame',
+  'rb': 'readbacks into client memory per frame (each waits for the GPU)',
+  'sync': 'calls that round-trip to the GPU process per frame (getError, getParameter, readPixels ...): see the line below',
 }
 
 
@@ -32,10 +36,12 @@ export default class Overlay {
    * @param {Document} p.doc
    * @param {Set<string>} p.off The toggle keys switched off to start with
    * @param {function(string, boolean): void} p.onToggle (key, runs)
+   * @param {boolean} p.sync Whether sync timing is on to start with
+   * @param {function(boolean): void} p.onSync (on)
    * @param {function(): string} p.onCopy Builds the snapshot's JSON
    * @param {function(): void} p.onReset Clears the rolling windows
    */
-  constructor({doc, off, onToggle, onCopy, onReset}) {
+  constructor({doc, off, sync = false, onSync = () => undefined, onToggle, onCopy, onReset}) {
     this.doc = doc
     this.onCopy = onCopy
     this.statusTimer = null
@@ -74,6 +80,19 @@ export default class Overlay {
       toggles.append(label)
       this.boxes.set(t.key, box)
     }
+    const syncLabel = el('label', {
+      title: 'Wait for the GPU at the end of every pass and time each by the wall clock, for GPUs whose timer ' +
+        'queries are not per pass.  The frame rate drops.',
+    }, {cursor: 'pointer', whiteSpace: 'nowrap', color: '#fc6'})
+    const syncBox = el('input', {type: 'checkbox', checked: sync}, {verticalAlign: 'middle'})
+    syncBox.setAttribute('data-testid', 'perf-sync')
+    syncBox.addEventListener('change', () => {
+      onSync(syncBox.checked)
+      syncBox.blur()
+    })
+    syncLabel.append(syncBox, ' sync timing')
+    toggles.append(syncLabel)
+    this.syncBox = syncBox
     const copy = el('button', {textContent: 'Copy JSON', title: 'Copy a snapshot to paste back'}, {cursor: 'pointer'})
     copy.setAttribute('data-testid', 'perf-copy')
     copy.addEventListener('click', () => {
@@ -103,17 +122,21 @@ export default class Overlay {
   /**
    * @param {object} v
    * @param {object} v.summary PerfStats.summary()
-   * @param {boolean} v.gpuTimed
-   * @param {string} v.note The line under the title: what GPU timers do here
+   * @param {string} v.gpuMode 'ok', 'encoder' or 'none' (format.js tableRows)
+   * @param {boolean} v.sync Whether sync timing is on
+   * @param {string} v.note The line under the title: what the timers do here
    */
-  update({summary, gpuTimed, note}) {
+  update({summary, gpuMode, sync, note}) {
     const {doc} = this
-    this.title.textContent = `perf  ${summary.frame.fps.toFixed(0)} fps  ` +
+    this.syncBox.checked = sync
+    this.title.textContent = `perf${sync ? ' SYNC' : ''}  ${summary.frame.fps.toFixed(0)} fps  ` +
       `(${summary.frame.intervalMs.mean.toFixed(1)} ms, p95 ${summary.frame.intervalMs.p95.toFixed(1)})`
     this.note.textContent = note
     this.note.style.display = note ? '' : 'none'
+    const labelOf = (label) => (label === 'GPU' && gpuMode === 'encoder' ? 'GPU?' : label === 'CPU' && sync ? 'wall' : label)
     const head = doc.createElement('tr')
-    for (const [label] of COLUMNS) {
+    for (const [raw] of COLUMNS) {
+      const label = labelOf(raw)
       const th = doc.createElement('th')
       th.textContent = label
       th.title = COLUMN_TITLES[label] ?? ''
@@ -122,7 +145,7 @@ export default class Overlay {
     }
     head.firstChild.style.textAlign = 'left'
     const rows = [head]
-    for (const row of tableRows(summary, gpuTimed)) {
+    for (const row of tableRows(summary, gpuMode)) {
       const tr = doc.createElement('tr')
       COLUMNS.forEach(([, key], i) => {
         const td = doc.createElement('td')
@@ -141,11 +164,13 @@ export default class Overlay {
       COLUMNS.forEach(([, key], i) => {
         const td = doc.createElement('td')
         const text = {
-          name: `${name} (own GL context)`,
-          gpuMean: gpuTimed && s.gpu ? fmtMs(s.gpu.mean) : 'n/a',
-          gpuP95: gpuTimed && s.gpu ? fmtMs(s.gpu.p95) : 'n/a',
+          name: `${name} (own GL context${sync ? ', wait' : ''})`,
+          gpuMean: gpuMode !== 'none' && s.gpu ? fmtMs(s.gpu.mean) : 'n/a',
+          gpuP95: gpuMode !== 'none' && s.gpu ? fmtMs(s.gpu.p95) : 'n/a',
+          cpuMean: sync && s.gpu ? fmtMs(s.gpu.mean) : '',
           draws: fmtCount(s.counts.draws),
           rb: fmtCount(s.counts.readbacks),
+          sync: fmtCount(s.counts.syncCalls),
         }[key] ?? ''
         td.textContent = text
         td.style.cssText = `text-align: ${i === 0 ? 'left' : 'right'}; padding: 0 4px; color: #aaa;`

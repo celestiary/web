@@ -16,7 +16,9 @@ function fakeGl() {
   for (const name of [
     'viewport', 'drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced', 'drawRangeElements',
     'clear', 'clearBufferfv', 'bindFramebuffer', 'readPixels', 'getBufferSubData', 'finish', 'texImage2D',
-    'texSubImage2D', 'blitFramebuffer', 'useProgram', 'createTexture',
+    'texSubImage2D', 'blitFramebuffer', 'useProgram', 'createTexture', 'getError', 'getParameter',
+    'getProgramParameter', 'getShaderParameter', 'getUniformLocation', 'getAttribLocation', 'checkFramebufferStatus',
+    'getExtension', 'clientWaitSync', 'getQueryParameter',
   ]) {
     gl[name] = function recorded(...args) {
       calls.push(name)
@@ -115,6 +117,46 @@ describe('installGlCounters', () => {
     const {total} = sink.take()
     expect(total.readbacks).toBe(3)
     expect(total.pboReads).toBe(1)
+  })
+
+  it('counts the calls that round-trip to the GPU process, by name', () => {
+    const gl = fakeGl()
+    const sink = new CountSink()
+    installGlCounters(gl, sink)
+    sink.setPass('cesium.replay')
+    gl.getError()
+    gl.getError()
+    gl.getParameter(1)
+    gl.getProgramParameter({}, 1)
+    gl.getShaderParameter({}, 1)
+    gl.getUniformLocation({}, 'u')
+    gl.getAttribLocation({}, 'a')
+    gl.checkFramebufferStatus(1)
+    gl.getExtension('x')
+    gl.clientWaitSync({}, 0, 0)
+    gl.getQueryParameter({}, 1)
+    gl.readPixels(0, 0, 1, 1, 0, 0, new Uint8Array(4))
+    // A read into a pixel-pack buffer does not wait.
+    gl.readPixels(0, 0, 1, 1, 0, 0, 0)
+    const taken = sink.take()
+    expect(taken.total.syncCalls).toBe(12)
+    expect(taken.sync.total.getError).toBe(2)
+    expect(taken.sync.total.readPixels).toBe(1)
+    expect(taken.sync.perPass['cesium.replay'].getExtension).toBe(1)
+    expect(Object.keys(taken.sync.total)).toHaveLength(11)
+  })
+
+  it('counts nothing while the sink is muted (the overlay own calls)', () => {
+    const gl = fakeGl()
+    const sink = new CountSink()
+    installGlCounters(gl, sink)
+    sink.muted = true
+    gl.getParameter(1)
+    gl.finish()
+    gl.drawArrays(TRIANGLES, 0, 3)
+    sink.muted = false
+    expect(sink.take().total).toEqual({...sink.take().total, draws: 0, syncCalls: 0, readbacks: 0})
+    expect(gl.calls).toEqual(['getParameter', 'finish', 'drawArrays'])
   })
 
   it('counts uploads with their size, blits, clears and program changes', () => {
