@@ -52,7 +52,9 @@ import {
   SUN_RADIUS_METER, targets,
 } from './shared.js'
 import {named} from './utils.js'
-import {GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, groundRadius, homeBody, rotateScale} from './zoom.js'
+import {
+  GROUND_CLEARANCE_M, asymptoticZoomDist, dynamicNear, fovTurnScale, groundRadius, homeBody, rotateScale,
+} from './zoom.js'
 
 
 /** */
@@ -177,6 +179,7 @@ export default class ThreeUi {
       getDragMode: () => this.useStore?.getState().dragMode,
       getTarget: () => targets.obj,
       getOrbitScale: () => this.orbitScale(),
+      getTurnScale: () => fovTurnScale(this.camera.fov),
       onClick: (e) => this._fireClickCbs(e),
       onDblClick: (e) => this._fireDblClickCbs(e),
     })
@@ -1518,15 +1521,20 @@ export default class ThreeUi {
       return
     }
     const speed = 0.01 // radians per frame
+    // Pitch slows with the field of view (as a drag does: zoom.js
+    // fovTurnScale), or a telescope view's nose swings off the target at
+    // once.  Roll turns about the view axis, so it moves the picture the
+    // same way, in pixels, at any field of view: unscaled.
+    const pitch = speed * fovTurnScale(this.camera.fov)
     // Tracking owns the pointing, so pitch would fight it (the target stays
     // centred); roll about the view axis doesn't move the target, and is
     // the user's.
     if (!targets.track) {
       if (k.up) {
-        this.camera.rotateX(speed)
+        this.camera.rotateX(pitch)
       }
       if (k.down) {
-        this.camera.rotateX(-speed)
+        this.camera.rotateX(-pitch)
       }
     }
     if (k.left) {
