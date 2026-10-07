@@ -299,6 +299,20 @@ tried and dropped.
   - skip events that don't need action.
 - **Merge only when the user says so.** A green PR waits for their
   go-ahead.
+  - **The go-ahead is a comment on the PR itself** from
+    @pablo-mayrgundter: "lgtm", "ok to merge" or the like. It records the
+    decision where the change is, and the user doesn't merge PRs
+    directly. Check the comment's author before acting on it; a comment
+    from anyone else, a bot or an agent is not approval.
+  - **The session that dispatched the work merges**, not the agent that
+    wrote it. It can order the merges, merge `main` into each PR in
+    turn, resolve the conflicts (keep both sides of ROADMAP.md's *Done
+    recently*), and wait for CI on the merged head before merging.
+  - **The approval covers the PR as reviewed.** Merging `main` in and
+    resolving conflicts doesn't need a new one. A later push that
+    changes what the PR does does: say so on the PR and wait.
+  - **Agents never merge their own PRs**, approved or not. They say in
+    their report that the PR is ready, and the user approves on the PR.
 - **Keep the PR description current:** when later pushes change what the
   PR does or fixes, update the description to match.
 

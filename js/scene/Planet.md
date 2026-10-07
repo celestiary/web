@@ -400,12 +400,19 @@ Under 24 px of radius, and farther than 20 radii:
 A body with `texture_normal` has its slopes as a tangent-space normal map
 (`<name>_normal.jpg`: x east, y north, z out, as three's SphereGeometry's
 u and v; `Planet.nearShape` sets `normalMap`, and three takes the tangent
-frame from the screen derivatives).  The Moon has one (#192): seen from
-Earth, celestiary draws it, and its terminator was a smooth Lambert
-gradient where the real one is rough with crater walls in light and
-shadow.  With the slopes, a wall facing away from a low Sun goes dark and
-one facing it lights, so craters show along the terminator in light and
-shade.
+frame from the screen derivatives).  The Moon has one (#192): its
+terminator was a smooth Lambert gradient where the real one is rough with
+crater walls in light and shadow.  With the slopes, a wall facing away
+from a low Sun goes dark and one facing it lights, so craters show along
+the terminator in light and shade.
+
+**Where it shows.**  From Earth the Moon is in Cesium's range, so with ion
+up it is Cesium's once its tiles are in (#192's views A and B: active
+`[moon]`, fade 1), and Cesium's tileset shader lights the smooth sphere
+(CESIUM.md, "Tiles and lighting").  This map shows on celestiary's own
+Moon: without ion, with the Cesium layer off, and while the tiles load.
+Carrying it across the swap means sampling the same map in the tileset's
+shader by longitude and latitude (CESIUM.md, follow-ups).
 
 - **A normal map, not a bump map.**  three's bump map takes its slope per
   screen pixel (Mikkelsen's surface gradient over the normalized

@@ -361,7 +361,7 @@ describe('Scene.applySettings', () => {
     // A is also merged in by getSettings (default false for this Scene-
     // level snapshot — the live AR state is folded in at the permalink
     // writer in Celestiary, not here).
-    expect(s.getSettings()).toEqual({...target, L: false, A: false})
+    expect(s.getSettings()).toEqual({...target, L: false, A: false, T: false})
     expect(milkyWay.visible).toBe(false)
   })
 })
