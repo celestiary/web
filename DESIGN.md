@@ -446,10 +446,10 @@ Camera orientation and position are separated across three input modes, all accu
 | Input | Effect |
 |---|---|
 | Scroll wheel | Zoom (TrackballControls, asymptotic near surface) |
-| Mouse drag | Free look — pitch (up/down) and yaw (left/right) around camera's local axes |
-| Option+drag | Orbit — rotates camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) |
-| ↑ / ↓ arrow keys (hold) | Pitch camera nose up/down |
-| ← / → arrow keys (hold) | Roll camera left/right (while tracking too) |
+| Mouse drag | Free look — pitch (up/down) and yaw (left/right) around camera's local axes, slower the narrower the field of view ([FOV-scaled](#fov-scaled-turning)) |
+| Option+drag | Orbit — rotates camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) and the narrower the field of view ([FOV-scaled](#fov-scaled-turning)) |
+| ↑ / ↓ arrow keys (hold) | Pitch camera nose up/down, slower the narrower the field of view |
+| ← / → arrow keys (hold) | Roll camera left/right (while tracking too); not slowed by the field of view |
 | `t` | Toggle continuous tracking: the target stays centred every frame, following a place as its body turns, and the roll stays yours ([the target](#the-target)) |
 | `c` | Snap look at current target, squaring the roll to the ecliptic's up |
 | `j` / `k` / `l` | Reverse, slow down, speed up time: paused too, when the step is often set; the display shows it and resuming runs at it |
@@ -478,7 +478,17 @@ An orbit drag turns the camera about the body's centre by 0.005 rad a pixel, whi
 - **From a few radii out** it is 1 (0.95 at 3 R, 0.99 at 5 R), so far views drag as they always did. Plain `alt / (R + alt)` would still be slowed by a third at 2 R, so the saturating exponential takes its place: same slope at the ground, no tunables, smooth and monotonic.
 - **Never zero**: floored at `MIN_ROTATE_SCALE` (1e-6, a few cm a pixel on Earth), so a drag at the ground still turns the view.
 - **Curves ruled out**: a log of altitude is too gentle (kilometres a pixel at 5 km up), and a power above 1 crawls close in and falls out of step with the patch.
-- **Only orbit drags are scaled.** Free-look drag (pan) and the arrow keys (pitch and roll) turn the camera in place and move nothing over the ground, so slowing them would only keep you from looking about the horizon.
+- **Only orbit drags are scaled by altitude.** Free-look drag (pan) and the arrow keys (pitch and roll) turn the camera in place and move nothing over the ground, so slowing them by altitude would only keep you from looking about the horizon. The field of view slows them instead, below.
+
+### FOV-scaled turning
+
+A drag turns the view 0.005 rad a pixel and a pitch key 0.01 rad a frame, whatever the field of view. A pixel spans about `fov / heightPx` of sky, so at the default 45° in a 600 px canvas a pixel of drag carries the scene ~4 px, and at a telescope's 0.07° ~2,500: one pixel of drag swings the view hundreds of screens. `fovTurnScale(fov)` (`js/zoom.js`) multiplies the rate by `tan(fov / 2) / tan(45° / 2)`, the ratio of the field's tangent half-angle to the default's (the same ratio as `farPoint.js` `fovScale`), so the scene moves the same number of pixels per pixel dragged at every field.
+
+- **Every drag mode takes it.** `attachPointerDrag` reads `getTurnScale` on each move and uses it for the free-look drag and the orbit drag (mouse, pen and one-finger touch alike: it is one pointer handler), and `_applyCameraArrowKeys` for pitch. An orbit drag multiplies it with [rotateScale](#proximity-scaled-orbit-drag), which it does not replace: the proximity scale makes a drag worth the same share of the ground a view of height `alt` shows; this one the same share of a view whose height is `alt * fov`.
+- **Exactly 1 at 45° and wider**, so those views turn as they always did. It is capped at 1 (not raised for wide fields): a wide field isn't what makes a drag hard to steer, and the tangent ratio at 170° is 28. Floored at `MIN_ROTATE_SCALE` (1e-6).
+- **The canvas height drops out.** The rate is already per pixel, and a pixel's angle is `2 tan(fov / 2) / heightPx` at any height, so only the ratio of fields matters; a height term would change the 45° rate on every window but the one it was tuned at. (Measured in headless Chromium, 640×404, a 20 px drag: the surface point under the middle of the view moved 48.4 px (pan) or 26.4 px (orbit) at 45° and 48.3 and 26.4 at 0.07°.)
+- **Roll isn't scaled.** It turns about the view axis, so the picture moves by the same pixels at any field.
+- **Zoom steps were already proportional.** `,` and `.` multiply the field by exactly 0.9 and 1.1 (`multFov`); the wheel and pinch (TrackballControls) dolly the camera by a factor of its distance, not the field, and don't read it.
 
 **Camera platform**: the camera is a child of `camera.platform`, a scene-root `Object3D` reparented on each `goTo()`. For planet targets the new parent is `obj.orbitPosition` so the camera tracks orbital motion automatically; for star targets it's `_starAnchor`, a dedicated scene-root anchor at world origin (paired with a `WorldGroup` rebase that moves the target star to origin). See [Navigation (goTo flow)](#navigation-goto-flow) for the full flow.
 

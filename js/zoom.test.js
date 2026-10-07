@@ -1,5 +1,7 @@
-import {MIN_ROTATE_SCALE, asymptoticZoomDist, dynamicNear, groundRadius, homeBody, rotateScale} from './zoom.js'
-import {SMALLEST_SIZE_METER} from './shared.js'
+import {
+  MIN_ROTATE_SCALE, asymptoticZoomDist, dynamicNear, fovTurnScale, groundRadius, homeBody, rotateScale,
+} from './zoom.js'
+import {INITIAL_FOV, SMALLEST_SIZE_METER, toRad} from './shared.js'
 
 
 describe('asymptoticZoomDist', () => {
@@ -170,5 +172,68 @@ describe('rotateScale', () => {
   it('scales with the body: the same altitude is nearer the ground of a larger body', () => {
     expect(rotateScale(5e3, 7e7)).toBeLessThan(rotateScale(5e3, 3.4e6))
     expect(rotateScale(5e3, 1e4)).toBeGreaterThan(0.39)
+  })
+})
+
+
+describe('fovTurnScale', () => {
+  // Pixels the view moves, at the middle of the screen, for a pixel dragged:
+  // the rate over the angle a pixel spans there (2 tan(fov / 2) / heightPx).
+  const HEIGHT_PX = 600
+  const RATE = 0.005
+  const pixelAngle = (fov) => 2 * Math.tan(fov * toRad / 2) / HEIGHT_PX
+  const pxPerPx = (fov) => RATE * fovTurnScale(fov) / pixelAngle(fov)
+  const HALF_TAN = Math.tan(INITIAL_FOV * toRad / 2)
+
+  it('is exactly 1 at the default FOV, so that view turns as it always did', () => {
+    expect(fovTurnScale(INITIAL_FOV)).toBe(1)
+  })
+
+  it('is 1 for any wider field, however wide', () => {
+    for (const fov of [46, 60, 90, 120, 170, 179.9, 180, 200]) {
+      expect(fovTurnScale(fov)).toBe(1)
+    }
+  })
+
+  it('goes with the field at narrow FOVs: a tenth of the field, a tenth of the speed', () => {
+    // Relative to the default's tangent, so 5% under the plain ratio.
+    expect(fovTurnScale(4.5)).toBeCloseTo(Math.tan(2.25 * toRad) / HALF_TAN, 12)
+    expect(fovTurnScale(0.07)).toBeCloseTo(0.07 * toRad / 2 / HALF_TAN, 8)
+    expect(fovTurnScale(0.07) / fovTurnScale(0.007)).toBeCloseTo(10, 4)
+  })
+
+  it('never goes up as the field narrows', () => {
+    let prev = 1
+    for (let fov = 90; fov > 1e-3; fov /= 1.1) {
+      const s = fovTurnScale(fov)
+      expect(s).toBeLessThanOrEqual(prev)
+      prev = s
+    }
+  })
+
+  it('keeps the view\'s travel per pixel dragged what it is at the default, from 45° to 0.01°', () => {
+    const base = pxPerPx(INITIAL_FOV)
+    expect(base).toBeCloseTo(0.005 * 600 / (2 * HALF_TAN), 9)
+    for (const fov of [45, 20, 5, 1, 0.07, 0.01]) {
+      expect(pxPerPx(fov) / base).toBeCloseTo(1, 6)
+    }
+    // Unscaled, the telescope's pixel swings the view 600 times further.
+    expect(RATE / pixelAngle(0.07) / base).toBeGreaterThan(500)
+  })
+
+  it('is never zero or above 1, whatever it is given', () => {
+    for (const fov of [1e-12, 1e-3, 0.07, 45, 179, NaN, 0, -3, Infinity, undefined]) {
+      const s = fovTurnScale(fov)
+      expect(s).toBeGreaterThanOrEqual(MIN_ROTATE_SCALE)
+      expect(s).toBeLessThanOrEqual(1)
+    }
+    expect(fovTurnScale(1e-12)).toBe(MIN_ROTATE_SCALE)
+  })
+
+  it('is 1 when the FOV is no number or not positive (nothing to scale by)', () => {
+    expect(fovTurnScale(NaN)).toBe(1)
+    expect(fovTurnScale(0)).toBe(1)
+    expect(fovTurnScale(-3)).toBe(1)
+    expect(fovTurnScale(undefined)).toBe(1)
   })
 })
