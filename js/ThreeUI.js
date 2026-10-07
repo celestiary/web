@@ -29,10 +29,11 @@ import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   adaptMeterGain, easeExposure, exposureAt, exposureRelative,
   LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, galaxyGain, illuminanceRatio, limitingMagnitude,
-  luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap,
+  luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, starClipZ, starSprite, sunlitBodyCap,
   sunlitBodyGain,
 } from './scene/exposure.js'
 import {clampEv, renderExposure} from './scene/evCompensation.js'
+import {clampStarMag, starMagGain} from './scene/starMagnitude.js'
 import {extendedGain, s10Value} from './scene/eye.js'
 import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
@@ -124,6 +125,8 @@ export default class ThreeUi {
     this._meterCadence = new MeterCadence()
     // The user's exposure compensation, stops (setExposureCompensation).
     this._evStops = 0
+    // The stars' setting, magnitudes over the naked eye's limit (setStarMagnitudeOffset).
+    this._starMag = 0
     this._exposureBodyPos = new Vector3()
     this._exposureSunPos = new Vector3()
     this._transmittanceRT = null
@@ -640,20 +643,36 @@ export default class ThreeUi {
 
   /**
    * The star field's limiting magnitude at a dark site, as the user sets
-   * it (HDR.md, "Physical stars"): LIMITING_MAGNITUDE (6.5, the naked
-   * eye's) at the physical star gain, a magnitude more for 2.5× the light.
-   * Celestiary's `[` and `]` keys step it by 0.5, as Celestia's do.
+   * it (HDR.md, "Physical stars"), as magnitudes over LIMITING_MAGNITUDE
+   * (6.5, the naked eye's) at the physical star gain: 0 is the default, and
+   * a magnitude more is 2.5× the light.  Celestiary's `[` and `]` keys step
+   * it by 0.5, as Celestia's do (starMagnitude.js).  Held as this offset, so
+   * stepping back is exactly 0.
    *
-   * @param {number} magnitude
+   * @param {number} mag Magnitudes, held to the range; anything but a
+   *   number is 0
    */
+  setStarMagnitudeOffset(mag) {
+    this._starMag = clampStarMag(mag)
+    this.setStarGain(starMagGain(this._starMag))
+  }
+
+
+  /** @returns {number} The offset the user set (setStarMagnitudeOffset), magnitudes */
+  starMagnitudeOffset() {
+    return this._starMag
+  }
+
+
+  /** @param {number} magnitude The limit wanted at the dark-adapted gain */
   setLimitingMagnitude(magnitude) {
-    this.setStarGain(starGainForLimit(Number.isFinite(magnitude) ? magnitude : LIMITING_MAGNITUDE))
+    this.setStarMagnitudeOffset(magnitude - LIMITING_MAGNITUDE)
   }
 
 
   /** @returns {number} The limiting magnitude the user set (setLimitingMagnitude) */
   userLimitingMagnitude() {
-    return LIMITING_MAGNITUDE + (2.5 * Math.log10(absoluteUniforms.uStarGain.value))
+    return LIMITING_MAGNITUDE + this._starMag
   }
 
 

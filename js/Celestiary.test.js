@@ -11,7 +11,7 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock} from 'bun:test'
 import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
-import {encodePermalink} from './permalink.js'
+import {decodePermalink, encodePermalink} from './permalink.js'
 import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
 import * as Shared from './shared.js'
 
@@ -110,6 +110,14 @@ class StubThreeUI {
   }
   addClickCb() {}
   setLimitingMagnitude() {}
+  setStarMagnitudeOffset(mag) {
+    this._starMag = mag
+  }
+
+  starMagnitudeOffset() {
+    return this._starMag ?? 0
+  }
+
   setExposureCompensation(ev) {
     this._ev = ev
   }
@@ -827,16 +835,18 @@ describe('the target in the link', () => {
     global.fetch = savedFetch
     apps.forEach((a) => clearTimeout(a._permalinkTimer))
     Shared.targets.label = null
+    Shared.targets.track = false
   })
 
   /**
    * @param {string} fragment
+   * @param {Function} [setIsPaused] The time panel's setter
    * @returns {Promise<object>} A Celestiary loaded from #fragment, restored
    */
-  async function open(fragment) {
+  async function open(fragment, setIsPaused = () => {}) {
     global.location.hash = `#${fragment}`
     const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
-        {}, () => {}, () => {}, () => {})
+        {}, () => {}, setIsPaused, () => {})
     apps.push(app)
     await new Promise((resolve) => setTimeout(resolve, 50))
     return app
@@ -1056,12 +1066,37 @@ describe('the target in the link', () => {
       clearTimeout(app._permalinkTimer)
     })
 
-    it('[ and ] are still the stars\' limiting magnitude, not the exposure', async () => {
+    it('[ and ] are the stars\' limiting magnitude, not the exposure', async () => {
       const app = await open(TEST_FRAGMENT)
       expect(app.keys.msgs['[']).toMatch(/stars/i)
+      expect(app.keys.msgs[']']).toMatch(/stars/i)
       expect(app.keys.msgs['-']).toMatch(/exposure/i)
       expect(app.keys.msgs['=']).toMatch(/exposure/i)
       expect(app.keys.msgs['e']).toMatch(/exposure/i)
+    })
+
+    it('steps up and down land on exactly 0, with no ev= in the link', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const keys = ['=', '=', '=', '=', '-', '-', '-', '-', '-', '=']
+      for (const key of keys) {
+        app.keys.onKeyDown({key})
+        app.keys.onKeyDown({key})
+        app.keys.onKeyDown({key})
+      }
+      // Thirds up and down.
+      for (let i = 0; i < 7; i++) {
+        app.keys.onKeyDown({key: '='})
+      }
+      for (let i = 0; i < 7; i++) {
+        app.keys.onKeyDown({key: '-'})
+      }
+      app.stepExposureCompensation(-3)
+      app.stepExposureCompensation(3)
+      app.stepExposureCompensation(-7)
+      app.stepExposureCompensation(7)
+      expect(Object.is(app.ui.exposureCompensation(), 0)).toBe(true)
+      expect(app.permalink()).not.toContain(';ev=')
+      clearTimeout(app._permalinkTimer)
     })
 
     it('is in the link as ev=, and a link restores it, and one without sets it back to 0', async () => {
@@ -1077,6 +1112,144 @@ describe('the target in the link', () => {
       expect(typed.ui.exposureCompensation()).toBe(2.5)
       const cleared = await open(TEST_FRAGMENT)
       expect(cleared.ui.exposureCompensation()).toBe(0)
+    })
+  })
+
+  describe('the stars\' setting', () => {
+    it('[ and ] step half a magnitude over the naked eye\'s limit, and say so to the readout', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const heard = []
+      const stop = app.onStarMagnitude((mag) => heard.push(mag))
+      expect(app.ui.starMagnitudeOffset()).toBe(0)
+      app.keys.onKeyDown({key: ']'})
+      app.keys.onKeyDown({key: ']'})
+      app.keys.onKeyDown({key: ']'})
+      expect(app.ui.starMagnitudeOffset()).toBe(1.5)
+      app.keys.onKeyDown({key: '['})
+      expect(heard).toEqual([0.5, 1, 1.5, 1])
+      stop()
+      app.keys.onKeyDown({key: ']'})
+      expect(heard.length).toBe(4)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('steps back to exactly 0 and is then out of the link', async () => {
+      const app = await open(TEST_FRAGMENT)
+      for (let i = 0; i < 13; i++) {
+        app.keys.onKeyDown({key: ']'})
+      }
+      expect(app.permalink()).toContain(';sm=6.5')
+      for (let i = 0; i < 13; i++) {
+        app.keys.onKeyDown({key: '['})
+      }
+      expect(Object.is(app.ui.starMagnitudeOffset(), 0)).toBe(true)
+      expect(app.permalink()).not.toContain(';sm=')
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('is in the link as sm=, the view restores it, and a link without one sets it back to 0', async () => {
+      const app = await open(TEST_FRAGMENT)
+      app.stepStarMagnitude(-3)
+      const link = app.permalink()
+      expect(link).toContain(';sm=-1.5')
+      const reloaded = await open(link)
+      expect(reloaded.ui.starMagnitudeOffset()).toBe(-1.5)
+      const cleared = await open(TEST_FRAGMENT)
+      expect(cleared.ui.starMagnitudeOffset()).toBe(0)
+      clearTimeout(app._permalinkTimer)
+    })
+  })
+
+  describe('the clock in the link', () => {
+    it('a running clock at real time adds no token', async () => {
+      const app = await open(TEST_FRAGMENT)
+      expect(app.permalink()).not.toContain('time:')
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('a paused clock reloads paused at its date, and resumes on unpausing', async () => {
+      const app = await open(TEST_FRAGMENT)
+      app.time.setPaused(true)
+      const link = app.permalink()
+      expect(link).toContain(';time:pause')
+      expect(link).not.toContain('rate=')
+      const heard = []
+      const reloaded = await open(link, (paused) => heard.push(paused))
+      expect(reloaded.time.isPaused).toBe(true)
+      expect(heard.at(-1)).toBe(true)
+      const jd = reloaded.time.simTimeJulianDay()
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      reloaded.time.updateTime()
+      expect(reloaded.time.simTimeJulianDay()).toBe(jd)
+      expect(Math.abs((jd - 2451545.0) - PL.d2000)).toBeLessThan(1e-3)
+      reloaded.time.togglePause()
+      expect(reloaded.time.isPaused).toBe(false)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('the rate is in the link, paused or not, and a paused clock keeps it to resume at', async () => {
+      const app = await open(TEST_FRAGMENT)
+      app.keys.onKeyDown({key: 'l'})
+      app.keys.onKeyDown({key: 'l'})
+      app.keys.onKeyDown({key: 'l'})
+      expect(app.permalink()).toContain(';time:rate=8')
+      app.time.setPaused(true)
+      const link = app.permalink()
+      expect(link).toContain(';time:pause,rate=8')
+      const reloaded = await open(link)
+      expect(reloaded.time.isPaused).toBe(true)
+      expect(reloaded.time.timeScale).toBe(8)
+      expect(reloaded.time.timeScaleSteps).toBe(3)
+      reloaded.time.togglePause()
+      expect(reloaded.time.timeScale).toBe(8)
+      // And backwards.
+      app.time.setPaused(false)
+      app.keys.onKeyDown({key: 'j'})
+      expect(app.permalink()).toContain(';time:rate=-8')
+      const back = await open(app.permalink())
+      expect(back.time.isPaused).toBe(false)
+      expect(back.time.timeScale).toBe(-8)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('a link without the token runs at real time, whatever the clock was doing', async () => {
+      const app = await open(TEST_FRAGMENT)
+      app.time.setPaused(true)
+      app.time.setRate(4)
+      const link = TEST_FRAGMENT
+      app._restoreClock(decodePermalink(link))
+      expect(app.time.isPaused).toBe(false)
+      expect(app.time.timeScale).toBe(1)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('pausing, a rate and a date set each schedule the link', async () => {
+      const app = await open(TEST_FRAGMENT)
+      let scheduled = 0
+      app._schedulePermalinkUpdate = () => scheduled++
+      app.time.togglePause()
+      app.time.changeTimeScale(1)
+      app.time.setTime(app.time.simTime + 1000)
+      expect(scheduled).toBe(3)
+    })
+  })
+
+  describe('tracking in the link', () => {
+    it('is the T setting, on after \'t\', and a link restores it', async () => {
+      const app = await open(TEST_FRAGMENT)
+      expect(app.permalink()).not.toMatch(/;s=[^;]*T/)
+      app.keys.onKeyDown({key: 't'})
+      expect(app.permalink()).toMatch(/;s=[^;]*T/)
+      const link = app.permalink()
+      app.keys.onKeyDown({key: 't'})
+      expect(Shared.targets.track).toBe(false)
+      const reloaded = await open(link)
+      expect(Shared.targets.track).toBe(true)
+      const off = await open(TEST_FRAGMENT)
+      expect(Shared.targets.track).toBe(false)
+      expect(off).toBeDefined()
+      expect(reloaded).toBeDefined()
+      clearTimeout(app._permalinkTimer)
     })
   })
 })

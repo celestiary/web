@@ -1,5 +1,6 @@
 import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
 import {clampEv, roundEv} from './scene/evCompensation.js'
+import {clampStarMag, roundStarMag} from './scene/starMagnitude.js'
 
 
 const SEPARATOR = '@'
@@ -12,6 +13,13 @@ const LIST_SEP = ','
 const VALUE_LIST_SEP = '+'
 // A `from=` frame path: a body path ('sun/earth') or a star ('hip:32349').
 const FRAME_PATH = /^([a-z0-9_-]+(\/[a-z0-9_-]+)*|hip:\d+)$/
+
+// Significant figures of the field of view in a link (formatFov).
+const FOV_DIGITS = 4
+// The field of view a link can set, degrees: past these the camera is
+// degenerate (a zero or negative field, or a flat one).
+export const FOV_MIN = 1e-4
+export const FOV_MAX = 179
 
 // SI meter prefixes, descending so first match wins
 const METER_PREFIXES = [
@@ -36,6 +44,10 @@ const METER_PREFIXES = [
 // view rather than the orbit-style camera quaternion.  Backward compatible:
 // pre-L permalinks decode landed=false.
 //
+// `T` is the tracking flag ('t': the camera keeps the target centred, every
+// frame).  It is restored after the target is set (Celestiary._arrive); the
+// camera's `cq` alone would hold the view only until the target moved.
+//
 // `A` is the AR-fallback flag.  When present on decode, Celestiary
 // best-effort enters AR mode at the saved lat/lng/alt — sensors then
 // overwrite camera orientation each frame, so the saved `cq` quaternion
@@ -56,6 +68,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   x: true, // human expansion lines (shown once computed)
   v: true, // nav panels / heads-up display
   L: false, // landed at surface — see Scene.land
+  T: false, // tracking the target — see Scene.track
   A: false, // AR-fallback — enter AR sky view if device supports
 })
 
@@ -107,6 +120,20 @@ export function decodeSettings(s) {
  */
 function trimFloat(v) {
   return parseFloat(v.toFixed(4)).toString()
+}
+
+
+/**
+ * A field of view as the link carries it: four significant figures, so
+ * 45 is `45`, 0.0714 (a telescope's) is `0.0714` and a wide 120.456 is
+ * `120.5`.  Two decimal places would round a telescope's 0.0714 to 0.07, 2%
+ * off, and a fraction of a hundredth of a degree to 0, which is no camera.
+ *
+ * @param {number} fov Degrees
+ * @returns {string}
+ */
+function formatFov(fov) {
+  return String(parseFloat(fov.toPrecision(FOV_DIGITS)))
 }
 
 
@@ -190,7 +217,9 @@ export function permalinkHref(fragment, baseHref, search) {
  * after the position.
  *
  * `ev=` is the user's exposure compensation in stops (evCompensation.js),
- * 2 decimal places, left out at 0.
+ * 2 decimal places, left out at 0.  `sm=` is the stars' setting (`[` and
+ * `]`), magnitudes over the naked eye's limit, 2 decimal places, left out
+ * at 0.
  *
  * State tokens (`;label:value`, design/URLs.md) follow, in the order given.
  *
@@ -209,13 +238,15 @@ export function permalinkHref(fragment, baseHref, search) {
  * @param {string} [from]  The path of the camera's frame body (or star), if
  *   not the path's own; left out if null or equal to `path`
  * @param {number} [ev]  The exposure compensation, stops; left out if 0
+ * @param {number} [sm]  The stars' limiting magnitude over the naked eye's
+ *   (starMagnitude.js), magnitudes; left out if 0
  * @returns {string}  Hash fragment without leading '#'
  */
-export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens, from, ev = 0) {
+export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens, from, ev = 0, sm = 0) {
   const pos = `${trimFloat(lat)},${trimFloat(lng)},${formatMeters(Math.round(alt))}`
   const t = `${parseFloat(d2000.toFixed(4))}jd`
   const cq = [quat.x, quat.y, quat.z, quat.w].map(trimFloat).join(',')
-  const f = `${parseFloat(fov.toFixed(2))}deg`
+  const f = `${formatFov(fov)}deg`
   let frag = `${path}${SEPARATOR}${pos}`
   if (from && from !== path) {
     frag += `${PARAM_SEP}from=${from}`
@@ -224,6 +255,10 @@ export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings,
   const evRounded = roundEv(ev)
   if (evRounded !== 0) {
     frag += `${PARAM_SEP}ev=${evRounded}`
+  }
+  const smRounded = roundStarMag(sm)
+  if (smRounded !== 0) {
+    frag += `${PARAM_SEP}sm=${smRounded}`
   }
   if (settings) {
     const flags = encodeSettings(settings)
@@ -254,7 +289,7 @@ export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings,
  *
  * @param {string} fragment  Hash content without leading '#'
  * @returns {{path:string, d2000:number, lat:number, lng:number, alt:number,
- *            quat:{x,y,z,w}, fov:number, ev:number, settings:object, tokens:object,
+ *            quat:{x,y,z,w}, fov:number, ev:number, sm:number, settings:object, tokens:object,
  *            from:?string}|null}
  */
 export function decodePermalink(fragment) {
@@ -321,7 +356,11 @@ export function decodePermalink(fragment) {
   const settings = decodeSettings(params['s'])
   const from = FRAME_PATH.test(params['from'] ?? '') && params['from'] !== path ? params['from'] : null
   const ev = clampEv(parseFloat(params['ev']))
-  return {path, d2000: d2000InRange, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw}, fov, ev, settings, tokens, from}
+  const sm = clampStarMag(parseFloat(params['sm']))
+  return {
+    path, d2000: d2000InRange, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw},
+    fov: Math.min(Math.max(fov, FOV_MIN), FOV_MAX), ev, sm, settings, tokens, from,
+  }
 }
 
 
@@ -368,6 +407,39 @@ export function formatTokenValue(flags, named = {}) {
     parts.push(`${name}${KV_SEP}${Array.isArray(value) ? value.join(VALUE_LIST_SEP) : value}`)
   }
   return parts.join(LIST_SEP)
+}
+
+
+/**
+ * The `time:` token (design/URLs.md): the clock when it isn't running at
+ * real time.  `pause` is a flag; `rate=N` is the signed multiplier on real
+ * time (`rate=8` eight times, `rate=-2` backwards at twice), which Time
+ * keeps at powers of two.  The rate is the one in force: a paused clock
+ * keeps it, to resume at.  Left out (null) when running at 1.
+ *
+ * @param {boolean} paused
+ * @param {number} rate Time.timeScale
+ * @returns {?string}
+ */
+export function encodeTimeToken(paused, rate) {
+  const r = Number.isFinite(rate) && rate !== 0 ? Math.round(rate) : 1
+  const value = formatTokenValue(paused ? ['pause'] : [], {rate: r === 1 ? null : r})
+  return value || null
+}
+
+
+/**
+ * The inverse of encodeTimeToken.  A token of anything else is the
+ * defaults, running at real time.
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {{paused: boolean, rate: number}} `rate` as written, 1 if it is
+ *   absent, zero or not a number (Time.setRate holds it to what it runs at)
+ */
+export function decodeTimeToken(value) {
+  const {flags, named} = parseTokenValue(value)
+  const rate = parseFloat(named.rate)
+  return {paused: flags.includes('pause'), rate: Number.isFinite(rate) && rate !== 0 ? rate : 1}
 }
 
 
