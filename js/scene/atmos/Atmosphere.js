@@ -469,8 +469,10 @@ export function newAtmospherePass() {
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
     // The night sky's code, compiled in only while it can show (ThreeUi
-    // _updateNightSky sets it; three keeps both programs once built).
-    defines: {NIGHT_SKY: 0},
+    // _updateNightSky sets it; three keeps both programs once built).  The
+    // aerosol's narrow lobe's march (marchSegment), only for a body that has
+    // one (Mars; _updateAtmUniforms sets it).
+    defines: {NIGHT_SKY: 0, MIE_PEAK: 0},
     // Writes the scene's depth to the screen (gl_FragDepth) so the label
     // overlay drawn after it (ThreeUI.render) is depth-tested as it would
     // be in the scene.  A depth test that always passes, as writes need
@@ -704,6 +706,39 @@ vec2 rsi(vec3 r0, vec3 rd, float sr);
 
 ${STEP_INTEGRAL_GLSL}
 
+// The march's step count (marchSegment): by the segment's optical depth, not
+// its length.  tauMax bounds it from above, the air's extinction at the
+// segment's lowest point (its end, or the ray's closest approach to the
+// planet's centre where that is inside it) times its length, in the bluest
+// channel: one step per SEG_STEP_TAU of it, from SEG_STEPS_MIN to SEG_STEPS.
+// From 7.5 km over Earth the bound is 0.29 straight down and 0.40 at 45° (4
+// steps), 1.1 for ground 30 km off (12); along the ground to the horizon, or
+// 66 km under Mars's datum, it is several (16).  Two steps at the least
+// moved twilight's ground by 3 of 255.  composition.md, "The march's cost".
+#define SEG_STEPS_MIN 4
+#define SEG_STEP_TAU  0.1
+int segmentSteps(vec3 eye, vec3 dir, float tMax) {
+  float tLow = clamp(-dot(eye, dir), 0.0, tMax);
+  float hLow = max(length(eye + dir * tLow) - uGroundRadius, 0.0);
+  float kMax = max(uRayleigh.r, max(uRayleigh.g, uRayleigh.b)) * exp(-hLow / uRayleighScaleHeight)
+      + uMieCoeff * exp(-hLow / uMieScaleHeight);
+  float n = ceil(kMax * tMax / SEG_STEP_TAU);
+  return int(clamp(n, float(SEG_STEPS_MIN), float(SEG_STEPS)));
+}
+
+// The mean over a step of the density e^(−h/H), Rayleigh's in x and Mie's in
+// y, from its value at the step's two ends, the height taken as linear along
+// it: (d0 − d1) / a for a = (h1 − h0) / H, which is exact for a straight
+// step.  The midpoint's density under-counted a step down through the haze
+// by a²/24: 10% for a step of 1.5 Mie scale heights, which is what made 16
+// steps the count from 7.5 km over Earth.
+vec2 meanDensity(float h0, float h1, vec2 d0, vec2 d1) {
+  vec2 a = (h1 - h0) / vec2(uRayleighScaleHeight, uMieScaleHeight);
+  vec2 small = step(abs(a), vec2(1.0e-3));
+  vec2 exact = (d0 - d1) / mix(a, vec2(1.0), small);
+  return mix(exact, 0.5 * (d0 + d1), small);
+}
+
 // Single scattering (as the in-scatter table stores it: Rayleigh rgb
 // already times its coefficients, Mie in a) and transmittance along the view
 // ray from the eye to a point tMax away, by a march, as
@@ -711,7 +746,9 @@ ${STEP_INTEGRAL_GLSL}
 // the transmittance table, and the step's own extinction integrated exactly
 // for its density (a segment from an eye below the sphere to where its ray
 // leaves it can be 100 km of ground-density air, and a step of that at the
-// end-of-step attenuation lost a third of the in-scatter).  Heights below
+// end-of-step attenuation lost a third of the in-scatter).  Each step's
+// density is its mean over the step (meanDensity), and the step count
+// follows the segment's optical depth (segmentSteps).  Heights below
 // the ground sphere (Cesium's terrain under a datum, a camera there, and the
 // faces of a ground mesh, which sag inside its sphere) count at the sphere's
 // density, as the tables do: e^(−h/H) below it put five times Earth's Mie
@@ -721,9 +758,12 @@ ${STEP_INTEGRAL_GLSL}
 // scattered light through the delta-M extinction, the aerosol's narrow
 // lobe taken as unscattered, and Ts its transmittance; the Mie of the
 // direct beam through the true one; and in ms.a the broad lobes' extra of
-// the delta-M beam.  With no narrow lobe the two are one.
+// the delta-M beam.  With no narrow lobe (MIE_PEAK 0: Earth) the two are
+// one, and only one is computed.
 void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out vec3 T, out vec3 Ts) {
-  float ds = tMax / float(SEG_STEPS);
+  int   n  = segmentSteps(eye, dir, tMax);
+  float ds = tMax / float(n);
+  vec2  scaleH = vec2(uRayleighScaleHeight, uMieScaleHeight);
   vec3  totalR = vec3(0.0);
   float totalM = 0.0;
   float extraM = 0.0;
@@ -732,12 +772,21 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out
   ms = vec4(0.0);
   T = vec3(1.0);
   Ts = vec3(1.0);
+  float h0 = max(length(eye) - uGroundRadius, 0.0);
+  vec2  d0 = exp(-h0 / scaleH);
   for (int i = 0; i < SEG_STEPS; i++) {
+    if (i >= n) break;
+    // The step's middle, for the Sun's light and Ψ; its end, for its density.
     vec3  pos = eye + dir * ((float(i) + 0.5) * ds);
     float r   = length(pos);
     float h   = max(r - uGroundRadius, 0.0);
-    float dR  = exp(-h / uRayleighScaleHeight);
-    float dM  = exp(-h / uMieScaleHeight);
+    float h1  = max(length(eye + dir * (float(i + 1) * ds)) - uGroundRadius, 0.0);
+    vec2  d1  = exp(-h1 / scaleH);
+    vec2  dd  = meanDensity(h0, h1, d0, d1);
+    float dR  = dd.x;
+    float dM  = dd.y;
+    h0 = h1;
+    d0 = d1;
     vec2  jOd;
     vec2  pPlanet = rsi(pos, uSunDirection, uGroundRadius);
     // The Sun behind the planet: from above the sphere, the ray to it meets
@@ -757,25 +806,35 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out
           vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rg;
     }
     vec3 sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r));
-    vec3 sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r));
     vec3 sigma = uRayleigh * dR + vec3(uMieCoeff * dM);
-    vec3 sigmaScaled = uRayleigh * dR + kMieS * dM;
     vec3 g     = T * stepIntegral(sigma, ds);
-    vec3 gs    = Ts * stepIntegral(sigmaScaled, ds);
     vec3 w     = g * sunT;
-    vec3 ws    = gs * sunTs;
-    totalR += dR * ws;
-    totalM += dM * w.r;
-    extraM += dM * (ws.r - w.r);
     // The light scattered twice or more, isotropic: the step's scattering
     // coefficient times the multiple-scattering factor there
     // (precomputeMultiScatter).
     vec3 psi = texture2D(tMultiScatter,
         vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, uSunDirection) * 0.5 + 0.5)).rgb;
+#if MIE_PEAK
+    vec3 sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r));
+    vec3 sigmaScaled = uRayleigh * dR + kMieS * dM;
+    vec3 gs    = Ts * stepIntegral(sigmaScaled, ds);
+    vec3 ws    = gs * sunTs;
+    totalR += dR * ws;
+    totalM += dM * w.r;
+    extraM += dM * (ws.r - w.r);
     ms.rgb += (uRayleigh * dR + sMieS * dM) * psi * gs;
     T *= exp(-sigma * ds);
     Ts *= exp(-sigmaScaled * ds);
+#else
+    totalR += dR * w;
+    totalM += dM * w.r;
+    ms.rgb += (uRayleigh * dR + sMieS * dM) * psi * g;
+    T *= exp(-sigma * ds);
+#endif
   }
+#if !MIE_PEAK
+  Ts = T;
+#endif
   inS = vec4(uRayleigh * totalR, uMieCoeff * totalM);
   ms.a = uMieCoeff * extraM;
 }
