@@ -433,10 +433,14 @@ show (`CesiumLayers._lightsShow`):
   and the tone map's slope is at most 1, so under that no pixel moves by
   more than a level.  By day, at the keyed exposure, the lights are 4.5e-5:
   from orbit over a gibbous Earth they're there, and invisible.  Except on
-  the frames the meter reads (every `METER_EVERY_FRAMES`): it takes each
-  pixel's log, and on black ground a light far under a display step is far
-  over its floor, so skipping them there would move the gain.  Those
-  frames draw them, and the meter reads what it did before.
+  the frames the meter samples (every `METER_EVERY_FRAMES`, as
+  `ThreeUi.isMeterFrame` says: `MeterCadence` in `meterReadback.js`, which
+  `ThreeUi._meter` advances, so the two can't drift; a test holds them
+  together): it takes each pixel's log, and on black ground a light far
+  under a display step is far over its floor, so skipping them there would
+  move the gain.  Those frames draw them, and the meter reads what it did
+  before; its asynchronous readback takes that frame's pixels a frame or
+  more later ([HDR.md, the meter's readback](js/scene/HDR.md#the-meters-readback)).
 
 Where it must run, it runs at full resolution and every frame.  Its cost
 is a whole Cesium frame's CPU (Cesium's JS, the recording and replay, the

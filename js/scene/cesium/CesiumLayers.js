@@ -43,7 +43,7 @@ import {
 } from './frames.js'
 import {hiddenBehind, OCCLUDER_SCALE} from './visibility.js'
 import {fovScale} from '../farPoint.js'
-import {METER_EVERY_FRAMES, nightLightRadiance} from '../exposure.js'
+import {nightLightRadiance} from '../exposure.js'
 import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {detailScale} from './detail.js'
@@ -432,7 +432,7 @@ export default class CesiumLayers {
    * is under half a display step: the atmosphere pass only dims it (T ≤ 1)
    * and the tone map's slope is at most 1, so no pixel moves by more than
    * one level of 255 (by day the lights are 4.5e-5 of a sunlit white).
-   * Except on the frames the meter reads (ThreeUi._meter, every
+   * Except on the frames the meter samples (ThreeUi.isMeterFrame, every
    * METER_EVERY_FRAMES): it takes the log of each pixel, and a light far
    * under a display step is still far over its floor on black ground, so the
    * gain would follow the lights' skipping.  Those frames draw them, and the
@@ -451,13 +451,13 @@ export default class CesiumLayers {
 
 
   /**
-   * @returns {boolean} Whether ThreeUi's meter reads this frame: _meter
-   *   runs after the composite and counts frames in _frame.  True when
-   *   that's unknown.
+   * @returns {boolean} Whether ThreeUi's meter samples this frame
+   *   (ThreeUi.isMeterFrame, the one place that says so; the asynchronous
+   *   readback reads that frame's pixels a frame or more later, but they are
+   *   this frame's).  True when that's unknown.
    */
   _meterFrame() {
-    const frame = this.ui._frame
-    return !Number.isFinite(frame) || frame % METER_EVERY_FRAMES === 0
+    return typeof this.ui.isMeterFrame === 'function' ? this.ui.isMeterFrame() : true
   }
 
 

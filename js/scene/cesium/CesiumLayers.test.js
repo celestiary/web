@@ -1,6 +1,7 @@
 import {AlwaysDepth, LOD, Object3D, PerspectiveCamera, Vector3} from 'three'
 import {ASTRO_UNIT_METER} from '../../shared.js'
 import {exposureAt, METER_EVERY_FRAMES, nightLightRadiance} from '../exposure.js'
+import {MeterCadence} from '../meterReadback.js'
 import CesiumLayers, {bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
 import {CESIUM_BODIES} from './bodies.js'
 
@@ -283,7 +284,12 @@ describe('hiding the celestiary surface', () => {
 
 
 describe('night lights', () => {
-  const layers = (exposure, frame) => new CesiumLayers({renderer: {toneMappingExposure: exposure}, _frame: frame})
+  // A stand-in ThreeUi, `frame` frames in, asking the meter's cadence as it does.
+  const layers = (exposure, frame) => {
+    const cadence = new MeterCadence()
+    cadence.frame = frame
+    return new CesiumLayers({renderer: {toneMappingExposure: exposure}, isMeterFrame: () => cadence.isSampleFrame()})
+  }
   const body = {night: {}, nightInView: true}
   // The renderer's exposure at which the brightest light is a display step.
   const step = (1 / 255) / nightLightRadiance()
@@ -303,6 +309,30 @@ describe('night lights', () => {
     expect(layers(step * 0.4, METER_EVERY_FRAMES * 3)._lightsShow(body)).toBe(true)
     // By day the lights are far under it: Earth's keyed exposure, gain 1.
     expect(layers(exposureAt(ASTRO_UNIT_METER), 2)._lightsShow(body)).toBe(false)
+  })
+
+  it('draw on exactly the frames the meter samples', () => {
+    // As ThreeUi: the composite asks isMeterFrame (the cadence's
+    // isSampleFrame), then _meter ends the frame with advance, metering when
+    // it returns true.
+    const cadence = new MeterCadence()
+    const L = new CesiumLayers({renderer: {toneMappingExposure: step * 0.4}, isMeterFrame: () => cadence.isSampleFrame()})
+    const drawn = []
+    const metered = []
+    for (let f = 0; f < 4 * METER_EVERY_FRAMES; f++) {
+      if (L._lightsShow(body)) {
+        drawn.push(f)
+      }
+      if (cadence.advance()) {
+        metered.push(f)
+      }
+    }
+    expect(metered).toEqual([0, 1, 2, 3].map((k) => k * METER_EVERY_FRAMES))
+    expect(drawn).toEqual(metered)
+  })
+
+  it('draw when the meter frames are unknown', () => {
+    expect(new CesiumLayers({renderer: {toneMappingExposure: step * 0.4}})._lightsShow(body)).toBe(true)
   })
 })
 
