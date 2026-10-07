@@ -49,8 +49,10 @@
     "mieCoeff_unit": "1/m",
     "mieScaleHeight": "1.11e4 m",
     "mieAlbedo": [0.95, 0.91, 0.86],
-    "miePolarity": [0.66, 0.70, 0.74],
+    "miePeakPolarity": [0.919, 0.931, 0.944],
+    "miePeakWeight": [0.503, 0.529, 0.560],
+    "miePolarity": [0.445, 0.478, 0.497],
     "mieBackPolarity": -0.3,
-    "mieForwardWeight": 0.92
+    "mieForwardWeight": 0.79
   }
 }

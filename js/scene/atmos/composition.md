@@ -252,7 +252,158 @@ fills in.  Earth's sky gains the same term; its gain (`sunIntensity`,
 below) is re-fitted so its look holds.  The approximation's limit is a
 thick atmosphere (τ of several) or one whose multiple scattering is still
 strongly forward: Venus, Titan.  There the isotropic sum under-counts the
-forward glow; those bodies keep the single-term look they have.
+forward glow; those bodies keep the single-term look they have.  An
+aerosol's narrow forward lobe is taken out of the sum (delta-M; next
+section).
+
+## The dust's forward peak
+
+Mars's dust grains (effective radius about 1.5 µm, three wavelengths)
+diffract: about half of what they take from the beam goes into a lobe a
+few degrees wide round the Sun, and that lobe is the compact, very bright
+aureole Curiosity sees, white at the core after the tone map and bluish
+for a few degrees (#188).  Two broad lobes can't make it: the data before
+#188 drew a flat blue disc 18° across the zenith at midday, its core 9×
+too faint.  A narrow lobe in the data alone fixed the core but turned the
+far sky blue-grey: 64 directions per texel of the multiple-scattering
+table can't resolve a lobe 3° wide, and the isotropic second scattering
+spread its light over the whole sky.
+
+**The phase function** has three lobes (Per-body data):
+`P = f·CS(g_n) + (1 − f)·[w·CS(g) + (1 − w)·CS(g₂)]`.
+
+| | red | green | blue |
+|---|---|---|---|
+| narrow lobe g_n (`miePeakPolarity`) | 0.919 | 0.931 | 0.944 |
+| its share f (`miePeakWeight`) | 0.503 | 0.529 | 0.560 |
+| broad forward lobe g (`miePolarity`) | 0.445 | 0.478 | 0.497 |
+| back lobe g₂ (`mieBackPolarity`), weight 1 − w of the rest | −0.3, 0.21 | | |
+| mean cosine | 0.636 | 0.669 | 0.700 |
+| f × albedo (the delta-M share of the extinction) | 0.478 | 0.481 | 0.482 |
+
+Fitted in log space to Mie scattering by spheres (Bohren & Huffman's
+coefficients) over a gamma distribution of radii, r_eff 1.5 µm, v_eff 0.3
+(Lemmon et al. 2004; Wolff et al. 2009; Chen-Chen et al. 2019 measure
+1.0-1.9 µm at Gale), real index 1.50, at 650 / 550 / 450 nm, the
+imaginary index solved per channel (0.0018 / 0.0030 / 0.0044) so the
+single-scattering albedo is the data's 0.95 / 0.91 / 0.86.  Weights: 0.5°
+to 90° from the Sun at 1, past 90° at 0.05, with the mean cosine held at
+the old data's 0.635 / 0.669 / 0.70, within the 0.6-0.7 measured from
+Mars (Tomasko et al. 1999; Pollack et al. 1995), and the back lobe held at
+the old data's −0.3.  Spheres of that size have a mean cosine of
+0.73 / 0.75 / 0.78: the diffraction peak depends on the grains' size, not
+their shape, so it is fitted to Mie, but the side and back scattering of
+irregular grains is flatter than spheres', so the measured mean cosine
+holds there.  Against Mie the fit is within 10% from 0° to 20° (0.90 to
+1.04), 0.83-0.91 at 30-60°, 1.25-1.31 at 90° and 2-3× at 120-150°, where
+spheres have their side-scattering minimum, and 0.64-0.83 at 180°, under
+the spheres' glory.  f × albedo is 0.48 in every channel: the diffraction
+half of the extinction of grains much larger than the wavelength (f would
+be 1 / 2·albedo, 0.53 / 0.55 / 0.58, for a pure diffraction lobe).  Scripts:
+the session's `mars188-work/` (`mars188_fit.py`, `mars188_data.py`;
+`mars-work/mars_mie.py` for the Mie code).
+
+**Multiple scattering: delta-M** (Wiscombe 1977, J. Atmos. Sci. 34,
+1408).  For the multiple-scattering precompute the narrow lobe's share is
+taken as unscattered: light scattered into a 3° lobe travels on as if it
+hadn't been.  The aerosol's extinction there is (1 − albedo·f) of the true
+one (0.52 on Mars, nearly grey), its scattering (1 − f), and its phase
+function the broad lobes (`miePhase`), whose mean cosine is 0.35-0.39, so
+Hillaire's isotropic second scattering is a much better approximation
+than with the whole phase function.  The delta-M beam (the Sun's light
+after any number of scatterings in the narrow lobe) is what the gas and
+the broad lobes scatter, so the in-scatter atlas's Rayleigh and a third
+term, the broad lobes' extra single scattering of the delta-M beam over
+the direct one (`tInScatterMs`'s a), use the scaled extinction too.  The
+alternative, sampling many more directions near the Sun, doesn't help:
+resolving the lobe takes thousands of directions per texel, and the
+isotropic second scattering would still spread the lobe's light over the
+whole sky, the blue-grey.  Delta-M with exact single scattering per pixel
+is the standard remedy (Nakajima and Tanaka 1988, J. Quant. Spectrosc.
+Radiat. Transfer 40, 51).
+
+**Single scattering in the narrow lobe** is per pixel, exact: the
+atlas's Mie (the direct beam, through the true extinction) times the
+narrow lobe (`miePeakPhase`).  Its higher orders, light scattered two or
+more times in the narrow lobe, make the aureole wider at a low Sun or a
+dusty sky; the delta-M precompute counts them as the beam, so the pass
+adds them: the k-fold convolution of a Henyey-Greenstein lobe of
+asymmetry g is the lobe of g^k (its Legendre moments multiply), nearly so
+for Cornette-Shanks, and the number of small-angle scatterings is
+Poisson in the narrow lobe's optical depth τ_n on the light's path, so
+the narrow lobe's term is the first order times
+`Σ τ_n^(k−1)/k!·CS(g_n^k) / CS(g_n)`, up to 24 orders (`PEAK_ORDERS`;
+τ_n capped at 12).  τ_n is the geometric mean of the view ray's (from the
+delta-M and true transmittances, whose ratio is e^(albedo·f·τ_Mie)) and
+the Sun's from where the ray enters the air (`peakDepth`): symmetric in
+the two, as transmission is (reciprocity).  A plane-parallel emulation of
+the method against a Monte Carlo of the same phase function (the
+session's `mars188_emu.py`, `mars188_series.py`) chose it: the view's
+slant alone is 3.6× too bright 90° from a high Sun, the Sun's 1.75× at
+20° from a Sun 10° up; the geometric mean is within 11% everywhere from
+0.5° to 60°.  Without the higher orders the aureole is 20-40% short 5-20°
+out at τ 1 or a Sun 10° up.  The other form of the method, the whole
+phase function on the delta-M beam (Nakajima and Tanaka's TMS), puts all
+of the multiply forward-scattered light in the narrow lobe: the core 25%
+too bright at a high Sun and 3× at 10°.
+
+**Against the references** (the session's `mars188-evidence/`): the pass's
+linear sky along the solar vertical at Gale (`uDebug` 2, red radiance over
+the Sun's irradiance, per steradian), against a Monte Carlo of light
+scattered many times (`mars-work/mars_mc.py`) with the Mie phase function
+and with this data's, τ 0.5:
+
+| from the Sun | Sun 84°: before | after | Mie MC | Sun 45°: after | Mie MC | Sun 10°: after | Mie MC |
+|---|---|---|---|---|---|---|---|
+| 0.5° | 0.39 (B/R 1.51) | 3.72 (2.04) | 3.73 (1.99) | 4.29 (2.04) | 4.32 (1.98) | 2.79 (2.01) | 2.55 (1.90) |
+| 2° | 0.39 (1.50) | 3.01 (1.66) | 3.13 (1.68) | 3.42 (1.66) | 3.58 (1.68) | 2.37 (1.67) | 2.27 (1.65) |
+| 5° | 0.37 (1.43) | 1.35 (1.06) | 1.50 (1.06) | 1.52 (1.08) | 1.69 (1.07) | 1.20 (1.15) | 1.25 (1.13) |
+| 10° | 0.31 (1.26) | 0.43 (0.84) | 0.43 (0.78) | 0.46 (0.85) | 0.47 (0.79) | 0.43 (0.92) | 0.43 (0.85) |
+| 20° | 0.18 (0.95) | 0.12 (0.81) | 0.13 (0.76) | 0.12 (0.81) | 0.13 (0.77) | 0.12 (0.83) | 0.12 (0.77) |
+| 45° | 0.060 (0.74) | 0.045 (0.76) | 0.050 (0.81) | 0.035 (0.76) | 0.037 (0.78) | 0.025 (0.76) | 0.028 (0.75) |
+| 90° | 0.064 (0.79) | 0.057 (0.71) | 0.055 (0.80) | 0.019 (0.71) | 0.013 (0.71) | 0.008 (0.70) | 0.006 (0.68) |
+
+From 0.5° to 60° the red is within 13% of Mie's at every Sun and B/R
+within 11%; B/R falls through 1 at 5.8° / 6.0° / 7.5° from the Sun (Mie:
+about 5.7°, 5.8°, 6.6°; before, 18°); the far sky stays butterscotch, B/R
+0.71-0.81.  At 90° the sky is 1.4× Mie's at the lower Suns: the phase
+function there (1.3× Mie's at 90°, 3× at 120°) holds the measured mean
+cosine; against the Monte Carlo of this data it is 0.91-1.18 there.  At
+τ 1 (`mars188-cmp-t10.txt`) the Sun 84° and 45° are within 15% of Mie's
+from 0.5° to 60°, B/R crossing 1 at 6.3° and 6.5°.  At the Sun 10° the
+core, 0.5-3°, is 1.2-1.33× Mie's (B/R within 6%), within 14% from 4°
+out: the Monte Carlo is plane-parallel, and the sphere's air mass is less
+at a low Sun (the view's transmittance 10.5° up at τ 1 is 0.0059 in the
+pass, e^(−1/sin 10.45°) = 0.0040 in the plane).
+
+**The isotropic approximation's excess** 90-120° from the Sun, 1.2-1.75×
+against full multiple scattering at the Sun 45° and 10° before #188, is
+now 0.89-1.24× against a Monte Carlo of this data (τ 0.5 and 1): the
+broad lobes' mean cosine (0.35-0.39) is much nearer isotropic than the
+whole phase function's.
+
+**Curiosity.**  PIA19400 (Mastcam M-34, calibrated sunset, sol 956):
+blue over red relative to its value 8° from the Sun is 1.49 / 1.27 / 1.14
+at 1° / 3° / 5°; celestiary at the Sun 3° up, τ 0.5, gives 1.74 / 1.41 /
+1.18 (before, 1.09 / 1.09 / 1.07: no core), and the Mie Monte Carlo 1.52
+/ 1.42 / 1.21.  Mastcam's midday sky frames beside the Sun in its optical
+depth sequences (PDS, MSLMST_0011: sols 1063 and 1071, the Sun 67° and
+74° up, 440 nm, relative brightness: the archive's labels carry no
+radiance scale) fall from 3.0-3.4 at 8° to 0.43 at 25° over their value
+at 15°; celestiary's blue, 3.4-3.9 to 0.43-0.48 (before, 1.7-1.9 to
+0.43-0.49).
+
+**Limits.**  From outside the atmosphere the Sun's slant at the ray's
+entry is nil, so the narrow lobe's higher orders are off there: the
+limb's aureole toward the Sun from orbit is the first order alone.  The
+k-fold Cornette-Shanks lobe is approximated by the lobe of g^k.  The
+alpha of each atlas is grey, red's transmittance, as before: Mars's
+delta-M scaling is 0.522 / 0.519 / 0.518.  Earth has no narrow lobe, so
+f = 0, the scaled extinction is the true one, the extra term is zero and
+its tables are unchanged (#188's PR: their sums and every 997th value
+identical; the second atlas's a, unused before, is 0 where it was 1).  The probe's `uDebug` 5
+writes the multiply scattered in-scatter, with the broad lobes' extra in
+its a.
 
 ## Per-body data
 
@@ -268,16 +419,21 @@ the pass has one path for every body:
   al. 1999, Pathfinder, 0.84 at 443 nm to 0.92 at 671 nm; Wolff et al.
   2009, CRISM, 0.86-0.90 at 440 nm, 0.94-0.96 at 650 nm), which is the
   butterscotch: the sky is the dust's colour, not the gas's.
-- `miePolarity` (one number or rgb), `mieBackPolarity`,
-  `mieForwardWeight` (defaults 0, 1): the phase function, two
-  Cornette-Shanks lobes, the forward one's asymmetry per channel with
-  weight w, and a back lobe.  One number and w = 1 is the single lobe
-  Earth has always had (0.8).  Mars: forward 0.66 / 0.70 / 0.74, back
-  −0.3, w 0.92, an effective asymmetry of 0.58 (red) to 0.66 (blue),
-  within the 0.6-0.7 of Tomasko et al. 1999 and Pollack et al. 1995; the
-  sharper forward peak in the blue is the bluish aureole round the Sun,
-  which those authors trace to the micron-sized dust scattering shorter
-  wavelengths more nearly forward.
+- `miePeakPolarity`, `miePeakWeight` (one number or rgb; default 0, none),
+  `miePolarity` (one number or rgb), `mieBackPolarity`,
+  `mieForwardWeight` (defaults 0, 1): the phase function, Cornette-Shanks
+  lobes, `P = f·CS(g_n) + (1 − f)·[w·CS(g) + (1 − w)·CS(g₂)]`: a narrow
+  forward lobe (asymmetry g_n, share f, per channel), then the rest, a
+  broad forward lobe (g per channel, weight w) and a back lobe (g₂).
+  With no narrow lobe, one number and w = 1 is the single lobe Earth has
+  always had (0.8).  Mars has all three (below, "The dust's forward
+  peak"): mean cosine 0.636 / 0.669 / 0.700 (red, green, blue), within
+  the 0.6-0.7 of Tomasko et al. 1999 and Pollack et al. 1995.  The
+  narrow lobe is sharper in the blue, the bluish aureole round the Sun:
+  diffraction by grains of a given size is narrower at shorter
+  wavelengths.  (The two-lobe data before #188, forward 0.66 / 0.70 /
+  0.74, back −0.3, w 0.92, had a mean cosine of 0.635 / 0.669 / 0.701;
+  this doc gave it as 0.58-0.66.)
 - `sunIntensity`: the sky's gain.  With the planet as the exposure target,
   the sky in exposure units is `sunIntensity × in-scatter`, and the
   physical value is `π·DISPLAY_GAIN` ≈ 4.71 (HDR.md).  Mars has it: its

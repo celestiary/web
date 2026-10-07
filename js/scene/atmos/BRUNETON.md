@@ -300,3 +300,11 @@ the pass's segment march adds the same per step.  The single-scatter atlas
 is unchanged; the pass applies the phase functions (now per channel, two
 lobes) and the aerosol's single-scattering albedo at lookup, as before.
 See composition.md, "Multiple scattering" and "Per-body data".
+
+Since #188 an aerosol can have a third, narrow forward lobe (Mars's
+diffraction peak).  The multiple scattering and the gas's single
+scattering take it as unscattered (delta-M: the aerosol's extinction less
+that lobe's share), the second atlas's a holds the broad lobes' extra
+single scattering of that beam, and the pass draws the narrow lobe's
+orders of scattering per pixel (composition.md, "The dust's forward
+peak").  With no narrow lobe, Earth's, the tables are as they were.

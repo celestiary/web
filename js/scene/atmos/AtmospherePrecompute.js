@@ -167,8 +167,13 @@ void main() {
  * i-loop in the fullscreen scatter pass — no loops at runtime.
  *
  * Returns a 2048×512 FloatType atlas WebGLRenderTarget whose texture stores:
- *   RGB = kRlh * totalRlh  (Rayleigh scatter, pre-multiplied)
- *   A   = kMie * totalMie  (Mie scatter, grayscale approximation)
+ *   RGB = kRlh * totalRlh  (Rayleigh scatter, pre-multiplied), of the
+ *         delta-M beam: through the extinction with the aerosol's narrow
+ *         forward lobe taken as unscattered (composition.md, "The dust's
+ *         forward peak"); the true one where there is no such lobe (Earth)
+ *   A   = kMie * totalMie  (Mie scatter, grayscale approximation: red's
+ *         transmittance), of the direct beam, through the true extinction:
+ *         the narrow lobe's first order
  *
  * Atlas layout: 64 r-slices × 32 μ_sun steps = 2048px wide, 512 μ_view steps tall.
  * Lookup: x = (r_slice + μ_sun_t) / R_SLICES,  y = μ_view_t
@@ -192,6 +197,8 @@ export function precomputeInScatter(renderer, atmos, rGround, transmittanceRT) {
       uMieScaleHeight: {value: atmos.mieScaleHeight.scalar},
       uRayleigh: {value: new Vector3(...atmos.rayleigh)},
       uMieCoeff: {value: atmos.mieCoeff},
+      uMieAlbedo: {value: mieParams(atmos).albedo},
+      uMiePeakWeight: {value: mieParams(atmos).peakWeight},
       tTransmittance: {value: transmittanceRT.texture},
     },
     vertexShader: INSCATTER_VERT,
@@ -280,6 +287,8 @@ uniform float     uRayleighScaleHeight;
 uniform float     uMieScaleHeight;
 uniform vec3      uRayleigh;
 uniform float     uMieCoeff;
+uniform vec3      uMieAlbedo;
+uniform vec3      uMiePeakWeight;
 uniform sampler2D tTransmittance;
 
 #define R_SLICES        64
@@ -336,6 +345,13 @@ void main() {
   float totalMie = 0.0;
   // The ray's transmittance so far, per channel.
   vec3  T = vec3(1.0);
+  // The delta-M beam's (composition.md, "The dust's forward peak"): the
+  // aerosol's narrow forward lobe taken as unscattered, so its extinction
+  // is the rest, (1 − albedo · peak share) of it.  The gas scatters that
+  // beam; the narrow lobe's own first order is the Mie, of the direct beam.
+  // With no narrow lobe (Earth) the two are one.
+  vec3  kMieS = uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight);
+  vec3  Ts = vec3(1.0);
 
   for (int i = 0; i < INSCATTER_STEPS; i++) {
     vec3  iPos    = eyePos + rayDir * (iTime + iStepSize * 0.5);
@@ -371,11 +387,15 @@ void main() {
     // through the ray's transmittance so far and the step's own, integrated
     // exactly over the step (stepIntegral).
     vec3  sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r));
+    vec3  sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r));
     vec3  sigma = uRayleigh * dRlh + vec3(uMieCoeff * dMie);
+    vec3  sigmaScaled = uRayleigh * dRlh + kMieS * dMie;
     vec3  w     = T * sunT * stepIntegral(sigma, iStepSize);
-    totalRlh  += dRlh * w;
+    vec3  ws    = Ts * sunTs * stepIntegral(sigmaScaled, iStepSize);
+    totalRlh  += dRlh * ws;
     totalMie  += dMie * w.r;   // grayscale Mie (kMie is wavelength-independent)
     T         *= exp(-sigma * iStepSize);
+    Ts        *= exp(-sigmaScaled * iStepSize);
     iTime     += iStepSize;
   }
 
@@ -390,18 +410,26 @@ void main() {
  * The Mie (aerosol, dust) parameters of a body's atmosphere, with their
  * defaults, from its JSON (composition.md, "Per-body data"):
  *
- * - `miePolarity`: the forward lobe's asymmetry g, one number or [r, g, b]
- *   (Mars's dust scatters blue more sharply forward than red, which is the
- *   bluish aureole round the Sun).
+ * - `miePeakPolarity`, `miePeakWeight` (one number or [r, g, b]; default
+ *   0, none): a narrow forward lobe, the diffraction peak of grains much
+ *   larger than the wavelength, with asymmetry g_n and its share f of the
+ *   whole phase function.  The multiple-scattering precompute takes it as
+ *   unscattered (delta-M); the pass draws its orders of scattering exactly
+ *   enough near the Sun (composition.md, "The dust's forward peak").
+ * - `miePolarity`: the broad forward lobe's asymmetry g, one number or
+ *   [r, g, b] (Mars's dust scatters blue more sharply forward than red).
  * - `mieBackPolarity`, `mieForwardWeight`: a second, backward lobe with
  *   asymmetry g2 and the forward lobe's share w (two-term Henyey-Greenstein;
- *   w = 1, the default, is the one lobe Earth has always had).
+ *   w = 1, the default, is the one lobe Earth has always had).  These two
+ *   lobes are the rest of the phase function, the (1 − f) not in the peak:
+ *   P = f·CS(g_n) + (1 − f)·[w·CS(g) + (1 − w)·CS(g2)].
  * - `mieAlbedo`: the single-scattering albedo, one number or [r, g, b]; 1
  *   (the default) scatters everything it takes out of the beam.  Mars's
  *   dust absorbs blue.
  *
  * @param {object} atmos A body's reified atmosphere props
- * @returns {{polarity: Vector3, backPolarity: number, forwardWeight: number, albedo: Vector3}}
+ * @returns {{polarity: Vector3, backPolarity: number, forwardWeight: number, albedo: Vector3,
+ *   peakPolarity: Vector3, peakWeight: Vector3}}
  */
 export function mieParams(atmos) {
   const vec = (v, dflt) => {
@@ -413,15 +441,29 @@ export function mieParams(atmos) {
     backPolarity: atmos.mieBackPolarity ?? 0,
     forwardWeight: atmos.mieForwardWeight ?? 1,
     albedo: vec(atmos.mieAlbedo, 1),
+    peakPolarity: vec(atmos.miePeakPolarity, 0),
+    peakWeight: vec(atmos.miePeakWeight, 0),
   }
 }
 
 
 /**
+ * How many orders of scattering in the narrow lobe the pass sums at most
+ * (miePeakPhase), and the narrow lobe's optical depth it's capped at: at a
+ * Martian sunset (τ 0.5, 20 air masses) it is about 5, and the orders past
+ * 24 of a Poisson sum at 12 hold under 0.1% of it.
+ */
+export const PEAK_ORDERS = 24
+export const PEAK_TAU_MAX = 12
+
+
+/**
  * GLSL for the Mie phase function: `float csPhase(float mu, float g)`,
- * Cornette-Shanks for asymmetry g at mu = cos(scattering angle), and
- * `vec3 miePhase(float mu, vec3 g1, float g2, float w)`, the two-term form
- * per channel (mieParams).  Shared by the pass and the precompute.
+ * Cornette-Shanks for asymmetry g at mu = cos(scattering angle);
+ * `vec3 miePhase(float mu, vec3 g1, float g2, float w)`, the broad lobes
+ * per channel (mieParams); and `vec3 miePeakPhase(float mu, vec3 g, vec3
+ * tau)`, the narrow lobe with its orders of scattering (composition.md,
+ * "The dust's forward peak").  Shared by the pass and the precompute.
  */
 export const MIE_PHASE_GLSL = `
 float csPhase(float mu, float g) {
@@ -431,6 +473,24 @@ float csPhase(float mu, float g) {
 }
 vec3 miePhase(float mu, vec3 g1, float g2, float w) {
   return w * vec3(csPhase(mu, g1.r), csPhase(mu, g1.g), csPhase(mu, g1.b)) + (1.0 - w) * csPhase(mu, g2);
+}
+// The narrow lobe (asymmetry g per channel) scattered k ≥ 1 times along
+// the light's path, over its first order: the sum of tau^(k−1)/k! times
+// the lobe of asymmetry g^k, tau its optical depth on the path (a Poisson
+// count of small-angle scatterings: the k-fold convolution of a
+// Henyey-Greenstein lobe of g is the lobe of g^k, and nearly so for
+// Cornette-Shanks).  The first order alone (tau 0) is the lobe.
+vec3 miePeakPhase(float mu, vec3 g, vec3 tau) {
+  vec3 sum  = vec3(0.0);
+  vec3 gk   = vec3(1.0);
+  vec3 term = vec3(1.0);  // tau^(k−1) / k!
+  for (int k = 1; k <= ${PEAK_ORDERS}; k++) {
+    gk *= g;
+    sum += term * vec3(csPhase(mu, gk.r), csPhase(mu, gk.g), csPhase(mu, gk.b));
+    term *= tau / float(k + 1);
+    if (max(term.r, max(term.g, term.b)) < 1.0e-5) break;
+  }
+  return sum;
 }
 `
 
@@ -455,6 +515,7 @@ function atmosUniforms(atmos, rGround) {
     uMiePolarity: {value: mie.polarity},
     uMieBackPolarity: {value: mie.backPolarity},
     uMieForwardWeight: {value: mie.forwardWeight},
+    uMiePeakWeight: {value: mie.peakWeight},
   }
 }
 
@@ -503,6 +564,14 @@ function renderLut(renderer, width, height, uniforms, fragmentShader) {
  * The in-scatter along a ray then adds σ_s·Ψ per metre (precomputeInScatterMs,
  * the pass's march).
  *
+ * An aerosol's narrow forward lobe (mieParams' peak) is truncated, delta-M
+ * (Wiscombe 1977): its share of the scattering is taken as unscattered, so
+ * the extinction here is (1 − albedo·f) of the true one, the scattering
+ * (1 − f) of it, and the phase function the broad lobes alone.  64
+ * directions can't resolve a lobe 3° wide, and the isotropic second
+ * scattering would spread its light over the whole sky (composition.md,
+ * "The dust's forward peak").
+ *
  * @param {object} renderer
  * @param {object} atmos
  * @param {number} rGround
@@ -523,7 +592,12 @@ export function precomputeMultiScatter(renderer, atmos, rGround, transmittanceRT
 /**
  * Precomputes the multiply-scattered in-scatter atlas, laid out as
  * precomputeInScatter's: along the same rays, σ_s(x)·Ψ(x) through the
- * ray's transmittance to x, in rgb (no phase function: it's isotropic).
+ * ray's transmittance to x, in rgb (no phase function: it's isotropic),
+ * delta-M scaled as precomputeMultiScatter.  In a: the broad lobes' extra
+ * single scattering of the delta-M beam (the Sun's light after any number
+ * of scatterings in the narrow lobe) over the direct beam's, kMie times
+ * the difference of the two integrals, red's, as precomputeInScatter's a:
+ * the pass adds it with the broad lobes' phase.  Zero with no narrow lobe.
  *
  * @param {object} renderer
  * @param {object} atmos
@@ -542,7 +616,8 @@ export function precomputeInScatterMs(renderer, atmos, rGround, transmittanceRT,
 
 
 // The Sun's transmittance to a point, through the LUT: none behind the
-// planet.
+// planet.  The delta-M beam's: the aerosol's extinction less its narrow
+// lobe's scattering (uMiePeakWeight; the whole of it with none).
 const SUN_TRANSMITTANCE_GLSL = `
 vec3 sunTransmittance(vec3 pos, vec3 sun) {
   float r = length(pos);
@@ -553,7 +628,7 @@ vec3 sunTransmittance(vec3 pos, vec3 sun) {
   }
   vec2 od = texture2D(tTransmittance,
       vec2(h / (uAtmosphereRadius - uGroundRadius), dot(pos / r, sun) * 0.5 + 0.5)).rg;
-  return exp(-(uMieCoeff * od.g + uRayleigh * od.r));
+  return exp(-(uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight) * od.g + uRayleigh * od.r));
 }
 `
 
@@ -573,6 +648,7 @@ uniform vec3      uMieAlbedo;
 uniform vec3      uMiePolarity;
 uniform float     uMieBackPolarity;
 uniform float     uMieForwardWeight;
+uniform vec3      uMiePeakWeight;
 uniform float     uGroundAlbedo;
 uniform sampler2D tTransmittance;
 
@@ -592,6 +668,11 @@ void main() {
   vec3  sun  = vec3(sqrt(max(1.0 - mu_s * mu_s, 0.0)), mu_s, 0.0);
   vec3  L    = vec3(0.0);  // the single-scattered radiance arriving at x, summed over directions
   vec3  f    = vec3(0.0);  // the share of light leaving x scattered again, summed
+  // Delta-M: the narrow lobe's share of the aerosol's scattering taken as
+  // unscattered, its extinction and scattering less that share, and its
+  // phase function the broad lobes (miePhase).
+  vec3  kMieS = uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight);
+  vec3  sMieS = uMieCoeff * uMieAlbedo * (1.0 - uMiePeakWeight);
   const float GOLDEN = 2.39996323;
   for (int i = 0; i < MS_DIRS; i++) {
     // A direction of a Fibonacci sphere.
@@ -612,10 +693,10 @@ void main() {
       float h   = max(length(pos) - uGroundRadius, 0.0);
       float dR  = exp(-h / uRayleighScaleHeight);
       float dM  = exp(-h / uMieScaleHeight);
-      vec3  sigma  = uRayleigh * dR + vec3(uMieCoeff * dM);
-      vec3  sigmaS = uRayleigh * dR + uMieCoeff * uMieAlbedo * dM;
+      vec3  sigma  = uRayleigh * dR + kMieS * dM;
+      vec3  sigmaS = uRayleigh * dR + sMieS * dM;
       vec3  g = T * stepIntegral(sigma, ds);
-      L += g * sunTransmittance(pos, sun) * (uRayleigh * dR * pR + uMieCoeff * uMieAlbedo * dM * pM);
+      L += g * sunTransmittance(pos, sun) * (uRayleigh * dR * pR + sMieS * dM * pM);
       f += g * sigmaS;
       T *= exp(-sigma * ds);
     }
@@ -645,6 +726,7 @@ uniform float     uMieScaleHeight;
 uniform vec3      uRayleigh;
 uniform float     uMieCoeff;
 uniform vec3      uMieAlbedo;
+uniform vec3      uMiePeakWeight;
 uniform sampler2D tTransmittance;
 uniform sampler2D tMultiScatter;
 
@@ -676,11 +758,19 @@ void main() {
   float iTime     = max(p.x, 0.0);
   float iStepSize = (p.y - iTime) / float(INSCATTER_STEPS);
   if (iStepSize <= 0.0) {
-    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    gl_FragColor = vec4(0.0);
     return;
   }
-  vec3 total = vec3(0.0);
-  vec3 T = vec3(1.0);
+  // Delta-M (precomputeMultiScatter): the multiply-scattered light and the
+  // broad lobes' single scattering of the delta-M beam travel through the
+  // extinction less the narrow lobe's share; the direct beam, for the
+  // difference in a, through the true one.
+  vec3  kMieS = uMieCoeff * (1.0 - uMieAlbedo * uMiePeakWeight);
+  vec3  sMieS = uMieCoeff * uMieAlbedo * (1.0 - uMiePeakWeight);
+  vec3  total = vec3(0.0);
+  float extraMie = 0.0;
+  vec3  T  = vec3(1.0);
+  vec3  Ts = vec3(1.0);
   for (int i = 0; i < INSCATTER_STEPS; i++) {
     vec3  iPos = eyePos + rayDir * (iTime + iStepSize * 0.5);
     float iR   = length(iPos);
@@ -688,13 +778,30 @@ void main() {
     float dRlh = exp(-h / uRayleighScaleHeight);
     float dMie = exp(-h / uMieScaleHeight);
     vec3  sigma  = uRayleigh * dRlh + vec3(uMieCoeff * dMie);
-    vec3  sigmaS = uRayleigh * dRlh + uMieCoeff * uMieAlbedo * dMie;
+    vec3  sigmaScaled = uRayleigh * dRlh + kMieS * dMie;
+    vec3  sigmaS = uRayleigh * dRlh + sMieS * dMie;
     vec3  psi = texture2D(tMultiScatter,
         vec2(h / (uAtmosphereRadius - uGroundRadius), dot(iPos / iR, sunDir) * 0.5 + 0.5)).rgb;
-    total += sigmaS * psi * T * stepIntegral(sigma, iStepSize);
+    vec3  gs = Ts * stepIntegral(sigmaScaled, iStepSize);
+    total += sigmaS * psi * Ts * stepIntegral(sigmaScaled, iStepSize);
+    // The Sun at this step, as precomputeInScatter sees it (the same
+    // blocked-Sun path), for the broad lobes' single scattering of the two
+    // beams.
+    vec2  jOd;
+    vec2  pPlanet = rsi(iPos, sunDir, uGroundRadius);
+    if (pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) {
+      jOd = vec2(1.0e12, 1.0e12);
+    } else {
+      jOd = texture2D(tTransmittance,
+          vec2(h / (uAtmosphereRadius - uGroundRadius), dot(iPos / iR, sunDir) * 0.5 + 0.5)).rg;
+    }
+    vec3  sunT  = exp(-(uMieCoeff * jOd.g + uRayleigh * jOd.r));
+    vec3  sunTs = exp(-(kMieS * jOd.g + uRayleigh * jOd.r));
+    extraMie += dMie * ((gs * sunTs).r - (T * stepIntegral(sigma, iStepSize) * sunT).r);
     T     *= exp(-sigma * iStepSize);
+    Ts    *= exp(-sigmaScaled * iStepSize);
     iTime += iStepSize;
   }
-  gl_FragColor = vec4(total, 1.0);
+  gl_FragColor = vec4(total, uMieCoeff * extraMie);
 }
 `
