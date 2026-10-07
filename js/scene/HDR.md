@@ -459,6 +459,36 @@ the Sun the diffuse light is 24.6-24.7 at the poles, the points making up
 the rest.  From outside, the bulge face-on is 6e-8, and the meter frames
 it as a photograph (rule 10 below).
 
+### A telescope's field
+
+**A field narrower than the naked eye's is a telescope's** (#192): 45°
+(`INITIAL_FOV`) is the eye's, and a field of φ magnifies it by
+M = tan(22.5°) / tan(φ/2) (`exposure.js` `fieldMagnification`, the far
+point's `fovScale` inverted): 52 at 0.91°, 76 at 0.63°.  The eye's patch
+is 10′ on the screen, which is 10′/M on the sky (`eyePatchRad`), and
+that is where a star's light lands.  So a star keeps its size on screen
+(3 px over 879, σ 0.75 px, as at 45°) and its light rises over a
+surface's by M², while a surface's radiance stays as it is, as through
+a telescope whose exit pupil fills the dark-adapted eye's 7 mm: its
+aperture is then 7 mm × M, and its limiting magnitude
+6.5 + 5·log10(M) is the textbook one (the dark-adapted limit 15.1 at
+0.91°, past the catalogue's ~12).  Wider than 45° the patch stays 10′.
+
+Before, the patch stayed 10′ on the sky at every field: at 0.91° over
+879 px that's 161 px, so a star was a Gaussian 40 px wide whose peak was
+1/2,700 of its peak at 45°.  No star showed through a telescope's field,
+whatever the exposure: #192's photos show two field stars by Jupiter and
+celestiary none.
+
+The light is the same either way: a star's light summed over its pixels
+is its illuminance over a pixel's solid angle (`value × patchPx²`), the
+same scale as a surface's radiance summed over its pixels, so a star and a
+disc compare as they do in a photograph.  The meter is unchanged: a
+resolved sunlit body in the frame (the Moon in #192's views) still
+anchors it, and through a telescope's field the stars and Jupiter's
+moons need the exposure raised over that (the EV control, `ev=`), as a
+camera needs a longer exposure than the Moon's to show them.
+
 ## Metered exposure
 
 The target-keyed exposure ([Planet.md](Planet.md#lighting-and-exposure))

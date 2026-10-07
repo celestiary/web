@@ -104,6 +104,8 @@ uniform float uStarGain;
 const float MAX_VALUE = 6.0e4;
 // The eye's resolution of a point, dark adapted: 10 arcmin, in radians.
 const float EYE_POINT_RAD = 10.0 / 60.0 * PI / 180.0;
+// The naked eye's field, INITIAL_FOV (45°): tan of its half.
+const float TAN_HALF_EYE_FOV = 0.41421356;
 
 void main() {
   vColor = color;
@@ -133,9 +135,14 @@ void main() {
   float illuminance = exp2(log2(lumens * (1.0e-18 / fourPi)) - 2.0 * log2(distGm));
 
   // The star's radiance over the eye's patch, in exposure units, and the
-  // patch in pixels.
+  // patch in pixels.  A field narrower than the naked eye's (45°) is a
+  // telescope's, magnifying by the ratio of the tangents: the eye's 10′ on
+  // the screen is 10′ over that on the sky, which the star's light lands
+  // in (HDR.md, "A telescope's field").  At 10′ on the sky whatever the
+  // field, a star at 0.91° was a Gaussian 40 px wide, nothing on screen.
+  float magnification = max(TAN_HALF_EYE_FOV / tan(radians(uFovDegrees) * 0.5), 1.0);
   float pxRad = radians(uFovDegrees) / max(uViewportHeight, 1.);
-  float patchRad = max(pxRad, EYE_POINT_RAD);
+  float patchRad = max(pxRad, EYE_POINT_RAD / magnification);
   float patchPx = max(floor(patchRad / pxRad + 0.5), 1.0);
   float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / (patchRad * patchRad)
       * uExposureRelative * uStarGain;

@@ -4,6 +4,7 @@ import {
   easeExposure, exposureAt,
   EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, exposureRelative, illuminanceRatio, irradianceAt, limitingMagnitude,
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
+  eyePatchRad, fieldMagnification,
   luminousDiscGain, starClipZ, sunDiscValue, sunlitBodyCap, sunlitBodyGain, HIGHLIGHT_ALBEDO_FACTOR,
   METER_HIGHLIGHT_FRACTION, STAR_GLARE_CORE_PATCHES, SUNLIT_FRAME_WEIGHT, SUNLIT_FRAME_FRACTION,
   STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, STAR_VISIBLE_VALUE, SUN_DISC_RADIANCE,
@@ -931,5 +932,49 @@ describe('the galaxy from outside', () => {
     expect(galaxyGain(METER_GAIN_MAX, {litHighlight: 1e-20, litFraction: 0.3}, 1, 1)).toBeCloseTo(GALAXY_GAIN_MAX, 0)
     expect(galaxyGain(METER_GAIN_MAX, {litHighlight: 1e-20, litFraction: 0.3}, 1, 1, 10)).toBeCloseTo(GALAXY_GAIN_MAX / 10, 0)
     expect(galaxyGain(METER_GAIN_MAX, {litHighlight: 1e3, litFraction: 0.3}, 1, 1)).toBe(1)
+  })
+})
+
+
+describe('a telescope\'s field', () => {
+  const mag = (m) => illuminanceRatio(m)
+  // #192's view A: Jupiter from Bay Village at 0.91° over 879 px.
+  const A = {fovDegrees: 0.91, heightPx: 879}
+  const EYE = {fovDegrees: 45, heightPx: 879}
+
+  it('magnifies by the ratio of the half-angles\' tangents, never under 1', () => {
+    expect(fieldMagnification(45)).toBe(1)
+    expect(fieldMagnification(90)).toBe(1)
+    expect(fieldMagnification(0.91)).toBeCloseTo(Math.tan(22.5 * Math.PI / 180) / Math.tan(0.455 * Math.PI / 180), 9)
+    expect(fieldMagnification(0.91)).toBeCloseTo(52.2, 1)
+    expect(eyePatchRad(45)).toBe(EYE_POINT_RAD)
+    expect(eyePatchRad(0.91)).toBeCloseTo(EYE_POINT_RAD / fieldMagnification(0.91), 12)
+  })
+
+  it('keeps a star\'s size on screen as the field narrows', () => {
+    const eye = starSprite(mag(6), METER_GAIN_MAX, EYE)
+    const scope = starSprite(mag(6 + (5 * Math.log10(fieldMagnification(0.91)))), METER_GAIN_MAX, A)
+    expect(scope.patchPx).toBe(eye.patchPx)
+    expect(scope.sigma).toBeCloseTo(eye.sigma, 6)
+    // Before: the patch stayed 10' on the sky, 161 px at 0.91°.
+    expect(scope.patchPx).toBeLessThan(5)
+  })
+
+  it('reaches 5 log10 M fainter at the same gain: the dark-adapted limit at 0.91° is 15.1', () => {
+    const limit = LIMITING_MAGNITUDE + (5 * Math.log10(fieldMagnification(0.91)))
+    expect(limit).toBeCloseTo(15.1, 1)
+    const eye = starSprite(mag(LIMITING_MAGNITUDE), METER_GAIN_MAX, EYE)
+    const scope = starSprite(mag(limit), METER_GAIN_MAX, A)
+    // patchPx rounds (2.94 to 3 at 45°, 3.08 to 3 at 0.91°): within 10%.
+    expect(scope.peak / eye.peak).toBeGreaterThan(0.9)
+    expect(scope.peak / eye.peak).toBeLessThan(1.1)
+  })
+
+  it('the shader carries the same 45°', () => {
+    const source = readFileSync('./js/shaders/stars.vert', 'utf8')
+    const declared = source.match(/const float TAN_HALF_EYE_FOV = ([0-9.e+-]+);/)
+    expect(declared).not.toBeNull()
+    expect(Number(declared[1])).toBeCloseTo(Math.tan(22.5 * Math.PI / 180), 7)
+    expect(source).toMatch(/patchRad = max\(pxRad, EYE_POINT_RAD \/ magnification\)/)
   })
 })
