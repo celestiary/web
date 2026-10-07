@@ -60,7 +60,8 @@ export function renderExposure(keyed, meterGain, ev) {
  */
 export function stepEv(ev, steps) {
   const thirds = Math.round(clampEv(ev) * EV_STEPS_PER_STOP) + steps
-  return clampEv(thirds / EV_STEPS_PER_STOP)
+  // `+ 0` makes a -0 a 0.
+  return clampEv(thirds / EV_STEPS_PER_STOP) + 0
 }
 
 

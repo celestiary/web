@@ -19,7 +19,10 @@ export default class Time {
     /** Controlled by UI clicks.. timeScale is basically 2^steps. */
     this.timeScaleSteps = 0
 
-    /** Called, with no arguments, when the rate changes (onTimeScaleChange). */
+    /**
+     * Called, with no arguments, when the rate, the pause or the date is
+     * set (onTimeScaleChange): the display's cue, and the link's.
+     */
     this._scaleListeners = new Set
 
     const now = Date.now()
@@ -67,6 +70,7 @@ export default class Time {
   setTime(unixTime) {
     this._setSimTime(unixTime)
     this.setTimeStr(timeToDateStr(this.simTime))
+    this._notifyScaleChange()
   }
 
 
@@ -108,6 +112,40 @@ export default class Time {
 
 
   /**
+   * Set the rate to a link's (design/URLs.md, the `time:` token's `rate=`),
+   * paused or not: the nearest rate the keys reach, plus or minus a power of
+   * two, at most 2^MAX_TIME_SCALE_STEPS.  A zero or a non-number is real
+   * time.
+   *
+   * @param {number} rate Multiplier on real time; negative runs backwards
+   */
+  setRate(rate) {
+    if (!Number.isFinite(rate) || rate === 0) {
+      this.timeScaleSteps = 0
+      this.timeScale = 1
+    } else {
+      const steps = Math.min(Math.round(Math.log2(Math.max(Math.abs(rate), 1))), MAX_TIME_SCALE_STEPS)
+      this.timeScale = Math.sign(rate) * Math.pow(2, steps)
+      // 'j' on real time leaves -1 at no steps (invertTimeScale).
+      this.timeScaleSteps = (Math.sign(rate) * steps) + 0
+    }
+    this._notifyScaleChange()
+  }
+
+
+  /**
+   * Pause or resume, to a link's state (togglePause, to a given state).
+   *
+   * @param {boolean} paused
+   */
+  setPaused(paused) {
+    if (this.isPaused !== paused) {
+      this.togglePause()
+    }
+  }
+
+
+  /**
    * Run time the other way, paused or not.
    */
   invertTimeScale() {
@@ -118,8 +156,9 @@ export default class Time {
 
 
   /**
-   * Hear of a change of the rate (the display's cue: paused, the clock's
-   * own updates, which the display otherwise follows, are not coming).
+   * Hear of a change of the rate, of the pause, or of a date set (the
+   * display's cue: paused, the clock's own updates, which the display
+   * otherwise follows, are not coming; and the link's).
    *
    * @param {Function} fn
    * @returns {Function} Stops listening
@@ -144,11 +183,8 @@ export default class Time {
    * @returns {boolean} isPaused
    */
   togglePause() {
-    if (this.isPaused) {
-      this.isPaused = false
-    } else {
-      this.isPaused = true
-    }
+    this.isPaused = !this.isPaused
+    this._notifyScaleChange()
     return this.isPaused
   }
 

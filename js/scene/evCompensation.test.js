@@ -39,6 +39,29 @@ describe('stepEv', () => {
     expect(stepEv(0, -1)).toBeCloseTo(-1 / 3, 12)
   })
 
+  it('comes back to exactly 0 from any run of steps: no drift, no -0', () => {
+    for (const up of [1, 2, 3, 4, 7, 20, 29]) {
+      let ev = 0
+      for (let i = 0; i < up; i++) {
+        ev = stepEv(ev, 1)
+      }
+      for (let i = 0; i < up; i++) {
+        ev = stepEv(ev, -1)
+      }
+      expect(Object.is(ev, 0)).toBe(true)
+      expect(formatEv(ev)).toBe('EV 0')
+      expect(roundEv(ev)).toBe(0)
+      // And down first.
+      for (let i = 0; i < up; i++) {
+        ev = stepEv(ev, -1)
+      }
+      for (let i = 0; i < up; i++) {
+        ev = stepEv(ev, 1)
+      }
+      expect(Object.is(ev, 0)).toBe(true)
+    }
+  })
+
   it('snaps a linked 1.3 to the thirds', () => {
     expect(stepEv(1.3, 1)).toBeCloseTo(5 / 3, 12)
     expect(stepEv(1.33, -1)).toBeCloseTo(1, 12)
