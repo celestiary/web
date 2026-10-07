@@ -17,14 +17,15 @@ export const ATMOSPHERE_NEAR_RADII = 20
  * pass intersects each ray with the body's spheres in float32 (`rsi`), as
  * b² − c: both are ~D² at a distance D, so the discriminant carries an
  * error of ~D²·2⁻²³, against the body's R² over its disc.  At D = 2,900 R
- * the error is the disc's whole discriminant, and from ~700 R rays near the
+ * the error is the disc's whole discriminant, and from ~500 R rays near the
  * limb land on the ground, the air or nothing at random (the test replays
- * it: 2% of a disc's rays wrong at 700 R, 3% at 1,000, 32% at 12,500).
- * Jupiter from Earth (12,500 radii) drew as speckle, a third of its
+ * it: a ray in 300 wrong at 500 R, 2% at 700, 3% at 1,000, 32% at
+ * 12,500).
+ * Jupiter from Earth (12,500 radii) drew as speckle, many of its
  * pixels black (#192).  At 500 radii, where the mesh gives way to the far
  * point at 45° (farPoint.js POINT_AT_RADII), a body is 0.23° across, 3 px
  * at 45° over 640 px.  Past it a narrow field still shows the disc large
- * (Jupiter from Earth at 0.5° is 60 px), without its own air, whose limb
+ * (Jupiter from Earth at 0.05° over 879 px is 160 px), without its own air, whose limb
  * is then a fraction of a pixel (300 km at 5.9 AU is 0.07″).
  */
 export const ATMOSPHERE_MAX_RADII = 500

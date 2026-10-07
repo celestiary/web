@@ -3,6 +3,7 @@ import {
   atmosphereBody,
   atmosphereResolvable,
 } from './atmosphereBody.js'
+import {raySphere} from './rayEnd.js'
 
 
 const f32 = Math.fround
@@ -23,21 +24,13 @@ const distanceTo = (b) => b.dist
 
 
 /**
- * The pass's rsi (Atmosphere.js) in float32: whether a ray from `eye` along
- * the unit `dir` meets the sphere of radius `r` at the origin, ahead.
+ * Whether the pass's rsi, in float32 (rayEnd.js raySphere), puts a ray from
+ * `eye` along the unit `dir` on the sphere of radius `r`, ahead.
  *
  * @returns {boolean}
  */
 function rsiHitsF32(eye, dir, r) {
-  const dot = (u, v) => f32(f32(f32(u[0] * v[0]) + f32(u[1] * v[1])) + f32(u[2] * v[2]))
-  const b = f32(2 * dot(dir, eye))
-  const c = f32(dot(eye, eye) - f32(r * r))
-  const d = f32(f32(b * b) - f32(4 * c))
-  if (d < 0) {
-    return false
-  }
-  const t0 = f32(f32(-b - Math.sqrt(d)) / 2)
-  const t1 = f32(f32(-b + Math.sqrt(d)) / 2)
+  const [t0, t1] = raySphere(eye, dir, r)
   return t0 > 0 && t0 <= t1
 }
 
@@ -123,11 +116,13 @@ describe('atmosphereResolvable', () => {
     expect(atmosphereResolvable(8.76e11, 6.9911e7)).toBe(false)
   })
 
-  // Why: the pass's sphere test in float32 classes a disc right at 500
-  // radii, and not at 12,500 (Jupiter from Earth).
+  // Why: the pass's sphere test in float32 classes a disc right to 400
+  // radii, all but a ray at the limb at 500, and not at 12,500 (Jupiter
+  // from Earth).
   it('matches where float32 rsi holds', () => {
     expect(rsiAccuracy(100)).toBe(1)
-    expect(rsiAccuracy(ATMOSPHERE_MAX_RADII)).toBe(1)
+    expect(rsiAccuracy(400)).toBe(1)
+    expect(rsiAccuracy(ATMOSPHERE_MAX_RADII)).toBeGreaterThan(0.99)
     expect(rsiAccuracy(12500)).toBeLessThan(0.95)
   })
 })
