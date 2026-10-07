@@ -112,6 +112,8 @@ The galaxy's integrated light ([#99](https://github.com/celestiary/web/issues/99
 
 The `?perf=1` overlay ([#189](https://github.com/celestiary/web/issues/189) step 1, the measuring step of [#121](https://github.com/celestiary/web/issues/121)'s surface frame rate; PR [#191](https://github.com/celestiary/web/pull/191)): GPU time per pass on the user's own GPU (`EXT_disjoint_timer_query_webgl2`, read frames late, nesting passes timed as sibling segments, disjoint events dropped), CPU time to issue each, and per-frame counts by pass (draw calls, full-screen passes, render-target switches, readbacks, uploads, triangles), with Cesium's replay, night lights, decode and its second, shadow GL context each on a row of their own; no timer extension shows CPU times and a note; seven toggles (`&off=atmosphere,clouds,nightlights,galaxy,cesium,meter,overlay`, or checkboxes) switch one pass off to bisect by FPS; Copy JSON gives the permalink, viewport, `devicePixelRatio`, GPU and the numbers to paste back.  The first M2 measurements showed ANGLE Metal's timer queries are per encoder, not per pass, so it also has sync timing (`?perf=sync`: the GPU waited for after every pass, each pass timed by the wall clock) and counts the calls that round-trip to the GPU process (`getError`, `getParameter`, `readPixels` ...) per pass.  Instrumentation only: no pass changed, and without `?perf=1` nothing is created and a frame makes the same GL calls ([DESIGN.md](DESIGN.md#perf-overlay), [AGENTS.md](AGENTS.md#working-efficiently) for asking the user for a snapshot).  Step 2, the fixes in order of the user's numbers, is open.
 
+The Cesium layers' invisible work skipped ([#189](https://github.com/celestiary/web/issues/189) step 2, its Cesium items; [CESIUM.md, activation](CESIUM.md#activation) and [night lights](CESIUM.md#night-lights)): a Cesium body is active only when it can show, so the Moon under the horizon from Earth's surface is no longer a whole Cesium frame (it was active looking down, about 5 ms of the M2's frame; a body hidden behind another Cesium body's ground, or under 2 px in radius, is now celestiary's), and the night lights' second Cesium frame runs only where a ray in the frustum meets the night side (`frames.nightInView`, replacing a cap test that ignored the frustum) and the lights can reach half a display step at the exposure, but on the meter's frames, so the meter reads what it did.  Headless, per frame: facing the Sun by day, one Cesium frame instead of two (61 fewer draws in the replay, 5 fewer full-screen passes, 79 fewer synchronous queries), byte-identical; from 20,000 km over a gibbous Earth, the lights on one frame in four, 1 level of 255 on 7 values; on the surface looking down, one Cesium frame instead of three (237 to 79 queries, 27 to 16 full-screen passes); the night views unchanged.  The replay's synchronous queries are all portal-netgl's state checkpoint (53 `getParameter`, 16 `getVertexAttrib`, 10 `isEnabled` per Cesium frame; Cesium makes none): a tracked-state checkpoint, with no synchronous calls, is proposed for portal-netgl in the PR, with a patch.
+
 **Now** (small, visible, unblocked)
 1. Done: **the night sky's own light** ([#186](https://github.com/celestiary/web/issues/186), PR [#187](https://github.com/celestiary/web/pull/187); Done recently),
    in [#109](https://github.com/celestiary/web/issues/109): the band from inside at the eye's gain, the follow-up to
@@ -120,9 +122,10 @@ The `?perf=1` overlay ([#189](https://github.com/celestiary/web/issues/189) step
    Galaxy's dust, which keeps Sagittarius and Scutum too faint, and a
    star threshold that rises over a brighter background.
    **Surface frame rate** ([#189](https://github.com/celestiary/web/issues/189), 30-40 FPS on the surface against 60 in space):
-   the overlay is in (PR [#191](https://github.com/celestiary/web/pull/191); Done recently); the asynchronous meter readback, skipping
-   invisible work, the atmosphere pass's resolution and [#103](https://github.com/celestiary/web/issues/103) follow, in the order the user's
-   snapshots give.
+   the overlay is in (PR [#191](https://github.com/celestiary/web/pull/191); Done recently), and the Cesium layers skip what can't
+   show (the Moon under the horizon, the night lights by day; Done recently); the asynchronous meter readback, the other
+   invisible passes, the atmosphere pass's resolution, the checkpoint's synchronous queries and [#103](https://github.com/celestiary/web/issues/103) upstream follow,
+   in the order the user's snapshots give.
 
 **Next** (the shared engines, below)
 
@@ -267,7 +270,7 @@ repo lean.
 
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
-| [#121](https://github.com/celestiary/web/issues/121) Cesium performance and verification | [#105](https://github.com/celestiary/web/issues/105) (done), [#176](https://github.com/celestiary/web/issues/176) (done), [#189](https://github.com/celestiary/web/issues/189) (step 1, the `?perf=1` overlay, done; the fixes wait on its numbers), [#104](https://github.com/celestiary/web/issues/104), [#103](https://github.com/celestiary/web/issues/103) | [#103](https://github.com/celestiary/web/issues/103) is upstream in portal-netgl | [CESIUM.md](CESIUM.md#follow-ups), portal's [open problems](https://github.com/pablo-mayrgundter/portal/blob/main/packages/portal-netgl/DESIGN.md#open-problems-the-next-pr) |
+| [#121](https://github.com/celestiary/web/issues/121) Cesium performance and verification | [#105](https://github.com/celestiary/web/issues/105) (done), [#176](https://github.com/celestiary/web/issues/176) (done), [#189](https://github.com/celestiary/web/issues/189) (step 1, the `?perf=1` overlay, done; the Cesium layers' invisible work, done; the meter's readback and the checkpoint's queries open), [#104](https://github.com/celestiary/web/issues/104), [#103](https://github.com/celestiary/web/issues/103) | [#103](https://github.com/celestiary/web/issues/103) is upstream in portal-netgl | [CESIUM.md](CESIUM.md#follow-ups), portal's [open problems](https://github.com/pablo-mayrgundter/portal/blob/main/packages/portal-netgl/DESIGN.md#open-problems-the-next-pr) |
 | [#122](https://github.com/celestiary/web/issues/122) Housekeeping and data policy | [#107](https://github.com/celestiary/web/issues/107) (done) | | [AGENTS.md](AGENTS.md) |
 
 ## The galaxy plan

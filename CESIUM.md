@@ -13,7 +13,8 @@ falls back to if its Cesium layer can't load.
   range: as far out as celestiary draws the body as a mesh rather than a
   point (the distance of the next level in its `planet LOD`,
   Planet.newPlanet; 500 radii, where it's ~1.6 px across).  Every body
-  in range and on screen (at least a pixel across) shows its layer,
+  in range that can show (on screen, a few pixels across, not behind
+  another body's ground: [Activation](#activation)) shows its layer,
   target or not: at the Moon with Earth targeted, both are Cesium's.
 - When the target is in range, a **Layers** button for it appears in the
   top-right control stack, under the drag-mode toggle.
@@ -22,7 +23,7 @@ falls back to if its Cesium layer can't load.
   applies it to that body; the choice is remembered per body for the
   session.  A body whose Cesium layer fails to load drops back to
   Celestiary, and the control shows the error.
-- A body's layer is only *active* while it's in range and on screen;
+- A body's layer is only *active* while it's in range and can show;
   otherwise celestiary draws it (Cesium is not rendered for it at all).
 - Loading (Cesium's import, the body's widget) starts when the body, or a
   moon of it, is targeted, not only once it's in range.  So does loading
@@ -193,6 +194,35 @@ body frame, mapped to ECEF, drives a Cesium `DirectionalLight` and
 `atmosphere.dynamicLighting = SCENE_LIGHT`, so Cesium's day/night
 terminator matches celestiary's no matter how celestiary's sidereal phase
 relates to real time.
+
+### Activation
+
+A Cesium frame costs the same whether its body fills the screen or none
+of it shows: Cesium's JS, the recording and replay, the shadow context's
+draws and its checkpoint (for the Moon, headless: 22 draws, 6 full-screen
+passes and 13 framebuffer switches in the replay and its decode, 21 draws
+in its shadow, 79 synchronous queries; about 5 ms of the M2's frame).  So a body is active, and
+Cesium renders it, only when it can show (`CesiumLayers._visibleAt`):
+
+- **in range** (UX, above);
+- **at least `MIN_PIXEL_RADIUS` (2 px) in radius**, its stencil shell's:
+  under a few pixels across celestiary's own mesh shows the same;
+- **not hidden behind another Cesium body's ground**
+  (`visibility.hiddenBehind`): the whole shell inside that body's
+  silhouette cone and past its tangent distance.  The ground is taken
+  0.6% under the body's smallest radius (`OCCLUDER_SCALE`: under its
+  Cesium ellipsoid's poles and its deepest land), so a body is dropped
+  only when it is behind the ground whichever side of the swap draws it;
+  a Moon rising is Cesium's a few degrees before it clears the horizon;
+- **in the camera's frustum**, its shell's bounding sphere: not off
+  screen, nor behind the camera.
+
+Before #189 the occlusion test wasn't there, and from Earth's surface
+looking down the Moon under the horizon was active (`[moon, earth]` on
+the user's M2, 28 full-screen passes a frame against 15-17).  A body that
+stops being active stays `shown`, so when it comes back into view it
+swaps in at once, with whatever tiles Cesium still holds, as one coming
+on screen always did; a body never shown warms up first (UX, above).
 
 ### What changes while a Cesium layer is active
 
@@ -380,12 +410,43 @@ join the scene before the atmosphere pass, which dims them by the same
 transmittance on both sides, and before the meter, which reads them as scene
 luminance.
 
-**When.**  Only when some of the surface in view can be on the night side
-(`frames.nightVisible`: the camera's angle to the Sun plus the angle of the
-cap it sees, against the band's edge at N·L 0.05); the pass is a second
-render of the globe, and from a day-side view it is skipped.  And only while
-Cesium's layer is on: during the crossfade the surface fading over it
-carries celestiary's lights, and the blend does the rest.
+**When.**  The pass is a second Cesium frame of the globe (on the user's M2,
+7-11 ms of CPU and 64 draws, in every view), so it runs only where it can
+show (`CesiumLayers._lightsShow`):
+
+- **Some of the night side is in the frame** (`frames.nightInView`).  The
+  pass computes each pixel's normal from its view ray against the sphere,
+  and that normal depends only on the ray's angle off the nadir and its
+  azimuth about it; the frustum's range of both bounds every normal the
+  pass can compute, and so the least N·S, against the band's edge at N·S
+  0.05.  Conservative (a test checks it against a dense grid of rays from
+  random views), and tighter than the cap test it replaced
+  (`frames.nightVisible`, which ignored the frustum and still serves a
+  camera under the datum): facing a low Sun by day, or from orbit with only
+  the day side in the frame, no night is in view.
+- **The lights can reach half a display step**: the brightest a full-white
+  texel fully on the night side can add, `nightLightRadiance()` × the
+  exposure, is at least 0.5/255.  The atmosphere pass only dims it (T ≤ 1)
+  and the tone map's slope is at most 1, so under that no pixel moves by
+  more than a level.  By day, at the keyed exposure, the lights are 4.5e-5:
+  from orbit over a gibbous Earth they're there, and invisible.  Except on
+  the frames the meter reads (every `METER_EVERY_FRAMES`): it takes each
+  pixel's log, and on black ground a light far under a display step is far
+  over its floor, so skipping them there would move the gain.  Those
+  frames draw them, and the meter reads what it did before.
+
+Where it must run, it runs at full resolution and every frame.  Its cost
+is a whole Cesium frame's CPU (Cesium's JS, the recording and replay, the
+checkpoint's queries), which a smaller viewport doesn't change, and a
+lower rate would let the lights lag the ground as the camera moves, a
+visible smear at a city's scale.  Its full-screen distance stage is
+wasted in it (the decode reads alpha only to drop empty pixels), but
+turning a Cesium post-process stage off and on each frame makes Cesium
+release and recreate its post-process framebuffers both times, which
+costs more than the pass.
+
+During the crossfade the surface fading over Cesium's layer carries
+celestiary's lights, and the blend does the rest.
 
 **Resolution.**  GIBS's level 8 is ~600 m a pixel; celestiary's texture is
 3600×1800 (11 km).  From 4,000 km they agree pixel for pixel; from 400 km
@@ -543,6 +604,17 @@ draws, not just what it selects.
   replay (2× GPU for the globe). Cesium needs the shadow's pixels only
   for readback (picking, camera collision); a no-draw shadow mode in
   portal-netgl would halve the cost when those aren't in use.
+  Celestiary reads none of the shadow's pixels: its terrain heights
+  (`globe.getHeight`, `tileset.getHeight`) are CPU picks on loaded tiles.
+- Perf: every synchronous GL call the shadow contexts make in a settled
+  frame is portal-netgl's state checkpoint, at each Cesium frame's end: 53
+  `getParameter`, 16 `getVertexAttrib` and 10 `isEnabled`, 79 a Cesium
+  frame (Earth's day and night frames 158, the Moon's 79; Cesium itself
+  makes none, and `getUniformLocation` comes only with a new shader's
+  link).  Each is a round trip to the GPU process that waits for the
+  shadow's queued frame.  Tracking that scalar state from the recorded calls,
+  as the checkpoint already tracks bindings, would make none; a patch
+  for portal-netgl is proposed in #189's Cesium PR.
 
 ## Files
 
