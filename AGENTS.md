@@ -137,6 +137,23 @@ tried and dropped.
   - By hand, force a layer with `c.ui.layers.fadeOf = () => 1` (or
     `() => 0`), and render the same view both ways.
   - Not in `yarn precommit`: it takes minutes and needs ion.
+- **Build for testing without the ion token**, `CESIUM_ION_TOKEN= yarn
+  build` (an empty value overrides one in your environment; the build
+  then bakes in no token), unless the task is about ion rendering.
+  - ion bills its imagery (Bing, asset 2) by *sessions*, and the monthly
+    quota ran out once (1038 sessions of 1000 in a week). A page with the token asks
+    for one whenever the camera comes near Earth's ground, so each
+    headless run, smoke test and `yarn parity` view that goes there
+    costs one. Distant views don't ([CESIUM.md](CESIUM.md#cesium-ion-sessions)).
+  - Without the token Earth's Cesium layer runs on the bundled Blue
+    Marble and the ellipsoid, and the Moon and Mars aren't offered:
+    enough for everything but terrain, detail imagery and those two.
+  - `yarn parity` and the narrow-field script need the token: run them
+    for a PR that changes Cesium rendering, not routinely. To test ion
+    paths without spending anything, build with a dummy token
+    (`CESIUM_ION_TOKEN=dummy yarn build`) and answer `api.cesium.com` in
+    Playwright with a stub (`page.route`), counting the requests to
+    `/v1/assets/2/endpoint`.
 - **A shader edit needs a rendered check**, not only its arithmetic: a
   compile failure (e.g. a GLSL ES reserved word such as `half` as a
   variable, #153) draws nothing and fails no unit test. Collect the page's

@@ -30,6 +30,19 @@ export const MIN_PIXEL_ANGLE = 1e-4
 
 
 /**
+ * The angle a pixel spans, radians per CSS pixel.
+ *
+ * @param {number} fovyRad Vertical field of view, radians
+ * @param {number} heightPx Canvas height, CSS pixels
+ * @returns {number} Radians; 0 for a degenerate field, Infinity or NaN
+ *   for no canvas
+ */
+export function pixelAngle(fovyRad, heightPx) {
+  return 2 * Math.tan(fovyRad / 2) / heightPx
+}
+
+
+/**
  * The factor to scale a Cesium maximumScreenSpaceError by for a view: 1
  * while a pixel spans MIN_PIXEL_ANGLE or more, and below that the factor
  * by which it spans less, so every tile's error against the limit is what
@@ -42,6 +55,6 @@ export const MIN_PIXEL_ANGLE = 1e-4
  * @returns {number} At least 1
  */
 export function detailScale(fovyRad, heightPx, minPixelAngle = MIN_PIXEL_ANGLE) {
-  const pixelAngle = 2 * Math.tan(fovyRad / 2) / heightPx
-  return pixelAngle > 0 && pixelAngle < minPixelAngle ? minPixelAngle / pixelAngle : 1
+  const angle = pixelAngle(fovyRad, heightPx)
+  return angle > 0 && angle < minPixelAngle ? minPixelAngle / angle : 1
 }

@@ -382,3 +382,140 @@ describe('activation', () => {
     expect(near.L._visibleAt('moon', near.moon)).not.toBe(null)
   })
 })
+
+
+describe('ion requests', () => {
+  const rad = (deg) => deg * Math.PI / 180
+  // Cesium, as far as _requestIon, addIonTerrain and addIonImagery use it:
+  // counts what would ask ion (the imagery is a billed session).
+  const setup = ({terrainFails = false} = {}) => {
+    const calls = {terrain: 0, imagery: 0}
+    const night = {night: true}
+    const layers = [{base: true}, night]
+    const listeners = {error: [], ready: []}
+    const imagery = {
+      errorEvent: {addEventListener: (f) => listeners.error.push(f)},
+      readyEvent: {addEventListener: (f) => listeners.ready.push(f)},
+    }
+    const imageryLayers = {
+      indexOf: (l) => layers.indexOf(l),
+      add: (l, i) => layers.splice(i ?? layers.length, 0, l),
+      remove: (l) => {
+        const i = layers.indexOf(l)
+        if (i >= 0) {
+          layers.splice(i, 1)
+        }
+        return i >= 0
+      },
+    }
+    const Cesium = {
+      createWorldTerrainAsync: () => {
+        calls.terrain++
+        return terrainFails ? Promise.reject(new Error('refused')) : Promise.resolve({})
+      },
+      ImageryLayer: {
+        fromWorldImagery: () => {
+          calls.imagery++
+          return imagery
+        },
+      },
+    }
+    const widget = {imageryLayers, isDestroyed: () => false, scene: {globe: {}}}
+    const L = new CesiumLayers({})
+    const body = {Cesium, widget, night, heightM: Infinity, ion: {terrain: false, imagery: false}}
+    const at = (heightM, fov = rad(45), canvasHeight = 800) => {
+      body.heightM = heightM
+      L._requestIon('earth', body, fov, canvasHeight)
+    }
+    return {L, body, calls, layers, listeners, imagery, night, at}
+  }
+
+  it('asks for nothing from orbit: the landing view, 20,000 km, a telescope from the Moon', () => {
+    const {calls, at} = setup()
+    at(2e7)
+    at(5 * 6371e3)
+    at(3.78e8, rad(45))
+    at(3.78e8, rad(0.01))
+    at(3.78e8, rad(0.0001), 2160)
+    expect(calls).toEqual({terrain: 0, imagery: 0})
+  })
+
+  it('asks for imagery and terrain once, when low', () => {
+    const {calls, at} = setup()
+    at(1e7)
+    expect(calls).toEqual({terrain: 0, imagery: 0})
+    at(1e4)
+    expect(calls).toEqual({terrain: 1, imagery: 1})
+  })
+
+  it('does not ask again on the way up and down', () => {
+    const {calls, at} = setup()
+    for (const h of [1e4, 1e7, 1e3, 3e8, 5e5, 1e4]) {
+      at(h)
+    }
+    expect(calls).toEqual({terrain: 1, imagery: 1})
+  })
+
+  it('puts the imagery under the night lights', () => {
+    const {layers, night, imagery, at} = setup()
+    at(1e4)
+    expect(layers).toEqual([{base: true}, imagery, night])
+  })
+
+  it('asks for terrain under the ground floor\'s sampling height, before the imagery on a wide field', () => {
+    const {calls, at} = setup()
+    // A 170° field puts imagery's threshold at 85 km, the ground floor
+    // samples from 100 km.
+    at(9.5e4, rad(170))
+    expect(calls).toEqual({terrain: 1, imagery: 0})
+    at(8e4, rad(170))
+    expect(calls).toEqual({terrain: 1, imagery: 1})
+  })
+
+  it('asks for nothing of a body without ion (no token, or a tileset)', () => {
+    const {L, body, calls} = setup()
+    body.ion = null
+    body.heightM = 10
+    L._requestIon('earth', body, rad(45), 800)
+    expect(calls).toEqual({terrain: 0, imagery: 0})
+  })
+
+  it('drops the imagery quietly when ion refuses it, keeping the base', () => {
+    const {layers, listeners, imagery, at} = setup()
+    const warnings = []
+    const warn = console.warn
+    console.warn = (...args) => warnings.push(args.join(' '))
+    try {
+      at(1e4)
+      expect(layers).toContain(imagery)
+      // A 403 whose body echoes the token: said by status only.
+      const refused = {statusCode: 403, response: {responseText: 'access_token=SECRET'}}
+      listeners.error[0](refused)
+      listeners.error[0](refused)
+    } finally {
+      console.warn = warn
+    }
+    expect(layers).not.toContain(imagery)
+    expect(layers[0]).toEqual({base: true})
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('HTTP 403')
+    expect(warnings[0]).not.toContain('SECRET')
+  })
+
+  it('keeps the globe on its ellipsoid when terrain is refused', async () => {
+    const {calls, body, at} = setup({terrainFails: true})
+    const warnings = []
+    const warn = console.warn
+    console.warn = (...args) => warnings.push(args.join(' '))
+    try {
+      at(1e4)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    } finally {
+      console.warn = warn
+    }
+    expect(calls.terrain).toBe(1)
+    expect(body.widget.scene.globe.terrainProvider).toBeUndefined()
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).not.toContain('refused')
+  })
+})

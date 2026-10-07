@@ -47,6 +47,7 @@ import {nightLightRadiance} from '../exposure.js'
 import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {detailScale} from './detail.js'
+import {baseTexelMeters, ionImageryAltitude} from './ionImagery.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {perf} from '../../perf/perf.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
@@ -950,6 +951,7 @@ export default class CesiumLayers {
     if (body.tileset) {
       body.tileset.maximumScreenSpaceError = TILE_SCREEN_SPACE_ERROR * detail
     }
+    this._requestIon(name, body, camera.fov * toRad, canvas.clientHeight)
 
     // Celestiary's Sun is at the world origin of its world group.
     this._sunPos.set(0, 0, 0)
@@ -1092,7 +1094,7 @@ export default class CesiumLayers {
       // An ion 3D-tiles body (Moon, Mars): no globe, the tileset is the surface.
       {globe: false, baseLayer: false} :
       // The globe always starts on offline imagery and the plain ellipsoid,
-      // so it draws whatever ion does (addIonEarth): for Earth the month's
+      // so it draws whatever ion does (_requestIon): for Earth the month's
       // Blue Marble, bundled with celestiary; else Cesium's Natural Earth II.
       config.monthlyImagery ?
         {baseLayer: monthlyImageryLayer(Cesium, config.monthlyImagery, this._month())} :
@@ -1133,8 +1135,6 @@ export default class CesiumLayers {
             }
           })
           .catch((err) => this._fail(name, err))
-    } else if (token) {
-      addIonEarth(Cesium, widget, config.detailFromLevel)
     }
     const night = widget.scene.globe && config.nightImagery ?
       addNightLights(Cesium, widget, config.nightImagery) : null
@@ -1195,7 +1195,47 @@ export default class CesiumLayers {
     }
     scene.renderError.addEventListener((_scene, err) => this._fail(name, err))
 
-    return {Cesium, widget, link, guest, container, ellipsoid, credits, night, month: this._month()}
+    // An ion globe (Earth, with a token) asks ion for its terrain and detail
+    // imagery only once the camera is near (_requestIon), not here.
+    const ion = token && !config.ionTileset ? {terrain: false, imagery: false} : null
+    return {Cesium, widget, link, guest, container, ellipsoid, credits, night, ion, month: this._month()}
+  }
+
+
+  /**
+   * Ask ion for a globe's World Terrain and detail imagery (Bing) once the
+   * camera is near enough to need them, and not before: ion bills the
+   * imagery by sessions, one for every viewer that requests it, and the
+   * bundled Blue Marble is all the globe shows from afar (CESIUM.md, "Cesium
+   * ion sessions").  Each is requested once and kept for the page's life.
+   *
+   * - Imagery: under the altitude where a base texel spans more than
+   *   MAX_BASE_TEXEL_PX pixels (ionImagery.js).
+   * - Terrain: the same, or under GROUND_SAMPLE_BELOW_M, where the camera's
+   *   ground floor starts to sample it, whichever is higher.  (Billed by
+   *   data, not sessions, so this one is only for the bytes.)
+   *
+   * @param {string} name
+   * @param {object} body
+   * @param {number} fovyRad The camera's vertical field of view, radians
+   * @param {number} heightPx The canvas's height, CSS pixels
+   */
+  _requestIon(name, body, fovyRad, heightPx) {
+    const {ion} = body
+    if (!ion || (ion.terrain && ion.imagery)) {
+      return
+    }
+    const config = CESIUM_BODIES[name]
+    const imageryBelow = ionImageryAltitude(baseTexelMeters(config.monthlyImagery, config.radii[0]), fovyRad, heightPx)
+    const {Cesium, widget} = body
+    if (!ion.terrain && body.heightM < Math.max(imageryBelow, GROUND_SAMPLE_BELOW_M)) {
+      ion.terrain = true
+      addIonTerrain(Cesium, widget)
+    }
+    if (!ion.imagery && body.heightM < imageryBelow) {
+      ion.imagery = true
+      addIonImagery(Cesium, widget, config.detailFromLevel, body.night)
+    }
   }
 
 
@@ -1265,20 +1305,31 @@ export default class CesiumLayers {
 
 
 /**
- * Upgrade the Earth globe to ion's World Terrain and imagery, each only once
- * it has loaded.  The imagery (Bing) is detail over the base's: shown only
- * from globe tile level `detailFromLevel`, so from orbit the Earth is the
- * base's Blue Marble.  If the token can't reach an asset (no network, or a
- * token scoped to other assets) the globe keeps its offline surface.  Handing
+ * What to say of an ion failure: its HTTP status, if it had one.  Not the
+ * error itself: a RequestErrorEvent carries ion's response, and ion's error
+ * bodies echo the access token.
+ *
+ * @param {object} err
+ * @returns {string}
+ */
+function ionFailure(err) {
+  const status = err?.statusCode ?? err?.error?.statusCode ?? err?.response?.statusCode
+  return typeof status === 'number' ? `HTTP ${status}` : 'no answer'
+}
+
+
+/**
+ * Upgrade the Earth globe to ion's World Terrain, once it has loaded.  If
+ * the token can't reach the asset (no network, a token scoped to other
+ * assets, a 401 or 403) the globe keeps the ellipsoid.  Handing
  * CesiumWidget `terrain: Terrain.fromWorldTerrain()` instead would unset the
  * globe's terrain until ion answered, and leave it unset on failure: an
  * empty globe.
  *
  * @param {object} Cesium
  * @param {object} widget
- * @param {number} [detailFromLevel]
  */
-function addIonEarth(Cesium, widget, detailFromLevel) {
+function addIonTerrain(Cesium, widget) {
   Cesium.createWorldTerrainAsync({requestVertexNormals: true, requestWaterMask: true})
       .then((terrain) => {
         if (!widget.isDestroyed()) {
@@ -1286,15 +1337,54 @@ function addIonEarth(Cesium, widget, detailFromLevel) {
         }
       })
       .catch((err) => console.warn(
-          '[cesium layer] ion World Terrain unavailable (is it in the token\'s assets?); using the ellipsoid', err))
+          `[cesium layer] ion World Terrain unavailable (${ionFailure(err)}); using the ellipsoid`))
+}
+
+
+/**
+ * Add ion's world imagery (Bing, asset 2) to the Earth globe, as detail over
+ * the base's: shown only from globe tile level `detailFromLevel`.  Calling
+ * this opens an ion imagery session (billed), so the caller does it once,
+ * and only when the base's texels would show (ionImagery.js).  If ion
+ * can't give it (no network, a token scoped to other assets, a 401 or 403
+ * from the token or the account's quota) the layer is removed and the base
+ * imagery stays, with one line in the console and no error thrown.
+ *
+ * @param {object} Cesium
+ * @param {object} widget
+ * @param {number} [detailFromLevel]
+ * @param {object} [above] An imagery layer to go under, if any (the night
+ *   lights', which stays on top)
+ */
+function addIonImagery(Cesium, widget, detailFromLevel, above) {
   const imagery = Cesium.ImageryLayer.fromWorldImagery({minimumTerrainLevel: detailFromLevel})
-  imagery.errorEvent.addEventListener((err) => {
-    console.warn('[cesium layer] ion imagery unavailable (is it in the token\'s assets?); using the base imagery', err)
+  let dropped = false
+  const drop = (why) => {
+    if (dropped) {
+      return
+    }
+    dropped = true
+    console.warn(`[cesium layer] ion imagery unavailable (${why}); using the base imagery`)
     if (!widget.isDestroyed()) {
       widget.imageryLayers.remove(imagery)
     }
+  }
+  // The endpoint request failed: no provider.
+  imagery.errorEvent.addEventListener((err) => drop(ionFailure(err)))
+  // Tile errors from Bing's side: no retries, and a layer that is refused is
+  // dropped, rather than failing tile by tile.
+  imagery.readyEvent.addEventListener((provider) => {
+    provider.errorEvent.addEventListener((err) => {
+      err.retry = false
+      const failure = ionFailure(err)
+      if (failure === 'HTTP 401' || failure === 'HTTP 403') {
+        drop(failure)
+      }
+    })
   })
-  widget.imageryLayers.add(imagery)
+  const layers = widget.imageryLayers
+  const at = above ? layers.indexOf(above) : -1
+  layers.add(imagery, at >= 0 ? at : undefined)
 }
 
 
