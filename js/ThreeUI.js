@@ -20,6 +20,8 @@ import {
   WebGLRenderTarget,
 } from 'three'
 import {newAtmospherePass} from './scene/atmos/Atmosphere'
+import {atmosphereBody, atmosphereResolvable} from './scene/atmos/atmosphereBody.js'
+import {setDrawingBuffer} from './scene/farPoint.js'
 import {
   mieParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
 } from './scene/atmos/AtmospherePrecompute'
@@ -30,6 +32,7 @@ import {
   luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, starClipZ, starGainForLimit, starSprite, sunlitBodyCap,
   sunlitBodyGain,
 } from './scene/exposure.js'
+import {clampEv, renderExposure} from './scene/evCompensation.js'
 import {extendedGain, s10Value} from './scene/eye.js'
 import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
@@ -119,6 +122,8 @@ export default class ThreeUi {
     this._renderedGain = 1
     // Which frames the meter samples (meterReadback.js).
     this._meterCadence = new MeterCadence()
+    // The user's exposure compensation, stops (setExposureCompensation).
+    this._evStops = 0
     this._exposureBodyPos = new Vector3()
     this._exposureSunPos = new Vector3()
     this._transmittanceRT = null
@@ -323,6 +328,9 @@ export default class ThreeUi {
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
     this._sceneRT.setSize(width, height)
+    // The planets' meshes reach to where their discs are the far point's
+    // size on this canvas (farPoint.js meshReach).
+    setDrawingBuffer(height * this.renderer.getPixelRatio(), this.renderer.getPixelRatio())
     this.controls.handleResize()
   }
 
@@ -583,8 +591,9 @@ export default class ThreeUi {
     // space with its own, slower time constant: the eye adapting to a dark
     // scene.
     this._meterGain = adaptMeterGain(this._meterGain, this._meterGainGoal, dt)
-    this.renderer.toneMappingExposure =
-      easeExposure(this.renderer.toneMappingExposure, this._exposureGoal * this._meterGain, dt)
+    // The user's compensation, one multiplier over the metered exposure.
+    const exposureGoal = renderExposure(this._exposureGoal, this._meterGain, this._evStops)
+    this.renderer.toneMappingExposure = easeExposure(this.renderer.toneMappingExposure, exposureGoal, dt)
     // The gain this frame renders with, over the target-keyed exposure:
     // the eased exposure's, not the meter's goal nor _meterGain, which the
     // exposure's own easing trails.  Pre-exposure (HDR.md): everything of
@@ -596,6 +605,24 @@ export default class ThreeUi {
     absoluteUniforms.uExposureRelative.value = exposureRelative(this.renderer.toneMappingExposure)
     absoluteUniforms.uViewportHeight.value = this.height
     absoluteUniforms.uFovDegrees.value = this.camera.fov
+  }
+
+
+  /**
+   * The user's exposure compensation (evCompensation.js): stops over the
+   * metered exposure, to boost or cut the frame.  Eased in as the exposure
+   * is.
+   *
+   * @param {number} ev Stops, held to the range; anything but a number is 0
+   */
+  setExposureCompensation(ev) {
+    this._evStops = clampEv(ev)
+  }
+
+
+  /** @returns {number} The exposure compensation, stops */
+  exposureCompensation() {
+    return this._evStops
   }
 
 
@@ -1325,22 +1352,16 @@ export default class ThreeUi {
       return
     }
 
-    const tObj = targets.obj
-    // Determine which planet's atmosphere to render.
-    // Fall back to _lastAtmPlanet when tObj has no atmosphere (e.g. Sun after 'u').
-    // When tObj does have atmosphere, only switch to it if the camera is actually
-    // near it — guards against selecting a distant moon with atmosphere (e.g. Titan)
-    // while the camera is still orbiting the parent planet (Saturn).
-    // Threshold: 20× atmosphere radius covers typical orbit distances.
-    let atmTarget = this._lastAtmPlanet
-    if (tObj?.props?.atmosphere) {
-      const atmR = tObj.props.radius.scalar + tObj.props.atmosphere.height.scalar
-      tObj.getWorldPosition(this._pWorldAtm)
-      this.camera.getWorldPosition(this._camWorldAtm)
-      if (!this._lastAtmPlanet || this._camWorldAtm.distanceTo(this._pWorldAtm) < atmR * 20) {
-        atmTarget = tObj
-      }
-    }
+    // Which planet's atmosphere to render: the one the camera is in, else
+    // the target's when the camera is near it (not a distant moon's, Titan's
+    // from Saturn), else the last (the Sun targeted after 'u').
+    this.camera.getWorldPosition(this._camWorldAtm)
+    const atmTarget = atmosphereBody({
+      home: this._homeBody(),
+      target: targets.obj,
+      last: this._lastAtmPlanet,
+      distanceTo: (body) => this._camWorldAtm.distanceTo(body.getWorldPosition(this._pWorldAtm)),
+    })
 
     if (!atmTarget) {
       // No atmosphere ever seen — kill the pass via the shader's gate.  We
@@ -1380,7 +1401,10 @@ export default class ThreeUi {
     // the same reason as the no-target branch above.
     const camDist = this._camWorldAtm.distanceTo(this._pWorldAtm)
     const FLT_SAFE_DIST = 1e15 // |eyePos|² stays below ~1e30, decades from FLT_MAX
-    if (camDist > FLT_SAFE_DIST) {
+    // Nor past where rsi's float32 can tell the disc from the sky
+    // (atmosphereBody.js ATMOSPHERE_MAX_RADII): Jupiter from Earth drew as
+    // speckle.
+    if (camDist > FLT_SAFE_DIST || !atmosphereResolvable(camDist, R)) {
       u.uAtmEnabled.value = 0.0
       return
     }
@@ -1465,24 +1489,26 @@ export default class ThreeUi {
 
   /**
    * Rotate camera around its local axes based on held arrow keys.
-   * Up/down pitch the nose; left/right roll.
+   * Up/down pitch the nose; left/right roll.  While tracking only roll.
    * The quaternion persists because we save/restore it around controls.update().
    * Speed: ~34 deg/sec at 60 fps.
    */
   _applyCameraArrowKeys() {
-    if (targets.track) {
-      return // tracking owns orientation; arrow keys would fight it
-    }
     const k = this._arrowKeys
     if (!k.up && !k.down && !k.left && !k.right) {
       return
     }
     const speed = 0.01 // radians per frame
-    if (k.up) {
-      this.camera.rotateX(speed)
-    }
-    if (k.down) {
-      this.camera.rotateX(-speed)
+    // Tracking owns the pointing, so pitch would fight it (the target stays
+    // centred); roll about the view axis doesn't move the target, and is
+    // the user's.
+    if (!targets.track) {
+      if (k.up) {
+        this.camera.rotateX(speed)
+      }
+      if (k.down) {
+        this.camera.rotateX(-speed)
+      }
     }
     if (k.left) {
       this.camera.rotateZ(speed)

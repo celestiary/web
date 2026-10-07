@@ -548,6 +548,43 @@ identical; the second atlas's a, unused before, is 0 where it was 1).  The probe
 writes the multiply scattered in-scatter, with the broad lobes' extra in
 its a.
 
+## Which body's air
+
+The pass draws one body's atmosphere (`ThreeUi._updateAtmUniforms`,
+`atmosphereBody.js`):
+
+- **The one the camera is in**: the body the camera is at (zoom.js
+  `homeBody`), when it has air and the camera is within 20 of its
+  atmosphere's radii.  From Earth's ground the sky is Earth's, whatever is
+  targeted.
+- Else the target's, when the camera is that near it, or when no body's
+  air has been drawn yet; else the last one's (the Sun targeted after a
+  planet).
+
+The first rule is #192's: it used to be the target's or the last one's,
+so a permalink that targets Jupiter from Earth's ground
+(`#sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;…`), with no last
+body, drew Jupiter's air from 5.9 AU and none of Earth's.  There `rsi`'s
+float32 has lost the disc: `b² − c` is a difference of two ~D² terms,
+whose rounding (~D²·2⁻²³) is past the disc's whole R² at 2,900 radii, and
+Jupiter was 12,500 radii off.  Its pixels went ground, sky or "in front of
+the air" by rounding, and those at the far plane's depth (most of them,
+from the ground) took the ground ray's zero transmittance: a disc in black
+holes and stray pixels, in a blue speckle of Jupiter's limb haze set off
+from it, the "pixelated Jupiter".  And the photos' sky had no Earth air
+over it: no extinction, no airglow.
+
+**Nor is a body's air drawn from past `ATMOSPHERE_MAX_RADII` (500) of its
+radii** (`atmosphereResolvable`), where the same rounding starts to land
+rays near the limb on the wrong side (`atmosphereBody.test.js` replays
+`rsi` in float32, rayEnd.js `raySphere`: a ray in 300 wrong at 500
+radii, 2% at 700, 32% at 12,500).  500 radii is where a body gives way to its far point at 45°
+over 640 px; a narrow field from farther shows the disc large, without its
+own air, whose limb is then under a pixel (Jupiter's 300 km at 5.9 AU is
+0.07″).  `rsi` in the closest-approach form (`R² − |r₀ − (r₀·d)d|²`) would
+keep the limb to far greater distances: a follow-up, kept out of #192's
+fix while the pass's march was being reworked (#196).
+
 ## Per-body data
 
 Each body's atmosphere is data in its JSON descriptor (`atmosphere`), and

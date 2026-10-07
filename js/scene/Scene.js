@@ -17,6 +17,7 @@ import Stars from './Stars.js'
 import StellarFrame from './StellarFrame.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
+import {faceKeepingRoll} from '../faceKeepingRoll.js'
 import {pickSurfaceLatLng} from './Picker.js'
 import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
@@ -555,13 +556,20 @@ export default class Scene {
    * tracking ('t').  The target is setTarget's: a place, star or asterism
    * (`Shared.targets.label`), else the targeted body.  A place is where it
    * is on its body this frame, so tracking one follows it as the body turns.
+   *
+   * 'c' squares the view to the ecliptic's up (`camera.lookAt`).  Tracking
+   * passes `keepRoll`: the shortest turn that centres the target, so the
+   * roll the user set holds (faceKeepingRoll.js).
+   *
+   * @param {{keepRoll?: boolean}} [opts]
    */
-  lookAtTarget() {
+  lookAtTarget({keepRoll = false} = {}) {
+    const face = (pos) => keepRoll ? faceKeepingRoll(this.ui.camera, pos) : this.ui.camera.lookAt(pos)
     const label = Shared.targets.label
     if (label) {
       const pos = this.labelPosition(label)
       if (pos) {
-        this.ui.camera.lookAt(pos)
+        face(pos)
       }
       return
     }
@@ -573,7 +581,7 @@ export default class Scene {
     const tPos = Shared.targets.pos
     this.ui.scene.updateMatrixWorld()
     tPos.setFromMatrixPosition(obj.matrixWorld)
-    this.ui.camera.lookAt(tPos)
+    face(tPos)
   }
 
 
@@ -1046,7 +1054,8 @@ export default class Scene {
    * (`lookAtTarget`, from Celestiary's animation callback), whatever the
    * target is then: a body, a star, an asterism, or a place, which it
    * follows as its body turns.  Changing the target while tracking tracks
-   * the new one.
+   * the new one.  The roll is the user's: tracking centres the target and
+   * leaves the camera's roll as it was.
    */
   track() {
     Shared.targets.track = !Shared.targets.track

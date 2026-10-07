@@ -878,6 +878,29 @@ up, a reading is a frame or two old.  `c.ui._meterLast.latency` (and
 `starsDebug`) shows it on a machine at hand.
 
 
+### User exposure compensation
+
+[#192](https://github.com/celestiary/web/issues/192).  To match a photograph, whose exposure is the
+photographer's, the frame takes a **user compensation in stops** (EV) over the metered exposure:
+`evCompensation.js` `renderExposure(keyed, meterGain, ev)` is `keyed × meterGain × 2^ev`, the one
+place the compensation meets the metered gain, and `_updateExposure` sets `toneMappingExposure`'s
+goal from it (eased, as any exposure change is).  Everything that follows the exposure follows it:
+lit surfaces, `uExposureRelative` (so the stars, the Milky Way and the Sun's disc, pre-exposed),
+`uSkyExposure` and Cesium's decode (`exposureOf`), as a longer exposure on a camera brightens a
+whole frame, a star field's limit magnitude included.
+
+**The meter never sees it.**  `_renderedGain`, the gain the frame rendered with, is the eased
+exposure over the keyed one, so it carries the compensation, and `_meter` divides its readback by
+that record: the reading at the keyed exposure is the same at any compensation, the metered gain
+is what it was, and there is no loop (a boosted frame doesn't ask for less).  The compensation is
+not in `meteredGain` or the readback, so it merges with changes to either.
+
+Set by `-` and `=` (a third of a stop a press, `[` and `]` being the stars' limiting magnitude),
+`e` (reset), and the link's `ev=` ([permalink.md](../permalink.md)); held to ±10 stops.  Measured
+in SwiftShader on the Moon from Bay Village, the exposure's ratio across 3 presses was 2.00 (the
+exposure is a pure multiplier), and the frame's mean luma went 2.5, 4.3, 6.3 at EV 0, +1, +2 and
+1.1 at −2 (the display's toe and shoulder make the pixels follow less than linearly).
+
 ### Results
 
 SwiftShader, 480×300, Cesium's layers off (celestiary's own bodies; the
