@@ -29,7 +29,10 @@ falls back to if its Cesium layer can't load.
   celestiary's own surface (Planet `preloadNear`), which is otherwise
   built when the camera first comes within its mesh range; until its
   colour map is in, neither the surface nor its atmosphere is drawn (a
-  black ground under the haze read as a blue disc first).  In range, Cesium
+  black ground under the haze read as a blue disc first; a flat blue disc
+  with the body *behind* the camera is another bug, neither layer's: the
+  atmosphere pass's shell mirrored through the eye, [composition.md, the
+  ray's end](js/scene/atmos/composition.md#the-rays-end)).  In range, Cesium
   first renders unseen (no stencil) until its tiles for the view are
   loaded, and celestiary's surface and atmosphere show meanwhile; only
   then does the layer go active.  Tiles can't be fetched ahead of that:
