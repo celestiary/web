@@ -20,6 +20,8 @@ import {
   WebGLRenderTarget,
 } from 'three'
 import {newAtmospherePass} from './scene/atmos/Atmosphere'
+import {atmosphereBody, atmosphereResolvable} from './scene/atmos/atmosphereBody.js'
+import {setDrawingBuffer} from './scene/farPoint.js'
 import {
   mieParams, precomputeInScatter, precomputeInScatterMs, precomputeMultiScatter, precomputeTransmittance,
 } from './scene/atmos/AtmospherePrecompute'
@@ -321,6 +323,9 @@ export default class ThreeUi {
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
     this._sceneRT.setSize(width, height)
+    // The planets' meshes reach to where their discs are the far point's
+    // size on this canvas (farPoint.js meshReach).
+    setDrawingBuffer(height * this.renderer.getPixelRatio(), this.renderer.getPixelRatio())
     this.controls.handleResize()
   }
 
@@ -1223,22 +1228,16 @@ export default class ThreeUi {
       return
     }
 
-    const tObj = targets.obj
-    // Determine which planet's atmosphere to render.
-    // Fall back to _lastAtmPlanet when tObj has no atmosphere (e.g. Sun after 'u').
-    // When tObj does have atmosphere, only switch to it if the camera is actually
-    // near it — guards against selecting a distant moon with atmosphere (e.g. Titan)
-    // while the camera is still orbiting the parent planet (Saturn).
-    // Threshold: 20× atmosphere radius covers typical orbit distances.
-    let atmTarget = this._lastAtmPlanet
-    if (tObj?.props?.atmosphere) {
-      const atmR = tObj.props.radius.scalar + tObj.props.atmosphere.height.scalar
-      tObj.getWorldPosition(this._pWorldAtm)
-      this.camera.getWorldPosition(this._camWorldAtm)
-      if (!this._lastAtmPlanet || this._camWorldAtm.distanceTo(this._pWorldAtm) < atmR * 20) {
-        atmTarget = tObj
-      }
-    }
+    // Which planet's atmosphere to render: the one the camera is in, else
+    // the target's when the camera is near it (not a distant moon's, Titan's
+    // from Saturn), else the last (the Sun targeted after 'u').
+    this.camera.getWorldPosition(this._camWorldAtm)
+    const atmTarget = atmosphereBody({
+      home: this._homeBody(),
+      target: targets.obj,
+      last: this._lastAtmPlanet,
+      distanceTo: (body) => this._camWorldAtm.distanceTo(body.getWorldPosition(this._pWorldAtm)),
+    })
 
     if (!atmTarget) {
       // No atmosphere ever seen — kill the pass via the shader's gate.  We
@@ -1278,7 +1277,10 @@ export default class ThreeUi {
     // the same reason as the no-target branch above.
     const camDist = this._camWorldAtm.distanceTo(this._pWorldAtm)
     const FLT_SAFE_DIST = 1e15 // |eyePos|² stays below ~1e30, decades from FLT_MAX
-    if (camDist > FLT_SAFE_DIST) {
+    // Nor past where rsi's float32 can tell the disc from the sky
+    // (atmosphereBody.js ATMOSPHERE_MAX_RADII): Jupiter from Earth drew as
+    // speckle.
+    if (camDist > FLT_SAFE_DIST || !atmosphereResolvable(camDist, R)) {
       u.uAtmEnabled.value = 0.0
       return
     }
