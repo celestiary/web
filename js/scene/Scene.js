@@ -171,12 +171,14 @@ export default class Scene {
   /**
    * Flat {key: bool} map matching permalink SETTINGS_DEFAULTS.
    *
-   * Two special-case keys are merged in here rather than tracked in
+   * Special-case keys are merged in here rather than tracked in
    * `_settings`:
    *
    *   - `L` (landed) — sourced from `Shared.targets.landed` so any code
    *     path that pins or unpins the surface mode (Scene.land, Scene.goTo)
    *     drives this without going through a Scene toggle.
+   *   - `T` (tracking) — sourced from `Shared.targets.track`
+   *     (Scene.setTracking says so to the link).
    *   - `A` (AR-fallback) — defaults false here; the permalink writer in
    *     Celestiary._schedulePermalinkUpdate overwrites it with the live
    *     ARController.isActive() value before encoding.  The default-false
@@ -186,7 +188,7 @@ export default class Scene {
    * @returns {object}
    */
   getSettings() {
-    return {...this._settings, L: Shared.targets.landed, A: false}
+    return {...this._settings, L: Shared.targets.landed, A: false, T: Shared.targets.track}
   }
 
 
@@ -1058,7 +1060,22 @@ export default class Scene {
    * leaves the camera's roll as it was.
    */
   track() {
-    Shared.targets.track = !Shared.targets.track
+    this.setTracking(!Shared.targets.track)
+  }
+
+
+  /**
+   * Turn tracking on or off, as 't' does, and say so to the link (the `T`
+   * setting).
+   *
+   * @param {boolean} on
+   */
+  setTracking(on) {
+    if (Shared.targets.track === Boolean(on)) {
+      return
+    }
+    Shared.targets.track = Boolean(on)
+    this.onSettingsChange?.()
   }
 
 
