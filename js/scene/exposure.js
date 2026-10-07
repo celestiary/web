@@ -664,8 +664,29 @@ export const METER_GAIN_MIN = 5e-6
  */
 export const METER_TAU_UP_SECONDS = 1.5
 export const METER_TAU_DOWN_SECONDS = 0.3
-/** Frames between meterings. */
+/**
+ * Frames between meterings.  Kept with the asynchronous readback (HDR.md,
+ * "The meter's readback"): a reading a frame or two late is under a tenth
+ * of the faster time constant, and a metering every frame would cost four
+ * times the CPU (the sort of 1,024 pixels, the bodies in view) for a
+ * curve that moves under 6% between meterings.
+ */
 export const METER_EVERY_FRAMES = 4
+
+
+/**
+ * The metered gain's step toward its goal (ThreeUi._updateExposure): eased
+ * in log space, slowly up (METER_TAU_UP_SECONDS, the eye adapting to the
+ * dark), fast down (METER_TAU_DOWN_SECONDS).
+ *
+ * @param {number} gain The gain now
+ * @param {number} goal What the meter last asked for
+ * @param {number} dtSeconds Time since the last step
+ * @returns {number}
+ */
+export function adaptMeterGain(gain, goal, dtSeconds) {
+  return easeExposure(gain, goal, dtSeconds, goal < gain ? METER_TAU_DOWN_SECONDS : METER_TAU_UP_SECONDS)
+}
 
 
 /**

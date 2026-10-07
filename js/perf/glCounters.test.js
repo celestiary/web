@@ -119,6 +119,19 @@ describe('installGlCounters', () => {
     expect(total.pboReads).toBe(1)
   })
 
+  it('counts the copy out of a pixel-pack buffer as a sync call, not a readback', () => {
+    const PIXEL_PACK_BUFFER = 0x88EB
+    const gl = fakeGl()
+    const sink = new CountSink()
+    installGlCounters(gl, sink)
+    gl.readPixels(0, 0, 1, 1, 0, 0, 0)
+    gl.getBufferSubData(PIXEL_PACK_BUFFER, 0, new Float32Array(4))
+    const {total, sync} = sink.take()
+    expect(total.readbacks).toBe(0)
+    expect(total.pboReads).toBe(1)
+    expect(sync.total.getBufferSubData).toBe(1)
+  })
+
   it('counts the calls that round-trip to the GPU process, by name', () => {
     const gl = fakeGl()
     const sink = new CountSink()
