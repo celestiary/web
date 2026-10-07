@@ -384,6 +384,14 @@ export default class Planet extends Object {
       // ground read as shiny, a glint at the subsolar point (Mars).
       surfaceMaterial.roughness = 1.0
     }
+    if (this.props.texture_normal) {
+      // The relief's slopes as a tangent-space normal map (u east, v
+      // north; three's tangent frame from the derivatives), at their true
+      // size, so the terminator is as rough as the ground (Planet.md,
+      // "Relief").  Not a bump map: three's bump is in screen space, a
+      // slope per pixel that flattens as the view zooms in.
+      surfaceMaterial.normalMap = Material.pathTexture(`${texDir}${this.name}_normal`)
+    }
     // Build a chain of fragment-shader mods: hydrosphere ocean roughness +
     // night-side emissive city lights, both applied via a single
     // onBeforeCompile (Three.js calls onBeforeCompile exactly once when

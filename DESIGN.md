@@ -677,7 +677,7 @@ turns to it; Go and Enter travel
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
 | Milky Way | Its integrated light: a full-screen pass at the far plane that ray-marches a published structural model (discs, bulge and bar, arms, dust) in the galactocentric frame, into a cached target re-marched when the view moves by more than it can show, less the light the star catalogue draws as points round the Sun; the atmosphere pass draws it with the rest of the night sky's light (the zodiacal light, airglow) through the eye's response to extended light ([MilkyWay.md](js/scene/MilkyWay.md), [HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |
 | Star discs (the Sun, and any catalogue star travelled to) | A photosphere from physical parameters: temperature from class, blackbody colour and luminance, limb darkening by temperature, granulation at three scales, spots and faculae ([js/scene/Stars.md](js/scene/Stars.md)) |
-| Planets | `MeshStandardMaterial` with optional diffuse, bump, hydrosphere, and cloud textures |
+| Planets | `MeshStandardMaterial` with optional diffuse, bump, normal (the Moon's relief, [Planet.md](js/scene/Planet.md#relief)), hydrosphere, and cloud textures |
 | Earth's clouds | A shell 6 km up on its own layer, drawn after the Cesium composite so it covers both sides: the date's NASA GIBS true colour unmixed into coverage, Lambert-lit in exposure units, shadowing the ground ([Planet.md, clouds](js/scene/Planet.md#clouds)) |
 | Atmospheres | Fullscreen post-process pass over the scene buffer: Bruneton LUTs, the sky in exposure units, then the one tone map ([composition.md](js/scene/atmos/composition.md)) |
 | Saturn rings | Double-sided `RingGeometry` with texture |
