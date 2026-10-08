@@ -313,6 +313,67 @@ goes into the buffer through the tone map's inverse (`hdr.js`
 `sceneReferred`); the stars and the Sun's disc are in exposure units
 ([HDR.md, physical stars](HDR.md#physical-stars)).
 
+### The Moon's photometry
+
+The Moon isn't a Lambert surface, and lit as one it was 3.25 stops too
+bright at #192's crescent (HDR.md, [a star beside the Moon](HDR.md#a-star-beside-the-moon)).
+Both Moons, celestiary's mesh (`lunarSurface.js`) and Cesium's tileset
+(`sunlitShader`), now take their light from one function,
+`lunarPhotometry.js` (GLSL `LUNAR_PHOTOMETRY_GLSL`, shared by the two
+shaders), for `photometry: 'lunar'` in moon.json and bodies.js:
+
+- **Lunar-Lambert** (McEwen 1991; the Moon's L(α) from McEwen 1996, as
+  USGS ISIS has it): I/F = A · f(α) · [2L(α) μ0/(μ0 + μ) + (1 − L(α)) μ0].
+  Lommel-Seeliger's term keeps the full Moon's disc flat to the limb and
+  brightens the bright limb at partial phase; Lambert's takes over as L
+  falls to 0 by 104°, so a crescent falls off to its terminator as μ0.
+  μ0 and μ are taken from the normal-mapped normal, on celestiary's Moon
+  (#199's relief) and on Cesium's tiles (the same map; CESIUM.md, "Relief
+  on the Moon's tiles"), and α is each fragment's own phase angle.
+- **f(α), the phase function**, is solved at each phase so the disc's
+  light is JPL Horizons' phase law for the Moon, V(1, α) = 0.23 + 0.026α
+  + 4e-9α⁴ (Allen's; Horizons' APmag over a lunation is this to 0.001
+  mag: `lunarPhotometry.horizons.json`).  Each term's disc integral has a
+  closed form, so f is exact at every phase; summing the function over
+  the disc gives the law to 0.02 mag from 0° to 160° (the tests).  Past
+  160° f is held (the law is fitted to ~150°).
+- **The albedo**: the colour map's stored values are a linear stretch of
+  I/F (the WAC mosaic's maria are 0.17 and its highlands 0.37, a ratio of
+  2.1, as the Moon's measured albedos are; sRGB-decoded the ratio would be
+  4.5, so they aren't decoded), scaled by `texture_gain` 0.4448 so the near
+  side's disc at full is the geometric albedo for V(1, 0) = 0.23, 0.121
+  (`MOON_TEXTURE_GAIN`: 0.121 over the map's near-side mean, 0.2716, from
+  `tools/moon/textureMean.py`).  It was 1.3, on Lambert's law.
+- **No specular** on the Moon (`specularIntensity` 0): the function is the
+  regolith's whole reflectance, and the Fresnel sheen made this Moon's
+  limb 3% brighter than Cesium's.
+- **Earthshine**: the night side is lit from Earth's direction at Earth's
+  geometric albedo (0.367) × its Lambert phase seen from the Moon ×
+  (R⊕/d)² of the sunlight (`earthshineFraction`: 6.9e-5 at #192's
+  crescent), through the same function: seen from Earth at a phase of ~1°,
+  flat to the limb, where Lambert's law left out that opposition
+  brightening.  Cesium's Moon had it since #203; celestiary's has it now
+  too, so without ion the night side is no longer black.
+
+At #192's view the whole Moon sums to V −8.31 (airless; Horizons −8.42),
+which is what the texture predicts for the face shown: the waning crescent
+is the maria's side, 0.10 mag under Horizons' uniform law, and the waxing
+one at the same phase 0.10 over it (HDR.md, [a star beside the Moon](HDR.md#a-star-beside-the-moon)).
+
+**The meter.**  A resolved sunlit body anchors the gain at which its
+brightest surface is a white (HDR.md, metered exposure).  That assumed a
+Lambert surface facing the Sun, 2.5 × albedo, 0.30 for the Moon at every
+phase.  The Moon's brightest surface is its highlands (stored 0.366, I/F
+0.163) at the function's peak on the lit disc, the limb's last 3% left out
+(`lunarHighlight`: 0.163 at full, 0.066 at quarter, 0.035 at #192's
+crescent), so the anchor uses that (`exposure.js` `highlightReflectance`):
+at parity's 64° view the frame's brightest meter tap read 0.079 against
+0.089 estimated, the gain 2.3 → 4.5 (with 0.30 the highlands would have
+shown at a third of the anchor's level).  The stars and earthshine keep
+their physical ratios to it.  Other bodies are unchanged: they stay
+Lambert.  Mercury and the airless moons would want a photometric function
+of their own (Hapke's, fitted per body); that's not done.
+
 ## Small discs
 
 A body a few pixels across (Jupiter from Earth through a telescope's
@@ -377,11 +438,14 @@ Under 24 px of radius, and farther than 20 radii:
   Arizona State University, via the USGS; public domain), the imagery of
   Cesium's Moon.  Same layout and recipe, from
   `https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/3/{row}/{col}.jpg`.
-  Its stretch leaves it darker than Mars's for about the same albedo
-  (0.12 vs 0.15), so `moon.json` sets `texture_gain` 1.3 (mean 76/255 vs
-  Mars's 121, scaled by the albedo ratio) and Cesium's Moon takes the same
-  gain (`CESIUM_BODIES.moon.textureGain`), over ion's copy being stored
-  0.78× as bright (`imageryScale`; CESIUM.md, "Precision").
+  Its stored values are a linear stretch of I/F; `moon.json` sets
+  `texture_gain` 0.4448, which makes them the Moon's normal albedo
+  ([the Moon's photometry](#the-moons-photometry)), and Cesium's Moon takes
+  the same gain (`CESIUM_BODIES.moon.textureGain`), over ion's copy being
+  stored 0.815× as bright (`imageryScale`; CESIUM.md, "The Moon's
+  photometry").  (It was
+  1.3 under Lambert's law: the mean 76/255 against Mars's 121, scaled by
+  the albedo ratio.)
 - **Moon relief** (`moon_normal.jpg`, 2048×1024, 620 KB; `moon.json`
   `texture_normal`): a tangent-space normal map from LRO LOLA's global DEM
   (NASA/GSFC; public domain), as Moon Trek serves it
@@ -411,8 +475,9 @@ Moon is in Cesium's range, so with ion up it is Cesium's once its tiles are
 in (#192's views A and B: active `[moon]`, fade 1), and Cesium's tileset
 shader samples this same map by the fragment's longitude and latitude, its
 tangent frame from the sphere's east, north and up there, and lights both
-the Sun and earthshine by the perturbed normal (CESIUM.md, "Relief on the
-Moon's tiles"; `js/scene/cesium/relief.js`).  Without ion, with the Cesium
+the Sun and earthshine by the perturbed normal, through the lunar
+photometric function as here (CESIUM.md, "Relief on the Moon's tiles";
+`js/scene/cesium/relief.js`).  Without ion, with the Cesium
 layer off, and while the tiles load, it is celestiary's own Moon, through
 three's `normalMap`.  The tileset's version fades out where the map is
 magnified past 2 pixels a texel (gone by 8), since over the tiles' sharp

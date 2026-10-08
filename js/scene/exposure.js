@@ -266,14 +266,13 @@ export function meteredGain({meanLog, highlight, blown, max}, renderedOverKeyed,
  */
 export function sunlitBodyCap(bodies, targetKeyedExposure, halfFov = Math.PI) {
   let cap = Infinity
-  for (const {angularRadius, litFraction, keyedExposure, albedo} of bodies) {
+  for (const {angularRadius, litFraction, keyedExposure, albedo, highlight} of bodies) {
     if (!(angularRadius >= EYE_POINT_RAD / 2) || !(angularRadius <= halfFov) || !(litFraction >= LIT_FRACTION_MIN) ||
         !(keyedExposure > 0)) {
       continue
     }
     const white = DISPLAY_GAIN * targetKeyedExposure / keyedExposure
-    const highlightAlbedo = Math.min(HIGHLIGHT_ALBEDO_FACTOR * (albedo > 0 ? albedo : 0.3), 1)
-    cap = Math.min(cap, METER_HIGHLIGHT_MAX / (white * highlightAlbedo))
+    cap = Math.min(cap, METER_HIGHLIGHT_MAX / (white * highlightReflectance(albedo, highlight)))
   }
   return Math.max(cap, 1)
 }
@@ -421,7 +420,7 @@ export function sunlitBodyGain(gain, bodies, targetKeyedExposure, halfFov = Math
   const [wLo, wHi] = SUNLIT_FRAME_WEIGHT
   const [fLo, fHi] = SUNLIT_FRAME_FRACTION
   for (const body of bodies) {
-    const {angularRadius, litFraction, keyedExposure, albedo, frameFraction} = body
+    const {angularRadius, litFraction, keyedExposure, albedo, frameFraction, highlight} = body
     if (!(angularRadius <= halfFov) || !(litFraction >= LIT_FRACTION_MIN) || !(keyedExposure > 0) ||
         !(frameFraction > 0)) {
       continue
@@ -433,8 +432,7 @@ export function sunlitBodyGain(gain, bodies, targetKeyedExposure, halfFov = Math
     const share = smoothstep(Math.log(fLo), Math.log(fHi), Math.log(frameFraction))
     const target = Math.exp(((1 - share) * Math.log(METER_HIGHLIGHT_MAX)) + (share * Math.log(METER_HIGHLIGHT)))
     const white = DISPLAY_GAIN * targetKeyedExposure / keyedExposure
-    const highlightAlbedo = Math.min(HIGHLIGHT_ALBEDO_FACTOR * (albedo > 0 ? albedo : 0.3), 1)
-    const cap = Math.max(target / (white * highlightAlbedo), 1)
+    const cap = Math.max(target / (white * highlightReflectance(albedo, highlight)), 1)
     if (cap < gain) {
       out = Math.min(out, Math.exp(((1 - weight) * Math.log(gain)) + (weight * Math.log(cap))))
     }
@@ -449,6 +447,26 @@ export function sunlitBodyGain(gain, bodies, targetKeyedExposure, halfFov = Math
  * its 0.12.
  */
 export const HIGHLIGHT_ALBEDO_FACTOR = 2.5
+/**
+ * A body's brightest sunlit surface, as a reflectance (I/F): for a Lambert
+ * body HIGHLIGHT_ALBEDO_FACTOR times its albedo, facing the Sun (its
+ * subsolar point is on the lit disc at every phase it anchors at); for a
+ * body with a photometric function of its own, what that gives at its
+ * phase (`highlight`): the Moon's is lunarPhotometry.js lunarHighlight,
+ * 0.035 at #192's crescent and 0.066 at quarter, where Lambert's estimate is
+ * 0.30 at every phase.  So the gain that anchors it is the one that puts
+ * its own brightest pixels at the anchor's level.
+ *
+ * @param {number} albedo Bond albedo; 0.3 when unknown
+ * @param {number} [highlight] The body's own estimate, I/F; none for Lambert's
+ * @returns {number}
+ */
+export function highlightReflectance(albedo, highlight) {
+  if (highlight > 0) {
+    return Math.min(highlight, 1)
+  }
+  return Math.min(HIGHLIGHT_ALBEDO_FACTOR * (albedo > 0 ? albedo : 0.3), 1)
+}
 /** The least of a body's disc that must be lit for it to anchor the gain (sunlitBodyCap). */
 export const LIT_FRACTION_MIN = 0.05
 

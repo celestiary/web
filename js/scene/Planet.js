@@ -30,6 +30,7 @@ import {dataUrl} from '../dataUrl.js'
 import {monthOfJulianDay, monthlyPath} from './monthly.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
 import {nightLightRadiance} from './exposure.js'
+import {lunarSurfaceShaderMod, newLunarSurfaceUniforms, updateLunarSurface} from './lunarSurface.js'
 import CloudMap from './clouds/CloudMap.js'
 import {newCloudShell} from './clouds/CloudShell.js'
 import {capitalize, named} from '../utils.js'
@@ -377,8 +378,16 @@ export default class Planet extends Object {
     // the hydrosphere metalness map, which scales this.
     surfaceMaterial.metalness = this.props.texture_hydrosphere ? 0.2 : 0
     surfaceMaterial.roughness = 0.8
-    // A mosaic stretched darker than the body's albedo (Planet.md).
+    // The colour map's stored values to the body's albedo (Planet.md): the
+    // Moon's, a linear stretch of I/F, to its normal albedo.
     surfaceMaterial.color.setScalar(this.props.texture_gain ?? 1)
+    const lunar = this.props.photometry === 'lunar'
+    if (lunar) {
+      // The lunar photometric function is the regolith's whole reflectance
+      // (lunarSurface.js): no Fresnel sheen at the limb, which made this
+      // Moon's bright limb 3% over Cesium's (CESIUM.md, parity).
+      surfaceMaterial.specularIntensity = 0
+    }
     if (this.props.texture_terrain) {
       const terrainTex = Material.pathTexture(`${texDir}${this.name}_terrain`)
       surfaceMaterial.bumpMap = terrainTex
@@ -477,6 +486,12 @@ export default class Planet extends Object {
         )
       })
     }
+    // The Moon: lit by its photometric function, and by earthshine
+    // (lunarSurface.js).
+    const lunarUniforms = lunar ? newLunarSurfaceUniforms() : null
+    if (lunarUniforms) {
+      shaderMods.push(lunarSurfaceShaderMod(lunarUniforms))
+    }
     // Last: a disc a few pixels across, antialiased and shaded as the
     // sphere (smallDisc.js; Planet.md, "Small discs"), its coverage over
     // whatever the mods above added.
@@ -492,7 +507,7 @@ export default class Planet extends Object {
     // doesn't.  Read when the program is built, so after Rings chains its
     // own onBeforeCompile (Saturn's ring shadow).
     surfaceMaterial.customProgramCacheKey = function() {
-      return `${this.onBeforeCompile.toString()}|mods:${modCount}`
+      return `${this.onBeforeCompile.toString()}|mods:${modCount}${lunar ? '|lunar' : ''}`
     }
 
     // Bump surface resolution from sphere()'s default (128 segs ≈ 16k tris,
@@ -508,9 +523,22 @@ export default class Planet extends Object {
     // space) for the night-lights shader.  Sun lives at world origin;
     // transform direction-from-planet-to-sun into the camera's view frame.
     const _planetWorld = new Vector3()
+    const _sunWorld = new Vector3()
+    const _earthWorld = new Vector3()
     const radius = this.props.radius.scalar
     surface.onBeforeRender = (renderer, scene, camera) => {
       updateSmallDisc(discUniforms, renderer, camera, surface, radius)
+      if (lunarUniforms) {
+        // The Sun is at the world group's origin (Scene: rebased to the target).
+        const world = this.scene.worldGroup
+        if (world) {
+          world.getWorldPosition(_sunWorld)
+        } else {
+          _sunWorld.set(0, 0, 0)
+        }
+        const earth = this.scene.objects?.earth
+        updateLunarSurface(lunarUniforms, surface, camera, _sunWorld, earth ? earth.getWorldPosition(_earthWorld) : null)
+      }
       if (nightSunDirUniform) {
         surface.getWorldPosition(_planetWorld)
         nightSunDirUniform.value.copy(_planetWorld).negate().normalize()
