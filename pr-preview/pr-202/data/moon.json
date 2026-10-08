@@ -22,7 +22,9 @@
 }
 }
 ,"albedo": 0.12,
-"texture_gain": 1.3,
+"texture_gain": 0.4448,
+"photometry": "lunar",
+"texture_normal": true,
 "equatorialGravity": 1.622,
 "escapeVelocity": 2.38,
 "orbit": {
