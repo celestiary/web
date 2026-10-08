@@ -848,3 +848,27 @@ describe('the overlays', () => {
     expect(nodes).toBeGreaterThan(1)
   })
 })
+
+
+describe('the target star\'s label', () => {
+  const star = {hipId: 46635, x: 1e18, y: 2e17, z: -3e17}
+
+  it('is set when a star is targeted, and cleared when anything else is', () => {
+    const s = makeScene()
+    const seen = []
+    s.stars = {...fakeStars(), setTargetStar: (st, name) => seen.push([st, name])}
+    s.objects['earth'] = new Object3D()
+    s.objects['earth'].props = {name: 'earth'}
+    s.setTarget({kind: 'star', star, name: 'HIP 46635'}, {look: false})
+    s.setTarget('earth', {look: false})
+    expect(seen).toEqual([[star, 'HIP 46635'], [null, undefined]])
+  })
+
+  it('is left out for the Sun, which has its own label', () => {
+    const s = makeScene()
+    const seen = []
+    s.stars = {...fakeStars(), setTargetStar: (st) => seen.push(st)}
+    s.setTarget({kind: 'star', star: {hipId: 0, x: 0, y: 0, z: 0}, name: 'Sun'}, {look: false})
+    expect(seen).toEqual([null])
+  })
+})

@@ -134,6 +134,9 @@ grids `e` `c` `g`, galaxy `U`, human expansion lines `x`, the HUD `v`),
 plus landed `L`, tracking `T` and AR `A` (`permalink.js`
 `SETTINGS_DEFAULTS`).  `T` is the `t` key: the camera keeps the target
 centred every frame, so a link made while tracking reloads tracking.
+A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
+`U`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
+star labels off, orbits off, landed), while `e` `c` `g` `L` `T` `A` mean on.
 
 `fov=` is written to four significant figures (`45deg`, `0.0714deg`,
 `120.5deg`), so a telescope's field survives the round trip to a part in

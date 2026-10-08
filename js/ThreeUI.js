@@ -679,9 +679,14 @@ export default class ThreeUi {
   }
 
 
-  /** @returns {number} The limiting magnitude at the current exposure and star gain */
+  /**
+   * @returns {number} The limiting magnitude at the current exposure, star
+   *   gain and field of view (a telescope's field is deeper: exposure.js
+   *   limitingMagnitude)
+   */
   limitingMagnitude() {
-    return limitingMagnitude(absoluteUniforms.uExposureRelative.value, absoluteUniforms.uStarGain.value)
+    return limitingMagnitude(absoluteUniforms.uExposureRelative.value, absoluteUniforms.uStarGain.value,
+        this.camera.fov, this.height)
   }
 
 
@@ -1339,7 +1344,7 @@ export default class ThreeUi {
       frameCanBeEmpty: this._frameCanBeEmpty(),
       exposureRelative: gain,
       starGain,
-      limitingMagnitude: limitingMagnitude(gain, starGain),
+      limitingMagnitude: limitingMagnitude(gain, starGain, this.camera.fov, this.height),
       pointSizeRange: Array.from(gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)),
       fragmentHighp: highp ? {rangeMin: highp.rangeMin, rangeMax: highp.rangeMax, precision: highp.precision} : null,
       starsDrawn: Boolean(points),

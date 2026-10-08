@@ -86,6 +86,11 @@ tried and dropped.
     with `toDataURL` in the same task (its buffer is cleared once the
     task ends). Null `c.shared.targets.tween` before each frame, or the
     `goTo` tween moves the camera off your view.
+  - Before reading a metered view, wait for `c.ui._meterGainGoal` to
+    hold for ~30 s, not a few polls. A view loaded far from its gain
+    (a link with a high `ev=` starts at the dark gain) can bounce: a
+    late reading of a frame whose lit pixels were clamped at 6e4 sends
+    the goal up ~16× for several seconds.
   - To see what one object adds to a frame, render with and without it
     (`material.visible = false`) and compare pixels at its projected
     spot, rather than reading absolute values off a starfield. Hide the

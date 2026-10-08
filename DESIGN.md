@@ -655,6 +655,29 @@ forced to a value.  `c` still squares the view (`lookAt`).  While
 tracking the roll arrow keys work and pitch is left out (it would fight the
 centring); a pitch or yaw drag is undone by the next frame, a roll is kept.
 
+### The target's label
+
+A star that is the target carries its name in the scene, whatever its
+magnitude (`js/scene/TargetLabel.js`).  The catalogue's label sheet
+(`Stars.showLabels`) has only the named stars and the very luminous ones
+(absolute magnitude under -5), so a faint star found in the search (HIP
+46635, V 8.4, next to Jupiter) had no label at any magnification, and the
+sheet is hidden with `l` anyway.  `Scene.setTarget` records the star
+(`Stars.setTargetStar`: no DOM work in the call), and `Stars.preAnimCb`
+builds a one-label sheet in the stars' frame when it is first wanted, hides
+it, or drops it when the target is not a star (the Sun has its own label).
+
+It is drawn while **any label group is on**, `l` (stars) or `p` (bodies and
+places), so the user who hid the other stars' names to see one still sees
+the target's, and `V` (presentation mode, which turns both off) hides it.
+When `l` is on and the catalogue's sheet already names the star, that
+label is the one drawn, not a second on top (`targetLabelShown`).  It is on
+the overlay layer like the others, outside the star's magnification: a
+label is a fixed number of pixels, so at a telescope's field it sits at the
+star's position, text above it.  A letter in `s=` is a flip of its default
+(`l` and `p` are on by default), so `s=loL` is star labels off, orbits off,
+landed.
+
 ### Picking labels
 
 One model for every label, on the canvas and in the search: **a click or tap

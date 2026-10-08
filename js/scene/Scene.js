@@ -322,6 +322,10 @@ export default class Scene {
       case 'galaxy': return this.newGalaxy(props)
       case 'stars':
         this.stars = new Stars(props, this.ui)
+        // The toggles that decide whether the target star's name is drawn
+        // (TargetLabel.js), and a target set before the stars were here.
+        this.stars.labelSettings = () => this._settings
+        this._labelTargetStar(Shared.targets.label)
         this._markStarsReady()
         return this.stars
       case 'star': return new Star(props, this.objects, this.ui)
@@ -445,6 +449,7 @@ export default class Scene {
       this.objects[obj.props?.parent]?.preloadNear?.()
     }
     Shared.targets.label = t.kind === 'body' ? null : t
+    this._labelTargetStar(Shared.targets.label)
     // Animated in ThreeUI.renderLoop
     if (look) {
       const pos = t.kind === 'body' ? obj.matrixWorld : this.labelPosition(t)
@@ -462,6 +467,19 @@ export default class Scene {
       state?.setCommittedPath?.(path)
     }
     this.onTargetChange?.(t)
+  }
+
+
+  /**
+   * Have the stars name the target if it is a catalogue star, whatever its
+   * magnitude (Stars.setTargetStar), or none if it isn't.  The Sun is the
+   * scene's own and has its own label.
+   *
+   * @param {?object} label `Shared.targets.label`
+   */
+  _labelTargetStar(label) {
+    const isStar = label?.kind === 'star' && label.star && label.star.hipId !== 0
+    this.stars?.setTargetStar?.(isStar ? label.star : null, label?.name)
   }
 
 
