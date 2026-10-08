@@ -1,9 +1,15 @@
-// Fragment shader for planetary rings.
-// Features:
-//   - Alpha-texture transparency for ring gaps (Cassini Division etc.)
-//   - Blinn-Phong specular for ice-particle glint
-//   - Henyey-Greenstein forward scatter (rings brighten when backlit)
-//   - Analytical planet-shadow-on-rings: sphere intersection test
+import {RING_PHOTOMETRY_GLSL} from './ringPhotometry.js'
+
+
+// Fragment shader for planetary rings, lit in exposure units (rings.md,
+// "Lighting: the rings in exposure units"; ringPhotometry.js):
+//   - the colour map is the particles' single-scattering albedo (times
+//     uAlbedoScale), the opacity map the normal optical depth;
+//   - a slab of particles scattering the Sun's light once, from the lit face
+//     or through it to the unlit one, with the particles' backscattering
+//     phase function;
+//   - the planet's shadow: a sphere test along the ray to the Sun;
+//   - the background shows through e^(−τ/μ): the colour is premultiplied.
 export const FRAG = /* glsl */`
 uniform sampler2D uColorMap;
 uniform sampler2D uAlphaMap;
@@ -14,37 +20,32 @@ uniform vec3 uPlanetCenter;
 uniform float uPlanetRadius;
 uniform float uInnerRadius;
 uniform float uOuterRadius;
-uniform float uSunIntensity;
+// A white Lambertian's radiance facing the Sun at the planet, E/π, in
+// three's units: I/F times this is the radiance, which the renderer's
+// exposure scales as it does every lit surface.
+uniform float uSunRadiance;
+uniform float uAlbedoScale;
 
 varying vec2 vUv;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
 
+${RING_PHOTOMETRY_GLSL}
+
 void main() {
-  float alpha = texture2D(uAlphaMap, vUv).r;
-  if (alpha < 0.01) discard;
-  vec3 color = texture2D(uColorMap, vUv).rgb;
+  float opacity = texture2D(uAlphaMap, vUv).r;
+  if (opacity < 0.01) discard;
+  vec3 albedo = uAlbedoScale * texture2D(uColorMap, vUv).rgb;
+  float tau = ringTau(opacity);
 
-  // Diffuse: rings receive light on both faces.
   vec3 norm = normalize(vWorldNormal);
-  float nDotL = abs(dot(norm, uSunDir));
-  float diffuse = max(nDotL, 0.05);
-
-  // Specular ice glint (Blinn-Phong, high shininess for icy particles).
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
-  vec3 halfVec = normalize(uSunDir + viewDir);
-  float spec = pow(max(dot(norm, halfVec), 0.0), 60.0);
-  // Also check the back face normal so both faces glint.
-  spec = max(spec, pow(max(dot(-norm, halfVec), 0.0), 60.0));
-  vec3 specular = vec3(spec) * 0.25;
-
-  // Forward scatter (Henyey-Greenstein, g=0.7).
-  // Rings are brightest when the camera looks toward the sun through them.
-  // cosTheta is negative when camera is between sun and rings.
-  float cosTheta = dot(-uSunDir, viewDir);
-  const float g = 0.7;
-  float hg = (1.0 - g * g) / pow(max(1.0 + g * g - 2.0 * g * cosTheta, 0.001), 1.5);
-  float scatter = hg * 0.15;
+  float sunSide = dot(norm, uSunDir);
+  float viewSide = dot(norm, viewDir);
+  float mu0 = max(abs(sunSide), 1e-3);
+  float mu = max(abs(viewSide), 1e-3);
+  bool litFace = sunSide * viewSide > 0.0;
+  vec3 iOverF = albedo * (ringPhase(dot(uSunDir, viewDir)) / 4.0) * ringSlabFactor(tau, mu0, mu, litFace);
 
   // Planet shadow on rings: ray from ring fragment toward sun, sphere test.
   // oc = vector from planet center to ring fragment.
@@ -55,11 +56,12 @@ void main() {
   float c = dot(oc, oc) - uPlanetRadius * uPlanetRadius;
   float disc = b * b - c;
   // disc > 0: ray hits planet sphere; b < 0: planet is between fragment and sun.
-  float inShadow = (disc > 0.0 && b < 0.0) ? 1.0 : 0.0;
-  // 15% ambient leaks into the shadow umbra.
-  float shadowFactor = 1.0 - inShadow * 0.85;
+  // No sunlight there (the planet's own light on the rings isn't modelled).
+  float sunlit = (disc > 0.0 && b < 0.0) ? 0.0 : 1.0;
 
-  vec3 lit = (color * diffuse + specular + color * scatter) * shadowFactor * uSunIntensity;
-  gl_FragColor = vec4(lit, alpha);
+  // The share of the background the layer hides along the view.
+  float cover = 1.0 - exp(-tau / mu);
+  gl_FragColor = vec4(iOverF * uSunRadiance * sunlit, cover);
+  #include <tonemapping_fragment>
 }
 `

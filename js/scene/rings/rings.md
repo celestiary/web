@@ -1,6 +1,85 @@
 # Planetary Rings Plan
 
-## Current state and problems
+Phases 1 and 2 below are built (`Rings.js`); the lighting of Phase 2 has
+since been replaced by the physical model in the next section.
+
+## Lighting: the rings in exposure units
+
+The rings are lit like every other surface, in exposure units, by the
+Sun's irradiance at the planet (`exposure.js` `irradianceAt`), and the
+renderer's exposure scales them.  Until this change they were display
+values (through `sceneReferred`) times Saturn's atmosphere's
+`sunIntensity`: neither the Sun's falloff nor the exposure reached them,
+and the gain was the atmosphere's, a pre-HDR distance falloff (4 for
+Saturn).
+
+**The model** (`ringPhotometry.js`, mirrored in GLSL): the classical
+single-scattering slab of ring photometry (Chandrasekhar 1960; Cuzzi et
+al. 1984, in *Planetary Rings*; Dones, Cuzzi & Showalter 1993, Icarus 105,
+184).  For normal optical depth τ, the cosines μ₀ and μ of the Sun's and
+the eye's angles from the ring normal, and phase angle α:
+
+    lit face:    I/F = ϖP(α)/4 · μ₀/(μ + μ₀) · (1 − e^(−τ(1/μ + 1/μ₀)))
+    unlit face:  I/F = ϖP(α)/4 · μ₀/(μ − μ₀) · (e^(−τ/μ) − e^(−τ/μ₀))
+
+The radiance is (I/F)·E/π (the uniform `uSunRadiance` is E/π), and the
+background shows through e^(−τ/μ), so the colour is premultiplied by the
+cover and blended `One, OneMinusSrcAlpha`.  In the planet's shadow there
+is no sunlight (the 15% "ambient" is gone; Saturnshine isn't modelled).
+
+- **ϖ, the particles' single-scattering albedo**, is the colour map's
+  stored value times `RING_ALBEDO_SCALE`, per channel.
+- **τ** is the opacity map read as the share of the background a normal
+  ray loses, 1 − e^(−τ), capped at τ 6.9.
+- **P(α)**, the particles' phase function, is the power law
+  P ∝ (π − α)³, normalized to a mean of 1 over the sphere: icy,
+  regolith-covered particles scatter back toward the Sun, like Callisto
+  (Dones et al. 1993 fit an exponent of about 3 to the A ring's Voyager
+  phase curves).  The lit rings dim away from opposition; the old
+  Henyey-Greenstein forward lobe (g 0.7, rings brightest backlit) and
+  Blinn-Phong glint are gone: the dense rings are dark backlit, and what
+  brightens in forward scattering is their dust (the F, G and E rings, the
+  C ring's and Cassini Division's fine material), not modelled.
+- **The calibration** is the rings' integrated light.  Mallama & Hilton's
+  (2018, Astronomy and Computing 25, 10) magnitude law for Saturn, the one
+  JPL Horizons uses, adds −1.825·sin B mag for the rings at ring opening B
+  (plus an opposition surge, −0.378·sin B·e^(−2.25α), not modelled).
+  `RING_ALBEDO_SCALE` 0.914 makes the render's rings add the law's light
+  at B = 26.6° (2017 June 15, at opposition, the rings widest), 1.046 times
+  the globe's, measured as the summed linear composite with the rings
+  shown and hidden, from Earth's direction.  Then the B ring's band of the
+  map (its median stored value 0.55) has ϖ ≈ 0.50, inside the 0.4-0.6
+  that ring photometry finds for B ring particles.
+
+**Checked** at #192's date (2026 October 6, B = 7.4°, phase 0.36°, two
+days from opposition), not fitted there: the rings add 0.229 mag to the
+globe in the render, against the law's 0.189 without the surge and 0.211
+with it (JPL Horizons, #214).  Before, as display values, they added
+0.07.  The model's tilt dependence is a little weak (the thin parts' light
+doesn't fall as the rings close), but within 0.04 mag over B 7°-27°.
+
+| Saturn from Earth's direction, 8 radii out | B = 26.6° (2017-06-15) | B = 7.4° (2026-10-06) |
+|---|---|---|
+| Rings' light over the globe's, render | 1.045 | 0.235 |
+| Mallama & Hilton, without / with the surge | 1.046 / 1.29 | 0.190 / 0.214 |
+
+**Known limits** (follow-up:
+[#217](https://github.com/celestiary/web/issues/217)):
+- The colour and opacity maps are pictures, not measurements, and their
+  radial structure isn't registered to the rings': the map's brightest,
+  fairly opaque band (stored value 0.8-1.0, opacity 0.6-0.9) falls at
+  72-92 Mm, the C ring, which is the darkest and most transparent of the
+  main rings (τ about 0.1, I/F about 0.1); the Cassini Division is 0.7
+  opaque.  A radial profile of τ (Cassini UVIS and RSS occultations) and
+  of I/F (Cassini ISS, HST) from the PDS Rings Node would make ϖ and τ
+  measurements.
+- Single scattering only: the tilt effect (the B ring brightening by about
+  30% as the rings open, from multiple scattering and interparticle
+  shadowing) and the opposition surge aren't modelled.
+- The ring's shadow on the globe still dims by 0.9 of the opacity map
+  (`injectPlanetShadow`), not e^(−τ/μ₀).
+
+## Current state and problems (before Phase 1)
 
 `js/scene/shapes.js:523` exports a `rings()` function used only in `Planet.js:255`:
 
@@ -168,7 +247,8 @@ Uniforms:
 | `uPlanetRadius` | float | Planet radius in meters |
 | `uInnerRadius` | float | Ring inner radius in meters |
 | `uOuterRadius` | float | Ring outer radius in meters |
-| `uSunIntensity` | float | Sun brightness scalar (from planet's atmosphere.sunIntensity or 1.0) |
+| `uSunRadiance` | float | A white Lambertian's radiance facing the Sun at the planet, E/π (was `uSunIntensity`, the atmosphere's gain; see Lighting) |
+| `uAlbedoScale` | float | The particles' albedo per unit of the colour map (`RING_ALBEDO_SCALE`) |
 
 Fragment logic:
 
