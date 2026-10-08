@@ -89,6 +89,24 @@ Several times a "fix" attacked the wrong cause:
 A 2-minute back-of-envelope saves an iteration.  When a library runs away, count its own
 per-frame work before reasoning from what's on screen.
 
+### When a pipeline gains a normalization, audit what was tuned before it
+
+The Sun's light fell off as 1/d^1.01, "so the outer planets aren't lost",
+from before the exposure followed the target.  Once the exposure was keyed
+to the target, the kludge did nothing for what it was for and broke every
+frame with two bodies at different distances: Jupiter 2.4 stops bright
+against the Moon, enough to take the meter (#192).  The same audit found
+the outer planets' sky gains carrying an older distance falloff, which the
+sky's own irradiance term now counted a second time.  Neither showed on a
+targeted body, the case everyone looked at.
+
+**Rule:** when a change normalizes a quantity (an exposure keyed to the
+target, a gain divided out), grep for the constants tuned to compensate
+for it before, and check them in a frame where the normalization can't
+hide them: two bodies, two distances, one exposure.  And before keeping a
+constant's value in new units, check its range in the shader's precision:
+the old irradiance with d² needed an intensity past float32's maximum.
+
 ### State reset must be complete
 
 When disabling a GPU effect, reset **all** uniforms that could cause visible output, not just

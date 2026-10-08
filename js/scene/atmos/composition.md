@@ -310,7 +310,11 @@ surface brightness.  In a
 page: set it, render `ui._atmScene` with `ui._atmCamera` into a
 `FloatType` target, `readRenderTargetPixels`.  Read a column of numbers
 down a feature (the band at the horizon), not a picture: every cause in
-#141 and here was found that way.
+#141 and here was found that way.  The intermediates (1 to 6) are written
+only on rays that meet the air: a ray that misses it, or a frame with the
+pass off, writes the tone-mapped scene there, so dividing a planet seen
+from space by "transmittance" 1 divided it by its own display value (#192's
+magnitudes).  Check the ray against the air, and take 1 where it misses.
 
 `scene` is the linear HDR scene buffer, in exposure units (1.0 is a white
 Lambertian surface lit by the Sun at the exposure target, before
@@ -621,7 +625,15 @@ the pass has one path for every body:
   scattering was in; matched to Cesium's Earth, Planet.md) is 4.5×
   physical, standing in for its aerosol load; #86's PR B tunes it against
   physical stars and metered exposure.  The rings reuse it as their
-  brightness.
+  brightness.  The Sun's falloff (now the inverse square, #192) never
+  reaches it: `skyExposure` is the body's irradiance times the exposure
+  over π·`DISPLAY_GAIN`, 1 at the body's own keyed exposure.  The outer
+  bodies' smaller gains (Jupiter 6, Saturn 4, Uranus 2.8, Neptune 2.2,
+  Titan 1.0, Pluto 0.7, Triton 0.6) are #55's distance falloff, from when
+  this was the Sun's light at the body, counted twice since the sky took
+  the irradiance; the physical value for each is 4.71, proposed as its
+  own change (Planet.md, [the Sun's
+  light](../Planet.md#the-suns-light-the-inverse-square)).
 - The body's own `albedo` is the ground's share of the multiple
   scattering.
 

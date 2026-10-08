@@ -198,6 +198,17 @@ body frame, mapped to ECEF, drives a Cesium `DirectionalLight` and
 terminator matches celestiary's no matter how celestiary's sidereal phase
 relates to real time.
 
+The Sun's falloff never reaches Cesium: its light is a direction at a
+fixed intensity, its frame holds stored value × the lighting law (at most
+1), and the decode scales that by the body's gain and by `exposureOf`, the
+body's irradiance (`irradianceAt`) times the renderer's exposure over
+π·`DISPLAY_GAIN`, which is 1 at the body's own keyed exposure whatever the
+falloff.  So the inverse square (#192; Planet.md, [the Sun's
+light](js/scene/Planet.md#the-suns-light-the-inverse-square)) left every
+Cesium body as it was: Earth and the Moon are within 0.003 AU of 1 AU, and
+Mars, at its own keyed exposure, is unchanged too; `yarn parity` before and
+after agrees within its noise.
+
 ### Activation
 
 A Cesium frame costs the same whether its body fills the screen or none

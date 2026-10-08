@@ -35,13 +35,33 @@ export const GALAXY_RADIUS_METER = LIGHTYEAR_METER * 5e4
 export const SMALLEST_SIZE_METER = 6e5
 export const SUN_RADIUS_METER = 6.957e8
 
+/** The Sun's V-band illuminance at 1 AU, lux (V = −26.74; V = 0 is 2.54e-6 lux). */
+export const SUN_ILLUMINANCE_LUX = 1.27e5
+
 /**
- * Celestiary's Sun light (Star.js): a PointLight of this intensity, whose
- * light falls off as 1/d^SUN_LIGHT_DECAY (not the physical 2; tuned so the
- * outer planets aren't lost).  exposure.js calibrates against it.
+ * Celestiary's Sun light (Star.js): a PointLight of this luminous
+ * intensity, in candela, falling off as the inverse square of the distance
+ * (SUN_LIGHT_DECAY), so a surface d metres out gets I / d² lux:
+ * SUN_ILLUMINANCE_LUX at 1 AU.  three's light units are then photometric
+ * (cd, lux, and cd/m² for what a surface reflects), and exposure.js keys
+ * the exposure to them (exposureAt).
+ *
+ * The falloff was 1/d^1.01 at 3.7e28, from before the exposure followed
+ * the target, "so the outer planets aren't lost".  The exposure keyed to
+ * the target shows any body at its albedo whatever the falloff, and the
+ * kludge put bodies at other distances wrong in the same frame (Jupiter
+ * 2.4 stops bright against the Moon, Neptune 4.9; Planet.md, "Lighting
+ * and exposure").  Keeping its irradiance at 1 AU with d² would take an
+ * intensity of 3.7e28 × AU^0.99 = 4.3e39, past float32's 3.4e38: Inf as the
+ * light's uniform.  In lux the intensity is 2.8e27, and a surface's
+ * irradiance from Mercury (8.5e5) to Pluto's aphelion (52 lx) is far from
+ * either end of float32; the shader's d² overflows only past 2^64 m
+ * (1,950 ly), where length() of the light's vector already does.  Every
+ * rendered value at 1 AU is what it was: the exposure there is π·DISPLAY_GAIN
+ * over the irradiance, in whatever units (exposure.js).
  */
-export const SUN_LUMINOUS_INTENSITY = 3.7e28
-export const SUN_LIGHT_DECAY = 1.01
+export const SUN_LUMINOUS_INTENSITY = SUN_ILLUMINANCE_LUX * ASTRO_UNIT_METER * ASTRO_UNIT_METER
+export const SUN_LIGHT_DECAY = 2
 
 /**
  * How bright a sunlit surface facing the Sun shows, relative to its

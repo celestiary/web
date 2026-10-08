@@ -11,9 +11,12 @@ import {HDR_MAX_VALUE, luminousShoulder} from './hdr.js'
  * Earth's lit sides at ~12-18× albedo, compressed toward white.
  *
  * Celestiary's Sun is a PointLight: a surface d metres out facing it gets
- * irradiance E = I / d^decay, and a Lambertian one reflects E·albedo/π.
- * Scaled by exposure π·d^decay / I that is the albedo; DISPLAY_GAIN (shared
- * with Cesium's layers) brightens both alike.
+ * irradiance E = I / d², and a Lambertian one reflects E·albedo/π.
+ * Scaled by exposure π·d² / I that is the albedo; DISPLAY_GAIN (shared
+ * with Cesium's layers) brightens both alike.  The falloff is the physical
+ * inverse square (shared.js), so bodies at different distances from the
+ * Sun keep their true brightness against one another in one frame: from
+ * the Moon's exposure, Jupiter at 5.3 AU is lit at 1/28 of it.
  */
 
 
@@ -29,8 +32,8 @@ export function exposureAt(distanceMeters) {
 
 /**
  * @param {number} distanceMeters Distance from the Sun
- * @returns {number} The Sun's irradiance there, in three's units (the
- *   PointLight's intensity over d^decay)
+ * @returns {number} The Sun's irradiance there, in three's units, lux (the
+ *   PointLight's intensity over d²)
  */
 export function irradianceAt(distanceMeters) {
   return SUN_LUMINOUS_INTENSITY / Math.pow(distanceMeters, SUN_LIGHT_DECAY)
@@ -183,8 +186,8 @@ export function pointSolidAngle(fovDegrees, heightPx) {
  * (`canBeEmpty` false) and takes the dark.
  *
  * The dark end is absolute.  The target-keyed exposure scales with the
- * Sun's irradiance at the target (exposureAt: 0.4× Earth's at Mercury,
- * 40× at Pluto), and the gain is over it; a floor and a ceiling in keyed
+ * Sun's irradiance at the target (exposureAt: 0.15× Earth's at Mercury,
+ * 1,560× at Pluto's 39.5 AU), and the gain is over it; a floor and a ceiling in keyed
  * units would make a dark frame's exposure, and the stars' limit with it,
  * depend on the target (a magnitude shallower at Mercury, four deeper at
  * Pluto, which the user saw).  So the floor is METER_FLOOR at Earth's
@@ -670,8 +673,8 @@ export const METER_BLOWN_VALUE = 20 * DISPLAY_GAIN
  * The least the metered exposure falls to, over Earth's keyed exposure
  * (METER_GAIN_MIN / keyedOverEarth in target-keyed units, as the ceiling
  * is absolute): the Sun's disc, 6e4 at Earth's keyed exposure, brought to
- * METER_HIGHLIGHT needs 1e-5, with room; from Pluto's keyed exposure, 37×
- * Earth's, the same disc needs 37× less.
+ * METER_HIGHLIGHT needs 1e-5, with room; from Pluto's keyed exposure, 1,560×
+ * Earth's, the same disc needs 1,560× less.
  */
 export const METER_GAIN_MIN = 5e-6
 /**

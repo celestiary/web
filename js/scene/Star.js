@@ -177,11 +177,11 @@ export default class Star extends Object {
     }
     this.orbitPosition = this
 
-    // As of r155 three switches to physically based lighting.  This is just kludged for now
-    // See https://discourse.threejs.org/t/updates-to-lighting-in-three-js-r155/53733
-    // Falloff 1/d^1.01 rather than the physical 1/d² (see shared.js); the
-    // renderer's exposure follows the targeted body (exposure.js), so each
-    // shows at its albedo whatever its distance.
+    // three's physically based lighting (r155+): the Sun's luminous
+    // intensity in candela, falling off as 1/d² (shared.js), so three's
+    // units are lux and cd/m².  The renderer's exposure follows the
+    // targeted body (exposure.js), so it shows at its albedo, and the rest
+    // keep their true brightness against it.
     if (light) {
       const sunlight = new PointLight(0xffffff, Shared.SUN_LUMINOUS_INTENSITY, 0, Shared.SUN_LIGHT_DECAY)
       // https://discourse.threejs.org/t/ringed-mesh-shadow-quality-worsens-with-distance-to-light-source/30211/2

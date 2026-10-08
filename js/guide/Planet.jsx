@@ -62,9 +62,10 @@ function setup() {
   ui.configLargeScene()
   // The app's Sun light (Star.js): its falloff is what the exposure is
   // calibrated against (exposure.js).  A decay of 0 lit every planet at
-  // 3.7e28, off the end of the exposure.
+  // its intensity, off the end of the exposure.  1 AU away, where the
+  // guide's exposure (Earth's) shows a surface at its albedo.
   const sunlight = new PointLight(0xffffff, SUN_LUMINOUS_INTENSITY, 0, SUN_LIGHT_DECAY)
-  const dist = ASTRO_UNIT_METER
+  const dist = ASTRO_UNIT_METER / Math.sqrt(3)
   sunlight.position.set(-dist, dist, dist)
   ui.scene.add(sunlight)
   return ui
