@@ -36,7 +36,6 @@
   "system": ["titania","oberon"],
   "atmosphere": {
     "height": "3.5e5 m",
-    "sunIntensity": 2.8,
     "rayleigh": [2.2e-6, 4.4e-6, 8.5e-6],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "2.8e4 m",
