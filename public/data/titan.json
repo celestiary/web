@@ -45,13 +45,13 @@
   "system": [],
   "atmosphere": {
     "height": "6e5 m",
-    "sunIntensity": 1.0,
     "rayleigh": [2.0e-6, 3.5e-6, 6.5e-6],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "2.0e4 m",
     "mieCoeff": 1.6e-4,
     "mieCoeff_unit": "1/m",
     "mieScaleHeight": "5e4 m",
-    "miePolarity": 0.72
+    "miePolarity": 0.72,
+    "mieAlbedo": [0.95, 0.9, 0.8]
   }
 }

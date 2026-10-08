@@ -416,11 +416,11 @@ spaces](HDR.md#colour-spaces-stored-values)).
 - **Saturn's rings** add 0.22 mag to Horizons' Saturn (Mallama & Hilton's
   ring term at this tilt, the rings 7.4° open to Earth (sub-Earth latitude
   −9.04° planetodetic), two days from opposition, so the rings' opposition
-  surge is in it) and 0.07 to the render's.  The rings are display values
-  (`Rings.js`, through `sceneReferred`, their gain Saturn's sky
-  `sunIntensity`), not lit in exposure units, so neither the falloff nor
-  the exposure reaches them; physical rings belong to
-  [#95](https://github.com/celestiary/web/issues/95).
+  surge is in it) and 0.07 to the render's.  The rings were display values
+  then (`Rings.js`, through `sceneReferred`, their gain Saturn's sky
+  `sunIntensity`), out of reach of the falloff and the exposure.  They are
+  lit in exposure units now, calibrated to the same law at B = 26.6°, and
+  add 0.229 mag at this view ([rings.md](rings/rings.md#lighting-the-rings-in-exposure-units)).
 
 **#192's occultation view, re-measured** (the user's link at 1000×597,
 4.55″ a pixel, ev=10, without ion; airless, the composite over the air's
@@ -451,17 +451,14 @@ old balance.
   they follow the light with no constant of their own;
 - the atmosphere pass's `sunIntensity` is relative to the body's own
   irradiance (`skyExposure`, 1 at its keyed exposure by any falloff), so
-  the falloff never reached it.  But the outer bodies' values fall with
+  the falloff never reached it.  But the outer bodies' values fell with
   distance (Jupiter 6, Saturn 4, Uranus 2.8, Neptune 2.2, Titan 1.0, Pluto
   0.7, Triton 0.6), from #55, when `sunIntensity` was the Sun's light at
   the body ("sun is dimmer than Earth (greater orbital distance)", its
   test); since the sky took the body's irradiance in exposure units (#86's
-  PR A) that is counted twice.  The physical gain is π·`DISPLAY_GAIN`,
-  4.71, for every body, as Mars has; Earth's 21 stands for aerosols the
-  tables don't hold, and Venus's 18 is not a falloff.  Not changed here: it
-  brightens those skies and hazes 1.3 to 7.9 times (Titan's 4.7) and
-  Saturn's rings, which reuse its value, so it is proposed as its own
-  change;
+  PR A) that was counted twice.  Proposed here and done in its follow-up:
+  every body but Earth takes the physical π·`DISPLAY_GAIN`, 4.71
+  ([composition.md, per-body data](atmos/composition.md#per-body-data));
 - the guide's planet page (`guide/Planet.jsx`) put its Sun 1.7 AU away,
   which the old falloff hardly noticed: it is at 1 AU now, where the
   guide's exposure is.

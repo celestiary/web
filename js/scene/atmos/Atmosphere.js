@@ -18,6 +18,7 @@ import {
   Vector3,
   Vector4,
 } from 'three'
+import {PHYSICAL_SKY_GAIN, skyGain} from '../exposure.js'
 import {EYE_GLSL} from '../eye.js'
 import {EMITTED_GLSL, LUMINOUS_SHOULDER_GLSL, NEUTRAL_GLSL, absoluteUniforms} from '../hdr.js'
 import {NIGHT_SKY_GLSL} from '../nightSky.js'
@@ -57,7 +58,7 @@ export function newPhysicalAtmosphere(planetRadius, atmos) {
       uniforms: {
         uPlanetCenter: {value: new Vector3()},
         uSunDirection: {value: new Vector3(0, 1, 0)},
-        uSunIntensity: {value: atmos.sunIntensity ?? 22},
+        uSunIntensity: {value: skyGain(atmos)},
         uGroundRadius: {value: planetRadius},
         uAtmosphereRadius: {value: physRadius},
         uRayleigh: {value: new Vector3(...atmos.rayleigh)},
@@ -402,7 +403,7 @@ export function newAtmospherePass() {
       uProjectionMatrixInverse: {value: new Matrix4()},
       uPlanetCenter: {value: new Vector3()},
       uSunDirection: {value: new Vector3(0, 1, 0)},
-      uSunIntensity: {value: 22},
+      uSunIntensity: {value: PHYSICAL_SKY_GAIN},
       uGroundRadius: {value: 1},
       uAtmosphereRadius: {value: 1}, // = uGroundRadius → no-op when no atmosphere
       uRayleigh: {value: new Vector3()},

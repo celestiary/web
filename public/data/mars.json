@@ -41,7 +41,6 @@
   "texture_terrain": true,
   "atmosphere": {
     "height": "8e4 m",
-    "sunIntensity": 4.71,
     "rayleigh": [1.2e-7, 2.3e-7, 5.2e-7],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "1.11e4 m",

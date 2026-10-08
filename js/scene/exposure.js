@@ -68,8 +68,34 @@ export function nightLightRadiance() {
 
 
 /**
+ * The atmosphere pass's physical sky gain (HDR.md, "The sky in exposure
+ * units"): the in-scatter tables give radiance per unit of the Sun's
+ * irradiance, and at a body's keyed exposure that irradiance is
+ * π·DISPLAY_GAIN, 4.71.  The gain is relative to the body's own sunlight
+ * (skyExposure carries the rest), so it doesn't fall with distance from the
+ * Sun: the outer bodies' values from #55 (Jupiter 6 down to Triton 0.6) did,
+ * and counted the falloff twice.
+ */
+export const PHYSICAL_SKY_GAIN = Math.PI * DISPLAY_GAIN
+
+
+/**
+ * A body's sky gain: its atmosphere's `sunIntensity` where its data gives
+ * one, with a documented reason to differ from the physical gain (Earth's
+ * stands for the aerosols its tables don't hold; composition.md, "Per-body
+ * data"), else PHYSICAL_SKY_GAIN.
+ *
+ * @param {object} atmosphere A body's atmosphere data
+ * @returns {number}
+ */
+export function skyGain(atmosphere) {
+  return atmosphere?.sunIntensity ?? PHYSICAL_SKY_GAIN
+}
+
+
+/**
  * The atmosphere pass's sky scale (HDR.md, "The sky in exposure units"): its
- * in-scatter times a body's `sunIntensity` is the sky in exposure units when
+ * in-scatter times a body's sky gain (skyGain) is the sky in exposure units when
  * the body is the exposure target, and this factor carries it to any other
  * exposure: the Sun's irradiance at the body, times the exposure, over the
  * π·DISPLAY_GAIN that exposureAt normalizes a sunlit surface by.  So 1 at

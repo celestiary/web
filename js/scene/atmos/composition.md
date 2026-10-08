@@ -399,7 +399,8 @@ fills in.  Earth's sky gains the same term; its gain (`sunIntensity`,
 below) is re-fitted so its look holds.  The approximation's limit is a
 thick atmosphere (τ of several) or one whose multiple scattering is still
 strongly forward: Venus, Titan.  There the isotropic sum under-counts the
-forward glow; those bodies keep the single-term look they have.  An
+forward glow: Titan's sky from the ground is a twentieth of what Huygens
+saw (Per-body data).  An
 aerosol's narrow forward lobe is taken out of the sum (delta-M; next
 section).
 
@@ -618,22 +619,64 @@ the pass has one path for every body:
   wavelengths.  (The two-lobe data before #188, forward 0.66 / 0.70 /
   0.74, back −0.3, w 0.92, had a mean cosine of 0.635 / 0.669 / 0.701;
   this doc gave it as 0.58-0.66.)
-- `sunIntensity`: the sky's gain.  With the planet as the exposure target,
-  the sky in exposure units is `sunIntensity × in-scatter`, and the
-  physical value is `π·DISPLAY_GAIN` ≈ 4.71 (HDR.md).  Mars has it: its
-  sky's brightness is its dust's.  Earth's 21 (30 before multiple
-  scattering was in; matched to Cesium's Earth, Planet.md) is 4.5×
-  physical, standing in for its aerosol load; #86's PR B tunes it against
-  physical stars and metered exposure.  The rings reuse it as their
-  brightness.  The Sun's falloff (now the inverse square, #192) never
-  reaches it: `skyExposure` is the body's irradiance times the exposure
-  over π·`DISPLAY_GAIN`, 1 at the body's own keyed exposure.  The outer
-  bodies' smaller gains (Jupiter 6, Saturn 4, Uranus 2.8, Neptune 2.2,
-  Titan 1.0, Pluto 0.7, Triton 0.6) are #55's distance falloff, from when
-  this was the Sun's light at the body, counted twice since the sky took
-  the irradiance; the physical value for each is 4.71, proposed as its
-  own change (Planet.md, [the Sun's
-  light](../Planet.md#the-suns-light-the-inverse-square)).
+- `sunIntensity` (optional): the sky's gain.  With the planet as the
+  exposure target, the sky in exposure units is the gain times the
+  in-scatter, and the physical gain is π·`DISPLAY_GAIN` ≈ 4.71 (HDR.md;
+  `exposure.js` `PHYSICAL_SKY_GAIN`), which every body takes when its data
+  gives none (`skyGain`).  It is relative to the body's own sunlight:
+  `skyExposure` is the body's irradiance times the exposure over
+  π·`DISPLAY_GAIN`, 1 at the body's keyed exposure at any distance from
+  the Sun, so the Sun's falloff (the inverse square, #192) reaches the sky
+  once, through the irradiance.  Only Earth sets one: 21 (30 before
+  multiple scattering was in; matched to Cesium's Earth over the same
+  imagery, Planet.md), 4.5× physical, standing in for the aerosols its
+  tables don't hold (its Mie optical depth is 0.006, against a real 0.1 or
+  so); the physical form is that aerosol load at 4.71, refitted against
+  parity, a follow-up.
+  - **Until #214's follow-up**, the other bodies carried #55's gains, from when this
+    was the Sun's light at the body and fell with distance: Mercury 35,
+    Venus 18, Mars 14 (physical since #147), Jupiter 6, Saturn 4,
+    Uranus 2.8, Neptune 2.2, Titan 1.0, Pluto 0.7, Triton 0.6.  Since the
+    sky took the body's irradiance (#86's PR A), the falloff was counted
+    twice, and #214's audit found it.  Venus's 18 wasn't a falloff, but had
+    no reason either: its limb came out brighter than a white surface
+    (I/F 1.22).  Mercury's has no air to scatter, so its gain did nothing.
+  - **What it changed**, from 5 radii at 60° phase, the linear composite
+    as I/F (over a sunlit white's value; the lit disc's median, and the
+    brightest pixel within 10 px of the limb in a close-up where the air
+    is 40 px thick, over the disc 2.5 air-heights in):
+
+    | Body | Gain | Disc median I/F | Limb over the disc in | Haze above the limb, I/F |
+    |---|---|---|---|---|
+    | Venus | 18 → 4.71 | 0.48 → 0.34 | 1.21 → 0.74 | 1.17 → 0.31 |
+    | Jupiter | 6 → 4.71 | 0.35 → 0.32 | 0.95 → 0.92 | 0.42 → 0.33 |
+    | Saturn | 4 → 4.71 | 0.30 → 0.32 | 0.92 → 0.94 | 0.28 → 0.33 |
+    | Uranus | 2.8 → 4.71 | 0.32 → 0.34 | 0.64 → 0.80 | 0.22 → 0.37 |
+    | Neptune | 2.2 → 4.71 | 0.22 → 0.24 | 0.60 → 0.82 | 0.16 → 0.33 |
+    | Titan (and its haze's albedo, below) | 1.0 → 4.71 | 0.125 → 0.24 | 0.70 → 0.97 | 0.08 → 0.22 |
+    | Pluto | 0.7 → 4.71 | 0.28 → 0.29 | | 0.014 → 0.096 |
+    | Triton | 0.6 → 4.71 | 0.36 → 0.37 | | 0.015 → 0.12 |
+    | Mars (unchanged) | 4.71 → 4.712 | 0.155 → 0.155 | 1.01 → 1.01 | 0.16 → 0.16 |
+
+    The giants stay limb-darkened in visible light, as Voyager's and
+    HST's broadband images show them (limb brightening on the giants is a
+    methane-band effect, which the tables don't model); Uranus and Neptune
+    less so, their Rayleigh haze now at its physical share.  Venus's limb
+    is no longer brighter than its disc.
+  - **Titan** at the physical gain alone was a white disc at I/F 0.59,
+    three times Cassini's (Titan's geometric albedo is about 0.2 in the
+    visible): its haze (τ ≈ 8) scattered without absorbing, and the gain of
+    1 had stood in for the absorption.  `mieAlbedo` 0.95 / 0.90 / 0.80
+    (red, green, blue) gives the haze the absorption Huygens' DISR measured
+    (Tomasko et al. 2008, Planet. Space Sci. 56, 669: absorbing tholin-like
+    aerosols, darkest in the blue; studies since take 0.94-0.96 in the near
+    infrared), and the disc comes out at 0.24 and orange.  From the ground
+    the sky is 0.005 of a sunlit white surface at the zenith with the Sun
+    45° up (0.015 before), where Huygens found the daylight about a tenth
+    of the Sun's at the top of the air: the isotropic multiple scattering
+    under-counts a thick, forward-scattering haze (Multiple scattering,
+    above).  Titan's haze profile and the second scattering in a thick
+    haze are the follow-up ([#218](https://github.com/celestiary/web/issues/218)).
 - The body's own `albedo` is the ground's share of the multiple
   scattering.
 
@@ -649,7 +692,8 @@ within 30° of the Sun.
 
 ## Knobs you might want to tune
 
-- Per-body `sunIntensity` — primary lever on overall day brightness.
+- Per-body `sunIntensity`: the physical 4.71 unless the data has a
+  documented reason (only Earth's does); not a knob to tune a look by.
 - The metered exposure's constants (`exposure.js`: the key, the highlight
   cap, the gain's range and time constant), documented in HDR.md.
 
