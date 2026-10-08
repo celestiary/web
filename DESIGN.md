@@ -451,6 +451,7 @@ Camera orientation and position are separated across three input modes, all accu
 | ↑ / ↓ arrow keys (hold) | Pitch camera nose up/down, slower the narrower the field of view |
 | ← / → arrow keys (hold) | Roll camera left/right (while tracking too); not slowed by the field of view |
 | `t` | Toggle continuous tracking: the target stays centred every frame, following a place as its body turns, and the roll stays yours ([the target](#the-target)) |
+| `f` | Toggle follow (`Shared.targets.follow`, set to the targeted body's `orbitPosition`; `Scene.setFollowing`). It is in the link as the `F` setting ([design/URLs.md](design/URLs.md#view)). Nothing reads it yet: the code that did was removed in the camera-controls rewrite, and the camera platform already rides its frame body's orbit, so `f` changes no motion today ([#102](https://github.com/celestiary/web/issues/102)) |
 | `c` | Snap look at current target, squaring the roll to the ecliptic's up |
 | `j` / `k` / `l` | Reverse, slow down, speed up time: paused too, when the step is often set; the display shows it and resuming runs at it |
 | `-` / `=` (or `+`) | Exposure compensation down / up a third of a stop (EV), over the metered exposure; the readout shows "EV +1.3" for two seconds |

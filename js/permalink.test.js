@@ -602,6 +602,41 @@ describe('the T setting (tracking)', () => {
 })
 
 
+describe('the F setting (following)', () => {
+  it('is off by default, and a flag in s= when on', () => {
+    expect(SETTINGS_DEFAULTS.F).toBe(false)
+    expect(encodeSettings(SETTINGS_DEFAULTS)).toBe('')
+    expect(encodeSettings({...SETTINGS_DEFAULTS, F: true})).toBe('F')
+    expect(decodeSettings('F').F).toBe(true)
+    expect(decodeSettings('oL').F).toBe(false)
+    expect(decodeSettings(undefined).F).toBe(false)
+  })
+
+  it('is independent of tracking, in either order', () => {
+    const both = encodeSettings({...SETTINGS_DEFAULTS, T: true, F: true})
+    expect(both).toBe('TF')
+    expect(decodeSettings(both)).toMatchObject({T: true, F: true})
+    expect(decodeSettings('FT')).toMatchObject({T: true, F: true})
+    expect(decodeSettings('T')).toMatchObject({T: true, F: false})
+    expect(decodeSettings('F')).toMatchObject({T: false, F: true})
+  })
+
+  it('round-trips through a full link, and an old link without it is off', () => {
+    const link = encodePermalink(
+        'sun/earth/moon', 9233.1234, 1, 2, 3000, {x: 0, y: 0, z: 0, w: 1}, 45,
+        {...SETTINGS_DEFAULTS, F: true})
+    expect(link).toMatch(/;s=F(;|$)/)
+    expect(decodePermalink(link).settings.F).toBe(true)
+    const off = encodePermalink(
+        'sun/earth/moon', 9233.1234, 1, 2, 3000, {x: 0, y: 0, z: 0, w: 1}, 45, SETTINGS_DEFAULTS)
+    expect(off).not.toContain('s=')
+    expect(decodePermalink(off).settings.F).toBe(false)
+    expect(decodePermalink('sun@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;s=loLT').settings)
+        .toMatchObject({F: false, T: true, L: true})
+  })
+})
+
+
 describe('the time: token', () => {
   it('is left out for a clock running at real time', () => {
     expect(encodeTimeToken(false, 1)).toBe(null)

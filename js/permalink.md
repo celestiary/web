@@ -169,7 +169,7 @@ On page load from a permalink URL, or a new one in the address bar (`Celestiary.
    loaded: a place's catalogue, the stars, the asterisms.  One that isn't in its catalogue leaves
    the frame's body the target.
 
-### Clock and tracking
+### Clock, tracking and following
 
 The clock is the state token `time:` (design/URLs.md [Time Token](../design/URLs.md#time-token)):
 `pause` and `rate=<signed multiplier>`, left out when running at real time.  Decoded with
@@ -181,9 +181,16 @@ link's rewrite.
 Tracking (`t`) is the `T` flag in `s=`: `Scene.getSettings()` reads it from
 `Shared.targets.track`, and `Celestiary._arrive` sets it (`Scene.setTracking`) after the target.
 
+Following (`f`) is the `F` flag in `s=`, the same way: `Scene.getSettings()` reads it from
+`Shared.targets.follow` (set while following), and `Celestiary._arrive` sets it
+(`Scene.setFollowing`) after the target, so it follows the link's target.  It is independent of
+`T` (`s=TF`), left out when off, and a link from before it has no `F` and reloads not following.
+It records the key's state only: nothing reads `Shared.targets.follow` yet (DESIGN.md
+[camera controls](../DESIGN.md#camera-controls)).
+`Scene.setFollowing` says so to the link when it changes, as `setTracking` does.
+
 ## Future Work
 
-- **Follow state:** a param for the 'f' key mode (tracking, 't', is the `T` setting now).
 - **E2E screenshot test:** Playwright + dev server opens a constructed permalink URL, waits for
   scene settle, takes a screenshot and compares to a stored reference.
 - **Upstream `jd` and `deg`** to `@pablo-mayrgundter/measure.js`.

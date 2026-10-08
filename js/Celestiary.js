@@ -361,8 +361,9 @@ export default class Celestiary {
       }
       this._resolveTarget(resolved, (target) => {
         this.scene.setTarget(target, {look: false})
-        // Tracking is on top of the target, so it follows it.
+        // Tracking and following are on top of the target, so they follow it.
         this.scene.setTracking(pl.settings.T)
+        this.scene.setFollowing(pl.settings.F)
       })
     } else {
       this._goToResolved(resolved, frame)

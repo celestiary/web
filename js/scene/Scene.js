@@ -179,6 +179,8 @@ export default class Scene {
    *     drives this without going through a Scene toggle.
    *   - `T` (tracking) — sourced from `Shared.targets.track`
    *     (Scene.setTracking says so to the link).
+   *   - `F` (following) — on while `Shared.targets.follow` holds a body
+   *     (Scene.setFollowing says so to the link).
    *   - `A` (AR-fallback) — defaults false here; the permalink writer in
    *     Celestiary._schedulePermalinkUpdate overwrites it with the live
    *     ARController.isActive() value before encoding.  The default-false
@@ -188,7 +190,13 @@ export default class Scene {
    * @returns {object}
    */
   getSettings() {
-    return {...this._settings, L: Shared.targets.landed, A: false, T: Shared.targets.track}
+    return {
+      ...this._settings,
+      L: Shared.targets.landed,
+      A: false,
+      T: Shared.targets.track,
+      F: Boolean(Shared.targets.follow),
+    }
   }
 
 
@@ -1097,17 +1105,32 @@ export default class Scene {
   }
 
 
+  /** Follow the target's orbit ('f'), on and off. */
   follow() {
-    if (Shared.targets.follow) {
+    this.setFollowing(!Shared.targets.follow)
+  }
+
+
+  /**
+   * Turn following on or off, as 'f' does, and say so to the link (the `F`
+   * setting).  On, it holds the targeted body's `orbitPosition`; a target
+   * with none (no body, nothing targeted) leaves it off.
+   *
+   * @param {boolean} on
+   */
+  setFollowing(on) {
+    const was = Boolean(Shared.targets.follow)
+    if (!on) {
       Shared.targets.follow = null
+    } else if (Shared.targets.obj?.orbitPosition) {
+      Shared.targets.follow = Shared.targets.obj.orbitPosition
     } else if (Shared.targets.obj) {
-      if (Shared.targets.obj.orbitPosition) {
-        Shared.targets.follow = Shared.targets.obj.orbitPosition
-      } else {
-        console.error('Target to follow has no orbitPosition property.')
-      }
+      console.error('Target to follow has no orbitPosition property.')
     } else {
       console.error('No target object to follow.')
+    }
+    if (was !== Boolean(Shared.targets.follow)) {
+      this.onSettingsChange?.()
     }
   }
 

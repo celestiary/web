@@ -1234,6 +1234,61 @@ describe('the target in the link', () => {
     })
   })
 
+  describe('following in the link', () => {
+    it('is the F setting, on after \'f\', and a link restores it', async () => {
+      const app = await open(TEST_FRAGMENT)
+      expect(Shared.targets.follow).toBeNull()
+      expect(app.permalink()).not.toMatch(/;s=[^;]*F/)
+      app.keys.onKeyDown({key: 'f'})
+      expect(Shared.targets.follow).toBe(Shared.targets.obj.orbitPosition)
+      expect(app.permalink()).toMatch(/;s=[^;]*F/)
+      const link = app.permalink()
+      app.keys.onKeyDown({key: 'f'})
+      expect(Shared.targets.follow).toBeNull()
+      expect(app.permalink()).not.toMatch(/;s=[^;]*F/)
+      // Reloading the link follows the link's target; one without F doesn't.
+      await open(link)
+      expect(Shared.targets.follow).toBe(Shared.targets.obj.orbitPosition)
+      await open(TEST_FRAGMENT)
+      expect(Shared.targets.follow).toBeNull()
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('is independent of tracking, and a change schedules the link', async () => {
+      const app = await open(TEST_FRAGMENT)
+      let scheduled = 0
+      app._schedulePermalinkUpdate = () => scheduled++
+      app.keys.onKeyDown({key: 'f'})
+      expect(scheduled).toBe(1)
+      expect(Shared.targets.track).toBe(false)
+      app.scene.setFollowing(true)
+      expect(scheduled).toBe(1)
+      app.keys.onKeyDown({key: 't'})
+      expect(Shared.targets.follow).not.toBeNull()
+      expect(Shared.targets.track).toBe(true)
+      expect(app.permalink()).toMatch(/;s=[^;]*T[^;]*F|;s=[^;]*F[^;]*T/)
+      app.keys.onKeyDown({key: 't'})
+      app.keys.onKeyDown({key: 'f'})
+      expect(Shared.targets.follow).toBeNull()
+    })
+
+    it('stays off with no body to follow, and the link says so', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const obj = Shared.targets.obj
+      Shared.targets.obj = null
+      const err = console.error
+      console.error = () => {}
+      try {
+        app.scene.setFollowing(true)
+      } finally {
+        console.error = err
+        Shared.targets.obj = obj
+      }
+      expect(Shared.targets.follow).toBeNull()
+      expect(app.permalink()).not.toMatch(/;s=[^;]*F/)
+    })
+  })
+
   describe('tracking in the link', () => {
     it('is the T setting, on after \'t\', and a link restores it', async () => {
       const app = await open(TEST_FRAGMENT)

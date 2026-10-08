@@ -101,8 +101,8 @@ from Earth, then HIP 46635 targeted with the search's Look at:
 (`cq` differs between the two because Look at turned the camera; a click
 doesn't.)  Unnamed catalogue stars are the same as named ones: the path
 is the HIP number (`hip:` plus the search's id), whichever name the search
-matched.  Tracking (`t`) is the one piece of targeting state that is not
-the target: it is the `T` setting, below.
+matched.  Tracking (`t`) and following (`f`) are the pieces of targeting
+state that are not the target: they are the `T` and `F` settings, below.
 
 ## Old links
 
@@ -131,12 +131,18 @@ s=al                scene settings not at their defaults, one letter each
 
 `s=` holds the scene's toggles (asterisms `a`, labels `l` `p`, orbits `o`,
 grids `e` `c` `g`, galaxy `U`, human expansion lines `x`, the HUD `v`),
-plus landed `L`, tracking `T` and AR `A` (`permalink.js`
+plus landed `L`, tracking `T`, following `F` and AR `A` (`permalink.js`
 `SETTINGS_DEFAULTS`).  `T` is the `t` key: the camera keeps the target
-centred every frame, so a link made while tracking reloads tracking.
+centred every frame, so a link made while tracking reloads tracking.  `F`
+is the `f` key (`Scene.follow`, `Shared.targets.follow`): following the
+targeted body's orbit.  It is the key's state, whatever the key does (today
+nothing reads it: DESIGN.md [camera controls](../DESIGN.md#camera-controls)),
+and independent of `T` (`s=TF` is both).  A link made while following reloads
+following, the body being the link's target, set after it as `T` is.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
 `U`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
-star labels off, orbits off, landed), while `e` `c` `g` `L` `T` `A` mean on.
+star labels off, orbits off, landed), while `e` `c` `g` `L` `T` `F` `A` mean on.
+A link from before `F` has no such letter and reloads not following.
 
 `fov=` is written to four significant figures (`45deg`, `0.0714deg`,
 `120.5deg`), so a telescope's field survives the round trip to a part in
@@ -406,13 +412,13 @@ brings back all of the first group.
 - the exposure compensation (`ev=`) and the stars' setting (`sm=`);
 - the scene toggles (`s=`): asterisms, star and planet labels, orbits, the
   three grids, the Milky Way, human expansion lines, the HUD (`v`), landed
-  (`L`), tracking (`T`), AR (`A`);
+  (`L`), tracking (`T`), following (`F`), AR (`A`);
 - the widgets drawer, the dock, the apps pinned and running, and each app's
   controls and run (`apps`, `apps.<id>`);
 - the page's query string (`?hdr=0`, `?perf=1`), kept when the address bar
   is rewritten.
 
-**Added with this audit:** `time:`, `sm=`, `T`, and the telescope-safe `fov=`.
+**Added with this audit:** `time:`, `sm=`, `T`, and the telescope-safe `fov=`.  `F` followed ([#102](https://github.com/celestiary/web/issues/102)).
 
 **Left out, deliberately**
 - *Cesium or celestiary's own rendering for Earth, the Moon and Mars*
@@ -421,9 +427,6 @@ brings back all of the first group.
   and belongs with the layers work (CESIUM.md); left to a follow-up.
 - *Drag mode* (`m`: auto, pan, orbit): how the pointer moves the camera, not
   what is seen, and `goTo` resets it.
-- *Follow* (`f`): the camera follows a body's orbit position; transient, and
-  it needs the body's identity to restore (the target, which is in the link,
-  is enough to follow again).
 - *Presentation mode* (`V`): the toggles it sets are in `s=`; the snapshot
   it keeps to restore them is transient.
 - *The performance panel and the AR debug HUD*: developer tools.
