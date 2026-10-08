@@ -12,6 +12,7 @@ import PickLabels from './PickLabels.js'
 import SpriteSheet from './SpriteSheet.js'
 import StarsBufferGeometry from './StarsBufferGeometry.js'
 import StarsCatalog, {FAVES} from './StarsCatalog.js'
+import TargetLabel, {targetLabelShown} from './TargetLabel.js'
 import {assertDefined} from '../assert.js'
 import {FAR_OBJ, STARS_RADIUS_METER, overlay} from '../shared.js'
 import {named} from '../utils.js'
@@ -58,6 +59,14 @@ export default class Stars extends Object {
 
     // Used by guide/Asterisms.jsx to center camera.
     this.labelCenterPosByName = {}
+    // The HIP numbers the catalogue's label sheet names (showLabels).
+    this.labelledHips = new Set()
+    // The target star's own label, whatever its magnitude (TargetLabel.js).
+    // Scene sets `labelSettings` to its toggles; the defaults are the
+    // catalogue labels' own and no body labels.
+    this.targetLabel = new TargetLabel(this)
+    this.labelSettings = () => ({l: this.labelLOD.visible, p: false})
+    this.preAnimCb = () => this.syncTargetLabel()
 
     if (catalog instanceof StarsCatalog) {
       if (!catalog.starByHip) {
@@ -173,6 +182,37 @@ export default class Stars extends Object {
   }
 
 
+  /**
+   * Make a star the one whose name is shown whatever its magnitude, or
+   * none.  Only records it: the label is built by the animation loop
+   * (`syncTargetLabel`), so a target change does no DOM work.
+   *
+   * @param {?object} star StarProps entry; null when the target isn't a star
+   * @param {string} [name]
+   */
+  setTargetStar(star, name) {
+    this.targetLabel.set(star, name)
+  }
+
+
+  /**
+   * Build, show, hide or drop the target star's label to match the
+   * target and the label toggles (`targetLabelShown`).  Each frame.
+   *
+   * @returns {?object} The label (a Points), if there is one
+   */
+  syncTargetLabel() {
+    const {l, p} = this.labelSettings()
+    const hipId = this.targetLabel.hipId
+    return this.targetLabel.update(targetLabelShown({
+      wanted: hipId !== null,
+      starLabels: !!l,
+      bodyLabels: !!p,
+      inCatalogue: this.labelledHips.has(hipId),
+    }))
+  }
+
+
   /** */
   showLabels(level = 2) {
     const toShow = []
@@ -197,6 +237,7 @@ export default class Stars extends Object {
       const [star, name] = toShow[i]
       this.showStarName(star, name)
     }
+    this.labelledHips = new Set(toShow.map(([star]) => star.hipId))
     const labelPoints = overlay(this.starLabelSpriteSheet.compile())
     // A double click or tap on one goes to its star (labelPick.js).
     labelPoints.userData.labelTargets = toShow.map(([star, name]) => ({kind: 'star', star, name}))

@@ -41,7 +41,13 @@ import {resolveDragMode} from './dragMode'
  * @param {Function} [options.getOrbitScale] Returns the fraction of full
  *   speed an orbit drag turns at (zoom.js `rotateScale`: slower near the
  *   ground).  Read on every move, since altitude changes over terrain.
- *   Pan is unscaled.  Treated as 1 when omitted.
+ *   Pan is unscaled by it.  Treated as 1 when omitted.
+ * @param {Function} [options.getTurnScale] Returns the fraction of full
+ *   speed any turn (pan or orbit) goes at, from the field of view (zoom.js
+ *   `fovTurnScale`: slower the narrower), so a drag moves the scene a
+ *   similar part of the screen at every zoom.  Composes with getOrbitScale
+ *   (an orbit drag takes both).  Read on every move.  Treated as 1 when
+ *   omitted.
  * @param {Function} [options.onClick] Called with the pointerup event when
  *   the gesture moved less than CLICK_PX_THRESHOLD — distinguishes a true
  *   click (e.g., to pick a label) from a drag-rotate.
@@ -52,7 +58,7 @@ import {resolveDragMode} from './dragMode'
  *   dblclick as an override (latest action wins).
  */
 export function attachPointerDrag(el, camera, options = {}) {
-  const {onChange, getDragMode, getTarget, getOrbitScale, onClick, onDblClick} = options
+  const {onChange, getDragMode, getTarget, getOrbitScale, getTurnScale, onClick, onDblClick} = options
   let lastX = 0
   let lastY = 0
   let downX = 0
@@ -139,7 +145,7 @@ export function attachPointerDrag(el, camera, options = {}) {
     const dy = e.clientY - lastY
     lastX = e.clientX
     lastY = e.clientY
-    const speed = 0.005 // radians per pixel
+    const speed = 0.005 * (getTurnScale?.() ?? 1) // radians per pixel
 
     if (activeMode === 'orbit') {
       const orbitSpeed = speed * (getOrbitScale?.() ?? 1)

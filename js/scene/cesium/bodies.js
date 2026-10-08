@@ -27,6 +27,9 @@
  *   lights"), not through Cesium's lighting, which would multiply them away.
  * - `nightFloor`: a tileset's light on its night side, as a fraction of
  *   full sun (sunlitShader); a globe's lighting is Cesium's.
+ * - `earthshine`: the tileset's night side is lit by Earth's reflected
+ *   light, from Earth's direction, at its level for Earth's phase
+ *   (CesiumLayers._setEarthshine): the Moon's.
  */
 
 
@@ -85,15 +88,20 @@ export const CESIUM_BODIES = {
     shellScale: TERRAIN_SHELL_SCALE,
     // Cesium Moon Terrain (ion).
     ionTileset: 2684829,
-    // Dark, but not a hole in the sky.
-    nightFloor: 0.02,
+    // Its night side is lit by earthshine (sunlitShader, encoding.js
+    // earthshineFraction: ~7e-5 of sunlight at a crescent, 1e-4 at new
+    // Moon), not a floor: the 2% floor it had was ~300× that.
+    nightFloor: 0,
+    earthshine: true,
     // moon.json's texture_gain: celestiary's Moon is the same LRO WAC
     // mosaic, scaled (Planet.md).
     textureGain: 1.3,
     // ion's copy of the mosaic is stored darker than NASA Trek's, which
-    // celestiary's texture is from: 0.82× (median over the lit disk, both
-    // rendered alike; Mars's two copies measure 0.99×).
-    imageryScale: 0.82,
+    // celestiary's texture is from: 0.78× (median over the lit disk, both
+    // rendered alike, parity's moon-quarter at 1.00; Mars's two copies
+    // measure 0.99×).  It was 0.82 measured with the 2% night floor, which
+    // lit the day side too (2% at full sun, 11% by the terminator).
+    imageryScale: 0.78,
   },
   mars: {
     ellipsoid: 'MARS',
