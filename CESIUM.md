@@ -242,20 +242,27 @@ on screen always did; a body never shown warms up first (UX, above).
 
 ### Data
 
-- Earth: the globe always starts on the plain ellipsoid with the
-  simulation month's Blue Marble as its base imagery, tiles bundled with
-  celestiary and cut from the same mosaics as its own Earth texture
-  (bodies.js `monthlyImagery`; Planet.md), so the two match across the
-  swap; when the month changes, the new month's layer goes in above the
-  old, which is dropped once its tiles are in.  With a Cesium ion token,
-  ion's World Terrain loads, and ion's world imagery (Bing) adds detail
-  from globe tile level 5 (`detailFromLevel`), below which the base's
-  ~5 km texels would show: from orbit the Earth is Blue Marble.  Both are
+- Earth: the globe starts on the plain ellipsoid with the simulation
+  month's Blue Marble as its base imagery, bundled with celestiary and cut
+  from the same mosaics as its own Earth texture (bodies.js
+  `monthlyImagery`; Planet.md), so the two match across the swap.  Two
+  layers: the month's 4096×2048 map, the file celestiary's own Earth is
+  textured with (one request, already in the browser's cache), over the
+  whole globe, and over it the 512 px tiles, levels 0-3, only from globe
+  level 3 (`fromLevel`; the tiles' levels 0-2 are no sharper than the map,
+  and took ten requests, popping in as they came).  When the month changes,
+  the new month's two layers go in above the old, which are dropped once
+  the tiles and the map are in.  With a Cesium ion token, ion's World
+  Terrain loads with the globe, and ion's world imagery (Bing) adds detail
+  from globe tile level 5 (`detailFromLevel`), below which the base's ~5 km
+  texels would show: from orbit the Earth is Blue Marble.  Bing is
   requested only once the camera is near ([Cesium ion
-  sessions](#cesium-ion-sessions)).  If the token can't reach one (no
-  network, a token scoped to other assets, or a 401 or 403 from the
-  account's quota) the globe keeps its offline surface.  (Sentinel-2 was the choice for the
-  detail layer, but isn't in ion's asset depot for this account.)  (Passing CesiumWidget
+  sessions](#cesium-ion-sessions)); the terrain is not, since it gives the
+  globe its lighting ([Earth's lighting needs the terrain](#earths-lighting-needs-the-terrain)).
+  If the token can't reach one (no network, a token scoped to other assets,
+  or a 401 or 403 from the account's quota) the globe keeps its offline
+  surface.  (Sentinel-2 was the choice for the detail layer, but isn't in
+  ion's asset depot for this account.)  (Passing CesiumWidget
   `terrain: Terrain.fromWorldTerrain()` instead leaves the globe with no
   terrain, drawing nothing, until ion answers, and forever if it fails.)
 - Earth's city lights: NASA GIBS's VIIRS Black Marble (the 2016 composite),
@@ -313,12 +320,13 @@ screen pixels:
   narrow the field.  A telescope on Earth from the Moon (~400,000 km, a
   21″ pixel spans ~38 km) never asks for Bing: Blue Marble's 4.9 km texels
   are far under a pixel.
-- Terrain (a data-billed request, so only for the bytes) is requested at
-  the same altitude, or under `GROUND_SAMPLE_BELOW_M` (100 km), where the
-  camera's ground floor starts to read it, whichever is higher.
-- Once requested, the layers stay, however the camera moves: a
-  re-request may open another session.  The imagery layer is inserted under
-  the night lights layer, above the base.
+- Terrain is not deferred: it is billed by data, not sessions, and it is
+  what lights the globe ([below](#earths-lighting-needs-the-terrain)).  It
+  was requested with the imagery in the first version of this change, and
+  the night side then showed the day surface.
+- Once requested, the imagery stays, however the camera moves: a
+  re-request may open another session.  The layer is inserted under the
+  night lights layer, above the base.
 - A failure degrades quietly to the base.  ion refusing the endpoint
   (a 401 or 403 from the token or the quota, or no network) fires the
   layer's `errorEvent`, which removes the layer; Bing's tile errors do not
@@ -346,6 +354,59 @@ Testing doesn't need the token: AGENTS.md ("Build for testing without the
 ion token") has builds made without it, and `yarn parity` for PRs that
 change Cesium rendering only.  To test the ion paths for free, build with
 a dummy token and answer `api.cesium.com` with a stub in `page.route`.
+
+### Earth's lighting needs the terrain
+
+The first version of the ion-sessions change deferred the World Terrain
+with the imagery, and from orbit the Earth's night side showed the day
+surface, dimly, with the city lights gone under it
+(PR #202's review).  Cesium lights a globe two ways
+(GlobeFS.glsl):
+
+- With terrain that has vertex normals (ion World Terrain, requested with
+  `requestVertexNormals`), `ENABLE_VERTEX_LIGHTING`: colour × `clamp(Lambert ×
+  lambertDiffuseMultiplier + vertexShadowDarkness)`, which `litSurfaceOnly`
+  sets to Lambert × 1 + 0: dark on the night side, as celestiary's own.
+- On the plain ellipsoid, `ENABLE_DAYNIGHT_SHADING`: colour × `clamp(5 ×
+  Lambert + 0.3)`, hard-coded.  The 0.3 is the floor that the surface shows
+  by, all over the night side, and, as the meter takes the night side's
+  brightness for the scene's, it dims the exposure the lights are seen
+  at.  Nothing a globe setting reaches: `litSurfaceOnly` can't turn it off.
+
+So the terrain isn't a detail layer: its normals are what the globe's
+lighting is.  It is requested with the globe (`_createWidget`), as before the
+change; it is billed by data, and coarse terrain tiles from orbit are a
+few hundred KB.  Until it answers, and for good if ion refuses it (a token
+not scoped to asset 1), the globe is on the ellipsoid and shows the floor:
+a 0.3 night side.  Not fixed: it would be the ellipsoid's shading in the
+decode, or a flat terrain provider with normals.
+
+Measured (headless Chromium, 640×400, 30,000 km, Earth's own imagery from
+the bundle and ion's imagery refused):
+
+| View | Terrain deferred (the PR's first version) | Terrain with the globe |
+|---|---|---|
+| Night side, from the anti-solar side | the day surface, lit all over, no lights | the lights over Europe and North Africa; matches celestiary's Earth |
+| Terminator, Sun at 90°: mean luma of the night half's disc | 5.3 of 255 (continents visible 50° into the night) | 0.0 |
+
+The Blue Marble layers have no gap or seam round the globe: eight views 45°
+apart at 20,000 km, by day and by night, are continuous, and match
+celestiary's (the sphere's) side.  What the review saw as the texture not
+reaching round was this lit surface.
+
+Blue Marble's first load, the requests for `blue-marble/` files (the
+browser's cache live; 640×400 unless said):
+
+| View | Before | After |
+|---|---|---|
+| Earth targeted, 57,000 km | 1 (celestiary's map) | 1 |
+| 20,000 km | 3: the map and the two level 0 tiles | 1: the map |
+| 20,000 km, 1280×800 | 3 | 1 |
+| 4,000 km | 11: levels 0, 1 and 2 | 12: level 3 |
+| 4,000 km, 1280×800 | 23: levels 0 to 3 | 24: level 3 |
+
+(And the level 1 tiles, four a hemisphere, that the review saw popping in on
+the first zoom, come with a closer or a larger view.)
 
 ### Atmospheres
 
@@ -839,7 +900,10 @@ yarn parity --only moon-quarter --out parity-out
   night views show Cesium's Earth black.
 - Options: `--only id,id`, `--out dir` (a PNG pair per view and
   `report.json`; `parity-out/` is gitignored), `--views file`, `--docs dir`,
-  `--viewport WxH`, `--timeout seconds` (per view, default 1800), `--list`.
+  `--viewport WxH`, `--timeout seconds` (per view, default 1800),
+  `--no-bing` (refuse ion's world imagery, asset 2, which is billed by
+  sessions: [Cesium ion sessions](#cesium-ion-sessions); the low Earth views'
+  baselines were taken with it, so they differ), `--list`.
 - Exit code: 0 all pass, 1 a check failed, 2 couldn't run.
 
 ### What it does

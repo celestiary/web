@@ -22,7 +22,7 @@ import {allPass, changedPixels, evaluateView, formatTable, measureView, terminat
  * Moon and Mars, and Earth's ion terrain).  It doesn't build one itself.
  *
  * Usage: yarn parity [--only id,id] [--out dir] [--views file] [--docs dir]
- *                    [--viewport WxH] [--timeout seconds] [--list]
+ *                    [--viewport WxH] [--timeout seconds] [--no-bing] [--list]
  */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -39,6 +39,7 @@ const NOTE_EVERY_MS = 30000
 // read true for a frame before the next round of requests goes out.
 const SETTLE_FRAMES = 6
 const ION_HOSTS = /^https:\/\/(api\.cesium\.com|assets\.ion\.cesium\.com)\//
+const ION_BING = /\/v1\/assets\/2\//
 // ion's token is restricted by Referer to the production site (AGENTS.md,
 // Secrets).
 const ION_HEADERS = {referer: 'https://celestiary.github.io/', origin: 'https://celestiary.github.io'}
@@ -84,6 +85,7 @@ function parseArgs(argv) {
       case '--only': opts.only = value().split(',').map((s) => s.trim()); break
       case '--timeout': opts.timeout = Number(value()); break
       case '--viewport': opts.viewport = value().split('x').map(Number); break
+      case '--no-bing': opts.noBing = true; break
       case '--list': opts.list = true; break
       default: throw new Error(`unknown argument ${arg}`)
     }
@@ -119,11 +121,19 @@ async function serve(root) {
  * ever logged.
  *
  * @param {object} page
+ * @param {boolean} [noBing] Refuse ion's world imagery (asset 2)
  * @returns {object} Counts of ion answers by status, and of failed fetches
  */
-async function routeIon(page) {
+async function routeIon(page, noBing = false) {
   const stats = {statuses: {}, failed: 0}
   await page.route(ION_HOSTS, async (route) => {
+    // Bing (asset 2) is billed by sessions, and a low view asks for one:
+    // `--no-bing` refuses it, and the globe keeps its Blue Marble.
+    if (noBing && ION_BING.test(route.request().url())) {
+      stats.statuses.blocked = (stats.statuses.blocked ?? 0) + 1
+      await route.abort()
+      return
+    }
     try {
       // Keep the page's own headers (ion's asset requests carry a bearer
       // token): route.fetch replaces them when given `headers`.
@@ -427,7 +437,7 @@ async function runView(context, baseUrl, view, opts) {
         console.warn(`  [page] ${msg.text().slice(0, 200)}`)
       }
     })
-    const ion = await routeIon(page)
+    const ion = await routeIon(page, opts.noBing)
     await routeGibs(page)
     const requests = trackRequests(page)
     // Analytics: not needed, and a hang on it would hold the network busy.
