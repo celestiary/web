@@ -48,6 +48,7 @@ import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {detailScale} from './detail.js'
 import {baseTexelMeters, ionImageryAltitude} from './ionImagery.js'
+import {LOG_DECODE_GLSL, LOG_ENCODE_GLSL, earthshineFraction} from './encoding.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {perf} from '../../perf/perf.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
@@ -138,6 +139,10 @@ export default class CesiumLayers {
     this._bodyPos = new Vector3()
     this._occluderPos = new Vector3()
     this._sunPos = new Vector3()
+    this._earthPos = new Vector3()
+    this._moonPos = new Vector3()
+    this._toSun = new Vector3()
+    this._toMoon = new Vector3()
     this._frustum = new Frustum()
     this._sphere = new Sphere()
     this._viewProj = new Matrix4()
@@ -322,6 +327,8 @@ export default class CesiumLayers {
     // (_writeGroundDepths) is exact.
     this.decode.material.depthWrite = this._terrainDepth(name)
     u.uDistanceScale.value = this.bodies[name]?.distanceScale ?? 1
+    // A tileset's shader writes its light log-encoded (sunlitShader).
+    u.uLogEncoded.value = CESIUM_BODIES[name]?.ionTileset ? 1 : 0
     u.uProjection.value.copy(this.ui.camera.projectionMatrix)
     u.uProjectionInverse.value.copy(this.ui.camera.projectionMatrixInverse)
     renderer.setRenderTarget(sceneRT)
@@ -968,6 +975,9 @@ export default class CesiumLayers {
 
     const dir = sunLightDirectionEcef(node.matrixWorld, this._sunPos)
     widget.scene.light.direction = new Cesium.Cartesian3(...dir)
+    if (CESIUM_BODIES[name].earthshine) {
+      this._setEarthshine(body, node)
+    }
     // Whether any of the night side is in the frame, for the lights' pass
     // (_lightsShow): out to Cesium's shell, where its pixels end.
     body.nightInView = body.night ?
@@ -980,6 +990,34 @@ export default class CesiumLayers {
       body.container.style.width = `${width}px`
       body.container.style.height = `${height}px`
     }
+  }
+
+
+  /**
+   * The Moon's earthshine for its tileset's shader (sunlitShader): Earth's
+   * direction in the Moon's ECEF frame, and its light there as a fraction
+   * of the Sun's (encoding.js earthshineFraction), from Earth's phase seen
+   * from the Moon.
+   *
+   * @param {object} body
+   * @param {object} node The Moon's node
+   */
+  _setEarthshine(body, node) {
+    const shader = body.customShader
+    const earth = this.ui.sceneManager?.objects?.earth
+    if (!shader || !earth) {
+      return
+    }
+    earth.getWorldPosition(this._earthPos)
+    this._moonPos.setFromMatrixPosition(node.matrixWorld)
+    this._toSun.copy(this._sunPos).sub(this._earthPos)
+    this._toMoon.copy(this._moonPos).sub(this._earthPos)
+    const level = earthshineFraction(this._toSun.angleTo(this._toMoon), this._toMoon.length())
+    // The light's direction from Earth is the Moon's direction to Earth,
+    // negated: sunLightDirectionEcef gives the direction light travels.
+    const travel = sunLightDirectionEcef(node.matrixWorld, this._earthPos)
+    shader.setUniform('u_earthshine', level)
+    shader.setUniform('u_earthDirWC', new body.Cesium.Cartesian3(-travel[0], -travel[1], -travel[2]))
   }
 
 
@@ -1115,6 +1153,8 @@ export default class CesiumLayers {
       orderIndependentTranslucency: false,
       ...surface,
     })
+    // A tileset's shader, kept for its per-frame uniforms (_setEarthshine).
+    const customShader = config.ionTileset ? sunlitShader(Cesium, config.nightFloor ?? 0) : null
     if (config.ionTileset) {
       Cesium.Cesium3DTileset.fromIonAssetId(config.ionTileset, {
         // Celestiary's bodies turn under its camera, so Cesium's camera
@@ -1126,7 +1166,7 @@ export default class CesiumLayers {
         // Finer tiles than Cesium's default (16): sharper imagery and
         // terrain.
         maximumScreenSpaceError: TILE_SCREEN_SPACE_ERROR,
-        customShader: sunlitShader(Cesium, config.nightFloor ?? 0),
+        customShader,
       })
           .then((tileset) => {
             widget.scene.primitives.add(tileset)
@@ -1198,7 +1238,7 @@ export default class CesiumLayers {
     // An ion globe (Earth, with a token) asks ion for its terrain and detail
     // imagery only once the camera is near (_requestIon), not here.
     const ion = token && !config.ionTileset ? {terrain: false, imagery: false} : null
-    return {Cesium, widget, link, guest, container, ellipsoid, credits, night, ion, month: this._month()}
+    return {Cesium, widget, link, guest, container, ellipsoid, credits, night, customShader, ion, month: this._month()}
   }
 
 
@@ -1501,24 +1541,44 @@ function monthlyImageryLayer(Cesium, imagery, month) {
  * limb, of 255).  So: back to stored values, light and tone-map there,
  * then decode for Cesium's encode to undo.
  *
+ * The night side: the Moon's is lit by earthshine, Earth's reflected
+ * sunlight, from Earth's direction (`u_earthshine`, `u_earthDirWC`, set
+ * each frame by _setEarthshine; encoding.js earthshineFraction: 7e-5 of
+ * sunlight at #192's crescent).  It had a floor of 2% of full sun on the
+ * whole night side, ~300× earthshine, which the meter's gain with the
+ * crescent in frame turned into a lit, olive night side.  Other bodies
+ * keep their `nightFloor` (Mars: dark, but not a hole in the sky).
+ *
+ * The result goes out log-encoded (encoding.js), for the composite's decode
+ * to invert: Cesium writes it to an 8-bit buffer, and linear, the night
+ * side and the terminator's last degrees had a few codes, flat bands and
+ * black holes once the decode scaled them up (CESIUM.md, "Precision: a log
+ * encoding, and the Moon's earthshine").
+ *
  * @param {object} Cesium
- * @param {number} gain Brightness scale for the imagery (textureGain over
- *   imageryScale)
+ * @param {number} nightFloor The night side's light, a fraction of full sun
  * @returns {object} Cesium.CustomShader
  */
 function sunlitShader(Cesium, nightFloor) {
-  const f = (x) => x.toFixed(3)
+  const f = (x) => x.toFixed(4)
   return new Cesium.CustomShader({
     lightingModel: Cesium.LightingModel.UNLIT,
-    // Stored value × Lambert, as Earth's globe draws (litSurfaceOnly): the
+    uniforms: {
+      u_earthshine: {type: Cesium.UniformType.FLOAT, value: 0},
+      u_earthDirWC: {type: Cesium.UniformType.VEC3, value: new Cesium.Cartesian3(1, 0, 0)},
+    },
+    // Stored value × light, as Earth's globe draws (litSurfaceOnly): the
     // texture's stored values, not Cesium's linear ones, lit; Cesium's
-    // output encodes linear back to stored.
+    // output encodes linear back to what's returned here, the code.
     fragmentShaderText: `
+      ${LOG_ENCODE_GLSL}
       void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
         vec3 up = czm_viewRotation * normalize(fsInput.attributes.positionWC);
         float lambert = max(dot(up, czm_lightDirectionEC), 0.0);
-        float light = ${f(nightFloor)} + ${f(1 - nightFloor)} * lambert;
-        material.diffuse = czm_srgbToLinear(czm_linearToSrgb(material.diffuse) * light);
+        float earthLambert = max(dot(up, czm_viewRotation * u_earthDirWC), 0.0);
+        float light = ${f(nightFloor)} + ${f(1 - nightFloor)} * lambert + u_earthshine * earthLambert;
+        vec3 stored = czm_linearToSrgb(material.diffuse) * light;
+        material.diffuse = czm_srgbToLinear(cesiumLogEncode(stored, gl_FragCoord.xy));
       }`,
   })
 }
@@ -1646,6 +1706,7 @@ function newDecodeMaterial() {
       uHdr: {value: 1},
       uGain: {value: DISPLAY_GAIN},
       uDistanceScale: {value: 1},
+      uLogEncoded: {value: 0},
       uProjection: {value: new Matrix4()},
       uProjectionInverse: {value: new Matrix4()},
     },
@@ -1660,18 +1721,22 @@ function newDecodeMaterial() {
       uniform float uHdr;
       uniform float uGain;
       uniform float uDistanceScale;
+      uniform float uLogEncoded;
       uniform mat4 uProjection;
       uniform mat4 uProjectionInverse;
       varying vec2 vUv;
       ${NEUTRAL_GLSL}
       ${DECODE_DISTANCE_GLSL}
+      ${LOG_DECODE_GLSL}
       void main() {
         vec4 c = texture2D(tCesium, vUv);
         if (c.a < 0.5 / 255.0) discard;
         // Every body's frame: stored value × Lambert, opaque, its distance
         // in alpha (distance.js).  Into the HDR buffer scaled by the body's
         // gain; into the LDR fallback's display values, tone-mapped too.
-        vec3 rgb = min(c.rgb * uGain, vec3(${HDR_MAX_VALUE.toFixed(1)}));
+        // A tileset's frame comes log-encoded (encoding.js); a globe's linear.
+        vec3 stored = uLogEncoded > 0.5 ? cesiumLogDecode(c.rgb) : c.rgb;
+        vec3 rgb = min(stored * uGain, vec3(${HDR_MAX_VALUE.toFixed(1)}));
         if (uHdr < 0.5) {
           rgb = neutralToneMap(rgb);
         }

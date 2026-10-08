@@ -1,4 +1,4 @@
-import {SMALLEST_SIZE_METER} from './shared.js'
+import {INITIAL_FOV, SMALLEST_SIZE_METER, toRad} from './shared.js'
 
 
 /** Closest the camera comes to the ground, metres. */
@@ -99,8 +99,9 @@ export const MIN_ROTATE_SCALE = 1e-6
  * monotonic and has no tunables.
  *
  * Only orbit drags use it.  A free-look drag (pan) and the arrow keys turn
- * the camera in place and move nothing over the ground, so they stay as they
- * were, and so can look about from the surface.
+ * the camera in place and move nothing over the ground, so this altitude
+ * scale leaves them be, and they can look about from the surface.  (They are
+ * slowed by the field of view instead: fovTurnScale.)
  *
  * @param {number} altitude Camera height above the ground, metres
  * @param {number} radius Body radius, metres
@@ -111,4 +112,45 @@ export function rotateScale(altitude, radius) {
     return radius > 0 ? MIN_ROTATE_SCALE : 1
   }
   return Math.min(1, Math.max(MIN_ROTATE_SCALE, -Math.expm1(-altitude / radius)))
+}
+
+
+/**
+ * How much of its full speed a drag or key turns the view at a field of
+ * view: 1 at INITIAL_FOV and wider, falling in proportion to the field's
+ * size as it narrows, never below MIN_ROTATE_SCALE.
+ *
+ * Why this curve.  A turn rate is in radians a pixel (0.005 for a drag), and
+ * a pixel spans about `fov / heightPx` of sky, so a fixed rate carries the
+ * view over `rate / (fov / heightPx)` pixels for each pixel dragged: 4 at the
+ * default FOV in a 600 px canvas, and 2,500 at a telescope's 0.07°, where one
+ * pixel of drag swings the view hundreds of screens.  Scaling the rate by the
+ * ratio of the FOV to the default keeps that figure what it was at the
+ * default, whatever the FOV and the canvas, so a drag across the screen
+ * moves the scene about the same fraction of it.  The ratio is of the
+ * tangent half-angles (as farPoint.js fovScale), the pixel's true angle at
+ * the middle of the view (2 tan(fov / 2) / heightPx), so the travel per pixel
+ * there is the same at every FOV, to the digit; against the plain ratio of
+ * angles that is 5% under, at narrow FOVs.  The canvas height drops out: the
+ * rate it applies to already is per pixel, and is not changed at the default
+ * FOV.
+ *
+ * An orbit drag takes it too.  It swings the camera round the body's centre,
+ * so a point on the body sweeps `rate * (R + alt)` of ground a pixel, over a
+ * view whose patch of ground goes as the field of view: the same ratio holds
+ * a drag worth the same fraction of the screen.  It multiplies rotateScale
+ * (the altitude's part), not replaces it.
+ *
+ * Wider than the default it stays 1: widening is not what makes a drag
+ * hard to control, and at 170° the tangent ratio is 28.
+ *
+ * @param {number} fovDegrees The camera's vertical field of view
+ * @returns {number} In [MIN_ROTATE_SCALE, 1]; 1 when the FOV is no number
+ */
+export function fovTurnScale(fovDegrees) {
+  if (!(fovDegrees > 0 && fovDegrees < INITIAL_FOV)) {
+    return 1
+  }
+  const ratio = Math.tan(fovDegrees * toRad / 2) / Math.tan(INITIAL_FOV * toRad / 2)
+  return Math.max(MIN_ROTATE_SCALE, ratio)
 }

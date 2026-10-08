@@ -1,4 +1,4 @@
-import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
+import {ASTRO_UNIT_METER, DISPLAY_GAIN, INITIAL_FOV, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
 import {HDR_MAX_VALUE, luminousShoulder} from './hdr.js'
 
 
@@ -127,15 +127,16 @@ export function exposureRelative(exposure) {
 /**
  * The solid angle a point source's light lands in, steradians: one pixel,
  * for a vertical field of view over a viewport height, or the eye's patch
- * (EYE_POINT_RAD) where a pixel is finer.  The stars' shader does the same
- * (shaders/stars.vert; HDR.md "Physical stars").
+ * (eyePatchRad: EYE_POINT_RAD over the field's magnification) where a
+ * pixel is finer.  The stars' shader does the same (shaders/stars.vert;
+ * HDR.md "Physical stars").
  *
  * @param {number} fovDegrees
  * @param {number} heightPx
  * @returns {number}
  */
 export function pointSolidAngle(fovDegrees, heightPx) {
-  const radPerPx = Math.max((fovDegrees * Math.PI / 180) / Math.max(heightPx, 1), EYE_POINT_RAD)
+  const radPerPx = Math.max((fovDegrees * Math.PI / 180) / Math.max(heightPx, 1), eyePatchRad(fovDegrees))
   return radPerPx * radPerPx
 }
 
@@ -733,17 +734,59 @@ export const EYE_POINT_RAD = Math.sqrt(EYE_PATCH_SR)
 
 
 /**
+ * A field narrower than the naked eye's (INITIAL_FOV) is a telescope's: it
+ * magnifies by the ratio of the half-angles' tangents (the far point's
+ * fovScale, inverted), 1 at 45° and wider.
+ *
+ * @param {number} fovDegrees Vertical field of view
+ * @returns {number} At least 1
+ */
+export function fieldMagnification(fovDegrees) {
+  const t = Math.tan(fovDegrees * Math.PI / 360)
+  return t > 0 ? Math.max(Math.tan(INITIAL_FOV * Math.PI / 360) / t, 1) : 1
+}
+
+
+/**
+ * The eye's patch on the sky through a field (HDR.md, "A telescope's
+ * field"): its 10′ on the screen is 10′ over the magnification on the sky,
+ * which is where a star's light lands.  So a star keeps its size on screen
+ * as the field narrows, and its light, in that patch, rises over a
+ * surface's by the magnification squared, as through a telescope whose
+ * exit pupil fills the dark-adapted eye's.  At 10′ on the sky at every
+ * field, a star at 0.91° over 879 px was a Gaussian 40 px wide, under a
+ * thousandth of its peak at 45°.
+ *
+ * @param {number} fovDegrees Vertical field of view
+ * @returns {number} Radians
+ */
+export function eyePatchRad(fovDegrees) {
+  return EYE_POINT_RAD / fieldMagnification(fovDegrees)
+}
+
+
+/**
  * The limiting magnitude at an exposure: the magnitude whose star shows
  * LIMIT_VALUE at this gain over Earth's keyed exposure (exposureRelative)
  * times the user's star gain.  6.5 at the dark-adapted gain; −10 at the
  * keyed exposure by day, where only the Sun, the Moon and Venus pass.
+ * Through a telescope's field the star's light lands in the eye's patch
+ * over the magnification (eyePatchRad), or a pixel where a pixel is
+ * coarser (pointSolidAngle), so the limit is deeper by 5·log10 of the
+ * patch's shrinking: 10.2 magnitudes at #198's 0.44° view of HIP 46635,
+ * where without the field (the default, 45°) it read −7.1 for a limit of
+ * 3.1.
  *
  * @param {number} gainOverKeyed The exposure over Earth's keyed one (exposureRelative)
  * @param {number} starGain
+ * @param {number} [fovDegrees] Vertical field of view
+ * @param {number} [heightPx] Viewport height; 0 leaves the pixel out
  * @returns {number}
  */
-export function limitingMagnitude(gainOverKeyed, starGain = 1) {
-  return LIMITING_MAGNITUDE + (2.5 * Math.log10(Math.max(gainOverKeyed * starGain, 1e-300) / METER_GAIN_MAX))
+export function limitingMagnitude(gainOverKeyed, starGain = 1, fovDegrees = INITIAL_FOV, heightPx = 0) {
+  const patchRad = heightPx > 0 ? Math.sqrt(pointSolidAngle(fovDegrees, heightPx)) : eyePatchRad(fovDegrees)
+  return LIMITING_MAGNITUDE + (2.5 * Math.log10(Math.max(gainOverKeyed * starGain, 1e-300) / METER_GAIN_MAX)) +
+    (5 * Math.log10(EYE_POINT_RAD / patchRad))
 }
 
 
@@ -776,7 +819,7 @@ export function starGainForLimit(magnitude) {
  */
 export function starSprite(ratio, gainOverEarth, {fovDegrees = 45, heightPx = 300, starGain = 1, discRad = 0} = {}) {
   const pxRad = (fovDegrees * Math.PI / 180) / Math.max(heightPx, 1)
-  const patchRad = Math.max(pxRad, EYE_POINT_RAD)
+  const patchRad = Math.max(pxRad, eyePatchRad(fovDegrees))
   const patchPx = Math.max(Math.floor((patchRad / pxRad) + 0.5), 1)
   let value = DISPLAY_GAIN * Math.PI * ratio / (patchRad * patchRad) * gainOverEarth * starGain
   if (discRad > 0) {

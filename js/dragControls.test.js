@@ -1,5 +1,5 @@
 import {describe, expect, it, mock} from 'bun:test'
-import {PerspectiveCamera} from 'three'
+import {Euler, PerspectiveCamera} from 'three'
 import {attachPointerDrag} from './dragControls'
 
 
@@ -134,6 +134,42 @@ describe('attachPointerDrag', () => {
     const panFull = turn('pan', 1)
     const panSlow = turn('pan', 0.1)
     expect(panSlow.quat.equals(panFull.quat)).toBe(true)
+  })
+
+  it('getTurnScale scales a pan drag and an orbit drag alike, composing with getOrbitScale', () => {
+    const turn = (mode, options) => {
+      const el = makeFakeElement()
+      const camera = new PerspectiveCamera()
+      camera.position.set(10, 0, 0)
+      attachPointerDrag(el, camera, {getDragMode: () => mode, ...options})
+      el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+      el.fire('pointermove', {pointerId: 1, clientX: 140, clientY: 100})
+      // Pan turns the camera about its own up axis; orbit swings it about the origin.
+      const yaw = new Euler().setFromQuaternion(camera.quaternion, 'YXZ').y
+      return {yaw, swing: Math.atan2(camera.position.z, camera.position.x)}
+    }
+    expect(Math.abs(turn('pan', {}).yaw)).toBeCloseTo(40 * 0.005, 6)
+    expect(Math.abs(turn('pan', {getTurnScale: () => 0.01}).yaw)).toBeCloseTo(40 * 0.005 * 0.01, 6)
+    expect(Math.abs(turn('orbit', {}).swing)).toBeCloseTo(40 * 0.005, 6)
+    expect(Math.abs(turn('orbit', {getTurnScale: () => 0.01}).swing)).toBeCloseTo(40 * 0.005 * 0.01, 6)
+    // An orbit drag takes both scales; a pan drag only the field's.
+    const both = {getTurnScale: () => 0.01, getOrbitScale: () => 0.5}
+    expect(Math.abs(turn('orbit', both).swing)).toBeCloseTo(40 * 0.005 * 0.01 * 0.5, 7)
+    expect(Math.abs(turn('pan', both).yaw)).toBeCloseTo(40 * 0.005 * 0.01, 7)
+  })
+
+  it('getTurnScale is read on every move, so a zoom mid-drag takes hold', () => {
+    const el = makeFakeElement()
+    const camera = new PerspectiveCamera()
+    let scale = 1
+    attachPointerDrag(el, camera, {getDragMode: () => 'pan', getTurnScale: () => scale})
+    el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+    el.fire('pointermove', {pointerId: 1, clientX: 140, clientY: 100})
+    const first = new Euler().setFromQuaternion(camera.quaternion, 'YXZ').y
+    scale = 0.1
+    el.fire('pointermove', {pointerId: 1, clientX: 180, clientY: 100})
+    const second = new Euler().setFromQuaternion(camera.quaternion, 'YXZ').y - first
+    expect(Math.abs(second)).toBeCloseTo(Math.abs(first) * 0.1, 6)
   })
 
   it('latches mode at pointerdown — getDragMode flipping mid-drag does not switch behavior', () => {

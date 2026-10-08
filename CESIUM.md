@@ -586,6 +586,61 @@ twilight ones) have no clouds in them.
   raised past the body (its default, 5e8 m, would clip the Earth beyond
   ~80 radii).
 
+### Precision: a log encoding, and the Moon's earthshine
+
+**A tileset's frame is log-encoded** (`encoding.js`, `sunlitShader`, the
+decode's `uLogEncoded`).  The frame holds stored value × light, 0 to 1, and
+reaches celestiary through Cesium's 8-bit buffers.  Linear, the night side
+and the terminator's last degrees of Sun had a few codes.
+
+The user's view of the Moon at a telescope's field (#192) showed what the
+decode and the metered gain then made of them:
+- a night side in three or four flat olive levels, with black holes where
+  the dark maria rounded to 0;
+- a terminator that was a hard step, with flat bands along the lit edge.
+
+The shader now writes the value's log over 20 stops down from 1, with ±½
+code of interleaved-gradient dither, and the decode inverts it. That gives
+12.7 codes a stop, a step of 5.6% at every level, and the dither turns it
+into noise under a display step. The floor, 2⁻²⁰, is under the darkest
+earthlit mare (~4e-6).
+- A square root would give 1.5e-5 its first code; sRGB's linear toe would
+  give it none.
+- A float target in portal-netgl would be the general fix (Cesium's
+  globe-depth buffer is 8-bit with `highDynamicRange` off), but every body
+  would pay for it. The tilesets' own shader is the one place the value
+  exists in float before the 8-bit write.
+- Earth's globe, lit by Cesium's own shader (`litSurfaceOnly`), stays
+  linear (`uLogEncoded` 0). Its night lights have a pass of their own.
+
+**The Moon's night side is lit by earthshine, not a floor.**
+- Before, the tilesets had `nightFloor` 0.02: 2% of full sun over the whole
+  night side, "dark, but not a hole in the sky".
+- On the Moon that is ~300× earthshine. With the crescent in frame it was
+  under a display step at the anchored gain. At the EV a camera needs for
+  Jupiter's moons (+8 to +10) it went white, with the 8-bit holes black.
+- The Moon now has `earthshine`: each frame `_setEarthshine` sets Earth's
+  direction in the Moon's frame and its light there, and the shader adds
+  that light × Lambert toward Earth.
+- The light is Earth's geometric albedo (0.367) × Lambert's phase law at
+  Earth's phase seen from the Moon × (R⊕/d)² (`earthshineFraction`): 1.0e-4
+  of sunlight at full Earth, 6.9e-5 at #192's crescent.
+- The regolith's opposition surge, up to ~2× for light returned toward its
+  source, is left out, as the sunlit side's Lambert leaves out its own
+  phase law.
+- The floor had lit the day side too (+2% at full sun, +11% by the
+  terminator), and the Moon's `imageryScale` (ion's copy of the mosaic
+  against Trek's) had been measured with it, at 0.82.  Measured again
+  without it, it is 0.78: parity's `moon-quarter` median ratio 1.00 (it was
+  0.97, and 0.93 with the floor gone and the old scale) and its terminator
+  profile 18.8 / 4.9 (was 23.6 / 6.9).  Its ratio band moved to 0.97-1.03
+  to centre on that.
+- Mars keeps its floor.
+- At EV +10 the earthlit side of #192's view shows its maria and craters
+  smoothly, at 10-40 of 255.
+- Celestiary's own Moon mesh has no earthshine yet, so below the swap's
+  range (no ion, or before the tiles) the night side is black: a follow-up.
+
 ### Detail at narrow fields of view
 
 The rule: **Cesium is never asked for finer detail than a pixel of
@@ -680,6 +735,17 @@ draws, not just what it selects.
 - Night lights: done in #93 (Night lights, above).  Left: a bundled low-level
   copy of the Black Marble for offline use.  Clouds dim them since #88.
 - Persist the layer choice in the permalink.
+- The Moon's relief on Cesium's side: #199's LOLA normal map lights
+  celestiary's mesh, but from Earth the Moon is Cesium's whenever ion is
+  up, whose `sunlitShader` lights the smooth sphere.  Sampling the same
+  normal map there by the fragment's longitude and latitude (a
+  `TextureUniform`) would carry the relief across the swap.
+- At a telescope's field the narrow-field clamp (Detail at narrow fields
+  of view) keeps the Moon's tiles at a 21″ pixel's detail: at 0.91° over
+  879 px the lit limb is as round as celestiary's sphere (0.47 px rms
+  against 0.43), but the tiles' error grows as 1 / fov, and at narrower
+  fields their chords facet the limb (the user's screenshot on #192).
+  Celestiary's sphere (512 segments) stays round.
 - Perf: the shadow context executes every Cesium draw as well as the
   replay (2× GPU for the globe). Cesium needs the shadow's pixels only
   for readback (picking, camera collision); a no-draw shadow mode in
@@ -703,6 +769,8 @@ New:
 - `js/scene/cesium/frames.js` (+ test) — body frame ↔ ECEF, camera/light
   conversion. Pure.
 - `js/scene/cesium/bodies.js` — per-body config (ellipsoid radii, data).
+- `js/scene/cesium/encoding.js` (+ test) — a tileset frame's log encoding
+  through 8 bits, and the Moon's earthshine (Precision, above).
 - `js/scene/cesium/CesiumLayers.js` (+ test) — lazy Cesium + NetGL link, stencil
   shell, per-frame coupling, activation.
 - `js/scene/cesium/ionImagery.js` (+ test) — the altitude under which Earth
