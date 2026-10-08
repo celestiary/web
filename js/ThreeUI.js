@@ -41,6 +41,7 @@ import {AIRGLOW_COLOR, ZODIACAL_STORE, airglowOf, zodiacalBrightest} from './sce
 import ZodiacalLight from './scene/ZodiacalLight.js'
 import {AsyncReadback, MeterCadence, asyncReadbackSupported} from './scene/meterReadback.js'
 import {raysAllHitSphere} from './scene/viewCache.js'
+import {lunarHighlight} from './scene/lunarPhotometry.js'
 import {perf} from './perf/perf.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
@@ -1121,6 +1122,9 @@ export default class ThreeUi {
         litFraction: (1 + cosPhase) / 2,
         keyedExposure: exposureAt(Math.max(body.distanceTo(sun), 1)),
         albedo: o.props.albedo,
+        // The Moon's brightest surface at its phase, by its photometric
+        // function (exposure.js highlightReflectance); Lambert's otherwise.
+        highlight: o.props.photometry === 'lunar' ? lunarHighlight(Math.acos(Math.min(Math.max(cosPhase, -1), 1))) : 0,
         diameterPx,
         frameFraction: (Math.PI * ((diameterPx / 2) ** 2)) / Math.max(this.width * this.height, 1),
       })

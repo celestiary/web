@@ -27,9 +27,14 @@
  *   lights"), not through Cesium's lighting, which would multiply them away.
  * - `nightFloor`: a tileset's light on its night side, as a fraction of
  *   full sun (sunlitShader); a globe's lighting is Cesium's.
+ * - `relief`: a tangent-space normal map the tileset's shader lights the
+ *   sphere's slopes by (the Moon's LOLA map, as celestiary's own Moon).
  * - `earthshine`: the tileset's night side is lit by Earth's reflected
  *   light, from Earth's direction, at its level for Earth's phase
  *   (CesiumLayers._setEarthshine): the Moon's.
+ * - `photometry`: 'lunar' lights the tileset by the lunar photometric
+ *   function (lunarPhotometry.js), sunlight and earthshine alike; otherwise
+ *   Lambert's law.
  */
 
 
@@ -93,15 +98,24 @@ export const CESIUM_BODIES = {
     // Moon), not a floor: the 2% floor it had was ~300× that.
     nightFloor: 0,
     earthshine: true,
+    // The slopes lighting the sphere: celestiary's own Moon's LOLA normal
+    // map (moon.json texture_normal; Planet.md "Relief"), sampled in the
+    // tileset's shader by longitude and latitude (relief.js).
+    relief: 'textures/moon_normal.jpg',
+    // Lit by the lunar photometric function, as celestiary's Moon is
+    // (lunarPhotometry.js; sunlitShader), not Lambert's law.
+    photometry: 'lunar',
     // moon.json's texture_gain: celestiary's Moon is the same LRO WAC
-    // mosaic, scaled (Planet.md).
-    textureGain: 1.3,
+    // mosaic, whose stored values are a linear stretch of I/F, scaled to the
+    // Moon's normal albedo (lunarPhotometry.js MOON_TEXTURE_GAIN; Planet.md).
+    textureGain: 0.4448,
     // ion's copy of the mosaic is stored darker than NASA Trek's, which
-    // celestiary's texture is from: 0.78× (median over the lit disk, both
-    // rendered alike, parity's moon-quarter at 1.00; Mars's two copies
-    // measure 0.99×).  It was 0.82 measured with the 2% night floor, which
-    // lit the day side too (2% at full sun, 11% by the terminator).
-    imageryScale: 0.78,
+    // celestiary's texture is from: 0.815× (median over the lit disk, both
+    // rendered alike, parity's moon-quarter at 1.000; Mars's two copies
+    // measure 0.99×).  It was 0.78 fitted against celestiary's Moon with its
+    // specular sheen (4.5% over the lit disc), which the lunar photometric
+    // function replaced; 0.82 before that with the 2% night floor.
+    imageryScale: 0.815,
   },
   mars: {
     ellipsoid: 'MARS',

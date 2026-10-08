@@ -85,29 +85,6 @@ export function logDecode(code) {
 }
 
 
-/** Earth's geometric albedo (V; Allen's Astrophysical Quantities, 4th ed., §12.3). */
-export const EARTH_GEOMETRIC_ALBEDO = 0.367
-
-
-/**
- * Earthshine on the Moon, as a fraction of the sunlight on it: the light
- * Earth reflects, whose irradiance at the Moon is the Sun's × Earth's
- * geometric albedo × its phase law at the Moon's view of it × (R⊕ / d)²
- * (the standard earthshine estimate: Danjon; Qiu et al. 2003, JGR 108,
- * 4709), with Lambert's phase law, Φ(α) = (sin α + (π − α) cos α) / π.
- * 1.0e-4 at full Earth (new Moon), 6.9e-5 at #192's crescent (Earth seen
- * from the Moon at 52.5°), 2.4e-5 with Earth at quarter.  The Moon's
- * regolith returns earthlight at nearly zero phase, so its opposition
- * surge brightens it by up to ~2 over Lambert, which the tileset's Lambert
- * leaves out.
- *
- * @param {number} phaseAngle Earth's phase angle seen from the Moon (Sun-Earth-Moon), radians
- * @param {number} distance Earth-Moon, metres
- * @param {number} earthRadius Metres
- * @returns {number}
- */
-export function earthshineFraction(phaseAngle, distance, earthRadius = 6.371e6) {
-  const a = Math.min(Math.max(phaseAngle, 0), Math.PI)
-  const lambert = (Math.sin(a) + ((Math.PI - a) * Math.cos(a))) / Math.PI
-  return EARTH_GEOMETRIC_ALBEDO * lambert * ((earthRadius / distance) ** 2)
-}
+// Earthshine's level moved to the Moon's photometry, which both Moons' night
+// sides go through; re-exported for the tileset's code.
+export {EARTH_GEOMETRIC_ALBEDO, earthshineFraction} from '../lunarPhotometry.js'
