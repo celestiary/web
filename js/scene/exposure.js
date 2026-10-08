@@ -770,13 +770,23 @@ export function eyePatchRad(fovDegrees) {
  * LIMIT_VALUE at this gain over Earth's keyed exposure (exposureRelative)
  * times the user's star gain.  6.5 at the dark-adapted gain; −10 at the
  * keyed exposure by day, where only the Sun, the Moon and Venus pass.
+ * Through a telescope's field the star's light lands in the eye's patch
+ * over the magnification (eyePatchRad), or a pixel where a pixel is
+ * coarser (pointSolidAngle), so the limit is deeper by 5·log10 of the
+ * patch's shrinking: 10.2 magnitudes at #198's 0.44° view of HIP 46635,
+ * where without the field (the default, 45°) it read −7.1 for a limit of
+ * 3.1.
  *
  * @param {number} gainOverKeyed The exposure over Earth's keyed one (exposureRelative)
  * @param {number} starGain
+ * @param {number} [fovDegrees] Vertical field of view
+ * @param {number} [heightPx] Viewport height; 0 leaves the pixel out
  * @returns {number}
  */
-export function limitingMagnitude(gainOverKeyed, starGain = 1) {
-  return LIMITING_MAGNITUDE + (2.5 * Math.log10(Math.max(gainOverKeyed * starGain, 1e-300) / METER_GAIN_MAX))
+export function limitingMagnitude(gainOverKeyed, starGain = 1, fovDegrees = INITIAL_FOV, heightPx = 0) {
+  const patchRad = heightPx > 0 ? Math.sqrt(pointSolidAngle(fovDegrees, heightPx)) : eyePatchRad(fovDegrees)
+  return LIMITING_MAGNITUDE + (2.5 * Math.log10(Math.max(gainOverKeyed * starGain, 1e-300) / METER_GAIN_MAX)) +
+    (5 * Math.log10(EYE_POINT_RAD / patchRad))
 }
 
 

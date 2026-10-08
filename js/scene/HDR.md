@@ -489,6 +489,85 @@ anchors it, and through a telescope's field the stars and Jupiter's
 moons need the exposure raised over that (the EV control, `ev=`), as a
 camera needs a longer exposure than the Moon's to show them.
 
+The limiting magnitude follows the field (`limitingMagnitude(gain,
+starGain, fov, heightPx)`: 5·log10 of the patch's shrinking, or the
+pixel where a pixel is coarser), and `starsDebug` and
+`ThreeUi.limitingMagnitude()` report it so.  Without the field they
+read −7.1 at #198's 0.44° view of HIP 46635, where the limit is 3.1.
+
+### A star beside the Moon
+
+The user's three views of HIP 46635 (V 8.4) on #198: 0.4389° over 877
+px, 1.80″ a pixel; the Moon 0.536° across, 19.5% lit, 25° up from Bay
+Village.  View 1 has the lit crescent's edge in the frame, view 2 only
+the night side, view 3 a corner of the night side.  Measured on
+SwiftShader at 1469×877, settled, Cesium's Moon before and after #203
+(d7fbaf3, b207b89), and celestiary's own Moon; values in exposure units
+through the air, before the tone map:
+
+| View | Moon | Gain | Meter at keyed: mean / 2% | Lit (p50 / p90), display | Night (p50 / p90), display | Star: buffer → display |
+|---|---|---|---|---|---|---|
+| 1 | Cesium, before | 15.1 | 4.1e-8 / 0.034 | 0.56 / 1.00, 131 / 207 | 0.11 / 0.22, 18 / 47 | 1.6e-3 → 0 |
+| 1 | Cesium, after | 15.1 | 4.1e-8 / 0.034 | 0.45 / 1.07, 103 / 205 | 3.0e-4 / 5.4e-4, 0 | 1.6e-3 → 0 |
+| 1 | celestiary's | 15.1 | 4.1e-8 / 0.034 | 0.64 / 1.78, 155 / 220 | 0 | 1.6e-3 → 0 |
+| 2 | Cesium, before | 30.5 | 3.6e-6 / 0.015 | | 0.23 / 0.45, 48 / 104 | 2.9e-3 → 0 |
+| 2 | Cesium, after | 4,824 | 3.6e-7 / 4.0e-5 | | 0.10 / 0.17, 17 / 37 | 0.45 → 106 |
+| 2 | celestiary's | 5.9e5 | 2.6e-8 / 2.6e-8 | | 0 | 7.8 → 234 |
+| 3 | any | 5.9e5 | 2.6e-8 / 2.6e-8 | | before 4,330, after 3-7, celestiary's 0 | 7.8 → 234 |
+
+- **View 2 was the night floor.**  Cesium's 2% of sunlight over the night
+  side (#203 replaced it with earthshine) was 0.015 at the keyed
+  exposure, and the 2% rule held the gain to 30 on it, where the star is
+  3e-3.  With earthshine, 2e-5, the gain opens 160-fold, and the star
+  shows at 106 of 255 over an earthlit side at 17-37.  The gain is 4,824,
+  not the 1.5e4 the earthshine alone asks for: Jupiter, 0.02% of the
+  frame, weighs 15% of the way to its own anchor (`sunlitBodyGain`).
+- **View 1 is the design.**  The Moon is wider than the field, so it
+  doesn't anchor (only a disc that fits does), and the lit edge, 3.4% of
+  the frame, is the 2% the highlight rule keys on.  At that gain the star
+  is 1/274 of the median lit pixel, and Neutral's toe (6.25·x² under
+  0.08) shows 1.6e-3 as 1.7e-5, nothing.  At EV +5, +6 and +7 its peak is
+  6, 17 and 43 of 255.
+- **Not the cause**: no glare or halo is drawn round the Moon, and the
+  sky by it reads 2.5e-8 at the keyed exposure, under the meter's floor;
+  the eye's response (below) is the night sky's light only, never the
+  stars'; the star's kernel (σ 0.75 px, 1.35″, a 3.2″ FWHM, its peak
+  0.88 of the law) is a seeing disc's size; the air takes 20% of the
+  star's light (0.25 mag), and the Moon's alike.
+- **Against physics.**  The star's peak in a 1.8″ pixel under 2.5-3″ seeing
+  is 10.8-11.1 mag/arcsec² (celestiary's kernel: 11.1).  The lit crescent
+  is 5.9-6.0 mag/arcsec² on average at this phase (Horizons; 3.5-4 is a
+  full Moon's), so the star's peak is 1/90-1/120 of a lit pixel.  The
+  earthlit side is Earth's 6.9e-5 of sunlight times the full Moon's
+  3.4 mag/arcsec², 13.8-14.4, so the star's peak is 12-28 times an
+  earthlit pixel.  Rendered: 1/274 of the median lit pixel in view 1, and
+  about 1/1,100 of the crescent's mean (celestiary's Moon is 3.25 stops
+  bright, #192); 4.5 times the median earthlit pixel in view 2 (2.6 times
+  its 90th percentile), so the earthshine is 3-6 times bright against the
+  star, the same calibration.  The star over the sky: 3,700 rendered, about
+  4,000 for a clear sky of 20.0 by the Moon.
+- **A camera at view 1's exposure** would show it.  Celestiary's
+  surfaces are stored values, sRGB-encoded, lit as if linear ([colour
+  spaces](#colour-spaces-stored-values)), and the star's value is linear
+  light against them, so a ratio of 1/100 in light is 1/100 in the buffer,
+  where a JPEG's sRGB curve makes it 0.10, 25 of 255; and Neutral's toe
+  then squares it.  With the Moon at its physical brightness (the gain 9.5
+  times higher) the star would be 0.016 in the buffer: 0.4 of 255 through
+  Neutral, 33 through the sRGB curve.  The photographs (#192) also
+  exposed past the Moon, its lit side saturated.
+
+**Proposed, not done:** the Moon's photometry (#192's first proposal: a
+lunar photometric function for its phase law, and its albedo from the
+stored values decoded) is about 3 stops of view 1 and the earthshine's
+3-6 times.  The rest is the display: a camera response, for a telescope's
+field or as a switch, that composites in linear light (the textures'
+stored values decoded) and ends in a camera's curve rather than Neutral's
+quadratic toe, would show the star as the photographs do.  The eye's
+calibration of the star field (the limit star at 12 of 255) is Neutral's
+toe's, so that is a mode beside the eye's, not a change to it.
+Celestiary's own Moon has no earthshine yet (CESIUM.md), so without ion
+view 2 runs to the dark gain and the night side is black.
+
 ## Metered exposure
 
 The target-keyed exposure ([Planet.md](Planet.md#lighting-and-exposure))

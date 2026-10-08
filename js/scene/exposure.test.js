@@ -970,6 +970,25 @@ describe('a telescope\'s field', () => {
     expect(scope.peak / eye.peak).toBeLessThan(1.1)
   })
 
+  it('reports the limit through the field: a star at it shows LIMIT_VALUE there', () => {
+    // 45°, and wider, unchanged; a viewport whose pixel is under the eye's patch changes nothing.
+    expect(limitingMagnitude(METER_GAIN_MAX, 1, 45)).toBeCloseTo(LIMITING_MAGNITUDE, 12)
+    expect(limitingMagnitude(METER_GAIN_MAX, 1, 90, 879)).toBeCloseTo(LIMITING_MAGNITUDE, 12)
+    expect(limitingMagnitude(METER_GAIN_MAX, 1, 0.91)).toBeCloseTo(15.1, 1)
+    // #198's view of HIP 46635 (0.4389° over 877 px), at the gain the lit
+    // crescent held it to (15.1 over Earth's keyed exposure): 3.1, not −7.1.
+    const g = 15.1
+    const limit = limitingMagnitude(g, 1, 0.4389, 877)
+    expect(limit - limitingMagnitude(g)).toBeCloseTo(5 * Math.log10(fieldMagnification(0.4389)), 9)
+    expect(limit).toBeCloseTo(3.1, 1)
+    expect(starSprite(mag(limit), g, {fovDegrees: 0.4389, heightPx: 877}).value).toBeCloseTo(LIMIT_VALUE, 9)
+    // Where the pixel is coarser than the patch, the pixel is the patch.
+    const coarse = {fovDegrees: 45, heightPx: 100}
+    const coarseLimit = limitingMagnitude(METER_GAIN_MAX, 1, coarse.fovDegrees, coarse.heightPx)
+    expect(coarseLimit).toBeLessThan(LIMITING_MAGNITUDE)
+    expect(starSprite(mag(coarseLimit), METER_GAIN_MAX, coarse).value).toBeCloseTo(LIMIT_VALUE, 9)
+  })
+
   it('the shader carries the same 45°', () => {
     const source = readFileSync('./js/shaders/stars.vert', 'utf8')
     const declared = source.match(/const float TAN_HALF_EYE_FOV = ([0-9.e+-]+);/)
