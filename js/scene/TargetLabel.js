@@ -42,7 +42,7 @@ export function targetLabelShown({wanted, starLabels, bodyLabels, inCatalogue}) 
  */
 export default class TargetLabel {
   /**
-   * @param {Object3D} parent The stars: the label is in their frame
+   * @param {object} parent The stars: the label is in their frame
    * @param {Function} [Sheet] The label sheet's class (SpriteSheet's
    *   constructor and `add`, `compile`), for a test with no canvas
    */
@@ -72,7 +72,7 @@ export default class TargetLabel {
 
   /**
    * @param {boolean} show From targetLabelShown
-   * @returns {?Points} The label, built and shown or hidden as `show`
+   * @returns {?object} The label (a Points), built and shown or hidden as `show`
    *   says; null while there is none
    */
   update(show) {

@@ -199,7 +199,7 @@ export default class Stars extends Object {
    * Build, show, hide or drop the target star's label to match the
    * target and the label toggles (`targetLabelShown`).  Each frame.
    *
-   * @returns {?Points} The label, if there is one
+   * @returns {?object} The label (a Points), if there is one
    */
   syncTargetLabel() {
     const {l, p} = this.labelSettings()
