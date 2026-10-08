@@ -36,7 +36,6 @@
   "system": ["triton","proteus"],
   "atmosphere": {
     "height": "3.5e5 m",
-    "sunIntensity": 2.2,
     "rayleigh": [2.4e-6, 4.8e-6, 9.5e-6],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "2.0e4 m",
