@@ -928,8 +928,8 @@ export default class Scene {
     //   1. `'planet surface and guides'` — at surface altitude 2 m, the
     //      camera near plane (`dynamicNear` clamps to ≥ 100 m) depth-clips
     //      the close ground, leaving only the distant lit limb visible.
-    //      The PointLight sunlight (3.7e28 lm) + tone-mapping exposure
-    //      (3e-16, tuned for from-space viewing) clips that limb to white.
+    //      The lit limb, at the target-keyed exposure (exposure.js),
+    //      clips to white.
     //   2. `'atmosphere'` — the Sun's additive `BackSide` halo shell
     //      from `newAtmosphere()`, which flashes when the camera aims
     //      at it.

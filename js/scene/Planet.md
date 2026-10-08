@@ -290,9 +290,10 @@ with mips), and per pixel two texture reads and two ray-sphere solves.
 ## Lighting and exposure
 
 The Sun is a `PointLight` of `SUN_LUMINOUS_INTENSITY` falling off as
-1/d^`SUN_LIGHT_DECAY` (shared.js).  The renderer's tone-mapping exposure
-follows the targeted body (`exposure.js`, `ThreeUI._updateExposure`):
-π·d^decay / I for its distance d from the Sun, so its sunlit side renders
+1/d², the inverse square (shared.js; [the Sun's
+light](#the-suns-light-the-inverse-square), below).  The renderer's
+tone-mapping exposure follows the targeted body (`exposure.js`,
+`ThreeUI._updateExposure`): π·d² / I for its distance d from the Sun, so its sunlit side renders
 at its albedo — a surface facing the Sun shows its texture's colour
 × `DISPLAY_GAIN` (1.5), as Cesium's layers do — easing between targets over
 ~0.5 s.  Over that keyed exposure a metered gain adapts to the frame
@@ -312,6 +313,158 @@ sunlit white surface is 1.5 in the buffer (`DISPLAY_GAIN`) and shows as
 goes into the buffer through the tone map's inverse (`hdr.js`
 `sceneReferred`); the stars and the Sun's disc are in exposure units
 ([HDR.md, physical stars](HDR.md#physical-stars)).
+
+### The Sun's light: the inverse square
+
+The Sun's light fell off as 1/d^1.01 at 3.7e28 until #192 ("so the outer
+planets aren't lost"), from before the exposure followed the target.  Since
+the exposure is keyed to the target and metered over it, a targeted body
+shows at its albedo whatever the falloff, so the kludge did nothing for the
+target.  What it did was put every other body in the frame wrong by
+(d/AU)^0.99 against a body at 1 AU: Mercury 1.4 stops dim, Venus 0.5, Mars
+0.6 bright, Jupiter 2.4, Saturn 3.2, Uranus 4.2, Neptune 4.9.  At #192's
+occultation Jupiter's disc rendered 8.4 times the crescent's surface
+brightness, where they are within a factor of 1.6 (5.48 against 5.97
+mag/arcsec²), so the meter keyed on Jupiter and dimmed the Moon.
+
+**Now the falloff is 1/d²** (`SUN_LIGHT_DECAY` 2), and the intensity is
+the Sun's luminous intensity in candela, `SUN_ILLUMINANCE_LUX` × AU²
+(2.84e27): three's light units are photometric, lux for the irradiance
+(1.27e5 at 1 AU), cd/m² for a surface's radiance.
+- **Why those units.**  Keeping the old irradiance at 1 AU (1.9e17) with d²
+  would take an intensity of 3.7e28 × AU^0.99 = 4.3e39, past float32's
+  3.4e38: the light's uniform would be Inf.  In lux a surface's irradiance
+  runs from 8.5e5 (Mercury's perihelion) to 52 (Pluto's aphelion), and the
+  shader's d² overflows only past 2^64 m (1,950 ly), where three's own
+  `length()` of the light's vector already does (`sunLight.test.js`
+  replays three's `getDistanceAttenuation` in float32 from 0.31 AU to
+  1,000 AU, within 1e-6 of doubles; past 2^64 m the light is 0, not NaN).
+- **What doesn't move.**  Every rendered value at 1 AU is what it was: the
+  keyed exposure is π·`DISPLAY_GAIN` over the irradiance, in whatever
+  units, and everything else reaches the buffer through it or through
+  `irradianceAt` at its own body: Earth's night lights
+  (`nightLightRadiance`), the clouds (`CloudShell`), the Moon's earthshine
+  (`lunarSurface.js`, and CesiumLayers `_setEarthshine`, a fraction of the
+  sunlight), the sky (`skyExposure`, 1 at the body's own exposure), and the
+  stars, the Milky Way and the Sun's disc (`exposureRelative`, over 1 AU's
+  keyed exposure).  Cesium's layers hold stored value × the lighting law
+  and are decoded by the body's gain and `exposureOf`, so `DISPLAY_GAIN`,
+  `imageryScale` and `textureGain` stand (CESIUM.md, [camera and light
+  coupling](../../CESIUM.md#camera-and-light-coupling)).  Earth and the
+  Moon are within 0.003 AU of each other, a 0.26% change in their ratio;
+  Earth's keyed exposure over 1 AU's is 0.967 at perihelion where it was
+  0.983, 0.02 mag on the stars.
+- **What moves** is the keyed exposure away from 1 AU, (d/AU)² times
+  Earth's: 0.15 at Mercury, 2.4 at Mars, 28 at Jupiter, 89 at Saturn, 1,560
+  at Pluto (it was 0.38, 1.6, 5.4, 9.7, 41).  The meter's dark end and the
+  stars are absolute, over Earth's keyed exposure (HDR.md, [metered
+  exposure](HDR.md#metered-exposure)), so the dark-adapted gain and the
+  star field are the same from any target; a targeted body still shows at
+  its albedo, now from a keyed exposure 28 times Earth's at Jupiter rather
+  than 5.4.
+
+**Checked against Horizons** (`planetPhotometry.horizons.json`, fetched by
+`tools/photometry/fetchHorizons.mjs`, with the queries in the fixture):
+each planet and the Moon from just off Earth (13,000 km over 0° N 0° E,
+out of the air's way) at 2026-10-06 09:00 UT, #192's date, framed 80 px
+across at 400×300 on SwiftShader, without ion; its light summed over its
+disc in the linear composite (the atmosphere pass's `uDebug` 7) less the
+background, over the exposure, in V by the Sun's irradiance at 1 AU in the
+same units (V −26.74), which is how the stars are scaled: a planet's
+magnitude against the star field.  Horizons is taken to the camera's
+distance (≤ 2e-4 mag; for the Moon, its phase law at the camera's phase).
+Luma is Rec. 709's of the stored values, lit as linear (HDR.md, [colour
+spaces](HDR.md#colour-spaces-stored-values)).
+
+| Body | r, AU | Phase | Horizons V | Before | After | After − Horizons | Lambert sphere at the texture's mean | Its albedo against the real one, mag | Lambert's phase law against the real one, mag |
+|---|---|---|---|---|---|---|---|---|---|
+| Mercury | 0.455 | 65.3° | −0.04 | −1.60 | −2.45 | −2.41 | −2.46 | −0.98 (p 0.33 against 0.13) | −1.44 (0.64 down, against 2.07) |
+| Venus | 0.726 | 142.6° | −4.67 | −3.28 | −3.62 | +1.04 | −3.32 | +0.36 (0.50 against 0.70) | +0.99 (3.87 down, against 2.88) |
+| The Moon | 0.998 | 125.8° | −8.62 | −8.51 | −8.51 | +0.11 | | the lunar photometric function, below | |
+| Mars | 1.565 | 36.4° | +1.01 | −0.42 | +0.06 | −0.95 | +0.19 | −0.44 (0.26 against 0.17) | −0.38 (0.20 down, against 0.58) |
+| Jupiter | 5.309 | 8.6° | −1.89 | −3.56 | −1.76 | +0.13 | −1.71 | +0.21 (0.44 against 0.53) | −0.03 |
+| Saturn, globe and rings | 9.433 | 0.35° | +0.34 | −1.89 | +0.52 | +0.19 | | | the rings, below |
+| Saturn's globe | | | +0.55 | −1.82 | +0.59 | +0.04 | +0.56 | 0.00 (0.50 against 0.51) | 0.00 |
+| Uranus | 19.44 | 2.3° | +5.64 | +2.60 | +5.79 | +0.15 | +5.78 | +0.08 (0.46 against 0.49) | +0.06 |
+| Neptune | 29.88 | 0.35° | +7.68 | +4.35 | +8.00 | +0.32 | +8.06 | +0.38 (0.33 against 0.47) | 0.00 |
+
+- **The falloff is right.**  Each body moved by 2.475·log10(r): Jupiter
+  1.79 mag, Neptune 3.65, Mercury −0.85, the Moon 0.00.  With the specular
+  lobe off the render is the Lambert sphere at its texture's mean within
+  0.06 mag for every planet but Mars's 0.09 (Mercury −2.40, Venus −3.29,
+  Mars +0.10, Jupiter −1.73, Saturn's globe +0.62, its oblate disc the last
+  few hundredths, Uranus +5.82, Neptune +8.04), so what's left against
+  Horizons is each body's own photometry, not the light: before, the giants
+  were 1.7 to 3.3 mag bright, now 0.04 to 0.32 faint.
+- **The texture's albedo**: a body's stored values are its albedo
+  (Lambert's, so its geometric albedo is 2/3 of their mean), and the
+  textures are pictures, stretched: Mercury's mean is 0.49, a geometric
+  albedo of 0.33 where Mercury's is 0.13 (Mallama & Hilton 2018's V(1,0),
+  as recalled, over its radius), so it is 1 mag bright; Mars 0.44 bright,
+  Neptune 0.38 dark, Jupiter 0.21.  The giants are within the ±0.3 the
+  textures' stretch allows.  The Moon has a `texture_gain` to its normal
+  albedo (below); the same for the others is a follow-up.
+- **The phase law**: Lambert's sphere loses 0.64 mag at Mercury's 65°
+  where Mercury's regolith loses 2.07 (shadow-hiding, as the Moon's), and
+  3.87 at Venus's 143° crescent where Venus's clouds, scattering forward,
+  lose 2.88; at Mars's 36°, 0.20 against 0.58.  At the giants' few degrees
+  they agree.  Mercury and Venus want photometric functions of their own,
+  as the Moon has.
+- **three's specular lobe** (MeshPhysicalMaterial's, F0 0.04 at roughness
+  0.8) adds 0.02-0.05 mag at a small phase and 0.33 at Venus's crescent,
+  where it is grazing.
+- **Saturn's rings** add 0.22 mag to Horizons' Saturn (Mallama & Hilton's
+  ring term at this tilt, the rings 7.4° open to Earth (sub-Earth latitude
+  −9.04° planetodetic), two days from opposition, so the rings' opposition
+  surge is in it) and 0.07 to the render's.  The rings are display values
+  (`Rings.js`, through `sceneReferred`, their gain Saturn's sky
+  `sunIntensity`), not lit in exposure units, so neither the falloff nor
+  the exposure reaches them; physical rings belong to
+  [#95](https://github.com/celestiary/web/issues/95).
+
+**#192's occultation view, re-measured** (the user's link at 1000×597,
+4.55″ a pixel, ev=10, without ion; airless, the composite over the air's
+transmittance; the last two columns at EV 0, in exposure units):
+
+| | Jupiter's disc, mag/arcsec² | The crescent's lit mean, mag/arcsec² | Jupiter over the crescent, per unit area | The meter's gain over Jupiter's keyed exposure | The crescent's mean / 90th percentile | Jupiter's centre |
+|---|---|---|---|---|---|---|
+| Horizons | 5.48 | 5.97 | 1.57 | | | |
+| Before | 3.74 | 6.05 | 8.4 | 2.09 | 0.17 / 0.39 | 1.87 |
+| After | 5.53 | 6.05 | 1.61 | 1 | 0.43 / 0.96 | 0.89 |
+
+Jupiter is now the crescent's match, as in the photographs, and the
+frame's exposure is the Moon's: the crescent comes up 2.5 times (1.3
+stops) at the same EV, as the meter no longer holds the frame down for an
+over-lit Jupiter.  At the user's ev=10 the crescent and Jupiter are both
+saturated, as before, and the earthlit side is brighter; ev≈8.7 gives the
+old balance.
+
+**What else was checked** (every user of `SUN_LIGHT_DECAY`,
+`SUN_LUMINOUS_INTENSITY`, `irradianceAt`, `exposureAt` and the light):
+- the meter's anchor (`ThreeUi._sunlitBodies`, `sunlitBodyGain`) takes a
+  body's keyed exposure against the target's, which is now the physical
+  ratio; the dark end and the stars are absolute, so unchanged;
+- the far points (a planet's and a moon's marker, `farPoint.js`) are
+  display values, not lit: unchanged, and still 4-5½ mag bright for
+  Jupiter's moons (#192's proposal of points of reflected light stands);
+- small discs (`smallDisc.js`) are three's lighting scaled by coverage, so
+  they follow the light with no constant of their own;
+- the atmosphere pass's `sunIntensity` is relative to the body's own
+  irradiance (`skyExposure`, 1 at its keyed exposure by any falloff), so
+  the falloff never reached it.  But the outer bodies' values fall with
+  distance (Jupiter 6, Saturn 4, Uranus 2.8, Neptune 2.2, Titan 1.0, Pluto
+  0.7, Triton 0.6), from #55, when `sunIntensity` was the Sun's light at
+  the body ("sun is dimmer than Earth (greater orbital distance)", its
+  test); since the sky took the body's irradiance in exposure units (#86's
+  PR A) that is counted twice.  The physical gain is π·`DISPLAY_GAIN`,
+  4.71, for every body, as Mars has; Earth's 21 stands for aerosols the
+  tables don't hold, and Venus's 18 is not a falloff.  Not changed here: it
+  brightens those skies and hazes 1.3 to 7.9 times (Titan's 4.7) and
+  Saturn's rings, which reuse its value, so it is proposed as its own
+  change;
+- the guide's planet page (`guide/Planet.jsx`) put its Sun 1.7 AU away,
+  which the old falloff hardly noticed: it is at 1 AU now, where the
+  guide's exposure is.
 
 ### The Moon's photometry
 
