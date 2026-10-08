@@ -406,13 +406,18 @@ crater walls in light and shadow.  With the slopes, a wall facing away
 from a low Sun goes dark and one facing it lights, so craters show along
 the terminator in light and shade.
 
-**Where it shows.**  From Earth the Moon is in Cesium's range, so with ion
-up it is Cesium's once its tiles are in (#192's views A and B: active
-`[moon]`, fade 1), and Cesium's tileset shader lights the smooth sphere
-(CESIUM.md, "Tiles and lighting").  This map shows on celestiary's own
-Moon: without ion, with the Cesium layer off, and while the tiles load.
-Carrying it across the swap means sampling the same map in the tileset's
-shader by longitude and latitude (CESIUM.md, follow-ups).
+**Where it shows.**  On both sides of the swap to Cesium.  From Earth the
+Moon is in Cesium's range, so with ion up it is Cesium's once its tiles are
+in (#192's views A and B: active `[moon]`, fade 1), and Cesium's tileset
+shader samples this same map by the fragment's longitude and latitude, its
+tangent frame from the sphere's east, north and up there, and lights both
+the Sun and earthshine by the perturbed normal (CESIUM.md, "Relief on the
+Moon's tiles"; `js/scene/cesium/relief.js`).  Without ion, with the Cesium
+layer off, and while the tiles load, it is celestiary's own Moon, through
+three's `normalMap`.  The tileset's version fades out where the map is
+magnified past 2 pixels a texel (gone by 8), since over the tiles' sharp
+imagery its 5.3 km texels would show as blocks; celestiary's mesh draws it
+at any range, as it has no sharper imagery than `moon.jpg`.
 
 - **A normal map, not a bump map.**  three's bump map takes its slope per
   screen pixel (Mikkelsen's surface gradient over the normalized

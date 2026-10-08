@@ -70,7 +70,7 @@
     {
       "id": "moon-quarter",
       "body": "moon",
-      "description": "The Moon from 5,000 km at quarter phase: ion's LRO WAC tiles, lit by celestiary's Sun, against celestiary's texture.  The metered exposure lifts this frame 1.22× (its brightest 2% is 0.49 of a sunlit white; #86's PR B), both renders alike, and the terminator profile's absolute differences with it: 24/6.5 became 25/6.9, so the bounds are 30/8.  #192 took the 2% night floor off the Moon's tiles (earthshine instead) and refitted imageryScale without it (0.82 to 0.78): the ratio went from 0.97 to 1.00 and the profile to 19/4.9, so the ratio's bounds are 0.97-1.03",
+      "description": "The Moon from 5,000 km at quarter phase: ion's LRO WAC tiles, lit by celestiary's Sun, against celestiary's texture.  The metered exposure lifts this frame 1.22× (its brightest 2% is 0.49 of a sunlit white; #86's PR B), both renders alike, and the terminator profile's absolute differences with it: 24/6.5 became 25/6.9, so the bounds are 30/8.  #192 took the 2% night floor off the Moon's tiles (earthshine instead) and refitted imageryScale without it (0.82 to 0.78): the ratio went from 0.97 to 1.00 and the profile to 19/4.9, so the ratio's bounds are 0.97-1.03.  The tileset's shader then took the same LOLA normal map as celestiary's Moon (CESIUM.md, relief on the Moon's tiles): ratio 0.985, profile 19/5.1, inside the bounds; the profile's differences rise a little with relief in both renders a pixel or so apart",
       "hash": "#sun/earth/moon@10,68.6276,5Mm;t=9233.1234jd;cq=0.02,0.9773,0.0723,-0.1983;fov=45deg;s=alpoU",
       "tolerance": {
         "ratio": [

@@ -503,15 +503,98 @@ twilight ones) have no clouds in them.
   and terrain, for about four times the tiles.
 - The tilesets are unlit.  A custom shader lights them by celestiary's
   Sun (Cesium's `scene.light`): Lambert on the smooth sphere, for the
-  terminator.  Not on the terrain: the tilesets have no normals, and
-  normals from screen-space derivatives of position are flat per triangle.
-  The terrain meshes are much coarser than their imagery, so lighting them
-  outlined every triangle, from orbit (worst at the terminator) down to
-  46 km on the Moon, while the imagery already carries the craters'
-  shading.
+  terminator (the Moon's, with its slopes from the LOLA normal map:
+  Relief on the Moon's tiles, below).  Not on the terrain: the tilesets
+  have no normals, and normals from screen-space derivatives of position
+  are flat per triangle.  The terrain meshes are much coarser than their
+  imagery, so lighting them outlined every triangle, from orbit (worst at
+  the terminator) down to 46 km on the Moon, while the imagery already
+  carries the craters' shading.
 - From out of range down to the surface, Cesium's camera far plane is
   raised past the body (its default, 5e8 m, would clip the Earth beyond
   ~80 radii).
+
+### Relief on the Moon's tiles
+
+The Moon's tileset shader lights the sphere with the slopes of the same
+LOLA normal map celestiary's own Moon uses (`moon_normal.jpg`, #199;
+[Planet.md, Relief](js/scene/Planet.md#relief)), so the terminator seen from
+Earth is rough with crater walls in light and shade on both sides of the
+swap (#192).  `js/scene/cesium/relief.js` holds it: the shader function
+`reliefNormal`, and its JS mirror that the unit tests run at known points.
+`sunlitShader` takes the map as a `TextureUniform` (`u_reliefMap`, from
+`CESIUM_BODIES.moon.relief`, mipmapped, 4× anisotropic), loaded by Cesium
+when the shader is made, so no image load is on a path a test drives; until
+it is in, Cesium binds a 1×1 default and the shader keeps the smooth
+sphere's normal.  `u_reliefScale` (0 to 1, 1 by default) scales the effect
+as a whole, for before-and-after renders; at 0 the frame is the same,
+pixel for pixel, as without this.  Mars has no map and its shader is
+unchanged.
+
+- **Coordinates.**  A fragment's `positionWC` is in the Moon's ECEF frame,
+  the one `frames.js` maps celestiary's body frame to (+X through 0°,
+  +Y through 90°E, +Z north; Cesium's Moon ellipsoid is a 1,737.4 km
+  sphere, as the map's).  Longitude is `atan2(y, x)` and latitude
+  `asin(z / |p|)`, planetocentric as the map is; the map is
+  equirectangular with -180° at its left edge and +90° at its top, so its
+  centre column is the prime meridian and east runs right, like
+  `moon.jpg`.  Cesium uploads a texture flipped, so the shader's v counts
+  from the bottom.  The tangent frame is east = Z × p (normalized), up =
+  p / |p|, north = up × east; a texel's x, y, z (as in the map: east,
+  north, out) are along those.
+- **Checked on craters.**  The map's own texels at Tycho (43.3°S, 11.2°W),
+  Copernicus (9.6°N, 20.1°W) and Aristarchus (23.7°N, 47.4°W) show the
+  crater signature with the convention above (a wall rising east has its
+  normal tilted west: mean x -0.17, -0.11, -0.12 on the east half of each
+  rim, +0.14, +0.11, +0.17 on the west; `relief.test.js` holds the texel
+  positions, 960/758, 909/457).  In the render, Tycho sits on its
+  imagery's crater, its walls and central peak shaded where the imagery
+  draws them, and every lit rim and shadowed wall along the terminator in
+  the user's view of #192 lands on the same one in celestiary's own
+  Moon, which takes the map through three's tangent frame, an independent
+  implementation.  Over the `moon-quarter` view the detail (a 5 px
+  high-pass) of the two renders correlates 0.86, 0.76 and 0.75 where
+  celestiary's luma is 12-60, 60-120 and 120-255 of 255, from 0.76, 0.65 and
+  0.70 before.
+- **Both lights.**  The shader's `normal` (the map's normal in view space)
+  replaces the smooth `up` in the Sun's Lambert term and in earthshine's
+  (`_setEarthshine`'s direction, unchanged), so the earthlit side shows
+  its craters too.  The shading function is untouched; the log encoding
+  after it is too.
+- **Mip levels, not the geometry.**  The map is read with `textureGrad`, its
+  gradients taken from the continuous unit position, not from `atan`'s
+  seam at ±180°, which a plain `texture` would take for a huge
+  minification and show as a line.  Where a pixel spans several texels
+  (the whole disc at 45°) the mip chain gives the average slope, renormalized.
+- **Scale.**  The tiles' own geometry plays no part: the shader never took
+  a normal from it (above; the tilesets have none), so there is no
+  geometric normal to blend the map out against and nothing is counted
+  twice.  The scale limit is the map's: 5.3 km texels, which at the user's
+  views (4.6-6.7 km a pixel) are about a pixel, and which, magnified,
+  would show as bilinear blocks over imagery that stays sharp.  So the
+  effect fades with magnification (`reliefStrength`): full to 2 pixels a
+  texel, gone from 8.  At 45° over a 625 px canvas a pixel is 0.0013 of the
+  altitude, so from 700 km up it is 0.9 km (6 pixels a texel: 15% of the
+  slopes), and from 100 km, 40 pixels a texel: none.  Near the surface the
+  imagery's own shading is what carries the craters, as before.  (A
+  4096×2048 map, Planet.md, would hold the same fade to twice the
+  nearness.)  The imagery has the WAC mosaic's own lighting baked in, so
+  where both show, the two add; the same holds for celestiary's own Moon.
+- **Parity.**  `yarn parity --only moon-quarter,moon-labels`: `moon-quarter`
+  ratio 0.985 (it was 1.000 on `main`, measured the same day), profile
+  19.0 / 5.07 (was 18.4 / 4.90), inside the 0.97-1.03 and 30 / 8 bounds;
+  `moon-labels` passes (3,608 label pixels).  The profile's absolute
+  differences rise a little where the terminator's relief is now in both
+  renders, a few pixels apart: the features are 1-2 px at 300 px, and a
+  feature misregistered by a pixel counts against both.  Over the lit disc
+  relief brightens the mean by 0.8% on either side (a 480×300 render of
+  the view); the median per-pixel ratio, relief over smooth, is 1.007 on
+  celestiary's Moon and 1.000 on Cesium's, so Cesium over celestiary at the
+  median goes from 1.000 (smooth against smooth) to 0.987 (relief against
+  relief).  It is within the band and not chased; `imageryScale` stays 0.78.
+- **Not done: cast shadows.**  The slopes light each texel by its own
+  tilt, but a rim doesn't shadow a floor (Planet.md, Relief, the horizon
+  map).  The tileset has no vertex normals still.
 
 ### Precision: a log encoding, and the Moon's earthshine
 
@@ -662,11 +745,6 @@ draws, not just what it selects.
 - Night lights: done in #93 (Night lights, above).  Left: a bundled low-level
   copy of the Black Marble for offline use.  Clouds dim them since #88.
 - Persist the layer choice in the permalink.
-- The Moon's relief on Cesium's side: #199's LOLA normal map lights
-  celestiary's mesh, but from Earth the Moon is Cesium's whenever ion is
-  up, whose `sunlitShader` lights the smooth sphere.  Sampling the same
-  normal map there by the fragment's longitude and latitude (a
-  `TextureUniform`) would carry the relief across the swap.
 - At a telescope's field the narrow-field clamp (Detail at narrow fields
   of view) keeps the Moon's tiles at a 21″ pixel's detail: at 0.91° over
   879 px the lit limb is as round as celestiary's sphere (0.47 px rms
@@ -698,6 +776,9 @@ New:
 - `js/scene/cesium/bodies.js` — per-body config (ellipsoid radii, data).
 - `js/scene/cesium/encoding.js` (+ test) — a tileset frame's log encoding
   through 8 bits, and the Moon's earthshine (Precision, above).
+- `js/scene/cesium/relief.js` (+ test) — the Moon's LOLA normal map in the
+  tileset's shader: longitude and latitude, tangent frame, fade
+  (Relief on the Moon's tiles, above).
 - `js/scene/cesium/CesiumLayers.js` (+ test) — lazy Cesium + NetGL link, stencil
   shell, per-frame coupling, activation.
 - `js/store/LayersSlice.js` — `layerBody` (in-range capable body or
@@ -764,7 +845,10 @@ yarn parity --only moon-quarter --out parity-out
   night views show Cesium's Earth black.
 - Options: `--only id,id`, `--out dir` (a PNG pair per view and
   `report.json`; `parity-out/` is gitignored), `--views file`, `--docs dir`,
-  `--viewport WxH`, `--timeout seconds` (per view, default 1800), `--list`.
+  `--viewport WxH`, `--timeout seconds` (per view, default 1800),
+  `--abort regex` (ion URLs the page's requests to are refused, e.g.
+  `api\.cesium\.com/v1/assets/2/` when the account's imagery sessions
+  (Bing) are used up), `--list`.
 - Exit code: 0 all pass, 1 a check failed, 2 couldn't run.
 
 ### What it does

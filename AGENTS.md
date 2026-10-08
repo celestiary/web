@@ -142,6 +142,9 @@ tried and dropped.
   - By hand, force a layer with `c.ui.layers.fadeOf = () => 1` (or
     `() => 0`), and render the same view both ways.
   - Not in `yarn precommit`: it takes minutes and needs ion.
+  - `--abort regex` refuses matching ion URLs, for an asset over its
+    quota (the account's Bing imagery, asset 2:
+    `--abort 'api\.cesium\.com/v1/assets/2/'`).
 - **A shader edit needs a rendered check**, not only its arithmetic: a
   compile failure (e.g. a GLSL ES reserved word such as `half` as a
   variable, #153) draws nothing and fails no unit test. Collect the page's

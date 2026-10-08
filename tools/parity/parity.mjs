@@ -22,7 +22,7 @@ import {allPass, changedPixels, evaluateView, formatTable, measureView, terminat
  * Moon and Mars, and Earth's ion terrain).  It doesn't build one itself.
  *
  * Usage: yarn parity [--only id,id] [--out dir] [--views file] [--docs dir]
- *                    [--viewport WxH] [--timeout seconds] [--list]
+ *                    [--viewport WxH] [--timeout seconds] [--abort regex] [--list]
  */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -68,7 +68,7 @@ const MIME = {
  * @returns {object} Parsed options
  */
 function parseArgs(argv) {
-  const opts = {views: DEFAULT_VIEWS, docs: DEFAULT_DOCS, timeout: DEFAULT_TIMEOUT_S, only: null, out: null, list: false}
+  const opts = {views: DEFAULT_VIEWS, docs: DEFAULT_DOCS, timeout: DEFAULT_TIMEOUT_S, only: null, out: null, abort: null, list: false}
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     const value = () => {
@@ -83,6 +83,7 @@ function parseArgs(argv) {
       case '--out': opts.out = path.resolve(value()); break
       case '--only': opts.only = value().split(',').map((s) => s.trim()); break
       case '--timeout': opts.timeout = Number(value()); break
+      case '--abort': opts.abort = new RegExp(value()); break
       case '--viewport': opts.viewport = value().split('x').map(Number); break
       case '--list': opts.list = true; break
       default: throw new Error(`unknown argument ${arg}`)
@@ -119,11 +120,16 @@ async function serve(root) {
  * ever logged.
  *
  * @param {object} page
+ * @param {RegExp|null} abort Ion URLs to refuse (`--abort`), e.g. an asset over its quota
  * @returns {object} Counts of ion answers by status, and of failed fetches
  */
-async function routeIon(page) {
+async function routeIon(page, abort) {
   const stats = {statuses: {}, failed: 0}
   await page.route(ION_HOSTS, async (route) => {
+    if (abort?.test(route.request().url())) {
+      await route.abort()
+      return
+    }
     try {
       // Keep the page's own headers (ion's asset requests carry a bearer
       // token): route.fetch replaces them when given `headers`.
@@ -427,7 +433,7 @@ async function runView(context, baseUrl, view, opts) {
         console.warn(`  [page] ${msg.text().slice(0, 200)}`)
       }
     })
-    const ion = await routeIon(page)
+    const ion = await routeIon(page, opts.abort)
     await routeGibs(page)
     const requests = trackRequests(page)
     // Analytics: not needed, and a hang on it would hold the network busy.

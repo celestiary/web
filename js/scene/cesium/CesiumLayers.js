@@ -48,6 +48,7 @@ import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
 import {DECODE_DISTANCE_GLSL, DISTANCE_SCALE_M, DISTANCE_STAGE_GLSL, distanceScale} from './distance.js'
 import {detailScale} from './detail.js'
 import {LOG_DECODE_GLSL, LOG_ENCODE_GLSL, earthshineFraction} from './encoding.js'
+import {RELIEF_GLSL} from './relief.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {perf} from '../../perf/perf.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
@@ -1152,7 +1153,8 @@ export default class CesiumLayers {
       ...surface,
     })
     // A tileset's shader, kept for its per-frame uniforms (_setEarthshine).
-    const customShader = config.ionTileset ? sunlitShader(Cesium, config.nightFloor ?? 0) : null
+    const customShader = config.ionTileset ?
+      sunlitShader(Cesium, config.nightFloor ?? 0, config.relief ? absoluteUrl(dataUrl(config.relief)) : null) : null
     if (config.ionTileset) {
       Cesium.Cesium3DTileset.fromIonAssetId(config.ionTileset, {
         // Celestiary's bodies turn under its camera, so Cesium's camera
@@ -1459,6 +1461,13 @@ function monthlyImageryLayer(Cesium, imagery, month) {
  * crescent in frame turned into a lit, olive night side.  Other bodies
  * keep their `nightFloor` (Mars: dark, but not a hole in the sky).
  *
+ * The slopes: where the body has a `relief` (the Moon's LOLA normal map,
+ * Planet.md "Relief"), both lights are taken against that map's normal on
+ * the sphere, sampled by the fragment's longitude and latitude (relief.js),
+ * so the terminator shows crater walls in light and shade as celestiary's
+ * own Moon does.  Still not the tiles' geometry: the map is the whole of
+ * the shape the light sees.
+ *
  * The result goes out log-encoded (encoding.js), for the composite's decode
  * to invert: Cesium writes it to an 8-bit buffer, and linear, the night
  * side and the terminator's last degrees had a few codes, flat bands and
@@ -1467,25 +1476,46 @@ function monthlyImageryLayer(Cesium, imagery, month) {
  *
  * @param {object} Cesium
  * @param {number} nightFloor The night side's light, a fraction of full sun
+ * @param {string|null} reliefUrl The normal map to light the surface's slopes by
+ *   (bodies.js `relief`; relief.js), absolute; null for the smooth sphere
  * @returns {object} Cesium.CustomShader
  */
-function sunlitShader(Cesium, nightFloor) {
+function sunlitShader(Cesium, nightFloor, reliefUrl) {
   const f = (x) => x.toFixed(4)
+  const uniforms = {
+    u_earthshine: {type: Cesium.UniformType.FLOAT, value: 0},
+    u_earthDirWC: {type: Cesium.UniformType.VEC3, value: new Cesium.Cartesian3(1, 0, 0)},
+  }
+  if (reliefUrl) {
+    // Fetched by Cesium when the shader is made, off the sync paths tests
+    // drive; the shader draws the smooth sphere until the image is in.
+    uniforms.u_reliefMap = {
+      type: Cesium.UniformType.SAMPLER_2D,
+      value: new Cesium.TextureUniform({
+        url: reliefUrl,
+        minificationFilter: Cesium.TextureMinificationFilter.LINEAR_MIPMAP_LINEAR,
+        magnificationFilter: Cesium.TextureMagnificationFilter.LINEAR,
+        maximumAnisotropy: RELIEF_ANISOTROPY,
+      }),
+    }
+    uniforms.u_reliefScale = {type: Cesium.UniformType.FLOAT, value: 1}
+  }
   return new Cesium.CustomShader({
     lightingModel: Cesium.LightingModel.UNLIT,
-    uniforms: {
-      u_earthshine: {type: Cesium.UniformType.FLOAT, value: 0},
-      u_earthDirWC: {type: Cesium.UniformType.VEC3, value: new Cesium.Cartesian3(1, 0, 0)},
-    },
+    uniforms,
     // Stored value × light, as Earth's globe draws (litSurfaceOnly): the
     // texture's stored values, not Cesium's linear ones, lit; Cesium's
     // output encodes linear back to what's returned here, the code.
+    // `normal` is the surface normal both lights are taken against: the
+    // smooth sphere's, or with relief the map's slopes on it (relief.js).
     fragmentShaderText: `
       ${LOG_ENCODE_GLSL}
+      ${reliefUrl ? RELIEF_GLSL : ''}
       void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material) {
-        vec3 up = czm_viewRotation * normalize(fsInput.attributes.positionWC);
-        float lambert = max(dot(up, czm_lightDirectionEC), 0.0);
-        float earthLambert = max(dot(up, czm_viewRotation * u_earthDirWC), 0.0);
+        vec3 positionWC = fsInput.attributes.positionWC;
+        vec3 normal = czm_viewRotation * ${reliefUrl ? 'reliefNormal(positionWC)' : 'normalize(positionWC)'};
+        float lambert = max(dot(normal, czm_lightDirectionEC), 0.0);
+        float earthLambert = max(dot(normal, czm_viewRotation * u_earthDirWC), 0.0);
         float light = ${f(nightFloor)} + ${f(1 - nightFloor)} * lambert + u_earthshine * earthLambert;
         vec3 stored = czm_linearToSrgb(material.diffuse) * light;
         material.diffuse = czm_srgbToLinear(cesiumLogEncode(stored, gl_FragCoord.xy));
@@ -1702,6 +1732,9 @@ const GROUND_SAMPLE_BELOW_M = 1e5
 // (Cesium's default), where a pixel spans MIN_PIXEL_ANGLE or more: every
 // ordinary field of view (detail.js).
 const TILE_SCREEN_SPACE_ERROR = 8
+// The relief map's anisotropic filtering (relief.js): the limb and the terminator
+// are seen at grazing angles.
+const RELIEF_ANISOTROPY = 4
 const GLOBE_SCREEN_SPACE_ERROR = 2
 // The crossfade from celestiary's surface to Cesium's, ms.
 const FADE_MS = 1000

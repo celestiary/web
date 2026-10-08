@@ -27,6 +27,8 @@
  *   lights"), not through Cesium's lighting, which would multiply them away.
  * - `nightFloor`: a tileset's light on its night side, as a fraction of
  *   full sun (sunlitShader); a globe's lighting is Cesium's.
+ * - `relief`: a tangent-space normal map the tileset's shader lights the
+ *   sphere's slopes by (the Moon's LOLA map, as celestiary's own Moon).
  * - `earthshine`: the tileset's night side is lit by Earth's reflected
  *   light, from Earth's direction, at its level for Earth's phase
  *   (CesiumLayers._setEarthshine): the Moon's.
@@ -93,6 +95,10 @@ export const CESIUM_BODIES = {
     // Moon), not a floor: the 2% floor it had was ~300× that.
     nightFloor: 0,
     earthshine: true,
+    // The slopes lighting the sphere: celestiary's own Moon's LOLA normal
+    // map (moon.json texture_normal; Planet.md "Relief"), sampled in the
+    // tileset's shader by longitude and latitude (relief.js).
+    relief: 'textures/moon_normal.jpg',
     // moon.json's texture_gain: celestiary's Moon is the same LRO WAC
     // mosaic, scaled (Planet.md).
     textureGain: 1.3,
