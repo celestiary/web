@@ -1,16 +1,20 @@
 import {
   BufferAttribute,
+  CustomBlending,
   DoubleSide,
   Mesh,
+  OneFactor,
+  OneMinusSrcAlphaFactor,
   Quaternion,
   RingGeometry,
   ShaderMaterial,
   Vector3,
 } from 'three'
+import {irradianceAt} from '../exposure.js'
 import * as Material from '../material.js'
-import {sceneReferred} from '../hdr.js'
-import {VERT} from './rings-vert.js'
+import {RING_ALBEDO_SCALE} from './ringPhotometry.js'
 import {FRAG} from './rings-frag.js'
+import {VERT} from './rings-vert.js'
 
 
 /**
@@ -92,9 +96,11 @@ export function ringPlaneShadow(surfPos, sunDir, ringCenter, ringNormal, innerR,
  *
  * Features:
  *   - Radial UV mapping using real inner/outer radii from planet JSON.
- *   - Alpha-texture transparency (ring gaps like Cassini Division).
- *   - Blinn-Phong specular for ice-particle glint.
- *   - Henyey-Greenstein forward scatter (backlit brightening).
+ *   - Lit in exposure units by the Sun's irradiance at the planet, as a
+ *     slab of particles scattering it once (ringPhotometry.js; rings.md,
+ *     "Lighting: the rings in exposure units"): the colour map is the
+ *     particles' albedo, the opacity map their optical depth, so gaps like
+ *     the Cassini Division let the background through.
  *   - Analytical planet-shadow-on-rings (sphere test in fragment shader).
  *   - Ring-shadow-on-planet via injectPlanetShadow(surfaceMaterial).
  *
@@ -130,18 +136,19 @@ export default class Rings extends Mesh {
     }
     geometry.setAttribute('uv', new BufferAttribute(uvs, 2))
 
-    // Its colour is a display value, not lit in exposure units (hdr.js).
-    const material = sceneReferred(new ShaderMaterial({
+    // Lit in exposure units, its colour premultiplied by its cover.
+    const material = new ShaderMaterial({
       uniforms: {
         uColorMap: {value: Material.pathTexture(`${texture}ringcolor`, '.png')},
         uAlphaMap: {value: Material.pathTexture(`${texture}ringalpha`, '.png')},
         // Updated each frame in onBeforeRender.
         uSunDir: {value: new Vector3(1, 0, 0)},
         uPlanetCenter: {value: new Vector3()},
+        uSunRadiance: {value: 0},
         uPlanetRadius: {value: props.radius.scalar},
         uInnerRadius: {value: innerR},
         uOuterRadius: {value: outerR},
-        uSunIntensity: {value: props.atmosphere ? (props.atmosphere.sunIntensity || 1.0) : 1.0},
+        uAlbedoScale: {value: RING_ALBEDO_SCALE},
       },
       vertexShader: VERT,
       fragmentShader: FRAG,
@@ -149,7 +156,12 @@ export default class Rings extends Mesh {
       side: DoubleSide,
       depthTest: true,
       depthWrite: false,
-    }))
+      blending: CustomBlending,
+      blendSrc: OneFactor,
+      blendDst: OneMinusSrcAlphaFactor,
+      blendSrcAlpha: OneFactor,
+      blendDstAlpha: OneMinusSrcAlphaFactor,
+    })
 
     super(geometry, material)
     this.renderOrder = 2
@@ -164,12 +176,25 @@ export default class Rings extends Mesh {
     this._tmpQuat = new Quaternion()
     this._tmpNormal = new Vector3()
 
-    this.onBeforeRender = () => {
+    this._tmpSunPos = new Vector3()
+    this._worldGroup = null
+    this.onBeforeRender = (renderer, scene) => {
       this.getWorldPosition(this._tmpWorldPos)
-      // Sun is at world origin (0, 0, 0); sunDir points from planet toward sun.
-      const sunDir = this._tmpWorldPos.clone().negate().normalize()
+      // The Sun is at the world group's origin (ThreeUi._exposureSunPos);
+      // sunDir points from the planet toward it.
+      this._worldGroup ??= scene?.getObjectByName?.('WorldGroup') ?? null
+      if (this._worldGroup) {
+        this._worldGroup.getWorldPosition(this._tmpSunPos)
+      } else {
+        this._tmpSunPos.set(0, 0, 0)
+      }
+      const sunDir = this._tmpSunPos.clone().sub(this._tmpWorldPos)
+      const sunDistance = sunDir.length()
+      sunDir.normalize()
       this.material.uniforms.uSunDir.value.copy(sunDir)
       this.material.uniforms.uPlanetCenter.value.copy(this._tmpWorldPos)
+      // A white Lambertian's radiance facing the Sun here, E/π.
+      this.material.uniforms.uSunRadiance.value = sunDistance > 0 ? irradianceAt(sunDistance) / Math.PI : 0
 
       if (this._planetMaterial && this._planetMaterial.userData.ringShadowShader) {
         const rs = this._planetMaterial.userData.ringShadowShader

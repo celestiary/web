@@ -29,7 +29,7 @@ import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   adaptMeterGain, easeExposure, exposureAt, exposureRelative,
   LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, galaxyGain, illuminanceRatio, limitingMagnitude,
-  luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, starClipZ, starSprite, sunlitBodyCap,
+  luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, skyGain, starClipZ, starSprite, sunlitBodyCap,
   sunlitBodyGain,
 } from './scene/exposure.js'
 import {clampEv, renderExposure} from './scene/evCompensation.js'
@@ -1464,7 +1464,7 @@ export default class ThreeUi {
 
     u.uGroundRadius.value = R
     u.uAtmosphereRadius.value = R + atmos.height.scalar
-    u.uSunIntensity.value = atmos.sunIntensity ?? 22
+    u.uSunIntensity.value = skyGain(atmos)
     // The sky in exposure units: its planet's sunlight at the renderer's
     // exposure (HDR.md).  The Sun is at the world group's origin.
     this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null

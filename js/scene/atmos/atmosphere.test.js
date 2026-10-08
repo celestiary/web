@@ -1,5 +1,7 @@
 // Unit tests for atmosphere parameter validation and planet atmosphere data.
-import {readFileSync} from 'fs'
+import {readdirSync, readFileSync} from 'fs'
+import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../../shared.js'
+import {PHYSICAL_SKY_GAIN, exposureAt, skyExposure, skyGain} from '../exposure.js'
 import {mieParams} from './AtmospherePrecompute.js'
 
 
@@ -69,7 +71,7 @@ function integratePhase(phase) {
 }
 
 const REQUIRED_FIELDS = [
-  'height', 'sunIntensity',
+  'height',
   'rayleigh', 'rayleighScaleHeight',
   'mieCoeff', 'mieScaleHeight', 'miePolarity',
 ]
@@ -198,11 +200,6 @@ describe('atmosphere JSON data', () => {
       expect(atm.mieCoeff).toBeGreaterThan(earth.mieCoeff)
     })
 
-    it('sun is dimmer than Earth (greater orbital distance)', () => {
-      const earth = loadPlanet('earth').atmosphere
-      expect(atm.sunIntensity).toBeLessThan(earth.sunIntensity)
-    })
-
     it('miePolarity is in valid Henyey-Greenstein range (-1, 1), per channel', () => {
       for (const g of atm.miePolarity) {
         expect(g).toBeGreaterThan(-1)
@@ -210,11 +207,77 @@ describe('atmosphere JSON data', () => {
       }
     })
 
-    it('sun intensity is the physical single-scattering gain', () => {
+    it('takes the physical single-scattering gain', () => {
       // π·DISPLAY_GAIN (HDR.md): the sky's brightness is the dust's, not a
       // gain's.
-      expect(atm.sunIntensity).toBeCloseTo(Math.PI * 1.5, 1)
+      expect(skyGain(atm)).toBe(PHYSICAL_SKY_GAIN)
     })
+  })
+})
+
+
+describe('the sky gain', () => {
+  // Every body descriptor with an atmosphere (some data files aren't
+  // plain JSON).
+  const bodies = readdirSync('./public/data')
+      .filter((f) => f.endsWith('.json'))
+      .map((f) => {
+        try {
+          return JSON.parse(readFileSync(`./public/data/${f}`, 'utf8'))
+        } catch {
+          return null
+        }
+      })
+      .filter((b) => b?.atmosphere)
+
+  it('is the physical single-scattering gain, π·DISPLAY_GAIN', () => {
+    expect(PHYSICAL_SKY_GAIN).toBe(Math.PI * DISPLAY_GAIN)
+    expect(PHYSICAL_SKY_GAIN).toBeCloseTo(4.71, 2)
+  })
+
+  it('is relative to the body\'s own sunlight, so the same at any distance from the Sun', () => {
+    // The sky in exposure units is gain × in-scatter × skyExposure, and
+    // skyExposure is 1 at a body's keyed exposure from Mercury to Pluto:
+    // the distance falloff is the irradiance's, counted once.
+    for (const au of [0.39, 1, 1.52, 5.2, 9.5, 19.2, 30.1, 39.5]) {
+      const d = au * ASTRO_UNIT_METER
+      expect(skyExposure(d, exposureAt(d))).toBeCloseTo(1, 12)
+    }
+  })
+
+  it('is the physical gain for every body but Earth, whose data stands in for its aerosols', () => {
+    // #55's gains fell with distance (Jupiter 6, Saturn 4, Uranus 2.8,
+    // Neptune 2.2, Titan 1.0, Pluto 0.7, Triton 0.6), from when the gain was
+    // the Sun's light at the body; since the sky took the body's irradiance
+    // (#86's PR A) they counted the falloff twice.  Only a documented
+    // reason may set a body's gain (composition.md, "Per-body data").
+    expect(bodies.length).toBeGreaterThan(8)
+    for (const body of bodies) {
+      if (body.name === 'earth') {
+        continue
+      }
+      expect({name: body.name, gain: skyGain(body.atmosphere)})
+          .toEqual({name: body.name, gain: PHYSICAL_SKY_GAIN})
+    }
+    // Earth's: 4.5 times physical, matched to Cesium's Earth over the same
+    // imagery and re-fitted when multiple scattering went in (Planet.md).
+    const earth = bodies.find((b) => b.name === 'earth')
+    expect(earth.atmosphere.sunIntensity).toBe(21)
+  })
+
+  it('leaves Titan\'s haze to absorb, most in the blue, where its gain of 1 stood in for it', () => {
+    // Titan's τ ≈ 8 of conservative haze at the physical gain was a white
+    // disc at I/F 0.59; Huygens DISR's haze absorbs (Tomasko et al. 2008),
+    // and with it the disc is 0.24 and orange (composition.md, "Per-body
+    // data").
+    const {atmosphere: atm} = loadPlanet('titan')
+    expect(atm.mieAlbedo).toHaveLength(3)
+    expect(atm.mieAlbedo[0]).toBeGreaterThan(atm.mieAlbedo[1])
+    expect(atm.mieAlbedo[1]).toBeGreaterThan(atm.mieAlbedo[2])
+    for (const w of atm.mieAlbedo) {
+      expect(w).toBeGreaterThan(0.7)
+      expect(w).toBeLessThan(1)
+    }
   })
 })
 

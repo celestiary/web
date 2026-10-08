@@ -30,7 +30,7 @@ Two kinds of value then live in the pipeline:
   Lambertian surface facing the Sun at the exposure target, times
   `DISPLAY_GAIN` (so a sunlit white surface is 1.5).  Unbounded.
 - **Display-referred**: what reaches the screen, 0 to 1, after the tone map.
-  Also what labels, lines, grids and the rings write: they are drawn with
+  Also what labels, lines and grids write: they are drawn with
   `toneMapped: false` and their values are meant as display values.  The
   stars, the Milky Way and the Sun's disc wrote display values too until PR
   B made them scene-referred (below).
@@ -183,6 +183,19 @@ precompute integrates multiple scattering (composition.md, "Multiple
 scattering") Earth's gain is 21, 4.5×, re-fitted to hold its sky's luma,
 and the rest is the aerosol load PR B tunes against, once stars are
 physical too.  Mars has the physical value: its sky is its dust's.
+
+**Every other body has it too** (`exposure.js` `PHYSICAL_SKY_GAIN`, the
+default when a body's data gives no `sunIntensity`).  The factor
+`E·k / (π·DISPLAY_GAIN)` already carries the Sun's falloff to the body,
+so the gain must not fall with distance as well; the outer bodies' gains
+from #55 (Jupiter 6 down to Triton 0.6) did, from when `sunIntensity` was
+the Sun's light at the body, and counted the inverse square twice: Triton's
+haze was 7.9 times too faint, Titan's 4.7.  Venus's 18 and Mercury's 35
+went too.  Titan's gain of 1 had been standing in for its haze's
+absorption, which its data now holds instead (`mieAlbedo`).  Measurements
+in [composition.md, per-body data](atmos/composition.md#per-body-data);
+the rings, which reused Saturn's gain, are lit on their own
+([rings.md](rings/rings.md#lighting-the-rings-in-exposure-units)).
 
 The eye-adaptation boost kept reading the sky's brightness as `1 − e^(−S)`,
 so it behaved exactly as before, until PR B removed it.
@@ -828,7 +841,8 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    a frame meters the same with every overlay on as off.  What still
    reaches the buffer display-valued is a body's far point (a few pixels,
    kept in the scene pass so the day sky hides it as it does the stars;
-   DESIGN.md) and the rings (`Rings.js`), which should become physical.
+   DESIGN.md).  The rings are lit in exposure units (rings.md,
+   "Lighting"), so the meter reads them as it does the globe.
 9. The gain **eases in log space** (`easeExposure`), with a time constant
    of `METER_TAU_UP_SECONDS` (1.5 s) rising, the eye adapting to the dark,
    and `METER_TAU_DOWN_SECONDS` (0.3 s) falling, a camera catching up with a
