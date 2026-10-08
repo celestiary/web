@@ -79,6 +79,12 @@ Several times a "fix" attacked the wrong cause:
   pixel) holds either way, but the evidence and the docs would have described the wrong
   mechanism.
 
+- **"A second exposure change" (#205):** at ev+10 the Moon's terminator lost its relief a few
+  seconds after the view settled.  A timeline of `toneMappingExposure`, the meter's goal and
+  `c.ui.layers` (active, `fadeOf`) showed the exposure flat to four digits and the Moon's
+  Cesium layer crossfading in: the swap to a surface without relief, not the meter.  Log the
+  layers' state beside the exposure before reasoning about either.
+
 **Rule:** Before writing a fix, write out the proposed mechanism and check it numerically.
 A 2-minute back-of-envelope saves an iteration.  When a library runs away, count its own
 per-frame work before reasoning from what's on screen.

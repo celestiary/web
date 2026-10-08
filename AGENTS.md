@@ -142,6 +142,9 @@ tried and dropped.
   - By hand, force a layer with `c.ui.layers.fadeOf = () => 1` (or
     `() => 0`), and render the same view both ways.
   - Not in `yarn precommit`: it takes minutes and needs ion.
+  - `--abort regex` refuses matching ion URLs, for an asset over its
+    quota (the account's Bing imagery, asset 2:
+    `--abort 'api\.cesium\.com/v1/assets/2/'`).
 - **Build for testing without the ion token**, `CESIUM_ION_TOKEN= yarn
   build` (an empty value overrides one in your environment; the build
   then bakes in no token), unless the task is about ion rendering.
@@ -159,12 +162,10 @@ tried and dropped.
     (`CESIUM_ION_TOKEN=dummy yarn build`) and answer `api.cesium.com` in
     Playwright with a stub (`page.route`), counting the requests to
     `/v1/assets/2/endpoint`.
-  - `yarn parity --no-bing` refuses Bing (asset 2) and keeps the rest of
-    ion: the Earth views from orbit run as usual; the low ones show
-    Blue Marble's texels where their baselines have Bing's.  In your own
-    Playwright, abort `/v1/assets/2/` and let the rest through
-    (`route.abort()`).  Earth's World Terrain isn't deferred: without it
-    the globe's lighting is the ellipsoid's, with a night side at 30%
+  - To keep Bing out of your own Playwright, abort `/v1/assets/2/` and
+    let the rest of ion through (`route.abort()`).  Earth's World Terrain
+    isn't deferred: without it the globe's lighting is the ellipsoid's,
+    with a night side at 30%
     ([CESIUM.md](CESIUM.md#earths-lighting-needs-the-terrain)).
 - **A shader edit needs a rendered check**, not only its arithmetic: a
   compile failure (e.g. a GLSL ES reserved word such as `half` as a

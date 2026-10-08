@@ -113,7 +113,7 @@ describe('crossfade', () => {
 describe('decode', () => {
   it('scales every body by DISPLAY_GAIN and its imagery against celestiary\'s texture', () => {
     expect(bodyGain('earth')).toBeCloseTo(bodyGain('mars'), 10)
-    expect(bodyGain('moon') / bodyGain('earth')).toBeCloseTo(1.3 / 0.78, 10)
+    expect(bodyGain('moon') / bodyGain('earth')).toBeCloseTo(CESIUM_BODIES.moon.textureGain / CESIUM_BODIES.moon.imageryScale, 10)
   })
 
   it('draws the globe over whatever its stencil admitted, depth or not', () => {

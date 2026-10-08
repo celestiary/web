@@ -22,7 +22,7 @@ import {allPass, changedPixels, evaluateView, formatTable, measureView, terminat
  * Moon and Mars, and Earth's ion terrain).  It doesn't build one itself.
  *
  * Usage: yarn parity [--only id,id] [--out dir] [--views file] [--docs dir]
- *                    [--viewport WxH] [--timeout seconds] [--no-bing] [--list]
+ *                    [--viewport WxH] [--timeout seconds] [--abort regex] [--list]
  */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -39,7 +39,6 @@ const NOTE_EVERY_MS = 30000
 // read true for a frame before the next round of requests goes out.
 const SETTLE_FRAMES = 6
 const ION_HOSTS = /^https:\/\/(api\.cesium\.com|assets\.ion\.cesium\.com)\//
-const ION_BING = /\/v1\/assets\/2\//
 // ion's token is restricted by Referer to the production site (AGENTS.md,
 // Secrets).
 const ION_HEADERS = {referer: 'https://celestiary.github.io/', origin: 'https://celestiary.github.io'}
@@ -69,7 +68,7 @@ const MIME = {
  * @returns {object} Parsed options
  */
 function parseArgs(argv) {
-  const opts = {views: DEFAULT_VIEWS, docs: DEFAULT_DOCS, timeout: DEFAULT_TIMEOUT_S, only: null, out: null, list: false}
+  const opts = {views: DEFAULT_VIEWS, docs: DEFAULT_DOCS, timeout: DEFAULT_TIMEOUT_S, only: null, out: null, abort: null, list: false}
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     const value = () => {
@@ -84,8 +83,8 @@ function parseArgs(argv) {
       case '--out': opts.out = path.resolve(value()); break
       case '--only': opts.only = value().split(',').map((s) => s.trim()); break
       case '--timeout': opts.timeout = Number(value()); break
+      case '--abort': opts.abort = new RegExp(value()); break
       case '--viewport': opts.viewport = value().split('x').map(Number); break
-      case '--no-bing': opts.noBing = true; break
       case '--list': opts.list = true; break
       default: throw new Error(`unknown argument ${arg}`)
     }
@@ -121,16 +120,13 @@ async function serve(root) {
  * ever logged.
  *
  * @param {object} page
- * @param {boolean} [noBing] Refuse ion's world imagery (asset 2)
+ * @param {RegExp|null} abort Ion URLs to refuse (`--abort`), e.g. an asset over its quota
  * @returns {object} Counts of ion answers by status, and of failed fetches
  */
-async function routeIon(page, noBing = false) {
+async function routeIon(page, abort) {
   const stats = {statuses: {}, failed: 0}
   await page.route(ION_HOSTS, async (route) => {
-    // Bing (asset 2) is billed by sessions, and a low view asks for one:
-    // `--no-bing` refuses it, and the globe keeps its Blue Marble.
-    if (noBing && ION_BING.test(route.request().url())) {
-      stats.statuses.blocked = (stats.statuses.blocked ?? 0) + 1
+    if (abort?.test(route.request().url())) {
       await route.abort()
       return
     }
@@ -437,7 +433,7 @@ async function runView(context, baseUrl, view, opts) {
         console.warn(`  [page] ${msg.text().slice(0, 200)}`)
       }
     })
-    const ion = await routeIon(page, opts.noBing)
+    const ion = await routeIon(page, opts.abort)
     await routeGibs(page)
     const requests = trackRequests(page)
     // Analytics: not needed, and a hang on it would hold the network busy.
