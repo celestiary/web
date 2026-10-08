@@ -37,7 +37,6 @@
   "system": [],
   "atmosphere": {
     "height": "5e4 m",
-    "sunIntensity": 35,
     "rayleigh": [0.0, 0.0, 0.0],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "1e4 m",

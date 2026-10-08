@@ -48,7 +48,6 @@
   "system": ["charon"],
   "atmosphere": {
     "height": "3e5 m",
-    "sunIntensity": 0.7,
     "rayleigh": [3.0e-7, 5.5e-7, 1.0e-6],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "6.0e4 m",

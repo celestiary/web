@@ -49,7 +49,6 @@
   "system": ["io","europa","ganymede","callisto"],
   "atmosphere": {
     "height": "3e5 m",
-    "sunIntensity": 6,
     "rayleigh": [3.5e-6, 6.0e-6, 1.0e-5],
     "rayleigh_unit": "1/m",
     "rayleighScaleHeight": "2.7e4 m",
