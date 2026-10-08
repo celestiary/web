@@ -382,6 +382,57 @@ Under 24 px of radius, and farther than 20 radii:
   Mars's 121, scaled by the albedo ratio) and Cesium's Moon takes the same
   gain (`CESIUM_BODIES.moon.textureGain`), over ion's copy being stored
   0.78× as bright (`imageryScale`; CESIUM.md, "Precision").
+- **Moon relief** (`moon_normal.jpg`, 2048×1024, 620 KB; `moon.json`
+  `texture_normal`): a tangent-space normal map from LRO LOLA's global DEM
+  (NASA/GSFC; public domain), as Moon Trek serves it
+  (`LRO_LOLA_DEM_Global_128ppd_v04`, an 8-bit PNG stretch, WMTS level 3,
+  4096×2048), built by `tools/moon/lolaNormalMap.py public/textures/moon_normal.jpg 2048 90`.
+  The stretch is linear: its 1 lands on Antoniadi's floor (70.4°S,
+  172.4°W, −9.13 km) and its 255 on the Selenean summit (5.4°N, 158.6°W,
+  +10.78 km), the DEM's known extremes, so a step is 78 m.  The heights
+  are resampled to 2048×1024, blurred 0.6 px against the steps, and their
+  slopes taken over each texel's true size on a 1,737.4 km sphere: median
+  2.9°, 99th percentile 17°.  Same layout as `moon.jpg`.  See
+  [Relief](#relief).
+
+## Relief
+
+A body with `texture_normal` has its slopes as a tangent-space normal map
+(`<name>_normal.jpg`: x east, y north, z out, as three's SphereGeometry's
+u and v; `Planet.nearShape` sets `normalMap`, and three takes the tangent
+frame from the screen derivatives).  The Moon has one (#192): its
+terminator was a smooth Lambert gradient where the real one is rough with
+crater walls in light and shadow.  With the slopes, a wall facing away
+from a low Sun goes dark and one facing it lights, so craters show along
+the terminator in light and shade.
+
+**Where it shows.**  From Earth the Moon is in Cesium's range, so with ion
+up it is Cesium's once its tiles are in (#192's views A and B: active
+`[moon]`, fade 1), and Cesium's tileset shader lights the smooth sphere
+(CESIUM.md, "Tiles and lighting").  This map shows on celestiary's own
+Moon: without ion, with the Cesium layer off, and while the tiles load.
+Carrying it across the swap means sampling the same map in the tileset's
+shader by longitude and latitude (CESIUM.md, follow-ups).
+
+- **A normal map, not a bump map.**  three's bump map takes its slope per
+  screen pixel (Mikkelsen's surface gradient over the normalized
+  derivatives), so the relief flattens as the view zooms in, and Mars's
+  `bumpScale` is a look, not a height.  A normal map holds the true slopes
+  at the texel's size.
+- **2048×1024 is the resolution of the views it's for.**  From Earth at
+  0.63-0.91° (#192's views) the Moon is 520-750 px across, 4.6-6.7 km a
+  pixel, against 5.3 km a texel at the equator.  Nearer, Cesium's Moon
+  takes over (CESIUM.md).  4096×2048 (2.6 km a texel, 1.4 MB, so Git LFS
+  under `public/large/`) would hold to a 1.3° Moon on a 1,000 px canvas.
+- **No cast shadows yet.**  Slopes give each texel its own light, but a
+  crater's rim doesn't shadow its floor: past the terminator's last few
+  degrees of Sun, the real Moon's floors are black under lit rims, where
+  here they're lit by their own slopes.  That needs a horizon map (for
+  each texel, the horizon's elevation in, say, 8 azimuths, from the same
+  DEM; the light is cut where the Sun is under it: Max 1988, "Horizon
+  mapping"; Sloan & Cohen 2000), two RGBA textures at 2048×1024, about
+  2-4 MB as PNG, so Git LFS and `dataUrl('large/moon/…')`, and a shadow
+  term in the surface shader.  Proposed on #192, not added.
 
 ## Texture longitudes
 
