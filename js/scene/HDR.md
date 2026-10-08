@@ -556,17 +556,60 @@ through the air, before the tone map:
   Neutral, 33 through the sRGB curve.  The photographs (#192) also
   exposed past the Moon, its lit side saturated.
 
-**Proposed, not done:** the Moon's photometry (#192's first proposal: a
-lunar photometric function for its phase law, and its albedo from the
-stored values decoded) is about 3 stops of view 1 and the earthshine's
-3-6 times.  The rest is the display: a camera response, for a telescope's
-field or as a switch, that composites in linear light (the textures'
-stored values decoded) and ends in a camera's curve rather than Neutral's
-quadratic toe, would show the star as the photographs do.  The eye's
-calibration of the star field (the limit star at 12 of 255) is Neutral's
-toe's, so that is a mode beside the eye's, not a change to it.
-Celestiary's own Moon has no earthshine yet (CESIUM.md), so without ion
-view 2 runs to the dark gain and the night side is black.
+**Done: the Moon's photometry** (#192's first proposal; Planet.md, [the
+Moon's photometry](Planet.md#the-moons-photometry)).  Both Moons are lit
+by a lunar photometric function whose disc follows Horizons' V(1, α), with
+the colour map's stored values, a linear stretch of I/F (so not decoded:
+sRGB-decoded the highlands would be 4.5 times the maria, where the Moon's
+are about 2), scaled to the Moon's normal albedo, and both have
+earthshine through the same function.  Measured at the user's view on
+#192 (`cq=0.3804,-0.6783,-0.151,0.6103;fov=0.7547deg`, at 1000×597, so
+4.55″ a pixel), the linear buffer read through the atmosphere pass
+(`uDebug` 7) and divided by its transmittance (`uDebug` 1), so airless,
+as Horizons' numbers are; a pixel's value over the exposure is radiance in
+three's units, whose ratio to the Sun's irradiance at 1 AU gives
+magnitudes:
+
+| | Moon, V | Lit part's mean, mag/″² | Earthlit side's median, mag/″² | Gain (ev=10) |
+|---|---|---|---|---|
+| Horizons (`lunarPhotometry.horizons.json`) | −8.42 | 5.97 | 13.8-14.4 (above) | |
+| The model over the texture, this face | −8.32 | | | |
+| Before, celestiary's Moon | −10.95 | 3.41 | black (20.4: the sky's own light) | 1 |
+| After, celestiary's Moon | −8.31 | 6.07 | 13.72 | 2.09 |
+| After, Cesium's Moon (same page, layer forced on) | −8.32 | 6.05 | 13.72 | 2.09 |
+
+- **The Moon's light** is Horizons' to 0.11 mag, and the model's for the
+  face shown to 0.01: Horizons' law is for a uniform Moon, and this waning
+  crescent is the maria's side, 0.10 mag under it (the model over the
+  texture puts the waxing crescent at the same phase 0.10 over it, the
+  measured asymmetry of the lunar phase curve).  Before, it was 2.5 mag,
+  3.4 stops, bright.  With Earth's air (24.9° up) it is −7.96.
+- **Ratios in the linear buffer**, at ev=4 and sm=0 (no star bloom), against
+  physics at the same pixel and kernel (σ 0.6 px, 2.7″, a seeing disc):
+  HIP 46635's peak by the star law, 0.0066 (measured 0.0048, its centre
+  off a pixel's), over the lit part's mean, 2.73: 1/414, against 1/439
+  (5.97) to 1/481 (6.07); the lit mean over the earthlit median, 0.0024:
+  1,146, against 1,350-2,350; the star's peak over the earthlit median: 2.8,
+  against 3.1-5.4.  So the earthshine is at the bright end of its range
+  (0.1-0.6 mag over it; it was 3-6 times bright on Cesium's Moon, and
+  missing on celestiary's), and the star is within 0.1-0.2 mag of the lit
+  side.  At #198's 1.8″ pixels the star's peak is 1/100 of a lit pixel, as
+  above; the ratios scale with a pixel's area, as a camera's do.
+- **On screen at ev=10** (sm=2, the user's link): the crescent is
+  saturated (15% of the disc at 250 or more), the earthlit side shows its
+  maria and craters at 20 of 255 (10-32), HIP 46635 at 175, Jupiter blown,
+  the terminator's relief between: the photo's balance.  Before, the
+  earthlit side was 0 and the star 148.  The meter's gain under the EV is
+  2.09, from 1: the anchor now takes the Moon's own brightest surface at
+  its phase (Planet.md, the meter), where Lambert's estimate held it at
+  the target's keyed exposure.
+- **Still the display**: Neutral's quadratic toe takes the earthlit side
+  against the star, about 1:3 in light, to 20 against 175 on screen.  A
+  camera response, for a telescope's field or as a switch, that
+  composites in linear light and ends in a camera's curve rather than
+  Neutral's toe, would show it as the photographs do; the eye's
+  calibration of the star field (the limit star at 12 of 255) is the
+  toe's, so that is a mode beside the eye's, not a change to it.
 
 ## Metered exposure
 
