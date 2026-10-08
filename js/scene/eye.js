@@ -1,4 +1,4 @@
-import {DISPLAY_GAIN} from '../shared.js'
+import {DISPLAY_GAIN, SUN_ILLUMINANCE_LUX} from '../shared.js'
 import {
   EYE_POINT_RAD, LIMIT_VALUE, METER_GAIN_MAX, METER_KEY, SUN_APPARENT_MAGNITUDE, smoothstep,
 } from './exposure.js'
@@ -36,8 +36,9 @@ import {NEUTRAL_TOE_CURVATURE, NEUTRAL_TOE_END, neutral} from './hdr.js'
  */
 
 
-/** The Sun's V-band illuminance at 1 AU, lux (V = −26.74; V = 0 is 2.54e-6 lux). */
-export const SUN_ILLUMINANCE_LUX = 1.27e5
+// The Sun's V-band illuminance at 1 AU (shared.js), which the Sun's light
+// gives at 1 AU in three's units, now lux.
+export {SUN_ILLUMINANCE_LUX}
 /**
  * The luminance of one exposure unit at Earth's keyed exposure, cd/m²: a
  * white Lambertian surface facing the Sun at 1 AU, E/π = 4.0e4 cd/m², is

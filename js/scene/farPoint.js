@@ -160,7 +160,7 @@ export function farPointOptions(isMoon) {
     depthTest: true,
     depthWrite: false,
     // A marker, not a lit surface: tone mapping at the target-keyed
-    // exposure (~1e-17) made it black.
+    // exposure (~4e-5, a sunlit white's lux over its own) made it black.
     toneMapped: false,
   }
 }

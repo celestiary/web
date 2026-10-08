@@ -137,7 +137,7 @@ one expected brightening on Earth's disc; measured below.
 
 The in-scatter LUT gives `x = pRlh·inS.rgb + pMie·inS.a`: the sky's radiance
 per unit of solar irradiance at the top of the atmosphere, per steradian.  So
-the sky's radiance is `x·E`, with `E = I / d^decay` the Sun's irradiance at the
+the sky's radiance is `x·E`, with `E = I / d²` the Sun's irradiance at the
 planet (`shared.js`: `SUN_LUMINOUS_INTENSITY`, `SUN_LIGHT_DECAY`), and in
 exposure units that is `x·E·k`.  When the planet is the exposure target,
 `E·k = π·DISPLAY_GAIN` (`exposure.js`), so
@@ -371,9 +371,14 @@ from Mercury to Pluto.  92-94% of the stars to 6.5 in view render at 10
 of 255 or more in every field (the rest straddle the frame's edge or sit
 under a brighter star), against 28% at Mercury and 100% at Jupiter and
 Pluto in the first cut, when the gain followed the keyed exposure (0.45×
-Earth's at Mercury, 37× at Pluto), and 57-65% with the second cut's
+Earth's at Mercury, 37× at Pluto, under the old 1/d^1.01 falloff), and 57-65% with the second cut's
 σ = 0.4 × patch, whose sub-pixel Gaussian lost up to 5× of a faint
 star's peak with where it fell.
+
+The "keyed / Earth's" column is the old 1/d^1.01 falloff's; by the inverse
+square (Planet.md, [the Sun's light](Planet.md#the-suns-light-the-inverse-square))
+it is about 0.15 at Mercury, 2.4 at Mars, 27 at Jupiter and 1,560 at
+Pluto.  The absolute gain, and so the star counts, don't depend on it.
 
 | From | Keyed / Earth's | Absolute gain | Stars ≥ 10 of 255 to 6.5 (to 6.0) / in view | First cut (7cb678a): rendered / in view, at | σ = 0.4 × patch (cc83a76) |
 |---|---|---|---|---|---|
@@ -611,6 +616,15 @@ magnitudes:
   calibration of the star field (the limit star at 12 of 255) is the
   toe's, so that is a mode beside the eye's, not a change to it.
 
+**Done: the inverse-square light** (#192's second proposal; Planet.md,
+[the Sun's light](Planet.md#the-suns-light-the-inverse-square)).  The
+Sun's light fell off as 1/d^1.01, so Jupiter's disc at this view was 8.4
+times the crescent's surface brightness, where Horizons has 1.57, and the
+meter's gain, keyed to Jupiter, held the Moon down.  With 1/d² it is 1.61
+(Jupiter 5.53 mag/arcsec² against Horizons' 5.48, the crescent 6.05), and
+at the same EV the crescent is 2.5 times brighter in the buffer than in
+the table above.
+
 ## Metered exposure
 
 The target-keyed exposure ([Planet.md](Planet.md#lighting-and-exposure))
@@ -632,7 +646,10 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    landscape) shown as a sunlit one, set so that magnitude 6.5 just shows
    (above).  **The dark end is absolute**, over Earth's keyed exposure:
    the keyed exposure scales with the Sun's irradiance at the target
-   (0.4× Earth's at Mercury, 40× at Pluto), and a floor and ceiling in
+   (0.15× Earth's at Mercury, 1,560× at Pluto's 39.5 AU, by the inverse
+   square; 0.4× and 40× under the old 1/d^1.01 falloff, when this rule
+   was written: [Planet.md, the Sun's light](Planet.md#the-suns-light-the-inverse-square)),
+   and a floor and ceiling in
    keyed units made a dark frame's exposure, and the stars' limit with it,
    depend on the target, a magnitude shallower at Mercury and four deeper
    at Pluto (the user's preview: Mercury few stars, Pluto nearly all).
@@ -730,8 +747,9 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    left; at 45° the field keeps 4e6 and its stars; Earth's crescent from
    94,000 km (1.3% of the frame): 1.1, its clouds just white, no stars; Jupiter at a
    telescope's 0.04° field from Earth, 275 px across on a 1140 px frame
-   (2.3% of it): 2.16 (its keyed exposure is 5.3× Earth's by
-   `exposureAt`), its brightest band at 0.6 and its centre at 0.43, and
+   (2.3% of it): 2.16 (its keyed exposure was 5.3× Earth's by
+   `exposureAt` under the old falloff, 28× by the inverse square; the gain
+   is over Jupiter's own keyed exposure either way), its brightest band at 0.6 and its centre at 0.43, and
    2.16 and 2.20 at the next two steps of zoom out (255 and 230 px, the
    last under 2%), where the first cut gave 2.16, 2.16 and 4e6.  The
    percentile rules
@@ -769,7 +787,7 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    the disc reaches only from 5 Gm, and the user saw a white disc from
    50 Gm in.  The floor `METER_GAIN_MIN` is absolute, over Earth's keyed
    exposure, as the ceiling is: from Pluto's keyed exposure the same disc
-   needs 37× less.
+   needs 1,560× less (37× under the old falloff).
 7. **While the scene loads**, a frame with nothing in it (every sample
    exactly zero: a texture or the star catalogue still to come) asks for
    nothing, and the gain stays (`frameCanBeEmpty`: the star catalogue not
