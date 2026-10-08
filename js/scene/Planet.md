@@ -425,7 +425,14 @@ Under 24 px of radius, and farther than 20 radii:
   with record IDs, January to December: 73938, 73967, 73992, 74017, 74042,
   (none), 74092, 74117, 74142, 74167, 74192, 74218.  Scaled to 8192×4096, and from
   that to the 4096×2048 texture celestiary loads and to Cesium's base
-  layer: geographic 512 px tiles, levels 0-3 (`2004-MM/{z}/{x}/{y}.jpg`).
+  layers: that same file as a single image over the whole globe (Cesium's
+  `SingleTileImageryProvider`, so one request, already in the browser's
+  cache, where the first two tile levels were ten popping in), and over it
+  geographic 512 px tiles, levels 0-3 (`2004-MM/{z}/{x}/{y}.jpg`), used from
+  globe level 3: 4096 px across is level 2 of 512 px tiles, so levels 0-2
+  of the pyramid are the same picture, cut up.  No new data: the tiles of
+  `2004-MM/0/` to `2/` are no longer requested (about 1.2 MB a month, 14
+  MB in all), and can go once nothing else reads them.
   Same −180° left edge as before.  NASA has no June: it's May and July
   blended.  `earth.json` `texture_monthly` makes the map follow the
   simulation date's month (`monthly.js`, `Planet.monthlyMap`).  Earth's

@@ -59,9 +59,14 @@ export const CESIUM_BODIES = {
     // The globe's base imagery, the simulation date's month: tiles cut from
     // the Blue Marble mosaics celestiary's own Earth texture is from
     // (earth.json texture_monthly), so the two match across the swap.
-    // Geographic tiling, 512 px tiles, levels 0-3 (8192 x 4096 at 3).
+    // Geographic tiling, 512 px tiles, levels 0-3 (8192 x 4096 at 3).  The
+    // tiles serve only from globe level `fromLevel`; the levels above are
+    // `singleUrl`, the 4096 x 2048 map celestiary's own Earth is textured
+    // with (the browser has it already), one request in place of ten.
     monthlyImagery: {
       url: 'textures/earth/blue-marble/2004-{MM}/{z}/{x}/{y}.jpg',
+      singleUrl: 'textures/earth/blue-marble/2004-{MM}.jpg',
+      fromLevel: 3,
       tileSize: 512,
       maximumLevel: 3,
       credit: 'Blue Marble Next Generation: NASA Earth Observatory',

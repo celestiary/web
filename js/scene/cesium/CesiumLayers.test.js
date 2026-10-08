@@ -128,16 +128,27 @@ describe('decode', () => {
 
 
 describe('monthly imagery', () => {
-  // Cesium, as far as monthlyImageryLayer and _updateMonthlyImagery use it.
+  // Cesium, as far as monthlyBaseLayer, monthlyTileLayer and
+  // _updateMonthlyImagery use it.
   const Cesium = {
     ImageryLayer: class {
-      constructor(provider) {
+      constructor(provider, options) {
         this.url = provider.url
+        this.options = options
+        this.provider = provider
+      }
+
+      static fromProviderAsync(provider) {
+        const layer = new Cesium.ImageryLayer(provider)
+        layer.ready = true
+        return layer
       }
     },
+    SingleTileImageryProvider: {fromUrl: (url) => ({url, single: true})},
     UrlTemplateImageryProvider: class {
-      constructor({url}) {
+      constructor({url, minimumLevel}) {
         this.url = url
+        this.minimumLevel = minimumLevel
       }
     },
     GeographicTilingScheme: class {},
@@ -151,10 +162,15 @@ describe('monthly imagery', () => {
     globalThis.document = savedDocument
   })
   const julianDayOf = (iso) => (Date.parse(iso) / 864e5) + 2440587.5
+  const config = {monthlyImagery: {
+    url: 't/2004-{MM}/{z}/{x}/{y}.jpg', singleUrl: 't/2004-{MM}.jpg', fromLevel: 3,
+  }}
+  const mapUrl = (mm) => `https://example.org/t/2004-${mm}.jpg`
+  const tilesUrl = (mm) => `https://example.org/t/2004-${mm}/{z}/{x}/{y}.jpg`
   const setup = (iso) => {
     const L = new CesiumLayers({})
     L.time = {simTimeJulianDay: () => julianDayOf(iso)}
-    const list = [{url: 'base'}, {url: 'bing'}]
+    const list = [{url: 'map'}, {url: 'tiles'}, {url: 'bing'}]
     const globe = {tilesLoaded: false}
     const layers = {
       get: (i) => list[i],
@@ -162,25 +178,47 @@ describe('monthly imagery', () => {
       remove: (layer) => list.splice(list.indexOf(layer), 1),
     }
     const body = {Cesium, month: 3, widget: {imageryLayers: layers, scene: {globe}}}
-    return {L, list, globe, body, config: {monthlyImagery: {url: 't/2004-{MM}/{z}/{x}/{y}.jpg'}}}
+    return {L, list, globe, body}
   }
 
   it('adds the new month under the detail layer, and drops the old once the tiles are in', () => {
-    const {L, list, globe, body, config} = setup('2026-07-15T00:00:00Z')
+    const {L, list, globe, body} = setup('2026-07-15T00:00:00Z')
     L._updateMonthlyImagery(body, config)
-    expect(list.map((l) => l.url)).toEqual(['base', 'https://example.org/t/2004-07/{z}/{x}/{y}.jpg', 'bing'])
+    expect(list.map((l) => l.url)).toEqual(['map', 'tiles', mapUrl('07'), tilesUrl('07'), 'bing'])
     L._updateMonthlyImagery(body, config)
-    expect(list.length).toBe(3)
+    expect(list.length).toBe(5)
     globe.tilesLoaded = true
     L._updateMonthlyImagery(body, config)
-    expect(list.map((l) => l.url)).toEqual(['https://example.org/t/2004-07/{z}/{x}/{y}.jpg', 'bing'])
+    expect(list.map((l) => l.url)).toEqual([mapUrl('07'), tilesUrl('07'), 'bing'])
     expect(body.month).toBe(7)
   })
 
-  it('leaves the base alone within a month', () => {
-    const {L, list, body, config} = setup('2026-03-31T12:00:00Z')
+  it('keeps the old month until the new map has loaded', () => {
+    const {L, list, globe, body} = setup('2026-07-15T00:00:00Z')
     L._updateMonthlyImagery(body, config)
-    expect(list.map((l) => l.url)).toEqual(['base', 'bing'])
+    body.newBase.ready = false
+    globe.tilesLoaded = true
+    L._updateMonthlyImagery(body, config)
+    expect(list.length).toBe(5)
+    body.newBase.ready = true
+    L._updateMonthlyImagery(body, config)
+    expect(list.map((l) => l.url)).toEqual([mapUrl('07'), tilesUrl('07'), 'bing'])
+  })
+
+  it('leaves the base alone within a month', () => {
+    const {L, list, body} = setup('2026-03-31T12:00:00Z')
+    L._updateMonthlyImagery(body, config)
+    expect(list.map((l) => l.url)).toEqual(['map', 'tiles', 'bing'])
+  })
+
+  it('serves the tiles only from the globe level the map stops at', () => {
+    const {L, list, body} = setup('2026-07-15T00:00:00Z')
+    L._updateMonthlyImagery(body, config)
+    const [map, tiles] = [list[2], list[3]]
+    expect(map.provider.single).toBe(true)
+    expect(map.options).toBeUndefined()
+    expect(tiles.options).toEqual({minimumTerrainLevel: 3})
+    expect(tiles.provider.minimumLevel).toBe(3)
   })
 })
 
@@ -380,5 +418,111 @@ describe('activation', () => {
     expect(far.L._visibleAt('moon', far.moon)).toBe(null)
     const near = setup(new Vector3(3.844e8 + 6e8, 0, 0), new Vector3(3.844e8, 0, 0))
     expect(near.L._visibleAt('moon', near.moon)).not.toBe(null)
+  })
+})
+
+
+describe('ion requests', () => {
+  const rad = (deg) => deg * Math.PI / 180
+  // Cesium, as far as _requestIon and addIonImagery use it: counts what
+  // would ask ion for the imagery (a billed session).
+  const setup = () => {
+    const calls = {imagery: 0}
+    const night = {night: true}
+    const layers = [{base: true}, night]
+    const listeners = {error: [], ready: []}
+    const imagery = {
+      errorEvent: {addEventListener: (f) => listeners.error.push(f)},
+      readyEvent: {addEventListener: (f) => listeners.ready.push(f)},
+    }
+    const imageryLayers = {
+      indexOf: (l) => layers.indexOf(l),
+      add: (l, i) => layers.splice(i ?? layers.length, 0, l),
+      remove: (l) => {
+        const i = layers.indexOf(l)
+        if (i >= 0) {
+          layers.splice(i, 1)
+        }
+        return i >= 0
+      },
+    }
+    const Cesium = {
+      ImageryLayer: {
+        fromWorldImagery: () => {
+          calls.imagery++
+          return imagery
+        },
+      },
+    }
+    const widget = {imageryLayers, isDestroyed: () => false, scene: {globe: {}}}
+    const L = new CesiumLayers({})
+    const body = {Cesium, widget, night, heightM: Infinity, ion: {imagery: false}}
+    const at = (heightM, fov = rad(45), canvasHeight = 800) => {
+      body.heightM = heightM
+      L._requestIon('earth', body, fov, canvasHeight)
+    }
+    return {L, body, calls, layers, listeners, imagery, night, at}
+  }
+
+  it('asks for nothing from orbit: the landing view, 20,000 km, a telescope from the Moon', () => {
+    const {calls, at} = setup()
+    at(2e7)
+    at(5 * 6371e3)
+    at(3.78e8, rad(45))
+    at(3.78e8, rad(0.01))
+    at(3.78e8, rad(0.0001), 2160)
+    expect(calls).toEqual({imagery: 0})
+  })
+
+  it('asks for imagery once, when low', () => {
+    const {calls, at} = setup()
+    at(1e7)
+    expect(calls).toEqual({imagery: 0})
+    at(1e4)
+    expect(calls).toEqual({imagery: 1})
+  })
+
+  it('does not ask again on the way up and down', () => {
+    const {calls, at} = setup()
+    for (const h of [1e4, 1e7, 1e3, 3e8, 5e5, 1e4]) {
+      at(h)
+    }
+    expect(calls).toEqual({imagery: 1})
+  })
+
+  it('puts the imagery under the night lights', () => {
+    const {layers, night, imagery, at} = setup()
+    at(1e4)
+    expect(layers).toEqual([{base: true}, imagery, night])
+  })
+
+  it('asks for nothing of a body without ion (no token, or a tileset)', () => {
+    const {L, body, calls} = setup()
+    body.ion = null
+    body.heightM = 10
+    L._requestIon('earth', body, rad(45), 800)
+    expect(calls).toEqual({imagery: 0})
+  })
+
+  it('drops the imagery quietly when ion refuses it, keeping the base', () => {
+    const {layers, listeners, imagery, at} = setup()
+    const warnings = []
+    const warn = console.warn
+    console.warn = (...args) => warnings.push(args.join(' '))
+    try {
+      at(1e4)
+      expect(layers).toContain(imagery)
+      // A 403 whose body echoes the token: said by status only.
+      const refused = {statusCode: 403, response: {responseText: 'access_token=SECRET'}}
+      listeners.error[0](refused)
+      listeners.error[0](refused)
+    } finally {
+      console.warn = warn
+    }
+    expect(layers).not.toContain(imagery)
+    expect(layers[0]).toEqual({base: true})
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('HTTP 403')
+    expect(warnings[0]).not.toContain('SECRET')
   })
 })
