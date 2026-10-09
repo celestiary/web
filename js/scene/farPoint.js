@@ -1,6 +1,7 @@
 import {AdditiveBlending, Color, LOD, LinearSRGBColorSpace, Matrix4} from 'three'
-import {INITIAL_FOV, toRad} from '../shared.js'
+import {DISPLAY_GAIN, INITIAL_FOV, toRad} from '../shared.js'
 import {named} from '../utils.js'
+import {neutral} from './hdr.js'
 import {point} from './shapes.js'
 
 
@@ -175,4 +176,107 @@ export function newFarPoint(isMoon) {
   // HDR pipeline (hdr.js sceneReferred), so the marker's colour comes out
   // of the final tone map unchanged.
   return named(point(farPointOptions(isMoon)), 'far point')
+}
+
+
+/**
+ * Over this many times the distance at which the mesh takes over, the
+ * point is the marker; nearer, its light goes over to the disc's (the
+ * hand-off, farPointLevel).
+ */
+export const POINT_HANDOFF_RANGE = 4
+
+
+/**
+ * A Lambert sphere's light at a phase angle over its light at full phase:
+ * (sin α + (π − α) cos α) / π.
+ *
+ * @param {number} phaseAngle Radians, Sun-body-camera
+ * @returns {number} 1 at full, 0 at new
+ */
+export function lambertPhase(phaseAngle) {
+  const a = Math.min(Math.max(phaseAngle, 0), Math.PI)
+  return (Math.sin(a) + ((Math.PI - a) * Math.cos(a))) / Math.PI
+}
+
+
+/**
+ * A sunlit body's mean value over its disc, in exposure units: its colour
+ * map's mean stored value lit as a Lambert sphere (2/3 of the subsolar
+ * value at full phase, times lambertPhase), at the exposure the frame
+ * renders with over the body's own keyed one.
+ *
+ * @param {number} storedLuma Its colour map's mean, luma, times texture_gain
+ * @param {number} exposureOverKeyed toneMappingExposure over exposureAt the
+ *   body's distance from the Sun
+ * @param {number} phaseAngle Radians
+ * @returns {number}
+ */
+export function discMeanValue(storedLuma, exposureOverKeyed, phaseAngle) {
+  return storedLuma * DISPLAY_GAIN * exposureOverKeyed * (2 / 3) * lambertPhase(phaseAngle)
+}
+
+
+/**
+ * The light a disc a few pixels across shows, summed over its pixels in
+ * display values: its core, the pixels it covers, at the tone map of its
+ * mean value, and its rim, the pixels it partly covers, at the tone map
+ * of their share of it (smallDisc.js scales a pixel's value by its
+ * coverage before the tone map, whose toe darkens a dim pixel more).
+ *
+ * @param {number} radiusPx The disc's, in buffer px
+ * @param {number} value Its mean value, exposure units (discMeanValue)
+ * @returns {number} Display value × px
+ */
+export function discFlux(radiusPx, value) {
+  if (!(radiusPx > 0) || !(value > 0)) {
+    return 0
+  }
+  const area = Math.PI * radiusPx * radiusPx
+  const core = Math.PI * (Math.max(radiusPx - 0.5, 0) ** 2)
+  const ring = (Math.PI * ((radiusPx + 0.5) ** 2)) - core
+  const coverage = (area - core) / ring
+  const n = (v) => neutral([v, v, v])[0]
+  return (core * n(value)) + (ring * n(coverage * value))
+}
+
+
+/**
+ * The far point's display level: the marker's (1 for a planet,
+ * MOON_POINT_LEVEL for a moon) while the body is far, and the light the
+ * disc would show, spread over the point's pixels, where the mesh takes
+ * over, blended between over POINT_HANDOFF_RANGE of distance.  So at the
+ * hand-off the point and the disc carry the same light, and a body
+ * approached doesn't dim from a white marker to its disc (Mars at its
+ * arrival exposure: 3.75 to 0.5, 7 times, before this; DESIGN.md, "The
+ * far point").  The disc's light is its own at this distance,
+ * not the hand-off's, so farther in the blend it falls as the disc's
+ * would.
+ *
+ * @param {object} p
+ * @param {number} p.marker The marker's level
+ * @param {number} p.radiusPx The disc's radius were it drawn, buffer px
+ * @param {number} p.value discMeanValue
+ * @param {number} p.ratio The distance over the mesh's reach (1 at the
+ *   hand-off, more while the point is drawn)
+ * @param {number} p.pointPx The point's size, buffer px
+ * @returns {number} 0 to the marker's level, or to 1
+ */
+export function farPointLevel({marker, radiusPx, value, ratio, pointPx}) {
+  const disc = Math.min(discFlux(radiusPx, value) / Math.max(pointPx * pointPx, 1), 1)
+  const t = Math.min(Math.max(Math.log(Math.max(ratio, 1)) / Math.log(POINT_HANDOFF_RANGE), 0), 1)
+  const w = t * t * (3 - (2 * t))
+  return disc + ((marker - disc) * w)
+}
+
+
+/**
+ * @param {number} distance The camera's from the body, metres
+ * @param {number} radius The body's, metres
+ * @param {{fov: number}} camera
+ * @returns {number} The distance over the one at which the planet LOD
+ *   (FovLOD, drawnSize) hands the point over to the mesh: 1 there
+ */
+export function handoffRatio(distance, radius, camera) {
+  return distance * fovScale(camera) / (pointSwitchDistance(radius) * meshReach())
 }

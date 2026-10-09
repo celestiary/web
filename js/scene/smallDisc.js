@@ -80,6 +80,7 @@ export function newSmallDiscUniforms() {
     uDiscCentre: {value: new Vector3()},
     uDiscRadius: {value: 1},
     uViewToBody: {value: new Matrix3()},
+    uDiscProjection: {value: new Matrix4()},
   }
 }
 
@@ -112,6 +113,7 @@ export function updateSmallDisc(uniforms, renderer, camera, surface, radius) {
   uniforms.uDiscRadius.value = radius
   if (p.on) {
     uniforms.uViewToBody.value.setFromMatrix4(_mv).invert()
+    uniforms.uDiscProjection.value.copy(camera.projectionMatrix)
   }
 }
 
@@ -126,6 +128,7 @@ const DISC_FRAGMENT_GLSL = `
   vec2 discUv = vec2(0.0);
   vec2 discUvDx = vec2(0.0);
   vec2 discUvDy = vec2(0.0);
+  vec3 discHit = -vViewPosition;
   if (uDiscOn > 0.5) {
     vec3 rd = normalize(-vViewPosition);
     // From the centre to the ray's closest approach: both are ~the
@@ -142,6 +145,13 @@ const DISC_FRAGMENT_GLSL = `
     vec3 side = q > 0.0 ? off / q : vec3(0.0);
     float s = qs / uDiscRadius;
     discNormal = side * s - rd * sqrt(max(0.0, 1.0 - s * s));
+    // Where the ray meets the sphere, or for a pixel the disc only partly
+    // covers, its closest approach (the limb): the depth the grown mesh
+    // would otherwise write is up to its margin over the surface, above
+    // the air (Earth's at 22 radii: 1,000 km up), so the atmosphere pass
+    // drew no sky over the disc (Planet.md, "Small discs").
+    float along = dot(rd, uDiscCentre);
+    discHit = rd * (along - sqrt(max(0.0, (uDiscRadius * uDiscRadius) - (q * q))));
     // The body frame's direction, and three's sphere mapping (shapes.js
     // sphere: SphereGeometry, u from -x round through +z, v from +y down).
     vec3 b = normalize(uViewToBody * discNormal);
@@ -159,6 +169,12 @@ const DISC_FRAGMENT_GLSL = `
     }
     // Last: the derivatives above need the whole 2x2 quad.
     if (discCov <= 0.0) discard;
+  }
+  if (uDiscOn > 0.5) {
+    vec4 discClip = uDiscProjection * vec4(discHit, 1.0);
+    gl_FragDepth = clamp((0.5 * discClip.z / discClip.w) + 0.5, 0.0, 1.0);
+  } else {
+    gl_FragDepth = gl_FragCoord.z;
   }
 `
 
@@ -184,7 +200,8 @@ transformed *= uDiscInflate;`)
 uniform float uDiscOn;
 uniform vec3 uDiscCentre;
 uniform float uDiscRadius;
-uniform mat3 uViewToBody;`)
+uniform mat3 uViewToBody;
+uniform mat4 uDiscProjection;`)
         .replace('#include <map_fragment>', `${DISC_FRAGMENT_GLSL}
 #ifdef USE_MAP
   vec4 sampledDiffuseColor = uDiscOn > 0.5 ?

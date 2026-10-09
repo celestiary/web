@@ -608,6 +608,30 @@ the user started from, so the follow-up rotation depends on the starting body.
 The overlap means the camera starts moving before it finishes turning — there is no
 frame between the two phases where nothing is animating.
 
+### Approach
+
+Every planet and moon is gone to by one path, from the target switch to
+the arrival, and it diverges only where the surfaces do (a Cesium layer,
+an atmosphere, rings).  What a body looks like on the way is four things,
+each the same for all of them:
+
+| Stage | What | Where |
+|---|---|---|
+| Target switch | `setTarget` keys the exposure to the body (its distance from the Sun) and asks for its surface (`preloadNear`, served next frame), for a moon its planet's too, so its maps load while the camera turns | `Scene.setTarget`, `Planet.preloadNear` |
+| Exposure on the way | `goTo` hands the UI the travel (`ThreeUi.approach`): from the arrival pose it works out the gain the meter will settle on there (the sunlit-disc anchor of the body and whatever else that frame holds, over an otherwise dark frame: `exposure.js arrivalGain`), and each frame of the travel renders at the exposure without the travel blended to the arrival's, evenly in stops, by the position channel's eased progress (`approachExposure`, `tween.travelProgress()`).  On arriving the meter is handed that gain; readings of frames drawn on the way don't set its goal | `ThreeUi._approachStep`, [HDR.md, travel](js/scene/HDR.md#travel) |
+| LOD hand-off | the far point's light goes over to the disc's within 4× of the distance where the mesh takes over (`farPointLevel`), the small disc draws a few pixels at their coverage and writes the sphere's depth (so the atmosphere pass draws its sky over it), and the full mesh takes over at 24 px, all at the same exposure | [the far point](#the-far-point), [Planet.md, small discs](js/scene/Planet.md#small-discs) |
+| Surface before its maps | one-texel stand-ins (the colour map's mean over the sphere, a flat normal) until each map is in, so a slow map never leaves the body missing or black | `standInMaps.js`, [Planet.md, while the maps load](js/scene/Planet.md#while-the-maps-load) |
+
+Before, the exposure was the meter's alone, and the destination is a few
+pixels across until the last few frames of a travel, too late for a meter
+that eases up with a 1.5 s time constant: from the Sun's view (the meter
+stopped down for its disc) Mars arrived at 1/30 of its settled brightness
+and took 3 s to come up; from a star field (dark adapted) Earth arrived
+at 2,000-4,000 times its exposure, white, and the Moon too.  An approach
+interrupted (another tween, a link restored) just ends, and the exposure
+eases back to the meter's from where it was.  A landing (`newCameraLandTween`)
+and a travel to a star keep the meter's exposure.
+
 ### RTE interaction
 
 Stars, asterisms, and catalog star-name labels use Relative-To-Eye shaders that compute
@@ -824,6 +848,18 @@ single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
   among the stars.  `size` is in CSS px (three multiplies it by the
   renderer's pixel ratio), so it stays at least one drawn pixel at any
   display density.
+- **The hand-off to the disc.**  Within `POINT_HANDOFF_RANGE` (4) times
+  the distance where the mesh takes over, the point's level goes from the
+  marker's to the light the disc will show there, spread over the point's
+  pixels (`farPointLevel`: the brighter of the colour map's mean,
+  `textureMeans.json`, and the body's albedo, which is nearer for Earth,
+  whose disc is mostly its sky's light, lit as a Lambert sphere at the body's phase and the frame's exposure,
+  through the tone map with the rim's pixels at their coverage;
+  `Planet.handOffFarPoint`).  So the two carry the same light where they
+  swap: Mars at its exposure went from a white 2 px marker (3.75 summed)
+  to a disc of 0.5, seven times dimmer, as it was approached.  Farther
+  out it is the marker as before.  A body with no colour map keeps the
+  marker throughout.
 - **Not tone mapped** (`toneMapped: false`): the exposure follows the
   targeted body (~1e-17 far out), which drew the marker black (#85).  The
   colour is a display value, so it must be made with `point()`
@@ -1063,7 +1099,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/ThreeUI.js` | Three.js renderer/camera/controls wrapper |
 | `js/Loader.js` | Recursive JSON asset loader |
 | `js/Time.js` | Simulation clock with time-scale control (settable while paused: `j`/`k`/`l` and the panel's buttons; `onTimeScaleChange` tells the display), clamped to the supported dates (J2000 ± 6000 years) |
-| `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`, `newCameraLandTween`); the ones that move the camera are marked `travels` |
+| `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`, `newCameraLandTween`); the ones that move the camera are marked `travels`, and a go says how far along it is (`travelProgress`, which the exposure follows: [approach](#approach)) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
 | `js/faceKeepingRoll.js` | `faceKeepingRoll(camera, point)`: the shortest turn that centres a world point, leaving the camera's roll; what tracking (`t`) calls |
 | `js/follow.js` | `rehangPlatform(platform, camera, anchor)`: hang the camera platform on a node, keeping the camera's world position and orientation; what following (`f`) does ([follow](#follow)) |
@@ -1111,6 +1147,7 @@ and the provider extension contract.
 | `js/scene/clouds/` | Earth's clouds: `cloudSource.js` (date to GIBS layer, unmixing; pure), `CloudMap.js` (loading, the coverage texture), `CloudShell.js` (the shell and its shader) |
 | `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |
 | `js/scene/smallDisc.js` | A body's disc a few pixels across: antialiased coverage and the sphere's shading per fragment, patched into the surface material ([Planet.md](js/scene/Planet.md#small-discs)) |
+| `js/scene/standInMaps.js`, `js/scene/textureMeans.json` | One-texel stand-ins for a body's maps while they load (the colour map's mean, built by `tools/textureMeans.py`; a flat normal) ([Planet.md](js/scene/Planet.md#while-the-maps-load)) |
 | `js/scene/atmos/atmosphereBody.js` | Which body's air the atmosphere pass draws, and how far off it can |
 | `js/scene/Star.js` | A star: its light, its photosphere (`photosphere(props)`, `star-shaders.js`) and its limb glow |
 | `js/scene/stellar.js` | Stars' physics: temperature from class, blackbody colour and luminance, bolometric correction, limb darkening, granulation and spot laws ([Stars.md](js/scene/Stars.md)) |

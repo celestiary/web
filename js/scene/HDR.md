@@ -886,6 +886,44 @@ that overflowed it; a non-finite pixel in the meter counts as the maximum.
 The other end is floored: emitted radiance under `HDR_MIN_NORMAL` (6.1e-5,
 half-float's smallest normal value) is written as zero (below).
 
+### Travel
+
+**On the way to a body, the exposure follows the destination**
+(`ThreeUi.approach`, `exposure.js arrivalGain` and `approachExposure`;
+DESIGN.md, [approach](../../DESIGN.md#approach)).  The meter alone can't:
+the destination is a few pixels across until the last few frames of a
+1.8 s travel, and the gain eases up with a time constant of 1.5 s (rule 9,
+the eye adapting to the dark).  So a body arrived at whatever exposure
+the meter had been heading for, and took seconds to settle:
+
+- from the Sun's view, just after loading (the meter stopped down for the
+  disc, 0.01 of the keyed exposure), Mars arrived at 0.5 of its gain with
+  its disc at 0.3% of its settled brightness, 3 s to settle (the user's
+  report: "mars is dark as i approach");
+- from a dark-adapted frame, Earth arrived at a gain of 4,300 and the Moon
+  4,900, white, 2-3 s to settle; Jupiter and Europa at 5 and 12;
+- and with the colour map still loading, the surface wasn't drawn, the
+  meter held (rule 7) at the Sun's gain, and Mars was missing until the
+  map came, then dark for seconds more.
+
+When the travel starts, the gain the meter will settle on at the arrival
+is worked out from the arrival pose: the sunlit-disc anchor (rule 5) of
+the body and of whatever else is in that frame, over a frame otherwise
+dark (the dark-adapted gain, absolute).  A sunlit arrival is exposed for
+its disc (Mars 1.07, Jupiter, Earth and Europa 1); a night-side one,
+which doesn't anchor, for the dark.  Each frame of the travel renders at
+the exposure it would have had blended to the arrival's, evenly in stops,
+by the position channel's eased progress, so it is the old exposure while
+the camera turns and the arrival's when it gets there.  On arriving the
+meter is handed that gain as its gain and its goal, and readings of
+frames drawn on the way don't set the goal (`_meterContext().approach`),
+so nothing moves after.  The Moon is the exception that shows the rule's
+limit: from beyond it, with Earth beside it in the frame, the frame's own
+highlight rule (rule 3) takes the gain on from 2.6 to 1.35 in about half
+a second (tau 0.3 s), as the prediction counts the discs' anchors and not
+the frame's percentiles.  Measured, before and after, in the PR
+([#220](https://github.com/celestiary/web/pull/220)).
+
 ### Pre-exposure
 
 [#157](https://github.com/celestiary/web/issues/157).  **The buffer holds

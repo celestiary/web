@@ -71,7 +71,10 @@ export function newCameraGoToTween(camera, targetWorldPos, endLocalPos) {
   const rotEnd = 0.6 // rotation finishes at 60% of total
   const posStart = 0.4 // position begins at 40% of total (overlap: 40–60%)
 
-  return travels(new Tween({t: 0})
+  // How far along the way the camera is, the position channel's eased
+  // fraction: what the exposure follows on the way (ThreeUi.approach).
+  let progress = 0
+  const tween = travels(new Tween({t: 0})
       .to({t: 1}, totalMs)
       .easing(Easing.Linear.None) // easing applied per-channel below
       .onUpdate(({t}) => {
@@ -79,10 +82,13 @@ export function newCameraGoToTween(camera, targetWorldPos, endLocalPos) {
         camera.quaternion.slerpQuaternions(startQuat, endQuat, easeInOutQuad(rotT))
         if (t > posStart) {
           const posT = (t - posStart) / (1 - posStart)
-          camera.position.lerpVectors(startPos, endLocalPos, easeInOutQuad(posT))
+          progress = easeInOutQuad(posT)
+          camera.position.lerpVectors(startPos, endLocalPos, progress)
         }
       })
       .start())
+  tween.travelProgress = () => progress
+  return tween
 }
 
 

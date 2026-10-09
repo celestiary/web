@@ -791,11 +791,17 @@ export default class Scene {
       (obj.initialCameraDistance ?? (obj.props.radius.scalar * STEP_BACK)) :
       (star.radius * STEP_BACK)
     const arrivalWorld = targetWorldPos.clone().addScaledVector(dir, camDist)
-    const arrivalLocal = this.ui.camera.platform.worldToLocal(arrivalWorld)
+    const arrivalLocal = this.ui.camera.platform.worldToLocal(arrivalWorld.clone())
 
     // Single unified tween that overlaps rotation and movement.
     Shared.targets.tween = newCameraGoToTween(this.ui.camera, targetWorldPos, arrivalLocal)
     Shared.targets.tweenNextFn = null
+    // The exposure follows the destination on the way, and arrives at the
+    // one its arrival pose asks for: one path for every planet and moon
+    // (ThreeUi.approach; DESIGN.md, "Approach").
+    if (isPlanet) {
+      this.ui.approach?.(obj, arrivalWorld, Shared.targets.tween)
+    }
 
     // Reset drag mode to 'auto' on planet navigation so the next
     // pointerdown re-evaluates pickDragMode against the actual camera

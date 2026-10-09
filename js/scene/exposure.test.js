@@ -9,6 +9,7 @@ import {
   METER_HIGHLIGHT_FRACTION, STAR_GLARE_CORE_PATCHES, SUNLIT_FRAME_WEIGHT, SUNLIT_FRAME_FRACTION,
   STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, STAR_VISIBLE_VALUE, SUN_DISC_RADIANCE,
   GALAXY_FRAME, GALAXY_GAIN_MAX, GALAXY_HIGHLIGHT, GALAXY_HIGHLIGHT_FRACTION, GALAXY_LIT_RELATIVE, galaxyGain,
+  approachExposure, arrivalGain,
 } from './exposure.js'
 import {readFileSync} from 'fs'
 import {EYE_GLSL} from './eye.js'
@@ -995,5 +996,66 @@ describe('a telescope\'s field', () => {
     expect(declared).not.toBeNull()
     expect(Number(declared[1])).toBeCloseTo(Math.tan(22.5 * Math.PI / 180), 7)
     expect(source).toMatch(/patchRad = max\(pxRad, EYE_POINT_RAD \/ magnification\)/)
+  })
+})
+
+
+describe('travel to a body', () => {
+  const AU = ASTRO_UNIT_METER
+  const halfFov = 22.5 * Math.PI / 180
+  // A body at its arrival pose: 10 radii out (Scene.goTo's STEP_BACK), a
+  // disc 78 px across on a 480×320 frame, 3% of it.
+  const arrival = (distanceAu, litFraction, albedo = 0.25) => ({
+    angularRadius: Math.asin(0.1),
+    litFraction,
+    keyedExposure: exposureAt(distanceAu * AU),
+    albedo,
+    highlight: 0,
+    diameterPx: 78,
+    frameFraction: 0.031,
+  })
+
+  it('arrives exposed for a sunlit disc, as the meter exposes it once there', () => {
+    for (const r of [0.39, 1, 1.52, 5.2, 30]) {
+      const a = arrival(r, 0.95)
+      const keyed = a.keyedExposure
+      const g = arrivalGain([a], keyed, halfFov, keyed / exposureAt(AU))
+      // The meter, a frame after arriving, over a dark frame: the same.
+      const dark = METER_GAIN_MAX / (keyed / exposureAt(AU))
+      expect(g).toBeCloseTo(sunlitBodyGain(dark, [a], keyed, halfFov), 9)
+      // Its brightest sunlit surface at a sunlit surface's value: about
+      // the keyed exposure, whatever the distance from the Sun.
+      expect(g).toBeGreaterThanOrEqual(1)
+      expect(g).toBeLessThan(2)
+    }
+  })
+
+  it('arrives dark adapted at a night side, which does not anchor', () => {
+    const a = arrival(1.52, 0.01)
+    const keyedOverEarth = a.keyedExposure / exposureAt(AU)
+    expect(arrivalGain([a], a.keyedExposure, halfFov, keyedOverEarth)).toBeCloseTo(METER_GAIN_MAX / keyedOverEarth, 6)
+  })
+
+  it('blends from the live exposure to the arrival\'s evenly in stops', () => {
+    const live = 1e-6
+    const arrive = 1e-4
+    expect(approachExposure(live, arrive, 0)).toBeCloseTo(live, 15)
+    expect(approachExposure(live, arrive, 1)).toBeCloseTo(arrive, 15)
+    expect(approachExposure(live, arrive, 0.5)).toBeCloseTo(1e-5, 15)
+    // Monotone, and no step anywhere along the way: 1% of the travel moves
+    // it 1% of the stops.
+    let prev = live
+    for (let i = 1; i <= 100; i++) {
+      const e = approachExposure(live, arrive, i / 100)
+      expect(e).toBeGreaterThan(prev)
+      expect(Math.log2(e / prev)).toBeCloseTo(Math.log2(arrive / live) / 100, 9)
+      prev = e
+    }
+    // Held to the travel.
+    expect(approachExposure(live, arrive, -1)).toBe(live)
+    expect(approachExposure(live, arrive, 2)).toBeCloseTo(arrive, 15)
+    expect(approachExposure(live, arrive, NaN)).toBe(live)
+    expect(approachExposure(live, 0, 0.5)).toBe(live)
+    expect(approachExposure(0, arrive, 0.5)).toBe(arrive)
   })
 })
