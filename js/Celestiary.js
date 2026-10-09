@@ -58,6 +58,8 @@ export default class Celestiary {
     this._sizeContainer(canvasContainer)
     const animCb = (scene) => {
       this.animation.animate(scene)
+      // Before tracking, so it faces the target from where the camera now is.
+      this.scene.syncFollow()
       if (Shared.targets.track) {
         // Centre the target, whatever roll the view has.
         this.scene.lookAtTarget({keepRoll: true})
@@ -77,6 +79,12 @@ export default class Celestiary {
     // Any settings toggle (asterisms, grids, etc.) updates the permalink so
     // the URL always reflects the live view configuration.
     this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
+    // 't' and 'f' say what they switched, on the readout (onNavMode).
+    this.scene.onModeChange = (mode, on, note) => {
+      if (!this._navQuiet) {
+        this._navModeListeners.forEach((fn) => fn(mode, on, note))
+      }
+    }
     // 'v' (nav panels) is a Celestiary-level toggle — register the applier
     // so Scene.applySettings can drive it on permalink restore.
     this.scene.registerSettingApplier('v', () => this._toggleNav())
@@ -88,6 +96,9 @@ export default class Celestiary {
     this._evListeners = new Set
     // And of the stars' setting (onStarMagnitude).
     this._starMagListeners = new Set
+    // And of tracking and following being switched (onNavMode).
+    this._navModeListeners = new Set
+    this._navQuiet = false
     // The link holds the clock's pause, rate and date.
     this.time.onTimeScaleChange(() => this._schedulePermalinkUpdate())
     // Callbacks waiting for a body to load, by name (_loadBody).
@@ -180,6 +191,18 @@ export default class Celestiary {
   onStarMagnitude(fn) {
     this._starMagListeners.add(fn)
     return () => this._starMagListeners.delete(fn)
+  }
+
+
+  /**
+   * @param {Function} fn Called with the mode ('track' or 'follow'),
+   *   whether it is on and, when 'f' couldn't turn following off, why
+   *   ('root', 'landed'), when 't' or 'f' (or a link) switches it
+   * @returns {Function} Stops listening
+   */
+  onNavMode(fn) {
+    this._navModeListeners.add(fn)
+    return () => this._navModeListeners.delete(fn)
   }
 
 
@@ -354,15 +377,25 @@ export default class Celestiary {
       this._restoreClock(pl)
       this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
       this.ui.scene.updateMatrixWorld()
+      // Going there turns following on; the link's own state follows, and the
+      // readout hears of that alone.
+      this._navQuiet = true
       try {
         this._restoreView(pl, frame)
       } catch (e) {
         console.error('Permalink restore failed:', e)
+      } finally {
+        this._navQuiet = false
       }
       this._resolveTarget(resolved, (target) => {
         this.scene.setTarget(target, {look: false})
-        // Tracking is on top of the target, so it follows it.
+        // Tracking and following are on top of the target, so they follow it.
         this.scene.setTracking(pl.settings.T)
+        // Following is of the camera's frame: on if the link says (`F`), or
+        // if the frame is the target's own body, which is how links before
+        // `F` rode (design/URLs.md).
+        const ownFrame = frame.kind !== 'star' && (!pl.from || pl.from === REF_FRAME[resolved.kind](resolved))
+        this.scene.restoreFollowing(pl.settings.F || ownFrame)
       })
     } else {
       this._goToResolved(resolved, frame)
@@ -923,8 +956,8 @@ export default class Celestiary {
     k.map('f', () => {
       this.scene.follow()
     },
-    'Follow current node',
-    undefined,
+    'Follow: ride the target\'s orbit (on after going there; off leaves it)',
+    () => Boolean(Shared.targets.follow),
     'Targeting')
     k.map('g', () => {
       this.goTo()
@@ -944,8 +977,8 @@ export default class Celestiary {
     k.map('t', () => {
       this.scene.track()
     },
-    'Track target node',
-    undefined,
+    'Track target (keep it centred)',
+    () => Shared.targets.track,
     'Targeting')
     k.map('u', () => {
       this.scene.targetParent()

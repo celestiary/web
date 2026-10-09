@@ -361,7 +361,8 @@ describe('Scene.applySettings', () => {
     // A is also merged in by getSettings (default false for this Scene-
     // level snapshot — the live AR state is folded in at the permalink
     // writer in Celestiary, not here).
-    expect(s.getSettings()).toEqual({...target, L: false, A: false, T: false})
+    Shared.targets.follow = null // going (a test elsewhere) turns it on
+    expect(s.getSettings()).toEqual({...target, L: false, A: false, T: false, F: false})
     expect(milkyWay.visible).toBe(false)
   })
 })
@@ -870,5 +871,391 @@ describe('the target star\'s label', () => {
     s.stars = {...fakeStars(), setTargetStar: (st) => seen.push(st)}
     s.setTarget({kind: 'star', star: {hipId: 0, x: 0, y: 0, z: 0}, name: 'Sun'}, {look: false})
     expect(seen).toEqual([null])
+  })
+})
+
+
+describe('Scene following', () => {
+  const JUPITER_M = 7.78e11
+  const MM = 1e-3
+
+  /**
+   * The Sun, Jupiter and Io as the app hangs them: each body node a
+   * descendant of its `orbitPosition`, which the animation moves; Io's
+   * under Jupiter's.  The camera platform is at the Sun, the camera 3e8 m
+   * from Jupiter and turned to look off to one side, following nothing.
+   */
+  function makeSolarSystem() {
+    const scene = new ThreeScene()
+    const camera = new PerspectiveCamera(45, 1, 1, 1e12)
+    camera.platform = new Object3D()
+    camera.platform.name = 'CameraPlatform'
+    camera.platform.add(camera)
+    const ui = {scene, camera, addClickCb: () => {}}
+    const s = new Scene(ui)
+    const body = (name, parentName, parentNode) => {
+      const orbitPosition = new Object3D()
+      orbitPosition.name = `${name} orbitPosition`
+      parentNode.add(orbitPosition)
+      const node = new Object3D()
+      node.name = name
+      node.props = {name, parent: parentName, radius: {scalar: 1e6}}
+      node.orbitPosition = orbitPosition
+      orbitPosition.add(node)
+      s.objects[name] = node
+      return node
+    }
+    const sun = body('sun', undefined, s.worldGroup)
+    const jupiter = body('jupiter', 'sun', sun.orbitPosition)
+    const io = body('io', 'jupiter', jupiter.orbitPosition)
+    jupiter.orbitPosition.position.set(JUPITER_M, 0, 0)
+    io.orbitPosition.position.set(4.2e8, 0, 0)
+    sun.orbitPosition.add(camera.platform)
+    camera.position.set(JUPITER_M + 3e8, 1e8, -2e8)
+    camera.quaternion.setFromAxisAngle(new Vector3(0.3, 1, 0.2).normalize(), 0.9)
+    scene.updateMatrixWorld()
+    Shared.targets.cur = sun
+    Shared.targets.landed = false
+    Shared.targets.tween = null
+    Shared.targets.follow = null
+    Shared.targets.label = null
+    s.setTarget('jupiter', {look: false})
+    return {s, ui, scene, camera, sun, jupiter, io}
+  }
+
+  /** @returns {Vector3} Where the camera is from the node, in the world's axes */
+  const offsetFrom = (camera, node) =>
+    camera.getWorldPosition(new Vector3).sub(node.getWorldPosition(new Vector3))
+
+  /** One frame's animation: the body's orbit moves it. */
+  const moveJupiter = (scene, jupiter, angle) => {
+    jupiter.orbitPosition.position.set(JUPITER_M * Math.cos(angle), 0, -JUPITER_M * Math.sin(angle))
+    scene.updateMatrixWorld()
+  }
+
+  /** @returns {object} The scene with the camera gone to Jupiter, tween done */
+  function arrivedAtJupiter() {
+    const sys = makeSolarSystem()
+    sys.s.goTo()
+    Shared.targets.tween = null
+    sys.scene.updateMatrixWorld()
+    return sys
+  }
+
+  it('rides the followed body: the camera keeps its offset and its orientation', () => {
+    const {s, scene, camera, jupiter} = makeSolarSystem()
+    const offset = offsetFrom(camera, jupiter)
+    const quat = camera.getWorldQuaternion(new Quaternion)
+    s.setFollowing(true)
+    for (let i = 0; i <= 360; i++) {
+      moveJupiter(scene, jupiter, i * Math.PI / 180 / 12)
+      s.syncFollow()
+      scene.updateMatrixWorld()
+      expect(offsetFrom(camera, jupiter).distanceTo(offset)).toBeLessThan(MM)
+    }
+    expect(camera.getWorldQuaternion(new Quaternion).angleTo(quat)).toBeLessThan(1e-12)
+    expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+  })
+
+  it('leaves the camera behind when it is off', () => {
+    const {s, scene, camera, jupiter} = makeSolarSystem()
+    const offset = offsetFrom(camera, jupiter)
+    moveJupiter(scene, jupiter, 0.3)
+    s.syncFollow()
+    scene.updateMatrixWorld()
+    expect(offsetFrom(camera, jupiter).distanceTo(offset)).toBeGreaterThan(1e10)
+  })
+
+  it('still lets the user look around: a turn of the camera is kept', () => {
+    const {s, scene, camera, jupiter} = makeSolarSystem()
+    s.setFollowing(true)
+    camera.quaternion.premultiply(new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), 0.5))
+    const quat = camera.quaternion.clone()
+    moveJupiter(scene, jupiter, 0.2)
+    s.syncFollow()
+    expect(camera.quaternion.angleTo(quat)).toBe(0)
+  })
+
+  it('puts the camera back in its frame, where it is, when turned off after riding from there', () => {
+    const {s, scene, camera, sun, jupiter} = makeSolarSystem()
+    s.setFollowing(true)
+    expect(Shared.targets.cur).toBe(jupiter)
+    moveJupiter(scene, jupiter, 0.4)
+    s.syncFollow()
+    scene.updateMatrixWorld()
+    const at = camera.getWorldPosition(new Vector3)
+    s.setFollowing(false)
+    scene.updateMatrixWorld()
+    expect(camera.platform.parent).toBe(sun.orbitPosition)
+    expect(Shared.targets.cur).toBe(sun)
+    expect(camera.getWorldPosition(new Vector3).distanceTo(at)).toBeLessThan(MM)
+    moveJupiter(scene, jupiter, 0.9)
+    expect(camera.getWorldPosition(new Vector3).distanceTo(at)).toBeLessThan(MM)
+  })
+
+  describe('going', () => {
+    it('turns following on for the body gone to, and says so', () => {
+      const {s, jupiter} = makeSolarSystem()
+      const seen = []
+      s.onModeChange = (mode, on) => seen.push([mode, on])
+      s.goTo()
+      expect(Shared.targets.follow).toBe(jupiter.orbitPosition)
+      expect(s.getSettings().F).toBe(true)
+      expect(seen).toEqual([['follow', true]])
+      // And going again, to another body, is still on, saying nothing more.
+      s.setTarget('io', {look: false})
+      s.goTo()
+      expect(Shared.targets.follow).toBe(s.objects.io.orbitPosition)
+      expect(seen).toEqual([['follow', true]])
+    })
+
+    it('is off at a star, which has no orbit to ride', () => {
+      const {s} = makeSolarSystem()
+      s.worldGroup.add(s.stellarFrame)
+      s.goTo()
+      const star = {hipId: 11767, x: 1e18, y: 2e17, z: -3e17, radius: 1e9}
+      s.goTo(star, 'Polaris')
+      expect(Shared.targets.follow).toBeNull()
+      expect(s.getSettings().F).toBe(false)
+    })
+
+    it('turns it on for a landing too', () => {
+      const {s, jupiter} = makeSolarSystem()
+      s.land('jupiter', 0, 0, 100, {instant: true})
+      expect(Shared.targets.follow).toBe(jupiter.orbitPosition)
+    })
+
+    it('"f" turns it off by leaving the body: the camera stays, the body moves on', () => {
+      const {s, scene, camera, sun, jupiter} = arrivedAtJupiter()
+      const at = camera.getWorldPosition(new Vector3)
+      const quat = camera.getWorldQuaternion(new Quaternion)
+      const offset = offsetFrom(camera, jupiter)
+      s.follow()
+      scene.updateMatrixWorld()
+      expect(Shared.targets.follow).toBeNull()
+      expect(s.getSettings().F).toBe(false)
+      // To the body's frame, the Sun's, which is now the camera's frame.
+      expect(camera.platform.parent).toBe(sun.orbitPosition)
+      expect(Shared.targets.cur).toBe(sun)
+      expect(camera.getWorldPosition(new Vector3).distanceTo(at)).toBeLessThan(MM)
+      expect(camera.getWorldQuaternion(new Quaternion).angleTo(quat)).toBeLessThan(1e-12)
+      // Jupiter moves away from it.
+      moveJupiter(scene, jupiter, 0.5)
+      s.syncFollow()
+      scene.updateMatrixWorld()
+      expect(camera.getWorldPosition(new Vector3).distanceTo(at)).toBeLessThan(MM)
+      expect(offsetFrom(camera, jupiter).distanceTo(offset)).toBeGreaterThan(1e10)
+      // The controls' target is still the platform's origin, and the
+      // camera's position is its offset from the Sun.
+      expect(camera.platform.position.toArray()).toEqual([0, 0, 0])
+      expect(camera.position.distanceTo(camera.getWorldPosition(new Vector3).sub(sun.getWorldPosition(new Vector3))))
+          .toBeLessThan(MM)
+    })
+
+    it('"f" again rides the target, and off again goes back to where it was', () => {
+      const {s, scene, camera, sun, jupiter} = arrivedAtJupiter()
+      s.follow()
+      moveJupiter(scene, jupiter, 0.5)
+      scene.updateMatrixWorld()
+      const offset = offsetFrom(camera, jupiter)
+      s.follow()
+      expect(Shared.targets.follow).toBe(jupiter.orbitPosition)
+      expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+      for (let i = 1; i <= 10; i++) {
+        moveJupiter(scene, jupiter, 0.5 + (i * 0.1))
+        s.syncFollow()
+        scene.updateMatrixWorld()
+        expect(offsetFrom(camera, jupiter).distanceTo(offset)).toBeLessThan(MM)
+      }
+      s.follow()
+      expect(camera.platform.parent).toBe(sun.orbitPosition)
+      expect(Shared.targets.follow).toBeNull()
+    })
+
+    it('leaves a moon for its planet\'s frame', () => {
+      const {s, scene, camera, jupiter, io} = makeSolarSystem()
+      s.setTarget('io', {look: false})
+      s.goTo()
+      Shared.targets.tween = null
+      expect(Shared.targets.follow).toBe(io.orbitPosition)
+      const at = camera.getWorldPosition(new Vector3)
+      s.follow()
+      scene.updateMatrixWorld()
+      expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+      expect(Shared.targets.cur).toBe(jupiter)
+      expect(camera.getWorldPosition(new Vector3).distanceTo(at)).toBeLessThan(MM)
+      io.orbitPosition.position.set(0, 0, 4.2e8)
+      scene.updateMatrixWorld()
+      expect(camera.getWorldPosition(new Vector3).distanceTo(at)).toBeLessThan(MM)
+    })
+
+    it('can\'t leave the Sun, which has nothing above it, and says so', () => {
+      const {s, scene, camera, sun} = makeSolarSystem()
+      s.setTarget('sun', {look: false})
+      s.goTo()
+      Shared.targets.tween = null
+      const seen = []
+      s.onModeChange = (...args) => seen.push(args)
+      s.follow()
+      expect(Shared.targets.follow).toBe(sun.orbitPosition)
+      expect(camera.platform.parent).toBe(sun.orbitPosition)
+      expect(seen).toEqual([['follow', true, 'root']])
+      scene.updateMatrixWorld()
+    })
+
+    it('at the Sun, rides the target instead when another body is targeted, and off goes back', () => {
+      const {s, scene, camera, sun, jupiter} = makeSolarSystem()
+      s.setTarget('sun', {look: false})
+      s.goTo()
+      Shared.targets.tween = null
+      s.setTarget('jupiter', {look: false})
+      const offset = offsetFrom(camera, jupiter)
+      s.follow()
+      expect(Shared.targets.follow).toBe(jupiter.orbitPosition)
+      expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+      moveJupiter(scene, jupiter, 0.5)
+      s.syncFollow()
+      scene.updateMatrixWorld()
+      expect(offsetFrom(camera, jupiter).distanceTo(offset)).toBeLessThan(MM)
+      s.follow()
+      expect(Shared.targets.follow).toBeNull()
+      expect(camera.platform.parent).toBe(sun.orbitPosition)
+    })
+
+    it('can\'t leave a surface it is landed on, and says so', () => {
+      const {s, camera, jupiter} = makeSolarSystem()
+      s.land('jupiter', 0, 0, 100, {instant: true})
+      const seen = []
+      s.onModeChange = (...args) => seen.push(args)
+      s.follow()
+      s.syncFollow()
+      expect(Shared.targets.follow).toBe(jupiter.orbitPosition)
+      expect(camera.platform.parent).toBe(jupiter)
+      expect(seen).toEqual([['follow', true, 'landed']])
+      Shared.targets.landed = false
+    })
+
+    it('waits while a go travels, then leaves from wherever the camera is', () => {
+      const {s, scene, camera, sun} = arrivedAtJupiter()
+      Shared.targets.tween = {travels: true, update: () => true}
+      s.follow()
+      expect(camera.platform.parent).not.toBe(sun.orbitPosition)
+      Shared.targets.tween = null
+      camera.position.x += 5e7
+      scene.updateMatrixWorld()
+      const at = camera.getWorldPosition(new Vector3)
+      s.syncFollow()
+      scene.updateMatrixWorld()
+      expect(camera.platform.parent).toBe(sun.orbitPosition)
+      expect(camera.getWorldPosition(new Vector3).distanceTo(at)).toBeLessThan(MM)
+    })
+  })
+
+  it('goes to a body and rides it, whatever was riding before', () => {
+    const {s, camera, io} = makeSolarSystem()
+    s.setFollowing(true)
+    s.setTarget('io', {look: false})
+    s.goTo()
+    Shared.targets.tween = null
+    s.syncFollow()
+    expect(camera.platform.parent).toBe(io.orbitPosition)
+    expect(Shared.targets.follow).toBe(io.orbitPosition)
+  })
+
+  it('waits while a go travels, then rides from wherever the camera is', () => {
+    const {s, scene, camera, jupiter} = makeSolarSystem()
+    Shared.targets.tween = {travels: true, update: () => true}
+    s.setFollowing(true)
+    expect(camera.platform.parent).not.toBe(jupiter.orbitPosition)
+    // The tween ended; the camera is where it got to.
+    Shared.targets.tween = null
+    camera.position.x += 5e7
+    scene.updateMatrixWorld()
+    const offset = offsetFrom(camera, jupiter)
+    s.syncFollow()
+    scene.updateMatrixWorld()
+    expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+    expect(offsetFrom(camera, jupiter).distanceTo(offset)).toBeLessThan(MM)
+  })
+
+  it('does not wait for a look tween, which only turns the camera', () => {
+    const {s, camera, jupiter} = makeSolarSystem()
+    Shared.targets.tween = {update: () => true}
+    s.setFollowing(true)
+    expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+  })
+
+  it('keeps riding the same body when the target changes: looking at another is not leaving', () => {
+    const {s, scene, camera, jupiter, io} = arrivedAtJupiter()
+    s.setTarget('io', {look: false})
+    s.setTarget({kind: 'asterism', name: 'Orion', position: {x: 1e17, y: 0, z: 0}}, {look: false})
+    s.setTarget({kind: 'place', body: 'io', name: 'X', lat: 0, lng: 0, alt: 0}, {look: false})
+    expect(Shared.targets.follow).toBe(jupiter.orbitPosition)
+    s.syncFollow()
+    expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+    const offset = offsetFrom(camera, jupiter)
+    moveJupiter(scene, jupiter, 0.5)
+    s.syncFollow()
+    scene.updateMatrixWorld()
+    expect(offsetFrom(camera, jupiter).distanceTo(offset)).toBeLessThan(MM)
+    // "f" turns that off, then on is of the target, Io.
+    s.follow()
+    s.follow()
+    expect(Shared.targets.follow).toBe(io.orbitPosition)
+  })
+
+  it('does not follow from a star', () => {
+    const {s, camera, jupiter} = makeSolarSystem()
+    s.setFollowing(true)
+    s._getOrCreateStarAnchor().add(camera.platform)
+    s.syncFollow()
+    expect(camera.platform.parent).toBe(s._starAnchor)
+    expect(Shared.targets.follow).toBe(jupiter.orbitPosition)
+  })
+
+  it('has no body to follow with a star targeted', () => {
+    const {s} = makeSolarSystem()
+    s.setTarget({kind: 'asterism', name: 'Orion', position: {x: 1e17, y: 0, z: 0}}, {look: false})
+    const err = console.error
+    console.error = () => {}
+    try {
+      s.setFollowing(true)
+    } finally {
+      console.error = err
+    }
+    expect(Shared.targets.follow).toBeNull()
+  })
+
+  it('restores a link\'s state with the camera where the link put it', () => {
+    const {s, camera, jupiter} = arrivedAtJupiter()
+    const seen = []
+    s.onModeChange = (mode, on) => seen.push([mode, on])
+    s.restoreFollowing(false)
+    s.syncFollow()
+    expect(Shared.targets.follow).toBeNull()
+    expect(camera.platform.parent).toBe(jupiter.orbitPosition) // not detached: where the link put it
+    s.restoreFollowing(true)
+    expect(Shared.targets.follow).toBe(jupiter.orbitPosition)
+    expect(seen).toEqual([['follow', false], ['follow', true]])
+  })
+
+  it('says what it switched, for the readout, and only on a change', () => {
+    const {s} = makeSolarSystem()
+    const changes = []
+    s.onModeChange = (mode, on) => changes.push([mode, on])
+    s.follow()
+    s.setFollowing(true)
+    s.follow()
+    s.track()
+    s.setTracking(true)
+    s.track()
+    expect(changes).toEqual([['follow', true], ['follow', false], ['track', true], ['track', false]])
+  })
+
+  it('does nothing while following is off and nothing was taken', () => {
+    const {s, camera, sun} = makeSolarSystem()
+    s.syncFollow()
+    s.syncFollow()
+    expect(camera.platform.parent).toBe(sun.orbitPosition)
   })
 })

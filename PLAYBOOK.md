@@ -406,6 +406,32 @@ the timing and exposed it.
 unhandled error attributed to an unrelated file is usually a timer from an
 earlier one.
 
+### A state that is written and never read is a bug, not a decision to defer
+
+`f` wrote `Shared.targets.follow` and nothing read it, since the camera-controls
+rewrite took out the callback that did.  The first pass at the permalink put
+the flag in the link anyway, with a note that the key did nothing, and the user
+found out by pressing it ("when i 'f' i don't get a toggled follow").  A key that
+changes no picture needs its reader written, or the key removed, before its state
+is shared.  The fix had a trap of its own: the obvious "add the body's motion to
+the camera each frame" breaks `controls.target = camera.platform.position`
+(the platform must stay at the origin of its parent) and leaves the zoom and the
+orbit drag about the frame body, a millionth of the way to the Sun when the
+camera is at Jupiter.  Hanging the platform on the followed body's node instead
+gives the camera the frame-local numbers `goTo` already works in and costs nothing
+per frame.
+
+The first fix then left the state at odds with the picture: after `g` the camera
+rode the body (the platform hangs on its orbit) while the flag, the readout and
+the link said "not following" ("it's currently implicitly off, yet i'm still
+somehow following the target when i arrive").  A flag that names what the
+camera does has to be set by every path that makes the camera do it.
+
+**Rule:** when adding a state to a link, find its reader first (grep for the
+field), and every writer of the thing it describes.  When a camera or rig has to move with something, read what else is
+defined by its position (`controls.target`, `homeBody`, the link's frame) before
+choosing between moving it and re-parenting it.
+
 ### A test's hand-built scene graph must match the app's
 
 The Moon's orientation test built orbitPosition → planetTilt → node and

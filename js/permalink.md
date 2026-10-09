@@ -169,7 +169,7 @@ On page load from a permalink URL, or a new one in the address bar (`Celestiary.
    loaded: a place's catalogue, the stars, the asterisms.  One that isn't in its catalogue leaves
    the frame's body the target.
 
-### Clock and tracking
+### Clock, tracking and following
 
 The clock is the state token `time:` (design/URLs.md [Time Token](../design/URLs.md#time-token)):
 `pause` and `rate=<signed multiplier>`, left out when running at real time.  Decoded with
@@ -181,9 +181,26 @@ link's rewrite.
 Tracking (`t`) is the `T` flag in `s=`: `Scene.getSettings()` reads it from
 `Shared.targets.track`, and `Celestiary._arrive` sets it (`Scene.setTracking`) after the target.
 
+Following (`f`) is the `F` flag in `s=`, the same way: `Scene.getSettings()` reads it from
+`Shared.targets.follow` (the body's `orbitPosition` while following).  It is independent of `T`
+(`s=TF`) and left out when off.  It means **the camera follows its frame's body** (`from=`, else the
+path's): going to a body or landing (`Scene.goTo`, `land`) turn it on, so a link made after `g` has
+it, and `f` then leaves the body for its frame (DESIGN.md [follow](../DESIGN.md#follow)), after which
+the link is in that frame (`from=sun`) without `F`.
+
+Restore: `Celestiary._arrive` puts the camera in its frame (`_restoreView`: `goTo` or `land`, which
+turn following on silently) and, once the target is set, calls `Scene.restoreFollowing(on)` with
+`pl.settings.F` **or the frame being the target's own body** (no `from=`, or the same one).  A link
+from before `F` has no letter and always rode its frame body, so it reads as following; a link in
+another body's frame without `F` reads as detached.  Neither moves the camera; `restoreFollowing`
+sets the body followed to the camera's frame (`Shared.targets.cur`), not the target.  The readout
+hears of it only when the link doesn't follow ("Following off").  A camera in the target's own frame
+that had left another body reads as following (one `f` leaves it), the one state the link can't tell
+apart.
+`Scene.setFollowing` and `restoreFollowing` say so to the link when it changes, as `setTracking` does.
+
 ## Future Work
 
-- **Follow state:** a param for the 'f' key mode (tracking, 't', is the `T` setting now).
 - **E2E screenshot test:** Playwright + dev server opens a constructed permalink URL, waits for
   scene settle, takes a screenshot and compares to a stored reference.
 - **Upstream `jd` and `deg`** to `@pablo-mayrgundter/measure.js`.

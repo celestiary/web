@@ -18,6 +18,7 @@ import StellarFrame from './StellarFrame.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {faceKeepingRoll} from '../faceKeepingRoll.js'
+import {rehangPlatform} from '../follow.js'
 import {pickSurfaceLatLng} from './Picker.js'
 import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
@@ -131,6 +132,16 @@ export default class Scene {
     // Set by Celestiary; called whenever any settings flag flips so the
     // permalink can be updated.
     this.onSettingsChange = null
+    // Set by Celestiary; called with ('track' | 'follow', on) when 't' or
+    // 'f' (or a link) switches that mode, for the readout.
+    this.onModeChange = null
+    // Where following took the camera platform from (when 'f' rode a body
+    // the camera wasn't at), so that turning it off puts the camera back in
+    // its frame (syncFollow); null when it hasn't.
+    this._followHome = null
+    // The node the camera was riding when following was turned off, until
+    // syncFollow has detached the camera from it.
+    this._detachFrom = null
   }
 
 
@@ -179,6 +190,8 @@ export default class Scene {
    *     drives this without going through a Scene toggle.
    *   - `T` (tracking) — sourced from `Shared.targets.track`
    *     (Scene.setTracking says so to the link).
+   *   - `F` (following) — on while `Shared.targets.follow` holds a body
+   *     (Scene.setFollowing says so to the link).
    *   - `A` (AR-fallback) — defaults false here; the permalink writer in
    *     Celestiary._schedulePermalinkUpdate overwrites it with the live
    *     ARController.isActive() value before encoding.  The default-false
@@ -188,7 +201,13 @@ export default class Scene {
    * @returns {object}
    */
   getSettings() {
-    return {...this._settings, L: Shared.targets.landed, A: false, T: Shared.targets.track}
+    return {
+      ...this._settings,
+      L: Shared.targets.landed,
+      A: false,
+      T: Shared.targets.track,
+      F: Boolean(Shared.targets.follow),
+    }
   }
 
 
@@ -757,6 +776,9 @@ export default class Scene {
     if (isPlanet) {
       Shared.targets.cur = obj
     }
+    // Arriving is riding: following is on for the body gone to (the camera
+    // is on its orbit now), or off at a star, which has none.
+    this._followArrival(isPlanet ? obj.orbitPosition ?? null : null)
 
     // Arrival pose: approach along camera→target line.
     const dir = camWorldPos.clone().sub(targetWorldPos)
@@ -849,6 +871,7 @@ export default class Scene {
     this.ui.camera.quaternion.copy(platformWorldQuat.invert().multiply(camWorldQuat))
 
     Shared.targets.cur = bodyNode
+    this._followArrival(bodyNode.orbitPosition ?? null)
 
     // Arrival local pose = body-fixed XYZ for (lat, lng, alt).  Platform is
     // identity at body origin, so platform-local == body-local.
@@ -1084,7 +1107,7 @@ export default class Scene {
 
   /**
    * Turn tracking on or off, as 't' does, and say so to the link (the `T`
-   * setting).
+   * setting) and the readout.
    *
    * @param {boolean} on
    */
@@ -1094,21 +1117,232 @@ export default class Scene {
     }
     Shared.targets.track = Boolean(on)
     this.onSettingsChange?.()
+    this.onModeChange?.('track', Shared.targets.track)
   }
 
 
+  /**
+   * Toggle following ('f'): on, the camera rides the targeted body's orbit
+   * as time runs and turns as it did; off, the camera leaves the body it
+   * rides, which moves on without it (`setFollowing`, `syncFollow`).
+   */
   follow() {
-    if (Shared.targets.follow) {
-      Shared.targets.follow = null
-    } else if (Shared.targets.obj) {
-      if (Shared.targets.obj.orbitPosition) {
-        Shared.targets.follow = Shared.targets.obj.orbitPosition
-      } else {
-        console.error('Target to follow has no orbitPosition property.')
+    this.setFollowing(!Shared.targets.follow)
+  }
+
+
+  /**
+   * Turn following on or off, as 'f' does, and say so to the link (the `F`
+   * setting) and the readout.
+   *
+   * Going to a body or landing on it (`goTo`, `land`) turns following on,
+   * for that body: the camera is on its orbit.  So 'f' there turns it off,
+   * and does it: the camera platform goes to the body's frame, the Sun's
+   * for a planet, the planet's for a moon, with the camera where it is and
+   * as it faces (`syncFollow`).  It can't at the Sun, which has no frame
+   * above it (if another body is targeted, 'f' rides that one instead), or
+   * landed, pinned to the surface: following stays on, and the readout
+   * says why.
+   *
+   * On, `Shared.targets.follow` holds the targeted body's `orbitPosition`
+   * (a target with none, a star or an asterism, leaves it off) and the
+   * camera moves to it.  The body followed stays so when the target
+   * changes: looking at another body doesn't change what is ridden.
+   *
+   * @param {boolean} on
+   */
+  setFollowing(on) {
+    const was = Boolean(Shared.targets.follow)
+    if (on) {
+      Shared.targets.follow = this._followable()
+      if (!Shared.targets.follow) {
+        console.error(Shared.targets.obj ?
+          'Target to follow has no orbitPosition property.' :
+          'No target object to follow.')
       }
-    } else {
-      console.error('No target object to follow.')
+      this._detachFrom = null
+    } else if (was) {
+      const node = Shared.targets.follow
+      const hung = this.ui.camera.platform.parent === node || Shared.targets.landed
+      let why = null
+      if (hung && Shared.targets.landed) {
+        why = 'landed'
+      } else if (hung && !this._followHome && !this._parentNode(node)) {
+        why = 'root'
+      }
+      const next = this._followable()
+      if (why === 'root' && next && next !== node) {
+        // The Sun can't be left, but another body is targeted: ride that
+        // one, from here (and off goes back here).
+        Shared.targets.follow = next
+        this.syncFollow()
+        this.onModeChange?.('follow', true)
+        return
+      }
+      if (why) {
+        this.onModeChange?.('follow', true, why)
+        return
+      }
+      Shared.targets.follow = null
+      this._detachFrom = node
     }
+    this.syncFollow()
+    this._followChanged(was)
+  }
+
+
+  /**
+   * Set following as a link had it, with the camera already in the link's
+   * frame (`goTo`, `land`): on is that frame's body being followed, off is
+   * leaving the camera where it is.  Neither moves it.
+   *
+   * @param {boolean} on
+   */
+  restoreFollowing(on) {
+    const was = Boolean(Shared.targets.follow)
+    const frame = this.ui.camera.platform.parent === this._starAnchor ? null : Shared.targets.cur
+    Shared.targets.follow = on ? frame?.orbitPosition ?? null : null
+    this._followHome = null
+    this._detachFrom = null
+    this._followChanged(was)
+  }
+
+
+  /**
+   * Going or landing makes the body the camera is at the one it follows.
+   *
+   * @param {?object} node The body's `orbitPosition`, or null (a star)
+   */
+  _followArrival(node) {
+    const was = Boolean(Shared.targets.follow)
+    Shared.targets.follow = node
+    this._followHome = null
+    this._detachFrom = null
+    this._followChanged(was)
+  }
+
+
+  /**
+   * @returns {?object} The node that carries the target body along its
+   *   orbit (its `orbitPosition`), or null: no body, or a target that is
+   *   not a body or a place on one (a star, an asterism), which does not
+   *   move.
+   */
+  _followable() {
+    const kind = Shared.targets.label?.kind
+    if (kind === 'star' || kind === 'asterism') {
+      return null
+    }
+    return Shared.targets.obj?.orbitPosition ?? null
+  }
+
+
+  /**
+   * @param {object} node A body's `orbitPosition`
+   * @returns {?object} The body it moves
+   */
+  _bodyOf(node) {
+    const cur = Shared.targets.cur
+    if (cur?.orbitPosition === node) {
+      return cur
+    }
+    return Object.values(this.objects).find((o) => o.orbitPosition === node) ?? null
+  }
+
+
+  /**
+   * @param {object} node A body's `orbitPosition`
+   * @returns {?object} The `orbitPosition` of the body it orbits (a
+   *   planet's: the Sun's; a moon's: its planet's), or null for the Sun
+   */
+  _parentNode(node) {
+    const parent = this.objects[this._bodyOf(node)?.props?.parent]
+    return parent?.orbitPosition ?? null
+  }
+
+
+  /** @param {boolean} was Whether following was on before the change */
+  _followChanged(was) {
+    const now = Boolean(Shared.targets.follow)
+    if (was !== now) {
+      this.onSettingsChange?.()
+      this.onModeChange?.('follow', now)
+    }
+  }
+
+
+  /**
+   * Move the camera platform for following, once a frame, after the
+   * animation has moved the bodies (Celestiary's animation callback), and
+   * at once when 'f' changes it.  Following hangs the camera platform on
+   * the followed body's `orbitPosition`, the node that body's orbit moves,
+   * keeping the camera where it is and as it faces (`rehangPlatform`), so
+   * from then on the camera keeps its offset from the body and its
+   * orientation is not touched: the user turns the view as they like
+   * (DESIGN.md, "Follow").
+   *
+   * - On from a frame that isn't the followed body's (the Sun's, with
+   *   Jupiter targeted): the platform moves to its node.
+   * - Off: the platform leaves the node it was riding, for the frame it
+   *   was taken from, or the frame of the body (the planet's primary), so
+   *   the body moves on without the camera.
+   * - When the followed body is the camera's frame already, which is where
+   *   going to a body puts it, there is nothing to do.
+   * - While a go or a landing travels (`tween.travels`), it waits: the
+   *   tween writes positions in the platform's frame.  It carries on
+   *   afterwards, from wherever the camera has got to.
+   * - A landed camera is pinned to the surface, and one at a star has no
+   *   body to ride: neither moves.
+   *
+   * Cheap when there is nothing to do: a few comparisons.
+   */
+  syncFollow() {
+    if (Shared.targets.tween?.travels) {
+      return
+    }
+    const platform = this.ui.camera.platform
+    const want = Shared.targets.follow
+    let home = this._followHome
+    if (home && platform.parent !== home.anchor) {
+      // Something else hung the platform (going, landing): its frame stands.
+      home = this._followHome = null
+    }
+    if (!want) {
+      const from = this._detachFrom
+      if (from && !Shared.targets.landed && platform.parent === from) {
+        this._detachFrom = null
+        this._followHome = null
+        const parent = home ? home.parent : this._parentNode(from)
+        if (parent) {
+          this._hangPlatform(parent, home ? home.cur : this._bodyOf(parent))
+        }
+      } else if (from && platform.parent !== from) {
+        this._detachFrom = null
+      }
+      return
+    }
+    if (Shared.targets.landed || platform.parent === want || platform.parent === this._starAnchor) {
+      return
+    }
+    if (!home) {
+      home = this._followHome = {parent: platform.parent, cur: Shared.targets.cur, anchor: null}
+    }
+    this._hangPlatform(want, this._bodyOf(want))
+    home.anchor = want
+  }
+
+
+  /**
+   * @param {object} anchor The node to hang the camera platform on
+   * @param {?object} cur The body that makes it the camera's frame
+   *   (`Shared.targets.cur`)
+   */
+  _hangPlatform(anchor, cur) {
+    if (this.ui.camera.platform.parent === anchor) {
+      return
+    }
+    rehangPlatform(this.ui.camera.platform, this.ui.camera, anchor)
+    Shared.targets.cur = cur
   }
 
 

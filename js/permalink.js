@@ -69,6 +69,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   v: true, // nav panels / heads-up display
   L: false, // landed at surface — see Scene.land
   T: false, // tracking the target — see Scene.track
+  F: false, // following the target's orbit — see Scene.follow
   A: false, // AR-fallback — enter AR sky view if device supports
 })
 

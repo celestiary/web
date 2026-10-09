@@ -71,7 +71,7 @@ export function newCameraGoToTween(camera, targetWorldPos, endLocalPos) {
   const rotEnd = 0.6 // rotation finishes at 60% of total
   const posStart = 0.4 // position begins at 40% of total (overlap: 40–60%)
 
-  return new Tween({t: 0})
+  return travels(new Tween({t: 0})
       .to({t: 1}, totalMs)
       .easing(Easing.Linear.None) // easing applied per-channel below
       .onUpdate(({t}) => {
@@ -82,7 +82,7 @@ export function newCameraGoToTween(camera, targetWorldPos, endLocalPos) {
           camera.position.lerpVectors(startPos, endLocalPos, easeInOutQuad(posT))
         }
       })
-      .start()
+      .start())
 }
 
 
@@ -165,7 +165,7 @@ export function newCameraLandTween(camera, arrivalLocal, planetRadius) {
   const totalMs = 2500
   const _pos = new Vector3()
 
-  return new Tween({t: 0})
+  return travels(new Tween({t: 0})
       .to({t: 1}, totalMs)
       .easing(Easing.Quadratic.InOut)
       .onUpdate(({t}) => {
@@ -177,7 +177,22 @@ export function newCameraLandTween(camera, arrivalLocal, planetRadius) {
         // view at touchdown — synchronized with the eased spline travel.
         camera.quaternion.slerpQuaternions(startQuat, endQuat, easeInOutQuad(t))
       })
-      .start()
+      .start())
+}
+
+
+/**
+ * Mark a tween as one that moves the camera's position (a go or a landing),
+ * as the look tween, which only turns it, does not.  Following waits for a
+ * travelling tween to finish: the tween writes positions in the platform's
+ * frame, so the frame can't change under it (Scene.syncFollow).
+ *
+ * @param {Tween} tween
+ * @returns {Tween} The same tween, with `travels` set
+ */
+function travels(tween) {
+  tween.travels = true
+  return tween
 }
 
 

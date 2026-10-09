@@ -1,4 +1,5 @@
 import React, {ReactElement, useEffect, useRef, useState} from 'react'
+import {formatNavMode} from '../navMode'
 import {formatEv} from '../scene/evCompensation'
 import {formatStarMag} from '../scene/starMagnitude'
 
@@ -11,9 +12,10 @@ const SHOW_MS = 2000
  * The exposure compensation, shown briefly when it changes ('-', '=', 'e'
  * or a link's `ev=`): "EV +1.3", fading after a couple of seconds.  The
  * stars' setting ('[', ']' or a link's `sm=`) is shown the same way, as
- * "Stars +1.0 mag": whichever changed last.
+ * "Stars +1.0 mag": whichever changed last.  So are 't' and 'f', as
+ * "Tracking on" and "Following off" (a link's `s=T` or `s=F` too).
  *
- * @property {object} celestiary The app (onExposureCompensation)
+ * @property {object} celestiary The app (onExposureCompensation, onNavMode)
  * @returns {ReactElement}
  */
 export default function ExposureReadout({celestiary}) {
@@ -30,9 +32,11 @@ export default function ExposureReadout({celestiary}) {
     }
     const stopEv = celestiary.onExposureCompensation((next) => show(formatEv(next)))
     const stopStars = celestiary.onStarMagnitude((next) => show(formatStarMag(next)))
+    const stopMode = celestiary.onNavMode((mode, on, note) => show(formatNavMode(mode, on, note)))
     return () => {
       stopEv()
       stopStars()
+      stopMode()
       clearTimeout(timer.current)
     }
   }, [celestiary])

@@ -11,7 +11,8 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock} from 'bun:test'
 import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
-import {decodePermalink, encodePermalink} from './permalink.js'
+import {formatNavMode} from './navMode.js'
+import {decodePermalink, encodePermalink, SETTINGS_DEFAULTS} from './permalink.js'
 import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
 import * as Shared from './shared.js'
 
@@ -843,10 +844,13 @@ describe('the target in the link', () => {
    * @param {Function} [setIsPaused] The time panel's setter
    * @returns {Promise<object>} A Celestiary loaded from #fragment, restored
    */
-  async function open(fragment, setIsPaused = () => {}) {
+  async function open(fragment, setIsPaused = () => {}, onNavMode = null) {
     global.location.hash = `#${fragment}`
     const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
         {}, () => {}, setIsPaused, () => {})
+    if (onNavMode) {
+      app.onNavMode(onNavMode)
+    }
     apps.push(app)
     await new Promise((resolve) => setTimeout(resolve, 50))
     return app
@@ -1231,6 +1235,180 @@ describe('the target in the link', () => {
       app.time.changeTimeScale(1)
       app.time.setTime(app.time.simTime + 1000)
       expect(scheduled).toBe(3)
+    })
+  })
+
+  describe('following in the link', () => {
+    /**
+     * @param {object} app
+     * @returns {object} The camera platform's parent's name
+     */
+    const frameOf = (app) => app.ui.camera.platform.parent?.name
+
+    it('is on on arrival, written as F, and "f" leaves the body for its frame', async () => {
+      // The link's frame is Earth, the target Earth, and it has no F: it
+      // rode Earth before there was an F, and does.
+      const app = await open(TEST_FRAGMENT)
+      const {sun, earth} = app.scene.objects
+      expect(Shared.targets.follow).toBe(earth.orbitPosition)
+      expect(app.keys.toggleStates['f']()).toBe(true)
+      expect(app.permalink()).toMatch(/;s=[^;]*F/)
+      expect(app.permalink()).not.toMatch(/;from=/)
+      app.keys.onKeyDown({key: 'f'})
+      expect(Shared.targets.follow).toBeNull()
+      expect(app.keys.toggleStates['f']()).toBe(false)
+      // The camera is in the Sun's frame now, and the link says so.
+      expect(app.ui.camera.platform.parent).toBe(sun.orbitPosition)
+      expect(Shared.targets.cur).toBe(sun)
+      expect(app.permalink()).not.toMatch(/;s=[^;]*F/)
+      expect(app.permalink()).toMatch(/;from=sun;/)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('a link made detached reloads detached, and "f" rides the target again', async () => {
+      const app = await open(TEST_FRAGMENT)
+      app.keys.onKeyDown({key: 'f'})
+      const link = app.permalink()
+      const pose = viewFromEarth(app)
+      const reloaded = await open(link)
+      expect(Shared.targets.follow).toBeNull()
+      expect(frameOf(reloaded)).toBe(reloaded.scene.objects.sun.orbitPosition.name)
+      expect(Shared.targets.obj).toBe(reloaded.scene.objects.earth)
+      const again = viewFromEarth(reloaded)
+      expect(again.pos.distanceTo(pose.pos)).toBeLessThan(5e5) // the link's four decimals of a degree, at 1 AU
+      reloaded.keys.onKeyDown({key: 'f'})
+      expect(Shared.targets.follow).toBe(reloaded.scene.objects.earth.orbitPosition)
+      expect(reloaded.ui.camera.platform.parent).toBe(reloaded.scene.objects.earth.orbitPosition)
+      // Riding again, in the link's frame.
+      expect(reloaded.permalink()).toMatch(/;s=[^;]*F/)
+      expect(reloaded.permalink()).not.toMatch(/;from=/)
+      clearTimeout(app._permalinkTimer)
+      clearTimeout(reloaded._permalinkTimer)
+    })
+
+    it('F is of the link\'s frame: with it that body is followed, without it, in another body\'s frame, nothing', async () => {
+      const link = (settings) => encodePermalink('sun/earth', PL.d2000, 0, 0, 1.5e12, PL.quat, PL.fov, settings, undefined, 'sun')
+      const withF = await open(link({...SETTINGS_DEFAULTS, F: true}))
+      expect(Shared.targets.follow).toBe(withF.scene.objects.sun.orbitPosition)
+      const without = await open(link({...SETTINGS_DEFAULTS}))
+      expect(Shared.targets.follow).toBeNull()
+      expect(Shared.targets.obj).toBe(without.scene.objects.earth)
+      expect(without.ui.camera.platform.parent).toBe(without.scene.objects.sun.orbitPosition)
+      clearTimeout(withF._permalinkTimer)
+      clearTimeout(without._permalinkTimer)
+    })
+
+    it('a link made before F, in the target\'s own frame, rides it', async () => {
+      const app = await open(TEST_FRAGMENT)
+      expect(app.permalink()).not.toMatch(/;from=/)
+      // TEST_FRAGMENT has no s= at all.
+      expect(TEST_FRAGMENT).not.toMatch(/;s=/)
+      expect(Shared.targets.follow).toBe(app.scene.objects.earth.orbitPosition)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('is independent of tracking, and a change schedules the link', async () => {
+      const app = await open(TEST_FRAGMENT)
+      let scheduled = 0
+      app._schedulePermalinkUpdate = () => scheduled++
+      app.keys.onKeyDown({key: 'f'})
+      expect(scheduled).toBe(1)
+      expect(Shared.targets.track).toBe(false)
+      app.keys.onKeyDown({key: 't'})
+      expect(Shared.targets.follow).toBeNull()
+      expect(Shared.targets.track).toBe(true)
+      app.keys.onKeyDown({key: 'f'})
+      expect(Shared.targets.follow).not.toBeNull()
+      expect(app.permalink()).toMatch(/;s=[^;]*T[^;]*F|;s=[^;]*F[^;]*T/)
+      app.keys.onKeyDown({key: 't'})
+    })
+
+    it('stays off with no body to follow, and the link says so', async () => {
+      const app = await open(TEST_FRAGMENT)
+      app.keys.onKeyDown({key: 'f'})
+      const obj = Shared.targets.obj
+      Shared.targets.obj = null
+      const err = console.error
+      console.error = () => {}
+      try {
+        app.scene.setFollowing(true)
+      } finally {
+        console.error = err
+        Shared.targets.obj = obj
+      }
+      expect(Shared.targets.follow).toBeNull()
+      expect(app.permalink()).not.toMatch(/;s=[^;]*F/)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('"f" leaves the body in the animation callback and the body moves away; "f" rides it again', async () => {
+      const app = await open(TEST_FRAGMENT)
+      app.animation.animate = () => {} // the test moves the bodies itself
+      const {earth} = app.scene.objects
+      const camera = app.ui.camera
+      const worldPos = (node) => node.getWorldPosition(new Vector3())
+      const frame = (angle) => {
+        earth.orbitPosition.position.applyAxisAngle(new Vector3(0, 1, 0), angle)
+        app.ui.animCb(app.ui.scene)
+        app.ui.scene.updateMatrixWorld()
+      }
+      const quat = camera.getWorldQuaternion(new Quaternion())
+      // Arrived: riding Earth.
+      app.ui.scene.updateMatrixWorld()
+      const offset = worldPos(camera).sub(worldPos(earth))
+      for (let step = 0; step < 5; step++) {
+        frame(0.2)
+        expect(worldPos(camera).sub(worldPos(earth)).distanceTo(offset)).toBeLessThan(1e-3)
+      }
+      // Off: the camera stays where it is, and Earth moves away.
+      app.keys.onKeyDown({key: 'f'})
+      app.ui.animCb(app.ui.scene)
+      app.ui.scene.updateMatrixWorld()
+      const at = worldPos(camera)
+      const left = worldPos(earth)
+      for (let step = 0; step < 5; step++) {
+        frame(0.2)
+        expect(worldPos(camera).distanceTo(at)).toBeLessThan(1e-3)
+      }
+      expect(worldPos(earth).distanceTo(left)).toBeGreaterThan(1e9)
+      // On again: rides from where it is now, keeping its offset from Earth.
+      const away = worldPos(camera).sub(worldPos(earth))
+      app.keys.onKeyDown({key: 'f'})
+      for (let step = 0; step < 5; step++) {
+        frame(0.2)
+        expect(worldPos(camera).sub(worldPos(earth)).distanceTo(away)).toBeLessThan(1e-3)
+      }
+      expect(camera.getWorldQuaternion(new Quaternion()).angleTo(quat)).toBeLessThan(1e-12)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('shows on the readout, as the other keys do, and in Settings as a checkbox', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const shown = []
+      const stop = app.onNavMode((mode, on, note) => shown.push(formatNavMode(mode, on, note)))
+      app.keys.onKeyDown({key: 'f'})
+      app.keys.onKeyDown({key: 't'})
+      expect(app.keys.toggleStates['f']()).toBe(false)
+      expect(app.keys.toggleStates['t']()).toBe(true)
+      app.keys.onKeyDown({key: 'f'})
+      app.keys.onKeyDown({key: 't'})
+      expect(app.keys.toggleStates['f']()).toBe(true)
+      expect(app.keys.toggleStates['t']()).toBe(false)
+      expect(shown).toEqual(['Following off', 'Tracking on', 'Following on', 'Tracking off'])
+      stop()
+      app.keys.onKeyDown({key: 'f'})
+      expect(shown.length).toBe(4)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('says nothing of following while a link is put back, unless the link doesn\'t follow', async () => {
+      const heard = []
+      const listen = (mode, on) => heard.push([mode, on])
+      const detached = encodePermalink('sun/earth', PL.d2000, 0, 0, 1.5e12, PL.quat, PL.fov, SETTINGS_DEFAULTS, undefined, 'sun')
+      await open(TEST_FRAGMENT, () => {}, listen)
+      expect(heard).toEqual([])
+      await open(detached, () => {}, listen)
+      expect(heard).toEqual([['follow', false]])
     })
   })
 
