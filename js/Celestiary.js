@@ -58,6 +58,8 @@ export default class Celestiary {
     this._sizeContainer(canvasContainer)
     const animCb = (scene) => {
       this.animation.animate(scene)
+      // Before tracking, so it faces the target from where the camera now is.
+      this.scene.syncFollow()
       if (Shared.targets.track) {
         // Centre the target, whatever roll the view has.
         this.scene.lookAtTarget({keepRoll: true})
@@ -77,6 +79,8 @@ export default class Celestiary {
     // Any settings toggle (asterisms, grids, etc.) updates the permalink so
     // the URL always reflects the live view configuration.
     this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
+    // 't' and 'f' say what they switched, on the readout (onNavMode).
+    this.scene.onModeChange = (mode, on) => this._navModeListeners.forEach((fn) => fn(mode, on))
     // 'v' (nav panels) is a Celestiary-level toggle — register the applier
     // so Scene.applySettings can drive it on permalink restore.
     this.scene.registerSettingApplier('v', () => this._toggleNav())
@@ -88,6 +92,8 @@ export default class Celestiary {
     this._evListeners = new Set
     // And of the stars' setting (onStarMagnitude).
     this._starMagListeners = new Set
+    // And of tracking and following being switched (onNavMode).
+    this._navModeListeners = new Set
     // The link holds the clock's pause, rate and date.
     this.time.onTimeScaleChange(() => this._schedulePermalinkUpdate())
     // Callbacks waiting for a body to load, by name (_loadBody).
@@ -180,6 +186,17 @@ export default class Celestiary {
   onStarMagnitude(fn) {
     this._starMagListeners.add(fn)
     return () => this._starMagListeners.delete(fn)
+  }
+
+
+  /**
+   * @param {Function} fn Called with the mode ('track' or 'follow') and
+   *   whether it is on, when 't' or 'f' (or a link) switches it
+   * @returns {Function} Stops listening
+   */
+  onNavMode(fn) {
+    this._navModeListeners.add(fn)
+    return () => this._navModeListeners.delete(fn)
   }
 
 
@@ -924,8 +941,8 @@ export default class Celestiary {
     k.map('f', () => {
       this.scene.follow()
     },
-    'Follow current node',
-    undefined,
+    'Follow target (ride its orbit)',
+    () => Boolean(Shared.targets.follow),
     'Targeting')
     k.map('g', () => {
       this.goTo()
@@ -945,8 +962,8 @@ export default class Celestiary {
     k.map('t', () => {
       this.scene.track()
     },
-    'Track target node',
-    undefined,
+    'Track target (keep it centred)',
+    () => Shared.targets.track,
     'Targeting')
     k.map('u', () => {
       this.scene.targetParent()

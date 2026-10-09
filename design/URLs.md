@@ -134,11 +134,17 @@ grids `e` `c` `g`, galaxy `U`, human expansion lines `x`, the HUD `v`),
 plus landed `L`, tracking `T`, following `F` and AR `A` (`permalink.js`
 `SETTINGS_DEFAULTS`).  `T` is the `t` key: the camera keeps the target
 centred every frame, so a link made while tracking reloads tracking.  `F`
-is the `f` key (`Scene.follow`, `Shared.targets.follow`): following the
-targeted body's orbit.  It is the key's state, whatever the key does (today
-nothing reads it: DESIGN.md [camera controls](../DESIGN.md#camera-controls)),
-and independent of `T` (`s=TF` is both).  A link made while following reloads
-following, the body being the link's target, set after it as `T` is.
+is the `f` key (`Scene.follow`, `Shared.targets.follow`): the camera rides the
+targeted body's orbit, moving with it as time runs and keeping its view
+(DESIGN.md [follow](../DESIGN.md#follow)).  It is independent of `T`
+(`s=TF` is both: riding along while facing it).  A link made while following
+reloads following, the body being the link's target, set after it as `T`
+is; the camera then rides again from the first frame.  The position in the
+link is in the camera's frame, which following makes the followed body's, so
+it is the offset from the body being ridden.  Changing the target while
+following follows the new target, so `F` always means the link's target; a
+target that does not move (a star, an asterism) turns following off, and the
+link loses its `F`.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
 `U`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
 star labels off, orbits off, landed), while `e` `c` `g` `L` `T` `F` `A` mean on.

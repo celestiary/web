@@ -11,6 +11,7 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock} from 'bun:test'
 import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
+import {formatNavMode} from './navMode.js'
 import {decodePermalink, encodePermalink} from './permalink.js'
 import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
 import * as Shared from './shared.js'
@@ -1286,6 +1287,84 @@ describe('the target in the link', () => {
       }
       expect(Shared.targets.follow).toBeNull()
       expect(app.permalink()).not.toMatch(/;s=[^;]*F/)
+    })
+
+    it('rides the followed body in the animation callback, and turning it off leaves the camera', async () => {
+      // At Earth, the Sun targeted: the Sun's orbit node (Earth's is its child)
+      // is the one to ride.
+      const app = await open(TEST_FRAGMENT)
+      app.animation.animate = () => {} // the test moves the bodies itself
+      app.scene.setTarget('sun', {look: false})
+      const {sun, earth} = app.scene.objects
+      const camera = app.ui.camera
+      const worldPos = (node) => node.getWorldPosition(new Vector3())
+      const frame = (earthAt, sunAt) => {
+        earth.orbitPosition.position.copy(earthAt)
+        sun.orbitPosition.position.copy(sunAt)
+        app.ui.animCb(app.ui.scene)
+        app.ui.scene.updateMatrixWorld()
+      }
+      app.keys.onKeyDown({key: 'f'})
+      app.ui.animCb(app.ui.scene)
+      app.ui.scene.updateMatrixWorld()
+      expect(camera.platform.parent).toBe(sun.orbitPosition)
+      expect(Shared.targets.cur).toBe(sun)
+      const earthAt = earth.orbitPosition.position.clone()
+      const offset = worldPos(camera).sub(worldPos(sun))
+      const quat = camera.getWorldQuaternion(new Quaternion())
+      for (let step = 1; step <= 5; step++) {
+        // Earth swings round the Sun; the Sun drifts.  The camera, riding the
+        // Sun, drifts with it and doesn't swing.
+        frame(earthAt.clone().applyAxisAngle(new Vector3(0, 1, 0), step * 0.3), new Vector3(step * 1e9, -step * 4e8, step * 2e9))
+        expect(worldPos(camera).sub(worldPos(sun)).distanceTo(offset)).toBeLessThan(1e-3)
+      }
+      expect(camera.getWorldQuaternion(new Quaternion()).angleTo(quat)).toBeLessThan(1e-12)
+      // Off: the platform goes back to Earth's node, and the camera stays put,
+      // then goes with Earth.
+      const at = worldPos(camera)
+      app.keys.onKeyDown({key: 'f'})
+      app.ui.animCb(app.ui.scene)
+      app.ui.scene.updateMatrixWorld()
+      expect(camera.platform.parent).toBe(earth.orbitPosition)
+      expect(Shared.targets.cur).toBe(earth)
+      expect(worldPos(camera).distanceTo(at)).toBeLessThan(1e-3)
+      const earthBefore = worldPos(earth)
+      frame(earth.orbitPosition.position.clone().applyAxisAngle(new Vector3(0, 1, 0), 0.3), sun.orbitPosition.position)
+      expect(worldPos(camera).sub(at).distanceTo(worldPos(earth).sub(earthBefore))).toBeLessThan(1e-3)
+    })
+
+    it('a reloaded link rides the target', async () => {
+      const app = await open(TEST_FRAGMENT)
+      app.animation.animate = () => {}
+      app.scene.setTarget('sun', {look: false})
+      app.keys.onKeyDown({key: 'f'})
+      const reloaded = await open(app.permalink())
+      reloaded.animation.animate = () => {}
+      expect(Shared.targets.follow).toBe(Shared.targets.obj.orbitPosition)
+      reloaded.ui.animCb(reloaded.ui.scene)
+      const sun = reloaded.scene.objects.sun
+      expect(reloaded.ui.camera.platform.parent).toBe(sun.orbitPosition)
+      clearTimeout(app._permalinkTimer)
+      clearTimeout(reloaded._permalinkTimer)
+    })
+
+    it('shows on the readout, as the other keys do, and in Settings as a checkbox', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const shown = []
+      const stop = app.onNavMode((mode, on) => shown.push(formatNavMode(mode, on)))
+      app.keys.onKeyDown({key: 'f'})
+      app.keys.onKeyDown({key: 't'})
+      expect(app.keys.toggleStates['f']()).toBe(true)
+      expect(app.keys.toggleStates['t']()).toBe(true)
+      app.keys.onKeyDown({key: 'f'})
+      app.keys.onKeyDown({key: 't'})
+      expect(app.keys.toggleStates['f']()).toBe(false)
+      expect(app.keys.toggleStates['t']()).toBe(false)
+      expect(shown).toEqual(['Following on', 'Tracking on', 'Following off', 'Tracking off'])
+      stop()
+      app.keys.onKeyDown({key: 'f'})
+      expect(shown.length).toBe(4)
+      clearTimeout(app._permalinkTimer)
     })
   })
 

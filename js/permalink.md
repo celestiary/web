@@ -185,8 +185,12 @@ Following (`f`) is the `F` flag in `s=`, the same way: `Scene.getSettings()` rea
 `Shared.targets.follow` (set while following), and `Celestiary._arrive` sets it
 (`Scene.setFollowing`) after the target, so it follows the link's target.  It is independent of
 `T` (`s=TF`), left out when off, and a link from before it has no `F` and reloads not following.
-It records the key's state only: nothing reads `Shared.targets.follow` yet (DESIGN.md
-[camera controls](../DESIGN.md#camera-controls)).
+Following rides the target's orbit (DESIGN.md [follow](../DESIGN.md#follow)): the next frame's
+`Scene.syncFollow` hangs the camera platform on the target's `orbitPosition`, keeping the camera
+where the link put it, so a reloaded link rides from the first frame, and the camera's frame
+(`Shared.targets.cur`, the one the link's position is in) is then the followed body's.  Changing
+the target while following follows the new one; a star or an asterism turns following off, and the
+link loses its `F`.
 `Scene.setFollowing` says so to the link when it changes, as `setTracking` does.
 
 ## Future Work

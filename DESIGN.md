@@ -171,6 +171,7 @@ for Jupiter by `texture_rotation` ([Body rotation](#body-rotation-iau-prime-meri
    - the J2000 → date precession rotation, for the mean elements and the IAU rotation models (`setDate`)
    - `animateSystem()` recurses the scene graph, setting orbit positions and body orientations (IAU pole and prime meridian; Earth's GMST), and turning the orbit lines to the date (asking for a rebuild when one is due)
    - `orbitPaths.pump()` runs queued orbit-line rebuilds, a few milliseconds a frame ([Orbit lines](#orbit-lines))
+   - `Scene.syncFollow()` hangs the camera platform on the followed body's `orbitPosition` while `f` is on, and puts it back when it goes off, so the camera rides the body from this frame's positions on ([follow](#follow))
    - If `targets.track` is on (`t`), calls `lookAtTarget({keepRoll: true})` each frame: the camera turns to centre the target, whatever it is, by the shortest turn, so the view's roll stays as it is ([the target](#the-target))
 7. Camera-look tween update (`targets.tween`)
 8. `_applyCameraArrowKeys()` — apply held-key pitch/roll last so they always win
@@ -450,8 +451,8 @@ Camera orientation and position are separated across three input modes, all accu
 | Option+drag | Orbit — rotates camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) and the narrower the field of view ([FOV-scaled](#fov-scaled-turning)) |
 | ↑ / ↓ arrow keys (hold) | Pitch camera nose up/down, slower the narrower the field of view |
 | ← / → arrow keys (hold) | Roll camera left/right (while tracking too); not slowed by the field of view |
-| `t` | Toggle continuous tracking: the target stays centred every frame, following a place as its body turns, and the roll stays yours ([the target](#the-target)) |
-| `f` | Toggle follow (`Shared.targets.follow`, set to the targeted body's `orbitPosition`; `Scene.setFollowing`). It is in the link as the `F` setting ([design/URLs.md](design/URLs.md#view)). Nothing reads it yet: the code that did was removed in the camera-controls rewrite, and the camera platform already rides its frame body's orbit, so `f` changes no motion today ([#102](https://github.com/celestiary/web/issues/102)) |
+| `t` | Toggle continuous tracking: the target stays centred every frame, following a place as its body turns, and the roll stays yours ([the target](#the-target)).  "Tracking on" or "off" shows on the readout, and it is a checkbox in Settings |
+| `f` | Toggle follow: the camera rides the targeted body's orbit as time runs, and the view stays as it is, so the user can look around from a planet's moving frame ([follow](#follow)).  "Following on" or "off" shows on the readout, and it is a checkbox in Settings.  In the link as the `F` setting ([design/URLs.md](design/URLs.md#view)) |
 | `c` | Snap look at current target, squaring the roll to the ecliptic's up |
 | `j` / `k` / `l` | Reverse, slow down, speed up time: paused too, when the step is often set; the display shows it and resuming runs at it |
 | `-` / `=` (or `+`) | Exposure compensation down / up a third of a stop (EV), over the metered exposure; the readout shows "EV +1.3" for two seconds |
@@ -496,6 +497,32 @@ A drag turns the view 0.005 rad a pixel and a pitch key 0.01 rad a frame, whatev
 **Navigation tweens** (`js/camera.js`) — stays at root as general infrastructure:
 - `newCameraLookTween` — 600 ms quaternion slerp used by `setTarget` (key navigation, `'c'` key)
 - `newCameraGoToTween` — 1800 ms unified tween used by `goTo`; rotation runs 0–60%, position 40–100%, with a 40–60% overlap so the camera never stops between turning and traveling. Details in [Navigation (goTo flow)](#navigation-goto-flow).
+
+
+### Follow
+
+`f` makes the camera ride the targeted body's orbit: it moves with the body as time runs, and the view's orientation is not touched, so the user can look around from a planet's moving frame (a Sun-frame camera watching Jupiter goes round the Sun with it, or a camera at Earth rides the Moon's orbit).  `t` is the other half, and independent: tracking only turns to face the target, following only moves with it, and both together ride along while facing it.
+
+**How:** following hangs the camera platform on the followed body's `orbitPosition`, the node the animation moves, keeping the camera where it is and as it faces in the world (`rehangPlatform`, `js/follow.js`).  After that the scene graph carries the camera, as it does after a `goTo`, with nothing to do per frame and no error to accumulate.  `Scene.syncFollow()` does the hanging, once a frame in Celestiary's animation callback, after the animation has put the bodies at this frame's positions, so the camera's offset from the body is that of the frame about to render (and before the tracking look, so tracking faces the target from where the camera now is).  It compares a few references and returns when there's nothing to do.
+
+*Why not add the body's motion to the camera each frame:*
+- translating `camera.position` leaves the zoom and the orbit drag about the frame body (the controls' target is the platform's origin), so a Sun-frame camera 4e8 m from Jupiter would zoom in steps of a tenth of its 7.8e11 m from the Sun;
+- translating the platform breaks `controls.target = platform.position`, which holds the platform at the origin of its parent;
+- both would keep the camera's coordinates large in the Sun's frame (7.8e11 m, so millimetres of double rounding, summed each frame), where hung on the body the camera's position is its offset from it (4e8 m), the frame-local numbers `goTo` already works in.
+
+Hung on the body, the zoom and the orbit drag are about the body, and `homeBody` (the floor of the zoom, the near plane) takes it as the camera's body: `syncFollow` sets `Shared.targets.cur` to it, which is also the frame the link's position is in.
+
+**What `f` adds:**
+- *The followed body is the frame already* (the camera went to it with `g`, or a link's `from=` names it): nothing.  The platform hangs there, and the flag only shows in the link.
+- *Another body* (a planet from the Sun's frame, a moon from its planet's, the Sun from Earth's): the platform moves to its node.  The camera does not jump: its world position and orientation are kept, and the quaternion in the camera's own frame doesn't change (the node chain is unrotated).
+- *Off:* the platform goes back to where it was taken from (`_followHome`: the node and `Shared.targets.cur`), the camera where it is, so it is left behind as the body moves on.  Going or landing in between clears it: the frame is then the one reached, and stays.
+
+**Interactions:**
+- *Going and landing.*  `Scene.goTo` and `land` hang the platform on their own; a tween that moves the camera in the platform's frame (`newCameraGoToTween`, `newCameraLandTween`, marked `tween.travels`) would be moved under by a re-hang, so `syncFollow` waits for it and, when it ends, follows from wherever the camera got to (the look tween only turns the camera and doesn't wait).  `goTo` makes the target the frame (so the camera is on the followed body already), and `goTo` of a star leaves nothing to follow.
+- *Landed* (`Shared.targets.landed`): the camera is pinned to the body's surface and follows nothing; a camera at a star (`_starAnchor`) has no body to ride either.  The flag stays (and stays in the link) and takes effect when the camera is back at a body.
+- *The target changes while following:* **the new target is followed**, as tracking tracks it (`Scene.setTarget` re-points `Shared.targets.follow`).  A place is followed as its body (its spin is tracking's); a star or an asterism doesn't move, so there is nothing to ride and following **turns off** (the camera stays where it is, and the readout says so).  This keeps the link's `F` ("following the link's target") true at all times.  The cost is that riding Jupiter and clicking Saturn's label moves the ride to Saturn's orbit; turning follow off and on again is how to keep a different body than the target.
+- *Link:* `F` restores after the target is set (`Celestiary._arrive`); the next frame's `syncFollow` hangs the platform, so a reloaded link rides again.  While riding, the camera's frame (`Shared.targets.cur`) is the followed body, so the link's position is the offset from it, which keeps its digits for the ride (the link's latitude and longitude are to 1e-4 degree, 1,400 km at Jupiter's distance from the Sun, against a camera a few hundred thousand km from it).  The link doesn't record where the platform was taken from, so after a reload the followed body is the camera's frame, as after `g`, and turning follow off there leaves the camera on that orbit.
+- *The readout:* `Scene.onModeChange('follow' | 'track', on)` goes to `Celestiary.onNavMode`, which the exposure readout shows ("Following on", `js/navMode.js`).
 
 
 ## Navigation (goTo flow)
@@ -1029,9 +1056,11 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/ThreeUI.js` | Three.js renderer/camera/controls wrapper |
 | `js/Loader.js` | Recursive JSON asset loader |
 | `js/Time.js` | Simulation clock with time-scale control (settable while paused: `j`/`k`/`l` and the panel's buttons; `onTimeScaleChange` tells the display), clamped to the supported dates (J2000 ± 6000 years) |
-| `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`) |
+| `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`, `newCameraLandTween`); the ones that move the camera are marked `travels` |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
 | `js/faceKeepingRoll.js` | `faceKeepingRoll(camera, point)`: the shortest turn that centres a world point, leaving the camera's roll; what tracking (`t`) calls |
+| `js/follow.js` | `rehangPlatform(platform, camera, anchor)`: hang the camera platform on a node, keeping the camera's world position and orientation; what following (`f`) does ([follow](#follow)) |
+| `js/navMode.js` | `formatNavMode(mode, on)`: "Tracking on", "Following off", for the readout |
 | `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment`; state token values (`parseTokenValue`, `formatTokenValue`) |
 | `js/targetPath.js` | The target's path in the hash: `targetPath`, `parseTargetPath`, `resolvePlace` (a body or a place), `slug` |
 | `js/store/appTokens.js` | The widgets drawer and its apps as state tokens (`apps`, `apps.<id>`; [design/URLs.md](design/URLs.md)) |
