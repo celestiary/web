@@ -1103,6 +1103,25 @@ describe('Scene following', () => {
       scene.updateMatrixWorld()
     })
 
+    it('at the Sun, rides the target instead when another body is targeted, and off goes back', () => {
+      const {s, scene, camera, sun, jupiter} = makeSolarSystem()
+      s.setTarget('sun', {look: false})
+      s.goTo()
+      Shared.targets.tween = null
+      s.setTarget('jupiter', {look: false})
+      const offset = offsetFrom(camera, jupiter)
+      s.follow()
+      expect(Shared.targets.follow).toBe(jupiter.orbitPosition)
+      expect(camera.platform.parent).toBe(jupiter.orbitPosition)
+      moveJupiter(scene, jupiter, 0.5)
+      s.syncFollow()
+      scene.updateMatrixWorld()
+      expect(offsetFrom(camera, jupiter).distanceTo(offset)).toBeLessThan(MM)
+      s.follow()
+      expect(Shared.targets.follow).toBeNull()
+      expect(camera.platform.parent).toBe(sun.orbitPosition)
+    })
+
     it('can\'t leave a surface it is landed on, and says so', () => {
       const {s, camera, jupiter} = makeSolarSystem()
       s.land('jupiter', 0, 0, 100, {instant: true})

@@ -1140,8 +1140,9 @@ export default class Scene {
    * and does it: the camera platform goes to the body's frame, the Sun's
    * for a planet, the planet's for a moon, with the camera where it is and
    * as it faces (`syncFollow`).  It can't at the Sun, which has no frame
-   * above it, or landed, pinned to the surface: following stays on, and
-   * the readout says why.
+   * above it (if another body is targeted, 'f' rides that one instead), or
+   * landed, pinned to the surface: following stays on, and the readout
+   * says why.
    *
    * On, `Shared.targets.follow` holds the targeted body's `orbitPosition`
    * (a target with none, a star or an asterism, leaves it off) and the
@@ -1168,6 +1169,15 @@ export default class Scene {
         why = 'landed'
       } else if (hung && !this._followHome && !this._parentNode(node)) {
         why = 'root'
+      }
+      const next = this._followable()
+      if (why === 'root' && next && next !== node) {
+        // The Sun can't be left, but another body is targeted: ride that
+        // one, from here (and off goes back here).
+        Shared.targets.follow = next
+        this.syncFollow()
+        this.onModeChange?.('follow', true)
+        return
       }
       if (why) {
         this.onModeChange?.('follow', true, why)
