@@ -27,7 +27,7 @@ import {
 } from './scene/atmos/AtmospherePrecompute'
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
-  adaptMeterGain, easeExposure, exposureAt, exposureRelative,
+  adaptMeterGain, approachExposure, arrivalGain, easeExposure, exposureAt, exposureRelative,
   LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, galaxyGain, illuminanceRatio, limitingMagnitude,
   luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, skyGain, starClipZ, starSprite, sunlitBodyCap,
   sunlitBodyGain,
@@ -124,6 +124,10 @@ export default class ThreeUi {
     this._meterGain = 1
     this._meterGainGoal = 1
     this._renderedGain = 1
+    // A travel to a body, which the exposure follows (approach), and the
+    // exposure the frame would have without it.
+    this._approach = null
+    this._liveExposure = null
     // Which frames the meter samples (meterReadback.js).
     this._meterCadence = new MeterCadence()
     // The user's exposure compensation, stops (setExposureCompensation).
@@ -600,7 +604,8 @@ export default class ThreeUi {
     this._meterGain = adaptMeterGain(this._meterGain, this._meterGainGoal, dt)
     // The user's compensation, one multiplier over the metered exposure.
     const exposureGoal = renderExposure(this._exposureGoal, this._meterGain, this._evStops)
-    this.renderer.toneMappingExposure = easeExposure(this.renderer.toneMappingExposure, exposureGoal, dt)
+    this.renderer.toneMappingExposure = this._approachStep(
+        easeExposure(this._liveExposure ?? this.renderer.toneMappingExposure, exposureGoal, dt))
     // The gain this frame renders with, over the target-keyed exposure:
     // the eased exposure's, not the meter's goal nor _meterGain, which the
     // exposure's own easing trails.  Pre-exposure (HDR.md): everything of
@@ -612,6 +617,90 @@ export default class ThreeUi {
     absoluteUniforms.uExposureRelative.value = exposureRelative(this.renderer.toneMappingExposure)
     absoluteUniforms.uViewportHeight.value = this.height
     absoluteUniforms.uFovDegrees.value = this.camera.fov
+  }
+
+
+  /**
+   * Travel to a body (Scene.goTo): the exposure follows the destination
+   * on the way, and arrives at what the meter will settle on there
+   * (exposure.js arrivalGain, approachExposure; HDR.md, "Travel").  Worked
+   * out now, from the arrival pose: the body's disc, its phase and its
+   * share of the frame from there.  Every planet and moon goes through
+   * here, so each arrives exposed alike.
+   *
+   * @param {object} body The planet or moon gone to (Scene.objects')
+   * @param {Vector3} arrivalWorld Where the camera arrives, world
+   * @param {object} tween The travel (camera.js newCameraGoToTween), with
+   *   travelProgress; the approach lasts while it's the camera's tween
+   */
+  approach(body, arrivalWorld, tween) {
+    this._approach = null
+    this._liveExposure = null
+    if (!tween?.travelProgress || !(body?.props?.radius?.scalar > 0) || body.props.type === 'star') {
+      return
+    }
+    this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
+    const sun = new Vector3()
+    if (this._worldGroup) {
+      this._worldGroup.getWorldPosition(sun)
+    }
+    const centre = body.getWorldPosition(new Vector3())
+    const arrival = this._sunlitEntry(body.props, centre, arrivalWorld, sun)
+    // The arrival's frame: the camera there, facing the body, with what
+    // else is in it (Earth beside the Moon anchors it too).
+    this._arrivalView ??= new PerspectiveCamera()
+    const view = this._arrivalView
+    view.copy(this.camera, false)
+    view.position.copy(arrivalWorld)
+    view.up.set(0, 1, 0).applyQuaternion(this.camera.getWorldQuaternion(new Quaternion()))
+    view.lookAt(centre)
+    view.updateMatrixWorld()
+    view.updateProjectionMatrix()
+    const bodies = [arrival, ...this._sunlitBodies(view, body)]
+    const keyed = arrival.keyedExposure
+    const halfFov = this.camera.fov * Math.PI / 360
+    const gain = arrivalGain(bodies, keyed, halfFov, keyed / exposureAt(ASTRO_UNIT_METER))
+    if (!(gain > 0)) {
+      return
+    }
+    this._approach = {body, tween, gain}
+    this._liveExposure = this.renderer.toneMappingExposure
+  }
+
+
+  /**
+   * The exposure a frame renders with, given the one it would have without
+   * a travel (`live`): while the camera travels to a body (approach), the
+   * blend from live to the arrival's by the travel's progress; on arriving,
+   * the meter is handed the arrival's gain, so it goes on from there
+   * rather than from what it read on the way.  An approach interrupted
+   * (another tween, a link restored) just ends: the exposure eases back to
+   * the meter's from where the blend left it.
+   *
+   * @param {number} live
+   * @returns {number}
+   */
+  _approachStep(live) {
+    const a = this._approach
+    if (!a) {
+      this._liveExposure = null
+      return live
+    }
+    const progress = a.tween.travelProgress()
+    if (targets.tween === a.tween && targets.obj === a.body) {
+      this._liveExposure = live
+      return approachExposure(live, renderExposure(this._exposureGoal, a.gain, this._evStops), progress)
+    }
+    this._approach = null
+    this._liveExposure = null
+    if (progress >= 1 && targets.obj === a.body) {
+      // Arrived: the frame is the arrival's, at its exposure.
+      this._meterGain = a.gain
+      this._meterGainGoal = a.gain
+      return renderExposure(this._exposureGoal, a.gain, this._evStops)
+    }
+    // Interrupted: from here the exposure eases to the meter's.
+    return this.renderer.toneMappingExposure
   }
 
 
@@ -838,6 +927,9 @@ export default class ThreeUi {
       luminous: this._luminousDiscs(),
       galaxyWeight: this._galaxyOutsideWeight(),
       pixelRatio: this.renderer.getPixelRatio(),
+      // Rendered on the way to a body (approach), whose arrival sets the
+      // gain: its reading is of a frame that is gone by then.
+      approach: Boolean(this._approach),
     }
   }
 
@@ -881,7 +973,7 @@ export default class ThreeUi {
       latency: this._meterLatency ?? 0,
       gain,
     }
-    if (Number.isFinite(gain)) {
+    if (Number.isFinite(gain) && !ctx.approach) {
       this._meterGainGoal = gain
     }
   }
@@ -1075,10 +1167,13 @@ export default class ThreeUi {
    * within the frame plus its own radius counts; one not drawn (its LOD,
    * or hidden) doesn't.
    *
+   * @param {object} [camera] The view: the frame's camera, or the arrival
+   *   of a travel (approach)
+   * @param {object} [except] A body to leave out
    * @returns {Array<{angularRadius: number, litFraction: number, keyedExposure: number, albedo: number,
    *   diameterPx: number, frameFraction: number}>}
    */
-  _sunlitBodies() {
+  _sunlitBodies(camera = this.camera, except = null) {
     const objects = this.sceneManager?.objects
     if (!objects) {
       return []
@@ -1091,12 +1186,13 @@ export default class ThreeUi {
     } else {
       sun.set(0, 0, 0)
     }
-    this.camera.getWorldPosition(cam)
+    camera.getWorldPosition(cam)
     const bodies = []
     for (const name of Object.keys(objects)) {
       const o = objects[name]
       const type = o?.props?.type
-      if ((type !== 'planet' && type !== 'moon') || !o.props.radius || !o.visible || name.endsWith('.orbitPosition')) {
+      if ((type !== 'planet' && type !== 'moon') || !o.props.radius || !o.visible || name.endsWith('.orbitPosition') ||
+          o === except) {
         continue
       }
       o.getWorldPosition(body)
@@ -1106,30 +1202,53 @@ export default class ThreeUi {
         continue
       }
       const angularRadius = Math.asin(radius / distance)
-      ndc.copy(body).project(this.camera)
-      const marginY = angularRadius / (this.camera.fov * Math.PI / 360)
-      const marginX = marginY / Math.max(this.camera.aspect, 1e-6)
+      ndc.copy(body).project(camera)
+      const marginY = angularRadius / (camera.fov * Math.PI / 360)
+      const marginX = marginY / Math.max(camera.aspect, 1e-6)
       if (!(ndc.z < 1 && ndc.z > -1 && Math.abs(ndc.x) < 1 + marginX && Math.abs(ndc.y) < 1 + marginY)) {
         continue
       }
-      const toSun = sun.clone().sub(body)
-      const toCam = cam.clone().sub(body)
-      const cosPhase = toSun.lengthSq() > 0 ? toSun.normalize().dot(toCam.normalize()) : 1
-      const pxRad = (this.camera.fov * Math.PI / 180) / Math.max(this.height, 1)
-      const diameterPx = 2 * angularRadius / pxRad
-      bodies.push({
-        angularRadius,
-        litFraction: (1 + cosPhase) / 2,
-        keyedExposure: exposureAt(Math.max(body.distanceTo(sun), 1)),
-        albedo: o.props.albedo,
-        // The Moon's brightest surface at its phase, by its photometric
-        // function (exposure.js highlightReflectance); Lambert's otherwise.
-        highlight: o.props.photometry === 'lunar' ? lunarHighlight(Math.acos(Math.min(Math.max(cosPhase, -1), 1))) : 0,
-        diameterPx,
-        frameFraction: (Math.PI * ((diameterPx / 2) ** 2)) / Math.max(this.width * this.height, 1),
-      })
+      bodies.push(this._sunlitEntry(o.props, body, cam, sun))
     }
     return bodies
+  }
+
+
+  /**
+   * One body as the meter's sunlit-body anchor takes it (_sunlitBodies,
+   * exposure.js sunlitBodyGain), seen from a camera position: its angular
+   * radius, lit fraction (from its phase angle), keyed exposure at its
+   * distance from the Sun, Bond albedo, the Moon's highlight, its disc's
+   * diameter in pixels and share of the frame's pixels, at the camera's
+   * field of view.  Used for the frame (_sunlitBodies) and for the
+   * arrival of a travel (approach).
+   *
+   * @param {object} props The body's
+   * @param {Vector3} body Its centre, world
+   * @param {Vector3} cam The camera, world
+   * @param {Vector3} sun The Sun, world
+   * @returns {{angularRadius: number, litFraction: number, keyedExposure: number, albedo: number,
+   *   highlight: number, diameterPx: number, frameFraction: number}}
+   */
+  _sunlitEntry(props, body, cam, sun) {
+    const distance = body.distanceTo(cam)
+    const angularRadius = Math.asin(Math.min(props.radius.scalar / distance, 1))
+    const toSun = sun.clone().sub(body)
+    const toCam = cam.clone().sub(body)
+    const cosPhase = toSun.lengthSq() > 0 && toCam.lengthSq() > 0 ? toSun.normalize().dot(toCam.normalize()) : 1
+    const pxRad = (this.camera.fov * Math.PI / 180) / Math.max(this.height, 1)
+    const diameterPx = 2 * angularRadius / pxRad
+    return {
+      angularRadius,
+      litFraction: (1 + cosPhase) / 2,
+      keyedExposure: exposureAt(Math.max(body.distanceTo(sun), 1)),
+      albedo: props.albedo,
+      // The Moon's brightest surface at its phase, by its photometric
+      // function (exposure.js highlightReflectance); Lambert's otherwise.
+      highlight: props.photometry === 'lunar' ? lunarHighlight(Math.acos(Math.min(Math.max(cosPhase, -1), 1))) : 0,
+      diameterPx,
+      frameFraction: (Math.PI * ((diameterPx / 2) ** 2)) / Math.max(this.width * this.height, 1),
+    }
   }
 
 

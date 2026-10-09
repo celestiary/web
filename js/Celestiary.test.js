@@ -104,6 +104,9 @@ class StubThreeUI {
     this.layers = {}
   }
   configLargeScene() {}
+  approach(body, arrivalWorld, tween) {
+    this.approached = {body, arrivalWorld, tween}
+  }
   setFov(fov) {
     this.camera.fov = fov
     this.camera.updateProjectionMatrix()

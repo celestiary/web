@@ -2,6 +2,7 @@ import {
   AdditiveBlending,
   Group,
   ImageLoader,
+  LinearSRGBColorSpace,
   MeshPhongMaterial,
   Object3D,
   Texture,
@@ -14,8 +15,11 @@ import {
 import Object from './object.js'
 import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
-import {FovLOD, newFarPoint, pointSwitchDistance} from './farPoint.js'
+import {
+  FovLOD, MOON_POINT_LEVEL, discMeanValue, farPointLevel, handoffRatio, newFarPoint, pointSwitchDistance,
+} from './farPoint.js'
 import {newSmallDiscUniforms, smallDiscShaderMod, updateSmallDisc} from './smallDisc.js'
+import {FLAT_NORMAL, standInMaps, textureMean} from './standInMaps.js'
 import {
   point,
   sphere,
@@ -29,7 +33,7 @@ import {newWideLineStrip} from './wideLines.js'
 import {dataUrl} from '../dataUrl.js'
 import {monthOfJulianDay, monthlyPath} from './monthly.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
-import {nightLightRadiance} from './exposure.js'
+import {exposureAt, nightLightRadiance} from './exposure.js'
 import {lunarSurfaceShaderMod, newLunarSurfaceUniforms, updateLunarSurface} from './lunarSurface.js'
 import CloudMap from './clouds/CloudMap.js'
 import {newCloudShell} from './clouds/CloudShell.js'
@@ -262,6 +266,7 @@ export default class Planet extends Object {
     planet.add(placeholder)
 
     const farPoint = newFarPoint(isMoon)
+    this.handOffFarPoint(farPoint, isMoon)
 
     const farDist = surfaceRadius * 3e2
     const labelTooNearDist = surfaceRadius * 3e1
@@ -311,6 +316,67 @@ export default class Planet extends Object {
 
     // group.renderOrder = 1
     return group
+  }
+
+
+  /**
+   * The far point's level each frame (farPoint.js farPointLevel): the
+   * marker far off, the light the disc will show where the mesh takes
+   * over, so the hand-off doesn't step (DESIGN.md, "The far
+   * point").  The disc's light is worked out from its colour map's mean
+   * (textureMeans.json) or its albedo, its phase and the exposure the
+   * frame renders with; a body without a mean keeps the marker.
+   *
+   * @param {object} farPoint newFarPoint's
+   * @param {boolean} isMoon
+   */
+  handOffFarPoint(farPoint, isMoon) {
+    const mean = textureMean(this.name)
+    if (!mean) {
+      return
+    }
+    // The brighter of the colour map's mean and the body's albedo: where a
+    // map's stretch is brighter than the body (Mars's 0.39 against 0.15),
+    // the disc drawn is the map's; where the disc has light the map hasn't
+    // (Earth's sky over its 0.16 ground), its albedo (0.37) is nearer.
+    const mapLuma = ((0.2126 * mean[0]) + (0.7152 * mean[1]) + (0.0722 * mean[2])) * (this.props.texture_gain ?? 1)
+    const storedLuma = Math.max(mapLuma, this.props.albedo ?? 0)
+    const radius = this.props.radius.scalar
+    const marker = isMoon ? MOON_POINT_LEVEL : 1
+    const size = farPoint.material.size
+    const body = new Vector3()
+    const cam = new Vector3()
+    const sun = new Vector3()
+    farPoint.onBeforeRender = (renderer, scene, camera) => {
+      farPoint.getWorldPosition(body)
+      camera.getWorldPosition(cam)
+      const world = this.scene?.worldGroup
+      if (world) {
+        world.getWorldPosition(sun)
+      } else {
+        sun.set(0, 0, 0)
+      }
+      const distance = body.distanceTo(cam)
+      const fromSun = body.distanceTo(sun)
+      if (!(distance > radius) || !(fromSun > 0)) {
+        return
+      }
+      const toSun = sun.sub(body).normalize()
+      const toCam = cam.sub(body).normalize()
+      const phase = Math.acos(Math.min(Math.max(toSun.dot(toCam), -1), 1))
+      const pixelRatio = renderer.getPixelRatio()
+      const heightPx = renderer.domElement?.height ?? 0
+      const radiusPx = radius / Math.sqrt((distance * distance) - (radius * radius)) *
+        camera.projectionMatrix.elements[5] * heightPx / 2
+      const level = farPointLevel({
+        marker,
+        radiusPx,
+        value: discMeanValue(storedLuma, renderer.toneMappingExposure / exposureAt(fromSun), phase),
+        ratio: handoffRatio(distance, radius, camera),
+        pointPx: size * pixelRatio,
+      })
+      farPoint.material.color.setRGB(level, level, level, LinearSRGBColorSpace)
+    }
   }
 
 
@@ -492,6 +558,12 @@ export default class Planet extends Object {
     if (lunarUniforms) {
       shaderMods.push(lunarSurfaceShaderMod(lunarUniforms))
     }
+    // While its maps load, stand-ins (standInMaps.js; Planet.md, "While the
+    // maps load"): the colour map's mean, a flat normal.  So the surface
+    // is drawn from the first frame it's wanted, as bright as it will be,
+    // on the way there and on arriving; the real maps take their place as
+    // they come in.
+    const swapInMaps = standInMaps(surfaceMaterial, {map: textureMean(this.name), normalMap: FLAT_NORMAL})
     // Last: a disc a few pixels across, antialiased and shaded as the
     // sphere (smallDisc.js; Planet.md, "Small discs"), its coverage over
     // whatever the mods above added.
@@ -566,17 +638,21 @@ export default class Planet extends Object {
     // limb from the atmosphere pass.
     const group = new Group
     group.add(surface)
-    // Not drawn until its colour map is in: a map without its image draws
-    // black, and the atmosphere pass hazed that into a blue disc before the
-    // surface appeared (ThreeUI gates the pass on this too).
+    // Not drawn until its colour map, or the map's stand-in, is in: a map
+    // without its image draws black, and the atmosphere pass hazed that
+    // into a blue disc before the surface appeared (ThreeUI gates the pass
+    // on this too).  Only a body with no mean on record waits.
     group.userData.ready = () => Boolean(surfaceMaterial.map?.image)
     group.userData.surface = surface
     surface.visible = group.userData.ready()
-    if (!surface.visible) {
+    if (!swapInMaps() || !surface.visible) {
       group.preAnimCb = () => {
+        const swapped = swapInMaps()
         if (group.userData.ready()) {
           surface.visible = true
-          group.preAnimCb = null
+          if (swapped) {
+            group.preAnimCb = null
+          }
         }
       }
     }

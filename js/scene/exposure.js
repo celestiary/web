@@ -737,6 +737,68 @@ export function adaptMeterGain(gain, goal, dtSeconds) {
 
 
 /**
+ * The gain the meter will settle on once the camera has arrived at a body
+ * (ThreeUi.approach; HDR.md, "Travel"), worked out when the travel starts
+ * from the arrival pose alone: the sunlit-disc anchor (sunlitBodyGain) of
+ * the body and whatever else is in that frame (Earth beside the Moon)
+ * over a frame that is otherwise dark (the dark-adapted gain, absolute as
+ * the meter's own ceiling is).  So a sunlit arrival is
+ * exposed for its disc, as the meter exposes it a frame after, and a
+ * night-side arrival, which doesn't anchor, for the dark.
+ *
+ * The meter can't find this in time by itself: the destination is a few
+ * pixels across until the last few frames of the travel, and the gain
+ * eases up with a time constant of 1.5 s (METER_TAU_UP_SECONDS), so a body
+ * reached from the Sun's stopped-down gain arrived dark (Mars at 1/30 of
+ * its exposure) and one reached from a star field arrived blown out (Earth
+ * at 1,760 times), and each took 1-2 s after arriving to settle.
+ *
+ * @param {Array<object>} arrival The bodies in the arrival's frame as
+ *   sunlitBodyGain takes them (ThreeUi._sunlitEntry), the destination's
+ *   first
+ * @param {number} targetKeyedExposure exposureAt the body's distance
+ * @param {number} halfFov Half the vertical field of view, radians
+ * @param {number} [keyedOverEarth] The keyed exposure over Earth's
+ * @returns {number}
+ */
+export function arrivalGain(arrival, targetKeyedExposure, halfFov, keyedOverEarth = 1) {
+  const dark = METER_GAIN_MAX / (keyedOverEarth > 0 ? keyedOverEarth : 1)
+  return sunlitBodyGain(dark, arrival, targetKeyedExposure, halfFov)
+}
+
+
+/**
+ * The exposure the frame renders with while travelling to a body
+ * (ThreeUi._updateExposure): from the exposure it would have had (`live`,
+ * the meter's as before the travel) to the arrival's, evenly in log
+ * exposure (stops) by the travel's progress.  So it is the live one when
+ * the camera sets off and the arrival's when it gets there, with no step
+ * between, and the meter takes over from the arrival's.
+ *
+ * @param {number} live The exposure without the travel
+ * @param {number} arrival The exposure at the arrival (arrivalGain's)
+ * @param {number} progress The travel's, 0 to 1 (the position channel's,
+ *   eased: camera.js travelProgress)
+ * @returns {number}
+ */
+export function approachExposure(live, arrival, progress) {
+  if (!(arrival > 0)) {
+    return live
+  }
+  if (!(live > 0)) {
+    return arrival
+  }
+  if (!(progress > 0)) {
+    return live
+  }
+  if (progress >= 1) {
+    return arrival
+  }
+  return Math.exp(((1 - progress) * Math.log(live)) + (progress * Math.log(arrival)))
+}
+
+
+/**
  * The limiting magnitude (HDR.md, "Physical stars"): the naked eye's at a
  * dark site, dark adapted, which is the metered exposure's dark-adapted
  * gain (METER_GAIN_MAX).  The one parameter the star field is calibrated

@@ -284,6 +284,26 @@ blends that sliver harmlessly; a code in alpha doesn't.  **Rule:** a
 texture whose channels are codes (distances, ids) gets `NearestFilter`,
 and the decode treats less than half a level as nothing.
 
+### Measure a transition frame by frame, from the state the user starts in
+
+"Mars is dark as I approach, Earth isn't" read like a Mars problem (its
+texture, its LOD).  Stepping the travel on a virtual 60 fps clock
+(`performance.now` overridden, `renderLoop` called by hand) and logging
+per frame the body's size, LOD, map, the keyed exposure, the meter's gain
+and goal and the disc's pixels showed one mechanism for every body: the
+meter, easing up at 1.5 s, couldn't see the destination until its last
+few frames, so a body arrived at whatever the meter had been heading for.
+From the Sun's view just after loading (the meter stopped down for the
+disc) that was dark; from a star field it was white (Earth at a gain of
+4,300, which "looked fine" only because white reads as lit).  The same log
+found two more, neither in the report: the colour map still loading left
+the body missing and the meter held, and Earth's small disc was a tenth as
+bright as its mesh, because the grown mesh's depth sat over the top of its
+air.  **Rule:** for a transition bug, log every stage's state per frame
+through it, start from the state the user was in (here, just after
+loading), and run every body through the same log before deciding which
+is special.
+
 ### A fix for one body: check every body that shares the path
 
 The terrain-distance fix was Earth's (its globe, `albedo` output), and

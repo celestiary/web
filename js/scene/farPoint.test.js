@@ -8,13 +8,20 @@ import {
   PointsMaterial,
   Vector3,
 } from 'three'
-import {OVERLAY_LAYER} from '../shared.js'
+import {DISPLAY_GAIN, OVERLAY_LAYER} from '../shared.js'
+import {neutral} from './hdr.js'
 import {
   MOON_POINT_LEVEL,
   MOON_POINT_PX,
   PLANET_POINT_PX,
   POINT_AT_RADII,
+  POINT_HANDOFF_RANGE,
+  discFlux,
+  discMeanValue,
   farPointColor,
+  farPointLevel,
+  handoffRatio,
+  lambertPhase,
   farPointOptions,
   FovLOD,
   fovScale,
@@ -272,6 +279,75 @@ describe('meshReach', () => {
       expect(at(false)).toBe(false)
     } finally {
       setDrawingBuffer(640, 1)
+    }
+  })
+})
+
+
+describe('the far point\'s hand-off to the disc', () => {
+  const n = (v) => neutral([v, v, v])[0]
+
+  it('Lambert\'s phase law: whole at full, none at new, 1/π at quarter', () => {
+    expect(lambertPhase(0)).toBeCloseTo(1, 12)
+    expect(lambertPhase(Math.PI)).toBeCloseTo(0, 12)
+    expect(lambertPhase(Math.PI / 2)).toBeCloseTo(1 / Math.PI, 12)
+    expect(discMeanValue(0.39, 1, 0)).toBeCloseTo(0.39 * DISPLAY_GAIN * 2 / 3, 12)
+  })
+
+  it('a disc\'s light is its area at its value, but for the rim the toe darkens', () => {
+    // Large: the rim is a small part.
+    expect(discFlux(50, 0.4) / (Math.PI * 2500 * n(0.4))).toBeCloseTo(1, 1)
+    // A pixel across: under its area at its mean, the rim's pixels dimmer.
+    expect(discFlux(0.9, 0.4)).toBeLessThan(Math.PI * 0.81 * n(0.4))
+    expect(discFlux(0.9, 0.4)).toBeGreaterThan(0.5 * Math.PI * 0.81 * n(0.4))
+    // Continuous and growing with the radius.
+    let prev = 0
+    for (let r = 0.1; r < 30; r *= 1.1) {
+      const f = discFlux(r, 0.4)
+      expect(f).toBeGreaterThan(prev)
+      prev = f
+    }
+    expect(discFlux(0, 0.4)).toBe(0)
+    expect(discFlux(1, 0)).toBe(0)
+  })
+
+  it('carries the disc\'s light where the mesh takes over, the marker\'s far off, and blends between', () => {
+    const p = {marker: 1, radiusPx: 0.89, value: 0.41, pointPx: 2}
+    // Mars at its arrival exposure, at the hand-off: the disc's light over
+    // the point's 4 px, not the marker's white (7 times brighter).
+    const atHandoff = farPointLevel({...p, ratio: 1})
+    expect(atHandoff * 4).toBeCloseTo(discFlux(0.89, 0.41), 9)
+    expect(atHandoff).toBeLessThan(0.3)
+    expect(farPointLevel({...p, ratio: POINT_HANDOFF_RANGE})).toBeCloseTo(1, 12)
+    expect(farPointLevel({...p, ratio: 100})).toBeCloseTo(1, 12)
+    let prev = atHandoff
+    for (let r = 1.1; r < POINT_HANDOFF_RANGE; r *= 1.1) {
+      const l = farPointLevel({...p, ratio: r})
+      expect(l).toBeGreaterThanOrEqual(prev)
+      expect(l - prev).toBeLessThan(0.1)
+      prev = l
+    }
+    // A moon's marker; a disc brighter than the point can be is white.
+    expect(farPointLevel({...p, marker: MOON_POINT_LEVEL, ratio: 10})).toBeCloseTo(MOON_POINT_LEVEL, 12)
+    expect(farPointLevel({...p, value: 1e6, ratio: 1})).toBe(1)
+  })
+
+  it('the hand-off is where the planet LOD switches', () => {
+    setDrawingBuffer(640, 1)
+    const camera = new PerspectiveCamera(45, 1.5, 1, 1e20)
+    const r = JUPITER_RADIUS
+    expect(handoffRatio(pointSwitchDistance(r) * meshReach(), r, camera)).toBeCloseTo(1, 12)
+    camera.fov = 1
+    expect(handoffRatio(pointSwitchDistance(r) * meshReach() / fovScale(camera), r, camera)).toBeCloseTo(1, 12)
+    // And the LOD agrees: the point just past it, the mesh just short.
+    const lod = new FovLOD({drawnSize: true})
+    lod.addLevel(new Object3D(), 1)
+    lod.addLevel(new Object3D(), pointSwitchDistance(r))
+    for (const [k, level] of [[1.01, 1], [0.99, 0]]) {
+      camera.position.set(0, 0, k * pointSwitchDistance(r) * meshReach() / fovScale(camera))
+      camera.updateMatrixWorld()
+      lod.update(camera)
+      expect(lod.getCurrentLevel()).toBe(level)
     }
   })
 })

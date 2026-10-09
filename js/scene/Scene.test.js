@@ -1009,6 +1009,28 @@ describe('Scene following', () => {
       expect(seen).toEqual([['follow', true]])
     })
 
+    it('hands the UI the approach, for every planet and moon alike: the body, where it arrives, the travel', () => {
+      const {s, ui, jupiter, io} = makeSolarSystem()
+      const seen = []
+      ui.approach = (body, arrival, tween) => seen.push({body, arrival: arrival.clone(), tween})
+      for (const body of [jupiter, io]) {
+        s.setTarget(body.props.name, {look: false})
+        s.goTo()
+        const last = seen[seen.length - 1]
+        expect(last.body).toBe(body)
+        expect(last.tween).toBe(Shared.targets.tween)
+        expect(last.tween.travelProgress()).toBe(0)
+        // Arriving STEP_BACK (10) radii from its centre.
+        const centre = body.getWorldPosition(new Vector3)
+        expect(last.arrival.distanceTo(centre) / body.props.radius.scalar).toBeCloseTo(10, 6)
+      }
+      expect(seen.length).toBe(2)
+      // A star has none: the meter has its exposure.
+      s.worldGroup.add(s.stellarFrame)
+      s.goTo({hipId: 11767, x: 1e18, y: 2e17, z: -3e17, radius: 1e9}, 'Polaris')
+      expect(seen.length).toBe(2)
+    })
+
     it('is off at a star, which has no orbit to ride', () => {
       const {s} = makeSolarSystem()
       s.worldGroup.add(s.stellarFrame)

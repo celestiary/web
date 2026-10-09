@@ -296,7 +296,8 @@ tone-mapping exposure follows the targeted body (`exposure.js`,
 `ThreeUI._updateExposure`): π·d² / I for its distance d from the Sun, so its sunlit side renders
 at its albedo — a surface facing the Sun shows its texture's colour
 × `DISPLAY_GAIN` (1.5), as Cesium's layers do — easing between targets over
-~0.5 s.  Over that keyed exposure a metered gain adapts to the frame
+~0.5 s, and on the way to a body following it to the arrival's ([HDR.md,
+travel](HDR.md#travel)).  Over that keyed exposure a metered gain adapts to the frame
 ([HDR.md, metered exposure](HDR.md#metered-exposure)): 1 wherever a
 sunlit surface is in view, more at a low Sun, at twilight, at night and in
 deep space, less for the Sun's disc.  A body's `texture_gain` (e.g. the Moon's) scales its texture for
@@ -550,6 +551,16 @@ Under 24 px of radius, and farther than 20 radii:
   copy of the longitude.  Jupiter's belts show at 13 px across (0.63°).
   Bump and night-light maps keep the mesh's coordinates, which at these
   sizes is a fraction of a pixel off.
+- **Each fragment writes the sphere's depth** (`gl_FragDepth`) where its
+  ray meets it, or at the limb for a pixel the disc only partly covers.
+  The grown mesh's own depth is up to its margin over the surface: at 22
+  radii Earth's was 1,000 km up, over the top of its air, so the
+  atmosphere pass marched no air over the disc, and Earth, whose look is
+  mostly its sky's light (`sunIntensity` 21), was a tenth as bright from
+  20 radii out as just inside, where the small disc hands over to the
+  mesh (the summed light round it 150 at 22 radii, against 1,470 at 12;
+  now 560, and 652 and 636 either side of 20 radii).  It is also the depth
+  the far points and labels test against.
 - **A moon a few pixels across in transit has a dark rim** over its
   planet: what lies behind a partly covered pixel doesn't show through.
 - **The mesh reaches until its disc is the far point's size** (2 CSS px;
@@ -558,6 +569,42 @@ Under 24 px of radius, and farther than 20 radii:
   into a white 2 px square while still 4 px across, as the field widened
   past 1.9°.  Never nearer than 500 radii, which CesiumLayers' `meshRange`
   shares.
+
+## While the maps load
+
+A body's surface is drawn from the first frame it's wanted, before its
+maps are in (`standInMaps.js`, `Planet.nearShape`): each map slot whose
+image hasn't loaded holds a one-texel stand-in, swapped for the real map
+from the animation loop (the surface group's `preAnimCb`) when its image
+arrives.  The same slot, so the same shader program.
+
+- **The colour map's** is its mean stored value over the sphere, each
+  texel weighted by its area (cos lat), per channel
+  (`js/scene/textureMeans.json`; Mars 0.47, 0.36, 0.36; Earth's from
+  January's Blue Marble).  So the disc has the light the textured one
+  will have on average, through every path a lit surface takes (the small
+  disc, the exposure, the meter's anchor), and the map only adds detail
+  when it comes.
+- **The normal map's** is a flat normal (0.5, 0.5, 1): an unloaded map
+  samples black, a normal of (−1, −1, −1).  A bump map that hasn't loaded
+  samples a constant, which is flat already, and the ocean and night-light
+  maps black, which is no ocean shine and no lights.
+
+Before, the surface was hidden until its colour map was in (a map without
+its image draws black, and the atmosphere pass hazed that into a blue
+disc), and the meter held its gain while the target's surface wasn't
+ready.  Going to Mars with its 2 MB map delayed, the planet was missing
+on arrival, and the meter stayed at the Sun's gain (5e-6) until the map
+came, then took seconds to come up.  Now it arrives at its exposure, the
+colour of its mean.  A body with no mean on record (none now) still
+waits for its map.
+
+**Rebuild the means** when a colour map changes:
+`tools/textureMeans.py > js/scene/textureMeans.json` from the repository
+root (Pillow and NumPy).  `standInMaps.test.js` checks that every planet
+and moon with a colour map has one.  The far point's hand-off uses the
+same means for the light the disc will have (DESIGN.md, [the far
+point](../../DESIGN.md#the-far-point)).
 
 ## Surface texture sources
 
