@@ -182,16 +182,22 @@ Tracking (`t`) is the `T` flag in `s=`: `Scene.getSettings()` reads it from
 `Shared.targets.track`, and `Celestiary._arrive` sets it (`Scene.setTracking`) after the target.
 
 Following (`f`) is the `F` flag in `s=`, the same way: `Scene.getSettings()` reads it from
-`Shared.targets.follow` (set while following), and `Celestiary._arrive` sets it
-(`Scene.setFollowing`) after the target, so it follows the link's target.  It is independent of
-`T` (`s=TF`), left out when off, and a link from before it has no `F` and reloads not following.
-Following rides the target's orbit (DESIGN.md [follow](../DESIGN.md#follow)): the next frame's
-`Scene.syncFollow` hangs the camera platform on the target's `orbitPosition`, keeping the camera
-where the link put it, so a reloaded link rides from the first frame, and the camera's frame
-(`Shared.targets.cur`, the one the link's position is in) is then the followed body's.  Changing
-the target while following follows the new one; a star or an asterism turns following off, and the
-link loses its `F`.
-`Scene.setFollowing` says so to the link when it changes, as `setTracking` does.
+`Shared.targets.follow` (the body's `orbitPosition` while following).  It is independent of `T`
+(`s=TF`) and left out when off.  It means **the camera follows its frame's body** (`from=`, else the
+path's): going to a body or landing (`Scene.goTo`, `land`) turn it on, so a link made after `g` has
+it, and `f` then leaves the body for its frame (DESIGN.md [follow](../DESIGN.md#follow)), after which
+the link is in that frame (`from=sun`) without `F`.
+
+Restore: `Celestiary._arrive` puts the camera in its frame (`_restoreView`: `goTo` or `land`, which
+turn following on silently) and, once the target is set, calls `Scene.restoreFollowing(on)` with
+`pl.settings.F` **or the frame being the target's own body** (no `from=`, or the same one).  A link
+from before `F` has no letter and always rode its frame body, so it reads as following; a link in
+another body's frame without `F` reads as detached.  Neither moves the camera; `restoreFollowing`
+sets the body followed to the camera's frame (`Shared.targets.cur`), not the target.  The readout
+hears of it only when the link doesn't follow ("Following off").  A camera in the target's own frame
+that had left another body reads as following (one `f` leaves it), the one state the link can't tell
+apart.
+`Scene.setFollowing` and `restoreFollowing` say so to the link when it changes, as `setTracking` does.
 
 ## Future Work
 

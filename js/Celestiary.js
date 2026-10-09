@@ -80,7 +80,11 @@ export default class Celestiary {
     // the URL always reflects the live view configuration.
     this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
     // 't' and 'f' say what they switched, on the readout (onNavMode).
-    this.scene.onModeChange = (mode, on) => this._navModeListeners.forEach((fn) => fn(mode, on))
+    this.scene.onModeChange = (mode, on, note) => {
+      if (!this._navQuiet) {
+        this._navModeListeners.forEach((fn) => fn(mode, on, note))
+      }
+    }
     // 'v' (nav panels) is a Celestiary-level toggle — register the applier
     // so Scene.applySettings can drive it on permalink restore.
     this.scene.registerSettingApplier('v', () => this._toggleNav())
@@ -94,6 +98,7 @@ export default class Celestiary {
     this._starMagListeners = new Set
     // And of tracking and following being switched (onNavMode).
     this._navModeListeners = new Set
+    this._navQuiet = false
     // The link holds the clock's pause, rate and date.
     this.time.onTimeScaleChange(() => this._schedulePermalinkUpdate())
     // Callbacks waiting for a body to load, by name (_loadBody).
@@ -190,8 +195,9 @@ export default class Celestiary {
 
 
   /**
-   * @param {Function} fn Called with the mode ('track' or 'follow') and
-   *   whether it is on, when 't' or 'f' (or a link) switches it
+   * @param {Function} fn Called with the mode ('track' or 'follow'),
+   *   whether it is on and, when 'f' couldn't turn following off, why
+   *   ('root', 'landed'), when 't' or 'f' (or a link) switches it
    * @returns {Function} Stops listening
    */
   onNavMode(fn) {
@@ -371,16 +377,25 @@ export default class Celestiary {
       this._restoreClock(pl)
       this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
       this.ui.scene.updateMatrixWorld()
+      // Going there turns following on; the link's own state follows, and the
+      // readout hears of that alone.
+      this._navQuiet = true
       try {
         this._restoreView(pl, frame)
       } catch (e) {
         console.error('Permalink restore failed:', e)
+      } finally {
+        this._navQuiet = false
       }
       this._resolveTarget(resolved, (target) => {
         this.scene.setTarget(target, {look: false})
         // Tracking and following are on top of the target, so they follow it.
         this.scene.setTracking(pl.settings.T)
-        this.scene.setFollowing(pl.settings.F)
+        // Following is of the camera's frame: on if the link says (`F`), or
+        // if the frame is the target's own body, which is how links before
+        // `F` rode (design/URLs.md).
+        const ownFrame = frame.kind !== 'star' && (!pl.from || pl.from === REF_FRAME[resolved.kind](resolved))
+        this.scene.restoreFollowing(pl.settings.F || ownFrame)
       })
     } else {
       this._goToResolved(resolved, frame)
@@ -941,7 +956,7 @@ export default class Celestiary {
     k.map('f', () => {
       this.scene.follow()
     },
-    'Follow target (ride its orbit)',
+    'Follow: ride the target\'s orbit (on after going there; off leaves it)',
     () => Boolean(Shared.targets.follow),
     'Targeting')
     k.map('g', () => {

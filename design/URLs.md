@@ -134,21 +134,34 @@ grids `e` `c` `g`, galaxy `U`, human expansion lines `x`, the HUD `v`),
 plus landed `L`, tracking `T`, following `F` and AR `A` (`permalink.js`
 `SETTINGS_DEFAULTS`).  `T` is the `t` key: the camera keeps the target
 centred every frame, so a link made while tracking reloads tracking.  `F`
-is the `f` key (`Scene.follow`, `Shared.targets.follow`): the camera rides the
-targeted body's orbit, moving with it as time runs and keeping its view
-(DESIGN.md [follow](../DESIGN.md#follow)).  It is independent of `T`
-(`s=TF` is both: riding along while facing it).  A link made while following
-reloads following, the body being the link's target, set after it as `T`
-is; the camera then rides again from the first frame.  The position in the
-link is in the camera's frame, which following makes the followed body's, so
-it is the offset from the body being ridden.  Changing the target while
-following follows the new target, so `F` always means the link's target; a
-target that does not move (a star, an asterism) turns following off, and the
-link loses its `F`.
+is the `f` key (`Scene.follow`, `Shared.targets.follow`): the camera follows
+**the body it is at**, its frame's, moving with it as time runs and keeping
+its view (DESIGN.md [follow](../DESIGN.md#follow)).  Going to a body and
+landing turn it on, so a link made after `g` carries `F` (`#sun/earth@…;s=F`);
+`f` then leaves the body for its frame, and a link made after that is in the
+Sun's frame (`from=sun`) without `F`.  It is independent of `T` (`s=TF` is
+both: riding along while facing it).
+- **Reading it** (a link with a view): the camera is put in its frame, then
+  following is on if the link has `F`, **or if the frame is the target's own
+  body** (no `from=`, or the same body).  The second is how every link made
+  before `F` read: it rode the body it was in (the camera hung on its orbit),
+  so those links keep their meaning and now say "following".  A link in
+  another body's frame without `F` is detached, and a camera is never moved by
+  reading `F`.
+- **What it can't say:** a camera in the target's own frame that has left some
+  other body (the Moon's, then the target set to Earth: frame Earth, target
+  Earth) reads back as following Earth.  The picture is the same, and one `f`
+  leaves it.  Making that distinct would need a letter for "detached", and
+  every old link would then have to read as following without it; the flag's
+  job is the picture and the key's state, which this keeps.
+- **Precision:** the position is the camera's in its frame, to four decimals
+  of a degree: a camera riding a body keeps a few metres, one left in the Sun's
+  frame is good to ~260 km at 1 AU.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
 `U`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
 star labels off, orbits off, landed), while `e` `c` `g` `L` `T` `F` `A` mean on.
-A link from before `F` has no such letter and reloads not following.
+A link from before `F` has no such letter: it reloads following if its frame is
+the target's own body (above), as it rode, and not otherwise.
 
 `fov=` is written to four significant figures (`45deg`, `0.0714deg`,
 `120.5deg`), so a telescope's field survives the round trip to a part in

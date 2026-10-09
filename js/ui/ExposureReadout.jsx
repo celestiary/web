@@ -32,7 +32,7 @@ export default function ExposureReadout({celestiary}) {
     }
     const stopEv = celestiary.onExposureCompensation((next) => show(formatEv(next)))
     const stopStars = celestiary.onStarMagnitude((next) => show(formatStarMag(next)))
-    const stopMode = celestiary.onNavMode((mode, on) => show(formatNavMode(mode, on)))
+    const stopMode = celestiary.onNavMode((mode, on, note) => show(formatNavMode(mode, on, note)))
     return () => {
       stopEv()
       stopStars()
