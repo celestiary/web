@@ -307,19 +307,25 @@ ring's coverage exact).  It scales:
   so depth couldn't hide it.
 
 **The 2024-04-08 eclipse from Dallas** (32.78° N, 96.80° W): totality in
-the app from 18:41:56 to 18:44:46 UTC (2 min 50 s, mid-eclipse 18:43:21,
-the centres 0.49′ apart), against NASA's 18:40:43-18:44:35 (1:40:43-1:44:35
-pm CDT, 3 min 52 s): the model's umbra passes some 40-50 km off Dallas's
-place in it.  celestiary's Earth is a sphere and the link's latitude is
-taken as geocentric (0.18° from the geodetic here, 20 km across the
-path); the rest is the Moon's and Earth's models (not chased here).  The
+the app from 18:41:36 to 18:45:45 UTC (4 min 9 s, mid-eclipse 18:43:40,
+the centres 0.415′ apart), against NASA's 18:40:43-18:44:35 (1:40:43-1:44:35
+pm CDT, 3 min 52 s): about a minute late, and Dallas nearer the model's
+centre line than the real one's.  celestiary's Earth is a sphere and the
+link's latitude is taken as geocentric (0.18° from the geodetic here, 20
+km across the path); the rest is the Moon's and Earth's models, not
+chased here (the contacts were read with the camera held at Dallas on the
+turning Earth: a camera left where it was while the clock moves drifts
+0.25° of longitude a minute).  The glare at the last sliver is drawn as
+the whole disc's, centred on the Sun, not on the bead (a follow-up).  The
 Moon's disc is 1.060 of the Sun's (16.88′ and 15.93′).  The acceptance link (paused at mid-totality, labels
 and orbits off):
 
-`#sun/earth@32.78,-96.8009,200m;t=8864.2801jd;cq=0,-0.5777,0,0.8162;fov=3deg;s=F;time:pause`
+`#sun/earth@32.78,-96.8009,200m;t=8864.2801jd;cq=0,-0.5777,0,0.8162;fov=3deg;s=lpoxF;time:pause`
 
-and a minute and a half before totality, to watch it come:
-`...;t=8864.27995jd;...` without `time:pause`.
+and ten seconds before second contact (the last sliver's glare) with
+`t=8864.27876jd`.  Paused: with the clock running the camera, which isn't
+landed, keeps its place while Earth turns under it (0.25° a minute), and
+leaves Dallas's track through the umbra.
 
 Two fixes the eclipse needed outside the Sun's code:
 

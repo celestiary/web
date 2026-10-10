@@ -8,8 +8,8 @@
 
 
 // Rings across the disc: enough for a smooth light curve through a
-// partial phase (the coverage of a ring is exact; the rings sample the
-// limb darkening).
+// partial phase and the last sliver before totality (the coverage of a
+// ring is exact; the rings sample the limb darkening).
 export const ECLIPSE_RINGS = 64
 
 
@@ -50,10 +50,13 @@ export function visibleFraction(discRadius, occluders, limb = () => 1) {
   }
   let total = 0
   let seen = 0
+  // Rings packed toward the limb, r = 1 − u² (u uniform), where the last
+  // sliver before totality is: the outermost at 0.99994 of the radius.
   for (let k = 0; k < ECLIPSE_RINGS; k++) {
-    const r = (k + 0.5) / ECLIPSE_RINGS
+    const u = (k + 0.5) / ECLIPSE_RINGS
+    const r = 1 - (u * u)
     const mu = Math.sqrt(Math.max(1 - (r * r), 0))
-    const w = limb(mu) * r
+    const w = limb(mu) * r * u
     let open = 1
     for (const o of near) {
       open *= 1 - ringCovered(r, o.separation / discRadius, o.radius / discRadius)
