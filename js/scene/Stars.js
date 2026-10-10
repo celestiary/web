@@ -1,9 +1,7 @@
 import {
-  AdditiveBlending,
   Group,
   LOD,
   Points,
-  ShaderMaterial,
   Vector3,
 } from 'three'
 import Loader from '../Loader.js'
@@ -16,8 +14,8 @@ import TargetLabel, {targetLabelShown} from './TargetLabel.js'
 import {assertDefined} from '../assert.js'
 import {FAR_OBJ, STARS_RADIUS_METER, overlay} from '../shared.js'
 import {named} from '../utils.js'
-import {absoluteUniforms} from './hdr.js'
 import {rteCameraLocal} from './rte.js'
+import {newStarsMaterial} from './starsMaterial.js'
 
 
 // > 10k is too much for my old laptop.
@@ -127,30 +125,9 @@ export default class Stars extends Object {
   /** */
   show() {
     this.geom = new StarsBufferGeometry(this.catalog)
-    // Physical brightness, in exposure units (shaders/stars.vert; HDR.md):
-    // the exposure, viewport, field of view and the user's star gain are
-    // the shared absoluteUniforms, which ThreeUi sets each frame.  The
-    // sprite is an analytic Gaussian (stars.frag), not a texture.
-    const starsMaterial = new ShaderMaterial({
-      uniforms: {
-        ...absoluteUniforms,
-        // A star's quad: as large as the visible star (stars.vert), from
-        // the eye's patch in pixels (1 px here, 4 on a 1080 px screen) to
-        // 96 px for the Sun from the outer planets.
-        MIN_STAR_SIZE_PX: {value: 1},
-        MAX_STAR_SIZE_PX: {value: 96},
-        // RTE uniforms: camera position in star catalog coords, split high/low
-        uCamPosWorldHigh: {value: new Vector3()},
-        uCamPosWorldLow: {value: new Vector3()},
-      },
-      vertexShader: 'shaders/stars.vert',
-      fragmentShader: 'shaders/stars.frag',
-      blending: AdditiveBlending,
-      depthTest: true,
-      depthWrite: false,
-      transparent: true,
-      toneMapped: false,
-    })
+    // One material for every star point (starsMaterial.js; HDR.md,
+    // "Physical stars"), the point populations' too (Gaia.md).
+    const starsMaterial = newStarsMaterial()
     const me = this
     new Loader().loadShaders(starsMaterial, () => {
       const starPoints = named(new Points(this.geom, starsMaterial), 'StarsPoints')

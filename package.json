@@ -24,7 +24,8 @@
     "cert:dev": "node tools/genDevCert.mjs",
     "test": "bun test",
     "update-version": "./tools/updateVersion.mjs",
-    "parity": "node tools/parity/parity.mjs"
+    "parity": "node tools/parity/parity.mjs",
+    "gaia": "bun tools/gaia/gaia.mjs"
   },
   "dependencies": {
     "1eurofilter": "^1.3.0",
