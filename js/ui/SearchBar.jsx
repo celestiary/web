@@ -43,6 +43,7 @@ export default function SearchBar({celestiary}) {
   const setSearchSelection = useStore((s) => s.setSearchSelection)
   const setPreviewPath = useStore((s) => s.setPreviewPath)
   const setPreviewStar = useStore((s) => s.setPreviewStar)
+  const setPreviewGalaxy = useStore((s) => s.setPreviewGalaxy)
   const clearPreview = useStore((s) => s.clearPreview)
   const anchorIndex = useStore((s) => s.anchorIndex)
   const hoveredAnchorIndex = useStore((s) => s.hoveredAnchorIndex)
@@ -137,7 +138,7 @@ export default function SearchBar({celestiary}) {
     if (ready) {
       const entry = searchIndex.resolveByName(searchHoverName, anchorPath)
       setSearchSelection(entry)
-      setPreviewForEntry(entry, {setPreviewPath, setPreviewStar, clearPreview})
+      setPreviewForEntry(entry, {setPreviewPath, setPreviewStar, setPreviewGalaxy, clearPreview})
     }
   }, [searchHoverName, isStarsSelectActive, isSearchOpen, inputFocused, ready, anchorPath])
 
@@ -375,12 +376,12 @@ export default function SearchBar({celestiary}) {
             onInputChange={(e, v) => setSearchQuery(v)}
             onChange={(e, v) => {
               setSearchSelection(v)
-              setPreviewForEntry(v, {setPreviewPath, setPreviewStar, clearPreview})
+              setPreviewForEntry(v, {setPreviewPath, setPreviewStar, setPreviewGalaxy, clearPreview})
               targetEntry(v, celestiary)
               ownPickRef.current = useStore.getState().committedTarget
             }}
             onHighlightChange={(e, option) => {
-              setPreviewForEntry(option, {setPreviewPath, setPreviewStar, clearPreview})
+              setPreviewForEntry(option, {setPreviewPath, setPreviewStar, setPreviewGalaxy, clearPreview})
             }}
             renderInput={(params) => (
               <TextField
@@ -463,12 +464,13 @@ export default function SearchBar({celestiary}) {
 
 /**
  * Push a SearchEntry into the preview store fields.  Stars use previewStar
- * (rendered via ControlPanel.showStarPreview); bodies use previewPath.
+ * (rendered via ControlPanel.showStarPreview), SPARC galaxies previewGalaxy
+ * (showGalaxyPreview); bodies use previewPath.
  *
  * @param {SearchEntry|null} entry
- * @param {object} setters {setPreviewPath, setPreviewStar, clearPreview}
+ * @param {object} setters {setPreviewPath, setPreviewStar, setPreviewGalaxy, clearPreview}
  */
-function setPreviewForEntry(entry, {setPreviewPath, setPreviewStar, clearPreview}) {
+function setPreviewForEntry(entry, {setPreviewPath, setPreviewStar, setPreviewGalaxy, clearPreview}) {
   if (!entry) {
     clearPreview()
     return
@@ -479,6 +481,10 @@ function setPreviewForEntry(entry, {setPreviewPath, setPreviewStar, clearPreview
       displayName: entry.displayName,
       star: entry.payload && entry.payload.star,
     })
+    return
+  }
+  if (entry.payload?.galaxy) {
+    setPreviewGalaxy(entry.payload.galaxy)
     return
   }
   // 'milkyway/sun/earth/moon' → ['sun', 'earth', 'moon']
