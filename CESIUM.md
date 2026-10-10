@@ -247,7 +247,11 @@ on screen always did; a body never shown warms up first (UX, above).
   shader), so they sit over Cesium's globe and drop off its far side
   ([#172](https://github.com/celestiary/web/issues/172); `_hideSurface`
   hid them until then, from when they drew in the main pass, under
-  Cesium's globe).
+  Cesium's globe).  The declutter that thins touching labels
+  ([DESIGN.md](DESIGN.md#declutter)) runs on the sheets as they are, once a
+  frame before the overlay pass, and doesn't read the layer's state, so the
+  same labels are drawn with a layer on and off, from the same catalogues
+  ([places.md](js/scene/places.md#the-gazetteer)).
 - Earth and Mars keep celestiary's atmosphere post-pass, over Cesium's
   surface (see Atmospheres).
 
