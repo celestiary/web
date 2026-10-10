@@ -88,9 +88,10 @@ describe('place search by scope', () => {
   })
 
   it('only offers the places inside the scope', async () => {
-    expect((await find('tycho', 'milkyway/sun/mars')).some((r) => r.kind === 'place')).toBe(false)
+    // (Mars has a Tycho Brahe, so a name only the Moon has.)
+    expect((await find('tranquillitatis', 'milkyway/sun/mars')).some((r) => r.kind === 'place')).toBe(false)
     // The Moon is inside Earth's scope, so its places are too.
-    expect((await find('tycho', 'milkyway/sun/earth')).some((r) => r.kind === 'place')).toBe(true)
+    expect((await find('tranquillitatis', 'milkyway/sun/earth')).some((r) => r.kind === 'place')).toBe(true)
     expect((await find('austin', 'milkyway/sun/earth/moon')).some((r) => r.displayName === 'Austin')).toBe(false)
     expect((await find('austin', 'milkyway/sun/mars')).some((r) => r.displayName === 'Austin')).toBe(false)
   })
@@ -109,10 +110,15 @@ describe('place search by scope', () => {
     expect(await index.ensureScope('milkyway')).toBe(0)
   })
 
-  it('matches every place in every catalogue by its own name', async () => {
+  // Every tier 0 place and one in 40 of the rest: a query takes tens of ms, and
+  // the Gazetteer's catalogues are 8,000 places (all of them took two minutes).
+  it('matches the places of every catalogue by their own names', async () => {
     await index.ensureScope('milkyway')
     for (const body of ['earth', 'moon', 'mars', 'mercury', 'venus']) {
-      for (const e of readJson(`places/${body}.json`).places) {
+      for (const [i, e] of readJson(`places/${body}.json`).places.entries()) {
+        if ((e.t ?? 0) > 0 && i % 40 !== 0) {
+          continue
+        }
         const hits = index.query(e.n, `milkyway/sun/${body === 'moon' ? 'earth/moon' : body}`, 20)
         expect(hits.some((h) => h.entry.kind === 'place' && h.entry.displayName === e.n)).toBe(true)
       }

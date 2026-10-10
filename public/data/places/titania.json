@@ -1,0 +1,30 @@
+{
+  "_attribution": "IAU Gazetteer of Planetary Nomenclature, USGS Astrogeology Science Center and the IAU Working Group for Planetary System Nomenclature (WGPSN); planetarynames.wr.usgs.gov. Public domain.",
+  "_body": "titania",
+  "_source": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/TITANIA_nomenclature_center_pts.zip",
+  "_sourceModified": "2026-10-09",
+  "_newestApproval": "1988-01-01",
+  "_generator": "tools/places/build.mjs",
+  "_lngConvention": "east-positive (+E), -180..+180",
+  "_latConvention": "planetocentric",
+  "places": [
+    {"n": "Messina Chasmata", "t": 0, "lat": -33.3, "lng": -25, "k": "chasma"},
+    {"n": "Gertrude", "t": 0, "lat": -15.8, "lng": -72.9, "k": "crater"},
+    {"n": "Belmont Chasma", "t": 0, "lat": -8.5, "lng": 32.6, "k": "chasma"},
+    {"n": "Rousillon Rupes", "t": 1, "lat": -14.7, "lng": 26.5, "k": "rupes"},
+    {"n": "Ursula", "t": 1, "lat": -12.4, "lng": 45.2, "k": "crater"},
+    {"n": "Mopsa", "t": 1, "lat": -11.9, "lng": -57.8, "k": "crater"},
+    {"n": "Calphurnia", "t": 1, "lat": -42.4, "lng": -68.6, "k": "crater"},
+    {"n": "Katherine", "t": 1, "lat": -51.2, "lng": -28.1, "k": "crater"},
+    {"n": "Elinor", "t": 1, "lat": -44.8, "lng": -26.4, "k": "crater"},
+    {"n": "Jessica", "t": 1, "lat": -55.3, "lng": -74.1, "k": "crater"},
+    {"n": "Valeria", "t": 1, "lat": -34.5, "lng": 4.2, "k": "crater"},
+    {"n": "Lucetta", "t": 1, "lat": -14.7, "lng": -82.9, "k": "crater"},
+    {"n": "Bona", "t": 1, "lat": -55.8, "lng": -8.8, "k": "crater"},
+    {"n": "Adriana", "t": 1, "lat": -20.1, "lng": 3.9, "k": "crater"},
+    {"n": "Marina", "t": 1, "lat": -15.5, "lng": -44, "k": "crater"},
+    {"n": "Phrynia", "t": 1, "lat": -24.3, "lng": -50.8, "k": "crater"},
+    {"n": "Iras", "t": 1, "lat": -19.2, "lng": -21.2, "k": "crater"},
+    {"n": "Imogen", "t": 1, "lat": -23.8, "lng": -38.8, "k": "crater"}
+  ]
+}

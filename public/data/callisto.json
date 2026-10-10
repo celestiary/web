@@ -8,6 +8,7 @@
 "mass": "1.08E26 g",
 "density": 1.936,
 "radius": "2.410E6 m",
+"has_locations": true,
 "texture_longitude": 180,
 "texture_longitude_source": "Valhalla's rings (14.7°N, 56°W) and Asgard (32.2°N, 140°W) land on their USGS positions only with the map centred on 180° (js/scene/Planet.md)",
 "siderealRotationPeriod": 1442016.0,
