@@ -397,3 +397,130 @@ export function detailNoise(size = DETAIL_SIZE) {
   const data = new Uint8Array(size * size * size * 4)
   return {data, size, steps: sliceSteps(size, detailTexel, data)}
 }
+
+
+/** The blue-noise tile's side, texels: it repeats across the march's target. */
+export const BLUE_NOISE_SIZE = 64
+
+
+/**
+ * A tiling blue-noise dither tile by void-and-cluster (Ulichney 1993,
+ * "The void-and-cluster method for dither array generation"): every rank
+ * 0..n−1 once, placed so that at any threshold the texels under it are
+ * spread as evenly as a Gaussian of sigma 1.9 can make them, with no
+ * low-frequency clumps, which a hash's white noise has, and no stripes,
+ * which interleaved gradient noise has.  The march's jitter is this tile's
+ * value at the pixel as its phase (CloudVolume.js jitter): its converged
+ * mean then carries the tile's pattern at the strength of one sample in
+ * JITTER_FRAMES, as grain the eye doesn't track, where the gradient
+ * noise's phase printed diagonal hatching into thin cloud.  About 100 ms
+ * at 64²; deterministic (seeded).
+ *
+ * @param {number} [size]
+ * @param {number} [seed]
+ * @returns {Uint8Array} size² ranks scaled to 0..255, row-major
+ */
+export function blueNoise(size = BLUE_NOISE_SIZE, seed = 7) {
+  const n = size * size
+  const sigma = 1.9
+  const radius = Math.ceil(sigma * 3)
+  const kernel = new Float32Array(((2 * radius) + 1) ** 2)
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      kernel[((dy + radius) * ((2 * radius) + 1)) + dx + radius] = Math.exp(-((dx * dx) + (dy * dy)) / (2 * sigma * sigma))
+    }
+  }
+  const energy = new Float32Array(n)
+  const binary = new Uint8Array(n)
+  const rank = new Int32Array(n).fill(-1)
+  const splat = (i, sign) => {
+    const x0 = i % size
+    const y0 = (i - x0) / size
+    for (let dy = -radius; dy <= radius; dy++) {
+      const y = (y0 + dy + size) % size
+      for (let dx = -radius; dx <= radius; dx++) {
+        const x = (x0 + dx + size) % size
+        energy[(y * size) + x] += sign * kernel[((dy + radius) * ((2 * radius) + 1)) + dx + radius]
+      }
+    }
+  }
+  // The tightest cluster: the one with the most energy; the largest void:
+  // the zero with the least.
+  const extreme = (value, most) => {
+    let best = -1
+    let bestE = most ? -Infinity : Infinity
+    for (let i = 0; i < n; i++) {
+      if (binary[i] === value && (most ? energy[i] > bestE : energy[i] < bestE)) {
+        bestE = energy[i]
+        best = i
+      }
+    }
+    return best
+  }
+  const set = (i, value) => {
+    binary[i] = value
+    splat(i, value ? 1 : -1)
+  }
+  // A random tenth to start, then relaxed until the tightest cluster is
+  // the largest void.
+  let state = seed >>> 0
+  const random = () => {
+    state = (state + 0x6D2B79F5) >>> 0
+    let t = Math.imul(state ^ (state >>> 15), 1 | state)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  const initial = Math.floor(n / 10)
+  for (let placed = 0; placed < initial;) {
+    const i = Math.floor(random() * n)
+    if (!binary[i]) {
+      set(i, 1)
+      placed++
+    }
+  }
+  for (;;) {
+    const cluster = extreme(1, true)
+    set(cluster, 0)
+    const voidAt = extreme(0, false)
+    set(voidAt, 1)
+    if (voidAt === cluster) {
+      break
+    }
+  }
+  const start = binary.slice()
+  // Phase 1: the initial ones ranked down, by removing the tightest cluster.
+  for (let r = initial - 1; r >= 0; r--) {
+    const cluster = extreme(1, true)
+    set(cluster, 0)
+    rank[cluster] = r
+  }
+  // Phase 2: from the initial pattern again, fill the largest void up to half.
+  for (let i = 0; i < n; i++) {
+    if (start[i]) {
+      set(i, 1)
+    }
+  }
+  for (let r = initial; r < n / 2; r++) {
+    const voidAt = extreme(0, false)
+    set(voidAt, 1)
+    rank[voidAt] = r
+  }
+  // Phase 3: the rest, as the tightest clusters of the zeros, by inverting.
+  energy.fill(0)
+  for (let i = 0; i < n; i++) {
+    binary[i] = 1 - binary[i]
+    if (binary[i]) {
+      splat(i, 1)
+    }
+  }
+  for (let r = n / 2; r < n; r++) {
+    const cluster = extreme(1, true)
+    set(cluster, 0)
+    rank[cluster] = r
+  }
+  const out = new Uint8Array(n)
+  for (let i = 0; i < n; i++) {
+    out[i] = Math.floor(rank[i] * 256 / n)
+  }
+  return out
+}

@@ -11,6 +11,7 @@ import {
   Matrix3,
   Matrix4,
   Mesh,
+  NearestFilter,
   NoBlending,
   OrthographicCamera,
   RedFormat,
@@ -25,7 +26,7 @@ import {
   WebGLRenderTarget,
 } from 'three'
 import {perf} from '../../perf/perf.js'
-import {detailNoise, shapeNoise} from './cloudNoise.js'
+import {BLUE_NOISE_SIZE, blueNoise, detailNoise, shapeNoise} from './cloudNoise.js'
 import {
   DIRECT_SHARE, EDDINGTON_SOURCE_SCALE, MU_SUN_MIN, cloudParams, deltaEddington, deltaScaled, deltaScaledAsymmetry,
   eddingtonGamma, phaseTable,
@@ -76,6 +77,9 @@ export default class CloudVolume {
     this._shape = null
     this._detail = null
     this._steps = null
+    // The raw march, and the two resolved targets the history ping-pongs
+    // between.
+    this._raw = null
     this._target = [null, null]
     this._frame = 0
     this._prev = null
@@ -93,6 +97,11 @@ export default class CloudVolume {
     const mesh = new Mesh(fullScreenTriangle(), this.material)
     mesh.frustumCulled = false
     this._scene.add(mesh)
+    this.resolveMaterial = newResolveMaterial()
+    this._resolveScene = new Scene()
+    const resolveMesh = new Mesh(fullScreenTriangle(), this.resolveMaterial)
+    resolveMesh.frustumCulled = false
+    this._resolveScene.add(resolveMesh)
     if (generate && params) {
       this._startGeneration()
     }
@@ -243,39 +252,52 @@ export default class CloudVolume {
     const w = Math.max(1, Math.round(this._size.x * scale))
     const h = Math.max(1, Math.round(this._size.y * scale))
     const index = this._frame % 2
-    if (!this._target[index] || this._target[index].width !== w || this._target[index].height !== h) {
-      this._target[index]?.dispose()
-      this._target[index] = new WebGLRenderTarget(w, h, {
-        count: 2, type: HalfFloatType, depthBuffer: false, stencilBuffer: false,
-        minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false,
-      })
+    if (!this._raw || this._raw.width !== w || this._raw.height !== h) {
+      this._raw?.dispose()
+      this._target.forEach((t) => t?.dispose())
+      this._raw = newTarget(w, h)
+      this._target = [newTarget(w, h), newTarget(w, h)]
       this._prev = null
     }
     const target = this._target[index]
     const history = this._target[1 - index]
     u.uTargetSize.value.set(w, h)
-    u.uFrame.value = this._frame % JITTER_FRAMES
-    // Reprojection: the previous frame's view, relative to this eye.
+    u.uFrame.value = JITTER_ORDER[this._frame % JITTER_FRAMES]
+    // The raw march, then the resolve: the previous frame's result
+    // reprojected through the camera's motion (the previous view, relative
+    // to this eye), clipped to the raw frame's neighbourhood and blended in.
     const prev = this._prev
-    const temporal = prev && history && history.width === w && history.height === h && !this.options.noTemporal
+    const temporal = !this.options.noTemporal
+    const r = this.resolveMaterial.uniforms
     if (temporal) {
-      u.tHistory.value = history.textures[0]
-      u.tHistoryData.value = history.textures[1]
-      u.uHistoryWeight.value = HISTORY_WEIGHT
-      u.uPrevEyeDelta.value.copy(this._eye).sub(prev.eye)
-      u.uBodyToPrevView.value.copy(prev.viewToBody).transpose()
-      u.uPrevProj.value.copy(prev.proj)
-    } else {
-      u.uHistoryWeight.value = 0
-      u.tHistory.value = null
-      u.tHistoryData.value = null
+      r.tRaw.value = this._raw.textures[0]
+      r.tRawData.value = this._raw.textures[1]
+      r.uTargetSize.value.set(w, h)
+      r.uProj.value.copy(u.uProj.value)
+      r.uViewToBody.value.copy(this._viewToBody)
+      if (prev) {
+        r.tHistory.value = history.textures[0]
+        r.tHistoryData.value = history.textures[1]
+        r.uHistoryWeight.value = HISTORY_WEIGHT
+        r.uPrevEyeDelta.value.copy(this._eye).sub(prev.eye)
+        r.uBodyToPrevView.value.copy(prev.viewToBody).transpose()
+        r.uPrevProj.value.copy(prev.proj)
+      } else {
+        r.uHistoryWeight.value = 0
+        r.tHistory.value = null
+        r.tHistoryData.value = null
+      }
     }
     const current = renderer.getRenderTarget()
     const autoClear = renderer.autoClear
     renderer.autoClear = false
     perf.begin('clouds.volume')
-    renderer.setRenderTarget(target)
+    renderer.setRenderTarget(temporal ? this._raw : target)
     renderer.render(this._scene, this._camera)
+    if (temporal) {
+      renderer.setRenderTarget(target)
+      renderer.render(this._resolveScene, this._camera)
+    }
     renderer.setRenderTarget(current)
     perf.end('clouds.volume')
     renderer.autoClear = autoClear
@@ -288,6 +310,20 @@ export default class CloudVolume {
 }
 
 
+/**
+ * @param {number} w
+ * @param {number} h
+ * @returns {WebGLRenderTarget} Two half-float textures: the cloud, and its
+ *   data (the distance and the shadow)
+ */
+function newTarget(w, h) {
+  return new WebGLRenderTarget(w, h, {
+    count: 2, type: HalfFloatType, depthBuffer: false, stencilBuffer: false,
+    minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false,
+  })
+}
+
+
 /** The noise generation's time budget per frame, ms. */
 export const GENERATE_BUDGET_MS = 6
 /** How long the volume takes to come in once its textures are built, ms. */
@@ -297,7 +333,15 @@ export const DEFAULT_SCALE = 0.5
 /** The reprojected history's weight in the blend, when it is valid. */
 export const HISTORY_WEIGHT = 0.9
 /** The jitter sequence's length, frames. */
-export const JITTER_FRAMES = 8
+export const JITTER_FRAMES = 16
+/**
+ * The order the cycle's starts are taken in: bit-reversed, so that any
+ * JITTER_FRAMES/2 consecutive frames are themselves evenly spaced, and the
+ * history's exponential window (about ten frames at HISTORY_WEIGHT) sees a
+ * stratified set however the cycle falls across it; the full cycle
+ * quantises a hit-or-miss ray's converged value to sixteenths.
+ */
+export const JITTER_ORDER = Object.freeze([0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15])
 /** The most samples a ray takes, coarse and fine together. */
 export const MAX_STEPS = 80
 /** The farthest the march goes from the eye, metres: beyond, the air hides the cloud. */
@@ -384,6 +428,21 @@ function phaseTexture(phase) {
 }
 
 
+/**
+ * @returns {DataTexture} The blue-noise tile (cloudNoise.blueNoise), tiling,
+ *   read by texel: the march's jitter phase per pixel
+ */
+function blueNoiseTexture() {
+  const tex = new DataTexture(blueNoise(BLUE_NOISE_SIZE), BLUE_NOISE_SIZE, BLUE_NOISE_SIZE, RedFormat, UnsignedByteType)
+  tex.wrapS = tex.wrapT = RepeatWrapping
+  tex.minFilter = tex.magFilter = NearestFilter
+  tex.generateMipmaps = false
+  tex.unpackAlignment = 1
+  tex.needsUpdate = true
+  return tex
+}
+
+
 /** @returns {BufferGeometry} One triangle covering clip space, with its uv */
 function fullScreenTriangle() {
   const g = new BufferGeometry()
@@ -428,6 +487,7 @@ function newMarchMaterial(params, groundRadius, coverage) {
       tShape: {value: null},
       tDetail: {value: null},
       tPhase: {value: phase ? phaseTexture(phase) : null},
+      tBlueNoise: {value: blueNoiseTexture()},
       uShapeScale: {value: SHAPE_SCALE_M},
       uDetailScale: {value: DETAIL_SCALE_M},
       // The delta-scaled extinction of the stratiform and the convective
@@ -447,15 +507,43 @@ function newMarchMaterial(params, groundRadius, coverage) {
       uFrame: {value: 0},
       uSteps: {value: MAX_STEPS},
       uMaxDistance: {value: MAX_DISTANCE_M},
+    },
+    vertexShader: VERT,
+    fragmentShader: FRAG,
+    blending: NoBlending,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  })
+}
+
+
+/**
+ * The temporal resolve: the raw march's frame, with the previous resolved
+ * frame reprojected, clipped to the raw frame's neighbourhood and blended
+ * in (CloudVolume.render; clouds.md, "Cost").
+ *
+ * @returns {ShaderMaterial}
+ */
+function newResolveMaterial() {
+  return new ShaderMaterial({
+    name: 'cloud resolve',
+    glslVersion: GLSL3,
+    uniforms: {
+      tRaw: {value: null},
+      tRawData: {value: null},
       tHistory: {value: null},
       tHistoryData: {value: null},
       uHistoryWeight: {value: 0},
+      uTargetSize: {value: new Vector2(1, 1)},
+      uProj: {value: new Vector4(1, 1, 0, 0)},
+      uViewToBody: {value: new Matrix3()},
       uPrevEyeDelta: {value: new Vector3()},
       uBodyToPrevView: {value: new Matrix3()},
       uPrevProj: {value: new Vector4(1, 1, 0, 0)},
     },
     vertexShader: VERT,
-    fragmentShader: FRAG,
+    fragmentShader: RESOLVE_FRAG,
     blending: NoBlending,
     depthTest: false,
     depthWrite: false,
@@ -469,6 +557,107 @@ out vec2 vUv;
 void main() {
   vUv = uv;
   gl_Position = vec4(position.xy, 0.0, 1.0);
+}
+`
+
+// The resolve.  Each frame's march is one jittered sample a pixel, so at a
+// cloud's edge, where a ray hits the cloud for some jitters and misses it
+// for others, a frame alone is a stipple.  The history is what averages it
+// out, and it is accepted here by what the raw frame's 3×3 neighbourhood
+// says the pixel can be (variance clipping: Salvi 2016, "An Excursion in
+// Temporal Supersampling"; Karis 2014): the neighbourhood's nine jitters
+// span the edge's range, so the history passes there and the edge
+// converges; in a cloud's interior the range is tight, so a stale history
+// (a camera that has moved, time jumped) is pulled to the frame's values
+// within a frame or two.  The first cut gated the history on its distance
+// agreeing with the raw sample's, which at an edge alternates between the
+// cloud's and the slab's middle, so the history was rejected exactly where
+// it was needed, and the edge stippled at the frame rate.
+const RESOLVE_FRAG = `
+precision highp float;
+
+in vec2 vUv;
+layout(location = 0) out vec4 outCloud;
+layout(location = 1) out vec4 outData;
+
+uniform sampler2D tRaw;
+uniform sampler2D tRawData;
+uniform sampler2D tHistory;
+uniform sampler2D tHistoryData;
+uniform float uHistoryWeight;
+uniform vec2  uTargetSize;
+uniform vec4  uProj;
+uniform mat3  uViewToBody;
+uniform vec3  uPrevEyeDelta;
+uniform mat3  uBodyToPrevView;
+uniform vec4  uPrevProj;
+
+// The clipping box's half-width in standard deviations.
+#define GAMMA 1.25
+#define DIST_SCALE 0.001
+
+// The history clipped to the box: toward the box's centre, to its face
+// (Karis 2014), so a colour outside comes in along one line rather than
+// a corner.
+vec4 clipToBox(vec4 lo, vec4 hi, vec4 h) {
+  vec4 centre = 0.5 * (hi + lo);
+  vec4 extent = 0.5 * (hi - lo) + 1.0e-5;
+  vec4 d = h - centre;
+  vec4 unit = abs(d / extent);
+  float farthest = max(max(unit.x, unit.y), max(unit.z, unit.w));
+  return farthest > 1.0 ? centre + d / farthest : h;
+}
+
+void main() {
+  vec4 raw = texture(tRaw, vUv);
+  vec4 rawData = texture(tRawData, vUv);
+  outCloud = raw;
+  outData = rawData;
+  if (uHistoryWeight <= 0.0) return;
+
+  // The neighbourhood's moments, of the cloud and of its data; and its
+  // coverage-weighted distance, which the pixel reprojects by.
+  vec2 texel = 1.0 / uTargetSize;
+  vec4 m1 = vec4(0.0);
+  vec4 m2 = vec4(0.0);
+  vec2 d1 = vec2(0.0);
+  vec2 d2 = vec2(0.0);
+  float distSum = 0.0;
+  float coverSum = 0.0;
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 uv = vUv + vec2(float(x), float(y)) * texel;
+      vec4 c = texture(tRaw, uv);
+      vec4 d = texture(tRawData, uv);
+      m1 += c;
+      m2 += c * c;
+      d1 += d.xy;
+      d2 += d.xy * d.xy;
+      distSum += d.x;
+      coverSum += 1.0 - c.a;
+    }
+  }
+  m1 /= 9.0;
+  m2 /= 9.0;
+  d1 /= 9.0;
+  d2 /= 9.0;
+  vec4 sigma = sqrt(max(m2 - m1 * m1, vec4(0.0)));
+  vec2 dSigma = sqrt(max(d2 - d1 * d1, vec2(0.0)));
+  float dist = (coverSum > 1.0e-3 ? distSum / coverSum : rawData.z) / DIST_SCALE;
+
+  // Where this pixel's cloud was in the previous frame.
+  vec2 ndc = vUv * 2.0 - 1.0;
+  vec3 view = normalize(vec3((ndc.x + uProj.z) / uProj.x, (ndc.y + uProj.w) / uProj.y, -1.0));
+  vec3 dir = normalize(uViewToBody * view);
+  vec3 q = uBodyToPrevView * (dir * dist + uPrevEyeDelta);
+  if (q.z >= 0.0) return;
+  vec2 ndcPrev = vec2(uPrevProj.x * q.x / -q.z - uPrevProj.z, uPrevProj.y * q.y / -q.z - uPrevProj.w);
+  vec2 uvPrev = ndcPrev * 0.5 + 0.5;
+  if (any(lessThan(uvPrev, vec2(0.0))) || any(greaterThan(uvPrev, vec2(1.0)))) return;
+  vec4 hist = clipToBox(m1 - GAMMA * sigma, m1 + GAMMA * sigma, texture(tHistory, uvPrev));
+  vec2 histData = clamp(texture(tHistoryData, uvPrev).xy, d1 - GAMMA * dSigma, d1 + GAMMA * dSigma);
+  outCloud = mix(raw, hist, uHistoryWeight);
+  outData.xy = mix(rawData.xy, histData, uHistoryWeight);
 }
 `
 
@@ -499,6 +688,7 @@ uniform sampler2D tCoverage;
 uniform sampler3D tShape;
 uniform sampler3D tDetail;
 uniform sampler2D tPhase;
+uniform sampler2D tBlueNoise;
 uniform float uShapeScale;
 uniform float uDetailScale;
 uniform vec2  uExtinction;
@@ -515,15 +705,11 @@ uniform vec2  uTargetSize;
 uniform float uFrame;
 uniform int   uSteps;
 uniform float uMaxDistance;
-uniform sampler2D tHistory;
-uniform sampler2D tHistoryData;
-uniform float uHistoryWeight;
-uniform vec3  uPrevEyeDelta;
-uniform mat3  uBodyToPrevView;
-uniform vec4  uPrevProj;
 
 #define PI 3.141592653589793
 #define MAX_STEPS ${MAX_STEPS}
+#define JITTER_FRAMES ${JITTER_FRAMES}.0
+#define BLUE_NOISE_MASK ${BLUE_NOISE_SIZE - 1}
 // The coarse step's floor and ceiling and the fine step's ceiling, metres,
 // and the clear fine steps before the march goes coarse again.  A coarse
 // step is bounded so that backing up one on contact can be re-marched fine
@@ -564,11 +750,20 @@ float remap(float x, float lo, float hi, float newLo, float newHi) {
   return newLo + (newHi - newLo) * clamp((x - lo) / (hi - lo), 0.0, 1.0);
 }
 
-// Interleaved gradient noise (Jimenez 2014), stepped by the frame, for the
-// march's start: the history blend averages the sequence out.
+// The march's start, as a fraction of a step: the pixel's blue-noise phase
+// (cloudNoise.blueNoise) plus the frame's share of the cycle (uFrame, in
+// JITTER_ORDER), so that over JITTER_FRAMES every pixel's starts are
+// evenly spaced and the history blend averages them out.  Where a ray
+// hits cloud for some starts and misses for others (a wisp smaller than
+// a coarse step), the converged value is the share that hit, quantised
+// to the cycle, and the rounding falls per pixel by its phase: blue
+// noise makes that rounding grain the eye doesn't see, where interleaved
+// gradient noise (Jimenez 2014, the first cut, whose temporal sequence is
+// also uneven: gaps of 0.2 in 8 frames) printed its diagonal hatching
+// into every thin cloud.
 float jitter(vec2 frag) {
-  vec2 f = frag + 5.588238 * uFrame;
-  return fract(52.9829189 * fract(dot(f, vec2(0.06711056, 0.00583715))));
+  float phase = texelFetch(tBlueNoise, ivec2(frag) & BLUE_NOISE_MASK, 0).r;
+  return fract(phase + (uFrame + 0.5) / JITTER_FRAMES);
 }
 
 // The cloud's vertical profile: up from the base over its lowest tenth,
@@ -731,7 +926,7 @@ void main() {
     shadow = groundShadow(uEye + dir * tMax, j);
   }
   if (end <= start) {
-    outData = vec4(max(start, 1.0) * DIST_SCALE, shadow * uOpacity, 0.0, 1.0);
+    outData = vec4(0.0, shadow * uOpacity, max(start, 1.0) * DIST_SCALE, 1.0);
     return;
   }
 
@@ -815,34 +1010,16 @@ void main() {
   // it, and the Sun's disc, which is 1e9 of a sunlit white, don't show
   // through what is left of it.
   if (T < 0.005) T = 0.0;
-  // The cloud's mean distance; with no cloud, the slab's middle, so the
-  // history has a place to reproject to and the pass's march somewhere
-  // sensible to stop at the edge of a cloud.
+  // The cloud's mean distance along the ray, and its coverage of the pixel
+  // (1 − the transmittance, at this frame's share): the distance goes out
+  // premultiplied by the coverage, so the resolve's blend over frames and
+  // the composite's bilinear read across a cloud's edge both give the
+  // coverage-weighted mean, as the colour's does; the plain distance (the
+  // slab's middle where there is no cloud) goes with it, for the resolve to
+  // reproject by.  In km: the target is half-float, whose top is 65,504.
+  float coverage = (1.0 - T) * uOpacity;
   float dist = alphaSum > 0.0 ? distSum / alphaSum : 0.5 * (start + end);
-  vec4 cloud = vec4(rgb * uOpacity, 1.0 - (1.0 - T) * uOpacity);
-  // The distance in km: the target is half-float, whose top is 65,504.
-  vec4 data = vec4(dist * DIST_SCALE, shadow * uOpacity, 0.0, 1.0);
-
-  // The previous frame's result at this cloud's place, blended in where it
-  // reprojects inside the frame and agrees on the distance.
-  if (uHistoryWeight > 0.0) {
-    vec3 q = uBodyToPrevView * (dir * dist + uPrevEyeDelta);
-    if (q.z < 0.0) {
-      vec2 ndcPrev = vec2(uPrevProj.x * q.x / -q.z - uPrevProj.z, uPrevProj.y * q.y / -q.z - uPrevProj.w);
-      vec2 uvPrev = ndcPrev * 0.5 + 0.5;
-      if (all(greaterThan(uvPrev, vec2(0.0))) && all(lessThan(uvPrev, vec2(1.0)))) {
-        vec4  hist = texture(tHistory, uvPrev);
-        vec2  histData = texture(tHistoryData, uvPrev).rg;
-        float disagree = abs(histData.x / DIST_SCALE - length(q)) / (length(q) + 100.0);
-        float w = uHistoryWeight * (1.0 - smoothstep(0.1, 0.3, disagree));
-        cloud = mix(cloud, hist, w);
-        // The ground's shadow too: its few jittered samples converge the
-        // same way.
-        data.y = mix(data.y, histData.y, w);
-      }
-    }
-  }
-  outCloud = cloud;
-  outData = data;
+  outCloud = vec4(rgb * uOpacity, 1.0 - coverage);
+  outData = vec4(dist * coverage * DIST_SCALE, shadow * uOpacity, dist * DIST_SCALE, 1.0);
 }
 `

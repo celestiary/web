@@ -148,9 +148,9 @@ the two blend across the hand-off band.
 
 The volume renders into a target of its own (two half-float textures: the
 premultiplied radiance with the transmittance in alpha; the mean distance
-along the ray and the ground shadow), and the atmosphere pass composites
-it under `#if CLOUDS`, compiled in only while a volume was drawn
-(`ThreeUi._setCloudComposite`):
+along the ray, premultiplied by the coverage, and the ground shadow), and
+the atmosphere pass composites it under `#if CLOUDS`, compiled in only
+while a volume was drawn (`ThreeUi._setCloudComposite`):
 
     sky = S(eye → cloud) + T(eye → cloud) · cloud + Tc · [S(whole ray) − S(eye → cloud)]
     scene · (1 − shadow) · T(whole ray) · Tc
@@ -206,13 +206,75 @@ frame loop's budget.
   shape toward the Sun.  Rays that miss the layer, or hit the ground
   before it, cost a sphere test.
 - **Temporal reprojection:** the march's start is jittered each frame
-  (interleaved gradient noise over 8 frames), and the previous frame's
-  target is reprojected through the camera's motion in the body frame
-  (the cloud's mean distance, the previous eye and rotation) and blended
-  in at 0.9 where it lands inside the frame and agrees on the distance
-  (fading out as the distances differ by 10 to 30 %), so a still view
-  converges over about 20 frames and a moving one keeps
-  most of its history (`?clouds=notemporal` for the raw march).
+  into a raw target, and a resolve pass blends the previous frame's
+  resolved target in at 0.9,
+  reprojected through the camera's motion in the body frame (by the
+  pixel's neighbourhood's coverage-weighted cloud distance, the previous
+  eye and rotation) where it lands inside the frame, so a still view
+  converges over about 20 frames and a moving one keeps most of its
+  history (`?clouds=notemporal` for the raw march).  The history is
+  accepted by **variance clipping** (Salvi 2016; Karis 2014): clipped to
+  the raw frame's 3×3 neighbourhood's mean ± 1.25 σ, per channel, the
+  distance and the shadow alike.  At a cloud's edge, where a ray hits
+  the cloud for some jitters and misses it for others, the nine
+  neighbours span that range, so the history passes and the edge
+  converges; in a cloud's interior the range is tight, so a stale
+  history (the camera moved, time jumped) is pulled to the frame's
+  values within a frame or two.  **The first cut gated the history on
+  distance** instead: accepted where the history's cloud distance
+  agreed with the raw sample's within 10-30 %.  But the raw sample's
+  distance at an edge is the cloud's for a hit and the slab's middle
+  for a miss, so the gate rejected the history exactly at the edges,
+  which never converged and stippled at the frame rate (the user's M2
+  at 20 fps; a still frame, converged, shows the same stipple frozen in
+  the interleaved-gradient pattern).  Measured at the user's view (472
+  m under a deck at sunset, 1470×837, the temporal standard deviation
+  of the output's luma, 0-255, over 16 consecutive frames after 24,
+  over the 86k pixels whose half-size texel's 3×3 transmittance range
+  exceeds 0.15): the raw march 5.3 (mean frame-to-frame change 6.0),
+  the first cut 4.4 (4.7), the interior of the clouds 0.03 either way;
+  the resolve brings the edges to 0.6-0.7 (0.5), a seventh of the
+  first cut's standard deviation and a ninth of its frame-to-frame
+  change; and under a yaw of 0.02° a frame the frame-to-frame
+  change at the edges goes from 5.3 to 1.0 (the standard deviation then
+  holds the edges' own motion, 10 pixels over the 16 frames).  The crops
+  `screens/clouds-169/edge-stipple-{before,resolve-only,after}.png` are
+  the thin veil under the Sun at 2×.  The
+  distance channel is stored premultiplied by the coverage (1 − the
+  transmittance), so the blend over frames and the composite's bilinear
+  read across an edge both give the coverage-weighted mean; the first
+  cut blended the colour but not the distance, so a converged edge was
+  composited at a distance that flipped between the cloud's and the
+  slab's middle.
+- **The jitter is a blue-noise phase per pixel plus the frame's share
+  of a 16-frame cycle, taken in bit-reversed order** (`cloudNoise.blueNoise`,
+  a 64² void-and-cluster tile, Ulichney 1993; `JITTER_ORDER`), so every
+  pixel's starts are evenly spaced over the cycle, and over any 8
+  consecutive frames.  The first cut's interleaved gradient noise (Jimenez 2014)
+  stepped by the frame is uneven in time (its 8 values a pixel are a
+  Kronecker set with gaps of 0.2) and structured in space: where a ray
+  hits a wisp smaller than the coarse step for some starts and misses
+  for others, the converged value is the share that hit, quantised to
+  the cycle, with the rounding decided per pixel by its phase, and the
+  gradient noise printed its diagonal hatching into every thin cloud
+  once the edges had converged.  Blue noise makes that rounding grain
+  at the strength of one sample in sixteen, which the half-size target's
+  bilinear read smooths further.  Measured as the static grain of the
+  time-averaged frame (|mean − its 5×5 box blur|, 0-255) over the edge
+  band it hardly moves (6.4, 6.1, 5.9: the band's real edges dominate
+  it); over the thin veil under the Sun, where the true image is smooth,
+  the first cut 1.23, the resolve with the gradient noise 1.07, with
+  blue noise over 8 frames 0.84, and over the 16-frame cycle in
+  bit-reversed order (`JITTER_ORDER`: any 8 consecutive frames evenly
+  spaced, so the history's window sees a stratified set however the
+  cycle falls across it) 0.63, for a temporal standard deviation of
+  0.67 against 0.57 at 8 frames, the longer cycle's ripple.  The box
+  passes some of the hatching's 5-pixel stripes, so the metric
+  understates what the crops show.  The resolve's cost at that view
+  (SwiftShader, 1470×837, `?perf=sync&barrier=read`, the two builds
+  timed side by side): `clouds.volume` 2,223 → 2,330 ms a frame, 5%
+  for the 20 half-size texture reads a pixel, `atmosphere` 1,331 →
+  1,312, `scene` 421 → 394, within the run-to-run noise.
 - **Measured** on SwiftShader (headless, 640×400, `?perf=sync&barrier=read`:
   wall time per pass with the GPU waited for; a CPU's emulation, so
   relative only).  Over the Gulf on Katrina's day, the mean over the
@@ -272,9 +334,11 @@ define.
   cirrus from stratus; today the map's thickness picks the convective
   share.  Cirrus (ice, τ of a few tenths at 8-11 km) is the next layer.
 - **Depth-aware upsampling** of the half-size target at cloud edges
-  against the ground and the sky (bilinear now), and the history's
-  rejection by colour as well as distance (ghosting after a fast time
-  change).
+  against the ground (bilinear now; against the sky the premultiplied
+  colour and distance make the bilinear read right already).  The
+  resolve's clip bounds ghosting to the neighbourhood's range; a fast
+  camera's parallax at a near cloud's edge is where to look for what
+  remains.
 - **The Eddington field's limits** (above): a low Sun's slant through the
   slab, and the column's depths integrated rather than estimated.  The
   scattering orders' shapes in the fixture could carry the angular

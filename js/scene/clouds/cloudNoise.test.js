@@ -1,6 +1,7 @@
 import {
   DETAIL_SIZE,
   SHAPE_SIZE,
+  blueNoise,
   detailNoise,
   detailTexel,
   equalize,
@@ -136,4 +137,68 @@ describe('the textures', () => {
     equalize(data, 0)
     expect(Array.from(data).filter((_, i) => i % 4 === 0)).toEqual([64, 64, 191, 191])
   })
+})
+
+
+describe('blueNoise', () => {
+  const size = 32
+  const tile = blueNoise(size, 3)
+
+  it('holds every level equally, in a deterministic tile', () => {
+    const counts = new Array(256).fill(0)
+    for (const v of tile) {
+      counts[v]++
+    }
+    expect(counts.every((c) => c === (size * size) / 256)).toBe(true)
+    expect(Array.from(blueNoise(size, 3))).toEqual(Array.from(tile))
+  })
+
+  it('has little low-frequency power against white noise of the same levels', () => {
+    // The power in the lowest frequencies (|k| ≤ size/8 in each axis, DC
+    // aside), as a share of white noise's: a Fisher-Yates shuffle of the
+    // same values.
+    const shuffled = tile.slice()
+    let s = 11
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      s = ((s * 1103515245) + 12345) % 2147483648
+      const j = s % (i + 1)
+      const t = shuffled[i]
+      shuffled[i] = shuffled[j]
+      shuffled[j] = t
+    }
+    expect(lowPower(tile, size) / lowPower(shuffled, size)).toBeLessThan(0.2)
+  })
+
+  /**
+   * @param {Uint8Array} data
+   * @param {number} n
+   * @returns {number} The summed power of the low frequencies
+   */
+  function lowPower(data, n) {
+    const kMax = n / 8
+    let mean = 0
+    for (const v of data) {
+      mean += v / data.length
+    }
+    let power = 0
+    for (let ky = -kMax; ky <= kMax; ky++) {
+      for (let kx = -kMax; kx <= kMax; kx++) {
+        if (kx === 0 && ky === 0) {
+          continue
+        }
+        let re = 0
+        let im = 0
+        for (let y = 0; y < n; y++) {
+          for (let x = 0; x < n; x++) {
+            const phase = (2 * Math.PI * ((kx * x) + (ky * y))) / n
+            const v = data[(y * n) + x] - mean
+            re += v * Math.cos(phase)
+            im += v * Math.sin(phase)
+          }
+        }
+        power += (re * re) + (im * im)
+      }
+    }
+    return power
+  }
 })

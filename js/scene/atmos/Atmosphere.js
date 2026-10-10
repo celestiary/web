@@ -1241,8 +1241,11 @@ void main() {
     // whose rays the march above took to the sphere's exit.
     vec4 cloud = texture2D(tClouds, vUv);
     vec2 cloudData = texture2D(tCloudData, vUv).rg;
-    // The distance is in km (CloudVolume.js DIST_SCALE).
-    cloudData.x *= 1000.0;
+    // The distance is in km (CloudVolume.js DIST_SCALE), premultiplied by
+    // the cloud's coverage, 1 − its transmittance, so the half-size
+    // target's bilinear read here is the coverage-weighted mean across a
+    // cloud's edge.
+    cloudData.x *= 1000.0 / max(1.0 - cloud.a, 1.0e-4);
     sceneRgb *= 1.0 - cloudData.y;
     if (cloud.a < 0.999 && !eyeBelow && cloudData.x > 0.0) {
       vec4 inSNear;
