@@ -135,12 +135,18 @@ async function fetchRows(opts) {
       continue
     }
     log(`chunk ${cell + 1}/${chunks.length}`)
-    const csv = await runAsync(TAP_URL, sourceQuery({cut, lo, hi}), {log})
+    // The job's URL is kept, so a run stopped while it executes picks it
+    // up again (the archive keeps a job and its result for days).
+    const jobFile = `${file}.job`
+    const resume = existsSync(jobFile) ? readFileSync(jobFile, 'utf8').trim() : null
+    const csv = await runAsync(TAP_URL, sourceQuery({cut, lo, hi}),
+        {log, resume, onJob: (jobUrl) => writeFileSync(jobFile, jobUrl)})
     // Written whole, after the job: a partial file is never taken for a chunk.
     writeFileSync(`${file}.tmp`, csv)
     rmSync(file, {force: true})
     writeFileSync(file, csv)
     rmSync(`${file}.tmp`, {force: true})
+    rmSync(jobFile, {force: true})
   }
   return {cut, dir, chunks: chunks.length}
 }

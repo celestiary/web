@@ -35,22 +35,38 @@ function wait(ms) {
  * @param {number} [opts.pollMs]
  * @param {number} [opts.timeoutMs]
  * @param {Function} [opts.log]
+ * @param {string} [opts.resume] A job submitted before (its URL): poll it
+ *   rather than submit again, unless it has failed
+ * @param {Function} [opts.onJob] (jobUrl) => void, once submitted, so a
+ *   caller can keep it to resume
  * @returns {Promise<string>}
  */
-export async function runAsync(tapUrl, query, {pollMs = 3000, timeoutMs = 30 * 60 * 1000, log = () => {}} = {}) {
-  const body = new URLSearchParams({REQUEST: 'doQuery', LANG: 'ADQL', FORMAT: 'csv', PHASE: 'RUN', QUERY: query})
-  const submit = await fetch(`${tapUrl}/async`, {method: 'POST', body, redirect: 'manual'})
-  let jobUrl = submit.headers.get('location')
-  if (!jobUrl && submit.ok) {
-    // Some services answer 200 with the job document; its URL is the jobId.
-    const text = await submit.text()
-    const id = (/<uws:jobId>([^<]+)<\/uws:jobId>/).exec(text)?.[1]
-    jobUrl = id ? `${tapUrl}/async/${id}` : null
+export async function runAsync(tapUrl, query, {pollMs = 3000, timeoutMs = 2 * 60 * 60 * 1000, log = () => {},
+  resume = null, onJob = () => {}} = {}) {
+  let jobUrl = null
+  if (resume) {
+    const phase = (await (await fetch(`${resume}/phase`)).text()).trim()
+    if (['QUEUED', 'EXECUTING', 'COMPLETED'].includes(phase)) {
+      jobUrl = resume
+      log(`resuming job ${jobUrl} (${phase})`)
+    }
   }
   if (!jobUrl) {
-    throw new Error(`TAP submit failed: HTTP ${submit.status}`)
+    const body = new URLSearchParams({REQUEST: 'doQuery', LANG: 'ADQL', FORMAT: 'csv', PHASE: 'RUN', QUERY: query})
+    const submit = await fetch(`${tapUrl}/async`, {method: 'POST', body, redirect: 'manual'})
+    jobUrl = submit.headers.get('location')
+    if (!jobUrl && submit.ok) {
+      // Some services answer 200 with the job document; its URL is the jobId.
+      const text = await submit.text()
+      const id = (/<uws:jobId>([^<]+)<\/uws:jobId>/).exec(text)?.[1]
+      jobUrl = id ? `${tapUrl}/async/${id}` : null
+    }
+    if (!jobUrl) {
+      throw new Error(`TAP submit failed: HTTP ${submit.status}`)
+    }
+    log(`job ${jobUrl}`)
+    onJob(jobUrl)
   }
-  log(`job ${jobUrl}`)
   const start = Date.now()
   for (;;) {
     const phase = (await (await fetch(`${jobUrl}/phase`)).text()).trim()
