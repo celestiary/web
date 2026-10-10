@@ -93,7 +93,7 @@ export default class PointPopulation extends Group {
     this.manifest = null
     this.tiles = new Map()
     this.roots = []
-    /** key → {points, mags, count, lastWanted} */
+    /** key → {points, mags, ids, count, lastWanted} */
     this.loaded = new Map()
     this.inFlight = new Set()
     this.failed = new Set()
@@ -299,7 +299,7 @@ export default class PointPopulation extends Group {
       rteCameraLocal(points, camera, this._camHigh, this._camLow)
     }
     this.add(points)
-    this.loaded.set(t.key, {points, mags: data.mags, count: data.count, lastWanted: this.frame})
+    this.loaded.set(t.key, {points, mags: data.mags, ids: data.ids ?? null, count: data.count, lastWanted: this.frame})
   }
 
 

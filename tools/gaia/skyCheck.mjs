@@ -13,6 +13,7 @@
 // - same: the catalogue's own points against the population's drawing of
 //   the same stars (a test population of stars.dat), every point drawn,
 //   pixel by pixel; and with the default margin, what the margin leaves out;
+// - adds: what the population adds to the catalogue's sky (Gaia's tiles);
 // - budget: the points drawn with a small budget;
 // - telescope: the tiles a 1° field at +5 mag pages in;
 // - cost: draw calls and points in the scene pass (?perf=1), with and
@@ -113,6 +114,7 @@ function compare(a, b) {
   let sumB = 0
   let litA = 0
   let litB = 0
+  const worst = []
   const n = a.width * a.height
   for (let i = 0; i < n; i++) {
     const la = (a.data[4 * i] + a.data[(4 * i) + 1] + a.data[(4 * i) + 2]) / 3
@@ -124,10 +126,14 @@ function compare(a, b) {
     const d = Math.abs(la - lb)
     if (d > 0) {
       differ++
+      worst.push([d, i % a.width, a.height - 1 - Math.floor(i / a.width), Math.round(la), Math.round(lb)])
     }
     maxDiff = Math.max(maxDiff, d)
   }
-  return {pixels: n, differ, maxDiff: Math.round(maxDiff * 10) / 10, sumRatio: sumB / Math.max(sumA, 1e-9), litA, litB}
+  // The largest differences: [diff, x, y (top row 0), before, after].
+  worst.sort((p, q) => q[0] - p[0])
+  return {pixels: n, differ, maxDiff: Math.round(maxDiff * 10) / 10, sumRatio: sumB / Math.max(sumA, 1e-9), litA, litB,
+    worst: worst.slice(0, 8).map(([d, ...r]) => [Math.round(d * 10) / 10, ...r])}
 }
 
 
@@ -158,19 +164,14 @@ function settlePopulation(page, ms = 60000) {
 }
 
 
-const opts = parseArgs()
-const width = parseInt(opts.width ?? '480')
-const height = parseInt(opts.height ?? '300')
-const docs = resolve(opts.docs ?? 'docs')
-const tiles = opts.tiles ? resolve(opts.tiles) : null
-const out = opts.out ? resolve(opts.out) : null
-if (out) {
-  mkdirSync(out, {recursive: true})
-}
-const {server, url} = await serve(docs)
-const browser = await chromium.launch({args: CHROMIUM_ARGS})
-const report = {view: VIEW, viewport: [width, height], tiles: tiles ?? 'docs/large/gaia/v1'}
-try {
+/**
+ * A page at the view, looking away from the Sun, its frames held still at
+ * the dark-adapted gain.
+ *
+ * @param {object} rep Gets the metered gain and the limit
+ * @returns {Promise<object>} The page
+ */
+async function openPage(rep) {
   const page = await browser.newPage({viewport: {width, height}})
   page.on('console', (m) => {
     if (m.type() === 'error' || /Shader Error/.test(m.text())) {
@@ -202,8 +203,8 @@ try {
   // and the exposure at the dark-adapted gain (exposure.js METER_GAIN_MAX,
   // 4e6 over the keyed exposure: the naked eye's limit, 6.5), so the
   // frames are the night sky's whatever the meter made of the view.
-  report.meteredGain = await page.evaluate(() => window.c.ui._meterGain)
-  report.limitAfterDarkGain = await page.evaluate(async () => {
+  rep.meteredGain = await page.evaluate(() => window.c.ui._meterGain)
+  rep.limitAfterDarkGain = await page.evaluate(async () => {
     const c = window.c
     c.ui.renderer.setAnimationLoop(null)
     c.ui._meter = () => {}
@@ -217,6 +218,24 @@ try {
     }
     return c.ui.limitingMagnitude()
   })
+  return page
+}
+
+
+const opts = parseArgs()
+const width = parseInt(opts.width ?? '480')
+const height = parseInt(opts.height ?? '300')
+const docs = resolve(opts.docs ?? 'docs')
+const tiles = opts.tiles ? resolve(opts.tiles) : null
+const out = opts.out ? resolve(opts.out) : null
+if (out) {
+  mkdirSync(out, {recursive: true})
+}
+const {server, url} = await serve(docs)
+const browser = await chromium.launch({args: CHROMIUM_ARGS})
+const report = {view: VIEW, viewport: [width, height], tiles: tiles ?? 'docs/large/gaia/v1'}
+try {
+  const page = await openPage(report)
   // The population loading, frame by frame, at the dark-adapted gain: its
   // tiles and the points it draws, until nothing it wants is missing.
   report.progress = await page.evaluate(async () => {
@@ -263,6 +282,59 @@ try {
   await settlePopulation(page)
   const populationMargin = await capture(page, '(c) => {}')
   report.populationMarginDrawn = await page.evaluate(() => window.c.scene.gaia.stats())
+  // Every catalogue star in the frame and brighter, from the camera, than
+  // the limit plus the margin must be among the points drawn (the test
+  // population's ids are HIP numbers).
+  report.marginCoverage = await page.evaluate(() => {
+    const c = window.c
+    const g = c.scene.gaia
+    const drawn = new Set()
+    for (const t of g.loaded.values()) {
+      if (t.points.visible && t.ids) {
+        for (let i = 0; i < t.points.geometry.drawRange.count; i++) {
+          drawn.add(t.ids[2 * i])
+        }
+      }
+    }
+    const stars = c.scene.stars
+    const cam = c.ui.camera
+    const camPos = cam.getWorldPosition(cam.position.clone())
+    const v = cam.position.clone()
+    let wanted = 0
+    const missing = []
+    const limit = g.stats().limit
+    for (const s of stars.catalog.starByHip.values()) {
+      if (s.hipId === 0) {
+        continue
+      }
+      v.set(s.x, s.y, s.z).applyMatrix4(stars.matrixWorld)
+      const d = v.distanceTo(camPos)
+      const ndc = v.clone().project(cam)
+      if (Math.abs(ndc.x) > 1 || Math.abs(ndc.y) > 1 || ndc.z > 1) {
+        continue
+      }
+      const mag = s.absMag + (5 * Math.log10(d / 3.0856775814913673e17))
+      if (mag <= limit) {
+        wanted++
+        if (!drawn.has(s.hipId)) {
+          missing.push([s.hipId, Math.round(mag * 100) / 100])
+        }
+      }
+    }
+    return {limit, wanted, drawn: drawn.size, missing: missing.length, examples: missing.slice(0, 10)}
+  })
+  // The catalogue and the population together, as the app draws them.
+  const both = await capture(page, `(c) => {
+    c.scene.stars.getObjectByName('StarsPoints').visible = true
+  }`)
+  await page.evaluate(() => {
+    window.c.scene.stars.getObjectByName('StarsPoints').visible = false
+  })
+  report.manifestName = await page.evaluate(() => window.c.scene.gaia.manifest?.name)
+  // With the test population (stars.dat through the tiles) `same` and
+  // `margin` compare the engine's drawing of the catalogue with the
+  // catalogue's own; with Gaia's tiles `adds` is what they add to the sky.
+  report.adds = compare(catalogueOnly, both)
   report.same = compare(catalogueOnly, populationAll)
   report.margin = compare(catalogueOnly, populationMargin)
   // The cost: draws and points in the scene pass, the population drawing
@@ -313,7 +385,8 @@ try {
   })
   // A telescope: a 1° field, five magnitudes deeper, on the densest part of
   // the test population's tree.
-  report.telescope = await page.evaluate(async () => {
+  const scope = await openPage({})
+  report.telescope = await scope.evaluate(async () => {
     const c = window.c
     const g = c.scene.gaia
     const deepest = [...g.tiles.values()].sort((a, b) => b.order - a.order)[0]
@@ -335,12 +408,15 @@ try {
       quiet = (g.inFlight.size === 0 && g.stats().missing === 0) ? quiet + 1 : 0
     }
     const added = [...g.loaded.keys()].filter((k) => !before.has(k))
-    return {aimedAt: deepest.key, limit: c.ui.limitingMagnitude(), added, stats: g.stats()}
+    return {aimedAt: deepest.key, limit: c.ui.limitingMagnitude(), before: [...before], added, stats: g.stats()}
   })
+  const telescope = await capture(scope, '(c) => {}')
   if (out) {
     writeFileSync(join(out, 'catalogue-only.png'), Buffer.from(catalogueOnly.png, 'base64'))
     writeFileSync(join(out, 'population-all.png'), Buffer.from(populationAll.png, 'base64'))
     writeFileSync(join(out, 'population-margin1.png'), Buffer.from(populationMargin.png, 'base64'))
+    writeFileSync(join(out, 'both.png'), Buffer.from(both.png, 'base64'))
+    writeFileSync(join(out, 'telescope.png'), Buffer.from(telescope.png, 'base64'))
     writeFileSync(join(out, 'report.json'), `${JSON.stringify(report, null, 1)}\n`)
   }
   console.log(JSON.stringify(report, null, 1))

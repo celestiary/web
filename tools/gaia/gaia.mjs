@@ -155,6 +155,41 @@ function catalogueStars() {
 
 
 /**
+ * The fetched rows against the archive's own counts, bin by bin (0.05 mag
+ * of G): a fetch that lost a chunk or rows shows here.
+ *
+ * @param {Array<object>} rows
+ * @param {number} cut
+ * @param {string} countsFile
+ * @returns {object}
+ */
+function checkAgainstCounts(rows, cut, countsFile) {
+  if (!existsSync(countsFile)) {
+    return {checked: false}
+  }
+  const archive = new Map()
+  for (const {bin, n} of JSON.parse(readFileSync(countsFile, 'utf8')).rows) {
+    if ((bin + 1) / BINS_PER_MAG <= cut + 1e-9) {
+      archive.set(bin, n)
+    }
+  }
+  const fetched = new Map()
+  for (const r of rows) {
+    const bin = Math.floor(r.phot_g_mean_mag * BINS_PER_MAG)
+    fetched.set(bin, (fetched.get(bin) ?? 0) + 1)
+  }
+  const differ = []
+  for (const bin of new Set([...archive.keys(), ...fetched.keys()])) {
+    if ((archive.get(bin) ?? 0) !== (fetched.get(bin) ?? 0)) {
+      differ.push([bin / BINS_PER_MAG, archive.get(bin) ?? 0, fetched.get(bin) ?? 0])
+    }
+  }
+  const total = [...archive.values()].reduce((a, b) => a + b, 0)
+  return {checked: true, archive: total, fetched: rows.length, binsDiffering: differ.sort((a, b) => a[0] - b[0])}
+}
+
+
+/**
  * @param {string} out
  * @param {Map<string, ArrayBuffer>} files
  */
@@ -187,6 +222,8 @@ async function tile(opts) {
     }
   }
   log(`${rows.length} rows; merging with the bundled catalogue...`)
+  const archiveCheck = checkAgainstCounts(rows, cut, paths(opts).counts)
+  log(`against the archive's counts: ${JSON.stringify(archiveCheck)}`)
   const {records, colourTable, report} = mergeGaia(rows, catalogueStars())
   const countsFile = paths(opts).counts
   const meta = {
@@ -206,7 +243,7 @@ async function tile(opts) {
     built: new Date().toISOString(),
     licence: 'CC BY-SA 3.0 IGO (ESA/Gaia/DPAC); see LICENSE.txt',
     colourTable,
-    report,
+    report: {...report, archiveCheck},
     histogram: magnitudeHistogram(records),
   }
   const {files, manifest} = buildTiles(records, meta, {cap: TILE_CAP, maxOrder: MAX_ORDER})

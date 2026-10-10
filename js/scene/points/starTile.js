@@ -28,6 +28,7 @@ export const DEFAULT_TEFF = SUN_TEFF
  * @property {number} count Points
  * @property {object} attributes three BufferAttributes by name
  * @property {Float32Array} mags Apparent magnitudes from the Sun at the epoch, ascending
+ * @property {?Uint32Array} ids The points' ids, low and high words (tileFormat.js)
  */
 
 
@@ -91,5 +92,5 @@ export function decodeStarTile(buf) {
       mags[i] = mags[i - 1]
     }
   }
-  return {count: n, attributes, mags}
+  return {count: n, attributes, mags, ids: t.ids}
 }
