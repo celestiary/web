@@ -15,6 +15,7 @@ import {
 import Object from './object.js'
 import Places, {fetchPlaces} from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
+import {bodyRank} from './labelDeclutter.js'
 import {
   FovLOD, MOON_POINT_LEVEL, discMeanValue, farPointLevel, handoffRatio, newFarPoint, pointSwitchDistance,
 } from './farPoint.js'
@@ -297,6 +298,10 @@ export default class Planet extends Object {
     labelSprites.layers.set(OVERLAY_LAYER)
     // A double click or tap on it goes to the body (labelPick.js).
     labelSprites.userData.labelTargets = [{kind: 'body', name: this.name}]
+    // Where it touches another label, the larger body's name wins
+    // (labelDeclutter.js).
+    labelSprites.userData.declutter = true
+    labelSprites.userData.labelRank = [bodyRank(surfaceRadius)]
     // Depth in front of the body's near side, so the body itself doesn't
     // hide it: at exactly the near side it tied with the body's own depth
     // (and Cesium's ground sphere, CesiumLayers._writeGroundDepths) where
