@@ -19,6 +19,7 @@ import {latLngAltToBodyFixed} from '../coords.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {faceKeepingRoll} from '../faceKeepingRoll.js'
 import {rehangPlatform} from '../follow.js'
+import {newGaiaPopulation} from './gaia/gaiaPopulation.js'
 import {pickSurfaceLatLng} from './Picker.js'
 import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
@@ -341,6 +342,12 @@ export default class Scene {
       case 'galaxy': return this.newGalaxy(props)
       case 'stars':
         this.stars = new Stars(props, this.ui)
+        // Gaia's stars past the catalogue's, in its frame (Gaia.md); none
+        // in the tests' scene or with ?gaia=0.
+        this.gaia = newGaiaPopulation(this.ui)
+        if (this.gaia) {
+          this.stars.add(this.gaia)
+        }
         // The toggles that decide whether the target star's name is drawn
         // (TargetLabel.js), and a target set before the stars were here.
         this.stars.labelSettings = () => this._settings

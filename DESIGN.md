@@ -93,7 +93,7 @@ Where external data goes depends on its size. The decision is recorded in [ROADM
 |---|---|
 | Small (JSON descriptors, places, name lists) | `public/data/`, plain git, relative URLs |
 | Up to a few hundred MB (textures, DEMs, catalogues) | Bundled in the repo. Anything over about 1 MB goes under `public/large/<dataset>/`, which `.gitattributes` puts in Git LFS |
-| GB and up (Gaia) | Fetched over the network at run time, never bundled |
+| GB and up (Gaia beyond its brightest ~1M) | Fetched over the network at run time, never bundled. Gaia's brightest ~1M stars, ~30 MB, are bundled under `public/large/gaia/` ([Gaia.md](js/scene/Gaia.md)) |
 
 **Git LFS.** `.gitattributes` tracks `public/large/**`. The patterns must not match files already committed as plain blobs (`public/textures/`, `public/data/stars.dat`): git would report them as modified. Those existing assets stay as they are. Moving them into LFS would not shrink history (it isn't rewritten), would add LFS bandwidth for every clone, and the Blue Marble pyramid is about 2000 small tiles, a poor fit. The policy applies to new data. To add a dataset:
 
@@ -417,6 +417,7 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
   - **Updates:** Animation calls its `preAnimCb` with the Julian Day animated (so `animateAtJD`, e.g. a permalink restore, sets it too). It's rebuilt only when the date moves by more than a day (0.14″ of precession), in place.
   - **Reading star positions:** raw `star.x/y/z` and the stars' geometry are J2000, the `StellarFrame`'s local frame. Take them to the scene with `Scene.starPosition(star)` (the `WorldGroup` frame) or the stars' `matrixWorld` (world space). `goTo(star)` rebases to `-starPosition(star)`, and re-rebases when the frame turns so the star stays at the origin; picking (`Picker.queryPoints`) takes the ray into the catalogue frame instead of rebuilding its tree. The RTE shaders apply the model rotation (see [RTE interaction](#rte-interaction)).
   - **Checked** against JPL Horizons at 1900, 2026 and 2500 (`StellarFrame.test.js`, offline fixture `StellarFrame.horizons.json`): the Moon's separation from reference stars (their catalogue direction) is within 3.1″ of Horizons', and its place among them within 4.3″. Proper motion, parallax and aberration are left out; proper motion over centuries is a separate refinement.
+  - **The catalogue's epoch is Hipparcos's, J1991.25**, not J2000 (the equinox is J2000's): Sirius carried back from its J2000.0 place by its proper motion lands 0.003″ from its stars.dat position at J1991.25 and 11.7″ off at J2000 (`gaia/astrometry.test.js`). Gaia's stars (a point population under `Stars`) are stored at J2000.0 with their space velocities and moved to the date in the vertex shader ([Gaia.md, frame and epoch](js/scene/Gaia.md#frame-and-epoch)); the bundled catalogue doesn't move.
   - The equatorial grid and Earth's pole use the J2000 obliquity about the equinox of date, i.e. the mean equator of date to within the change in obliquity (47″ a century). `celestialFrame.precessEcliptic` converts coordinates between dates, e.g. to compare with Horizons' J2000 ecliptic vectors.
 - **Supported dates: J2000 ± 6000 Julian years** (JD 260045 to 4643045,
   about 4000 BC to AD 8000; `Time.SUPPORTED_YEARS_FROM_J2000`). The clock
@@ -1153,6 +1154,9 @@ and the provider extension contract.
 | `js/scene/stellar.js` | Stars' physics: temperature from class, blackbody colour and luminance, bolometric correction, limb darkening, granulation and spot laws ([Stars.md](js/scene/Stars.md)) |
 | `js/scene/starParams.js` | Every star's parameters: measured where published, else luminosity class, radius (Stefan-Boltzmann), mass and gravity from the catalogue; rotation (Roche, von Zeipel) and spots by type |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
+| `js/scene/starsMaterial.js` | The star points' material, one for the catalogue and every star population (`POINT_MOTION` moves a population's points by their velocities) |
+| `js/scene/points/` | The point-population engine ([Gaia.md](js/scene/Gaia.md#the-engine)): `PointPopulation.js` (loading, drawing to a budget, eviction), `selection.js` (which tiles, to the limiting magnitude, from anywhere), `tileTree.js` (HEALPix cells by magnitude), `tileFormat.js`, `healpix.js`, `starTile.js` (a tile of stars to the star shader's attributes) |
+| `js/scene/gaia/` | Gaia DR3's stars ([Gaia.md](js/scene/Gaia.md)): the archive queries (`adql.js`), J2016.0 ICRS to the catalogue frame and J2000.0 (`astrometry.js`), G to V and BP−RP to Teff (`photometry.js`), the merge with stars.dat (`dedup.js`), the build (`build.js`, run by `tools/gaia/gaia.mjs`, `yarn gaia`), the population in the scene (`gaiaPopulation.js`) |
 | `js/scene/MilkyWay.js` | The Milky Way's integrated light: the march pass and its cache, which the atmosphere pass draws ([MilkyWay.md](js/scene/MilkyWay.md)) |
 | `js/scene/galaxyModel.js` | The Milky Way's structural model: its components, the baked in-plane map, the normalisation, the share the star catalogue resolves, the JS and GLSL march |
 | `js/scene/eye.js` | The dark-adapted eye's threshold against field size (Ricco, Piper), the extended response's gain, scotopic colour, surface brightness in exposure units ([HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |

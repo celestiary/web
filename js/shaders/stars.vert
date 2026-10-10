@@ -33,6 +33,16 @@ attribute vec3 color;
 attribute float radius;
 attribute float lumens;
 attribute vec3 positionLow; // float64 residual: star.xyz - Math.fround(star.xyz)
+#ifdef POINT_MOTION
+// A point population's space motion (js/scene/Gaia.md, "Frame and epoch"):
+// its velocity, km/s in the catalogue frame, over the Julian years from
+// its epoch to the date.  A star moves in a straight line, exact to the
+// linear model the positions were carried by.
+attribute vec3 velocity;
+uniform float uMotionYears;
+// km/s for a Julian year, in metres.
+const float KM_S_YEAR_M = 3.15576e10;
+#endif
 
 varying vec3 vColor;
 varying float vBrightness;        // the kernel's peak, exposure units
@@ -118,6 +128,11 @@ void main() {
   vec3 highDiff = position - uCamPosWorldHigh;
   vec3 lowDiff = positionLow - uCamPosWorldLow;
   vec3 eyePos = highDiff + lowDiff;
+#ifdef POINT_MOTION
+  // Added to the eye-relative vector, in float32: its rounding is 6e-8 of
+  // the star's distance from the eye, an angle far under a pixel.
+  eyePos += velocity * (uMotionYears * KM_S_YEAR_M);
+#endif
   vec4 mvPosition = vec4(mat3(modelViewMatrix) * eyePos, 1.);
   // Inverse-square law: the star's illuminance here, E = lumens / (4π d²),
   // d the distance along the view axis.  Never as a square of d: under
