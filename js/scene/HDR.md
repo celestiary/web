@@ -1117,8 +1117,8 @@ that record: the reading at the keyed exposure is the same at any compensation, 
 is what it was, and there is no loop (a boosted frame doesn't ask for less).  The compensation is
 not in `meteredGain` or the readback, so it merges with changes to either.
 
-Set by `-` and `=` (a third of a stop a press, `[` and `]` being the stars' setting, `sm=`),
-`e` (reset), and the link's `ev=` ([permalink.md](../permalink.md)); held to ±10 stops.  Measured
+Set by `-` and `=` (a third of a stop a press, `[` and `]` being the stars' setting, `sm=`)
+and the link's `ev=` ([permalink.md](../permalink.md)); held to ±10 stops.  Measured
 in SwiftShader on the Moon from Bay Village, the exposure's ratio across 3 presses was 2.00 (the
 exposure is a pure multiplier), and the frame's mean luma went 2.5, 4.3, 6.3 at EV 0, +1, +2 and
 1.1 at −2 (the display's toe and shoulder make the pixels follow less than linearly).

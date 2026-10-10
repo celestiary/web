@@ -27,10 +27,14 @@ export const TOGGLES = [
     what: `Cesium Earth's second, unlit frame and its decode`},
   {key: 'galaxy', pass: 'galaxy', kind: 'hide', label: 'galaxy',
     what: 'the Milky Way: its march and its composite'},
+  {key: 'galaxies', pass: 'galaxies', kind: 'hide', label: 'galaxies',
+    what: `SPARC's galaxies: their points, impostors and near march`},
   {key: 'cesium', pass: 'cesium', kind: 'skip', label: 'Cesium layer',
     what: `Cesium's layers: celestiary's own bodies draw instead`},
   {key: 'meter', pass: 'meter', kind: 'skip', label: 'meter readback',
     what: `the exposure meter's pass and readPixels (the exposure stops adapting)`},
+  {key: 'labels', pass: 'labels', kind: 'skip', label: 'label declutter',
+    what: `the pass that hides labels that touch (they all draw, overlapping)`},
   {key: 'overlay', pass: 'overlay', kind: 'skip', label: 'overlay pass', what: 'labels, orbit lines, grids'},
 ]
 

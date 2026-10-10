@@ -12,6 +12,7 @@ export const PASSES = [
   {name: 'update', what: `the animation callback, camera and navigation: the frame before any rendering`},
   {name: 'scene', what: `renderer.render(scene) into the scene buffer: bodies, stars, the Sun, the galaxy's composite`},
   {name: 'galaxy', what: `the Milky Way's march into its cached target, only when the view has changed`},
+  {name: 'galaxies', what: `SPARC's galaxies (Galaxies.md): their levels of detail, map bakes, impostor and near marches`},
   {name: 'cesium', what: `the Cesium composite's own work: clears, the fading celestiary surface, the JS between steps`},
   {name: 'cesium.blit', what: `the copy of the scene's depth into Cesium's target, per body`},
   {name: 'cesium.shell', what: `the stencil shell: where the body shows, depth-tested against the scene's`},
@@ -25,6 +26,7 @@ export const PASSES = [
   {name: 'meter', what: `the exposure meter: the pass into 32x32 every few frames, read back through a pixel-pack ` +
     `buffer and taken a frame or more later (pboReads); a synchronous readPixels (readbacks) only with ?meter=sync, ` +
     `?hdr=0 or no WebGL2 sync objects, where its CPU time is the GPU stall`},
+  {name: 'labels', what: `the label declutter: which bodies' names and places' names would touch, hidden for the overlay pass`},
   {name: 'overlay', what: `labels, orbit lines, grids and the pick marker, over the tone-mapped frame`},
   {name: 'other', what: `GL work outside any pass above (and, in CPU time, the JS between them)`},
 ]

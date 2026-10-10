@@ -12,7 +12,7 @@ import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock} 
 import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
 import {formatNavMode} from './navMode.js'
-import {decodePermalink, encodePermalink, SETTINGS_DEFAULTS} from './permalink.js'
+import {decodePermalink, encodePermalink, encodeSettings, SETTINGS_DEFAULTS} from './permalink.js'
 import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
 import * as Shared from './shared.js'
 
@@ -1047,7 +1047,7 @@ describe('the target in the link', () => {
   })
 
   describe('the exposure compensation', () => {
-    it('= and - step a third of a stop, + is =, e resets, and listeners hear each change', async () => {
+    it('= and - step a third of a stop, + is =, and listeners hear each change', async () => {
       const app = await open(TEST_FRAGMENT)
       const heard = []
       const stop = app.onExposureCompensation((ev) => heard.push(ev))
@@ -1061,15 +1061,20 @@ describe('the target in the link', () => {
       app.keys.onKeyDown({key: '-'})
       app.keys.onKeyDown({key: '-'})
       expect(app.ui.exposureCompensation()).toBeCloseTo(2 / 3, 10)
-      app.keys.onKeyDown({key: 'e'})
+      app.keys.onKeyDown({key: '-'})
+      app.keys.onKeyDown({key: '-'})
       expect(app.ui.exposureCompensation()).toBe(0)
-      // A reset at 0 changes nothing, and says nothing.
-      app.keys.onKeyDown({key: 'e'})
-      expect(heard.length).toBe(7)
+      expect(heard.length).toBe(8)
       expect(heard[heard.length - 1]).toBe(0)
+      // 'e' is the galaxies' labels now, not a reset: the exposure doesn't hear it.
+      app.keys.onKeyDown({key: '='})
+      app.keys.onKeyDown({key: 'e'})
+      expect(app.ui.exposureCompensation()).toBeCloseTo(1 / 3, 10)
+      expect(heard.length).toBe(9)
+      app.keys.onKeyDown({key: 'e'})
       stop()
       app.keys.onKeyDown({key: '='})
-      expect(heard.length).toBe(7)
+      expect(heard.length).toBe(9)
       clearTimeout(app._permalinkTimer)
     })
 
@@ -1079,7 +1084,27 @@ describe('the target in the link', () => {
       expect(app.keys.msgs[']']).toMatch(/stars/i)
       expect(app.keys.msgs['-']).toMatch(/exposure/i)
       expect(app.keys.msgs['=']).toMatch(/exposure/i)
-      expect(app.keys.msgs['e']).toMatch(/exposure/i)
+      expect(app.keys.msgs['e']).toMatch(/galax/i)
+      expect(app.keys.msgs['E']).toMatch(/globular/i)
+    })
+
+    it('e and E flip the galaxies\' and the globulars\' labels, which the link carries', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const g = app.scene.getSetting('G')
+      const c = app.scene.getSetting('C')
+      app.keys.onKeyDown({key: 'e'})
+      expect(app.scene.getSetting('G')).toBe(!g)
+      expect(app.scene.galaxies.labelsVisible).toBe(!g)
+      app.keys.onKeyDown({key: 'E'})
+      expect(app.scene.getSetting('C')).toBe(!c)
+      const flags = encodeSettings(app.scene.getSettings())
+      expect(flags.includes('G')).toBe(g === SETTINGS_DEFAULTS.G)
+      expect(flags.includes('C')).toBe(c === SETTINGS_DEFAULTS.C)
+      app.keys.onKeyDown({key: 'e'})
+      app.keys.onKeyDown({key: 'E'})
+      expect(app.scene.getSetting('G')).toBe(g)
+      expect(app.scene.getSetting('C')).toBe(c)
+      clearTimeout(app._permalinkTimer)
     })
 
     it('steps up and down land on exactly 0, with no ev= in the link', async () => {

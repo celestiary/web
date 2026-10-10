@@ -42,6 +42,7 @@ import ZodiacalLight from './scene/ZodiacalLight.js'
 import {AsyncReadback, MeterCadence, asyncReadbackSupported} from './scene/meterReadback.js'
 import {raysAllHitSphere} from './scene/viewCache.js'
 import {lunarHighlight} from './scene/lunarPhotometry.js'
+import {declutterLabels, showAllLabels} from './scene/labelDeclutter.js'
 import {perf} from './perf/perf.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
@@ -172,6 +173,9 @@ export default class ThreeUi {
     // and the tests never touch the DOM for it.  See togglePerfPanel.
     this._stats = null
     this._perfVisible = false
+    // What the label declutter did last frame (_declutterLabels).
+    this._labelSize = new Vector2()
+    this.labelStats = null
 
     this._arrowKeys = {up: false, down: false, left: false, right: false}
     this._savedCamQuat = new Quaternion() // preserved across controls.update()
@@ -467,6 +471,13 @@ export default class ThreeUi {
       this._meter()
       perf.end('meter')
     }
+    // Which labels would touch, with this frame's matrices, before they're drawn.
+    if (perf.begin('labels')) {
+      this._declutterLabels()
+      perf.end('labels')
+    } else {
+      showAllLabels(this.scene)
+    }
     // Labels last, over the atmosphere: the scene again, overlay layer
     // only, depth-tested against the scene depth the atmosphere pass wrote.
     // After the tone map, so as display values.
@@ -482,6 +493,19 @@ export default class ThreeUi {
     this.renderer.autoClear = autoClear
     perf.frameEnd()
     stats?.end()
+  }
+
+
+  /**
+   * Hide the labels (bodies' names, places') that would overlap a more
+   * important one (labelDeclutter.js; DESIGN.md, "Declutter").  Each frame,
+   * after the scene has been drawn, so the world matrices are this frame's.
+   */
+  _declutterLabels() {
+    this.renderer.getSize(this._labelSize)
+    this.labelStats = declutterLabels(this.scene, this.camera,
+        {left: 0, top: 0, width: this._labelSize.x, height: this._labelSize.y},
+        {pixelRatio: this.renderer.getPixelRatio(), current: targets})
   }
 
 
@@ -1805,6 +1829,11 @@ export default class ThreeUi {
     const scene = this.sceneManager
     if (scene?._starTarget && scene._catalogueStar && this.camera.platform.parent?.name === 'StarAnchor') {
       return scene._catalogueStar
+    }
+    // At a galaxy, its core, so the zoom eases into it (Scene.galaxyHome).
+    const galaxy = this.camera.platform.parent?.name === 'StarAnchor' ? scene?.galaxyHome?.() : null
+    if (galaxy) {
+      return galaxy
     }
     return homeBody(this.camera.platform.parent, targets.cur, targets.obj)
   }

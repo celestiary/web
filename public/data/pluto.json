@@ -8,6 +8,7 @@
   "mass": "1.30900E25 g",
   "density": 1.1,
   "radius": "1.151E6 m",
+  "has_locations": true,
   "siderealRotationPeriod": 551808.0,
   "axialInclination": 122.0,
   "location": {

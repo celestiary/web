@@ -1,0 +1,10 @@
+{
+  "_note": "Gazetteer names that are better known than their size says, by body: the tier each is moved up to (never down). Position and kind come from the Gazetteer. build.mjs warns about a name that isn't one.",
+  "io": {"Loki Patera": 0, "Pele": 0, "Prometheus": 1, "Tvashtar Paterae": 1, "Amirani": 1},
+  "europa": {"Conamara Chaos": 1, "Pwyll": 1, "Thera Macula": 1, "Thrace Macula": 1, "Tyre": 1},
+  "ganymede": {"Gilgamesh": 1, "Tros": 1, "Osiris": 1},
+  "titan": {"Ligeia Mare": 0, "Shangri-La": 0, "Menrva": 1, "Hotei Regio": 1, "Sotra Patera": 1, "Selk": 1},
+  "iapetus": {"Cassini Regio": 0},
+  "rhea": {"Tirawa": 1, "Izanagi": 1},
+  "triton": {"Cipango Planum": 0}
+}

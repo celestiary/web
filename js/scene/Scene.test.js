@@ -353,7 +353,8 @@ describe('Scene.applySettings', () => {
     const milkyWay = new Object3D()
     milkyWay.name = 'MilkyWay'
     s.ui.scene.add(milkyWay)
-    const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, x: false, v: false}
+    const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, G: true, C: true, x: false,
+      v: false}
     s.registerSettingApplier('v', () => s.flipSetting('v'))
     s.applySettings(target)
     // L isn't in `target` but is added to getSettings by reading
@@ -758,6 +759,30 @@ describe('Scene stellar frame', () => {
       // out, would move ~1 ly.  The rebase follows it.
       s.stellarFrame.update(2634233.5)
       expect(starWorld(s).length()).toBeLessThan(1e3)
+    } finally {
+      Object.assign(Shared.targets, saved)
+    }
+  })
+
+
+  it('goTo(galaxy) rebases to the galaxy, targets it, arrives at its view distance and zooms to its core', () => {
+    const {scene: s} = makeSceneWithEarth()
+    const saved = {...Shared.targets}
+    try {
+      s.worldGroup.add(s.stellarFrame)
+      const MPC = 3.0857e22
+      const galaxy = {isGalaxy: true, id: 'ngc2403', name: 'NGC 2403', x: 1.2 * MPC, y: 2.1 * MPC, z: -1.4 * MPC,
+        radius: 2e18, viewDistance: 7e20}
+      s.goTo(galaxy)
+      s.ui.scene.updateMatrixWorld()
+      expect(new Vector3(galaxy.x, galaxy.y, galaxy.z).applyMatrix4(s.stellarFrame.matrixWorld).length()).toBeLessThan(1e9)
+      expect(s.getTarget()).toMatchObject({kind: 'galaxy', id: 'ngc2403', name: 'NGC 2403'})
+      expect(s._catalogueStar).toBeFalsy()
+      expect(s.galaxyHome().props.radius.scalar).toBe(galaxy.radius)
+      // The travel ends viewDistance from it.
+      const tween = Shared.targets.tween
+      tween.update(tween._startTime + 1e7)
+      expect(s.ui.camera.getWorldPosition(new Vector3).length() / galaxy.viewDistance).toBeCloseTo(1, 3)
     } finally {
       Object.assign(Shared.targets, saved)
     }

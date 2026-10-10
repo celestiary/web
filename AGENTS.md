@@ -38,6 +38,7 @@ tried and dropped.
 | Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
+| Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
 | Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |
 | Adding bundled data (Git LFS, `dataUrl`), what a PR preview copies | DESIGN.md [data policy](DESIGN.md#data-policy) |
@@ -64,6 +65,18 @@ tried and dropped.
   - Keep DOM work (image loads, element creation) out of synchronous
     paths that tests drive, such as `Scene.setTarget`. Defer it to the
     animation loop: `preAnimCb` on a scene node runs every frame.
+- **`mock.module` is process-global in bun**: `Celestiary.test.js` mocks
+  `./scene/SpriteSheet`, so in `bun test` (all files together) a test
+  that needs the real class gets the stub.  Import it by a name the
+  mock doesn't take (`SpriteSheet.test.js` imports `'./SpriteSheet.js?real'`
+  through a variable, which lint lets through), and in tests of code that
+  builds sheets (Places) assert on `userData` (`labelTargets`,
+  `labelRank`), not on the sheet's fields.
+- **`bun test` follows symlinks, and walks `docs/`.**  Don't link a
+  scratch directory into the worktree while running it (a link to a
+  shared scratchpad ran other sessions' files and took 84 s), and rebuild
+  `docs/` with `CESIUM_ION_TOKEN=` after `yarn precommit`, whose bundle
+  check rebuilds it with whatever token the session holds.
 - **Driving the app from a browser (headless Chromium on
   SwiftShader).**
   - Launch with `--use-angle=swiftshader --enable-unsafe-swiftshader`.
@@ -128,7 +141,8 @@ tried and dropped.
 - **A permalink's `s=` letters flip settings from their defaults**
   (`permalink.js` `SETTINGS_DEFAULTS`): `U` in `s=` turns the Milky Way
   *off*, as `a`, `l`, `p`, `o` turn the overlays off. Harnesses that hide
-  the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`.
+  the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`, and add
+  `G` to hide the galaxies' names (on by default, shown by magnitude).
 - **Compare Cesium with celestiary numerically: `yarn parity`.**
   - Run `yarn build` first (with `CESIUM_ION_TOKEN` set); the script
     serves `docs/` and doesn't build. `yarn parity --out parity-out`
@@ -242,6 +256,9 @@ tried and dropped.
   - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
     Record Horizons results as offline test fixtures with the query that
     produced them; tests never hit the network.
+  - `asc-planetarynames-data.s3.us-west-2.amazonaws.com` (the IAU
+    Gazetteer's per-body downloads, for `tools/places/build.mjs`; the
+    site itself, `planetarynames.wr.usgs.gov`, is refused).
 
   If one is denied, ask the user to add it to the environment's allowed
   hosts, and carry on with what doesn't need it.
