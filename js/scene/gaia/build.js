@@ -94,6 +94,11 @@ export function mergeGaia(rows, catalogueStars) {
     }
     records.push(rec)
   }
+  // The light the kept stars add over the catalogue's, from the Sun (the
+  // Milky Way's double counting, MilkyWay.md, scales with it).
+  const flux = (m) => (Number.isFinite(m) ? 10 ** (-0.4 * m) : 0)
+  const keptLight = records.reduce((a, r) => a + flux(r.mag), 0)
+  const catalogueLight = stars.reduce((a, st) => a + flux(st.mag), 0)
   const sepBins = [0.25, 0.5, 1, 1.5, 2].map((edge) => [edge, separations.filter((s) => s <= edge).length])
   return {
     records,
@@ -106,6 +111,7 @@ export function mergeGaia(rows, catalogueStars) {
       distanceSources: distSources,
       noColour,
       colourPairs: pairs.length,
+      lightOverCatalogue: catalogueLight > 0 ? keptLight / catalogueLight : NaN,
       // Gaia's V (Riello et al. 2021) against the catalogue's, over the
       // Hipparcos matches: the conversion's check.
       vMinusCatalogue: robustStats(vMinusCatalogue),

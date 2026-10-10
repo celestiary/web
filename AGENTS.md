@@ -33,6 +33,7 @@ tried and dropped.
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
+| Gaia's stars and the point-population engine (tiles, budget, epoch, photometry, merge, rebuilding) | [js/scene/Gaia.md](js/scene/Gaia.md) |
 | The Milky Way: its structural model, its light in exposure units, the march, the meter's galaxy anchor | [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |

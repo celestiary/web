@@ -187,6 +187,8 @@ describe('PointPopulation', () => {
     const view = pop.view(camera)
     expect(view.camDist).toBeCloseTo(40, 9)
     expect(view.limit).toBe(7.5)
-    expect(view.halfAngle).toBeCloseTo(Math.atan(Math.tan(22.5 * Math.PI / 180) * Math.sqrt(5)), 12)
+    // The half diagonal, and the sprite's reach past the edge at 1080 px.
+    const pad = 48 * (Math.PI / 4) / 1080
+    expect(view.halfAngle).toBeCloseTo(Math.atan(Math.tan(22.5 * Math.PI / 180) * Math.sqrt(5)) + pad, 12)
   })
 })

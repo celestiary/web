@@ -11,7 +11,10 @@
 //
 // Options: --target N (stars wanted; default 1,000,000), --cut G (skip the
 // counts), --cache DIR (default tools/gaia/.cache, git-ignored), --out DIR
-// (default public/large/gaia/v1), --chunk-order K (default 1: 48 chunks).
+// (default public/large/gaia/v1), --chunk-order K (12 × 4^K jobs by source_id; default all,
+// one job),
+// --fetch-cut G (tile: the rows were fetched to this fainter cut; cut them
+// to --cut, or the counts' cut, without fetching again).
 //
 // Network: gea.esac.esa.int only (the ESA Gaia archive's TAP service).
 import {mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync} from 'node:fs'
@@ -125,7 +128,7 @@ async function fetchRows(opts) {
   const {cut} = await pickCut(opts)
   const dir = join(paths(opts).cache, `g${cut}`)
   mkdirSync(dir, {recursive: true})
-  const chunks = sourceIdChunks(parseInt(opts['chunk-order'] ?? '1'))
+  const chunks = chunksFor(opts)
   for (const {cell, lo, hi} of chunks) {
     const file = join(dir, `${cell}.csv`)
     if (existsSync(file)) {
@@ -140,6 +143,26 @@ async function fetchRows(opts) {
     rmSync(`${file}.tmp`, {force: true})
   }
   return {cut, dir, chunks: chunks.length}
+}
+
+
+/**
+ * The jobs to fetch the sky in: one by default (a million rows is a third
+ * of an anonymous job's limit, and one query on the magnitude is faster
+ * than many on source_id ranges: a 1/48 chunk ran over 6 minutes, the
+ * whole sky in one about MINUTES_PLACEHOLDER), or `--chunk-order K`'s 12 × 4^K
+ * source_id ranges.
+ *
+ * @param {object} opts
+ * @returns {Array<{cell: number, lo: bigint, hi: bigint}>}
+ */
+function chunksFor(opts) {
+  const order = opts['chunk-order']
+  if (order === undefined || order === 'all') {
+    const [{lo}, last] = [sourceIdChunks(0)[0], sourceIdChunks(0)[11]]
+    return [{cell: 0, lo, hi: last.hi}]
+  }
+  return sourceIdChunks(parseInt(order))
 }
 
 
@@ -209,16 +232,23 @@ function writeFiles(out, files) {
  */
 async function tile(opts) {
   const {cut} = await pickCut(opts)
-  const dir = join(paths(opts).cache, `g${cut}`)
+  // Rows fetched to a fainter cut can be cut here without fetching again.
+  const fetchCut = opts['fetch-cut'] ? parseFloat(opts['fetch-cut']) : cut
+  if (fetchCut < cut) {
+    throw new Error(`--fetch-cut ${fetchCut} is brighter than the cut ${cut}`)
+  }
+  const dir = join(paths(opts).cache, `g${fetchCut}`)
   const csvs = readdirSync(dir).filter((f) => f.endsWith('.csv'))
-  const expected = sourceIdChunks(parseInt(opts['chunk-order'] ?? '1')).length
+  const expected = chunksFor(opts).length
   if (csvs.length !== expected) {
     throw new Error(`${csvs.length} of ${expected} chunks in ${dir}: run \`yarn gaia fetch\` first`)
   }
   const rows = []
   for (const f of csvs) {
     for (const row of parseCsv(readFileSync(join(dir, f), 'utf8'))) {
-      rows.push(row)
+      if (row.phot_g_mean_mag < cut) {
+        rows.push(row)
+      }
     }
   }
   log(`${rows.length} rows; merging with the bundled catalogue...`)

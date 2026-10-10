@@ -46,6 +46,12 @@ export const MAX_IN_FLIGHT = 4
 /** Points kept loaded, beyond which tiles not drawn recently are dropped. */
 export const DEFAULT_MEMORY_POINTS = 2 * DEFAULT_BUDGET
 
+/**
+ * Pixels past the frame's edge a point can still light: half the star
+ * sprite's largest quad (starsMaterial.js MAX_STAR_SIZE_PX), so a bright
+ * star just outside the frame still draws its halo into it.
+ */
+export const EDGE_PAD_PX = 48
 /** Days in a Julian year. */
 const JULIAN_YEAR_DAYS = 365.25
 
@@ -59,6 +65,7 @@ const _inv = new Matrix4
  * @property {Function} camera () => the camera, or null
  * @property {Function} limitingMagnitude () => the star field's limit now (ThreeUi.limitingMagnitude)
  * @property {Function} [aspect] () => the viewport's width over height
+ * @property {Function} [heightPx] () => the viewport's height, pixels
  */
 
 
@@ -187,7 +194,9 @@ export default class PointPopulation extends Group {
     const cam = _camWorld.clone().divideScalar(LIGHTYEAR_METER)
     const aspect = this.host.aspect?.() ?? camera.aspect ?? 1
     const tanHalf = Math.tan((camera.fov ?? 45) * Math.PI / 360)
-    const halfAngle = Math.atan(tanHalf * Math.sqrt(1 + (aspect * aspect)))
+    const heightPx = this.host.heightPx?.() ?? 1080
+    const padRad = EDGE_PAD_PX * ((camera.fov ?? 45) * Math.PI / 180) / Math.max(heightPx, 1)
+    const halfAngle = Math.atan(tanHalf * Math.sqrt(1 + (aspect * aspect))) + padRad
     const limit = this.host.limitingMagnitude()
     return {
       cam: [cam.x, cam.y, cam.z], camDist: cam.length(), dir: [_dirWorld.x, _dirWorld.y, _dirWorld.z],

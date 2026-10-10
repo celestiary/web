@@ -58,6 +58,7 @@ export function newGaiaPopulation(ui) {
     host: {
       camera: () => ui.camera,
       limitingMagnitude: () => ui.limitingMagnitude(),
+      heightPx: () => ui.height,
     },
   })
   let shaderReady = false
