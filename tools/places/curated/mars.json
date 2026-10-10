@@ -1,0 +1,35 @@
+{
+  "_attribution": "Coordinates from IAU Gazetteer of Planetary Nomenclature (USGS Astrogeology, public domain) and NASA mission records for landing sites.",
+  "_body": "mars",
+  "_lngConvention": "east-positive (+E), -180..+180",
+  "places": [
+    {"n": "Curiosity",        "t": 0, "lat":  -4.589, "lng": 137.441, "k": "rover"},
+    {"n": "Perseverance",     "t": 0, "lat":  18.444, "lng":  77.451, "k": "rover"},
+    {"n": "InSight",          "t": 0, "lat":   4.502, "lng": 135.623, "k": "lander"},
+    {"n": "Viking 1",         "t": 0, "lat":  22.697, "lng": -49.971, "k": "lander"},
+    {"n": "Viking 2",         "t": 0, "lat":  47.967, "lng": 134.270, "k": "lander"},
+    {"n": "Pathfinder",       "t": 0, "lat":  19.130, "lng": -33.220, "k": "lander"},
+    {"n": "Spirit",           "t": 0, "lat": -14.572, "lng": 175.479, "k": "rover"},
+    {"n": "Opportunity",      "t": 0, "lat":  -1.948, "lng": 354.473, "k": "rover"},
+    {"n": "Phoenix",          "t": 0, "lat":  68.219, "lng": 234.250, "k": "lander"},
+    {"n": "Zhurong",          "t": 0, "lat":  25.066, "lng": 109.925, "k": "rover"},
+
+    {"n": "Olympus Mons",     "t": 0, "lat":  18.65,  "lng": -133.80, "a": 21229, "k": "volcano"},
+    {"n": "Valles Marineris", "t": 0, "lat": -13.90,  "lng": -59.20,  "k": "canyon"},
+    {"n": "Hellas Planitia",  "t": 0, "lat": -42.40,  "lng":  70.50,  "k": "basin"},
+    {"n": "Tharsis",          "t": 0, "lat":   0.00,  "lng": -100.00, "k": "region"},
+
+    {"n": "Arsia Mons",       "t": 1, "lat":  -8.35,  "lng": -120.09, "a": 17779, "k": "volcano"},
+    {"n": "Pavonis Mons",     "t": 1, "lat":   1.48,  "lng": -113.34, "a": 14058, "k": "volcano"},
+    {"n": "Ascraeus Mons",    "t": 1, "lat":  11.92,  "lng": -104.08, "a": 18225, "k": "volcano"},
+    {"n": "Elysium Mons",     "t": 1, "lat":  25.02,  "lng": 147.21,  "a": 14028, "k": "volcano"},
+    {"n": "Argyre Planitia",  "t": 1, "lat": -49.70,  "lng": -42.10,  "k": "basin"},
+    {"n": "Utopia Planitia",  "t": 1, "lat":  46.70,  "lng": 117.50,  "k": "plain"},
+    {"n": "Chryse Planitia",  "t": 1, "lat":  28.40,  "lng": -39.70,  "k": "plain"},
+    {"n": "Gale Crater",      "t": 1, "lat":  -5.40,  "lng": 137.80,  "k": "crater"},
+    {"n": "Jezero Crater",    "t": 1, "lat":  18.86,  "lng":  77.45,  "k": "crater"},
+
+    {"n": "North Pole",       "t": 0, "lat":  90.00,  "lng":   0.00,  "k": "pole"},
+    {"n": "South Pole",       "t": 0, "lat": -90.00,  "lng":   0.00,  "k": "pole"}
+  ]
+}
