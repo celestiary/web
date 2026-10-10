@@ -11,7 +11,6 @@ import {
 import Object from './object.js'
 import * as Shaders from './star-shaders.js'
 import {sphere} from './shapes.js'
-import {newAtmosphere} from './atmos/Atmosphere'
 import {SUN_DISC_RADIANCE} from './exposure.js'
 import {absoluteUniforms} from './hdr.js'
 import {seedUniforms, starSeed} from './starSeed.js'
@@ -30,7 +29,7 @@ import {
   umbraDeltaT,
 } from './stellar.js'
 import * as Shared from '../shared.js'
-import {named} from '../utils.js'
+import SunLayers from './sun/SunLayers.js'
 
 
 /**
@@ -154,6 +153,16 @@ export function noiseTime(simTimeElapsedMs) {
 }
 
 
+/**
+ * @param {object} props
+ * @returns {boolean} Whether these are the Sun's props: its body file's
+ *     (name 'sun') or the catalogue's entry for it (HIP 0)
+ */
+export function isTheSun(props) {
+  return props?.name === 'sun' || props?.hipId === 0
+}
+
+
 export default class Star extends Object {
   /**
    * @param {object} props
@@ -202,22 +211,21 @@ export default class Star extends Object {
 
     const surfaceGroup = new Group
     surfaceGroup.add(this.newSurface(props))
-    // Name the halo so Scene.enterAR's `'atmosphere'` traversal can hide it
-    // — the additive BackSide shell flashes orange across the AR sky-view
-    // when the camera sweeps through the Sun direction.  Its colour and
-    // radiance are the disc's.
-    // An oblate star's glow is its disc's shape, scaled and turned with it.
-    const surface = surfaceGroup.children[0]
-    const glow = newAtmosphere(props.radius.scalar * 1.07,
-        {color: this.color, radiance: this.discRadianceRelSun, radius: props.radius.scalar})
-    glow.scale.set(1, 1 / this.oblate, 1)
-    glow.quaternion.copy(surface.quaternion)
-    surfaceGroup.add(named(glow, 'atmosphere'))
+    // Its light off the disc (sun/SunLayers.js, Sun.md): the eye's glare
+    // for every star, and the Sun's chromosphere, prominences, corona and
+    // CMEs.  The glare replaced the limb glow shell (newAtmosphere), a
+    // ring of the disc's own radiance to 1.07 radii that no eye or camera
+    // sees, which would have shown past the Moon's limb in totality.
+    surfaceGroup.add(this.sunLayers.group())
     lod.addLevel(surfaceGroup, props.radius.scalar)
 
     lod.addLevel(Shared.FAR_OBJ, props.radius.scalar * 1e3)
 
     this.add(lod)
+    // The solar wind, a diagram drawn from afar too (the orbits' toggle).
+    if (this.sunLayers.wind) {
+      this.add(this.sunLayers.wind)
+    }
   }
 
 
@@ -234,6 +242,8 @@ export default class Star extends Object {
     this.oblate = rotation?.oblate ?? 1
     const seed = seedUniforms(starSeed(props))
     const v3 = (a) => new Vector3(...a)
+    // The Sun's activity by date; every star's glare.
+    this.sunLayers = new SunLayers(this, {activity: isTheSun(props)})
     // The surface's radiance is physical (HDR.md, "Physical stars"): the
     // Sun's disc is 1/θ² of a white surface facing it, θ its angular
     // radius from 1 AU, times this star's surface brightness over the Sun's,
@@ -267,6 +277,7 @@ export default class Star extends Object {
         uSeedOffset: {value: v3(seed.offset)},
         uSpotBias: {value: seed.spotBias + (photo.spots.bias ?? 0)},
         iTime: {value: 1.0},
+        ...this.sunLayers.photosphereUniforms(),
       },
       vertexShader: Shaders.VERTEX_SHADER,
       fragmentShader: Shaders.FRAGMENT_SHADER,
@@ -278,6 +289,10 @@ export default class Star extends Object {
     if (rotation) {
       surface.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), starAxis(props, rotation))
     }
+    // The Sun turns in its Carrington frame (SunLayers.update), so its
+    // regions and granulation turn with it.
+    this.surface = surface
+    surface.onBeforeRender = (renderer, scene, camera) => this.sunLayers.discView(camera)
     this.setupAnim()
     return surface
   }
@@ -289,6 +304,7 @@ export default class Star extends Object {
       if (Shared.targets.pos) {
         this.shaderMaterial.uniforms.iTime.value = noiseTime(time.simTimeElapsed)
       }
+      this.sunLayers.update(time, this.ui?.camera, this.ui?.sceneManager?.objects)
     }
   }
 }

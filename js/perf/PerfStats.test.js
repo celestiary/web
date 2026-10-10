@@ -211,7 +211,7 @@ describe('buildSnapshot', () => {
     expect(snap.toggles.galaxy).toBe(false)
     expect(snap.toggles.atmosphere).toBe(true)
     expect(Object.keys(snap.toggles).sort()).toEqual(
-        ['atmosphere', 'cesium', 'clouds', 'galaxy', 'meter', 'nightlights', 'overlay'])
+        ['atmosphere', 'cesium', 'clouds', 'galaxy', 'meter', 'nightlights', 'overlay', 'sun'])
     expect(snap.timings.passes[0].name).toBe('scene')
     expect(snap.timings.passes[0].gpu.mean).toBe(3)
     expect(snap.timings.total.counts.draws).toBe(5)

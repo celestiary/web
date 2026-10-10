@@ -746,9 +746,10 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    would read and which hides the stars near the disc; and from Earth's
    surface the **moonlit sky** (0.001-0.003 cd/m² near full, 2-3
    magnitudes over a dark site) hides the faint stars everywhere.
-   Neither is drawn yet: the glare is the next step for the anchor (a
-   halo on the Moon, Venus and Jupiter as the Sun has its glow shell,
-   metered like any light), the moonlit sky belongs to the atmosphere
+   The Sun's glare is drawn now, by the CIE's disability glare equation
+   and metered like any light ([Sun.md, glare](Sun.md#glare); it replaced
+   the Sun's glow shell); the Moon's, Venus's and Jupiter's are the next
+   step for the anchor, by the same function, the moonlit sky belongs to the atmosphere
    pass (a second, weak source), and until then a wide field with the
    Moon in it shows every star a dark site does, with the Moon white.
 
@@ -800,7 +801,11 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    the disc reaches only from 5 Gm, and the user saw a white disc from
    50 Gm in.  The floor `METER_GAIN_MIN` is absolute, over Earth's keyed
    exposure, as the ceiling is: from Pluto's keyed exposure the same disc
-   needs 1,560× less (37× under the old falloff).
+   needs 1,560× less (37× under the old falloff).  The disc counts as much
+   of it as the camera sees past the bodies in front (an eclipse: the
+   visible part's equivalent disc, none under 1e-3 of it: [Sun.md,
+   eclipses](Sun.md#eclipses)), so in totality the meter exposes for the
+   corona and the darkened sky.
 7. **While the scene loads**, a frame with nothing in it (every sample
    exactly zero: a texture or the star catalogue still to come) asks for
    nothing, and the gain stays (`frameCanBeEmpty`: the star catalogue not
@@ -1437,8 +1442,10 @@ and the F-corona are 12-16 mag/arcsec² within 10° of the Sun from 1 AU,
 darkness (the Sun's disc under 8 px, as it is from beyond about 1 AU on a
 laptop's screen) they show white within 5-8° of it: from 2 AU, 17
 mag/arcsec² 5° from the Sun and 19.4 at 12°; from 5 AU, 18.5 at 5°.  A real
-eye there would be dazzled by the Sun (veiling glare, not modelled), which
-would hide most of it.
+eye there would be dazzled by the Sun, which would hide most of it: the
+Sun's veiling glare is drawn now, within 4.65 AU of it ([Sun.md,
+glare](Sun.md#glare)), 1e-3 of the disc's radiance 1° off and 5e-6 at
+10°.
 
 **Its orientation is the ecliptic's.**  Read back from the GPU in the
 review's views at 1000×600 (and after a resize from 500×500 to 1200×500),
@@ -1589,7 +1596,7 @@ the ecliptic, the Sun in view" looks 10° off the Sun.
   lens round the Sun white within a few degrees of it ([round the
   Sun](#round-the-sun-the-rim-and-the-jump)).  Earth's night side with the
   Sun beside it adapts 1.5× lower.  That is light in the field, as the
-  eye's veiling glare round the Sun (not drawn yet) is, and brighter
+  eye's veiling glare round the Sun (drawn since [#168](https://github.com/celestiary/web/issues/168): Sun.md) is, and brighter
   there.
 - **Day, twilight and the Moon are unchanged** to the pixel, and `yarn
   parity` passes (23 views, 124 checks).

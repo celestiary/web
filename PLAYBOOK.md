@@ -189,6 +189,24 @@ overlaps of N⁻¹ values tone-map brighter than the old clamped sum (the toe
 is square-root-like, so √a + √b > √(a + b)): overlapping star glows came
 out ~13% brighter.  Measure blends separately from single draws.
 
+### Far geometry's interpolated positions aren't rays: take the ray from the pixel
+
+The Sun's corona is a shell 40 radii round it, 2e11 m from the camera,
+whose fragment shader needs each pixel's ray.  Taken from the
+interpolated view position, whole triangles' rays came out more than a
+solar radius off on SwiftShader: wedges with straight edges where the
+corona went missing, which looked like clipping, then like depth, then
+like an occluder (the Moon, Cesium, the clouds: each ruled out by hiding
+it).  A debug colour of the shader's own geometry (the impact radius's
+`rho < 1`, the disc's test) showed the wedge was the shader believing it
+was looking at the disc.  The ray from `gl_FragCoord` through the inverse
+projection fixed it, taken at the near plane: at the far plane w is
+1/far, zero in float32 at a galaxy's far distance, and the first try gave
+NaN everywhere.  Two lessons: a debug colour of the shader's inputs beats
+hiding objects; and from the ground, with a 100 m near plane, every body
+past ~4,000 km has a window depth past 0.99995, so a fixed depth
+threshold for "sky" (the night sky's) takes the Moon for sky.
+
 ### At light-years, clip-space w underflows the rasterizer's varyings
 
 The human expansion lines (screen-space quads, js/scene/Colonization.md)

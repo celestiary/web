@@ -58,7 +58,13 @@ path only, each part pre-exposed (times `uExposureRelative`):
   MilkyWay.js's cached target, unexposed × 1e8), both at the frame's
   screen coordinates, where the scene's depth is at or behind the galaxy's far-plane
   depth (0.99995): behind every body, under the stars, where the galaxy
-  was drawn in the scene pass before.  It goes through the transmittance as
+  was drawn in the scene pass before.  From the ground (a near plane of
+  100 m) every body past ~4,000 km has a depth past that pin (1 − n/d), and
+  the night sky's light was added over the Moon and the planets: in an
+  eclipse, the zodiacal light's core across the Moon's dark disc.  The
+  threshold is now the larger of the pin and a body's depth at 10¹³ m
+  (`nightSkyDepth`), so any depth a body wrote is a body ([Sun.md,
+  eclipses](../Sun.md#eclipses)).  It goes through the transmittance as
   the scene does, so it is extinguished toward the horizon and gone in a
   gap.
 - **Airglow** (`airglow`): the layer's path along the ray (`airglowPath`:
@@ -81,6 +87,18 @@ Where its brightest possible contribution is under half a display step (by
 day, in most of twilight) none of it is drawn and neither cache is
 rendered (ThreeUi `_updateNightSkyShown`), nor where the ground fills the
 view; and then its code isn't in the pass at all (`#if NIGHT_SKY`).
+
+## Eclipses
+
+The sun's intensity (`uSunIntensity`, the body's sky gain) is scaled by
+what the camera, in the air, sees of the Sun past bodies other than the
+air's own, plus what the sunlit air outside the shadow scatters in:
+`eclipse.js` `eclipsedSky`, 6e-5 of the day's in totality, which puts the
+zenith over Dallas on 2024-04-08 at the measured 13.1 mag/arcsec²
+([Sun.md, eclipses](../Sun.md#eclipses)).  One factor for the whole sky,
+from the camera: the sunset glow round the horizon in totality (the air
+there is outside the shadow) needs the shadow sampled along the rays, a
+follow-up; and from space the shadow on the air isn't drawn.
 
 ## Clouds
 

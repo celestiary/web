@@ -13,7 +13,8 @@ piece of the parametric body renderer (ROADMAP, *Shared engines*).
 | The photosphere's parameters for one star | `Star.js` `photosphere(props)` |
 | A catalogue star's disc when travelled to | `Scene.js` `showCatalogueStar` |
 | The disc's shader | `star-shaders.js` |
-| The limb glow | `atmos/Atmosphere.js` `newAtmosphere` |
+| The eye's glare round the disc (it replaced the limb glow) | `sun/glare.js`, `sun/SunLayers.js` ([Sun.md](Sun.md#glare)) |
+| The Sun's activity by date, chromosphere, prominences, flares, corona, CMEs, wind | [Sun.md](Sun.md) |
 | The field stars' colours (points) | `StarsBufferGeometry.js`, through the same blackbody table |
 | The disc's brightness in exposure units, and the meter | [HDR.md, physical stars](HDR.md#physical-stars); `ThreeUI._luminousDiscs` |
 
@@ -164,6 +165,11 @@ resolve: from about 0.1 R☉ over the surface at 45°.
 
 ## Spots and faculae
 
+The Sun's own spots are its active regions by date, from the sunspot
+number, in their cycle's zone, turning with the surface (region mode:
+[Sun.md, spots](Sun.md#spots-the-active-regions)); every other star's
+are the lattice below.
+
 **Active regions** are a smooth field over the star above a threshold
 (the seed's `uSpotBias` moves it), in a band of latitude: the Sun's
 5°-35°. **Spots** sit in them: a lattice of 25 cells across the radius,
@@ -183,9 +189,14 @@ temperature rise times (1 − μ)²: nothing at disc centre and 15% at
 envelope, so no granules, spots or faculae (Ap stars' chemical spots
 aside); spots by type are below.
 
-## The limb glow
+## The limb glow (replaced by the glare)
 
-`newAtmosphere`'s shell at 1.07 radii takes the star's colour and
+The shell is gone ([#168](https://github.com/celestiary/web/issues/168)):
+a ring of the disc's own radiance to 1.07 radii that no eye or camera
+sees, which would have shown round the Moon in totality.  The eye's
+veiling glare, from the CIE's equation and scaled by what's seen of the
+disc, stands in its place ([Sun.md, glare](Sun.md#glare)).  What it was:
+`newAtmosphere`'s shell at 1.07 radii took the star's colour and
 radiance. It was drawn through the disc's limb from far off: from tens of
 gigametres the depth buffer can't tell the disc from the shell 0.07 radii
 behind it (its resolution there is ~1e8 m), so the glow added in blocks
@@ -294,9 +305,10 @@ Altair, against #21's. Paths are in the PR.
 - A dwarf-specific bolometric correction for late M dwarfs (Pecaut &
   Mamajek's, or Mann et al. 2015's), whose radii come out large.
 - Rotation for more stars (Regulus, Achernar, α Cep, α Oph: all imaged
-  by interferometry), and the Sun's own axis (it is drawn with the
-  ecliptic pole's, 7.25° off).
-- The chromosphere, prominences and flares (#167); the corona and the
-  solar wind (#168).
+  by interferometry).  The Sun's own axis is done: its photosphere turns
+  in the Carrington frame, by the IAU's pole and W (Sun.md).
+- The chromosphere, prominences, flares, the corona and the solar wind
+  are done for the Sun ([Sun.md](Sun.md)); other stars' activity (an M
+  dwarf's flares, a corona by activity) is a follow-up.
 - Pecaut & Mamajek's dwarf sequence for class V (its site isn't
   reachable from the sandbox either).

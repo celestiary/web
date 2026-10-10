@@ -100,6 +100,8 @@ vec4 clipToW1(vec4 clip) {
 }
 // A user's gain on every star's light (ThreeUi.setStarGain; 1 is physical).
 uniform float uStarGain;
+// The share of the Sun's disc the camera sees (an eclipse; hdr.js).
+uniform float uSunVisible;
 // Half-float's largest value, the scene buffer's.
 const float MAX_VALUE = 6.0e4;
 // The eye's resolution of a point, dark adapted: 10 arcmin, in radians.
@@ -146,6 +148,10 @@ void main() {
   float patchPx = max(floor(patchRad / pxRad + 0.5), 1.0);
   float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / (patchRad * patchRad)
       * uExposureRelative * uStarGain;
+  // The Sun is the catalogue's origin.
+  if (position == vec3(0.0) && positionLow == vec3(0.0)) {
+    value *= uSunVisible;
+  }
 
   // A resolved disc (the Sun from within a few AU; its mesh draws the
   // surface) is no point: the sprite's light fades as the disc outgrows
