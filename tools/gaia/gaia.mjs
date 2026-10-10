@@ -4,29 +4,29 @@
 //
 //   yarn gaia all                  # counts, fetch, tile: the one command
 //   yarn gaia counts               # the archive's star counts by G; picks the cut
-//   yarn gaia fetch [--cut 11.2]   # the rows, in 48 chunks, cached
+//   yarn gaia fetch [--cut 11.2]   # the rows, in bands of G, cached
 //   yarn gaia tile                 # the cached rows to tiles and the manifest
 //   yarn gaia catalogue --out DIR  # the bundled stars.dat through the same tile
 //                                  # pipeline: a test population, not Gaia's
 //
 // Options: --target N (stars wanted; default 1,000,000), --cut G (skip the
 // counts), --cache DIR (default tools/gaia/.cache, git-ignored), --out DIR
-// (default public/large/gaia/v1), --chunk-order K (12 × 4^K jobs by source_id; default all,
-// one job),
+// (default public/large/gaia/v1), --band-rows N (the most stars a band's
+// query returns; default 150,000),
 // --fetch-cut G (tile: the rows were fetched to this fainter cut; cut them
 // to --cut, or the counts' cut, without fetching again).
 //
 // Network: gea.esac.esa.int only (the ESA Gaia archive's TAP service).
-import {mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync} from 'node:fs'
+import {mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync, existsSync} from 'node:fs'
 import {dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import StarsCatalog from '../../js/scene/StarsCatalog.js'
 import {LIGHTYEAR_METER} from '../../js/shared.js'
-import {TAP_URL, chooseCut, countsQuery, parseCsv, sourceIdChunks, sourceQuery} from '../../js/scene/gaia/adql.js'
+import {TAP_URL, chooseCut, countsQuery, magnitudeBands, parseCsv, sourceQuery} from '../../js/scene/gaia/adql.js'
 import {MAX_ORDER, TILE_CAP, buildTiles, magnitudeHistogram, mergeGaia} from '../../js/scene/gaia/build.js'
 import {GAIA_TILES_DIR} from '../../js/scene/gaia/gaiaPopulation.js'
 import {catalogueRecord} from '../../js/scene/gaia/records.js'
-import {runAsync} from './tap.mjs'
+import {runAsync, runSync} from './tap.mjs'
 
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -121,54 +121,55 @@ async function pickCut(opts) {
 
 
 /**
+ * The bands of G the stars are fetched in (adql.js magnitudeBands): a
+ * query on a band of the magnitude, which the archive indexes, takes
+ * seconds to a minute (G < 8, 62,723 stars with their joins, 30 s), where
+ * one job for the whole sky ran past an hour, and a 1/48 of the sky by
+ * source_id past 6 minutes.
+ *
  * @param {object} opts
- * @returns {Promise<{cut: number, dir: string, chunks: number}>}
+ * @returns {Promise<{cut: number, bands: Array<object>}>}
  */
-async function fetchRows(opts) {
+async function bandsFor(opts) {
   const {cut} = await pickCut(opts)
-  const dir = join(paths(opts).cache, `g${cut}`)
-  mkdirSync(dir, {recursive: true})
-  const chunks = chunksFor(opts)
-  for (const {cell, lo, hi} of chunks) {
-    const file = join(dir, `${cell}.csv`)
-    if (existsSync(file)) {
-      continue
-    }
-    log(`chunk ${cell + 1}/${chunks.length}`)
-    // The job's URL is kept, so a run stopped while it executes picks it
-    // up again (the archive keeps a job and its result for days).
-    const jobFile = `${file}.job`
-    const resume = existsSync(jobFile) ? readFileSync(jobFile, 'utf8').trim() : null
-    const csv = await runAsync(TAP_URL, sourceQuery({cut, lo, hi}),
-        {log, resume, onJob: (jobUrl) => writeFileSync(jobFile, jobUrl)})
-    // Written whole, after the job: a partial file is never taken for a chunk.
-    writeFileSync(`${file}.tmp`, csv)
-    rmSync(file, {force: true})
-    writeFileSync(file, csv)
-    rmSync(`${file}.tmp`, {force: true})
-    rmSync(jobFile, {force: true})
-  }
-  return {cut, dir, chunks: chunks.length}
+  const rows = await counts(opts)
+  return {cut, bands: magnitudeBands(rows, cut, parseInt(opts['band-rows'] ?? '150000'), BINS_PER_MAG)}
 }
 
 
 /**
- * The jobs to fetch the sky in: one by default (a million rows is a third
- * of an anonymous job's limit, and one query on the magnitude is faster
- * than many on source_id ranges: a 1/48 chunk ran over 6 minutes, the
- * whole sky in one about MINUTES_PLACEHOLDER), or `--chunk-order K`'s 12 × 4^K
- * source_id ranges.
- *
- * @param {object} opts
- * @returns {Array<{cell: number, lo: bigint, hi: bigint}>}
+ * @param {number} i
+ * @returns {string} A band's cache file's name
  */
-function chunksFor(opts) {
-  const order = opts['chunk-order']
-  if (order === undefined || order === 'all') {
-    const [{lo}, last] = [sourceIdChunks(0)[0], sourceIdChunks(0)[11]]
-    return [{cell: 0, lo, hi: last.hi}]
+function bandFile(i) {
+  return `band-${String(i).padStart(2, '0')}.csv`
+}
+
+
+/**
+ * @param {object} opts
+ * @returns {Promise<{cut: number, dir: string, bands: Array<object>}>}
+ */
+async function fetchRows(opts) {
+  const {cut, bands} = await bandsFor(opts)
+  const dir = join(paths(opts).cache, `g${cut}`)
+  mkdirSync(dir, {recursive: true})
+  for (let i = 0; i < bands.length; i++) {
+    const band = bands[i]
+    const file = join(dir, bandFile(i))
+    if (existsSync(file)) {
+      continue
+    }
+    const t0 = Date.now()
+    const csv = await runSync(TAP_URL, sourceQuery(band))
+    const n = csv.split('\n').filter((l) => l.trim() !== '').length - 1
+    log(`band ${i + 1}/${bands.length}: G ${band.lo ?? '-'} to ${band.hi}: ${n} rows (the archive counts ${band.n}), ` +
+      `${((Date.now() - t0) / 1000).toFixed(0)} s`)
+    // Written whole, after the query: a partial file is never taken for a band.
+    writeFileSync(`${file}.tmp`, csv)
+    renameSync(`${file}.tmp`, file)
   }
-  return sourceIdChunks(parseInt(order))
+  return {cut, dir, bands}
 }
 
 
@@ -245,9 +246,10 @@ async function tile(opts) {
   }
   const dir = join(paths(opts).cache, `g${fetchCut}`)
   const csvs = readdirSync(dir).filter((f) => f.endsWith('.csv'))
-  const expected = chunksFor(opts).length
+  const {bands} = await bandsFor({...opts, cut: String(fetchCut)})
+  const expected = bands.length
   if (csvs.length !== expected) {
-    throw new Error(`${csvs.length} of ${expected} chunks in ${dir}: run \`yarn gaia fetch\` first`)
+    throw new Error(`${csvs.length} of ${expected} bands in ${dir}: run \`yarn gaia fetch\` first`)
   }
   const rows = []
   for (const f of csvs) {
@@ -271,8 +273,8 @@ async function tile(opts) {
     magnitude: 'Johnson V from Gaia G and BP-RP (Riello et al. 2021, Table C.2)',
     source: {
       archive: TAP_URL,
-      query: sourceQuery({cut, lo: '<lo>', hi: '<hi>'}),
-      chunks: expected,
+      query: sourceQuery({lo: '<lo>', hi: '<hi>'}),
+      bands: bands.map(({lo, hi, n}) => [lo, hi, n]),
       cut,
       counts: existsSync(countsFile) ? JSON.parse(readFileSync(countsFile, 'utf8')) : null,
     },

@@ -2,6 +2,7 @@ import {describe, expect, it} from 'bun:test'
 import {INDEX_FILE, decodeTile, tileId} from '../points/tileFormat.js'
 import {PC_TO_CATALOGUE_LY, catalogueToEquatorial, unitToRadec} from './astrometry.js'
 import {buildTiles, magnitudeHistogram, mergeGaia, robustStats} from './build.js'
+import {gMinusV} from './photometry.js'
 
 
 /**
@@ -58,6 +59,16 @@ describe('build', () => {
   }
   // By position: 0.5″ from catalogue star 1000, no HIP match.
   rows.push(row({source_id: 500n, ra: 10 + (0.5 / 3600), dec: 5, d: 20, phot_g_mean_mag: 5.7, bp_rp: 1.6}))
+  // A pair the catalogue holds as one entry, V 5.0: Gaia resolves two of
+  // V 5.75 (one matched by HIP), whose light the entry holds, 8″ apart; a
+  // third of the same light beside them is past the entry's budget, a new
+  // star.
+  cat.push(star(3000, 150, -30, 50, 5, 6000))
+  const g575 = 5.75 + gMinusV(0.8)
+  rows.push(row({source_id: 700n, ra: 150, dec: -30, d: 50, phot_g_mean_mag: g575, hip: 3000}))
+  rows.push(row({source_id: 701n, ra: 150 + (8 / 3600 / Math.cos(30 * Math.PI / 180)), dec: -30, d: 50,
+    phot_g_mean_mag: g575}))
+  rows.push(row({source_id: 702n, ra: 150, dec: -30 + (12 / 3600), d: 50, phot_g_mean_mag: g575}))
   // New stars.
   rows.push(row({source_id: 600n, ra: 200, dec: 40, d: 100, phot_g_mean_mag: 9, bp_rp: 0.8, r_med_photogeo: 101}))
   rows.push(row({source_id: 601n, ra: 201, dec: 41, d: 500, phot_g_mean_mag: 10, bp_rp: null, parallax: null}))
@@ -65,14 +76,15 @@ describe('build', () => {
   const {records, colourTable, report} = mergeGaia(rows, cat)
 
   it('keeps only the new stars', () => {
-    expect(records.map((r) => r.id).sort()).toEqual([600n, 601n])
-    expect(report.dropped).toEqual({hip: 120, position: 1})
-    expect(report.distanceSources).toEqual({photogeo: 1, assumed: 1})
+    expect(records.map((r) => r.id).sort()).toEqual([600n, 601n, 702n])
+    expect(report.dropped).toEqual({hip: 121, position: 1, pair: 1})
+    expect(report.pairMatchesWithin['10arcsec']).toBe(1)
+    expect(report.distanceSources).toEqual({photogeo: 1, assumed: 1, parallax: 1})
     expect(report.noColour).toBe(1)
   })
 
   it('calibrates colour on the catalogue\'s temperatures', () => {
-    expect(report.colourPairs).toBe(120)
+    expect(report.colourPairs).toBe(121)
     expect(colourTable.teff[0]).toBe(9000)
     expect(colourTable.teff[colourTable.teff.length - 1]).toBe(4000)
     const rec = records.find((r) => r.id === 600n)
@@ -82,7 +94,7 @@ describe('build', () => {
 
   it('checks V against the catalogue over the matches', () => {
     // The made-up G and V differ by gMinusV at each colour: about 0.2 to 0.4.
-    expect(report.vMinusCatalogue.n).toBe(120)
+    expect(report.vMinusCatalogue.n).toBe(121)
     expect(Math.abs(report.vMinusCatalogue.median)).toBeLessThan(0.5)
   })
 
@@ -96,7 +108,7 @@ describe('build', () => {
 
   it('writes tiles and a manifest that read back', () => {
     const {files, manifest} = buildTiles(records, {name: 'test'}, {cap: 1})
-    expect(manifest.count).toBe(2)
+    expect(manifest.count).toBe(3)
     expect(manifest.tileCount).toBe(manifest.tiles.length)
     expect(files.has(INDEX_FILE)).toBe(true)
     const back = JSON.parse(new TextDecoder().decode(files.get(INDEX_FILE)))
@@ -110,7 +122,7 @@ describe('build', () => {
         }
       }
     }
-    expect(ids.sort()).toEqual([600n, 601n])
+    expect(ids.sort()).toEqual([600n, 601n, 702n])
   })
 
   it('summarises robustly', () => {

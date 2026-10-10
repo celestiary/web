@@ -9,6 +9,7 @@ import {
   pixelCone,
   xyf2nest,
 } from './healpix.js'
+import GAIA from './healpix.gaia.json'
 
 
 /**
@@ -124,5 +125,28 @@ describe('healpix', () => {
         expect(Math.max(...[...cones.values()].map((c) => c.radius))).toBeLessThan(50 * Math.PI / 180)
       }
     }
+  })
+
+  it('puts Gaia DR3\'s stars in the cells their source_ids name', () => {
+    // An offline fixture from the archive (healpix.gaia.json): a source_id
+    // over 2^35 is its order-12 NESTED cell, from its position when the
+    // id was given; its DR3 position (J2016) is in that cell or, for a
+    // star that has moved or sits on an edge, the next (0.3% of 144,847
+    // stars to G 8.8, measured).
+    let same = 0
+    for (const [id, ra, dec] of GAIA.rows) {
+      const named = Number(BigInt(id) >> 35n)
+      const z = Math.sin(dec * Math.PI / 180)
+      const phi = ra * Math.PI / 180
+      if (ang2pixNest(12, z, phi) === named) {
+        same++
+      } else {
+        const {centre, radius} = pixelCone(12, named)
+        const v = locToVec(z, phi)
+        const angle = Math.acos(Math.min(1, (v[0] * centre[0]) + (v[1] * centre[1]) + (v[2] * centre[2])))
+        expect(angle).toBeLessThan(3 * radius)
+      }
+    }
+    expect(same / GAIA.rows.length).toBeGreaterThan(0.97)
   })
 })

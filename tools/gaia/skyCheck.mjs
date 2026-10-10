@@ -14,6 +14,7 @@
 //   the same stars (a test population of stars.dat), every point drawn,
 //   pixel by pixel; and with the default margin, what the margin leaves out;
 // - adds: what the population adds to the catalogue's sky (Gaia's tiles);
+// - deep: the catalogue alone and with the population at sm=3 (limit 9.5);
 // - budget: the points drawn with a small budget;
 // - telescope: the tiles a 1° field at +5 mag pages in;
 // - cost: draw calls and points in the scene pass (?perf=1), with and
@@ -193,8 +194,11 @@ async function openPage(rep) {
   await page.goto(`${url}?perf=1${VIEW}`)
   await page.waitForFunction(() => window.c?.scene?.stars?.catalog?.numStars > 0 && window.c.scene.gaia, null,
       {timeout: 120000})
-  // Look straight away from the Sun.
+  // Labels, asterisms, orbits and the galaxy off; look straight away from
+  // the Sun.
   await page.evaluate(() => {
+    const sc = window.c.scene
+    sc.applySettings({...sc.getSettings(), a: false, l: false, p: false, o: false, U: false})
     const cam = window.c.ui.camera
     const p = cam.getWorldPosition(cam.position.clone())
     cam.lookAt(p.multiplyScalar(2))
@@ -383,6 +387,20 @@ try {
     g.marginMag = 1
     return s
   })
+  // Three magnitudes deeper (sm=3, limit 9.5): the catalogue alone, and
+  // with the population, at the default margin.
+  const deepCatalogue = await capture(page, `(c) => {
+    c.ui.setStarMagnitudeOffset(3)
+    c.scene.gaia.visible = false
+    c.scene.stars.getObjectByName('StarsPoints').visible = true
+  }`)
+  await page.evaluate(() => {
+    window.c.scene.gaia.visible = true
+  })
+  report.deepPopulation = await settlePopulation(page)
+  const deepBoth = await capture(page, '(c) => {}')
+  report.deepAdds = compare(deepCatalogue, deepBoth)
+  report.deepLimit = await page.evaluate(() => window.c.ui.limitingMagnitude())
   // A telescope: a 1° field, five magnitudes deeper, on the densest part of
   // the test population's tree.
   const scope = await openPage({})
@@ -416,6 +434,8 @@ try {
     writeFileSync(join(out, 'population-all.png'), Buffer.from(populationAll.png, 'base64'))
     writeFileSync(join(out, 'population-margin1.png'), Buffer.from(populationMargin.png, 'base64'))
     writeFileSync(join(out, 'both.png'), Buffer.from(both.png, 'base64'))
+    writeFileSync(join(out, 'deep-catalogue-only.png'), Buffer.from(deepCatalogue.png, 'base64'))
+    writeFileSync(join(out, 'deep-both.png'), Buffer.from(deepBoth.png, 'base64'))
     writeFileSync(join(out, 'telescope.png'), Buffer.from(telescope.png, 'base64'))
     writeFileSync(join(out, 'report.json'), `${JSON.stringify(report, null, 1)}\n`)
   }

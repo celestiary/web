@@ -88,3 +88,25 @@ export async function runAsync(tapUrl, query, {pollMs = 3000, timeoutMs = 2 * 60
   }
   return result.text()
 }
+
+
+/**
+ * Run an ADQL query synchronously and return its CSV: for a query the
+ * archive answers in a minute or two (a band of the magnitude, which it
+ * indexes).
+ *
+ * @param {string} tapUrl
+ * @param {string} query ADQL
+ * @returns {Promise<string>}
+ */
+export async function runSync(tapUrl, query) {
+  const body = new URLSearchParams({REQUEST: 'doQuery', LANG: 'ADQL', FORMAT: 'csv', QUERY: query})
+  const rsp = await fetch(`${tapUrl}/sync`, {method: 'POST', body})
+  const text = await rsp.text()
+  if (!rsp.ok || text.startsWith('<?xml')) {
+    // An error comes back as a VOTable: its INFO says what.
+    const info = (/<INFO[^>]*>([^<]*)<\/INFO>/).exec(text)?.[1] ?? firstLine(text)
+    throw new Error(`TAP sync query failed: HTTP ${rsp.status}: ${info.slice(0, 300)}`)
+  }
+  return text
+}

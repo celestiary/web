@@ -80,6 +80,7 @@ export function rowAstrometry(row) {
  * @property {Array<number>} dirHip The unit vector at the bundled
  *   catalogue's epoch (J1991.25), catalogue frame, for the merge
  * @property {string} distSource Where its distance came from (DISTANCE_SOURCES)
+ * @property {boolean} positionOnly A 2-parameter solution: position only
  */
 
 
@@ -113,6 +114,9 @@ export function gaiaRecord(row, colourTable) {
     teff: colourTable ? teffFromBpRp(colourTable, row.bp_rp) : 0,
     mag, v, hip: Number.isFinite(row.hip) ? row.hip : null,
     dirHip: hipVec.map((c) => c / r), distSource: source,
+    // A position-only (2-parameter) solution: no parallax or proper motion,
+    // and for the brightest, saturated stars a position arcseconds off.
+    positionOnly: row.astrometric_params_solved === 3 || !Number.isFinite(row.pmra),
   }
 }
 
@@ -133,7 +137,7 @@ export function catalogueApparentMag(star) {
 
 /**
  * A bundled catalogue star as a point record: what the tile pipeline is
- * checked with, with no Gaia data (Gaia.md, "Checking without the data").
+ * checked with, with no Gaia data (Gaia.md, "Checks").
  * Not Gaia's: no velocity, and its HIP number for an id.
  *
  * @param {object} star StarProps, x, y, z in light-years (StarsCatalog

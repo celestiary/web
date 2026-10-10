@@ -239,6 +239,9 @@ tried and dropped.
     doesn't trust the sandbox proxy's CA, so GIBS tiles fetched by a page
     fail with `ERR_CERT_AUTHORITY_INVALID`: route them through Node like
     ion's (`tools/parity/parity.mjs` `routeGibs`).
+  - `gea.esac.esa.int` (the ESA Gaia archive's TAP service, for
+    `yarn gaia`; its band queries take seconds, a whole-sky async job
+    hours: [Gaia.md](js/scene/Gaia.md#the-query)).
   - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
     Record Horizons results as offline test fixtures with the query that
     produced them; tests never hit the network.

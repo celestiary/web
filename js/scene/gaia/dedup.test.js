@@ -72,6 +72,14 @@ describe('dedup', () => {
     }
   })
 
+  it('matches a position-only solution farther, at the same magnitude', () => {
+    const s = byHip.get(91262)
+    const far = {hip: null, dirHip: offset(dirOf(s), 12, [0, 1, 0]), v: s.mag + 0.2}
+    expect(matchCatalogue(far, index)).toBeNull()
+    expect(matchCatalogue({...far, positionOnly: true}, index)?.hip).toBe(91262)
+    expect(matchCatalogue({...far, positionOnly: true, v: s.mag + 2}, index)).toBeNull()
+  })
+
   it('finds a match across a cell\'s edge', () => {
     // Probe each side of many cell boundaries: a star 1.9″ off in every
     // direction from a catalogue star is still found.

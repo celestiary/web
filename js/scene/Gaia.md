@@ -10,18 +10,12 @@ magnitude.  It is built as the shared **point-population engine**
 ([#50](https://github.com/celestiary/web/issues/50)) and the telescope mode
 ([#155](https://github.com/celestiary/web/issues/155)) will reuse.
 
-**Status.**  The engine, the build pipeline and the physics are in, and
-checked with unit tests and with the bundled catalogue run through the
-same tile pipeline in the app.  **The tiles themselves are not built
-yet**: the ESA Gaia archive (`gea.esac.esa.int`, and its mirrors) is
-refused by the sandbox's network proxy.  Until they are, the app finds no
-manifest at `large/gaia/v1/index.json`, draws nothing more and asks for
-nothing more.  Once the archive is reachable, one command builds them:
+**Status.**  Built: **925,686 Gaia DR3 stars**, all of Gaia's to G < 10.8
+less the bundled catalogue's, in 528 tiles (27.8 MB) under
+`public/large/gaia/v1/` in Git LFS, from the archive on 2026-10-10.  One
+command rebuilds them ([Rebuilding](#rebuilding)):
 
-    yarn gaia all          # counts, fetch (48 chunks, cached), tile → public/large/gaia/v1/
-
-then `git lfs install` (once) and commit `public/large/gaia/v1/`
-([Rebuilding](#rebuilding)).
+    yarn gaia all          # counts, fetch (8 bands of G, cached), tile → public/large/gaia/v1/
 
 | Piece | Where |
 |---|---|
@@ -65,9 +59,8 @@ acknowledgement:
 > institutions participating in the Gaia Multilateral Agreement.
 
 The acknowledgement is ESA's standard text as recalled: the archive's
-credits page isn't reachable from the sandbox, so check it there when the
-data is built, and add Gaia to the app's credits when its stars first
-show.  The ShareAlike term applies to the data, not to the code (ISC).
+credits page redirects to `www.cosmos.esa.int`, which the sandbox can't
+reach, so check it there, and add Gaia to the app's credits.  The ShareAlike term applies to the data, not to the code (ISC).
 
 ## The query
 
@@ -76,15 +69,19 @@ Two steps, both ADQL on the archive (`gaia/adql.js`):
 1. **The cut, from the archive's counts.**  `countsQuery` counts
    `gaia_source` in 0.05 mag bins of G brighter than 13; `chooseCut` takes
    the upper edge of the first bin where the running count reaches the
-   target (1,000,000; `--target N`).  The roadmap expects G ≈ 11.  The
-   counts are cached (`tools/gaia/.cache/counts.json`) and written into the
+   target (1,000,000; `--target N`).  The roadmap expected G ≈ 11; the
+   archive's counts put it at **G < 10.8, 1,034,846 stars** (table below).
+   The counts are cached (`tools/gaia/.cache/counts.json`) and written into the
    manifest, so the cut is recorded with the data it chose.  `yarn gaia
    counts` prints the table and the cut without fetching anything else.
-2. **The stars**, in 48 chunks of source_id (Gaia's own order-1 HEALPix
-   cells: a source_id over 2^35 is its order-12 cell, so a cell is a
-   source_id range), each an asynchronous job, cached as it completes, so a
-   failed chunk is the only one fetched again and no job comes near the
-   archive's anonymous 3M-row limit:
+2. **The stars**, in bands of G of at most 150,000 stars each
+   (`magnitudeBands`, from the counts), each a synchronous query, cached as
+   it completes, so a failed band is the only one fetched again.  The
+   archive indexes the magnitude: the eight bands took 12-41 s each, 4
+   minutes in all, and each returned exactly the archive's count for it.
+   One asynchronous job for the whole sky ran over an hour without
+   finishing, and a 1/48 of the sky by source_id range over 6 minutes, so
+   the bands it is:
 
 ```sql
 SELECT g.source_id, g.ra, g.dec, g.ref_epoch,
@@ -97,9 +94,28 @@ SELECT g.source_id, g.ra, g.dec, g.ref_epoch,
 FROM gaiadr3.gaia_source AS g
 LEFT OUTER JOIN gaiadr3.hipparcos2_best_neighbour AS h ON h.source_id = g.source_id
 LEFT OUTER JOIN external.gaiaedr3_distance AS d ON d.source_id = g.source_id
-WHERE g.phot_g_mean_mag < :cut
-AND g.source_id >= :lo AND g.source_id < :hi
+WHERE g.phot_g_mean_mag >= :lo AND g.phot_g_mean_mag < :hi
 ```
+
+| G | Archive | Fetched | The catalogue's (dropped) | Kept |
+|---|---:|---:|---:|---:|
+| < 4 | 634 | 634 | 629 | 5 |
+| 4-6 | 6,130 | 6,130 | 5,971 | 159 |
+| 6-7 | 14,565 | 14,565 | 12,920 | 1,645 |
+| 7-8 | 41,394 | 41,394 | 27,860 | 13,534 |
+| 8-9 | 114,703 | 114,703 | 37,008 | 77,695 |
+| 9-9.5 | 116,821 | 116,821 | 11,935 | 104,886 |
+| 9.5-10 | 187,859 | 187,859 | 7,186 | 180,673 |
+| 10-10.5 | 296,906 | 296,906 | 4,081 | 292,825 |
+| 10.5-10.8 | 255,834 | 255,834 | 1,570 | 254,264 |
+| **all** | **1,034,846** | **1,034,846** | **109,160** | **925,686** |
+
+The archive's cumulative counts, for choosing a cut: G < 8, 62,723;
+< 9, 177,426; < 10, 482,106; < 10.5, 779,012; < 10.8, 1,034,846; < 11,
+1,247,240; < 11.5, 1,973,007; < 12, 3,087,821; < 13, 7,369,627.  The
+fetched rows match the counts in every 0.05 mag bin but 16, each one star
+over or under at a bin's edge (the CSV's float32 magnitudes against the
+archive's own `FLOOR`), the totals equal (`report.archiveCheck`).
 
 No quality cuts: to G ≈ 11 Gaia's sources are real stars, and a cut on
 the astrometry would drop exactly the bright stars with poorer solutions.
@@ -111,8 +127,8 @@ geometric median; 1/ϖ where neither is given and ϖ/σ ≥ 5; else 1 kpc,
 flagged `assumed`.  The choice only moves a star along its line of sight:
 its absolute magnitude is taken from the same distance, so from the solar
 system its brightness is Gaia's whatever the distance.  It matters when the
-camera travels to another star.  The build reports how many stars took each
-source.
+camera travels to another star.  Of the 925,686: 916,506 photogeometric,
+2,386 geometric, none 1/ϖ, 6,794 assumed (mostly position-only solutions).
 
 ## Frame and epoch
 
@@ -170,8 +186,9 @@ EDR3 relation to Johnson V, G − V = −0.02704 + 0.01424x − 0.2156x² +
 0.01426x³ with x = G_BP − G_RP, σ = 0.03 mag, over −0.5 < x < 5.0 (x held
 to that range outside it).  DR3's photometry is EDR3's.  A star with no
 BP−RP takes the Sun's, 0.82 (Casagrande & VandenBerg 2018).  The build
-checks it on the stars both catalogues have: the median and MAD of Gaia's
-V against the catalogue's (`report.vMinusCatalogue` in the manifest).
+checks it on the 88,232 stars both catalogues have by number: Gaia's V
+less the catalogue's has a median of **+0.007 mag and a MAD of 0.012**
+(`report.vMinusCatalogue` in the manifest).
 
 **Teff from BP−RP, on the catalogue's own scale.**  The catalogue's
 colours come from Teff by spectral class (de Jager & Nieuwenhuijzen 1987,
@@ -183,8 +200,12 @@ cross-matches (about 100,000, from O to M), binned by Gaia's BP−RP (0.05
 mag, merged until a bin has 25), each bin's median log Teff, held
 non-increasing in colour (pool adjacent violators;
 `calibrateColourTemperature`).  A Gaia star's Teff is read off that table,
-interpolated in log T and held at its ends.  The table goes in the
-manifest.  The colour is the observed one, reddening included, as the
+interpolated in log T and held at its ends.  From 88,219 pairs, 84 bins:
+BP−RP −0.34 is 23,961 K, −0.02 10,928 K, 0.28 9,378 K, 0.58 6,643 K, 0.87
+5,448 K, 1.18 4,762 K, 1.48 4,474 K, 1.78 4,260 K, 2.07 3,837 K, 2.38
+3,462 K, and from 2.97 on about 3,270 K (the catalogue's class scale
+bottoms out in its M giants, so its reddest dwarfs are a little warm).
+243 kept stars have no BP−RP.  The table goes in the manifest.  The colour is the observed one, reddening included, as the
 magnitude is the observed one, extinction included: the sky as seen from
 here, as the catalogue's magnitudes are.  A Gaia star with no BP−RP is
 drawn at the Sun's temperature.
@@ -213,9 +234,30 @@ and picking; a Gaia star that is one of them is left out of the tiles
    already holds.  The catalogue's 106,747 circles of 2″ cover 2.5 × 10^-6
    of the sky, so a few chance matches in a million.
 
-The build reports both counts, and the position matches by separation, in
-the manifest (`report.dropped`, `report.positionMatchesWithin`).  Gaia has
-no source for the brightest stars (G ≲ 3), which are all in the catalogue.
+3. **A pair's light**: a Gaia star within 20″ of a catalogue star whose
+   light is more than the Gaia stars already matched to it hold, by at
+   least half the star's own: the catalogue's entry is a pair Gaia
+   resolves, its magnitude the pair's, and this is the rest of it.  A
+   light budget: an entry can't stand for more light than it has.
+   Taken brightest first.
+
+A position-only Gaia solution (no parallax or proper motion: some of the
+brightest, saturated stars) is matched to 20″ if its V is within 0.75 mag
+of the catalogue star's either way: Gaia's ζ Her, V 2.9, is 14.7″ from the
+catalogue's, V 2.8.
+
+**Merged**: of 1,034,846, 88,232 dropped by Hipparcos number, 18,710 by
+position (15,373 of them within 0.25″: the cross-match's misses), and
+2,218 as the rest of a pair (1,613 within 5″); 925,686 kept
+(`report.dropped`, `report.positionMatchesWithin`,
+`report.pairMatchesWithin`).  Gaia has no source for the brightest stars
+(G ≲ 3), which are all in the catalogue.
+
+**Stars the catalogue left out.**  123 kept stars are brighter than V 6.5,
+and 100 of them are more than 2′ from any catalogue star: Hipparcos stars
+Celestia's stars.dat left out, which has 106,747 of Hipparcos's 118,218
+(those with no usable parallax, it seems), among them σ Ori (HIP 26549)
+and θ¹ Ori C (HIP 26221).  They now show at the naked eye's limit.
 
 ## Tiling
 
@@ -315,52 +357,122 @@ synthetic population (progressive loading, the cut, the budget, eviction,
 the motion's years); the epoch against stars.dat (above); the
 propagation, the photometric conversions, the colour calibration, the
 distance choice, the queries and the CSV, the merge by number and by
-position across cell boundaries; the build end to end on hand-written
-rows.  The synthetic population (`points/syntheticPoints.js`) and every
-fixture row are made up and labelled so; none is Gaia's.
+position across cell boundaries, the pair's light budget; the build end
+to end on hand-written rows.  The synthetic population
+(`points/syntheticPoints.js`) and every hand-written row are made up and
+labelled so.  One fixture is Gaia's own: 145 source_ids with their
+positions (`points/healpix.gaia.json`, every 1,000th star to G 8.8, with
+its query), whose order-12 cells `healpix.js` finds as Gaia named them
+(99.7% of the 144,847 stars to G 8.8; the rest in the next cell, having
+moved or sitting on an edge).
 
 **In the app** (`tools/gaia/skyCheck.mjs`, headless Chromium on
 SwiftShader): the bundled catalogue run through the same tile pipeline
 (`yarn gaia catalogue --out DIR`: a **test population**, not Gaia data,
 never committed), served in place of `large/gaia/v1/`, from deep space
-4.7 AU over the Sun's north, 480×300, labels, orbits and the galaxy off.
+4.7 AU over the Sun's north, looking away from the Sun, 480×300, labels,
+orbits and the galaxy off.  The headless page's meter stayed at the keyed
+exposure there, so the check sets the dark-adapted gain (4e6) itself.
 
-RESULTS_PLACEHOLDER
+With the test population (cap 512, so its 106,747 stars make a tree of
+354 tiles to order 3, as Gaia's million make one of hundreds at 4,096),
+the exposure held at the dark-adapted gain (limit 6.48):
+
+- **The engine draws the catalogue as the catalogue does.**  With every
+  point drawn (a margin of 30 mag), the frame of the population alone
+  against the catalogue's own points: 2,648 of 144,000 pixels differ, by
+  at most 3 of 255, and the frame's light is the same to 0.07% (the tiles'
+  rounding of Teff to a kelvin and of the absolute magnitude to 0.001).
+- **The margin loses nothing visible in the field.**  At the default
+  margin (the limit plus 1 mag, 7.5), every one of the 2,485 catalogue
+  stars in the frame brighter than 7.5 from the camera is drawn (8,331
+  points drawn, from 37 tiles); the frame's light is 0.6% under all
+  points', the stars from 7.5 to 12.  The largest pixel differences (24 of
+  255) were at the frame's edge, from bright stars just outside it whose
+  tiles weren't selected; the field is now padded by a sprite's reach
+  (`EDGE_PAD_PX`, 48 px).
+- **Progressive**: at load the 12 roots come first (brightest of the
+  sky); at the dark gain the field's 36 tiles were in within a frame or
+  two, 17,649 points loaded for 8,193 drawn.  Decoding took about 0.4 ms
+  a tile (32 ms for 76).
+- **The budget holds**: at 20,000, with every point wanted, 20,000 drawn
+  exactly, from the brightest tiles (`budgetHit`).
+- **A telescope pages in only its field**: from a fresh page, a 1° field at
+  +5 mag (limit 19.9) on the tree's densest cell loaded 5 tiles past the
+  36 the naked-eye view had (2/3, 2/4, 2/6, 3/24, 3/25), 3,482 points drawn.
+- **Cost** (`renderer.info`, the scene pass): the catalogue alone 107,188
+  points in 5 draw calls; with the population at the default margin 41
+  calls more for its 8,331 points (the test tree's 512-point tiles; Gaia's
+  are 4,096).  SwiftShader's frame times (4-7 ms either way at 480×300)
+  say nothing about a GPU's.
+
+**With Gaia's tiles** (the same view, 72° × 45°, toward Cepheus, Cygnus
+and Lacerta, the Milky Way's band through it):
+
+- **At the naked eye's limit nothing a viewer would miss changes**: the
+  limit plus the margin is 7.5, and the 12 roots (the brightest 49,152 of
+  the sky outside the catalogue) were loaded within a frame; 7 tiles were
+  wanted, 28,672 points loaded, 943 drawn.  The frame's light rises 0.8%,
+  2,732 of 144,000 pixels change, mostly by a few levels; the largest,
+  171 of 255, is one of the stars stars.dat left out.
+- **Three magnitudes deeper** (`sm=3`, limit 9.5, drawn to 10.5): 69 tiles,
+  161,062 Gaia points, the frame's lit pixels from 20,545 to 48,571 and its
+  light ×1.66; the band fills in through Cygnus and Cepheus.
+- **A telescope**: a 1° field at +5 mag (limit 19.9, so every star there)
+  on the deepest cell of the tree loaded 7 tiles (orders 1-3) and drew
+  27,163 stars.
+- **Every point in the field** (a margin of 30 mag): 141 tiles, 281,301
+  points in 144 draw calls; decoding was about 2 ms a 4,096-star tile.
+- **The budget**: at 20,000, 20,000 drawn, the brightest tiles first.
+- **Cost** (`renderer.info`): the catalogue alone 106,836 points in 4 draw
+  calls; with Gaia at the naked eye's limit 107,779 in 11; at limit 9.5,
+  69 more draws for 161,062 more points.  A laptop's GPU is the check of
+  the frame rate: SwiftShader's frame times say nothing about it.
+
+`node tools/gaia/skyCheck.mjs --out DIR` writes these frames (labels off,
+the asterisms on as a guide) and its report; the PR preview, which copies
+the tiles (they are under `public/large/`), shows the sky itself.
 
 ## Rebuilding
 
 With `gea.esac.esa.int` reachable:
 
     yarn gaia all                 # = counts, fetch, tile
-    git lfs install               # once per clone
+    git lfs install               # once per clone (--local --skip-repo where core.hooksPath
+                                  # is the repo's hooks/, as here: no LFS hooks in it)
     git add public/large/gaia/v1  # LFS (.gitattributes: public/large/**)
     git lfs ls-files | head       # check they went in as LFS objects
+    git lfs push origin <branch>  # without LFS's pre-push hook, before git push
 
 `yarn gaia counts` alone prints the archive's counts and the cut;
-`--target N` asks for another size, `--cut G` skips the counts.  The fetch
-caches each chunk in `tools/gaia/.cache/` (git-ignored), so a second run
+`--target N` asks for another size, `--cut G` skips the counts (the bands
+still come from them), `--band-rows N` sizes the bands, and `tile
+--fetch-cut G` cuts rows fetched to a fainter G without fetching again.
+The counts take about 11 minutes (an asynchronous job), the bands 4, the
+tiling 40 s.  The fetch
+caches each band in `tools/gaia/.cache/` (git-ignored), so a second run
 fetches only what failed.  `tile` reads the cache and stars.dat and
 rewrites `public/large/gaia/v1/` whole, with `LICENSE.txt`; its report
-(rows, kept, dropped by number and by position, distance sources, stars
-with no colour, V against the catalogue) prints and goes in the manifest.
+(rows, kept, dropped by number, by position and as pairs, distance
+sources, stars with no colour, V against the catalogue, the rows against
+the archive's counts bin by bin, the light added over the catalogue's)
+prints and goes in the manifest.
 Then:
 
 - check the sky: `yarn build`, then `node tools/gaia/skyCheck.mjs --out
-  DIR` (it serves `docs/`, real tiles and all), and compare the manifest's
-  histogram with the archive's counts (`counts.json`) less the catalogue's
-  stars;
+  DIR` (it serves `docs/`, real tiles and all);
 - the PR that adds the tiles gets a full preview copy (they are under
   `public/large/`; DESIGN.md [data policy](../../DESIGN.md#data-policy)).
 
 ## Follow-ups
 
-- **The data run**, once the archive is reachable: the tiles, the cut and
-  counts, the colour table and the merge's numbers in this doc, the real
-  sky checked (counts per magnitude bin against the archive's).
 - **The galaxy's hole round the Sun** (MilkyWay.md,
-  [double counting](MilkyWay.md#double-counting)): Gaia's stars resolve
-  more of the model's light, farther out; `RESOLVED` is refitted from the
-  catalogue's and Gaia's stars together, by the same measurement.
+  [double counting](MilkyWay.md#double-counting)): Gaia's stars add 59% of
+  the catalogue's light from the Sun (`report.lightOverCatalogue`), so with
+  them drawn the sky's diffuse light counts some twice.  At the naked
+  eye's limit few are drawn (943 in a 72° field), but deeper they are:
+  `RESOLVED` is to be refitted from the catalogue's and Gaia's stars
+  together, and should follow the limit the points are drawn to.
 - **Motion for the bundled catalogue**: Gaia's proper motions and radial
   velocities for the ~100,000 stars both have (a side file from the same
   build), so the constellations move with the date and agree with Gaia's

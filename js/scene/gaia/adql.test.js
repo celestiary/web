@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import {chooseCut, countsQuery, parseCsv, sourceIdChunks, sourceQuery} from './adql.js'
+import {chooseCut, countsQuery, magnitudeBands, parseCsv, sourceQuery} from './adql.js'
 
 
 describe('adql', () => {
@@ -14,25 +14,28 @@ describe('adql', () => {
     expect(chooseCut(rows, 1e9, 20)).toEqual({cut: 10.1, count: 1200000})
   })
 
-  it('cuts the sky into source_id ranges by Gaia\'s HEALPix cells', () => {
-    const chunks = sourceIdChunks(1)
-    expect(chunks.length).toBe(48)
-    expect(chunks[0].lo).toBe(0n)
-    for (let i = 1; i < chunks.length; i++) {
-      expect(chunks[i].lo).toBe(chunks[i - 1].hi)
-    }
-    // 12 × 4^12 order-12 cells × 2^35.
-    expect(chunks[47].hi).toBe(12n * (4n ** 12n) * (2n ** 35n))
-    expect(sourceIdChunks(0).length).toBe(12)
+  it('cuts the stars into bands of G of at most so many', () => {
+    // Made-up counts per 0.05 mag bin.
+    const rows = [{bin: 180, n: 50}, {bin: 181, n: 60}, {bin: 182, n: 70}, {bin: 183, n: 200}, {bin: 184, n: 10},
+      {bin: 185, n: 999}]
+    const bands = magnitudeBands(rows, 9.25, 120, 20)
+    expect(bands).toEqual([
+      {lo: null, hi: 9.1, n: 110},
+      {lo: 9.1, hi: 9.15, n: 70},
+      {lo: 9.15, hi: 9.2, n: 200},
+      {lo: 9.2, hi: 9.25, n: 10},
+    ])
+    // Every star under the cut is in one band.
+    expect(bands.reduce((a, b) => a + b.n, 0)).toBe(390)
   })
 
   it('asks for the stars with their Hipparcos match and distances', () => {
-    const q = sourceQuery({cut: 11.2, lo: 0n, hi: 144115188075855872n})
+    const q = sourceQuery({lo: 10.2, hi: 10.8})
     expect(q).toContain('FROM gaiadr3.gaia_source AS g')
     expect(q).toContain('LEFT OUTER JOIN gaiadr3.hipparcos2_best_neighbour AS h ON h.source_id = g.source_id')
     expect(q).toContain('LEFT OUTER JOIN external.gaiaedr3_distance AS d ON d.source_id = g.source_id')
-    expect(q).toContain('g.phot_g_mean_mag < 11.2')
-    expect(q).toContain('g.source_id >= 0 AND g.source_id < 144115188075855872')
+    expect(q).toContain('WHERE g.phot_g_mean_mag >= 10.2 AND g.phot_g_mean_mag < 10.8')
+    expect(sourceQuery({lo: null, hi: 8})).toContain('WHERE g.phot_g_mean_mag < 8')
     for (const col of ['g.bp_rp', 'g.pmra', 'g.radial_velocity', 'r_med_photogeo', 'original_ext_source_id AS hip']) {
       expect(q).toContain(col)
     }

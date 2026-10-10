@@ -84,48 +84,58 @@ export function chooseCut(rows, target, binsPerMag = 20) {
 }
 
 
-/** A Gaia source_id over 2^35 is its order-12 NESTED HEALPix cell, equatorial (the source_id's definition in the DR3 documentation). */
-export const SOURCE_ID_CELL_SHIFT = 35n
-
-
 /**
- * The source_id ranges of the HEALPix cells of an order, in Gaia's own
- * (equatorial, NESTED) cells: chunks of the sky to fetch one at a time, so
- * a job's result stays well under the archive's row limits and a failed
- * chunk is all that is fetched again.
+ * Bands of G to fetch the stars in, from countsQuery's rows, each of at
+ * most `maxRows` stars (a bin bigger than that is a band of its own): a
+ * query on a band of the magnitude, which the archive indexes, returns in
+ * seconds to a minute, where one job for the whole sky (or for a range of
+ * source_id, which isn't the magnitude's order) ran for hours.  The
+ * brightest band has no lower edge.
  *
- * @param {number} order 0-12
- * @returns {Array<{cell: number, lo: bigint, hi: bigint}>} [lo, hi)
+ * @param {Array<{bin: number, n: number}>} rows
+ * @param {number} cut G: the faintest band ends here
+ * @param {number} [maxRows]
+ * @param {number} [binsPerMag]
+ * @returns {Array<{lo: ?number, hi: number, n: number}>} G from lo (null:
+ *   no lower edge) to under hi, and the archive's count in it
  */
-export function sourceIdChunks(order) {
-  const per = (1n << SOURCE_ID_CELL_SHIFT) * (4n ** BigInt(12 - order))
-  const cells = 12 * (4 ** order)
-  const out = []
-  for (let cell = 0; cell < cells; cell++) {
-    out.push({cell, lo: BigInt(cell) * per, hi: BigInt(cell + 1) * per})
+export function magnitudeBands(rows, cut, maxRows = 150000, binsPerMag = 20) {
+  const sorted = [...rows].filter((r) => (r.bin + 1) / binsPerMag <= cut + 1e-9).sort((a, b) => a.bin - b.bin)
+  const bands = []
+  let lo = null
+  let n = 0
+  for (let i = 0; i < sorted.length; i++) {
+    const {bin, n: count} = sorted[i]
+    if (n > 0 && n + count > maxRows) {
+      const edge = bin / binsPerMag
+      bands.push({lo, hi: edge, n})
+      lo = edge
+      n = 0
+    }
+    n += count
   }
-  return out
+  bands.push({lo, hi: cut, n})
+  return bands
 }
 
 
 /**
- * The stars brighter than the cut in one chunk, with their Hipparcos
- * cross-match and Bailer-Jones distances.
+ * The stars in one band of G, with their Hipparcos cross-match and
+ * Bailer-Jones distances.
  *
  * @param {object} opts
- * @param {number} opts.cut G magnitude: phot_g_mean_mag < cut
- * @param {bigint} opts.lo source_id from
- * @param {bigint} opts.hi source_id below
+ * @param {?number} opts.lo G from (null: no lower edge)
+ * @param {number} opts.hi G under
  * @returns {string} ADQL
  */
-export function sourceQuery({cut, lo, hi}) {
+export function sourceQuery({lo, hi}) {
   return [
     `SELECT ${COLUMNS.join(', ')}`,
     'FROM gaiadr3.gaia_source AS g',
     'LEFT OUTER JOIN gaiadr3.hipparcos2_best_neighbour AS h ON h.source_id = g.source_id',
     'LEFT OUTER JOIN external.gaiaedr3_distance AS d ON d.source_id = g.source_id',
-    `WHERE g.phot_g_mean_mag < ${cut}`,
-    `AND g.source_id >= ${lo} AND g.source_id < ${hi}`,
+    lo === null || lo === undefined ? `WHERE g.phot_g_mean_mag < ${hi}` :
+      `WHERE g.phot_g_mean_mag >= ${lo} AND g.phot_g_mean_mag < ${hi}`,
   ].join('\n')
 }
 

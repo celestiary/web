@@ -1,6 +1,6 @@
 import {INDEX_FILE, HAS_IDS, HAS_VELOCITY, encodeTile, tilePath} from '../points/tileFormat.js'
 import {buildTileTree, manifestRow} from '../points/tileTree.js'
-import {catalogueIndex, matchCatalogue} from './dedup.js'
+import {PAIR_RADIUS_ARCSEC, PAIR_SHARE, catalogueIndex, catalogueNeighbours, matchCatalogue} from './dedup.js'
 import {calibrateColourTemperature} from './photometry.js'
 import {catalogueApparentMag, gaiaRecord} from './records.js'
 
@@ -65,12 +65,14 @@ export function mergeGaia(rows, catalogueStars) {
     }
   }
   const colourTable = calibrateColourTemperature(pairs)
-  const records = []
-  const dropped = {hip: 0, position: 0}
+  const flux = (m) => (Number.isFinite(m) ? 10 ** (-0.4 * m) : 0)
+  const candidates = []
+  const dropped = {hip: 0, position: 0, pair: 0}
   const separations = []
+  const pairSeparations = []
   const vMinusCatalogue = []
-  const distSources = {}
-  let noColour = 0
+  // The light of the Gaia stars matched to each catalogue star, by HIP.
+  const matchedLight = new Map()
   for (const row of rows) {
     const rec = gaiaRecord(row, colourTable)
     if (!rec) {
@@ -79,6 +81,7 @@ export function mergeGaia(rows, catalogueStars) {
     const match = matchCatalogue(rec, index)
     if (match) {
       dropped[match.by]++
+      matchedLight.set(match.hip, (matchedLight.get(match.hip) ?? 0) + flux(rec.v))
       if (match.by === 'position') {
         separations.push(match.sepArcsec)
       }
@@ -88,15 +91,32 @@ export function mergeGaia(rows, catalogueStars) {
       }
       continue
     }
+    rec.hasColour = Number.isFinite(row.bp_rp)
+    candidates.push(rec)
+  }
+  // A pair's light (dedup.js, test 3), brightest first.
+  candidates.sort((a, b) => a.v - b.v)
+  const records = []
+  const distSources = {}
+  let noColour = 0
+  for (const rec of candidates) {
+    const near = catalogueNeighbours(rec.dirHip, index, PAIR_RADIUS_ARCSEC)
+    const host = near.find((s) => flux(s.mag) - (matchedLight.get(s.hip) ?? 0) >= PAIR_SHARE * flux(rec.v))
+    if (host) {
+      dropped.pair++
+      pairSeparations.push(host.sepArcsec)
+      matchedLight.set(host.hip, (matchedLight.get(host.hip) ?? 0) + flux(rec.v))
+      continue
+    }
     distSources[rec.distSource] = (distSources[rec.distSource] ?? 0) + 1
-    if (!Number.isFinite(row.bp_rp)) {
+    if (!rec.hasColour) {
       noColour++
     }
+    delete rec.hasColour
     records.push(rec)
   }
   // The light the kept stars add over the catalogue's, from the Sun (the
   // Milky Way's double counting, MilkyWay.md, scales with it).
-  const flux = (m) => (Number.isFinite(m) ? 10 ** (-0.4 * m) : 0)
   const keptLight = records.reduce((a, r) => a + flux(r.mag), 0)
   const catalogueLight = stars.reduce((a, st) => a + flux(st.mag), 0)
   const sepBins = [0.25, 0.5, 1, 1.5, 2].map((edge) => [edge, separations.filter((s) => s <= edge).length])
@@ -108,6 +128,8 @@ export function mergeGaia(rows, catalogueStars) {
       kept: records.length,
       dropped,
       positionMatchesWithin: Object.fromEntries(sepBins.map(([e, n]) => [`${e}arcsec`, n])),
+      pairMatchesWithin: Object.fromEntries([2, 5, 10, 20].map((e) => [`${e}arcsec`,
+        pairSeparations.filter((x) => x <= e).length])),
       distanceSources: distSources,
       noColour,
       colourPairs: pairs.length,
