@@ -123,6 +123,8 @@ export default class Scene {
       c: false, // ecliptic grid
       g: false, // galactic grid
       U: true, // Milky Way galaxy
+      G: false, // galaxy labels (SPARC's), gated by magnitude: Galaxies.labelsVisible
+      C: false, // globular-cluster labels: none yet (#228)
       x: true, // human expansion lines, once computed
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
@@ -242,6 +244,8 @@ export default class Scene {
       c: () => this.toggleGridEcliptic(),
       g: () => this.toggleGridGalactic(),
       U: () => this.toggleGalaxy(),
+      G: () => this.toggleGalaxyLabels(),
+      C: () => this.toggleGlobularLabels(),
       x: () => this.toggleColonization(),
       ...this._customAppliers,
     }
@@ -1697,6 +1701,27 @@ export default class Scene {
 
 
   /**
+   * Toggle the galaxies' labels (`e`, as Celestia's; the `G` setting): each
+   * SPARC galaxy's name, shown once it's within a magnitude of the limiting
+   * magnitude or is the target (Galaxies.md, "Labels").
+   */
+  toggleGalaxyLabels() {
+    this._flipSetting('G')
+    this.galaxies?.setLabelsVisible(this._settings.G)
+  }
+
+
+  /**
+   * Toggle the globular clusters' labels (`E`, Shift+E, as Celestia's; the
+   * `C` setting).  There are no globular clusters yet (#228): the setting
+   * is kept, and the link carries it, for when there are.
+   */
+  toggleGlobularLabels() {
+    this._flipSetting('C')
+  }
+
+
+  /**
    * @param {object} galaxyProps
    * @returns {object}
    */
@@ -1718,6 +1743,12 @@ export default class Scene {
     // SPARC's disc galaxies (Galaxies.md), in the catalogue's frame as the
     // stars are; their catalogue is fetched in a browser.
     this.galaxies = new Galaxies()
+    this.galaxies.setLabelsVisible(this._settings.G)
+    // What gates a galaxy's label: the limit the stars are drawn to, and the target.
+    this.galaxies.labelState = () => ({
+      limit: this.ui.limitingMagnitude?.() ?? -Infinity,
+      target: Shared.targets.label?.kind === 'galaxy' ? Shared.targets.label.galaxy : null,
+    })
     this.stellarFrame.add(this.galaxies)
     this._galaxiesWaiters?.splice(0).forEach((cb) => this.galaxies.onReady(cb))
     if (typeof requestAnimationFrame === 'function') {

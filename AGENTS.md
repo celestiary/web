@@ -128,7 +128,8 @@ tried and dropped.
 - **A permalink's `s=` letters flip settings from their defaults**
   (`permalink.js` `SETTINGS_DEFAULTS`): `U` in `s=` turns the Milky Way
   *off*, as `a`, `l`, `p`, `o` turn the overlays off. Harnesses that hide
-  the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`.
+  the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`, and add
+  `G` to hide the galaxies' names (on by default, shown by magnitude).
 - **Compare Cesium with celestiary numerically: `yarn parity`.**
   - Run `yarn build` first (with `CESIUM_ION_TOKEN` set); the script
     serves `docs/` and doesn't build. `yarn parity --out parity-out`

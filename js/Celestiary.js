@@ -34,7 +34,7 @@ import {elt} from './utils'
 // keys here are the lowercase per-overlay toggles ('a' asterisms, 'p'
 // planet labels, etc.); the HTML chrome key 'v' is deliberately not in
 // this list so users can hide overlays and chrome independently.
-const SCENE_INFO_KEYS = ['a', 'l', 'p', 'o', 'e', 'c', 'g', 'x']
+const SCENE_INFO_KEYS = ['a', 'l', 'p', 'G', 'C', 'o', 'e', 'c', 'g', 'x']
 
 
 /** Main application class. */
@@ -155,9 +155,9 @@ export default class Celestiary {
   }
 
 
-  /** @param {number} steps Thirds of a stop; positive for brighter, 0 resets */
+  /** @param {number} steps Thirds of a stop; positive for brighter */
   stepExposureCompensation(steps) {
-    this.setExposureCompensation(steps === 0 ? 0 : stepEv(this.ui.exposureCompensation(), steps))
+    this.setExposureCompensation(stepEv(this.ui.exposureCompensation(), steps))
   }
 
 
@@ -840,10 +840,6 @@ export default class Celestiary {
         'Camera')
     // Shift+= is '+': the same key, not listed twice in Settings.
     k.keymap['+'] = k.keymap['=']
-    k.map('e', () => this.stepExposureCompensation(0),
-        'Reset exposure compensation to the metered exposure (EV 0)',
-        undefined,
-        'Camera')
 
     // === Labels ===
     k.map('p', () => {
@@ -863,6 +859,19 @@ export default class Celestiary {
     },
     'Constellations',
     () => this.scene.getSetting('a'),
+    'Labels')
+    // 'e' and 'E' as Celestia has them: galaxies' and globulars' names.
+    k.map('e', () => {
+      this.scene.toggleGalaxyLabels()
+    },
+    'Galaxies (named once within a magnitude of the star limit, or targeted)',
+    () => this.scene.getSetting('G'),
+    'Labels')
+    k.map('E', () => {
+      this.scene.toggleGlobularLabels()
+    },
+    'Globular clusters (none yet: #228)',
+    () => this.scene.getSetting('C'),
     'Labels')
     k.map('U', () => {
       this.scene.toggleGalaxy()

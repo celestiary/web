@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs'
 import Galaxies, {
-  CORE_HR, VIEW_DISTANCE_HR, attenuationAt, displayName, milkyWayRecord, patchRadians, pointLight,
+  CORE_HR, LABEL_MARGIN_MAG, VIEW_DISTANCE_HR, apparentMagnitude, attenuationAt, commonName, displayName, labelShown,
+  milkyWayRecord, patchRadians, pointLight,
 } from './Galaxies.js'
 import {L_TOTAL_LSUN, VALUE_PER_LSUN_KPC2} from './galaxyModel.js'
 import {equatorialToSceneUnit} from './galacticFrame.js'
@@ -85,6 +86,75 @@ describe('a far galaxy\'s light', () => {
   it('lands in the eye\'s patch: 10′, or a pixel where pixels are coarser', () => {
     expect(patchRadians(45, 1080) / DEG * 60).toBeCloseTo(10, 6)
     expect(patchRadians(45, 200) / DEG * 60).toBeCloseTo(45 * 60 / 200, 6)
+  })
+})
+
+
+describe('labels', () => {
+  const fromSun = (r) => {
+    const d = Math.hypot(r.x, r.y, r.z)
+    const pole = r.place.basis[1]
+    const mu = Math.abs(((r.x * pole[0]) + (r.y * pole[1]) + (r.z * pole[2])) / d)
+    return apparentMagnitude(r, d, mu)
+  }
+
+  it('name a galaxy as people know it: its Messier number, else an NGC or IC for a UGC', () => {
+    const label = (name) => galaxies.galaxy(name).label
+    expect(label('NGC5055')).toBe('M 63')
+    expect(label('NGC3992')).toBe('M 109')
+    expect(label('UGC11914')).toBe('NGC 7217')
+    expect(label('UGC02953')).toBe('IC 356')
+    expect(label('ESO079-G014')).toBe('NGC 360')
+    // Its own names kept where they're the known ones.
+    expect(label('NGC2403')).toBe('NGC 2403')
+    expect(label('DDO154')).toBe('DDO 154')
+    expect(label('F568-1')).toBe('F568-1')
+    expect(commonName({name: 'UGC00001'})).toBe('UGC 1')
+  })
+
+  it('give each galaxy the magnitude its point draws', () => {
+    const r = galaxies.galaxy('NGC2403')
+    const d = Math.hypot(r.x, r.y, r.z)
+    const fromLight = -26.74 - (2.5 * Math.log10(pointLight(r, d, 0.6) / (DISPLAY_GAIN * Math.PI)))
+    expect(apparentMagnitude(r, d, 0.6)).toBeCloseTo(fromLight, 6)
+    // NGC 2403's V from RC3's B_T 8.93 and B−V 0.47 is 8.46; the model's, with its dust, is within 0.3.
+    expect(Math.abs(fromSun(r) - 8.46)).toBeLessThan(0.3)
+    // A tenth of the distance is 5 magnitudes brighter.
+    expect(apparentMagnitude(r, d / 10, 0.6)).toBeCloseTo(apparentMagnitude(r, d, 0.6) - 5, 6)
+  })
+
+  it('show a galaxy within a magnitude of the limit, or the target whatever its magnitude', () => {
+    expect(labelShown(7.4, 6.5, false)).toBe(true)
+    expect(labelShown(7.6, 6.5, false)).toBe(false)
+    expect(labelShown(20, 6.5, true)).toBe(true)
+    // None from the Sun at the naked eye's 6.5, 35 at sm=3's 9.5.
+    const count = (limit) => galaxies.records.filter((r) => labelShown(fromSun(r), limit, false)).length
+    expect(LABEL_MARGIN_MAG).toBe(1)
+    expect(count(6.5)).toBe(0)
+    expect(count(9.5)).toBe(35)
+  })
+
+  it('gate each label every frame, and build nothing while they are off', () => {
+    const g = new Galaxies()
+    g.setCatalog(JSON_DATA)
+    g.labelState = () => ({limit: 9.5, target: null})
+    g.preAnimCb()
+    expect(g._labels).toBe(null)
+    // With a sheet (as a browser builds it the first time they're wanted),
+    // from the Sun at sm=3's limit.
+    const shown = {array: new Float32Array(g.records.length), needsUpdate: false}
+    g._labels = {sheet: {shownAttribute: shown}, points: {visible: false}}
+    g.setLabelsVisible(true)
+    expect(g._labels.points.visible).toBe(true)
+    g.preAnimCb()
+    expect(shown.array.reduce((a, b) => a + b, 0)).toBe(35)
+    expect(shown.needsUpdate).toBe(true)
+    // The target is named at the naked eye's limit, where nothing else is.
+    const target = g.galaxy('DDO154')
+    g.labelState = () => ({limit: 6.5, target})
+    g.preAnimCb()
+    expect(shown.array.reduce((a, b) => a + b, 0)).toBe(1)
+    expect(shown.array[target.index]).toBe(1)
   })
 })
 

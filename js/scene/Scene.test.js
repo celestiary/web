@@ -353,7 +353,8 @@ describe('Scene.applySettings', () => {
     const milkyWay = new Object3D()
     milkyWay.name = 'MilkyWay'
     s.ui.scene.add(milkyWay)
-    const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, x: false, v: false}
+    const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, G: true, C: true, x: false,
+      v: false}
     s.registerSettingApplier('v', () => s.flipSetting('v'))
     s.applySettings(target)
     // L isn't in `target` but is added to getSettings by reading

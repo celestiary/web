@@ -11,8 +11,9 @@ of it, and the Hubble type fills in what wasn't, from published trends,
 the way the planets' parameters prime their procedural surfaces.  They are
 placed at their distances and positions on the sky, turned by their
 inclinations and position angles, searchable (`NGC 2403`, `M 63`, `WLM`)
-and flyable (`#galaxy:ngc2403`), and a targeted galaxy's info panel plots
-its rotation curve against the one its stars and gas alone would give.
+and flyable (`#galaxy:ngc2403`), named on the sky (`e`, by magnitude;
+[labels](#labels)), and a targeted galaxy's info panel plots its rotation
+curve against the one its stars and gas alone would give.
 
 Code:
 
@@ -283,13 +284,73 @@ was the same, 1.4-1.5 FPS, with the galaxies switched off with
 a real device: `?perf=1` on the preview at a galaxy, turning.  The toggle
 `galaxies` (`off=galaxies`) hides them, to bisect by frame rate.
 
+## Labels
+
+`e` names the galaxies and `E` (Shift+E) the globular clusters, as in
+Celestia.  In the link they are the settings `G` and `C` (design/URLs.md;
+the keys can't be the letters, `e` being the equatorial grid's).
+
+**What's named.**  A galaxy's label is the name it goes by (`commonName`):
+its Messier number where it has one (M 63, M 109), else, for a galaxy SPARC
+names from UGC, UGCA, ESO or PGC, its NGC or IC number (NGC 7217 for UGC
+11914, IC 356 for UGC 2953), else SPARC's (DDO 154, not NGC 4789A).  The
+search and the breadcrumb keep SPARC's name; every other is an alias.
+
+**When.**  A galaxy is labelled when it's the target, whatever its
+magnitude, or when its apparent magnitude from the camera is within one
+magnitude of the limiting magnitude (`LABEL_MARGIN_MAG`;
+`ThreeUi.limitingMagnitude()`, which follows the exposure, the stars'
+setting and the field), checked every frame from where the camera is
+(`apparentMagnitude`: the magnitude its far point draws, its face-on V
+light at that distance through its own dust at that angle).  So the labels
+are **on by default** and name nothing at the naked eye's limit: from the
+Solar System the brightest, NGC 6946, is V 7.5 in the model (RC3's B_T
+9.61, B−V 0.80, with the Milky Way's extinction taken out), NGC 300 8.0,
+NGC 2403 8.3, M 63 8.6, all under the eye's 6.5.  Labelling all 175 would
+mark 175 empty places on the sky.  As the limit deepens they come in: none
+at 6.5, 12 at 8.5, 35 at `sm=3` (9.5), and through a telescope's field more.
+A galaxy flown to is the target, so it is named however faint.
+
+**Their light and their names follow different knobs.**  The stars'
+setting (`[`, `]`, `sm=`) deepens the limit, so it brings in the galaxies'
+names, but not their light: the galaxies take the exposure (`-`, `=`,
+`ev=`) and a telescope's field, as extended light does (above, "Levels of
+detail").  So at `sm=3` from the Solar System the names of 35 galaxies show
+where their points are still under the eye's limit (in SwiftShader, toward
+Ursa Major at a 60° field, the frame with the points and without differs
+by at most 1 of 255).  The exposure brings the points up: at `ev=3` as well,
+NGC 2403's is a faint point (17 of 255) and M 63's just over black (4),
+and a telescope's field deepens both.
+
+**How.**  One label sheet for the 175 (`SpriteSheet` with `pinFar`): each
+label at its galaxy's centre, relative to the eye, drawn just inside the
+far plane as the far points are (a galaxy's megaparsecs are past it), on
+the overlay layer as the stars' labels are, in its own colour
+(`GALAXY_LABEL_COLOR`, lavender, apart from the stars' blue).  A per-label
+`shown` attribute, set by `_syncLabels` in the animation loop
+(`preAnimCb`), hides the rest in the vertex shader.  The sheet is built the
+first time the labels are wanted with a catalogue in, so nothing touches the
+DOM on a test's path.  `V` (presentation mode) hides them with the other
+annotations.
+
+**Not yet.**  The labels aren't in the label declutter (#226, open as this
+lands), so in the Ursa Major cluster at a deep limit they can overlap; they
+join it once #226 merges.  A click on one doesn't target it yet: the
+picking (`labelPick.js`) tests labels against the far plane, which these
+are pinned inside of only in the shader.  The globular clusters have no
+data: Harris's catalogue is [#228](https://github.com/celestiary/web/issues/228),
+on this far-point renderer and this label path, and `E` has nothing to name
+until then.
+
 ## Rotation curves
 
 `curves.json` holds each galaxy's mass model, SPARC's Table 2: radius,
 the observed circular velocity and its error, and the gas's, disc's and
 bulge's velocities (the stars' at a mass-to-light ratio of 1 at 3.6 µm).
 The targeted galaxy's info panel plots the observed curve against the
-baryons' (`rotationCurve.js`): V_bar² = V_gas|V_gas| + Υ_d V_disk|V_disk| +
+baryons' (`rotationCurve.js`; the plot is to move to a dark-matter app in
+the widgets drawer, the catalogue staying a scene feature and its analysis
+an app: [#233](https://github.com/celestiary/web/issues/233)): V_bar² = V_gas|V_gas| + Υ_d V_disk|V_disk| +
 Υ_b V_bul|V_bul|, with SPARC's Υ_d = 0.5 and Υ_b = 0.7.  The gap between
 them in the outer disc is the dark matter (NGC 3198's baryons give under
 60% of its flat 150 km/s at 40 kpc; a test holds it).
@@ -324,6 +385,9 @@ see it, north up and east left, for comparison with the survey images it
 links (the sandbox can't fetch them); the Milky Way before and after; a
 far view of NGC 2403's neighbours; the info panel's rotation curve.
 
+The labels' evidence is on the PR: from Earth toward Ursa Major at `sm=3`,
+and at M 109.
+
 ## Follow-ups
 
 - The Milky Way's dust in front of galaxies behind it (the zone of
@@ -339,6 +403,8 @@ far view of NGC 2403's neighbours; the info panel's rotation curve.
 - The far points onto the point-population engine (#98) when it lands; and
   more galaxies past SPARC (#40) on the same model.
 - The rotation curves' dynamics: #106.
+- The labels through the declutter (#226), and picking one to target it.
+- Globular clusters (Harris 2010) on the far points and labels: #228.
 
 ## Sources
 

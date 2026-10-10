@@ -22,8 +22,10 @@ import {
   WebGLRenderTarget,
 } from 'three'
 import {perf} from '../perf/perf.js'
-import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../shared.js'
+import {ASTRO_UNIT_METER, DISPLAY_GAIN, overlay} from '../shared.js'
 import {slug} from '../targetPath.js'
+import SpriteSheet from './SpriteSheet.js'
+import {SUN_APPARENT_MAGNITUDE} from './exposure.js'
 import {
   KPC_METER, MILKY_WAY, STORE_SCALE, SUN_G, bakeMapSteps, galaxyGlsl, galaxyNormUniforms, galaxySpecUniforms, normalize,
   prng, sceneToGalacticRotation,
@@ -94,6 +96,18 @@ export const VIEW_DISTANCE_HR = 16.7
 /** The zoom's floor at a galaxy (its "surface"), in disc scale lengths. */
 export const CORE_HR = 0.05
 
+/**
+ * A galaxy is labelled (`e`, the `G` setting) once it's within this many
+ * magnitudes of the limiting magnitude (ThreeUi.limitingMagnitude), so its
+ * name shows a little before its point does, as the limit deepens with `]`
+ * or a telescope's field; the target is labelled whatever its magnitude.
+ * At the naked eye's 6.5 the brightest, NGC 6946 at V 7.5 in the model,
+ * isn't; at `sm=3` (9.5) 35 are.
+ */
+export const LABEL_MARGIN_MAG = 1
+/** The galaxies' label colour: apart from the stars' blue (shared.js labelTextColor). */
+export const GALAXY_LABEL_COLOR = '#c8b0e8'
+
 const DEG = Math.PI / 180
 
 
@@ -111,6 +125,65 @@ export function displayName(name) {
   }
   const eso = /^ESO0*(\d+)-G0*(\d+)$/.exec(name)
   return eso ? `ESO ${eso[1]}-${eso[2]}` : name
+}
+
+
+/**
+ * The name a galaxy goes by, for its label: its Messier number where it has
+ * one (M 63 for NGC 5055), else, for a galaxy SPARC names from UGC, UGCA,
+ * ESO or PGC, its NGC or IC number where it has one (NGC 7217 for UGC
+ * 11914), else SPARC's (displayName).  DDO and the LSB surveys' names are
+ * kept: DDO 154 is better known than NGC 4789A.
+ *
+ * @param {object} row The catalogue's
+ * @returns {string}
+ */
+export function commonName(row) {
+  for (const s of [row.simbad?.id, row.display]) {
+    const m = /^M(?:ESSIER)?\s*0*(\d+)$/i.exec(s ?? '')
+    if (m) {
+      return `M ${m[1]}`
+    }
+  }
+  if (/^(UGCA?|ESO|PGC)/.test(row.name)) {
+    for (const s of [row.rc3?.name, row.simbad?.id, row.display]) {
+      const m = /^(NGC|IC)\s*0*(\d+[A-Z]?)$/.exec(s ?? '')
+      if (m) {
+        return `${m[1]} ${m[2]}`
+      }
+    }
+  }
+  return displayName(row.name)
+}
+
+
+/**
+ * A galaxy's apparent V magnitude from a distance, as its far point draws
+ * it (pointLight): its face-on V light at the distance, through its own
+ * dust at the angle it's seen at.
+ *
+ * @param {object} r A record
+ * @param {number} distanceM
+ * @param {number} mu |cos| of the angle between its pole and the line of sight
+ * @returns {number}
+ */
+export function apparentMagnitude(r, distanceM, mu) {
+  const ratio = r.spec.L * ((ASTRO_UNIT_METER / distanceM) ** 2) * attenuationAt(r.atten, mu)
+  return SUN_APPARENT_MAGNITUDE - (2.5 * Math.log10(Math.max(ratio, 1e-300)))
+}
+
+
+/**
+ * Whether a galaxy is labelled: when it's the target, or within
+ * LABEL_MARGIN_MAG of the limiting magnitude.
+ *
+ * @param {number} magnitude Its apparent magnitude (apparentMagnitude)
+ * @param {number} limit The limiting magnitude
+ * @param {boolean} targeted
+ * @returns {boolean}
+ */
+export function labelShown(magnitude, limit, targeted) {
+  return targeted || magnitude <= limit + LABEL_MARGIN_MAG
 }
 
 
@@ -137,6 +210,7 @@ export function galaxyRecord(row, defaults, index) {
     index,
     id: slug(row.name),
     name,
+    label: commonName(row),
     aliases,
     row,
     spec,
@@ -205,6 +279,14 @@ export default class Galaxies extends Object3D {
     this._maps = new Map()
     this._bakes = []
     this.debug = {impostors: 0, marches: 0, nearMarches: 0, near: null, bakeMs: 0, frameMs: 0}
+    // The labels (`e`, the `G` setting): shown or not, and what gates them,
+    // which the Scene sets: () => ({limit, target}), the limiting magnitude
+    // and the targeted galaxy's record (or null).  Built by the animation
+    // loop when first wanted (_syncLabels), so nothing here touches the DOM.
+    this.labelsVisible = false
+    this.labelState = null
+    this._labels = null
+    this.preAnimCb = () => this._syncLabels()
   }
 
 
@@ -438,6 +520,77 @@ export default class Galaxies extends Object3D {
     scene.add(marchMesh)
     this._near = {mesh, material, march: nearMarch, scene, target: null, record: null, last: null, weight: 0,
       size: new Vector2(), viewToCat: new Matrix3(), objRot: new Matrix3()}
+  }
+
+
+  // ---- Labels -------------------------------------------------------------
+
+  /** @param {boolean} visible */
+  setLabelsVisible(visible) {
+    this.labelsVisible = visible
+    if (this._labels) {
+      this._labels.points.visible = visible
+    }
+  }
+
+
+  /**
+   * Build the labels when first wanted, and show each galaxy's that's
+   * within the limit's margin or targeted (labelShown).  Each frame, before
+   * it renders (preAnimCb): the distances are from where the camera was
+   * last frame, a change no label can show.
+   */
+  _syncLabels() {
+    if (!this.labelsVisible || this.records.length === 0) {
+      return
+    }
+    if (!this._labels) {
+      if (typeof document === 'undefined') {
+        return
+      }
+      this._buildLabels()
+    }
+    const {limit, target} = this.labelState?.() ?? {limit: -Infinity, target: null}
+    const cam = [this._camHigh.x + this._camLow.x, this._camHigh.y + this._camLow.y, this._camHigh.z + this._camLow.z]
+    const shown = this._labels.sheet.shownAttribute
+    let changed = false
+    for (const r of this.records) {
+      const e = [r.x - cam[0], r.y - cam[1], r.z - cam[2]]
+      const d = Math.max(Math.hypot(e[0], e[1], e[2]), 1)
+      const pole = r.place.basis[1]
+      const mu = Math.abs(((e[0] * pole[0]) + (e[1] * pole[1]) + (e[2] * pole[2])) / d)
+      const on = labelShown(apparentMagnitude(r, d, mu), limit, r === target) ? 1 : 0
+      if (shown.array[r.index] !== on) {
+        shown.array[r.index] = on
+        changed = true
+      }
+    }
+    if (changed) {
+      shown.needsUpdate = true
+    }
+  }
+
+
+  /**
+   * One label sheet for every galaxy, at its centre, pinned inside the far
+   * plane (SpriteSheet pinFar), on the overlay layer as the stars' labels
+   * are.  Not yet through the label declutter (#226).
+   */
+  _buildLabels() {
+    const longest = this.records.reduce((a, r) => (r.label.length > a.length ? r.label : a), '')
+    const sheet = new SpriteSheet(this.records.length, longest, undefined, [0, 0], true, false, {pinFar: true})
+    for (const r of this.records) {
+      sheet.add(r.x, r.y, r.z, r.label, GALAXY_LABEL_COLOR)
+    }
+    const points = overlay(sheet.compile())
+    points.name = 'GalaxyLabels'
+    points.raycast = noRaycast
+    const high = sheet.sprites.material.uniforms.uCamPosWorldHigh.value
+    const low = sheet.sprites.material.uniforms.uCamPosWorldLow.value
+    points.onBeforeRender = (renderer, scene, camera) => rteCameraLocal(points, camera, high, low)
+    points.visible = this.labelsVisible
+    this.add(points)
+    this._labels = {sheet, points}
   }
 
 

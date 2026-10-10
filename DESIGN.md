@@ -456,7 +456,6 @@ Camera orientation and position are separated across three input modes, all accu
 | `c` | Snap look at current target, squaring the roll to the ecliptic's up |
 | `j` / `k` / `l` | Reverse, slow down, speed up time: paused too, when the step is often set; the display shows it and resuming runs at it |
 | `-` / `=` (or `+`) | Exposure compensation down / up a third of a stop (EV), over the metered exposure; the readout shows "EV +1.3" for two seconds |
-| `e` | Reset the exposure compensation to 0 |
 | `[` / `]` | The stars' setting: the limiting magnitude's offset from the naked eye's, 0.5 mag a press (not the exposure); 0 is the default, shown as "Stars +1.0 mag" and in the link as `sm=` ([design/URLs.md](design/URLs.md#view)) |
 | Click / tap a label (a star, planet, moon, asterism or place name) | Target it and do nothing else: `c` then faces it, `g` goes ([Picking labels](#picking-labels)) |
 | Double-click / double-tap a label | Go to it, as `g` does |
@@ -929,8 +928,9 @@ visibility groups so the user has predictable global hide/show controls:
   per-element toggles.
 
 Each scene-annotation feature also has its OWN scoped lowercase toggle
-(`a` asterisms, `p` planet+moon+place labels, `s` star labels, `o` orbits,
-`;` equatorial grid, `x` human expansion lines, etc.).  `V` is the union
+(`a` asterisms, `p` planet+moon+place labels, `s` star labels, `e` galaxy
+labels, `E` globular-cluster labels, `o` orbits, `;` equatorial grid, `x`
+human expansion lines, etc.).  `V` is the union
 of all the lowercase scene-annotation toggles.
 
 **When adding a new visual feature, decide which group it belongs in and
