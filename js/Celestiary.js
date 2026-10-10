@@ -6,6 +6,7 @@ import Keys from './Keys'
 import Loader from './Loader'
 import Scene from './scene/Scene'
 import {searchIndex} from './search/SearchIndex'
+import GalaxiesProvider from './search/providers/GalaxiesProvider'
 import PlacesProvider from './search/providers/PlacesProvider'
 import SceneProvider from './search/providers/SceneProvider'
 import StarsProvider from './search/providers/StarsProvider'
@@ -236,16 +237,22 @@ export default class Celestiary {
     this.useStore.subscribe((state, prev) => {
       if (state.previewStar === prev.previewStar &&
           state.previewPath === prev.previewPath &&
+          state.previewGalaxy === prev.previewGalaxy &&
           state.committedStar === prev.committedStar &&
-          state.committedPath === prev.committedPath) {
+          state.committedPath === prev.committedPath &&
+          state.committedGalaxy === prev.committedGalaxy) {
         return
       }
       // Precedence: hovered/highlighted preview wins over committed selection;
-      // within each level, star > body-path.
-      if (state.previewStar) {
+      // within each level, galaxy > star > body-path.
+      if (state.previewGalaxy) {
+        this.controlPanel.showGalaxyPreview(state.previewGalaxy, this.scene.galaxies)
+      } else if (state.previewStar) {
         this.controlPanel.showStarPreview(state.previewStar)
       } else if (state.previewPath && state.previewPath.length > 0) {
         this.controlPanel.showNavDisplay(state.previewPath)
+      } else if (state.committedGalaxy) {
+        this.controlPanel.showGalaxyPreview(state.committedGalaxy, this.scene.galaxies)
       } else if (state.committedStar) {
         this.controlPanel.showStarPreview(state.committedStar)
       } else if (state.committedPath && state.committedPath.length > 0) {
@@ -262,6 +269,11 @@ export default class Celestiary {
    */
   _registerSearchProviders() {
     searchIndex.register(new SceneProvider(this.loader))
+    // SPARC's galaxies, once their catalogue is in (Galaxies.md).
+    this.scene.onGalaxiesReady((galaxies) => {
+      searchIndex.register(new GalaxiesProvider(galaxies))
+      searchIndex.invalidate()
+    })
     this._placesProvider = new PlacesProvider(this.loader)
     searchIndex.register(this._placesProvider)
     // StarsCatalog mutates in place — after load, prev.starsCatalog and
@@ -394,7 +406,8 @@ export default class Celestiary {
         // Following is of the camera's frame: on if the link says (`F`), or
         // if the frame is the target's own body, which is how links before
         // `F` rode (design/URLs.md).
-        const ownFrame = frame.kind !== 'star' && (!pl.from || pl.from === REF_FRAME[resolved.kind](resolved))
+        const ownFrame = frame.kind !== 'star' && frame.kind !== 'galaxy' &&
+          (!pl.from || pl.from === REF_FRAME[resolved.kind](resolved))
         this.scene.restoreFollowing(pl.settings.F || ownFrame)
       })
     } else {
@@ -434,15 +447,16 @@ export default class Celestiary {
    */
   _restoreView(pl, frame) {
     const camera = this.ui.camera
-    if (frame.kind === 'star') {
-      // The platform at the star, the world rebased so it's at the origin
-      // (Scene.goTo); its frame's axes are the scene's.
-      this.scene.goTo(frame.star)
+    if (frame.kind === 'star' || frame.kind === 'galaxy') {
+      // The platform at the star or galaxy, the world rebased so it's at
+      // the origin (Scene.goTo); its frame's axes are the scene's.
+      const point = frame.star ?? frame.galaxy
+      this.scene.goTo(point)
       this.ui.scene.updateMatrixWorld()
-      const starWorldPos = this.scene.worldGroup.localToWorld(this.scene.starPosition(frame.star))
+      const starWorldPos = this.scene.worldGroup.localToWorld(this.scene.starPosition(point))
       const platformWorldQuat = camera.platform.getWorldQuaternion(new THREE.Quaternion())
       camera.position.copy(latLngAltToLocal(
-          pl.lat, pl.lng, pl.alt, frame.star.radius, new THREE.Quaternion(), platformWorldQuat))
+          pl.lat, pl.lng, pl.alt, point.radius, new THREE.Quaternion(), platformWorldQuat))
           .add(camera.platform.worldToLocal(starWorldPos))
       camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
     } else if (pl.settings?.L) {
@@ -502,6 +516,10 @@ export default class Celestiary {
   _goToResolved(resolved, frame) {
     if (resolved.kind === 'star') {
       this.scene.goTo(frame.star)
+      return
+    }
+    if (resolved.kind === 'galaxy') {
+      this.scene.goTo(frame.galaxy)
       return
     }
     if (resolved.kind === 'place') {
@@ -566,6 +584,10 @@ export default class Celestiary {
       this._whenStar(ref.hipId, (star) => cb({kind: 'star', star}), onErr)
       return
     }
+    if (ref?.kind === 'galaxy') {
+      this._whenGalaxy(ref.id, (galaxy) => cb({kind: 'galaxy', galaxy}), onErr)
+      return
+    }
     if (ref?.kind !== 'bodies') {
       onErr?.()
       return
@@ -614,6 +636,24 @@ export default class Celestiary {
 
 
   /**
+   * @param {string} id A galaxy's id (targetPath.js: 'ngc2403')
+   * @param {Function} cb Called with its record once the galaxies load
+   * @param {Function} [onErr] Called if there's no such galaxy
+   */
+  _whenGalaxy(id, cb, onErr) {
+    this.scene.onGalaxiesReady((galaxies) => {
+      const galaxy = galaxies.galaxy(id)
+      if (galaxy) {
+        cb(galaxy)
+      } else {
+        console.warn(`No galaxy ${id}`)
+        onErr?.()
+      }
+    })
+  }
+
+
+  /**
    * The target a resolved path names, as Scene.setTarget takes it, once
    * what it needs has loaded: a place's catalogue, the stars, the
    * asterisms (never, while 'a' has been off from the start).
@@ -640,6 +680,9 @@ export default class Celestiary {
         return
       case 'star':
         this._whenStar(resolved.hipId, (star) => cb({kind: 'star', star}), onMissing)
+        return
+      case 'galaxy':
+        this._whenGalaxy(resolved.id, (galaxy) => cb({kind: 'galaxy', galaxy, name: galaxy.name}), onMissing)
         return
       case 'asterism':
         this.scene.onAsterismsReady((asterisms) => {
@@ -674,6 +717,10 @@ export default class Celestiary {
     }
     if (label.kind === 'place') {
       this.scene.land(label.body, label.lat, label.lng, label.alt, {target: label})
+      return
+    }
+    if (label.kind === 'galaxy') {
+      this.scene.goTo(label.galaxy, label.name)
       return
     }
     goToEntry(label.kind === 'star' ?
@@ -1173,7 +1220,7 @@ export default class Celestiary {
     if (star && this.ui.camera.platform.parent === this.scene._starAnchor) {
       this.ui.scene.updateMatrixWorld()
       return {
-        path: `hip:${star.hipId}`,
+        path: star.isGalaxy ? `galaxy:${star.id}` : `hip:${star.hipId}`,
         pos: this.scene.worldGroup.localToWorld(this.scene.starPosition(star)),
         quat: new THREE.Quaternion(),
         radius: star.radius,
@@ -1298,6 +1345,7 @@ const REF_FRAME = {
   body: (r) => r.path,
   place: (r) => r.path,
   star: (r) => `hip:${r.hipId}`,
+  galaxy: (r) => `galaxy:${r.id}`,
   asterism: () => DEFAULT_TARGET,
 }
 

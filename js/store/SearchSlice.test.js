@@ -160,4 +160,21 @@ describe('the target (committedTarget) and the breadcrumb', () => {
     ])
     expect(breadcrumbItems(null, [])).toEqual([])
   })
+
+  it('a SPARC galaxy is its name alone, linking to galaxy:<id>, and the galaxy view of the target', () => {
+    const galaxy = {id: 'ngc2403', name: 'NGC 2403'}
+    const target = {kind: 'galaxy', galaxy, id: 'ngc2403', name: 'NGC 2403'}
+    expect(breadcrumbItems(target, [])).toEqual([{label: 'NGC 2403', hash: 'galaxy:ngc2403'}])
+    const slice = makeSlice()
+    slice.call('setCommittedTarget', target, [])
+    expect(slice.state.committedGalaxy).toBe(galaxy)
+    expect(slice.state.committedStar).toBeNull()
+    expect(slice.state.committedPath).toEqual([])
+    slice.call('setCommittedPath', ['sun'])
+    expect(slice.state.committedGalaxy).toBeNull()
+    slice.call('setPreviewGalaxy', galaxy)
+    expect(slice.state.previewGalaxy).toBe(galaxy)
+    slice.call('setPreviewStar', {hipId: 1})
+    expect(slice.state.previewGalaxy).toBeNull()
+  })
 })
