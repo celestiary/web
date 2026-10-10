@@ -316,7 +316,7 @@ resolve go in `meta.failed`.
 
 ## Evidence
 
-[#221's PR](https://github.com/celestiary/web/pulls?q=221) has the renders
+[PR #223](https://github.com/celestiary/web/pull/223) has the renders
 (headless Chromium on SwiftShader, 480×360 unless noted): NGC 2403 (Scd,
 flocculent), NGC 3992 (M 109, SBbc), NGC 5055 (M 63, Sbc), UGC 2487 (NGC
 1167, S0), DDO 154 (Im), NGC 4013 (edge-on Sb), each from the direction we
