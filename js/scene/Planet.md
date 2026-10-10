@@ -280,8 +280,13 @@ scene buffer after the Cesium composite and before the atmosphere pass
   shell fades out as the camera comes down to the deck: fully drawn 24 km
   over it (30 km up), gone 4 km over it (10 km up), smoothstep between
   (`FAR_FIELD_FADE_M`, `farFieldOpacity`), and never drawn from below it.
-  This is the seam for #169's volumetric clouds, seeded from this map,
-  which cross in over that band.
+  Across that band the volumetric clouds (#169, `CloudVolume.js`;
+  [atmos/clouds.md](atmos/clouds.md)) take over, seeded from this map:
+  the map's coverage thresholds an equalised 3D noise, so a texel's
+  coverage is the share of its sky the volume clouds over, as the shell
+  drew it.  The shell holds whole until the volume's noise textures are
+  built, then fades as before (`shellOpacity`), and the volume's share is
+  its complement (`volumeShare`).
 
 Cost: a sphere of 256 × 128 segments and one more scene traversal a frame
 for the layer (as the label overlay's), the coverage texture's 3.3 MB (4.4

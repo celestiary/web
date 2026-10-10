@@ -466,14 +466,25 @@ export function newAtmospherePass() {
       uExtendedGain: {value: 1.0},
       uEyeMode: {value: 1.0},
       uExposureRelative: absoluteUniforms.uExposureRelative,
+      // The volumetric clouds (clouds/CloudVolume.js; clouds.md): their
+      // radiance per unit of the Sun's irradiance, premultiplied, with
+      // their transmittance in alpha; their mean distance along the ray
+      // (km) and the ground's shadow under them; and the irradiance times the
+      // exposure, to the buffer's units.  ThreeUi._setCloudComposite sets
+      // them each frame, with CLOUDS.
+      tClouds: {value: null},
+      tCloudData: {value: null},
+      uCloudExposure: {value: 0.0},
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
     // The night sky's code, compiled in only while it can show (ThreeUi
     // _updateNightSky sets it; three keeps both programs once built).  The
     // aerosol's narrow lobe's march (marchSegment), only for a body that has
-    // one (Mars; _updateAtmUniforms sets it).
-    defines: {NIGHT_SKY: 0, MIE_PEAK: 0},
+    // one (Mars; _updateAtmUniforms sets it).  The volumetric clouds'
+    // composite, only while there are some drawn (ThreeUi
+    // _setCloudComposite).
+    defines: {NIGHT_SKY: 0, MIE_PEAK: 0, CLOUDS: 0},
     // Writes the scene's depth to the screen (gl_FragDepth) so the label
     // overlay drawn after it (ThreeUI.render) is depth-tested as it would
     // be in the scene.  A depth test that always passes, as writes need
@@ -533,6 +544,11 @@ uniform float     uAtmStrength;
 uniform float     uHdr;
 uniform float     uSkyExposure;
 uniform float     uDebug;
+#if CLOUDS
+uniform sampler2D tClouds;
+uniform sampler2D tCloudData;
+uniform float     uCloudExposure;
+#endif
 
 #define PI        3.141592
 #define I_STEPS   64
@@ -1213,6 +1229,36 @@ void main() {
     // irradiance, times the irradiance and the exposure (uSkyExposure), with
     // uSunIntensity as the body's gain over single scattering (HDR.md).
     vec3 sky = scattered * uSkyExposure;
+    vec3 sceneRgb = texture2D(tDiffuse, vUv).rgb;
+#if CLOUDS
+    // The volumetric clouds (clouds.md, "In the air"): the ground under
+    // their shadow; and where a cloud is on the ray, the air marched to
+    // its mean distance, the cloud through that air, and the sky beyond
+    // the cloud through the cloud's transmittance: the whole ray's sky
+    // less the near part's, which is the far sky already through the near
+    // air (the same integrator's, so the difference is sound and nothing
+    // is divided by a transmittance).  Not from an eye under the sphere,
+    // whose rays the march above took to the sphere's exit.
+    vec4 cloud = texture2D(tClouds, vUv);
+    vec2 cloudData = texture2D(tCloudData, vUv).rg;
+    // The distance is in km (CloudVolume.js DIST_SCALE), premultiplied by
+    // the cloud's coverage, 1 − its transmittance, so the half-size
+    // target's bilinear read here is the coverage-weighted mean across a
+    // cloud's edge.
+    cloudData.x *= 1000.0 / max(1.0 - cloud.a, 1.0e-4);
+    sceneRgb *= 1.0 - cloudData.y;
+    if (cloud.a < 0.999 && !eyeBelow && cloudData.x > 0.0) {
+      vec4 inSNear;
+      vec4 msNear;
+      vec3 tNear;
+      vec3 tNearS;
+      marchSegment(eyePos, rayDir, min(cloudData.x, tMax), inSNear, msNear, tNear, tNearS);
+      vec3 skyNear = uSunIntensity * (pRlh * inSNear.rgb + pMie * inSNear.a
+          + (1.0 - uMiePeakWeight) * pBroad * uMieAlbedo * msNear.a + msNear.rgb) * uSkyExposure;
+      sky = skyNear + tNear * cloud.rgb * uCloudExposure + cloud.a * max(sky - skyNear, vec3(0.0));
+      transmittance *= cloud.a;
+    }
+#endif
     // The night sky's light: from beyond the air through it, and the
     // airglow in it (zero over the ground: a gap's transmittance is 0, and
     // the layer's path ends at the ground).
@@ -1221,8 +1267,7 @@ void main() {
       // The metering's view (ThreeUi._meter): the linear composite, in
       // exposure units, before the tone map, the night sky's light in it;
       // 8, that light alone.
-      gl_FragColor = vec4(uDebug < 7.5 ? mix(texture2D(tDiffuse, vUv).rgb,
-          sky + texture2D(tDiffuse, vUv).rgb * transmittance, uAtmStrength) + night : night, 1.0);
+      gl_FragColor = vec4(uDebug < 7.5 ? mix(sceneRgb, sky + sceneRgb * transmittance, uAtmStrength) + night : night, 1.0);
       return;
     }
     if (uDebug > 0.5) {
@@ -1234,10 +1279,10 @@ void main() {
           + (underHorizon ? 16.0 : 0.0), 1.0);
       else if (uDebug < 4.5) gl_FragColor = inS;
       else if (uDebug < 5.5) gl_FragColor = inSMs;
-      else gl_FragColor = vec4(mu_e, dot(normalize(eyePos), uSunDirection), camAlt, texture2D(tDiffuse, vUv).r);
+      else gl_FragColor = vec4(mu_e, dot(normalize(eyePos), uSunDirection), camAlt, sceneRgb.r);
       return;
     }
-    gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, sky, transmittance, night);
+    gl_FragColor = atmToScreen(sceneRgb, sky, transmittance, night);
     return;
   }
 

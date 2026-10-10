@@ -28,9 +28,9 @@ import {
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   adaptMeterGain, approachExposure, arrivalGain, easeExposure, exposureAt, exposureRelative,
-  LIMITING_MAGNITUDE, SUN_DISC_RADIANCE, frameCanBeEmpty, galaxyGain, illuminanceRatio, limitingMagnitude,
-  luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, skyGain, starClipZ, starSprite, sunlitBodyCap,
-  sunlitBodyGain,
+  LIMITING_MAGNITUDE, PHYSICAL_SKY_GAIN, SUN_DISC_RADIANCE, frameCanBeEmpty, galaxyGain, illuminanceRatio,
+  limitingMagnitude, luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, skyGain, starClipZ, starSprite,
+  sunlitBodyCap, sunlitBodyGain,
 } from './scene/exposure.js'
 import {clampEv, renderExposure} from './scene/evCompensation.js'
 import {clampStarMag, starMagGain} from './scene/starMagnitude.js'
@@ -446,15 +446,19 @@ export default class ThreeUi {
     perf.begin('cesium')
     this.layers.composite()
     perf.end('cesium')
+    // Before the clouds: the volumetric clouds light themselves by this
+    // body's atmosphere tables and sky exposure, which this picks.
+    this._updateAtmUniforms()
     if (perf.begin('clouds')) {
       this._drawClouds()
       perf.end('clouds')
+    } else {
+      this._setCloudComposite(null)
     }
     this.renderer.setRenderTarget(null)
     perf.begin('nightsky')
     this._updateNightSky()
     perf.end('nightsky')
-    this._updateAtmUniforms()
     perf.begin('atmosphere')
     perf.gate('atmosphere', this._atmMesh.material.uniforms.uAtmEnabled)
     this.renderer.render(this._atmScene, this._atmCamera)
@@ -496,6 +500,62 @@ export default class ThreeUi {
     this.renderer.render(this.scene, this.camera)
     this.camera.layers.set(0)
     this.renderer.autoClear = autoClear
+    this._drawCloudVolume()
+  }
+
+
+  /**
+   * The volumetric clouds up close (CloudVolume.js; atmos/clouds.md): the
+   * march into its own target for the body whose air the atmosphere pass
+   * draws (its tables light the clouds), when the camera is down in the
+   * far-field band; the pass then composites them in the air (CLOUDS).
+   * Nothing from higher up, in the LDR fallback, or with the pass off.
+   */
+  _drawCloudVolume() {
+    const body = this._lastAtmPlanet
+    const volume = body?.clouds?.userData?.volume
+    const u = this._atmMesh.material.uniforms
+    if (!volume || !this.hdr || !this._transmittanceRT || u.uAtmEnabled.value < 0.5) {
+      this._setCloudComposite(null)
+      return
+    }
+    this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
+    if (this._worldGroup) {
+      this._worldGroup.getWorldPosition(this._exposureSunPos)
+    } else {
+      this._exposureSunPos.set(0, 0, 0)
+    }
+    this._setCloudComposite(volume.render({
+      renderer: this.renderer,
+      camera: this.camera,
+      node: body,
+      sceneRT: this._sceneRT,
+      atmosphere: {atmos: body.props.atmosphere, transmittance: this._transmittanceRT, multiScatter: this._multiScatterRT},
+      sunWorld: this._exposureSunPos,
+    }))
+  }
+
+
+  /**
+   * Hand the atmosphere pass this frame's volumetric clouds, or none: its
+   * CLOUDS code is compiled in only while there are some.
+   *
+   * @param {{clouds: object, data: object}|null} drawn CloudVolume.render's
+   */
+  _setCloudComposite(drawn) {
+    const mat = this._atmMesh.material
+    const u = mat.uniforms
+    const on = drawn ? 1 : 0
+    if (mat.defines && mat.defines.CLOUDS !== on) {
+      mat.defines.CLOUDS = on
+      mat.needsUpdate = true
+    }
+    u.tClouds.value = drawn?.clouds ?? null
+    u.tCloudData.value = drawn?.data ?? null
+    // The cloud's radiance per unit of the Sun's irradiance, to exposure
+    // units: the irradiance times the exposure (uSkyExposure carries it
+    // over π·DISPLAY_GAIN; HDR.md, "The sky in exposure units").
+    u.uCloudExposure.value = drawn ? u.uSkyExposure.value * PHYSICAL_SKY_GAIN : 0
   }
 
 

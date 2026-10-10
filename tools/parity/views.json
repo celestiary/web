@@ -68,6 +68,36 @@
       }
     },
     {
+      "id": "earth-clouds-volume",
+      "body": "earth",
+      "description": "Earth from 12 km over the Gulf of Mexico on Katrina's day, looking straight down, the Sun 30 degrees up: the volumetric clouds (#169; js/scene/atmos/clouds.md), seeded by the same map, marched over Cesium's globe and over celestiary's sphere alike, composited in the air by the atmosphere pass, their shadows on the ground under them.  The two renders share the march (the script builds its noise textures at once), so the ratios check the ground and the composite under and around the clouds agree; the luma bound that the clouds are there (the frame's median luma is about 135 with them, the sea under 60 without).  Without ion the globe has no terrain, which over the Gulf is the sea's level anyway",
+      "hash": "#sun/earth@25,-88,12km;t=2066.4167jd;cq=-0.3707,-0.4287,-0.0058,0.8239;fov=45deg;s=alpoU",
+      "freeze": true,
+      "region": {
+        "box": [
+          0.05,
+          0.05,
+          0.95,
+          0.95
+        ]
+      },
+      "profile": null,
+      "tolerance": {
+        "ratio": [
+          0.97,
+          1.03
+        ],
+        "channelRatio": [
+          0.97,
+          1.03
+        ],
+        "luma": [
+          90,
+          250
+        ]
+      }
+    },
+    {
       "id": "moon-quarter",
       "body": "moon",
       "description": "The Moon from 5,000 km at quarter phase: ion's LRO WAC tiles, lit by celestiary's Sun, against celestiary's texture.  The metered exposure lifts this frame 1.22× (its brightest 2% is 0.49 of a sunlit white; #86's PR B), both renders alike, and the terminator profile's absolute differences with it: 24/6.5 became 25/6.9, so the bounds are 30/8.  #192 took the 2% night floor off the Moon's tiles (earthshine instead) and refitted imageryScale without it (0.82 to 0.78): the ratio went from 0.97 to 1.00 and the profile to 19/4.9, so the ratio's bounds are 0.97-1.03.  The lunar photometric function on both sides (#192) took the profile to 5.2/1.7 and, with celestiary's specular sheen gone, the ratio to 1.077 at imageryScale 0.78; refitted to 0.815 it is 1.000 (mean 1.008).  The tileset's shader then took the same LOLA normal map as celestiary's Moon (CESIUM.md, relief on the Moon's tiles): ratio 0.985, profile 19/5.1 under Lambert's law; with both, 1.000 (mean 1.017), profile 5.2/1.8, so imageryScale stays 0.815",
