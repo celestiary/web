@@ -1,0 +1,21 @@
+{
+  "_attribution": "Coordinates from IAU Gazetteer of Planetary Nomenclature (USGS Astrogeology, public domain).",
+  "_body": "mercury",
+  "_lngConvention": "east-positive (+E), -180..+180",
+  "places": [
+    {"n": "Caloris Planitia", "t": 0, "lat":  31.50, "lng": -169.50, "k": "basin"},
+    {"n": "Beethoven",        "t": 0, "lat": -20.40, "lng": -123.60, "k": "crater"},
+    {"n": "Tolstoj",          "t": 0, "lat": -16.30, "lng": -163.50, "k": "crater"},
+    {"n": "Rembrandt",        "t": 0, "lat": -33.20, "lng":  88.00,  "k": "crater"},
+    {"n": "Raditladi",        "t": 0, "lat":  27.00, "lng": 119.00,  "k": "crater"},
+
+    {"n": "Mozart",           "t": 1, "lat":   8.00, "lng": -190.50, "k": "crater"},
+    {"n": "Bach",             "t": 1, "lat": -69.00, "lng": -103.40, "k": "crater"},
+    {"n": "Vivaldi",          "t": 1, "lat":  13.70, "lng": -85.00,  "k": "crater"},
+    {"n": "Goya",             "t": 1, "lat":  -7.00, "lng": -152.20, "k": "crater"},
+    {"n": "Hokusai",          "t": 1, "lat":  57.80, "lng":  16.80,  "k": "crater"},
+
+    {"n": "North Pole",       "t": 0, "lat":  90.00, "lng":   0.00,  "k": "pole"},
+    {"n": "South Pole",       "t": 0, "lat": -90.00, "lng":   0.00,  "k": "pole"}
+  ]
+}
