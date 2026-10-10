@@ -37,6 +37,7 @@ tried and dropped.
 | Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
+| Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
 | Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |
 | Adding bundled data (Git LFS, `dataUrl`), what a PR preview copies | DESIGN.md [data policy](DESIGN.md#data-policy) |
@@ -127,7 +128,8 @@ tried and dropped.
 - **A permalink's `s=` letters flip settings from their defaults**
   (`permalink.js` `SETTINGS_DEFAULTS`): `U` in `s=` turns the Milky Way
   *off*, as `a`, `l`, `p`, `o` turn the overlays off. Harnesses that hide
-  the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`.
+  the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`, and add
+  `G` to hide the galaxies' names (on by default, shown by magnitude).
 - **Compare Cesium with celestiary numerically: `yarn parity`.**
   - Run `yarn build` first (with `CESIUM_ION_TOKEN` set); the script
     serves `docs/` and doesn't build. `yarn parity --out parity-out`

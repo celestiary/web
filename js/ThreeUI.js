@@ -1746,6 +1746,11 @@ export default class ThreeUi {
     if (scene?._starTarget && scene._catalogueStar && this.camera.platform.parent?.name === 'StarAnchor') {
       return scene._catalogueStar
     }
+    // At a galaxy, its core, so the zoom eases into it (Scene.galaxyHome).
+    const galaxy = this.camera.platform.parent?.name === 'StarAnchor' ? scene?.galaxyHome?.() : null
+    if (galaxy) {
+      return galaxy
+    }
     return homeBody(this.camera.platform.parent, targets.cur, targets.obj)
   }
 

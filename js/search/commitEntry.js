@@ -19,6 +19,10 @@ export function goToEntry(entry, celestiary) {
     celestiary.scene.goTo(entry.payload.star, entry.displayName)
     return
   }
+  if (entry.payload?.galaxy) {
+    celestiary.scene.goTo(entry.payload.galaxy, entry.displayName)
+    return
+  }
   if (entry.kind === 'place' && entry.payload) {
     const {body, lat, lng, alt} = entry.payload
     celestiary.scene.land(body, lat, lng, alt, {target: placeTarget(entry)})
@@ -82,6 +86,9 @@ function entryTarget(entry, celestiary) {
   }
   if (entry.kind === 'star' && entry.payload && entry.payload.star) {
     return {kind: 'star', star: entry.payload.star, name: entry.displayName}
+  }
+  if (entry.payload?.galaxy) {
+    return {kind: 'galaxy', galaxy: entry.payload.galaxy, name: entry.displayName}
   }
   if (entry.kind === 'place' && entry.payload) {
     return placeTarget(entry)

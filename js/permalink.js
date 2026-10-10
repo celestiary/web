@@ -65,6 +65,8 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   c: false, // ecliptic reference grid
   g: false, // galactic reference grid
   U: true, // procedural Milky Way galaxy (Celestia convention: 'U')
+  G: true, // galaxy labels, the 'e' key (Celestia's), shown by magnitude (Galaxies.md)
+  C: false, // globular-cluster labels, the 'E' key (Celestia's); none yet (#228)
   x: true, // human expansion lines (shown once computed)
   v: true, // nav panels / heads-up display
   L: false, // landed at surface — see Scene.land
