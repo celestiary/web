@@ -3,11 +3,14 @@ import {goToEntry, lookAtEntry, targetEntry} from './commitEntry.js'
 
 
 const STAR = {x: 1, y: 2, z: 3}
+const GALAXY = {isGalaxy: true, id: 'ngc2403', name: 'NGC 2403'}
 const PARIS = {kind: 'place', body: 'earth', name: 'Paris', lat: 48.8, lng: 2.3, alt: 35}
 
 const entries = {
   jupiter: {id: 'jupiter', displayName: 'Jupiter', kind: 'planet', path: 'milkyway/sun/jupiter', payload: {name: 'jupiter'}},
   star: {id: 'hip:32349', displayName: 'Sirius', kind: 'star', path: 'milkyway/hip:32349', payload: {hipId: 32349, star: STAR}},
+  galaxy: {id: 'galaxy:ngc2403', displayName: 'NGC 2403', kind: 'galaxy', path: 'milkyway/galaxy:ngc2403',
+    payload: {galaxy: GALAXY}},
   place: {id: 'loc:earth:paris', displayName: 'Paris', kind: 'place', path: 'milkyway/sun/earth/paris',
     payload: {body: 'earth', lat: 48.8, lng: 2.3, alt: 35}},
 }
@@ -45,6 +48,14 @@ describe('lookAtEntry (target)', () => {
   it('targets a star with setTarget, turning to it, without goTo', () => {
     lookAtEntry(entries.star, c)
     expect(c.calls).toEqual([['setTarget', {kind: 'star', star: STAR, name: 'Sirius'}]])
+  })
+
+  it('targets a SPARC galaxy with setTarget, turning to it, without goTo', () => {
+    lookAtEntry(entries.galaxy, c)
+    expect(c.calls).toEqual([['setTarget', {kind: 'galaxy', galaxy: GALAXY, name: 'NGC 2403'}]])
+    c.calls.length = 0
+    goToEntry(entries.galaxy, c)
+    expect(c.calls).toEqual([['goTo', GALAXY, 'NGC 2403']])
   })
 
   it('targets a place with setTarget, turning to it, without land', () => {

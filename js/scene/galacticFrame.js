@@ -59,6 +59,43 @@ export function equatorialToSceneUnit(raDeg, decDeg) {
 
 
 /**
+ * An equatorial J2000 vector (X the vernal equinox, Z the north celestial
+ * pole) in the scene frame, by equatorialToSceneUnit's turn: about X by -ε
+ * to the ecliptic, then the axes remapped.
+ *
+ * @param {Array<number>} v [x, y, z], equatorial
+ * @returns {Array<number>} [x, y, z], scene
+ */
+export function equatorialVectorToScene([x, y, z]) {
+  const eps = OBLIQUITY_DEG * toRad
+  const cE = Math.cos(eps)
+  const sE = Math.sin(eps)
+  return [x, (-y * sE) + (z * cE), -((y * cE) + (z * sE))]
+}
+
+
+/**
+ * The sky's directions at a point, in the scene frame: toward it (from the
+ * Sun), and north and east on the sky there (north toward the celestial
+ * pole, east toward growing RA), the frame a position angle is measured in
+ * (from north through east).
+ *
+ * @param {number} raDeg
+ * @param {number} decDeg
+ * @returns {{toward: Array<number>, north: Array<number>, east: Array<number>}} Unit vectors, scene frame
+ */
+export function skyBasis(raDeg, decDeg) {
+  const ra = raDeg * toRad
+  const dec = decDeg * toRad
+  return {
+    toward: equatorialVectorToScene([Math.cos(dec) * Math.cos(ra), Math.cos(dec) * Math.sin(ra), Math.sin(dec)]),
+    north: equatorialVectorToScene([-Math.sin(dec) * Math.cos(ra), -Math.sin(dec) * Math.sin(ra), Math.cos(dec)]),
+    east: equatorialVectorToScene([-Math.sin(ra), Math.cos(ra), 0]),
+  }
+}
+
+
+/**
  * Build the rotation matrix that maps galaxy-local frame F into scene frame:
  *   F's +X axis = direction from the Sun toward the galactic center (l=0)
  *   F's +Y axis = north galactic pole
