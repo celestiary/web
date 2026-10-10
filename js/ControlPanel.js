@@ -1,8 +1,13 @@
 import Measure from '@pablo-mayrgundter/measure.js'
 import * as collapsor from './collapsor.js'
+import {CURVE_COLORS, rotationCurveSvg} from './scene/rotationCurve.js'
 import {spectralTypeName} from './scene/stellar.js'
 import {LIGHTYEAR_METER} from './shared.js'
 import {capitalize} from './utils.js'
+
+
+/** SPARC's Hubble types, by T (Lelli, McGaugh & Schombert 2016, Table 1). */
+const GALAXY_TYPES = ['S0', 'Sa', 'Sab', 'Sb', 'Sbc', 'Sc', 'Scd', 'Sd', 'Sdm', 'Sm', 'Im', 'BCD']
 
 
 /** */
@@ -71,6 +76,44 @@ export default class ControlPanel {
     parts.push(`<li>distance: ${distanceLy.toFixed(2)} ly</li>`)
     parts.push('</ul>')
     this.containerElt.innerHTML = parts.join('\n')
+  }
+
+
+  /**
+   * A SPARC galaxy's summary (js/scene/Galaxies.md), and its rotation curve
+   * against its baryons' once the curves are in (rotationCurve.js).
+   *
+   * @param {object} galaxy Its record (Galaxies.js)
+   * @param {?object} galaxies Galaxies, for its curve
+   */
+  showGalaxyPreview(galaxy, galaxies) {
+    if (!galaxy?.row) {
+      return
+    }
+    const g = galaxy.row
+    const m = galaxy.meta
+    const parts = ['<ul>']
+    parts.push(`<li>type: ${GALAXY_TYPES[g.T] ?? g.T}${g.rc3?.type ? ` (RC3 ${g.rc3.type.trim()})` : ''}</li>`)
+    parts.push(`<li>distance: ${g.D} ± ${g.eD} Mpc</li>`)
+    parts.push(`<li>inclination: ${g.inc}°, position angle: ${galaxy.place.paMeasured ? `${galaxy.place.pa}°` :
+      'not measured'}</li>`)
+    parts.push(`<li>luminosity: ${(galaxy.spec.L / 1e9).toPrecision(3)}e9 L☉ in V (${m.luminositySource}), ` +
+      `${g.L36}e9 L☉ at 3.6 µm</li>`)
+    parts.push(`<li>disc scale length: ${g.Rdisk} kpc</li>`)
+    if (g.Vflat > 0) {
+      parts.push(`<li>V<sub>flat</sub>: ${g.Vflat} ± ${g.eVflat} km/s</li>`)
+    }
+    parts.push(`<li>HI: ${g.MHI}e9 M☉</li>`)
+    parts.push('</ul>')
+    parts.push('<div class="galaxy-curve"></div>')
+    this.containerElt.innerHTML = parts.join('\n')
+    galaxies?.curve?.(galaxy.id).then((curve) => {
+      const slot = this.containerElt.querySelector('.galaxy-curve')
+      if (slot && curve) {
+        slot.innerHTML = `<div>rotation curve: <span style="color: ${CURVE_COLORS.observed}">●</span> observed, ` +
+          `<span style="color: ${CURVE_COLORS.baryons}">━</span> stars and gas alone</div>${rotationCurveSvg(curve)}`
+      }
+    }).catch(() => {/* No curve: the summary stands. */})
   }
 
 

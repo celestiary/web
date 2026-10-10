@@ -8,6 +8,7 @@ import {
 } from 'three'
 import Asterisms from './Asterisms.js'
 import ColonizationLines from './ColonizationLines.js'
+import Galaxies from './Galaxies.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import Planet from './Planet.js'
@@ -122,6 +123,8 @@ export default class Scene {
       c: false, // ecliptic grid
       g: false, // galactic grid
       U: true, // Milky Way galaxy
+      G: false, // galaxy labels (SPARC's), gated by magnitude: Galaxies.labelsVisible
+      C: false, // globular-cluster labels: none yet (#228)
       x: true, // human expansion lines, once computed
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
@@ -241,6 +244,8 @@ export default class Scene {
       c: () => this.toggleGridEcliptic(),
       g: () => this.toggleGridGalactic(),
       U: () => this.toggleGalaxy(),
+      G: () => this.toggleGalaxyLabels(),
+      C: () => this.toggleGlobularLabels(),
       x: () => this.toggleColonization(),
       ...this._customAppliers,
     }
@@ -519,6 +524,9 @@ export default class Scene {
       const name = target.name ?? this.stars?.catalog?.getNameOrId?.(hipId) ?? `HIP ${hipId}`
       return {...target, hipId, name: String(name)}
     }
+    if (target.kind === 'galaxy') {
+      return {...target, id: target.galaxy.id, name: target.name ?? target.galaxy.name}
+    }
     return target
   }
 
@@ -650,6 +658,9 @@ export default class Scene {
     switch (label.kind) {
       case 'star':
         return this.worldGroup.localToWorld(this.starPosition(label.star, out))
+      case 'galaxy':
+        // In the catalogue's frame, as a star.
+        return this.worldGroup.localToWorld(this.starPosition(label.galaxy, out))
       case 'body': {
         const node = this.objects[label.name]
         return node ? node.getWorldPosition(out) : null
@@ -711,11 +722,18 @@ export default class Scene {
    *
    * Where it goes is the target after (`setTarget`, without the look).
    *
-   * @param {object|null} star StarProps entry from StarsCatalog, or null for planet.
+   * A galaxy (Galaxies.js's record, `isGalaxy`) is gone to as a star is:
+   * rebased to the world's origin at its centre, the camera on the star
+   * anchor, arriving at its `viewDistance`, where it fills about 60% of a
+   * 45° field.
+   *
+   * @param {object|null} star StarProps entry from StarsCatalog, a galaxy's
+   *   record, or null for planet.
    * @param {string} [starName] The star's name, for the breadcrumb
    */
   goTo(star = null, starName = undefined) {
     const isPlanet = star === null
+    const isGalaxy = Boolean(star?.isGalaxy)
     const obj = isPlanet ? Shared.targets.obj : null
     if (isPlanet && !obj) {
       console.error('Scene.goTo called with no target obj.')
@@ -723,6 +741,8 @@ export default class Scene {
     }
     if (isPlanet) {
       this.setTarget(obj.props?.name ?? obj.name, {look: false})
+    } else if (isGalaxy) {
+      this.setTarget({kind: 'galaxy', galaxy: star, name: starName}, {look: false})
     } else {
       this.setTarget({kind: 'star', star, name: starName}, {look: false})
     }
@@ -743,7 +763,11 @@ export default class Scene {
       this.worldGroup.position.set(0, 0, 0)
     } else {
       this.starPosition(star, this.worldGroup.position).negate()
-      this.showCatalogueStar(star)
+      if (isGalaxy) {
+        this.removeCatalogueStar()
+      } else {
+        this.showCatalogueStar(star)
+      }
     }
     this.ui.scene.updateMatrixWorld()
 
@@ -789,7 +813,7 @@ export default class Scene {
     }
     const camDist = isPlanet ?
       (obj.initialCameraDistance ?? (obj.props.radius.scalar * STEP_BACK)) :
-      (star.radius * STEP_BACK)
+      isGalaxy ? star.viewDistance : (star.radius * STEP_BACK)
     const arrivalWorld = targetWorldPos.clone().addScaledVector(dir, camDist)
     const arrivalLocal = this.ui.camera.platform.worldToLocal(arrivalWorld.clone())
 
@@ -1677,6 +1701,27 @@ export default class Scene {
 
 
   /**
+   * Toggle the galaxies' labels (`e`, as Celestia's; the `G` setting): each
+   * SPARC galaxy's name, shown once it's within a magnitude of the limiting
+   * magnitude or is the target (Galaxies.md, "Labels").
+   */
+  toggleGalaxyLabels() {
+    this._flipSetting('G')
+    this.galaxies?.setLabelsVisible(this._settings.G)
+  }
+
+
+  /**
+   * Toggle the globular clusters' labels (`E`, Shift+E, as Celestia's; the
+   * `C` setting).  There are no globular clusters yet (#228): the setting
+   * is kept, and the link carries it, for when there are.
+   */
+  toggleGlobularLabels() {
+    this._flipSetting('C')
+  }
+
+
+  /**
    * @param {object} galaxyProps
    * @returns {object}
    */
@@ -1695,6 +1740,51 @@ export default class Scene {
     // the centre.  Lives in worldGroup so star-navigation rebases shift it
     // along with everything else, keeping the universe coherent.
     this.stellarFrame.add(newMilkyWay())
+    // SPARC's disc galaxies (Galaxies.md), in the catalogue's frame as the
+    // stars are; their catalogue is fetched in a browser.
+    this.galaxies = new Galaxies()
+    this.galaxies.setLabelsVisible(this._settings.G)
+    // What gates a galaxy's label: the limit the stars are drawn to, and the target.
+    this.galaxies.labelState = () => ({
+      limit: this.ui.limitingMagnitude?.() ?? -Infinity,
+      target: Shared.targets.label?.kind === 'galaxy' ? Shared.targets.label.galaxy : null,
+    })
+    this.stellarFrame.add(this.galaxies)
+    this._galaxiesWaiters?.splice(0).forEach((cb) => this.galaxies.onReady(cb))
+    if (typeof requestAnimationFrame === 'function') {
+      this.galaxies.load().catch((e) => console.warn('Galaxies didn\'t load:', e.message))
+    }
     return group
+  }
+
+
+  /**
+   * @param {function(Galaxies): void} cb Called once the galaxies' catalogue is in
+   */
+  onGalaxiesReady(cb) {
+    if (this.galaxies) {
+      this.galaxies.onReady(cb)
+    } else {
+      (this._galaxiesWaiters ??= []).push(cb)
+    }
+  }
+
+
+  /**
+   * The body-like stand-in for a galaxy the camera is at, for the zoom's
+   * floor (ThreeUi._homeBody): a sphere of the galaxy's core radius, so
+   * the zoom eases toward its centre and can go into its disc.
+   *
+   * @returns {?object}
+   */
+  galaxyHome() {
+    const g = this._starTarget
+    if (!g?.isGalaxy) {
+      return null
+    }
+    if (this._galaxyHome?.galaxy !== g) {
+      this._galaxyHome = {galaxy: g, props: {name: `galaxy:${g.id}`, radius: {scalar: g.radius}}}
+    }
+    return this._galaxyHome
   }
 }

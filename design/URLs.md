@@ -43,6 +43,8 @@ it (`js/targetPath.js`):
 #sun/earth/moon/apollo-11
 #hip:32349              a catalogue star, by HIP number (the search's id)
 #asterism:ursa-major    an asterism, by its name as a slug
+#galaxy:ngc2403         a SPARC galaxy, by its SPARC name as a slug
+                        (js/scene/Galaxies.md)
 ```
 
 - **A place or a body?**  A last segment in the body above's `system` is a
@@ -50,8 +52,8 @@ it (`js/targetPath.js`):
   in that body's catalogue.  Bodies win, so every old link means what it
   did.
 - **A path alone** goes to the target, as `g` does: a body flies there (as
-  it always has), a place lands there, a star travels, an asterism turns
-  to face it (from the Sun).
+  it always has), a place lands there, a star or a galaxy travels, an
+  asterism turns to face it (from the Sun).
 - **With a view** (`@…`, below) the camera is put back where the link had
   it, in its frame, and the target is set without turning it.
 
@@ -73,7 +75,9 @@ camera or its frame:
 ```
 
 `from=` is a body's path or a star's (`hip:N`: the camera went to that
-star; its frame's axes are the scene's, its radius the star's).  It's left
+star; its frame's axes are the scene's, its radius the star's), or a
+galaxy's (`galaxy:<id>`, the same, its radius the galaxy's core, 0.05
+disc scale lengths).  It's left
 out when it would name the path's own body.
 
 Why not re-express the camera in the target's frame instead: a body's
@@ -130,7 +134,8 @@ s=al                scene settings not at their defaults, one letter each
 ```
 
 `s=` holds the scene's toggles (asterisms `a`, labels `l` `p`, orbits `o`,
-grids `e` `c` `g`, galaxy `U`, human expansion lines `x`, the HUD `v`),
+grids `e` `c` `g`, galaxy `U`, galaxy labels `G`, globular-cluster labels
+`C`, human expansion lines `x`, the HUD `v`),
 plus landed `L`, tracking `T`, following `F` and AR `A` (`permalink.js`
 `SETTINGS_DEFAULTS`).  `T` is the `t` key: the camera keeps the target
 centred every frame, so a link made while tracking reloads tracking.  `F`
@@ -158,8 +163,16 @@ both: riding along while facing it).
   of a degree: a camera riding a body keeps a few metres, one left in the Sun's
   frame is good to ~260 km at 1 AU.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
-`U`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
-star labels off, orbits off, landed), while `e` `c` `g` `L` `T` `F` `A` mean on.
+`U`, `G`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
+star labels off, orbits off, landed), while `e` `c` `g` `C` `L` `T` `F` `A` mean on.
+
+`G` and `C` are the `e` and `E` keys (Shift+E), Celestia's: the galaxies'
+names and the globular clusters'.  The keys can't be the letters, since `e`
+is already the equatorial grid's.  `G` is on by default because the labels
+are gated by magnitude (Galaxies.md, "Labels"): a galaxy is named once it's
+within a magnitude of the limiting magnitude, or when it's the target, so at
+the naked eye's limit none is.  `C` is off and names nothing yet: there are
+no globular clusters until [#228](https://github.com/celestiary/web/issues/228).
 A link from before `F` has no such letter: it reloads following if its frame is
 the target's own body (above), as it rode, and not otherwise.
 
@@ -170,7 +183,7 @@ field under 0.005 degrees into 0, a camera that cannot draw.  A hand-written
 field is held to 0.0001 to 179 degrees.
 
 `ev=` is the user's exposure compensation (`[` and `]` are the stars; `-`
-and `=` step it a third of a stop, `e` resets it: DESIGN.md
+and `=` step it a third of a stop: DESIGN.md
 [camera controls](../DESIGN.md#camera-controls)), written in stops to two
 decimal places and left out at 0, so a link at the metered exposure is
 just the view.  It's read with or without a `+` (`ev=+1.3`, as a camera
