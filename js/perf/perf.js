@@ -16,7 +16,7 @@ const OVERLAY_EVERY_MS = 500
 /** How often to look again for a hidden toggle's object that wasn't in the scene yet, in frames. */
 const LOOKUP_EVERY_FRAMES = 60
 // The scene objects a `hide` toggle (toggles.js) hides, by toggle key.
-const HIDDEN_OBJECTS = {galaxy: 'MilkyWay'}
+const HIDDEN_OBJECTS = {galaxy: 'MilkyWay', galaxies: 'Galaxies'}
 const NO_TIMER_NOTE = 'GPU timer unavailable (EXT_disjoint_timer_query_webgl2 missing or hidden): CPU times, ' +
   'which are the time to issue the work, not to run it.  Tick sync timing, or bisect with the toggles and the FPS.'
 const ENCODER_NOTE = 'GPU timer queries here read per encoder, not per pass (passes in one read alike, and the sum is ' +

@@ -24,19 +24,24 @@ export default function createSearchSlice(set, get) {
       committedPath: target?.kind === 'body' || target?.kind === 'place' ? path : [],
       committedStar: target?.kind === 'star' ?
         {hipId: target.star.hipId, displayName: target.name, star: target.star} : null,
+      committedGalaxy: target?.kind === 'galaxy' ? target.galaxy : null,
     })),
+    // A SPARC galaxy that is the target (js/scene/Galaxies.md), its record.
+    committedGalaxy: null,
     // The breadcrumb's body path.  Empty array before first load.
     committedPath: [],
     // As setCommittedTarget, for a body by its path.
     setCommittedPath: (path) => set(() => ({
       committedPath: path,
       committedStar: null,
+      committedGalaxy: null,
       committedTarget: path.length > 0 ? {kind: 'body', name: path[path.length - 1]} : null,
     })),
     committedStar: null,
     // As setCommittedTarget, for a star as {hipId, displayName, star}.
     setCommittedStar: (s) => set(() => ({
       committedStar: s,
+      committedGalaxy: null,
       committedPath: [],
       committedTarget: s ? {kind: 'star', star: s.star, name: s.displayName, hipId: s.hipId} : null,
     })),
@@ -58,6 +63,7 @@ export default function createSearchSlice(set, get) {
       searchSelection: null,
       previewPath: null,
       previewStar: null,
+      previewGalaxy: null,
       hoveredAnchorIndex: null,
       isStarsSelectActive: false,
     })),
@@ -83,10 +89,13 @@ export default function createSearchSlice(set, get) {
     // Preview target — if set, info panel renders this path instead of committedPath.
     // For stars (no loader entry) previewStar holds the hipId + star props instead.
     previewPath: null,
-    setPreviewPath: (p) => set(() => ({previewPath: p, previewStar: null})),
+    setPreviewPath: (p) => set(() => ({previewPath: p, previewStar: null, previewGalaxy: null})),
     previewStar: null,
-    setPreviewStar: (s) => set(() => ({previewStar: s, previewPath: null})),
-    clearPreview: () => set(() => ({previewPath: null, previewStar: null})),
+    setPreviewStar: (s) => set(() => ({previewStar: s, previewPath: null, previewGalaxy: null})),
+    // And a SPARC galaxy's record.
+    previewGalaxy: null,
+    setPreviewGalaxy: (g) => set(() => ({previewGalaxy: g, previewPath: null, previewStar: null})),
+    clearPreview: () => set(() => ({previewPath: null, previewStar: null, previewGalaxy: null})),
   }
 }
 
@@ -124,6 +133,9 @@ export function breadcrumbItems(target, committedPath) {
   }
   if (target?.kind === 'asterism') {
     return [{label: target.name, hash: `asterism:${slug(target.name)}`}]
+  }
+  if (target?.kind === 'galaxy') {
+    return [{label: target.name, hash: `galaxy:${target.galaxy.id}`}]
   }
   const items = committedPath.map((name, i) => ({
     label: capitalize(name),

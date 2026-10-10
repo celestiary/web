@@ -37,9 +37,15 @@ export default class SpriteSheet {
    *   so front-hemisphere labels never get clipped by the curving sphere
    *   when the sprite extends in screen space.  Use for body-anchored
    *   surface labels (Places); leave off for free-floating labels.
+   * @param {object} [opts]
+   * @param {boolean} [opts.pinFar] With useRTE: draw each label just inside
+   *   the far plane wherever it is, as the galaxies' points are (Galaxies.js),
+   *   for labels past it (a galaxy's megaparsecs), and give each label a
+   *   `shown` attribute (1 drawn, 0 not; `shownAttribute`) for the owner to
+   *   set per frame
    */
   constructor(numLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0],
-      useRTE = false, surfaceVisibility = false) {
+      useRTE = false, surfaceVisibility = false, {pinFar = false} = {}) {
     if (!Number.isInteger(numLabels)) {
       throw new Error(`numLabels is invalid: ${ numLabels}`)
     }
@@ -64,6 +70,8 @@ export default class SpriteSheet {
     ctx.fill()
     this.useRTE = useRTE
     this.surfaceVisibility = surfaceVisibility
+    this.pinFar = pinFar && useRTE
+    this.shownAttribute = null
     this.positions = []
     this._posLow = useRTE ? [] : null
     this.sizes = []
@@ -189,9 +197,17 @@ export default class SpriteSheet {
     }
     geometry.setAttribute('size', sizeAttribute)
     geometry.setAttribute('spriteCoord', spriteCoordAttribute)
+    if (this.pinFar) {
+      this.shownAttribute = new Float32BufferAttribute(new Float32Array(this.labelCount).fill(1), 1)
+      geometry.setAttribute('shown', this.shownAttribute)
+    }
     geometry.computeBoundingBox()
     this.sprites = new Points(geometry, this.createMaterial())
     this.sprites.renderOrder = 0
+    if (this.pinFar) {
+      // Its bounds are past the far plane: the frustum would cull it all.
+      this.sprites.frustumCulled = false
+    }
     // For picking a label on screen (labelPick.js).
     this.sprites.userData.sheet = this
     return this.sprites
@@ -251,6 +267,9 @@ export default class SpriteSheet {
       transparent: true,
       toneMapped: false,
     }))
+    if (this.pinFar) {
+      material.defines = {PIN_FAR: 1}
+    }
     return material
   }
 }
@@ -285,6 +304,9 @@ const rteVertexShader = `
   attribute vec4 spriteCoord;
   attribute vec3 positionLow;
   varying vec4 spriteCoordVarying;
+#ifdef PIN_FAR
+  attribute float shown;
+#endif
   void main() {
     spriteCoordVarying = spriteCoord;
     gl_PointSize = size[0];
@@ -294,6 +316,16 @@ const rteVertexShader = `
     eyePos.x += padding.x;
     eyePos.y += padding.y;
     gl_Position = projectionMatrix * vec4(mat3(modelViewMatrix) * eyePos, 1.0);
+#ifdef PIN_FAR
+    // Past the far plane (a galaxy's megaparsecs): its direction only,
+    // just inside the far plane, as Galaxies.js's points (clipToW1).
+    if (shown < 0.5 || !(gl_Position.w > 0.0)) {
+      gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+      gl_PointSize = 0.0;
+      return;
+    }
+    gl_Position = vec4(gl_Position.xy / gl_Position.w, 0.999999, 1.0);
+#endif
   }
 `
 

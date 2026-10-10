@@ -7,6 +7,7 @@
  *                       place's name as a slug
  *   hip:32349           a catalogue star, by HIP number (the search's id)
  *   asterism:orion      an asterism, by its name as a slug
+ *   galaxy:ngc2403      a SPARC galaxy, by its SPARC name as a slug (Galaxies.md)
  *
  * A place's last segment is told from a body's by the body above it: a
  * name in that body's `system` is a body (bodies win), anything else under
@@ -18,6 +19,7 @@
 
 const STAR_PREFIX = 'hip:'
 const ASTERISM_PREFIX = 'asterism:'
+const GALAXY_PREFIX = 'galaxy:'
 
 
 /**
@@ -59,6 +61,10 @@ export function targetPath(target, bodyPath) {
     }
     case 'asterism':
       return `${ASTERISM_PREFIX}${slug(target.name)}`
+    case 'galaxy': {
+      const id = target.id ?? target.galaxy?.id
+      return id ? `${GALAXY_PREFIX}${id}` : null
+    }
     default:
       return null
   }
@@ -84,6 +90,7 @@ export function targetFramePath(target, bodyPath) {
     case 'place':
       return bodyPath(target.body) || null
     case 'star':
+    case 'galaxy':
       return targetPath(target, bodyPath)
     default:
       return null
@@ -96,13 +103,17 @@ export function targetFramePath(target, bodyPath) {
  * descriptors.
  *
  * @param {string} path
- * @returns {?({kind: 'star', hipId: number}|{kind: 'asterism', slug: string}|
+ * @returns {?({kind: 'star', hipId: number}|{kind: 'asterism', slug: string}|{kind: 'galaxy', id: string}|
  *   {kind: 'bodies', parts: Array<string>})} null if empty or malformed.
  *   `bodies` is a body path, or a body path then a place (resolvePlace)
  */
 export function parseTargetPath(path) {
   if (!path) {
     return null
+  }
+  if (path.startsWith(GALAXY_PREFIX)) {
+    const s = slug(path.slice(GALAXY_PREFIX.length))
+    return s ? {kind: 'galaxy', id: s} : null
   }
   if (path.startsWith(STAR_PREFIX)) {
     const s = path.slice(STAR_PREFIX.length)

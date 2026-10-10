@@ -14,6 +14,20 @@ its dust lane, and the band across the sky from inside.
 Code: `galaxyModel.js` (the model, its normalisation, the JS march and the
 GLSL), `MilkyWay.js` (the pass), `exposure.js` `galaxyGain` (the meter).
 
+**One model, many galaxies.**  Since #221 the model is any disc galaxy's:
+every constant below is a field of a *spec*, and the Milky Way is the spec
+`MILKY_WAY` (the constants are still exported under their names).  What
+only the Milky Way has, its warp and flare, the named clouds, the Local
+Bubble and the share the star catalogue resolves, is the spec's, off for
+the others; SPARC's 175 galaxies are specs built from their published
+parameters, drawn by one uniform-driven program ([Galaxies.md](Galaxies.md)).
+The refactor left the Milky Way byte for byte as it was: its generated
+GLSL, its map's bytes, its normalisation and its light along sample rays
+compare equal before and after, and the band from the Sun renders
+identically to `main`'s.  From far outside it, beyond a patch's size, it is
+also a point in the galaxies' far pass, carrying its 2.5e10 L☉
+([Galaxies.md, levels of detail](Galaxies.md#levels-of-detail)).
+
 ## The frame
 
 The model is in a galactocentric frame G, in kiloparsecs:
@@ -464,6 +478,6 @@ better than 10-20%.
 - Gaia's stars over this light (#98): `RESOLVED` refitted to what they
   resolve, by the same measurement.
 - The far side's arms are extrapolations of the near side's fits.
-- Other galaxies from the same model with their own parameters, or
-  Celestia's templates (#117); the dynamics (#106) move the arms as density
-  waves.
+- Done: other galaxies from the same model with their own parameters,
+  SPARC's 175 ([Galaxies.md](Galaxies.md), #221).  The dynamics (#106)
+  move the arms as density waves, on SPARC's rotation curves too.

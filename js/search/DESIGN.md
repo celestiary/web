@@ -14,6 +14,7 @@ craters on Earth/Mars) can be plugged in without re-architecting.
 | `providers/SceneProvider.js` | Entries for every body in `Loader.loaded` (sun, planets, moons, galaxy nodes) |
 | `providers/StarsProvider.js` | Entries for named stars + exact HIP resolver |
 | `providers/PlacesProvider.js` | Surface places (cities, craters, landing sites) per body; lazy, loaded when a scope includes the body ([Places in the index](#places-in-the-index)) |
+| `providers/GalaxiesProvider.js` | SPARC's 175 galaxies by every name they have (SPARC's, NED's, SIMBAD's, RC3's: `WLM`, `M 63`), in the root's scope; Go travels there (`scene.goTo(galaxy)`), the panel shows the galaxy and its rotation curve ([Galaxies.md](../scene/Galaxies.md)) |
 | `commitEntry.js` | `goToEntry`, `lookAtEntry` and `targetEntry`: what Go, Look at and a pick in the dropdown do with a result |
 | `SearchIndex.test.js` | Scoping, fuzzy, HIP-exact, dedupe coverage |
 | `commitEntry.test.js` | Go calls `goTo`/`land`/the hash; Look at calls the target path and never `goTo` |
