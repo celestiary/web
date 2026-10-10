@@ -27,7 +27,11 @@ import {
 export default class SpriteSheet {
   /**
    * @param {number} numLabels
-   * @param {string} maxLabel
+   * @param {string|string[]} maxLabel The longest label, which sizes the
+   *   canvas for `numLabels` of that size; or all the labels, in the order
+   *   they will be added, which sizes it to fit them (a sheet of many
+   *   labels of mixed lengths, as the places', is then a fraction of the
+   *   size)
    * @param {string} [labelTextFont]
    * @param {[number, number]} [padding]
    * @param {boolean} [useRTE] Use Relative-To-Eye emulated double precision for catalog-space positions
@@ -50,9 +54,17 @@ export default class SpriteSheet {
     this.padding = padding
     this.canvas = Utils.createCanvas()
     this.ctx = this.canvas.getContext('2d')
-    const maxBounds = Utils.measureText(this.ctx, maxLabel, labelTextFont)
-    const itemSize = Math.max(maxBounds.width, maxBounds.height)
-    this.size = Math.sqrt(this.numLabels) * itemSize
+    if (Array.isArray(maxLabel)) {
+      const cells = maxLabel.map((text) => {
+        const bounds = Utils.measureText(this.ctx, text, labelTextFont)
+        return Math.max(bounds.width, bounds.height)
+      })
+      this.size = SpriteSheet.sideToPack(cells)
+    } else {
+      const maxBounds = Utils.measureText(this.ctx, maxLabel, labelTextFont)
+      const itemSize = Math.max(maxBounds.width, maxBounds.height)
+      this.size = Math.sqrt(this.numLabels) * itemSize
+    }
     this.canvas.width = this.size
     this.canvas.height = this.size
     this.curX = 0
@@ -71,6 +83,10 @@ export default class SpriteSheet {
     // square sprite, which is centred on the label's position (labelPick.js).
     this.textSizes = []
     this.spriteCoords = []
+    // Whether each label is drawn (1) or hidden (0): labelDeclutter.js turns
+    // one off each frame it would overlap a more important label.
+    this.shown = []
+    this.shownAttribute = null
     this.positionAttribute = null
     this.sprites = null
     // document.canvas = this.canvas;
@@ -120,6 +136,7 @@ export default class SpriteSheet {
         bounds.height / this.size)
 
     this.sizes.push(bounds.width, bounds.height)
+    this.shown.push(1)
     this.curX += bounds.width
     const id = this.labelCount++
     return id
@@ -160,6 +177,63 @@ export default class SpriteSheet {
 
 
   /**
+   * The side of the smallest square canvas the labels' cells fit into, laid
+   * out as `add` does: in rows, left to right, in the order given, a row as
+   * high as its tallest cell (and a pixel more).
+   *
+   * @param {number[]} cells Each label's cell side (the longer of its
+   *   text's width and height), px
+   * @returns {number} Px
+   */
+  static sideToPack(cells) {
+    if (cells.length === 0) {
+      return 1
+    }
+    const widest = Math.max(...cells)
+    let side = Math.max(widest, Math.ceil(Math.sqrt(cells.reduce((a, c) => a + (c * c), 0))))
+    for (;;) {
+      let x = 0
+      let y = 0
+      let rowH = 0
+      for (const c of cells) {
+        if (x + c > side) {
+          x = 0
+          y += rowH + 1
+          rowH = 0
+        }
+        x += c
+        rowH = Math.max(rowH, c)
+      }
+      if (y + rowH <= side) {
+        return side
+      }
+      side = Math.ceil(side * 1.03)
+    }
+  }
+
+
+  /**
+   * Hide or show a label, from the next frame.
+   *
+   * @param {number} i The label's index (the order of `add`)
+   * @param {boolean} shown
+   * @returns {boolean} Whether that changed it
+   */
+  setShown(i, shown) {
+    const v = shown ? 1 : 0
+    if (this.shown[i] === v) {
+      return false
+    }
+    this.shown[i] = v
+    if (this.shownAttribute) {
+      this.shownAttribute.setX(i, v)
+      this.shownAttribute.needsUpdate = true
+    }
+    return true
+  }
+
+
+  /**
    * @param {Float32BufferAttribute} sharedPositionAttribute
    * @returns {Points}
    */
@@ -189,6 +263,8 @@ export default class SpriteSheet {
     }
     geometry.setAttribute('size', sizeAttribute)
     geometry.setAttribute('spriteCoord', spriteCoordAttribute)
+    this.shownAttribute = new Float32BufferAttribute(this.shown, 1)
+    geometry.setAttribute('shown', this.shownAttribute)
     geometry.computeBoundingBox()
     this.sprites = new Points(geometry, this.createMaterial())
     this.sprites.renderOrder = 0
@@ -261,9 +337,16 @@ const vertexShader = `
   uniform float towardEye;
   attribute vec2 size;
   attribute vec4 spriteCoord;
+  attribute float shown;
   varying vec4 spriteCoordVarying;
   ${SAFE_LENGTH_GLSL}
   void main() {
+    if (shown < 0.5) {
+      // Hidden (labelDeclutter.js): off the clip volume.
+      gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+      gl_PointSize = 0.0;
+      return;
+    }
     vec3 offsetPos = vec3(position.x + padding.x, position.y + padding.y, position.z);
     vec4 mvPosition = modelViewMatrix * vec4(offsetPos, 1.0);
     // Not normalize(): metres squared (rte.js SAFE_LENGTH_GLSL).
@@ -284,8 +367,15 @@ const rteVertexShader = `
   attribute vec2 size;
   attribute vec4 spriteCoord;
   attribute vec3 positionLow;
+  attribute float shown;
   varying vec4 spriteCoordVarying;
   void main() {
+    if (shown < 0.5) {
+      // Hidden (labelDeclutter.js): off the clip volume.
+      gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+      gl_PointSize = 0.0;
+      return;
+    }
     spriteCoordVarying = spriteCoord;
     gl_PointSize = size[0];
     vec3 highDiff = position - uCamPosWorldHigh;
@@ -323,10 +413,17 @@ const surfaceVertexShader = `
   uniform vec2 padding;
   attribute vec2 size;
   attribute vec4 spriteCoord;
+  attribute float shown;
   varying vec4 spriteCoordVarying;
   varying float vVisible;
   ${SAFE_LENGTH_GLSL}
   void main() {
+    if (shown < 0.5) {
+      // Hidden (labelDeclutter.js): off the clip volume.
+      gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+      gl_PointSize = 0.0;
+      return;
+    }
     vec3 offsetPos = vec3(position.x + padding.x, position.y + padding.y, position.z);
     vec4 mvPosition = modelViewMatrix * vec4(offsetPos, 1.0);
     // Body centre in view space (transform local origin).

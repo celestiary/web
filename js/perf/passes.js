@@ -24,6 +24,7 @@ export const PASSES = [
   {name: 'meter', what: `the exposure meter: the pass into 32x32 every few frames, read back through a pixel-pack ` +
     `buffer and taken a frame or more later (pboReads); a synchronous readPixels (readbacks) only with ?meter=sync, ` +
     `?hdr=0 or no WebGL2 sync objects, where its CPU time is the GPU stall`},
+  {name: 'labels', what: `the label declutter: which bodies' names and places' names would touch, hidden for the overlay pass`},
   {name: 'overlay', what: `labels, orbit lines, grids and the pick marker, over the tone-mapped frame`},
   {name: 'other', what: `GL work outside any pass above (and, in CPU time, the JS between them)`},
 ]

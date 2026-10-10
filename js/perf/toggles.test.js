@@ -34,7 +34,7 @@ describe('parsePerfParams', () => {
 
   it('has a switch for each pass the issue names', () => {
     expect(TOGGLES.map((t) => t.key).sort()).toEqual(
-        ['atmosphere', 'clouds', 'cesium', 'galaxy', 'meter', 'nightlights', 'overlay'].sort())
+        ['atmosphere', 'clouds', 'cesium', 'galaxy', 'labels', 'meter', 'nightlights', 'overlay'].sort())
     const p = parsePerfParams(`?perf=1&off=${TOGGLES.map((t) => t.key).join(',')}`)
     expect(p.off.size).toBe(TOGGLES.length)
   })
