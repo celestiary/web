@@ -43,6 +43,8 @@ it (`js/targetPath.js`):
 #sun/earth/moon/apollo-11
 #hip:32349              a catalogue star, by HIP number (the search's id)
 #asterism:ursa-major    an asterism, by its name as a slug
+#galaxy:ngc2403         a SPARC galaxy, by its SPARC name as a slug
+                        (js/scene/Galaxies.md)
 ```
 
 - **A place or a body?**  A last segment in the body above's `system` is a
@@ -50,8 +52,8 @@ it (`js/targetPath.js`):
   in that body's catalogue.  Bodies win, so every old link means what it
   did.
 - **A path alone** goes to the target, as `g` does: a body flies there (as
-  it always has), a place lands there, a star travels, an asterism turns
-  to face it (from the Sun).
+  it always has), a place lands there, a star or a galaxy travels, an
+  asterism turns to face it (from the Sun).
 - **With a view** (`@…`, below) the camera is put back where the link had
   it, in its frame, and the target is set without turning it.
 
@@ -73,7 +75,9 @@ camera or its frame:
 ```
 
 `from=` is a body's path or a star's (`hip:N`: the camera went to that
-star; its frame's axes are the scene's, its radius the star's).  It's left
+star; its frame's axes are the scene's, its radius the star's), or a
+galaxy's (`galaxy:<id>`, the same, its radius the galaxy's core, 0.05
+disc scale lengths).  It's left
 out when it would name the path's own body.
 
 Why not re-express the camera in the target's frame instead: a body's

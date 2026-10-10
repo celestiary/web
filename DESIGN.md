@@ -556,6 +556,7 @@ The camera platform is parented differently depending on target type:
 |---|---|---|
 | Planet / sun | `obj.orbitPosition` | That group is what orbital animation writes into, so the camera follows the body's orbit automatically. |
 | Star (catalog entry) | `_starAnchor` | A scene-root `Object3D` permanently fixed at world `(0, 0, 0)`, paired with `worldGroup.position = -scene.starPosition(star)` (the catalogue position precessed to the date) so the target star lands at world origin. |
+| Galaxy (SPARC) | `_starAnchor` | As a star: its catalogue position rebased to the origin, arriving at its `viewDistance`; the zoom eases toward its core (`Scene.galaxyHome`) ([Galaxies.md](js/scene/Galaxies.md#levels-of-detail)). |
 
 ### goTo flow
 
@@ -665,7 +666,8 @@ tween aimed at a body, a star's world position or a surface point.  See
 
 One target, shown and used everywhere: what the breadcrumb shows, what the
 link's path names, what `c` faces, `g` goes to and `t` tracks.  It is a body,
-a place on one, a catalogue star or an asterism, and **`Scene.setTarget` is
+a place on one, a catalogue star, an asterism or one of SPARC's galaxies
+(`{kind: 'galaxy', galaxy, name}`, [Galaxies.md](js/scene/Galaxies.md)), and **`Scene.setTarget` is
 the only way it changes**: a click on a label, a pick in the search, Look
 at, Go, the keys (`h`, `u`, `0`-`9`), `Scene.goTo` and `Scene.land` (each
 makes where it went the target; a landing at a place keeps the place), and
@@ -788,6 +790,7 @@ turns to it; Go and Enter travel
 |---|---|
 | Star field (~120k stars) | Custom GLSL shader on `Points` geometry; size/brightness from magnitude |
 | Milky Way | Its integrated light: a full-screen pass at the far plane that ray-marches a published structural model (discs, bulge and bar, arms, dust) in the galactocentric frame, into a cached target re-marched when the view moves by more than it can show, less the light the star catalogue draws as points round the Sun; the atmosphere pass draws it with the rest of the night sky's light (the zodiacal light, airglow) through the eye's response to extended light ([MilkyWay.md](js/scene/MilkyWay.md), [HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |
+| Other galaxies (SPARC's 175) | The Milky Way's model with each galaxy's own parameters, in exposure units at three levels of detail: a point carrying its integrated light (as a star's, dimmed by its dust at the angle it's seen at), an impostor (its orthographic march, cached) once it's larger than the eye's patch, and the full perspective march near it ([Galaxies.md](js/scene/Galaxies.md)) |
 | Star discs (the Sun, and any catalogue star travelled to) | A photosphere from physical parameters: temperature from class, blackbody colour and luminance, limb darkening by temperature, granulation at three scales, spots and faculae ([js/scene/Stars.md](js/scene/Stars.md)) |
 | Planets | `MeshStandardMaterial` with optional diffuse, bump, normal (the Moon's relief, [Planet.md](js/scene/Planet.md#relief)), hydrosphere, and cloud textures; a few pixels across, antialiased and shaded per fragment as the sphere ([Planet.md, small discs](js/scene/Planet.md#small-discs)) |
 | Earth's clouds | A shell 6 km up on its own layer, drawn after the Cesium composite so it covers both sides: the date's NASA GIBS true colour unmixed into coverage, Lambert-lit in exposure units, shadowing the ground ([Planet.md, clouds](js/scene/Planet.md#clouds)) |
@@ -1124,6 +1127,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/search/providers/SceneProvider.js` | Bodies loaded by `Loader` |
 | `js/search/providers/StarsProvider.js` | Named stars + exact HIP resolver |
 | `js/search/providers/PlacesProvider.js` | Future surface-place stub |
+| `js/search/providers/GalaxiesProvider.js` | SPARC's galaxies, by all their names |
 
 See [js/search/DESIGN.md](js/search/DESIGN.md) for the full architecture:
 tier structure (A/B/C), Fuse.js tuning, scoping semantics, commit flow,
@@ -1154,7 +1158,11 @@ and the provider extension contract.
 | `js/scene/starParams.js` | Every star's parameters: measured where published, else luminosity class, radius (Stefan-Boltzmann), mass and gravity from the catalogue; rotation (Roche, von Zeipel) and spots by type |
 | `js/scene/Stars.js` | Star field from Celestia catalog |
 | `js/scene/MilkyWay.js` | The Milky Way's integrated light: the march pass and its cache, which the atmosphere pass draws ([MilkyWay.md](js/scene/MilkyWay.md)) |
-| `js/scene/galaxyModel.js` | The Milky Way's structural model: its components, the baked in-plane map, the normalisation, the share the star catalogue resolves, the JS and GLSL march |
+| `js/scene/galaxyModel.js` | A disc galaxy's structural model, for any galaxy's spec (`MILKY_WAY` is the Milky Way's): its components, the baked in-plane map, the normalisation, the share the star catalogue resolves, the JS march and the GLSL (the Milky Way's own program, or one uniform-driven program for every other) |
+| `js/scene/sparcGalaxy.js` | A SPARC galaxy's spec from its catalogue row: measured where SPARC, RC3 and the cross-match measured it, else type-driven defaults with their sources; its placement on the sky and its far point's dust ([Galaxies.md](js/scene/Galaxies.md)) |
+| `js/scene/Galaxies.js` | SPARC's galaxies in the scene: far points (and the Milky Way's), impostors, the near march, map bakes; the records the search and `goTo` use ([Galaxies.md](js/scene/Galaxies.md)) |
+| `js/scene/rotationCurve.js` | A galaxy's rotation curve against its baryons' (SPARC's mass models), and the info panel's plot of it |
+| `public/data/sparc/` | SPARC's 175 galaxies (`galaxies.json`, cross-matched) and their mass models (`curves.json`), built by `tools/sparc/buildSparc.mjs` |
 | `js/scene/eye.js` | The dark-adapted eye's threshold against field size (Ricco, Piper), the extended response's gain, scotopic colour, surface brightness in exposure units ([HDR.md](js/scene/HDR.md#the-eye-and-extended-light)) |
 | `js/scene/nightSky.js` | The night sky's own light: the interplanetary dust cloud (Kelsall et al. 1998) integrated along a ray from anywhere, for the zodiacal light and gegenschein, and airglow's path (JS and GLSL) |
 | `js/scene/ZodiacalLight.js` | The zodiacal light's cache: the dust cloud's integral from the camera into a reduced-size half-float target, rendered when the view changes by more than it can show |

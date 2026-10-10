@@ -68,13 +68,17 @@ export const YOUNG_MAX = 0.5
 export const HII_OVER_YOUNG = 0.11
 
 /**
- * The thin disc's scale length over its height, by type: de Grijs (1998)
- * and Kregel, van der Kruit & de Grijs (2002) find h_R/h_z rising from
- * about 4 for early spirals to 8-10 for Sc-Sd (their mean 7.3); dwarfs and
- * irregulars are thick, an intrinsic axis ratio of 0.3-0.5 (Sánchez-Janssen,
- * Méndez-Abreu & Aguerri 2010; Roychowdhury et al. 2013).  Index T, 0-11.
+ * The thin disc's scale length over its exponential scale height, by type.
+ * Edge-on discs are thinner in later types: de Grijs (1998) and Kregel, van
+ * der Kruit & de Grijs (2002) find h_R/z0 rising from about 3-4 in early
+ * spirals to 6-10 in Sc-Sd, z0 being the sech² profile's parameter, about
+ * twice the exponential's scale height away from the plane: h_R/h_z of
+ * about 6-8 early to 10-12 late (the Milky Way's 2.6/0.3 is 8.7).  Dwarfs
+ * and irregulars are thick, an intrinsic axis ratio of 0.3-0.5
+ * (Sánchez-Janssen, Méndez-Abreu & Aguerri 2010; Roychowdhury et al.
+ * 2013).  Index T, 0-11.
  */
-export const HR_OVER_HZ = Object.freeze([4, 4, 5, 6, 7, 8, 8, 8, 7, 4, 3, 3])
+export const HR_OVER_HZ = Object.freeze([6, 6, 7, 8, 9, 10, 10, 10, 8, 4, 3, 3])
 
 /**
  * The face-on optical depth in V through the centre, by type: Xilouris et
@@ -91,6 +95,20 @@ export const TAU_FACE_ON = Object.freeze([0.1, 0.6, 0.7, 0.8, 0.8, 0.7, 0.7, 0.5
 export const DUST_OVER_STARS = Object.freeze({hR: 1.4, hz: 0.5})
 
 /**
+ * How broken a late spiral's arms are (bakeMapSteps' `flocculent`: noise
+ * along each arm cuts it into segments, `perLnR` of them a unit of ln R):
+ * from grand design in Sa-Sbc to flocculent, short arm segments, in Scd-Sd
+ * (Elmegreen & Elmegreen 1987's arm classes: flocculent galaxies most of
+ * the late types).  By T, from 5.
+ */
+export const FLOCCULENT = Object.freeze({
+  5: Object.freeze({cut: 0.3, perLnR: 4}),
+  6: Object.freeze({cut: 0.45, perLnR: 6}),
+  7: Object.freeze({cut: 0.5, perLnR: 8}),
+})
+
+
+/**
  * Arms' pitch by type, degrees: Kennicutt (1981) and Ma (2002) find the
  * pitch opening from about 6-8° in Sa to 20-25° in Sd, with a scatter of
  * ±5° at a type.  Index T (0 and 9-11 have none).
@@ -100,10 +118,25 @@ export const PITCH_DEG = Object.freeze([0, 8, 10, 12, 14, 17, 19, 21, 23, 0, 0, 
 /**
  * The bar's half-length over the disc's scale length: Erwin (2005) finds
  * bars in early types about 1-1.5 scale lengths long, in late types
- * 0.5-0.8.  Its share of the light: Gadotti (2011) finds Bar/T about 0.1
- * for strong bars; a weak bar (SAB) half that.
+ * 0.5-0.8; a Magellanic irregular's (the LMC's) is about a scale length
+ * (de Vaucouleurs & Freeman 1972).  Its share of the light: Gadotti (2011)
+ * finds Bar/T about 0.1 for strong bars; a weak bar (SAB) half that.  Its
+ * width (the exponential's scale across it, over the half-length): bars'
+ * isophotes have ellipticities of 0.5-0.7 (Gadotti 2011), an axis ratio of
+ * 0.3-0.5, about 0.25 for this profile; the Magellanic bars are fatter
+ * (0.35).  Its scale height half its width: bars thicken vertically
+ * (boxy/peanut bulges, Athanassoula 2005).
  */
-export const BAR_DEFAULTS = Object.freeze({early: 1.3, mid: 1.0, late: 0.7, strongShare: 0.10, weakShare: 0.05})
+export const BAR_DEFAULTS = Object.freeze({early: 1.3, mid: 1.0, late: 0.7, irregular: 1.0, strongShare: 0.10,
+  weakShare: 0.05, width: 0.25, irregularWidth: 0.35})
+
+/**
+ * The young stars between a spiral's arms, over an arm's peak: star
+ * formation in arms is only 1.5-3 times as dense as between them (Foyle et
+ * al. 2010), so an arm's young light is a third over its floor.  (The
+ * Milky Way's recipe has 0.06: its knots carry the arms.)
+ */
+export const ARM_YOUNG_FLOOR = 0.3
 
 /**
  * The bulge's profile index n (exp(-r^(1/n))) and its flattening, by type:
@@ -144,7 +177,7 @@ export const LOPSIDED_A1 = Object.freeze([0.03, 0.03, 0.04, 0.05, 0.06, 0.08, 0.
  * An irregular's young light between its star-forming complexes, over a
  * complex's peak: in dwarf irregulars much of the young stars' light is
  * diffuse, outside the complexes (Hunter & Elmegreen 2004).  A spiral's is
- * the Milky Way's interarm floor (SPIRAL_RECIPE.youngFloor).
+ * ARM_YOUNG_FLOOR.
  */
 export const DIFFUSE_YOUNG = 0.3
 
@@ -562,7 +595,10 @@ export function sparcSpec(g, defaults) {
     rand()
   }
   const barShare = barFam === 'B' ? BAR_DEFAULTS.strongShare : barFam === 'X' ? BAR_DEFAULTS.weakShare : 0
-  const barHalf = hR * (t <= 3 ? BAR_DEFAULTS.early : t <= 6 ? BAR_DEFAULTS.mid : BAR_DEFAULTS.late)
+  const irregular = fam === 'magellanic' || fam === 'irregular' || fam === 'bcd'
+  const barHalf = hR * (irregular ? BAR_DEFAULTS.irregular :
+    t <= 3 ? BAR_DEFAULTS.early : t <= 6 ? BAR_DEFAULTS.mid : BAR_DEFAULTS.late)
+  const barWidth = barHalf * (irregular ? BAR_DEFAULTS.irregularWidth : BAR_DEFAULTS.width)
   const barAngle = 360 * rand()
   // The thick disc, by the rotation speed: V_flat, else the curve's highest.
   const v = g.Vflat > 0 ? g.Vflat : (g.Vmax ?? 100)
@@ -590,7 +626,7 @@ export function sparcSpec(g, defaults) {
   const bar = {
     angleDeg: barAngle, halfLength: barHalf, end: 0.06 * barHalf,
     x0: bulgeA, y0: bulgeA, z0: bulgeA * BULGE_BY_TYPE.flattening[t],
-    width: 0.15 * barHalf, hz: 0.075 * barHalf, scale: 2 * barHalf, n, boxy: false,
+    width: barWidth, hz: 0.5 * barWidth, scale: 2 * barHalf, n, boxy: false,
   }
   const tau = TAU_FACE_ON[t]
   const dustHz = hz * DUST_OVER_STARS.hz
@@ -606,7 +642,7 @@ export function sparcSpec(g, defaults) {
   const armStart = barFam === 'A' ? 0.6 * hR : barHalf
   const armOuter = [3.5 * hR, 5.5 * hR]
   if (fam === 'spiral' || fam === 'magellanic') {
-    const m = fam === 'magellanic' ? 1 : t <= 4 ? 2 : t <= 6 ? (rand() < 0.6 ? 2 : 3) : (rand() < 0.5 ? 3 : 4)
+    const m = fam === 'magellanic' ? 1 : t <= 4 ? 2 : t === 5 ? (rand() < 0.6 ? 2 : 3) : (rand() < 0.5 ? 3 : 4)
     const pitch = fam === 'magellanic' ? 25 : PITCH_DEG[t]
     const tanPsi = Math.tan(pitch * Math.PI / 180)
     // The arms cross the bar's ends (or the bulge's edge), evenly round.
@@ -623,7 +659,7 @@ export function sparcSpec(g, defaults) {
       })
     }
     if (t >= 5) {
-      flocculent = {cut: t >= 7 ? 0.5 : 0.35, perLnR: 3}
+      flocculent = FLOCCULENT[Math.min(t, 7)]
     }
   }
   // Star formation in clumps for the armless (and the Magellanic).
@@ -673,7 +709,7 @@ export function sparcSpec(g, defaults) {
     recipe: {
       ...SPIRAL_RECIPE,
       oldFloor: fam === 'spiral' ? SPIRAL_RECIPE.oldFloor : 1, clumpKpc: Math.min(SPIRAL_RECIPE.clumpKpc, 1.2 * hR),
-      youngFloor: fam === 'lenticular' ? 0 : fam === 'spiral' ? SPIRAL_RECIPE.youngFloor : DIFFUSE_YOUNG,
+      youngFloor: fam === 'lenticular' ? 0 : fam === 'spiral' ? ARM_YOUNG_FLOOR : DIFFUSE_YOUNG,
       youngFloorR: [0.2 * hR, 0.8 * hR, 4 * hR, 6 * hR],
     },
     knots: {

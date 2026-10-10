@@ -83,8 +83,12 @@ export const NEAR_MAX_HEIGHT = 540
 export const MAP_CACHE = 10
 /** A map's texels a side, for an impostor and for the full march. */
 export const MAP_TEXELS = Object.freeze({impostor: 256, near: 512})
-/** Arithmetic per frame spent baking maps, ms. */
-export const BAKE_MS_PER_FRAME = 8
+/**
+ * The maps bake in slices of this many ms, back to back between frames
+ * (setTimeout), as the Milky Way's does: about 0.2 s of arithmetic at 256²
+ * and 0.7 s at 512².
+ */
+export const BAKE_SLICE_MS = 12
 /** The arrival distance, in disc scale lengths: 4 scale lengths across 27° of a 45° field. */
 export const VIEW_DISTANCE_HR = 16.7
 /** The zoom's floor at a galaxy (its "surface"), in disc scale lengths. */
@@ -489,13 +493,13 @@ export default class Galaxies extends Object3D {
     resolved.sort((a, b) => b.sizePatches - a.sizePatches)
     const wanted = resolved.slice(0, MAX_IMPOSTORS)
     const nearRecord = nearestRatio < NEAR_FAR[1] ? nearest : null
+    // The near galaxy's first: it fills the view.
+    if (nearRecord) {
+      this._want(nearRecord, MAP_TEXELS.near, true)
+    }
     for (const r of wanted) {
       this._want(r, MAP_TEXELS.impostor)
     }
-    if (nearRecord) {
-      this._want(nearRecord, MAP_TEXELS.near)
-    }
-    this._bakeSlice()
     // The near march, and its weight.
     const nearWeight = nearRecord && this._map(nearRecord, MAP_TEXELS.near) ?
       1 - smoothstep(NEAR_FAR[0], NEAR_FAR[1], nearestRatio) : 0
@@ -524,24 +528,38 @@ export default class Galaxies extends Object3D {
    *
    * @param {object} r
    * @param {number} texels
+   * @param {boolean} [first] Ahead of the queue
    */
-  _want(r, texels) {
+  _want(r, texels, first = false) {
     const key = `${r.id}:${texels}`
     const hit = this._maps.get(key)
     if (hit) {
       hit.used = performance.now()
       return
     }
-    if (this._bakes.some((b) => b.key === key)) {
+    const queued = this._bakes.findIndex((b) => b.key === key)
+    if (queued >= 0) {
+      if (first && queued > 0) {
+        this._bakes.unshift(...this._bakes.splice(queued, 1))
+      }
       return
     }
-    this._bakes.push({key, record: r, texels, steps: bakeMapSteps(texels, r.spec), start: performance.now()})
+    const bake = {key, record: r, texels, steps: bakeMapSteps(texels, r.spec), start: performance.now()}
+    if (first) {
+      this._bakes.unshift(bake)
+    } else {
+      this._bakes.push(bake)
+    }
+    if (!this._baking) {
+      this._baking = true
+      setTimeout(() => this._bakeSlice(), 0)
+    }
   }
 
 
-  /** Bake for up to BAKE_MS_PER_FRAME. */
+  /** Bake for BAKE_SLICE_MS, and come back while there's more. */
   _bakeSlice() {
-    const until = performance.now() + BAKE_MS_PER_FRAME
+    const until = performance.now() + BAKE_SLICE_MS
     while (this._bakes.length > 0 && performance.now() < until) {
       const bake = this._bakes[0]
       let next = bake.steps.next()
@@ -549,7 +567,7 @@ export default class Galaxies extends Object3D {
         next = bake.steps.next()
       }
       if (!next.done) {
-        return
+        break
       }
       this._bakes.shift()
       const map = next.value
@@ -563,6 +581,10 @@ export default class Galaxies extends Object3D {
       this._maps.set(bake.key, {map, norms, texture: tex, used: performance.now()})
       this.debug.bakeMs = performance.now() - bake.start
       this._evict()
+    }
+    this._baking = this._bakes.length > 0
+    if (this._baking) {
+      setTimeout(() => this._bakeSlice(), 0)
     }
   }
 

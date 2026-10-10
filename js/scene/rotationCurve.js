@@ -50,7 +50,7 @@ export function rotationCurveSvg(curve, {width = 240, height = 150} = {}) {
   if (!curve || curve.length === 0) {
     return ''
   }
-  const pad = {l: 34, r: 8, t: 8, b: 26}
+  const pad = {l: 42, r: 8, t: 8, b: 26}
   const rMax = Math.max(...curve.map((c) => c[0])) * 1.05
   const vMax = Math.max(...curve.map((c) => Math.max(c[1] + c[2], baryonicVelocity(c)))) * 1.1
   const x = (r) => pad.l + ((width - pad.l - pad.r) * r / rMax)
@@ -76,7 +76,8 @@ export function rotationCurveSvg(curve, {width = 240, height = 150} = {}) {
     parts.push(`<text x="${x(r)}" y="${height - pad.b + 12}" text-anchor="middle" fill="${muted}">${r}</text>`)
   }
   parts.push(`<text x="${width - pad.r}" y="${height - 3}" text-anchor="end" fill="${muted}">R, kpc</text>`)
-  parts.push(`<text x="2" y="${pad.t + 2}" fill="${muted}" transform="rotate(-90 8 ${pad.t + 40})">V, km/s</text>`)
+  const midY = (pad.t + height - pad.b) / 2
+  parts.push(`<text transform="translate(9 ${midY}) rotate(-90)" text-anchor="middle" fill="${muted}">V, km/s</text>`)
   const line = curve.map((c, i) => `${i ? 'L' : 'M'}${x(c[0]).toFixed(1)},${y(baryonicVelocity(c)).toFixed(1)}`).join(' ')
   parts.push(`<path d="${line}" fill="none" stroke="${CURVE_COLORS.baryons}" stroke-width="2"/>`)
   for (const c of curve) {
