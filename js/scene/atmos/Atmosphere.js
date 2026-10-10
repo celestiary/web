@@ -15,6 +15,7 @@ import {
   OneMinusSrcAlphaFactor,
   PlaneGeometry,
   ShaderMaterial,
+  Vector2,
   Vector3,
   Vector4,
 } from 'three'
@@ -475,6 +476,7 @@ export function newAtmospherePass() {
       tClouds: {value: null},
       tCloudData: {value: null},
       uCloudExposure: {value: 0.0},
+      uCloudSize: {value: new Vector2(1, 1)},
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
@@ -548,6 +550,69 @@ uniform float     uDebug;
 uniform sampler2D tClouds;
 uniform sampler2D tCloudData;
 uniform float     uCloudExposure;
+uniform vec2      uCloudSize;
+
+// One texel of the clouds' target into the depth-aware read (cloudRead):
+// its bilinear weight, times whether its ray ended where this pixel's
+// does.  The target's ray ends are in km (CloudVolume.js, outData.w; the
+// sky at 1e4): the same ground within 10% is the same surface (Cesium's
+// 8-bit terrain distance is dithered by a level, a few percent), a ridge
+// against the sky or the cloud beyond it is not.
+void cloudTap(vec2 uv, float wBilinear, float endKm, inout vec4 cloud, inout vec2 data, inout float wSum,
+    inout vec4 cloudAll, inout vec2 dataAll) {
+  vec4 c = texture2D(tClouds, uv);
+  vec4 d = texture2D(tCloudData, uv);
+  float rel = abs(d.w - endKm) / max(endKm, 0.05);
+  float w = wBilinear * (1.0 - smoothstep(0.1, 0.25, rel));
+  cloud += w * c;
+  data += w * d.xy;
+  wSum += w;
+  cloudAll += wBilinear * c;
+  dataAll += wBilinear * d.xy;
+}
+
+// The clouds' target, at a fraction of the frame's size, read for this
+// pixel: of the four texels round it, those whose ray ended where this
+// pixel's does (tEnd: the ground at the same distance, or the sky) carry
+// their bilinear weight, so across a ridge's silhouette the texels over
+// the ridge don't lay cloud light onto it, nor the ridge's darkness into
+// the cloud beside it (a joint bilateral upsample; clouds.md, "In the
+// air").  With no texel of the pixel's own surface (a one-pixel spike),
+// the plain bilinear read.
+void cloudRead(vec2 uv, float tEnd, out vec4 cloud, out vec2 data) {
+  float endKm = min(tEnd, 1.0e7) * 0.001;
+  // The plain bilinear reads first: where their ray end, the four texels'
+  // weighted mean, is the pixel's, the texels are all of its surface and
+  // these are the answer (two reads, as before); only a silhouette's
+  // pixels, a few, go on to the four taps.
+  vec4  cB = texture2D(tClouds, uv);
+  vec4  dB = texture2D(tCloudData, uv);
+  if (abs(dB.w - endKm) < 0.05 * max(endKm, 0.05)) {
+    cloud = cB;
+    data = dB.xy;
+    return;
+  }
+  vec2  texel = 1.0 / uCloudSize;
+  vec2  st = uv * uCloudSize - 0.5;
+  vec2  f = fract(st);
+  vec2  base = (floor(st) + 0.5) * texel;
+  vec4  c = vec4(0.0);
+  vec2  d = vec2(0.0);
+  float wSum = 0.0;
+  vec4  cAll = vec4(0.0);
+  vec2  dAll = vec2(0.0);
+  cloudTap(base, (1.0 - f.x) * (1.0 - f.y), endKm, c, d, wSum, cAll, dAll);
+  cloudTap(base + vec2(texel.x, 0.0), f.x * (1.0 - f.y), endKm, c, d, wSum, cAll, dAll);
+  cloudTap(base + vec2(0.0, texel.y), (1.0 - f.x) * f.y, endKm, c, d, wSum, cAll, dAll);
+  cloudTap(base + texel, f.x * f.y, endKm, c, d, wSum, cAll, dAll);
+  if (wSum > 1.0e-3) {
+    cloud = c / wSum;
+    data = d / wSum;
+  } else {
+    cloud = cAll;
+    data = dAll;
+  }
+}
 #endif
 
 #define PI        3.141592
@@ -1239,8 +1304,9 @@ void main() {
     // air (the same integrator's, so the difference is sound and nothing
     // is divided by a transmittance).  Not from an eye under the sphere,
     // whose rays the march above took to the sphere's exit.
-    vec4 cloud = texture2D(tClouds, vUv);
-    vec2 cloudData = texture2D(tCloudData, vUv).rg;
+    vec4 cloud;
+    vec2 cloudData;
+    cloudRead(vUv, tMax, cloud, cloudData);
     // The distance is in km (CloudVolume.js DIST_SCALE), premultiplied by
     // the cloud's coverage, 1 − its transmittance, so the half-size
     // target's bilinear read here is the coverage-weighted mean across a

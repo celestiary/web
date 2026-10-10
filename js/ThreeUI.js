@@ -576,6 +576,7 @@ export default class ThreeUi {
     }
     u.tClouds.value = drawn?.clouds ?? null
     u.tCloudData.value = drawn?.data ?? null
+    u.uCloudSize.value.set(drawn?.width ?? 1, drawn?.height ?? 1)
     // The cloud's radiance per unit of the Sun's irradiance, to exposure
     // units: the irradiance times the exposure (uSkyExposure carries it
     // over π·DISPLAY_GAIN; HDR.md, "The sky in exposure units").

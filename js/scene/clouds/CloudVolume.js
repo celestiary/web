@@ -46,13 +46,16 @@ import {CLOUD_HEIGHT_M, FAR_FIELD_FADE_M, VOLUME_FADE_M, fadeOver} from './Cloud
  * The march draws at a fraction of the frame's size into a half-float
  * target of two textures: the cloud's radiance per unit of the Sun's
  * irradiance, premultiplied, with its transmittance in alpha; and the
- * cloud's mean distance along the ray with the ground's shadow under it.
- * The previous frame's result is reprojected and blended in (the march's
- * start is jittered each frame), so the march converges over a few frames
- * and a still view is smooth.  The atmosphere pass composites it: the air
- * marched to the cloud, the cloud, and the sky beyond through the cloud's
- * transmittance (Atmosphere.js, CLOUDS).  Nothing is drawn, nor costs a
- * GL call, from above the far-field band (share), nor in the LDR fallback.
+ * cloud's mean distance along the ray with the ground's shadow under it
+ * and where the ray ended.  The previous frame's result is reprojected
+ * and blended in (the march's start is jittered each frame): a still view
+ * accumulates toward the mean of its frames and stops changing, a moving
+ * one keeps an exponential window (historyFrames).  The atmosphere pass
+ * composites it, read depth-aware across the ground's silhouettes: the
+ * air marched to the cloud, the cloud, and the sky beyond through the
+ * cloud's transmittance (Atmosphere.js, CLOUDS).  Nothing is drawn, nor
+ * costs a GL call, from above the far-field band (share), nor in the LDR
+ * fallback.
  */
 export default class CloudVolume {
   /**
@@ -83,6 +86,10 @@ export default class CloudVolume {
     this._target = [null, null]
     this._frame = 0
     this._prev = null
+    // The inputs at the start of the current still run, and how many
+    // frames the history stands for (historyFrames).
+    this._anchor = null
+    this._history = 0
     this._size = new Vector2()
     this._inverse = new Matrix4()
     this._camToBody = new Matrix4()
@@ -265,10 +272,22 @@ export default class CloudVolume {
     u.uFrame.value = JITTER_ORDER[this._frame % JITTER_FRAMES]
     // The raw march, then the resolve: the previous frame's result
     // reprojected through the camera's motion (the previous view, relative
-    // to this eye), clipped to the raw frame's neighbourhood and blended in.
+    // to this eye), clipped to the raw frame's neighbourhood and blended in
+    // by how many frames the history stands for (historyFrames): a still
+    // view accumulates toward the mean, a changing one keeps an
+    // exponential window.
     const prev = this._prev
     const temporal = !this.options.noTemporal
     const r = this.resolveMaterial.uniforms
+    const inputs = {
+      eye: this._eye.clone(), sun: this._sun.clone(), viewToBody: this._viewToBody.clone(), proj: u.uProj.value.clone(),
+      opacity: share, map: this.cloudMap.texture?.version ?? 0, width: w, height: h, atmosphere,
+    }
+    const still = Boolean(prev) && Boolean(this._anchor) && inputsUnchanged(this._anchor, inputs)
+    this._history = historyFrames(this._history, !still, Boolean(prev))
+    if (!still) {
+      this._anchor = inputs
+    }
     if (temporal) {
       r.tRaw.value = this._raw.textures[0]
       r.tRawData.value = this._raw.textures[1]
@@ -278,12 +297,13 @@ export default class CloudVolume {
       if (prev) {
         r.tHistory.value = history.textures[0]
         r.tHistoryData.value = history.textures[1]
-        r.uHistoryWeight.value = HISTORY_WEIGHT
+        r.uHistoryFrames.value = this._history
+        r.uClipGamma.value = still ? 0 : CLIP_GAMMA
         r.uPrevEyeDelta.value.copy(this._eye).sub(prev.eye)
         r.uBodyToPrevView.value.copy(prev.viewToBody).transpose()
         r.uPrevProj.value.copy(prev.proj)
       } else {
-        r.uHistoryWeight.value = 0
+        r.uHistoryFrames.value = 0
         r.tHistory.value = null
         r.tHistoryData.value = null
       }
@@ -301,12 +321,71 @@ export default class CloudVolume {
     renderer.setRenderTarget(current)
     perf.end('clouds.volume')
     renderer.autoClear = autoClear
-    this._prev = {eye: this._eye.clone(), viewToBody: this._viewToBody.clone(), proj: u.uProj.value.clone()}
+    this._prev = inputs
     this._frame++
     this.status.frames++
     this.status.drawn = true
-    return {clouds: target.textures[0], data: target.textures[1]}
+    this.status.history = this._history
+    return {clouds: target.textures[0], data: target.textures[1], width: w, height: h}
   }
+}
+
+
+/**
+ * How many frames the history stands for after this one: the blend's
+ * weight is n / (n + 1), so a still view accumulates toward the mean of
+ * its jittered frames (clouds.md, "Cost"), capped at STILL_FRAMES, where
+ * the frame-to-frame change is a sample's noise over that; and a view
+ * whose inputs changed keeps an exponential window of MOVING_FRAMES, which
+ * a still run re-enters from where it stands (no pop: the history is
+ * already converged, and the fixed weight only lets the noise back in
+ * over those frames).
+ *
+ * @param {number} frames The frames the history stood for
+ * @param {boolean} changed Whether the march's inputs changed this frame
+ * @param {boolean} hasHistory Whether there is a history at all
+ * @returns {number}
+ */
+export function historyFrames(frames, changed, hasHistory) {
+  if (!hasHistory) {
+    return 0
+  }
+  return Math.min(frames + 1, changed ? MOVING_FRAMES : STILL_FRAMES)
+}
+
+
+/**
+ * Whether the march's inputs are the same view: the eye and the Sun in the
+ * body frame, the camera's rotation and projection, the volume's share,
+ * the map and the target, within what a frame can't show.  The anchor is
+ * the run's first frame, so a slow drift (the Sun at real time, 0.75″ a
+ * frame at 20 fps) accumulates until it adds up to the tolerance, and a
+ * creeping camera doesn't average a blurred history.
+ *
+ * @param {object} a The still run's first inputs
+ * @param {object} b This frame's
+ * @returns {boolean}
+ */
+export function inputsUnchanged(a, b) {
+  if (a.width !== b.width || a.height !== b.height || a.opacity !== b.opacity || a.map !== b.map || !a.proj.equals(b.proj)) {
+    return false
+  }
+  // The atmosphere's tables (the argument is built afresh each frame).
+  if (a.atmosphere.atmos !== b.atmosphere.atmos || a.atmosphere.transmittance !== b.atmosphere.transmittance ||
+      a.atmosphere.multiScatter !== b.atmosphere.multiScatter) {
+    return false
+  }
+  if (a.eye.distanceTo(b.eye) > STILL_EYE_M || a.sun.distanceTo(b.sun) > STILL_SUN_RAD) {
+    return false
+  }
+  const ea = a.viewToBody.elements
+  const eb = b.viewToBody.elements
+  for (let i = 0; i < 9; i++) {
+    if (Math.abs(ea[i] - eb[i]) > STILL_ROTATION) {
+      return false
+    }
+  }
+  return true
 }
 
 
@@ -330,8 +409,32 @@ export const GENERATE_BUDGET_MS = 6
 export const READY_FADE_MS = 1500
 /** How much of the frame's width and height the march draws at, by default. */
 export const DEFAULT_SCALE = 0.5
-/** The reprojected history's weight in the blend, when it is valid. */
-export const HISTORY_WEIGHT = 0.9
+/**
+ * The frames the history stands for while the view changes: the blend's
+ * weight n / (n + 1) is then 0.9, an exponential window of about ten
+ * frames (historyFrames).
+ */
+export const MOVING_FRAMES = 9
+/**
+ * The most frames a still view's history stands for: at the cap the
+ * blend's weight is 0.992, and a frame changes the output by a sample's
+ * noise over 129.
+ */
+export const STILL_FRAMES = 128
+/**
+ * The variance clip's half-width in standard deviations of the raw
+ * frame's 3×3 neighbourhood (RESOLVE_FRAG), while the view changes.  A
+ * still view's history is not clipped: it is valid by construction, and
+ * what can change under a still camera, the surface a texel's ray ends
+ * on, resets that texel's history on its own.
+ */
+export const CLIP_GAMMA = 1.25
+/** The frames of a texel's history over which the resolve's spatial filter fades out (RESOLVE_FRAG). */
+export const SPATIAL_FADE_FRAMES = 16
+/** What a still run tolerates, over its whole span: the eye (m), the Sun (rad), the rotation (a matrix element). */
+export const STILL_EYE_M = 0.02
+export const STILL_SUN_RAD = 1.0e-4
+export const STILL_ROTATION = 2.0e-5
 /** The jitter sequence's length, frames. */
 export const JITTER_FRAMES = 16
 /**
@@ -534,7 +637,8 @@ function newResolveMaterial() {
       tRawData: {value: null},
       tHistory: {value: null},
       tHistoryData: {value: null},
-      uHistoryWeight: {value: 0},
+      uHistoryFrames: {value: 0},
+      uClipGamma: {value: CLIP_GAMMA},
       uTargetSize: {value: new Vector2(1, 1)},
       uProj: {value: new Vector4(1, 1, 0, 0)},
       uViewToBody: {value: new Matrix3()},
@@ -584,7 +688,13 @@ uniform sampler2D tRaw;
 uniform sampler2D tRawData;
 uniform sampler2D tHistory;
 uniform sampler2D tHistoryData;
-uniform float uHistoryWeight;
+// The most frames a texel's history may stand for this frame
+// (CloudVolume.render: MOVING_FRAMES while the view changes, growing to
+// STILL_FRAMES while it is still); 0 for no history.
+uniform float uHistoryFrames;
+// The clipping box's half-width in standard deviations (CLIP_GAMMA), or
+// 0 for no clipping, while the view is still.
+uniform float uClipGamma;
 uniform vec2  uTargetSize;
 uniform vec4  uProj;
 uniform mat3  uViewToBody;
@@ -592,9 +702,9 @@ uniform vec3  uPrevEyeDelta;
 uniform mat3  uBodyToPrevView;
 uniform vec4  uPrevProj;
 
-// The clipping box's half-width in standard deviations.
-#define GAMMA 1.25
 #define DIST_SCALE 0.001
+#define MOVING_FRAMES ${MOVING_FRAMES}.0
+#define SPATIAL_FADE_FRAMES ${SPATIAL_FADE_FRAMES}.0
 
 // The history clipped to the box: toward the box's centre, to its face
 // (Karis 2014), so a colour outside comes in along one line rather than
@@ -613,7 +723,10 @@ void main() {
   vec4 rawData = texture(tRawData, vUv);
   outCloud = raw;
   outData = rawData;
-  if (uHistoryWeight <= 0.0) return;
+  // The resolved target's z is the frames the texel's history stands for
+  // (the raw target's, the plain distance, is read from tRawData above).
+  outData.z = 0.0;
+  if (uHistoryFrames <= 0.0) return;
 
   // The neighbourhood's moments, of the cloud and of its data; and its
   // coverage-weighted distance, which the pixel reprojects by.
@@ -624,6 +737,12 @@ void main() {
   vec2 d2 = vec2(0.0);
   float distSum = 0.0;
   float coverSum = 0.0;
+  // The neighbourhood's mean over the texels whose ray ended where this
+  // one's did (the same ground, or the sky: rawData.w), for the spatial
+  // filter below.
+  vec4  cSame = vec4(0.0);
+  vec2  dSame = vec2(0.0);
+  float wSame = 0.0;
   for (int y = -1; y <= 1; y++) {
     for (int x = -1; x <= 1; x++) {
       vec2 uv = vUv + vec2(float(x), float(y)) * texel;
@@ -635,6 +754,10 @@ void main() {
       d2 += d.xy * d.xy;
       distSum += d.x;
       coverSum += 1.0 - c.a;
+      float same = abs(d.w - rawData.w) < 0.1 * max(rawData.w, 0.05) ? 1.0 : 0.0;
+      cSame += same * c;
+      dSame += same * d.xy;
+      wSame += same;
     }
   }
   m1 /= 9.0;
@@ -654,10 +777,45 @@ void main() {
   vec2 ndcPrev = vec2(uPrevProj.x * q.x / -q.z - uPrevProj.z, uPrevProj.y * q.y / -q.z - uPrevProj.w);
   vec2 uvPrev = ndcPrev * 0.5 + 0.5;
   if (any(lessThan(uvPrev, vec2(0.0))) || any(greaterThan(uvPrev, vec2(1.0)))) return;
-  vec4 hist = clipToBox(m1 - GAMMA * sigma, m1 + GAMMA * sigma, texture(tHistory, uvPrev));
-  vec2 histData = clamp(texture(tHistoryData, uvPrev).xy, d1 - GAMMA * dSigma, d1 + GAMMA * dSigma);
-  outCloud = mix(raw, hist, uHistoryWeight);
-  outData.xy = mix(rawData.xy, histData, uHistoryWeight);
+  vec4 histRaw = texture(tHistory, uvPrev);
+  vec4 histDataRaw = texture(tHistoryData, uvPrev);
+
+  // The frames this texel's history stands for: one more than before, up
+  // to this frame's cap, or none where the surface under the texel has
+  // changed (its ray ends elsewhere: terrain tiles arriving under a still
+  // camera, a silhouette crossing it), whose history is of another
+  // surface.  The blend's weight n / (n + 1) is then the running mean.
+  bool sameSurface = abs(histDataRaw.w - rawData.w) < 0.1 * max(rawData.w, 0.05);
+  float n = sameSurface ? min(histDataRaw.z + 1.0, uHistoryFrames) : 0.0;
+  float weight = n / (n + 1.0);
+
+  // The spatial filter, while the texel's history is young (the view
+  // changing, or the surface under it new): where the neighbourhood's
+  // transmittance spreads (a cloud's edge, a thin veil: jittered rays
+  // that hit and miss), the raw frame is taken as its 3×3 mean over the
+  // texels of its own surface, so the exponential window, which passes
+  // a tenth of each frame's noise, passes a third of that; in a cloud's
+  // interior and the clear sky the spread is nil and the frame is its
+  // own.  A still view's accumulation converges without it, and it fades
+  // out over SPATIAL_FADE_FRAMES, so the converged edge is sharp.
+  float spatial = clamp(1.0 - (n - MOVING_FRAMES) / SPATIAL_FADE_FRAMES, 0.0, 1.0) * smoothstep(0.08, 0.25, sigma.a);
+  vec4 rawSmooth = mix(raw, cSame / wSame, spatial);
+  vec2 rawDataSmooth = mix(rawData.xy, dSame / wSame, spatial);
+
+  // The history, clipped to the box while the view changes.  A still
+  // view's history is valid by construction, and the box of one jittered
+  // frame's nine neighbours collapses where they all happen to miss a
+  // thin veil, a few percent of its texels every frame, pulling the
+  // converged value to that frame's: the paused view that kept animating.
+  vec4 hist = histRaw;
+  vec2 histData = histDataRaw.xy;
+  if (uClipGamma > 0.0) {
+    hist = clipToBox(m1 - uClipGamma * sigma, m1 + uClipGamma * sigma, histRaw);
+    histData = clamp(histDataRaw.xy, d1 - uClipGamma * dSigma, d1 + uClipGamma * dSigma);
+  }
+  outCloud = mix(rawSmooth, hist, weight);
+  outData.xy = mix(rawDataSmooth, histData, weight);
+  outData.z = n;
 }
 `
 
@@ -711,12 +869,17 @@ uniform float uMaxDistance;
 #define JITTER_FRAMES ${JITTER_FRAMES}.0
 #define BLUE_NOISE_MASK ${BLUE_NOISE_SIZE - 1}
 // The coarse step's floor and ceiling and the fine step's ceiling, metres,
-// and the clear fine steps before the march goes coarse again.  A coarse
-// step is bounded so that backing up one on contact can be re-marched fine
-// within the budget: a ray along the horizon reaches MAX_STEPS × COARSE_MAX
-// out, past which the air has hazed the clouds over.
+// the bisections that find a contact's near face within a coarse step,
+// and the clear fine steps before the march goes coarse again.  The
+// ceiling holds the far steps of a ray along the horizon (geometric from
+// the eye: coarseStep) to what the budget reaches the slab's far end
+// with: 3 km, where the clouds are 40 km off and hazed.
 #define COARSE_MIN 80.0
-#define COARSE_MAX 1000.0
+#define COARSE_MAX 3000.0
+// The distance the geometric sequence of coarse steps counts from, ahead
+// of the eye, so its first step is finite for an eye inside the layer.
+#define COARSE_T0 500.0
+#define BISECT 3
 #define FINE_MAX 60.0
 #define FINE_MISSES 6
 #define LIGHT_STEPS 5
@@ -750,6 +913,12 @@ float remap(float x, float lo, float hi, float newLo, float newHi) {
   return newLo + (newHi - newLo) * clamp((x - lo) / (hi - lo), 0.0, 1.0);
 }
 
+// The coarse step at a distance t along the ray: the geometric sequence's
+// (main), between COARSE_MIN and COARSE_MAX.
+float coarseStep(float t, float growth) {
+  return clamp((t + COARSE_T0) * growth, COARSE_MIN, COARSE_MAX);
+}
+
 // The march's start, as a fraction of a step: the pixel's blue-noise phase
 // (cloudNoise.blueNoise) plus the frame's share of the cycle (uFrame, in
 // JITTER_ORDER), so that over JITTER_FRAMES every pixel's starts are
@@ -778,12 +947,13 @@ float heightProfile(float hf, float conv) {
 // noise erodes the edges (Schneider & Vos 2015).  The large-scale
 // coverage picks the convective cloud, whose tops rise toward the tower
 // height where the shape noise is strongest.
-float extinction(vec3 p, bool withDetail, out float conv) {
+float extinction(vec3 p, bool withDetail, out float conv, out float shape) {
   float r = length(p);
   vec3  n = p / r;
   vec2  uv = mapUv(n);
   float c = texture(tCoverage, uv).r;
   conv = 0.0;
+  shape = 0.0;
   if (c <= 0.0 || r < uBaseRadius) return 0.0;
   float coarse = textureLod(tCoverage, uv, COARSE_LOD).r;
   conv = smoothstep(0.7, 0.95, coarse);
@@ -793,6 +963,9 @@ float extinction(vec3 p, bool withDetail, out float conv) {
   if (hf >= 1.0) return 0.0;
   float base = remap(s.r, 1.0 - c, 1.0, 0.0, 1.0) * heightProfile(hf, conv);
   if (base <= 0.0) return 0.0;
+  // The shape's density before the detail's erosion: cloud at the shape's
+  // scale, which the march stays fine through (main).
+  shape = base;
   if (withDetail) {
     vec4  d = texture(tDetail, p / uDetailScale);
     float fbm = 0.625 * d.r + 0.25 * d.g + 0.125 * d.b;
@@ -812,9 +985,10 @@ float lightDepth(vec3 p, float j) {
   float t = 0.0;
   float tau = 0.0;
   float conv;
+  float shape;
   for (int i = 0; i < LIGHT_STEPS; i++) {
     float step = ds * exp2(float(i));
-    tau += extinction(p + uSun * (t + (0.3 + 0.4 * j) * step), false, conv) * step;
+    tau += extinction(p + uSun * (t + (0.3 + 0.4 * j) * step), false, conv, shape) * step;
     t += step;
   }
   return tau;
@@ -878,8 +1052,9 @@ float groundShadow(vec3 g, float j) {
   float ds = (t1 - t0) / float(SHADOW_STEPS);
   float tau = 0.0;
   float conv;
+  float shape;
   for (int i = 0; i < SHADOW_STEPS; i++) {
-    tau += extinction(g + uSun * (t0 + (float(i) + j) * ds), false, conv) * ds;
+    tau += extinction(g + uSun * (t0 + (float(i) + j) * ds), false, conv, shape) * ds;
   }
   float tE = tau * uEddington.y;
   return DIRECT_SHARE * (1.0 - slabT(tE, 1.0)) * smoothstep(0.0, 0.05, sunUp);
@@ -898,8 +1073,13 @@ void main() {
   float zNdc = depthSample * 2.0 - 1.0;
   float tMax = depthSample >= 1.0 ? 1.0e15 : (2.0 * uNear * far) / (uNear + far - zNdc * (far - uNear)) / max(-view.z, 1.0e-6);
 
+  // Where the ray ended, in km (the sky at 1e4), for the composite's
+  // depth-aware read of this target (Atmosphere.js cloudRead): the texel's
+  // depth sample is at its centre, and a full-size pixel on a ridge takes
+  // only the texels whose ray ended on the ridge too.
+  float endKm = min(tMax, 1.0e7) * DIST_SCALE;
   outCloud = vec4(0.0, 0.0, 0.0, 1.0);
-  outData = vec4(0.0, 0.0, 0.0, 1.0);
+  outData = vec4(0.0, 0.0, 0.0, endKm);
 
   // The slab: between the base sphere and the towers' top.
   vec2 tOuter = rsi(uEye, dir, uTowerRadius);
@@ -926,7 +1106,7 @@ void main() {
     shadow = groundShadow(uEye + dir * tMax, j);
   }
   if (end <= start) {
-    outData = vec4(0.0, shadow * uOpacity, max(start, 1.0) * DIST_SCALE, 1.0);
+    outData = vec4(0.0, shadow * uOpacity, max(start, 1.0) * DIST_SCALE, endKm);
     return;
   }
 
@@ -936,12 +1116,17 @@ void main() {
   // FINE_MISSES clear fine steps the march goes coarse again.  A step
   // through cloud is a fraction of an optical depth, where one coarse
   // step would be opaque and band the cloud's face at the step.
-  float len = end - start;
-  float coarse = clamp(len / float(uSteps / 2), COARSE_MIN, COARSE_MAX);
-  // A fine step is at most FINE_MAX: 1.5 of a stratocumulus's optical
-  // depth, so a cloud's face falls across several (the march leaves a
-  // thick cloud within a few, at a transmittance of 0.005).
-  float fine = min(coarse * 0.25, FINE_MAX);
+  // The coarse step grows with the distance: a geometric sequence of
+  // uSteps / 2 steps from the slab's entry to its exit (COARSE_T0 ahead of
+  // the eye, for one inside the layer), between COARSE_MIN and COARSE_MAX,
+  // so a cloud near the eye, large on screen, is sampled finely and a far
+  // one, small and hazed, coarsely, within one budget (coarseStep).  The
+  // first cut's flat step, the ray's length over the budget, was 1 km at
+  // the underside of a deck 1.7 km off on a ray that left the layer 40 km
+  // on, and whether the ray met the deck's wisps turned on the frame's
+  // jitter: the thin veil's stipple (clouds.md, "Cost").
+  float growth = exp(log((end + COARSE_T0) / (start + COARSE_T0)) / float(uSteps / 2)) - 1.0;
+  float coarse = coarseStep(start, growth);
   float cosTheta = dot(dir, uSun);
   float single = texture(tPhase, vec2(acos(clamp(cosTheta, -1.0, 1.0)) / PI, 0.5)).r;
   // The Sun through the air at the ray's entry (the layer is thin against
@@ -955,25 +1140,59 @@ void main() {
   float T = 1.0;
   float distSum = 0.0;
   float alphaSum = 0.0;
+  // The start's jitter scales every later step (the sequence is
+  // geometric), so over the cycle the samples at any distance spread
+  // evenly within their local step.
   float t = start + j * coarse;
+  bool  isFine = false;
+  float fineUntil = 0.0;
   float ds = coarse;
   int misses = 0;
   for (int i = 0; i < MAX_STEPS; i++) {
     if (i >= uSteps || t >= end || T < 0.005) break;
     vec3  p = uEye + dir * t;
     float conv;
-    bool  isFine = ds < coarse;
-    float ext = extinction(p, isFine, conv);
+    float shape;
+    coarse = coarseStep(t, growth);
+    // A fine step is a quarter of the coarse one, at most FINE_MAX: 1.5
+    // of a stratocumulus's optical depth, so a cloud's face falls across
+    // several (the march leaves a thick cloud within a few, at a
+    // transmittance of 0.005).
+    ds = isFine ? min(coarse * 0.25, FINE_MAX) : coarse;
+    float ext = extinction(p, isFine, conv, shape);
     if (ext > 0.0 && !isFine) {
-      // Contact: back up a coarse step and come on fine.
-      t = max(t - coarse, start);
-      ds = fine;
+      // Contact: the cloud's near face is within the coarse step behind,
+      // found by bisection (BISECT reads of the shape, each halving the
+      // interval), and the march comes on fine from there.  The first cut
+      // backed up the whole step and re-marched it fine, 8 to 17 samples
+      // with their light steps per contact, so a ray grazing a broken
+      // deck spent its budget on the wisps near the eye and never reached
+      // the clouds at the horizon.
+      float lo = max(t - coarse, start);
+      float hi = t;
+      for (int b = 0; b < BISECT; b++) {
+        float mid = 0.5 * (lo + hi);
+        if (extinction(uEye + dir * mid, false, conv, shape) > 0.0) {
+          hi = mid;
+        } else {
+          lo = mid;
+        }
+      }
+      t = lo;
+      fineUntil = hi;
+      isFine = true;
       misses = 0;
       continue;
     }
     if (ext <= 0.0) {
-      if (isFine && ++misses > FINE_MISSES) {
-        ds = coarse;
+      // Clear fine steps count only past the contact sample, and only
+      // where the shape itself is clear: the detail noise erodes the
+      // shape's outskirts, so the first fine steps into a cloud are
+      // clear, and a march that went coarse on those leapt over the
+      // cloud's body behind them (the far clouds along a grazing ray
+      // went missing).
+      if (isFine && t >= fineUntil && shape <= 0.0 && ++misses > FINE_MISSES) {
+        isFine = false;
       }
     } else {
       misses = 0;
@@ -1020,6 +1239,6 @@ void main() {
   float coverage = (1.0 - T) * uOpacity;
   float dist = alphaSum > 0.0 ? distSum / alphaSum : 0.5 * (start + end);
   outCloud = vec4(rgb * uOpacity, 1.0 - coverage);
-  outData = vec4(dist * coverage * DIST_SCALE, shadow * uOpacity, dist * DIST_SCALE, 1.0);
+  outData = vec4(dist * coverage * DIST_SCALE, shadow * uOpacity, dist * DIST_SCALE, endKm);
 }
 `
