@@ -564,8 +564,19 @@ const float NIGHT_SKY_DEPTH = 0.9999499;
 // before #186, with nothing of the night sky's left live through the
 // scattering's loops.
 #if NIGHT_SKY
+// A body's depth is 1 − n/d (window depth, n the near plane): from the
+// ground (n = 100 m) the Moon's is 1 − 2.8e-7, past the galaxy's pinned
+// 0.99995, so the night sky's light was added over it and over every body
+// past ~4,000 km (in totality, the zodiacal light's core across the Moon's
+// dark disc: Sun.md).  Nothing but a body writes depth, so a body is any
+// depth under the larger of the pin and a body's at 10¹³ m (1 in float32
+// from the ground: every depth written).
+float nightSkyDepth() {
+  return max(NIGHT_SKY_DEPTH, 1.0 - uNear / 1.0e13);
+}
+
 vec3 nightBeyond(float depth) {
-  if (uHdr < 0.5 || depth < NIGHT_SKY_DEPTH) return vec3(0.0);
+  if (uHdr < 0.5 || depth < nightSkyDepth()) return vec3(0.0);
   vec3 light = zodiacalLight();
   if (uGalaxyScale > 0.0) light += texture2D(uGalaxy, vUv).rgb * uGalaxyScale;
   return light * uExposureRelative;

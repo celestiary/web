@@ -42,6 +42,7 @@ import ZodiacalLight from './scene/ZodiacalLight.js'
 import {AsyncReadback, MeterCadence, asyncReadbackSupported} from './scene/meterReadback.js'
 import {raysAllHitSphere} from './scene/viewCache.js'
 import {lunarHighlight} from './scene/lunarPhotometry.js'
+import {ECLIPSED_DISC, eclipsedSky} from './scene/sun/eclipse.js'
 import {perf} from './perf/perf.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
@@ -1415,7 +1416,14 @@ export default class ThreeUi {
       if (!(ndc.z < 1 && ndc.z > -1 && Math.abs(ndc.x) < 1 + marginX && Math.abs(ndc.y) < 1 + marginY)) {
         continue
       }
-      discs.push({diameterPx: 2 * angularRadius / pxRad, radianceAtEarthKeyed: SUN_DISC_RADIANCE * (o.discRadianceRelSun ?? 1)})
+      // What's seen of it past the bodies in front (an eclipse: Star.visibleFraction,
+      // sun/eclipse.js): the visible part's equivalent disc; none in totality.
+      const visible = o.visibleFraction ?? 1
+      if (!(visible > ECLIPSED_DISC)) {
+        continue
+      }
+      discs.push({diameterPx: 2 * angularRadius * Math.sqrt(visible) / pxRad,
+        radianceAtEarthKeyed: SUN_DISC_RADIANCE * (o.discRadianceRelSun ?? 1)})
     }
     return discs
   }
@@ -1583,7 +1591,11 @@ export default class ThreeUi {
 
     u.uGroundRadius.value = R
     u.uAtmosphereRadius.value = R + atmos.height.scalar
-    u.uSunIntensity.value = skyGain(atmos)
+    // In an eclipse the air is lit by what it sees of the Sun (sun/eclipse.js),
+    // and in totality by the light scattered in from outside the shadow
+    // (Sun.md, "Eclipses").
+    u.uSunIntensity.value = skyGain(atmos) * eclipsedSky(this.sceneManager?.objects?.sun, atmTarget,
+        camDist < R + atmos.height.scalar)
     // The sky in exposure units: its planet's sunlight at the renderer's
     // exposure (HDR.md).  The Sun is at the world group's origin.
     this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null

@@ -27,6 +27,8 @@ export const TOGGLES = [
     what: `Cesium Earth's second, unlit frame and its decode`},
   {key: 'galaxy', pass: 'galaxy', kind: 'hide', label: 'galaxy',
     what: 'the Milky Way: its march and its composite'},
+  {key: 'sun', pass: 'scene', kind: 'hide', label: 'Sun\'s layers',
+    what: `the Sun's corona, chromosphere, prominences and CMEs, and its glare (Sun.md); timed in the scene pass`},
   {key: 'cesium', pass: 'cesium', kind: 'skip', label: 'Cesium layer',
     what: `Cesium's layers: celestiary's own bodies draw instead`},
   {key: 'meter', pass: 'meter', kind: 'skip', label: 'meter readback',
