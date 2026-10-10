@@ -634,9 +634,17 @@ before the atmosphere pass, so:
 - its alpha is coverage, premultiplied-over (portal's alpha contract),
   though nothing composites `_sceneRT`'s alpha after it.
 
-The shell fades out below 30 km and is gone at 10 km (the far field;
-volumetric clouds up close are #169), so the low views (the terrain and the
-twilight ones) have no clouds in them.
+The shell fades out below 30 km and is gone at 10 km (the far field).
+Across that band the volumetric clouds take over (#169;
+[js/scene/atmos/clouds.md](js/scene/atmos/clouds.md)): a ray march into a
+target of its own, seeded by the same map, which the atmosphere pass
+composites in the air over whichever surface is there.  It reads the
+scene's depth after the composite, so Cesium's terrain (and from below 20
+km its own depth) ends its rays and takes its shadow as celestiary's sphere
+does; the `earth-clouds-volume` parity view (below) holds the two sides
+together at 12 km over the Gulf.  The low views that predate it (the
+terrain and the twilight ones) are on dates and places without cloud in
+the map, so they are unchanged.
 
 ### Tiles and lighting (ion 3D tiles)
 

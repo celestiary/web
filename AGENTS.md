@@ -29,6 +29,7 @@ tried and dropped.
 | Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
 | The HDR pipeline: the scene buffer, units, the one tone map, display-referred materials | [js/scene/HDR.md](js/scene/HDR.md); DESIGN.md [HDR pipeline](DESIGN.md#hdr-pipeline) |
 | The atmosphere pass | [js/scene/atmos/composition.md](js/scene/atmos/composition.md) (what it does and its knobs); [BRUNETON.md](js/scene/atmos/BRUNETON.md) (the LUT design) |
+| Earth's clouds: the far-field shell from the day's map, and the volumetric clouds up close | [js/scene/Planet.md, clouds](js/scene/Planet.md#clouds) (the map and the shell); [js/scene/atmos/clouds.md](js/scene/atmos/clouds.md) (the volumetric model, its sources, the seeding, the hand-off, cost, other bodies) |
 | Permalinks (`#path@lat,lng,alt;t=…;cq=…;fov=…`) | [design/URLs.md](design/URLs.md) (the whole URL, and the state tokens for the drawer and its apps); [js/permalink.md](js/permalink.md) (the view's encoding) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |

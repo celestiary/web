@@ -37,6 +37,8 @@ import {exposureAt, nightLightRadiance} from './exposure.js'
 import {lunarSurfaceShaderMod, newLunarSurfaceUniforms, updateLunarSurface} from './lunarSurface.js'
 import CloudMap from './clouds/CloudMap.js'
 import {newCloudShell} from './clouds/CloudShell.js'
+import CloudVolume from './clouds/CloudVolume.js'
+import {cloudParams} from './clouds/cloudPhysics.js'
 import {capitalize, named} from '../utils.js'
 
 
@@ -673,7 +675,12 @@ export default class Planet extends Object {
       groundPattern: this.props.texture_monthly,
       bundledPath: `${texDir}${this.name}_atmos.jpg`,
     })
-    return newCloudShell(this.props.radius.scalar, map, {ready: () => planet.surfaceReady()})
+    const radius = this.props.radius.scalar
+    // The volumetric clouds up close (CloudVolume.js), for a body with
+    // their parameters (cloudPhysics.js BODY_CLOUDS): the shell hands over
+    // to them, and ThreeUi draws them after the shell.
+    const volume = cloudParams(this.name) ? new CloudVolume(radius, map) : null
+    return newCloudShell(radius, map, {ready: () => planet.surfaceReady(), volume})
   }
 
 

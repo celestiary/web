@@ -206,6 +206,29 @@ function layerState(page, body) {
       // the two renders must be at the same gain, so wait until it's there.
       exposureSettled: Math.abs(Math.log(
           ui.renderer.toneMappingExposure / (ui._exposureGoal * (ui._meterGainGoal ?? 1)))) < 0.02,
+      // The volumetric clouds' textures (CloudVolume.js), built here at
+      // once rather than within the frame loop's budget (minutes at
+      // SwiftShader's frame rate), and the map's tiles: a cloudy low view
+      // draws them on both renders.
+      cloudsReady: cloudsReady(name),
+    }
+
+    /**
+     * @param {string} bodyName
+     * @returns {boolean} Whether the body's clouds, if it has any, are in
+     */
+    function cloudsReady(bodyName) {
+      const shell = ui.sceneManager?.objects?.[bodyName]?.clouds
+      if (!shell) {
+        return true
+      }
+      const map = shell.userData.map?.status
+      const mapDone = !map || map.kind === 'none' || (map.kind === 'bundled' ? map.loaded : map.tilesDone === map.tilesTotal)
+      const volume = shell.userData.volume
+      if (volume && !volume.ready) {
+        volume.finish()
+      }
+      return mapDone && (!volume || volume.ready)
     }
   }, body)
 }
@@ -234,7 +257,8 @@ async function waitSettled(page, view, requests, timeoutS) {
       throw new Error(`the ${view.body} Cesium layer failed to load (see the page's console.error above)`)
     }
     const ready = state.restored && state.target === view.body && state.status === 'ready' &&
-      state.shown && state.active && state.tilesLoaded && requests.pending() === 0 && state.exposureSettled
+      state.shown && state.active && state.tilesLoaded && requests.pending() === 0 && state.exposureSettled &&
+      state.cloudsReady
     if (Date.now() - lastNote > NOTE_EVERY_MS) {
       lastNote = Date.now()
       console.warn(`  ${view.id}: waiting; layer ${state.status}${state.tilesLoaded ? ', tiles loaded' : ''}` +

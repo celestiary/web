@@ -90,9 +90,19 @@ premultiplied-over colour 6 km above it, and writes no depth.  So the pass
 needs nothing of its own for clouds: a cloud's pixel reads the ground's
 depth behind it, and is hazed as that ground, `sky + (cloud over ground) ×
 T`, which from orbit (the shell's range: it's gone below 10 km) is the
-cloud's own haze to within 6 km of air.  Seen from below the deck, a cloud
-would want the march to it, not to the ground; that is #169's, with its
-volumetric clouds.
+cloud's own haze to within 6 km of air.
+
+The volumetric clouds up close (#169; [clouds.md](clouds.md)) are the
+pass's own: they render into a target of their own, and under `#if CLOUDS`
+(compiled in only while a volume was drawn this frame, ThreeUi
+`_setCloudComposite`) the pass composites them in the air: the segment
+marched to the cloud's mean distance (`marchSegment`, as for the ground),
+the cloud through that air, and the sky beyond the cloud through the
+cloud's transmittance, that far sky being the whole ray's in-scatter less
+the near segment's; the ground under the cloud takes its shadow.  So a
+cloud seen from below the deck has the air to it and the sky past it,
+which the shell can't ([clouds.md, in the air](clouds.md#in-the-air)).  With
+no volume drawn the pass is as it was.
 
 ## The ray's end
 

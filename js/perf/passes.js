@@ -20,6 +20,7 @@ export const PASSES = [
   {name: 'cesium.nightlights', what: `Earth's second Cesium frame (lights only, unlit) and its full-screen decode`},
   {name: 'cesium.ground', what: `each Cesium body's ground-sphere depth, for the atmosphere pass`},
   {name: 'clouds', what: `Earth's cloud shell`},
+  {name: 'clouds.volume', what: `Earth's volumetric clouds up close: the march into their half-size target`},
   {name: 'atmosphere', what: `the full-screen pass to the screen: sky, the scene through its transmittance, the one tone map`},
   {name: 'meter', what: `the exposure meter: the pass into 32x32 every few frames, read back through a pixel-pack ` +
     `buffer and taken a frame or more later (pboReads); a synchronous readPixels (readbacks) only with ?meter=sync, ` +
