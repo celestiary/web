@@ -501,6 +501,18 @@ departure from it, rebuilt a slice per frame.
 **Rule:** before a design that calls an ephemeris (or any series) N times,
 time one call in the browser and multiply.
 
+### A test that loops over a data file grows with the data
+
+`placesScope.test.js` searched every place of every catalogue by its own
+name: 260 places, 5 s.  When the Gazetteer's catalogues came (8,000 places,
+a Fuse search of tens of ms each) the same test took two minutes, most of
+the whole suite's run.  The check was right, and it passed at the full
+size; it was the wrong place for it.
+
+**Rule:** a test that walks a data file takes a sample (the first tier,
+every Nth), and a one-off script checks the lot when the data changes.
+Note the full result in the PR (here: all 6,808 names found in the top 20).
+
 ### An osculating element isn't a mean one
 
 The first sampled orbit lines used the osculating ellipse's period as

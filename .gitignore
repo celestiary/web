@@ -18,3 +18,4 @@ t
 
 # Output of `yarn parity --out parity-out` (images and report.json)
 parity-out
+tools/places/.cache

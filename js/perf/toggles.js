@@ -31,6 +31,8 @@ export const TOGGLES = [
     what: `Cesium's layers: celestiary's own bodies draw instead`},
   {key: 'meter', pass: 'meter', kind: 'skip', label: 'meter readback',
     what: `the exposure meter's pass and readPixels (the exposure stops adapting)`},
+  {key: 'labels', pass: 'labels', kind: 'skip', label: 'label declutter',
+    what: `the pass that hides labels that touch (they all draw, overlapping)`},
   {key: 'overlay', pass: 'overlay', kind: 'skip', label: 'overlay pass', what: 'labels, orbit lines, grids'},
 ]
 

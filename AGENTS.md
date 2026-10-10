@@ -63,6 +63,18 @@ tried and dropped.
   - Keep DOM work (image loads, element creation) out of synchronous
     paths that tests drive, such as `Scene.setTarget`. Defer it to the
     animation loop: `preAnimCb` on a scene node runs every frame.
+- **`mock.module` is process-global in bun**: `Celestiary.test.js` mocks
+  `./scene/SpriteSheet`, so in `bun test` (all files together) a test
+  that needs the real class gets the stub.  Import it by a name the
+  mock doesn't take (`SpriteSheet.test.js` imports `'./SpriteSheet.js?real'`
+  through a variable, which lint lets through), and in tests of code that
+  builds sheets (Places) assert on `userData` (`labelTargets`,
+  `labelRank`), not on the sheet's fields.
+- **`bun test` follows symlinks, and walks `docs/`.**  Don't link a
+  scratch directory into the worktree while running it (a link to a
+  shared scratchpad ran other sessions' files and took 84 s), and rebuild
+  `docs/` with `CESIUM_ION_TOKEN=` after `yarn precommit`, whose bundle
+  check rebuilds it with whatever token the session holds.
 - **Driving the app from a browser (headless Chromium on
   SwiftShader).**
   - Launch with `--use-angle=swiftshader --enable-unsafe-swiftshader`.
@@ -241,6 +253,9 @@ tried and dropped.
   - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
     Record Horizons results as offline test fixtures with the query that
     produced them; tests never hit the network.
+  - `asc-planetarynames-data.s3.us-west-2.amazonaws.com` (the IAU
+    Gazetteer's per-body downloads, for `tools/places/build.mjs`; the
+    site itself, `planetarynames.wr.usgs.gov`, is refused).
 
   If one is denied, ask the user to add it to the environment's allowed
   hosts, and carry on with what doesn't need it.

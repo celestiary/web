@@ -3,6 +3,8 @@ import {assertFinite} from '@pablo-mayrgundter/testing.js/testing.js'
 import SpriteSheet from './SpriteSheet.js'
 import {point} from './shapes.js'
 import {latLngAltToBodyFixed} from '../coords.js'
+import {placeRank} from './labelDeclutter.js'
+import {cellInView, groupByCell, horizonAngle} from './placeCells.js'
 import {labelTextColor, overlay} from '../shared.js'
 
 
@@ -16,9 +18,22 @@ import {labelTextColor, overlay} from '../shared.js'
 // view long before the user was close enough to read them.  Now nothing
 // reveals until the planet is ~3/4 of the screen height.
 //
-// T0 reveals at d ≈ 3.3 R, T1 at d ≈ 2.4 R, T2 at d ≈ 1.5 R.  T3
-// reserved for a future surface-detail level.
-const DEFAULT_TIER_FRAC = [0.75, 1.0, 1.5, 8.0]
+// T0 reveals at d ≈ 3.3 R, T1 at d ≈ 2.4 R, T2 at d ≈ 1.5 R, and T3 at
+// d ≈ 1.2 R (a fraction of 1.8): the small craters, near the ground.  (At
+// the default field of view a body in the camera's face is 2.0, so a
+// fraction above that is reached only by zooming the lens.)
+const DEFAULT_TIER_FRAC = [0.75, 1.0, 1.5, 1.8]
+
+// Labels to a sheet.  A sheet is a square canvas of its labels, uploaded as
+// one texture: a tier of 1,500 craters in one would be a texture of 4,000
+// px a side.  Chunks of this many keep each a megapixel or so.
+const SHEET_LABELS = 192
+
+// From this tier on a tier's sheets are built by cell of the sphere
+// (placeCells.js) as the camera comes to see them, not all at once: a body's
+// smallest craters are a thousand or more labels, a texture of 13 MP for the
+// Moon's, where from a height a tenth of the sphere is in view.
+const CELL_FROM_TIER = 2
 
 // Per-entry altitude (`a`, in m) is preserved as-is.  We don't add a fixed
 // surface lift any more: the surface-visibility SpriteSheet shader uses
@@ -60,6 +75,7 @@ export default class Places extends Group {
     this.tierGroups = []
     this._planetWorldPos = new Vector3()
     this._camWorldPos = new Vector3()
+    this._camLocal = new Vector3()
     this._installLODHook()
   }
 
@@ -145,39 +161,117 @@ export default class Places extends Group {
   }
 
 
-  /** Build the SpriteSheet for tier `t` from this.byTier[t]. */
+  /**
+   * Build the label sheets for tier `t` from this.byTier[t]: a group of
+   * chunks of SHEET_LABELS, each its own sheet (and its own pick targets).
+   * A tier from CELL_FROM_TIER builds none yet: it groups its places by cell
+   * of the sphere, and `_showCells` builds a cell's sheets when the camera
+   * first sees its ground.
+   */
   _buildTier(t) {
     const entries = this.byTier[t]
     if (!entries || entries.length === 0) {
       return
     }
-    const longest = entries.reduce((a, e) => (e.n.length > a.length ? e.n : a), '')
+    const tierGroup = new Group()
+    tierGroup.name = `${this.bodyName}.places.t${t}`
+    tierGroup.userData.tier = t
+    if (t >= CELL_FROM_TIER) {
+      tierGroup.userData.cells = groupByCell(entries)
+    } else {
+      this._addSheets(tierGroup, t, entries.map((e, rank) => ({e, rank})), entries.length)
+    }
+    tierGroup.visible = false // _updateLOD will turn on this same frame
+    this.tierGroups[t] = tierGroup
+    this.add(tierGroup)
+  }
+
+
+  /**
+   * @param {Group} group To add the sheets to
+   * @param {number} t The tier
+   * @param {Array<{e: object, rank: number}>} items Places, each with its
+   *   place in the tier
+   * @param {number} tierCount How many places the tier has
+   */
+  _addSheets(group, t, items, tierCount) {
+    for (let from = 0; from < items.length; from += SHEET_LABELS) {
+      const chunk = items.slice(from, from + SHEET_LABELS)
+      // Longest first, so the sheet's rows pack tightly (SpriteSheet.sideToPack).
+      chunk.sort((a, b) => b.e.n.length - a.e.n.length)
+      group.add(this._buildSheet(t, chunk, tierCount))
+    }
+  }
+
+
+  /**
+   * Show the cells of tier `t` the camera can see, building the sheets of
+   * one the first time it can, and hide the rest (kept: a label sheet is
+   * built once).
+   *
+   * @param {number} t A tier that groups by cell
+   * @param {object} camera
+   */
+  _showCells(t, camera) {
+    const group = this.tierGroups[t]
+    const cells = group.userData.cells
+    this._camLocal.setFromMatrixPosition(camera.matrixWorld)
+    this.worldToLocal(this._camLocal)
+    const dist = this._camLocal.length()
+    const dir = dist > 0 ? this._camLocal.multiplyScalar(1 / dist) : this._camLocal.set(0, 1, 0)
+    const cap = horizonAngle(dist, this.planetRadius)
+    const count = this.byTier[t].length
+    for (const cell of cells) {
+      const inView = cellInView(cell, dir, cap)
+      if (inView && !cell.group) {
+        cell.group = new Group()
+        cell.group.name = `${group.name}.cell`
+        this._addSheets(cell.group, t, cell.items, count)
+        group.add(cell.group)
+      }
+      if (cell.group) {
+        cell.group.visible = inView
+      }
+    }
+  }
+
+
+  /**
+   * @param {number} t The tier
+   * @param {Array<{e: object, rank: number}>} chunk The entries, and their
+   *   places in the tier, in the order they go on the sheet
+   * @param {number} tierCount How many places the tier has
+   * @returns {Group} The sheet's sprites and what a pick and the declutter need of it
+   */
+  _buildSheet(t, chunk, tierCount) {
     // surfaceVisibility=true: per-vertex back-hemisphere discard +
     // depthTest=false, so labels never get clipped by the curving sphere
     // at the limb (sprite pixels extending toward disc centre share the
     // anchor's depth but the surface there can be much closer to the
     // camera).  Non-RTE: positions are body-local (small magnitude),
     // three.js handles body-local → world via modelMatrix.
-    const sheet = new SpriteSheet(entries.length, longest, undefined, [0, 0], false, true)
-    for (const e of entries) {
+    const sheet = new SpriteSheet(chunk.length, chunk.map(({e}) => e.n), undefined, [0, 0], false, true)
+    for (const {e} of chunk) {
       const xyz = latLngAltToBodyFixed(e.lat, e.lng, e.a ?? 0, this.planetRadius)
       sheet.add(xyz.x, xyz.y, xyz.z, e.n, labelTextColor)
     }
     const points = overlay(sheet.compile())
     const g = new Group()
-    g.name = `${this.bodyName}.places.t${t}`
+    g.name = `${this.bodyName}.places.t${t}.sheet`
     g.userData.tier = t
     g.userData.sheet = sheet
     // A click or tap on a label targets its place, a double click goes to it
     // (labelPick.js, Scene.onClick); the far side's are not hit.
-    g.userData.labelTargets = entries.map((e) => ({
+    g.userData.labelTargets = chunk.map(({e}) => ({
       kind: 'place', body: this.bodyName, name: e.n, lat: e.lat, lng: e.lng, alt: e.a ?? undefined,
     }))
     g.userData.labelBody = this
+    // Where two touch, the larger feature's name wins (labelDeclutter.js);
+    // the catalogue lists a tier largest first.
+    g.userData.declutter = true
+    g.userData.labelRank = chunk.map(({rank}) => placeRank(t, rank, tierCount))
     g.add(points)
-    g.visible = false // _updateLOD will turn on this same frame
-    this.tierGroups[t] = g
-    this.add(g)
+    return g
   }
 
 
@@ -204,6 +298,9 @@ export default class Places extends Group {
         }
         if (this.tierGroups[t]) {
           this.tierGroups[t].visible = want
+          if (want && this.tierGroups[t].userData.cells) {
+            this._showCells(t, camera)
+          }
         }
       }
     }
@@ -214,21 +311,19 @@ export default class Places extends Group {
 
   /** Free GPU resources for every built tier. */
   _disposeTiers() {
-    for (let t = 0; t < this.tierGroups.length; t++) {
-      const g = this.tierGroups[t]
-      if (!g) {
+    for (const group of this.tierGroups) {
+      if (!group) {
         continue
       }
-      this.remove(g)
-      const points = g.children[0]
-      if (points) {
-        points.geometry.dispose()
-        const mat = points.material
-        if (mat.uniforms?.map?.value) {
-          mat.uniforms.map.value.dispose()
+      this.remove(group)
+      group.traverse((node) => {
+        if (node.isPoints) {
+          node.geometry.dispose()
+          node.material.uniforms?.map?.value?.dispose()
+          node.material.dispose()
+          node.userData.sheet?.canvas?.remove?.()
         }
-        mat.dispose()
-      }
+      })
     }
     this.tierGroups = []
   }

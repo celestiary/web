@@ -940,6 +940,73 @@ Failing to opt in means the user has no way to hide the new element
 short of reloading the page — and `V` (presentation mode) won't be
 truly bare.
 
+### Declutter
+
+Labels that would touch are thinned, so a name is either readable or
+deliberately hidden ([#207](https://github.com/celestiary/web/issues/207)):
+the bodies' names where Jupiter and its four Galileans are a few pixels apart
+at a telescope's field (`fov=0.91deg`, [#192](https://github.com/celestiary/web/issues/192)'s
+view: five names piled into one smudge), and the places' on a surface, where
+tiers 2 and 3 put hundreds in view.  **Labels engine** is the name for the
+one path every such label takes, on both sides of the Cesium swap:
+a catalogue (Planet's name, Places' tiers) builds a `SpriteSheet`, compiled
+to one `Points` on the overlay layer, which draws after the composite, so a
+Cesium layer changes nothing about it; its sheet carries `labelTargets` (what
+each label is of; [picking](#picking-labels)), and `labelRank` and
+`declutter` where it takes part in this.  What a Cesium layer hides is the
+surface group only ([CESIUM.md](CESIUM.md#what-changes-while-a-cesium-layer-is-active)).
+
+**The pass** (`js/scene/labelDeclutter.js`), once a frame in
+`ThreeUI.renderLoop`, after the scene is drawn (so the world matrices are this
+frame's) and before the overlay pass that draws the labels:
+
+1. `labelBoxes` projects the labels of the visible sheets that opt in to
+   their text boxes on screen, as a pick does ([picking](#picking-labels)):
+   the far side of a body's surface labels is left out (the shader would
+   discard them), and so is anything more than 120 px off the canvas.  The
+   labels the pass has hidden are in this list: they are judged again each
+   frame.
+2. Order, most important first: **the target's label** (`isTargetLabel`:
+   the targeted body's name, or the targeted place's, so it is never hidden),
+   then **rank** (`userData.labelRank` of the sheet, by label), then the
+   nearer the camera.  Rank is one scale for every kind: a body's is
+   1000 + log10(radius in m) (the larger body wins: Jupiter over Ganymede,
+   Callisto, Io, Europa; a body's name over any place's), a place's is
+   4 - its tier + its place in the tier, which the catalogue keeps largest
+   first (the larger feature wins).
+3. `declutter` goes down the order: a label is drawn if its box, grown by 3 px,
+   touches none already drawn, else hidden.  What is hidden hides nothing: with
+   A over B over C, where A and B touch and B and C touch, B is hidden and C
+   is drawn.  A grid of 96 px cells keeps it linear in the number of labels.
+4. `SpriteSheet.setShown` writes each decision into the sheet's `shown`
+   attribute (1 or 0 per label), uploaded only when it changed, and the sprites'
+   vertex shaders move a hidden label off the clip volume.  A hidden label
+   isn't picked either (`labelBoxes` leaves it out unless asked).
+
+Where labels don't touch nothing changes: every label's `shown` stays 1.  It
+is hide-only; an offset along a leader line, or hiding a moon's name until a
+hover, are the other ways [#207](https://github.com/celestiary/web/issues/207)
+names, and they'd need a label to draw away from its position, which none
+of the sprites do.  Star names, asterism names and the target star's label are
+left as they were (they don't take part, and don't hide anyone's): a catalogue
+of thousands of names whose priority is the star catalogue's business
+([Stars](js/scene/Stars.md)).  A sheet opts in by `userData.declutter = true`
+and `userData.labelRank`, so it is a few lines for another kind of label.
+
+**Cost.**  Per frame: a walk of the scene to the visible sheets (a few hundred
+nodes), one matrix per sheet, and a few multiplies per label (a surface label's
+far side is dropped before it is projected; a label well off the canvas isn't
+boxed).  Measured on its own (a bun micro-benchmark over the real functions,
+the fastest of 4,000 calls, on a machine shared with other jobs): 0.03 ms for
+the Moon's 435 tier 0-2 places with the 23 bodies' names and a 2,000-label sheet
+that doesn't take part, and 0.09 ms with all 1,948 places built, 294 of them on
+screen.  Tier 2 and 3 are built only for the ground in view (places.md), so a
+real frame is the first.  In the page, headless Chromium on SwiftShader under
+the same load, the `labels` row of `?perf=1` reads 0.07-0.4 ms, the spread
+being the machine's (`?perf=1&off=labels` shows the labels undecluttered, with
+the pass out).  It is a CPU cost only: the GPU draws the same sprites, a hidden
+one clipped in its vertex shader.
+
 ## Performance panel
 
 The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click it to cycle the view), for judging frame cost, e.g. on a real GPU.  `ThreeUi.togglePerfPanel()` builds it on the first press (`three/examples/jsm/libs/stats.module.js`, no new dependency) and afterwards only shows or hides it, so startup and the tests never touch the DOM for it.  It's listed in Settings under Info as "Toggle performance panel".
@@ -981,12 +1048,13 @@ The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click
   | `clouds` | Earth's cloud shell. |
   | `atmosphere` | The full-screen pass to the screen: sky, the scene through its transmittance, and the one tone map. |
   | `meter` | The exposure meter's render into 32x32 and its `readPixels` into a pixel-pack buffer (`pboReads`), every fourth frame, and the copy out of the buffer (`getBufferSubData`, a sync call) a frame or more later, once its fence has signalled; with `?meter=sync`, `?hdr=0` or no WebGL2 sync objects a `readPixels` into client memory (`readbacks`). |
+  | `labels` | The label declutter: which bodies' and places' names would touch, hidden for the overlay pass ([Declutter](#declutter)). |
   | `overlay` | Labels, orbit lines and grids over the tone-mapped frame. |
   | `other` | GL work in no pass above. |
 
   The dotted `cesium.*` names are children by name only: `cesium`'s own row doesn't include them.
 - **Cesium's shadow context.**  Cesium draws into a second, hidden WebGL context (the NetGL guest's shadow), and every draw runs there as well as in the replay ([#103](https://github.com/celestiary/web/issues/103)).  That context is reachable (`guest.core.shadow`), so it gets a timer of its own and its own counts, shown as `cesium.shadow.<body> (own GL context)`: the GPU time of Cesium's frames on it, which is not in the `total` (another context's clock; its work shares the GPU with the page's).  A readback there (Cesium's picking) shows in its `rb`.
-- **Toggles** (`toggles.js`): `?perf=1&off=atmosphere,clouds` or the checkboxes switch a pass off, to bisect cost by frame rate where there is no GPU timer, and the numbers restart.  Each leaves the rest drawing; the picture differs while one is off.  Three kinds: `skip` (the pass's own `if (perf.begin(...))` doesn't run it: `clouds`, `nightlights`, `meter`, `overlay`), `gate` (`atmosphere`: the pass is also the frame's one trip to the screen and its tone map, so it runs with the sky off, `uAtmEnabled` 0) and `hide` (`galaxy`: the object is hidden and put back as it was).  `cesium` is `skip` at the source: with it off no body is wanted, so celestiary draws its own Earth, Moon and Mars.  With the meter off the exposure stops adapting.
+- **Toggles** (`toggles.js`): `?perf=1&off=atmosphere,clouds` or the checkboxes switch a pass off, to bisect cost by frame rate where there is no GPU timer, and the numbers restart.  Each leaves the rest drawing; the picture differs while one is off.  Three kinds: `skip` (the pass's own `if (perf.begin(...))` doesn't run it: `clouds`, `nightlights`, `meter`, `labels`, `overlay`), `gate` (`atmosphere`: the pass is also the frame's one trip to the screen and its tone map, so it runs with the sky off, `uAtmEnabled` 0) and `hide` (`galaxy`: the object is hidden and put back as it was).  `cesium` is `skip` at the source: with it off no body is wanted, so celestiary draws its own Earth, Moon and Mars.  With the meter off the exposure stops adapting.
 - **Copy JSON** puts a snapshot on the clipboard (`snapshot.js`; where the clipboard is refused, a text box to copy from): the page's URL (the view's permalink), the viewport and drawing buffer sizes, `devicePixelRatio`, the GPU (`WEBGL_debug_renderer_info` where the browser shows it), the user agent, whether the GPU timers work, the target and active Cesium bodies, the toggles, every pass's GPU, CPU and counts, and the totals.  `window.perf.snapshot()` gives it in the console.
 - **Adding a pass** (a later change's own render pass, e.g. the night sky's): bracket it, `perf.begin('name')` before and `perf.end('name')` after, one line each in the loop; and add `{name, what}` to `PASSES` in `passes.js`, which orders the rows and writes the tooltip (a pass left out is still timed and listed, after the others).  A pass that can be switched off is `if (perf.begin('name')) {...; perf.end('name')}`, with an entry in `TOGGLES`.  Nesting is fine; name a child with a dot.  An exception between `begin` and `end` is covered: the frame's end closes whatever is open.
 - **What it can't see:** the compositor and the swap (the gap between the frame interval and the GPU total), a browser that rounds timer results, and work that runs between frames.  In the sandbox's headless Chromium (SwiftShader) the extension exists, so the code path runs, but its times are a CPU's emulation of a GPU: evidence of the plumbing, not of cost.
@@ -1174,7 +1242,10 @@ and the provider extension contract.
 | `js/scene/GalaxyBufferGeometry.js` | Packed vertex data for galaxy particles |
 | `js/scene/StarsBufferGeometry.js` | Packed vertex data for star catalog |
 | `js/scene/Picker.js` | Star picking by ray (`queryPoints`) and the surface point under the pointer (`pickSurfaceLatLng`) |
-| `js/scene/labelPick.js` | The label hit test for every label ([Picking labels](#picking-labels)) |
+| `js/scene/labelPick.js` | The label hit test for every label ([Picking labels](#picking-labels)); `labelBoxes` is also the declutter's projection |
+| `js/scene/placeCells.js` | A tier of surface labels grouped by cell of the sphere, and the horizon test that says which are in view ([places.md](js/scene/places.md#tier-scheme--lod)) |
+| `js/scene/labelDeclutter.js` | Which labels are drawn where two touch: ranks, the order, the greedy pass, `declutterLabels` once a frame ([Declutter](#declutter)) |
+| `tools/places/` | Builds `public/data/places/<body>.json` from the IAU Gazetteer: `build.mjs` (the script), `tiers.mjs` (rows to places and tiers), `readers.mjs` (ZIP, dBase), `curated/`, `promote.json` ([places.md](js/scene/places.md#the-gazetteer)) |
 | `js/scene/PickLabels.js` | Label picking and marker display |
 | `js/scene/atmos/Atmosphere.js` | Atmosphere mesh + fullscreen post-process pass |
 | `js/scene/hdr.js` | The HDR pipeline's tone map (PBR Neutral), its inverse, `sceneReferred` for display-referred materials |

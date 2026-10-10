@@ -8,6 +8,7 @@
 "mass": "8.94E25 g",
 "density": 3.57,
 "radius": "1.821E6 m",
+"has_locations": true,
 "texture_longitude": 180,
 "texture_longitude_source": "Pele (18.7°S, 255.3°W), Loki (13°N, 309°W) and Prometheus (1.5°S, 153°W) land on their USGS positions only with the map centred on 180° (js/scene/Planet.md)",
 "siderealRotationPeriod": 152928.0,
