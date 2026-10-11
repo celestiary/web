@@ -35,6 +35,7 @@ tried and dropped.
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
+| Gaia's stars and the point-population engine (tiles, budget, epoch, photometry, merge, rebuilding) | [js/scene/Gaia.md](js/scene/Gaia.md) |
 | The Milky Way: its structural model, its light in exposure units, the march, the meter's galaxy anchor | [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
@@ -258,6 +259,9 @@ tried and dropped.
     `js/scene/sun/sunspots.json`: `tools/sun/sunspots.mjs`).  SILSO's
     `www.sidc.be` answers too, but its data's licence (CC BY-NC) keeps it
     out of the repo ([Sun.md](js/scene/Sun.md#activity-by-date)).
+  - `gea.esac.esa.int` (the ESA Gaia archive's TAP service, for
+    `yarn gaia`; its band queries take seconds, a whole-sky async job
+    hours: [Gaia.md](js/scene/Gaia.md#the-query)).
   - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
     Record Horizons results as offline test fixtures with the query that
     produced them; tests never hit the network.

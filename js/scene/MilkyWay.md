@@ -475,8 +475,8 @@ better than 10-20%.
   brightest 6° south of the plane where the sky's is 2° north; the Local
   Arm's dust lane and young stars, as the in-plane map has them, need
   checking against Lallement et al.'s 3D dust.
-- Gaia's stars over this light (#98): `RESOLVED` refitted to what they
-  resolve, by the same measurement.
+- Gaia's stars over this light (#98, [Gaia.md](Gaia.md)): `RESOLVED` refitted to
+  what they resolve, by the same measurement.
 - The far side's arms are extrapolations of the near side's fits.
 - Done: other galaxies from the same model with their own parameters,
   SPARC's 175 ([Galaxies.md](Galaxies.md), #221).  The dynamics (#106)
