@@ -181,6 +181,10 @@ export default class ThreeUi {
     // and the tests never touch the DOM for it.  See togglePerfPanel.
     this._stats = null
     this._perfVisible = false
+    // Whether the canvas has drawn its first frame (initRenderer, renderLoop),
+    // and whether its owner shows it (holdCanvas).
+    this._firstFrameDrawn = false
+    this._canvasHeld = false
     // What the label declutter did last frame (_declutterLabels).
     this._labelSize = new Vector2()
     this.labelStats = null
@@ -231,6 +235,31 @@ export default class ThreeUi {
     rt.isXRRenderTarget = true
     rt.texture.colorSpace = LinearSRGBColorSpace
     return rt
+  }
+
+
+  /**
+   * Keep the canvas hidden past its first frame, until showCanvas: the
+   * first load shows the scene when it's in (Celestiary's reveal), not as
+   * it loads.  It still renders: the exposure meter adapts meanwhile.
+   */
+  holdCanvas() {
+    this._canvasHeld = true
+  }
+
+
+  /**
+   * Show the canvas.
+   *
+   * @param {number} [fadeMs] Over this long, from black; at once if 0
+   */
+  showCanvas(fadeMs = 0) {
+    const style = this.renderer.domElement?.style
+    if (!style) {
+      return
+    }
+    style.transition = fadeMs > 0 ? `opacity ${fadeMs}ms ease-in-out` : ''
+    style.opacity = ''
   }
 
 
@@ -289,6 +318,9 @@ export default class ThreeUi {
   /** @returns {WebGLRenderer} */
   initRenderer(container, backgroundColor) {
     const canvas = document.createElement('canvas')
+    // Hidden until its first frame is drawn (renderLoop): nothing between
+    // the page's first paint and the scene's (public/index.html).
+    canvas.style.opacity = '0'
     const ctx = canvas.getContext('webgl2')
     container.appendChild(canvas)
     const renderer = new WebGLRenderer({canvas: canvas, context: ctx, antialias: true})
@@ -499,6 +531,14 @@ export default class ThreeUi {
     }
     this.camera.layers.set(0)
     this.renderer.autoClear = autoClear
+    if (!this._firstFrameDrawn) {
+      // Shown with its first frame, presented with it (initRenderer), unless
+      // its owner shows it (holdCanvas).
+      this._firstFrameDrawn = true
+      if (!this._canvasHeld) {
+        this.showCanvas()
+      }
+    }
     perf.frameEnd()
     stats?.end()
   }
@@ -1275,6 +1315,21 @@ export default class ThreeUi {
     this._starsPoints ??= this.scene.getObjectByName('StarsPoints') ?? null
     const target = targets.obj
     return frameCanBeEmpty(this.hdr, Boolean(this._starsPoints), !target || target.surfaceReady?.() !== false)
+  }
+
+
+  /**
+   * Whether the scene is in: the star catalogue drawn and the target's
+   * surface loaded, as the meter judges a loading frame (_frameCanBeEmpty),
+   * in the LDR fallback too.  The first load's reveal waits for it
+   * (Celestiary.frame).
+   *
+   * @returns {boolean}
+   */
+  sceneReady() {
+    this._starsPoints ??= this.scene.getObjectByName('StarsPoints') ?? null
+    const target = targets.obj
+    return Boolean(this._starsPoints) && (!target || target.surfaceReady?.() !== false)
   }
 
 

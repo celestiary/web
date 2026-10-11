@@ -403,6 +403,22 @@ scale in a matrix chain.
 
 ## Testing
 
+### State applied after the first frame is a flash; decide it before building
+
+A link with orbits, labels and the HUD off drew them, then hid them
+(#238).  Its `s=` was applied by toggling from the defaults once the
+camera was placed and the stars had loaded, while the scene had been
+drawing the defaults all along; and the chrome was a React render, shown
+before the controller existed to hide it.  Each object already read the
+settings when it was built: the fix was to decide the settings before
+building anything (`Scene.initSettings` in the constructor), and to start
+the DOM chrome hidden in the page itself, not to apply the link sooner.
+The test that holds it steps the app's frames and checks, before each,
+that nothing the link hides is visible.  **Rule:** state that decides what
+is drawn is set before the first frame and read where things are built;
+"apply it once everything has loaded" is a visible flash whenever
+anything loads first.
+
 ### Integration tests catch constructor order bugs that unit tests miss
 
 The permalink restore feature had all unit tests passing (coords round-trips, encode/decode)

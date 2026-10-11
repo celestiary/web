@@ -197,6 +197,7 @@ describe('Scene settings tracking', () => {
     s.toggleColonization()
     expect(s.getSettings().x).toBe(false)
     expect(fired).toBe(1)
+    s.overlays.finish()
     const lines = s.getColonization()
     expect(lines.visible).toBe(false)
     expect(s.getColonization()).toBe(lines)
@@ -236,30 +237,48 @@ describe('Scene settings tracking', () => {
     expect(fired).toBe(1)
   })
 
-  it('toggleStarLabels is a no-op when stars is null and does not fire', () => {
+  it('toggleStarLabels before the stars exist sets l, and the stars take it when they come', () => {
+    // Settings are decided before the scene is built (initSettings), so a
+    // toggle needn't wait for what it shows.
     const s = makeScene()
     let fired = 0
     s.onSettingsChange = () => fired++
     s.toggleStarLabels()
-    expect(s.getSettings().l).toBe(false)
-    expect(fired).toBe(0)
+    expect(s.getSettings().l).toBe(true)
+    expect(fired).toBe(1)
+    expect(s.overlayShown('l')).toBe(true)
   })
 
-  it('toggleOrbits flips o, drives orbitsVisible, and walks attached planet orbits', () => {
+  it('toggleOrbits flips o, and the attached orbits fade out, hidden once faded', () => {
     const s = makeScene()
     s.objects['sun'] = fakeSunWithOrbit()
     s.toggleOrbits()
     expect(s.getSettings().o).toBe(false)
+    // Fading: still drawn, at falling opacity.
+    expect(s.objects['sun'].children[0].visible).toBe(true)
+    s.overlays.tick(0)
+    s.overlays.tick(200)
+    expect(s.fades.o.opacity).toBeGreaterThan(0)
+    expect(s.fades.o.opacity).toBeLessThan(1)
+    expect(s.objects['sun'].children[0].visible).toBe(true)
+    s.overlays.tick(1000)
+    expect(s.fades.o.opacity).toBe(0)
     expect(s.orbitsVisible).toBe(false)
     expect(s.objects['sun'].children[0].visible).toBe(false)
+    expect(s.overlays.moving).toBe(false)
   })
 
-  it('togglePlanetLabels flips p and walks attached planet label LODs', () => {
+  it('togglePlanetLabels flips p and fades the attached planet label LODs', () => {
     const s = makeScene()
     s.objects['sun'] = fakeSunWithLabelLOD()
     s.togglePlanetLabels()
     expect(s.getSettings().p).toBe(false)
+    s.overlays.finish()
     expect(s.objects['sun'].children[0].visible).toBe(false)
+    // On: drawn from the first frame of the fade in.
+    s.togglePlanetLabels()
+    expect(s.objects['sun'].children[0].visible).toBe(true)
+    expect(s.fades.p.opacity).toBe(0)
   })
 
   it('togglePlanetLabels also flips surface place groups (planet+place labels share the p group)', () => {
@@ -272,6 +291,7 @@ describe('Scene settings tracking', () => {
     s.objects['sun'] = fakeSunWithLabelLOD()
     s.objects['earth'] = {places: {visible: true}}
     s.togglePlanetLabels()
+    s.overlays.finish()
     expect(s.objects['earth'].places.visible).toBe(false)
     s.togglePlanetLabels()
     expect(s.objects['earth'].places.visible).toBe(true)
@@ -304,6 +324,7 @@ describe('Scene.applySettings', () => {
     expect(s.getSettings().l).toBe(true)
     expect(s.getSettings().o).toBe(false)
     expect(s.stars.labelLOD.visible).toBe(true)
+    s.overlays.finish()
     expect(s.objects['sun'].children[1].visible).toBe(false)
   })
 
@@ -318,15 +339,16 @@ describe('Scene.applySettings', () => {
     expect(fired).toBe(0)
   })
 
-  it('defers the entire pass when this.stars is null, then runs once it is set', () => {
+  it('applies at once, without waiting for the stars, which take their settings when they come', () => {
+    // It used to wait for the stars, drawing the default overlays meanwhile:
+    // a link's hidden orbits showed, then went.
     const s = makeScene()
     s.objects['sun'] = {children: [{name: 'orbit', visible: true}]}
     s.applySettings({...SETTINGS_DEFAULTS, o: false}) // stars not yet set
-    expect(s.objects['sun'].children[0].visible).toBe(true) // still visible — deferred
-    s.stars = fakeStars()
-    s._markStarsReady()
-    expect(s.objects['sun'].children[0].visible).toBe(false)
     expect(s.getSettings().o).toBe(false)
+    expect(s.getSettings().l).toBe(true)
+    s.overlays.finish()
+    expect(s.objects['sun'].children[0].visible).toBe(false)
   })
 
   it('dispatches custom appliers registered via registerSettingApplier', () => {
@@ -357,6 +379,7 @@ describe('Scene.applySettings', () => {
       v: false}
     s.registerSettingApplier('v', () => s.flipSetting('v'))
     s.applySettings(target)
+    s.overlays.finish()
     // L isn't in `target` but is added to getSettings by reading
     // Shared.targets.landed; pin it to the default (false) for this test.
     // A is also merged in by getSettings (default false for this Scene-
@@ -663,12 +686,12 @@ describe('Scene._setTempMarker', () => {
     expect(earth.children.includes(second)).toBe(true)
   })
 
-  it('marker visibility tracks the current "p" setting at creation time', () => {
+  it('marker visibility tracks the "p" group at creation time', () => {
     const {scene, earth} = makeWithEarth()
-    scene._settings.p = false
+    scene.initSettings({p: false})
     scene._setTempMarker(earth, 0, 0)
     expect(earth._tempMarker.visible).toBe(false)
-    scene._settings.p = true
+    scene.initSettings({p: true})
     scene._setTempMarker(earth, 0, 0)
     expect(earth._tempMarker.visible).toBe(true)
   })
@@ -702,6 +725,7 @@ describe('Scene._setTempMarker', () => {
     // make sure that doesn't crash by adding a minimal sun fake.
     scene.objects['sun'] = fakeSunWithLabelLOD()
     scene.togglePlanetLabels()
+    scene.overlays.finish()
     expect(earth._tempMarker.visible).toBe(false)
     scene.togglePlanetLabels()
     expect(earth._tempMarker.visible).toBe(true)
@@ -1304,5 +1328,60 @@ describe('Scene following', () => {
     s.syncFollow()
     s.syncFollow()
     expect(camera.platform.parent).toBe(sun.orbitPosition)
+  })
+})
+
+
+describe('Scene.initSettings', () => {
+  it('sets a page\'s settings before anything is built, announcing nothing', () => {
+    const s = makeScene()
+    const milkyWay = new Object3D()
+    milkyWay.name = 'MilkyWay'
+    s.ui.scene.add(milkyWay)
+    let fired = 0
+    s.onSettingsChange = () => fired++
+    s.initSettings({...SETTINGS_DEFAULTS, e: true, o: false, U: false})
+    expect(fired).toBe(0)
+    expect(s.getSettings().e).toBe(true)
+    expect(s.getSettings().o).toBe(false)
+    // At their end states, no fade.
+    expect(s.grids.equatorial.visible).toBe(true)
+    expect(s.fades.e.opacity).toBe(1)
+    expect(s.overlayShown('o')).toBe(false)
+    expect(milkyWay.visible).toBe(false)
+    expect(s.overlays.moving).toBe(false)
+  })
+
+  it('held, nothing is shown until revealed; what the settings hide is never shown', () => {
+    const s = makeScene()
+    s.objects['sun'] = {children: [{name: 'orbit', visible: true}, {name: 'label LOD', visible: true}]}
+    const shown = []
+    for (const key of Object.keys(s.fades)) {
+      const onShow = s.fades[key].onShow
+      s.fades[key].onShow = (v) => {
+        shown.push([key, v])
+        onShow(v)
+      }
+    }
+    s.initSettings({...SETTINGS_DEFAULTS, o: false, l: false}, {hold: true})
+    const [orbit, label] = s.objects['sun'].children
+    expect(orbit.visible).toBe(false)
+    expect(label.visible).toBe(false)
+    expect(s.getSetting('p')).toBe(true)
+    // A body built now (Scene.add) starts hidden too.
+    expect(s.overlayShown('p')).toBe(false)
+    s.revealOverlays(['o', 'p', 'l', 'a', 'e', 'c', 'g', 'G', 'x'])
+    s.overlays.tick(0)
+    s.overlays.tick(1000)
+    expect(label.visible).toBe(true)
+    expect(s.fades.p.opacity).toBe(1)
+    expect(orbit.visible).toBe(false)
+    const on = shown.filter(([, v]) => v).map(([k]) => k)
+    expect(on).not.toContain('o')
+    expect(on).not.toContain('l')
+    // The grids are off by default: not shown either.
+    expect(on).not.toContain('e')
+    expect(on).toContain('p')
+    expect(on).toContain('a')
   })
 })

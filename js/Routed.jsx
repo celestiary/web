@@ -28,6 +28,8 @@ export default function Routed() {
     }
   }, [navigate])
 
+  // No fallback text: the page's own loading text (public/index.html) shows
+  // until the scene, or the guide, is in.
   const App = lazy(() => import('./App'))
   const Guide = lazy(() => import('./guide/Guide'))
 
@@ -35,12 +37,12 @@ export default function Routed() {
     <Router base={BASE}>
       <Switch>
         <Route path='/guide' nest>
-          <Suspense fallback={<>Loading...</>}>
+          <Suspense fallback={null}>
             <Guide/>
           </Suspense>
         </Route>
         <Route path='/' nest>
-          <Suspense fallback={<>Loading...</>}>
+          <Suspense fallback={null}>
             <App/>
           </Suspense>
         </Route>

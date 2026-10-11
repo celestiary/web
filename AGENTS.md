@@ -148,6 +148,13 @@ tried and dropped.
   Earth turns to the new time only when the frame animates. To compare
   with and without clouds, move the shell off its layer
   (`clouds.layers.set(31)`); its `visible` is rewritten every frame.
+- **Overlays and the chrome come in with the first load's reveal**
+  (DESIGN.md [the first load](DESIGN.md#the-first-load)): held hidden
+  until the scene is in, then faded in over about 1.3 s.  A probe that
+  wants them drawn waits for `c._reveal.done`, and after a toggle calls
+  `c.scene.overlays.finish()` (or steps frames) rather than reading
+  `visible` mid-fade.  A probe that drives `renderLoop` by hand drives the
+  fades too: they step on the time it passes.
 - **A permalink restores its time and view only with a camera
   quaternion (`cq=`).** Without one the whole fragment is ignored, and
   the app runs at the current real time. To test a date, set it with

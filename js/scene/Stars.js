@@ -14,6 +14,7 @@ import TargetLabel, {targetLabelShown} from './TargetLabel.js'
 import {assertDefined} from '../assert.js'
 import {FAR_OBJ, STARS_RADIUS_METER, overlay} from '../shared.js'
 import {named} from '../utils.js'
+import {fadeMaterial} from './fade.js'
 import {rteCameraLocal} from './rte.js'
 import {newStarsMaterial} from './starsMaterial.js'
 
@@ -64,6 +65,8 @@ export default class Stars extends Object {
     // catalogue labels' own and no body labels.
     this.targetLabel = new TargetLabel(this)
     this.labelSettings = () => ({l: this.labelLOD.visible, p: false})
+    // Its opacity: the label groups' that show it (Scene's fades; fade.js).
+    this.targetLabelFade = {value: 1}
     this.preAnimCb = () => this.syncTargetLabel()
 
     if (catalog instanceof StarsCatalog) {
@@ -179,14 +182,22 @@ export default class Stars extends Object {
    * @returns {?object} The label (a Points), if there is one
    */
   syncTargetLabel() {
-    const {l, p} = this.labelSettings()
+    const {l, p, lOpacity = 1, pOpacity = 1} = this.labelSettings()
     const hipId = this.targetLabel.hipId
-    return this.targetLabel.update(targetLabelShown({
+    const inCatalogue = this.labelledHips.has(hipId)
+    const label = this.targetLabel.update(targetLabelShown({
       wanted: hipId !== null,
       starLabels: !!l,
       bodyLabels: !!p,
-      inCatalogue: this.labelledHips.has(hipId),
+      inCatalogue,
     }))
+    if (label) {
+      // As faded as the groups that show it: 'l' (unless the catalogue's
+      // sheet names the star) and 'p'.
+      fadeMaterial(label.material, this.targetLabelFade)
+      this.targetLabelFade.value = Math.max(l && !inCatalogue ? lOpacity : 0, p ? pOpacity : 0)
+    }
+    return label
   }
 
 

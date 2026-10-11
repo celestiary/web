@@ -26,6 +26,7 @@ import {ASTRO_UNIT_METER, DISPLAY_GAIN, overlay} from '../shared.js'
 import {slug} from '../targetPath.js'
 import SpriteSheet from './SpriteSheet.js'
 import {SUN_APPARENT_MAGNITUDE} from './exposure.js'
+import {fadeMaterial} from './fade.js'
 import {
   KPC_METER, MILKY_WAY, STORE_SCALE, SUN_G, bakeMapSteps, galaxyGlsl, galaxyNormUniforms, galaxySpecUniforms, normalize,
   prng, sceneToGalacticRotation,
@@ -285,6 +286,8 @@ export default class Galaxies extends Object3D {
     // loop when first wanted (_syncLabels), so nothing here touches the DOM.
     this.labelsVisible = false
     this.labelState = null
+    // The opacity the labels take (fade.js): the Scene's 'G' overlay group's.
+    this.labelFade = null
     this._labels = null
     this.preAnimCb = () => this._syncLabels()
   }
@@ -525,6 +528,12 @@ export default class Galaxies extends Object3D {
 
   // ---- Labels -------------------------------------------------------------
 
+  /** @returns {?object} The labels' Points, once built (Scene's 'G' overlay group) */
+  get labelPoints() {
+    return this._labels?.points ?? null
+  }
+
+
   /** @param {boolean} visible */
   setLabelsVisible(visible) {
     this.labelsVisible = visible
@@ -589,6 +598,11 @@ export default class Galaxies extends Object3D {
     const low = sheet.sprites.material.uniforms.uCamPosWorldLow.value
     points.onBeforeRender = (renderer, scene, camera) => rteCameraLocal(points, camera, high, low)
     points.visible = this.labelsVisible
+    // The 'G' overlay group's opacity (Scene; fade.js), set before the
+    // first draw: they're built as the group fades in.
+    if (this.labelFade) {
+      fadeMaterial(points.material, this.labelFade)
+    }
     this.add(points)
     this._labels = {sheet, points}
   }

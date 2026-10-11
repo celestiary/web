@@ -33,7 +33,21 @@ js/guide/Guide.jsx  Interactive tutorial/demo sections
 1. `index.tsx` mounts `<Root>` → `<Style>` → `<Routed>`
 2. `Routed` uses Wouter to lazy-load either `App` (simulator) or `Guide` (tutorial)
 3. `App` instantiates the `Celestiary` controller on mount, passing DOM refs for the canvas container and nav panel
-4. `Celestiary` wires together all subsystems and calls `load()` to fetch the initial target (defaults to `sun`)
+4. `Celestiary` decides the scene settings (the link's `s=`, else the defaults: `Scene.initSettings`), wires together all subsystems and calls `load()` to fetch the initial target (defaults to `sun`)
+
+### The first load
+
+A sequence, not everything at once ([#238](https://github.com/celestiary/web/issues/238)):
+
+1. **The page, in the user's theme, dimming to black.**  `public/index.html` declares `color-scheme: light dark` and paints `Canvas`/`CanvasText` first (inline, before any stylesheet or script), so the first paint is the user's own light or dark; two frames later `html.page-up` transitions it to black over 500 ms: a dim for a light theme, nearly nothing for a dark one, never a white flash or a hard cut.
+2. **"Loading…"**, styled in the page itself (so it's right before any CSS or code loads): fades in after 300 ms, so a fast load doesn't flash it.  React's `Suspense` fallbacks are empty.
+3. **The reveal** (`choreography.js`, run from the animation loop's clock, not timers) starts once the camera is placed (`_arrive`) and the scene is in (`ThreeUi.sceneReady`: the star catalogue drawn and the target's surface loaded; at most `READY_TIMEOUT_MS`, 4 s, after the camera is placed).  At `REVEAL_AT` ms from then:
+   - 0: the loading text fades out and **the physical scene** (the stars, the Milky Way, the Sun and planets) fades in from black over 600 ms.  The canvas is held at opacity 0 until then (`ThreeUi.holdCanvas`/`showCanvas`; without a hold, as in the guide's scenes, it shows with its first frame), but renders all along, so the exposure has adapted; the meter's own entrance, the Sun's flash as the stars come into its frame, plays as it shows.
+   - 250: the orbits; 450: the asterisms, the grids and the expansion lines; 650: the labels (bodies', places', stars', galaxies'); 900: the chrome.  Each fades over 400 ms, so all is in 1.3 s after the scene is.
+4. **Nothing a link hides is drawn**, at any frame: the link's settings are decided in the constructor, before anything is built (below), every overlay is held hidden until the reveal, and the reveal fades in only those whose settings are on.  The chrome starts hidden (`<html class="chrome-hidden">`) and the reveal shows it only if `v` is on.
+5. **The readout is quiet.**  What the page starts in (a link's tracking, following, `ev=`, `sm=`; the following a path's arrival turns on) isn't announced: `Celestiary._announce` tells the readout's listeners only outside `_quietly`, which wraps a link's restore and the first load's arrival.  "Tracking on" is for the user's `t`.
+
+**Why settings come first.**  The link's `s=` used to be applied in `_arrive`, after the stars had loaded (`applySettings` waited for them), by toggling: until then the scene drew with the defaults, so a link's hidden orbits, labels and asterisms showed and then went, and its `v` showed the chrome and then hid it.  Now `Scene.initSettings` sets them before `load()`; each overlay reads its group's state when it's built (`Scene.overlayShown`, `_joinOverlay`: a planet's orbit, name and places in `Scene.add`, the stars' labels, the asterisms, the galaxies' labels, the expansion lines, the temp marker), and the asterisms are built when the stars arrive if `a` is on.  `applySettings` no longer waits for the stars: a toggle sets its setting whether or not what it shows exists yet.
 
 ## Core Class Hierarchy
 
@@ -944,6 +958,49 @@ Failing to opt in means the user has no way to hide the new element
 short of reloading the page — and `V` (presentation mode) won't be
 truly bare.
 
+### Fades
+
+Every overlay fades on and off rather than switching, by its key, by
+Settings, by `V` and on the first load ([#238](https://github.com/celestiary/web/issues/238)).
+One helper, `js/scene/fade.js`:
+
+- **A `Fade` per group** (`Scene.fades`, by setting key, `OVERLAY_KEYS`:
+  `o` orbits and the solar wind, `p` bodies' and places' names and the
+  lat/lng marker, `l` star names, `a` asterisms, `e` `c` `g` the grids,
+  `G` galaxies' names, `x` the expansion lines).  Its opacity is
+  smoothstep-eased over `FADE_MS` (400 ms) and lives in one shared uniform,
+  `uFade`.
+- **The group's materials multiply by it.**  `fadeMaterial` wraps a
+  material's fragment `main` at compile time, as `sceneReferred` does and
+  after it: `gl_FragColor.a *= uFade` under an alpha blend (every overlay's:
+  normal transparent or additive), the whole colour otherwise.  So it
+  composes with whatever the material already does: the declutter's
+  `shown`, the galaxy labels' magnitude gate, the places' tiers, a line's
+  own `uOpacity`, the Cesium swap's layer fades.  The overlay pass draws
+  after the tone map, so the multiply is in display values.  `fadeObject`
+  wraps a subtree; the group's nodes are wrapped when they join it
+  (`Scene._joinOverlay`) and again on each step of a fade, so a node built
+  mid-fade (a tier of places) takes it.
+- **`visible` is the group's drawn state:** true from the start of a fade
+  in (at opacity 0) to the end of a fade out, false otherwise, so a hidden
+  group isn't drawn at all (`Scene._showOverlay`, the Fade's `onShow`).
+- **Stepped once a frame** by a `FadeDriver` (`Scene.overlays`, ticked in
+  `Celestiary.frame` from the animation callback).  With no fade moving it
+  returns at its first line: a steady scene costs one multiply per overlay
+  fragment and nothing on the CPU.  A test or probe that wants the end
+  state calls `scene.overlays.finish()`.
+- **The target star's label** is in two groups (`l` and `p`,
+  TargetLabel.js): `Stars.syncTargetLabel` sets its own uniform each frame
+  from the groups that show it.
+- **The chrome (`v`) and the readouts** fade with CSS transitions of the
+  same length and a like easing (`index.css` `--fade-ms`, `--fade-ease`):
+  `html.chrome-hidden` takes the panels' opacity to 0, and
+  `Celestiary._setNav` takes them out of layout once faded out
+  (`display: none`, so they take no clicks or focus), and lays them out a
+  frame before fading them in.
+- **The Milky Way (`U`)** isn't an overlay: the sky's own light, it
+  switches.
+
 ### Declutter
 
 Labels that would touch are thinned, so a name is either readable or
@@ -1177,6 +1234,9 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/faceKeepingRoll.js` | `faceKeepingRoll(camera, point)`: the shortest turn that centres a world point, leaving the camera's roll; what tracking (`t`) calls |
 | `js/follow.js` | `rehangPlatform(platform, camera, anchor)`: hang the camera platform on a node, keeping the camera's world position and orientation; what following (`f`) does ([follow](#follow)) |
 | `js/navMode.js` | `formatNavMode(mode, on)`: "Tracking on", "Following off", for the readout |
+| `js/choreography.js` | The first load's reveal: `Choreography` (steps at times after a start, on the frame clock), `REVEAL_AT`, `READY_TIMEOUT_MS` ([the first load](#the-first-load)) |
+| `js/loading.js` | `hideLoading()`: fades out the page's loading text (`public/index.html` `#loading`) |
+| `js/scene/fade.js` | The overlays' fades: `Fade`, `FadeDriver`, `fadeMaterial`, `fadeObject`, `ease` ([fades](#fades)) |
 | `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment`; state token values (`parseTokenValue`, `formatTokenValue`) |
 | `js/targetPath.js` | The target's path in the hash: `targetPath`, `parseTargetPath`, `resolvePlace` (a body or a place), `slug` |
 | `js/store/appTokens.js` | The widgets drawer and its apps as state tokens (`apps`, `apps.<id>`; [design/URLs.md](design/URLs.md)) |

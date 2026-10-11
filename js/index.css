@@ -1,3 +1,13 @@
+:root {
+  /* The page's typeface: Inter (public/index.html loads it), else the
+     system's sans.  MUI's theme takes the same stack (Style.jsx). */
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* The fades of the chrome and the readouts: the scene's overlays' length
+     (js/scene/fade.js FADE_MS) and a like easing, so they read as one. */
+  --fade-ms: 400ms;
+  --fade-ease: ease-in-out;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -5,8 +15,27 @@ body {
   max-height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
-  font-family: arial, sans;
-  color: white;
+  font-family: var(--font-ui);
+  /* No colours here: the page opens in the user's theme and dims to black,
+     white text (public/index.html, page-up). */
+}
+
+/* The HTML chrome ('v': DESIGN.md "Overlays & visibility groups") fades in
+   and out.  <html class="chrome-hidden"> fades it out; it starts so
+   (public/index.html), and the load's reveal takes the class off, unless the
+   link has 'v' off.  Once faded out, Celestiary._setNav takes the panels out
+   of layout. */
+#nav-id, #top-right, #widgets-drawer, #widgets-dock, #cesium-credits {
+  transition: opacity var(--fade-ms) var(--fade-ease);
+}
+
+html.chrome-hidden #nav-id,
+html.chrome-hidden #top-right,
+html.chrome-hidden #widgets-drawer,
+html.chrome-hidden #widgets-dock,
+html.chrome-hidden #cesium-credits {
+  opacity: 0;
+  pointer-events: none;
 }
 
 a, .link {
@@ -41,7 +70,7 @@ button {
   border: none;
   padding: 0!important;
   /*optional*/
-  font-family: arial, sans-serif;
+  font-family: inherit;
   /*input has OS specific font-family*/
   color: #069;
   text-decoration: underline;
@@ -257,7 +286,8 @@ button {
   font-size: 1.1em;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 400ms ease;
+  /* As the chrome's fade (--fade-ms). */
+  transition: opacity var(--fade-ms) var(--fade-ease);
 }
 
 #ev-id.shown {

@@ -16,6 +16,7 @@ import SpriteSheet from './SpriteSheet.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
 import StellarFrame from './StellarFrame.js'
+import {Fade, FadeDriver, fadeObject} from './fade.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {faceKeepingRoll} from '../faceKeepingRoll.js'
@@ -50,6 +51,16 @@ export function formatLatLng(lat, lng) {
 
 
 const STEP_BACK = 10
+
+
+/**
+ * The settings that are scene overlays, each faded in and out as a group
+ * (scene/fade.js; DESIGN.md "Overlays & visibility groups"): orbits, planet
+ * and place labels, star labels, asterisms, the three grids, galaxy labels,
+ * the human expansion lines.  The Milky Way (`U`) is the sky's own light,
+ * not an overlay, and `C` draws nothing yet.
+ */
+export const OVERLAY_KEYS = Object.freeze(['o', 'p', 'l', 'a', 'e', 'c', 'g', 'G', 'x'])
 
 
 /** */
@@ -128,6 +139,21 @@ export default class Scene {
       C: false, // globular-cluster labels: none yet (#228)
       x: true, // human expansion lines, once computed
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
+    }
+    // Each overlay's fade (OVERLAY_KEYS), stepped once a frame by the
+    // driver (Celestiary.frame): toggles fade rather than switch, and a
+    // group is drawn only while it is shown (fade.js).
+    this.overlays = new FadeDriver()
+    this.fades = {}
+    for (const key of OVERLAY_KEYS) {
+      this.fades[key] = this.overlays.add(new Fade({
+        on: this._settings[key],
+        onShow: (shown) => this._showOverlay(key, shown),
+        nodes: () => this._overlayNodes(key),
+      }))
+    }
+    for (const key of ['e', 'c', 'g']) {
+      this._joinOverlay(key, this._overlayNodes(key)[0])
     }
     // Custom appliers for settings keys that the Scene doesn't own directly
     // (Celestiary registers 'v' here).  applySettings dispatches to these
@@ -216,26 +242,177 @@ export default class Scene {
 
 
   /**
-   * Drive each settings toggle to match the requested state, idempotently.
-   * Called at startup to reify either defaults or a permalink override; any
-   * key whose target value already matches the current value is a no-op.
+   * Set the settings a page opens with (a link's `s=`, or the defaults),
+   * before anything is built: each overlay, the Milky Way and the stars'
+   * asterisms are built shown or hidden as these say (overlayShown), so
+   * what they hide is never drawn, not drawn and then turned off.  Nothing
+   * is announced (onSettingsChange): this is the state the page starts in.
+   *
+   * @param {object} settings flat {key: bool} map (permalink.js SETTINGS_DEFAULTS)
+   * @param {object} [opts]
+   * @param {boolean} [opts.hold] Hold every overlay hidden, whatever its
+   *   setting, until revealOverlays fades it in (the first load's
+   *   choreography, Celestiary)
+   */
+  initSettings(settings, {hold = false} = {}) {
+    for (const key of Object.keys(this._settings)) {
+      if (typeof settings[key] === 'boolean') {
+        this._settings[key] = settings[key]
+      }
+    }
+    for (const key of OVERLAY_KEYS) {
+      this.fades[key].set(hold ? false : this._settings[key], {instant: true})
+    }
+    this.ui.scene.traverse((obj) => {
+      if (obj.name === 'MilkyWay') {
+        obj.visible = this._settings.U
+      }
+    })
+    if (this._settings.a) {
+      this._buildAsterisms()
+    }
+    // The expansion app's switch mirrors 'x'.
+    this.ui.useStore?.setState?.({isColonizationVisible: this._settings.x})
+  }
+
+
+  /**
+   * Fade overlays held by initSettings in, those whose settings are on.
+   *
+   * @param {Array<string>} keys Of OVERLAY_KEYS
+   */
+  revealOverlays(keys) {
+    for (const key of keys) {
+      this.fades[key]?.set(this._settings[key])
+    }
+  }
+
+
+  /**
+   * Whether an overlay group is drawn now: what a part of it built later
+   * (a body loaded, the asterisms) starts as.
+   *
+   * @param {string} key Of OVERLAY_KEYS
+   * @returns {boolean}
+   */
+  overlayShown(key) {
+    return this.fades[key]?.shown ?? Boolean(this._settings[key])
+  }
+
+
+  /**
+   * A node built into an overlay group: shown as the group is, and its
+   * materials take the group's opacity (fade.js fadeObject).
+   *
+   * @param {string} key Of OVERLAY_KEYS
+   * @param {?object} node
+   */
+  _joinOverlay(key, node) {
+    if (!node) {
+      return
+    }
+    node.visible = this.overlayShown(key)
+    fadeObject(node, this.fades[key].uniform)
+  }
+
+
+  /**
+   * @param {string} key Of OVERLAY_KEYS
+   * @returns {Array<?object>} The group's nodes now (some may be null:
+   *   not built yet)
+   */
+  _overlayNodes(key) {
+    switch (key) {
+      case 'o': {
+        // The solar wind's streamlines are a diagram of the same kind (sun/SolarWind.js).
+        return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind]
+      }
+      case 'p': {
+        // Bodies' names, and the places and lat/lng markers on them (the
+        // 'p' group: togglePlanetLabels).
+        const nodes = this._namedUnderSun('label LOD')
+        for (const obj of Object.values(this.objects)) {
+          nodes.push(obj?.places, obj?._tempMarker)
+        }
+        return nodes
+      }
+      case 'l': return [this.stars?.labelLOD]
+      case 'a': return [this.asterisms]
+      case 'e': return [this.grids?.equatorial]
+      case 'c': return [this.grids?.ecliptic]
+      case 'g': return [this.grids?.galactic]
+      case 'G': return [this.galaxies?.labelPoints]
+      case 'x': return [this.colonization]
+      default: return []
+    }
+  }
+
+
+  /**
+   * @param {string} name
+   * @returns {Array<object>} The nodes of that name under the Sun
+   */
+  _namedUnderSun(name) {
+    const nodes = []
+    if (this.objects['sun']) {
+      Utils.visitFilterProperty(this.objects['sun'], 'name', name, (node) => nodes.push(node))
+    }
+    return nodes
+  }
+
+
+  /**
+   * An overlay group starts or stops being drawn (Fade's onShow): when a
+   * fade in starts, and when a fade out ends.
+   *
+   * @param {string} key Of OVERLAY_KEYS
+   * @param {boolean} shown
+   */
+  _showOverlay(key, shown) {
+    if (key === 'G') {
+      // Built when first shown, and gated by magnitude (Galaxies.js).
+      this.galaxies?.setLabelsVisible(shown)
+      return
+    }
+    if (key === 'o') {
+      this.orbitsVisible = shown
+    }
+    for (const node of this._overlayNodes(key)) {
+      if (node) {
+        node.visible = shown
+      }
+    }
+  }
+
+
+  /**
+   * Turn an overlay on or off: it fades (fade.js), and the link hears of it.
+   *
+   * @param {string} key Of OVERLAY_KEYS
+   * @param {boolean} on
+   * @returns {boolean} Whether that changed it
+   */
+  _setOverlay(key, on) {
+    if (this._settings[key] === on) {
+      return false
+    }
+    this._settings[key] = on
+    this.fades[key].set(on)
+    this.onSettingsChange?.()
+    return true
+  }
+
+
+  /**
+   * Drive each settings toggle to match the requested state, idempotently:
+   * `V` (presentation mode), AR's enter and exit, a test.  Any key whose
+   * target value already matches the current value is a no-op.  Overlays
+   * fade.  (A page's first settings are initSettings', before the scene is
+   * built.)
    *
    * @param {object} requested flat {key: bool} map
    */
   applySettings(requested) {
-    // toggleStarLabels and toggleAsterisms guard on this.stars existing
-    // (the Stars instance, not the catalog).  On a permalink load the 0ms
-    // setTimeout in Celestiary.onDone can race the stars.json fetch — if
-    // earth.json wins, applySettings runs while this.stars is still null
-    // and the stars-dependent toggles silently no-op, leaving _settings.l
-    // and _settings.a stuck at their initial values.  Defer the whole
-    // apply pass until Stars is constructed; orbits / grids work either
-    // way, but doing them all at once keeps _settings coherent and gives
-    // a single permalink-update fire instead of two.
-    if (!this.stars) {
-      this.onStarsReady(() => this.applySettings(requested))
-      return
-    }
     const dispatch = {
       a: () => this.toggleAsterisms(),
       l: () => this.toggleStarLabels(),
@@ -334,6 +511,14 @@ export default class Scene {
     // e.g. moons orbit planets, so they have to be added to the
     // planet's orbital center.
     parentOrbitPosition.add(obj3d)
+    // Its overlays (its orbit, name, places; the Sun's wind) take their
+    // groups' state and fades.
+    Utils.visitFilterProperty(obj3d, 'name', 'orbit', (node) => this._joinOverlay('o', node))
+    Utils.visitFilterProperty(obj3d, 'name', 'label LOD', (node) => this._joinOverlay('p', node))
+    this._joinOverlay('p', this.objects[name]?.places)
+    if (name === 'sun') {
+      this._joinOverlay('o', this.objects['sun']?.sunLayers?.wind)
+    }
     return obj3d
   }
 
@@ -354,9 +539,17 @@ export default class Scene {
           this.stars.add(this.gaia)
         }
         // The toggles that decide whether the target star's name is drawn
-        // (TargetLabel.js), and a target set before the stars were here.
-        this.stars.labelSettings = () => this._settings
+        // (TargetLabel.js), as shown and with what opacity, and a target
+        // set before the stars were here.
+        this.stars.labelSettings = () => ({
+          l: this.fades.l.shown, p: this.fades.p.shown,
+          lOpacity: this.fades.l.opacity, pOpacity: this.fades.p.opacity,
+        })
+        this._joinOverlay('l', this.stars.labelLOD)
         this._labelTargetStar(Shared.targets.label)
+        if (this._settings.a) {
+          this._buildAsterisms()
+        }
         this._markStarsReady()
         return this.stars
       case 'star': return new Star(props, this.objects, this.ui)
@@ -1493,9 +1686,9 @@ export default class Scene {
     g.userData.isTempMarker = true
     g.userData.sheet = sheet
     g.add(points)
-    // Track 'p' overlay-group visibility so the global presentation toggle
-    // ('V') and the per-overlay toggle ('p') both pick up the marker.
-    g.visible = this.getSetting ? this.getSetting('p') : true
+    // In the 'p' overlay group, so the global presentation toggle ('V') and
+    // the per-overlay toggle ('p') both pick up the marker.
+    this._joinOverlay('p', g)
     bodyNode.add(g)
     bodyNode._tempMarker = g
   }
@@ -1524,40 +1717,38 @@ export default class Scene {
   }
 
 
-  /** */
+  /** Show or hide the asterisms ('a'), built the first time they're on. */
   toggleAsterisms() {
-    if (this.asterisms === null && this.stars !== null) {
-      // Defer the actual Asterisms construction until the stars catalog
-      // has loaded.  Without this, on permalink loads (which use a 0ms
-      // setTimeout in Celestiary.onDone) the asterism build runs against
-      // an empty starByHip map and silently produces zero line segments —
-      // so reload / permalink users would see no constellations even
-      // though the catalog itself was about to load fine.
-      // _asterismsPending guards against repeated toggle calls during the
-      // catalog-load window enqueueing duplicate callbacks (each would
-      // build its own Asterisms once ready).
-      if (this._asterismsPending) {
-        return
-      }
-      this._asterismsPending = true
-      this._flipSetting('a')
-      this.stars.onCatalogReady(() => {
-        const asterisms = new Asterisms(this.ui, this.stars, () => {
-          this.stars.add(asterisms)
-          this.asterisms = asterisms
-          this.asterisms.visible = this._settings.a
-          this._asterismsPending = false
-          const cbs = this._asterismsReadyCbs ?? []
-          this._asterismsReadyCbs = null
-          cbs.forEach((cb) => cb(asterisms))
-        })
-      })
+    const on = !this._settings.a
+    this._setOverlay('a', on)
+    if (on) {
+      this._buildAsterisms()
+    }
+  }
+
+
+  /**
+   * Build the asterisms, once the stars catalog has loaded: built against
+   * an empty starByHip they'd have no lines.  Once: _asterismsPending
+   * guards against a second build while the catalogue loads.  They join
+   * the 'a' group as it is when they're done.
+   */
+  _buildAsterisms() {
+    if (this.asterisms || this._asterismsPending || !this.stars) {
       return
     }
-    if (this.asterisms) {
-      this.asterisms.visible = !this.asterisms.visible
-      this._flipSetting('a')
-    }
+    this._asterismsPending = true
+    this.stars.onCatalogReady(() => {
+      const asterisms = new Asterisms(this.ui, this.stars, () => {
+        this.stars.add(asterisms)
+        this.asterisms = asterisms
+        this._joinOverlay('a', asterisms)
+        this._asterismsPending = false
+        const cbs = this._asterismsReadyCbs ?? []
+        this._asterismsReadyCbs = null
+        cbs.forEach((cb) => cb(asterisms))
+      })
+    })
   }
 
 
@@ -1572,7 +1763,7 @@ export default class Scene {
   getColonization() {
     if (this.colonization === null && this.stars !== null) {
       this.colonization = new ColonizationLines()
-      this.colonization.visible = this._settings.x
+      this._joinOverlay('x', this.colonization)
       this.stars.add(this.colonization)
     }
     return this.colonization
@@ -1591,10 +1782,7 @@ export default class Scene {
 
   /** Show or hide the human expansion lines ('x'). */
   toggleColonization() {
-    this._flipSetting('x')
-    if (this.colonization) {
-      this.colonization.visible = this._settings.x
-    }
+    this._setOverlay('x', !this._settings.x)
     this.ui.useStore?.setState?.({isColonizationVisible: this._settings.x})
   }
 
@@ -1616,79 +1804,48 @@ export default class Scene {
   }
 
 
-  /** */
+  /** Orbits, and the solar wind's streamlines with them ('o'). */
   toggleOrbits() {
-    Utils.visitSetProperty(this.objects['sun'], 'name', 'orbit', 'visible', this.orbitsVisible = !this.orbitsVisible)
-    // The solar wind's streamlines are a diagram of the same kind (sun/SolarWind.js).
-    const wind = this.objects['sun']?.sunLayers?.wind
-    if (wind) {
-      wind.visible = this.orbitsVisible
-    }
-    this._flipSetting('o')
+    this._setOverlay('o', !this._settings.o)
   }
 
 
   /**
    * Toggle planet/moon name labels AND surface place labels.  Both belong
    * to the 'p' overlay group: planet names live in their own LOD object
-   * named 'label LOD' (matched by visitToggleProperty); surface places
-   * (cities, craters, landing sites) live as a `places` property on the
-   * rotating planet Object3D, set in Planet.newPlanet.  Toggling them
-   * together gives the user one knob for "all planet-related labels"
-   * — and means the global 'V' presentation toggle hides them all
-   * together too via this same method.  See DESIGN.md "Overlays &
-   * visibility groups".
+   * named 'label LOD'; surface places (cities, craters, landing sites)
+   * live as a `places` property on the rotating planet Object3D, set in
+   * Planet.newPlanet, and a double click's lat/lng marker as
+   * `_tempMarker` (_overlayNodes).  One knob for "all planet-related
+   * labels", which the global 'V' presentation toggle uses too.  See
+   * DESIGN.md "Overlays & visibility groups".
    */
   togglePlanetLabels() {
-    Utils.visitToggleProperty(this.objects['sun'], 'name', 'label LOD', 'visible')
-    for (const name of Object.keys(this.objects)) {
-      const obj = this.objects[name]
-      if (obj && obj.places && typeof obj.places.visible === 'boolean') {
-        obj.places.visible = !obj.places.visible
-      }
-      // Dblclick-dropped lat/lng markers live in the same 'p' overlay group
-      // as the named places — flip them together so the user has one knob.
-      if (obj && obj._tempMarker && typeof obj._tempMarker.visible === 'boolean') {
-        obj._tempMarker.visible = !obj._tempMarker.visible
-      }
-    }
-    this._flipSetting('p')
+    this._setOverlay('p', !this._settings.p)
   }
 
 
-  /** */
+  /** Star names ('s', the `l` setting); the stars take it when they come. */
   toggleStarLabels() {
-    if (this.stars) {
-      this.stars.labelLOD.visible = !this.stars.labelLOD.visible
-      this._flipSetting('l')
-    }
+    this._setOverlay('l', !this._settings.l)
   }
 
 
   /** */
   toggleGridEquatorial() {
-    if (this.grids) {
-      this.grids.equatorial.visible = !this.grids.equatorial.visible
-      this._flipSetting('e')
-    }
+    this._setOverlay('e', !this._settings.e)
   }
 
 
   /** */
   toggleGridEcliptic() {
-    if (this.grids) {
-      this.grids.ecliptic.visible = !this.grids.ecliptic.visible
-      this._flipSetting('c')
-    }
+    this._setOverlay('c', !this._settings.c)
   }
 
 
   /** */
   toggleGridGalactic() {
-    if (this.grids) {
-      this.grids.galactic.visible = !this.grids.galactic.visible
-      this._flipSetting('g')
-    }
+    this._setOverlay('g', !this._settings.g)
   }
 
 
@@ -1718,8 +1875,7 @@ export default class Scene {
    * magnitude or is the target (Galaxies.md, "Labels").
    */
   toggleGalaxyLabels() {
-    this._flipSetting('G')
-    this.galaxies?.setLabelsVisible(this._settings.G)
+    this._setOverlay('G', !this._settings.G)
   }
 
 
@@ -1751,11 +1907,16 @@ export default class Scene {
     // (MilkyWay.md), in the catalogue's frame with the Sun 8.15 kpc from
     // the centre.  Lives in worldGroup so star-navigation rebases shift it
     // along with everything else, keeping the universe coherent.
-    this.stellarFrame.add(newMilkyWay())
+    const milkyWay = newMilkyWay()
+    milkyWay.visible = this._settings.U
+    this.stellarFrame.add(milkyWay)
     // SPARC's disc galaxies (Galaxies.md), in the catalogue's frame as the
     // stars are; their catalogue is fetched in a browser.
     this.galaxies = new Galaxies()
-    this.galaxies.setLabelsVisible(this._settings.G)
+    // Its labels are the 'G' overlay group: built when first shown, with
+    // the group's opacity.
+    this.galaxies.labelFade = this.fades.G.uniform
+    this.galaxies.setLabelsVisible(this.overlayShown('G'))
     // What gates a galaxy's label: the limit the stars are drawn to, and the target.
     this.galaxies.labelState = () => ({
       limit: this.ui.limitingMagnitude?.() ?? -Infinity,
