@@ -81,10 +81,13 @@ const float KERNEL_SIGMA_MIN_PX = 0.6;
 // saturated to its edge was a square.
 const float VISIBLE_VALUE = 0.004;
 const float WING_FLOOR = 0.01;
-// The share of a point's light the eye's PSF puts in the rods' pool
-// (exposure.js STAR_CORE_SHARE; a test keeps it equal): the pooled light,
-// which the limit is calibrated on, over the star's whole light.
-const float CORE_SHARE = 0.6579;
+// The observer (observer/instrument.js, through hdr.js absoluteUniforms):
+// the detector's pool round a point, radians (the eye's patch's side, 10′:
+// the dark-adapted eye's resolution of a point); and the PSF's share in
+// the pool, the pooled light, which the limit is calibrated on, over the
+// star's whole light.
+uniform float uEyePointRad;
+uniform float uCoreShare;
 // Every star's z is pulled this far inside the far plane (in NDC, after
 // clipToW1's divide; a fraction of w before it).  The camera's far plane
 // is the galaxy's scale and its near plane metres, so the projection's (f + n) / (f - n) is 1 in
@@ -119,8 +122,6 @@ uniform float uStarGain;
 uniform float uSunVisible;
 // Half-float's largest value, the scene buffer's.
 const float MAX_VALUE = 6.0e4;
-// The eye's resolution of a point, dark adapted: 10 arcmin, in radians.
-const float EYE_POINT_RAD = 10.0 / 60.0 * PI / 180.0;
 // The naked eye's field, INITIAL_FOV (45°): tan of its half.
 const float TAN_HALF_EYE_FOV = 0.41421356;
 const float RAD_TO_DEG = 57.2957795;
@@ -200,7 +201,7 @@ void main() {
   // field, a star at 0.91° was a Gaussian 40 px wide, nothing on screen.
   float magnification = max(TAN_HALF_EYE_FOV / tan(radians(uFovDegrees) * 0.5), 1.0);
   float pxRad = radians(uFovDegrees) / max(uViewportHeight, 1.);
-  float patchRad = max(pxRad, EYE_POINT_RAD / magnification);
+  float patchRad = max(pxRad, uEyePointRad / magnification);
   float patchPx = max(floor(patchRad / pxRad + 0.5), 1.0);
   float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / (patchRad * patchRad)
       * uExposureRelative * uStarGain;
@@ -223,7 +224,7 @@ void main() {
   // the field's magnification) times the eye's PSF at each pixel's angle
   // from the star, in the eye's degrees (stars.frag).
   vDegPerPx = pxRad * magnification * RAD_TO_DEG;
-  vWingScale = isSun ? 0.0 : value * patchRad * patchRad * magnification * magnification / CORE_SHARE;
+  vWingScale = isSun ? 0.0 : value * patchRad * patchRad * magnification * magnification / uCoreShare;
   float wingRadiusPx = wingRadiusDeg(vWingScale, WING_FLOOR) / vDegPerPx;
 
   // The core: the pooled light, L × patch², over a Gaussian of width

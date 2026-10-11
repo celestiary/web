@@ -780,6 +780,80 @@ meter (it eases toward its goal and reads as frame-to-frame change),
 and know that a sharper edge under motion reads as more change than a
 blurred one: a moving silhouette's |ΔL| is not noise.
 
+### A law that looks physical isn't: replace it with the published function
+
+The star sprites' bloom (σ up 0.75 px per decade of light over white) and
+glare cap (the saturated core at most two patches) read as physics in
+the doc, with sensors and retinas cited, and produced the look the user
+flagged: at `sm=+2` every star to magnitude 5 a saturated disc and every
+star over magnitude 1 the same 16 px disc (#235).  A point's image is the
+instrument's point spread function; the eye's is published (CIE 135/1999,
+146/2002) with its wings' shape, and with it the white core follows the
+light as a cube root and the halo as θ^-3 then θ^-2, no cap, no law to
+tune.  **Rule:** when a rendering's size or brightness law has a tunable
+exponent or cap of its own, look for the measured function it stands in
+for and draw that; if there is none, say so in the doc rather than
+describing the stand-in as physics.
+
+### A pass that hangs under a LOD is culled with it
+
+The Sun's glare pass, a full-screen veil that decides its own reach, was
+added under the disc's LOD level, whose far level (a thousand radii) took
+it away beyond 4.65 AU: from the outer planets the Sun, magnitude −19,
+veiled nothing.  Nothing in the pass's own gating said so; it showed only
+in a view from Pluto with the Sun 60° off the axis.  **Rule:** a screen-
+space pass (a veil, a glow, a flare) goes beside the body's LOD, with its
+own gate; and when gating a pass by what it draws, test it from where the
+body is small, not only from where it fills the frame.
+
+### A point's own pixel is a square, half-open, with a tolerance
+
+Giving the one-pixel star sprite a quad (for its wing) meant choosing
+which of the quad's fragments is the star's own pixel.  `r < 0.5` from
+the centre missed a star at a pixel's corner (0.71 px away).  A square
+`|dx| < 0.5, |dy| < 0.5` missed stars near a pixel's edge: the rasterizer
+snaps a point's centre to its subpixel grid (SwiftShader's is 1/16 px),
+so a star 0.01 px from the edge sits exactly half a pixel from two
+centres, and `gl_PointCoord` over a 3 px quad is in thirds, so those two
+read −0.5000001 and 0.4999999; 11% of the magnitude 6 stars and 1 in 9 of
+magnitude 5 had no core.  A half-open window offset by 1e-3
+(`(-0.501, 0.499)`) holds exactly one of a row of samples a pixel apart
+however the rounding falls.  **Rule:** a test that must pick exactly one
+of a set of evenly spaced fragments is a half-open interval with a
+tolerance smaller than the spacing and larger than the arithmetic's
+error; and measure it with a probe over hundreds of stars (the step over
+the background per star), which finds the 1-in-9 that a centred test
+star never shows.
+
+### Point-sampling a steep kernel moves the light with the sub-pixel offset
+
+The wing's 0.045° lobe is 2.7′ wide, a pixel 2.5-9′: sampled at pixel
+centres, a star's summed light moved 5-10% with its position on the
+300 px viewport and its first ring's brightness with it, where the
+Gaussian core (σ ≥ 0.6 px) is conserved to 0.2% by point samples.  A
+2×2 mean over the pixel within 3 px of the star brought the sum to 0.3-
+1.3%.  **Rule:** a kernel whose scale is under a pixel is integrated
+over the pixel, not sampled at its centre; a Gaussian wider than 0.6 px
+needs no integration (Poisson's summation: the error is 2·e^(−2π²σ²)).
+Measure the sum against the offset in eighths of a pixel before and
+after.
+
+### A probe view holds its pose, and knows what else is drawn
+
+Two probe runs read nonsense before they read the stars: a permalink's
+arrival tween turned the camera toward the Sun seconds after the probe
+had looked at Vega (the Sun's disc, 40,000 in the buffer, took the
+meter to its floor), and from 4.7 AU over the Sun's pole, looking at
+Sirius 50° from the Sun, the Sun's glare pass (drawn from any distance
+now) veiled the frame 3,000 times over white at the dark gain, which
+read as every star a 60 px disc.  **Rule:** a probe that sets a view
+re-applies it whenever the camera's quaternion drifts, waits out
+`targets.tween`, and records the pose with its numbers; and before
+measuring one thing, hide or disable the passes that aren't it (the
+glare: `sunLayers.enabled.glare`, since `_glareView` resets `visible`
+each frame), and read the whole frame's sum first, which tells a blown
+frame from a star field in one number.
+
 ### Screenshots communicate visual bugs better than words
 
 "A grid of large blooms on the ocean texture" and "distinct rings floating up in space" were

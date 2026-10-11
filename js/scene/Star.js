@@ -211,17 +211,24 @@ export default class Star extends Object {
 
     const surfaceGroup = new Group
     surfaceGroup.add(this.newSurface(props))
-    // Its light off the disc (sun/SunLayers.js, Sun.md): the eye's glare
-    // for every star, and the Sun's chromosphere, prominences, corona and
-    // CMEs.  The glare replaced the limb glow shell (newAtmosphere), a
-    // ring of the disc's own radiance to 1.07 radii that no eye or camera
-    // sees, which would have shown past the Moon's limb in totality.
+    // Its light off the disc (sun/SunLayers.js, Sun.md): the Sun's
+    // chromosphere, prominences, corona and CMEs, with the disc.
     surfaceGroup.add(this.sunLayers.group())
     lod.addLevel(surfaceGroup, props.radius.scalar)
 
     lod.addLevel(Shared.FAR_OBJ, props.radius.scalar * 1e3)
 
     this.add(lod)
+    // The eye's glare round it (Sun.md, "Glare"), the veil the CIE's
+    // equation gives for its light at the eye, for every star: a
+    // full-screen pass that decides its own reach, so beside the disc's
+    // LOD, not under it: the LOD's far level (a thousand radii, 4.65 AU
+    // for the Sun) culled it from the outer planets, where the Sun,
+    // magnitude −19 from Pluto, still veils the whole sky.  It replaced
+    // the limb glow shell (newAtmosphere), a ring of the disc's own
+    // radiance to 1.07 radii that no eye or camera sees, which would have
+    // shown past the Moon's limb in totality.
+    this.add(this.sunLayers.glareGroup())
     // The solar wind, a diagram drawn from afar too (the orbits' toggle).
     if (this.sunLayers.wind) {
       this.add(this.sunLayers.wind)

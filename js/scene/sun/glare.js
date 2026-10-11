@@ -29,7 +29,8 @@ export const GLARE_MAX_DEG = 100
 export function glareFunction(thetaDeg) {
   const t = Math.min(Math.max(thetaDeg, GLARE_MIN_DEG), GLARE_MAX_DEG)
   const age = 1 + ((GLARE_AGE / 62.5) ** 4)
-  return (10 / (t ** 3)) + (((5 / (t * t)) + (0.1 * GLARE_PIGMENT / t)) * age) + (0.0025 * GLARE_PIGMENT)
+  return glareFieldWeight(thetaDeg) *
+    ((10 / (t ** 3)) + (((5 / (t * t)) + (0.1 * GLARE_PIGMENT / t)) * age) + (0.0025 * GLARE_PIGMENT))
 }
 
 
@@ -101,7 +102,8 @@ float glareFunction(float thetaDeg) {
   float t = clamp(thetaDeg, ${GLARE_MIN_DEG.toFixed(2)}, ${GLARE_MAX_DEG.toFixed(1)});
   float age = ${(1 + ((GLARE_AGE / 62.5) ** 4)).toFixed(6)};
   float field = 1.0 - smoothstep(${GLARE_FADE_DEG.toFixed(1)}, ${GLARE_MAX_DEG.toFixed(1)}, thetaDeg);
-  return field * (10.0 / (t * t * t) + (5.0 / (t * t) + ${(0.1 * GLARE_PIGMENT).toFixed(4)} / t) * age + ${(0.0025 * GLARE_PIGMENT).toFixed(6)});
+  float veil = 10.0 / (t * t * t) + (5.0 / (t * t) + ${(0.1 * GLARE_PIGMENT).toFixed(4)} / t) * age;
+  return field * (veil + ${(0.0025 * GLARE_PIGMENT).toFixed(6)});
 }
 `
 
@@ -177,7 +179,8 @@ export function eyePsfShare(thetaDeg, weight = () => 1) {
 export function eyePsfRadiusDeg(perSr) {
   let lo = 1e-4
   let hi = GLARE_MAX_DEG
-  if (eyePsf(hi) >= perSr) {
+  if (eyePsf(GLARE_FADE_DEG) >= perSr) {
+    // Over the value wherever the eye's field reaches.
     return hi
   }
   if (eyePsf(lo) < perSr) {
@@ -205,8 +208,8 @@ float eyePsf(float thetaDeg) {
   float l1 = 1.0 + a1 * a1;
   float l2 = 1.0 + a2 * a2;
   float optics = ${(1 - (0.08 * ((GLARE_AGE / 70) ** 4))).toFixed(6)} * (9.2e6 / (l1 * sqrt(l1)) + 1.5e5 / (l2 * sqrt(l2)));
-  float scatter = ${(1 + (1.6 * ((GLARE_AGE / 70) ** 4))).toFixed(6)} *
-      (400.0 / q + 3.0e-8 * t * t + ${GLARE_PIGMENT.toFixed(2)} * (1300.0 / (q * sqrt(q)) + 0.8 / sqrt(q)));
+  float scatter = ${(1 + (1.6 * ((GLARE_AGE / 70) ** 4))).toFixed(6)} * (400.0 / q + 3.0e-8 * t * t + ${
+  GLARE_PIGMENT.toFixed(2)} * (1300.0 / (q * sqrt(q)) + 0.8 / sqrt(q)));
   float field = 1.0 - smoothstep(${GLARE_FADE_DEG.toFixed(1)}, ${GLARE_MAX_DEG.toFixed(1)}, t);
   return field * (optics + scatter + ${(2.5e-3 * GLARE_PIGMENT).toFixed(6)});
 }

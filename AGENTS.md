@@ -107,6 +107,18 @@ tried and dropped.
     (a link with a high `ev=` starts at the dark gain) can bounce: a
     late reading of a frame whose lit pixels were clamped at 6e4 sends
     the goal up ~16× for several seconds.
+  - The HDR scene buffer reads back as floats: bind
+    `c.ui.renderer.properties.get(c.ui._sceneRT).__webglFramebuffer` and
+    `gl.readPixels(x, y, w, h, gl.RGBA, gl.FLOAT, new Float32Array(...))`.
+    It holds the frame before the atmosphere pass, pre-exposed, in
+    exposure units, and it survives the task (a texture), where the
+    canvas doesn't. A star's light is the sum over its pixels there.
+  - A permalink's arrival tween can turn the camera seconds after you
+    set a view: re-apply `lookAt` when the camera's quaternion drifts,
+    and record the pose with the numbers. The Sun's glare pass veils any
+    frame within 100° of the Sun from anywhere, and `_glareView` resets
+    its `visible` each frame: to measure the sprites alone set
+    `c.scene.objects.sun.sunLayers.enabled.glare = false`.
   - To see what one object adds to a frame, render with and without it
     (`material.visible = false`) and compare pixels at its projected
     spot, rather than reading absolute values off a starfield. Hide the

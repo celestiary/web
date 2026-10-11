@@ -4,6 +4,7 @@ import {
   BLACKBODY_LUT_SIZE,
   SUN_TEFF,
   blackbodyColor,
+  blackbodyLinearColor,
   blackbodyFromLut,
   blackbodyLuminance,
   blackbodyLut,
@@ -19,6 +20,7 @@ import {
   powerTwo,
   powerTwoMean,
   spectralTypeName,
+  srgbEncode,
   starTeff,
   stefanBoltzmannRatio,
   teffFromClass,
@@ -78,27 +80,56 @@ describe('the blackbody colour', () => {
   })
 
   it('is white near 6,500 K (sRGB\'s D65 white), warm for the Sun, red for M stars, blue for B stars', () => {
-    const near = blackbodyColor(6504)
-    for (const c of near) {
-      expect(c).toBeGreaterThan(0.95)
-      expect(c).toBeLessThan(1.06)
+    for (const color of [blackbodyLinearColor, blackbodyColor]) {
+      const near = color(6504)
+      for (const c of near) {
+        expect(c).toBeGreaterThan(0.95)
+        expect(c).toBeLessThan(1.06)
+      }
+      const [r, g, b] = color(SUN_TEFF)
+      expect(r).toBeGreaterThan(g)
+      expect(g).toBeGreaterThan(b)
     }
-    const [r, g, b] = blackbodyColor(SUN_TEFF)
-    expect(r).toBeGreaterThan(g)
-    expect(g).toBeGreaterThan(b)
-    const m = blackbodyColor(3000)
+    const m = blackbodyLinearColor(3000)
     expect(m[0] / m[2]).toBeGreaterThan(5)
-    const hot = blackbodyColor(20000)
+    const hot = blackbodyLinearColor(20000)
     expect(hot[2] / hot[0]).toBeGreaterThan(2)
   })
 
-  it('has a luminance of 1, and no negative channel', () => {
+  it('the linear colour has a luminance of 1, and no negative channel', () => {
     for (const t of [1000, 2000, 3000, 5772, 10000, 50000]) {
-      const [r, g, b] = blackbodyColor(t)
+      const [r, g, b] = blackbodyLinearColor(t)
       expect(Math.min(r, g, b)).toBeGreaterThanOrEqual(0)
       const y = (0.2126729 * r) + (0.7151522 * g) + (0.0721750 * b)
       // A clipped negative channel (the coolest stars' blue) lifts it a little.
       expect(Math.abs(y - 1)).toBeLessThan(t < 2000 ? 0.02 : 1e-3)
+    }
+  })
+
+  it('the drawn colour is the chromaticity in stored values at a luma of 1: the Sun (255, 241, 234), an M star a pale orange', () => {
+    // sRGB's transfer function, and its inverse.
+    expect(srgbEncode(0)).toBe(0)
+    expect(srgbEncode(1)).toBeCloseTo(1, 9)
+    expect(srgbEncode(0.2140)).toBeCloseTo(0.5, 2)
+    const bytes = (t) => {
+      const c = blackbodyColor(t)
+      const peak = Math.max(...c)
+      return c.map((v) => Math.round(255 * v / peak))
+    }
+    expect(bytes(SUN_TEFF)).toEqual([255, 241, 234])
+    expect(bytes(3000)).toEqual([255, 185, 110])
+    expect(bytes(9800)[0]).toBeGreaterThan(200)
+    for (const t of [1000, 3000, 5772, 10000, 50000]) {
+      const [r, g, b] = blackbodyColor(t)
+      expect(Math.min(r, g, b)).toBeGreaterThanOrEqual(0)
+      expect((0.2126 * r) + (0.7152 * g) + (0.0722 * b)).toBeCloseTo(1, 9)
+      // The stored colour is the linear one's, channel by channel, through
+      // the transfer function: the same hue order, less saturated.
+      const lin = blackbodyLinearColor(t)
+      const order = (c) => [0, 1, 2].sort((i, j) => c[j] - c[i]).join('')
+      expect(order([r, g, b])).toBe(order(lin))
+      const ratio = (c) => Math.min(...c) / Math.max(...c)
+      expect(ratio([r, g, b])).toBeGreaterThanOrEqual(ratio(lin) - 1e-9)
     }
   })
 
@@ -111,7 +142,9 @@ describe('the blackbody colour', () => {
       const [r, g, b, log2Y] = blackbodyFromLut(lut, t)
       const exact = blackbodyColor(t)
       for (const [k, c] of [r, g, b].entries()) {
-        expect(Math.abs(c - exact[k])).toBeLessThan(0.01 * Math.max(exact[k], 0.3))
+        // Under 2,500 K (no catalogue star) the clipped blue channel's
+        // kink, through the transfer function, interpolates to 2%.
+        expect(Math.abs(c - exact[k])).toBeLessThan((t < 2500 ? 0.025 : 0.01) * Math.max(exact[k], 0.3))
       }
       expect(Math.abs(((2 ** log2Y) / blackbodyLuminance(t)) - 1)).toBeLessThan(0.01)
     }

@@ -390,7 +390,7 @@ the exposure held at the dark-adapted gain (limit 6.48):
   points', the stars from 7.5 to 12.  The largest pixel differences (24 of
   255) were at the frame's edge, from bright stars just outside it whose
   tiles weren't selected; the field is now padded by a sprite's reach
-  (`EDGE_PAD_PX`, 48 px).
+  (`EDGE_PAD_PX`, 80 px: half the sprite quad's largest side).
 - **Progressive**: at load the 12 roots come first (brightest of the
   sky); at the dark gain the field's 36 tiles were in within a frame or
   two, 17,649 points loaded for 8,193 drawn.  Decoding took about 0.4 ms

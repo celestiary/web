@@ -249,67 +249,119 @@ whole Hipparcos catalogue (to magnitude 9-12) as white dots.  With the
 patch the two agree, and the sky's depth is set by the exposure, not the
 display.
 
-**The sprite's pixels carry the star's light**, `L × patch²`, over a
+**The sprite is the eye's image of a point** ([#235](https://github.com/celestiary/web/issues/235)):
+a pooled core, and the eye's own point spread function outside it.  The
+core is the patch's pixels carrying the pooled light, `L × patch²`, over a
 Gaussian kernel (`shaders/stars.frag`) a quarter of the patch wide (σ =
-patch/4: 1 px on a 1080 px screen, 2 px at 2160), whose sum, 2πσ², is
-0.39 patch², so the kernel's peak is 2.5 L (`STAR_PEAK_OVER_RADIANCE`):
-narrower than the patch, as a point's spread on a sensor or the retina is
-narrower than the eye's resolution element, which detects rather than
+patch/4: 1 px on a 1080 px screen, 2 px at 2160, never under 0.6 px),
+whose sum, 2πσ², is 0.39 patch², so the kernel's peak is 2.5 L
+(`STAR_PEAK_OVER_RADIANCE`): narrower than the patch, as a point's spread
+on the retina is narrower than the rods' pool, which detects rather than
 blurs; and the light stays above the tone map's toe (quadratic under
 0.08) instead of dying in it across a wide halo.  So a limit star peaks
-at 0.3 on a screen, 60 of 255, with its halo falling into the toe.  σ is
-never under 0.6 px, so the peak doesn't depend on where the star falls
-between pixel centres (the nearest centre, at most 0.7 px off, reads 0.5
-of it at worst, 0.85 typically).  On a viewport so coarse that the pixel
-is the patch (the 300 px test render: a 9′ pixel) a star under white is
-that one pixel at L, flat, wherever it falls, so the limit star reads
-`LIMIT_VALUE` exactly, and the screen's 2.5 L is the one difference
-between the two.  The second cut had σ = 0.4 × patch, whose sum is
-patch² and whose peak is L: "one law from the faintest star up", and
-exactly the calibration on the test viewport, but on the user's screen
-a magnitude fewer stars than the first cut (σ = sprite/4, the same
-quarter), whose peak was 2.5 L there and L × (0.4-1) on the test
-viewport, where its sub-pixel Gaussian straddled.  Past the value the
-peak shows as white, σ grows 0.75 px per decade of light (bloom): the
-peak passes white, and the radius where it does is a saturated core that
-grows with the log of the light, with the halo outside it, as a bright
-star looks to the eye and on a sensor (Sirius at the dark-adapted gain:
-a core of radius 4 px in an 18 px halo on the test viewport).  The quad is
-sized from the radius where the kernel falls under `VISIBLE_VALUE`
-(0.004, under 1 of 255), plus a pixel, so it is as large as the visible
-star and no larger (to 96 px), and an edge window in the fragment shader
-takes the kernel to zero inside it: a bright star is round at every
-exposure.  The first cut's quad grew 3 px per decade with σ a quarter of
-it, and at a high gain the Gaussian was over white out to the quad's
-edge, so the brightest stars, and the Sun from Pluto, drew as squares
-(the user's preview).  **The glare cap** (`STAR_GLARE_CORE_PATCHES`, 2):
-the saturated core's radius is at most two patches (20′, 8 px at 1080p),
-the peak held to what puts the kernel at white there, with the halo
-falling off from it and still widening with the log of the light; past
-the cap the light is lost, as it is to a saturated retina.  Without it
-the core grew without limit and the Sun from 52 AU, 1e9 over white at
-the dark gain, was a 120 px disc on the user's screen; it is now a 16 px
-core in a halo of about 50 px, Venus 16 px in 32, Sirius 16 px in 27, and
-from 5 AU the halo is 66 px: disc, to dazzling star, to star (from a
-light-year, magnitude −2.7, a star like Sirius; from 10 pc, its absolute
-4.8, a point just at white).  Rendered on the
-480×300 test viewport (a 1 px patch: a 2 px cap), labels and orbits off,
-at the dark gain: from 52 AU a saturated core of 2-3 px radius in a glow
-of 13 px at 30 of 255 and 16 px at 10; from 5 AU 2 px in 16 and 19; from
-1,000 AU 2-3 px in 10 and 12; from a light-year a 2×2 px core in 6-7 px; from 1 AU at a 5° field the
-mesh's 32 px disc and its glow ring cover the sprite's capped core.  **A resolved disc is no point**: the sprite's
+at 0.3 on a screen, 60 of 255, with its skirt falling into the toe.  On a
+viewport so coarse that the pixel is the patch (the 300 px test render: a
+9′ pixel) a star under white is the one pixel it falls in at L, flat,
+wherever it falls, so the limit star reads `LIMIT_VALUE` exactly, and
+the screen's 2.5 L is the one difference between the two.  The **wing**
+is the eye's PSF, the CIE total glare equation (`sun/glare.js` `eyePsf`;
+Vos & van den Berg 1999, CIE 135/1999; CIE 146/2002; Vos 2003): per
+steradian of the light at the eye, two lobes of the optics (0.0046° and
+0.045° wide, holding 0.95 of a point's light) and the scattered light
+(0.1° and out, the rest), the same equation whose outer part (the
+general disability-glare equation, 0.1° to 100°) draws the Sun's veil
+([Sun.md, glare](Sun.md#glare)).  The pool's radius is half the patch,
+4.8′ (`STAR_POOL_RADIUS_DEG`): inside it the PSF's light is the core
+(the pool holds 0.58 of a point's light with the window below:
+`STAR_CORE_SHARE`), and from it out the wing is drawn, `value × Ω_patch /
+0.58 × eyePsf(θ)`, windowed in from half the pool's radius to all of it,
+θ the pixel's angle from the star in the eye's own degrees (through a
+telescope's field, the sky angle times the magnification).  The pooled
+light is what the limit is calibrated on, so `value` stays the pooled
+radiance, the star's whole light is that over the pool's share, and the
+wing carries the rest: the core's pixels sum to the pooled light and the
+wing's to 0.42 of the whole, as before the whole kernel summed to the
+pooled light.  A star's saturated core and its halo are then as wide as
+the eye's PSF makes them at that light, and nothing else: where the wing
+passes white (0.76, the tone map's shoulder) is the white core, growing
+as the cube root of the light while the 0.045° lobe's θ^-3 tail sets it
+(Sirius at the dark gain on a 1080 px screen: 9 px, 0.36°; Vega 6 px;
+magnitude 2 3 px; magnitude 4 none) and as its square root further out,
+where the scattered light's θ^-2 takes over, with the halo falling off
+from it by the same function: a star ten times brighter has a white core
+2.15 times wider, so the brightness order shows at every setting.  The
+quad is sized from where the core falls under `VISIBLE_VALUE` (0.004, a
+display step) or the wing under `STAR_WING_FLOOR` (0.01, 2.5 of 255:
+about the dark-adapted eye's own threshold for a feature of 20-60′ over
+a dark sky, `eye.js` `thresholdContrast`, 0.3-0.5 of the sky's 0.026 at
+the dark gain; the wing drawn to a display step was 2.6 times the
+fragments and invisible past this), plus a pixel, to the GPU's point-size
+range (`STAR_MAX_SIZE_PX`, 160, held to `ALIASED_POINT_SIZE_RANGE` by
+`ThreeUi._setObserverUniforms`): a mag 6 star is an 8-9 px quad (its wing
+over the floor to 3.7 px), Sirius 86 px, and an edge window in the
+fragment shader takes the kernel to zero inside the quad, so a star is
+round at every exposure.  At `sm=+2` Sirius's wing reaches the quad and
+is windowed off there at 10 of 255; at `sm=+4` the brightest few stars'
+wings pass it (190 px) and the quad holds them.  The Sun's point has no
+wing: its glare pass draws the veil ([Sun.md](Sun.md#glare)), from any
+distance since this change (it was culled with the disc's LOD beyond
+4.65 AU), and a wing on the point would count it twice.
+
+The second cut grew the kernel's σ 0.75 px per decade of light over white
+(bloom) and held the saturated core to two patches (the glare cap): an ad
+hoc law, and at `sm=+2` every star to magnitude 5 was a saturated disc
+and every star brighter than magnitude 1 the same 16 px disc (measured
+below: r128 8.3-9.4 px from magnitude 0 to 4 at `sm=+4`).  Its reason was
+the first cut's, whose quad grew 3 px per decade with σ a quarter of it,
+so that at a high gain the Gaussian was over white out to the quad's
+edge and the brightest stars, and the Sun from Pluto, drew as squares
+(the user's preview).  A texture (`star_glow.png`) did this before that,
+and lost two magnitudes: its flat core is 6% of the sprite's half-width,
+so a 2 px sprite sampled it at 0.06 and a 4 px one at 0.27, and mipmaps
+flattened a 3 px sprite's peak to a third of the core (a star of
+magnitude 4 reached 10 of 255 where the arithmetic gave 97).  Before
+that the sprite was sized by the catalogue's radius, which spread Deneb
+over 110 px; and `4π·d²` in metres overflowed float32 past 550 ly and
+zeroed every star beyond.  **A resolved disc is no point**: the sprite's
 light fades by (patch/θ)² once the star's disc, θ = 2r/d, outgrows the
 patch, so the Sun's mesh and a halo take over from the point within a
-few AU (from Earth, 0.1 of it).
-A texture
-(`star_glow.png`) did this at first, and lost two magnitudes: its flat
-core is 6% of the sprite's half-width, so a 2 px sprite sampled it at
-0.06 and a 4 px one at 0.27, and mipmaps flattened a 3 px sprite's peak to
-a third of the core (a star of magnitude 4 reached 10 of 255 where the
-arithmetic gave 97).  Before that the sprite was sized by the catalogue's
-radius, which spread Deneb over 110 px; and `4π·d²` in metres overflowed
-float32 past 550 ly and zeroed every star beyond.  Values are clamped
-to what the half-float buffer holds (`HDR_MAX_VALUE`, 6e4).
+few AU (from Earth, 0.1 of it).  Values are clamped to what the
+half-float buffer holds (`HDR_MAX_VALUE`, 6e4).
+
+**What `sm=` is.**  The star setting multiplies every star's light by
+10^(0.4·sm): it is the instrument's sensitivity, a longer exposure or
+more aperture ([the instrument](#the-instrument)), and the one thing in
+the sky it can be.  More light reveals fainter stars and, by the same
+PSF, widens the bright ones' white cores and halos: that is what a long
+exposure does to Sirius on a sensor, and what binoculars do to it in the
+eye.  A sensitivity that revealed fainter stars without touching the
+bright ones would be a change of the observer's threshold, and on a
+display whose black and white are fixed, that is the same gain under a
+compressive response (the eye's own, Stevens's power law for point
+sources); it is not drawn, since the stars would then no longer be their
+light in the buffer.  The sizes it gives are in the table below.
+
+**Sub-pixel light.**  A star is drawn where it projects, to the
+fraction of a pixel (`gl_PointSize` is fractional and `gl_PointCoord`
+measures from the point's true centre), and its light is the sum of its
+pixels: a Gaussian of σ ≥ 0.6 px point-sampled at pixel centres sums to
+within 0.2% of its integral at any offset (Poisson's summation: the
+error is 2·e^(−2π²σ²)), so the light is conserved as the star moves
+between pixels and nothing is lost or gained with the offset.  The one
+pixel of the coarse viewport is the pixel whose centre is within half a
+pixel of the star on both axes (its square: a disc of radius 0.5 missed a
+star at a pixel's corner, 0.71 px from the centre, which then had no
+core at all).  The wing's lobe is steep over the first pixels (at 960×540
+a pixel is 5′, the lobe's width 2.7′), and point-sampled there its sum
+moves 1-2% with the offset.  No box integration (an erf kernel) is
+needed for the core: it would make each pixel's value the exact
+integral, which changes the peak's dependence on the offset not at all
+(a σ = 0.6 Gaussian integrated over its centre pixel is 0.35 of the light
+centred and 0.21 at a corner, as the point samples are 0.44 and 0.22),
+and the sum is already conserved.  There are no mipmaps to flatten
+anything: the kernel is analytic.  Measured below: the summed light and
+the peak across offsets in steps of an eighth of a pixel, and frame to
+frame while turning at a tenth of a pixel a frame.
 
 **Every star sits on the far-plane boundary** unless pulled inside.  The
 camera's far plane is six galaxy radii and its near plane metres, so the
@@ -512,6 +564,59 @@ starGain, fov, heightPx)`: 5·log10 of the patch's shrinking, or the
 pixel where a pixel is coarser), and `starsDebug` and
 `ThreeUi.limitingMagnitude()` report it so.  Without the field they
 read −7.1 at #198's 0.44° view of HIP 46635, where the limit is 3.1.
+
+### The instrument
+
+What the star field takes from the observer lives in one module,
+`observer/instrument.js` ([#235](https://github.com/celestiary/web/issues/235)),
+whose one instance is the naked eye, dark adapted (`NAKED_EYE`).  The
+seam is there so that binoculars, a telescope or a camera can be another
+instance, with brightness and image size separate by construction: the
+light an instrument collects sets what it detects, its point spread
+function sets what a point looks like, and neither sets the other.  An
+instrument is:
+
+- **a collecting area** over the dark-adapted eye's 7 mm pupil and an
+  **integration time** over the eye's 0.1 s, which together are the gain
+  on every point's light over the naked eye's (`instrumentStarGain`); the
+  user's `sm=` is a sensitivity in magnitudes on top of it, so `starGain`
+  = area × time × 10^(0.4·sm), 1 for the eye at 0;
+- **a detection threshold**: the limiting magnitude at the dark gain
+  (6.5), what a star at it shows (`limitValue`, 0.12), and the gain the
+  instrument reaches in the dark (4e6, the meter's ceiling), from which
+  the detector's pool round a point follows (`EYE_PATCH_SR`, the rods'
+  10′: the derivation above);
+- **a PSF**: the pool's radius in the instrument's own angle (4.8′),
+  within which a point's light is pooled and drawn as the core; the
+  PSF's share within it (0.58); the wing, the scattering round a point
+  per steradian by the angle from it (the CIE total glare equation for
+  the eye), which is the veil round a bright star; and the glare, the
+  same scattering round a resolved disc (the general equation, 0.1° to
+  100°), which the Sun's pass draws ([Sun.md](Sun.md#glare)).
+
+`exposure.js` keeps the names the calibration is written in
+(`LIMITING_MAGNITUDE`, `LIMIT_VALUE`, `EYE_PATCH_SR`, `EYE_POINT_RAD`,
+`METER_GAIN_MAX`, `eyePatchRad`, `fieldMagnification`) as re-exports or
+one-line wrappers over the instrument; `ThreeUi` holds the instrument
+(`this.instrument`) and sends the shader what it needs through
+`absoluteUniforms` once (`_setObserverUniforms`: `uEyePointRad`,
+`uPoolRadiusDeg`, `uCoreShare`, and `uMaxStarSizePx`, the quad's largest
+side held to the GPU's point-size range); `setStarMagnitudeOffset` sets
+`uStarGain` from `instrumentStarGain`; the Sun's glare shader takes its
+function from `NAKED_EYE.psf.glareGlsl`.  The field's magnification
+(`instrumentMagnification`: a field narrower than 45° is a telescope's)
+is the camera's, each frame, in the shader.
+
+What is the eye's alone, and would change for another instrument: the
+shaders carry the eye's PSF as a function (`eyePsf` in `stars.vert` and
+`stars.frag`, a copy of `EYE_PSF_GLSL` a test keeps equal), so another
+PSF (a telescope's diffraction and seeing, a lens's) would come in as
+uniforms or a second function; the pool's radius and share are the rods';
+the wing's floor (`STAR_WING_FLOOR`) is the eye's threshold for a feature
+of 20-60′; the dark gain and the limit are the dark-adapted eye's; and
+the telescope field's patch/M stands for an eyepiece whose exit pupil
+fills the pupil.  A camera would also want a response of its own in
+place of the eye's calibration (#208).
 
 ### A star beside the Moon
 

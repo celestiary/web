@@ -1,6 +1,6 @@
 import {EMITTED_GLSL, HDR_MAX_VALUE, LUMINOUS_GLOW_MAX} from '../hdr.js'
 import {CME_SHELL_SIGMA, CORONA_GLSL, CORONA_SAMPLES} from './corona.js'
-import {GLARE_GLSL} from './glare.js'
+import {NAKED_EYE} from '../observer/instrument.js'
 
 
 /**
@@ -272,7 +272,7 @@ void main() {
 
 export const GLARE_FRAGMENT = `
 ${EMITTED_GLSL}
-${GLARE_GLSL}
+${NAKED_EYE.psf.glareGlsl}
 varying vec2 vNdc;
 uniform mat4 uProjectionInverse;
 // The disc's centre and two directions across it, in view space; its

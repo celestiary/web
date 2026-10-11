@@ -18,10 +18,10 @@ varying float vDegPerPx;
 // them hold the same buffer.  Nothing visible goes: it is 1/65 of a
 // display step.
 const float HDR_MIN_NORMAL = 6.103516e-5;
-// The rods' pool round a point, as the eye's angle: half the eye's patch
-// (exposure.js STAR_POOL_RADIUS_DEG, 5′).  The wing is windowed in from
-// half of it to all of it; a test keeps the constant equal.
-const float POOL_RADIUS_DEG = 0.080752;
+// The rods' pool round a point, as the eye's angle in degrees: half the
+// eye's patch, 5′ (observer/instrument.js, through hdr.js absoluteUniforms).
+// The wing is windowed in from half of it to all of it.
+uniform float uPoolRadiusDeg;
 // The eye's PSF, per steradian: the CIE total glare equation (sun/glare.js
 // eyePsf, EYE_PSF_GLSL carries the same constants; a test compares them).
 // Two lobes of the optics (0.0046° and 0.045°) and the scattered light.
@@ -49,17 +49,49 @@ vec3 emitted(vec3 radiance) {
 // from it, windowed in past the pool; both windowed to zero at the quad's
 // edge, so a bright star, whose wing is over white across most of the
 // quad, is a round saturated core in a halo and never the quad's square.
+// The wing at a point of the sprite, pixels from the star: the PSF at its
+// angle in the eye, windowed in past the pool.
+float wingAt(vec2 p) {
+  float thetaDeg = length(p) * vDegPerPx;
+  return eyePsf(thetaDeg) * smoothstep(0.5 * uPoolRadiusDeg, uPoolRadiusDeg, thetaDeg);
+}
+
 void main() {
   vec2 px = (gl_PointCoord.xy - 0.5) * vSize;
   float r2 = dot(px, px);
-  float r = sqrt(r2);
-  float thetaDeg = r * vDegPerPx;
-  float wing = vWingScale * eyePsf(thetaDeg) * smoothstep(0.5 * POOL_RADIUS_DEG, POOL_RADIUS_DEG, thetaDeg);
+  float wing;
+  if (r2 < 9.0) {
+    // Within 3 px of the star the wing is steep against a pixel (the
+    // 0.045° lobe is 2.7′ wide, a pixel 2.5-9′), so a pixel's value is its
+    // mean over four points of the pixel, not its centre's: point-sampled,
+    // a star's summed light moved 5-10% with its sub-pixel position on a
+    // 300 px viewport, and the first ring's brightness with it.
+    wing = 0.25 * (wingAt(px + vec2(-0.25, -0.25)) + wingAt(px + vec2(0.25, -0.25)) +
+        wingAt(px + vec2(-0.25, 0.25)) + wingAt(px + vec2(0.25, 0.25)));
+  } else {
+    wing = wingAt(px);
+  }
+  wing *= vWingScale;
   float core;
   if (vSigma <= 0.0) {
-    // One pixel, flat: the pixel is the patch (stars.vert).  The centre
-    // pixel of the quad is the one the star falls in.
-    core = (r2 < 0.25) ? vBrightness : 0.0;
+    // One pixel, flat: the pixel is the patch (stars.vert).  The pixel
+    // the star falls in is the one whose centre is within half a pixel of
+    // it on both axes: its square, not a disc (a star at a pixel's corner
+    // is 0.71 px from its centre, and had no core pixel at all), and a
+    // half-open window a little off the half pixel, so that exactly one of
+    // the quad's pixels, a pixel apart, falls in it however the rasterizer
+    // rounds: it snaps a point's centre to a subpixel grid (SwiftShader's
+    // is 1/16 px), which puts a star near a pixel's edge at half a pixel
+    // from two centres, and gl_PointCoord over a 3 px quad is thirds, so
+    // those two read -0.5000001 and 0.4999999: neither in [-0.5, 0.5), and
+    // 11% of the magnitude 6 stars, 1 in 9 of magnitude 5, had no core.
+    const float EDGE = 1.0e-3;
+    bool own = px.x > -0.5 - EDGE && px.x < 0.5 - EDGE && px.y > -0.5 - EDGE && px.y < 0.5 - EDGE;
+    core = own ? vBrightness : 0.0;
+    // That pixel is the pool: it carries the pooled light and no wing
+    // (the wing's window begins inside it), so the limit star reads its
+    // calibrated value there exactly, as the measurements take it.
+    wing = own ? 0.0 : wing;
   } else {
     core = vBrightness * exp(-r2 / (2.0 * vSigma * vSigma));
   }

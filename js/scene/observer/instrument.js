@@ -118,7 +118,7 @@ export const EYE_CORE_SHARE = eyePsfShare(GLARE_MAX_DEG, (t) => 1 - wingWindow(t
 
 /**
  * @typedef {object} Instrument
- * @property {string} name
+ * @property {string} name What it is
  * @property {number} apertureM The collecting aperture's diameter, metres
  * @property {number} collectingArea Over the dark-adapted eye's pupil
  * @property {number} integrationS Seconds

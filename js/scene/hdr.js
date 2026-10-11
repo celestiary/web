@@ -315,9 +315,16 @@ export const absoluteUniforms = {
   // The user's gain on the stars' light (ThreeUi.setLimitingMagnitude): 1
   // is the naked eye's limit.
   uStarGain: {value: 1},
-  // The eye's patch's side, radians (exposure.js EYE_POINT_RAD; ThreeUi
-  // sets it).
+  // The observer (observer/instrument.js; ThreeUi sets them from its
+  // instrument): the detector's pool round a point, radians (the patch's
+  // side); the pool's radius in the instrument's own degrees, where the
+  // sprite's pooled core hands over to the PSF's wing; the PSF's share
+  // in the pool; and the sprite quad's largest side in pixels, the GPU's
+  // point-size range permitting.
   uEyePointRad: {value: 10 / 60 * Math.PI / 180},
+  uPoolRadiusDeg: {value: 5 / 60},
+  uCoreShare: {value: 0.58},
+  uMaxStarSizePx: {value: 96},
   // What the camera sees of the Sun's disc past the bodies in front (an
   // eclipse; sun/SunLayers.js): the Sun's point, the catalogue's origin,
   // dims with it (shaders/stars.vert).  From the ground the stars' depth

@@ -147,19 +147,36 @@ export default class SunLayers {
 
 
   /**
-   * The layers' group, for the Star to add: named 'SunLayers' for the perf
-   * overlay's `sun` toggle, holding one named 'atmosphere' that AR's sky
-   * view hides with the other bright shells (Scene.enterAR).  The meshes'
-   * own visibility is the layers' (update).
+   * The layers' group that goes with the disc, for the Star to add under
+   * its LOD: named 'SunLayers' for the perf overlay's `sun` toggle,
+   * holding one named 'atmosphere' that AR's sky view hides with the other
+   * bright shells (Scene.enterAR).  The meshes' own visibility is the
+   * layers' (update).
    *
    * @returns {Group}
    */
   group() {
     const outer = named(new Group, 'SunLayers')
     const inner = named(new Group, 'atmosphere')
-    for (const mesh of [this.glare, this.corona].filter(Boolean)) {
+    for (const mesh of [this.corona].filter(Boolean)) {
       inner.add(mesh)
     }
+    outer.add(inner)
+    return outer
+  }
+
+
+  /**
+   * The glare's group, for the Star to add beside its LOD, so the veil is
+   * drawn from any distance (its own reach decides: _glareView); the same
+   * names as group()'s, for the toggle and for AR.
+   *
+   * @returns {Group}
+   */
+  glareGroup() {
+    const outer = named(new Group, 'SunLayers')
+    const inner = named(new Group, 'atmosphere')
+    inner.add(this.glare)
     outer.add(inner)
     return outer
   }

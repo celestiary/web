@@ -22,11 +22,11 @@ import {absoluteUniforms} from './hdr.js'
 export function newStarsMaterial({motion = false} = {}) {
   const uniforms = {
     ...absoluteUniforms,
-    // A star's quad: as large as the visible star (stars.vert), from
-    // the eye's patch in pixels (1 px here, 4 on a 1080 px screen) to
-    // 96 px for the Sun from the outer planets.
+    // A star's quad: as large as the visible star (stars.vert), from the
+    // eye's patch in pixels (1 px here, 4 on a 1080 px screen) to the
+    // shared uMaxStarSizePx (absoluteUniforms: exposure.js
+    // STAR_MAX_SIZE_PX, held to the GPU's point-size range).
     MIN_STAR_SIZE_PX: {value: 1},
-    MAX_STAR_SIZE_PX: {value: 96},
     // RTE uniforms: camera position in star catalog coords, split high/low
     uCamPosWorldHigh: {value: new Vector3()},
     uCamPosWorldLow: {value: new Vector3()},

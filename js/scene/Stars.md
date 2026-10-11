@@ -50,16 +50,34 @@ subclass and luminosity class as indices (`StarsCatalog.js`;
 
 ## Colour
 
-`blackbodyColor(T)`: Planck's law through the CIE 1931 2° observer, as
-the multi-lobe Gaussian fits of Wyman, Sloan & Shirley 2013 (within ~1% of
-the tables), to linear sRGB (D65) at a luminance Y of 1. The colour is the
-chromaticity only; the brightness comes from the catalogue's lumens (a
-point) or the surface brightness (a disc). Channels may pass 1 (a hot
-star's blue is 2): the buffer is linear HDR. Checked against CIE
+`blackbodyLinearColor(T)`: Planck's law through the CIE 1931 2° observer,
+as the multi-lobe Gaussian fits of Wyman, Sloan & Shirley 2013 (within ~1%
+of the tables), to linear sRGB (D65) at a luminance Y of 1. The colour is
+the chromaticity only; the brightness comes from the catalogue's lumens (a
+point) or the surface brightness (a disc). Checked against CIE
 illuminant A (a 2,856 K blackbody: within 0.002 in x and y) and the
 Planckian locus's independent spline fit (Kim et al. 2002, within 0.004
 from 1,667 K to 25,000 K). In 8-bit sRGB the Sun is (255, 241, 234), a
 warm white; 6,500 K is white, as D65 nearly is.
+
+**What is drawn is the chromaticity in stored values**
+(`blackbodyColor(T)`, [#235](https://github.com/celestiary/web/issues/235)):
+the linear colour through sRGB's transfer function, normalised to a luma
+of 1 over the stored values, so a star's light scales it linearly.  The
+pipeline never encodes or decodes sRGB ([HDR.md, colour
+spaces](HDR.md#colour-spaces-stored-values)): a texture's stored values
+are lit linearly and shown as they are, and the galaxy's colours are
+given in stored values (`galaxyModel.js` `COLORS`).  The linear
+chromaticity shown as stored values, which the stars and the discs were
+until #235, is about twice as saturated as the blackbody at the display:
+a 3,000 K star showed (255, 123, 39), a deep orange, where its colour is
+(255, 185, 110), a pale one; the Sun (255, 224, 210) where it is (255,
+241, 234); a 20,000 K star (104, 137, 255) where it is (171, 193, 255).
+The eye sees the brightest stars' colours as pale tints (Betelgeuse's
+orange, Rigel's blue-white), which the stored colour gives.  Channels may
+pass 1 (a hot star's blue is 1.3): the buffer is linear HDR, and the tone
+map takes them.  The disc shader's granulation, spots and limb darkening
+multiply the stored colour by linear ratios, as a texture is lit.
 
 The shader interpolates a 64-entry table (`blackbodyLut`, log-spaced from
 1,000 K to 50,000 K: colour, and log2 of the luminance over the Sun's),

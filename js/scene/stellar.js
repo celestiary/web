@@ -133,19 +133,56 @@ export function xyzToLinearSrgb([x, y, z]) {
 
 
 /**
- * A blackbody's colour: linear sRGB at a luminance (Y) of 1, so the colour
- * carries the chromaticity and a star's brightness comes from elsewhere
- * (its catalogue lumens as a point, its surface brightness as a disc).
- * Channels may pass 1 (a hot star's blue is 2): the scene buffer is
- * linear HDR, and the tone map takes them.  A channel under 0 (out of
- * gamut, the reddest stars' blue) is 0.
+ * A blackbody's colour in linear sRGB at a luminance (Y) of 1: the
+ * chromaticity, for the physics (tests, the luminance); the colour drawn
+ * is blackbodyColor's.  A channel under 0 (out of gamut, the reddest
+ * stars' blue) is 0.
  *
  * @param {number} temp K
  * @returns {Array<number>}
  */
-export function blackbodyColor(temp) {
+export function blackbodyLinearColor(temp) {
   const xyz = blackbodyXyz(temp)
   return xyzToLinearSrgb(xyz).map((c) => Math.max(c / xyz[1], 0))
+}
+
+
+/**
+ * sRGB's transfer function (IEC 61966-2-1): a linear value to the stored
+ * value a display decodes back to it.
+ *
+ * @param {number} linear
+ * @returns {number}
+ */
+export function srgbEncode(linear) {
+  const v = Math.max(linear, 0)
+  return v <= 0.0031308 ? 12.92 * v : (1.055 * Math.pow(v, 1 / 2.4)) - 0.055
+}
+
+
+/**
+ * A blackbody's colour as the pipeline draws it: the chromaticity in
+ * stored values (HDR.md, "Colour spaces"), the convention every emitted
+ * and lit colour is in (a texture's stored values lit linearly; the
+ * galaxy's COLORS, galaxyModel.js), normalised to a luma of 1 over the
+ * stored values, so a star's brightness comes from elsewhere (its
+ * catalogue lumens as a point, its surface brightness as a disc) and
+ * scales the colour linearly.  The linear chromaticity shown as stored
+ * values, which it was, is about twice as saturated as the blackbody at
+ * the display: a 3,000 K star showed (255, 123, 39), a deep orange,
+ * where its colour is (255, 185, 110); the Sun (255, 224, 210) where it
+ * is (255, 241, 234).  Channels may pass 1 (a hot star's blue is 1.3):
+ * the scene buffer is linear HDR, and the tone map takes them.
+ *
+ * @param {number} temp K
+ * @returns {Array<number>} r, g, b, stored values at a luma of 1
+ */
+export function blackbodyColor(temp) {
+  const linear = blackbodyLinearColor(temp)
+  const peak = Math.max(...linear, 1e-9)
+  const stored = linear.map((c) => srgbEncode(c / peak))
+  const luma = (0.2126 * stored[0]) + (0.7152 * stored[1]) + (0.0722 * stored[2])
+  return stored.map((c) => c / luma)
 }
 
 
@@ -217,9 +254,7 @@ export function blackbodyLut() {
   const lut = new Float32Array(BLACKBODY_LUT_SIZE * 4)
   for (let i = 0; i < BLACKBODY_LUT_SIZE; i++) {
     const t = lutTemperature(i)
-    const xyz = blackbodyXyz(t)
-    const rgb = xyzToLinearSrgb(xyz).map((c) => Math.max(c / xyz[1], 0))
-    lut.set([...rgb, Math.log2(xyz[1] / SUN_Y)], i * 4)
+    lut.set([...blackbodyColor(t), Math.log2(blackbodyXyz(t)[1] / SUN_Y)], i * 4)
   }
   return lut
 }
