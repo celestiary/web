@@ -437,6 +437,52 @@ The fragment shader evaluates the PSF once per fragment and four times
 within 3 px of the star.  SwiftShader can't time a GPU: the M2 at
 `?perf=1` is the check.
 
+**What veils the stars** (480×300, the glare pass on, each view held
+25 s after the meter settled, Gaia's tiles loaded; "stars" is the count
+to magnitude 6.5 whose step on screen is 10 of 255 or more, over the
+count in view; the veil is the CIE equation at the view axis for the
+Sun's illuminance there, the solid line of `glareFunction` times the
+field weight).  The brief asked where the stars are suppressed by other
+lights, and whether each is physical:
+
+| View | The Sun | Veil at the axis | Gain, before → after | Stars, before → after | Physical? |
+|---|---|---|---|---|---|
+| Dark sky, 4.7 AU, away from the Sun | 146° off, 0.11° across | 0 (past the field) | 4.0e6 → 4.0e6 | 721/721 → 721/721 | yes: the dark gain, the whole 6.5 bin |
+| The Moon from 20,000 km over Earth's night side, Earth 73° off | 106° off, behind the gaze | 0 | 26.6 → 3.99e6 | 0/693 → 710/711 | **fixed**: the pass faded per pixel from the Sun, so a Sun 106° behind the gaze veiled a frame whose far edge was 80° from it; the fade is by the gaze now ([Sun.md](Sun.md#glare)) |
+| The same, Earth 146° off | 104° off | 0 | 26.3 → 3.99e6 | 0/690 → 707/707 | **fixed**, the same |
+| The same, Earth 99° off, the Sun behind it | 99° off, hidden by Earth | 0 (its visible fraction 0) | 3.99e6 → 3.99e6 | 695/695 → 695/695 | yes |
+| The same, Earth 30° off, its lit disc 19% of the frame | 102° off | 0 | 1.00 → 1.00 | 0/682 → 0/682 | yes: a sunlit Earth in the field is daylight; the meter's sunlit-body anchor |
+| From Jupiter, 5.3 AU, away from the Sun | 103° off | 0 | 1.42e5 → 1.42e5 | 449/449 → 449/449 | yes: the whole bin at the gain Jupiter's lit limb allows |
+| Jupiter's lit disc 11.5% of the frame | 167° off | 0 | 1.00 → 1.00 | 0/560 → 0/560 | yes in kind: a sunlit planet over a tenth of the field (800 cd/m² at 5 AU) is a daylit scene to the meter; the eye beside it would still make out the brightest stars, which a global exposure can't (below) |
+| From Pluto, 36 AU, away from the Sun | 163° off | 0 | 3,150 → 3,150 | 577/577 → 577/577 | yes: Pluto's sunlit disc sets the gain; every star to 6.5 is on screen at it |
+| 1 AU, the Sun 10° off the axis, in the frame | 10° off, 0.53° across | 9,000 cd/m² (a daytime sky's) | 1.00 → 1.00 | 0/384 → 0/384 | yes, before and after (within the LOD's 4.65 AU the pass drew) |
+| Pluto, 39 AU, the Sun 15° off, in the frame | 15° off, 0.02° across, magnitude −18.7 | 2.6 cd/m² (civil twilight's), 380 at 1° | 4.0e6 → 530 | 392/394 → 0/392 | **fixed in kind**: the LOD's far level culled the pass past 4.65 AU, so the Sun from Pluto, 250 full Moons, veiled nothing and a dark site's star field stood 15° from it.  In degree the meter is harsher than the eye: it keys on the frame's brightest 2%, the veil within a few degrees of the Sun (hundreds of cd/m²), where an eye looking 15° away adapts to the 2.6 cd/m² there and would hold stars to about magnitude 0-1 (the threshold against a background rising as its square root below 1 cd/m²: Crumey 2014) |
+| Pluto, the Sun 60° off, out of the frame | 60° off | 0.30 cd/m² (a moonlit landscape's); 1.1 at the frame's near edge, 27° | 4.0e6 → 2.1e4 | 597/597 → 4/584 | **fixed in kind**: the brightest four stars stay, as against a bright twilight sky; the eye at 0.3-1 cd/m² would reach about magnitude 2 (the same law), the meter's gain is a magnitude or so short |
+| Pluto, the Sun 120° off | 120° off, behind the gaze | 0 | 4.0e6 → 4.0e6 | 590/590 → 590/590 | yes: the eye's field ends at 100°; no veil, the dark gain |
+| 5 AU, the Sun 60° off, out of the frame | 60° off, 0.1° across | 19 cd/m² (civil twilight's); 70 at the frame's near edge | 4.0e6 → 340 | 597/597 → 0/584 | **fixed in kind**: with the Sun in the eye at Jupiter's distance no star shows, as astronauts report; the eye's limit would be about magnitude −1 to 0 (Venus, Jupiter), the meter's −3.7, by the same global-exposure margin |
+
+So the stars are suppressed by three things.  A sunlit body's surface in
+the frame (Earth, Jupiter, the Moon's disc when it is more than a few
+pixels), which the meter anchors on as a camera would and the eye does
+too, at a tenth of the field; the sky's own light (the section after
+this); and the Sun's veil, which was missing past 4.65 AU and reached
+past the eye's field, both fixed.  What is left is in degree, not kind:
+the meter is one exposure for the frame, keyed on its brightest 2%, and
+with the Sun's glare in the frame that is the veil beside the Sun, not
+the sky where the user looks, so the limit near the Sun is 2-3
+magnitudes harsher than a dark-adapted eye's local adaptation would
+make it.  A local adaptation (the gaze's own patch metered, or the
+veil subtracted from the key) is the physical fix and a change to the
+meter, not the stars: on #109's list.  The Moon's and the planets' own
+glare (the same equation round their discs, which would veil the stars
+beside a full Moon as it does in the sky) is there too; the brief's
+"a star beside the Moon" view is measured below, and the Moon's disc,
+0.55° across, does not anchor the meter from 20,000 km (the view with
+Earth 99° off: the dark gain, the whole bin).
+
+Frames: `screens/stars-235/veil-*.png` (the Moon view before and after,
+and the Sun from Pluto at 15° and 60°, and from 5 AU at 60°, after).
+
 **Every star sits on the far-plane boundary** unless pulled inside.  The
 camera's far plane is six galaxy radii and its near plane metres, so the
 projection's (f + n) / (f − n) is 1 in float32 and a star's clip z is
