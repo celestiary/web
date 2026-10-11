@@ -727,6 +727,59 @@ next scale out.  Sweep the view across where the shortcut changes regime
 and test for smoothness (neighbouring rays' ratio, a log-log curvature),
 not only the anchors.
 
+### Still-frame evidence hides temporal noise
+
+PR #225's volumetric clouds march one jittered sample a pixel and lean
+on a reprojected history to average it out.  The evidence was still
+frames: the probe rendered 24 frames and kept the last, and the clouds
+looked smooth.  On the user's M2 at 20 fps the cloud edges stippled.
+The history was gated on its distance agreeing with the raw sample's,
+and at an edge the raw sample's distance alternates between the cloud's
+and the slab's middle as the jitter hits and misses, so the history was
+rejected exactly where it was needed; the edges never converged, which a
+still frame shows as a frozen dither pattern that reads as texture, and
+a frame rate shows as sparkle.  Measured as the per-pixel temporal
+standard deviation of the output over consecutive frames (see
+`js/scene/atmos/clouds.md`, Cost), the edges were as noisy with the
+history as without it, while the interior had converged to nothing.
+**Rule:** for anything temporal (jitter, reprojection, a history
+blend, an easing), the evidence is consecutive frames rendered as the
+app would, measured per pixel across them (a std map shows where the
+history fails), with the camera still and drifting; one converged frame
+proves only that the interior converges.  A gate on a per-frame noisy
+quantity (a single sample's distance, depth or colour) rejects history
+wherever the noise is, which is wherever the history matters; gate on
+the neighbourhood's spread instead (variance clipping).
+
+### Find where the variance is before reducing it
+
+PR #225's second review: a thin cloud veil over the Sun stayed grainy
+after the edges had converged, and the clouds kept animating with time
+paused.  The first guess was the lighting: the forward Mie peak times
+the Sun through few light samples is a classic high-variance estimator.
+Patching the shader in the page (a string replace on
+`material.fragmentShader`, then `needsUpdate`) and measuring the raw
+march's per-pixel temporal std over the veil with the single
+scattering alone, the diffuse field alone, the light march unjittered
+and with 8 steps moved it by under 5%.  The variance was in the density
+sampling: the coarse step was the ray's whole length over the budget, 1
+km at a deck 1.7 km off on a ray that left the layer 40 km on, so
+whether the ray met the deck's wisps turned on the frame's jitter.  A
+coarse step that grows with the distance (geometric within the same
+budget) cut the raw std four times, and spending the budget there
+exposed the next thing: a contact cost the whole step re-marched fine,
+so rays grazing a broken deck ran out before the far clouds and the
+horizon went bright (bisection to the face, 3 reads, fixed it).
+**Rules:** (1) measure which term carries the variance before
+optimising any of them: remove terms one at a time and read the std;
+(2) a fixed exponential history never converges: at weight *w* the
+residual is √((1 − w)/(1 + w)) of a frame's noise (0.23 at 0.9), so a
+paused view keeps animating; detect that the inputs haven't changed and
+accumulate at 1/n; (3) in a hand-driven probe freeze the exposure
+meter (it eases toward its goal and reads as frame-to-frame change),
+and know that a sharper edge under motion reads as more change than a
+blurred one: a moving silhouette's |ΔL| is not noise.
+
 ### Screenshots communicate visual bugs better than words
 
 "A grid of large blooms on the ocean texture" and "distinct rings floating up in space" were
