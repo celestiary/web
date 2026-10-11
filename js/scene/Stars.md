@@ -16,6 +16,7 @@ piece of the parametric body renderer (ROADMAP, *Shared engines*).
 | The limb glow | `atmos/Atmosphere.js` `newAtmosphere` |
 | The field stars' colours (points) | `StarsBufferGeometry.js`, through the same blackbody table |
 | The disc's brightness in exposure units, and the meter | [HDR.md, physical stars](HDR.md#physical-stars); `ThreeUI._luminousDiscs` |
+| Gaia's stars past the catalogue's: the same points, shader and photometry, tiled | [Gaia.md](Gaia.md) |
 
 ## Temperature from class
 
