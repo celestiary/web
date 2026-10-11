@@ -363,6 +363,80 @@ anything: the kernel is analytic.  Measured below: the summed light and
 the peak across offsets in steps of an eighth of a pixel, and frame to
 frame while turning at a tenth of a pixel a frame.
 
+**Measured for #235** (SwiftShader, labels, orbits and the galaxy off,
+the Sun's glare pass off, the frame held at the dark gain, `main` at
+425e61f against this change; the probes read the HDR buffer as floats
+and the display as bytes in one task).  Sizes: the radius, as a mean over
+8 directions, where the display's luma is at least 128 of 255 (the white
+core) and 10 (the visible star), for named stars in the Sirius field at
+1920×1080 (a 2.5′ pixel):
+
+| Star (V) | `sm=0` before → after, r128 / r10 px | `sm=+2` | `sm=+4` |
+|---|---|---|---|
+| Sirius (−1.44) | 7.9 / 9.6 → 9.6 / 20.2 | 8.4 / 10.9 → 19.7 / 42.0 | 9.4 / 12.6 → 46.4 / 59.9 (the quad) |
+| Rigel (0.19) | 6.6 / 8.3 → 6.4 / 12.5 | 8.3 / 10.4 → 12.0 / 24.9 | 8.8 / 12.4 → 25.8 / 54.5 |
+| Adara (1.50) | 4.1 / 5.9 → 3.9 / 7.8 | 6.9 / 9.0 → 7.4 / 18.2 | 8.4 / 20.7 → 21.2 / 52.3 |
+| Mirzam (1.98) | 3.6 / 5.3 → 3.2 / 6.7 | 6.6 / 8.9 → 6.8 / 13.0 | 9.1 / 12.0 → 13.3 / 43.3 |
+| Furud (3.02) | 2.6 / 4.1 → 2.6 / 4.5 | 5.0 / 6.9 → 4.3 / 10.1 | 9.1 / 12.7 → 11.4 / 29.8 |
+| μ Eri (4.02) | 1.9 / 3.4 → 2.0 / 3.5 | 4.3 / 6.1 → 3.5 / 9.4 | 8.3 / 11.2 → 8.4 / 16.1 |
+| HIP 29735 (5.00) | 0.8 / 2.1 → 1.3 / 2.6 | 2.8 / 4.4 → 2.6 / 5.2 | 5.8 / 7.9 → 5.6 / 16.1 |
+| HIP 43726 (6.01) | 0.3 / 1.8 → 0.3 / 2.2 | 2.1 / 3.4 → 2.1 / 3.9 | 4.6 / 7.1 → 3.9 / 11.8 |
+
+At the eye's setting the stars from magnitude 1 to 6 are as they were
+(their white cores within half a pixel, their halos a pixel or two
+wider), and Sirius's core is the function's 9.6 px where the cap held it
+at 8, in a halo twice as wide.  At `sm=+4` the old law had every star
+from magnitude 0 to 4 the same 8-9 px disc (the cap) and the new one
+46, 26, 21, 13, 11, 8.4, 5.6, 3.9 px: the brightness order, and the
+brightest stars as wide as a 40-fold exposure makes them.  Sirius's
+light within 2.5° at `sm=0` is 1.72 times the pooled core's (4,798
+against 1,630 in the buffer's sum: the wing's 0.42 of the whole over the
+core's 0.58), the same for every star.
+
+Light against the sub-pixel offset (the camera yawed in eighths of a
+pixel over two pixels; a star's light summed within 10 px of it in the
+HDR buffer, and its brightest pixel): the standard deviation over the
+mean, before → after.
+
+| Viewport, star | Sum | Peak |
+|---|---|---|
+| 960×540 (σ 0.6 px), mag 1.25 | 0.08% → 0.28% | 1.2% → 6.4% |
+| 960×540, mag 3.05 | 0.13% → 0.45% | 5.2% → 7.4% |
+| 960×540, mag 5.0 | 1.8% → 1.3% | 9.8% → 7.0% |
+| 960×540, mag 6.0 | 0.07% → 0.31% | 11% → 8.3% |
+| 960×540, mag 6.43 | 0.9% → 1.0% | 10% → 6.5% |
+| 480×300 (the pixel is the patch), mag 1.25 | 0.33% → 1.8% | 2.7% → 12% |
+| 480×300, mag 3.05 | 1.7% → 1.6% | 5.9% → 8.7% |
+| 480×300, mag 4.01 (flat) | 0.14% → 1.2% | 0.14% → 0.14% |
+| 480×300, mag 4.79 (flat) | 2.2% → 2.0% | 0.2% → 0.2% |
+
+Turning at a tenth of a pixel a frame over 40 frames (960×540) the sums
+move 0.3-1.3% frame to frame (before 0.1-1.7%) and the peaks 6-8%
+(before 1.4-11%): no more shimmer than before, and the summed light of a
+bright star, which the bloom's wide σ had held to 0.1%, moves 0.3%
+with the wing sampled over the pixel (point-sampled it moved 1-2%, and
+5-10% on the 300 px viewport).  The brightest stars' peaks move more
+than before (their σ is 0.6 px, not the bloom's 2-3) and are saturated
+on screen either way; a faint star's peak moves as it did, 7-10%, the
+0.6 px Gaussian's own.
+
+Star counts (the Vega field at 480×300, the step on screen over what's
+under each star 10 of 255 or more; visible / in view, with Gaia's
+points): at `sm=0` 583 / 586 of the 6.5 bin (before 570), 333 / 333 of
+6.0, 364 / 980 of 7.0 (337), the limit where it was; at `sm=+2` 4,790 /
+4,791 of 8.5 (4,736) and 6,312 / 8,002 of 9.0 (5,809); at `sm=+4`
+29,775 / 29,775 of 10.5.  The one-pixel sprite's own pixel was lost for
+11% of the magnitude 6 stars and 1 in 9 of magnitude 5 on the way
+(PLAYBOOK, "A point's own pixel"), which the half-open window fixed.
+
+Cost: the quads' fragments over the stars a 45° field holds at 1080p
+(to the limit plus Gaia's margin), old law → new: `sm=0` 0.4M → 0.4M
+(×1.09, 8,255 stars), `sm=+2` 1.3M → 1.7M (×1.27, 20,642), `sm=+4` 6.8M →
+10.0M (×1.47, 94,576; a magnitude 10 star's quad 9 px, Sirius's 160).
+The fragment shader evaluates the PSF once per fragment and four times
+within 3 px of the star.  SwiftShader can't time a GPU: the M2 at
+`?perf=1` is the check.
+
 **Every star sits on the far-plane boundary** unless pulled inside.  The
 camera's far plane is six galaxy radii and its near plane metres, so the
 projection's (f + n) / (f − n) is 1 in float32 and a star's clip z is
