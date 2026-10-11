@@ -1,5 +1,28 @@
-import {ASTRO_UNIT_METER, DISPLAY_GAIN, INITIAL_FOV, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
+import {ASTRO_UNIT_METER, DISPLAY_GAIN, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
 import {HDR_MAX_VALUE, luminousShoulder} from './hdr.js'
+import {
+  EYE_CORE_SHARE,
+  EYE_DARK_GAIN,
+  EYE_PATCH_SR,
+  EYE_POINT_RAD,
+  EYE_POOL_RADIUS_DEG,
+  LIMITING_MAGNITUDE,
+  LIMIT_VALUE,
+  NAKED_EYE,
+  SUN_APPARENT_MAGNITUDE,
+  illuminanceRatio,
+  instrumentMagnification,
+  instrumentPatchRad,
+  wingWindow,
+} from './observer/instrument.js'
+import {eyePsfRadiusDeg} from './sun/glare.js'
+
+
+// The observer's numbers live in observer/instrument.js (the seam for
+// other instruments); the star field's calibration keeps its names here.
+export {
+  EYE_PATCH_SR, EYE_POINT_RAD, LIMITING_MAGNITUDE, LIMIT_VALUE, SUN_APPARENT_MAGNITUDE, illuminanceRatio,
+}
 
 
 /**
@@ -628,20 +651,24 @@ export const GALAXY_GAIN_MAX = 1e10
 /** The mean luminance, in exposure units, the metered exposure aims for. */
 export const METER_KEY = 0.3
 /**
- * Pixels darker than this, in exposure units, count as this: it sets the
- * dark-adapted gain, METER_KEY over it, 4e6 over Earth's keyed exposure
- * wherever the camera is (meteredGain), which shows a scene of 8e-3 cd/m²
- * (a sunlit white is 3e4) as a sunlit one.  The eye adapts to
- * 1e-6 cd/m², so this is well within its range; it is set so that a star
- * of magnitude 6.5, 2.9e-8 of a sunlit white over the eye's patch, just
- * shows, 0.12 in exposure units, 12 of 255 through Neutral's toe (HDR.md,
- * "Physical stars": the naked-eye limit at a dark site).  At 1e-7, 3e6,
- * the limit was magnitude 6; at 3e-8, 1e7, magnitude 7.5: the toe makes
- * the faint end steeper than the light.
+ * The most the metered exposure rises over the target-keyed one: the
+ * dark-adapted eye's gain (observer/instrument.js EYE_DARK_GAIN), 4e6
+ * over Earth's keyed exposure wherever the camera is (meteredGain).
  */
-export const METER_FLOOR = 7.5e-8
-/** The most the metered exposure rises over the target-keyed one. */
-export const METER_GAIN_MAX = METER_KEY / METER_FLOOR
+export const METER_GAIN_MAX = EYE_DARK_GAIN
+/**
+ * Pixels darker than this, in exposure units, count as this: METER_KEY
+ * over the dark-adapted gain, 7.5e-8, so black asks for that gain and not
+ * infinity.  It shows a scene of 8e-3 cd/m² (a sunlit white is 3e4) as a
+ * sunlit one.  The eye adapts to 1e-6 cd/m², so this is well within its
+ * range; the gain is set so that a star of magnitude 6.5, 2.9e-8 of a
+ * sunlit white over the eye's patch, just shows, 0.12 in exposure units,
+ * 12 of 255 through Neutral's toe (HDR.md, "Physical stars": the
+ * naked-eye limit at a dark site).  At 1e-7, 3e6, the limit was magnitude
+ * 6; at 3e-8, 1e7, magnitude 7.5: the toe makes the faint end steeper
+ * than the light.
+ */
+export const METER_FLOOR = METER_KEY / METER_GAIN_MAX
 /** The share of the frame whose luminance the highlight cap looks at. */
 export const METER_HIGHLIGHT_FRACTION = 0.02
 /**
@@ -799,78 +826,34 @@ export function approachExposure(live, arrival, progress) {
 
 
 /**
- * The limiting magnitude (HDR.md, "Physical stars"): the naked eye's at a
- * dark site, dark adapted, which is the metered exposure's dark-adapted
- * gain (METER_GAIN_MAX).  The one parameter the star field is calibrated
- * on: a star of this magnitude shows LIMIT_VALUE there, brighter ones
- * 2.5× more light per magnitude, fainter ones less, down into black
- * smoothly (no pop); the eye's patch, over which a star's light is
- * spread, follows from it (EYE_PATCH_SR).  At any other exposure the
- * limit moves with the gain (limitingMagnitude): by day only the planets
- * and the brightest stars; with a user's star gain, fainter (a longer
- * exposure, a telescope).
- */
-export const LIMITING_MAGNITUDE = 6.5
-/**
- * What a star at the limit shows, in exposure units: 12 of 255 through
- * Neutral's toe, just visible.
- */
-export const LIMIT_VALUE = 0.12
-/** The Sun's apparent magnitude. */
-export const SUN_APPARENT_MAGNITUDE = -26.74
-
-
-/**
- * @param {number} magnitude Apparent
- * @returns {number} The star's illuminance over the Sun's at 1 AU
- */
-export function illuminanceRatio(magnitude) {
-  return Math.pow(10, -0.4 * (magnitude - SUN_APPARENT_MAGNITUDE))
-}
-
-
-/**
- * The eye's patch, steradians: the solid angle a point's light is spread
- * over, so that a star at LIMITING_MAGNITUDE shows LIMIT_VALUE at the
- * dark-adapted gain (a star's value is DISPLAY_GAIN·π·ratio/Ω·gain,
- * stars.vert).  8.2e-6 sr, a 9.9 arcmin square: the dark-adapted eye's
- * resolution of a point (rod acuity, ~20/200, 10 arcmin), which is why
- * the calibration is physical.
- */
-export const EYE_PATCH_SR = DISPLAY_GAIN * Math.PI * illuminanceRatio(LIMITING_MAGNITUDE) * METER_GAIN_MAX / LIMIT_VALUE
-/** The eye's patch's side, radians. */
-export const EYE_POINT_RAD = Math.sqrt(EYE_PATCH_SR)
-
-
-/**
- * A field narrower than the naked eye's (INITIAL_FOV) is a telescope's: it
- * magnifies by the ratio of the half-angles' tangents (the far point's
- * fovScale, inverted), 1 at 45° and wider.
+ * A field narrower than the naked eye's is a telescope's, magnifying by
+ * the ratio of the half-angles' tangents (observer/instrument.js
+ * instrumentMagnification), 1 at 45° and wider.
  *
  * @param {number} fovDegrees Vertical field of view
  * @returns {number} At least 1
  */
 export function fieldMagnification(fovDegrees) {
-  const t = Math.tan(fovDegrees * Math.PI / 360)
-  return t > 0 ? Math.max(Math.tan(INITIAL_FOV * Math.PI / 360) / t, 1) : 1
+  return instrumentMagnification(fovDegrees)
 }
 
 
 /**
  * The eye's patch on the sky through a field (HDR.md, "A telescope's
- * field"): its 10′ on the screen is 10′ over the magnification on the sky,
- * which is where a star's light lands.  So a star keeps its size on screen
- * as the field narrows, and its light, in that patch, rises over a
- * surface's by the magnification squared, as through a telescope whose
- * exit pupil fills the dark-adapted eye's.  At 10′ on the sky at every
- * field, a star at 0.91° over 879 px was a Gaussian 40 px wide, under a
- * thousandth of its peak at 45°.
+ * field"; observer/instrument.js instrumentPatchRad): its 10′ on the
+ * screen is 10′ over the magnification on the sky, which is where a star's
+ * light lands.  So a star keeps its size on screen as the field narrows,
+ * and its light, in that patch, rises over a surface's by the
+ * magnification squared, as through a telescope whose exit pupil fills the
+ * dark-adapted eye's.  At 10′ on the sky at every field, a star at 0.91°
+ * over 879 px was a Gaussian 40 px wide, under a thousandth of its peak at
+ * 45°.
  *
  * @param {number} fovDegrees Vertical field of view
  * @returns {number} Radians
  */
 export function eyePatchRad(fovDegrees) {
-  return EYE_POINT_RAD / fieldMagnification(fovDegrees)
+  return instrumentPatchRad(fovDegrees, NAKED_EYE)
 }
 
 
@@ -892,7 +875,7 @@ export function eyePatchRad(fovDegrees) {
  * @param {number} [heightPx] Viewport height; 0 leaves the pixel out
  * @returns {number}
  */
-export function limitingMagnitude(gainOverKeyed, starGain = 1, fovDegrees = INITIAL_FOV, heightPx = 0) {
+export function limitingMagnitude(gainOverKeyed, starGain = 1, fovDegrees = 45, heightPx = 0) {
   const patchRad = heightPx > 0 ? Math.sqrt(pointSolidAngle(fovDegrees, heightPx)) : eyePatchRad(fovDegrees)
   return LIMITING_MAGNITUDE + (2.5 * Math.log10(Math.max(gainOverKeyed * starGain, 1e-300) / METER_GAIN_MAX)) +
     (5 * Math.log10(EYE_POINT_RAD / patchRad))
@@ -910,8 +893,9 @@ export function starGainForLimit(magnitude) {
 
 /**
  * The star sprite's law, as shaders/stars.vert computes it, for tests and
- * probes (HDR.md, "Physical stars"): the star's radiance over the eye's
- * patch at this exposure, the kernel's width and peak, and the quad.
+ * probes (HDR.md, "Physical stars"): the star's pooled radiance over the
+ * eye's patch at this exposure, the core kernel's width and peak, the
+ * wing's scale (the eye's PSF, sun/glare.js eyePsf), and the quad.
  *
  * @param {number} ratio The star's illuminance over the Sun's at 1 AU
  * @param {number} gainOverEarth The exposure over Earth's keyed one (exposureRelative)
@@ -920,38 +904,81 @@ export function starGainForLimit(magnitude) {
  * @param {number} [opts.heightPx] Viewport height
  * @param {number} [opts.starGain] The user's gain
  * @param {number} [opts.discRad] The star's disc's angular diameter, radians
- * @returns {{value: number, patchPx: number, sigma: number, peak: number,
- *   sizePx: number, coreRadiusPx: number, flat: boolean, glareCapped: boolean}} value is the
- *   radiance in exposure units; coreRadiusPx where the kernel passes white
- *   (0.76 after the tone map's shoulder), 0 for a star under it; flat for
- *   the one-pixel sprite of a coarse viewport (sigma 0)
+ * @param {boolean} [opts.wings] Whether the wings are drawn (not for the
+ *   Sun's point: its glare pass draws them)
+ * @param {number} [opts.maxSizePx] The quad's largest side (the GPU's point-size range)
+ * @returns {{value: number, patchPx: number, sigma: number, peak: number, sizePx: number, coreRadiusPx: number,
+ *   flat: boolean, wingScale: number, degPerPx: number, wingRadiusPx: number, visibleRadiusPx: number}}
+ *   value is the pooled radiance in exposure units and peak the core's; coreRadiusPx where
+ *   the kernel (core or wing) passes white (0.76, the tone map's shoulder), 0 for a star under it;
+ *   wingScale the star's whole light in exposure units × steradians (the veil is wingScale × eyePsf(θ));
+ *   degPerPx the eye's angle a pixel subtends; flat for the one-pixel sprite of a coarse viewport (sigma 0)
  */
-export function starSprite(ratio, gainOverEarth, {fovDegrees = 45, heightPx = 300, starGain = 1, discRad = 0} = {}) {
+export function starSprite(ratio, gainOverEarth,
+    {fovDegrees = 45, heightPx = 300, starGain = 1, discRad = 0, wings = true, maxSizePx = STAR_MAX_SIZE_PX} = {}) {
   const pxRad = (fovDegrees * Math.PI / 180) / Math.max(heightPx, 1)
+  const magnification = fieldMagnification(fovDegrees)
   const patchRad = Math.max(pxRad, eyePatchRad(fovDegrees))
   const patchPx = Math.max(Math.floor((patchRad / pxRad) + 0.5), 1)
   let value = DISPLAY_GAIN * Math.PI * ratio / (patchRad * patchRad) * gainOverEarth * starGain
   if (discRad > 0) {
     value *= Math.min(1, (patchRad * patchRad) / (discRad * discRad))
   }
+  // The eye's angle a pixel subtends: through a telescope's field, the
+  // pixel's angle on the sky times the magnification.
+  const degPerPx = pxRad * magnification * 180 / Math.PI
+  const wingScale = wings ? value * patchRad * patchRad * magnification * magnification / STAR_CORE_SHARE : 0
   const light = value * patchPx * patchPx
   const sigma0 = Math.max(STAR_SIGMA_PER_PATCH * patchPx, STAR_SIGMA_MIN_PX)
   const peak0 = light / (2 * Math.PI * sigma0 * sigma0)
+  const wingRadiusPx = wingScale > 0 ? eyePsfRadiusDeg(STAR_WING_FLOOR / wingScale) / degPerPx : 0
+  // Where the wing passes white: only outside the pool, where it is drawn
+  // whole (inside, the core is the star).
+  const wingWhiteDeg = wingScale > 0 ? eyePsfRadiusDeg(0.76 / wingScale) : 0
+  const wingWhitePx = wingWhiteDeg >= STAR_POOL_RADIUS_DEG ? wingWhiteDeg / degPerPx : 0
   if (patchPx < 1.5 && peak0 < 1) {
-    return {value, patchPx, sigma: 0, peak: Math.min(value, HDR_MAX_VALUE), sizePx: 1, coreRadiusPx: 0, flat: true}
+    // Odd-sized about the star's pixel, as the shader has it.
+    const sizePx = Math.min(Math.max((2 * Math.floor(wingRadiusPx + 0.5)) + 1, 1), maxSizePx)
+    return {value, patchPx, sigma: 0, peak: Math.min(value, HDR_MAX_VALUE), sizePx, coreRadiusPx: wingWhitePx, flat: true,
+      wingScale, degPerPx, wingRadiusPx, visibleRadiusPx: Math.max(0.5, wingRadiusPx)}
   }
-  const decades = Math.max(Math.log10(Math.max(peak0, 1e-30)), 0)
-  const sigma = sigma0 + (STAR_BLOOM_SIGMA_PX_PER_DECADE * decades)
-  const peakRaw = Math.min(light / (2 * Math.PI * sigma * sigma), HDR_MAX_VALUE)
-  // The glare cap: the saturated core is at most STAR_GLARE_CORE_PATCHES
-  // patches in radius, so the peak is at most what puts the kernel at
-  // white (0.76) there; the halo falls off from it.
-  const coreMax = STAR_GLARE_CORE_PATCHES * patchPx
-  const peak = Math.min(peakRaw, 0.76 * Math.exp(coreMax * coreMax / (2 * sigma * sigma)))
-  const visibleRadius = sigma * Math.sqrt(2 * Math.log(Math.max(peak / STAR_VISIBLE_VALUE, 1)))
-  const sizePx = Math.min(Math.max((2 * visibleRadius) + 2, 1), STAR_MAX_SIZE_PX)
-  const coreRadiusPx = sigma * Math.sqrt(2 * Math.log(Math.max(peak / 0.76, 1)))
-  return {value, patchPx, sigma, peak, sizePx, coreRadiusPx, flat: false, glareCapped: peak < peakRaw}
+  const sigma = sigma0
+  const peak = Math.min(light / (2 * Math.PI * sigma * sigma), HDR_MAX_VALUE)
+  const coreVisible = sigma * Math.sqrt(2 * Math.log(Math.max(peak / STAR_VISIBLE_VALUE, 1)))
+  const visibleRadiusPx = Math.max(coreVisible, wingRadiusPx)
+  const sizePx = Math.min(Math.max((2 * visibleRadiusPx) + 2, 1), maxSizePx)
+  const coreRadiusPx = Math.max(sigma * Math.sqrt(2 * Math.log(Math.max(peak / 0.76, 1))), wingWhitePx)
+  return {value, patchPx, sigma, peak, sizePx, coreRadiusPx, flat: false, wingScale, degPerPx, wingRadiusPx, visibleRadiusPx}
+}
+
+
+/**
+ * The kernel's value at a distance from the star's centre, as stars.frag
+ * computes it: the pooled core, a Gaussian whose pixels sum to the pooled
+ * light, plus the wing, the eye's PSF windowed in past the pool.
+ *
+ * @param {number} rPx Pixels from the centre
+ * @param {object} sprite starSprite's
+ * @returns {{core: number, wing: number, total: number}} Exposure units
+ */
+export function starKernel(rPx, sprite) {
+  const {sigma, peak, wingScale, degPerPx, flat, value} = sprite
+  const core = flat ? (rPx < 0.5 ? value : 0) : peak * Math.exp(-rPx * rPx / (2 * sigma * sigma))
+  const thetaDeg = rPx * degPerPx
+  const wing = wingScale * NAKED_EYE.psf.wing(thetaDeg) * starWingWindow(thetaDeg)
+  return {core, wing, total: core + wing}
+}
+
+
+/**
+ * The wing's window: 0 inside half the pool's radius, 1 from the pool's
+ * radius out (a smoothstep between), the eye's angle in degrees.
+ *
+ * @param {number} thetaDeg
+ * @returns {number}
+ */
+export function starWingWindow(thetaDeg) {
+  return wingWindow(thetaDeg, STAR_POOL_RADIUS_DEG)
 }
 
 
@@ -1053,19 +1080,34 @@ export const STAR_SIGMA_PER_PATCH = 0.25
 export const STAR_SIGMA_MIN_PX = 0.6
 /** A star's peak over its radiance on a screen whose patch is 3 px or more. */
 export const STAR_PEAK_OVER_RADIANCE = 1 / (2 * Math.PI * STAR_SIGMA_PER_PATCH * STAR_SIGMA_PER_PATCH)
-/** The kernel's width grows this many pixels per decade of light over white (bloom). */
-export const STAR_BLOOM_SIGMA_PX_PER_DECADE = 0.75
-/** The quad holds the kernel out to where it falls under this, exposure units. */
+/** The quad holds the core out to where it falls under this, exposure units: a display step. */
 export const STAR_VISIBLE_VALUE = 0.004
-/** The quad's largest side, pixels (Stars.js MAX_STAR_SIZE_PX). */
-export const STAR_MAX_SIZE_PX = 96
 /**
- * The saturated core's largest radius, in patches (stars.vert): the
- * bloom's core grew with the log of the light without limit, and the Sun
- * from 52 AU, 1e9 over white at the dark gain, was a 120 px disc on the
- * user's screen where it should read as a dazzling star.  The eye's
- * glare has a core of about this size (20′: two patches), with the halo
- * falling off round it; past the cap the light is lost, as it is to a
- * saturated retina.
+ * The quad's largest side, pixels (starsMaterial.js uMaxStarSizePx; held
+ * to the GPU's point-size range by ThreeUi): Sirius's wing at the dark
+ * gain on a 1080 px screen reaches 38 px, and at sm=+2 the brightest
+ * stars' wings pass the quad, which the edge window takes to zero.
  */
-export const STAR_GLARE_CORE_PATCHES = 2
+export const STAR_MAX_SIZE_PX = 160
+/**
+ * The rods' pool round a point, as the eye's angle in degrees (observer/
+ * instrument.js EYE_POOL_RADIUS_DEG): inside it a star's light is pooled
+ * and drawn as the core; outside it the eye's PSF is the veil round the
+ * star, drawn as the wing.
+ */
+export const STAR_POOL_RADIUS_DEG = EYE_POOL_RADIUS_DEG
+/**
+ * The share of a point's light the eye's PSF puts in the pool, the wing's
+ * window taking the rest (observer/instrument.js EYE_CORE_SHARE, 0.58).
+ * The pooled light is what the limiting magnitude is calibrated on (a
+ * star's `value` is its pooled radiance), so the star's whole light is the
+ * pooled light over this share, and the wing carries the rest.
+ */
+export const STAR_CORE_SHARE = EYE_CORE_SHARE
+/**
+ * The wing is drawn out to where it falls under this, exposure units: 2.5
+ * of 255 on screen, and about the dark-adapted eye's own threshold for a
+ * feature of 20-60′ over a dark sky (eye.js thresholdContrast, 0.3-0.5 of
+ * the sky's 0.026 at the dark gain).  The core's floor is STAR_VISIBLE_VALUE.
+ */
+export const STAR_WING_FLOOR = 0.01

@@ -368,6 +368,29 @@ Earth's surface by day and from space at a wide field (from Earth's orbit
 at 45° the Sun, 11 px across, sits in a white veil ~10° wide at the
 keyed exposure).  Every star drawn as a disc gets it.
 
+**From any distance** ([#235](https://github.com/celestiary/web/issues/235)):
+the pass hung under the disc's LOD, whose far level (a thousand radii,
+4.65 AU for the Sun) culled it, so from Jupiter outward the Sun's point
+had no veil and the field round it was a dark site's.  It is beside the
+LOD now (`Star.js`, `SunLayers.glareGroup`), and its own reach decides
+(`_glareView`: where the veil falls under the floor): from Pluto the Sun
+is magnitude −19, 88 lux, and the equation's veil 60° off is 0.3 cd/m²,
+a moonlit landscape's, 40 times a dark sky; the meter reads it as light
+in the field, the gain falls, and the stars go, as they do to an eye
+with the Sun in its field anywhere in the solar system.  The equation's
+range ends at 100°, the eye's field's temporal edge: the pass fades out
+by the Sun's angle from the view axis, the gaze, from 90° to 100°
+(`glareFieldWeight`, its `uFieldWeight`), none for a source behind the
+head; by each pixel's own angle it would have veiled a frame whose edge
+is 80° from a Sun 106° behind the gaze (the Moon from Earth's night
+side at 20,000 km held the gain at 26-44 and showed no star, before this
+change as after it until the fade moved to the gaze).  The Sun's
+point sprite draws no wing of its own (`stars.vert`, [HDR.md, physical
+stars](HDR.md#physical-stars)): the pass is its glare, and both would
+count it twice.  The observer's glare function is the instrument's
+(`observer/instrument.js` `NAKED_EYE.psf.glare`; HDR.md, [the
+instrument](HDR.md#the-instrument)).
+
 ## The solar wind
 
 A diagram, not light: the wind's own brightness at 1 AU is ~1e-15 of the

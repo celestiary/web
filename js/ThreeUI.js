@@ -28,12 +28,13 @@ import {
 import CesiumLayers from './scene/cesium/CesiumLayers'
 import {
   adaptMeterGain, approachExposure, arrivalGain, easeExposure, exposureAt, exposureRelative,
-  LIMITING_MAGNITUDE, PHYSICAL_SKY_GAIN, SUN_DISC_RADIANCE, frameCanBeEmpty, galaxyGain, illuminanceRatio,
+  LIMITING_MAGNITUDE, PHYSICAL_SKY_GAIN, STAR_MAX_SIZE_PX, SUN_DISC_RADIANCE, frameCanBeEmpty, galaxyGain, illuminanceRatio,
   limitingMagnitude, luminousDiscGain, meanLogLuminance, meteredGain, skyExposure, skyGain, starClipZ, starSprite,
   sunlitBodyCap, sunlitBodyGain,
 } from './scene/exposure.js'
 import {clampEv, renderExposure} from './scene/evCompensation.js'
-import {clampStarMag, starMagGain} from './scene/starMagnitude.js'
+import {clampStarMag} from './scene/starMagnitude.js'
+import {NAKED_EYE, instrumentStarGain} from './scene/observer/instrument.js'
 import {extendedGain, s10Value} from './scene/eye.js'
 import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
@@ -134,7 +135,13 @@ export default class ThreeUi {
     this._meterCadence = new MeterCadence()
     // The user's exposure compensation, stops (setExposureCompensation).
     this._evStops = 0
-    // The stars' setting, magnitudes over the naked eye's limit (setStarMagnitudeOffset).
+    // The observer (observer/instrument.js): the naked eye, dark adapted.
+    // What the star field takes from it goes to the shaders through hdr.js
+    // absoluteUniforms, once here (the field's magnification is the
+    // camera's, each frame in the shader).
+    this.instrument = NAKED_EYE
+    this._setObserverUniforms()
+    // The stars' setting, magnitudes over the instrument's limit (setStarMagnitudeOffset).
     this._starMag = 0
     this._exposureBodyPos = new Vector3()
     this._exposureSunPos = new Vector3()
@@ -833,7 +840,34 @@ export default class ThreeUi {
    */
   setStarMagnitudeOffset(mag) {
     this._starMag = clampStarMag(mag)
-    this.setStarGain(starMagGain(this._starMag))
+    this.setStarGain(instrumentStarGain(this.instrument, this._starMag))
+  }
+
+
+  /**
+   * The observer's numbers for the star shader (hdr.js absoluteUniforms;
+   * observer/instrument.js): the detector's pool round a point, the pool's
+   * radius in the instrument's degrees, the PSF's share in it, and the
+   * sprite quad's largest side, held to the GPU's point-size range (a
+   * point larger than it is drawn at the range's top, so the quad's
+   * pixels must be sized to what is drawn).
+   */
+  _setObserverUniforms() {
+    const psf = this.instrument.psf
+    absoluteUniforms.uEyePointRad.value = this.instrument.pointPoolRad
+    absoluteUniforms.uPoolRadiusDeg.value = psf.poolRadiusDeg
+    absoluteUniforms.uCoreShare.value = psf.coreShare
+    let maxPoint = STAR_MAX_SIZE_PX
+    try {
+      const gl = this.renderer.getContext()
+      const range = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)
+      if (range && range[1] > 0) {
+        maxPoint = Math.min(maxPoint, range[1])
+      }
+    } catch {
+      // A renderer with no context (tests): the default stands.
+    }
+    absoluteUniforms.uMaxStarSizePx.value = maxPoint
   }
 
 
@@ -1426,7 +1460,8 @@ export default class ThreeUi {
     }
     const radius = g.getAttribute('radius').array[index]
     const sprite = starSprite(ratio, absoluteUniforms.uExposureRelative.value,
-        {fovDegrees: this.camera.fov, heightPx: this.height, starGain: absoluteUniforms.uStarGain.value})
+        {fovDegrees: this.camera.fov, heightPx: this.height, starGain: absoluteUniforms.uStarGain.value,
+          maxSizePx: absoluteUniforms.uMaxStarSizePx.value})
     // Clip w: the distance along the view axis.
     const viewZ = -world.clone().applyMatrix4(this.camera.matrixWorldInverse).z
     const clipZ = starClipZ(viewZ, this.camera.near, this.camera.far)
@@ -1440,7 +1475,8 @@ export default class ThreeUi {
     const flat = [`star ${name} hip ${hip} ${f(distance / 9.461e15)} ly at px ${px},${py}`,
       `ndc ${ndc.x.toFixed(4)},${ndc.y.toFixed(4)},${ndc.z.toFixed(8)}`,
       `lumens ${f(lumens)} radius ${f(radius)}`,
-      `sprite size ${f(sprite.sizePx)} sigma ${f(sprite.sigma)} peak ${f(sprite.peak)} flat ${sprite.flat} capped ${sprite.glareCapped}`,
+      `sprite size ${f(sprite.sizePx)} sigma ${f(sprite.sigma)} peak ${f(sprite.peak)} flat ${sprite.flat}`,
+      `wing ${f(sprite.wingRadiusPx)} px`,
       `clip w ${f(clipZ.w)} w²Inf ${clipZ.wSquaredOverflows} onFarPlane ${clipZ.onFarPlane} ulpsInside ${f(clipZ.ulpsInside)}`,
       `gain ${f(this._meterGain)}`,
       `luma ${Object.entries(luma).map(([k, v]) => `${k}=${typeof v === 'object' && v ? `${v.luma}@${v.at}` : v}`).join(' ')}`]
@@ -1530,7 +1566,8 @@ export default class ThreeUi {
     const program = points ? this.renderer.properties.get(points.material)?.currentProgram : null
     const gain = absoluteUniforms.uExposureRelative.value
     const starGain = absoluteUniforms.uStarGain.value
-    const opts = {fovDegrees: this.camera.fov, heightPx: this.height, starGain}
+    const opts = {fovDegrees: this.camera.fov, heightPx: this.height, starGain,
+      maxSizePx: absoluteUniforms.uMaxStarSizePx.value}
     const stars = {}
     for (const [name, magnitude] of [['Sirius', -1.46], ['Vega', 0.03], ['mag 3', 3], ['mag 6', 6], ['mag 6.5', 6.5]]) {
       stars[name] = starSprite(illuminanceRatio(magnitude), gain, opts)
@@ -1565,7 +1602,8 @@ export default class ThreeUi {
       fragmentHighp: highp ? {rangeMin: highp.rangeMin, rangeMax: highp.rangeMax, precision: highp.precision} : null,
       starsDrawn: Boolean(points),
       program: program ? (program.diagnostics ?? 'compiled') : 'none',
-      maxStarSizePx: points?.material.uniforms.MAX_STAR_SIZE_PX.value,
+      maxStarSizePx: absoluteUniforms.uMaxStarSizePx.value,
+      instrument: this.instrument.name,
       stars,
     }
     console.log('stars', out)

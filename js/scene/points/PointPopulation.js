@@ -48,10 +48,10 @@ export const DEFAULT_MEMORY_POINTS = 2 * DEFAULT_BUDGET
 
 /**
  * Pixels past the frame's edge a point can still light: half the star
- * sprite's largest quad (starsMaterial.js MAX_STAR_SIZE_PX), so a bright
+ * sprite's largest quad (exposure.js STAR_MAX_SIZE_PX, 160), so a bright
  * star just outside the frame still draws its halo into it.
  */
-export const EDGE_PAD_PX = 48
+export const EDGE_PAD_PX = 80
 /** Days in a Julian year. */
 const JULIAN_YEAR_DAYS = 365.25
 

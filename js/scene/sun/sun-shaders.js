@@ -1,6 +1,6 @@
 import {EMITTED_GLSL, HDR_MAX_VALUE, LUMINOUS_GLOW_MAX} from '../hdr.js'
 import {CME_SHELL_SIGMA, CORONA_GLSL, CORONA_SAMPLES} from './corona.js'
-import {GLARE_GLSL} from './glare.js'
+import {NAKED_EYE} from '../observer/instrument.js'
 
 
 /**
@@ -272,7 +272,7 @@ void main() {
 
 export const GLARE_FRAGMENT = `
 ${EMITTED_GLSL}
-${GLARE_GLSL}
+${NAKED_EYE.psf.glareGlsl}
 varying vec2 vNdc;
 uniform mat4 uProjectionInverse;
 // The disc's centre and two directions across it, in view space; its
@@ -286,6 +286,9 @@ uniform float uDiscSolidAngle;
 uniform float uVisible;
 uniform float uDiscValue;
 uniform vec3 uSunColor;
+// Whether the source is in the eye's field: 1 to 90° from the view axis,
+// 0 at 100° (glare.js glareFieldWeight).
+uniform float uFieldWeight;
 const float LUMINOUS_GLOW_MAX = ${LUMINOUS_GLOW_MAX.toExponential()};
 const float RAD_TO_DEG = 57.2957795;
 
@@ -322,7 +325,7 @@ void main() {
       f += 0.048125 * glareFunction(angleDeg(dir, p));
     }
   }
-  float veil = min(uDiscValue * uVisible * uDiscSolidAngle * f, LUMINOUS_GLOW_MAX);
+  float veil = min(uDiscValue * uVisible * uFieldWeight * uDiscSolidAngle * f, LUMINOUS_GLOW_MAX);
   gl_FragColor = vec4(emitted(uSunColor * veil), 1.0);
 }
 `

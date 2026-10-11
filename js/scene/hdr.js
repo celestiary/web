@@ -5,6 +5,7 @@ import {
   ShaderChunk,
   SrcAlphaFactor,
 } from 'three'
+import {NAKED_EYE} from './observer/instrument.js'
 
 
 /**
@@ -315,9 +316,17 @@ export const absoluteUniforms = {
   // The user's gain on the stars' light (ThreeUi.setLimitingMagnitude): 1
   // is the naked eye's limit.
   uStarGain: {value: 1},
-  // The eye's patch's side, radians (exposure.js EYE_POINT_RAD; ThreeUi
-  // sets it).
-  uEyePointRad: {value: 10 / 60 * Math.PI / 180},
+  // The observer (observer/instrument.js; ThreeUi sets them from its
+  // instrument, the naked eye's here): the detector's pool round a point,
+  // radians (the patch's side); the pool's radius in the instrument's own
+  // degrees, where the sprite's pooled core hands over to the PSF's wing;
+  // the PSF's share in the pool; and the sprite quad's largest side in
+  // pixels (exposure.js STAR_MAX_SIZE_PX, which this file can't import),
+  // the GPU's point-size range permitting.
+  uEyePointRad: {value: NAKED_EYE.pointPoolRad},
+  uPoolRadiusDeg: {value: NAKED_EYE.psf.poolRadiusDeg},
+  uCoreShare: {value: NAKED_EYE.psf.coreShare},
+  uMaxStarSizePx: {value: 160},
   // What the camera sees of the Sun's disc past the bodies in front (an
   // eclipse; sun/SunLayers.js): the Sun's point, the catalogue's origin,
   // dims with it (shaders/stars.vert).  From the ground the stars' depth

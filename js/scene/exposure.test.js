@@ -6,13 +6,15 @@ import {
   frameCanBeEmpty, meanLogLuminance, meteredGain, pointSolidAngle, skyExposure, starGainForLimit, starSprite,
   eyePatchRad, fieldMagnification,
   luminousDiscGain, starClipZ, sunDiscValue, sunlitBodyCap, sunlitBodyGain, HIGHLIGHT_ALBEDO_FACTOR,
-  METER_HIGHLIGHT_FRACTION, STAR_GLARE_CORE_PATCHES, SUNLIT_FRAME_WEIGHT, SUNLIT_FRAME_FRACTION,
-  STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, STAR_VISIBLE_VALUE, SUN_DISC_RADIANCE,
+  METER_HIGHLIGHT_FRACTION, SUNLIT_FRAME_WEIGHT, SUNLIT_FRAME_FRACTION,
+  STAR_CORE_SHARE, STAR_MAX_SIZE_PX, STAR_PEAK_OVER_RADIANCE, STAR_POOL_RADIUS_DEG, STAR_VISIBLE_VALUE,
+  STAR_WING_FLOOR, SUN_DISC_RADIANCE, starKernel, starWingWindow,
   GALAXY_FRAME, GALAXY_GAIN_MAX, GALAXY_HIGHLIGHT, GALAXY_HIGHLIGHT_FRACTION, GALAXY_LIT_RELATIVE, galaxyGain,
   approachExposure, arrivalGain,
 } from './exposure.js'
 import {readFileSync} from 'fs'
 import {EYE_GLSL} from './eye.js'
+import {EYE_PSF_GLSL} from './sun/glare.js'
 import {galaxyGlsl} from './galaxyModel.js'
 import {HDR_MAX_VALUE, HDR_MIN_NORMAL, emitted, neutral} from './hdr.js'
 import {NIGHT_SKY_GLSL} from './nightSky.js'
@@ -262,37 +264,101 @@ describe('metered exposure', () => {
 })
 
 
-describe('the glare cap', () => {
+describe('the eye\'s PSF round a star (the wing)', () => {
   const mag = (m) => illuminanceRatio(m)
+  const at1080 = (m, starGain = 1) => starSprite(mag(m), METER_GAIN_MAX, {heightPx: 1080, starGain})
 
-  it('bounds the saturated core at two patches from Sirius to the Sun at 5 AU, the halo growing with the log of the light', () => {
-    // At 1080p (a 4 px patch): Sirius's core just reaches the cap; Venus,
-    // the Sun from 52 AU and from 5 AU are held there, their halos wider.
-    const sirius = starSprite(mag(-1.46), METER_GAIN_MAX, {heightPx: 1080})
-    const venus = starSprite(mag(-4.6), METER_GAIN_MAX, {heightPx: 1080})
-    const sun52 = starSprite(1 / (52 * 52), METER_GAIN_MAX, {heightPx: 1080})
-    const sun5 = starSprite(1 / (5 * 5), METER_GAIN_MAX, {heightPx: 1080})
-    for (const star of [sirius, venus, sun52, sun5]) {
-      expect(star.coreRadiusPx).toBeLessThanOrEqual((STAR_GLARE_CORE_PATCHES * star.patchPx) + 1e-9)
-      expect(star.sizePx).toBeLessThan(STAR_MAX_SIZE_PX)
-      expect(Number.isFinite(star.peak) && star.peak > 0.76).toBe(true)
-    }
-    expect(venus.sizePx).toBeGreaterThan(sirius.sizePx)
-    expect(sun52.sizePx).toBeGreaterThan(venus.sizePx)
-    expect(sun5.sizePx).toBeGreaterThan(sun52.sizePx)
-    // The Sun from 52 AU: a 16 px core in a halo under 60 px, not 120 px.
-    expect(sun52.sizePx).toBeLessThan(60)
-    // From 10 pc it is a star of its absolute magnitude, 4.8: no cap, a
-    // point just at white (1.14 on a screen at the dark gain).
-    const sunLy = starSprite(mag(4.83), METER_GAIN_MAX, {heightPx: 1080})
-    expect(sunLy.glareCapped).toBe(false)
-    expect(sunLy.coreRadiusPx).toBeLessThan(1.5)
+  it('the pool holds 0.58 of the light; the wing carries the rest, so the whole light is the pooled light over the share', () => {
+    expect(STAR_CORE_SHARE).toBeGreaterThan(0.55)
+    expect(STAR_CORE_SHARE).toBeLessThan(0.62)
+    expect(STAR_POOL_RADIUS_DEG * 60).toBeCloseTo(4.85, 1)
+    expect(starWingWindow(0)).toBe(0)
+    expect(starWingWindow(STAR_POOL_RADIUS_DEG / 2)).toBe(0)
+    expect(starWingWindow(STAR_POOL_RADIUS_DEG)).toBe(1)
+    const s = at1080(0)
+    expect(s.wingScale).toBeCloseTo(s.value * EYE_POINT_RAD * EYE_POINT_RAD / STAR_CORE_SHARE, 12)
   })
 
-  it('leaves the fainter stars alone', () => {
-    for (const m of [0, 1, 3, 6]) {
-      expect(starSprite(mag(m), METER_GAIN_MAX, {heightPx: 1080}).glareCapped).toBe(false)
+  it('the kernel: the core at the centre, the wing outside the pool, both conserved', () => {
+    // At 1080p a pixel is 2.5′, the pool's radius 4.85′ (2 px): the wing
+    // is windowed in over the second pixel and whole from there.
+    const s = at1080(0)
+    expect(s.degPerPx * 60).toBeCloseTo(2.5, 2)
+    expect(starKernel(0, s).wing).toBe(0)
+    expect(starKernel(0, s).core).toBeCloseTo(s.peak, 9)
+    const two = starKernel(2, s)
+    expect(two.wing).toBeGreaterThan(0)
+    // The wing falls as θ^-3 across the 0.045° lobe's tail (0.2° to 1°,
+    // 5 to 24 px) and as θ^-2 past it (the scattered light).
+    const ratio = (a, b) => starKernel(a, s).wing / starKernel(b, s).wing
+    expect(Math.log(ratio(5, 10)) / Math.log(2)).toBeGreaterThan(2.5)
+    expect(Math.log(ratio(5, 10)) / Math.log(2)).toBeLessThan(3.1)
+    expect(Math.log(ratio(60, 120)) / Math.log(2)).toBeGreaterThan(1.7)
+    expect(Math.log(ratio(60, 120)) / Math.log(2)).toBeLessThan(2.5)
+    // The core's pixels sum to the pooled light, the wing's (to 100°) to the rest.
+    expect(s.peak * 2 * Math.PI * s.sigma * s.sigma).toBeCloseTo(s.value * s.patchPx * s.patchPx, 6)
+    let wingLight = 0
+    const pxSr = (s.degPerPx * Math.PI / 180) ** 2
+    for (let r = 0.5; r < 100 / s.degPerPx; r += 0.5) {
+      wingLight += starKernel(r, s).wing * 2 * Math.PI * r * 0.5 * pxSr
     }
+    const whole = s.value * EYE_POINT_RAD * EYE_POINT_RAD / STAR_CORE_SHARE
+    expect(wingLight / whole).toBeGreaterThan(0.38)
+    expect(wingLight / whole).toBeLessThan(0.48)
+  })
+
+  it('the saturated core and the halo follow the light by the function, not a σ law: Sirius 9 px in an 86 px quad at the dark gain', () => {
+    const sirius = at1080(-1.46)
+    const vega = at1080(0.03)
+    const six = at1080(6)
+    // The white radius (where the kernel passes 0.76): Sirius's is the
+    // wing's, 9 px (0.36°); a mag 6 star has none.
+    expect(sirius.coreRadiusPx).toBeGreaterThan(8)
+    expect(sirius.coreRadiusPx).toBeLessThan(10)
+    expect(sirius.sizePx).toBeGreaterThan(80)
+    expect(sirius.sizePx).toBeLessThan(100)
+    expect(vega.coreRadiusPx).toBeGreaterThan(5)
+    expect(vega.coreRadiusPx).toBeLessThan(7)
+    expect(six.coreRadiusPx).toBe(0)
+    expect(six.sizePx).toBeGreaterThan(7)
+    expect(six.sizePx).toBeLessThan(11)
+    // The white radius grows as the cube root of the light where the
+    // 0.045° lobe's tail sets it: 10× the light, 2.15× the radius; and the
+    // brightness order shows (no two stars the same disc).
+    const r = (m, g) => at1080(m, g).coreRadiusPx
+    expect(r(0, 10) / r(0, 1)).toBeGreaterThan(1.8)
+    expect(r(0, 10) / r(0, 1)).toBeLessThan(2.4)
+    expect(r(-1.46, 1)).toBeGreaterThan(r(0, 1))
+    expect(r(0, 1)).toBeGreaterThan(r(1, 1))
+    expect(r(1, 1)).toBeGreaterThan(r(2, 1))
+    // The quad never passes the GPU's range: at sm=+4 Sirius's wing would
+    // reach 190 px and is held to the quad, whose edge window ends it.
+    expect(at1080(-1.46, 10 ** 1.6).sizePx).toBe(STAR_MAX_SIZE_PX)
+    expect(at1080(-1.46, 10 ** 1.6).wingRadiusPx).toBeGreaterThan(STAR_MAX_SIZE_PX / 2)
+  })
+
+  it('the wing is drawn to its floor, 2.5 of 255, and the core to a display step', () => {
+    expect(STAR_WING_FLOOR).toBeCloseTo(0.01, 9)
+    expect(STAR_VISIBLE_VALUE).toBeCloseTo(0.004, 9)
+    const s = at1080(2)
+    expect(starKernel(s.wingRadiusPx, s).wing).toBeCloseTo(STAR_WING_FLOOR, 3)
+    // A faint star's quad is its wing's: a magnitude 6 star's wing is over
+    // the floor to 3.7 px, its core to 3 px.
+    const six = at1080(6)
+    expect(six.wingRadiusPx).toBeGreaterThan(3)
+    expect(six.wingRadiusPx).toBeLessThan(4.5)
+    expect(six.visibleRadiusPx).toBeCloseTo(six.wingRadiusPx, 9)
+  })
+
+  it('the Sun\'s point has no wing: its glare pass draws the veil', () => {
+    const sun = starSprite(1 / (39.5 * 39.5), METER_GAIN_MAX, {heightPx: 1080, wings: false})
+    expect(sun.wingScale).toBe(0)
+    expect(sun.wingRadiusPx).toBe(0)
+    expect(starKernel(20, sun).wing).toBe(0)
+    // Its core is the pooled Gaussian alone: white to 6 px (1e9 over white).
+    expect(sun.coreRadiusPx).toBeGreaterThan(4)
+    expect(sun.coreRadiusPx).toBeLessThan(8)
+    expect(sun.sizePx).toBeLessThan(40)
   })
 })
 
@@ -771,15 +837,24 @@ describe('the star sprite', () => {
     for (const m of [LIMITING_MAGNITUDE, 6, 5, 4.5]) {
       const star = starSprite(mag(m), METER_GAIN_MAX)
       expect(star.flat).toBe(true)
-      expect(star.sizePx).toBe(1)
+      // The quad is odd-sized about that pixel: 1 px, or a ring or two of
+      // the wing over its floor (1.4 of 255 for the limit star's first).
+      expect(star.sizePx % 2).toBe(1)
+      expect(star.sizePx).toBeLessThanOrEqual(7)
       expect(star.sigma).toBe(0)
       expect(star.peak).toBeCloseTo(star.value, 9)
+      expect(starKernel(0, star).core).toBeCloseTo(star.value, 9)
+      expect(starKernel(0, star).wing).toBe(0)
     }
-    // Over white the bloom takes over: a Gaussian whose peak is white.
+    // Over white the Gaussian core takes over, at the kernel's least width.
     const bright = starSprite(mag(2), METER_GAIN_MAX)
     expect(bright.flat).toBe(false)
     expect(bright.peak).toBeGreaterThan(1)
-    expect(bright.sigma).toBeGreaterThan(0.6)
+    expect(bright.sigma).toBe(0.6)
+    // A faint star's quad there is odd-sized about its pixel, holding its wing.
+    const faint = starSprite(mag(5), METER_GAIN_MAX)
+    expect(faint.flat).toBe(true)
+    expect(faint.sizePx % 2).toBe(1)
   })
 
   it('on a screen the kernel is a quarter of the patch: the peak 2.5 × the radiance, the same from 1080 to 2160 px', () => {
@@ -810,11 +885,13 @@ describe('the star sprite', () => {
   })
 
   it('the Sun: a point from Pluto, its disc from Earth', () => {
-    const fromPluto = starSprite(1 / (39.5 * 39.5), METER_GAIN_MAX, {discRad: 2 * 6.957e8 / 5.9e12, heightPx: 1080})
-    // 1e9 over white: the glare cap holds its core to two patches (8 px at
-    // 1080p) with the halo falling off round it, not a 120 px disc.
-    expect(fromPluto.glareCapped).toBe(true)
-    expect(fromPluto.coreRadiusPx).toBeCloseTo(STAR_GLARE_CORE_PATCHES * fromPluto.patchPx, 6)
+    const fromPluto = starSprite(1 / (39.5 * 39.5), METER_GAIN_MAX,
+        {discRad: 2 * 6.957e8 / 5.9e12, heightPx: 1080, wings: false})
+    // 1e9 over white: its pooled core is white to 6 px at 1080p; the veil
+    // round it is the glare pass's (sun/SunLayers.js), drawn from any
+    // distance over the whole frame, not the sprite's.
+    expect(fromPluto.coreRadiusPx).toBeGreaterThan(4)
+    expect(fromPluto.coreRadiusPx).toBeLessThan(8)
     expect(fromPluto.sizePx).toBeGreaterThan(2 * fromPluto.coreRadiusPx)
     expect(fromPluto.sizePx).toBeLessThan(STAR_MAX_SIZE_PX)
     // From Earth the disc is 32 arcmin, over the patch's 10: the point
@@ -861,6 +938,26 @@ describe('the shaders', () => {
         expect(code).not.toMatch(new RegExp(`\\b(float|int|vec[234]|bool)\\s+${word}\\b`))
       }
     }
+  })
+
+  it('stars.vert and stars.frag carry the eye\'s PSF as sun/glare.js has it, and its constants', () => {
+    // The shaders are files, so each carries its own copy of eyePsf: the
+    // function's body must be EYE_PSF_GLSL's, character for character.
+    const body = (source) => source.match(/float eyePsf\(float thetaDeg\) \{[\s\S]*?\n\}/)[0].replace(/\s+/g, ' ')
+    const reference = body(EYE_PSF_GLSL)
+    for (const file of ['stars.vert', 'stars.frag']) {
+      expect(body(readFileSync(`./js/shaders/${file}`, 'utf8'))).toBe(reference)
+    }
+    const vert = readFileSync('./js/shaders/stars.vert', 'utf8')
+    expect(Number(vert.match(/const float WING_FLOOR = ([0-9.e+-]+);/)[1])).toBeCloseTo(STAR_WING_FLOOR, 9)
+    expect(Number(vert.match(/const float VISIBLE_VALUE = ([0-9.e+-]+);/)[1])).toBeCloseTo(STAR_VISIBLE_VALUE, 9)
+    // The quad's estimate of the wing's radius starts from the two tails'
+    // own solutions: 13.6/θ³ and 4.1/θ², the lobe's and the scatter's.
+    expect(vert).toMatch(/max\(pow\(13\.6 \* ratio, 1\.0 \/ 3\.0\), sqrt\(4\.1 \* ratio\)\)/)
+    // The observer's numbers come in as uniforms, not constants.
+    expect(vert).toMatch(/uniform float uEyePointRad;/)
+    expect(vert).toMatch(/uniform float uCoreShare;/)
+    expect(readFileSync('./js/shaders/stars.frag', 'utf8')).toMatch(/uniform float uPoolRadiusDeg;/)
   })
 
   it('stars.frag floors emitted radiance at the buffer\'s smallest normal value, the same constant as hdr.js', () => {
@@ -995,7 +1092,7 @@ describe('a telescope\'s field', () => {
     const declared = source.match(/const float TAN_HALF_EYE_FOV = ([0-9.e+-]+);/)
     expect(declared).not.toBeNull()
     expect(Number(declared[1])).toBeCloseTo(Math.tan(22.5 * Math.PI / 180), 7)
-    expect(source).toMatch(/patchRad = max\(pxRad, EYE_POINT_RAD \/ magnification\)/)
+    expect(source).toMatch(/patchRad = max\(pxRad, uEyePointRad \/ magnification\)/)
   })
 })
 

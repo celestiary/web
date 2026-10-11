@@ -20,7 +20,7 @@ import {activeRegionsAt} from './activeRegions.js'
 import {baumbachK, cmeShellDensity, sheetAt} from './corona.js'
 import {occluderSeen, visibleFraction} from './eclipse.js'
 import {balmerPerNm} from './emission.js'
-import {glareFunction, glareRadiusDeg} from './glare.js'
+import {glareFieldWeight, glareFunction, glareRadiusDeg} from './glare.js'
 import {MS_PER_DAY, activityLevel, cyclesAt, sunspotNumber} from './solarCycle.js'
 import {newSolarWind} from './SolarWind.js'
 import {cmesAt, flaresAt, prominencesAt} from './solarEvents.js'
@@ -147,19 +147,36 @@ export default class SunLayers {
 
 
   /**
-   * The layers' group, for the Star to add: named 'SunLayers' for the perf
-   * overlay's `sun` toggle, holding one named 'atmosphere' that AR's sky
-   * view hides with the other bright shells (Scene.enterAR).  The meshes'
-   * own visibility is the layers' (update).
+   * The layers' group that goes with the disc, for the Star to add under
+   * its LOD: named 'SunLayers' for the perf overlay's `sun` toggle,
+   * holding one named 'atmosphere' that AR's sky view hides with the other
+   * bright shells (Scene.enterAR).  The meshes' own visibility is the
+   * layers' (update).
    *
    * @returns {Group}
    */
   group() {
     const outer = named(new Group, 'SunLayers')
     const inner = named(new Group, 'atmosphere')
-    for (const mesh of [this.glare, this.corona].filter(Boolean)) {
+    for (const mesh of [this.corona].filter(Boolean)) {
       inner.add(mesh)
     }
+    outer.add(inner)
+    return outer
+  }
+
+
+  /**
+   * The glare's group, for the Star to add beside its LOD, so the veil is
+   * drawn from any distance (its own reach decides: _glareView); the same
+   * names as group()'s, for the toggle and for AR.
+   *
+   * @returns {Group}
+   */
+  glareGroup() {
+    const outer = named(new Group, 'SunLayers')
+    const inner = named(new Group, 'atmosphere')
+    inner.add(this.glare)
     outer.add(inner)
     return outer
   }
@@ -179,6 +196,7 @@ export default class SunLayers {
         uVisible: {value: 1},
         uDiscValue: {value: 0},
         uSunColor: {value: color},
+        uFieldWeight: {value: 1},
       },
       vertexShader: GLARE_VERTEX,
       fragmentShader: GLARE_FRAGMENT,
@@ -511,7 +529,13 @@ export default class SunLayers {
     const halfDiag = Math.atan(Math.tan(camera.fov * Math.PI / 360) * Math.hypot(1, camera.aspect)) * 180 / Math.PI
     b.set(0, 0, -1)
     const offAxis = Math.acos(Math.min(Math.max(dir.dot(b), -1), 1)) * 180 / Math.PI
-    this.glare.visible = this.enabled.glare && reach > 0.1 && offAxis - halfDiag < reach && glareFunction(0.1) * scale > VISIBLE_FLOOR
+    // In the eye's field at all: by the source's angle from the gaze, the
+    // view axis, fading out from 90° to 100°; a source behind the head
+    // veils nothing, though the frame's edge may be 80° from it.
+    const field = glareFieldWeight(offAxis)
+    u.uFieldWeight.value = field
+    this.glare.visible = this.enabled.glare && field > 0 && reach > 0.1 && offAxis - halfDiag < reach &&
+      glareFunction(0.1) * scale > VISIBLE_FLOOR
   }
 
 

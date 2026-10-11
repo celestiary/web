@@ -1,6 +1,9 @@
 import {describe, expect, it} from 'bun:test'
 import {balmerPerNm, centreTemperatureAtHalpha, flareContrast} from './emission.js'
-import {glareFunction, glareOverRadiance, glareRadiusDeg} from './glare.js'
+import {
+  EYE_PSF_GLSL, GLARE_FADE_DEG, GLARE_GLSL, GLARE_MAX_DEG, eyePsf, eyePsfRadiusDeg, eyePsfShare, glareFieldWeight,
+  glareFunction, glareOverRadiance, glareRadiusDeg,
+} from './glare.js'
 
 
 describe('the eye\'s veiling glare (CIE 135/1999)', () => {
@@ -27,6 +30,78 @@ describe('the eye\'s veiling glare (CIE 135/1999)', () => {
   it('its reach for a floor is the inverse of the function', () => {
     const t = glareRadiusDeg(glareFunction(7))
     expect(t).toBeCloseTo(7, 3)
+  })
+
+  it('a source is in the eye\'s field to 90° from the gaze, out of it at 100°: the pass\'s weight, not the function\'s', () => {
+    expect(glareFieldWeight(GLARE_FADE_DEG)).toBe(1)
+    expect(glareFieldWeight(95)).toBeCloseTo(0.5, 9)
+    expect(glareFieldWeight(GLARE_MAX_DEG)).toBe(0)
+    expect(glareFieldWeight(150)).toBe(0)
+    // The function itself holds its 100° value past the range: the
+    // uniform term, light through the eye's wall.
+    expect(glareFunction(60)).toBeGreaterThan(glareFunction(89))
+    expect(glareFunction(150)).toBeCloseTo(glareFunction(100), 12)
+    expect(GLARE_GLSL).not.toMatch(/smoothstep/)
+  })
+})
+
+
+describe('the eye\'s whole PSF (the CIE total glare equation)', () => {
+  it('integrates to about 1 over the sphere: 0.95 in the optics\' two lobes, the rest scattered', () => {
+    expect(eyePsfShare(GLARE_MAX_DEG)).toBeGreaterThan(0.98)
+    expect(eyePsfShare(GLARE_MAX_DEG)).toBeLessThan(1.06)
+    // The inner lobe (0.0046°) holds 0.37, the two lobes 0.94 by 0.5°.
+    expect(eyePsfShare(0.02)).toBeGreaterThan(0.33)
+    expect(eyePsfShare(0.02)).toBeLessThan(0.42)
+    expect(eyePsfShare(0.5)).toBeGreaterThan(0.9)
+    expect(eyePsfShare(0.5)).toBeLessThan(0.97)
+  })
+
+  it('agrees with the general equation over its range, within 40%: both are the eye\'s veil', () => {
+    for (const t of [0.1, 0.3, 1, 3, 10, 30, 80]) {
+      const ratio = eyePsf(t) / glareFunction(t)
+      expect(ratio).toBeGreaterThan(0.7)
+      expect(ratio).toBeLessThan(1.4)
+    }
+    // 1° off, 19 per steradian: Sirius (1e-5 lux) veils 1.9e-4 cd/m²
+    // there, about a dark sky's own brightness.
+    expect(eyePsf(1)).toBeGreaterThan(17)
+    expect(eyePsf(1)).toBeLessThan(21)
+  })
+
+  it('falls as θ^-3 along the 0.045° lobe\'s tail and θ^-2 along the scattered light\'s', () => {
+    const slope = (a, b) => Math.log(eyePsf(a) / eyePsf(b)) / Math.log(b / a)
+    expect(slope(0.2, 0.4)).toBeGreaterThan(2.6)
+    expect(slope(0.2, 0.4)).toBeLessThan(3.1)
+    expect(slope(5, 10)).toBeGreaterThan(1.8)
+    expect(slope(5, 10)).toBeLessThan(2.3)
+    // Monotone and finite at 0; past the range it holds its 100° value.
+    let last = eyePsf(0)
+    expect(Number.isFinite(last) && last > 9e6).toBe(true)
+    for (let t = 1e-3; t <= 100; t *= 1.2) {
+      expect(eyePsf(t)).toBeLessThanOrEqual(last)
+      last = eyePsf(t)
+    }
+    expect(eyePsf(100)).toBeGreaterThan(2e-3)
+    expect(eyePsf(140)).toBeGreaterThan(0)
+  })
+
+  it('its inverse gives the radius a veil of a given value reaches', () => {
+    for (const t of [0.05, 0.3, 2, 20]) {
+      expect(eyePsfRadiusDeg(eyePsf(t))).toBeCloseTo(t, 4)
+    }
+    expect(eyePsfRadiusDeg(1e-9)).toBe(GLARE_MAX_DEG)
+    expect(eyePsfRadiusDeg(1e9)).toBe(0)
+  })
+
+  it('the GLSL carries the same constants', () => {
+    expect(EYE_PSF_GLSL).toMatch(/9\.2e6 \/ \(l1 \* sqrt\(l1\)\) \+ 1\.5e5 \/ \(l2 \* sqrt\(l2\)\)/)
+    expect(EYE_PSF_GLSL).toMatch(/t \/ 0\.0046/)
+    expect(EYE_PSF_GLSL).toMatch(/t \/ 0\.045/)
+    expect(EYE_PSF_GLSL).toMatch(/400\.0 \/ q \+ 3\.0e-8 \* t \* t \+ 0\.50 \* \(1300\.0 \/ \(q \* sqrt\(q\)\) \+ 0\.8 \/ sqrt\(q\)\)/)
+    expect(EYE_PSF_GLSL).toMatch(/0\.998698/)
+    expect(EYE_PSF_GLSL).toMatch(/1\.026031/)
+    expect(EYE_PSF_GLSL).toMatch(/\+ 0\.001250;/)
   })
 })
 
