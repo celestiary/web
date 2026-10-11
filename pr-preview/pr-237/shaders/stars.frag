@@ -34,8 +34,7 @@ float eyePsf(float thetaDeg) {
   float l2 = 1.0 + a2 * a2;
   float optics = 0.998698 * (9.2e6 / (l1 * sqrt(l1)) + 1.5e5 / (l2 * sqrt(l2)));
   float scatter = 1.026031 * (400.0 / q + 3.0e-8 * t * t + 0.50 * (1300.0 / (q * sqrt(q)) + 0.8 / sqrt(q)));
-  float field = 1.0 - smoothstep(90.0, 100.0, t);
-  return field * (optics + scatter + 0.001250);
+  return optics + scatter + 0.001250;
 }
 
 vec3 emitted(vec3 radiance) {
