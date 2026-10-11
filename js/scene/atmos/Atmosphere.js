@@ -15,6 +15,7 @@ import {
   OneMinusSrcAlphaFactor,
   PlaneGeometry,
   ShaderMaterial,
+  Vector2,
   Vector3,
   Vector4,
 } from 'three'
@@ -466,14 +467,26 @@ export function newAtmospherePass() {
       uExtendedGain: {value: 1.0},
       uEyeMode: {value: 1.0},
       uExposureRelative: absoluteUniforms.uExposureRelative,
+      // The volumetric clouds (clouds/CloudVolume.js; clouds.md): their
+      // radiance per unit of the Sun's irradiance, premultiplied, with
+      // their transmittance in alpha; their mean distance along the ray
+      // (km) and the ground's shadow under them; and the irradiance times the
+      // exposure, to the buffer's units.  ThreeUi._setCloudComposite sets
+      // them each frame, with CLOUDS.
+      tClouds: {value: null},
+      tCloudData: {value: null},
+      uCloudExposure: {value: 0.0},
+      uCloudSize: {value: new Vector2(1, 1)},
     },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: FULLSCREEN_FRAG,
     // The night sky's code, compiled in only while it can show (ThreeUi
     // _updateNightSky sets it; three keeps both programs once built).  The
     // aerosol's narrow lobe's march (marchSegment), only for a body that has
-    // one (Mars; _updateAtmUniforms sets it).
-    defines: {NIGHT_SKY: 0, MIE_PEAK: 0},
+    // one (Mars; _updateAtmUniforms sets it).  The volumetric clouds'
+    // composite, only while there are some drawn (ThreeUi
+    // _setCloudComposite).
+    defines: {NIGHT_SKY: 0, MIE_PEAK: 0, CLOUDS: 0},
     // Writes the scene's depth to the screen (gl_FragDepth) so the label
     // overlay drawn after it (ThreeUI.render) is depth-tested as it would
     // be in the scene.  A depth test that always passes, as writes need
@@ -533,6 +546,74 @@ uniform float     uAtmStrength;
 uniform float     uHdr;
 uniform float     uSkyExposure;
 uniform float     uDebug;
+#if CLOUDS
+uniform sampler2D tClouds;
+uniform sampler2D tCloudData;
+uniform float     uCloudExposure;
+uniform vec2      uCloudSize;
+
+// One texel of the clouds' target into the depth-aware read (cloudRead):
+// its bilinear weight, times whether its ray ended where this pixel's
+// does.  The target's ray ends are in km (CloudVolume.js, outData.w; the
+// sky at 1e4): the same ground within 10% is the same surface (Cesium's
+// 8-bit terrain distance is dithered by a level, a few percent), a ridge
+// against the sky or the cloud beyond it is not.
+void cloudTap(vec2 uv, float wBilinear, float endKm, inout vec4 cloud, inout vec2 data, inout float wSum,
+    inout vec4 cloudAll, inout vec2 dataAll) {
+  vec4 c = texture2D(tClouds, uv);
+  vec4 d = texture2D(tCloudData, uv);
+  float rel = abs(d.w - endKm) / max(endKm, 0.05);
+  float w = wBilinear * (1.0 - smoothstep(0.1, 0.25, rel));
+  cloud += w * c;
+  data += w * d.xy;
+  wSum += w;
+  cloudAll += wBilinear * c;
+  dataAll += wBilinear * d.xy;
+}
+
+// The clouds' target, at a fraction of the frame's size, read for this
+// pixel: of the four texels round it, those whose ray ended where this
+// pixel's does (tEnd: the ground at the same distance, or the sky) carry
+// their bilinear weight, so across a ridge's silhouette the texels over
+// the ridge don't lay cloud light onto it, nor the ridge's darkness into
+// the cloud beside it (a joint bilateral upsample; clouds.md, "In the
+// air").  With no texel of the pixel's own surface (a one-pixel spike),
+// the plain bilinear read.
+void cloudRead(vec2 uv, float tEnd, out vec4 cloud, out vec2 data) {
+  float endKm = min(tEnd, 1.0e7) * 0.001;
+  // The plain bilinear reads first: where their ray end, the four texels'
+  // weighted mean, is the pixel's, the texels are all of its surface and
+  // these are the answer (two reads, as before); only a silhouette's
+  // pixels, a few, go on to the four taps.
+  vec4  cB = texture2D(tClouds, uv);
+  vec4  dB = texture2D(tCloudData, uv);
+  if (abs(dB.w - endKm) < 0.05 * max(endKm, 0.05)) {
+    cloud = cB;
+    data = dB.xy;
+    return;
+  }
+  vec2  texel = 1.0 / uCloudSize;
+  vec2  st = uv * uCloudSize - 0.5;
+  vec2  f = fract(st);
+  vec2  base = (floor(st) + 0.5) * texel;
+  vec4  c = vec4(0.0);
+  vec2  d = vec2(0.0);
+  float wSum = 0.0;
+  vec4  cAll = vec4(0.0);
+  vec2  dAll = vec2(0.0);
+  cloudTap(base, (1.0 - f.x) * (1.0 - f.y), endKm, c, d, wSum, cAll, dAll);
+  cloudTap(base + vec2(texel.x, 0.0), f.x * (1.0 - f.y), endKm, c, d, wSum, cAll, dAll);
+  cloudTap(base + vec2(0.0, texel.y), (1.0 - f.x) * f.y, endKm, c, d, wSum, cAll, dAll);
+  cloudTap(base + texel, f.x * f.y, endKm, c, d, wSum, cAll, dAll);
+  if (wSum > 1.0e-3) {
+    cloud = c / wSum;
+    data = d / wSum;
+  } else {
+    cloud = cAll;
+    data = dAll;
+  }
+}
+#endif
 
 #define PI        3.141592
 #define I_STEPS   64
@@ -1213,6 +1294,37 @@ void main() {
     // irradiance, times the irradiance and the exposure (uSkyExposure), with
     // uSunIntensity as the body's gain over single scattering (HDR.md).
     vec3 sky = scattered * uSkyExposure;
+    vec3 sceneRgb = texture2D(tDiffuse, vUv).rgb;
+#if CLOUDS
+    // The volumetric clouds (clouds.md, "In the air"): the ground under
+    // their shadow; and where a cloud is on the ray, the air marched to
+    // its mean distance, the cloud through that air, and the sky beyond
+    // the cloud through the cloud's transmittance: the whole ray's sky
+    // less the near part's, which is the far sky already through the near
+    // air (the same integrator's, so the difference is sound and nothing
+    // is divided by a transmittance).  Not from an eye under the sphere,
+    // whose rays the march above took to the sphere's exit.
+    vec4 cloud;
+    vec2 cloudData;
+    cloudRead(vUv, tMax, cloud, cloudData);
+    // The distance is in km (CloudVolume.js DIST_SCALE), premultiplied by
+    // the cloud's coverage, 1 − its transmittance, so the half-size
+    // target's bilinear read here is the coverage-weighted mean across a
+    // cloud's edge.
+    cloudData.x *= 1000.0 / max(1.0 - cloud.a, 1.0e-4);
+    sceneRgb *= 1.0 - cloudData.y;
+    if (cloud.a < 0.999 && !eyeBelow && cloudData.x > 0.0) {
+      vec4 inSNear;
+      vec4 msNear;
+      vec3 tNear;
+      vec3 tNearS;
+      marchSegment(eyePos, rayDir, min(cloudData.x, tMax), inSNear, msNear, tNear, tNearS);
+      vec3 skyNear = uSunIntensity * (pRlh * inSNear.rgb + pMie * inSNear.a
+          + (1.0 - uMiePeakWeight) * pBroad * uMieAlbedo * msNear.a + msNear.rgb) * uSkyExposure;
+      sky = skyNear + tNear * cloud.rgb * uCloudExposure + cloud.a * max(sky - skyNear, vec3(0.0));
+      transmittance *= cloud.a;
+    }
+#endif
     // The night sky's light: from beyond the air through it, and the
     // airglow in it (zero over the ground: a gap's transmittance is 0, and
     // the layer's path ends at the ground).
@@ -1221,8 +1333,7 @@ void main() {
       // The metering's view (ThreeUi._meter): the linear composite, in
       // exposure units, before the tone map, the night sky's light in it;
       // 8, that light alone.
-      gl_FragColor = vec4(uDebug < 7.5 ? mix(texture2D(tDiffuse, vUv).rgb,
-          sky + texture2D(tDiffuse, vUv).rgb * transmittance, uAtmStrength) + night : night, 1.0);
+      gl_FragColor = vec4(uDebug < 7.5 ? mix(sceneRgb, sky + sceneRgb * transmittance, uAtmStrength) + night : night, 1.0);
       return;
     }
     if (uDebug > 0.5) {
@@ -1234,10 +1345,10 @@ void main() {
           + (underHorizon ? 16.0 : 0.0), 1.0);
       else if (uDebug < 4.5) gl_FragColor = inS;
       else if (uDebug < 5.5) gl_FragColor = inSMs;
-      else gl_FragColor = vec4(mu_e, dot(normalize(eyePos), uSunDirection), camAlt, texture2D(tDiffuse, vUv).r);
+      else gl_FragColor = vec4(mu_e, dot(normalize(eyePos), uSunDirection), camAlt, sceneRgb.r);
       return;
     }
-    gl_FragColor = atmToScreen(texture2D(tDiffuse, vUv).rgb, sky, transmittance, night);
+    gl_FragColor = atmToScreen(sceneRgb, sky, transmittance, night);
     return;
   }
 

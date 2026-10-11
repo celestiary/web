@@ -30,7 +30,9 @@ import {CLOUD_WHITE} from './cloudSource.js'
  *
  * The far field only: from close to the deck its texels (16 km) are a blur,
  * so the shell fades out as the camera comes down to it (farFieldOpacity),
- * and from below it isn't drawn.  #169's volumetric clouds take over there.
+ * and from below it isn't drawn.  The volumetric clouds (CloudVolume.js,
+ * #169) take over across that band, seeded by the same map: the shell
+ * holds until they are ready (shellOpacity).
  */
 
 
@@ -39,10 +41,16 @@ export const CLOUD_HEIGHT_M = 6000
 
 /**
  * The camera's height over the deck at which the shell starts to fade out,
- * and where it's gone, metres.  #169 crosses over to volumetric clouds in
- * this band.
+ * and where it's gone, metres: the band the volumetric clouds (#169,
+ * CloudVolume.js) cross in over.  With them ready the band is in two
+ * halves (VOLUME_FADE_M, SHELL_FADE_M): the volume comes in over the whole
+ * shell through the upper half, then the shell goes from under the volume
+ * through the lower, so the sky is never half cloud over half sea where
+ * both are cloud (fading both at once dipped the band's middle a quarter).
  */
 export const FAR_FIELD_FADE_M = [24000, 4000]
+export const VOLUME_FADE_M = [24000, 14000]
+export const SHELL_FADE_M = [14000, 4000]
 
 /**
  * How much of the sunlight a fully covering cloud takes from the ground
@@ -64,9 +72,37 @@ const SEGMENTS = 256
  *   to 0 as the camera comes down to the deck
  */
 export function farFieldOpacity(cameraHeightM, cloudHeightM = CLOUD_HEIGHT_M) {
-  const [hi, lo] = FAR_FIELD_FADE_M
+  return fadeOver(cameraHeightM, FAR_FIELD_FADE_M, cloudHeightM)
+}
+
+
+/**
+ * @param {number} cameraHeightM The camera's height over the ground sphere
+ * @param {Array<number>} band [hi, lo] over the deck, metres
+ * @param {number} [cloudHeightM]
+ * @returns {number} 1 above the band, 0 below it, a smoothstep between
+ */
+export function fadeOver(cameraHeightM, band, cloudHeightM = CLOUD_HEIGHT_M) {
+  const [hi, lo] = band
   const x = Math.min(Math.max((cameraHeightM - cloudHeightM - lo) / (hi - lo), 0), 1)
   return x * x * (3 - (2 * x))
+}
+
+
+/**
+ * The shell's opacity against the volume's readiness (CloudVolume
+ * readiness): with the volume ready, whole until it has come in over the
+ * shell, then fading out from under it through the band's lower half
+ * (SHELL_FADE_M); without it, the far-field fade over the whole band.
+ *
+ * @param {number} cameraHeightM The camera's height over the ground sphere
+ * @param {number} volumeReadiness 0 to 1
+ * @returns {number}
+ */
+export function shellOpacity(cameraHeightM, volumeReadiness) {
+  const alone = farFieldOpacity(cameraHeightM)
+  const withVolume = fadeOver(cameraHeightM, SHELL_FADE_M)
+  return alone + ((withVolume - alone) * volumeReadiness)
 }
 
 
@@ -76,9 +112,11 @@ export function farFieldOpacity(cameraHeightM, cloudHeightM = CLOUD_HEIGHT_M) {
  * @param {object} opts
  * @param {Function} [opts.ready] Whether the body's surface is ready to be
  *   drawn under the clouds
+ * @param {object} [opts.volume] The body's CloudVolume, which takes over
+ *   from the shell up close; the shell drives its texture building
  * @returns {Mesh}
  */
-export function newCloudShell(groundRadius, cloudMap, {ready = () => true} = {}) {
+export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volume = null} = {}) {
   const cloudRadius = groundRadius + CLOUD_HEIGHT_M
   const material = new ShaderMaterial({
     name: 'cloud shell',
@@ -110,8 +148,10 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true} = {})
   shell.name = 'clouds'
   shell.layers.set(CLOUD_LAYER)
   shell.userData.map = cloudMap
+  shell.userData.volume = volume
   shell.preAnimCb = (time) => {
     cloudMap.update(time.simTime)
+    volume?.update()
     shell.visible = ready()
   }
   const inverse = new Matrix4()
@@ -139,7 +179,7 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true} = {})
     // A white cloud's radiance in three's units (Lambert: E·albedo/π), for
     // the renderer's exposure to scale as it does the lit surface.
     u.uRadiance.value = sunDistance > 0 ? CLOUD_WHITE * irradianceAt(sunDistance) / Math.PI : 0
-    u.uOpacity.value = farFieldOpacity(eye.length() - groundRadius)
+    u.uOpacity.value = shellOpacity(eye.length() - groundRadius, volume ? volume.readiness() : 0)
   }
   return shell
 }
