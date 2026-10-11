@@ -181,12 +181,10 @@ export default class Planet extends Object {
     group.line = pathShape
     const orbitScaled = orbit.semiMajorAxis.scalar
     group.scale.setScalar(orbitScaled)
-    // Initial visibility from the scene's current settings — handles the
-    // case where this planet loads after applySettings has already toggled
-    // orbits off (toggleOrbits' visitSetProperty only walks
-    // already-attached children), so the new orbit doesn't sneak in
-    // visible and contradict the user's saved permalink state.
-    group.visible = scene.getSetting ? scene.getSetting('o') : true
+    // Shown as the orbits are now (Scene.overlayShown, which Scene.add
+    // applies again with the group's fade): a planet loaded after orbits
+    // were turned off, or with a link that hides them, never draws one.
+    group.visible = scene.overlayShown ? scene.overlayShown('o') : true
     return group
   }
 
@@ -219,9 +217,9 @@ export default class Planet extends Object {
       // can toggle places visibility alongside the planet name labels (both
       // belong to the 'p' overlay group — see DESIGN.md "Overlays & visibility").
       planet.places = places
-      // Initial visibility tracks the 'p' setting for the same reason — without
-      // this, places would be visible after a permalink restore that had 'p' off.
-      places.visible = scene.getSetting ? scene.getSetting('p') : true
+      // Shown as the 'p' group is now, for the same reason: without this,
+      // places would be drawn under a link that has 'p' off.
+      places.visible = scene.overlayShown ? scene.overlayShown('p') : true
       planet.add(places)
     }
 
@@ -312,10 +310,8 @@ export default class Planet extends Object {
     labelLOD.addLevel(FAR_OBJ, labelTooNearDist)
     labelLOD.addLevel(labelSprites, labelTooNearDist)
     labelLOD.addLevel(FAR_OBJ, labelTooFarDist)
-    // Initial visibility from the scene's current settings (see newOrbit
-    // above) — guards against the load-order race where a planet appears
-    // after togglePlanetLabels has already run.
-    labelLOD.visible = scene.getSetting ? scene.getSetting('p') : true
+    // Shown as the 'p' group is now (see newOrbit above).
+    labelLOD.visible = scene.overlayShown ? scene.overlayShown('p') : true
 
     const group = new Object3D
     group.add(named(planetLOD, 'planet LOD'))

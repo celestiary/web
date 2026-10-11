@@ -29,6 +29,8 @@ export default function Style({children}) {
     },
     palette: dark,
     typography: {
+      // The page's typeface (index.css --font-ui), for MUI's components too.
+      fontFamily: UI_FONT,
       h1: {fontSize: '1.6rem'},
       h2: {fontSize: '1.5rem'},
       h3: {fontSize: '1.4rem'},
@@ -48,6 +50,10 @@ export default function Style({children}) {
     </Fragment>
   )
 }
+
+
+// As index.css --font-ui: Inter (public/index.html loads it), else the system's sans.
+const UI_FONT = '\'Inter\', system-ui, -apple-system, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif'
 
 
 const ColorModeContext = createContext({toggleColorMode: () => {}})

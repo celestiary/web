@@ -421,6 +421,20 @@ yet run aren't in the link.
   `apps` token restores the drawer at once, and each running app starts
   from its token, waiting for what it needs.  Moving to another target
   later (a new hash) leaves the drawer as it is.
+- **The scene settings come first.**  `s=` is read in Celestiary's
+  constructor, before anything is loaded or drawn (`Scene.initSettings`),
+  so each overlay is built shown or hidden as the link says: what the link
+  hides is never drawn, in any frame, and what it shows fades in with the
+  first load's reveal (DESIGN.md [the first load](../DESIGN.md#the-first-load)).
+  `v` off keeps the chrome hidden from the first paint.  (They were applied
+  once the camera was placed and the stars had loaded, by toggling from the
+  defaults: a link's hidden orbits and labels showed, then went.)  The
+  rest of the view (time, camera, `ev=`, `sm=`, `T`, `F`) is restored when
+  its frame body has loaded, as before.
+- **Quietly.**  What a link restores isn't announced on the readout
+  ("Tracking on", "Following on", "EV +1.3", "Stars +1.0 mag"): those are
+  for the user's own keys.  Nor is the following that opening the page on a
+  path turns on.
 
 ## Adding an app's state
 

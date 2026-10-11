@@ -104,6 +104,16 @@ class StubThreeUI {
     this.layers = {}
   }
   configLargeScene() {}
+  // The scene is in (the first load's reveal; Celestiary.frame): settable.
+  sceneReady() {
+    return this.ready ?? true
+  }
+  holdCanvas() {
+    this.canvasShown = false
+  }
+  showCanvas() {
+    this.canvasShown = true
+  }
   approach(body, arrivalWorld, tween) {
     this.approached = {body, arrivalWorld, tween}
   }
@@ -1429,14 +1439,149 @@ describe('the target in the link', () => {
       clearTimeout(app._permalinkTimer)
     })
 
-    it('says nothing of following while a link is put back, unless the link doesn\'t follow', async () => {
+    it('says nothing while a link is put back, following or not', async () => {
+      // The readout is for what the user does: a link's state is the page's
+      // starting state, not news.
       const heard = []
       const listen = (mode, on) => heard.push([mode, on])
       const detached = encodePermalink('sun/earth', PL.d2000, 0, 0, 1.5e12, PL.quat, PL.fov, SETTINGS_DEFAULTS, undefined, 'sun')
       await open(TEST_FRAGMENT, () => {}, listen)
       expect(heard).toEqual([])
       await open(detached, () => {}, listen)
-      expect(heard).toEqual([['follow', false]])
+      expect(heard).toEqual([])
+    })
+
+    it('a link with tracking, following, an exposure and a stars\' setting restores them without a message', async () => {
+      const link = encodePermalink('sun/earth', PL.d2000, PL.lat, PL.lng, PL.alt, PL.quat, PL.fov,
+          {...SETTINGS_DEFAULTS, T: true, F: true}, undefined, null, 1.33, 1.5)
+      expect(link).toMatch(/;s=TF/)
+      global.location.hash = `#${link}`
+      const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+          {}, () => {}, () => {}, () => {})
+      apps.push(app)
+      const heard = []
+      app.onNavMode((mode, on, note) => heard.push(formatNavMode(mode, on, note)))
+      app.onExposureCompensation((ev) => heard.push(`ev ${ev}`))
+      app.onStarMagnitude((mag) => heard.push(`sm ${mag}`))
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(Shared.targets.track).toBe(true)
+      expect(Boolean(Shared.targets.follow)).toBe(true)
+      expect(app.ui.exposureCompensation()).toBeCloseTo(1.33, 2)
+      expect(app.ui.starMagnitudeOffset()).toBeCloseTo(1.5, 2)
+      expect(heard).toEqual([])
+      // What the user does next is announced.
+      app.keys.onKeyDown({key: 't'})
+      app.keys.onKeyDown({key: '='})
+      expect(heard).toEqual(['Tracking off', `ev ${app.ui.exposureCompensation()}`])
+      Shared.targets.track = false
+    })
+
+    it('opening the page on a path goes there, following, without a message', async () => {
+      global.location.hash = '#sun/earth'
+      const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+          {}, () => {}, () => {}, () => {})
+      apps.push(app)
+      const heard = []
+      app.onNavMode((mode, on, note) => heard.push(formatNavMode(mode, on, note)))
+      // A path alone waits a second on the first load (_navigate).
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+      expect(Boolean(Shared.targets.follow)).toBe(true)
+      expect(heard).toEqual([])
+      Shared.targets.tween = null
+      Shared.targets.tweenNextFn = null
+    })
+  })
+
+  describe('a link\'s scene settings, before the first frame', () => {
+    /**
+     * @param {object} app
+     * @param {string} key Of Scene OVERLAY_KEYS
+     * @returns {Array<object>} The group's nodes that exist
+     */
+    function nodes(app, key) {
+      return app.scene._overlayNodes(key).filter((n) => n && typeof n.visible === 'boolean')
+    }
+
+    /**
+     * Step the app's frames as the animation loop does, ~60 fps, checking
+     * before each (what the frame would draw) that the link's hidden
+     * overlays aren't drawn.
+     *
+     * @param {object} app
+     * @param {Array<string>} hidden Overlay keys the link hides
+     * @param {number} ms How long
+     * @returns {Array<string>} A note of each hidden node drawn, if any
+     */
+    function run(app, hidden, ms) {
+      const drawn = []
+      const t0 = performance.now()
+      for (let t = 0; t <= ms; t += 16) {
+        for (const key of hidden) {
+          for (const n of nodes(app, key)) {
+            if (n.visible) {
+              drawn.push(`${key} ${n.name} at ${t} ms`)
+            }
+          }
+        }
+        app.frame(t0 + t)
+      }
+      return drawn
+    }
+
+    it('what the link hides is never drawn, and what it shows fades in with the reveal', async () => {
+      // Orbits, star and planet labels, and the HUD off; the rest default.
+      const settings = {...SETTINGS_DEFAULTS, o: false, l: false, p: false, v: false}
+      const link = encodePermalink('sun/earth', PL.d2000, PL.lat, PL.lng, PL.alt, PL.quat, PL.fov, settings)
+      expect(link).toMatch(/;s=lpov/)
+      global.location.hash = `#${link}`
+      const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+          {}, () => {}, () => {}, () => {})
+      apps.push(app)
+      // Decided before anything was built, not after the restore.
+      expect(app.scene.getSetting('o')).toBe(false)
+      expect(app.scene.getSetting('v')).toBe(false)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(nodes(app, 'o').length).toBeGreaterThan(0)
+      expect(nodes(app, 'p').length).toBeGreaterThan(0)
+      expect(run(app, ['o', 'p', 'l'], 3000)).toEqual([])
+      expect(app._reveal.done).toBe(true)
+      // The asterisms the link shows were held, then faded in.
+      expect(app.scene.fades.a.shown).toBe(true)
+      expect(app.scene.fades.a.opacity).toBe(1)
+      // The chrome stays hidden: 'v' is off.
+      expect(app.navVisible).toBe(false)
+      expect(encodeSettings(app.scene.getSettings())).toBe('lpovF')
+    })
+
+    it('a link that shows the overlays holds them hidden until the scene is in, then fades them in', async () => {
+      const link = encodePermalink('sun/earth', PL.d2000, PL.lat, PL.lng, PL.alt, PL.quat, PL.fov, SETTINGS_DEFAULTS)
+      global.location.hash = `#${link}`
+      const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+          {}, () => {}, () => {}, () => {})
+      apps.push(app)
+      app.ui.ready = false
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      // Not in yet: nothing artificial drawn, and the scene not shown.
+      expect(run(app, ['o', 'p'], 500)).toEqual([])
+      expect(app.ui.canvasShown).toBe(false)
+      expect(app._reveal.started).toBe(false)
+      app.ui.ready = true
+      const t0 = performance.now()
+      app.frame(t0)
+      expect(app._reveal.started).toBe(true)
+      expect(app.ui.canvasShown).toBe(true) // the scene, as the loading text goes
+      expect(app.scene.fades.o.shown).toBe(false) // the orbits come in a beat later
+      app.frame(t0 + 300)
+      expect(app.scene.fades.o.shown).toBe(true)
+      expect(app.scene.fades.o.opacity).toBeLessThan(1)
+      for (let t = 300; t <= 2000; t += 16) {
+        app.frame(t0 + t)
+      }
+      for (const key of ['o', 'p']) {
+        expect(app.scene.fades[key].opacity).toBe(1)
+        expect(nodes(app, key).every((n) => n.visible)).toBe(true)
+      }
+      expect(app.navVisible).toBe(true)
     })
   })
 

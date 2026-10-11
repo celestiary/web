@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography'
 import TooltipIconButton from '../ui/TooltipIconButton'
 import {styled} from '@mui/material/styles'
 import {setTitleFromLocation} from '../utils'
+import {hideLoading} from '../loading'
 import useIsMobile from '../useIsMobile'
 import Angles from './Angles'
 import Asterisms from './Asterisms'
@@ -43,6 +44,11 @@ export default function Guide() {
   useEffect(() => {
     setTitleFromLocation(location, 'Guide')
   }, [location])
+
+  // The page's loading text (public/index.html) goes once the guide is here.
+  useEffect(() => {
+    hideLoading()
+  }, [])
 
   document.body.style.overflow = 'inherit'
 

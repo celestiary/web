@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import ARController from './ar/ARController'
 import Animation from './scene/Animation'
+import Choreography, {READY_TIMEOUT_MS, REVEAL_AT} from './choreography'
 import ControlPanel from './ControlPanel'
 import Keys from './Keys'
 import Loader from './Loader'
@@ -22,6 +23,7 @@ import {
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry} from './search/commitEntry'
+import {hideLoading} from './loading'
 import {clampEv, stepEv} from './scene/evCompensation'
 import {clampStarMag, stepStarMag} from './scene/starMagnitude'
 import {fetchPlaces} from './scene/Places'
@@ -35,6 +37,16 @@ import {elt} from './utils'
 // planet labels, etc.); the HTML chrome key 'v' is deliberately not in
 // this list so users can hide overlays and chrome independently.
 const SCENE_INFO_KEYS = ['a', 'l', 'p', 'G', 'C', 'o', 'e', 'c', 'g', 'x']
+// The HTML chrome's fade, ms: index.css's --fade-ms, and the scene's
+// overlays' (scene/fade.js FADE_MS).
+const CHROME_FADE_MS = 400
+// The class on <html> that fades the chrome out (index.css).  The page
+// starts with it (public/index.html), so the chrome is hidden from the first
+// paint until the load's reveal shows it, or never, for a link with 'v' off.
+const CHROME_HIDDEN_CLASS = 'chrome-hidden'
+// The scene's fade in from black on the first load, ms, as the loading text
+// fades out (public/index.html).
+const SCENE_FADE_MS = 600
 
 
 /** Main application class. */
@@ -65,8 +77,11 @@ export default class Celestiary {
         // Centre the target, whatever roll the view has.
         this.scene.lookAtTarget({keepRoll: true})
       }
+      this.frame(performance.now())
     }
     this.ui = new ThreeUi(canvasContainer, animCb)
+    // The scene is shown when it's in, by the first load's reveal.
+    this.ui.holdCanvas()
     window.addEventListener('resize', () => this._layout())
     this.ui.layers.time = this.time
     this.ui.configLargeScene()
@@ -81,11 +96,7 @@ export default class Celestiary {
     // the URL always reflects the live view configuration.
     this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
     // 't' and 'f' say what they switched, on the readout (onNavMode).
-    this.scene.onModeChange = (mode, on, note) => {
-      if (!this._navQuiet) {
-        this._navModeListeners.forEach((fn) => fn(mode, on, note))
-      }
-    }
+    this.scene.onModeChange = (mode, on, note) => this._announce(this._navModeListeners, mode, on, note)
     // 'v' (nav panels) is a Celestiary-level toggle — register the applier
     // so Scene.applySettings can drive it on permalink restore.
     this.scene.registerSettingApplier('v', () => this._toggleNav())
@@ -99,7 +110,10 @@ export default class Celestiary {
     this._starMagListeners = new Set
     // And of tracking and following being switched (onNavMode).
     this._navModeListeners = new Set
-    this._navQuiet = false
+    // While a link is put back: what it restores (tracking, following, the
+    // exposure, the stars' setting) isn't announced on the readout, which
+    // is for what the user does (_announce).
+    this._restoring = false
     // The link holds the clock's pause, rate and date.
     this.time.onTimeScaleChange(() => this._schedulePermalinkUpdate())
     // Callbacks waiting for a body to load, by name (_loadBody).
@@ -122,11 +136,37 @@ export default class Celestiary {
         this._schedulePermalinkUpdate()
       }
     })
+    // The chrome ('v'), hidden from the first paint (CHROME_HIDDEN_CLASS)
+    // until the reveal; _setNav fades it.
+    this.navVisible = false
+    this._chromeRevealed = false
+    this._navShowPending = false
+    this._navHideAt = null
+    // The link's scene settings (`s=`), or the defaults, decided before
+    // anything is built, so each overlay is built shown or hidden as the link
+    // says and what it hides is never drawn (design/URLs.md, "Reading and
+    // writing").  The overlays it shows are held back for the reveal.
+    this.scene.initSettings(linkSettings(location.hash), {hold: true})
+    // The first load's sequence (choreography.js), from when the camera is
+    // placed (_arrive) and the scene is in (ThreeUi.sceneReady).
+    this._arrivedAt = null
+    this._reveal = new Choreography([
+      {at: REVEAL_AT.loading, run: () => {
+        hideLoading()
+        this.ui.showCanvas(SCENE_FADE_MS)
+      }},
+      {at: REVEAL_AT.orbits, run: () => this.scene.revealOverlays(['o'])},
+      {at: REVEAL_AT.diagrams, run: () => this.scene.revealOverlays(['a', 'e', 'c', 'g', 'x'])},
+      {at: REVEAL_AT.labels, run: () => this.scene.revealOverlays(['p', 'l', 'G'])},
+      {at: REVEAL_AT.chrome, run: () => {
+        this._chromeRevealed = true
+        this._setNav(this.scene.getSetting('v'))
+      }},
+    ])
     this.load()
     this.setupPathListeners()
     this.setupKeyListeners(useStore)
     canvasContainer.addEventListener('mousedown', (e) => e.preventDefault())
-    this.navVisible = true
     // these are here for convenience debugging from jsconsole.
     this.shared = Shared
     this.shapes = Shapes
@@ -150,7 +190,7 @@ export default class Celestiary {
       return
     }
     this.ui.setExposureCompensation(next)
-    this._evListeners.forEach((fn) => fn(next))
+    this._announce(this._evListeners, next)
     this._schedulePermalinkUpdate()
   }
 
@@ -174,7 +214,7 @@ export default class Celestiary {
       return
     }
     this.ui.setStarMagnitudeOffset(next)
-    this._starMagListeners.forEach((fn) => fn(next))
+    this._announce(this._starMagListeners, next)
     this._schedulePermalinkUpdate()
   }
 
@@ -214,6 +254,56 @@ export default class Celestiary {
   onExposureCompensation(fn) {
     this._evListeners.add(fn)
     return () => this._evListeners.delete(fn)
+  }
+
+
+  /**
+   * Tell a readout's listeners of a change, unless a link is being put back
+   * (`_restoring`): only what the user does is announced.
+   *
+   * @param {Set<Function>} listeners
+   * @param {...any} args
+   */
+  _announce(listeners, ...args) {
+    if (!this._restoring) {
+      listeners.forEach((fn) => fn(...args))
+    }
+  }
+
+
+  /**
+   * Run part of a link's restore without announcing what it sets (_announce).
+   *
+   * @param {Function} fn
+   */
+  _quietly(fn) {
+    const was = this._restoring
+    this._restoring = true
+    try {
+      fn()
+    } finally {
+      this._restoring = was
+    }
+  }
+
+
+  /**
+   * Each frame, from the animation callback: the first load's reveal, once
+   * the scene is in; the overlays' fades; the chrome's.
+   *
+   * @param {number} nowMs
+   */
+  frame(nowMs) {
+    const reveal = this._reveal
+    if (!reveal.done) {
+      if (!reveal.started && this._arrivedAt !== null &&
+          (this.ui.sceneReady() || nowMs - this._arrivedAt >= READY_TIMEOUT_MS)) {
+        reveal.start(nowMs)
+      }
+      reveal.frame(nowMs)
+    }
+    this.scene.overlays.tick(nowMs)
+    this._frameNav(nowMs)
   }
 
 
@@ -389,17 +479,17 @@ export default class Celestiary {
       this._restoreClock(pl)
       this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
       this.ui.scene.updateMatrixWorld()
-      // Going there turns following on; the link's own state follows, and the
-      // readout hears of that alone.
-      this._navQuiet = true
-      try {
-        this._restoreView(pl, frame)
-      } catch (e) {
-        console.error('Permalink restore failed:', e)
-      } finally {
-        this._navQuiet = false
-      }
-      this._resolveTarget(resolved, (target) => {
+      // What the link restores (going there turns following on, the
+      // exposure, the stars' setting, tracking, following) is put back
+      // quietly: the readout is for what the user does.
+      this._quietly(() => {
+        try {
+          this._restoreView(pl, frame)
+        } catch (e) {
+          console.error('Permalink restore failed:', e)
+        }
+      })
+      this._resolveTarget(resolved, (target) => this._quietly(() => {
         this.scene.setTarget(target, {look: false})
         // Tracking and following are on top of the target, so they follow it.
         this.scene.setTracking(pl.settings.T)
@@ -409,21 +499,19 @@ export default class Celestiary {
         const ownFrame = frame.kind !== 'star' && frame.kind !== 'galaxy' &&
           (!pl.from || pl.from === REF_FRAME[resolved.kind](resolved))
         this.scene.restoreFollowing(pl.settings.F || ownFrame)
-      })
+      }))
     } else {
-      this._goToResolved(resolved, frame)
+      // Opening the page on a path: going there (and the following it turns
+      // on) is the page's start, not news for the readout.  Later paths are
+      // the user's ('g', a click).
+      const quiet = this.firstTime ? (fn) => this._quietly(fn) : (fn) => fn()
+      quiet(() => this._goToResolved(resolved, frame, quiet))
     }
-    if (this.firstTime) {
-      // Apply scene settings — either from the permalink's `s=` flags
-      // or the SETTINGS_DEFAULTS table.  applySettings is idempotent;
-      // any setting already at its target state is a no-op, so this
-      // does the equivalent of the old "toggleAsterisms / toggleStarLabels"
-      // pair for a fresh viewer, and additionally honors the
-      // permalink for returning users.
-      const wantedSettings = pl?.settings ?? decodeSettings(undefined)
-      this.scene.applySettings(wantedSettings)
-      this.firstTime = false
-    }
+    // The scene settings were applied before anything was built
+    // (initSettings, in the constructor), not here, after the scene had
+    // drawn with the defaults.  The reveal waits for the camera.
+    this.firstTime = false
+    this._arrivedAt ??= performance.now()
     // AR-fallback resolution: if the permalink was captured in AR
     // mode (s=A), try to re-enter AR at the saved lat/lng.
     // Best-effort — on iOS Safari `requestPermission()` requires a
@@ -512,8 +600,10 @@ export default class Celestiary {
    *
    * @param {object} resolved The target's path, resolved (_resolveRef)
    * @param {{kind: string, name?: string, star?: object}} frame
+   * @param {Function} [quiet] Runs the steps that come later (a place's
+   *   catalogue loaded) as the first is run: quietly on opening the page
    */
-  _goToResolved(resolved, frame) {
+  _goToResolved(resolved, frame, quiet = (fn) => fn()) {
     if (resolved.kind === 'star') {
       this.scene.goTo(frame.star)
       return
@@ -523,13 +613,13 @@ export default class Celestiary {
       return
     }
     if (resolved.kind === 'place') {
-      this._resolveTarget(resolved, (place) => {
+      this._resolveTarget(resolved, (place) => quiet(() => {
         this.scene.land(place.body, place.lat, place.lng, place.alt, {target: place})
-      }, () => {
+      }), () => quiet(() => {
         // Not in the catalogue: go to its body.
         this.scene.setTarget(resolved.body)
         this.scene.goTo()
-      })
+      }))
       return
     }
     this.scene.setTarget(frame.name)
@@ -1093,31 +1183,78 @@ export default class Celestiary {
 
   /**
    * Single-source-of-truth toggle for the nav panels (heads-up display).
-   * Used both by the 'v' keypress and by Scene.applySettings on permalink
-   * restore — the latter goes through the applier registered in the
-   * constructor, so the canonical _settings.v stays in sync.
-   *
-   * Uses `display: none` rather than `visibility: hidden` because the
-   * SearchBar's CSS sets `visibility: visible` on chip icons, which would
-   * override an ancestor's `visibility: hidden` and leak the search icon
-   * back through.  `display: none` removes the elements from layout
-   * entirely so descendants can't punch back through.
+   * Used both by the 'v' keypress and by Scene.applySettings (the applier
+   * registered in the constructor), so the canonical _settings.v stays in
+   * sync.  Before the first load's reveal it only sets the setting: the
+   * reveal shows the chrome by it.
    */
   _toggleNav() {
+    this.scene.flipSetting('v')
+    if (this._chromeRevealed) {
+      this._setNav(this.scene.getSetting('v'))
+    }
+  }
+
+
+  /**
+   * Fade the HTML chrome in or out: CHROME_HIDDEN_CLASS on <html> takes the
+   * panels' opacity to 0 over --fade-ms (index.css).  Faded out, they are
+   * taken out of layout (`display: none`, by _frameNav once the fade is
+   * done), so they take no clicks or focus; `visibility: hidden` wouldn't
+   * do, since the SearchBar's chip icons set `visibility: visible` and would
+   * punch through it.  Faded in, they are laid out first and the class comes
+   * off a frame later, so the opacity has a value to transition from.
+   *
+   * @param {boolean} visible
+   */
+  _setNav(visible) {
+    this.navVisible = visible
+    if (visible) {
+      this._navHideAt = null
+      this._navDisplay(true)
+      this._navShowPending = true
+    } else {
+      this._navShowPending = false
+      document.documentElement?.classList?.add(CHROME_HIDDEN_CLASS)
+      this._navHideAt = performance.now() + CHROME_FADE_MS
+    }
+  }
+
+
+  /**
+   * The chrome's fade, each frame: the class off a frame after the panels
+   * are laid out, and the panels out of layout once faded out.
+   *
+   * @param {number} nowMs
+   */
+  _frameNav(nowMs) {
+    if (this._navShowPending) {
+      this._navShowPending = false
+      document.documentElement?.classList?.remove(CHROME_HIDDEN_CLASS)
+    }
+    if (this._navHideAt !== null && nowMs >= this._navHideAt) {
+      this._navHideAt = null
+      if (!this.navVisible) {
+        this._navDisplay(false)
+      }
+    }
+  }
+
+
+  /** @param {boolean} shown The chrome in layout, or out of it */
+  _navDisplay(shown) {
     const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('widgets-drawer'), elt('widgets-dock')]
     panels.forEach((panel) => {
       if (panel) {
-        panel.style.display = this.navVisible ? 'none' : ''
+        panel.style.display = shown ? '' : 'none'
       }
     })
     // Cesium's credits overlay: its display is the Cesium layers' (shown
     // only while a layer is active), so 'v' hides it by visibility.
     const credits = elt('cesium-credits')
     if (credits) {
-      credits.style.visibility = this.navVisible ? 'hidden' : ''
+      credits.style.visibility = shown ? '' : 'hidden'
     }
-    this.navVisible = !this.navVisible
-    this.scene.flipSetting('v')
   }
 
 
@@ -1337,6 +1474,20 @@ export default class Celestiary {
 
 const DEFAULT_TARGET = 'sun'
 const J2000_JD = 2451545.0
+
+
+/**
+ * The scene settings a page opens with: its link's `s=` when the link has a
+ * view (a fragment without one opens at the defaults, as _arrive has always
+ * read it), else the defaults.
+ *
+ * @param {string} hash location.hash, with or without its '#'
+ * @returns {object} A full settings map (permalink.js SETTINGS_DEFAULTS' keys)
+ */
+export function linkSettings(hash) {
+  const raw = (hash ?? '').replace(/^#/, '')
+  return (raw && decodePermalink(raw)?.settings) || decodeSettings(undefined)
+}
 // The frame a link's camera is in when it names none (`from=`), by its
 // target's kind: a body's own, a place's body's, the star's (the camera at
 // it), and the Sun's for an asterism.
