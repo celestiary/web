@@ -1,5 +1,6 @@
 import {ASTRO_UNIT_METER, DISPLAY_GAIN, INITIAL_FOV, SUN_LIGHT_DECAY, SUN_LUMINOUS_INTENSITY} from '../shared.js'
 import {HDR_MAX_VALUE, luminousShoulder} from './hdr.js'
+import {GLARE_MAX_DEG, eyePsf, eyePsfRadiusDeg, eyePsfShare} from './sun/glare.js'
 
 
 /**
@@ -910,8 +911,9 @@ export function starGainForLimit(magnitude) {
 
 /**
  * The star sprite's law, as shaders/stars.vert computes it, for tests and
- * probes (HDR.md, "Physical stars"): the star's radiance over the eye's
- * patch at this exposure, the kernel's width and peak, and the quad.
+ * probes (HDR.md, "Physical stars"): the star's pooled radiance over the
+ * eye's patch at this exposure, the core kernel's width and peak, the
+ * wing's scale (the eye's PSF, sun/glare.js eyePsf), and the quad.
  *
  * @param {number} ratio The star's illuminance over the Sun's at 1 AU
  * @param {number} gainOverEarth The exposure over Earth's keyed one (exposureRelative)
@@ -920,38 +922,77 @@ export function starGainForLimit(magnitude) {
  * @param {number} [opts.heightPx] Viewport height
  * @param {number} [opts.starGain] The user's gain
  * @param {number} [opts.discRad] The star's disc's angular diameter, radians
- * @returns {{value: number, patchPx: number, sigma: number, peak: number,
- *   sizePx: number, coreRadiusPx: number, flat: boolean, glareCapped: boolean}} value is the
- *   radiance in exposure units; coreRadiusPx where the kernel passes white
- *   (0.76 after the tone map's shoulder), 0 for a star under it; flat for
- *   the one-pixel sprite of a coarse viewport (sigma 0)
+ * @param {boolean} [opts.wings] Whether the wings are drawn (not for the
+ *   Sun's point: its glare pass draws them)
+ * @param {number} [opts.maxSizePx] The quad's largest side (the GPU's point-size range)
+ * @returns {{value: number, patchPx: number, sigma: number, peak: number, sizePx: number, coreRadiusPx: number,
+ *   flat: boolean, wingScale: number, degPerPx: number, wingRadiusPx: number, visibleRadiusPx: number}}
+ *   value is the pooled radiance in exposure units and peak the core's; coreRadiusPx where
+ *   the kernel (core or wing) passes white (0.76, the tone map's shoulder), 0 for a star under it;
+ *   wingScale the star's whole light in exposure units × steradians (the veil is wingScale × eyePsf(θ));
+ *   degPerPx the eye's angle a pixel subtends; flat for the one-pixel sprite of a coarse viewport (sigma 0)
  */
-export function starSprite(ratio, gainOverEarth, {fovDegrees = 45, heightPx = 300, starGain = 1, discRad = 0} = {}) {
+export function starSprite(ratio, gainOverEarth,
+    {fovDegrees = 45, heightPx = 300, starGain = 1, discRad = 0, wings = true, maxSizePx = STAR_MAX_SIZE_PX} = {}) {
   const pxRad = (fovDegrees * Math.PI / 180) / Math.max(heightPx, 1)
+  const magnification = fieldMagnification(fovDegrees)
   const patchRad = Math.max(pxRad, eyePatchRad(fovDegrees))
   const patchPx = Math.max(Math.floor((patchRad / pxRad) + 0.5), 1)
   let value = DISPLAY_GAIN * Math.PI * ratio / (patchRad * patchRad) * gainOverEarth * starGain
   if (discRad > 0) {
     value *= Math.min(1, (patchRad * patchRad) / (discRad * discRad))
   }
+  // The eye's angle a pixel subtends: through a telescope's field, the
+  // pixel's angle on the sky times the magnification.
+  const degPerPx = pxRad * magnification * 180 / Math.PI
+  const wingScale = wings ? value * patchRad * patchRad * magnification * magnification / STAR_CORE_SHARE : 0
   const light = value * patchPx * patchPx
   const sigma0 = Math.max(STAR_SIGMA_PER_PATCH * patchPx, STAR_SIGMA_MIN_PX)
   const peak0 = light / (2 * Math.PI * sigma0 * sigma0)
+  const wingRadiusPx = wingScale > 0 ? eyePsfRadiusDeg(STAR_WING_FLOOR / wingScale) / degPerPx : 0
+  const wingWhitePx = wingScale > 0 ? eyePsfRadiusDeg(0.76 / wingScale) / degPerPx : 0
   if (patchPx < 1.5 && peak0 < 1) {
-    return {value, patchPx, sigma: 0, peak: Math.min(value, HDR_MAX_VALUE), sizePx: 1, coreRadiusPx: 0, flat: true}
+    const sizePx = Math.min(Math.max(Math.ceil((2 * wingRadiusPx) + 1), 1), maxSizePx)
+    return {value, patchPx, sigma: 0, peak: Math.min(value, HDR_MAX_VALUE), sizePx, coreRadiusPx: wingWhitePx, flat: true,
+      wingScale, degPerPx, wingRadiusPx, visibleRadiusPx: Math.max(0.5, wingRadiusPx)}
   }
-  const decades = Math.max(Math.log10(Math.max(peak0, 1e-30)), 0)
-  const sigma = sigma0 + (STAR_BLOOM_SIGMA_PX_PER_DECADE * decades)
-  const peakRaw = Math.min(light / (2 * Math.PI * sigma * sigma), HDR_MAX_VALUE)
-  // The glare cap: the saturated core is at most STAR_GLARE_CORE_PATCHES
-  // patches in radius, so the peak is at most what puts the kernel at
-  // white (0.76) there; the halo falls off from it.
-  const coreMax = STAR_GLARE_CORE_PATCHES * patchPx
-  const peak = Math.min(peakRaw, 0.76 * Math.exp(coreMax * coreMax / (2 * sigma * sigma)))
-  const visibleRadius = sigma * Math.sqrt(2 * Math.log(Math.max(peak / STAR_VISIBLE_VALUE, 1)))
-  const sizePx = Math.min(Math.max((2 * visibleRadius) + 2, 1), STAR_MAX_SIZE_PX)
-  const coreRadiusPx = sigma * Math.sqrt(2 * Math.log(Math.max(peak / 0.76, 1)))
-  return {value, patchPx, sigma, peak, sizePx, coreRadiusPx, flat: false, glareCapped: peak < peakRaw}
+  const sigma = sigma0
+  const peak = Math.min(light / (2 * Math.PI * sigma * sigma), HDR_MAX_VALUE)
+  const coreVisible = sigma * Math.sqrt(2 * Math.log(Math.max(peak / STAR_VISIBLE_VALUE, 1)))
+  const visibleRadiusPx = Math.max(coreVisible, wingRadiusPx)
+  const sizePx = Math.min(Math.max((2 * visibleRadiusPx) + 2, 1), maxSizePx)
+  const coreRadiusPx = Math.max(sigma * Math.sqrt(2 * Math.log(Math.max(peak / 0.76, 1))), wingWhitePx)
+  return {value, patchPx, sigma, peak, sizePx, coreRadiusPx, flat: false, wingScale, degPerPx, wingRadiusPx, visibleRadiusPx}
+}
+
+
+/**
+ * The kernel's value at a distance from the star's centre, as stars.frag
+ * computes it: the pooled core, a Gaussian whose pixels sum to the pooled
+ * light, plus the wing, the eye's PSF windowed in past the pool.
+ *
+ * @param {number} rPx Pixels from the centre
+ * @param {object} sprite starSprite's
+ * @returns {{core: number, wing: number, total: number}} Exposure units
+ */
+export function starKernel(rPx, sprite) {
+  const {sigma, peak, wingScale, degPerPx, flat, value} = sprite
+  const core = flat ? (rPx < 0.5 ? value : 0) : peak * Math.exp(-rPx * rPx / (2 * sigma * sigma))
+  const thetaDeg = rPx * degPerPx
+  const wing = wingScale * eyePsf(thetaDeg) * starWingWindow(thetaDeg)
+  return {core, wing, total: core + wing}
+}
+
+
+/**
+ * The wing's window: 0 inside half the pool's radius, 1 from the pool's
+ * radius out (a smoothstep between), the eye's angle in degrees.
+ *
+ * @param {number} thetaDeg
+ * @returns {number}
+ */
+export function starWingWindow(thetaDeg) {
+  return smoothstep(STAR_POOL_RADIUS_DEG / 2, STAR_POOL_RADIUS_DEG, thetaDeg)
 }
 
 
@@ -1053,19 +1094,34 @@ export const STAR_SIGMA_PER_PATCH = 0.25
 export const STAR_SIGMA_MIN_PX = 0.6
 /** A star's peak over its radiance on a screen whose patch is 3 px or more. */
 export const STAR_PEAK_OVER_RADIANCE = 1 / (2 * Math.PI * STAR_SIGMA_PER_PATCH * STAR_SIGMA_PER_PATCH)
-/** The kernel's width grows this many pixels per decade of light over white (bloom). */
-export const STAR_BLOOM_SIGMA_PX_PER_DECADE = 0.75
-/** The quad holds the kernel out to where it falls under this, exposure units. */
+/** The quad holds the core out to where it falls under this, exposure units: a display step. */
 export const STAR_VISIBLE_VALUE = 0.004
-/** The quad's largest side, pixels (Stars.js MAX_STAR_SIZE_PX). */
-export const STAR_MAX_SIZE_PX = 96
 /**
- * The saturated core's largest radius, in patches (stars.vert): the
- * bloom's core grew with the log of the light without limit, and the Sun
- * from 52 AU, 1e9 over white at the dark gain, was a 120 px disc on the
- * user's screen where it should read as a dazzling star.  The eye's
- * glare has a core of about this size (20′: two patches), with the halo
- * falling off round it; past the cap the light is lost, as it is to a
- * saturated retina.
+ * The quad's largest side, pixels (starsMaterial.js uMaxStarSizePx; held
+ * to the GPU's point-size range by ThreeUi): Sirius's wing at the dark
+ * gain on a 1080 px screen reaches 38 px, and at sm=+2 the brightest
+ * stars' wings pass the quad, which the edge window takes to zero.
  */
-export const STAR_GLARE_CORE_PATCHES = 2
+export const STAR_MAX_SIZE_PX = 160
+/**
+ * The rods' pool round a point, as the eye's angle: half the patch's side
+ * (EYE_POINT_RAD, 10′), 5′.  Inside it the star's light is pooled and
+ * drawn as the core (the Gaussian); outside it the eye's PSF (sun/glare.js
+ * eyePsf) is the veil round the star, drawn as the wing.
+ */
+export const STAR_POOL_RADIUS_DEG = EYE_POINT_RAD / 2 * 180 / Math.PI
+/**
+ * The share of a point's light the eye's PSF puts in the pool, with the
+ * wing's window (starWingWindow) taking the rest: 0.66.  The pooled light
+ * is what the limiting magnitude is calibrated on (a star's `value` is its
+ * pooled radiance), so the star's whole light is the pooled light over
+ * this share, and the wing carries the rest.
+ */
+export const STAR_CORE_SHARE = eyePsfShare(GLARE_MAX_DEG, (t) => 1 - starWingWindow(t))
+/**
+ * The wing is drawn out to where it falls under this, exposure units: 2.5
+ * of 255 on screen, and about the dark-adapted eye's own threshold for a
+ * feature of 20-60′ over a dark sky (eye.js thresholdContrast, 0.3-0.5 of
+ * the sky's 0.026 at the dark gain).  The core's floor is STAR_VISIBLE_VALUE.
+ */
+export const STAR_WING_FLOOR = 0.01

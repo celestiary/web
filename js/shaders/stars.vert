@@ -3,24 +3,28 @@
 // times the exposure over Earth's keyed one (uExposureRelative), and lands
 // in the eye's patch: a pixel, or the dark-adapted eye's resolution of a
 // point (10 arcmin) where a pixel is finer.  Over that patch it is a
-// radiance L = light / Ω_patch, in exposure units.  The sprite is the
-// patch in pixels (1 px on a 300 px test viewport at 45°, 4 px on a 1080
-// px screen), so the two show the same field; its pixels carry
-// L × patch² in all, over a Gaussian kernel (shaders/stars.frag) a
+// radiance L = light / Ω_patch, in exposure units: the pooled light the
+// limiting magnitude is calibrated on.  The sprite's core is the patch's
+// pixels carrying L × patch² over a Gaussian kernel (shaders/stars.frag) a
 // quarter of the patch wide, so the light is conserved whatever the
-// kernel's width.  Past the value a pixel shows as white (1) the kernel
-// widens BLOOM_SIGMA_PX_PER_DECADE per decade of light, as a saturated
-// point blooms in the eye and on a sensor: the brightest stars are
-// bigger, their light still conserved.  A texture
-// did this before: its flat core is 6% of the sprite's half-width, so a
-// 2 px sprite sampled it at 0.06 and a 4 px one at 0.27, and mipmaps
-// flattened a 3 px sprite's peak to a third: a mag 4 star reached 10 of
-// 255 where the arithmetic gave 97, two magnitudes lost.
+// kernel's width; its wing is the eye's veil round the star, the CIE
+// total glare equation (sun/glare.js eyePsf) times the star's whole
+// light, outside the rods' pool.  So a bright star's saturated core and
+// its halo are as wide as the eye's point spread function makes them at
+// that light, falling as θ^-3 then θ^-2, with no law of their own: the
+// second cut grew the kernel 0.75 px per decade of light over white and
+// held the core to two patches, and at sm=+2 every star to magnitude 5
+// was a saturated disc and every star over magnitude 1 the same 16 px
+// disc.  A texture did this before that: its flat core is 6% of the
+// sprite's half-width, so a 2 px sprite sampled it at 0.06 and a 4 px one
+// at 0.27, and mipmaps flattened a 3 px sprite's peak to a third: a mag 4
+// star reached 10 of 255 where the arithmetic gave 97, two magnitudes
+// lost.
 uniform float uFovDegrees;      // vertical
 uniform float uViewportHeight;  // pixels
 uniform float uExposureRelative;
 uniform float MIN_STAR_SIZE_PX;
-uniform float MAX_STAR_SIZE_PX;
+uniform float uMaxStarSizePx;
 // RTE (Relative-To-Eye): camera position in star catalog coordinates (the
 // Points' local frame, J2000; see rte.js), split into
 // high (Math.fround) and low (residual) parts.  Together they carry full float64
@@ -45,9 +49,11 @@ const float KM_S_YEAR_M = 3.15576e10;
 #endif
 
 varying vec3 vColor;
-varying float vBrightness;        // the kernel's peak, exposure units
+varying float vBrightness;        // the core kernel's peak, exposure units
 varying float vSize;              // the sprite's side, px
-varying float vSigma;             // the kernel's width, px
+varying float vSigma;             // the core kernel's width, px
+varying float vWingScale;         // the star's whole light, exposure units × sr (the veil is this × eyePsf)
+varying float vDegPerPx;          // the eye's angle a pixel subtends, degrees
 
 const float PI = 3.14159265;
 const float fourPi = 4. * PI;
@@ -66,20 +72,19 @@ const float KERNEL_SIGMA_PER_PATCH = 0.25;
 // where the star falls between pixel centres (0.6: the nearest centre,
 // at most 0.7 px off, reads 0.5 of the peak at worst, 0.85 typically).
 const float KERNEL_SIGMA_MIN_PX = 0.6;
-// The kernel's width grows this many pixels per decade of light over a
-// white pixel's (bloom): a saturated core, whose radius grows with the
-// log of the light, and a halo.
-const float BLOOM_SIGMA_PX_PER_DECADE = 0.75;
-// The quad holds the kernel out to where it falls under this value
-// (exposure units: under 1 of 255 through the tone map), and its edge
-// window (stars.frag) takes it to zero inside the quad, so a star is
-// round at every exposure; a quad that saturated to its edge was a square.
+// The quad holds the core out to where it falls under this value
+// (exposure units: under 1 of 255 through the tone map), and the wing to
+// where it falls under WING_FLOOR (2.5 of 255: about the eye's own
+// threshold for a feature of 20-60′ over a dark sky; exposure.js
+// STAR_WING_FLOOR), and its edge window (stars.frag) takes both to zero
+// inside the quad, so a star is round at every exposure; a quad that
+// saturated to its edge was a square.
 const float VISIBLE_VALUE = 0.004;
-// The saturated core's largest radius, in patches: the eye's glare has a
-// core of about 20′ with the halo falling off round it, whatever the
-// light (the Sun from 52 AU was a 120 px disc without this); past the
-// cap the light is lost, as it is to a saturated retina.
-const float GLARE_CORE_PATCHES = 2.0;
+const float WING_FLOOR = 0.01;
+// The share of a point's light the eye's PSF puts in the rods' pool
+// (exposure.js STAR_CORE_SHARE; a test keeps it equal): the pooled light,
+// which the limit is calibrated on, over the star's whole light.
+const float CORE_SHARE = 0.6579;
 // Every star's z is pulled this far inside the far plane (in NDC, after
 // clipToW1's divide; a fraction of w before it).  The camera's far plane
 // is the galaxy's scale and its near plane metres, so the projection's (f + n) / (f - n) is 1 in
@@ -118,6 +123,42 @@ const float MAX_VALUE = 6.0e4;
 const float EYE_POINT_RAD = 10.0 / 60.0 * PI / 180.0;
 // The naked eye's field, INITIAL_FOV (45°): tan of its half.
 const float TAN_HALF_EYE_FOV = 0.41421356;
+const float RAD_TO_DEG = 57.2957795;
+
+// The eye's PSF, per steradian: the CIE total glare equation (sun/glare.js
+// eyePsf, EYE_PSF_GLSL carries the same constants; a test compares the
+// copies).  Two lobes of the optics (0.0046° and 0.045°) and the
+// scattered light; the wing's quad is sized from where it falls under the
+// floor.
+float eyePsf(float thetaDeg) {
+  float t = max(thetaDeg, 0.0);
+  float a1 = t / 0.0046;
+  float a2 = t / 0.045;
+  float q = 1.0 + (t / 0.1) * (t / 0.1);
+  float l1 = 1.0 + a1 * a1;
+  float l2 = 1.0 + a2 * a2;
+  float optics = 0.998698 * (9.2e6 / (l1 * sqrt(l1)) + 1.5e5 / (l2 * sqrt(l2)));
+  float scatter = 1.026031 * (400.0 / q + 3.0e-8 * t * t + 0.50 * (1300.0 / (q * sqrt(q)) + 0.8 / sqrt(q)));
+  float field = 1.0 - smoothstep(90.0, 100.0, t);
+  return field * (optics + scatter + 0.001250);
+}
+
+// Where the wing falls to a floor, degrees: its θ^-3 tail (the 0.045°
+// lobe's) and θ^-2 tail (the scattered light's) each solved alone, the
+// larger taken, then corrected twice by the function's own value there
+// (its local power is between the two).  Within a few percent; the quad
+// only has to hold the visible wing.
+float wingRadiusDeg(float scale, float floor) {
+  if (!(scale > 0.0)) {
+    return 0.0;
+  }
+  float ratio = scale / floor;
+  float t = max(pow(13.6 * ratio, 1.0 / 3.0), sqrt(4.1 * ratio));
+  for (int i = 0; i < 2; i++) {
+    t *= pow(max(eyePsf(t) * ratio, 1.0e-6), 0.4);
+  }
+  return min(t, 100.0);
+}
 
 void main() {
   vColor = color;
@@ -163,8 +204,11 @@ void main() {
   float patchPx = max(floor(patchRad / pxRad + 0.5), 1.0);
   float value = DISPLAY_GAIN * PI * (illuminance / SUN_ILLUMINANCE_1AU) / (patchRad * patchRad)
       * uExposureRelative * uStarGain;
-  // The Sun is the catalogue's origin.
-  if (position == vec3(0.0) && positionLow == vec3(0.0)) {
+  // The Sun is the catalogue's origin: its point dims with an eclipse, and
+  // has no wing of its own, since its glare pass (sun/SunLayers.js) draws
+  // the eye's veil round it at every distance, over the whole frame.
+  bool isSun = position == vec3(0.0) && positionLow == vec3(0.0);
+  if (isSun) {
     value *= uSunVisible;
   }
 
@@ -174,38 +218,42 @@ void main() {
   float discRad = 2.0 * radius / max(-mvPosition.z, 1.0);
   value *= min(1.0, (patchRad * patchRad) / max(discRad * discRad, 1.0e-30));
 
-  // The kernel: the light, L × patch², over a Gaussian of width
-  // KERNEL_SIGMA_PER_PATCH × patch (at least KERNEL_SIGMA_MIN_PX), plus
-  // the bloom, whose sum over the pixels is 2πσ²; its peak may pass
-  // white, and the radius where it does is the saturated core.  The quad
-  // holds the kernel out to where it falls under VISIBLE_VALUE, so it is
-  // as large as the visible star and no larger.
+  // The wing: the star's whole light (the pooled light over the pool's
+  // share, in exposure units × steradians, as the eye receives it through
+  // the field's magnification) times the eye's PSF at each pixel's angle
+  // from the star, in the eye's degrees (stars.frag).
+  vDegPerPx = pxRad * magnification * RAD_TO_DEG;
+  vWingScale = isSun ? 0.0 : value * patchRad * patchRad * magnification * magnification / CORE_SHARE;
+  float wingRadiusPx = wingRadiusDeg(vWingScale, WING_FLOOR) / vDegPerPx;
+
+  // The core: the pooled light, L × patch², over a Gaussian of width
+  // KERNEL_SIGMA_PER_PATCH × patch (at least KERNEL_SIGMA_MIN_PX), whose
+  // sum over the pixels is 2πσ²; its peak may pass white, and the radius
+  // where it does is the saturated core.  The quad holds the core out to
+  // where it falls under VISIBLE_VALUE and the wing to WING_FLOOR, so it
+  // is as large as the visible star and no larger.
   float light = value * patchPx * patchPx;
   float sigma0 = max(KERNEL_SIGMA_PER_PATCH * patchPx, KERNEL_SIGMA_MIN_PX);
   float peak0 = light / (2.0 * PI * sigma0 * sigma0);
   if (patchPx < 1.5 && peak0 < 1.0) {
     // The pixel is the patch (a coarse viewport: a 300 px test render),
-    // so the star is the one pixel it falls in, showing L flat (vSigma 0
-    // tells stars.frag): a Gaussian narrower than a pixel sampled at the
-    // pixel's centre read 0.2-1 of the peak with where the star fell,
-    // and the faint end with it.  Past white the bloom takes over.
+    // so the star's core is the one pixel it falls in, showing L flat
+    // (vSigma 0 tells stars.frag): a Gaussian narrower than a pixel
+    // sampled at the pixel's centre read 0.2-1 of the peak with where the
+    // star fell, and the faint end with it.  The quad is odd-sized about
+    // that pixel, holding the wing where there is one to show.
     vSigma = 0.0;
-    vSize = 1.0;
-    gl_PointSize = 1.0;
+    vSize = clamp(2.0 * floor(wingRadiusPx + 0.5) + 1.0, 1.0, uMaxStarSizePx);
+    gl_PointSize = vSize;
     vBrightness = min(value, MAX_VALUE);
     gl_Position = clipToW1(projectionMatrix * mvPosition);
     return;
   }
-  float decadesOverWhite = max(log2(max(peak0, 1.0e-30)) / log2(10.0), 0.0);
-  vSigma = sigma0 + BLOOM_SIGMA_PX_PER_DECADE * decadesOverWhite;
-  float kernelSum = 2.0 * PI * vSigma * vSigma;
-  float peak = min(light / kernelSum, MAX_VALUE);
-  // The glare cap: the peak is at most what puts the kernel at white
-  // (0.76, the tone map's shoulder) GLARE_CORE_PATCHES patches out.
-  float coreMax = GLARE_CORE_PATCHES * patchPx;
-  peak = min(peak, 0.76 * exp(coreMax * coreMax / (2.0 * vSigma * vSigma)));
-  float visibleRadius = vSigma * sqrt(2.0 * log(max(peak / VISIBLE_VALUE, 1.0)));
-  vSize = clamp(2.0 * visibleRadius + 2.0, MIN_STAR_SIZE_PX, MAX_STAR_SIZE_PX);
+  vSigma = sigma0;
+  float peak = min(peak0, MAX_VALUE);
+  float coreRadius = vSigma * sqrt(2.0 * log(max(peak / VISIBLE_VALUE, 1.0)));
+  float visibleRadius = max(coreRadius, wingRadiusPx);
+  vSize = clamp(2.0 * visibleRadius + 2.0, MIN_STAR_SIZE_PX, uMaxStarSizePx);
   gl_PointSize = vSize;
   vBrightness = peak;
 
