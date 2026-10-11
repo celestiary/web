@@ -304,7 +304,7 @@ describe('the eye\'s PSF round a star (the wing)', () => {
     }
     const whole = s.value * EYE_POINT_RAD * EYE_POINT_RAD / STAR_CORE_SHARE
     expect(wingLight / whole).toBeGreaterThan(0.38)
-    expect(wingLight / whole).toBeLessThan(0.46)
+    expect(wingLight / whole).toBeLessThan(0.48)
   })
 
   it('the saturated core and the halo follow the light by the function, not a σ law: Sirius 9 px in an 86 px quad at the dark gain', () => {

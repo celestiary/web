@@ -378,8 +378,13 @@ is magnitude −19, 88 lux, and the equation's veil 60° off is 0.3 cd/m²,
 a moonlit landscape's, 40 times a dark sky; the meter reads it as light
 in the field, the gain falls, and the stars go, as they do to an eye
 with the Sun in its field anywhere in the solar system.  The equation's
-range ends at 100°, the eye's field: the veil fades smoothly from 90° to
-100° (`glareFieldWeight`), none for a source behind the head.  The Sun's
+range ends at 100°, the eye's field's temporal edge: the pass fades out
+by the Sun's angle from the view axis, the gaze, from 90° to 100°
+(`glareFieldWeight`, its `uFieldWeight`), none for a source behind the
+head; by each pixel's own angle it would have veiled a frame whose edge
+is 80° from a Sun 106° behind the gaze (the Moon from Earth's night
+side at 20,000 km held the gain at 26-44 and showed no star, before this
+change as after it until the fade moved to the gaze).  The Sun's
 point sprite draws no wing of its own (`stars.vert`, [HDR.md, physical
 stars](HDR.md#physical-stars)): the pass is its glare, and both would
 count it twice.  The observer's glare function is the instrument's

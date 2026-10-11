@@ -29,8 +29,7 @@ export const GLARE_MAX_DEG = 100
 export function glareFunction(thetaDeg) {
   const t = Math.min(Math.max(thetaDeg, GLARE_MIN_DEG), GLARE_MAX_DEG)
   const age = 1 + ((GLARE_AGE / 62.5) ** 4)
-  return glareFieldWeight(thetaDeg) *
-    ((10 / (t ** 3)) + (((5 / (t * t)) + (0.1 * GLARE_PIGMENT / t)) * age) + (0.0025 * GLARE_PIGMENT))
+  return (10 / (t ** 3)) + (((5 / (t * t)) + (0.1 * GLARE_PIGMENT / t)) * age) + (0.0025 * GLARE_PIGMENT)
 }
 
 
@@ -76,19 +75,23 @@ export function glareRadiusDeg(floor) {
 
 
 /**
- * Beyond this angle the source is outside the eye's field (the equation's
- * range ends at GLARE_MAX_DEG): the veil is taken smoothly to zero from
- * here to GLARE_MAX_DEG, where glareFunction would otherwise hold its
- * 100° value for a source behind the head.
+ * Beyond this angle from the line of sight the source is outside the
+ * eye's field (the equation's range ends at GLARE_MAX_DEG, the field's
+ * temporal edge): the veil is taken smoothly to zero from here to
+ * GLARE_MAX_DEG by the source's angle from the view axis, the gaze, not
+ * by each pixel's angle from it (the veil is light over the whole
+ * retina; a source 106° behind the gaze veils nothing, though the
+ * frame's edge is 80° from it).  A source behind the head veils nothing.
  */
 export const GLARE_FADE_DEG = 90
 
 
 /**
- * The veil's share at an angle past GLARE_FADE_DEG: 1 to there, 0 at
- * GLARE_MAX_DEG, smooth between.
+ * The veil's share for a source at an angle from the line of sight: 1 to
+ * GLARE_FADE_DEG, 0 at GLARE_MAX_DEG, smooth between (sun/SunLayers.js
+ * sets it as uFieldWeight).
  *
- * @param {number} thetaDeg
+ * @param {number} thetaDeg The source's angle from the view axis
  * @returns {number}
  */
 export function glareFieldWeight(thetaDeg) {
@@ -101,9 +104,8 @@ export const GLARE_GLSL = `
 float glareFunction(float thetaDeg) {
   float t = clamp(thetaDeg, ${GLARE_MIN_DEG.toFixed(2)}, ${GLARE_MAX_DEG.toFixed(1)});
   float age = ${(1 + ((GLARE_AGE / 62.5) ** 4)).toFixed(6)};
-  float field = 1.0 - smoothstep(${GLARE_FADE_DEG.toFixed(1)}, ${GLARE_MAX_DEG.toFixed(1)}, thetaDeg);
   float veil = 10.0 / (t * t * t) + (5.0 / (t * t) + ${(0.1 * GLARE_PIGMENT).toFixed(4)} / t) * age;
-  return field * (veil + ${(0.0025 * GLARE_PIGMENT).toFixed(6)});
+  return veil + ${(0.0025 * GLARE_PIGMENT).toFixed(6)};
 }
 `
 
@@ -128,9 +130,12 @@ float glareFunction(float thetaDeg) {
  * round a bright star, falling as θ^-3 (the 0.045° lobe's tail) to a
  * degree or so and as θ^-2 beyond (the glare terms).  Taken as recalled
  * and checked against the general equation (within 40% from 0.1° to
- * 100°) and its normalisation; the sandbox reaches no journal.
+ * 100°) and its normalisation; the sandbox reaches no journal.  Past
+ * GLARE_MAX_DEG it holds its 100° value (the uniform term): whether the
+ * source is in the eye's field at all is glareFieldWeight's, by the
+ * source's angle from the gaze.
  *
- * @param {number} thetaDeg The angle from the source, degrees, 0 to GLARE_MAX_DEG
+ * @param {number} thetaDeg The angle from the source, degrees
  * @returns {number} L_eq / E, per steradian
  */
 export function eyePsf(thetaDeg) {
@@ -141,7 +146,7 @@ export function eyePsf(thetaDeg) {
   const q = 1 + ((t / 0.1) ** 2)
   const optics = ageCore * ((9.2e6 * lobe(0.0046)) + (1.5e5 * lobe(0.045)))
   const scatter = ageGlare * ((400 / q) + (3e-8 * t * t) + (GLARE_PIGMENT * ((1300 / (q ** 1.5)) + (0.8 / Math.sqrt(q)))))
-  return glareFieldWeight(t) * (optics + scatter + (2.5e-3 * GLARE_PIGMENT))
+  return optics + scatter + (2.5e-3 * GLARE_PIGMENT)
 }
 
 
@@ -179,8 +184,7 @@ export function eyePsfShare(thetaDeg, weight = () => 1) {
 export function eyePsfRadiusDeg(perSr) {
   let lo = 1e-4
   let hi = GLARE_MAX_DEG
-  if (eyePsf(GLARE_FADE_DEG) >= perSr) {
-    // Over the value wherever the eye's field reaches.
+  if (eyePsf(hi) >= perSr) {
     return hi
   }
   if (eyePsf(lo) < perSr) {
@@ -210,7 +214,6 @@ float eyePsf(float thetaDeg) {
   float optics = ${(1 - (0.08 * ((GLARE_AGE / 70) ** 4))).toFixed(6)} * (9.2e6 / (l1 * sqrt(l1)) + 1.5e5 / (l2 * sqrt(l2)));
   float scatter = ${(1 + (1.6 * ((GLARE_AGE / 70) ** 4))).toFixed(6)} * (400.0 / q + 3.0e-8 * t * t + ${
   GLARE_PIGMENT.toFixed(2)} * (1300.0 / (q * sqrt(q)) + 0.8 / sqrt(q)));
-  float field = 1.0 - smoothstep(${GLARE_FADE_DEG.toFixed(1)}, ${GLARE_MAX_DEG.toFixed(1)}, t);
-  return field * (optics + scatter + ${(2.5e-3 * GLARE_PIGMENT).toFixed(6)});
+  return optics + scatter + ${(2.5e-3 * GLARE_PIGMENT).toFixed(6)};
 }
 `

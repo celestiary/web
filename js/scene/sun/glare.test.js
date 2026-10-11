@@ -32,14 +32,16 @@ describe('the eye\'s veiling glare (CIE 135/1999)', () => {
     expect(t).toBeCloseTo(7, 3)
   })
 
-  it('fades out at the eye\'s field\'s edge: whole to 90°, none at 100°, and the GLSL carries the fade', () => {
+  it('a source is in the eye\'s field to 90° from the gaze, out of it at 100°: the pass\'s weight, not the function\'s', () => {
     expect(glareFieldWeight(GLARE_FADE_DEG)).toBe(1)
     expect(glareFieldWeight(95)).toBeCloseTo(0.5, 9)
     expect(glareFieldWeight(GLARE_MAX_DEG)).toBe(0)
+    expect(glareFieldWeight(150)).toBe(0)
+    // The function itself holds its 100° value past the range: the
+    // uniform term, light through the eye's wall.
     expect(glareFunction(60)).toBeGreaterThan(glareFunction(89))
-    expect(glareFunction(100)).toBe(0)
-    expect(glareFunction(150)).toBe(0)
-    expect(GLARE_GLSL).toMatch(/smoothstep\(90\.0, 100\.0, thetaDeg\)/)
+    expect(glareFunction(150)).toBeCloseTo(glareFunction(100), 12)
+    expect(GLARE_GLSL).not.toMatch(/smoothstep/)
   })
 })
 
@@ -73,14 +75,15 @@ describe('the eye\'s whole PSF (the CIE total glare equation)', () => {
     expect(slope(0.2, 0.4)).toBeLessThan(3.1)
     expect(slope(5, 10)).toBeGreaterThan(1.8)
     expect(slope(5, 10)).toBeLessThan(2.3)
-    // Monotone, finite at 0, zero past the field's edge.
+    // Monotone and finite at 0; past the range it holds its 100° value.
     let last = eyePsf(0)
     expect(Number.isFinite(last) && last > 9e6).toBe(true)
     for (let t = 1e-3; t <= 100; t *= 1.2) {
       expect(eyePsf(t)).toBeLessThanOrEqual(last)
       last = eyePsf(t)
     }
-    expect(eyePsf(100)).toBe(0)
+    expect(eyePsf(100)).toBeGreaterThan(2e-3)
+    expect(eyePsf(140)).toBeGreaterThan(0)
   })
 
   it('its inverse gives the radius a veil of a given value reaches', () => {
@@ -98,7 +101,7 @@ describe('the eye\'s whole PSF (the CIE total glare equation)', () => {
     expect(EYE_PSF_GLSL).toMatch(/400\.0 \/ q \+ 3\.0e-8 \* t \* t \+ 0\.50 \* \(1300\.0 \/ \(q \* sqrt\(q\)\) \+ 0\.8 \/ sqrt\(q\)\)/)
     expect(EYE_PSF_GLSL).toMatch(/0\.998698/)
     expect(EYE_PSF_GLSL).toMatch(/1\.026031/)
-    expect(EYE_PSF_GLSL).toMatch(/\+ 0\.001250\)/)
+    expect(EYE_PSF_GLSL).toMatch(/\+ 0\.001250;/)
   })
 })
 
