@@ -29,6 +29,8 @@ export const TOGGLES = [
     what: 'the Milky Way: its march and its composite'},
   {key: 'galaxies', pass: 'galaxies', kind: 'hide', label: 'galaxies',
     what: `SPARC's galaxies: their points, impostors and near march`},
+  {key: 'sun', pass: 'scene', kind: 'hide', label: 'Sun\'s layers',
+    what: `the Sun's corona, chromosphere, prominences and CMEs, and its glare (Sun.md); timed in the scene pass`},
   {key: 'cesium', pass: 'cesium', kind: 'skip', label: 'Cesium layer',
     what: `Cesium's layers: celestiary's own bodies draw instead`},
   {key: 'meter', pass: 'meter', kind: 'skip', label: 'meter readback',

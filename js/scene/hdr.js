@@ -318,6 +318,12 @@ export const absoluteUniforms = {
   // The eye's patch's side, radians (exposure.js EYE_POINT_RAD; ThreeUi
   // sets it).
   uEyePointRad: {value: 10 / 60 * Math.PI / 180},
+  // What the camera sees of the Sun's disc past the bodies in front (an
+  // eclipse; sun/SunLayers.js): the Sun's point, the catalogue's origin,
+  // dims with it (shaders/stars.vert).  From the ground the stars' depth
+  // pull (FAR_PLANE_INSIDE) puts them in front of the Moon, so its depth
+  // can't hide the Sun's point.
+  uSunVisible: {value: 1},
 }
 
 
