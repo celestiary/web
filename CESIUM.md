@@ -481,7 +481,12 @@ the first zoom, come with a closer or a larger view.)
   band between the terrain's horizon and the sphere's is the horizon's
   haze on the sky side of the tables by construction, not by rounding
   (composition.md, "The tables' domain"; on a real GPU it flickered black
-  while that was rounding).  A float or 16-bit depth from Cesium would do better than 8 bits:
+  while that was rounding).  The volumetric clouds read this depth too:
+  their half-size march ends each ray at it, and the composite reads
+  their target depth-aware, taking only the texels whose ray ended on the
+  same surface within 10% (the dither's level is a few percent), so cloud
+  light doesn't cross a ridge's silhouette
+  ([atmos/clouds.md](js/scene/atmos/clouds.md#in-the-air)).  A float or 16-bit depth from Cesium would do better than 8 bits:
   portal-netgl could expose the host object a guest texture replays to
   (Cesium's globe depth texture), or give screen draws a depth attachment
   of their own (its "guest-private depth" roadmap item).
@@ -638,9 +643,17 @@ before the atmosphere pass, so:
 - its alpha is coverage, premultiplied-over (portal's alpha contract),
   though nothing composites `_sceneRT`'s alpha after it.
 
-The shell fades out below 30 km and is gone at 10 km (the far field;
-volumetric clouds up close are #169), so the low views (the terrain and the
-twilight ones) have no clouds in them.
+The shell fades out below 30 km and is gone at 10 km (the far field).
+Across that band the volumetric clouds take over (#169;
+[js/scene/atmos/clouds.md](js/scene/atmos/clouds.md)): a ray march into a
+target of its own, seeded by the same map, which the atmosphere pass
+composites in the air over whichever surface is there.  It reads the
+scene's depth after the composite, so Cesium's terrain (and from below 20
+km its own depth) ends its rays and takes its shadow as celestiary's sphere
+does; the `earth-clouds-volume` parity view (below) holds the two sides
+together at 12 km over the Gulf.  The low views that predate it (the
+terrain and the twilight ones) are on dates and places without cloud in
+the map, so they are unchanged.
 
 ### Tiles and lighting (ion 3D tiles)
 
