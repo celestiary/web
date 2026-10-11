@@ -64,6 +64,11 @@
       #loading.done {
         opacity: 0;
       }
+      /* A link with the HUD off ('v' in its s=) asks for a bare scene: no
+         loading text either (the quiet-load script, below). */
+      html.quiet-load #loading {
+        display: none;
+      }
       #loading .loading-in {
         display: flex;
         flex-direction: column;
@@ -116,6 +121,34 @@
           window.history.replaceState(null, null, finalPath)
         }
       }(window.location))
+    </script>
+    <!-- quiet-load: a link that turns the HUD off ('v' in s=) loads without
+         the loading text: the user has turned everything off, so the page
+         stays black until the scene fades in.  It reads the fragment as
+         permalink.js does (a view link: t=, cq= and fov=; js/permalink.md),
+         here before the body's first paint.  Tested in js/quietLoad.test.js. -->
+    <script type="text/javascript" id="quiet-load">
+      (function (hash, root) {
+        var at = hash.indexOf('@')
+        if (at === -1) {
+          return
+        }
+        var params = {}
+        hash.slice(at + 1).split(';').slice(1).forEach(function (pair) {
+          var eq = pair.indexOf('=')
+          var colon = pair.indexOf(':')
+          if (eq === -1 || (colon !== -1 && colon < eq)) {
+            return
+          }
+          params[pair.slice(0, eq)] = pair.slice(eq + 1)
+        })
+        if (!params.t || !params.cq || !params.fov) {
+          return
+        }
+        if ((params.s || '').indexOf('v') !== -1) {
+          root.classList.add('quiet-load')
+        }
+      }(decodeURIComponent(window.location.hash.slice(1)), document.documentElement))
     </script>
   </head>
   <body>
