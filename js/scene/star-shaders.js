@@ -1,5 +1,6 @@
 import {EMITTED_GLSL, LUMINOUS_CEILING, LUMINOUS_SHOULDER_GLSL} from './hdr.js'
 import {BLACKBODY_GLSL} from './stellar.js'
+import {MAX_FLARES, MAX_REGIONS} from './sun/limits.js'
 
 
 /**
@@ -77,6 +78,19 @@ uniform vec2 uSpotBelt;
 uniform vec3 uSeedOffset;
 uniform float uSpotBias;
 uniform float iTime;
+// The Sun's own active regions and flares, by date (sun/SunLayers.js; Sun.md):
+// in region mode the spots are each region's leading and following spot
+// (body-frame centre, radius in radians), not the lattice's, and white-light
+// flare kernels (centre, radius; contrast at this moment) brighten the disc.
+const int MAX_REGIONS = ${MAX_REGIONS};
+const int MAX_FLARE_KERNELS = ${2 * MAX_FLARES};
+uniform float uRegionMode;
+uniform float uRegionCount;
+uniform vec4 uSpotL[MAX_REGIONS];
+uniform vec4 uSpotF[MAX_REGIONS];
+uniform float uFlareCount;
+uniform vec4 uFlareKernel[MAX_FLARE_KERNELS];
+uniform vec4 uFlareContrast[MAX_FLARE_KERNELS];
 
 const float LUMINOUS_CEILING = ${LUMINOUS_CEILING.toExponential()};
 const float TAU = 6.28318531;
@@ -274,7 +288,51 @@ void main(void) {
   float activity = smoothstep(0.0, 0.6, snoise(unit * 2.5 + uSeedOffset * 0.01) * 2.7 - uSpotBias + 1.2) * belt;
   float teffHere = uTeff * gravityDarkening(unit);
   float temp = teffHere * (1.0 + dT);
-  if (uSpotProb > 0.0 && activity > 0.0) {
+  if (uRegionMode > 0.5) {
+    // The regions' spots: the nearest spot's distance over its radius, and
+    // the plage round each region, out past its spots.
+    float s = 8.0;
+    float spotR = 1.0;
+    float plage = 0.0;
+    for (int i = 0; i < MAX_REGIONS; i++) {
+      if (float(i) >= uRegionCount) {
+        break;
+      }
+      vec4 L = uSpotL[i];
+      vec4 F = uSpotF[i];
+      float sep = length(L.xyz - F.xyz);
+      float ext = 0.6 * sep + 6.0 * max(L.w, F.w) + 0.01;
+      float dm = length(unit - normalize(L.xyz + F.xyz));
+      if (dm > ext) {
+        continue;
+      }
+      // Ragged edges, the following spot's more than the leader's.
+      float dL = length(unit - L.xyz) / max(L.w, 1.0e-5) * (1.0 + 0.12 * snoise(unit * (2.5 / max(L.w, 1.0e-3))));
+      float dF = length(unit - F.xyz) / max(F.w, 1.0e-5) * (1.0 + 0.3 * snoise(unit * (2.0 / max(F.w, 1.0e-3)) + 7.0));
+      if (dL < s) {
+        s = dL;
+        spotR = L.w;
+      }
+      if (dF < s) {
+        s = dF;
+        spotR = F.w;
+      }
+      plage = max(plage, 1.0 - smoothstep(0.3 * ext, ext, dm));
+    }
+    if (s < 8.0 || plage > 0.0) {
+      float fpu = footprintOf(unit);
+      float edge = clamp(fpu / max(spotR, 1.0e-5), 0.05, 0.5);
+      // A region's spots fade only under ~1.5 px of radius: at a full disc's
+      // scale the groups are dots, as in a white-light full-disc image.
+      float seen = resolved(0.25 / max(spotR, 1.0e-5), fpu);
+      float umbra = 1.0 - smoothstep(0.42 - edge * 0.42, 0.42 + edge * 0.42, s);
+      float spot = 1.0 - smoothstep(1.0 - edge, 1.0 + edge, s);
+      float fil = 1.0 + 0.3 * snoise(unit * (9.0 / max(spotR, 1.0e-3))) * resolved(9.0 / max(spotR, 1.0e-3), fpu);
+      temp -= mix(uPenumbraDT * fil, uUmbraDT, umbra) * spot * seen;
+      float near = (1.0 - smoothstep(1.0, 2.5, s)) * (1.0 - spot);
+      temp += teffHere * uFaculaDT * (0.4 * plage + near * seen) * limb;
+    }
+  } else if (uSpotProb > 0.0 && activity > 0.0) {
     vec3 psp = unit * uSpotFreq + uSeedOffset.zyx * 0.1;
     // A spot's edge is softened over a pixel, at most half its radius;
     // past that the spots fade as they go under a few pixels (their light
@@ -299,6 +357,19 @@ void main(void) {
   vec4 bb = blackbody(temp);
   vec4 bb0 = blackbody(uTeff);
   vec3 surface = bb.rgb * exp2(bb.a - bb0.a);
+  // White-light flare kernels: a 10,000 K continuum over the photosphere,
+  // at their contrast now (sun/emission.js flareContrast).
+  for (int i = 0; i < MAX_FLARE_KERNELS; i++) {
+    if (float(i) >= uFlareCount) {
+      break;
+    }
+    vec4 k = uFlareKernel[i];
+    float r = length(unit - k.xyz) / max(k.w, 1.0e-6);
+    if (r < 3.0) {
+      vec4 bbF = blackbody(10000.0);
+      surface += bbF.rgb * (uFlareContrast[i].x * exp(-r * r));
+    }
+  }
   vec3 limbDark = (1.0 - uLimbC * (1.0 - pow(vec3(max(mu, 1.0e-4)), uLimbAlpha))) / uLimbMean;
 
   // Pre-exposed (uExposureRelative carries the frame's gain), within the

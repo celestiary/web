@@ -1619,6 +1619,11 @@ export default class Scene {
   /** */
   toggleOrbits() {
     Utils.visitSetProperty(this.objects['sun'], 'name', 'orbit', 'visible', this.orbitsVisible = !this.orbitsVisible)
+    // The solar wind's streamlines are a diagram of the same kind (sun/SolarWind.js).
+    const wind = this.objects['sun']?.sunLayers?.wind
+    if (wind) {
+      wind.visible = this.orbitsVisible
+    }
     this._flipSetting('o')
   }
 
