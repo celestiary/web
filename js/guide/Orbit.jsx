@@ -79,12 +79,15 @@ function setup() {
       const propsTable = document.getElementById('propsTable')
       const value = orbitProps[propName]
       const sliderValue = value / maxValue * 100
+      const escapedValue = String(value).replace(/[&<>"']/g, (c) => (
+        {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;'}[c]
+      ))
       propsTable.innerHTML +=
         `<tr>
            <td>${propName}:
            <td><input type="range" min="0" max="100" name="${propName}-slider" value="${sliderValue}"
                   oninput="document.onSlider(this, '${propName}')"/>
-           <td><input name="${propName}" value="${value}" oninput="document.onInput(this, '${propName}')"/>
+           <td><input name="${propName}" value="${escapedValue}" oninput="document.onInput(this, '${propName}')"/>
          </tr>`
     }
   }
