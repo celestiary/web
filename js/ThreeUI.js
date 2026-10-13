@@ -867,6 +867,29 @@ export default class ThreeUi {
 
 
   /**
+   * A flight from the homepage has arrived (Celestiary._endFlight), and
+   * its view's own restore drops a go of its own, so its tween doesn't end
+   * the way a go's does.  The meter takes the arrival's gain now: the
+   * approach's, as _approachStep gives it to an arrival, or, with none (a
+   * landing, the far stars), the gain its last readings asked for, which by
+   * the flight's last turn are of the view itself.  Without this it went on
+   * from the gain it had before the flight (the Sun's, stopped down) and
+   * took seconds to come up.  The exposure still eases to it.
+   */
+  settleArrival() {
+    const a = this._approach
+    this._approach = null
+    this._liveExposure = null
+    if (a && a.tween.travelProgress() >= 1) {
+      this._meterGain = a.gain
+      this._meterGainGoal = a.gain
+      return
+    }
+    this._meterGain = this._meterGainGoal
+  }
+
+
+  /**
    * The exposure a frame renders with, given the one it would have without
    * a travel (`live`): while the camera travels to a body (approach), the
    * blend from live to the arrival's by the travel's progress; on arriving,

@@ -78,6 +78,9 @@ global.document = {
       lineWidth: 1,
     }),
   }),
+  // An image that never loads: a flight near a body steps the animation
+  // (Celestiary._setSimTime), whose bodies ask for their near maps.
+  createElementNS: () => ({style: {}, addEventListener: () => {}, removeEventListener: () => {}, setAttribute: () => {}}),
   getElementById: () => ({style: {}}),
   querySelectorAll: () => [],
   body: {appendChild: () => {}},
@@ -136,6 +139,10 @@ class StubThreeUI {
   }
   approach(body, arrivalWorld, tween) {
     this.approached = {body, arrivalWorld, tween}
+  }
+  // A flight's arrival hands the meter its gain (Celestiary._endFlight).
+  settleArrival() {
+    this.approachSettled = (this.approachSettled ?? 0) + 1
   }
   setFov(fov) {
     this.camera.fov = fov
@@ -1651,6 +1658,8 @@ describe('the homepage', () => {
 
   /** @returns {Promise<object>} A Celestiary at the bare URL, loaded */
   async function openHome() {
+    // The last test's app's link, written late, isn't this one's.
+    apps.forEach((a) => clearTimeout(a._permalinkTimer))
     pushed = []
     replaced = []
     global.location = {hash: '', pathname: '/', search: ''}
@@ -1760,39 +1769,225 @@ describe('the homepage', () => {
     expect(stuck._reveal.started).toBe(true)
   })
 
-  it('a card opens its link by the app\'s own restore, as its own history entry', async () => {
+  /**
+   * @param {object} app
+   * @returns {number} The camera's distance from Earth's centre, m
+   */
+  function fromEarth(app) {
+    app.ui.scene.updateMatrixWorld()
+    return app.ui.camera.getWorldPosition(new Vector3())
+        .distanceTo(app.scene.objects.earth.getWorldPosition(new Vector3()))
+  }
+
+  /**
+   * Step frames until a flight is over, sampling each.
+   *
+   * @param {object} app
+   * @param {number} t0 ms
+   * @returns {{t: number, samples: Array<object>}}
+   */
+  function fly(app, t0) {
+    const samples = []
+    let t = t0
+    for (; app._flight && t < t0 + 10000; t += 16) {
+      app.frame(t)
+      samples.push({
+        t,
+        dist: fromEarth(app),
+        pos: app.ui.camera.getWorldPosition(new Vector3()),
+        quat: app.ui.camera.getWorldQuaternion(new Quaternion()),
+        fov: app.camera.fov,
+        jd: app.time.simTimeJulianDay(),
+        target: app.scene.getTarget(),
+      })
+    }
+    return {t, samples}
+  }
+
+  /**
+   * @param {string} link
+   * @returns {number} Its date, Unix ms
+   */
+  function linkMs(link) {
+    return (decodePermalink(link).d2000 * 86400000) + Date.UTC(2000, 0, 1, 12)
+  }
+
+  /**
+   * The link a view writes, against the link it was restored from: the same
+   * view, within the link's own rounding.
+   *
+   * @param {object} app
+   * @param {string} link
+   */
+  function expectView(app, link) {
+    const want = decodePermalink(link)
+    const got = decodePermalink(app.permalink())
+    expect(got.from ?? null).toEqual(want.from ?? null)
+    expect(got.d2000).toBeCloseTo(want.d2000, 3)
+    expect(got.lat).toBeCloseTo(want.lat, 3)
+    expect(got.lng).toBeCloseTo(want.lng, 3)
+    expect(got.alt / want.alt).toBeCloseTo(1, 4)
+    const q = new Quaternion(want.quat.x, want.quat.y, want.quat.z, want.quat.w).normalize()
+    expect(Math.abs(q.dot(app.ui.camera.quaternion))).toBeGreaterThan(0.999999)
+    expect(got.fov).toBeCloseTo(want.fov, 3)
+  }
+
+  it('a card flies to its link\'s view from the tour\'s, without a jump, and ends on the link\'s own restore', async () => {
     const app = await openHome()
     let t = run(app, 1000, 500)
-    const navigated = []
-    const navigate = app._navigate.bind(app)
-    app._navigate = (raw, onErr) => {
-      navigated.push(raw)
-      navigate(raw, onErr)
-    }
     const card = HOME_CARDS.find((c) => c.id === 'earth')
+    // An hour before the card's date: near the Sun, a short change eases.
+    app.time.setTime(linkMs(card.link) - 3600000)
+    const before = app.ui.camera.getWorldPosition(new Vector3())
+    const restored = []
+    const arrive = app._arrive.bind(app)
+    app._arrive = (...args) => {
+      // Where the flight left the camera, and where the restore puts it.
+      const at = app.ui.camera.getWorldPosition(new Vector3())
+      const quat = app.ui.camera.getWorldQuaternion(new Quaternion())
+      arrive(...args)
+      restored.push({pl: args[0], moved: at.distanceTo(app.ui.camera.getWorldPosition(new Vector3())),
+        turned: quat.angleTo(app.ui.camera.getWorldQuaternion(new Quaternion()))})
+    }
     app.openLink(card.link)
+    // Its own history entry, at once.
     expect(pushed).toEqual([{state: null, url: `#${card.link}`}])
     expect(app.homeShown).toBe(false)
     expect(app.homePhase).toBe('out')
     expect(app.tour.active).toBe(false)
     expect(app.ui.frameCap).toBe(null)
     expect(app.ui.layers.suspended).toBe(false)
-    // Under black: the canvas fades, then the link is restored.
-    expect(app.ui.canvasShown).toBe(false)
-    t = run(app, t, 400)
-    expect(navigated).toEqual([card.link])
-    await new Promise((resolve) => setTimeout(resolve, 50))
-    const pl = decodePermalink(card.link)
-    expect(app.time.simTimeJulianDay()).toBeCloseTo(pl.d2000 + J2000_JD, 2)
-    expect(app.camera.fov).toBeCloseTo(pl.fov, 6)
-    run(app, t, 2000)
-    expect(app.ui.canvasShown).toBe(true)
+    // A flight, not a cut: the canvas stays, and the camera hasn't moved yet.
+    expect(app._flight.plan).toBe('ease')
+    expect(app.ui.canvasShown).not.toBe(false)
+    expect(app.ui.camera.getWorldPosition(new Vector3()).distanceTo(before)).toBeLessThan(1)
+    expect(Shared.targets.tween).toBe(app._flight.tween)
+    const {t: landed, samples} = fly(app, t + 16)
+    t = landed
+    expect(app._flight).toBe(null)
+    expect(samples.length).toBeGreaterThan(100)
+    // Continuous: no frame moves the camera more than a few percent of the
+    // way in log distance, nor turns it far, nor steps the field.
+    for (let i = 1; i < samples.length; i++) {
+      const a = samples[i - 1]
+      const b = samples[i]
+      expect(Math.abs(Math.log10(b.dist / a.dist))).toBeLessThan(0.1)
+      expect(a.quat.angleTo(b.quat)).toBeLessThan(0.1)
+      expect(Math.abs(b.fov - a.fov)).toBeLessThan(1)
+      // The date eases one way, never back.
+      expect(b.jd).toBeGreaterThanOrEqual(a.jd - 1e-9)
+    }
+    // The target is the body flown to from the first frame.
+    expect(samples.every((x) => x.target.name === 'earth')).toBe(true)
+    // In from 1 AU to the card's 1.9 radii.
+    expect(samples[0].dist).toBeGreaterThan(1e11)
+    expect(Math.abs(Math.log10(samples.at(-1).dist / samples.at(-2).dist))).toBeLessThan(0.001)
+    // The link's own restore ends it, where the flight already was.
+    expect(restored).toHaveLength(1)
+    expect(restored[0].moved).toBeLessThan(1)
+    expect(restored[0].turned).toBeLessThan(1e-6)
+    expectView(app, card.link)
+    expect(Shared.targets.tween).toBe(null)
+    expect(app.ui.approachSettled).toBe(1)
+    // Then the overlays and the chrome, as the link has them, faded in.
+    run(app, t, 1500)
     expect(app.homePhase).toBe('hidden')
-    // The link's settings: orbits and labels off; the HUD on, for a visitor.
     expect(app.scene.getSetting('o')).toBe(false)
     expect(app.scene.fades.o.shown).toBe(false)
     expect(app.scene.getSetting('G')).toBe(true)
+    expect(app.scene.fades.G.shown).toBe(true)
     expect(app.navVisible).toBe(true)
+    // And the link written is the card's view.
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect(decodePermalink(global.location.hash.slice(1) || replaced.at(-1).url.slice(1)).path).toBe('sun/earth')
+  })
+
+  it('a card a long way off in time, near a body, sets its date under a dip to black, then flies', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const card = HOME_CARDS.find((c) => c.id === 'occultation')
+    app.time.setTime(linkMs(card.link) - (30 * 86400000))
+    const before = app.ui.camera.getWorldPosition(new Vector3())
+    app.openLink(card.link)
+    expect(app._flight.plan).toBe('dip')
+    expect(app.ui.canvasShown).toBe(false)
+    // The camera holds under black, then the date is the card's.
+    t = run(app, t, 250)
+    expect(app.ui.camera.getWorldPosition(new Vector3()).distanceTo(before)).toBeLessThan(1)
+    t = run(app, t, 200)
+    expect(app.ui.canvasShown).toBe(true)
+    expect(app.time.simTimeJulianDay()).toBeCloseTo(decodePermalink(card.link).d2000 + J2000_JD, 6)
+    const {samples} = fly(app, t)
+    for (let i = 1; i < samples.length; i++) {
+      expect(Math.abs(Math.log10(samples[i].dist / samples[i - 1].dist))).toBeLessThan(0.1)
+    }
+    // Landed, looking at Jupiter through the card's field.
+    expect(Shared.targets.landed).toBe(true)
+    expect(app.scene.getTarget().name).toBe('jupiter')
+    expectView(app, card.link)
+    Shared.targets.landed = false
+  })
+
+  it('far from every body the date is set at the start, and Esc stops a flight where it is', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    // Out among Gaia's stars.
+    app.tour.t = 120000
+    t = run(app, t, 100)
+    const card = HOME_CARDS.find((c) => c.id === 'earth')
+    app.openLink(card.link)
+    expect(app._flight.plan).toBe('start')
+    expect(app.time.simTimeJulianDay()).toBeCloseTo(decodePermalink(card.link).d2000 + J2000_JD, 6)
+    t = run(app, t, 1000)
+    const at = app.ui.camera.getWorldPosition(new Vector3())
+    expect(app.stopFlight()).toBe(true)
+    expect(app._flight).toBe(null)
+    expect(Shared.targets.tween).toBe(null)
+    run(app, t, 1500)
+    expect(app.ui.camera.getWorldPosition(new Vector3()).distanceTo(at)).toBeLessThan(1)
+    expect(app.navVisible).toBe(true)
+    expect(app.homePhase).toBe('hidden')
+    expect(app.stopFlight()).toBe(false)
+    // The link is where it stopped, in place of the card's.
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect(pushed).toHaveLength(1)
+    expect(replaced.at(-1).url).not.toBe(`#${card.link}`)
+    expect(decodePermalink(replaced.at(-1).url.slice(1)).alt).toBeGreaterThan(1e12)
+  })
+
+  it('another card mid-flight flies on to it, in the first\'s place; Back drops a flight for the homepage', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const earth = HOME_CARDS.find((c) => c.id === 'earth')
+    const gaia = HOME_CARDS.find((c) => c.id === 'gaia')
+    app.time.setTime(linkMs(earth.link))
+    app.openLink(earth.link)
+    t = run(app, t, 800)
+    const first = app._flight
+    app.time.setTime(linkMs(gaia.link))
+    app.openLink(gaia.link)
+    expect(app._flight).not.toBe(first)
+    expect(pushed).toHaveLength(1)
+    expect(replaced.at(-1).url).toBe(`#${gaia.link}`)
+    t = fly(app, t).t
+    expectView(app, gaia.link)
+    // Out to 3,200 light-years: the exposure meters on its own there.
+    expect(decodePermalink(gaia.link).alt).toBeGreaterThan(1e19)
+    // Back, mid-flight to another: the homepage again, the flight gone.
+    app.leaveHome()
+    global.location.hash = ''
+    app.showHome()
+    t = run(app, t, 1000)
+    app.openLink(earth.link)
+    t = run(app, t, 500)
+    expect(app._flight).not.toBe(null)
+    global.location.hash = ''
+    app._onPopState({[HOME_HISTORY_KEY]: true})
+    expect(app.homeShown).toBe(true)
+    expect(app._flight).toBe(null)
+    expect(Shared.targets.tween).toBe(null)
+    run(app, t, 1000)
+    expect(app.tour.playing).toBe(true)
   })
 
   it('leaving for the live scene stops the tour where it is and writes the view as a new entry', async () => {
@@ -1837,15 +2032,43 @@ describe('the homepage', () => {
     expect(app.homeShown).toBe(false)
   })
 
-  it('the search\'s Go to a body leaves it and travels there from the tour\'s view', async () => {
+  it('the search\'s Go to a body flies there from the tour\'s view, to where "g" arrives, then writes the link', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const jd = app.time.simTimeJulianDay()
+    app.goToResult({id: 'earth', kind: 'planet', displayName: 'Earth', path: 'milkyway/sun/earth', payload: {name: 'earth'}})
+    expect(app.homeShown).toBe(false)
+    expect(app._flight.plan).toBe('none')
+    const {t: after, samples} = fly(app, t + 16)
+    t = after
+    for (let i = 1; i < samples.length; i++) {
+      expect(Math.abs(Math.log10(samples[i].dist / samples[i - 1].dist))).toBeLessThan(0.1)
+    }
+    expect(fromEarth(app)).toBeCloseTo(app.scene.arrivalDistance(app.scene.objects.earth), -1)
+    expect(app.scene.getTarget().name).toBe('earth')
+    // Facing it.
+    const look = new Vector3(0, 0, -1).applyQuaternion(app.ui.camera.getWorldQuaternion(new Quaternion()))
+    const toward = app.scene.objects.earth.getWorldPosition(new Vector3())
+        .sub(app.ui.camera.getWorldPosition(new Vector3())).normalize()
+    expect(look.dot(toward)).toBeGreaterThan(0.9999)
+    // The clock ran as it was.
+    expect(app.time.simTimeJulianDay()).toBeGreaterThanOrEqual(jd)
+    run(app, t, 1500)
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect(pushed).toHaveLength(1)
+    expect(pushed[0].url).toMatch(/^#sun\/earth@/)
+  })
+
+  it('the search\'s Go to a star or galaxy goes by the app\'s go', async () => {
     const app = await openHome()
     run(app, 1000, 500)
-    const navigated = []
-    app._navigate = (raw) => navigated.push(raw)
-    // As the hashchange that Go's `location.hash = path` makes does.
-    app.leaveHome({link: 'sun/mars'})
-    expect(navigated).toEqual(['sun/mars'])
-    expect(app.ui.canvasShown).not.toBe(false)
+    const went = []
+    app.scene.goTo = (star, name) => went.push(name)
+    const star = {x: 1e17, y: 0, z: 0, radius: 7e8}
+    app.goToResult({id: 'hip:1', kind: 'star', displayName: 'A star', path: 'milkyway/hip:1', payload: {star}})
+    expect(went).toEqual(['A star'])
+    expect(app.homeShown).toBe(false)
+    expect(app._flight).toBe(null)
   })
 
   it('with prefers-reduced-motion, a still: the tour holds over Earth', async () => {
@@ -1870,7 +2093,11 @@ describe('the homepage', () => {
     const {where, when} = await app.openTonight({locate: () => Promise.reject(new Error('denied')), timeZone: 'Europe/Paris'})
     expect(where.source).toBe('timezone')
     expect(app.homeShown).toBe(false)
-    run(app, t, 2000)
+    // A flight there, said once it's there.
+    expect(app._flight).not.toBe(null)
+    expect(notices).toEqual([])
+    const {t: landed} = fly(app, t + 16)
+    run(app, landed, 1500)
     expect(Shared.targets.landed).toBe(true)
     expect(app.time.simTime).toBeGreaterThanOrEqual(when.ms)
     expect(app.time.simTime - when.ms).toBeLessThan(60000)

@@ -378,6 +378,12 @@ button {
   opacity: 0;
 }
 
+/* Unseen, or fading out as a flight leaves it: nothing on it takes a
+   click (a second card); a click goes to the scene, which stops a flight. */
+.home-waiting .home-content *, .home-out .home-content * {
+  pointer-events: none;
+}
+
 /* A vignette behind the foreground, for the text's contrast over a bright
    frame (the Sun, Earth's day side). */
 .home-scrim {

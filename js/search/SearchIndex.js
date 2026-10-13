@@ -45,6 +45,19 @@ export default class SearchIndex {
     this._fuseA = null
     this._tierCCache = new Map()
     this._hipResolver = null
+    // Bumped by whatever makes Tier A stale (a provider registered, the
+    // index invalidated, a body loaded): a build of an older generation
+    // doesn't count as ready.
+    this._generation = 0
+    // Bumped when a build lands, for listeners (onChange).
+    this.version = 0
+    this._listeners = new Set()
+  }
+
+
+  /** @returns {boolean} Tier A is built from every provider as it is now */
+  get ready() {
+    return this._ready
   }
 
 
@@ -54,34 +67,53 @@ export default class SearchIndex {
     if (provider.id === 'stars' && typeof provider.resolveHip === 'function') {
       this._hipResolver = (hipId) => provider.resolveHip(hipId)
     }
+    this.markStale()
+  }
+
+
+  /**
+   * Tier A no longer holds everything (a provider's data grew: a body
+   * loaded).  It is rebuilt on the next query or ensureReady; until then
+   * queries answer from the last build, not from nothing.
+   */
+  markStale() {
+    this._generation++
     this._ready = false
   }
 
 
   /**
-   * Build Tier A once.  Safe to call repeatedly.
+   * @param {Function} fn Called when a build lands, so a query made while
+   *   the index was stale can be asked again (SearchBar)
+   * @returns {Function} Stops listening
+   */
+  onChange(fn) {
+    this._listeners.add(fn)
+    return () => this._listeners.delete(fn)
+  }
+
+
+  /**
+   * Build Tier A, again if it went stale while building.  Safe to call
+   * repeatedly.
    *
    * @returns {Promise<void>}
    */
   async ensureReady() {
-    if (this._ready) {
-      return
-    }
-    if (this._building) {
+    while (!this._ready) {
+      if (!this._building) {
+        this._building = this._build().finally(() => {
+          this._building = null
+        })
+      }
       await this._building
-      return
-    }
-    this._building = this._build()
-    try {
-      await this._building
-    } finally {
-      this._building = null
     }
   }
 
 
   /** @returns {Promise<void>} */
   async _build() {
+    const generation = this._generation
     const providers = SearchRegistry.list()
     const entries = []
     for (const p of providers) {
@@ -100,7 +132,9 @@ export default class SearchIndex {
     dedupeById(entries)
     this._allEntries = entries
     this._fuseA = new Fuse(entries, FUSE_OPTS)
-    this._ready = true
+    this._ready = generation === this._generation
+    this.version++
+    this._listeners.forEach((fn) => fn(this.version))
   }
 
 
@@ -112,6 +146,11 @@ export default class SearchIndex {
    */
   query(text, anchorPath = 'milkyway', limit = 20) {
     if (!this._ready) {
+      // Stale or never built: build, and answer from the last build
+      // meanwhile.  onChange says when to ask again.
+      this.ensureReady().catch((e) => console.warn('Search: building the index failed:', e))
+    }
+    if (!this._fuseA) {
       return []
     }
     const trimmed = (text || '').trim()
@@ -219,7 +258,7 @@ export default class SearchIndex {
    * @returns {object|null}
    */
   resolveByName(name, anchorPath = 'milkyway') {
-    if (!this._ready || !name) {
+    if (!this._fuseA || !name) {
       return null
     }
     const hipMatch = String(name).trim().match(HIP_RE)
@@ -247,11 +286,13 @@ export default class SearchIndex {
   }
 
 
-  /** Force full rebuild on next `ensureReady()`.  Used by tests or refreshes. */
+  /**
+   * Rebuild Tier A on the next query or `ensureReady()`, and the places
+   * as they're asked for (a provider's catalogue arrived: the stars, the
+   * galaxies).  Queries answer from the last build until then.
+   */
   invalidate() {
-    this._ready = false
-    this._allEntries = []
-    this._fuseA = null
+    this.markStale()
     this._tierCCache.clear()
   }
 }

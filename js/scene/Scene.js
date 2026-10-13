@@ -1023,8 +1023,7 @@ export default class Scene {
     } else {
       dir.set(0, 0, 1)
     }
-    const camDist = isPlanet ?
-      (obj.initialCameraDistance ?? (obj.props.radius.scalar * STEP_BACK)) :
+    const camDist = isPlanet ? this.arrivalDistance(obj) :
       isGalaxy ? star.viewDistance : (star.radius * STEP_BACK)
     const arrivalWorld = targetWorldPos.clone().addScaledVector(dir, camDist)
     const arrivalLocal = this.ui.camera.platform.worldToLocal(arrivalWorld.clone())
@@ -1052,6 +1051,16 @@ export default class Scene {
       state?.setLanded?.(false)
       Shared.targets.landed = false
     }
+  }
+
+
+  /**
+   * @param {object} obj A planet, moon or the Sun (this.objects')
+   * @returns {number} How far from its centre a go arrives, m: its own
+   *   distance if it has one, else STEP_BACK radii
+   */
+  arrivalDistance(obj) {
+    return obj.initialCameraDistance ?? (obj.props.radius.scalar * STEP_BACK)
   }
 
 

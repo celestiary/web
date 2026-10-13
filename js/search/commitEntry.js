@@ -107,7 +107,7 @@ function entryTarget(entry, celestiary) {
  * @returns {{kind: string, body: string, name: string, lat: number, lng: number, alt: number|undefined}}
  *   The place as a target, as its label has it (labelPick.js)
  */
-function placeTarget(entry) {
+export function placeTarget(entry) {
   const {body, lat, lng, alt} = entry.payload
   return {kind: 'place', body, name: entry.displayName, lat, lng, alt}
 }

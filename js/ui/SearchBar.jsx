@@ -63,6 +63,9 @@ export default function SearchBar({celestiary, home = false}) {
 
   const [options, setOptions] = useState([])
   const [ready, setReady] = useState(false)
+  // The index's builds (SearchIndex.onChange): a query asked while it was
+  // stale (bodies, stars still loading) is asked again once it's rebuilt.
+  const [indexVersion, setIndexVersion] = useState(searchIndex.version)
   const [inputFocused, setInputFocused] = useState(false)
   const isMobile = useIsMobile()
 
@@ -102,6 +105,8 @@ export default function SearchBar({celestiary, home = false}) {
     openSearch()
     return () => closeSearch()
   }, [home])
+
+  useEffect(() => searchIndex.onChange((version) => setIndexVersion(version)), [])
 
   useEffect(() => {
     if (!isSearchOpen || ready) {
@@ -143,7 +148,7 @@ export default function SearchBar({celestiary, home = false}) {
     }
     const results = searchIndex.query(searchQuery, anchorPath, 20)
     setOptions(results.map((r) => r.entry))
-  }, [searchQuery, anchorPath, ready, placesVersion])
+  }, [searchQuery, anchorPath, ready, placesVersion, indexVersion])
 
   // Pipe crosshair hover into the input + preview while picking mode is active
   // AND the user is not actively typing (no mutex: typed input wins over hover).
@@ -259,13 +264,17 @@ export default function SearchBar({celestiary, home = false}) {
     }
   }
 
-  // Go: travel to the selection.  Enter in the field does this too.
+  // Go: travel to the selection.  Enter in the field does this too.  On
+  // the homepage, a flight there from the tour's view (goToResult).
   const handleCommit = (entry = searchSelection) => {
     if (!entry) {
       return
     }
-    leaveHome()
-    goToEntry(entry, celestiary)
+    if (home) {
+      celestiary.goToResult(entry)
+    } else {
+      goToEntry(entry, celestiary)
+    }
     closeSearch()
   }
 
@@ -437,6 +446,13 @@ export default function SearchBar({celestiary, home = false}) {
                   if (e.key === 'Enter' && searchSelection) {
                     e.preventDefault()
                     handleCommit()
+                  } else if (e.key === 'Enter' && home && searchQuery.trim() && options.length === 0) {
+                    // Nothing in the list to pick yet (typed before it
+                    // came up, the index still building): the best match,
+                    // once it's built.  With a list, the Autocomplete
+                    // picks its highlighted option (onChange).
+                    e.preventDefault()
+                    commitBestMatch(searchQuery, anchorPath, handleCommit)
                   } else if (e.key === 'Escape') {
                     if (home) {
                       celestiary.leaveHome()
@@ -504,6 +520,24 @@ export default function SearchBar({celestiary, home = false}) {
       }
     </div>
   )
+}
+
+
+/**
+ * Go to the best match for a query, once the index is built: Enter on the
+ * homepage's search before its list has come up.
+ *
+ * @param {string} query
+ * @param {string} anchorPath
+ * @param {Function} commit Called with the entry
+ */
+function commitBestMatch(query, anchorPath, commit) {
+  searchIndex.ensureReady().then(() => {
+    const best = searchIndex.query(query, anchorPath, 1)[0]
+    if (best) {
+      commit(best.entry)
+    }
+  }).catch((err) => console.warn('Search:', err))
 }
 
 

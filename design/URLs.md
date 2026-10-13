@@ -44,12 +44,15 @@ route goes straight to its scene or panel, as it always has.
   whatever leaves it (a card, the search, `Esc`, a click on the scene), is
   pushed after the homepage's entry rather than put in its place
   (`Celestiary._writeLink`); later rewrites replace it, as before.  A card
-  pushes its own link and restores it in place, without a page load.
+  pushes its own link at once (a reload mid-flight opens its view), flies
+  there and ends on the link's own restore, without a page load.  A flight
+  stopped on the way (`Esc`, a click on the scene) writes where it stopped
+  in place of the card's link.
 - **Back to it** (`popstate` onto the marked entry at the bare URL) shows the
-  homepage again, its tour from the start.  Forward from it (a
+  homepage again, its tour from the start, mid-flight too.  Forward from it (a
   `hashchange` while it shows) leaves it for that link.
-- **Tonight's sky** (the first card) isn't a link: it lands where the
-  visitor is, now or at dusk, and the link written after is that view
+- **Tonight's sky** (the first card) isn't a link: it flies to where the
+  visitor is and lands, now or at dusk, and the link written after is that view
   (`sun/earth@lat,lng,2m;…;fov=70deg;s=LF`), shareable like any other.
 
 # Path
