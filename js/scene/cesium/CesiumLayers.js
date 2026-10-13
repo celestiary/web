@@ -97,6 +97,9 @@ export default class CesiumLayers {
     // Celestiary objects hidden while a Cesium layer shows: Map<Object3D, wasVisible>
     this.hidden = new Map()
     this.credits = null
+    // While the homepage shows (Celestiary._homeCost): no body is wanted,
+    // so celestiary draws its own and nothing of Cesium loads.
+    this.suspended = false
     // Celestiary's simulation clock (Time), for monthly imagery; set by
     // Celestiary.  Without it, today's month.
     this.time = null
@@ -647,11 +650,12 @@ export default class CesiumLayers {
   /**
    * @param {string} name
    * @returns {boolean} Whether the body's Cesium layer is to be drawn: the
-   *   body has one on offer (isCesiumBody) and the user's choice for it, or
-   *   the default, is Cesium
+   *   layers aren't suspended (the homepage), the body has one on offer
+   *   (isCesiumBody) and the user's choice for it, or the default, is
+   *   Cesium
    */
   _wanted(name) {
-    return isCesiumBody(name) && bodyLayer(this.ui.useStore?.getState()?.bodyLayers, name) === 'cesium'
+    return !this.suspended && isCesiumBody(name) && bodyLayer(this.ui.useStore?.getState()?.bodyLayers, name) === 'cesium'
   }
 
 

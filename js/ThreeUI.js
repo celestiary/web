@@ -73,6 +73,9 @@ const GALAXY_BRIGHTEST = 1e-6
 // Half a display step through the tone map's toe, in exposure units: under
 // it the night sky's light isn't drawn (_updateNightSkyShown).
 const NIGHT_SKY_SKIP_VALUE = Math.sqrt(0.5 / 255 / 6.25)
+// Under a frame cap, a frame this early is still drawn, ms: the display's
+// intervals jitter, and a 60 Hz frame at 33.2 ms shouldn't wait for 50.
+const FRAME_CAP_SLACK_MS = 2
 
 
 export default class ThreeUi {
@@ -207,9 +210,30 @@ export default class ThreeUi {
 
     // ?perf=1 only (js/perf, DESIGN.md "Perf overlay"); otherwise nothing.
     perf.install(this)
+    // A frame cap (setFrameCap): the least interval between frames, ms, or
+    // 0 for none; and when the last one was drawn.
+    this._frameIntervalMs = 0
+    this._lastFrameMs = null
     this.renderer.setAnimationLoop((time) => {
+      if (this._frameIntervalMs > 0 && this._lastFrameMs !== null &&
+          time - this._lastFrameMs < this._frameIntervalMs - FRAME_CAP_SLACK_MS) {
+        return
+      }
+      this._lastFrameMs = time
       this.renderLoop(time)
     })
+  }
+
+
+  /**
+   * Hold the frame rate to at most this, or lift the cap: the homepage's
+   * tour runs at 30 fps (Celestiary._homeCost).  A frame the display offers
+   * early is skipped, so on a 60 Hz display every other one is drawn.
+   *
+   * @param {?number} fps Frames a second, or null for none
+   */
+  setFrameCap(fps) {
+    this._frameIntervalMs = fps > 0 ? 1000 / fps : 0
   }
 
 
@@ -260,6 +284,22 @@ export default class ThreeUi {
     }
     style.transition = fadeMs > 0 ? `opacity ${fadeMs}ms ease-in-out` : ''
     style.opacity = ''
+  }
+
+
+  /**
+   * Fade the canvas to black (showCanvas brings it back): a cut between
+   * views, the homepage's tour looping.  It still renders.
+   *
+   * @param {number} [fadeMs] Over this long; at once if 0
+   */
+  dimCanvas(fadeMs = 0) {
+    const style = this.renderer.domElement?.style
+    if (!style) {
+      return
+    }
+    style.transition = fadeMs > 0 ? `opacity ${fadeMs}ms ease-in-out` : ''
+    style.opacity = '0'
   }
 
 

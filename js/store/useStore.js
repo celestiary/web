@@ -3,6 +3,7 @@ import createARSlice from './ARSlice'
 import createAsterismsSlice from './AsterismsSlice'
 import createColonizationSlice from './ColonizationSlice'
 import createDragModeSlice from './DragModeSlice'
+import createHomeSlice from './HomeSlice'
 import createLayersSlice from './LayersSlice'
 import createSearchSlice from './SearchSlice'
 import createStarsSlice from './StarsSlice'
@@ -15,6 +16,7 @@ const useStore = create((set, get) => ({
   ...createAsterismsSlice(set, get),
   ...createColonizationSlice(set, get),
   ...createDragModeSlice(set, get),
+  ...createHomeSlice(set, get),
   ...createLayersSlice(set, get),
   ...createSearchSlice(set, get),
   ...createStarsSlice(set, get),

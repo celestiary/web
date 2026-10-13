@@ -6,6 +6,7 @@ import ControlPanel from './ControlPanel'
 import Keys from './Keys'
 import Loader from './Loader'
 import Scene from './scene/Scene'
+import TourDriver from './tourDriver'
 import {searchIndex} from './search/SearchIndex'
 import GalaxiesProvider from './search/providers/GalaxiesProvider'
 import PlacesProvider from './search/providers/PlacesProvider'
@@ -23,6 +24,9 @@ import {
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry} from './search/commitEntry'
+import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
+import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
+import {formatTonight, lowPrecisionSun, resolveLocation, tonightTime} from './tonight'
 import {hideLoading} from './loading'
 import {clampEv, stepEv} from './scene/evCompensation'
 import {clampStarMag, stepStarMag} from './scene/starMagnitude'
@@ -47,6 +51,22 @@ const CHROME_HIDDEN_CLASS = 'chrome-hidden'
 // The scene's fade in from black on the first load, ms, as the loading text
 // fades out (public/index.html).
 const SCENE_FADE_MS = 600
+// Leaving the homepage for a link's view, or coming back to it: the canvas
+// fades to black over this long, the view changes under it, and the scene
+// fades in from black (SCENE_FADE_MS) once it's in.
+const CUT_FADE_MS = 300
+// The homepage's foreground fades out over the overlays' fade (FADE_MS) and
+// is taken out of the page after this long.
+const HOME_UNMOUNT_MS = 600
+// The frame rate the homepage's tour is held to, to keep its cost down
+// (ThreeUi.setFrameCap): a slow camera path doesn't need more.
+const HOME_FRAME_CAP_FPS = 30
+// Frames the tour draws, unseen, before the homepage's reveal (frame).
+const HOME_SETTLE_FRAMES = 20
+// Tonight's sky (openTonight): the field, wide, as the eye takes in the
+// sky, and how high over the horizon it faces, toward the equator.
+const TONIGHT_FOV_DEG = 70
+const TONIGHT_ELEVATION_DEG = 50
 
 
 /** Main application class. */
@@ -110,6 +130,8 @@ export default class Celestiary {
     this._starMagListeners = new Set
     // And of tracking and following being switched (onNavMode).
     this._navModeListeners = new Set
+    // And of what tonight's sky used (onNotice).
+    this._noticeListeners = new Set
     // While a link is put back: what it restores (tracking, following, the
     // exposure, the stars' setting) isn't announced on the readout, which
     // is for what the user does (_announce).
@@ -142,6 +164,22 @@ export default class Celestiary {
     this._chromeRevealed = false
     this._navShowPending = false
     this._navHideAt = null
+    // The homepage (home.js; DESIGN.md "Homepage"): the bare URL, no
+    // fragment and no path.  A tour of the live scene plays behind it
+    // (tourDriver.js), still for prefers-reduced-motion.
+    this.homeShown = isHomepage(location, document.baseURI)
+    this.homePhase = 'hidden'
+    this.tour = new TourDriver({scene: this.scene, ui: this.ui, time: this.time, quietly: (fn) => this._quietly(fn)})
+    // Steps on the frame clock while leaving the homepage or coming back.
+    this._homeSteps = null
+    // A cut to a link's view, waiting for it to arrive (_frameCut).
+    this._cut = null
+    // How many times the camera has been placed (_arrive), for _frameCut.
+    this._arrivals = 0
+    // Back to the homepage, waiting for its tour to settle (_frameHomeReturn).
+    this._homeReturning = false
+    // What to say on the readout once a cut's view shows (_landTonight).
+    this._pendingNotice = null
     // The link's scene settings (`s=`), or the defaults, decided before
     // anything is built, so each overlay is built shown or hidden as the link
     // says and what it hides is never drawn (design/URLs.md, "Reading and
@@ -150,23 +188,37 @@ export default class Celestiary {
     // The first load's sequence (choreography.js), from when the camera is
     // placed (_arrive) and the scene is in (ThreeUi.sceneReady).
     this._arrivedAt = null
+    // On the homepage the scene comes in under its title, the tour starts,
+    // and the overlays and the chrome wait until it's left (leaveHome).
     this._reveal = new Choreography([
       {at: REVEAL_AT.loading, run: () => {
-        hideLoading()
+        if (this.homeShown) {
+          // The page's loading title becomes the homepage's (ui/Homepage).
+          this._setHomePhase('in')
+          this.tour.play()
+        } else {
+          hideLoading()
+        }
         this.ui.showCanvas(SCENE_FADE_MS)
       }},
-      {at: REVEAL_AT.orbits, run: () => this.scene.revealOverlays(['o'])},
-      {at: REVEAL_AT.diagrams, run: () => this.scene.revealOverlays(['a', 'e', 'c', 'g', 'x'])},
-      {at: REVEAL_AT.labels, run: () => this.scene.revealOverlays(['p', 'l', 'G'])},
-      {at: REVEAL_AT.chrome, run: () => {
-        this._chromeRevealed = true
-        this._setNav(this.scene.getSetting('v'))
-      }},
+      ...this._overlaySteps(0, () => !this.homeShown),
     ])
+    if (this.homeShown) {
+      this._setHomePhase('waiting')
+      this._homeCost(true)
+    }
     this.load()
     this.setupPathListeners()
     this.setupKeyListeners(useStore)
     canvasContainer.addEventListener('mousedown', (e) => e.preventDefault())
+    // A click, a drag or the wheel on the scene leaves the homepage for it.
+    const leaveForScene = () => {
+      if (this.homeShown) {
+        this.leaveHome()
+      }
+    }
+    canvasContainer.addEventListener('pointerdown', leaveForScene)
+    canvasContainer.addEventListener('wheel', leaveForScene, {passive: true})
     // these are here for convenience debugging from jsconsole.
     this.shared = Shared
     this.shapes = Shapes
@@ -294,14 +346,25 @@ export default class Celestiary {
    * @param {number} nowMs
    */
   frame(nowMs) {
+    // The homepage's tour first: the reveal waits for its target's surface.
+    this.tour.frame(nowMs)
     const reveal = this._reveal
     if (!reveal.done) {
+      // The homepage's tour starts by the Sun: some frames first, so the
+      // meter has stopped down for its disc before it's seen.
+      const settled = !this.homeShown || this.tour.frames >= HOME_SETTLE_FRAMES
       if (!reveal.started && this._arrivedAt !== null &&
-          (this.ui.sceneReady() || nowMs - this._arrivedAt >= READY_TIMEOUT_MS)) {
+          ((settled && this.ui.sceneReady()) || nowMs - this._arrivedAt >= READY_TIMEOUT_MS)) {
         reveal.start(nowMs)
       }
       reveal.frame(nowMs)
     }
+    if (this._homeSteps && !this._homeSteps.done) {
+      this._homeSteps.start(nowMs)
+      this._homeSteps.frame(nowMs)
+    }
+    this._frameCut(nowMs)
+    this._frameHomeReturn()
     this.scene.overlays.tick(nowMs)
     this._frameNav(nowMs)
   }
@@ -397,6 +460,25 @@ export default class Celestiary {
    * drawer and its apps are restored here, on the first load only.
    */
   load() {
+    this.onLoad = (name, obj) => {
+      reifyMeasures(obj)
+      this.scene.add(obj)
+      const waiters = this._bodyWaiters[name]
+      if (waiters) {
+        delete this._bodyWaiters[name]
+        waiters.forEach((cb) => cb())
+      }
+    }
+    if (this.homeShown) {
+      // The bare URL stays bare: its history entry is marked as the
+      // homepage's, and the tour places the camera once the Sun and Earth
+      // are in.
+      history.replaceState?.({...(history.state ?? {}), [HOME_HISTORY_KEY]: true}, '')
+      this.loader.loadPath('milkyway', this.onLoad, () => {
+        this._loadBody('sun/earth', () => this._startTour())
+      })
+      return
+    }
     const rawHash = location.hash ? location.hash.substring(1) : ''
     if (rawHash) {
       // The drawer and its apps, as the link left them (design/URLs.md).
@@ -409,15 +491,6 @@ export default class Celestiary {
       }
     } else {
       location.hash = DEFAULT_TARGET
-    }
-    this.onLoad = (name, obj) => {
-      reifyMeasures(obj)
-      this.scene.add(obj)
-      const waiters = this._bodyWaiters[name]
-      if (waiters) {
-        delete this._bodyWaiters[name]
-        waiters.forEach((cb) => cb())
-      }
     }
     this.loader.loadPath('milkyway', this.onLoad, () => {
       this._navigate(rawHash || DEFAULT_TARGET, () => {
@@ -512,6 +585,7 @@ export default class Celestiary {
     // drawn with the defaults.  The reveal waits for the camera.
     this.firstTime = false
     this._arrivedAt ??= performance.now()
+    this._arrivals++
     // AR-fallback resolution: if the permalink was captured in AR
     // mode (s=A), try to re-enter AR at the saved lat/lng.
     // Best-effort — on iOS Safari `requestPermission()` requires a
@@ -850,8 +924,355 @@ export default class Celestiary {
 
   setupPathListeners() {
     window.addEventListener('hashchange', () => {
-      this._navigate((window.location.hash || '#').substring(1))
+      const raw = (window.location.hash || '#').substring(1)
+      if (this.homeShown) {
+        // A link opened from the homepage (Forward, the search's Go to a
+        // body): leave it for there.  Back to the homepage has none.
+        if (raw) {
+          this.leaveHome({link: raw})
+        }
+        return
+      }
+      this._navigate(raw)
     }, false)
+    // Back to the homepage's entry shows it again (design/URLs.md).
+    window.addEventListener('popstate', (e) => this._onPopState(e.state))
+    // Esc leaves the homepage for the live scene.
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.homeShown) {
+        this.leaveHome()
+      }
+    })
+  }
+
+
+  /**
+   * @param {?object} state The history entry's
+   */
+  _onPopState(state) {
+    if (isHomeEntry(state) && isHomepage(location, document.baseURI)) {
+      this.showHome()
+    }
+  }
+
+
+  /**
+   * Start the homepage's tour: held at its start (or its still, for
+   * prefers-reduced-motion) until the reveal plays it.  The camera is
+   * placed by its first frame (TourDriver.frame), and the page has arrived.
+   */
+  _startTour() {
+    if (!this.homeShown) {
+      return
+    }
+    this.tour.start(homeTour(), {
+      still: prefersReducedMotion() ? HOME_TOUR_STILL_MS : null,
+      loopFadeMs: HOME_TOUR_LOOP_FADE_MS,
+    })
+    this.firstTime = false
+    this._arrivedAt ??= performance.now()
+  }
+
+
+  /**
+   * Leave the homepage: the tour stops where it is, the foreground fades
+   * out, and the overlays and the chrome come in as on a first load
+   * (REVEAL_AT).  With a link, go there: a view (a card's, Forward) cuts to
+   * it under black, by the app's own restore (_navigate); a path (the
+   * search's Go) travels there from where the tour was.
+   *
+   * @param {object} [opts]
+   * @param {?string} [opts.link] A fragment to open, without its '#'
+   * @param {boolean} [opts.write] Without a link, write the view to the
+   *   address bar now, as a new history entry, so Back returns to the
+   *   homepage (what follows a search writes its own)
+   * @returns {boolean} Whether it was showing
+   */
+  leaveHome({link = null, go = null, write = true} = {}) {
+    if (!this.homeShown) {
+      return false
+    }
+    this.homeShown = false
+    this._homeReturning = false
+    this.tour.stop()
+    this._homeCost(false)
+    this._setHomePhase('out')
+    this.useStore.getState().closeSearch?.()
+    this._cut = null
+    const unmount = {at: HOME_UNMOUNT_MS, run: () => this._setHomePhase('hidden')}
+    const pl = link ? decodePermalink(link) : null
+    if (pl) {
+      // The link's scene settings, as opening it would have set them, held
+      // for the reveal; the HUD stays as it is, for a visitor arriving
+      // from the homepage.
+      this.scene.initSettings({...pl.settings, v: this.scene.getSetting('v')}, {hold: true})
+    }
+    const cutTo = go ?? (pl ? () => this._navigate(link) : null)
+    if (!this._reveal.started) {
+      // Left before the scene was in: the first load's reveal shows it all.
+      this._homeSteps = new Choreography([unmount])
+      if (go) {
+        go()
+      } else if (link) {
+        this._navigate(link)
+      }
+      return true
+    }
+    if (cutTo) {
+      this._cutTo(cutTo, [unmount])
+      return true
+    }
+    this._homeSteps = new Choreography([unmount, ...this._overlaySteps(0)])
+    if (link) {
+      this._navigate(link)
+    } else if (write) {
+      const fragment = this.permalink()
+      if (fragment) {
+        this._writeLink(fragment)
+      }
+    }
+    return true
+  }
+
+
+  /**
+   * Cut to another view under black: the canvas fades out, `go` moves the
+   * camera, and once it's placed (_arrivals) and the scene is in, the
+   * canvas fades in and the overlays and the chrome follow (_frameCut).
+   *
+   * @param {Function} go Places the camera: a link's restore, a landing
+   * @param {Array<object>} [steps] Others to run alongside, from now
+   */
+  _cutTo(go, steps = []) {
+    this.ui.dimCanvas(CUT_FADE_MS)
+    this._homeSteps = new Choreography([...steps, {at: CUT_FADE_MS, run: () => {
+      this._cut = {arrivals: this._arrivals, since: performance.now()}
+      go()
+    }}])
+  }
+
+
+  /**
+   * The homepage's "Tonight's sky" card (tonight.js): the visitor's sky
+   * from the ground where they are, now if it's night, else at this
+   * evening's astronomical dusk.  Their location is asked for here, on the
+   * click, never on load; refused or unavailable, their time zone's city,
+   * else Greenwich.  The readout says which.
+   *
+   * @param {object} [sources] For the tests: resolveLocation's
+   * @returns {Promise<{where: object, when: object}>}
+   */
+  async openTonight(sources = {}) {
+    const where = await resolveLocation(sources)
+    const sunAt = this.animation.vsopReady() ? (jd) => {
+      const e = this.animation.vsopAt(jd).earth
+      return {x: -e.x, y: -e.y, z: -e.z}
+    } : lowPrecisionSun
+    const when = tonightTime(where.lat, where.lng, Date.now(), sunAt)
+    // The app's defaults for the overlays and labels; the HUD as it is.
+    this.scene.initSettings({...decodeSettings(undefined), v: this.scene.getSetting('v')}, {hold: true})
+    const go = () => this._landTonight(where, when)
+    if (!this.leaveHome({go, write: false})) {
+      this._cutTo(go)
+    }
+    return {where, when}
+  }
+
+
+  /**
+   * Land on Earth at a place and time, facing up into the sky toward the
+   * equator, as tonight's sky: the clock set and running at real time.
+   *
+   * @param {{lat: number, lng: number}} where
+   * @param {{ms: number, kind: string}} when
+   */
+  _landTonight(where, when) {
+    this.time.setTime(when.ms)
+    this.time.setRate(1)
+    this.time.setPaused(false)
+    this.setIsPaused(false)
+    this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
+    this.ui.scene.updateMatrixWorld()
+    this._quietly(() => {
+      this.scene.land('earth', where.lat, where.lng, undefined, {instant: true})
+    })
+    // Body-fixed: the platform is at Earth's centre, unturned in its frame.
+    const camera = this.ui.camera
+    skyward(camera.position, where.lat, TONIGHT_ELEVATION_DEG, camera.quaternion)
+    this.ui.setFov(TONIGHT_FOV_DEG)
+    this._arrivals++
+    // Said as the scene fades in (_frameCut), not under black.
+    this._pendingNotice = formatTonight(where, when)
+  }
+
+
+  /**
+   * @param {Function} fn Called with a message for the readout: what
+   *   "Tonight's sky" used
+   * @returns {Function} Stops listening
+   */
+  onNotice(fn) {
+    this._noticeListeners.add(fn)
+    return () => this._noticeListeners.delete(fn)
+  }
+
+
+  /**
+   * Open a link in the app (a homepage card): its own history entry, so
+   * Back returns, then the app's restore of it (_navigate), without a
+   * page load.
+   *
+   * @param {string} link A fragment, without its '#'
+   */
+  openLink(link) {
+    if (this.homeShown) {
+      history.pushState(null, '', permalinkHref(link, document.baseURI, location.search))
+      this.leaveHome({link})
+      return
+    }
+    location.hash = link
+  }
+
+
+  /**
+   * Show the homepage again (Back to its entry): the overlays and the
+   * chrome fade out, the canvas to black, and the tour starts over.
+   */
+  showHome() {
+    if (this.homeShown) {
+      return
+    }
+    this.homeShown = true
+    this._cut = null
+    this.scene.holdOverlays()
+    this._setNav(false)
+    this._chromeRevealed = false
+    this._homeCost(true)
+    this._setHomePhase('waiting')
+    this.useStore.getState().closeSearch?.()
+    this.ui.dimCanvas(CUT_FADE_MS)
+    // Under black, the tour starts over; it shows once the exposure has
+    // settled on its first view, as on the first load (_frameHomeReturn).
+    this._homeSteps = new Choreography([{at: CUT_FADE_MS, run: () => {
+      this._startTour()
+      this._homeReturning = true
+    }}])
+  }
+
+
+  /**
+   * Back to the homepage, under black: once the tour has drawn some frames
+   * (the meter stopped down for the Sun, not left open for a starfield),
+   * the scene fades in and the tour plays.
+   */
+  _frameHomeReturn() {
+    if (!this._homeReturning || this.tour.frames < HOME_SETTLE_FRAMES) {
+      return
+    }
+    this._homeReturning = false
+    this.tour.play()
+    this.ui.showCanvas(SCENE_FADE_MS)
+    this._setHomePhase('in')
+  }
+
+
+  /**
+   * The overlays and the chrome, a beat apart (REVEAL_AT), from a start.
+   *
+   * @param {number} startMs Added to each step's time
+   * @param {Function} [when] Each runs only if this says so when its time
+   *   comes (the first load's: not while the homepage shows)
+   * @returns {Array<{at: number, run: Function}>}
+   */
+  _overlaySteps(startMs, when = () => true) {
+    const step = (at, fn) => ({at: startMs + at, run: () => {
+      if (when()) {
+        fn()
+      }
+    }})
+    return [
+      step(REVEAL_AT.orbits, () => this.scene.revealOverlays(['o'])),
+      step(REVEAL_AT.diagrams, () => this.scene.revealOverlays(['a', 'e', 'c', 'g', 'x'])),
+      step(REVEAL_AT.labels, () => this.scene.revealOverlays(['p', 'l', 'G'])),
+      step(REVEAL_AT.chrome, () => {
+        this._chromeRevealed = true
+        this._setNav(this.scene.getSetting('v'))
+      }),
+    ]
+  }
+
+
+  /**
+   * A cut to a link's view (leaveHome): once the camera is placed and the
+   * scene is in (or READY_TIMEOUT_MS on), it fades in from black, then the
+   * overlays and the chrome.
+   *
+   * @param {number} nowMs
+   */
+  _frameCut(nowMs) {
+    const cut = this._cut
+    if (!cut) {
+      return
+    }
+    const arrived = this._arrivals > cut.arrivals && this.ui.sceneReady()
+    if (!arrived && nowMs - cut.since < READY_TIMEOUT_MS) {
+      return
+    }
+    this._cut = null
+    this.ui.showCanvas(SCENE_FADE_MS)
+    if (this._pendingNotice) {
+      this._announce(this._noticeListeners, this._pendingNotice)
+      this._pendingNotice = null
+    }
+    const steps = this._overlaySteps(0)
+    if (this.homePhase === 'out') {
+      // Not out of the page yet (these steps take the leave's place).
+      steps.push({at: HOME_UNMOUNT_MS - CUT_FADE_MS, run: () => this._setHomePhase('hidden')})
+    }
+    this._homeSteps = new Choreography(steps)
+  }
+
+
+  /**
+   * What the homepage costs while it shows: no Cesium layers (celestiary's
+   * own Earth draws, and nothing of Cesium loads), and a frame cap.
+   *
+   * @param {boolean} on
+   */
+  _homeCost(on) {
+    if (this.ui.layers) {
+      this.ui.layers.suspended = on
+    }
+    this.ui.setFrameCap(on ? HOME_FRAME_CAP_FPS : null)
+  }
+
+
+  /**
+   * The homepage's foreground (ui/Homepage): 'hidden' (not in the page),
+   * 'waiting' (in it, unseen, for the scene), 'in', 'out' (fading out).
+   *
+   * @param {string} phase
+   */
+  _setHomePhase(phase) {
+    this.homePhase = phase
+    this.useStore.getState().setHomePhase?.(phase)
+  }
+
+
+  /**
+   * Write a link to the address bar, in place of the entry's, or, on the
+   * homepage's entry, as a new one after it, so Back returns to the
+   * homepage.
+   *
+   * @param {string} fragment Without its '#'
+   */
+  _writeLink(fragment) {
+    const href = permalinkHref(fragment, document.baseURI, location.search)
+    if (isHomeEntry(history.state)) {
+      history.pushState(null, '', href)
+    } else {
+      history.replaceState(null, '', href)
+    }
   }
 
 
@@ -1295,18 +1716,19 @@ export default class Celestiary {
    * a setting or the drawer changes, or the target changes.
    */
   _schedulePermalinkUpdate() {
-    if (Shared.targets.tween !== null) {
+    // The homepage's URL stays bare while it shows: the tour isn't a view.
+    if (Shared.targets.tween !== null || this.homeShown) {
       return
     }
     clearTimeout(this._permalinkTimer)
     this._permalinkTimer = setTimeout(() => {
       // A tween started since (a goTo targets first): its end reschedules.
-      if (Shared.targets.tween !== null) {
+      if (Shared.targets.tween !== null || this.homeShown) {
         return
       }
       const fragment = this.permalink()
       if (fragment) {
-        history.replaceState(null, '', permalinkHref(fragment, document.baseURI, location.search))
+        this._writeLink(fragment)
       }
     }, 1000)
   }
@@ -1474,6 +1896,44 @@ export default class Celestiary {
 
 const DEFAULT_TARGET = 'sun'
 const J2000_JD = 2451545.0
+
+
+/**
+ * Turn a camera on the ground to face the sky: toward the equator (south
+ * in the north, north in the south), at an elevation over the horizon, its
+ * up the zenith's side.  In the body's own frame: +Y its north pole.
+ *
+ * @param {object} position The camera's, body-fixed
+ * @param {number} lat Degrees
+ * @param {number} elevationDeg Over the horizon
+ * @param {object} out The camera's quaternion, set
+ * @returns {object} out
+ */
+export function skyward(position, lat, elevationDeg, out) {
+  const up = position.clone().normalize()
+  const pole = new THREE.Vector3(0, 1, 0)
+  const north = pole.sub(up.clone().multiplyScalar(up.dot(pole)))
+  if (north.lengthSq() < 1e-12) {
+    // At a pole: any way is toward the equator.
+    north.set(1, 0, 0).sub(up.clone().multiplyScalar(up.x))
+  }
+  north.normalize()
+  const toward = lat >= 0 ? north.negate() : north
+  const el = elevationDeg * Math.PI / 180
+  const look = toward.multiplyScalar(Math.cos(el)).add(up.clone().multiplyScalar(Math.sin(el)))
+  const m = new THREE.Matrix4().lookAt(new THREE.Vector3(), look, up)
+  return out.setFromRotationMatrix(m)
+}
+
+
+/** @returns {boolean} Whether the user asks for less motion */
+function prefersReducedMotion() {
+  try {
+    return Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)
+  } catch {
+    return false
+  }
+}
 
 
 /**

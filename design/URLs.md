@@ -27,6 +27,31 @@ https://celestiary.github.io/web/#sun@12.3,-45.6,20.5Tm;t=9771.1jd;cq=0.1,0.2,0.
 - **Route:** the React panels, by path: `/` (none), `/settings`, `/about`,
   `/guide`.  Routes don't touch the hash.
 
+## The bare URL
+
+The site's root with no fragment (`https://celestiary.github.io/web/`, or
+with an empty `#`; a query string such as `?perf=1` doesn't count) is the
+homepage (DESIGN.md [homepage](../DESIGN.md#homepage)): the title, the
+search and the scene cards over a tour of the live scene.  Any fragment or
+route goes straight to its scene or panel, as it always has.
+
+- **It stays bare.**  The bare URL used to be rewritten to `#sun`.  Now
+  nothing is written to the address bar while the homepage shows: the tour
+  isn't a view anyone would link to.
+- **Its history entry is marked**: `history.state.celestiaryHome` is true
+  (`home.js` `HOME_HISTORY_KEY`, set with `replaceState` on load).
+- **Leaving it adds an entry.**  The first link written after the homepage,
+  whatever leaves it (a card, the search, `Esc`, a click on the scene), is
+  pushed after the homepage's entry rather than put in its place
+  (`Celestiary._writeLink`); later rewrites replace it, as before.  A card
+  pushes its own link and restores it in place, without a page load.
+- **Back to it** (`popstate` onto the marked entry at the bare URL) shows the
+  homepage again, its tour from the start.  Forward from it (a
+  `hashchange` while it shows) leaves it for that link.
+- **Tonight's sky** (the first card) isn't a link: it lands where the
+  visitor is, now or at dusk, and the link written after is that view
+  (`sun/earth@lat,lng,2m;…;fov=70deg;s=LF`), shareable like any other.
+
 # Path
 
 The target: what the breadcrumb shows, what `c` faces, `g` goes to and `t`
@@ -411,7 +436,8 @@ yet run aren't in the link.
 # Reading and writing
 
 - **Writing.**  The address bar is rewritten (`history.replaceState`, no
-  reload) 1 s after the camera settles, the target, a scene setting, the
+  reload; `pushState` once, just after the homepage, [above](#the-bare-url))
+  1 s after the camera settles, the target, a scene setting, the
   exposure, the stars' setting or the clock changes, or the drawer or an
   app's state changes (`Celestiary._schedulePermalinkUpdate`).
   The drawer state and the apps' states are in the widgets slice

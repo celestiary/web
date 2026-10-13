@@ -155,6 +155,13 @@ tried and dropped.
   `c.scene.overlays.finish()` (or steps frames) rather than reading
   `visible` mid-fade.  A probe that drives `renderLoop` by hand drives the
   fades too: they step on the time it passes.
+- **The bare URL is the homepage** (DESIGN.md [homepage](DESIGN.md#homepage)):
+  a tour plays, the overlays and chrome are held, and Cesium is suspended.
+  A probe that wants the plain app opens a path (`#sun`) or calls
+  `c.leaveHome()`; to see a tour frame, set `c.tour.playing = false` and
+  `c.tour.t = ms`, and give the meter a few seconds after a jump.  The
+  cards' images re-render with `node tools/home/cards.mjs` (after a build;
+  `--gpu` on a real GPU).
 - **A permalink restores its time and view only with a camera
   quaternion (`cq=`).** Without one the whole fragment is ignored, and
   the app runs at the current real time. To test a date, set it with

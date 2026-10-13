@@ -12,6 +12,7 @@ import ARButton from './ui/ARButton'
 import ARDebugHUD from './ui/ARDebugHUD'
 import DragModeToggle from './ui/DragModeToggle'
 import ExposureReadout from './ui/ExposureReadout'
+import Homepage from './ui/Homepage'
 import LayersButton from './ui/LayersButton'
 import SearchBar from './ui/SearchBar'
 import Settings from './ui/Settings'
@@ -32,6 +33,7 @@ export default function App() {
   const committedStar = useStore((s) => s.committedStar)
   const committedTarget = useStore((s) => s.committedTarget)
   const dispatchWidgets = useStore((s) => s.dispatchWidgets)
+  const homePhase = useStore((s) => s.homePhase)
   const [celestiary, setCelestiary] = useState(null)
   const [isPaused, setIsPaused] = useState(false)
   const [timeStr, setTimeStr] = useState('')
@@ -47,7 +49,10 @@ export default function App() {
   // is visible even in truncated tab titles.
   useEffect(() => {
     let leaf = null
-    if (location === '/guide') {
+    if (homePhase !== 'hidden') {
+      // The homepage: its tour's targets aren't the page's.
+      leaf = null
+    } else if (location === '/guide') {
       leaf = 'Guide'
     } else if (committedTarget?.kind === 'place' || committedTarget?.kind === 'asterism') {
       leaf = committedTarget.name
@@ -57,7 +62,7 @@ export default function App() {
       leaf = capitalize(committedPath[committedPath.length - 1])
     }
     document.title = leaf ? `${leaf} — Celestiary` : 'Celestiary'
-  }, [location, committedPath, committedStar, committedTarget])
+  }, [location, committedPath, committedStar, committedTarget, homePhase])
   useEffect(() => {
     const c = new Celestiary(useStore, sceneRef.current, navInfoRef.current, setTimeStr, setIsPaused)
     setCelestiary(c)
@@ -69,7 +74,7 @@ export default function App() {
       <ScopedCssBaseline/>
       <div ref={sceneRef} id='scene-id'/>
       <div id='nav-id' className='panel'>
-        {celestiary && <SearchBar celestiary={celestiary}/>}
+        {celestiary && homePhase === 'hidden' && <SearchBar celestiary={celestiary}/>}
         <div ref={navInfoRef} id='nav-info-id'>Welcome to Celestiary!  Loading...</div>
       </div>
       <Stack id='top-right' className='panel' direction='column' justifyContent='flex-start' alignItems='flex-end'>
@@ -97,5 +102,6 @@ export default function App() {
       </Stack>
       {celestiary && <ExposureReadout celestiary={celestiary}/>}
       {celestiary && <WidgetsDrawer celestiary={celestiary}/>}
+      {celestiary && homePhase !== 'hidden' && <Homepage celestiary={celestiary} phase={homePhase}/>}
     </>)
 }

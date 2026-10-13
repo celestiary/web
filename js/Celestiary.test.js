@@ -11,6 +11,8 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock} from 'bun:test'
 import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
+import {HOME_CARDS, HOME_HISTORY_KEY} from './home.js'
+import {HOME_TOUR_KEYFRAMES, HOME_TOUR_STILL_MS} from './homeTour.js'
 import {formatNavMode} from './navMode.js'
 import {decodePermalink, encodePermalink, encodeSettings, SETTINGS_DEFAULTS} from './permalink.js'
 import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
@@ -113,6 +115,14 @@ class StubThreeUI {
   }
   showCanvas() {
     this.canvasShown = true
+  }
+  // A cut between views, the homepage's tour looping (Celestiary.leaveHome).
+  dimCanvas() {
+    this.canvasShown = false
+  }
+  // The homepage's frame cap (Celestiary._homeCost).
+  setFrameCap(fps) {
+    this.frameCap = fps
   }
   approach(body, arrivalWorld, tween) {
     this.approached = {body, arrivalWorld, tween}
@@ -1602,5 +1612,265 @@ describe('the target in the link', () => {
       expect(reloaded).toBeDefined()
       clearTimeout(app._permalinkTimer)
     })
+  })
+})
+
+
+// The bare URL (home.js; DESIGN.md "Homepage"): the homepage over a tour of
+// the live scene.  A card opens its link by the app's own restore, as its
+// own history entry; leaving for the live scene writes the view as one;
+// Back to the homepage's entry shows it again.
+describe('the homepage', () => {
+  const saved = {}
+  const apps = []
+  let pushed
+  let replaced
+
+  beforeAll(() => {
+    saved.location = global.location
+    saved.history = global.history
+  })
+
+  afterAll(() => {
+    global.location = saved.location
+    global.history = saved.history
+    apps.forEach((a) => clearTimeout(a._permalinkTimer))
+    Shared.targets.tween = null
+    Shared.targets.track = false
+  })
+
+  /** @returns {Promise<object>} A Celestiary at the bare URL, loaded */
+  async function openHome() {
+    pushed = []
+    replaced = []
+    global.location = {hash: '', pathname: '/', search: ''}
+    // No document.baseURI in the tests, so the links written are bare
+    // fragments (permalinkHref's fallback).
+    global.history = {
+      state: null,
+      replaceState(state, _title, url) {
+        this.state = state
+        replaced.push({state, url})
+      },
+      pushState(state, _title, url) {
+        this.state = state
+        pushed.push({state, url})
+        if (url?.startsWith('#')) {
+          global.location.hash = url
+        }
+      },
+    }
+    const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+        {}, () => {}, () => {}, () => {})
+    apps.push(app)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    app.animation.animate(app.ui.scene)
+    return app
+  }
+
+  /**
+   * Step the app's frames at ~60 fps.
+   *
+   * @param {object} app
+   * @param {number} t0 ms
+   * @param {number} ms How long
+   * @returns {number} The time after
+   */
+  function run(app, t0, ms) {
+    let t = t0
+    for (; t <= t0 + ms; t += 16) {
+      app.frame(t)
+    }
+    return t
+  }
+
+  /**
+   * @param {object} app
+   * @returns {number} The camera's distance from the Sun, m
+   */
+  function fromSun(app) {
+    app.ui.scene.updateMatrixWorld()
+    return app.ui.camera.getWorldPosition(new Vector3())
+        .distanceTo(app.scene.objects.sun.getWorldPosition(new Vector3()))
+  }
+
+  it('shows at the bare URL, which stays bare, its history entry marked', async () => {
+    const app = await openHome()
+    expect(app.homeShown).toBe(true)
+    // Not rewritten to #sun, as the bare URL was before.
+    expect(global.location.hash).toBe('')
+    expect(replaced[0].state[HOME_HISTORY_KEY]).toBe(true)
+    expect(app.homePhase).toBe('waiting')
+    // Its cost held down: no Cesium, a frame cap.
+    expect(app.ui.layers.suspended).toBe(true)
+    expect(app.ui.frameCap).toBe(30)
+  })
+
+  it('the tour places the camera near the Sun, and plays from the reveal, the overlays held', async () => {
+    const app = await openHome()
+    expect(app.tour.active).toBe(true)
+    let t = 1000
+    app.frame(t)
+    // Not yet: the exposure settles first.
+    expect(app._reveal.started).toBe(false)
+    t = run(app, t, 20 * 16) - 16
+    // The reveal: the foreground comes in and the tour plays.
+    expect(app._reveal.started).toBe(true)
+    expect(app.homePhase).toBe('in')
+    expect(app.tour.playing).toBe(true)
+    expect(Shared.targets.obj).toBe(app.scene.objects.sun)
+    expect(fromSun(app) / (HOME_TOUR_KEYFRAMES[0].dist)).toBeCloseTo(1, 3)
+    t = run(app, t, 2000)
+    expect(app.tour.t).toBeGreaterThan(1900)
+    // No overlays, no chrome, over the tour.
+    for (const key of ['o', 'p', 'l', 'a']) {
+      expect(app.scene.fades[key].shown).toBe(false)
+    }
+    expect(app.navVisible).toBe(false)
+    // And the address bar isn't written: the tour isn't a view.
+    app._schedulePermalinkUpdate()
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect(replaced.length).toBe(1)
+    expect(pushed.length).toBe(0)
+  })
+
+  it('a card opens its link by the app\'s own restore, as its own history entry', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const navigated = []
+    const navigate = app._navigate.bind(app)
+    app._navigate = (raw, onErr) => {
+      navigated.push(raw)
+      navigate(raw, onErr)
+    }
+    const card = HOME_CARDS.find((c) => c.id === 'earth')
+    app.openLink(card.link)
+    expect(pushed).toEqual([{state: null, url: `#${card.link}`}])
+    expect(app.homeShown).toBe(false)
+    expect(app.homePhase).toBe('out')
+    expect(app.tour.active).toBe(false)
+    expect(app.ui.frameCap).toBe(null)
+    expect(app.ui.layers.suspended).toBe(false)
+    // Under black: the canvas fades, then the link is restored.
+    expect(app.ui.canvasShown).toBe(false)
+    t = run(app, t, 400)
+    expect(navigated).toEqual([card.link])
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const pl = decodePermalink(card.link)
+    expect(app.time.simTimeJulianDay()).toBeCloseTo(pl.d2000 + J2000_JD, 2)
+    expect(app.camera.fov).toBeCloseTo(pl.fov, 6)
+    run(app, t, 2000)
+    expect(app.ui.canvasShown).toBe(true)
+    expect(app.homePhase).toBe('hidden')
+    // The link's settings: orbits and labels off; the HUD on, for a visitor.
+    expect(app.scene.getSetting('o')).toBe(false)
+    expect(app.scene.fades.o.shown).toBe(false)
+    expect(app.scene.getSetting('G')).toBe(true)
+    expect(app.navVisible).toBe(true)
+  })
+
+  it('leaving for the live scene stops the tour where it is and writes the view as a new entry', async () => {
+    const app = await openHome()
+    const t = run(app, 1000, 1000)
+    const at = app.ui.camera.getWorldPosition(new Vector3())
+    expect(app.leaveHome()).toBe(true)
+    expect(app.leaveHome()).toBe(false)
+    run(app, t, 1500)
+    expect(app.ui.camera.getWorldPosition(new Vector3()).distanceTo(at)).toBeLessThan(1)
+    expect(pushed.length).toBe(1)
+    expect(pushed[0].url).toMatch(/^#sun@/)
+    // The overlays and the chrome, as on a first load.
+    expect(app.scene.fades.o.shown).toBe(true)
+    expect(app.navVisible).toBe(true)
+    expect(app.homePhase).toBe('hidden')
+    // A later rewrite of the link is in place, not another entry.
+    app._writeLink(app.permalink())
+    expect(pushed.length).toBe(1)
+    expect(replaced.length).toBe(2)
+  })
+
+  it('Back to the homepage\'s entry shows it again, and the tour starts over', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 3000)
+    app.leaveHome()
+    t = run(app, t, 1500)
+    global.location.hash = ''
+    global.history.state = {[HOME_HISTORY_KEY]: true}
+    app._onPopState(global.history.state)
+    expect(app.homeShown).toBe(true)
+    expect(app.homePhase).toBe('waiting')
+    run(app, t, 1000)
+    expect(app.homePhase).toBe('in')
+    expect(app.tour.playing).toBe(true)
+    expect(app.tour.t).toBeLessThan(1000)
+    expect(app.scene.fades.o.shown).toBe(false)
+    expect(app.navVisible).toBe(false)
+    // Another entry's state doesn't.
+    app.leaveHome()
+    app._onPopState(null)
+    expect(app.homeShown).toBe(false)
+  })
+
+  it('the search\'s Go to a body leaves it and travels there from the tour\'s view', async () => {
+    const app = await openHome()
+    run(app, 1000, 500)
+    const navigated = []
+    app._navigate = (raw) => navigated.push(raw)
+    // As the hashchange that Go's `location.hash = path` makes does.
+    app.leaveHome({link: 'sun/mars'})
+    expect(navigated).toEqual(['sun/mars'])
+    expect(app.ui.canvasShown).not.toBe(false)
+  })
+
+  it('with prefers-reduced-motion, a still: the tour holds over Earth', async () => {
+    const savedMatch = globalThis.matchMedia
+    globalThis.matchMedia = (q) => ({matches: q.includes('reduce')})
+    try {
+      const app = await openHome()
+      run(app, 1000, 1000)
+      expect(app.tour.t).toBe(HOME_TOUR_STILL_MS)
+      expect(app.tour.frameBody).toBe('earth')
+    } finally {
+      globalThis.matchMedia = savedMatch
+    }
+  })
+
+  it('tonight\'s sky lands on Earth where the visitor is, facing up, and says where from', async () => {
+    const app = await openHome()
+    const t = run(app, 1000, 500)
+    const notices = []
+    app.onNotice((m) => notices.push(m))
+    // Refused: the time zone's city.
+    const {where, when} = await app.openTonight({locate: () => Promise.reject(new Error('denied')), timeZone: 'Europe/Paris'})
+    expect(where.source).toBe('timezone')
+    expect(app.homeShown).toBe(false)
+    run(app, t, 2000)
+    expect(Shared.targets.landed).toBe(true)
+    expect(app.time.simTime).toBeGreaterThanOrEqual(when.ms)
+    expect(app.time.simTime - when.ms).toBeLessThan(60000)
+    // On the ground at Paris, facing above the horizon.
+    const cam = app.ui.camera
+    const up = cam.position.clone().normalize()
+    const look = new Vector3(0, 0, -1).applyQuaternion(cam.quaternion)
+    expect(look.dot(up)).toBeGreaterThan(0.5)
+    const {lat, lng} = worldToLatLngAlt(cam.getWorldPosition(new Vector3()),
+        app.scene.objects.earth.getWorldPosition(new Vector3()),
+        app.scene.objects.earth.getWorldQuaternion(new Quaternion()), EARTH_RADIUS)
+    expect(lat).toBeCloseTo(48.86, 1)
+    expect(lng).toBeCloseTo(2.35, 1)
+    expect(notices).toEqual([expect.stringContaining('from Paris (your time zone)')])
+    // The app's labels and overlays come in.
+    expect(app.scene.fades.p.shown).toBe(true)
+    Shared.targets.landed = false
+  })
+
+  it('a link is not the homepage', () => {
+    global.location = {hash: `#${TEST_FRAGMENT}`, pathname: '/', search: ''}
+    const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+        {}, () => {}, () => {}, () => {})
+    apps.push(app)
+    expect(app.homeShown).toBe(false)
+    expect(app.homePhase).toBe('hidden')
+    expect(app.ui.frameCap).toBeUndefined()
   })
 })

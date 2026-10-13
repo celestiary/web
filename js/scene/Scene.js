@@ -289,6 +289,18 @@ export default class Scene {
 
 
   /**
+   * Fade every overlay out, whatever its setting, until revealOverlays fades
+   * it in again: back to the homepage (Celestiary.showHome).  The settings
+   * are kept.
+   */
+  holdOverlays() {
+    for (const key of OVERLAY_KEYS) {
+      this.fades[key]?.set(false)
+    }
+  }
+
+
+  /**
    * Whether an overlay group is drawn now: what a part of it built later
    * (a body loaded, the asterisms) starts as.
    *

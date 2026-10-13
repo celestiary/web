@@ -95,6 +95,13 @@
         color: #869fdb;
         animation: loading-pulse 1800ms ease-in-out infinite;
       }
+      /* At the bare URL the title moves to the homepage's and becomes it
+         (js/loading.js handOffLoadingTitle), as "Loading…" fades. */
+      #loading.handoff .loading-text {
+        opacity: 0;
+        animation: none;
+        transition: opacity 400ms ease-in-out;
+      }
       @keyframes loading-in {
         from { opacity: 0; transform: translateY(4px); }
         to { opacity: 1; transform: none; }
