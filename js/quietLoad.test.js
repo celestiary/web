@@ -47,3 +47,58 @@ describe('quiet-load', () => {
     expect(quiet('#sun/earth@1,2,3m;s=v')).toBe(false)
   })
 })
+
+
+describe('the loading Moon', () => {
+  const moon = html.match(/<script type="text\/javascript" id="loading-moon">([\s\S]*?)<\/script>/)[1]
+
+  /**
+   * @param {object} [opts]
+   * @param {boolean} [opts.isQuiet] The page loads quiet
+   * @param {boolean} [opts.reduced] prefers-reduced-motion
+   * @returns {{el: object, tick: Function, timers: Array}} The loading text, and a step of its timer
+   */
+  function run({isQuiet = false, reduced = false} = {}) {
+    const el = {textContent: '\u{1F313}', isConnected: true}
+    const timers = []
+    const document = {
+      querySelector: () => el,
+      documentElement: {classList: {contains: (c) => isQuiet && c === 'quiet-load'}},
+    }
+    const window = {
+      matchMedia: () => ({matches: reduced}),
+      setInterval: (fn, ms) => timers.push({fn, ms, cleared: false}) - 1,
+      clearInterval: (id) => {
+        timers[id].cleared = true
+      },
+    }
+    new Function('document', 'window', moon)(document, window)
+    return {el, timers, tick: () => timers[0].fn()}
+  }
+
+  it('goes round the phases, a turn a second', () => {
+    const {el, timers, tick} = run()
+    expect(timers.length).toBe(1)
+    expect(timers[0].ms * 8).toBeLessThanOrEqual(1000)
+    const seen = []
+    for (let i = 0; i < 8; i++) {
+      tick()
+      seen.push(el.textContent.codePointAt(0))
+    }
+    expect(new Set(seen).size).toBe(8)
+    expect(Math.min(...seen)).toBe(0x1F311)
+    expect(Math.max(...seen)).toBe(0x1F318)
+  })
+
+  it('stops once the loading text is gone', () => {
+    const {el, timers, tick} = run()
+    el.isConnected = false
+    tick()
+    expect(timers[0].cleared).toBe(true)
+  })
+
+  it('holds still for reduced motion, and doesn\'t run for a quiet load', () => {
+    expect(run({reduced: true}).timers.length).toBe(0)
+    expect(run({isQuiet: true}).timers.length).toBe(0)
+  })
+})
