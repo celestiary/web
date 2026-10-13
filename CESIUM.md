@@ -25,6 +25,10 @@ falls back to if its Cesium layer can't load.
   Celestiary, and the control shows the error.
 - A body's layer is only *active* while it's in range and can show;
   otherwise celestiary draws it (Cesium is not rendered for it at all).
+- While the homepage shows (DESIGN.md [homepage](DESIGN.md#homepage)) the
+  layers are suspended (`CesiumLayers.suspended`, which `_wanted` reads): its
+  tour passes Earth with celestiary's own Earth, and nothing of Cesium
+  loads until the visitor leaves it.
 - Loading (Cesium's import, the body's widget) starts when the body, or a
   moon of it, is targeted, not only once it's in range.  So does loading
   celestiary's own surface (Planet `preloadNear`), which is otherwise

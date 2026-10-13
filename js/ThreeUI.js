@@ -73,6 +73,15 @@ const GALAXY_BRIGHTEST = 1e-6
 // Half a display step through the tone map's toe, in exposure units: under
 // it the night sky's light isn't drawn (_updateNightSkyShown).
 const NIGHT_SKY_SKIP_VALUE = Math.sqrt(0.5 / 255 / 6.25)
+// Under a frame cap, a frame this early is still drawn, ms: the display's
+// intervals jitter, and a 60 Hz frame at 33.2 ms shouldn't wait for 50.
+const FRAME_CAP_SLACK_MS = 2
+// A hidden canvas's opacity: under a display step (0.001 of 255 rounds to
+// 0), but not 0, which a compositor may take as not drawn at all, and then
+// the exposure meter's reads, fenced on the GPU, may not finish until it
+// shows: the homepage waits for the meter to settle on its first view
+// before it shows (Celestiary._homeSettled).
+const HIDDEN_CANVAS_OPACITY = '0.001'
 
 
 export default class ThreeUi {
@@ -133,6 +142,9 @@ export default class ThreeUi {
     this._liveExposure = null
     // Which frames the meter samples (meterReadback.js).
     this._meterCadence = new MeterCadence()
+    // How many readings the meter has taken: one after a view changes says
+    // the meter has seen it (Celestiary._homeSettled).
+    this.meterReadings = 0
     // The user's exposure compensation, stops (setExposureCompensation).
     this._evStops = 0
     // The observer (observer/instrument.js): the naked eye, dark adapted.
@@ -207,9 +219,30 @@ export default class ThreeUi {
 
     // ?perf=1 only (js/perf, DESIGN.md "Perf overlay"); otherwise nothing.
     perf.install(this)
+    // A frame cap (setFrameCap): the least interval between frames, ms, or
+    // 0 for none; and when the last one was drawn.
+    this._frameIntervalMs = 0
+    this._lastFrameMs = null
     this.renderer.setAnimationLoop((time) => {
+      if (this._frameIntervalMs > 0 && this._lastFrameMs !== null &&
+          time - this._lastFrameMs < this._frameIntervalMs - FRAME_CAP_SLACK_MS) {
+        return
+      }
+      this._lastFrameMs = time
       this.renderLoop(time)
     })
+  }
+
+
+  /**
+   * Hold the frame rate to at most this, or lift the cap: the homepage's
+   * tour runs at 30 fps (Celestiary._homeCost).  A frame the display offers
+   * early is skipped, so on a 60 Hz display every other one is drawn.
+   *
+   * @param {?number} fps Frames a second, or null for none
+   */
+  setFrameCap(fps) {
+    this._frameIntervalMs = fps > 0 ? 1000 / fps : 0
   }
 
 
@@ -260,6 +293,22 @@ export default class ThreeUi {
     }
     style.transition = fadeMs > 0 ? `opacity ${fadeMs}ms ease-in-out` : ''
     style.opacity = ''
+  }
+
+
+  /**
+   * Fade the canvas to black (showCanvas brings it back): a cut between
+   * views, the homepage's tour looping.  It still renders.
+   *
+   * @param {number} [fadeMs] Over this long; at once if 0
+   */
+  dimCanvas(fadeMs = 0) {
+    const style = this.renderer.domElement?.style
+    if (!style) {
+      return
+    }
+    style.transition = fadeMs > 0 ? `opacity ${fadeMs}ms ease-in-out` : ''
+    style.opacity = HIDDEN_CANVAS_OPACITY
   }
 
 
@@ -320,7 +369,7 @@ export default class ThreeUi {
     const canvas = document.createElement('canvas')
     // Hidden until its first frame is drawn (renderLoop): nothing between
     // the page's first paint and the scene's (public/index.html).
-    canvas.style.opacity = '0'
+    canvas.style.opacity = HIDDEN_CANVAS_OPACITY
     const ctx = canvas.getContext('webgl2')
     container.appendChild(canvas)
     const renderer = new WebGLRenderer({canvas: canvas, context: ctx, antialias: true})
@@ -754,6 +803,22 @@ export default class ThreeUi {
 
 
   /**
+   * Whether the exposure has come to the meter's goal: what the homepage's
+   * reveal waits for (Celestiary._homeSettled), with a reading taken since
+   * the view changed (meterReadings).  Before a reading the goal is the
+   * target's keyed exposure.
+   *
+   * @param {number} [stops] Within this many
+   * @returns {boolean}
+   */
+  exposureSettled(stops = 1) {
+    const goal = renderExposure(this._exposureGoal, this._meterGainGoal, this._evStops)
+    const now = this.renderer.toneMappingExposure
+    return goal > 0 && now > 0 && Math.abs(Math.log2(now / goal)) <= stops
+  }
+
+
+  /**
    * Travel to a body (Scene.goTo): the exposure follows the destination
    * on the way, and arrives at what the meter will settle on there
    * (exposure.js arrivalGain, approachExposure; HDR.md, "Travel").  Worked
@@ -798,6 +863,29 @@ export default class ThreeUi {
     }
     this._approach = {body, tween, gain}
     this._liveExposure = this.renderer.toneMappingExposure
+  }
+
+
+  /**
+   * A flight from the homepage has arrived (Celestiary._endFlight), and
+   * its view's own restore drops a go of its own, so its tween doesn't end
+   * the way a go's does.  The meter takes the arrival's gain now: the
+   * approach's, as _approachStep gives it to an arrival, or, with none (a
+   * landing, the far stars), the gain its last readings asked for, which by
+   * the flight's last turn are of the view itself.  Without this it went on
+   * from the gain it had before the flight (the Sun's, stopped down) and
+   * took seconds to come up.  The exposure still eases to it.
+   */
+  settleArrival() {
+    const a = this._approach
+    this._approach = null
+    this._liveExposure = null
+    if (a && a.tween.travelProgress() >= 1) {
+      this._meterGain = a.gain
+      this._meterGainGoal = a.gain
+      return
+    }
+    this._meterGain = this._meterGainGoal
   }
 
 
@@ -1102,6 +1190,7 @@ export default class ThreeUi {
    * @param {object} ctx _meterContext's, from the frame they were rendered in
    */
   _meterApply(pixels, ctx) {
+    this.meterReadings++
     const {renderedOverKeyed, exposureGoal, halfFov} = ctx
     const metered = meanLogLuminance(pixels, METER_SIZE * METER_SIZE)
     // The dark end is absolute, over Earth's keyed exposure (meteredGain).

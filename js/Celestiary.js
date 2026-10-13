@@ -2,10 +2,12 @@ import * as THREE from 'three'
 import ARController from './ar/ARController'
 import Animation from './scene/Animation'
 import Choreography, {READY_TIMEOUT_MS, REVEAL_AT} from './choreography'
+import FlightPath, {flightDuration, timePlan} from './flight'
 import ControlPanel from './ControlPanel'
 import Keys from './Keys'
 import Loader from './Loader'
-import Scene from './scene/Scene'
+import Scene, {DEFAULT_LAND_ALT_M} from './scene/Scene'
+import TourDriver from './tourDriver'
 import {searchIndex} from './search/SearchIndex'
 import GalaxiesProvider from './search/providers/GalaxiesProvider'
 import PlacesProvider from './search/providers/PlacesProvider'
@@ -17,12 +19,16 @@ import reifyMeasures from './reify'
 import * as Shapes from './scene/shapes'
 import * as Shared from './shared'
 import {assertArgs} from './assert'
-import {latLngAltToLocal, worldToLatLngAlt} from './coords'
+import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {
   decodePermalink, decodeSettings, decodeTimeToken, encodePermalink, encodeTimeToken, pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
-import {goToEntry} from './search/commitEntry'
+import {goToEntry, placeTarget} from './search/commitEntry'
+import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
+import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
+import {ease} from './tour'
+import {formatTonight, lowPrecisionSun, resolveLocation, tonightTime} from './tonight'
 import {hideLoading} from './loading'
 import {clampEv, stepEv} from './scene/evCompensation'
 import {clampStarMag, stepStarMag} from './scene/starMagnitude'
@@ -47,6 +53,36 @@ const CHROME_HIDDEN_CLASS = 'chrome-hidden'
 // The scene's fade in from black on the first load, ms, as the loading text
 // fades out (public/index.html).
 const SCENE_FADE_MS = 600
+// Leaving the homepage for a link's view, or coming back to it: the canvas
+// fades to black over this long, the view changes under it, and the scene
+// fades in from black (SCENE_FADE_MS) once it's in.
+const CUT_FADE_MS = 300
+// The homepage's foreground fades out over the overlays' fade (FADE_MS) and
+// is taken out of the page after this long.
+const HOME_UNMOUNT_MS = 600
+// The frame rate the homepage's tour is held to, to keep its cost down
+// (ThreeUi.setFrameCap): a slow camera path doesn't need more.
+const HOME_FRAME_CAP_FPS = 30
+// Frames the tour draws, unseen, before the homepage's reveal (frame), and
+// how far its exposure may still be from the meter's goal, stops: the
+// tour starts by the Sun, and the meter must have stopped down for it.
+const HOME_SETTLE_FRAMES = 20
+const HOME_SETTLE_STOPS = 1
+// And the meter's readings of it, after the tour has placed the camera.
+const HOME_SETTLE_READINGS = 3
+// The most the homepage's reveal waits for that, ms after the camera is
+// placed (READY_TIMEOUT_MS for a link).
+const HOME_READY_TIMEOUT_MS = 8000
+// Tonight's sky (openTonight): the field, wide, as the eye takes in the
+// sky, and how high over the horizon it faces, toward the equator.
+const TONIGHT_FOV_DEG = 70
+const TONIGHT_ELEVATION_DEG = 50
+// A flight's exposure follows the body in (ThreeUi.approach) to a view
+// within this many of its radii, where the body is what the view is of.
+const APPROACH_MAX_RADII = 100
+// Over a place this near a pole, a flight faces down to it squared to the
+// prime meridian, not the pole.
+const POLAR_LAT_DEG = 89
 
 
 /** Main application class. */
@@ -110,6 +146,8 @@ export default class Celestiary {
     this._starMagListeners = new Set
     // And of tracking and following being switched (onNavMode).
     this._navModeListeners = new Set
+    // And of what tonight's sky used (onNotice).
+    this._noticeListeners = new Set
     // While a link is put back: what it restores (tracking, following, the
     // exposure, the stars' setting) isn't announced on the readout, which
     // is for what the user does (_announce).
@@ -142,6 +180,28 @@ export default class Celestiary {
     this._chromeRevealed = false
     this._navShowPending = false
     this._navHideAt = null
+    // The homepage (home.js; DESIGN.md "Homepage"): the bare URL, no
+    // fragment and no path.  A tour of the live scene plays behind it
+    // (tourDriver.js), still for prefers-reduced-motion.
+    this.homeShown = isHomepage(location, document.baseURI)
+    this.homePhase = 'hidden'
+    this.tour = new TourDriver({scene: this.scene, ui: this.ui, time: this.time, quietly: (fn) => this._quietly(fn)})
+    // Steps on the frame clock while leaving the homepage or coming back.
+    this._homeSteps = null
+    // A cut to a link's view, waiting for it to arrive (_frameCut).
+    this._cut = null
+    // A flight from the homepage to a view (_flyTo), and the one whose
+    // frame is still loading (_flyToLink).
+    this._flight = null
+    this._flightToken = null
+    // The meter's readings when the tour started (_homeSettled).
+    this._homeMeterMark = 0
+    // How many times the camera has been placed (_arrive), for _frameCut.
+    this._arrivals = 0
+    // Back to the homepage, waiting for its tour to settle (_frameHomeReturn).
+    this._homeReturning = false
+    // What to say on the readout once a cut's view shows (_landTonight).
+    this._pendingNotice = null
     // The link's scene settings (`s=`), or the defaults, decided before
     // anything is built, so each overlay is built shown or hidden as the link
     // says and what it hides is never drawn (design/URLs.md, "Reading and
@@ -150,27 +210,45 @@ export default class Celestiary {
     // The first load's sequence (choreography.js), from when the camera is
     // placed (_arrive) and the scene is in (ThreeUi.sceneReady).
     this._arrivedAt = null
+    // On the homepage the scene comes in under its title, the tour starts,
+    // and the overlays and the chrome wait until it's left (leaveHome).
     this._reveal = new Choreography([
       {at: REVEAL_AT.loading, run: () => {
-        hideLoading()
+        if (this.homeShown) {
+          // The page's loading title becomes the homepage's (ui/Homepage).
+          this._setHomePhase('in')
+          this.tour.play()
+        } else {
+          hideLoading()
+        }
         this.ui.showCanvas(SCENE_FADE_MS)
       }},
-      {at: REVEAL_AT.orbits, run: () => this.scene.revealOverlays(['o'])},
-      {at: REVEAL_AT.diagrams, run: () => this.scene.revealOverlays(['a', 'e', 'c', 'g', 'x'])},
-      {at: REVEAL_AT.labels, run: () => this.scene.revealOverlays(['p', 'l', 'G'])},
-      {at: REVEAL_AT.chrome, run: () => {
-        this._chromeRevealed = true
-        this._setNav(this.scene.getSetting('v'))
-      }},
+      ...this._overlaySteps(0, () => !this.homeShown),
     ])
+    if (this.homeShown) {
+      this._setHomePhase('waiting')
+      this._homeCost(true)
+    }
     this.load()
     this.setupPathListeners()
     this.setupKeyListeners(useStore)
     canvasContainer.addEventListener('mousedown', (e) => e.preventDefault())
+    // A click, a drag or the wheel on the scene leaves the homepage for it.
+    // And stops a flight from it where it is.
+    const leaveForScene = () => {
+      if (this.homeShown) {
+        this.leaveHome()
+      } else {
+        this.stopFlight()
+      }
+    }
+    canvasContainer.addEventListener('pointerdown', leaveForScene)
+    canvasContainer.addEventListener('wheel', leaveForScene, {passive: true})
     // these are here for convenience debugging from jsconsole.
     this.shared = Shared
     this.shapes = Shapes
     this.three = THREE
+    this.searchIndex = searchIndex
     this.toggleHelp = null
     window.c = this
   }
@@ -294,14 +372,27 @@ export default class Celestiary {
    * @param {number} nowMs
    */
   frame(nowMs) {
+    // The homepage's tour first: the reveal waits for its target's surface.
+    this.tour.frame(nowMs)
     const reveal = this._reveal
     if (!reveal.done) {
+      // The homepage's tour starts by the Sun: some frames first, so the
+      // meter has stopped down for its disc before it's seen.
+      const settled = !this.homeShown || this._homeSettled()
+      const timeout = this.homeShown ? HOME_READY_TIMEOUT_MS : READY_TIMEOUT_MS
       if (!reveal.started && this._arrivedAt !== null &&
-          (this.ui.sceneReady() || nowMs - this._arrivedAt >= READY_TIMEOUT_MS)) {
+          ((settled && this.ui.sceneReady()) || nowMs - this._arrivedAt >= timeout)) {
         reveal.start(nowMs)
       }
       reveal.frame(nowMs)
     }
+    if (this._homeSteps && !this._homeSteps.done) {
+      this._homeSteps.start(nowMs)
+      this._homeSteps.frame(nowMs)
+    }
+    this._frameFlight(nowMs)
+    this._frameCut(nowMs)
+    this._frameHomeReturn(nowMs)
     this.scene.overlays.tick(nowMs)
     this._frameNav(nowMs)
   }
@@ -397,6 +488,28 @@ export default class Celestiary {
    * drawer and its apps are restored here, on the first load only.
    */
   load() {
+    this.onLoad = (name, obj) => {
+      reifyMeasures(obj)
+      this.scene.add(obj)
+      // The search's bodies are the loader's: a search open as they load
+      // (the homepage's, from the start) finds them once they're in.
+      searchIndex.markStale()
+      const waiters = this._bodyWaiters[name]
+      if (waiters) {
+        delete this._bodyWaiters[name]
+        waiters.forEach((cb) => cb())
+      }
+    }
+    if (this.homeShown) {
+      // The bare URL stays bare: its history entry is marked as the
+      // homepage's, and the tour places the camera once the Sun and Earth
+      // are in.
+      history.replaceState?.({...(history.state ?? {}), [HOME_HISTORY_KEY]: true}, '')
+      this.loader.loadPath('milkyway', this.onLoad, () => {
+        this._loadBody('sun/earth', () => this._startTour())
+      })
+      return
+    }
     const rawHash = location.hash ? location.hash.substring(1) : ''
     if (rawHash) {
       // The drawer and its apps, as the link left them (design/URLs.md).
@@ -409,15 +522,6 @@ export default class Celestiary {
       }
     } else {
       location.hash = DEFAULT_TARGET
-    }
-    this.onLoad = (name, obj) => {
-      reifyMeasures(obj)
-      this.scene.add(obj)
-      const waiters = this._bodyWaiters[name]
-      if (waiters) {
-        delete this._bodyWaiters[name]
-        waiters.forEach((cb) => cb())
-      }
     }
     this.loader.loadPath('milkyway', this.onLoad, () => {
       this._navigate(rawHash || DEFAULT_TARGET, () => {
@@ -512,6 +616,7 @@ export default class Celestiary {
     // drawn with the defaults.  The reveal waits for the camera.
     this.firstTime = false
     this._arrivedAt ??= performance.now()
+    this._arrivals++
     // AR-fallback resolution: if the permalink was captured in AR
     // mode (s=A), try to re-enter AR at the saved lat/lng.
     // Best-effort — on iOS Safari `requestPermission()` requires a
@@ -850,8 +955,882 @@ export default class Celestiary {
 
   setupPathListeners() {
     window.addEventListener('hashchange', () => {
-      this._navigate((window.location.hash || '#').substring(1))
+      const raw = (window.location.hash || '#').substring(1)
+      if (this.homeShown) {
+        // A link opened from the homepage (Forward, the search's Go to a
+        // body): leave it for there.  Back to the homepage has none.
+        if (raw) {
+          this.leaveHome({link: raw})
+        }
+        return
+      }
+      this._navigate(raw)
     }, false)
+    // Back to the homepage's entry shows it again (design/URLs.md).
+    window.addEventListener('popstate', (e) => this._onPopState(e.state))
+    // Esc leaves the homepage for the live scene, and stops a flight from
+    // it where it is.
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') {
+        return
+      }
+      if (this.homeShown) {
+        this.leaveHome()
+      } else {
+        this.stopFlight()
+      }
+    })
+  }
+
+
+  /**
+   * @param {?object} state The history entry's
+   */
+  _onPopState(state) {
+    if (isHomeEntry(state) && isHomepage(location, document.baseURI)) {
+      this.showHome()
+    }
+  }
+
+
+  /**
+   * Start the homepage's tour: held at its start (or its still, for
+   * prefers-reduced-motion) until the reveal plays it.  The camera is
+   * placed by its first frame (TourDriver.frame), and the page has arrived.
+   */
+  _startTour() {
+    if (!this.homeShown) {
+      return
+    }
+    // The meter must see the tour's first view before it shows (_homeSettled).
+    this._homeMeterMark = this.ui.meterReadings ?? 0
+    this.tour.start(homeTour(), {
+      still: prefersReducedMotion() ? HOME_TOUR_STILL_MS : null,
+      loopFadeMs: HOME_TOUR_LOOP_FADE_MS,
+    })
+    this.firstTime = false
+    this._arrivedAt ??= performance.now()
+  }
+
+
+  /**
+   * Leave the homepage: the tour stops where it is, the foreground fades
+   * out, and the overlays and the chrome come in as on a first load
+   * (REVEAL_AT).  With a link's view (a card's, Forward) or a flight (the
+   * search, tonight's sky), the camera flies there from where the tour
+   * was, and they come in once it's there (_flyTo); a path alone travels
+   * there by the app's own go (_navigate).
+   *
+   * @param {object} [opts]
+   * @param {?string} [opts.link] A fragment to open, without its '#'
+   * @param {?object} [opts.fly] Where to fly (_flyTo's)
+   * @param {boolean} [opts.write] Otherwise, write the view to the
+   *   address bar now, as a new history entry, so Back returns to the
+   *   homepage (what follows a search's Look at writes its own)
+   * @returns {boolean} Whether it was showing
+   */
+  leaveHome({link = null, fly = null, write = true} = {}) {
+    if (!this.homeShown) {
+      return false
+    }
+    this.homeShown = false
+    this._homeReturning = false
+    this.tour.stop()
+    this._homeCost(false)
+    this._setHomePhase('out')
+    this._cut = null
+    const unmount = {at: HOME_UNMOUNT_MS, run: () => this._setHomePhase('hidden')}
+    const pl = link ? decodePermalink(link) : null
+    if (pl) {
+      this._holdLinkSettings(pl)
+    }
+    if (!this._reveal.started) {
+      // Left before the scene was in: straight there, and the first load's
+      // reveal shows it all.
+      this._homeSteps = new Choreography([unmount])
+      if (fly) {
+        (fly.jump ?? fly.arrive)()
+      } else if (link) {
+        this._navigate(link)
+      }
+      return true
+    }
+    if (pl || fly) {
+      // The overlays and the chrome come in once it's there (_endFlight).
+      this._homeSteps = new Choreography([unmount])
+      if (pl) {
+        this._flyToLink(link)
+      } else {
+        this._flyTo(fly)
+      }
+      return true
+    }
+    this._homeSteps = new Choreography([unmount, ...this._overlaySteps(0)])
+    if (link) {
+      this._navigate(link)
+    } else if (write) {
+      const fragment = this.permalink()
+      if (fragment) {
+        this._writeLink(fragment)
+      }
+    }
+    return true
+  }
+
+
+  /**
+   * A link's scene settings, as opening it would set them, held for the
+   * arrival's reveal; the HUD stays as it is, for a visitor arriving from
+   * the homepage.
+   *
+   * @param {object} pl The decoded link
+   */
+  _holdLinkSettings(pl) {
+    this.scene.initSettings({...pl.settings, v: this.scene.getSetting('v')}, {hold: true})
+  }
+
+
+  /**
+   * Fly to a link's view from where the camera is (a homepage card, Forward
+   * to one): its frame resolved and loaded, the camera flies to where the
+   * link has it, and the link's own restore (_arrive) ends it, so the view
+   * is the link's exactly, as a reload of it would be.  A path alone goes
+   * by the app's go; a view from a star's frame cuts to it under black.
+   *
+   * @param {string} link A fragment, without its '#'
+   */
+  _flyToLink(link) {
+    const pl = decodePermalink(link)
+    const ref = parseTargetPath(pathFromFragment(link))
+    if (!pl || !ref) {
+      this._navigate(link)
+      return
+    }
+    // A later flight, a stop or Back while this one's frame loads drops it.
+    const token = {}
+    this._flightToken = token
+    // Not found: the live scene where the camera is.
+    const onErr = () => {
+      if (this._flightToken === token) {
+        this._flightToken = null
+        this._afterFlight()
+      }
+    }
+    this._resolveRef(ref, (resolved) => {
+      const framePath = pl.from ?? REF_FRAME[resolved.kind](resolved)
+      this._loadFrame(framePath, (frame) => {
+        if (this._flightToken !== token) {
+          return
+        }
+        this._flightToken = null
+        const body = frame.kind === 'body' ? this.scene.objects[frame.name] : null
+        if (!body?.props?.radius?.scalar) {
+          this._cutTo(() => this._arrive(pl, frame, resolved))
+          return
+        }
+        this._flyTo(this._linkFlight(pl, frame, resolved))
+      }, onErr)
+    }, onErr)
+  }
+
+
+  /**
+   * Where a link's view is, as a flight's end (_flyTo): the camera in its
+   * frame body's, at the link's place, orientation, field and date; the
+   * link's restore on arriving.
+   *
+   * @param {object} pl The decoded link
+   * @param {{kind: string, name: string}} frame Its body
+   * @param {object} resolved Its target (_resolveRef)
+   * @returns {object}
+   */
+  _linkFlight(pl, frame, resolved) {
+    const body = this.scene.objects[frame.name]
+    const r = body.props.radius.scalar
+    const quaternion = new THREE.Quaternion(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
+    const landed = Boolean(pl.settings?.L)
+    const bodyFixed = latLngAltToBodyFixed(pl.lat, pl.lng, pl.alt, r)
+    const node = landed ? body : body.orbitPosition
+    return {
+      frame: frame.name,
+      node,
+      // Landed, the camera is the body's (Scene.land); else its orbit's,
+      // where the body turns under it (_restoreView).
+      localPosition: landed ? () => bodyFixed : () => latLngAltToLocal(pl.lat, pl.lng, pl.alt, r,
+          body.getWorldQuaternion(new THREE.Quaternion()), node.getWorldQuaternion(new THREE.Quaternion())),
+      localQuaternion: () => quaternion,
+      fov: pl.fov,
+      timeMs: fromJulianDay(pl.d2000 + J2000_JD),
+      // The exposure follows the body in, where it's what the view is of.
+      approach: !landed && pl.alt < APPROACH_MAX_RADII * r,
+      arrive: () => this._arrive(pl, frame, resolved),
+    }
+  }
+
+
+  /**
+   * Fly from where the camera is to a view (flight.js): the camera hangs
+   * on the view's body's frame, keeping its world pose (Scene.goTo, its
+   * tween dropped), and each frame (_frameFlight) is put where the path
+   * says, until it's there and the view's own arrival (`arrive`) sets
+   * the rest.  Then the overlays and the chrome come in (REVEAL_AT).
+   *
+   * The date, if the view has one, changes by timePlan: at the start if
+   * nothing near the camera would show it, eased along the way if it's
+   * short (a time-lapse), else under a short dip to black.
+   *
+   * @param {object} dest
+   * @param {string} dest.frame The body the view is about
+   * @param {object} dest.node The node the camera ends hung on: the body's
+   *   orbit (`orbitPosition`), or the body itself, landed
+   * @param {Function} dest.localPosition The camera's position on `node`,
+   *   now (a Vector3)
+   * @param {Function} dest.localQuaternion Its orientation on `node`, now
+   * @param {number} dest.fov
+   * @param {?number} [dest.timeMs] The view's date
+   * @param {boolean} [dest.approach] The exposure follows the body in
+   *   (ThreeUi.approach)
+   * @param {Function} dest.arrive Sets the view exactly, once there
+   * @param {?Function} [dest.jump] Goes there at once, without the
+   *   flight (before the scene is in); `arrive` if none
+   */
+  _flyTo(dest) {
+    this._cancelFlight()
+    this._flightToken = null
+    this.ui.scene.updateMatrixWorld()
+    const deltaMs = typeof dest.timeMs === 'number' ? dest.timeMs - this.time.simTime : 0
+    const plan = timePlan(deltaMs, this._nearestRadii())
+    const flight = {dest, plan, tween: flightTween(), path: null, startMs: null, durationMs: 0, t0: this.time.simTime}
+    this._flight = flight
+    // Nothing else moves the camera meanwhile (the tween is the app's
+    // marker of a travel: following waits, the link isn't written).
+    Shared.targets.tween = flight.tween
+    Shared.targets.tweenNextFn = null
+    if (plan === 'dip') {
+      // Its first frame starts the dip's clock (_frameFlight).
+      this.ui.dimCanvas(CUT_FADE_MS)
+      flight.dipUntil = null
+      return
+    }
+    this._beginFlight(flight)
+  }
+
+
+  /**
+   * Start a flight (_flyTo): set the date if it's set at the start, hang
+   * the camera on the view's frame, and lay out the path.
+   *
+   * @param {object} flight
+   */
+  _beginFlight(flight) {
+    const {dest, plan} = flight
+    if (plan === 'start' || plan === 'dip') {
+      this._setSimTime(dest.timeMs)
+    }
+    flight.t0 = this.time.simTime
+    // The app's go to the view's body, its tween dropped: the world rebased
+    // and the camera hung on the body's orbit, where it was.
+    this._quietly(() => {
+      this.scene.setTarget(dest.frame, {look: false})
+      this.scene.goTo()
+    })
+    Shared.targets.tween = flight.tween
+    Shared.targets.tweenNextFn = null
+    const camera = this.ui.camera
+    const body = this.scene.objects[dest.frame]
+    const end = this._flightEnd(dest)
+    const center = this._flightCenter(body)
+    flight.path = new FlightPath({position: camera.position, quaternion: camera.quaternion, fov: camera.fov},
+        body.props.radius.scalar, this._flightUp())
+    const {alt0, alt1, angle} = flight.path.measure(end, center)
+    flight.durationMs = flightDuration(alt0, alt1, angle)
+    if (dest.approach) {
+      const arrival = camera.platform.localToWorld(end.position.clone())
+      this.ui.approach?.(body, arrival, flight.tween)
+    }
+    if (plan === 'dip') {
+      this.ui.showCanvas(SCENE_FADE_MS)
+    }
+  }
+
+
+  /**
+   * A flight's frame: the date if it eases, then the camera where the
+   * path says, and on arriving, the view's own arrival, then the overlays
+   * and the chrome.  Ended by anything else taking the camera (another
+   * tween, a link restored).
+   *
+   * @param {number} nowMs
+   */
+  _frameFlight(nowMs) {
+    const flight = this._flight
+    if (!flight) {
+      return
+    }
+    if (Shared.targets.tween !== flight.tween) {
+      this._endFlight({arrived: false})
+      return
+    }
+    if (!flight.path) {
+      flight.dipUntil ??= nowMs + CUT_FADE_MS
+      if (nowMs < flight.dipUntil) {
+        return
+      }
+      this._beginFlight(flight)
+    }
+    flight.startMs ??= nowMs
+    const u = Math.min((nowMs - flight.startMs) / flight.durationMs, 1)
+    const travel = ease('inOut', u)
+    flight.tween.progress = travel
+    if (flight.plan !== 'none') {
+      // Eased to the view's date, or held at it once set (the clock would
+      // otherwise run on, and the view's restore set it back on arriving).
+      this._setSimTime(flight.t0 + ((flight.dest.timeMs - flight.t0) * travel))
+    }
+    const body = this.scene.objects[flight.dest.frame]
+    const pose = flight.path.pose(u, this._flightEnd(flight.dest), this._flightCenter(body))
+    const camera = this.ui.camera
+    camera.position.copy(pose.position)
+    camera.quaternion.copy(pose.quaternion)
+    if (Math.abs(camera.fov - pose.fov) > 1e-9) {
+      this.ui.setFov(pose.fov)
+    }
+    if (u >= 1) {
+      this._endFlight({arrived: true})
+    }
+  }
+
+
+  /**
+   * The end of a flight: arrived, the view's own arrival sets it exactly
+   * (a link's restore, a landing); stopped (Esc, a click on the scene) or
+   * taken over, the camera stays where it is.  Either way the overlays and
+   * the chrome come in.
+   *
+   * @param {object} opts
+   * @param {boolean} opts.arrived
+   */
+  _endFlight({arrived}) {
+    const flight = this._flight
+    this._flight = null
+    if (!flight) {
+      return
+    }
+    flight.tween.done = true
+    if (!flight.path) {
+      // Stopped in its dip, before it started.
+      this.ui.showCanvas(SCENE_FADE_MS)
+    }
+    if (Shared.targets.tween === flight.tween) {
+      Shared.targets.tween = null
+    }
+    if (arrived) {
+      // The exposure as the approach left it, for the meter to go on from.
+      this.ui.settleArrival?.()
+      flight.dest.arrive()
+    }
+    this._afterFlight()
+  }
+
+
+  /**
+   * Once a flight is over: the overlays and the chrome come in as on a
+   * first load (REVEAL_AT), and the link is written.
+   */
+  _afterFlight() {
+    const steps = this._overlaySteps(0)
+    if (this.homePhase === 'out') {
+      steps.push({at: HOME_UNMOUNT_MS, run: () => this._setHomePhase('hidden')})
+    }
+    this._homeSteps = new Choreography(steps)
+    this._schedulePermalinkUpdate()
+  }
+
+
+  /**
+   * Stop a flight where it is (Esc, a click, drag or wheel on the scene):
+   * the live scene from there, its link written in place of the one the
+   * flight was to.
+   *
+   * @returns {boolean} Whether one was under way
+   */
+  stopFlight() {
+    if (!this._flight && !this._flightToken) {
+      return false
+    }
+    this._flightToken = null
+    if (this._flight) {
+      this._endFlight({arrived: false})
+    } else {
+      // Its frame still loading: it never started.
+      this._afterFlight()
+    }
+    return true
+  }
+
+
+  /** Drop a flight, nothing more (Back to the homepage, another flight). */
+  _cancelFlight() {
+    this._flightToken = null
+    const flight = this._flight
+    this._flight = null
+    if (flight) {
+      flight.tween.done = true
+      if (Shared.targets.tween === flight.tween) {
+        Shared.targets.tween = null
+      }
+      if (!flight.path) {
+        // In its dip to black.
+        this.ui.showCanvas(SCENE_FADE_MS)
+      }
+    }
+  }
+
+
+  /**
+   * @param {object} dest A flight's (_flyTo)
+   * @returns {{position: THREE.Vector3, quaternion: THREE.Quaternion, fov: number}}
+   *   Its end, now, on the camera's platform
+   */
+  _flightEnd(dest) {
+    const platform = this.ui.camera.platform
+    dest.node.updateWorldMatrix(true, false)
+    platform.updateWorldMatrix(true, false)
+    const world = dest.node.localToWorld(dest.localPosition().clone())
+    const nodeQuat = dest.node.getWorldQuaternion(new THREE.Quaternion())
+    const platformQuat = platform.getWorldQuaternion(new THREE.Quaternion())
+    return {
+      position: platform.worldToLocal(world),
+      quaternion: platformQuat.invert().multiply(nodeQuat).multiply(dest.localQuaternion()),
+      fov: dest.fov,
+    }
+  }
+
+
+  /**
+   * @param {object} body
+   * @returns {THREE.Vector3} Its centre on the camera's platform
+   */
+  _flightCenter(body) {
+    return this.ui.camera.platform.worldToLocal(body.getWorldPosition(new THREE.Vector3()))
+  }
+
+
+  /** @returns {THREE.Vector3} The ecliptic's north on the camera's platform */
+  _flightUp() {
+    const q = this.ui.camera.platform.getWorldQuaternion(new THREE.Quaternion()).invert()
+    return new THREE.Vector3(0, 1, 0).applyQuaternion(q)
+  }
+
+
+  /**
+   * @returns {number} The camera's distance from the nearest body (the Sun,
+   *   a planet, a moon), in its radii: whether a change of date would show
+   */
+  _nearestRadii() {
+    const eye = this.ui.camera.getWorldPosition(new THREE.Vector3())
+    const at = new THREE.Vector3()
+    let nearest = Infinity
+    for (const obj of Object.values(this.scene.objects)) {
+      const r = obj?.props?.radius?.scalar
+      // Not the Milky Way, which the camera is always inside.
+      if (r > 0 && obj.props.type !== 'galaxy' && typeof obj.getWorldPosition === 'function') {
+        nearest = Math.min(nearest, eye.distanceTo(obj.getWorldPosition(at)) / r)
+      }
+    }
+    return nearest
+  }
+
+
+  /**
+   * Set the date and put the bodies there now, not next frame, so what's
+   * placed against them this frame (a flight's end) is where they are.
+   *
+   * @param {number} ms
+   */
+  _setSimTime(ms) {
+    this.time.setTime(ms)
+    this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
+    this.ui.scene.updateMatrixWorld()
+  }
+
+
+  /**
+   * Cut to another view under black: the canvas fades out, `go` moves the
+   * camera, and once it's placed (_arrivals) and the scene is in, the
+   * canvas fades in and the overlays and the chrome follow (_frameCut).
+   *
+   * @param {Function} go Places the camera: a link's restore, a landing
+   * @param {Array<object>} [steps] Others to run alongside, from now
+   */
+  _cutTo(go, steps = []) {
+    this.ui.dimCanvas(CUT_FADE_MS)
+    this._homeSteps = new Choreography([...steps, {at: CUT_FADE_MS, run: () => {
+      this._cut = {arrivals: this._arrivals, since: performance.now()}
+      go()
+    }}])
+  }
+
+
+  /**
+   * The homepage's "Tonight's sky" card (tonight.js): the visitor's sky
+   * from the ground where they are, now if it's night, else at this
+   * evening's astronomical dusk.  Their location is asked for here, on the
+   * click, never on load; refused or unavailable, their time zone's city,
+   * else Greenwich.  The readout says which.
+   *
+   * @param {object} [sources] For the tests: resolveLocation's
+   * @returns {Promise<{where: object, when: object}>}
+   */
+  async openTonight(sources = {}) {
+    const where = await resolveLocation(sources)
+    const sunAt = this.animation.vsopReady() ? (jd) => {
+      const e = this.animation.vsopAt(jd).earth
+      return {x: -e.x, y: -e.y, z: -e.z}
+    } : lowPrecisionSun
+    const when = tonightTime(where.lat, where.lng, Date.now(), sunAt)
+    // The app's defaults for the overlays and labels; the HUD as it is.
+    this.scene.initSettings({...decodeSettings(undefined), v: this.scene.getSetting('v')}, {hold: true})
+    const dest = this._tonightFlight(where, when)
+    if (!this.leaveHome({fly: dest})) {
+      this._flyTo(dest)
+    }
+    return {where, when}
+  }
+
+
+  /**
+   * Tonight's sky as a flight's end (_flyTo): on the ground there, facing
+   * up toward the equator, at its date; the landing on arriving.
+   *
+   * @param {{lat: number, lng: number}} where
+   * @param {{ms: number, kind: string}} when
+   * @returns {object}
+   */
+  _tonightFlight(where, when) {
+    const earth = this.scene.objects.earth
+    const position = latLngAltToBodyFixed(where.lat, where.lng, DEFAULT_LAND_ALT_M, earth.props.radius.scalar)
+    const quaternion = skyward(position, where.lat, TONIGHT_ELEVATION_DEG, new THREE.Quaternion())
+    return {
+      frame: 'earth',
+      node: earth,
+      localPosition: () => position,
+      localQuaternion: () => quaternion,
+      fov: TONIGHT_FOV_DEG,
+      timeMs: when.ms,
+      arrive: () => {
+        this._landTonight(where, when)
+        this._announce(this._noticeListeners, this._pendingNotice)
+        this._pendingNotice = null
+      },
+    }
+  }
+
+
+  /**
+   * Land on Earth at a place and time, facing up into the sky toward the
+   * equator, as tonight's sky: the clock set and running at real time.
+   *
+   * @param {{lat: number, lng: number}} where
+   * @param {{ms: number, kind: string}} when
+   */
+  _landTonight(where, when) {
+    this.time.setTime(when.ms)
+    this.time.setRate(1)
+    this.time.setPaused(false)
+    this.setIsPaused(false)
+    this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
+    this.ui.scene.updateMatrixWorld()
+    this._quietly(() => {
+      this.scene.land('earth', where.lat, where.lng, undefined, {instant: true})
+    })
+    // Body-fixed: the platform is at Earth's centre, unturned in its frame.
+    const camera = this.ui.camera
+    skyward(camera.position, where.lat, TONIGHT_ELEVATION_DEG, camera.quaternion)
+    this.ui.setFov(TONIGHT_FOV_DEG)
+    this._arrivals++
+    // Said once it's there.
+    this._pendingNotice = formatTonight(where, when)
+  }
+
+
+  /**
+   * @param {Function} fn Called with a message for the readout: what
+   *   "Tonight's sky" used
+   * @returns {Function} Stops listening
+   */
+  onNotice(fn) {
+    this._noticeListeners.add(fn)
+    return () => this._noticeListeners.delete(fn)
+  }
+
+
+  /**
+   * Open a link in the app (a homepage card): its own history entry, so
+   * Back returns, then a flight to its view, ended by the app's restore of
+   * it (_flyToLink), without a page load.  Another card while a flight is
+   * under way flies on to it from where the camera is, in the first's
+   * place in the history.
+   *
+   * @param {string} link A fragment, without its '#'
+   */
+  openLink(link) {
+    const href = permalinkHref(link, document.baseURI, location.search)
+    if (this.homeShown) {
+      history.pushState(null, '', href)
+      this.leaveHome({link})
+      return
+    }
+    const pl = decodePermalink(link)
+    if (pl && (this._flight || this._flightToken)) {
+      history.replaceState(null, '', href)
+      this._holdLinkSettings(pl)
+      this._flyToLink(link)
+      return
+    }
+    location.hash = link
+  }
+
+
+  /**
+   * The search's Go (SearchBar, js/search/commitEntry.js).  On the
+   * homepage, a flight there from the tour's view: to a body, where `g`
+   * would arrive, facing it; to a place, over it, then the app's landing.
+   * A star or a galaxy goes by the app's go.
+   *
+   * @param {object} entry A SearchEntry
+   */
+  goToResult(entry) {
+    // From the homepage, or on from a flight from it (a second Enter).
+    const flying = Boolean(this._flight || this._flightToken)
+    const dest = this.homeShown || flying ? this._resultFlight(entry) : null
+    if (dest) {
+      if (!this.leaveHome({fly: dest})) {
+        this._flyTo(dest)
+      }
+      return
+    }
+    this.leaveHome({write: false})
+    goToEntry(entry, this)
+  }
+
+
+  /**
+   * @param {object} entry A SearchEntry
+   * @returns {?object} A flight's end (_flyTo) for a body or a place;
+   *   null for anything else
+   */
+  _resultFlight(entry) {
+    const place = entry?.kind === 'place' ? entry.payload : null
+    const name = place ? place.body : entry?.payload?.name
+    const body = name ? this.scene.objects[name] : null
+    const r = body?.props?.radius?.scalar
+    if (!r || entry.kind === 'star' || entry.payload?.galaxy || (!place && !body.orbitPosition)) {
+      return null
+    }
+    const dist = this.scene.arrivalDistance(body)
+    const jump = () => goToEntry(entry, this)
+    if (place) {
+      // Over the place, facing down to it, then the landing from there.
+      const over = latLngAltToBodyFixed(place.lat, place.lng, dist - r, r)
+      const north = Math.abs(place.lat) > POLAR_LAT_DEG ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)
+      const facing = new THREE.Quaternion().setFromRotationMatrix(
+          new THREE.Matrix4().lookAt(over, new THREE.Vector3(), north))
+      return {
+        frame: name,
+        node: body,
+        localPosition: () => over,
+        localQuaternion: () => facing,
+        fov: this.ui.camera.fov,
+        approach: true,
+        arrive: () => this.scene.land(name, place.lat, place.lng, place.alt, {target: placeTarget(entry)}),
+        jump,
+      }
+    }
+    // Where `g` arrives (Scene.goTo): from the body toward where the camera
+    // was when the flight began, its arrival distance out, facing it.
+    let end = null
+    const endPose = () => {
+      if (!end) {
+        const node = body.orbitPosition
+        const center = node.worldToLocal(body.getWorldPosition(new THREE.Vector3()))
+        const eye = node.worldToLocal(this.ui.camera.getWorldPosition(new THREE.Vector3()))
+        const dir = eye.sub(center).normalize()
+        const position = center.clone().addScaledVector(dir, dist)
+        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(node.getWorldQuaternion(new THREE.Quaternion()).invert())
+        end = {position, quaternion: new THREE.Quaternion().setFromRotationMatrix(
+            new THREE.Matrix4().lookAt(position, center, up))}
+      }
+      return end
+    }
+    return {
+      frame: name,
+      node: body.orbitPosition,
+      localPosition: () => endPose().position,
+      localQuaternion: () => endPose().quaternion,
+      fov: this.ui.camera.fov,
+      approach: true,
+      arrive: () => this._quietly(() => this.scene.setTarget(name, {look: false})),
+      jump,
+    }
+  }
+
+
+  /**
+   * Show the homepage again (Back to its entry): the overlays and the
+   * chrome fade out, the canvas to black, and the tour starts over.
+   */
+  showHome() {
+    if (this.homeShown) {
+      return
+    }
+    this.homeShown = true
+    this._cut = null
+    this._cancelFlight()
+    this.scene.holdOverlays()
+    this._setNav(false)
+    this._chromeRevealed = false
+    this._homeCost(true)
+    this._setHomePhase('waiting')
+    this.useStore.getState().closeSearch?.()
+    this.ui.dimCanvas(CUT_FADE_MS)
+    // Under black, the tour starts over; it shows once the exposure has
+    // settled on its first view, as on the first load (_frameHomeReturn).
+    this._homeSteps = new Choreography([{at: CUT_FADE_MS, run: () => {
+      this._startTour()
+      this._homeReturning = {since: null}
+    }}])
+  }
+
+
+  /**
+   * @returns {boolean} The homepage's tour has drawn some frames and its
+   *   exposure is near the meter's goal: what it shows first is metered
+   */
+  _homeSettled() {
+    return this.tour.frames >= HOME_SETTLE_FRAMES &&
+      (this.ui.meterReadings ?? 0) - this._homeMeterMark >= HOME_SETTLE_READINGS &&
+      this.ui.exposureSettled(HOME_SETTLE_STOPS)
+  }
+
+
+  /**
+   * Back to the homepage, under black: once the tour has drawn some frames
+   * (the meter stopped down for the Sun, not left open for a starfield),
+   * the scene fades in and the tour plays.
+   */
+  _frameHomeReturn(nowMs) {
+    if (!this._homeReturning) {
+      return
+    }
+    this._homeReturning.since ??= nowMs
+    if (!this._homeSettled() && nowMs - this._homeReturning.since < HOME_READY_TIMEOUT_MS) {
+      return
+    }
+    this._homeReturning = false
+    this.tour.play()
+    this.ui.showCanvas(SCENE_FADE_MS)
+    this._setHomePhase('in')
+  }
+
+
+  /**
+   * The overlays and the chrome, a beat apart (REVEAL_AT), from a start.
+   *
+   * @param {number} startMs Added to each step's time
+   * @param {Function} [when] Each runs only if this says so when its time
+   *   comes (the first load's: not while the homepage shows)
+   * @returns {Array<{at: number, run: Function}>}
+   */
+  _overlaySteps(startMs, when = () => true) {
+    const step = (at, fn) => ({at: startMs + at, run: () => {
+      if (when()) {
+        fn()
+      }
+    }})
+    return [
+      step(REVEAL_AT.orbits, () => this.scene.revealOverlays(['o'])),
+      step(REVEAL_AT.diagrams, () => this.scene.revealOverlays(['a', 'e', 'c', 'g', 'x'])),
+      step(REVEAL_AT.labels, () => this.scene.revealOverlays(['p', 'l', 'G'])),
+      step(REVEAL_AT.chrome, () => {
+        this._chromeRevealed = true
+        this._setNav(this.scene.getSetting('v'))
+      }),
+    ]
+  }
+
+
+  /**
+   * A cut to a link's view (leaveHome): once the camera is placed and the
+   * scene is in (or READY_TIMEOUT_MS on), it fades in from black, then the
+   * overlays and the chrome.
+   *
+   * @param {number} nowMs
+   */
+  _frameCut(nowMs) {
+    const cut = this._cut
+    if (!cut) {
+      return
+    }
+    const arrived = this._arrivals > cut.arrivals && this.ui.sceneReady()
+    if (!arrived && nowMs - cut.since < READY_TIMEOUT_MS) {
+      return
+    }
+    this._cut = null
+    this.ui.showCanvas(SCENE_FADE_MS)
+    if (this._pendingNotice) {
+      this._announce(this._noticeListeners, this._pendingNotice)
+      this._pendingNotice = null
+    }
+    const steps = this._overlaySteps(0)
+    if (this.homePhase === 'out') {
+      // Not out of the page yet (these steps take the leave's place).
+      steps.push({at: HOME_UNMOUNT_MS - CUT_FADE_MS, run: () => this._setHomePhase('hidden')})
+    }
+    this._homeSteps = new Choreography(steps)
+  }
+
+
+  /**
+   * What the homepage costs while it shows: no Cesium layers (celestiary's
+   * own Earth draws, and nothing of Cesium loads), and a frame cap.
+   *
+   * @param {boolean} on
+   */
+  _homeCost(on) {
+    if (this.ui.layers) {
+      this.ui.layers.suspended = on
+    }
+    this.ui.setFrameCap(on ? HOME_FRAME_CAP_FPS : null)
+  }
+
+
+  /**
+   * The homepage's foreground (ui/Homepage): 'hidden' (not in the page),
+   * 'waiting' (in it, unseen, for the scene), 'in', 'out' (fading out).
+   *
+   * @param {string} phase
+   */
+  _setHomePhase(phase) {
+    this.homePhase = phase
+    this.useStore.getState().setHomePhase?.(phase)
+  }
+
+
+  /**
+   * Write a link to the address bar, in place of the entry's, or, on the
+   * homepage's entry, as a new one after it, so Back returns to the
+   * homepage.
+   *
+   * @param {string} fragment Without its '#'
+   */
+  _writeLink(fragment) {
+    const href = permalinkHref(fragment, document.baseURI, location.search)
+    if (isHomeEntry(history.state)) {
+      history.pushState(null, '', href)
+    } else {
+      history.replaceState(null, '', href)
+    }
   }
 
 
@@ -1295,18 +2274,19 @@ export default class Celestiary {
    * a setting or the drawer changes, or the target changes.
    */
   _schedulePermalinkUpdate() {
-    if (Shared.targets.tween !== null) {
+    // The homepage's URL stays bare while it shows: the tour isn't a view.
+    if (Shared.targets.tween !== null || this.homeShown) {
       return
     }
     clearTimeout(this._permalinkTimer)
     this._permalinkTimer = setTimeout(() => {
       // A tween started since (a goTo targets first): its end reschedules.
-      if (Shared.targets.tween !== null) {
+      if (Shared.targets.tween !== null || this.homeShown) {
         return
       }
       const fragment = this.permalink()
       if (fragment) {
-        history.replaceState(null, '', permalinkHref(fragment, document.baseURI, location.search))
+        this._writeLink(fragment)
       }
     }, 1000)
   }
@@ -1474,6 +2454,61 @@ export default class Celestiary {
 
 const DEFAULT_TARGET = 'sun'
 const J2000_JD = 2451545.0
+
+
+/**
+ * Turn a camera on the ground to face the sky: toward the equator (south
+ * in the north, north in the south), at an elevation over the horizon, its
+ * up the zenith's side.  In the body's own frame: +Y its north pole.
+ *
+ * @param {object} position The camera's, body-fixed
+ * @param {number} lat Degrees
+ * @param {number} elevationDeg Over the horizon
+ * @param {object} out The camera's quaternion, set
+ * @returns {object} out
+ */
+export function skyward(position, lat, elevationDeg, out) {
+  const up = position.clone().normalize()
+  const pole = new THREE.Vector3(0, 1, 0)
+  const north = pole.sub(up.clone().multiplyScalar(up.dot(pole)))
+  if (north.lengthSq() < 1e-12) {
+    // At a pole: any way is toward the equator.
+    north.set(1, 0, 0).sub(up.clone().multiplyScalar(up.x))
+  }
+  north.normalize()
+  const toward = lat >= 0 ? north.negate() : north
+  const el = elevationDeg * Math.PI / 180
+  const look = toward.multiplyScalar(Math.cos(el)).add(up.clone().multiplyScalar(Math.sin(el)))
+  const m = new THREE.Matrix4().lookAt(new THREE.Vector3(), look, up)
+  return out.setFromRotationMatrix(m)
+}
+
+
+/**
+ * A flight's marker in `Shared.targets.tween` (Celestiary._flyTo): the app's
+ * sign that the camera is travelling (following waits, the link isn't
+ * written, ThreeUi.approach follows its progress).  Celestiary steps the
+ * flight itself, on the frame clock, so its update only says whether it's
+ * still going.
+ *
+ * @returns {object}
+ */
+function flightTween() {
+  const tween = {travels: true, done: false, progress: 0}
+  tween.update = () => !tween.done
+  tween.travelProgress = () => tween.progress
+  return tween
+}
+
+
+/** @returns {boolean} Whether the user asks for less motion */
+function prefersReducedMotion() {
+  try {
+    return Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)
+  } catch {
+    return false
+  }
+}
 
 
 /**

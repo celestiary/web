@@ -7,6 +7,7 @@ import {goToEntry, lookAtEntry, targetEntry} from '../search/commitEntry'
 import {searchIndex} from '../search/SearchIndex'
 import {anchorPathFor, breadcrumbItems as breadcrumbFor} from '../store/SearchSlice'
 import useStore from '../store/useStore'
+import useIsMobile from '../useIsMobile'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import CloseIcon from '@mui/icons-material/Close'
 import MyLocationIcon from '@mui/icons-material/MyLocation'
@@ -28,9 +29,17 @@ const BLUR_COLLAPSE_MS = 3000
  * anchor are hidden; an Autocomplete + Go (arrow) / Look at (magnifier) /
  * Picker / Clear buttons follow.  Enter is Go.
  *
+ * On the homepage (`home`; DESIGN.md "Homepage") it is always expanded,
+ * over everything, with no breadcrumb or picker, and focused on a desktop.
+ * A pick in the list goes there, as Go does, and Go, Look at and Esc leave
+ * the homepage (Celestiary.leaveHome); the tour's targets don't close it.
+ *
+ * @param {object} props
+ * @param {object} props.celestiary
+ * @param {boolean} [props.home] The homepage's
  * @returns {ReactElement}
  */
-export default function SearchBar({celestiary}) {
+export default function SearchBar({celestiary, home = false}) {
   const committedPath = useStore((s) => s.committedPath)
   const committedStar = useStore((s) => s.committedStar)
   const committedTarget = useStore((s) => s.committedTarget)
@@ -54,7 +63,11 @@ export default function SearchBar({celestiary}) {
 
   const [options, setOptions] = useState([])
   const [ready, setReady] = useState(false)
+  // The index's builds (SearchIndex.onChange): a query asked while it was
+  // stale (bodies, stars still loading) is asked again once it's rebuilt.
+  const [indexVersion, setIndexVersion] = useState(searchIndex.version)
   const [inputFocused, setInputFocused] = useState(false)
+  const isMobile = useIsMobile()
 
   const hoverResetTimer = useRef(null)
   const blurCollapseTimer = useRef(null)
@@ -82,6 +95,18 @@ export default function SearchBar({celestiary}) {
         anchorPathFor(committedPath, isSearchOpen ? anchorIndex : 0)),
       [committedStar, committedPath, anchorIndex, isSearchOpen],
   )
+
+  // The homepage's is open from the start, scoped to everything.
+  useEffect(() => {
+    if (!home) {
+      return
+    }
+    useStore.getState().setHoveredAnchorIndex(null)
+    openSearch()
+    return () => closeSearch()
+  }, [home])
+
+  useEffect(() => searchIndex.onChange((version) => setIndexVersion(version)), [])
 
   useEffect(() => {
     if (!isSearchOpen || ready) {
@@ -123,7 +148,7 @@ export default function SearchBar({celestiary}) {
     }
     const results = searchIndex.query(searchQuery, anchorPath, 20)
     setOptions(results.map((r) => r.entry))
-  }, [searchQuery, anchorPath, ready, placesVersion])
+  }, [searchQuery, anchorPath, ready, placesVersion, indexVersion])
 
   // Pipe crosshair hover into the input + preview while picking mode is active
   // AND the user is not actively typing (no mutex: typed input wins over hover).
@@ -147,7 +172,7 @@ export default function SearchBar({celestiary}) {
   // explicit cancel (snappier than the 3s blur debounce).  The popper is
   // portaled out of our DOM tree, so check for its class explicitly.
   useEffect(() => {
-    if (!isSearchOpen) {
+    if (!isSearchOpen || home) {
       return
     }
     const onDocMouseDown = (e) => {
@@ -174,7 +199,7 @@ export default function SearchBar({celestiary}) {
     }
     document.addEventListener('mousedown', onDocMouseDown)
     return () => document.removeEventListener('mousedown', onDocMouseDown)
-  }, [isSearchOpen, closeSearch])
+  }, [isSearchOpen, closeSearch, home])
 
   // Any target change from outside the bar while it's open = cancel.
   // Catches breadcrumb-link clicks inside the bar, 'h' key home, hash edits,
@@ -183,18 +208,18 @@ export default function SearchBar({celestiary}) {
   // the pick, and the scope is the same, as a result in scope is under the
   // anchor.  Go and Look at close it themselves.
   useEffect(() => {
-    if (committedTarget !== null && committedTarget === ownPickRef.current) {
+    if (home || (committedTarget !== null && committedTarget === ownPickRef.current)) {
       return
     }
     if (useStore.getState().isSearchOpen) {
       closeSearch()
     }
-  }, [committedTarget, closeSearch])
+  }, [committedTarget, closeSearch, home])
 
   // Blur-collapse: if bar is open and focus leaves, start a 3s timer.  Re-
   // focusing cancels it.  Escape / Clear collapse immediately.
   useEffect(() => {
-    if (!isSearchOpen) {
+    if (!isSearchOpen || home) {
       return
     }
     const onFocusIn = () => {
@@ -229,14 +254,27 @@ export default function SearchBar({celestiary}) {
         blurCollapseTimer.current = null
       }
     }
-  }, [isSearchOpen, closeSearch])
+  }, [isSearchOpen, closeSearch, home])
 
-  // Go: travel to the selection.  Enter in the field does this too.
-  const handleCommit = () => {
-    if (!searchSelection) {
+  // On the homepage, Go and Look at leave it first: the tour stops where it
+  // is, and what they do follows from there (its link is written then).
+  const leaveHome = () => {
+    if (home) {
+      celestiary.leaveHome({write: false})
+    }
+  }
+
+  // Go: travel to the selection.  Enter in the field does this too.  On
+  // the homepage, a flight there from the tour's view (goToResult).
+  const handleCommit = (entry = searchSelection) => {
+    if (!entry) {
       return
     }
-    goToEntry(searchSelection, celestiary)
+    if (home) {
+      celestiary.goToResult(entry)
+    } else {
+      goToEntry(entry, celestiary)
+    }
     closeSearch()
   }
 
@@ -246,6 +284,7 @@ export default function SearchBar({celestiary}) {
     if (!searchSelection) {
       return
     }
+    leaveHome()
     lookAtEntry(searchSelection, celestiary)
     closeSearch()
   }
@@ -254,7 +293,7 @@ export default function SearchBar({celestiary}) {
     if (searchQuery) {
       setSearchQuery('')
       setSearchSelection(null)
-    } else {
+    } else if (!home) {
       closeSearch()
     }
   }
@@ -313,11 +352,11 @@ export default function SearchBar({celestiary}) {
   return (
     <div
       ref={containerRef}
-      id='search-bar'
-      className={isSearchOpen ? 'open' : ''}
-      data-testid={isSearchOpen ? 'search-bar-open' : 'search-bar'}
+      id={home ? 'home-search-bar' : 'search-bar'}
+      className={`${isSearchOpen ? 'open' : ''}${home ? ' search-home' : ''}`}
+      data-testid={home ? 'home-search-bar' : (isSearchOpen ? 'search-bar-open' : 'search-bar')}
     >
-      <span
+      {!home && <span
         className='breadcrumb'
         onMouseEnter={onBreadcrumbEnter}
         onMouseLeave={onBreadcrumbLeave}
@@ -349,18 +388,20 @@ export default function SearchBar({celestiary}) {
             </React.Fragment>
           )
         })}
-      </span>
+      </span>}
+      {home && <SearchIcon className='home-search-icon' fontSize='small' aria-hidden='true'/>}
       {isSearchOpen &&
         <>
           <Autocomplete
             size='small'
-            sx={{minWidth: 260, ml: 1}}
+            sx={home ? {flex: 1, minWidth: 0} : {minWidth: 260, ml: 1}}
             options={options}
             getOptionLabel={(o) => (o && o.displayName) || ''}
             isOptionEqualToValue={(a, b) => a && b && a.id === b.id}
             filterOptions={(x) => x}
             freeSolo={false}
-            openOnFocus
+            openOnFocus={!home}
+            forcePopupIcon={!home}
             autoHighlight
             slotProps={{
               paper: {
@@ -376,28 +417,48 @@ export default function SearchBar({celestiary}) {
             onInputChange={(e, v) => setSearchQuery(v)}
             onChange={(e, v) => {
               setSearchSelection(v)
+              if (home) {
+                // On the homepage a pick goes there: there's no target to
+                // show it as, and the tour would move on from it.
+                handleCommit(v)
+                return
+              }
               setPreviewForEntry(v, {setPreviewPath, setPreviewStar, setPreviewGalaxy, clearPreview})
               targetEntry(v, celestiary)
               ownPickRef.current = useStore.getState().committedTarget
             }}
             onHighlightChange={(e, option) => {
-              setPreviewForEntry(option, {setPreviewPath, setPreviewStar, setPreviewGalaxy, clearPreview})
+              if (!home) {
+                setPreviewForEntry(option, {setPreviewPath, setPreviewStar, setPreviewGalaxy, clearPreview})
+              }
             }}
             renderInput={(params) => (
               <TextField
                 {...params}
-                autoFocus
-                placeholder='Search…'
+                autoFocus={!home || !isMobile}
+                placeholder={home ? 'Search planets, moons, stars, places…' : 'Search…'}
                 variant='standard'
-                data-testid='search-bar-input'
+                inputProps={{...params.inputProps, 'aria-label': 'Search'}}
+                data-testid={home ? 'home-search-input' : 'search-bar-input'}
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && searchSelection) {
                     e.preventDefault()
                     handleCommit()
+                  } else if (e.key === 'Enter' && home && searchQuery.trim() && options.length === 0) {
+                    // Nothing in the list to pick yet (typed before it
+                    // came up, the index still building): the best match,
+                    // once it's built.  With a list, the Autocomplete
+                    // picks its highlighted option (onChange).
+                    e.preventDefault()
+                    commitBestMatch(searchQuery, anchorPath, handleCommit)
                   } else if (e.key === 'Escape') {
-                    closeSearch()
+                    if (home) {
+                      celestiary.leaveHome()
+                    } else {
+                      closeSearch()
+                    }
                   }
                 }}
               />
@@ -413,7 +474,7 @@ export default function SearchBar({celestiary}) {
               <IconButton
                 size='small'
                 disabled={!searchSelection}
-                onClick={handleCommit}
+                onClick={() => handleCommit()}
                 aria-label='Go to'
                 data-testid='search-bar-go'
               >
@@ -434,7 +495,7 @@ export default function SearchBar({celestiary}) {
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title='Crosshairs picker' describeChild>
+          {!home && <Tooltip title='Crosshairs picker' describeChild>
             <IconButton
               size='small'
               onClick={toggleIsStarsSelectActive}
@@ -444,7 +505,7 @@ export default function SearchBar({celestiary}) {
             >
               <MyLocationIcon fontSize='small'/>
             </IconButton>
-          </Tooltip>
+          </Tooltip>}
           <Tooltip title='Clear / Close (Esc)' describeChild>
             <IconButton
               size='small'
@@ -459,6 +520,24 @@ export default function SearchBar({celestiary}) {
       }
     </div>
   )
+}
+
+
+/**
+ * Go to the best match for a query, once the index is built: Enter on the
+ * homepage's search before its list has come up.
+ *
+ * @param {string} query
+ * @param {string} anchorPath
+ * @param {Function} commit Called with the entry
+ */
+function commitBestMatch(query, anchorPath, commit) {
+  searchIndex.ensureReady().then(() => {
+    const best = searchIndex.query(query, anchorPath, 1)[0]
+    if (best) {
+      commit(best.entry)
+    }
+  }).catch((err) => console.warn('Search:', err))
 }
 
 

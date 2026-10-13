@@ -50,7 +50,17 @@ Three tiers with different cost/latency tradeoffs:
 | B | `StarsProvider.resolveHip(n)` | Exact numeric / `HIP N` input — short-circuits Fuse | O(1) |
 | C | Lazy providers' `collectUnder(anchorPath)` (per-anchor `Fuse` cache) | Surface-place search scoped to a body | Paid once per anchor |
 
-Tier A is populated once on first `ensureReady()`. Star catalog only
+Tier A is built on the first `ensureReady()` or query, and again whenever
+it has gone stale: a provider registered (the stars' and galaxies'
+catalogues arrive seconds after the page), or a body loaded (`markStale`,
+from `Celestiary.onLoad`).  A query while it's stale starts the rebuild and
+answers from the last build meanwhile; when a build lands, `onChange`
+listeners hear of it, and the SearchBar asks again.  A build that went
+stale while it ran (a body loaded under it) is built again before
+`ensureReady` resolves.  Before this, a search opened before the
+catalogues registered (the homepage's, open from the start) was built
+nearly empty, the next register cleared its ready flag, and nothing built it
+again: every query answered nothing.  Star catalog only
 contributes *named* stars (~8k) to Tier A; full 120k fuzzy-scan would be
 200–500 ms per keystroke and unnamed stars have nothing meaningful to fuzzy
 match against. Unnamed stars are still reachable via Tier B (numeric input).

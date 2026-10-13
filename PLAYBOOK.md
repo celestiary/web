@@ -45,6 +45,21 @@ The ghost-sphere fix had two follow-on bugs in a row:
 Each fix was locally correct but missed a code path. Before shipping a fix, trace **all** paths
 that read the state you changed. Ask: "what else depends on this?"
 
+### A "ready" flag that something else clears needs someone to rebuild
+
+The homepage's search showed nothing: the index (`SearchIndex`) was built
+once, on the first `ensureReady`, and every provider registered after
+cleared its ready flag.  In the app the bar was opened long after the
+catalogues were in, so it never mattered; the homepage opens it on the
+first frame, before the bodies had loaded and the stars registered, so the
+index was built empty, unreadied a second later, and the bar, holding its
+own `ready` from the first build, never asked again.  `c.searchIndex` in the
+page showed it at once (`_ready: false`, no entries).  **Rule:** a cache
+that can go stale rebuilds itself when it's next asked (and answers from
+the last build meanwhile), and tells its readers when it has; and a feature
+that moves a component's first use earlier (to page load) re-checks every
+lazy build it touches.
+
 ### Separate rendering state from UI/navigation state
 
 `targets.obj` is a navigation concept — it changes when the user presses 'u' to select a

@@ -272,3 +272,79 @@ describe('SearchIndex dedupe', () => {
     expect(r.length).toBe(1)
   })
 })
+
+
+// The homepage's search is open from the page's start, before the loader has
+// the bodies and before the stars' and galaxies' catalogues register: it was
+// built then, nearly empty, and every register after left it unready for
+// good, so every query answered nothing (#242).
+describe('SearchIndex built before its data is in', () => {
+  afterEach(() => SearchRegistry._reset())
+
+  /**
+   * @param {object} idx
+   * @returns {Promise<number>} The version of the next build to land
+   */
+  function nextBuild(idx) {
+    return new Promise((resolve) => {
+      const stop = idx.onChange((version) => {
+        stop()
+        resolve(version)
+      })
+    })
+  }
+
+  it('a query while stale builds again, answers from the last build meanwhile, and says when it lands', async () => {
+    SearchRegistry._reset()
+    const idx = new SearchIndex()
+    const bodies = [SUN]
+    idx.register(new StubSceneProvider(bodies))
+    // Opened at once: built from what the loader has, the Sun alone.
+    await idx.ensureReady()
+    expect(idx.query('earth')).toEqual([])
+    // The bodies arrive (Celestiary.onLoad), then the stars register.
+    bodies.push(EARTH, MOON)
+    idx.markStale()
+    idx.register(new StubStarsProvider([SIRIUS], () => null))
+    expect(idx.ready).toBe(false)
+    const landed = nextBuild(idx)
+    // Asked while stale: the last build's answer, and a build started.
+    expect(idx.query('sun').map((r) => r.entry.id)).toEqual(['sun'])
+    const version = await landed
+    expect(version).toBe(idx.version)
+    expect(idx.ready).toBe(true)
+    expect(idx.query('earth')[0].entry.id).toBe('earth')
+    expect(idx.query('sirius')[0].entry.id).toBe('hip:32349')
+  })
+
+  it('invalidate keeps answering from the last build until the next lands', async () => {
+    const idx = buildIndex()
+    await idx.ensureReady()
+    idx.invalidate()
+    expect(idx.query('mars')[0].entry.id).toBe('mars')
+    await idx.ensureReady()
+    expect(idx.query('mars')[0].entry.id).toBe('mars')
+  })
+
+  it('a build that went stale while it ran is built again before ensureReady resolves', async () => {
+    SearchRegistry._reset()
+    const idx = new SearchIndex()
+    const bodies = [SUN]
+    let builds = 0
+    const provider = new StubSceneProvider(bodies)
+    provider.collectAll = () => {
+      builds++
+      if (builds === 1) {
+        // A body loads while the first build runs.
+        bodies.push(EARTH)
+        idx.markStale()
+      }
+      return [...bodies]
+    }
+    idx.register(provider)
+    await idx.ensureReady()
+    expect(builds).toBe(2)
+    expect(idx.ready).toBe(true)
+    expect(idx.query('earth')[0].entry.id).toBe('earth')
+  })
+})

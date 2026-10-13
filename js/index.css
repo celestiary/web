@@ -284,6 +284,11 @@ button {
   background: rgba(0, 0, 0, 0.6);
   color: #fff;
   font-size: 1.1em;
+  /* A sentence (tonight's sky) wraps on a phone. */
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  text-align: center;
   pointer-events: none;
   opacity: 0;
   /* As the chrome's fade (--fade-ms). */
@@ -347,4 +352,319 @@ button {
   height: 20px;
   border: dashed 5px grey;
   opacity: 0.3;
+}
+
+
+/* The homepage (ui/Homepage.jsx; DESIGN.md "Homepage"): the title, the
+   search and three scene cards over the tour, at the bare URL only.  It
+   takes no pointer events but on its controls, so a click, drag or wheel
+   anywhere else reaches the scene, which leaves the homepage for it. */
+.home {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 16px;
+  pointer-events: none;
+  color: #dfe5f3;
+  font-family: var(--font-ui);
+  transition: opacity var(--fade-ms) var(--fade-ease);
+}
+
+.home.home-out {
+  opacity: 0;
+}
+
+/* Unseen, or fading out as a flight leaves it: nothing on it takes a
+   click (a second card); a click goes to the scene, which stops a flight. */
+.home-waiting .home-content *, .home-out .home-content * {
+  pointer-events: none;
+}
+
+/* A vignette behind the foreground, for the text's contrast over a bright
+   frame (the Sun, Earth's day side). */
+.home-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 75% 65% at 50% 50%, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.28) 55%, rgba(0, 0, 0, 0) 100%);
+  opacity: 0;
+  transition: opacity 600ms var(--fade-ease);
+}
+
+.home-in .home-scrim {
+  opacity: 1;
+}
+
+.home-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  width: min(1120px, 100%);
+  max-height: 100%;
+}
+
+/* As the page's loading title (public/index.html), larger: it moves and
+   grows into this one (loading.js handOffLoadingTitle). */
+.home-title {
+  margin: 0 -0.42em 0 0;
+  font-size: clamp(1.7rem, 4.2vw, 2.6rem);
+  font-weight: 300;
+  letter-spacing: 0.42em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: #d8deec;
+  opacity: 0;
+  transition: opacity var(--fade-ms) var(--fade-ease);
+}
+
+.home-title.title-in {
+  opacity: 1;
+}
+
+.home-title.title-now {
+  transition: none;
+}
+
+.home-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* The search, the cards and the button come in a beat apart, as the
+   first load's overlays do (choreography.js REVEAL_AT). */
+.home-search, .home-cards, .home-explore {
+  opacity: 0;
+  transition: opacity 500ms var(--fade-ease);
+}
+
+.home-in .home-search {
+  opacity: 1;
+  transition-delay: 250ms;
+}
+
+.home-in .home-cards {
+  opacity: 1;
+  transition-delay: 450ms;
+}
+
+.home-in .home-explore {
+  opacity: 1;
+  transition-delay: 650ms;
+}
+
+.home-search {
+  width: min(560px, 100%);
+  pointer-events: auto;
+}
+
+#home-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  height: 46px;
+  padding: 0 6px 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 23px;
+  background: rgba(12, 14, 24, 0.72);
+}
+
+#home-search-bar:focus-within {
+  border-color: rgba(134, 159, 219, 0.7);
+}
+
+#home-search-bar .home-search-icon {
+  color: #869fdb;
+  margin-right: 6px;
+}
+
+#home-search-bar .MuiInput-underline::before,
+#home-search-bar .MuiInput-underline::after {
+  border-bottom: none !important;
+}
+
+#home-search-bar .MuiInputBase-input {
+  font-size: 1rem;
+}
+
+.home-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Tonight's sky is a button (no link): as the others. */
+button.home-card {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.home-card[aria-busy='true'] {
+  cursor: progress;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(10, 12, 20, 0.66);
+  color: #dfe5f3;
+  text-decoration: none;
+  pointer-events: auto;
+  transition: border-color 200ms ease, transform 200ms ease;
+}
+
+.home-card:hover {
+  border-color: rgba(134, 159, 219, 0.65);
+  transform: translateY(-2px);
+}
+
+.home-card:focus-visible {
+  outline: 2px solid #869fdb;
+  outline-offset: 2px;
+}
+
+.home-card-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: #05060a;
+}
+
+.home-card-words {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 12px;
+}
+
+.home-card-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.home-card-text {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #a9b4cc;
+}
+
+.home-explore {
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  color: #869fdb;
+  font: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  pointer-events: auto;
+}
+
+.home-explore:hover {
+  color: #c4d2f2;
+}
+
+.home-explore:focus-visible {
+  outline: 2px solid #869fdb;
+  border-radius: 4px;
+}
+
+.home-explore kbd {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid rgba(134, 159, 219, 0.5);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 0.7rem;
+}
+
+/* Touch screens have no Esc. */
+@media (hover: none) {
+  .home-explore kbd {
+    display: none;
+  }
+}
+
+/* Medium screens: two by two. */
+@media (max-width: 960px) {
+  .home-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-card-image {
+    aspect-ratio: 16 / 7;
+  }
+}
+
+/* Narrow screens: the cards stack, a thumbnail beside the words. */
+@media (max-width: 640px) {
+  .home-content {
+    gap: 16px;
+  }
+
+  .home-cards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .home-card {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .home-card-image {
+    width: 104px;
+    flex: none;
+    aspect-ratio: 16 / 10;
+  }
+
+  .home-card-words {
+    padding: 8px 12px;
+  }
+
+  .home-card-text {
+    font-size: 0.75rem;
+  }
+}
+
+/* Short screens (a phone on its side): the words go, the images stay. */
+@media (max-height: 520px) {
+  .home-content {
+    gap: 12px;
+  }
+
+  .home-card-text, .home-explore {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-card, .home-card:hover {
+    transform: none;
+    transition: none;
+  }
 }

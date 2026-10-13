@@ -289,6 +289,18 @@ export default class Scene {
 
 
   /**
+   * Fade every overlay out, whatever its setting, until revealOverlays fades
+   * it in again: back to the homepage (Celestiary.showHome).  The settings
+   * are kept.
+   */
+  holdOverlays() {
+    for (const key of OVERLAY_KEYS) {
+      this.fades[key]?.set(false)
+    }
+  }
+
+
+  /**
    * Whether an overlay group is drawn now: what a part of it built later
    * (a body loaded, the asterisms) starts as.
    *
@@ -1011,8 +1023,7 @@ export default class Scene {
     } else {
       dir.set(0, 0, 1)
     }
-    const camDist = isPlanet ?
-      (obj.initialCameraDistance ?? (obj.props.radius.scalar * STEP_BACK)) :
+    const camDist = isPlanet ? this.arrivalDistance(obj) :
       isGalaxy ? star.viewDistance : (star.radius * STEP_BACK)
     const arrivalWorld = targetWorldPos.clone().addScaledVector(dir, camDist)
     const arrivalLocal = this.ui.camera.platform.worldToLocal(arrivalWorld.clone())
@@ -1040,6 +1051,16 @@ export default class Scene {
       state?.setLanded?.(false)
       Shared.targets.landed = false
     }
+  }
+
+
+  /**
+   * @param {object} obj A planet, moon or the Sun (this.objects')
+   * @returns {number} How far from its centre a go arrives, m: its own
+   *   distance if it has one, else STEP_BACK radii
+   */
+  arrivalDistance(obj) {
+    return obj.initialCameraDistance ?? (obj.props.radius.scalar * STEP_BACK)
   }
 
 
