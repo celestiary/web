@@ -32,6 +32,7 @@ tried and dropped.
 | The atmosphere pass | [js/scene/atmos/composition.md](js/scene/atmos/composition.md) (what it does and its knobs); [BRUNETON.md](js/scene/atmos/BRUNETON.md) (the LUT design) |
 | Earth's clouds: the far-field shell from the day's map, and the volumetric clouds up close | [js/scene/Planet.md, clouds](js/scene/Planet.md#clouds) (the map and the shell); [js/scene/atmos/clouds.md](js/scene/atmos/clouds.md) (the volumetric model, its sources, the seeding, the hand-off, cost, other bodies) |
 | Permalinks (`#path@lat,lng,alt;t=…;cq=…;fov=…`) | [design/URLs.md](design/URLs.md) (the whole URL, and the state tokens for the drawer and its apps); [js/permalink.md](js/permalink.md) (the view's encoding) |
+| The changelog: `CHANGELOG.md`, its entry format, `changelog.json`, drafting from merged PRs | [tools/changelog/README.md](tools/changelog/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
@@ -409,6 +410,25 @@ tried and dropped.
   mark the issues it closes as done in the track tables, add it to
   *Done recently*, and move the *Now / Next* items it affects. No
   separate roadmap PRs.
+- **A PR that changes what users see adds its CHANGELOG.md entry**, in
+  the same PR, as it adds its *Done recently* paragraph to ROADMAP.md.
+  *Done recently* stays the planning record; CHANGELOG.md is the
+  user-facing one, and they shouldn't drift.
+  - An entry says what you can now see or do, in plain words: a
+    one-line headline, a sentence or two, the PR and issue links, its
+    epic, and a permalink that shows it (`Permalink: none` if you
+    haven't found and opened one: don't guess). Housekeeping,
+    refactors, CI and doc-only PRs get no entry, or a link in the
+    month's "Behind the scenes" line.
+  - The entry links its own PR, so open the PR first and add the entry
+    in a follow-up commit to it. Its `Date` is the day you write it
+    (the merge day, if you know it); the entry goes at the top of its
+    month.
+  - The format is in [tools/changelog/README.md](tools/changelog/README.md)
+    and the header of `CHANGELOG.md`.
+  - Run `yarn changelog` after editing it: it rebuilds
+    `public/data/changelog.json`, which the app reads. A test fails when
+    the JSON is stale, so `yarn precommit` catches a forgotten rebuild.
 - **Cesium layer behaviour** goes in CESIUM.md.
 - **Planet rendering, and texture sources and their recipes**, go in
   `js/scene/Planet.md`.
