@@ -2,12 +2,12 @@ import {describe, expect, it} from 'bun:test'
 import {PerspectiveCamera, Vector3} from 'three'
 import {HOME_TOUR_EARTH_MS, homeTour} from './homeTour.js'
 import {
-  AIM_MAX_DEG, DARK_FULL_DEG, EARTH_RADIUS_METER, FALLBACK_HOURS, MIN_SHARE, PREFERRED_HOURS, angleVector, arcDeg,
-  chooseNightSide, darkness, hoursFromMidnight, nightDepthDeg, planEarthPass, subsolarPoint, sunAltitudeAt,
-  tourAngles, wrap180,
+  AIM_MAX_DEG, DARK_FULL_DEG, EARTH_RADIUS_METER, ECLIPSE_DIST, FALLBACK_HOURS, MIN_SHARE, PREFERRED_HOURS,
+  SUN_MARGIN_DEG, angleVector, arcDeg, chooseNightSide, darkness, eclipseReachDeg, hoursFromMidnight, nightDepthDeg,
+  planEarthPass, subsolarPoint, sunAltitudeAt, tourAngles, wrap180,
 } from './nightSide.js'
 import {fromSpherical} from './tour.js'
-import {sunAltitude} from './tonight.js'
+import {lowPrecisionSun, sunAltitude} from './tonight.js'
 import {ASTRO_UNIT_METER} from './shared.js'
 
 
@@ -108,8 +108,7 @@ describe('choosing the night side', () => {
       expect(aim.lat, when).toBeLessThanOrEqual(60)
       expect(aim.share, when).toBeGreaterThan(0.1)
       if (!aim.fallback) {
-        // On the evening side, 20:30 to 00:30, and bright.
-        expect(aim.side, when).toBe('evening')
+        // 21:00 to 01:30, and bright.
         expect(aim.hours, when).toBeGreaterThanOrEqual(PREFERRED_HOURS[0])
         expect(aim.hours, when).toBeLessThanOrEqual(PREFERRED_HOURS[1])
         expect(aim.share, when).toBeGreaterThanOrEqual(MIN_SHARE)
@@ -119,7 +118,7 @@ describe('choosing the night side', () => {
 
   it('finds Europe, India, East Asia and the Americas each at its hour', () => {
     const cases = [
-      ['2026-03-20T21:00:00Z', [35, 60], [-10, 30]],
+      ['2026-03-20T23:00:00Z', [35, 60], [-10, 30]],
       ['2026-12-21T16:30:00Z', [5, 35], [65, 95]],
       ['2026-09-22T13:00:00Z', [20, 45], [100, 145]],
       ['2026-06-21T04:00:00Z', [25, 50], [-100, -65]],
@@ -143,10 +142,22 @@ describe('choosing the night side', () => {
     const aim = chooseNightSide(ms)
     expect(aim.fallback).toBe(true)
     expect(aim.share).toBeGreaterThanOrEqual(MIN_SHARE)
-    // The American west, after midnight: the camera comes in over the dawn.
+    // The American west, after midnight.
     expect(aim.lng).toBeGreaterThan(-125)
     expect(aim.lng).toBeLessThan(-95)
-    expect(aim.side).toBe('morning')
+    expect(aim.hours).toBeGreaterThan(0)
+  })
+
+  it('asks the ephemeris for the Sun once or twice a plan, not once an aim', () => {
+    // VSOP87C takes about 2 ms a call: once an aim, a plan took 4 s.
+    let calls = 0
+    const sunAt = (jd) => {
+      calls++
+      return lowPrecisionSun(jd)
+    }
+    const ms = Date.parse('2026-03-20T21:00:00Z')
+    expect(planEarthPass(ms, {sunAt})).toEqual(planEarthPass(ms))
+    expect(calls).toBeLessThanOrEqual(2)
   })
 
   it('in a northern summer passes over the short nights the far north doesn\'t have', () => {
@@ -206,7 +217,32 @@ describe('the pass over Earth', () => {
     }
   }
 
-  it('keeps the terminator, the crescent and the night side in frame, and ends with the aim in it', () => {
+  /**
+   * @param {Vector3} eye
+   * @returns {number} How far, degrees, the Sun is behind Earth's limb seen
+   *   from there: negative if it shows
+   */
+  function sunBehindDeg(eye) {
+    const toEarth = eye.clone().negate()
+    const earthRadius = Math.asin(R / toEarth.length()) * 180 / Math.PI
+    const sunOff = toEarth.angleTo(new Vector3(1, 0, 0)) * 180 / Math.PI
+    return earthRadius - sunOff
+  }
+
+  it('arrives over the crescent, the terminator and the night side in frame', () => {
+    for (const ms of TIMES) {
+      const tour = homeTour(ms)
+      const when = new Date(ms).toISOString()
+      for (const aspect of [16 / 9, 16 / 10, 4 / 3]) {
+        const seen = inFrame(tour.pose(HOME_TOUR_EARTH_MS.arrive, bodyAt), aspect)
+        expect(terminator.some(seen), when).toBe(true)
+        expect(lit.some(seen), when).toBe(true)
+        expect(night.some(seen), when).toBe(true)
+      }
+    }
+  })
+
+  it('holds in Earth\'s shadow, the Sun well behind the limb, the aim\'s lights in frame', () => {
     for (const ms of TIMES) {
       const tour = homeTour(ms)
       const {plan} = tour
@@ -214,37 +250,35 @@ describe('the pass over Earth', () => {
       expect(plan.aimDeg, when).toBeLessThanOrEqual(AIM_MAX_DEG + 1e-6)
       const aimAngles = tourAngles(plan.lat, plan.lng, ms)
       const aim = fromSpherical(aimAngles.az, aimAngles.el, R, new Vector3(1, 0, 0))
-      for (const aspect of [16 / 9, 16 / 10, 4 / 3]) {
-        for (let t = HOME_TOUR_EARTH_MS.arrive; t <= HOME_TOUR_EARTH_MS.pass; t += 2000) {
-          const seen = inFrame(tour.pose(t, bodyAt), aspect)
-          expect(terminator.some(seen), `${when} ${t}`).toBe(true)
-          expect(lit.some(seen), `${when} ${t}`).toBe(true)
+      for (let t = HOME_TOUR_EARTH_MS.shadow; t <= HOME_TOUR_EARTH_MS.hold; t += 1000) {
+        const pose = tour.pose(t, bodyAt)
+        expect(sunBehindDeg(pose.position), `${when} ${t}`).toBeGreaterThanOrEqual(SUN_MARGIN_DEG - 1e-6)
+        // Nothing sunlit faces the camera there: only the night side.
+        for (const aspect of [16 / 9, 16 / 10, 4 / 3]) {
+          const seen = inFrame(pose, aspect)
+          expect(seen(aim), `${when} ${t} aim`).toBe(true)
           expect(night.some(seen), `${when} ${t}`).toBe(true)
-        }
-        // Over the second half of the pass, the aim's lights are in the frame.
-        for (let t = 44000; t <= HOME_TOUR_EARTH_MS.pass; t += 2000) {
-          expect(inFrame(tour.pose(t, bodyAt), aspect)(aim), `${when} ${t} aim`).toBe(true)
+          expect(lit.some(seen), `${when} ${t}`).toBe(false)
         }
       }
     }
   })
 
-  it('comes in on the evening side, the terminator 20° to 40° off the pass\'s end', () => {
+  it('comes in from the evening side, and the shadow\'s point is as near the aim as the eclipse allows', () => {
     for (const ms of TIMES) {
       const plan = planEarthPass(ms)
-      const sign = plan.side === 'evening' ? 1 : -1
-      // From the day side of the terminator (or just over it), onto the night side.
-      expect(nightDepthDeg(angleVector(plan.arrive.az, plan.arrive.el))).toBeLessThan(plan.terminatorDeg)
-      expect(nightDepthDeg(angleVector(plan.pass.az, plan.pass.el))).toBeCloseTo(plan.terminatorDeg, 6)
-      expect(plan.terminatorDeg).toBeGreaterThanOrEqual(20)
-      expect(plan.terminatorDeg).toBeLessThanOrEqual(40)
-      // On its side: dusk's azimuths are positive, dawn's negative.
-      expect(Math.sign(plan.pass.az)).toBe(sign)
-      expect(arcDeg(angleVector(plan.pass.az, plan.pass.el), angleVector(plan.target.az, plan.target.el)))
-          .toBeCloseTo(plan.aimDeg, 6)
-      // Near enough to see it all, far enough to see the limb.
-      expect(plan.pass.dist / R).toBeGreaterThanOrEqual(2.89)
-      expect(plan.pass.dist / R).toBeLessThan(5)
+      // Over the crescent: just past the dusk terminator.
+      expect(nightDepthDeg(angleVector(plan.arrive.az, plan.arrive.el))).toBeGreaterThan(0)
+      expect(nightDepthDeg(angleVector(plan.arrive.az, plan.arrive.el))).toBeLessThan(15)
+      // Into the shadow, toward midnight from the evening's side.
+      expect(plan.pass.az).toBeGreaterThan(plan.arrive.az)
+      const c = angleVector(plan.pass.az, plan.pass.el)
+      expect(arcDeg(c, [-1, 0, 0])).toBeCloseTo(plan.sunOffDeg, 6)
+      expect(plan.sunOffDeg).toBeLessThanOrEqual(eclipseReachDeg(plan.pass.dist) + 1e-9)
+      expect(arcDeg(c, angleVector(plan.target.az, plan.target.el))).toBeCloseTo(plan.aimDeg, 6)
+      // The globe fits the field, with its ring round it.
+      expect(plan.pass.dist / R).toBeCloseTo(ECLIPSE_DIST, 6)
+      expect(Math.asin(R / plan.pass.dist) * 180 / Math.PI).toBeLessThan(21)
     }
   })
 
@@ -252,7 +286,6 @@ describe('the pass over Earth', () => {
     // Europe at 21:00 UTC a week apart: the same place, nearly the same angles.
     const a = planEarthPass(Date.parse('2026-03-13T21:00:00Z'))
     const b = planEarthPass(Date.parse('2026-03-20T21:00:00Z'))
-    expect(a.side).toBe(b.side)
     expect(Math.abs(a.pass.az - b.pass.az)).toBeLessThan(5)
     expect(Math.abs(a.pass.el - b.pass.el)).toBeLessThan(5)
   })

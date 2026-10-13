@@ -75,6 +75,13 @@ tried and dropped.
   through a variable, which lint lets through), and in tests of code that
   builds sheets (Places) assert on `userData` (`labelTargets`,
   `labelRank`), not on the sheet's fields.
+  - The `./vsop` mock (Earth fixed at 1 AU on +X) is just as global, and
+    doesn't reach a module that loaded the real VSOP87C first: in some
+    file orders (`bun test --randomize --seed 1`) Celestiary's own tests
+    run on the real ephemeris.  So a test that needs the real one reads
+    the package (`tonight.test.js`), and code shouldn't be slow on it:
+    a VSOP87C call is about 2 ms (PR #249's tour plan asked once per
+    aim, 4 s a plan, and timed out in CI's order only).
 - **`bun test` follows symlinks, and walks `docs/`.**  Don't link a
   scratch directory into the worktree while running it (a link to a
   shared scratchpad ran other sessions' files and took 84 s), and rebuild

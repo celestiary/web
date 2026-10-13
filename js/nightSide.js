@@ -7,11 +7,13 @@ import NIGHT_LIGHTS from './scene/nightLights.json'
  * Which night side the homepage's tour flies over, and from where
  * (DESIGN.md "The tour").  The tour is live, at the visitor's own time, so
  * the picture is planned against the Sun, not the ground: the camera comes
- * in on the evening side, the sunlit crescent, the terminator and the night
- * side in the frame, and of the night sides near local midnight now it aims
- * at the one with the most city light.  Europe at one hour, India, East
- * Asia or the Americas at another; when midnight is over the Pacific, the
- * nearest lit coast.
+ * in over the evening's crescent, passes over the terminator into Earth's
+ * shadow, the Sun hidden behind Earth, and holds there while the eye adapts
+ * to the night side, the city lights coming up and the sunlit air a ring
+ * round the limb.  Of the night sides near local midnight now it aims at
+ * the one with the most city light: Europe at one hour, India, East Asia or
+ * the Americas at another; when midnight is over the Pacific, the nearest
+ * lit coast.
  *
  * City light is the Earth material's own night-lights texture, summed per
  * 5° cell (scene/nightLights.json, by tools/home/nightLights.py;
@@ -40,14 +42,15 @@ export const EARTH_RADIUS_METER = 6.371e6
 
 /**
  * Where the aim may be, hours from local midnight (negative before it):
- * first on the evening side, from 20:30 to 00:30; failing anything bright
- * enough there, from 19:00 to 03:30, nearest midnight first.
+ * first from 21:00 to 01:30; failing anything bright enough there, from
+ * 19:00 to 03:30, nearest midnight first.
  */
-export const PREFERRED_HOURS = Object.freeze([-3.5, 0.5])
+export const PREFERRED_HOURS = Object.freeze([-3, 1.5])
 export const FALLBACK_HOURS = Object.freeze([-5, 3.5])
-// Within the preferred hours, 21:00 to 23:00 count fully, and each hour
-// further out 15% less.
-const BEST_HOURS = Object.freeze([-3, -1])
+// Within the preferred hours, 22:30 to 00:30 count fully, and each hour
+// further out 15% less: the deeper the night, the nearer the shadow's
+// middle the aim is, and the more squarely the camera there sees it.
+const BEST_HOURS = Object.freeze([-1.5, 0.5])
 const HOUR_PENALTY = 0.15
 const HOURS_EPSILON = 1e-9
 
@@ -239,31 +242,56 @@ function hourWeight(h) {
 
 
 /**
- * A place on Earth in the tour's frame at a time.
+ * The tour's frame at a time: Earth's turn, the ecliptic's tilt and the
+ * Sun's longitude.  The Sun is asked for once: the app's ephemeris
+ * (VSOP87C) takes about 2 ms a call, and a plan places some 2,000 aims.
+ *
+ * @param {number} ms Unix epoch ms
+ * @param {Function} [sunAt] As subsolarPoint's
+ * @returns {{gmst: number, eps: number, sunLon: number}} Radians
+ */
+export function tourFrame(ms, sunAt = lowPrecisionSun) {
+  const jd = julianDay(ms)
+  const s = sunAt(jd)
+  return {gmst: gmstRad(jd), eps: obliquity(jd), sunLon: Math.atan2(s.y, s.x)}
+}
+
+
+/**
+ * A place on Earth in the tour's frame.
  *
  * @param {number} lat Degrees
  * @param {number} lng Degrees, east positive
- * @param {number} ms Unix epoch ms
- * @param {Function} [sunAt] As subsolarPoint's
+ * @param {{gmst: number, eps: number, sunLon: number}} frame tourFrame's
  * @returns {{az: number, el: number}} Degrees: azimuth about the ecliptic's
  *   north from the sunward direction, elevation over the ecliptic
  */
-export function tourAngles(lat, lng, ms, sunAt = lowPrecisionSun) {
-  const jd = julianDay(ms)
-  const eps = obliquity(jd)
-  const theta = gmstRad(jd) + (lng * DEG)
+export function frameAngles(lat, lng, {gmst, eps, sunLon}) {
+  const theta = gmst + (lng * DEG)
   const phi = lat * DEG
   // Equatorial of date, then ecliptic of date (about the equinox).
   const qx = Math.cos(phi) * Math.cos(theta)
   const qy = Math.cos(phi) * Math.sin(theta)
   const qz = Math.sin(phi)
-  const x = qx
   const y = (qy * Math.cos(eps)) + (qz * Math.sin(eps))
   const z = (qz * Math.cos(eps)) - (qy * Math.sin(eps))
-  const s = sunAt(jd)
-  const az = wrap180((Math.atan2(y, x) - Math.atan2(s.y, s.x)) / DEG)
+  const az = wrap180((Math.atan2(y, qx) - sunLon) / DEG)
   const el = Math.asin(Math.min(Math.max(z, -1), 1)) / DEG
   return {az, el}
+}
+
+
+/**
+ * A place on Earth in the tour's frame at a time (frameAngles at tourFrame).
+ *
+ * @param {number} lat Degrees
+ * @param {number} lng Degrees, east positive
+ * @param {number} ms Unix epoch ms
+ * @param {Function} [sunAt] As subsolarPoint's
+ * @returns {{az: number, el: number}}
+ */
+export function tourAngles(lat, lng, ms, sunAt = lowPrecisionSun) {
+  return frameAngles(lat, lng, tourFrame(ms, sunAt))
 }
 
 
@@ -289,31 +317,23 @@ export function arcDeg(a, b) {
 }
 
 
-// The pass's geometry, degrees.  At the pass's end the camera's ground
-// point is TERMINATOR_MIN_DEG to TERMINATOR_MAX_DEG of arc onto the night
-// side from the terminator, AIM_OFF_DEG nearer it than the aim where it
-// can be, so the aim is near the frame's middle and the terminator to one
-// side of it, the sunlit crescent beyond.  Its elevation is the aim's,
-// held to ±EL_MAX_DEG: over a summer's pole the azimuths crowd, and a
-// camera whose up is the ecliptic's north would roll round it.
-const AIM_OFF_DEG = 35
-const TERMINATOR_MIN_DEG = 20
-const TERMINATOR_MAX_DEG = 40
-const EL_MAX_DEG = 50
+// The pass's geometry.  It ends in Earth's shadow: the camera on the night
+// side, near the line from the Sun through Earth's centre, the Sun behind
+// Earth with SUN_MARGIN_DEG to spare (its glare goes with it), and holds
+// there while the eye adapts to the night side's lights, the sunlit air a
+// ring round the limb.  ECLIPSE_DIST Earth radii out, the globe (19.5°
+// across its radius) fits the field with the ring round it.
+export const ECLIPSE_DIST = 3
+export const SUN_MARGIN_DEG = 6
+// The hold creeps in to this share of the distance, the Sun further behind.
+export const HOLD_DIST_SCALE = 0.92
 // The aim's farthest from the camera's ground point, degrees: further,
 // toward the limb, the lights foreshorten to a smear.
 export const AIM_MAX_DEG = 45
-// The pass starts this much further toward the Sun, in azimuth: over the
-// crescent, the terminator ahead.
-const ARRIVE_AZ_DEG = 30
-// From far enough that the globe's limb is this far beyond both the aim
-// and the terminator, the visible cap's radius held to LIMB_MIN_DEG to
-// LIMB_MAX_DEG (2.9 to 4.8 Earth radii).
-const LIMB_MARGIN_DEG = 25
-const LIMB_MIN_DEG = 69.8
-const LIMB_MAX_DEG = 78
-// The arrival is this much further out than the pass's end.
-const ARRIVE_DIST_SCALE = 1.17
+// The pass arrives over the evening's crescent, this far round from the
+// Sun (the dusk terminator is 90°), this many Earth radii out.
+const ARRIVE_AZ_DEG = 100
+const ARRIVE_DIST = 3.4
 
 
 /**
@@ -327,38 +347,85 @@ export function nightDepthDeg(v) {
 
 
 /**
- * Where the camera passes over Earth for an aim: where the pass starts (the
- * tour's arrival, over the crescent) and ends (over the night side, the aim
- * near the frame's middle and the terminator to one side of it), in the
- * tour's frame.
+ * @param {number} dist From Earth's centre, m
+ * @returns {number} How far off the antisolar point, degrees, the camera's
+ *   ground point can be with the Sun SUN_MARGIN_DEG behind Earth's limb
+ */
+export function eclipseReachDeg(dist) {
+  return (Math.asin(EARTH_RADIUS_METER / dist) / DEG) - SUN_MARGIN_DEG
+}
+
+
+/**
+ * Where the camera passes over Earth for an aim, in the tour's frame: it
+ * arrives over the evening's crescent, passes over the terminator into
+ * Earth's shadow, and holds there looking back at the night side.  The
+ * shadow's point is on the arc from the antisolar point toward the aim, as
+ * far toward it as the eclipse allows (eclipseReachDeg), so the aim is as
+ * near the frame's middle as it can be with the Sun hidden.
  *
  * @param {{az: number, el: number}} target The aim's angles (tourAngles)
- * @param {string} side 'evening' (the dusk terminator in the frame) or
- *   'morning' (the dawn's)
  * @returns {{arrive: {az: number, el: number, dist: number}, pass: {az:
- *   number, el: number, dist: number}, terminatorDeg: number, aimDeg:
- *   number, limbDeg: number}} The two keyframes' angles and distances (m
- *   from Earth's centre); and at the pass's end, the arcs from the camera's
- *   ground point to the terminator, to the aim, and to the limb
+ *   number, el: number, dist: number}, hold: {az: number, el: number,
+ *   dist: number}, aimDeg: number, sunOffDeg: number}} The keyframes'
+ *   angles and distances (m from Earth's centre; azimuths unwrapped from
+ *   the arrival's); the arc from the shadow's ground point to the aim; and
+ *   to the antisolar point
  */
-export function passGeometry(target, side) {
+export function passGeometry(target) {
   const t = angleVector(target.az, target.el)
-  const s = side === 'morning' ? -1 : 1
-  const terminatorDeg = Math.min(Math.max(nightDepthDeg(t) - AIM_OFF_DEG, TERMINATOR_MIN_DEG), TERMINATOR_MAX_DEG)
-  const el = Math.min(Math.max(target.el, -EL_MAX_DEG), EL_MAX_DEG)
-  // cos(arc from the Sun) = cos el cos az, the arc 90° + terminatorDeg.
-  const cosAz = -Math.sin(terminatorDeg * DEG) / Math.cos(el * DEG)
-  const az = s * Math.acos(Math.min(Math.max(cosAz, -1), 1)) / DEG
-  const aimDeg = arcDeg(angleVector(az, el), t)
-  const limbDeg = Math.min(Math.max(Math.max(aimDeg, terminatorDeg) + LIMB_MARGIN_DEG, LIMB_MIN_DEG), LIMB_MAX_DEG)
-  const dist = EARTH_RADIUS_METER / Math.cos(limbDeg * DEG)
+  const anti = [-1, 0, 0]
+  const dist = ECLIPSE_DIST * EARTH_RADIUS_METER
+  const span = arcDeg(anti, t)
+  const sunOffDeg = Math.min(span, eclipseReachDeg(dist))
+  const c = span > 0 ? along(anti, t, sunOffDeg) : anti
+  const at = vectorAngles(c)
+  const az = unwrap(at.az, ARRIVE_AZ_DEG)
   return {
-    arrive: {az: az - (s * ARRIVE_AZ_DEG), el, dist: dist * ARRIVE_DIST_SCALE},
-    pass: {az, el, dist},
-    terminatorDeg,
-    aimDeg,
-    limbDeg,
+    arrive: {az: ARRIVE_AZ_DEG, el: at.el, dist: ARRIVE_DIST * EARTH_RADIUS_METER},
+    pass: {az, el: at.el, dist},
+    hold: {az, el: at.el, dist: dist * HOLD_DIST_SCALE},
+    aimDeg: arcDeg(c, t),
+    sunOffDeg,
   }
+}
+
+
+/**
+ * @param {number} a Degrees
+ * @param {number} toward Degrees
+ * @returns {number} a plus or minus whole turns, within half a turn of toward
+ */
+function unwrap(a, toward) {
+  return a + (TURN * Math.round((toward - a) / TURN))
+}
+
+
+/**
+ * @param {Array<number>} v
+ * @returns {{az: number, el: number}} Degrees
+ */
+function vectorAngles(v) {
+  const len = Math.hypot(v[0], v[1], v[2])
+  return {az: Math.atan2(v[1], v[0]) / DEG, el: Math.asin(Math.min(Math.max(v[2] / len, -1), 1)) / DEG}
+}
+
+
+/**
+ * Along the great circle from a toward b, `deg` of arc.
+ *
+ * @param {Array<number>} a Unit vector
+ * @param {Array<number>} b Unit vector, not a's opposite
+ * @param {number} deg
+ * @returns {Array<number>}
+ */
+function along(a, b, deg) {
+  const cos = (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2])
+  const p = [b[0] - (cos * a[0]), b[1] - (cos * a[1]), b[2] - (cos * a[2])]
+  const n = Math.hypot(p[0], p[1], p[2]) || 1
+  const c = Math.cos(deg * DEG)
+  const s = Math.sin(deg * DEG)
+  return [0, 1, 2].map((i) => (c * a[i]) + (s * p[i] / n))
 }
 
 
@@ -372,7 +439,7 @@ export function passGeometry(target, side) {
  */
 export function planEarthPass(ms, opts = {}) {
   const aim = chooseNightSide(ms, opts)
-  return {...aim, ...passGeometry(aim.target, aim.side)}
+  return {...aim, ...passGeometry(aim.target)}
 }
 
 
@@ -380,31 +447,28 @@ export function planEarthPass(ms, opts = {}) {
  * Choose the night side to fly over now.
  *
  * Every aim (2.5° apart, 45° S to 60° N) from 19:00 to 03:30 that is dark
- * (the Sun 12° down) and can be framed with the terminator nearer it (the
- * dusk's for an aim on the evening side of the ecliptic's midnight
- * meridian, the dawn's past it), the aim within AIM_MAX_DEG of the frame's
- * ground point (earthPass), scores the light about it (FOOTPRINT_DEG),
- * each cell's by its darkness.  Of the aims from 20:30 to 00:30 on the
- * evening side the brightest wins, a little less for each hour outside
- * 21:00 to 23:00, if it has MIN_SHARE of the brightest night side's light.
+ * (the Sun 12° down) and can be seen from the shadow, within AIM_MAX_DEG
+ * of the camera's ground point there (passGeometry), scores the light
+ * about it (FOOTPRINT_DEG), each cell's by its darkness.  Of the aims from
+ * 21:00 to 01:30 the brightest wins, a little less for each hour outside
+ * 22:30 to 00:30, if it has MIN_SHARE of the brightest night side's light.
  * If none has (midnight over the Pacific), the aim nearest midnight that
- * has, on either side: the nearest lit coast.  If none has even then, the
- * brightest there is.
+ * has: the nearest lit coast.  If none has even then, the brightest there
+ * is.
  *
  * @param {number} ms Unix epoch ms
  * @param {object} [opts]
  * @param {Function} [opts.sunAt] As subsolarPoint's
  * @param {object} [opts.table] City light per cell (scene/nightLights.json)
  * @returns {{lat: number, lng: number, hours: number, sunAltitude: number,
- *   share: number, side: string, fallback: boolean, subsolar: object,
- *   target: {az: number, el: number}}} The aim; its hours from midnight;
- *   the Sun's altitude there; its share of the brightest night side's
- *   light; the side the camera comes in on, 'evening' (over the dusk
- *   terminator) or 'morning' (dawn's); whether it is the fallback's; its
- *   angles in the tour's frame
+ *   share: number, fallback: boolean, subsolar: object, target: {az:
+ *   number, el: number}}} The aim; its hours from midnight; the Sun's
+ *   altitude there; its share of the brightest night side's light; whether
+ *   it is the fallback's; its angles in the tour's frame
  */
 export function chooseNightSide(ms, {sunAt = lowPrecisionSun, table = NIGHT_LIGHTS} = {}) {
   const subsolar = subsolarPoint(ms, sunAt)
+  const frame = tourFrame(ms, sunAt)
   const {cells, maxLight} = prepared(table)
   const darkOf = new Map(cells.map((c) => [c, darkness(sunAltitudeAt(c.lat, c.lng, subsolar))]))
   const dark = (c) => darkOf.get(c)
@@ -419,16 +483,15 @@ export function chooseNightSide(ms, {sunAt = lowPrecisionSun, table = NIGHT_LIGH
       if (darkness(sunAltitude) < 1) {
         continue
       }
-      const target = tourAngles(lat, lng, ms, sunAt)
-      const side = target.az >= 0 ? 'evening' : 'morning'
-      if (passGeometry(target, side).aimDeg > AIM_MAX_DEG) {
+      const target = frameAngles(lat, lng, frame)
+      if (passGeometry(target).aimDeg > AIM_MAX_DEG) {
         continue
       }
       const share = footprint(cells, unit(lat, lng), dark) / maxLight
-      aims.push({lat, lng, hours, sunAltitude, share, side, target})
+      aims.push({lat, lng, hours, sunAltitude, share, target})
     }
   }
-  const inPreferred = (a) => a.side === 'evening' && a.hours >= PREFERRED_HOURS[0] && a.hours <= PREFERRED_HOURS[1]
+  const inPreferred = (a) => a.hours >= PREFERRED_HOURS[0] && a.hours <= PREFERRED_HOURS[1]
   let best = null
   for (const a of aims.filter(inPreferred)) {
     if (!best || (a.share * hourWeight(a.hours)) > (best.share * hourWeight(best.hours))) {
@@ -455,9 +518,8 @@ export function chooseNightSide(ms, {sunAt = lowPrecisionSun, table = NIGHT_LIGH
   if (!best) {
     // Nowhere dark and framed in the hours (not seen between 45° S and 60° N).
     const lng = wrap180(subsolar.lng + HALF_TURN)
-    const target = tourAngles(0, lng, ms, sunAt)
-    best = {lat: 0, lng, hours: 0, sunAltitude: sunAltitudeAt(0, lng, subsolar), share: 0,
-      side: target.az >= 0 ? 'evening' : 'morning', target}
+    const target = frameAngles(0, lng, frame)
+    best = {lat: 0, lng, hours: 0, sunAltitude: sunAltitudeAt(0, lng, subsolar), share: 0, target}
     fallback = true
   }
   return {...best, fallback, subsolar}

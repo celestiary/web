@@ -31,6 +31,20 @@ has no view to open yet.
 
 ## October 2026
 
+### The homepage tour flies into Earth's shadow to see the city lights
+
+The homepage's tour now passes over the evening's edge of daylight into Earth's shadow, where the
+Sun is hidden behind Earth and the air glows as a thin ring round it. It waits there while your eyes
+adjust, and the city lights come up. It picks whichever lit-up region is near midnight when you
+visit: Europe, India, East Asia or the Americas, or the nearest lit coast when midnight is over the
+Pacific. While the page loads, a little Moon now turns through its phases under the title.
+
+- Date: 2026-10-13
+- PR: [#249](https://github.com/celestiary/web/pull/249)
+- Issue: [#241](https://github.com/celestiary/web/issues/241)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+
 ### A homepage at celestiary's address
 
 Open celestiary with nothing after the address and you get a homepage: the title, a search box and
