@@ -76,6 +76,12 @@ const NIGHT_SKY_SKIP_VALUE = Math.sqrt(0.5 / 255 / 6.25)
 // Under a frame cap, a frame this early is still drawn, ms: the display's
 // intervals jitter, and a 60 Hz frame at 33.2 ms shouldn't wait for 50.
 const FRAME_CAP_SLACK_MS = 2
+// A hidden canvas's opacity: under a display step (0.001 of 255 rounds to
+// 0), but not 0, which a compositor may take as not drawn at all, and then
+// the exposure meter's reads, fenced on the GPU, may not finish until it
+// shows: the homepage waits for the meter to settle on its first view
+// before it shows (Celestiary._homeSettled).
+const HIDDEN_CANVAS_OPACITY = '0.001'
 
 
 export default class ThreeUi {
@@ -136,6 +142,9 @@ export default class ThreeUi {
     this._liveExposure = null
     // Which frames the meter samples (meterReadback.js).
     this._meterCadence = new MeterCadence()
+    // How many readings the meter has taken: one after a view changes says
+    // the meter has seen it (Celestiary._homeSettled).
+    this.meterReadings = 0
     // The user's exposure compensation, stops (setExposureCompensation).
     this._evStops = 0
     // The observer (observer/instrument.js): the naked eye, dark adapted.
@@ -299,7 +308,7 @@ export default class ThreeUi {
       return
     }
     style.transition = fadeMs > 0 ? `opacity ${fadeMs}ms ease-in-out` : ''
-    style.opacity = '0'
+    style.opacity = HIDDEN_CANVAS_OPACITY
   }
 
 
@@ -360,7 +369,7 @@ export default class ThreeUi {
     const canvas = document.createElement('canvas')
     // Hidden until its first frame is drawn (renderLoop): nothing between
     // the page's first paint and the scene's (public/index.html).
-    canvas.style.opacity = '0'
+    canvas.style.opacity = HIDDEN_CANVAS_OPACITY
     const ctx = canvas.getContext('webgl2')
     container.appendChild(canvas)
     const renderer = new WebGLRenderer({canvas: canvas, context: ctx, antialias: true})
@@ -794,6 +803,22 @@ export default class ThreeUi {
 
 
   /**
+   * Whether the exposure has come to the meter's goal: what the homepage's
+   * reveal waits for (Celestiary._homeSettled), with a reading taken since
+   * the view changed (meterReadings).  Before a reading the goal is the
+   * target's keyed exposure.
+   *
+   * @param {number} [stops] Within this many
+   * @returns {boolean}
+   */
+  exposureSettled(stops = 1) {
+    const goal = renderExposure(this._exposureGoal, this._meterGainGoal, this._evStops)
+    const now = this.renderer.toneMappingExposure
+    return goal > 0 && now > 0 && Math.abs(Math.log2(now / goal)) <= stops
+  }
+
+
+  /**
    * Travel to a body (Scene.goTo): the exposure follows the destination
    * on the way, and arrives at what the meter will settle on there
    * (exposure.js arrivalGain, approachExposure; HDR.md, "Travel").  Worked
@@ -1142,6 +1167,7 @@ export default class ThreeUi {
    * @param {object} ctx _meterContext's, from the frame they were rendered in
    */
   _meterApply(pixels, ctx) {
+    this.meterReadings++
     const {renderedOverKeyed, exposureGoal, halfFov} = ctx
     const metered = meanLogLuminance(pixels, METER_SIZE * METER_SIZE)
     // The dark end is absolute, over Earth's keyed exposure (meteredGain).

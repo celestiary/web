@@ -61,8 +61,16 @@ const HOME_UNMOUNT_MS = 600
 // The frame rate the homepage's tour is held to, to keep its cost down
 // (ThreeUi.setFrameCap): a slow camera path doesn't need more.
 const HOME_FRAME_CAP_FPS = 30
-// Frames the tour draws, unseen, before the homepage's reveal (frame).
+// Frames the tour draws, unseen, before the homepage's reveal (frame), and
+// how far its exposure may still be from the meter's goal, stops: the
+// tour starts by the Sun, and the meter must have stopped down for it.
 const HOME_SETTLE_FRAMES = 20
+const HOME_SETTLE_STOPS = 1
+// And the meter's readings of it, after the tour has placed the camera.
+const HOME_SETTLE_READINGS = 3
+// The most the homepage's reveal waits for that, ms after the camera is
+// placed (READY_TIMEOUT_MS for a link).
+const HOME_READY_TIMEOUT_MS = 8000
 // Tonight's sky (openTonight): the field, wide, as the eye takes in the
 // sky, and how high over the horizon it faces, toward the equator.
 const TONIGHT_FOV_DEG = 70
@@ -174,6 +182,8 @@ export default class Celestiary {
     this._homeSteps = null
     // A cut to a link's view, waiting for it to arrive (_frameCut).
     this._cut = null
+    // The meter's readings when the tour started (_homeSettled).
+    this._homeMeterMark = 0
     // How many times the camera has been placed (_arrive), for _frameCut.
     this._arrivals = 0
     // Back to the homepage, waiting for its tour to settle (_frameHomeReturn).
@@ -352,9 +362,10 @@ export default class Celestiary {
     if (!reveal.done) {
       // The homepage's tour starts by the Sun: some frames first, so the
       // meter has stopped down for its disc before it's seen.
-      const settled = !this.homeShown || this.tour.frames >= HOME_SETTLE_FRAMES
+      const settled = !this.homeShown || this._homeSettled()
+      const timeout = this.homeShown ? HOME_READY_TIMEOUT_MS : READY_TIMEOUT_MS
       if (!reveal.started && this._arrivedAt !== null &&
-          ((settled && this.ui.sceneReady()) || nowMs - this._arrivedAt >= READY_TIMEOUT_MS)) {
+          ((settled && this.ui.sceneReady()) || nowMs - this._arrivedAt >= timeout)) {
         reveal.start(nowMs)
       }
       reveal.frame(nowMs)
@@ -364,7 +375,7 @@ export default class Celestiary {
       this._homeSteps.frame(nowMs)
     }
     this._frameCut(nowMs)
-    this._frameHomeReturn()
+    this._frameHomeReturn(nowMs)
     this.scene.overlays.tick(nowMs)
     this._frameNav(nowMs)
   }
@@ -965,6 +976,8 @@ export default class Celestiary {
     if (!this.homeShown) {
       return
     }
+    // The meter must see the tour's first view before it shows (_homeSettled).
+    this._homeMeterMark = this.ui.meterReadings ?? 0
     this.tour.start(homeTour(), {
       still: prefersReducedMotion() ? HOME_TOUR_STILL_MS : null,
       loopFadeMs: HOME_TOUR_LOOP_FADE_MS,
@@ -997,7 +1010,6 @@ export default class Celestiary {
     this.tour.stop()
     this._homeCost(false)
     this._setHomePhase('out')
-    this.useStore.getState().closeSearch?.()
     this._cut = null
     const unmount = {at: HOME_UNMOUNT_MS, run: () => this._setHomePhase('hidden')}
     const pl = link ? decodePermalink(link) : null
@@ -1155,8 +1167,19 @@ export default class Celestiary {
     // settled on its first view, as on the first load (_frameHomeReturn).
     this._homeSteps = new Choreography([{at: CUT_FADE_MS, run: () => {
       this._startTour()
-      this._homeReturning = true
+      this._homeReturning = {since: null}
     }}])
+  }
+
+
+  /**
+   * @returns {boolean} The homepage's tour has drawn some frames and its
+   *   exposure is near the meter's goal: what it shows first is metered
+   */
+  _homeSettled() {
+    return this.tour.frames >= HOME_SETTLE_FRAMES &&
+      (this.ui.meterReadings ?? 0) - this._homeMeterMark >= HOME_SETTLE_READINGS &&
+      this.ui.exposureSettled(HOME_SETTLE_STOPS)
   }
 
 
@@ -1165,8 +1188,12 @@ export default class Celestiary {
    * (the meter stopped down for the Sun, not left open for a starfield),
    * the scene fades in and the tour plays.
    */
-  _frameHomeReturn() {
-    if (!this._homeReturning || this.tour.frames < HOME_SETTLE_FRAMES) {
+  _frameHomeReturn(nowMs) {
+    if (!this._homeReturning) {
+      return
+    }
+    this._homeReturning.since ??= nowMs
+    if (!this._homeSettled() && nowMs - this._homeReturning.since < HOME_READY_TIMEOUT_MS) {
       return
     }
     this._homeReturning = false

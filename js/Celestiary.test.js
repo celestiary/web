@@ -116,6 +116,16 @@ class StubThreeUI {
   showCanvas() {
     this.canvasShown = true
   }
+  // The homepage's reveal waits for it (Celestiary._homeSettled): settable.
+  exposureSettled() {
+    return this.settled ?? true
+  }
+  // The meter's readings: one more each time it's asked, as if every frame
+  // were metered.
+  get meterReadings() {
+    this._meterReadings = (this._meterReadings ?? 0) + 1
+    return this._meterReadings
+  }
   // A cut between views, the homepage's tour looping (Celestiary.leaveHome).
   dimCanvas() {
     this.canvasShown = false
@@ -1732,6 +1742,22 @@ describe('the homepage', () => {
     await new Promise((resolve) => setTimeout(resolve, 1100))
     expect(replaced.length).toBe(1)
     expect(pushed.length).toBe(0)
+  })
+
+  it('the reveal waits for the exposure to settle on the Sun, at most 8 s', async () => {
+    const app = await openHome()
+    app.ui.settled = false
+    const t = run(app, 1000, 1000)
+    expect(app._reveal.started).toBe(false)
+    app.ui.settled = true
+    app.frame(t + 16)
+    expect(app._reveal.started).toBe(true)
+    // And never waits forever.
+    const stuck = await openHome()
+    stuck.ui.settled = false
+    stuck._arrivedAt = 0
+    stuck.frame(9000)
+    expect(stuck._reveal.started).toBe(true)
   })
 
   it('a card opens its link by the app\'s own restore, as its own history entry', async () => {
