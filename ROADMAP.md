@@ -54,6 +54,13 @@ it and why.
   Past it, SPARC's 175 disc galaxies on the same model, each from its
   published parameters, placed, searchable and flyable, with their
   rotation curves ([Galaxies.md](js/scene/Galaxies.md)).
+- **What's new:** `CHANGELOG.md`, the user-facing record of what changed,
+  by month and newest first, built retrospectively from the project's 122
+  merged PRs, with `public/data/changelog.json` made from it for the app
+  ([#245](https://github.com/celestiary/web/issues/245), in
+  [#244](https://github.com/celestiary/web/issues/244);
+  [tools/changelog/README.md](tools/changelog/README.md)). The homepage's
+  What's new and the post drafts are next.
 - **Rendering:** one linear, half-float scene buffer in exposure units
   (target-keyed exposure), the Bruneton sky added in the same units, and
   one tone map, PBR Neutral, last ([HDR.md](js/scene/HDR.md)); Cesium's
@@ -91,6 +98,8 @@ The recommended order. "Now" is what to pick up first; within a group the
 order is a suggestion.
 
 **Done recently:** the homepage tour's Earth flyby planned against the Sun ([#241](https://github.com/celestiary/web/issues/241); DESIGN.md [the tour](DESIGN.md#the-tour), [js/scene/Planet.md, city light per cell](js/scene/Planet.md#city-light-per-cell)): still live, at the visitor's own time, it now comes in over the evening's crescent and passes onto the night side, the terminator always in the frame, over whichever night side near local midnight has the most city light then (Europe, India, East Asia or the Americas by the hour; with midnight over the Pacific, the nearest lit coast, from the dawn side after midnight), from a per-5° table of the Earth material's own night-lights texture (`tools/home/nightLights.py`), darkness by the Sun's altitude at each cell (so a summer's short northern nights count less), planned again each time round.  At the metered exposure the lights don't show beside the crescent (the sunlit body anchors the gain at 1; measured), which is physical; a night framing that would show them is described in the PR.
+
+**Done recently:** a changelog from the merged PRs ([#245](https://github.com/celestiary/web/issues/245), What's new 1 of [#244](https://github.com/celestiary/web/issues/244), PR [#248](https://github.com/celestiary/web/pull/248); [tools/changelog/README.md](tools/changelog/README.md)): `CHANGELOG.md` at the root, newest first and by month, covers all 122 merged PRs from 2021 to the homepage as 74 entries, each a headline, a sentence or two for what you can now see or do, the PR and issue links, its epic and, for 31 of them, a permalink taken from the PR, the roadmap, the homepage's cards or the parity views, each restored in headless Chromium to the same path, time and camera (the rest are marked `Permalink: none`, and not guessed); housekeeping, refactors, CI and docs fold into a "Behind the scenes" line a month; `tools/changelog/draft.mjs` drafts entries from the pulls and issues JSON that `gh api` fetches (title, merge date, labels, the issues a PR closes or is part of, and the epic through the sub-issue link), offline and tested on fixtures; `yarn changelog` builds `public/data/changelog.json` from the Markdown (date, headline, plain text, links, epic, permalink fragment, image), committed like the repo's other small built data, with a test that fails when it has drifted, so `yarn precommit` and CI catch it; AGENTS.md now says a PR that changes what users see adds its entry in the same PR, and ROADMAP's *Done recently* stays the planning record.
 
 **Done recently:** a homepage at the bare URL ([#241](https://github.com/celestiary/web/issues/241), in [#118](https://github.com/celestiary/web/issues/118); DESIGN.md [homepage](DESIGN.md#homepage), design/URLs.md [the bare URL](design/URLs.md#the-bare-url)): the loading title becomes the homepage's, with the app's search under it and four scene cards (tonight's sky from the visitor's own place, now or at astronomical dusk, their location asked for on the click, else their time zone's city; Earth; the Moon hiding Jupiter, #192; Gaia's stars and the Milky Way), over a slow looping tour of the live scene (by the Sun, on to Earth's day side and terminator, out through the planets to 3,200 light-years) on a reusable camera path (`tour.js`); a card flies from wherever the tour is to its link's view and ends on the app's own restore of it, as its own history entry (the date set at the start when nothing near shows it, eased through a short change as a time-lapse, else under a short dip to black; the link's settings fading in once there), as do tonight's sky and the search's Go (`flight.js`); the homepage's search now suggests and goes (its index, asked for before the bodies and catalogues were in, never rebuilt); `Esc` or a click on the scene leaves for it or stops a flight where it is, and Back returns; a still for reduced motion, the tour paused while hidden, Cesium suspended and a 30 fps cap while it shows; the bare URL is no longer rewritten to `#sun`.
 
@@ -167,6 +176,13 @@ Roadmap and issues groomed (2026-10-08): [#86](https://github.com/celestiary/web
    [#194](https://github.com/celestiary/web/pull/194)'s description), `cesium.replay`'s CPU, the shadow context's
    duplicate draws ([#103](https://github.com/celestiary/web/issues/103), upstream), the night lights where they do show,
    and the atmosphere pass's resolution.
+
+3. **What's new** ([#244](https://github.com/celestiary/web/issues/244)): the changelog and its JSON are in (Done
+   recently). Next, in order: the homepage's What's new, each entry flying to its scene, a "new since your last
+   visit" marker and a changelog tour on the tour driver ([#246](https://github.com/celestiary/web/issues/246));
+   then post drafts from the entries, for the maintainer to schedule, and the first campaign's backlog
+   ([#247](https://github.com/celestiary/web/issues/247)). Left from the history: the 43 entries marked
+   `Permalink: none`, which need a view found and opened, and images (`tools/home/cards.mjs --gpu` on a real GPU).
 
 **Next** (the shared engines, below)
 
@@ -327,6 +343,7 @@ Everything the user does keeps working where Cesium draws the ground.
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
 | [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing | [#172](https://github.com/celestiary/web/issues/172) (done), [#101](https://github.com/celestiary/web/issues/101), [#102](https://github.com/celestiary/web/issues/102) (tracking and follow are in the link, and follow rides the target's orbit, done), [#100](https://github.com/celestiary/web/issues/100), [#42](https://github.com/celestiary/web/issues/42), [#207](https://github.com/celestiary/web/issues/207) (labels that touch, done), [#238](https://github.com/celestiary/web/issues/238) (a choreographed first load; overlays fade; a link's settings before the first frame, done), [#241](https://github.com/celestiary/web/issues/241) (a homepage at the bare URL: title, search, scene cards over a tour; tonight's sky; a reusable camera path; flights to the cards' views; the tour's Earth flyby planned against the Sun, over the brightest night side near midnight, done) | picking needs readback from portal-netgl's shadow context | [permalink.md](js/permalink.md), DESIGN.md [navigation](DESIGN.md#navigation-goto-flow), [CESIUM.md follow-ups](CESIUM.md#follow-ups) |
+| [#244](https://github.com/celestiary/web/issues/244) What's new: a changelog, in the app, and as posts | [#245](https://github.com/celestiary/web/issues/245) (done: `CHANGELOG.md` and `changelog.json`), [#246](https://github.com/celestiary/web/issues/246) (the homepage's What's new, a changelog tour), [#247](https://github.com/celestiary/web/issues/247) (post drafts) | [#241](https://github.com/celestiary/web/issues/241) (the homepage and its tour, done) for [#246](https://github.com/celestiary/web/issues/246); [#245](https://github.com/celestiary/web/issues/245) for both | [tools/changelog/README.md](tools/changelog/README.md), [CHANGELOG.md](CHANGELOG.md), design/URLs.md |
 
 ### F. Spacecraft and missions
 
