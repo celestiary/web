@@ -4,7 +4,7 @@ import CameraPath, {
   EASINGS, ease, fromSpherical, lerp, lookQuaternion, toSpherical, unwrapDegrees,
 } from './tour.js'
 import TourDriver, {MAX_STEP_MS} from './tourDriver.js'
-import {HOME_TOUR_KEYFRAMES, HOME_TOUR_STILL_MS, homeTour} from './homeTour.js'
+import {HOME_TOUR_STILL_MS, homeTour} from './homeTour.js'
 import * as Shared from './shared.js'
 
 
@@ -221,24 +221,27 @@ describe('a camera path', () => {
 
 
 describe('the homepage\'s tour', () => {
+  // An evening over Europe (2026-03-20 22:00 UTC; nightSide.test.js has more).
+  const MS = Date.parse('2026-03-20T22:00:00Z')
+
   it('starts near the Sun, passes over Earth, and goes out to the stars', () => {
-    const tour = homeTour()
+    const tour = homeTour(MS)
     expect(tour.loop).toBe(true)
-    const kfs = HOME_TOUR_KEYFRAMES
+    const kfs = tour.keyframes
     expect(kfs[0].body).toBe('sun')
     expect(kfs[0].dist).toBeLessThan(10 * Shared.SUN_RADIUS_METER)
     const earth = kfs.filter((k) => k.body === 'earth')
     expect(earth.length).toBeGreaterThanOrEqual(2)
-    // The pass crosses toward the terminator: azimuth past 90°.
+    // The pass comes in over the evening's terminator and onto the night side.
     expect(Math.max(...earth.map((k) => k.az))).toBeGreaterThan(90)
-    expect(Math.min(...earth.map((k) => k.az))).toBeLessThan(60)
+    expect(Math.min(...earth.map((k) => k.az))).toBeLessThan(90)
     const last = kfs[kfs.length - 1]
     expect(last.body).toBe('sun')
     expect(last.dist).toBeGreaterThan(1000 * Shared.LIGHTYEAR_METER)
   })
 
   it('is calm: no segment covers more than a decade of distance a second', () => {
-    const kfs = HOME_TOUR_KEYFRAMES
+    const kfs = homeTour(MS).keyframes
     for (let i = 1; i < kfs.length; i++) {
       if (kfs[i].body !== kfs[i - 1].body) {
         continue
@@ -250,7 +253,7 @@ describe('the homepage\'s tour', () => {
   })
 
   it('its still is over Earth', () => {
-    expect(homeTour().segmentAt(HOME_TOUR_STILL_MS).k1.body).toBe('earth')
+    expect(homeTour(MS).segmentAt(HOME_TOUR_STILL_MS).k1.body).toBe('earth')
   })
 })
 
@@ -393,6 +396,35 @@ describe('playing a path on the scene', () => {
     }
     const fades = w.calls.filter((c) => c[0] === 'dim' || c[0] === 'show').map((c) => c[0])
     expect(fades).toEqual(['dim', 'show'])
+  })
+
+  it('a loop is planned again each time round, at the loop', () => {
+    const w = makeWorld()
+    const driver = new TourDriver({scene: w.scene, ui: w.ui})
+    const plans = []
+    const replan = () => {
+      plans.push(driver.t)
+      return new CameraPath(PATH.keyframes, {loop: true})
+    }
+    driver.start(PATH, {loopFadeMs: 300, replan})
+    driver.play()
+    for (let t = 0; t <= 4500; t += 16) {
+      driver.frame(t)
+    }
+    // Twice round: at 2000 and 4000 ms, each the first frame past the loop.
+    expect(plans.length).toBe(2)
+    expect(plans[0]).toBeGreaterThanOrEqual(2000)
+    expect(plans[0]).toBeLessThan(2016)
+    expect(plans[1]).toBeGreaterThanOrEqual(4000)
+    expect(driver.path).not.toBe(PATH)
+    // A path that doesn't loop is never planned again.
+    const once = new TourDriver({scene: w.scene, ui: w.ui})
+    once.start(new CameraPath(PATH.keyframes), {replan})
+    once.play()
+    for (let t = 0; t <= 4500; t += 16) {
+      once.frame(t)
+    }
+    expect(plans.length).toBe(2)
   })
 
   it('stopping leaves the camera where it is, and shows a dimmed canvas', () => {

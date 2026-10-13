@@ -72,9 +72,28 @@ export function lowPrecisionSun(jd) {
  * @param {number} jd
  * @returns {number} The mean obliquity of the ecliptic of date, radians
  */
-function obliquity(jd) {
+export function obliquity(jd) {
   const t = (jd - J2000_JD) / 36525
   return (23.439291 - (0.0130042 * t)) * DEG
+}
+
+
+/**
+ * The Sun's right ascension and declination, of date.
+ *
+ * @param {number} jd Julian Day
+ * @param {function(number): {x: number, y: number, z: number}} [sunAt] As
+ *   sunAltitude's
+ * @returns {{ra: number, dec: number}} Radians
+ */
+export function sunEquatorial(jd, sunAt = lowPrecisionSun) {
+  const s = sunAt(jd)
+  const eps = obliquity(jd)
+  // Ecliptic to equatorial, about the equinox.
+  const x = s.x
+  const y = (s.y * Math.cos(eps)) - (s.z * Math.sin(eps))
+  const z = (s.y * Math.sin(eps)) + (s.z * Math.cos(eps))
+  return {ra: Math.atan2(y, x), dec: Math.atan2(z, Math.hypot(x, y))}
 }
 
 
@@ -91,14 +110,7 @@ function obliquity(jd) {
  */
 export function sunAltitude(lat, lng, ms, sunAt = lowPrecisionSun) {
   const jd = julianDay(ms)
-  const s = sunAt(jd)
-  const eps = obliquity(jd)
-  // Ecliptic to equatorial, about the equinox.
-  const x = s.x
-  const y = (s.y * Math.cos(eps)) - (s.z * Math.sin(eps))
-  const z = (s.y * Math.sin(eps)) + (s.z * Math.cos(eps))
-  const ra = Math.atan2(y, x)
-  const dec = Math.atan2(z, Math.hypot(x, y))
+  const {ra, dec} = sunEquatorial(jd, sunAt)
   const hourAngle = gmstRad(jd) + (lng * DEG) - ra
   const phi = lat * DEG
   const sinAlt = (Math.sin(phi) * Math.sin(dec)) + (Math.cos(phi) * Math.cos(dec) * Math.cos(hourAngle))

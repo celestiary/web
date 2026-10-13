@@ -93,6 +93,34 @@ band, the same radiance and the renderer's exposure, in a pass of its own
 two renders agree to 0.4% in the median pixel (R, G and B alike 1.00) and
 within 3% in the mean (`earth-night-europe`).
 
+### City light per cell
+
+The homepage's tour flies over the night side with the most city light near
+local midnight (DESIGN.md [the tour](../../DESIGN.md#the-tour),
+`nightSide.js`), and takes that light from this texture: `nightLights.json`,
+a 72 × 36 table of 5° cells (rows from 90° N, columns from 180° W), built by
+`tools/home/nightLights.py` (Pillow and NumPy; `tools/home/nightLights.py >
+js/scene/nightLights.json` from the repository root; 6 KB).
+
+- **A texel's city light** is its red over the picture's floor:
+  `max(0, R − 0.6 B − 8/255)` in stored values.  The floor (the land's
+  moonlit snow, desert and airglow, lifted into blue) is bluish, Greenland
+  42, 48, 80 and the Sahara 37, 34, 63 of 255, and comes to 0; city light is
+  warm (New York's 158, 145, 123) and keeps most of its red.  So the Sahara
+  and the ice caps, bright in the picture, count for nothing, and the
+  table's ocean is 0.
+- **A cell's value** is the sum over its texels, each by its area (cos lat),
+  so it is the cell's light, not its brightness; scaled so the brightest
+  cell is 1000.  The brightest cells: the Ganges plain (27.5° N 77.5° E),
+  Bengal, the southeastern United States, the cities and oil fields at the
+  head of the Gulf, the North
+  China plain.  Summed down each 5° column, the Pacific from 155° E to
+  130° W is nearly dark (Hawaii a few units), which is why the tour's
+  fallback exists.
+- It is the texture's picture brightness, not radiance (above), so it ranks
+  places, which is all the tour asks of it.  Rebuild it if the texture
+  changes.
+
 ### Shader injection
 
 Two `onBeforeCompile` patches, chained via `shaderMods` so multiple mods
