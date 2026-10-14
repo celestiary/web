@@ -9,7 +9,7 @@ import {
 } from 'three'
 import {dataUrl} from '../../dataUrl.js'
 import {monthlyPath} from '../monthly.js'
-import {COMPLETE_BAND_DEG, buildDay, chooseDay, fallbackSources} from './cloudDay.js'
+import {COMPLETE_BAND_DEG, buildDay, chooseDay, fadeSeam, fallbackSources, seamSource} from './cloudDay.js'
 import {CLOUD_TILE_LEVEL, TILE_PX, cloudSource, coverageFromBundled, tileGrid} from './cloudSource.js'
 
 
@@ -20,7 +20,10 @@ import {CLOUD_TILE_LEVEL, TILE_PX, cloudSource, coverageFromBundled, tileGrid} f
  * true-colour mosaic (cloudSource.js), off screen as the tiles arrive, and
  * shown whole once it's built (cloudDay.js), so nothing waits for it, and a
  * part-built or unfinished day never shows its tiles' edges: until then
- * the map keeps what it had (nothing, at first).  Planet.md, "Clouds".
+ * the map keeps what it had (nothing, at first).  Once the day is shown
+ * the day before's westernmost tiles are fetched, and the antimeridian's
+ * cut is faded into them (a second upload, of the same day).  Planet.md,
+ * "Clouds".
  *
  * update() is called every frame (the shell's preAnimCb); it starts a load
  * once the date's source has stayed the same for SETTLE_MS (a clock running
@@ -51,8 +54,8 @@ export default class CloudMap {
     this.texture.unpackAlignment = 1
     this.texture.name = 'cloud coverage'
     // What's shown, for the app and tests: {kind, wanted, building,
-    // date, satellites, tilesDone, tilesTotal, tilesFailed, tried, ready}
-    // (_loadDaily), or {kind: 'bundled', reason, loaded}.
+    // date, satellites, tilesDone, tilesTotal, tilesFailed, tried, ready,
+    // seam} (_loadDaily), or {kind: 'bundled', reason, loaded}.
     this.status = {kind: 'none'}
     this._wantedKey = null
     this._wantedSince = 0
@@ -137,7 +140,8 @@ export default class CloudMap {
    * the DAYS_BACK before it, else the wanted day's, gaps and all.  Each
    * tile is unmixed against its month's Blue Marble, its gaps from the
    * secondary layer, what neither saw from the bundled texture.  Until it's
-   * ready the map keeps what it had.
+   * ready the map keeps what it had.  Then the seam at ±180° is faded into
+   * the day before's clouds (_fadeSeam), which doesn't hold the day back.
    *
    * @param {object} source cloudSource's daily source
    * @param {number} generation
@@ -153,6 +157,10 @@ export default class CloudMap {
       // The days tried, and the share of the band each left unseen.
       tried: [],
       ready: false,
+      // The antimeridian's fade into the day before, once the day is shown:
+      // {date, state}, state building, blended, incomplete (the day before's
+      // clouds there aren't all in GIBS), failed, or none (before the satellites).
+      seam: null,
     }
     const status = this.status
     const stale = () => this._stale(generation)
@@ -195,6 +203,34 @@ export default class CloudMap {
         'the bundled texture\'s')
     } else if (shown.date !== source.date) {
       console.info(`[clouds] NASA GIBS's mosaic for ${source.date} is incomplete; showing ${shown.date}'s`)
+    }
+    await this._fadeSeam(shown, bundled, generation)
+  }
+
+
+  /**
+   * Fade the shown day's westernmost columns into the day before's (the
+   * antimeridian's cut is between swaths a day apart: cloudDay.js, #251),
+   * once that day's column of tiles is in and complete.  The day is already
+   * shown whole; this only changes its west edge, in a second upload.  A day
+   * before that fails or isn't complete leaves the cut as it was.
+   *
+   * @param {object} shown The source of the day shown
+   * @param {Uint8Array} bundled The bundled texture's coverage
+   * @param {number} generation
+   */
+  async _fadeSeam(shown, bundled, generation) {
+    const status = this.status
+    status.seam = {date: seamSource(shown)?.date ?? null, state: 'building'}
+    const seam = await fadeSeam({
+      map: this.coverage, shown, bundled, fetchTile, stale: () => this._stale(generation),
+      groundOf: (s) => this._ground(Number(s.date.slice(5, 7))),
+    })
+    if (seam && !this._stale(generation)) {
+      status.seam = seam
+      if (seam.state === 'blended') {
+        this._changed()
+      }
     }
   }
 

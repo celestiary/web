@@ -150,6 +150,27 @@ from disk (`page.route`), so before and after are the same data; then stage the 
 modes (a tile held back, a tile that fails, an unfinished day) on that snapshot rather than
 waiting for the service to show them.
 
+### A mosaic's own cut is a step in time: match the times, then measure against the neighbours
+
+Earth's daily clouds stepped 2.9-4.4 times the other meridians at ±180° on every day (#251).
+No tile, no gap and no failed fetch: GIBS builds a day's mosaic from the day's swaths and cuts it
+at the antimeridian, where the two sides were seen a day apart.  The day before's west edge was
+seen when this day's east edge was, so the fix was not to smooth the picture but to bring the
+matching time to the cut (a fade into the day before).  Two measuring notes:
+
+- **Check the width against the number you're tuning.**  Every fade from 10° to 40° gave the same
+  step at the cut, because the weight is about 1 there; width only sets how much of the map is a
+  blend.  Pick it from what else it changes (here, the ghosting and the large-scale means), not
+  from the step.
+- **A fade lowers the median it's measured against.**  The blended meridians step less than the
+  rest, so "step over the median of the view" rose against the same cut.  Report the step against
+  the largest other meridian and the local neighbours too: the cut after is a swath boundary like
+  the others (a mosaic has one every 17° or so), not an outlier.
+
+**Rule:** For a seam in a composite of passes or exposures, find out when each side was taken
+before smoothing it; and when a fix changes the statistics of the reference, compare against a
+reference it doesn't touch.
+
 ---
 
 ## GPU / shader specifics
