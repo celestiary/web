@@ -330,6 +330,15 @@ tried and dropped.
   values (a marker, a line, a label), goes through `sceneReferred()`
   (`hdr.js`), or PBR Neutral's toe will darken it.  `?hdr=0` in the URL
   forces the LDR fallback, for testing it.
+- **Keep the first load lean.** `yarn bundle-check` (in `yarn precommit`)
+  fails if `vsop87` is in a file the entry or the App route imports
+  statically (`esbuild/firstLoad.js`). A big dependency or dataset that
+  the first frame can do without gets a dynamic `import()` after it, and a
+  stand-in meanwhile with a hand-over that doesn't jump (the planets:
+  DESIGN.md [before the ephemeris loads](DESIGN.md#before-the-ephemeris-loads)).
+  In tests, `new Animation(time, null)` is "no ephemeris yet" and
+  `setEphemeris(fn)` its arrival; read VSOP87C from
+  `vsop87/dist/vsop87c-wasm`, since `Celestiary.test.js` mocks `./vsop`.
 - **Large assets are fine in the repo**, e.g. the Blue Marble textures
   and tile pyramids. Document how each was built in
   `js/scene/Planet.md`, so it can be rebuilt.

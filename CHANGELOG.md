@@ -31,6 +31,20 @@ has no view to open yet.
 
 ## October 2026
 
+### The first screen loads faster: the planets' tables come after it
+
+Celestiary now loads about 2.6 MB less before the first screen: the tables that place the planets were
+most of the app's code, and they now load right after the scene appears. The code on the first load is
+668 KB compressed instead of 2 MB. For the second or two until they are in, the planets are drawn from
+approximate orbits, within a quarter of a degree of where they should be, and then glide to their exact
+places over a second and a half, so nothing jumps.
+
+- Date: 2026-10-14
+- PR: [#263](https://github.com/celestiary/web/pull/263)
+- Issue: [#257](https://github.com/celestiary/web/issues/257)
+- Epic: [#256](https://github.com/celestiary/web/issues/256) Leaner first load
+- Permalink: none
+
 ### Celestiary has its own address: celestiary.org
 
 Celestiary now lives at celestiary.org. Links to the old celestiary.github.io address, including

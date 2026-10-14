@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import {PerspectiveCamera, Vector3} from 'three'
+import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
 import {HOME_TOUR_EARTH_MS, homeTour} from './homeTour.js'
 import {
   AIM_MAX_DEG, DARK_FULL_DEG, EARTH_RADIUS_METER, ECLIPSE_DIST, FALLBACK_HOURS, MIN_SHARE, PREFERRED_HOURS,
@@ -12,6 +13,13 @@ import {ASTRO_UNIT_METER} from './shared.js'
 
 
 const HOUR = 3600000
+
+// The app's own ephemeris: VSOP87C's Earth turned round to the Sun.
+const vsop87c = await vsop87cLoader
+const vsopSun = (jd) => {
+  const e = vsop87c(jd).earth
+  return {x: -e.x, y: -e.y, z: -e.z}
+}
 
 /**
  * Fixed times through the seasons: each solstice's and equinox's day, every
@@ -158,6 +166,19 @@ describe('choosing the night side', () => {
     const ms = Date.parse('2026-03-20T21:00:00Z')
     expect(planEarthPass(ms, {sunAt})).toEqual(planEarthPass(ms))
     expect(calls).toBeLessThanOrEqual(2)
+  })
+
+  it('plans the same pass with Meeus\'s Sun, before VSOP87C has loaded, as with the series', () => {
+    // A plan made in that gap (Celestiary._sunAt) isn't remade when the
+    // series arrives.  From the package, not ./vsop.js, which
+    // Celestiary.test.js mocks for the whole process.
+    for (const ms of TIMES) {
+      const before = planEarthPass(ms)
+      const after = planEarthPass(ms, {sunAt: vsopSun})
+      expect([before.lat, before.lng]).toEqual([after.lat, after.lng])
+      expect(Math.abs(before.target.az - after.target.az)).toBeLessThan(0.05)
+      expect(Math.abs(before.target.el - after.target.el)).toBeLessThan(0.05)
+    }
   })
 
   it('in a northern summer passes over the short nights the far north doesn\'t have', () => {

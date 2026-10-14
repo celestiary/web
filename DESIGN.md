@@ -14,7 +14,7 @@ Celestiary is a web-based astronomical simulator — an interactive 3D solar sys
 | Routing | Wouter 3 (hash-based for celestial targets, path-based for app sections) |
 | State management | Zustand 4 |
 | Animation tweening | @tweenjs/tween.js |
-| Orbital mechanics | vsop87 package + custom elliptical fallback |
+| Orbital mechanics | vsop87 package (a chunk of its own, loaded after the first frame) + Standish's mean elements as the stand-in before it, and for Pluto and the moons |
 | Build | esbuild (custom config in `esbuild/`) |
 | Test runner | Bun test |
 | Linting | ESLint 9 (Google style + JSDoc + jsx-a11y) |
@@ -240,7 +240,7 @@ for Jupiter by `texture_rotation` ([Body rotation](#body-rotation-iau-prime-meri
 5. `_applyAsymptoticZoom()` — remaps zoom to altitude space and adjusts `camera.near`
 6. `animationCb(scene)` → `Animation.animate(scene)`:
    - `Time.updateTime()` advances simulation clock by `timeDelta * timeScale`
-   - `vsop87c(julianDay)` computes heliocentric XYZ for 8 major planets
+   - `planetCoords(julianDay)` gives the heliocentric XYZ of the 8 major planets: `vsop87c`'s, or before its chunk has loaded, the mean elements' (`planetsApprox.js`), or between them while it hands over ([before the ephemeris loads](#before-the-ephemeris-loads))
    - `updateMoon(julianDay)` computes the Moon's geocentric position (lunarTheory.js)
    - the J2000 → date precession rotation, for the mean elements and the IAU rotation models (`setDate`)
    - `animateSystem()` recurses the scene graph, setting orbit positions and body orientations (IAU pole and prime meridian; Earth's GMST), and turning the orbit lines to the date (asking for a rebuild when one is due)
@@ -255,7 +255,7 @@ The whole of `renderLoop()` is bracketed by `stats.begin()`/`stats.end()` while 
 
 ## Orbital Mechanics
 
-- **Major planets** (Mercury–Neptune): VSOP87c theory via the `vsop87` npm package, giving high-accuracy heliocentric ecliptic coordinates
+- **Major planets** (Mercury–Neptune): VSOP87c theory via the `vsop87` npm package, giving high-accuracy heliocentric ecliptic coordinates.  Its coefficients are 2.6 MB, so they are a chunk of their own, fetched after the first frame; until they are in the planets are on mean elements ([Before the ephemeris loads](#before-the-ephemeris-loads))
 - **The Moon**: the truncated ELP-2000/82 of Meeus, *Astronomical Algorithms* ch. 47 (`js/scene/lunarTheory.js`), geocentric. Against JPL Horizons from 1950 to 2050 (offline fixture `lunarTheory.horizons.json`) it's within 4.3″ and 4.2 km. Its orientation is the IAU model's ([Body rotation](#body-rotation-iau-prime-meridians)), so the near side faces Earth with the real optical and physical libration; it used to follow Cassini's laws (Meeus ch. 53), which agree to 0.04°. Its orbit line is its path over a sidereal month ([Orbit lines](#orbit-lines)); the mean ellipse of date, which it used to be, misses the Moon by up to a few per cent (evection, variation).
 - **Other moons and Pluto** (#6): Keplerian ellipses from published mean elements (`js/scene/meanElements.js`), with the source, reference plane and epoch in each body's JSON `orbit` block. Details below.
 - **Body orientation**: every body but Earth is turned by its IAU WGCCRE rotation model, pole and prime meridian ([Body rotation](#body-rotation-iau-prime-meridians)), so the moons' planes and Saturn's rings agree with the drawn equator and each body's longitude 0 is where the report puts it. Before #6, `rotateX(-axialInclination)` could only lean a pole toward ecliptic longitude 90°, right for Earth alone (Jupiter's and Saturn's poles were 5° off, Mars's 37°, Neptune's 51°, Uranus's 168°); before #96, every body but Earth and the Moon turned once a day from an arbitrary meridian.
@@ -277,6 +277,17 @@ The whole of `renderLoop()` is bracketed by `stats.begin()`/`stats.end()` while 
   - Planes only, since their phase drifts by tens of degrees: Phobos ≤ 1.6° (its 2.3 yr node period is printed to two figures, and 50 years is 22 turns), Hyperion 1.5° (chaotic), the rest ≤ 0.3°. The table's periods are too coarse for Phobos, Deimos and Triton over decades, URA182's epoch angles don't match Horizons, and Janus swaps orbits with Epimetheus every four years.
   - A better model per system: Lieske's E5 for the Galileans, TASS 1.7 for Saturn's moons, GUST86 for Uranus's, or the JPL ephemerides themselves.
 - **Bodies without elements** (only the demo descriptors, e.g. `earth-as-moon.json`) keep the old flat ellipse in the ecliptic, centred on the primary.
+
+### Before the ephemeris loads
+
+VSOP87C's coefficients (the `vsop87` package's base64 wasm, 2.58 MB, 1.37 MB gzipped) used to be most of the first chunk's 3.2 MB ([#256](https://github.com/celestiary/web/issues/256), [#257](https://github.com/celestiary/web/issues/257)).  They are in a chunk of their own now, `import()`ed from `Animation.js` (`fetchVsop`) and from the guide's VSOP page; nothing imports `vsop.js` or `vsop87` statically, and `yarn bundle-check` fails if something does (`esbuild/firstLoad.js`: the output files the entry and the App route import statically must hold no `vsop87`).  The first load is then `index.js`, the App chunk and its shared chunks: 2.15 MB (668 KB gzipped) against 4.73 MB (2.04 MB).
+
+- **When it loads.**  `Animation.loadEphemeris()`: `Celestiary.frame` calls it as the first load's reveal starts (the scene is on screen, so the 1.4 MB doesn't compete with the stars and the target's surface), and `Animation.animate` calls it `LOAD_AFTER_MS` (10 s) after its first frame if no one has, for scenes with no reveal (the guide's).  A failed fetch is logged once and leaves the planets on the stand-in (and their orbit lines); it isn't retried, since a browser keeps a failed `import()` for the page's life: a reload does.  A second `Animation` takes the loaded function at once (`loadedVsop`).  `onEphemeris` tells a listener.
+- **The stand-in** (`scene/planetsApprox.js`): Standish's table 1 mean elements for the eight planets (JPL, 1800-2050; Pluto's are in its JSON, the same form), read by `meanElements.js` and precessed to the date as Pluto's are; Earth is the Earth-Moon barycentre's element less the Moon's share of the lunar position.  Before this the planets sat at the origin until the series loaded (a few milliseconds, when it was in the first chunk).  Against VSOP87C, 1800-2050 (`planetsApprox.test.js`, each year): Mercury within 7,000 km, Venus 15,000, Earth 20,000 (0.01° from the Sun); every planet within 0.25° of VSOP87C's direction, seen from the Sun or from Earth, the worst Saturn's 0.22° and Jupiter's 0.17°; 2020-2035 within 0.1° from Earth.  The Sun's direction from Earth is within 0.007° (Meeus's `lowPrecisionSun`, which `_sunAt` and the tour's plan use in the gap, is 0.006° from VSOP87C: the plans for 32 times through the seasons are the same, `nightSide.test.js`).  Outside 1800-2050 it degrades, to tens of degrees at the ends of the supported dates (the table-2 terms for Jupiter to Neptune aren't kept): a permalink to 3000 BC shows the planets in the wrong places for the second or two until the series is in, then they glide.
+- **The hand-over** (`Animation.planetCoords`).  The frame after the series is in, each planet's place starts as the stand-in's and glides to VSOP87C's over `HANDOVER_MS` (1.5 s), smoothstep, `vsop + w (standIn - vsop)` with both evaluated at the frame's date, so a date set meanwhile (a permalink, a flight's time plan) is right too.  Nothing jumps: the steepest frame moves a planet 1.7% of its error.  The jump there would have been, 2020-2035, up to 17,000 km for Earth and 0.085° for Jupiter and Saturn in the sky.  A camera that rides a body (`goTo`, `f`: the platform a child of its `orbitPosition`) moves with it, so only the other bodies glide in its sky; a camera in the Sun's frame near a planet sees the planet slide by up to 20,000 km over the 1.5 s.  Bodies on mean elements (Pluto, the moons) and the Moon (`lunarTheory.js`) don't depend on the series and don't move.
+- **Orbit lines** are drawn at once from the stand-in's samples and rebuilt from the series when it arrives (`OrbitPath`'s `approximate`: a line built while it was on the stand-in, or begun there, is stale once it stops), in the same budgeted slices as any rebuild.  The lines differ by the stand-in's error, a hair at the orbit's scale.
+- **Permalinks, flights, the tour.**  A link's camera is in its body's frame (`_restoreView`: the platform on the body, lat/lng/altitude from the body's own axes), so it lands in the same place with or without the series; the time is set and the bodies placed (`animateAtJD`) on the stand-in or the series, whichever is in.  In the gap what differs is where the *other* planets are in the sky, up to 0.09° for Jupiter and Saturn in 2026 (the Moon hiding Jupiter, #192, can be out by up to a sixth of the Moon's width until the series is in, and then Jupiter glides into the occultation).  A flight's end is computed each frame in the body's frame, so the hand-over mid-flight moves nothing the camera is placed against.  The tour's plan and tonight's sky use Meeus's Sun in the gap and aren't remade.
+- **Tests** don't take the loaded function from other files: `new Animation(time, null)` is "none yet", `setEphemeris(fn)` is its arrival, and the series is read from `vsop87/dist/vsop87c-wasm`, since `Celestiary.test.js` mocks `./vsop` for the whole process (`Animation.handover.test.js`).
 
 ### Body rotation (IAU prime meridians)
 
@@ -1272,6 +1283,8 @@ A guide page drives a bare `ThreeUi`, so it must supply what the app's `Scene`/`
 2. Copies shaders and public assets
 3. Runs esbuild bundler
 
+`yarn bundle-check` (part of `yarn precommit`) runs the same build without writing and fails if `vsop87` is in the first load (the files the entry and the App route import statically: `esbuild/firstLoad.js`, tested in `esbuild/firstLoad.test.js`).  The first-load list it computes is what [#256](https://github.com/celestiary/web/issues/256)'s load budget measures.
+
 Build-time env vars: `BASE_PATH` (the URL prefix the site is served under), `CESIUM_ION_TOKEN`, `DATA_BASE_URL` (where large data is fetched from; see [Data policy](#data-policy)), `CUSTOM_DOMAIN` and `NOINDEX` (see [Hosting and the domain](#hosting-and-the-domain)).
 
 ### Hosting and the domain
@@ -1359,7 +1372,8 @@ and the provider extension contract.
 | Path | Role |
 |---|---|
 | `js/scene/Scene.js` | Scene object registry, targeting, raycasting |
-| `js/scene/Animation.js` | VSOP87 + Keplerian orbit/rotation animation |
+| `js/scene/Animation.js` | VSOP87 (loaded lazily, with the glide from the stand-in) + Keplerian orbit/rotation animation |
+| `js/scene/planetsApprox.js` | The planets from Standish's mean elements: the stand-in before VSOP87C has loaded ([before the ephemeris loads](#before-the-ephemeris-loads)) |
 | `js/scene/lunarTheory.js` | The Moon: Meeus ch. 47 position, mean orbit of date (and Cassini-law orientation, now only a check) |
 | `js/scene/meanElements.js` | Pluto and the moons: mean elements in their reference planes, Kepler's equation |
 | `js/scene/iauRotation.js` | IAU WGCCRE rotation models: pole, prime meridian, body orientation; Jupiter's System II cloud texture turn. Data in `iauRotation.json` (`tools/iau/pckRotation.mjs`) |
