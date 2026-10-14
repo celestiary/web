@@ -62,6 +62,12 @@ tried and dropped.
   never edit it). A static server started inside `docs/` then serves
   nothing, so restart it after each build, e.g.
   `(cd docs && python3 -m http.server 5400 &)`.
+- **`python3 -m http.server` answers a missing path with its own 404**,
+  not the site's `404.html` as GitHub Pages does, so deep routes and
+  the `/web/` redirect stub can't be tried with it. `yarn serve`'s proxy
+  serves `public/404.html` for its misses; for a build, use a server that
+  answers misses with the top-level `404.html` of the site they fall
+  under. `esbuild/notFound.test.js` runs the page's script directly.
 - **Tests run in bun with no real DOM**, and `Celestiary.test.js`
   replaces ThreeUI with a stub (`StubThreeUI`):
   - When Celestiary starts using a new ThreeUI member, add it to the

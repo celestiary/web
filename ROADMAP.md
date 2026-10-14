@@ -82,7 +82,7 @@ it and why.
   in Git LFS, under `public/large/`. Gaia-scale data (GB and up) is
   fetched over the network. The workflows fetch LFS files (cached), and
   PR previews load large data from `main`'s deploy at
-  `celestiary.github.io/web/` (same origin as the previews) instead of
+  `celestiary.org/` (same origin as the previews) instead of
   copying it (a Pages site is capped at about 1 GB), unless the PR
   changes that data; see [DESIGN.md, data policy](DESIGN.md#data-policy)
   ([#107](https://github.com/celestiary/web/issues/107)). Document each dataset's source, licence and rebuild recipe
@@ -101,6 +101,8 @@ it and why.
 
 The recommended order. "Now" is what to pick up first; within a group the
 order is a suggestion.
+
+**Done recently:** `/web/` retired behind a redirect stub ([#261](https://github.com/celestiary/web/issues/261), Leaner first load 5 of [#256](https://github.com/celestiary/web/issues/256); DESIGN.md [hosting and the domain](DESIGN.md#hosting-and-the-domain)): `celestiary.org/web/` was a second full build of the site, about 173 MB and a duplicate for crawlers.  `gh-pages.yml` now deploys only a stub there: `public/404.html`, told the site moved to the root, which sends `/web/<route>?<query>#<fragment>` to the same route, query and fragment at the root (scene links included, which a server redirect couldn't keep), and stops a bounce at a removed preview instead of looping.  PR previews stay under `/web/pr-preview/` and take their large data from the root.  Moving the previews into the root's own Pages site, to drop `/web/` entirely, was weighed and dropped: they'd share production's builds, its 1 GB and its branch.
 
 **Done recently:** the site at celestiary.org (DESIGN.md [hosting and the domain](DESIGN.md#hosting-and-the-domain)): still hosted on GitHub Pages, with celestiary.org as the user page's custom domain, so search engines credit that domain and the old `celestiary.github.io` addresses redirect there.  The production build writes `CNAME` (without which each deploy would drop the domain), `robots.txt` and `sitemap.xml`; every build carries a canonical tag for `https://celestiary.org/`, and PR previews are `noindex`.  The first step of SEO for What's new ([#244](https://github.com/celestiary/web/issues/244)); the crawlable pages themselves are still to come.
 

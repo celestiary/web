@@ -189,7 +189,7 @@ describe('buildSnapshot', () => {
   s.addCounts(counts({scene: {draws: 5}}), {})
   const snapshot = () => buildSnapshot({
     takenAt: new Date('2026-10-06T12:00:00Z'),
-    link: 'https://celestiary.github.io/web/?perf=1#sun/earth@25,84,7.5km;cq=0,0,0,1',
+    link: 'https://celestiary.org/?perf=1#sun/earth@25,84,7.5km;cq=0,0,0,1',
     viewport: {width: 1280, height: 720, drawingBufferWidth: 2560, drawingBufferHeight: 1440},
     devicePixelRatio: 2,
     gpu: {renderer: 'ANGLE', vendor: 'Google', unmaskedRenderer: 'Apple M2', unmaskedVendor: 'Apple'},

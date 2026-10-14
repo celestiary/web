@@ -22,10 +22,11 @@ https://celestiary.org/#sun@12.3,-45.6,20.5Tm;t=9771.1jd;cq=0.1,0.2,0.3,0.927;fo
 
 # Host and route
 
-- **Host:** `celestiary.org` (the user page, with its custom domain) or
-  `celestiary.org/web` (the project page); PR previews at
-  `celestiary.org/web/pr-preview/pr-NNN/`.  The old `celestiary.github.io`
-  addresses redirect there, fragment and all.  Every copy's canonical
+- **Host:** `celestiary.org`; PR previews at
+  `celestiary.org/web/pr-preview/pr-NNN/`.  The old addresses redirect
+  there, fragment and all: `celestiary.github.io/…` by GitHub, and
+  `celestiary.org/web/…` (once a second copy of the site) by a stub that
+  keeps the route, the query and the fragment.  Every copy's canonical
   address is `https://celestiary.org/` (DESIGN.md [hosting and the
   domain](../DESIGN.md#hosting-and-the-domain)).
 - **Route:** the React panels, by path: `/` (none), `/settings`, `/about`,

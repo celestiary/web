@@ -20,7 +20,7 @@ A second paragraph.
 - PR: [#242](${PR}/242), [#240](${PR}/240)
 - Issue: [#241](${ISSUE}/241)
 - Epic: [#118](${ISSUE}/118) Navigation, time and sharing
-- Permalink: [Open it](https://celestiary.github.io/web/#sun/earth@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;s=a)
+- Permalink: [Open it](https://celestiary.org/#sun/earth@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;s=a)
 - Image: ![Earth at dusk](public/images/home/earth.webp)
 
 ### A plain one
@@ -96,7 +96,7 @@ describe('parseChangelog', () => {
   })
 
   it('keeps a path-only permalink\'s fragment', () => {
-    const saturn = 'https://celestiary.github.io/web/#sun/saturn'
+    const saturn = 'https://celestiary.org/#sun/saturn'
     const md = `## May 2026\n\n### Saturn\n\nRings.\n\n- Date: 2026-05-01\n- PR: [#1](${PR}/1)\n- Permalink: ${saturn}\n`
     const {entries: [e]} = parseChangelog(md)
     expect(e.permalink).toBe('#sun/saturn')
@@ -138,7 +138,7 @@ describe('parseChangelog errors', () => {
   it('needs an epic title, and a real permalink or none', () => {
     expect(() => parseChangelog(file(`${good}\n- Epic: [#118](${ISSUE}/118)`))).toThrow('needs its title')
     expect(() => parseChangelog(file(`${good}\n- Permalink: sun/earth`))).toThrow('Permalink')
-    expect(() => parseChangelog(file(`${good}\n- Permalink: https://celestiary.github.io/web/`))).toThrow('Permalink')
+    expect(() => parseChangelog(file(`${good}\n- Permalink: https://celestiary.org/`))).toThrow('Permalink')
     expect(() => parseChangelog(file(`${good}\n- Image: earth.webp`))).toThrow('Image')
   })
 
