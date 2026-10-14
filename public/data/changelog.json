@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-10-13-the-homepage-tour-flies-into-earth-s-shadow-to",
+      "date": "2026-10-13",
+      "headline": "The homepage tour flies into Earth's shadow to see the city lights",
+      "text": "The homepage's tour now passes over the evening's edge of daylight into Earth's shadow, where the Sun is hidden behind Earth and the air glows as a thin ring round it. It waits there while your eyes adjust, and the city lights come up. It picks whichever lit-up region is near midnight when you visit: Europe, India, East Asia or the Americas, or the nearest lit coast when midnight is over the Pacific. While the page loads, a little Moon now turns through its phases under the title.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 249,
+          "url": "https://github.com/celestiary/web/pull/249"
+        },
+        {
+          "kind": "issue",
+          "number": 241,
+          "url": "https://github.com/celestiary/web/issues/241"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-13-earth-s-clouds-without-a-seam-down-the-atlantic",
       "date": "2026-10-13",
       "headline": "Earth's clouds without a seam down the Atlantic",

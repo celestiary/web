@@ -26,7 +26,7 @@ export const TITLE_HANDOFF_MS = 900
 /**
  * The loading title becomes the homepage's (DESIGN.md "Homepage"): it
  * moves and grows from the middle of the page to where the homepage's
- * title is, as "Loading…" fades, and the homepage's title shows in its
+ * title is, as the Moon under it fades, and the homepage's title shows in its
  * place.  With no loading title to hand off (Back to the homepage, a page
  * that never showed it), or with reduced motion, the homepage's title
  * fades in.

@@ -3,13 +3,16 @@ import {
   ASTRONOMICAL_TWILIGHT_DEG, DEFAULT_LOCATION, browserLocation, formatTonight, lowPrecisionSun, resolveLocation,
   sunAltitude, timeZoneLocation, tonightTime,
 } from './tonight.js'
-import {loadVsop87c} from './vsop.js'
+import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
 
 
-// The app's own ephemeris: VSOP87C's Earth, turned round to the Sun.
+// The app's own ephemeris: VSOP87C's Earth, turned round to the Sun.  From
+// the package, not ./vsop.js, which Celestiary.test.js mocks (Earth fixed
+// at 1 AU on +X) for the whole process: in a file order that ran that
+// first, these tests read the mock.
 let vsopSun = null
 beforeAll(async () => {
-  const vsop87c = await new Promise((resolve) => loadVsop87c(resolve))
+  const vsop87c = await vsop87cLoader
   vsopSun = (jd) => {
     const e = vsop87c(jd).earth
     return {x: -e.x, y: -e.y, z: -e.z}

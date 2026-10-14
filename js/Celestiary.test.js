@@ -12,7 +12,8 @@ import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock} 
 import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
 import {HOME_CARDS, HOME_HISTORY_KEY} from './home.js'
-import {HOME_TOUR_KEYFRAMES, HOME_TOUR_STILL_MS} from './homeTour.js'
+import {HOME_TOUR_START, HOME_TOUR_STILL_MS} from './homeTour.js'
+import {planEarthPass} from './nightSide.js'
 import {formatNavMode} from './navMode.js'
 import {decodePermalink, encodePermalink, encodeSettings, SETTINGS_DEFAULTS} from './permalink.js'
 import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
@@ -1725,6 +1726,18 @@ describe('the homepage', () => {
     expect(app.ui.frameCap).toBe(30)
   })
 
+  it('the tour is planned for the scene\'s date: a night side near midnight then', async () => {
+    const app = await openHome()
+    // Pinned, as a screenshot pins it: the date, then the tour started over.
+    const ms = Date.parse('2026-03-20T21:00:00Z')
+    app.time.setTime(ms)
+    app._startTour()
+    const {plan} = app.tour.path
+    expect(plan).toEqual(planEarthPass(ms, {sunAt: app._sunAt()}))
+    // Planned again each time round, for the date then.
+    expect(app.tour._replan().plan).toEqual(planEarthPass(app.time.simTime, {sunAt: app._sunAt()}))
+  })
+
   it('the tour places the camera near the Sun, and plays from the reveal, the overlays held', async () => {
     const app = await openHome()
     expect(app.tour.active).toBe(true)
@@ -1738,7 +1751,7 @@ describe('the homepage', () => {
     expect(app.homePhase).toBe('in')
     expect(app.tour.playing).toBe(true)
     expect(Shared.targets.obj).toBe(app.scene.objects.sun)
-    expect(fromSun(app) / (HOME_TOUR_KEYFRAMES[0].dist)).toBeCloseTo(1, 3)
+    expect(fromSun(app) / (HOME_TOUR_START[0].dist)).toBeCloseTo(1, 3)
     t = run(app, t, 2000)
     expect(app.tour.t).toBeGreaterThan(1900)
     // No overlays, no chrome, over the tour.

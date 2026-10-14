@@ -68,11 +68,16 @@ export default class TourDriver {
    *   (prefers-reduced-motion)
    * @param {number} [opts.loopFadeMs] A looping path fades the canvas to
    *   black over this long before its end, and back over its start
+   * @param {?function(): object} [opts.replan] A looping path is replaced
+   *   by what this returns each time round, at the loop (under its fade):
+   *   a path planned for the scene's date (the homepage's, homeTour.js)
    */
-  start(path, {still = null, loopFadeMs = 0} = {}) {
+  start(path, {still = null, loopFadeMs = 0, replan = null} = {}) {
     this.path = path
     this._stillMs = still
     this._loopFadeMs = path.loop ? loopFadeMs : 0
+    this._replan = path.loop ? replan : null
+    this._lap = 0
     this.t = still ?? 0
     this.playing = false
     // Frames drawn since, so the exposure can settle before it's seen.
@@ -117,6 +122,7 @@ export default class TourDriver {
       this.t += Math.min(Math.max(nowMs - this._lastMs, 0), MAX_STEP_MS)
     }
     this._lastMs = nowMs
+    this._nextLap()
     this._loopFade()
     this.apply(this.t)
     this.frames++
@@ -180,6 +186,19 @@ export default class TourDriver {
       Shared.targets.tween = null
       Shared.targets.tweenNextFn = null
     })
+  }
+
+
+  /** Round again: a looping path planned anew (start's `replan`). */
+  _nextLap() {
+    if (!this._replan) {
+      return
+    }
+    const lap = Math.floor(this.t / this.path.duration)
+    if (lap !== this._lap) {
+      this._lap = lap
+      this.path = this._replan()
+    }
   }
 
 

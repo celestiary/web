@@ -1004,9 +1004,13 @@ export default class Celestiary {
     }
     // The meter must see the tour's first view before it shows (_homeSettled).
     this._homeMeterMark = this.ui.meterReadings ?? 0
-    this.tour.start(homeTour(), {
+    // Planned for the scene's date, the live time (homeTour.js): which night
+    // side it passes over.  Planned again each time round.
+    const plan = () => homeTour(this.time.simTime, {sunAt: this._sunAt()})
+    this.tour.start(plan(), {
       still: prefersReducedMotion() ? HOME_TOUR_STILL_MS : null,
       loopFadeMs: HOME_TOUR_LOOP_FADE_MS,
+      replan: plan,
     })
     this.firstTime = false
     this._arrivedAt ??= performance.now()
@@ -1473,6 +1477,22 @@ export default class Celestiary {
 
 
   /**
+   * The Sun from Earth, for tonight.js and the tour's plan: the app's own
+   * ephemeris (VSOP87C's Earth turned round), or Meeus's low-precision Sun
+   * before it loads (they agree to 0.02°).
+   *
+   * @returns {function(number): {x: number, y: number, z: number}} At a
+   *   Julian Day, ecliptic of date
+   */
+  _sunAt() {
+    return this.animation.vsopReady() ? (jd) => {
+      const e = this.animation.vsopAt(jd).earth
+      return {x: -e.x, y: -e.y, z: -e.z}
+    } : lowPrecisionSun
+  }
+
+
+  /**
    * The homepage's "Tonight's sky" card (tonight.js): the visitor's sky
    * from the ground where they are, now if it's night, else at this
    * evening's astronomical dusk.  Their location is asked for here, on the
@@ -1484,11 +1504,7 @@ export default class Celestiary {
    */
   async openTonight(sources = {}) {
     const where = await resolveLocation(sources)
-    const sunAt = this.animation.vsopReady() ? (jd) => {
-      const e = this.animation.vsopAt(jd).earth
-      return {x: -e.x, y: -e.y, z: -e.z}
-    } : lowPrecisionSun
-    const when = tonightTime(where.lat, where.lng, Date.now(), sunAt)
+    const when = tonightTime(where.lat, where.lng, Date.now(), this._sunAt())
     // The app's defaults for the overlays and labels; the HUD as it is.
     this.scene.initSettings({...decodeSettings(undefined), v: this.scene.getSetting('v')}, {hold: true})
     const dest = this._tonightFlight(where, when)
