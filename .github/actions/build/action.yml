@@ -17,7 +17,7 @@ inputs:
   data-base-url:
     description: >
       Where the app fetches large data (textures, stars.dat, public/large/)
-      from: a URL, e.g. https://celestiary.github.io/web/. Empty means the
+      from: a URL, e.g. https://celestiary.org/web/. Empty means the
       site's own origin and path. PR previews set the production URL rather
       than copy the data (DESIGN.md, "Data policy").
     required: false

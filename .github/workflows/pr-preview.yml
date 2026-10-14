@@ -45,7 +45,7 @@ jobs:
           base-path: /${{ github.event.repository.name }}/pr-preview/pr-${{ github.event.number }}/
           cesium-ion-token: ${{ secrets.CESIUM_ION_TOKEN }}
           # Production is main, deployed to the project page.
-          data-base-url: ${{ steps.data.outputs.copy != 'true' && format('https://celestiary.github.io/{0}/', github.event.repository.name) || '' }}
+          data-base-url: ${{ steps.data.outputs.copy != 'true' && format('https://celestiary.org/{0}/', github.event.repository.name) || '' }}
           # A preview is a copy: keep it out of search results.
           noindex: 'true'
           # The large data is dropped below, so its LFS files aren't needed.
