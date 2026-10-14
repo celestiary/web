@@ -61,6 +61,10 @@ jobs:
           source-dir: docs
           preview-branch: gh-pages
           umbrella-dir: pr-preview
+          # The project page is served under the user page's custom domain
+          # (DESIGN.md, Hosting and the domain); without this the comment
+          # links celestiary.github.io/web/…, which only redirects there.
+          pages-base-url: celestiary.org/web
           action: deploy
 
   cleanup:
