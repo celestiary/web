@@ -31,6 +31,20 @@ has no view to open yet.
 
 ## October 2026
 
+### Earth loads faster: each picture is downloaded once
+
+Opening Earth, or a link to it, used to download the month's 4096-pixel Blue Marble map three times,
+once each for the surface, the clouds and the close-up layer, and the 1.4 MB backup cloud picture came
+with every view though the day's satellite clouds replace it. Now the map is downloaded once and
+shared, and the backup picture is fetched only where the satellites saw nothing, mostly the polar
+night, and then as a 128 KB copy. Earth looks the same.
+
+- Date: 2026-10-14
+- PR: [#265](https://github.com/celestiary/web/pull/265)
+- Issue: [#260](https://github.com/celestiary/web/issues/260)
+- Epic: [#256](https://github.com/celestiary/web/issues/256) Leaner first load
+- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@-38.1501,-99.3434,12.104919Mm;t=9781.4376jd;cq=0.1302,-0.0725,0.0095,0.9888;fov=45deg;s=alpoF)
+
 ### Celestiary has its own address: celestiary.org
 
 Celestiary now lives at celestiary.org. Links to the old celestiary.github.io address, including

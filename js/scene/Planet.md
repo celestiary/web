@@ -275,7 +275,7 @@ strip (below) never does.  Before this it was fetched ahead of the first tile,
 every time, and held the day's first request back by its download.
 
 Which copy.  What a complete day leaves unseen is the polar night: 15% of
-the map on 2026-10-14, 482,139 of 3,276,800 pixels, all poleward of 50°, so
+the map on 2026-10-14, 482,139 of 3,276,800 pixels, north of 72.8° N and south of 78.5° S (and none between 50° N and S), so
 nearly every day needs some fill, and the fill is dark ground where the
 picture's detail doesn't show.  So the fill is a small copy,
 `earth/earth_atmos_fill.jpg` (1024 × 512, 128 KB, the same picture

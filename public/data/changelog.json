@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-10-14-earth-loads-faster-each-picture-is-downloaded",
+      "date": "2026-10-14",
+      "headline": "Earth loads faster: each picture is downloaded once",
+      "text": "Opening Earth, or a link to it, used to download the month's 4096-pixel Blue Marble map three times, once each for the surface, the clouds and the close-up layer, and the 1.4 MB backup cloud picture came with every view though the day's satellite clouds replace it. Now the map is downloaded once and shared, and the backup picture is fetched only where the satellites saw nothing, mostly the polar night, and then as a 128 KB copy. Earth looks the same.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 265,
+          "url": "https://github.com/celestiary/web/pull/265"
+        },
+        {
+          "kind": "issue",
+          "number": 260,
+          "url": "https://github.com/celestiary/web/issues/260"
+        }
+      ],
+      "epic": {
+        "number": 256,
+        "title": "Leaner first load",
+        "url": "https://github.com/celestiary/web/issues/256"
+      },
+      "permalink": "#sun/earth@-38.1501,-99.3434,12.104919Mm;t=9781.4376jd;cq=0.1302,-0.0725,0.0095,0.9888;fov=45deg;s=alpoF",
+      "image": null
+    },
+    {
       "id": "2026-10-14-celestiary-has-its-own-address-celestiary-org",
       "date": "2026-10-14",
       "headline": "Celestiary has its own address: celestiary.org",
