@@ -1272,7 +1272,18 @@ A guide page drives a bare `ThreeUi`, so it must supply what the app's `Scene`/`
 2. Copies shaders and public assets
 3. Runs esbuild bundler
 
-Build-time env vars: `BASE_PATH` (the URL prefix the site is served under), `CESIUM_ION_TOKEN` and `DATA_BASE_URL` (where large data is fetched from; see [Data policy](#data-policy)).
+Build-time env vars: `BASE_PATH` (the URL prefix the site is served under), `CESIUM_ION_TOKEN`, `DATA_BASE_URL` (where large data is fetched from; see [Data policy](#data-policy)), `CUSTOM_DOMAIN` and `NOINDEX` (see [Hosting and the domain](#hosting-and-the-domain)).
+
+### Hosting and the domain
+
+The site is hosted on GitHub Pages and served at **celestiary.org**, so search engines credit that domain.
+
+- **Two deploys, one domain.** `deploy-prod.yml` builds with `BASE_PATH=/` and pushes to `celestiary/celestiary.github.io`, the organisation's user page, whose Pages settings carry the custom domain `celestiary.org`.  `gh-pages.yml` builds with `BASE_PATH=/web/` for this repo's project page, which GitHub serves under the user page's domain: `celestiary.org/web/`, with the PR previews under it.  GitHub redirects the old `celestiary.github.io` addresses (301, the fragment kept by the browser), so shared links and their search weight carry over.
+- **`CUSTOM_DOMAIN`** (the build action's `custom-domain`, set only by `deploy-prod.yml`) writes `CNAME`, `robots.txt` and `sitemap.xml` into the root build (`esbuild/site.js`).  `CNAME` matters most: GitHub Pages keeps the custom domain in that file on the deployed branch, and the deploy replaces the branch's contents (`clean: true`), so a build without it would unset the domain on every deploy.
+- **The canonical address.** Every build's `index.html` gets `<link rel="canonical">` and `og:url` for `https://celestiary.org/` (`{{SITE_HEAD}}`), so the project page and the previews credit the root rather than compete with it.  **`NOINDEX=true`** (`noindex` on the action; PR previews) adds `<meta name="robots" content="noindex">`, and `robots.txt` disallows `/web/pr-preview/`.
+- **What GitHub Pages can't do:** server redirects, headers or rendering.  Deep routes (`/about`, `/guide`) reach the app through `404.html`, so crawlers see a 404 for them, and the `#` fragment of a scene link is never crawled.  What's crawlable has to be real files: the static pages planned under [#244](https://github.com/celestiary/web/issues/244) add themselves to `sitemap.xml`.
+- **Limits:** a published Pages site is capped at about 1 GB, with a soft bandwidth limit of about 100 GB a month.  If traffic outgrows it, large data moves to a CDN through `DATA_BASE_URL` / `dataUrl()` without touching the app.
+- **Cesium ion:** the token is restricted by Referer, so it must allow `https://celestiary.org/` as well as `https://celestiary.github.io/` (AGENTS.md, Secrets).
 
 `yarn bundle-check` (`esbuild/check.js`) does a dry-run bundle (`write: false`) to verify all imports resolve without writing any output — used in `yarn precommit` alongside lint and tests.
 

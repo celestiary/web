@@ -1,4 +1,4 @@
-name: Deploy production (celestiary.github.io)
+name: Deploy production (celestiary.org)
 
 on:
   push:
@@ -23,6 +23,9 @@ jobs:
         with:
           base-path: /
           cesium-ion-token: ${{ secrets.CESIUM_ION_TOKEN }}
+          # Served at celestiary.org's root by the celestiary.github.io repo's
+          # Pages: CNAME, robots.txt and sitemap.xml (esbuild/site.js).
+          custom-domain: celestiary.org
 
       - name: Push built site to celestiary.github.io gh-pages
         uses: JamesIves/github-pages-deploy-action@v4.8.0

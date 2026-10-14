@@ -17,19 +17,23 @@ For example, at the Sun with the Human Expansion app open on a 6-neighbour
 spread, halfway along its timeline, with Alpha Centauri A's route drawn:
 
 ```
-https://celestiary.github.io/web/#sun@12.3,-45.6,20.5Tm;t=9771.1jd;cq=0.1,0.2,0.3,0.927;fov=45deg;apps:open,view=expansion;apps.expansion:k=6,run=1,at=0.5,star=71683
+https://celestiary.org/#sun@12.3,-45.6,20.5Tm;t=9771.1jd;cq=0.1,0.2,0.3,0.927;fov=45deg;apps:open,view=expansion;apps.expansion:k=6,run=1,at=0.5,star=71683
 ```
 
 # Host and route
 
-- **Host:** `celestiary.github.io` (user page) or `celestiary.github.io/web`
-  (project page); PR previews at `celestiary.github.io/web/pr-preview/pr-NNN/`.
+- **Host:** `celestiary.org` (the user page, with its custom domain) or
+  `celestiary.org/web` (the project page); PR previews at
+  `celestiary.org/web/pr-preview/pr-NNN/`.  The old `celestiary.github.io`
+  addresses redirect there, fragment and all.  Every copy's canonical
+  address is `https://celestiary.org/` (DESIGN.md [hosting and the
+  domain](../DESIGN.md#hosting-and-the-domain)).
 - **Route:** the React panels, by path: `/` (none), `/settings`, `/about`,
   `/guide`.  Routes don't touch the hash.
 
 ## The bare URL
 
-The site's root with no fragment (`https://celestiary.github.io/web/`, or
+The site's root with no fragment (`https://celestiary.org/`, or
 with an empty `#`; a query string such as `?perf=1` doesn't count) is the
 homepage (DESIGN.md [homepage](../DESIGN.md#homepage)): the title, the
 search and the scene cards over a tour of the live scene.  Any fragment or

@@ -4,7 +4,7 @@ inputs:
   base-path:
     description: >
       URL path prefix the site will be served under. Must start and end with /.
-      Use / for the celestiary.github.io user-page root, /web/ for this repo's
+      Use / for the user-page root (celestiary.org), /web/ for this repo's
       project page, and /web/pr-preview/pr-NNN/ for PR previews.
     required: false
     default: /
@@ -22,6 +22,19 @@ inputs:
       than copy the data (DESIGN.md, "Data policy").
     required: false
     default: ''
+  custom-domain:
+    description: >
+      The domain this build is served at the root of, e.g. celestiary.org.
+      Writes CNAME (which GitHub Pages reads; a deploy that replaces the
+      branch would otherwise drop the domain), robots.txt and sitemap.xml.
+      Only the build for the domain's root sets it.
+    required: false
+    default: ''
+  noindex:
+    description: >
+      'true' for a copy that search engines shouldn't index (PR previews).
+    required: false
+    default: 'false'
   lfs:
     description: >
       Whether to fetch the Git LFS files first. Set false only when the large
@@ -49,4 +62,6 @@ runs:
         BASE_PATH: ${{ inputs.base-path }}
         CESIUM_ION_TOKEN: ${{ inputs.cesium-ion-token }}
         DATA_BASE_URL: ${{ inputs.data-base-url }}
+        CUSTOM_DOMAIN: ${{ inputs.custom-domain }}
+        NOINDEX: ${{ inputs.noindex }}
       run: yarn build

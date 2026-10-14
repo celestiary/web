@@ -31,6 +31,16 @@ has no view to open yet.
 
 ## October 2026
 
+### Celestiary has its own address: celestiary.org
+
+Celestiary now lives at celestiary.org. Links to the old celestiary.github.io address, including
+links to a scene, keep working: they go to the same place at the new one.
+
+- Date: 2026-10-14
+- PR: [#254](https://github.com/celestiary/web/pull/254)
+- Epic: [#244](https://github.com/celestiary/web/issues/244) What's new: a changelog, in the app, and as posts
+- Permalink: none
+
 ### Earth's clouds without a seam at the date line
 
 Earth's daily clouds no longer show a hard vertical edge across the Pacific at 180°. The day's cloud
