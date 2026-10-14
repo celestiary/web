@@ -684,6 +684,19 @@ entire classes of state-management bugs.
 - Visit planet A → visit no-atm body → return to planet A
 - First visit vs. return visit (LUT recompute vs. cached)
 
+### Follow a redirect into the app, not just to its URL
+
+The `/web/` stub (#261) passed every check of where it sent the browser: 18 old links, with
+routes, queries and fragments, each landed on the right root URL. Followed into the running
+app, the scene link still opened on the Sun at today's date. The redirect was same-origin, so
+the root page's `document.referrer` was the stub's `/web/`, and `Routed.jsx` navigates to a
+referrer's path: the app went to `/web/` and dropped the fragment. The stub now sends no
+referrer.
+
+**Rule:** a redirect's check ends at the state it was for (the target and time a permalink
+restores), read with `page.evaluate`, and the page it lands on sees the redirect as its
+referrer.
+
 ### "Still there" is signal; treat it as data
 
 When a fix doesn't work, "nope, still there" closes the loop immediately so we can pivot.

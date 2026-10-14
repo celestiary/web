@@ -2,8 +2,8 @@ import React, {ReactElement, Suspense, lazy, useEffect, useState} from 'react'
 import {Route, Router, Switch, useLocation} from 'wouter'
 
 
-// Base path the site is deployed under (e.g. '' at the user-page root,
-// '/web' for this repo's project page, '/web/pr-preview/pr-42' for previews).
+// Base path the site is deployed under (e.g. '' at celestiary.org's root,
+// '/web/pr-preview/pr-42' for PR previews).
 // Derived from the <base href> tag injected at build time so the same
 // bundle works under any subpath.
 const BASE = new URL(document.baseURI).pathname.replace(/\/$/, '')

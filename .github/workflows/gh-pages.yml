@@ -1,9 +1,21 @@
-name: GitHub Pages build and deploy
+name: Redirect stub at celestiary.org/web/
 
+# This repo's GitHub Pages site is served at celestiary.org/web/ (the
+# organisation's user page holds the domain).  It used to be a second full
+# copy of the site; now it hosts the PR previews (pr-preview.yml), and the
+# rest of /web/ is a stub that sends old links to the root, the query and
+# #fragment kept (esbuild/site.js webStubFiles; DESIGN.md, "Hosting and the
+# domain").  The stub only changes with these files, so it deploys only then.
 on:
   push:
     branches:
       - main
+    paths:
+      - public/404.html
+      - esbuild/site.js
+      - esbuild/basePath.js
+      - esbuild/webStub.js
+      - .github/workflows/gh-pages.yml
   workflow_dispatch:
 
 concurrency:
@@ -14,22 +26,27 @@ permissions:
   contents: write
 
 jobs:
-  build-deploy:
+  deploy-stub:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
 
-      - uses: ./.github/actions/build
+      - uses: actions/setup-node@v6.4.0
         with:
-          base-path: /${{ github.event.repository.name }}/
-          cesium-ion-token: ${{ secrets.CESIUM_ION_TOKEN }}
+          node-version: '22'
 
-      - name: Deploy main to gh-pages root
+      # Node built-ins only: no install, no app build.
+      - run: node esbuild/webStub.js web-stub
+
+      - name: Deploy the stub to gh-pages root, keeping the previews
         uses: JamesIves/github-pages-deploy-action@v4.8.0
         with:
           branch: gh-pages
-          folder: docs
+          folder: web-stub
           clean: true
           clean-exclude: |
             pr-preview
-          commit-message: "deploy main from ${{ github.sha }}"
+          # Rebase onto a preview deployed meanwhile, rather than force-push
+          # over it.  They touch different paths, so the rebase is clean.
+          force: false
+          commit-message: "deploy the /web/ redirect stub from ${{ github.sha }}"

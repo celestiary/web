@@ -82,7 +82,7 @@ it and why.
   in Git LFS, under `public/large/`. Gaia-scale data (GB and up) is
   fetched over the network. The workflows fetch LFS files (cached), and
   PR previews load large data from `main`'s deploy at
-  `celestiary.github.io/web/` (same origin as the previews) instead of
+  `celestiary.org/` (same origin as the previews) instead of
   copying it (a Pages site is capped at about 1 GB), unless the PR
   changes that data; see [DESIGN.md, data policy](DESIGN.md#data-policy)
   ([#107](https://github.com/celestiary/web/issues/107)). Document each dataset's source, licence and rebuild recipe
@@ -101,6 +101,8 @@ it and why.
 
 The recommended order. "Now" is what to pick up first; within a group the
 order is a suggestion.
+
+**Done recently:** `/web/` retired behind a redirect stub ([#261](https://github.com/celestiary/web/issues/261), Leaner first load 5 of [#256](https://github.com/celestiary/web/issues/256); DESIGN.md [hosting and the domain](DESIGN.md#hosting-and-the-domain)): `celestiary.org/web/` was a second full build of the site, about 173 MB and a duplicate for crawlers.  `gh-pages.yml` now deploys only a stub there: `public/404.html`, told the site moved to the root, which sends `/web/<route>?<query>#<fragment>` to the same route, query and fragment at the root (scene links included, which a server redirect couldn't keep), and stops a bounce at a removed preview instead of looping.  PR previews stay under `/web/pr-preview/` and take their large data from the root.  Moving the previews into the root's own Pages site, to drop `/web/` entirely, was weighed and dropped: they'd share production's builds, its 1 GB and its branch.
 
 **Done recently:** VSOP87 out of the first chunk ([#257](https://github.com/celestiary/web/issues/257), 1 of [#256](https://github.com/celestiary/web/issues/256), leaner first load; PR [#263](https://github.com/celestiary/web/pull/263); DESIGN.md [before the ephemeris loads](DESIGN.md#before-the-ephemeris-loads)): the `vsop87` package's 2.58 MB of coefficients were 80% of the first load's biggest chunk (3.24 MB, 1.60 MB gzipped); they are a chunk of their own now, `import()`ed after the scene is revealed (`Animation.loadEphemeris`), and the first load (the entry, the App route and what they import statically) is 2.15 MB raw and 668 KB gzipped, from 4.73 MB and 2.04 MB; `yarn bundle-check` (so `yarn precommit`) fails if `vsop87` is back in it (`esbuild/firstLoad.js`).  Until the chunk is in the planets are on Standish's mean elements (`planetsApprox.js`; before this they sat at the origin for the few milliseconds it took), within 0.22° of VSOP87C's direction (Saturn's the worst) and 20,000 km (Earth's), 1800-2050; then they glide to the series' places over 1.5 s (`Animation.planetCoords`: both ephemerides at the frame's date, smoothstep), a hundredth of a degree a frame at most in a riding camera's sky, so nothing jumps.  The planets' orbit lines are drawn from the stand-in at once and rebuilt on the series; permalinks, flights and the tour's plan don't depend on it (the camera is in its body's frame; the plan's Sun is Meeus's, which gives the same pass at 32 times through the seasons).  Left in [#256](https://github.com/celestiary/web/issues/256): one file for the bodies and places on approach (2), the stars in brightness tiers (3), the Earth view's duplicate textures (4), the `/web/` copy (5), a CI load budget (6) which grows from `firstLoad.js`.
 

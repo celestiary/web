@@ -22,7 +22,7 @@ A sentence or two, plain and concrete.
 - PR: [#242](https://github.com/celestiary/web/pull/242)
 - Issue: [#241](https://github.com/celestiary/web/issues/241)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@...) or none
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@...) or none
 - Image: ![What it shows](public/images/home/earth.webp)
 ```
 
@@ -67,7 +67,7 @@ follows a moment later.
 - PR: [#252](https://github.com/celestiary/web/pull/252)
 - Issue: [#251](https://github.com/celestiary/web/issues/251)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@-10,180,15.310824Mm;t=9779.5417jd;cq=-0.0283,-0.4559,-0.0145,0.8895;fov=45deg;s=F)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@-10,180,15.310824Mm;t=9779.5417jd;cq=-0.0283,-0.4559,-0.0145,0.8895;fov=45deg;s=F)
 
 ### What's new on the homepage, and a tour of it
 
@@ -159,7 +159,7 @@ covers it you get a total eclipse. The link is Dallas at mid-totality on 8 April
 - PR: [#227](https://github.com/celestiary/web/pull/227)
 - Issue: [#167](https://github.com/celestiary/web/issues/167), [#168](https://github.com/celestiary/web/issues/168)
 - Epic: [#164](https://github.com/celestiary/web/issues/164) Stars up close: a dynamic Sun, and every star from its physical parameters
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@32.78,-96.8009,200m;t=8864.2801jd;cq=0,-0.5777,0,0.8162;fov=3deg;s=lpoxF;time:pause)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@32.78,-96.8009,200m;t=8864.2801jd;cq=0,-0.5777,0,0.8162;fov=3deg;s=lpoxF;time:pause)
 
 ### Clouds you can fly into
 
@@ -172,7 +172,7 @@ Katrina's landfall.
 - PR: [#225](https://github.com/celestiary/web/pull/225)
 - Issue: [#169](https://github.com/celestiary/web/issues/169)
 - Epic: [#111](https://github.com/celestiary/web/issues/111) Distinctive appearances: Sun, gas giants, rings, auroras
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@25,-88,12km;t=2066.4167jd;cq=-0.3707,-0.4287,-0.0058,0.8239;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@25,-88,12km;t=2066.4167jd;cq=-0.3707,-0.4287,-0.0058,0.8239;fov=45deg;s=alpoU)
 
 ### A million of Gaia's stars
 
@@ -184,7 +184,7 @@ naked-eye stars the old catalogue left out now show too.
 - PR: [#224](https://github.com/celestiary/web/pull/224)
 - Issue: [#98](https://github.com/celestiary/web/issues/98)
 - Epic: [#116](https://github.com/celestiary/web/issues/116) Milky Way: realistic structure, a million Gaia stars, and galactic dynamics
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@43.3389,-9.9593,30373373.021376Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@43.3389,-9.9593,30373373.021376Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF)
 - Image: ![Gaia's stars and the Milky Way from 3,200 light-years out](public/images/home/gaia.webp)
 
 ### 175 galaxies you can fly to
@@ -197,7 +197,7 @@ rotation curve against the one its visible matter would give.
 - PR: [#223](https://github.com/celestiary/web/pull/223)
 - Issue: [#221](https://github.com/celestiary/web/issues/221)
 - Epic: [#117](https://github.com/celestiary/web/issues/117) Deep-sky objects: nebulae, galaxies, Sgr A*
-- Permalink: [Open this view](https://celestiary.github.io/web/#galaxy:ngc2403)
+- Permalink: [Open this view](https://celestiary.org/#galaxy:ngc2403)
 
 ### Place names on 23 bodies, and labels that no longer pile up
 
@@ -210,7 +210,7 @@ top of each other.
 - PR: [#226](https://github.com/celestiary/web/pull/226)
 - Issue: [#170](https://github.com/celestiary/web/issues/170), [#207](https://github.com/celestiary/web/issues/207)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.891jd;cq=0.3372,-0.7003,-0.112,0.6191;fov=0.91deg;s=oL)
+- Permalink: [Open this view](https://celestiary.org/#sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.891jd;cq=0.3372,-0.7003,-0.112,0.6191;fov=0.91deg;s=oL)
 
 ### Planets arrive at the right brightness
 
@@ -233,7 +233,7 @@ still following. The link is Jupiter, followed, with time running at 16,384x.
 - PR: [#216](https://github.com/celestiary/web/pull/216)
 - Issue: [#102](https://github.com/celestiary/web/issues/102)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/jupiter@10.9426,97.5052,388.346569Mm;t=9496.5jd;cq=0.1228,0.4092,0.0818,0.9004;fov=45deg;s=TF;time:rate=16384)
+- Permalink: [Open this view](https://celestiary.org/#sun/jupiter@10.9426,97.5052,388.346569Mm;t=9496.5jd;cq=0.1228,0.4092,0.0818,0.9004;fov=45deg;s=TF;time:rate=16384)
 
 ### Right skies on the giants, Titan and Triton
 
@@ -244,7 +244,7 @@ rings are lit on their own scale. The link is Titan's sky from 10,000 km.
 - Date: 2026-10-08
 - PR: [#219](https://github.com/celestiary/web/pull/219)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/saturn/titan@-57.0031,-176.8929,10.304Mm;t=9774.8753jd;cq=0.3726,-0.5552,0.305,0.6782;fov=30deg;s=alpox;time:pause)
+- Permalink: [Open this view](https://celestiary.org/#sun/saturn/titan@-57.0031,-176.8929,10.304Mm;t=9774.8753jd;cq=0.3726,-0.5552,0.305,0.6782;fov=30deg;s=alpox;time:pause)
 
 ### Sunlight falls off as the inverse square
 
@@ -268,7 +268,7 @@ the Moon hiding Jupiter, seen from Ohio.
 - PR: [#199](https://github.com/celestiary/web/pull/199), [#203](https://github.com/celestiary/web/pull/203), [#205](https://github.com/celestiary/web/pull/205), [#206](https://github.com/celestiary/web/pull/206)
 - Issue: [#192](https://github.com/celestiary/web/issues/192)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.891jd;cq=0.3372,-0.7003,-0.112,0.6191;fov=0.91deg;s=oL)
+- Permalink: [Open this view](https://celestiary.org/#sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.891jd;cq=0.3372,-0.7003,-0.112,0.6191;fov=0.91deg;s=oL)
 - Image: ![Jupiter and its moons slipping behind the Moon's limb](public/images/home/occultation.webp)
 
 ### Stars show at a telescope's field of view
@@ -304,7 +304,7 @@ pixels.
 - PR: [#204](https://github.com/celestiary/web/pull/204)
 - Issue: [#192](https://github.com/celestiary/web/issues/192)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/jupiter@-22.9814,-92.6859,57.33909Mm;from=sun/earth;t=9776.4277jd;cq=0.0049,0.4289,-0.0023,0.9033;fov=0.07deg)
+- Permalink: [Open this view](https://celestiary.org/#sun/jupiter@-22.9814,-92.6859,57.33909Mm;from=sun/earth;t=9776.4277jd;cq=0.0049,0.4289,-0.0023,0.9033;fov=0.07deg)
 
 ### Jupiter is smooth at a telescope's field
 
@@ -315,7 +315,7 @@ because the atmosphere pass drew the wrong body's air. It is a smooth disc now.
 - PR: [#197](https://github.com/celestiary/web/pull/197)
 - Issue: [#192](https://github.com/celestiary/web/issues/192)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.891jd;cq=0.3372,-0.7003,-0.112,0.6191;fov=0.91deg;s=oL)
+- Permalink: [Open this view](https://celestiary.org/#sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.891jd;cq=0.3372,-0.7003,-0.112,0.6191;fov=0.91deg;s=oL)
 
 ### A shared link holds more of your view
 
@@ -327,7 +327,7 @@ raised.
 - Date: 2026-10-07
 - PR: [#201](https://github.com/celestiary/web/pull/201)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
-- Permalink: [Open this view](https://celestiary.github.io/web/#hip:46635@41.2054,-82.3901,169m;from=sun/earth;t=9774.899jd;cq=-0.3242,-0.7247,0.3892,0.467;fov=0.07deg;ev=-1;sm=1.5;s=oLT;time:pause,rate=8)
+- Permalink: [Open this view](https://celestiary.org/#hip:46635@41.2054,-82.3901,169m;from=sun/earth;t=9774.899jd;cq=-0.3242,-0.7247,0.3892,0.467;fov=0.07deg;ev=-1;sm=1.5;s=oLT;time:pause,rate=8)
 
 ### Exposure keys, and tracking that keeps your roll
 
@@ -352,7 +352,7 @@ used to measure it.
 - PR: [#191](https://github.com/celestiary/web/pull/191), [#194](https://github.com/celestiary/web/pull/194), [#196](https://github.com/celestiary/web/pull/196)
 - Issue: [#189](https://github.com/celestiary/web/issues/189)
 - Epic: [#121](https://github.com/celestiary/web/issues/121) Cesium integration: performance and verification
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@25.3376,84.3167,7.502km;t=10054.5173jd;cq=-0.067,0.8548,0.1142,0.5018;fov=45deg)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@25.3376,84.3167,7.502km;t=10054.5173jd;cq=-0.067,0.8548,0.1142,0.5018;fov=45deg)
 
 ### Fixed: a flat blue disc when looking toward the Sun
 
@@ -373,7 +373,7 @@ from Valles Marineris.
 - PR: [#190](https://github.com/celestiary/web/pull/190)
 - Issue: [#188](https://github.com/celestiary/web/issues/188), [#71](https://github.com/celestiary/web/issues/71)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/mars@-10.7408,-68.893,-658m;t=9770.31455jd;cq=0.6053,-0.7873,-0.0884,0.0771;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/mars@-10.7408,-68.893,-658m;t=9770.31455jd;cq=0.6053,-0.7873,-0.0884,0.0771;fov=45deg;s=alpoU)
 
 ### The Milky Way's band at night, from inside
 
@@ -398,7 +398,7 @@ boxy bulge. From outside, it frames itself like a photograph. The link looks at 
 - PR: [#185](https://github.com/celestiary/web/pull/185)
 - Issue: [#99](https://github.com/celestiary/web/issues/99)
 - Epic: [#116](https://github.com/celestiary/web/issues/116) Milky Way: realistic structure, a million Gaia stars, and galactic dynamics
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun@28.1629,-168.012,1411144323.815593Tm;t=9774.7819jd;cq=-0.3859,0.59,0.6319,-0.322;fov=50deg)
+- Permalink: [Open this view](https://celestiary.org/#sun@28.1629,-168.012,1411144323.815593Tm;t=9774.7819jd;cq=-0.3859,0.59,0.6319,-0.322;fov=50deg)
 
 ### Every star drawn from its own temperature
 
@@ -422,7 +422,7 @@ changes. The link is the Gulf of Mexico on 28 August 2005, the day before Katrin
 - PR: [#182](https://github.com/celestiary/web/pull/182)
 - Issue: [#88](https://github.com/celestiary/web/issues/88)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@25,-88,8Mm;t=2066.4167jd;cq=-0.3707,-0.4287,-0.0058,0.8239;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@25,-88,8Mm;t=2066.4167jd;cq=-0.3707,-0.4287,-0.0058,0.8239;fov=45deg;s=alpoU)
 
 ### One target, shown everywhere
 
@@ -444,7 +444,7 @@ crashed.
 - PR: [#180](https://github.com/celestiary/web/pull/180)
 - Issue: [#176](https://github.com/celestiary/web/issues/176)
 - Epic: [#121](https://github.com/celestiary/web/issues/121) Cesium integration: performance and verification
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@3.0078,-51.7143,156m;t=9774.7938jd;cq=-0.5616,0.0248,0.7822,-0.2685;fov=0.01deg;s=poL)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@3.0078,-51.7143,156m;t=9774.7938jd;cq=-0.5616,0.0248,0.7822,-0.2685;fov=0.01deg;s=poL)
 
 ### City lights on Cesium's Earth
 
@@ -455,7 +455,7 @@ celestiary's own. The link is Europe at night from 4,000 km.
 - PR: [#179](https://github.com/celestiary/web/pull/179)
 - Issue: [#93](https://github.com/celestiary/web/issues/93)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@40,9.9942,4Mm;t=9851.4722jd;cq=0.0005,0.9896,0.1439,-0.0037;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@40,9.9942,4Mm;t=9851.4722jd;cq=0.0005,0.9896,0.1439,-0.0037;fov=45deg;s=alpoU)
 
 ### The star guide works again
 
@@ -477,7 +477,7 @@ and search finds a place under its body. The link is Earth from 12,000 km with t
 - PR: [#177](https://github.com/celestiary/web/pull/177)
 - Issue: [#172](https://github.com/celestiary/web/issues/172)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@15,20.7446,12Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=aloU)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@15,20.7446,12Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=aloU)
 
 ### Fixed: white dashes over distant planets
 
@@ -486,7 +486,7 @@ The atmosphere pass no longer draws air over them.
 
 - Date: 2026-10-06
 - PR: [#174](https://github.com/celestiary/web/pull/174)
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@3.0078,-51.7143,156m;t=9774.7938jd;cq=-0.5616,0.0248,0.7822,-0.2685;fov=0.01deg;s=poL)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@3.0078,-51.7143,156m;t=9774.7938jd;cq=-0.5616,0.0248,0.7822,-0.2685;fov=0.01deg;s=poL)
 
 ### Fixed: far stars vanishing on Apple GPUs
 
@@ -525,7 +525,7 @@ second. The link is the Australian outback at civil twilight.
 - PR: [#153](https://github.com/celestiary/web/pull/153)
 - Issue: [#86](https://github.com/celestiary/web/issues/86)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@-25.5,131,3000m;t=10055.4036jd;cq=0.6969,-0.5514,0.452,-0.0775;fov=45deg;s=alpoUL)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@-25.5,131,3000m;t=10055.4036jd;cq=0.6969,-0.5514,0.452,-0.0775;fov=45deg;s=alpoUL)
 
 ### Every body turns by the IAU's rotation model
 
@@ -580,7 +580,7 @@ halfway along.
 - Date: 2026-10-02
 - PR: [#150](https://github.com/celestiary/web/pull/150)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun@12.3,-45.6,20.5Tm;t=9771.1jd;cq=0.1,0.2,0.3,0.927;fov=45deg;apps:open,view=expansion;apps.expansion:k=6,run=1,at=0.5,star=71683)
+- Permalink: [Open this view](https://celestiary.org/#sun@12.3,-45.6,20.5Tm;t=9771.1jd;cq=0.1,0.2,0.3,0.927;fov=45deg;apps:open,view=expansion;apps.expansion:k=6,run=1,at=0.5,star=71683)
 
 ### Human expansion: spread across the stars
 
@@ -602,7 +602,7 @@ The link looks up from Valles Marineris.
 - Date: 2026-10-02
 - PR: [#147](https://github.com/celestiary/web/pull/147)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/mars@-10.7408,-68.893,-796m;t=9770.31455jd;cq=-0.5182,0.7149,-0.3829,0.2716;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/mars@-10.7408,-68.893,-796m;t=9770.31455jd;cq=-0.5182,0.7149,-0.3829,0.2716;fov=45deg;s=alpoU)
 
 ### Standing below a body's datum
 
@@ -613,7 +613,7 @@ The link is Valles Marineris, 232 m up, the Sun low.
 - Date: 2026-10-01
 - PR: [#145](https://github.com/celestiary/web/pull/145)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/mars@-12.2107,-72.3825,232m;t=9769.68081jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/mars@-12.2107,-72.3825,232m;t=9769.68081jd;cq=0.8008,0.2382,-0.3277,0.4411;fov=45deg;s=alpoU)
 
 ### Orbit drag slows as you near the ground
 
@@ -728,7 +728,7 @@ smoother. The link is Earth from 20,000 km.
 - Date: 2026-09-29
 - PR: [#89](https://github.com/celestiary/web/pull/89)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=alpoU)
 
 ### Cesium's Moon and Mars swap in smoothly, lit like celestiary's
 
@@ -740,7 +740,7 @@ quarter phase from 5,000 km.
 - Date: 2026-09-29
 - PR: [#83](https://github.com/celestiary/web/pull/83), [#84](https://github.com/celestiary/web/pull/84), [#85](https://github.com/celestiary/web/pull/85)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth/moon@10,68.6276,5Mm;t=9233.1234jd;cq=0.02,0.9773,0.0723,-0.1983;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@10,68.6276,5Mm;t=9233.1234jd;cq=0.02,0.9773,0.0723,-0.1983;fov=45deg;s=alpoU)
 
 ### Mars's sky is no longer washed out
 
@@ -762,7 +762,7 @@ Phobos over Mars, keeps its depth so the haze stops at it. The link is Mars from
 - Date: 2026-09-28
 - PR: [#79](https://github.com/celestiary/web/pull/79), [#80](https://github.com/celestiary/web/pull/80), [#81](https://github.com/celestiary/web/pull/81)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/mars@15,-7.099,12Mm;t=9233.11246jd;cq=-0.1482,0.8932,-0.0701,0.4187;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/mars@15,-7.099,12Mm;t=9233.11246jd;cq=-0.1482,0.8932,-0.0701,0.4187;fov=45deg;s=alpoU)
 
 ### A Cesium data view of Earth, the Moon and Mars
 
@@ -774,7 +774,7 @@ the Ganges plain from 7.5 km.
 - Date: 2026-09-26
 - PR: [#77](https://github.com/celestiary/web/pull/77), [#78](https://github.com/celestiary/web/pull/78)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@25.3376,84.3167,7.502km;t=10054.5173jd;cq=-0.3466,0.1022,-0.5386,0.7612;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@25.3376,84.3167,7.502km;t=10054.5173jd;cq=-0.3466,0.1022,-0.5386,0.7612;fov=45deg;s=alpoU)
 
 Behind the scenes: dependency security updates ([#94](https://github.com/celestiary/web/pull/94),
 [#124](https://github.com/celestiary/web/pull/124),
@@ -858,7 +858,7 @@ surface you see. The link goes to New York.
 - Date: 2026-04-26
 - PR: [#65](https://github.com/celestiary/web/pull/65)
 - Epic: [#113](https://github.com/celestiary/web/issues/113) Surface data for every body
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth/new-york)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/new-york)
 
 ### Drag orbits a planet from far, looks around from close
 
@@ -923,7 +923,7 @@ Saturn's shadow falling across them, with the rings' shadow on Saturn.
 - Date: 2026-03-25
 - PR: [#58](https://github.com/celestiary/web/pull/58)
 - Epic: [#111](https://github.com/celestiary/web/issues/111) Distinctive appearances: Sun, gas giants, rings, auroras
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/saturn@21.6445,-12.6257,215.888389Mm;t=9580.0073jd;cq=-0.0914,0.5421,0.0816,0.8314;fov=45deg)
+- Permalink: [Open this view](https://celestiary.org/#sun/saturn@21.6445,-12.6257,215.888389Mm;t=9580.0073jd;cq=-0.0914,0.5421,0.0816,0.8314;fov=45deg)
 
 ### Shareable links to any view
 
@@ -934,7 +934,7 @@ restores the view nearly pixel for pixel. The link is Mars.
 - Date: 2026-03-25
 - PR: [#57](https://github.com/celestiary/web/pull/57)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/mars@-22.0096,-139.5125,6.210169Mm;t=9579.9256jd;cq=0.2236,-0.5002,0.085,0.8322;fov=45deg)
+- Permalink: [Open this view](https://celestiary.org/#sun/mars@-22.0096,-139.5125,6.210169Mm;t=9579.9256jd;cq=0.2236,-0.5002,0.085,0.8322;fov=45deg)
 
 ### Atmospheres from precomputed scattering
 
@@ -944,7 +944,7 @@ pixel, so there are no stepping artifacts. The link is Earth from 20,000 km.
 - Date: 2026-03-24
 - PR: [#55](https://github.com/celestiary/web/pull/55)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=alpoU)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=alpoU)
 
 ### Fly the camera like a spaceship
 
