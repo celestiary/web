@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-10-14-earth-s-clouds-without-a-seam-at-the-date-line",
+      "date": "2026-10-14",
+      "headline": "Earth's clouds without a seam at the date line",
+      "text": "Earth's daily clouds no longer show a hard vertical edge across the Pacific at 180°. The day's cloud map was cut there between satellite passes a day apart, so the clouds on each side didn't match. The 20° east of the date line now blend into the clouds from the day before, which were seen at the same time as the other side of the cut. The map still appears as soon as the day has loaded, and the blend follows a moment later.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 252,
+          "url": "https://github.com/celestiary/web/pull/252"
+        },
+        {
+          "kind": "issue",
+          "number": 251,
+          "url": "https://github.com/celestiary/web/issues/251"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": "#sun/earth@-10,180,15.310824Mm;t=9779.5417jd;cq=-0.0283,-0.4559,-0.0145,0.8895;fov=45deg;s=F",
+      "image": null
+    },
+    {
       "id": "2026-10-13-the-homepage-tour-flies-into-earth-s-shadow-to",
       "date": "2026-10-13",
       "headline": "The homepage tour flies into Earth's shadow to see the city lights",
