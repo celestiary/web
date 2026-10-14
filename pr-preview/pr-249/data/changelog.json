@@ -26,6 +26,31 @@
       "image": null
     },
     {
+      "id": "2026-10-13-earth-s-clouds-without-a-seam-down-the-atlantic",
+      "date": "2026-10-13",
+      "headline": "Earth's clouds without a seam down the Atlantic",
+      "text": "Earth's daily clouds no longer show a hard edge along 36° W. Each day's cloud map now appears all at once when it has loaded, and a day the satellites haven't finished covering waits for the latest complete one, so neighbouring pieces of the map always come from the same day.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 250,
+          "url": "https://github.com/celestiary/web/pull/250"
+        },
+        {
+          "kind": "issue",
+          "number": 243,
+          "url": "https://github.com/celestiary/web/issues/243"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-13-a-homepage-at-celestiary-s-address",
       "date": "2026-10-13",
       "headline": "A homepage at celestiary's address",
