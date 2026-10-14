@@ -146,8 +146,15 @@ function roundTo6(v) {
 
 /** @returns {{getItem: Function, setItem: Function, removeItem: Function}} */
 function defaultStorage() {
-  if (typeof window !== 'undefined' && window.localStorage) {
-    return window.localStorage
+  // The accessor itself throws (a SecurityError) in a private window or with
+  // site data blocked, and this runs when the app is built: the in-memory
+  // shim then, not a page that never starts.
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage
+    }
+  } catch {
+    // Falls through.
   }
   // In-memory shim for SSR / Bun tests.  Module-scoped Map so multiple
   // CalibrationStore instances in the same process share a backing store

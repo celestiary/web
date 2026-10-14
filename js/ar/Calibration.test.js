@@ -144,3 +144,27 @@ describe('CalibrationStore', () => {
     expect(store.load('deviceorientation', 90)).not.toBeNull()
   })
 })
+
+
+describe('CalibrationStore without storage', () => {
+  it('falls back on memory when the localStorage accessor throws (site data blocked)', () => {
+    const had = Object.getOwnPropertyDescriptor(globalThis, 'window')
+    globalThis.window = {}
+    Object.defineProperty(globalThis.window, 'localStorage', {get: () => {
+      throw new Error('SecurityError')
+    }})
+    try {
+      const store = new CalibrationStore()
+      const q = new Quaternion(0.1, 0, 0, 0.99)
+      store.save('deviceorientation', 0, q)
+      expect(store.load('deviceorientation', 0)).not.toBeNull()
+      store.clear('deviceorientation', 0)
+    } finally {
+      if (had) {
+        Object.defineProperty(globalThis, 'window', had)
+      } else {
+        delete globalThis.window
+      }
+    }
+  })
+})

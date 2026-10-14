@@ -14,6 +14,7 @@ import DragModeToggle from './ui/DragModeToggle'
 import ExposureReadout from './ui/ExposureReadout'
 import Homepage from './ui/Homepage'
 import LayersButton from './ui/LayersButton'
+import NewsTour from './ui/NewsTour'
 import SearchBar from './ui/SearchBar'
 import Settings from './ui/Settings'
 import TimePanel from './ui/TimePanel'
@@ -34,6 +35,7 @@ export default function App() {
   const committedTarget = useStore((s) => s.committedTarget)
   const dispatchWidgets = useStore((s) => s.dispatchWidgets)
   const homePhase = useStore((s) => s.homePhase)
+  const newsTour = useStore((s) => s.newsTour)
   const [celestiary, setCelestiary] = useState(null)
   const [isPaused, setIsPaused] = useState(false)
   const [timeStr, setTimeStr] = useState('')
@@ -103,5 +105,6 @@ export default function App() {
       {celestiary && <ExposureReadout celestiary={celestiary}/>}
       {celestiary && <WidgetsDrawer celestiary={celestiary}/>}
       {celestiary && homePhase !== 'hidden' && <Homepage celestiary={celestiary} phase={homePhase}/>}
+      {celestiary && newsTour && <NewsTour celestiary={celestiary} tour={newsTour}/>}
     </>)
 }
