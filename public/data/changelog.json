@@ -1,6 +1,26 @@
 {
   "entries": [
     {
+      "id": "2026-10-14-celestiary-has-its-own-address-celestiary-org",
+      "date": "2026-10-14",
+      "headline": "Celestiary has its own address: celestiary.org",
+      "text": "Celestiary now lives at celestiary.org. Links to the old celestiary.github.io address, including links to a scene, keep working: they go to the same place at the new one.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 254,
+          "url": "https://github.com/celestiary/web/pull/254"
+        }
+      ],
+      "epic": {
+        "number": 244,
+        "title": "What's new: a changelog, in the app, and as posts",
+        "url": "https://github.com/celestiary/web/issues/244"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-14-earth-s-clouds-without-a-seam-at-the-date-line",
       "date": "2026-10-14",
       "headline": "Earth's clouds without a seam at the date line",

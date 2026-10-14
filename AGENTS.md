@@ -243,7 +243,7 @@ tried and dropped.
 - **Real-GPU cost: ask the user for a `?perf=1` snapshot.** SwiftShader
   has the timer extension but its times are a CPU's emulation, so
   frame-rate questions (#189) go to the user's machine.  The overlay is
-  in the PR preview: `https://celestiary.github.io/web/pr-preview/pr-<n>/?perf=1#<permalink>`
+  in the PR preview: `https://celestiary.org/web/pr-preview/pr-<n>/?perf=1#<permalink>`
   (design: DESIGN.md [Perf overlay](DESIGN.md#perf-overlay)).
   - **Ask:** give the preview URL for each view that matters (e.g.
     Earth's surface looking down, the day sky with time running, space),
@@ -348,7 +348,10 @@ tried and dropped.
 ## Secrets
 
 - **`CESIUM_ION_TOKEN`** is a build-time env var and a repository secret.
-  It's restricted by Referer to `https://celestiary.github.io/`.
+  It's restricted by Referer to `https://celestiary.org/` and
+  `https://celestiary.github.io/` (the site moved to celestiary.org; the
+  old host redirects).  `tools/parity` and `tools/narrow-fov` send the
+  github.io Referer, which the token still allows.
 - Never print, log, commit or paste it, including in PR text or test
   output.
 - **Ion's error bodies echo the token:** a not-found response repeats
@@ -370,7 +373,7 @@ tried and dropped.
 ## Verification and reporting
 
 - **Rendering changes need visual evidence:** screenshots, or the PR
-  preview at `https://celestiary.github.io/web/pr-preview/pr-<n>/`,
+  preview at `https://celestiary.org/web/pr-preview/pr-<n>/`,
   which builds with the repository's ion token.
 - **Report what you couldn't verify**, and say why (no ion access, no
   real device, a host denied). Name what the user should check on the
