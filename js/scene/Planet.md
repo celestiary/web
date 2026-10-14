@@ -264,6 +264,34 @@ infrared cloud picture: cold, high cloud white, and the warm ground grey
 is then 0.26, against about 0.46 for a daily mosaic: the picture misses
 low, warm cloud, so the fallback is the less cloudy.
 
+It is 1.4 MB, so it is fetched when it is needed and not before (#260).
+For a date with no daily mosaic it is the map, and loads as soon as the date
+has settled.  For a day with a mosaic it only fills what the satellites
+didn't see, so the day is built first, from its tiles, and the texture is
+asked for after them, if any pixel is still unseen (`buildDay`'s `bundled`
+is a function it calls at most once; a day it gives up on, as incomplete,
+never asks).  A day with every pixel seen never loads it, and the antimeridian's
+strip (below) never does.  Before this it was fetched ahead of the first tile,
+every time, and held the day's first request back by its download.
+
+Which copy.  What a complete day leaves unseen is the polar night: 15% of
+the map on 2026-10-14, 482,139 of 3,276,800 pixels, all poleward of 50°, so
+nearly every day needs some fill, and the fill is dark ground where the
+picture's detail doesn't show.  So the fill is a small copy,
+`earth/earth_atmos_fill.jpg` (1024 × 512, 128 KB, the same picture
+resampled), used when no more than 0.2% of the map between 50° N and S is
+unseen (`POLAR_FILL_DEG`, `POLAR_FILL_SHARE`; the band the satellites see in
+daylight in every season, which complete days leave 0-0.08% unseen).
+Anything more in that band is a gap in daylight, a tile no layer served or
+MODIS's wedges at the equator, and gets the full texture, as before; so does
+a day when the full texture is in already (a date with no mosaic was shown
+first).  The copy differs from the original by 2.2 of 255 on average in the
+coverage poleward of 70° (4.5 over the globe), and the pixels it fills are
+the ones in the dark.  Rebuilt by `tools/clouds/bundledFill.py` (Pillow,
+Lanczos to 1024 × 512, progressive JPEG at quality 85; the script's header
+has the other sizes tried: 1536 × 768 is 257 KB, 512 × 256 is 38 KB).  If the fetch fails, the unseen pixels are left clear (with a
+warning), not the whole map.
+
 **Loading** (`CloudMap.js`) never holds up a frame.  The map is a one-byte
 `DataTexture` (2560 × 1280, mipmapped), empty at first; once the simulation
 date has been the same for a second (a permalink sets the clock just after
@@ -273,10 +301,13 @@ on the main thread (a few ms a tile) into a map off screen, which replaces
 the shown one, in one upload, once it's whole and complete (below); then the
 day before's westernmost tiles are fetched and the antimeridian's cut faded
 into them (a second upload, of that edge only).  A load for a date no longer
-wanted stops between tiles.  The month's Blue Marble
-is fetched again for its pixels (the browser's cache has it).  Tests have
-no DOM, so `CloudMap` doesn't load there; `cloudDay.js` builds days from
-an injected fetch, and is tested with synthetic tiles.
+wanted stops between tiles.  The month's Blue Marble is the surface's own
+download, shared (`sharedImage.js`, [below](#one-fetch-of-the-months-blue-marble)),
+decoded here to the map's pixels; the bundled texture is fetched only when a
+day needs it (above).  Tests have no DOM, so `CloudMap` loads there only
+with stand-ins for the browser (`CloudMap.test.js`, which counts the
+requests); `cloudDay.js` builds days from an injected fetch, and is tested
+with synthetic tiles.
 
 ### Whole days, only complete ones
 
@@ -816,8 +847,8 @@ point](../../DESIGN.md#the-far-point)).
   (none), 74092, 74117, 74142, 74167, 74192, 74218.  Scaled to 8192×4096, and from
   that to the 4096×2048 texture celestiary loads and to Cesium's base
   layers: that same file as a single image over the whole globe (Cesium's
-  `SingleTileImageryProvider`, so one request, already in the browser's
-  cache, where the first two tile levels were ten popping in), and over it
+  `SingleTileImageryProvider`, so one image where the first two tile levels
+  were ten popping in; from the one download, below), and over it
   geographic 512 px tiles, levels 0-3 (`2004-MM/{z}/{x}/{y}.jpg`), used from
   globe level 3: 4096 px across is level 2 of 512 px tiles, so levels 0-2
   of the pyramid are the same picture, cut up.  No new data: the tiles of
@@ -831,6 +862,30 @@ point](../../DESIGN.md#the-far-point)).
   made celestiary's Earth ~1.7x as bright, and the swap to Cesium darkened
   it); it is 21 since the atmosphere pass integrates multiple scattering
   (composition.md), re-fitted to hold the sky's luma.
+
+#### One fetch of the month's Blue Marble
+
+The month's `2004-MM.jpg` (845 KB for October) is wanted three ways: as the
+surface's colour map (`Planet.monthlyMap`, an `<img>` in a three.js
+`Texture`), as the ground the clouds are unmixed against (`CloudMap._ground`,
+decoded to the cloud map's pixels), and as Cesium's base layer
+(`monthlyBaseLayer`, which takes a URL).  Each used to load it its own way, at
+its own time: an image load when Earth was built, a `fetch()` when the date
+had settled (a second and more later), Cesium's own XHR when its layer
+started (seconds after that).  Three requests for the same bytes, and the
+ones that overlapped went to the network twice.  The browser's cache answered
+the later ones only once the first had finished.
+
+`sharedImage.js` fetches a URL once, keeps the `Blob`, and each consumer takes
+what it needs from it: `sharedImage()` (a new `<img>` from a `blob:` URL of
+it) for the surface, `sharedBlob()` for the clouds, `sharedObjectUrl()` (the
+one `blob:` URL) for Cesium.  Entries are kept for the session, one per month
+visited, about 0.8 MB each, at most 12.  If the fetch fails, the surface's
+image and Cesium's layer load the real URL themselves, as they did, and a
+later ask fetches again.  A new consumer of a bundled image that others share
+should go through it too.  Measured: the Earth permalink in AGENTS.md's
+example asked for `2004-10.jpg` three times, and asks once.
+
 - **Moon** (`moon.jpg`, 4096×2048): the LRO WAC global mosaic (NASA/GSFC/
   Arizona State University, via the USGS; public domain), the imagery of
   Cesium's Moon.  Same layout and recipe, from

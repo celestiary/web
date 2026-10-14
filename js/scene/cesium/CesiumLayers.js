@@ -54,6 +54,7 @@ import {RELIEF_GLSL} from './relief.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {perf} from '../../perf/perf.js'
 import {monthOfJulianDay, monthlyPath} from '../monthly.js'
+import {sharedObjectUrl} from '../sharedImage.js'
 
 
 /**
@@ -1522,9 +1523,12 @@ function absoluteUrl(url) {
  * textured with, laid over the whole globe, at every level.  It is all the
  * globe has until its tiles reach `fromLevel` (monthlyTileLayer), and the
  * tiles' own levels 0-2 are no better (4096 px across is level 2 of 512 px
- * tiles): so it is one request, the browser's cache already holds it, where
- * the tiles took ten (levels 0 and 1), popping in as they came.  Async: the
- * layer is ready once the image has loaded.
+ * tiles): so it is one request, where the tiles took ten (levels 0 and 1),
+ * popping in as they came.  Async: the layer is ready once the image has
+ * loaded.  Celestiary's own Earth and its clouds have fetched the image
+ * already (or are fetching it), so Cesium is given a `blob:` URL of the
+ * same bytes (sharedImage.js) and makes no request; if that fetch failed, it
+ * is given the image's URL to try itself.
  *
  * @param {object} Cesium
  * @param {object} imagery A body's monthlyImagery config (bodies.js)
@@ -1532,8 +1536,11 @@ function absoluteUrl(url) {
  * @returns {object} Cesium.ImageryLayer
  */
 function monthlyBaseLayer(Cesium, imagery, month) {
-  return Cesium.ImageryLayer.fromProviderAsync(Cesium.SingleTileImageryProvider.fromUrl(
-      absoluteUrl(dataUrl(monthlyPath(imagery.singleUrl, month))), {credit: imagery.credit}))
+  const url = dataUrl(monthlyPath(imagery.singleUrl, month))
+  const provider = sharedObjectUrl(url)
+      .catch(() => absoluteUrl(url))
+      .then((src) => Cesium.SingleTileImageryProvider.fromUrl(src, {credit: imagery.credit}))
+  return Cesium.ImageryLayer.fromProviderAsync(provider)
 }
 
 

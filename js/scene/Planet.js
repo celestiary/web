@@ -1,7 +1,6 @@
 import {
   AdditiveBlending,
   Group,
-  ImageLoader,
   LinearSRGBColorSpace,
   MeshPhongMaterial,
   Object3D,
@@ -33,6 +32,7 @@ import {ORBIT_LINE_POINTS, unitEllipse} from './orbitPath.js'
 import {newWideLineStrip} from './wideLines.js'
 import {dataUrl} from '../dataUrl.js'
 import {monthOfJulianDay, monthlyPath} from './monthly.js'
+import {sharedImage} from './sharedImage.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
 import {exposureAt, nightLightRadiance} from './exposure.js'
 import {lunarSurfaceShaderMod, newLunarSurfaceUniforms, updateLunarSurface} from './lunarSurface.js'
@@ -403,14 +403,14 @@ export default class Planet extends Object {
    * A colour map that follows the simulation date's month (monthly.js).
    * One texture, whose image is replaced when the month changes, once the
    * new month's has loaded: no shader rebuild, and the old month shows
-   * meanwhile rather than nothing.
+   * meanwhile rather than nothing.  The month's image is the one the clouds
+   * and Cesium's base layer take from too (sharedImage.js): fetched once.
    *
    * @param {string} pattern Under textures/, with `{MM}` for the month
    * @returns {Texture}
    */
   monthlyMap(pattern) {
     const map = new Texture()
-    const loader = new ImageLoader()
     let wanted = 0
     this.preAnimCb = (time) => {
       const month = monthOfJulianDay(time.simTimeJulianDay())
@@ -418,12 +418,12 @@ export default class Planet extends Object {
         return
       }
       wanted = month
-      loader.load(dataUrl(`textures/${monthlyPath(pattern, month)}.jpg`), (image) => {
+      sharedImage(dataUrl(`textures/${monthlyPath(pattern, month)}.jpg`)).then((image) => {
         if (month === wanted) {
           map.image = image
           map.needsUpdate = true
         }
-      })
+      }).catch((err) => console.warn(`[${this.name}] couldn't load the month's colour map`, err))
     }
     return map
   }
@@ -675,6 +675,7 @@ export default class Planet extends Object {
     const map = new CloudMap({
       groundPattern: this.props.texture_monthly,
       bundledPath: `${texDir}${this.name}_atmos.jpg`,
+      fillPath: `${texDir}${this.name}_atmos_fill.jpg`,
     })
     const radius = this.props.radius.scalar
     // The volumetric clouds up close (CloudVolume.js), for a body with

@@ -9,6 +9,7 @@ import {
 } from 'three'
 import {dataUrl} from '../../dataUrl.js'
 import {monthlyPath} from '../monthly.js'
+import {sharedBlob} from '../sharedImage.js'
 import {COMPLETE_BAND_DEG, buildDay, chooseDay, fadeSeam, fallbackSources, seamSource} from './cloudDay.js'
 import {CLOUD_TILE_LEVEL, TILE_PX, cloudSource, coverageFromBundled, tileGrid} from './cloudSource.js'
 
@@ -22,8 +23,10 @@ import {CLOUD_TILE_LEVEL, TILE_PX, cloudSource, coverageFromBundled, tileGrid} f
  * part-built or unfinished day never shows its tiles' edges: until then
  * the map keeps what it had (nothing, at first).  Once the day is shown
  * the day before's westernmost tiles are fetched, and the antimeridian's
- * cut is faded into them (a second upload, of the same day).  Planet.md,
- * "Clouds".
+ * cut is faded into them (a second upload, of the same day).  The bundled
+ * cloud texture is fetched only when a day leaves pixels unseen (polar
+ * night, a tile neither layer serves), after its tiles, or for a date with
+ * no daily picture.  Planet.md, "Clouds".
  *
  * update() is called every frame (the shell's preAnimCb); it starts a load
  * once the date's source has stayed the same for SETTLE_MS (a clock running
@@ -37,13 +40,16 @@ export default class CloudMap {
    *   textures/, with {MM} (earth.json texture_monthly)
    * @param {string} opts.bundledPath The bundled cloud texture, under
    *   textures/ (earth/earth_atmos.jpg)
+   * @param {string} [opts.fillPath] Its small copy, under textures/
+   *   (earth/earth_atmos_fill.jpg), for a day's polar gaps
    */
-  constructor({groundPattern, bundledPath}) {
+  constructor({groundPattern, bundledPath, fillPath = null}) {
     const {width, height} = tileGrid(CLOUD_TILE_LEVEL)
     this.width = width
     this.height = height
     this.groundPattern = groundPattern
     this.bundledPath = bundledPath
+    this.fillPath = fillPath
     this.coverage = new Uint8Array(width * height)
     this.texture = new DataTexture(this.coverage, width, height, RedFormat, UnsignedByteType)
     this.texture.wrapS = RepeatWrapping
@@ -63,6 +69,7 @@ export default class CloudMap {
     this._generation = 0
     this._grounds = new Map()
     this._bundled = null
+    this._fill = null
     // Loading needs a DOM (image decoding, canvases); the bun tests have
     // none, and must not reach the network.
     this.enabled = typeof document !== 'undefined' && typeof createImageBitmap === 'function'
@@ -156,6 +163,8 @@ export default class CloudMap {
       unmixMs: 0,
       // The days tried, and the share of the band each left unseen.
       tried: [],
+      // Pixels of the day shown given the bundled texture's coverage.
+      filled: 0,
       ready: false,
       // The antimeridian's fade into the day before, once the day is shown:
       // {date, state}, state building, blended, incomplete (the day before's
@@ -166,10 +175,6 @@ export default class CloudMap {
     const stale = () => this._stale(generation)
     // The wanted day's ground loads alongside (its build awaits it).
     this._ground(Number(source.date.slice(5, 7))).catch(() => null)
-    const bundled = await this._bundledCoverage()
-    if (stale()) {
-      return
-    }
     let msBefore = 0
     const chosen = await chooseDay(fallbackSources(source), async (s, stopAbove) => {
       const ground = await this._ground(Number(s.date.slice(5, 7)))
@@ -179,13 +184,13 @@ export default class CloudMap {
       Object.assign(status, {building: s.date, tilesDone: 0, tilesFailed: 0})
       msBefore = status.unmixMs
       const day = await buildDay({
-        source: s, ground, bundled, fetchTile, stopAbove, stale,
+        source: s, ground, bundled: (need) => this._bundledForFill(need), fetchTile, stopAbove, stale,
         onTile: ({done, failed, unmixMs}) => {
           Object.assign(status, {tilesDone: done, tilesFailed: failed, unmixMs: msBefore + unmixMs})
         },
       })
       if (day) {
-        status.tried.push({date: s.date, unseenShare: day.unseenShare, complete: day.complete})
+        status.tried.push({date: s.date, unseenShare: day.unseenShare, complete: day.complete, filled: day.filled})
       }
       return day
     })
@@ -196,7 +201,7 @@ export default class CloudMap {
     this.coverage.set(day.coverage)
     this._changed()
     Object.assign(status, {building: null, date: shown.date, satellites: shown.layers.map((l) => l.satellite),
-      tilesFailed: day.failed, complete: day.complete, unseenShare: day.unseenShare, ready: true})
+      tilesFailed: day.failed, complete: day.complete, unseenShare: day.unseenShare, filled: day.filled, ready: true})
     if (!day.complete) {
       console.warn(`[clouds] NASA GIBS's mosaics for ${source.date} and the days before it are incomplete; ` +
         `${(100 * day.unseenShare).toFixed(1)}% of its clouds between ${COMPLETE_BAND_DEG}° N and S are ` +
@@ -204,7 +209,7 @@ export default class CloudMap {
     } else if (shown.date !== source.date) {
       console.info(`[clouds] NASA GIBS's mosaic for ${source.date} is incomplete; showing ${shown.date}'s`)
     }
-    await this._fadeSeam(shown, bundled, generation)
+    await this._fadeSeam(shown, generation)
   }
 
 
@@ -216,14 +221,13 @@ export default class CloudMap {
    * before that fails or isn't complete leaves the cut as it was.
    *
    * @param {object} shown The source of the day shown
-   * @param {Uint8Array} bundled The bundled texture's coverage
    * @param {number} generation
    */
-  async _fadeSeam(shown, bundled, generation) {
+  async _fadeSeam(shown, generation) {
     const status = this.status
     status.seam = {date: seamSource(shown)?.date ?? null, state: 'building'}
     const seam = await fadeSeam({
-      map: this.coverage, shown, bundled, fetchTile, stale: () => this._stale(generation),
+      map: this.coverage, shown, fetchTile, stale: () => this._stale(generation),
       groundOf: (s) => this._ground(Number(s.date.slice(5, 7))),
     })
     if (seam && !this._stale(generation)) {
@@ -242,8 +246,9 @@ export default class CloudMap {
    */
   _ground(month) {
     if (!this._grounds.has(month)) {
+      // The bytes are the surface's too, and Cesium's (sharedImage.js).
       const url = dataUrl(`textures/${monthlyPath(this.groundPattern, month)}.jpg`)
-      this._grounds.set(month, fetchPixels(url, this.width, this.height).catch((err) => {
+      this._grounds.set(month, sharedBlob(url).then((blob) => decodePixels(blob, this.width, this.height)).catch((err) => {
         this._grounds.delete(month)
         throw err
       }))
@@ -252,21 +257,58 @@ export default class CloudMap {
   }
 
 
+  /**
+   * @param {{detail: boolean}} need buildDay's: whether the full texture is
+   *   wanted, or the small copy will do (the day's gaps are the polar night)
+   * @returns {Promise<?Uint8Array>} The bundled texture as coverage, for a day
+   *   with unseen pixels (buildDay): the small copy if that will do and the
+   *   full texture isn't in or on its way already; or null, those pixels
+   *   left clear, if it can't be had
+   */
+  _bundledForFill({detail}) {
+    const coverage = detail || this._bundled || !this.fillPath ? this._bundledCoverage() : this._fillCoverage()
+    return coverage.catch((err) => {
+      console.warn('[clouds] couldn\'t load the bundled clouds to fill the day\'s gaps; they are clear', err)
+      return null
+    })
+  }
+
+
+  /** @returns {Promise<Uint8Array>} The bundled texture's small copy as coverage, at the map's size */
+  _fillCoverage() {
+    if (!this._fill) {
+      this._fill = this._coverageOf(this.fillPath).catch((err) => {
+        this._fill = null
+        throw err
+      })
+    }
+    return this._fill
+  }
+
+
   /** @returns {Promise<Uint8Array>} The bundled texture as coverage, at the map's size */
   _bundledCoverage() {
     if (!this._bundled) {
-      this._bundled = fetchPixels(dataUrl(`textures/${this.bundledPath}`), this.width, this.height).then((rgba) => {
-        const out = new Uint8Array(this.width * this.height)
-        for (let i = 0; i < out.length; i++) {
-          out[i] = Math.round(coverageFromBundled(rgba[4 * i]) * 255)
-        }
-        return out
-      }).catch((err) => {
+      this._bundled = this._coverageOf(this.bundledPath).catch((err) => {
         this._bundled = null
         throw err
       })
     }
     return this._bundled
+  }
+
+
+  /**
+   * @param {string} path A bundled cloud picture, under textures/
+   * @returns {Promise<Uint8Array>} As coverage, at the map's size
+   */
+  async _coverageOf(path) {
+    const rgba = await fetchPixels(dataUrl(`textures/${path}`), this.width, this.height)
+    const out = new Uint8Array(this.width * this.height)
+    for (let i = 0; i < out.length; i++) {
+      out[i] = Math.round(coverageFromBundled(rgba[4 * i]) * 255)
+    }
+    return out
   }
 }
 
