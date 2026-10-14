@@ -41,7 +41,7 @@ have a view one after another, a caption under each: start it from the panel, or
 cuts between views instead of flying when your device asks for less motion.
 
 - Date: 2026-10-14
-- PR: [#252](https://github.com/celestiary/web/pull/252)
+- PR: [#253](https://github.com/celestiary/web/pull/253)
 - Issue: [#246](https://github.com/celestiary/web/issues/246)
 - Epic: [#244](https://github.com/celestiary/web/issues/244) What's new: a changelog, in the app, and as posts
 - Permalink: none
