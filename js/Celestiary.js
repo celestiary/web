@@ -402,6 +402,10 @@ export default class Celestiary {
       if (!reveal.started && this._arrivedAt !== null &&
           ((settled && this.ui.sceneReady()) || nowMs - this._arrivedAt >= timeout)) {
         reveal.start(nowMs)
+        // VSOP87C's chunk (2.6 MB) is fetched now, with the scene on screen,
+        // not ahead of it: until it is in the planets are on mean elements,
+        // and glide to the series' places (Animation.planetCoords).
+        this.animation.loadEphemeris()
       }
       reveal.frame(nowMs)
     }
@@ -1529,7 +1533,10 @@ export default class Celestiary {
   /**
    * The Sun from Earth, for tonight.js and the tour's plan: the app's own
    * ephemeris (VSOP87C's Earth turned round), or Meeus's low-precision Sun
-   * before it loads (they agree to 0.02°).
+   * before it loads (they agree to 0.02°).  A plan made in that gap is not
+   * remade when the series arrives: the two differ by less than the plan's
+   * aim can show (nightSide.test.js), and the tour plans again each time
+   * round.
    *
    * @returns {function(number): {x: number, y: number, z: number}} At a
    *   Julian Day, ecliptic of date

@@ -1,5 +1,4 @@
 import {Object3D, Quaternion, Vector3} from 'three'
-import {loadVsop87c} from '../vsop'
 import * as Shared from '../shared'
 import debug from '../debug'
 import {J2000_JD, gmstRad, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
@@ -7,6 +6,7 @@ import {moonScenePosition} from './lunarTheory.js'
 import {BodyLine, fineSteps} from './bodyLine.js'
 import {equatorQuaternion, poleAndMeridian, textureTurn} from './iauRotation.js'
 import {orbitAt} from './meanElements.js'
+import {PLANET_NAMES, planetsApprox} from './planetsApprox.js'
 import {
   JUPITER_SATURN_SAMPLES,
   ORBIT_LINE_POINTS,
@@ -29,6 +29,18 @@ const MOON_MASS_FRACTION = 1 / (1 + 81.30056)
 const ECCENTRICITY_REDRAW_RADII = 1e-4
 const TWO_PI = 2 * Math.PI
 
+// The hand-over from the stand-in planets (planetsApprox.js) to VSOP87C, once
+// it has loaded: the planets glide from the one to the other over this long,
+// rather than jump by the stand-in's error (up to a few thousand km for the
+// inner planets, millions for Jupiter and Saturn, in 2026).
+export const HANDOVER_MS = 1500
+
+// With no one asking sooner (Celestiary asks as its scene is revealed, at
+// most 4 s, or 8 s on the homepage, after the camera is placed), VSOP87C is
+// fetched this long after the first frame: for the scenes with no reveal,
+// the guide's.
+const LOAD_AFTER_MS = 10000
+
 
 /**
  * Animate scene, currently just orbits.  For major planets uses VSOP87C, and
@@ -40,16 +52,39 @@ const TWO_PI = 2 * Math.PI
  * The planets' and the Moon's orbit lines are their paths, sampled from
  * the same ephemerides (orbitPath.js); the other bodies' are their
  * mean-element ellipses of date.
+ *
+ * VSOP87C's coefficients are 2.6 MB, so they are not in the first chunk:
+ * `loadEphemeris` fetches them after the first frame, and until they are in
+ * the planets are placed by Standish's mean elements (planetsApprox.js),
+ * then glide to VSOP87C's places over HANDOVER_MS (`planetCoords`).
  */
 export default class Animation {
   /**
    * @param {object} time
-   * @param {Function} [vsop] a VSOP87C function to use in place of the
-   *     wasm one this module loads (tests)
+   * @param {?Function} [vsop] a VSOP87C function to use in place of the
+   *     wasm one `loadEphemeris` loads (tests); null for none yet, the
+   *     stand-in's planets until `setEphemeris`.  Left out, the one already
+   *     loaded by another Animation, else none yet.
    */
-  constructor(time, vsop = null) {
+  constructor(time, vsop = undefined) {
     this.time = time
-    this.vsop = vsop
+    // VSOP87C's function, or null until it has loaded.
+    this.vsop = vsop === undefined ? loadedVsop : vsop
+    /** Milliseconds, for the hand-over; tests set a deterministic one. */
+    this.clock = performance.now.bind(performance)
+    // The hand-over from the stand-in: null when none is due, 'pending'
+    // from the series loading to the next frame, else the clock then.
+    this._handover = null
+    this._loadRequested = this.vsop !== null
+    this._firstFrameAt = null
+    // The stand-in's positions for a frame's placement, and for the orbit
+    // lines' samples (vsopAt): apart, so sampling a line doesn't overwrite
+    // the frame's.
+    this._standIn = {}
+    this._sampled = {}
+    this._blended = {}
+    /** Called when VSOP87C has loaded, with no arguments. */
+    this.onEphemeris = null
     this.curVsopCoords = this.vsopAt(J2000_JD)
     this.Y_AXIS = new Vector3(0, 1, 0)
     // Per-frame Moon position, from updateMoon.
@@ -74,22 +109,107 @@ export default class Animation {
 
   /**
    * @param {number} jd Julian Day (UTC)
-   * @returns {object} VSOP87C's heliocentric (x, y, z) of each planet, AU
+   * @returns {object} VSOP87C's heliocentric (x, y, z) of each planet, AU,
+   *   in the mean ecliptic of date; before it has loaded (`vsopReady`), the
+   *   stand-in's (planetsApprox.js), good to minutes of arc near the present.
+   *   The same object is overwritten by the next call.
    */
   vsopAt(jd) {
-    return (this.vsop || vsop87c)(jd)
+    return this.vsop ? this.vsop(jd) : planetsApprox(jd, this._sampled)
   }
 
 
-  /** @returns {boolean} whether vsopAt gives real positions yet */
+  /** @returns {boolean} whether vsopAt gives VSOP87C's positions yet */
   vsopReady() {
-    return this.vsop !== null || vsopLoaded
+    return this.vsop !== null
+  }
+
+
+  /**
+   * Fetch VSOP87C, if it isn't in or on its way, and switch to it when it
+   * arrives.  Called once the scene is up (Celestiary, as it is revealed),
+   * and by `animate` a few seconds into the run if no one has.
+   *
+   * @returns {Promise} Resolved when the planets are on VSOP87C, or when
+   *   fetching it failed: the stand-in carries on, and a later call retries
+   */
+  loadEphemeris() {
+    if (this._loadRequested) {
+      return loadingVsop ?? Promise.resolve()
+    }
+    this._loadRequested = true
+    return fetchVsop().then((vsop) => {
+      this.setEphemeris(vsop)
+    }, (err) => {
+      console.warn('VSOP87C failed to load; the planets stay on mean elements.', err)
+      // Tried again by _loadLater, LOAD_AFTER_MS on.
+      this._loadRequested = false
+      this._firstFrameAt = this.clock()
+    })
+  }
+
+
+  /**
+   * Switch the planets to VSOP87C.  The next frame starts the glide there.
+   *
+   * @param {Function} vsop
+   */
+  setEphemeris(vsop) {
+    if (this.vsop) {
+      return
+    }
+    this.vsop = vsop
+    this._handover = 'pending'
+    this.onEphemeris?.()
+  }
+
+
+  /**
+   * The planets' places for this frame's date: VSOP87C's, or the stand-in's
+   * before it has loaded, or between them while it hands over, so the
+   * switch is a glide of the difference to nothing, not a jump.  The glide
+   * is of the two ephemerides at the frame's date, so it stays right when
+   * the date moves, a permalink or a flight setting one meanwhile.
+   *
+   * @param {number} jd Julian Day (UTC)
+   * @returns {object} each planet's (x, y, z), AU, ecliptic of date
+   */
+  planetCoords(jd) {
+    if (!this.vsop) {
+      return planetsApprox(jd, this._standIn)
+    }
+    const vsop = this.vsop(jd)
+    if (this._handover === null) {
+      return vsop
+    }
+    const now = this.clock()
+    if (this._handover === 'pending') {
+      this._handover = now
+    }
+    const t = Math.max(0, now - this._handover) / HANDOVER_MS
+    if (!(t < 1)) {
+      this._handover = null
+      return vsop
+    }
+    // Smoothstep: no start or stop to the glide.
+    const w = 1 - (t * t * (3 - (2 * t)))
+    const standIn = planetsApprox(jd, this._standIn)
+    for (const name of PLANET_NAMES) {
+      const c = this._blended[name] ?? (this._blended[name] = {x: 0, y: 0, z: 0})
+      const v = vsop[name]
+      const s = standIn[name]
+      c.x = v.x + (w * (s.x - v.x))
+      c.y = v.y + (w * (s.y - v.y))
+      c.z = v.z + (w * (s.z - v.z))
+    }
+    return this._blended
   }
 
 
   /** @param {object} scene */
   animate(scene) {
     this.time.updateTime()
+    this._loadLater()
     const jd = this.time.simTimeJulianDay()
     // Time clamps the date to where the ephemerides hold; this is a
     // second line of defence, so nothing is placed at NaN.
@@ -99,6 +219,22 @@ export default class Animation {
     this.setDate(jd)
     this.animateSystem(scene)
     this.orbitPaths.pump()
+  }
+
+
+  /**
+   * The safety net for `loadEphemeris`: a scene no one reveals (the guide's)
+   * still gets VSOP87C, a few seconds after its first frame.
+   */
+  _loadLater() {
+    if (this._loadRequested) {
+      return
+    }
+    const now = this.clock()
+    this._firstFrameAt ??= now
+    if (now - this._firstFrameAt >= LOAD_AFTER_MS) {
+      this.loadEphemeris()
+    }
   }
 
 
@@ -126,7 +262,7 @@ export default class Animation {
    */
   setDate(jd) {
     this.jd = jd
-    this.curVsopCoords = this.vsopAt(jd)
+    this.curVsopCoords = this.planetCoords(jd)
     this.jde = utcToTtJulianDay(jd)
     precessionQuaternion(J2000_JD, this.jde, this.precession)
     this.updateMoon(jd)
@@ -258,7 +394,7 @@ export default class Animation {
       return
     }
     shape.quaternion.copy(this.precession)
-    if (path.isStale(this.jd) && (!path.usesVsop || this.vsopReady())) {
+    if (path.isStale(this.jd)) {
       this.orbitPaths.request(path, this.jd)
     }
   }
@@ -328,7 +464,9 @@ export default class Animation {
       return new OrbitPath(line, {positionAt: moonAt, periodDays, ...size})
     }
     const planetAt = (jd, target) => vsopScene(this.vsopAt(jd)[name], target)
-    const opts = {positionAt: planetAt, periodDays, mu: SUN_GM_M3_PER_DAY2, ...size}
+    // Drawn from the stand-in until VSOP87C is in, then redrawn.
+    const opts = {positionAt: planetAt, periodDays, mu: SUN_GM_M3_PER_DAY2, ...size,
+      approximate: () => !this.vsopReady()}
     if (name === 'jupiter' || name === 'saturn') {
       opts.samples = JUPITER_SATURN_SAMPLES
     }
@@ -339,9 +477,7 @@ export default class Animation {
       opts.positionAt = (jd, target) => planetAt(jd, target).addScaledVector(moonAt(jd, moon), MOON_MASS_FRACTION)
       opts.offsetAt = (jd, target) => moonAt(jd, target).multiplyScalar(-MOON_MASS_FRACTION)
     }
-    const path = new OrbitPath(line, opts)
-    path.usesVsop = true
-    return path
+    return new OrbitPath(line, opts)
   }
 
 
@@ -442,24 +578,24 @@ function vsopScene(c, target) {
 }
 
 
-// Hack: initial vals until vsop loads
-const ival = {x: 0, y: 0, z: 0}
-let vsopLoaded = false
-let vsop87c = (_) => {
-  return {
-    mercury: ival,
-    venus: ival,
-    earth: ival,
-    mars: ival,
-    jupiter: ival,
-    saturn: ival,
-    uranus: ival,
-    neptune: ival,
-  }
+// VSOP87C's function once the chunk with its coefficients is in (vsop.js,
+// split from the first chunk by the dynamic import), shared by Animations.
+let loadedVsop = null
+let loadingVsop = null
+
+
+/**
+ * @returns {Promise<Function>} VSOP87C's function, fetching its chunk once
+ */
+function fetchVsop() {
+  loadingVsop ??= import('../vsop')
+      .then(({loadVsop87c}) => new Promise((resolve) => loadVsop87c(resolve)))
+      .then((vsop) => {
+        loadedVsop = vsop
+        return vsop
+      })
+  loadingVsop.catch(() => {
+    loadingVsop = null
+  })
+  return loadingVsop
 }
-
-
-loadVsop87c((v) => {
-  vsop87c = v
-  vsopLoaded = true
-})
