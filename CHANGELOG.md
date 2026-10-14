@@ -31,6 +31,18 @@ has no view to open yet.
 
 ## October 2026
 
+### Earth's clouds without a seam down the Atlantic
+
+Earth's daily clouds no longer show a hard edge along 36° W. Each day's cloud map now appears all at
+once when it has loaded, and a day the satellites haven't finished covering waits for the latest
+complete one, so neighbouring pieces of the map always come from the same day.
+
+- Date: 2026-10-13
+- PR: [#250](https://github.com/celestiary/web/pull/250)
+- Issue: [#243](https://github.com/celestiary/web/issues/243)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+
 ### A homepage at celestiary's address
 
 Open celestiary with nothing after the address and you get a homepage: the title, a search box and

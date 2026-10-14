@@ -132,6 +132,24 @@ placed the planet on-screen, and the fallback path rendered it. We reset `uPlane
 **Rule:** When disabling an effect via a flag, also put every piece of geometry/parameter state
 into a safe neutral value.
 
+### A seam on a round number is a tile edge: list every grid, then freeze the live data
+
+Earth's clouds had a hard step at −36° longitude (#243).  The stored cloud texture was clean
+there, and none of the issue's candidates (the Blue Marble's tile pyramid, the shell's UVs, the
+date's texture) had an edge at −36°.  GIBS's level-2 tiles do: 72° each from −180°, so −36° is
+the edge between the day's second and third columns.  The cause was in how the map was put
+together from them (a tile still loading, a tile that failed, a day GIBS hadn't finished), not
+in any one picture.  And the data had moved on by the time it was looked into: the day the
+homepage agent saw had been filled in since, while the day the app then showed was a third
+missing.
+
+**Rule:** When a defect sits on a round coordinate, write down the grid of every tiled or
+gridded source that feeds the frame (tile sizes, origins, levels) and check which one has a
+line there.  For live data (GIBS, ion), snapshot the inputs once and serve them to the page
+from disk (`page.route`), so before and after are the same data; then stage the failure
+modes (a tile held back, a tile that fails, an unfinished day) on that snapshot rather than
+waiting for the service to show them.
+
 ---
 
 ## GPU / shader specifics

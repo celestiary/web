@@ -81,11 +81,28 @@ export function cloudSource(simMs, nowMs) {
     }
     date = latest
   }
+  return dailySource(date) ?? {kind: 'bundled', reason: 'before the satellites'}
+}
+
+
+/**
+ * @param {string} date YYYY-MM-DD
+ * @returns {?{kind: 'daily', date: string, layers: Array<object>}} The
+ *   day's mosaic, from its primary layer with the secondary for its gaps,
+ *   or null before the satellites
+ */
+export function dailySource(date) {
   const layers = TRUE_COLOUR_LAYERS.filter((l) => l.from <= date).slice(0, 2)
-  if (layers.length === 0) {
-    return {kind: 'bundled', reason: 'before the satellites'}
-  }
-  return {kind: 'daily', date, layers}
+  return layers.length === 0 ? null : {kind: 'daily', date, layers}
+}
+
+
+/**
+ * @param {string} date YYYY-MM-DD
+ * @returns {string} The day before it
+ */
+export function previousDate(date) {
+  return utcDate(Date.parse(`${date}T00:00:00Z`) - DAY_MS)
 }
 
 

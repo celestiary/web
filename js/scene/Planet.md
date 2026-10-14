@@ -159,6 +159,7 @@ GIBS's GetCapabilities, 2026-10):
 | 2002-07-03 to 2015-11-23 | `MODIS_Aqua_CorrectedReflectance_TrueColor` | `MODIS_Terra_…` |
 | 2000-02-24 to 2002-07-02 | `MODIS_Terra_CorrectedReflectance_TrueColor` | |
 | the present (the last ~27 h) | the latest complete UTC day's, as above | |
+| a day whose mosaic is unfinished | the latest complete day of the two before it ([below](#whole-days-only-complete-ones)) | |
 | before 2000-02-24, or the future | the bundled texture (below) | |
 
 A day's mosaic is one UTC day of the satellite's swaths, each place seen once
@@ -216,13 +217,24 @@ values as every surface (HDR.md, "Colour spaces").
   night) from the bundled texture.  Polar night is dark, so there the fill
   shows only in the night lights it dims.
 - **A tile neither layer can serve** (the network, or a day missing from
-  both) has no clouds, and the load logs one warning.  Each tile is tried
-  twice.
+  both) keeps the bundled texture's coverage, and makes its day
+  incomplete (below).  Each tile is tried twice, each try given 30 s.
 - **Known flaws.**  Sun glint over the ocean, grey streaks along the
   swaths' centres, unmixes as thin cloud (0.2-0.5).  Snow and sea ice that
   differ from 2004's unmix as cloud, and snow under cloud is hard to see
   through (the floor of 0.05).  Neither has a simple fix without the
   viewing geometry or a snow mask.
+- **The antimeridian.**  A day's mosaic is cut there, and its two sides
+  were seen a day apart: the map's east edge (just short of 180° E) early
+  in the UTC day, its west edge (just past 180° W) at its end, so the
+  clouds don't meet.  The day before's west edge is the one that matches
+  the day's east edge (NOAA-20, 2026-10-11 against the 10th: a correlation
+  of 0.75-0.76 down the edge, against 0.08-0.41 for the day's own), and the
+  day after's east edge its west.  Across it the coverage steps 2.9-4.4
+  times as much as 8 px either side, between 50° N and S, on each of seven
+  days from 2010 to 2026; no other tile edge does (0.8-1.3).  A fix would
+  fade the day before's westernmost tiles into the day's over 20° or so
+  east of 180° W, so the seam becomes a cross-fade: not done.
 
 **The bundled texture**, `earth/earth_atmos.jpg` (2048 × 1024, greyscale; its
 source wasn't recorded), stands in where there is no daily mosaic.  It is an
@@ -236,12 +248,52 @@ low, warm cloud, so the fallback is the less cloudy.
 `DataTexture` (2560 × 1280, mipmapped), empty at first; once the simulation
 date has been the same for a second (a permalink sets the clock just after
 start-up; a clock running at days a second passes dates by), its tiles are
-fetched four at a time, decoded (`createImageBitmap`, a canvas), unmixed on
-the main thread (a few ms a tile) and uploaded as each arrives, so the
-clouds fill in region by region.  A new date's tiles replace the old date's
-as they come; a load for a date no longer wanted stops between tiles.  The
-month's Blue Marble is fetched again for its pixels (the browser's cache
-has it).  Tests have no DOM, so `CloudMap` doesn't load there.
+fetched four at a time, decoded (`createImageBitmap`, a canvas) and unmixed
+on the main thread (a few ms a tile) into a map off screen, which replaces
+the shown one, in one upload, once it's whole and complete (below).  A load
+for a date no longer wanted stops between tiles.  The month's Blue Marble
+is fetched again for its pixels (the browser's cache has it).  Tests have
+no DOM, so `CloudMap` doesn't load there; `cloudDay.js` builds days from
+an injected fetch, and is tested with synthetic tiles.
+
+### Whole days, only complete ones
+
+A day's map is 15 tiles, and a tile that differs from its neighbour draws a
+hard step at their edge, along a meridian (−180°, −108°, −36°, 36°, 108°) or
+a parallel (18° N, 54° S).  The seam at −36° in the mid-Atlantic (#243) was
+one, on the tour's Earth and the homepage's card on the present's date:
+
+- **A tile not in yet.**  The map was shown as each tile arrived, so for a
+  few seconds (on SwiftShader, tens) a region had the day's clouds and the
+  next none.  Measured across −36° from 3.4 Earth radii, with the tile east
+  of it held back: a step of 51 (of 255, in the frame's brightness) against
+  a median of 6.7 across the other meridians in view, 7.6 times.
+- **A tile neither layer could serve** was left with no clouds: the same
+  step, for good.
+- **An unfinished day.**  GIBS builds a day's tiles as the swaths are
+  processed, each at its own time, so for hours, and with processing gaps
+  for days (2026-10-12's on the 13th), neighbours disagree at their edge
+  (one has a region's swaths, the next doesn't yet) and whole regions are
+  black.  What neither layer saw took the bundled texture, another day's
+  infrared clouds, so each gap's edge was a seam.  On 2026-10-13, 22:00 UTC,
+  2026-10-12 was 32% unseen between 50° N and S, 2026-10-13 35%; complete
+  days are 0-0.08% (VIIRS 2025-12-21 to 2026-10-11, MODIS 2010-03-15).
+  The 27 hours cloudSource gives a day before it's the present's don't
+  make it complete.
+
+So (`cloudDay.js`) a day is built off screen and shown whole, once every tile
+is in, and only if it's complete: what neither layer saw between 50° N and S
+(`COMPLETE_BAND_DEG`; at 60° the winter's low Sun leaves 3-6% unseen on
+complete days) is at most 1% of it (`INCOMPLETE_SHARE`).  A build stops as
+soon as it's past that.  An incomplete day gives way to the day before, up
+to two days back (`DAYS_BACK`), each with its own layers and month's Blue
+Marble; if none is complete (the network, an outage), the wanted day is
+shown, gaps and all, with one warning.  The status says which day is shown
+(`date`) and which was wanted (`wanted`).  Until the day's map is ready the
+shell keeps the last one (none, at first).
+
+A day before the one wanted is a day's clouds off, but whole; for the
+present, which already shows the day before, it's two.
 
 ### Drawing: one shell over both sides of the swap
 

@@ -9,26 +9,18 @@ import {
 } from 'three'
 import {dataUrl} from '../../dataUrl.js'
 import {monthlyPath} from '../monthly.js'
-import {
-  CLOUD_TILE_LEVEL,
-  TILE_PX,
-  cloudSource,
-  coverageFromBundled,
-  fillNarrowGaps,
-  tileGrid,
-  tileRect,
-  tileUrl,
-  unmixTile,
-} from './cloudSource.js'
+import {COMPLETE_BAND_DEG, buildDay, chooseDay, fallbackSources} from './cloudDay.js'
+import {CLOUD_TILE_LEVEL, TILE_PX, cloudSource, coverageFromBundled, tileGrid} from './cloudSource.js'
 
 
 /**
  * Earth's cloud coverage map: one byte a pixel, equirectangular, −180° at
  * the left edge and north at the top (texture row 0), as the Blue Marble
  * is laid out.  Built in the browser from the simulation date's NASA GIBS
- * true-colour mosaic (cloudSource.js), tile by tile as the tiles arrive, so
- * nothing waits for it: until a tile is in, its region keeps what it had
- * (nothing, at first).  Planet.md, "Clouds".
+ * true-colour mosaic (cloudSource.js), off screen as the tiles arrive, and
+ * shown whole once it's built (cloudDay.js), so nothing waits for it, and a
+ * part-built or unfinished day never shows its tiles' edges: until then
+ * the map keeps what it had (nothing, at first).  Planet.md, "Clouds".
  *
  * update() is called every frame (the shell's preAnimCb); it starts a load
  * once the date's source has stayed the same for SETTLE_MS (a clock running
@@ -58,8 +50,9 @@ export default class CloudMap {
     this.texture.generateMipmaps = true
     this.texture.unpackAlignment = 1
     this.texture.name = 'cloud coverage'
-    // What's shown, for the app and tests: {kind, date, satellites,
-    // tilesDone, tilesTotal, tilesFailed}.
+    // What's shown, for the app and tests: {kind, wanted, building,
+    // date, satellites, tilesDone, tilesTotal, tilesFailed, tried, ready}
+    // (_loadDaily), or {kind: 'bundled', reason, loaded}.
     this.status = {kind: 'none'}
     this._wantedKey = null
     this._wantedSince = 0
@@ -139,78 +132,70 @@ export default class CloudMap {
 
 
   /**
-   * A day's mosaic, tile by tile: each tile unmixed against the month's
-   * Blue Marble, its gaps from the secondary layer, what neither saw from
-   * the bundled texture.  A tile neither layer could serve has no clouds,
-   * and the load warns once.
+   * A day's mosaic, built whole off screen and shown at once (cloudDay.js):
+   * the wanted day's if it's complete, else the latest complete day's of
+   * the DAYS_BACK before it, else the wanted day's, gaps and all.  Each
+   * tile is unmixed against its month's Blue Marble, its gaps from the
+   * secondary layer, what neither saw from the bundled texture.  Until it's
+   * ready the map keeps what it had.
    *
    * @param {object} source cloudSource's daily source
    * @param {number} generation
    */
   async _loadDaily(source, generation) {
-    const {date, layers} = source
     const {cols, rows} = tileGrid(CLOUD_TILE_LEVEL)
     this.status = {
-      kind: 'daily', date, satellites: layers.map((l) => l.satellite),
+      // The day wanted, the day being built, and (once it's ready) the day shown.
+      kind: 'daily', wanted: source.date, building: source.date, date: null, satellites: null,
       tilesDone: 0, tilesTotal: cols * rows, tilesFailed: 0,
-      // Main-thread time spent unmixing, ms.
+      // Main-thread time spent unmixing, ms, over every day tried.
       unmixMs: 0,
+      // The days tried, and the share of the band each left unseen.
+      tried: [],
+      ready: false,
     }
     const status = this.status
-    const month = Number(date.slice(5, 7))
-    const [ground, bundled] = await Promise.all([this._ground(month), this._bundledCoverage()])
-    if (this._stale(generation)) {
+    const stale = () => this._stale(generation)
+    // The wanted day's ground loads alongside (its build awaits it).
+    this._ground(Number(source.date.slice(5, 7))).catch(() => null)
+    const bundled = await this._bundledCoverage()
+    if (stale()) {
       return
     }
-    const unseen = new Uint8Array(this.width * this.height)
-    const tiles = []
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        tiles.push({row, col})
+    let msBefore = 0
+    const chosen = await chooseDay(fallbackSources(source), async (s, stopAbove) => {
+      const ground = await this._ground(Number(s.date.slice(5, 7)))
+      if (stale()) {
+        return null
       }
+      Object.assign(status, {building: s.date, tilesDone: 0, tilesFailed: 0})
+      msBefore = status.unmixMs
+      const day = await buildDay({
+        source: s, ground, bundled, fetchTile, stopAbove, stale,
+        onTile: ({done, failed, unmixMs}) => {
+          Object.assign(status, {tilesDone: done, tilesFailed: failed, unmixMs: msBefore + unmixMs})
+        },
+      })
+      if (day) {
+        status.tried.push({date: s.date, unseenShare: day.unseenShare, complete: day.complete})
+      }
+      return day
+    })
+    if (!chosen || stale()) {
+      return
     }
-    let warned = false
-    const one = async ({row, col}) => {
-      if (this._stale(generation)) {
-        return
-      }
-      const rect = tileRect(CLOUD_TILE_LEVEL, row, col)
-      let missing = rect.w * rect.h
-      let any = false
-      for (let i = 0; i < layers.length && missing > rect.w * rect.h * GAPS_WORTH_FILLING; i++) {
-        const pixels = await fetchTile(tileUrl(layers[i].layer, date, CLOUD_TILE_LEVEL, row, col))
-        if (this._stale(generation)) {
-          return
-        }
-        if (!pixels) {
-          continue
-        }
-        if (!any) {
-          markRegion(unseen, rect, this.width, 1)
-        }
-        any = true
-        const t0 = performance.now()
-        missing = unmixTile(pixels, TILE_PX, rect, ground, this.coverage, bundled, unseen, this.width, true)
-        status.unmixMs += performance.now() - t0
-      }
-      if (any) {
-        const t0 = performance.now()
-        fillNarrowGaps(this.coverage, unseen, rect, this.width)
-        status.unmixMs += performance.now() - t0
-      } else {
-        // No clouds there, rather than the last day's.
-        fillRegion(this.coverage, rect, this.width, 0)
-        status.tilesFailed++
-        if (!warned) {
-          warned = true
-          console.warn(`[clouds] NASA GIBS had no tile for ${date} at level ${CLOUD_TILE_LEVEL}, row ${row}, ` +
-            `col ${col} (${layers.map((l) => l.satellite).join(', ')}); no clouds there`)
-        }
-      }
-      status.tilesDone++
-      this._changed()
+    const {source: shown, day} = chosen
+    this.coverage.set(day.coverage)
+    this._changed()
+    Object.assign(status, {building: null, date: shown.date, satellites: shown.layers.map((l) => l.satellite),
+      tilesFailed: day.failed, complete: day.complete, unseenShare: day.unseenShare, ready: true})
+    if (!day.complete) {
+      console.warn(`[clouds] NASA GIBS's mosaics for ${source.date} and the days before it are incomplete; ` +
+        `${(100 * day.unseenShare).toFixed(1)}% of its clouds between ${COMPLETE_BAND_DEG}° N and S are ` +
+        'the bundled texture\'s')
+    } else if (shown.date !== source.date) {
+      console.info(`[clouds] NASA GIBS's mosaic for ${source.date} is incomplete; showing ${shown.date}'s`)
     }
-    await runLimited(tiles, CONCURRENT_TILES, one)
   }
 
 
@@ -253,17 +238,12 @@ export default class CloudMap {
 // A date is wanted for this long, ms, before its clouds load.
 const SETTLE_MS = 1000
 
-// Tiles fetched at once.
-const CONCURRENT_TILES = 4
-
-// A tile's gaps worth the secondary layer's tile: more than this share of
-// it unseen (VIIRS's are rare outside polar night; MODIS's run between its
-// swaths at the equator).
-const GAPS_WORTH_FILLING = 0.002
-
 // Fetch attempts per tile: the network can drop one.
 const TILE_ATTEMPTS = 2
 const HTTP_NOT_FOUND = 404
+// A tile request that hasn't answered in this long, ms, is tried again: a
+// stalled one held its day's map back for good.
+const TILE_TIMEOUT_MS = 30000
 
 
 /**
@@ -275,7 +255,7 @@ const HTTP_NOT_FOUND = 404
 async function fetchTile(url) {
   for (let attempt = 0; attempt < TILE_ATTEMPTS; attempt++) {
     try {
-      const response = await fetch(url)
+      const response = await fetch(url, {signal: AbortSignal.timeout(TILE_TIMEOUT_MS)})
       if (response.status === HTTP_NOT_FOUND) {
         return null
       }
@@ -321,48 +301,4 @@ async function decodePixels(blob, width, height) {
   ctx.drawImage(bitmap, 0, 0, width, height)
   bitmap.close?.()
   return ctx.getImageData(0, 0, width, height).data
-}
-
-
-/**
- * @param {Uint8Array} map A byte a pixel
- * @param {object} rect {x, y, w, h}
- * @param {number} width The map's
- * @param {number} value
- */
-function fillRegion(map, rect, width, value) {
-  for (let j = 0; j < rect.h; j++) {
-    const start = ((rect.y + j) * width) + rect.x
-    map.fill(value, start, start + rect.w)
-  }
-}
-
-
-/**
- * @param {Uint8Array} mask
- * @param {object} rect
- * @param {number} width
- * @param {number} value
- */
-function markRegion(mask, rect, width, value) {
-  fillRegion(mask, rect, width, value)
-}
-
-
-/**
- * Run `fn` over `items`, at most `limit` at a time.
- *
- * @param {Array} items
- * @param {number} limit
- * @param {Function} fn async
- * @returns {Promise<void>}
- */
-async function runLimited(items, limit, fn) {
-  let next = 0
-  const worker = async () => {
-    while (next < items.length) {
-      await fn(items[next++])
-    }
-  }
-  await Promise.all(Array.from({length: Math.min(limit, items.length)}, worker))
 }
