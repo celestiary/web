@@ -131,7 +131,7 @@ export default class Animation {
    * and by `animate` a few seconds into the run if no one has.
    *
    * @returns {Promise} Resolved when the planets are on VSOP87C, or when
-   *   fetching it failed: the stand-in carries on, and a later call retries
+   *   fetching it failed: the stand-in carries on
    */
   loadEphemeris() {
     if (this._loadRequested) {
@@ -141,10 +141,9 @@ export default class Animation {
     return fetchVsop().then((vsop) => {
       this.setEphemeris(vsop)
     }, (err) => {
+      // Not retried: a browser keeps a failed import() for the page's life,
+      // so a retry never reaches the network.  A reload does.
       console.warn('VSOP87C failed to load; the planets stay on mean elements.', err)
-      // Tried again by _loadLater, LOAD_AFTER_MS on.
-      this._loadRequested = false
-      this._firstFrameAt = this.clock()
     })
   }
 
