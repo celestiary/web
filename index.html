@@ -87,16 +87,18 @@
         text-transform: uppercase;
         color: #d8deec;
       }
+      /* Under the title, the Moon going through its phases (the
+         loading-moon script, below), in grey: asked for as text (U+FE0E),
+         and where the platform draws them as colour emoji anyway, those
+         greyed, so it sits with the title rather than shouting yellow. */
       #loading .loading-text {
-        margin-right: -0.18em;
-        font-size: 0.78rem;
-        font-weight: 400;
-        letter-spacing: 0.18em;
-        color: #869fdb;
-        animation: loading-pulse 1800ms ease-in-out infinite;
+        font-size: 1.15rem;
+        line-height: 1;
+        color: #b4bdd0;
+        filter: grayscale(1) brightness(1.1);
       }
       /* At the bare URL the title moves to the homepage's and becomes it
-         (js/loading.js handOffLoadingTitle), as "Loading…" fades. */
+         (js/loading.js handOffLoadingTitle), as the Moon fades. */
       #loading.handoff .loading-text {
         opacity: 0;
         animation: none;
@@ -106,12 +108,8 @@
         from { opacity: 0; transform: translateY(4px); }
         to { opacity: 1; transform: none; }
       }
-      @keyframes loading-pulse {
-        0%, 100% { opacity: 0.55; }
-        50% { opacity: 1; }
-      }
       @media (prefers-reduced-motion: reduce) {
-        #loading .loading-in, #loading .loading-text { animation: none; opacity: 1; }
+        #loading .loading-in { animation: none; opacity: 1; }
       }
     </style>
     <link rel="icon" type="image/png" href="favicon.ico"/>
@@ -162,9 +160,32 @@
     <div id="loading" role="status" aria-live="polite">
       <div class="loading-in">
         <div class="loading-title">Celestiary</div>
-        <div class="loading-text">Loading…</div>
+        <div class="loading-text" role="img" aria-label="Loading">&#x1F313;&#xFE0E;</div>
       </div>
     </div>
+    <!-- loading-moon: the Moon's phases round, 120 ms each, a turn a second;
+         one phase held for reduced motion; nothing for a quiet load, which
+         shows no loading text.  It stops once the loading text is gone. -->
+    <script type="text/javascript" id="loading-moon">
+      (function (doc, win) {
+        var el = doc.querySelector('#loading .loading-text')
+        if (!el || doc.documentElement.classList.contains('quiet-load') ||
+            (win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+          return
+        }
+        var phases = ['\uD83C\uDF11', '\uD83C\uDF12', '\uD83C\uDF13', '\uD83C\uDF14',
+          '\uD83C\uDF15', '\uD83C\uDF16', '\uD83C\uDF17', '\uD83C\uDF18']
+        var i = 0
+        var timer = win.setInterval(function () {
+          if (!el.isConnected) {
+            win.clearInterval(timer)
+            return
+          }
+          i = (i + 1) % phases.length
+          el.textContent = phases[i] + '\uFE0E'
+        }, 120)
+      }(document, window))
+    </script>
     <div id="root"></div>
     <script type="text/javascript">
       // The page is up: dim it from the user's theme to the scene's black,
