@@ -479,6 +479,10 @@ stylistic tidying step, which silently shadowed the value that `load()` had just
 initialised before that method is called.  "Tidy field listing at the bottom" is not worth
 the hazard.
 
+### Compare a restored view at the frame it arrives: the clock runs on
+
+Checking that a card's or What's new's flight ended exactly on its permalink, the first headless run read the app's own link half a minute of real time after the arrival and found the longitude 0.158 degrees off.  Nothing was wrong: a link restores the clock running at real time (`time:` says otherwise), and a camera riding Earth's orbit, not landed, has body-fixed coordinates that move as Earth turns (0.25 degrees a minute).  Read at the arrival frame itself (`c.permalink()` in the same `evaluate` that sees the flight end), latitude, longitude, altitude, date and field were the link's to the digit, and the orientation to the link's four decimals.  **Rule:** a probe of "the view is the link's" runs at the arrival frame, before the clock or the loop moves anything; a later reading differs by exactly what the link left running.
+
 ### Clear timers a test leaves behind
 
 bun runs every test file in one process, and `Shared.targets` is a module

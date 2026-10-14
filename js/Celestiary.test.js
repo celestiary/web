@@ -283,6 +283,14 @@ function makeStubStore() {
     state.dragMode = m
     state.dragModeCalls.push(m)
   }
+  // The changelog tour's state for its caption (Celestiary._setNewsTour), and
+  // every state it was in.
+  state.newsTour = null
+  state.newsTours = []
+  state.setNewsTour = (tour) => {
+    state.newsTour = tour
+    state.newsTours.push(tour)
+  }
   const hook = () => ({})
   hook.getState = () => state
   hook.setState = () => {}
@@ -1657,13 +1665,16 @@ describe('the homepage', () => {
     Shared.targets.track = false
   })
 
-  /** @returns {Promise<object>} A Celestiary at the bare URL, loaded */
-  async function openHome() {
+  /**
+   * @param {string} [hash] The page's fragment, with its '#'
+   * @returns {Promise<object>} A Celestiary at the bare URL (or the hash), loaded
+   */
+  async function openHome(hash = '') {
     // The last test's app's link, written late, isn't this one's.
     apps.forEach((a) => clearTimeout(a._permalinkTimer))
     pushed = []
     replaced = []
-    global.location = {hash: '', pathname: '/', search: ''}
+    global.location = {hash, pathname: '/', search: ''}
     // No document.baseURI in the tests, so the links written are bare
     // fragments (permalinkHref's fallback).
     global.history = {
@@ -1680,8 +1691,13 @@ describe('the homepage', () => {
         }
       },
     }
-    const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
-        {}, () => {}, () => {}, () => {})
+    // Its listeners kept, for a click on the scene (leaveForScene).
+    const container = {style: {}, appendChild: () => {}, listeners: {},
+      addEventListener(type, fn) {
+        (this.listeners[type] ??= []).push(fn)
+      }}
+    const app = new Celestiary(makeStubStore(), container, {}, () => {}, () => {}, () => {})
+    app.container = container
     apps.push(app)
     await new Promise((resolve) => setTimeout(resolve, 50))
     app.animation.animate(app.ui.scene)
@@ -2128,6 +2144,342 @@ describe('the homepage', () => {
     // The app's labels and overlays come in.
     expect(app.scene.fades.p.shown).toBe(true)
     Shared.targets.landed = false
+  })
+
+  // ---- The changelog tour (changelog.js, newsTour.js; DESIGN.md "What's new") ----
+
+  const EARTH_CARD = HOME_CARDS.find((c) => c.id === 'earth')
+  const OCCULTATION_CARD = HOME_CARDS.find((c) => c.id === 'occultation')
+  const GAIA_CARD = HOME_CARDS.find((c) => c.id === 'gaia')
+  const NEWS = {entries: [
+    {id: '2026-10-13-earth-at-dusk', date: '2026-10-13', headline: 'Earth at dusk',
+      text: 'Dusk reaches South America across the Pacific. A storm turns off Chile.', links: [], epic: null,
+      permalink: `#${EARTH_CARD.link}`, image: null},
+    {id: '2026-10-12-no-view', date: '2026-10-12', headline: 'Nothing to fly to',
+      text: 'An entry without a view.', links: [], epic: null, permalink: null, image: null},
+    {id: '2026-10-11-the-moon-hides-jupiter', date: '2026-10-11', headline: 'The Moon hides Jupiter',
+      text: 'Jupiter slips behind the Moon\'s limb, seen from Ohio.', links: [], epic: null,
+      permalink: `#${OCCULTATION_CARD.link}`, image: null},
+    {id: '2026-10-10-gaia', date: '2026-10-10', headline: 'A million of Gaia\'s stars',
+      text: 'The Milky Way from 3,200 light-years out.', links: [], epic: null,
+      permalink: `#${GAIA_CARD.link}`, image: null},
+  ]}
+  const realFetch = global.fetch
+  let newsFetches
+
+  /** Serve the changelog from a fixture; count the asks. */
+  function serveNews() {
+    newsFetches = 0
+    global.fetch = (url, ...rest) => {
+      if (String(url).endsWith('changelog.json')) {
+        newsFetches++
+        return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve(NEWS)})
+      }
+      return realFetch(url, ...rest)
+    }
+  }
+
+  afterAll(() => {
+    global.fetch = realFetch
+  })
+
+  /**
+   * Step frames until the tour is in a phase, at a stop.
+   *
+   * @param {object} app
+   * @param {number} t0 ms
+   * @param {string} phase 'flying' or 'holding'
+   * @param {number} [index] The stop
+   * @returns {number} The time after
+   */
+  function untilTour(app, t0, phase, index = app._news?.index) {
+    let t = t0
+    for (; t < t0 + 40000; t += 16) {
+      if (app._news?.phase === phase && app._news.index === index) {
+        return t
+      }
+      app.frame(t)
+    }
+    throw new Error(`the tour never reached ${phase} at ${index}: ${JSON.stringify(app._news?.state?.phase)}`)
+  }
+
+  it('the changelog tour flies to each entry with a view, in order, captioned, ending on its permalink', async () => {
+    serveNews()
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const store = app.useStore.getState()
+    expect(await app.startNewsTour()).toBe(true)
+    // The homepage leaves as for a card, and the tour isn't a view: no history entry.
+    expect(app.homeShown).toBe(false)
+    expect(app.homePhase).toBe('out')
+    expect(app.tour.active).toBe(false)
+    expect(pushed).toHaveLength(0)
+    expect(store.newsTour).toMatchObject({index: 0, count: 3, phase: 'flying'})
+    expect(app._flight).not.toBe(null)
+    const links = [EARTH_CARD.link, OCCULTATION_CARD.link, GAIA_CARD.link]
+    const headlines = ['Earth at dusk', 'The Moon hides Jupiter', 'A million of Gaia\'s stars']
+    for (let i = 0; i < 3; i++) {
+      // The entry without a view is never a stop; each of the others is flown to.
+      t = untilTour(app, t, 'holding', i)
+      expect(store.newsTour).toMatchObject({index: i, phase: 'holding', paused: false})
+      expect(store.newsTour.caption.headline).toBe(headlines[i])
+      expect(store.newsTour.caption.sentence.length).toBeGreaterThan(10)
+      expect(store.newsTour.entry.permalink).toBe(links[i])
+      expect(app._flight).toBe(null)
+      expect(Shared.targets.tween).toBe(null)
+      // It ends exactly on the permalink's view, as a reload of it would.
+      expectView(app, links[i])
+      // Nothing else on screen: the chrome stays hidden, and the address bar is not written.
+      expect(app.navVisible).toBe(false)
+      const timer = app._permalinkTimer
+      app._schedulePermalinkUpdate()
+      expect(app._permalinkTimer).toBe(timer)
+      Shared.targets.landed = false
+    }
+    // Each stop in turn: flying, then holding its caption; and the end.
+    const seen = store.newsTours.map((s) => s && `${s.index}:${s.phase}`).filter((x, i, all) => x !== all[i - 1])
+    expect(seen.filter((x) => x !== '2:holding')).toEqual(
+        ['0:flying', '0:holding', '1:flying', '1:holding', '2:flying'])
+    // Held, then it ends having run out: the live scene, the chrome in.
+    t = run(app, t, 15000)
+    expect(app._news).toBe(null)
+    expect(store.newsTour).toBe(null)
+    expect(app.navVisible).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect(pushed).toHaveLength(1)
+    expect(pushed[0].url).toMatch(/^#sun\/earth@/)
+    Shared.targets.landed = false
+  })
+
+  it('next, previous, pause and stop work as on the homepage\'s tour; Esc stops it where it is', async () => {
+    serveNews()
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const store = app.useStore.getState()
+    await app.startNewsTour()
+    t = untilTour(app, t, 'holding', 0)
+    // Next: on to the second stop at once.
+    app.newsTourControl('next')
+    expect(store.newsTour).toMatchObject({index: 1, phase: 'flying'})
+    // Previous: back.
+    app.newsTourControl('previous')
+    expect(store.newsTour).toMatchObject({index: 0, phase: 'flying'})
+    t = run(app, t, 600)
+    // Paused mid-flight: the camera stands still.
+    app.newsTourControl('pause')
+    expect(store.newsTour.paused).toBe(true)
+    const at = app.ui.camera.getWorldPosition(new Vector3())
+    const progress = app._flight.tween.progress
+    t = run(app, t, 2000)
+    expect(app.ui.camera.getWorldPosition(new Vector3()).distanceTo(at)).toBeLessThan(1)
+    expect(app._flight.tween.progress).toBe(progress)
+    app.newsTourControl('pause')
+    expect(store.newsTour.paused).toBe(false)
+    t = run(app, t, 600)
+    expect(app._flight.tween.progress).toBeGreaterThan(progress)
+    // Esc: it stops where it is, the live scene from there.
+    const stopAt = app.ui.camera.getWorldPosition(new Vector3())
+    expect(app.stopNewsTour()).toBe(true)
+    expect(app.stopNewsTour()).toBe(false)
+    expect(app._news).toBe(null)
+    expect(store.newsTour).toBe(null)
+    expect(app._flight).toBe(null)
+    expect(Shared.targets.tween).toBe(null)
+    run(app, t, 1500)
+    expect(app.ui.camera.getWorldPosition(new Vector3()).distanceTo(stopAt)).toBeLessThan(1)
+    expect(app.navVisible).toBe(true)
+    expect(app.homePhase).toBe('hidden')
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect(pushed).toHaveLength(1)
+    Shared.targets.landed = false
+  })
+
+  it('the keys: Esc stops, Space pauses, the arrows skip, others are held back from the app', async () => {
+    serveNews()
+    const app = await openHome()
+    const t = run(app, 1000, 500)
+    const store = app.useStore.getState()
+    await app.startNewsTour()
+    untilTour(app, t, 'holding', 0)
+    const key = (k, extra = {}) => {
+      const e = {key: k, target: null, prevented: false, stopped: false,
+        preventDefault() {
+          this.prevented = true
+        },
+        stopImmediatePropagation() {
+          this.stopped = true
+        },
+        ...extra}
+      app._onNewsKey(e)
+      return e
+    }
+    expect(key(' ').stopped).toBe(true)
+    expect(store.newsTour.paused).toBe(true)
+    key(' ')
+    expect(store.newsTour.paused).toBe(false)
+    key('ArrowRight')
+    expect(store.newsTour.index).toBe(1)
+    key('ArrowLeft')
+    expect(store.newsTour.index).toBe(0)
+    // A key of the app's own (a go) isn't heard; a browser shortcut and Tab are left alone.
+    expect(key('g').stopped).toBe(true)
+    expect(key('r', {ctrlKey: true}).stopped).toBe(false)
+    expect(key('Tab').stopped).toBe(false)
+    expect(key('F5').stopped).toBe(false)
+    // A focused control's own Space is its click, not a pause.
+    expect(key(' ', {target: {closest: (sel) => sel === '.news-controls'}}).stopped).toBe(false)
+    expect(store.newsTour.paused).toBe(false)
+    expect(key('Escape').stopped).toBe(true)
+    expect(app._news).toBe(null)
+    Shared.targets.landed = false
+  })
+
+  it('a click or the wheel on the scene ends the tour, as it leaves the homepage', async () => {
+    serveNews()
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    await app.startNewsTour()
+    t = run(app, t, 300)
+    expect(app._news).not.toBe(null)
+    app.container.listeners.pointerdown.forEach((fn) => fn({}))
+    expect(app._news).toBe(null)
+    expect(app.homeShown).toBe(false)
+    expect(app._flight).toBe(null)
+    run(app, t, 1500)
+    expect(app.navVisible).toBe(true)
+    // And again, with the wheel.
+    const again = await openHome()
+    t = run(again, 1000, 500)
+    await again.startNewsTour()
+    run(again, t, 300)
+    again.container.listeners.wheel.forEach((fn) => fn({}))
+    expect(again._news).toBe(null)
+    Shared.targets.landed = false
+  })
+
+  it('with prefers-reduced-motion it cuts between stops under black instead of flying', async () => {
+    const savedMatch = globalThis.matchMedia
+    globalThis.matchMedia = (q) => ({matches: q.includes('reduce')})
+    try {
+      serveNews()
+      const app = await openHome()
+      const t = run(app, 1000, 500)
+      await app.startNewsTour()
+      // No flight: the canvas dims, and the view is put there.
+      expect(app._flight).toBe(null)
+      expect(app.ui.canvasShown).toBe(false)
+      untilTour(app, t, 'holding', 0)
+      expect(app.ui.canvasShown).toBe(true)
+      expectView(app, EARTH_CARD.link)
+    } finally {
+      globalThis.matchMedia = savedMatch
+    }
+  })
+
+  it('Back to the homepage during the tour drops it for the homepage', async () => {
+    serveNews()
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const store = app.useStore.getState()
+    await app.startNewsTour()
+    t = run(app, t, 600)
+    global.location.hash = ''
+    app._onPopState({[HOME_HISTORY_KEY]: true})
+    expect(app.homeShown).toBe(true)
+    expect(app._news).toBe(null)
+    expect(store.newsTour).toBe(null)
+    expect(app._flight).toBe(null)
+    run(app, t, 1000)
+    expect(app.tour.playing).toBe(true)
+  })
+
+  it('a link to the tour (#;news:tour) opens the page on it: no homepage, the entries in order, n= stops', async () => {
+    serveNews()
+    const app = await openHome('#;news:tour,n=2')
+    // The homepage's foreground never shows.
+    expect(app.homeShown).toBe(true)
+    expect(app.homePhase).toBe('hidden')
+    // Not rewritten, and marked as the homepage's entry.
+    expect(global.location.hash).toBe('#;news:tour,n=2')
+    expect(replaced[0].state[HOME_HISTORY_KEY]).toBe(true)
+    const store = app.useStore.getState()
+    let t = run(app, 1000, 1000)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    t = run(app, t, 200)
+    expect(app._reveal.started).toBe(true)
+    expect(newsFetches).toBeGreaterThan(0)
+    expect(app.homeShown).toBe(false)
+    expect(app.homePhase).toBe('hidden')
+    expect(store.newsTours.every((s) => s === null || s.count === 2)).toBe(true)
+    expect(store.newsTour).toMatchObject({index: 0, count: 2})
+    t = untilTour(app, t, 'holding', 0)
+    expectView(app, EARTH_CARD.link)
+    expect(app.navVisible).toBe(false)
+    app.newsTourControl('next')
+    untilTour(app, t, 'holding', 1)
+    expectView(app, OCCULTATION_CARD.link)
+    Shared.targets.landed = false
+  })
+
+  it('a link to the tour from a date begins at that entry', async () => {
+    serveNews()
+    const app = await openHome('#;news:tour,from=2026-10-11')
+    run(app, 1000, 1000)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    run(app, 2000, 200)
+    expect(app.useStore.getState().newsTour).toMatchObject({index: 0, count: 2})
+    expect(app.useStore.getState().newsTour.entry.headline).toBe('The Moon hides Jupiter')
+  })
+
+  it('a link to the tour with no changelog to play shows the homepage', async () => {
+    global.fetch = () => Promise.resolve({ok: false, status: 404})
+    const warn = console.warn
+    const warned = []
+    console.warn = (...args) => warned.push(args)
+    try {
+      const app = await openHome('#;news:tour')
+      run(app, 1000, 1000)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(app.homeShown).toBe(true)
+      expect(app.homePhase).toBe('in')
+      expect(app._news).toBe(null)
+      expect(warned.length).toBeGreaterThan(0)
+    } finally {
+      console.warn = warn
+    }
+  })
+
+  it('shows nothing on a link with the HUD off: no changelog fetched, no storage read, no tour', async () => {
+    serveNews()
+    const stored = []
+    const savedStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+    Object.defineProperty(globalThis, 'localStorage', {configurable: true, value: {
+      getItem: (k) => stored.push(`get ${k}`) && null,
+      setItem: (k) => stored.push(`set ${k}`),
+    }})
+    try {
+      for (const hash of [`#${TEST_FRAGMENT};s=v`, '#;news:tour;s=v']) {
+        apps.forEach((a) => clearTimeout(a._permalinkTimer))
+        global.location = {hash, pathname: '/', search: ''}
+        const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+            {}, () => {}, () => {}, () => {})
+        apps.push(app)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        run(app, 1000, 1500)
+        expect(app.homeShown).toBe(false)
+        expect(app.homePhase).toBe('hidden')
+        expect(app._news).toBe(null)
+        expect(app.useStore.getState().newsTours).toEqual([])
+      }
+      expect(newsFetches).toBe(0)
+      expect(stored).toEqual([])
+    } finally {
+      if (savedStorage) {
+        Object.defineProperty(globalThis, 'localStorage', savedStorage)
+      } else {
+        delete globalThis.localStorage
+      }
+    }
   })
 
   it('a link is not the homepage', () => {

@@ -32,6 +32,27 @@ describe('the homepage decision', () => {
         .toBe(false)
   })
 
+  it('a link to the changelog tour (no path, no view) is the homepage\'s, which opens on it', () => {
+    expect(isHomepage({hash: '#;news:tour', pathname: '/web/'}, PROJECT)).toBe(true)
+    expect(isHomepage({hash: '#;news:tour,from=2026-10-10,n=3', pathname: '/web/'}, PROJECT)).toBe(true)
+    // At the site's root only, as the bare URL.
+    expect(isHomepage({hash: '#;news:tour', pathname: '/web/about'}, PROJECT)).toBe(false)
+    // Not the tour: another token, a path, no flag.
+    expect(isHomepage({hash: '#;time:pause', pathname: '/web/'}, PROJECT)).toBe(false)
+    expect(isHomepage({hash: '#news:tour', pathname: '/web/'}, PROJECT)).toBe(false)
+    expect(isHomepage({hash: '#;news:from=2026-10-10', pathname: '/web/'}, PROJECT)).toBe(false)
+  })
+
+  it('shows nothing of What\'s new on a link with the HUD off (the quiet-load rule)', () => {
+    const view = '#sun/earth@0,0,1Mm;t=0jd;cq=0,0,0,1;fov=45deg'
+    // A view link is never the homepage, whatever it carries.
+    expect(isHomepage({hash: `${view};s=v`, pathname: '/web/'}, PROJECT)).toBe(false)
+    expect(isHomepage({hash: `${view};s=v;news:tour`, pathname: '/web/'}, PROJECT)).toBe(false)
+    // And the tour's own link with the HUD off isn't a tour.
+    expect(isHomepage({hash: '#;news:tour;s=v', pathname: '/web/'}, PROJECT)).toBe(false)
+    expect(isHomepage({hash: '#;news:tour;s=alv', pathname: '/web/'}, PROJECT)).toBe(false)
+  })
+
   it('a path alone goes to its target', () => {
     expect(isHomepage({hash: '#sun', pathname: '/'}, ROOT)).toBe(false)
     expect(isHomepage({hash: '#hip:32349', pathname: '/'}, ROOT)).toBe(false)

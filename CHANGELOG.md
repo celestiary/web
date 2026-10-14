@@ -31,6 +31,21 @@ has no view to open yet.
 
 ## October 2026
 
+### What's new on the homepage, and a tour of it
+
+The homepage has a What's new button that opens the latest changes, each with its date and a few
+words on what you can now see or do. An entry with a view flies there as the homepage's cards do, and
+a small count on the button shows what has come since your last visit. A tour plays the entries that
+have a view one after another, a caption under each: start it from the panel, or open
+`#;news:tour` at the site's address. Space pauses it, the arrow keys skip, Esc stops it, and it
+cuts between views instead of flying when your device asks for less motion.
+
+- Date: 2026-10-14
+- PR: [#252](https://github.com/celestiary/web/pull/252)
+- Issue: [#246](https://github.com/celestiary/web/issues/246)
+- Epic: [#244](https://github.com/celestiary/web/issues/244) What's new: a changelog, in the app, and as posts
+- Permalink: none
+
 ### The homepage tour flies into Earth's shadow to see the city lights
 
 The homepage's tour now passes over the evening's edge of daylight into Earth's shadow, where the
