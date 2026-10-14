@@ -164,8 +164,8 @@ matching time to the cut (a fade into the day before).  Two measuring notes:
   from the step.
 - **A fade lowers the median it's measured against.**  The blended meridians step less than the
   rest, so "step over the median of the view" rose against the same cut.  Report the step against
-  the largest other meridian and the local neighbours too: the cut after is a swath boundary like
-  the others (a mosaic has one every 17° or so), not an outlier.
+  the largest other meridian and the local neighbours too: the cut after is no longer an outlier but steps like the mosaic's other large steps
+  (swath edges and glint streaks), with no spike at the cut in the profile.
 
 **Rule:** For a seam in a composite of passes or exposures, find out when each side was taken
 before smoothing it; and when a fix changes the statistics of the reference, compare against a

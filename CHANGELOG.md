@@ -31,6 +31,20 @@ has no view to open yet.
 
 ## October 2026
 
+### Earth's clouds without a seam at the date line
+
+Earth's daily clouds no longer show a hard vertical edge across the Pacific at 180°. The day's cloud
+map was cut there between satellite passes a day apart, so the clouds on each side didn't match. The
+20° east of the date line now blend into the clouds from the day before, which were seen at the same
+time as the other side of the cut. The map still appears as soon as the day has loaded, and the blend
+follows a moment later.
+
+- Date: 2026-10-14
+- PR: [#252](https://github.com/celestiary/web/pull/252)
+- Issue: [#251](https://github.com/celestiary/web/issues/251)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@-10,180,15.310824Mm;t=9779.5417jd;cq=-0.0283,-0.4559,-0.0145,0.8895;fov=45deg;s=F)
+
 ### The homepage tour flies into Earth's shadow to see the city lights
 
 The homepage's tour now passes over the evening's edge of daylight into Earth's shadow, where the
