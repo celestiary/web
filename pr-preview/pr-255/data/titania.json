@@ -1,0 +1,48 @@
+{
+"type":"moon",
+
+"name":"titania",
+"parent":"uranus",
+"apparentMagnitude": "1.0",
+"colorIndex": 0.63369966,
+"mass": "3.49E24 g",
+"density": 1.7,
+"radius": "7.889E5 m",
+"has_locations": true,
+"siderealRotationPeriod": 751680.0,
+"axialInclination": 0.1,
+"location": {
+"coord": {
+"ra": 1.0,
+"dec": 1.0,
+"dist": 0.0
+},
+"epoch": {
+"name": "J2000",
+"date": "Sat Jan 01 07:00:00 EST 2000"
+}
+}
+,"albedo": 0.27,
+"equatorialGravity": 1.0,
+"escapeVelocity": 1.0,
+"orbit": {
+    "elements": "JPL SSD planetary satellite mean elements (ssd.jpl.nasa.gov/sats/elem), ephemeris URA182, retrieved 2026-09-30",
+    "referencePlane": "equatorial",
+    "referencePole": {"ra": 257.311, "dec": -15.175},
+    "notes": "referencePole: Uranus's pole, IAU WGCCRE 2015 (Archinal et al. 2018).",
+    "epoch": 2451545.0,
+    "semiMajorAxis": 4.36298E8,
+    "eccentricity": 0.002,
+    "inclination": 0.1,
+    "longitudeOfAscendingNode": 29.5,
+    "argumentOfPericenter": 184.0,
+    "meanAnomaly": 68.1,
+    "period": 8.705869,
+    "periodOf": "meanAnomaly",
+    "apsidalPeriod": 579.928,
+    "nodalPeriod": -1644.649,
+    "siderealOrbitPeriod": 752187.2112
+  }
+,
+"system": []
+}
