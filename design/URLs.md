@@ -51,6 +51,9 @@ route goes straight to its scene or panel, as it always has.
 - **Back to it** (`popstate` onto the marked entry at the bare URL) shows the
   homepage again, its tour from the start, mid-flight too.  Forward from it (a
   `hashchange` while it shows) leaves it for that link.
+- **The changelog tour's link** (`#;news:tour`, [below](#news-token)) is the
+  homepage's too, with its foreground never shown: the page opens straight on
+  the tour of What's new.
 - **Tonight's sky** (the first card) isn't a link: it flies to where the
   visitor is and lands, now or at dusk, and the link written after is that view
   (`sun/earth@lat,lng,2m;…;fov=70deg;s=LF`), shareable like any other.
@@ -285,6 +288,8 @@ Each feature has its own label:
                     showing, the apps pinned and running
 "apps.<id>":        one running app's own state, a sub-namespace of apps
 "apps.expansion":   the Human Expansion app
+"news":             the changelog tour: a link that starts it (read, never
+                    written)
 ```
 
 ### Time Token
@@ -366,6 +371,67 @@ others.
 ```
 
 No `apps` token: the drawer closed, undocked, nothing running.
+
+### News Token
+
+The changelog tour (DESIGN.md
+[What's new](../DESIGN.md#whats-new-and-the-changelog-tour)): the entries of
+`CHANGELOG.md` that have a permalink, flown to one after another with their
+headline and a sentence as a caption.  A link to it starts it.
+
+```
+tour               play the tour (without it the token does nothing)
+from=<id|date>     begin at this entry (its id, as in changelog.json) or at the
+                   newest entry on or before this date (YYYY-MM-DD); the tour
+                   goes on toward the older ones.  Default: the newest.
+n=<stops>          at most this many stops (default: all)
+```
+
+```
+#;news:tour                                the whole tour, newest first
+#;news:tour,n=3                            the three newest entries with a view
+#;news:tour,from=2026-10-11,n=3            from 11 October, three stops
+#;news:tour,from=2026-10-11-a-million-of-gaia-s-stars
+                                           from that entry, on to the end
+```
+
+Decisions:
+
+- **A feature token, not an `apps.<id>:` one.**  `apps.<id>` is state an
+  app of the widgets drawer reports as it runs, restored with its panel
+  (above).  The tour is not an app: it has no panel in the drawer, no
+  controls to restore, and its state is never in the link, because it isn't
+  a view of anything (the address bar isn't written while it plays, as for
+  the homepage's own tour).  So it is a token of its own, `news:`, like
+  `time:`: a thing the link can ask for, in the doc's `label:value` syntax.
+- **It is read, never written.**  Nothing the app writes carries it.  The
+  link is a way in: opened on the first load (the page opens on the tour), or
+  by a `hashchange` in a page that is already open (a pasted link), which
+  starts it from where the camera is.  Where the tour ends (the last stop,
+  `Esc`, a click on the scene) the address bar gets the view's own link, as
+  a new entry after the homepage's.
+- **A fragment with no path and no view: it starts with `;`.**  The
+  grammar is `path@view;params;tokens`, and the tokens' separator comes after
+  the view.  This fragment has an empty path and no view, so it begins at the
+  separator and is only tokens (`decodeNewsToken`).  It is not written as a
+  path (`#news:tour`), because the path syntax has its own `kind:value`
+  forms (`hip:`, `galaxy:`, `asterism:`) that name a target, and this names
+  none.  A fragment that starts with a path, or has a view, is never the
+  tour, whatever tokens it carries.
+- **The HUD off means nothing is shown.**  The quiet-load rule (DESIGN.md
+  [the first load](../DESIGN.md#the-first-load)): `#;news:tour;s=v` is not a
+  tour, and a view link with `s=…v…` never shows What's new or its marker
+  (the homepage isn't there for a link).  The tour hides the chrome while it
+  plays for the recording's sake, but that is the tour, not a link that has
+  asked for the HUD off.
+- **Unknown names and bad values** are ignored, as for every token: `n` that
+  isn't a positive number is all the stops, a `from` that isn't an id or a
+  date (letters, digits, `.`, `-`, `_`) is the newest.  An id that has since
+  been reworded falls back on the date it begins with.  A link to the tour with
+  no changelog to read opens the homepage.
+- **The URL is the recording's start.**  A campaign's reel (#247) is
+  `#;news:tour,n=3` screen-recorded: the page opens on the Sun's view, flies
+  to the first entry, captions it, holds, and flies on.
 
 ## Application State Tokens
 
@@ -449,7 +515,9 @@ yet run aren't in the link.
 - **Reading.**  On the first load only, as with the scene settings: the
   `apps` token restores the drawer at once, and each running app starts
   from its token, waiting for what it needs.  Moving to another target
-  later (a new hash) leaves the drawer as it is.
+  later (a new hash) leaves the drawer as it is.  The one other reader is the
+  `news` token, which a link to the tour sets going on the first load or a
+  `hashchange`, and which is never written ([above](#news-token)).
 - **The scene settings come first.**  `s=` is read in Celestiary's
   constructor, before anything is loaded or drawn (`Scene.initSettings`),
   so each overlay is built shown or hidden as the link says: what the link

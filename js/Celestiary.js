@@ -8,6 +8,7 @@ import Keys from './Keys'
 import Loader from './Loader'
 import Scene, {DEFAULT_LAND_ALT_M} from './scene/Scene'
 import TourDriver from './tourDriver'
+import NewsTour from './newsTour'
 import {searchIndex} from './search/SearchIndex'
 import GalaxiesProvider from './search/providers/GalaxiesProvider'
 import PlacesProvider from './search/providers/PlacesProvider'
@@ -25,6 +26,7 @@ import {
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry, placeTarget} from './search/commitEntry'
+import {decodeNewsToken, loadChangelog, tourStops} from './changelog'
 import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
 import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
 import {ease} from './tour'
@@ -185,6 +187,16 @@ export default class Celestiary {
     // (tourDriver.js), still for prefers-reduced-motion.
     this.homeShown = isHomepage(location, document.baseURI)
     this.homePhase = 'hidden'
+    // The changelog tour (newsTour.js; DESIGN.md "What's new"): a link to it
+    // (`#;news:tour`) opens the page on it, with no homepage in between.
+    this._newsStart = this.homeShown ? decodeNewsToken(location.hash) : null
+    this._news = null
+    // The changelog, once asked for (loadNews).
+    this._newsEntries = null
+    // How many times the camera had been placed when the tour's stop began.
+    this._newsMark = 0
+    // The frame clock of a flight held by the tour's pause (_frameFlight).
+    this._flightLastMs = null
     this.tour = new TourDriver({scene: this.scene, ui: this.ui, time: this.time, quietly: (fn) => this._quietly(fn)})
     // Steps on the frame clock while leaving the homepage or coming back.
     this._homeSteps = null
@@ -214,7 +226,12 @@ export default class Celestiary {
     // and the overlays and the chrome wait until it's left (leaveHome).
     this._reveal = new Choreography([
       {at: REVEAL_AT.loading, run: () => {
-        if (this.homeShown) {
+        if (this.homeShown && this._newsStart) {
+          // A link to the changelog tour: the foreground never shows.
+          hideLoading()
+          this.tour.play()
+          this._startNewsFromLink()
+        } else if (this.homeShown) {
           // The page's loading title becomes the homepage's (ui/Homepage).
           this._setHomePhase('in')
           this.tour.play()
@@ -226,7 +243,7 @@ export default class Celestiary {
       ...this._overlaySteps(0, () => !this.homeShown),
     ])
     if (this.homeShown) {
-      this._setHomePhase('waiting')
+      this._setHomePhase(this._newsStart ? 'hidden' : 'waiting')
       this._homeCost(true)
     }
     this.load()
@@ -236,7 +253,9 @@ export default class Celestiary {
     // A click, a drag or the wheel on the scene leaves the homepage for it.
     // And stops a flight from it where it is.
     const leaveForScene = () => {
-      if (this.homeShown) {
+      if (this._news) {
+        this.stopNewsTour()
+      } else if (this.homeShown) {
         this.leaveHome()
       } else {
         this.stopFlight()
@@ -393,6 +412,7 @@ export default class Celestiary {
     this._frameFlight(nowMs)
     this._frameCut(nowMs)
     this._frameHomeReturn(nowMs)
+    this._news?.frame(nowMs)
     this.scene.overlays.tick(nowMs)
     this._frameNav(nowMs)
   }
@@ -956,6 +976,15 @@ export default class Celestiary {
   setupPathListeners() {
     window.addEventListener('hashchange', () => {
       const raw = (window.location.hash || '#').substring(1)
+      const news = decodeNewsToken(raw)
+      if (news) {
+        // A link to the changelog tour, opened in this page (Forward, a
+        // pasted link).
+        this.startNewsTour(news)
+        return
+      }
+      // Any other link takes the scene from a tour under way.
+      this._abandonNewsTour({reveal: true})
       if (this.homeShown) {
         // A link opened from the homepage (Forward, the search's Go to a
         // body): leave it for there.  Back to the homepage has none.
@@ -974,12 +1003,17 @@ export default class Celestiary {
       if (e.key !== 'Escape') {
         return
       }
-      if (this.homeShown) {
+      if (this._news) {
+        this.stopNewsTour()
+      } else if (this.homeShown) {
         this.leaveHome()
       } else {
         this.stopFlight()
       }
     })
+    // The changelog tour is a presentation: its keys, and no others.  Before
+    // the app's own (Keys), so a key it takes isn't also a go or a toggle.
+    window.addEventListener('keydown', (e) => this._onNewsKey(e), true)
   }
 
 
@@ -1031,9 +1065,11 @@ export default class Celestiary {
    * @param {boolean} [opts.write] Otherwise, write the view to the
    *   address bar now, as a new history entry, so Back returns to the
    *   homepage (what follows a search's Look at writes its own)
+   * @param {boolean} [opts.cut] Under black rather than a flight (the
+   *   changelog tour, for reduced motion)
    * @returns {boolean} Whether it was showing
    */
-  leaveHome({link = null, fly = null, write = true} = {}) {
+  leaveHome({link = null, fly = null, write = true, cut = false} = {}) {
     if (!this.homeShown) {
       return false
     }
@@ -1041,7 +1077,9 @@ export default class Celestiary {
     this._homeReturning = false
     this.tour.stop()
     this._homeCost(false)
-    this._setHomePhase('out')
+    if (this.homePhase !== 'hidden') {
+      this._setHomePhase('out')
+    }
     this._cut = null
     const unmount = {at: HOME_UNMOUNT_MS, run: () => this._setHomePhase('hidden')}
     const pl = link ? decodePermalink(link) : null
@@ -1063,7 +1101,7 @@ export default class Celestiary {
       // The overlays and the chrome come in once it's there (_endFlight).
       this._homeSteps = new Choreography([unmount])
       if (pl) {
-        this._flyToLink(link)
+        this._flyToLink(link, {cut})
       } else {
         this._flyTo(fly)
       }
@@ -1102,8 +1140,11 @@ export default class Celestiary {
    * by the app's go; a view from a star's frame cuts to it under black.
    *
    * @param {string} link A fragment, without its '#'
+   * @param {object} [opts]
+   * @param {boolean} [opts.cut] Cut to the view under black instead of
+   *   flying (the changelog tour, for reduced motion)
    */
-  _flyToLink(link) {
+  _flyToLink(link, {cut = false} = {}) {
     const pl = decodePermalink(link)
     const ref = parseTargetPath(pathFromFragment(link))
     if (!pl || !ref) {
@@ -1128,7 +1169,7 @@ export default class Celestiary {
         }
         this._flightToken = null
         const body = frame.kind === 'body' ? this.scene.objects[frame.name] : null
-        if (!body?.props?.radius?.scalar) {
+        if (cut || !body?.props?.radius?.scalar) {
           this._cutTo(() => this._arrive(pl, frame, resolved))
           return
         }
@@ -1275,6 +1316,15 @@ export default class Celestiary {
       this._endFlight({arrived: false})
       return
     }
+    if (this._news?.paused) {
+      // The changelog tour is paused: the flight's clock stands still.
+      const held = this._flightLastMs === null ? 0 : nowMs - this._flightLastMs
+      this._flightLastMs = nowMs
+      flight.startMs = flight.startMs === null ? null : flight.startMs + held
+      flight.dipUntil = flight.dipUntil ? flight.dipUntil + held : flight.dipUntil
+      return
+    }
+    this._flightLastMs = null
     if (!flight.path) {
       flight.dipUntil ??= nowMs + CUT_FADE_MS
       if (nowMs < flight.dipUntil) {
@@ -1693,6 +1743,219 @@ export default class Celestiary {
 
 
   /**
+   * The changelog (changelog.js; DESIGN.md "What's new"), fetched once for
+   * the homepage's What's new and the changelog tour.
+   *
+   * @returns {Promise<Array<object>>} Its entries, newest first; rejects if
+   *   the file can't be read (asked for again next time)
+   */
+  loadNews() {
+    this._newsEntries ??= loadChangelog().catch((e) => {
+      this._newsEntries = null
+      throw e
+    })
+    return this._newsEntries
+  }
+
+
+  /**
+   * Play the changelog tour (newsTour.js): the entries that have a
+   * permalink, newest first, each flown to as a homepage card is, with its
+   * headline and sentence as a caption while it is held.  Nothing else is on
+   * screen: the homepage fades out as for a card, the chrome stays hidden
+   * until the tour ends (Esc, a click on the scene, or the last stop), and
+   * the address bar isn't written while it plays.
+   *
+   * @param {object} [opts]
+   * @param {?string} [opts.from] An entry's id or a date to begin at
+   * @param {number} [opts.count] At most this many stops
+   * @returns {Promise<boolean>} Whether there was anything to play
+   */
+  async startNewsTour({from = null, count = Infinity} = {}) {
+    let entries
+    try {
+      entries = await this.loadNews()
+    } catch (e) {
+      console.warn('What\'s new:', e)
+      return false
+    }
+    const stops = tourStops(entries, {from, count})
+    if (!stops.length) {
+      return false
+    }
+    this._abandonNewsTour()
+    this._news = new NewsTour({
+      go: (entry) => this._newsGo(entry),
+      arrived: () => this._newsArrived(),
+      onChange: (state) => this._setNewsTour(state),
+      onEnd: (finished) => this._onNewsEnd(finished),
+    })
+    return this._news.start(stops)
+  }
+
+
+  /**
+   * A page opened on a link to the changelog tour (`#;news:tour`): the
+   * tour plays from the reveal, and if it can't (no changelog), the
+   * homepage shows as at the bare URL.
+   */
+  _startNewsFromLink() {
+    this.startNewsTour(this._newsStart).then((started) => {
+      if (!started && this.homeShown) {
+        this._newsStart = null
+        this._setHomePhase('in')
+      }
+    })
+  }
+
+
+  /**
+   * The tour's flight to a stop: as a card's (leaveHome from the homepage,
+   * else a flight from where the camera is), or a cut under black for
+   * reduced motion.
+   *
+   * @param {object} entry A changelog entry with a permalink
+   */
+  _newsGo(entry) {
+    this._newsMark = this._arrivals
+    if (this._cut) {
+      // Skipped past a cut that was waiting to show.
+      this._cut = null
+      this.ui.showCanvas(SCENE_FADE_MS)
+    }
+    const link = entry.permalink
+    const cut = prefersReducedMotion()
+    if (this.homeShown) {
+      this.leaveHome({link, cut})
+      return
+    }
+    const pl = decodePermalink(link)
+    if (pl) {
+      this._holdLinkSettings(pl)
+    }
+    this._flyToLink(link, {cut})
+  }
+
+
+  /** @returns {boolean} The camera has arrived at the stop _newsGo began */
+  _newsArrived() {
+    return this._arrivals > this._newsMark && !this._flight && !this._flightToken && !this._cut &&
+      Shared.targets.tween === null
+  }
+
+
+  /**
+   * The tour is over: it ran out of stops, or was stopped (Esc, a click on
+   * the scene).  The live scene from where the camera is, the chrome in,
+   * its link written (after the homepage's entry, so Back returns).
+   *
+   * @param {boolean} _finished
+   */
+  _onNewsEnd(_finished) {
+    this._news = null
+    this._setNewsTour(null)
+    if (this._flight || this._flightToken) {
+      this.stopFlight()
+    } else {
+      this._afterFlight()
+    }
+  }
+
+
+  /**
+   * End the changelog tour from outside (its controls, Esc).
+   *
+   * @returns {boolean} Whether one was playing
+   */
+  stopNewsTour() {
+    if (!this._news) {
+      return false
+    }
+    this._news.stop()
+    return true
+  }
+
+
+  /**
+   * Drop the changelog tour without ending the view it leaves: something
+   * else has the scene (Back to the homepage, another link).
+   *
+   * @param {object} [opts]
+   * @param {boolean} [opts.reveal] The chrome comes in, as the tour's end
+   *   brings it
+   */
+  _abandonNewsTour({reveal = false} = {}) {
+    const news = this._news
+    if (!news) {
+      return
+    }
+    this._news = null
+    news.abandon()
+    if (reveal) {
+      this._chromeRevealed = true
+      this._setNav(this.scene.getSetting('v'))
+    }
+  }
+
+
+  /**
+   * The tour's controls (ui/NewsTour.jsx).
+   *
+   * @param {string} action 'next', 'previous', 'pause' or 'stop'
+   */
+  newsTourControl(action) {
+    switch (action) {
+      case 'next': this._news?.next(); break
+      case 'previous': this._news?.previous(); break
+      case 'pause': this._news?.togglePause(); break
+      case 'stop': this.stopNewsTour(); break
+      default: break
+    }
+  }
+
+
+  /**
+   * The tour's keys, while it plays: Esc stops it, Space pauses, the arrows
+   * skip.  Others are held back from the app (a `g` or an `a` would take
+   * the scene or its overlays from a presentation); Tab, function keys and
+   * browser shortcuts are left alone, and so is a focused control's own
+   * Enter and Space.
+   *
+   * @param {KeyboardEvent} e
+   */
+  _onNewsKey(e) {
+    const news = this._news
+    if (!news || e.ctrlKey || e.metaKey || e.altKey || e.key === 'Tab' || (/^F\d+$/).test(e.key)) {
+      return
+    }
+    const onControl = Boolean(e.target?.closest?.('.news-controls'))
+    if (e.key === 'Escape') {
+      this.stopNewsTour()
+    } else if (onControl && (e.key === 'Enter' || e.key === ' ')) {
+      return
+    } else if (e.key === ' ') {
+      news.togglePause()
+    } else if (e.key === 'ArrowRight') {
+      news.next()
+    } else if (e.key === 'ArrowLeft') {
+      news.previous()
+    }
+    e.preventDefault?.()
+    e.stopImmediatePropagation?.()
+  }
+
+
+  /**
+   * The tour's state for its caption and controls (ui/NewsTour.jsx).
+   *
+   * @param {?object} state NewsTour.state; null when it isn't playing
+   */
+  _setNewsTour(state) {
+    this.useStore.getState().setNewsTour?.(state)
+  }
+
+
+  /**
    * Show the homepage again (Back to its entry): the overlays and the
    * chrome fade out, the canvas to black, and the tour starts over.
    */
@@ -1702,6 +1965,7 @@ export default class Celestiary {
     }
     this.homeShown = true
     this._cut = null
+    this._abandonNewsTour()
     this._cancelFlight()
     this.scene.holdOverlays()
     this._setNav(false)
@@ -1769,6 +2033,11 @@ export default class Celestiary {
       step(REVEAL_AT.diagrams, () => this.scene.revealOverlays(['a', 'e', 'c', 'g', 'x'])),
       step(REVEAL_AT.labels, () => this.scene.revealOverlays(['p', 'l', 'G'])),
       step(REVEAL_AT.chrome, () => {
+        // The changelog tour shows nothing but the scene and its captions;
+        // the chrome comes in when it ends (_onNewsEnd).
+        if (this._news) {
+          return
+        }
         this._chromeRevealed = true
         this._setNav(this.scene.getSetting('v'))
       }),
@@ -2291,13 +2560,14 @@ export default class Celestiary {
    */
   _schedulePermalinkUpdate() {
     // The homepage's URL stays bare while it shows: the tour isn't a view.
-    if (Shared.targets.tween !== null || this.homeShown) {
+    // Nor does the changelog tour's: each stop is the entry's own link.
+    if (Shared.targets.tween !== null || this.homeShown || this._news) {
       return
     }
     clearTimeout(this._permalinkTimer)
     this._permalinkTimer = setTimeout(() => {
       // A tween started since (a goTo targets first): its end reschedules.
-      if (Shared.targets.tween !== null || this.homeShown) {
+      if (Shared.targets.tween !== null || this.homeShown || this._news) {
         return
       }
       const fragment = this.permalink()

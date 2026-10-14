@@ -26,6 +26,31 @@
       "image": null
     },
     {
+      "id": "2026-10-14-what-s-new-on-the-homepage-and-a-tour-of-it",
+      "date": "2026-10-14",
+      "headline": "What's new on the homepage, and a tour of it",
+      "text": "The homepage has a What's new button that opens the latest changes, each with its date and a few words on what you can now see or do. An entry with a view flies there as the homepage's cards do, and a small count on the button shows what has come since your last visit. A tour plays the entries that have a view one after another, a caption under each: start it from the panel, or open #;news:tour at the site's address. Space pauses it, the arrow keys skip, Esc stops it, and it cuts between views instead of flying when your device asks for less motion.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 253,
+          "url": "https://github.com/celestiary/web/pull/253"
+        },
+        {
+          "kind": "issue",
+          "number": 246,
+          "url": "https://github.com/celestiary/web/issues/246"
+        }
+      ],
+      "epic": {
+        "number": 244,
+        "title": "What's new: a changelog, in the app, and as posts",
+        "url": "https://github.com/celestiary/web/issues/244"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-13-the-homepage-tour-flies-into-earth-s-shadow-to",
       "date": "2026-10-13",
       "headline": "The homepage tour flies into Earth's shadow to see the city lights",

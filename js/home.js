@@ -6,6 +6,9 @@
  */
 
 
+import {decodeNewsToken} from './changelog'
+
+
 /**
  * The key in the history entry's state that marks it as the homepage's:
  * Back to that entry shows the homepage again (Celestiary._onPopState),
@@ -19,7 +22,9 @@ export const HOME_HISTORY_KEY = 'celestiaryHome'
  * Whether a location is the bare URL: no fragment (or an empty `#`), and
  * the site's root path (the base the page is served under, with or without
  * its trailing slash, or its index.html).  The query string doesn't count:
- * `?perf=1` and `?hdr=0` still show the homepage.
+ * `?perf=1` and `?hdr=0` still show the homepage.  A link to the changelog
+ * tour (`#;news:tour`, changelog.js `decodeNewsToken`) is the homepage's
+ * too: it has no path or view, and opens the page on that tour.
  *
  * @param {{hash?: string, pathname?: string}} loc window.location, or like it
  * @param {string} [baseURI] document.baseURI: the site's root
@@ -27,7 +32,7 @@ export const HOME_HISTORY_KEY = 'celestiaryHome'
  */
 export function isHomepage(loc, baseURI) {
   const hash = loc?.hash ?? ''
-  if (hash !== '' && hash !== '#') {
+  if (hash !== '' && hash !== '#' && !decodeNewsToken(hash)) {
     return false
   }
   if (typeof loc?.pathname !== 'string') {

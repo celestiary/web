@@ -1,8 +1,10 @@
-import React, {ReactElement, useEffect, useRef, useState} from 'react'
+import React, {ReactElement, useCallback, useEffect, useRef, useState} from 'react'
+import {checkNew, markSeen} from '../changelog'
 import {HOME_CARDS, cardImage} from '../home'
 import {handOffLoadingTitle} from '../loading'
 import {permalinkHref} from '../permalink'
 import SearchBar from './SearchBar'
+import WhatsNew from './WhatsNew'
 
 
 /**
@@ -12,7 +14,9 @@ import SearchBar from './SearchBar'
  * (Celestiary.openTonight: their location asked for on the click); the
  * others open their links in the app (Celestiary.openLink);
  * Esc, the "Explore" button, or a click, drag or wheel on the scene leaves
- * for the live scene (Celestiary.leaveHome).
+ * for the live scene (Celestiary.leaveHome).  A What's new button opens
+ * the changelog's latest entries (ui/WhatsNew.jsx), with a marker for what's
+ * new since the visitor's last visit.
  *
  * Its phase is Celestiary's (store/HomeSlice.js): 'waiting' (laid out,
  * unseen, so the loading title has a place to go), 'in', 'out'.
@@ -24,7 +28,10 @@ import SearchBar from './SearchBar'
  */
 export default function Homepage({celestiary, phase}) {
   const [locating, setLocating] = useState(false)
+  const [news, setNews] = useState(null)
+  const [newsOpen, setNewsOpen] = useState(false)
   const titleRef = useRef(null)
+  const newsButtonRef = useRef(null)
 
   // Tonight's sky asks where the visitor is now, on the click, not before.
   const openTonight = () => {
@@ -37,6 +44,32 @@ export default function Homepage({celestiary, phase}) {
       setLocating(false)
     })
   }
+
+  // The changelog, for the button and its marker.  A failure leaves the page
+  // as it was: no button.
+  useEffect(() => {
+    let live = true
+    celestiary.loadNews().then((entries) => {
+      if (live && entries.length) {
+        const {fresh} = checkNew(entries)
+        setNews({entries, fresh: new Set(fresh.map((e) => e.id)), unseen: fresh.length})
+      }
+    }).catch((e) => console.warn('What\'s new:', e))
+    return () => {
+      live = false
+    }
+  }, [celestiary])
+
+  const openNews = () => {
+    setNewsOpen(true)
+    // Seeing the entries clears the marker; they stay tagged New while open.
+    markSeen(news.entries)
+    setNews({...news, unseen: 0})
+  }
+  const closeNews = useCallback(() => {
+    setNewsOpen(false)
+    newsButtonRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     if (phase === 'in') {
@@ -95,15 +128,33 @@ export default function Homepage({celestiary, phase}) {
             </li>
           ))}
         </ul>
-        <button
-          type='button'
-          className='home-explore'
-          data-testid='home-explore'
-          onClick={() => celestiary.leaveHome()}
-        >
-          Explore the live scene <kbd>Esc</kbd>
-        </button>
+        <div className='home-actions'>
+          {news &&
+            <button
+              type='button'
+              className='home-news'
+              ref={newsButtonRef}
+              data-testid='home-news'
+              aria-haspopup='dialog'
+              onClick={openNews}
+            >
+              What&apos;s new
+              {news.unseen > 0 &&
+                <span className='home-news-marker' data-testid='home-news-marker'>
+                  {news.unseen} new
+                </span>}
+            </button>}
+          <button
+            type='button'
+            className='home-explore'
+            data-testid='home-explore'
+            onClick={() => celestiary.leaveHome()}
+          >
+            Explore the live scene <kbd>Esc</kbd>
+          </button>
+        </div>
       </section>
+      {newsOpen && news && <WhatsNew celestiary={celestiary} entries={news.entries} fresh={news.fresh} onClose={closeNews}/>}
     </div>
   )
 }
