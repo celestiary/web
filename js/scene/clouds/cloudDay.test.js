@@ -1,10 +1,17 @@
 import {
   COMPLETE_BAND_DEG,
   INCOMPLETE_SHARE,
+  SEAM_FADE_DEG,
   bandRows,
+  blendSeam,
   buildDay,
+  buildSeam,
   chooseDay,
+  fadeSeam,
   fallbackSources,
+  seamColumns,
+  seamSource,
+  seamWeight,
   unseenInBand,
 } from './cloudDay.js'
 import {CLOUD_TILE_LEVEL, TILE_PX, cloudSource, dailySource, previousDate, tileGrid, tileRect} from './cloudSource.js'
@@ -31,17 +38,19 @@ const bundled = new Uint8Array(W * H).fill(BUNDLED)
  *   whether the satellite saw that pixel (cloud), or not (black)
  * @returns {Uint8ClampedArray} A tile's RGBA
  */
-function tile(seen = () => true) {
+function tile(seen = () => true, colour = CLOUD) {
   const px = new Uint8ClampedArray(TILE_PX * TILE_PX * 4)
   for (let j = 0; j < TILE_PX; j++) {
     for (let i = 0; i < TILE_PX; i++) {
-      px.set(seen(i, j) ? [...CLOUD, 255] : [0, 0, 0, 255], 4 * ((j * TILE_PX) + i))
+      px.set(seen(i, j) ? [...colour, 255] : [0, 0, 0, 255], 4 * ((j * TILE_PX) + i))
     }
   }
   return px
 }
 const FULL = tile()
 const BLACK = tile(() => false)
+// Seen, and the ocean's own colour: unmixes to no cloud.
+const CLEAR = tile(() => true, OCEAN)
 
 
 /**
@@ -212,5 +221,234 @@ describe('chooseDay', () => {
 
   it('answers null when a build goes stale', async () => {
     expect(await chooseDay(fallbackSources(DAY), () => Promise.resolve(null))).toBe(null)
+  })
+})
+
+
+describe('the antimeridian fade', () => {
+  const COLUMNS = seamColumns(W)
+  const TOP = bandRows(H).top
+
+  /** @returns {Uint8Array} A map: clear (0) but for the east edge's columns, cloudy (255) */
+  function dayMap() {
+    const map = new Uint8Array(W * H)
+    for (let j = 0; j < H; j++) {
+      map.fill(255, (j * W) + W - COLUMNS, (j + 1) * W)
+    }
+    return map
+  }
+  const cloudyBefore = () => ({coverage: new Uint8Array(W * H).fill(255), unseen: new Uint8Array(W * H)})
+
+  describe('the weights', () => {
+    it('are 20° of columns, 1 at the cut falling in a line to 0 at its far edge', () => {
+      expect(SEAM_FADE_DEG).toBe(20)
+      expect(COLUMNS).toBe(Math.round(W * 20 / 360))
+      expect(seamWeight(0, COLUMNS)).toBeCloseTo(1 - (0.5 / COLUMNS), 10)
+      expect(seamWeight(COLUMNS - 1, COLUMNS)).toBeCloseTo(0.5 / COLUMNS, 10)
+      expect(seamWeight(Math.floor(COLUMNS / 2), COLUMNS)).toBeCloseTo(0.5, 2)
+      for (let x = 1; x < COLUMNS; x++) {
+        expect(seamWeight(x, COLUMNS)).toBeLessThan(seamWeight(x - 1, COLUMNS))
+      }
+    })
+
+    it('are symmetric about the middle of the band, and none outside it', () => {
+      for (let x = 0; x < COLUMNS; x++) {
+        expect(seamWeight(x, COLUMNS) + seamWeight(COLUMNS - 1 - x, COLUMNS)).toBeCloseTo(1, 10)
+      }
+      expect(seamWeight(COLUMNS, COLUMNS)).toBe(0)
+      expect(seamWeight(W - 1, COLUMNS)).toBe(0)
+    })
+  })
+
+  describe('seamSource', () => {
+    it('is the day before, with its own layers', () => {
+      expect(seamSource(DAY).date).toBe('2026-10-10')
+      expect(layersOf(seamSource(DAY))).toEqual(['VIIRS_NOAA20', 'VIIRS_SNPP'])
+      // NOAA-20 began on 2018-01-05: the day before is Suomi NPP and Aqua.
+      expect(layersOf(seamSource(dailySource('2018-01-05')))).toEqual(['VIIRS_SNPP', 'MODIS_Aqua'])
+    })
+
+    it('crosses months, years and leap days', () => {
+      expect(seamSource(dailySource('2026-03-01')).date).toBe('2026-02-28')
+      expect(seamSource(dailySource('2024-03-01')).date).toBe('2024-02-29')
+      expect(seamSource(dailySource('2026-01-01')).date).toBe('2025-12-31')
+      expect(seamSource(dailySource('2017-01-01')).date).toBe('2016-12-31')
+    })
+
+    it('is none on the first day of the satellites', () => {
+      expect(seamSource(dailySource('2000-02-24'))).toBe(null)
+      expect(seamSource(dailySource('2000-02-25')).date).toBe('2000-02-24')
+    })
+  })
+
+  describe('blendSeam', () => {
+    it('puts the day before\'s clouds at the cut and the day\'s own at the fade\'s far edge', () => {
+      const map = dayMap()
+      const j = TOP + 100
+      const own = (x) => map[(j * W) + x]
+      // Before: the cut is a step of the whole range, from the east edge's cloud to the west's clear.
+      expect(Math.abs(own(W - 1) - own(0))).toBe(255)
+      const changed = blendSeam(map, cloudyBefore(), W, H)
+      expect(changed).toBe(COLUMNS * H)
+      // After: the cloud meets across it, within a level or two.
+      expect(Math.abs(own(W - 1) - own(0))).toBeLessThanOrEqual(1)
+      // Then a straight run down to the day's own clear at the far edge.
+      const mid = Math.floor(COLUMNS / 2)
+      expect(own(mid)).toBeGreaterThan(120)
+      expect(own(mid)).toBeLessThan(135)
+      expect(own(COLUMNS - 1)).toBeLessThanOrEqual(2)
+      for (let x = 1; x < COLUMNS; x++) {
+        expect(own(x)).toBeLessThanOrEqual(own(x - 1))
+        // No step anywhere in the fade is more than a few levels (255 / 142 = 1.8).
+        expect(own(x - 1) - own(x)).toBeLessThanOrEqual(3)
+      }
+    })
+
+    it('leaves everything east of the fade\'s far edge, and the east edge, as it was', () => {
+      const map = dayMap()
+      const before = Uint8Array.from(map)
+      blendSeam(map, cloudyBefore(), W, H)
+      for (let j = 0; j < H; j += 61) {
+        for (let x = COLUMNS; x < W; x++) {
+          expect(map[(j * W) + x]).toBe(before[(j * W) + x])
+        }
+      }
+    })
+
+    it('fades the day before in only where it saw the ground', () => {
+      const map = dayMap()
+      const before = cloudyBefore()
+      // Polar night in the day before: unseen from 70° N up.
+      const rows = Math.round(20 * H / 180)
+      before.unseen.fill(1, 0, rows * W)
+      const changed = blendSeam(map, before, W, H)
+      expect(changed).toBe(COLUMNS * (H - rows))
+      expect(map[0]).toBe(0)
+      expect(map[(rows * W)]).toBeGreaterThan(250)
+    })
+
+    it('keeps the day\'s own clouds at its east edge: the day after is not used', () => {
+      const map = dayMap()
+      blendSeam(map, cloudyBefore(), W, H)
+      expect(map[((TOP + 5) * W) + W - 1]).toBe(255)
+    })
+  })
+
+  describe('buildSeam', () => {
+    it('builds the westernmost column of tiles of the day before, and nothing else', async () => {
+      const fetchTile = fetcher(() => FULL)
+      const day = await buildSeam({source: seamSource(DAY), ground, bundled, fetchTile})
+      expect(day).toMatchObject({complete: true, failed: 0, unseenShare: 0})
+      expect(fetchTile.requests.toSorted()).toEqual([0, 1, 2].map((row) => `VIIRS_NOAA20 2026-10-10 ${row} 0`))
+      // The column is the day before's; the rest of the map keeps the bundled coverage.
+      expect(day.coverage[(TOP * W) + 5]).toBe(255)
+      expect(day.coverage[(TOP * W) + TILE_PX + 5]).toBe(BUNDLED)
+    })
+
+    it('judges the column as a day is: a missing tile in the band is incomplete', async () => {
+      const day = await buildSeam({source: seamSource(DAY), ground, bundled, fetchTile: fetcher(({row}) => (row === 1 ? null : FULL))})
+      expect(day.complete).toBe(false)
+    })
+  })
+
+  describe('fadeSeam', () => {
+    const shown = DAY
+    // The day's own clouds are clear; the day before's are cloudy.
+    const serve = ({date}) => (date === '2026-10-11' ? CLEAR : FULL)
+    const run = async (fetchTile, map = dayMap(), opts = {}) => {
+      const grounds = []
+      const groundOf = (s) => {
+        grounds.push(s.date)
+        return ground
+      }
+      const result = await fadeSeam({map, shown, groundOf, bundled, fetchTile, ...opts})
+      return {result, map, grounds}
+    }
+
+    it('fades the day before into the cut: 3 tiles, its own ground', async () => {
+      const fetchTile = fetcher(serve)
+      const before = dayMap()
+      const {result, map, grounds} = await run(fetchTile)
+      expect(result).toMatchObject({date: '2026-10-10', state: 'blended', unseenShare: 0})
+      expect(grounds).toEqual(['2026-10-10'])
+      expect(fetchTile.requests.length).toBe(3)
+      expect(fetchTile.requests.every((r) => r.startsWith('VIIRS_NOAA20 2026-10-10 '))).toBe(true)
+      const j = TOP + 50
+      expect(Math.abs(map[(j * W) + W - 1] - map[j * W])).toBeLessThanOrEqual(1)
+      expect(map[(j * W) + COLUMNS]).toBe(before[(j * W) + COLUMNS])
+    })
+
+    it('takes the day before across a year\'s end, with that month\'s ground', async () => {
+      const fetchTile = fetcher(() => FULL)
+      const grounds = []
+      const result = await fadeSeam({
+        map: dayMap(), shown: dailySource('2026-01-01'), bundled, fetchTile,
+        groundOf: (s) => {
+          grounds.push(s.date)
+          return ground
+        },
+      })
+      expect(result).toMatchObject({date: '2025-12-31', state: 'blended'})
+      expect(grounds).toEqual(['2025-12-31'])
+      expect(fetchTile.requests.every((r) => r.startsWith('VIIRS_NOAA20 2025-12-31 '))).toBe(true)
+    })
+
+    it('leaves the cut when the day before is incomplete: swaths missing in the band', async () => {
+      const before = dayMap()
+      const {result, map} = await run(fetcher(({date, row}) => (date === '2026-10-11' ? CLEAR : (row === 1 ? BLACK : FULL))))
+      expect(result).toMatchObject({date: '2026-10-10', state: 'incomplete'})
+      expect(result.unseenShare).toBeGreaterThan(INCOMPLETE_SHARE)
+      expect(map).toEqual(before)
+    })
+
+    it('leaves the cut when a tile of the day before fails', async () => {
+      const before = dayMap()
+      const {result, map} = await run(fetcher(({date, row}) => (date === '2026-10-11' ? CLEAR : (row === 0 ? null : FULL))))
+      expect(result.state).toBe('incomplete')
+      expect(map).toEqual(before)
+    })
+
+    it('fades where it can when only the polar tile fails: that tile\'s pixels are the day\'s own', async () => {
+      const before = dayMap()
+      const {result, map} = await run(fetcher(({row}) => (row === 2 ? null : FULL)))
+      expect(result.state).toBe('blended')
+      const polar = tileRect(CLOUD_TILE_LEVEL, 2, 0)
+      expect(map[(polar.y + 5) * W]).toBe(before[(polar.y + 5) * W])
+      expect(map[(TOP * W)]).toBeGreaterThan(250)
+    })
+
+    it('leaves the cut, and says so, when the day before\'s ground fails', async () => {
+      const before = dayMap()
+      const warn = console.warn
+      console.warn = () => {}
+      try {
+        const map = dayMap()
+        const result = await fadeSeam({
+          map, shown, bundled, fetchTile: fetcher(() => FULL), groundOf: () => Promise.reject(new Error('no ground')),
+        })
+        expect(result).toMatchObject({date: '2026-10-10', state: 'failed'})
+        expect(map).toEqual(before)
+      } finally {
+        console.warn = warn
+      }
+    })
+
+    it('does nothing before the satellites', async () => {
+      const fetchTile = fetcher(() => FULL)
+      const before = dayMap()
+      const result = await fadeSeam({
+        map: before, shown: dailySource('2000-02-24'), bundled, fetchTile, groundOf: () => ground,
+      })
+      expect(result).toMatchObject({date: null, state: 'none'})
+      expect(fetchTile.requests.length).toBe(0)
+      expect(before).toEqual(dayMap())
+    })
+
+    it('answers null, the map untouched, once stale', async () => {
+      const before = dayMap()
+      const {result, map} = await run(fetcher(() => FULL), dayMap(), {stale: () => true})
+      expect(result).toBe(null)
+      expect(map).toEqual(before)
+    })
   })
 })

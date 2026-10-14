@@ -142,6 +142,9 @@ export function unseenInBand(unseen, rect, width, band) {
  * @param {function(): boolean} [opts.stale] Whether the build is no longer wanted
  * @param {function(object): void} [opts.onTile] Called as each tile is done,
  *   with {done, failed, unmixMs} so far
+ * @param {Array<number>} [opts.columns] Only these tile columns (the seam
+ *   strip's); the rest of the map keeps the bundled coverage, and the
+ *   completeness is judged over these columns only
  * @param {number} [opts.level]
  * @returns {Promise<?{coverage: Uint8Array, unseen: Uint8Array,
  *   unseenShare: number, complete: boolean, aborted: boolean, failed: number,
@@ -150,14 +153,14 @@ export function unseenInBand(unseen, rect, width, band) {
  */
 export async function buildDay({
   source, ground, bundled, fetchTile, stopAbove = INCOMPLETE_SHARE, stale = () => false, onTile = null,
-  level = CLOUD_TILE_LEVEL,
+  columns = null, level = CLOUD_TILE_LEVEL,
 }) {
   const {date, layers} = source
   const {cols, rows, width, height} = tileGrid(level)
   const coverage = Uint8Array.from(bundled)
   const unseen = new Uint8Array(width * height).fill(1)
   const band = bandRows(height)
-  const bandTotal = width * (band.bottom - band.top)
+  let bandTotal = 0
   let bandUnseen = 0
   let aborted = false
   let done = 0
@@ -167,7 +170,10 @@ export async function buildDay({
   const tiles = []
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      tiles.push({row, col})
+      if (!columns || columns.includes(col)) {
+        tiles.push({row, col})
+        bandTotal += tileRect(level, row, col).w * (band.bottom - band.top)
+      }
     }
   }
   const one = async ({row, col}) => {
@@ -235,6 +241,146 @@ export async function chooseDay(sources, build) {
   // None is: the wanted day after all, built whole.
   const day = await build(sources[0], Infinity)
   return day ? {source: sources[0], day} : null
+}
+
+
+/**
+ * The antimeridian (#251).  A day's mosaic is cut at ±180°, between swaths
+ * taken a day apart: the map's east edge was seen early in the UTC day, its
+ * west edge at its end, so the clouds on either side of the cut differ by
+ * about a day (a step 2.9-4.4 times the other meridians', every day).  The
+ * day before's mosaic ended at that cut as this one begins: its west edge
+ * was seen at the time this day's east edge was.  So the day's westernmost
+ * columns, the far side of the cut from there, are faded into the day
+ * before's over SEAM_FADE_DEG: weight 1 of the day before at -180°, so the
+ * clouds meet across the cut, down to 0 at the fade's far edge, where the
+ * day's own are shown.  The cut becomes a gradual change of the clouds'
+ * age, as it is round the rest of the globe.  The day before is always
+ * there to fetch (the day after is not, for the present), and only its
+ * column of tiles is needed: 3 of 15.
+ */
+export const SEAM_FADE_DEG = 20
+
+/** The tile column (the westernmost) of the day before the fade needs. */
+export const SEAM_TILE_COLUMN = 0
+
+
+/**
+ * @param {number} width The map's, pixels
+ * @param {number} [deg]
+ * @returns {number} The fade's width, whole columns from -180°
+ */
+export function seamColumns(width, deg = SEAM_FADE_DEG) {
+  return Math.round(width * deg / 360)
+}
+
+
+/**
+ * @param {number} x Column from -180° (the west edge is 0)
+ * @param {number} columns The fade's width (seamColumns)
+ * @returns {number} The weight of the day before's clouds at the column's
+ *   centre: 1 at the cut, falling in a straight line to 0 at the fade's far edge
+ */
+export function seamWeight(x, columns) {
+  return x < columns ? 1 - ((x + 0.5) / columns) : 0
+}
+
+
+/**
+ * @param {object} source cloudSource's daily source
+ * @returns {?object} The day before's, with its own layers, or null before
+ *   the satellites
+ */
+export function seamSource(source) {
+  return dailySource(previousDate(source.date))
+}
+
+
+/**
+ * Build the day before's westernmost column of tiles, off screen, for
+ * blendSeam.  Judged as a day is (buildDay): a strip that isn't complete is
+ * not used.
+ *
+ * @param {object} opts buildDay's, but `source` is the day before's
+ * @returns {Promise<?object>} buildDay's result for that column, or null if
+ *   it went stale
+ */
+export function buildSeam(opts) {
+  return buildDay({...opts, columns: [SEAM_TILE_COLUMN]})
+}
+
+
+/**
+ * Fade the day before's clouds into the map's westernmost columns, in
+ * place, where it saw them: `map ← map + w · (before − map)`.
+ *
+ * @param {Uint8Array} map The day's coverage
+ * @param {object} before The day before's buildSeam result
+ * @param {number} width The map's
+ * @param {number} height
+ * @param {number} [deg] The fade's width
+ * @returns {number} The pixels changed
+ */
+export function blendSeam(map, before, width, height, deg = SEAM_FADE_DEG) {
+  const columns = seamColumns(width, deg)
+  let changed = 0
+  for (let x = 0; x < columns; x++) {
+    const w = seamWeight(x, columns)
+    for (let j = 0; j < height; j++) {
+      const k = (j * width) + x
+      if (!before.unseen[k]) {
+        map[k] = Math.round(map[k] + (w * (before.coverage[k] - map[k])))
+        changed++
+      }
+    }
+  }
+  return changed
+}
+
+
+/**
+ * Fade a shown day's map into the day before's at the antimeridian, in
+ * place, if that day's westernmost tiles can be had and are complete; else
+ * the map is left as it is, cut and all.  Fetches the day before's column
+ * of tiles (3), so it's run after the day is shown, not before.
+ *
+ * @param {object} opts
+ * @param {Uint8Array} opts.map The shown day's coverage, changed in place
+ * @param {object} opts.shown cloudSource's daily source of the day shown
+ * @param {function(object): (Uint8ClampedArray|Promise<Uint8ClampedArray>)} opts.groundOf
+ *   A source's month's Blue Marble, RGBA at the map's size
+ * @param {Uint8Array} opts.bundled The bundled texture's coverage
+ * @param {function(string): Promise<?Uint8ClampedArray>} opts.fetchTile
+ * @param {function(): boolean} [opts.stale] Whether the map is no longer wanted
+ * @param {number} [opts.level]
+ * @returns {Promise<?{date: ?string, state: string, unseenShare: number}>}
+ *   The day before's date and what became of it: `blended`; `incomplete`
+ *   (more than INCOMPLETE_SHARE of its tiles' band unseen, or a tile
+ *   missing); `failed` (its ground didn't load); `none` (before the
+ *   satellites); or null if it went stale, the map untouched
+ */
+export async function fadeSeam({map, shown, groundOf, bundled, fetchTile, stale = () => false, level = CLOUD_TILE_LEVEL}) {
+  const source = seamSource(shown)
+  if (!source) {
+    return {date: null, state: 'none', unseenShare: 0}
+  }
+  let before
+  try {
+    before = await buildSeam({source, ground: await groundOf(source), bundled, fetchTile, stale, level})
+  } catch (err) {
+    console.warn(`[clouds] couldn't fade the antimeridian into ${source.date}'s clouds`, err)
+    return {date: source.date, state: 'failed', unseenShare: 0}
+  }
+  if (!before || stale()) {
+    return null
+  }
+  const {unseenShare} = before
+  if (!before.complete) {
+    return {date: source.date, state: 'incomplete', unseenShare}
+  }
+  const {width, height} = tileGrid(level)
+  blendSeam(map, before, width, height)
+  return {date: source.date, state: 'blended', unseenShare}
 }
 
 

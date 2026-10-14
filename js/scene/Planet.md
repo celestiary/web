@@ -252,17 +252,9 @@ values as every surface (HDR.md, "Colour spaces").
   differ from 2004's unmix as cloud, and snow under cloud is hard to see
   through (the floor of 0.05).  Neither has a simple fix without the
   viewing geometry or a snow mask.
-- **The antimeridian.**  A day's mosaic is cut there, and its two sides
-  were seen a day apart: the map's east edge (just short of 180° E) early
-  in the UTC day, its west edge (just past 180° W) at its end, so the
-  clouds don't meet.  The day before's west edge is the one that matches
-  the day's east edge (NOAA-20, 2026-10-11 against the 10th: a correlation
-  of 0.75-0.76 down the edge, against 0.08-0.41 for the day's own), and the
-  day after's east edge its west.  Across it the coverage steps 2.9-4.4
-  times as much as 8 px either side, between 50° N and S, on each of seven
-  days from 2010 to 2026; no other tile edge does (0.8-1.3).  A fix would
-  fade the day before's westernmost tiles into the day's over 20° or so
-  east of 180° W, so the seam becomes a cross-fade: not done.
+- **The antimeridian** (#251) is faded into the day before, below
+  ([The antimeridian's cut](#the-antimeridians-cut)); what that leaves is
+  listed there.
 
 **The bundled texture**, `earth/earth_atmos.jpg` (2048 × 1024, greyscale; its
 source wasn't recorded), stands in where there is no daily mosaic.  It is an
@@ -278,8 +270,10 @@ date has been the same for a second (a permalink sets the clock just after
 start-up; a clock running at days a second passes dates by), its tiles are
 fetched four at a time, decoded (`createImageBitmap`, a canvas) and unmixed
 on the main thread (a few ms a tile) into a map off screen, which replaces
-the shown one, in one upload, once it's whole and complete (below).  A load
-for a date no longer wanted stops between tiles.  The month's Blue Marble
+the shown one, in one upload, once it's whole and complete (below); then the
+day before's westernmost tiles are fetched and the antimeridian's cut faded
+into them (a second upload, of that edge only).  A load for a date no longer
+wanted stops between tiles.  The month's Blue Marble
 is fetched again for its pixels (the browser's cache has it).  Tests have
 no DOM, so `CloudMap` doesn't load there; `cloudDay.js` builds days from
 an injected fetch, and is tested with synthetic tiles.
@@ -322,6 +316,120 @@ shell keeps the last one (none, at first).
 
 A day before the one wanted is a day's clouds off, but whole; for the
 present, which already shows the day before, it's two.
+
+### The antimeridian's cut
+
+A day's mosaic is cut at ±180°, and its two sides were seen a day apart:
+the map's east edge (just short of 180° E) early in the UTC day, its west
+edge (just past 180° W) at its end, so the clouds don't meet (#251).  The
+day before's west edge is the one that matches the day's east edge (NOAA-20,
+2026-10-11 against the 10th: a correlation of 0.75-0.76 down the edge,
+against 0.08-0.41 for the day's own), and the day after's east edge its
+west.  Measured the way the seam at −36° was, from 3.4 Earth radii over
+10° S 180° (the step is the mean |frame brightness difference| 0.3° either
+side of a meridian over 40° S-15° N, against the median over the meridians in
+view), the cut stepped 2.7-3.8 times the median on nine days from 2010 to
+2026, and was the largest step in the view on every one (1.4-2.0 times the
+next).  With the cloud shell hidden it is gone (0.5 against 0.6), so the
+map is what draws it.  On the map itself, between 50° N and S, the coverage
+stepped 3.3-5.0 times the typical column (offline, over the snapshot).
+
+**The fix** (`cloudDay.js`, `fadeSeam`): the day's westernmost 20°
+(`SEAM_FADE_DEG`, 142 of the map's 2560 columns) fade into the day before's
+clouds: `map ← map + w · (before − map)`, with `w` the day before's weight,
+1 at the cut and falling in a straight line to 0 at the far edge
+(`seamWeight`).  So the clouds meet across the cut, the day before's west
+edge against the day's east edge, seen at the same time, and the day's own
+clouds are back by 20° east of it.  The cut becomes a gradual change of the
+clouds' age, 24 hours over 20°, as the mosaic has everywhere else.
+
+- **Only that column of tiles.**  The day before's westernmost column,
+  3 of its 15 tiles, with its own layers and its own month's Blue Marble
+  (so the first day of a month, or a year, takes the last of the one
+  before: `previousDate`), unmixed as any tile.  Nothing else of that day
+  is fetched.
+- **Whole, complete, or not at all.**  The column is judged as a day is: if
+  more than 1% of it between 50° N and S is unseen (swaths not in, a tile
+  neither layer serves) it isn't used, and the cut stays as it was (state
+  `incomplete`).  Within it, a pixel the day before didn't see (polar night)
+  keeps the day's own, so a gap doesn't draw a new edge.  A day before the
+  satellites has no day before (`none`); a ground that fails to load leaves
+  the cut (`failed`).
+- **After the day, not with it.**  The day is shown as soon as its own 15
+  tiles are in, in one upload as before (#243), so the extra 3 tiles never
+  delay the first map: on SwiftShader the map was ready at about the same
+  time with and without the fade, and the fade followed 8-21 s later.  Then the
+  strip's 20° changes in a second upload, from the cut to its blend.  Building
+  both together would hold the first map back by the column's share of the
+  tiles (a fifth), for a change in one corner of the map.  `status.seam` says
+  which: `{date, state}`, building, blended, incomplete, failed or none.
+  `yarn parity` waits for it.
+- **Why the day before, west of the cut.**  The day before always exists
+  (the day after doesn't, for the present, which is the latest complete day),
+  and its edge is the same age as the day's east edge.  The other choice, the
+  day after's east edge faded into the day's east 20°, measured the same on
+  the map (1.00-1.35 times the typical column, against 0.99-1.29) and needs
+  the day after complete too.  Which side is older doesn't decide it: the
+  east edge is early in the day and the west late, so the fade shows
+  clouds a day older than the day's own over the west 20° (this) or a day
+  newer over the east 20° (the other).
+- **Why 20°.**  The step at the cut doesn't depend on the width (10°, 20°,
+  30° and 40° all measured within 0.03 of each other there: the weight is 1
+  at the cut); the width is how much of the map is a mix of two days, and
+  how fast the clouds' age changes across it.  A mix of clouds a day apart
+  is double-imaged where they moved more than their size.  Over three days,
+  the largest step in the 3° means about the cut's meridians (the
+  large-scale change, not the pixels') was the same at 10°, 20° and 30°
+  within a few levels of 255, and larger at 5° on one day and at 40° on
+  another; 40° also doubles the area of ghosts.  20° is the middle, and
+  #251's.
+- **Linear, not smooth.**  A smoothstep gave the same step at the cut to
+  within 0.01 on three days, and a straight line is simpler to state.
+
+**Measured**, the same nine dates and views (tiles served from a snapshot,
+so before and after see the same data; the tables are in the PR).  In the
+view, the cut after steps 1.0-2.3 times the median (2.7-3.8 before) and is no
+longer an outlier: no more than 1.07 times the largest other step in the
+view (1.4-2.0 times it before), and under the 95th percentile of the
+unblended meridians on six of nine days.  The fade lowers the median it's
+measured against (the blended meridians step less), so the median is the
+harshest reference: next to its own neighbours within 6° the cut is 0.8-2.0
+times (before 2.0-2.6).  On the map itself the step at the cut is 0.99-1.29
+times the typical column on eight of nine days (1.83 on 2010-03-15, below).
+Every tile edge is unchanged, since the fade reaches only 20° from the cut:
+the one at −36° steps 0.85, 0.84 and 1.25 times the median in the view on
+three days, before and after.
+
+**What's left.**
+
+- The two sides of the cut are, presumably, two swaths of different
+  orbits, so it still steps as the mosaic's other large steps do (1.0-2.3
+  times the view's median; those at 156° and 174° on 2026-10-11 are as
+  large), more where the weather moves quickly.
+- Within the 20° the clouds are a mix of two days: soft, with ghosts of
+  features that moved.  Only the 20° west of the cut.
+- On a MODIS-only day (before late 2015) a wedge between swaths at the
+  equator can reach the cut; neither side's gap is filled across it, so
+  those rows take the bundled coverage (2010-03-15: 10° N-0°, a step of
+  170 of 255 there).  VIIRS days have none.
+- The strip's second upload is a pop, if it's in view as it lands: it
+  changes only the 20° and only once.
+
+**Recipe** (the measurements, to rebuild them):
+
+1. Snapshot the GIBS tiles once: for each date, the day's 15 and the day
+   before's and after's columns 0 and 4, from its two layers
+   (`dailySource`), at `…/250m/2/<row>/<col>.jpeg`; and serve them to the
+   page with `page.route`, so before and after see the same data.
+2. The map step, offline: build the day and the day before's column with
+   `buildDay` (`columns: [0]`, or `buildSeam`), `blendSeam` it, and divide
+   the mean |Δ| across the cut over 50° N-50° S by the median of that
+   between other adjacent column pairs (not the tile edges, not the fade).
+3. The view step, in the app: the camera 3.4 radii over 10° S 180°, the sim
+   time 01:00 UTC on the date (the cut is lit), the Cesium layers off,
+   labels and orbit lines hidden; read the frame as in the −36° runs; step
+   against the median over meridians 125°-235° at 0.5°, and against the
+   largest other and the local ones.
 
 ### Drawing: one shell over both sides of the swap
 

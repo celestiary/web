@@ -223,7 +223,7 @@ function layerState(page, body) {
         return true
       }
       const map = shell.userData.map?.status
-      const mapDone = !map || map.kind === 'none' || (map.kind === 'bundled' ? map.loaded : map.ready)
+      const mapDone = !map || map.kind === 'none' || (map.kind === 'bundled' ? map.loaded : (map.ready && map.seam?.state !== 'building'))
       const volume = shell.userData.volume
       if (volume && !volume.ready) {
         volume.finish()
