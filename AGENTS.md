@@ -62,6 +62,12 @@ tried and dropped.
   never edit it). A static server started inside `docs/` then serves
   nothing, so restart it after each build, e.g.
   `(cd docs && python3 -m http.server 5400 &)`.
+- **`python3 -m http.server` answers a missing path with its own 404**,
+  not the site's `404.html` as GitHub Pages does, so deep routes and
+  the `/web/` redirect stub can't be tried with it. `yarn serve`'s proxy
+  serves `public/404.html` for its misses; for a build, use a server that
+  answers misses with the top-level `404.html` of the site they fall
+  under. `esbuild/notFound.test.js` runs the page's script directly.
 - **Tests run in bun with no real DOM**, and `Celestiary.test.js`
   replaces ThreeUI with a stub (`StubThreeUI`):
   - When Celestiary starts using a new ThreeUI member, add it to the
@@ -339,6 +345,15 @@ tried and dropped.
   values (a marker, a line, a label), goes through `sceneReferred()`
   (`hdr.js`), or PBR Neutral's toe will darken it.  `?hdr=0` in the URL
   forces the LDR fallback, for testing it.
+- **Keep the first load lean.** `yarn bundle-check` (in `yarn precommit`)
+  fails if `vsop87` is in a file the entry or the App route imports
+  statically (`esbuild/firstLoad.js`). A big dependency or dataset that
+  the first frame can do without gets a dynamic `import()` after it, and a
+  stand-in meanwhile with a hand-over that doesn't jump (the planets:
+  DESIGN.md [before the ephemeris loads](DESIGN.md#before-the-ephemeris-loads)).
+  In tests, `new Animation(time, null)` is "no ephemeris yet" and
+  `setEphemeris(fn)` its arrival; read VSOP87C from
+  `vsop87/dist/vsop87c-wasm`, since `Celestiary.test.js` mocks `./vsop`.
 - **Large assets are fine in the repo**, e.g. the Blue Marble textures
   and tile pyramids. Document how each was built in
   `js/scene/Planet.md`, so it can be rebuilt.

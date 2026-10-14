@@ -26,6 +26,31 @@
       "image": null
     },
     {
+      "id": "2026-10-14-the-first-screen-loads-faster-the-planets",
+      "date": "2026-10-14",
+      "headline": "The first screen loads faster: the planets' tables come after it",
+      "text": "Celestiary now loads about 2.6 MB less before the first screen: the tables that place the planets were most of the app's code, and they now load right after the scene appears. The code on the first load is 668 KB compressed instead of 2 MB. For the second or two until they are in, the planets are drawn from approximate orbits, within a quarter of a degree of where they should be, and then glide to their exact places over a second and a half, so nothing jumps.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 263,
+          "url": "https://github.com/celestiary/web/pull/263"
+        },
+        {
+          "kind": "issue",
+          "number": 257,
+          "url": "https://github.com/celestiary/web/issues/257"
+        }
+      ],
+      "epic": {
+        "number": 256,
+        "title": "Leaner first load",
+        "url": "https://github.com/celestiary/web/issues/256"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-14-celestiary-has-its-own-address-celestiary-org",
       "date": "2026-10-14",
       "headline": "Celestiary has its own address: celestiary.org",

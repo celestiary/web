@@ -25,7 +25,7 @@ A sentence or two, plain and concrete, about what you can see or do.
 - PR: [#242](https://github.com/celestiary/web/pull/242)
 - Issue: [#241](https://github.com/celestiary/web/issues/241)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
-- Permalink: [Open this view](https://celestiary.github.io/web/#sun/earth@...;t=...jd;cq=...;fov=45deg)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@...;t=...jd;cq=...;fov=45deg)
 - Image: ![Earth at dusk](public/images/home/earth.webp)
 
 Behind the scenes: dependency updates ([#124](https://github.com/celestiary/web/pull/124)).

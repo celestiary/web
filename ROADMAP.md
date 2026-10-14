@@ -82,7 +82,7 @@ it and why.
   in Git LFS, under `public/large/`. Gaia-scale data (GB and up) is
   fetched over the network. The workflows fetch LFS files (cached), and
   PR previews load large data from `main`'s deploy at
-  `celestiary.github.io/web/` (same origin as the previews) instead of
+  `celestiary.org/` (same origin as the previews) instead of
   copying it (a Pages site is capped at about 1 GB), unless the PR
   changes that data; see [DESIGN.md, data policy](DESIGN.md#data-policy)
   ([#107](https://github.com/celestiary/web/issues/107)). Document each dataset's source, licence and rebuild recipe
@@ -103,6 +103,10 @@ The recommended order. "Now" is what to pick up first; within a group the
 order is a suggestion.
 
 **Done recently:** the Earth view's textures fetched once ([#260](https://github.com/celestiary/web/issues/260), leaner first load 4 of [#256](https://github.com/celestiary/web/issues/256), PR [#265](https://github.com/celestiary/web/pull/265); [Planet.md, one fetch of the month's Blue Marble](js/scene/Planet.md#one-fetch-of-the-months-blue-marble)): the month's `2004-MM.jpg` (845 KB) was asked for three times (the surface's image, the clouds' fetch, Cesium's XHR); it is now one download, kept as a Blob (`sharedImage.js`) that the surface, the clouds and Cesium's base layer all take from. The bundled `earth_atmos.jpg` (1.4 MB) was fetched ahead of every Earth view's first cloud tile; it is now fetched only when a day leaves pixels unseen (polar night, a tile no layer serves), after the tiles, as a 128 KB copy (`earth_atmos_fill.jpg`) when the gaps are polar, or in full for a gap in daylight or a date with no daily mosaic.
+
+**Done recently:** `/web/` retired behind a redirect stub ([#261](https://github.com/celestiary/web/issues/261), Leaner first load 5 of [#256](https://github.com/celestiary/web/issues/256); DESIGN.md [hosting and the domain](DESIGN.md#hosting-and-the-domain)): `celestiary.org/web/` was a second full build of the site, about 173 MB and a duplicate for crawlers.  `gh-pages.yml` now deploys only a stub there: `public/404.html`, told the site moved to the root, which sends `/web/<route>?<query>#<fragment>` to the same route, query and fragment at the root (scene links included, which a server redirect couldn't keep), and stops a bounce at a removed preview instead of looping.  PR previews stay under `/web/pr-preview/` and take their large data from the root.  Moving the previews into the root's own Pages site, to drop `/web/` entirely, was weighed and dropped: they'd share production's builds, its 1 GB and its branch.
+
+**Done recently:** VSOP87 out of the first chunk ([#257](https://github.com/celestiary/web/issues/257), 1 of [#256](https://github.com/celestiary/web/issues/256), leaner first load; PR [#263](https://github.com/celestiary/web/pull/263); DESIGN.md [before the ephemeris loads](DESIGN.md#before-the-ephemeris-loads)): the `vsop87` package's 2.58 MB of coefficients were 80% of the first load's biggest chunk (3.24 MB, 1.60 MB gzipped); they are a chunk of their own now, `import()`ed after the scene is revealed (`Animation.loadEphemeris`), and the first load (the entry, the App route and what they import statically) is 2.15 MB raw and 668 KB gzipped, from 4.73 MB and 2.04 MB; `yarn bundle-check` (so `yarn precommit`) fails if `vsop87` is back in it (`esbuild/firstLoad.js`).  Until the chunk is in the planets are on Standish's mean elements (`planetsApprox.js`; before this they sat at the origin for the few milliseconds it took), within 0.22° of VSOP87C's direction (Saturn's the worst) and 20,000 km (Earth's), 1800-2050; then they glide to the series' places over 1.5 s (`Animation.planetCoords`: both ephemerides at the frame's date, smoothstep), a hundredth of a degree a frame at most in a riding camera's sky, so nothing jumps.  The planets' orbit lines are drawn from the stand-in at once and rebuilt on the series; permalinks, flights and the tour's plan don't depend on it (the camera is in its body's frame; the plan's Sun is Meeus's, which gives the same pass at 32 times through the seasons).  Left in [#256](https://github.com/celestiary/web/issues/256): one file for the bodies and places on approach (2), the stars in brightness tiers (3), the Earth view's duplicate textures (4), the `/web/` copy (5), a CI load budget (6) which grows from `firstLoad.js`.
 
 **Done recently:** the site at celestiary.org (DESIGN.md [hosting and the domain](DESIGN.md#hosting-and-the-domain)): still hosted on GitHub Pages, with celestiary.org as the user page's custom domain, so search engines credit that domain and the old `celestiary.github.io` addresses redirect there.  The production build writes `CNAME` (without which each deploy would drop the domain), `robots.txt` and `sitemap.xml`; every build carries a canonical tag for `https://celestiary.org/`, and PR previews are `noindex`.  The first step of SEO for What's new ([#244](https://github.com/celestiary/web/issues/244)); the crawlable pages themselves are still to come.
 
@@ -199,6 +203,13 @@ Roadmap and issues groomed (2026-10-08): [#86](https://github.com/celestiary/web
    (`#;news:tour,n=3`), is the campaign's reel. Left from the history: the 46 entries marked `Permalink: none`,
    which need a view found and opened (they are not stops in the tour until then), and images
    (`tools/home/cards.mjs --gpu` on a real GPU).
+
+3.1. **Leaner first load** ([#256](https://github.com/celestiary/web/issues/256)): VSOP87 is out of the first chunk
+   ([#257](https://github.com/celestiary/web/issues/257); Done recently).  Next, in the issue's order: one file for the bodies,
+   places loaded on approach, galaxies on demand and a names-only search index; `stars.dat` as brightness tiers on the
+   point-population engine ([#98](https://github.com/celestiary/web/issues/98)); the Earth view's duplicate and unneeded
+   textures; the `/web/` copy behind a redirect stub; and a load budget in CI (the first load's size from `esbuild/firstLoad.js`,
+   the homepage's request count and bytes).
 
 **Next** (the shared engines, below)
 
@@ -378,6 +389,7 @@ repo lean.
 | Epic | Issues | Depends on | Docs |
 |---|---|---|---|
 | [#121](https://github.com/celestiary/web/issues/121) Cesium performance and verification | [#105](https://github.com/celestiary/web/issues/105) (done), [#176](https://github.com/celestiary/web/issues/176) (done), ion imagery sessions kept to close-up views ([CESIUM.md](CESIUM.md#cesium-ion-sessions); done), [#189](https://github.com/celestiary/web/issues/189) (step 1, the `?perf=1` overlay, done; the Cesium layers' invisible work, done; the meter's readback, done; the checkpoint's queries, [portal#32](https://github.com/pablo-mayrgundter/portal/issues/32), and `cesium.replay`'s CPU open), [#104](https://github.com/celestiary/web/issues/104), [#103](https://github.com/celestiary/web/issues/103), [#213](https://github.com/celestiary/web/issues/213) | [#103](https://github.com/celestiary/web/issues/103) is upstream in portal-netgl | [CESIUM.md](CESIUM.md#follow-ups), portal's [open problems](https://github.com/pablo-mayrgundter/portal/blob/main/packages/portal-netgl/DESIGN.md#open-problems-the-next-pr) |
+| [#256](https://github.com/celestiary/web/issues/256) Leaner first load | [#257](https://github.com/celestiary/web/issues/257) (VSOP87 out of the first chunk; done), then the bodies in one file, `stars.dat` in tiers, the Earth view's textures, the `/web/` copy, a CI load budget | [#98](https://github.com/celestiary/web/issues/98) (the stars' tiers) | [DESIGN.md](DESIGN.md#before-the-ephemeris-loads), [AGENTS.md](AGENTS.md#working-efficiently) |
 | [#122](https://github.com/celestiary/web/issues/122) Housekeeping and data policy | [#107](https://github.com/celestiary/web/issues/107) (done), [#209](https://github.com/celestiary/web/issues/209) | | [AGENTS.md](AGENTS.md) |
 
 ## The galaxy plan

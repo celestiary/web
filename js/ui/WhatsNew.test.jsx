@@ -34,7 +34,7 @@ const saved = {}
 beforeAll(() => {
   saved.document = globalThis.document
   saved.window = globalThis.window
-  globalThis.document = {baseURI: 'https://celestiary.github.io/web/'}
+  globalThis.document = {baseURI: 'https://celestiary.org/'}
   globalThis.window = {location: {search: ''}}
 })
 afterAll(() => {
@@ -76,7 +76,7 @@ describe('the What\'s new panel', () => {
     expect(html).toContain('data-testid="news-from-0"')
     expect(html).not.toContain('data-testid="news-from-1"')
     // The fly link is the entry's link as a URL: a middle click opens it in a tab.
-    expect(html).toContain('href="https://celestiary.github.io/web/#sun/earth@-38.1501')
+    expect(html).toContain('href="https://celestiary.org/#sun/earth@-38.1501')
     expect(html).toContain('data-testid="news-play"')
   })
 

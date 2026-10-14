@@ -37,21 +37,21 @@ For larger changes, it's also a good idea to step through the guide pages (in /g
 
 ## Deploy
 The app is served at https://celestiary.org/ (the user page,
-`celestiary/celestiary.github.io`, with celestiary.org as its custom domain)
-and https://celestiary.org/web/ (this repo's project page, which takes the
-user page's domain).  The old `celestiary.github.io` addresses redirect there.
-Both deploy automatically on push to `main` from this repo:
+`celestiary/celestiary.github.io`, with celestiary.org as its custom domain).
+The old `celestiary.github.io` addresses redirect there.  It deploys
+automatically on push to `main` from this repo:
 
-- `.github/workflows/gh-pages.yml` builds with `BASE_PATH=/web/` and pushes
-  to this repo's `gh-pages` branch root, serving the project page.
 - `.github/workflows/deploy-prod.yml` builds with `BASE_PATH=/` and pushes
   to `celestiary/celestiary.github.io`'s `gh-pages` branch via an SSH deploy
   key (secret `CELESTIARY_GITHUB_IO_DEPLOY_KEY`), serving the user page.
   Its build writes `CNAME` (the custom domain, which the deploy would
   otherwise wipe), `robots.txt` and `sitemap.xml` (`esbuild/site.js`).
 
-PR previews land at `celestiary.org/web/pr-preview/pr-NNN/` via
-`.github/workflows/pr-preview.yml`.
+This repo's own Pages site, at `celestiary.org/web/`, hosts the PR previews,
+at `celestiary.org/web/pr-preview/pr-NNN/` via
+`.github/workflows/pr-preview.yml`.  The rest of `/web/` is a stub
+(`.github/workflows/gh-pages.yml`) that sends old `/web/` links to the root,
+query and `#` fragment kept.  See DESIGN.md, "Hosting and the domain".
 
 ## Performance
 A first-time session downloads ~3-5MB, mostly of the stars data.  Planet textures are lazy-fetched as the user moves around the scene, but will bring that upwards to ~10MB in full.

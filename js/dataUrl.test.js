@@ -2,7 +2,7 @@ import {describe, expect, it} from 'bun:test'
 import {dataUrl, resolveDataUrl} from './dataUrl.js'
 
 
-const PROD = 'https://celestiary.github.io/web/'
+const PROD = 'https://celestiary.org/'
 
 
 describe('resolveDataUrl', () => {
@@ -16,7 +16,7 @@ describe('resolveDataUrl', () => {
   })
 
   it('adds the missing trailing slash to a base', () => {
-    expect(resolveDataUrl('data/stars.dat', 'https://celestiary.github.io/web'))
+    expect(resolveDataUrl('data/stars.dat', 'https://celestiary.org'))
         .toBe(`${PROD}data/stars.dat`)
   })
 

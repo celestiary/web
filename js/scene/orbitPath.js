@@ -221,9 +221,13 @@ export class OrbitPath {
    * @param {number} [opts.e] its eccentricity, and
    * @param {number} [opts.radius] the body's radius, metres: for the fine
    *     arc drawn around the body (bodyLine.js)
+   * @param {function(): boolean} [opts.approximate] whether positionAt is
+   *     giving a stand-in for its ephemeris now (the planets', before
+   *     VSOP87C has loaded); a line built while it did is rebuilt once it
+   *     stops
    */
   constructor(line, {positionAt, periodDays, mu = 0, offsetAt = null, samples = SPARSE_SAMPLES,
-    a = 0, e = 0, radius = 0}) {
+    a = 0, e = 0, radius = 0, approximate = null}) {
     this.line = line
     this.positionAt = positionAt
     this.periodDays = periodDays
@@ -231,6 +235,9 @@ export class OrbitPath {
     this.offsetAt = offsetAt
     this.samples = samples
     this.radius = radius
+    this.approximate = approximate
+    /** Whether the built line was sampled from a stand-in ephemeris. */
+    this.builtApproximate = false
     /** The Julian Day the line is centred on, or null before the first build. */
     this.centre = null
     /** Half the drawn window, days. */
@@ -279,7 +286,14 @@ export class OrbitPath {
    * @returns {boolean} whether the line wants rebuilding for jd
    */
   isStale(jd) {
-    return this.centre === null || Math.abs(jd - this.centre) > this.periodDays * REBUILD_FRACTION
+    return this.centre === null || Math.abs(jd - this.centre) > this.periodDays * REBUILD_FRACTION ||
+      (this.builtApproximate && !this._approximate())
+  }
+
+
+  /** @returns {boolean} whether positionAt is a stand-in now */
+  _approximate() {
+    return this.approximate !== null && this.approximate()
   }
 
 
@@ -295,6 +309,9 @@ export class OrbitPath {
       return
     }
     const out = this._scratch
+    // A build that began on the stand-in is one, even if the real ephemeris
+    // came in part way: it is rebuilt (isStale).
+    const approximate = this._approximate()
     const built = yield* (this.mu ? this._sparse(jd, out) : this._direct(jd, out))
     // An ephemeris evaluated where it isn't defined: keep the last line.
     if (!allFinite(out)) {
@@ -305,6 +322,7 @@ export class OrbitPath {
     const mid = this._mid.fromArray(out, 3 * Math.floor(n / 2))
     this.drawn.setCoarse(out, {at: built.at, correct: true}, this._fineSteps, mid)
     this.paramAt = built.paramAt
+    this.builtApproximate = approximate
     this.centre = jd
     this.halfWindow = built.halfWindow
     // Around the body at once, not a frame later.

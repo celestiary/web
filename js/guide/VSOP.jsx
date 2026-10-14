@@ -3,7 +3,6 @@ import {Link, useParams} from 'wouter'
 import {Html, OrbitControls} from '@react-three/drei'
 import {Canvas} from '@react-three/fiber'
 import {toJulianDay} from '../Time'
-import {loadVsop87c} from '../vsop'
 import {ui as uiId} from './index.module.css'
 import './vsopLabels.css'
 
@@ -19,14 +18,22 @@ export default function VSOP({isIndex = false}) {
   const {day: dayParam} = useParams()
 
   useEffect(() => {
-    loadVsop87c((vsop87c) => {
+    let cancelled = false
+    // Dynamic: the coefficients are a chunk of their own (2.6 MB).
+    import('../vsop').then(({loadVsop87c}) => loadVsop87c((vsop87c) => {
+      if (cancelled) {
+        return
+      }
       const now = Date.now()
       const nowJulian = toJulianDay(now)
       const julianDate = isIndex ? nowJulian : parseInt(dayParam || nowJulian)
       setDay(julianDate)
       const daysCoords = vsop87c(julianDate)
       setPlanetCoords(daysCoords)
-    })
+    }))
+    return () => {
+      cancelled = true
+    }
   }, [dayParam, setDay, isIndex, setPlanetCoords])
 
   return (

@@ -10,7 +10,7 @@
  *   - PR: [#242](https://github.com/celestiary/web/pull/242)
  *   - Issue: [#241](https://github.com/celestiary/web/issues/241)
  *   - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation
- *   - Permalink: [Open it](https://celestiary.github.io/web/#sun/earth@...)
+ *   - Permalink: [Open it](https://celestiary.org/#sun/earth@...)
  *   - Image: ![Earth at dusk](public/images/home/earth.webp)
  *   Behind the scenes: ...                  after the last entry, the month's housekeeping line
  */

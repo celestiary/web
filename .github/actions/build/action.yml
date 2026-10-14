@@ -4,8 +4,8 @@ inputs:
   base-path:
     description: >
       URL path prefix the site will be served under. Must start and end with /.
-      Use / for the user-page root (celestiary.org), /web/ for this repo's
-      project page, and /web/pr-preview/pr-NNN/ for PR previews.
+      Use / for celestiary.org's root (production) and /web/pr-preview/pr-NNN/
+      for PR previews, which this repo's Pages site serves under /web/.
     required: false
     default: /
   cesium-ion-token:
@@ -17,7 +17,7 @@ inputs:
   data-base-url:
     description: >
       Where the app fetches large data (textures, stars.dat, public/large/)
-      from: a URL, e.g. https://celestiary.github.io/web/. Empty means the
+      from: a URL, e.g. https://celestiary.org/. Empty means the
       site's own origin and path. PR previews set the production URL rather
       than copy the data (DESIGN.md, "Data policy").
     required: false

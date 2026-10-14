@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import {readFileSync} from 'node:fs'
-import {SITE_URL, rootFiles, siteHead} from './site.js'
+import {SITE_URL, fillPlaceholders, rootFiles, siteHead} from './site.js'
 
 
 describe('siteHead', () => {
@@ -40,5 +40,23 @@ describe('rootFiles', () => {
   it('lists the root in the sitemap', () => {
     expect(files['sitemap.xml']).toContain('<loc>https://celestiary.org/</loc>')
     expect(files['sitemap.xml']).toMatch(/^<\?xml/)
+  })
+})
+
+
+describe('fillPlaceholders', () => {
+  const page = '<base href="{{BASE_PATH}}"/>{{SITE_HEAD}} keep={{PATH_SEGMENTS_TO_KEEP}} moved=\'{{MOVED_TO}}\''
+
+  it('fills the root', () => {
+    expect(fillPlaceholders(page, {basePath: '/', siteHead: 'H'})).toBe('<base href="/"/>H keep=0 moved=\'\'')
+  })
+
+  it('fills a preview, counting its base path\'s segments', () => {
+    expect(fillPlaceholders(page, {basePath: 'web/pr-preview/pr-42', siteHead: 'H'}))
+        .toBe('<base href="/web/pr-preview/pr-42/"/>H keep=3 moved=\'\'')
+  })
+
+  it('says where a retired copy moved to', () => {
+    expect(fillPlaceholders(page, {basePath: '/web/', siteHead: '', movedTo: '/'})).toBe('<base href="/web/"/> keep=1 moved=\'/\'')
   })
 })
