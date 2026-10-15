@@ -347,13 +347,40 @@ tried and dropped.
   forces the LDR fallback, for testing it.
 - **Keep the first load lean.** `yarn bundle-check` (in `yarn precommit`)
   fails if `vsop87` is in a file the entry or the App route imports
-  statically (`esbuild/firstLoad.js`). A big dependency or dataset that
+  statically (`esbuild/firstLoad.js`), or if the first load, minified or
+  gzipped, or its largest file is over its budget (`esbuild/budget.js`),
+  listing the biggest contributors. A big dependency or dataset that
   the first frame can do without gets a dynamic `import()` after it, and a
   stand-in meanwhile with a hand-over that doesn't jump (the planets:
   DESIGN.md [before the ephemeris loads](DESIGN.md#before-the-ephemeris-loads)).
   In tests, `new Animation(time, null)` is "no ephemeris yet" and
   `setEphemeris(fn)` its arrival; read VSOP87C from
   `vsop87/dist/vsop87c-wasm`, since `Celestiary.test.js` mocks `./vsop`.
+  A PR that lowers a number lowers its limit too, in the same PR
+  (DESIGN.md [load budgets](DESIGN.md#load-budgets)).
+- **Measure the homepage's load with `yarn load-budget`** (CI's
+  `load-budget` job runs it). After `yarn build` it serves `docs/` with
+  gzip, loads the homepage in headless Chromium with other hosts blocked,
+  and prints the requests and bytes when the scene is ready and when it has
+  settled, the 15 biggest requests and the folders with the most, against
+  the budget. `--no-budget` just reports. It records through a CDP session,
+  not `page.route`, which switches the HTTP cache off.
+- **Measuring the live site or a PR preview from here** (headless
+  Chromium, `https://celestiary.org/` and
+  `https://celestiary.org/web/pr-preview/pr-<n>/`):
+  `yarn load-budget --url <url> --no-budget` with
+  `--chromium /opt/pw-browsers/chromium-1194/chrome-linux/chrome
+  --trust-ca /root/.ccr/agent-proxy-ca.crt`. The sandbox's proxy re-signs
+  TLS, and Chromium's own certificate store can be stale after a container
+  restart (`ERR_CERT_AUTHORITY_INVALID`), so `--trust-ca` passes
+  `--ignore-certificate-errors-spki-list=<base64 SHA-256 of the CA's
+  public key>`, which pins exactly that CA and leaves verification on
+  for everything else. By hand, in your own Playwright script,
+  `openssl x509 -in /root/.ccr/agent-proxy-ca.crt -pubkey -noout | openssl
+  pkey -pubin -outform der | openssl dgst -sha256 -binary | base64` gives
+  the value; never `--ignore-certificate-errors`. Record with a CDP
+  session (`Network.requestWillBeSent`, `loadingFinished`'s
+  `encodedDataLength`) and the on-the-wire sizes are the real ones.
 - **Large assets are fine in the repo**, e.g. the Blue Marble textures
   and tile pyramids. Document how each was built in
   `js/scene/Planet.md`, so it can be rebuilt.
