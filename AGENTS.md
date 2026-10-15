@@ -354,6 +354,14 @@ tried and dropped.
   In tests, `new Animation(time, null)` is "no ephemeris yet" and
   `setEphemeris(fn)` its arrival; read VSOP87C from
   `vsop87/dist/vsop87c-wasm`, since `Celestiary.test.js` mocks `./vsop`.
+- **Some data is built from other data and committed, with a test that
+  fails when it drifts**: after editing a body's descriptor
+  (`public/data/<name>.json`) run `yarn bodies`; a place catalogue,
+  `yarn places-index`; `CHANGELOG.md`, `yarn changelog`. Nothing but the
+  page, its scripts, the bodies' bundle and the stars loads with the page:
+  a body's places, the galaxies and the changelog wait until something
+  needs them (DESIGN.md [what loads when](DESIGN.md#what-loads-when)), so
+  new data should too.
 - **Large assets are fine in the repo**, e.g. the Blue Marble textures
   and tile pyramids. Document how each was built in
   `js/scene/Planet.md`, so it can be rebuilt.

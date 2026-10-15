@@ -74,6 +74,12 @@ built data under `public/data/` (places, SPARC), and a test
 (`changelog.test.js`) fails when it has drifted, so `yarn precommit` and CI
 catch a CHANGELOG edit without a rebuilt JSON.
 
+It also writes `js/changelogStamp.json`, the entries' dates alone
+(`{"dates": [["2026-10-14", 5], ...]}`, newest first), which the app's
+bundle carries for What's new's "N new" marker, so the homepage fetches the
+JSON only when the panel opens ([#258](https://github.com/celestiary/web/issues/258)).
+The same test checks it.
+
 ```json
 {"entries": [{
   "id": "2026-10-13-a-homepage-at-celestiary-s-address",

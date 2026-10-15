@@ -24,6 +24,15 @@ import {labelTextColor, overlay} from '../shared.js'
 // fraction above that is reached only by zooming the lens.)
 const DEFAULT_TIER_FRAC = [0.75, 1.0, 1.5, 1.8]
 
+// The catalogue is fetched (#258) once the body is this large, ahead of tier
+// 0's 0.75: at the default field about 12 radii from its centre, so a go to
+// the body, arriving at 10, asks as it arrives, and the names are in well
+// before the camera closes to 3.3, where the first of them show.
+export const LOAD_FRAC = 0.2
+
+// After a failed fetch the approach asks again no sooner than this.
+export const LOAD_RETRY_MS = 30000
+
 // Labels to a sheet.  A sheet is a square canvas of its labels, uploaded as
 // one texture: a tier of 1,500 craters in one would be a texture of 4,000
 // px a side.  Chunks of this many keep each a megapixel or so.
@@ -63,13 +72,20 @@ export default class Places extends Group {
    * @param {number} planetRadius Body radius in meters
    * @param {number[]} [tierThresholds] Override DEFAULT_TIER_FRAC.  Each
    *   entry is planet apparent diameter as a fraction of viewport height.
+   * @param {Function} [load] A body's name to a Promise of its places
+   *   (loadPlaces)
    */
-  constructor(bodyName, planetRadius, tierThresholds = DEFAULT_TIER_FRAC) {
+  constructor(bodyName, planetRadius, tierThresholds = DEFAULT_TIER_FRAC, load = loadPlaces) {
     super()
     this.name = `${bodyName}.places`
     this.bodyName = bodyName
     this.planetRadius = assertFinite(planetRadius)
     this.tierThresholds = tierThresholds
+    // The catalogue: 'idle' (not asked for), 'loading', 'loaded' or 'failed'.
+    this.loadState = 'idle'
+    this._load = load
+    this._loading = null
+    this._failedAt = 0
     this.entries = []
     this.byTier = []
     this.tierGroups = []
@@ -87,6 +103,7 @@ export default class Places extends Group {
    * @param {Array<{n:string,t?:number,lat:number,lng:number,a?:number,k?:string}>} entries
    */
   setEntries(entries) {
+    this.loadState = 'loaded'
     this._disposeTiers()
     this.entries = entries
     this.byTier = []
@@ -97,6 +114,48 @@ export default class Places extends Group {
       }
       this.byTier[t].push(e)
     }
+  }
+
+
+  /**
+   * Fetch the catalogue (loadPlaces: once for the page) and take its places.
+   * The camera approaching the body asks (the LOD hook, from LOAD_FRAC);
+   * anything that needs them sooner can.  A failure is logged, and the next
+   * call asks again; the LOD hook waits LOAD_RETRY_MS first.
+   *
+   * @returns {Promise<void>} Resolves when the places are in, or the fetch failed
+   */
+  ensureLoaded() {
+    if (this.loadState === 'loaded') {
+      return Promise.resolve()
+    }
+    if (this.loadState === 'loading') {
+      return this._loading
+    }
+    this.loadState = 'loading'
+    this._loading = this._load(this.bodyName).then((entries) => {
+      this.setEntries(entries)
+    }, (e) => {
+      this.loadState = 'failed'
+      this._failedAt = Date.now()
+      console.warn(`Places: ${this.bodyName}'s catalogue didn't load:`, e?.message ?? e)
+    })
+    return this._loading
+  }
+
+
+  /**
+   * Whether the LOD hook should ask for the catalogue now.
+   *
+   * @param {number} fraction The body's diameter over the viewport's height
+   * @param {number} [now] ms
+   * @returns {boolean}
+   */
+  wantsLoad(fraction, now = Date.now()) {
+    if (fraction < LOAD_FRAC) {
+      return false
+    }
+    return this.loadState === 'idle' || (this.loadState === 'failed' && now - this._failedAt >= LOAD_RETRY_MS)
   }
 
 
@@ -288,6 +347,9 @@ export default class Places extends Group {
     // the parent's origin, so it's visible whenever the planet is in frame.
     placeholder.onBeforeRender = (renderer, _scene, camera) => {
       const frac = this.diameterFraction(camera, renderer.domElement.clientHeight)
+      if (this.wantsLoad(frac)) {
+        this.ensureLoaded()
+      }
       for (let t = 0; t < this.tierThresholds.length; t++) {
         if (!this.byTier[t]) {
           continue
@@ -330,24 +392,60 @@ export default class Places extends Group {
 }
 
 
+const catalogues = new Map() // body name → Promise of its places
+
+
 /**
- * Fetch and parse a body's place catalog.  Returns a Promise that resolves
- * to the entries array, or [] on 404 / parse error so a missing catalog
- * degrades silently rather than blowing up the planet.
+ * A body's place catalogue (`data/places/<body>.json`), fetched once for the
+ * page: the labels (Places), the search and a link to a place all share it,
+ * and concurrent asks share the request.  A failure rejects, and isn't kept:
+ * the next ask fetches it again.
+ *
+ * @param {string} bodyName
+ * @param {Function} [fetchFn] fetch, or like it
+ * @returns {Promise<Array>} The places
+ */
+export function loadPlaces(bodyName, fetchFn = (...args) => globalThis.fetch(...args)) {
+  let p = catalogues.get(bodyName)
+  if (!p) {
+    p = (async () => {
+      const rsp = await fetchFn(`data/places/${bodyName}.json`)
+      if (!rsp?.ok) {
+        throw new Error(`${rsp?.status ?? 'no response'}`)
+      }
+      const json = await rsp.json()
+      return Array.isArray(json?.places) ? json.places : []
+    })()
+    catalogues.set(bodyName, p)
+    p.catch(() => {
+      if (catalogues.get(bodyName) === p) {
+        catalogues.delete(bodyName)
+      }
+    })
+  }
+  return p
+}
+
+
+/**
+ * A body's places, or [] if they can't be had (a missing catalogue, a
+ * network or parse error), with a warning, so a missing catalog degrades
+ * silently rather than blowing up the planet.
  *
  * @param {string} bodyName
  * @returns {Promise<Array>}
  */
 export async function fetchPlaces(bodyName) {
   try {
-    const rsp = await fetch(`data/places/${bodyName}.json`)
-    if (!rsp.ok) {
-      return []
-    }
-    const json = await rsp.json()
-    return Array.isArray(json.places) ? json.places : []
+    return await loadPlaces(bodyName)
   } catch (e) {
     console.warn(`Places: failed to load ${bodyName}.json`, e)
     return []
   }
+}
+
+
+/** Forget the catalogues fetched.  For tests. */
+export function _resetPlaces() {
+  catalogues.clear()
 }

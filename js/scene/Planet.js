@@ -12,7 +12,7 @@ import {
   assertInRange,
 } from '@pablo-mayrgundter/testing.js/testing.js'
 import Object from './object.js'
-import Places, {fetchPlaces} from './Places.js'
+import Places from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
 import {bodyRank} from './labelDeclutter.js'
 import {
@@ -384,9 +384,9 @@ export default class Planet extends Object {
 
 
   /**
-   * Build a Places group for this planet's surface POIs.  Returned
-   * synchronously (empty), populated async from /data/places/<name>.json.
-   * Cached on the Planet so Scene.land can read entries without re-fetching.
+   * Build a Places group for this planet's surface POIs: empty, its
+   * catalogue (/data/places/<name>.json) fetched when the camera approaches
+   * the body, or something else asks (Places.ensureLoaded; #258).
    *
    * @param {object} props
    * @returns {Places}
@@ -394,7 +394,6 @@ export default class Planet extends Object {
   loadLocations(props) {
     const places = new Places(this.name, props.radius.scalar)
     this.places = places
-    fetchPlaces(this.name).then((entries) => places.setEntries(entries))
     return places
   }
 

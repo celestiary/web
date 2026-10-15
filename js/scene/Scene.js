@@ -8,7 +8,7 @@ import {
 } from 'three'
 import Asterisms from './Asterisms.js'
 import ColonizationLines from './ColonizationLines.js'
-import Galaxies from './Galaxies.js'
+import Galaxies, {galaxiesInView} from './Galaxies.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import Planet from './Planet.js'
@@ -683,6 +683,10 @@ export default class Scene {
       // when the camera arrives.
       obj.preloadNear?.()
       this.objects[obj.props?.parent]?.preloadNear?.()
+      // A place: its body's catalogue too, for its labels (#258).
+      if (t.kind === 'place') {
+        obj.places?.ensureLoaded()
+      }
     }
     Shared.targets.label = t.kind === 'body' ? null : t
     this._labelTargetStar(Shared.targets.label)
@@ -1945,15 +1949,42 @@ export default class Scene {
     })
     this.stellarFrame.add(this.galaxies)
     this._galaxiesWaiters?.splice(0).forEach((cb) => this.galaxies.onReady(cb))
-    if (typeof requestAnimationFrame === 'function') {
-      this.galaxies.load().catch((e) => console.warn('Galaxies didn\'t load:', e.message))
+    // Their catalogue is fetched when something needs it (loadGalaxies), or
+    // when the view could show one (#258): not on every first load.
+    const camPos = new Vector3()
+    const sunPos = new Vector3()
+    this.galaxies.inView = () => {
+      const limit = this.ui.limitingMagnitude?.() ?? -Infinity
+      this.ui.camera.getWorldPosition(camPos)
+      this.objects.sun?.getWorldPosition(sunPos)
+      return galaxiesInView(limit, camPos.distanceTo(sunPos), this.galaxies.labelsVisible)
     }
+    this._galaxiesWanted?.(this.galaxies.ensureLoaded())
     return group
   }
 
 
   /**
-   * @param {function(Galaxies): void} cb Called once the galaxies' catalogue is in
+   * Fetch the galaxies' catalogue, once (Galaxies.ensureLoaded), for what
+   * needs it whatever the view: a link to a galaxy, a search, the `e` key.
+   * Before the Milky Way is built, as soon as it is.
+   *
+   * @returns {Promise<?Galaxies>} The galaxies, or null if they didn't load
+   */
+  loadGalaxies() {
+    if (!this.galaxies) {
+      this._galaxiesPending ??= new Promise((resolve) => {
+        this._galaxiesWanted = resolve
+      })
+      return this._galaxiesPending
+    }
+    return this.galaxies.ensureLoaded()
+  }
+
+
+  /**
+   * @param {function(Galaxies): void} cb Called once the galaxies' catalogue
+   *   is in.  Waiting doesn't fetch it: loadGalaxies does.
    */
   onGalaxiesReady(cb) {
     if (this.galaxies) {

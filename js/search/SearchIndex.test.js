@@ -348,3 +348,86 @@ describe('SearchIndex built before its data is in', () => {
     expect(idx.query('earth')[0].entry.id).toBe('earth')
   })
 })
+
+
+// #258: a catalogue whose provider registers when it arrives (the galaxies)
+// is fetched for the first search, not with the page.
+describe('SearchIndex.loadOnSearch', () => {
+  afterEach(() => SearchRegistry._reset())
+
+  /**
+   * @param {SearchIndex} idx
+   * @param {object} [opts]
+   * @param {boolean} [opts.fail] The load rejects
+   * @returns {{calls: number}} A source that registers a provider of NGC 2403 when it loads
+   */
+  function galaxiesSource(idx, {fail = false} = {}) {
+    const state = {calls: 0, fail}
+    idx.loadOnSearch(async () => {
+      state.calls++
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      if (state.fail) {
+        throw new Error('offline')
+      }
+      idx.register(new StubSceneProvider([{id: 'ngc2403', displayName: 'NGC 2403', aliases: [], kind: 'galaxy',
+        path: 'milkyway/galaxy:ngc2403', parent: null, payload: {}}]))
+    })
+    return state
+  }
+
+  it('loads nothing until there\'s a query with text in it, then once', async () => {
+    const idx = new SearchIndex()
+    idx.register(new StubSceneProvider([SUN, EARTH]))
+    const source = galaxiesSource(idx)
+    await idx.ensureReady()
+    idx.query('')
+    idx.query('   ')
+    expect(source.calls).toBe(0)
+    const changed = new Promise((resolve) => idx.onChange(resolve))
+    expect(idx.query('ngc 2403')).toEqual([])
+    idx.query('ngc 240')
+    await Promise.resolve()
+    expect(source.calls).toBe(1)
+    await changed
+    await idx.ensureReady()
+    expect(idx.query('ngc 2403')[0].entry.id).toBe('ngc2403')
+    expect(source.calls).toBe(1)
+  })
+
+  it('ensureSearchable has it in before a query answered once (the homepage\'s Enter)', async () => {
+    const idx = new SearchIndex()
+    idx.register(new StubSceneProvider([SUN]))
+    const source = galaxiesSource(idx)
+    await idx.ensureSearchable('milkyway')
+    expect(source.calls).toBe(1)
+    expect(idx.query('ngc 2403', 'milkyway', 1)[0].entry.id).toBe('ngc2403')
+  })
+
+  it('starts a load that failed again at the next search', async () => {
+    const warn = console.warn
+    console.warn = () => {}
+    try {
+      const idx = new SearchIndex()
+      idx.register(new StubSceneProvider([SUN]))
+      const source = galaxiesSource(idx, {fail: true})
+      await idx.ensureSearchable()
+      expect(source.calls).toBe(1)
+      source.fail = false
+      await idx.ensureSearchable()
+      expect(source.calls).toBe(2)
+      await idx.ensureSearchable()
+      expect(source.calls).toBe(2)
+      expect(idx.query('ngc 2403')[0].entry.id).toBe('ngc2403')
+    } finally {
+      console.warn = warn
+    }
+  })
+
+  it('a source added after the first search starts at once', async () => {
+    const idx = new SearchIndex()
+    idx.query('x')
+    const source = galaxiesSource(idx)
+    await Promise.resolve()
+    expect(source.calls).toBe(1)
+  })
+})

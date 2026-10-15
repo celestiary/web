@@ -1,14 +1,16 @@
 import {readFileSync} from 'node:fs'
 import Galaxies, {
-  CORE_HR, LABEL_MARGIN_MAG, VIEW_DISTANCE_HR, apparentMagnitude, attenuationAt, commonName, displayName, labelShown,
-  milkyWayRecord, patchRadians, pointLight,
+  BRIGHTEST_FROM_SUN_MAG, CORE_HR, LABEL_MARGIN_MAG, LOAD_DISTANCE_M, LOAD_RETRY_MS, VIEW_DISTANCE_HR,
+  apparentMagnitude, attenuationAt, commonName, displayName, galaxiesInView, labelShown, milkyWayRecord, patchRadians,
+  pointLight,
 } from './Galaxies.js'
 import {L_TOTAL_LSUN, VALUE_PER_LSUN_KPC2} from './galaxyModel.js'
 import {equatorialToSceneUnit} from './galacticFrame.js'
 import {ATTENUATION_MU} from './sparcGalaxy.js'
 import GalaxiesProvider from '../search/providers/GalaxiesProvider.js'
 import {parseTargetPath, targetFramePath, targetPath} from '../targetPath.js'
-import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../shared.js'
+import {LIMITING_MAGNITUDE} from './observer/instrument.js'
+import {ASTRO_UNIT_METER, DISPLAY_GAIN, LIGHTYEAR_METER} from '../shared.js'
 
 
 const JSON_DATA = JSON.parse(readFileSync('./public/data/sparc/galaxies.json', 'utf8'))
@@ -176,5 +178,113 @@ describe('search and links', () => {
     expect(targetFramePath(target, () => null)).toBe('galaxy:ngc2403')
     expect(parseTargetPath('galaxy:ngc2403')).toEqual({kind: 'galaxy', id: 'ngc2403'})
     expect(parseTargetPath('galaxy:')).toBe(null)
+  })
+})
+
+
+// #258: the catalogue is fetched when something needs it, not with the scene.
+describe('the catalogue, on demand', () => {
+  /**
+   * @param {object} r A record
+   * @param {Array<number>} from The camera, in the catalogue's frame
+   * @returns {number} Its magnitude from there, as the labels reckon it
+   */
+  const magFrom = (r, from = [0, 0, 0]) => {
+    const e = [r.x - from[0], r.y - from[1], r.z - from[2]]
+    const d = Math.hypot(...e)
+    const pole = r.place.basis[1]
+    return apparentMagnitude(r, d, Math.abs(((e[0] * pole[0]) + (e[1] * pole[1]) + (e[2] * pole[2])) / d))
+  }
+
+  it('is wanted where the brightest\'s label would first show, or far from the Sun', () => {
+    const brightest = Math.min(...galaxies.records.map((r) => magFrom(r)))
+    expect(brightest).toBeGreaterThanOrEqual(BRIGHTEST_FROM_SUN_MAG)
+    expect(brightest).toBeLessThan(BRIGHTEST_FROM_SUN_MAG + 0.01)
+    // Not at the naked eye's dark-adapted limit, where no label shows ...
+    expect(galaxiesInView(LIMITING_MAGNITUDE, 0)).toBe(false)
+    expect(galaxies.records.some((r) => labelShown(magFrom(r), LIMITING_MAGNITUDE, false))).toBe(false)
+    // ... and before the first label could show.
+    const limit = brightest - LABEL_MARGIN_MAG
+    expect(galaxies.records.some((r) => labelShown(magFrom(r), limit, false))).toBe(true)
+    expect(galaxiesInView(limit - 0.004, 0)).toBe(true)
+    // With the labels held (the homepage) or off, where its point would first show.
+    expect(galaxiesInView(limit, 0, false)).toBe(false)
+    expect(galaxiesInView(brightest - 0.004, 0, false)).toBe(true)
+    // Within LOAD_DISTANCE_M of the Sun the magnitudes move by less than that margin.
+    const away = [LOAD_DISTANCE_M, 0, 0]
+    for (const from of [away, [0, LOAD_DISTANCE_M, 0], [0, 0, -LOAD_DISTANCE_M]]) {
+      expect(Math.min(...galaxies.records.map((r) => magFrom(r, from)))).toBeGreaterThan(brightest - 0.02)
+    }
+    expect(galaxiesInView(LIMITING_MAGNITUDE, LOAD_DISTANCE_M)).toBe(true)
+    expect(galaxiesInView(LIMITING_MAGNITUDE, 3200 * LIGHTYEAR_METER)).toBe(false)
+  })
+
+  describe('fetched', () => {
+    const realFetch = global.fetch
+    const warn = console.warn
+    let asked
+    let respond
+    beforeEach(() => {
+      asked = []
+      respond = () => ({ok: true, json: () => Promise.resolve(JSON_DATA)})
+      global.fetch = (url) => {
+        asked.push(url)
+        return new Promise((resolve) => setTimeout(() => resolve(respond()), 5))
+      }
+      console.warn = () => {}
+    })
+    afterEach(() => {
+      global.fetch = realFetch
+      console.warn = warn
+    })
+
+    it('once, for every concurrent ask, and its waiters hear', async () => {
+      const g = new Galaxies()
+      const heard = []
+      g.onReady((x) => heard.push(x))
+      const [a, b] = await Promise.all([g.ensureLoaded(), g.ensureLoaded()])
+      expect(asked).toEqual(['data/sparc/galaxies.json'])
+      expect(a).toBe(g)
+      expect(b).toBe(g)
+      expect(heard).toEqual([g])
+      expect(await g.ensureLoaded()).toBe(g)
+      expect(asked).toHaveLength(1)
+    })
+
+    it('by the view, each frame until it\'s in, only when it could show one', async () => {
+      const g = new Galaxies()
+      let inView = false
+      g.inView = () => inView
+      g.preAnimCb()
+      g.preAnimCb()
+      expect(asked).toEqual([])
+      inView = true
+      g.preAnimCb()
+      g.preAnimCb()
+      expect(asked).toHaveLength(1)
+      await g.ensureLoaded()
+      g.preAnimCb()
+      expect(asked).toHaveLength(1)
+      expect(g.records).toHaveLength(175)
+    })
+
+    it('after a failure: null; an explicit ask goes at once, the view waits LOAD_RETRY_MS', async () => {
+      respond = () => ({ok: false, status: 503})
+      const g = new Galaxies()
+      g.inView = () => true
+      g.preAnimCb()
+      expect(await g.ensureLoaded()).toBe(null)
+      expect(asked).toHaveLength(1)
+      g.preAnimCb()
+      expect(asked).toHaveLength(1)
+      expect(await g.ensureLoaded()).toBe(null)
+      expect(asked).toHaveLength(2)
+      g._failedAt -= LOAD_RETRY_MS
+      respond = () => ({ok: true, json: () => Promise.resolve(JSON_DATA)})
+      g.preAnimCb()
+      expect(asked).toHaveLength(3)
+      expect(await g.ensureLoaded()).toBe(g)
+      expect(asked).toHaveLength(3)
+    })
   })
 })

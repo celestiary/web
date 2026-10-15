@@ -123,11 +123,14 @@ export default function SearchBar({celestiary, home = false}) {
     }
   }, [isSearchOpen, ready])
 
-  // The places on the bodies in scope load as the scope changes (the
-  // query below runs again once they're in).
+  // The places on the bodies in scope load as the scope changes, once
+  // something is typed (the query below runs again once they're in): the
+  // homepage's bar is open from the start, and its places' index isn't
+  // fetched until it's used (#258).
   const [placesVersion, setPlacesVersion] = useState(0)
+  const hasQuery = (searchQuery ?? '').trim().length > 0
   useEffect(() => {
-    if (!isSearchOpen) {
+    if (!isSearchOpen || !hasQuery) {
       return
     }
     let cancelled = false
@@ -139,7 +142,7 @@ export default function SearchBar({celestiary, home = false}) {
     return () => {
       cancelled = true
     }
-  }, [isSearchOpen, anchorPath])
+  }, [isSearchOpen, anchorPath, hasQuery])
 
   useEffect(() => {
     if (!ready) {
@@ -524,15 +527,16 @@ export default function SearchBar({celestiary, home = false}) {
 
 
 /**
- * Go to the best match for a query, once the index is built: Enter on the
- * homepage's search before its list has come up.
+ * Go to the best match for a query, once the index is built, with what a
+ * search loads (the places, the galaxies): Enter on the homepage's search
+ * before its list has come up.
  *
  * @param {string} query
  * @param {string} anchorPath
  * @param {Function} commit Called with the entry
  */
 function commitBestMatch(query, anchorPath, commit) {
-  searchIndex.ensureReady().then(() => {
+  searchIndex.ensureSearchable(anchorPath).then(() => {
     const best = searchIndex.query(query, anchorPath, 1)[0]
     if (best) {
       commit(best.entry)

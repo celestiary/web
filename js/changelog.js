@@ -1,4 +1,5 @@
 import {parseTokenValue} from './permalink'
+import STAMP from './changelogStamp.json'
 
 
 /**
@@ -161,6 +162,41 @@ export function checkNew(entries, storage = localStorageOrNull()) {
     return {since: null, fresh: []}
   }
   return {since, fresh: entries.filter((e) => e.date > since)}
+}
+
+
+/**
+ * The changelog's dates without the changelog (#258): `js/changelogStamp.json`,
+ * built with changelog.json by `yarn changelog` and carried in the app's
+ * bundle, so What's new's marker needs no fetch.  An entry a date, as many as
+ * the changelog has that day, for checkNew and markSeen.
+ *
+ * @param {{dates: Array<[string, number]>}} [stamp]
+ * @returns {Array<{date: string}>} Newest first
+ */
+export function stampEntries(stamp = STAMP) {
+  const out = []
+  for (const [date, count] of Array.isArray(stamp?.dates) ? stamp.dates : []) {
+    if (DATE_PATTERN.test(date ?? '') && Number.isInteger(count)) {
+      for (let i = 0; i < count; i++) {
+        out.push({date})
+      }
+    }
+  }
+  return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+}
+
+
+/**
+ * The ids of the entries new to the visitor, once the changelog is in:
+ * those dated after the date they had last seen (checkNew's `since`).
+ *
+ * @param {Array<{id: string, date: string}>} entries
+ * @param {?string} since
+ * @returns {Set<string>}
+ */
+export function freshIds(entries, since) {
+  return new Set(since ? entries.filter((e) => e.date > since).map((e) => e.id) : [])
 }
 
 

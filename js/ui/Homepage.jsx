@@ -1,5 +1,5 @@
 import React, {ReactElement, useCallback, useEffect, useRef, useState} from 'react'
-import {checkNew, markSeen} from '../changelog'
+import {checkNew, freshIds, markSeen, stampEntries} from '../changelog'
 import {HOME_CARDS, cardImage} from '../home'
 import {handOffLoadingTitle} from '../loading'
 import {permalinkHref} from '../permalink'
@@ -45,26 +45,33 @@ export default function Homepage({celestiary, phase}) {
     })
   }
 
-  // The changelog, for the button and its marker.  A failure leaves the page
-  // as it was: no button.
+  // The button and its marker, from the changelog's dates, which the app
+  // carries (changelogStamp.json): the changelog itself is fetched when What's
+  // new opens (#258).
   useEffect(() => {
-    let live = true
-    celestiary.loadNews().then((entries) => {
-      if (live && entries.length) {
-        const {fresh} = checkNew(entries)
-        setNews({entries, fresh: new Set(fresh.map((e) => e.id)), unseen: fresh.length})
-      }
-    }).catch((e) => console.warn('What\'s new:', e))
-    return () => {
-      live = false
+    const dates = stampEntries()
+    if (dates.length) {
+      const {since, fresh} = checkNew(dates)
+      setNews({dates, since, unseen: fresh.length, entries: null, fresh: new Set()})
     }
   }, [celestiary])
 
   const openNews = () => {
     setNewsOpen(true)
     // Seeing the entries clears the marker; they stay tagged New while open.
-    markSeen(news.entries)
+    markSeen(news.dates)
     setNews({...news, unseen: 0})
+    celestiary.loadNews().then((entries) => {
+      if (!entries.length) {
+        throw new Error('no entries')
+      }
+      setNews((n) => (n && {...n, entries, fresh: freshIds(entries, n.since)}))
+    }).catch((e) => {
+      // No changelog, no button, as when it failed with the page before.
+      console.warn('What\'s new:', e)
+      setNewsOpen(false)
+      setNews(null)
+    })
   }
   const closeNews = useCallback(() => {
     setNewsOpen(false)
@@ -136,6 +143,7 @@ export default function Homepage({celestiary, phase}) {
               ref={newsButtonRef}
               data-testid='home-news'
               aria-haspopup='dialog'
+              aria-busy={newsOpen && !news.entries}
               onClick={openNews}
             >
               What&apos;s new
@@ -154,7 +162,7 @@ export default function Homepage({celestiary, phase}) {
           </button>
         </div>
       </section>
-      {newsOpen && news && <WhatsNew celestiary={celestiary} entries={news.entries} fresh={news.fresh} onClose={closeNews}/>}
+      {newsOpen && news?.entries && <WhatsNew celestiary={celestiary} entries={news.entries} fresh={news.fresh} onClose={closeNews}/>}
     </div>
   )
 }

@@ -32,6 +32,34 @@ Code:
 built by `tools/sparc/buildSparc.mjs` (below), plain JSON under
 `public/data/`: well under the data policy's 1 MB, so not LFS.
 
+**When it loads** ([#258](https://github.com/celestiary/web/issues/258)).
+Not with the page: from the Solar System, at the naked eye's limit, no
+galaxy's point or label shows, so most visits never need it.  `Galaxies`
+starts empty, and `ensureLoaded` fetches the catalogue (once; concurrent
+asks share it; a failure is logged, resolves to null, and the next ask
+fetches again) for:
+
+- **a view that could show one**, checked each frame until it's in
+  (`preAnimCb`, the Scene's `inView`, `galaxiesInView`): the limiting
+  magnitude (`ThreeUi.limitingMagnitude`) reaching `BRIGHTEST_FROM_SUN_MAG`,
+  NGC 6946's 7.53 from the Solar System, where its point would first show,
+  or, while the labels (`G`) are shown and not held, within
+  `LABEL_MARGIN_MAG` of it, where its label would (`labelShown`'s rule): a
+  limit of 6.53, past the naked eye's dark-adapted 6.5, which the stars'
+  setting, the exposure or a field narrower than 45° reach (the homepage
+  tour's 42° in Earth's shadow is 6.66).  Or the camera 10,000 light-years
+  from the Sun (`LOAD_DISTANCE_M`), past which the magnitudes start to move
+  (0.014 for the nearest, at 3.2 million).  After a failure the view waits
+  `LOAD_RETRY_MS` (30 s) before asking again.
+- **a link** (`#galaxy:ngc2403`, a tour stop: `Celestiary._whenGalaxy`, via
+  `Scene.loadGalaxies`; without the catalogue it's a missing galaxy);
+- **the first search** (`SearchIndex.loadOnSearch`: the provider registers
+  when it lands and the list is asked again, js/search/DESIGN.md);
+- **the `e` key**, either way it turns the labels.
+
+`onGalaxiesReady` waits without fetching.  The rotation curves,
+`curves.json`, were already fetched only for a targeted galaxy's panel.
+
 | What | Where from | Per galaxy |
 |---|---|---|
 | Type T (0 S0 to 11 BCD), distance and its method and error, inclination, L[3.6], R_eff, the disc's scale length and central surface brightness, M_HI, R_HI, V_flat, quality | SPARC Table 1 (`SPARC_Lelli2016c.mrt`) | all 175 |

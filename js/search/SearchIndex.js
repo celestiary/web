@@ -52,6 +52,60 @@ export default class SearchIndex {
     // Bumped when a build lands, for listeners (onChange).
     this.version = 0
     this._listeners = new Set()
+    // What to load the first time something is searched for (loadOnSearch).
+    this._onSearch = []
+  }
+
+
+  /**
+   * Something to load the first time anything is searched for, not before
+   * (#258): a catalogue that registers its provider when it arrives (the
+   * galaxies).  Started by the first query with text in it, or by
+   * `ensureSearchable`, at once if one already came; a load that fails is
+   * started again by the next.
+   *
+   * @param {function(): Promise<any>} load
+   */
+  loadOnSearch(load) {
+    const source = {load, promise: null}
+    this._onSearch.push(source)
+    if (this._searched) {
+      this._startLoads()
+    }
+  }
+
+
+  /**
+   * Start what loadOnSearch holds, each once (again after a failure).
+   *
+   * @returns {Promise<void>} When they've all loaded or failed
+   */
+  async _startLoads() {
+    this._searched = true
+    await Promise.all(this._onSearch.map((source) => {
+      // Built again once it's in (its provider registered: stale), so a
+      // query already asked is answered again (onChange).
+      source.promise ??= Promise.resolve().then(source.load).then(() => this.ensureReady()).catch((e) => {
+        source.promise = null
+        console.warn('Search: loading a catalogue failed:', e?.message ?? e)
+      })
+      return source.promise
+    }))
+  }
+
+
+  /**
+   * Everything a query in this scope could find, in: what loadOnSearch
+   * holds, Tier A, and the places in scope.  For a query answered once
+   * (the homepage's Enter before its list is up).
+   *
+   * @param {string} [anchorPath]
+   * @returns {Promise<void>}
+   */
+  async ensureSearchable(anchorPath = 'milkyway') {
+    await this._startLoads()
+    await this.ensureReady()
+    await this.ensureScope(anchorPath)
   }
 
 
@@ -150,11 +204,13 @@ export default class SearchIndex {
       // meanwhile.  onChange says when to ask again.
       this.ensureReady().catch((e) => console.warn('Search: building the index failed:', e))
     }
-    if (!this._fuseA) {
-      return []
-    }
     const trimmed = (text || '').trim()
-    if (trimmed.length === 0) {
+    if (trimmed.length > 0) {
+      // What's loaded on a search (loadOnSearch); onChange says when its
+      // providers are in.
+      this._startLoads()
+    }
+    if (!this._fuseA || trimmed.length === 0) {
       return []
     }
 
