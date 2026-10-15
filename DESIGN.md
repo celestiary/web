@@ -82,10 +82,10 @@ A card, tonight's sky and the search's Go fly from wherever the tour is to their
 
 [#246](https://github.com/celestiary/web/issues/246), in [#244](https://github.com/celestiary/web/issues/244): the project's user-facing changelog (`CHANGELOG.md`, built into `public/data/changelog.json` by `yarn changelog`; [tools/changelog/README.md](tools/changelog/README.md)) on the homepage, and a guided tour of it.  The social campaign's reel ([#247](https://github.com/celestiary/web/issues/247)) is that tour screen-recorded.
 
-- **The data** (`changelog.js`): `loadChangelog` fetches `data/changelog.json`, a plain relative URL, because it is small data under `public/data/` ([data policy](#data-policy)), and `parseChangelog` checks and normalises it (an entry without a headline or a `YYYY-MM-DD` date is dropped, a link that isn't http(s) is dropped, newest first, a day's entries in file order).  `Celestiary.loadNews` asks once and caches; a failure leaves the page as it was (no button; a tour link falls back to the homepage).  An entry's `permalink` is the fragment without its `#`, as a card's link is.
+- **The data** (`changelog.js`): `loadChangelog` fetches `data/changelog.json`, a plain relative URL, because it is small data under `public/data/` ([data policy](#data-policy)), and `parseChangelog` checks and normalises it (an entry without a headline or a `YYYY-MM-DD` date is dropped, a link that isn't http(s) is dropped, newest first, a day's entries in file order).  `Celestiary.loadNews` asks once and caches (a failure is asked for again next time).  It is asked for when the panel opens, or the tour starts, not with the page ([#258](https://github.com/celestiary/web/issues/258)): the button and its marker are from the changelog's dates alone, `js/changelogStamp.json` (`[date, entries that day]`, newest first, about 500 bytes), which `yarn changelog` writes with the JSON and the app's bundle carries (`stampEntries`).  The panel shows once the entries are in; a failure to fetch them then closes it and takes the button away, as a failure on load used to (a tour link falls back to the homepage).  An entry's `permalink` is the fragment without its `#`, as a card's link is.
 - **The panel** (`ui/WhatsNew.jsx`, opened from `ui/Homepage.jsx`): a sheet over the homepage with the latest 8 entries (16 more at each "Show earlier"): date, headline, text (backticked spans as code), the PR and issue links, and an image where the entry has one.  An entry with a permalink has **Fly there**, an `<a href>` to its link (a middle click opens a tab) whose click is `Celestiary.openLink`: the same flight as a card, the homepage fading out as for one, ending on the link's own restore (so the camera is exactly the permalink's view), its own history entry.  An entry without one is for reading.  `Esc` closes the panel before it leaves the homepage (a capture listener).
-- **"New since your last visit"** (`changelog.js` `checkNew`, `markSeen`): the newest entry date the visitor has seen is in `localStorage` (`celestiary.whatsNew.lastSeen`), and the button carries "N new" for the entries dated after it.  The first visit (nothing stored) is a baseline: nothing is new, and the newest date is stored, so a first-time visitor isn't told about 70 entries.  Opening the panel stores the newest date and clears the marker; the entries that were new keep their **New** tag until it closes.  The grain is a day: an entry on the day last seen isn't new.  Every access is in try/catch (the `localStorage` accessor itself throws in a private window or with site data blocked): with storage that throws nothing is ever new, and nothing else changes.
-- **Quiet loads.**  What's new exists only where the homepage does, which is the bare URL (and the tour's own link, below), so a permalink with the HUD off never mounts it, never fetches the changelog and never touches storage (`js/Celestiary.test.js`, "shows nothing on a link with the HUD off").  The tour's link `#;news:tour;s=v` is not a tour either (`decodeNewsToken`).  The page's own quiet-load rule for the loading text is unchanged ([the first load](#the-first-load)).
+- **"New since your last visit"** (`changelog.js` `checkNew`, `markSeen`, on the stamp's dates; `freshIds` tags the entries once they're in): the newest entry date the visitor has seen is in `localStorage` (`celestiary.whatsNew.lastSeen`), and the button carries "N new" for the entries dated after it.  The first visit (nothing stored) is a baseline: nothing is new, and the newest date is stored, so a first-time visitor isn't told about 70 entries.  Opening the panel stores the newest date and clears the marker; the entries that were new keep their **New** tag until it closes.  The grain is a day: an entry on the day last seen isn't new.  Every access is in try/catch (the `localStorage` accessor itself throws in a private window or with site data blocked): with storage that throws nothing is ever new, and nothing else changes.
+- **Quiet loads.**  What's new exists only where the homepage does, which is the bare URL (and the tour's own link, below), so a permalink with the HUD off never mounts it, never fetches the changelog (nor does the homepage, until the panel opens) and never touches storage (`js/Celestiary.test.js`, "shows nothing on a link with the HUD off").  The tour's link `#;news:tour;s=v` is not a tour either (`decodeNewsToken`).  The page's own quiet-load rule for the loading text is unchanged ([the first load](#the-first-load)).
 - **The changelog tour** (`newsTour.js` `NewsTour`, driven by `Celestiary.startNewsTour`): the entries that have a permalink (`tourStops`; entries without one are never stops), newest first, or from a chosen entry or date toward the older ones, at most `n`.  For each stop: **fly** to its scene (`_newsGo`: from the homepage `leaveHome({link})`, else `_flyToLink`, the cards' flight with its [time plan](#flights-from-the-homepage), so a date far from the last is set under a dip to black, a near one eased), **caption** once the camera has arrived (its own restore has run, no flight or cut pending: `_newsArrived`), **hold**, then fly on.  A path-only permalink (`#galaxy:ngc2403`) goes by the app's go and counts as arrived when its tween ends; a stop that never arrives is skipped after 20 s.  At the end, or on `Esc`, the tour stops where it is: the live scene, the chrome in, the link written as a new entry after the homepage's, so Back returns to the homepage.
   - **Caption** (`tourCaption`): the headline and the first sentence of the text, with the next if the first is short, cut at a word at 220 characters, backticks dropped.  Held `holdMs`: 3 s and 45 ms a character, 6 to 14 s.  The date shows above the headline.
   - **Made to be recorded.**  Nothing else is on screen: the homepage's foreground fades out as for a card, the chrome stays hidden through the tour (`_overlaySteps` skips its step while `_news` is set; the overlays a permalink's own `s=` shows do come in, they are part of its view), the address bar isn't written (the tour isn't a view: `_schedulePermalinkUpdate`), the caption is large on a bottom scrim with a text shadow (`ui/NewsTour.jsx`), and the controls (previous, pause, next, stop, "3 / 12") fade out when the pointer rests and wake when it moves; on a touch screen (`hover: none`) they stay, small.  The app's keys are held back while it plays (`_onNewsKey`, a capture listener): `Space` pauses, the arrows skip, `Esc` stops; Tab, function keys and browser shortcuts are left alone, and so is a focused control's own Enter and Space.
@@ -146,7 +146,7 @@ All celestial bodies (sun, planets, stars, asterisms) live under a single `World
 
 ## Data Loading
 
-`Loader` fetches `/data/<name>.json` files recursively along a path (e.g. `sun/earth/moon`). Each JSON descriptor includes:
+`Loader` loads the body descriptors recursively along a path (e.g. `sun/earth/moon`), each body's `system` after it. Each JSON descriptor includes:
 
 - `type`: `galaxy | stars | star | planet | moon`
 - `radius`, `orbit`, `axialInclination`, `siderealRotationPeriod`
@@ -155,7 +155,22 @@ All celestial bodies (sun, planets, stars, asterisms) live under a single `World
 
 Loading is cached per name; the URL hash (e.g. `#sun/earth`) drives the target path. `hashchange` events trigger re-loads.
 
+**One file for the bodies** ([#258](https://github.com/celestiary/web/issues/258)).  The descriptors are edited one to a file, `public/data/<name>.json`; `yarn bodies` (`tools/bodies/build.mjs`) builds every one under the Milky Way (31, following each `system`) into `public/data/bodies.json`, a body to a line (31 KB, 6 KB gzipped), committed like the repo's other built data, and `tools/bodies/bodies.test.js` fails when it has drifted from them.  `bodyBundle.js` fetches it once for the page (every Loader, and every concurrent ask, shares the request), and `Loader.loadObj` takes a body from it, a copy for each Loader; a body it doesn't have (the guide's demo descriptors, `earth-as-moon`) is fetched from its own file, and so is every body if the bundle fails (one warning).  The first load asked for 31 files one by one, each answered before its children were asked for.  The order the scene gets the bodies in is now the walk's, not the network's; the scene graph is the same.
+
 Stars are loaded separately from the Celestia binary star catalog (`StarsCatalog`), not from JSON.
+
+### What loads when
+
+What the first load fetches is the page, its scripts, the bodies' bundle, the stars (`stars.dat`, `starnames.dat`) and what the view shows ([#256](https://github.com/celestiary/web/issues/256)).  The rest waits until something needs it ([#258](https://github.com/celestiary/web/issues/258)); each is fetched once for the page (concurrent asks share the request), a failure is logged and asked for again by the next need, and nothing a user sees waits on it except as noted.
+
+| Data | Fetched when | Code |
+|---|---|---|
+| A body's places, `data/places/<body>.json` (24 bodies, 664 KB) | The camera approaches the body with the `p` labels on (its disc a fifth of the screen's height, about 12 radii at the default field: ahead of tier 0's three quarters, so a go there, arriving at 10, asks as it arrives); a link to a place on it, or a place targeted or flown to | `Places.ensureLoaded` (its LOD hook, `LOAD_FRAC`; after a failure the hook waits `LOAD_RETRY_MS`), `Places.js` `loadPlaces` (shared by the labels, the link and the search's fallback) |
+| The places' index for the search, `data/places-index.json` (259 KB, 113 KB gzipped: every place's name, position, kind and altitude, without the tiers) | The first search with text in it | `search/placesIndex.js`, `PlacesProvider`; [js/search/DESIGN.md](js/search/DESIGN.md#places-in-the-index) |
+| SPARC's galaxies, `data/sparc/galaxies.json` (216 KB) | A view that could show one (the limiting magnitude reaching the brightest's 7.53 from the Solar System, or within a magnitude of it while the `G` labels are shown; or the camera 10,000 light-years from the Sun); a link to a galaxy; the first search; the `e` key | `Galaxies.ensureLoaded`, `galaxiesInView`, `Scene.loadGalaxies`; [Galaxies.md](js/scene/Galaxies.md#the-data) |
+| The changelog, `data/changelog.json` (73 KB) | What's new opens, or the changelog tour starts; the button's "N new" is from the dates alone, `js/changelogStamp.json`, in the bundle | `Celestiary.loadNews`, `changelog.js` `stampEntries`; [what's new](#whats-new-and-the-changelog-tour) |
+
+On the homepage that is the bodies' bundle where there were 31 descriptors, 24 place catalogues, the galaxies and the changelog: 57 requests and 1 MB of JSON before.  The homepage's tour doesn't fetch Earth's places as it passes (its overlays are held, so no labels could show) nor the galaxies (at the night side's deepest, 6.66, the brightest's point is under the limit and the labels are held).  Measured in the PR ([#258](https://github.com/celestiary/web/issues/258)).
 
 Large files (textures, `stars.dat`, anything under `public/large/`) are fetched through `dataUrl()`, not a bare relative path; see [Data policy](#data-policy).
 
@@ -1316,7 +1331,8 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/shared.js` | Global constants and `targets` state object |
 | `js/Celestiary.js` | Top-level controller, keyboard bindings |
 | `js/ThreeUI.js` | Three.js renderer/camera/controls wrapper |
-| `js/Loader.js` | Recursive JSON asset loader |
+| `js/Loader.js` | Recursive JSON asset loader: a body from the bodies' bundle, else its own file ([data loading](#data-loading)) |
+| `js/bodyBundle.js` | `loadBodyBundle`: `data/bodies.json`, every body's descriptor, fetched once for the page |
 | `js/Time.js` | Simulation clock with time-scale control (settable while paused: `j`/`k`/`l` and the panel's buttons; `onTimeScaleChange` tells the display), clamped to the supported dates (J2000 ± 6000 years) |
 | `js/camera.js` | Navigation tween factories (`newCameraLookTween`, `newCameraGoToTween`, `newCameraLandTween`); the ones that move the camera are marked `travels`, and a go says how far along it is (`travelProgress`, which the exposure follows: [approach](#approach)) |
 | `js/zoom.js` | Pure zoom math: `asymptoticZoomDist`, `dynamicNear` |
@@ -1326,7 +1342,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/choreography.js` | The first load's reveal: `Choreography` (steps at times after a start, on the frame clock), `REVEAL_AT`, `READY_TIMEOUT_MS` ([the first load](#the-first-load)) |
 | `js/loading.js` | `hideLoading()`: fades out the page's loading text (`public/index.html` `#loading`); `handOffLoadingTitle()`: the loading title becomes the homepage's ([homepage](#homepage)) |
 | `js/home.js` | The homepage: `isHomepage` (the bare URL), `HOME_HISTORY_KEY`, `HOME_CARDS` ([homepage](#homepage)) |
-| `js/changelog.js` | The changelog in the app: `loadChangelog`, `parseChangelog`, the "new since your last visit" marker (`checkNew`, `markSeen`), the tour's stops, captions and token (`tourStops`, `tourCaption`, `holdMs`, `decodeNewsToken`) ([what's new](#whats-new-and-the-changelog-tour)) |
+| `js/changelog.js` | The changelog in the app: `loadChangelog`, `parseChangelog`, the "new since your last visit" marker (`checkNew`, `markSeen`, from the dates in `changelogStamp.json`: `stampEntries`, `freshIds`), the tour's stops, captions and token (`tourStops`, `tourCaption`, `holdMs`, `decodeNewsToken`) ([what's new](#whats-new-and-the-changelog-tour)) |
 | `js/newsTour.js` | `NewsTour`: the changelog tour's sequencing (fly, caption, hold, next, previous, pause, stop), pure on the frame clock |
 | `js/flight.js` | `FlightPath`: a flight from the camera to a view, in log altitude; `timePlan`, `flightDuration` ([flights from the homepage](#flights-from-the-homepage)) |
 | `js/tour.js` | Camera paths: `CameraPath` (keyframes eased and interpolated), `ease`, spherical offsets ([the tour](#the-tour)) |
@@ -1348,7 +1364,8 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/store/useStore.js` | Zustand store root |
 | `js/dataUrl.js` | `dataUrl()`: resolves large-data paths against the build's data base URL ([Data policy](#data-policy)) |
 | `js/perf/` | The `?perf=1` overlay ([Perf overlay](#perf-overlay)): `perf.js` (the hooks and the install), `GpuTimer.js`, `sections.js`, `glCounters.js`, `PerfStats.js`, `Overlay.js`, `snapshot.js`, `toggles.js`, `passes.js` |
-| `public/data/*.json` | Celestial object descriptors |
+| `public/data/*.json` | Celestial object descriptors; `bodies.json` is every one under the Milky Way, built by `yarn bodies` (`tools/bodies/build.mjs`) |
+| `public/data/places-index.json` | Every body's places for the search, built from `public/data/places/` by `yarn places-index` (`tools/places/index.mjs`) |
 
 ### Search (`js/search/`)
 
@@ -1360,7 +1377,7 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/search/commitEntry.js` | Go and Look at actions for a result |
 | `js/search/providers/SceneProvider.js` | Bodies loaded by `Loader` |
 | `js/search/providers/StarsProvider.js` | Named stars + exact HIP resolver |
-| `js/search/providers/PlacesProvider.js` | Future surface-place stub |
+| `js/search/providers/PlacesProvider.js` | Surface places, from the places' index (`js/search/placesIndex.js`), fetched on the first search |
 | `js/search/providers/GalaxiesProvider.js` | SPARC's galaxies, by all their names |
 
 See [js/search/DESIGN.md](js/search/DESIGN.md) for the full architecture:

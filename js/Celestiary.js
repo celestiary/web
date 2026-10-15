@@ -479,6 +479,8 @@ export default class Celestiary {
       searchIndex.register(new GalaxiesProvider(galaxies))
       searchIndex.invalidate()
     })
+    // Their catalogue is fetched for the first search, if nothing has yet (#258).
+    searchIndex.loadOnSearch(() => this.scene.loadGalaxies())
     this._placesProvider = new PlacesProvider(this.loader)
     searchIndex.register(this._placesProvider)
     // StarsCatalog mutates in place — after load, prev.starsCatalog and
@@ -860,8 +862,9 @@ export default class Celestiary {
    * @param {Function} [onErr] Called if there's no such galaxy
    */
   _whenGalaxy(id, cb, onErr) {
-    this.scene.onGalaxiesReady((galaxies) => {
-      const galaxy = galaxies.galaxy(id)
+    // Fetched now if the view hasn't yet (#258); a failure is a missing galaxy.
+    this.scene.loadGalaxies().then((galaxies) => {
+      const galaxy = galaxies?.galaxy(id)
       if (galaxy) {
         cb(galaxy)
       } else {
@@ -887,6 +890,9 @@ export default class Celestiary {
         cb(sceneName(resolved.name))
         return
       case 'place':
+        // The body's catalogue: the place, and its labels for when the camera
+        // gets there.  One request (Places.js loadPlaces).
+        this.scene.objects[resolved.body]?.places?.ensureLoaded()
         fetchPlaces(resolved.body).then((places) => {
           const e = places.find((p) => slug(p.n) === resolved.slug)
           if (e) {
@@ -1704,6 +1710,8 @@ export default class Celestiary {
     const dist = this.scene.arrivalDistance(body)
     const jump = () => goToEntry(entry, this)
     if (place) {
+      // Its body's catalogue, for the labels it lands among (#258).
+      body.places?.ensureLoaded()
       // Over the place, facing down to it, then the landing from there.
       const over = latLngAltToBodyFixed(place.lat, place.lng, dist - r, r)
       const north = Math.abs(place.lat) > POLAR_LAT_DEG ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)
@@ -2224,6 +2232,8 @@ export default class Celestiary {
     // 'e' and 'E' as Celestia has them: galaxies' and globulars' names.
     k.map('e', () => {
       this.scene.toggleGalaxyLabels()
+      // Their catalogue, if the view hasn't fetched it yet (#258).
+      this.scene.loadGalaxies()
     },
     'Galaxies (named once within a magnitude of the star limit, or targeted)',
     () => this.scene.getSetting('G'),

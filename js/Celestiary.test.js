@@ -18,6 +18,8 @@ import {formatNavMode} from './navMode.js'
 import {decodePermalink, encodePermalink, encodeSettings, SETTINGS_DEFAULTS} from './permalink.js'
 import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
 import * as Shared from './shared.js'
+import {_resetPlaces} from './scene/Places.js'
+import {searchIndex} from './search/SearchIndex.js'
 
 
 const EARTH_RADIUS = 6371000 // meters
@@ -166,6 +168,11 @@ class StubThreeUI {
 
   exposureCompensation() {
     return this._ev ?? 0
+  }
+
+  // The naked eye's, dark-adapted (exposure.js limitingMagnitude).
+  limitingMagnitude() {
+    return 6.5
   }
 
   userLimitingMagnitude() {
@@ -875,7 +882,8 @@ describe('the target in the link', () => {
   const apps = []
 
   beforeAll(() => {
-    // Earth's places, for a link to Austin.
+    // Earth's places, for a link to Austin: this file's, not another's.
+    _resetPlaces()
     global.fetch = (url) => Promise.resolve(String(url).endsWith('places/earth.json') ?
       {ok: true, json: () => Promise.resolve({places: [{n: 'Austin', lat: AUSTIN.lat, lng: AUSTIN.lng}]})} :
       {ok: false, json: () => Promise.resolve({})})
@@ -886,6 +894,7 @@ describe('the target in the link', () => {
     apps.forEach((a) => clearTimeout(a._permalinkTimer))
     Shared.targets.label = null
     Shared.targets.track = false
+    _resetPlaces()
   })
 
   /**
@@ -1638,6 +1647,130 @@ describe('the target in the link', () => {
       expect(reloaded).toBeDefined()
       clearTimeout(app._permalinkTimer)
     })
+  })
+})
+
+
+// What a load fetches (#258): the bodies come in one file (the Loader is
+// stubbed here: Loader.test.js), and the rest when something needs it: a
+// body's places on approach or for a link to one, the galaxies for a link,
+// a search or the `e` key.
+describe('what a load fetches', () => {
+  const savedFetch = global.fetch
+  const apps = []
+  const GALAXIES = JSON.parse(readFileSync('./public/data/sparc/galaxies.json', 'utf8'))
+  const AUSTIN = {n: 'Austin', lat: 30.2672, lng: -97.7431}
+  let asked
+
+  beforeEach(() => {
+    _resetPlaces()
+    asked = []
+    global.fetch = (url) => {
+      const u = String(url)
+      asked.push(u)
+      if (u.endsWith('sparc/galaxies.json')) {
+        return Promise.resolve({ok: true, json: () => Promise.resolve(GALAXIES)})
+      }
+      if (u.endsWith('places/earth.json')) {
+        return Promise.resolve({ok: true, json: () => Promise.resolve({places: [AUSTIN]})})
+      }
+      return Promise.resolve({ok: false, status: 404})
+    }
+  })
+
+  afterAll(() => {
+    global.fetch = savedFetch
+    apps.forEach((a) => clearTimeout(a._permalinkTimer))
+    Shared.targets.label = null
+    Shared.targets.tween = null
+    global.location.hash = `#${TEST_FRAGMENT}`
+    _resetPlaces()
+  })
+
+  /**
+   * @param {string} fragment
+   * @returns {Promise<object>} A Celestiary loaded from #fragment, a second of frames on
+   */
+  async function open(fragment) {
+    global.location.hash = `#${fragment}`
+    const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+        {}, () => {}, () => {}, () => {})
+    apps.push(app)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    for (let t = 0; t < 1000; t += 16) {
+      app.animation.animate(app.ui.scene)
+      app.frame(t)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    return app
+  }
+
+  const galaxyFetches = () => asked.filter((u) => u.endsWith('galaxies.json')).length
+  // The data asked for (the textures a body's surface fetches aside).
+  const jsonAsked = () => asked.filter((u) => u.endsWith('.json'))
+
+  it('a link to a body: no galaxies, no places (none of its labels can show yet), no changelog', async () => {
+    const app = await open(TEST_FRAGMENT)
+    expect(jsonAsked()).toEqual([])
+    expect(app.scene.galaxies.records).toEqual([])
+    expect(app.scene.objects.earth.places.loadState).toBe('idle')
+  })
+
+  it('a link to a place: its body\'s catalogue, once, for the place and its labels', async () => {
+    expect(TEST_FRAGMENT.startsWith('sun/earth@')).toBe(true)
+    const app = await open(TEST_FRAGMENT.replace('sun/earth@', 'sun/earth/austin@'))
+    expect(jsonAsked()).toEqual(['data/places/earth.json'])
+    expect(app.scene.objects.earth.places.loadState).toBe('loaded')
+    expect(app.scene.objects.earth.places.entries).toEqual([AUSTIN])
+    expect(Shared.targets.label).toMatchObject({kind: 'place', body: 'earth', name: 'Austin'})
+  })
+
+  it('a link to a galaxy: their catalogue, once, and it goes there', async () => {
+    const app = await open('galaxy:ngc2403')
+    // A path alone arrives a second after the first load (_navigate).
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect(galaxyFetches()).toBe(1)
+    expect(app.scene.galaxies.records).toHaveLength(175)
+    expect(Shared.targets.label).toMatchObject({kind: 'galaxy', name: 'NGC 2403'})
+  })
+
+  it('the e key: their catalogue, once, whichever way it turns the labels', async () => {
+    const app = await open(TEST_FRAGMENT)
+    app.keys.onKeyDown({key: 'e'})
+    app.keys.onKeyDown({key: 'e'})
+    await app.scene.loadGalaxies()
+    expect(galaxyFetches()).toBe(1)
+    expect(app.scene.galaxies.records).toHaveLength(175)
+  })
+
+  it('a search: their catalogue, with the first query (SearchIndex.loadOnSearch)', async () => {
+    const app = await open(TEST_FRAGMENT)
+    // The singleton holds every app this file made; this app's is the last.
+    await searchIndex._onSearch.at(-1).load()
+    expect(galaxyFetches()).toBe(1)
+    expect(app.scene.galaxies.records).toHaveLength(175)
+  })
+
+  it('a view that could show a galaxy fetches them; a failed fetch is a missing galaxy', async () => {
+    const app = await open(TEST_FRAGMENT)
+    app.ui.limitingMagnitude = () => 9.5
+    app.animation.animate(app.ui.scene)
+    app.animation.animate(app.ui.scene)
+    await app.scene.loadGalaxies()
+    expect(galaxyFetches()).toBe(1)
+    // A link to one when the catalogue can't be had.
+    const warn = console.warn
+    console.warn = () => {}
+    try {
+      global.fetch = () => Promise.resolve({ok: false, status: 503})
+      const missing = []
+      const other = await open(TEST_FRAGMENT)
+      other._whenGalaxy('ngc2403', () => missing.push('found'), () => missing.push('missing'))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(missing).toEqual(['missing'])
+    } finally {
+      console.warn = warn
+    }
   })
 })
 

@@ -23,8 +23,11 @@ that opt in via `has_locations: true` in their JSON descriptor.
   each label is of) and `labelBody`, and a click is a hit on a label's own
   text box, the far side's excluded (see below).
 - `../search/providers/PlacesProvider.js` — lazy search provider for
-  Tier C (a Fuse per body).  Caches per-body; loaded when a search's scope
-  includes the body (see Search below).
+  Tier C (a Fuse per body), from the places' index
+  (`public/data/places-index.json`, `../search/placesIndex.js`), fetched on
+  the first search (see Search below).
+- `../../../tools/places/index.mjs` — builds that index from the catalogues
+  (`yarn places-index`).
 
 ## Catalog file format
 
@@ -64,6 +67,34 @@ below), and has no `_source`.
 Bulk numeric data — not Measure strings.  The Measure-string convention
 applies to body-level scalars in the planet descriptors, not to thousands
 of homogeneous coordinates.
+
+## When a catalogue loads
+
+Not with the scene ([#258](https://github.com/celestiary/web/issues/258)):
+every body used to fetch its catalogue as it was added, 24 requests and 664 KB
+on every first load, most for bodies the visit never came near.  A `Places`
+starts empty (`loadState` `'idle'`) and fetches its catalogue
+(`ensureLoaded`) when:
+
+- **the camera approaches the body**: the LOD hook, once the body's disc is
+  `LOAD_FRAC` (0.2) of the viewport's height, about 12 radii from its centre
+  at the default field.  Tier 0 shows at 0.75 (3.3 radii), so the fetch has
+  the camera's travel from there to come in; a go to the body arrives at 10
+  radii and asks as it arrives.  The hook runs only while the places are
+  drawn, so with the `p` labels off, or held (the homepage, a flight), nothing
+  is fetched, as no label could show; they're asked for when the labels come
+  in.
+- **a place on it is named**: a link to one (`#sun/earth/new-york`:
+  `Celestiary._resolveTarget`), a place targeted (`Scene.setTarget`: a pick
+  in the search, a label), or flown to from the homepage.
+
+`Places.js` `loadPlaces` fetches a body's catalogue once for the page: the
+labels, a link's resolution and the search's fallback share the request
+(`fetchPlaces` is the same, [] on a failure).  A failure isn't kept: the next
+ask fetches again, and the LOD hook, which asks every frame, waits
+`LOAD_RETRY_MS` (30 s) first.  Tested in `Places.test.js` (the trigger, one
+request for every asker, the retry) and `Celestiary.test.js` ("what a load
+fetches").
 
 ## Tier scheme & LOD
 
@@ -163,7 +194,10 @@ removed) that landed at the nearest one.
 
 Every place is searchable from any scope that includes its body: Earth's
 from under Earth, the Sun (the solar system) or the root, with the root's and
-the Sun's ranking below bodies and stars that match as well.  The Moon's
+the Sun's ranking below bodies and stars that match as well.  The search
+reads every body's places from one index, `public/data/places-index.json`,
+not from the catalogues: name, position, kind and altitude, without the tier
+(259 KB, 113 KB gzipped, for 8,404 places), fetched on the first search.  The Moon's
 are in Earth's scope too, as the Moon is.  Picking a result in the dropdown
 targets it, Go lands there
 ([js/search/DESIGN.md](../search/DESIGN.md#places-in-the-index)).
@@ -255,7 +289,9 @@ body shows a sensible handful at tier 0 whatever its size
 
 **The script.**  `node tools/places/build.mjs [body...]` downloads each body's
 zip once into `tools/places/.cache` (git-ignored; `--cache DIR` to put it
-elsewhere) and writes the catalogues, the same bytes for the same download;
+elsewhere) and writes the catalogues, the same bytes for the same download,
+and then the search's index of them (`index.mjs`; `yarn places-index` alone
+after editing Earth's by hand);
 `--check` writes nothing and prints each body's tier counts and its tier 0.
 It needs no packages (`readers.mjs` reads the ZIP and dBase files).  The
 `BODIES` table at its top maps celestiary's body to the Gazetteer's target;

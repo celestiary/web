@@ -25,7 +25,9 @@
     "test": "bun test",
     "update-version": "./tools/updateVersion.mjs",
     "parity": "node tools/parity/parity.mjs",
+    "places-index": "node tools/places/index.mjs",
     "gaia": "bun tools/gaia/gaia.mjs",
+    "bodies": "node tools/bodies/build.mjs",
     "changelog": "node tools/changelog/json.mjs",
     "changelog:draft": "node tools/changelog/draft.mjs"
   },

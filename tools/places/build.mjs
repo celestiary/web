@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Regenerates public/data/places/<body>.json from the IAU Gazetteer of
 // Planetary Nomenclature (USGS Astrogeology; js/scene/places.md, "The
-// Gazetteer").
+// Gazetteer"), and the search's index of them, public/data/places-index.json
+// (index.mjs).
 //
 //   node tools/places/build.mjs                 every body below
 //   node tools/places/build.mjs moon mars       just these
@@ -19,6 +20,7 @@
 import {mkdirSync, readFileSync, writeFileSync, existsSync} from 'node:fs'
 import {dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {writeIndex} from './index.mjs'
 import {readDbf, readZip} from './readers.mjs'
 import {parseRadiusM, placeOf, tierPlaces} from './tiers.mjs'
 
@@ -177,6 +179,10 @@ async function main() {
       mkdirSync(dirname(out), {recursive: true})
       writeFileSync(out, json)
     }
+  }
+  if (!check) {
+    // The search's index of every catalogue (index.mjs).
+    writeIndex()
   }
 }
 

@@ -2,8 +2,8 @@ import {describe, expect, it} from 'bun:test'
 import {readFileSync} from 'node:fs'
 import {
   CAPTION_MAX_CHARS, CHANGELOG_URL, HOLD_MAX_MS, HOLD_MIN_MS, LAST_SEEN_KEY, checkNew, decodeNewsToken,
-  encodeNewsToken, formatEntryDate, holdMs, loadChangelog, localStorageOrNull, markSeen, parseChangelog,
-  readLastSeen, tourCaption, tourStops, writeLastSeen,
+  encodeNewsToken, formatEntryDate, freshIds, holdMs, loadChangelog, localStorageOrNull, markSeen, parseChangelog,
+  readLastSeen, stampEntries, tourCaption, tourStops, writeLastSeen,
 } from './changelog.js'
 import {decodePermalink} from './permalink.js'
 
@@ -112,6 +112,40 @@ describe('the changelog JSON in the app', () => {
     await expect(loadChangelog(() => Promise.reject(new Error('offline')))).rejects.toThrow('offline')
     await expect(loadChangelog(() => Promise.resolve({ok: true, json: () => Promise.reject(new Error('bad json'))})))
         .rejects.toThrow('bad json')
+  })
+})
+
+
+// The marker from the stamp the app carries (#258): the same answers as
+// from the changelog, without fetching it.
+describe('the changelog\'s stamp', () => {
+  const parsed = parseChangelog(FILE)
+
+  it('has the changelog\'s dates, as many of each as it has entries', () => {
+    expect(stampEntries().map((e) => e.date)).toEqual(parsed.map((e) => e.date))
+  })
+
+  it('gives the marker the changelog would, on a first visit and after', () => {
+    for (const since of [null, '2026-10-01', '2026-10-13', '2030-01-01']) {
+      const a = memoryStorage(since ? {[LAST_SEEN_KEY]: since} : {})
+      const b = memoryStorage(since ? {[LAST_SEEN_KEY]: since} : {})
+      const fromStamp = checkNew(stampEntries(), a)
+      const fromFile = checkNew(parsed, b)
+      expect(fromStamp.since).toBe(fromFile.since)
+      expect(fromStamp.fresh.length).toBe(fromFile.fresh.length)
+      expect(a.data).toEqual(b.data)
+      expect(freshIds(parsed, fromStamp.since)).toEqual(new Set(fromFile.fresh.map((e) => e.id)))
+      expect(markSeen(stampEntries(), a)).toBe(markSeen(parsed, b))
+      expect(a.data).toEqual(b.data)
+    }
+  })
+
+  it('reads a bad stamp as none, and storage that throws as nothing new', () => {
+    expect(stampEntries({})).toEqual([])
+    expect(stampEntries({dates: [['soon', 2], ['2026-10-01', 'x'], ['2026-10-02', 2]]})).toEqual(
+        [{date: '2026-10-02'}, {date: '2026-10-02'}])
+    expect(checkNew(stampEntries(), throwingStorage())).toEqual({since: null, fresh: []})
+    expect(freshIds(parsed, null)).toEqual(new Set())
   })
 })
 
