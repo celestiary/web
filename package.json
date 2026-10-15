@@ -25,6 +25,7 @@
     "test": "bun test",
     "update-version": "./tools/updateVersion.mjs",
     "parity": "node tools/parity/parity.mjs",
+    "load-budget": "node tools/loadBudget/loadBudget.mjs",
     "gaia": "bun tools/gaia/gaia.mjs",
     "changelog": "node tools/changelog/json.mjs",
     "changelog:draft": "node tools/changelog/draft.mjs"
