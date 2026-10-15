@@ -266,8 +266,9 @@ on screen always did; a body never shown warms up first (UX, above).
   from the same mosaics as its own Earth texture (bodies.js
   `monthlyImagery`; Planet.md), so the two match across the swap.  Two
   layers: the month's 4096×2048 map, the file celestiary's own Earth is
-  textured with (one request, already in the browser's cache), over the
-  whole globe, and over it the 512 px tiles, levels 0-3, only from globe
+  textured with (given as a `blob:` URL of the download celestiary's Earth
+  and the clouds already share, `sharedImage.js`, so no request of its own),
+  over the whole globe, and over it the 512 px tiles, levels 0-3, only from globe
   level 3 (`fromLevel`; the tiles' levels 0-2 are no sharper than the map,
   and took ten requests, popping in as they came).  When the month changes,
   the new month's two layers go in above the old, which are dropped once

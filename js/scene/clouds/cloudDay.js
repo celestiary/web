@@ -69,6 +69,19 @@ export const GAPS_WORTH_FILLING = 0.002
 /** Tiles fetched at once. */
 export const CONCURRENT_TILES = 4
 
+/**
+ * The unseen pixels the bundled texture's small copy does for.  A day's
+ * unseen pixels are mostly polar night (15% of the map on 2026-10-14),
+ * dark, where a coarse copy of the picture is as good as the full one; the
+ * small copy (128 KB) is used when no more than POLAR_FILL_SHARE of the map
+ * between POLAR_FILL_DEG N and S is unseen, the band the satellites see in
+ * daylight in every season (COMPLETE_BAND_DEG; complete days leave 0-0.08%
+ * of it).  A tile no layer served, or MODIS's wedges at the equator, are
+ * more than that, and in daylight: they get the full texture (1.4 MB).
+ */
+export const POLAR_FILL_DEG = COMPLETE_BAND_DEG
+export const POLAR_FILL_SHARE = GAPS_WORTH_FILLING
+
 
 /**
  * @param {object} source cloudSource's daily source
@@ -128,14 +141,24 @@ export function unseenInBand(unseen, rect, width, band) {
  * Build a day's coverage map from its tiles, off screen.  Each tile is
  * unmixed against the month's Blue Marble, its gaps from the secondary
  * layer, narrow gaps from either side; what's left, and a tile neither
- * layer could serve, keeps the bundled texture's coverage.  Stops early once
- * the band's unseen share passes `stopAbove`: the day is incomplete.
+ * layer could serve, is given the bundled texture's coverage, once the
+ * tiles are done: the bundled texture is asked for only then, and only if
+ * some pixel is unseen (a day with every pixel seen never fetches it).
+ * Stops early once the band's unseen share passes `stopAbove`: the day is
+ * incomplete, and not shown, so it isn't filled.
  *
  * @param {object} opts
  * @param {object} opts.source cloudSource's daily source
  * @param {Uint8ClampedArray|Uint8Array} opts.ground The month's Blue Marble,
  *   RGBA at the map's size
- * @param {Uint8Array} opts.bundled The bundled texture's coverage, at the map's size
+ * @param {Uint8Array|function({detail: boolean}): (Uint8Array|Promise<?Uint8Array>)} [opts.bundled]
+ *   The bundled texture's coverage, at the map's size, or a function that
+ *   gets it (called at most once, after the tiles, if a pixel is unseen),
+ *   told whether the full texture is wanted (`detail`: the unseen pixels
+ *   reach below POLAR_FILL_DEG, so not only polar night) or a coarser copy
+ *   will do; null for none (or from the function, if it couldn't be had),
+ *   and the unseen pixels are left clear.  Not given, as for the seam's
+ *   strip, which is judged and blended over its seen pixels only.
  * @param {function(string): Promise<?Uint8ClampedArray>} opts.fetchTile A
  *   tile's RGBA (TILE_PX square) by its URL, or null where there's none
  * @param {number} [opts.stopAbove] Give up past this share of the band unseen
@@ -143,21 +166,23 @@ export function unseenInBand(unseen, rect, width, band) {
  * @param {function(object): void} [opts.onTile] Called as each tile is done,
  *   with {done, failed, unmixMs} so far
  * @param {Array<number>} [opts.columns] Only these tile columns (the seam
- *   strip's); the rest of the map keeps the bundled coverage, and the
+ *   strip's); the rest of the map is left clear, and the
  *   completeness is judged over these columns only
  * @param {number} [opts.level]
  * @returns {Promise<?{coverage: Uint8Array, unseen: Uint8Array,
  *   unseenShare: number, complete: boolean, aborted: boolean, failed: number,
- *   unmixMs: number}>}
- *   null if it went stale
+ *   unmixMs: number, filled: number}>}
+ *   `filled` is the pixels given the bundled coverage; null if it went stale
  */
 export async function buildDay({
-  source, ground, bundled, fetchTile, stopAbove = INCOMPLETE_SHARE, stale = () => false, onTile = null,
+  source, ground, bundled = null, fetchTile, stopAbove = INCOMPLETE_SHARE, stale = () => false, onTile = null,
   columns = null, level = CLOUD_TILE_LEVEL,
 }) {
   const {date, layers} = source
   const {cols, rows, width, height} = tileGrid(level)
-  const coverage = Uint8Array.from(bundled)
+  const coverage = new Uint8Array(width * height)
+  // What unmixTile gives the pixels it finds unseen, until they are filled.
+  const clear = new Uint8Array(width * height)
   const unseen = new Uint8Array(width * height).fill(1)
   const band = bandRows(height)
   let bandTotal = 0
@@ -193,7 +218,7 @@ export async function buildDay({
       }
       any = true
       const t0 = now()
-      missing = unmixTile(pixels, TILE_PX, rect, ground, coverage, bundled, unseen, width, true)
+      missing = unmixTile(pixels, TILE_PX, rect, ground, coverage, clear, unseen, width, true)
       unmixMs += now() - t0
     }
     if (any) {
@@ -214,8 +239,66 @@ export async function buildDay({
   if (stale()) {
     return null
   }
+  const filled = aborted || !bundled ? 0 : await fillUnseen(coverage, unseen, bundled, width, height)
+  if (stale()) {
+    return null
+  }
   const unseenShare = bandUnseen / bandTotal
-  return {coverage, unseen, unseenShare, complete: !aborted && unseenShare <= INCOMPLETE_SHARE, aborted, failed, unmixMs}
+  return {
+    coverage, unseen, unseenShare, complete: !aborted && unseenShare <= INCOMPLETE_SHARE, aborted, failed, unmixMs, filled,
+  }
+}
+
+
+/**
+ * @param {Uint8Array} unseen The map's unseen mask
+ * @param {number} width The map's
+ * @param {number} height
+ * @param {number} [deg] Latitude, degrees N and S
+ * @param {number} [share]
+ * @returns {boolean} Whether more than `share` of the map between `deg` N and
+ *   S is unseen: the gaps are not only polar night
+ */
+export function unseenBelowPolar(unseen, width, height, deg = POLAR_FILL_DEG, share = POLAR_FILL_SHARE) {
+  const {top, bottom} = bandRows(height, deg)
+  let n = 0
+  for (let k = top * width; k < bottom * width; k++) {
+    n += unseen[k]
+  }
+  return n > share * (bottom - top) * width
+}
+
+
+/**
+ * Give the pixels still unseen the bundled texture's coverage, in place.
+ * Asks for the bundled texture only if there are any.
+ *
+ * @param {Uint8Array} coverage The map's
+ * @param {Uint8Array} unseen The map's unseen mask
+ * @param {Uint8Array|function({detail: boolean}): (Uint8Array|Promise<?Uint8Array>)} bundled
+ *   The bundled texture's coverage, or a function that gets it
+ * @param {number} width The map's
+ * @param {number} height
+ * @returns {Promise<number>} The pixels filled
+ */
+async function fillUnseen(coverage, unseen, bundled, width, height) {
+  if (!unseen.includes(1)) {
+    return 0
+  }
+  const fill = typeof bundled === 'function' ?
+    await bundled({detail: unseenBelowPolar(unseen, width, height)}) :
+    bundled
+  if (!fill) {
+    return 0
+  }
+  let filled = 0
+  for (let k = 0; k < unseen.length; k++) {
+    if (unseen[k]) {
+      coverage[k] = fill[k]
+      filled++
+    }
+  }
+  return filled
 }
 
 
@@ -349,7 +432,6 @@ export function blendSeam(map, before, width, height, deg = SEAM_FADE_DEG) {
  * @param {object} opts.shown cloudSource's daily source of the day shown
  * @param {function(object): (Uint8ClampedArray|Promise<Uint8ClampedArray>)} opts.groundOf
  *   A source's month's Blue Marble, RGBA at the map's size
- * @param {Uint8Array} opts.bundled The bundled texture's coverage
  * @param {function(string): Promise<?Uint8ClampedArray>} opts.fetchTile
  * @param {function(): boolean} [opts.stale] Whether the map is no longer wanted
  * @param {number} [opts.level]
@@ -359,14 +441,14 @@ export function blendSeam(map, before, width, height, deg = SEAM_FADE_DEG) {
  *   missing); `failed` (its ground didn't load); `none` (before the
  *   satellites); or null if it went stale, the map untouched
  */
-export async function fadeSeam({map, shown, groundOf, bundled, fetchTile, stale = () => false, level = CLOUD_TILE_LEVEL}) {
+export async function fadeSeam({map, shown, groundOf, fetchTile, stale = () => false, level = CLOUD_TILE_LEVEL}) {
   const source = seamSource(shown)
   if (!source) {
     return {date: null, state: 'none', unseenShare: 0}
   }
   let before
   try {
-    before = await buildSeam({source, ground: await groundOf(source), bundled, fetchTile, stale, level})
+    before = await buildSeam({source, ground: await groundOf(source), fetchTile, stale, level})
   } catch (err) {
     console.warn(`[clouds] couldn't fade the antimeridian into ${source.date}'s clouds`, err)
     return {date: source.date, state: 'failed', unseenShare: 0}

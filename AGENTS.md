@@ -177,6 +177,21 @@ tried and dropped.
   `c.tour.t = ms`, and give the meter a few seconds after a jump.  The
   cards' images re-render with `node tools/home/cards.mjs` (after a build;
   `--gpu` on a real GPU).
+- **Measuring a page's requests (Playwright):**
+  - `page.route` turns the HTTP cache off, so a repeat fetch shows as a
+    network request. Block hosts with `--host-resolver-rules="MAP *
+    ~NOTFOUND, EXCLUDE 127.0.0.1"` or CDP `Network.setBlockedURLs`, and read
+    requests from CDP `Network.*` events (`fromDiskCache`, `encodedDataLength`).
+  - Chromium doesn't trust the agent proxy's CA, so GIBS (allowed) fails with
+    `ERR_CERT_AUTHORITY_INVALID`. Launch with `--proxy-server=$HTTPS_PROXY
+    --proxy-bypass-list=127.0.0.1` and `--ignore-certificate-errors-spki-list=`
+    the base64 SHA-256 of the CA's public key
+    (`openssl x509 -in /root/.ccr/agent-proxy-ca.crt -pubkey -noout | openssl
+    pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl enc
+    -base64`). That trusts that CA only; never `--ignore-certificate-errors`.
+  - For before/after renders, pause the clock once the permalink is applied
+    (`c.time.setTime(ms); c.time.isPaused = true`): two renders of one build
+    then match bit for bit, so any difference is the change's.
 - **A permalink restores its time and view only with a camera
   quaternion (`cq=`).** Without one the whole fragment is ignored, and
   the app runs at the current real time. To test a date, set it with

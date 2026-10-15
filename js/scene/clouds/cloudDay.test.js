@@ -12,6 +12,7 @@ import {
   seamColumns,
   seamSource,
   seamWeight,
+  unseenBelowPolar,
   unseenInBand,
 } from './cloudDay.js'
 import {CLOUD_TILE_LEVEL, TILE_PX, cloudSource, dailySource, previousDate, tileGrid, tileRect} from './cloudSource.js'
@@ -124,6 +125,89 @@ describe('buildDay', () => {
     expect(fetchTile.requests.every((r) => r.startsWith('VIIRS_NOAA20 2026-10-11'))).toBe(true)
   })
 
+  describe('the bundled texture', () => {
+    // North of 72° N unseen (polar night), the rest seen.
+    const polarNight = ({row}) => (row === 0 ? tile((i, j) => j > 128) : FULL)
+    const lazy = () => {
+      const asked = []
+      const get = () => {
+        asked.push(true)
+        return Promise.resolve(bundled)
+      }
+      return {asked, get}
+    }
+
+    it('is not asked for when every pixel is seen', async () => {
+      const {asked, get} = lazy()
+      const day = await build(fetcher(() => FULL), {bundled: get})
+      expect(day).toMatchObject({complete: true, filled: 0})
+      expect(asked.length).toBe(0)
+      expect(day.coverage.every((v) => v === 255)).toBe(true)
+    })
+
+    it('is asked for once, after the tiles, when some pixels are unseen, and fills only those', async () => {
+      const {asked, get} = lazy()
+      const fetchTile = fetcher(polarNight)
+      let askedAfter = -1
+      const day = await build((url) => {
+        // Every tile is fetched before the bundled texture is asked for.
+        askedAfter = asked.length
+        return fetchTile(url)
+      }, {bundled: get})
+      expect(askedAfter).toBe(0)
+      expect(asked.length).toBe(1)
+      expect(day.filled).toBeGreaterThan(0)
+      expect(day.filled).toBe(day.unseen.reduce((n, v) => n + v, 0))
+      for (let k = 0; k < day.coverage.length; k += 101) {
+        expect(day.coverage[k]).toBe(day.unseen[k] ? BUNDLED : 255)
+      }
+    })
+
+    it('fills a tile neither layer has, as when it began the map', async () => {
+      const {asked, get} = lazy()
+      const day = await build(fetcher(({row, col}) => (row === 1 && col === 2 ? null : FULL)), {bundled: get, stopAbove: Infinity})
+      expect(asked.length).toBe(1)
+      const r = tileRect(CLOUD_TILE_LEVEL, 1, 2)
+      expect(day.filled).toBe(r.w * r.h)
+    })
+
+    it('is told the gaps are polar, so a coarse copy does, when they are above 50° N', async () => {
+      const needs = []
+      await build(fetcher(polarNight), {bundled: (need) => needs.push(need) && bundled})
+      expect(needs).toEqual([{detail: false}])
+    })
+
+    it('is told the full texture is wanted for a tile no layer served', async () => {
+      const needs = []
+      await build(fetcher(({row, col}) => (row === 1 && col === 2 ? null : FULL)),
+          {bundled: (need) => needs.push(need) && bundled, stopAbove: Infinity})
+      expect(needs).toEqual([{detail: true}])
+    })
+
+    it('is the same, given as an array or as a function', async () => {
+      const serve = fetcher(polarNight)
+      const a = await build(serve, {bundled})
+      const b = await build(serve, {bundled: lazy().get})
+      expect(Buffer.from(a.coverage).equals(Buffer.from(b.coverage))).toBe(true)
+      expect(a.filled).toBe(b.filled)
+    })
+
+    it('is not asked for by a day that is given up on: it isn\'t shown', async () => {
+      const {asked, get} = lazy()
+      const day = await build(fetcher(({row, col}) => (row === 1 && col === 2 ? null : FULL)), {bundled: get})
+      expect(day.aborted).toBe(true)
+      expect(day.filled).toBe(0)
+      expect(asked.length).toBe(0)
+    })
+
+    it('leaves the unseen pixels clear if it can\'t be had', async () => {
+      const day = await build(fetcher(polarNight), {bundled: () => Promise.resolve(null)})
+      expect(day).toMatchObject({complete: true, filled: 0})
+      const r = tileRect(CLOUD_TILE_LEVEL, 0, 0)
+      expect(day.coverage[(r.y * W) + r.x]).toBe(0)
+    })
+  })
+
   it('fills the primary\'s gaps from the secondary', async () => {
     // NOAA-20 missed the west half of the tile at −108° to −36°; Suomi NPP saw it.
     const day = await build(fetcher(({layer, row, col}) => {
@@ -180,6 +264,29 @@ describe('buildDay', () => {
     let n = 0
     const day = await build(fetcher(() => FULL), {stale: () => ++n > 20})
     expect(day).toBe(null)
+  })
+})
+
+
+describe('unseenBelowPolar', () => {
+  const rows = (from, to) => {
+    const unseen = new Uint8Array(W * H)
+    unseen.fill(1, from * W, to * W)
+    return unseen
+  }
+
+  it('is false for the polar caps, true for gaps in the band the satellites see in daylight', () => {
+    const band = bandRows(H)
+    expect(unseenBelowPolar(rows(0, band.top), W, H)).toBe(false)
+    expect(unseenBelowPolar(rows(band.bottom, H), W, H)).toBe(false)
+    expect(unseenBelowPolar(rows(band.top, band.top + 20), W, H)).toBe(true)
+  })
+
+  it('allows a sliver: no more than 0.2% of the band', () => {
+    const band = bandRows(H)
+    const unseen = new Uint8Array(W * H)
+    unseen.fill(1, band.top * W, (band.top * W) + (0.001 * (band.bottom - band.top) * W))
+    expect(unseenBelowPolar(unseen, W, H)).toBe(false)
   })
 })
 
@@ -337,16 +444,18 @@ describe('the antimeridian fade', () => {
   describe('buildSeam', () => {
     it('builds the westernmost column of tiles of the day before, and nothing else', async () => {
       const fetchTile = fetcher(() => FULL)
-      const day = await buildSeam({source: seamSource(DAY), ground, bundled, fetchTile})
-      expect(day).toMatchObject({complete: true, failed: 0, unseenShare: 0})
+      const day = await buildSeam({source: seamSource(DAY), ground, fetchTile})
+      expect(day).toMatchObject({complete: true, failed: 0, unseenShare: 0, filled: 0})
       expect(fetchTile.requests.toSorted()).toEqual([0, 1, 2].map((row) => `VIIRS_NOAA20 2026-10-10 ${row} 0`))
-      // The column is the day before's; the rest of the map keeps the bundled coverage.
+      // The column is the day before's; the rest of the map is unseen, and
+      // isn't filled from the bundled texture, which the strip never needs.
       expect(day.coverage[(TOP * W) + 5]).toBe(255)
-      expect(day.coverage[(TOP * W) + TILE_PX + 5]).toBe(BUNDLED)
+      expect(day.coverage[(TOP * W) + TILE_PX + 5]).toBe(0)
+      expect(day.unseen[(TOP * W) + TILE_PX + 5]).toBe(1)
     })
 
     it('judges the column as a day is: a missing tile in the band is incomplete', async () => {
-      const day = await buildSeam({source: seamSource(DAY), ground, bundled, fetchTile: fetcher(({row}) => (row === 1 ? null : FULL))})
+      const day = await buildSeam({source: seamSource(DAY), ground, fetchTile: fetcher(({row}) => (row === 1 ? null : FULL))})
       expect(day.complete).toBe(false)
     })
   })
@@ -361,7 +470,7 @@ describe('the antimeridian fade', () => {
         grounds.push(s.date)
         return ground
       }
-      const result = await fadeSeam({map, shown, groundOf, bundled, fetchTile, ...opts})
+      const result = await fadeSeam({map, shown, groundOf, fetchTile, ...opts})
       return {result, map, grounds}
     }
 
@@ -382,7 +491,7 @@ describe('the antimeridian fade', () => {
       const fetchTile = fetcher(() => FULL)
       const grounds = []
       const result = await fadeSeam({
-        map: dayMap(), shown: dailySource('2026-01-01'), bundled, fetchTile,
+        map: dayMap(), shown: dailySource('2026-01-01'), fetchTile,
         groundOf: (s) => {
           grounds.push(s.date)
           return ground
@@ -424,7 +533,7 @@ describe('the antimeridian fade', () => {
       try {
         const map = dayMap()
         const result = await fadeSeam({
-          map, shown, bundled, fetchTile: fetcher(() => FULL), groundOf: () => Promise.reject(new Error('no ground')),
+          map, shown, fetchTile: fetcher(() => FULL), groundOf: () => Promise.reject(new Error('no ground')),
         })
         expect(result).toMatchObject({date: '2026-10-10', state: 'failed'})
         expect(map).toEqual(before)
@@ -437,7 +546,7 @@ describe('the antimeridian fade', () => {
       const fetchTile = fetcher(() => FULL)
       const before = dayMap()
       const result = await fadeSeam({
-        map: before, shown: dailySource('2000-02-24'), bundled, fetchTile, groundOf: () => ground,
+        map: before, shown: dailySource('2000-02-24'), fetchTile, groundOf: () => ground,
       })
       expect(result).toMatchObject({date: null, state: 'none'})
       expect(fetchTile.requests.length).toBe(0)

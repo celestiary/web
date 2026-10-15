@@ -2,6 +2,7 @@ import {AlwaysDepth, LOD, Object3D, PerspectiveCamera, Vector3} from 'three'
 import {ASTRO_UNIT_METER} from '../../shared.js'
 import {exposureAt, METER_EVERY_FRAMES, nightLightRadiance} from '../exposure.js'
 import {MeterCadence} from '../meterReadback.js'
+import {clearSharedImages, sharedObjectUrl} from '../sharedImage.js'
 import CesiumLayers, {bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
 import {CESIUM_BODIES} from './bodies.js'
 
@@ -138,9 +139,15 @@ describe('monthly imagery', () => {
         this.provider = provider
       }
 
+      // The provider comes as a promise, as Cesium's SingleTileImageryProvider.fromUrl
+      // gives it: the layer has its url once that has resolved.
       static fromProviderAsync(provider) {
-        const layer = new Cesium.ImageryLayer(provider)
+        const layer = new Cesium.ImageryLayer({})
         layer.ready = true
+        layer.loaded = Promise.resolve(provider).then((p) => {
+          layer.url = p.url
+          layer.provider = p
+        })
         return layer
       }
     },
@@ -154,18 +161,32 @@ describe('monthly imagery', () => {
     GeographicTilingScheme: class {},
   }
   let savedDocument
+  let savedFetch
+  let fetched
   beforeEach(() => {
     savedDocument = globalThis.document
+    savedFetch = globalThis.fetch
     globalThis.document = {baseURI: 'https://example.org/'}
+    clearSharedImages()
+    fetched = []
+    globalThis.fetch = (url) => {
+      fetched.push(url)
+      return Promise.resolve(new Response(`bytes of ${url}`))
+    }
   })
   afterEach(() => {
     globalThis.document = savedDocument
+    globalThis.fetch = savedFetch
+    clearSharedImages()
   })
   const julianDayOf = (iso) => (Date.parse(iso) / 864e5) + 2440587.5
   const config = {monthlyImagery: {
     url: 't/2004-{MM}/{z}/{x}/{y}.jpg', singleUrl: 't/2004-{MM}.jpg', fromLevel: 3,
   }}
-  const mapUrl = (mm) => `https://example.org/t/2004-${mm}.jpg`
+  // The month's map is given to Cesium as a blob: URL of the one download
+  // (sharedImage.js), the same URL the surface and the clouds' use.
+  const mapUrl = (mm) => sharedObjectUrl(`t/2004-${mm}.jpg`)
+  const loaded = (list) => Promise.all(list.map((l) => l.loaded))
   const tilesUrl = (mm) => `https://example.org/t/2004-${mm}/{z}/{x}/{y}.jpg`
   const setup = (iso) => {
     const L = new CesiumLayers({})
@@ -181,19 +202,20 @@ describe('monthly imagery', () => {
     return {L, list, globe, body}
   }
 
-  it('adds the new month under the detail layer, and drops the old once the tiles are in', () => {
+  it('adds the new month under the detail layer, and drops the old once the tiles are in', async () => {
     const {L, list, globe, body} = setup('2026-07-15T00:00:00Z')
     L._updateMonthlyImagery(body, config)
-    expect(list.map((l) => l.url)).toEqual(['map', 'tiles', mapUrl('07'), tilesUrl('07'), 'bing'])
+    await loaded(list)
+    expect(list.map((l) => l.url)).toEqual(['map', 'tiles', await mapUrl('07'), tilesUrl('07'), 'bing'])
     L._updateMonthlyImagery(body, config)
     expect(list.length).toBe(5)
     globe.tilesLoaded = true
     L._updateMonthlyImagery(body, config)
-    expect(list.map((l) => l.url)).toEqual([mapUrl('07'), tilesUrl('07'), 'bing'])
+    expect(list.map((l) => l.url)).toEqual([await mapUrl('07'), tilesUrl('07'), 'bing'])
     expect(body.month).toBe(7)
   })
 
-  it('keeps the old month until the new map has loaded', () => {
+  it('keeps the old month until the new map has loaded', async () => {
     const {L, list, globe, body} = setup('2026-07-15T00:00:00Z')
     L._updateMonthlyImagery(body, config)
     body.newBase.ready = false
@@ -202,7 +224,8 @@ describe('monthly imagery', () => {
     expect(list.length).toBe(5)
     body.newBase.ready = true
     L._updateMonthlyImagery(body, config)
-    expect(list.map((l) => l.url)).toEqual([mapUrl('07'), tilesUrl('07'), 'bing'])
+    await loaded(list)
+    expect(list.map((l) => l.url)).toEqual([await mapUrl('07'), tilesUrl('07'), 'bing'])
   })
 
   it('leaves the base alone within a month', () => {
@@ -211,14 +234,33 @@ describe('monthly imagery', () => {
     expect(list.map((l) => l.url)).toEqual(['map', 'tiles', 'bing'])
   })
 
-  it('serves the tiles only from the globe level the map stops at', () => {
+  it('serves the tiles only from the globe level the map stops at', async () => {
     const {L, list, body} = setup('2026-07-15T00:00:00Z')
     L._updateMonthlyImagery(body, config)
+    await loaded(list)
     const [map, tiles] = [list[2], list[3]]
     expect(map.provider.single).toBe(true)
     expect(map.options).toBeUndefined()
     expect(tiles.options).toEqual({minimumTerrainLevel: 3})
     expect(tiles.provider.minimumLevel).toBe(3)
+  })
+
+  it('takes the map from the one download, which the surface and the clouds share: no request of its own', async () => {
+    const {L, list, body} = setup('2026-07-15T00:00:00Z')
+    // The surface's ask (Planet.monthlyMap), a moment before.
+    const surface = await sharedObjectUrl('t/2004-07.jpg')
+    L._updateMonthlyImagery(body, config)
+    await loaded(list)
+    expect(list[2].url).toBe(surface)
+    expect(fetched).toEqual(['t/2004-07.jpg'])
+  })
+
+  it('gives Cesium the image\'s own URL to try if the shared download failed', async () => {
+    globalThis.fetch = () => Promise.resolve(new Response('', {status: 500}))
+    const {L, list, body} = setup('2026-07-15T00:00:00Z')
+    L._updateMonthlyImagery(body, config)
+    await loaded(list)
+    expect(list[2].url).toBe('https://example.org/t/2004-07.jpg')
   })
 })
 
