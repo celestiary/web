@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-10-15-the-first-screen-loads-faster-the-rest-waits",
+      "date": "2026-10-15",
+      "headline": "The first screen loads faster: the rest waits until you need it",
+      "text": "Celestiary used to download the place names of 24 worlds, 175 galaxies and this changelog before showing anything, and the planets and moons as 31 separate files. Now the planets and moons come in one file, a world's place names when you fly close to it or open a link to one of its places, the galaxies when you search, follow a link to one or look deep enough for one to show, and the changelog when you open What's new. The homepage makes 30 requests instead of 86, and nothing looks different.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 267,
+          "url": "https://github.com/celestiary/web/pull/267"
+        },
+        {
+          "kind": "issue",
+          "number": 258,
+          "url": "https://github.com/celestiary/web/issues/258"
+        }
+      ],
+      "epic": {
+        "number": 256,
+        "title": "Leaner first load",
+        "url": "https://github.com/celestiary/web/issues/256"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-14-earth-loads-faster-each-picture-is-downloaded",
       "date": "2026-10-14",
       "headline": "Earth loads faster: each picture is downloaded once",
