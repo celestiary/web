@@ -1,6 +1,8 @@
 import {afterEach, beforeEach, describe, expect, it} from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
+import {_resetPlaces} from '../scene/Places.js'
+import {_resetPlacesIndex} from './placesIndex.js'
 import PlacesProvider from './providers/PlacesProvider.js'
 import SceneProvider from './providers/SceneProvider.js'
 import SearchIndex from './SearchIndex.js'
@@ -9,8 +11,9 @@ import * as SearchRegistry from './SearchRegistry.js'
 
 // Places are searchable from every scope that contains their body (#177,
 // where "austin" with Earth in the breadcrumb found nothing).  This runs the
-// real providers over the real descriptors and place catalogs in
-// public/data, with only the network cut out.
+// real providers over the real descriptors and the places' index in
+// public/data (built from the catalogues: tools/places/index.mjs), with only
+// the network cut out.
 const DATA = path.join(import.meta.dir, '..', '..', 'public', 'data')
 const BODIES = ['milkyway', 'sun', 'mercury', 'venus', 'earth', 'moon', 'mars']
 
@@ -36,14 +39,16 @@ describe('place search by scope', () => {
   let index
   beforeEach(() => {
     SearchRegistry._reset()
+    _resetPlacesIndex()
+    _resetPlaces()
     fetched = []
     global.fetch = (url) => {
       fetched.push(url)
-      const m = String(url).match(/^data\/places\/(\w+)\.json$/)
+      const m = String(url).match(/^data\/([\w/-]+)\.json$/)
       if (!m) {
         return Promise.resolve({ok: false})
       }
-      return Promise.resolve({ok: true, json: () => Promise.resolve(readJson(`places/${m[1]}.json`))})
+      return Promise.resolve({ok: true, json: () => Promise.resolve(readJson(`${m[1]}.json`))})
     }
     const loader = {loaded: loadedTree(), loadObj: () => {}}
     index = new SearchIndex()
@@ -54,6 +59,8 @@ describe('place search by scope', () => {
   afterEach(() => {
     global.fetch = realFetch
     SearchRegistry._reset()
+    _resetPlacesIndex()
+    _resetPlaces()
   })
 
   const find = async (text, anchor) => {
@@ -96,13 +103,13 @@ describe('place search by scope', () => {
     expect((await find('austin', 'milkyway/sun/mars')).some((r) => r.displayName === 'Austin')).toBe(false)
   })
 
-  it('fetches only the catalogues of the bodies in scope, once', async () => {
+  it('fetches the places\' index once, for every scope, and no catalogue', async () => {
     await index.ensureScope('milkyway/sun/earth/moon')
-    expect(fetched).toEqual(['data/places/moon.json'])
+    expect(fetched).toEqual(['data/places-index.json'])
     await index.ensureScope('milkyway/sun/earth/moon')
-    expect(fetched.length).toBe(1)
     expect(await index.ensureScope('milkyway/sun/earth')).toBe(1)
-    expect(fetched).toEqual(['data/places/moon.json', 'data/places/earth.json'])
+    expect(await index.ensureScope('milkyway')).toBe(3)
+    expect(fetched).toEqual(['data/places-index.json'])
   })
 
   it('says how many catalogues were loaded, so the caller can query again', async () => {

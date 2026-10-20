@@ -358,6 +358,14 @@ tried and dropped.
   `vsop87/dist/vsop87c-wasm`, since `Celestiary.test.js` mocks `./vsop`.
   A PR that lowers a number lowers its limit too, in the same PR
   (DESIGN.md [load budgets](DESIGN.md#load-budgets)).
+- **Some data is built from other data and committed, with a test that
+  fails when it drifts**: after editing a body's descriptor
+  (`public/data/<name>.json`) run `yarn bodies`; a place catalogue,
+  `yarn places-index`; `CHANGELOG.md`, `yarn changelog`. Nothing but the
+  page, its scripts, the bodies' bundle and the stars loads with the page:
+  a body's places, the galaxies and the changelog wait until something
+  needs them (DESIGN.md [what loads when](DESIGN.md#what-loads-when)), so
+  new data should too.
 - **Measure the homepage's load with `yarn load-budget`** (CI's
   `load-budget` job runs it). After `yarn build` it serves `docs/` with
   gzip, loads the homepage in headless Chromium with other hosts blocked,

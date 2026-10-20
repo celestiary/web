@@ -10,7 +10,8 @@
 //    from the DevTools protocol.
 //
 // How they were set (DESIGN.md, "Load budgets"): each limit is today's
-// measurement on main (the day #262 landed, 2026-10-15) rounded up with
+// measurement on main (the day #262 landed, 2026-10-15; the runtime
+// limits lowered with #258 on 2026-10-20) rounded up with
 // about 10% headroom, so ordinary work doesn't trip it and a new
 // dependency or an eagerly loaded dataset does.  They are a ratchet, not
 // targets: when a change lowers a number (#258's lazy bodies, places and
@@ -45,8 +46,10 @@ export const STATIC_BUDGET = {
  * Bytes are encoded (compressed) body bytes plus headers where known.
  */
 export const RUNTIME_BUDGET = {
-  // Main on 2026-10-15: 81 requests, 2,859 KB (stars.dat is 1,848 KB of it).
-  ready: {requests: 90, kb: 3150},
-  // Main: 82 requests, 4,193 KB (the ephemeris chunk is 1,334 KB).
-  settled: {requests: 92, kb: 4620},
+  // After #258 (2026-10-20): 25 requests, 2,614 KB (stars.dat is 1,848 KB
+  // of it).  Before it: 81 requests, 2,859 KB.
+  ready: {requests: 28, kb: 2880},
+  // After #258: 26 requests, 3,948 KB (the ephemeris chunk is 1,334 KB).
+  // Before it: 82 requests, 4,193 KB.
+  settled: {requests: 29, kb: 4350},
 }

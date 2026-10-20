@@ -43,6 +43,20 @@ going, before the fast part of the trip and the arrival.
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: none
 
+### The first screen loads faster: the rest waits until you need it
+
+Celestiary used to download the place names of 24 worlds, 175 galaxies and this changelog before
+showing anything, and the planets and moons as 31 separate files. Now the planets and moons come in
+one file, a world's place names when you fly close to it or open a link to one of its places, the
+galaxies when you search, follow a link to one or look deep enough for one to show, and the
+changelog when you open What's new. The homepage makes 30 requests instead of 86, and nothing looks different.
+
+- Date: 2026-10-15
+- PR: [#267](https://github.com/celestiary/web/pull/267)
+- Issue: [#258](https://github.com/celestiary/web/issues/258)
+- Epic: [#256](https://github.com/celestiary/web/issues/256) Leaner first load
+- Permalink: none
+
 ### Earth loads faster: each picture is downloaded once
 
 Opening Earth, or a link to it, used to download the month's 4096-pixel Blue Marble map three times,

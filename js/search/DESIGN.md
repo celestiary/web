@@ -13,8 +13,9 @@ craters on Earth/Mars) can be plugged in without re-architecting.
 | `SearchIndex.js` | Tiered index, query, per-anchor cache; exports the app-wide singleton `searchIndex` |
 | `providers/SceneProvider.js` | Entries for every body in `Loader.loaded` (sun, planets, moons, galaxy nodes) |
 | `providers/StarsProvider.js` | Entries for named stars + exact HIP resolver |
-| `providers/PlacesProvider.js` | Surface places (cities, craters, landing sites) per body; lazy, loaded when a scope includes the body ([Places in the index](#places-in-the-index)) |
-| `providers/GalaxiesProvider.js` | SPARC's 175 galaxies by every name they have (SPARC's, NED's, SIMBAD's, RC3's: `WLM`, `M 63`), in the root's scope; Go travels there (`scene.goTo(galaxy)`), the panel shows the galaxy and its rotation curve ([Galaxies.md](../scene/Galaxies.md)) |
+| `providers/PlacesProvider.js` | Surface places (cities, craters, landing sites) per body; lazy, from the places' index, a body's taken when a scope includes it ([Places in the index](#places-in-the-index)) |
+| `placesIndex.js` | `loadPlacesIndex`: `data/places-index.json`, every body's places in one file, fetched on the first search |
+| `providers/GalaxiesProvider.js` | SPARC's 175 galaxies by every name they have (SPARC's, NED's, SIMBAD's, RC3's: `WLM`, `M 63`), in the root's scope; Go travels there (`scene.goTo(galaxy)`), the panel shows the galaxy and its rotation curve ([Galaxies.md](../scene/Galaxies.md)).  Registered when their catalogue is in, which the first search fetches if nothing has ([Loaded on the first search](#loaded-on-the-first-search)) |
 | `commitEntry.js` | `goToEntry`, `lookAtEntry` and `targetEntry`: what Go, Look at and a pick in the dropdown do with a result |
 | `SearchIndex.test.js` | Scoping, fuzzy, HIP-exact, dedupe coverage |
 | `commitEntry.test.js` | Go calls `goTo`/`land`/the hash; Look at calls the target path and never `goTo` |
@@ -68,6 +69,25 @@ match against. Unnamed stars are still reachable via Tier B (numeric input).
 Tier C is the places: one Fuse per body, keyed by the body's rooted path
 (`milkyway/sun/earth`), from `PlacesProvider.collectUnder`.  See below.
 
+### Loaded on the first search
+
+The page doesn't fetch what only a search needs ([#258](https://github.com/celestiary/web/issues/258)).
+`SearchIndex.loadOnSearch(load)` holds a load for the first query with text
+in it (or `ensureSearchable`, below), not before: Celestiary gives it the
+galaxies' catalogue (`Scene.loadGalaxies`), which registers its provider when
+it arrives (`onGalaxiesReady`).  Each runs once, again after a failure (the
+next query starts it); once it's in, Tier A is rebuilt and `onChange` has the
+SearchBar ask again, so "NGC 2403", typed before the catalogue is in, is
+listed as it lands (a provider registered without a rebuild would wait for
+the next keystroke).  A link to a galaxy, the `e` key or a view that could
+show one fetch it too ([DESIGN.md](../../DESIGN.md#what-loads-when)).
+
+The places' index is fetched the same way: the SearchBar asks for the scope's
+places (`ensureScope`) only once there's text in the field, so the homepage's
+bar, open from the start, fetches nothing until it's used.  Enter before the
+list is up (the homepage's) waits for `ensureSearchable(anchorPath)`: the
+loads, Tier A and the scope's places, then the best match.
+
 ### Places in the index
 
 A place is searchable from every scope that includes its body, so "austin"
@@ -76,11 +96,27 @@ Sun › Earth in the breadcrumb: the solar system) and from the root.
 
 - `SearchIndex.ensureScope(anchorPath)` loads, once each, the places of every
   body in scope: `PlacesProvider.bodiesUnder` lists the loader's bodies with
-  `has_locations` inside the scope, and `collectUnder` fetches
-  `data/places/<body>.json` (`n`, `lat`, `lng`, optional `a` and `k`).  The
-  SearchBar calls it when the scope changes and queries again when it
-  resolves with a count; Earth is fetched only when a search is scoped to
-  include it.
+  `has_locations` inside the scope, and `collectUnder` takes the body's from
+  the places' index (`placesIndex.js`).  The SearchBar calls it when the
+  scope changes, once something is typed, and queries again when it resolves
+  with a count.
+- **The index** ([#258](https://github.com/celestiary/web/issues/258)),
+  `public/data/places-index.json`, is every catalogue's places for the
+  search, built by `yarn places-index` (`tools/places/index.mjs`; the
+  Gazetteer's `build.mjs` runs it after the catalogues) and committed, with a
+  test that fails when it has drifted from them (`tools/places/places.test.js`).
+  A place is a row, `[name, lat, lng, kind, altitude?]`, the kind an index
+  into the file's 60 `kinds`: what a result shows, matches (the kind is an
+  alias) and lands on, without the tier only the labels use.  8,404 places in
+  259 KB, 113 KB gzipped, where the 24 catalogues are 664 KB in 24 requests,
+  which the homepage's bar, open and scoped to everything, used to fetch on
+  the first load.  The positions are most of it (names and kinds alone are
+  about 45 KB gzipped); they stay so that a result is targeted, previewed and
+  flown to at once, as before, rather than after a fetch of its body's
+  catalogue.  Fetched once, concurrent asks sharing it; a failure falls back
+  on the body's own catalogue (`Places.js` `fetchPlaces`), and the next search
+  asks for the index again.  A body with no places from either isn't kept,
+  so the next search asks again.
 - `query` searches the Fuse of every loaded body in scope with Tier A's.
   From a scope wider than the body (the Sun's, the root's) a place's score
   is 0.1 worse, so bodies and stars that match as well come first.  Under

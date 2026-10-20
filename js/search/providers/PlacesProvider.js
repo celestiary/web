@@ -1,5 +1,6 @@
 import {fetchPlaces} from '../../scene/Places.js'
 import {slug} from '../../targetPath.js'
+import {loadPlacesIndex} from '../placesIndex.js'
 import {inScope} from '../SearchIndex.js'
 import {buildPath} from './SceneProvider.js'
 
@@ -9,11 +10,13 @@ import {buildPath} from './SceneProvider.js'
 
 /**
  * Surface places (cities, craters, landing sites…) on bodies with
- * `has_locations: true`.  Lazy: the catalogs can grow large (#170), so a
- * body's is fetched only when a search is scoped to include it
- * (`SearchIndex.ensureScope`, which asks `bodiesUnder` which those are).
+ * `has_locations: true`.  Lazy: they come from the places' index
+ * (placesIndex.js, every body's in one file, #258), fetched the first time
+ * a search asks for a body's (`SearchIndex.ensureScope`, which asks
+ * `bodiesUnder` which those are, once something is typed).  Without the
+ * index (it failed, or lacks the body) a body's own catalogue stands in.
  *
- * collectUnder is async because the catalog may not be cached yet — the
+ * collectUnder is async because the places may not be in yet — the
  * SearchIndex caller awaits it once per (body) lifetime and then re-uses
  * the cached entries.
  */
@@ -21,18 +24,40 @@ export default class PlacesProvider {
   /**
    * @param {object} [loader] The Loader, for which bodies have places
    *   (`has_locations` in their descriptors) and where they are in the tree
+   * @param {object} [opts]
+   * @param {Function} [opts.loadIndex] Resolves to the index (loadPlacesIndex)
+   * @param {Function} [opts.loadCatalogue] A body's name to a Promise of its
+   *   catalogue's places, [] if none (fetchPlaces)
    */
-  constructor(loader = null) {
+  constructor(loader = null, {loadIndex = loadPlacesIndex, loadCatalogue = fetchPlaces} = {}) {
     this.id = 'places'
     this.lazy = true
     this.loader = loader
+    this._loadIndex = loadIndex
+    this._loadCatalogue = loadCatalogue
     this._cache = new Map() // bodyName → SearchEntry[]
     this._loading = new Map() // bodyName → in-flight Promise
   }
 
 
   /**
-   * Lazy load the catalog for a single body and convert to SearchEntries.
+   * @param {string} bodyName
+   * @returns {Promise<Array<object>>} The body's places from the index, else
+   *   from its own catalogue
+   */
+  async _rawPlaces(bodyName) {
+    let index = null
+    try {
+      index = await this._loadIndex()
+    } catch (e) {
+      console.warn(`Search: the places' index didn't load (${e?.message ?? e}); ${bodyName}'s own catalogue instead`)
+    }
+    return index?.get(bodyName) ?? this._loadCatalogue(bodyName)
+  }
+
+
+  /**
+   * Lazy load the places of a single body and convert to SearchEntries.
    *
    * @param {string} bodyName
    * @returns {Promise<SearchEntry[]>}
@@ -44,7 +69,7 @@ export default class PlacesProvider {
     if (this._loading.has(bodyName)) {
       return this._loading.get(bodyName)
     }
-    const p = fetchPlaces(bodyName).then((rawEntries) => {
+    const p = this._rawPlaces(bodyName).then((rawEntries) => {
       const out = rawEntries.map((e) => ({
         id: `loc:${bodyName}:${slug(e.n)}`,
         displayName: e.n,
@@ -59,7 +84,11 @@ export default class PlacesProvider {
         // Scene.land's default (eye height), as a click on its label does.
         payload: {body: bodyName, lat: e.lat, lng: e.lng, alt: e.a ?? undefined},
       }))
-      this._cache.set(bodyName, out)
+      // None (the index and the catalogue both failed) isn't kept: the next
+      // search asks again.
+      if (out.length > 0) {
+        this._cache.set(bodyName, out)
+      }
       this._loading.delete(bodyName)
       return out
     })
