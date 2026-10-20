@@ -22,7 +22,7 @@ import {
   WebGLRenderTarget,
 } from 'three'
 import {perf} from '../perf/perf.js'
-import {ASTRO_UNIT_METER, DISPLAY_GAIN, overlay} from '../shared.js'
+import {ASTRO_UNIT_METER, DISPLAY_GAIN, LIGHTYEAR_METER, overlay} from '../shared.js'
 import {slug} from '../targetPath.js'
 import SpriteSheet from './SpriteSheet.js'
 import {SUN_APPARENT_MAGNITUDE} from './exposure.js'
@@ -106,6 +106,25 @@ export const CORE_HR = 0.05
  * isn't; at `sm=3` (9.5) 35 are.
  */
 export const LABEL_MARGIN_MAG = 1
+/**
+ * The brightest of the galaxies from the Solar System, as its far point
+ * draws it (apparentMagnitude): NGC 6946, V 7.535 (a test holds it to the
+ * catalogue).  The catalogue is fetched (#258) once the limiting magnitude
+ * reaches it, where its point would first show, or, while the labels are
+ * shown, comes within LABEL_MARGIN_MAG of it, where its label would: deeper
+ * than the naked eye's 6.5, by the stars' setting, the exposure, or a field
+ * narrower than the default's.
+ */
+export const BRIGHTEST_FROM_SUN_MAG = 7.53
+/**
+ * ... or once the camera is this far from the Sun, 10,000 light-years,
+ * where the galaxies' magnitudes begin to change (by 0.014 for the nearest,
+ * 3.2 million light-years off).
+ */
+export const LOAD_DISTANCE_M = 1e4 * LIGHTYEAR_METER
+/** After a failed fetch, the view asks for the catalogue again no sooner than this. */
+export const LOAD_RETRY_MS = 30000
+
 /** The galaxies' label colour: apart from the stars' blue (shared.js labelTextColor). */
 export const GALAXY_LABEL_COLOR = '#c8b0e8'
 
@@ -171,6 +190,24 @@ export function commonName(row) {
 export function apparentMagnitude(r, distanceM, mu) {
   const ratio = r.spec.L * ((ASTRO_UNIT_METER / distanceM) ** 2) * attenuationAt(r.atten, mu)
   return SUN_APPARENT_MAGNITUDE - (2.5 * Math.log10(Math.max(ratio, 1e-300)))
+}
+
+
+/**
+ * Whether the view could show a galaxy, so the catalogue is wanted: the
+ * limit at the brightest's magnitude from the Solar System (its point), or
+ * within LABEL_MARGIN_MAG of it with the labels shown (its label, as
+ * labelShown has it), or the camera far enough from the Sun that the
+ * magnitudes change.
+ *
+ * @param {number} limit The limiting magnitude (ThreeUi.limitingMagnitude)
+ * @param {number} distanceM The camera's distance from the Sun
+ * @param {boolean} [labelsShown] The labels are on and not held (`G`)
+ * @returns {boolean}
+ */
+export function galaxiesInView(limit, distanceM, labelsShown = true) {
+  const reach = limit + (labelsShown ? LABEL_MARGIN_MAG : 0)
+  return reach >= BRIGHTEST_FROM_SUN_MAG || distanceM >= LOAD_DISTANCE_M
 }
 
 
@@ -289,7 +326,16 @@ export default class Galaxies extends Object3D {
     // The opacity the labels take (fade.js): the Scene's 'G' overlay group's.
     this.labelFade = null
     this._labels = null
-    this.preAnimCb = () => this._syncLabels()
+    // The catalogue is fetched when something needs it (ensureLoaded): a
+    // search, a link, the `e` key, or a view that could show a galaxy
+    // (inView, which the Scene sets: () => galaxiesInView(...)), #258.
+    this.inView = null
+    this._loading = null
+    this._failedAt = -Infinity
+    this.preAnimCb = () => {
+      this._loadIfInView()
+      this._syncLabels()
+    }
   }
 
 
@@ -301,8 +347,45 @@ export default class Galaxies extends Object3D {
    */
   async load(url = 'data/sparc/galaxies.json') {
     const res = await fetch(url)
+    if (!res?.ok) {
+      throw new Error(`${url}: ${res?.status ?? 'no response'}`)
+    }
     this.setCatalog(await res.json())
     return this
+  }
+
+
+  /**
+   * The catalogue, fetched once: concurrent asks share the request.  A
+   * failure is logged and resolves to null; the next ask fetches again
+   * (the view's own, after LOAD_RETRY_MS).
+   *
+   * @param {string} [url]
+   * @returns {Promise<?Galaxies>}
+   */
+  ensureLoaded(url) {
+    if (this.records.length > 0) {
+      return Promise.resolve(this)
+    }
+    this._loading ??= this.load(url).catch((e) => {
+      this._loading = null
+      this._failedAt = performance.now()
+      console.warn('Galaxies didn\'t load:', e.message)
+      return null
+    })
+    return this._loading
+  }
+
+
+  /** Each frame until it's in: fetch the catalogue if the view could show a galaxy. */
+  _loadIfInView() {
+    if (this.records.length > 0 || this._loading || !this.inView ||
+        performance.now() - this._failedAt < LOAD_RETRY_MS) {
+      return
+    }
+    if (this.inView()) {
+      this.ensureLoaded()
+    }
   }
 
 

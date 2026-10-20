@@ -24,7 +24,7 @@ global.document = global.document ?? {
   body: {appendChild: () => {}},
 }
 
-const Places = (await import('./Places.js')).default
+const {default: Places, LOAD_FRAC, LOAD_RETRY_MS, _resetPlaces, fetchPlaces, loadPlaces} = await import('./Places.js')
 
 
 // ─── helpers ──────────────────────────────────────────────────────────────
@@ -355,5 +355,114 @@ describe('Places builds the smallest tiers by cell, as the camera comes to see t
     places._lodHook.onBeforeRender(renderer, null, camAt(R * 1.2))
     expect(places.tierGroups[2].visible).toBe(true)
     expect(places.tierGroups[2].children.filter((g) => g.visible).length).toBeGreaterThan(0)
+  })
+})
+
+
+// #258: a body's catalogue is fetched as the camera approaches it, not with
+// the scene.
+describe('Places loads its catalogue on approach', () => {
+  const R = 1e6
+  const renderer = {domElement: {clientHeight: 600}}
+  const camAt = (d) => {
+    const cam = new PerspectiveCamera(45, 1, 1, 1e12)
+    cam.position.set(0, 0, d)
+    cam.updateMatrixWorld(true)
+    return cam
+  }
+  const PLACES = [{n: 'Tycho', t: 0, lat: -43.3, lng: -11.2}, {n: 'Apollo 11', t: 1, lat: 0.67, lng: 23.47}]
+
+  /**
+   * @param {Function} load
+   * @returns {Places}
+   */
+  function placesWith(load) {
+    const parent = new Object3D
+    const places = new Places('moon', R, undefined, load)
+    parent.add(places)
+    parent.updateMatrixWorld(true)
+    return places
+  }
+
+  it('asks nothing far off, and once from LOAD_FRAC of the screen (about 12 radii), however many frames', async () => {
+    const asked = []
+    const places = placesWith((body) => {
+      asked.push(body)
+      return Promise.resolve(PLACES)
+    })
+    expect(places.loadState).toBe('idle')
+    places._lodHook.onBeforeRender(renderer, null, camAt(R * 20))
+    expect(asked).toEqual([])
+    expect(places.diameterFraction(camAt(R * 12), 600)).toBeGreaterThan(LOAD_FRAC)
+    places._lodHook.onBeforeRender(renderer, null, camAt(R * 12))
+    places._lodHook.onBeforeRender(renderer, null, camAt(R * 11))
+    expect(asked).toEqual(['moon'])
+    await places.ensureLoaded()
+    expect(places.loadState).toBe('loaded')
+    expect(places.entries).toEqual(PLACES)
+    places._lodHook.onBeforeRender(renderer, null, camAt(R * 2))
+    expect(asked).toEqual(['moon'])
+    expect(places.tierGroups[0].visible).toBe(true)
+  })
+
+  it('after a failure, asks again from the view only after LOAD_RETRY_MS, and at once when asked', async () => {
+    const warn = console.warn
+    console.warn = () => {}
+    try {
+      let fail = true
+      let calls = 0
+      const places = placesWith(() => {
+        calls++
+        return fail ? Promise.reject(new Error('offline')) : Promise.resolve(PLACES)
+      })
+      await places.ensureLoaded()
+      expect(places.loadState).toBe('failed')
+      expect(places.wantsLoad(1, places._failedAt + 1)).toBe(false)
+      expect(places.wantsLoad(1, places._failedAt + LOAD_RETRY_MS)).toBe(true)
+      expect(places.wantsLoad(LOAD_FRAC / 2, places._failedAt + LOAD_RETRY_MS)).toBe(false)
+      fail = false
+      await places.ensureLoaded()
+      expect(calls).toBe(2)
+      expect(places.loadState).toBe('loaded')
+      expect(places.wantsLoad(1, Infinity)).toBe(false)
+    } finally {
+      console.warn = warn
+    }
+  })
+})
+
+
+describe('loadPlaces', () => {
+  const realFetch = global.fetch
+
+  it('fetches a body\'s catalogue once for every asker, and again after a failure', async () => {
+    _resetPlaces()
+    const asked = []
+    let ok = false
+    global.fetch = (url) => {
+      asked.push(url)
+      return new Promise((resolve) => setTimeout(() => resolve(ok ?
+        {ok: true, json: () => Promise.resolve({places: [{n: 'A', lat: 0, lng: 0}]})} :
+        {ok: false, status: 503}), 5))
+    }
+    const warn = console.warn
+    console.warn = () => {}
+    try {
+      // Concurrent: one request; a failure rejects loadPlaces and is [] from fetchPlaces.
+      const [a, b] = await Promise.allSettled([loadPlaces('mars'), loadPlaces('mars')])
+      expect([a.status, b.status]).toEqual(['rejected', 'rejected'])
+      expect(asked).toEqual(['data/places/mars.json'])
+      expect(await fetchPlaces('mars')).toEqual([])
+      ok = true
+      const [c, d] = await Promise.all([loadPlaces('mars'), fetchPlaces('mars')])
+      expect(c).toBe(d)
+      expect(asked).toHaveLength(3)
+      await loadPlaces('mars')
+      expect(asked).toHaveLength(3)
+    } finally {
+      global.fetch = realFetch
+      console.warn = warn
+      _resetPlaces()
+    }
   })
 })

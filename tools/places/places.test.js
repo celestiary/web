@@ -1,5 +1,9 @@
 import {describe, expect, it} from 'bun:test'
+import {readFileSync, readdirSync} from 'node:fs'
+import {join} from 'node:path'
 import {deflateRawSync} from 'node:zlib'
+import {parsePlacesIndex} from '../../js/search/placesIndex.js'
+import {CATALOGUES, OUTPUT, buildIndex, placesIndex, renderIndex} from './index.mjs'
 import {readDbf, readZip} from './readers.mjs'
 import {
   TIER0_MAX, kindOf, matchKey, parseRadiusM, placeOf, sizeFraction, tierPlaces, wrapLng,
@@ -264,5 +268,43 @@ describe('tierPlaces', () => {
   it('keeps a curated altitude', () => {
     const places = tierPlaces([f('Olympus Mons', 624, 'mons')], 6779, [{n: 'Olympus Mons', t: 0, lat: 1, lng: 1, a: 21229}])
     expect(places[0].a).toBe(21229)
+  })
+})
+
+
+describe('the search\'s index of the catalogues (index.mjs)', () => {
+  const catalogues = {
+    moon: {places: [{n: 'Tycho', t: 0, lat: -43.2958, lng: -11.2153, k: 'crater'}, {n: 'Apollo 11', t: 0, lat: 0.674, lng: 23.473, k: 'landing'}]},
+    earth: {places: [{n: 'Quito', t: 1, lat: -0.18, lng: -78.47, a: 2850, k: 'city'}, {n: 'North Pole', lat: 90, lng: 0}]},
+  }
+
+  it('keeps each place\'s name, position, kind and altitude, by body, without the tier', () => {
+    const index = placesIndex(catalogues)
+    expect(Object.keys(index.bodies)).toEqual(['earth', 'moon'])
+    expect(index.kinds).toEqual(['', 'city', 'crater', 'landing'])
+    expect(index.bodies.earth).toEqual([['Quito', -0.18, -78.47, 1, 2850], ['North Pole', 90, 0, 0]])
+    expect(index.bodies.moon[0]).toEqual(['Tycho', -43.2958, -11.2153, 2])
+  })
+
+  it('reads back as the app reads it to the catalogues\' places, less the tier', () => {
+    const read = parsePlacesIndex(JSON.parse(renderIndex(placesIndex(catalogues))))
+    for (const [body, {places}] of Object.entries(catalogues)) {
+      expect(read.get(body)).toEqual(places.map(({t, ...rest}) => rest))
+    }
+  })
+
+  it('is what the catalogues say (run `yarn places-index` after changing one)', () => {
+    expect(readFileSync(OUTPUT, 'utf8')).toBe(buildIndex())
+  })
+
+  it('has every catalogue\'s places, about 40% of their bytes', () => {
+    const read = parsePlacesIndex(JSON.parse(readFileSync(OUTPUT, 'utf8')))
+    let bytes = 0
+    for (const file of readdirSync(CATALOGUES)) {
+      const text = readFileSync(join(CATALOGUES, file), 'utf8')
+      bytes += text.length
+      expect(read.get(file.replace('.json', ''))).toHaveLength(JSON.parse(text).places.length)
+    }
+    expect(readFileSync(OUTPUT, 'utf8').length).toBeLessThan(bytes * 0.45)
   })
 })

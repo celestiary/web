@@ -1,5 +1,5 @@
-import {FileLoader} from 'three'
 import {assert} from './assert'
+import {loadBodyBundle} from './bodyBundle'
 
 
 /**
@@ -10,10 +10,14 @@ import {assert} from './assert'
  * code, should consolidate.
  */
 export default class Loader {
-  /** */
-  constructor() {
+  /**
+   * @param {Function} [bundle] Resolves to the bodies' bundle (bodyBundle.js),
+   *   or null for none
+   */
+  constructor(bundle = loadBodyBundle) {
     this.loaded = {}
     this.pathByName = {}
+    this._bundle = bundle
   }
 
 
@@ -85,9 +89,7 @@ export default class Loader {
       }
     } else {
       this.loaded[name] = 'pending'
-      const fileLoader = new FileLoader()
-      fileLoader.setResponseType('json')
-      fileLoader.load(`data/${ name }.json`, (obj) => {
+      const arrived = (obj) => {
         this.loaded[name] = obj
         const path = prefix ? `${prefix}/${name}` : name
         this.pathByName[name] = path
@@ -95,7 +97,21 @@ export default class Loader {
           onLoadCb(name, obj)
         }
         this.loadObj(prefix, name, onLoadCb, expand, onErrCb)
-      }, null, onErrCb)
+      }
+      // From the bodies' bundle (one request for the scene), else its own
+      // file: a body the bundle doesn't have, or no bundle.
+      this._bundle().then((bodies) => {
+        const obj = bodies?.[name]
+        if (obj && typeof obj === 'object') {
+          // A copy: the scene keeps and changes what it's given, and every
+          // Loader shares the bundle.
+          arrived(structuredClone(obj))
+          return
+        }
+        fetch(`data/${name}.json`)
+            .then((rsp) => (rsp.ok ? rsp.json() : Promise.reject(new Error(`data/${name}.json: ${rsp.status}`))))
+            .then(arrived, (err) => onErrCb?.(err))
+      })
     }
   }
 

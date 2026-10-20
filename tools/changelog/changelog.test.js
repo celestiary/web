@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import {CHANGELOG, OUTPUT, renderJson} from './json.mjs'
+import {CHANGELOG, OUTPUT, STAMP, renderJson, renderStamp} from './json.mjs'
 import {checkOrder, headingOfMonth, parseChangelog} from './parse.mjs'
 import {decodePermalink} from '../../js/permalink.js'
 
@@ -71,6 +71,21 @@ describe('public/data/changelog.json', () => {
   it('is what CHANGELOG.md says (run `yarn changelog` after editing it)', () => {
     expect(fs.existsSync(OUTPUT)).toBe(true)
     expect(fs.readFileSync(OUTPUT, 'utf8')).toBe(renderJson(markdown))
+  })
+})
+
+
+describe('js/changelogStamp.json', () => {
+  it('is what CHANGELOG.md says (run `yarn changelog` after editing it)', () => {
+    expect(fs.readFileSync(STAMP, 'utf8')).toBe(renderStamp(markdown))
+  })
+
+  it('counts the entries of each date, newest first, and is small', () => {
+    const {dates} = JSON.parse(fs.readFileSync(STAMP, 'utf8'))
+    expect(dates.reduce((n, [, count]) => n + count, 0)).toBe(entries.length)
+    expect(dates[0][0]).toBe(entries.map((e) => e.date).sort().pop())
+    expect(dates.map(([d]) => d)).toEqual([...new Set(entries.map((e) => e.date))].sort().reverse())
+    expect(fs.statSync(STAMP).size).toBeLessThan(2000)
   })
 })
 
