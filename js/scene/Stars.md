@@ -380,11 +380,37 @@ after the scene is on screen.
    drawn, a later view wanting a tile on its way isn't the scene loading
    again.
 4. **The rest**, after the reveal (`Celestiary.frame` calls
-   `Stars.streamRest` beside `loadEphemeris`), or when something needs a
-   star that isn't in (below); a scene no one reveals (the guide's) has
-   them 3 s after its stars are drawn (`STREAM_REST_AFTER_MS`).  Four
-   packs at a time, the view's first, then the brightest.  The catalogue
-   is then **complete** (`onCatalogComplete`, `whenComplete`).
+   `Stars.revealed`, which streams them, beside `loadEphemeris`), or when
+   something needs a star that isn't in (below); a scene no one reveals
+   (the guide's) has them 3 s after its stars are drawn
+   (`STREAM_REST_AFTER_MS`).  Four packs at a time, the view's first,
+   then the brightest.  **Each fades in** (below).  The catalogue is then
+   **complete** (`onCatalogComplete`, `whenComplete`).
+
+**The fade-in.**  On the preview the maintainer saw the faint tiers
+arrive as "a pretty perceptible pop".  Measured (`tools/stars/fadeCheck.mjs`,
+headless, a dark field 4.7 AU over the Sun looking away from it): with
+the frame held at the dark-adapted gain, the field's mean luminance went
+from 0.704 to 0.848 of 255, +20%, in one frame as the first packs landed;
+with the meter running it stayed at its dark-adapted cap (4e6) through
+it, so the pop was the light itself, not the meter.  The reveal didn't
+hide it: the reveal waits for the tiles the view wants at the limit then,
+and a link's meter dark-adapts only after it (the gain is 1 at the
+reveal), so the faint tiers arrive while the eye adapts.  Now every tile
+that lands after the reveal fades its light in over 1.8 s
+(`PointPopulation.fadeGain`, `FADE_IN_MS`): a gain from 0 to 1,
+smoothstep, on the stars' flux (`uTileGain` in `stars.vert`, set by each
+tile's draw on the shared material), so a fading star is a fainter star
+in the additive HDR buffer, its sprite following the same law, not a
+transparent one.  Tiles that landed before the reveal (the bright tier,
+and a view's own faint tiles a link waits for) are at full light: the
+reveal fades the whole scene in (`PointPopulation.markShown`, called by
+`Stars.revealed`).  Tiles that come later as the view moves (a telescope,
+a flight out) fade in the same way, and so do Gaia's, which share the
+engine.  The same field after it, on a 20 fps clock: the light rises
+from 0.704 to 0.848 over 1.9 s, at most 0.008 a frame; the meter, at its
+cap, doesn't move.  Where a meter isn't at its cap it follows the rise as
+it follows any light, eased over its 1.5 s.
 
 **Every consumer, across the tiers:**
 

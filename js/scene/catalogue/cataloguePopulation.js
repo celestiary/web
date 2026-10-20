@@ -48,6 +48,9 @@ export function newCataloguePopulation({ui, material, onTile, onFail, fetchFn, b
     drawAll: true,
     // The faint tiers wait for Stars.streamRest: the reveal, or a need.
     holdRest: true,
+    // What lands before the reveal is at full light (the reveal fades the
+    // scene in); after it (Stars.revealed), each tile's light fades in.
+    shown: false,
     onTile,
     onFail,
     fetchFn,

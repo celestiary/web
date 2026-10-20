@@ -207,6 +207,36 @@ describe('the catalogue as brightness tiers', () => {
     expect(served.requested.length).toBe(14)
   })
 
+  it('fades in the tiers that land after the reveal; the bright tier, there before it, is at full light', async () => {
+    const served = serve()
+    const {stars} = newStars(served, {limitingMagnitude: () => 3})
+    const frame = () => stars.population?.preAnimCb()
+    expect(await settle(() => stars.drawn(), frame)).toBe(true)
+    const pop = stars.population
+    const roots = [...pop.loaded.values()]
+    expect(roots.length).toBe(12)
+    expect(roots.every((t) => t.gain === 1)).toBe(true)
+    // The reveal (Celestiary.frame): the rest come, each fading in.
+    let clock = 0
+    pop.now = () => clock
+    stars.revealed()
+    served.release()
+    expect(await settle(() => stars.catalogComplete())).toBe(true)
+    const faint = [...pop.loaded.values()].filter((t) => !roots.includes(t))
+    expect(faint.length).toBe(48)
+    expect(faint.every((t) => t.gain === 0)).toBe(true)
+    clock = 900
+    frame()
+    expect(faint.every((t) => t.gain > 0.4 && t.gain < 0.6)).toBe(true)
+    clock = 2000
+    frame()
+    expect([...pop.loaded.values()].every((t) => t.gain === 1)).toBe(true)
+    // The Sun's point shares the material: its draw puts the gain back to 1.
+    pop.material.uniforms.uTileGain.value = 0.3
+    stars.sunPoint.onBeforeRender({}, {}, stars.ui.camera)
+    expect(pop.material.uniforms.uTileGain.value).toBe(1)
+  })
+
   it('a link to a faint unnamed star waits for its tier; a missing one is missing once all are in', async () => {
     const served = serve()
     const {stars} = newStars(served)

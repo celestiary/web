@@ -27,6 +27,9 @@ export function newStarsMaterial({motion = false} = {}) {
     // shared uMaxStarSizePx (absoluteUniforms: exposure.js
     // STAR_MAX_SIZE_PX, held to the GPU's point-size range).
     MIN_STAR_SIZE_PX: {value: 1},
+    // A draw's gain on its stars' flux: a point population's tile fading in
+    // (points/PointPopulation.js fadeGain), 1 otherwise.
+    uTileGain: {value: 1},
     // RTE uniforms: camera position in star catalog coords, split high/low
     uCamPosWorldHigh: {value: new Vector3()},
     uCamPosWorldLow: {value: new Vector3()},

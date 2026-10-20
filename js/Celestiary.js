@@ -431,8 +431,9 @@ export default class Celestiary {
         // and glide to the series' places (Animation.planetCoords).
         this.animation.loadEphemeris()
         // And the star catalogue's faint tiers, which the scene's view
-        // didn't need (Stars.md, "Brightness tiers").
-        this.scene.stars?.streamRest?.()
+        // didn't need, each fading in from now (Stars.md, "Brightness
+        // tiers").
+        this.scene.stars?.revealed?.()
       }
       reveal.frame(nowMs)
     }

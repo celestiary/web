@@ -92,6 +92,9 @@ async function openPage(browser, url, {brightOnly, viewport}) {
   if (!brightOnly) {
     await page.waitForFunction(() => window.c.scene.stars.catalogComplete?.() ??
         window.c.scene.stars.catalog.numStars > 0, null, {timeout: 120000})
+    // And faded in (PointPopulation.fadeGain): every tile at full light.
+    await page.waitForFunction(() => [...(window.c.scene.stars.population?.loaded.values() ?? [])]
+        .every((t) => (t.gain ?? 1) === 1), null, {timeout: 120000})
   }
   return page
 }

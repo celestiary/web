@@ -344,8 +344,14 @@ fetches the roots first and alone, whatever the view, then what the view
 wants, then (once `releaseRest()`, with `holdRest`) every other tile,
 brightest first, and never evicts; `drawAll` draws every point of each
 loaded tile in the field rather than to the limit plus the margin;
-`viewReady()` says whether every tile that could hold a star brighter than
-the limit itself is in.  A manifest may put tiles in **packs**
+`viewReady()` says whether every tile the view wants is in.  **Every
+population fades its tiles in**: once `markShown()` (the scene revealed:
+`Stars.revealed`), a tile that lands brings its light in over 1.8 s
+(`fadeGain`, `FADE_IN_MS`, smoothstep), as a gain on its stars' flux
+(`uTileGain`, which each tile's draw sets on the shared material), so a
+tile popping into view, Gaia's as the camera moves or the catalogue's
+faint tiers, is never a step in the frame's light ([Stars.md, the
+fade-in](Stars.md#brightness-tiers)).  A manifest may put tiles in **packs**
 (`tileFormat.js` `encodePack`: several tiles in one file, a pack fetched
 when any of its tiles is wanted), a tree may give its **roots a rule**
 instead of the cap (`tileTree.js` `rootsHold`; such a root's row carries a

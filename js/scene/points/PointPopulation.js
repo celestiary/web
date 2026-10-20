@@ -64,12 +64,39 @@ export const DEFAULT_MEMORY_POINTS = 2 * DEFAULT_BUDGET
  * star just outside the frame still draws its halo into it.
  */
 export const EDGE_PAD_PX = 80
+/**
+ * A tile's light comes in over this long from when it lands (`fadeGain`),
+ * once the population has been shown (`markShown`): stars that pop in at
+ * full brightness in one frame are seen as a pop (#259's review: the
+ * catalogue's faint tiers raised a dark field's light 20% in a frame).
+ */
+export const FADE_IN_MS = 1800
 /** Days in a Julian year. */
 const JULIAN_YEAR_DAYS = 365.25
 
 const _camWorld = new Vector3
 const _dirWorld = new Vector3
 const _inv = new Matrix4
+
+
+/**
+ * A tile's gain on its points' light (the star shader's `uTileGain`, on
+ * their flux, so the fade is physical in the additive HDR buffer: a star
+ * fading in is a fainter star, not a transparent one), from how long ago
+ * it landed: 0 then, 1 after `fadeMs`, smoothstep between, so neither end
+ * is a step in the light's rate.
+ *
+ * @param {number} elapsedMs Since it landed
+ * @param {number} [fadeMs]
+ * @returns {number} 0 to 1
+ */
+export function fadeGain(elapsedMs, fadeMs = FADE_IN_MS) {
+  if (!(fadeMs > 0)) {
+    return 1
+  }
+  const x = Math.max(0, Math.min(1, elapsedMs / fadeMs))
+  return x * x * (3 - (2 * x))
+}
 
 
 /**
@@ -99,11 +126,15 @@ export default class PointPopulation extends Group {
    *   roots and what the view wants until `releaseRest()`
    * @param {Function} [opts.onTile] (tileInfo, decoded) => after each tile is added
    * @param {Function} [opts.onFail] (keys) => after a request for these tiles failed
+   * @param {number} [opts.fadeInMs] How long a tile's light takes to come in
+   * @param {boolean} [opts.shown] Whether tiles that land now fade in: false
+   *   until `markShown()` for a population whose first tiles a reveal covers
    * @param {Function} [opts.fetchFn] For tests: (url) => Promise<Response>
+   * @param {Function} [opts.now] For tests: the clock, ms
    */
   constructor({name, baseUrl, decode, material, host, budget = DEFAULT_BUDGET, marginMag = DEFAULT_MARGIN_MAG,
     memoryPoints = DEFAULT_MEMORY_POINTS, complete = false, drawAll = false, holdRest = false, onTile = null,
-    onFail = null, fetchFn = null}) {
+    onFail = null, fadeInMs = FADE_IN_MS, shown = true, fetchFn = null, now = null}) {
     super()
     this.name = name
     this.baseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
@@ -118,6 +149,11 @@ export default class PointPopulation extends Group {
     this.holdRest = holdRest
     this.onTile = onTile
     this.onFail = onFail
+    this.fadeInMs = fadeInMs
+    this.shown = shown
+    this.now = now ?? (() => performance.now())
+    // The material's per-draw gain (starsMaterial.js uTileGain), if it has one.
+    this._tileGain = material.uniforms.uTileGain ?? null
     this.fetchFn = fetchFn ?? ((url) => fetch(url))
     /** 'idle' | 'loading' | 'ready' | 'absent' | 'error' */
     this.status = 'idle'
@@ -268,6 +304,7 @@ export default class PointPopulation extends Group {
       return null
     }
     this.frame++
+    this.updateFades()
     const result = selectTiles(this.roots, this._childrenOf, view, this._loadedMags)
     const wanted = new Set()
     let drawn = 0
@@ -500,6 +537,33 @@ export default class PointPopulation extends Group {
 
 
   /**
+   * From now, tiles that land fade in (`fadeGain`): what landed before is
+   * at full light, as the reveal that shows the population covers it.
+   */
+  markShown() {
+    this.shown = true
+  }
+
+
+  /**
+   * Each loaded tile's gain, by how long ago it landed.  Each frame.
+   *
+   * @returns {number} Tiles still fading
+   */
+  updateFades() {
+    const now = this.now()
+    let fading = 0
+    for (const tile of this.loaded.values()) {
+      if (tile.gain < 1) {
+        tile.gain = fadeGain(now - tile.landedAt, this.fadeInMs)
+        fading += tile.gain < 1 ? 1 : 0
+      }
+    }
+    return fading
+  }
+
+
+  /**
    * @param {object} t TileInfo
    * @param {object} data decode's result
    */
@@ -516,12 +580,20 @@ export default class PointPopulation extends Group {
     // has nothing to add.
     points.frustumCulled = false
     points.visible = false
+    // Fading in from 0 if the population is shown, else at full light.
+    const tile = {points, mags: data.mags, ids: data.ids ?? null, hips: data.hips ?? null, count: data.count,
+      lastWanted: this.frame, landedAt: this.now(), gain: this.shown && this.fadeInMs > 0 ? 0 : 1}
+    const tileGain = this._tileGain
     points.onBeforeRender = (renderer, scene, camera) => {
       rteCameraLocal(points, camera, this._camHigh, this._camLow)
+      if (tileGain) {
+        // The tiles share one material: each draw uploads its own gain.
+        tileGain.value = tile.gain
+        this.material.uniformsNeedUpdate = true
+      }
     }
     this.add(points)
-    this.loaded.set(t.key, {points, mags: data.mags, ids: data.ids ?? null, hips: data.hips ?? null, count: data.count,
-      lastWanted: this.frame})
+    this.loaded.set(t.key, tile)
   }
 
 

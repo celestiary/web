@@ -174,7 +174,7 @@ export default class Stars extends Object {
         const now = performance.now()
         this._drawnAt ??= now
         if (now - this._drawnAt >= STREAM_REST_AFTER_MS) {
-          this.streamRest()
+          this.revealed()
         }
       }
     }
@@ -228,6 +228,9 @@ export default class Stars extends Object {
     sunPoint.onBeforeRender = (renderer, scene, camera) => {
       rteCameraLocal(sunPoint, camera, camHigh, camLow)
       this._labelsCamera(camHigh, camLow)
+      // The tiles share the material and set their own fade: the Sun's is 1.
+      material.uniforms.uTileGain.value = 1
+      material.uniformsNeedUpdate = true
     }
     this.sunPoint = sunPoint
     this.add(sunPoint)
@@ -344,6 +347,21 @@ export default class Stars extends Object {
    */
   streamRest() {
     this.population?.releaseRest()
+  }
+
+
+  /**
+   * The scene is on screen (the first load's reveal: Celestiary.frame):
+   * the faint tiers come now (streamRest), and from now every tile that
+   * lands, the catalogue's or Gaia's, fades its light in
+   * (PointPopulation.markShown) rather than popping in.  What landed
+   * before, the reveal faded in with the scene.
+   */
+  revealed() {
+    for (const child of this.children) {
+      child.markShown?.()
+    }
+    this.streamRest()
   }
 
 

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import {PerspectiveCamera, Vector3} from 'three'
-import PointPopulation, {MAX_IN_FLIGHT} from './PointPopulation.js'
+import PointPopulation, {FADE_IN_MS, MAX_IN_FLIGHT, fadeGain} from './PointPopulation.js'
 import {decodeStarTile} from './starTile.js'
 import {syntheticPoints} from './syntheticPoints.js'
 import {buildTiles} from '../gaia/build.js'
@@ -284,5 +284,64 @@ describe('PointPopulation', () => {
     expect(failed.sort()).toEqual(['0/0', '0/1'])
     expect(pop.done()).toBe(true)
     expect(pop.rootsLoaded()).toBe(false)
+  })
+
+
+  it('fades a tile\'s light in from when it lands: 0, rising, 1, with no step at either end', () => {
+    expect(fadeGain(0)).toBe(0)
+    expect(fadeGain(FADE_IN_MS)).toBe(1)
+    expect(fadeGain(10 * FADE_IN_MS)).toBe(1)
+    expect(fadeGain(-5)).toBe(0)
+    expect(fadeGain(FADE_IN_MS / 2)).toBeCloseTo(0.5, 12)
+    let last = 0
+    for (let ms = 0; ms <= FADE_IN_MS; ms += 10) {
+      const g = fadeGain(ms)
+      expect(g).toBeGreaterThanOrEqual(last)
+      last = g
+    }
+    // Smoothstep: the rate is 0 at both ends, so neither is a step in the
+    // light's rate either.
+    expect(fadeGain(10)).toBeLessThan(0.001)
+    expect(1 - fadeGain(FADE_IN_MS - 10)).toBeLessThan(0.001)
+    expect(fadeGain(100, 0)).toBe(1)
+  })
+
+  it('fades in the tiles that land once shown, not those before, and draws each at its own gain', async () => {
+    const s = served(20000, 300)
+    let clock = 1000
+    const camera = new PerspectiveCamera(120, 1, 1, 1e30)
+    const pop = population({camera: () => camera, limitingMagnitude: () => 4}, s, {shown: false, now: () => clock})
+    await settle(pop)
+    const before = [...pop.loaded.values()]
+    expect(before.length).toBeGreaterThan(0)
+    // Landed before the population was shown (the reveal covers them).
+    expect(before.every((t) => t.gain === 1)).toBe(true)
+    pop.markShown()
+    // Deeper: new tiles land, at 0.
+    pop.host.limitingMagnitude = () => 9
+    await settle(pop)
+    const after = [...pop.loaded.values()].filter((t) => !before.includes(t))
+    expect(after.length).toBeGreaterThan(0)
+    expect(after.every((t) => t.gain === 0)).toBe(true)
+    const gains = []
+    for (const ms of [300, 900, 1500, FADE_IN_MS, 5000]) {
+      clock = 1000 + ms
+      pop.update()
+      gains.push(after[0].gain)
+      if (ms === 300) {
+        // Each draw sets the shared material's gain to its tile's.
+        after[0].points.onBeforeRender({}, {}, camera)
+        expect(pop.material.uniforms.uTileGain.value).toBeCloseTo(fadeGain(300), 12)
+        expect(pop.material.uniformsNeedUpdate).toBe(true)
+        before[0].points.onBeforeRender({}, {}, camera)
+        expect(pop.material.uniforms.uTileGain.value).toBe(1)
+      }
+    }
+    expect(gains[0]).toBeGreaterThan(0)
+    for (let i = 1; i < gains.length; i++) {
+      expect(gains[i]).toBeGreaterThan(gains[i - 1] - 1e-12)
+    }
+    expect(gains.at(-1)).toBe(1)
+    expect(before.every((t) => t.gain === 1)).toBe(true)
   })
 })
