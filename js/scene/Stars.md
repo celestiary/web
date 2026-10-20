@@ -18,6 +18,7 @@ piece of the parametric body renderer (ROADMAP, *Shared engines*).
 | The field stars' colours (points) | `StarsBufferGeometry.js`, through the same blackbody table |
 | The disc's brightness in exposure units, and the meter | [HDR.md, physical stars](HDR.md#physical-stars); `ThreeUI._luminousDiscs` |
 | Gaia's stars past the catalogue's: the same points, shader and photometry, tiled | [Gaia.md](Gaia.md) |
+| How the catalogue loads: brightness tiers on the point-population engine | [Brightness tiers](#brightness-tiers), below; `catalogue/` |
 
 ## Temperature from class
 
@@ -302,6 +303,216 @@ for its disc as for the Sun's (`_luminousDiscs`), and the zoom
 approaches its surface and stops there (`ThreeUI._homeBody`): the floor
 was the last targeted body's radius, which kept the camera 6 radii from
 Proxima and let it into Betelgeuse.
+
+## Brightness tiers
+
+[#259](https://github.com/celestiary/web/issues/259), leaner first load 3
+of [#256](https://github.com/celestiary/web/issues/256).  The catalogue,
+`stars.dat` (106,747 stars, 2.13 MB, which as binary gzips only to
+1.85 MB), was one request the first load waited for: 1,848 KB of the
+homepage's 2,614 KB at scene-ready.  It is now loaded as brightness tiers
+on the point-population engine Gaia's stars use ([Gaia.md, the
+engine](Gaia.md#the-engine)): the same HEALPix-by-magnitude tiles, with
+the catalogue's own columns.  The naked-eye sky and every star the app
+names arrive first, in one request of 157 KB, and the rest stream in
+after the scene is on screen.
+
+| Piece | Where |
+|---|---|
+| The tier rule and its constants | `catalogue/tiers.js` |
+| The build, stars.dat and starnames.dat to tiles, packs and a manifest | `catalogue/build.js`; `tools/stars/build.mjs` (`yarn stars`) |
+| The freshness test, and the tiers against stars.dat | `tools/stars/stars.test.js` |
+| A tile to its stars (StarProps) and its points' attributes | `catalogue/catalogueTile.js` (`StarsCatalog.js` `catalogueStar`, `StarsBufferGeometry.js` `starAttributes`, shared with stars.dat's path) |
+| The population: fetched whole, drawn whole | `catalogue/cataloguePopulation.js`; the engine's `complete`, `drawAll`, `holdRest` and packs (`points/PointPopulation.js`, `points/tileFormat.js`) |
+| Loading, readiness, a star's wait, picking's index, the fallback | `Stars.js` |
+| The check in the app | `tools/stars/tierCheck.mjs` |
+
+**The tiers** (`public/large/stars/v1/`, Git LFS, through `dataUrl()`):
+
+- **The bright tier is the tree's 12 roots**, which hold, however many
+  that is, every star to V 6.5 from the Sun (8,746: the naked-eye sky)
+  and every star the app names or labels whatever its magnitude: the
+  stars of `starnames.dat` (Proxima, V 11, the Gliese stars), the
+  favourites (`FAVES`) and the very luminous stars the label sheet names
+  by number (M < −5).  134 are fainter than 6.5, so 8,880 in all: 196 KB,
+  157 KB gzipped, one pack (`packs/roots.bin`).  The tile tree takes a
+  rule for its roots for this (`tileTree.js` `rootsHold`), and a root's row
+  carries a ninth number, `magSub`, the brightest star below it (6.5), so
+  the selection still knows its children are fainter than the naked eye's
+  limit although the root holds Proxima; a plain tree's rows (Gaia's) are
+  as before.
+- **The rest**, 97,867, go down the tree from order 1 as Gaia's do (4,096
+  a tile): they fill order 1 alone, 48 tiles of 1,100 to 2,800.  They
+  travel as 12 packs, one per root cell (its descendants), 128-179 KB
+  gzipped each, so a view's own part of the sky comes first.
+- **The columns**: the tile format's positions (the float32 light-years
+  stars.dat stores), absolute V (its 1/256 mag steps, exactly), Teff 0
+  (from the class, as stars.dat's reader takes it) and two new optional
+  columns, the HIP number and the packed spectral class (`HAS_HIP`,
+  `HAS_CLASS`; 22 bytes a star).  A star from a tile is made by the same
+  function as one from stars.dat (`catalogueStar`), and its point by the
+  same one (`starAttributes`): `stars.test.js` checks that every star of
+  stars.dat is in the tiles once, equal to stars.dat's.
+- **Packs** (`tileFormat.js` `encodePack`): several tiles in one file,
+  each its own tile still, for the selection and the draw.  14 requests
+  with the manifest for the whole catalogue, against 60 a tile; 2.35 MB,
+  1.81 MB gzipped (stars.dat's 1.85 MB).
+
+**What loads when** (`Stars._loadTiers`):
+
+1. The manifest (4 KB) and `starnames.dat` (25 KB gzipped), at once.
+2. The bright tier's pack, alone (the engine fetches nothing else until
+   the roots are in), with the stars' shader beside it (stars.dat's
+   shader waited for the whole file).  The catalogue is then **ready**
+   (`onCatalogReady`): the label sheet, the asterisms, the search's stars
+   and every named star are built from it.
+3. **Scene-ready** (`Stars.drawn`, which `ThreeUi.sceneReady` and the
+   meter's `frameCanBeEmpty` ask): the bright tier and its shader, and
+   every tile the view wants, to its limiting magnitude plus the engine's
+   margin (`PointPopulation.viewReady`).  By the Sun (the homepage, whose
+   limit is far brighter than 6.5 with the Sun in the frame) that is the
+   bright tier alone; a dark-adapted view at the naked eye's limit, or a
+   deep or telescope link, waits for its field's faint packs.  The margin
+   counts: at the naked eye's limit, stars past 6.5 are a quarter of a
+   field's light (below), so a reveal without them would show them pop in.
+   An earlier cut waited only for tiles that could hold a star over the
+   limit itself; the measurement below is why it went.  Latched: once
+   drawn, a later view wanting a tile on its way isn't the scene loading
+   again.
+4. **The rest**, after the reveal (`Celestiary.frame` calls
+   `Stars.revealed`, which streams them, beside `loadEphemeris`), or when
+   something needs a star that isn't in (below); a scene no one reveals
+   (the guide's) has them 3 s after its stars are drawn
+   (`STREAM_REST_AFTER_MS`).  Four packs at a time, the view's first,
+   then the brightest.  **Each fades in** (below).  The catalogue is then
+   **complete** (`onCatalogComplete`, `whenComplete`).
+
+**The fade-in.**  On the preview the maintainer saw the faint tiers
+arrive as "a pretty perceptible pop".  Measured (`tools/stars/fadeCheck.mjs`,
+headless, a dark field 4.7 AU over the Sun looking away from it): with
+the frame held at the dark-adapted gain, the field's mean luminance went
+from 0.704 to 0.848 of 255, +20%, in one frame as the first packs landed;
+with the meter running it stayed at its dark-adapted cap (4e6) through
+it, so the pop was the light itself, not the meter.  The reveal didn't
+hide it: the reveal waits for the tiles the view wants at the limit then,
+and a link's meter dark-adapts only after it (the gain is 1 at the
+reveal), so the faint tiers arrive while the eye adapts.  Now every tile
+that lands after the reveal fades its light in over 1.8 s
+(`PointPopulation.fadeGain`, `FADE_IN_MS`): a gain from 0 to 1,
+smoothstep, on the stars' flux (`uTileGain` in `stars.vert`, set by each
+tile's draw on the shared material), so a fading star is a fainter star
+in the additive HDR buffer, its sprite following the same law, not a
+transparent one.  Tiles that landed before the reveal (the bright tier,
+and a view's own faint tiles a link waits for) are at full light: the
+reveal fades the whole scene in (`PointPopulation.markShown`, called by
+`Stars.revealed`).  Tiles that come later as the view moves (a telescope,
+a flight out) fade in the same way, and so do Gaia's, which share the
+engine.  The same field after it, on a 20 fps clock: the light rises
+from 0.704 to 0.848 over 1.9 s, at most 0.008 a frame; the meter, at its
+cap, doesn't move.  Where a meter isn't at its cap it follows the rise as
+it follows any light, eased over its 1.5 s.
+
+**Every consumer, across the tiers:**
+
+| Consumer | What it gets |
+|---|---|
+| Names (`starnames.dat`, `hipByName`, `getNameOrId`) | Every name from step 1; every named star is in the bright tier |
+| The search (`StarsProvider`) | Every named star from the bright tier: the index built then is whole (`tiers.test.js`).  `HIP 46635`, a faint unnamed star, once its tier is in: the search's first query asks for the rest (`SearchIndex.loadOnSearch` → `whenComplete`), the index is marked stale at completion so a query already asked is asked again, and the homepage's Enter (`ensureSearchable`) waits for it |
+| The label sheet (`showLabels`), the target's label | Built once, at ready: its every star is in the bright tier (the favourites throw without theirs; the Sun is added before the roots arrive) |
+| The asterisms | Built at ready; their stars are found by name, so are in the bright tier (`stars.test.js` checks all 861 members) |
+| Picking (`PickLabels`, `Picker.queryPoints`) | An index over the stars loaded so far (`Stars.pickIndex`), rebuilt when the catalogue has grown (`StarsCatalog.version`): a faint star can be picked once its tier is in |
+| A link or a frame to a star (`#hip:N`, `from=hip:N`: `Celestiary._whenStar`) | `Stars.whenStar`: at once for a star in, else when its tier lands, asking for the rest at once; missing only once every tier is in.  A link to a faint unnamed star waits about as long as stars.dat took (`Celestiary.test.js`, "a link to a faint star") |
+| The label sheet's order | HIP order, as stars.dat had it, so overlapping labels draw as before |
+| The human expansion (`Colonization.js`) | Needs every star: waits for complete, and asks for it |
+| Gaia's merge (`gaia/dedup.js`) | Built against stars.dat, which the tiers hold exactly; `stars.test.js` also re-runs the merge's position test on Gaia's 49,152 brightest against the tiers' stars: no match |
+| The homepage's tour | No star targets; its stars leg (96-132 s) is long after completion |
+| The Sun's point (HIP 0, not in stars.dat) | Its own one-point geometry with the catalogue's material, which also carries the camera to the labels' RTE uniforms as the one geometry's points did |
+| `ThreeUi.starProbe`, `starsDebug` | `Stars.pointOf` (the tile drawing a star), `Stars.pointsMaterial` |
+| About | The stars in so far |
+| `tools/gaia/skyCheck.mjs` | `starTiers=0`: it hides and shows the one geometry against Gaia's |
+
+**Drawing**: every point of every loaded tile in the field (`drawAll`),
+as the one geometry drew every star; tiles out of the field aren't drawn,
+the field padded by a sprite's reach (`EDGE_PAD_PX`) as Gaia's.  Not the
+engine's cut at the limit plus the margin: that would take out the
+sub-threshold stars' summed light, which the Milky Way's diffuse light is
+fitted against ([MilkyWay.md, double counting](MilkyWay.md#double-counting)),
+a separate decision.  A draw call a tile in the field (7 to 24 in the
+views measured, of 60) and the Sun's, where the geometry was one.
+
+**The fallback** (PLAYBOOK, *Keep the fallback path*): `?starTiers=0`, or
+no manifest, or a pack that fails, reads stars.dat whole as before
+(`_loadWhole`; what the tiles brought is replaced, not drawn twice).  The
+guide's star page reads stars.dat itself.  stars.dat and starnames.dat
+stay in `public/data/` as the tiers' source: Gaia's build and the tests
+read stars.dat too.
+
+**Why the engine, and what was set aside:**
+
+- **A plain magnitude split** (stars.dat cut into two or three files by
+  V): the least code, one geometry a file.  But a second scheme beside
+  Gaia's: no culling by field, a deep link waits for every faint star,
+  and nothing to put the catalogue and Gaia in one tree later.  On the
+  engine the catalogue is the top of the same pyramid.
+- **The engine as Gaia uses it** (only what the view wants, evicted when
+  not): the catalogue is what the names, the search, picking, the labels
+  and the expansion resolve against, so it is held whole (`complete`).
+- **Gaia's count-capped roots** (each root its cell's brightest 4,096):
+  49,152 stars, and a limit that varies with the cell's density; a rule
+  makes the bright tier exactly the naked-eye sky.
+- **The bright tier by magnitude alone**: a search for Proxima, the
+  favourites' labels and Gliese 1 would wait for the faint tiers; the 134
+  named or labelled stars past 6.5 cost 3 KB.
+- **A bright tier to 7.5** (the engine's margin), about 22,000 stars and
+  400 KB for every first load: the margin's stars matter only where the
+  view is dark-adapted, and there scene-ready waits for that field's
+  faint packs.
+- **A request a tile** (60), or **one file for the rest**: packs by root
+  cell keep the bright tier one round trip and give a deep link its
+  twelfth of the sky first.
+- **The rest at once**: it shared the first load's bandwidth with what the
+  reveal needs (measured: all 13 packs in by scene-ready); held to the
+  reveal, or a need, it doesn't.
+
+**Evidence** (`tools/stars/tierCheck.mjs`, headless Chromium on
+SwiftShader, 480×300, Gaia's stars off, each view held at one exposure
+across its states): three views, each rendered with only the bright tier
+in (the faint packs held unanswered), with every tier in, and on `main`
+(stars.dat, one geometry), compared pixel by pixel (luminance, 0-255):
+
+| View | Limit | Every tier against main | Bright tier only against every tier | Naked-eye stars in the field, drawn from the bright tier |
+|---|---:|---|---|---:|
+| 90° away from the Sun, 4.7 AU over it, dark-adapted (4e6) | 5.16 | 11 of 144,000 pixels differ, by at most 0.3 | 85% of the light; 278 pixels differ by more than 8, at most 26 | 1,964 of 1,964 |
+| The same at 45°: the naked eye's limit | 6.50 | 10 pixels, at most 0.3 | 73% of the light; 1,274 pixels by more than 8, at most 50 | 805 of 805 |
+| Orion with the stars' labels and the asterisms, metered (gain 609) | −3.1 | identical | identical | 886 of 886 |
+
+Once in, the tiers draw main's frame (the last few pixels at 0.3 of 255:
+the drawing order of additive points, and stars.dat's last star, HIP
+120404, which the one geometry dropped by sizing its arrays to the file's
+count and then adding the Sun).  The bright tier alone draws every
+naked-eye star of the field, and, where the exposure shows them, lacks the
+fainter stars' light: which is why scene-ready waits for the margin's
+tiles.  The label sheet is built in HIP order (stars.dat's), so labels
+that overlap draw as they did; the first run, in the tiles' magnitude
+order, differed there.
+
+The homepage (`yarn load-budget`, the built site served as Pages serves
+it): scene-ready after 1.4-2.0 s, 26 requests and 917-928 KB (from 1.6 s,
+25 and 2,614 KB), the manifest at about 1.0 s, the bright tier requested
+at about 1.5 s; the 12 faint packs at the reveal, all in about 0.5 s
+later on the local server (in SwiftShader the homepage's reveal waits for
+its meter, so about 5 s from navigation); settled 39 requests, 3,918 KB
+(from 26, 3,948 KB).
+
+**Rebuilding.**  After editing `stars.dat` or `starnames.dat`:
+
+    yarn stars          # rewrites public/large/stars/v1/ (bun, about 0.2 s)
+    yarn stars --check  # exits 1 if the tiers are stale
+    git add public/large/stars/v1   # Git LFS (public/large/**); git lfs ls-files to check
+
+`tools/stars/stars.test.js` (in `yarn precommit`) fails when they have
+drifted, and skips that check, saying so, in a checkout whose tiers are
+LFS pointers.  The manifest records both sources' SHA-256.
 
 ## Evidence (PR #21's)
 

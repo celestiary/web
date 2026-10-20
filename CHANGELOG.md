@@ -31,6 +31,22 @@ has no view to open yet.
 
 ## October 2026
 
+### The stars arrive first and faster: the naked-eye sky in a tenth of the download
+
+The star catalogue, 107,000 stars, was the biggest thing the first screen waited for: one 1.8 MB
+download. Now the sky you can see with the naked eye, about 8,900 stars and every star with a name,
+comes first in 157 KB, and the rest stream in once the scene is showing, the part of the sky you are
+looking at first, fading in over a couple of seconds rather than popping on. The homepage's first
+screen downloads 925 KB instead of 2.6 MB. Names, search, picking, star labels and the constellations
+work from the start, a link to a faint star opens as soon as its part of the catalogue is in, and the
+sky looks the same once it is. Gaia's stars fade in the same way as you fly among them.
+
+- Date: 2026-10-20
+- PR: [#271](https://github.com/celestiary/web/pull/271)
+- Issue: [#259](https://github.com/celestiary/web/issues/259)
+- Epic: [#256](https://github.com/celestiary/web/issues/256) Leaner first load
+- Permalink: none
+
 ### Flights from the homepage start where you can see them
 
 Choosing a scene on the homepage, a search result there or a What's new entry now fades the homepage

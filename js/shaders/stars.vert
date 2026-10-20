@@ -32,6 +32,11 @@ uniform float uMaxStarSizePx;
 // even at light-year distances.
 uniform vec3 uCamPosWorldHigh;
 uniform vec3 uCamPosWorldLow;
+// The draw's gain on the stars' flux, 0 to 1: a point population's tile
+// fading in as it lands (points/PointPopulation.js fadeGain).  On the
+// light, so a star fading in is a fainter star, its sprite shrinking with
+// it by the same law, not a transparent one.
+uniform float uTileGain;
 
 attribute vec3 color;
 attribute float radius;
@@ -190,7 +195,8 @@ void main() {
   // overflowed past 550 ly.)  Nothing else here squares or dots a vector
   // in metres; keep it so.
   float distGm = max(-mvPosition.z * 1.0e-9, 1.0e-30);
-  float illuminance = exp2(log2(lumens * (1.0e-18 / fourPi)) - 2.0 * log2(distGm));
+  // The tile's fade under the log: a gain of 0 is the floor's 1e-30, black.
+  float illuminance = exp2(log2(lumens * max(uTileGain, 1.0e-30) * (1.0e-18 / fourPi)) - 2.0 * log2(distGm));
 
   // The star's radiance over the eye's patch, in exposure units, and the
   // patch in pixels.  A field narrower than the naked eye's (45°) is a

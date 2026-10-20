@@ -1,8 +1,8 @@
 import {BufferGeometry, Group, Matrix4, Points, Vector3} from 'three'
 import {J2000_JD} from '../celestialFrame.js'
 import {rteCameraLocal} from '../rte.js'
-import {countBrighter, selectTiles} from './selection.js'
-import {INDEX_FILE, tilePath} from './tileFormat.js'
+import {countBrighter, selectTiles, tileInView} from './selection.js'
+import {INDEX_FILE, decodePack, packPath, tilePath} from './tileFormat.js'
 import {tileFromRow} from './tileTree.js'
 import {LIGHTYEAR_METER} from '../../shared.js'
 
@@ -29,6 +29,18 @@ import {LIGHTYEAR_METER} from '../../shared.js'
  *
  * With no manifest at its URL (no data built yet) it draws nothing and
  * asks for nothing more.
+ *
+ * A population that must be held whole (the bundled catalogue, whose
+ * stars the names, search, labels and picking resolve: Stars.md,
+ * "Brightness tiers") is `complete`: its roots are fetched as soon as the
+ * manifest is in, whatever the view, then what the view wants, then every
+ * other tile, brightest first, and none is dropped.  `drawAll` draws every
+ * point of each loaded tile in the field, not just those to the limit plus
+ * the margin, so the catalogue's frame is the one it drew as a single
+ * geometry; the margin then orders the fetches and says when the view's
+ * tiles are in (`viewReady`).  A manifest's `packs` put several tiles in
+ * one file (tileFormat.js encodePack): a pack is fetched when any of its
+ * tiles is wanted, and all of them are added.
  */
 
 
@@ -52,12 +64,39 @@ export const DEFAULT_MEMORY_POINTS = 2 * DEFAULT_BUDGET
  * star just outside the frame still draws its halo into it.
  */
 export const EDGE_PAD_PX = 80
+/**
+ * A tile's light comes in over this long from when it lands (`fadeGain`),
+ * once the population has been shown (`markShown`): stars that pop in at
+ * full brightness in one frame are seen as a pop (#259's review: the
+ * catalogue's faint tiers raised a dark field's light 20% in a frame).
+ */
+export const FADE_IN_MS = 1800
 /** Days in a Julian year. */
 const JULIAN_YEAR_DAYS = 365.25
 
 const _camWorld = new Vector3
 const _dirWorld = new Vector3
 const _inv = new Matrix4
+
+
+/**
+ * A tile's gain on its points' light (the star shader's `uTileGain`, on
+ * their flux, so the fade is physical in the additive HDR buffer: a star
+ * fading in is a fainter star, not a transparent one), from how long ago
+ * it landed: 0 then, 1 after `fadeMs`, smoothstep between, so neither end
+ * is a step in the light's rate.
+ *
+ * @param {number} elapsedMs Since it landed
+ * @param {number} [fadeMs]
+ * @returns {number} 0 to 1
+ */
+export function fadeGain(elapsedMs, fadeMs = FADE_IN_MS) {
+  if (!(fadeMs > 0)) {
+    return 1
+  }
+  const x = Math.max(0, Math.min(1, elapsedMs / fadeMs))
+  return x * x * (3 - (2 * x))
+}
 
 
 /**
@@ -81,10 +120,21 @@ export default class PointPopulation extends Group {
    * @param {number} [opts.budget]
    * @param {number} [opts.marginMag]
    * @param {number} [opts.memoryPoints]
+   * @param {boolean} [opts.complete] Fetch every tile, the roots first, and keep them
+   * @param {boolean} [opts.drawAll] Draw every point of the loaded tiles in the field
+   * @param {boolean} [opts.holdRest] A complete population: fetch only the
+   *   roots and what the view wants until `releaseRest()`
+   * @param {Function} [opts.onTile] (tileInfo, decoded) => after each tile is added
+   * @param {Function} [opts.onFail] (keys) => after a request for these tiles failed
+   * @param {number} [opts.fadeInMs] How long a tile's light takes to come in
+   * @param {boolean} [opts.shown] Whether tiles that land now fade in: false
+   *   until `markShown()` for a population whose first tiles a reveal covers
    * @param {Function} [opts.fetchFn] For tests: (url) => Promise<Response>
+   * @param {Function} [opts.now] For tests: the clock, ms
    */
   constructor({name, baseUrl, decode, material, host, budget = DEFAULT_BUDGET, marginMag = DEFAULT_MARGIN_MAG,
-    memoryPoints = DEFAULT_MEMORY_POINTS, fetchFn = null}) {
+    memoryPoints = DEFAULT_MEMORY_POINTS, complete = false, drawAll = false, holdRest = false, onTile = null,
+    onFail = null, fadeInMs = FADE_IN_MS, shown = true, fetchFn = null, now = null}) {
     super()
     this.name = name
     this.baseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
@@ -93,7 +143,17 @@ export default class PointPopulation extends Group {
     this.host = host
     this.budget = budget
     this.marginMag = marginMag
-    this.memoryPoints = memoryPoints
+    this.memoryPoints = complete ? Infinity : memoryPoints
+    this.complete = complete
+    this.drawAll = drawAll
+    this.holdRest = holdRest
+    this.onTile = onTile
+    this.onFail = onFail
+    this.fadeInMs = fadeInMs
+    this.shown = shown
+    this.now = now ?? (() => performance.now())
+    // The material's per-draw gain (starsMaterial.js uTileGain), if it has one.
+    this._tileGain = material.uniforms.uTileGain ?? null
     this.fetchFn = fetchFn ?? ((url) => fetch(url))
     /** 'idle' | 'loading' | 'ready' | 'absent' | 'error' */
     this.status = 'idle'
@@ -104,6 +164,15 @@ export default class PointPopulation extends Group {
     this.loaded = new Map()
     this.inFlight = new Set()
     this.failed = new Set()
+    // Requests in flight: a pack is one request for several tiles.
+    this.requests = 0
+    // Tile key → its pack's name, and a pack's tiles (the manifest's packs).
+    this.packOf = new Map()
+    this.packTiles = new Map()
+    // For a complete population: every tile, the roots first, then
+    // brightest first; and the keys the last frame wanted, in its order.
+    this._fetchOrder = []
+    this._wantedOrder = []
     this.frame = 0
     this.counters = {requests: 0, bytes: 0, evicted: 0, decodeMs: 0}
     this.last = {selected: 0, drawn: 0, estimate: 0, budgetHit: false, limit: NaN, visited: 0}
@@ -160,7 +229,19 @@ export default class PointPopulation extends Group {
         this.roots.push(t)
       }
     }
+    for (const [pack, keys] of Object.entries(manifest.packs ?? {})) {
+      this.packTiles.set(pack, keys)
+      for (const key of keys) {
+        this.packOf.set(key, pack)
+      }
+    }
+    this._fetchOrder = [...this.tiles.values()].sort((a, b) =>
+      ((a.order === 0 ? 0 : 1) - (b.order === 0 ? 0 : 1)) || (a.magBright - b.magBright))
     this.status = 'ready'
+    if (this.complete) {
+      // The roots now, with no view: they are the whole sky's brightest.
+      this._pump()
+    }
   }
 
 
@@ -223,6 +304,7 @@ export default class PointPopulation extends Group {
       return null
     }
     this.frame++
+    this.updateFades()
     const result = selectTiles(this.roots, this._childrenOf, view, this._loadedMags)
     const wanted = new Set()
     let drawn = 0
@@ -232,31 +314,69 @@ export default class PointPopulation extends Group {
       const tile = this.loaded.get(s.tile.key)
       if (tile) {
         tile.lastWanted = this.frame
-        const n = Math.min(countBrighter(s.tile, s.cut, tile.mags), s.maxCount, Math.max(0, this.budget - drawn))
-        tile.points.geometry.setDrawRange(0, n)
-        tile.points.visible = n > 0
-        drawn += n
+        if (!this.drawAll) {
+          const n = Math.min(countBrighter(s.tile, s.cut, tile.mags), s.maxCount, Math.max(0, this.budget - drawn))
+          tile.points.geometry.setDrawRange(0, n)
+          tile.points.visible = n > 0
+          drawn += n
+        }
       } else if (!this.inFlight.has(s.tile.key) && !this.failed.has(s.tile.key)) {
         toFetch.push(s.tile)
       }
     }
-    for (const [key, tile] of this.loaded) {
-      if (!wanted.has(key)) {
-        tile.points.visible = false
+    if (this.drawAll) {
+      // Every point of each loaded tile that can be in the field.
+      for (const [key, tile] of this.loaded) {
+        const n = tileInView(this.tiles.get(key), view, false) ? tile.count : 0
+        tile.points.geometry.setDrawRange(0, n)
+        tile.points.visible = n > 0
+        drawn += n
+      }
+    } else {
+      for (const [key, tile] of this.loaded) {
+        if (!wanted.has(key)) {
+          tile.points.visible = false
+        }
       }
     }
-    for (const t of toFetch) {
-      if (this.inFlight.size >= MAX_IN_FLIGHT) {
-        break
-      }
-      this.fetchTile(t)
-    }
+    this._wantedOrder = toFetch
+    this._pump()
     this.evict()
     // Selected tiles not loaded yet, in flight or waiting: 0 once settled.
-    const missing = result.selected.filter((s) => !this.loaded.has(s.tile.key) && !this.failed.has(s.tile.key)).length
+    const absent = result.selected.filter((s) => !this.loaded.has(s.tile.key) && !this.failed.has(s.tile.key))
     this.last = {selected: result.selected.length, drawn, estimate: result.estimate, budgetHit: result.budgetHit,
-      limit: view.limit, visited: result.visited, camDistLy: view.camDist, missing}
+      limit: view.limit, visited: result.visited, camDistLy: view.camDist, missing: absent.length}
     return result
+  }
+
+
+  /**
+   * Fetch what is wanted, up to MAX_IN_FLIGHT requests: the last frame's
+   * wanted tiles, brightest first; for a complete population the roots
+   * before them and every other tile after.  Run each frame and as each
+   * request lands, so a complete population loads at the network's pace,
+   * not the frame rate's.
+   */
+  _pump() {
+    if (this.status !== 'ready') {
+      return
+    }
+    const pending = (t) => !this.loaded.has(t.key) && !this.inFlight.has(t.key) && !this.failed.has(t.key)
+    let queue = this._wantedOrder
+    if (this.complete) {
+      // The roots alone first: the bright tier is what the first load
+      // waits for, and nothing else shares its bandwidth until it's in.
+      const rootsPending = this.roots.some((t) => !this.loaded.has(t.key) && !this.failed.has(t.key))
+      queue = rootsPending ? this.roots : [...this._wantedOrder, ...(this.holdRest ? [] : this._fetchOrder)]
+    }
+    for (const t of queue) {
+      if (this.requests >= MAX_IN_FLIGHT) {
+        break
+      }
+      if (pending(t)) {
+        this.fetchTile(t)
+      }
+    }
   }
 
 
@@ -265,8 +385,14 @@ export default class PointPopulation extends Group {
    * @returns {Promise<void>}
    */
   async fetchTile(t) {
+    const pack = this.packOf.get(t.key)
+    if (pack !== undefined) {
+      return this.fetchPack(pack)
+    }
     this.inFlight.add(t.key)
+    this.requests++
     this.counters.requests++
+    let data = null
     try {
       const rsp = await this.fetchFn(`${this.baseUrl}${tilePath(t.order, t.pix)}`)
       if (!rsp.ok) {
@@ -274,16 +400,166 @@ export default class PointPopulation extends Group {
       }
       const buf = await rsp.arrayBuffer()
       this.counters.bytes += buf.byteLength
-      const t0 = performance.now()
-      const data = this.decode(buf)
-      this.counters.decodeMs += performance.now() - t0
-      this.addTile(t, data)
+      data = this._decode(buf)
     } catch (e) {
       this.failed.add(t.key)
       console.warn(`${this.name}: tile ${t.key} failed: ${e.message}`)
     } finally {
       this.inFlight.delete(t.key)
+      this.requests--
     }
+    // Outside the fetch's try: what a consumer throws isn't a lost tile.
+    if (data) {
+      this._add(t, data)
+    } else {
+      this.onFail?.([t.key])
+    }
+    if (this.complete) {
+      this._pump()
+    }
+  }
+
+
+  /**
+   * Fetch a pack and add every tile in it.
+   *
+   * @param {string} pack Its name in the manifest
+   * @returns {Promise<void>}
+   */
+  async fetchPack(pack) {
+    const keys = this.packTiles.get(pack) ?? []
+    keys.forEach((k) => this.inFlight.add(k))
+    this.requests++
+    this.counters.requests++
+    let decoded = null
+    try {
+      const rsp = await this.fetchFn(`${this.baseUrl}${packPath(pack)}`)
+      if (!rsp.ok) {
+        throw new Error(`HTTP ${rsp.status}`)
+      }
+      const buf = await rsp.arrayBuffer()
+      this.counters.bytes += buf.byteLength
+      const inPack = decodePack(buf)
+      if (inPack.length !== keys.length || inPack.some((e, i) => e.key !== keys[i])) {
+        throw new Error(`pack ${pack} doesn't hold the tiles its manifest lists`)
+      }
+      decoded = inPack.map((e) => [this.tiles.get(e.key), this._decode(e.buf)])
+    } catch (e) {
+      keys.forEach((k) => this.failed.add(k))
+      console.warn(`${this.name}: pack ${pack} failed: ${e.message}`)
+    } finally {
+      keys.forEach((k) => this.inFlight.delete(k))
+      this.requests--
+    }
+    // Outside the fetch's try: what a consumer throws isn't a lost pack.
+    if (decoded) {
+      decoded.forEach(([t, data]) => this._add(t, data))
+    } else {
+      this.onFail?.(keys)
+    }
+    if (this.complete) {
+      this._pump()
+    }
+  }
+
+
+  /**
+   * @param {ArrayBuffer} buf A tile
+   * @returns {object} decode's result
+   */
+  _decode(buf) {
+    const t0 = performance.now()
+    const data = this.decode(buf)
+    this.counters.decodeMs += performance.now() - t0
+    return data
+  }
+
+
+  /**
+   * @param {object} t TileInfo
+   * @param {object} data decode's result
+   */
+  _add(t, data) {
+    this.addTile(t, data)
+    this.onTile?.(t, data)
+  }
+
+
+  /**
+   * A complete population held to its roots and its view's tiles
+   * (`holdRest`) fetches the rest now, brightest first.
+   */
+  releaseRest() {
+    if (this.holdRest) {
+      this.holdRest = false
+      this._pump()
+    }
+  }
+
+
+  /**
+   * @returns {boolean} Whether nothing more will come: every tile of the
+   *   manifest loaded or failed (or there is no manifest)
+   */
+  done() {
+    if (this.status === 'absent' || this.status === 'error') {
+      return true
+    }
+    if (this.status !== 'ready') {
+      return false
+    }
+    for (const key of this.tiles.keys()) {
+      if (!this.loaded.has(key) && !this.failed.has(key)) {
+        return false
+      }
+    }
+    return true
+  }
+
+
+  /** @returns {boolean} Every root loaded: the whole sky's brightest */
+  rootsLoaded() {
+    return this.status === 'ready' && this.roots.length > 0 && this.roots.every((t) => this.loaded.has(t.key))
+  }
+
+
+  /**
+   * @returns {boolean} Whether every tile this frame's view wants, to the
+   *   limiting magnitude plus the margin, is in: false before the first
+   *   frame.  The margin's stars, under the limit, still light a pixel
+   *   through the tone map's toe: at the naked eye's limit, a field of the
+   *   catalogue's has a quarter of its light from stars past 6.5
+   *   (Stars.md, "Brightness tiers").
+   */
+  viewReady() {
+    return this.status === 'ready' && this.frame > 0 && this.last.missing === 0
+  }
+
+
+  /**
+   * From now, tiles that land fade in (`fadeGain`): what landed before is
+   * at full light, as the reveal that shows the population covers it.
+   */
+  markShown() {
+    this.shown = true
+  }
+
+
+  /**
+   * Each loaded tile's gain, by how long ago it landed.  Each frame.
+   *
+   * @returns {number} Tiles still fading
+   */
+  updateFades() {
+    const now = this.now()
+    let fading = 0
+    for (const tile of this.loaded.values()) {
+      if (tile.gain < 1) {
+        tile.gain = fadeGain(now - tile.landedAt, this.fadeInMs)
+        fading += tile.gain < 1 ? 1 : 0
+      }
+    }
+    return fading
   }
 
 
@@ -304,11 +580,20 @@ export default class PointPopulation extends Group {
     // has nothing to add.
     points.frustumCulled = false
     points.visible = false
+    // Fading in from 0 if the population is shown, else at full light.
+    const tile = {points, mags: data.mags, ids: data.ids ?? null, hips: data.hips ?? null, count: data.count,
+      lastWanted: this.frame, landedAt: this.now(), gain: this.shown && this.fadeInMs > 0 ? 0 : 1}
+    const tileGain = this._tileGain
     points.onBeforeRender = (renderer, scene, camera) => {
       rteCameraLocal(points, camera, this._camHigh, this._camLow)
+      if (tileGain) {
+        // The tiles share one material: each draw uploads its own gain.
+        tileGain.value = tile.gain
+        this.material.uniformsNeedUpdate = true
+      }
     }
     this.add(points)
-    this.loaded.set(t.key, {points, mags: data.mags, ids: data.ids ?? null, count: data.count, lastWanted: this.frame})
+    this.loaded.set(t.key, tile)
   }
 
 
@@ -352,6 +637,7 @@ export default class PointPopulation extends Group {
     return {
       name: this.name, status: this.status, manifestTiles: this.tiles.size, manifestPoints: this.manifest?.count ?? 0,
       loadedTiles: this.loaded.size, loadedPoints, visibleTiles, inFlight: this.inFlight.size, failed: this.failed.size,
+      inFlightRequests: this.requests, done: this.done(),
       budget: this.budget, marginMag: this.marginMag, ...this.counters, ...this.last,
     }
   }

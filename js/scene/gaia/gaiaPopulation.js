@@ -55,6 +55,9 @@ export function newGaiaPopulation(ui) {
     decode: decodeStarTile,
     material,
     budget,
+    // Tiles fade in once the scene is revealed (Stars.revealed), as the
+    // catalogue's do.
+    shown: false,
     host: {
       camera: () => ui.camera,
       limitingMagnitude: () => ui.limitingMagnitude(),

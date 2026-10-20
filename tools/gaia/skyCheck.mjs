@@ -191,8 +191,12 @@ async function openPage(rep) {
         contentType: rel.endsWith('.json') ? 'application/json' : 'application/octet-stream'})
     })
   }
-  await page.goto(`${url}?perf=1${VIEW}`)
-  await page.waitForFunction(() => window.c?.scene?.stars?.catalog?.numStars > 0 && window.c.scene.gaia, null,
+  // The catalogue as one geometry (`starTiers=0`), the 'StarsPoints' the
+  // check hides and shows against Gaia's; the tiers draw the same stars.
+  await page.goto(`${url}?perf=1&starTiers=0${VIEW}`)
+  // Every tier of the catalogue (Stars.md, "Brightness tiers"): the check
+  // compares against all of it.
+  await page.waitForFunction(() => window.c?.scene?.stars?.catalogComplete?.() && window.c.scene.gaia, null,
       {timeout: 120000})
   // Labels, asterisms, orbits and the galaxy off; look straight away from
   // the Sun.

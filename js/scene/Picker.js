@@ -21,11 +21,13 @@ export const MAX_PICK_PX = 100
  *
  * @param {object} ui
  * @param {MouseEvent} e
- * @param {object} tree  Spatial index built from stars.geom.coords
- * @param {object} stars Stars scene object (has .geom, .catalog, .matrixWorld)
+ * @param {object} tree  Spatial index built from the index's coords
+ * @param {object} stars Stars scene object (has .catalog, .matrixWorld)
  * @param {Function} pickCb Called with {star, x, y, z} in catalog coords
+ * @param {object} [index] The stars' pick index (Stars.pickIndex: the loaded
+ *   stars' positions and HIP numbers, the tree's source)
  */
-export function queryPoints(ui, e, tree, stars, pickCb) {
+export function queryPoints(ui, e, tree, stars, pickCb, index = stars.pickIndex?.() ?? stars.geom) {
   const el = ui.renderer.domElement
   const mouse = {
     x: ((e.clientX / el.clientWidth) * 2) - 1,
@@ -47,7 +49,7 @@ export function queryPoints(ui, e, tree, stars, pickCb) {
 
   const items = tree.intersectRay(_rayOrigin, _rayDir)
   if (items.length > 0) {
-    mark(ui, items, mouse, stars, pickCb)
+    mark(ui, items, mouse, stars, pickCb, index)
   }
 }
 
@@ -55,14 +57,15 @@ export function queryPoints(ui, e, tree, stars, pickCb) {
 /**
  * @param {object} ui
  * @param {Array} items  Flat array of indices from tree.intersectRay; each
- *                       element is a flat index into stars.geom.coords (i.e.
+ *                       element is a flat index into index.coords (i.e.
  *                       a multiple of 3, one entry per matching star).
  * @param {{x,y}} mouse  NDC mouse position
  * @param {object} stars
  * @param {Function} pickCb
+ * @param {object} index Stars.pickIndex
  */
-function mark(ui, items, mouse, stars, pickCb) {
-  const coords = stars.geom.coords
+function mark(ui, items, mouse, stars, pickCb, index) {
+  const coords = index.coords
   const el = ui.renderer.domElement
   const clientW = el.clientWidth
   const clientH = el.clientHeight
@@ -95,7 +98,7 @@ function mark(ui, items, mouse, stars, pickCb) {
     return
   }
 
-  const hipId = stars.geom.idsByNdx[closestNdx / 3]
+  const hipId = index.idsByNdx[closestNdx / 3]
   const star = stars.catalog.starByHip.get(hipId)
   pickCb({star, x: minX, y: minY, z: minZ})
 }

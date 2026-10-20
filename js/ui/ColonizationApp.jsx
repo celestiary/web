@@ -440,10 +440,19 @@ export default function ColonizationApp({celestiary}) {
 }
 
 
-/** @returns {boolean} Whether the star catalog has loaded */
+/**
+ * @returns {boolean} Whether the whole star catalog has loaded: every tier
+ *   (Stars.md, "Brightness tiers"), as the spread is over all its stars
+ */
 function isCatalogReady(scene) {
-  const catalog = scene.stars && scene.stars.catalog
-  return Boolean(catalog && catalog.starByHip.size > 1)
+  const stars = scene.stars
+  const catalog = stars && stars.catalog
+  const complete = typeof stars?.catalogComplete === 'function' ? stars.catalogComplete() : true
+  if (!complete) {
+    // Every tier, now: the spread needs them.
+    stars.streamRest?.()
+  }
+  return Boolean(catalog && complete && catalog.starByHip.size > 1)
 }
 
 

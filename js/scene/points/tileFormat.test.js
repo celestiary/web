@@ -1,10 +1,15 @@
 import {describe, expect, it} from 'bun:test'
 import {
   ABS_MAG_SCALE,
+  HAS_CLASS,
+  HAS_HIP,
   HAS_IDS,
   HAS_VELOCITY,
+  decodePack,
   decodeTile,
+  encodePack,
   encodeTile,
+  packPath,
   tileBytes,
   tileId,
   tilePath,
@@ -59,5 +64,41 @@ describe('tileFormat', () => {
 
   it('names a tile by order and pixel', () => {
     expect(tilePath(3, 123)).toBe('3/123.bin')
+    expect(packPath('roots')).toBe('packs/roots.bin')
+  })
+
+  it('carries a HIP number and a class (the bundled catalogue\'s columns), 22 bytes a star', () => {
+    const recs = POINTS.map((p, i) => ({...p, hipId: [32349, 70890, 4294967295][i], clazz: [0x0a15, 0x7f00, 0][i]}))
+    const flags = HAS_HIP | HAS_CLASS
+    const buf = encodeTile(recs, flags)
+    expect(buf.byteLength).toBe(24 + (22 * 3))
+    const t = decodeTile(buf)
+    expect([...t.hip]).toEqual([32349, 70890, 4294967295])
+    expect([...t.clazz]).toEqual([0x0a15, 0x7f00, 0])
+    expect(t.ids).toBeNull()
+    expect(t.position[3]).toBe(Math.fround(POINTS[1].x))
+    expect(t.absMag[2] / ABS_MAG_SCALE).toBeCloseTo(13.23, 3)
+    // Every column together, each where its flag puts it.
+    const all = decodeTile(encodeTile(recs, flags | HAS_IDS | HAS_VELOCITY))
+    expect(tileId(all, 0)).toBe(POINTS[0].id)
+    expect(all.hip[1]).toBe(70890)
+    expect(tileVelocity(all, 2)[0]).toBeCloseTo(-310, 0)
+    expect(all.teff[0]).toBe(9800)
+    expect(all.clazz[0]).toBe(0x0a15)
+  })
+
+  it('packs tiles in one file, and gives each back whole and aligned', () => {
+    // Odd counts, so a tile's length isn't a multiple of 4.
+    const a = encodeTile(POINTS.slice(0, 1), HAS_HIP | HAS_CLASS)
+    const b = encodeTile(POINTS, HAS_IDS)
+    const c = encodeTile(POINTS.slice(1), HAS_HIP | HAS_CLASS)
+    const pack = encodePack([{order: 0, pix: 3, buf: a}, {order: 1, pix: 13, buf: b}, {order: 1, pix: 14, buf: c}])
+    const out = decodePack(pack)
+    expect(out.map((e) => e.key)).toEqual(['0/3', '1/13', '1/14'])
+    expect(out.map((e) => e.buf.byteLength)).toEqual([a.byteLength, b.byteLength, c.byteLength])
+    expect(decodeTile(out[1].buf).count).toBe(3)
+    expect(new Uint8Array(out[2].buf)).toEqual(new Uint8Array(c))
+    expect(() => decodePack(pack.slice(0, pack.byteLength - 8))).toThrow(/truncated/)
+    expect(() => decodePack(a)).toThrow(/magic/)
   })
 })
