@@ -80,12 +80,14 @@ export const EASE_TIME_MAX_MS = 2 * 86400000
  *   for the change to show (the bodies a few pixels across at most);
  * - 'ease': along the way, with the travel: near a body, a short change
  *   is a time-lapse (Earth turns, the Moon moves);
- * - 'dip': near a body, a longer change is made under a short dip to
- *   black, then the flight.
+ * - 'dip': near a body, a longer change is made in the dark, then the
+ *   flight: from the homepage the dark its foreground fades to, else a short
+ *   dip to black.
  *
  * @param {number} deltaMs The change, ms
  * @param {number} nearestRadii The camera's distance from the nearest body
- *   (the Sun, a planet, a moon), in its radii
+ *   in its view (the Sun, a planet, a moon), in its radii: one out of the
+ *   view shows no change (Celestiary._nearestShownRadii)
  * @returns {string}
  */
 export function timePlan(deltaMs, nearestRadii) {

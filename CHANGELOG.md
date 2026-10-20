@@ -34,9 +34,10 @@ has no view to open yet.
 ### Flights from the homepage start where you can see them
 
 Choosing a scene on the homepage, a search result there or a What's new entry now fades the homepage
-away first, with the scene behind it holding still, and only then sets off. The flight begins
-gently over a second and a half, so you can see where you're starting from and which way you're
-going, before the fast part of the trip and the arrival.
+away first, with the scene behind it holding still, and only then sets off. When the scene is at a
+different date from where you are, it fades to dark together with the homepage, once, rather than
+blinking dark after it. The flight begins gently over a second and a half, so you can see which way
+you're going, before the fast part of the trip and the arrival.
 
 - Date: 2026-10-20
 - PR: [#268](https://github.com/celestiary/web/pull/268)

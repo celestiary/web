@@ -4,7 +4,7 @@
       "id": "2026-10-20-flights-from-the-homepage-start-where-you-can",
       "date": "2026-10-20",
       "headline": "Flights from the homepage start where you can see them",
-      "text": "Choosing a scene on the homepage, a search result there or a What's new entry now fades the homepage away first, with the scene behind it holding still, and only then sets off. The flight begins gently over a second and a half, so you can see where you're starting from and which way you're going, before the fast part of the trip and the arrival.",
+      "text": "Choosing a scene on the homepage, a search result there or a What's new entry now fades the homepage away first, with the scene behind it holding still, and only then sets off. When the scene is at a different date from where you are, it fades to dark together with the homepage, once, rather than blinking dark after it. The flight begins gently over a second and a half, so you can see which way you're going, before the fast part of the trip and the arrival.",
       "links": [
         {
           "kind": "pr",

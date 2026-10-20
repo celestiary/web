@@ -13,7 +13,7 @@ import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
 import {HOME_CARDS, HOME_HISTORY_KEY} from './home.js'
 import {HOME_TOUR_START, HOME_TOUR_STILL_MS} from './homeTour.js'
-import {FLIGHT_EASE_IN_MS} from './flight.js'
+import {FLIGHT_EASE_IN_MS, NEAR_RADII} from './flight.js'
 import {planEarthPass} from './nightSide.js'
 import {formatNavMode} from './navMode.js'
 import {decodePermalink, encodePermalink, encodeSettings, SETTINGS_DEFAULTS} from './permalink.js'
@@ -2234,32 +2234,91 @@ describe('the homepage', () => {
     expect(back.tour.playing).toBe(true)
   })
 
-  it('a card a long way off in time, near a body, sets its date under a dip to black, then flies', async () => {
+  /**
+   * Record the canvas's fades to and from black, from now.
+   *
+   * @param {object} app
+   * @returns {Array<{fade: string, phase: string, flying: boolean}>}
+   */
+  function canvasFades(app) {
+    const fades = []
+    for (const [name, fade] of [['dimCanvas', 'dark'], ['showCanvas', 'up']]) {
+      const fn = app.ui[name].bind(app.ui)
+      app.ui[name] = (...args) => {
+        fades.push({fade, phase: app.homePhase, flying: Boolean(app._flight?.path)})
+        return fn(...args)
+      }
+    }
+    return fades
+  }
+
+  it('a card a long way off in time, near a body in view, goes dark with the foreground: one dark beat, then flies', async () => {
     const app = await openHome()
     let t = run(app, 1000, 500)
     const card = HOME_CARDS.find((c) => c.id === 'occultation')
     app.time.setTime(linkMs(card.link) - (30 * 86400000))
-    const before = app.ui.camera.getWorldPosition(new Vector3())
+    // By the Sun, facing it: a month would turn it under the camera.
+    expect(app._nearestShownRadii()).toBeLessThan(NEAR_RADII)
+    const fades = canvasFades(app)
     app.openLink(card.link)
-    // The dip waits for the foreground's fade, too.
-    t = fadeOut(app, t + 16)
-    expect(app._flight.plan).toBe('dip')
+    // The scene goes down with the foreground, at once, in the one fade.
+    expect(fades).toEqual([{fade: 'dark', phase: 'out', flying: false}])
     expect(app.ui.canvasShown).toBe(false)
-    // The camera holds under black, then the date is the card's.
-    t = run(app, t, 250)
-    expect(app.ui.camera.getWorldPosition(new Vector3()).distanceTo(before)).toBeLessThan(1)
-    t = run(app, t, 200)
-    expect(app.ui.canvasShown).toBe(true)
+    t = fadeOut(app, t + 16)
+    // Then, in that dark, the date is the card's, and the scene comes up as
+    // the flight starts: no dip of its own.
+    for (; !app._flight?.path && t < 5000; t += 16) {
+      app.frame(t)
+    }
+    expect(app._flight.plan).toBe('dip')
     expect(app.time.simTimeJulianDay()).toBeCloseTo(decodePermalink(card.link).d2000 + J2000_JD, 6)
+    expect(app.ui.canvasShown).toBe(true)
+    // At most one dark interval between the click and the flight's start.
+    expect(fades.filter((f) => f.fade === 'dark')).toHaveLength(1)
+    expect(fades).toEqual([{fade: 'dark', phase: 'out', flying: false}, {fade: 'up', phase: 'hidden', flying: true}])
     const {samples} = fly(app, t)
     for (let i = 1; i < samples.length; i++) {
       expect(Math.abs(Math.log10(samples[i].dist / samples[i - 1].dist))).toBeLessThan(0.1)
     }
+    expect(fades).toHaveLength(2)
     // Landed, looking at Jupiter through the card's field.
     expect(Shared.targets.landed).toBe(true)
     expect(app.scene.getTarget().name).toBe('jupiter')
     expectView(app, card.link)
     Shared.targets.landed = false
+  })
+
+  it('with the near body out of view, a long change of date is set at the start, unseen: no dark at all', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const card = HOME_CARDS.find((c) => c.id === 'occultation')
+    app.time.setTime(linkMs(card.link) - (30 * 86400000))
+    // Turned away from the Sun, nothing near in the view.
+    app.ui.camera.rotateY(Math.PI)
+    app.ui.scene.updateMatrixWorld()
+    expect(app._nearestShownRadii()).toBeGreaterThan(NEAR_RADII)
+    const fades = canvasFades(app)
+    app.openLink(card.link)
+    t = fadeOut(app, t + 16)
+    for (; !app._flight?.path && t < 5000; t += 16) {
+      app.frame(t)
+    }
+    expect(app._flight.plan).toBe('start')
+    expect(app.time.simTimeJulianDay()).toBeCloseTo(decodePermalink(card.link).d2000 + J2000_JD, 6)
+    expect(fades).toEqual([])
+    expect(app.ui.canvasShown).not.toBe(false)
+    // Esc in a dark fade brings the scene back up, where it was.
+    const again = await openHome()
+    t = run(again, 1000, 500)
+    again.time.setTime(linkMs(card.link) - (30 * 86400000))
+    again.openLink(card.link)
+    expect(again.ui.canvasShown).toBe(false)
+    t = run(again, t, 200)
+    expect(again.stopFlight()).toBe(true)
+    expect(again.ui.canvasShown).toBe(true)
+    run(again, t, 1500)
+    expect(again._flight).toBe(null)
+    expect(again.ui.canvasShown).toBe(true)
   })
 
   it('far from every body the date is set at the start, and Esc stops a flight where it is', async () => {

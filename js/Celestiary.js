@@ -66,6 +66,9 @@ const HOME_UNMOUNT_MS = 600
 // this long, from the click, for the foreground to have faded out and left
 // the page: nothing in the scene changes meanwhile (_holdFlight).
 const HOME_FLIGHT_HOLD_MS = HOME_UNMOUNT_MS
+// The foreground's fade out, ms (index.css --fade-ms): a flight whose date
+// needs the dark (timePlan's 'dip') takes the scene down with it (_holdFlight).
+const HOME_FADE_MS = 400
 // The frame rate the homepage's tour is held to, to keep its cost down
 // (ThreeUi.setFrameCap): a slow camera path doesn't need more.
 const HOME_FRAME_CAP_FPS = 30
@@ -212,6 +215,9 @@ export default class Celestiary {
     this._flight = null
     this._flightToken = null
     this._flightHold = null
+    // A flight launched from a hold that took the scene dark: its date is set
+    // in that dark, with no dip of its own (_flyTo).
+    this._launchDark = false
     // The meter's readings when the tour started (_homeSettled).
     this._homeMeterMark = 0
     // How many times the camera has been placed (_arrive), for _frameCut.
@@ -1138,7 +1144,11 @@ export default class Celestiary {
       this._homeSteps = new Choreography([unmount])
       if (shown) {
         // The foreground fades out first; then the flight (_frameFlight).
-        this._holdFlight()
+        // If its date needs the dark, the scene goes down with the
+        // foreground, in one fade, rather than dipping after it.
+        const timeMs = pl ? fromJulianDay(pl.d2000 + J2000_JD) : fly?.timeMs
+        const deltaMs = typeof timeMs === 'number' ? timeMs - this.time.simTime : 0
+        this._holdFlight({dark: !cut && timePlan(deltaMs, this._nearestShownRadii()) === 'dip'})
       } else {
         this._homeCost(false)
       }
@@ -1296,25 +1306,31 @@ export default class Celestiary {
     if (this._deferFlight(() => this._flyTo(dest))) {
       return
     }
+    // Already dark (_holdFlight): the date is set there, no dip of its own.
+    const dark = this._launchDark
+    this._launchDark = false
     this._cancelFlight()
     dest.before?.()
     this._flightToken = null
     this.ui.scene.updateMatrixWorld()
     const deltaMs = typeof dest.timeMs === 'number' ? dest.timeMs - this.time.simTime : 0
-    const plan = timePlan(deltaMs, this._nearestRadii())
+    const plan = timePlan(deltaMs, this._nearestShownRadii())
     const flight = {dest, plan, tween: flightTween(), path: null, startMs: null, durationMs: 0, t0: this.time.simTime}
     this._flight = flight
     // Nothing else moves the camera meanwhile (the tween is the app's
     // marker of a travel: following waits, the link isn't written).
     Shared.targets.tween = flight.tween
     Shared.targets.tweenNextFn = null
-    if (plan === 'dip') {
+    if (plan === 'dip' && !dark) {
       // Its first frame starts the dip's clock (_frameFlight).
       this.ui.dimCanvas(CUT_FADE_MS)
       flight.dipUntil = null
       return
     }
     this._beginFlight(flight)
+    if (dark && plan !== 'dip') {
+      this.ui.showCanvas(SCENE_FADE_MS)
+    }
   }
 
 
@@ -1454,6 +1470,7 @@ export default class Celestiary {
    * first load (REVEAL_AT), and the link is written.
    */
   _afterFlight({write = true} = {}) {
+    this._showLaunchDark()
     const steps = this._overlaySteps(0)
     if (this.homePhase === 'out') {
       steps.push({at: HOME_UNMOUNT_MS, run: () => this._setHomePhase('hidden')})
@@ -1478,6 +1495,15 @@ export default class Celestiary {
   }
 
 
+  /** The scene back from a hold's dark that no flight took up (_holdFlight). */
+  _showLaunchDark() {
+    if (this._launchDark) {
+      this._launchDark = false
+      this.ui.showCanvas(SCENE_FADE_MS)
+    }
+  }
+
+
   /**
    * Hold a flight from the homepage until its foreground has faded out
    * (HOME_FLIGHT_HOLD_MS): what leaving asks for (_flyToLink, _flyTo, a
@@ -1489,11 +1515,22 @@ export default class Celestiary {
    * camera meanwhile (a link restored, a key's go) ends it, as it would a
    * flight (_frameHold).  Esc or a click stops it (stopFlight), Back
    * drops it (_cancelFlight).
+   *
+   * With `dark` (the flight's date needs the dark: timePlan's 'dip') the
+   * scene fades down with the foreground, and the flight sets its date in
+   * that dark and fades the scene up as it starts (_flyTo): one dark beat,
+   * not the foreground's fade, the scene, and then a dip.
+   *
+   * @param {object} [opts]
+   * @param {boolean} [opts.dark]
    */
-  _holdFlight() {
+  _holdFlight({dark = false} = {}) {
     this._cancelFlight()
-    const hold = {token: {}, tween: flightTween(), at: null, run: null}
+    const hold = {token: {}, tween: flightTween(), at: null, run: null, dark}
     this._flightHold = hold
+    if (dark) {
+      this.ui.dimCanvas(HOME_FADE_MS)
+    }
     this._flightToken = hold.token
     Shared.targets.tween = hold.tween
     Shared.targets.tweenNextFn = null
@@ -1533,8 +1570,9 @@ export default class Celestiary {
     if (nowMs < hold.at) {
       return
     }
-    this._dropHold()
+    this._dropHold({show: false})
     this._homeCost(false)
+    this._launchDark = hold.dark
     if (hold.run) {
       hold.run()
     } else {
@@ -1546,12 +1584,17 @@ export default class Celestiary {
   /**
    * End the hold (_holdFlight), if there is one, without starting it.
    *
+   * @param {object} [opts]
+   * @param {boolean} [opts.show] The scene back up, if the hold took it dark
    * @returns {?object} The hold
    */
-  _dropHold() {
+  _dropHold({show = true} = {}) {
     const hold = this._flightHold
     this._flightHold = null
     if (hold) {
+      if (hold.dark && show) {
+        this.ui.showCanvas(SCENE_FADE_MS)
+      }
       hold.tween.done = true
       if (Shared.targets.tween === hold.tween) {
         Shared.targets.tween = null
@@ -1593,6 +1636,7 @@ export default class Celestiary {
   /** Drop a flight, nothing more (Back to the homepage, another flight). */
   _cancelFlight() {
     this._dropHold()
+    this._showLaunchDark()
     this._flightToken = null
     const flight = this._flight
     this._flight = null
@@ -1646,18 +1690,34 @@ export default class Celestiary {
 
 
   /**
-   * @returns {number} The camera's distance from the nearest body (the Sun,
-   *   a planet, a moon), in its radii: whether a change of date would show
+   * Whether a change of date would show (timePlan): it turns a body near
+   * the camera, moves its terminator, or the Sun across the sky of a camera
+   * riding a planet's orbit, but only one in the view.  Out of it, nothing
+   * on screen changes but bodies far off (a pixel or so), so the date can
+   * be set at once.  The view is the field's cone (to its corners), widened
+   * by the body's own angular radius.
+   *
+   * @returns {number} The camera's distance from the nearest body in the
+   *   view (the Sun, a planet, a moon), in its radii; Infinity if none
    */
-  _nearestRadii() {
-    const eye = this.ui.camera.getWorldPosition(new THREE.Vector3())
+  _nearestShownRadii() {
+    const camera = this.ui.camera
+    const eye = camera.getWorldPosition(new THREE.Vector3())
+    const look = camera.getWorldDirection(new THREE.Vector3())
+    const halfV = (camera.fov * Math.PI / 180) / 2
+    const halfDiag = Math.atan(Math.tan(halfV) * Math.hypot(1, camera.aspect || 1))
     const at = new THREE.Vector3()
     let nearest = Infinity
     for (const obj of Object.values(this.scene.objects)) {
       const r = obj?.props?.radius?.scalar
       // Not the Milky Way, which the camera is always inside.
-      if (r > 0 && obj.props.type !== 'galaxy' && typeof obj.getWorldPosition === 'function') {
-        nearest = Math.min(nearest, eye.distanceTo(obj.getWorldPosition(at)) / r)
+      if (!(r > 0) || obj.props.type === 'galaxy' || typeof obj.getWorldPosition !== 'function') {
+        continue
+      }
+      const to = obj.getWorldPosition(at).sub(eye)
+      const d = to.length()
+      if (d <= r || look.angleTo(to) <= halfDiag + Math.asin(Math.min(r / d, 1))) {
+        nearest = Math.min(nearest, d / r)
       }
     }
     return nearest
@@ -1686,6 +1746,8 @@ export default class Celestiary {
    * @param {Array<object>} [steps] Others to run alongside, from now
    */
   _cutTo(go, steps = []) {
+    // Dark already from a hold, or going: it comes up once there (_frameCut).
+    this._launchDark = false
     this.ui.dimCanvas(CUT_FADE_MS)
     this._homeSteps = new Choreography([...steps, {at: CUT_FADE_MS, run: () => {
       this._cut = {arrivals: this._arrivals, since: performance.now()}
