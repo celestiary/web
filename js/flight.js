@@ -22,6 +22,9 @@ import {ease, lerp} from './tour'
  *   occultation's 0.91°) narrows as it turns to its target.
  * - **Duration:** by the decades of altitude covered and the turn about
  *   the body, 2.4 to 6.5 s.
+ * - **Ease-in:** the flight's clock comes up from standing to the path's
+ *   own pace over its first FLIGHT_EASE_IN_MS (flightProgress), so a viewer
+ *   sees the move begin before the fast travel.  It adds half that.
  */
 
 
@@ -45,6 +48,15 @@ const DIR_SHARE_MIN = 0.5
 const MIN_ALT_SHARE = 1e-3
 // Facing within this of the frame's up, another up squares the view.
 const UP_PARALLEL = 0.9999
+
+/**
+ * A flight's ease-in, ms: over this long its pace comes up from standing to
+ * the path's own (flightProgress).  The path's own start (its sine ease) is
+ * at rest too, but in log altitude a long flight's first second already
+ * covered a decade, too quick to see begin.
+ */
+export const FLIGHT_EASE_IN_MS = 1500
+
 
 /**
  * Within this many of a body's radii of the camera, a change of date shows:
@@ -97,6 +109,46 @@ export function flightDuration(alt0, alt1, angle) {
   const decades = Math.abs(Math.log10(Math.max(alt0, 1) / Math.max(alt1, 1)))
   const ms = FLIGHT_BASE_MS + (FLIGHT_PER_DECADE_MS * decades) + (FLIGHT_PER_HALF_TURN_MS * angle / Math.PI)
   return Math.min(Math.max(ms, FLIGHT_MIN_MS), FLIGHT_MAX_MS)
+}
+
+
+/**
+ * How far along its path (FlightPath.pose's `u`) a flight is a time into
+ * it.  Over the first `easeInMs` the path's clock runs slow, its pace
+ * coming up smoothly from standing to the path's own (a smoothstep in pace,
+ * so the motion has no step in speed or acceleration); from then on it runs
+ * at the path's own pace, so the fast travel and the settle are the path's
+ * as they were, only begun later.  The ease-in covers the path's first
+ * `easeInMs / 2`, so the flight is that much longer (flightTotalMs).
+ *
+ * @param {number} elapsedMs Since the flight began
+ * @param {number} durationMs The path's (flightDuration)
+ * @param {number} [easeInMs]
+ * @returns {number} 0 to 1
+ */
+export function flightProgress(elapsedMs, durationMs, easeInMs = FLIGHT_EASE_IN_MS) {
+  if (!(elapsedMs > 0)) {
+    return 0
+  }
+  let pathMs
+  if (elapsedMs < easeInMs) {
+    // The integral of smoothstep(e / easeInMs).
+    const a = elapsedMs / easeInMs
+    pathMs = easeInMs * ((a * a * a) - ((a * a * a * a) / 2))
+  } else {
+    pathMs = elapsedMs - (easeInMs / 2)
+  }
+  return Math.min(pathMs / durationMs, 1)
+}
+
+
+/**
+ * @param {number} durationMs The path's (flightDuration)
+ * @param {number} [easeInMs]
+ * @returns {number} The flight's length with its ease-in, ms
+ */
+export function flightTotalMs(durationMs, easeInMs = FLIGHT_EASE_IN_MS) {
+  return durationMs + (easeInMs / 2)
 }
 
 

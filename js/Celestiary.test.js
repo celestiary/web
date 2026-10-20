@@ -13,6 +13,7 @@ import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
 import {HOME_CARDS, HOME_HISTORY_KEY} from './home.js'
 import {HOME_TOUR_START, HOME_TOUR_STILL_MS} from './homeTour.js'
+import {FLIGHT_EASE_IN_MS} from './flight.js'
 import {planEarthPass} from './nightSide.js'
 import {formatNavMode} from './navMode.js'
 import {decodePermalink, encodePermalink, encodeSettings, SETTINGS_DEFAULTS} from './permalink.js'
@@ -1647,6 +1648,8 @@ describe('the target in the link', () => {
 // own history entry; leaving for the live scene writes the view as one;
 // Back to the homepage's entry shows it again.
 describe('the homepage', () => {
+  // The foreground's fade out (index.css, .home's opacity transition).
+  const HOME_FADE_OUT_MS = Number(/--fade-ms:\s*(\d+)ms/.exec(readFileSync(new URL('./index.css', import.meta.url), 'utf8'))[1])
   const saved = {}
   const apps = []
   let pushed
@@ -1834,6 +1837,63 @@ describe('the homepage', () => {
   }
 
   /**
+   * Step frames through the homepage's fade out, after a card, a Go or a
+   * Fly there: nothing in the scene changes until the foreground has faded
+   * out and left the page (the camera, its frame, the target, the date, the
+   * settings, the overlays, the layers, the canvas), then the flight starts.
+   *
+   * @param {object} app
+   * @param {number} t0 ms
+   * @param {number} [clickedAt] When it left the homepage, ms
+   * @returns {number} The time the flight began
+   */
+  function fadeOut(app, t0, clickedAt = t0) {
+    const camera = app.ui.camera
+    const scene = {
+      parent: camera.platform.parent,
+      position: camera.position.clone(),
+      quaternion: camera.quaternion.clone(),
+      fov: camera.fov,
+      target: app.scene.getTarget(),
+      simTime: app.time.simTime,
+      settings: {...app.scene._settings},
+      fades: Object.fromEntries(Object.entries(app.scene.fades).map(([k, f]) => [k, f.shown])),
+      suspended: app.ui.layers.suspended,
+      canvas: app.ui.canvasShown,
+    }
+    expect(app._flightHold).not.toBe(null)
+    expect(app._flight).toBe(null)
+    expect(app.homePhase).toBe('out')
+    let t = t0
+    for (; app._flightHold && t < t0 + 5000; t += 16) {
+      app.frame(t)
+      if (!app._flightHold) {
+        break
+      }
+      expect(camera.platform.parent).toBe(scene.parent)
+      expect(camera.position.distanceTo(scene.position)).toBeLessThan(1e-3)
+      expect(camera.quaternion.angleTo(scene.quaternion)).toBeLessThan(1e-6)
+      expect(camera.fov).toBe(scene.fov)
+      expect(app.scene.getTarget()).toEqual(scene.target)
+      // The clock runs on as it was; no date is set.
+      expect(Math.abs(app.time.simTime - scene.simTime)).toBeLessThan(5000)
+      expect(app.scene._settings).toEqual(scene.settings)
+      for (const [k, f] of Object.entries(app.scene.fades)) {
+        expect([k, f.shown]).toEqual([k, scene.fades[k]])
+      }
+      expect(app.ui.layers.suspended).toBe(scene.suspended)
+      expect(app.ui.canvasShown).toBe(scene.canvas)
+      expect(app._flight).toBe(null)
+    }
+    // Out of the page by then, and the flight under way.
+    expect(t - clickedAt).toBeGreaterThanOrEqual(HOME_FADE_OUT_MS)
+    expect(app.homePhase).toBe('hidden')
+    expect(app._flightHold).toBe(null)
+    expect(app.ui.layers.suspended).toBe(false)
+    return t
+  }
+
+  /**
    * @param {string} link
    * @returns {number} Its date, Unix ms
    */
@@ -1884,12 +1944,15 @@ describe('the homepage', () => {
     expect(app.homeShown).toBe(false)
     expect(app.homePhase).toBe('out')
     expect(app.tour.active).toBe(false)
+    // The camera hasn't moved, and nothing else has either until the
+    // foreground is out (fadeOut); the link isn't written meanwhile.
+    expect(app.ui.camera.getWorldPosition(new Vector3()).distanceTo(before)).toBeLessThan(1)
+    expect(Shared.targets.tween).toBe(app._flightHold.tween)
+    t = fadeOut(app, t + 16)
     expect(app.ui.frameCap).toBe(null)
-    expect(app.ui.layers.suspended).toBe(false)
-    // A flight, not a cut: the canvas stays, and the camera hasn't moved yet.
+    // A flight, not a cut: the canvas stays.
     expect(app._flight.plan).toBe('ease')
     expect(app.ui.canvasShown).not.toBe(false)
-    expect(app.ui.camera.getWorldPosition(new Vector3()).distanceTo(before)).toBeLessThan(1)
     expect(Shared.targets.tween).toBe(app._flight.tween)
     const {t: landed, samples} = fly(app, t + 16)
     t = landed
@@ -1931,6 +1994,113 @@ describe('the homepage', () => {
     expect(decodePermalink(global.location.hash.slice(1) || replaced.at(-1).url.slice(1)).path).toBe('sun/earth')
   })
 
+  it('a card\'s foreground fades out before anything in the scene changes, then the flight eases in', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const card = HOME_CARDS.find((c) => c.id === 'earth')
+    app.time.setTime(linkMs(card.link) - 3600000)
+    // Every call that changes the scene, and the foreground's phase then.
+    const calls = []
+    const spy = (obj, name) => {
+      const fn = obj[name].bind(obj)
+      obj[name] = (...args) => {
+        calls.push({name, phase: app.homePhase})
+        return fn(...args)
+      }
+    }
+    spy(app.scene, 'setTarget')
+    spy(app.scene, 'goTo')
+    spy(app.scene, 'land')
+    spy(app.scene, 'initSettings')
+    spy(app.time, 'setTime')
+    spy(app.ui, 'dimCanvas')
+    spy(app.ui, 'setFov')
+    spy(app, '_resolveRef')
+    spy(app, '_loadFrame')
+    spy(app, '_homeCost')
+    const phases = []
+    const setPhase = app._setHomePhase.bind(app)
+    app._setHomePhase = (phase) => {
+      phases.push(phase)
+      setPhase(phase)
+    }
+    app.openLink(card.link)
+    expect(calls).toEqual([])
+    const began = fadeOut(app, t + 16)
+    // Out of the page first, then the flight: its link's load, its frame,
+    // its date, the layers back.
+    expect(phases).toEqual(['out', 'hidden'])
+    expect(calls.length).toBeGreaterThan(0)
+    expect(calls.every((c) => c.phase === 'hidden')).toBe(true)
+    expect(calls.map((c) => c.name)).toEqual(expect.arrayContaining(['_homeCost', 'initSettings', 'setTarget', 'goTo']))
+    // The ease-in: a gentle start, then the travel as it was.
+    const {t: landed, samples} = fly(app, began + 16)
+    t = landed
+    const decades = (a, b) => Math.abs(Math.log10(b.dist / a.dist))
+    const at = (ms) => samples.find((x) => x.t - began >= ms)
+    const whole = decades(samples[0], samples.at(-1))
+    expect(decades(samples[0], at(500))).toBeLessThan(0.002 * whole)
+    expect(decades(samples[0], at(1000))).toBeLessThan(0.05 * whole)
+    expect(decades(samples[0], at(1000))).toBeGreaterThan(0)
+    // Its quickest frame is after the ease-in.
+    let fastest = 1
+    for (let i = 2; i < samples.length; i++) {
+      if (decades(samples[i - 1], samples[i]) > decades(samples[fastest - 1], samples[fastest])) {
+        fastest = i
+      }
+    }
+    expect(samples[fastest].t - began).toBeGreaterThan(FLIGHT_EASE_IN_MS)
+    expectView(app, card.link)
+    run(app, t, 1500)
+    expect(app.navVisible).toBe(true)
+  })
+
+  it('Esc in the fade stops it with nothing moved; another card in it is flown to instead; Back drops it', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const earth = HOME_CARDS.find((c) => c.id === 'earth')
+    const gaia = HOME_CARDS.find((c) => c.id === 'gaia')
+    const at = app.ui.camera.getWorldPosition(new Vector3())
+    app.openLink(earth.link)
+    t = run(app, t, 200)
+    expect(app._flightHold).not.toBe(null)
+    expect(app.stopFlight()).toBe(true)
+    expect(app._flightHold).toBe(null)
+    expect(Shared.targets.tween).toBe(null)
+    expect(app.ui.layers.suspended).toBe(false)
+    t = run(app, t, 1500)
+    expect(app._flight).toBe(null)
+    expect(app.ui.camera.getWorldPosition(new Vector3()).distanceTo(at)).toBeLessThan(1e4)
+    expect(app.scene.getTarget().name).toBe('sun')
+    expect(app.navVisible).toBe(true)
+    expect(app.homePhase).toBe('hidden')
+    // Another card during the fade (a keyboard's): one flight, to it, once the fade is out.
+    const again = await openHome()
+    t = run(again, 1000, 500)
+    again.openLink(earth.link)
+    const clicked = t
+    t = run(again, t, 200)
+    again.time.setTime(linkMs(gaia.link))
+    again.openLink(gaia.link)
+    expect(replaced.at(-1).url).toBe(`#${gaia.link}`)
+    t = fadeOut(again, t + 16, clicked)
+    t = fly(again, t).t
+    expectView(again, gaia.link)
+    // Back during the fade: the homepage again, no flight.
+    const back = await openHome()
+    t = run(back, 1000, 500)
+    back.openLink(earth.link)
+    t = run(back, t, 200)
+    global.location.hash = ''
+    back._onPopState({[HOME_HISTORY_KEY]: true})
+    expect(back.homeShown).toBe(true)
+    expect(back._flightHold).toBe(null)
+    expect(Shared.targets.tween).toBe(null)
+    run(back, t, 1500)
+    expect(back._flight).toBe(null)
+    expect(back.tour.playing).toBe(true)
+  })
+
   it('a card a long way off in time, near a body, sets its date under a dip to black, then flies', async () => {
     const app = await openHome()
     let t = run(app, 1000, 500)
@@ -1938,6 +2108,8 @@ describe('the homepage', () => {
     app.time.setTime(linkMs(card.link) - (30 * 86400000))
     const before = app.ui.camera.getWorldPosition(new Vector3())
     app.openLink(card.link)
+    // The dip waits for the foreground's fade, too.
+    t = fadeOut(app, t + 16)
     expect(app._flight.plan).toBe('dip')
     expect(app.ui.canvasShown).toBe(false)
     // The camera holds under black, then the date is the card's.
@@ -1965,6 +2137,7 @@ describe('the homepage', () => {
     t = run(app, t, 100)
     const card = HOME_CARDS.find((c) => c.id === 'earth')
     app.openLink(card.link)
+    t = fadeOut(app, t + 16)
     expect(app._flight.plan).toBe('start')
     expect(app.time.simTimeJulianDay()).toBeCloseTo(decodePermalink(card.link).d2000 + J2000_JD, 6)
     t = run(app, t, 1000)
@@ -1991,6 +2164,7 @@ describe('the homepage', () => {
     const gaia = HOME_CARDS.find((c) => c.id === 'gaia')
     app.time.setTime(linkMs(earth.link))
     app.openLink(earth.link)
+    t = fadeOut(app, t + 16)
     t = run(app, t, 800)
     const first = app._flight
     app.time.setTime(linkMs(gaia.link))
@@ -2008,7 +2182,7 @@ describe('the homepage', () => {
     app.showHome()
     t = run(app, t, 1000)
     app.openLink(earth.link)
-    t = run(app, t, 500)
+    t = run(app, t, 1000)
     expect(app._flight).not.toBe(null)
     global.location.hash = ''
     app._onPopState({[HOME_HISTORY_KEY]: true})
@@ -2067,6 +2241,7 @@ describe('the homepage', () => {
     const jd = app.time.simTimeJulianDay()
     app.goToResult({id: 'earth', kind: 'planet', displayName: 'Earth', path: 'milkyway/sun/earth', payload: {name: 'earth'}})
     expect(app.homeShown).toBe(false)
+    t = fadeOut(app, t + 16)
     expect(app._flight.plan).toBe('none')
     const {t: after, samples} = fly(app, t + 16)
     t = after
@@ -2095,6 +2270,9 @@ describe('the homepage', () => {
     app.scene.goTo = (star, name) => went.push(name)
     const star = {x: 1e17, y: 0, z: 0, radius: 7e8}
     app.goToResult({id: 'hip:1', kind: 'star', displayName: 'A star', path: 'milkyway/hip:1', payload: {star}})
+    // Once the foreground has faded out.
+    expect(went).toEqual([])
+    fadeOut(app, 1516)
     expect(went).toEqual(['A star'])
     expect(app.homeShown).toBe(false)
     expect(app._flight).toBe(null)
@@ -2122,10 +2300,11 @@ describe('the homepage', () => {
     const {where, when} = await app.openTonight({locate: () => Promise.reject(new Error('denied')), timeZone: 'Europe/Paris'})
     expect(where.source).toBe('timezone')
     expect(app.homeShown).toBe(false)
-    // A flight there, said once it's there.
+    // A flight there, once the foreground is out, said once it's there.
+    const began = fadeOut(app, t + 16)
     expect(app._flight).not.toBe(null)
     expect(notices).toEqual([])
-    const {t: landed} = fly(app, t + 16)
+    const {t: landed} = fly(app, began + 16)
     run(app, landed, 1500)
     expect(Shared.targets.landed).toBe(true)
     expect(app.time.simTime).toBeGreaterThanOrEqual(when.ms)
@@ -2215,6 +2394,7 @@ describe('the homepage', () => {
     expect(app.tour.active).toBe(false)
     expect(pushed).toHaveLength(0)
     expect(store.newsTour).toMatchObject({index: 0, count: 3, phase: 'flying'})
+    t = fadeOut(app, t + 16)
     expect(app._flight).not.toBe(null)
     const links = [EARTH_CARD.link, OCCULTATION_CARD.link, GAIA_CARD.link]
     const headlines = ['Earth at dusk', 'The Moon hides Jupiter', 'A million of Gaia\'s stars']
@@ -2365,10 +2545,11 @@ describe('the homepage', () => {
       const app = await openHome()
       const t = run(app, 1000, 500)
       await app.startNewsTour()
-      // No flight: the canvas dims, and the view is put there.
+      // No flight: once the foreground is out, the canvas dims, and the view is put there.
+      const began = fadeOut(app, t + 16)
       expect(app._flight).toBe(null)
       expect(app.ui.canvasShown).toBe(false)
-      untilTour(app, t, 'holding', 0)
+      untilTour(app, began, 'holding', 0)
       expect(app.ui.canvasShown).toBe(true)
       expectView(app, EARTH_CARD.link)
     } finally {

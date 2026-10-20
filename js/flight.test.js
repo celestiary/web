@@ -1,8 +1,10 @@
 import {describe, expect, it} from 'bun:test'
 import {Matrix4, Quaternion, Vector3} from 'three'
 import FlightPath, {
-  EASE_TIME_MAX_MS, FLIGHT_MAX_MS, FLIGHT_MIN_MS, NEAR_RADII, flightDuration, timePlan,
+  EASE_TIME_MAX_MS, FLIGHT_EASE_IN_MS, FLIGHT_MAX_MS, FLIGHT_MIN_MS, NEAR_RADII,
+  flightDuration, flightProgress, flightTotalMs, timePlan,
 } from './flight.js'
+import {ease} from './tour.js'
 
 
 const R = 6.371e6
@@ -55,6 +57,56 @@ describe('flightDuration', () => {
     expect(down).toBeGreaterThan(FLIGHT_MIN_MS)
     expect(flightDuration(3e19, 169, 1)).toBe(FLIGHT_MAX_MS)
     expect(flightDuration(169, 3e19, 1)).toBe(FLIGHT_MAX_MS)
+  })
+})
+
+
+describe('flightProgress', () => {
+  const D = 4000
+  const L = FLIGHT_EASE_IN_MS
+  const total = flightTotalMs(D)
+
+  it('is a second or two of ease-in, and adds half that to the flight', () => {
+    expect(L).toBeGreaterThanOrEqual(1000)
+    expect(L).toBeLessThanOrEqual(2000)
+    expect(total).toBe(D + (L / 2))
+    expect(flightProgress(0, D)).toBe(0)
+    expect(flightProgress(-5, D)).toBe(0)
+    expect(flightProgress(total, D)).toBe(1)
+    expect(flightProgress(total + 1000, D)).toBe(1)
+    expect(flightProgress(total - 16, D)).toBeLessThan(1)
+  })
+
+  it('comes up from standing to the path\'s pace without a step, then keeps it', () => {
+    const pace = (e) => (flightProgress(e + 0.5, D) - flightProgress(e - 0.5, D)) * D
+    expect(pace(0.5)).toBeLessThan(1e-6)
+    // Rising all through the ease-in, smoothly (no step in pace, nor in its rate).
+    let last = 0
+    for (let e = 10; e < L; e += 10) {
+      const p = pace(e)
+      expect(p).toBeGreaterThan(last)
+      expect(p - last).toBeLessThan(0.02)
+      last = p
+    }
+    expect(pace(L)).toBeCloseTo(1, 5)
+    expect(pace(L + 100)).toBeCloseTo(1, 9)
+    // After it, the path as it was, only begun half the ease-in later: the
+    // fast travel and the settle unchanged.
+    for (let e = L; e <= total; e += 250) {
+      expect(flightProgress(e, D)).toBeCloseTo((e - (L / 2)) / D, 12)
+    }
+  })
+
+  it('starts gently: the travel of the first second is a small share of what it was', () => {
+    // The path's travel (its sine ease) a time in, with and without.
+    const travel = (e) => ease('inOut', flightProgress(e, D))
+    const before = (e) => ease('inOut', e / D)
+    for (const e of [250, 500, 1000]) {
+      expect(travel(e)).toBeLessThan(before(e) * 0.35)
+    }
+    // But under way by the end of it: no dead wait.
+    expect(travel(L)).toBeGreaterThan(before(L) * 0.2)
+    expect(flightProgress(1000, D)).toBeGreaterThan(0)
   })
 })
 

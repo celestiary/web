@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import ARController from './ar/ARController'
 import Animation from './scene/Animation'
 import Choreography, {READY_TIMEOUT_MS, REVEAL_AT} from './choreography'
-import FlightPath, {flightDuration, timePlan} from './flight'
+import FlightPath, {flightDuration, flightProgress, timePlan} from './flight'
 import ControlPanel from './ControlPanel'
 import Keys from './Keys'
 import Loader from './Loader'
@@ -62,6 +62,10 @@ const CUT_FADE_MS = 300
 // The homepage's foreground fades out over the overlays' fade (FADE_MS) and
 // is taken out of the page after this long.
 const HOME_UNMOUNT_MS = 600
+// A flight from the homepage (a card, the search's Go, What's new) waits
+// this long, from the click, for the foreground to have faded out and left
+// the page: nothing in the scene changes meanwhile (_holdFlight).
+const HOME_FLIGHT_HOLD_MS = HOME_UNMOUNT_MS
 // The frame rate the homepage's tour is held to, to keep its cost down
 // (ThreeUi.setFrameCap): a slow camera path doesn't need more.
 const HOME_FRAME_CAP_FPS = 30
@@ -203,9 +207,11 @@ export default class Celestiary {
     // A cut to a link's view, waiting for it to arrive (_frameCut).
     this._cut = null
     // A flight from the homepage to a view (_flyTo), and the one whose
-    // frame is still loading (_flyToLink).
+    // frame is still loading (_flyToLink) or that waits for the foreground
+    // to fade out (_holdFlight).
     this._flight = null
     this._flightToken = null
+    this._flightHold = null
     // The meter's readings when the tour started (_homeSettled).
     this._homeMeterMark = 0
     // How many times the camera has been placed (_arrive), for _frameCut.
@@ -219,6 +225,9 @@ export default class Celestiary {
     // says and what it hides is never drawn (design/URLs.md, "Reading and
     // writing").  The overlays it shows are held back for the reveal.
     this.scene.initSettings(linkSettings(location.hash), {hold: true})
+    // Whether the first load's reveal brings the overlays in: not once the
+    // homepage has been left after it began, whose own steps do (leaveHome).
+    this._revealOverlays = true
     // The first load's sequence (choreography.js), from when the camera is
     // placed (_arrive) and the scene is in (ThreeUi.sceneReady).
     this._arrivedAt = null
@@ -240,7 +249,7 @@ export default class Celestiary {
         }
         this.ui.showCanvas(SCENE_FADE_MS)
       }},
-      ...this._overlaySteps(0, () => !this.homeShown),
+      ...this._overlaySteps(0, () => !this.homeShown && this._revealOverlays),
     ])
     if (this.homeShown) {
       this._setHomePhase(this._newsStart ? 'hidden' : 'waiting')
@@ -1063,9 +1072,15 @@ export default class Celestiary {
    * was, and they come in once it's there (_flyTo); a path alone travels
    * there by the app's own go (_navigate).
    *
+   * A flight, or a go, waits until the foreground has faded out
+   * (_holdFlight): until then nothing in the scene changes, not the camera,
+   * the target, the date, the settings nor the layers.
+   *
    * @param {object} [opts]
    * @param {?string} [opts.link] A fragment to open, without its '#'
    * @param {?object} [opts.fly] Where to fly (_flyTo's)
+   * @param {?Function} [opts.go] A travel by the app's own go (the
+   *   search's Go to a star), once the foreground is out
    * @param {boolean} [opts.write] Otherwise, write the view to the
    *   address bar now, as a new history entry, so Back returns to the
    *   homepage (what follows a search's Look at writes its own)
@@ -1073,48 +1088,66 @@ export default class Celestiary {
    *   changelog tour, for reduced motion)
    * @returns {boolean} Whether it was showing
    */
-  leaveHome({link = null, fly = null, write = true, cut = false} = {}) {
+  leaveHome({link = null, fly = null, go = null, write = true, cut = false} = {}) {
     if (!this.homeShown) {
       return false
     }
     this.homeShown = false
     this._homeReturning = false
     this.tour.stop()
-    this._homeCost(false)
+    // Whether the foreground is on screen, to fade out before anything moves.
+    const shown = this.homePhase === 'in'
     if (this.homePhase !== 'hidden') {
       this._setHomePhase('out')
     }
     this._cut = null
     const unmount = {at: HOME_UNMOUNT_MS, run: () => this._setHomePhase('hidden')}
     const pl = link ? decodePermalink(link) : null
-    if (pl) {
-      this._holdLinkSettings(pl)
+    if (link && !pl) {
+      // A path alone: the app's go there.
+      go = () => this._navigate(link)
     }
     if (!this._reveal.started) {
       // Left before the scene was in: straight there, and the first load's
       // reveal shows it all.
-      this._homeSteps = new Choreography([unmount])
-      if (fly) {
-        (fly.jump ?? fly.arrive)()
-      } else if (link) {
-        this._navigate(link)
-      }
-      return true
-    }
-    if (pl || fly) {
-      // The overlays and the chrome come in once it's there (_endFlight).
+      this._homeCost(false)
       this._homeSteps = new Choreography([unmount])
       if (pl) {
-        this._flyToLink(link, {cut})
+        this._holdLinkSettings(pl)
+        this._navigate(link)
+      } else if (fly) {
+        const jump = fly.jump ?? fly.arrive
+        fly.before?.()
+        jump()
       } else {
-        this._flyTo(fly)
+        go?.()
       }
       return true
     }
+    // The reveal's own overlay steps aren't this leave's: a card clicked
+    // just after it began would bring them in under the fade.
+    this._revealOverlays = false
+    if (pl || fly || go) {
+      // The overlays and the chrome come in once it's there (_endFlight).
+      this._homeSteps = new Choreography([unmount])
+      if (shown) {
+        // The foreground fades out first; then the flight (_frameFlight).
+        this._holdFlight()
+      } else {
+        this._homeCost(false)
+      }
+      if (pl) {
+        this._flyToLink(link, {cut, settings: true})
+      } else if (fly) {
+        this._flyTo(fly)
+      } else if (!this._deferFlight(() => this._launchGo(go))) {
+        this._launchGo(go)
+      }
+      return true
+    }
+    this._homeCost(false)
     this._homeSteps = new Choreography([unmount, ...this._overlaySteps(0)])
-    if (link) {
-      this._navigate(link)
-    } else if (write) {
+    if (write) {
       const fragment = this.permalink()
       if (fragment) {
         this._writeLink(fragment)
@@ -1147,9 +1180,17 @@ export default class Celestiary {
    * @param {object} [opts]
    * @param {boolean} [opts.cut] Cut to the view under black instead of
    *   flying (the changelog tour, for reduced motion)
+   * @param {boolean} [opts.settings] Hold the link's scene settings for
+   *   the arrival's reveal first (_holdLinkSettings)
    */
-  _flyToLink(link, {cut = false} = {}) {
+  _flyToLink(link, {cut = false, settings = false} = {}) {
+    if (this._deferFlight(() => this._flyToLink(link, {cut, settings}))) {
+      return
+    }
     const pl = decodePermalink(link)
+    if (pl && settings) {
+      this._holdLinkSettings(pl)
+    }
     const ref = parseTargetPath(pathFromFragment(link))
     if (!pl || !ref) {
       this._navigate(link)
@@ -1242,9 +1283,15 @@ export default class Celestiary {
    * @param {Function} dest.arrive Sets the view exactly, once there
    * @param {?Function} [dest.jump] Goes there at once, without the
    *   flight (before the scene is in); `arrive` if none
+   * @param {?Function} [dest.before] Run as it starts: the scene settings
+   *   the view's reveal shows (tonight's)
    */
   _flyTo(dest) {
+    if (this._deferFlight(() => this._flyTo(dest))) {
+      return
+    }
     this._cancelFlight()
+    dest.before?.()
     this._flightToken = null
     this.ui.scene.updateMatrixWorld()
     const deltaMs = typeof dest.timeMs === 'number' ? dest.timeMs - this.time.simTime : 0
@@ -1312,6 +1359,10 @@ export default class Celestiary {
    * @param {number} nowMs
    */
   _frameFlight(nowMs) {
+    if (this._flightHold) {
+      this._frameHold(nowMs)
+      return
+    }
     const flight = this._flight
     if (!flight) {
       return
@@ -1337,7 +1388,8 @@ export default class Celestiary {
       this._beginFlight(flight)
     }
     flight.startMs ??= nowMs
-    const u = Math.min((nowMs - flight.startMs) / flight.durationMs, 1)
+    // Eased in: its first second or so a gentle start (flight.js).
+    const u = flightProgress(nowMs - flight.startMs, flight.durationMs)
     const travel = ease('inOut', u)
     flight.tween.progress = travel
     if (flight.plan !== 'none') {
@@ -1395,13 +1447,114 @@ export default class Celestiary {
    * Once a flight is over: the overlays and the chrome come in as on a
    * first load (REVEAL_AT), and the link is written.
    */
-  _afterFlight() {
+  _afterFlight({write = true} = {}) {
     const steps = this._overlaySteps(0)
     if (this.homePhase === 'out') {
       steps.push({at: HOME_UNMOUNT_MS, run: () => this._setHomePhase('hidden')})
     }
     this._homeSteps = new Choreography(steps)
-    this._schedulePermalinkUpdate()
+    if (write) {
+      this._schedulePermalinkUpdate()
+    }
+  }
+
+
+  /**
+   * A travel by the app's own go, leaving the homepage (the search's Go to
+   * a star, a path alone): the go, and the overlays and the chrome come in
+   * as it travels.  The go writes its own link.
+   *
+   * @param {Function} go
+   */
+  _launchGo(go) {
+    go()
+    this._afterFlight({write: false})
+  }
+
+
+  /**
+   * Hold a flight from the homepage until its foreground has faded out
+   * (HOME_FLIGHT_HOLD_MS): what leaving asks for (_flyToLink, _flyTo, a
+   * go) waits in the hold (_deferFlight), the last asked for winning, and
+   * nothing in the scene changes meanwhile: the camera stays where the
+   * tour left it, and the target, the date, the settings and the layers
+   * as they were.  Its marker in `Shared.targets.tween` is a travel's, so
+   * following waits and the link isn't written; something else taking the
+   * camera meanwhile (a link restored, a key's go) ends it, as it would a
+   * flight (_frameHold).  Esc or a click stops it (stopFlight), Back
+   * drops it (_cancelFlight).
+   */
+  _holdFlight() {
+    this._cancelFlight()
+    const hold = {token: {}, tween: flightTween(), at: null, run: null}
+    this._flightHold = hold
+    this._flightToken = hold.token
+    Shared.targets.tween = hold.tween
+    Shared.targets.tweenNextFn = null
+  }
+
+
+  /**
+   * @param {Function} run A flight's start
+   * @returns {boolean} Whether it waits in the hold (_holdFlight), in place
+   *   of what waited there; if not, the caller starts it now
+   */
+  _deferFlight(run) {
+    if (!this._flightHold) {
+      return false
+    }
+    this._flightHold.run = run
+    return true
+  }
+
+
+  /**
+   * A frame of the hold (_holdFlight): once the foreground is out, the
+   * flight starts.
+   *
+   * @param {number} nowMs
+   */
+  _frameHold(nowMs) {
+    const hold = this._flightHold
+    if (Shared.targets.tween !== hold.tween) {
+      // Taken over: the live scene from where that leaves it.
+      this._dropHold()
+      this._homeCost(false)
+      this._afterFlight()
+      return
+    }
+    hold.at ??= nowMs + HOME_FLIGHT_HOLD_MS
+    if (nowMs < hold.at) {
+      return
+    }
+    this._dropHold()
+    this._homeCost(false)
+    if (hold.run) {
+      hold.run()
+    } else {
+      this._afterFlight()
+    }
+  }
+
+
+  /**
+   * End the hold (_holdFlight), if there is one, without starting it.
+   *
+   * @returns {?object} The hold
+   */
+  _dropHold() {
+    const hold = this._flightHold
+    this._flightHold = null
+    if (hold) {
+      hold.tween.done = true
+      if (Shared.targets.tween === hold.tween) {
+        Shared.targets.tween = null
+      }
+      if (this._flightToken === hold.token) {
+        this._flightToken = null
+      }
+    }
+    return hold
   }
 
 
@@ -1416,11 +1569,15 @@ export default class Celestiary {
     if (!this._flight && !this._flightToken) {
       return false
     }
+    if (this._dropHold()) {
+      // Still waiting for the homepage's fade: nothing had moved.
+      this._homeCost(false)
+    }
     this._flightToken = null
     if (this._flight) {
       this._endFlight({arrived: false})
     } else {
-      // Its frame still loading: it never started.
+      // Its frame still loading, or the fade not over: it never started.
       this._afterFlight()
     }
     return true
@@ -1429,6 +1586,7 @@ export default class Celestiary {
 
   /** Drop a flight, nothing more (Back to the homepage, another flight). */
   _cancelFlight() {
+    this._dropHold()
     this._flightToken = null
     const flight = this._flight
     this._flight = null
@@ -1562,9 +1720,12 @@ export default class Celestiary {
   async openTonight(sources = {}) {
     const where = await resolveLocation(sources)
     const when = tonightTime(where.lat, where.lng, Date.now(), this._sunAt())
-    // The app's defaults for the overlays and labels; the HUD as it is.
-    this.scene.initSettings({...decodeSettings(undefined), v: this.scene.getSetting('v')}, {hold: true})
-    const dest = this._tonightFlight(where, when)
+    const dest = {
+      ...this._tonightFlight(where, when),
+      // The app's defaults for the overlays and labels; the HUD as it is.
+      // Set as the flight starts, after the homepage's fade.
+      before: () => this.scene.initSettings({...decodeSettings(undefined), v: this.scene.getSetting('v')}, {hold: true}),
+    }
     if (!this.leaveHome({fly: dest})) {
       this._flyTo(dest)
     }
@@ -1657,8 +1818,7 @@ export default class Celestiary {
     const pl = decodePermalink(link)
     if (pl && (this._flight || this._flightToken)) {
       history.replaceState(null, '', href)
-      this._holdLinkSettings(pl)
-      this._flyToLink(link)
+      this._flyToLink(link, {settings: true})
       return
     }
     location.hash = link
@@ -1683,8 +1843,11 @@ export default class Celestiary {
       }
       return
     }
-    this.leaveHome({write: false})
-    goToEntry(entry, this)
+    // A star or a galaxy: the app's go, once the homepage has faded out.
+    const go = () => goToEntry(entry, this)
+    if (!this.leaveHome({go}) && !this._deferFlight(() => this._launchGo(go))) {
+      go()
+    }
   }
 
 
@@ -1836,11 +1999,7 @@ export default class Celestiary {
       this.leaveHome({link, cut})
       return
     }
-    const pl = decodePermalink(link)
-    if (pl) {
-      this._holdLinkSettings(pl)
-    }
-    this._flyToLink(link, {cut})
+    this._flyToLink(link, {cut, settings: true})
   }
 
 

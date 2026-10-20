@@ -31,6 +31,18 @@ has no view to open yet.
 
 ## October 2026
 
+### Flights from the homepage start where you can see them
+
+Choosing a scene on the homepage, a search result there or a What's new entry now fades the homepage
+away first, with the scene behind it holding still, and only then sets off. The flight begins
+gently over a second and a half, so you can see where you're starting from and which way you're
+going, before the fast part of the trip and the arrival.
+
+- Date: 2026-10-20
+- PR: [#268](https://github.com/celestiary/web/pull/268)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+
 ### Earth loads faster: each picture is downloaded once
 
 Opening Earth, or a link to it, used to download the month's 4096-pixel Blue Marble map three times,
