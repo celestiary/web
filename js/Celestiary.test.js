@@ -8,7 +8,7 @@
  * Mocked: ThreeUI (no WebGL), ControlPanel, Keys, Loader (filesystem),
  *         scene/SpriteSheet (no canvas), vsop (fixed coordinates).
  */
-import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock} from 'bun:test'
+import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock, setSystemTime} from 'bun:test'
 import {readFileSync} from 'fs'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
 import {HOME_CARDS, HOME_HISTORY_KEY} from './home.js'
@@ -2336,45 +2336,54 @@ describe('the homepage', () => {
   })
 
   it('a long change near a body in view all the way goes dark once, with the foreground; Esc in it brings the scene back', async () => {
-    const app = await openHome()
-    let t = run(app, 1000, 500)
-    // Over the terminator, 3.4 radii out, flying to the Earth card's 1.9:
-    // Earth near and in view the whole way.
-    app.tour.t = 34000
-    t = run(app, t, 100)
-    const card = HOME_CARDS.find((c) => c.id === 'earth')
-    app.time.setTime(linkMs(card.link) - (30 * 86400000))
-    expect(app._nearestShownRadii()).toBeLessThan(NEAR_RADII)
-    const fades = canvasFades(app)
-    app.openLink(card.link)
-    // The scene goes down with the foreground, at once, in the one fade.
-    expect(fades).toEqual([{fade: 'dark', phase: 'out', flying: false}])
-    t = fadeOut(app, t + 16)
-    for (; !app._flight?.path && t < 5000; t += 16) {
-      app.frame(t)
+    // The tour runs at the clock's time, so where 34 s into it is, against
+    // Earth's day and night, depends on the hour: at some (05:30 UTC on
+    // 2026-10-20) the flight finds an unseen frame and needs no dark.  Pin
+    // the clock to an hour where the view is as described.
+    setSystemTime(new Date('2026-10-20T04:55:00Z'))
+    try {
+      const app = await openHome()
+      let t = run(app, 1000, 500)
+      // Over the terminator, 3.4 radii out, flying to the Earth card's 1.9:
+      // Earth near and in view the whole way.
+      app.tour.t = 34000
+      t = run(app, t, 100)
+      const card = HOME_CARDS.find((c) => c.id === 'earth')
+      app.time.setTime(linkMs(card.link) - (30 * 86400000))
+      expect(app._nearestShownRadii()).toBeLessThan(NEAR_RADII)
+      const fades = canvasFades(app)
+      app.openLink(card.link)
+      // The scene goes down with the foreground, at once, in the one fade.
+      expect(fades).toEqual([{fade: 'dark', phase: 'out', flying: false}])
+      t = fadeOut(app, t + 16)
+      for (; !app._flight?.path && t < 5000; t += 16) {
+        app.frame(t)
+      }
+      // In that dark the date is the card's, and the scene comes up as the
+      // flight starts: at most one dark interval, no dip of its own.
+      expect(app._flight.plan).toBe('dip')
+      expect(app.time.simTimeJulianDay()).toBeCloseTo(decodePermalink(card.link).d2000 + J2000_JD, 6)
+      expect(fades).toEqual([{fade: 'dark', phase: 'out', flying: false}, {fade: 'up', phase: 'hidden', flying: true}])
+      fly(app, t)
+      expect(fades).toHaveLength(2)
+      expectView(app, card.link)
+      // Esc in the dark brings the scene back up, where it was.
+      const again = await openHome()
+      t = run(again, 1000, 500)
+      again.tour.t = 34000
+      t = run(again, t, 100)
+      again.time.setTime(linkMs(card.link) - (30 * 86400000))
+      again.openLink(card.link)
+      expect(again.ui.canvasShown).toBe(false)
+      t = run(again, t, 200)
+      expect(again.stopFlight()).toBe(true)
+      expect(again.ui.canvasShown).toBe(true)
+      run(again, t, 1500)
+      expect(again._flight).toBe(null)
+      expect(again.ui.canvasShown).toBe(true)
+    } finally {
+      setSystemTime()
     }
-    // In that dark the date is the card's, and the scene comes up as the
-    // flight starts: at most one dark interval, no dip of its own.
-    expect(app._flight.plan).toBe('dip')
-    expect(app.time.simTimeJulianDay()).toBeCloseTo(decodePermalink(card.link).d2000 + J2000_JD, 6)
-    expect(fades).toEqual([{fade: 'dark', phase: 'out', flying: false}, {fade: 'up', phase: 'hidden', flying: true}])
-    fly(app, t)
-    expect(fades).toHaveLength(2)
-    expectView(app, card.link)
-    // Esc in the dark brings the scene back up, where it was.
-    const again = await openHome()
-    t = run(again, 1000, 500)
-    again.tour.t = 34000
-    t = run(again, t, 100)
-    again.time.setTime(linkMs(card.link) - (30 * 86400000))
-    again.openLink(card.link)
-    expect(again.ui.canvasShown).toBe(false)
-    t = run(again, t, 200)
-    expect(again.stopFlight()).toBe(true)
-    expect(again.ui.canvasShown).toBe(true)
-    run(again, t, 1500)
-    expect(again._flight).toBe(null)
-    expect(again.ui.canvasShown).toBe(true)
   })
 
   it('far from every body the date is set at the start, and Esc stops a flight where it is', async () => {
