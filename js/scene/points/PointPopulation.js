@@ -307,15 +307,8 @@ export default class PointPopulation extends Group {
     this.evict()
     // Selected tiles not loaded yet, in flight or waiting: 0 once settled.
     const absent = result.selected.filter((s) => !this.loaded.has(s.tile.key) && !this.failed.has(s.tile.key))
-    // Of those, the ones that can hold a star brighter than the limit
-    // itself, not just in the margin: a star the eye sees, not one that
-    // only lifts the toe (viewReady).  `cut` is the limit plus the margin
-    // plus the tile's brightening from the camera.  Strictly: the rows'
-    // magnitudes round down, so a tile of stars all past 6.5 can read 6.5.
-    const missingVisible = absent.filter((s) => s.tile.magBright - (s.cut - view.limit) < view.limit - this.marginMag)
     this.last = {selected: result.selected.length, drawn, estimate: result.estimate, budgetHit: result.budgetHit,
-      limit: view.limit, visited: result.visited, camDistLy: view.camDist, missing: absent.length,
-      missingVisible: missingVisible.length}
+      limit: view.limit, visited: result.visited, camDistLy: view.camDist, missing: absent.length}
     return result
   }
 
@@ -494,13 +487,15 @@ export default class PointPopulation extends Group {
 
 
   /**
-   * @returns {boolean} Whether every star this frame's view shows over the
-   *   limiting magnitude is in (the tiles that could hold one): false
-   *   before the first frame.  Those in the margin under it, which only lift
-   *   a pixel through the tone map's toe, may still be on their way.
+   * @returns {boolean} Whether every tile this frame's view wants, to the
+   *   limiting magnitude plus the margin, is in: false before the first
+   *   frame.  The margin's stars, under the limit, still light a pixel
+   *   through the tone map's toe: at the naked eye's limit, a field of the
+   *   catalogue's has a quarter of its light from stars past 6.5
+   *   (Stars.md, "Brightness tiers").
    */
   viewReady() {
-    return this.status === 'ready' && this.frame > 0 && this.last.missingVisible === 0
+    return this.status === 'ready' && this.frame > 0 && this.last.missing === 0
   }
 
 

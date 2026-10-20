@@ -281,17 +281,19 @@ describe('the catalogue as brightness tiers', () => {
 
   it('is drawn when the bright tier and the view\'s tiles are in: the Sun\'s view at once, a deep one with its own', async () => {
     const served = serve()
-    let limit = 6.5
+    let limit = 3
     const {stars} = newStars(served, {limitingMagnitude: () => limit})
     const frame = () => stars.population?.preAnimCb()
-    // The naked eye's limit: the bright tier is all the view wants.
+    // A limit of 3 (by the Sun, its glare in the frame) plus the margin: the
+    // bright tier is all the view wants.
     expect(await settle(() => stars.drawn(), frame)).toBe(true)
     expect(stars.catalogComplete()).toBe(false)
     expect(stars.sunPoint).toBeTruthy()
 
-    // Three magnitudes deeper (a link's sm=3): it waits for the faint packs.
+    // The naked eye's limit, 6.5, plus the margin reaches into the faint
+    // packs over the field: it waits for them.
     const deepServed = serve()
-    const deep = newStars(deepServed, {limitingMagnitude: () => 9.5}).stars
+    const deep = newStars(deepServed, {limitingMagnitude: () => 6.5}).stars
     const deepFrame = () => deep.population?.preAnimCb()
     await settle(() => deep._catalogReady && deep._shaderReady, deepFrame)
     for (let i = 0; i < 10; i++) {
@@ -299,7 +301,7 @@ describe('the catalogue as brightness tiers', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
     expect(deep.drawn()).toBe(false)
-    expect(deep.population.stats().missingVisible).toBeGreaterThan(0)
+    expect(deep.population.stats().missing).toBeGreaterThan(0)
     deepServed.release()
     expect(await settle(() => deep.drawn(), deepFrame)).toBe(true)
     // Once drawn, drawn: a view wanting a tile still to come isn't loading.

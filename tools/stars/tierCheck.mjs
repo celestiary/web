@@ -30,11 +30,18 @@ const CHROMIUM_ARGS = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader',
 // skyCheck's view (tools/gaia/skyCheck.mjs): deep space over the Sun's
 // north, orbits and the galaxy off, on 2026's date; Gaia's stars off.
 const LINK = '?gaia=0#sun@60,0,0.7Tm;t=9771.1jd;cq=0,0,0,1;fov=45deg;s=poU'
+// `gain`: the exposure over the keyed one, held (exposure.js
+// METER_GAIN_MAX, 4e6, is the dark-adapted eye's); none, the meter's,
+// settled on the first state (bright) and held for the others, so every
+// state of a view renders at one exposure.
 const VIEWS = {
   // Straight away from the Sun, 90° wide; no labels.
-  wide: {fov: 90, away: true, labels: false},
+  wide: {fov: 90, away: true, labels: false, gain: 4e6},
+  // The same at 45°: the naked eye's limit, 6.5 (skyCheck's view).
+  naked: {fov: 45, away: true, labels: false, gain: 4e6},
   // Orion (Betelgeuse, HIP 27989, and Rigel, 24436, a little either side
-  // of the middle), with the stars' labels and the asterisms.
+  // of the middle), with the stars' labels and the asterisms; the Sun's
+  // side of the sky from here, so metered.
   orion: {fov: 50, toward: [27989, 24436], labels: true},
 }
 const BRIGHT_PACK = 'packs/roots.bin'
@@ -80,6 +87,8 @@ async function openPage(browser, url, {brightOnly, viewport}) {
   await page.goto(`${url}${LINK}`)
   await page.waitForFunction(() => window.c?.scene?.stars?.drawn?.() ??
       Boolean(window.c?.scene?.stars?.getObjectByName?.('StarsPoints')), null, {timeout: 120000})
+  // The first load's reveal done, so the overlays are in as the app shows them.
+  await page.waitForFunction(() => window.c._reveal?.done ?? true, null, {timeout: 120000})
   if (!brightOnly) {
     await page.waitForFunction(() => window.c.scene.stars.catalogComplete?.() ??
         window.c.scene.stars.catalog.numStars > 0, null, {timeout: 120000})
@@ -100,6 +109,8 @@ async function setView(page, view) {
     const c = window.c
     const sc = c.scene
     sc.applySettings({...sc.getSettings(), a: v.labels, l: v.labels, p: false, o: false, U: false})
+    // Each overlay's fade at its end (DESIGN.md, "Fades").
+    sc.overlays.finish()
     const cam = c.ui.camera
     cam.fov = v.fov
     cam.updateProjectionMatrix()
@@ -115,26 +126,35 @@ async function setView(page, view) {
     }
     cam.updateMatrixWorld()
     c.ui.renderer.setAnimationLoop(null)
-    c.ui._meter = () => {}
     c.time.isPaused = true
-    c.ui._meterGain = c.ui._meterGainGoal = 4e6
-    // Frames until the limit holds for a second (the exposure eases to the
-    // gain on the wall clock; the field sets where it ends: 6.5 at 45°,
-    // brighter wider), at most 90 s.
-    let last = NaN
-    let lastAt = performance.now()
-    const end = performance.now() + 90000
-    while (performance.now() < end) {
+    if (!v.gain) {
+      // The meter, until its goal holds within 1% for 2 s (at most 30 s).
+      let last = NaN
+      let lastAt = performance.now()
+      const end = performance.now() + 30000
+      while (performance.now() < end) {
+        c.shared.targets.tween = null
+        c.ui.renderLoop(performance.now())
+        await new Promise((r) => setTimeout(r, 20))
+        const g = c.ui._meterGainGoal
+        if (!(Math.abs(g / last - 1) < 0.01)) {
+          last = g
+          lastAt = performance.now()
+        } else if (performance.now() - lastAt > 2000) {
+          break
+        }
+      }
+    }
+    const gain = v.gain ?? c.ui._meterGainGoal
+    // Held: no meter, and no easing (an unknown last frame time is an
+    // infinite step: ThreeUi._updateExposure goes straight to the goal).
+    c.ui._meter = () => {}
+    c.ui._meterGain = c.ui._meterGainGoal = gain
+    for (let i = 0; i < 3; i++) {
+      c.ui._lastExposureMs = null
       c.shared.targets.tween = null
       c.ui.renderLoop(performance.now())
-      await new Promise((r) => setTimeout(r, 10))
-      const now = c.ui.limitingMagnitude()
-      if (Math.abs(now - last) >= 0.005) {
-        last = now
-        lastAt = performance.now()
-      } else if (performance.now() - lastAt > 1000) {
-        break
-      }
+      await new Promise((r) => setTimeout(r, 20))
     }
     // The faint tiles this view wants, if any could still land: a frame or
     // two to let the selection see the view.
@@ -173,7 +193,13 @@ async function setView(page, view) {
         }
       }
     }
+    const sheet = stars.starLabelSpriteSheet?.sprites
     return {
+      labelStats: JSON.stringify(c.ui.labelStats ?? null).slice(0, 300),
+      labelSheet: sheet ? {visible: sheet.visible, parentVisible: sheet.parent?.visible, lodVisible: stars.labelLOD.visible,
+        count: sheet.geometry?.drawRange?.count, attrs: sheet.geometry?.attributes?.position?.count,
+        camHigh: sheet.material?.uniforms?.uCamPosWorldHigh?.value?.toArray?.()} : null,
+      gain,
       limitingMagnitude: c.ui.limitingMagnitude(),
       catalogueStars: stars.catalog.numStars,
       complete: stars.catalogComplete?.() ?? true,
@@ -194,10 +220,11 @@ async function capture(page) {
   const shot = await page.evaluate(() => {
     const c = window.c
     const t0 = performance.now()
-    c.shared.targets.tween = null
-    c.ui.renderLoop(performance.now())
-    c.shared.targets.tween = null
-    c.ui.renderLoop(performance.now())
+    for (let i = 0; i < 2; i++) {
+      c.ui._lastExposureMs = null
+      c.shared.targets.tween = null
+      c.ui.renderLoop(performance.now())
+    }
     console.log(`capture: two frames in ${Math.round(performance.now() - t0)} ms`)
     const gl = c.ui.renderer.getContext()
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
@@ -266,10 +293,14 @@ try {
   const frames = {}
   for (const [state, url, brightOnly] of states) {
     for (const [name, view] of Object.entries(VIEWS)) {
+      if (opts.only && !opts.only.split(',').includes(name)) {
+        continue
+      }
       const t0 = Date.now()
       const page = await openPage(browser, url, {brightOnly, viewport})
       console.error(`${name} ${state}: loaded in ${Date.now() - t0} ms`)
       const numbers = await setView(page, view)
+      view.gain ??= numbers.gain
       console.error(`${name} ${state}: view set at ${Date.now() - t0} ms`)
       const frame = await capture(page)
       await page.release?.()
@@ -285,6 +316,9 @@ try {
   }
   for (const name of Object.keys(VIEWS)) {
     const v = report.views[name]
+    if (!v) {
+      continue
+    }
     v.allVsBright = compare(frames[`${name}-all`], frames[`${name}-bright`])
     if (mainSite) {
       v.allVsMain = compare(frames[`${name}-main`], frames[`${name}-all`])

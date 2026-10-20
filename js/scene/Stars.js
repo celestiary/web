@@ -583,20 +583,25 @@ export default class Stars extends Object {
   showLabels(level = 2) {
     const toShow = []
     this.addFaves(toShow)
+    const others = []
     this.catalog.starByHip.forEach((star, hipId) => {
       if (this.faves.get(hipId)) {
         return
       }
       const names = this.catalog.namesByHip.get(hipId)
       if (names && names.length > level) {
-        toShow.push([star, names[0]])
+        others.push([star, names[0]])
       } else if (star.absMag < LUMINOUS_LABEL_ABS_MAG) {
-        toShow.push([star, `HIP ${hipId}`])
-      }
-      if (toShow.length >= MAX_LABELS) {
-        console.warn(`Stars#showLabels: hit max count of ${MAX_LABELS}`)
+        others.push([star, `HIP ${hipId}`])
       }
     })
+    // By HIP number, stars.dat's order: the tiers bring their stars by
+    // magnitude, and labels that overlap draw in the sheet's order.
+    others.sort((a, b) => a[0].hipId - b[0].hipId)
+    toShow.push(...others)
+    if (toShow.length >= MAX_LABELS) {
+      console.warn(`Stars#showLabels: hit max count of ${MAX_LABELS}`)
+    }
     const maxLabel = 'Rigel Kentaurus B'
     this.starLabelSpriteSheet = new SpriteSheet(toShow.length, maxLabel, undefined, [0, 0], true)
     for (let i = 0; i < toShow.length; i++) {
