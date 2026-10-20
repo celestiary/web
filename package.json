@@ -30,7 +30,8 @@
     "gaia": "bun tools/gaia/gaia.mjs",
     "bodies": "node tools/bodies/build.mjs",
     "changelog": "node tools/changelog/json.mjs",
-    "changelog:draft": "node tools/changelog/draft.mjs"
+    "changelog:draft": "node tools/changelog/draft.mjs",
+    "posts": "node tools/posts/posts.mjs"
   },
   "dependencies": {
     "1eurofilter": "^1.3.0",

@@ -1370,7 +1370,8 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/ui/WhatsNew.jsx` | The homepage's What's new panel: the latest entries, Fly there, Tour from here |
 | `js/ui/NewsTour.jsx` | The changelog tour's caption and controls, over the scene (icons in `js/ui/NewsIcons.jsx`: plain SVG, so they render in tests without MUI's styling engine) |
 | `js/store/HomeSlice.js` | `homePhase`: the foreground's waiting, in, out or hidden |
-| `tools/home/cards.mjs` | Renders the cards' images, `public/images/home/<id>.webp` (`--gpu` on a real GPU) |
+| `tools/home/cards.mjs` | Renders the cards' images, `public/images/home/<id>.webp` (`--gpu` on a real GPU), or any one view as a PNG (`--hash`, `--id`, `--png`) |
+| `tools/posts/` | `yarn posts`: social post drafts from the changelog into `posts/drafts.md`, merged so the maintainer's edits stay; length counting per platform; the first campaign ([README](tools/posts/README.md)) |
 | `js/scene/fade.js` | The overlays' fades: `Fade`, `FadeDriver`, `fadeMaterial`, `fadeObject`, `ease` ([fades](#fades)) |
 | `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment`; state token values (`parseTokenValue`, `formatTokenValue`) |
 | `js/targetPath.js` | The target's path in the hash: `targetPath`, `parseTargetPath`, `resolvePlace` (a body or a place), `slug` |

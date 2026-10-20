@@ -34,6 +34,7 @@ tried and dropped.
 | Permalinks (`#path@lat,lng,alt;t=…;cq=…;fov=…`) | [design/URLs.md](design/URLs.md) (the whole URL, and the state tokens for the drawer and its apps); [js/permalink.md](js/permalink.md) (the view's encoding) |
 | The changelog: `CHANGELOG.md`, its entry format, `changelog.json`, drafting from merged PRs | [tools/changelog/README.md](tools/changelog/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
 | What's new on the homepage, the changelog tour, the `#;news:tour` link | DESIGN.md [what's new](DESIGN.md#whats-new-and-the-changelog-tour); [design/URLs.md](design/URLs.md#news-token); [tools/changelog/README.md](tools/changelog/README.md) (the entries) |
+| Social post drafts from the changelog (`yarn posts`), the first campaign, what to attach and how to publish | [tools/posts/README.md](tools/posts/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
@@ -181,6 +182,15 @@ tried and dropped.
   `c.tour.t = ms`, and give the meter a few seconds after a jump.  The
   cards' images re-render with `node tools/home/cards.mjs` (after a build;
   `--gpu` on a real GPU).
+- **Post drafts: `yarn posts`** adds a draft for each new CHANGELOG entry
+  (one with a permalink or an image) to `posts/drafts.md`, and checks every
+  post against X's 280 (a link counts 23) and Facebook's 300 to 500 target;
+  the platforms are a table in `tools/posts/text.mjs`.
+  It never changes a post already in the file, so the maintainer's edits
+  and statuses stay, and nothing is posted for you. The images are the
+  homepage cards' or `node tools/home/cards.mjs --gpu --hash <fragment>
+  --id <name> --png posts/images`, which needs a real GPU: list those for the
+  maintainer to render. [tools/posts/README.md](tools/posts/README.md).
 - **Measuring a page's requests (Playwright):**
   - `page.route` turns the HTTP cache off, so a repeat fetch shows as a
     network request. Block hosts with `--host-resolver-rules="MAP *
