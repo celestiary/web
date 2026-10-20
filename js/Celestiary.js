@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import ARController from './ar/ARController'
 import Animation from './scene/Animation'
 import Choreography, {READY_TIMEOUT_MS, REVEAL_AT} from './choreography'
-import FlightPath, {flightDuration, flightProgress, timePlan} from './flight'
+import FlightPath, {NEAR_RADII, flightDuration, flightProgress, timePlan} from './flight'
 import ControlPanel from './ControlPanel'
 import Keys from './Keys'
 import Loader from './Loader'
@@ -15,7 +15,7 @@ import PlacesProvider from './search/providers/PlacesProvider'
 import SceneProvider from './search/providers/SceneProvider'
 import StarsProvider from './search/providers/StarsProvider'
 import ThreeUi from './ThreeUI'
-import Time, {fromJulianDay} from './Time'
+import Time, {fromJulianDay, toJulianDay} from './Time'
 import reifyMeasures from './reify'
 import * as Shapes from './scene/shapes'
 import * as Shared from './shared'
@@ -69,6 +69,15 @@ const HOME_FLIGHT_HOLD_MS = HOME_UNMOUNT_MS
 // The foreground's fade out, ms (index.css --fade-ms): a flight whose date
 // needs the dark (timePlan's 'dip') takes the scene down with it (_holdFlight).
 const HOME_FADE_MS = 400
+// A flight's date set mid-flight ('unseen') is set by this share of the way
+// whatever the view: before the final turn and the settle.
+const UNSEEN_LATE_U = 0.85
+// A body in the view may move across it by this much, degrees, at a change
+// of date mid-flight, or by as much as the view itself turns in that frame,
+// which hides it: a planet's point, a moon (_jumpCheck).  A pixel or two.
+const JUMP_SHIFT_MAX_DEG = 0.05
+// A frame, ms, for the turn a prediction allows (_unseenAhead): 60 fps.
+const FRAME_MS = 1000 / 60
 // The frame rate the homepage's tour is held to, to keep its cost down
 // (ThreeUi.setFrameCap): a slow camera path doesn't need more.
 const HOME_FRAME_CAP_FPS = 30
@@ -1146,9 +1155,7 @@ export default class Celestiary {
         // The foreground fades out first; then the flight (_frameFlight).
         // If its date needs the dark, the scene goes down with the
         // foreground, in one fade, rather than dipping after it.
-        const timeMs = pl ? fromJulianDay(pl.d2000 + J2000_JD) : fly?.timeMs
-        const deltaMs = typeof timeMs === 'number' ? timeMs - this.time.simTime : 0
-        this._holdFlight({dark: !cut && timePlan(deltaMs, this._nearestShownRadii()) === 'dip'})
+        this._holdFlight({dark: !cut && this._needsDark(pl ? this._linkDest(pl, link) : fly)})
       } else {
         this._homeCost(false)
       }
@@ -1170,6 +1177,48 @@ export default class Celestiary {
       }
     }
     return true
+  }
+
+
+  /**
+   * Whether a flight from the homepage needs the dark for its date (its
+   * plan 'dip': near a body in the view all the way), decided at the click,
+   * so the scene goes down with the foreground then (_holdFlight).  Not if
+   * its end isn't known yet (a frame not loaded): then the flight decides,
+   * and dips on its own if it must.
+   *
+   * @param {?object} dest A flight's (_flyTo), or null
+   * @returns {boolean}
+   */
+  _needsDark(dest) {
+    if (typeof dest?.timeMs !== 'number') {
+      return false
+    }
+    return this._timePlan(dest, dest.timeMs - this.time.simTime) === 'dip'
+  }
+
+
+  /**
+   * A link's flight's end, if its frame is a body already in the scene:
+   * for planning at the click, before the link is resolved and loaded.
+   *
+   * @param {object} pl The decoded link
+   * @param {string} link
+   * @returns {?object} _linkFlight's, or null
+   */
+  _linkDest(pl, link) {
+    const ref = parseTargetPath(pl.from ?? pathFromFragment(link))
+    if (ref?.kind !== 'bodies') {
+      return null
+    }
+    // The last part, or the one before it for a place.
+    for (const part of ref.parts.slice(-2).reverse()) {
+      const name = sceneName(part)
+      if (this.scene.objects[name]?.props?.radius?.scalar) {
+        return this._linkFlight(pl, {kind: 'body', name}, null)
+      }
+    }
+    return null
   }
 
 
@@ -1281,9 +1330,11 @@ export default class Celestiary {
    * says, until it's there and the view's own arrival (`arrive`) sets
    * the rest.  Then the overlays and the chrome come in (REVEAL_AT).
    *
-   * The date, if the view has one, changes by timePlan: at the start if
-   * nothing near the camera would show it, eased along the way if it's
-   * short (a time-lapse), else under a short dip to black.
+   * The date, if the view has one, changes by timePlan (_timePlan): at the
+   * start if nothing near in the view would show it, eased along the way if
+   * it's short (a time-lapse), else at once mid-flight where it shows
+   * nothing (_dateUnseen), or, near a body in view the whole way, in the
+   * dark: the homepage's fade's (_holdFlight), else a short dip to black.
    *
    * @param {object} dest
    * @param {string} dest.frame The body the view is about
@@ -1314,7 +1365,7 @@ export default class Celestiary {
     this._flightToken = null
     this.ui.scene.updateMatrixWorld()
     const deltaMs = typeof dest.timeMs === 'number' ? dest.timeMs - this.time.simTime : 0
-    const plan = timePlan(deltaMs, this._nearestShownRadii())
+    const plan = this._timePlan(dest, deltaMs)
     const flight = {dest, plan, tween: flightTween(), path: null, startMs: null, durationMs: 0, t0: this.time.simTime}
     this._flight = flight
     // Nothing else moves the camera meanwhile (the tween is the app's
@@ -1414,22 +1465,153 @@ export default class Celestiary {
     const u = flightProgress(nowMs - flight.startMs, flight.durationMs)
     const travel = ease('inOut', u)
     flight.tween.progress = travel
-    if (flight.plan !== 'none') {
+    if (flight.plan === 'unseen' && flight.dated) {
+      // Held at the view's date once set (the clock would otherwise run on).
+      this._setSimTime(flight.dest.timeMs)
+    } else if (flight.plan !== 'none' && flight.plan !== 'unseen') {
       // Eased to the view's date, or held at it once set (the clock would
       // otherwise run on, and the view's restore set it back on arriving).
       this._setSimTime(flight.t0 + ((flight.dest.timeMs - flight.t0) * travel))
     }
     const body = this.scene.objects[flight.dest.frame]
-    const pose = flight.path.pose(u, this._flightEnd(flight.dest), this._flightCenter(body))
+    const center = this._flightCenter(body)
+    const end = this._flightEnd(flight.dest)
+    const pose = flight.path.pose(u, end, center)
     const camera = this.ui.camera
+    // How far the view turns this frame (_dateUnseen).
+    const turnDeg = camera.quaternion.angleTo(pose.quaternion) * 180 / Math.PI
     camera.position.copy(pose.position)
     camera.quaternion.copy(pose.quaternion)
     if (Math.abs(camera.fov - pose.fov) > 1e-9) {
       this.ui.setFov(pose.fov)
     }
+    if (flight.plan === 'unseen' && !flight.dated && u < 1) {
+      this._dateUnseen(flight, u, end, center, nowMs, turnDeg)
+    }
     if (u >= 1) {
       this._endFlight({arrived: true})
     }
+  }
+
+
+  /**
+   * A flight's date set mid-flight ('unseen'), on the first frame where it
+   * shows nothing (_jumpCheck): no body near in the view, before or after,
+   * and nothing in the view shifting across it.  The camera rides the end
+   * body's frame, so the body's move along its orbit takes the camera with
+   * it (what's out of the view, or far off, shifts), and the end turns with
+   * the body: the path is re-anchored there (FlightPath.reanchor), so the
+   * camera, placed this frame, stays put, and still arrives exactly on the
+   * view.  A frame where it would show is put back as it was.  By
+   * UNSEEN_LATE_U with no such frame (the plan's prediction missed), it's
+   * set anyway.
+   *
+   * @param {object} flight
+   * @param {number} u The share of the way this frame
+   * @param {object} end The end this frame, before the date
+   * @param {THREE.Vector3} center
+   * @param {number} nowMs
+   * @param {number} turnDeg How far the view turned this frame
+   */
+  _dateUnseen(flight, u, end, center, nowMs, turnDeg) {
+    const late = u >= UNSEEN_LATE_U
+    const view = this._cameraView()
+    if (!late && !(this._nearestShownRadii(view) >= NEAR_RADII)) {
+      return
+    }
+    const body = this.scene.objects[flight.dest.frame]
+    const was = this.time.simTime
+    const before = this._bodyPlaces()
+    this._setSimTime(flight.dest.timeMs)
+    const after = this._bodyPlaces()
+    const check = this._jumpCheck(view, before, after, body, Math.max(JUMP_SHIFT_MAX_DEG, turnDeg))
+    // The last tried, for the evidence of where it went.
+    flight.tried = {u, ...check}
+    if (!late && !check.ok) {
+      this._setSimTime(was)
+      return
+    }
+    flight.path.reanchor(u, end, this._flightEnd(flight.dest), center)
+    flight.dated = {u, ms: nowMs - flight.startMs, late, ...check}
+  }
+
+
+  /**
+   * @returns {Map<object, THREE.Vector3>} Each body's place in the world now
+   *   (not the Milky Way, which the camera is always inside)
+   */
+  _bodyPlaces() {
+    const places = new Map()
+    for (const obj of Object.values(this.scene.objects)) {
+      if (obj?.props?.radius?.scalar > 0 && obj.props.type !== 'galaxy' && typeof obj.getWorldPosition === 'function') {
+        places.set(obj, obj.getWorldPosition(new THREE.Vector3()))
+      }
+    }
+    return places
+  }
+
+
+  /**
+   * The bodies' places at another date, the scene put back to the clock's
+   * at once: nothing is drawn between, and the clock isn't touched.
+   *
+   * @param {number} ms
+   * @returns {Map<object, THREE.Vector3>} _bodyPlaces's
+   */
+  _bodyPlacesAt(ms) {
+    const scene = this.ui.scene
+    this.animation.animateAtJD(scene, toJulianDay(ms))
+    scene.updateMatrixWorld()
+    const places = this._bodyPlaces()
+    this.animation.animateAtJD(scene, this.time.simTimeJulianDay())
+    scene.updateMatrixWorld()
+    return places
+  }
+
+
+  /**
+   * Whether a change of date at a view would show: the camera rides `ridden`
+   * (the flight's end body), so across it the camera moves as that body
+   * does, and each other body moves against it.  It shows if a body near
+   * (NEAR_RADII) is in the view before or after, or one in the view, however
+   * far, moves across it by more than `allowDeg` (a planet's point, a moon:
+   * the Moon beside Earth moves by a week of its orbit), which is the view's
+   * own turn that frame, when it turns more than a pixel or two: amid the
+   * whole field sweeping by, a point's smaller step doesn't show.
+   *
+   * @param {object} view A pose in the world, before (_cameraView's)
+   * @param {Map<object, THREE.Vector3>} before _bodyPlaces at the old date
+   * @param {Map<object, THREE.Vector3>} after And at the new
+   * @param {object} ridden
+   * @param {number} [allowDeg]
+   * @returns {{ok: boolean, radii: number, shiftDeg: number, shiftBody: ?string, allowDeg: number}}
+   *   `radii` the nearest in the view, either side
+   */
+  _jumpCheck(view, before, after, ridden, allowDeg = JUMP_SHIFT_MAX_DEG) {
+    const move = after.get(ridden).clone().sub(before.get(ridden))
+    const viewAfter = {...view, position: view.position.clone().add(move)}
+    let radii = Infinity
+    let shiftDeg = 0
+    let shiftBody = null
+    for (const [obj, was] of before) {
+      const now = after.get(obj)
+      const r = obj.props.radius.scalar
+      const inBefore = this._inViewAt(was, r, view)
+      const inAfter = this._inViewAt(now, r, viewAfter)
+      if (!inBefore && !inAfter) {
+        continue
+      }
+      radii = Math.min(radii, inBefore ? view.position.distanceTo(was) / r : Infinity,
+          inAfter ? viewAfter.position.distanceTo(now) / r : Infinity)
+      if (obj !== ridden) {
+        const deg = was.clone().sub(view.position).angleTo(now.clone().sub(viewAfter.position)) * 180 / Math.PI
+        if (deg > shiftDeg) {
+          shiftDeg = deg
+          shiftBody = obj.props.name
+        }
+      }
+    }
+    return {ok: radii >= NEAR_RADII && shiftDeg <= allowDeg, radii, shiftDeg, shiftBody, allowDeg}
   }
 
 
@@ -1697,30 +1879,105 @@ export default class Celestiary {
    * be set at once.  The view is the field's cone (to its corners), widened
    * by the body's own angular radius.
    *
+   * @param {object} [view] A pose in the world (default the camera's)
+   * @param {THREE.Vector3} view.position
+   * @param {THREE.Quaternion} view.quaternion
+   * @param {number} view.fov Degrees, vertical
    * @returns {number} The camera's distance from the nearest body in the
    *   view (the Sun, a planet, a moon), in its radii; Infinity if none
    */
-  _nearestShownRadii() {
-    const camera = this.ui.camera
-    const eye = camera.getWorldPosition(new THREE.Vector3())
-    const look = camera.getWorldDirection(new THREE.Vector3())
-    const halfV = (camera.fov * Math.PI / 180) / 2
-    const halfDiag = Math.atan(Math.tan(halfV) * Math.hypot(1, camera.aspect || 1))
-    const at = new THREE.Vector3()
+  _nearestShownRadii(view = this._cameraView()) {
     let nearest = Infinity
-    for (const obj of Object.values(this.scene.objects)) {
-      const r = obj?.props?.radius?.scalar
-      // Not the Milky Way, which the camera is always inside.
-      if (!(r > 0) || obj.props.type === 'galaxy' || typeof obj.getWorldPosition !== 'function') {
-        continue
-      }
-      const to = obj.getWorldPosition(at).sub(eye)
-      const d = to.length()
-      if (d <= r || look.angleTo(to) <= halfDiag + Math.asin(Math.min(r / d, 1))) {
-        nearest = Math.min(nearest, d / r)
+    for (const [obj, at] of this._bodyPlaces()) {
+      const r = obj.props.radius.scalar
+      if (this._inViewAt(at, r, view)) {
+        nearest = Math.min(nearest, view.position.distanceTo(at) / r)
       }
     }
     return nearest
+  }
+
+
+  /** @returns {{position: THREE.Vector3, quaternion: THREE.Quaternion, fov: number}} The camera's, in the world */
+  _cameraView() {
+    const camera = this.ui.camera
+    return {
+      position: camera.getWorldPosition(new THREE.Vector3()),
+      quaternion: camera.getWorldQuaternion(new THREE.Quaternion()),
+      fov: camera.fov,
+    }
+  }
+
+
+  /**
+   * @param {THREE.Vector3} at A body's place in the world
+   * @param {number} r Its radius
+   * @param {object} view As _nearestShownRadii's
+   * @returns {boolean} Whether any of it is in the view's field (the cone to
+   *   its corners)
+   */
+  _inViewAt(at, r, view) {
+    const halfV = (view.fov * Math.PI / 180) / 2
+    const halfDiag = Math.atan(Math.tan(halfV) * Math.hypot(1, this.ui.camera.aspect || 1))
+    const to = at.clone().sub(view.position)
+    const d = to.length()
+    const look = new THREE.Vector3(0, 0, -1).applyQuaternion(view.quaternion)
+    return d <= r || look.angleTo(to) <= halfDiag + Math.asin(Math.min(r / d, 1))
+  }
+
+
+  /**
+   * Whether a flight from where the camera is to `dest` has a frame where
+   * its date can be set unseen (timePlan's 'unseen', _jumpCheck): its path
+   * laid out in the world, as _beginFlight will in the body's frame, tried
+   * at a hundred points against the bodies at both dates (the scene set to
+   * the view's date and back, in this call).  The bodies move by a few
+   * seconds' worth meanwhile, nothing at this scale.
+   *
+   * @param {object} dest A flight's (_flyTo), with its `timeMs`
+   * @returns {boolean}
+   */
+  _unseenAhead(dest) {
+    const body = this.scene.objects[dest.frame]
+    const r = body?.props?.radius?.scalar
+    if (!r) {
+      return false
+    }
+    this.ui.scene.updateMatrixWorld()
+    const path = new FlightPath(this._cameraView(), r, new THREE.Vector3(0, 1, 0))
+    const end = {
+      position: dest.node.localToWorld(dest.localPosition().clone()),
+      quaternion: dest.node.getWorldQuaternion(new THREE.Quaternion()).multiply(dest.localQuaternion()),
+      fov: dest.fov,
+    }
+    const center = body.getWorldPosition(new THREE.Vector3())
+    const before = this._bodyPlaces()
+    const after = this._bodyPlacesAt(dest.timeMs)
+    const {alt0, alt1, angle} = path.measure(end, center)
+    // A frame's share of the way at the path's own pace (after the ease-in).
+    const du = FRAME_MS / flightDuration(alt0, alt1, angle)
+    for (let i = 1; i < 100 && i / 100 < UNSEEN_LATE_U; i++) {
+      const pose = path.pose(i / 100, end, center)
+      const turnDeg = pose.quaternion.angleTo(path.pose((i / 100) - du, end, center).quaternion) * 180 / Math.PI
+      if (this._jumpCheck(pose, before, after, body, Math.max(JUMP_SHIFT_MAX_DEG, turnDeg)).ok) {
+        return true
+      }
+    }
+    return false
+  }
+
+
+  /**
+   * @param {object} dest A flight's (_flyTo)
+   * @param {number} deltaMs Its change of date
+   * @returns {string} timePlan's, for a flight from the camera's view now
+   */
+  _timePlan(dest, deltaMs) {
+    const radii = this._nearestShownRadii()
+    // Only a long change near a body in view asks whether the flight passes
+    // anywhere unseen.
+    const long = deltaMs && radii < NEAR_RADII && timePlan(deltaMs, radii) === 'dip'
+    return timePlan(deltaMs, radii, {unseen: Boolean(long) && this._unseenAhead(dest)})
   }
 
 

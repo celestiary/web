@@ -45,6 +45,12 @@ describe('timePlan', () => {
     expect(timePlan(-EASE_TIME_MAX_MS, 3)).toBe('ease')
     expect(timePlan(EASE_TIME_MAX_MS + 1, 3)).toBe('dip')
   })
+
+  it('a longer one is set mid-flight, unseen, if the flight passes where nothing near is in view', () => {
+    expect(timePlan(EASE_TIME_MAX_MS + 1, 3, {unseen: true})).toBe('unseen')
+    expect(timePlan(EASE_TIME_MAX_MS, 3, {unseen: true})).toBe('ease')
+    expect(timePlan(30 * DAY_MS, NEAR_RADII + 1, {unseen: true})).toBe('start')
+  })
 })
 
 
@@ -157,6 +163,41 @@ describe('FlightPath', () => {
     for (let i = 0; i <= 100; i++) {
       expect(path.pose(i / 100, landing).position.length()).toBeGreaterThanOrEqual(R)
     }
+  })
+
+  it('re-anchored on a jump of its end, the camera stays put and still arrives exactly', () => {
+    const jumpy = new FlightPath(start, R)
+    // The end turned 14° about the body's axis, as two weeks' turn of Earth leaves it.
+    const spin = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), 14 * Math.PI / 180)
+    const moved = {position: endPos.clone().applyQuaternion(spin),
+      quaternion: spin.clone().multiply(end.quaternion), fov: end.fov}
+    const u0 = 0.3
+    const was = jumpy.pose(u0, end)
+    // Without it, the camera would jump.
+    expect(jumpy.pose(u0, moved).quaternion.angleTo(was.quaternion)).toBeGreaterThan(0.01)
+    jumpy.reanchor(u0, end, moved)
+    const now = jumpy.pose(u0, moved)
+    expect(now.position.distanceTo(was.position) / was.position.length()).toBeLessThan(1e-9)
+    expect(now.quaternion.angleTo(was.quaternion)).toBeLessThan(1e-6)
+    // Smooth from there: no frame steps much more than its neighbours.
+    const n = 400
+    let last = now
+    let lastStep = null
+    for (let i = 1; i <= n; i++) {
+      const p = jumpy.pose(u0 + ((1 - u0) * i / n), moved)
+      const step = Math.abs(Math.log(p.position.length() / last.position.length())) + p.quaternion.angleTo(last.quaternion)
+      if (lastStep !== null) {
+        expect(step).toBeLessThan((3 * lastStep) + 0.01)
+      }
+      lastStep = step
+      last = p
+    }
+    // And exactly the new end.
+    const p1 = jumpy.pose(1, moved)
+    expect(p1.position).toEqual(moved.position)
+    expect(p1.quaternion).toEqual(moved.quaternion)
+    // Before the jump, the path is as it was.
+    expect(jumpy.pose(0.1, end).position.distanceTo(path.pose(0.1, end).position)).toBeLessThan(1e-3)
   })
 
   it('measures the altitudes and the turn', () => {

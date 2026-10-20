@@ -2252,7 +2252,22 @@ describe('the homepage', () => {
     return fades
   }
 
-  it('a card a long way off in time, near a body in view, goes dark with the foreground: one dark beat, then flies', async () => {
+  /**
+   * The camera's place and turn about a body, each frame: what must be
+   * continuous across a flight's change of date (the body moves with it).
+   *
+   * @param {Array<object>} samples fly()'s
+   * @param {number} i
+   * @returns {{logDist: number, turn: number}} The step into frame i
+   */
+  function stepInto(samples, i) {
+    return {
+      logDist: Math.abs(Math.log10(samples[i].dist / samples[i - 1].dist)),
+      turn: samples[i].quat.angleTo(samples[i - 1].quat),
+    }
+  }
+
+  it('a card a long way off in time, by the Sun: no dark; its date is set mid-flight, unseen, the camera continuous', async () => {
     const app = await openHome()
     let t = run(app, 1000, 500)
     const card = HOME_CARDS.find((c) => c.id === 'occultation')
@@ -2261,27 +2276,38 @@ describe('the homepage', () => {
     expect(app._nearestShownRadii()).toBeLessThan(NEAR_RADII)
     const fades = canvasFades(app)
     app.openLink(card.link)
-    // The scene goes down with the foreground, at once, in the one fade.
-    expect(fades).toEqual([{fade: 'dark', phase: 'out', flying: false}])
-    expect(app.ui.canvasShown).toBe(false)
+    expect(app.ui.canvasShown).not.toBe(false)
     t = fadeOut(app, t + 16)
-    // Then, in that dark, the date is the card's, and the scene comes up as
-    // the flight starts: no dip of its own.
-    for (; !app._flight?.path && t < 5000; t += 16) {
-      app.frame(t)
-    }
-    expect(app._flight.plan).toBe('dip')
-    expect(app.time.simTimeJulianDay()).toBeCloseTo(decodePermalink(card.link).d2000 + J2000_JD, 6)
-    expect(app.ui.canvasShown).toBe(true)
-    // At most one dark interval between the click and the flight's start.
-    expect(fades.filter((f) => f.fade === 'dark')).toHaveLength(1)
-    expect(fades).toEqual([{fade: 'dark', phase: 'out', flying: false}, {fade: 'up', phase: 'hidden', flying: true}])
+    const flight = app._flight
+    expect(flight.plan).toBe('unseen')
+    const jd0 = app.time.simTimeJulianDay()
+    const cardJd = decodePermalink(card.link).d2000 + J2000_JD
     const {samples} = fly(app, t)
-    for (let i = 1; i < samples.length; i++) {
-      expect(Math.abs(Math.log10(samples[i].dist / samples[i - 1].dist))).toBeLessThan(0.1)
+    // No dark at all, from the click to the arrival.
+    expect(fades).toEqual([])
+    // The date set once, on a frame with no body near in the view, before the settle.
+    const jump = samples.findIndex((x) => Math.abs(x.jd - cardJd) < 1e-6)
+    expect(jump).toBeGreaterThan(5)
+    expect(samples[jump - 1].jd).toBeCloseTo(jd0, 2)
+    expect(flight.dated.late).toBe(false)
+    expect(flight.dated.radii).toBeGreaterThanOrEqual(NEAR_RADII)
+    // Nothing in the view moved across it by more than the view itself turned.
+    expect(flight.dated.shiftDeg).toBeLessThanOrEqual(flight.dated.allowDeg)
+    expect(flight.dated.u).toBeLessThan(0.85)
+    for (let i = jump; i < samples.length; i++) {
+      expect(samples[i].jd).toBeCloseTo(cardJd, 6)
     }
-    expect(fades).toHaveLength(2)
-    // Landed, looking at Jupiter through the card's field.
+    // Continuous across it, about the body flown to: the frame of the jump
+    // steps no more than its neighbours do (the path re-anchored).
+    const steps = [jump - 2, jump - 1, jump + 1, jump + 2].map((i) => stepInto(samples, i))
+    const at = stepInto(samples, jump)
+    expect(at.logDist).toBeLessThan((2 * Math.max(...steps.map((x) => x.logDist))) + 1e-6)
+    expect(at.turn).toBeLessThan((2 * Math.max(...steps.map((x) => x.turn))) + 1e-6)
+    for (let i = 1; i < samples.length; i++) {
+      expect(stepInto(samples, i).logDist).toBeLessThan(0.1)
+      expect(stepInto(samples, i).turn).toBeLessThan(0.1)
+    }
+    // Landed, looking at Jupiter through the card's field: exactly the link's view.
     expect(Shared.targets.landed).toBe(true)
     expect(app.scene.getTarget().name).toBe('jupiter')
     expectView(app, card.link)
@@ -2307,9 +2333,39 @@ describe('the homepage', () => {
     expect(app.time.simTimeJulianDay()).toBeCloseTo(decodePermalink(card.link).d2000 + J2000_JD, 6)
     expect(fades).toEqual([])
     expect(app.ui.canvasShown).not.toBe(false)
-    // Esc in a dark fade brings the scene back up, where it was.
+  })
+
+  it('a long change near a body in view all the way goes dark once, with the foreground; Esc in it brings the scene back', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    // Over the terminator, 3.4 radii out, flying to the Earth card's 1.9:
+    // Earth near and in view the whole way.
+    app.tour.t = 34000
+    t = run(app, t, 100)
+    const card = HOME_CARDS.find((c) => c.id === 'earth')
+    app.time.setTime(linkMs(card.link) - (30 * 86400000))
+    expect(app._nearestShownRadii()).toBeLessThan(NEAR_RADII)
+    const fades = canvasFades(app)
+    app.openLink(card.link)
+    // The scene goes down with the foreground, at once, in the one fade.
+    expect(fades).toEqual([{fade: 'dark', phase: 'out', flying: false}])
+    t = fadeOut(app, t + 16)
+    for (; !app._flight?.path && t < 5000; t += 16) {
+      app.frame(t)
+    }
+    // In that dark the date is the card's, and the scene comes up as the
+    // flight starts: at most one dark interval, no dip of its own.
+    expect(app._flight.plan).toBe('dip')
+    expect(app.time.simTimeJulianDay()).toBeCloseTo(decodePermalink(card.link).d2000 + J2000_JD, 6)
+    expect(fades).toEqual([{fade: 'dark', phase: 'out', flying: false}, {fade: 'up', phase: 'hidden', flying: true}])
+    fly(app, t)
+    expect(fades).toHaveLength(2)
+    expectView(app, card.link)
+    // Esc in the dark brings the scene back up, where it was.
     const again = await openHome()
     t = run(again, 1000, 500)
+    again.tour.t = 34000
+    t = run(again, t, 100)
     again.time.setTime(linkMs(card.link) - (30 * 86400000))
     again.openLink(card.link)
     expect(again.ui.canvasShown).toBe(false)
