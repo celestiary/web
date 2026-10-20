@@ -46,6 +46,19 @@ as its part of the catalogue is in, and the sky looks the same once it is.
 - Epic: [#256](https://github.com/celestiary/web/issues/256) Leaner first load
 - Permalink: none
 
+### Flights from the homepage start where you can see them
+
+Choosing a scene on the homepage, a search result there or a What's new entry now fades the homepage
+away first, with the scene behind it holding still, and only then sets off. When the scene is at a
+different date, the date changes during the trip, at a moment when nothing on screen would show it,
+so the trip runs without going dark. The flight begins gently over a second and a half, so you can
+see which way you're going, before the fast part of the trip and the arrival.
+
+- Date: 2026-10-20
+- PR: [#268](https://github.com/celestiary/web/pull/268)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+
 ### The first screen loads faster: the rest waits until you need it
 
 Celestiary used to download the place names of 24 worlds, 175 galaxies and this changelog before

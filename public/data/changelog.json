@@ -26,6 +26,26 @@
       "image": null
     },
     {
+      "id": "2026-10-20-flights-from-the-homepage-start-where-you-can",
+      "date": "2026-10-20",
+      "headline": "Flights from the homepage start where you can see them",
+      "text": "Choosing a scene on the homepage, a search result there or a What's new entry now fades the homepage away first, with the scene behind it holding still, and only then sets off. When the scene is at a different date, the date changes during the trip, at a moment when nothing on screen would show it, so the trip runs without going dark. The flight begins gently over a second and a half, so you can see which way you're going, before the fast part of the trip and the arrival.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 268,
+          "url": "https://github.com/celestiary/web/pull/268"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-15-the-first-screen-loads-faster-the-rest-waits",
       "date": "2026-10-15",
       "headline": "The first screen loads faster: the rest waits until you need it",

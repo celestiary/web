@@ -72,6 +72,10 @@ tried and dropped.
   replaces ThreeUI with a stub (`StubThreeUI`):
   - When Celestiary starts using a new ThreeUI member, add it to the
     stub.
+  - The homepage tour, and anything that starts at "now", runs at the
+    real clock. A test that depends on where the tour or the bodies are
+    pins it with `setSystemTime` (bun:test) and resets it after, or it
+    passes at some hours and fails at others.
   - Keep DOM work (image loads, element creation) out of synchronous
     paths that tests drive, such as `Scene.setTarget`. Defer it to the
     animation loop: `preAnimCb` on a scene node runs every frame.

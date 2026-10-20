@@ -1,8 +1,10 @@
 import {describe, expect, it} from 'bun:test'
 import {Matrix4, Quaternion, Vector3} from 'three'
 import FlightPath, {
-  EASE_TIME_MAX_MS, FLIGHT_MAX_MS, FLIGHT_MIN_MS, NEAR_RADII, flightDuration, timePlan,
+  EASE_TIME_MAX_MS, FLIGHT_EASE_IN_MS, FLIGHT_MAX_MS, FLIGHT_MIN_MS, NEAR_RADII,
+  flightDuration, flightProgress, flightTotalMs, timePlan,
 } from './flight.js'
+import {ease} from './tour.js'
 
 
 const R = 6.371e6
@@ -43,6 +45,12 @@ describe('timePlan', () => {
     expect(timePlan(-EASE_TIME_MAX_MS, 3)).toBe('ease')
     expect(timePlan(EASE_TIME_MAX_MS + 1, 3)).toBe('dip')
   })
+
+  it('a longer one is set mid-flight, unseen, if the flight passes where nothing near is in view', () => {
+    expect(timePlan(EASE_TIME_MAX_MS + 1, 3, {unseen: true})).toBe('unseen')
+    expect(timePlan(EASE_TIME_MAX_MS, 3, {unseen: true})).toBe('ease')
+    expect(timePlan(30 * DAY_MS, NEAR_RADII + 1, {unseen: true})).toBe('start')
+  })
 })
 
 
@@ -55,6 +63,56 @@ describe('flightDuration', () => {
     expect(down).toBeGreaterThan(FLIGHT_MIN_MS)
     expect(flightDuration(3e19, 169, 1)).toBe(FLIGHT_MAX_MS)
     expect(flightDuration(169, 3e19, 1)).toBe(FLIGHT_MAX_MS)
+  })
+})
+
+
+describe('flightProgress', () => {
+  const D = 4000
+  const L = FLIGHT_EASE_IN_MS
+  const total = flightTotalMs(D)
+
+  it('is a second or two of ease-in, and adds half that to the flight', () => {
+    expect(L).toBeGreaterThanOrEqual(1000)
+    expect(L).toBeLessThanOrEqual(2000)
+    expect(total).toBe(D + (L / 2))
+    expect(flightProgress(0, D)).toBe(0)
+    expect(flightProgress(-5, D)).toBe(0)
+    expect(flightProgress(total, D)).toBe(1)
+    expect(flightProgress(total + 1000, D)).toBe(1)
+    expect(flightProgress(total - 16, D)).toBeLessThan(1)
+  })
+
+  it('comes up from standing to the path\'s pace without a step, then keeps it', () => {
+    const pace = (e) => (flightProgress(e + 0.5, D) - flightProgress(e - 0.5, D)) * D
+    expect(pace(0.5)).toBeLessThan(1e-6)
+    // Rising all through the ease-in, smoothly (no step in pace, nor in its rate).
+    let last = 0
+    for (let e = 10; e < L; e += 10) {
+      const p = pace(e)
+      expect(p).toBeGreaterThan(last)
+      expect(p - last).toBeLessThan(0.02)
+      last = p
+    }
+    expect(pace(L)).toBeCloseTo(1, 5)
+    expect(pace(L + 100)).toBeCloseTo(1, 9)
+    // After it, the path as it was, only begun half the ease-in later: the
+    // fast travel and the settle unchanged.
+    for (let e = L; e <= total; e += 250) {
+      expect(flightProgress(e, D)).toBeCloseTo((e - (L / 2)) / D, 12)
+    }
+  })
+
+  it('starts gently: the travel of the first second is a small share of what it was', () => {
+    // The path's travel (its sine ease) a time in, with and without.
+    const travel = (e) => ease('inOut', flightProgress(e, D))
+    const before = (e) => ease('inOut', e / D)
+    for (const e of [250, 500, 1000]) {
+      expect(travel(e)).toBeLessThan(before(e) * 0.35)
+    }
+    // But under way by the end of it: no dead wait.
+    expect(travel(L)).toBeGreaterThan(before(L) * 0.2)
+    expect(flightProgress(1000, D)).toBeGreaterThan(0)
   })
 })
 
@@ -105,6 +163,41 @@ describe('FlightPath', () => {
     for (let i = 0; i <= 100; i++) {
       expect(path.pose(i / 100, landing).position.length()).toBeGreaterThanOrEqual(R)
     }
+  })
+
+  it('re-anchored on a jump of its end, the camera stays put and still arrives exactly', () => {
+    const jumpy = new FlightPath(start, R)
+    // The end turned 14° about the body's axis, as two weeks' turn of Earth leaves it.
+    const spin = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), 14 * Math.PI / 180)
+    const moved = {position: endPos.clone().applyQuaternion(spin),
+      quaternion: spin.clone().multiply(end.quaternion), fov: end.fov}
+    const u0 = 0.3
+    const was = jumpy.pose(u0, end)
+    // Without it, the camera would jump.
+    expect(jumpy.pose(u0, moved).quaternion.angleTo(was.quaternion)).toBeGreaterThan(0.01)
+    jumpy.reanchor(u0, end, moved)
+    const now = jumpy.pose(u0, moved)
+    expect(now.position.distanceTo(was.position) / was.position.length()).toBeLessThan(1e-9)
+    expect(now.quaternion.angleTo(was.quaternion)).toBeLessThan(1e-6)
+    // Smooth from there: no frame steps much more than its neighbours.
+    const n = 400
+    let last = now
+    let lastStep = null
+    for (let i = 1; i <= n; i++) {
+      const p = jumpy.pose(u0 + ((1 - u0) * i / n), moved)
+      const step = Math.abs(Math.log(p.position.length() / last.position.length())) + p.quaternion.angleTo(last.quaternion)
+      if (lastStep !== null) {
+        expect(step).toBeLessThan((3 * lastStep) + 0.01)
+      }
+      lastStep = step
+      last = p
+    }
+    // And exactly the new end.
+    const p1 = jumpy.pose(1, moved)
+    expect(p1.position).toEqual(moved.position)
+    expect(p1.quaternion).toEqual(moved.quaternion)
+    // Before the jump, the path is as it was.
+    expect(jumpy.pose(0.1, end).position.distanceTo(path.pose(0.1, end).position)).toBeLessThan(1e-3)
   })
 
   it('measures the altitudes and the turn', () => {

@@ -22,6 +22,9 @@ import {ease, lerp} from './tour'
  *   occultation's 0.91°) narrows as it turns to its target.
  * - **Duration:** by the decades of altitude covered and the turn about
  *   the body, 2.4 to 6.5 s.
+ * - **Ease-in:** the flight's clock comes up from standing to the path's
+ *   own pace over its first FLIGHT_EASE_IN_MS (flightProgress), so a viewer
+ *   sees the move begin before the fast travel.  It adds half that.
  */
 
 
@@ -47,6 +50,15 @@ const MIN_ALT_SHARE = 1e-3
 const UP_PARALLEL = 0.9999
 
 /**
+ * A flight's ease-in, ms: over this long its pace comes up from standing to
+ * the path's own (flightProgress).  The path's own start (its sine ease) is
+ * at rest too, but in log altitude a long flight's first second already
+ * covered a decade, too quick to see begin.
+ */
+export const FLIGHT_EASE_IN_MS = 1500
+
+
+/**
  * Within this many of a body's radii of the camera, a change of date shows:
  * the body turns, its terminator moves (300 radii: under half a degree).
  */
@@ -68,22 +80,34 @@ export const EASE_TIME_MAX_MS = 2 * 86400000
  *   for the change to show (the bodies a few pixels across at most);
  * - 'ease': along the way, with the travel: near a body, a short change
  *   is a time-lapse (Earth turns, the Moon moves);
- * - 'dip': near a body, a longer change is made under a short dip to
- *   black, then the flight.
+ * - 'unseen': near a body, a longer change is made at once mid-flight, on
+ *   the first frame with no body near in the view (the start's body
+ *   behind, the end's still small), the path re-anchored so the camera
+ *   doesn't move (FlightPath.reanchor);
+ * - 'dip': near a body all the way (no such frame), a longer change is
+ *   made in the dark, then the flight: from the homepage the dark its
+ *   foreground fades to, else a short dip to black.
  *
  * @param {number} deltaMs The change, ms
  * @param {number} nearestRadii The camera's distance from the nearest body
- *   (the Sun, a planet, a moon), in its radii
+ *   in its view (the Sun, a planet, a moon), in its radii: one out of the
+ *   view shows no change (Celestiary._nearestShownRadii)
+ * @param {object} [opts]
+ * @param {boolean} [opts.unseen] Whether the flight has a frame with no
+ *   body near in the view
  * @returns {string}
  */
-export function timePlan(deltaMs, nearestRadii) {
+export function timePlan(deltaMs, nearestRadii, {unseen = false} = {}) {
   if (!deltaMs) {
     return 'none'
   }
   if (!(nearestRadii < NEAR_RADII)) {
     return 'start'
   }
-  return Math.abs(deltaMs) <= EASE_TIME_MAX_MS ? 'ease' : 'dip'
+  if (Math.abs(deltaMs) <= EASE_TIME_MAX_MS) {
+    return 'ease'
+  }
+  return unseen ? 'unseen' : 'dip'
 }
 
 
@@ -97,6 +121,46 @@ export function flightDuration(alt0, alt1, angle) {
   const decades = Math.abs(Math.log10(Math.max(alt0, 1) / Math.max(alt1, 1)))
   const ms = FLIGHT_BASE_MS + (FLIGHT_PER_DECADE_MS * decades) + (FLIGHT_PER_HALF_TURN_MS * angle / Math.PI)
   return Math.min(Math.max(ms, FLIGHT_MIN_MS), FLIGHT_MAX_MS)
+}
+
+
+/**
+ * How far along its path (FlightPath.pose's `u`) a flight is a time into
+ * it.  Over the first `easeInMs` the path's clock runs slow, its pace
+ * coming up smoothly from standing to the path's own (a smoothstep in pace,
+ * so the motion has no step in speed or acceleration); from then on it runs
+ * at the path's own pace, so the fast travel and the settle are the path's
+ * as they were, only begun later.  The ease-in covers the path's first
+ * `easeInMs / 2`, so the flight is that much longer (flightTotalMs).
+ *
+ * @param {number} elapsedMs Since the flight began
+ * @param {number} durationMs The path's (flightDuration)
+ * @param {number} [easeInMs]
+ * @returns {number} 0 to 1
+ */
+export function flightProgress(elapsedMs, durationMs, easeInMs = FLIGHT_EASE_IN_MS) {
+  if (!(elapsedMs > 0)) {
+    return 0
+  }
+  let pathMs
+  if (elapsedMs < easeInMs) {
+    // The integral of smoothstep(e / easeInMs).
+    const a = elapsedMs / easeInMs
+    pathMs = easeInMs * ((a * a * a) - ((a * a * a * a) / 2))
+  } else {
+    pathMs = elapsedMs - (easeInMs / 2)
+  }
+  return Math.min(pathMs / durationMs, 1)
+}
+
+
+/**
+ * @param {number} durationMs The path's (flightDuration)
+ * @param {number} [easeInMs]
+ * @returns {number} The flight's length with its ease-in, ms
+ */
+export function flightTotalMs(durationMs, easeInMs = FLIGHT_EASE_IN_MS) {
+  return durationMs + (easeInMs / 2)
 }
 
 
@@ -128,6 +192,36 @@ export default class FlightPath {
     this.start = {position: position.clone(), quaternion: quaternion.clone(), fov}
     this.radius = radius
     this.up = up.clone()
+    // A correction from a jump of the end (reanchor), blended out by the end.
+    this.anchor = null
+  }
+
+
+  /**
+   * The end has jumped (the date set mid-flight turned the body under it):
+   * keep the camera where it is.  From `u` the pose is the path to the new
+   * end, turned about the centre (and scaled) and rotated by what takes it
+   * to where the path to the old end was at `u`, a correction blended out
+   * (smoothstep) by the end, so the camera neither jumps nor lurches and
+   * still arrives exactly at the new end.
+   *
+   * @param {number} u The share of the way at the jump
+   * @param {object} before The end before the jump (pose's `end`)
+   * @param {object} after The end after it
+   * @param {Vector3} [center]
+   */
+  reanchor(u, before, after, center = new Vector3()) {
+    this.anchor = null
+    const was = this.pose(u, before, center)
+    const now = this.pose(u, after, center)
+    const relWas = was.position.clone().sub(center)
+    const relNow = now.position.clone().sub(center)
+    this.anchor = {
+      u,
+      turn: new Quaternion().setFromUnitVectors(relNow.clone().normalize(), relWas.clone().normalize()),
+      scale: relWas.length() / relNow.length(),
+      rotate: was.quaternion.clone().multiply(now.quaternion.clone().invert()),
+    }
   }
 
 
@@ -215,6 +309,14 @@ export default class FlightPath {
     if (t === 1) {
       // Exactly the end, not its arithmetic's last bit.
       return {position: end.position.clone(), quaternion: end.quaternion.clone(), fov: end.fov, travel}
+    }
+    const a = this.anchor
+    if (a && t >= a.u) {
+      // What a jump of the end changed, blended out by the end (reanchor).
+      const w = a.u < 1 ? 1 - span(t, a.u, 1) : 1
+      position.sub(center).applyQuaternion(new Quaternion().slerp(a.turn, w))
+          .multiplyScalar(a.scale ** w).add(center)
+      quaternion.premultiply(new Quaternion().slerp(a.rotate, w))
     }
     return {position, quaternion, fov, travel}
   }

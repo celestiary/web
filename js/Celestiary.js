@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import ARController from './ar/ARController'
 import Animation from './scene/Animation'
 import Choreography, {READY_TIMEOUT_MS, REVEAL_AT} from './choreography'
-import FlightPath, {flightDuration, timePlan} from './flight'
+import FlightPath, {NEAR_RADII, flightDuration, flightProgress, timePlan} from './flight'
 import ControlPanel from './ControlPanel'
 import Keys from './Keys'
 import Loader from './Loader'
@@ -15,7 +15,7 @@ import PlacesProvider from './search/providers/PlacesProvider'
 import SceneProvider from './search/providers/SceneProvider'
 import StarsProvider from './search/providers/StarsProvider'
 import ThreeUi from './ThreeUI'
-import Time, {fromJulianDay} from './Time'
+import Time, {fromJulianDay, toJulianDay} from './Time'
 import reifyMeasures from './reify'
 import * as Shapes from './scene/shapes'
 import * as Shared from './shared'
@@ -62,6 +62,22 @@ const CUT_FADE_MS = 300
 // The homepage's foreground fades out over the overlays' fade (FADE_MS) and
 // is taken out of the page after this long.
 const HOME_UNMOUNT_MS = 600
+// A flight from the homepage (a card, the search's Go, What's new) waits
+// this long, from the click, for the foreground to have faded out and left
+// the page: nothing in the scene changes meanwhile (_holdFlight).
+const HOME_FLIGHT_HOLD_MS = HOME_UNMOUNT_MS
+// The foreground's fade out, ms (index.css --fade-ms): a flight whose date
+// needs the dark (timePlan's 'dip') takes the scene down with it (_holdFlight).
+const HOME_FADE_MS = 400
+// A flight's date set mid-flight ('unseen') is set by this share of the way
+// whatever the view: before the final turn and the settle.
+const UNSEEN_LATE_U = 0.85
+// A body in the view may move across it by this much, degrees, at a change
+// of date mid-flight, or by as much as the view itself turns in that frame,
+// which hides it: a planet's point, a moon (_jumpCheck).  A pixel or two.
+const JUMP_SHIFT_MAX_DEG = 0.05
+// A frame, ms, for the turn a prediction allows (_unseenAhead): 60 fps.
+const FRAME_MS = 1000 / 60
 // The frame rate the homepage's tour is held to, to keep its cost down
 // (ThreeUi.setFrameCap): a slow camera path doesn't need more.
 const HOME_FRAME_CAP_FPS = 30
@@ -203,9 +219,14 @@ export default class Celestiary {
     // A cut to a link's view, waiting for it to arrive (_frameCut).
     this._cut = null
     // A flight from the homepage to a view (_flyTo), and the one whose
-    // frame is still loading (_flyToLink).
+    // frame is still loading (_flyToLink) or that waits for the foreground
+    // to fade out (_holdFlight).
     this._flight = null
     this._flightToken = null
+    this._flightHold = null
+    // A flight launched from a hold that took the scene dark: its date is set
+    // in that dark, with no dip of its own (_flyTo).
+    this._launchDark = false
     // The meter's readings when the tour started (_homeSettled).
     this._homeMeterMark = 0
     // How many times the camera has been placed (_arrive), for _frameCut.
@@ -219,6 +240,9 @@ export default class Celestiary {
     // says and what it hides is never drawn (design/URLs.md, "Reading and
     // writing").  The overlays it shows are held back for the reveal.
     this.scene.initSettings(linkSettings(location.hash), {hold: true})
+    // Whether the first load's reveal brings the overlays in: not once the
+    // homepage has been left after it began, whose own steps do (leaveHome).
+    this._revealOverlays = true
     // The first load's sequence (choreography.js), from when the camera is
     // placed (_arrive) and the scene is in (ThreeUi.sceneReady).
     this._arrivedAt = null
@@ -240,7 +264,7 @@ export default class Celestiary {
         }
         this.ui.showCanvas(SCENE_FADE_MS)
       }},
-      ...this._overlaySteps(0, () => !this.homeShown),
+      ...this._overlaySteps(0, () => !this.homeShown && this._revealOverlays),
     ])
     if (this.homeShown) {
       this._setHomePhase(this._newsStart ? 'hidden' : 'waiting')
@@ -1077,9 +1101,15 @@ export default class Celestiary {
    * was, and they come in once it's there (_flyTo); a path alone travels
    * there by the app's own go (_navigate).
    *
+   * A flight, or a go, waits until the foreground has faded out
+   * (_holdFlight): until then nothing in the scene changes, not the camera,
+   * the target, the date, the settings nor the layers.
+   *
    * @param {object} [opts]
    * @param {?string} [opts.link] A fragment to open, without its '#'
    * @param {?object} [opts.fly] Where to fly (_flyTo's)
+   * @param {?Function} [opts.go] A travel by the app's own go (the
+   *   search's Go to a star), once the foreground is out
    * @param {boolean} [opts.write] Otherwise, write the view to the
    *   address bar now, as a new history entry, so Back returns to the
    *   homepage (what follows a search's Look at writes its own)
@@ -1087,54 +1117,116 @@ export default class Celestiary {
    *   changelog tour, for reduced motion)
    * @returns {boolean} Whether it was showing
    */
-  leaveHome({link = null, fly = null, write = true, cut = false} = {}) {
+  leaveHome({link = null, fly = null, go = null, write = true, cut = false} = {}) {
     if (!this.homeShown) {
       return false
     }
     this.homeShown = false
     this._homeReturning = false
     this.tour.stop()
-    this._homeCost(false)
+    // Whether the foreground is on screen, to fade out before anything moves.
+    const shown = this.homePhase === 'in'
     if (this.homePhase !== 'hidden') {
       this._setHomePhase('out')
     }
     this._cut = null
     const unmount = {at: HOME_UNMOUNT_MS, run: () => this._setHomePhase('hidden')}
     const pl = link ? decodePermalink(link) : null
-    if (pl) {
-      this._holdLinkSettings(pl)
+    if (link && !pl) {
+      // A path alone: the app's go there.
+      go = () => this._navigate(link)
     }
     if (!this._reveal.started) {
       // Left before the scene was in: straight there, and the first load's
       // reveal shows it all.
-      this._homeSteps = new Choreography([unmount])
-      if (fly) {
-        (fly.jump ?? fly.arrive)()
-      } else if (link) {
-        this._navigate(link)
-      }
-      return true
-    }
-    if (pl || fly) {
-      // The overlays and the chrome come in once it's there (_endFlight).
+      this._homeCost(false)
       this._homeSteps = new Choreography([unmount])
       if (pl) {
-        this._flyToLink(link, {cut})
+        this._holdLinkSettings(pl)
+        this._navigate(link)
+      } else if (fly) {
+        const jump = fly.jump ?? fly.arrive
+        fly.before?.()
+        jump()
       } else {
-        this._flyTo(fly)
+        go?.()
       }
       return true
     }
+    // The reveal's own overlay steps aren't this leave's: a card clicked
+    // just after it began would bring them in under the fade.
+    this._revealOverlays = false
+    if (pl || fly || go) {
+      // The overlays and the chrome come in once it's there (_endFlight).
+      this._homeSteps = new Choreography([unmount])
+      if (shown) {
+        // The foreground fades out first; then the flight (_frameFlight).
+        // If its date needs the dark, the scene goes down with the
+        // foreground, in one fade, rather than dipping after it.
+        this._holdFlight({dark: !cut && this._needsDark(pl ? this._linkDest(pl, link) : fly)})
+      } else {
+        this._homeCost(false)
+      }
+      if (pl) {
+        this._flyToLink(link, {cut, settings: true})
+      } else if (fly) {
+        this._flyTo(fly)
+      } else if (!this._deferFlight(() => this._launchGo(go))) {
+        this._launchGo(go)
+      }
+      return true
+    }
+    this._homeCost(false)
     this._homeSteps = new Choreography([unmount, ...this._overlaySteps(0)])
-    if (link) {
-      this._navigate(link)
-    } else if (write) {
+    if (write) {
       const fragment = this.permalink()
       if (fragment) {
         this._writeLink(fragment)
       }
     }
     return true
+  }
+
+
+  /**
+   * Whether a flight from the homepage needs the dark for its date (its
+   * plan 'dip': near a body in the view all the way), decided at the click,
+   * so the scene goes down with the foreground then (_holdFlight).  Not if
+   * its end isn't known yet (a frame not loaded): then the flight decides,
+   * and dips on its own if it must.
+   *
+   * @param {?object} dest A flight's (_flyTo), or null
+   * @returns {boolean}
+   */
+  _needsDark(dest) {
+    if (typeof dest?.timeMs !== 'number') {
+      return false
+    }
+    return this._timePlan(dest, dest.timeMs - this.time.simTime) === 'dip'
+  }
+
+
+  /**
+   * A link's flight's end, if its frame is a body already in the scene:
+   * for planning at the click, before the link is resolved and loaded.
+   *
+   * @param {object} pl The decoded link
+   * @param {string} link
+   * @returns {?object} _linkFlight's, or null
+   */
+  _linkDest(pl, link) {
+    const ref = parseTargetPath(pl.from ?? pathFromFragment(link))
+    if (ref?.kind !== 'bodies') {
+      return null
+    }
+    // The last part, or the one before it for a place.
+    for (const part of ref.parts.slice(-2).reverse()) {
+      const name = sceneName(part)
+      if (this.scene.objects[name]?.props?.radius?.scalar) {
+        return this._linkFlight(pl, {kind: 'body', name}, null)
+      }
+    }
+    return null
   }
 
 
@@ -1161,9 +1253,17 @@ export default class Celestiary {
    * @param {object} [opts]
    * @param {boolean} [opts.cut] Cut to the view under black instead of
    *   flying (the changelog tour, for reduced motion)
+   * @param {boolean} [opts.settings] Hold the link's scene settings for
+   *   the arrival's reveal first (_holdLinkSettings)
    */
-  _flyToLink(link, {cut = false} = {}) {
+  _flyToLink(link, {cut = false, settings = false} = {}) {
+    if (this._deferFlight(() => this._flyToLink(link, {cut, settings}))) {
+      return
+    }
     const pl = decodePermalink(link)
+    if (pl && settings) {
+      this._holdLinkSettings(pl)
+    }
     const ref = parseTargetPath(pathFromFragment(link))
     if (!pl || !ref) {
       this._navigate(link)
@@ -1238,9 +1338,11 @@ export default class Celestiary {
    * says, until it's there and the view's own arrival (`arrive`) sets
    * the rest.  Then the overlays and the chrome come in (REVEAL_AT).
    *
-   * The date, if the view has one, changes by timePlan: at the start if
-   * nothing near the camera would show it, eased along the way if it's
-   * short (a time-lapse), else under a short dip to black.
+   * The date, if the view has one, changes by timePlan (_timePlan): at the
+   * start if nothing near in the view would show it, eased along the way if
+   * it's short (a time-lapse), else at once mid-flight where it shows
+   * nothing (_dateUnseen), or, near a body in view the whole way, in the
+   * dark: the homepage's fade's (_holdFlight), else a short dip to black.
    *
    * @param {object} dest
    * @param {string} dest.frame The body the view is about
@@ -1256,26 +1358,38 @@ export default class Celestiary {
    * @param {Function} dest.arrive Sets the view exactly, once there
    * @param {?Function} [dest.jump] Goes there at once, without the
    *   flight (before the scene is in); `arrive` if none
+   * @param {?Function} [dest.before] Run as it starts: the scene settings
+   *   the view's reveal shows (tonight's)
    */
   _flyTo(dest) {
+    if (this._deferFlight(() => this._flyTo(dest))) {
+      return
+    }
+    // Already dark (_holdFlight): the date is set there, no dip of its own.
+    const dark = this._launchDark
+    this._launchDark = false
     this._cancelFlight()
+    dest.before?.()
     this._flightToken = null
     this.ui.scene.updateMatrixWorld()
     const deltaMs = typeof dest.timeMs === 'number' ? dest.timeMs - this.time.simTime : 0
-    const plan = timePlan(deltaMs, this._nearestRadii())
+    const plan = this._timePlan(dest, deltaMs)
     const flight = {dest, plan, tween: flightTween(), path: null, startMs: null, durationMs: 0, t0: this.time.simTime}
     this._flight = flight
     // Nothing else moves the camera meanwhile (the tween is the app's
     // marker of a travel: following waits, the link isn't written).
     Shared.targets.tween = flight.tween
     Shared.targets.tweenNextFn = null
-    if (plan === 'dip') {
+    if (plan === 'dip' && !dark) {
       // Its first frame starts the dip's clock (_frameFlight).
       this.ui.dimCanvas(CUT_FADE_MS)
       flight.dipUntil = null
       return
     }
     this._beginFlight(flight)
+    if (dark && plan !== 'dip') {
+      this.ui.showCanvas(SCENE_FADE_MS)
+    }
   }
 
 
@@ -1326,6 +1440,10 @@ export default class Celestiary {
    * @param {number} nowMs
    */
   _frameFlight(nowMs) {
+    if (this._flightHold) {
+      this._frameHold(nowMs)
+      return
+    }
     const flight = this._flight
     if (!flight) {
       return
@@ -1351,25 +1469,157 @@ export default class Celestiary {
       this._beginFlight(flight)
     }
     flight.startMs ??= nowMs
-    const u = Math.min((nowMs - flight.startMs) / flight.durationMs, 1)
+    // Eased in: its first second or so a gentle start (flight.js).
+    const u = flightProgress(nowMs - flight.startMs, flight.durationMs)
     const travel = ease('inOut', u)
     flight.tween.progress = travel
-    if (flight.plan !== 'none') {
+    if (flight.plan === 'unseen' && flight.dated) {
+      // Held at the view's date once set (the clock would otherwise run on).
+      this._setSimTime(flight.dest.timeMs)
+    } else if (flight.plan !== 'none' && flight.plan !== 'unseen') {
       // Eased to the view's date, or held at it once set (the clock would
       // otherwise run on, and the view's restore set it back on arriving).
       this._setSimTime(flight.t0 + ((flight.dest.timeMs - flight.t0) * travel))
     }
     const body = this.scene.objects[flight.dest.frame]
-    const pose = flight.path.pose(u, this._flightEnd(flight.dest), this._flightCenter(body))
+    const center = this._flightCenter(body)
+    const end = this._flightEnd(flight.dest)
+    const pose = flight.path.pose(u, end, center)
     const camera = this.ui.camera
+    // How far the view turns this frame (_dateUnseen).
+    const turnDeg = camera.quaternion.angleTo(pose.quaternion) * 180 / Math.PI
     camera.position.copy(pose.position)
     camera.quaternion.copy(pose.quaternion)
     if (Math.abs(camera.fov - pose.fov) > 1e-9) {
       this.ui.setFov(pose.fov)
     }
+    if (flight.plan === 'unseen' && !flight.dated && u < 1) {
+      this._dateUnseen(flight, u, end, center, nowMs, turnDeg)
+    }
     if (u >= 1) {
       this._endFlight({arrived: true})
     }
+  }
+
+
+  /**
+   * A flight's date set mid-flight ('unseen'), on the first frame where it
+   * shows nothing (_jumpCheck): no body near in the view, before or after,
+   * and nothing in the view shifting across it.  The camera rides the end
+   * body's frame, so the body's move along its orbit takes the camera with
+   * it (what's out of the view, or far off, shifts), and the end turns with
+   * the body: the path is re-anchored there (FlightPath.reanchor), so the
+   * camera, placed this frame, stays put, and still arrives exactly on the
+   * view.  A frame where it would show is put back as it was.  By
+   * UNSEEN_LATE_U with no such frame (the plan's prediction missed), it's
+   * set anyway.
+   *
+   * @param {object} flight
+   * @param {number} u The share of the way this frame
+   * @param {object} end The end this frame, before the date
+   * @param {THREE.Vector3} center
+   * @param {number} nowMs
+   * @param {number} turnDeg How far the view turned this frame
+   */
+  _dateUnseen(flight, u, end, center, nowMs, turnDeg) {
+    const late = u >= UNSEEN_LATE_U
+    const view = this._cameraView()
+    if (!late && !(this._nearestShownRadii(view) >= NEAR_RADII)) {
+      return
+    }
+    const body = this.scene.objects[flight.dest.frame]
+    const was = this.time.simTime
+    const before = this._bodyPlaces()
+    this._setSimTime(flight.dest.timeMs)
+    const after = this._bodyPlaces()
+    const check = this._jumpCheck(view, before, after, body, Math.max(JUMP_SHIFT_MAX_DEG, turnDeg))
+    // The last tried, for the evidence of where it went.
+    flight.tried = {u, ...check}
+    if (!late && !check.ok) {
+      this._setSimTime(was)
+      return
+    }
+    flight.path.reanchor(u, end, this._flightEnd(flight.dest), center)
+    flight.dated = {u, ms: nowMs - flight.startMs, late, ...check}
+  }
+
+
+  /**
+   * @returns {Map<object, THREE.Vector3>} Each body's place in the world now
+   *   (not the Milky Way, which the camera is always inside)
+   */
+  _bodyPlaces() {
+    const places = new Map()
+    for (const obj of Object.values(this.scene.objects)) {
+      if (obj?.props?.radius?.scalar > 0 && obj.props.type !== 'galaxy' && typeof obj.getWorldPosition === 'function') {
+        places.set(obj, obj.getWorldPosition(new THREE.Vector3()))
+      }
+    }
+    return places
+  }
+
+
+  /**
+   * The bodies' places at another date, the scene put back to the clock's
+   * at once: nothing is drawn between, and the clock isn't touched.
+   *
+   * @param {number} ms
+   * @returns {Map<object, THREE.Vector3>} _bodyPlaces's
+   */
+  _bodyPlacesAt(ms) {
+    const scene = this.ui.scene
+    this.animation.animateAtJD(scene, toJulianDay(ms))
+    scene.updateMatrixWorld()
+    const places = this._bodyPlaces()
+    this.animation.animateAtJD(scene, this.time.simTimeJulianDay())
+    scene.updateMatrixWorld()
+    return places
+  }
+
+
+  /**
+   * Whether a change of date at a view would show: the camera rides `ridden`
+   * (the flight's end body), so across it the camera moves as that body
+   * does, and each other body moves against it.  It shows if a body near
+   * (NEAR_RADII) is in the view before or after, or one in the view, however
+   * far, moves across it by more than `allowDeg` (a planet's point, a moon:
+   * the Moon beside Earth moves by a week of its orbit), which is the view's
+   * own turn that frame, when it turns more than a pixel or two: amid the
+   * whole field sweeping by, a point's smaller step doesn't show.
+   *
+   * @param {object} view A pose in the world, before (_cameraView's)
+   * @param {Map<object, THREE.Vector3>} before _bodyPlaces at the old date
+   * @param {Map<object, THREE.Vector3>} after And at the new
+   * @param {object} ridden
+   * @param {number} [allowDeg]
+   * @returns {{ok: boolean, radii: number, shiftDeg: number, shiftBody: ?string, allowDeg: number}}
+   *   `radii` the nearest in the view, either side
+   */
+  _jumpCheck(view, before, after, ridden, allowDeg = JUMP_SHIFT_MAX_DEG) {
+    const move = after.get(ridden).clone().sub(before.get(ridden))
+    const viewAfter = {...view, position: view.position.clone().add(move)}
+    let radii = Infinity
+    let shiftDeg = 0
+    let shiftBody = null
+    for (const [obj, was] of before) {
+      const now = after.get(obj)
+      const r = obj.props.radius.scalar
+      const inBefore = this._inViewAt(was, r, view)
+      const inAfter = this._inViewAt(now, r, viewAfter)
+      if (!inBefore && !inAfter) {
+        continue
+      }
+      radii = Math.min(radii, inBefore ? view.position.distanceTo(was) / r : Infinity,
+          inAfter ? viewAfter.position.distanceTo(now) / r : Infinity)
+      if (obj !== ridden) {
+        const deg = was.clone().sub(view.position).angleTo(now.clone().sub(viewAfter.position)) * 180 / Math.PI
+        if (deg > shiftDeg) {
+          shiftDeg = deg
+          shiftBody = obj.props.name
+        }
+      }
+    }
+    return {ok: radii >= NEAR_RADII && shiftDeg <= allowDeg, radii, shiftDeg, shiftBody, allowDeg}
   }
 
 
@@ -1409,13 +1659,141 @@ export default class Celestiary {
    * Once a flight is over: the overlays and the chrome come in as on a
    * first load (REVEAL_AT), and the link is written.
    */
-  _afterFlight() {
+  _afterFlight({write = true} = {}) {
+    this._showLaunchDark()
     const steps = this._overlaySteps(0)
     if (this.homePhase === 'out') {
       steps.push({at: HOME_UNMOUNT_MS, run: () => this._setHomePhase('hidden')})
     }
     this._homeSteps = new Choreography(steps)
-    this._schedulePermalinkUpdate()
+    if (write) {
+      this._schedulePermalinkUpdate()
+    }
+  }
+
+
+  /**
+   * A travel by the app's own go, leaving the homepage (the search's Go to
+   * a star, a path alone): the go, and the overlays and the chrome come in
+   * as it travels.  The go writes its own link.
+   *
+   * @param {Function} go
+   */
+  _launchGo(go) {
+    go()
+    this._afterFlight({write: false})
+  }
+
+
+  /** The scene back from a hold's dark that no flight took up (_holdFlight). */
+  _showLaunchDark() {
+    if (this._launchDark) {
+      this._launchDark = false
+      this.ui.showCanvas(SCENE_FADE_MS)
+    }
+  }
+
+
+  /**
+   * Hold a flight from the homepage until its foreground has faded out
+   * (HOME_FLIGHT_HOLD_MS): what leaving asks for (_flyToLink, _flyTo, a
+   * go) waits in the hold (_deferFlight), the last asked for winning, and
+   * nothing in the scene changes meanwhile: the camera stays where the
+   * tour left it, and the target, the date, the settings and the layers
+   * as they were.  Its marker in `Shared.targets.tween` is a travel's, so
+   * following waits and the link isn't written; something else taking the
+   * camera meanwhile (a link restored, a key's go) ends it, as it would a
+   * flight (_frameHold).  Esc or a click stops it (stopFlight), Back
+   * drops it (_cancelFlight).
+   *
+   * With `dark` (the flight's date needs the dark: timePlan's 'dip') the
+   * scene fades down with the foreground, and the flight sets its date in
+   * that dark and fades the scene up as it starts (_flyTo): one dark beat,
+   * not the foreground's fade, the scene, and then a dip.
+   *
+   * @param {object} [opts]
+   * @param {boolean} [opts.dark]
+   */
+  _holdFlight({dark = false} = {}) {
+    this._cancelFlight()
+    const hold = {token: {}, tween: flightTween(), at: null, run: null, dark}
+    this._flightHold = hold
+    if (dark) {
+      this.ui.dimCanvas(HOME_FADE_MS)
+    }
+    this._flightToken = hold.token
+    Shared.targets.tween = hold.tween
+    Shared.targets.tweenNextFn = null
+  }
+
+
+  /**
+   * @param {Function} run A flight's start
+   * @returns {boolean} Whether it waits in the hold (_holdFlight), in place
+   *   of what waited there; if not, the caller starts it now
+   */
+  _deferFlight(run) {
+    if (!this._flightHold) {
+      return false
+    }
+    this._flightHold.run = run
+    return true
+  }
+
+
+  /**
+   * A frame of the hold (_holdFlight): once the foreground is out, the
+   * flight starts.
+   *
+   * @param {number} nowMs
+   */
+  _frameHold(nowMs) {
+    const hold = this._flightHold
+    if (Shared.targets.tween !== hold.tween) {
+      // Taken over: the live scene from where that leaves it.
+      this._dropHold()
+      this._homeCost(false)
+      this._afterFlight()
+      return
+    }
+    hold.at ??= nowMs + HOME_FLIGHT_HOLD_MS
+    if (nowMs < hold.at) {
+      return
+    }
+    this._dropHold({show: false})
+    this._homeCost(false)
+    this._launchDark = hold.dark
+    if (hold.run) {
+      hold.run()
+    } else {
+      this._afterFlight()
+    }
+  }
+
+
+  /**
+   * End the hold (_holdFlight), if there is one, without starting it.
+   *
+   * @param {object} [opts]
+   * @param {boolean} [opts.show] The scene back up, if the hold took it dark
+   * @returns {?object} The hold
+   */
+  _dropHold({show = true} = {}) {
+    const hold = this._flightHold
+    this._flightHold = null
+    if (hold) {
+      if (hold.dark && show) {
+        this.ui.showCanvas(SCENE_FADE_MS)
+      }
+      hold.tween.done = true
+      if (Shared.targets.tween === hold.tween) {
+        Shared.targets.tween = null
+      }
+      if (this._flightToken === hold.token) {
+        this._flightToken = null
+      }
+    }
+    return hold
   }
 
 
@@ -1430,11 +1808,15 @@ export default class Celestiary {
     if (!this._flight && !this._flightToken) {
       return false
     }
+    if (this._dropHold()) {
+      // Still waiting for the homepage's fade: nothing had moved.
+      this._homeCost(false)
+    }
     this._flightToken = null
     if (this._flight) {
       this._endFlight({arrived: false})
     } else {
-      // Its frame still loading: it never started.
+      // Its frame still loading, or the fade not over: it never started.
       this._afterFlight()
     }
     return true
@@ -1443,6 +1825,8 @@ export default class Celestiary {
 
   /** Drop a flight, nothing more (Back to the homepage, another flight). */
   _cancelFlight() {
+    this._dropHold()
+    this._showLaunchDark()
     this._flightToken = null
     const flight = this._flight
     this._flight = null
@@ -1496,21 +1880,112 @@ export default class Celestiary {
 
 
   /**
-   * @returns {number} The camera's distance from the nearest body (the Sun,
-   *   a planet, a moon), in its radii: whether a change of date would show
+   * Whether a change of date would show (timePlan): it turns a body near
+   * the camera, moves its terminator, or the Sun across the sky of a camera
+   * riding a planet's orbit, but only one in the view.  Out of it, nothing
+   * on screen changes but bodies far off (a pixel or so), so the date can
+   * be set at once.  The view is the field's cone (to its corners), widened
+   * by the body's own angular radius.
+   *
+   * @param {object} [view] A pose in the world (default the camera's)
+   * @param {THREE.Vector3} view.position
+   * @param {THREE.Quaternion} view.quaternion
+   * @param {number} view.fov Degrees, vertical
+   * @returns {number} The camera's distance from the nearest body in the
+   *   view (the Sun, a planet, a moon), in its radii; Infinity if none
    */
-  _nearestRadii() {
-    const eye = this.ui.camera.getWorldPosition(new THREE.Vector3())
-    const at = new THREE.Vector3()
+  _nearestShownRadii(view = this._cameraView()) {
     let nearest = Infinity
-    for (const obj of Object.values(this.scene.objects)) {
-      const r = obj?.props?.radius?.scalar
-      // Not the Milky Way, which the camera is always inside.
-      if (r > 0 && obj.props.type !== 'galaxy' && typeof obj.getWorldPosition === 'function') {
-        nearest = Math.min(nearest, eye.distanceTo(obj.getWorldPosition(at)) / r)
+    for (const [obj, at] of this._bodyPlaces()) {
+      const r = obj.props.radius.scalar
+      if (this._inViewAt(at, r, view)) {
+        nearest = Math.min(nearest, view.position.distanceTo(at) / r)
       }
     }
     return nearest
+  }
+
+
+  /** @returns {{position: THREE.Vector3, quaternion: THREE.Quaternion, fov: number}} The camera's, in the world */
+  _cameraView() {
+    const camera = this.ui.camera
+    return {
+      position: camera.getWorldPosition(new THREE.Vector3()),
+      quaternion: camera.getWorldQuaternion(new THREE.Quaternion()),
+      fov: camera.fov,
+    }
+  }
+
+
+  /**
+   * @param {THREE.Vector3} at A body's place in the world
+   * @param {number} r Its radius
+   * @param {object} view As _nearestShownRadii's
+   * @returns {boolean} Whether any of it is in the view's field (the cone to
+   *   its corners)
+   */
+  _inViewAt(at, r, view) {
+    const halfV = (view.fov * Math.PI / 180) / 2
+    const halfDiag = Math.atan(Math.tan(halfV) * Math.hypot(1, this.ui.camera.aspect || 1))
+    const to = at.clone().sub(view.position)
+    const d = to.length()
+    const look = new THREE.Vector3(0, 0, -1).applyQuaternion(view.quaternion)
+    return d <= r || look.angleTo(to) <= halfDiag + Math.asin(Math.min(r / d, 1))
+  }
+
+
+  /**
+   * Whether a flight from where the camera is to `dest` has a frame where
+   * its date can be set unseen (timePlan's 'unseen', _jumpCheck): its path
+   * laid out in the world, as _beginFlight will in the body's frame, tried
+   * at a hundred points against the bodies at both dates (the scene set to
+   * the view's date and back, in this call).  The bodies move by a few
+   * seconds' worth meanwhile, nothing at this scale.
+   *
+   * @param {object} dest A flight's (_flyTo), with its `timeMs`
+   * @returns {boolean}
+   */
+  _unseenAhead(dest) {
+    const body = this.scene.objects[dest.frame]
+    const r = body?.props?.radius?.scalar
+    if (!r) {
+      return false
+    }
+    this.ui.scene.updateMatrixWorld()
+    const path = new FlightPath(this._cameraView(), r, new THREE.Vector3(0, 1, 0))
+    const end = {
+      position: dest.node.localToWorld(dest.localPosition().clone()),
+      quaternion: dest.node.getWorldQuaternion(new THREE.Quaternion()).multiply(dest.localQuaternion()),
+      fov: dest.fov,
+    }
+    const center = body.getWorldPosition(new THREE.Vector3())
+    const before = this._bodyPlaces()
+    const after = this._bodyPlacesAt(dest.timeMs)
+    const {alt0, alt1, angle} = path.measure(end, center)
+    // A frame's share of the way at the path's own pace (after the ease-in).
+    const du = FRAME_MS / flightDuration(alt0, alt1, angle)
+    for (let i = 1; i < 100 && i / 100 < UNSEEN_LATE_U; i++) {
+      const pose = path.pose(i / 100, end, center)
+      const turnDeg = pose.quaternion.angleTo(path.pose((i / 100) - du, end, center).quaternion) * 180 / Math.PI
+      if (this._jumpCheck(pose, before, after, body, Math.max(JUMP_SHIFT_MAX_DEG, turnDeg)).ok) {
+        return true
+      }
+    }
+    return false
+  }
+
+
+  /**
+   * @param {object} dest A flight's (_flyTo)
+   * @param {number} deltaMs Its change of date
+   * @returns {string} timePlan's, for a flight from the camera's view now
+   */
+  _timePlan(dest, deltaMs) {
+    const radii = this._nearestShownRadii()
+    // Only a long change near a body in view asks whether the flight passes
+    // anywhere unseen.
+    const long = deltaMs && radii < NEAR_RADII && timePlan(deltaMs, radii) === 'dip'
+    return timePlan(deltaMs, radii, {unseen: Boolean(long) && this._unseenAhead(dest)})
   }
 
 
@@ -1536,6 +2011,8 @@ export default class Celestiary {
    * @param {Array<object>} [steps] Others to run alongside, from now
    */
   _cutTo(go, steps = []) {
+    // Dark already from a hold, or going: it comes up once there (_frameCut).
+    this._launchDark = false
     this.ui.dimCanvas(CUT_FADE_MS)
     this._homeSteps = new Choreography([...steps, {at: CUT_FADE_MS, run: () => {
       this._cut = {arrivals: this._arrivals, since: performance.now()}
@@ -1576,9 +2053,12 @@ export default class Celestiary {
   async openTonight(sources = {}) {
     const where = await resolveLocation(sources)
     const when = tonightTime(where.lat, where.lng, Date.now(), this._sunAt())
-    // The app's defaults for the overlays and labels; the HUD as it is.
-    this.scene.initSettings({...decodeSettings(undefined), v: this.scene.getSetting('v')}, {hold: true})
-    const dest = this._tonightFlight(where, when)
+    const dest = {
+      ...this._tonightFlight(where, when),
+      // The app's defaults for the overlays and labels; the HUD as it is.
+      // Set as the flight starts, after the homepage's fade.
+      before: () => this.scene.initSettings({...decodeSettings(undefined), v: this.scene.getSetting('v')}, {hold: true}),
+    }
     if (!this.leaveHome({fly: dest})) {
       this._flyTo(dest)
     }
@@ -1671,8 +2151,7 @@ export default class Celestiary {
     const pl = decodePermalink(link)
     if (pl && (this._flight || this._flightToken)) {
       history.replaceState(null, '', href)
-      this._holdLinkSettings(pl)
-      this._flyToLink(link)
+      this._flyToLink(link, {settings: true})
       return
     }
     location.hash = link
@@ -1697,8 +2176,11 @@ export default class Celestiary {
       }
       return
     }
-    this.leaveHome({write: false})
-    goToEntry(entry, this)
+    // A star or a galaxy: the app's go, once the homepage has faded out.
+    const go = () => goToEntry(entry, this)
+    if (!this.leaveHome({go}) && !this._deferFlight(() => this._launchGo(go))) {
+      go()
+    }
   }
 
 
@@ -1852,11 +2334,7 @@ export default class Celestiary {
       this.leaveHome({link, cut})
       return
     }
-    const pl = decodePermalink(link)
-    if (pl) {
-      this._holdLinkSettings(pl)
-    }
-    this._flyToLink(link, {cut})
+    this._flyToLink(link, {cut, settings: true})
   }
 
 
