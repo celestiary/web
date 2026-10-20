@@ -26,6 +26,7 @@
     "update-version": "./tools/updateVersion.mjs",
     "parity": "node tools/parity/parity.mjs",
     "places-index": "node tools/places/index.mjs",
+    "load-budget": "node tools/loadBudget/loadBudget.mjs",
     "gaia": "bun tools/gaia/gaia.mjs",
     "bodies": "node tools/bodies/build.mjs",
     "changelog": "node tools/changelog/json.mjs",

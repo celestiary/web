@@ -30,3 +30,36 @@ jobs:
       - run: yarn install --frozen-lockfile
 
       - run: yarn precommit
+
+  # The homepage's load against its budget (esbuild/budget.js,
+  # tools/loadBudget/): a build served with gzip, loaded in headless Chromium,
+  # requests and bytes from the DevTools protocol.  A job of its own, so it
+  # runs beside `precommit` rather than after it; it is not in `yarn
+  # precommit`, which stays cheap.  (The static half, the first load's size,
+  # is in precommit: `yarn bundle-check`.)
+  load-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      # LFS, Node, yarn install and `yarn build` (no ion token: the homepage
+      # doesn't load Cesium).
+      - uses: ./.github/actions/build
+
+      # Only the headless shell, the browser Playwright launches headless;
+      # its download is cached by Playwright's version.  The system libraries
+      # it needs are not cached, so install them every time.
+      - id: playwright
+        uses: actions/cache@v4.2.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('node_modules/playwright-core/package.json') }}
+
+      - if: steps.playwright.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium-headless-shell
+
+      - if: steps.playwright.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium-headless-shell
+
+      - run: yarn load-budget
