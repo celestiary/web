@@ -1,0 +1,164 @@
+"Andromeda"
+[
+[ "Beta And"  "Upsilon And" "Almach" ]
+[ "Beta And" "Delta And" "Alpha And" ]
+[ "Beta And"  "Mu And" "Nu And" ]
+[ "Upsilon And" "51 And" ]
+]
+
+"Aquarius"
+[
+[ "88 Aqr" "Delta Aqr" "Tau Aqr" "Lambda Aqr" "Phi Aqr" "Zeta Aqr" "Gamma Aqr" "Alpha Aqr" "Beta Aqr" "Mu Aqr" "Epsilon Aqr" ]
+[ "Alpha Aqr" "Theta Aqr" "Iota Aqr" ]
+]
+
+"Aries"
+[
+[ "41 Ari" "Alpha Ari" "Beta Ari" "Gamma Ari" ]
+]
+
+"Boötes"
+[
+[ "Gamma Boo" "Beta Boo" "Delta Boo" "Epsilon Boo" "Alpha Boo" "Pi1 Boo" "Zeta Boo" ]
+[ "Upsilon Boo" "Tau Boo" "Eta Boo" "Alpha Boo" "Rho Boo" "Gamma Boo" "Lambda Boo" "Kappa2 Boo"]
+[ "Delta Boo" "Mu1 Boo" ]
+]
+
+"Cancer"
+[
+[ "Alpha Cnc" "Delta Cnc" "Gamma Cnc" "Iota Cnc" ]
+[ "Delta Cnc" "Beta Cnc" ]
+]
+
+"Canis Major"
+[
+[ "Beta CMa" "Alpha CMa" "Iota CMa" "Gamma CMa" "Theta CMa" "Alpha CMa" ]
+[ "Alpha CMa" "Omicron2 CMa" "Delta CMa" "Sigma CMa" "Epsilon CMa" "Zeta CMa" ]
+[ "Delta CMa" "Omega CMa" "Eta CMa" ]
+[ "Omega CMa" "Tau CMa" ]
+]
+
+"Canis Minor"
+[
+[ "Alpha CMi" "Beta CMi" ]
+]
+
+"Capricornus"
+[
+[ "Alpha1 Cap" "Beta Cap" "Psi Cap" "Omega Cap" "24 Cap" "Zeta Cap" "Epsilon Cap" "Delta Cap" "Gamma Cap" "Iota Cap" "Theta Cap" "Beta Cap" ]
+]
+
+"Cassiopeia"
+[
+[ "Epsilon Cas" "Delta Cas" "Gamma Cas" "Alpha Cas" "Beta Cas" ]
+]
+
+"Centaurus"
+[
+[ "Iota Cen" "D Cen" "Nu Cen" ]
+[ "Theta Cen" "Nu Cen" ]
+[ "Kappa Cen" "Eta Cen" "Nu Cen" "Mu Cen" "Zeta Cen" "Epsilon Cen" "Gamma Cen" "Sigma Cen" "Delta Cen" "Rho Cen" "Pi Cen" "Lambda Cen" ]
+[ "Beta Cen" "Epsilon Cen" "Alpha Cen" ]
+]
+
+"Crux"
+[
+[ "Alpha Cru" "Gamma Cru" ]
+[ "Beta Cru" "Delta Cru" ]
+]
+
+"Cygnus"
+[
+[ "Kappa Cyg" "Iota Cyg" "Theta Cyg" "Delta Cyg" "Gamma Cyg" "Epsilon Cyg" "Zeta Cyg" ]
+[ "Alpha Cyg" "Gamma Cyg" "Eta Cyg" "Beta Cyg" ]
+]
+
+"Gemini"
+[
+[ "Beta Gem" "Upsilon Gem" "Delta Gem" "Zeta Gem" "Gamma Gem" ]
+[ "1 Gem" "Eta Gem" "Mu Gem" "Epsilon Gem" "Tau Gem" "Rho Gem" "Alpha Gem" ]
+[ "Delta Gem" "Lambda Gem" "51 Gem" "Xi Gem"]
+[ "Nu Gem" "Epsilon Gem" ]
+[ "Tau Gem" "Theta Gem" ]
+[ "Upsilon Gem" "Kappa Gem" ]
+[ "Upsilon Gem" "Iota Gem" "Tau Gem" ]
+]
+
+"Hydra"
+[
+[ "Gamma Hya" "Beta Hya" "Xi Hya" ]
+[ "Pi Hya" "Gamma Hya" ]
+[ "Xi Hya" "Nu Hya" "Mu Hya" "Lambda Hya" "Upsilon2 Hya" "Upsilon1 Hya" "Alpha Hya" "Iota Hya" "Theta Hya" "Zeta Hya" "Eta Hya" "Sigma Hya" "Delta Hya" "Epsilon Hya" "Zeta Hya" ]
+]
+
+"Leo"
+[
+[  "Gamma1 Leo" "Epsilon Leo" "Mu Leo" "Zeta Leo" "Gamma1 Leo" "Eta Leo" "Alpha Leo" "Theta Leo" "Beta Leo" "Delta Leo" "Gamma1 Leo" ]
+[ "Alpha Leo" "Omicron Leo" ]
+[ "Theta Leo" "Iota Leo" "Sigma Leo" ]
+]
+
+"Libra"
+[
+[ "Sigma Lib" "Beta Lib" ]
+[ "48 Lib" "Theta Lib" "Eta Lib" "Gamma Lib" "Beta Lib" "Alpha2 Lib" "Sigma Lib" "Upsilon Lib" "Tau Lib" ]
+]
+
+"Orion"
+[
+[ "Xi Ori" "Mu Ori" "Alpha Ori" "Zeta Ori" "Kappa Ori" "Beta Ori" "Delta Ori" "Gamma Ori" "Lambda Ori" "Alpha Ori" ]
+[ "Chi2 Ori" "Nu Ori" "Xi Ori" "68 Ori" ]
+[ "Gamma Ori" "Pi3 Ori" "Pi4 Ori" "Pi5 Ori" "Pi6 Ori" ]
+[ "Pi3 Ori" "Pi2 Ori" "Pi1 Ori" ][ "Zeta Ori" "Epsilon Ori" "Delta Ori" ]
+]
+
+"Pisces"
+[
+[ "Tau Psc" "Upsilon Psc" "Phi Psc" "Eta Psc" "Omicron Psc" "Alpha Psc" "Nu Psc" "Mu Psc" "Epsilon Psc" "Delta Psc" "Omega Psc" "Iota Psc" "Theta Psc" "Gamma Psc" "Kappa Psc" "Lambda Psc" "Iota Psc" ]
+]
+
+"Sagittarius"
+[
+[ "Phi Sgr" "Delta Sgr" ]
+[ "Beta2 Sgr" "Iota Sgr" "Alpha Sgr" ]
+[ "Iota Sgr" "Theta1 Sgr" "Theta2 Sgr" "62 Sgr" "59 Sgr" "52 Sgr" "Psi Sgr" "Tau Sgr" "Zeta Sgr" "Phi Sgr" "Sigma Sgr" "Tau Sgr" ]
+[ "Sigma Sgr" "Omicron Sgr" "Pi Sgr" "53 Sgr" "Rho1 Sgr" ]
+[ "Omicron Sgr" ]
+[ "Phi Sgr" "Lambda Sgr" "Mu Sgr" ]
+[ "Lambda Sgr" "Delta Sgr" "Epsilon Sgr" "Eta Sgr" ]
+[ "Delta Sgr" "Gamma Sgr" "3 Sgr" ]
+[ "Zeta Sgr" "Epsilon Sgr" "Gamma Sgr" ]
+]
+
+"Scorpius"
+[
+[ "Delta Sco" "Sigma Sco" "Alpha Sco" "Tau Sco" "Epsilon Sco" "Mu Sco" "Zeta Sco" "Eta Sco" "Theta Sco" "Iota1 Sco" "Kappa Sco" "Lambda Sco" ]
+[ "Beta2 Sco" "Omega1 Sco" "Nu Sco" "11 Sco" "Beta2 Sco" "Delta Sco" "Pi Sco" "Rho Sco" ]
+[ "Iota1 Sco" "G Sco" ]
+]
+
+"Taurus"
+[
+[ "Beta Tau" "Tau Tau" "Epsilon Tau" "68 Tau" "Delta1 Tau" "Gamma Tau" "Theta2 Tau" "Alpha Tau" "Zeta Tau" ]
+[ "Gamma Tau" "Lambda Tau" "47 Tau" "Mu Tau" "Nu Tau" ]
+[ "Lambda Tau" "5 Tau" "Xi Tau" "Omicron Tau" ]
+[ "Alpha Tau" "Epsilon Tau" ]
+]
+
+"Ursa Major"
+[
+[ "Eta UMa" "Zeta UMa" "Epsilon UMa" "Delta UMa" "Gamma UMa" "Beta UMa" "Alpha UMa" "Delta UMa" ]
+]
+
+"Ursa Minor"
+[
+[ "Alpha UMi" "Delta UMi" "Epsilon UMi" "Zeta UMi" "Beta UMi" "Gamma UMi" "Eta UMi" "Zeta UMi" ]
+]
+
+"Virgo"
+[
+[ "Beta Vir" "Eta Vir" "Gamma Vir" "Delta Vir" "Epsilon Vir" ]
+[ "Delta Vir" "Zeta Vir" "Alpha Vir" "Theta Vir" "Gamma Vir" ]
+[ "Zeta Vir" "Tau Vir" "109 Vir" ]
+[ "Alpha Vir" "Kappa Vir" "Iota Vir" "Mu Vir" ]
+]
