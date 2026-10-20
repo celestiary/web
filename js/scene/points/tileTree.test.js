@@ -71,3 +71,41 @@ describe('tileTree', () => {
     expect(info.hasChildren).toBe(true)
   })
 })
+
+
+describe('tileTree with a rule for its roots', () => {
+  // The catalogue's shape (Stars.md, "Brightness tiers"): the roots hold
+  // every point to mag 6.5 and a few fainter ones, the rest go down.
+  const points = syntheticPoints(20000, 11)
+  const marked = new Set(points.filter((p, i) => p.mag > 9 && i % 97 === 0))
+  const hold = (p) => p.mag <= 6.5 || marked.has(p)
+  const tiles = buildTileTree(points, {cap: 50, maxOrder: 4, rootsHold: hold})
+
+  it('gives the roots exactly what the rule takes, however many', () => {
+    const roots = tiles.filter((t) => t.order === 0)
+    expect(roots.length).toBe(12)
+    expect(roots.reduce((a, t) => a + t.count, 0)).toBe(points.filter(hold).length)
+    expect(roots.some((t) => t.count > 50)).toBe(true)
+    for (const t of tiles.filter((x) => x.order > 0)) {
+      expect(t.points.every((p) => !hold(p))).toBe(true)
+    }
+  })
+
+  it('bounds the roots\' descendants by magSub, which the row carries', () => {
+    const byKey = new Map(tiles.map((t) => [`${t.order}/${t.pix}`, t]))
+    for (const t of tiles.filter((x) => x.order > 0)) {
+      const root = byKey.get(`0/${t.pix >> (2 * t.order)}`)
+      expect(t.magBright).toBeGreaterThanOrEqual(root.magSub)
+      expect(root.magSub).toBeLessThan(root.magFaint)
+    }
+    const root = tiles.find((t) => t.order === 0)
+    const row = manifestRow(root)
+    expect(row.length).toBe(9)
+    expect(tileFromRow(row).magSub).toBeLessThanOrEqual(root.magSub)
+    // A plain tree's rows are as before: the faintest bounds what's below.
+    const plain = buildTileTree(points, {cap: 500, maxOrder: 4})
+    expect(plain.every((t) => manifestRow(t).length === 8)).toBe(true)
+    const info = tileFromRow(manifestRow(plain[0]))
+    expect(info.magSub).toBe(info.magFaint)
+  })
+})

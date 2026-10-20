@@ -1,9 +1,11 @@
 import {describe, expect, it} from 'bun:test'
 import {PerspectiveCamera, Vector3} from 'three'
-import PointPopulation, {MAX_IN_FLIGHT} from './PointPopulation.js'
+import PointPopulation, {FADE_IN_MS, MAX_IN_FLIGHT, fadeGain} from './PointPopulation.js'
 import {decodeStarTile} from './starTile.js'
 import {syntheticPoints} from './syntheticPoints.js'
 import {buildTiles} from '../gaia/build.js'
+import {INDEX_FILE, encodePack, packPath, tilePath} from './tileFormat.js'
+import {tileInView} from './selection.js'
 import {newStarsMaterial} from '../starsMaterial.js'
 import {LIGHTYEAR_METER} from '../../shared.js'
 
@@ -190,5 +192,156 @@ describe('PointPopulation', () => {
     // The half diagonal, and the sprite's reach past the edge at 1080 px.
     const pad = 80 * (Math.PI / 4) / 1080
     expect(view.halfAngle).toBeCloseTo(Math.atan(Math.tan(22.5 * Math.PI / 180) * Math.sqrt(5)) + pad, 12)
+  })
+
+
+  it('holds a complete population whole: roots first with no view, every tile, packed, none dropped', async () => {
+    const s = served(20000, 300)
+    // Pack the tiles by root, as the catalogue's tiers are (catalogue/build.js).
+    const files = new Map()
+    const packs = {}
+    for (const row of s.manifest.tiles) {
+      const [order, pix] = row
+      const name = order === 0 ? 'roots' : String(pix >> (2 * order))
+      ;(packs[name] ??= []).push({order, pix})
+    }
+    const manifest = {...s.manifest, packs: {}}
+    for (const [name, list] of Object.entries(packs)) {
+      manifest.packs[name] = list.map((t) => `${t.order}/${t.pix}`)
+      const bufs = []
+      for (const t of list) {
+        const rsp = await s.fetchFn(`base/${tilePath(t.order, t.pix)}`)
+        bufs.push({...t, buf: await rsp.arrayBuffer()})
+      }
+      files.set(packPath(name), encodePack(bufs))
+    }
+    files.set(INDEX_FILE, new TextEncoder().encode(JSON.stringify(manifest)).buffer)
+    const requested = []
+    let maxRequests = 0
+    const fetchFn = (url) => {
+      const path = url.replace(/^base\//, '')
+      requested.push(path)
+      const buf = files.get(path)
+      return Promise.resolve(buf ? {ok: true, json: () => Promise.resolve(JSON.parse(new TextDecoder().decode(buf))),
+        arrayBuffer: () => Promise.resolve(buf.slice(0))} : {ok: false, status: 404})
+    }
+    const camera = new PerspectiveCamera(20, 1, 1, 1e30)
+    const added = []
+    const pop = new PointPopulation({
+      name: 'complete', baseUrl: 'base', decode: decodeStarTile, material: newStarsMaterial(),
+      host: {camera: () => camera, limitingMagnitude: () => 4}, fetchFn, budget: Infinity,
+      complete: true, drawAll: true, onTile: (t) => added.push(t.key),
+    })
+    const origFetchPack = pop.fetchPack.bind(pop)
+    pop.fetchPack = (name) => {
+      maxRequests = Math.max(maxRequests, pop.requests + 1)
+      return origFetchPack(name)
+    }
+    // No frame at all: the manifest, then the roots' pack, then the rest.
+    await pop.start()
+    for (let i = 0; i < 50 && !pop.done(); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    expect(pop.done()).toBe(true)
+    expect(requested[0]).toBe(INDEX_FILE)
+    expect(requested[1]).toBe(packPath('roots'))
+    expect(requested.length).toBe(1 + Object.keys(packs).length)
+    expect(maxRequests).toBeLessThanOrEqual(MAX_IN_FLIGHT)
+    expect(pop.loaded.size).toBe(pop.tiles.size)
+    expect(new Set(added).size).toBe(pop.tiles.size)
+    expect(pop.rootsLoaded()).toBe(true)
+    // drawAll: every point of each loaded tile in the field, the rest hidden.
+    expect(pop.viewReady()).toBe(false)
+    pop.update()
+    expect(pop.viewReady()).toBe(true)
+    const view = pop.view(camera)
+    let inField = 0
+    for (const [key, t] of pop.loaded) {
+      const shown = tileInView(pop.tiles.get(key), view, false)
+      expect(t.points.visible).toBe(shown)
+      expect(t.points.geometry.drawRange.count).toBe(shown ? t.count : 0)
+      inField += shown ? 1 : 0
+    }
+    expect(inField).toBeGreaterThan(0)
+    expect(inField).toBeLessThan(pop.loaded.size)
+    // Never dropped, however much is loaded.
+    expect(pop.memoryPoints).toBe(Infinity)
+  })
+
+  it('says a failed pack is lost, every tile of it', async () => {
+    const manifest = {format: 'celestiary-points', tiles: [[0, 0, 1, 1, 2, 10, 10, 0], [0, 1, 1, 1, 2, 10, 10, 0]],
+      packs: {roots: ['0/0', '0/1']}}
+    const failed = []
+    const pop = new PointPopulation({
+      name: 'lost', baseUrl: 'base', decode: decodeStarTile, material: newStarsMaterial(),
+      host: {camera: () => null, limitingMagnitude: () => 6.5}, complete: true, onFail: (keys) => failed.push(...keys),
+      fetchFn: (url) => Promise.resolve(url.endsWith(INDEX_FILE) ?
+        {ok: true, json: () => Promise.resolve(manifest)} : {ok: false, status: 503}),
+    })
+    await pop.start()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(failed.sort()).toEqual(['0/0', '0/1'])
+    expect(pop.done()).toBe(true)
+    expect(pop.rootsLoaded()).toBe(false)
+  })
+
+
+  it('fades a tile\'s light in from when it lands: 0, rising, 1, with no step at either end', () => {
+    expect(fadeGain(0)).toBe(0)
+    expect(fadeGain(FADE_IN_MS)).toBe(1)
+    expect(fadeGain(10 * FADE_IN_MS)).toBe(1)
+    expect(fadeGain(-5)).toBe(0)
+    expect(fadeGain(FADE_IN_MS / 2)).toBeCloseTo(0.5, 12)
+    let last = 0
+    for (let ms = 0; ms <= FADE_IN_MS; ms += 10) {
+      const g = fadeGain(ms)
+      expect(g).toBeGreaterThanOrEqual(last)
+      last = g
+    }
+    // Smoothstep: the rate is 0 at both ends, so neither is a step in the
+    // light's rate either.
+    expect(fadeGain(10)).toBeLessThan(0.001)
+    expect(1 - fadeGain(FADE_IN_MS - 10)).toBeLessThan(0.001)
+    expect(fadeGain(100, 0)).toBe(1)
+  })
+
+  it('fades in the tiles that land once shown, not those before, and draws each at its own gain', async () => {
+    const s = served(20000, 300)
+    let clock = 1000
+    const camera = new PerspectiveCamera(120, 1, 1, 1e30)
+    const pop = population({camera: () => camera, limitingMagnitude: () => 4}, s, {shown: false, now: () => clock})
+    await settle(pop)
+    const before = [...pop.loaded.values()]
+    expect(before.length).toBeGreaterThan(0)
+    // Landed before the population was shown (the reveal covers them).
+    expect(before.every((t) => t.gain === 1)).toBe(true)
+    pop.markShown()
+    // Deeper: new tiles land, at 0.
+    pop.host.limitingMagnitude = () => 9
+    await settle(pop)
+    const after = [...pop.loaded.values()].filter((t) => !before.includes(t))
+    expect(after.length).toBeGreaterThan(0)
+    expect(after.every((t) => t.gain === 0)).toBe(true)
+    const gains = []
+    for (const ms of [300, 900, 1500, FADE_IN_MS, 5000]) {
+      clock = 1000 + ms
+      pop.update()
+      gains.push(after[0].gain)
+      if (ms === 300) {
+        // Each draw sets the shared material's gain to its tile's.
+        after[0].points.onBeforeRender({}, {}, camera)
+        expect(pop.material.uniforms.uTileGain.value).toBeCloseTo(fadeGain(300), 12)
+        expect(pop.material.uniformsNeedUpdate).toBe(true)
+        before[0].points.onBeforeRender({}, {}, camera)
+        expect(pop.material.uniforms.uTileGain.value).toBe(1)
+      }
+    }
+    expect(gains[0]).toBeGreaterThan(0)
+    for (let i = 1; i < gains.length; i++) {
+      expect(gains[i]).toBeGreaterThan(gains[i - 1] - 1e-12)
+    }
+    expect(gains.at(-1)).toBe(1)
+    expect(before.every((t) => t.gain === 1)).toBe(true)
   })
 })

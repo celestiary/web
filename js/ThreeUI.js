@@ -1401,9 +1401,26 @@ export default class ThreeUi {
    * @returns {boolean}
    */
   _frameCanBeEmpty() {
-    this._starsPoints ??= this.scene.getObjectByName('StarsPoints') ?? null
     const target = targets.obj
-    return frameCanBeEmpty(this.hdr, Boolean(this._starsPoints), !target || target.surfaceReady?.() !== false)
+    return frameCanBeEmpty(this.hdr, this._starsDrawn(), !target || target.surfaceReady?.() !== false)
+  }
+
+
+  /**
+   * Whether the star catalogue is drawn: as its brightness tiers, the
+   * bright tier and the tiles the view wants (Stars.drawn; Stars.md,
+   * "Brightness tiers"); as one geometry (a given catalogue, stars.dat),
+   * its points added.
+   *
+   * @returns {boolean}
+   */
+  _starsDrawn() {
+    this._starsObj ??= this.scene.getObjectByName('Stars') ?? null
+    if (typeof this._starsObj?.drawn === 'function') {
+      return this._starsObj.drawn()
+    }
+    this._starsPoints ??= this.scene.getObjectByName('StarsPoints') ?? null
+    return Boolean(this._starsPoints)
   }
 
 
@@ -1416,9 +1433,8 @@ export default class ThreeUi {
    * @returns {boolean}
    */
   sceneReady() {
-    this._starsPoints ??= this.scene.getObjectByName('StarsPoints') ?? null
     const target = targets.obj
-    return Boolean(this._starsPoints) && (!target || target.surfaceReady?.() !== false)
+    return this._starsDrawn() && (!target || target.surfaceReady?.() !== false)
   }
 
 
@@ -1532,15 +1548,16 @@ export default class ThreeUi {
    * @returns {object} What it logs
    */
   starProbe(name) {
-    const points = this._starsPoints ?? this.scene.getObjectByName('StarsPoints') ?? null
     const catalog = this.useStore?.getState?.()?.starsCatalog
     const hip = catalog?.hipByName?.get(name)
-    if (!points || hip === undefined) {
+    // The Points drawing it: the catalogue's one geometry, or its tile.
+    const found = hip === undefined ? null : this.scene.getObjectByName('Stars')?.pointOf?.(hip)
+    if (!found) {
       console.log('starProbe: no star', name)
       return null
     }
+    const {points, index} = found
     const g = points.geometry
-    const index = Array.from(g.idsByNdx).indexOf(hip)
     const hi = g.getAttribute('position').array
     const lo = g.getAttribute('positionLow').array
     const lumens = g.getAttribute('lumens').array[index]
@@ -1706,8 +1723,8 @@ export default class ThreeUi {
    */
   starsDebug() {
     const gl = this.renderer.getContext()
-    const points = this._starsPoints ?? this.scene.getObjectByName('StarsPoints') ?? null
-    const program = points ? this.renderer.properties.get(points.material)?.currentProgram : null
+    const material = this.scene.getObjectByName('Stars')?.pointsMaterial ?? null
+    const program = material ? this.renderer.properties.get(material)?.currentProgram : null
     const gain = absoluteUniforms.uExposureRelative.value
     const starGain = absoluteUniforms.uStarGain.value
     const opts = {fovDegrees: this.camera.fov, heightPx: this.height, starGain,
@@ -1744,7 +1761,7 @@ export default class ThreeUi {
       limitingMagnitude: limitingMagnitude(gain, starGain, this.camera.fov, this.height),
       pointSizeRange: Array.from(gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)),
       fragmentHighp: highp ? {rangeMin: highp.rangeMin, rangeMax: highp.rangeMax, precision: highp.precision} : null,
-      starsDrawn: Boolean(points),
+      starsDrawn: this._starsDrawn(),
       program: program ? (program.diagnostics ?? 'compiled') : 'none',
       maxStarSizePx: absoluteUniforms.uMaxStarSizePx.value,
       instrument: this.instrument.name,

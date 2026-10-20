@@ -21,6 +21,7 @@ import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
 import * as Shared from './shared.js'
 import {_resetPlaces} from './scene/Places.js'
 import {searchIndex} from './search/SearchIndex.js'
+import {buildFromSource} from '../tools/stars/build.mjs'
 
 
 const EARTH_RADIUS = 6371000 // meters
@@ -1772,6 +1773,69 @@ describe('what a load fetches', () => {
     } finally {
       console.warn = warn
     }
+  })
+
+  // The catalogue as brightness tiers (Stars.md, "Brightness tiers"): the
+  // manifest and the bright tier, never stars.dat; a faint unnamed star's
+  // link waits for its tier.  The tiers built in memory from stars.dat.
+  it('a link to a faint star: the stars\' bright tier first, and the star once its tier is in', async () => {
+    const {files} = buildFromSource()
+    const names = readFileSync('./public/data/starnames.dat', 'utf8')
+    let release
+    const released = new Promise((resolve) => {
+      release = resolve
+    })
+    global.fetch = async (url) => {
+      const u = String(url)
+      asked.push(u)
+      if (u.endsWith('starnames.dat')) {
+        return {ok: true, text: () => Promise.resolve(names)}
+      }
+      if (u.endsWith('asterisms.dat')) {
+        return {ok: true, text: () => Promise.resolve(readFileSync('./public/data/asterisms.dat', 'utf8'))}
+      }
+      const tier = u.match(/large\/stars\/v1\/(.*)$/)?.[1]
+      if (tier) {
+        if (tier !== 'index.json' && tier !== 'packs/roots.bin') {
+          await released
+        }
+        const buf = files.get(tier)
+        return {ok: true, json: () => Promise.resolve(JSON.parse(new TextDecoder().decode(buf))),
+          arrayBuffer: () => Promise.resolve(buf.slice(0))}
+      }
+      return {ok: false, status: 404}
+    }
+    global.location.hash = '#hip:46635'
+    const app = new Celestiary(makeStubStore(), {style: {}, appendChild: () => {}, addEventListener: () => {}},
+        {}, () => {}, () => {}, () => {})
+    apps.push(app)
+    const went = []
+    app.scene.goTo = (star) => went.push(star.hipId)
+    // The milky way's system, as the Loader brings it.
+    app.onLoad('stars', JSON.parse(readFileSync('./public/data/stars.json', 'utf8')))
+    const frames = async (ms) => {
+      for (let t = 0; t < ms; t += 16) {
+        app.animation.animate(app.ui.scene)
+        app.frame(t)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+    }
+    await frames(400)
+    const stars = app.scene.stars
+    expect(stars.catalog.numStars).toBe(8880)
+    expect(stars.catalog.starByHip.has(46635)).toBe(false)
+    const tierAsks = asked.filter((u) => /stars|starnames/.test(u))
+    expect(tierAsks.slice(0, 3).sort()).toEqual(['data/starnames.dat', 'large/stars/v1/index.json',
+      'large/stars/v1/packs/roots.bin'])
+    expect(asked.some((u) => u.endsWith('stars.dat'))).toBe(false)
+    expect(went).toEqual([])
+    release()
+    await frames(200)
+    expect(stars.catalogComplete()).toBe(true)
+    // A path alone arrives a second after the first load (_navigate).
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect(went).toEqual([46635])
+    expect(asked.some((u) => u.endsWith('stars.dat'))).toBe(false)
   })
 })
 

@@ -11,7 +11,7 @@
 //
 // How they were set (DESIGN.md, "Load budgets"): each limit is today's
 // measurement on main (the day #262 landed, 2026-10-15; the runtime
-// limits lowered with #258 on 2026-10-20) rounded up with
+// limits lowered with #258 and #259 on 2026-10-20) rounded up with
 // about 10% headroom, so ordinary work doesn't trip it and a new
 // dependency or an eagerly loaded dataset does.  They are a ratchet, not
 // targets: when a change lowers a number (#258's lazy bodies, places and
@@ -46,10 +46,14 @@ export const STATIC_BUDGET = {
  * Bytes are encoded (compressed) body bytes plus headers where known.
  */
 export const RUNTIME_BUDGET = {
-  // After #258 (2026-10-20): 25 requests, 2,614 KB (stars.dat is 1,848 KB
-  // of it).  Before it: 81 requests, 2,859 KB.
-  ready: {requests: 28, kb: 2880},
-  // After #258: 26 requests, 3,948 KB (the ephemeris chunk is 1,334 KB).
-  // Before it: 82 requests, 4,193 KB.
-  settled: {requests: 29, kb: 4350},
+  // After #259's star tiers (2026-10-20): 26 requests, 925 KB (the
+  // catalogue's bright tier is 157 KB of it).  After #258: 25 requests,
+  // 2,614 KB (stars.dat was 1,848 KB of it).  Before it: 81, 2,859 KB.
+  ready: {requests: 28, kb: 1020},
+  // After #259: 39 requests, 3,918 KB.  Raised from #258's 29 requests:
+  // the catalogue's faint tiers are 12 packs where stars.dat was one file,
+  // by design (a deep link needs only its field's; DESIGN.md "The star
+  // catalogue's tiers"), all after the reveal.  After #258: 26, 3,948 KB
+  // (the ephemeris chunk is 1,334 KB).  Before it: 82, 4,193 KB.
+  settled: {requests: 43, kb: 4310},
 }

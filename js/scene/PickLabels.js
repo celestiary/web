@@ -42,13 +42,27 @@ export default class PickLabels {
     })
   }
 
+  /**
+   * The spatial index over the stars loaded so far: built on first use,
+   * and again when the catalogue's tiers have brought more (Stars.md,
+   * "Brightness tiers"), so a faint star can be picked once its tier is in.
+   *
+   * @returns {{tree: object, index: object}}
+   */
+  _index() {
+    const index = this.stars.pickIndex()
+    if (!this.tree || this._treeVersion !== index.version) {
+      this.tree = createTree()
+      this.tree.init(index.coords)
+      this._treeVersion = index.version
+    }
+    return {tree: this.tree, index}
+  }
+
+
   /** Add dblclick calls mark, mousemove calls trace */
   addPickListeners() {
-    // First time
-    if (!this.tree) {
-      this.tree = createTree()
-      this.tree.init(this.stars.geom.coords)
-    }
+    this._index()
     this.marker = overlay(createMarker())
     this.ui.scene.add(this.marker)
     const me = this
@@ -67,7 +81,8 @@ export default class PickLabels {
 
   /** Mark and label current star */
   traceCb(e) {
-    queryPoints(this.ui, e, this.tree, this.stars, (pick) => {
+    const {tree, index} = this._index()
+    queryPoints(this.ui, e, tree, this.stars, (pick) => {
       // pick.x/y/z are catalog coords; marker lives in world space.
       this.marker.position.set(pick.x, pick.y, pick.z)
       this.stars.localToWorld(this.marker.position)
@@ -77,7 +92,7 @@ export default class PickLabels {
         this.traceLabel = this.labelStar(pick)
       }
       this._queueHoverSync(`${name}`)
-    })
+    }, index)
   }
 
 
@@ -123,7 +138,8 @@ export default class PickLabels {
 
   /** Leave a label on star and navigate there */
   markCb(e) {
-    queryPoints(this.ui, e, this.tree, this.stars, (pick) => {
+    const {tree, index} = this._index()
+    queryPoints(this.ui, e, tree, this.stars, (pick) => {
       this.pickedStarLabels[pick.star.hipId] = this.traceLabel
       this.traceLabel = null
       // Goes, and targets the star (Scene.setTarget).
@@ -138,7 +154,7 @@ export default class PickLabels {
           state.closeSearch()
         }
       }
-    })
+    }, index)
   }
 
   /** If there's a current trace label, remove it from scene */

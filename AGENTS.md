@@ -206,6 +206,13 @@ tried and dropped.
   - For before/after renders, pause the clock once the permalink is applied
     (`c.time.setTime(ms); c.time.isPaused = true`): two renders of one build
     then match bit for bit, so any difference is the change's.
+- **The star catalogue loads as brightness tiers**
+  ([Stars.md](js/scene/Stars.md#brightness-tiers)): only the naked-eye
+  sky and the named stars are in at scene-ready, the rest after the
+  reveal.  A browser check that needs every star waits for
+  `c.scene.stars.whenComplete()` (which also asks for them);
+  `?starTiers=0` reads stars.dat whole, as before.  After editing
+  stars.dat or starnames.dat, run `yarn stars`.
 - **A permalink restores its time and view only with a camera
   quaternion (`cq=`).** Without one the whole fragment is ignored, and
   the app runs at the current real time. To test a date, set it with
