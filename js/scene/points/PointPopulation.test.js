@@ -4,6 +4,8 @@ import PointPopulation, {MAX_IN_FLIGHT} from './PointPopulation.js'
 import {decodeStarTile} from './starTile.js'
 import {syntheticPoints} from './syntheticPoints.js'
 import {buildTiles} from '../gaia/build.js'
+import {INDEX_FILE, encodePack, packPath, tilePath} from './tileFormat.js'
+import {tileInView} from './selection.js'
 import {newStarsMaterial} from '../starsMaterial.js'
 import {LIGHTYEAR_METER} from '../../shared.js'
 
@@ -190,5 +192,97 @@ describe('PointPopulation', () => {
     // The half diagonal, and the sprite's reach past the edge at 1080 px.
     const pad = 80 * (Math.PI / 4) / 1080
     expect(view.halfAngle).toBeCloseTo(Math.atan(Math.tan(22.5 * Math.PI / 180) * Math.sqrt(5)) + pad, 12)
+  })
+
+
+  it('holds a complete population whole: roots first with no view, every tile, packed, none dropped', async () => {
+    const s = served(20000, 300)
+    // Pack the tiles by root, as the catalogue's tiers are (catalogue/build.js).
+    const files = new Map()
+    const packs = {}
+    for (const row of s.manifest.tiles) {
+      const [order, pix] = row
+      const name = order === 0 ? 'roots' : String(pix >> (2 * order))
+      ;(packs[name] ??= []).push({order, pix})
+    }
+    const manifest = {...s.manifest, packs: {}}
+    for (const [name, list] of Object.entries(packs)) {
+      manifest.packs[name] = list.map((t) => `${t.order}/${t.pix}`)
+      const bufs = []
+      for (const t of list) {
+        const rsp = await s.fetchFn(`base/${tilePath(t.order, t.pix)}`)
+        bufs.push({...t, buf: await rsp.arrayBuffer()})
+      }
+      files.set(packPath(name), encodePack(bufs))
+    }
+    files.set(INDEX_FILE, new TextEncoder().encode(JSON.stringify(manifest)).buffer)
+    const requested = []
+    let maxRequests = 0
+    const fetchFn = (url) => {
+      const path = url.replace(/^base\//, '')
+      requested.push(path)
+      const buf = files.get(path)
+      return Promise.resolve(buf ? {ok: true, json: () => Promise.resolve(JSON.parse(new TextDecoder().decode(buf))),
+        arrayBuffer: () => Promise.resolve(buf.slice(0))} : {ok: false, status: 404})
+    }
+    const camera = new PerspectiveCamera(20, 1, 1, 1e30)
+    const added = []
+    const pop = new PointPopulation({
+      name: 'complete', baseUrl: 'base', decode: decodeStarTile, material: newStarsMaterial(),
+      host: {camera: () => camera, limitingMagnitude: () => 4}, fetchFn, budget: Infinity,
+      complete: true, drawAll: true, onTile: (t) => added.push(t.key),
+    })
+    const origFetchPack = pop.fetchPack.bind(pop)
+    pop.fetchPack = (name) => {
+      maxRequests = Math.max(maxRequests, pop.requests + 1)
+      return origFetchPack(name)
+    }
+    // No frame at all: the manifest, then the roots' pack, then the rest.
+    await pop.start()
+    for (let i = 0; i < 50 && !pop.done(); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    expect(pop.done()).toBe(true)
+    expect(requested[0]).toBe(INDEX_FILE)
+    expect(requested[1]).toBe(packPath('roots'))
+    expect(requested.length).toBe(1 + Object.keys(packs).length)
+    expect(maxRequests).toBeLessThanOrEqual(MAX_IN_FLIGHT)
+    expect(pop.loaded.size).toBe(pop.tiles.size)
+    expect(new Set(added).size).toBe(pop.tiles.size)
+    expect(pop.rootsLoaded()).toBe(true)
+    // drawAll: every point of each loaded tile in the field, the rest hidden.
+    expect(pop.viewReady()).toBe(false)
+    pop.update()
+    expect(pop.viewReady()).toBe(true)
+    const view = pop.view(camera)
+    let inField = 0
+    for (const [key, t] of pop.loaded) {
+      const shown = tileInView(pop.tiles.get(key), view, false)
+      expect(t.points.visible).toBe(shown)
+      expect(t.points.geometry.drawRange.count).toBe(shown ? t.count : 0)
+      inField += shown ? 1 : 0
+    }
+    expect(inField).toBeGreaterThan(0)
+    expect(inField).toBeLessThan(pop.loaded.size)
+    // Never dropped, however much is loaded.
+    expect(pop.memoryPoints).toBe(Infinity)
+  })
+
+  it('says a failed pack is lost, every tile of it', async () => {
+    const manifest = {format: 'celestiary-points', tiles: [[0, 0, 1, 1, 2, 10, 10, 0], [0, 1, 1, 1, 2, 10, 10, 0]],
+      packs: {roots: ['0/0', '0/1']}}
+    const failed = []
+    const pop = new PointPopulation({
+      name: 'lost', baseUrl: 'base', decode: decodeStarTile, material: newStarsMaterial(),
+      host: {camera: () => null, limitingMagnitude: () => 6.5}, complete: true, onFail: (keys) => failed.push(...keys),
+      fetchFn: (url) => Promise.resolve(url.endsWith(INDEX_FILE) ?
+        {ok: true, json: () => Promise.resolve(manifest)} : {ok: false, status: 503}),
+    })
+    await pop.start()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(failed.sort()).toEqual(['0/0', '0/1'])
+    expect(pop.done()).toBe(true)
+    expect(pop.rootsLoaded()).toBe(false)
   })
 })

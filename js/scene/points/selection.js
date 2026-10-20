@@ -243,8 +243,10 @@ export function selectTiles(roots, childrenOf, view, loadedMags = () => null) {
         estimate += take
       }
     }
-    // Its descendants are all fainter, from the Sun, than its faintest.
-    if (tile.hasChildren && tile.magFaint - brightening(tile.distMinSub, view.camDist) <= view.limit) {
+    // Its descendants are all fainter, from the Sun, than magSub: its
+    // faintest, or the brightest below a root that holds a few faint
+    // stars (tileTree.js rootsHold).
+    if (tile.hasChildren && (tile.magSub ?? tile.magFaint) - brightening(tile.distMinSub, view.camDist) <= view.limit) {
       for (const child of childrenOf(tile)) {
         heap.push(child.magBright - brightening(child.distMin, view.camDist), child)
       }

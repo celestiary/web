@@ -29,6 +29,7 @@
     "load-budget": "node tools/loadBudget/loadBudget.mjs",
     "gaia": "bun tools/gaia/gaia.mjs",
     "bodies": "node tools/bodies/build.mjs",
+    "stars": "bun tools/stars/build.mjs",
     "changelog": "node tools/changelog/json.mjs",
     "changelog:draft": "node tools/changelog/draft.mjs"
   },

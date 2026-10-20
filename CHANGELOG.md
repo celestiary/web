@@ -31,6 +31,21 @@ has no view to open yet.
 
 ## October 2026
 
+### The stars arrive first and faster: the naked-eye sky in a tenth of the download
+
+The star catalogue, 107,000 stars, was the biggest thing the first screen waited for: one 1.8 MB
+download. Now the sky you can see with the naked eye, about 8,900 stars and every star with a name,
+comes first in 157 KB, and the rest stream in once the scene is showing, the part of the sky you are
+looking at first. The homepage's first screen downloads 925 KB instead of 2.6 MB. Names, search,
+picking, star labels and the constellations work from the start, a link to a faint star opens as soon
+as its part of the catalogue is in, and the sky looks the same once it is.
+
+- Date: 2026-10-20
+- PR: [#271](https://github.com/celestiary/web/pull/271)
+- Issue: [#259](https://github.com/celestiary/web/issues/259)
+- Epic: [#256](https://github.com/celestiary/web/issues/256) Leaner first load
+- Permalink: none
+
 ### The first screen loads faster: the rest waits until you need it
 
 Celestiary used to download the place names of 24 worlds, 175 galaxies and this changelog before

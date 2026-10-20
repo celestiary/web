@@ -23,6 +23,15 @@ import {ang2pixNest, pixelCone, vecToLoc} from './healpix.js'
  * camera is (selection.js): its brightest and faintest magnitudes from the
  * Sun, the nearest of its points, and the nearest in its whole subtree.
  *
+ * A tree may instead give its roots a rule (`rootsHold`): the 12 order-0
+ * cells then hold exactly the points it takes, however many, and the cap
+ * starts at order 1.  The bundled catalogue's roots are its bright tier
+ * (Stars.md, "Brightness tiers"): the naked-eye sky, and every star the
+ * app names, a few of them faint.  Such a root holds points fainter than
+ * some below it, so its row carries one more bound, `magSub`, the
+ * brightest point below it; without that, a tile's faintest bounds its
+ * descendants, as in a plain tree.
+ *
  * The cells are cut in ecliptic coordinates, the pole the ecliptic's: the
  * catalogue frame's axes (X the equinox, Y the north ecliptic pole, Z minus
  * ecliptic Y) taken back to (X, −Z, Y).
@@ -72,6 +81,8 @@ export function pointPixel(p, order) {
  * @property {number} distMin Light-years: its nearest point to the Sun
  * @property {number} distMinSub The nearest in it and all its descendants
  * @property {boolean} hasChildren Whether its cell has tiles below it
+ * @property {number} magSub The brightest point below it, from the Sun
+ *   (Infinity with none)
  */
 
 
@@ -83,9 +94,11 @@ export function pointPixel(p, order) {
  * @param {object} [opts]
  * @param {number} [opts.cap] Points a tile holds before passing the rest down
  * @param {number} [opts.maxOrder] The deepest order; it takes all that remain
+ * @param {Function} [opts.rootsHold] (point) => whether the order-0 tiles
+ *   take it, in place of the cap there
  * @returns {Array<TileNode>} Every tile, parents before children
  */
-export function buildTileTree(points, {cap = 4096, maxOrder = 9} = {}) {
+export function buildTileTree(points, {cap = 4096, maxOrder = 9, rootsHold = null} = {}) {
   if (!(cap >= 1)) {
     throw new Error(`cap must be at least 1: ${cap}`)
   }
@@ -112,8 +125,17 @@ export function buildTileTree(points, {cap = 4096, maxOrder = 9} = {}) {
     level.sort((a, b) => a.pix - b.pix)
     for (const {order, pix, list} of level) {
       const last = order >= maxOrder
-      const own = last ? list : list.slice(0, cap)
-      const rest = last ? [] : list.slice(cap)
+      let own = last ? list : list.slice(0, cap)
+      let rest = last ? [] : list.slice(cap)
+      if (order === 0 && rootsHold && !last) {
+        own = list.filter((p) => rootsHold(p))
+        rest = list.filter((p) => !rootsHold(p))
+      }
+      if (own.length === 0) {
+        // A row's magnitudes and distances would be infinite.  Every cell of
+        // the catalogue's sky has naked-eye stars.
+        throw new Error(`Tile ${order}/${pix} would be empty: rootsHold takes none of its ${list.length}`)
+      }
       let distMin = Infinity
       for (const p of own) {
         distMin = Math.min(distMin, Math.hypot(p.x, p.y, p.z))
@@ -122,6 +144,7 @@ export function buildTileTree(points, {cap = 4096, maxOrder = 9} = {}) {
         order, pix, points: own, count: own.length,
         magBright: own[0].mag, magFaint: own[own.length - 1].mag,
         distMin, distMinSub: distMin, hasChildren: rest.length > 0,
+        magSub: rest.length ? rest[0].mag : Infinity,
       }
       tiles.push(tile)
       byKey.set(`${order}/${pix}`, tile)
@@ -146,16 +169,22 @@ export function buildTileTree(points, {cap = 4096, maxOrder = 9} = {}) {
 /**
  * One tile's manifest entry: a compact row, so the whole tree's index is
  * small.  Magnitudes round outward and distances down, to 0.001, so the
- * bounds stay bounds.
+ * bounds stay bounds.  A ninth number, the brightest point below it, only
+ * where a tile holds points fainter than that (a `rootsHold` root); else
+ * its faintest is the bound, and the row is as Gaia's tiles have it.
  *
  * @param {TileNode} t
- * @returns {Array<number>} [order, pix, count, magBright, magFaint, distMin, distMinSub, hasChildren]
+ * @returns {Array<number>} [order, pix, count, magBright, magFaint, distMin, distMinSub, hasChildren, magSub?]
  */
 export function manifestRow(t) {
   const down = (v) => Math.floor(v * 1000) / 1000
   const up = (v) => Math.ceil(v * 1000) / 1000
-  return [t.order, t.pix, t.count, down(t.magBright), up(t.magFaint), down(t.distMin), down(t.distMinSub),
+  const row = [t.order, t.pix, t.count, down(t.magBright), up(t.magFaint), down(t.distMin), down(t.distMinSub),
     t.hasChildren ? 1 : 0]
+  if (t.hasChildren && t.magSub < t.magFaint) {
+    row.push(down(t.magSub))
+  }
+  return row
 }
 
 
@@ -170,6 +199,7 @@ export function manifestRow(t) {
  * @property {number} distMin Light-years
  * @property {number} distMinSub Light-years
  * @property {boolean} hasChildren Whether its cell has tiles below it
+ * @property {number} magSub No point below it is brighter than this, from the Sun
  * @property {Array<number>} centre Unit vector, catalogue frame
  * @property {number} radius The cone round the cell, radians
  */
@@ -183,10 +213,10 @@ export function manifestRow(t) {
  * @returns {TileInfo}
  */
 export function tileFromRow(row) {
-  const [order, pix, count, magBright, magFaint, distMin, distMinSub, hasChildren] = row
+  const [order, pix, count, magBright, magFaint, distMin, distMinSub, hasChildren, magSub] = row
   const {centre, radius} = pixelCone(order, pix)
   return {
     key: `${order}/${pix}`, order, pix, count, magBright, magFaint, distMin, distMinSub,
-    hasChildren: hasChildren === 1, centre: cellAxesToCatalogue(centre), radius,
+    hasChildren: hasChildren === 1, magSub: magSub ?? magFaint, centre: cellAxesToCatalogue(centre), radius,
   }
 }

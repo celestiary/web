@@ -337,6 +337,23 @@ become H, and the bounds the brightest a body can be at its nearest.
 5. Past `DEFAULT_MEMORY_POINTS` (1,000,000) loaded, the tiles wanted
    longest ago are dropped.
 
+**A population held whole** (the bundled catalogue's, since
+[#259](https://github.com/celestiary/web/issues/259):
+[Stars.md, brightness tiers](Stars.md#brightness-tiers)): `complete`
+fetches the roots first and alone, whatever the view, then what the view
+wants, then (once `releaseRest()`, with `holdRest`) every other tile,
+brightest first, and never evicts; `drawAll` draws every point of each
+loaded tile in the field rather than to the limit plus the margin;
+`viewReady()` says whether every tile that could hold a star brighter than
+the limit itself is in.  A manifest may put tiles in **packs**
+(`tileFormat.js` `encodePack`: several tiles in one file, a pack fetched
+when any of its tiles is wanted), a tree may give its **roots a rule**
+instead of the cap (`tileTree.js` `rootsHold`; such a root's row carries a
+ninth number, `magSub`, the brightest star below it, which the selection
+takes for the descendants' bound), and a tile may carry a 32-bit **HIP
+number** and a packed **class** (`HAS_HIP`, `HAS_CLASS`).  Gaia's tiles
+and manifest use none of these and are unchanged.
+
 **One shader for every star**: `starsMaterial.js` makes the catalogue's
 material and the populations', from the same `stars.vert` and
 `stars.frag`, so a Gaia star's light, size, bloom and colour follow the

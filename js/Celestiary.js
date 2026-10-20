@@ -406,6 +406,9 @@ export default class Celestiary {
         // not ahead of it: until it is in the planets are on mean elements,
         // and glide to the series' places (Animation.planetCoords).
         this.animation.loadEphemeris()
+        // And the star catalogue's faint tiers, which the scene's view
+        // didn't need (Stars.md, "Brightness tiers").
+        this.scene.stars?.streamRest?.()
       }
       reveal.frame(nowMs)
     }
@@ -498,6 +501,17 @@ export default class Celestiary {
       searchIndex.invalidate()
       return true
     }
+    // The bright tier has every named star; a search by number for a faint
+    // one waits for the rest (Stars.md, "Brightness tiers"): rebuilt once
+    // they're in, so a query already asked is asked again (onChange), and
+    // the homepage's Enter (ensureSearchable) waits for them.
+    this.scene.onStarsReady(() => {
+      const stars = this.scene.stars
+      if (typeof stars?.whenComplete === 'function') {
+        searchIndex.loadOnSearch(() => stars.whenComplete())
+        stars.onCatalogComplete(() => searchIndex.markStale())
+      }
+    })
     if (tryRegister(this.useStore.getState().starsCatalog)) {
       return
     }
@@ -840,19 +854,13 @@ export default class Celestiary {
 
   /**
    * @param {number} hipId
-   * @param {Function} cb Called with the catalogue star once the stars load
+   * @param {Function} cb Called with the catalogue star once its tier is in:
+   *   with the bright tier for a named star, later for a faint unnamed one
+   *   (Stars.whenStar; Stars.md, "Brightness tiers")
    * @param {Function} [onErr] Called if there's no such star
    */
   _whenStar(hipId, cb, onErr) {
-    this.scene.onStarsReady(() => this.scene.stars.onCatalogReady(() => {
-      const star = this.scene.stars.catalog.starByHip.get(hipId)
-      if (star) {
-        cb(star)
-      } else {
-        console.warn(`No star HIP ${hipId}`)
-        onErr?.()
-      }
-    }))
+    this.scene.onStarsReady(() => this.scene.stars.whenStar(hipId, cb, onErr))
   }
 
 

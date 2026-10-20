@@ -66,6 +66,8 @@ export default class StarsCatalog {
     this.minMag = minMag
     this.maxMag = maxMag
     this.numStars = numStars
+    // Bumped when stars are added (addStars), for what is built from them.
+    this.version = 0
     this.numNamedStars = 0
     this.numNames = 0
     this.starScale = starScale
@@ -75,27 +77,47 @@ export default class StarsCatalog {
 
 
   /**
-   * @param {Function} cb
+   * The whole catalogue from one file, `stars.dat`, then the names: the
+   * fallback path, and the guide's (Stars.md, "Brightness tiers").  The
+   * app reads the catalogue as tiles (catalogue/cataloguePopulation.js).
+   *
+   * @param {Function} cb Called once both are in
+   * @param {Function} [onErr] Called with the error if either fails
+   * @param {boolean} [withNames] Load the names too (not if already asked for)
    */
-  load(cb) {
+  load(cb, onErr, withNames = true) {
     if (!cb) {
       throw new Error('Undefined callback')
     }
-    fetch(dataUrl('data/stars.dat')).then((starsData) => {
-      starsData.arrayBuffer().then(
-          /**
-           * @param {ArrayBuffer} buffer
-           */
-          (buffer) => {
-            this.read(buffer)
-            fetch('data/starnames.dat').then((namesData) => {
-              namesData.text().then((text) => {
-                this.readNames(text)
-                cb()
-              })
-            })
-          })
-    })
+    fetchOk(dataUrl('data/stars.dat'))
+        .then((rsp) => rsp.arrayBuffer())
+        .then((buffer) => {
+          this.read(buffer)
+          return withNames ? this.loadNames() : null
+        })
+        .then(() => cb())
+        .catch((e) => {
+          // Once a page: a page without the data (the tests') would say it for every scene.
+          if (!warnedLoad) {
+            warnedLoad = true
+            console.warn(`Stars: the catalogue failed to load: ${e?.message ?? e}`)
+          }
+          onErr?.(e)
+        })
+  }
+
+
+  /**
+   * The names, `starnames.dat` (small: plain data, a relative URL).  Every
+   * name is known as soon as this is in, whichever of the catalogue's tiers
+   * holds its star.
+   *
+   * @returns {Promise<void>}
+   */
+  loadNames() {
+    return fetchOk('data/starnames.dat')
+        .then((rsp) => rsp.text())
+        .then((text) => this.readNames(text))
   }
 
 
@@ -104,70 +126,48 @@ export default class StarsCatalog {
    * @returns {object}
    */
   read(buffer) {
-    const header = 'CELSTARS\x00\x01'
-    const data = new DataView(buffer)
-    let offset = 0
-    assertDataView(header, data, offset)
-    offset += header.length
-
-    this.numStars = data.getUint32(offset, littleEndian)
-    offset += 4
-    const sun = getSunProps()
-    this.starByHip.set(0, sun)
-    for (let i = 0; i < this.numStars; i++) {
-      const hipId = data.getUint32(offset, littleEndian)
-      offset += 4
-
-      const x = data.getFloat32(offset, littleEndian)
-      offset += 4
-
-      const y = data.getFloat32(offset, littleEndian)
-      offset += 4
-
-      const z = data.getFloat32(offset, littleEndian)
-      offset += 4
-
-      const absMag = data.getInt16(offset, littleEndian) / 256
-      offset += 2
-
-      const clazz = data.getUint16(offset, littleEndian)
-      offset += 2
-
-      const kind = (clazz & 0xF000) >>> 12
-      const type = (clazz & 0x0F00) >>> 8
-      const sub = (clazz & 0x00F0) >>> 4
-      const lumClass = clazz & 0x000F
-
-      // Compute star's luminous flux from absolute magnitude, from ChatG
-      //    ratio = 10^((M_sun - M_star)/2.5)
-      const magFactor = Math.pow(10.0, (sun.absMag - absMag) / 2.5)
-      const lumens = sun.lumens * magFactor
-
-      /** @type {StarProps} */
-      const star = {
-        hipId: hipId,
-        x: x * LIGHTYEAR_METER,
-        y: y * LIGHTYEAR_METER,
-        z: z * LIGHTYEAR_METER,
-        absMag: absMag,
-        kind: kind,
-        spectralType: type,
-        sub: sub,
-        lumClass: lumClass,
-        // Used by stars.vert
-        lumens: lumens,
-      }
-      // Its radius by Stefan-Boltzmann from its luminosity and temperature
-      // (it was the square root of its visual luminosity: Betelgeuse 115
-      // R☉ where it is 764, Proxima 0.01 where it is 0.15), and its
-      // temperature, from its class and magnitude or as measured
-      // (starParams.js, Stars.md).
-      const params = starParams(star)
-      star.radius = params.radius * sun.radius
-      star.teff = params.teffMean
-      this.starByHip.set(hipId, star)
+    const raw = readCelestiaStars(buffer)
+    this.numStars = raw.length
+    const sun = this.addSun()
+    for (const r of raw) {
+      const star = catalogueStar(r, sun)
+      this.starByHip.set(star.hipId, star)
     }
     return this
+  }
+
+
+  /**
+   * The Sun, at HIP 0: it isn't in stars.dat.  Once.
+   *
+   * @returns {StarProps} The catalogue's Sun
+   */
+  addSun() {
+    let sun = this.starByHip.get(0)
+    if (!sun) {
+      sun = getSunProps()
+      this.starByHip.set(0, sun)
+    }
+    return sun
+  }
+
+
+  /**
+   * Stars from one of the catalogue's tiles (catalogue/catalogueTile.js),
+   * added to what it holds.  `numStars` counts them (not the Sun, as
+   * `read` doesn't), and `version` changes, for what is built from the
+   * stars it holds (the picking index).
+   *
+   * @param {Array<StarProps>} stars
+   */
+  addStars(stars) {
+    for (const star of stars) {
+      if (!this.starByHip.has(star.hipId)) {
+        this.numStars++
+      }
+      this.starByHip.set(star.hipId, star)
+    }
+    this.version++
   }
 
 
@@ -308,6 +308,109 @@ export default class StarsCatalog {
 }
 
 
+/**
+ * @typedef {object} RawStar A star as stars.dat holds it
+ * @property {number} hipId Its Hipparcos number
+ * @property {number} x Light-years, float32 as stored (the catalogue frame)
+ * @property {number} y Light-years
+ * @property {number} z Light-years
+ * @property {number} absMag Absolute V, in the file's 1/256 mag steps
+ * @property {number} clazz Its spectral class, packed as Celestia does:
+ *   kind, type, subclass and luminosity class, a nibble each
+ */
+
+
+/**
+ * The records of a Celestia binary star file, as stored: no conversion.
+ * The catalogue's tiles (catalogue/tiers.js) are built from these, so a
+ * tile's star is the same float32 position, magnitude and class.
+ *
+ * @param {ArrayBuffer} buffer
+ * @returns {Array<RawStar>}
+ */
+export function readCelestiaStars(buffer) {
+  const header = 'CELSTARS\x00\x01'
+  const data = new DataView(buffer)
+  let offset = 0
+  assertDataView(header, data, offset)
+  offset += header.length
+  const numStars = data.getUint32(offset, littleEndian)
+  offset += 4
+  const out = new Array(numStars)
+  for (let i = 0; i < numStars; i++) {
+    out[i] = {
+      hipId: data.getUint32(offset, littleEndian),
+      x: data.getFloat32(offset + 4, littleEndian),
+      y: data.getFloat32(offset + 8, littleEndian),
+      z: data.getFloat32(offset + 12, littleEndian),
+      absMag: data.getInt16(offset + 16, littleEndian) / 256,
+      clazz: data.getUint16(offset + 18, littleEndian),
+    }
+    offset += 20
+  }
+  return out
+}
+
+
+/**
+ * One star as the scene holds it, from its stored values: the same for
+ * stars.dat and for the catalogue's tiles.
+ *
+ * @param {RawStar} raw
+ * @param {StarProps} [sun] The catalogue's Sun, for the photometry
+ * @returns {StarProps}
+ */
+export function catalogueStar({hipId, x, y, z, absMag, clazz}, sun = SUN) {
+  const kind = (clazz & 0xF000) >>> 12
+  const type = (clazz & 0x0F00) >>> 8
+  const sub = (clazz & 0x00F0) >>> 4
+  const lumClass = clazz & 0x000F
+
+  // Compute star's luminous flux from absolute magnitude, from ChatG
+  //    ratio = 10^((M_sun - M_star)/2.5)
+  const magFactor = Math.pow(10.0, (sun.absMag - absMag) / 2.5)
+  const lumens = sun.lumens * magFactor
+
+  /** @type {StarProps} */
+  const star = {
+    hipId: hipId,
+    x: x * LIGHTYEAR_METER,
+    y: y * LIGHTYEAR_METER,
+    z: z * LIGHTYEAR_METER,
+    absMag: absMag,
+    kind: kind,
+    spectralType: type,
+    sub: sub,
+    lumClass: lumClass,
+    // Used by stars.vert
+    lumens: lumens,
+  }
+  // Its radius by Stefan-Boltzmann from its luminosity and temperature
+  // (it was the square root of its visual luminosity: Betelgeuse 115
+  // R☉ where it is 764, Proxima 0.01 where it is 0.15), and its
+  // temperature, from its class and magnitude or as measured
+  // (starParams.js, Stars.md).
+  const params = starParams(star)
+  star.radius = params.radius * sun.radius
+  star.teff = params.teffMean
+  return star
+}
+
+
+/**
+ * @param {string} url
+ * @returns {Promise<Response>} Rejected for a status that isn't OK
+ */
+function fetchOk(url) {
+  return fetch(url).then((rsp) => {
+    if (!rsp?.ok) {
+      throw new Error(`${url}: HTTP ${rsp?.status}`)
+    }
+    return rsp
+  })
+}
+
+
 // Didn't see the sun in the stars.dat catalog, so adding it
 // manually.  If wrong, it'll be in there twice but indexed once
 /** @returns {StarProps} */
@@ -324,6 +427,10 @@ export function getSunProps(radius = 695700000) {
     lumens: 3.0e28,
   }
 }
+
+
+const SUN = getSunProps()
+let warnedLoad = false
 
 
 /**

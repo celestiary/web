@@ -9,19 +9,24 @@ import {fromHalf, toHalf} from './float16.js'
  *   bytes 0-7    'CELPOINT'
  *   uint32       format version (1)
  *   uint32       count, n
- *   uint32       flags: HAS_IDS, HAS_VELOCITY
+ *   uint32       flags: HAS_IDS, HAS_VELOCITY, HAS_HIP, HAS_CLASS
  *   uint32       reserved (0)
  *   float32 ×3n  position, light-years, in the catalogue frame (the J2000
  *                ecliptic with the scene's axes: X the equinox, Y the north
  *                ecliptic pole, Z minus ecliptic Y), at the epoch
  *   uint32  ×2n  id, low and high words (Gaia's source_id), if HAS_IDS
+ *   uint32  ×n   Hipparcos number, if HAS_HIP (the bundled catalogue's)
  *   float16 ×3n  space velocity, km/s, the same axes, if HAS_VELOCITY
  *   int16   ×n   absolute visual magnitude × ABS_MAG_SCALE
- *   uint16  ×n   effective temperature, K (0: unknown)
+ *   uint16  ×n   effective temperature, K (0: unknown, or from the class)
+ *   uint16  ×n   spectral class, packed as stars.dat packs it, if HAS_CLASS
  *
  * Columns rather than records, so each goes to the GPU or to a typed array
  * view as it is, aligned (the header is 24 bytes and every column before a
- * 2-byte one is a multiple of 4).  30 bytes a star with ids and velocity.
+ * 2-byte one is a multiple of 4).  30 bytes a star with ids and velocity
+ * (Gaia's); 22 with a HIP number and a class (the bundled catalogue's,
+ * Stars.md "Brightness tiers").  HAS_HIP and HAS_CLASS came after version
+ * 1's first tiles and left their bytes as they were.
  */
 
 
@@ -30,6 +35,8 @@ export const VERSION = 1
 export const HEADER_BYTES = 24
 export const HAS_IDS = 1
 export const HAS_VELOCITY = 2
+export const HAS_HIP = 4
+export const HAS_CLASS = 8
 /**
  * Absolute magnitudes in 1/1024 mag: ±32 mag, 0.001 mag a step, and the
  * bundled catalogue's 1/256 steps exactly.
@@ -51,6 +58,8 @@ export const INDEX_FILE = 'index.json'
  * @property {number} teff K, 0 if unknown
  * @property {number} mag Apparent visual magnitude from the Sun at the epoch: the sort key
  * @property {bigint} [id] Its catalogue id (Gaia's source_id)
+ * @property {number} [hipId] Its Hipparcos number, for HAS_HIP
+ * @property {number} [clazz] Its packed spectral class, for HAS_CLASS
  */
 
 
@@ -64,8 +73,14 @@ export function tileBytes(count, flags) {
   if (flags & HAS_IDS) {
     size += 8 * count
   }
+  if (flags & HAS_HIP) {
+    size += 4 * count
+  }
   if (flags & HAS_VELOCITY) {
     size += 6 * count
+  }
+  if (flags & HAS_CLASS) {
+    size += 2 * count
   }
   return size + (4 * count)
 }
@@ -73,7 +88,7 @@ export function tileBytes(count, flags) {
 
 /**
  * @param {Array<PointRecord>} records Sorted by mag, brightest first
- * @param {number} flags HAS_IDS | HAS_VELOCITY
+ * @param {number} flags HAS_IDS | HAS_VELOCITY | HAS_HIP | HAS_CLASS
  * @returns {ArrayBuffer}
  */
 export function encodeTile(records, flags) {
@@ -102,6 +117,12 @@ export function encodeTile(records, flags) {
       off += 8
     }
   }
+  if (flags & HAS_HIP) {
+    for (const r of records) {
+      dv.setUint32(off, r.hipId ?? 0, true)
+      off += 4
+    }
+  }
   if (flags & HAS_VELOCITY) {
     for (const r of records) {
       dv.setUint16(off, toHalf(r.vx ?? 0), true)
@@ -118,6 +139,12 @@ export function encodeTile(records, flags) {
     dv.setUint16(off, Math.max(0, Math.min(65535, Math.round(r.teff || 0))), true)
     off += 2
   }
+  if (flags & HAS_CLASS) {
+    for (const r of records) {
+      dv.setUint16(off, r.clazz ?? 0, true)
+      off += 2
+    }
+  }
   return buf
 }
 
@@ -125,12 +152,14 @@ export function encodeTile(records, flags) {
 /**
  * @typedef {object} DecodedTile
  * @property {number} count Points
- * @property {number} flags HAS_IDS, HAS_VELOCITY
+ * @property {number} flags HAS_IDS, HAS_VELOCITY, HAS_HIP, HAS_CLASS
  * @property {Float32Array} position Light-years, 3 a point
  * @property {?Uint32Array} ids Low and high words, 2 a point
+ * @property {?Uint32Array} hip Hipparcos numbers
  * @property {?Uint16Array} velocity Half floats, km/s, 3 a point
  * @property {Int16Array} absMag × ABS_MAG_SCALE
  * @property {Uint16Array} teff K
+ * @property {?Uint16Array} clazz Packed spectral classes
  */
 
 
@@ -167,6 +196,11 @@ export function decodeTile(buf) {
     ids = new Uint32Array(buf, off, 2 * count)
     off += 8 * count
   }
+  let hip = null
+  if (flags & HAS_HIP) {
+    hip = new Uint32Array(buf, off, count)
+    off += 4 * count
+  }
   let velocity = null
   if (flags & HAS_VELOCITY) {
     velocity = new Uint16Array(buf, off, 3 * count)
@@ -175,7 +209,9 @@ export function decodeTile(buf) {
   const absMag = new Int16Array(buf, off, count)
   off += 2 * count
   const teff = new Uint16Array(buf, off, count)
-  return {count, flags, position, ids, velocity, absMag, teff}
+  off += 2 * count
+  const clazz = flags & HAS_CLASS ? new Uint16Array(buf, off, count) : null
+  return {count, flags, position, ids, hip, velocity, absMag, teff, clazz}
 }
 
 
@@ -216,4 +252,103 @@ export function tileVelocity(tile, i) {
  */
 export function tilePath(order, pix) {
   return `${order}/${pix}.bin`
+}
+
+
+/**
+ * A pack: several tiles in one file, so a population whose tiles are
+ * small (the bundled catalogue's) is fetched in a few requests rather than
+ * one a tile (Stars.md, "Brightness tiers").  The tiles stay the units the
+ * selection draws and culls; a pack is only how they travel.  The
+ * manifest says which pack holds a tile (`packs`), so a pack is fetched
+ * when any tile in it is wanted, and all of them are added.
+ *
+ *   bytes 0-7    'CELPACKS'
+ *   uint32       format version (1)
+ *   uint32       tiles, k
+ *   uint32 ×3k   each tile's order, NESTED pixel and length in bytes
+ *   ...          the tiles (as encodeTile writes them), in that order,
+ *                each from a multiple of 4 bytes
+ */
+export const PACK_MAGIC = 'CELPACKS'
+export const PACK_VERSION = 1
+
+
+/** @returns {number} n rounded up to a multiple of 4 */
+const align4 = (n) => Math.ceil(n / 4) * 4
+
+
+/**
+ * @param {Array<{order: number, pix: number, buf: ArrayBuffer}>} tiles
+ * @returns {ArrayBuffer}
+ */
+export function encodePack(tiles) {
+  const head = align4(16 + (12 * tiles.length))
+  let size = head
+  for (const t of tiles) {
+    size = align4(size) + t.buf.byteLength
+  }
+  const out = new ArrayBuffer(align4(size))
+  const dv = new DataView(out)
+  for (let i = 0; i < PACK_MAGIC.length; i++) {
+    dv.setUint8(i, PACK_MAGIC.charCodeAt(i))
+  }
+  dv.setUint32(8, PACK_VERSION, true)
+  dv.setUint32(12, tiles.length, true)
+  let off = head
+  tiles.forEach((t, i) => {
+    dv.setUint32(16 + (12 * i), t.order, true)
+    dv.setUint32(20 + (12 * i), t.pix, true)
+    dv.setUint32(24 + (12 * i), t.buf.byteLength, true)
+    off = align4(off)
+    new Uint8Array(out, off, t.buf.byteLength).set(new Uint8Array(t.buf))
+    off += t.buf.byteLength
+  })
+  return out
+}
+
+
+/**
+ * @param {ArrayBuffer} buf A pack
+ * @returns {Array<{order: number, pix: number, key: string, buf: ArrayBuffer}>} Its tiles, each a copy of
+ *   its bytes (so decodeTile's column views are aligned)
+ */
+export function decodePack(buf) {
+  const dv = new DataView(buf)
+  if (buf.byteLength < 16) {
+    throw new Error(`Pack too short: ${buf.byteLength} bytes`)
+  }
+  for (let i = 0; i < PACK_MAGIC.length; i++) {
+    if (dv.getUint8(i) !== PACK_MAGIC.charCodeAt(i)) {
+      throw new Error('Not a tile pack: bad magic')
+    }
+  }
+  const version = dv.getUint32(8, true)
+  if (version !== PACK_VERSION) {
+    throw new Error(`Tile pack version ${version}, expected ${PACK_VERSION}`)
+  }
+  const k = dv.getUint32(12, true)
+  let off = align4(16 + (12 * k))
+  const out = []
+  for (let i = 0; i < k; i++) {
+    const order = dv.getUint32(16 + (12 * i), true)
+    const pix = dv.getUint32(20 + (12 * i), true)
+    const len = dv.getUint32(24 + (12 * i), true)
+    off = align4(off)
+    if (off + len > buf.byteLength) {
+      throw new Error(`Tile pack truncated at tile ${order}/${pix}`)
+    }
+    out.push({order, pix, key: `${order}/${pix}`, buf: buf.slice(off, off + len)})
+    off += len
+  }
+  return out
+}
+
+
+/**
+ * @param {string} name A pack's name in the manifest
+ * @returns {string} Its path under the population's base
+ */
+export function packPath(name) {
+  return `packs/${name}.bin`
 }
