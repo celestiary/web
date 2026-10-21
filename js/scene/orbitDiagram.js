@@ -11,6 +11,7 @@ import {
 } from 'three'
 import {sceneReferred} from './hdr.js'
 import {ORBIT_ELEMENTS} from './orbitElements.js'
+import SpriteSheet from './SpriteSheet.js'
 import {newWideLineStrip} from './wideLines.js'
 
 
@@ -42,6 +43,9 @@ const NODE_ARC_RADIUS = 0.35
 const PERI_ARC_RADIUS = 0.5
 const ANOMALY_ARC_RADIUS = 0.65
 const INCLINATION_ARC_RADIUS = 0.3
+const CENTRE_ARC_RADIUS = 0.82
+const BARYCENTRE_MARKER_PER_RATIO = 0.25
+const BARYCENTRE_MIN_RATIO = 1e-4
 const RIM_PER_APOAPSIS = 1.2
 const ARROW_LENGTH = 0.06
 const ARROW_HALF_WIDTH = 0.03
@@ -57,6 +61,7 @@ const COLORS = {
   orbitPlane: 0xe0d070,
   direction: 0xd0d0d0,
   body: 0xffffff,
+  barycentre: 0xffe08a,
 }
 
 const A = 'semiMajorAxis'
@@ -92,6 +97,16 @@ const PARTS = {
   anomalyArc: {color: C[M].color, n: ARC_STRIP_POINTS, keys: [M, L]},
   meanLine: {color: C[M].color, n: 2, keys: [M, L]},
   radius: {color: COLORS.body, n: 2, keys: [M, L]},
+  // From the mean place to the true one: the equation of centre, ν - M.
+  centreArc: {color: COLORS.body, n: ARC_STRIP_POINTS, keys: [M, L]},
+  // From the place the elements give to the body, where they aren't one
+  // (Earth's are the Earth-Moon barycentre's): setBodyOffset.
+  bodyOffset: {color: COLORS.body, n: 2, keys: [M, L], needs: 'offset', xray: true},
+  // The two bodies' barycentre, on the line to the body at m/(M + m) of the
+  // way, and the primary's own orbit about it: the body's, scaled by that
+  // and turned half round, through the primary's centre (setMassRatio).
+  barycentre: {color: COLORS.barycentre, n: MARKER_POINTS, keys: [A, M, L], needs: 'barycentre', xray: true},
+  primaryOrbit: {color: COLORS.barycentre, n: RIM_POINTS, keys: [A, M, L], needs: 'barycentre', xray: true},
   body: {color: COLORS.body, n: MARKER_POINTS, keys: [M, L], base: true, optional: true},
 }
 
@@ -207,9 +222,11 @@ function arcWithHead(c, ref, perp, r, sweep) {
     if (wing === 0) {
       return at(sweep, r * cos, r * sin, v)
     }
-    // tip - head·tangent + wing·head/2·radial, tangent (-sin, cos), radial (cos, sin)
-    const cr = (r * cos) + (head * sin) + (wing * head * 0.5 * cos)
-    const cp = (r * sin) - (head * cos) + (wing * head * 0.5 * sin)
+    // tip - head·tangent + wing·head/2·radial: the tangent the way the arc
+    // runs, ±(-sin, cos); the radial (cos, sin).
+    const sign = sweep < 0 ? -1 : 1
+    const cr = (r * cos) + (sign * head * sin) + (wing * head * 0.5 * cos)
+    const cp = (r * sin) - (sign * head * cos) + (wing * head * 0.5 * sin)
     return at(sweep, cr, cp, v)
   }
 }
@@ -234,8 +251,12 @@ export default class OrbitDiagram extends Group {
    * @param {boolean} [opts.screen] Drawn straight to an sRGB canvas (the
    *     guide), not into the app's linear scene buffer: the lines take their
    *     colours' sRGB values as they are
+   * @param {?object} [opts.labels] Name the points in the scene (the app):
+   *     {direction, body}, the reference direction's and the body's place's
+   *     names (the body's only where its place isn't the body's own, e.g.
+   *     'Earth-Moon barycentre'); needs a DOM, for the labels' canvas
    */
-  constructor({layer = null, body = false, screen = false} = {}) {
+  constructor({layer = null, body = false, screen = false, labels = null} = {}) {
     super()
     this.name = 'orbitDiagram'
     this.parts = {}
@@ -244,8 +265,11 @@ export default class OrbitDiagram extends Group {
       if (p.optional && !body) {
         continue
       }
+      // The barycentre's parts are inside the bodies (the Earth-Moon one is
+      // 4,700 km from the Earth's centre): drawn through them.
       const strip = newWideLineStrip(new Float32Array(p.n * 3), {
         name: `orbitDiagram.${name}`, color: p.color, width: WIDTH.all, opacity: OPACITY.all,
+        material: p.xray ? {depthTest: false} : {},
       })
       if (screen) {
         strip.material.uniforms.uOverride.value.set(...new Color().setHex(p.color, LinearSRGBColorSpace).toArray(), 1)
@@ -254,7 +278,14 @@ export default class OrbitDiagram extends Group {
       this.add(strip)
     }
     /** Where to hang labels, in the diagram's units: set by setElements. */
-    this.anchors = {direction: new Vector3, ascendingNode: new Vector3, pericentre: new Vector3, body: new Vector3}
+    this.anchors = {
+      direction: new Vector3, ascendingNode: new Vector3, pericentre: new Vector3, body: new Vector3,
+      centre: new Vector3, emptyFocus: new Vector3,
+    }
+    this._bodyOffset = null
+    this._massRatio = 0
+    this.anchors.barycentre = new Vector3
+    this._labels = labels ? this._newLabels(labels) : null
     this.fills = {
       reference: this._newFill(COLORS.reference),
       orbitPlane: this._newFill(COLORS.orbitPlane),
@@ -345,7 +376,12 @@ export default class OrbitDiagram extends Group {
     set('minorAxis', segment([-e, 0, b], [-e, 0, -b]), q.peri)
     set('emptyFocus', arc(MARKER_RADIUS, 0, TWO_PI, -2 * e), q.peri)
     set('anomalyArc', arcWithHead(ORIGIN, X_DIR, PROGRADE, ANOMALY_ARC_RADIUS, m), q.peri)
-    set('meanLine', segment([0, 0, 0], [Math.cos(m), 0, -Math.sin(m)]), q.peri)
+    // To the orbit, at the mean anomaly's angle from pericentre.
+    const rMean = p / (1 + (e * Math.cos(m)))
+    set('meanLine', segment([0, 0, 0], [rMean * Math.cos(m), 0, -rMean * Math.sin(m)]), q.peri)
+    const centre = ((((nu - m) % TWO_PI) + (3 * Math.PI)) % TWO_PI) - Math.PI
+    set('centreArc', arcWithHead(ORIGIN, [Math.cos(m), 0, -Math.sin(m)], [-Math.sin(m), 0, -Math.cos(m)],
+        CENTRE_ARC_RADIUS, centre), q.peri)
     set('radius', segment([0, 0, 0], [rBody * Math.cos(nu), 0, -rBody * Math.sin(nu)]), q.peri)
     set('body', arc(MARKER_RADIUS * 1.5, 0, TWO_PI, rBody * Math.cos(nu), -rBody * Math.sin(nu)), q.peri)
     const an = this.anchors
@@ -353,6 +389,22 @@ export default class OrbitDiagram extends Group {
     an.ascendingNode.set(rNode, 0, 0).applyQuaternion(q.node)
     an.pericentre.set(1 - e, 0, 0).applyQuaternion(q.peri)
     an.body.set(rBody * Math.cos(nu), 0, -rBody * Math.sin(nu)).applyQuaternion(q.peri)
+    an.centre.set(-e, 0, 0).applyQuaternion(q.peri)
+    an.emptyFocus.set(-2 * e, 0, 0).applyQuaternion(q.peri)
+    // The barycentre, and the primary's orbit about it, passing through the
+    // primary's centre (the focus) as it must: B - k r(E), with B = k r(ν).
+    // In the orbit's perifocal axes.
+    const k = this._massRatio
+    const bx = k * rBody * Math.cos(nu)
+    const bz = -k * rBody * Math.sin(nu)
+    an.barycentre.copy(an.body).multiplyScalar(k)
+    set('primaryOrbit', (u, v) => {
+      const ecc = TWO_PI * u
+      return v.set(bx - (k * (Math.cos(ecc) - e)), 0, bz + (k * b * Math.sin(ecc)))
+    }, q.peri)
+    set('barycentre', arc(Math.min(MARKER_RADIUS, BARYCENTRE_MARKER_PER_RATIO * k), 0, TWO_PI, bx, bz), q.peri)
+    this.setBodyOffset(this._bodyOffset)
+    this._placeLabels()
     this.fills.reference.scale.setScalar(rim)
     this.fills.orbitPlane.scale.setScalar(rim)
     this.orbitFrame.quaternion.copy(q.plane)
@@ -370,13 +422,122 @@ export default class OrbitDiagram extends Group {
     for (const [name, strip] of Object.entries(this.parts)) {
       const state = partState(name, this.keys)
       const u = strip.material.uniforms
-      strip.visible = state !== 'hidden'
+      strip.visible = state !== 'hidden' && this._has(PARTS[name].needs)
       u.uOpacity.value = OPACITY[state] ?? 0
       u.uWidthFirst.value = u.uWidthLast.value = WIDTH[state] ?? 0
     }
+    this._showLabels()
     const planesLit = Boolean(this.keys?.has(I))
     this.fills.reference.material.opacity = planesLit ? FILL_LIT_OPACITY : FILL_OPACITY
     this.fills.orbitPlane.material.opacity = planesLit ? FILL_LIT_OPACITY : FILL_OPACITY
+  }
+
+
+  /**
+   * Mark how far the body is from the place its elements give it, where
+   * that isn't the body (Earth's are the Earth-Moon barycentre's): a line
+   * from that place to the body.  Null takes it away.
+   *
+   * @param {?Vector3} body the body, in the diagram's frame and units
+   */
+  setBodyOffset(body) {
+    this._bodyOffset = body ? (this._bodyOffset ?? new Vector3).copy(body) : null
+    const strip = this.parts.bodyOffset
+    const pos = strip.geometry.attributes.position
+    const from = this.anchors.body
+    const to = this._bodyOffset ?? from
+    pos.array.set([from.x, from.y, from.z, to.x, to.y, to.z])
+    pos.needsUpdate = true
+    strip.visible = this._has('offset') && partState('bodyOffset', this.keys) !== 'hidden'
+    this._showLabels()
+  }
+
+
+  /**
+   * The secondary's share of the two bodies' mass, m / (M + m), for their
+   * barycentre and the primary's orbit about it: the Moon's 1/82.3, Pluto
+   * and Charon's 0.11, Jupiter's 1/1048 (the Sun's centre circles a point
+   * just outside its surface).  Under BARYCENTRE_MIN_RATIO (the Sun and
+   * Earth's 3e-6: 450 km at 1 AU) they aren't drawn.
+   *
+   * @param {number} k
+   */
+  setMassRatio(k) {
+    this._massRatio = Number.isFinite(k) && k > 0 ? k : 0
+  }
+
+
+  /**
+   * @param {string} [needs] a part's `needs`
+   * @returns {boolean} whether the diagram has what the part shows
+   */
+  _has(needs) {
+    if (needs === 'offset') {
+      return this._bodyOffset !== null
+    }
+    if (needs === 'barycentre') {
+      return this._massRatio >= BARYCENTRE_MIN_RATIO
+    }
+    return true
+  }
+
+
+  /**
+   * @param {object} names {direction, body}
+   * @returns {object} {sheet, sprites, entries}
+   */
+  _newLabels(names) {
+    const entries = [
+      {anchor: 'direction', text: names.direction ?? 'reference direction', part: 'direction',
+        color: COLORS.direction},
+      {anchor: 'ascendingNode', text: '☊ ascending node', part: 'ascendingNode', color: C[NODE].color},
+      {anchor: 'pericentre', text: 'pericentre', part: 'periLine', color: C[OMEGA].color},
+      {anchor: 'centre', text: 'centre', part: 'centre', color: C[A].color},
+      {anchor: 'emptyFocus', text: 'empty focus', part: 'emptyFocus', color: C[E].color},
+    ]
+    if (names.body) {
+      entries.push({anchor: 'body', text: names.body, part: 'radius', color: COLORS.body, needs: 'offset'})
+    }
+    if (names.barycentre) {
+      entries.push({anchor: 'barycentre', text: names.barycentre, part: 'barycentre', color: COLORS.barycentre,
+        needs: 'barycentre'})
+    }
+    const sheet = new SpriteSheet(entries.length, entries.map((l) => l.text))
+    for (const l of entries) {
+      sheet.add(0, 0, 0, l.text, `#${l.color.toString(16).padStart(6, '0')}`)
+    }
+    const sprites = sheet.compile()
+    sprites.name = 'orbitDiagram.labels'
+    // Some name points inside the bodies (the barycentres): drawn over them.
+    if (sprites.material) {
+      sprites.material.depthTest = false
+    }
+    this.add(sprites)
+    return {sheet, sprites, entries}
+  }
+
+
+  /** Move the labels to their points. */
+  _placeLabels() {
+    const attr = this._labels?.sheet.positionAttribute
+    if (!attr) {
+      return
+    }
+    this._labels.entries.forEach((l, i) => attr.setXYZ(i, ...this.anchors[l.anchor].toArray()))
+    attr.needsUpdate = true
+  }
+
+
+  /** Name only the points whose parts are lit. */
+  _showLabels() {
+    const labels = this._labels
+    if (!labels?.sheet.setShown) {
+      return
+    }
+    labels.entries.forEach((l, i) => {
+      const lit = partState(l.part, this.keys) === 'lit' && this._has(l.needs)
+      labels.sheet.setShown(i, lit)
+    })
   }
 
 

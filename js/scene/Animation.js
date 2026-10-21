@@ -1,4 +1,4 @@
-import {Object3D, Quaternion, Vector3} from 'three'
+import {Matrix4, Object3D, Quaternion, Vector3} from 'three'
 import * as Shared from '../shared'
 import debug from '../debug'
 import {J2000_JD, gmstRad, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
@@ -38,6 +38,10 @@ const EARTH_MOON_GM_M3_PER_DAY2 = 4.03503235e14 * SECONDS_PER_DAY * SECONDS_PER_
 // between, the body is run on along the last ellipse.
 const ELEMENTS_STEP_PERIODS = 1e-5
 const ELEMENTS_MIN_MS = 250
+// An orbit diagram marks the body's offset from its elements' place past
+// this: Earth's 4,700 km from the Earth-Moon barycentre, not a planet's
+// kilometre of finite-difference error.
+const BODY_OFFSET_SHOWN_M = 100e3
 
 // A mean-element line's ellipse is redrawn when its eccentricity has
 // drifted (Pluto's, by Standish's rates) enough to move it by this much of
@@ -116,6 +120,7 @@ export default class Animation {
     this._orbitPos = new Vector3
     this._lineBody = new Vector3
     this._invQuat = new Quaternion
+    this._invMat = new Matrix4
     // A body's pole and meridian, from poleAndMeridian.
     this._pm = {ra: 0, dec: 0, w: 0}
     // Orbit line rebuilds, run within a per-frame budget.
@@ -622,6 +627,11 @@ export default class Animation {
     if (!el.ofDate) {
       diagram.quaternion.premultiply(this.precession)
     }
+    // Where the elements' place isn't the body (Earth's: the Earth-Moon
+    // barycentre's), mark the way to the body.
+    diagram.updateMatrix()
+    const body = this._tmpVec.copy(orbitPosition.position).applyMatrix4(this._invMat.copy(diagram.matrix).invert())
+    diagram.setBodyOffset(body.distanceTo(diagram.anchors.body) * el.a > BODY_OFFSET_SHOWN_M ? body : null)
   }
 
 

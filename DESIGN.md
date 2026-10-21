@@ -568,10 +568,12 @@ work it starts).
   listed in the source's form: ϖ and L for the planets, the Moon and
   Pluto; ω and M for the moons.  A negative inclination (Standish's Earth
   after J2000) is turned round (i > 0, Ω + 180°, ϖ kept).
-- **The panel** (`ControlPanel.orbitListHtml`): the orbit block's six
-  elements, of the date, each with its symbol, name, value and colour,
-  then `show all · none` (and `clear every orbit` while other bodies have
-  some on), then the block's other fields as before.  The values, and
+- **The panel** (`ControlPanel.orbitListHtml`): a lead line, not a list
+  item (what the elements are and their frame, then `Show all · none`, and
+  `clear every orbit` while other bodies have some on); the orbit period
+  (sidereal); the six elements, each with its symbol, name, value and
+  colour, the place's with the true place beside the mean (λ = ϖ + ν, or
+  ν); then the block's other fields as before.  The values, and
   which elements are on, follow the date and the scene four times a second
   while the list is open (`ControlPanel.frame`).  A click (or Enter, or
   Space) turns an element on or off; a hover or focus previews one.
@@ -598,7 +600,27 @@ work it starts).
   `meanElements.js` has them: the plane XZ, the pole +Y, the reference
   direction +X).  Each part is lit by the elements it shows; `highlight`
   takes any number of elements and draws their parts bright, the
-  reference frame and the ellipse faint, and hides the rest.  Each angle's
+  reference frame and the ellipse faint, and hides the rest.  The mean
+  anomaly's line runs from the focus to the orbit, at M's angle from
+  pericentre, and a white arc with an arrowhead runs from it to the
+  radius to the body: the equation of centre, ν − M.  In the app the
+  points are named (`labels`): the reference direction (♈︎ for the
+  ecliptic, the node on the ICRF equator for a moon), the ascending node,
+  pericentre, the centre, the empty focus, each shown while its part is
+  lit.
+- **Barycentres.**  `setMassRatio(m / (M + m))`, from the bodies' masses
+  (Scene): the two bodies' barycentre on the line to the body, m/(M + m)
+  of the way, and the primary's own orbit about it, the body's ellipse
+  scaled by that and turned half round, which passes through the
+  primary's centre.  The Earth-Moon barycentre is 4,700 km from the
+  Earth's centre, so Earth's small orbit is inside it; Pluto and Charon's
+  is outside Pluto; Jupiter's makes the Sun's centre circle a point just
+  outside its surface.  Under 1e-4 (the Sun and Earth's, 450 km at 1 AU)
+  they aren't drawn.  These parts and the labels are drawn through the
+  bodies (`depthTest` off): they're inside them.  Where a diagram's body
+  place isn't the body (Earth's heliocentric one, the barycentre's), a
+  white line marks the way to the body (`setBodyOffset`, from
+  `Animation.layOrbitDiagram`), past 100 km.  Each angle's
   arc ends in an arrowhead, the way the angle runs (`arcWithHead`): Ω from
   the reference direction, i up from the reference plane at the node, ω
   from the node, M from pericentre, all prograde.  ϖ and L are broken angles, so they light Ω's arc and

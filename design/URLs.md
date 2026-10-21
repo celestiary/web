@@ -402,7 +402,7 @@ at       the body's place: its mean longitude L, or for a moon its mean anomaly 
 ```
 #…;orbits:earth=i+peri,venus=i+peri       Earth's and Venus's planes and perihelia
 #…;orbits:pluto=a+e+i+node+peri+at        all of Pluto's
-#sun/jupiter/io;orbits:io=peri+at          Io's ω and M, with no view
+#…;orbits:io=peri+at                      Io's ω and M
 ```
 
 Decisions:
@@ -410,8 +410,8 @@ Decisions:
 - **One code for ϖ and ω, one for L and M.**  A body lists one of each pair,
   as its source gives them (the moons ω and M), so a code means whichever
   the body has, and a link needn't know which.
-- **App state, restored on any link that carries it**, as the `apps:`
-  token is, on the first load; a body not yet loaded shows its diagram when
+- **App state, restored on any link that carries it** (a link with a view:
+  a bare path carries no tokens), as the `apps:` token is, on the first load; a body not yet loaded shows its diagram when
   it does.  It isn't part of the view's restore: which elements are on
   doesn't depend on the moment or the camera.
 - **A hover's preview isn't written**, only what was clicked on.

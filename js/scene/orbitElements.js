@@ -260,7 +260,8 @@ function finish(el, orbit, extra) {
  * The six elements to list, in order, with their values formatted.
  *
  * @param {object} el elementsOfDate()
- * @returns {Array<{key: string, symbol: string, name: string, color: number, value: string}>}
+ * @returns {Array<{key: string, symbol: string, name: string, color: number, value: string}>} the
+ *     place's row also has trueName, trueSymbol and trueValue, the true place
  */
 export function elementRows(el) {
   const deg = (v) => `${v.toFixed(3)}°`
@@ -274,9 +275,15 @@ export function elementRows(el) {
     meanLongitude: deg(el.meanLongitude),
     meanAnomaly: deg(el.m),
   }
+  // Beside the mean place, the true one: the true longitude λ = ϖ + ν, or
+  // the true anomaly ν.
+  const truePlace = {
+    meanLongitude: {trueName: 'true', trueSymbol: 'λ', trueValue: deg(norm360(el.peri + el.nu))},
+    meanAnomaly: {trueName: 'true anomaly', trueSymbol: 'ν', trueValue: deg(el.nu)},
+  }
   const keys = ['semiMajorAxis', 'eccentricity', 'inclination', 'longitudeOfAscendingNode',
     el.pericentreKey, el.placeKey]
-  return keys.map((key) => ({key, ...ORBIT_ELEMENTS[key], value: values[key]}))
+  return keys.map((key) => ({key, ...ORBIT_ELEMENTS[key], value: values[key], ...truePlace[key]}))
 }
 
 

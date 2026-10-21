@@ -34,6 +34,20 @@ import * as Utils from '../utils.js'
 const ELEMENT_CODE_SET = new Set(CODES)
 
 
+/**
+ * @param {object} [body] a body's props
+ * @param {object} [primary] its primary's
+ * @returns {number} the body's share of the two's mass, m / (M + m), or 0
+ *     without both masses
+ */
+function massRatio(body, primary) {
+  const mass = (props) => Number(props?.mass?.scalar ?? props?.mass)
+  const m = mass(body)
+  const total = m + mass(primary)
+  return m > 0 && total > 0 ? m / total : 0
+}
+
+
 /** Default observer altitude for Scene.land — eye height. */
 export const DEFAULT_LAND_ALT_M = 2
 
@@ -745,7 +759,17 @@ export default class Scene {
         continue
       }
       if (!node.orbitDiagram) {
-        node.orbitDiagram = new OrbitDiagram({layer: Shared.OVERLAY_LAYER})
+        const primary = this.objects[body]?.props?.parent
+        node.orbitDiagram = new OrbitDiagram({layer: Shared.OVERLAY_LAYER, labels: {
+          // The moons' elements are in their Laplace plane or equator, from
+          // its node on the ICRF equator; the rest's in the ecliptic.
+          direction: node.orbit?.referencePole ? 'reference direction (node on the ICRF equator)' :
+            '♈︎ vernal equinox',
+          // Earth's osculating elements are the Earth-Moon barycentre's.
+          body: body === 'earth' ? 'Earth–Moon barycentre' : null,
+          barycentre: `${Utils.capitalize(primary ?? '')}–${Utils.capitalize(body)} barycentre`,
+        }})
+        node.orbitDiagram.setMassRatio(massRatio(this.objects[body]?.props, this.objects[primary]?.props))
         node.parent.add(node.orbitDiagram)
       }
       node.orbitDiagram.highlight([...codes].map((c) => keyOfCode(c, node.orbit)).filter(Boolean))

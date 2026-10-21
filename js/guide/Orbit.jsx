@@ -76,9 +76,9 @@ export default function Orbit() {
     inclination: `${state.i.toFixed(1)}°`,
     longitudeOfAscendingNode: `${state.node.toFixed(1)}°`,
     longitudeOfPericenter: `${state.peri.toFixed(1)}°`,
-    meanLongitude: `${state.meanLongitude.toFixed(1)}°`,
+    meanLongitude: `${state.meanLongitude.toFixed(1)}° · true λ ${norm360(state.peri + el.nu).toFixed(1)}°`,
     argumentOfPericenter: `${el.w.toFixed(1)}° = ϖ − Ω`,
-    meanAnomaly: `${el.m.toFixed(1)}° = L − ϖ`,
+    meanAnomaly: `${el.m.toFixed(1)}° = L − ϖ · true ν ${el.nu.toFixed(1)}°`,
   }
 
   return (

@@ -17,7 +17,7 @@ describe('ControlPanel', () => {
         elements: 'JPL SSD', referencePlane: 'Laplace', referencePole: {ra: 268.1, dec: 64.5}, epoch: 2451545.0,
         semiMajorAxis: 421800000.0, eccentricity: 0.004, inclination: 0.0, longitudeOfAscendingNode: 0.0,
         argumentOfPericenter: 49.1, meanAnomaly: 330.9, period: 1.762732, periodOf: 'meanAnomaly',
-        apsidalPeriod: -1.333, nodalPeriod: 0,
+        apsidalPeriod: -1.333, nodalPeriod: 0, siderealOrbitPeriod: 152853.509808,
       },
     }, 'sun/jupiter')
     const keys = [...html.matchAll(/data-element="(\w+)"/g)].map((m) => m[1])
@@ -35,6 +35,15 @@ describe('ControlPanel', () => {
     // The rest of the block follows; the listed fields aren't repeated.
     expect(html).toContain('apsidalPeriod')
     expect(html).not.toContain('<li>meanAnomaly:')
+    // The lead first, then the period, as the user asked; the true anomaly
+    // beside the mean.
+    const lead = html.indexOf('class="orbit-lead"')
+    const period = html.indexOf('orbit period (sidereal): 1d 18h 27m 33s')
+    expect(lead).toBeGreaterThan(0)
+    expect(period).toBeGreaterThan(lead)
+    expect(period).toBeLessThan(html.indexOf('data-element='))
+    expect(html).toContain('true anomaly: <span class="orbit-true">')
+    expect(html).not.toContain('<li>siderealOrbitPeriod:')
     expect(html).not.toContain('<li>semiMajorAxis:')
   })
 

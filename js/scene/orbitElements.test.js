@@ -211,8 +211,54 @@ describe('OrbitDiagram', () => {
     expect(Math.abs(body.dot(pole))).toBeLessThan(1e-6)
   })
 
+  it('meets the orbit with the mean anomaly\'s line, and arcs from it to the true place', () => {
+    const p = 1 - (0.3 * 0.3)
+    const m = 40 * Math.PI / 180
+    // The orbit at angle M from pericentre, from the focus.
+    expect(point(d, 'meanLine', -1).length()).toBeCloseTo(p / (1 + (0.3 * Math.cos(m))), 6)
+    // The equation of centre: from the mean direction toward the body's.
+    const n = d.parts.centreArc.geometry.attributes.position.count
+    const start = point(d, 'centreArc', 0).normalize()
+    const end = point(d, 'centreArc', n - 4).normalize()
+    expect(start.dot(point(d, 'meanLine', -1).normalize())).toBeCloseTo(1, 6)
+    expect(end.dot(point(d, 'radius', -1).normalize())).toBeCloseTo(1, 6)
+  })
+
+  it('marks the body away from its elements\' place only when told', () => {
+    d.highlight('meanLongitude')
+    expect(d.parts.bodyOffset.visible).toBe(false)
+    const body = d.anchors.body.clone().add(new Vector3(0.01, 0, 0))
+    d.setBodyOffset(body)
+    expect(d.parts.bodyOffset.visible).toBe(true)
+    expect(point(d, 'bodyOffset', -1).distanceTo(body)).toBeLessThan(1e-6)
+    d.setBodyOffset(null)
+    expect(d.parts.bodyOffset.visible).toBe(false)
+  })
+
+  it('puts the barycentre on the line to the body, and the primary\'s orbit about it through its centre', () => {
+    const k = 1 / 82.3
+    d.setMassRatio(k)
+    d.setElements(el)
+    d.highlight('meanLongitude')
+    expect(d.parts.barycentre.visible && d.parts.primaryOrbit.visible).toBe(true)
+    expect(d.anchors.barycentre.distanceTo(d.anchors.body.clone().multiplyScalar(k))).toBeLessThan(1e-9)
+    const orbit = d.parts.primaryOrbit.geometry.attributes.position.array
+    let nearest = Infinity
+    for (let j = 0; j < orbit.length; j += 3) {
+      nearest = Math.min(nearest, Math.hypot(orbit[j], orbit[j + 1], orbit[j + 2]))
+    }
+    // Through the primary's centre, the focus, to the sampling's step.
+    expect(nearest).toBeLessThan(k * 2 * Math.PI / 192)
+    // Not drawn for a pair whose barycentre is in the noise (the Sun and Earth).
+    d.setMassRatio(3e-6)
+    d.highlight('meanLongitude')
+    expect(d.parts.barycentre.visible).toBe(false)
+    d.setMassRatio(0)
+    d.setElements(el)
+  })
+
   it('ends each arc in an arrowhead pointing the way its angle runs', () => {
-    for (const arc of ['nodeArc', 'periArc', 'anomalyArc', 'inclinationArc']) {
+    for (const arc of ['nodeArc', 'periArc', 'anomalyArc', 'inclinationArc', 'centreArc']) {
       const n = d.parts[arc].geometry.attributes.position.count
       // The arc's last point, then one wing, the tip, the other wing.
       const end = point(d, arc, n - 4)

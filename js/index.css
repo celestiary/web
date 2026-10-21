@@ -101,6 +101,14 @@ button {
   box-shadow: inset 2px 0 0 currentColor;
 }
 
+/* The list's lead: what the elements are, and show all, none. */
+.orbit-lead {
+  list-style: none;
+  margin-left: -1em;
+  margin-bottom: 0.2em;
+  color: #aaa;
+}
+
 .orbit-action {
   background: none;
   border: none;

@@ -12,8 +12,8 @@ const ORBIT_REFRESH_MS = 250
 
 /** What the elements are, as the orbit list says (orbitElements.js `kind`). */
 const KIND_NAMES = {
-  osculating: 'osculating elements, of the moment',
-  mean: 'mean elements, of the date',
+  osculating: 'Osculating elements, of the moment',
+  mean: 'Mean elements, of the date',
 }
 
 /** The elements' reference planes, as the orbit list names them. */
@@ -179,19 +179,25 @@ export default class ControlPanel {
     const on = this.orbitHooks?.elements?.(body.name) ?? new Set
     html = `<ul class="collapsed orbit-elements" data-prop="orbit" ` +
       `title="Click elements to show them on the orbit, on as many bodies as you like">\n`
-    for (const row of elementRows(el)) {
-      const color = `#${row.color.toString(16).padStart(6, '0')}`
-      const code = ELEMENT_CODES[row.key]
-      html += `<li class="orbit-element${on.has(code) ? ' on' : ''}" data-element="${row.key}" ` +
-        `data-code="${code}" tabindex="0" role="switch" aria-checked="${on.has(code)}">` +
-        `<span class="orbit-swatch" style="color: ${color}">■</span> <b>${row.symbol}</b> ${row.name}: ` +
-        `<span class="orbit-value">${row.value}</span></li>\n`
-    }
-    html += '<li class="orbit-actions">show <button class="orbit-action" data-action="all">all</button> · ' +
+    // The lead: what the elements are, and the switches for them all.
+    html += `<li class="orbit-lead"><span class="orbit-kind">${kindText(el)}</span>.  Show ` +
+      '<button class="orbit-action" data-action="all">all</button> · ' +
       '<button class="orbit-action" data-action="none">none</button>' +
       '<span class="orbit-clear" hidden> · <button class="orbit-action" data-action="clear">' +
       'clear every orbit</button></span></li>\n'
-    html += `<li class="orbit-kind">${KIND_NAMES[el.kind]}, in ${PLANE_NAMES[el.plane]}</li>\n`
+    if (orbit.siderealOrbitPeriod !== undefined) {
+      html += `<li>orbit period (sidereal): ${secsToYDHMS(scalar(orbit.siderealOrbitPeriod))}</li>\n`
+    }
+    for (const row of elementRows(el)) {
+      const color = `#${row.color.toString(16).padStart(6, '0')}`
+      const code = ELEMENT_CODES[row.key]
+      const truePlace = row.trueValue ? ` · <span class="orbit-swatch" style="color: #fff">■</span> ` +
+        `<b>${row.trueSymbol}</b> ${row.trueName}: <span class="orbit-true">${row.trueValue}</span>` : ''
+      html += `<li class="orbit-element${on.has(code) ? ' on' : ''}" data-element="${row.key}" ` +
+        `data-code="${code}" tabindex="0" role="switch" aria-checked="${on.has(code)}">` +
+        `<span class="orbit-swatch" style="color: ${color}">■</span> <b>${row.symbol}</b> ${row.name}: ` +
+        `<span class="orbit-value">${row.value}</span>${truePlace}</li>\n`
+    }
     const rest = {}
     for (const [key, val] of Object.entries(orbit)) {
       if (!ORBIT_LISTED.has(key)) {
@@ -312,16 +318,17 @@ export default class ControlPanel {
       return
     }
     const kind = state.list.querySelector('.orbit-kind')
-    const kindText = `${KIND_NAMES[el.kind]}, in ${PLANE_NAMES[el.plane]}`
-    if (kind && kind.textContent !== kindText) {
-      kind.textContent = kindText
+    if (kind && kind.textContent !== kindText(el)) {
+      kind.textContent = kindText(el)
     }
-    const values = Object.fromEntries(elementRows(el).map((r) => [r.key, r.value]))
+    const rows = Object.fromEntries(elementRows(el).map((r) => [r.key, r]))
     for (const li of state.list.querySelectorAll('.orbit-element')) {
-      const span = li.querySelector('.orbit-value')
-      const value = values[li.dataset.element]
-      if (span && value !== undefined && span.textContent !== value) {
-        span.textContent = value
+      const row = rows[li.dataset.element]
+      for (const [selector, value] of [['.orbit-value', row?.value], ['.orbit-true', row?.trueValue]]) {
+        const span = li.querySelector(selector)
+        if (span && value !== undefined && span.textContent !== value) {
+          span.textContent = value
+        }
       }
     }
   }
@@ -519,7 +526,25 @@ function subKey(keyPath, prop) {
 
 /** The orbit block's fields the element list shows itself. */
 const ORBIT_LISTED = new Set(['semiMajorAxis', 'eccentricity', 'inclination', 'longitudeOfAscendingNode',
-  'longitudeOfPericenter', 'argumentOfPericenter', 'meanLongitude', 'meanAnomaly'])
+  'longitudeOfPericenter', 'argumentOfPericenter', 'meanLongitude', 'meanAnomaly', 'siderealOrbitPeriod'])
+
+
+/**
+ * @param {object} el orbitElements.js's form
+ * @returns {string} what the elements are and in which frame, the list's lead
+ */
+function kindText(el) {
+  return `${KIND_NAMES[el.kind]}, in ${PLANE_NAMES[el.plane]}`
+}
+
+
+/**
+ * @param {number|{scalar: number}} v a number, or a reified Measure
+ * @returns {number}
+ */
+function scalar(v) {
+  return Number(v?.scalar ?? v)
+}
 
 /** J2000 as a Julian Ephemeris Day: the orbit list's date with no clock. */
 const J2000_JDE = 2451545.0
@@ -571,5 +596,5 @@ function secsToYDHMS(s) {
   if (seconds > 0) {
     str += ` ${seconds}s`
   }
-  return str
+  return str.trim()
 }
