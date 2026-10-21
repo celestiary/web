@@ -237,6 +237,7 @@ mock.module('./ThreeUI', () => ({default: StubThreeUI}))
 mock.module('./ControlPanel', () => ({
   default: class {
     showNavDisplay() {}
+    frame() {}
   },
 }))
 // Keys is NOT mocked: bun mock.module() is process-global, so mocking it here

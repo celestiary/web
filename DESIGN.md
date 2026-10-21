@@ -529,6 +529,58 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
   each frame (`layOrbitShape`): that ellipse is their ephemeris.
 - **Bodies without elements** (demo descriptors) keep the flat ellipse.
 
+### Orbital elements
+
+A body's six Keplerian elements, listed in its info panel and drawn on its
+orbit one at a time (`js/scene/orbitElements.js`, `js/scene/orbitDiagram.js`;
+[#272](https://github.com/celestiary/web/issues/272) is the wider orbits
+work it starts).
+
+- **Of the date, from what places the body.** `elementsOfDate` gives a, e,
+  i, Ω, ω and M (and ϖ = Ω + ω, L = ϖ + M, the true anomaly ν) from the
+  same source as the body's position, where it can: the planets from
+  Standish's elements and rates (`planetsApprox.js`, within arcminutes of
+  VSOP87C), the Moon from Meeus 47's mean node, perigee and longitude of
+  date (its node turns once in 18.6 years, so the JSON's J2000 values
+  would be far off), Pluto and the moons from their mean elements
+  (`meanElements.js` `elementsAt`, which `orbitAt` now uses too), in their
+  Laplace plane or their planet's equator.  A body with none of these
+  (the demo descriptors) gets its JSON's elements run on at its period.
+  The pericentre and the body's place are listed in the source's form: ϖ
+  and L for the planets, the Moon and Pluto; ω and M for the moons.
+  Standish's Earth has a slightly negative I after J2000; it's turned
+  round (i > 0, Ω + 180°, ϖ kept).
+- **The panel** (`ControlPanel.orbitListHtml`): the orbit block's six
+  elements, of the date, each with its symbol, name, value and colour,
+  then the block's other fields as before.  The values follow the date
+  four times a second while the list is open (`ControlPanel.frame`).
+  Hovering or focusing an element lights it on the orbit; a click (or
+  Enter) pins it, and leaving goes back to the pinned one; folding the
+  list or moving to another body puts the diagram away.
+- **The diagram** (`OrbitDiagram`): the reference plane and direction, the
+  orbit's plane, the line of nodes and the ascending node, the arcs of Ω,
+  i, ω and M, the major and minor axes, the centre, the empty focus and
+  the radius to the body: wide-line strips (`wideLines.js`) and two faint
+  plane fills, drawn in units of a in the reference plane's axes (as
+  `meanElements.js` has them: the plane XZ, the pole +Y, the reference
+  direction +X).  Each part is lit by the elements it shows; `highlight`
+  draws those bright, the reference frame and the ellipse faint, and
+  hides the rest.  ϖ and L are broken angles, so they light Ω's arc and
+  ω's (and M's) together.
+- **In the scene** (`Scene.showOrbitElement`): one diagram at a time, made
+  on first use beside the orbit line (in the primary's frame, on the
+  overlay layer), shown whatever `o` says, since it was asked for.  Each
+  frame it shows, `Animation.layOrbitDiagram` lays it on the elements of
+  the date, scaled to a and turned by the elements' frame and the
+  precession, as `placeByElements` turns an orbit.  The radius to the body
+  ends on the body (checked for Pluto, Io and the Moon in a browser).
+- **The guide's orbit page** (`/guide/orbit`, `js/guide/Orbit.jsx`) drives
+  the same diagram in React Three Fiber, with sliders for e, i, Ω, ϖ and
+  L, the planets' elements as presets, and the same hover and pin.  Drawn
+  straight to an sRGB canvas, its lines take their colours as they are
+  (`screen`); in the app they go through the HDR scene buffer.
+
+
 ### Frames and time
 
 - **The scene frame is the mean ecliptic and equinox *of date*,** not J2000: VSOP87**C** is the of-date series (VSOP87A is J2000). Checked against Meeus example 25.b: VSOP87C gives the Sun's longitude as 199.9073° at 1992 Oct 13.0 (Meeus: 199.907372°), while VSOP87A gives 200.008°. Meeus ch. 47 is in the same frame, so the Moon's geocentric (λ, β, Δ) goes straight in, with no precession.
@@ -1424,6 +1476,8 @@ and the provider extension contract.
 | `js/scene/planetsApprox.js` | The planets from Standish's mean elements: the stand-in before VSOP87C has loaded ([before the ephemeris loads](#before-the-ephemeris-loads)) |
 | `js/scene/lunarTheory.js` | The Moon: Meeus ch. 47 position, mean orbit of date (and Cassini-law orientation, now only a check) |
 | `js/scene/meanElements.js` | Pluto and the moons: mean elements in their reference planes, Kepler's equation |
+| `js/scene/orbitElements.js` | A body's six orbital elements of the date, from its own source, for the info panel and the diagram ([orbital elements](#orbital-elements)) |
+| `js/scene/orbitDiagram.js` | The diagram of an orbit's elements, each lit on its own; the app's and the guide's ([orbital elements](#orbital-elements)) |
 | `js/scene/iauRotation.js` | IAU WGCCRE rotation models: pole, prime meridian, body orientation; Jupiter's System II cloud texture turn. Data in `iauRotation.json` (`tools/iau/pckRotation.mjs`) |
 | `js/scene/orbitPath.js` | Orbit lines sampled from the planets' and the Moon's ephemerides, and their budgeted rebuilds |
 | `js/scene/bodyLine.js` | An orbit line as drawn: a fine arc around the body and a float64 line written relative to it, so it passes through the body's centre close up |

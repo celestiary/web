@@ -81,6 +81,24 @@ button {
   display: none;
 }
 
+/* The info panel's orbit list: each element lights its part of the orbit's
+   diagram in the scene (ControlPanel.orbitListHtml). */
+.orbit-element {
+  width: fit-content;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.orbit-element.lit,
+.orbit-element:focus-visible {
+  background-color: rgba(255, 255, 255, 0.14);
+  outline: none;
+}
+
+.orbit-element.pinned {
+  box-shadow: inset 2px 0 0 currentColor;
+}
+
 .panel {
   padding: 1em;
   color: #ccc;

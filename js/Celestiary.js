@@ -156,6 +156,11 @@ export default class Celestiary {
     this.scene.registerSettingApplier('v', () => this._toggleNav())
     this.loader = new Loader()
     this.controlPanel = new ControlPanel(navElt, this.loader)
+    // The info panel's orbit list lights an element on the body's orbit.
+    this.controlPanel.orbitHooks = {
+      jde: () => this.animation.jde,
+      select: (body, key) => this.scene.showOrbitElement(body, key),
+    }
     this.firstTime = true
     this._permalinkTimer = null
     // Hear of a change of the exposure compensation (onExposureCompensation).
@@ -446,6 +451,7 @@ export default class Celestiary {
     this._frameHomeReturn(nowMs)
     this._news?.frame(nowMs)
     this.scene.overlays.tick(nowMs)
+    this.controlPanel.frame(nowMs)
     this._frameNav(nowMs)
   }
 

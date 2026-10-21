@@ -11,6 +11,7 @@ import ColonizationLines from './ColonizationLines.js'
 import Galaxies, {galaxiesInView} from './Galaxies.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
+import OrbitDiagram from './orbitDiagram.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
 import Star from './Star.js'
@@ -606,6 +607,37 @@ export default class Scene {
       obj.props = props
     }
     return obj
+  }
+
+
+  /**
+   * Light one of a body's orbital elements on its orbit (orbitDiagram.js),
+   * from the info panel's orbit list; or, with a null key, put the diagram
+   * away.  One diagram shows at a time.  Animation lays it on the body's
+   * elements of the date each frame while it shows (layOrbitDiagram).
+   *
+   * @param {string} bodyName
+   * @param {?string} key an orbitElements.js ORBIT_ELEMENTS key
+   */
+  showOrbitElement(bodyName, key) {
+    const node = this.objects[`${bodyName}.orbitPosition`]
+    const shown = this._orbitDiagramNode
+    if (shown && (shown !== node || !key)) {
+      shown.orbitDiagram.visible = false
+      this._orbitDiagramNode = null
+    }
+    if (!node || !key) {
+      return
+    }
+    if (!node.orbitDiagram) {
+      // Beside the orbit line, in the primary's frame: on the overlay
+      // layer, as the line is.
+      node.orbitDiagram = new OrbitDiagram({layer: Shared.OVERLAY_LAYER})
+      node.parent.add(node.orbitDiagram)
+    }
+    node.orbitDiagram.highlight(key)
+    node.orbitDiagram.visible = true
+    this._orbitDiagramNode = node
   }
 
 

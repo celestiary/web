@@ -6,6 +6,7 @@ import {moonScenePosition} from './lunarTheory.js'
 import {BodyLine, fineSteps} from './bodyLine.js'
 import {equatorQuaternion, poleAndMeridian, textureTurn} from './iauRotation.js'
 import {orbitAt} from './meanElements.js'
+import {elementsOfDate} from './orbitElements.js'
 import {PLANET_NAMES, planetsApprox} from './planetsApprox.js'
 import {
   JUPITER_SATURN_SAMPLES,
@@ -361,6 +362,9 @@ export default class Animation {
         debug().log(`SMA: ${system.orbit.semiMajorAxis.scalar}, syspos: ${system.position}, ` +
                     `vsopCoord: ${vsopCoord}, delta: ${vsopCoord.x - x}, ${vsopCoord.y - y}, ${vsopCoord.z - z}`)
       }
+      if (system.orbitDiagram?.visible) {
+        this.layOrbitDiagram(system)
+      }
       if (system.postAnimCb) {
         system.postAnimCb(system)
       }
@@ -497,6 +501,31 @@ export default class Animation {
     pos.applyQuaternion(this.precession)
     this.layOrbitShape(orbitPosition.orbitShape, q, a, e, orbitPosition.bodyRadius)
     return pos
+  }
+
+
+  /**
+   * Lay a body's orbit diagram (Scene.showOrbitElement) on its elements of
+   * this frame's date, in the scene's frame: the elements' reference plane
+   * turned to the ecliptic of J2000 and on by the precession, as
+   * placeByElements turns the orbit, or, for the Moon's of date, as they
+   * are.
+   *
+   * @param {Object3D} orbitPosition with `orbitDiagram`
+   */
+  layOrbitDiagram(orbitPosition) {
+    const diagram = orbitPosition.orbitDiagram
+    const el = elementsOfDate(orbitPosition.name.split('.')[0], orbitPosition.orbit, this.jde)
+    if (!el) {
+      diagram.visible = false
+      return
+    }
+    diagram.setElements(el)
+    diagram.scale.setScalar(el.a)
+    diagram.quaternion.copy(el.frame)
+    if (!el.ofDate) {
+      diagram.quaternion.premultiply(this.precession)
+    }
   }
 
 
