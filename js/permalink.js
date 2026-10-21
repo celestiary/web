@@ -11,6 +11,10 @@ const KV_SEP = '='
 const TOKEN_SEP = ':'
 const LIST_SEP = ','
 const VALUE_LIST_SEP = '+'
+// The orbital elements' codes, in their listed order (orbitElements.js CODES;
+// not imported, so a link's parse doesn't load the orbit code).
+const ORBIT_CODES = ['a', 'e', 'i', 'node', 'peri', 'at']
+const PLAIN_WORD = /^[\w.-]+$/
 // A `from=` frame path: a body path ('sun/earth') or a star ('hip:32349').
 const FRAME_PATH = /^([a-z0-9_-]+(\/[a-z0-9_-]+)*|hip:\d+)$/
 
@@ -443,6 +447,45 @@ export function decodeTimeToken(value) {
   const {flags, named} = parseTokenValue(value)
   const rate = parseFloat(named.rate)
   return {paused: flags.includes('pause'), rate: Number.isFinite(rate) && rate !== 0 ? rate : 1}
+}
+
+
+/**
+ * The `orbits:` token (design/URLs.md): the orbital elements lit on each
+ * body's orbit, `body=code+code`, the codes in their listed order
+ * (orbitElements.js CODES).  Left out (null) when none are.
+ *
+ * @param {Map<string, Set<string>>} elements Scene.getOrbitElements()
+ * @returns {?string}
+ */
+export function encodeOrbitsToken(elements) {
+  const named = {}
+  for (const [body, codes] of elements ?? []) {
+    const listed = ORBIT_CODES.filter((c) => codes.has(c))
+    if (listed.length > 0 && PLAIN_WORD.test(body)) {
+      named[body] = listed
+    }
+  }
+  return formatTokenValue([], named) || null
+}
+
+
+/**
+ * The inverse of encodeOrbitsToken.  Unknown codes are dropped; bodies are
+ * kept as written, for the scene to find (or not).
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {Map<string, Set<string>>}
+ */
+export function decodeOrbitsToken(value) {
+  const elements = new Map
+  for (const [body, list] of Object.entries(parseTokenValue(value).named)) {
+    const codes = new Set(parseValueList(list).filter((c) => ORBIT_CODES.includes(c)))
+    if (codes.size > 0) {
+      elements.set(body, codes)
+    }
+  }
+  return elements
 }
 
 

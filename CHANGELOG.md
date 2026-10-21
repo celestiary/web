@@ -35,8 +35,10 @@ has no view to open yet.
 
 A body's info panel now lists its orbit's six elements as they are today: its size and shape, the
 tilt and turn of its plane, where it comes closest to its primary, and where it is along the way.
-Hover or click one and it lights up on the orbit in space, drawn the way the textbooks draw it: the
-two planes, the line where they cross, and each angle as an arc. The guide's orbit page works again,
+Click any of them and they light up on the orbit in space, drawn the way the textbooks draw it: the
+two planes, the line where they cross, and each angle as an arc. They stay on as you go to other
+planets and moons, so you can turn on a few for Earth and Venus and see how their orbits line up, and
+a link keeps them. The guide's orbit page works again,
 with sliders and the planets as examples. The panel's masses, densities and escape velocities now
 show the right numbers and units.
 

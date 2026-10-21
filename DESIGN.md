@@ -552,11 +552,21 @@ work it starts).
   round (i > 0, Ω + 180°, ϖ kept).
 - **The panel** (`ControlPanel.orbitListHtml`): the orbit block's six
   elements, of the date, each with its symbol, name, value and colour,
-  then the block's other fields as before.  The values follow the date
-  four times a second while the list is open (`ControlPanel.frame`).
-  Hovering or focusing an element lights it on the orbit; a click (or
-  Enter) pins it, and leaving goes back to the pinned one; folding the
-  list or moving to another body puts the diagram away.
+  then `show all · none` (and `clear every orbit` while other bodies have
+  some on), then the block's other fields as before.  The values, and
+  which elements are on, follow the date and the scene four times a second
+  while the list is open (`ControlPanel.frame`).  A click (or Enter, or
+  Space) turns an element on or off; a hover or focus previews one.  The
+  list opens already open on a body with some on.
+- **Stateful, on many bodies at once** (`Scene` `toggleOrbitElement`,
+  `setOrbitElements`, `clearOrbitElements`, `previewOrbitElement`): the
+  scene keeps, per body, the set of elements on, by their short codes
+  (`orbitElements.js` `ELEMENT_CODES`: `peri` for ϖ or ω and `at` for L or
+  M, read as the body lists them, `keyOfCode`).  Moving to another body
+  keeps them, so Earth's and Venus's planes and perihelia can be compared
+  side by side.  The state is in the link as the `orbits:` token
+  ([design/URLs.md](design/URLs.md#orbits-token)), restored on the first
+  load; a body that loads after shows its diagram then (`Scene.add`).
 - **The diagram** (`OrbitDiagram`): the reference plane and direction, the
   orbit's plane, the line of nodes and the ascending node, the arcs of Ω,
   i, ω and M, the major and minor axes, the centre, the empty focus and
@@ -564,19 +574,21 @@ work it starts).
   plane fills, drawn in units of a in the reference plane's axes (as
   `meanElements.js` has them: the plane XZ, the pole +Y, the reference
   direction +X).  Each part is lit by the elements it shows; `highlight`
-  draws those bright, the reference frame and the ellipse faint, and
-  hides the rest.  ϖ and L are broken angles, so they light Ω's arc and
+  takes any number of elements and draws their parts bright, the
+  reference frame and the ellipse faint, and hides the rest.  ϖ and L are broken angles, so they light Ω's arc and
   ω's (and M's) together.
-- **In the scene** (`Scene.showOrbitElement`): one diagram at a time, made
-  on first use beside the orbit line (in the primary's frame, on the
-  overlay layer), shown whatever `o` says, since it was asked for.  Each
-  frame it shows, `Animation.layOrbitDiagram` lays it on the elements of
-  the date, scaled to a and turned by the elements' frame and the
-  precession, as `placeByElements` turns an orbit.  The radius to the body
-  ends on the body (checked for Pluto, Io and the Moon in a browser).
+- **In the scene** (`Scene._syncOrbitDiagrams`): a diagram per body with
+  elements on (and the previewed one), made on first use beside its orbit
+  line (in the primary's frame, on the overlay layer), shown whatever `o`
+  says, since it was asked for.  Each frame it shows,
+  `Animation.layOrbitDiagram` lays it on the elements of the date, scaled
+  to a and turned by the elements' frame and the precession, as
+  `placeByElements` turns an orbit.  The radius to the body ends on the
+  body (checked for Pluto, Io and the Moon in a browser).
 - **The guide's orbit page** (`/guide/orbit`, `js/guide/Orbit.jsx`) drives
   the same diagram in React Three Fiber, with sliders for e, i, Ω, ϖ and
-  L, the planets' elements as presets, and the same hover and pin.  Drawn
+  L, the planets' elements as presets, and the same clicks (any number on;
+  none on draws them all) and hover.  Drawn
   straight to an sRGB canvas, its lines take their colours as they are
   (`screen`); in the app they go through the HDR scene buffer.
 

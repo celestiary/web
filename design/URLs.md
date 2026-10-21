@@ -289,6 +289,7 @@ Each feature has its own label:
 
 ```
 "time":             the clock, when it is paused or not at real time
+"orbits":           the orbital elements lit on the bodies' orbits
 "apps":             the widgets drawer and dock: open, docked, the app
                     showing, the apps pinned and running
 "apps.<id>":        one running app's own state, a sub-namespace of apps
@@ -345,6 +346,46 @@ The link is rewritten when the clock is paused, its rate set, or its date
 set (`Time.onTimeScaleChange`), as well as when the camera settles.  While
 it is running the link's `t=` is the date at the last rewrite, so a copied
 link may be a moment behind; paused it is exact.
+
+### Orbits Token
+
+The orbital elements lit on the bodies' orbits, from the info panel's orbit
+list (DESIGN.md [orbital elements](../DESIGN.md#orbital-elements)): for each
+body with some on, its name and the elements' codes.
+
+```
+<body>=<code>+<code>   a body (as the loader names it) and its elements on
+```
+
+The codes, in the order the panel lists them:
+
+```
+a        semi-major axis
+e        eccentricity
+i        inclination
+node     longitude of the ascending node, Ω
+peri     the pericentre: its longitude ϖ, or for a moon its argument ω
+at       the body's place: its mean longitude L, or for a moon its mean anomaly M
+```
+
+```
+#…;orbits:earth=i+peri,venus=i+peri       Earth's and Venus's planes and perihelia
+#…;orbits:pluto=a+e+i+node+peri+at        all of Pluto's
+#sun/jupiter/io;orbits:io=peri+at          Io's ω and M, with no view
+```
+
+Decisions:
+
+- **One code for ϖ and ω, one for L and M.**  A body lists one of each pair,
+  as its source gives them (the moons ω and M), so a code means whichever
+  the body has, and a link needn't know which.
+- **App state, restored on any link that carries it**, as the `apps:`
+  token is, on the first load; a body not yet loaded shows its diagram when
+  it does.  It isn't part of the view's restore: which elements are on
+  doesn't depend on the moment or the camera.
+- **A hover's preview isn't written**, only what was clicked on.
+- **Unknown codes are dropped**, and a body the scene doesn't have is
+  ignored.  No token: none on.
 
 ### Apps Token
 

@@ -1,6 +1,6 @@
 import Measure from '@pablo-mayrgundter/measure.js'
 import * as collapsor from './collapsor.js'
-import {elementRows, elementsOfDate} from './scene/orbitElements.js'
+import {CODES, ELEMENT_CODES, elementRows, elementsOfDate} from './scene/orbitElements.js'
 import {CURVE_COLORS, rotationCurveSvg} from './scene/rotationCurve.js'
 import {spectralTypeName} from './scene/stellar.js'
 import {LIGHTYEAR_METER} from './shared.js'
@@ -33,11 +33,12 @@ export default class ControlPanel {
     this.loader = loader
     /**
      * The orbit list's link to the scene (Celestiary sets it): `jde()`, the
-     * date, and `select(body, key)`, which lights an element on the body's
-     * orbit, or with a null key hides the diagram.
+     * date; `elements(body)`, the body's lit element codes, `toggle(body,
+     * code)`, `set(body, codes)`, `clearAll()` and `count()`, the bodies lit
+     * (Scene's orbit element state); and `preview(body, code)`, a hover's.
      */
     this.orbitHooks = null
-    // The listed body, its pinned element, and when the values last ran.
+    // The listed body and its list, and when the values last ran.
     this._orbit = null
   }
 
@@ -67,7 +68,7 @@ export default class ControlPanel {
     let html = '<ul>\n'
     html += this.showInfoRecursive(target, pathPrefix, false, false)
     html += '</ul>\n'
-    this._clearOrbit()
+    this._endPreview()
     this.containerElt.innerHTML = html
     collapsor.makeCollapsable(this.containerElt)
     this._wireOrbit(target)
@@ -76,9 +77,10 @@ export default class ControlPanel {
 
   /**
    * The orbit's six elements, of the date, each lighting its part of the
-   * orbit's diagram in the scene when hovered or clicked (orbitDiagram.js;
-   * DESIGN.md "Orbital elements").  The other fields of the block follow,
-   * as the rest of the panel shows them.
+   * orbit's diagram in the scene (orbitDiagram.js; DESIGN.md "Orbital
+   * elements"): a click turns one on or off, and a hover previews it.  The
+   * list opens already open on a body with some on.  The other fields of
+   * the block follow, as the rest of the panel shows them.
    *
    * @param {object} body the body's props
    * @param {string} pathPrefix
@@ -90,13 +92,22 @@ export default class ControlPanel {
     if (!el) {
       return `<ul class="collapsed">\n${this.showInfoRecursive(orbit, pathPrefix, false, false)}</ul>\n`
     }
-    let html = `<ul class="collapsed orbit-elements" title="Hover or click an element to see it on the orbit">\n`
+    let html
+    const on = this.orbitHooks?.elements(body.name) ?? new Set
+    html = `<ul class="${on.size > 0 ? '' : 'collapsed '}orbit-elements" ` +
+      `title="Click elements to show them on the orbit, on as many bodies as you like">\n`
     for (const row of elementRows(el)) {
       const color = `#${row.color.toString(16).padStart(6, '0')}`
-      html += `<li class="orbit-element" data-element="${row.key}" tabindex="0">` +
+      const code = ELEMENT_CODES[row.key]
+      html += `<li class="orbit-element${on.has(code) ? ' on' : ''}" data-element="${row.key}" ` +
+        `data-code="${code}" tabindex="0" role="switch" aria-checked="${on.has(code)}">` +
         `<span class="orbit-swatch" style="color: ${color}">■</span> <b>${row.symbol}</b> ${row.name}: ` +
         `<span class="orbit-value">${row.value}</span></li>\n`
     }
+    html += '<li class="orbit-actions">show <button class="orbit-action" data-action="all">all</button> · ' +
+      '<button class="orbit-action" data-action="none">none</button>' +
+      '<span class="orbit-clear" hidden> · <button class="orbit-action" data-action="clear">' +
+      'clear every orbit</button></span></li>\n'
     html += `<li>of the date, in ${PLANE_NAMES[el.plane]}</li>\n`
     const rest = {}
     for (const [key, val] of Object.entries(orbit)) {
@@ -111,36 +122,32 @@ export default class ControlPanel {
 
 
   /**
-   * Hook the orbit list's elements to the scene: hover lights one, a click
-   * pins it (and a second unpins), and leaving goes back to the pinned one.
+   * Hook the orbit list's elements to the scene: a click (or Enter, or
+   * Space) turns one on or off on this body's orbit, and stays so as the
+   * panel moves to other bodies, to compare them; a hover or focus previews
+   * one.  `all` and `none` set this body's; `clear every orbit`, shown
+   * while other bodies have some on, puts them all away.
    *
    * @param {object} body the body's props
    */
   _wireOrbit(body) {
     const list = this.containerElt.querySelector?.('.orbit-elements')
     if (!list || !this.orbitHooks) {
+      this._orbit = null
       return
     }
-    const state = {body, list, pinned: null, lit: null, ranMs: 0}
-    this._orbit = state
-    const light = (key) => {
-      state.lit = key
-      for (const li of list.querySelectorAll('.orbit-element')) {
-        li.classList.toggle('lit', li.dataset.element === key)
-        li.classList.toggle('pinned', li.dataset.element === state.pinned)
-      }
-      this.orbitHooks.select(body.name, key)
-    }
+    const hooks = this.orbitHooks
+    this._orbit = {body, list, ranMs: 0}
     for (const li of list.querySelectorAll('.orbit-element')) {
-      const key = li.dataset.element
+      const code = li.dataset.code
       const toggle = () => {
-        state.pinned = state.pinned === key ? null : key
-        light(state.pinned ?? key)
+        hooks.toggle(body.name, code)
+        this._showOrbitState()
       }
-      li.addEventListener('pointerenter', () => light(key))
-      li.addEventListener('pointerleave', () => light(state.pinned))
-      li.addEventListener('focus', () => light(key))
-      li.addEventListener('blur', () => light(state.pinned))
+      li.addEventListener('pointerenter', () => hooks.preview(body.name, code))
+      li.addEventListener('pointerleave', () => hooks.preview(null, null))
+      li.addEventListener('focus', () => hooks.preview(body.name, code))
+      li.addEventListener('blur', () => hooks.preview(null, null))
       li.addEventListener('click', toggle)
       li.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter' || ev.key === ' ') {
@@ -149,28 +156,51 @@ export default class ControlPanel {
         }
       })
     }
-    // Folding the list away puts the diagram away.
-    list.previousSibling?.addEventListener?.('click', () => {
-      if (list.classList.contains('collapsed')) {
-        state.pinned = null
-        light(null)
-      }
-    })
+    for (const button of list.querySelectorAll('.orbit-action')) {
+      button.addEventListener('click', () => {
+        const action = button.dataset.action
+        if (action === 'clear') {
+          hooks.clearAll()
+        } else {
+          hooks.set(body.name, action === 'all' ? CODES : [])
+        }
+        this._showOrbitState()
+      })
+    }
+    this._showOrbitState()
   }
 
 
-  /** Put away the last body's diagram, as the panel moves on. */
-  _clearOrbit() {
+  /** Mark the list's elements as the scene has them on. */
+  _showOrbitState() {
+    const state = this._orbit
+    if (!state || !this.orbitHooks) {
+      return
+    }
+    const on = this.orbitHooks.elements(state.body.name)
+    for (const li of state.list.querySelectorAll('.orbit-element')) {
+      const isOn = on.has(li.dataset.code)
+      li.classList.toggle('on', isOn)
+      li.setAttribute('aria-checked', String(isOn))
+    }
+    const clear = state.list.querySelector('.orbit-clear')
+    if (clear) {
+      clear.hidden = this.orbitHooks.count() - (on.size > 0 ? 1 : 0) <= 0
+    }
+  }
+
+
+  /** End a hover's preview, as the panel moves on. */
+  _endPreview() {
     if (this._orbit) {
-      this.orbitHooks?.select(this._orbit.body.name, null)
-      this._orbit = null
+      this.orbitHooks?.preview(null, null)
     }
   }
 
 
   /**
-   * Each frame: the orbit list's values follow the date, a few times a
-   * second while it's open.
+   * Each frame: the orbit list's values follow the date, and its marks the
+   * scene's state, a few times a second while it's open.
    *
    * @param {number} nowMs
    */
@@ -183,6 +213,7 @@ export default class ControlPanel {
     if (!state.list.isConnected || state.list.classList.contains('collapsed')) {
       return
     }
+    this._showOrbitState()
     const el = elementsOfDate(state.body.name, state.body.orbit, this.orbitHooks.jde())
     if (!el) {
       return

@@ -81,22 +81,34 @@ button {
   display: none;
 }
 
-/* The info panel's orbit list: each element lights its part of the orbit's
-   diagram in the scene (ControlPanel.orbitListHtml). */
+/* The info panel's orbit list: each element on lights its part of the
+   orbit's diagram in the scene, on any number of bodies at once
+   (ControlPanel.orbitListHtml). */
 .orbit-element {
   width: fit-content;
   cursor: pointer;
   border-radius: 3px;
 }
 
-.orbit-element.lit,
+.orbit-element:hover,
 .orbit-element:focus-visible {
-  background-color: rgba(255, 255, 255, 0.14);
+  background-color: rgba(255, 255, 255, 0.08);
   outline: none;
 }
 
-.orbit-element.pinned {
+.orbit-element.on {
+  background-color: rgba(255, 255, 255, 0.16);
   box-shadow: inset 2px 0 0 currentColor;
+}
+
+.orbit-action {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #069;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .panel {

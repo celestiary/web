@@ -1385,3 +1385,77 @@ describe('Scene.initSettings', () => {
     expect(on).toContain('a')
   })
 })
+
+
+describe('orbital elements lit on the orbits', () => {
+  /**
+   * A scene with a body's orbitPosition as Planet makes it: under a group,
+   * holding the body's orbit block.
+   *
+   * @param {object} s Scene
+   * @param {string} name
+   * @param {object} orbit
+   * @returns {Object3D}
+   */
+  function addBody(s, name, orbit) {
+    const plane = new Object3D()
+    const node = new Object3D()
+    node.name = `${name}.orbitPosition`
+    node.orbit = orbit
+    plane.add(node)
+    s.objects[node.name] = node
+    return node
+  }
+
+  const PLANET = {eccentricity: 0.0167, semiMajorAxis: 1.496e11}
+  const MOON = {eccentricity: 0.004, referencePole: {ra: 268.1, dec: 64.5}}
+
+  it('keeps each body\'s elements, several at once, and shows their diagrams', () => {
+    const s = makeScene()
+    const earth = addBody(s, 'earth', PLANET)
+    const venus = addBody(s, 'venus', PLANET)
+    let changes = 0
+    s.onSettingsChange = () => changes++
+    s.toggleOrbitElement('earth', 'i')
+    s.toggleOrbitElement('earth', 'peri')
+    s.toggleOrbitElement('venus', 'i')
+    expect(s.orbitElementsOf('earth')).toEqual(new Set(['i', 'peri']))
+    expect(earth.orbitDiagram.visible && venus.orbitDiagram.visible).toBe(true)
+    expect(earth.orbitDiagram.keys).toEqual(new Set(['inclination', 'longitudeOfPericenter']))
+    expect(changes).toBe(3)
+    // Off again: the last one off puts the diagram away.
+    s.toggleOrbitElement('venus', 'i')
+    expect(venus.orbitDiagram.visible).toBe(false)
+    expect(s.getOrbitElements()).toEqual(new Map([['earth', new Set(['i', 'peri'])]]))
+    s.clearOrbitElements()
+    expect(earth.orbitDiagram.visible).toBe(false)
+  })
+
+  it('reads a code as the body lists it: ω and M for a moon', () => {
+    const s = makeScene()
+    const io = addBody(s, 'io', MOON)
+    s.setOrbitElements('io', ['peri', 'at', 'bogus'])
+    expect(s.orbitElementsOf('io')).toEqual(new Set(['peri', 'at']))
+    expect(io.orbitDiagram.keys).toEqual(new Set(['argumentOfPericenter', 'meanAnomaly']))
+  })
+
+  it('previews a hovered element without keeping it', () => {
+    const s = makeScene()
+    const earth = addBody(s, 'earth', PLANET)
+    s.previewOrbitElement('earth', 'e')
+    expect(earth.orbitDiagram.visible).toBe(true)
+    expect(s.getOrbitElements().size).toBe(0)
+    s.previewOrbitElement(null, null)
+    expect(earth.orbitDiagram.visible).toBe(false)
+  })
+
+  it('shows a link\'s elements on a body that loads later', () => {
+    const s = makeScene()
+    s.restoreOrbitElements(new Map([['mars', new Set(['node'])]]))
+    const mars = addBody(s, 'mars', PLANET)
+    expect(mars.orbitDiagram).toBeUndefined()
+    // Scene.add's hook, as a body arrives.
+    s._syncOrbitDiagrams()
+    expect(mars.orbitDiagram.visible).toBe(true)
+  })
+})

@@ -9,9 +9,10 @@ import {PLANET_NAMES} from '../scene/planetsApprox.js'
 import {capitalize} from '../utils.js'
 
 
-// The six orbital elements, one at a time: sliders set them, and hovering
-// or clicking a row lights its part of the diagram, as the app's info panel
-// does for a body's orbit (DESIGN.md "Orbital elements").
+// The six orbital elements: sliders set them, and clicking rows lights
+// their parts of the diagram, any number at once, a hover previewing one,
+// as the app's info panel does for the bodies' orbits (DESIGN.md "Orbital
+// elements").  With none on, all are drawn.
 
 
 const TO_RAD = Math.PI / 180
@@ -53,15 +54,20 @@ function diagramElements(s) {
 export default function Orbit() {
   const [state, setState] = useState(FIGURE)
   const [hovered, setHovered] = useState(null)
-  const [pinned, setPinned] = useState(null)
+  const [pinned, setPinned] = useState(() => new Set)
   const [running, setRunning] = useState(false)
   const diagram = useMemo(() => new OrbitDiagram({body: true, screen: true}), [])
   const el = diagramElements(state)
-  const lit = hovered ?? pinned
+  const lit = new Set(pinned)
+  if (hovered) {
+    lit.add(hovered)
+  }
+  const litKey = [...lit].sort().join(',')
   // In render, so the labels below read this state's anchors.
   diagram.setElements(el)
 
-  useEffect(() => diagram.highlight(lit), [diagram, lit])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => diagram.highlight(lit.size > 0 ? lit : null), [diagram, litKey])
   useEffect(() => () => diagram.dispose(), [diagram])
 
   const values = {
@@ -80,8 +86,9 @@ export default function Orbit() {
       <h1>Orbit</h1>
       <p>Six numbers place a body on a Kepler orbit: its size <b>a</b> and shape <b>e</b>, the tilt <b>i</b> and
         turn <b>Ω</b> of its plane, where in that plane it comes closest (<b>ϖ</b>, or <b>ω</b> from the node), and
-        where the body is (<b>L</b>, or <b>M</b> from pericentre).  Hover or click an element to light it.  The
-        app does the same for any body: open its info panel&apos;s <i>orbit</i> list.
+        where the body is (<b>L</b>, or <b>M</b> from pericentre).  Click elements to light them, as many as you like;
+        hover to preview one.  The
+        app does the same for any body, several at once: open its info panel&apos;s <i>orbit</i> list.
         See <a href="https://en.wikipedia.org/wiki/Orbital_elements">Orbital elements</a>.</p>
       <div style={{display: 'flex', flexWrap: 'wrap', gap: '1em', alignItems: 'flex-start'}}>
         <div style={{width: 'min(640px, 100%)', height: '480px', background: 'black'}}>
@@ -105,12 +112,20 @@ export default function Orbit() {
               {ROWS.map((key) => {
                 const info = ORBIT_ELEMENTS[key]
                 const slider = SLIDERS[key]
-                const isLit = lit === key
+                const isLit = lit.has(key)
                 return (
                   <tr key={key}
                     onPointerEnter={() => setHovered(key)}
                     onPointerLeave={() => setHovered(null)}
-                    onClick={() => setPinned(pinned === key ? null : key)}
+                    onClick={() => setPinned((p) => {
+                      const next = new Set(p)
+                      if (next.has(key)) {
+                        next.delete(key)
+                      } else {
+                        next.add(key)
+                      }
+                      return next
+                    })}
                     style={{cursor: 'pointer', background: isLit ? 'rgba(255,255,255,0.12)' : 'none'}}>
                     <td><span style={{color: `#${info.color.toString(16).padStart(6, '0')}`}}>■</span>
                       {' '}<b>{info.symbol}</b></td>

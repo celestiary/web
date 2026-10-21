@@ -50,6 +50,61 @@ export const ORBIT_ELEMENTS = {
 
 
 /**
+ * Each element's short code, for the link's `orbits:` token (design/URLs.md)
+ * and the scene's state: ϖ and ω are both `peri`, L and M both `at`, read
+ * as whichever the body lists (elementForm).
+ */
+export const ELEMENT_CODES = {
+  semiMajorAxis: 'a',
+  eccentricity: 'e',
+  inclination: 'i',
+  longitudeOfAscendingNode: 'node',
+  longitudeOfPericenter: 'peri',
+  argumentOfPericenter: 'peri',
+  meanLongitude: 'at',
+  meanAnomaly: 'at',
+}
+
+/** The codes, in the order the elements are listed. */
+export const CODES = ['a', 'e', 'i', 'node', 'peri', 'at']
+
+
+/**
+ * Which of ϖ or ω, L or M a body's elements give: the moons with a
+ * reference pole give ω and M (JPL's satellite elements), the rest ϖ and L.
+ *
+ * @param {object} orbit its `orbit` block
+ * @returns {{pericentreKey: string, placeKey: string}}
+ */
+export function elementForm(orbit) {
+  const satellite = Boolean(orbit?.referencePole)
+  return {
+    pericentreKey: satellite ? 'argumentOfPericenter' : 'longitudeOfPericenter',
+    placeKey: satellite ? 'meanAnomaly' : 'meanLongitude',
+  }
+}
+
+
+/**
+ * @param {string} code an ELEMENT_CODES value
+ * @param {object} orbit the body's `orbit` block
+ * @returns {?string} its ORBIT_ELEMENTS key for this body, or null
+ */
+export function keyOfCode(code, orbit) {
+  const form = elementForm(orbit)
+  switch (code) {
+    case 'a': return 'semiMajorAxis'
+    case 'e': return 'eccentricity'
+    case 'i': return 'inclination'
+    case 'node': return 'longitudeOfAscendingNode'
+    case 'peri': return form.pericentreKey
+    case 'at': return form.placeKey
+    default: return null
+  }
+}
+
+
+/**
  * @param {number|{scalar: number}} v a number, or a reified Measure
  * @returns {number}
  */
@@ -86,7 +141,6 @@ export function elementsOfDate(name, orbit, jde) {
   let el
   let frame = IDENTITY
   let plane = 'ecliptic'
-  let satellite = false
   let ofDate = false
   if (name === 'moon') {
     ofDate = true
@@ -107,7 +161,6 @@ export function elementsOfDate(name, orbit, jde) {
       frame = mean.frame
       if (orbit.referencePole) {
         plane = orbit.referencePlane === 'Laplace' ? 'Laplace' : 'equator'
-        satellite = true
       }
     } else {
       // The JSON's elements, as at J2000, the body run on at its period.
@@ -135,8 +188,7 @@ export function elementsOfDate(name, orbit, jde) {
     a: el.a, e, i: el.i, node: norm360(el.node), w: norm360(el.w), m, nu,
     peri: norm360(el.node + el.w), meanLongitude: norm360(el.node + el.w + m),
     frame, ofDate, plane,
-    pericentreKey: satellite ? 'argumentOfPericenter' : 'longitudeOfPericenter',
-    placeKey: satellite ? 'meanAnomaly' : 'meanLongitude',
+    ...elementForm(orbit),
   }
 }
 

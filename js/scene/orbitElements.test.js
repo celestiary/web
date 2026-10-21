@@ -160,10 +160,12 @@ describe('OrbitDiagram', () => {
   })
 
   it('lights an element\'s parts, keeps the base as context and hides the rest', () => {
-    expect(partState('inclinationArc', 'inclination')).toBe('lit')
-    expect(partState('orbit', 'inclination')).toBe('context')
-    expect(partState('anomalyArc', 'inclination')).toBe('hidden')
+    const lit = new Set(['inclination'])
+    expect(partState('inclinationArc', lit)).toBe('lit')
+    expect(partState('orbit', lit)).toBe('context')
+    expect(partState('anomalyArc', lit)).toBe('hidden')
     expect(partState('anomalyArc', null)).toBe('all')
+    expect(partState('anomalyArc', new Set(['inclination', 'meanAnomaly']))).toBe('lit')
     // Every element lights something.
     for (const key of Object.keys(ORBIT_ELEMENTS)) {
       d.highlight(key)
@@ -172,5 +174,9 @@ describe('OrbitDiagram', () => {
     d.highlight('meanLongitude')
     expect(d.parts.nodeArc.visible && d.parts.periArc.visible && d.parts.anomalyArc.visible).toBe(true)
     expect(d.parts.inclinationArc.visible).toBe(false)
+    // Several at once.
+    d.highlight(['inclination', 'meanLongitude'])
+    expect(d.parts.inclinationArc.visible && d.parts.anomalyArc.visible).toBe(true)
+    expect(d.parts.focalLine.visible).toBe(false)
   })
 })

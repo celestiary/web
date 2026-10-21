@@ -12,6 +12,7 @@ import Galaxies, {galaxiesInView} from './Galaxies.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import OrbitDiagram from './orbitDiagram.js'
+import {CODES, keyOfCode} from './orbitElements.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
 import Star from './Star.js'
@@ -28,6 +29,9 @@ import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
+
+
+const ELEMENT_CODE_SET = new Set(CODES)
 
 
 /** Default observer altitude for Scene.land — eye height. */
@@ -163,6 +167,13 @@ export default class Scene {
     // Set by Celestiary; called whenever any settings flag flips so the
     // permalink can be updated.
     this.onSettingsChange = null
+    // The orbital elements lit on each body's orbit (showOrbitElements):
+    // body name → Set of element codes (orbitElements.js ELEMENT_CODES),
+    // in the link as the `orbits:` token; and the one a hover previews.
+    this._orbitElements = new Map
+    this._orbitPreview = null
+    // The bodies whose orbit diagrams are showing.
+    this._orbitDiagramBodies = new Set
     // Set by Celestiary; called with ('track' | 'follow', on) when 't' or
     // 'f' (or a link) switches that mode, for the readout.
     this.onModeChange = null
@@ -532,6 +543,10 @@ export default class Scene {
     if (name === 'sun') {
       this._joinOverlay('o', this.objects['sun']?.sunLayers?.wind)
     }
+    // A link's lit elements for a body that has only now loaded.
+    if (this._orbitElements.has(name)) {
+      this._syncOrbitDiagrams()
+    }
     return obj3d
   }
 
@@ -611,33 +626,132 @@ export default class Scene {
 
 
   /**
-   * Light one of a body's orbital elements on its orbit (orbitDiagram.js),
-   * from the info panel's orbit list; or, with a null key, put the diagram
-   * away.  One diagram shows at a time.  Animation lays it on the body's
-   * elements of the date each frame while it shows (layOrbitDiagram).
+   * The orbital elements lit on a body's orbit (orbitDiagram.js), from the
+   * info panel's orbit list: any of a body's six, on any number of bodies
+   * at once, to compare (DESIGN.md "Orbital elements").  Animation lays
+   * each showing diagram on its body's elements of the date every frame
+   * (layOrbitDiagram).
    *
-   * @param {string} bodyName
-   * @param {?string} key an orbitElements.js ORBIT_ELEMENTS key
+   * @param {string} body
+   * @returns {Set<string>} its lit element codes (orbitElements.js ELEMENT_CODES)
    */
-  showOrbitElement(bodyName, key) {
-    const node = this.objects[`${bodyName}.orbitPosition`]
-    const shown = this._orbitDiagramNode
-    if (shown && (shown !== node || !key)) {
-      shown.orbitDiagram.visible = false
-      this._orbitDiagramNode = null
+  orbitElementsOf(body) {
+    return new Set(this._orbitElements.get(body) ?? [])
+  }
+
+
+  /** @returns {Map<string, Set<string>>} every body's lit element codes */
+  getOrbitElements() {
+    return new Map([...this._orbitElements].map(([body, codes]) => [body, new Set(codes)]))
+  }
+
+
+  /**
+   * Light these of a body's elements, and only these; none puts its
+   * diagram away.
+   *
+   * @param {string} body
+   * @param {Array<string>|Set<string>} codes element codes; unknown ones are dropped
+   */
+  setOrbitElements(body, codes) {
+    const valid = new Set([...codes].filter((c) => ELEMENT_CODE_SET.has(c)))
+    if (valid.size > 0) {
+      this._orbitElements.set(body, valid)
+    } else {
+      this._orbitElements.delete(body)
     }
-    if (!node || !key) {
-      return
+    this._syncOrbitDiagrams()
+    this.onSettingsChange?.()
+  }
+
+
+  /**
+   * @param {string} body
+   * @param {string} code
+   */
+  toggleOrbitElement(body, code) {
+    const codes = this.orbitElementsOf(body)
+    if (codes.has(code)) {
+      codes.delete(code)
+    } else {
+      codes.add(code)
     }
-    if (!node.orbitDiagram) {
-      // Beside the orbit line, in the primary's frame: on the overlay
-      // layer, as the line is.
-      node.orbitDiagram = new OrbitDiagram({layer: Shared.OVERLAY_LAYER})
-      node.parent.add(node.orbitDiagram)
+    this.setOrbitElements(body, codes)
+  }
+
+
+  /** Put every body's diagram away. */
+  clearOrbitElements() {
+    this._orbitElements.clear()
+    this._syncOrbitDiagrams()
+    this.onSettingsChange?.()
+  }
+
+
+  /**
+   * Put a link's lit elements back (the `orbits:` token), in place of any.
+   *
+   * @param {Map<string, Set<string>>} elements
+   */
+  restoreOrbitElements(elements) {
+    this._orbitElements.clear()
+    for (const [body, codes] of elements) {
+      const valid = [...codes].filter((c) => ELEMENT_CODE_SET.has(c))
+      if (valid.length > 0) {
+        this._orbitElements.set(body, new Set(valid))
+      }
     }
-    node.orbitDiagram.highlight(key)
-    node.orbitDiagram.visible = true
-    this._orbitDiagramNode = node
+    this._syncOrbitDiagrams()
+  }
+
+
+  /**
+   * Light one more element while it's hovered, without keeping it.
+   *
+   * @param {?string} body
+   * @param {?string} code null to end the preview
+   */
+  previewOrbitElement(body, code) {
+    this._orbitPreview = body && code ? {body, code} : null
+    this._syncOrbitDiagrams()
+  }
+
+
+  /**
+   * Show each body's diagram with its lit elements and any preview, made
+   * on first use beside its orbit line (in the primary's frame, on the
+   * overlay layer, as the line is), and hide the rest.  Shown whatever `o`
+   * says: they were asked for.
+   */
+  _syncOrbitDiagrams() {
+    const lit = new Map([...this._orbitElements].map(([body, codes]) => [body, new Set(codes)]))
+    const preview = this._orbitPreview
+    if (preview) {
+      lit.set(preview.body, (lit.get(preview.body) ?? new Set).add(preview.code))
+    }
+    for (const body of this._orbitDiagramBodies) {
+      if (!lit.has(body)) {
+        const diagram = this.objects[`${body}.orbitPosition`]?.orbitDiagram
+        if (diagram) {
+          diagram.visible = false
+        }
+        this._orbitDiagramBodies.delete(body)
+      }
+    }
+    for (const [body, codes] of lit) {
+      const node = this.objects[`${body}.orbitPosition`]
+      if (!node) {
+        // Not loaded yet: add() comes back here when it is.
+        continue
+      }
+      if (!node.orbitDiagram) {
+        node.orbitDiagram = new OrbitDiagram({layer: Shared.OVERLAY_LAYER})
+        node.parent.add(node.orbitDiagram)
+      }
+      node.orbitDiagram.highlight([...codes].map((c) => keyOfCode(c, node.orbit)).filter(Boolean))
+      node.orbitDiagram.visible = true
+      this._orbitDiagramBodies.add(body)
+    }
   }
 
 

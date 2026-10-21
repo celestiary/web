@@ -22,7 +22,8 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {
-  decodePermalink, decodeSettings, decodeTimeToken, encodePermalink, encodeTimeToken, pathFromFragment, permalinkHref,
+  decodeOrbitsToken, decodePermalink, decodeSettings, decodeTimeToken, encodeOrbitsToken, encodePermalink,
+  encodeTimeToken, pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry, placeTarget} from './search/commitEntry'
@@ -156,10 +157,15 @@ export default class Celestiary {
     this.scene.registerSettingApplier('v', () => this._toggleNav())
     this.loader = new Loader()
     this.controlPanel = new ControlPanel(navElt, this.loader)
-    // The info panel's orbit list lights an element on the body's orbit.
+    // The info panel's orbit list lights elements on the bodies' orbits.
     this.controlPanel.orbitHooks = {
       jde: () => this.animation.jde,
-      select: (body, key) => this.scene.showOrbitElement(body, key),
+      elements: (body) => this.scene.orbitElementsOf(body),
+      toggle: (body, code) => this.scene.toggleOrbitElement(body, code),
+      set: (body, codes) => this.scene.setOrbitElements(body, codes),
+      clearAll: () => this.scene.clearOrbitElements(),
+      count: () => this.scene.getOrbitElements().size,
+      preview: (body, code) => this.scene.previewOrbitElement(body, code),
     }
     this.firstTime = true
     this._permalinkTimer = null
@@ -587,10 +593,14 @@ export default class Celestiary {
       // On first load only, as the scene settings.  Each app restores its
       // own state from its entry here, waiting for what it needs (the
       // stars, for the Human Expansion app).
-      const widgets = decodeAppTokens(decodePermalink(rawHash)?.tokens)
+      const tokens = decodePermalink(rawHash)?.tokens
+      const widgets = decodeAppTokens(tokens)
       if (widgets) {
         this.useStore.getState().dispatchWidgets({type: 'restore', widgets})
       }
+      // The orbital elements lit on the bodies' orbits; each body's diagram
+      // shows once it has loaded (Scene.add).
+      this.scene.restoreOrbitElements(decodeOrbitsToken(tokens?.orbits))
     } else {
       location.hash = DEFAULT_TARGET
     }
@@ -3119,10 +3129,12 @@ export default class Celestiary {
     if (settings && this.ar && this.ar.isActive()) {
       settings.A = true
     }
-    // The clock when it isn't running at real time (the `time:` token), then
-    // the drawer and the apps.
+    // The clock when it isn't running at real time (the `time:` token), the
+    // orbital elements lit on the bodies' orbits (`orbits:`), then the
+    // drawer and the apps.
     const tokens = {
       time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
+      orbits: encodeOrbitsToken(this.scene.getOrbitElements()),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(

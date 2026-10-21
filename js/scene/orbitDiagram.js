@@ -18,8 +18,8 @@ import {newWideLineStrip} from './wideLines.js'
 // the usual figure (en.wikipedia.org/wiki/Orbital_elements): the reference
 // plane and direction, the orbit's plane, the line of nodes, the angles Ω,
 // i, ω and M as arcs, the major and minor axes and the focal distance.
-// Each part is lit by the elements it shows; highlight(key) draws those
-// bright and the rest faint or not at all.  The guide's orbit page drives it
+// Each part is lit by the elements it shows; highlight(keys) draws those
+// of the given elements bright and the rest faint or not at all.  The guide's orbit page drives it
 // with sliders; the app lays it on a body's orbit, from the info panel's
 // list of elements (Scene.showOrbitElement, Animation.layOrbitDiagram).
 //
@@ -100,21 +100,34 @@ const tmpV = new Vector3
 
 
 /**
- * Which parts an element lights, and which show at all, when `key` is lit.
+ * How a part is drawn when some elements are lit: bright if any of them
+ * shows it, faint if it is the base, else not at all.
  *
  * @param {string} part
- * @param {?string} key an ORBIT_ELEMENTS key, or null for all at once
+ * @param {?Set<string>} keys ORBIT_ELEMENTS keys, or null for all at once
  * @returns {'lit'|'all'|'context'|'hidden'}
  */
-export function partState(part, key) {
+export function partState(part, keys) {
   const p = PARTS[part]
-  if (!key) {
+  if (!keys) {
     return 'all'
   }
-  if (p.keys.includes(key)) {
+  if (p.keys.some((k) => keys.has(k))) {
     return 'lit'
   }
   return p.base ? 'context' : 'hidden'
+}
+
+
+/**
+ * @param {?string|Array<string>|Set<string>} keys
+ * @returns {?Set<string>} null for none given: all at once
+ */
+function keySet(keys) {
+  if (keys === null || keys === undefined) {
+    return null
+  }
+  return new Set(typeof keys === 'string' ? [keys] : keys)
 }
 
 
@@ -177,7 +190,7 @@ export default class OrbitDiagram extends Group {
     super()
     this.name = 'orbitDiagram'
     this.parts = {}
-    this.key = null
+    this.keys = null
     for (const [name, p] of Object.entries(PARTS)) {
       if (p.optional && !body) {
         continue
@@ -298,21 +311,21 @@ export default class OrbitDiagram extends Group {
 
 
   /**
-   * Light one element's parts, show the base faintly and hide the rest; or,
+   * Light some elements' parts, show the base faintly and hide the rest; or,
    * with null, draw them all alike.
    *
-   * @param {?string} key an ORBIT_ELEMENTS key
+   * @param {?string|Array<string>|Set<string>} keys an ORBIT_ELEMENTS key or several
    */
-  highlight(key) {
-    this.key = key ?? null
+  highlight(keys) {
+    this.keys = keySet(keys)
     for (const [name, strip] of Object.entries(this.parts)) {
-      const state = partState(name, this.key)
+      const state = partState(name, this.keys)
       const u = strip.material.uniforms
       strip.visible = state !== 'hidden'
       u.uOpacity.value = OPACITY[state] ?? 0
       u.uWidthFirst.value = u.uWidthLast.value = WIDTH[state] ?? 0
     }
-    const planesLit = this.key === I
+    const planesLit = Boolean(this.keys?.has(I))
     this.fills.reference.material.opacity = planesLit ? FILL_LIT_OPACITY : FILL_OPACITY
     this.fills.orbitPlane.material.opacity = planesLit ? FILL_LIT_OPACITY : FILL_OPACITY
   }
