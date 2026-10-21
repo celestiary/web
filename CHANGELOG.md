@@ -31,6 +31,20 @@ has no view to open yet.
 
 ## October 2026
 
+### See an orbit's six elements on the orbit itself
+
+A body's info panel now lists its orbit's six elements as they are today: its size and shape, the
+tilt and turn of its plane, where it comes closest to its primary, and where it is along the way.
+Hover or click one and it lights up on the orbit in space, drawn the way the textbooks draw it: the
+two planes, the line where they cross, and each angle as an arc. The guide's orbit page works again,
+with sliders and the planets as examples. The panel's masses, densities and escape velocities now
+show the right numbers and units.
+
+- Date: 2026-10-21
+- PR: [#274](https://github.com/celestiary/web/pull/274)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/pluto)
+
 ### The stars arrive first and faster: the naked-eye sky in a tenth of the download
 
 The star catalogue, 107,000 stars, was the biggest thing the first screen waited for: one 1.8 MB
