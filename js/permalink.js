@@ -14,6 +14,8 @@ const VALUE_LIST_SEP = '+'
 // The orbital elements' codes, in their listed order (orbitElements.js CODES;
 // not imported, so a link's parse doesn't load the orbit code).
 const ORBIT_CODES = ['a', 'e', 'i', 'node', 'peri', 'at']
+/** The orbit diagrams' opacity at the far side of their orbits, by default. */
+export const ORBIT_FADE_DEFAULT = 0.5
 const PLAIN_WORD = /^[\w.-]+$/
 // A `from=` frame path: a body path ('sun/earth') or a star ('hip:32349').
 const FRAME_PATH = /^([a-z0-9_-]+(\/[a-z0-9_-]+)*|hip:\d+)$/
@@ -453,13 +455,17 @@ export function decodeTimeToken(value) {
 /**
  * The `orbits:` token (design/URLs.md): the orbital elements lit on each
  * body's orbit, `body=code+code`, the codes in their listed order
- * (orbitElements.js CODES).  Left out (null) when none are.
+ * (orbitElements.js CODES); and `fade=` the diagrams' opacity at the far side
+ * of their orbits, in percent, where it isn't the default.  Left out (null)
+ * when there's nothing to say.
  *
  * @param {Map<string, Set<string>>} elements Scene.getOrbitElements()
+ * @param {number} [fade] Scene.getOrbitFade(), 0 to 1
  * @returns {?string}
  */
-export function encodeOrbitsToken(elements) {
-  const named = {}
+export function encodeOrbitsToken(elements, fade = ORBIT_FADE_DEFAULT) {
+  const percent = Math.round(Math.min(Math.max(fade, 0), 1) * 100)
+  const named = {fade: percent === Math.round(ORBIT_FADE_DEFAULT * 100) ? null : percent}
   for (const [body, codes] of elements ?? []) {
     const listed = ORBIT_CODES.filter((c) => codes.has(c))
     if (listed.length > 0 && PLAIN_WORD.test(body)) {
@@ -480,12 +486,27 @@ export function encodeOrbitsToken(elements) {
 export function decodeOrbitsToken(value) {
   const elements = new Map
   for (const [body, list] of Object.entries(parseTokenValue(value).named)) {
+    if (body === 'fade') {
+      continue
+    }
     const codes = new Set(parseValueList(list).filter((c) => ORBIT_CODES.includes(c)))
     if (codes.size > 0) {
       elements.set(body, codes)
     }
   }
   return elements
+}
+
+
+/**
+ * The orbits token's fade (encodeOrbitsToken).
+ *
+ * @param {string} [value] The token's value
+ * @returns {number} 0 to 1; the default without one
+ */
+export function decodeOrbitsFade(value) {
+  const percent = parseFloat(parseTokenValue(value).named.fade)
+  return Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) / 100 : ORBIT_FADE_DEFAULT
 }
 
 

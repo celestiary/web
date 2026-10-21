@@ -22,7 +22,7 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {
-  decodeInfoToken, decodeOrbitsToken, decodePermalink, decodeSettings, decodeTimeToken, encodeInfoToken,
+  decodeInfoToken, decodeOrbitsFade, decodeOrbitsToken, decodePermalink, decodeSettings, decodeTimeToken, encodeInfoToken,
   encodeOrbitsToken, encodePermalink, encodeTimeToken, pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
@@ -161,6 +161,8 @@ export default class Celestiary {
     this.controlPanel.orbitHooks = {
       elementsOf: (body, orbit) => this.animation.orbitElements(body, orbit),
       jd: () => this.animation.jd,
+      fade: () => this.scene.getOrbitFade(),
+      setFade: (f) => this.scene.setOrbitFade(f),
       elements: (body) => this.scene.orbitElementsOf(body),
       toggle: (body, code) => this.scene.toggleOrbitElement(body, code),
       set: (body, codes) => this.scene.setOrbitElements(body, codes),
@@ -604,6 +606,7 @@ export default class Celestiary {
       // The orbital elements lit on the bodies' orbits; each body's diagram
       // shows once it has loaded (Scene.add).
       this.scene.restoreOrbitElements(decodeOrbitsToken(tokens?.orbits))
+      this.scene.setOrbitFade(decodeOrbitsFade(tokens?.orbits), true)
       // The info panel's lists, open or folded as they were.
       this.controlPanel.restoreUiState(decodeInfoToken(tokens?.info))
     } else {
@@ -3140,7 +3143,7 @@ export default class Celestiary {
     const tokens = {
       time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
       info: encodeInfoToken(this.controlPanel.uiState),
-      orbits: encodeOrbitsToken(this.scene.getOrbitElements()),
+      orbits: encodeOrbitsToken(this.scene.getOrbitElements(), this.scene.getOrbitFade()),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(

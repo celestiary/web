@@ -3,6 +3,7 @@ import {
   decodePermalink,
   decodeGuideOrbitToken,
   decodeInfoToken,
+  decodeOrbitsFade,
   decodeOrbitsToken,
   decodeSettings,
   decodeTimeToken,
@@ -747,5 +748,19 @@ describe('guide orbit token', () => {
     expect(decodeGuideOrbitToken('')).toBeNull()
     expect(decodeGuideOrbitToken('#orbit:a=1,e=0.1')).toBeNull()
     expect(decodeGuideOrbitToken('#orbit:a=1,e=1.2,i=0,node=0,peri=0,L=0')).toBeNull()
+  })
+})
+
+
+describe('orbits token fade', () => {
+  it('writes the far side\'s opacity only when it isn\'t the default, and reads it back', () => {
+    const elements = new Map([['earth', new Set(['i'])]])
+    expect(encodeOrbitsToken(elements, 0.5)).toBe('earth=i')
+    expect(encodeOrbitsToken(elements, 0.2)).toBe('fade=20,earth=i')
+    expect(encodeOrbitsToken(new Map(), 1)).toBe('fade=100')
+    expect(decodeOrbitsFade('fade=20,earth=i')).toBeCloseTo(0.2, 9)
+    expect(decodeOrbitsFade('earth=i')).toBe(0.5)
+    // Not a body.
+    expect(decodeOrbitsToken('fade=20,earth=i')).toEqual(new Map([['earth', new Set(['i'])]]))
   })
 })

@@ -13,6 +13,7 @@ import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import OrbitDiagram from './orbitDiagram.js'
 import {CODES, keyOfCode} from './orbitElements.js'
+import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
 import Star from './Star.js'
@@ -186,6 +187,8 @@ export default class Scene {
     // in the link as the `orbits:` token; and the one a hover previews.
     this._orbitElements = new Map
     this._orbitPreview = null
+    // The diagrams' opacity at the far side of their orbits (setOrbitFade).
+    this._orbitFade = ORBIT_FADE_DEFAULT
     // The bodies whose orbit diagrams are showing.
     this._orbitDiagramBodies = new Set
     // Set by Celestiary; called with ('track' | 'follow', on) when 't' or
@@ -694,6 +697,30 @@ export default class Scene {
   }
 
 
+  /** @returns {number} the diagrams' opacity at the far side of their orbits */
+  getOrbitFade() {
+    return this._orbitFade
+  }
+
+
+  /**
+   * Fade every orbit diagram from its body to this opacity at the far side
+   * of its orbit (orbitDiagram.js setFadeMin): 1 is no fade.
+   *
+   * @param {number} fade 0 to 1
+   * @param {boolean} [quiet] Don't announce it (a link putting it back)
+   */
+  setOrbitFade(fade, quiet = false) {
+    this._orbitFade = Math.min(Math.max(Number(fade) || 0, 0), 1)
+    for (const node of Object.values(this.objects)) {
+      node?.orbitDiagram?.setFadeMin(this._orbitFade)
+    }
+    if (!quiet) {
+      this.onSettingsChange?.()
+    }
+  }
+
+
   /** Put every body's diagram away. */
   clearOrbitElements() {
     this._orbitElements.clear()
@@ -770,6 +797,7 @@ export default class Scene {
           barycentre: `${Utils.capitalize(primary ?? '')}–${Utils.capitalize(body)} barycentre`,
         }})
         node.orbitDiagram.setMassRatio(massRatio(this.objects[body]?.props, this.objects[primary]?.props))
+        node.orbitDiagram.setFadeMin(this._orbitFade)
         node.parent.add(node.orbitDiagram)
       }
       node.orbitDiagram.highlight([...codes].map((c) => keyOfCode(c, node.orbit)).filter(Boolean))

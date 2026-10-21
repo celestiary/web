@@ -5,7 +5,7 @@ import {J2000_JD} from '../scene/celestialFrame.js'
 import {eccentricAnomaly} from '../scene/meanElements.js'
 import OrbitDiagram from '../scene/orbitDiagram.js'
 import {ORBIT_ELEMENTS, elementsOfDate, formatDistance, keyOfCode, norm360} from '../scene/orbitElements.js'
-import {decodeGuideOrbitToken} from '../permalink.js'
+import {ORBIT_FADE_DEFAULT, decodeGuideOrbitToken} from '../permalink.js'
 import {PLANET_NAMES} from '../scene/planetsApprox.js'
 import {capitalize} from '../utils.js'
 
@@ -92,6 +92,8 @@ export default function Orbit() {
   const [hovered, setHovered] = useState(null)
   const [pinned, setPinned] = useState(() => new Set(linked?.lit ?? []))
   const [running, setRunning] = useState(false)
+  // The diagram's opacity at the far side of the orbit, as the app's.
+  const [fade, setFade] = useState(ORBIT_FADE_DEFAULT)
   const diagram = useMemo(() => new OrbitDiagram({body: true, screen: true}), [])
   const el = diagramElements(state)
   const lit = new Set(pinned)
@@ -104,6 +106,7 @@ export default function Orbit() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => diagram.highlight(lit.size > 0 ? lit : null), [diagram, litKey])
+  useEffect(() => diagram.setFadeMin(fade), [diagram, fade])
   useEffect(() => () => diagram.dispose(), [diagram])
 
   const values = {
@@ -145,6 +148,9 @@ export default function Orbit() {
           </select></label>
           <label style={{marginLeft: '1em'}}><input type="checkbox" checked={running}
             onChange={(ev) => setRunning(ev.target.checked)}/> run</label>
+          <label style={{marginLeft: '1em', whiteSpace: 'nowrap'}}>far side <input type="range" min="0" max="100"
+            step="5" value={Math.round(fade * 100)} style={{width: '6em', verticalAlign: 'middle'}}
+            onChange={(ev) => setFade(Number(ev.target.value) / 100)}/> {Math.round(fade * 100)}%</label>
           {linked && state.name === linked.preset.name &&
             <p style={{fontSize: 'small', color: '#aaa'}}>From the app: {PLANE_TEXT[linked.plane] ?? ''}</p>}
           <table style={{tableLayout: 'fixed', width: '100%', fontVariantNumeric: 'tabular-nums'}}>

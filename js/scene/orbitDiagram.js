@@ -292,6 +292,8 @@ export default class OrbitDiagram extends Group {
     }
     this._bodyOffset = null
     this._massRatio = 0
+    /** Opacity at the far side of the orbit (_fade): FADE_MIN by default. */
+    this.fadeMin = FADE_MIN
     this.anchors.barycentre = new Vector3
     this._labels = labels ? this._newLabels(labels) : null
     this.fills = {
@@ -359,8 +361,20 @@ export default class OrbitDiagram extends Group {
 
 
   /**
+   * @param {number} fadeMin opacity at the far side of the orbit, 0 to 1:
+   *     1 is no fade
+   */
+  setFadeMin(fadeMin) {
+    this.fadeMin = Math.min(Math.max(fadeMin, 0), 1)
+    for (const m of [...Object.values(this.parts), ...Object.values(this.fills)].map((o) => o.material)) {
+      m.uniforms.uFadeMin.value = this.fadeMin
+    }
+  }
+
+
+  /**
    * Fade the diagram from the body: every line and both fills at full
-   * opacity there, down to FADE_MIN across the orbit (FADE_RANGE_PER_SPAN
+   * opacity there, down to fadeMin (FADE_MIN by default) across the orbit (FADE_RANGE_PER_SPAN
    * of its major axis, straight-line distance), so the body and the
    * elements meeting it stand out, and nested or near-coplanar orbits'
    * diagrams don't crowd one another.
@@ -374,7 +388,7 @@ export default class OrbitDiagram extends Group {
       const u = strip.material.uniforms
       u.uFadeCentre.value.copy(centre)
       u.uFadeRange.value = range
-      u.uFadeMin.value = FADE_MIN
+      u.uFadeMin.value = this.fadeMin
     }
     this.updateMatrix()
     this.orbitFrame.updateMatrix()
@@ -387,7 +401,7 @@ export default class OrbitDiagram extends Group {
       }
       u.uFadeCentre.value.copy(centre)
       u.uFadeRange.value = range
-      u.uFadeMin.value = FADE_MIN
+      u.uFadeMin.value = this.fadeMin
     }
   }
 

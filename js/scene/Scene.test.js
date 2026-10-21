@@ -1464,6 +1464,23 @@ describe('orbital elements lit on the orbits', () => {
     expect(earth.orbitDiagram._hiddenLabels.has('body')).toBe(false)
   })
 
+  it('fades every diagram to the far side\'s opacity it\'s set to, made before or after', () => {
+    const s = makeScene()
+    const earth = addBody(s, 'earth', PLANET)
+    s.setOrbitElements('earth', ['i'])
+    let changes = 0
+    s.onSettingsChange = () => changes++
+    s.setOrbitFade(0.2)
+    expect(earth.orbitDiagram.parts.orbit.material.uniforms.uFadeMin.value).toBeCloseTo(0.2, 9)
+    expect(changes).toBe(1)
+    const venus = addBody(s, 'venus', PLANET)
+    s.setOrbitElements('venus', ['i'])
+    expect(venus.orbitDiagram.fills.reference.material.uniforms.uFadeMin.value).toBeCloseTo(0.2, 9)
+    s.setOrbitFade(1, true)
+    expect(changes).toBe(2)
+    expect(s.getOrbitFade()).toBe(1)
+  })
+
   it('shows a link\'s elements on a body that loads later', () => {
     const s = makeScene()
     s.restoreOrbitElements(new Map([['mars', new Set(['node'])]]))

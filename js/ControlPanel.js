@@ -1,6 +1,6 @@
 import Measure from '@pablo-mayrgundter/measure.js'
 import * as collapsor from './collapsor.js'
-import {encodeGuideOrbitToken} from './permalink.js'
+import {ORBIT_FADE_DEFAULT, encodeGuideOrbitToken} from './permalink.js'
 import {CODES, ELEMENT_CODES, elementRows, elementsOfDate} from './scene/orbitElements.js'
 import {CURVE_COLORS, rotationCurveSvg} from './scene/rotationCurve.js'
 import {spectralTypeName} from './scene/stellar.js'
@@ -41,7 +41,8 @@ export default class ControlPanel {
     /**
      * The orbit list's link to the scene (Celestiary sets it):
      * `elementsOf(body, orbit)`, its elements now (Animation.orbitElements);
-     * `jd()`, the moment, for the link to the guide;
+     * `jd()`, the moment, for the link to the guide; `fade()` and
+     * `setFade(f)`, the diagrams' opacity at the far side of their orbits;
      * `elements(body)`, the body's lit element codes, `toggle(body,
      * code)`, `set(body, codes)`, `clearAll()` and `count()`, the bodies lit
      * (Scene's orbit element state); and `preview(body, code)`, a hover's.
@@ -187,7 +188,11 @@ export default class ControlPanel {
       '<button class="orbit-action" data-action="none">none</button>' +
       '<span class="orbit-clear" hidden> · <button class="orbit-action" data-action="clear">' +
       'clear every orbit</button></span>' +
-      ` · <a class="orbit-guide" href="${this._guideHref(body, el)}">see it in the guide</a></li>\n`
+      ` · <a class="orbit-guide" href="${this._guideHref(body, el)}">see it in the guide</a>` +
+      '<label class="orbit-fade">far side <input type="range" min="0" max="100" step="5" ' +
+      `value="${Math.round((this.orbitHooks?.fade?.() ?? ORBIT_FADE_DEFAULT) * 100)}" ` +
+      'aria-label="the orbit diagrams\' opacity at the far side of the orbit"> ' +
+      '<span class="orbit-fade-value"></span></label></li>\n'
     if (orbit.siderealOrbitPeriod !== undefined) {
       html += `<li>orbit period (sidereal): ${secsToYDHMS(scalar(orbit.siderealOrbitPeriod))}</li>\n`
     }
@@ -248,6 +253,12 @@ export default class ControlPanel {
         }
       })
     }
+    // The diagrams' opacity at the far side of their orbits, for all.
+    const fade = list.querySelector('.orbit-fade input')
+    fade?.addEventListener('input', () => {
+      hooks.setFade?.(Number(fade.value) / 100)
+      this._showOrbitState()
+    })
     for (const button of list.querySelectorAll('.orbit-action')) {
       button.addEventListener('click', () => {
         const action = button.dataset.action
@@ -274,6 +285,14 @@ export default class ControlPanel {
       const isOn = on.has(li.dataset.code)
       li.classList.toggle('on', isOn)
       li.setAttribute('aria-checked', String(isOn))
+    }
+    const fade = state.list.querySelector('.orbit-fade input')
+    if (fade && this.orbitHooks.fade && document.activeElement !== fade) {
+      fade.value = String(Math.round(this.orbitHooks.fade() * 100))
+    }
+    const fadeValue = state.list.querySelector('.orbit-fade-value')
+    if (fade && fadeValue) {
+      fadeValue.textContent = `${fade.value}%`
     }
     const clear = state.list.querySelector('.orbit-clear')
     if (clear) {

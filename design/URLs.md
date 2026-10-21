@@ -416,6 +416,8 @@ body with some on, its name and the elements' codes.
 
 ```
 <body>=<code>+<code>   a body (as the loader names it) and its elements on
+fade=<percent>         the diagrams' opacity at the far side of their
+                       orbits, 0 to 100 (default 50, then left out)
 ```
 
 The codes, in the order the panel lists them:
@@ -432,6 +434,7 @@ at       the body's place: its mean longitude L, or for a moon its mean anomaly 
 ```
 #…;orbits:earth=i+peri,venus=i+peri       Earth's and Venus's planes and perihelia
 #…;orbits:pluto=a+e+i+node+peri+at        all of Pluto's
+#…;orbits:fade=10,earth=i+node            Earth's plane and node, faded to 10%
 #…;orbits:io=peri+at                      Io's ω and M
 ```
 

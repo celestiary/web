@@ -632,7 +632,10 @@ work it starts).
   wide-line shader takes an optional fade (`uFadeCentre`, `uFadeRange`,
   `uFadeMin`, off unless set, so no other line changes); the fills are a
   small shader that does the same in the diagram's frame (`uToDiagram`).
-  Labels aren't faded.
+  Labels aren't faded.  The far side's opacity is a slider in the orbit
+  list's lead ("far side", 0 to 100%, default 50; `Scene.setOrbitFade`, for
+  every diagram), in the link as the `orbits:` token's `fade=`, and on the
+  guide's page too.
 - **Barycentres.**  `setMassRatio(m / (M + m))`, from the bodies' masses
   (Scene): the two bodies' barycentre on the line to the body, m/(M + m)
   of the way, and the primary's own orbit about it, the body's ellipse

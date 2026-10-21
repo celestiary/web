@@ -101,6 +101,17 @@ button {
   box-shadow: inset 2px 0 0 currentColor;
 }
 
+/* The diagrams' opacity at the far side of their orbits, in the lead. */
+.orbit-fade {
+  white-space: nowrap;
+  margin-left: 0.5em;
+}
+
+.orbit-fade input {
+  width: 6em;
+  vertical-align: middle;
+}
+
 /* The list's lead: what the elements are, and show all, none. */
 .orbit-lead {
   list-style: none;
