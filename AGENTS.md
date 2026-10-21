@@ -182,15 +182,18 @@ tried and dropped.
   `c.tour.t = ms`, and give the meter a few seconds after a jump.  The
   cards' images re-render with `node tools/home/cards.mjs` (after a build;
   `--gpu` on a real GPU).
-- **Post drafts: `yarn posts`** adds a draft for each new CHANGELOG entry
-  (one with a permalink or an image) to `posts/drafts.md`, and checks every
+- **Post drafts: `yarn posts`** adds a draft for each new *featured*
+  CHANGELOG entry (`- Featured: yes`) to `posts/drafts.md`, and checks every
   post against X's 280 (a link counts 23) and Facebook's 300 to 500 target;
   the platforms are a table in `tools/posts/text.mjs`.
   It never changes a post already in the file, so the maintainer's edits
   and statuses stay, and nothing is posted for you. The images are the
   homepage cards' or `node tools/home/cards.mjs --gpu --hash <fragment>
   --id <name> --png posts/images`, which needs a real GPU: list those for the
-  maintainer to render. [tools/posts/README.md](tools/posts/README.md).
+  maintainer to render. When the maintainer marks a post `posted` and
+  pastes its URLs into its `X:` and `Facebook:` fields, `yarn changelog`
+  (not `yarn posts`) joins them onto the entry in `changelog.json`, which
+  is how What's new links to them. [tools/posts/README.md](tools/posts/README.md).
 - **Measuring a page's requests (Playwright):**
   - `page.route` turns the HTTP cache off, so a repeat fetch shows as a
     network request. Block hosts with `--host-resolver-rules="MAP *
@@ -517,6 +520,12 @@ tried and dropped.
     haven't found and opened one: don't guess). Housekeeping,
     refactors, CI and doc-only PRs get no entry, or a link in the
     month's "Behind the scenes" line.
+  - **Decide whether it is featured** (`- Featured: yes`): a new thing to
+    see or do, with a view to open, worth announcing. What's new shows
+    only the featured entries by default (the lesser features and fixes
+    are behind "Show all updates"), the "new" count counts them, and
+    `yarn posts` drafts social posts only from them. Leave it out for a
+    fix, a polish or a lesser feature.
   - The entry links its own PR, so open the PR first and add the entry
     in a follow-up commit to it. Its `Date` is the day you write it
     (the merge day, if you know it); the entry goes at the top of its

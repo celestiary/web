@@ -1,4 +1,5 @@
 import {parseTokenValue} from './permalink'
+import {validSocial} from './socialLinks.mjs'
 import STAMP from './changelogStamp.json'
 
 
@@ -20,6 +21,9 @@ export const CHANGELOG_URL = 'data/changelog.json'
 /** The browser-storage key for the newest entry date the visitor has seen. */
 export const LAST_SEEN_KEY = 'celestiary.whatsNew.lastSeen'
 
+/** And for whether they asked to see all the updates, not only the featured ones ('1'). */
+export const SHOW_ALL_KEY = 'celestiary.whatsNew.showAll'
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const DATE_LENGTH = 10
 const URL_PATTERN = /^https?:\/\//
@@ -39,8 +43,12 @@ const MONTHS_SHORT = MONTHS.map((m) => m.slice(0, 3))
  * @returns {Array<{id: string, date: string, headline: string, text: string,
  *   links: Array<{kind: string, number: number, url: string}>,
  *   epic: ?{number: number, title: string, url: string},
- *   permalink: ?string, image: ?{src: string, alt: string}}>} `permalink`
- *   is the fragment without its '#' (a card's form: Celestiary.openLink)
+ *   permalink: ?string, image: ?{src: string, alt: string}, featured: boolean,
+ *   social: ?{x?: string, facebook?: string}}>} `permalink`
+ *   is the fragment without its '#' (a card's form: Celestiary.openLink);
+ *   `featured` is the entries worth announcing, which What's new shows
+ *   first; `social` is the URLs of the live posts about it, only those on
+ *   X's and Facebook's own hosts over https (socialLinks.mjs)
  */
 export function parseChangelog(data) {
   const list = Array.isArray(data?.entries) ? data.entries : []
@@ -67,6 +75,8 @@ export function parseChangelog(data) {
       epic,
       permalink,
       image,
+      featured: e.featured === true,
+      social: validSocial(e.social),
     })
   }
   // Newest first; the sort is stable, so a day's entries stay in the file's order.
@@ -171,12 +181,14 @@ export function checkNew(entries, storage = localStorageOrNull()) {
  * bundle, so What's new's marker needs no fetch.  An entry a date, as many as
  * the changelog has that day, for checkNew and markSeen.
  *
- * @param {{dates: Array<[string, number]>}} [stamp]
+ * @param {{dates: Array<[string, number]>, featured?: Array<[string, number]>}} [stamp]
+ * @param {string} [key] 'dates' for every entry, 'featured' for the featured
+ *   ones (the "new" marker counts those; a stamp without them has none)
  * @returns {Array<{date: string}>} Newest first
  */
-export function stampEntries(stamp = STAMP) {
+export function stampEntries(stamp = STAMP, key = 'dates') {
   const out = []
-  for (const [date, count] of Array.isArray(stamp?.dates) ? stamp.dates : []) {
+  for (const [date, count] of Array.isArray(stamp?.[key]) ? stamp[key] : []) {
     if (DATE_PATTERN.test(date ?? '') && Number.isInteger(count)) {
       for (let i = 0; i < count; i++) {
         out.push({date})
@@ -184,6 +196,20 @@ export function stampEntries(stamp = STAMP) {
     }
   }
   return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+}
+
+
+/**
+ * How many entries the "new" marker counts: the featured ones after the date
+ * the visitor last saw.  The marker is for what's worth a look, which is what
+ * What's new opens on; the lesser updates are there when asked for.
+ *
+ * @param {Array<{date: string}>} featured The featured entries' dates (stampEntries(stamp, 'featured'))
+ * @param {?string} since checkNew's `since`: null on a first visit
+ * @returns {number}
+ */
+export function unseenCount(featured, since) {
+  return since ? featured.filter((e) => e.date > since).length : 0
 }
 
 
@@ -215,8 +241,60 @@ export function markSeen(entries, storage = localStorageOrNull()) {
 
 
 /**
+ * @param {?Storage} [storage]
+ * @returns {boolean} Whether the visitor asked for all the updates, not only
+ *   the featured ones; false by default, with nothing stored, a bad value or
+ *   storage that throws
+ */
+export function readShowAll(storage = localStorageOrNull()) {
+  try {
+    return storage?.getItem(SHOW_ALL_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+
+/**
+ * @param {boolean} showAll
+ * @param {?Storage} [storage]
+ * @returns {boolean} Whether it was stored
+ */
+export function writeShowAll(showAll, storage = localStorageOrNull()) {
+  try {
+    if (!storage) {
+      return false
+    }
+    if (showAll) {
+      storage.setItem(SHOW_ALL_KEY, '1')
+    } else {
+      storage.removeItem(SHOW_ALL_KEY)
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+
+/**
+ * What What's new lists: the featured entries, or all of them when the
+ * visitor asked, or when the changelog has no featured entry at all (a file
+ * without the tag shows everything rather than nothing).
+ *
+ * @param {Array<{featured: boolean}>} entries
+ * @param {boolean} showAll
+ * @returns {Array<object>}
+ */
+export function visibleEntries(entries, showAll) {
+  return showAll || !entries.some((e) => e.featured) ? entries : entries.filter((e) => e.featured)
+}
+
+
+/**
  * The changelog tour's stops: the entries that have a permalink, newest
- * first, from a chosen entry on (toward the older ones).
+ * first, from a chosen entry on (toward the older ones).  The tour follows
+ * What's new's filter: the featured entries unless `showAll`.
  *
  * @param {Array<object>} entries Newest first (parseChangelog)
  * @param {object} [opts]
@@ -225,9 +303,11 @@ export function markSeen(entries, storage = localStorageOrNull()) {
  *   date it begins with, so a link to an entry survives its headline being
  *   reworded; anything else starts at the newest.
  * @param {number} [opts.count] At most this many stops
+ * @param {boolean} [opts.showAll] Every entry with a view, not only the featured ones
  * @returns {Array<object>}
  */
-export function tourStops(entries, {from = null, count = Infinity} = {}) {
+export function tourStops(allEntries, {from = null, count = Infinity, showAll = true} = {}) {
+  const entries = visibleEntries(allEntries, showAll)
   let start = 0
   if (from) {
     const byId = entries.findIndex((e) => e.id === from)

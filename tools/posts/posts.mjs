@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url'
 import {CAMPAIGN, NEW_ENTRIES_SINCE} from './campaign.mjs'
 import {SITE, entryLink, makePost, plainPosts} from './draft.mjs'
 import {field, lengths, mergeDrafts, parseDrafts, postId, textFor} from './file.mjs'
+import {socialProblems} from './social.mjs'
 import {PLATFORMS, lint} from './text.mjs'
 
 
@@ -16,7 +17,7 @@ import {PLATFORMS, lint} from './text.mjs'
  *   yarn posts                       add the posts the file doesn't have; report
  *   yarn posts --check               change nothing; exit 1 on a post over a limit or a tone problem
  *   yarn posts --renders             print the commands that render the images that are missing
- *   yarn posts --since 2026-11-01    plain posts for entries dated after this (default: campaign.mjs's)
+ *   yarn posts --since 2026-11-01    plain posts for featured entries dated after this (default: all)
  *   yarn posts --file other.md       a different drafts file
  */
 
@@ -76,7 +77,7 @@ function lastDate(sections) {
  */
 export function review(markdown, root = ROOT) {
   const {sections} = parseDrafts(markdown)
-  const problems = []
+  const problems = socialProblems(markdown)
   const warnings = []
   const renders = []
   let posts = 0
@@ -145,7 +146,7 @@ export function update({existing, entries, campaign = CAMPAIGN, since = NEW_ENTR
   const have = existing === null ? [] : parseDrafts(existing).sections
   const covered = new Set([...made, ...have].flatMap((s) => s.posts).map((p) => field(p, 'Entry')).filter(Boolean))
   const plain = plainPosts(entries, {
-    since, skip: covered, after: lastDate([...made, ...have]) || since,
+    since, skip: covered, after: lastDate([...made, ...have]) || since || new Date().toISOString().slice(0, 10),
   })
   const generated = [...made]
   if (plain.length > 0) {

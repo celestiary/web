@@ -114,7 +114,7 @@ export function nextSlot(date) {
  * @returns {object} A post (file.mjs)
  */
 export function makePost({id, title, text, entry = null, date = '', image, alt, permalink, notes = '', overrides = {}}) {
-  const fields = [['ID', id], ['Status', 'draft'], ['Date', date]]
+  const fields = [['ID', id], ['Status', 'draft'], ['X', ''], ['Facebook', ''], ['Date', date]]
   if (entry) {
     fields.push(['Entry', entry.id])
   }
@@ -136,12 +136,13 @@ export function makePost({id, title, text, entry = null, date = '', image, alt, 
 
 
 /**
- * The plain posts for the entries that are worth one and have none: a
- * permalink or an image, not a fix, dated after `since`.
+ * The plain posts for the entries that are worth one and have none: the
+ * featured ones (CHANGELOG.md's `- Featured: yes`, which is what marks an
+ * entry as worth a post), dated after `since`.
  *
  * @param {Array<object>} entries Changelog entries, newest first
  * @param {object} args
- * @param {string} args.since Only entries dated after this
+ * @param {string} args.since Only entries dated after this ('' for all)
  * @param {Set<string>} args.skip Entry ids that have a post already (campaign or file)
  * @param {string} args.after The last date a post is already scheduled on, for the first new one's
  * @returns {Array<object>} Posts, oldest entry first, each on the next free day
@@ -150,9 +151,7 @@ export function plainPosts(entries, {since, skip, after}) {
   const posts = []
   let date = after
   const wanted = entries
-      .filter((e) => e.date > since && !skip.has(e.id))
-      .filter((e) => e.permalink || e.image)
-      .filter((e) => !/^fixed\b/i.test(e.headline))
+      .filter((e) => e.featured && e.date > since && !skip.has(e.id))
       .reverse()
   for (const entry of wanted) {
     date = nextSlot(date)

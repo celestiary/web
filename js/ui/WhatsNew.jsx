@@ -1,7 +1,12 @@
 import React, {Fragment, useEffect, useRef, useState} from 'react'
-import {formatEntryDate} from '../changelog'
+import {formatEntryDate, localStorageOrNull, readShowAll, visibleEntries, writeShowAll} from '../changelog'
 import {permalinkHref} from '../permalink'
-import {SmallCloseIcon, SmallPlayIcon} from './NewsIcons'
+import {SOCIAL_PLATFORMS} from '../socialLinks.mjs'
+import {FacebookIcon, SmallCloseIcon, SmallFilterIcon, SmallPlayIcon, XIcon} from './NewsIcons'
+
+
+// The icon for each platform of an entry's social links.
+const SOCIAL_ICONS = {x: XIcon, facebook: FacebookIcon}
 
 
 // How many entries show at first, and how many more each "Show earlier" adds.
@@ -15,18 +20,28 @@ const MORE_ENTRIES = 16
  * permalink flies to its scene as a card does (Celestiary.openLink) and can
  * start the changelog tour from itself (Celestiary.startNewsTour); one
  * without is for reading.  The entries that came since the visitor's last
- * visit are tagged New.  Esc closes it before it leaves the homepage.
+ * visit are tagged New.  It opens on the featured entries; "Show all updates"
+ * adds the lesser features and fixes, and the visitor's choice is
+ * remembered (localStorage, in try/catch).  A featured entry that has been
+ * announced links to its posts on X and Facebook.  Esc closes it before it
+ * leaves the homepage.
  *
  * @param {object} props
  * @param {object} props.celestiary
  * @param {Array<object>} props.entries The changelog (changelog.js), newest first
  * @param {Set<string>} props.fresh The ids of the entries new to this visitor
  * @param {Function} props.onClose
+ * @param {?Storage} [props.storage] Where the choice is kept (the browser's by default)
  * @returns {React.ReactElement}
  */
-export default function WhatsNew({celestiary, entries, fresh, onClose}) {
+export default function WhatsNew({celestiary, entries: allEntries, fresh, onClose, storage = localStorageOrNull()}) {
   const [shown, setShown] = useState(FIRST_ENTRIES)
+  const [showAll, setShowAll] = useState(() => readShowAll(storage))
   const closeRef = useRef(null)
+  const entries = visibleEntries(allEntries, showAll)
+  // A filter only where there is something to filter.
+  const canFilter = allEntries.some((e) => e.featured) && allEntries.some((e) => !e.featured)
+  const lesser = allEntries.filter((e) => !e.featured).length
   const flyable = entries.filter((e) => e.permalink).length
 
   useEffect(() => {
@@ -43,9 +58,16 @@ export default function WhatsNew({celestiary, entries, fresh, onClose}) {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [onClose])
 
+  // The tour follows the list, whether or not the choice could be stored.
   const play = (opts) => {
     onClose()
-    celestiary.startNewsTour(opts)
+    celestiary.startNewsTour({...opts, showAll})
+  }
+
+  const toggleAll = () => {
+    writeShowAll(!showAll, storage)
+    setShowAll(!showAll)
+    setShown(FIRST_ENTRIES)
   }
 
   return (
@@ -81,8 +103,24 @@ export default function WhatsNew({celestiary, entries, fresh, onClose}) {
             </button>
           </div>
         </header>
+        {canFilter &&
+          <div className='news-filter'>
+            <span className='news-filter-note' data-testid='news-filter-note'>
+              {showAll ? 'All updates, including lesser features and fixes' : 'Featured updates'}
+            </span>
+            <button
+              type='button'
+              className='news-filter-toggle'
+              data-testid='news-filter-toggle'
+              aria-pressed={showAll}
+              onClick={toggleAll}
+            >
+              <SmallFilterIcon/>
+              {showAll ? 'Show featured only' : `Show all updates (${lesser} more)`}
+            </button>
+          </div>}
         <div className='news-body'>
-          <ol className='news-list' aria-label='Latest changes'>
+          <ol className='news-list' aria-label={showAll ? 'All updates' : 'Featured updates'}>
             {entries.slice(0, shown).map((entry, i) => (
               <li
                 key={entry.id}
@@ -92,6 +130,7 @@ export default function WhatsNew({celestiary, entries, fresh, onClose}) {
                 <div className='news-meta'>
                   <time dateTime={entry.date}>{formatEntryDate(entry.date)}</time>
                   {fresh.has(entry.id) && <span className='news-new'>New</span>}
+                  {showAll && entry.featured && <span className='news-featured'>Featured</span>}
                 </div>
                 <h3 className='news-headline'>{entry.headline.replace(/`/g, '')}</h3>
                 {entry.image &&
@@ -131,6 +170,26 @@ export default function WhatsNew({celestiary, entries, fresh, onClose}) {
                         {l.kind === 'pr' ? 'PR' : 'Issue'} #{l.number}
                       </a>
                     ))}
+                    {entry.social &&
+                      <span className='news-social' data-testid={`news-social-${i}`}>
+                        {Object.values(SOCIAL_PLATFORMS).filter((p) => entry.social[p.key]).map((p) => {
+                          const Icon = SOCIAL_ICONS[p.key]
+                          return (
+                            <a
+                              key={p.key}
+                              className='news-social-link'
+                              href={entry.social[p.key]}
+                              target='_blank'
+                              rel='noopener'
+                              aria-label={p.aria}
+                              title={p.aria}
+                              data-testid={`news-social-${p.key}-${i}`}
+                            >
+                              <Icon/>
+                            </a>
+                          )
+                        })}
+                      </span>}
                   </div>
                 </div>
               </li>

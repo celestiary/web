@@ -16,6 +16,8 @@ import {PLATFORMS, measureAll} from './text.mjs'
  *
  * - ID: unique-id
  * - Status: draft
+ * - X: https://x.com/celestiary_org/status/...
+ * - Facebook: https://www.facebook.com/...
  * - Date: 2026-10-27
  * - Entry: the changelog entry's id
  * - Image: path
@@ -40,7 +42,7 @@ import {PLATFORMS, measureAll} from './text.mjs'
  */
 
 export const STATUSES = Object.freeze(['draft', 'scheduled', 'posted', 'skip'])
-export const FIELD_ORDER = Object.freeze(['ID', 'Status', 'Date', 'Entry', 'Image', 'Alt', 'Render', 'Notes'])
+export const FIELD_ORDER = Object.freeze(['ID', 'Status', 'X', 'Facebook', 'Date', 'Entry', 'Image', 'Alt', 'Render', 'Notes'])
 const LENGTH = 'Length'
 const FENCE = '```'
 const BULLET = /^- ([A-Za-z][A-Za-z ]*): ?(.*)$/
@@ -55,7 +57,9 @@ publish each one by hand (tools/posts/README.md).
 - **Edit freely.** \`yarn posts\` never changes a post that is in this file,
   only adds new ones and works out each \`Length\` again.
 - **Mark each post's \`Status\`:** \`draft\`, \`scheduled\`, \`posted\` or \`skip\`.
-  \`Date\` is a suggestion.
+  \`Date\` is a suggestion.  When a post is \`posted\`, paste its URLs into
+  \`X\` and \`Facebook\` and run \`yarn changelog\`: What's new then links its
+  entry to them.
 - **The text** is the post as you'd paste it, link included, and is for X:
   at most 280, a link counting 23.  The \`#### Facebook\` block under it is
   Facebook's: a short paragraph or two, 300 to 500 characters, link in the

@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-10-21-what-s-new-shows-the-highlights-with-links-to",
+      "date": "2026-10-21",
+      "headline": "What's new shows the highlights, with links to the posts about them",
+      "text": "What's new on the homepage now opens on the featured updates: the changes most worth a look, each with its view. \"Show all updates\" below them adds the rest, the lesser features and fixes, and celestiary remembers your choice. When a featured update has been announced on X or Facebook, small icons beside its links open the post. The \"new\" count and the changelog tour follow the same choice: featured updates only, unless you've asked for all of them.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 270,
+          "url": "https://github.com/celestiary/web/pull/270"
+        },
+        {
+          "kind": "issue",
+          "number": 247,
+          "url": "https://github.com/celestiary/web/issues/247"
+        }
+      ],
+      "epic": {
+        "number": 244,
+        "title": "What's new: a changelog, in the app, and as posts",
+        "url": "https://github.com/celestiary/web/issues/244"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-20-the-stars-arrive-first-and-faster-the-naked-eye",
       "date": "2026-10-20",
       "headline": "The stars arrive first and faster: the naked-eye sky in a tenth of the download",
@@ -138,7 +163,8 @@
         "url": "https://github.com/celestiary/web/issues/244"
       },
       "permalink": null,
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-14-earth-s-clouds-without-a-seam-at-the-date-line",
@@ -213,7 +239,8 @@
         "url": "https://github.com/celestiary/web/issues/118"
       },
       "permalink": null,
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-13-earth-s-clouds-without-a-seam-down-the-atlantic",
@@ -266,7 +293,8 @@
       "image": {
         "src": "images/home/earth.webp",
         "alt": "The homepage's Earth card: dusk reaching South America"
-      }
+      },
+      "featured": true
     },
     {
       "id": "2026-10-11-a-calmer-first-load-and-overlays-that-fade",
@@ -351,7 +379,8 @@
         "url": "https://github.com/celestiary/web/issues/164"
       },
       "permalink": "#sun/earth@32.78,-96.8009,200m;t=8864.2801jd;cq=0,-0.5777,0,0.8162;fov=3deg;s=lpoxF;time:pause",
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-11-clouds-you-can-fly-into",
@@ -376,7 +405,8 @@
         "url": "https://github.com/celestiary/web/issues/111"
       },
       "permalink": "#sun/earth@25,-88,12km;t=2066.4167jd;cq=-0.3707,-0.4287,-0.0058,0.8239;fov=45deg;s=alpoU",
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-11-a-million-of-gaia-s-stars",
@@ -404,7 +434,8 @@
       "image": {
         "src": "images/home/gaia.webp",
         "alt": "Gaia's stars and the Milky Way from 3,200 light-years out"
-      }
+      },
+      "featured": true
     },
     {
       "id": "2026-10-10-175-galaxies-you-can-fly-to",
@@ -429,7 +460,8 @@
         "url": "https://github.com/celestiary/web/issues/117"
       },
       "permalink": "#galaxy:ngc2403",
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-10-place-names-on-23-bodies-and-labels-that-no",
@@ -504,7 +536,8 @@
         "url": "https://github.com/celestiary/web/issues/118"
       },
       "permalink": "#sun/jupiter@10.9426,97.5052,388.346569Mm;t=9496.5jd;cq=0.1228,0.4092,0.0818,0.9004;fov=45deg;s=TF;time:rate=16384",
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-08-right-skies-on-the-giants-titan-and-triton",
@@ -592,7 +625,8 @@
       "image": {
         "src": "images/home/occultation.webp",
         "alt": "Jupiter and its moons slipping behind the Moon's limb"
-      }
+      },
+      "featured": true
     },
     {
       "id": "2026-10-08-stars-show-at-a-telescope-s-field-of-view",
@@ -863,7 +897,8 @@
         "url": "https://github.com/celestiary/web/issues/116"
       },
       "permalink": "#sun@28.1629,-168.012,1411144323.815593Tm;t=9774.7819jd;cq=-0.3859,0.59,0.6319,-0.322;fov=50deg",
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-06-every-star-drawn-from-its-own-temperature",
@@ -1132,7 +1167,8 @@
         "url": "https://github.com/celestiary/web/issues/109"
       },
       "permalink": "#sun/earth@-25.5,131,3000m;t=10055.4036jd;cq=0.6969,-0.5514,0.452,-0.0775;fov=45deg;s=alpoUL",
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-05-every-body-turns-by-the-iau-s-rotation-model",
@@ -1258,7 +1294,8 @@
       ],
       "epic": null,
       "permalink": null,
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-02-mars-s-day-sky",
@@ -1278,7 +1315,8 @@
         "url": "https://github.com/celestiary/web/issues/109"
       },
       "permalink": "#sun/mars@-10.7408,-68.893,-796m;t=9770.31455jd;cq=-0.5182,0.7149,-0.3829,0.2716;fov=45deg;s=alpoU",
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-01-standing-below-a-body-s-datum",
@@ -1508,7 +1546,8 @@
         "url": "https://github.com/celestiary/web/issues/110"
       },
       "permalink": "#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=alpoU",
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-09-29-cesium-s-moon-and-mars-swap-in-smoothly-lit",
@@ -1669,7 +1708,8 @@
       ],
       "epic": null,
       "permalink": null,
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-05-06-earth-the-galaxy-and-the-grids-in-their-true",
@@ -1845,7 +1885,8 @@
         "url": "https://github.com/celestiary/web/issues/111"
       },
       "permalink": "#sun/saturn@21.6445,-12.6257,215.888389Mm;t=9580.0073jd;cq=-0.0914,0.5421,0.0816,0.8314;fov=45deg",
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-03-25-shareable-links-to-any-view",
@@ -1865,7 +1906,8 @@
         "url": "https://github.com/celestiary/web/issues/118"
       },
       "permalink": "#sun/mars@-22.0096,-139.5125,6.210169Mm;t=9579.9256jd;cq=0.2236,-0.5002,0.085,0.8322;fov=45deg",
-      "image": null
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-03-24-atmospheres-from-precomputed-scattering",

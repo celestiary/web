@@ -7,7 +7,9 @@ publish each one by hand (tools/posts/README.md).
 - **Edit freely.** `yarn posts` never changes a post that is in this file,
   only adds new ones and works out each `Length` again.
 - **Mark each post's `Status`:** `draft`, `scheduled`, `posted` or `skip`.
-  `Date` is a suggestion.
+  `Date` is a suggestion.  When a post is `posted`, paste its URLs into
+  `X` and `Facebook` and run `yarn changelog`: What's new then links its
+  entry to them.
 - **The text** is the post as you'd paste it, link included, and is for X:
   at most 280, a link counting 23.  The `#### Facebook` block under it is
   Facebook's: a short paragraph or two, 300 to 500 characters, link in the
@@ -27,6 +29,8 @@ Seven posts for the same day, 2026-10-26.  On X each is a reply to the one befor
 
 - ID: spring-1-intro
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-10-26
 - Entry: 2026-10-14-celestiary-has-its-own-address-celestiary-org
 - Image: public/images/home/earth.webp
@@ -52,6 +56,8 @@ https://celestiary.org/
 
 - ID: spring-2-gaia
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-10-26
 - Entry: 2026-10-11-a-million-of-gaia-s-stars
 - Image: public/images/home/gaia.webp
@@ -77,6 +83,8 @@ https://celestiary.org/#sun/earth@43.3389,-9.9593,30373373.021376Tm;t=9779.5692j
 
 - ID: spring-3-galaxies
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-10-26
 - Entry: 2026-10-10-175-galaxies-you-can-fly-to
 - Image: posts/images/spring-3-galaxies.png
@@ -103,6 +111,8 @@ https://celestiary.org/#galaxy:ngc2403
 
 - ID: spring-4-sun
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-10-26
 - Entry: 2026-10-11-the-sun-has-sunspots-a-corona-and-eclipses
 - Image: posts/images/spring-4-sun.png
@@ -129,6 +139,8 @@ https://celestiary.org/#sun/earth@32.78,-96.8009,200m;t=8864.2801jd;cq=0,-0.5777
 
 - ID: spring-5-night-side
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-10-26
 - Entry: 2026-10-13-the-homepage-tour-flies-into-earth-s-shadow-to
 - Image: posts/images/spring-5-night-side.png
@@ -155,6 +167,8 @@ https://celestiary.org/#sun/earth@40,9.9942,4Mm;t=9851.4722jd;cq=0.0005,0.9896,0
 
 - ID: spring-6-homepage
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-10-26
 - Entry: 2026-10-13-a-homepage-at-celestiary-s-address
 - Image: public/images/home/tonight.webp
@@ -180,6 +194,8 @@ https://celestiary.org/
 
 - ID: spring-7-links
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-10-26
 - Entry: 2026-03-25-shareable-links-to-any-view
 - Image: posts/images/spring-7-links.png
@@ -210,6 +226,8 @@ Tuesday, Thursday and Saturday from 2026-10-27.  Entries further on get a plain 
 
 - ID: clouds-katrina
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-10-27
 - Entry: 2026-10-11-clouds-you-can-fly-into
 - Image: posts/images/clouds-katrina.png
@@ -236,6 +254,8 @@ https://celestiary.org/#sun/earth@25,-88,12km;t=2066.4167jd;cq=-0.3707,-0.4287,-
 
 - ID: moon-hides-jupiter
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-10-29
 - Entry: 2026-10-08-the-moon-lit-and-shaped-like-the-real-moon
 - Image: public/images/home/occultation.webp
@@ -261,6 +281,8 @@ https://celestiary.org/#sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.
 
 - ID: human-expansion
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-10-31
 - Entry: 2026-10-02-human-expansion-spread-across-the-stars
 - Image: posts/images/human-expansion.png
@@ -287,6 +309,8 @@ https://celestiary.org/#sun@12.3,-45.6,20.5Tm;t=9771.1jd;cq=0.1,0.2,0.3,0.927;fo
 
 - ID: mars-sky
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-11-03
 - Entry: 2026-10-02-mars-s-day-sky
 - Image: posts/images/mars-sky.png
@@ -313,6 +337,8 @@ https://celestiary.org/#sun/mars@-10.7408,-68.893,-796m;t=9770.31455jd;cq=-0.518
 
 - ID: phone-sky-view
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-11-05
 - Entry: 2026-05-07-a-sky-view-for-your-phone
 - Image: public/images/home/tonight.webp
@@ -338,6 +364,8 @@ https://celestiary.org/
 
 - ID: milky-way-model
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-11-07
 - Entry: 2026-10-06-the-milky-way-from-a-published-structural-model
 - Image: posts/images/milky-way-model.png
@@ -364,6 +392,8 @@ https://celestiary.org/#sun@28.1629,-168.012,1411144323.815593Tm;t=9774.7819jd;c
 
 - ID: saturn-rings
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-11-10
 - Entry: 2026-03-25-saturn-s-rings-lit-and-shadowed
 - Image: posts/images/saturn-rings.png
@@ -390,6 +420,8 @@ https://celestiary.org/#sun/saturn@21.6445,-12.6257,215.888389Mm;t=9580.0073jd;c
 
 - ID: outback-twilight
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-11-12
 - Entry: 2026-10-05-exposure-that-adapts-like-the-eye
 - Image: posts/images/outback-twilight.png
@@ -416,6 +448,8 @@ https://celestiary.org/#sun/earth@-25.5,131,3000m;t=10055.4036jd;cq=0.6969,-0.55
 
 - ID: blue-marble-month
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-11-14
 - Entry: 2026-09-29-earth-in-the-month-s-blue-marble
 - Image: posts/images/blue-marble-month.png
@@ -442,6 +476,8 @@ https://celestiary.org/#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.996
 
 - ID: follow-a-body
 - Status: draft
+- X:
+- Facebook:
 - Date: 2026-11-17
 - Entry: 2026-10-09-f-makes-the-camera-follow-a-body-along-its-orbit
 - Image: posts/images/follow-a-body.png

@@ -1,7 +1,7 @@
 import {afterAll, beforeAll, describe, expect, it} from 'bun:test'
 import React from 'react'
 import {renderToStaticMarkup} from 'react-dom/server'
-import {parseChangelog, tourCaption} from '../changelog.js'
+import {SHOW_ALL_KEY, parseChangelog, readShowAll, tourCaption, visibleEntries, writeShowAll} from '../changelog.js'
 import NewsTour from './NewsTour.jsx'
 import WhatsNew, {renderText} from './WhatsNew.jsx'
 
@@ -132,5 +132,97 @@ describe('the changelog tour\'s caption and controls', () => {
     }
     expect(renderToStaticMarkup(<NewsTour celestiary={celestiary} tour={tour('holding', true)}/>))
         .toContain('aria-label="Play"')
+  })
+})
+
+
+describe('the What\'s new panel\'s filter and posts', () => {
+  const X = 'https://x.com/celestiary_org/status/1849'
+  const FB = 'https://www.facebook.com/celestiary/posts/77'
+  const MIXED = parseChangelog({entries: [
+    entry(13, {featured: true, social: {x: X, facebook: FB}}),
+    entry(12),
+    entry(11, {featured: true, social: {facebook: FB}}),
+    entry(10, {featured: true}),
+    entry(9),
+  ]})
+  const storage = (value) => ({getItem: (k) => (k === SHOW_ALL_KEY ? value : null), setItem: noop, removeItem: noop})
+  const render = (entries, st) => renderToStaticMarkup(
+      <WhatsNew celestiary={celestiary} entries={entries} fresh={new Set()} onClose={noop} storage={st}/>)
+
+  it('opens on the featured entries only, with the opt-in to show the rest', () => {
+    const html = render(MIXED, storage(null))
+    expect(html.match(/data-testid="news-entry-\d+"/g)?.length).toBe(3)
+    expect(html).toContain('Headline 13')
+    expect(html).not.toContain('Headline 12')
+    expect(html).not.toContain('Headline 9')
+    expect(html).toContain('Featured updates')
+    expect(html).toContain('data-testid="news-filter-toggle"')
+    expect(html).toContain('Show all updates (2 more)')
+    expect(html).toContain('aria-pressed="false"')
+    expect(html).toContain('aria-label="Featured updates"')
+  })
+
+  it('shows every entry once the choice is stored, with the way back, and marks the featured ones', () => {
+    const html = render(MIXED, storage('1'))
+    expect(html.match(/data-testid="news-entry-\d+"/g)?.length).toBe(5)
+    expect(html).toContain('Headline 12')
+    expect(html).toContain('Show featured only')
+    expect(html).toContain('aria-pressed="true"')
+    expect(html).toContain('All updates, including lesser features and fixes')
+    expect(html.match(/class="news-featured"/g)?.length).toBe(3)
+  })
+
+  it('toggles by writing the choice that the next opening reads, and survives storage that throws', () => {
+    const data = {}
+    const st = {getItem: (k) => data[k] ?? null, setItem: (k, v) => { data[k] = v }, removeItem: (k) => { delete data[k] }}
+    expect(readShowAll(st)).toBe(false)
+    writeShowAll(!readShowAll(st), st)
+    expect(render(MIXED, st)).toContain('Headline 12')
+    writeShowAll(!readShowAll(st), st)
+    expect(render(MIXED, st)).not.toContain('Headline 12')
+    const boom = () => {
+      throw new Error('SecurityError')
+    }
+    const html = render(MIXED, {getItem: boom, setItem: boom, removeItem: boom})
+    expect(html).not.toContain('Headline 12')
+    expect(visibleEntries(MIXED, false)).toHaveLength(3)
+  })
+
+  it('has no filter where nothing is featured, or everything is', () => {
+    expect(render(ENTRIES, storage(null))).not.toContain('news-filter')
+    expect(render(MIXED.filter((e) => e.featured), storage(null))).not.toContain('news-filter')
+  })
+
+  it('links a featured entry to its posts with an icon each, in a new tab, labelled', () => {
+    const html = render(MIXED, storage(null))
+    expect(html).toContain(`href="${X}"`)
+    expect(html).toContain(`href="${FB}"`)
+    expect(html).toContain('aria-label="on X"')
+    expect(html).toContain('aria-label="on Facebook"')
+    expect(html.match(/target="_blank" rel="noopener" aria-label="on (X|Facebook)"/g)).toHaveLength(3)
+    // Entry 13 has both, entry 11 only Facebook, entry 10 none.
+    expect(html).toContain('data-testid="news-social-x-0"')
+    expect(html).toContain('data-testid="news-social-facebook-0"')
+    expect(html).not.toContain('data-testid="news-social-x-1"')
+    expect(html).toContain('data-testid="news-social-facebook-1"')
+    expect(html).not.toContain('data-testid="news-social-2"')
+  })
+
+  it('draws the marks as monochrome inline SVG, hidden from readers (the link carries the name)', () => {
+    const html = render(MIXED, storage(null))
+    const svgs = html.match(/<svg[^>]*>/g).filter((s) => s.includes('width="16"'))
+    expect(svgs).toHaveLength(3)
+    for (const svg of svgs) {
+      expect(svg).toContain('fill="currentColor"')
+      expect(svg).toContain('aria-hidden="true"')
+    }
+  })
+
+  it('shows no link to a post whose URL isn\'t on X or Facebook over https', () => {
+    const bad = parseChangelog({entries: [entry(13, {featured: true, social: {x: 'https://evil.example/a', facebook: 'http://facebook.com/a'}}), entry(12)]})
+    const html = render(bad, storage(null))
+    expect(html).not.toContain('evil.example')
+    expect(html).not.toContain('news-social')
   })
 })

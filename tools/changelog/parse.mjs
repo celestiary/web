@@ -12,6 +12,7 @@
  *   - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation
  *   - Permalink: [Open it](https://celestiary.org/#sun/earth@...)
  *   - Image: ![Earth at dusk](public/images/home/earth.webp)
+ *   - Featured: yes                         worth a post and shown by default in What's new
  *   Behind the scenes: ...                  after the last entry, the month's housekeeping line
  */
 
@@ -19,7 +20,7 @@ const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
-const FIELD = /^- (Date|PR|Issue|Epic|Permalink|Image):\s*(.*)$/
+const FIELD = /^- (Date|PR|Issue|Epic|Permalink|Image|Featured):\s*(.*)$/
 const LINK = /\[([^\]]*)\]\(([^)\s]+)\)/g
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/
 const NOTES_PREFIX = /^Behind the scenes:\s*/
@@ -155,6 +156,20 @@ function parseImage(value, where) {
 
 
 /**
+ * @param {string} value A "Featured" field: `yes` or `no`
+ * @param {string} where For messages
+ * @returns {boolean}
+ */
+function parseFeatured(value, where) {
+  const v = value.toLowerCase()
+  if (v !== 'yes' && v !== 'no') {
+    throw new Error(`${where}: Featured is "yes" or "no" (or leave the field out), got "${value}"`)
+  }
+  return v === 'yes'
+}
+
+
+/**
  * @param {string} heading A month heading's text, "October 2026"
  * @returns {string|null} "2026-10", or null if it isn't a month
  */
@@ -181,7 +196,7 @@ export function headingOfMonth(month) {
  *
  * @param {string} markdown CHANGELOG.md's text
  * @returns {{entries: Array<object>, notes: Array<{month: string, text: string}>}}
- *   Entries in file order (newest first); each {id, month, date, headline, text, markdown, links, epic, permalink, image}
+ *   Entries in file order (newest first); each {id, month, date, headline, text, markdown, links, epic, permalink, image, featured}
  */
 export function parseChangelog(markdown) {
   const entries = []
@@ -227,6 +242,7 @@ export function parseChangelog(markdown) {
     let epic = null
     let permalink = null
     let image = null
+    let featured = false
     for (const {name, value} of entry.fields) {
       if (name === 'PR') {
         links.push(...parseLinks(value, 'pr', where))
@@ -238,6 +254,8 @@ export function parseChangelog(markdown) {
         permalink = parsePermalink(value, where)
       } else if (name === 'Image') {
         image = parseImage(value, where)
+      } else if (name === 'Featured') {
+        featured = parseFeatured(value, where)
       }
     }
     if (entry.paragraphs.length === 0) {
@@ -256,6 +274,7 @@ export function parseChangelog(markdown) {
       permalink: permalink && permalink.hash,
       permalinkUrl: permalink && permalink.url,
       image,
+      featured,
     })
     entry = null
     fields = null
@@ -314,7 +333,7 @@ export function parseChangelog(markdown) {
       flushParagraph(lineNo)
       const f = FIELD.exec(line)
       if (!f) {
-        throw new Error(`line ${lineNo}: unknown field "${line}" (Date, PR, Issue, Epic, Permalink, Image)`)
+        throw new Error(`line ${lineNo}: unknown field "${line}" (Date, PR, Issue, Epic, Permalink, Image, Featured)`)
       }
       if (afterFields) {
         throw new Error(`line ${lineNo}: fields after the entry's text and fields ended`)
@@ -358,18 +377,32 @@ export function checkOrder(entries) {
 
 /**
  * @param {string} markdown CHANGELOG.md's text
+ * @param {?{[entryId: string]: {[platform: string]: string}}} [social] The
+ *   URLs of the posts that announce entries, by entry id (tools/posts/social.mjs)
  * @returns {{entries: Array<object>}} What `public/data/changelog.json` holds
- *   (entries newest first; the Markdown-only fields left out)
+ *   (entries newest first; the Markdown-only fields left out).  `featured` is
+ *   there only when true, and `social` only for an entry with posts.
  */
-export function changelogJson(markdown) {
+export function changelogJson(markdown, social = null) {
   const {entries} = parseChangelog(markdown)
   const problems = checkOrder(entries)
+  const byId = new Map(entries.map((e) => [e.id, e]))
+  for (const [id, urls] of Object.entries(social ?? {})) {
+    const e = byId.get(id)
+    if (!e) {
+      problems.push(`posts link to "${id}", which is not a changelog entry`)
+    } else if (!e.featured && Object.keys(urls).length > 0) {
+      problems.push(`"${e.headline}" has posts but is not "- Featured: yes"`)
+    }
+  }
   if (problems.length > 0) {
     throw new Error(problems.join('\n'))
   }
   return {
-    entries: entries.map(({id, date, headline, text, links, epic, permalink, image}) => ({
+    entries: entries.map(({id, date, headline, text, links, epic, permalink, image, featured}) => ({
       id, date, headline, text, links, epic, permalink, image,
+      ...(featured ? {featured: true} : {}),
+      ...(social?.[id] && Object.keys(social[id]).length > 0 ? {social: social[id]} : {}),
     })),
   }
 }

@@ -22,6 +22,7 @@ A second paragraph.
 - Epic: [#118](${ISSUE}/118) Navigation, time and sharing
 - Permalink: [Open it](https://celestiary.org/#sun/earth@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;s=a)
 - Image: ![Earth at dusk](public/images/home/earth.webp)
+- Featured: yes
 
 ### A plain one
 
@@ -168,8 +169,34 @@ describe('checkOrder and changelogJson', () => {
   it('makes the app\'s JSON: what the Markdown says, without the Markdown-only fields', () => {
     const json = changelogJson(SAMPLE)
     expect(json.entries).toHaveLength(3)
-    expect(Object.keys(json.entries[0]).sort()).toEqual(['date', 'epic', 'headline', 'id', 'image', 'links', 'permalink', 'text'])
+    expect(Object.keys(json.entries[0]).sort()).toEqual(['date', 'epic', 'featured', 'headline', 'id', 'image', 'links', 'permalink', 'text'])
     expect(json.entries[0].links[0]).toEqual({kind: 'pr', number: 242, url: `${PR}/242`})
+  })
+
+  it('has `featured: true` for an entry marked Featured: yes, and the field for no other', () => {
+    const json = changelogJson(SAMPLE)
+    expect(json.entries[0].featured).toBe(true)
+    expect('featured' in json.entries[1]).toBe(false)
+    expect(parseChangelog(SAMPLE).entries.map((e) => e.featured)).toEqual([true, false, false])
+  })
+
+  it('reads Featured: no as not featured, and refuses anything but yes and no', () => {
+    const one = (value) => `## October 2026\n\n### A\n\nx.\n\n- Date: 2026-10-01\n- PR: [#1](${PR}/1)\n- Featured: ${value}\n`
+    expect(parseChangelog(one('no')).entries[0].featured).toBe(false)
+    expect(parseChangelog(one('Yes')).entries[0].featured).toBe(true)
+    expect(() => parseChangelog(one('maybe'))).toThrow('Featured is "yes" or "no"')
+  })
+
+  it('joins the posts\' links onto the entry they are about, in the icons\' order', () => {
+    const social = {'2026-10-13-earth-at-dusk-with-clouds': {x: 'https://x.com/celestiary_org/status/1', facebook: 'https://www.facebook.com/p/1'}}
+    const json = changelogJson(SAMPLE, social)
+    expect(json.entries[0].social).toEqual(social['2026-10-13-earth-at-dusk-with-clouds'])
+    expect('social' in json.entries[1]).toBe(false)
+  })
+
+  it('refuses links to an entry that is not there, or is not featured', () => {
+    expect(() => changelogJson(SAMPLE, {nope: {x: 'https://x.com/a/status/1'}})).toThrow('not a changelog entry')
+    expect(() => changelogJson(SAMPLE, {'2026-10-02-a-plain-one': {x: 'https://x.com/a/status/1'}})).toThrow('Featured')
   })
 
   it('refuses a file out of order', () => {

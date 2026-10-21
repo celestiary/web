@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import {CAMPAIGN, NEW_ENTRIES_SINCE} from './campaign.mjs'
+import {CAMPAIGN} from './campaign.mjs'
 import {SITE, entryLink, makePost, nextSlot, plainPostText, plainPosts, renderCommand, sentences} from './draft.mjs'
 import {field, lengths, parseDrafts, postId, textFor} from './file.mjs'
 import {CHANGELOG_JSON, DRAFTS, buildCampaign, review, update} from './posts.mjs'
@@ -22,8 +22,9 @@ const ENTRY = {
     'sent in a single post on any of the three platforms we have, so it must be left out of the draft.',
   permalink: '#sun/saturn@80,0,2Mm;t=9800jd;cq=0,0,0,1;fov=45deg',
   image: null,
+  featured: true,
 }
-const FIX = {...ENTRY, id: '2026-11-04-fixed', headline: 'Fixed: a black disc', date: '2026-11-04'}
+const MINOR = {...ENTRY, id: '2026-11-04-minor', headline: 'A lesser feature', date: '2026-11-04', featured: false}
 const QUIET = {...ENTRY, id: '2026-11-05-quiet', headline: 'Faster loading', date: '2026-11-05', permalink: null}
 const OLD = {...ENTRY, id: '2026-10-01-old', headline: 'Old news', date: '2026-10-01'}
 
@@ -116,11 +117,22 @@ describe('the days', () => {
 describe('plain posts for entries added after the campaign', () => {
   const args = {since: '2026-10-20', skip: new Set(), after: '2026-11-03'}
 
-  it('are made for entries with a view or an image, dated after, in the order they came, on the next days', () => {
-    const posts = plainPosts([QUIET, FIX, ENTRY, OLD], args)
-    expect(posts.map(postId)).toEqual([ENTRY.id])
-    expect(field(posts[0], 'Date')).toBe('2026-11-05')
-    expect(field(posts[0], 'Entry')).toBe(ENTRY.id)
+  it('are made only for featured entries, dated after, in the order they came, on the next days', () => {
+    const posts = plainPosts([QUIET, MINOR, ENTRY, OLD], args)
+    expect(posts.map(postId)).toEqual([ENTRY.id, QUIET.id])
+    expect(posts.map((p) => field(p, 'Date'))).toEqual(['2026-11-05', '2026-11-07'])
+    expect(field(posts[1], 'Entry')).toBe(QUIET.id)
+  })
+
+  it('are not made for an entry that is not featured, whatever else it has', () => {
+    const rich = {...MINOR, image: {src: 'images/home/gaia.webp', alt: 'Gaia'}}
+    expect(plainPosts([rich, {...ENTRY, featured: undefined}], args)).toEqual([])
+  })
+
+  it('have the X and Facebook fields for the live posts\' URLs, empty', () => {
+    const [post] = plainPosts([ENTRY], args)
+    expect(post.fields.map(([k]) => k).slice(0, 5)).toEqual(['ID', 'Status', 'X', 'Facebook', 'Date'])
+    expect(field(post, 'X')).toBe('')
   })
 
   it('go oldest first, and not for an entry that has a post', () => {
@@ -165,7 +177,7 @@ describe('updating the drafts file from the changelog', () => {
     const first = make(null).text
     const newer = {...ENTRY, id: '2026-11-12-newer', headline: 'Newer', date: '2026-11-12', text: 'Something new.'}
     const withNewer = make(first, [newer, ENTRY]).text
-    const skipped = withNewer.replace(/- Status: draft(\n- Date: 2026-11-05\n- Entry: 2026-11-12)/, '- Status: skip$1')
+    const skipped = withNewer.replace(/- Status: draft(\n- X:\n- Facebook:\n- Date: 2026-11-05\n- Entry: 2026-11-12)/, '- Status: skip$1')
     expect(skipped).not.toBe(withNewer)
     expect(make(skipped, [newer, ENTRY]).text).toBe(skipped)
   })
@@ -278,9 +290,10 @@ describe('the first campaign', () => {
     expect(Math.max(...weeks.values())).toBeLessThanOrEqual(3)
   })
 
-  it('starts plain posts after the entries it was written from', () => {
-    const newest = entries.map((e) => e.date).sort().pop()
-    expect(NEW_ENTRIES_SINCE >= newest).toBe(true)
+  it('is about featured entries, every one', () => {
+    for (const p of all) {
+      expect(byId.get(field(p, 'Entry')).featured, postId(p)).toBe(true)
+    }
   })
 })
 
@@ -297,9 +310,8 @@ describe('posts/drafts.md', () => {
     expect(review(markdown, ROOT).problems).toEqual([])
   })
 
-  it('is what a run changes nothing in, apart from posts for new entries', () => {
-    const {text, added} = update({existing: markdown, entries})
-    expect(added).toEqual([])
-    expect(text).toBe(markdown)
+  it('is as a run leaves it, apart from posts for entries featured since', () => {
+    const {text} = update({existing: markdown, entries})
+    expect(text.startsWith(markdown.trimEnd())).toBe(true)
   })
 })

@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import {CHANGELOG, OUTPUT, STAMP, renderJson, renderStamp} from './json.mjs'
+import {CHANGELOG, DRAFTS, OUTPUT, STAMP, renderJson, renderStamp} from './json.mjs'
 import {checkOrder, headingOfMonth, parseChangelog} from './parse.mjs'
 import {decodePermalink} from '../../js/permalink.js'
 
@@ -68,9 +68,16 @@ describe('CHANGELOG.md', () => {
 
 
 describe('public/data/changelog.json', () => {
-  it('is what CHANGELOG.md says (run `yarn changelog` after editing it)', () => {
+  it('is what CHANGELOG.md and posts/drafts.md say (run `yarn changelog` after editing either)', () => {
     expect(fs.existsSync(OUTPUT)).toBe(true)
-    expect(fs.readFileSync(OUTPUT, 'utf8')).toBe(renderJson(markdown))
+    expect(fs.readFileSync(OUTPUT, 'utf8')).toBe(renderJson(markdown, fs.readFileSync(DRAFTS, 'utf8')))
+  })
+
+  it('has `featured` on the entries CHANGELOG.md marks, and only on them', () => {
+    const file = JSON.parse(fs.readFileSync(OUTPUT, 'utf8'))
+    expect(file.entries.filter((e) => e.featured).map((e) => e.id)).toEqual(entries.filter((e) => e.featured).map((e) => e.id))
+    expect(file.entries.some((e) => e.featured)).toBe(true)
+    expect(file.entries.every((e) => e.featured === undefined || e.featured === true)).toBe(true)
   })
 })
 
@@ -86,6 +93,12 @@ describe('js/changelogStamp.json', () => {
     expect(dates[0][0]).toBe(entries.map((e) => e.date).sort().pop())
     expect(dates.map(([d]) => d)).toEqual([...new Set(entries.map((e) => e.date))].sort().reverse())
     expect(fs.statSync(STAMP).size).toBeLessThan(2000)
+  })
+
+  it('also counts the featured entries of each date, which the "new" marker counts', () => {
+    const {featured} = JSON.parse(fs.readFileSync(STAMP, 'utf8'))
+    expect(featured.reduce((n, [, count]) => n + count, 0)).toBe(entries.filter((e) => e.featured).length)
+    expect(featured.map(([d]) => d)).toEqual([...new Set(entries.filter((e) => e.featured).map((e) => e.date))].sort().reverse())
   })
 })
 

@@ -810,6 +810,79 @@ button.home-card[aria-busy='true'] {
   outline-offset: 2px;
 }
 
+.news-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 8px 14px 8px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+  color: #8f9bb5;
+}
+
+/* "Show all updates": opt-in, a chip that is pressed while the lesser
+   features and fixes show. */
+.news-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px 4px 8px;
+  border: 1px solid rgba(134, 159, 219, 0.5);
+  border-radius: 999px;
+  background: none;
+  color: #c4d2f2;
+  font: inherit;
+  cursor: pointer;
+}
+
+.news-filter-toggle:hover {
+  background: rgba(134, 159, 219, 0.28);
+}
+
+.news-filter-toggle[aria-pressed='true'] {
+  border-color: rgba(134, 159, 219, 0.8);
+  background: rgba(134, 159, 219, 0.2);
+}
+
+.news-filter-toggle:focus-visible, .news-social-link:focus-visible {
+  outline: 2px solid #869fdb;
+  outline-offset: 2px;
+}
+
+.news-featured {
+  padding: 1px 7px;
+  border: 1px solid rgba(134, 159, 219, 0.6);
+  border-radius: 999px;
+  color: #a9b9e3;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+
+/* The posts about an entry: the platforms' marks beside its PR and issue
+   links, in the same grey, a 28px target each. */
+.news-social {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.news-social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #7f8cab;
+}
+
+.news-social-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #c4d2f2;
+}
+
 .news-body {
   min-height: 0;
   overflow-y: auto;
@@ -951,6 +1024,10 @@ button.home-card[aria-busy='true'] {
   }
 
   .news-head {
+    padding-left: 16px;
+  }
+
+  .news-filter {
     padding-left: 16px;
   }
 

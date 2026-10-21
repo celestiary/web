@@ -4,7 +4,8 @@
  * it doesn't have after that; once a post is in that file the file's text is
  * the post, and this one isn't read for it again.
  *
- * Each post is about one changelog entry (`entry`, its id in CHANGELOG.md).
+ * Each post is about one changelog entry (`entry`, its id in CHANGELOG.md),
+ * which is featured there.
  * Its link is the entry's permalink, or `linkFrom`'s (another entry's, when
  * this one has no view of its own), or celestiary.org; it is added after
  * the text.  The image is `image` (a file in the repo), else the entry's, else
@@ -18,9 +19,10 @@
  * in the text too.  Both are checked (posts.test.js).
  */
 
-// Entries dated after this, with a view or an image, that no post here covers
-// get a plain post (headline and first sentences) when `yarn posts` is run.
-export const NEW_ENTRIES_SINCE = '2026-10-20'
+// Featured entries (CHANGELOG.md's `- Featured: yes`) that no post here covers
+// get a plain post (headline and first sentences) when `yarn posts` is run,
+// those dated after this, or all of them when it is ''.
+export const NEW_ENTRIES_SINCE = ''
 
 const HOME_EARTH = 'public/images/home/earth.webp'
 const HOME_GAIA = 'public/images/home/gaia.webp'

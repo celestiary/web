@@ -29,13 +29,14 @@ The first run writes `posts/drafts.md` from two things:
   posts, then one post for each of ten notable entries, on Tuesdays,
   Thursdays and Saturdays from 2026-10-27. The copy is written by hand, for
   someone who hasn't seen celestiary, from the changelog's own numbers.
-- **Plain posts** (`draft.mjs`) for entries dated after the campaign
-  (`NEW_ENTRIES_SINCE` in `campaign.mjs`) that have a permalink or an
-  image: the headline, as many of the entry's sentences as fit on X, and the
-  link (the sentence about "the link" is dropped, since the post has it).
-  Fixes aren't drafted. Each is dated on the next free Tuesday, Thursday or
-  Saturday. Entries with neither a permalink nor an image are left out: there
-  is nothing to look at.
+- **Plain posts** (`draft.mjs`) for the **featured** entries the campaign
+  doesn't cover (`- Featured: yes` in CHANGELOG.md, which the PR that adds
+  an entry decides; `--since` limits them by date): the headline, as many of
+  the entry's sentences as fit, for X and for Facebook, and the link (the
+  sentence about "the link" is dropped, since the post has it). Entries that
+  aren't featured get no draft, whatever they have. Each is dated on the next
+  free Tuesday, Thursday or Saturday. A featured entry with no view and no
+  image gets `Image: none`, which `--check` reports.
 
 So after a PR adds a CHANGELOG entry and `yarn changelog` rebuilds the JSON,
 `yarn posts` adds its draft at the end of the file. It reads
@@ -50,6 +51,8 @@ So after a PR adds a CHANGELOG entry and `yarn changelog` rebuilds the JSON,
 
 - ID: gaia-night
 - Status: draft
+- X: (the post's URL, once it is live)
+- Facebook: (the same)
 - Date: 2026-10-27
 - Entry: 2026-10-11-a-million-of-gaia-s-stars
 - Image: public/images/home/gaia.webp
@@ -105,6 +108,32 @@ posts fit.
 `--check` and the tests also hold the tone, on each text: at most two hashtags
 (`#astronomy`, `#space`), no emoji, no exclamation marks, and none of a list
 of hype words.
+
+## Links to the live posts
+
+What's new on the homepage lists the featured entries, and a featured entry
+whose post is live links to it with a small X and Facebook mark. The URLs are
+recorded **once, here**, and not copied by hand into the changelog:
+
+1. Publish the post, and set its `Status` to `posted`.
+2. Paste its URLs into its block's `- X:` and `- Facebook:` fields (the ones
+   it went out on; leave the other empty). Add the line if an older block
+   lacks it.
+3. Run `yarn changelog`. It joins the URLs onto the post's `Entry` in
+   `public/data/changelog.json` (`social: {x, facebook}`); commit both files.
+
+**Why `yarn changelog` and not `yarn posts`:** `changelog.json` is built from
+CHANGELOG.md by `yarn changelog` and tested to be current against its sources,
+so the joined file has one writer and one freshness test; `yarn posts` writes
+only `posts/drafts.md`, and would otherwise have to rewrite the changelog's
+file too. Only `posted` posts are joined, a URL on a post in any other status
+is reported (a problem for `yarn posts --check`), and an entry with several
+posts (the thread's) takes the first URL on each platform in the file's order.
+
+The URLs must be https on `x.com` or `twitter.com` (X) or `facebook.com`
+(Facebook), or `yarn changelog` stops and names the post: they become links in
+the app. `js/socialLinks.mjs` holds the rule, and the app applies it again
+and drops anything else.
 
 ## Images, and what a link shows
 

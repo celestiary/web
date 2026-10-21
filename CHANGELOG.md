@@ -24,12 +24,31 @@ A sentence or two, plain and concrete.
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@...) or none
 - Image: ![What it shows](public/images/home/earth.webp)
+- Featured: yes
 ```
 
-`Issue`, `Epic` and `Image` are left out when there are none. `Permalink: none` marks an entry that
-has no view to open yet.
+`Issue`, `Epic`, `Image` and `Featured` are left out when there are none. `Permalink: none` marks an
+entry that has no view to open yet. **`Featured: yes` marks the entries worth announcing**: What's new
+shows only those until the visitor asks for all the updates, the social post drafts (`yarn posts`)
+are made only from them, and the post that announces one, once it is live, is linked from its entry.
+A PR that adds an entry decides whether it is featured: a new thing to see or do, with a view to
+open; not a fix, a polish or a lesser feature.
 
 ## October 2026
+
+### What's new shows the highlights, with links to the posts about them
+
+What's new on the homepage now opens on the featured updates: the changes most worth a look, each
+with its view. "Show all updates" below them adds the rest, the lesser features and fixes, and
+celestiary remembers your choice. When a featured update has been announced on X or Facebook, small
+icons beside its links open the post. The "new" count and the changelog tour follow the same choice:
+featured updates only, unless you've asked for all of them.
+
+- Date: 2026-10-21
+- PR: [#270](https://github.com/celestiary/web/pull/270)
+- Issue: [#247](https://github.com/celestiary/web/issues/247)
+- Epic: [#244](https://github.com/celestiary/web/issues/244) What's new: a changelog, in the app, and as posts
+- Permalink: none
 
 ### The stars arrive first and faster: the naked-eye sky in a tenth of the download
 
@@ -108,6 +127,7 @@ Celestiary now lives at celestiary.org. Links to the old celestiary.github.io ad
 links to a scene, keep working: they go to the same place at the new one.
 
 - Date: 2026-10-14
+- Featured: yes
 - PR: [#254](https://github.com/celestiary/web/pull/254)
 - Epic: [#244](https://github.com/celestiary/web/issues/244) What's new: a changelog, in the app, and as posts
 - Permalink: none
@@ -150,6 +170,7 @@ visit: Europe, India, East Asia or the Americas, or the nearest lit coast when m
 Pacific. While the page loads, a little Moon now turns through its phases under the title.
 
 - Date: 2026-10-13
+- Featured: yes
 - PR: [#249](https://github.com/celestiary/web/pull/249)
 - Issue: [#241](https://github.com/celestiary/web/issues/241)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
@@ -175,6 +196,7 @@ Earth at dusk, the Moon hiding Jupiter and Gaia's stars, and each flies to its v
 on the scene leaves the homepage, and Back returns to it.
 
 - Date: 2026-10-13
+- Featured: yes
 - PR: [#242](https://github.com/celestiary/web/pull/242)
 - Issue: [#241](https://github.com/celestiary/web/issues/241)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
@@ -213,6 +235,7 @@ prominences and flares, a corona that changes with the cycle, and the solar wind
 covers it you get a total eclipse. The link is Dallas at mid-totality on 8 April 2024.
 
 - Date: 2026-10-11
+- Featured: yes
 - PR: [#227](https://github.com/celestiary/web/pull/227)
 - Issue: [#167](https://github.com/celestiary/web/issues/167), [#168](https://github.com/celestiary/web/issues/168)
 - Epic: [#164](https://github.com/celestiary/web/issues/164) Stars up close: a dynamic Sun, and every star from its physical parameters
@@ -226,6 +249,7 @@ straight down from 12 km over the Gulf of Mexico on 28 August 2005, the day befo
 Katrina's landfall.
 
 - Date: 2026-10-11
+- Featured: yes
 - PR: [#225](https://github.com/celestiary/web/pull/225)
 - Issue: [#169](https://github.com/celestiary/web/issues/169)
 - Epic: [#111](https://github.com/celestiary/web/issues/111) Distinctive appearances: Sun, gas giants, rings, auroras
@@ -238,6 +262,7 @@ catalogue. They load in tiles as you look, brightest first, and move with the da
 naked-eye stars the old catalogue left out now show too.
 
 - Date: 2026-10-11
+- Featured: yes
 - PR: [#224](https://github.com/celestiary/web/pull/224)
 - Issue: [#98](https://github.com/celestiary/web/issues/98)
 - Epic: [#116](https://github.com/celestiary/web/issues/116) Milky Way: realistic structure, a million Gaia stars, and galactic dynamics
@@ -251,6 +276,7 @@ same light model as the Milky Way. Search one by name and fly there. A galaxy's 
 rotation curve against the one its visible matter would give.
 
 - Date: 2026-10-10
+- Featured: yes
 - PR: [#223](https://github.com/celestiary/web/pull/223)
 - Issue: [#221](https://github.com/celestiary/web/issues/221)
 - Epic: [#117](https://github.com/celestiary/web/issues/117) Deep-sky objects: nebulae, galaxies, Sgr A*
@@ -287,6 +313,7 @@ you look around. It turns on when you go to a body, and the link keeps it, so a 
 still following. The link is Jupiter, followed, with time running at 16,384x.
 
 - Date: 2026-10-09
+- Featured: yes
 - PR: [#216](https://github.com/celestiary/web/pull/216)
 - Issue: [#102](https://github.com/celestiary/web/issues/102)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
@@ -322,6 +349,7 @@ Sun along the terminator, from LRO's elevation map, and the dark side shows eart
 the Moon hiding Jupiter, seen from Ohio.
 
 - Date: 2026-10-08
+- Featured: yes
 - PR: [#199](https://github.com/celestiary/web/pull/199), [#203](https://github.com/celestiary/web/pull/203), [#205](https://github.com/celestiary/web/pull/205), [#206](https://github.com/celestiary/web/pull/206)
 - Issue: [#192](https://github.com/celestiary/web/issues/192)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
@@ -452,6 +480,7 @@ boxy bulge. From outside, it frames itself like a photograph. The link looks at 
 150,000 light-years out.
 
 - Date: 2026-10-06
+- Featured: yes
 - PR: [#185](https://github.com/celestiary/web/pull/185)
 - Issue: [#99](https://github.com/celestiary/web/issues/99)
 - Epic: [#116](https://github.com/celestiary/web/issues/116) Milky Way: realistic structure, a million Gaia stars, and galactic dynamics
@@ -579,6 +608,7 @@ Mars's low-Sun sky comes up, and the Sun's granulation shows. The exposure eases
 second. The link is the Australian outback at civil twilight.
 
 - Date: 2026-10-05
+- Featured: yes
 - PR: [#153](https://github.com/celestiary/web/pull/153)
 - Issue: [#86](https://github.com/celestiary/web/issues/86)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
@@ -647,6 +677,7 @@ the catalogue, drawn as one line per hop. At the defaults every star is reached 
 asterisms and orbits are now drawn as smooth wide lines.
 
 - Date: 2026-10-02
+- Featured: yes
 - PR: [#146](https://github.com/celestiary/web/pull/146)
 - Permalink: none
 
@@ -657,6 +688,7 @@ scattering, for every body, and Mars's dust as published give it a sky of scatte
 The link looks up from Valles Marineris.
 
 - Date: 2026-10-02
+- Featured: yes
 - PR: [#147](https://github.com/celestiary/web/pull/147)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
 - Permalink: [Open this view](https://celestiary.org/#sun/mars@-10.7408,-68.893,-796m;t=9770.31455jd;cq=-0.5182,0.7149,-0.3829,0.2716;fov=45deg;s=alpoU)
@@ -783,6 +815,7 @@ by Cesium, with high-resolution detail coming in close to the ground. Arriving a
 smoother. The link is Earth from 20,000 km.
 
 - Date: 2026-09-29
+- Featured: yes
 - PR: [#89](https://github.com/celestiary/web/pull/89)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@15,20.7446,20Mm;t=9233.1234jd;cq=-0.0108,0.9967,-0.0736,0.031;fov=45deg;s=alpoU)
@@ -874,6 +907,7 @@ from the phone's orientation sensors (iOS Safari and Chrome on Android). On a de
 the view would be. Land on Mars and look up, and you see Mars's sky.
 
 - Date: 2026-05-07
+- Featured: yes
 - PR: [#70](https://github.com/celestiary/web/pull/70)
 - Permalink: none
 
@@ -978,6 +1012,7 @@ Saturn's rings have a shader of their own: ice glints, rings that brighten when 
 Saturn's shadow falling across them, with the rings' shadow on Saturn.
 
 - Date: 2026-03-25
+- Featured: yes
 - PR: [#58](https://github.com/celestiary/web/pull/58)
 - Epic: [#111](https://github.com/celestiary/web/issues/111) Distinctive appearances: Sun, gas giants, rings, auroras
 - Permalink: [Open this view](https://celestiary.org/#sun/saturn@21.6445,-12.6257,215.888389Mm;t=9580.0073jd;cq=-0.0914,0.5421,0.0816,0.8314;fov=45deg)
@@ -989,6 +1024,7 @@ the field of view. It updates a second after the camera settles, and pasting it 
 restores the view nearly pixel for pixel. The link is Mars.
 
 - Date: 2026-03-25
+- Featured: yes
 - PR: [#57](https://github.com/celestiary/web/pull/57)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: [Open this view](https://celestiary.org/#sun/mars@-22.0096,-139.5125,6.210169Mm;t=9579.9256jd;cq=0.2236,-0.5002,0.085,0.8322;fov=45deg)

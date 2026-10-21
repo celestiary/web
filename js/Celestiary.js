@@ -26,7 +26,7 @@ import {
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry, placeTarget} from './search/commitEntry'
-import {decodeNewsToken, loadChangelog, tourStops} from './changelog'
+import {decodeNewsToken, loadChangelog, readShowAll, tourStops} from './changelog'
 import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
 import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
 import {ease} from './tour'
@@ -2265,7 +2265,8 @@ export default class Celestiary {
 
 
   /**
-   * Play the changelog tour (newsTour.js): the entries that have a
+   * Play the changelog tour (newsTour.js): the featured entries (or all, as
+   * What's new's filter has it) that have a
    * permalink, newest first, each flown to as a homepage card is, with its
    * headline and sentence as a caption while it is held.  Nothing else is on
    * screen: the homepage fades out as for a card, the chrome stays hidden
@@ -2275,9 +2276,12 @@ export default class Celestiary {
    * @param {object} [opts]
    * @param {?string} [opts.from] An entry's id or a date to begin at
    * @param {number} [opts.count] At most this many stops
+   * @param {boolean} [opts.showAll] Every entry with a view, not only the
+   *   featured ones: What's new's filter, which the tour follows; the
+   *   visitor's stored choice if not given
    * @returns {Promise<boolean>} Whether there was anything to play
    */
-  async startNewsTour({from = null, count = Infinity} = {}) {
+  async startNewsTour({from = null, count = Infinity, showAll = readShowAll()} = {}) {
     let entries
     try {
       entries = await this.loadNews()
@@ -2285,7 +2289,7 @@ export default class Celestiary {
       console.warn('What\'s new:', e)
       return false
     }
-    const stops = tourStops(entries, {from, count})
+    const stops = tourStops(entries, {from, count, showAll})
     if (!stops.length) {
       return false
     }

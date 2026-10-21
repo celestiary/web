@@ -1,9 +1,10 @@
 import {describe, expect, it} from 'bun:test'
 import {readFileSync} from 'node:fs'
 import {
-  CAPTION_MAX_CHARS, CHANGELOG_URL, HOLD_MAX_MS, HOLD_MIN_MS, LAST_SEEN_KEY, checkNew, decodeNewsToken,
+  CAPTION_MAX_CHARS, CHANGELOG_URL, HOLD_MAX_MS, HOLD_MIN_MS, LAST_SEEN_KEY, SHOW_ALL_KEY, checkNew, decodeNewsToken,
   encodeNewsToken, formatEntryDate, freshIds, holdMs, loadChangelog, localStorageOrNull, markSeen, parseChangelog,
-  readLastSeen, stampEntries, tourCaption, tourStops, writeLastSeen,
+  readLastSeen, readShowAll, stampEntries, tourCaption, tourStops, unseenCount, visibleEntries, writeLastSeen,
+  writeShowAll,
 } from './changelog.js'
 import {decodePermalink} from './permalink.js'
 
@@ -32,6 +33,9 @@ function memoryStorage(initial = {}) {
     setItem: (k, v) => {
       data[k] = String(v)
     },
+    removeItem: (k) => {
+      delete data[k]
+    },
   }
 }
 
@@ -40,7 +44,7 @@ function throwingStorage() {
   const boom = () => {
     throw new Error('SecurityError')
   }
-  return {getItem: boom, setItem: boom}
+  return {getItem: boom, setItem: boom, removeItem: boom}
 }
 
 
@@ -228,6 +232,84 @@ describe('"new since your last visit"', () => {
 })
 
 
+describe('featured entries and the posts about them', () => {
+  const X = 'https://x.com/celestiary_org/status/1'
+  const FB = 'https://www.facebook.com/celestiary/posts/1'
+
+  it('are read from the JSON: featured only when it says true; post URLs kept only on X and Facebook, https', () => {
+    const [a, b, c, d] = parseChangelog({entries: [
+      entry('2026-10-04', 'a', {featured: true, social: {x: X, facebook: FB}}),
+      entry('2026-10-03', 'b', {featured: 'yes', social: {x: 'http://x.com/a/status/1', facebook: 'https://evil.example/p'}}),
+      entry('2026-10-02', 'c', {featured: true, social: {x: 'javascript:alert(1)'}}),
+      entry('2026-10-01', 'd'),
+    ]})
+    expect(a.featured).toBe(true)
+    expect(a.social).toEqual({x: X, facebook: FB})
+    expect(b.featured).toBe(false)
+    expect(b.social).toBeNull()
+    expect(c.social).toBeNull()
+    expect(d.featured).toBe(false)
+    expect(d.social).toBeNull()
+  })
+
+  it('are in the real file, and no URL there is one the app would drop', () => {
+    const entries = parseChangelog(FILE)
+    expect(entries.filter((e) => e.featured).length).toBeGreaterThan(5)
+    for (const e of FILE.entries.filter((x) => x.social)) {
+      expect(entries.find((x) => x.id === e.id).social).toEqual(e.social)
+    }
+  })
+
+  it('are what What\'s new lists by default, and all of them when asked', () => {
+    const entries = parseChangelog({entries: [
+      entry('2026-10-04', 'a', {featured: true}), entry('2026-10-03', 'b'), entry('2026-10-02', 'c', {featured: true}),
+    ]})
+    expect(visibleEntries(entries, false).map((e) => e.headline)).toEqual(['a', 'c'])
+    expect(visibleEntries(entries, true).map((e) => e.headline)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('leave a changelog with none featured showing everything, not nothing', () => {
+    const entries = parseChangelog({entries: [entry('2026-10-04', 'a'), entry('2026-10-03', 'b')]})
+    expect(visibleEntries(entries, false)).toHaveLength(2)
+  })
+
+  it('are the choice remembered: off by default, stored as 1, cleared when turned off', () => {
+    const storage = memoryStorage()
+    expect(readShowAll(storage)).toBe(false)
+    expect(writeShowAll(true, storage)).toBe(true)
+    expect(storage.data[SHOW_ALL_KEY]).toBe('1')
+    expect(readShowAll(storage)).toBe(true)
+    expect(writeShowAll(false, storage)).toBe(true)
+    expect(SHOW_ALL_KEY in storage.data).toBe(false)
+    expect(readShowAll(storage)).toBe(false)
+    expect(readShowAll(memoryStorage({[SHOW_ALL_KEY]: 'yes'}))).toBe(false)
+  })
+
+  it('are the default when storage throws, is missing, or the accessor throws', () => {
+    expect(readShowAll(throwingStorage())).toBe(false)
+    expect(writeShowAll(true, throwingStorage())).toBe(false)
+    expect(readShowAll(null)).toBe(false)
+    expect(writeShowAll(true, null)).toBe(false)
+  })
+
+  it('are all the "new" marker counts: the featured entries after the date last seen', () => {
+    const featured = [{date: '2026-10-13'}, {date: '2026-10-13'}, {date: '2026-10-09'}]
+    expect(unseenCount(featured, '2026-10-10')).toBe(2)
+    expect(unseenCount(featured, '2026-10-13')).toBe(0)
+    expect(unseenCount(featured, null)).toBe(0)
+  })
+
+  it('have a stamp of their own for the marker, which an old stamp lacks', () => {
+    const stamp = {dates: [['2026-10-13', 3], ['2026-10-09', 1]], featured: [['2026-10-13', 1]]}
+    expect(stampEntries(stamp, 'featured')).toEqual([{date: '2026-10-13'}])
+    expect(stampEntries(stamp)).toHaveLength(4)
+    expect(stampEntries({dates: stamp.dates}, 'featured')).toEqual([])
+    const real = stampEntries(undefined, 'featured')
+    expect(real.length).toBe(FILE.entries.filter((e) => e.featured).length)
+  })
+})
+
+
 describe('the changelog tour\'s stops', () => {
   const entries = parseChangelog({entries: [
     entry('2026-10-13', 'five', {permalink: LINK}),
@@ -262,6 +344,20 @@ describe('the changelog tour\'s stops', () => {
     expect(tourStops(entries, {count: 2}).map((e) => e.headline)).toEqual(['five', 'three'])
     expect(tourStops(entries, {from: '2026-10-11', count: 1}).map((e) => e.headline)).toEqual(['three'])
     expect(tourStops(entries, {count: 0})).toEqual([])
+  })
+
+  it('follow the filter: only the featured entries unless all are asked for', () => {
+    const list = parseChangelog({entries: [
+      entry('2026-10-13', 'five', {permalink: LINK, featured: true}),
+      entry('2026-10-12', 'four', {permalink: LINK}),
+      entry('2026-10-11', 'three', {permalink: '#galaxy:ngc2403', featured: true}),
+      entry('2026-10-09', 'one', {permalink: LINK}),
+    ]})
+    expect(tourStops(list, {showAll: false}).map((e) => e.headline)).toEqual(['five', 'three'])
+    expect(tourStops(list, {showAll: true}).map((e) => e.headline)).toEqual(['five', 'four', 'three', 'one'])
+    expect(tourStops(list).length).toBe(4)
+    // From an entry the filter hides: the next one it shows, by its date.
+    expect(tourStops(list, {from: list[1].id, showAll: false}).map((e) => e.headline)).toEqual(['three'])
   })
 
   it('the real file has stops', () => {
