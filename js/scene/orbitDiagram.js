@@ -37,6 +37,10 @@ const ARROWHEAD_POINTS = 3
 const ARROWHEAD_PER_RADIUS = 0.18
 const ARC_STRIP_POINTS = ARC_POINTS + ARROWHEAD_POINTS
 const RIM_POINTS = 193
+// The orbit's vertices, bunched about the body (setElements): evenly spaced,
+// a chord of a 193-vertex ellipse falls up to a(1 - cos(π/192)) inside the
+// curve, 20,000 km of Earth's, so close up the ellipse missed the body.
+const ORBIT_POINTS = 385
 const MARKER_POINTS = 25
 const MARKER_RADIUS = 0.025
 const NODE_ARC_RADIUS = 0.35
@@ -78,7 +82,7 @@ const M = 'meanAnomaly'
  * `base` parts are drawn faint as context whatever is lit.
  */
 const PARTS = {
-  orbit: {color: COLORS.orbit, n: RIM_POINTS, keys: [A, E], base: true},
+  orbit: {color: COLORS.orbit, n: ORBIT_POINTS, keys: [A, E], base: true},
   referenceRim: {color: COLORS.reference, n: RIM_POINTS, keys: [I, NODE], base: true},
   orbitRim: {color: COLORS.orbitPlane, n: RIM_POINTS, keys: [I, OMEGA], base: true},
   direction: {color: COLORS.direction, n: 2, keys: [NODE, VARPI, L], base: true},
@@ -350,8 +354,12 @@ export default class OrbitDiagram extends Group {
       pos.needsUpdate = true
     }
     const TWO_PI = 2 * Math.PI
+    // From the body round and back to it, the eccentric anomaly cubic in
+    // the parameter: steps of ~π(2/n)³ by the body, ~3π·2/n opposite.
+    const eBody = 2 * Math.atan2(Math.sqrt(1 - e) * Math.sin(nu / 2), Math.sqrt(1 + e) * Math.cos(nu / 2))
     set('orbit', (u, v) => {
-      const ecc = TWO_PI * u
+      const t = (2 * u) - 1
+      const ecc = eBody + (Math.PI * t * t * t)
       return v.set(Math.cos(ecc) - e, 0, -b * Math.sin(ecc))
     }, q.peri)
     set('referenceRim', arc(rim, 0, TWO_PI), q.id)
@@ -528,6 +536,45 @@ export default class OrbitDiagram extends Group {
   }
 
 
+  /**
+   * @param {string} anchor a label's point, e.g. 'barycentre'
+   * @returns {?string} its text, if its part is lit (whether or not the
+   *     point is drawn yet), else null
+   */
+  litLabel(anchor) {
+    const l = this._labels?.entries.find((x) => x.anchor === anchor)
+    return l && partState(l.part, this.keys) === 'lit' ? l.text : null
+  }
+
+
+  /**
+   * Keep a label down while another diagram names the same point: the
+   * Earth-Moon barycentre is Earth's heliocentric place and the Moon's
+   * diagram's barycentre (Scene._syncOrbitDiagrams).
+   *
+   * @param {string} anchor
+   * @param {boolean} hidden
+   */
+  hideLabel(anchor, hidden) {
+    this._hiddenLabels ??= new Set
+    if (hidden) {
+      this._hiddenLabels.add(anchor)
+    } else {
+      this._hiddenLabels.delete(anchor)
+    }
+    this._showLabels()
+  }
+
+
+  /**
+   * @param {object} l a label's entry
+   * @returns {boolean} whether its part is lit and the diagram has its point
+   */
+  _labelLit(l) {
+    return partState(l.part, this.keys) === 'lit' && this._has(l.needs)
+  }
+
+
   /** Name only the points whose parts are lit. */
   _showLabels() {
     const labels = this._labels
@@ -535,8 +582,7 @@ export default class OrbitDiagram extends Group {
       return
     }
     labels.entries.forEach((l, i) => {
-      const lit = partState(l.part, this.keys) === 'lit' && this._has(l.needs)
-      labels.sheet.setShown(i, lit)
+      labels.sheet.setShown(i, this._labelLit(l) && !this._hiddenLabels?.has(l.anchor))
     })
   }
 

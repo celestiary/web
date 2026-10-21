@@ -548,16 +548,19 @@ export default class Animation {
     const cached = this._elements.get(name)
     const periodDays = Number(orbit.siderealOrbitPeriod?.scalar ?? orbit.siderealOrbitPeriod) / SECONDS_PER_DAY
     const now = this.clock()
-    if (cached && cached.jd === jd) {
+    if (cached && cached.jd === jd && cached.vsop === this.vsopReady()) {
       return cached.el
     }
-    const due = !cached || Math.abs(jd - cached.anchorJd) > ELEMENTS_STEP_PERIODS * periodDays
-    const throttled = name !== 'moon' && cached && now - cached.ms < ELEMENTS_MIN_MS &&
-      Math.abs(jd - cached.anchorJd) < periodDays / 4
+    // Made again when the date has moved on, and once VSOP87C is in: a set
+    // made from the stand-in is ~10,000 km off Earth's place.
+    const due = !cached || cached.vsop !== this.vsopReady() ||
+      Math.abs(jd - cached.anchorJd) > ELEMENTS_STEP_PERIODS * periodDays
+    const throttled = name !== 'moon' && cached && cached.vsop === this.vsopReady() &&
+      now - cached.ms < ELEMENTS_MIN_MS && Math.abs(jd - cached.anchorJd) < periodDays / 4
     if (due && !throttled) {
       const el = this._osculate(name, orbit, jd, periodDays)
       if (el) {
-        this._elements.set(name, {jd, anchorJd: jd, ms: now, el, anchor: el})
+        this._elements.set(name, {jd, anchorJd: jd, ms: now, el, anchor: el, vsop: this.vsopReady()})
         return el
       }
     }

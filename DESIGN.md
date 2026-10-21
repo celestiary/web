@@ -557,7 +557,19 @@ work it starts).
   date (the ephemerides'), so the diagram isn't precessed.  A planet's are
   made again at most every 250 ms (VSOP87C costs ~2 ms a call, three a
   making), the Moon's whenever the date moves (~10 µs); between, the
-  body is run on along the last ellipse at its mean motion.
+  body is run on along the last ellipse at its mean motion.  A set made
+  before VSOP87C was in (the stand-in, ~10,000 km off Earth's place; the
+  panel asks on load) is made again once it is.
+- **Two lines through Earth, on purpose.**  Earth's orbit line
+  (`orbitPath.js`) is its own path, the barycentre's plus its monthly
+  wobble, so it passes through Earth's centre; the diagram's ellipse is
+  the barycentre's osculating ellipse, so it passes through the
+  barycentre, 4,700 km away, inside the Earth.
+- **The ellipse is drawn densest at the body** (`ORBIT_POINTS`, cubic in
+  eccentric anomaly about it): evenly spaced, a chord of the old
+  193-vertex ellipse fell up to a(1 − cos(π/192)) inside the curve, 20,000
+  km of Earth's and 90 km of Europa's, which the maintainer saw as the
+  ellipse missing Earth and Europa's mean line overshooting it.
 - **Mean elements for the rest** (`elementsOfDate`): Pluto and the moons
   are placed by their mean elements (`meanElements.js` `elementsAt`, which
   `orbitAt` now uses too), in their Laplace plane or their planet's
@@ -620,7 +632,9 @@ work it starts).
   bodies (`depthTest` off): they're inside them.  Where a diagram's body
   place isn't the body (Earth's heliocentric one, the barycentre's), a
   white line marks the way to the body (`setBodyOffset`, from
-  `Animation.layOrbitDiagram`), past 100 km.  Each angle's
+  `Animation.layOrbitDiagram`), past 100 km.  A point two diagrams name
+  is named once: with the Moon's barycentre lit, Earth's diagram's own
+  "Earth–Moon barycentre" is hidden (`hideLabel`, `Scene._syncOrbitDiagrams`).  Each angle's
   arc ends in an arrowhead, the way the angle runs (`arcWithHead`): Ω from
   the reference direction, i up from the reference plane at the node, ω
   from the node, M from pericentre, all prograde.  ϖ and L are broken angles, so they light Ω's arc and

@@ -776,6 +776,16 @@ export default class Scene {
       node.orbitDiagram.visible = true
       this._orbitDiagramBodies.add(body)
     }
+    // One name for a point two diagrams share: a primary's place on its own
+    // orbit that is the barycentre with its moon (Earth's heliocentric
+    // place, the Earth-Moon barycentre) is named by the moon's diagram.
+    for (const body of this._orbitDiagramBodies) {
+      const diagram = this.objects[`${body}.orbitPosition`]?.orbitDiagram
+      const named = new Set([...this._orbitDiagramBodies]
+          .filter((b) => this.objects[b]?.props?.parent === body)
+          .map((b) => this.objects[`${b}.orbitPosition`]?.orbitDiagram?.litLabel('barycentre')))
+      diagram?.hideLabel?.('body', named.has(diagram.litLabel('body')))
+    }
   }
 
 

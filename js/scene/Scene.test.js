@@ -1449,6 +1449,21 @@ describe('orbital elements lit on the orbits', () => {
     expect(earth.orbitDiagram.visible).toBe(false)
   })
 
+  it('names the Earth-Moon barycentre once when both diagrams would', () => {
+    const s = makeScene()
+    const earth = addBody(s, 'earth', PLANET)
+    const moon = addBody(s, 'moon', {eccentricity: 0.055, semiMajorAxis: 384400e3})
+    s.objects.earth = {props: {name: 'earth', parent: 'sun', mass: 5.97e27}}
+    s.objects.moon = {props: {name: 'moon', parent: 'earth', mass: 7.35e25}}
+    s.setOrbitElements('earth', ['at'])
+    expect(earth.orbitDiagram._hiddenLabels?.has('body') ?? false).toBe(false)
+    s.setOrbitElements('moon', ['at'])
+    expect(earth.orbitDiagram._hiddenLabels.has('body')).toBe(true)
+    expect(moon.orbitDiagram.litLabel('barycentre')).toBe('Earth–Moon barycentre')
+    s.setOrbitElements('moon', [])
+    expect(earth.orbitDiagram._hiddenLabels.has('body')).toBe(false)
+  })
+
   it('shows a link\'s elements on a body that loads later', () => {
     const s = makeScene()
     s.restoreOrbitElements(new Map([['mars', new Set(['node'])]]))

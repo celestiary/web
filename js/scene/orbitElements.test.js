@@ -165,6 +165,28 @@ describe('OrbitDiagram', () => {
     return new Vector3(a[3 * j], a[(3 * j) + 1], a[(3 * j) + 2])
   }
 
+  /**
+   * @param {object} diagram
+   * @param {string} part
+   * @param {Vector3} p
+   * @returns {number} p's distance to the part's polyline
+   */
+  function distanceToPolyline(diagram, part, p) {
+    const a = diagram.parts[part].geometry.attributes.position.array
+    let best = Infinity
+    const s0 = new Vector3
+    const s1 = new Vector3
+    const ab = new Vector3
+    for (let j = 0; j + 5 < a.length; j += 3) {
+      s0.set(a[j], a[j + 1], a[j + 2])
+      s1.set(a[j + 3], a[j + 4], a[j + 5])
+      ab.subVectors(s1, s0)
+      const t = Math.max(0, Math.min(1, p.clone().sub(s0).dot(ab) / Math.max(ab.lengthSq(), 1e-30)))
+      best = Math.min(best, s0.clone().addScaledVector(ab, t).distanceTo(p))
+    }
+    return best
+  }
+
   const el = {e: 0.3, i: 30, node: 300, w: 110, m: 40, nu: 0}
   // ν for M = 40°, e = 0.3, by Kepler's equation.
   let E = el.m * Math.PI / 180
@@ -175,11 +197,27 @@ describe('OrbitDiagram', () => {
   const d = new OrbitDiagram({body: true})
   d.setElements(el)
 
-  it('puts pericentre at the orbit\'s start, a(1 - e) from the focus', () => {
-    const peri = point(d, 'orbit', 0)
+  it('puts pericentre a(1 - e) from the focus, on the orbit', () => {
+    const peri = point(d, 'periLine', -1)
     expect(peri.length()).toBeCloseTo(0.7, 5)
-    expect(point(d, 'periLine', -1).distanceTo(peri)).toBeLessThan(1e-6)
     expect(point(d, 'majorAxis', 0).length()).toBeCloseTo(1.3, 5)
+    // On the polyline, to its spacing there (opposite the body: coarse).
+    expect(distanceToPolyline(d, 'orbit', peri)).toBeLessThan(2e-3)
+  })
+
+  it('draws the orbit through the body, to a hair, however close the view', () => {
+    // A 193-vertex ellipse missed it by up to a(1 - cos(π/192)), 1.3e-4 a:
+    // 20,000 km of Earth's.
+    const body = point(d, 'radius', -1)
+    expect(distanceToPolyline(d, 'orbit', body)).toBeLessThan(1e-9)
+    // And near it: a point 1° of eccentric anomaly on is within 1e-8 a.
+    const e = 0.3
+    const b = Math.sqrt(1 - (e * e))
+    const eBody = 2 * Math.atan2(Math.sqrt(1 - e) * Math.sin(el.nu * Math.PI / 360),
+        Math.sqrt(1 + e) * Math.cos(el.nu * Math.PI / 360))
+    const near = new Vector3(Math.cos(eBody + 0.0175) - e, 0, -b * Math.sin(eBody + 0.0175))
+        .applyQuaternion(d._q.peri)
+    expect(distanceToPolyline(d, 'orbit', near)).toBeLessThan(1e-7)
   })
 
   it('puts the ascending node on the orbit and in the reference plane, rising', () => {

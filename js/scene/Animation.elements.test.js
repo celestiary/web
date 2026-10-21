@@ -74,6 +74,21 @@ describe('orbitElements', () => {
     expect(off).toBeLessThan(5000e3)
   })
 
+  it('makes a set from the stand-in again once VSOP87C is in', () => {
+    const early = new Animation(newTime(JD), null)
+    early.setDate(JD)
+    const standIn = early.orbitElements('earth', ORBITS.earth)
+    early.setEphemeris(vsop87c)
+    const e = vsop87c(JD).earth
+    const earth = new Vector3(e.x, e.z, -e.y).multiplyScalar(ASTRO_UNIT_METER)
+    const moon = moonScenePosition(utcToTtJulianDay(JD), new Vector3)
+    const barycentre = earth.clone().addScaledVector(moon, 1 / (1 + 81.30056))
+    // The same date: only the ephemeris has changed.
+    const now = early.orbitElements('earth', ORBITS.earth)
+    expect(placeOf(standIn).distanceTo(barycentre)).toBeGreaterThan(1e6)
+    expect(placeOf(now).distanceTo(barycentre)).toBeLessThan(1e3)
+  })
+
   it('runs the body on along its ellipse between makings, and makes them again as the date moves', () => {
     const a = anim.orbitElements('moon', ORBITS.moon)
     anim.setDate(JD + 1)
