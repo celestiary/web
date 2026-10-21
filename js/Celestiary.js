@@ -160,6 +160,7 @@ export default class Celestiary {
     // The info panel's orbit list lights elements on the bodies' orbits.
     this.controlPanel.orbitHooks = {
       elementsOf: (body, orbit) => this.animation.orbitElements(body, orbit),
+      jd: () => this.animation.jd,
       elements: (body) => this.scene.orbitElementsOf(body),
       toggle: (body, code) => this.scene.toggleOrbitElement(body, code),
       set: (body, codes) => this.scene.setOrbitElements(body, codes),

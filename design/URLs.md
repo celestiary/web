@@ -291,6 +291,7 @@ Each feature has its own label:
 "time":             the clock, when it is paused or not at real time
 "info":             the info panel's lists, open or folded
 "orbits":           the orbital elements lit on the bodies' orbits
+"orbit":            the guide's orbit page: one orbit at a moment (read)
 "apps":             the widgets drawer and dock: open, docked, the app
                     showing, the apps pinned and running
 "apps.<id>":        one running app's own state, a sub-namespace of apps
@@ -377,6 +378,35 @@ Decisions:
 - **Only what differs from how a list starts is written**; no token is the
   panel as it opens.
 - **App state, restored on the first load**, as `apps:` and `orbits:` are.
+
+### The Guide's Orbit Token
+
+The guide's orbit page (`/guide/orbit`) takes one orbit at a moment, as the
+app's orbit list links to it ("see it in the guide"): the page opens on that
+orbit, first among its presets, with the same elements lit.
+
+```
+/guide/orbit#orbit:body=moon,a=382317609,e=0.063604,i=5.0917,node=328.0489,peri=86.7286,L=340.9917,plane=eclipticOfDate,jd=2461335.3505,lit=i+peri
+```
+
+```
+body=<name>        the body, for the preset's name
+a=<m>              semi-major axis, metres
+e, i, node, peri   eccentricity; inclination, Ω and ϖ, degrees
+L=<deg>            mean longitude
+plane=<frame>      ecliptic, eclipticOfDate, Laplace or equator (orbitElements.js)
+jd=<day>           the moment, Julian Day (UTC)
+lit=<code>+…       the elements lit, as `orbits:`
+```
+
+Decisions:
+
+- **ϖ and L, whatever the body lists.**  The guide's sliders are ϖ and L, and
+  it shows ω and M beside them; `plane` says whether `lit`'s `peri` and `at`
+  mean ω and M (a moon's) or ϖ and L.
+- **Read, not written.**  The guide doesn't rewrite its address as its
+  sliders move; the link is the app's moment, as it was.
+- **Relative** (`guide/orbit#…`), so a PR preview's base holds.
 
 ### Orbits Token
 

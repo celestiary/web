@@ -1,5 +1,6 @@
 import Measure from '@pablo-mayrgundter/measure.js'
 import * as collapsor from './collapsor.js'
+import {encodeGuideOrbitToken} from './permalink.js'
 import {CODES, ELEMENT_CODES, elementRows, elementsOfDate} from './scene/orbitElements.js'
 import {CURVE_COLORS, rotationCurveSvg} from './scene/rotationCurve.js'
 import {spectralTypeName} from './scene/stellar.js'
@@ -40,6 +41,7 @@ export default class ControlPanel {
     /**
      * The orbit list's link to the scene (Celestiary sets it):
      * `elementsOf(body, orbit)`, its elements now (Animation.orbitElements);
+     * `jd()`, the moment, for the link to the guide;
      * `elements(body)`, the body's lit element codes, `toggle(body,
      * code)`, `set(body, codes)`, `clearAll()` and `count()`, the bodies lit
      * (Scene's orbit element state); and `preview(body, code)`, a hover's.
@@ -184,7 +186,8 @@ export default class ControlPanel {
       '<button class="orbit-action" data-action="all">all</button> · ' +
       '<button class="orbit-action" data-action="none">none</button>' +
       '<span class="orbit-clear" hidden> · <button class="orbit-action" data-action="clear">' +
-      'clear every orbit</button></span></li>\n'
+      'clear every orbit</button></span>' +
+      ` · <a class="orbit-guide" href="${this._guideHref(body, el)}">see it in the guide</a></li>\n`
     if (orbit.siderealOrbitPeriod !== undefined) {
       html += `<li>orbit period (sidereal): ${secsToYDHMS(scalar(orbit.siderealOrbitPeriod))}</li>\n`
     }
@@ -289,6 +292,21 @@ export default class ControlPanel {
   }
 
 
+  /**
+   * The guide's orbit page on this orbit, at this moment, with the same
+   * elements lit (the guide's `orbit:` token; design/URLs.md).  Relative,
+   * so the page's base (a PR preview's) holds.
+   *
+   * @param {object} body the body's props
+   * @param {object} el its elements now
+   * @returns {string}
+   */
+  _guideHref(body, el) {
+    const on = this.orbitHooks?.elements?.(body.name) ?? new Set
+    return `guide/orbit#${encodeGuideOrbitToken(body.name, el, on, this.orbitHooks?.jd?.())}`
+  }
+
+
   /** End a hover's preview, as the panel moves on. */
   _endPreview() {
     if (this._orbit) {
@@ -321,6 +339,7 @@ export default class ControlPanel {
     if (kind && kind.textContent !== kindText(el)) {
       kind.textContent = kindText(el)
     }
+    state.list.querySelector('.orbit-guide')?.setAttribute('href', this._guideHref(state.body, el))
     const rows = Object.fromEntries(elementRows(el).map((r) => [r.key, r]))
     for (const li of state.list.querySelectorAll('.orbit-element')) {
       const row = rows[li.dataset.element]

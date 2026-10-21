@@ -45,6 +45,8 @@ describe('ControlPanel', () => {
     expect(html).toContain('true anomaly: <span class="orbit-true">')
     expect(html).not.toContain('<li>siderealOrbitPeriod:')
     expect(html).not.toContain('<li>semiMajorAxis:')
+    // A link to the guide's orbit page, on this orbit, with the same lit.
+    expect(html).toMatch(/<a class="orbit-guide" href="guide\/orbit#orbit:body=io,a=421800000,[^"]*lit=i\+peri">/)
   })
 
   it('writes masses in scientific notation', () => {

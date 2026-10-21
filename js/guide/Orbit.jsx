@@ -4,7 +4,8 @@ import {Canvas, useFrame} from '@react-three/fiber'
 import {J2000_JD} from '../scene/celestialFrame.js'
 import {eccentricAnomaly} from '../scene/meanElements.js'
 import OrbitDiagram from '../scene/orbitDiagram.js'
-import {ORBIT_ELEMENTS, elementsOfDate, formatDistance, norm360} from '../scene/orbitElements.js'
+import {ORBIT_ELEMENTS, elementsOfDate, formatDistance, keyOfCode, norm360} from '../scene/orbitElements.js'
+import {decodeGuideOrbitToken} from '../permalink.js'
 import {PLANET_NAMES} from '../scene/planetsApprox.js'
 import {capitalize} from '../utils.js'
 
@@ -12,7 +13,9 @@ import {capitalize} from '../utils.js'
 // The six orbital elements: sliders set them, and clicking rows lights
 // their parts of the diagram, any number at once, a hover previewing one,
 // as the app's info panel does for the bodies' orbits (DESIGN.md "Orbital
-// elements").  With none on, all are drawn.
+// elements").  With none on, all are drawn.  The app's orbit list links
+// here with a body's orbit at a moment (the `orbit:` token,
+// design/URLs.md), which the page opens on, as the first of its orbits.
 
 
 const TO_RAD = Math.PI / 180
@@ -29,6 +32,16 @@ const SLIDERS = {
   longitudeOfAscendingNode: {field: 'node', min: 0, max: 360, step: 0.1},
   longitudeOfPericenter: {field: 'peri', min: 0, max: 360, step: 0.1},
   meanLongitude: {field: 'meanLongitude', min: 0, max: 360, step: 0.1},
+}
+const CONTROLS_WIDTH = '40em'
+const JD_UNIX_EPOCH = 2440587.5
+const MS_PER_DAY = 86400000
+/** The frames the app's elements come in (orbitElements.js `plane`). */
+const PLANE_TEXT = {
+  ecliptic: 'mean elements in the ecliptic and equinox of J2000.',
+  eclipticOfDate: 'osculating elements of the moment, in the ecliptic and equinox of the date.',
+  Laplace: 'mean elements in the moon\'s Laplace plane, from its node on the ICRF equator.',
+  equator: 'mean elements in the planet\'s equator, from its node on the ICRF equator.',
 }
 const LABEL_STYLE = {whiteSpace: 'nowrap', fontSize: 'small', color: '#ddd', pointerEvents: 'none'}
 const ROWS = ['semiMajorAxis', 'eccentricity', 'inclination', 'longitudeOfAscendingNode', 'longitudeOfPericenter',
@@ -50,11 +63,34 @@ function diagramElements(s) {
 }
 
 
+/**
+ * The orbit a link from the app brings, as a preset, and its lit elements.
+ *
+ * @returns {?{preset: object, lit: Set<string>, plane: ?string}}
+ */
+function linkedOrbit() {
+  const o = decodeGuideOrbitToken(typeof location === 'undefined' ? '' : location.hash)
+  if (!o) {
+    return null
+  }
+  const when = Number.isFinite(o.jd) ? new Date((o.jd - JD_UNIX_EPOCH) * MS_PER_DAY).toISOString().slice(0, 16)
+      .replace('T', ' ') : null
+  const name = `${capitalize(o.body ?? 'linked orbit')}${when ? `, ${when} UTC` : ''}`
+  // A moon's elements are ω and M, from its plane's node on the ICRF equator.
+  const satellite = o.plane === 'Laplace' || o.plane === 'equator'
+  const lit = new Set([...o.lit].map((c) => keyOfCode(c, satellite ? {referencePole: true} : {})).filter(Boolean))
+  return {preset: {name, a: o.a, e: o.e, i: o.i, node: o.node, peri: o.peri, meanLongitude: o.meanLongitude},
+    lit, plane: o.plane}
+}
+
+
 /** @returns {ReactElement} */
 export default function Orbit() {
-  const [state, setState] = useState(FIGURE)
+  const linked = useMemo(linkedOrbit, [])
+  const presets = useMemo(() => (linked ? [linked.preset, ...PRESETS] : PRESETS), [linked])
+  const [state, setState] = useState(linked?.preset ?? FIGURE)
   const [hovered, setHovered] = useState(null)
-  const [pinned, setPinned] = useState(() => new Set)
+  const [pinned, setPinned] = useState(() => new Set(linked?.lit ?? []))
   const [running, setRunning] = useState(false)
   const diagram = useMemo(() => new OrbitDiagram({body: true, screen: true}), [])
   const el = diagramElements(state)
@@ -90,24 +126,34 @@ export default function Orbit() {
         hover to preview one.  The
         app does the same for any body, several at once: open its info panel&apos;s <i>orbit</i> list.
         See <a href="https://en.wikipedia.org/wiki/Orbital_elements">Orbital elements</a>.</p>
+      {/* The controls are a fixed width, their values in fixed cells, so
+          the layout doesn't reflow as the values change (run). */}
       <div style={{display: 'flex', flexWrap: 'wrap', gap: '1em', alignItems: 'flex-start'}}>
         <div style={{width: 'min(640px, 100%)', height: '480px', background: 'black'}}>
           <Canvas camera={{position: [1.9, 1.8, 3.1], fov: 45, near: 0.01, far: 100}}>
             <primitive object={diagram}/>
-            <Labels diagram={diagram}/>
+            <Labels diagram={diagram} plane={state.name === linked?.preset.name ? linked.plane : null}/>
             {running && <Run setState={setState}/>}
             <OrbitControls/>
           </Canvas>
         </div>
-        <div>
+        <div style={{width: CONTROLS_WIDTH, maxWidth: '100%'}}>
           <label>Orbit: <select
             value={state.name}
-            onChange={(ev) => setState(PRESETS.find((p) => p.name === ev.target.value))}>
-            {PRESETS.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+            onChange={(ev) => setState(presets.find((p) => p.name === ev.target.value))}>
+            {presets.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
           </select></label>
           <label style={{marginLeft: '1em'}}><input type="checkbox" checked={running}
             onChange={(ev) => setRunning(ev.target.checked)}/> run</label>
-          <table>
+          {linked && state.name === linked.preset.name &&
+            <p style={{fontSize: 'small', color: '#aaa'}}>From the app: {PLANE_TEXT[linked.plane] ?? ''}</p>}
+          <table style={{tableLayout: 'fixed', width: '100%', fontVariantNumeric: 'tabular-nums'}}>
+            <colgroup>
+              <col style={{width: '3em'}}/>
+              <col style={{width: '35%'}}/>
+              <col style={{width: '9em'}}/>
+              <col/>
+            </colgroup>
             <tbody>
               {ROWS.map((key) => {
                 const info = ORBIT_ELEMENTS[key]
@@ -134,7 +180,7 @@ export default function Orbit() {
                       value={state[slider.field]}
                       onChange={(ev) => setState({...state, name: state.name, [slider.field]: Number(ev.target.value)})}/>}
                     </td>
-                    <td style={{whiteSpace: 'nowrap'}}>{values[key]}</td>
+                    <td style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{values[key]}</td>
                   </tr>)
               })}
             </tbody>
@@ -151,11 +197,14 @@ export default function Orbit() {
  * @param {object} props
  * @returns {ReactElement}
  */
-function Labels({diagram}) {
+function Labels({diagram, plane}) {
   const an = diagram.anchors
+  const satellite = plane === 'Laplace' || plane === 'equator'
   return (
     <>
-      <Html position={an.direction.toArray()} style={{...LABEL_STYLE, transform: 'translate(-50%, -150%)'}}>♈︎ reference direction</Html>
+      <Html position={an.direction.toArray()} style={{...LABEL_STYLE, transform: 'translate(-50%, -150%)'}}>
+        {satellite ? 'reference direction (node on the ICRF equator)' : '♈︎ reference direction'}
+      </Html>
       <Html position={an.ascendingNode.toArray()} style={LABEL_STYLE}>☊ ascending node</Html>
       <Html position={an.pericentre.toArray()} style={LABEL_STYLE}>pericentre</Html>
     </>)

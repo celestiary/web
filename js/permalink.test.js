@@ -1,10 +1,12 @@
 import {
   SETTINGS_DEFAULTS,
   decodePermalink,
+  decodeGuideOrbitToken,
   decodeInfoToken,
   decodeOrbitsToken,
   decodeSettings,
   decodeTimeToken,
+  encodeGuideOrbitToken,
   encodeInfoToken,
   encodeOrbitsToken,
   encodePermalink,
@@ -724,5 +726,26 @@ describe('info token', () => {
     expect(encodeInfoToken({closed: false, open: new Set, shut: new Set})).toBeNull()
     expect(encodeInfoToken(undefined)).toBeNull()
     expect(decodeInfoToken(undefined)).toEqual({closed: false, open: new Set, shut: new Set})
+  })
+})
+
+
+describe('guide orbit token', () => {
+  const el = {a: 384467000, e: 0.0549, i: 5.145, node: 125.08, peri: 83.35, meanLongitude: 218.32,
+    plane: 'eclipticOfDate'}
+
+  it('carries an orbit, its moment and its lit elements to the guide, and back', () => {
+    const token = encodeGuideOrbitToken('moon', el, new Set(['peri', 'i']), 2461326.4581)
+    expect(token).toBe('orbit:body=moon,a=384467000,e=0.054900,i=5.1450,node=125.0800,peri=83.3500,' +
+      'L=218.3200,plane=eclipticOfDate,jd=2461326.4581,lit=i+peri')
+    const back = decodeGuideOrbitToken(`#${token}`)
+    expect(back).toEqual({body: 'moon', a: 384467000, e: 0.0549, i: 5.145, node: 125.08, peri: 83.35,
+      meanLongitude: 218.32, plane: 'eclipticOfDate', jd: 2461326.4581, lit: new Set(['i', 'peri'])})
+  })
+
+  it('is null without a whole orbit', () => {
+    expect(decodeGuideOrbitToken('')).toBeNull()
+    expect(decodeGuideOrbitToken('#orbit:a=1,e=0.1')).toBeNull()
+    expect(decodeGuideOrbitToken('#orbit:a=1,e=1.2,i=0,node=0,peri=0,L=0')).toBeNull()
   })
 })

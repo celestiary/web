@@ -183,7 +183,31 @@ button {
    the widgets sheet (--scene-height: Celestiary._sizeContainer). */
 #nav-info-id {
   max-height: calc(var(--scene-height, 100vh) - 10em);
+  overflow-y: hidden;
+}
+
+/* The target's info as a card a third of the screen wide, so the panel
+   doesn't take the scene's clicks over a wide, unseen area; it scrolls
+   within itself (the maintainer's layout, until the info panels are
+   redesigned). */
+#nav-info-id > ul[data-prop="info"] {
+  box-sizing: border-box;
+  width: 30vw;
+  min-width: 22em;
+  max-width: calc(100vw - 2em);
+  max-height: calc(var(--scene-height, 100vh) - 12em);
   overflow-y: auto;
+  padding: 1em 1.5em;
+  border: solid 1px #ffffff33;
+  border-radius: 5px;
+  background: #aaaaff44;
+}
+
+@media (max-width: 600px) {
+  #nav-info-id > ul[data-prop="info"] {
+    width: auto;
+    min-width: 0;
+  }
 }
 
 #search-bar {

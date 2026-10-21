@@ -522,6 +522,60 @@ export function decodeInfoToken(value) {
 
 
 /**
+ * The guide's orbit page's `orbit:` token (design/URLs.md): one orbit's
+ * elements at a moment, as the app's orbit list links to them, so the guide
+ * shows that orbit, at that moment, with the same elements lit.
+ *
+ * @param {string} body
+ * @param {object} el orbitElements.js's form: a (m), e, i, node, peri,
+ *     meanLongitude (degrees), plane
+ * @param {Set<string>} [codes] the elements lit (ORBIT_CODES)
+ * @param {number} [jd] the moment, Julian Day (UTC)
+ * @returns {string} the token, `orbit:…`
+ */
+export function encodeGuideOrbitToken(body, el, codes = new Set, jd = null) {
+  const value = formatTokenValue([], {
+    body: PLAIN_WORD.test(body) ? body : null,
+    a: Math.round(el.a),
+    e: el.e.toFixed(6),
+    i: el.i.toFixed(4),
+    node: el.node.toFixed(4),
+    peri: el.peri.toFixed(4),
+    L: el.meanLongitude.toFixed(4),
+    plane: PLAIN_WORD.test(el.plane ?? '') ? el.plane : null,
+    jd: Number.isFinite(jd) ? jd.toFixed(4) : null,
+    lit: ORBIT_CODES.filter((c) => codes.has(c)),
+  })
+  return `orbit${TOKEN_SEP}${value}`
+}
+
+
+/**
+ * The inverse of encodeGuideOrbitToken, from a page's hash.
+ *
+ * @param {string} [hash] `#orbit:…`, or with other tokens around it
+ * @returns {?object} {body, a, e, i, node, peri, meanLongitude, plane, jd,
+ *     lit: Set}, or null without a whole orbit
+ */
+export function decodeGuideOrbitToken(hash) {
+  const token = (hash ?? '').replace(/^#/, '').split(PARAM_SEP).find((t) => t.startsWith(`orbit${TOKEN_SEP}`))
+  if (!token) {
+    return null
+  }
+  const {named} = parseTokenValue(token.substring(token.indexOf(TOKEN_SEP) + 1))
+  const num = (k) => parseFloat(named[k])
+  const orbit = {
+    body: named.body ?? null, a: num('a'), e: num('e'), i: num('i'), node: num('node'), peri: num('peri'),
+    meanLongitude: num('L'), plane: named.plane ?? null, jd: Number.isFinite(num('jd')) ? num('jd') : null,
+    lit: new Set(parseValueList(named.lit).filter((c) => ORBIT_CODES.includes(c))),
+  }
+  const whole = ['a', 'e', 'i', 'node', 'peri', 'meanLongitude'].every((k) => Number.isFinite(orbit[k])) &&
+    orbit.a > 0 && orbit.e >= 0 && orbit.e < 1
+  return whole ? orbit : null
+}
+
+
+/**
  * @param {string} [value] A named value's list, `a+b`
  * @returns {Array<string>}
  */

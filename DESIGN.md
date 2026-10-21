@@ -589,6 +589,10 @@ work it starts).
   which elements are on, follow the date and the scene four times a second
   while the list is open (`ControlPanel.frame`).  A click (or Enter, or
   Space) turns an element on or off; a hover or focus previews one.
+- **The info list is a card** a third of the screen wide (at least 22em;
+  the screen's width on a phone), with its own scroll, so the panel doesn't
+  take the scene's clicks over a wide, unseen area: the maintainer's layout
+  until the info panels are redesigned (`index.css`, `#nav-info-id`).
 - **The panel's lists, open or folded, are in the link** (the `info:`
   token, [design/URLs.md](design/URLs.md#info-token)): the whole panel
   folded, and each list (named by its dotted place in a body's props,
@@ -648,8 +652,13 @@ work it starts).
   `placeByElements` turns an orbit.  The radius to the body ends on the
   body (checked for Pluto, Io and the Moon in a browser).
 - **The guide's orbit page** (`/guide/orbit`, `js/guide/Orbit.jsx`) drives
-  the same diagram in React Three Fiber, with sliders for e, i, Ω, ϖ and
-  L, the planets' elements as presets, and the same clicks (any number on;
+  the same diagram in React Three Fiber.  The app's orbit list links to it
+  ("see it in the guide") with the body's elements of the moment and those
+  lit (the guide's `orbit:` token, [design/URLs.md](design/URLs.md#the-guides-orbit-token)),
+  so any orbit the app has, a moon's too, can be taken apart there.  Its
+  controls are a fixed width with fixed cells and tabular numerals, so
+  running the orbit doesn't reflow the page.  It has sliders for e, i, Ω,
+  ϖ and L, the planets' elements as presets, and the same clicks (any number on;
   none on draws them all) and hover.  Drawn
   straight to an sRGB canvas, its lines take their colours as they are
   (`screen`); in the app they go through the HDR scene buffer.
