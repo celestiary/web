@@ -5,8 +5,9 @@ import {
   Group,
   LinearSRGBColorSpace,
   Mesh,
-  MeshBasicMaterial,
+  Matrix4,
   Quaternion,
+  ShaderMaterial,
   Vector3,
 } from 'three'
 import {sceneReferred} from './hdr.js'
@@ -54,6 +55,9 @@ const RIM_PER_APOAPSIS = 1.2
 const ARROW_LENGTH = 0.06
 const ARROW_HALF_WIDTH = 0.03
 const FILL_OPACITY = 0.06
+// The fade from the body (_fade): to half opacity across the orbit.
+const FADE_MIN = 0.5
+const FADE_RANGE_PER_SPAN = 1
 const FILL_LIT_OPACITY = 0.12
 const WIDTH = {lit: 2.5, all: 1.5, context: 1}
 const OPACITY = {lit: 1, all: 0.85, context: 0.4}
@@ -308,19 +312,83 @@ export default class OrbitDiagram extends Group {
 
 
   /**
+   * A plane's fill, fading from the body as the lines do (fade).
+   *
    * @param {number} color
    * @returns {Mesh} a unit disc in the XZ plane
    */
   _newFill(color) {
-    const material = sceneReferred(new MeshBasicMaterial({
-      color: new Color(color), transparent: true, opacity: FILL_OPACITY, side: DoubleSide,
-      depthWrite: false, toneMapped: false,
+    const material = sceneReferred(new ShaderMaterial({
+      uniforms: {
+        uColor: {value: new Color(color)},
+        uOpacity: {value: FILL_OPACITY},
+        // The disc's frame in the diagram's, for its distance from the body.
+        uToDiagram: {value: new Matrix4},
+        uFadeCentre: {value: new Vector3},
+        uFadeRange: {value: 0},
+        uFadeMin: {value: 1},
+      },
+      vertexShader: `
+        uniform mat4 uToDiagram;
+        varying vec3 vDiagram;
+        void main() {
+          vDiagram = (uToDiagram * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        uniform vec3 uFadeCentre;
+        uniform float uFadeRange;
+        uniform float uFadeMin;
+        varying vec3 vDiagram;
+        void main() {
+          float fade = uFadeRange > 0.0 ?
+            mix(1.0, uFadeMin, clamp(length(vDiagram - uFadeCentre) / uFadeRange, 0.0, 1.0)) : 1.0;
+          gl_FragColor = vec4(uColor, uOpacity * fade);
+          #include <colorspace_fragment>
+        }`,
+      transparent: true, side: DoubleSide, depthWrite: false, toneMapped: false,
     }))
     const disc = new Mesh(new CircleGeometry(1, RIM_POINTS - 1), material)
     disc.rotation.x = -Math.PI / 2
     disc.name = 'orbitDiagram.fill'
     disc.raycast = noRaycast
     return disc
+  }
+
+
+  /**
+   * Fade the diagram from the body: every line and both fills at full
+   * opacity there, down to FADE_MIN across the orbit (FADE_RANGE_PER_SPAN
+   * of its major axis, straight-line distance), so the body and the
+   * elements meeting it stand out, and nested or near-coplanar orbits'
+   * diagrams don't crowd one another.
+   *
+   * @param {number} e
+   */
+  _fade(e) {
+    const centre = this.anchors.body
+    const range = FADE_RANGE_PER_SPAN * 2 * (1 + e)
+    for (const strip of Object.values(this.parts)) {
+      const u = strip.material.uniforms
+      u.uFadeCentre.value.copy(centre)
+      u.uFadeRange.value = range
+      u.uFadeMin.value = FADE_MIN
+    }
+    this.updateMatrix()
+    this.orbitFrame.updateMatrix()
+    for (const disc of Object.values(this.fills)) {
+      disc.updateMatrix()
+      const u = disc.material.uniforms
+      u.uToDiagram.value.copy(disc.matrix)
+      if (disc.parent === this.orbitFrame) {
+        u.uToDiagram.value.premultiply(this.orbitFrame.matrix)
+      }
+      u.uFadeCentre.value.copy(centre)
+      u.uFadeRange.value = range
+      u.uFadeMin.value = FADE_MIN
+    }
   }
 
 
@@ -416,6 +484,7 @@ export default class OrbitDiagram extends Group {
     this.fills.reference.scale.setScalar(rim)
     this.fills.orbitPlane.scale.setScalar(rim)
     this.orbitFrame.quaternion.copy(q.plane)
+    this._fade(e)
   }
 
 
@@ -436,8 +505,8 @@ export default class OrbitDiagram extends Group {
     }
     this._showLabels()
     const planesLit = Boolean(this.keys?.has(I))
-    this.fills.reference.material.opacity = planesLit ? FILL_LIT_OPACITY : FILL_OPACITY
-    this.fills.orbitPlane.material.opacity = planesLit ? FILL_LIT_OPACITY : FILL_OPACITY
+    this.fills.reference.material.uniforms.uOpacity.value = planesLit ? FILL_LIT_OPACITY : FILL_OPACITY
+    this.fills.orbitPlane.material.uniforms.uOpacity.value = planesLit ? FILL_LIT_OPACITY : FILL_OPACITY
   }
 
 

@@ -295,6 +295,21 @@ describe('OrbitDiagram', () => {
     d.setElements(el)
   })
 
+  it('fades every line and fill from the body to half across the orbit', () => {
+    for (const strip of Object.values(d.parts)) {
+      const u = strip.material.uniforms
+      expect(u.uFadeCentre.value.distanceTo(d.anchors.body)).toBeLessThan(1e-12)
+      expect(u.uFadeMin.value).toBe(0.5)
+      expect(u.uFadeRange.value).toBeCloseTo(2 * 1.3, 9)
+    }
+    // A fill's frame carries its points into the diagram's: the orbit's
+    // plane's disc edge lies on its rim, about the focus.
+    const fill = d.fills.orbitPlane.material.uniforms
+    const edge = new Vector3(1, 0, 0).applyMatrix4(fill.uToDiagram.value)
+    expect(edge.length()).toBeCloseTo(1.2 * 1.3, 6)
+    expect(fill.uFadeCentre.value.distanceTo(d.anchors.body)).toBeLessThan(1e-12)
+  })
+
   it('ends each arc in an arrowhead pointing the way its angle runs', () => {
     for (const arc of ['nodeArc', 'periArc', 'anomalyArc', 'inclinationArc', 'centreArc']) {
       const n = d.parts[arc].geometry.attributes.position.count

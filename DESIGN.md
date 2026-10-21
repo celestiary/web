@@ -624,6 +624,15 @@ work it starts).
   ecliptic, the node on the ICRF equator for a moon), the ascending node,
   pericentre, the centre, the empty focus, each shown while its part is
   lit.
+- **Faded from the body** (`_fade`): every line and both plane fills are at
+  full opacity at the body and fall linearly with straight-line distance
+  to half at the far side of the orbit (its major axis' span), so the eye
+  goes to the body and the elements meeting it, and nested or
+  near-coplanar orbits (the inner planets') don't crowd one another.  The
+  wide-line shader takes an optional fade (`uFadeCentre`, `uFadeRange`,
+  `uFadeMin`, off unless set, so no other line changes); the fills are a
+  small shader that does the same in the diagram's frame (`uToDiagram`).
+  Labels aren't faded.
 - **Barycentres.**  `setMassRatio(m / (M + m))`, from the bodies' masses
   (Scene): the two bodies' barycentre on the line to the body, m/(M + m)
   of the way, and the primary's own orbit about it, the body's ellipse
