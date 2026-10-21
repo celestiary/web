@@ -261,7 +261,8 @@ Roadmap and issues groomed (2026-10-08): [#86](https://github.com/celestiary/web
     from a LOLA horizon map ([#211](https://github.com/celestiary/web/issues/211)).
 13. Deep sky: nebulae, other galaxies past SPARC (5.1), Sgr A\* ([#117](https://github.com/celestiary/web/issues/117)); galactic dynamics ([#106](https://github.com/celestiary/web/issues/106)).
 14. Spacecraft: integrator, then flight simulation ([#119](https://github.com/celestiary/web/issues/119)); missions and
-    models ([#120](https://github.com/celestiary/web/issues/120)).
+    models ([#120](https://github.com/celestiary/web/issues/120)); Lagrange points, orbital regimes and three-body orbits at every
+    pair ([#272](https://github.com/celestiary/web/issues/272)), then the cislunar economy app on them ([#273](https://github.com/celestiary/web/issues/273)).
 
 **Background** (alongside, whenever there's room)
 - **Horizons regression tests for every body** ([#97](https://github.com/celestiary/web/issues/97), in [#112](https://github.com/celestiary/web/issues/112)): orientation
@@ -388,6 +389,7 @@ Things that fly, and real ones.
 |---|---|---|---|
 | [#119](https://github.com/celestiary/web/issues/119) Flight simulation | [#11](https://github.com/celestiary/web/issues/11), [#2](https://github.com/celestiary/web/issues/2) | [#112](https://github.com/celestiary/web/issues/112) | DESIGN.md [orbital mechanics](DESIGN.md#orbital-mechanics) |
 | [#120](https://github.com/celestiary/web/issues/120) Missions and models | [#25](https://github.com/celestiary/web/issues/25), [#19](https://github.com/celestiary/web/issues/19), [#13](https://github.com/celestiary/web/issues/13) | [#25](https://github.com/celestiary/web/issues/25) first: satellites and spacecraft need models | |
+| [#273](https://github.com/celestiary/web/issues/273) Cislunar economy: an app for the Earth–Moon logistics network, for routing and operations research | Δv network and route query, min-cost flows and JSON export, launch windows, sensor coverage (sub-issues as each phase is picked up) | [#272](https://github.com/celestiary/web/issues/272) (Lagrange points, orbital regimes and three-body orbits at every pair: the nodes); [#11](https://github.com/celestiary/web/issues/11) for real trajectories; [#30](https://github.com/celestiary/web/issues/30), [#50](https://github.com/celestiary/web/issues/50) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock); [Colonization.md](js/scene/Colonization.md) (the app pattern) |
 
 ### G. Platform, performance and quality
 
