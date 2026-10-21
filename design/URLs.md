@@ -289,6 +289,7 @@ Each feature has its own label:
 
 ```
 "time":             the clock, when it is paused or not at real time
+"info":             the info panel's lists, open or folded
 "orbits":           the orbital elements lit on the bodies' orbits
 "apps":             the widgets drawer and dock: open, docked, the app
                     showing, the apps pinned and running
@@ -346,6 +347,36 @@ The link is rewritten when the clock is paused, its rate set, or its date
 set (`Time.onTimeScaleChange`), as well as when the camera settles.  While
 it is running the link's `t=` is the date at the last rewrite, so a copied
 link may be a moment behind; paused it is exact.
+
+### Info Token
+
+The info panel's lists as the user left them (DESIGN.md [orbital
+elements](../DESIGN.md#orbital-elements)): the whole panel folded, and its
+lists opened or folded against how they start.
+
+```
+closed             the panel folded to its [+]
+open=<list>+…      lists opened that start folded (most do)
+shut=<list>+…      lists folded that start open (a body's `system`)
+```
+
+A list is named by its place in a body's properties, dotted: `orbit`,
+`atmosphere`, `location.coord`.
+
+```
+#…;info:open=orbit                      the orbit list open
+#…;info:closed                          the panel folded
+#…;info:open=orbit+atmosphere,shut=system
+```
+
+Decisions:
+
+- **For every body alike.**  The lists are named by property, not by body,
+  so going from Earth to Venus keeps the orbit list open: comparing two
+  bodies' orbits wants the same lists open on both.
+- **Only what differs from how a list starts is written**; no token is the
+  panel as it opens.
+- **App state, restored on the first load**, as `apps:` and `orbits:` are.
 
 ### Orbits Token
 

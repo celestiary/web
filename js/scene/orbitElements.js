@@ -1,14 +1,23 @@
-import {Quaternion} from 'three'
+import {Quaternion, Vector3} from 'three'
 import {ASTRO_UNIT_METER} from '../shared.js'
 import {J2000_JD} from './celestialFrame.js'
 import {LUNAR_ORBIT_INCLINATION_DEG, moonArguments} from './lunarTheory.js'
 import {eccentricAnomaly, elementsAt, meanElements} from './meanElements.js'
+import {osculatingEllipse} from './orbitPath.js'
 import {planetElements} from './planetsApprox.js'
 
 
 // A body's six orbital elements at a date, as the info panel lists them and
 // the orbit diagram draws them (orbitDiagram.js; DESIGN.md "Orbital
-// elements").  Each body gets them from what places it, where it can:
+// elements").
+//
+// The planets and the Moon get theirs osculating (elementsFromState): the
+// two-body ellipse through the body's place and velocity of the moment, as
+// its ephemeris gives them (Animation.orbitElements), so the diagram meets
+// the body at any zoom.  Their mean elements miss it: the Moon's by up to
+// ~12,000 km and 2° (the Sun's pull: evection, variation), Earth's ~10,000
+// km, Jupiter's ~460,000 km.  The mean elements (elementsOfDate) are the
+// rest's, and the planets' and the Moon's before a frame has run:
 //
 // - the planets: Standish's elements and rates (planetsApprox.js), the
 //   stand-in before VSOP87C loads and within a few arcminutes of it;
@@ -28,6 +37,8 @@ import {planetElements} from './planetsApprox.js'
 const FULL_TURN_DEG = 360
 const SECONDS_PER_DAY = 86400
 const IDENTITY = new Quaternion
+const RAD_DEG = 180 / Math.PI
+const Y_AXIS = new Vector3(0, 1, 0)
 const DEFAULT_MOON_ECCENTRICITY = 0.0549
 
 
@@ -131,7 +142,8 @@ export function norm360(deg) {
  * @returns {object|null} {a (metres), e, i, node, w (argument of
  *     pericentre), m (mean anomaly), peri (ϖ), meanLongitude (L), nu (true
  *     anomaly), frame (Quaternion), ofDate (frame is to the ecliptic of
- *     date), plane ('ecliptic', 'eclipticOfDate', 'Laplace' or 'equator'), pericentreKey, placeKey (which of ϖ or ω, L or M the
+ *     date), plane ('ecliptic', 'eclipticOfDate', 'Laplace' or 'equator'),
+ *     kind ('mean', or 'osculating' from elementsFromState), pericentreKey, placeKey (which of ϖ or ω, L or M the
  *     source gives)}; null with no orbit
  */
 export function elementsOfDate(name, orbit, jde) {
@@ -174,6 +186,57 @@ export function elementsOfDate(name, orbit, jde) {
       }
     }
   }
+  return finish(el, orbit, {frame, ofDate, plane, kind: 'mean'})
+}
+
+
+/**
+ * The elements of the two-body ellipse through a place with a velocity:
+ * osculating elements.  In the scene's axes of date (the ecliptic and
+ * equinox of date, as VSOP87C and the lunar theory give them), so `frame`
+ * is the identity and `ofDate` true.
+ *
+ * @param {string} name the body's
+ * @param {object} orbit its `orbit` block, for which of ϖ or ω it lists
+ * @param {Vector3} r position relative to the primary, metres, scene axes
+ * @param {Vector3} v velocity, metres per day
+ * @param {number} mu G(M + m), m³/day²
+ * @returns {object|null} as elementsOfDate's, or null where r and v make no
+ *     ellipse
+ */
+export function elementsFromState(name, orbit, r, v, mu) {
+  const osc = osculatingEllipse(r.clone(), v.clone(), mu)
+  if (!osc) {
+    return null
+  }
+  // The orbit's pole (prograde: +X toward -Z is about +Y), its ascending
+  // node on the reference plane (XZ), and pericentre's angle from it.
+  const pole = new Vector3().crossVectors(osc.p, osc.q)
+  const i = Math.acos(Math.min(1, Math.max(-1, pole.y))) * RAD_DEG
+  let node = new Vector3().crossVectors(Y_AXIS, pole)
+  if (node.lengthSq() < 1e-24) {
+    node = new Vector3(1, 0, 0)
+  }
+  node.normalize()
+  const ahead = new Vector3().crossVectors(pole, node)
+  const nodeDeg = Math.atan2(-node.z, node.x) * RAD_DEG
+  const w = Math.atan2(osc.p.dot(ahead), osc.p.dot(node)) * RAD_DEG
+  return finish({a: osc.a, e: osc.e, i, node: nodeDeg, w, m: osc.m0 * RAD_DEG}, orbit, {
+    frame: IDENTITY, ofDate: true, plane: 'eclipticOfDate', kind: 'osculating',
+  })
+}
+
+
+/**
+ * The rest of an element set: angles in [0, 360), ϖ, L and ν, and which of
+ * each pair the body lists.
+ *
+ * @param {object} el {a, e, i, node, w, m}, degrees
+ * @param {object} orbit
+ * @param {object} extra {frame, ofDate, plane, kind}
+ * @returns {object}
+ */
+function finish(el, orbit, extra) {
   if (el.i < 0) {
     // Standish's Earth crosses zero inclination: the same plane, its node
     // the other way (ϖ is unchanged).
@@ -183,11 +246,11 @@ export function elementsOfDate(name, orbit, jde) {
   const m = norm360(el.m)
   const E = eccentricAnomaly(m * Math.PI / 180, e)
   const nu = norm360(2 * Math.atan2(Math.sqrt(1 + e) * Math.sin(E / 2), Math.sqrt(1 - e) * Math.cos(E / 2)) *
-    180 / Math.PI)
+    RAD_DEG)
   return {
     a: el.a, e, i: el.i, node: norm360(el.node), w: norm360(el.w), m, nu,
     peri: norm360(el.node + el.w), meanLongitude: norm360(el.node + el.w + m),
-    frame, ofDate, plane,
+    ...extra,
     ...elementForm(orbit),
   }
 }

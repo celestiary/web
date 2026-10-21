@@ -33,14 +33,13 @@ has no view to open yet.
 
 ### See an orbit's six elements on the orbit itself
 
-A body's info panel now lists its orbit's six elements as they are today: its size and shape, the
-tilt and turn of its plane, where it comes closest to its primary, and where it is along the way.
-Click any of them and they light up on the orbit in space, drawn the way the textbooks draw it: the
-two planes, the line where they cross, and each angle as an arc. They stay on as you go to other
-planets and moons, so you can turn on a few for Earth and Venus and see how their orbits line up, and
-a link keeps them. The guide's orbit page works again,
-with sliders and the planets as examples. The panel's masses, densities and escape velocities now
-show the right numbers and units.
+A body's info panel now lists its orbit's six elements as they are right now: its size and shape, the
+tilt and turn of its plane, where it comes closest, and where it is along the way. Click any of them
+to light them on the orbit in space, drawn as the textbooks draw it: the two planes, the line where
+they cross, each angle an arc with an arrow. They stay on as you go to other planets and moons, so
+you can compare how Earth's and Venus's orbits line up, and a link keeps them and the panel as you
+left it. The orbit drawn is the one the body is on at that moment, so it meets the body however
+close you zoom. The guide's orbit page works again, and the panel's masses and units are fixed.
 
 - Date: 2026-10-21
 - PR: [#274](https://github.com/celestiary/web/pull/274)

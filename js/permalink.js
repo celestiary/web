@@ -490,6 +490,38 @@ export function decodeOrbitsToken(value) {
 
 
 /**
+ * The `info:` token (design/URLs.md): the info panel's lists as the user
+ * left them.  `closed`, the panel folded; `open=` and `shut=` the lists,
+ * by their dotted place in a body's props, opened or folded against their
+ * defaults.  Left out (null) when all are as they start.
+ *
+ * @param {{closed: boolean, open: Set<string>, shut: Set<string>}} [state]
+ *     ControlPanel.uiState
+ * @returns {?string}
+ */
+export function encodeInfoToken(state) {
+  if (!state) {
+    return null
+  }
+  const plain = (keys) => [...(keys ?? [])].filter((k) => PLAIN_WORD.test(k)).sort()
+  return formatTokenValue(state.closed ? ['closed'] : [], {open: plain(state.open), shut: plain(state.shut)}) || null
+}
+
+
+/**
+ * The inverse of encodeInfoToken.
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {{closed: boolean, open: Set<string>, shut: Set<string>}}
+ */
+export function decodeInfoToken(value) {
+  const {flags, named} = parseTokenValue(value)
+  const plain = (list) => new Set(parseValueList(list).filter((k) => PLAIN_WORD.test(k)))
+  return {closed: flags.includes('closed'), open: plain(named.open), shut: plain(named.shut)}
+}
+
+
+/**
  * @param {string} [value] A named value's list, `a+b`
  * @returns {Array<string>}
  */

@@ -1,9 +1,11 @@
 import {
   SETTINGS_DEFAULTS,
   decodePermalink,
+  decodeInfoToken,
   decodeOrbitsToken,
   decodeSettings,
   decodeTimeToken,
+  encodeInfoToken,
   encodeOrbitsToken,
   encodePermalink,
   encodeSettings,
@@ -705,5 +707,22 @@ describe('orbits token', () => {
     expect(encodeOrbitsToken(new Map([['earth', new Set()]]))).toBeNull()
     expect(decodeOrbitsToken('earth=i+x+node,mars=zz')).toEqual(new Map([['earth', new Set(['i', 'node'])]]))
     expect(decodeOrbitsToken(undefined)).toEqual(new Map())
+  })
+})
+
+
+describe('info token', () => {
+  it('writes the panel folded and the lists against their defaults, and reads them back', () => {
+    const state = {closed: true, open: new Set(['orbit', 'location.coord']), shut: new Set(['system'])}
+    const value = encodeInfoToken(state)
+    expect(value).toBe('closed,open=location.coord+orbit,shut=system')
+    expect(decodeInfoToken(value)).toEqual({closed: true, open: new Set(['location.coord', 'orbit']),
+      shut: new Set(['system'])})
+  })
+
+  it('is left out when all is as it starts', () => {
+    expect(encodeInfoToken({closed: false, open: new Set, shut: new Set})).toBeNull()
+    expect(encodeInfoToken(undefined)).toBeNull()
+    expect(decodeInfoToken(undefined)).toEqual({closed: false, open: new Set, shut: new Set})
   })
 })

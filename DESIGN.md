@@ -532,32 +532,55 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
 ### Orbital elements
 
 A body's six Keplerian elements, listed in its info panel and drawn on its
-orbit one at a time (`js/scene/orbitElements.js`, `js/scene/orbitDiagram.js`;
+orbit (`js/scene/orbitElements.js`, `js/scene/orbitDiagram.js`;
 [#272](https://github.com/celestiary/web/issues/272) is the wider orbits
 work it starts).
 
-- **Of the date, from what places the body.** `elementsOfDate` gives a, e,
-  i, Ω, ω and M (and ϖ = Ω + ω, L = ϖ + M, the true anomaly ν) from the
-  same source as the body's position, where it can: the planets from
-  Standish's elements and rates (`planetsApprox.js`, within arcminutes of
-  VSOP87C), the Moon from Meeus 47's mean node, perigee and longitude of
-  date (its node turns once in 18.6 years, so the JSON's J2000 values
-  would be far off), Pluto and the moons from their mean elements
-  (`meanElements.js` `elementsAt`, which `orbitAt` now uses too), in their
-  Laplace plane or their planet's equator.  A body with none of these
-  (the demo descriptors) gets its JSON's elements run on at its period.
-  The pericentre and the body's place are listed in the source's form: ϖ
-  and L for the planets, the Moon and Pluto; ω and M for the moons.
-  Standish's Earth has a slightly negative I after J2000; it's turned
-  round (i > 0, Ω + 180°, ϖ kept).
+- **Osculating for the planets and the Moon** (`Animation.orbitElements`,
+  `orbitElements.js` `elementsFromState`): the two-body ellipse through the
+  body's place and velocity of the moment, from the ephemeris that draws
+  it (VSOP87C, or the stand-in before it loads; the lunar theory), the
+  velocity by a central difference over 1/1000 of the period, with GM the
+  Sun's and the planet's (the Earth's and the Moon's for the Moon).  So
+  the diagram meets the body at any zoom.  Mean elements didn't: the
+  maintainer's screenshots near the Earth and the Moon showed the lines
+  missing both.  Against the ephemerides on 2026 Oct 12, the Moon's mean
+  ellipse missed it by 2,900 to 12,500 km (up to 1.8°: the Sun's pull,
+  evection and variation), Earth's by ~10,000 km, Mars's ~26,000 km,
+  Jupiter's ~460,000 km, more than Io's orbit.  Osculating, each is
+  within a km (`Animation.elements.test.js`).  The cost: the values move.
+  The Moon's eccentricity swings between ~0.026 and ~0.077 in a month and
+  its perigee with it; the panel says "osculating elements, of the
+  moment".  Earth's are the Earth-Moon barycentre's, ~4,700 km from the
+  Earth's centre, inside it: osculating to the Earth itself would wobble
+  its perihelion by a degree a month.  In the ecliptic and equinox of
+  date (the ephemerides'), so the diagram isn't precessed.  A planet's are
+  made again at most every 250 ms (VSOP87C costs ~2 ms a call, three a
+  making), the Moon's whenever the date moves (~10 µs); between, the
+  body is run on along the last ellipse at its mean motion.
+- **Mean elements for the rest** (`elementsOfDate`): Pluto and the moons
+  are placed by their mean elements (`meanElements.js` `elementsAt`, which
+  `orbitAt` now uses too), in their Laplace plane or their planet's
+  equator, so those are exact for them.  The planets' Standish elements
+  and the Moon's Meeus 47 mean node, perigee and longitude are the
+  fallback before a frame has run; a demo descriptor gets its JSON's
+  elements run on at its period.  The pericentre and the body's place are
+  listed in the source's form: ϖ and L for the planets, the Moon and
+  Pluto; ω and M for the moons.  A negative inclination (Standish's Earth
+  after J2000) is turned round (i > 0, Ω + 180°, ϖ kept).
 - **The panel** (`ControlPanel.orbitListHtml`): the orbit block's six
   elements, of the date, each with its symbol, name, value and colour,
   then `show all · none` (and `clear every orbit` while other bodies have
   some on), then the block's other fields as before.  The values, and
   which elements are on, follow the date and the scene four times a second
   while the list is open (`ControlPanel.frame`).  A click (or Enter, or
-  Space) turns an element on or off; a hover or focus previews one.  The
-  list opens already open on a body with some on.
+  Space) turns an element on or off; a hover or focus previews one.
+- **The panel's lists, open or folded, are in the link** (the `info:`
+  token, [design/URLs.md](design/URLs.md#info-token)): the whole panel
+  folded, and each list (named by its dotted place in a body's props,
+  `orbit`, `location.coord`) opened or folded against its default, for
+  every body alike, so moving from Earth to Venus keeps the orbit list
+  open (`ControlPanel.uiState`, `_applyUiState`, `_onToggle`).
 - **Stateful, on many bodies at once** (`Scene` `toggleOrbitElement`,
   `setOrbitElements`, `clearOrbitElements`, `previewOrbitElement`): the
   scene keeps, per body, the set of elements on, by their short codes
@@ -575,7 +598,10 @@ work it starts).
   `meanElements.js` has them: the plane XZ, the pole +Y, the reference
   direction +X).  Each part is lit by the elements it shows; `highlight`
   takes any number of elements and draws their parts bright, the
-  reference frame and the ellipse faint, and hides the rest.  ϖ and L are broken angles, so they light Ω's arc and
+  reference frame and the ellipse faint, and hides the rest.  Each angle's
+  arc ends in an arrowhead, the way the angle runs (`arcWithHead`): Ω from
+  the reference direction, i up from the reference plane at the node, ω
+  from the node, M from pericentre, all prograde.  ϖ and L are broken angles, so they light Ω's arc and
   ω's (and M's) together.
 - **In the scene** (`Scene._syncOrbitDiagrams`): a diagram per body with
   elements on (and the previewed one), made on first use beside its orbit

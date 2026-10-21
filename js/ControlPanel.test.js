@@ -10,7 +10,7 @@ const {default: ControlPanel, sci} = await import(realSpecifier)
 describe('ControlPanel', () => {
   it('lists an orbit\'s six elements of the date, each tagged for the scene', () => {
     const panel = new ControlPanel(null, null)
-    panel.orbitHooks = {jde: () => 2451545.0, elements: () => new Set(['i', 'peri'])}
+    panel.orbitHooks = {elements: () => new Set(['i', 'peri'])}
     const html = panel.orbitListHtml({
       name: 'io',
       orbit: {
@@ -23,12 +23,12 @@ describe('ControlPanel', () => {
     const keys = [...html.matchAll(/data-element="(\w+)"/g)].map((m) => m[1])
     expect(keys).toEqual(['semiMajorAxis', 'eccentricity', 'inclination', 'longitudeOfAscendingNode',
       'argumentOfPericenter', 'meanAnomaly'])
-    // The codes the link and the scene keep; those on are marked, and the
-    // list opens open.
+    // The codes the link and the scene keep; those on are marked.  The list
+    // is named for the link's `info:` token, which opens it.
     expect([...html.matchAll(/data-code="(\w+)"/g)].map((m) => m[1])).toEqual(['a', 'e', 'i', 'node', 'peri', 'at'])
     expect([...html.matchAll(/orbit-element on" data-element="(\w+)"/g)].map((m) => m[1]))
         .toEqual(['inclination', 'argumentOfPericenter'])
-    expect(html).toContain('<ul class="orbit-elements"')
+    expect(html).toContain('<ul class="collapsed orbit-elements" data-prop="orbit"')
     expect(html).toContain('421,800 km')
     expect(html).toContain('49.100°')
     expect(html).toContain('the Laplace plane')

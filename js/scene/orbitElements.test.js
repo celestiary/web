@@ -1,10 +1,11 @@
 import {describe, expect, it} from 'bun:test'
-import {Vector3} from 'three'
+import {Quaternion, Vector3} from 'three'
 import {ASTRO_UNIT_METER} from '../shared.js'
 import {J2000_JD} from './celestialFrame.js'
 import {moonArguments} from './lunarTheory.js'
 import OrbitDiagram, {partState} from './orbitDiagram.js'
-import {ORBIT_ELEMENTS, elementRows, elementsOfDate, formatDistance, norm360} from './orbitElements.js'
+import {ORBIT_ELEMENTS, elementRows, elementsFromState, elementsOfDate, formatDistance, norm360} from
+  './orbitElements.js'
 
 
 const EARTH_ORBIT = {
@@ -77,6 +78,57 @@ describe('elementsOfDate', () => {
 
   it('is null without an orbit', () => {
     expect(elementsOfDate('sun', undefined, J2000_JD)).toBeNull()
+  })
+})
+
+
+describe('elementsFromState', () => {
+  /**
+   * A place and velocity on a Kepler orbit, laid as meanElements.orbitAt
+   * lays it: Ry(Ω) Rx(i) Ry(ω), pericentre +X, prograde toward -Z.
+   *
+   * @param {object} el {a, e, i, node, w, E}: metres, degrees, E radians
+   * @param {number} mu
+   * @returns {{r: Vector3, v: Vector3}}
+   */
+  function state(el, mu) {
+    const q = new Quaternion
+    const t = new Quaternion
+    const Y = new Vector3(0, 1, 0)
+    const X = new Vector3(1, 0, 0)
+    q.multiply(t.setFromAxisAngle(Y, el.node * Math.PI / 180))
+    q.multiply(t.setFromAxisAngle(X, el.i * Math.PI / 180))
+    q.multiply(t.setFromAxisAngle(Y, el.w * Math.PI / 180))
+    const b = el.a * Math.sqrt(1 - (el.e * el.e))
+    const n = Math.sqrt(mu / (el.a ** 3))
+    const Edot = n / (1 - (el.e * Math.cos(el.E)))
+    const r = new Vector3(el.a * (Math.cos(el.E) - el.e), 0, -b * Math.sin(el.E)).applyQuaternion(q)
+    const v = new Vector3(-el.a * Math.sin(el.E) * Edot, 0, -b * Math.cos(el.E) * Edot).applyQuaternion(q)
+    return {r, v}
+  }
+
+  it('gives back the elements a place and velocity were made from', () => {
+    const mu = 2.9591220828559e-4 * (ASTRO_UNIT_METER ** 3)
+    const el = {a: 1.5 * ASTRO_UNIT_METER, e: 0.2, i: 12, node: 80, w: 250, E: 1.1}
+    const {r, v} = state(el, mu)
+    const got = elementsFromState('mars', {}, r, v, mu)
+    expect(got.a / el.a).toBeCloseTo(1, 9)
+    expect(got.e).toBeCloseTo(0.2, 9)
+    expect(got.i).toBeCloseTo(12, 6)
+    expect(got.node).toBeCloseTo(80, 6)
+    expect(got.w).toBeCloseTo(250, 6)
+    expect(got.m).toBeCloseTo(norm360((el.E - (0.2 * Math.sin(el.E))) * 180 / Math.PI), 6)
+    expect(got.kind).toBe('osculating')
+    expect(got.ofDate).toBe(true)
+  })
+
+  it('takes the node as the reference direction in the reference plane', () => {
+    const mu = 4.0350323e14 * (86400 ** 2)
+    const {r, v} = state({a: 384400e3, e: 0.05, i: 0, node: 0, w: 30, E: 0.4}, mu)
+    const got = elementsFromState('moon', {}, r, v, mu)
+    // acos near 1 holds a degree to ~1e-6.
+    expect(got.i).toBeLessThan(1e-5)
+    expect(got.peri).toBeCloseTo(30, 6)
   })
 })
 
@@ -157,6 +209,24 @@ describe('OrbitDiagram', () => {
     const r = 0.91 / (1 + (0.3 * Math.cos(el.nu * Math.PI / 180)))
     expect(body.length()).toBeCloseTo(r, 5)
     expect(Math.abs(body.dot(pole))).toBeLessThan(1e-6)
+  })
+
+  it('ends each arc in an arrowhead pointing the way its angle runs', () => {
+    for (const arc of ['nodeArc', 'periArc', 'anomalyArc', 'inclinationArc']) {
+      const n = d.parts[arc].geometry.attributes.position.count
+      // The arc's last point, then one wing, the tip, the other wing.
+      const end = point(d, arc, n - 4)
+      const before = point(d, arc, n - 5)
+      const tip = point(d, arc, n - 2)
+      const wings = [point(d, arc, n - 3), point(d, arc, n - 1)]
+      expect(tip.distanceTo(end)).toBeLessThan(1e-6)
+      const tangent = end.clone().sub(before).normalize()
+      for (const w of wings) {
+        // Behind the tip, along the arc, and to either side of it.
+        expect(w.clone().sub(tip).dot(tangent)).toBeLessThan(0)
+      }
+      expect(wings[0].distanceTo(wings[1])).toBeGreaterThan(0)
+    }
   })
 
   it('lights an element\'s parts, keeps the base as context and hides the rest', () => {

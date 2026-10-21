@@ -22,8 +22,8 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {
-  decodeOrbitsToken, decodePermalink, decodeSettings, decodeTimeToken, encodeOrbitsToken, encodePermalink,
-  encodeTimeToken, pathFromFragment, permalinkHref,
+  decodeInfoToken, decodeOrbitsToken, decodePermalink, decodeSettings, decodeTimeToken, encodeInfoToken,
+  encodeOrbitsToken, encodePermalink, encodeTimeToken, pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry, placeTarget} from './search/commitEntry'
@@ -159,7 +159,7 @@ export default class Celestiary {
     this.controlPanel = new ControlPanel(navElt, this.loader)
     // The info panel's orbit list lights elements on the bodies' orbits.
     this.controlPanel.orbitHooks = {
-      jde: () => this.animation.jde,
+      elementsOf: (body, orbit) => this.animation.orbitElements(body, orbit),
       elements: (body) => this.scene.orbitElementsOf(body),
       toggle: (body, code) => this.scene.toggleOrbitElement(body, code),
       set: (body, codes) => this.scene.setOrbitElements(body, codes),
@@ -167,6 +167,8 @@ export default class Celestiary {
       count: () => this.scene.getOrbitElements().size,
       preview: (body, code) => this.scene.previewOrbitElement(body, code),
     }
+    // Opening or folding the panel's lists rewrites the link (`info:`).
+    this.controlPanel.onUiChange = () => this._schedulePermalinkUpdate()
     this.firstTime = true
     this._permalinkTimer = null
     // Hear of a change of the exposure compensation (onExposureCompensation).
@@ -601,6 +603,8 @@ export default class Celestiary {
       // The orbital elements lit on the bodies' orbits; each body's diagram
       // shows once it has loaded (Scene.add).
       this.scene.restoreOrbitElements(decodeOrbitsToken(tokens?.orbits))
+      // The info panel's lists, open or folded as they were.
+      this.controlPanel.restoreUiState(decodeInfoToken(tokens?.info))
     } else {
       location.hash = DEFAULT_TARGET
     }
@@ -3130,10 +3134,11 @@ export default class Celestiary {
       settings.A = true
     }
     // The clock when it isn't running at real time (the `time:` token), the
-    // orbital elements lit on the bodies' orbits (`orbits:`), then the
-    // drawer and the apps.
+    // info panel's lists as they were left (`info:`), the orbital elements
+    // lit on the bodies' orbits (`orbits:`), then the drawer and the apps.
     const tokens = {
       time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
+      info: encodeInfoToken(this.controlPanel.uiState),
       orbits: encodeOrbitsToken(this.scene.getOrbitElements()),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }

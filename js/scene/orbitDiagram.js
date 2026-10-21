@@ -31,6 +31,10 @@ import {newWideLineStrip} from './wideLines.js'
 
 
 const ARC_POINTS = 97
+// An arc's arrowhead, at its end: back to one wing, the tip, the other.
+const ARROWHEAD_POINTS = 3
+const ARROWHEAD_PER_RADIUS = 0.18
+const ARC_STRIP_POINTS = ARC_POINTS + ARROWHEAD_POINTS
 const RIM_POINTS = 193
 const MARKER_POINTS = 25
 const MARKER_RADIUS = 0.025
@@ -76,22 +80,26 @@ const PARTS = {
   arrowhead: {color: COLORS.direction, n: 3, keys: [NODE, VARPI, L], base: true},
   nodeLine: {color: C[NODE].color, n: 2, keys: [NODE, VARPI, OMEGA, I]},
   ascendingNode: {color: C[NODE].color, n: MARKER_POINTS, keys: [NODE, VARPI, OMEGA, I]},
-  nodeArc: {color: C[NODE].color, n: ARC_POINTS, keys: [NODE, VARPI, L]},
-  inclinationArc: {color: C[I].color, n: ARC_POINTS, keys: [I]},
-  periArc: {color: C[OMEGA].color, n: ARC_POINTS, keys: [OMEGA, VARPI, L]},
+  nodeArc: {color: C[NODE].color, n: ARC_STRIP_POINTS, keys: [NODE, VARPI, L]},
+  inclinationArc: {color: C[I].color, n: ARC_STRIP_POINTS, keys: [I]},
+  periArc: {color: C[OMEGA].color, n: ARC_STRIP_POINTS, keys: [OMEGA, VARPI, L]},
   periLine: {color: C[OMEGA].color, n: 2, keys: [OMEGA, VARPI, M]},
   majorAxis: {color: C[A].color, n: 2, keys: [A]},
   centre: {color: C[A].color, n: MARKER_POINTS, keys: [A, E]},
   focalLine: {color: C[E].color, n: 2, keys: [E]},
   minorAxis: {color: C[E].color, n: 2, keys: [E]},
   emptyFocus: {color: C[E].color, n: MARKER_POINTS, keys: [E]},
-  anomalyArc: {color: C[M].color, n: ARC_POINTS, keys: [M, L]},
+  anomalyArc: {color: C[M].color, n: ARC_STRIP_POINTS, keys: [M, L]},
   meanLine: {color: C[M].color, n: 2, keys: [M, L]},
   radius: {color: COLORS.body, n: 2, keys: [M, L]},
   body: {color: COLORS.body, n: MARKER_POINTS, keys: [M, L], base: true, optional: true},
 }
 
 const TO_RAD = Math.PI / 180
+const ORIGIN = [0, 0, 0]
+const X_DIR = [1, 0, 0]
+// 90° on from +X the way the angles run: prograde, toward -Z.
+const PROGRADE = [0, 0, -1]
 const noRaycast = () => undefined
 const Y_AXIS = new Vector3(0, 1, 0)
 const X_AXIS = new Vector3(1, 0, 0)
@@ -162,6 +170,47 @@ function arc(r, t0, t1, cx = 0, cz = 0) {
   return (u, v) => {
     const t = t0 + ((t1 - t0) * u)
     return v.set(cx + (r * Math.cos(t)), 0, cz - (r * Math.sin(t)))
+  }
+}
+
+
+/**
+ * An arc of a circle, then an arrowhead at its end showing which way the
+ * angle runs: the arc to the tip, back along it to one wing, the tip, the
+ * other wing.  The circle is c + r (cos t ref + sin t perp), t from 0 to
+ * sweep.
+ *
+ * @param {Array<number>} c centre
+ * @param {Array<number>} ref unit, the direction at t = 0
+ * @param {Array<number>} perp unit, 90° on, the way t runs
+ * @param {number} r
+ * @param {number} sweep radians, the angle
+ * @returns {Function} (u, Vector3) for fill, over ARC_STRIP_POINTS
+ */
+function arcWithHead(c, ref, perp, r, sweep) {
+  const at = (t, cr, cp, v) => v.set(
+      c[0] + (cr * ref[0]) + (cp * perp[0]),
+      c[1] + (cr * ref[1]) + (cp * perp[1]),
+      c[2] + (cr * ref[2]) + (cp * perp[2]))
+  const head = ARROWHEAD_PER_RADIUS * r * Math.min(1, Math.abs(sweep) * 4)
+  return (u, v) => {
+    const k = Math.round(u * (ARC_STRIP_POINTS - 1))
+    if (k < ARC_POINTS) {
+      const t = sweep * k / (ARC_POINTS - 1)
+      return at(t, r * Math.cos(t), r * Math.sin(t), v)
+    }
+    // The wings: back along the tangent from the tip, and out or in along
+    // the radius.
+    const cos = Math.cos(sweep)
+    const sin = Math.sin(sweep)
+    const wing = k === ARC_POINTS ? 1 : (k === ARC_POINTS + 1 ? 0 : -1)
+    if (wing === 0) {
+      return at(sweep, r * cos, r * sin, v)
+    }
+    // tip - head·tangent + wing·head/2·radial, tangent (-sin, cos), radial (cos, sin)
+    const cr = (r * cos) + (head * sin) + (wing * head * 0.5 * cos)
+    const cp = (r * sin) - (head * cos) + (wing * head * 0.5 * sin)
+    return at(sweep, cr, cp, v)
   }
 }
 
@@ -283,19 +332,19 @@ export default class OrbitDiagram extends Group {
     }, q.id)
     set('nodeLine', segment([-rim, 0, 0], [rim, 0, 0]), q.node)
     set('ascendingNode', arc(MARKER_RADIUS, 0, TWO_PI, rNode), q.node)
-    set('nodeArc', arc(NODE_ARC_RADIUS, 0, el.node * TO_RAD), q.id)
-    set('inclinationArc', (u, v) => {
-      const t = el.i * TO_RAD * u
-      return v.set(rNode, INCLINATION_ARC_RADIUS * Math.sin(t), -INCLINATION_ARC_RADIUS * Math.cos(t))
-    }, q.node)
-    set('periArc', arc(PERI_ARC_RADIUS, 0, el.w * TO_RAD), q.plane)
+    set('nodeArc', arcWithHead(ORIGIN, X_DIR, PROGRADE, NODE_ARC_RADIUS, el.node * TO_RAD), q.id)
+    // At the ascending node, from the reference plane's prograde direction
+    // up to the orbit's.
+    set('inclinationArc', arcWithHead([rNode, 0, 0], PROGRADE, [0, 1, 0], INCLINATION_ARC_RADIUS, el.i * TO_RAD),
+        q.node)
+    set('periArc', arcWithHead(ORIGIN, X_DIR, PROGRADE, PERI_ARC_RADIUS, el.w * TO_RAD), q.plane)
     set('periLine', segment([0, 0, 0], [1 - e, 0, 0]), q.peri)
     set('majorAxis', segment([-(1 + e), 0, 0], [1 - e, 0, 0]), q.peri)
     set('centre', arc(MARKER_RADIUS, 0, TWO_PI, -e), q.peri)
     set('focalLine', segment([-e, 0, 0], [0, 0, 0]), q.peri)
     set('minorAxis', segment([-e, 0, b], [-e, 0, -b]), q.peri)
     set('emptyFocus', arc(MARKER_RADIUS, 0, TWO_PI, -2 * e), q.peri)
-    set('anomalyArc', arc(ANOMALY_ARC_RADIUS, 0, m), q.peri)
+    set('anomalyArc', arcWithHead(ORIGIN, X_DIR, PROGRADE, ANOMALY_ARC_RADIUS, m), q.peri)
     set('meanLine', segment([0, 0, 0], [Math.cos(m), 0, -Math.sin(m)]), q.peri)
     set('radius', segment([0, 0, 0], [rBody * Math.cos(nu), 0, -rBody * Math.sin(nu)]), q.peri)
     set('body', arc(MARKER_RADIUS * 1.5, 0, TWO_PI, rBody * Math.cos(nu), -rBody * Math.sin(nu)), q.peri)

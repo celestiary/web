@@ -10,6 +10,12 @@ import {capitalize} from './utils.js'
 /** How often the orbit list's values follow the date, ms. */
 const ORBIT_REFRESH_MS = 250
 
+/** What the elements are, as the orbit list says (orbitElements.js `kind`). */
+const KIND_NAMES = {
+  osculating: 'osculating elements, of the moment',
+  mean: 'mean elements, of the date',
+}
+
 /** The elements' reference planes, as the orbit list names them. */
 const PLANE_NAMES = {
   ecliptic: 'the ecliptic and equinox of J2000',
@@ -32,14 +38,90 @@ export default class ControlPanel {
     this.containerElt = containerElt
     this.loader = loader
     /**
-     * The orbit list's link to the scene (Celestiary sets it): `jde()`, the
-     * date; `elements(body)`, the body's lit element codes, `toggle(body,
+     * The orbit list's link to the scene (Celestiary sets it):
+     * `elementsOf(body, orbit)`, its elements now (Animation.orbitElements);
+     * `elements(body)`, the body's lit element codes, `toggle(body,
      * code)`, `set(body, codes)`, `clearAll()` and `count()`, the bodies lit
      * (Scene's orbit element state); and `preview(body, code)`, a hover's.
      */
     this.orbitHooks = null
     // The listed body and its list, and when the values last ran.
     this._orbit = null
+    /**
+     * Which of the panel's lists are open, as the user left them, for every
+     * body alike, and in the link as the `info:` token (design/URLs.md):
+     * `closed`, the whole panel folded; `open` and `shut`, the lists (by
+     * their place in the props, `orbit`, `location.coord`) opened or folded
+     * against their defaults.
+     */
+    this.uiState = {closed: false, open: new Set, shut: new Set}
+    /** Called when the user opens or folds a list. */
+    this.onUiChange = null
+    containerElt?.addEventListener?.('click', (ev) => this._onToggle(ev))
+  }
+
+
+  /**
+   * Put a link's open and folded lists back (the `info:` token).
+   *
+   * @param {{closed: boolean, open: Set<string>, shut: Set<string>}} state
+   */
+  restoreUiState(state) {
+    this.uiState = {closed: Boolean(state?.closed), open: new Set(state?.open ?? []), shut: new Set(state?.shut ?? [])}
+    this._applyUiState()
+  }
+
+
+  /** Open and fold the drawn lists as uiState has them. */
+  _applyUiState() {
+    const lists = this.containerElt?.querySelectorAll?.('[data-prop]') ?? []
+    for (const list of lists) {
+      const key = list.dataset.prop
+      list.dataset.collapsedByDefault ??= String(list.classList.contains('collapsed'))
+      const byDefault = list.dataset.collapsedByDefault === 'true'
+      let collapsed = byDefault
+      if (key === 'info') {
+        collapsed = this.uiState.closed
+      } else if (this.uiState.open.has(key)) {
+        collapsed = false
+      } else if (this.uiState.shut.has(key)) {
+        collapsed = true
+      }
+      list.classList.toggle('collapsed', collapsed)
+      const ctrl = list.previousSibling
+      if (ctrl?.classList?.contains('collapsor')) {
+        ctrl.innerHTML = collapsed ? '[+]' : '[-]'
+      }
+    }
+  }
+
+
+  /**
+   * After a list's [+] or [-] (collapsor.js has toggled it): keep how it was
+   * left, and say so, for the link.
+   *
+   * @param {Event} ev
+   */
+  _onToggle(ev) {
+    const ctrl = ev.target
+    const list = ctrl?.classList?.contains('collapsor') ? ctrl.nextSibling : null
+    const key = list?.dataset?.prop
+    if (!key) {
+      return
+    }
+    const collapsed = list.classList.contains('collapsed')
+    const state = this.uiState
+    if (key === 'info') {
+      state.closed = collapsed
+    } else {
+      const byDefault = list.dataset.collapsedByDefault === 'true'
+      state.open.delete(key)
+      state.shut.delete(key)
+      if (collapsed !== byDefault) {
+        (collapsed ? state.shut : state.open).add(key)
+      }
+    }
+    this.onUiChange?.()
   }
 
 
@@ -65,12 +147,13 @@ export default class ControlPanel {
       return
     }
     const pathPrefix = path.join('/')
-    let html = '<ul>\n'
+    let html = '<ul data-prop="info">\n'
     html += this.showInfoRecursive(target, pathPrefix, false, false)
     html += '</ul>\n'
     this._endPreview()
     this.containerElt.innerHTML = html
     collapsor.makeCollapsable(this.containerElt)
+    this._applyUiState()
     this._wireOrbit(target)
   }
 
@@ -79,8 +162,7 @@ export default class ControlPanel {
    * The orbit's six elements, of the date, each lighting its part of the
    * orbit's diagram in the scene (orbitDiagram.js; DESIGN.md "Orbital
    * elements"): a click turns one on or off, and a hover previews it.  The
-   * list opens already open on a body with some on.  The other fields of
-   * the block follow, as the rest of the panel shows them.
+   * other fields of the block follow, as the rest of the panel shows them.
    *
    * @param {object} body the body's props
    * @param {string} pathPrefix
@@ -88,13 +170,14 @@ export default class ControlPanel {
    */
   orbitListHtml(body, pathPrefix) {
     const orbit = body.orbit
-    const el = elementsOfDate(body.name, orbit, this.orbitHooks?.jde() ?? J2000_JDE)
+    const el = this._elementsOf(body)
     if (!el) {
-      return `<ul class="collapsed">\n${this.showInfoRecursive(orbit, pathPrefix, false, false)}</ul>\n`
+      return `<ul class="collapsed" data-prop="orbit">\n` +
+        `${this.showInfoRecursive(orbit, pathPrefix, false, false, 'orbit')}</ul>\n`
     }
     let html
-    const on = this.orbitHooks?.elements(body.name) ?? new Set
-    html = `<ul class="${on.size > 0 ? '' : 'collapsed '}orbit-elements" ` +
+    const on = this.orbitHooks?.elements?.(body.name) ?? new Set
+    html = `<ul class="collapsed orbit-elements" data-prop="orbit" ` +
       `title="Click elements to show them on the orbit, on as many bodies as you like">\n`
     for (const row of elementRows(el)) {
       const color = `#${row.color.toString(16).padStart(6, '0')}`
@@ -108,14 +191,14 @@ export default class ControlPanel {
       '<button class="orbit-action" data-action="none">none</button>' +
       '<span class="orbit-clear" hidden> · <button class="orbit-action" data-action="clear">' +
       'clear every orbit</button></span></li>\n'
-    html += `<li>of the date, in ${PLANE_NAMES[el.plane]}</li>\n`
+    html += `<li class="orbit-kind">${KIND_NAMES[el.kind]}, in ${PLANE_NAMES[el.plane]}</li>\n`
     const rest = {}
     for (const [key, val] of Object.entries(orbit)) {
       if (!ORBIT_LISTED.has(key)) {
         rest[key] = val
       }
     }
-    html += this.showInfoRecursive(rest, pathPrefix, false, false)
+    html += this.showInfoRecursive(rest, pathPrefix, false, false, 'orbit')
     html += '</ul>\n'
     return html
   }
@@ -190,6 +273,16 @@ export default class ControlPanel {
   }
 
 
+  /**
+   * @param {object} body the body's props
+   * @returns {object|null} its elements now: the scene's (osculating for the
+   *     planets and the Moon), or its mean elements of J2000 with no scene
+   */
+  _elementsOf(body) {
+    return this.orbitHooks?.elementsOf?.(body.name, body.orbit) ?? elementsOfDate(body.name, body.orbit, J2000_JDE)
+  }
+
+
   /** End a hover's preview, as the panel moves on. */
   _endPreview() {
     if (this._orbit) {
@@ -214,9 +307,14 @@ export default class ControlPanel {
       return
     }
     this._showOrbitState()
-    const el = elementsOfDate(state.body.name, state.body.orbit, this.orbitHooks.jde())
+    const el = this._elementsOf(state.body)
     if (!el) {
       return
+    }
+    const kind = state.list.querySelector('.orbit-kind')
+    const kindText = `${KIND_NAMES[el.kind]}, in ${PLANE_NAMES[el.plane]}`
+    if (kind && kind.textContent !== kindText) {
+      kind.textContent = kindText
     }
     const values = Object.fromEntries(elementRows(el).map((r) => [r.key, r.value]))
     for (const li of state.list.querySelectorAll('.orbit-element')) {
@@ -299,9 +397,11 @@ export default class ControlPanel {
    * @param {string} pathPrefix
    * @param {boolean} isArray
    * @param {boolean} isSystem
+   * @param {string} [keyPath] obj's place in the body's props, dotted (e.g.
+   *     `orbit`), which names its sub-lists for the link's `info:` token
    * @returns {string}
    */
-  showInfoRecursive(obj, pathPrefix, isArray, isSystem) {
+  showInfoRecursive(obj, pathPrefix, isArray, isSystem, keyPath = '') {
     /**
      * @param {number} num
      * @returns {string}
@@ -354,18 +454,20 @@ export default class ControlPanel {
           }
           html += cleanZeros(val)
         } else if (val instanceof Array) {
+          const key = subKey(keyPath, prop)
           if (prop === 'system') {
-            html += '<ol>\n'
+            html += `<ol data-prop="${key}">\n`
           } else {
-            html += '<ol class="collapsed">\n'
+            html += `<ol class="collapsed" data-prop="${key}">\n`
           }
-          html += this.showInfoRecursive(val, pathPrefix, true, prop === 'system')
+          html += this.showInfoRecursive(val, pathPrefix, true, prop === 'system', key)
           html += '</ol>\n'
         } else if (prop === 'orbit' && obj.name && val instanceof Object) {
           html += this.orbitListHtml(obj, pathPrefix)
         } else if (val instanceof Object) {
-          html += '<ul class="collapsed">\n'
-          html += this.showInfoRecursive(val, pathPrefix, false, false)
+          const key = subKey(keyPath, prop)
+          html += `<ul class="collapsed" data-prop="${key}">\n`
+          html += this.showInfoRecursive(val, pathPrefix, false, false, key)
           html += '</ul>\n'
         } else {
           if (isSystem) {
@@ -402,6 +504,16 @@ export default class ControlPanel {
     html = html.replaceAll('^3', '³')
     return html
   }
+}
+
+
+/**
+ * @param {string} keyPath
+ * @param {string} prop
+ * @returns {string} the dotted path of prop under keyPath
+ */
+function subKey(keyPath, prop) {
+  return keyPath ? `${keyPath}.${prop}` : prop
 }
 
 
