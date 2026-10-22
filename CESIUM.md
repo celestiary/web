@@ -388,18 +388,21 @@ surface, dimly, with the city lights gone under it
   lambertDiffuseMultiplier + vertexShadowDarkness)`, which `litSurfaceOnly`
   sets to Lambert × 1 + 0: dark on the night side, as celestiary's own.
 - On the plain ellipsoid, `ENABLE_DAYNIGHT_SHADING`: colour × `clamp(5 ×
-  Lambert + 0.3)`, hard-coded.  The 0.3 is the floor that the surface shows
-  by, all over the night side, and, as the meter takes the night side's
-  brightness for the scene's, it dims the exposure the lights are seen
-  at.  Nothing a globe setting reaches: `litSurfaceOnly` can't turn it off.
+  Lambert + 0.3)`, hard-coded in Cesium 1.145.  The 0.3 is the floor that
+  the surface shows by, all over the night side, and, as the meter takes the
+  night side's brightness for the scene's, it dims the exposure the lights
+  are seen at.  No globe setting reached it, so we patch Cesium (Patching
+  Cesium, below): the floor is `vertexShadowDarkness` and the multiplier a
+  new `dayNightLambertDiffuseMultiplier`, which `litSurfaceOnly` sets to 0
+  and 1, Lambert on the ellipsoid's smooth normal.
 
 So the terrain isn't a detail layer: its normals are what the globe's
 lighting is.  It is requested with the globe (`_createWidget`), as before the
 change; it is billed by data, and coarse terrain tiles from orbit are a
 few hundred KB.  Until it answers, and for good if ion refuses it (a token
 not scoped to asset 1), the globe is on the ellipsoid and shows the floor:
-a 0.3 night side.  Not fixed: it would be the ellipsoid's shading in the
-decode, or a flat terrain provider with normals.
+a dark night side, lit as the terrain's is but without its slopes.  (Before
+the patch it was a 0.3 night side.)
 
 Measured (headless Chromium, 640×400, 30,000 km, Earth's own imagery from
 the bundle and ion's imagery refused):
@@ -942,6 +945,61 @@ but no more detailed.  `tileCacheSize` and the load queues were not the
 problem (the cache trims only tiles unused this frame; these were all in
 use), and clamping the frustum handed to Cesium would have widened what it
 draws, not just what it selects.
+
+## Patching Cesium
+
+Some of what celestiary needs from Cesium is a change to Cesium itself, not
+a setting.  Those changes live as branches of our fork,
+[celestiary/cesium](https://github.com/celestiary/cesium), and reach the
+app as [patch-package](https://github.com/ds300/patch-package) patches on
+`@cesium/engine`, applied by `postinstall` on every `yarn install`.  Each
+is also proposed upstream, and its patch goes when a Cesium release that
+has it does.
+
+- **Why patches, not a published fork.** `@cesium/engine` ships its
+  `Source/` as ES modules and its shaders as `Source/Shaders/*.js`
+  strings, and esbuild bundles them from there (`import('cesium')` →
+  `cesium/Source/Cesium.js` → `@cesium/engine`).  So a patch to the engine
+  reaches the bundle without building Cesium.  What it can't reach is the
+  prebuilt web workers in `cesium/Build/Cesium/Workers` (copied by
+  `esbuild/cesiumAssets.js`): a fix there needs a built fork.
+- **The fork's branches.** Each fix is a branch off the release tag we pin
+  (`1.145` for `cesium@1.145.0`, `@cesium/engine@26.3.0`), named
+  `celestiary/<fix>`, with its Cesium specs, and the same commit
+  rebased on Cesium's `main` for the upstream PR (with its `CHANGES.md`
+  line).
+- **Making the patch.** Copy the branch's changed files into
+  `node_modules/@cesium/engine` (a shader edit means copying the generated
+  `Source/Shaders/<Name>.js`, from `npx gulp build` in the fork), then
+  `npx patch-package @cesium/engine`.  One patch file holds every fix for
+  the engine version.  `js/scene/cesium/cesiumPatches.test.js` checks the
+  patched lines are in `node_modules`, so a checkout installed without
+  the hook (`--ignore-scripts`) fails a test rather than rendering
+  Cesium's unpatched behaviour.
+- **Upgrading Cesium.** patch-package refuses a patch for another
+  version, loudly.  Drop the fixes the new release has; rebase the
+  others' branches onto its tag, rerun their specs, regenerate the patch.
+- **Running a fork branch's specs** (headless): `npm install
+  --ignore-scripts` (Cesium keeps no lockfile; pin `draco3d@1.5.7` if the
+  spec build can't resolve `node:fs`), `npx gulp build` (the test task
+  doesn't rebuild the workspace's spec bundle), then
+  `CHROME_BIN=<chromium> npx gulp test --workspace @cesium/engine
+  --includeName Scene/GlobeSpec --browsers <launcher>` with a
+  `ChromeHeadless` launcher in `Specs/karma.conf.cjs` that passes
+  `--use-angle=swiftshader --enable-unsafe-swiftshader --no-sandbox`
+  (local only; not committed).
+
+| Patch | Fork branch | What it fixes | Upstream |
+|---|---|---|---|
+| The ellipsoid's lighting follows the globe's settings | `celestiary/globe-daynight-lighting` | Without vertex normals the globe's day-night shading was a hard-coded `clamp(5 × Lambert + 0.3)`: its floor is now `vertexShadowDarkness`, its multiplier a new `dayNightLambertDiffuseMultiplier` (defaults unchanged) | not yet proposed |
+
+Candidates for later patches, by how much celestiary code each would
+remove: a tone-map-free HDR output (the log encoding and the sRGB
+pre-compensation, Precision above); an emissive night imagery layer (the
+night lights' second frame); a per-scene ellipsoid in place of the global
+`Ellipsoid.default`; OIT that keeps coverage alpha; a narrow-field detail
+cap with a traversal that reads terrain availability (#176); an ion
+imagery layer that asks for its endpoint only when a tile needs it.
 
 ## Phases
 

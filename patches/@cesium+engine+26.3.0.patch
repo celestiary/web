@@ -1,0 +1,129 @@
+diff --git a/node_modules/@cesium/engine/Source/Scene/Globe.js b/node_modules/@cesium/engine/Source/Scene/Globe.js
+index 31b71e4..d4eb766 100644
+--- a/node_modules/@cesium/engine/Source/Scene/Globe.js
++++ b/node_modules/@cesium/engine/Source/Scene/Globe.js
+@@ -168,13 +168,27 @@ function Globe(ellipsoid) {
+   /**
+    * A multiplier to adjust terrain lambert lighting.
+    * This number is multiplied by the result of <code>czm_getLambertDiffuse</code> in GlobeFS.glsl.
+-   * This only takes effect when <code>enableLighting</code> is <code>true</code>.
++   * This only takes effect when <code>enableLighting</code> is <code>true</code> and the
++   * terrain has vertex normals; without them, see {@link Globe#dayNightLambertDiffuseMultiplier}.
+    *
+    * @type {number}
+    * @default 0.9
+    */
+   this.lambertDiffuseMultiplier = 0.9;
+ 
++  /**
++   * A multiplier to adjust lambert lighting when the terrain has no vertex normals,
++   * such as the {@link EllipsoidTerrainProvider}, or terrain requested without
++   * <code>requestVertexNormals</code>. The globe is then lit by the ellipsoid's normal,
++   * and this number is multiplied by the result of <code>czm_getLambertDiffuse</code>
++   * in GlobeFS.glsl, in place of {@link Globe#lambertDiffuseMultiplier}.
++   * This only takes effect when <code>enableLighting</code> is <code>true</code>.
++   *
++   * @type {number}
++   * @default 5.0
++   */
++  this.dayNightLambertDiffuseMultiplier = 5.0;
++
+   /**
+    * Enable dynamic lighting effects on atmosphere and fog. This only takes effect
+    * when <code>enableLighting</code> is <code>true</code>.
+@@ -370,7 +384,8 @@ function Globe(ellipsoid) {
+   this._zoomedOutOceanSpecularIntensity = undefined;
+ 
+   /**
+-   * Determines the darkness of the vertex shadow.
++   * Determines the darkness of the vertex shadow: the lighting's floor on the side away
++   * from the light. It applies with or without vertex normals.
+    * This only takes effect when <code>enableLighting</code> is <code>true</code>.
+    *
+    * @type {number}
+@@ -1075,6 +1090,8 @@ Globe.prototype.beginFrame = function (frameState) {
+     tileProvider.undergroundColorAlphaByDistance =
+       this._undergroundColorAlphaByDistance;
+     tileProvider.lambertDiffuseMultiplier = this.lambertDiffuseMultiplier;
++    tileProvider.dayNightLambertDiffuseMultiplier =
++      this.dayNightLambertDiffuseMultiplier;
+ 
+     surface.beginFrame(frameState);
+   }
+diff --git a/node_modules/@cesium/engine/Source/Scene/GlobeSurfaceTileProvider.js b/node_modules/@cesium/engine/Source/Scene/GlobeSurfaceTileProvider.js
+index 6ffcbfc..ce0c50b 100644
+--- a/node_modules/@cesium/engine/Source/Scene/GlobeSurfaceTileProvider.js
++++ b/node_modules/@cesium/engine/Source/Scene/GlobeSurfaceTileProvider.js
+@@ -130,6 +130,7 @@ class GlobeSurfaceTileProvider {
+     this.undergroundColorAlphaByDistance = undefined;
+ 
+     this.lambertDiffuseMultiplier = 0.0;
++    this.dayNightLambertDiffuseMultiplier = 5.0;
+ 
+     this.materialUniformMap = undefined;
+     this._materialUniformMap = undefined;
+@@ -2101,6 +2102,9 @@ function createTileUniformMap(frameState, globeSurfaceTileProvider) {
+     u_vertexShadowDarkness: function () {
+       return this.properties.vertexShadowDarkness;
+     },
++    u_dayNightLambertDiffuseMultiplier: function () {
++      return this.properties.dayNightLambertDiffuseMultiplier;
++    },
+     u_vectorSegmentTexture: function () {
+       return (
+         this.properties.vectorSegmentTexture ??
+@@ -2235,6 +2239,7 @@ function createTileUniformMap(frameState, globeSurfaceTileProvider) {
+       undergroundColorAlphaByDistance: new Cartesian4(),
+       lambertDiffuseMultiplier: 0.0,
+       vertexShadowDarkness: 0.0,
++      dayNightLambertDiffuseMultiplier: 0.0,
+ 
+       vectorSegmentTexture: undefined,
+       vectorWidthTexture: undefined,
+@@ -2567,6 +2572,8 @@ function addDrawCommandsForTile(tileProvider, tile, frameState) {
+ 
+   const lambertDiffuseMultiplier = tileProvider.lambertDiffuseMultiplier;
+   const vertexShadowDarkness = tileProvider.vertexShadowDarkness;
++  const dayNightLambertDiffuseMultiplier =
++    tileProvider.dayNightLambertDiffuseMultiplier;
+ 
+   const hasWaterMask = tileProvider.hasWaterMask && defined(waterMaskTexture);
+   const showReflectiveOcean = hasWaterMask && tileProvider.showWaterEffect;
+@@ -2889,6 +2896,8 @@ function addDrawCommandsForTile(tileProvider, tile, frameState) {
+ 
+     uniformMapProperties.lambertDiffuseMultiplier = lambertDiffuseMultiplier;
+     uniformMapProperties.vertexShadowDarkness = vertexShadowDarkness;
++    uniformMapProperties.dayNightLambertDiffuseMultiplier =
++      dayNightLambertDiffuseMultiplier;
+ 
+     const highlightFillTile =
+       !defined(surfaceTile.vertexArray) &&
+diff --git a/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js b/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js
+index 9f5ad1c..8429f27 100644
+--- a/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js
++++ b/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js
+@@ -125,6 +125,15 @@ uniform vec4 u_undergroundColorAlphaByDistance;\n\
+ // The hasVertexNormals flag is from the tileProvider\n\
+ #ifdef ENABLE_VERTEX_LIGHTING\n\
+ uniform float u_lambertDiffuseMultiplier;\n\
++#endif\n\
++\n\
++// Without vertex normals (ENABLE_DAYNIGHT_SHADING) the globe is lit from the\n\
++// ellipsoid's normal, with its own multiplier, and the same shadow floor.\n\
++#ifdef ENABLE_DAYNIGHT_SHADING\n\
++uniform float u_dayNightLambertDiffuseMultiplier;\n\
++#endif\n\
++\n\
++#if defined(ENABLE_VERTEX_LIGHTING) || defined(ENABLE_DAYNIGHT_SHADING)\n\
+ uniform float u_vertexShadowDarkness;\n\
+ #endif\n\
+ \n\
+@@ -433,7 +442,7 @@ void main()\n\
+     float diffuseIntensity = clamp(czm_getLambertDiffuse(czm_lightDirectionEC, normalize(v_normalEC)) * u_lambertDiffuseMultiplier + u_vertexShadowDarkness, 0.0, 1.0);\n\
+     vec4 finalColor = vec4(color.rgb * czm_lightColor * diffuseIntensity, color.a);\n\
+ #elif defined(ENABLE_DAYNIGHT_SHADING)\n\
+-    float diffuseIntensity = clamp(czm_getLambertDiffuse(czm_lightDirectionEC, normalEC) * 5.0 + 0.3, 0.0, 1.0);\n\
++    float diffuseIntensity = clamp(czm_getLambertDiffuse(czm_lightDirectionEC, normalEC) * u_dayNightLambertDiffuseMultiplier + u_vertexShadowDarkness, 0.0, 1.0);\n\
+     diffuseIntensity = mix(1.0, diffuseIntensity, fade);\n\
+     vec4 finalColor = vec4(color.rgb * czm_lightColor * diffuseIntensity, color.a);\n\
+ #else\n\

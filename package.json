@@ -18,6 +18,7 @@
     "clean": "rm -rf docs ; cp -r public docs",
     "lint": "yarn eslint js",
     "prepare": "git config core.hooksPath hooks",
+    "postinstall": "patch-package",
     "precommit": "yarn lint && yarn test && yarn bundle-check",
     "serve": "yarn build && node esbuild/serve.js",
     "serve:https": "yarn build && DEV_HTTPS_KEY=dev-certs/key.pem DEV_HTTPS_CERT=dev-certs/cert.pem node esbuild/serve.js",
@@ -71,6 +72,7 @@
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react": "7.37.3",
     "eslint-plugin-react-hooks": "5.1.0",
+    "patch-package": "^8.0.1",
     "playwright": "1.56.1"
   },
   "resolutions": {
