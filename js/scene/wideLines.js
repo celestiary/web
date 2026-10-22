@@ -94,6 +94,11 @@ const vertexShader = `
   uniform float uPulseHop;
   uniform float uTrail;
   uniform vec4 uOverride;
+  // A strip's fade with distance from a point (its model space): opacity
+  // from 1 there to uFadeMin at uFadeRange, off while uFadeRange is 0.
+  uniform vec3 uFadeCentre;
+  uniform float uFadeRange;
+  uniform float uFadeMin;
   attribute vec3 corner;
 #ifdef STRIP
   attribute vec3 stripStart;
@@ -194,6 +199,12 @@ const vertexShader = `
 
     vColor = mix(mix(color, vec3(1.0), ${PULSE_WHITEN} * boost), uOverride.rgb, uOverride.a);
     vAlpha = max(uOpacity, boost);
+#ifdef STRIP
+    if (uFadeRange > 0.0) {
+      float far = length((atEnd ? stripEnd : stripStart) - uFadeCentre) / uFadeRange;
+      vAlpha *= mix(1.0, uFadeMin, clamp(far, 0.0, 1.0));
+    }
+#endif
     vSide = corner.x;
     vHalf = halfW;
   }
@@ -460,6 +471,9 @@ function newWideLineMaterial(params = {}) {
       uPulseHop: {value: 0},
       uTrail: {value: 0},
       uOverride: {value: new Vector4(0, 0, 0, 0)},
+      uFadeCentre: {value: new Vector3()},
+      uFadeRange: {value: 0},
+      uFadeMin: {value: 1},
     },
     vertexShader,
     fragmentShader,
