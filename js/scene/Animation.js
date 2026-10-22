@@ -1,11 +1,12 @@
-import {Object3D, Quaternion, Vector3} from 'three'
+import {Matrix4, Object3D, Quaternion, Vector3} from 'three'
 import * as Shared from '../shared'
 import debug from '../debug'
 import {J2000_JD, gmstRad, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
 import {moonScenePosition} from './lunarTheory.js'
 import {BodyLine, fineSteps} from './bodyLine.js'
 import {equatorQuaternion, poleAndMeridian, textureTurn} from './iauRotation.js'
-import {orbitAt} from './meanElements.js'
+import {eccentricAnomaly, orbitAt} from './meanElements.js'
+import {elementsFromState, elementsOfDate} from './orbitElements.js'
 import {PLANET_NAMES, planetsApprox} from './planetsApprox.js'
 import {
   JUPITER_SATURN_SAMPLES,
@@ -22,6 +23,25 @@ const SECONDS_PER_DAY = 86400
 // The Moon's share of the Earth-Moon mass, 1 / (1 + M_Earth / M_Moon):
 // Earth's wobble about the barycentre is this much of the Moon's position.
 const MOON_MASS_FRACTION = 1 / (1 + 81.30056)
+// For the osculating elements (orbitElements): G(M + m), m³/day².  The
+// Sun's with each planet's mass (the Sun over the planet, IAU 2009; Earth's
+// is the Earth-Moon barycentre's), and the Earth's and Moon's together
+// (DE430: 398600.435 + 4902.800 km³/s²).
+const SUN_PER_PLANET = {
+  mercury: 6023597.4, venus: 408523.72, earth: 328900.56, mars: 3098703.6,
+  jupiter: 1047.3486, saturn: 3497.9018, uranus: 22902.98, neptune: 19412.26,
+}
+const EARTH_MOON_GM_M3_PER_DAY2 = 4.03503235e14 * SECONDS_PER_DAY * SECONDS_PER_DAY
+// Osculating elements are made again when the date has moved this fraction
+// of the period (the Moon's every frame the date moves: a call costs ~10 µs),
+// and a planet's no more than this often, since VSOP87C costs ~2 ms a call;
+// between, the body is run on along the last ellipse.
+const ELEMENTS_STEP_PERIODS = 1e-5
+const ELEMENTS_MIN_MS = 250
+// An orbit diagram marks the body's offset from its elements' place past
+// this: Earth's 4,700 km from the Earth-Moon barycentre, not a planet's
+// kilometre of finite-difference error.
+const BODY_OFFSET_SHOWN_M = 100e3
 
 // A mean-element line's ellipse is redrawn when its eccentricity has
 // drifted (Pluto's, by Standish's rates) enough to move it by this much of
@@ -100,6 +120,7 @@ export default class Animation {
     this._orbitPos = new Vector3
     this._lineBody = new Vector3
     this._invQuat = new Quaternion
+    this._invMat = new Matrix4
     // A body's pole and meridian, from poleAndMeridian.
     this._pm = {ra: 0, dec: 0, w: 0}
     // Orbit line rebuilds, run within a per-frame budget.
@@ -361,6 +382,9 @@ export default class Animation {
         debug().log(`SMA: ${system.orbit.semiMajorAxis.scalar}, syspos: ${system.position}, ` +
                     `vsopCoord: ${vsopCoord}, delta: ${vsopCoord.x - x}, ${vsopCoord.y - y}, ${vsopCoord.z - z}`)
       }
+      if (system.orbitDiagram?.visible) {
+        this.layOrbitDiagram(system)
+      }
       if (system.postAnimCb) {
         system.postAnimCb(system)
       }
@@ -501,6 +525,120 @@ export default class Animation {
 
 
   /**
+   * A body's orbital elements now (orbitElements.js), for its diagram and
+   * the info panel.  The planets' and the Moon's are osculating: the
+   * ellipse through the place and velocity their ephemeris gives (VSOP87C,
+   * or the stand-in before it loads; the lunar theory), so the diagram meets
+   * the body however close the view.  Earth's are the Earth-Moon
+   * barycentre's, which is inside the Earth: osculating to the Earth itself
+   * would wobble its perihelion by a degree each month.  The rest (Pluto,
+   * the moons) are placed by their mean elements, which are theirs.
+   *
+   * @param {string} name
+   * @param {object} orbit its `orbit` block
+   * @returns {object|null} elementsOfDate's form
+   */
+  orbitElements(name, orbit) {
+    const jd = this.jd
+    const osculates = name === 'moon' || SUN_PER_PLANET[name] !== undefined
+    if (!osculates || jd === null) {
+      return elementsOfDate(name, orbit, this.jde)
+    }
+    this._elements ??= new Map
+    const cached = this._elements.get(name)
+    const periodDays = Number(orbit.siderealOrbitPeriod?.scalar ?? orbit.siderealOrbitPeriod) / SECONDS_PER_DAY
+    const now = this.clock()
+    if (cached && cached.jd === jd && cached.vsop === this.vsopReady()) {
+      return cached.el
+    }
+    // Made again when the date has moved on, and once VSOP87C is in: a set
+    // made from the stand-in is ~10,000 km off Earth's place.
+    const due = !cached || cached.vsop !== this.vsopReady() ||
+      Math.abs(jd - cached.anchorJd) > ELEMENTS_STEP_PERIODS * periodDays
+    const throttled = name !== 'moon' && cached && cached.vsop === this.vsopReady() &&
+      now - cached.ms < ELEMENTS_MIN_MS && Math.abs(jd - cached.anchorJd) < periodDays / 4
+    if (due && !throttled) {
+      const el = this._osculate(name, orbit, jd, periodDays)
+      if (el) {
+        this._elements.set(name, {jd, anchorJd: jd, ms: now, el, anchor: el, vsop: this.vsopReady()})
+        return el
+      }
+    }
+    if (!cached) {
+      return elementsOfDate(name, orbit, this.jde)
+    }
+    // Run on along the last ellipse: the mean anomaly at the mean motion.
+    const {anchor, anchorJd} = cached
+    const n = Math.sqrt(anchor.mu / (anchor.a ** 3)) * 180 / Math.PI
+    const m = anchor.m + (n * (jd - anchorJd))
+    const el = {...anchor, ...runOn(anchor, m)}
+    this._elements.set(name, {...cached, jd, el})
+    return el
+  }
+
+
+  /**
+   * @param {string} name
+   * @param {object} orbit
+   * @param {number} jd Julian Day (UTC)
+   * @param {number} periodDays
+   * @returns {object|null}
+   */
+  _osculate(name, orbit, jd, periodDays) {
+    const dt = periodDays * 1e-3
+    let at
+    let mu
+    if (name === 'moon') {
+      at = (t, target) => moonScenePosition(utcToTtJulianDay(t), target)
+      mu = EARTH_MOON_GM_M3_PER_DAY2
+    } else {
+      const moon = new Vector3
+      at = (t, target) => {
+        vsopScene(this.vsopAt(t)[name], target)
+        // Earth's: the Earth-Moon barycentre's.
+        return name === 'earth' ?
+          target.addScaledVector(moonScenePosition(utcToTtJulianDay(t), moon), MOON_MASS_FRACTION) : target
+      }
+      mu = SUN_GM_M3_PER_DAY2 * (1 + (1 / SUN_PER_PLANET[name]))
+    }
+    const r = at(jd, new Vector3)
+    const v = at(jd + dt, new Vector3).sub(at(jd - dt, new Vector3)).divideScalar(2 * dt)
+    const el = elementsFromState(name, orbit, r, v, mu)
+    return el ? {...el, mu} : null
+  }
+
+
+  /**
+   * Lay a body's orbit diagram (Scene._syncOrbitDiagrams) on its elements
+   * now (orbitElements), in the scene's frame: the elements' reference
+   * plane turned to the ecliptic of J2000 and on by the precession, as
+   * placeByElements turns the orbit, or, for those of date (osculating, the
+   * Moon's), as they are.
+   *
+   * @param {Object3D} orbitPosition with `orbitDiagram`
+   */
+  layOrbitDiagram(orbitPosition) {
+    const diagram = orbitPosition.orbitDiagram
+    const el = this.orbitElements(orbitPosition.name.split('.')[0], orbitPosition.orbit)
+    if (!el) {
+      diagram.visible = false
+      return
+    }
+    diagram.setElements(el)
+    diagram.scale.setScalar(el.a)
+    diagram.quaternion.copy(el.frame)
+    if (!el.ofDate) {
+      diagram.quaternion.premultiply(this.precession)
+    }
+    // Where the elements' place isn't the body (Earth's: the Earth-Moon
+    // barycentre's), mark the way to the body.
+    diagram.updateMatrix()
+    const body = this._tmpVec.copy(orbitPosition.position).applyMatrix4(this._invMat.copy(diagram.matrix).invert())
+    diagram.setBodyOffset(body.distanceTo(diagram.anchors.body) * el.a > BODY_OFFSET_SHOWN_M ? body : null)
+  }
+
+
+  /**
    * Lay an orbit line (Planet.newOrbit's flat unit ellipse, centred on its
    * parent, major axis along +X, in the XZ plane) on an orbit: rotated by
    * quat, scaled to a, and shifted so the primary is at the focus.  The
@@ -597,4 +735,20 @@ function fetchVsop() {
     loadingVsop = null
   })
   return loadingVsop
+}
+
+
+/**
+ * An element set's mean anomaly moved on, and what follows from it.
+ *
+ * @param {object} el orbitElements.js's form
+ * @param {number} mDeg the new mean anomaly, degrees
+ * @returns {{m: number, nu: number, meanLongitude: number}}
+ */
+function runOn(el, mDeg) {
+  const m = ((mDeg % 360) + 360) % 360
+  const E = eccentricAnomaly(m * Math.PI / 180, el.e)
+  const nu = 2 * Math.atan2(Math.sqrt(1 + el.e) * Math.sin(E / 2), Math.sqrt(1 - el.e) * Math.cos(E / 2)) *
+    180 / Math.PI
+  return {m, nu: ((nu % 360) + 360) % 360, meanLongitude: (((el.peri + m) % 360) + 360) % 360}
 }

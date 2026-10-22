@@ -11,6 +11,9 @@ import ColonizationLines from './ColonizationLines.js'
 import Galaxies, {galaxiesInView} from './Galaxies.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
+import OrbitDiagram from './orbitDiagram.js'
+import {CODES, keyOfCode} from './orbitElements.js'
+import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
 import Star from './Star.js'
@@ -27,6 +30,23 @@ import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
+
+
+const ELEMENT_CODE_SET = new Set(CODES)
+
+
+/**
+ * @param {object} [body] a body's props
+ * @param {object} [primary] its primary's
+ * @returns {number} the body's share of the two's mass, m / (M + m), or 0
+ *     without both masses
+ */
+function massRatio(body, primary) {
+  const mass = (props) => Number(props?.mass?.scalar ?? props?.mass)
+  const m = mass(body)
+  const total = m + mass(primary)
+  return m > 0 && total > 0 ? m / total : 0
+}
 
 
 /** Default observer altitude for Scene.land — eye height. */
@@ -162,6 +182,15 @@ export default class Scene {
     // Set by Celestiary; called whenever any settings flag flips so the
     // permalink can be updated.
     this.onSettingsChange = null
+    // The orbital elements lit on each body's orbit (showOrbitElements):
+    // body name → Set of element codes (orbitElements.js ELEMENT_CODES),
+    // in the link as the `orbits:` token; and the one a hover previews.
+    this._orbitElements = new Map
+    this._orbitPreview = null
+    // The diagrams' opacity at the far side of their orbits (setOrbitFade).
+    this._orbitFade = ORBIT_FADE_DEFAULT
+    // The bodies whose orbit diagrams are showing.
+    this._orbitDiagramBodies = new Set
     // Set by Celestiary; called with ('track' | 'follow', on) when 't' or
     // 'f' (or a link) switches that mode, for the readout.
     this.onModeChange = null
@@ -531,6 +560,10 @@ export default class Scene {
     if (name === 'sun') {
       this._joinOverlay('o', this.objects['sun']?.sunLayers?.wind)
     }
+    // A link's lit elements for a body that has only now loaded.
+    if (this._orbitElements.has(name)) {
+      this._syncOrbitDiagrams()
+    }
     return obj3d
   }
 
@@ -606,6 +639,181 @@ export default class Scene {
       obj.props = props
     }
     return obj
+  }
+
+
+  /**
+   * The orbital elements lit on a body's orbit (orbitDiagram.js), from the
+   * info panel's orbit list: any of a body's six, on any number of bodies
+   * at once, to compare (DESIGN.md "Orbital elements").  Animation lays
+   * each showing diagram on its body's elements of the date every frame
+   * (layOrbitDiagram).
+   *
+   * @param {string} body
+   * @returns {Set<string>} its lit element codes (orbitElements.js ELEMENT_CODES)
+   */
+  orbitElementsOf(body) {
+    return new Set(this._orbitElements.get(body) ?? [])
+  }
+
+
+  /** @returns {Map<string, Set<string>>} every body's lit element codes */
+  getOrbitElements() {
+    return new Map([...this._orbitElements].map(([body, codes]) => [body, new Set(codes)]))
+  }
+
+
+  /**
+   * Light these of a body's elements, and only these; none puts its
+   * diagram away.
+   *
+   * @param {string} body
+   * @param {Array<string>|Set<string>} codes element codes; unknown ones are dropped
+   */
+  setOrbitElements(body, codes) {
+    const valid = new Set([...codes].filter((c) => ELEMENT_CODE_SET.has(c)))
+    if (valid.size > 0) {
+      this._orbitElements.set(body, valid)
+    } else {
+      this._orbitElements.delete(body)
+    }
+    this._syncOrbitDiagrams()
+    this.onSettingsChange?.()
+  }
+
+
+  /**
+   * @param {string} body
+   * @param {string} code
+   */
+  toggleOrbitElement(body, code) {
+    const codes = this.orbitElementsOf(body)
+    if (codes.has(code)) {
+      codes.delete(code)
+    } else {
+      codes.add(code)
+    }
+    this.setOrbitElements(body, codes)
+  }
+
+
+  /** @returns {number} the diagrams' opacity at the far side of their orbits */
+  getOrbitFade() {
+    return this._orbitFade
+  }
+
+
+  /**
+   * Fade every orbit diagram from its body to this opacity at the far side
+   * of its orbit (orbitDiagram.js setFadeMin): 1 is no fade.
+   *
+   * @param {number} fade 0 to 1
+   * @param {boolean} [quiet] Don't announce it (a link putting it back)
+   */
+  setOrbitFade(fade, quiet = false) {
+    this._orbitFade = Math.min(Math.max(Number(fade) || 0, 0), 1)
+    for (const node of Object.values(this.objects)) {
+      node?.orbitDiagram?.setFadeMin(this._orbitFade)
+    }
+    if (!quiet) {
+      this.onSettingsChange?.()
+    }
+  }
+
+
+  /** Put every body's diagram away. */
+  clearOrbitElements() {
+    this._orbitElements.clear()
+    this._syncOrbitDiagrams()
+    this.onSettingsChange?.()
+  }
+
+
+  /**
+   * Put a link's lit elements back (the `orbits:` token), in place of any.
+   *
+   * @param {Map<string, Set<string>>} elements
+   */
+  restoreOrbitElements(elements) {
+    this._orbitElements.clear()
+    for (const [body, codes] of elements) {
+      const valid = [...codes].filter((c) => ELEMENT_CODE_SET.has(c))
+      if (valid.length > 0) {
+        this._orbitElements.set(body, new Set(valid))
+      }
+    }
+    this._syncOrbitDiagrams()
+  }
+
+
+  /**
+   * Light one more element while it's hovered, without keeping it.
+   *
+   * @param {?string} body
+   * @param {?string} code null to end the preview
+   */
+  previewOrbitElement(body, code) {
+    this._orbitPreview = body && code ? {body, code} : null
+    this._syncOrbitDiagrams()
+  }
+
+
+  /**
+   * Show each body's diagram with its lit elements and any preview, made
+   * on first use beside its orbit line (in the primary's frame, on the
+   * overlay layer, as the line is), and hide the rest.  Shown whatever `o`
+   * says: they were asked for.
+   */
+  _syncOrbitDiagrams() {
+    const lit = new Map([...this._orbitElements].map(([body, codes]) => [body, new Set(codes)]))
+    const preview = this._orbitPreview
+    if (preview) {
+      lit.set(preview.body, (lit.get(preview.body) ?? new Set).add(preview.code))
+    }
+    for (const body of this._orbitDiagramBodies) {
+      if (!lit.has(body)) {
+        const diagram = this.objects[`${body}.orbitPosition`]?.orbitDiagram
+        if (diagram) {
+          diagram.visible = false
+        }
+        this._orbitDiagramBodies.delete(body)
+      }
+    }
+    for (const [body, codes] of lit) {
+      const node = this.objects[`${body}.orbitPosition`]
+      if (!node) {
+        // Not loaded yet: add() comes back here when it is.
+        continue
+      }
+      if (!node.orbitDiagram) {
+        const primary = this.objects[body]?.props?.parent
+        node.orbitDiagram = new OrbitDiagram({layer: Shared.OVERLAY_LAYER, labels: {
+          // The moons' elements are in their Laplace plane or equator, from
+          // its node on the ICRF equator; the rest's in the ecliptic.
+          direction: node.orbit?.referencePole ? 'reference direction (node on the ICRF equator)' :
+            '♈︎ vernal equinox',
+          // Earth's osculating elements are the Earth-Moon barycentre's.
+          body: body === 'earth' ? 'Earth–Moon barycentre' : null,
+          barycentre: `${Utils.capitalize(primary ?? '')}–${Utils.capitalize(body)} barycentre`,
+        }})
+        node.orbitDiagram.setMassRatio(massRatio(this.objects[body]?.props, this.objects[primary]?.props))
+        node.orbitDiagram.setFadeMin(this._orbitFade)
+        node.parent.add(node.orbitDiagram)
+      }
+      node.orbitDiagram.highlight([...codes].map((c) => keyOfCode(c, node.orbit)).filter(Boolean))
+      node.orbitDiagram.visible = true
+      this._orbitDiagramBodies.add(body)
+    }
+    // One name for a point two diagrams share: a primary's place on its own
+    // orbit that is the barycentre with its moon (Earth's heliocentric
+    // place, the Earth-Moon barycentre) is named by the moon's diagram.
+    for (const body of this._orbitDiagramBodies) {
+      const diagram = this.objects[`${body}.orbitPosition`]?.orbitDiagram
+      const named = new Set([...this._orbitDiagramBodies]
+          .filter((b) => this.objects[b]?.props?.parent === body)
+          .map((b) => this.objects[`${b}.orbitPosition`]?.orbitDiagram?.litLabel('barycentre')))
+      diagram?.hideLabel?.('body', named.has(diagram.litLabel('body')))
+    }
   }
 
 
