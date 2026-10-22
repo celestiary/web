@@ -1,6 +1,26 @@
 {
   "entries": [
     {
+      "id": "2026-10-22-earth-s-night-side-stays-dark-while-its-terrain",
+      "date": "2026-10-22",
+      "headline": "Earth's night side stays dark while its terrain loads",
+      "text": "Close to Earth, until the detailed terrain arrives (or for good, when it can't load), Earth's night side used to show the daytime surface, dimly, under the city lights, and the city lights looked dimmer for it. The night side is now dark there, as it is once the terrain is in. This is the first fix we make to Cesium, the engine behind Earth's close-up surface, in our own copy of it, and we're offering it to Cesium's authors too.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 275,
+          "url": "https://github.com/celestiary/web/pull/275"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-20-the-stars-arrive-first-and-faster-the-naked-eye",
       "date": "2026-10-20",
       "headline": "The stars arrive first and faster: the naked-eye sky in a tenth of the download",

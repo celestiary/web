@@ -31,6 +31,19 @@ has no view to open yet.
 
 ## October 2026
 
+### Earth's night side stays dark while its terrain loads
+
+Close to Earth, until the detailed terrain arrives (or for good, when it can't load), Earth's night
+side used to show the daytime surface, dimly, under the city lights, and the city lights looked dimmer
+for it. The night side is now dark there, as it is once the terrain is in. This is the first fix we
+make to Cesium, the engine behind Earth's close-up surface, in our own copy of it, and we're offering
+it to Cesium's authors too.
+
+- Date: 2026-10-22
+- PR: [#275](https://github.com/celestiary/web/pull/275)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+
 ### The stars arrive first and faster: the naked-eye sky in a tenth of the download
 
 The star catalogue, 107,000 stars, was the biggest thing the first screen waited for: one 1.8 MB

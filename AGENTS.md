@@ -419,7 +419,13 @@ tried and dropped.
     never a bare relative path. Previews load large data from
     production, so a bare path 404s there.
   - A checkout without git-lfs holds pointer files, not data. Run
-    `git lfs pull`.
+    `git lfs pull`.  Some tests read LFS data (`tools/stars/stars.test.js`
+    reads Gaia's `index.json`) and fail on a pointer.
+  - git-lfs writes its hooks (`post-checkout`, `post-commit`,
+    `post-merge`, `pre-push`) into `hooks/`, the repo's `core.hooksPath`,
+    whenever it runs (`git lfs install`, `git lfs pull`). They're
+    untracked: never commit them. Keep `pre-push` if you commit LFS
+    data, since it uploads the objects; otherwise they can be deleted.
   - A PR that changes files under `public/textures/`,
     `public/data/stars.dat` or `public/large/` gets a full preview copy;
     any other PR previews against production's data.
