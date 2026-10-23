@@ -1,194 +1,229 @@
-import React, {useEffect} from 'react'
-import {AmbientLight, PointLight, Vector3} from 'three'
-import Label from '../scene/label.js'
-import ThreeUi from '../ThreeUI.js'
-import cOrbit from '../scene/Orbit.js'
-import * as Shared from '../shared.js'
-import {planetHelper} from '../scene/scene_utils.js'
-import {angle, arrow, line} from '../scene/shapes.js'
-import {visitFilterProperty} from '../utils.js'
-import {ui as uiId} from './index.module.css'
+import React, {ReactElement, useEffect, useMemo, useState} from 'react'
+import {Html, OrbitControls} from '@react-three/drei'
+import {Canvas, useFrame} from '@react-three/fiber'
+import {J2000_JD} from '../scene/celestialFrame.js'
+import {eccentricAnomaly} from '../scene/meanElements.js'
+import OrbitDiagram from '../scene/orbitDiagram.js'
+import {ORBIT_ELEMENTS, elementsOfDate, formatDistance, keyOfCode, norm360} from '../scene/orbitElements.js'
+import {ORBIT_FADE_DEFAULT, decodeGuideOrbitToken} from '../permalink.js'
+import {PLANET_NAMES} from '../scene/planetsApprox.js'
+import {capitalize} from '../utils.js'
 
 
-/** @returns {React.ReactElement} */
+// The six orbital elements: sliders set them, and clicking rows lights
+// their parts of the diagram, any number at once, a hover previewing one,
+// as the app's info panel does for the bodies' orbits (DESIGN.md "Orbital
+// elements").  With none on, all are drawn.  The app's orbit list links
+// here with a body's orbit at a moment (the `orbit:` token,
+// design/URLs.md), which the page opens on, as the first of its orbits.
+
+
+const TO_RAD = Math.PI / 180
+const SECONDS_PER_ORBIT = 12
+const FIGURE = {name: 'Figure', a: null, e: 0.3, i: 30, node: 300, peri: 50, meanLongitude: 90}
+const PRESETS = [FIGURE, ...PLANET_NAMES.map((name) => {
+  const el = elementsOfDate(name, {eccentricity: 0}, J2000_JD)
+  return {name: capitalize(name), a: el.a, e: el.e, i: el.i, node: el.node, peri: el.peri,
+    meanLongitude: el.meanLongitude}
+})]
+const SLIDERS = {
+  eccentricity: {field: 'e', min: 0, max: 0.95, step: 0.001},
+  inclination: {field: 'i', min: 0, max: 180, step: 0.1},
+  longitudeOfAscendingNode: {field: 'node', min: 0, max: 360, step: 0.1},
+  longitudeOfPericenter: {field: 'peri', min: 0, max: 360, step: 0.1},
+  meanLongitude: {field: 'meanLongitude', min: 0, max: 360, step: 0.1},
+}
+const CONTROLS_WIDTH = '40em'
+const JD_UNIX_EPOCH = 2440587.5
+const MS_PER_DAY = 86400000
+/** The frames the app's elements come in (orbitElements.js `plane`). */
+const PLANE_TEXT = {
+  ecliptic: 'mean elements in the ecliptic and equinox of J2000.',
+  eclipticOfDate: 'osculating elements of the moment, in the ecliptic and equinox of the date.',
+  Laplace: 'mean elements in the moon\'s Laplace plane, from its node on the ICRF equator.',
+  equator: 'mean elements in the planet\'s equator, from its node on the ICRF equator.',
+}
+const LABEL_STYLE = {whiteSpace: 'nowrap', fontSize: 'small', color: '#ddd', pointerEvents: 'none'}
+const ROWS = ['semiMajorAxis', 'eccentricity', 'inclination', 'longitudeOfAscendingNode', 'longitudeOfPericenter',
+  'meanLongitude', 'argumentOfPericenter', 'meanAnomaly']
+
+
+/**
+ * The diagram's elements from the page's: ω = ϖ - Ω, M = L - ϖ, and ν.
+ *
+ * @param {object} s
+ * @returns {object}
+ */
+function diagramElements(s) {
+  const w = norm360(s.peri - s.node)
+  const m = norm360(s.meanLongitude - s.peri)
+  const E = eccentricAnomaly(m * TO_RAD, s.e)
+  const nu = norm360(2 * Math.atan2(Math.sqrt(1 + s.e) * Math.sin(E / 2), Math.sqrt(1 - s.e) * Math.cos(E / 2)) / TO_RAD)
+  return {e: s.e, i: s.i, node: s.node, w, m, nu}
+}
+
+
+/**
+ * The orbit a link from the app brings, as a preset, and its lit elements.
+ *
+ * @returns {?{preset: object, lit: Set<string>, plane: ?string}}
+ */
+function linkedOrbit() {
+  const o = decodeGuideOrbitToken(typeof location === 'undefined' ? '' : location.hash)
+  if (!o) {
+    return null
+  }
+  const when = Number.isFinite(o.jd) ? new Date((o.jd - JD_UNIX_EPOCH) * MS_PER_DAY).toISOString().slice(0, 16)
+      .replace('T', ' ') : null
+  const name = `${capitalize(o.body ?? 'linked orbit')}${when ? `, ${when} UTC` : ''}`
+  // A moon's elements are ω and M, from its plane's node on the ICRF equator.
+  const satellite = o.plane === 'Laplace' || o.plane === 'equator'
+  const lit = new Set([...o.lit].map((c) => keyOfCode(c, satellite ? {referencePole: true} : {})).filter(Boolean))
+  return {preset: {name, a: o.a, e: o.e, i: o.i, node: o.node, peri: o.peri, meanLongitude: o.meanLongitude},
+    lit, plane: o.plane}
+}
+
+
+/** @returns {ReactElement} */
 export default function Orbit() {
-  useEffect(() => setup(), [])
+  const linked = useMemo(linkedOrbit, [])
+  const presets = useMemo(() => (linked ? [linked.preset, ...PRESETS] : PRESETS), [linked])
+  const [state, setState] = useState(linked?.preset ?? FIGURE)
+  const [hovered, setHovered] = useState(null)
+  const [pinned, setPinned] = useState(() => new Set(linked?.lit ?? []))
+  const [running, setRunning] = useState(false)
+  // The diagram's opacity at the far side of the orbit, as the app's.
+  const [fade, setFade] = useState(ORBIT_FADE_DEFAULT)
+  const diagram = useMemo(() => new OrbitDiagram({body: true, screen: true}), [])
+  const el = diagramElements(state)
+  const lit = new Set(pinned)
+  if (hovered) {
+    lit.add(hovered)
+  }
+  const litKey = [...lit].sort().join(',')
+  // In render, so the labels below read this state's anchors.
+  diagram.setElements(el)
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => diagram.highlight(lit.size > 0 ? lit : null), [diagram, litKey])
+  useEffect(() => diagram.setFadeMin(fade), [diagram, fade])
+  useEffect(() => () => diagram.dispose(), [diagram])
+
+  const values = {
+    semiMajorAxis: state.a ? formatDistance(state.a) : '1 (the unit)',
+    eccentricity: state.e.toFixed(3),
+    inclination: `${state.i.toFixed(1)}°`,
+    longitudeOfAscendingNode: `${state.node.toFixed(1)}°`,
+    longitudeOfPericenter: `${state.peri.toFixed(1)}°`,
+    meanLongitude: `${state.meanLongitude.toFixed(1)}° · true λ ${norm360(state.peri + el.nu).toFixed(1)}°`,
+    argumentOfPericenter: `${el.w.toFixed(1)}° = ϖ − Ω`,
+    meanAnomaly: `${el.m.toFixed(1)}° = L − ϖ · true ν ${el.nu.toFixed(1)}°`,
+  }
+
   return (
     <>
       <h1>Orbit</h1>
-      <div id={uiId}></div>
-      <p>An example orbit.<br/>
-        <a href="https://en.wikipedia.org/wiki/Orbital_elements">https://en.wikipedia.org/wiki/Orbital_elements</a>
-          <br/>
-        <img src="images/Orbit1.png"
-          style={{width: '400px'}}
-          alt="By Lasunncty at the English Wikipedia, CC BY-SA 3.0, https://commons.wikimedia.org/w/index.php?curid=8971052"/>
-      </p>
-      <table style={{width: '20%', verticalAlign: 'top'}}>
-        <tbody>
-          <tr>
-            <td>
-              <table id="faves"></table>
-            </td>
-            <td style={{width: '80%'}}>
-              <form name="elts">
-                <table id="propsTable"></table>
-              </form>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <em style={{fontSize: 'small'}}>(<a href={`${location.pathname}#test`}>emulate image above</a> and refresh)</em>
+      <p>Six numbers place a body on a Kepler orbit: its size <b>a</b> and shape <b>e</b>, the tilt <b>i</b> and
+        turn <b>Ω</b> of its plane, where in that plane it comes closest (<b>ϖ</b>, or <b>ω</b> from the node), and
+        where the body is (<b>L</b>, or <b>M</b> from pericentre).  Click elements to light them, as many as you like;
+        hover to preview one.  The
+        app does the same for any body, several at once: open its info panel&apos;s <i>orbit</i> list.
+        See <a href="https://en.wikipedia.org/wiki/Orbital_elements">Orbital elements</a>.</p>
+      {/* The controls are a fixed width, their values in fixed cells, so
+          the layout doesn't reflow as the values change (run). */}
+      <div style={{display: 'flex', flexWrap: 'wrap', gap: '1em', alignItems: 'flex-start'}}>
+        <div style={{width: 'min(640px, 100%)', height: '480px', background: 'black'}}>
+          <Canvas camera={{position: [1.9, 1.8, 3.1], fov: 45, near: 0.01, far: 100}}>
+            <primitive object={diagram}/>
+            <Labels diagram={diagram} plane={state.name === linked?.preset.name ? linked.plane : null}/>
+            {running && <Run setState={setState}/>}
+            <OrbitControls/>
+          </Canvas>
+        </div>
+        <div style={{width: CONTROLS_WIDTH, maxWidth: '100%'}}>
+          <label>Orbit: <select
+            value={state.name}
+            onChange={(ev) => setState(presets.find((p) => p.name === ev.target.value))}>
+            {presets.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+          </select></label>
+          <label style={{marginLeft: '1em'}}><input type="checkbox" checked={running}
+            onChange={(ev) => setRunning(ev.target.checked)}/> run</label>
+          <label style={{marginLeft: '1em', whiteSpace: 'nowrap'}}>far side <input type="range" min="0" max="100"
+            step="5" value={Math.round(fade * 100)} style={{width: '6em', verticalAlign: 'middle'}}
+            onChange={(ev) => setFade(Number(ev.target.value) / 100)}/> {Math.round(fade * 100)}%</label>
+          {linked && state.name === linked.preset.name &&
+            <p style={{fontSize: 'small', color: '#aaa'}}>From the app: {PLANE_TEXT[linked.plane] ?? ''}</p>}
+          <table style={{tableLayout: 'fixed', width: '100%', fontVariantNumeric: 'tabular-nums'}}>
+            <colgroup>
+              <col style={{width: '3em'}}/>
+              <col style={{width: '35%'}}/>
+              <col style={{width: '9em'}}/>
+              <col/>
+            </colgroup>
+            <tbody>
+              {ROWS.map((key) => {
+                const info = ORBIT_ELEMENTS[key]
+                const slider = SLIDERS[key]
+                const isLit = lit.has(key)
+                return (
+                  <tr key={key}
+                    onPointerEnter={() => setHovered(key)}
+                    onPointerLeave={() => setHovered(null)}
+                    onClick={() => setPinned((p) => {
+                      const next = new Set(p)
+                      if (next.has(key)) {
+                        next.delete(key)
+                      } else {
+                        next.add(key)
+                      }
+                      return next
+                    })}
+                    style={{cursor: 'pointer', background: isLit ? 'rgba(255,255,255,0.12)' : 'none'}}>
+                    <td><span style={{color: `#${info.color.toString(16).padStart(6, '0')}`}}>■</span>
+                      {' '}<b>{info.symbol}</b></td>
+                    <td>{info.name}</td>
+                    <td>{slider && <input type="range" min={slider.min} max={slider.max} step={slider.step}
+                      value={state[slider.field]}
+                      onChange={(ev) => setState({...state, name: state.name, [slider.field]: Number(ev.target.value)})}/>}
+                    </td>
+                    <td style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{values[key]}</td>
+                  </tr>)
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </>)
 }
 
 
-/** Initialize threejs helpers and load orbit */
-function setup() {
-  const ui = new ThreeUi(uiId)
-  ui.camera.position.set(1, 1, 3)
-  ui.camera.lookAt(0, 0, 0)
-  // ui.scene.add(new AmbientLight())
-  ui.scene.add(new PointLight(0xffffff, 1e6, 0))
-
-  function setupProps(orbitProps) {
-    const tau = Math.PI * 2
-    const tauInDeg = 360
-    const elementMaxes = {
-      siderealOrbitPeriod: 7.8184256184e9,
-      eccentricity: 1,
-      inclination: tauInDeg,
-      longitudeOfAscendingNode: tauInDeg,
-      longitudeOfPericenter: tauInDeg,
-      meanLongitude: tauInDeg,
-      semiMajorAxis: 5.86966e12,
-    }
-    document.onSlider = (sliderElt, propName, maxValue) => {
-      const value = sliderElt.value / 100 * elementMaxes[propName]
-      orbitProps[propName] = document.forms.elts[propName].value = value
-      show(orbitProps)
-    }
-    document.onInput = (inputElt, propName, ma) => {
-      orbitProps[propName] = inputElt.value
-      document.forms.elts[propName + '-slider'].value = inputElt.value / elementMaxes[propName] * 100
-      show(orbitProps)
-    }
-    propsTable.innerHTML = ''
-    for (const propName in elementMaxes) {
-      const maxValue = elementMaxes[propName]
-      const propsTable = document.getElementById('propsTable')
-      const value = orbitProps[propName]
-      const sliderValue = value / maxValue * 100
-      propsTable.innerHTML +=
-        `<tr>
-           <td>${propName}:
-           <td><input type="range" min="0" max="100" name="${propName}-slider" value="${sliderValue}"
-                  oninput="document.onSlider(this, '${propName}')"/>
-           <td><input name="${propName}" value="${value}" oninput="document.onInput(this, '${propName}')"/>
-         </tr>`
-    }
-  }
+/**
+ * The reference direction, node and pericentre, named in place.
+ *
+ * @param {object} props
+ * @returns {ReactElement}
+ */
+function Labels({diagram, plane}) {
+  const an = diagram.anchors
+  const satellite = plane === 'Laplace' || plane === 'equator'
+  return (
+    <>
+      <Html position={an.direction.toArray()} style={{...LABEL_STYLE, transform: 'translate(-50%, -150%)'}}>
+        {satellite ? 'reference direction (node on the ICRF equator)' : '♈︎ reference direction'}
+      </Html>
+      <Html position={an.ascendingNode.toArray()} style={LABEL_STYLE}>☊ ascending node</Html>
+      <Html position={an.pericentre.toArray()} style={LABEL_STYLE}>pericentre</Html>
+    </>)
+}
 
 
-  let curOrbit; let curPlanet
-  function show(orbitProps) {
-    const orbit = new cOrbit(orbitProps)
-    visitFilterProperty(orbit, 'name', 'referencePlane', (o) => {
-      const opts = {
-        text: 'Ω Longitude of ascending node',
-        color: 'green',
-        padding: [-0.5, -0.5],
-      }
-      o.add(arrow(new Vector3(1.1, 0, 0), new Vector3(), 0xff0000, '♈︎Reference direction'))
-      o.add(angle(orbit.propsReified.loan, null, opts, opts))
-    })
-    visitFilterProperty(orbit, 'name', 'orbitalPlane', (o) => {
-      const opts = {
-        text: 'ω Argument of periapsis',
-        color: 'blue',
-        padding: [-0.5, -0.5],
-      }
-      const lop = orbit.propsReified.lop
-      const radiusOfPeriapsis = line(1, 0, 0, {color: 'blue'})
-      radiusOfPeriapsis.rotation.z = lop
-      o.add(radiusOfPeriapsis)
-      o.add(angle(lop, null, opts, opts))
-      const an = new Label('☊ Ascending node', {fillStyle: 'green'})
-      an.position.set(1, 0, 0)
-      an.rotation.z = orbit.propsReified.loan
-      o.add(an)
-    })
-    if (curOrbit) {
-      ui.scene.remove(curOrbit)
-    }
-    curOrbit = orbit
-    ui.scene.add(curOrbit)
-    if (curPlanet) {
-      curOrbit.addOrbiter(curPlanet)
-    }
-  }
-
-
-  if (location.hash == '#test') {
-    // Similar to graphic at https://en.wikipedia.org/wiki/Orbital_elements
-    const testOrbit = {
-      siderealOrbitPeriod: 0,
-      eccentricity: 1,
-      inclination: 30,
-      longitudeOfAscendingNode: 300,
-      longitudeOfPericenter: 110,
-      meanLongitude: 0,
-      semiMajorAxis: {scalar: 1},
-    }
-    setupProps(testOrbit)
-    show(testOrbit)
-    document.orbit = testOrbit
-  } else {
-    planetHelper('earth', (p) => {
-      setupProps(p.props.orbit)
-      show(p.props.orbit)
-      curPlanet = p
-      curPlanet.orbit = curOrbit
-      curPlanet.scale.setScalar(1e-8)
-      curOrbit.addOrbiter(curPlanet)
-      console.log('planet setup done', curPlanet);
-    })
-  }
-
-
-  const anim = () => {
-    // console.log('animating...');
-    const simTimeSecs = Date.now() * 1000
-    // console.log('animating...', simTimeSecs);
-    if (curPlanet == undefined) {
-      // console.log('no system defined...');
-      return
-    }
-    if (curPlanet.siderealRotationPeriod) {
-      // console.log('has rotation!');
-      // console.log(curPlanet.siderealRotationPeriod);
-      // http://hpiers.obspm.fr/eop-pc/index.php?index=orientation
-      const angle = 1.5 * Math.PI + simTimeSecs / 86400 * Shared.twoPi
-      curPlanet.setRotationFromAxisAngle(this.Y_AXIS, angle)
-    }
-
-    // This is referred to by a comment in scene.js#addOrbitingPlanet.
-    if (curPlanet.orbit) {
-      const orbit = curPlanet.orbit.props
-      // console.log('has orbit!', orbit);
-      // TODO: orig code read this as semiMajorAxis.scalar
-      const aRadius = 1
-      const bRadius = aRadius * Math.sqrt(1.0 - Math.pow(orbit.eccentricity, 2.0))
-      const angle = 1.0 * simTimeSecs / orbit.siderealOrbitPeriod.scalar * Shared.twoPi
-      const x = aRadius * Math.cos(angle)
-      const y = bRadius * Math.sin(angle)
-      const z = 0
-      // console.log(`x:${x} y:${y} z:${z}`
-      //            + `e:${orbit.eccentricity} a:${aRadius} b:${bRadius}`
-      //            + `t:${simTimeSecs} p:${orbit.siderealOrbitPeriod}`);
-      curPlanet.position.set(x, y, z)
-    }
-  }
-  // document.anim = anim;
-  ui.animationCb = anim
+/**
+ * Runs the body round: the mean longitude at a steady rate.
+ *
+ * @param {object} props
+ * @returns {null}
+ */
+function Run({setState}) {
+  useFrame((_, dt) => setState((s) => ({...s, meanLongitude: norm360(s.meanLongitude + (360 * dt / SECONDS_PER_ORBIT))})))
+  return null
 }

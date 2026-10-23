@@ -22,8 +22,6 @@
 }
 }
 ,"albedo": 0.21,
-"equatorialGravity": 1.0,
-"escapeVelocity": 1.0,
 "orbit": {
 "eccentricity": 0.03,
 "inclination": 1.0,

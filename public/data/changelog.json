@@ -1,6 +1,69 @@
 {
   "entries": [
     {
+      "id": "2026-10-23-lagrange-points-hill-spheres-and-stationary",
+      "date": "2026-10-23",
+      "headline": "Lagrange points, Hill spheres and stationary orbits around every planet and moon",
+      "text": "Pick a planet or moon and the points where a spacecraft can hold station with it show up around it: its five Lagrange points with the body it orbits (JWST's Sun–Earth L2, the Moon's L1 and L2), the edge of the space its gravity rules, and the orbit that keeps pace with its turning, like Earth's geostationary ring. They follow the real orbits as they move. The info panel's new space around list gives their distances, and says why the Moon, Mercury and Venus can't have a stationary orbit.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 276,
+          "url": "https://github.com/celestiary/web/pull/276"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth",
+      "image": null
+    },
+    {
+      "id": "2026-10-22-earth-s-night-side-stays-dark-while-its-terrain",
+      "date": "2026-10-22",
+      "headline": "Earth's night side stays dark while its terrain loads",
+      "text": "Close to Earth, until the detailed terrain arrives (or for good, when it can't load), Earth's night side used to show the daytime surface, dimly, under the city lights, and the city lights looked dimmer for it. The night side is now dark there, as it is once the terrain is in. This is the first fix we make to Cesium, the engine behind Earth's close-up surface, in our own copy of it, and we're offering it to Cesium's authors too.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 275,
+          "url": "https://github.com/celestiary/web/pull/275"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
+      "id": "2026-10-21-see-an-orbit-s-six-elements-on-the-orbit-itself",
+      "date": "2026-10-21",
+      "headline": "See an orbit's six elements on the orbit itself",
+      "text": "A body's info panel now lists its orbit's six elements as they are right now: its size and shape, the tilt and turn of its plane, where it comes closest, and where it is along the way. Click any of them to light them on the orbit in space, drawn as the textbooks draw it: the two planes, the line where they cross, each angle an arc with an arrow. They stay on as you go to other planets and moons, so you can compare how Earth's and Venus's orbits line up, and a link keeps them and the panel as you left it. The orbit drawn is the one the body is on at that moment, so it meets the body however close you zoom. The guide's orbit page works again, and the panel's masses and units are fixed.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 274,
+          "url": "https://github.com/celestiary/web/pull/274"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/pluto",
+      "image": null
+    },
+    {
       "id": "2026-10-21-what-s-new-shows-the-highlights-and-filters-by",
       "date": "2026-10-21",
       "headline": "What's new shows the highlights, and filters by features and fixes",

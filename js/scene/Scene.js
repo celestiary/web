@@ -9,8 +9,13 @@ import {
 import Asterisms from './Asterisms.js'
 import ColonizationLines from './ColonizationLines.js'
 import Galaxies, {galaxiesInView} from './Galaxies.js'
+import LagrangeMarks from './LagrangeMarks.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
+import OrbitDiagram from './orbitDiagram.js'
+import {CODES, keyOfCode} from './orbitElements.js'
+import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
+import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
 import Star from './Star.js'
@@ -27,6 +32,25 @@ import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
 import * as Utils from '../utils.js'
+
+
+const ELEMENT_CODE_SET = new Set(CODES)
+// The synchronous orbits with names of their own (LagrangeMarks).
+const SYNC_NAMES = {earth: 'geostationary orbit', mars: 'areostationary orbit'}
+
+
+/**
+ * @param {object} [body] a body's props
+ * @param {object} [primary] its primary's
+ * @returns {number} the body's share of the two's mass, m / (M + m), or 0
+ *     without both masses
+ */
+function massRatio(body, primary) {
+  const mass = (props) => Number(props?.mass?.scalar ?? props?.mass)
+  const m = mass(body)
+  const total = m + mass(primary)
+  return m > 0 && total > 0 ? m / total : 0
+}
 
 
 /** Default observer altitude for Scene.land — eye height. */
@@ -162,6 +186,15 @@ export default class Scene {
     // Set by Celestiary; called whenever any settings flag flips so the
     // permalink can be updated.
     this.onSettingsChange = null
+    // The orbital elements lit on each body's orbit (showOrbitElements):
+    // body name → Set of element codes (orbitElements.js ELEMENT_CODES),
+    // in the link as the `orbits:` token; and the one a hover previews.
+    this._orbitElements = new Map
+    this._orbitPreview = null
+    // The diagrams' opacity at the far side of their orbits (setOrbitFade).
+    this._orbitFade = ORBIT_FADE_DEFAULT
+    // The bodies whose orbit diagrams are showing.
+    this._orbitDiagramBodies = new Set
     // Set by Celestiary; called with ('track' | 'follow', on) when 't' or
     // 'f' (or a link) switches that mode, for the readout.
     this.onModeChange = null
@@ -336,8 +369,11 @@ export default class Scene {
   _overlayNodes(key) {
     switch (key) {
       case 'o': {
-        // The solar wind's streamlines are a diagram of the same kind (sun/SolarWind.js).
-        return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind]
+        // The solar wind's streamlines are a diagram of the same kind
+        // (sun/SolarWind.js), and so are the target's Lagrange points.
+        const lagrange = [...this._lagrange?.values() ?? []].filter((m) => m.parent)
+        return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind,
+          ...lagrange, ...lagrange.map((m) => m.syncRing)]
       }
       case 'p': {
         // Bodies' names, and the places and lat/lng markers on them (the
@@ -531,6 +567,14 @@ export default class Scene {
     if (name === 'sun') {
       this._joinOverlay('o', this.objects['sun']?.sunLayers?.wind)
     }
+    // A link's lit elements for a body that has only now loaded.
+    if (this._orbitElements.has(name)) {
+      this._syncOrbitDiagrams()
+    }
+    // The target's pairs, if this is one of their bodies.
+    if (this._lagrange && Shared.targets.obj) {
+      this._syncLagrange()
+    }
     return obj3d
   }
 
@@ -606,6 +650,305 @@ export default class Scene {
       obj.props = props
     }
     return obj
+  }
+
+
+  /**
+   * The orbital elements lit on a body's orbit (orbitDiagram.js), from the
+   * info panel's orbit list: any of a body's six, on any number of bodies
+   * at once, to compare (DESIGN.md "Orbital elements").  Animation lays
+   * each showing diagram on its body's elements of the date every frame
+   * (layOrbitDiagram).
+   *
+   * @param {string} body
+   * @returns {Set<string>} its lit element codes (orbitElements.js ELEMENT_CODES)
+   */
+  orbitElementsOf(body) {
+    return new Set(this._orbitElements.get(body) ?? [])
+  }
+
+
+  /** @returns {Map<string, Set<string>>} every body's lit element codes */
+  getOrbitElements() {
+    return new Map([...this._orbitElements].map(([body, codes]) => [body, new Set(codes)]))
+  }
+
+
+  /**
+   * Light these of a body's elements, and only these; none puts its
+   * diagram away.
+   *
+   * @param {string} body
+   * @param {Array<string>|Set<string>} codes element codes; unknown ones are dropped
+   */
+  setOrbitElements(body, codes) {
+    const valid = new Set([...codes].filter((c) => ELEMENT_CODE_SET.has(c)))
+    if (valid.size > 0) {
+      this._orbitElements.set(body, valid)
+    } else {
+      this._orbitElements.delete(body)
+    }
+    this._syncOrbitDiagrams()
+    this.onSettingsChange?.()
+  }
+
+
+  /**
+   * @param {string} body
+   * @param {string} code
+   */
+  toggleOrbitElement(body, code) {
+    const codes = this.orbitElementsOf(body)
+    if (codes.has(code)) {
+      codes.delete(code)
+    } else {
+      codes.add(code)
+    }
+    this.setOrbitElements(body, codes)
+  }
+
+
+  /** @returns {number} the diagrams' opacity at the far side of their orbits */
+  getOrbitFade() {
+    return this._orbitFade
+  }
+
+
+  /**
+   * Fade every orbit diagram from its body to this opacity at the far side
+   * of its orbit (orbitDiagram.js setFadeMin): 1 is no fade.
+   *
+   * @param {number} fade 0 to 1
+   * @param {boolean} [quiet] Don't announce it (a link putting it back)
+   */
+  setOrbitFade(fade, quiet = false) {
+    this._orbitFade = Math.min(Math.max(Number(fade) || 0, 0), 1)
+    for (const node of Object.values(this.objects)) {
+      node?.orbitDiagram?.setFadeMin(this._orbitFade)
+    }
+    if (!quiet) {
+      this.onSettingsChange?.()
+    }
+  }
+
+
+  /** Put every body's diagram away. */
+  clearOrbitElements() {
+    this._orbitElements.clear()
+    this._syncOrbitDiagrams()
+    this.onSettingsChange?.()
+  }
+
+
+  /**
+   * Put a link's lit elements back (the `orbits:` token), in place of any.
+   *
+   * @param {Map<string, Set<string>>} elements
+   */
+  restoreOrbitElements(elements) {
+    this._orbitElements.clear()
+    for (const [body, codes] of elements) {
+      const valid = [...codes].filter((c) => ELEMENT_CODE_SET.has(c))
+      if (valid.length > 0) {
+        this._orbitElements.set(body, new Set(valid))
+      }
+    }
+    this._syncOrbitDiagrams()
+  }
+
+
+  /**
+   * Light one more element while it's hovered, without keeping it.
+   *
+   * @param {?string} body
+   * @param {?string} code null to end the preview
+   */
+  previewOrbitElement(body, code) {
+    this._orbitPreview = body && code ? {body, code} : null
+    this._syncOrbitDiagrams()
+  }
+
+
+  /**
+   * Show each body's diagram with its lit elements and any preview, made
+   * on first use beside its orbit line (in the primary's frame, on the
+   * overlay layer, as the line is), and hide the rest.  Shown whatever `o`
+   * says: they were asked for.
+   */
+  _syncOrbitDiagrams() {
+    const lit = new Map([...this._orbitElements].map(([body, codes]) => [body, new Set(codes)]))
+    const preview = this._orbitPreview
+    if (preview) {
+      lit.set(preview.body, (lit.get(preview.body) ?? new Set).add(preview.code))
+    }
+    for (const body of this._orbitDiagramBodies) {
+      if (!lit.has(body)) {
+        const diagram = this.objects[`${body}.orbitPosition`]?.orbitDiagram
+        if (diagram) {
+          diagram.visible = false
+        }
+        this._orbitDiagramBodies.delete(body)
+      }
+    }
+    for (const [body, codes] of lit) {
+      const node = this.objects[`${body}.orbitPosition`]
+      if (!node) {
+        // Not loaded yet: add() comes back here when it is.
+        continue
+      }
+      if (!node.orbitDiagram) {
+        const primary = this.objects[body]?.props?.parent
+        node.orbitDiagram = new OrbitDiagram({layer: Shared.OVERLAY_LAYER, labels: {
+          // The moons' elements are in their Laplace plane or equator, from
+          // its node on the ICRF equator; the rest's in the ecliptic.
+          direction: node.orbit?.referencePole ? 'reference direction (node on the ICRF equator)' :
+            '♈︎ vernal equinox',
+          // Earth's osculating elements are the Earth-Moon barycentre's.
+          body: body === 'earth' ? 'Earth–Moon barycentre' : null,
+          barycentre: `${Utils.capitalize(primary ?? '')}–${Utils.capitalize(body)} barycentre`,
+        }})
+        node.orbitDiagram.setMassRatio(massRatio(this.objects[body]?.props, this.objects[primary]?.props))
+        node.orbitDiagram.setFadeMin(this._orbitFade)
+        node.parent.add(node.orbitDiagram)
+      }
+      node.orbitDiagram.highlight([...codes].map((c) => keyOfCode(c, node.orbit)).filter(Boolean))
+      node.orbitDiagram.visible = true
+      this._orbitDiagramBodies.add(body)
+    }
+    // One name for a point two diagrams share: a primary's place on its own
+    // orbit that is the barycentre with its moon (Earth's heliocentric
+    // place, the Earth-Moon barycentre) is named by the moon's diagram.
+    for (const body of this._orbitDiagramBodies) {
+      const diagram = this.objects[`${body}.orbitPosition`]?.orbitDiagram
+      const named = new Set([...this._orbitDiagramBodies]
+          .filter((b) => this.objects[b]?.props?.parent === body)
+          .map((b) => this.objects[`${b}.orbitPosition`]?.orbitDiagram?.litLabel('barycentre')))
+      diagram?.hideLabel?.('body', named.has(diagram.litLabel('body')))
+    }
+  }
+
+
+  /**
+   * The pairs whose Lagrange points, Hill sphere and synchronous orbit the
+   * target shows (Lagrange.md): its own with its primary, and its own with
+   * its most massive moon.  The Earth: Sun-Earth and Earth-Moon; the Sun:
+   * Sun-Jupiter; Tethys: Saturn-Tethys.
+   *
+   * @param {string} name a body's
+   * @returns {Array<Array<string>>} [primary, secondary] pairs
+   */
+  lagrangePairsOf(name) {
+    const props = this.objects[name]?.props
+    if (!props) {
+      return []
+    }
+    const pairs = []
+    if (this.objects[props.parent]?.props?.mass && props.mass && props.orbit) {
+      pairs.push([props.parent, name])
+    }
+    const mass = (b) => massKg(this.objects[b]?.props?.mass)
+    const moon = (props.system ?? []).filter((b) => mass(b) > 0 && this.objects[b]?.props?.orbit)
+        .sort((x, y) => mass(y) - mass(x))[0]
+    if (moon && props.mass) {
+      pairs.push([name, moon])
+    }
+    return pairs
+  }
+
+
+  /**
+   * Show the target's pairs' marks (lagrangePairsOf), made on first use, and
+   * take the rest out of the scene.  They're in the orbits group (`o`).
+   */
+  _syncLagrange() {
+    this._lagrange ??= new Map
+    const target = Shared.targets.obj?.props?.name
+    const wanted = new Set((target ? this.lagrangePairsOf(target) : []).map((p) => p.join('-')))
+    for (const [key, marks] of this._lagrange) {
+      if (!wanted.has(key) && marks.parent) {
+        marks.removeFromParent()
+        marks.syncRing?.removeFromParent()
+        delete this.objects[`${key.split('-')[1]}.orbitPosition`]?.lagrange
+      }
+    }
+    for (const key of wanted) {
+      const [primary, secondary] = key.split('-')
+      const node = this.objects[`${secondary}.orbitPosition`]
+      if (!node) {
+        continue
+      }
+      let marks = this._lagrange.get(key)
+      if (!marks) {
+        marks = this._newLagrange(primary, secondary)
+        this._lagrange.set(key, marks)
+        this._joinOverlay('o', marks)
+        this._joinOverlay('o', marks.syncRing)
+      }
+      if (!marks.parent) {
+        // Shown as the group is now; it may have turned while they were out.
+        marks.visible = this.overlayShown('o')
+        node.parent.add(marks)
+        if (marks.syncRing) {
+          marks.syncRing.visible = marks.visible
+          this.objects[`${secondary}.planetTilt`]?.add(marks.syncRing)
+        }
+        node.lagrange = marks
+      }
+    }
+  }
+
+
+  /**
+   * The numbers of the space around a pair (lagrange.js): its mass ratio,
+   * the secondary's Hill radius and synchronous orbit, and the collinear
+   * points' distances from the secondary at its mean distance.
+   *
+   * @param {string} primary
+   * @param {string} secondary
+   * @returns {object} {name, secondary, mu, a, hill, sync, l1, l2}: metres
+   */
+  pairFacts(primary, secondary) {
+    const props = this.objects[secondary].props
+    const kg = (b) => massKg(this.objects[b]?.props?.mass)
+    // The secondary with its moons (the Earth with the Moon, Pluto with
+    // Charon): the three-body problem's second mass.
+    const m = (props.system ?? []).reduce((sum, b) => sum + (kg(b) || 0), kg(secondary))
+    const mu = m / (m + kg(primary))
+    const a = Number(props.orbit.semiMajorAxis?.scalar ?? props.orbit.semiMajorAxis)
+    const hill = hillRadius(a, props.orbit.eccentricity ?? 0, mu)
+    const sync = synchronousOrbit({
+      gm: G * kg(secondary),
+      rotationSecs: Number(props.siderealRotationPeriod?.scalar ?? props.siderealRotationPeriod),
+      radius: Number(props.radius?.scalar ?? props.radius), hill,
+    })
+    const {l1, l2} = collinearDistances(mu)
+    return {
+      name: `${Utils.capitalize(primary)}–${Utils.capitalize(secondary)}`, secondary: Utils.capitalize(secondary),
+      mu, a, hill, sync, l1: l1 * a, l2: l2 * a, syncName: SYNC_NAMES[secondary],
+    }
+  }
+
+
+  /**
+   * The space around a body for its info panel: its pair with its primary's
+   * facts (pairFacts), or null for a body that orbits nothing with a mass.
+   *
+   * @param {string} name
+   * @returns {?object}
+   */
+  spaceAround(name) {
+    const pair = this.lagrangePairsOf(name).find((p) => p[1] === name)
+    return pair ? this.pairFacts(...pair) : null
+  }
+
+
+  /**
+   * @param {string} primary
+   * @param {string} secondary
+   * @returns {LagrangeMarks}
+   */
+  _newLagrange(primary, secondary) {
+    return new LagrangeMarks(this.pairFacts(primary, secondary), Shared.OVERLAY_LAYER)
   }
 
 
@@ -706,6 +1049,7 @@ export default class Scene {
     } else if (obj) {
       state?.setCommittedPath?.(path)
     }
+    this._syncLagrange()
     this.onTargetChange?.(t)
   }
 

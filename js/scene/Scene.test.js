@@ -1385,3 +1385,216 @@ describe('Scene.initSettings', () => {
     expect(on).toContain('a')
   })
 })
+
+
+describe('orbital elements lit on the orbits', () => {
+  /**
+   * A scene with a body's orbitPosition as Planet makes it: under a group,
+   * holding the body's orbit block.
+   *
+   * @param {object} s Scene
+   * @param {string} name
+   * @param {object} orbit
+   * @returns {Object3D}
+   */
+  function addBody(s, name, orbit) {
+    const plane = new Object3D()
+    const node = new Object3D()
+    node.name = `${name}.orbitPosition`
+    node.orbit = orbit
+    plane.add(node)
+    s.objects[node.name] = node
+    return node
+  }
+
+  const PLANET = {eccentricity: 0.0167, semiMajorAxis: 1.496e11}
+  const MOON = {eccentricity: 0.004, referencePole: {ra: 268.1, dec: 64.5}}
+
+  it('keeps each body\'s elements, several at once, and shows their diagrams', () => {
+    const s = makeScene()
+    const earth = addBody(s, 'earth', PLANET)
+    const venus = addBody(s, 'venus', PLANET)
+    let changes = 0
+    s.onSettingsChange = () => changes++
+    s.toggleOrbitElement('earth', 'i')
+    s.toggleOrbitElement('earth', 'peri')
+    s.toggleOrbitElement('venus', 'i')
+    expect(s.orbitElementsOf('earth')).toEqual(new Set(['i', 'peri']))
+    expect(earth.orbitDiagram.visible && venus.orbitDiagram.visible).toBe(true)
+    expect(earth.orbitDiagram.keys).toEqual(new Set(['inclination', 'longitudeOfPericenter']))
+    expect(changes).toBe(3)
+    // Off again: the last one off puts the diagram away.
+    s.toggleOrbitElement('venus', 'i')
+    expect(venus.orbitDiagram.visible).toBe(false)
+    expect(s.getOrbitElements()).toEqual(new Map([['earth', new Set(['i', 'peri'])]]))
+    s.clearOrbitElements()
+    expect(earth.orbitDiagram.visible).toBe(false)
+  })
+
+  it('reads a code as the body lists it: ω and M for a moon', () => {
+    const s = makeScene()
+    const io = addBody(s, 'io', MOON)
+    s.setOrbitElements('io', ['peri', 'at', 'bogus'])
+    expect(s.orbitElementsOf('io')).toEqual(new Set(['peri', 'at']))
+    expect(io.orbitDiagram.keys).toEqual(new Set(['argumentOfPericenter', 'meanAnomaly']))
+  })
+
+  it('previews a hovered element without keeping it', () => {
+    const s = makeScene()
+    const earth = addBody(s, 'earth', PLANET)
+    s.previewOrbitElement('earth', 'e')
+    expect(earth.orbitDiagram.visible).toBe(true)
+    expect(s.getOrbitElements().size).toBe(0)
+    s.previewOrbitElement(null, null)
+    expect(earth.orbitDiagram.visible).toBe(false)
+  })
+
+  it('names the Earth-Moon barycentre once when both diagrams would', () => {
+    const s = makeScene()
+    const earth = addBody(s, 'earth', PLANET)
+    const moon = addBody(s, 'moon', {eccentricity: 0.055, semiMajorAxis: 384400e3})
+    s.objects.earth = {props: {name: 'earth', parent: 'sun', mass: 5.97e27}}
+    s.objects.moon = {props: {name: 'moon', parent: 'earth', mass: 7.35e25}}
+    s.setOrbitElements('earth', ['at'])
+    expect(earth.orbitDiagram._hiddenLabels?.has('body') ?? false).toBe(false)
+    s.setOrbitElements('moon', ['at'])
+    expect(earth.orbitDiagram._hiddenLabels.has('body')).toBe(true)
+    expect(moon.orbitDiagram.litLabel('barycentre')).toBe('Earth–Moon barycentre')
+    s.setOrbitElements('moon', [])
+    expect(earth.orbitDiagram._hiddenLabels.has('body')).toBe(false)
+  })
+
+  it('fades every diagram to the far side\'s opacity it\'s set to, made before or after', () => {
+    const s = makeScene()
+    const earth = addBody(s, 'earth', PLANET)
+    s.setOrbitElements('earth', ['i'])
+    let changes = 0
+    s.onSettingsChange = () => changes++
+    s.setOrbitFade(0.2)
+    expect(earth.orbitDiagram.parts.orbit.material.uniforms.uFadeMin.value).toBeCloseTo(0.2, 9)
+    expect(changes).toBe(1)
+    const venus = addBody(s, 'venus', PLANET)
+    s.setOrbitElements('venus', ['i'])
+    expect(venus.orbitDiagram.fills.reference.material.uniforms.uFadeMin.value).toBeCloseTo(0.2, 9)
+    s.setOrbitFade(1, true)
+    expect(changes).toBe(2)
+    expect(s.getOrbitFade()).toBe(1)
+  })
+
+  it('shows a link\'s elements on a body that loads later', () => {
+    const s = makeScene()
+    s.restoreOrbitElements(new Map([['mars', new Set(['node'])]]))
+    const mars = addBody(s, 'mars', PLANET)
+    expect(mars.orbitDiagram).toBeUndefined()
+    // Scene.add's hook, as a body arrives.
+    s._syncOrbitDiagrams()
+    expect(mars.orbitDiagram.visible).toBe(true)
+  })
+})
+
+
+describe('the target\'s Lagrange points', () => {
+  /**
+   * A body as Planet makes it, with its props: its orbitPosition under its
+   * orbit plane, its planetTilt under that.
+   *
+   * @param {object} s Scene
+   * @param {object} props
+   */
+  function addBody(s, props) {
+    s.objects[props.name] = {props}
+    if (!props.orbit) {
+      return
+    }
+    const plane = new Object3D()
+    const node = new Object3D()
+    node.name = `${props.name}.orbitPosition`
+    node.orbit = props.orbit
+    plane.add(node)
+    const tilt = new Object3D()
+    node.add(tilt)
+    s.objects[node.name] = node
+    s.objects[`${props.name}.planetTilt`] = tilt
+  }
+
+  /** @returns {object} Scene with the Sun, Earth, Moon and Mars */
+  function solarScene() {
+    const s = makeScene()
+    addBody(s, {name: 'sun', parent: 'milkyway', mass: '1.9891E33 g', radius: 6.957e8,
+      system: ['earth', 'mars']})
+    addBody(s, {name: 'earth', parent: 'sun', mass: '5.97219e27 g', radius: 6.37101e6,
+      siderealRotationPeriod: 86164.1, system: ['moon'],
+      orbit: {semiMajorAxis: 1.496e11, eccentricity: 0.0167}})
+    addBody(s, {name: 'moon', parent: 'earth', mass: '7.34767309E25 g', radius: 1.7381e6,
+      siderealRotationPeriod: 2360591.5, system: [], orbit: {semiMajorAxis: 3.844e8, eccentricity: 0.0549}})
+    addBody(s, {name: 'mars', parent: 'sun', mass: '6.4171E26 g', radius: 3.3895e6,
+      siderealRotationPeriod: 88642.7, system: [], orbit: {semiMajorAxis: 2.279e11, eccentricity: 0.0934}})
+    return s
+  }
+
+  const withTarget = (s, name, fn) => {
+    const before = Shared.targets.obj
+    Shared.targets.obj = s.objects[name]
+    try {
+      s._syncLagrange()
+      fn()
+    } finally {
+      Shared.targets.obj = before
+    }
+  }
+
+  it('shows the target\'s pair with its primary and with its biggest moon', () => {
+    const s = solarScene()
+    expect(s.lagrangePairsOf('earth')).toEqual([['sun', 'earth'], ['earth', 'moon']])
+    expect(s.lagrangePairsOf('moon')).toEqual([['earth', 'moon']])
+    expect(s.lagrangePairsOf('sun')).toEqual([['sun', 'earth']])
+    expect(s.lagrangePairsOf('nowhere')).toEqual([])
+  })
+
+  it('builds the Earth\'s marks with the Moon in its mass, and GEO in its equator', () => {
+    const s = solarScene()
+    withTarget(s, 'earth', () => {
+      const earth = s.objects['earth.orbitPosition']
+      const marks = earth.lagrange
+      expect(marks.parent).toBe(earth.parent)
+      // μ for the Sun and the Earth-Moon pair, 3.04e-6; the Earth alone's
+      // would be 3.00e-6.
+      expect(marks.mu).toBeCloseTo(3.04e-6, 8)
+      expect(marks.hillRadius / 1e9).toBeCloseTo(1.47, 1)
+      expect(marks.syncRing.parent).toBe(s.objects['earth.planetTilt'])
+      expect(marks.sync.radius / 1e3).toBeCloseTo(42164, -1)
+      // The Moon can't hold a selenosynchronous orbit: no ring.
+      expect(s.objects['moon.orbitPosition'].lagrange.syncRing).toBeNull()
+      expect(s.objects['moon.orbitPosition'].lagrange.sync.why).toBe('beyondHill')
+    })
+  })
+
+  it('takes a pair out of the scene when the target moves on, and back', () => {
+    const s = solarScene()
+    let earthMarks
+    withTarget(s, 'earth', () => {
+      earthMarks = s.objects['earth.orbitPosition'].lagrange
+    })
+    withTarget(s, 'mars', () => {
+      expect(earthMarks.parent).toBeNull()
+      expect(earthMarks.syncRing.parent).toBeNull()
+      expect(s.objects['earth.orbitPosition'].lagrange).toBeUndefined()
+      expect(s.objects['mars.orbitPosition'].lagrange.sync.why).toBeNull()
+    })
+    withTarget(s, 'earth', () => {
+      expect(s.objects['earth.orbitPosition'].lagrange).toBe(earthMarks)
+      expect(earthMarks.parent).not.toBeNull()
+    })
+  })
+
+  it('hides and shows them with the orbits', () => {
+    const s = solarScene()
+    withTarget(s, 'earth', () => {
+      const marks = s.objects['earth.orbitPosition'].lagrange
+      expect(s._overlayNodes('o')).toContain(marks)
+      expect(s._overlayNodes('o')).toContain(marks.syncRing)
+      s._showOverlay('o', false)
+      expect(marks.visible || marks.syncRing.visible).toBe(false)
+    })
+  })
+})

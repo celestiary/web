@@ -22,7 +22,8 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {
-  decodePermalink, decodeSettings, decodeTimeToken, encodePermalink, encodeTimeToken, pathFromFragment, permalinkHref,
+  decodeInfoToken, decodeOrbitsFade, decodeOrbitsToken, decodePermalink, decodeSettings, decodeTimeToken, encodeInfoToken,
+  encodeOrbitsToken, encodePermalink, encodeTimeToken, pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry, placeTarget} from './search/commitEntry'
@@ -156,6 +157,24 @@ export default class Celestiary {
     this.scene.registerSettingApplier('v', () => this._toggleNav())
     this.loader = new Loader()
     this.controlPanel = new ControlPanel(navElt, this.loader)
+    // The info panel's orbit list lights elements on the bodies' orbits.
+    this.controlPanel.orbitHooks = {
+      elementsOf: (body, orbit) => this.animation.orbitElements(body, orbit),
+      jd: () => this.animation.jd,
+      fade: () => this.scene.getOrbitFade(),
+      setFade: (f) => this.scene.setOrbitFade(f),
+      elements: (body) => this.scene.orbitElementsOf(body),
+      toggle: (body, code) => this.scene.toggleOrbitElement(body, code),
+      set: (body, codes) => this.scene.setOrbitElements(body, codes),
+      clearAll: () => this.scene.clearOrbitElements(),
+      count: () => this.scene.getOrbitElements().size,
+      preview: (body, code) => this.scene.previewOrbitElement(body, code),
+    }
+    // And lists the space around the body: its Hill sphere, Lagrange
+    // points and synchronous orbit.
+    this.controlPanel.spaceHook = (name) => this.scene.spaceAround(name)
+    // Opening or folding the panel's lists rewrites the link (`info:`).
+    this.controlPanel.onUiChange = () => this._schedulePermalinkUpdate()
     this.firstTime = true
     this._permalinkTimer = null
     // Hear of a change of the exposure compensation (onExposureCompensation).
@@ -446,6 +465,7 @@ export default class Celestiary {
     this._frameHomeReturn(nowMs)
     this._news?.frame(nowMs)
     this.scene.overlays.tick(nowMs)
+    this.controlPanel.frame(nowMs)
     this._frameNav(nowMs)
   }
 
@@ -581,10 +601,17 @@ export default class Celestiary {
       // On first load only, as the scene settings.  Each app restores its
       // own state from its entry here, waiting for what it needs (the
       // stars, for the Human Expansion app).
-      const widgets = decodeAppTokens(decodePermalink(rawHash)?.tokens)
+      const tokens = decodePermalink(rawHash)?.tokens
+      const widgets = decodeAppTokens(tokens)
       if (widgets) {
         this.useStore.getState().dispatchWidgets({type: 'restore', widgets})
       }
+      // The orbital elements lit on the bodies' orbits; each body's diagram
+      // shows once it has loaded (Scene.add).
+      this.scene.restoreOrbitElements(decodeOrbitsToken(tokens?.orbits))
+      this.scene.setOrbitFade(decodeOrbitsFade(tokens?.orbits), true)
+      // The info panel's lists, open or folded as they were.
+      this.controlPanel.restoreUiState(decodeInfoToken(tokens?.info))
     } else {
       location.hash = DEFAULT_TARGET
     }
@@ -3117,10 +3144,13 @@ export default class Celestiary {
     if (settings && this.ar && this.ar.isActive()) {
       settings.A = true
     }
-    // The clock when it isn't running at real time (the `time:` token), then
-    // the drawer and the apps.
+    // The clock when it isn't running at real time (the `time:` token), the
+    // info panel's lists as they were left (`info:`), the orbital elements
+    // lit on the bodies' orbits (`orbits:`), then the drawer and the apps.
     const tokens = {
       time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
+      info: encodeInfoToken(this.controlPanel.uiState),
+      orbits: encodeOrbitsToken(this.scene.getOrbitElements(), this.scene.getOrbitFade()),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(

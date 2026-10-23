@@ -1,8 +1,15 @@
 import {
   SETTINGS_DEFAULTS,
   decodePermalink,
+  decodeGuideOrbitToken,
+  decodeInfoToken,
+  decodeOrbitsFade,
+  decodeOrbitsToken,
   decodeSettings,
   decodeTimeToken,
+  encodeGuideOrbitToken,
+  encodeInfoToken,
+  encodeOrbitsToken,
   encodePermalink,
   encodeSettings,
   encodeTimeToken,
@@ -680,5 +687,80 @@ describe('the time: token', () => {
     // None at real time.
     expect(encodePermalink('sun', 5, 1, 2, 3, Q, 45, undefined, {time: encodeTimeToken(false, 1)}))
         .toBe('sun@1,2,3m;t=5jd;cq=0,0,0,1;fov=45deg')
+  })
+})
+
+
+describe('orbits token', () => {
+  it('writes each body\'s lit elements in their listed order, and reads them back', () => {
+    const elements = new Map([['earth', new Set(['peri', 'i'])], ['venus', new Set(['i'])]])
+    const value = encodeOrbitsToken(elements)
+    expect(value).toBe('earth=i+peri,venus=i')
+    expect(decodeOrbitsToken(value)).toEqual(elements)
+  })
+
+  it('round-trips through a link', () => {
+    const value = encodeOrbitsToken(new Map([['io', new Set(['a', 'at'])]]))
+    const link = encodePermalink('sun/jupiter/io', 9000, 1, 2, 3e6, {x: 0, y: 0, z: 0, w: 1}, 45, null, {orbits: value})
+    expect(decodeOrbitsToken(decodePermalink(link).tokens.orbits)).toEqual(new Map([['io', new Set(['a', 'at'])]]))
+  })
+
+  it('is left out with nothing lit, and drops unknown codes', () => {
+    expect(encodeOrbitsToken(new Map())).toBeNull()
+    expect(encodeOrbitsToken(new Map([['earth', new Set()]]))).toBeNull()
+    expect(decodeOrbitsToken('earth=i+x+node,mars=zz')).toEqual(new Map([['earth', new Set(['i', 'node'])]]))
+    expect(decodeOrbitsToken(undefined)).toEqual(new Map())
+  })
+})
+
+
+describe('info token', () => {
+  it('writes the panel folded and the lists against their defaults, and reads them back', () => {
+    const state = {closed: true, open: new Set(['orbit', 'location.coord']), shut: new Set(['system'])}
+    const value = encodeInfoToken(state)
+    expect(value).toBe('closed,open=location.coord+orbit,shut=system')
+    expect(decodeInfoToken(value)).toEqual({closed: true, open: new Set(['location.coord', 'orbit']),
+      shut: new Set(['system'])})
+  })
+
+  it('is left out when all is as it starts', () => {
+    expect(encodeInfoToken({closed: false, open: new Set, shut: new Set})).toBeNull()
+    expect(encodeInfoToken(undefined)).toBeNull()
+    expect(decodeInfoToken(undefined)).toEqual({closed: false, open: new Set, shut: new Set})
+  })
+})
+
+
+describe('guide orbit token', () => {
+  const el = {a: 384467000, e: 0.0549, i: 5.145, node: 125.08, peri: 83.35, meanLongitude: 218.32,
+    plane: 'eclipticOfDate'}
+
+  it('carries an orbit, its moment and its lit elements to the guide, and back', () => {
+    const token = encodeGuideOrbitToken('moon', el, new Set(['peri', 'i']), 2461326.4581)
+    expect(token).toBe('orbit:body=moon,a=384467000,e=0.054900,i=5.1450,node=125.0800,peri=83.3500,' +
+      'L=218.3200,plane=eclipticOfDate,jd=2461326.4581,lit=i+peri')
+    const back = decodeGuideOrbitToken(`#${token}`)
+    expect(back).toEqual({body: 'moon', a: 384467000, e: 0.0549, i: 5.145, node: 125.08, peri: 83.35,
+      meanLongitude: 218.32, plane: 'eclipticOfDate', jd: 2461326.4581, lit: new Set(['i', 'peri'])})
+  })
+
+  it('is null without a whole orbit', () => {
+    expect(decodeGuideOrbitToken('')).toBeNull()
+    expect(decodeGuideOrbitToken('#orbit:a=1,e=0.1')).toBeNull()
+    expect(decodeGuideOrbitToken('#orbit:a=1,e=1.2,i=0,node=0,peri=0,L=0')).toBeNull()
+  })
+})
+
+
+describe('orbits token fade', () => {
+  it('writes the far side\'s opacity only when it isn\'t the default, and reads it back', () => {
+    const elements = new Map([['earth', new Set(['i'])]])
+    expect(encodeOrbitsToken(elements, 0.5)).toBe('earth=i')
+    expect(encodeOrbitsToken(elements, 0.2)).toBe('fade=20,earth=i')
+    expect(encodeOrbitsToken(new Map(), 1)).toBe('fade=100')
+    expect(decodeOrbitsFade('fade=20,earth=i')).toBeCloseTo(0.2, 9)
+    expect(decodeOrbitsFade('earth=i')).toBe(0.5)
+    // Not a body.
+    expect(decodeOrbitsToken('fade=20,earth=i')).toEqual(new Map([['earth', new Set(['i'])]]))
   })
 })

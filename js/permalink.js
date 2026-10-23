@@ -11,6 +11,12 @@ const KV_SEP = '='
 const TOKEN_SEP = ':'
 const LIST_SEP = ','
 const VALUE_LIST_SEP = '+'
+// The orbital elements' codes, in their listed order (orbitElements.js CODES;
+// not imported, so a link's parse doesn't load the orbit code).
+const ORBIT_CODES = ['a', 'e', 'i', 'node', 'peri', 'at']
+/** The orbit diagrams' opacity at the far side of their orbits, by default. */
+export const ORBIT_FADE_DEFAULT = 0.5
+const PLAIN_WORD = /^[\w.-]+$/
 // A `from=` frame path: a body path ('sun/earth') or a star ('hip:32349').
 const FRAME_PATH = /^([a-z0-9_-]+(\/[a-z0-9_-]+)*|hip:\d+)$/
 
@@ -443,6 +449,150 @@ export function decodeTimeToken(value) {
   const {flags, named} = parseTokenValue(value)
   const rate = parseFloat(named.rate)
   return {paused: flags.includes('pause'), rate: Number.isFinite(rate) && rate !== 0 ? rate : 1}
+}
+
+
+/**
+ * The `orbits:` token (design/URLs.md): the orbital elements lit on each
+ * body's orbit, `body=code+code`, the codes in their listed order
+ * (orbitElements.js CODES); and `fade=` the diagrams' opacity at the far side
+ * of their orbits, in percent, where it isn't the default.  Left out (null)
+ * when there's nothing to say.
+ *
+ * @param {Map<string, Set<string>>} elements Scene.getOrbitElements()
+ * @param {number} [fade] Scene.getOrbitFade(), 0 to 1
+ * @returns {?string}
+ */
+export function encodeOrbitsToken(elements, fade = ORBIT_FADE_DEFAULT) {
+  const percent = Math.round(Math.min(Math.max(fade, 0), 1) * 100)
+  const named = {fade: percent === Math.round(ORBIT_FADE_DEFAULT * 100) ? null : percent}
+  for (const [body, codes] of elements ?? []) {
+    const listed = ORBIT_CODES.filter((c) => codes.has(c))
+    if (listed.length > 0 && PLAIN_WORD.test(body)) {
+      named[body] = listed
+    }
+  }
+  return formatTokenValue([], named) || null
+}
+
+
+/**
+ * The inverse of encodeOrbitsToken.  Unknown codes are dropped; bodies are
+ * kept as written, for the scene to find (or not).
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {Map<string, Set<string>>}
+ */
+export function decodeOrbitsToken(value) {
+  const elements = new Map
+  for (const [body, list] of Object.entries(parseTokenValue(value).named)) {
+    if (body === 'fade') {
+      continue
+    }
+    const codes = new Set(parseValueList(list).filter((c) => ORBIT_CODES.includes(c)))
+    if (codes.size > 0) {
+      elements.set(body, codes)
+    }
+  }
+  return elements
+}
+
+
+/**
+ * The orbits token's fade (encodeOrbitsToken).
+ *
+ * @param {string} [value] The token's value
+ * @returns {number} 0 to 1; the default without one
+ */
+export function decodeOrbitsFade(value) {
+  const percent = parseFloat(parseTokenValue(value).named.fade)
+  return Number.isFinite(percent) ? Math.min(Math.max(percent, 0), 100) / 100 : ORBIT_FADE_DEFAULT
+}
+
+
+/**
+ * The `info:` token (design/URLs.md): the info panel's lists as the user
+ * left them.  `closed`, the panel folded; `open=` and `shut=` the lists,
+ * by their dotted place in a body's props, opened or folded against their
+ * defaults.  Left out (null) when all are as they start.
+ *
+ * @param {{closed: boolean, open: Set<string>, shut: Set<string>}} [state]
+ *     ControlPanel.uiState
+ * @returns {?string}
+ */
+export function encodeInfoToken(state) {
+  if (!state) {
+    return null
+  }
+  const plain = (keys) => [...(keys ?? [])].filter((k) => PLAIN_WORD.test(k)).sort()
+  return formatTokenValue(state.closed ? ['closed'] : [], {open: plain(state.open), shut: plain(state.shut)}) || null
+}
+
+
+/**
+ * The inverse of encodeInfoToken.
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {{closed: boolean, open: Set<string>, shut: Set<string>}}
+ */
+export function decodeInfoToken(value) {
+  const {flags, named} = parseTokenValue(value)
+  const plain = (list) => new Set(parseValueList(list).filter((k) => PLAIN_WORD.test(k)))
+  return {closed: flags.includes('closed'), open: plain(named.open), shut: plain(named.shut)}
+}
+
+
+/**
+ * The guide's orbit page's `orbit:` token (design/URLs.md): one orbit's
+ * elements at a moment, as the app's orbit list links to them, so the guide
+ * shows that orbit, at that moment, with the same elements lit.
+ *
+ * @param {string} body
+ * @param {object} el orbitElements.js's form: a (m), e, i, node, peri,
+ *     meanLongitude (degrees), plane
+ * @param {Set<string>} [codes] the elements lit (ORBIT_CODES)
+ * @param {number} [jd] the moment, Julian Day (UTC)
+ * @returns {string} the token, `orbit:…`
+ */
+export function encodeGuideOrbitToken(body, el, codes = new Set, jd = null) {
+  const value = formatTokenValue([], {
+    body: PLAIN_WORD.test(body) ? body : null,
+    a: Math.round(el.a),
+    e: el.e.toFixed(6),
+    i: el.i.toFixed(4),
+    node: el.node.toFixed(4),
+    peri: el.peri.toFixed(4),
+    L: el.meanLongitude.toFixed(4),
+    plane: PLAIN_WORD.test(el.plane ?? '') ? el.plane : null,
+    jd: Number.isFinite(jd) ? jd.toFixed(4) : null,
+    lit: ORBIT_CODES.filter((c) => codes.has(c)),
+  })
+  return `orbit${TOKEN_SEP}${value}`
+}
+
+
+/**
+ * The inverse of encodeGuideOrbitToken, from a page's hash.
+ *
+ * @param {string} [hash] `#orbit:…`, or with other tokens around it
+ * @returns {?object} {body, a, e, i, node, peri, meanLongitude, plane, jd,
+ *     lit: Set}, or null without a whole orbit
+ */
+export function decodeGuideOrbitToken(hash) {
+  const token = (hash ?? '').replace(/^#/, '').split(PARAM_SEP).find((t) => t.startsWith(`orbit${TOKEN_SEP}`))
+  if (!token) {
+    return null
+  }
+  const {named} = parseTokenValue(token.substring(token.indexOf(TOKEN_SEP) + 1))
+  const num = (k) => parseFloat(named[k])
+  const orbit = {
+    body: named.body ?? null, a: num('a'), e: num('e'), i: num('i'), node: num('node'), peri: num('peri'),
+    meanLongitude: num('L'), plane: named.plane ?? null, jd: Number.isFinite(num('jd')) ? num('jd') : null,
+    lit: new Set(parseValueList(named.lit).filter((c) => ORBIT_CODES.includes(c))),
+  }
+  const whole = ['a', 'e', 'i', 'node', 'peri', 'meanLongitude'].every((k) => Number.isFinite(orbit[k])) &&
+    orbit.a > 0 && orbit.e >= 0 && orbit.e < 1
+  return whole ? orbit : null
 }
 
 

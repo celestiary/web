@@ -26,6 +26,7 @@ tried and dropped.
 | Camera, navigation, targeting (`goTo`, `setTarget`, keys) | DESIGN.md: [camera controls](DESIGN.md#camera-controls), [navigation](DESIGN.md#navigation-goto-flow), [setTarget and lookAtTarget](DESIGN.md#settarget-lookattarget-c-key) |
 | Rendering, overlays and the `v` visibility groups | DESIGN.md: [rendering techniques](DESIGN.md#rendering-techniques), [overlays & visibility groups](DESIGN.md#overlays--visibility-groups) |
 | Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [parity check](CESIUM.md#parity-check), [follow-ups](CESIUM.md#follow-ups) |
+| Changing Cesium itself: the fork (celestiary/cesium), the patches in `patches/`, upstreaming | [CESIUM.md, patching Cesium](CESIUM.md#patching-cesium) |
 | The Sun's activity by date, spots, flares, prominences, corona, CMEs, eclipses, glare, solar wind | [js/scene/Sun.md](js/scene/Sun.md); the photosphere and every star: [js/scene/Stars.md](js/scene/Stars.md) |
 | Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
 | The HDR pipeline: the scene buffer, units, the one tone map, display-referred materials | [js/scene/HDR.md](js/scene/HDR.md); DESIGN.md [HDR pipeline](DESIGN.md#hdr-pipeline) |
@@ -36,6 +37,7 @@ tried and dropped.
 | What's new on the homepage, the changelog tour, the `#;news:tour` link | DESIGN.md [what's new](DESIGN.md#whats-new-and-the-changelog-tour); [design/URLs.md](design/URLs.md#news-token); [tools/changelog/README.md](tools/changelog/README.md) (the entries) |
 | Social post drafts from the changelog (`yarn posts`), the first campaign, what to attach and how to publish | [tools/posts/README.md](tools/posts/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
+| Lagrange points, Hill spheres, synchronous orbits (every pair), and the rest of #272's orbital structure | [js/scene/Lagrange.md](js/scene/Lagrange.md); DESIGN.md [orbital elements](DESIGN.md#orbital-elements) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
 | Gaia's stars and the point-population engine (tiles, budget, epoch, photometry, merge, rebuilding) | [js/scene/Gaia.md](js/scene/Gaia.md) |
@@ -225,6 +227,12 @@ tried and dropped.
   *off*, as `a`, `l`, `p`, `o` turn the overlays off. Harnesses that hide
   the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`, and add
   `G` to hide the galaxies' names (on by default, shown by magnitude).
+- **Cesium is patched on install** (`patches/`, applied by patch-package
+  from `postinstall`; [CESIUM.md](CESIUM.md#patching-cesium)).  A fix to
+  Cesium goes on a branch of celestiary/cesium with its Cesium specs, then
+  into the patch; never edit `node_modules` and leave it there.  `yarn
+  install --ignore-scripts` skips the patches, and
+  `cesiumPatches.test.js` then fails.
 - **Compare Cesium with celestiary numerically: `yarn parity`.**
   - Run `yarn build` first (with `CESIUM_ION_TOKEN` set); the script
     serves `docs/` and doesn't build. `yarn parity --out parity-out`
@@ -262,7 +270,7 @@ tried and dropped.
   - To keep Bing out of your own Playwright, abort `/v1/assets/2/` and
     let the rest of ion through (`route.abort()`).  Earth's World Terrain
     isn't deferred: without it the globe's lighting is the ellipsoid's,
-    with a night side at 30%
+    Lambert on its smooth normal, with no slopes
     ([CESIUM.md](CESIUM.md#earths-lighting-needs-the-terrain)).
 - **A shader edit needs a rendered check**, not only its arithmetic: a
   compile failure (e.g. a GLSL ES reserved word such as `half` as a
@@ -425,7 +433,13 @@ tried and dropped.
     never a bare relative path. Previews load large data from
     production, so a bare path 404s there.
   - A checkout without git-lfs holds pointer files, not data. Run
-    `git lfs pull`.
+    `git lfs pull`.  Some tests read LFS data (`tools/stars/stars.test.js`
+    reads Gaia's `index.json`) and fail on a pointer.
+  - git-lfs writes its hooks (`post-checkout`, `post-commit`,
+    `post-merge`, `pre-push`) into `hooks/`, the repo's `core.hooksPath`,
+    whenever it runs (`git lfs install`, `git lfs pull`). They're
+    untracked: never commit them. Keep `pre-push` if you commit LFS
+    data, since it uploads the objects; otherwise they can be deleted.
   - A PR that changes files under `public/textures/`,
     `public/data/stars.dat` or `public/large/` gets a full preview copy;
     any other PR previews against production's data.
@@ -482,21 +496,32 @@ tried and dropped.
     ambiguous;
   - skip events that don't need action.
 - **Merge only when the user says so.** A green PR waits for their
-  go-ahead.
-  - **The go-ahead is a comment on the PR itself** from
-    @pablo-mayrgundter: "lgtm", "ok to merge" or the like. It records the
-    decision where the change is, and the user doesn't merge PRs
-    directly. Check the comment's author before acting on it; a comment
-    from anyone else, a bot or an agent is not approval.
-  - **The session that dispatched the work merges**, not the agent that
-    wrote it. It can order the merges, merge `main` into each PR in
-    turn, resolve the conflicts (keep both sides of ROADMAP.md's *Done
-    recently*), and wait for CI on the merged head before merging.
+  go-ahead, which comes one of two ways; either is enough:
+  - **In a session:** the user tells the session they're talking to to
+    merge it ("merge 274"), whether that's the planning session or the
+    one that wrote the PR. That session merges, then leaves a one-line
+    comment on the PR saying who approved it and where, so the PR's
+    record is complete.
+  - **On the PR:** a comment from @pablo-mayrgundter, "lgtm", "ok to
+    merge" or the like. This is for approving asynchronously while lots
+    of work is in flight: the decision is recorded where the change is,
+    and the user doesn't merge PRs directly. Check the comment's author
+    before acting on it; a comment from anyone else, a bot or an agent
+    is not approval.
+  - **Neither is a gate on the other:** a session told to merge doesn't
+    also wait for a PR comment, and a PR comment doesn't need repeating
+    in a session.
+  - **Who merges an approved PR:** the session the user told to, or, for
+    an approval on the PR, the session that dispatched the work. The
+    dispatching session can order the merges, merge `main` into each PR
+    in turn, resolve the conflicts (keep both sides of ROADMAP.md's
+    *Done recently*), and wait for CI on the merged head before merging.
   - **The approval covers the PR as reviewed.** Merging `main` in and
     resolving conflicts doesn't need a new one. A later push that
     changes what the PR does does: say so on the PR and wait.
-  - **Agents never merge their own PRs**, approved or not. They say in
-    their report that the PR is ready, and the user approves on the PR.
+  - **An agent never merges on its own initiative**, its own PR or any
+    other. Without one of the go-aheads above it says in its report that
+    the PR is ready and waits.
 - **Keep the PR description current:** when later pushes change what the
   PR does or fixes, update the description to match.
 

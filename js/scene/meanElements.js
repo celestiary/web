@@ -48,6 +48,7 @@ const KEPLER_TOLERANCE = 1e-14
 const Y_AXIS = new Vector3(0, 1, 0)
 const X_AXIS = new Vector3(1, 0, 0)
 const tmpQuat = new Quaternion
+const atDate = {}
 
 
 /**
@@ -186,6 +187,28 @@ export function eccentricAnomaly(m, e) {
 
 
 /**
+ * The elements at a date: each advanced by its rate from the epoch.
+ *
+ * @param {object} el meanElements()
+ * @param {number} jde Julian Ephemeris Day (TT)
+ * @param {object} [target] receives the elements, made if absent
+ * @returns {{a: number, e: number, i: number, node: number, w: number, m: number}}
+ *     metres and degrees, in the elements' reference plane; ω the argument of
+ *     pericentre, the mean anomaly m in [0, 360)
+ */
+export function elementsAt(el, jde, target = {}) {
+  const dt = jde - el.epoch
+  target.a = el.a + (el.aRate * dt)
+  target.e = el.e + (el.eRate * dt)
+  target.i = el.i + (el.iRate * dt)
+  target.node = el.node + (el.nodeRate * dt)
+  target.w = el.w + (el.wRate * dt)
+  target.m = (((el.m + (el.mRate * dt)) % FULL_TURN_DEG) + FULL_TURN_DEG) % FULL_TURN_DEG
+  return target
+}
+
+
+/**
  * The orbit at a date, in the ecliptic of J2000 (scene axes): the rotation
  * that takes the flat orbit ellipse Planet.newOrbit draws (major axis along
  * +X toward pericentre, in the XZ plane, motion from +X toward -Z) onto the
@@ -198,14 +221,11 @@ export function eccentricAnomaly(m, e) {
  * @returns {{a: number, e: number}} the semi-major axis and eccentricity then
  */
 export function orbitAt(el, jde, quat, pos) {
-  const dt = jde - el.epoch
-  const a = el.a + (el.aRate * dt)
-  const e = el.e + (el.eRate * dt)
+  const {a, e, i, node, w, m} = elementsAt(el, jde, atDate)
   quat.copy(el.frame)
-  quat.multiply(tmpQuat.setFromAxisAngle(Y_AXIS, (el.node + (el.nodeRate * dt)) * toRad))
-  quat.multiply(tmpQuat.setFromAxisAngle(X_AXIS, (el.i + (el.iRate * dt)) * toRad))
-  quat.multiply(tmpQuat.setFromAxisAngle(Y_AXIS, (el.w + (el.wRate * dt)) * toRad))
-  const m = (((el.m + (el.mRate * dt)) % FULL_TURN_DEG) + FULL_TURN_DEG) % FULL_TURN_DEG
+  quat.multiply(tmpQuat.setFromAxisAngle(Y_AXIS, node * toRad))
+  quat.multiply(tmpQuat.setFromAxisAngle(X_AXIS, i * toRad))
+  quat.multiply(tmpQuat.setFromAxisAngle(Y_AXIS, w * toRad))
   const E = eccentricAnomaly(m * toRad, e)
   // Perifocal (x toward pericentre, y 90° ahead) → scene axes (x, 0, -y).
   pos.set(a * (Math.cos(E) - e), 0, -a * Math.sqrt(1 - (e * e)) * Math.sin(E)).applyQuaternion(quat)

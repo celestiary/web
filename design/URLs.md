@@ -289,6 +289,9 @@ Each feature has its own label:
 
 ```
 "time":             the clock, when it is paused or not at real time
+"info":             the info panel's lists, open or folded
+"orbits":           the orbital elements lit on the bodies' orbits
+"orbit":            the guide's orbit page: one orbit at a moment (read)
 "apps":             the widgets drawer and dock: open, docked, the app
                     showing, the apps pinned and running
 "apps.<id>":        one running app's own state, a sub-namespace of apps
@@ -345,6 +348,108 @@ The link is rewritten when the clock is paused, its rate set, or its date
 set (`Time.onTimeScaleChange`), as well as when the camera settles.  While
 it is running the link's `t=` is the date at the last rewrite, so a copied
 link may be a moment behind; paused it is exact.
+
+### Info Token
+
+The info panel's lists as the user left them (DESIGN.md [orbital
+elements](../DESIGN.md#orbital-elements)): the whole panel folded, and its
+lists opened or folded against how they start.
+
+```
+closed             the panel folded to its [+]
+open=<list>+…      lists opened that start folded (most do)
+shut=<list>+…      lists folded that start open (a body's `system`)
+```
+
+A list is named by its place in a body's properties, dotted: `orbit`,
+`atmosphere`, `location.coord`.
+
+```
+#…;info:open=orbit                      the orbit list open
+#…;info:closed                          the panel folded
+#…;info:open=orbit+atmosphere,shut=system
+```
+
+Decisions:
+
+- **For every body alike.**  The lists are named by property, not by body,
+  so going from Earth to Venus keeps the orbit list open: comparing two
+  bodies' orbits wants the same lists open on both.
+- **Only what differs from how a list starts is written**; no token is the
+  panel as it opens.
+- **App state, restored on the first load**, as `apps:` and `orbits:` are.
+
+### The Guide's Orbit Token
+
+The guide's orbit page (`/guide/orbit`) takes one orbit at a moment, as the
+app's orbit list links to it ("see it in the guide"): the page opens on that
+orbit, first among its presets, with the same elements lit.
+
+```
+/guide/orbit#orbit:body=moon,a=382317609,e=0.063604,i=5.0917,node=328.0489,peri=86.7286,L=340.9917,plane=eclipticOfDate,jd=2461335.3505,lit=i+peri
+```
+
+```
+body=<name>        the body, for the preset's name
+a=<m>              semi-major axis, metres
+e, i, node, peri   eccentricity; inclination, Ω and ϖ, degrees
+L=<deg>            mean longitude
+plane=<frame>      ecliptic, eclipticOfDate, Laplace or equator (orbitElements.js)
+jd=<day>           the moment, Julian Day (UTC)
+lit=<code>+…       the elements lit, as `orbits:`
+```
+
+Decisions:
+
+- **ϖ and L, whatever the body lists.**  The guide's sliders are ϖ and L, and
+  it shows ω and M beside them; `plane` says whether `lit`'s `peri` and `at`
+  mean ω and M (a moon's) or ϖ and L.
+- **Read, not written.**  The guide doesn't rewrite its address as its
+  sliders move; the link is the app's moment, as it was.
+- **Relative** (`guide/orbit#…`), so a PR preview's base holds.
+
+### Orbits Token
+
+The orbital elements lit on the bodies' orbits, from the info panel's orbit
+list (DESIGN.md [orbital elements](../DESIGN.md#orbital-elements)): for each
+body with some on, its name and the elements' codes.
+
+```
+<body>=<code>+<code>   a body (as the loader names it) and its elements on
+fade=<percent>         the diagrams' opacity at the far side of their
+                       orbits, 0 to 100 (default 50, then left out)
+```
+
+The codes, in the order the panel lists them:
+
+```
+a        semi-major axis
+e        eccentricity
+i        inclination
+node     longitude of the ascending node, Ω
+peri     the pericentre: its longitude ϖ, or for a moon its argument ω
+at       the body's place: its mean longitude L, or for a moon its mean anomaly M
+```
+
+```
+#…;orbits:earth=i+peri,venus=i+peri       Earth's and Venus's planes and perihelia
+#…;orbits:pluto=a+e+i+node+peri+at        all of Pluto's
+#…;orbits:fade=10,earth=i+node            Earth's plane and node, faded to 10%
+#…;orbits:io=peri+at                      Io's ω and M
+```
+
+Decisions:
+
+- **One code for ϖ and ω, one for L and M.**  A body lists one of each pair,
+  as its source gives them (the moons ω and M), so a code means whichever
+  the body has, and a link needn't know which.
+- **App state, restored on any link that carries it** (a link with a view:
+  a bare path carries no tokens), as the `apps:` token is, on the first load; a body not yet loaded shows its diagram when
+  it does.  It isn't part of the view's restore: which elements are on
+  doesn't depend on the moment or the camera.
+- **A hover's preview isn't written**, only what was clicked on.
+- **Unknown codes are dropped**, and a body the scene doesn't have is
+  ignored.  No token: none on.
 
 ### Apps Token
 

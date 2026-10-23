@@ -78,6 +78,18 @@ for (const [name, r] of Object.entries(TABLE_1)) {
   })
 }
 
+
+/**
+ * A planet's mean elements (meanElements' form), for elementsAt.
+ *
+ * @param {string} name e.g. 'mars'; 'earth' is the Earth-Moon barycentre's
+ * @returns {object|undefined}
+ */
+export function planetElements(name) {
+  return ELEMENTS[name]
+}
+
+
 const quat = new Quaternion
 const precession = new Quaternion
 const pos = new Vector3
