@@ -4,7 +4,7 @@
       "id": "2026-10-23-the-james-webb-space-telescope-where-it-really",
       "date": "2026-10-23",
       "headline": "The James Webb Space Telescope, where it really is",
-      "text": "Webb is now in the sky beside the Earth, drawn with NASA's own 3D model at its real size and lit by the Sun, its sunshield turned toward it. It follows JPL's record of its path, from 41 minutes after launch on Christmas Day 2021, out to its orbit around the Sun–Earth L2 point 1.5 million km beyond the Earth, and on along its planned path to October 2031. Search for \"JWST\" to fly there, zoom in to a few metres and orbit it; outside those dates it isn't shown.",
+      "text": "Webb is now in the sky beside the Earth, drawn with NASA's own 3D model at its real size and lit by the Sun, its sunshield turned toward it. It follows JPL's record of its path, from 41 minutes after launch on Christmas Day 2021, out to its orbit around the Sun–Earth L2 point 1.5 million km beyond the Earth, and on along its planned path to October 2031. Search for \"JWST\" to fly there, zoom in to a few metres and orbit it; from behind its sunshield it eclipses the Sun. Outside those dates it isn't shown.",
       "links": [
         {
           "kind": "pr",
@@ -25,6 +25,27 @@
       "permalink": "#sun/earth/webb",
       "image": null,
       "featured": true
+    },
+    {
+      "id": "2026-10-23-the-tubes-that-lead-on-and-off-halo-orbits",
+      "date": "2026-10-23",
+      "headline": "The tubes that lead on and off halo orbits",
+      "text": "Switch on a halo or Lyapunov orbit around a Lagrange point, then its Manifolds, and you see the paths a spacecraft can drift along onto that orbit (green) or off it (red) without firing its engines. Together they form tubes that reach from the orbit toward the planet or moon at either end. Low-energy missions to the Moon and to the Sun–Earth Lagrange points follow these tubes. This works for every pair of bodies; around the Moon, Gateway's orbit gets none, because it is almost stable.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 284,
+          "url": "https://github.com/celestiary/web/pull/284"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth/moon@83.3877,58.4439,342.261098Mm;t=9791.8393jd;cq=-0.6779,-0.0549,-0.0248,0.7327;fov=45deg;s=F;periodic:manifolds,moon=l1l+l2l",
+      "image": null
     },
     {
       "id": "2026-10-23-satellites-round-earth-the-iss-gps-the",
