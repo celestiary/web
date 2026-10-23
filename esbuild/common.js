@@ -1,6 +1,20 @@
 const indexFile = './js/index.jsx'
 const buildDir = 'docs'
 
+// satellite.js (SGP4, js/scene/satellites/) also ships WASM propagators,
+// loaded by `import('#wasm-...')` from its index, which bundle Node-only
+// imports and top-level await.  Only its JavaScript SGP4 is used, so those
+// two resolve to a module that throws if ever called.
+const satelliteWasmStub = {
+  name: 'satellite-wasm-stub',
+  setup(build) {
+    build.onResolve({filter: /^#wasm-(single|multi)-thread$/}, () => ({path: 'satellite-wasm-stub', namespace: 'satellite-wasm-stub'}))
+    build.onLoad({filter: /.*/, namespace: 'satellite-wasm-stub'}, () => ({
+      contents: 'export default () => { throw new Error("satellite.js WASM is not bundled") }',
+    }))
+  },
+}
+
 // The build config
 export default {
   entryPoints: [indexFile],
@@ -15,6 +29,7 @@ export default {
   metafile: true,
   sourcemap: true,
   logLevel: 'info',
+  plugins: [satelliteWasmStub],
   define: {
     // Cesium ion access token for the Cesium layers (CESIUM.md).  Empty =
     // no ion data; Earth falls back to Cesium's bundled offline imagery.

@@ -31,6 +31,7 @@ import {faceKeepingRoll} from '../faceKeepingRoll.js'
 import {rehangPlatform} from '../follow.js'
 import {newGaiaPopulation} from './gaia/gaiaPopulation.js'
 import {pickSurfaceLatLng} from './Picker.js'
+import {SATELLITES_LOAD_DIST} from './satellites/names.js'
 import {hitLabel, labelBoxes} from './labelPick.js'
 import {labelTextColor} from '../shared.js'
 import * as Shared from '../shared.js'
@@ -225,6 +226,11 @@ export default class Scene {
     // The node the camera was riding when following was turned off, until
     // syncFollow has detached the camera from it.
     this._detachFrom = null
+    // Earth's satellites (satellites/Satellites.md): their chunk and
+    // snapshot, imported when something first needs them
+    // (loadSatellites), hung from Earth's planetTilt.
+    this.satellites = null
+    this.importSatellites = () => import('./satellites/loadSatellites.js')
   }
 
 
@@ -394,7 +400,7 @@ export default class Scene {
         const lagrange = [...this._lagrange?.values() ?? []].filter((m) => m.parent)
         const regimes = [...this._regimes?.values() ?? []].filter((m) => m.parent)
         return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind,
-          ...lagrange, ...lagrange.map((m) => m.syncRing), ...regimes]
+          ...lagrange, ...lagrange.map((m) => m.syncRing), ...regimes, this.satellites?.marks]
       }
       case 'p': {
         // Bodies' names, and the places and lat/lng markers on them (the
@@ -587,6 +593,9 @@ export default class Scene {
     this._joinOverlay('p', this.objects[name]?.places)
     if (name === 'sun') {
       this._joinOverlay('o', this.objects['sun']?.sunLayers?.wind)
+    }
+    if (name === 'earth') {
+      this._watchForSatellites()
     }
     // A link's lit elements for a body that has only now loaded.
     if (this._orbitElements.has(name)) {
@@ -1044,6 +1053,106 @@ export default class Scene {
   }
 
 
+  /**
+   * Load Earth's satellites when the view could show them: the camera
+   * within SATELLITES_LOAD_DIST of Earth with the orbits (`o`) shown, so
+   * the homepage, whose overlays are held, doesn't fetch them.  A watcher
+   * under Earth's planetTilt asks each frame until they've loaded.
+   */
+  _watchForSatellites() {
+    const tilt = this.objects['earth.planetTilt']
+    if (!tilt || this._satelliteWatch) {
+      this._hangSatellites()
+      return
+    }
+    const watch = new Object3D
+    this._satelliteWatch = watch
+    watch.name = 'satellite watch'
+    const at = new Vector3
+    const cam = new Vector3
+    watch.preAnimCb = () => {
+      if (this.satellites || this._satellitesPending || !this.ui?.camera || !this.overlayShown('o')) {
+        return
+      }
+      if (this.ui.camera.getWorldPosition(cam).distanceTo(tilt.getWorldPosition(at)) < SATELLITES_LOAD_DIST) {
+        this.loadSatellites()
+      }
+    }
+    tilt.add(watch)
+  }
+
+
+  /**
+   * Earth's satellites, loaded once for the page (their chunk and the
+   * snapshot), hung from Earth's planetTilt and joined to the orbits group:
+   * what the view near Earth, a `sat:` link and the first search ask for.
+   * A failure is logged and asked again by the next need.
+   *
+   * @returns {Promise<?object>} the Satellites, or null if they didn't load
+   */
+  loadSatellites() {
+    if (this.satellites) {
+      return Promise.resolve(this.satellites)
+    }
+    this._satellitesPending ??= this.importSatellites()
+        .then((m) => m.loadSatellites({layer: Shared.OVERLAY_LAYER, camera: this.ui?.camera}))
+        .then(({satellites, data}) => {
+          this.satellites = satellites
+          this.satelliteData = data
+          this._joinOverlay('o', satellites.marks)
+          this._hangSatellites()
+          this._satelliteWatch?.removeFromParent()
+          const waiters = this._satellitesWaiters ?? []
+          this._satellitesWaiters = null
+          waiters.forEach((cb) => cb(satellites))
+          return satellites
+        })
+        .catch((err) => {
+          console.warn('Satellites didn\'t load:', err)
+          this._satellitesPending = null
+          return null
+        })
+    return this._satellitesPending
+  }
+
+
+  /**
+   * @param {function(object): void} cb Called with the Satellites once
+   *   they're in.  Waiting doesn't load them: loadSatellites does.
+   */
+  onSatellitesReady(cb) {
+    if (this.satellites) {
+      cb(this.satellites)
+    } else {
+      (this._satellitesWaiters ??= []).push(cb)
+    }
+  }
+
+
+  /** Hang the satellites from Earth's planetTilt, once both are here. */
+  _hangSatellites() {
+    const tilt = this.objects['earth.planetTilt']
+    if (this.satellites && tilt && this.satellites.parent !== tilt) {
+      tilt.add(this.satellites)
+    }
+  }
+
+
+  /**
+   * @param {object} t a satellite target ({kind: 'satellite', id})
+   * @returns {?object} its node, if it has a position now: none outside its
+   *   elements' window (sgp4.js inWindow)
+   */
+  _satelliteNode(t) {
+    const sats = this.satellites
+    if (!sats || !sats.record(t.id)) {
+      return null
+    }
+    const node = sats.node(t.id)
+    return Number.isFinite(sats.jd) && !sats.drawnAt(t.id, sats.jd) ? null : node
+  }
+
+
   /** @returns {Map<string, Set<string>>} the three-body orbits on, by secondary */
   getPeriodic() {
     return this._periodic
@@ -1274,6 +1383,8 @@ export default class Scene {
    * - place: its body is `obj`, the place `label`
    * - star: `label`; `obj` stays the body it was
    * - asterism: `label` (the centroid of its stars)
+   * - satellite: Earth is `obj`, the satellite `label` (satellites/names.js
+   *   satelliteTarget)
    *
    * @param {string|object} target A body's name, or a target as labelPick.js
    *   gives them: {kind: 'body', name}, {kind: 'place', body, name, lat, lng,
@@ -1286,7 +1397,8 @@ export default class Scene {
   setTarget(target, {look = true} = {}) {
     const t = this._normalizeTarget(target)
     let obj = null
-    if (t.kind === 'body' || t.kind === 'place') {
+    // A place's or a satellite's body is `obj`, the thing itself `label`.
+    if (t.kind === 'body' || t.kind === 'place' || t.kind === 'satellite') {
       const name = t.kind === 'body' ? t.name : t.body
       obj = this.objects[name]
       if (!obj) {
@@ -1304,6 +1416,8 @@ export default class Scene {
     }
     Shared.targets.label = t.kind === 'body' ? null : t
     this._labelTargetStar(Shared.targets.label)
+    // A satellite's name shows while it's the target (Satellites.setTarget).
+    this.satellites?.setTarget(t.kind === 'satellite' ? t.id : null)
     // Animated in ThreeUI.renderLoop
     if (look) {
       const pos = t.kind === 'body' ? obj.matrixWorld : this.labelPosition(t)
@@ -1505,6 +1619,10 @@ export default class Scene {
         }
         return node.localToWorld(out.copy(latLngAltToBodyFixed(label.lat, label.lng, label.alt ?? 0, r)))
       }
+      case 'satellite': {
+        const node = this._satelliteNode(label)
+        return node ? node.getWorldPosition(out) : null
+      }
       case 'asterism': {
         if (!this.stars) {
           return null
@@ -1571,7 +1689,17 @@ export default class Scene {
       console.error('Scene.goTo called with no target obj.')
       return
     }
-    if (isPlanet) {
+    // A satellite targeted: the camera arrives at it, hung from its node,
+    // in Earth's frame (Satellites.md, going and riding).  Outside its
+    // elements' window it has no position, and the go is to Earth.
+    const satTarget = isPlanet && Shared.targets.label?.kind === 'satellite' ? Shared.targets.label : null
+    const sat = satTarget ? this._satelliteNode(satTarget) : null
+    if (satTarget && !sat) {
+      console.warn(`Scene.goTo: no position for ${satTarget.name} at this date; going to Earth`)
+    }
+    if (sat) {
+      this.setTarget(satTarget, {look: false})
+    } else if (isPlanet) {
       this.setTarget(obj.props?.name ?? obj.name, {look: false})
     } else if (isGalaxy) {
       this.setTarget({kind: 'galaxy', galaxy: star, name: starName}, {look: false})
@@ -1613,7 +1741,7 @@ export default class Scene {
     camWorldPos.add(wgDelta)
 
     // Reparent platform to target anchor with identity local transform.
-    const anchor = isPlanet ? obj.orbitPosition : this._getOrCreateStarAnchor()
+    const anchor = sat ?? (isPlanet ? obj.orbitPosition : this._getOrCreateStarAnchor())
     anchor.add(this.ui.camera.platform)
     this.ui.camera.platform.position.set(0, 0, 0)
     this.ui.camera.platform.quaternion.identity()
@@ -1626,7 +1754,7 @@ export default class Scene {
     this.ui.camera.quaternion.copy(platformWorldQuat.invert().multiply(camWorldQuat))
 
     const targetWorldPos = isPlanet ?
-      new Vector3().setFromMatrixPosition(obj.matrixWorld) :
+      new Vector3().setFromMatrixPosition((sat ?? obj).matrixWorld) :
       new Vector3(0, 0, 0)
 
     if (isPlanet) {
@@ -1634,7 +1762,7 @@ export default class Scene {
     }
     // Arriving is riding: following is on for the body gone to (the camera
     // is on its orbit now), or off at a star, which has none.
-    this._followArrival(isPlanet ? obj.orbitPosition ?? null : null)
+    this._followArrival(sat ?? (isPlanet ? obj.orbitPosition ?? null : null))
 
     // Arrival pose: approach along camera→target line.
     const dir = camWorldPos.clone().sub(targetWorldPos)
@@ -1643,7 +1771,7 @@ export default class Scene {
     } else {
       dir.set(0, 0, 1)
     }
-    const camDist = isPlanet ? this.arrivalDistance(obj) :
+    const camDist = sat ? sat.arrivalDistance : isPlanet ? this.arrivalDistance(obj) :
       isGalaxy ? star.viewDistance : (star.radius * STEP_BACK)
     const arrivalWorld = targetWorldPos.clone().addScaledVector(dir, camDist)
     const arrivalLocal = this.ui.camera.platform.worldToLocal(arrivalWorld.clone())
@@ -1654,8 +1782,13 @@ export default class Scene {
     // The exposure follows the destination on the way, and arrives at the
     // one its arrival pose asks for: one path for every planet and moon
     // (ThreeUi.approach; DESIGN.md, "Approach").
+    // Not for a satellite: the approach is worked out for a camera facing
+    // the body from about STEP_BACK radii, and from a satellite's 300 km it
+    // took the low view for the night side (a gain of 4e6 where the meter
+    // settled on 4, a white frame on arrival); the meter carries on from the
+    // gain it has.  null clears an approach in progress.
     if (isPlanet) {
-      this.ui.approach?.(obj, arrivalWorld, Shared.targets.tween)
+      this.ui.approach?.(sat ? null : obj, arrivalWorld, Shared.targets.tween)
     }
 
     // Reset drag mode to 'auto' on planet navigation so the next
@@ -2095,14 +2228,17 @@ export default class Scene {
 
   /**
    * @returns {?object} The node that carries the target body along its
-   *   orbit (its `orbitPosition`), or null: no body, or a target that is
-   *   not a body or a place on one (a star, an asterism), which does not
-   *   move.
+   *   orbit (its `orbitPosition`; a satellite's node), or null: no body,
+   *   or a target that is not a body or a place on one (a star, an
+   *   asterism), which does not move.
    */
   _followable() {
     const kind = Shared.targets.label?.kind
     if (kind === 'star' || kind === 'asterism') {
       return null
+    }
+    if (kind === 'satellite') {
+      return this._satelliteNode(Shared.targets.label) ?? Shared.targets.obj?.orbitPosition ?? null
     }
     return Shared.targets.obj?.orbitPosition ?? null
   }
@@ -2113,6 +2249,10 @@ export default class Scene {
    * @returns {?object} The body it moves
    */
   _bodyOf(node) {
+    // A satellite's node is in Earth's frame: Earth is the camera's body.
+    if (node?.isSatelliteNode) {
+      return this.objects['earth'] ?? null
+    }
     const cur = Shared.targets.cur
     if (cur?.orbitPosition === node) {
       return cur
@@ -2127,6 +2267,10 @@ export default class Scene {
    *   planet's: the Sun's; a moon's: its planet's), or null for the Sun
    */
   _parentNode(node) {
+    // Leaving a satellite leaves the camera with Earth.
+    if (node?.isSatelliteNode) {
+      return this.objects['earth']?.orbitPosition ?? null
+    }
     const parent = this.objects[this._bodyOf(node)?.props?.parent]
     return parent?.orbitPosition ?? null
   }

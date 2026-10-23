@@ -8,6 +8,7 @@
  *   hip:32349           a catalogue star, by HIP number (the search's id)
  *   asterism:orion      an asterism, by its name as a slug
  *   galaxy:ngc2403      a SPARC galaxy, by its SPARC name as a slug (Galaxies.md)
+ *   sat:25544           an Earth satellite, by its NORAD number (Satellites.md)
  *
  * A place's last segment is told from a body's by the body above it: a
  * name in that body's `system` is a body (bodies win), anything else under
@@ -15,6 +16,9 @@
  * the Moon and `sun/earth/austin` is Austin, and old links keep their
  * meaning.
  */
+
+
+import {SAT_PREFIX} from './scene/satellites/names.js'
 
 
 const STAR_PREFIX = 'hip:'
@@ -65,6 +69,8 @@ export function targetPath(target, bodyPath) {
       const id = target.id ?? target.galaxy?.id
       return id ? `${GALAXY_PREFIX}${id}` : null
     }
+    case 'satellite':
+      return Number.isInteger(target.id) ? `${SAT_PREFIX}${target.id}` : null
     default:
       return null
   }
@@ -88,6 +94,7 @@ export function targetFramePath(target, bodyPath) {
     case 'body':
       return bodyPath(target.name) || null
     case 'place':
+    case 'satellite':
       return bodyPath(target.body) || null
     case 'star':
     case 'galaxy':
@@ -104,6 +111,7 @@ export function targetFramePath(target, bodyPath) {
  *
  * @param {string} path
  * @returns {?({kind: 'star', hipId: number}|{kind: 'asterism', slug: string}|{kind: 'galaxy', id: string}|
+ *   {kind: 'satellite', id: number}|
  *   {kind: 'bodies', parts: Array<string>})} null if empty or malformed.
  *   `bodies` is a body path, or a body path then a place (resolvePlace)
  */
@@ -119,6 +127,11 @@ export function parseTargetPath(path) {
     const s = path.slice(STAR_PREFIX.length)
     const hipId = Number(s)
     return /^\d+$/.test(s) && Number.isSafeInteger(hipId) ? {kind: 'star', hipId} : null
+  }
+  if (path.startsWith(SAT_PREFIX)) {
+    const s = path.slice(SAT_PREFIX.length)
+    const id = Number(s)
+    return /^\d+$/.test(s) && Number.isSafeInteger(id) ? {kind: 'satellite', id} : null
   }
   if (path.startsWith(ASTERISM_PREFIX)) {
     const s = slug(path.slice(ASTERISM_PREFIX.length))

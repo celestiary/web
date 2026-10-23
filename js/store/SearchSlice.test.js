@@ -151,6 +151,16 @@ describe('the target (committedTarget) and the breadcrumb', () => {
     ])
   })
 
+  it('a satellite is Earth\'s path, then its name, linking to sat:<NORAD>', () => {
+    const iss = {kind: 'satellite', id: 25544, name: 'ISS', body: 'earth'}
+    expect(breadcrumbItems(iss, ['sun', 'earth'])).toEqual([
+      {label: 'Sun', hash: 'sun'}, {label: 'Earth', hash: 'sun/earth'}, {label: 'ISS', hash: 'sat:25544'},
+    ])
+    const slice = makeSlice()
+    slice.call('setCommittedTarget', iss, ['sun', 'earth'])
+    expect(slice.state.committedPath).toEqual(['sun', 'earth'])
+  })
+
   it('a star or an asterism is its name alone', () => {
     expect(breadcrumbItems({kind: 'star', star: STAR, name: 'Sirius'}, [])).toEqual([
       {label: 'Sirius', hash: 'hip:32349'},

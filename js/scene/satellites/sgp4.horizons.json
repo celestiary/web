@@ -1,0 +1,52 @@
+{
+  "source": "JPL Horizons API (https://ssd.jpl.nasa.gov/api/horizons.api), geocentric vectors, ecliptic and equinox of J2000 (ICRF), km, UT; tools/satellites/fetchHorizons.mjs",
+  "fetched": "2026-10-23T08:09:51.638Z",
+  "satellites": [
+    {
+      "name": "Vanguard 1",
+      "check": "frame",
+      "tle": [
+        "1 00005U 58002B   00179.78495062  .00000023  00000-0  28098-4 0  4753",
+        "2 00005  34.2682 348.7242 1859667 331.7664  19.3264 10.82419157413667"
+      ],
+      "query": {
+        "format": "text",
+        "MAKE_EPHEM": "YES",
+        "EPHEM_TYPE": "VECTORS",
+        "CENTER": "500@399",
+        "REF_PLANE": "ECLIPTIC",
+        "REF_SYSTEM": "ICRF",
+        "VEC_TABLE": "1",
+        "OUT_UNITS": "KM-S",
+        "CSV_FORMAT": "YES",
+        "VEC_LABELS": "NO",
+        "TIME_TYPE": "UT",
+        "TLIST_TYPE": "JD",
+        "COMMAND": "'TLE'",
+        "TLE": "1 00005U 58002B   00179.78495062  .00000023  00000-0  28098-4 0  4753\n2 00005  34.2682 348.7242 1859667 331.7664  19.3264 10.82419157413667",
+        "TLIST": "'2451723.28495062' '2451723.53495062' '2451724.28495062'"
+      },
+      "revised": null,
+      "rows": [
+        {
+          "jd": 2451723.28495062,
+          "x": 7022.312526839063,
+          "y": -1285.298231509711,
+          "z": 557.123658742163
+        },
+        {
+          "jd": 2451723.53495062,
+          "x": -7154.505923902253,
+          "y": -4876.809751315041,
+          "z": -1739.836030913391
+        },
+        {
+          "jd": 2451724.28495062,
+          "x": -939.3226517299195,
+          "y": -7458.883733325567,
+          "z": -1446.541022574796
+        }
+      ]
+    }
+  ]
+}
