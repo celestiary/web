@@ -39,6 +39,21 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Cyclers: a ride to Mars and back that never stops
+
+Buzz Aldrin's Earth–Mars cycler is in the Earth's and Mars's Craft sections: a spacecraft on an orbit
+round the Sun that swings past the Earth every 2.1 years and reaches Mars about five months later, again
+and again, steered almost entirely by the planets' own gravity. Switch it on to see three cycles drawn
+from the clock's date, and what the flybys would cost. Near the Moon there's an Earth–Moon cycler too,
+Arenstorf's orbit, looping from close over the Moon round the Earth and back every 74 days.
+
+- Date: 2026-10-23
+- PR: [#297](https://github.com/celestiary/web/pull/297)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Epic: [#119](https://github.com/celestiary/web/issues/119) Flight simulation
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@79.7759,18.5333,939.162972Gm;t=10205.8415jd;cq=0.5,0.5,0.5,-0.5;fov=45deg;s=alF;time:pause;periodic:moon=are,frame=inertial;craft:aldrin=9785.5)
+- Featured: yes
+
 ### The slow way to the Moon, by way of the Sun
 
 The Earth's and the Moon's Craft sections now have a *ballistic lunar transfer*: the low-energy route
