@@ -5,7 +5,9 @@ import {
   decodeInfoToken,
   decodeOrbitsFade,
   decodeOrbitsToken,
+  decodeCraftToken,
   decodePeriodicToken,
+  encodeCraftToken,
   encodePeriodicToken,
   decodeSettings,
   decodeTimeToken,
@@ -25,6 +27,14 @@ import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
 
 
 describe('encodePermalink / decodePermalink round-trip', () => {
+  it('keeps the clock to a tenth of a second, so a link shows its page\'s second', () => {
+    // #293: at 4 decimals (8.6 s) a paused view came back up to 4 s off.
+    const d2000 = 9795.99822917
+    const encoded = encodePermalink('sun/earth/moon', d2000, 0, 0, 1e6, {x: 0, y: 0, z: 0, w: 1}, 45)
+    expect(encoded).toContain(';t=9795.998229jd;')
+    expect(Math.abs(decodePermalink(encoded).d2000 - d2000) * 86400).toBeLessThan(0.05)
+  })
+
   it('round-trips a realistic Earth-orbit view', () => {
     const path = 'sun/earth'
     const d2000 = 9233.1234
@@ -768,6 +778,35 @@ describe('orbits token fade', () => {
 })
 
 
+describe('the craft token', () => {
+  it('writes each craft flown with its departure, days from J2000', () => {
+    expect(encodeCraftToken(new Map([['tli', 2461336.5], ['bogus', 2461336.5]]))).toBe('tli=9791.5')
+    expect(encodeCraftToken(new Map)).toBeNull()
+  })
+
+  it('reads them back, dropping unknown codes and days past the supported dates', () => {
+    expect(decodeCraftToken('tli=9791.5,x=3')).toEqual(new Map([['tli', 2461336.5]]))
+    expect(decodeCraftToken('tli=1e9').size).toBe(0)
+    expect(decodeCraftToken('tli=abc').size).toBe(0)
+    expect(decodeCraftToken(undefined).size).toBe(0)
+  })
+
+  it('restores the craft and the clock a written link was made at (#293)', () => {
+    // The reviewer's view: paused 2.6 minutes before the transfer's arrival.
+    const craft = new Map([['tli', 2461336.5]])
+    const d2000 = 9795.99822917
+    const link = encodePermalink('sun/earth/moon', d2000, 15.9259, 41.5689, 2347567,
+        {x: -0.1335, y: 0.0838, z: 0.2222, w: 0.9622}, 45, null, {time: 'pause', craft: encodeCraftToken(craft)})
+    const back = decodePermalink(link)
+    expect(decodeCraftToken(back.tokens.craft)).toEqual(craft)
+    expect(Math.abs(back.d2000 - d2000) * 86400).toBeLessThan(0.05)
+    // And written again from what it restored, the same link.
+    expect(encodePermalink(back.path, back.d2000, back.lat, back.lng, back.alt, back.quat, back.fov, null,
+        {time: back.tokens.time, craft: encodeCraftToken(decodeCraftToken(back.tokens.craft))})).toBe(link)
+  })
+})
+
+
 describe('the periodic token', () => {
   it('writes the families on, by the pair\'s secondary, and the frame when it isn\'t the default', () => {
     const families = new Map([['moon', new Set(['dro', 'nrho', 'bogus'])], ['earth', new Set(['l2h'])],
@@ -775,12 +814,15 @@ describe('the periodic token', () => {
     expect(encodePeriodicToken(families)).toBe('moon=dro+nrho,earth=l2h')
     expect(encodePeriodicToken(families, 'inertial')).toBe('moon=dro+nrho,earth=l2h,frame=inertial')
     expect(encodePeriodicToken(new Map, 'inertial')).toBeNull()
+    expect(encodePeriodicToken(families, 'rotating', true)).toBe('manifolds,moon=dro+nrho,earth=l2h')
+    expect(encodePeriodicToken(new Map, 'rotating', true)).toBeNull()
   })
 
   it('reads them back, dropping unknown codes', () => {
     const {families, frame} = decodePeriodicToken('moon=nrho+x+l1h,frame=inertial')
     expect(families).toEqual(new Map([['moon', new Set(['nrho', 'l1h'])]]))
     expect(frame).toBe('inertial')
-    expect(decodePeriodicToken(undefined)).toEqual({families: new Map, frame: 'rotating'})
+    expect(decodePeriodicToken(undefined)).toEqual({families: new Map, frame: 'rotating', manifolds: false})
+    expect(decodePeriodicToken('manifolds,moon=l1h').manifolds).toBe(true)
   })
 })

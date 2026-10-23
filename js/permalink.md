@@ -105,8 +105,9 @@ the clock 14.6 s later than they showed.  The JD is the one they saved, so the b
 view come back where they were.
 
 VSOP87 planetary theory uses T = d2000 / 36525 (Julian centuries from J2000), so this is the
-natural time axis for the simulator.  4 decimal places ≈ 8-second precision, more than adequate
-for any shareable view.
+natural time axis for the simulator.  6 decimal places ≈ 0.09 s, so the clock comes back to the
+second it showed.  It was 4 (8.6 s), and a link opened up to 4 s off its page's clock: a paused
+view, a craft near its end, moved (#293).
 
 Examples: `0jd` = noon 1 Jan 2000, `9233.1234jd` ≈ March 2025, `-36524.0jd` = 1 Jan 1900.
 

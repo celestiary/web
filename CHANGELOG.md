@@ -53,6 +53,35 @@ pole. The info panel explains why most low lunar orbits crash within weeks or mo
 - Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause)
 - Featured: yes
 
+### Fly a spacecraft to the Moon
+
+The Earth's and the Moon's panels now have a Craft section: switch on *transfer to the Moon* and a
+spacecraft leaves a low orbit round the Earth that day, burns once, and coasts four and a half days to
+pass 100 km over the Moon. Its path is drawn with the craft where it is at the clock's time, and the
+panel gives its burn, how long it takes and what it would cost to stop at the Moon. Behind it is a new
+flight simulator: the craft is pulled by the Earth, the Moon and the Sun where the app draws them, and
+it flies a real spacecraft, NASA's TESS, to within a few hundred metres of where it really went.
+
+- Date: 2026-10-23
+- PR: [#293](https://github.com/celestiary/web/pull/293)
+- Issue: [#11](https://github.com/celestiary/web/issues/11)
+- Epic: [#119](https://github.com/celestiary/web/issues/119) Flight simulation
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5)
+- Featured: yes
+
+### The tubes that lead on and off halo orbits
+
+Switch on a halo or Lyapunov orbit around a Lagrange point, then its *Manifolds*, and you see
+the paths a spacecraft can drift along onto that orbit (green) or off it (red) without firing its
+engines. Together they form tubes that reach from the orbit toward the planet or moon at either end.
+Low-energy missions to the Moon and to the Sun–Earth Lagrange points follow these tubes. This works for
+every pair of bodies; around the Moon, Gateway's orbit gets none, because it is almost stable.
+
+- Date: 2026-10-23
+- PR: [#284](https://github.com/celestiary/web/pull/284)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@83.3877,58.4439,342.261098Mm;t=9791.8393jd;cq=-0.6779,-0.0549,-0.0248,0.7327;fov=45deg;s=F;periodic:manifolds,moon=l1l+l2l)
+
 ### Satellites round Earth: the ISS, GPS, the geostationary ring
 
 Near Earth, with the orbits on, about 450 real satellites now circle it where they are on the date:

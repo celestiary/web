@@ -3,6 +3,8 @@ import {
   Color,
   Float32BufferAttribute,
   Group,
+  LineBasicMaterial,
+  LineSegments,
   Points,
   ShaderMaterial,
   Vector3,
@@ -43,6 +45,10 @@ const SWEEP_POINTS = 721
 const FAMILY_WIDTH = 1.5
 const FAMILY_OPACITY = 0.85
 const FAMILY_KEYS = Object.keys(FAMILIES)
+// The manifolds' tubes (setManifolds): stable green, unstable red, as Koon,
+// Lo, Marsden and Ross draw them; thin and faint, since they're dense.
+const MANIFOLD_COLORS = {stable: 0x60e080, unstable: 0xff7060}
+const MANIFOLD_OPACITY = 0.35
 const noRaycast = () => undefined
 const tmpV = new Vector3
 const tmpX = new Vector3
@@ -56,7 +62,7 @@ const tmpP = [0, 0, 0]
  * @param {number} n
  * @returns {Points} n screen-sized rings, their places set by the owner
  */
-function newRings(color, n) {
+export function newRings(color, n) {
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute(new Float32Array(n * 3), 3))
   const material = sceneReferred(new ShaderMaterial({
@@ -91,6 +97,26 @@ function newRings(color, n) {
 }
 
 
+/**
+ * Trajectories as line segments' vertex pairs, each step a segment.
+ *
+ * @param {Array<{xyz: Float32Array}>} trajectories
+ * @returns {Float32Array} packed xyz, two vertices a segment
+ */
+export function segmentPairs(trajectories) {
+  const n = trajectories.reduce((sum, t) => sum + Math.max(0, (t.xyz.length / 3) - 1), 0)
+  const out = new Float32Array(n * 6)
+  let k = 0
+  for (const {xyz} of trajectories) {
+    for (let i = 3; i < xyz.length; i += 3) {
+      out.set(xyz.subarray(i - 3, i + 3), k)
+      k += 6
+    }
+  }
+  return out
+}
+
+
 /** */
 export default class LagrangeMarks extends Group {
   /**
@@ -101,12 +127,15 @@ export default class LagrangeMarks extends Group {
    * @param {?object} pair.sync lagrange.js synchronousOrbit, or null
    * @param {string} pair.secondary the secondary's display name
    * @param {string} [pair.syncName] e.g. 'geostationary orbit'
+   * @param {{primary: number, secondary: number}} [pair.radii] the bodies'
+   *     radii in units of the separation, where the manifolds stop
    * @param {number} [layer] Put every part on this layer
    */
-  constructor({name, mu, hill, sync, secondary, syncName = 'synchronous orbit'}, layer = null) {
+  constructor({name, mu, hill, sync, secondary, syncName = 'synchronous orbit', radii}, layer = null) {
     super()
     this.name = `${name} Lagrange`
     this.mu = mu
+    this.radii = radii ?? {primary: 0, secondary: 0}
     this.hillRadius = hill
     this.sync = sync
     this.lagrange = lagrangePoints(mu)
@@ -224,8 +253,59 @@ export default class LagrangeMarks extends Group {
       node.traverse((o) => o.layers.set(this._layer))
     }
     this.periodic.add(node)
-    const family = {samples, node, rotating, sweep, marker, sweptAt: null}
+    const family = {samples, node, rotating, sweep, marker, sweptAt: null, manifolds: null}
     this.families.set(key, family)
+    this._showFrame(family)
+    return node
+  }
+
+
+  /**
+   * Show a family's invariant manifolds (manifolds.js), or take them away:
+   * the tubes, stable and unstable, each one set of thin lines.  Drawn
+   * turning with the pair only: a tube is a set of trajectories leaving
+   * the orbit at every phase, which has no single picture fixed in space.
+   *
+   * @param {string} key a FAMILIES key whose family is shown (setFamily)
+   * @param {?object} tubes manifolds.js manifolds', in the pair's units,
+   *     primary-centred; null to remove
+   * @returns {?Group} the tubes' node, for the owner to fade
+   */
+  setManifolds(key, tubes) {
+    const family = this.families.get(key)
+    if (!family) {
+      return null
+    }
+    if (family.manifolds) {
+      family.manifolds.traverse((o) => {
+        o.geometry?.dispose()
+        o.material?.dispose()
+      })
+      family.manifolds.removeFromParent()
+      family.manifolds = null
+    }
+    if (!tubes) {
+      return null
+    }
+    const node = new Group
+    node.name = `lagrange.periodic.${key}.manifolds`
+    for (const kind of ['stable', 'unstable']) {
+      const geometry = new BufferGeometry
+      const trajectories = tubes.branches.filter((b) => b.kind === kind).flatMap((b) => b.trajectories)
+      geometry.setAttribute('position', new Float32BufferAttribute(segmentPairs(trajectories), 3))
+      const material = sceneReferred(new LineBasicMaterial({color: MANIFOLD_COLORS[kind], transparent: true,
+        opacity: MANIFOLD_OPACITY, depthWrite: false, toneMapped: false}))
+      const lines = new LineSegments(geometry, material)
+      lines.name = `periodic.${key}.${kind}`
+      lines.frustumCulled = false
+      lines.raycast = noRaycast
+      node.add(lines)
+    }
+    if (this._layer !== null) {
+      node.traverse((o) => o.layers.set(this._layer))
+    }
+    family.node.add(node)
+    family.manifolds = node
     this._showFrame(family)
     return node
   }
@@ -246,6 +326,9 @@ export default class LagrangeMarks extends Group {
   _showFrame(family) {
     family.rotating.visible = this.frame === 'rotating'
     family.sweep.visible = this.frame === 'inertial'
+    if (family.manifolds) {
+      family.manifolds.visible = this.frame === 'rotating'
+    }
     family.sweptAt = null
   }
 

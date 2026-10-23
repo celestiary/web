@@ -1782,6 +1782,64 @@ describe('the three-body orbits at the target\'s pairs', () => {
     })
   })
 
+  it('draws the manifolds of the families that have them, turning with the pair', () => {
+    const s = solarScene()
+    withTarget(s, 'earth', () => {
+      s.togglePeriodic('moon', 'l1l')
+      s.togglePeriodic('moon', 'dro')
+      const marks = s.objects['moon.orbitPosition'].lagrange
+      let changes = 0
+      s.onSettingsChange = () => changes++
+      s.setPeriodicManifolds(true)
+      expect(changes).toBe(1)
+      const l1l = marks.families.get('l1Lyapunov')
+      // Stable and unstable, each one set of segments; the DRO has none.
+      expect(l1l.manifolds.children.map((c) => c.name)).toEqual(['periodic.l1Lyapunov.stable',
+        'periodic.l1Lyapunov.unstable'])
+      expect(l1l.manifolds.children[0].geometry.getAttribute('position').count).toBeGreaterThan(1000)
+      expect(marks.families.get('dro').manifolds).toBeNull()
+      // Stopped at the Moon's surface, in units of the separation.
+      expect(marks.radii.secondary).toBeCloseTo(1.7381e6 / 3.844e8, 8)
+      // Made once: the same tubes when the family comes back.
+      const tubes = s._tubes('moon', 'l1Lyapunov')
+      s.togglePeriodic('moon', 'l1l')
+      s.togglePeriodic('moon', 'l1l')
+      expect(s._tubes('moon', 'l1Lyapunov')).toBe(tubes)
+      // Not fixed in space.
+      s.setPeriodicFrame('inertial')
+      expect(marks.families.get('l1Lyapunov').manifolds.visible).toBe(false)
+      s.setPeriodicManifolds(false)
+      expect(marks.families.get('l1Lyapunov').manifolds).toBeNull()
+    })
+  })
+
+  it('flies a craft to the Moon from the start of the day, about the Earth', async () => {
+    const s = solarScene()
+    let changes = 0
+    s.onSettingsChange = () => changes++
+    expect(s.craftOf('earth').map((c) => [c.code, c.on])).toEqual([['tli', false]])
+    expect(s.craftOf('mars')).toEqual([])
+    s.toggleCraft('tli', 2461336.8)
+    expect(changes).toBe(1)
+    expect(s.getCraft()).toEqual(new Map([['tli', 2461336.5]]))
+    // How it's made loads on first use, then it's flown.
+    expect(s._craftTracks.size).toBe(0)
+    await s._flights
+    const track = s.objects['earth.orbitPosition'].children.find((c) => c.name === 'craft.tli')
+    expect(track).toBeDefined()
+    // In flight two days on, at the Moon's distance by the end.
+    expect(track.place(2461338.5)).toBe(true)
+    expect(track.marker.visible).toBe(true)
+    expect(track.place(2461330)).toBe(false)
+    const {t, xyz} = track.path
+    const n = t.length - 1
+    expect(Math.hypot(xyz[3 * n], xyz[(3 * n) + 1], xyz[(3 * n) + 2]) / 1e3).toBeGreaterThan(350e3)
+    expect(s.craftOf('earth')[0].text).toMatch(/^leaves 2026-10-23 from 185 km, 3,1\d\d m\/s, 4.5 days to 100 km/)
+    s.toggleCraft('tli', 2461336.8)
+    expect(s.getCraft().size).toBe(0)
+    expect(track.parent).toBeNull()
+  })
+
   it('shows a link\'s families once their pair is the target\'s', () => {
     const s = solarScene()
     s.restorePeriodic({families: new Map([['moon', new Set(['dro'])]]), frame: 'inertial'})
@@ -1790,6 +1848,8 @@ describe('the three-body orbits at the target\'s pairs', () => {
       expect([...marks.families.keys()]).toEqual(['dro'])
       expect(marks.frame).toBe('inertial')
     })
+    s.restorePeriodic({families: new Map([['moon', new Set(['l2h'])]]), frame: 'rotating', manifolds: true})
+    expect(s.getPeriodicManifolds()).toBe(true)
   })
 
   it('draws JPL\'s member where its catalogue has the pair, loaded the first time, else its own', async () => {

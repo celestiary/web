@@ -1,4 +1,4 @@
-# Lagrange points, Hill spheres, synchronous orbits, orbital regimes and three-body orbits
+# Lagrange points, Hill spheres, synchronous orbits, orbital regimes, three-body orbits and their manifolds
 
 The space around a pair of bodies, a primary and the secondary that orbits
 it: the Sun and a planet, a planet and a moon, Pluto and Charon; and the
@@ -7,8 +7,10 @@ regimes around a body that spacecraft use.  The first four parts of
 analytic features every pair has; its scope 2, Earth's orbital regimes and
 their analogues ([below](#orbital-regimes)); its scope 3, the
 three-body periodic orbits, in the turning frame or fixed in space
-([below](#three-body-orbits)); and its scope 4, the orbits near the Moon,
-its frozen orbits above all ([below](#near-the-moon)).
+([below](#three-body-orbits)); its scope 4, the orbits near the Moon, its
+frozen orbits above all ([below](#near-the-moon)); and the first of its
+scope 5, the invariant manifolds of the halo and Lyapunov orbits
+([below](#manifolds)), the base of the low-energy transfers.
 
 - `js/scene/lagrange.js`: the math, no scene.
 - `js/scene/LagrangeMarks.js`: a pair's marks, drawn.
@@ -126,8 +128,8 @@ target:
 - **Search and `goTo`** for the points ("Earth-Moon L2") need targets that
   aren't bodies.
 - **A setting of their own**: they're in `o` for now.
-- **The rest of #272**: the cyclers, transfers and manifolds wait on the
-  integrator (#11).
+- **The rest of #272**: the ballistic lunar transfer and the cyclers, on
+  #11's integrator ([Craft.md](Craft.md)).
 
 ## Orbital regimes
 
@@ -379,7 +381,8 @@ the reference orbit's published inclination that's drawn.
 are drawn with the elements from the literature.  Showing decay against
 frozen (a low orbit's eccentricity climbing to impact over weeks, a frozen
 one's holding) would need the field's low-degree zonals and a few tesserals
-(GRGM1200A or LP150Q) and the integrator of #11.
+(GRGM1200A or LP150Q) as a force in #11's integrator ([Craft.md](Craft.md)),
+which has a central body's J2 but leaves the Moon's harmonics out.
 
 **Low orbits' labels.**  An orbit that keeps within 1.5 radii of the
 body's centre (the Moon's low orbits, and Earth's 700 km sun-synchronous
@@ -403,3 +406,87 @@ crowd the disc before then.
   so the Moon on celestiary's sphere): every program compiles, and from
   6,000 km every low orbit's label is on the near side; from 60,000 km only
   the ELFO's shows.  With the Cesium Moon (ion) it's unchecked.
+
+## Manifolds
+
+The first of #272's scope 5: the stable and unstable invariant manifolds of
+the L1 and L2 Lyapunov orbits and halos, at any pair.  A manifold is the set
+of trajectories that wind onto the orbit (stable) or off it (unstable) with
+no thrust: tubes that reach from the orbit into the primary's realm and the
+secondary's.  They are why a craft can reach a halo orbit, or leave one,
+for nearly nothing, and the low-energy transfers (the next part) are built
+from them (Koon, Lo, Marsden and Ross, *Dynamical Systems, the Three-Body
+Problem and Space Mission Design*, ch. 4 to 6; Gómez et al. 2001).
+
+- `js/scene/manifolds.js`: the math, in cr3bp.js's units and frame.
+- `LagrangeMarks.setManifolds`; `Scene.setPeriodicManifolds`, `_tubes`;
+  `ControlPanel.periodicHtml`: drawing, state and the switch.
+
+**From the monodromy matrix.**  Over one period the state-transition
+matrix (cr3bp.js carries it) is the monodromy matrix M.  Its eigenvalues
+come in reciprocal pairs (the flow is symplectic): 1 and 1 (along the orbit
+and across the family), a pair on the unit circle (the halo's) and a real
+pair λ, 1/λ, the unstable and stable directions.
+
+- **λ by power iteration**: it is hundreds to thousands, so M v converges on
+  its eigenvector in a few steps.  The stable one is the dominant
+  eigenvector of M over a period *back* (`monodromy(mu, member, true)`), not
+  of M inverted: M's condition is λ², a million and more, and an inverse by
+  elimination lost the stable direction outright at Sun–Earth.
+- **Carried along the orbit** by the state-transition matrix to 24 points
+  evenly spread in time (`manifoldSeeds`): Φ(t) v.  Each is carried the way
+  it grows, the unstable one forward from the start and the stable one back
+  from a period on: carried the other way a direction shrinks while the
+  integrator's error along the other grows, as e^(2σt).
+- **A step off the orbit** of 5 × 10⁻⁴ of the secondary's L1 distance γ
+  along each direction (about 30 km at Earth–Moon; Koon et al. use 200 km),
+  either way: the *interior* branch leaves toward the primary, the
+  *exterior* away from it.  The unstable branches are integrated forward,
+  the stable ones back, each for three quarters of the pair's turn (20 days
+  at Earth–Moon, 9 months at Sun–Earth), or until they meet a body's
+  surface (`radii`, in units of the separation).  Four branches of 24
+  trajectories each.
+- **The 9:2 NRHO and the DRO get none**: the DRO is stable and the NRHO
+  nearly so (stability index 1.3, against hundreds for the halos and
+  Lyapunov orbits), which is why Gateway's orbit was chosen.  Its tubes
+  barely leave it.
+
+**Drawn** in the pair's frame, as the family's orbit, stable green and
+unstable red as Koon et al. draw them: each kind one set of thin, faint
+line segments (one draw call; the wide-line strip joins every vertex to the
+next, so it can't hold many trajectories).  Turning with the pair only: a
+tube is a set of trajectories leaving the orbit at every phase, and has no
+one picture fixed in space.  On request, with the *Manifolds* row's switch
+under the info panel's three-body orbits, and in the link as the
+`periodic:` token's `manifolds` flag
+([design/URLs.md](../../design/URLs.md#periodic-token)).  A family's tubes
+are made the first time they're asked for and kept: 30 to 65 ms a family in
+bun; in headless Chromium, Earth–Moon's two Lyapunov orbits' took 168 ms and
+Sun–Earth's two halos' 100 ms.
+
+At the Earth–Moon pair, from above (headless Chromium, 2026 Oct 22): the L1
+and L2 Lyapunov orbits' tubes, the interior branches reaching toward the
+Earth and the exterior ones into the Moon's realm and past it; and Sun–Earth's
+halos, from Earth's Hill sphere out:
+
+![Earth–Moon Lyapunov tubes](../../screens/manifolds-272/earth-moon-lyapunov-tubes.png)
+![Sun–Earth halo tubes](../../screens/manifolds-272/sun-earth-halo-tubes.png)
+
+**Checked** (`manifolds.test.js`):
+
+- **λ against the linear theory**: for an L1 Lyapunov orbit 0.5% of γ
+  across, λ is e^(σT), σ = 2.9321 the saddle's rate at Earth–Moon L1 and T
+  its period, to 0.1% (2,674.6 against 2,676.4).
+- **The eigenvectors**: M v = λ v; M w = w / λ to 1e-8; λ times the stable
+  eigenvalue is 1 to 1e-4 for all four families at Earth–Moon and
+  Sun–Earth, each with a stability index over 300.
+- **The directions as the flow has them**: at six points about an L2 halo,
+  a step of 1e-6 along the unstable direction grows λ-fold over a period
+  (to 10%), and one along the stable direction shrinks at least 200-fold,
+  the floor of the integrator's error and the second order's.
+- **The 9:2 NRHO's stability index** is between 1 and 2 (Zimovan-Spreen,
+  Howell and Davis 2020: near 1).
+- **The branches**: the interior ones leave toward the Earth and the
+  exterior ones toward the Moon; each keeps the orbit's Jacobi constant to
+  1e-6; the L1 exterior branch meets the Moon within the run.
+

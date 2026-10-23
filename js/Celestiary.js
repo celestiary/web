@@ -23,8 +23,8 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {
-  decodeInfoToken, decodeOrbitsFade, decodeOrbitsToken, decodePeriodicToken, decodePermalink, decodeSettings,
-  decodeTimeToken, encodeInfoToken, encodeOrbitsToken, encodePeriodicToken, encodePermalink, encodeTimeToken,
+  decodeCraftToken, decodeInfoToken, decodeOrbitsFade, decodeOrbitsToken, decodePeriodicToken, decodePermalink, decodeSettings,
+  decodeTimeToken, encodeCraftToken, encodeInfoToken, encodeOrbitsToken, encodePeriodicToken, encodePermalink, encodeTimeToken,
   pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
@@ -40,6 +40,7 @@ import {clampStarMag, stepStarMag} from './scene/starMagnitude'
 import {fetchPlaces} from './scene/Places'
 import {satelliteTarget} from './scene/satellites/names'
 import {parseTargetPath, resolvePlace, slug, targetFramePath, targetPath} from './targetPath'
+import {utcToTtJulianDay} from './scene/celestialFrame'
 import {elt} from './utils'
 
 
@@ -182,6 +183,15 @@ export default class Celestiary {
       toggle: (body, code) => this.scene.togglePeriodic(body, code),
       frame: () => this.scene.getPeriodicFrame(),
       setFrame: (f) => this.scene.setPeriodicFrame(f),
+      manifolds: () => this.scene.getPeriodicManifolds(),
+      setManifolds: (on) => this.scene.setPeriodicManifolds(on),
+    }
+    // And the craft flown about it (scene/craft/flights.js), on the app's
+    // ephemeris (the Sun from VSOP87C, or its stand-in until it's in).
+    this.scene.vsopAt = (jd) => this.animation.vsopAt(jd)
+    this.controlPanel.craftHooks = {
+      list: (name) => this.scene.craftOf(name),
+      toggle: (code) => this.scene.toggleCraft(code, utcToTtJulianDay(this.time.simTimeJulianDay())),
     }
     // Opening or folding the panel's lists rewrites the link (`info:`).
     this.controlPanel.onUiChange = () => this._schedulePermalinkUpdate()
@@ -632,6 +642,8 @@ export default class Celestiary {
       this.scene.setOrbitFade(decodeOrbitsFade(tokens?.orbits), true)
       // The three-body orbits shown, once their pairs are the target's.
       this.scene.restorePeriodic(decodePeriodicToken(tokens?.periodic))
+      // The craft flown, from their departures.
+      this.scene.restoreCraft(decodeCraftToken(tokens?.craft))
       // The info panel's lists, open or folded as they were.
       this.controlPanel.restoreUiState(decodeInfoToken(tokens?.info))
     } else {
@@ -3205,7 +3217,9 @@ export default class Celestiary {
       time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
       info: encodeInfoToken(this.controlPanel.uiState),
       orbits: encodeOrbitsToken(this.scene.getOrbitElements(), this.scene.getOrbitFade()),
-      periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame()),
+      periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame(),
+          this.scene.getPeriodicManifolds()),
+      craft: encodeCraftToken(this.scene.getCraft()),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(
