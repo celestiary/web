@@ -81,6 +81,8 @@ it (`js/targetPath.js`):
 #asterism:ursa-major    an asterism, by its name as a slug
 #galaxy:ngc2403         a SPARC galaxy, by its SPARC name as a slug
                         (js/scene/Galaxies.md)
+#sat:25544              an Earth satellite, by its NORAD number
+                        (js/scene/satellites/Satellites.md)
 ```
 
 - **A place or a body?**  A last segment in the body above's `system` is a
@@ -89,7 +91,11 @@ it (`js/targetPath.js`):
   did.
 - **A path alone** goes to the target, as `g` does: a body flies there (as
   it always has), a place lands there, a star or a galaxy travels, an
-  asterism turns to face it (from the Sun).
+  asterism turns to face it (from the Sun), a satellite is ridden from 300
+  km off (Earth, if it has no position at the date).
+- **A satellite's frame is Earth's**, as a place's is its body's: a view
+  near it is in Earth's frame, with no `from=`.  With `F` the camera rides
+  the satellite again once restored.
 - **With a view** (`@…`, below) the camera is put back where the link had
   it, in its frame, and the target is set without turning it.
 
@@ -562,7 +568,7 @@ Decisions:
   the view.  This fragment has an empty path and no view, so it begins at the
   separator and is only tokens (`decodeNewsToken`).  It is not written as a
   path (`#news:tour`), because the path syntax has its own `kind:value`
-  forms (`hip:`, `galaxy:`, `asterism:`) that name a target, and this names
+  forms (`hip:`, `galaxy:`, `asterism:`, `sat:`) that name a target, and this names
   none.  A fragment that starts with a path, or has a view, is never the
   tour, whatever tokens it carries.
 - **The HUD off means nothing is shown.**  The quiet-load rule (DESIGN.md

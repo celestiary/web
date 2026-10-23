@@ -38,6 +38,7 @@ tried and dropped.
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Lagrange points, Hill spheres, synchronous orbits (every pair), orbital regimes (LEO, MEO, GPS, Molniya, sun-synchronous, cislunar space), three-body orbits (halo, Lyapunov, DRO, NRHO; the CR3BP), and the rest of #272's orbital structure | [js/scene/Lagrange.md](js/scene/Lagrange.md); DESIGN.md [orbital elements](DESIGN.md#orbital-elements) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
+| Earth satellites: CelesTrak's GP data, SGP4, the TEME frame, old elements, targeting and riding one | [js/scene/satellites/Satellites.md](js/scene/satellites/Satellites.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
 | Gaia's stars and the point-population engine (tiles, budget, epoch, photometry, merge, rebuilding) | [js/scene/Gaia.md](js/scene/Gaia.md) |
 | The Milky Way: its structural model, its light in exposure units, the march, the meter's galaxy anchor | [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
@@ -340,6 +341,12 @@ tried and dropped.
   - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
     Record Horizons results as offline test fixtures with the query that
     produced them; tests never hit the network.
+  - `celestrak.org` (CelesTrak's GP data, for the satellites' snapshot,
+    `public/data/satellites.json`: `yarn satellites`;
+    [Satellites.md](js/scene/satellites/Satellites.md#the-data)).  Fetch a
+    group at most once every two hours: CelesTrak blocks clients that ask
+    more.  Horizons takes a TLE too (`COMMAND='TLE'`, `TLE=` the lines),
+    which `tools/satellites/fetchHorizons.mjs` uses to check the frame.
   - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
     `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
     [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).
