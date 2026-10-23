@@ -1,6 +1,23 @@
 {
   "entries": [
     {
+      "id": "2026-10-23-no-more-loading-screen-stuck-after-an-update",
+      "date": "2026-10-23",
+      "headline": "No more loading screen stuck after an update",
+      "text": "If you had celestiary open and it was updated in the minutes before you reloaded, the loading screen could sit there for up to ten minutes, however often you reloaded. Now the page fetches the new version and reloads once by itself. If that still doesn't load it, the page says so instead of spinning.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 290,
+          "url": "https://github.com/celestiary/web/pull/290"
+        }
+      ],
+      "epic": null,
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-10-23-settings-and-about-open-without-the-page",
       "date": "2026-10-23",
       "headline": "Settings and About open without the page blinking",
