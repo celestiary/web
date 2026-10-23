@@ -10,11 +10,13 @@ import Asterisms from './Asterisms.js'
 import ColonizationLines from './ColonizationLines.js'
 import Galaxies, {galaxiesInView} from './Galaxies.js'
 import LagrangeMarks from './LagrangeMarks.js'
+import RegimeMarks from './RegimeMarks.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import OrbitDiagram from './orbitDiagram.js'
 import {CODES, keyOfCode} from './orbitElements.js'
 import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
+import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
 import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
@@ -372,8 +374,9 @@ export default class Scene {
         // The solar wind's streamlines are a diagram of the same kind
         // (sun/SolarWind.js), and so are the target's Lagrange points.
         const lagrange = [...this._lagrange?.values() ?? []].filter((m) => m.parent)
+        const regimes = [...this._regimes?.values() ?? []].filter((m) => m.parent)
         return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind,
-          ...lagrange, ...lagrange.map((m) => m.syncRing)]
+          ...lagrange, ...lagrange.map((m) => m.syncRing), ...regimes]
       }
       case 'p': {
         // Bodies' names, and the places and lat/lng markers on them (the
@@ -571,9 +574,10 @@ export default class Scene {
     if (this._orbitElements.has(name)) {
       this._syncOrbitDiagrams()
     }
-    // The target's pairs, if this is one of their bodies.
+    // The target's pairs and regimes, if this is one of their bodies.
     if (this._lagrange && Shared.targets.obj) {
       this._syncLagrange()
+      this._syncRegimes()
     }
     return obj3d
   }
@@ -938,7 +942,86 @@ export default class Scene {
    */
   spaceAround(name) {
     const pair = this.lagrangePairsOf(name).find((p) => p[1] === name)
-    return pair ? this.pairFacts(...pair) : null
+    const regimes = this.regimesOf(name)
+    if (!pair && !regimes) {
+      return null
+    }
+    return {...(pair ? this.pairFacts(...pair) : {}), regimes}
+  }
+
+
+  /**
+   * A body's orbital regimes (regimes.js), as the panel lists them.
+   *
+   * @param {string} name
+   * @returns {?Array<string>} null for a body with none
+   */
+  regimesOf(name) {
+    const body = REGIMES[name]
+    if (!body) {
+      return null
+    }
+    const km = (m) => `${Math.round(m / 1e3).toLocaleString('en-US')} km`
+    const year = this._yearSecs(name)
+    return [
+      ...body.shells.map((s) => `${s.text}: ${km(s.from)} to ${km(s.to)} up`),
+      ...body.spheres.map((s) => s.text),
+      ...body.orbits.map((o) => {
+        const i = o.sunSync ? sunSyncInclination(body, year, semiMajorAxisOf(body, o)) : null
+        return i === null ? o.text : `${o.text}, inclined ${i.toFixed(1)}°`
+      }),
+    ]
+  }
+
+
+  /**
+   * @param {string} name
+   * @returns {number} its sidereal orbit period, seconds
+   */
+  _yearSecs(name) {
+    const period = this.objects[name]?.props?.orbit?.siderealOrbitPeriod
+    return Number(period?.scalar ?? period)
+  }
+
+
+  /**
+   * Show the target's orbital regimes (regimes.js), made on first use under
+   * its planetTilt, and take any other body's out of the scene.  They're in
+   * the orbits group (`o`), as the Lagrange points are.
+   */
+  _syncRegimes() {
+    this._regimes ??= new Map
+    const target = Shared.targets.obj?.props?.name
+    for (const [name, marks] of this._regimes) {
+      if (name !== target && marks.parent) {
+        marks.removeFromParent()
+        delete this.objects[`${name}.orbitPosition`]?.regimes
+      }
+    }
+    const tilt = this.objects[`${target}.planetTilt`]
+    if (!REGIMES[target] || !tilt) {
+      return
+    }
+    let marks = this._regimes.get(target)
+    if (!marks) {
+      // Cislunar space reaches out to the Earth-Moon L2.
+      const radii = {}
+      for (const moon of this.objects[target]?.props?.system ?? []) {
+        if (this.objects[moon]?.props?.orbit && this.objects[target]?.props?.mass) {
+          const f = this.pairFacts(target, moon)
+          radii[moon] = f.a + f.l2
+        }
+      }
+      marks = new RegimeMarks(REGIMES[target], {name: target, yearSecs: this._yearSecs(target), radii},
+          Shared.OVERLAY_LAYER)
+      this._regimes.set(target, marks)
+      this._joinOverlay('o', marks)
+    }
+    if (!marks.parent) {
+      marks.visible = this.overlayShown('o')
+      tilt.add(marks)
+      this.objects[`${target}.orbitPosition`].regimes = marks
+    }
   }
 
 
@@ -1050,6 +1133,7 @@ export default class Scene {
       state?.setCommittedPath?.(path)
     }
     this._syncLagrange()
+    this._syncRegimes()
     this.onTargetChange?.(t)
   }
 

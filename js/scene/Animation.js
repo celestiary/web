@@ -393,6 +393,9 @@ export default class Animation {
       if (system.lagrange?.visible) {
         this.layLagrange(system)
       }
+      if (system.regimes?.visible) {
+        this.layRegimes(system)
+      }
       if (system.postAnimCb) {
         system.postAnimCb(system)
       }
@@ -673,6 +676,22 @@ export default class Animation {
       r.addScaledVector(this.moonPos, MOON_MASS_FRACTION)
     }
     orbitPosition.lagrange.place(r, pole, orbitPosition.position)
+  }
+
+
+  /**
+   * Turn a planet's sun-synchronous orbits (RegimeMarks) to the Sun: its
+   * direction, the planet's heliocentric place reversed, in the planet's
+   * equator (the regimes' parent, planetTilt, under the unrotated
+   * orbitPosition).
+   *
+   * @param {Object3D} orbitPosition the planet's, with `regimes`
+   */
+  layRegimes(orbitPosition) {
+    const marks = orbitPosition.regimes
+    const sun = this._lagrangeR.copy(orbitPosition.position).negate()
+    sun.applyQuaternion(this._invQuat.copy(marks.parent.quaternion).invert())
+    marks.place(sun)
   }
 
 
