@@ -86,9 +86,11 @@ export async function createNewYork({Cesium, netgl, widget, guestBase, shadows =
     contextAttributes: {alpha: true, antialias: false, depth: true, stencil: false},
   })
   const logDepth = scene.logarithmicDepthBuffer === true
+  // lights: false drops the guest's clustered lamp lighting, which inCelestiaryFrame zeroes anyway (the lamps don't
+  // fit Cesium's frame): on a real GPU (an Apple M-series) it and the sun's shadows cost most of the guest's frame
   const guest = await entry.createNYCGuest({
     canvas, context: guestCtx.gl, width, height,
-    extent: 'manhattan', shadows, composite: true, logDepth,
+    extent: 'manhattan', shadows, lights: false, composite: true, logDepth,
   })
   if (guest.composite !== true || (logDepth && guest.logDepth !== true)) {
     throw new Error(`the guest at ${guestBase} has no composite or logDepth option (slop-newyork#1)`)
