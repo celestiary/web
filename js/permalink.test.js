@@ -781,6 +781,7 @@ describe('orbits token fade', () => {
 describe('the craft token', () => {
   it('writes each craft flown with its departure, days from J2000', () => {
     expect(encodeCraftToken(new Map([['tli', 2461336.5], ['bogus', 2461336.5]]))).toBe('tli=9791.5')
+    expect(encodeCraftToken(new Map([['blt', 2461340.5], ['tli', 2461336.5]]))).toBe('tli=9791.5,blt=9795.5')
     expect(encodeCraftToken(new Map)).toBeNull()
   })
 

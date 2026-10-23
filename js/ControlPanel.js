@@ -406,6 +406,22 @@ export default class ControlPanel {
   }
 
 
+  /** Write the craft's rows again, as the scene has them now (a flight made since). */
+  refreshCraft() {
+    const hooks = this.craftHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    for (const row of this.containerElt.querySelectorAll('.craft')) {
+      const c = (hooks.list(this._craftBody) ?? []).find((x) => x.code === row.dataset.code)
+      if (c) {
+        row.outerHTML = this._craftRow(c)
+      }
+    }
+    this._wireCraft()
+  }
+
+
   /** Wire the craft's switches (craftHtml) to the scene. */
   _wireCraft() {
     const hooks = this.craftHooks

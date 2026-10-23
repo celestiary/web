@@ -20,7 +20,7 @@ export const ORBIT_FADE_DEFAULT = 0.5
 // codes), in the order the panel lists them.
 export const PERIODIC_CODES = ['l1l', 'l2l', 'l1h', 'l2h', 'dro', 'nrho']
 // The craft's flights (craft/flights.js FLIGHTS' codes).
-export const CRAFT_CODES = ['tli']
+export const CRAFT_CODES = ['tli', 'blt']
 const J2000_JD = 2451545
 // A departure's days from J2000 in a link: to a thousandth (86 s).
 const CRAFT_DAY_DIGITS = 3
