@@ -32,12 +32,13 @@ const GROUND_LEVEL = 12
 /**
  * How finely the lean city's ground layers follow that ground (slop-newyork
  * guest.js THE GROUND, its `drape` option): within 10 cm, no edge split
- * under 8 m, and 1.5 million triangles at most (the flat layers are 0.93
- * million).  The guest's own detail (4 mm, 2 m) is for a demo hill: on real
- * terrain it split the whole island down to metres, for minutes and
- * gigabytes.  Measured on Terrarium heights resampled to this grid: 1.59
- * million triangles in 4.7 s (SwiftShader's host CPU), against 12 s and 3.1
- * million at 2 cm (CESIUM.md, "New York", what it costs).
+ * under 8 m, and a budget of 1.5 million triangles shared by area (a layer
+ * keeps at least its own; the flat layers are 0.93 million).  The guest's
+ * own detail (4 mm, 2 m) is for a demo hill: on real terrain it split the
+ * whole island down to metres, for minutes and gigabytes.  Measured on
+ * Terrarium heights resampled to this grid: 1.67 million triangles in 4.5 s
+ * (SwiftShader's host CPU), against 12 s and 3.1 million at 2 cm (CESIUM.md,
+ * "New York", what it costs).
  */
 export const LEAN_DRAPE = {tolerance: 0.1, minEdge: 8, maxTriangles: 1.5e6}
 

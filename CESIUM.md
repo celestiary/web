@@ -1046,7 +1046,7 @@ plain ellipsoid (no token, or before World Terrain answers) every height
 is 0 and nothing is fetched: the city stands on the ellipsoid, curving with
 it.  When the provider changes (World Terrain arriving), it is sampled
 again.  The city's flat ground layers are then split to follow it, to
-`LEAN_DRAPE`'s detail (10 cm, at most 1.5 million triangles): a few seconds
+`LEAN_DRAPE`'s detail (10 cm, a 1.5 million triangle budget): a few seconds
 of main thread each time ([What it costs](#what-it-costs-and-the-lean-city)).
 
 **The Sun** is Cesium's light (`p.lightDirectionWC`), which celestiary
@@ -1099,7 +1099,7 @@ and the processes' RSS):
 | A frame (aerial; JS) | 36 ms | 71 ms (city 14 ms) | 63 ms (city 15 ms) |
 | A frame at street level, 25 m up on 5th Ave (JS; SwiftShader waits on its GPU here) | | 10.5 s (city 9.4 s; its update 7.8 ms) | 89 ms (city 25 ms; its update 4.5 ms) |
 | 60 s at 30 frames | flat | flat | flat (0 GL handles a frame) |
-| Drape on real terrain (Terrarium heights on the 100 m grid) | | never ended (13 min, 1.4 GB, then killed) | 4.6 s, 1.59 M triangles |
+| Drape on real terrain (Terrarium heights on the 100 m grid) | | never ended (13 min, 1.4 GB, then killed) | 4.5 s, 1.67 M triangles |
 
 **What most likely killed the tab: the ground's drape on real terrain.**
 On the preview, with ion, `setGroundFrom` samples World Terrain, and
@@ -1121,10 +1121,11 @@ pixels differ from the city as it came, by at most 59 codes summed over rgb
 (the cars, placed at random).  What it changes:
 
 - *The drape* (`LEAN_DRAPE`, newYorkGuest.js, the guest's `drape` option):
-  within 10 cm, no edge under 8 m, at most 1.5 million triangles (the flat
-  layers are 0.93 million).  slop-newyork's split also leaves slivers alone
-  now.  On real heights: 4.6 s and 1.59 million triangles, against 12 s and
-  3.1 million at 2 cm (no visible difference over Central Park from 350 m).
+  within 10 cm, no edge under 8 m, a budget of 1.5 million triangles
+  shared by area (the flat layers are 0.93 million).  slop-newyork's split
+  also leaves slivers alone now.  On real heights: 4.5 s and 1.67 million
+  triangles, against 12 s and 3.1 million at 2 cm (no visible difference
+  over Central Park from 350 m).
 - *Lean shadows* (netglLean.js `leanShadow`): the city's shadow context, and
   Cesium's while the city's calls run through it, keep the city's objects,
   state and programs (they still answer the recorder's queries and mint its
@@ -1162,7 +1163,7 @@ What's still expensive, and what it would take:
   recorder replays from an inner link, and a link that queues uploads by
   reference and replays its set-up in chunks (`link.step()`), cutting at
   its own checkpoints rather than asking the guest for frame ends.
-- *The city itself*: 1.6 million triangles of ground layers, ~1.25 million
+- *The city itself*: 1.6-1.7 million triangles of ground layers, ~1.25 million
   of buildings and 3.4 million of street details (most instanced and culled
   by distance), 112 MB of buffers on celestiary's context and 280 MB of
   ArrayBuffers in JS (three keeps every attribute's array; the drape keeps
