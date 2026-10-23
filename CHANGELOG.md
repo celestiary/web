@@ -51,6 +51,21 @@ spinning.
 - Permalink: none
 - Kind: fix
 
+### Satellites round Earth: the ISS, GPS, the geostationary ring
+
+Near Earth, with the orbits on, about 450 real satellites now circle it where they are on the date:
+the space stations, Hubble, every navigation satellite, weather satellites, the Molniya satellites on
+their long northern loops and a sample of the geostationary ring. Search for one ("ISS",
+"Tiangong", "Hubble", a NORAD number) to target it and see its orbit and how old its elements are,
+then go to it to ride along 300 km away.
+
+- Date: 2026-10-23
+- PR: [#286](https://github.com/celestiary/web/pull/286)
+- Issue: [#50](https://github.com/celestiary/web/issues/50)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
+- Permalink: [Open this view](https://celestiary.org/#sat:25544@-23.1092,93.6224,184.75929Mm;t=9791.8729jd;cq=0,-0.0829,0,0.9966;fov=45deg;s=F)
+- Featured: yes
+
 ### Settings and About open without the page blinking
 
 Opening Settings or About, bottom left, used to blank the whole page for a moment before the dialog
