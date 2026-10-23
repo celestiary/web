@@ -775,12 +775,15 @@ describe('the periodic token', () => {
     expect(encodePeriodicToken(families)).toBe('moon=dro+nrho,earth=l2h')
     expect(encodePeriodicToken(families, 'inertial')).toBe('moon=dro+nrho,earth=l2h,frame=inertial')
     expect(encodePeriodicToken(new Map, 'inertial')).toBeNull()
+    expect(encodePeriodicToken(families, 'rotating', true)).toBe('manifolds,moon=dro+nrho,earth=l2h')
+    expect(encodePeriodicToken(new Map, 'rotating', true)).toBeNull()
   })
 
   it('reads them back, dropping unknown codes', () => {
     const {families, frame} = decodePeriodicToken('moon=nrho+x+l1h,frame=inertial')
     expect(families).toEqual(new Map([['moon', new Set(['nrho', 'l1h'])]]))
     expect(frame).toBe('inertial')
-    expect(decodePeriodicToken(undefined)).toEqual({families: new Map, frame: 'rotating'})
+    expect(decodePeriodicToken(undefined)).toEqual({families: new Map, frame: 'rotating', manifolds: false})
+    expect(decodePeriodicToken('manifolds,moon=l1h').manifolds).toBe(true)
   })
 })

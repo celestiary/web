@@ -103,7 +103,8 @@ button {
 
 /* The three-body orbits' switches (ControlPanel.periodicHtml). */
 .periodic-family,
-.periodic-frame {
+.periodic-frame,
+.periodic-manifolds {
   cursor: pointer;
   border-radius: 3px;
   padding: 0 2px;
@@ -111,14 +112,17 @@ button {
 
 .periodic-family:hover,
 .periodic-frame:hover,
+.periodic-manifolds:hover,
 .periodic-family:focus-visible,
-.periodic-frame:focus-visible {
+.periodic-frame:focus-visible,
+.periodic-manifolds:focus-visible {
   background-color: rgba(255, 255, 255, 0.08);
   outline: none;
 }
 
 .periodic-family.on,
-.periodic-frame.on {
+.periodic-frame.on,
+.periodic-manifolds.on {
   background-color: rgba(255, 255, 255, 0.16);
 }
 

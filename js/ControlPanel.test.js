@@ -72,12 +72,14 @@ describe('ControlPanel', () => {
       pairs: () => [{body: 'moon', name: 'Earth–Moon', families: [{code: 'dro', name: 'DRO', on: true},
         {code: 'nrho', name: '9:2 NRHO', on: false}]}],
       frame: () => 'inertial',
+      manifolds: () => true,
     }
     const html = panel.periodicHtml('earth')
     expect(html).toContain('three-body orbits, Earth–Moon: ')
     expect(html).toContain('class="periodic-family on" data-body="moon" data-code="dro"')
     expect(html).toContain('class="periodic-family" data-body="moon" data-code="nrho"')
     expect(html).toContain('class="periodic-frame on" data-frame="inertial"')
+    expect(html).toContain('class="periodic-manifolds on"')
   })
 
   it('writes masses in scientific notation', () => {

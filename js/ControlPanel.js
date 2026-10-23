@@ -50,7 +50,10 @@ export default class ControlPanel {
     this.orbitHooks = null
     /** Scene.spaceAround, for spaceListHtml; set by Celestiary. */
     this.spaceHook = null
-    /** The three-body orbits' switches (periodicHtml): {pairs, toggle, frame, setFrame}. */
+    /**
+     * The three-body orbits' switches (periodicHtml): {pairs, toggle, frame,
+     * setFrame, manifolds, setManifolds}.
+     */
     this.periodicHooks = null
     // The listed body and its list, and when the values last ran.
     this._orbit = null
@@ -208,7 +211,8 @@ export default class ControlPanel {
   /**
    * The three-body orbits at the body's pairs (Scene.periodicPairsOf;
    * periodicOrbits.js), each family a switch, and how they're drawn:
-   * turning with the pair, where their shapes read, or fixed in space.
+   * turning with the pair, where their shapes read, or fixed in space; and
+   * a switch for their invariant manifolds (manifolds.js).
    *
    * @param {string} name a body's
    * @returns {string} <li>s, or ''
@@ -228,6 +232,11 @@ export default class ControlPanel {
     rows.push('<li class="periodic">drawn ' +
       `${sw('periodic-frame', frame === 'rotating', 'data-frame="rotating"', 'turning with the pair', 'radio')} · ` +
       `${sw('periodic-frame', frame === 'inertial', 'data-frame="inertial"', 'fixed in space', 'radio')}</li>\n`)
+    if (hooks.manifolds) {
+      rows.push(`<li class="periodic">${sw('periodic-manifolds', hooks.manifolds(), '',
+          'with their manifolds')} (the halos' and Lyapunov orbits' tubes: stable green, unstable red; ` +
+        'turning with the pair)</li>\n')
+    }
     return rows.join('')
   }
 
@@ -255,6 +264,13 @@ export default class ControlPanel {
       act(el, () => {
         hooks.toggle(el.dataset.body, el.dataset.code)
         mark(el, !el.classList.contains('on'))
+      })
+    }
+    for (const el of this.containerElt.querySelectorAll('.periodic-manifolds')) {
+      act(el, () => {
+        const on = !el.classList.contains('on')
+        hooks.setManifolds?.(on)
+        mark(el, on)
       })
     }
     const frames = [...this.containerElt.querySelectorAll('.periodic-frame')]

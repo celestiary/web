@@ -516,15 +516,17 @@ export function decodeOrbitsFade(value) {
 /**
  * The `periodic:` token (design/URLs.md): the three-body periodic orbits
  * shown (periodicOrbits.js), `secondary=code+code` for each pair by its
- * secondary (`moon` is the Earth-Moon pair), and `frame=inertial` where
- * they're drawn fixed in space, not turning with the pair.  Left out (null)
- * when none are on.
+ * secondary (`moon` is the Earth-Moon pair), `frame=inertial` where
+ * they're drawn fixed in space, not turning with the pair, and the flag
+ * `manifolds` where their invariant manifolds are drawn too.  Left out
+ * (null) when none are on.
  *
  * @param {Map<string, Set<string>>} families Scene.getPeriodic()
  * @param {string} [frame] 'rotating' (the default) or 'inertial'
+ * @param {boolean} [manifolds]
  * @returns {?string}
  */
-export function encodePeriodicToken(families, frame = 'rotating') {
+export function encodePeriodicToken(families, frame = 'rotating', manifolds = false) {
   const named = {}
   for (const [body, codes] of families ?? []) {
     const listed = PERIODIC_CODES.filter((c) => codes.has(c))
@@ -538,7 +540,7 @@ export function encodePeriodicToken(families, frame = 'rotating') {
   if (frame === 'inertial') {
     named.frame = 'inertial'
   }
-  return formatTokenValue([], named) || null
+  return formatTokenValue(manifolds ? ['manifolds'] : [], named) || null
 }
 
 
@@ -546,10 +548,10 @@ export function encodePeriodicToken(families, frame = 'rotating') {
  * The inverse of encodePeriodicToken.  Unknown codes are dropped.
  *
  * @param {string} [value] The token's value, undefined if the link has none
- * @returns {{families: Map<string, Set<string>>, frame: string}}
+ * @returns {{families: Map<string, Set<string>>, frame: string, manifolds: boolean}}
  */
 export function decodePeriodicToken(value) {
-  const {named} = parseTokenValue(value)
+  const {flags, named} = parseTokenValue(value)
   const families = new Map
   for (const [body, list] of Object.entries(named)) {
     if (body === 'frame') {
@@ -560,7 +562,7 @@ export function decodePeriodicToken(value) {
       families.set(body, codes)
     }
   }
-  return {families, frame: named.frame === 'inertial' ? 'inertial' : 'rotating'}
+  return {families, frame: named.frame === 'inertial' ? 'inertial' : 'rotating', manifolds: flags.includes('manifolds')}
 }
 
 

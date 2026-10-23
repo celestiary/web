@@ -28,12 +28,16 @@ import {correctSymmetric, propagate} from './cr3bp.js'
 // L1 distance, collinearDistances), so a family looks alike at every pair.
 
 
-/** The families, in the order the panel lists them; `code` is the link's. */
+/**
+ * The families, in the order the panel lists them; `code` is the link's.
+ * `manifolds`: unstable enough to have tubes worth drawing (manifolds.js);
+ * the DRO is stable and the 9:2 NRHO nearly so (stability index 1.3).
+ */
 export const FAMILIES = {
-  l1Lyapunov: {code: 'l1l', name: 'L1 Lyapunov', point: 1, color: 0x9fd0ff},
-  l2Lyapunov: {code: 'l2l', name: 'L2 Lyapunov', point: 2, color: 0x9fb0ff},
-  l1Halo: {code: 'l1h', name: 'L1 halo', point: 1, color: 0xffb0e0, halo: true},
-  l2Halo: {code: 'l2h', name: 'L2 halo', point: 2, color: 0xe0a0ff, halo: true},
+  l1Lyapunov: {code: 'l1l', name: 'L1 Lyapunov', point: 1, manifolds: true, color: 0x9fd0ff},
+  l2Lyapunov: {code: 'l2l', name: 'L2 Lyapunov', point: 2, manifolds: true, color: 0x9fb0ff},
+  l1Halo: {code: 'l1h', name: 'L1 halo', point: 1, manifolds: true, color: 0xffb0e0, halo: true},
+  l2Halo: {code: 'l2h', name: 'L2 halo', point: 2, manifolds: true, color: 0xe0a0ff, halo: true},
   dro: {code: 'dro', name: 'DRO', point: 0, color: 0xa0ffd0},
   nrho: {code: 'nrho', name: '9:2 NRHO', point: 2, only: 'moon', color: 0xffe080, halo: true},
 }
