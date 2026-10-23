@@ -49,6 +49,22 @@ describe('ControlPanel', () => {
     expect(html).toMatch(/<a class="orbit-guide" href="guide\/orbit#orbit:body=io,a=421800000,[^"]*lit=i\+peri">/)
   })
 
+  it('lists the space around a body, and why it can\'t hold a synchronous orbit', () => {
+    const panel = new ControlPanel(null, null)
+    expect(panel.spaceListHtml('earth')).toBe('')
+    const facts = {name: 'Earth–Moon', secondary: 'Moon', hill: 57.9e6, l1: 58.1e6, l2: 64.5e6,
+      sync: {radius: 88.5e6, why: 'beyondHill'}}
+    panel.spaceHook = (name) => (name === 'moon' ? facts : null)
+    const html = panel.spaceListHtml('moon')
+    expect(html).toContain('data-prop="space"')
+    expect(html).toContain('Hill sphere: 57,900 km')
+    expect(html).toContain('Earth–Moon L1: 58,100 km toward the Earth; L2: 64,500 km beyond')
+    expect(html).toContain('none: at 88,500 km it would be past the Hill sphere, where the Earth\'s pull')
+    panel.spaceHook = () => ({...facts, name: 'Sun–Earth', secondary: 'Earth', syncName: 'geostationary orbit',
+      sync: {radius: 42164e3, why: null}})
+    expect(panel.spaceListHtml('earth')).toContain('synchronous orbit: 42,164 km from the centre (geostationary orbit)')
+  })
+
   it('writes masses in scientific notation', () => {
     expect(sci(5.97219e24)).toBe('5.9722 × 10²⁴')
     expect(sci(1.4762e15)).toBe('1.4762 × 10¹⁵')

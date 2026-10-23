@@ -31,6 +31,19 @@ has no view to open yet.
 
 ## October 2026
 
+### Lagrange points, Hill spheres and stationary orbits around every planet and moon
+
+Pick a planet or moon and the points where a spacecraft can hold station with it show up around it:
+its five Lagrange points with the body it orbits (JWST's Sun–Earth L2, the Moon's L1 and L2), the
+edge of the space its gravity rules, and the orbit that keeps pace with its turning, like Earth's
+geostationary ring. They follow the real orbits as they move. The info panel's new *space around* list
+gives their distances, and says why the Moon, Mercury and Venus can't have a stationary orbit.
+
+- Date: 2026-10-23
+- PR: [#276](https://github.com/celestiary/web/pull/276)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
 ### Earth's night side stays dark while its terrain loads
 
 Close to Earth, until the detailed terrain arrives (or for good, when it can't load), Earth's night

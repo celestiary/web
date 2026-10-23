@@ -1220,7 +1220,9 @@ Settings, by `V` and on the first load ([#238](https://github.com/celestiary/web
 One helper, `js/scene/fade.js`:
 
 - **A `Fade` per group** (`Scene.fades`, by setting key, `OVERLAY_KEYS`:
-  `o` orbits and the solar wind, `p` bodies' and places' names and the
+  `o` orbits, the solar wind and the target's Lagrange points, Hill
+  spheres and synchronous orbits ([Lagrange.md](js/scene/Lagrange.md)),
+  `p` bodies' and places' names and the
   lat/lng marker, `l` star names, `a` asterisms, `e` `c` `g` the grids,
   `G` galaxies' names, `x` the expansion lines).  Its opacity is
   smoothstep-eased over `FADE_MS` (400 ms) and lives in one shared uniform,
@@ -1573,6 +1575,8 @@ and the provider extension contract.
 | `js/scene/meanElements.js` | Pluto and the moons: mean elements in their reference planes, Kepler's equation |
 | `js/scene/orbitElements.js` | A body's six orbital elements of the date, from its own source, for the info panel and the diagram ([orbital elements](#orbital-elements)) |
 | `js/scene/orbitDiagram.js` | The diagram of an orbit's elements, each lit on its own; the app's and the guide's ([orbital elements](#orbital-elements)) |
+| `js/scene/lagrange.js` | A pair's Lagrange points, the secondary's Hill radius and synchronous orbit ([Lagrange.md](js/scene/Lagrange.md)) |
+| `js/scene/LagrangeMarks.js` | The target's pairs' points, Hill spheres and synchronous orbits, drawn in the orbits group ([Lagrange.md](js/scene/Lagrange.md)) |
 | `js/scene/iauRotation.js` | IAU WGCCRE rotation models: pole, prime meridian, body orientation; Jupiter's System II cloud texture turn. Data in `iauRotation.json` (`tools/iau/pckRotation.mjs`) |
 | `js/scene/orbitPath.js` | Orbit lines sampled from the planets' and the Moon's ephemerides, and their budgeted rebuilds |
 | `js/scene/bodyLine.js` | An orbit line as drawn: a fine arc around the body and a float64 line written relative to it, so it passes through the body's centre close up |

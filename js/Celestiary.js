@@ -170,6 +170,9 @@ export default class Celestiary {
       count: () => this.scene.getOrbitElements().size,
       preview: (body, code) => this.scene.previewOrbitElement(body, code),
     }
+    // And lists the space around the body: its Hill sphere, Lagrange
+    // points and synchronous orbit.
+    this.controlPanel.spaceHook = (name) => this.scene.spaceAround(name)
     // Opening or folding the panel's lists rewrites the link (`info:`).
     this.controlPanel.onUiChange = () => this._schedulePermalinkUpdate()
     this.firstTime = true
