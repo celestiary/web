@@ -47,6 +47,7 @@ appeared, and closing it did the same. The dialogs now open and close over the s
 - Date: 2026-10-23
 - PR: [#282](https://github.com/celestiary/web/pull/282)
 - Permalink: [Open this view](https://celestiary.org/#sun/earth)
+- Kind: fix
 
 ### A tidier info panel, and a sheet you can pull up on your phone
 
