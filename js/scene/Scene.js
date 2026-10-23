@@ -18,6 +18,7 @@ import {CODES, keyOfCode} from './orbitElements.js'
 import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
 import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
 import {FAMILIES, PERIODIC_DATA_URL, familyMember, familyOfCode, sampleMember, southern} from './periodicOrbits.js'
+import {manifolds} from './manifolds.js'
 import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
@@ -221,6 +222,10 @@ export default class Scene {
     this._periodic = new Map
     this._periodicFrame = 'rotating'
     this._periodicMembers = new Map
+    // Whether the shown families' invariant manifolds are drawn too
+    // (manifolds.js), and the tubes made so far, by `secondary:family`.
+    this._periodicManifolds = false
+    this._manifoldTubes = new Map
     // JPL's catalogue members (public/data/periodicOrbits.json), loaded the
     // first time a family is shown: undefined before, 'loading', the file,
     // or null where it couldn't load (the app's own members then).
@@ -988,9 +993,13 @@ export default class Scene {
       radius: Number(props.radius?.scalar ?? props.radius), hill,
     })
     const {l1, l2} = collinearDistances(mu)
+    // The bodies' radii in units of the separation, where the three-body
+    // trajectories (manifolds.js) stop.
+    const radius = (b) => Number(this.objects[b]?.props?.radius?.scalar ?? this.objects[b]?.props?.radius) || 0
     return {
       name: `${Utils.capitalize(primary)}–${Utils.capitalize(secondary)}`, secondary: Utils.capitalize(secondary),
       mu, a, hill, sync, l1: l1 * a, l2: l2 * a, syncName: SYNC_NAMES[secondary],
+      radii: {primary: radius(primary) / a, secondary: radius(secondary) / a},
     }
   }
 
@@ -1300,14 +1309,36 @@ export default class Scene {
   }
 
 
+  /** @returns {boolean} whether the families' manifolds are drawn */
+  getPeriodicManifolds() {
+    return this._periodicManifolds
+  }
+
+
+  /**
+   * Draw the shown families' invariant manifolds, or not.
+   *
+   * @param {boolean} on
+   * @param {boolean} [quiet] don't tell the link (a restore)
+   */
+  setPeriodicManifolds(on, quiet = false) {
+    this._periodicManifolds = Boolean(on)
+    this._syncPeriodic()
+    if (!quiet) {
+      this.onSettingsChange?.()
+    }
+  }
+
+
   /**
    * A link's three-body orbits (decodePeriodicToken), shown once their pairs
    * are the target's.
    *
-   * @param {{families: Map<string, Set<string>>, frame: string}} state
+   * @param {{families: Map<string, Set<string>>, frame: string, manifolds: boolean}} state
    */
-  restorePeriodic({families, frame}) {
+  restorePeriodic({families, frame, manifolds: tubes = false}) {
     this._periodic = new Map(families)
+    this._periodicManifolds = Boolean(tubes)
     this.setPeriodicFrame(frame, true)
   }
 
@@ -1360,6 +1391,18 @@ export default class Scene {
           fadeObject(node, this.fades.o.uniform)
         }
       }
+      for (const [family, shown] of marks.families) {
+        const want = this._periodicManifolds && FAMILIES[family].manifolds
+        if (want && !shown.manifolds) {
+          const tubes = this._tubes(secondary, family, shown.samples, marks.radii)
+          const node = tubes ? marks.setManifolds(family, tubes) : null
+          if (node) {
+            fadeObject(node, this.fades.o.uniform)
+          }
+        } else if (!want && shown.manifolds) {
+          marks.setManifolds(family, null)
+        }
+      }
       marks.setFrame(this._periodicFrame)
     }
   }
@@ -1386,10 +1429,31 @@ export default class Scene {
       const samples = member ? sampleMember(m, member) : null
       if (samples) {
         samples.source = jpl ? 'JPL' : 'computed'
+        // For its manifolds (_tubes): the member as drawn, in its mass ratio.
+        samples.member = member
+        samples.mu = m
       }
       this._periodicMembers.set(key, samples)
     }
     return this._periodicMembers.get(key)
+  }
+
+
+  /**
+   * A family's manifolds at a pair, made once from the member drawn.
+   *
+   * @param {string} secondary
+   * @param {string} family
+   * @param {object} samples _periodicSamples'
+   * @param {object} [radii] pairFacts', where the trajectories stop
+   * @returns {?object} manifolds.js manifolds'
+   */
+  _tubes(secondary, family, samples, radii) {
+    const key = `${secondary}:${family}`
+    if (!this._manifoldTubes.has(key)) {
+      this._manifoldTubes.set(key, samples.member ? manifolds(samples.mu, samples.member, {radii}) : null)
+    }
+    return this._manifoldTubes.get(key)
   }
 
 

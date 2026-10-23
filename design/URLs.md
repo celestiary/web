@@ -471,6 +471,7 @@ frame they're drawn in when it isn't the default.
 ```
 <secondary>=<code>+<code>   a pair by its secondary (moon: the Earth-Moon pair) and its families on
 frame=inertial              drawn fixed in space, not turning with the pair
+manifolds                   the families' invariant manifolds drawn too (the Lyapunov orbits' and halos')
 ```
 
 The codes, in the order the panel lists them:
@@ -488,6 +489,7 @@ nrho     the 9:2 near-rectilinear halo orbit (Earth-Moon only)
 #…;periodic:moon=nrho+dro                    Gateway's NRHO and a DRO, turning with the Earth-Moon pair
 #…;periodic:earth=l1h+l2h                    the Sun-Earth L1 and L2 halos
 #…;periodic:moon=dro+l2l,frame=inertial      fixed in space: their spirographs
+#…;periodic:manifolds,moon=l1l+l2l           the Earth-Moon L1 and L2 Lyapunov orbits with their tubes
 ```
 
 Decisions:
