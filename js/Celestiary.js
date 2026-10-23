@@ -11,6 +11,7 @@ import TourDriver from './tourDriver'
 import NewsTour from './newsTour'
 import {searchIndex} from './search/SearchIndex'
 import GalaxiesProvider from './search/providers/GalaxiesProvider'
+import SatellitesProvider from './search/providers/SatellitesProvider'
 import PlacesProvider from './search/providers/PlacesProvider'
 import SceneProvider from './search/providers/SceneProvider'
 import StarsProvider from './search/providers/StarsProvider'
@@ -37,6 +38,7 @@ import {hideLoading} from './loading'
 import {clampEv, stepEv} from './scene/evCompensation'
 import {clampStarMag, stepStarMag} from './scene/starMagnitude'
 import {fetchPlaces} from './scene/Places'
+import {satelliteTarget} from './scene/satellites/names'
 import {parseTargetPath, resolvePlace, slug, targetFramePath, targetPath} from './targetPath'
 import {elt} from './utils'
 
@@ -501,7 +503,8 @@ export default class Celestiary {
           state.previewGalaxy === prev.previewGalaxy &&
           state.committedStar === prev.committedStar &&
           state.committedPath === prev.committedPath &&
-          state.committedGalaxy === prev.committedGalaxy) {
+          state.committedGalaxy === prev.committedGalaxy &&
+          state.committedTarget === prev.committedTarget) {
         return
       }
       // Precedence: hovered/highlighted preview wins over committed selection;
@@ -514,6 +517,9 @@ export default class Celestiary {
         this.controlPanel.showNavDisplay(state.previewPath)
       } else if (state.committedGalaxy) {
         this.controlPanel.showGalaxyPreview(state.committedGalaxy, this.scene.galaxies)
+      } else if (state.committedTarget?.kind === 'satellite' && this.scene.satellites) {
+        this.controlPanel.showSatellite(this.scene.satellites.record(state.committedTarget.id),
+            this.time.simTimeJulianDay(), this.scene.satelliteData?.fetched)
       } else if (state.committedStar) {
         this.controlPanel.showStarPreview(state.committedStar)
       } else if (state.committedPath && state.committedPath.length > 0) {
@@ -530,6 +536,12 @@ export default class Celestiary {
    */
   _registerSearchProviders() {
     searchIndex.register(new SceneProvider(this.loader))
+    // Earth's satellites, as the galaxies, below (Satellites.md).
+    this.scene.onSatellitesReady((satellites) => {
+      searchIndex.register(new SatellitesProvider(satellites))
+      searchIndex.invalidate()
+    })
+    searchIndex.loadOnSearch(() => this.scene.loadSatellites())
     // SPARC's galaxies, once their catalogue is in (Galaxies.md).
     this.scene.onGalaxiesReady((galaxies) => {
       searchIndex.register(new GalaxiesProvider(galaxies))
@@ -702,9 +714,14 @@ export default class Celestiary {
         // Following is of the camera's frame: on if the link says (`F`), or
         // if the frame is the target's own body, which is how links before
         // `F` rode (design/URLs.md).
-        const ownFrame = frame.kind !== 'star' && frame.kind !== 'galaxy' &&
+        const ownFrame = frame.kind !== 'star' && frame.kind !== 'galaxy' && resolved.kind !== 'satellite' &&
           (!pl.from || pl.from === REF_FRAME[resolved.kind](resolved))
         this.scene.restoreFollowing(pl.settings.F || ownFrame)
+        // A satellite is ridden from its node, which the link's frame (Earth)
+        // isn't: ride it again, from where the camera is.
+        if (resolved.kind === 'satellite' && pl.settings.F) {
+          this.scene.setFollowing(true)
+        }
       }))
     } else {
       // Opening the page on a path: going there (and the following it turns
@@ -817,6 +834,16 @@ export default class Celestiary {
     }
     if (resolved.kind === 'galaxy') {
       this.scene.goTo(frame.galaxy)
+      return
+    }
+    if (resolved.kind === 'satellite') {
+      this._resolveTarget(resolved, (sat) => quiet(() => {
+        this.scene.setTarget(sat, {look: false})
+        this.scene.goTo()
+      }), () => quiet(() => {
+        this.scene.setTarget('earth')
+        this.scene.goTo()
+      }))
       return
     }
     if (resolved.kind === 'place') {
@@ -979,6 +1006,18 @@ export default class Celestiary {
       case 'galaxy':
         this._whenGalaxy(resolved.id, (galaxy) => cb({kind: 'galaxy', galaxy, name: galaxy.name}), onMissing)
         return
+      case 'satellite':
+        // Their snapshot is fetched now if the view hasn't yet.
+        this.scene.loadSatellites().then((sats) => {
+          const rec = sats?.record(resolved.id)
+          if (rec) {
+            cb(satelliteTarget(rec))
+          } else {
+            console.warn(`No satellite ${resolved.id}`)
+            onMissing?.()
+          }
+        })
+        return
       case 'asterism':
         this.scene.onAsterismsReady((asterisms) => {
           const t = asterisms.targetNamed(resolved.slug)
@@ -1016,6 +1055,11 @@ export default class Celestiary {
     }
     if (label.kind === 'galaxy') {
       this.scene.goTo(label.galaxy, label.name)
+      return
+    }
+    if (label.kind === 'satellite') {
+      this.scene.setTarget(label, {look: false})
+      this.scene.goTo()
       return
     }
     goToEntry(label.kind === 'star' ?
@@ -3288,6 +3332,8 @@ export default class Celestiary {
 
 
 const DEFAULT_TARGET = 'sun'
+// Earth's path: the frame a satellite's link is in.
+const EARTH_PATH = 'sun/earth'
 const J2000_JD = 2451545.0
 
 
@@ -3377,6 +3423,8 @@ const REF_FRAME = {
   star: (r) => `hip:${r.hipId}`,
   galaxy: (r) => `galaxy:${r.id}`,
   asterism: () => DEFAULT_TARGET,
+  // In Earth's frame (Satellites.md).
+  satellite: () => EARTH_PATH,
 }
 
 

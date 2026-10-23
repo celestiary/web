@@ -38,6 +38,15 @@ function resolve(path) {
 
 
 describe('targetPath', () => {
+  it('names a satellite by its NORAD number, in Earth\'s frame', () => {
+    const iss = {kind: 'satellite', id: 25544, name: 'ISS', body: 'earth'}
+    expect(targetPath(iss, bodyPath)).toBe('sat:25544')
+    expect(targetFramePath(iss, bodyPath)).toBe('sun/earth')
+    expect(parseTargetPath('sat:25544')).toEqual({kind: 'satellite', id: 25544})
+    expect(parseTargetPath('sat:')).toBeNull()
+    expect(parseTargetPath('sat:iss')).toBeNull()
+  })
+
   it('names each kind of target', () => {
     expect(targetPath(TARGETS.body, bodyPath)).toBe('sun/earth/moon')
     expect(targetPath(TARGETS.place, bodyPath)).toBe('sun/earth/austin')
