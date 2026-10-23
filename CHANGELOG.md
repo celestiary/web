@@ -45,7 +45,7 @@ Webb is now in the sky beside the Earth, drawn with NASA's own 3D model at its r
 the Sun, its sunshield turned toward it. It follows JPL's record of its path, from 41 minutes after
 launch on Christmas Day 2021, out to its orbit around the Sun–Earth L2 point 1.5 million km beyond the
 Earth, and on along its planned path to October 2031. Search for "JWST" to fly there, zoom in to a few
-metres and orbit it; outside those dates it isn't shown.
+metres and orbit it; from behind its sunshield it eclipses the Sun. Outside those dates it isn't shown.
 
 - Date: 2026-10-23
 - PR: [#288](https://github.com/celestiary/web/pull/288)

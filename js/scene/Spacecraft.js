@@ -4,6 +4,7 @@ import SpriteSheet from './SpriteSheet.js'
 import {FovLOD, newFarPoint, pointSwitchDistance} from './farPoint.js'
 import {bodyRank} from './labelDeclutter.js'
 import {loadModel} from './model.js'
+import {buildOccluder, sunBlocked} from './modelOccluder.js'
 import {point} from './shapes.js'
 import {Trajectory} from './trajectory.js'
 import {FAR_OBJ, OVERLAY_LAYER, labelTextColor, toRad} from '../shared.js'
@@ -17,6 +18,8 @@ const LABEL_NEAR_RADII = 30
 const LABEL_FAR_M = 1e10
 // A label's depth, in radii toward the eye, as a planet's.
 const LABEL_LIFT = 1.1
+// The occluder's build waits at most this for an idle moment.
+const IDLE_TIMEOUT_MS = 2000
 
 
 /**
@@ -132,6 +135,8 @@ export default class Spacecraft extends Object {
     // (Scene.setTarget calls preloadNear): on the next animation frame, so
     // targeting doesn't start a download synchronously.
     let state = 'none'
+    let occluder = null
+    let occluderModel = null
     const buildNear = () => {
       if (state === 'loading' || state === 'loaded') {
         return
@@ -149,6 +154,17 @@ export default class Spacecraft extends Object {
         const centre = new Box3().setFromObject(model, true).getCenter(new Vector3())
         model.position.sub(centre)
         attitude.add(model)
+        // Its silhouette, for the Sun's disc behind it (modelOccluder.js): a
+        // third of a second for JWST's grid, so when the page is idle.
+        const build = () => {
+          occluder = buildOccluder(model)
+          occluderModel = model
+        }
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(build, {timeout: IDLE_TIMEOUT_MS})
+        } else {
+          build()
+        }
         state = 'loaded'
       }, (err) => {
         console.warn(`${this.name}: model ${this.props.model.path} didn't load: ${err.message}`)
@@ -162,6 +178,26 @@ export default class Spacecraft extends Object {
         this.loadTrajectory()
         node.preAnimCb = null
       }
+    }
+    // The share of the Sun's disc the model hides from the camera, or null
+    // when it can't hide any (SunLayers._occlusion): the planets and moons
+    // occult as spheres, a spacecraft by its triangles.
+    const centre = new Vector3()
+    node.sunBlocked = (cam, sun, discRadius) => {
+      if (!occluder || !node.visible) {
+        return null
+      }
+      node.getWorldPosition(centre)
+      const d = centre.distanceTo(cam)
+      if (!(d > 0) || d > sun.distanceTo(cam)) {
+        return null
+      }
+      const toCraft = centre.sub(cam).divideScalar(d)
+      const toSun = tmpSun.subVectors(sun, cam).normalize()
+      if (toCraft.angleTo(toSun) > discRadius + Math.asin(Math.min(1, radius / d))) {
+        return null
+      }
+      return sunBlocked(occluder, occluderModel, cam, sun, discRadius)
     }
     // Ready once the model is in (a link's first frame waits on it,
     // ThreeUI.sceneReady), or it failed: nothing more is coming for now.
@@ -216,3 +252,6 @@ export default class Spacecraft extends Object {
     return named(labelLOD, 'label LOD')
   }
 }
+
+
+const tmpSun = new Vector3

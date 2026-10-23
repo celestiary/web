@@ -1631,6 +1631,7 @@ and the provider extension contract.
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
 | `js/scene/Spacecraft.js` | A spacecraft: its model at its place on a trajectory table, turned to the Sun ([models.md](js/scene/models.md)) |
+| `js/scene/modelOccluder.js` | A model's silhouette against the Sun's disc: its triangles in a voxel grid, and the share of the disc they hide ([models.md, in front of the Sun](js/scene/models.md#in-front-of-the-sun)) |
 | `js/scene/model.js` | `loadModel`: glTF models, lazily loaded, metres, lit by the Sun ([models.md, the loader](js/scene/models.md#the-loader)) |
 | `js/scene/trajectory.js` | A spacecraft's JPL Horizons table, interpolated (cubic Hermite) and taken to the scene's frame ([models.md, positions](js/scene/models.md#positions)) |
 | `js/scene/sharedImage.js` | One fetch of an image for every consumer: the surface's `<img>`, the clouds' pixels, Cesium's `blob:` URL (Earth's month of Blue Marble; [Planet.md](js/scene/Planet.md#one-fetch-of-the-months-blue-marble)) |

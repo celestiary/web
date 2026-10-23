@@ -189,6 +189,43 @@ shortest turn from the scene's axes (`turnToSun`).  Its roll about the
 Sun line and the pitch it's allowed off it (−5° to +45°, for pointing) are
 not modelled, so the telescope points wherever that turn leaves it.
 
+## In front of the Sun
+
+The planets and moons occult the Sun as spheres (`SunLayers._occlusion`):
+its glare, the disc's point and the meter's luminous disc all take the
+disc's visible share past them.  A spacecraft is nothing like a sphere, and
+it wasn't in that list, so from Webb's shade side the Sun's glare showed
+straight through the sunshield (the maintainer's review of #288).
+
+- **Its silhouette** (`modelOccluder.js` `buildOccluder`): every triangle
+  marked in a voxel grid in the model's own frame, 128 cells along its
+  longest side (JWST: 17 cm cells, 129 × 73 × 87, 41,054 filled), each
+  triangle sampled at half a cell.  Built once, in an idle moment after the
+  model loads (358 ms for JWST's 494,000 triangles in headless Chromium).
+  Not its largest triangles: JWST's surface is spread over many small ones
+  (its largest 4,096 are 29% of its area, 65,536 are 80%), too many to test
+  every ray against each frame.
+- **The share it hides** (`sunBlocked`): 31 rays from the camera across the
+  disc (its centre and rings at 0.4, 0.75 and 0.95 of its radius), each
+  walked through the grid (Amanatides and Woo) in the model's frame, so the
+  attitude's turn is in it.  `Spacecraft`'s `node.sunBlocked` first checks
+  the craft's bounding sphere is in front of the disc, so a frame without
+  the Sun behind it tests nothing.  Its resolution is the cell: from closer
+  than about 20 m the disc is within one cell at the sunshield's rim, which
+  hides all of it or none.
+- **Into the Sun's layers**: the visible share is the spheres' times the
+  craft's (1 − hidden), and a craft over the disc's centre hides the
+  point, as a body does.
+- **Cost**: 0.03 to 0.27 ms a frame for the rays while the craft is over
+  the disc, nothing otherwise; the grid is 0.8 MB.
+- **Checked** (`modelOccluder.test.js`, and in the browser): from 12 m
+  behind Webb on the Sun's line the disc is all hidden, the meter goes to
+  the dark-adapted gain and the corona shows round the silhouette; 9 m to
+  the side the Sun is back and the gain returns to 1 within about 9 s.  At
+  that gain a few sunlit edges past the sunshield's rim show as specks.
+- **Not**: limb darkening across the rays (each counts the same), and
+  Webb's shadow on other bodies.
+
 ## Checked in the browser
 
 Headless Chromium on SwiftShader, `CESIUM_ION_TOKEN= yarn build`, at

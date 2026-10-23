@@ -183,6 +183,35 @@ describe('Spacecraft', () => {
     expect(centre.distanceTo(node.attitude.getWorldPosition(new Vector3))).toBeLessThan(1e-3)
   })
 
+  it('hides the Sun from behind its model, and nothing from beside it', async () => {
+    const {scene, world, craft} = webbScene()
+    craft.loadTrajectory = () => null
+    const {BoxGeometry, Mesh, MeshStandardMaterial} = await import('three')
+    // A 20 m slab, as a sunshield.
+    setGltfLoader(() => {
+      const root = new Group
+      root.add(new Mesh(new BoxGeometry(20, 0.2, 20), new MeshStandardMaterial))
+      return Promise.resolve(root)
+    })
+    const node = scene.objects.webb
+    animationAt(JD).animateSystem(world)
+    expect(node.sunBlocked(new Vector3, new Vector3, 0.005)).toBeNull()
+    node.preloadNear()
+    node.preAnimCb()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    world.updateMatrixWorld(true)
+    const sun = new Vector3
+    const here = node.getWorldPosition(new Vector3)
+    const away = here.clone().sub(sun).normalize()
+    const disc = Math.asin(6.957e8 / here.length())
+    expect(node.sunBlocked(here.clone().addScaledVector(away, 30), sun, disc)).toEqual({fraction: 1, centre: true})
+    // 100 m to the side the craft isn't over the disc: nothing tested.
+    const side = new Vector3(0, 1, 0).cross(away).normalize()
+    expect(node.sunBlocked(here.clone().addScaledVector(away, 30).addScaledVector(side, 100), sun, disc)).toBeNull()
+    // Between it and the Sun: it's behind the camera.
+    expect(node.sunBlocked(here.clone().addScaledVector(away, -30), sun, disc)).toBeNull()
+  })
+
   it('takes TT for its table, as the Moon does', () => {
     // The table is in TDB; the 69 s of TT − UTC move Webb tens of km.
     const t = new Trajectory(table)
