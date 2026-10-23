@@ -40,6 +40,35 @@ appeared, and closing it did the same. The dialogs now open and close over the s
 - PR: [#282](https://github.com/celestiary/web/pull/282)
 - Permalink: [Open this view](https://celestiary.org/#sun/earth)
 
+### A tidier info panel, and a sheet you can pull up on your phone
+
+The panel beside a planet, moon or star now starts with its name, what it is and how far out it
+orbits, then the few numbers you'd ask first: its size, its day, its year. Everything else (its orbit's
+elements, its mass and gravity, the space around it, its atmosphere) waits in sections you open
+when you want them, and nothing in the scene shows through. On a phone the panel is a sheet at the
+bottom of the screen: pull it up for more, push it down to see the sky. Cesium's credits shrink to
+its logo a few seconds after Earth's close-up surface comes into view (tap the logo to read them),
+and leave the screen while you look up at the sky.
+
+- Date: 2026-10-23
+- PR: [#280](https://github.com/celestiary/web/pull/280)
+- Issue: [#279](https://github.com/celestiary/web/issues/279)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
+### Halo orbits, Gateway's NRHO and the spirographs of three-body space
+
+The orbits spacecraft fly around Lagrange points can now be drawn. Open a planet's or moon's info
+panel, and under *space around* switch on its halo, Lyapunov and distant retrograde orbits, or around
+the Moon the near-rectilinear halo orbit that NASA's Gateway station is planned for. They are drawn
+moving with the pair of bodies, where their shapes make sense, or fixed in space, where they trace the
+spirograph loops seen from Earth. Where NASA/JPL's catalogue of these orbits covers the pair (the Earth
+and Moon, the Sun and Earth or Mars, Phobos, Europa, Titan), the orbits drawn are JPL's own.
+
+- Date: 2026-10-23
+- PR: [#283](https://github.com/celestiary/web/pull/283)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon)
+
 ### Earth's orbital neighbourhoods: LEO, GPS, Molniya and the edge of cislunar space
 
 With Earth selected, the regions satellites use are drawn around it: low and medium Earth orbit as

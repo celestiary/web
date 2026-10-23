@@ -17,6 +17,48 @@
       "image": null
     },
     {
+      "id": "2026-10-23-a-tidier-info-panel-and-a-sheet-you-can-pull-up",
+      "date": "2026-10-23",
+      "headline": "A tidier info panel, and a sheet you can pull up on your phone",
+      "text": "The panel beside a planet, moon or star now starts with its name, what it is and how far out it orbits, then the few numbers you'd ask first: its size, its day, its year. Everything else (its orbit's elements, its mass and gravity, the space around it, its atmosphere) waits in sections you open when you want them, and nothing in the scene shows through. On a phone the panel is a sheet at the bottom of the screen: pull it up for more, push it down to see the sky. Cesium's credits shrink to its logo a few seconds after Earth's close-up surface comes into view (tap the logo to read them), and leave the screen while you look up at the sky.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 280,
+          "url": "https://github.com/celestiary/web/pull/280"
+        },
+        {
+          "kind": "issue",
+          "number": 279,
+          "url": "https://github.com/celestiary/web/issues/279"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth",
+      "image": null
+    },
+    {
+      "id": "2026-10-23-halo-orbits-gateway-s-nrho-and-the-spirographs",
+      "date": "2026-10-23",
+      "headline": "Halo orbits, Gateway's NRHO and the spirographs of three-body space",
+      "text": "The orbits spacecraft fly around Lagrange points can now be drawn. Open a planet's or moon's info panel, and under space around switch on its halo, Lyapunov and distant retrograde orbits, or around the Moon the near-rectilinear halo orbit that NASA's Gateway station is planned for. They are drawn moving with the pair of bodies, where their shapes make sense, or fixed in space, where they trace the spirograph loops seen from Earth. Where NASA/JPL's catalogue of these orbits covers the pair (the Earth and Moon, the Sun and Earth or Mars, Phobos, Europa, Titan), the orbits drawn are JPL's own.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 283,
+          "url": "https://github.com/celestiary/web/pull/283"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth/moon",
+      "image": null
+    },
+    {
       "id": "2026-10-23-earth-s-orbital-neighbourhoods-leo-gps-molniya",
       "date": "2026-10-23",
       "headline": "Earth's orbital neighbourhoods: LEO, GPS, Molniya and the edge of cislunar space",
