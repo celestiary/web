@@ -39,6 +39,21 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Starlink, Iridium's crosslinks and the Deep Space Network's live links
+
+Three networks you can now turn on round Earth, in Settings under Networks: all 11,000 Starlink
+satellites, coloured by shell; Iridium's 66 satellites in their six polar planes, with the links
+between them coming and going as they move; and NASA's Deep Space Network, its dishes in
+California, Spain and Australia with live beams out to the spacecraft they're talking to right
+now, out to Voyager 1, 172 AU away. Uplinks are orange, downlinks blue.
+
+- Date: 2026-10-23
+- PR: [#294](https://github.com/celestiary/web/pull/294)
+- Issue: [#50](https://github.com/celestiary/web/issues/50)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF)
+- Featured: yes
+
 ### Satellites round Earth: the ISS, GPS, the geostationary ring
 
 Near Earth, with the orbits on, about 450 real satellites now circle it where they are on the date:
