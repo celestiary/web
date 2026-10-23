@@ -989,6 +989,7 @@ export default class Scene {
         const i = o.sunSync ? sunSyncInclination(body, year, semiMajorAxisOf(body, o)) : null
         return i === null ? o.text : `${o.text}, inclined ${i.toFixed(1)}°`
       }),
+      ...(body.notes ?? []),
     ]
   }
 
