@@ -56,6 +56,15 @@ falls back to if its Cesium layer can't load.
   the same ion logo and links; with two bodies on screen, the farther
   one's data attribution isn't shown.  The overlay is HTML chrome too:
   `v` hides it with the other panels.
+- <a id="credits"></a>**Credits stand back after a few seconds**
+  (`creditsReveal.js`): in full as a body comes into view (none to one,
+  or one nearest body to another), then after 6 s compact, the ion logo
+  alone at 55% opacity; a hover, a focus or a tap brings the text and the
+  data attribution back for another 6 s (a tap on the compact logo doesn't
+  follow its link).  Not hidden: ion's and Bing's terms want the
+  attribution on screen while their data is.  On a phone the overlay rides
+  above the widgets drawer's sheet and the info panel's peek
+  (`--sheet-height`, `--info-sheet-bottom`).
 
 ## Architecture
 

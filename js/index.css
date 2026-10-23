@@ -83,6 +83,26 @@ html.chrome-hidden #cesium-credits {
   pointer-events: none;
 }
 
+/* Cesium's credits, compact a few seconds after a body comes into view
+   (creditsReveal.js): the ion logo alone, dimmed; a hover, a focus or a tap
+   brings the rest back.  The attribution stays on screen, as ion's and
+   Bing's terms want, while their data is. */
+#cesium-credits.compact {
+  opacity: 0.55;
+}
+
+#cesium-credits.compact:not(:hover, :focus-within) .cesium-credit-textContainer,
+#cesium-credits.compact:not(:hover, :focus-within) .cesium-credit-expand-link,
+#cesium-credits.compact:not(:hover, :focus-within) .cesium-credit-delimiter {
+  /* Over Cesium's inline display (CreditDisplay sets it). */
+  display: none !important;
+}
+
+#cesium-credits.compact:hover,
+#cesium-credits.compact:focus-within {
+  opacity: 1;
+}
+
 a, .link {
   color: #7fa0e0;
   text-decoration: underline;

@@ -32,6 +32,7 @@ import {dataUrl, isAbsoluteUrl} from '../../dataUrl.js'
 import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
+import CreditsReveal from './creditsReveal.js'
 import {
   bodyToEcef,
   cameraToEcefView,
@@ -904,6 +905,8 @@ export default class CesiumLayers {
     }
     const shown = this.active.at(-1)?.name
     this.credits.style.display = shown ? 'block' : 'none'
+    // In full as a body comes into view, then just the logo.
+    this._creditsReveal?.show(shown ?? null)
     for (const [name, body] of Object.entries(this.bodies)) {
       if (body.credits) {
         body.credits.style.display = name === shown ? 'block' : 'none'
@@ -1105,6 +1108,7 @@ export default class CesiumLayers {
         visibility: this.ui.sceneManager?.getSetting?.('v') === false ? 'hidden' : '',
       })
       document.body.appendChild(this.credits)
+      this._creditsReveal = new CreditsReveal(this.credits)
     }
     // Each widget writes its own credits into its container, so every body
     // gets one; _showCredits shows the active body's.
