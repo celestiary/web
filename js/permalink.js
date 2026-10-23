@@ -565,10 +565,10 @@ export function decodePeriodicToken(value) {
 
 
 /**
- * The `info:` token (design/URLs.md): the info panel's lists as the user
- * left them.  `closed`, the panel folded; `open=` and `shut=` the lists,
- * by their dotted place in a body's props, opened or folded against their
- * defaults.  Left out (null) when all are as they start.
+ * The `info:` token (design/URLs.md): the info panel's sections as the user
+ * left them.  `closed`, the panel folded; `open=` and `shut=` its sections,
+ * by their place in a body's props or their panel name, opened or shut
+ * against their defaults.  Left out (null) when all are as they start.
  *
  * @param {{closed: boolean, open: Set<string>, shut: Set<string>}} [state]
  *     ControlPanel.uiState
