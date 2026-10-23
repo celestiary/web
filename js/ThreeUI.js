@@ -84,6 +84,11 @@ const FRAME_CAP_SLACK_MS = 2
 const HIDDEN_CANVAS_OPACITY = '0.001'
 
 
+// The bodies the meter's sunlit-body anchor takes (_sunlitBodies): a
+// spacecraft filling the frame is a sunlit surface as a planet is.
+const SUNLIT_TYPES = new Set(['planet', 'moon', 'spacecraft'])
+
+
 export default class ThreeUi {
   /** */
   constructor(container, animationCb, backgroundColor, renderer) {
@@ -1471,7 +1476,7 @@ export default class ThreeUi {
     for (const name of Object.keys(objects)) {
       const o = objects[name]
       const type = o?.props?.type
-      if ((type !== 'planet' && type !== 'moon') || !o.props.radius || !o.visible || name.endsWith('.orbitPosition') ||
+      if (!SUNLIT_TYPES.has(type) || !o.props.radius || !o.visible || name.endsWith('.orbitPosition') ||
           o === except) {
         continue
       }
@@ -2008,7 +2013,7 @@ export default class ThreeUi {
     // From where the camera ends up: from the linear step before the remap,
     // one frame's near plane was sized for an altitude the zoom never
     // reached (a zoom out from the ground: ~0.25 radii, near ~160 km).
-    const newNear = dynamicNear(Math.max(0, distDesired - surfaceR))
+    const newNear = dynamicNear(Math.max(0, distDesired - surfaceR), surfaceR)
     if (newNear !== this.camera.near) {
       this.camera.near = newNear
       this.camera.updateProjectionMatrix()

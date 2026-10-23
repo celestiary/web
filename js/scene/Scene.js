@@ -25,6 +25,7 @@ import {FLIGHT_CATALOG, flightOf} from './craft/catalog.js'
 import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
+import Spacecraft from './Spacecraft.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
 import StellarFrame from './StellarFrame.js'
@@ -669,6 +670,7 @@ export default class Scene {
       case 'star': return new Star(props, this.objects, this.ui)
       case 'planet': return new Planet(this, props)
       case 'moon': return new Planet(this, props, true)
+      case 'spacecraft': return new Spacecraft(this, props)
       default:
     }
     throw new Error(`Object has unknown type: ${props.type}`)
@@ -2613,6 +2615,10 @@ export default class Scene {
     // are identified vs stars by the absence of spectralType (matches
     // landableBodyName in Celestiary.js).
     if (cur.props.spectralType !== undefined) {
+      return
+    }
+    // Nor a spacecraft's bounding sphere.
+    if (cur.props.type === 'spacecraft') {
       return
     }
     const pick = pickSurfaceLatLng(this.ui, e, cur)

@@ -29,7 +29,7 @@ A `SearchEntry` is the atomic unit:
   id: 'earth' | 'hip:32349' | 'loc:earth:paris',
   displayName: 'Earth',
   aliases: ['terra', 'gaia', ...],
-  kind: 'galaxy'|'star'|'planet'|'moon'|'place',
+  kind: 'galaxy'|'star'|'planet'|'moon'|'spacecraft'|'place',
   path: 'milkyway/sun/earth',       // rooted '/'-joined path
   parent: 'sun',                     // parent id, or null
   payload: {...},                    // kind-specific navigation hint

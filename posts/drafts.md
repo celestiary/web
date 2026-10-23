@@ -565,3 +565,33 @@ With the Moon selected, the orbits spacecraft use near it are drawn around it. L
 
 https://celestiary.org/#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause
 ```
+
+### Fly a spacecraft to the Moon
+
+- ID: 2026-10-23-fly-a-spacecraft-to-the-moon
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-11-24
+- Entry: 2026-10-23-fly-a-spacecraft-to-the-moon
+- Image: posts/images/2026-10-23-fly-a-spacecraft-to-the-moon.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-23-fly-a-spacecraft-to-the-moon --hash 'sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5' --png posts/images
+- Notes:
+- Length: X 54/280, Facebook 440/500
+
+```text
+Fly a spacecraft to the Moon.
+
+https://celestiary.org/#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5
+```
+
+#### Facebook
+
+```text
+Fly a spacecraft to the Moon.
+
+The Earth's and the Moon's panels now have a Craft section: switch on transfer to the Moon and a spacecraft leaves a low orbit round the Earth that day, burns once, and coasts four and a half days to pass 100 km over the Moon. Its path is drawn with the craft where it is at the clock's time, and the panel gives its burn, how long it takes and what it would cost to stop at the Moon.
+
+https://celestiary.org/#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5
+```

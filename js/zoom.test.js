@@ -79,6 +79,17 @@ describe('dynamicNear', () => {
     expect(dynamicNear(1000)).toBe(1e2)
   })
 
+  it('keeps the 100 m floor for a planet or a moon', () => {
+    expect(dynamicNear(0, 6.371e6)).toBe(1e2)
+    expect(dynamicNear(0, 1e4)).toBe(1e2)
+  })
+
+  it('floors at a hundredth of a small body\'s radius: a spacecraft up close', () => {
+    // JWST's 17 m bounding sphere, 1 m over it: its parts are at least 1 m off.
+    expect(dynamicNear(1, 17)).toBeCloseTo(0.17)
+    expect(dynamicNear(50, 17)).toBeCloseTo(5)
+  })
+
   it('transitions smoothly just above surface (not a hard jump)', () => {
     const nearA = dynamicNear(10e3) // 10 km
     const nearB = dynamicNear(50e3) // 50 km
