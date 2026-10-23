@@ -30,6 +30,10 @@ const GALAXY_TYPES = ['S0', 'Sa', 'Sab', 'Sb', 'Sbc', 'Sc', 'Scd', 'Sd', 'Sdm', 
 
 
 /** */
+// A spacecraft's drawing instructions (models.md), not facts about it.
+const HIDDEN_PROPS = new Set(['model', 'attitude', 'trajectory'])
+
+
 export default class ControlPanel {
   /**
    * @param {object} containerElt
@@ -564,7 +568,7 @@ export default class ControlPanel {
     let html = ''
     for (const prop in obj) {
       if (prop === 'name' || prop === 'parent' || prop.startsWith('texture_') ||
-         prop === 'apparentMagnitude' || prop === 'colorIndex') {
+         prop === 'apparentMagnitude' || prop === 'colorIndex' || HIDDEN_PROPS.has(prop)) {
         continue
       }
       if (Object.prototype.hasOwnProperty.call(obj, prop)) {

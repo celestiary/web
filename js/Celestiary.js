@@ -3379,8 +3379,8 @@ const REF_FRAME = {
 /**
  * Decide whether a scene-graph target is a body the user can plausibly
  * "stand on" for AR purposes.  Returns the body's name if it has a
- * surface (radius > 0) AND isn't a star (lacks `spectralType`); null
- * otherwise.  Stars are excluded so tapping AR while viewing the Sun
+ * surface (radius > 0) AND isn't a star (lacks `spectralType`) or a
+ * spacecraft; null otherwise.  Stars are excluded so tapping AR while viewing the Sun
  * doesn't silently teleport the user to the photosphere — the AR
  * caller falls back to a sensible default body (Earth) when this
  * returns null.
@@ -3397,6 +3397,10 @@ export function landableBodyName(target) {
     return null
   }
   if (props.spectralType !== undefined) {
+    return null
+  }
+  // Nor a spacecraft: its radius is its model's bounding sphere.
+  if (props.type === 'spacecraft') {
     return null
   }
   return props.name

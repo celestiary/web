@@ -38,6 +38,7 @@ tried and dropped.
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Lagrange points, Hill spheres, synchronous orbits (every pair), orbital regimes (LEO, MEO, GPS, Molniya, sun-synchronous, cislunar space), three-body orbits (halo, Lyapunov, DRO, NRHO; the CR3BP), and the rest of #272's orbital structure | [js/scene/Lagrange.md](js/scene/Lagrange.md); DESIGN.md [orbital elements](DESIGN.md#orbital-elements) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
+| 3D models (glTF, `loadModel`), spacecraft at their JPL Horizons positions (Webb), their sources and licences | [js/scene/models.md](js/scene/models.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
 | Gaia's stars and the point-population engine (tiles, budget, epoch, photometry, merge, rebuilding) | [js/scene/Gaia.md](js/scene/Gaia.md) |
 | The Milky Way: its structural model, its light in exposure units, the march, the meter's galaxy anchor | [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
