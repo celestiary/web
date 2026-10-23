@@ -19,6 +19,11 @@ export const ORBIT_FADE_DEFAULT = 0.5
 // The three-body periodic orbits' families (periodicOrbits.js FAMILIES'
 // codes), in the order the panel lists them.
 export const PERIODIC_CODES = ['l1l', 'l2l', 'l1h', 'l2h', 'dro', 'nrho']
+// The craft's flights (craft/flights.js FLIGHTS' codes).
+export const CRAFT_CODES = ['tli']
+const J2000_JD = 2451545
+// A departure's days from J2000 in a link: to a thousandth (86 s).
+const CRAFT_DAY_DIGITS = 3
 const PLAIN_WORD = /^[\w.-]+$/
 // A `from=` frame path: a body path ('sun/earth') or a star ('hip:32349').
 const FRAME_PATH = /^([a-z0-9_-]+(\/[a-z0-9_-]+)*|hip:\d+)$/
@@ -211,6 +216,11 @@ export function permalinkHref(fragment, baseHref, search) {
 }
 
 
+// Days from J2000 to 6 decimals, 0.09 s: the clock a link shows comes back
+// to its second, where 4 (8.6 s) brought it back up to 4 s off.
+const TIME_DIGITS = 6
+
+
 /**
  * Encode a complete view state into a hash fragment.
  *
@@ -256,7 +266,7 @@ export function permalinkHref(fragment, baseHref, search) {
  */
 export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens, from, ev = 0, sm = 0) {
   const pos = `${trimFloat(lat)},${trimFloat(lng)},${formatMeters(Math.round(alt))}`
-  const t = `${parseFloat(d2000.toFixed(4))}jd`
+  const t = `${parseFloat(d2000.toFixed(TIME_DIGITS))}jd`
   const cq = [quat.x, quat.y, quat.z, quat.w].map(trimFloat).join(',')
   const f = `${formatFov(fov)}deg`
   let frag = `${path}${SEPARATOR}${pos}`
@@ -516,15 +526,17 @@ export function decodeOrbitsFade(value) {
 /**
  * The `periodic:` token (design/URLs.md): the three-body periodic orbits
  * shown (periodicOrbits.js), `secondary=code+code` for each pair by its
- * secondary (`moon` is the Earth-Moon pair), and `frame=inertial` where
- * they're drawn fixed in space, not turning with the pair.  Left out (null)
- * when none are on.
+ * secondary (`moon` is the Earth-Moon pair), `frame=inertial` where
+ * they're drawn fixed in space, not turning with the pair, and the flag
+ * `manifolds` where their invariant manifolds are drawn too.  Left out
+ * (null) when none are on.
  *
  * @param {Map<string, Set<string>>} families Scene.getPeriodic()
  * @param {string} [frame] 'rotating' (the default) or 'inertial'
+ * @param {boolean} [manifolds]
  * @returns {?string}
  */
-export function encodePeriodicToken(families, frame = 'rotating') {
+export function encodePeriodicToken(families, frame = 'rotating', manifolds = false) {
   const named = {}
   for (const [body, codes] of families ?? []) {
     const listed = PERIODIC_CODES.filter((c) => codes.has(c))
@@ -538,7 +550,7 @@ export function encodePeriodicToken(families, frame = 'rotating') {
   if (frame === 'inertial') {
     named.frame = 'inertial'
   }
-  return formatTokenValue([], named) || null
+  return formatTokenValue(manifolds ? ['manifolds'] : [], named) || null
 }
 
 
@@ -546,10 +558,10 @@ export function encodePeriodicToken(families, frame = 'rotating') {
  * The inverse of encodePeriodicToken.  Unknown codes are dropped.
  *
  * @param {string} [value] The token's value, undefined if the link has none
- * @returns {{families: Map<string, Set<string>>, frame: string}}
+ * @returns {{families: Map<string, Set<string>>, frame: string, manifolds: boolean}}
  */
 export function decodePeriodicToken(value) {
-  const {named} = parseTokenValue(value)
+  const {flags, named} = parseTokenValue(value)
   const families = new Map
   for (const [body, list] of Object.entries(named)) {
     if (body === 'frame') {
@@ -560,7 +572,47 @@ export function decodePeriodicToken(value) {
       families.set(body, codes)
     }
   }
-  return {families, frame: named.frame === 'inertial' ? 'inertial' : 'rotating'}
+  return {families, frame: named.frame === 'inertial' ? 'inertial' : 'rotating', manifolds: flags.includes('manifolds')}
+}
+
+
+/**
+ * The `craft:` token (design/URLs.md): the craft flown (craft/flights.js),
+ * `code=day` each, the day its departure's Julian Ephemeris Day less
+ * J2000's (as `t=` writes the time, but TT).  Left out (null) when none are.
+ *
+ * @param {Map<string, number>} craft Scene.getCraft(): code → departure JDE
+ * @returns {?string}
+ */
+export function encodeCraftToken(craft) {
+  const named = {}
+  for (const code of CRAFT_CODES) {
+    const jde = craft?.get(code)
+    if (Number.isFinite(jde)) {
+      named[code] = Number((jde - J2000_JD).toFixed(CRAFT_DAY_DIGITS))
+    }
+  }
+  return formatTokenValue([], named) || null
+}
+
+
+/**
+ * The inverse of encodeCraftToken.  Unknown codes, and days that aren't
+ * numbers or are past the supported dates, are dropped.
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {Map<string, number>} code → departure JDE
+ */
+export function decodeCraftToken(value) {
+  const {named} = parseTokenValue(value)
+  const craft = new Map
+  for (const code of CRAFT_CODES) {
+    const day = Number(named[code])
+    if (named[code] !== undefined && Number.isFinite(day) && Math.abs(day) <= SUPPORTED_DAYS_FROM_J2000) {
+      craft.set(code, J2000_JD + day)
+    }
+  }
+  return craft
 }
 
 

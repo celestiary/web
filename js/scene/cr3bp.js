@@ -28,6 +28,8 @@ const DP = {
 }
 const MAX_STEPS = 200000
 const SAFETY = 0.9
+// The error bound per step (dpStep), relative and absolute.
+const TOLERANCE = 1e-12
 const CROSSING_ITERATIONS = 30
 const CORRECTION_ITERATIONS = 40
 const CORRECTION_TOLERANCE = 1e-11
@@ -108,9 +110,14 @@ export function withStm(s0) {
  * @param {number} [opts.minTime] ignore crossings before this
  * @param {function(number, Float64Array): void} [opts.onStep] each step's
  *     time and state
+ * @param {function(number, Float64Array): boolean} [opts.until] stop after
+ *     the step for which this is true (an impact, an escape)
+ * @param {number} [opts.tol] the error bound per step, relative and
+ *     absolute, in the state's units
  * @returns {{t: number, s: Float64Array}} where it stopped
  */
-export function propagate(mu, s0, {t = Infinity, toCrossing = false, minTime = 1e-3, onStep} = {}) {
+export function propagate(mu, s0, {t = Infinity, toCrossing = false, minTime = 1e-3, onStep, until,
+  tol = TOLERANCE} = {}) {
   const n = s0.length
   let s = Float64Array.from(s0)
   const k = Array.from({length: 7}, () => new Float64Array(n))
@@ -128,7 +135,7 @@ export function propagate(mu, s0, {t = Infinity, toCrossing = false, minTime = 1
     if (!toCrossing) {
       h = Math.min(h, end - time)
     }
-    const err = dpStep(mu, s, dir * h, k, tmp, next)
+    const err = dpStep(mu, s, dir * h, k, tmp, next, tol)
     if (err > 1 && h > 1e-14) {
       h *= Math.max(0.1, SAFETY * (err ** -0.2))
       continue
@@ -140,6 +147,9 @@ export function propagate(mu, s0, {t = Infinity, toCrossing = false, minTime = 1
     s = Float64Array.from(next)
     time += h
     onStep?.(time * dir, s)
+    if (until?.(time * dir, s)) {
+      break
+    }
     h *= Math.min(5, SAFETY * (Math.max(err, 1e-10) ** -0.2))
   }
   return {t: time * dir, s}
@@ -151,7 +161,7 @@ export function propagate(mu, s0, {t = Infinity, toCrossing = false, minTime = 1
  *
  * @returns {number} the error estimate over the bound (≤ 1 to accept)
  */
-function dpStep(mu, s, h, k, tmp, next) {
+function dpStep(mu, s, h, k, tmp, next, tol = TOLERANCE) {
   const n = s.length
   for (let st = 0; st < 7; st++) {
     for (let i = 0; i < n; i++) {
@@ -174,7 +184,7 @@ function dpStep(mu, s, h, k, tmp, next) {
     next[i] = s[i] + (h * sum)
     // Only the state (not the matrix) bounds the step.
     if (i < 6) {
-      const scale = 1e-12 + (1e-12 * Math.max(Math.abs(s[i]), Math.abs(next[i])))
+      const scale = tol + (tol * Math.max(Math.abs(s[i]), Math.abs(next[i])))
       err = Math.max(err, Math.abs(h * e) / scale)
     }
   }
