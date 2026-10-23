@@ -27,6 +27,8 @@ A sentence or two, plain and concrete, about what you can see or do.
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@...;t=...jd;cq=...;fov=45deg)
 - Image: ![Earth at dusk](public/images/home/earth.webp)
+- Featured: yes
+- Kind: fix
 
 Behind the scenes: dependency updates ([#124](https://github.com/celestiary/web/pull/124)).
 ```
@@ -56,6 +58,23 @@ Behind the scenes: dependency updates ([#124](https://github.com/celestiary/web/
 - **Image**: `![alt](public/images/…)`, a path in the repo under `public/`,
   left out when there is none. Cards for the homepage come from
   `tools/home/cards.mjs --gpu`.
+- **Featured**: `yes` marks an entry worth announcing: a new thing to see
+  or do, with a view to open. `no` or no field is the default. What's new
+  shows only the featured entries until the visitor asks for all the
+  updates (the lesser features and fixes), the "new" count counts them,
+  the changelog tour follows the same choice, and `yarn posts` drafts
+  social posts only from them. **The PR that adds an entry decides.** A
+  major fix can be featured: featured doesn't depend on kind.
+- **Kind**: `fix` marks a fix, something that was broken, wrong or a
+  regression and now isn't (a bug, a correction, a crash, a wrong value).
+  `feature` is the default when the field is absent: anything that adds
+  or improves what users can see or do, including speed-ups and polish.
+  Any other value is an error with a line number. What's new's
+  "Features" and "Fixes" buttons filter on it and the entry gets a small
+  Fix tag. **The PR that adds an entry states it**; when an entry is
+  both (a feature that also fixes something), call it by its headline:
+  what the headline says you can now do is a feature, what it says is
+  no longer broken is a fix.
 - **Behind the scenes**: after a month's last entry, one line (or a whole
   month's, when it has no entries) for housekeeping, refactors, dependency
   updates, CI and documentation, each with its PR link. These are not
@@ -68,14 +87,16 @@ with a line number.
 ## The JSON
 
 `yarn changelog` writes `public/data/changelog.json` from `CHANGELOG.md`
-(`json.mjs`, parsing in `parse.mjs`). `yarn changelog --check` exits 1 when
+and `posts/drafts.md` (`json.mjs`, parsing in `parse.mjs`). `yarn changelog --check` exits 1 when
 the file is stale. The JSON is **committed**, like the repo's other small
 built data under `public/data/` (places, SPARC), and a test
 (`changelog.test.js`) fails when it has drifted, so `yarn precommit` and CI
-catch a CHANGELOG edit without a rebuilt JSON.
+catch a CHANGELOG edit, or a post's URL, without a rebuilt JSON.
 
 It also writes `js/changelogStamp.json`, the entries' dates alone
-(`{"dates": [["2026-10-14", 5], ...]}`, newest first), which the app's
+(`{"dates": [["2026-10-14", 5], ...], "featured": [["2026-10-14", 1], ...]}`,
+newest first, `featured` counting only the featured entries, which the
+"N new" marker counts), which the app's
 bundle carries for What's new's "N new" marker, so the homepage fetches the
 JSON only when the panel opens ([#258](https://github.com/celestiary/web/issues/258)).
 The same test checks it.
@@ -89,7 +110,10 @@ The same test checks it.
   "links": [{"kind": "pr", "number": 242, "url": "https://github.com/celestiary/web/pull/242"}],
   "epic": {"number": 118, "title": "Navigation, time and sharing", "url": "https://github.com/celestiary/web/issues/118"},
   "permalink": "#sun/earth@...",
-  "image": {"src": "images/home/earth.webp", "alt": "Earth at dusk"}
+  "image": {"src": "images/home/earth.webp", "alt": "Earth at dusk"},
+  "featured": true,
+  "kind": "fix",
+  "social": {"x": "https://x.com/celestiary_org/status/...", "facebook": "https://www.facebook.com/..."}
 }]}
 ```
 
@@ -98,6 +122,13 @@ Entries are newest first. `permalink` is the fragment with its `#`, or
 relative to the site's root (the `public/` is dropped); `image` is `null`
 when there is none. `epic` is `null` when there is none. `links` has the
 PRs, then the issues. `text` is plain, paragraphs separated by a blank line.
+`featured` is there only when true, and `kind` only when it is `"fix"` (the app reads a missing one as a feature). `social` is there only for an entry whose
+announcing post is live: the maintainer pastes the post's URLs into its
+`X:` and `Facebook:` fields in `posts/drafts.md` (status `posted`), and
+`yarn changelog` joins them onto the entry named by its `Entry:` field,
+the one place they are recorded ([../posts/README.md](../posts/README.md)).
+Only https URLs on x.com or twitter.com (X) and facebook.com (Facebook) are
+accepted, the build refuses the rest, and the entry must be featured.
 
 ## Drafting entries from merged PRs
 
