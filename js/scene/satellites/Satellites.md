@@ -36,39 +36,38 @@ satellites`, not fetched live.
   dates near today, and links, previews and tests would change under it.
   CelesTrak's usage policy also asks clients to fetch each data set at most
   once per update (every two hours for GP data), and it enforces that.  A
-  snapshot is small: 450 satellites are 69 KB, 24 KB gzipped, well under
+  snapshot is small: 748 satellites are 118 KB, 41 KB gzipped, well under
   the data policy's line for plain git (DESIGN.md, [data
   policy](../../../DESIGN.md#data-policy)).
-- **The snapshot** was fetched 2026-10-23 08:48 UTC.  Its elements' epochs
-  run up to 2026-10-21, two days earlier, because CelesTrak had an outage
-  just before.  What's in it (`select.js` `GROUP_QUERIES`), each satellite
-  once, under the first group that has it:
+- **The snapshot** was fetched 2026-10-23 13:01 UTC; its elements' epochs
+  run to 2026-10-23.  What's in it (`select.js` `GROUP_QUERIES`), each
+  satellite once, under the first group that has it:
 
   | Group | Query | In CelesTrak's | Kept | Epochs |
   |---|---|---|---|---|
-  | `stations` | `GROUP=stations` | 21 | 21 | 2026-10-19 to 21 |
-  | `science` | `CATNR=20580` (Hubble) | 1 | 1 | 2026-10-21 |
-  | `gnss` | `GROUP=gnss` (GPS, GLONASS, Galileo, BeiDou) | 171 | 171 | 2026-09-22 to 10-21 |
-  | `molniya` | `NAME=MOLNIYA` | 34 | 34 | 2026-09-21 to 10-21 |
-  | `weather` | `GROUP=weather` | 73 | 73 | 2026-10-17 to 21 |
-  | `geo` | `GROUP=geo` | 568 | 150 | 2026-10-15 to 21 |
-  | `starlink` | `GROUP=starlink` | (refused) | 0 | |
+  | `stations` | `GROUP=stations` | 21 | 21 | 2026-10-20 to 23 |
+  | `science` | `CATNR=20580` (Hubble) | 1 | 1 | 2026-10-23 |
+  | `gnss` | `GROUP=gnss` (GPS, GLONASS, Galileo, BeiDou) | 170 | 170 | 2026-09-23 to 10-23 |
+  | `molniya` | `NAME=MOLNIYA` | 33 | 33 | 2026-10-14 to 23 |
+  | `weather` | `GROUP=weather` | 73 | 73 | 2026-10-22 to 23 |
+  | `geo` | `GROUP=geo` | 569 | 150 | 2026-10-12 to 23 |
+  | `starlink` | `GROUP=starlink` | 11,116 | 300 | 2026-10-21 to 23 |
 
-  - **Starlink isn't in yet.**  CelesTrak answered a 403: the set hadn't
-    updated since "your last successful download" on 2026-10-22 14:50
-    UTC.  That download was another client on this session's shared
-    address, and the set had stayed the same through the outage.  The
-    policy says to stop at a refusal and report it, rather than ask again
-    or work round it with another query.  So the snapshot was built with
-    `--skip starlink`, and its header names the group.  The next `yarn
-    satellites` after the set updates fills it (300 of the constellation).
+  - **Starlink came a fetch later.**  The first snapshot (2026-10-23 08:48
+    UTC, PR #286) had no Starlink.  CelesTrak answered a 403: the set hadn't
+    updated since "your last successful download" on 2026-10-22 14:50 UTC,
+    which was another client on this session's shared address.  The policy
+    says to stop at a refusal and report it, rather than ask again or work
+    round it with another query.  So that snapshot was built with `--skip
+    starlink`, its header naming the group.  CelesTrak was then unreachable
+    at 11:00 and 12:00 UTC, and answered every group at 13:01.
   - **Molniya by name:** CelesTrak no longer has a Molniya group.  The name
     query brings the Molniya satellites themselves, most of them defunct
     but still in their orbits.
-  - **The samples** (GEO, and Starlink once it's in) are spaced evenly by
+  - **The samples** (GEO and Starlink) are spaced evenly by
     NORAD number, so they spread over the launches and the orbital planes.
   - **What they fill:** the regimes [Lagrange.md](../Lagrange.md#orbital-regimes)
-    draws.  LEO has the stations, Hubble and (to come) Starlink; MEO has the
+    draws.  LEO has the stations, Hubble and Starlink; MEO has the
     GNSS planes, on the GPS marks; then the GEO ring, Molniya, and the
     weather group's sun-synchronous orbits.
   - **The stations group** also holds the craft docked at the stations
@@ -230,9 +229,11 @@ A failed load is logged and asked for again by the next need.
     within 1.6 km in Earth's equator as drawn (its 23.45° tilt).  This
     checks the frame and the time.
   - The ISS (Horizons −125544, its trajectory) at its snapshot elements'
-    epoch (2026-10-21 01:09 UTC), 6 h and 1 d either side: 0.00 km at the
-    epoch, 0.24 to 0.61 km 6 h off, 0.48 and 1.52 km a day off.  Horizons'
-    ISS is fitted from the same elements, as the zero at the epoch shows.
+    epoch (2026-10-22 23:36 UTC), 6 h and 1 d either side: 0.02 km at the
+    epoch, 0.14 and 0.26 km 6 h off, 0.04 and 0.38 km a day off.  (With the
+    first snapshot's elements, of 2026-10-21: 0.00, 0.61 and 1.52 km.)
+    Horizons' ISS is fitted from elements like these, as the near-zero at
+    the epoch shows.
     So this checks the propagation and the frame together, not the
     elements against the station's own tracking.
 - `Satellites.test.js`: positions, windows, nodes, names, the distance
@@ -245,14 +246,18 @@ A failed load is logged and asked for again by the next need.
 - `targetPath.test.js`, `SearchSlice.test.js`: `sat:` paths and the
   breadcrumb.  `Celestiary.test.js`: a link to Earth fetches the snapshot.
 - In the browser (headless Chromium, SwiftShader, `CESIUM_ION_TOKEN=`
-  build), with the snapshot at 2026-10-23 09:00 UTC: all 450 are drawn
+  build).  With the first snapshot at 2026-10-23 09:00 UTC: all 450 are drawn
   and the points' program compiles.  From 191,000 km the GEO sample sits
   on the geostationary ring, the GNSS satellites on and round the GPS
   planes, Molniya's on their long ellipses, and the weather satellites
   close in.  The ISS, Tiangong and Hubble are named.  The ISS targeted
   titles the page "ISS — Celestiary", and the panel shows 415 – 424 km,
   51.6°, 93.0 min, and the elements 2.3 days old.  A go arrives 300 km
-  above it and rides it (link `#sat:25544@…`).
+  above it and rides it (link `#sat:25544@…`).  With this snapshot, at
+  2026-10-23 13:05 UTC: all 748 are drawn, and Starlink's 300 make a
+  shell hugging Earth inside the LEO band.  The go to the ISS, on the day
+  side this time, shows its name readable over bright cloud
+  (`screens/satellites-50/`).
 
 ## Follow-ups
 
