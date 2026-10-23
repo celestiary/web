@@ -19,6 +19,11 @@ export const ORBIT_FADE_DEFAULT = 0.5
 // The three-body periodic orbits' families (periodicOrbits.js FAMILIES'
 // codes), in the order the panel lists them.
 export const PERIODIC_CODES = ['l1l', 'l2l', 'l1h', 'l2h', 'dro', 'nrho']
+// The craft's flights (craft/flights.js FLIGHTS' codes).
+export const CRAFT_CODES = ['tli']
+const J2000_JD = 2451545
+// A departure's days from J2000 in a link: to a thousandth (86 s).
+const CRAFT_DAY_DIGITS = 3
 const PLAIN_WORD = /^[\w.-]+$/
 // A `from=` frame path: a body path ('sun/earth') or a star ('hip:32349').
 const FRAME_PATH = /^([a-z0-9_-]+(\/[a-z0-9_-]+)*|hip:\d+)$/
@@ -563,6 +568,46 @@ export function decodePeriodicToken(value) {
     }
   }
   return {families, frame: named.frame === 'inertial' ? 'inertial' : 'rotating', manifolds: flags.includes('manifolds')}
+}
+
+
+/**
+ * The `craft:` token (design/URLs.md): the craft flown (craft/flights.js),
+ * `code=day` each, the day its departure's Julian Ephemeris Day less
+ * J2000's (as `t=` writes the time, but TT).  Left out (null) when none are.
+ *
+ * @param {Map<string, number>} craft Scene.getCraft(): code → departure JDE
+ * @returns {?string}
+ */
+export function encodeCraftToken(craft) {
+  const named = {}
+  for (const code of CRAFT_CODES) {
+    const jde = craft?.get(code)
+    if (Number.isFinite(jde)) {
+      named[code] = Number((jde - J2000_JD).toFixed(CRAFT_DAY_DIGITS))
+    }
+  }
+  return formatTokenValue([], named) || null
+}
+
+
+/**
+ * The inverse of encodeCraftToken.  Unknown codes, and days that aren't
+ * numbers or are past the supported dates, are dropped.
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {Map<string, number>} code → departure JDE
+ */
+export function decodeCraftToken(value) {
+  const {named} = parseTokenValue(value)
+  const craft = new Map
+  for (const code of CRAFT_CODES) {
+    const day = Number(named[code])
+    if (named[code] !== undefined && Number.isFinite(day) && Math.abs(day) <= SUPPORTED_DAYS_FROM_J2000) {
+      craft.set(code, J2000_JD + day)
+    }
+  }
+  return craft
 }
 
 

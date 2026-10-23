@@ -5,7 +5,9 @@ import {
   decodeInfoToken,
   decodeOrbitsFade,
   decodeOrbitsToken,
+  decodeCraftToken,
   decodePeriodicToken,
+  encodeCraftToken,
   encodePeriodicToken,
   decodeSettings,
   decodeTimeToken,
@@ -764,6 +766,21 @@ describe('orbits token fade', () => {
     expect(decodeOrbitsFade('earth=i')).toBe(0.5)
     // Not a body.
     expect(decodeOrbitsToken('fade=20,earth=i')).toEqual(new Map([['earth', new Set(['i'])]]))
+  })
+})
+
+
+describe('the craft token', () => {
+  it('writes each craft flown with its departure, days from J2000', () => {
+    expect(encodeCraftToken(new Map([['tli', 2461336.5], ['bogus', 2461336.5]]))).toBe('tli=9791.5')
+    expect(encodeCraftToken(new Map)).toBeNull()
+  })
+
+  it('reads them back, dropping unknown codes and days past the supported dates', () => {
+    expect(decodeCraftToken('tli=9791.5,x=3')).toEqual(new Map([['tli', 2461336.5]]))
+    expect(decodeCraftToken('tli=1e9').size).toBe(0)
+    expect(decodeCraftToken('tli=abc').size).toBe(0)
+    expect(decodeCraftToken(undefined).size).toBe(0)
   })
 })
 

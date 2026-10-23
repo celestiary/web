@@ -183,6 +183,17 @@ describe('ControlPanel', () => {
     expect(space.html.indexOf('Three-body orbits')).toBeGreaterThan(space.html.indexOf('Hill sphere'))
   })
 
+  it('lists the craft that can be flown about the body, with a flown one\'s facts', () => {
+    const panel = new ControlPanel(null, null)
+    expect(panel.craftHtml('earth')).toBe('')
+    panel.craftHooks = {list: () => [{code: 'tli', name: 'transfer to the Moon', on: true, text: 'leaves 2026-10-23'}]}
+    const html = panel.craftHtml('earth')
+    expect(html).toContain('class="craft-flight on" data-code="tli"')
+    expect(html).toContain('<div class="info-subhead">Craft</div>')
+    expect(html).toContain('<dt>transfer to the Moon</dt>')
+    expect(html).toContain('<span class="craft-facts">leaves 2026-10-23</span>')
+  })
+
   it('writes masses in scientific notation', () => {
     expect(sci(5.97219e24)).toBe('5.9722 × 10²⁴')
     expect(sci(1.4762e15)).toBe('1.4762 × 10¹⁵')

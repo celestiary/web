@@ -1805,6 +1805,33 @@ describe('the three-body orbits at the target\'s pairs', () => {
     })
   })
 
+  it('flies a craft to the Moon from the start of the day, about the Earth', async () => {
+    const s = solarScene()
+    let changes = 0
+    s.onSettingsChange = () => changes++
+    expect(s.craftOf('earth').map((c) => [c.code, c.on])).toEqual([['tli', false]])
+    expect(s.craftOf('mars')).toEqual([])
+    s.toggleCraft('tli', 2461336.8)
+    expect(changes).toBe(1)
+    expect(s.getCraft()).toEqual(new Map([['tli', 2461336.5]]))
+    // How it's made loads on first use, then it's flown.
+    expect(s._craftTracks.size).toBe(0)
+    await s._flights
+    const track = s.objects['earth.orbitPosition'].children.find((c) => c.name === 'craft.tli')
+    expect(track).toBeDefined()
+    // In flight two days on, at the Moon's distance by the end.
+    expect(track.place(2461338.5)).toBe(true)
+    expect(track.marker.visible).toBe(true)
+    expect(track.place(2461330)).toBe(false)
+    const {t, xyz} = track.path
+    const n = t.length - 1
+    expect(Math.hypot(xyz[3 * n], xyz[(3 * n) + 1], xyz[(3 * n) + 2]) / 1e3).toBeGreaterThan(350e3)
+    expect(s.craftOf('earth')[0].text).toMatch(/^leaves 2026-10-23 from 185 km, 3,1\d\d m\/s, 4.5 days to 100 km/)
+    s.toggleCraft('tli', 2461336.8)
+    expect(s.getCraft().size).toBe(0)
+    expect(track.parent).toBeNull()
+  })
+
   it('shows a link\'s families once their pair is the target\'s', () => {
     const s = solarScene()
     s.restorePeriodic({families: new Map([['moon', new Set(['dro'])]]), frame: 'inertial'})
