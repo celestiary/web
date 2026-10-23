@@ -126,6 +126,10 @@ export default class DeepSpaceNetwork extends Group {
     this.links = []
     this.feedMs = NaN
     this.status = {polls: 0, ok: 0, failures: 0, lastError: null, lastFeedMs: NaN}
+    // Called when a feed changes what's drawn (layer mode asks its host for
+    // a frame: design/LayerMode.md, `layer:invalidate`).
+    this.onFeed = null
+    this._lastXml = null
     this._nextPollMs = 0
     this._pending = null
     this.jd = NaN
@@ -195,6 +199,11 @@ export default class DeepSpaceNetwork extends Group {
    * @param {string} xml DSN Now's dsn.xml
    */
   setFeed(xml) {
+    // The same feed again (the CDN's copy): nothing changes.
+    if (xml === this._lastXml) {
+      return
+    }
+    this._lastXml = xml
     const feed = parseDsnXml(xml)
     const links = dsnLinks(feed, this.config)
     const times = feed.stations.map((s) => s.timeMs).filter(Number.isFinite)
@@ -218,6 +227,7 @@ export default class DeepSpaceNetwork extends Group {
       this.links.push({...link, dir, end})
     }
     this._syncLabels()
+    this.onFeed?.()
   }
 
 

@@ -165,6 +165,17 @@ describe('DeepSpaceNetwork', () => {
     expect(asked).toHaveLength(2)
   })
 
+  it('says when a feed changes what\'s drawn, not for the same one again', () => {
+    const {dsn} = network()
+    let n = 0
+    dsn.onFeed = () => n++
+    dsn.setFeed(XML)
+    dsn.setFeed(XML)
+    expect(n).toBe(1)
+    dsn.setFeed(XML.replace('VGR1', 'VGR2'))
+    expect(n).toBe(2)
+  })
+
   it('draws each link from its dish, out to the range along its pointing, while live', () => {
     const {dsn} = network()
     dsn.setFeed(XML)

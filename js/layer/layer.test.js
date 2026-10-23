@@ -133,7 +133,7 @@ describe('layer mode control plane', () => {
       announce: () => calls.push(['announce']),
       timers: {setInterval: (fn) => (interval.fn = fn), clearInterval: () => (interval.cleared = true)},
     })
-    return {posted, send: (m) => listener?.(m), interval, calls, resolve, served, clock}
+    return {posted, send: (m) => listener?.(m), interval, calls, resolve, served, clock, layer}
   }
 
   // portal-netgl 0.4.0's NetGLLayerViewMessage (layer-view.ts), as its
@@ -153,8 +153,11 @@ describe('layer mode control plane', () => {
     expect(r.posted[0].extent.sphere.radius).toBeGreaterThan(4.2e7)
     r.interval.fn()
     expect(r.posted.filter((m) => m.type === 'layer:hello')).toHaveLength(2)
-    // 0.4.0 acks netgl:ready, not layer:hello: that's enough.
+    // NetGL's ack is the other handshake's: hello goes on until its own.
     r.send({type: 'netgl:ready-ack'})
+    r.interval.fn()
+    expect(r.interval.cleared).toBe(false)
+    r.send({type: 'layer:hello-ack', accepted: true})
     r.interval.fn()
     expect(r.interval.cleared).toBe(true)
     expect(HELLO_RESEND_MS).toBeLessThanOrEqual(1000)
@@ -174,9 +177,24 @@ describe('layer mode control plane', () => {
     r.send(viewMsg(8))
     expect(r.posted[r.posted.length - 1])
         .toEqual({type: 'layer:anchors', viewId: 8, timeMs: T, anchors: [{id: 'dsn:DSS-43', p: [1, 2, 3]}]})
+    // A subscription changes what's drawn: the host is asked for a frame.
+    expect(r.posted.some((m) => m.type === 'layer:invalidate' && m.reason === 'anchors subscribed')).toBe(true)
     // A flat view (#296's first shape) isn't one.
     r.send({type: 'layer:view', viewId: 9, viewMatrix: [], timeMs: T})
     expect(r.calls.filter((c) => c[0] === 'view')).toHaveLength(2)
+  })
+
+  it('asks for a frame when its content changes with no new view', async () => {
+    const r = rig()
+    r.resolve([])
+    await new Promise((res) => setTimeout(res, 0))
+    // Loaded, with no view waiting: the host's still view needs drawing again.
+    expect(r.posted.filter((m) => m.type === 'layer:invalidate').map((m) => m.reason)).toEqual(['loaded'])
+    // The layer's own changes (the DSN's feed), through its hook.
+    r.served.state.ready = true
+    const layerHook = r.layer.onInvalidate
+    layerHook('dsn feed')
+    expect(r.posted[r.posted.length - 1]).toEqual({type: 'layer:invalidate', reason: 'dsn feed'})
   })
 
   it('takes the host\'s clock for views without a time, and stops when hidden or disposed', async () => {

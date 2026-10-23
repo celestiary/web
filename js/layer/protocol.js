@@ -8,8 +8,12 @@ import {EXTENT_M} from './OrbitsLayer.js'
 //
 //   - NetGL's own handshake, `netgl:ready` until `netgl:ready-ack`
 //     (`announce`): 0.4.0's host sends no view before it.
-//   - `layer:hello` beside it, until `layer:hello-ack`, a `netgl:ready-ack`
-//     or a first view says the host is there (0.4.0 doesn't ack it).
+//   - `layer:hello` beside it, until `layer:hello-ack` (or a first view,
+//     from a host that doesn't ack it: 0.4.0 as published).
+//   - `layer:invalidate {reason}` when what's drawn changes with no new
+//     view (the data loaded, the DSN's feed, a subscription), so a host
+//     that sends views only when its camera or clock moves (0.4.0's
+//     `sameView`) sends one.
 //   - `layer:view {viewId, view: {frame, viewMatrix, projectionMatrix,
 //     viewport, pixelRatio, timeMs, earth}}`: one frame each, ending with
 //     `netgl:frame-end`, which is the receipt 0.4.0's host waits on
@@ -40,7 +44,8 @@ export const HELLO_RESEND_MS = 500
  */
 export function serveLayer({transport, layer, render, endFrame, announce = null, resize = null, loaded,
   nowMs = () => Date.now(), timers = globalThis}) {
-  const state = {heard: false, ready: false, hidden: false, clock: null, pending: null, frames: 0, stopped: false}
+  const state = {heard: false, ready: false, hidden: false, clock: null, pending: null, frames: 0, stopped: false,
+    invalidations: 0}
   const post = (msg) => transport.post(msg)
   const hello = () => post({
     type: 'layer:hello', version: LAYER_PROTOCOL_VERSION, adapter: 'celestiary-orbits',
@@ -91,7 +96,6 @@ export function serveLayer({transport, layer, render, endFrame, announce = null,
   const unsubscribe = transport.onMessage((msg) => {
     switch (msg?.type) {
       case 'layer:hello-ack':
-      case 'netgl:ready-ack':
         state.heard = true
         break
       case 'layer:view':
@@ -112,6 +116,7 @@ export function serveLayer({transport, layer, render, endFrame, announce = null,
       }
       case 'layer:anchors-subscribe':
         layer.subscribe(Array.isArray(msg.patterns) ? msg.patterns : [])
+        invalidate('anchors subscribed')
         break
       case 'layer:visibility':
         state.hidden = msg.state === 'hidden'
@@ -132,9 +137,28 @@ export function serveLayer({transport, layer, render, endFrame, announce = null,
       const msg = state.pending
       state.pending = null
       draw(msg)
+    } else {
+      invalidate('loaded')
     }
   }).catch((err) => post({type: 'layer:status', status: 'error', message: String(err?.message ?? err)}))
   post({type: 'layer:status', status: 'loading'})
+
+  /**
+   * Ask the host for a frame: what's drawn changed with no new view.
+   *
+   * @param {string} reason
+   */
+  function invalidate(reason) {
+    if (!state.stopped) {
+      state.invalidations++
+      post({type: 'layer:invalidate', reason})
+    }
+  }
+  layer.onInvalidate = (reason) => {
+    if (state.ready) {
+      invalidate(reason)
+    }
+  }
 
   /** Stop listening and resending. */
   function stop() {
@@ -142,5 +166,5 @@ export function serveLayer({transport, layer, render, endFrame, announce = null,
     timers.clearInterval(resend)
     unsubscribe()
   }
-  return {stop, state}
+  return {stop, state, invalidate}
 }

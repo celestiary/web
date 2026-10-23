@@ -51,10 +51,11 @@ NetGL's call stream on the same `postMessage` channel.
 | Direction | Message | Carries |
 |---|---|---|
 | guest → host | `netgl:ready` | NetGL's handshake (`guest.announce`), repeated every 500 ms until `netgl:ready-ack`. 0.4.0's host sends no view before it. |
-| guest → host | `layer:hello` | `{version: 1, adapter: 'celestiary-orbits', capabilities: {kinds: ['overlay'], depth: ['shared'], projections: ['matrix'], frames: ['ecef'], warp: false, anchors, time, labels: false}, contracts: {alpha: 'coverage', color: 'display'}, extent: {frame: 'ecef', sphere: {center: [0, 0, 0], radius: 5e7}, beyond: 'clamp-to-far', farthest: 3e13}, ext: {'portal.anchors/1': {publish: ['norad', 'dsn', 'dsn-sc', 'naif']}}}`. Repeated every 500 ms until the host is heard from (`layer:hello-ack`, `netgl:ready-ack`, or a first view): 0.4.0 doesn't ack it. |
+| guest → host | `layer:hello` | `{version: 1, adapter: 'celestiary-orbits', capabilities: {kinds: ['overlay'], depth: ['shared'], projections: ['matrix'], frames: ['ecef'], warp: false, anchors, time, labels: false}, contracts: {alpha: 'coverage', color: 'display'}, extent: {frame: 'ecef', sphere: {center: [0, 0, 0], radius: 5e7}, beyond: 'clamp-to-far', farthest: 3e13}, ext: {'portal.anchors/1': {publish: ['norad', 'dsn', 'dsn-sc', 'naif']}}}`. Repeated every 500 ms until `layer:hello-ack` (#36 acks every hello, and re-sends its anchor subscription on each), or a first view from a host that doesn't ack (0.4.0 as published). |
 | host → guest | `layer:hello-ack` | `{accepted, reason?}` (optional; RFC §10.6) |
 | host → guest | `layer:view` | 0.4.0's `NetGLLayerViewMessage`: `{type, viewId, view: {frame: 'ecef', viewMatrix, projectionMatrix, viewport, pixelRatio, timeMs, earth?: {model: 'sphere', radius}}}`. `viewMatrix` maps ECEF metres to eye metres and is rigid. `projectionMatrix` is the host's own, with its scale folded in. Both are column-major arrays of 16, composed in doubles. `viewport` is `[x, y, w, h]` in drawing-buffer pixels. A flat view (this PR's first shape) is ignored. |
 | guest → host | `netgl:*` | the frame's GL calls, ending in `netgl:frame-end`. This is the frame's receipt: 0.4.0's host sends its next view on it (`receiver.onFrame`; one view in flight, re-sent after 1 s). |
+| guest → host | `layer:invalidate` | `{reason}`: what's drawn changed with no new view: the snapshots loaded (`'loaded'`), the DSN's feed changed (`'dsn feed'`, at most every 5 s, and not for the same feed again), a subscription (`'anchors subscribed'`). #36's host re-sends its current view with a new `viewId`, keeping one in flight, so a still camera on a pinned clock still sees the DSN's links arrive. |
 | host → guest | `layer:time` | `{timeMs, rate, paused?}` (RFC §7.1; `utcMs` is accepted too): the clock's state, for a view with no `timeMs`. A view's `timeMs` wins. |
 | host → guest | `layer:anchors-subscribe` | `{patterns: ['norad:25544', 'dsn:*', ...]}`, which replaces the subscription. Patterns are exact ids, `prefix:*`, or `*`. |
 | guest → host | `layer:anchors` | `{viewId, timeMs, anchors: [{id, kind, name, p: [x, y, z], geo?, aliases?}]}`, after each frame while something is subscribed. **Nothing is published until then** (RFC §8.1). |
@@ -207,19 +208,12 @@ Phase 1 is in (branch `claude/layer-mode`):
     before the guest, they show through.
   - deck's receiver became ready on `netgl:ready`, and views flowed on
     frame-ends.
-- **Left with #36:**
-  - **A still view shows stale content.** 0.4.0's host sends a view only
-    when the view changes (`sameView`), so with a still camera and a
-    pinned clock the guest's own changes are not drawn until the camera
-    moves: a DSN feed that arrives, new links. With the clock running
-    (`_animate` and `time: Date.now`), every frame is a new view. A
-    guest → host "draw me again" (`layer:invalidate`?) would close it.
-  - **`layer:hello` isn't acked or read** by 0.4.0's host. It's harmless:
-    it's repeated until the first view, and the host forwards it to
-    `onControl`.
-  - **Anchors** need the host to subscribe (`layer.transport.post({type:
-    'layer:anchors-subscribe', ...})`); 0.4.0 has no API of its own for
-    them yet.
+- **On #36's latest host** (`claude/luma-host` @ 7a73309, with
+  `layer:invalidate`, `layer:hello-ack` and `subscribeAnchors`): with a
+  still camera and a pinned clock, the DSN's links appear once the feed
+  arrives. The host sent three views: the first, one after `'loaded'`,
+  and one after `'dsn feed'`. Before `layer:invalidate`, that view kept
+  the dishes and no links until the camera moved.
 - **When portal-netgl 0.4.0 is published:**
   - take `parentTransport({hostOrigins: ALLOWED_ORIGINS})` in place of
     `origins.js`'s transport;

@@ -57,6 +57,9 @@ export default class OrbitsLayer {
     this.patterns = DEFAULT_SUBSCRIPTION
     this._wanted = anchorMatcher(DEFAULT_SUBSCRIPTION)
     this._viewInv = new Matrix4
+    // Called with a reason when what's drawn changes without a new view
+    // (the DSN's feed): the page asks its host for a frame.
+    this.onInvalidate = null
   }
 
 
@@ -81,6 +84,7 @@ export default class OrbitsLayer {
             this.root.add(network)
             if (key === 'D') {
               network.setSurfaceRadius(this.surfaceRadius)
+              network.onFeed = () => this.onInvalidate?.('dsn feed')
             }
           })
           .catch((err) => failed.push(`${key}: ${err.message ?? err}`)))
