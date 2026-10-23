@@ -39,6 +39,22 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Fly a spacecraft to the Moon
+
+The Earth's and the Moon's panels now have a Craft section: switch on *transfer to the Moon* and a
+spacecraft leaves a low orbit round the Earth that day, burns once, and coasts four and a half days to
+pass 100 km over the Moon. Its path is drawn with the craft where it is at the clock's time, and the
+panel gives its burn, how long it takes and what it would cost to stop at the Moon. Behind it is a new
+flight simulator: the craft is pulled by the Earth, the Moon and the Sun where the app draws them, and
+it flies a real spacecraft, NASA's TESS, to within a few hundred metres of where it really went.
+
+- Date: 2026-10-23
+- PR: [#293](https://github.com/celestiary/web/pull/293)
+- Issue: [#11](https://github.com/celestiary/web/issues/11)
+- Epic: [#119](https://github.com/celestiary/web/issues/119) Flight simulation
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5)
+- Featured: yes
+
 ### The tubes that lead on and off halo orbits
 
 Switch on a halo or Lyapunov orbit around a Lagrange point, then its *Manifolds*, and you see
