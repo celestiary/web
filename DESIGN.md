@@ -176,6 +176,7 @@ What the first load fetches is the page, its scripts, the bodies' bundle, the st
 | A body's places, `data/places/<body>.json` (24 bodies, 664 KB) | The camera approaches the body with the `p` labels on (its disc a fifth of the screen's height, about 12 radii at the default field: ahead of tier 0's three quarters, so a go there, arriving at 10, asks as it arrives); a link to a place on it, or a place targeted or flown to | `Places.ensureLoaded` (its LOD hook, `LOAD_FRAC`; after a failure the hook waits `LOAD_RETRY_MS`), `Places.js` `loadPlaces` (shared by the labels, the link and the search's fallback) |
 | The places' index for the search, `data/places-index.json` (259 KB, 113 KB gzipped: every place's name, position, kind and altitude, without the tiers) | The first search with text in it | `search/placesIndex.js`, `PlacesProvider`; [js/search/DESIGN.md](js/search/DESIGN.md#places-in-the-index) |
 | SPARC's galaxies, `data/sparc/galaxies.json` (216 KB) | A view that could show one (the limiting magnitude reaching the brightest's 7.53 from the Solar System, or within a magnitude of it while the `G` labels are shown; or the camera 10,000 light-years from the Sun); a link to a galaxy; the first search; the `e` key | `Galaxies.ensureLoaded`, `galaxiesInView`, `Scene.loadGalaxies`; [Galaxies.md](js/scene/Galaxies.md#the-data) |
+| Earth's satellites, `data/satellites.json`, and their chunk (satellite.js's SGP4, 20 KB) | The camera within 1.5e9 m of Earth with the orbits (`o`) shown; a `sat:` link; the first search | `Scene.loadSatellites`, `_watchForSatellites`; [Satellites.md](js/scene/satellites/Satellites.md#what-loads-when) |
 | The changelog, `data/changelog.json` (73 KB) | What's new opens, or the changelog tour starts; the button's "N new" is from the dates alone, `js/changelogStamp.json`, in the bundle | `Celestiary.loadNews`, `changelog.js` `stampEntries`; [what's new](#whats-new-and-the-changelog-tour) |
 | The star catalogue's faint tiers, `large/stars/v1/packs/0.bin`-`11.bin` (97,867 stars, 1.65 MB gzipped, 12 requests) | The reveal (beside the ephemeris); before it, the packs a view wants to its limit plus a magnitude (a dark-adapted, deep or telescope link's field); a link or frame to a star not in yet, the first search, the human expansion; 3 s after the stars are drawn where nothing reveals the scene | `Stars.revealed` (which fades them in), `Stars.streamRest`, `Stars.whenStar`, `Stars.whenComplete`; [the star catalogue's tiers](#the-star-catalogues-tiers) |
 | Slop New York, only with `?nyc=1`: slop-newyork's 20 scripts from its site (2.3 MB, 0.7 MB gzipped) and three.js's dev build from jsDelivr (11 files, about 4 MB), by the page's import map | The camera within 60 km of Midtown and under 30 km with Earth's Cesium layer active; freed past 300 km | `CesiumLayers._updateNewYork`, `cesium/newYorkGuest.js`; [CESIUM.md, New York](CESIUM.md#new-york) |
@@ -968,8 +969,10 @@ tween aimed at a body, a star's world position or a surface point.  See
 
 One target, shown and used everywhere: what the breadcrumb shows, what the
 link's path names, what `c` faces, `g` goes to and `t` tracks.  It is a body,
-a place on one, a catalogue star, an asterism or one of SPARC's galaxies
-(`{kind: 'galaxy', galaxy, name}`, [Galaxies.md](js/scene/Galaxies.md)), and **`Scene.setTarget` is
+a place on one, a catalogue star, an asterism, one of SPARC's galaxies
+(`{kind: 'galaxy', galaxy, name}`, [Galaxies.md](js/scene/Galaxies.md)) or an
+Earth satellite (`{kind: 'satellite', id, name, body: 'earth'}`, Earth the
+`obj` as for a place: [Satellites.md](js/scene/satellites/Satellites.md#in-the-scene)), and **`Scene.setTarget` is
 the only way it changes**: a click on a label, a pick in the search, Look
 at, Go, the keys (`h`, `u`, `0`-`9`), `Scene.goTo` and `Scene.land` (each
 makes where it went the target; a landing at a place keeps the place), and
@@ -1615,6 +1618,7 @@ and the provider extension contract.
 | `js/scene/LagrangeMarks.js` | The target's pairs' points, Hill spheres and synchronous orbits, drawn in the orbits group ([Lagrange.md](js/scene/Lagrange.md)) |
 | `js/scene/regimes.js` | A body's orbital regimes: Earth's shells, boundaries and orbit families, sun-synchronous orbits ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
 | `js/scene/RegimeMarks.js` | The target's regimes, drawn in its equator in the orbits group ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
+| `js/scene/satellites/` | Earth's satellites: CelesTrak's GP elements (`public/data/satellites.json`) by SGP4 (satellite.js), TEME to Earth's equator under its planetTilt, drawn in the orbits group, targeted as `{kind: 'satellite'}`, gone to and ridden ([Satellites.md](js/scene/satellites/Satellites.md)) |
 | `js/scene/cr3bp.js` | The circular restricted three-body problem: equations, an integrator with the state-transition matrix, the correction that closes a symmetric orbit ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
 | `js/scene/periodicOrbits.js` | A pair's three-body families (Lyapunov, halo, DRO, the 9:2 NRHO) from their first guesses, sampled and swept out in space ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
 | `js/scene/overlayMarks.js` | What the marks of orbital space share: unit rings and ellipses, labels, screen sizes, a sphere's outline as seen |

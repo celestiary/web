@@ -21,7 +21,7 @@ export default function createSearchSlice(set, get) {
     committedTarget: null,
     setCommittedTarget: (target, path = []) => set(() => ({
       committedTarget: target,
-      committedPath: target?.kind === 'body' || target?.kind === 'place' ? path : [],
+      committedPath: ['body', 'place', 'satellite'].includes(target?.kind) ? path : [],
       committedStar: target?.kind === 'star' ?
         {hipId: target.star.hipId, displayName: target.name, star: target.star} : null,
       committedGalaxy: target?.kind === 'galaxy' ? target.galaxy : null,
@@ -120,7 +120,7 @@ export function anchorPathFor(committedPath, anchorIndex) {
 
 /**
  * The breadcrumb's elements for a target: its body path, each element a
- * link to its own path, then a place's name; a star's or an asterism's
+ * link to its own path, then a place's or a satellite's name; a star's or an asterism's
  * name alone.
  *
  * @param {?object} target committedTarget
@@ -143,6 +143,9 @@ export function breadcrumbItems(target, committedPath) {
   }))
   if (target?.kind === 'place' && committedPath.length > 0) {
     items.push({label: target.name, hash: `${committedPath.join('/')}/${slug(target.name)}`})
+  }
+  if (target?.kind === 'satellite') {
+    items.push({label: target.name, hash: `sat:${target.id}`})
   }
   return items
 }

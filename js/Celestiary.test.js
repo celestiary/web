@@ -1715,7 +1715,8 @@ describe('what a load fetches', () => {
 
   it('a link to a body: no galaxies, no places (none of its labels can show yet), no changelog', async () => {
     const app = await open(TEST_FRAGMENT)
-    expect(jsonAsked()).toEqual([])
+    // Earth's satellites, though: the view is near Earth with the orbits on.
+    expect(jsonAsked()).toEqual(['data/satellites.json'])
     expect(app.scene.galaxies.records).toEqual([])
     expect(app.scene.objects.earth.places.loadState).toBe('idle')
   })
@@ -1723,7 +1724,7 @@ describe('what a load fetches', () => {
   it('a link to a place: its body\'s catalogue, once, for the place and its labels', async () => {
     expect(TEST_FRAGMENT.startsWith('sun/earth@')).toBe(true)
     const app = await open(TEST_FRAGMENT.replace('sun/earth@', 'sun/earth/austin@'))
-    expect(jsonAsked()).toEqual(['data/places/earth.json'])
+    expect(jsonAsked()).toEqual(['data/places/earth.json', 'data/satellites.json'])
     expect(app.scene.objects.earth.places.loadState).toBe('loaded')
     expect(app.scene.objects.earth.places.entries).toEqual([AUSTIN])
     expect(Shared.targets.label).toMatchObject({kind: 'place', body: 'earth', name: 'Austin'})
