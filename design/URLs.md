@@ -81,6 +81,8 @@ it (`js/targetPath.js`):
 #asterism:ursa-major    an asterism, by its name as a slug
 #galaxy:ngc2403         a SPARC galaxy, by its SPARC name as a slug
                         (js/scene/Galaxies.md)
+#sat:25544              an Earth satellite, by its NORAD number
+                        (js/scene/satellites/Satellites.md)
 ```
 
 - **A place or a body?**  A last segment in the body above's `system` is a
@@ -89,7 +91,11 @@ it (`js/targetPath.js`):
   did.
 - **A path alone** goes to the target, as `g` does: a body flies there (as
   it always has), a place lands there, a star or a galaxy travels, an
-  asterism turns to face it (from the Sun).
+  asterism turns to face it (from the Sun), a satellite is ridden from 300
+  km off (Earth, if it has no position at the date).
+- **A satellite's frame is Earth's**, as a place's is its body's: a view
+  near it is in Earth's frame, with no `from=`.  With `F` the camera rides
+  the satellite again once restored.
 - **With a view** (`@…`, below) the camera is put back where the link had
   it, in its frame, and the target is set without turning it.
 
@@ -351,23 +357,25 @@ link may be a moment behind; paused it is exact.
 
 ### Info Token
 
-The info panel's lists as the user left them (DESIGN.md [orbital
-elements](../DESIGN.md#orbital-elements)): the whole panel folded, and its
-lists opened or folded against how they start.
+The info panel's sections as the user left them (DESIGN.md [the info
+panel](../DESIGN.md#the-info-panel)): the whole panel folded to its head,
+and its sections opened or shut against how they start.
 
 ```
-closed             the panel folded to its [+]
-open=<list>+…      lists opened that start folded (most do)
-shut=<list>+…      lists folded that start open (a body's `system`)
+closed             the panel folded to its head
+open=<section>+…   sections opened that start shut (all but one)
+shut=<section>+…   sections shut that start open (a body's `system`)
 ```
 
-A list is named by its place in a body's properties, dotted: `orbit`,
-`atmosphere`, `location.coord`.
+A section is named by its place in a body's properties (`orbit`,
+`atmosphere`, `rings`, `system`), or by its panel name (`physical`,
+`space`, `more`; a galaxy's `galaxy` and `curve`).  Links written before the
+sections, naming a nested list (`location.coord`), open nothing now.
 
 ```
-#…;info:open=orbit                      the orbit list open
+#…;info:open=orbit                      the orbit section open
 #…;info:closed                          the panel folded
-#…;info:open=orbit+atmosphere,shut=system
+#…;info:open=orbit+physical,shut=system
 ```
 
 Decisions:
@@ -564,7 +572,7 @@ Decisions:
   the view.  This fragment has an empty path and no view, so it begins at the
   separator and is only tokens (`decodeNewsToken`).  It is not written as a
   path (`#news:tour`), because the path syntax has its own `kind:value`
-  forms (`hip:`, `galaxy:`, `asterism:`) that name a target, and this names
+  forms (`hip:`, `galaxy:`, `asterism:`, `sat:`) that name a target, and this names
   none.  A fragment that starts with a path, or has a view, is never the
   tour, whatever tokens it carries.
 - **The HUD off means nothing is shown.**  The quiet-load rule (DESIGN.md

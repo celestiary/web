@@ -45,3 +45,46 @@ export function hiddenBehind(eye, center, radius, occluderCenter, occluderRadius
   const separation = toBody.angleTo(toOccluder)
   return separation + Math.asin(radius / dBody) <= Math.asin(occluderRadius / dOccluder)
 }
+
+
+/**
+ * Above the eye's horizon, how high nearby land can stand, radians: canyon
+ * walls and mountains close by.  The sphere test in groundInView sees only
+ * the body's mean surface; this keeps the credits up whenever the frame's
+ * low edge is near the horizon.
+ */
+export const RELIEF_MARGIN = 10 * Math.PI / 180
+
+
+/**
+ * Whether any of a body's ground can be in the frame: the angle from the
+ * view's direction to the body's centre is within the ground's angular
+ * radius, the frame's half-diagonal and RELIEF_MARGIN.  Conservative (the
+ * frame taken as the cone round its corners), so false only when no
+ * ground can show: on the surface looking up, the sky alone.  Below the
+ * mean surface (a deep valley), the horizon is taken as level.
+ *
+ * @param {object} eye The camera's world position (Vector3)
+ * @param {object} viewDir The camera's unit view direction (Vector3)
+ * @param {number} halfDiag The frame's half-diagonal angle, radians
+ * @param {object} center The body's centre (Vector3)
+ * @param {number} groundRadius Its mean surface's radius
+ * @returns {boolean}
+ */
+export function groundInView(eye, viewDir, halfDiag, center, groundRadius) {
+  const toCenter = center.clone().sub(eye)
+  const d = toCenter.length()
+  const angularRadius = d > groundRadius ? Math.asin(groundRadius / d) : Math.PI / 2
+  return viewDir.angleTo(toCenter) <= angularRadius + halfDiag + RELIEF_MARGIN
+}
+
+
+/**
+ * @param {number} fovDeg A perspective camera's vertical field of view
+ * @param {number} aspect Its width over height
+ * @returns {number} the half-diagonal angle of its frame, radians
+ */
+export function halfDiagonal(fovDeg, aspect) {
+  const t = Math.tan(fovDeg * Math.PI / 360)
+  return Math.atan(Math.hypot(t, t * aspect))
+}
