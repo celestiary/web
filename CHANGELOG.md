@@ -52,6 +52,7 @@ metres and orbit it; outside those dates it isn't shown.
 - Issue: [#25](https://github.com/celestiary/web/issues/25)
 - Epic: [#120](https://github.com/celestiary/web/issues/120) Missions and models
 - Permalink: [Open this view](https://celestiary.org/#sun/earth/webb)
+- Featured: yes
 
 ### Satellites round Earth: the ISS, GPS, the geostationary ring
 

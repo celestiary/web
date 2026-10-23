@@ -533,3 +533,35 @@ Near Earth, with the orbits on, about 450 real satellites now circle it where th
 
 https://celestiary.org/#sat:25544@-23.1092,93.6224,184.75929Mm;t=9791.8729jd;cq=0,-0.0829,0,0.9966;fov=45deg;s=F
 ```
+
+### The James Webb Space Telescope, where it really is
+
+- ID: 2026-10-23-the-james-webb-space-telescope-where-it-really
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-11-21
+- Entry: 2026-10-23-the-james-webb-space-telescope-where-it-really
+- Image: posts/images/2026-10-23-the-james-webb-space-telescope-where-it-really.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-23-the-james-webb-space-telescope-where-it-really --hash 'sun/earth/webb' --png posts/images
+- Notes:
+- Length: X 218/280, Facebook 434/500
+
+```text
+The James Webb Space Telescope, where it really is.
+
+Webb is now in the sky beside the Earth, drawn with NASA's own 3D model at its real size and lit by the Sun, its sunshield turned toward it.
+
+https://celestiary.org/#sun/earth/webb
+```
+
+#### Facebook
+
+```text
+The James Webb Space Telescope, where it really is.
+
+Webb is now in the sky beside the Earth, drawn with NASA's own 3D model at its real size and lit by the Sun, its sunshield turned toward it. It follows JPL's record of its path, from 41 minutes after launch on Christmas Day 2021, out to its orbit around the Sun–Earth L2 point 1.5 million km beyond the Earth, and on along its planned path to October 2031.
+
+https://celestiary.org/#sun/earth/webb
+```
