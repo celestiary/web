@@ -31,6 +31,18 @@ has no view to open yet.
 
 ## October 2026
 
+### One bar of controls at the bottom of your phone
+
+On a phone, the buttons that used to stack down the right of the screen are now one bar along the
+bottom: the time (it shows the clock, or how fast time is running), map layers near Earth, the AR sky
+view, apps and a More button for settings. Each opens just above the bar, and the panel about what
+you're looking at sits on top of it, so nothing covers anything else.
+
+- Date: 2026-10-23
+- PR: [#289](https://github.com/celestiary/web/pull/289)
+- Issue: [#279](https://github.com/celestiary/web/issues/279)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
 ### Settings and About open without the page blinking
 
 Opening Settings or About, bottom left, used to blank the whole page for a moment before the dialog
