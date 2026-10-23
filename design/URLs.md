@@ -298,6 +298,8 @@ Each feature has its own label:
 "info":             the info panel's lists, open or folded
 "orbits":           the orbital elements lit on the bodies' orbits
 "orbit":            the guide's orbit page: one orbit at a moment (read)
+"periodic":         the three-body orbits shown, and their manifolds
+"craft":            the craft flown, with their departures
 "apps":             the widgets drawer and dock: open, docked, the app
                     showing, the apps pinned and running
 "apps.<id>":        one running app's own state, a sub-namespace of apps
@@ -497,6 +499,35 @@ Decisions:
 - **App state, restored on any link that carries it**, as the `orbits:`
   token is; the families show once their pair is the target's.
 - **Unknown codes are dropped.**  No token: none on.
+
+### Craft Token
+
+The craft flown ([js/scene/Craft.md](../js/scene/Craft.md#drawn)), from the
+info panel's *space around* list: each by its code, with its departure as
+days from J2000 (TT, as `t=` writes the time in UTC), to a thousandth.
+
+```
+<code>=<days>   a flight, leaving then
+```
+
+The codes:
+
+```
+tli      a transfer to the Moon from a 185 km parking orbit
+```
+
+```
+#…;craft:tli=9791.5        leaving 2026-10-23 0h TT
+```
+
+Decisions:
+
+- **The departure is in the link**, not "today": the flight is made from
+  it, so a link draws the same path whenever it's opened.
+- **App state, restored on any link that carries it**, as `periodic:` is;
+  drawn once its central body is in.
+- **Unknown codes, and days that aren't numbers or are past the supported
+  dates, are dropped.**
 
 ### Apps Token
 

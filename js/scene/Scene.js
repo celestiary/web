@@ -19,6 +19,9 @@ import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lag
 import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
 import {FAMILIES, PERIODIC_DATA_URL, familyMember, familyOfCode, sampleMember, southern} from './periodicOrbits.js'
 import {manifolds} from './manifolds.js'
+import CraftTrack from './craft/CraftTrack.js'
+import {appBodies} from './craft/bodies.js'
+import {FLIGHT_CATALOG, flightOf} from './craft/catalog.js'
 import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
@@ -215,6 +218,17 @@ export default class Scene {
     // (manifolds.js), and the tubes made so far, by `secondary:family`.
     this._periodicManifolds = false
     this._manifoldTubes = new Map
+    // The craft flown (craft/flights.js): link code → departure (JDE, TT),
+    // in the link as the `craft:` token; their tracks as drawn, by code.
+    // VSOP87C's function (Animation.vsopAt), for the Sun: set by Celestiary.
+    this._craft = new Map
+    this._craftTracks = new Map
+    this.vsopAt = null
+    // How the craft are made (craft/flights.js, and the integrator behind
+    // it), loaded the first time one is flown: undefined before, the
+    // promise while it loads, then its module.
+    this._flights = undefined
+    this.loadFlights = () => import('./craft/flights.js')
     // JPL's catalogue members (public/data/periodicOrbits.json), loaded the
     // first time a family is shown: undefined before, 'loading', the file,
     // or null where it couldn't load (the app's own members then).
@@ -409,7 +423,8 @@ export default class Scene {
         const lagrange = [...this._lagrange?.values() ?? []].filter((m) => m.parent)
         const regimes = [...this._regimes?.values() ?? []].filter((m) => m.parent)
         return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind,
-          ...lagrange, ...lagrange.map((m) => m.syncRing), ...regimes, this.satellites?.marks]
+          ...lagrange, ...lagrange.map((m) => m.syncRing), ...regimes, this.satellites?.marks,
+          ...this._craftTracks.values()]
       }
       case 'p': {
         // Bodies' names, and the places and lat/lng markers on them (the
@@ -609,6 +624,10 @@ export default class Scene {
     // A link's lit elements for a body that has only now loaded.
     if (this._orbitElements.has(name)) {
       this._syncOrbitDiagrams()
+    }
+    // A link's craft about a body that has only now loaded.
+    if ([...this._craft.keys()].some((c) => flightOf(c).centre === name)) {
+      this._syncCraft()
     }
     // The target's pairs and regimes, if this is one of their bodies.
     if (this._lagrange && Shared.targets.obj) {
@@ -1242,6 +1261,107 @@ export default class Scene {
     if (!quiet) {
       this.onSettingsChange?.()
     }
+  }
+
+
+  /** @returns {Map<string, number>} the craft flown: code → departure, JDE */
+  getCraft() {
+    return this._craft
+  }
+
+
+  /**
+   * Fly a craft (craft/flights.js), leaving at the start of the given day,
+   * or take it away.
+   *
+   * @param {string} code a FLIGHT_CATALOG code
+   * @param {number} jde now, TT: it leaves at 0h of this day
+   */
+  toggleCraft(code, jde) {
+    if (this._craft.has(code)) {
+      this._craft.delete(code)
+    } else if (flightOf(code)) {
+      this._craft.set(code, Math.floor(jde - 0.5) + 0.5)
+    }
+    this._syncCraft()
+    this.onSettingsChange?.()
+  }
+
+
+  /**
+   * A link's craft (decodeCraftToken).
+   *
+   * @param {Map<string, number>} craft code → departure, JDE
+   */
+  restoreCraft(craft) {
+    this._craft = new Map(craft)
+    this._syncCraft()
+  }
+
+
+  /**
+   * The craft for a body's info panel: those flown about it, on or off,
+   * with their facts when on.
+   *
+   * @param {string} name a body's
+   * @returns {Array<{code: string, name: string, on: boolean, text: ?string}>}
+   *     text the flight's facts, once it's flown
+   */
+  craftOf(name) {
+    return Object.values(FLIGHT_CATALOG).filter((f) => f.shownAt.includes(name)).map((f) => {
+      const facts = this._craftTracks.get(f.code)?.path.facts
+      const text = facts ? this._flights.FLIGHTS[f.code].describe(facts) : null
+      return {code: f.code, name: f.name, on: this._craft.has(f.code), text}
+    })
+  }
+
+
+  /**
+   * Draw the craft flown about their central bodies, each made once for its
+   * departure, and take away the rest.
+   */
+  _syncCraft() {
+    if (this._craft.size > 0 && !this._flightsReady()) {
+      return
+    }
+    for (const [code, track] of this._craftTracks) {
+      if (this._craft.get(code) !== track.path.facts.departure) {
+        track.dispose()
+        this._craftTracks.delete(code)
+      }
+    }
+    for (const [code, departure] of this._craft) {
+      const flight = {...FLIGHT_CATALOG[code], ...this._flights.FLIGHTS[code]}
+      const centre = this.objects[`${flight.centre}.orbitPosition`]
+      if (this._craftTracks.has(code) || !centre) {
+        continue
+      }
+      const path = flight.make(departure, appBodies(this.vsopAt))
+      if (!path) {
+        continue
+      }
+      const track = new CraftTrack(flight, path, Shared.OVERLAY_LAYER)
+      this._joinOverlay('o', track)
+      centre.add(track)
+      this._craftTracks.set(code, track)
+    }
+  }
+
+
+  /**
+   * Whether flights.js is in; starts loading it the first time, and syncs
+   * the craft again when it comes.
+   *
+   * @returns {boolean}
+   */
+  _flightsReady() {
+    if (this._flights === undefined) {
+      this._flights = this.loadFlights().then((module) => {
+        this._flights = module
+        this._syncCraft()
+      })
+    }
+    return !(this._flights instanceof Promise)
   }
 
 

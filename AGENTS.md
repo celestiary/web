@@ -39,6 +39,7 @@ tried and dropped.
 | The interface's look: the design system, its tokens, the info panel's tiers, the phone sheet, and the redesign's phases | [design/UI.md](design/UI.md); DESIGN.md [the info panel](DESIGN.md#the-info-panel) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Lagrange points, Hill spheres, synchronous orbits (every pair), orbital regimes (LEO, MEO, GPS, Molniya, sun-synchronous, cislunar space), three-body orbits (halo, Lyapunov, DRO, NRHO; the CR3BP), and the rest of #272's orbital structure | [js/scene/Lagrange.md](js/scene/Lagrange.md); DESIGN.md [orbital elements](DESIGN.md#orbital-elements) |
+| A craft's integrator (#11): the force model on the ephemerides, the integrators and their energy drift, Lambert, the transfer to the Moon, the `craft:` flights | [js/scene/Craft.md](js/scene/Craft.md) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Earth satellites: CelesTrak's GP data, SGP4, the TEME frame, old elements, targeting and riding one | [js/scene/satellites/Satellites.md](js/scene/satellites/Satellites.md) |
 | 3D models (glTF, `loadModel`), spacecraft at their JPL Horizons positions (Webb), their sources and licences | [js/scene/models.md](js/scene/models.md) |
