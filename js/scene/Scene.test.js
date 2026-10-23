@@ -1667,7 +1667,12 @@ describe('the target\'s orbital regimes', () => {
       expect(s.objects['mars.orbitPosition'].regimes.orbits[0].i).toBeCloseTo(92.6, 0)
     })
     withTarget(s, 'moon', () => {
-      expect(s.objects['moon.orbitPosition'].regimes).toBeUndefined()
+      // The Moon's, over its 1,737.4 km reference sphere.
+      const moonRegimes = s.objects['moon.orbitPosition'].regimes
+      expect(moonRegimes.parent).toBe(s.objects['moon.planetTilt'])
+      expect(moonRegimes.bands.map((b) => Math.round((b.outer - 1737400) / 1e3))).toEqual([100])
+      expect(moonRegimes.orbits.filter((o) => o.spec.label.startsWith('frozen')).map((o) => o.i))
+          .toEqual([27, 50, 76, 86])
     })
   })
 
@@ -1690,7 +1695,10 @@ describe('the target\'s orbital regimes', () => {
     const lines = s.spaceAround('earth').regimes
     expect(lines).toContain('low Earth orbit (LEO): 160 km to 2,000 km up')
     expect(lines.find((l) => l.startsWith('sun-synchronous'))).toMatch(/inclined 98\.2°$/)
-    expect(s.spaceAround('moon').regimes).toBeNull()
+    const moonLines = s.spaceAround('moon').regimes
+    expect(moonLines).toContain('low lunar orbit (LLO): 20 km to 100 km up')
+    expect(moonLines.find((l) => l.startsWith('why most low lunar orbits'))).toMatch(/mascons/)
+    expect(s.spaceAround('venus')).toBeNull()
   })
 })
 

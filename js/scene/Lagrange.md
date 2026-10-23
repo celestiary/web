@@ -2,14 +2,15 @@
 
 The space around a pair of bodies, a primary and the secondary that orbits
 it: the Sun and a planet, a planet and a moon, Pluto and Charon; and the
-regimes around a body that spacecraft use.  The first three parts of
+regimes around a body that spacecraft use.  The first four parts of
 [#272](https://github.com/celestiary/web/issues/272): its scope 1, the
 analytic features every pair has; its scope 2, Earth's orbital regimes and
-their analogues ([below](#orbital-regimes)); and its scope 3, the
+their analogues ([below](#orbital-regimes)); its scope 3, the
 three-body periodic orbits, in the turning frame or fixed in space
-([below](#three-body-orbits)); and the first of its scope 5, the invariant
-manifolds of the halo and Lyapunov orbits ([below](#manifolds)), the base of
-the low-energy transfers.
+([below](#three-body-orbits)); its scope 4, the orbits near the Moon, its
+frozen orbits above all ([below](#near-the-moon)); and the first of its
+scope 5, the invariant manifolds of the halo and Lyapunov orbits
+([below](#manifolds)), the base of the low-energy transfers.
 
 - `js/scene/lagrange.js`: the math, no scene.
 - `js/scene/LagrangeMarks.js`: a pair's marks, drawn.
@@ -127,8 +128,8 @@ target:
 - **Search and `goTo`** for the points ("Earth-Moon L2") need targets that
   aren't bodies.
 - **A setting of their own**: they're in `o` for now.
-- **The rest of #272**: the Moon's frozen orbits (scope 4); the cyclers
-  and transfers wait on the integrator (#11).
+- **The rest of #272**: the ballistic lunar transfer and the cyclers, on
+  #11's integrator ([Craft.md](Craft.md)).
 
 ## Orbital regimes
 
@@ -320,6 +321,91 @@ Not yet:
 
 - **Other members of a family:** a slider along the family (amplitude, or
   Jacobi constant) would reuse the continuation here.
+
+## Near the Moon
+
+#272's scope 4: the Moon's low orbits, the few that last, and the
+elliptical orbits above them.  The Moon's entry in `regimes.js`, drawn by
+the same `RegimeMarks` in its equator (its `planetTilt`, the IAU pole) for
+the target, in the orbits group (`o`).  Altitudes are over the lunar
+reference sphere, 1,737.4 km, which LRO's are given over.
+
+**Why most low lunar orbits don't last.**  The Moon's gravity is lumpy: the
+mascons, dense regions under the maria, pull a low orbiter unevenly, and with the Earth's pull they pump up its eccentricity
+until the low point meets the ground.  Apollo 16's subsatellite (PFS-2),
+released in April 1972, crashed after 35 days.  A few
+inclinations are spared: there the perturbations average out over the
+orbit and its eccentricity and argument of periselene stay put (a
+"frozen" orbit).  The panel says this in one line (`notes`).
+
+**What's drawn:**
+
+- **LLO**, a band from 20 km (LRO's lowest periselene) to 100 km up.  The
+  name is used loosely; 100 km is the common ceiling.
+- **The four frozen inclinations, 27°, 50°, 76° and 86°**, as circles at
+  100 km.  The inclinations are those of NASA's 2006 account ("Bizarre
+  lunar orbits", Science@NASA) and Folta & Quinn 2006 ("Lunar frozen
+  orbits", AIAA 2006-6749), whose full text couldn't be read from here: the
+  four values are checked against the secondary sources that quote them,
+  not against the paper.  Frozen orbits have a small eccentricity with ω
+  at 90° or 270°; at this scale they're drawn circular.  The altitude and
+  the nodes are illustrative, the nodes spread so the labels part.
+- **LRO's two orbits:**
+  - 2009–11, its 50 km polar mapping orbit, held by burns of 143 m/s a year;
+  - since 11 December 2011 a frozen polar orbit (under 5 m/s a year), drawn
+    as reshaped in May 2015: 20 km over the south pole, 165 km over the
+    north (ω 270°).  Its periselene and aposelene drift since; the drawing is
+    the 2015 shape.  Sources: NASA's LRO orbit papers (Mesarch et al. 2023,
+    AAS 23-234) and NASA SVS 4289 ("LRO lowers periapsis").
+- **The ELFO**, an elliptical lunar frozen orbit: the 30-hour reference
+  orbit of NASA's lunar relay and navigation service (LCRNS), 1,750 by
+  17,400 km up (a 11,312 km, e 0.6917), i 59.37°, ω 92.49° (in the
+  principal-axis frame, a few hundredths of a degree from the mean-Earth
+  one), so its
+  apolune is over the south pole, where it lingers.  Elements as listed in
+  the secondary literature (arXiv 2510.25161, 2507.22145); no NASA document
+  with them was found.
+- **CAPSTONE's and Gateway's NRHO** is the three-body family
+  ([above](#three-body-orbits)), switched on in the same panel.
+
+**The ELFOs' frozen condition** (`elfoInclination`).  Far from the Moon its
+own field matters less than the Earth's tide, whose doubly averaged
+quadrupole leaves e, i and ω fixed with ω at 90° or 270° where
+e² + (5/3) cos² i = 1 (Ely 2005; Ely & Lieb 2006): Kozai's critical
+inclination, 39.23°, as e goes to 0, and 51.7° at Ely's e = 0.6.  The 30 h
+orbit sits 3.4° above the relation's 56.0° for its e: the Moon's J2 and
+the frame (the Earth's orbit plane is not the Moon's equator) move it.  It's
+the reference orbit's published inclination that's drawn.
+
+**Not integrated.**  No lunar gravity field is integrated here: the orbits
+are drawn with the elements from the literature.  Showing decay against
+frozen (a low orbit's eccentricity climbing to impact over weeks, a frozen
+one's holding) would need the field's low-degree zonals and a few tesserals
+(GRGM1200A or LP150Q) as a force in #11's integrator ([Craft.md](Craft.md)),
+which has a central body's J2 but leaves the Moon's harmonics out.
+
+**Low orbits' labels.**  An orbit that keeps within 1.5 radii of the
+body's centre (the Moon's low orbits, and Earth's 700 km sun-synchronous
+orbit) is labelled at its point nearest the eye, not at its apocentre,
+which the body hides from half the views (`RegimeMarks._labelLowOrbits`).
+The label is set a body's radius nearer the eye along its line of sight, so
+it stays put on screen but the body's bulge doesn't cut its text.  These
+labels show only when their orbit spans 150 px (others at 50 px), as they
+crowd the disc before then.
+
+**Checked:**
+
+- `regimes.test.js`: the four inclinations, LRO's 50 km period (113
+  minutes), its 2015 periselene and aposelene, the ELFO's a, e and 30 h
+  period, and the frozen relation (39.23° at e = 0, 51.7° at 0.6, the 30 h
+  orbit 2° to 5° above it).
+- `Scene.test.js`: the Moon's regimes hang under its `planetTilt`, the LLO
+  band's edge is at 100 km, and the panel lists the band and the note on
+  the mascons.
+- In the browser (headless Chromium, 2026 Oct 22 12:00 UTC, no ion token,
+  so the Moon on celestiary's sphere): every program compiles, and from
+  6,000 km every low orbit's label is on the near side; from 60,000 km only
+  the ELFO's shows.  With the Cesium Moon (ion) it's unchecked.
 
 ## Manifolds
 
