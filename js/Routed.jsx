@@ -1,5 +1,6 @@
 import React, {ReactElement, Suspense, lazy, useEffect, useState} from 'react'
 import {Route, Router, Switch, useLocation} from 'wouter'
+import {staleRoute} from './staleBuild'
 
 
 // Base path the site is deployed under (e.g. '' at celestiary.org's root,
@@ -18,8 +19,12 @@ const BASE = new URL(document.baseURI).pathname.replace(/\/$/, '')
 // Suspense then hid the whole app (display: none !important on every
 // element) until the import's promise settled: a blank frame or several,
 // the flicker on opening a dialog.
-const App = lazy(() => import('./App'))
-const Guide = lazy(() => import('./guide/Guide'))
+//
+// A route's chunk that a deploy has deleted (a cached index.js asking for
+// the last build's) goes to the page's stale-build recovery
+// (js/staleBuild.js).
+const App = lazy(() => import('./App').catch(staleRoute))
+const Guide = lazy(() => import('./guide/Guide').catch(staleRoute))
 
 
 /** @returns {ReactElement} */
