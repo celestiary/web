@@ -25,6 +25,7 @@ import {FLIGHT_CATALOG, flightOf} from './craft/catalog.js'
 import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
+import Spacecraft from './Spacecraft.js'
 import Star from './Star.js'
 import Stars from './Stars.js'
 import StellarFrame from './StellarFrame.js'
@@ -228,6 +229,20 @@ export default class Scene {
     // promise while it loads, then its module.
     this._flights = undefined
     this.loadFlights = () => import('./craft/flights.js')
+    // Whether vsopAt is VSOP87C itself yet (Animation.vsopReady): set by
+    // Celestiary.  Absent, as in tests, it's taken as ready.
+    this.vsopReady = null
+    // The flights' data files (FLIGHT_CATALOG's `data`), by URL: 'loading', the
+    // file, or null where it couldn't load; and the flights flown that
+    // came out null (none from that date).
+    this._craftData = new Map
+    this._craftNone = new Set
+    this.loadCraftData = (url) => fetch(url).then((rsp) => {
+      if (!rsp.ok) {
+        throw new Error(`${url}: ${rsp.status}`)
+      }
+      return rsp.json()
+    })
     // JPL's catalogue members (public/data/periodicOrbits.json), loaded the
     // first time a family is shown: undefined before, 'loading', the file,
     // or null where it couldn't load (the app's own members then).
@@ -676,6 +691,7 @@ export default class Scene {
       case 'star': return new Star(props, this.objects, this.ui)
       case 'planet': return new Planet(this, props)
       case 'moon': return new Planet(this, props, true)
+      case 'spacecraft': return new Spacecraft(this, props)
       default:
     }
     throw new Error(`Object has unknown type: ${props.type}`)
@@ -1036,6 +1052,7 @@ export default class Scene {
         const i = o.sunSync ? sunSyncInclination(body, year, semiMajorAxisOf(body, o)) : null
         return i === null ? o.text : `${o.text}, inclined ${i.toFixed(1)}°`
       }),
+      ...(body.notes ?? []),
     ]
   }
 
@@ -1487,7 +1504,10 @@ export default class Scene {
   craftOf(name) {
     return Object.values(FLIGHT_CATALOG).filter((f) => f.shownAt.includes(name)).map((f) => {
       const facts = this._craftTracks.get(f.code)?.path.facts
-      const text = facts ? this._flights.FLIGHTS[f.code].describe(facts) : null
+      let text = facts ? this._flights.FLIGHTS[f.code].describe(facts) : null
+      if (!text && this._craftNone.has(f.code)) {
+        text = 'none designed from this date'
+      }
       return {code: f.code, name: f.name, on: this._craft.has(f.code), text}
     })
   }
@@ -1502,26 +1522,67 @@ export default class Scene {
       return
     }
     for (const [code, track] of this._craftTracks) {
-      if (this._craft.get(code) !== track.path.facts.departure) {
+      if (this._craft.get(code) !== track.day) {
         track.dispose()
         this._craftTracks.delete(code)
       }
     }
-    for (const [code, departure] of this._craft) {
+    for (const code of [...this._craftNone]) {
+      if (!this._craft.has(code)) {
+        this._craftNone.delete(code)
+      }
+    }
+    let changed = false
+    for (const [code, day] of this._craft) {
       const flight = {...FLIGHT_CATALOG[code], ...this._flights.FLIGHTS[code]}
       const centre = this.objects[`${flight.centre}.orbitPosition`]
-      if (this._craftTracks.has(code) || !centre) {
+      if (this._craftTracks.has(code) || this._craftNone.has(code) || !centre ||
+          (flight.needsVsop && this.vsopReady && !this.vsopReady())) {
         continue
       }
-      const path = flight.make(departure, appBodies(this.vsopAt))
+      const data = flight.data ? this._craftDataOf(flight.data) : null
+      if (flight.data && !data) {
+        continue
+      }
+      const path = flight.make(day, appBodies(this.vsopAt), data)
       if (!path) {
+        this._craftNone.add(code)
+        changed = true
         continue
       }
       const track = new CraftTrack(flight, path, Shared.OVERLAY_LAYER)
+      track.day = day
       this._joinOverlay('o', track)
       centre.add(track)
       this._craftTracks.set(code, track)
+      changed = true
     }
+    // Made later than asked (its data, or the ephemeris, came since): the
+    // panel's rows again.
+    if (changed) {
+      this.onCraftChange?.()
+    }
+  }
+
+
+  /**
+   * A flight's data file, loaded the first time it's asked for; the craft
+   * are synced again when it comes.
+   *
+   * @param {string} url
+   * @returns {?object} the file, or null while it loads or where it couldn't
+   */
+  _craftDataOf(url) {
+    if (!this._craftData.has(url)) {
+      this._craftData.set(url, 'loading')
+      this.loadCraftData(url).then((data) => {
+        this._craftData.set(url, data)
+      }, () => {
+        this._craftData.set(url, null)
+      }).then(() => this._syncCraft())
+    }
+    const data = this._craftData.get(url)
+    return data === 'loading' ? null : data
   }
 
 
@@ -2793,6 +2854,10 @@ export default class Scene {
     // are identified vs stars by the absence of spectralType (matches
     // landableBodyName in Celestiary.js).
     if (cur.props.spectralType !== undefined) {
+      return
+    }
+    // Nor a spacecraft's bounding sphere.
+    if (cur.props.type === 'spacecraft') {
       return
     }
     const pick = pickSurfaceLatLng(this.ui, e, cur)

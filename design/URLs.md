@@ -554,10 +554,12 @@ The codes:
 
 ```
 tli      a transfer to the Moon from a 185 km parking orbit
+blt      a ballistic lunar transfer: the first designed leaving on or after the day
 ```
 
 ```
 #…;craft:tli=9791.5        leaving 2026-10-23 0h TT
+#…;craft:blt=9791.5        the first ballistic lunar transfer leaving on or after then
 ```
 
 Decisions:

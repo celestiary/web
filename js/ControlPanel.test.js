@@ -383,6 +383,8 @@ describe('ControlPanel', () => {
     expect(html).toContain('<div class="info-subhead">Craft</div>')
     expect(html).toContain('<dt>transfer to the Moon</dt>')
     expect(html).toContain('<span class="craft-facts">leaves 2026-10-23</span>')
+    // refreshCraft with no panel on the page: nothing to write.
+    panel.refreshCraft()
   })
 
   it('writes masses in scientific notation', () => {

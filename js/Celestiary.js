@@ -191,6 +191,10 @@ export default class Celestiary {
     // And the craft flown about it (scene/craft/flights.js), on the app's
     // ephemeris (the Sun from VSOP87C, or its stand-in until it's in).
     this.scene.vsopAt = (jd) => this.animation.vsopAt(jd)
+    this.scene.vsopReady = () => this.animation.vsopReady()
+    // A long flight waits for VSOP87C itself (flights.js needsVsop).
+    this.animation.onEphemeris = () => this.scene._syncCraft()
+    this.scene.onCraftChange = () => this.controlPanel.refreshCraft()
     this.controlPanel.craftHooks = {
       list: (name) => this.scene.craftOf(name),
       toggle: (code) => this.scene.toggleCraft(code, utcToTtJulianDay(this.time.simTimeJulianDay())),
@@ -3537,8 +3541,8 @@ const REF_FRAME = {
 /**
  * Decide whether a scene-graph target is a body the user can plausibly
  * "stand on" for AR purposes.  Returns the body's name if it has a
- * surface (radius > 0) AND isn't a star (lacks `spectralType`); null
- * otherwise.  Stars are excluded so tapping AR while viewing the Sun
+ * surface (radius > 0) AND isn't a star (lacks `spectralType`) or a
+ * spacecraft; null otherwise.  Stars are excluded so tapping AR while viewing the Sun
  * doesn't silently teleport the user to the photosphere — the AR
  * caller falls back to a sensible default body (Earth) when this
  * returns null.
@@ -3555,6 +3559,10 @@ export function landableBodyName(target) {
     return null
   }
   if (props.spectralType !== undefined) {
+    return null
+  }
+  // Nor a spacecraft: its radius is its model's bounding sphere.
+  if (props.type === 'spacecraft') {
     return null
   }
   return props.name

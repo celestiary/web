@@ -55,6 +55,48 @@ front, and selecting one keeps its one name. A link keeps what you chose.
 - Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116)
 
+### The slow way to the Moon, by way of the Sun
+
+The Earth's and the Moon's Craft sections now have a *ballistic lunar transfer*: the low-energy route
+NASA's GRAIL and CAPSTONE took. The craft goes out about four times the Moon's distance, where the Sun's
+pull bends its orbit round, and falls back three to four months later to meet the Moon almost at rest,
+needing far less fuel to stop there than a direct flight. Switch it on and the app flies the first one
+leaving from the clock's date, drawn with the craft where it is on that day.
+
+- Date: 2026-10-23
+- PR: [#295](https://github.com/celestiary/web/pull/295)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Epic: [#119](https://github.com/celestiary/web/issues/119) Flight simulation
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@86.7618,-11.4024,5.238672Gm;t=9833.335118jd;cq=-0.1126,0.6981,0.6981,0.1126;fov=45deg;s=alF;time:pause;craft:blt=9791.5)
+
+### The James Webb Space Telescope, where it really is
+
+Webb is now in the sky beside the Earth, drawn with NASA's own 3D model at its real size and lit by
+the Sun, its sunshield turned toward it. It follows JPL's record of its path, from 41 minutes after
+launch on Christmas Day 2021, out to its orbit around the Sun–Earth L2 point 1.5 million km beyond the
+Earth, and on along its planned path to October 2031. Search for "JWST" to fly there, zoom in to a few
+metres and orbit it; from behind its sunshield it eclipses the Sun. Outside those dates it isn't shown.
+
+- Date: 2026-10-23
+- PR: [#288](https://github.com/celestiary/web/pull/288)
+- Issue: [#25](https://github.com/celestiary/web/issues/25)
+- Epic: [#120](https://github.com/celestiary/web/issues/120) Missions and models
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/webb)
+
+### The Moon's frozen orbits: the few low orbits that last
+
+With the Moon selected, the orbits spacecraft use near it are drawn around it. Low lunar orbit is a
+thin shell. The four "frozen" inclinations, 27°, 50°, 76° and 86°, are where the pulls of the Moon's
+lumpy mass concentrations average out, so an orbit lasts for years. Also drawn are the Lunar
+Reconnaissance Orbiter's two orbits and a 30-hour elliptical frozen orbit that hangs over the south
+pole. The info panel explains why most low lunar orbits crash within weeks or months.
+
+- Date: 2026-10-23
+- PR: [#285](https://github.com/celestiary/web/pull/285)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause)
+- Featured: yes
+
 ### Fly a spacecraft to the Moon
 
 The Earth's and the Moon's panels now have a Craft section: switch on *transfer to the Moon* and a

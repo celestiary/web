@@ -30,6 +30,13 @@ const OPACITY = {outline: 0.55, orbit: 0.7, band: 0.07}
 // A label shows when what it names spans this much of the screen: a
 // shell's or a boundary's outer radius, an orbit's semi-major axis.
 const MIN_LABEL_PX = 50
+// An orbit that keeps within this many of the body's radii is labelled at
+// its point nearest the eye, not at its apocentre, which the body hides
+// from half the views (the Moon's low orbits).
+const LOW_ORBIT_RADII = 1.5
+// Their labels crowd the body's disc until it's large: they show when
+// their semi-major axis spans this much.
+const MIN_LOW_LABEL_PX = 150
 const DEG = Math.PI / 180
 const Y_AXIS = new Vector3(0, 1, 0)
 const X_AXIS = new Vector3(1, 0, 0)
@@ -39,6 +46,7 @@ const tmpCamQ = new Quaternion
 const tmpV = new Vector3
 const tmpUp = new Vector3
 const tmpEye = new Vector3
+const tmpCamPos = new Vector3
 
 
 /**
@@ -146,17 +154,18 @@ export default class RegimeMarks extends Group {
         continue
       }
       const e = spec.e ?? 0
+      const points = unitEllipse(e)
       const frames = []
       for (let p = 0; p < (spec.planes ?? 1); p++) {
         const frame = new Group
-        const strip = newWideLineStrip(unitEllipse(e), {name: 'regimes.orbit', color: spec.color,
+        const strip = newWideLineStrip(points, {name: 'regimes.orbit', color: spec.color,
           width: LINE_WIDTH, opacity: OPACITY.orbit})
         strip.scale.setScalar(a)
         frame.add(strip)
         this.add(frame)
         frames.push(frame)
       }
-      const orbit = {spec, a, e, i, frames, label: label(spec.sunSync ?
+      const orbit = {spec, a, e, i, frames, points, low: a * (1 + e) < LOW_ORBIT_RADII * re, label: label(spec.sunSync ?
         `${spec.label}, ${i.toFixed(1)}°` : spec.label, spec.color)}
       this.orbits.push(orbit)
       this._turn(orbit, spec.node ?? 0)
@@ -165,6 +174,7 @@ export default class RegimeMarks extends Group {
     this.labels.sprites.name = 'regimes.labels'
     const labelsDrawn = this.labels.sprites.onBeforeRender
     this.labels.sprites.onBeforeRender = (renderer, scene, camera, ...rest) => {
+      this._labelLowOrbits(camera)
       this._declutter(renderer, camera)
       labelsDrawn?.call(this.labels.sprites, renderer, scene, camera, ...rest)
     }
@@ -205,7 +215,8 @@ export default class RegimeMarks extends Group {
 
   /**
    * Turn an orbit's planes: Ry(Ω) Rx(i) Ry(ω), as the orbit diagram's, the
-   * planes spaced evenly in Ω; and put its label at its apocentre.
+   * planes spaced evenly in Ω; and put its label at its apocentre, unless
+   * it's a low one.
    *
    * @param {object} orbit
    * @param {number} node Ω of the first plane, degrees
@@ -219,7 +230,8 @@ export default class RegimeMarks extends Group {
     })
     orbit.node = node
     const attr = this.labels?.sheet.positionAttribute
-    if (attr) {
+    // A low orbit's label follows the eye (_labelLowOrbits).
+    if (attr && !orbit.low) {
       tmpV.set(-orbit.a * (1 + orbit.e), 0, 0).applyQuaternion(frames[0].quaternion)
       attr.setXYZ(orbit.label, tmpV.x, tmpV.y, tmpV.z)
       attr.needsUpdate = true
@@ -278,6 +290,47 @@ export default class RegimeMarks extends Group {
 
 
   /**
+   * Put the low orbits' labels at their points nearest the eye, where the
+   * body can't hide them, and a body's radius nearer the eye along the line
+   * of sight: on screen they're where they were, but the body's bulge no
+   * longer cuts the text standing above them.
+   *
+   * @param {object} camera
+   */
+  _labelLowOrbits(camera) {
+    const attr = this.labels.sheet.positionAttribute
+    if (!attr || !this.orbits.some((o) => o.low)) {
+      return
+    }
+    const camLocal = this.worldToLocal(camera.getWorldPosition(tmpCamPos))
+    const eye = tmpEye.copy(camLocal).normalize()
+    for (const orbit of this.orbits) {
+      if (!orbit.low) {
+        continue
+      }
+      // The eye in the orbit's own plane's frame, against the unit ellipse.
+      const local = tmpUp.copy(eye).applyQuaternion(tmpCamQ.copy(orbit.frames[0].quaternion).invert())
+      const pts = orbit.points
+      let best = 0
+      let bestDot = -Infinity
+      for (let k = 0; k < pts.length; k += 3) {
+        const dot = (pts[k] * local.x) + (pts[k + 2] * local.z)
+        if (dot > bestDot) {
+          bestDot = dot
+          best = k
+        }
+      }
+      tmpV.set(pts[best], 0, pts[best + 2]).multiplyScalar(orbit.a).applyQuaternion(orbit.frames[0].quaternion)
+      const toCam = tmpUp.copy(camLocal).sub(tmpV)
+      const d = toCam.length()
+      tmpV.addScaledVector(toCam, Math.min(this.body.equatorialRadius, d / 2) / d)
+      attr.setXYZ(orbit.label, tmpV.x, tmpV.y, tmpV.z)
+    }
+    attr.needsUpdate = true
+  }
+
+
+  /**
    * Turn the sun-synchronous orbits to the Sun.
    *
    * @param {Vector3} sun the Sun's direction in this group's frame (the
@@ -315,7 +368,7 @@ export default class RegimeMarks extends Group {
       }
     }
     for (const orbit of this.orbits) {
-      sheet.setShown(orbit.label, perMetre * orbit.a >= MIN_LABEL_PX)
+      sheet.setShown(orbit.label, perMetre * orbit.a >= (orbit.low ? MIN_LOW_LABEL_PX : MIN_LABEL_PX))
     }
   }
 

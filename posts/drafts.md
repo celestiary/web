@@ -534,13 +534,45 @@ Near Earth, with the orbits on, about 450 real satellites now circle it where th
 https://celestiary.org/#sat:25544@-23.1092,93.6224,184.75929Mm;t=9791.8729jd;cq=0,-0.0829,0,0.9966;fov=45deg;s=F
 ```
 
+### The Moon's frozen orbits: the few low orbits that last
+
+- ID: 2026-10-23-the-moon-s-frozen-orbits-the-few-low-orbits
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-11-21
+- Entry: 2026-10-23-the-moon-s-frozen-orbits-the-few-low-orbits
+- Image: posts/images/2026-10-23-the-moon-s-frozen-orbits-the-few-low-orbits.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-23-the-moon-s-frozen-orbits-the-few-low-orbits --hash 'sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause' --png posts/images
+- Notes:
+- Length: X 193/280, Facebook 481/500
+
+```text
+The Moon's frozen orbits: the few low orbits that last.
+
+With the Moon selected, the orbits spacecraft use near it are drawn around it. Low lunar orbit is a thin shell.
+
+https://celestiary.org/#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause
+```
+
+#### Facebook
+
+```text
+The Moon's frozen orbits: the few low orbits that last.
+
+With the Moon selected, the orbits spacecraft use near it are drawn around it. Low lunar orbit is a thin shell. The four "frozen" inclinations, 27°, 50°, 76° and 86°, are where the pulls of the Moon's lumpy mass concentrations average out, so an orbit lasts for years. Also drawn are the Lunar Reconnaissance Orbiter's two orbits and a 30-hour elliptical frozen orbit that hangs over the south pole.
+
+https://celestiary.org/#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause
+```
+
 ### Fly a spacecraft to the Moon
 
 - ID: 2026-10-23-fly-a-spacecraft-to-the-moon
 - Status: draft
 - X:
 - Facebook:
-- Date: 2026-11-21
+- Date: 2026-11-24
 - Entry: 2026-10-23-fly-a-spacecraft-to-the-moon
 - Image: posts/images/2026-10-23-fly-a-spacecraft-to-the-moon.png
 - Alt:
@@ -570,7 +602,7 @@ https://celestiary.org/#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=
 - Status: draft
 - X:
 - Facebook:
-- Date: 2026-11-24
+- Date: 2026-11-26
 - Entry: 2026-10-23-all-of-starlink-joins-the-satellites-with-a
 - Image: posts/images/2026-10-23-all-of-starlink-joins-the-satellites-with-a.png
 - Alt:

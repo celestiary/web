@@ -156,7 +156,7 @@ All celestial bodies (sun, planets, stars, asterisms) live under a single `World
 
 `Loader` loads the body descriptors recursively along a path (e.g. `sun/earth/moon`), each body's `system` after it. Each JSON descriptor includes:
 
-- `type`: `galaxy | stars | star | planet | moon`
+- `type`: `galaxy | stars | star | planet | moon | spacecraft` (a spacecraft: a glTF model on a trajectory table, [models.md](js/scene/models.md#a-spacecrafts-descriptor))
 - `radius`, `orbit`, `axialInclination`, `siderealRotationPeriod`
 - `system`: array of child names to load next
 - Optional: `texture_*`, `has_locations`
@@ -178,6 +178,8 @@ What the first load fetches is the page, its scripts, the bodies' bundle, the st
 | SPARC's galaxies, `data/sparc/galaxies.json` (216 KB) | A view that could show one (the limiting magnitude reaching the brightest's 7.53 from the Solar System, or within a magnitude of it while the `G` labels are shown; or the camera 10,000 light-years from the Sun); a link to a galaxy; the first search; the `e` key | `Galaxies.ensureLoaded`, `galaxiesInView`, `Scene.loadGalaxies`; [Galaxies.md](js/scene/Galaxies.md#the-data) |
 | Earth's satellites, `data/satellites.json`, and their chunk (satellite.js's SGP4, 20 KB) | The camera within 1.5e9 m of Earth with the orbits (`o`) shown; a `sat:` link; the first search | `Scene.loadSatellites`, `_watchForSatellites`; [Satellites.md](js/scene/satellites/Satellites.md#what-loads-when) |
 | The changelog, `data/changelog.json` (73 KB) | What's new opens, or the changelog tour starts; the button's "N new" is from the dates alone, `js/changelogStamp.json`, in the bundle | `Celestiary.loadNews`, `changelog.js` `stampEntries`; [what's new](#whats-new-and-the-changelog-tour) |
+| A spacecraft's trajectory table, `data/trajectories/<name>.json` (Webb's 99 KB, 43 KB gzipped) | With the ephemeris (the reveal, or the safety net after the first frame), or when the craft is targeted; the craft is hidden until it's in | `Animation.placeOnTrajectory`, `Spacecraft.loadTrajectory`; [models.md, positions](js/scene/models.md#positions) |
+| A spacecraft's model, `large/models/<name>/<name>.glb` (JWST's 2.38 MB), and `GLTFLoader` and the meshopt decoder (dynamic chunks) | The model's LOD first draws its near level (the craft over a couple of pixels), or the craft is targeted | `Spacecraft` `buildNear`, `model.js` `loadModel`; [models.md](js/scene/models.md#the-loader) |
 | The star catalogue's faint tiers, `large/stars/v1/packs/0.bin`-`11.bin` (97,867 stars, 1.65 MB gzipped, 12 requests) | The reveal (beside the ephemeris); before it, the packs a view wants to its limit plus a magnitude (a dark-adapted, deep or telescope link's field); a link or frame to a star not in yet, the first search, the human expansion; 3 s after the stars are drawn where nothing reveals the scene | `Stars.revealed` (which fades them in), `Stars.streamRest`, `Stars.whenStar`, `Stars.whenComplete`; [the star catalogue's tiers](#the-star-catalogues-tiers) |
 
 On the homepage that is the bodies' bundle where there were 31 descriptors, 24 place catalogues, the galaxies and the changelog: 57 requests and 1 MB of JSON before.  The homepage's tour doesn't fetch Earth's places as it passes (its overlays are held, so no labels could show) nor the galaxies (at the night side's deepest, 6.66, the brightest's point is under the limit and the labels are held).  Measured in the PR ([#258](https://github.com/celestiary/web/issues/258)).
@@ -1616,8 +1618,8 @@ and the provider extension contract.
 | `js/scene/orbitDiagram.js` | The diagram of an orbit's elements, each lit on its own; the app's and the guide's ([orbital elements](#orbital-elements)) |
 | `js/scene/lagrange.js` | A pair's Lagrange points, the secondary's Hill radius and synchronous orbit ([Lagrange.md](js/scene/Lagrange.md)) |
 | `js/scene/LagrangeMarks.js` | The target's pairs' points, Hill spheres and synchronous orbits, drawn in the orbits group ([Lagrange.md](js/scene/Lagrange.md)) |
-| `js/scene/regimes.js` | A body's orbital regimes: Earth's shells, boundaries and orbit families, sun-synchronous orbits ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
-| `js/scene/RegimeMarks.js` | The target's regimes, drawn in its equator in the orbits group ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
+| `js/scene/regimes.js` | A body's orbital regimes: Earth's shells, boundaries and orbit families, sun-synchronous orbits; the Moon's low, frozen and elliptical orbits and the ELFOs' frozen condition ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes), [near the Moon](js/scene/Lagrange.md#near-the-moon)) |
+| `js/scene/RegimeMarks.js` | The target's regimes, drawn in its equator in the orbits group; low orbits labelled at their point nearest the eye ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
 | `js/scene/population/` | A population round a body: points by group, names by a budget, group switches, target nodes, the panel's section and the `pop:` token; a subclass says where a record is (`positionAt`) ([Population.md](js/scene/population/Population.md)) |
 | `js/scene/satellites/` | Earth's satellites (a population): CelesTrak's GP elements (`public/data/satellites.json`) by SGP4 (satellite.js), TEME to Earth's equator under its planetTilt, drawn in the orbits group, targeted as `{kind: 'satellite'}`, gone to and ridden ([Satellites.md](js/scene/satellites/Satellites.md)) |
 | `js/scene/cr3bp.js` | The circular restricted three-body problem: equations, an integrator with the state-transition matrix, the correction that closes a symmetric orbit ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
@@ -1632,6 +1634,10 @@ and the provider extension contract.
 | `js/scene/StellarFrame.js` | Parent of the J2000 catalogues: precesses them to the simulation date |
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
+| `js/scene/Spacecraft.js` | A spacecraft: its model at its place on a trajectory table, turned to the Sun ([models.md](js/scene/models.md)) |
+| `js/scene/modelOccluder.js` | A model's silhouette against the Sun's disc: its triangles in a voxel grid, and the share of the disc they hide ([models.md, in front of the Sun](js/scene/models.md#in-front-of-the-sun)) |
+| `js/scene/model.js` | `loadModel`: glTF models, lazily loaded, metres, lit by the Sun ([models.md, the loader](js/scene/models.md#the-loader)) |
+| `js/scene/trajectory.js` | A spacecraft's JPL Horizons table, interpolated (cubic Hermite) and taken to the scene's frame ([models.md, positions](js/scene/models.md#positions)) |
 | `js/scene/sharedImage.js` | One fetch of an image for every consumer: the surface's `<img>`, the clouds' pixels, Cesium's `blob:` URL (Earth's month of Blue Marble; [Planet.md](js/scene/Planet.md#one-fetch-of-the-months-blue-marble)) |
 | `js/scene/clouds/` | Earth's clouds: `cloudSource.js` (date to GIBS layer, unmixing; pure), `cloudDay.js` (a day built whole, the day to show, the fade at ±180°; pure but for the injected fetch), `CloudMap.js` (loading, the coverage texture; the bundled `earth_atmos.jpg` only when a day needs it, a 128 KB copy for the polar gaps, `tools/clouds/bundledFill.py`), `CloudShell.js` (the shell and its shader); up close, `CloudVolume.js` (the ray-marched layer, its target and history), `cloudPhysics.js` (the model: extinction by cloud type, the delta-Eddington slab, the bodies' parameters; pure), `cloudNoise.js` (tiling Perlin-Worley; pure), `cloudPhase.earth.json` (the droplets' Mie phase function, from `tools/clouds/miePhase.mjs`) ([atmos/clouds.md](js/scene/atmos/clouds.md)) |
 | `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |
