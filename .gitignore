@@ -22,3 +22,6 @@ tools/places/.cache
 
 # The Gaia build's fetched rows (tools/gaia/gaia.mjs; js/scene/Gaia.md)
 tools/gaia/.cache
+
+# Images rendered for social posts (tools/posts/README.md), attached by hand
+posts/images
