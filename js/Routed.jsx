@@ -8,6 +8,19 @@ import {Route, Router, Switch, useLocation} from 'wouter'
 // bundle works under any subpath.
 const BASE = new URL(document.baseURI).pathname.replace(/\/$/, '')
 
+// No fallback text: the page's own loading text (public/index.html) shows
+// until the scene, or the guide, is in.
+//
+// Made once, here, not in Routed: a lazy() made in a render is a new
+// component type each time Routed renders (on every path change, such as
+// the Settings and About dialogs' /settings and /about), and a new lazy
+// type suspends on its first render even when its module is loaded.  Its
+// Suspense then hid the whole app (display: none !important on every
+// element) until the import's promise settled: a blank frame or several,
+// the flicker on opening a dialog.
+const App = lazy(() => import('./App'))
+const Guide = lazy(() => import('./guide/Guide'))
+
 
 /** @returns {ReactElement} */
 export default function Routed() {
@@ -27,11 +40,6 @@ export default function Routed() {
       }
     }
   }, [navigate])
-
-  // No fallback text: the page's own loading text (public/index.html) shows
-  // until the scene, or the guide, is in.
-  const App = lazy(() => import('./App'))
-  const Guide = lazy(() => import('./guide/Guide'))
 
   return (
     <Router base={BASE}>

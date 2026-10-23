@@ -1,8 +1,11 @@
-import Measure from '@pablo-mayrgundter/measure.js'
-import * as collapsor from './collapsor.js'
+import InfoSheet from './infoSheet.js'
+import {
+  esc, fieldRowsHtml, grouped, kindOf, panelHtml, rowHtml, rowsHtml, sectionHtml, systemHtml, valueOf,
+} from './infoPanel.js'
 import {ORBIT_FADE_DEFAULT, encodeGuideOrbitToken} from './permalink.js'
 import {CODES, ELEMENT_CODES, elementRows, elementsOfDate, formatDistance} from './scene/orbitElements.js'
 import {CURVE_COLORS, rotationCurveSvg} from './scene/rotationCurve.js'
+import {satelliteFacts} from './scene/satellites/names.js'
 import {spectralTypeName} from './scene/stellar.js'
 import {LIGHTYEAR_METER} from './shared.js'
 import {capitalize} from './utils.js'
@@ -48,28 +51,35 @@ export default class ControlPanel {
      * (Scene's orbit element state); and `preview(body, code)`, a hover's.
      */
     this.orbitHooks = null
-    /** Scene.spaceAround, for spaceListHtml; set by Celestiary. */
+    /** Scene.spaceAround, for spaceAround; set by Celestiary. */
     this.spaceHook = null
     /** The three-body orbits' switches (periodicHtml): {pairs, toggle, frame, setFrame}. */
     this.periodicHooks = null
     // The listed body and its list, and when the values last ran.
     this._orbit = null
     /**
-     * Which of the panel's lists are open, as the user left them, for every
-     * body alike, and in the link as the `info:` token (design/URLs.md):
-     * `closed`, the whole panel folded; `open` and `shut`, the lists (by
-     * their place in the props, `orbit`, `location.coord`) opened or folded
+     * Which of the panel's sections are open, as the user left them, for
+     * every body alike, and in the link as the `info:` token
+     * (design/URLs.md): `closed`, the whole panel folded to its head; `open`
+     * and `shut`, the sections (by their place in the props, `orbit`,
+     * `atmosphere`, or their panel name, `physical`) opened or folded
      * against their defaults.
      */
     this.uiState = {closed: false, open: new Set, shut: new Set}
-    /** Called when the user opens or folds a list. */
+    /** Called when the user opens or folds a section. */
     this.onUiChange = null
-    containerElt?.addEventListener?.('click', (ev) => this._onToggle(ev))
+    if (containerElt?.addEventListener) {
+      containerElt.addEventListener('click', (ev) => this._onClick(ev))
+      // A <details>' toggle doesn't bubble: hear it on the way down.
+      containerElt.addEventListener('toggle', (ev) => this._onToggle(ev), true)
+      /** On a phone, the panel is a sheet from the bottom (infoSheet.js). */
+      this.sheet = new InfoSheet(containerElt)
+    }
   }
 
 
   /**
-   * Put a link's open and folded lists back (the `info:` token).
+   * Put a link's open and folded sections back (the `info:` token).
    *
    * @param {{closed: boolean, open: Set<string>, shut: Set<string>}} state
    */
@@ -79,54 +89,76 @@ export default class ControlPanel {
   }
 
 
-  /** Open and fold the drawn lists as uiState has them. */
+  /** Fold the panel, and open and shut its sections, as uiState has them. */
   _applyUiState() {
-    const lists = this.containerElt?.querySelectorAll?.('[data-prop]') ?? []
-    for (const list of lists) {
-      const key = list.dataset.prop
-      list.dataset.collapsedByDefault ??= String(list.classList.contains('collapsed'))
-      const byDefault = list.dataset.collapsedByDefault === 'true'
-      let collapsed = byDefault
-      if (key === 'info') {
-        collapsed = this.uiState.closed
-      } else if (this.uiState.open.has(key)) {
-        collapsed = false
-      } else if (this.uiState.shut.has(key)) {
-        collapsed = true
-      }
-      list.classList.toggle('collapsed', collapsed)
-      const ctrl = list.previousSibling
-      if (ctrl?.classList?.contains('collapsor')) {
-        ctrl.innerHTML = collapsed ? '[+]' : '[-]'
+    const panel = this.containerElt?.querySelector?.('.info')
+    if (!panel) {
+      return
+    }
+    panel.classList.toggle('folded', this.uiState.closed)
+    panel.querySelector('.info-fold')?.setAttribute('aria-expanded', String(!this.uiState.closed))
+    for (const section of panel.querySelectorAll('details[data-prop]')) {
+      const open = this._sectionOpen(section.dataset.prop, section.dataset.defaultOpen === 'true')
+      if (section.open !== open) {
+        section.open = open
       }
     }
   }
 
 
   /**
-   * After a list's [+] or [-] (collapsor.js has toggled it): keep how it was
-   * left, and say so, for the link.
+   * @param {string} key a section's
+   * @param {boolean} byDefault whether it starts open
+   * @returns {boolean} whether it's open, as the user left it
+   */
+  _sectionOpen(key, byDefault) {
+    if (this.uiState.open.has(key)) {
+      return true
+    }
+    if (this.uiState.shut.has(key)) {
+      return false
+    }
+    return byDefault
+  }
+
+
+  /**
+   * The head's fold control folds the panel to its head, or opens it.
+   *
+   * @param {Event} ev
+   */
+  _onClick(ev) {
+    if (!ev.target?.closest?.('.info-fold')) {
+      return
+    }
+    this.uiState.closed = !this.uiState.closed
+    this._applyUiState()
+    this.onUiChange?.()
+  }
+
+
+  /**
+   * After a section opens or shuts: keep how it was left, and say so, for
+   * the link.  Also heard for the opens and shuts _applyUiState makes,
+   * which change nothing.
    *
    * @param {Event} ev
    */
   _onToggle(ev) {
-    const ctrl = ev.target
-    const list = ctrl?.classList?.contains('collapsor') ? ctrl.nextSibling : null
-    const key = list?.dataset?.prop
-    if (!key) {
+    const section = ev.target
+    const key = section?.dataset?.prop
+    if (!key || section.tagName !== 'DETAILS') {
       return
     }
-    const collapsed = list.classList.contains('collapsed')
+    const byDefault = section.dataset.defaultOpen === 'true'
+    if (section.open === this._sectionOpen(key, byDefault)) {
+      return
+    }
     const state = this.uiState
-    if (key === 'info') {
-      state.closed = collapsed
-    } else {
-      const byDefault = list.dataset.collapsedByDefault === 'true'
-      state.open.delete(key)
-      state.shut.delete(key)
-      if (collapsed !== byDefault) {
-        (collapsed ? state.shut : state.open).add(key)
-      }
+    state.open.delete(key)
+    state.shut.delete(key)
+    if (section.open !== byDefault) {
+      (section.open ? state.open : state.shut).add(key)
     }
     this.onUiChange?.()
   }
@@ -142,9 +174,9 @@ export default class ControlPanel {
 
 
   /**
-   * Renders the recursive info tree for the target body into `containerElt`.
-   * The breadcrumb path itself is now rendered by the React SearchBar component
-   * (`js/ui/SearchBar.jsx`) from `store.committedPath`.
+   * Show the target body's panel in `containerElt`.  The breadcrumb path is
+   * rendered by the React SearchBar component (`js/ui/SearchBar.jsx`) from
+   * `store.committedPath`.
    *
    * @param {string[]} path
    */
@@ -153,55 +185,149 @@ export default class ControlPanel {
     if (!target || typeof target !== 'object') {
       return
     }
-    const pathPrefix = path.join('/')
-    let html = '<ul data-prop="info">\n'
-    html += this.showInfoRecursive(target, pathPrefix, false, false)
-    html += this.spaceListHtml(target.name)
-    html += '</ul>\n'
     this._endPreview()
-    this.containerElt.innerHTML = html
-    collapsor.makeCollapsable(this.containerElt)
-    this._applyUiState()
+    this._show(this.bodyPanelHtml(target, path.join('/')))
     this._wireOrbit(target)
     this._wirePeriodic()
+  }
+
+
+  /** @param {string} html the panel, into the page, as the user left it */
+  _show(html) {
+    this.containerElt.innerHTML = html
+    this._applyUiState()
+    this.sheet?.shown()
+  }
+
+
+  /**
+   * A body's panel (design/UI.md): its head, its key rows, and its sections.
+   *
+   * @param {object} body the body's props
+   * @param {string} pathPrefix its path, for its system's links
+   * @returns {string}
+   */
+  bodyPanelHtml(body, pathPrefix) {
+    const isStar = body.type === 'star'
+    const v = (key) => valueOf(key, body[key], secsToYDHMS, sci)
+    const row = (label, key) => {
+      const x = v(key)
+      return x ? rowHtml(label, x.value, x.unit) : ''
+    }
+    const system = Array.isArray(body.system) ? body.system : []
+    const orbitPeriod = body.orbit?.siderealOrbitPeriod
+    // The summary: what a visitor asks first.
+    let summary = isStar ? rowHtml('Class', spectralTypeName(body)) : ''
+    summary += row('Radius', 'radius')
+    if (isStar) {
+      summary += row('Mass', 'mass')
+    } else {
+      if (body.siderealRotationPeriod !== undefined) {
+        summary += rowHtml('Day', periodText(scalar(body.siderealRotationPeriod)))
+      }
+      if (orbitPeriod !== undefined) {
+        summary += rowHtml(body.type === 'planet' ? 'Year' : 'Orbit period', periodText(scalar(orbitPeriod)))
+      }
+    }
+    if (system.length > 0) {
+      summary += rowHtml(isStar ? 'Planets' : 'Moons', String(system.length))
+    }
+    // Physical: the rest of what the body is.
+    const physical = (isStar ? row('Day (sidereal)', 'siderealRotationPeriod') : row('Mass', 'mass')) +
+      row('Density', 'density') + row('Axial tilt', 'axialInclination') + row('Albedo', 'albedo') +
+      row('Surface gravity', 'equatorialGravity') + row('Escape velocity', 'escapeVelocity')
+    const more = fieldRowsHtml(body, secsToYDHMS, sci, BODY_LISTED)
+    const space = this.spaceAround(body.name)
+    let html = rowsHtml(summary)
+    if (body.orbit && typeof body.orbit === 'object') {
+      const el = this._elementsOf(body)
+      html += sectionHtml('orbit', 'Orbit', el ? `${elementRows(el).length} elements` : '',
+          this.orbitListHtml(body))
+    }
+    html += sectionHtml('physical', 'Physical', 'mass, density, gravity', rowsHtml(physical))
+    html += sectionHtml('space', 'Space around', space.peek, space.html)
+    if (body.rings) {
+      html += sectionHtml('rings', 'Rings', '', rowsHtml(fieldRowsHtml(body.rings, secsToYDHMS, sci)))
+    }
+    if (body.atmosphere) {
+      html += sectionHtml('atmosphere', 'Atmosphere', '', rowsHtml(fieldRowsHtml(body.atmosphere, secsToYDHMS, sci)))
+    }
+    html += sectionHtml('system', isStar ? 'Planets' : 'Moons', String(system.length),
+        systemHtml(system, pathPrefix), true)
+    html += sectionHtml('more', 'More data', '', rowsHtml(more))
+    return panelHtml({name: capitalize(body.name), kind: kindOf(body.type, body.name), fact: this._factOf(body)}, html)
+  }
+
+
+  /**
+   * @param {object} body the body's props
+   * @returns {string} the head's one fact: how far out it orbits, or a
+   *     star's class
+   */
+  _factOf(body) {
+    if (body.type === 'star') {
+      return spectralTypeName(body)
+    }
+    const el = body.orbit ? this._elementsOf(body) : null
+    if (!el || !body.parent) {
+      return ''
+    }
+    return `${formatDistance(el.a)} from ${body.parent === 'sun' ? 'the Sun' : capitalize(body.parent)}`
   }
 
 
   /**
    * The space around the body (Scene.spaceAround; lagrange.js): its Hill
    * sphere, the collinear Lagrange points it shares with its primary, its
-   * synchronous orbit, or why it can't hold one, and its orbital regimes
-   * (regimes.js).  The scene draws them
-   * for the target, with the orbits.
+   * synchronous orbit, or why it can't hold one, its orbital regimes
+   * (regimes.js) and its three-body orbits (periodicHtml).  The scene draws
+   * them for the target, with the orbits.
    *
    * @param {string} name a body's
-   * @returns {string} an <li>, or '' for a body that orbits nothing
+   * @returns {{html: string, peek: string}} the Space around section's
+   *     content ('' for a body with none of them), and what it holds
    */
-  spaceListHtml(name) {
+  spaceAround(name) {
     const s = this.spaceHook?.(name)
     if (!s) {
-      return ''
+      return {html: '', peek: ''}
     }
-    const regimes = (s.regimes ? s.regimes.map((r) => `<li>${r}</li>\n`).join('') : '') + this.periodicHtml(name)
-    if (!s.name) {
-      return `<li>space around: <ul class="collapsed" data-prop="space">\n${regimes}</ul></li>\n`
-    }
+    const pair = s.name ? rowsHtml(this.spaceRowsHtml(s)) : ''
+    const regimes = s.regimes?.length ?
+      `<div class="info-subhead">Orbital regimes</div>\n${rowsHtml(s.regimes.map(regimeRowHtml).join(''))}` : ''
+    const periodic = this.periodicHtml(name)
+    const peek = [s.name ? 'Hill sphere, Lagrange points' : '', regimes ? 'regimes' : '',
+      periodic ? 'three-body orbits' : ''].filter(Boolean).join(', ')
+    return {html: pair + regimes + periodic, peek}
+  }
+
+
+  /**
+   * @param {object} s Scene.spaceAround's facts for a body with a pair
+   * @returns {string} rows: its Hill sphere, its Lagrange points with its
+   *     primary, and its synchronous orbit, or why it can't hold one
+   */
+  spaceRowsHtml(s) {
+    const primary = s.name.split('–')[0]
     const sync = s.sync
-    let syncText = 'no rotation period'
+    let syncText = 'none: no rotation period'
     if (sync && !sync.why) {
       syncText = `${formatDistance(sync.radius)} from the centre${s.syncName ? ` (${s.syncName})` : ''}`
     } else if (sync?.why === 'inside') {
       syncText = `none: at ${formatDistance(sync.radius)} it would be inside the body`
     } else if (sync?.why === 'beyondHill') {
       syncText = `none: at ${formatDistance(sync.radius)} it would be past the Hill sphere, where ` +
-        `the ${s.name.split('–')[0]}'s pull takes it away`
+        `the ${primary}'s pull takes it away`
     }
-    return '<li>space around: <ul class="collapsed" data-prop="space">\n' +
-      `<li>Hill sphere: ${formatDistance(s.hill)} (where ${s.secondary}'s gravity rules)</li>\n` +
-      `<li>${s.name} L1: ${formatDistance(s.l1)} toward the ${s.name.split('–')[0]}; ` +
-        `L2: ${formatDistance(s.l2)} beyond</li>\n` +
-      `<li>${s.name} L4, L5: 60° ahead and behind on the orbit; L3 opposite</li>\n` +
-      `<li>synchronous orbit: ${syncText}</li>\n${regimes}</ul></li>\n`
+    const note = `<div class="info-row is-note"><dd>Where ${esc(s.secondary)}'s gravity rules.</dd></div>\n`
+    return [
+      rowHtml('Hill sphere', formatDistance(s.hill)),
+      note,
+      rowHtml(`${s.name} L1`, formatDistance(s.l1), `toward the ${primary}`),
+      rowHtml(`${s.name} L2`, formatDistance(s.l2), 'beyond'),
+      rowHtml(`${s.name} L4, L5`, '60°', 'ahead, behind; L3 opposite'),
+      rowLongHtml('Synchronous orbit', syncText),
+    ].join('')
   }
 
 
@@ -209,9 +335,10 @@ export default class ControlPanel {
    * The three-body orbits at the body's pairs (Scene.periodicPairsOf;
    * periodicOrbits.js), each family a switch, and how they're drawn:
    * turning with the pair, where their shapes read, or fixed in space.
+   * Part of the Space around section, under its own subhead.
    *
    * @param {string} name a body's
-   * @returns {string} <li>s, or ''
+   * @returns {string} HTML, or '' for a body with no pairs
    */
   periodicHtml(name) {
     const hooks = this.periodicHooks
@@ -220,15 +347,16 @@ export default class ControlPanel {
       return ''
     }
     const sw = (cls, on, data, text, role = 'switch') =>
-      `<span class="${cls}${on ? ' on' : ''}" ${data} role="${role}" aria-checked="${on}" tabindex="0">${text}</span>`
-    const rows = pairs.map((p) => `<li class="periodic">three-body orbits, ${p.name}: ` +
-      `${p.families.map((f) => sw('periodic-family', f.on, `data-body="${p.body}" data-code="${f.code}"`, f.name))
-          .join(' · ')}</li>\n`)
+      `<span class="${cls}${on ? ' on' : ''}" ${data} role="${role}" aria-checked="${on}" tabindex="0">` +
+      `${esc(text)}</span>`
+    const row = (label, chips) =>
+      `<div class="info-row is-long"><dt>${esc(label)}</dt><dd class="info-switches">${chips}</dd></div>\n`
+    let rows = pairs.map((p) => row(p.name, p.families.map((f) =>
+      sw('periodic-family', f.on, `data-body="${esc(p.body)}" data-code="${esc(f.code)}"`, f.name)).join(''))).join('')
     const frame = hooks.frame?.() ?? 'rotating'
-    rows.push('<li class="periodic">drawn ' +
-      `${sw('periodic-frame', frame === 'rotating', 'data-frame="rotating"', 'turning with the pair', 'radio')} · ` +
-      `${sw('periodic-frame', frame === 'inertial', 'data-frame="inertial"', 'fixed in space', 'radio')}</li>\n`)
-    return rows.join('')
+    rows += row('Drawn', sw('periodic-frame', frame === 'rotating', 'data-frame="rotating"', 'turning with the pair',
+        'radio') + sw('periodic-frame', frame === 'inertial', 'data-frame="inertial"', 'fixed in space', 'radio'))
+    return `<div class="info-subhead">Three-body orbits</div>\n${rowsHtml(rows)}`
   }
 
 
@@ -271,55 +399,57 @@ export default class ControlPanel {
    * The orbit's six elements, of the date, each lighting its part of the
    * orbit's diagram in the scene (orbitDiagram.js; DESIGN.md "Orbital
    * elements"): a click turns one on or off, and a hover previews it.  The
-   * other fields of the block follow, as the rest of the panel shows them.
+   * other fields of the block follow as rows.
    *
    * @param {object} body the body's props
-   * @param {string} pathPrefix
-   * @returns {string} the list's HTML, an <li>'s content
+   * @returns {string} the orbit section's content
    */
-  orbitListHtml(body, pathPrefix) {
+  orbitListHtml(body) {
     const orbit = body.orbit
     const el = this._elementsOf(body)
     if (!el) {
-      return `<ul class="collapsed" data-prop="orbit">\n` +
-        `${this.showInfoRecursive(orbit, pathPrefix, false, false, 'orbit')}</ul>\n`
+      return rowsHtml(fieldRowsHtml(orbit, secsToYDHMS, sci))
     }
-    let html
     const on = this.orbitHooks?.elements?.(body.name) ?? new Set
-    html = `<ul class="collapsed orbit-elements" data-prop="orbit" ` +
-      `title="Click elements to show them on the orbit, on as many bodies as you like">\n`
     // The lead: what the elements are, and the switches for them all.
-    html += `<li class="orbit-lead"><span class="orbit-kind">${kindText(el)}</span>.  Show ` +
-      '<button class="orbit-action" data-action="all">all</button> · ' +
-      '<button class="orbit-action" data-action="none">none</button>' +
-      '<span class="orbit-clear" hidden> · <button class="orbit-action" data-action="clear">' +
+    let html = `<p class="info-note"><span class="orbit-kind">${kindText(el)}</span>.</p>\n` +
+      '<div class="info-actions">Show ' +
+      '<button class="orbit-action" type="button" data-action="all">all</button>' +
+      '<button class="orbit-action" type="button" data-action="none">none</button>' +
+      '<span class="orbit-clear" hidden><button class="orbit-action" type="button" data-action="clear">' +
       'clear every orbit</button></span>' +
-      ` · <a class="orbit-guide" href="${this._guideHref(body, el)}">see it in the guide</a>` +
-      '<label class="orbit-fade">far side <input type="range" min="0" max="100" step="5" ' +
+      `<a class="orbit-guide" href="${this._guideHref(body, el)}">See it in the guide</a></div>\n` +
+      '<label class="orbit-fade">Far side <input type="range" min="0" max="100" step="5" ' +
       `value="${Math.round((this.orbitHooks?.fade?.() ?? ORBIT_FADE_DEFAULT) * 100)}" ` +
       'aria-label="the orbit diagrams\' opacity at the far side of the orbit"> ' +
-      '<span class="orbit-fade-value"></span></label></li>\n'
+      '<span class="orbit-fade-value"></span></label>\n'
+    let rows = ''
     if (orbit.siderealOrbitPeriod !== undefined) {
-      html += `<li>orbit period (sidereal): ${secsToYDHMS(scalar(orbit.siderealOrbitPeriod))}</li>\n`
+      rows += rowHtml('Orbit period (sidereal)', secsToYDHMS(scalar(orbit.siderealOrbitPeriod)))
     }
     for (const row of elementRows(el)) {
       const color = `#${row.color.toString(16).padStart(6, '0')}`
       const code = ELEMENT_CODES[row.key]
-      const truePlace = row.trueValue ? ` · <span class="orbit-swatch" style="color: #fff">■</span> ` +
-        `<b>${row.trueSymbol}</b> ${row.trueName}: <span class="orbit-true">${row.trueValue}</span>` : ''
-      html += `<li class="orbit-element${on.has(code) ? ' on' : ''}" data-element="${row.key}" ` +
-        `data-code="${code}" tabindex="0" role="switch" aria-checked="${on.has(code)}">` +
-        `<span class="orbit-swatch" style="color: ${color}">■</span> <b>${row.symbol}</b> ${row.name}: ` +
-        `<span class="orbit-value">${row.value}</span>${truePlace}</li>\n`
+      const truePlace = row.trueValue ? `<dd class="info-true"><span class="info-sym">${row.trueSymbol}</span>` +
+        `${row.trueName} <span class="orbit-true">${row.trueValue}</span></dd>` : ''
+      rows += `<div class="info-row orbit-element${on.has(code) ? ' on' : ''}" data-element="${row.key}" ` +
+        `data-code="${code}" tabindex="0" role="switch" aria-checked="${on.has(code)}" ` +
+        `title="Show ${row.name} on the orbit">` +
+        `<span class="info-swatch" style="color: ${color}"></span>` +
+        `<dt><span class="info-sym">${row.symbol}</span>${row.name}</dt>` +
+        `<dd><span class="orbit-value">${row.value}</span></dd>${truePlace}</div>\n`
     }
+    html += rowsHtml(rows, 'is-compact orbit-elements')
     const rest = {}
     for (const [key, val] of Object.entries(orbit)) {
       if (!ORBIT_LISTED.has(key)) {
         rest[key] = val
       }
     }
-    html += this.showInfoRecursive(rest, pathPrefix, false, false, 'orbit')
-    html += '</ul>\n'
+    const restRows = fieldRowsHtml(rest, secsToYDHMS, sci)
+    if (restRows) {
+      html += `<div class="info-subhead">The source's elements</div>\n${rowsHtml(restRows, 'is-compact')}`
+    }
     return html
   }
 
@@ -334,13 +464,14 @@ export default class ControlPanel {
    * @param {object} body the body's props
    */
   _wireOrbit(body) {
-    const list = this.containerElt.querySelector?.('.orbit-elements')
+    const section = this.containerElt.querySelector?.('details[data-prop="orbit"]')
+    const list = section?.querySelector('.orbit-elements')
     if (!list || !this.orbitHooks) {
       this._orbit = null
       return
     }
     const hooks = this.orbitHooks
-    this._orbit = {body, list, ranMs: 0}
+    this._orbit = {body, list: section, ranMs: 0}
     for (const li of list.querySelectorAll('.orbit-element')) {
       const code = li.dataset.code
       const toggle = () => {
@@ -360,12 +491,12 @@ export default class ControlPanel {
       })
     }
     // The diagrams' opacity at the far side of their orbits, for all.
-    const fade = list.querySelector('.orbit-fade input')
+    const fade = section.querySelector('.orbit-fade input')
     fade?.addEventListener('input', () => {
       hooks.setFade?.(Number(fade.value) / 100)
       this._showOrbitState()
     })
-    for (const button of list.querySelectorAll('.orbit-action')) {
+    for (const button of section.querySelectorAll('.orbit-action')) {
       button.addEventListener('click', () => {
         const action = button.dataset.action
         if (action === 'clear') {
@@ -452,7 +583,7 @@ export default class ControlPanel {
       return
     }
     state.ranMs = nowMs
-    if (!state.list.isConnected || state.list.classList.contains('collapsed')) {
+    if (!state.list.isConnected || !state.list.open || state.list.closest('.info')?.classList.contains('folded')) {
       return
     }
     this._showOrbitState()
@@ -479,9 +610,8 @@ export default class ControlPanel {
 
 
   /**
-   * Renders a compact info summary for a catalog star (no JSON descriptor).
-   * Used by the search-preview mechanism when the highlighted/selected entry
-   * is a star rather than a body in `loader.loaded`.
+   * A catalog star's panel (no JSON descriptor), for the search's preview
+   * and a committed star.
    *
    * @param {object} preview {hipId, displayName, star}
    */
@@ -489,24 +619,52 @@ export default class ControlPanel {
     if (!preview || !preview.star) {
       return
     }
-    const {hipId, star} = preview
-    const specClass = spectralTypeName(star)
-    const distanceLy = Math.sqrt(
-        (star.x * star.x) + (star.y * star.y) + (star.z * star.z)) /
-        LIGHTYEAR_METER
-    const parts = []
-    parts.push('<ul>')
-    parts.push(`<li>HIP: ${hipId}</li>`)
-    parts.push(`<li>star class: ${specClass}</li>`)
-    parts.push(`<li>absolute magnitude: ${star.absMag.toFixed(2)}</li>`)
-    parts.push(`<li>distance: ${distanceLy.toFixed(2)} ly</li>`)
-    parts.push('</ul>')
-    this.containerElt.innerHTML = parts.join('\n')
+    this._endPreview()
+    this._orbit = null
+    this._show(this.starPanelHtml(preview))
   }
 
 
   /**
-   * A SPARC galaxy's summary (js/scene/Galaxies.md), and its rotation curve
+   * An Earth satellite's panel (js/scene/satellites/Satellites.md): its
+   * orbit from its mean elements, and their age at the date.
+   *
+   * @param {object} rec Its record (satellites/sgp4.js)
+   * @param {number} jd The date, Julian Day (UTC)
+   * @param {?string} [fetched] When the snapshot was fetched
+   */
+  showSatellite(rec, jd, fetched = null) {
+    if (!rec) {
+      return
+    }
+    this._endPreview()
+    this._orbit = null
+    const f = satelliteFacts(rec, jd, fetched)
+    const rows = f.rows.map(([label, value, unit]) => rowHtml(label, value, unit)).join('')
+    const notes = f.notes.map((n) => `<p class="info-note">${esc(n)}</p>\n`).join('')
+    this._show(panelHtml({name: f.name, kind: f.kind, fact: f.fact}, rowsHtml(rows) + notes))
+  }
+
+
+  /**
+   * @param {object} preview {hipId, displayName, star}
+   * @returns {string}
+   */
+  starPanelHtml(preview) {
+    const {hipId, star} = preview
+    const specClass = spectralTypeName(star)
+    const distanceLy = Math.sqrt((star.x * star.x) + (star.y * star.y) + (star.z * star.z)) / LIGHTYEAR_METER
+    const distance = `${grouped(distanceLy, distanceLy < 100 ? 2 : 0)} ly`
+    const rows = rowHtml('Class', specClass) +
+      rowHtml('Distance', grouped(distanceLy, distanceLy < 100 ? 2 : 0), 'ly') +
+      rowHtml('Absolute magnitude', star.absMag.toFixed(2)) +
+      rowHtml('Hipparcos', String(hipId))
+    return panelHtml({name: preview.displayName || `HIP ${hipId}`, kind: 'Star', fact: distance}, rowsHtml(rows))
+  }
+
+
+  /**
+   * A SPARC galaxy's panel (js/scene/Galaxies.md), and its rotation curve
    * against its baryons' once the curves are in (rotationCurve.js).
    *
    * @param {object} galaxy Its record (Galaxies.js)
@@ -516,156 +674,76 @@ export default class ControlPanel {
     if (!galaxy?.row) {
       return
     }
-    const g = galaxy.row
-    const m = galaxy.meta
-    const parts = ['<ul>']
-    parts.push(`<li>type: ${GALAXY_TYPES[g.T] ?? g.T}${g.rc3?.type ? ` (RC3 ${g.rc3.type.trim()})` : ''}</li>`)
-    parts.push(`<li>distance: ${g.D} ± ${g.eD} Mpc</li>`)
-    parts.push(`<li>inclination: ${g.inc}°, position angle: ${galaxy.place.paMeasured ? `${galaxy.place.pa}°` :
-      'not measured'}</li>`)
-    parts.push(`<li>luminosity: ${(galaxy.spec.L / 1e9).toPrecision(3)}e9 L☉ in V (${m.luminositySource}), ` +
-      `${g.L36}e9 L☉ at 3.6 µm</li>`)
-    parts.push(`<li>disc scale length: ${g.Rdisk} kpc</li>`)
-    if (g.Vflat > 0) {
-      parts.push(`<li>V<sub>flat</sub>: ${g.Vflat} ± ${g.eVflat} km/s</li>`)
-    }
-    parts.push(`<li>HI: ${g.MHI}e9 M☉</li>`)
-    parts.push('</ul>')
-    parts.push('<div class="galaxy-curve"></div>')
-    this.containerElt.innerHTML = parts.join('\n')
+    this._endPreview()
+    this._orbit = null
+    this._show(this.galaxyPanelHtml(galaxy))
     galaxies?.curve?.(galaxy.id).then((curve) => {
       const slot = this.containerElt.querySelector('.galaxy-curve')
       if (slot && curve) {
-        slot.innerHTML = `<div>rotation curve: <span style="color: ${CURVE_COLORS.observed}">●</span> observed, ` +
-          `<span style="color: ${CURVE_COLORS.baryons}">━</span> stars and gas alone</div>${rotationCurveSvg(curve)}`
+        slot.innerHTML = `<p class="info-note"><span style="color: ${CURVE_COLORS.observed}">●</span> observed, ` +
+          `<span style="color: ${CURVE_COLORS.baryons}">━</span> stars and gas alone</p>${rotationCurveSvg(curve)}`
       }
     }).catch(() => {/* No curve: the summary stands. */})
   }
 
 
   /**
-   * @param {object} obj
-   * @param {string} pathPrefix
-   * @param {boolean} isArray
-   * @param {boolean} isSystem
-   * @param {string} [keyPath] obj's place in the body's props, dotted (e.g.
-   *     `orbit`), which names its sub-lists for the link's `info:` token
+   * @param {object} galaxy Its record (Galaxies.js)
    * @returns {string}
    */
-  showInfoRecursive(obj, pathPrefix, isArray, isSystem, keyPath = '') {
-    /**
-     * @param {number} num
-     * @returns {string}
-     */
-    function cleanZeros(num) {
-      const str = `${num}`
-      return str.replace(/0000+\d+/, ' ')
+  galaxyPanelHtml(galaxy) {
+    const g = galaxy.row
+    const m = galaxy.meta
+    const type = `${GALAXY_TYPES[g.T] ?? g.T}${g.rc3?.type ? ` (RC3 ${g.rc3.type.trim()})` : ''}`
+    let summary = rowHtml('Type', type) +
+      rowHtml('Distance', `${g.D} ± ${g.eD}`, 'Mpc')
+    if (g.Vflat > 0) {
+      summary += rowHtml('Rotation speed', `${g.Vflat} ± ${g.eVflat}`, 'km/s')
     }
-    let html = ''
-    for (const prop in obj) {
-      if (prop === 'name' || prop === 'parent' || prop.startsWith('texture_') ||
-         prop === 'apparentMagnitude' || prop === 'colorIndex') {
-        continue
-      }
-      if (Object.prototype.hasOwnProperty.call(obj, prop)) {
-        let val = obj[prop]
-        if (prop === 'system' && typeof val === 'object' && Array.isArray(val) && val.length === 0) {
-          continue
-        }
-        html += '<li>'
-        if (!isArray) {
-          let prettyName = prop
-          switch (prop) {
-            case 'axialInclination': prettyName = 'tilt'; break
-            case 'siderealRotationPeriod': prettyName = 'rotation period'; break
-            case 'spectralType': prettyName = 'star class'; break
-            default:
-          }
-          html += `${prettyName }: `
-        }
-        if (val instanceof Measure) {
-          switch (prop) {
-            case 'radius': val = val.convertTo(Measure.Magnitude.KILO); break
-            case 'mass': val = `${sci(val.convertTo(Measure.Magnitude.KILO).scalar)} kg`; break
-            case 'semiMajorAxis':
-              // TODO
-              if (typeof val.scalar === 'string') {
-                val.scalar = parseFloat(val.scalar)
-              }
-              val.scalar = val.scalar.toExponential(4)
-              val = val.toString()
-              break
-            case 'siderealOrbitPeriod':
-              val = secsToYDHMS(val.scalar)
-              break
-            case 'siderealRotationPeriod':
-              val = secsToYDHMS(val.scalar)
-              break
-            default:
-          }
-          html += cleanZeros(val)
-        } else if (val instanceof Array) {
-          const key = subKey(keyPath, prop)
-          if (prop === 'system') {
-            html += `<ol data-prop="${key}">\n`
-          } else {
-            html += `<ol class="collapsed" data-prop="${key}">\n`
-          }
-          html += this.showInfoRecursive(val, pathPrefix, true, prop === 'system', key)
-          html += '</ol>\n'
-        } else if (prop === 'orbit' && obj.name && val instanceof Object) {
-          html += this.orbitListHtml(obj, pathPrefix)
-        } else if (val instanceof Object) {
-          const key = subKey(keyPath, prop)
-          html += `<ul class="collapsed" data-prop="${key}">\n`
-          html += this.showInfoRecursive(val, pathPrefix, false, false, key)
-          html += '</ul>\n'
-        } else {
-          if (isSystem) {
-            let path = pathPrefix
-            if (pathPrefix.length > 0) {
-              path += '/'
-            }
-            path += val
-            html += `<a href="#${ path }">`
-            html += capitalize(val)
-          } else {
-            switch (prop) {
-              case 'spectralType': {
-                val = spectralTypeName(obj)
-                break
-              }
-              case 'equatorialGravity': val = `${val} m/s^2`; break
-              case 'escapeVelocity': val = `${val} km/s`; break
-              // The descriptors give densities in g/cm³.
-              case 'density': val = typeof val === 'number' ? `${val} g/cm^3` : val; break
-              case 'axialInclination': val = `${val }°`; break
-              default:
-            }
-            html += val
-          }
-          if (isSystem) {
-            html += '</a>'
-          }
-        }
-        html += '</li>\n'
-      }
-    }
-    html = html.replaceAll('^2', '²')
-    html = html.replaceAll('^3', '³')
-    return html
+    const detail = rowHtml('Inclination', `${g.inc}°`) +
+      rowHtml('Position angle', galaxy.place.paMeasured ? `${galaxy.place.pa}°` : 'not measured') +
+      rowHtml('Luminosity, V', (galaxy.spec.L / 1e9).toPrecision(3), `× 10⁹ L☉ (${m.luminositySource})`) +
+      rowHtml('Luminosity, 3.6 µm', String(g.L36), '× 10⁹ L☉') +
+      rowHtml('Disc scale length', String(g.Rdisk), 'kpc') +
+      rowHtml('Neutral hydrogen', String(g.MHI), '× 10⁹ M☉')
+    const body = rowsHtml(summary) +
+      sectionHtml('galaxy', 'Structure', 'luminosity, disc, gas', rowsHtml(detail)) +
+      sectionHtml('curve', 'Rotation curve', 'observed and baryons', '<div class="galaxy-curve"></div>\n')
+    return panelHtml({name: galaxy.label ?? galaxy.name, kind: 'Galaxy', fact: `${g.D} Mpc`}, body)
   }
 }
 
 
 /**
- * @param {string} keyPath
- * @param {string} prop
- * @returns {string} the dotted path of prop under keyPath
+ * A row whose value is a sentence, set as words, below its label.
+ *
+ * @param {string} label
+ * @param {string} text
+ * @returns {string}
  */
-function subKey(keyPath, prop) {
-  return keyPath ? `${keyPath}.${prop}` : prop
+function rowLongHtml(label, text) {
+  return `<div class="info-row is-long"><dt>${esc(label)}</dt><dd>${esc(text)}</dd></div>
+`
 }
+
+
+/**
+ * An orbital regime (Scene.regimesOf) as a row: its name, then the rest in
+ * words, split at its first colon or comma (`GPS: 6 planes at 55°, 20,200
+ * km up`).
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function regimeRowHtml(text) {
+  const m = /^(.+?)(?:: |, )(.+)$/.exec(text)
+  return m ? rowLongHtml(capitalize(m[1]), m[2]) : rowLongHtml(capitalize(text), '')
+}
+
+
+/** The body's fields its summary and sections show; the rest go in More data. */
+const BODY_LISTED = new Set(['radius', 'mass', 'density', 'siderealRotationPeriod', 'axialInclination', 'albedo',
+  'equatorialGravity', 'escapeVelocity', 'spectralType', 'orbit', 'rings', 'atmosphere'])
 
 
 /** The orbit block's fields the element list shows itself. */
@@ -706,6 +784,28 @@ export function sci(x, digits = 5) {
   const [mantissa, exp] = x.toExponential(digits - 1).split('e')
   const power = String(Number(exp)).split('').map((c) => SUPERSCRIPTS[c]).join('')
   return `${mantissa} × 10${power}`
+}
+
+
+/**
+ * A period as the summary gives it, to a glance's precision: hours and
+ * minutes under two days, days under two years, then years.
+ *
+ * @param {number} s seconds
+ * @returns {string}
+ */
+export function periodText(s) {
+  const day = 86400
+  const year = 365.25 * day
+  if (s >= 2 * year) {
+    return `${grouped(s / year, 1)} years`
+  }
+  if (s >= 2 * day) {
+    return `${grouped(s / day, 2)} days`
+  }
+  const h = Math.floor(s / 3600)
+  const m = Math.round((s - (h * 3600)) / 60)
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
 

@@ -1,5 +1,5 @@
 import React, {ReactElement, useCallback, useEffect, useRef, useState} from 'react'
-import {checkNew, freshIds, markSeen, stampEntries} from '../changelog'
+import {checkNew, freshIds, markSeen, stampEntries, unseenCount} from '../changelog'
 import {HOME_CARDS, cardImage} from '../home'
 import {handOffLoadingTitle} from '../loading'
 import {permalinkHref} from '../permalink'
@@ -51,8 +51,9 @@ export default function Homepage({celestiary, phase}) {
   useEffect(() => {
     const dates = stampEntries()
     if (dates.length) {
-      const {since, fresh} = checkNew(dates)
-      setNews({dates, since, unseen: fresh.length, entries: null, fresh: new Set()})
+      // The marker counts the featured entries, what What's new opens on.
+      const {since} = checkNew(dates)
+      setNews({dates, since, unseen: unseenCount(stampEntries(undefined, 'featured'), since), entries: null, fresh: new Set()})
     }
   }, [celestiary])
 

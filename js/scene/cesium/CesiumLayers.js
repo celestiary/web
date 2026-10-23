@@ -32,6 +32,7 @@ import {dataUrl, isAbsoluteUrl} from '../../dataUrl.js'
 import {DISPLAY_GAIN, FADE_LAYER, toRad} from '../../shared.js'
 import {bodyLayer} from '../../store/LayersSlice.js'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
+import CreditsReveal from './creditsReveal.js'
 import {
   bodyToEcef,
   cameraToEcefView,
@@ -41,7 +42,7 @@ import {
   nightInView,
   sunLightDirectionEcef,
 } from './frames.js'
-import {hiddenBehind, OCCLUDER_SCALE} from './visibility.js'
+import {groundInView, halfDiagonal, hiddenBehind, OCCLUDER_SCALE} from './visibility.js'
 import {fovScale} from '../farPoint.js'
 import {nightLightRadiance} from '../exposure.js'
 import {HDR_MAX_VALUE, NEUTRAL_GLSL} from '../hdr.js'
@@ -143,6 +144,9 @@ export default class CesiumLayers {
     this._shellScale = new Matrix4()
     this._camPos = new Vector3()
     this._bodyPos = new Vector3()
+    this._viewDir = new Vector3()
+    // The body whose credits show (_showCredits); undefined until the first.
+    this._credited = undefined
     this._occluderPos = new Vector3()
     this._sunPos = new Vector3()
     this._earthPos = new Vector3()
@@ -226,10 +230,11 @@ export default class CesiumLayers {
       this._restore()
       this.active = active
       this._activeKey = key
-      this._showCredits()
     } else {
       this.active = active
     }
+    // The credits follow the ground in view: none while it's only sky.
+    this._showCredits()
     for (const {node} of active) {
       this._hideSurface(node)
     }
@@ -902,13 +907,42 @@ export default class CesiumLayers {
     if (!this.credits) {
       return
     }
-    const shown = this.active.at(-1)?.name
+    const shown = this._creditedBody()
+    if (shown === this._credited) {
+      return
+    }
+    this._credited = shown
     this.credits.style.display = shown ? 'block' : 'none'
+    // In full as a body comes into view, then just the logo.
+    this._creditsReveal?.show(shown ?? null)
     for (const [name, body] of Object.entries(this.bodies)) {
       if (body.credits) {
         body.credits.style.display = name === shown ? 'block' : 'none'
       }
     }
+  }
+
+
+  /**
+   * @returns {?string} the body whose credits show: the nearest active one
+   *     with some of its ground in the frame, or null when there's none, as
+   *     from the ground looking up into the sky (CESIUM.md, "Credits stand
+   *     back"): no ion data on screen, and no bright logo over the stars.
+   */
+  _creditedBody() {
+    const {camera} = this.ui
+    camera.getWorldPosition(this._camPos)
+    camera.getWorldDirection(this._viewDir)
+    const half = halfDiagonal(camera.fov, camera.aspect)
+    for (let i = this.active.length - 1; i >= 0; i--) {
+      const {name, node} = this.active[i]
+      const ground = node.props?.radius?.scalar ?? Math.min(...CESIUM_BODIES[name].radii)
+      node.getWorldPosition(this._bodyPos)
+      if (groundInView(this._camPos, this._viewDir, half, this._bodyPos, ground)) {
+        return name
+      }
+    }
+    return null
   }
 
 
@@ -1096,13 +1130,16 @@ export default class CesiumLayers {
       this.credits = document.createElement('div')
       this.credits.id = 'cesium-credits'
       Object.assign(this.credits.style, {
-        position: 'fixed', bottom: '0.5em', left: '50%', transform: 'translateX(-50%)',
+        // Above the widgets drawer's sheet and the info panel's (a phone's).
+        position: 'fixed', bottom: 'calc(0.5em + var(--sheet-height, 0px) + var(--info-sheet-bottom, 0px))',
+        left: '50%', transform: 'translateX(-50%)',
         fontSize: '11px', color: '#aaa', display: 'none', zIndex: '10',
         // HTML chrome: 'v' hides it with the other panels (Celestiary
         // _toggleNav sets visibility; _showCredits owns display).
         visibility: this.ui.sceneManager?.getSetting?.('v') === false ? 'hidden' : '',
       })
       document.body.appendChild(this.credits)
+      this._creditsReveal = new CreditsReveal(this.credits)
     }
     // Each widget writes its own credits into its container, so every body
     // gets one; _showCredits shows the active body's.

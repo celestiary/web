@@ -35,9 +35,12 @@ tried and dropped.
 | Permalinks (`#path@lat,lng,alt;t=…;cq=…;fov=…`) | [design/URLs.md](design/URLs.md) (the whole URL, and the state tokens for the drawer and its apps); [js/permalink.md](js/permalink.md) (the view's encoding) |
 | The changelog: `CHANGELOG.md`, its entry format, `changelog.json`, drafting from merged PRs | [tools/changelog/README.md](tools/changelog/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
 | What's new on the homepage, the changelog tour, the `#;news:tour` link | DESIGN.md [what's new](DESIGN.md#whats-new-and-the-changelog-tour); [design/URLs.md](design/URLs.md#news-token); [tools/changelog/README.md](tools/changelog/README.md) (the entries) |
+| Social post drafts from the changelog (`yarn posts`), the first campaign, what to attach and how to publish | [tools/posts/README.md](tools/posts/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
+| The interface's look: the design system, its tokens, the info panel's tiers, the phone sheet, and the redesign's phases | [design/UI.md](design/UI.md); DESIGN.md [the info panel](DESIGN.md#the-info-panel) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Lagrange points, Hill spheres, synchronous orbits (every pair), orbital regimes (LEO, MEO, GPS, Molniya, sun-synchronous, cislunar space), three-body orbits (halo, Lyapunov, DRO, NRHO; the CR3BP), and the rest of #272's orbital structure | [js/scene/Lagrange.md](js/scene/Lagrange.md); DESIGN.md [orbital elements](DESIGN.md#orbital-elements) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
+| Earth satellites: CelesTrak's GP data, SGP4, the TEME frame, old elements, targeting and riding one | [js/scene/satellites/Satellites.md](js/scene/satellites/Satellites.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
 | Gaia's stars and the point-population engine (tiles, budget, epoch, photometry, merge, rebuilding) | [js/scene/Gaia.md](js/scene/Gaia.md) |
 | The Milky Way: its structural model, its light in exposure units, the march, the meter's galaxy anchor | [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
@@ -183,6 +186,18 @@ tried and dropped.
   `c.tour.t = ms`, and give the meter a few seconds after a jump.  The
   cards' images re-render with `node tools/home/cards.mjs` (after a build;
   `--gpu` on a real GPU).
+- **Post drafts: `yarn posts`** adds a draft for each new *featured*
+  CHANGELOG entry (`- Featured: yes`) to `posts/drafts.md`, and checks every
+  post against X's 280 (a link counts 23) and Facebook's 300 to 500 target;
+  the platforms are a table in `tools/posts/text.mjs`.
+  It never changes a post already in the file, so the maintainer's edits
+  and statuses stay, and nothing is posted for you. The images are the
+  homepage cards' or `node tools/home/cards.mjs --gpu --hash <fragment>
+  --id <name> --png posts/images`, which needs a real GPU: list those for the
+  maintainer to render. When the maintainer marks a post `posted` and
+  pastes its URLs into its `X:` and `Facebook:` fields, `yarn changelog`
+  (not `yarn posts`) joins them onto the entry in `changelog.json`, which
+  is how What's new links to them. [tools/posts/README.md](tools/posts/README.md).
 - **Measuring a page's requests (Playwright):**
   - `page.route` turns the HTTP cache off, so a repeat fetch shows as a
     network request. Block hosts with `--host-resolver-rules="MAP *
@@ -340,6 +355,12 @@ tried and dropped.
   - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
     Record Horizons results as offline test fixtures with the query that
     produced them; tests never hit the network.
+  - `celestrak.org` (CelesTrak's GP data, for the satellites' snapshot,
+    `public/data/satellites.json`: `yarn satellites`;
+    [Satellites.md](js/scene/satellites/Satellites.md#the-data)).  Fetch a
+    group at most once every two hours: CelesTrak blocks clients that ask
+    more.  Horizons takes a TLE too (`COMMAND='TLE'`, `TLE=` the lines),
+    which `tools/satellites/fetchHorizons.mjs` uses to check the frame.
   - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
     `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
     [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).
@@ -535,6 +556,20 @@ tried and dropped.
     haven't found and opened one: don't guess). Housekeeping,
     refactors, CI and doc-only PRs get no entry, or a link in the
     month's "Behind the scenes" line.
+  - **Decide whether it is featured** (`- Featured: yes`): a new thing to
+    see or do, with a view to open, worth announcing. What's new shows
+    only the featured entries by default ("Featured only" turns off to
+    show the lesser features and fixes), the "new" count counts them, and
+    `yarn posts` drafts social posts only from them. Leave it out for a
+    polish or a lesser feature; a major fix can be featured.
+  - **State its kind** (`- Kind: fix`): a fix is something that was
+    broken, wrong or a regression, and now isn't. Anything that adds or
+    improves what users can see or do is a feature, the default when the
+    field is absent (`Kind: feature` is accepted; any other value is a
+    build error). Kind is independent of featured, and What's new's
+    "Features" and "Fixes" buttons filter on it, so a PR's entry says
+    which it is: classify it deliberately, don't leave a fix without the
+    field.
   - The entry links its own PR, so open the PR first and add the entry
     in a follow-up commit to it. Its `Date` is the day you write it
     (the merge day, if you know it); the entry goes at the top of its
