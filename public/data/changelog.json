@@ -1,6 +1,26 @@
 {
   "entries": [
     {
+      "id": "2026-10-23-an-experiment-new-york-s-streets-and-towers-on",
+      "date": "2026-10-23",
+      "headline": "An experiment: New York's streets and towers on Earth, at Manhattan",
+      "text": "Add ?nyc=1 to celestiary's address, fly to Earth and come down over New York, within a few tens of kilometres and under 30 km up: Slop New York, a 3D model of Manhattan's buildings, streets, parks and piers, appears at its place on the globe, lit by the same Sun at the simulation's time and hazed by the same air. It is an early experiment, off unless you ask for it: the city is a separate app that celestiary loads only then, and its lights don't show at night yet.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 287,
+          "url": "https://github.com/celestiary/web/pull/287"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-22-earth-s-night-side-stays-dark-while-its-terrain",
       "date": "2026-10-22",
       "headline": "Earth's night side stays dark while its terrain loads",

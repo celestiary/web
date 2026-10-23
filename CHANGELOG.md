@@ -31,6 +31,19 @@ has no view to open yet.
 
 ## October 2026
 
+### An experiment: New York's streets and towers on Earth, at Manhattan
+
+Add `?nyc=1` to celestiary's address, fly to Earth and come down over New York, within a few tens of
+kilometres and under 30 km up: Slop New York, a 3D model of Manhattan's buildings, streets, parks and
+piers, appears at its place on the globe, lit by the same Sun at the simulation's time and hazed by the
+same air. It is an early experiment, off unless you ask for it: the city is a separate app that
+celestiary loads only then, and its lights don't show at night yet.
+
+- Date: 2026-10-23
+- PR: [#287](https://github.com/celestiary/web/pull/287)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+
 ### Earth's night side stays dark while its terrain loads
 
 Close to Earth, until the detailed terrain arrives (or for good, when it can't load), Earth's night
