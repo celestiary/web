@@ -1033,6 +1033,8 @@ recorder, which interns them as it does its own.
   load with that said in the console; the PR preview has them.
 - `?nycShadows=1` turns on the city's sun shadows (two more renders of it
   a frame).
+- `?nycLean=0` loads the city as it comes, not lean ([What it
+  costs](#what-it-costs-and-the-lean-city)), for comparing.
 
 **The ground.**  The guest is built flat and drapes itself over its host's
 terrain (`guest.groundSamples`, `setGround`).  Its heights come from
@@ -1043,7 +1045,9 @@ hundred KB of ion data, billed by data: no imagery session), not
 plain ellipsoid (no token, or before World Terrain answers) every height
 is 0 and nothing is fetched: the city stands on the ellipsoid, curving with
 it.  When the provider changes (World Terrain arriving), it is sampled
-again.
+again.  The city's flat ground layers are then split to follow it, to
+`LEAN_DRAPE`'s detail (10 cm, at most 1.5 million triangles): a few seconds
+of main thread each time ([What it costs](#what-it-costs-and-the-lean-city)).
 
 **The Sun** is Cesium's light (`p.lightDirectionWC`), which celestiary
 sets each frame from its own Sun ([camera and light
@@ -1073,6 +1077,102 @@ three.js served from local copies):
   context lost, and the next frame equal, in Cesium's frame and the scene
   buffer, to the frame with the city hidden; on again, it loads and draws
   again.
+
+### What it costs, and the lean city
+
+The first preview (`?nyc=1`, PR #287) crashed a Chrome tab on an Apple
+GPU.  Measured headless (SwiftShader, 480x300, no ion: Earth on the Blue
+Marble and the ellipsoid; the hero view, 3 km over the Upper Bay looking
+up the island; the probe wraps each context's uploads, reads CDP's heap
+and the processes' RSS):
+
+| | Without the city | The city as it came | Lean (now) |
+|---|---|---|---|
+| JS heap + ArrayBuffers, settled | 49 + 89 MB | 295 + 320 MB | 160 + 280 MB |
+| ... at the city's ready, before its first frame | | 298 + 447 MB | 163 + 298 MB |
+| Renderer process RSS | 394 MB | 941 MB | 739 MB |
+| GPU process RSS (SwiftShader: the GPU's memory) | 510 MB | 1,162 MB | 829 MB |
+| City's GPU buffers + textures: its shadow / Cesium's shadow / celestiary's | | 112+23 / 112+23 / 112+23 MB | 0.3+23 / 0.4+23 / 112+23 MB |
+| City's draws a frame: its shadow / Cesium's / celestiary's | | 182 / 182 / 182 | 0 / 0 / 183 |
+| Set-up calls copied into the link's queue (held to the first frame) | | 20,273 calls, 133 MB | 0 (19 MB of small calls copied in the stage) |
+| The city's first frame | | 2.6-4.2 s (every queued call, both host contexts) | 0.27 s, after 23 chunks of 0-1.3 s over as many frames |
+| A frame (aerial; JS) | 36 ms | 71 ms (city 14 ms) | 63 ms (city 15 ms) |
+| A frame at street level, 25 m up on 5th Ave (JS; SwiftShader waits on its GPU here) | | 10.5 s (city 9.4 s; its update 7.8 ms) | 89 ms (city 25 ms; its update 4.5 ms) |
+| 60 s at 30 frames | flat | flat | flat (0 GL handles a frame) |
+| Drape on real terrain (Terrarium heights on the 100 m grid) | | never ended (13 min, 1.4 GB, then killed) | 4.6 s, 1.59 M triangles |
+
+**What most likely killed the tab: the ground's drape on real terrain.**
+On the preview, with ion, `setGroundFrom` samples World Terrain, and
+`setGround` splits the city's flat ground layers until each triangle is
+within 4 mm of the ground (slop-newyork guest.js, THE GROUND).  Real
+terrain bends a little everywhere, so that split the island down to 2 m
+triangles (the deck alone 2.9 million, 140 s), and slivers along the shore
+(triangles with their corners in a line) never stopped splitting: the page's
+main thread was pinned for good with its memory climbing.  Headless runs
+never saw it: no ion there, so every height was 0 and only the Earth's
+curve was draped.  On top of that, the city's ~135 MB of geometry and
+textures lived three times on the GPU, each frame drew three times, and its
+first frame replayed 20,000 queued calls and 133 MB into two contexts at
+once, every program linked in that one frame.
+
+**Lean** is the default; `?nycLean=0` loads the city as it comes, for
+comparing.  It looks the same: at the hero view 263 of the city's 16,467
+pixels differ from the city as it came, by at most 59 codes summed over rgb
+(the cars, placed at random).  What it changes:
+
+- *The drape* (`LEAN_DRAPE`, newYorkGuest.js, the guest's `drape` option):
+  within 10 cm, no edge under 8 m, at most 1.5 million triangles (the flat
+  layers are 0.93 million).  slop-newyork's split also leaves slivers alone
+  now.  On real heights: 4.6 s and 1.59 million triangles, against 12 s and
+  3.1 million at 2 cm (no visible difference over Central Park from 350 m).
+- *Lean shadows* (netglLean.js `leanShadow`): the city's shadow context, and
+  Cesium's while the city's calls run through it, keep the city's objects,
+  state and programs (they still answer the recorder's queries and mint its
+  handles) but allocate none of its buffers' storage, write no contents and
+  draw nothing.  Only celestiary's context holds and draws the city.  Own
+  properties on each shadow, which the recorder (a Proxy over it) reaches
+  first.  The city's shadow is on a 1x1 canvas (three sizes the city by
+  its own).  Nothing reads either shadow's pixels for the city: three
+  doesn't, and Cesium's picking doesn't call external renderers.
+- *A staged set-up* (netglLean.js `stageLink`): the city's calls made while
+  its link is closed (its whole build and compile) are queued by
+  celestiary, not cloned by the link: uploads by reference (the attribute's
+  or texture's own array, which nothing rewrites before the replay), the
+  rest copied as the link does.  The queue is cut into chunks (8 MB of
+  uploads, 4 programs or 4,000 calls) by asking the guest for a frame end,
+  whose checkpoint restores its state at the next chunk; the external
+  renderer replays one chunk a frustum, the city undrawn, then draws it.
+- *What isn't built* (slop-newyork): the other boroughs (built and then
+  removed before), the shadow stand-ins (shadows are off), and with
+  `crowds: false` the pedestrians, never drawn on WebGL2 but walked and
+  skinned (5 ms of the city's update at street level).  And two
+  build-time scratch arrays the city's closures kept alive (~130 MB of the
+  JS heap: the waterfront's accumulators, the facade boxes) are let go.
+
+What's still expensive, and what it would take:
+
+- *The city's programs compile three times* (64 each: its shadow, Cesium's
+  shadow, celestiary), since its uniform locations come back through
+  Cesium's recorder.  portal-netgl could *flatten nested links*: replay an
+  inner guest's calls straight into the outermost context through the outer
+  link's handle table, so Cesium's recorder and shadow never see the city
+  (one encode-decode pass and one shadow fewer).
+- *Lean shadows and staging belong in portal-netgl*: a shadow mode for
+  `makeNetGLGuestContext` (`shadow: 'lean'`), a policy for calls an outer
+  recorder replays from an inner link, and a link that queues uploads by
+  reference and replays its set-up in chunks (`link.step()`), cutting at
+  its own checkpoints rather than asking the guest for frame ends.
+- *The city itself*: 1.6 million triangles of ground layers, ~1.25 million
+  of buildings and 3.4 million of street details (most instanced and culled
+  by distance), 112 MB of buffers on celestiary's context and 280 MB of
+  ArrayBuffers in JS (three keeps every attribute's array; the drape keeps
+  the flat layers, 23 MB).  The compile (64 programs, 17 s on SwiftShader)
+  is the longest step of the load; then the facade blocks (2.7 s) and the
+  ground grid (2 s).  The highway traffic's update is ~3 ms a frame.
+- *The drape* is still seconds of main thread on real terrain (at load, and
+  again when World Terrain replaces the ellipsoid).
+- Not measured on a real GPU: ask for a `?perf=sync` snapshot over the city
+  (below, What's left).
 
 ### The colour and alpha contract
 
@@ -1160,13 +1260,14 @@ say `units: 'stored'`, for a host that hands it a frame in stored values):
   taken as `groundHeight` while the city is drawn.  Picking against it
   (Cesium's `scene.pick` doesn't call external renderers) is the same
   question.
-- *Cost.*  Each city call runs three times, and its checkpoint (80-odd
-  calls a sub-frame) is cloned into the link's queue: portal-netgl 0.4.0's
-  `subFrame()` (unpublished, [portal#34](https://github.com/pablo-mayrgundter/portal/pull/34))
+- *Cost.*  Lean now ([What it costs](#what-it-costs-and-the-lean-city)):
+  the city held and drawn by celestiary's context only, its set-up staged
+  over frames.  Its checkpoint (80-odd calls a frame) is still copied,
+  into the stage's queue: portal-netgl 0.4.0's `subFrame()` (unpublished,
+  [portal#34](https://github.com/pablo-mayrgundter/portal/pull/34))
   replays it without the copy, and its `clear: 'none'` would let the
   screen policy, not the guest's `composite`, keep its clears off Cesium's
-  frame.  A no-draw shadow for the city would save a third.  Not measured
-  on a real GPU.
+  frame.  Not measured on a real GPU.
 - *Ion.*  The terrain path (`sampleTerrain` on World Terrain) and the
   city on real ground haven't run here: the session's ion token is
   refused.  Check on the PR preview over Manhattan: the piers at the
@@ -1322,7 +1423,12 @@ New:
 - `js/scene/cesium/newYork.js` (+ test) — New York's switch, where its
   guest loads from, and when it's wanted. Pure.
 - `js/scene/cesium/newYorkGuest.js` — New York loaded and wired into Earth's
-  widget: its link, ground, external renderer, colour stopgaps (New York).
+  widget: its link, ground, external renderer, colour stopgaps, the lean
+  options (New York).
+- `js/scene/cesium/netglLean.js` (+ test) — lean NetGL plumbing for a nested
+  guest: shadow contexts that hold and draw nothing of it (`leanShadow`), and
+  its set-up queued without copies and replayed a chunk a frame
+  (`stageLink`). Pure.
 - `js/scene/cesium/ionImagery.js` (+ test) — the altitude under which Earth
   asks ion for Bing imagery (Cesium ion sessions). Pure.
 - `js/store/LayersSlice.js` — `layerBody` (in-range capable body or

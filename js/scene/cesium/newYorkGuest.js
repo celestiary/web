@@ -16,6 +16,7 @@
  * stage writes the city's distance into alpha from the depth it wrote, and
  * the composite's decode takes its colour as it takes the globe's.
  */
+import {leanShadow, stageLink} from './netglLean.js'
 
 
 /**
@@ -27,6 +28,18 @@
  */
 const GROUND_SPACING_M = 100
 const GROUND_LEVEL = 12
+
+/**
+ * How finely the lean city's ground layers follow that ground (slop-newyork
+ * guest.js THE GROUND, its `drape` option): within 10 cm, no edge split
+ * under 8 m, and 1.5 million triangles at most (the flat layers are 0.93
+ * million).  The guest's own detail (4 mm, 2 m) is for a demo hill: on real
+ * terrain it split the whole island down to metres, for minutes and
+ * gigabytes.  Measured on Terrarium heights resampled to this grid: 1.59
+ * million triangles in 4.7 s (SwiftShader's host CPU), against 12 s and 3.1
+ * million at 2 cm (CESIUM.md, "New York", what it costs).
+ */
+export const LEAN_DRAPE = {tolerance: 0.1, minEdge: 8, maxTriangles: 1.5e6}
 
 
 /**
@@ -51,10 +64,15 @@ export const ENVIRONMENT_INTENSITY = 0.15
  * @param {object} args.widget Earth's CesiumWidget
  * @param {string} args.guestBase slop-newyork's site, ending in '/'
  * @param {boolean} [args.shadows]
+ * @param {object} [args.cesiumShadow] Cesium's shadow context (its NetGL
+ *   guest's core.shadow), made lean for the city's calls
+ * @param {boolean} [args.lean] The lean city (CESIUM.md, "New York", what it
+ *   costs): no crowds, lean shadow contexts, its set-up staged over frames.
+ *   false: as the guest comes
  * @returns {Promise<object>} The city: {guest, renderer, setShown(on),
  *   update(), dispose()}
  */
-export async function createNewYork({Cesium, netgl, widget, guestBase, shadows = false}) {
+export async function createNewYork({Cesium, netgl, widget, guestBase, shadows = false, cesiumShadow = null, lean = true}) {
   const scene = widget.scene
   if (!scene.externalRenderers || typeof Cesium.ExternalRenderer !== 'function') {
     throw new Error('Cesium has no externalRenderers (patches/@cesium+engine; CESIUM.md "Patching Cesium")')
@@ -75,22 +93,62 @@ export async function createNewYork({Cesium, netgl, widget, guestBase, shadows =
       console.warn('[new york] replay error:', err)
     },
   })
+  // Lean: the city's calls queued by reference and replayed a chunk a frame
+  // (netglLean.js stageLink), not cloned and replayed at once
+  const stage = lean ? stageLink(link) : null
   const width = Math.max(1, scene.drawingBufferWidth)
   const height = Math.max(1, scene.drawingBufferHeight)
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
+  // Lean, the shadow context draws nothing (below), so its drawing buffer
+  // is 1x1, on a canvas of its own: three sizes the city by `canvas`
+  const shadowCanvas = lean ? document.createElement('canvas') : canvas
+  if (lean) {
+    shadowCanvas.width = 1
+    shadowCanvas.height = 1
+  }
   const guestCtx = netgl.makeNetGLGuestContext({
-    canvas,
-    transport: link.transport,
+    canvas: shadowCanvas,
+    transport: stage ? stage.transport : link.transport,
     contextAttributes: {alpha: true, antialias: false, depth: true, stencil: false},
   })
+  stage?.attach(guestCtx)
+  // Lean: the city's shadow and Cesium's (during the city's calls) keep its
+  // objects and programs but none of its geometry, and draw none of it
+  // (netglLean.js leanShadow): celestiary's context is the one that draws.
+  let inCity = 0
+  const unlean = []
+  if (lean) {
+    unlean.push(leanShadow(guestCtx.shadow))
+    if (cesiumShadow) {
+      unlean.push(leanShadow(cesiumShadow, () => inCity > 0))
+    }
+  }
+  // The link as the renderer sees it: each guest frame through the stage,
+  // with Cesium's shadow lean for it
+  const cityFrame = (render) => {
+    inCity++
+    try {
+      if (stage) {
+        stage.frame(render)
+      } else {
+        link.frame(render)
+      }
+    } finally {
+      inCity--
+    }
+  }
   const logDepth = scene.logarithmicDepthBuffer === true
   // lights: false drops the guest's clustered lamp lighting, which inCelestiaryFrame zeroes anyway (the lamps don't
   // fit Cesium's frame): on a real GPU (an Apple M-series) it and the sun's shadows cost most of the guest's frame
+  // Lean, crowds: false builds no pedestrians, never drawn on the guest's
+  // WebGL2 backend but walked and skinned every frame; and the ground's
+  // drape is coarser (LEAN_DRAPE)
   const guest = await entry.createNYCGuest({
     canvas, context: guestCtx.gl, width, height,
-    extent: 'manhattan', shadows, lights: false, composite: true, logDepth,
+    extent: 'manhattan', shadows, lights: false, composite: true, logDepth, crowds: !lean,
+    drape: lean ? LEAN_DRAPE : undefined,
   })
   if (guest.composite !== true || (logDepth && guest.logDepth !== true)) {
     throw new Error(`the guest at ${guestBase} has no composite or logDepth option (slop-newyork#1)`)
@@ -105,12 +163,23 @@ export async function createNewYork({Cesium, netgl, widget, guestBase, shadows =
   // The Sun is Cesium's light, which celestiary sets each frame
   // (CesiumLayers._setCesiumView), not Cesium's own sun, which is its
   // clock's: so sun: false, and the light's direction here.
-  const renderer = helpers.cesiumExternalRenderer(guest, Cesium, {link, guestCtx, screen, sun: false})
+  const renderer = helpers.cesiumExternalRenderer(guest, Cesium, {link: {frame: cityFrame}, guestCtx, screen, sun: false})
   const draw = renderer.render
   const sunDir = new Cesium.Cartesian3()
   const light = {sunDirectionWC: new Cesium.Cartesian3()}
   let sunFrame = null
   renderer.render = (p) => {
+    // The set-up's chunks first, one a frustum, the city undrawn until they're in
+    if (stage?.chunks > 0) {
+      screen.framebuffer = p.framebuffer
+      inCity++
+      try {
+        stage.step()
+      } finally {
+        inCity--
+      }
+      return
+    }
     if (p.frameNumber !== sunFrame) {
       sunFrame = p.frameNumber
       Cesium.Cartesian3.clone(p.lightDirectionWC, light.sunDirectionWC)
@@ -126,6 +195,7 @@ export async function createNewYork({Cesium, netgl, widget, guestBase, shadows =
     guest,
     renderer,
     link,
+    stage,
     get replayErrors() {
       return replayErrors
     },
@@ -160,13 +230,16 @@ export async function createNewYork({Cesium, netgl, widget, guestBase, shadows =
         scene.externalRenderers.remove(renderer)
       }
       try {
-        link.frame(() => {
+        cityFrame(() => {
           disposeScene(guest)
           guest.renderer.dispose()
           guestCtx.endFrame()
         })
       } catch (err) {
         console.warn('[new york] dispose failed', err)
+      }
+      for (const undo of unlean) {
+        undo()
       }
       // The city's calls went through Cesium's recorder, outside Cesium's
       // frame: its state cache no longer says what's bound.

@@ -34,10 +34,12 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1'])
  * experiment); `?nycGuest=<url>` loads the guest from another copy of
  * slop-newyork (its PR preview, say, `.../slop-newyork/pr-preview/pr-1/`),
  * if allowed (guestBaseAllowed); `?nycShadows=1` draws the city's sun
- * shadows (off: a shadow map is two more renders of the city a frame).
+ * shadows (off: a shadow map is two more renders of the city a frame);
+ * `?nycLean=0` loads the city as it comes, not lean (CESIUM.md, "New York",
+ * what it costs), for comparing.
  *
  * @param {string} [search] location.search
- * @returns {{enabled: boolean, guestBase: string, shadows: boolean}}
+ * @returns {{enabled: boolean, guestBase: string, shadows: boolean, lean: boolean}}
  */
 export function newYorkOptions(search) {
   const params = new URLSearchParams(search ?? '')
@@ -55,6 +57,7 @@ export function newYorkOptions(search) {
     enabled: params.get('nyc') === '1',
     guestBase,
     shadows: params.get('nycShadows') === '1',
+    lean: params.get('nycLean') !== '0',
   }
 }
 

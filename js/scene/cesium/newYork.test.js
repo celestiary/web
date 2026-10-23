@@ -30,8 +30,13 @@ describe('newYorkOptions', () => {
   it('is off by default, on with ?nyc=1', () => {
     expect(newYorkOptions('').enabled).toBe(false)
     expect(newYorkOptions('?nyc=0').enabled).toBe(false)
-    expect(newYorkOptions('?nyc=1')).toEqual({enabled: true, guestBase: DEFAULT_GUEST_BASE, shadows: false})
+    expect(newYorkOptions('?nyc=1')).toEqual({enabled: true, guestBase: DEFAULT_GUEST_BASE, shadows: false, lean: true})
     expect(newYorkOptions('?nyc=1&nycShadows=1').shadows).toBe(true)
+  })
+
+  it('is lean unless ?nycLean=0', () => {
+    expect(newYorkOptions('?nyc=1&nycLean=0').lean).toBe(false)
+    expect(newYorkOptions('?nyc=1&nycLean=1').lean).toBe(true)
   })
 
   it('takes the guest from slop-newyork\'s PR preview, or a local server', () => {
@@ -106,7 +111,7 @@ describe('CesiumLayers and New York', () => {
   const FAR = above(0, 51.5, 3000)
   const layers = (enabled = true) => {
     const L = new CesiumLayers({})
-    L.newYork = {enabled, guestBase: DEFAULT_GUEST_BASE, shadows: false}
+    L.newYork = {enabled, guestBase: DEFAULT_GUEST_BASE, shadows: false, lean: true}
     L.loads = 0
     L._loadNewYork = () => {
       L.loads++

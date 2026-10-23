@@ -1363,7 +1363,8 @@ export default class CesiumLayers {
       const {createNewYork} = await import('./newYorkGuest.js')
       const city = await createNewYork({
         Cesium: body.Cesium, netgl: body.netgl, widget: body.widget,
-        guestBase: this.newYork.guestBase, shadows: this.newYork.shadows,
+        guestBase: this.newYork.guestBase, shadows: this.newYork.shadows, lean: this.newYork.lean,
+        cesiumShadow: body.guest?.core?.shadow,
       })
       if (this._newYork !== nyc) {
         // Freed while it loaded.
