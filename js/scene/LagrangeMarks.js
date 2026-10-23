@@ -62,7 +62,7 @@ const tmpP = [0, 0, 0]
  * @param {number} n
  * @returns {Points} n screen-sized rings, their places set by the owner
  */
-function newRings(color, n) {
+export function newRings(color, n) {
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new Float32BufferAttribute(new Float32Array(n * 3), 3))
   const material = sceneReferred(new ShaderMaterial({

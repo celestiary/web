@@ -58,6 +58,8 @@ export default class ControlPanel {
      * setFrame, manifolds, setManifolds}.
      */
     this.periodicHooks = null
+    /** The craft's switches (craftHtml): {list, toggle}. */
+    this.craftHooks = null
     // The listed body and its list, and when the values last ran.
     this._orbit = null
     /**
@@ -192,6 +194,7 @@ export default class ControlPanel {
     this._show(this.bodyPanelHtml(target, path.join('/')))
     this._wireOrbit(target)
     this._wirePeriodic()
+    this._wireCraft()
   }
 
 
@@ -283,8 +286,9 @@ export default class ControlPanel {
    * The space around the body (Scene.spaceAround; lagrange.js): its Hill
    * sphere, the collinear Lagrange points it shares with its primary, its
    * synchronous orbit, or why it can't hold one, its orbital regimes
-   * (regimes.js) and its three-body orbits (periodicHtml).  The scene draws
-   * them for the target, with the orbits.
+   * (regimes.js), its three-body orbits (periodicHtml) and the craft that
+   * can be flown about it (craftHtml).  The scene draws them for the
+   * target, with the orbits.
    *
    * @param {string} name a body's
    * @returns {{html: string, peek: string}} the Space around section's
@@ -299,9 +303,10 @@ export default class ControlPanel {
     const regimes = s.regimes?.length ?
       `<div class="info-subhead">Orbital regimes</div>\n${rowsHtml(s.regimes.map(regimeRowHtml).join(''))}` : ''
     const periodic = this.periodicHtml(name)
+    const craft = this.craftHtml(name)
     const peek = [s.name ? 'Hill sphere, Lagrange points' : '', regimes ? 'regimes' : '',
-      periodic ? 'three-body orbits' : ''].filter(Boolean).join(', ')
-    return {html: pair + regimes + periodic, peek}
+      periodic ? 'three-body orbits' : '', craft ? 'craft' : ''].filter(Boolean).join(', ')
+    return {html: pair + regimes + periodic + craft, peek}
   }
 
 
@@ -366,6 +371,70 @@ export default class ControlPanel {
       rows += row('Manifolds', sw('periodic-manifolds', hooks.manifolds(), '', 'stable and unstable tubes'))
     }
     return `<div class="info-subhead">Three-body orbits</div>\n${rowsHtml(rows)}`
+  }
+
+
+  /**
+   * The craft that can be flown about the body (Scene.craftOf;
+   * craft/flights.js), each a row with a switch, and a flown one's facts:
+   * when it leaves, its burn and how long it takes.  Part of the Space
+   * around section, under its own subhead.
+   *
+   * @param {string} name a body's
+   * @returns {string} HTML, or '' for a body with none
+   */
+  craftHtml(name) {
+    this._craftBody = name
+    const craft = this.craftHooks?.list?.(name) ?? []
+    if (craft.length === 0) {
+      return ''
+    }
+    return `<div class="info-subhead">Craft</div>\n${rowsHtml(craft.map((c) => this._craftRow(c)).join(''))}`
+  }
+
+
+  /**
+   * @param {{code: string, name: string, on: boolean, text: ?string}} c
+   * @returns {string} its row
+   */
+  _craftRow(c) {
+    const sw = `<span class="craft-flight${c.on ? ' on' : ''}" data-code="${esc(c.code)}" role="switch" ` +
+      `aria-checked="${c.on}" tabindex="0">fly</span>`
+    const facts = c.text ? `<span class="craft-facts">${esc(c.text)}</span>` : ''
+    return `<div class="info-row is-long craft" data-code="${esc(c.code)}"><dt>${esc(c.name)}</dt>` +
+      `<dd class="info-switches">${sw}${facts}</dd></div>\n`
+  }
+
+
+  /** Wire the craft's switches (craftHtml) to the scene. */
+  _wireCraft() {
+    const hooks = this.craftHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    for (const el of this.containerElt.querySelectorAll('.craft-flight')) {
+      const fn = () => {
+        hooks.toggle(el.dataset.code)
+        // The row again, with the flight's facts now it's flown.
+        const row = el.closest?.('.craft')
+        const c = (hooks.list(this._craftBody) ?? []).find((x) => x.code === el.dataset.code)
+        if (row && c) {
+          row.outerHTML = this._craftRow(c)
+          this._wireCraft()
+        }
+      }
+      if (el.dataset.wired) {
+        continue
+      }
+      el.dataset.wired = '1'
+      el.addEventListener('click', fn)
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault()
+          fn()
+        }
+      })
+    }
   }
 
 
@@ -588,8 +657,9 @@ export default class ControlPanel {
 
 
   /**
-   * Each frame: the orbit list's values follow the date, and its marks the
-   * scene's state, a few times a second while it's open.
+   * Each frame: the head's distance and the orbit list's values follow the
+   * date, and its marks the scene's state, a few times a second (the list's
+   * while it's open).
    *
    * @param {number} nowMs
    */
@@ -599,7 +669,18 @@ export default class ControlPanel {
       return
     }
     state.ranMs = nowMs
-    if (!state.list.isConnected || !state.list.open || state.list.closest('.info')?.classList.contains('folded')) {
+    if (!state.list.isConnected) {
+      return
+    }
+    // The head's distance is the osculating semi-major axis, which follows
+    // the date too: built once, it was the panel's opening date's, hours
+    // of sim time stale, and a link of the view showed another.
+    const fact = this.containerElt.querySelector?.('.info-fact')
+    const text = this._factOf(state.body)
+    if (fact && text && fact.textContent !== text) {
+      fact.textContent = text
+    }
+    if (!state.list.open || state.list.closest('.info')?.classList.contains('folded')) {
       return
     }
     this._showOrbitState()
