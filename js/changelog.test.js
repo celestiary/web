@@ -1,10 +1,10 @@
 import {describe, expect, it} from 'bun:test'
 import {readFileSync} from 'node:fs'
 import {
-  CAPTION_MAX_CHARS, CHANGELOG_URL, HOLD_MAX_MS, HOLD_MIN_MS, LAST_SEEN_KEY, SHOW_ALL_KEY, checkNew, decodeNewsToken,
+  CAPTION_MAX_CHARS, CHANGELOG_URL, HOLD_MAX_MS, HOLD_MIN_MS, FILTER_KEY, LAST_SEEN_KEY, SHOW_ALL_KEY, checkNew, decodeNewsToken,
   encodeNewsToken, formatEntryDate, freshIds, holdMs, loadChangelog, localStorageOrNull, markSeen, parseChangelog,
-  readLastSeen, readShowAll, stampEntries, tourCaption, tourStops, unseenCount, visibleEntries, writeLastSeen,
-  writeShowAll,
+  DEFAULT_FILTER, normalizeFilter, readFilter, readLastSeen, stampEntries, toggleFilter, tourCaption, tourStops, unseenCount,
+  visibleEntries, writeFilter, writeLastSeen,
 } from './changelog.js'
 import {decodePermalink} from './permalink.js'
 
@@ -260,36 +260,101 @@ describe('featured entries and the posts about them', () => {
     }
   })
 
-  it('are what What\'s new lists by default, and all of them when asked', () => {
-    const entries = parseChangelog({entries: [
-      entry('2026-10-04', 'a', {featured: true}), entry('2026-10-03', 'b'), entry('2026-10-02', 'c', {featured: true}),
-    ]})
-    expect(visibleEntries(entries, false).map((e) => e.headline)).toEqual(['a', 'c'])
-    expect(visibleEntries(entries, true).map((e) => e.headline)).toEqual(['a', 'b', 'c'])
+  const MIXED = parseChangelog({entries: [
+    entry('2026-10-08', 'featured feature', {featured: true}),
+    entry('2026-10-07', 'featured fix', {featured: true, kind: 'fix'}),
+    entry('2026-10-06', 'plain feature'),
+    entry('2026-10-05', 'plain fix', {kind: 'fix'}),
+  ]})
+  const names = (filter) => visibleEntries(MIXED, filter).map((e) => e.headline)
+
+  it('have a kind: a fix when the JSON says so, a feature otherwise, whatever else is there', () => {
+    expect(MIXED.map((e) => e.kind)).toEqual(['feature', 'fix', 'feature', 'fix'])
+    expect(parseChangelog({entries: [entry('2026-10-01', 'odd', {kind: 'bug'})]})[0].kind).toBe('feature')
+    expect(FILE.entries.some((e) => e.kind === 'fix')).toBe(true)
+    expect(parseChangelog(FILE).filter((e) => e.kind === 'fix').length).toBe(FILE.entries.filter((e) => e.kind === 'fix').length)
   })
 
-  it('leave a changelog with none featured showing everything, not nothing', () => {
-    const entries = parseChangelog({entries: [entry('2026-10-04', 'a'), entry('2026-10-03', 'b')]})
-    expect(visibleEntries(entries, false)).toHaveLength(2)
+  it('pass the filter when they are featured, if "featured only" is on, and of a selected kind: every combination', () => {
+    for (const featuredOnly of [true, false]) {
+      for (const features of [true, false]) {
+        for (const fixes of [true, false]) {
+          const expected = MIXED.filter((e) => (!featuredOnly || e.featured) && (e.kind === 'fix' ? fixes : features))
+          expect(visibleEntries(MIXED, {featuredOnly, features, fixes}), JSON.stringify({featuredOnly, features, fixes}))
+              .toEqual(expected)
+        }
+      }
+    }
+    expect(names(DEFAULT_FILTER)).toEqual(['featured feature', 'featured fix'])
+    expect(names({featuredOnly: false, features: true, fixes: false})).toEqual(['featured feature', 'plain feature'])
+    expect(names({featuredOnly: false, features: false, fixes: true})).toEqual(['featured fix', 'plain fix'])
+    expect(names({featuredOnly: true, features: false, fixes: true})).toEqual(['featured fix'])
+    expect(names({featuredOnly: false, features: true, fixes: true})).toHaveLength(4)
+    expect(visibleEntries(MIXED, null)).toHaveLength(4)
   })
 
-  it('are the choice remembered: off by default, stored as 1, cleared when turned off', () => {
+  it('leave "featured only" alone in a changelog with none featured: kinds still filter, nothing is hidden for want of the tag', () => {
+    const none = parseChangelog({entries: [entry('2026-10-04', 'a'), entry('2026-10-03', 'b', {kind: 'fix'})]})
+    expect(visibleEntries(none, DEFAULT_FILTER)).toHaveLength(2)
+    expect(visibleEntries(none, {...DEFAULT_FILTER, fixes: false}).map((e) => e.headline)).toEqual(['a'])
+  })
+
+  it('are never filtered to no kind: turning off the last one selected selects the other', () => {
+    expect(toggleFilter(DEFAULT_FILTER, 'fixes')).toEqual({featuredOnly: true, features: true, fixes: false})
+    expect(toggleFilter({featuredOnly: true, features: true, fixes: false}, 'features'))
+        .toEqual({featuredOnly: true, features: false, fixes: true})
+    expect(toggleFilter({featuredOnly: false, features: false, fixes: true}, 'fixes'))
+        .toEqual({featuredOnly: false, features: true, fixes: false})
+    expect(toggleFilter({featuredOnly: true, features: false, fixes: true}, 'features'))
+        .toEqual({featuredOnly: true, features: true, fixes: true})
+    expect(toggleFilter(DEFAULT_FILTER, 'featuredOnly')).toEqual({featuredOnly: false, features: true, fixes: true})
+    expect(toggleFilter(DEFAULT_FILTER, 'nothing')).toEqual(DEFAULT_FILTER)
+    // From every state, every press leaves a kind on.
+    for (const featuredOnly of [true, false]) {
+      for (const features of [true, false]) {
+        for (const fixes of [true, false]) {
+          for (const control of ['featuredOnly', 'features', 'fixes']) {
+            const next = toggleFilter(normalizeFilter({featuredOnly, features, fixes}), control)
+            expect(next.features || next.fixes).toBe(true)
+          }
+        }
+      }
+    }
+  })
+
+  it('are the choice remembered: the default with nothing stored, the three switches as JSON', () => {
     const storage = memoryStorage()
-    expect(readShowAll(storage)).toBe(false)
-    expect(writeShowAll(true, storage)).toBe(true)
-    expect(storage.data[SHOW_ALL_KEY]).toBe('1')
-    expect(readShowAll(storage)).toBe(true)
-    expect(writeShowAll(false, storage)).toBe(true)
+    expect(readFilter(storage)).toEqual(DEFAULT_FILTER)
+    const filter = {featuredOnly: false, features: false, fixes: true}
+    expect(writeFilter(filter, storage)).toBe(true)
+    expect(JSON.parse(storage.data[FILTER_KEY])).toEqual(filter)
+    expect(readFilter(storage)).toEqual(filter)
+  })
+
+  it('read a bad stored filter as the default, or part of it, and never with neither kind', () => {
+    expect(readFilter(memoryStorage({[FILTER_KEY]: 'not json'}))).toEqual(DEFAULT_FILTER)
+    expect(readFilter(memoryStorage({[FILTER_KEY]: '{"featuredOnly":false,"features":"yes"}'})))
+        .toEqual({featuredOnly: false, features: true, fixes: true})
+    expect(readFilter(memoryStorage({[FILTER_KEY]: '{"featuredOnly":false,"features":false,"fixes":false}'})))
+        .toEqual({featuredOnly: false, features: true, fixes: true})
+    expect(normalizeFilter(null)).toEqual(DEFAULT_FILTER)
+  })
+
+  it('migrate the earlier key: "all updates" is "featured only" off, the new key wins, and writing drops the old', () => {
+    expect(readFilter(memoryStorage({[SHOW_ALL_KEY]: '1'}))).toEqual({featuredOnly: false, features: true, fixes: true})
+    expect(readFilter(memoryStorage({[SHOW_ALL_KEY]: 'yes'}))).toEqual(DEFAULT_FILTER)
+    expect(readFilter(memoryStorage({[SHOW_ALL_KEY]: '1', [FILTER_KEY]: JSON.stringify(DEFAULT_FILTER)}))).toEqual(DEFAULT_FILTER)
+    const storage = memoryStorage({[SHOW_ALL_KEY]: '1'})
+    writeFilter({featuredOnly: false, features: true, fixes: true}, storage)
     expect(SHOW_ALL_KEY in storage.data).toBe(false)
-    expect(readShowAll(storage)).toBe(false)
-    expect(readShowAll(memoryStorage({[SHOW_ALL_KEY]: 'yes'}))).toBe(false)
+    expect(readFilter(storage)).toEqual({featuredOnly: false, features: true, fixes: true})
   })
 
   it('are the default when storage throws, is missing, or the accessor throws', () => {
-    expect(readShowAll(throwingStorage())).toBe(false)
-    expect(writeShowAll(true, throwingStorage())).toBe(false)
-    expect(readShowAll(null)).toBe(false)
-    expect(writeShowAll(true, null)).toBe(false)
+    expect(readFilter(throwingStorage())).toEqual(DEFAULT_FILTER)
+    expect(writeFilter(DEFAULT_FILTER, throwingStorage())).toBe(false)
+    expect(readFilter(null)).toEqual(DEFAULT_FILTER)
+    expect(writeFilter(DEFAULT_FILTER, null)).toBe(false)
   })
 
   it('are all the "new" marker counts: the featured entries after the date last seen', () => {
@@ -346,18 +411,22 @@ describe('the changelog tour\'s stops', () => {
     expect(tourStops(entries, {count: 0})).toEqual([])
   })
 
-  it('follow the filter: only the featured entries unless all are asked for', () => {
+  it('follow the filter: featured entries, of the kinds selected, with a view', () => {
     const list = parseChangelog({entries: [
       entry('2026-10-13', 'five', {permalink: LINK, featured: true}),
-      entry('2026-10-12', 'four', {permalink: LINK}),
-      entry('2026-10-11', 'three', {permalink: '#galaxy:ngc2403', featured: true}),
+      entry('2026-10-12', 'four', {permalink: LINK, kind: 'fix'}),
+      entry('2026-10-11', 'three', {permalink: '#galaxy:ngc2403', featured: true, kind: 'fix'}),
       entry('2026-10-09', 'one', {permalink: LINK}),
     ]})
-    expect(tourStops(list, {showAll: false}).map((e) => e.headline)).toEqual(['five', 'three'])
-    expect(tourStops(list, {showAll: true}).map((e) => e.headline)).toEqual(['five', 'four', 'three', 'one'])
+    const heads = (filter, opts = {}) => tourStops(list, {filter, ...opts}).map((e) => e.headline)
+    expect(heads(DEFAULT_FILTER)).toEqual(['five', 'three'])
+    expect(heads({featuredOnly: false, features: true, fixes: true})).toEqual(['five', 'four', 'three', 'one'])
+    expect(heads({featuredOnly: false, features: false, fixes: true})).toEqual(['four', 'three'])
+    expect(heads({featuredOnly: true, features: true, fixes: false})).toEqual(['five'])
+    expect(heads(null)).toHaveLength(4)
     expect(tourStops(list).length).toBe(4)
     // From an entry the filter hides: the next one it shows, by its date.
-    expect(tourStops(list, {from: list[1].id, showAll: false}).map((e) => e.headline)).toEqual(['three'])
+    expect(heads(DEFAULT_FILTER, {from: list[1].id})).toEqual(['three'])
   })
 
   it('the real file has stops', () => {

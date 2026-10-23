@@ -73,6 +73,19 @@ describe('public/data/changelog.json', () => {
     expect(fs.readFileSync(OUTPUT, 'utf8')).toBe(renderJson(markdown, fs.readFileSync(DRAFTS, 'utf8')))
   })
 
+  it('has `kind: "fix"` on the entries CHANGELOG.md marks `Kind: fix`, and only on them', () => {
+    const file = JSON.parse(fs.readFileSync(OUTPUT, 'utf8'))
+    expect(file.entries.filter((e) => e.kind === 'fix').map((e) => e.id)).toEqual(entries.filter((e) => e.kind === 'fix').map((e) => e.id))
+    expect(file.entries.filter((e) => e.kind === 'fix').length).toBeGreaterThan(10)
+    expect(file.entries.every((e) => e.kind === undefined || e.kind === 'fix')).toBe(true)
+  })
+
+  it('keeps the headlines that say "Fixed" as fixes', () => {
+    for (const e of entries.filter((x) => /^fixed\b/i.test(x.headline))) {
+      expect(e.kind, e.headline).toBe('fix')
+    }
+  })
+
   it('has `featured` on the entries CHANGELOG.md marks, and only on them', () => {
     const file = JSON.parse(fs.readFileSync(OUTPUT, 'utf8'))
     expect(file.entries.filter((e) => e.featured).map((e) => e.id)).toEqual(entries.filter((e) => e.featured).map((e) => e.id))

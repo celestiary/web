@@ -815,49 +815,93 @@ button.home-card[aria-busy='true'] {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 6px 12px;
+  gap: 8px 12px;
   padding: 8px 14px 8px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 0.78rem;
   color: #8f9bb5;
 }
 
-/* "Show all updates": opt-in, a chip that is pressed while the lesser
-   features and fixes show. */
-.news-filter-toggle {
-  display: inline-flex;
+.news-filter-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+.news-filter-count {
+  color: #c4d2f2;
+}
+
+.news-filter-controls {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
-  padding: 4px 12px 4px 8px;
+  gap: 8px;
+}
+
+/* The filter's chips: "Featured only" and, joined, "Features | Fixes".  A
+   chip is pressed (aria-pressed) while its filter is on. */
+.news-chip {
+  padding: 4px 12px;
   border: 1px solid rgba(134, 159, 219, 0.5);
   border-radius: 999px;
   background: none;
-  color: #c4d2f2;
+  color: #8f9bb5;
   font: inherit;
   cursor: pointer;
 }
 
-.news-filter-toggle:hover {
-  background: rgba(134, 159, 219, 0.28);
-}
-
-.news-filter-toggle[aria-pressed='true'] {
-  border-color: rgba(134, 159, 219, 0.8);
+.news-chip:hover {
   background: rgba(134, 159, 219, 0.2);
+  color: #c4d2f2;
 }
 
-.news-filter-toggle:focus-visible, .news-social-link:focus-visible {
+.news-chip[aria-pressed='true'] {
+  border-color: rgba(134, 159, 219, 0.85);
+  background: rgba(134, 159, 219, 0.28);
+  color: #fff;
+}
+
+.news-seg {
+  display: inline-flex;
+}
+
+.news-seg-first {
+  border-radius: 999px 0 0 999px;
+}
+
+.news-seg-last {
+  margin-left: -1px;
+  border-radius: 0 999px 999px 0;
+}
+
+.news-chip:focus-visible, .news-social-link:focus-visible {
+  position: relative;
   outline: 2px solid #869fdb;
   outline-offset: 2px;
 }
 
-.news-featured {
+.news-empty {
+  margin: 0;
+  padding: 24px 20px;
+  font-size: 0.86rem;
+  color: #8f9bb5;
+}
+
+.news-featured, .news-fix {
   padding: 1px 7px;
   border: 1px solid rgba(134, 159, 219, 0.6);
   border-radius: 999px;
   color: #a9b9e3;
   font-size: 0.66rem;
   letter-spacing: 0.04em;
+}
+
+.news-fix {
+  border-color: rgba(143, 155, 181, 0.5);
+  border-style: dashed;
+  color: #8f9bb5;
 }
 
 /* The posts about an entry: the platforms' marks beside its PR and issue

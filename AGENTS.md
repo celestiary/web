@@ -522,10 +522,18 @@ tried and dropped.
     month's "Behind the scenes" line.
   - **Decide whether it is featured** (`- Featured: yes`): a new thing to
     see or do, with a view to open, worth announcing. What's new shows
-    only the featured entries by default (the lesser features and fixes
-    are behind "Show all updates"), the "new" count counts them, and
+    only the featured entries by default ("Featured only" turns off to
+    show the lesser features and fixes), the "new" count counts them, and
     `yarn posts` drafts social posts only from them. Leave it out for a
-    fix, a polish or a lesser feature.
+    polish or a lesser feature; a major fix can be featured.
+  - **State its kind** (`- Kind: fix`): a fix is something that was
+    broken, wrong or a regression, and now isn't. Anything that adds or
+    improves what users can see or do is a feature, the default when the
+    field is absent (`Kind: feature` is accepted; any other value is a
+    build error). Kind is independent of featured, and What's new's
+    "Features" and "Fixes" buttons filter on it, so a PR's entry says
+    which it is: classify it deliberately, don't leave a fix without the
+    field.
   - The entry links its own PR, so open the PR first and add the entry
     in a follow-up commit to it. Its `Date` is the day you write it
     (the merge day, if you know it); the entry goes at the top of its

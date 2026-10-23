@@ -28,6 +28,7 @@ A sentence or two, plain and concrete, about what you can see or do.
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@...;t=...jd;cq=...;fov=45deg)
 - Image: ![Earth at dusk](public/images/home/earth.webp)
 - Featured: yes
+- Kind: fix
 
 Behind the scenes: dependency updates ([#124](https://github.com/celestiary/web/pull/124)).
 ```
@@ -62,7 +63,18 @@ Behind the scenes: dependency updates ([#124](https://github.com/celestiary/web/
   shows only the featured entries until the visitor asks for all the
   updates (the lesser features and fixes), the "new" count counts them,
   the changelog tour follows the same choice, and `yarn posts` drafts
-  social posts only from them. **The PR that adds an entry decides.**
+  social posts only from them. **The PR that adds an entry decides.** A
+  major fix can be featured: featured doesn't depend on kind.
+- **Kind**: `fix` marks a fix, something that was broken, wrong or a
+  regression and now isn't (a bug, a correction, a crash, a wrong value).
+  `feature` is the default when the field is absent: anything that adds
+  or improves what users can see or do, including speed-ups and polish.
+  Any other value is an error with a line number. What's new's
+  "Features" and "Fixes" buttons filter on it and the entry gets a small
+  Fix tag. **The PR that adds an entry states it**; when an entry is
+  both (a feature that also fixes something), call it by its headline:
+  what the headline says you can now do is a feature, what it says is
+  no longer broken is a fix.
 - **Behind the scenes**: after a month's last entry, one line (or a whole
   month's, when it has no entries) for housekeeping, refactors, dependency
   updates, CI and documentation, each with its PR link. These are not
@@ -100,6 +112,7 @@ The same test checks it.
   "permalink": "#sun/earth@...",
   "image": {"src": "images/home/earth.webp", "alt": "Earth at dusk"},
   "featured": true,
+  "kind": "fix",
   "social": {"x": "https://x.com/celestiary_org/status/...", "facebook": "https://www.facebook.com/..."}
 }]}
 ```
@@ -109,7 +122,7 @@ Entries are newest first. `permalink` is the fragment with its `#`, or
 relative to the site's root (the `public/` is dropped); `image` is `null`
 when there is none. `epic` is `null` when there is none. `links` has the
 PRs, then the issues. `text` is plain, paragraphs separated by a blank line.
-`featured` is there only when true. `social` is there only for an entry whose
+`featured` is there only when true, and `kind` only when it is `"fix"` (the app reads a missing one as a feature). `social` is there only for an entry whose
 announcing post is live: the maintainer pastes the post's URLs into its
 `X:` and `Facebook:` fields in `posts/drafts.md` (status `posted`), and
 `yarn changelog` joins them onto the entry named by its `Entry:` field,

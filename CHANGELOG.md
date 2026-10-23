@@ -25,24 +25,28 @@ A sentence or two, plain and concrete.
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@...) or none
 - Image: ![What it shows](public/images/home/earth.webp)
 - Featured: yes
+- Kind: fix
 ```
 
-`Issue`, `Epic`, `Image` and `Featured` are left out when there are none. `Permalink: none` marks an
+`Issue`, `Epic`, `Image`, `Featured` and `Kind` are left out when there are none. `Permalink: none` marks an
 entry that has no view to open yet. **`Featured: yes` marks the entries worth announcing**: What's new
 shows only those until the visitor asks for all the updates, the social post drafts (`yarn posts`)
 are made only from them, and the post that announces one, once it is live, is linked from its entry.
 A PR that adds an entry decides whether it is featured: a new thing to see or do, with a view to
-open; not a fix, a polish or a lesser feature.
+open; not a polish or a lesser feature. **`Kind: fix` marks a fix**: something that was broken,
+wrong or a regression and now isn't; anything that adds or improves what you can see or do is a
+feature, the default. Featured and kind are independent: a major fix can be featured.
 
 ## October 2026
 
-### What's new shows the highlights, with links to the posts about them
+### What's new shows the highlights, and filters by features and fixes
 
 What's new on the homepage now opens on the featured updates: the changes most worth a look, each
-with its view. "Show all updates" below them adds the rest, the lesser features and fixes, and
-celestiary remembers your choice. When a featured update has been announced on X or Facebook, small
-icons beside its links open the post. The "new" count and the changelog tour follow the same choice:
-featured updates only, unless you've asked for all of them.
+with its view. A filter bar above the list has "Featured only", which you can turn off for every
+update, and "Features" and "Fixes", which you can turn on and off to find one or the other; the
+count beside it follows. celestiary remembers your choice. When a featured update has been
+announced on X or Facebook, small icons beside its links open the post. The "new" count counts the
+featured updates, and the changelog tour follows the filter.
 
 - Date: 2026-10-21
 - PR: [#270](https://github.com/celestiary/web/pull/270)
@@ -141,6 +145,7 @@ time as the other side of the cut. The map still appears as soon as the day has 
 follows a moment later.
 
 - Date: 2026-10-14
+- Kind: fix
 - PR: [#252](https://github.com/celestiary/web/pull/252)
 - Issue: [#251](https://github.com/celestiary/web/issues/251)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
@@ -183,6 +188,7 @@ once when it has loaded, and a day the satellites haven't finished covering wait
 complete one, so neighbouring pieces of the map always come from the same day.
 
 - Date: 2026-10-13
+- Kind: fix
 - PR: [#250](https://github.com/celestiary/web/pull/250)
 - Issue: [#243](https://github.com/celestiary/web/issues/243)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
@@ -302,6 +308,7 @@ seconds to brighten. The exposure now follows where you are going, so a body arr
 brightness, and a far body hands over from its dot to its disc without a jump.
 
 - Date: 2026-10-09
+- Kind: fix
 - PR: [#220](https://github.com/celestiary/web/pull/220)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
 - Permalink: none
@@ -326,6 +333,7 @@ distance from the Sun, and looked too dark. They now follow the sunlight they ge
 rings are lit on their own scale. The link is Titan's sky from 10,000 km.
 
 - Date: 2026-10-08
+- Kind: fix
 - PR: [#219](https://github.com/celestiary/web/pull/219)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
 - Permalink: [Open this view](https://celestiary.org/#sun/saturn/titan@-57.0031,-176.8929,10.304Mm;t=9774.8753jd;cq=0.3726,-0.5552,0.305,0.6782;fov=30deg;s=alpox;time:pause)
@@ -336,6 +344,7 @@ Planets at different distances now keep their true brightness against each other
 Before, the outer planets were too bright next to Earth, Neptune by almost five stops.
 
 - Date: 2026-10-08
+- Kind: fix
 - PR: [#214](https://github.com/celestiary/web/pull/214)
 - Issue: [#192](https://github.com/celestiary/web/issues/192)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
@@ -363,6 +372,7 @@ zoom in, so the faint star beside Jupiter in the occultation view shows once you
 about eight stops with `=`.
 
 - Date: 2026-10-08
+- Kind: fix
 - PR: [#198](https://github.com/celestiary/web/pull/198)
 - Issue: [#192](https://github.com/celestiary/web/issues/192)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
@@ -386,6 +396,7 @@ view. At a telescope's 0.07 degrees, one pixel of drag used to swing the scene b
 pixels.
 
 - Date: 2026-10-07
+- Kind: fix
 - PR: [#204](https://github.com/celestiary/web/pull/204)
 - Issue: [#192](https://github.com/celestiary/web/issues/192)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
@@ -397,6 +408,7 @@ Seen from Earth's ground at a telescope's field, Jupiter was a disc of black hol
 because the atmosphere pass drew the wrong body's air. It is a smooth disc now.
 
 - Date: 2026-10-07
+- Kind: fix
 - PR: [#197](https://github.com/celestiary/web/pull/197)
 - Issue: [#192](https://github.com/celestiary/web/issues/192)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
@@ -445,6 +457,7 @@ Looking toward the Sun from above Earth's day side, with Earth behind you, a fla
 disc used to appear where the atmosphere pass found a hit behind the camera. It is gone.
 
 - Date: 2026-10-07
+- Kind: fix
 - PR: [#193](https://github.com/celestiary/web/pull/193)
 - Permalink: none
 
@@ -455,6 +468,7 @@ faint at its core. It now has the width and brightness of 1.5 micron dust. The l
 from Valles Marineris.
 
 - Date: 2026-10-07
+- Kind: fix
 - PR: [#190](https://github.com/celestiary/web/pull/190)
 - Issue: [#188](https://github.com/celestiary/web/issues/188), [#71](https://github.com/celestiary/web/issues/71)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
@@ -527,6 +541,7 @@ the page ran out of memory. Tile detail is now bounded at narrow fields. The lin
 crashed.
 
 - Date: 2026-10-06
+- Kind: fix
 - PR: [#180](https://github.com/celestiary/web/pull/180)
 - Issue: [#176](https://github.com/celestiary/web/issues/176)
 - Epic: [#121](https://github.com/celestiary/web/issues/121) Cesium integration: performance and verification
@@ -549,6 +564,7 @@ The /guide/star page was broken: its star links went to the app root, and the st
 Its links now stay on the page and the star is drawn.
 
 - Date: 2026-10-06
+- Kind: fix
 - PR: [#178](https://github.com/celestiary/web/pull/178)
 - Issue: [#165](https://github.com/celestiary/web/issues/165)
 - Epic: [#164](https://github.com/celestiary/web/issues/164) Stars up close: a dynamic Sun, and every star from its physical parameters
@@ -560,6 +576,7 @@ Names on Earth, the Moon and Mars had gone missing whenever Cesium's layer was o
 and search finds a place under its body. The link is Earth from 12,000 km with the names on.
 
 - Date: 2026-10-06
+- Kind: fix
 - PR: [#177](https://github.com/celestiary/web/pull/177)
 - Issue: [#172](https://github.com/celestiary/web/issues/172)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
@@ -571,6 +588,7 @@ From Earth's ground at a telescope's field, white concentric dashes used to cove
 The atmosphere pass no longer draws air over them.
 
 - Date: 2026-10-06
+- Kind: fix
 - PR: [#174](https://github.com/celestiary/web/pull/174)
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@3.0078,-51.7143,156m;t=9774.7938jd;cq=-0.5616,0.0248,0.7822,-0.2685;fov=0.01deg;s=poL)
 
@@ -580,6 +598,7 @@ On Apple GPUs, stars more than 1,950 light-years from the camera turned black, A
 among them. They draw at any distance now.
 
 - Date: 2026-10-06
+- Kind: fix
 - PR: [#162](https://github.com/celestiary/web/pull/162)
 - Permalink: none
 
@@ -588,6 +607,7 @@ among them. They draw at any distance now.
 The axes that showed through at extreme zooms and near the camera's clip plane are no longer drawn.
 
 - Date: 2026-10-06
+- Kind: fix
 - PR: [#161](https://github.com/celestiary/web/pull/161)
 - Permalink: none
 
@@ -597,6 +617,7 @@ Triton was ten times too small, Janus ten times too large and Rhea twice too lar
 follow JPL's values.
 
 - Date: 2026-10-06
+- Kind: fix
 - PR: [#158](https://github.com/celestiary/web/pull/158)
 - Permalink: none
 
@@ -643,6 +664,7 @@ bars come and go. The drawer opens as a sheet on a phone, and touch no longer fl
 with errors.
 
 - Date: 2026-10-03
+- Kind: fix
 - PR: [#152](https://github.com/celestiary/web/pull/152)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: none
@@ -745,6 +767,7 @@ it drew on top of its planet. Moons now show as dots from far away, and a nearer
 them.
 
 - Date: 2026-09-30
+- Kind: fix
 - PR: [#143](https://github.com/celestiary/web/pull/143)
 - Epic: [#112](https://github.com/celestiary/web/issues/112) Accurate ephemerides and orientation
 - Permalink: none
@@ -757,6 +780,7 @@ lines that never finished rebuilding. The clock now stops at the dates the ephem
 years either side of 2000.
 
 - Date: 2026-09-30
+- Kind: fix
 - PR: [#142](https://github.com/celestiary/web/pull/142)
 - Epic: [#112](https://github.com/celestiary/web/issues/112) Accurate ephemerides and orientation
 - Permalink: none
@@ -780,6 +804,7 @@ degrees apart in 2026. Stars, constellations and the Milky Way now shift with th
 the whole scene is in one frame.
 
 - Date: 2026-09-30
+- Kind: fix
 - PR: [#136](https://github.com/celestiary/web/pull/136)
 - Issue: [#133](https://github.com/celestiary/web/issues/133)
 - Epic: [#112](https://github.com/celestiary/web/issues/112) Accurate ephemerides and orientation
@@ -804,6 +829,7 @@ into mountains that rise kilometres above the sphere (Everest, Olympus Mons), an
 another body targeted no longer clips Cesium's sky into a black edge.
 
 - Date: 2026-09-29
+- Kind: fix
 - PR: [#90](https://github.com/celestiary/web/pull/90)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: none
@@ -839,6 +865,7 @@ It is fixed. Stars show through Cesium's sky, far views lose their speckles, Ven
 back, labels draw over haze, airless moons lose their rim, and `v` hides Cesium's credits.
 
 - Date: 2026-09-28
+- Kind: fix
 - PR: [#82](https://github.com/celestiary/web/pull/82)
 - Epic: [#109](https://github.com/celestiary/web/issues/109) Physically based light and exposure
 - Permalink: none
@@ -886,6 +913,7 @@ On a 4K screen every named city showed at the first fly-in. Only the biggest nam
 now, and finer ones come in as you close in.
 
 - Date: 2026-05-19
+- Kind: fix
 - PR: [#76](https://github.com/celestiary/web/pull/76)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: none
@@ -918,6 +946,7 @@ Earth's rotation is right, and the equatorial, ecliptic and galactic grids are i
 Sirius lands where its catalogue position says.
 
 - Date: 2026-05-06
+- Kind: fix
 - PR: [#68](https://github.com/celestiary/web/pull/68)
 - Epic: [#112](https://github.com/celestiary/web/issues/112) Accurate ephemerides and orientation
 - Permalink: none
@@ -968,6 +997,7 @@ Dragging to rotate did nothing on mobile. Touch, pen and mouse now all work, and
 tracking past the edge of the canvas.
 
 - Date: 2026-04-26
+- Kind: fix
 - PR: [#63](https://github.com/celestiary/web/pull/63)
 - Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
 - Permalink: none

@@ -26,7 +26,7 @@ import {
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry, placeTarget} from './search/commitEntry'
-import {decodeNewsToken, loadChangelog, readShowAll, tourStops} from './changelog'
+import {decodeNewsToken, loadChangelog, readFilter, tourStops} from './changelog'
 import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
 import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
 import {ease} from './tour'
@@ -2276,12 +2276,12 @@ export default class Celestiary {
    * @param {object} [opts]
    * @param {?string} [opts.from] An entry's id or a date to begin at
    * @param {number} [opts.count] At most this many stops
-   * @param {boolean} [opts.showAll] Every entry with a view, not only the
-   *   featured ones: What's new's filter, which the tour follows; the
-   *   visitor's stored choice if not given
+   * @param {object} [opts.filter] What's new's filter, which the tour
+   *   follows (changelog.js `visibleEntries`); the visitor's stored one if
+   *   not given
    * @returns {Promise<boolean>} Whether there was anything to play
    */
-  async startNewsTour({from = null, count = Infinity, showAll = readShowAll()} = {}) {
+  async startNewsTour({from = null, count = Infinity, filter = readFilter()} = {}) {
     let entries
     try {
       entries = await this.loadNews()
@@ -2289,7 +2289,7 @@ export default class Celestiary {
       console.warn('What\'s new:', e)
       return false
     }
-    const stops = tourStops(entries, {from, count, showAll})
+    const stops = tourStops(entries, {from, count, filter})
     if (!stops.length) {
       return false
     }

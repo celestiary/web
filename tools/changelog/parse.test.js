@@ -23,6 +23,7 @@ A second paragraph.
 - Permalink: [Open it](https://celestiary.org/#sun/earth@1,2,3m;t=0jd;cq=0,0,0,1;fov=45deg;s=a)
 - Image: ![Earth at dusk](public/images/home/earth.webp)
 - Featured: yes
+- Kind: fix
 
 ### A plain one
 
@@ -169,7 +170,7 @@ describe('checkOrder and changelogJson', () => {
   it('makes the app\'s JSON: what the Markdown says, without the Markdown-only fields', () => {
     const json = changelogJson(SAMPLE)
     expect(json.entries).toHaveLength(3)
-    expect(Object.keys(json.entries[0]).sort()).toEqual(['date', 'epic', 'featured', 'headline', 'id', 'image', 'links', 'permalink', 'text'])
+    expect(Object.keys(json.entries[0]).sort()).toEqual(['date', 'epic', 'featured', 'headline', 'id', 'image', 'kind', 'links', 'permalink', 'text'])
     expect(json.entries[0].links[0]).toEqual({kind: 'pr', number: 242, url: `${PR}/242`})
   })
 
@@ -185,6 +186,27 @@ describe('checkOrder and changelogJson', () => {
     expect(parseChangelog(one('no')).entries[0].featured).toBe(false)
     expect(parseChangelog(one('Yes')).entries[0].featured).toBe(true)
     expect(() => parseChangelog(one('maybe'))).toThrow('Featured is "yes" or "no"')
+  })
+
+  it('has a kind: a feature unless `Kind: fix`, and `kind` in the JSON only for a fix', () => {
+    const json = changelogJson(SAMPLE)
+    expect(parseChangelog(SAMPLE).entries.map((e) => e.kind)).toEqual(['fix', 'feature', 'feature'])
+    expect(json.entries[0].kind).toBe('fix')
+    expect('kind' in json.entries[1]).toBe(false)
+  })
+
+  it('takes Kind: feature as the default, and refuses anything but feature and fix', () => {
+    const one = (value) => `## October 2026\n\n### A\n\nx.\n\n- Date: 2026-10-01\n- PR: [#1](${PR}/1)\n- Kind: ${value}\n`
+    expect(parseChangelog(one('feature')).entries[0].kind).toBe('feature')
+    expect(parseChangelog(one('Fix')).entries[0].kind).toBe('fix')
+    expect(() => parseChangelog(one('bug'))).toThrow('Kind is "feature" or "fix"')
+    expect(() => parseChangelog(one(''))).toThrow('Kind is')
+  })
+
+  it('lets a fix be featured: the two are independent', () => {
+    const e = parseChangelog(SAMPLE).entries[0]
+    expect([e.kind, e.featured]).toEqual(['fix', true])
+    expect(changelogJson(SAMPLE).entries[0]).toMatchObject({kind: 'fix', featured: true})
   })
 
   it('joins the posts\' links onto the entry they are about, in the icons\' order', () => {

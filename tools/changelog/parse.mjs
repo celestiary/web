@@ -13,6 +13,7 @@
  *   - Permalink: [Open it](https://celestiary.org/#sun/earth@...)
  *   - Image: ![Earth at dusk](public/images/home/earth.webp)
  *   - Featured: yes                         worth a post and shown by default in What's new
+ *   - Kind: fix                             a fix (the default is a feature)
  *   Behind the scenes: ...                  after the last entry, the month's housekeeping line
  */
 
@@ -20,7 +21,7 @@ const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
-const FIELD = /^- (Date|PR|Issue|Epic|Permalink|Image|Featured):\s*(.*)$/
+const FIELD = /^- (Date|PR|Issue|Epic|Permalink|Image|Featured|Kind):\s*(.*)$/
 const LINK = /\[([^\]]*)\]\(([^)\s]+)\)/g
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/
 const NOTES_PREFIX = /^Behind the scenes:\s*/
@@ -170,6 +171,20 @@ function parseFeatured(value, where) {
 
 
 /**
+ * @param {string} value A "Kind" field: `feature` or `fix`
+ * @param {string} where For messages
+ * @returns {string}
+ */
+function parseKind(value, where) {
+  const v = value.toLowerCase()
+  if (v !== 'feature' && v !== 'fix') {
+    throw new Error(`${where}: Kind is "feature" or "fix" (or leave the field out for a feature), got "${value}"`)
+  }
+  return v
+}
+
+
+/**
  * @param {string} heading A month heading's text, "October 2026"
  * @returns {string|null} "2026-10", or null if it isn't a month
  */
@@ -196,7 +211,7 @@ export function headingOfMonth(month) {
  *
  * @param {string} markdown CHANGELOG.md's text
  * @returns {{entries: Array<object>, notes: Array<{month: string, text: string}>}}
- *   Entries in file order (newest first); each {id, month, date, headline, text, markdown, links, epic, permalink, image, featured}
+ *   Entries in file order (newest first); each {id, month, date, headline, text, markdown, links, epic, permalink, image, featured, kind}
  */
 export function parseChangelog(markdown) {
   const entries = []
@@ -243,6 +258,7 @@ export function parseChangelog(markdown) {
     let permalink = null
     let image = null
     let featured = false
+    let kind = 'feature'
     for (const {name, value} of entry.fields) {
       if (name === 'PR') {
         links.push(...parseLinks(value, 'pr', where))
@@ -256,6 +272,8 @@ export function parseChangelog(markdown) {
         image = parseImage(value, where)
       } else if (name === 'Featured') {
         featured = parseFeatured(value, where)
+      } else if (name === 'Kind') {
+        kind = parseKind(value, where)
       }
     }
     if (entry.paragraphs.length === 0) {
@@ -275,6 +293,7 @@ export function parseChangelog(markdown) {
       permalinkUrl: permalink && permalink.url,
       image,
       featured,
+      kind,
     })
     entry = null
     fields = null
@@ -333,7 +352,7 @@ export function parseChangelog(markdown) {
       flushParagraph(lineNo)
       const f = FIELD.exec(line)
       if (!f) {
-        throw new Error(`line ${lineNo}: unknown field "${line}" (Date, PR, Issue, Epic, Permalink, Image, Featured)`)
+        throw new Error(`line ${lineNo}: unknown field "${line}" (Date, PR, Issue, Epic, Permalink, Image, Featured, Kind)`)
       }
       if (afterFields) {
         throw new Error(`line ${lineNo}: fields after the entry's text and fields ended`)
@@ -381,7 +400,7 @@ export function checkOrder(entries) {
  *   URLs of the posts that announce entries, by entry id (tools/posts/social.mjs)
  * @returns {{entries: Array<object>}} What `public/data/changelog.json` holds
  *   (entries newest first; the Markdown-only fields left out).  `featured` is
- *   there only when true, and `social` only for an entry with posts.
+ *   there only when true, `kind` only when it is `fix`, and `social` only for an entry with posts.
  */
 export function changelogJson(markdown, social = null) {
   const {entries} = parseChangelog(markdown)
@@ -399,9 +418,10 @@ export function changelogJson(markdown, social = null) {
     throw new Error(problems.join('\n'))
   }
   return {
-    entries: entries.map(({id, date, headline, text, links, epic, permalink, image, featured}) => ({
+    entries: entries.map(({id, date, headline, text, links, epic, permalink, image, featured, kind}) => ({
       id, date, headline, text, links, epic, permalink, image,
       ...(featured ? {featured: true} : {}),
+      ...(kind === 'fix' ? {kind: 'fix'} : {}),
       ...(social?.[id] && Object.keys(social[id]).length > 0 ? {social: social[id]} : {}),
     })),
   }
