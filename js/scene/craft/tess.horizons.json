@@ -1,7 +1,7 @@
 {
- "source": "JPL Horizons (ssd.jpl.nasa.gov/api/horizons.api), VECTORS, TESS (-95) from the Earth's centre, ecliptic and equinox of J2000, km and km/s, TDB",
+ "source": "JPL Horizons (ssd.jpl.nasa.gov/api/horizons.api), VECTORS, ecliptic and equinox of J2000, km and km/s, TDB",
  "fetched": "2026-10-23",
- "query": {
+ "common": {
   "format": "json",
   "OBJ_DATA": "NO",
   "MAKE_EPHEM": "YES",
@@ -11,20 +11,7 @@
   "REF_PLANE": "ECLIPTIC",
   "REF_SYSTEM": "ICRF",
   "CSV_FORMAT": "YES",
-  "OUT_UNITS": "KM-S",
-  "CENTER": "'500@399'",
-  "COMMAND": "'-95'",
-  "STEP_SIZE": "'6 h'",
-  "ARCS": [
-   [
-    "2023-03-03",
-    "2023-03-06"
-   ],
-   [
-    "2023-03-17",
-    "2023-03-20"
-   ]
-  ]
+  "OUT_UNITS": "KM-S"
  },
  "arcs": [
   [
@@ -369,5 +356,21 @@
     ]
    }
   ]
+ ],
+ "queries": [
+  {
+   "COMMAND": "'-95'",
+   "CENTER": "'500@399'",
+   "START_TIME": "'2023-03-03'",
+   "STOP_TIME": "'2023-03-06'",
+   "STEP_SIZE": "'6 h'"
+  },
+  {
+   "COMMAND": "'-95'",
+   "CENTER": "'500@399'",
+   "START_TIME": "'2023-03-17'",
+   "STOP_TIME": "'2023-03-20'",
+   "STEP_SIZE": "'6 h'"
+  }
  ]
 }

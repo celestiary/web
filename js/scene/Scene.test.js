@@ -1,7 +1,9 @@
 import {describe, expect, it} from 'bun:test'
+import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
 import {Object3D, PerspectiveCamera, Quaternion, Scene as ThreeScene, Vector3} from 'three'
 import {SETTINGS_DEFAULTS} from '../permalink.js'
 import * as Shared from '../shared.js'
+import bltData from '../../public/data/blt.json'
 import periodicData from '../../public/data/periodicOrbits.json'
 
 // SpriteSheet (used by Scene._setTempMarker) reaches for document.* —
@@ -1817,7 +1819,7 @@ describe('the three-body orbits at the target\'s pairs', () => {
     const s = solarScene()
     let changes = 0
     s.onSettingsChange = () => changes++
-    expect(s.craftOf('earth').map((c) => [c.code, c.on])).toEqual([['tli', false]])
+    expect(s.craftOf('earth').map((c) => [c.code, c.on])).toEqual([['tli', false], ['blt', false]])
     expect(s.craftOf('mars')).toEqual([])
     s.toggleCraft('tli', 2461336.8)
     expect(changes).toBe(1)
@@ -1838,6 +1840,46 @@ describe('the three-body orbits at the target\'s pairs', () => {
     s.toggleCraft('tli', 2461336.8)
     expect(s.getCraft().size).toBe(0)
     expect(track.parent).toBeNull()
+  })
+
+  it('flies a ballistic lunar transfer once VSOP87C and the designs are in', async () => {
+    // From the package: Celestiary.test.js mocks ./vsop for the process.
+    const vsop87c = await vsop87cLoader
+    const s = solarScene()
+    let ready = false
+    s.vsopReady = () => ready
+    s.vsopAt = vsop87c
+    let refreshed = 0
+    s.onCraftChange = () => refreshed++
+    let loads = 0
+    s.loadCraftData = () => {
+      loads++
+      return Promise.resolve(bltData)
+    }
+    const first = Math.min(...bltData.designs.map((d) => d.departure))
+    const day = first - 3
+    s.toggleCraft('blt', day)
+    await s._flights
+    // Waiting for the ephemeris: neither drawn nor loading.
+    expect(s._craftTracks.size).toBe(0)
+    expect(loads).toBe(0)
+    ready = true
+    s._syncCraft()
+    expect(loads).toBe(1)
+    await new Promise((r) => setTimeout(r, 0))
+    const track = s._craftTracks.get('blt')
+    expect(track.path.facts.departure).toBe(first)
+    // Drawn once the file came: the panel is told.
+    expect(refreshed).toBe(1)
+    expect(track.path.facts.apogee / 1e9).toBeLessThan(2)
+    expect(s.craftOf('moon').find((c) => c.code === 'blt').text)
+        .toMatch(/^leaves \d{4}-\d\d-\d\d from 185 km, 3,2\d\d m\/s, out to 1\.\d\d million km/)
+    // No design from past the last: said so.
+    s.toggleCraft('blt', day)
+    s.toggleCraft('blt', Math.max(...bltData.designs.map((d) => d.departure)) + 10)
+    expect(s._craftTracks.size).toBe(0)
+    expect(s.craftOf('earth').find((c) => c.code === 'blt').text).toBe('none designed from this date')
+    expect(loads).toBe(1)
   })
 
   it('shows a link\'s families once their pair is the target\'s', () => {

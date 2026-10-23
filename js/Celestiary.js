@@ -189,6 +189,10 @@ export default class Celestiary {
     // And the craft flown about it (scene/craft/flights.js), on the app's
     // ephemeris (the Sun from VSOP87C, or its stand-in until it's in).
     this.scene.vsopAt = (jd) => this.animation.vsopAt(jd)
+    this.scene.vsopReady = () => this.animation.vsopReady()
+    // A long flight waits for VSOP87C itself (flights.js needsVsop).
+    this.animation.onEphemeris = () => this.scene._syncCraft()
+    this.scene.onCraftChange = () => this.controlPanel.refreshCraft()
     this.controlPanel.craftHooks = {
       list: (name) => this.scene.craftOf(name),
       toggle: (code) => this.scene.toggleCraft(code, utcToTtJulianDay(this.time.simTimeJulianDay())),

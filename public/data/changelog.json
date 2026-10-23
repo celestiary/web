@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-10-23-the-slow-way-to-the-moon-by-way-of-the-sun",
+      "date": "2026-10-23",
+      "headline": "The slow way to the Moon, by way of the Sun",
+      "text": "The Earth's and the Moon's Craft sections now have a ballistic lunar transfer: the low-energy route NASA's GRAIL and CAPSTONE took. The craft goes out about four times the Moon's distance, where the Sun's pull bends its orbit round, and falls back three to four months later to meet the Moon almost at rest, needing far less fuel to stop there than a direct flight. Switch it on and the app flies the first one leaving from the clock's date, drawn with the craft where it is on that day.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 295,
+          "url": "https://github.com/celestiary/web/pull/295"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": {
+        "number": 119,
+        "title": "Flight simulation",
+        "url": "https://github.com/celestiary/web/issues/119"
+      },
+      "permalink": "#sun/earth/moon@86.7618,-11.4024,5.238672Gm;t=9833.335118jd;cq=-0.1126,0.6981,0.6981,0.1126;fov=45deg;s=alF;time:pause;craft:blt=9791.5",
+      "image": null
+    },
+    {
       "id": "2026-10-23-the-james-webb-space-telescope-where-it-really",
       "date": "2026-10-23",
       "headline": "The James Webb Space Telescope, where it really is",

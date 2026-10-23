@@ -490,3 +490,6 @@ halos, from Earth's Hill sphere out:
   exterior ones toward the Moon; each keeps the orbit's Jacobi constant to
   1e-6; the L1 exterior branch meets the Moon within the run.
 
+The low-energy transfers that ride these tubes, flown in the full model:
+[Craft.md, the ballistic lunar transfer](Craft.md#the-ballistic-lunar-transfer).
+
