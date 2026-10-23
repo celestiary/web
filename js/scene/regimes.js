@@ -2,7 +2,8 @@
 // spacecraft use, the boundaries further out, and the orbits that define
 // the families, in the body's equator.  Earth's first, and their analogues
 // where they make sense (Mars's sun-synchronous orbit, set by its J2 as
-// Earth's is).  Drawn by RegimeMarks for the target.
+// Earth's is); the Moon's low, frozen and elliptical orbits (#272's scope 4;
+// Lagrange.md, near the Moon).  Drawn by RegimeMarks for the target.
 //
 // Distances are from the body's centre, in metres; altitudes are over the
 // equatorial radius, the usual reference (GEO's 35,786 km).
@@ -21,7 +22,8 @@ const KM = 1e3
  * in the equator: a, e, i, the argument of pericentre ω and the node Ω
  * (degrees), `planes` copies spaced in Ω, or `sunSync` an orbit at an
  * altitude whose inclination keeps its plane to the Sun, its node at a
- * local time (`ltan`, hours) that follows the Sun.
+ * local time (`ltan`, hours) that follows the Sun.  `notes` are lines for
+ * the panel alone.
  */
 export const REGIMES = {
   earth: {
@@ -60,6 +62,41 @@ export const REGIMES = {
       // Mars Reconnaissance Orbiter's: about 300 km up, 3 pm.
       {label: 'sun-synchronous', text: 'sun-synchronous, 300 km, 3 pm (as MRO\'s)', sunSync: true, altitude: 300 * KM, ltan: 15,
         color: 0xfff07f},
+    ],
+  },
+  // Near the Moon (Lagrange.md, near the Moon).  Altitudes are over the
+  // lunar reference sphere, 1,737.4 km, which LRO's are given over.  The
+  // nodes are illustrative, spread so the labels part.
+  moon: {
+    gm: 4.9028e12,
+    equatorialRadius: 1737400,
+    shells: [
+      {name: 'LLO', label: 'LLO', text: 'low lunar orbit (LLO)', from: 20 * KM, to: 100 * KM, color: 0x7fd0ff},
+    ],
+    spheres: [],
+    orbits: [
+      // The four frozen inclinations (Folta & Quinn 2006; NASA's 2006
+      // account), drawn circular at 100 km: their eccentricities are small.
+      ...[[27, 0], [50, 90], [76, 180], [86, 270]].map(([i, node]) => ({label: `frozen ${i}°`,
+        text: `frozen low orbit, ${i}°: the mascons' tugs average out, and it lasts for years without burns`,
+        altitude: 100 * KM, i, node, color: 0x8fe0c0})),
+      {label: 'LRO 2009–11', text: 'LRO\'s mapping orbit, 2009–11: 50 km, polar, held by burns of 143 m/s a year',
+        altitude: 50 * KM, i: 90, w: 90, node: 45, color: 0xfff07f},
+      {label: 'LRO', text: 'LRO since December 2011: frozen and polar, under 5 m/s a year; ' +
+        'drawn as in 2015, 20 km over the south pole and 165 km over the north',
+      a: (1737.4 + ((20 + 165) / 2)) * KM, e: (165 - 20) / ((2 * 1737.4) + 20 + 165), i: 90, w: 270, node: 45,
+      color: 0xffc07f},
+      // The 30 h reference orbit of NASA's lunar relay and navigation
+      // service (LCRNS): 1,750 by 17,400 km up.
+      {label: 'ELFO', text: 'elliptical lunar frozen orbit (ELFO), 30 h: 1,750 by 17,400 km up, ' +
+        'its apolune over the south pole; Earth\'s pull keeps it frozen',
+      a: (1737.4 + ((1750 + 17400) / 2)) * KM, e: (17400 - 1750) / ((2 * 1737.4) + 1750 + 17400),
+      i: 59.37, w: 92.49, node: 135, color: 0xff9f9f},
+    ],
+    notes: [
+      'why most low lunar orbits don\'t last: the mascons, dense regions under the maria, pull unevenly, ' +
+        'and with the Earth\'s pull they stretch the orbit until its low point meets the ground; ' +
+        'Apollo 16\'s subsatellite crashed in 35 days',
     ],
   },
 }
@@ -121,4 +158,19 @@ export function periodOf(gm, a) {
  */
 export function semiMajorAxisOf(body, orbit) {
   return orbit.a ?? (body.equatorialRadius + orbit.altitude)
+}
+
+
+/**
+ * The inclination at which the Earth's pull leaves an elliptical lunar
+ * orbit frozen, ω at 90° or 270°: e² + (5/3) cos² i = 1, the doubly
+ * averaged quadrupole of a distant third body (Ely 2005; Kozai's critical
+ * inclination, 39.23°, as e goes to 0).  The Moon's own field moves it a
+ * few degrees (the 30 h ELFO's 59.4° against 56.0° here).
+ *
+ * @param {number} e
+ * @returns {number} degrees, prograde
+ */
+export function elfoInclination(e) {
+  return Math.acos(Math.sqrt(0.6 * (1 - (e * e)))) / DEG
 }

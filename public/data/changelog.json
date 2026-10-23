@@ -26,6 +26,28 @@
       "image": null
     },
     {
+      "id": "2026-10-23-the-moon-s-frozen-orbits-the-few-low-orbits",
+      "date": "2026-10-23",
+      "headline": "The Moon's frozen orbits: the few low orbits that last",
+      "text": "With the Moon selected, the orbits spacecraft use near it are drawn around it. Low lunar orbit is a thin shell. The four \"frozen\" inclinations, 27°, 50°, 76° and 86°, are where the pulls of the Moon's lumpy mass concentrations average out, so an orbit lasts for years. Also drawn are the Lunar Reconnaissance Orbiter's two orbits and a 30-hour elliptical frozen orbit that hangs over the south pole. The info panel explains why most low lunar orbits crash within weeks or months.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 285,
+          "url": "https://github.com/celestiary/web/pull/285"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-10-23-fly-a-spacecraft-to-the-moon",
       "date": "2026-10-23",
       "headline": "Fly a spacecraft to the Moon",
