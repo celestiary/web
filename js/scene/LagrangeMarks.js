@@ -4,14 +4,12 @@ import {
   Float32BufferAttribute,
   Group,
   Points,
-  Quaternion,
   ShaderMaterial,
-  Vector2,
   Vector3,
 } from 'three'
 import {sceneReferred} from './hdr.js'
 import {POINT_NAMES, lagrangePoints, placePoints} from './lagrange.js'
-import SpriteSheet from './SpriteSheet.js'
+import {faceOutline, newLabels, pixelsPerMetre, unitCircle} from './overlayMarks.js'
 import {newWideLineStrip} from './wideLines.js'
 
 
@@ -29,7 +27,6 @@ import {newWideLineStrip} from './wideLines.js'
 
 const COLORS = {point: 0x8fe3b0, hill: 0x8fb8e3, sync: 0xe3c88f, unstable: 0x9a9a9a}
 const POINT_SIZE_PX = 9
-const RING_POINTS = 129
 const LINE_WIDTH = 1.25
 const HILL_OPACITY = 0.5
 const SYNC_OPACITY = 0.7
@@ -40,34 +37,7 @@ const SYNC_OPACITY = 0.7
 const MIN_LABEL_PX = 50
 const MIN_PAIR_PX = 12
 const noRaycast = () => undefined
-const tmpQ = new Quaternion
 const tmpV = new Vector3
-const tmpRes = new Vector2
-
-
-/**
- * @param {number} color
- * @returns {string} as a canvas takes it
- */
-function cssColor(color) {
-  return `#${color.toString(16).padStart(6, '0')}`
-}
-
-
-/**
- * A unit circle in the XZ plane.
- *
- * @returns {Float32Array}
- */
-function unitCircle() {
-  const out = new Float32Array(RING_POINTS * 3)
-  for (let k = 0; k < RING_POINTS; k++) {
-    const t = 2 * Math.PI * k / (RING_POINTS - 1)
-    out[3 * k] = Math.cos(t)
-    out[(3 * k) + 2] = -Math.sin(t)
-  }
-  return out
-}
 
 
 /**
@@ -110,37 +80,6 @@ function newRings(color, n) {
 }
 
 
-/**
- * @param {Array<{text: string, color: number, at: ?Array<number>}>} entries
- * @returns {{sheet: SpriteSheet, sprites: Points}}
- */
-function newLabels(entries) {
-  const sheet = new SpriteSheet(entries.length, entries.map((l) => l.text))
-  for (const l of entries) {
-    sheet.add(...(l.at ?? [0, 0, 0]), l.text, cssColor(l.color))
-  }
-  const sprites = sheet.compile()
-  sprites.frustumCulled = false
-  sprites.raycast = noRaycast
-  return {sheet, sprites}
-}
-
-
-/**
- * @param {object} renderer
- * @param {object} camera a perspective camera
- * @param {Vector3} at a world position
- * @returns {number} how many pixels a metre across at `at` spans
- */
-function pixelsPerMetre(renderer, camera, at) {
-  const target = renderer.getRenderTarget()
-  const height = target ? target.height / renderer.getPixelRatio() : renderer.getSize(tmpRes).y
-  const dist = camera.getWorldPosition(tmpCam).distanceTo(at)
-  return height / (2 * Math.tan(camera.fov * Math.PI / 360) * Math.max(dist, 1))
-}
-const tmpCam = new Vector3
-
-
 /** */
 export default class LagrangeMarks extends Group {
   /**
@@ -178,15 +117,16 @@ export default class LagrangeMarks extends Group {
       labelsDrawn?.call(this.labels.sprites, renderer, scene, camera, ...rest)
     }
     this.add(this.labels.sprites)
-    // The Hill sphere's outline: a unit circle turned to face the camera,
-    // at the secondary, scaled to the radius.
+    // The Hill sphere's outline as the camera sees it (faceOutline), about
+    // the secondary.
     this.hill = new Group
     this.hill.name = 'lagrange.hill'
     this.hillRing = newWideLineStrip(unitCircle(), {name: 'lagrange.hillRing', color: COLORS.hill,
       width: LINE_WIDTH, opacity: HILL_OPACITY})
     const drawn = this.hillRing.onBeforeRender
     this.hillRing.onBeforeRender = (renderer, scene, camera, ...rest) => {
-      this._faceCamera(camera)
+      const seen = faceOutline(this.hillRing, this.hill, this.hillRadius, camera)
+      this.hillRing.material.uniforms.uOpacity.value = seen ? HILL_OPACITY : 0
       drawn.call(this.hillRing, renderer, scene, camera, ...rest)
     }
     this.hill.add(this.hillRing)
@@ -201,11 +141,9 @@ export default class LagrangeMarks extends Group {
         width: LINE_WIDTH, opacity: SYNC_OPACITY})
       ring.scale.setScalar(sync.radius)
       this.syncRing.add(ring)
-      // By its radius: an altitude over the descriptors' mean radius isn't
-      // the usual one, over the equator (GEO's 35,786 km).
-      const km = Math.round(sync.radius / 1e3).toLocaleString('en-US')
-      this.syncLabels = newLabels([{text: `${syncName}, ${km} km radius`, color: COLORS.sync,
-        at: [sync.radius, 0, 0]}])
+      // Short: a label stands above its point by half its width
+      // (SpriteSheet).  The radius is in the info panel.
+      this.syncLabels = newLabels([{text: syncName, color: COLORS.sync, at: [sync.radius, 0, 0]}])
       const ringDrawn = ring.onBeforeRender
       ring.onBeforeRender = (renderer, scene, camera, ...rest) => {
         const px = pixelsPerMetre(renderer, camera, this.syncRing.getWorldPosition(tmpV)) * sync.radius
@@ -237,7 +175,6 @@ export default class LagrangeMarks extends Group {
     this.places.forEach((p, k) => attr.setXYZ(k, p.x, p.y, p.z))
     attr.needsUpdate = true
     this.hill.position.copy(body)
-    this.hill.scale.setScalar(this.hillRadius)
     const labels = this.labels.sheet.positionAttribute
     if (labels) {
       this.places.forEach((p, k) => labels.setXYZ(k, p.x, p.y, p.z))
@@ -272,23 +209,6 @@ export default class LagrangeMarks extends Group {
       sheet.setShown(k, this.points.visible && span >= MIN_LABEL_PX)
     })
     sheet.setShown(POINT_NAMES.length, perMetre * this.hillRadius >= MIN_LABEL_PX)
-  }
-
-
-  /**
-   * Turn the Hill sphere's circle to face the camera: the outline of the
-   * sphere from any side.
-   *
-   * @param {object} camera
-   */
-  _faceCamera(camera) {
-    const hill = this.hill
-    hill.parent?.getWorldQuaternion(tmpQ).invert()
-    camera.getWorldQuaternion(hill.quaternion).premultiply(tmpQ)
-    // The circle is in XZ; the camera looks down its -Z: tip it to XY.
-    hill.quaternion.multiply(tmpQ.setFromAxisAngle(tmpV.set(1, 0, 0), Math.PI / 2))
-    // The renderer takes the ring's model-view matrix after this call.
-    hill.updateMatrixWorld(true)
   }
 
 
