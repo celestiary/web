@@ -412,11 +412,20 @@ export default class CesiumLayers {
     const baseColor = globe.baseColor
     globe.baseColor = Cesium.Color.BLACK
     globe.enableLighting = false
-    // Not the city: its frame is lit (CESIUM.md, "New York", what's left).
+    // The city black, not hidden: its buildings must hide the imagery's
+    // lights on the ground under and behind them.  Hidden, the globe's
+    // lights drew in the city's pixels (the day frame's stencil), Black
+    // Marble's ~500 m texels seen through the buildings: blocky blue bands
+    // on the facades at night's gain (CESIUM.md, "New York", the night's
+    // bands).  Its own lights don't fit this frame yet (what's left).
+    // `_newYorkLightsHidden` puts back the old way, for newYorkDebug's A/B.
     const city = name === 'earth' ? this._newYork?.city : null
+    const hide = city && this._newYorkLightsHidden === true
     const cityShown = city?.renderer.show
-    if (city) {
+    if (hide) {
       city.setShown(false)
+    } else {
+      city?.setOccluding?.(true)
     }
     renderer.setRenderTarget(cesiumRT)
     renderer.getClearColor(this._clearColor)
@@ -441,8 +450,10 @@ export default class CesiumLayers {
       }
       globe.baseColor = baseColor
       globe.enableLighting = true
-      if (city) {
+      if (hide) {
         city.setShown(cityShown)
+      } else {
+        city?.setOccluding?.(false)
       }
     }
     renderer.resetState()
@@ -1416,6 +1427,22 @@ export default class CesiumLayers {
     if (store?.setNewYorkOn && store.newYorkOn !== on) {
       store.setNewYorkOn(on)
     }
+  }
+
+
+  /**
+   * A console diagnostic of the city on a real GPU (newYorkDebug.js; CESIUM.md,
+   * "New York", found on a real GPU): `c.ui.layers.newYorkDebug()` watches
+   * `seconds` of the app's frames, logs the report as JSON and returns it.
+   *
+   * @param {object} [options] {seconds}, default 10
+   * @returns {Promise<object>}
+   */
+  async newYorkDebug(options) {
+    const {runNewYorkDebug} = await import('./newYorkDebug.js')
+    const report = await runNewYorkDebug(this, options)
+    console.log(`[new york] debug: ${JSON.stringify(report)}`)
+    return report
   }
 
 

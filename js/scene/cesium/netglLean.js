@@ -160,6 +160,10 @@ export const CHUNK_CALLS = 4000
  *   frame whatever the host did in between.
  * - `step()` replays one chunk (inside `link.frame`, so straight into the
  *   host); `frame(render)` replays what's left and runs one guest frame.
+ * - Only the set-up is cut: from the first `frame()` on, the calls made
+ *   between frames (each frame end's checkpoint, async loads) are queued and
+ *   replayed whole at the next frame, as the link does, so `chunks` stays 0
+ *   and every frame draws.
  *
  * The guest is made with `stage.transport` and handed to `stage.attach`.
  *
@@ -175,6 +179,8 @@ export function stageLink(link, {bytes = CHUNK_BYTES, programs = CHUNK_PROGRAMS,
   let chunks = 0
   let ctx = null
   let cutting = false
+  // Whether the guest has run a frame: from then on, nothing is cut
+  let framed = false
   let since = {bytes: 0, programs: 0, calls: 0}
   const stats = {queuedCalls: 0, byReferenceBytes: 0, copiedBytes: 0, chunks: 0}
 
@@ -201,7 +207,12 @@ export function stageLink(link, {bytes = CHUNK_BYTES, programs = CHUNK_PROGRAMS,
     if (msg.name === 'linkProgram') {
       since.programs++
     }
-    if (ctx && !cutting && (since.bytes >= bytes || since.programs >= programs || since.calls >= calls)) {
+    // Cut only the set-up.  After the guest's first frame its closed calls are
+    // the checkpoint each frame end posts (~80 calls), and loads between
+    // frames, replayed whole at the next frame; a cut there queues a frame end,
+    // and the frame that steps it draws nothing (the city vanished for a frame
+    // every 4,000 / 80 = 50 frames: CESIUM.md, "New York", the flicker).
+    if (ctx && !cutting && !framed && (since.bytes >= bytes || since.programs >= programs || since.calls >= calls)) {
       cutting = true
       try {
         ctx.endFrame()
@@ -292,6 +303,8 @@ export function stageLink(link, {bytes = CHUNK_BYTES, programs = CHUNK_PROGRAMS,
      * @param {function(): void} render
      */
     frame(render) {
+      framed = true
+      since = {bytes: 0, programs: 0, calls: 0}
       link.frame(() => {
         open = true
         try {

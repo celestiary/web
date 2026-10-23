@@ -193,4 +193,46 @@ describe('stageLink', () => {
     expect(link.replayed.map((m) => m.name ?? m)).toEqual(['bufferData', 'checkpoint', 'bufferData', 'checkpoint', 'deleteBuffer'])
     expect(stage.chunks).toBe(0)
   })
+
+  it('cuts only the set-up: a frame end\'s checkpoints between frames never make a chunk', () => {
+    // The flicker (CESIUM.md, "New York"): each guest frame's end posts its
+    // checkpoint (~80 calls) into the closed link; counted toward a chunk's
+    // calls, every 4,000 / 80 = 50 frames they cut a chunk, and the frame
+    // that stepped it drew no city
+    const link = fakeLink()
+    const stage = stageLink(link)
+    const ctx = {
+      endFrame() {
+        stage.transport.post({type: 'netgl:frame-end'})
+        for (let i = 0; i < 80; i++) {
+          stage.transport.post(call('uniform1i'))
+        }
+      },
+    }
+    stage.attach(ctx)
+    // A set-up of two chunks' calls
+    for (let i = 0; i < 6000; i++) {
+      stage.transport.post(call('bindBuffer'))
+    }
+    expect(stage.chunks).toBe(1)
+    let steps = 0
+    let drawn = 0
+    const render = () => {
+      stage.transport.post(call('drawElements'))
+      drawn++
+      ctx.endFrame()
+    }
+    for (let f = 0; f < 300; f++) {
+      if (stage.chunks > 0) {
+        stage.step()
+        steps++
+      } else {
+        stage.frame(render)
+      }
+    }
+    expect(steps).toBe(1)
+    expect(drawn).toBe(299)
+    // Each checkpoint replayed at the next frame, none left over but the last
+    expect(stage.queued).toBe(80)
+  })
 })

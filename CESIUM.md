@@ -1080,8 +1080,14 @@ coupling](#camera-and-light-coupling)), not Cesium's sun, which follows
 Cesium's clock: the renderer is made with `sun: false` and the light's
 direction is handed to `guest.setSun` once a Cesium frame.
 
-**Not in the night lights' frame.**  That frame is the night imagery's
-stored values on black (Night lights, above); the city is hidden for it.
+**Black in the night lights' frame.**  That frame is the night imagery's
+stored values on black (Night lights, above).  The city is drawn in it
+black (`setOccluding`, the `occlude` switch: its output selected to
+black, its alpha and depth as ever), so its buildings hide the imagery's
+lights on the ground under and behind them; it was hidden there, and the
+lights showed through it ([found on a real GPU](#found-on-a-real-gpu)).
+It costs a second draw of the city in each frame the lights draw (at
+night, every frame).
 
 **Checked headless** (SwiftShader, no ion token: Earth on the bundled Blue
 Marble and the ellipsoid, the city at height 0 over it; slop-newyork and
@@ -1276,14 +1282,13 @@ say `units: 'stored'`, for a host that hands it a frame in stored values):
 
 **What's left.**
 
-- *Night.*  The city is hidden in the night lights' frame, so Black
-  Marble's lights show on the ground under its buildings, and it has no
-  lights of its own.  The guest's emission (windows, lamps, cars) belongs
-  in that frame, drawn alone (lighting off, emission on) at the Black
-  Marble's scale (a full-white texel is `NIGHT_LIGHT_RADIANCE` of a sunlit
-  white), with its surfaces black so they hide the imagery's lights under
-  them; the decode is already the lights' (`newLightsMaterial`).  That's
-  item 3's second mode.
+- *Night.*  The city is black in the night lights' frame, hiding Black
+  Marble's lights under it, but it has no lights of its own.  The guest's
+  emission (windows, lamps, cars) belongs in that frame, drawn alone
+  (lighting off, emission on) at the Black Marble's scale (a full-white
+  texel is `NIGHT_LIGHT_RADIANCE` of a sunlit white), with its surfaces
+  black as now; the decode is already the lights' (`newLightsMaterial`).
+  That's item 3's second mode.
 - *Ground.*  The camera's floor (`groundHeight`, `_keepAboveGround`) is
   Cesium's terrain under it, so over the city it flies through the
   buildings, 1 m over the street.  The city would need to be the ground
@@ -1295,12 +1300,14 @@ say `units: 'stored'`, for a host that hands it a frame in stored values):
   question.
 - *Cost.*  Lean now ([What it costs](#what-it-costs-and-the-lean-city)):
   the city held and drawn by celestiary's context only, its set-up staged
-  over frames.  Its checkpoint (80-odd calls a frame) is still copied,
-  into the stage's queue: portal-netgl 0.4.0's `subFrame()` (unpublished,
-  [portal#34](https://github.com/pablo-mayrgundter/portal/pull/34))
+  over frames.  Its checkpoint (~107 calls a frame) is still copied,
+  into the stage's queue: portal-netgl 0.4.0's `subFrame()`
+  ([portal#34](https://github.com/pablo-mayrgundter/portal/pull/34))
   replays it without the copy, and its `clear: 'none'` would let the
   screen policy, not the guest's `composite`, keep its clears off Cesium's
-  frame.  Not measured on a real GPU.
+  frame.  Neither is needed for a fix (the flicker was the stage's, below),
+  so celestiary stays on 0.3.0 until slop-newyork's `cesiumExternalRenderer`
+  ends its frames with `subFrame()`.  Not measured on a real GPU.
 - *Ion.*  The terrain path (`sampleTerrain` on World Terrain) and the
   city on real ground haven't run here: the session's ion token is
   refused.  Check on the PR preview over Manhattan: the piers at the
@@ -1319,6 +1326,79 @@ say `units: 'stored'`, for a host that hands it a frame in stored values):
   control by where the camera is, and fetched only when switched on, as it
   is now.  The control, the `layers:` token and `newYorkRange` are written to
   carry more such layers (a flag each).
+
+### Found on a real GPU
+
+The user's preview on a Mac (Apple GPU, Brave: ANGLE Metal), with ion.
+
+**The city vanished for a frame every couple of seconds**, almost
+periodically, with the clock paused too.  The lean link's stage
+(`netglLean.js` `stageLink`) cut its queue into chunks by the calls,
+bytes and programs queued while the link was closed, counted since the
+last cut, and never reset them once the set-up was in.  After the city's
+first frame the closed calls are each frame end's checkpoint (107 calls
+at the aerial view; ~80 in portal's three.js test), so every
+4,000 / 107 = 37 frames the count reached `CHUNK_CALLS`, the stage asked
+the guest for a frame end, and the next frame's external renderer saw a
+chunk waiting, replayed it and returned without drawing the city.  At
+the preview's 20-25 fps, every 1.5-2 s; the jitter is the frame rate's.
+Measured headless (320x200, the aerial view from 780 m, the clock paused,
+the app's own loop; per celestiary frame: Cesium's renders, the external
+renderer's calls, whether each replayed a chunk, and the city's draws on
+celestiary's context): 101 frames, two with no city draw (frames 29 and
+66, each a staged call, Cesium rendering and the renderer shown and
+called as in every other frame, which drew 187), 37 frames apart.  Not
+the renderer's `show`, Cesium's culling, `frameNumber` or the night
+lights' frame (the same in the frames before and after), nor the ground,
+the range check or the meter (no cadence of 37).  Now the stage cuts only
+the set-up: from the first `frame()` on, the calls between frames are
+replayed whole at the next frame, as the link does (`stageLink`'s
+`framed`; `netglLean.test.js` reproduces the period on the old code).
+After: 143 frames, every one with the city's 187 draws.  A side effect
+of the old behaviour: the layers control's status (`newYorkStatus`) read
+'loading' on those frames.
+
+**"READ-usage buffer was written, then fenced, but written again before
+being read back"** (3-4 a second in the console) is celestiary's meter,
+not the city's links: headless it shows before the city loads.  Its
+asynchronous readback (`meterReadback.js`) dropped the older of two
+readings that finished at one poll unread, so that buffer's next read
+wrote it again; and it allocated every buffer up front, which Chrome
+counts as a write.  Now every finished reading is copied out and each
+buffer is allocated at its first read: headless, 7-9 warnings a session
+before, none after (HDR.md, the meter's readback).  Its cadence (every
+fourth frame) has nothing to do with the flicker's.
+
+**Blue blocky bands on the buildings at night** (Central Park, from the
+ground, gain ~1.9e6): not reproduced headless.  At the user's view (no
+ion: the ellipsoid, and a flat 20 m terrain standing in for World
+Terrain; Black Marble served from GIBS) the city's 87,000 pixels are 0
+in Cesium's frame and in the scene buffer, and black on the canvas.  Its
+materials' output, checked flag by flag (NaN, negative or infinite rgb,
+and its largest channel × 1e4), is under 2e-7 everywhere.  What could
+put light in those pixels, and
+what the diagnostic below tells apart:
+
+- the city's own rgb in Cesium's 8-bit frame (`dayLit`, its commonest
+  codes): at night's gain any code of 1 is white;
+- the night lights' frame drawing over the city (`lightsAdded`): the city
+  was hidden in that frame, so wherever Earth's globe is behind or under
+  its buildings, Black Marble's ~500 m texels drew through them, blocky
+  and blue at that gain (its unlit land is dark blue).  Fixed regardless
+  (the city is black there now); the diagnostic measures it both ways;
+- holes, the sky through the city (`holes`): its pixels that read the same
+  with and without it.
+
+`c.ui.layers.newYorkDebug({seconds})` (newYorkDebug.js), in the console
+with the city in view, watches the app's frames for `seconds` (default
+10), then reads two frames back, with the city and without, twice (the
+night lights' frame with the city black, and hidden as before), and logs
+`[new york] debug: {...}`: the frames (fps, those that drew no city and
+the frames between them, staged calls, Cesium's renders a frame), the
+pixels (`city`, `dayLit`, `dayCodes`, `lightsAdded`, `sceneLit`,
+`sceneMax`, `holes`), the GPU, the gain, the camera's height and
+whether Cesium has it underground, the terrain provider, and the guest's
+lights.
 
 ## Patching Cesium
 

@@ -204,6 +204,17 @@ export async function createNewYork({Cesium, netgl, widget, guestBase, shadows =
     setShown(on) {
       renderer.show = on
     },
+    /**
+     * @param {boolean} on The city drawn black (its alpha and depth as
+     *   ever) while on: an occluder, for the night lights' frame
+     *   (CesiumLayers._drawNightLights), where the globe's lights under and
+     *   behind its buildings must not show through them
+     */
+    setOccluding(on) {
+      if (guest.celestiary?.occlude) {
+        guest.celestiary.occlude.value = on ? 1 : 0
+      }
+    },
     /** Each frame: follow the globe's terrain when it changes (ion's World Terrain arriving). */
     update() {
       if (disposed || regrounding || scene.terrainProvider === terrain) {
@@ -345,7 +356,8 @@ export function inCelestiaryUnits(guest) {
  * composite's decode (HDR.md, "Colour spaces: stored values"; CESIUM.md,
  * "New York", the colour contract): stored value × the Sun's light, linear
  * in the light, and nothing emitted.  Three switches, as uniforms on
- * `guest.celestiary` (1, 1, 0 here; 0, 1, 1 is the guest's own output):
+ * `guest.celestiary` (1, 1, 0 here; 0, 1, 1 is the guest's own output), and a
+ * fourth for the night lights' frame:
  *
  * - `stored`: each material's diffuse colour, which three has decoded from
  *   sRGB to linear, encoded back before it is lit, and the output linear
@@ -355,6 +367,9 @@ export function inCelestiaryUnits(guest) {
  * - `daylight`: unlit materials (lights false: signs, sprites) are their
  *   colour whatever the light, as if lit by the Sun; scaled by daylight
  *   (inCelestiaryUnits), they are dark at night like the rest.
+ * - `occlude` (0 here): the whole output black, alpha and depth as ever,
+ *   for the night lights' frame, where the city hides the globe's lights
+ *   under it (CesiumLayers._drawNightLights; setOccluding).
  * - `emission`: emissive light (windows, signals) and the city's lamps
  *   (point and spot lights) times this.  It
  *   doesn't fit the frame (CESIUM.md, "Night lights": a lit surface up to
@@ -367,7 +382,7 @@ export function inCelestiaryUnits(guest) {
  * (setupDiffuseColor, emissiveNode) through the guest's own three.
  *
  * @param {object} guest
- * @returns {object|null} {stored, daylight, emission}, or null if the
+ * @returns {object|null} {stored, daylight, emission, occlude}, or null if the
  *   guest's three lacks the nodes
  */
 export function inCelestiaryFrame(guest) {
@@ -376,8 +391,8 @@ export function inCelestiaryFrame(guest) {
     console.warn('[new york] the guest\'s three has no diffuseColor or sRGBTransferOETF; its colours stay its own')
     return null
   }
-  const {diffuseColor, mix, sRGBTransferOETF, uniform, vec4} = TSL
-  const u = {stored: uniform(1), daylight: uniform(1), emission: uniform(0)}
+  const {diffuseColor, mix, output, select, sRGBTransferOETF, uniform, vec4} = TSL
+  const u = {stored: uniform(1), daylight: uniform(1), emission: uniform(0), occlude: uniform(0)}
   const seen = new Set()
   guest.scene.traverse((obj) => {
     for (const m of [obj.material ?? []].flat()) {
@@ -394,6 +409,12 @@ export function inCelestiaryFrame(guest) {
       }
       if (m.emissiveNode) {
         m.emissiveNode = m.emissiveNode.mul(u.emission)
+      }
+      // Black while `occlude` (the night lights' frame): selected, not
+      // multiplied, so nothing the material computes (a NaN) gets through
+      if (select && output) {
+        const shaded = vec4(m.outputNode ?? output)
+        m.outputNode = select(u.occlude.greaterThan(0.5), vec4(0, 0, 0, shaded.a), shaded)
       }
       const key = m.customProgramCacheKey
       m.customProgramCacheKey = function() {
