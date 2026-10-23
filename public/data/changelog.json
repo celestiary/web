@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "id": "2026-10-23-halo-orbits-gateway-s-nrho-and-the-spirographs",
+      "date": "2026-10-23",
+      "headline": "Halo orbits, Gateway's NRHO and the spirographs of three-body space",
+      "text": "The orbits spacecraft fly around Lagrange points can now be drawn. Open a planet's or moon's info panel, and under space around switch on its halo, Lyapunov and distant retrograde orbits, or around the Moon the near-rectilinear halo orbit that NASA's Gateway station is planned for. They are drawn moving with the pair of bodies, where their shapes make sense, or fixed in space, where they trace the spirograph loops seen from Earth.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 283,
+          "url": "https://github.com/celestiary/web/pull/283"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth/moon",
+      "image": null
+    },
+    {
       "id": "2026-10-23-earth-s-orbital-neighbourhoods-leo-gps-molniya",
       "date": "2026-10-23",
       "headline": "Earth's orbital neighbourhoods: LEO, GPS, Molniya and the edge of cislunar space",
