@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'bun:test'
-import {sgp4, twoline2satrec} from 'satellite.js'
+import {json2satrec, sgp4, twoline2satrec} from 'satellite.js'
 import {
-  WINDOW_DAYS, inWindow, newSatRecord, parseCatalog, periodMinutes, rowToOmm, temePosition, temeToEquator,
+  WINDOW_DAYS, epochToJd, inWindow, newSatRecord, parseCatalog, periodMinutes, rowToOmm, temePosition, temeToEquator,
   unixMsToJd,
 } from './sgp4.js'
 
@@ -47,6 +47,16 @@ describe('sgp4', () => {
       expect(dist(p, sgp4(tle, minutes).position)).toBeLessThan(0.01)
     }
     expect(dist(temePosition(rec, rec.epochJd), VALLADO_00005_T0)).toBeLessThan(0.01)
+  })
+
+  it('reads the epoch as SGP4 does, to a millisecond, and makes SGP4\'s state only when asked', () => {
+    const rec = newSatRecord(OMM_00005)
+    const satrec = json2satrec(OMM_00005)
+    expect(Math.abs(rec.epochJd - (satrec.jdsatepoch + (satrec.jdsatepochF ?? 0))) * 86400e3).toBeLessThan(1)
+    expect(epochToJd('2000-01-01T12:00:00')).toBe(2451545)
+    expect(epochToJd('2000-01-01T12:00:00.5')).toBeCloseTo(2451545 + (0.5 / 86400), 10)
+    expect(epochToJd('not a date')).toBeNaN()
+    expect(rec.satrec).toBe(rec.satrec)
   })
 
   it('reads a snapshot row as the OMM it came from', () => {

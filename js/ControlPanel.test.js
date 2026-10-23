@@ -5,7 +5,7 @@ import Measure from '@pablo-mayrgundter/measure.js'
 // The real module, by a name the process-global mock of './ControlPanel'
 // (Celestiary.test.js) doesn't take.
 const realSpecifier = './ControlPanel.js?real'
-const {default: ControlPanel, periodText, sci} = await import(realSpecifier)
+const {default: ControlPanel, countToSlider, periodText, sci, sliderToCount} = await import(realSpecifier)
 
 
 /** Io's orbit, as its descriptor has it. */
@@ -14,6 +14,49 @@ const IO_ORBIT = {
   semiMajorAxis: 421800000.0, eccentricity: 0.004, inclination: 0.0, longitudeOfAscendingNode: 0.0,
   argumentOfPericenter: 49.1, meanAnomaly: 330.9, period: 1.762732, periodOf: 'meanAnomaly',
   apsidalPeriod: -1.333, nodalPeriod: 0, siderealOrbitPeriod: 152853.509808,
+}
+
+
+/** @returns {object} a population as the panel reads it: two groups, three objects */
+function fakePopulation() {
+  const pop = {
+    title: 'Orbiters',
+    shown: {nasa: true, esa: false},
+    labelBudget: 1,
+    groups: () => [
+      {key: 'nasa', label: 'NASA', color: '#ffffff', count: 2, shown: pop.shown.nasa},
+      {key: 'esa', label: 'ESA', color: '#c8c8c8', count: 1, shown: pop.shown.esa},
+    ],
+    maxLabels: () => (pop.shown.nasa ? 2 : 0) + (pop.shown.esa ? 1 : 0),
+  }
+  return pop
+}
+
+
+/**
+ * @param {object} [dataset]
+ * @param {object} [props]
+ * @param {object} [children] by selector
+ * @returns {object} an element, as far as _wirePopulation uses one
+ */
+function fakeElt(dataset = {}, props = {}, children = {}) {
+  const listeners = {}
+  const classes = new Set
+  return {
+    dataset, ...props, textContent: '',
+    classList: {
+      contains: (c) => classes.has(c), has: (c) => classes.has(c),
+      toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
+    },
+    setAttribute() {/* aria */},
+    addEventListener: (type, fn) => {
+      listeners[type] = fn
+    },
+    fire(type) {
+      listeners[type]?.({key: '', preventDefault() {/* none */}})
+    },
+    querySelector: (sel) => children[sel] ?? null,
+  }
 }
 
 
@@ -204,6 +247,133 @@ describe('ControlPanel', () => {
     expect(space.html.indexOf('Three-body orbits')).toBeGreaterThan(space.html.indexOf('Hill sphere'))
   })
 
+  it('gives a body with a population a section: its groups as switches, and a names slider', () => {
+    const panel = new ControlPanel(null, null)
+    expect(panel.populationSectionHtml('earth')).toBe('')
+    const pop = fakePopulation()
+    panel.populationHooks = {of: (body) => (body === 'mars' ? pop : null)}
+    expect(panel.populationSectionHtml('earth')).toBe('')
+    const html = panel.populationSectionHtml('mars')
+    // Named for the link's `info:` token, as the other sections are.
+    expect(html).toContain('data-prop="population"')
+    expect(html).toContain('Orbiters')
+    expect(html).toContain('3 in 2 groups')
+    expect(html).toContain('class="population-group on" data-body="mars" data-key="nasa"')
+    expect(html).toContain('class="population-group" data-body="mars" data-key="esa"')
+    expect(html).toContain('style="background: #ffffff"')
+    expect(html).toContain('<input type="range" min="0" max="2" step="1" value="1"')
+  })
+
+  it('switches a group and moves the names slider through the hooks', () => {
+    const pop = fakePopulation()
+    const calls = []
+    const panel = new ControlPanel(null, null)
+    panel.populationHooks = {
+      of: () => pop,
+      setGroup: (body, key, on) => {
+        calls.push(['group', body, key, on])
+        pop.shown[key] = on
+      },
+      setLabels: (body, n) => {
+        calls.push(['labels', body, n])
+        pop.labelBudget = n
+      },
+    }
+    const chip = fakeElt({body: 'mars', key: 'esa'})
+    const input = fakeElt({}, {value: '1', max: '2'})
+    const value = fakeElt()
+    const slider = fakeElt({body: 'mars'}, {}, {input, '.population-labels-value': value})
+    panel.containerElt = {
+      querySelectorAll: (sel) => (sel === '.population-group' ? [chip] : []),
+      querySelector: (sel) => (sel === '.population-labels' ? slider : null),
+    }
+    panel._wirePopulation()
+    chip.fire('click')
+    expect(calls).toEqual([['group', 'mars', 'esa', true]])
+    expect(chip.classList.has('on')).toBe(true)
+    // The slider's reach follows the groups shown.
+    expect(input.max).toBe('3')
+    input.value = '3'
+    input.fire('input')
+    expect(calls.at(-1)).toEqual(['labels', 'mars', 3])
+    expect(value.textContent).toBe('3')
+  })
+
+  it('gives a counted group its own slider, how many of it show, square-root spaced', () => {
+    const pop = fakePopulation()
+    let count = 300
+    const groups = pop.groups
+    pop.groups = () => [...groups(), {key: 'starlink', label: 'Starlink', color: '#7fd0ff', count: 11116, shown: true,
+      limit: count, orderedBy: 'serial number'}]
+    const calls = []
+    const panel = new ControlPanel(null, null)
+    panel.populationHooks = {of: () => pop, setCount: (body, key, n) => {
+      calls.push([body, key, n])
+      count = n
+    }}
+    const html = panel.populationSectionHtml('earth')
+    expect(html).toContain('class="population-count" data-body="earth" data-key="starlink" data-total="11116"')
+    expect(html).toContain(`max="1000" step="1" value="${countToSlider(300, 11116)}"`)
+    expect(html).toContain('300 of 11,116, by serial number')
+    // A few at the low end, all at the top.
+    expect(sliderToCount(0, 11116)).toBe(0)
+    expect(sliderToCount(1, 11116)).toBe(1)
+    expect(sliderToCount(1000, 11116)).toBe(11116)
+    expect(sliderToCount(countToSlider(300, 11116), 11116)).toBeCloseTo(300, -1)
+    const input = fakeElt({}, {value: '1000'})
+    const value = fakeElt()
+    const el = fakeElt({body: 'earth', key: 'starlink', total: '11116'}, {}, {input, '.population-count-value': value})
+    panel.containerElt = {
+      querySelectorAll: (sel) => (sel === '.population-count' ? [el] : []),
+      querySelector: () => null,
+    }
+    panel._wirePopulation()
+    input.fire('input')
+    expect(calls).toEqual([['earth', 'starlink', 11116]])
+    expect(value.textContent).toBe('all, by serial number')
+  })
+
+  it('searches the population, keeps the query through a redraw, and targets or goes to a result', () => {
+    const pop = fakePopulation()
+    const calls = []
+    const mro = {displayName: 'MRO', payload: {group: 'nasa', target: {kind: 'satellite', id: 1, body: 'mars'}}}
+    const panel = new ControlPanel(null, null)
+    panel.populationHooks = {
+      of: () => pop,
+      search: (body, text) => {
+        calls.push(['search', body, text])
+        return text === 'mr' ? [mro] : []
+      },
+      pick: (body, id, go) => calls.push(['pick', body, id, go]),
+    }
+    let html = panel.populationSectionHtml('mars')
+    expect(html).toContain('placeholder="Search orbiters…"')
+    expect(html).toContain('<ul class="population-results" id="population-results-mars" role="listbox"></ul>')
+    // Typed: its results, the first highlighted.
+    const listeners = {}
+    const field = {value: 'mr', addEventListener: (t, fn) => (listeners[`field:${t}`] = fn)}
+    const list = {innerHTML: '', addEventListener: (t, fn) => (listeners[`list:${t}`] = fn),
+      querySelectorAll: () => []}
+    const box = {dataset: {body: 'mars'}, querySelector: (sel) => (sel === 'input' ? field : list)}
+    panel.containerElt = {querySelectorAll: () => [], querySelector: (sel) => (sel === '.population-search' ? box : null)}
+    panel._wirePopulation()
+    listeners['field:input']()
+    expect(list.innerHTML).toContain('class="population-result active" role="option" aria-selected="true" data-id="1"')
+    expect(list.innerHTML).toContain('MRO <span class="info-unit">NASA</span>')
+    // Picking redraws the panel: the query and its results stay.
+    html = panel.populationSectionHtml('mars')
+    expect(html).toContain('value="mr"')
+    expect(html).toContain('data-id="1"')
+    const li = {dataset: {id: '1'}}
+    const target = {closest: () => li}
+    listeners['list:click']({target})
+    listeners['list:dblclick']({target})
+    expect(calls.filter((c) => c[0] === 'pick')).toEqual([['pick', 'mars', 1, false], ['pick', 'mars', 1, true]])
+    field.value = 'zz'
+    listeners['field:input']()
+    expect(list.innerHTML).toContain('No match')
+  })
+
   it('lists the craft that can be flown about the body, with a flown one\'s facts', () => {
     const panel = new ControlPanel(null, null)
     expect(panel.craftHtml('earth')).toBe('')
@@ -213,6 +383,8 @@ describe('ControlPanel', () => {
     expect(html).toContain('<div class="info-subhead">Craft</div>')
     expect(html).toContain('<dt>transfer to the Moon</dt>')
     expect(html).toContain('<span class="craft-facts">leaves 2026-10-23</span>')
+    // refreshCraft with no panel on the page: nothing to write.
+    panel.refreshCraft()
   })
 
   it('writes masses in scientific notation', () => {

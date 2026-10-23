@@ -13,6 +13,9 @@ scope 5: the low-energy transfers and the cyclers.
 - `js/scene/craft/lambert.js`: Lambert's problem, the first guesses.
 - `js/scene/craft/transfer.js`: a transfer from a parking orbit to the Moon,
   targeted in the full model.
+- `js/scene/craft/blt.js`: the ballistic lunar transfer, designed backward
+  from the Moon; `tools/craft/designBlt.mjs` makes the ones the app offers
+  (`public/data/blt.json`).
 - `js/scene/craft/catalog.js`: the flights the app offers, as the panel
   and the link know them; `js/scene/craft/flights.js`: how each is made
   from a departure, loaded the first time one is flown, with everything
@@ -194,10 +197,101 @@ ends; and at arrival, the Moon's Hill sphere on the path's end.
 ![Midway](../../screens/craft-11/transfer-midway.png)
 ![Arrival](../../screens/craft-11/transfer-arrival.png)
 
+## The ballistic lunar transfer
+
+#272's scope 5: the low-energy way to the Moon GRAIL (2011) and CAPSTONE
+(2022) flew.  From a low parking orbit the craft goes out to about 1.5
+million km, toward the Sun–Earth L1 or L2; there the Sun's tide turns its
+orbit and raises its perigee to the Moon's distance, and it falls back to
+the Moon three to four months later almost at rest relative to it.  It
+costs some 60 m/s more to leave than a direct transfer, and 100 to 250 m/s
+less to stop at the Moon.  In the circular restricted problems it rides the
+Sun–Earth L1 or L2 orbits' manifolds out and the Earth–Moon ones in
+([Lagrange.md, manifolds](Lagrange.md#manifolds)); here it is made directly
+in the full model, where the Sun's place is VSOP87C's.
+
+**Designed backward** (`blt.js` `designBlt`), as Parker and Anderson do
+(*Low-Energy Lunar Trajectory Design*, JPL DESCANSO 2014, ch. 3):
+
+- **Fix the arrival**: its date, a perilune 100 km over the Moon, and the
+  energy about the Moon there, C3 −0.02 km²/s² (nearly parabolic: GRAIL-A
+  and CAPSTONE arrived at −0.03 and −0.05 in Horizons; a direct transfer
+  arrives at about +0.7).
+- **Scan** the perilune round the Moon in its orbit plane, every 2°, both
+  ways about it, and integrate each back 170 days.  Keep those whose least
+  distance from the Earth, once they have been past 800,000 km, is under
+  60,000 km.
+- **Newton's method** on the perilune's angle and its velocity's tilt out
+  of the plane (the least step, one equation in two unknowns) puts that
+  perigee at the 185 km parking orbit.  It runs at the scan's tolerance
+  (1e-10) until within 100 km, then at 1e-12.
+- **The Earth is a point mass through the scan**: a path through it still
+  has a least distance, smooth in the parameters, where one stopped at the
+  surface has the surface's, and Newton's method stalled on it.  Paths
+  within 1,000 km of the centre are dropped.
+- **A departure date is a preference, not a target**: given one, the
+  design converges six candidates and keeps the one leaving nearest it.
+  The perigee's time jumps between passes (the arc is long, and chaotic),
+  and Newton's method on it as a second target didn't converge.
+- **1.5 to 3 s a design** in bun, so the app doesn't design them:
+  `tools/craft/designBlt.mjs` designs one arriving each week from 2026 Nov
+  1 to 2028 Dec 31 (112 of 114 weeks have one, 75 to 168 days long) into
+  `public/data/blt.json` (28 KB, loaded the first time one is flown).  It
+  keeps the departure and its state as computed: the arc grows an error ten
+  thousand-fold, and a departure rounded to a microday (0.09 s, a kilometre
+  along the path at perigee) arrived 16,000 km off.
+
+**Flown in the app** (`flights.js` `ballisticTransfer`): the first design
+leaving on or after the clock's day, from its departure state to its
+arrival.  It waits for VSOP87C itself (`needsVsop`): the stand-in's Sun,
+0.007° off, would move the arrival.  The panel gives the departure, the
+burn, how far out it goes, the days, and the burn into a circular orbit at
+the Moon; past the last design, "none designed from this date".
+
+Drawn in headless Chromium, the first design leaving after 2026 Oct 23
+(97 days, 3,205 m/s, out to 1.41 million km, arriving 99.93 km over the
+Moon, 672 m/s into a circular orbit there), 40% of the way, from 5 million km over the ecliptic
+with the Sun up: out on the Sun's side, round, and back into the Moon's
+orbit (blue) to meet it.  Switched on by its panel switch, drawn 0.7 and
+2.5 s later in two runs (its data loaded, VSOP87C in, the flight flown),
+and the panel's row rewritten with its facts.
+
+![A ballistic lunar transfer](../../screens/blt-272/blt.png)
+
+**Checked** (`blt.test.js`, `blt.horizons.json` from
+`tools/craft/fetchHorizons.mjs blt`, which records its queries):
+
+- **The missions, in Horizons**: GRAIL-A left at C3 −0.71 km²/s²; both went
+  out to 1.51 and 1.54 million km, about 21° off the Sun's direction; both
+  arrived nearly parabolic.  CAPSTONE's farthest, 1,538,320 km on 2022 Aug
+  26, is the 1.538 million km on 26 August that Advanced Space and Terran
+  Orbital reported.
+- **The force model where the Sun pulls as the Earth does**: CAPSTONE's
+  coast, 2022 Jul 14 to 24, 0.86 million km out, flown ten days from
+  Horizons' state: 29 km off without the light pressure, 9 km with 0.01
+  m²/kg (a 25 kg craft), and a steady 0.6 km a day the pressure doesn't
+  explain, likely its momentum dumps.
+- **A design between each mission's dates**, against the mission:
+
+| | GRAIL-A | designed | CAPSTONE | designed |
+|---|---|---|---|---|
+| Days | 112 | 118.5 | 132 | 123.2 |
+| Farthest, million km | 1.51 | 1.57 | 1.54 | 1.62 |
+| C3 leaving, km²/s² | −0.71 | −0.61 | (left a Photon stage) | −0.53 |
+
+  Each leaves at C3 −0.45 to −0.8, burns 40 to 80 m/s more than a direct
+  transfer from 185 km, goes out to within 15% of the mission's farthest,
+  within 45° of the Sun–Earth line, and saves 100 to 250 m/s into a 100 km
+  circular orbit (GRAIL's design saved about 130 m/s into its ellipse,
+  second-hand).  Flown forward from its burn, it arrives within a kilometre
+  of its 100 km perilune.
+- **The designs the app offers**, two of them flown: each arrives within a
+  kilometre of 100 km, 600 to 720 m/s from a circular orbit there.
+
 ## Not yet
 
-- **The ballistic lunar transfer** via the Sun–Earth L1 or L2, as GRAIL's
-  and CAPSTONE's, on the manifolds ([Lagrange.md, manifolds](Lagrange.md#manifolds)).
+- **The ballistic lunar transfer in the Sun–Earth turning frame**, where its
+  loop out toward L1 or L2 reads as the textbooks draw it.
 - **The cyclers**: Aldrin's Earth–Mars cycler and an Earth–Moon one.
 - **Thrust, and a craft the user flies** (#2, #119).
 - **The lunar orbit after the perilune**, and the parking orbit before the

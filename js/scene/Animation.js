@@ -96,6 +96,10 @@ export default class Animation {
     // from the series loading to the next frame, else the clock then.
     this._handover = null
     this._loadRequested = this.vsop !== null
+    // Set once the scene is up (loadEphemeris, at the reveal or the safety
+    // net), whether or not VSOP87C was already in: what waits for it (a
+    // spacecraft's trajectory table) mustn't come with the first load.
+    this._sceneUp = false
     this._firstFrameAt = null
     // The stand-in's positions for a frame's placement, and for the orbit
     // lines' samples (vsopAt): apart, so sampling a line doesn't overwrite
@@ -121,6 +125,9 @@ export default class Animation {
     this._orbitPos = new Vector3
     this._lineBody = new Vector3
     this._invQuat = new Quaternion
+    // turnToSun's.
+    this._sunPos = new Vector3
+    this._craftPos = new Vector3
     this._invMat = new Matrix4
     // A pair's frame for its Lagrange points (layLagrange).
     this._lagrangeQ = new Quaternion
@@ -160,6 +167,7 @@ export default class Animation {
    *   fetching it failed: the stand-in carries on
    */
   loadEphemeris() {
+    this._sceneUp = true
     if (this._loadRequested) {
       return loadingVsop ?? Promise.resolve()
     }
@@ -252,7 +260,7 @@ export default class Animation {
    * still gets VSOP87C, a few seconds after its first frame.
    */
   _loadLater() {
-    if (this._loadRequested) {
+    if (this._sceneUp) {
       return
     }
     const now = this.clock()
@@ -348,6 +356,14 @@ export default class Animation {
       }
     }
 
+    // A spacecraft's place, from its trajectory table (Spacecraft.js).
+    if (system.trajectory !== undefined) {
+      this.placeOnTrajectory(system)
+    }
+    if (system.attitude?.sunAxis && system.visible) {
+      this.turnToSun(system)
+    }
+
     // This is referred to by a comment in scene.js#addOrbitingPlanet.
     if (system.orbit) {
       // Get an object with the (x,y,z) coordinates of each planet.
@@ -402,6 +418,65 @@ export default class Animation {
     }
 
     system.children.forEach((child) => this.animateSystem(child))
+  }
+
+
+  /**
+   * A spacecraft's place relative to its parent, from its trajectory table
+   * (trajectory.js), shown only over the table's span.  The table is asked
+   * for once the scene is up (loadEphemeris: the reveal, or the safety net
+   * after the first frame), even with VSOP87C already in: it isn't in the
+   * first load.
+   *
+   * @param {Object3D} orbitPosition A spacecraft's
+   */
+  placeOnTrajectory(orbitPosition) {
+    const trajectory = orbitPosition.trajectory
+    if (!trajectory) {
+      if (this._sceneUp) {
+        orbitPosition.loadTrajectory?.()
+      }
+      orbitPosition.body.visible = false
+      return
+    }
+    const p = trajectory.scenePositionAt(this.jd, this._tmpVec)
+    if (p) {
+      orbitPosition.position.copy(p)
+    }
+    orbitPosition.body.visible = p !== null
+  }
+
+
+  /**
+   * Turn a spacecraft's model so its sun axis (the descriptor's
+   * `attitude.sun`) points at the Sun, by the shortest turn from the
+   * scene's axes.  JWST keeps its sunshield toward the Sun; its roll about
+   * that line, and the pitch it is allowed off it, aren't modelled.
+   *
+   * @param {Object3D} node A spacecraft's (scene.objects[name])
+   */
+  turnToSun(node) {
+    const attitude = node.attitude
+    const sun = this._sunPos
+    const here = this._craftPos
+    // The parents were placed this frame (animateSystem goes down the tree);
+    // getWorldPosition brings their matrices up to date.
+    node.getWorldPosition(here)
+    let root = node.parent
+    while (root.parent && root.name !== 'WorldGroup') {
+      root = root.parent
+    }
+    // The Sun is at the WorldGroup's origin.
+    root.getWorldPosition(sun)
+    const dir = sun.sub(here)
+    if (dir.lengthSq() === 0) {
+      return
+    }
+    // Into the node's frame (the chain above it only translates, but be
+    // exact).
+    node.getWorldQuaternion(this._invQuat).invert()
+    dir.applyQuaternion(this._invQuat).normalize()
+    attitude.quaternion.setFromUnitVectors(attitude.sunAxis, dir)
   }
 
 
