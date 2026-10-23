@@ -56,6 +56,8 @@ describe('DSN Now', () => {
     expect(links.map((l) => l.dish)).not.toContain('DSS14')
     const vgr1 = links.find((l) => l.spacecraft === 'VGR1')
     expect(vgr1).toMatchObject({dish: 'DSS63', site: 'mdscc', name: 'Voyager 1', up: false, down: true, rangeKm: 25800000000})
+    // NAIF's id, from the signals' spacecraftID: an alias layer mode publishes.
+    expect(vgr1.naifId).toBe(-31)
     const sta = links.find((l) => l.spacecraft === 'STA')
     expect(sta).toMatchObject({up: true, down: true, rangeKm: null})
     expect(spacecraftName('XYZ', CONFIG)).toBe('XYZ')

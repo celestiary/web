@@ -39,15 +39,19 @@ export function isAllowedOrigin(origin, allowed = ALLOWED_ORIGINS) {
 
 
 /**
- * The host's origin, from the page's `?host=` or its referrer, if allowed.
+ * The host's origin, as portal RFC 0001 §10.2 and portal-netgl 0.4.0's
+ * `resolveParentOrigin` find it: `location.ancestorOrigins[0]` (Chromium,
+ * WebKit), else the referrer's origin (Firefox), else `?host=`.  Each only
+ * if it's on the allow-list: the URL may pick an allowed origin, never add
+ * one.
  *
- * @param {object} loc {search, referrer}
+ * @param {object} loc {search, referrer, ancestors (location.ancestorOrigins)}
  * @param {Array<string>} [allowed]
  * @returns {?string}
  */
-export function hostOrigin({search = '', referrer = ''}, allowed = ALLOWED_ORIGINS) {
+export function hostOrigin({search = '', referrer = '', ancestors = null}, allowed = ALLOWED_ORIGINS) {
   const fromQuery = new URLSearchParams(search).get('host')
-  const candidates = [fromQuery, referrer && safeOrigin(referrer)]
+  const candidates = [ancestors?.length ? ancestors[0] : null, referrer && safeOrigin(referrer), fromQuery]
   return candidates.find((o) => o && isAllowedOrigin(o, allowed)) ?? null
 }
 
@@ -68,8 +72,10 @@ function safeOrigin(url) {
 /**
  * A NetGL transport to the host (portal-netgl's NetGLTransport shape:
  * `post` and `onMessage`), that drops any message from another window or a
- * disallowed origin, and posts only to the host's origin.  portal-netgl
- * 0.3.0's windowTransport filters by source but not origin.
+ * disallowed origin, and posts only to the host's origin.  On the wire the
+ * same as portal-netgl 0.4.0's `parentTransport({hostOrigins})` (an exact
+ * targetOrigin; inbound checked by source and origin), which replaces it
+ * once 0.4.0 is published; 0.3.0's windowTransport checks source only.
  *
  * @param {object} opts
  * @param {object} opts.target the host's window (`parent`)

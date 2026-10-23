@@ -10,14 +10,15 @@ import {serveLayer} from './protocol.js'
 // a cross-origin iframe.  The host's view and clock drive it; it draws into
 // the host's context with no clears, testing the host's depth.
 //
-//   layer.html?host=<origin>&nets=S,I,D&sats=1
+//   layer.html?nets=S,I,D&sats=1[&host=<origin>]
 //
-// `host` names the host's origin (else the referrer's), which must be on the
-// allow-list (origins.js); nothing is sent or taken otherwise.
+// The host's origin comes from location.ancestorOrigins, else the
+// referrer, else `host`, and must be on the allow-list (origins.js), a
+// constant of the build; nothing is sent or taken otherwise.
 
 
 const params = new URLSearchParams(location.search)
-const origin = hostOrigin({search: location.search, referrer: document.referrer})
+const origin = hostOrigin({search: location.search, referrer: document.referrer, ancestors: location.ancestorOrigins})
 if (!origin || window.parent === window) {
   document.body.textContent = 'celestiary layer mode: embed this page in an allowed host (design/LayerMode.md).'
 } else {
@@ -39,6 +40,9 @@ if (!origin || window.parent === window) {
     transport, layer, loaded,
     render: () => layer.render(renderer),
     endFrame: () => guest.endFrame(),
+    // NetGL's handshake, which portal-netgl 0.4.0's host waits on; an
+    // overlay has no door, so the anchor is nominal.
+    announce: () => guest.announce({position: [0, 0, 0], normal: [0, 0, 1], up: [0, 1, 0]}),
     resize: ([x, y, w, h], pixelRatio) => {
       const key = `${x},${y},${w},${h},${pixelRatio}`
       if (key !== size) {

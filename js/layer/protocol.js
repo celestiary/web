@@ -2,42 +2,59 @@ import {EXTENT_M} from './OrbitsLayer.js'
 
 
 // Layer mode's control plane, guest side (design/LayerMode.md, "The
-// contract"): the messages beside NetGL's call stream, named as portal's
-// docs/portal-layers.md has them.  Transport-agnostic and DOM-free, so the
-// test drives it with a fake transport and layer.
+// contract"), wire-compatible with portal-netgl 0.4.0's deck.gl host
+// (`attachNetGLDeckLayer`, portal #36) and shaped as portal RFC 0001 has it
+// (§6 the view, §7 time, §8 anchors, §10 the handshake):
+//
+//   - NetGL's own handshake, `netgl:ready` until `netgl:ready-ack`
+//     (`announce`): 0.4.0's host sends no view before it.
+//   - `layer:hello` beside it, until `layer:hello-ack`, a `netgl:ready-ack`
+//     or a first view says the host is there (0.4.0 doesn't ack it).
+//   - `layer:view {viewId, view: {frame, viewMatrix, projectionMatrix,
+//     viewport, pixelRatio, timeMs, earth}}`: one frame each, ending with
+//     `netgl:frame-end`, which is the receipt 0.4.0's host waits on
+//     (`receiver.onFrame`) before its next view.
+//   - `layer:anchors` after a frame only while something is subscribed.
+//
+// Transport-agnostic and DOM-free, so the test drives it with fakes.
 
 
 /** The protocol's version, in `layer:hello`. */
 export const LAYER_PROTOCOL_VERSION = 1
-/** `layer:hello` is repeated this often until the host acks it, ms. */
+/** `layer:hello` is repeated this often until the host is heard from, ms. */
 export const HELLO_RESEND_MS = 500
 
 
 /**
  * @param {object} opts
  * @param {object} opts.transport `post(msg)` and `onMessage(fn)`
- * @param {object} opts.layer an OrbitsLayer (applyView, setTime, anchors, subscribe, dispose)
+ * @param {object} opts.layer an OrbitsLayer (applyView, anchors, subscribe, subscribed, dispose)
  * @param {Function} opts.render draw the layer's frame into the guest context
- * @param {Function} opts.endFrame end the NetGL frame (guest.endFrame)
+ * @param {Function} opts.endFrame end the NetGL frame (guest.endFrame: `netgl:frame-end`)
+ * @param {Function} [opts.announce] post NetGL's `netgl:ready` until acked (guest.announce)
  * @param {Function} [opts.resize] (viewport, pixelRatio) before a frame
  * @param {Promise<Array<string>>} opts.loaded the layer's load (its failures)
  * @param {Function} [opts.nowMs]
  * @param {object} [opts.timers] {setInterval, clearInterval}
  * @returns {{stop: Function, state: object}}
  */
-export function serveLayer({transport, layer, render, endFrame, resize = null, loaded, nowMs = () => Date.now(),
-  timers = globalThis}) {
-  const state = {acked: false, ready: false, hidden: false, clock: null, pending: null, frames: 0, stopped: false}
+export function serveLayer({transport, layer, render, endFrame, announce = null, resize = null, loaded,
+  nowMs = () => Date.now(), timers = globalThis}) {
+  const state = {heard: false, ready: false, hidden: false, clock: null, pending: null, frames: 0, stopped: false}
   const post = (msg) => transport.post(msg)
   const hello = () => post({
-    type: 'layer:hello', version: LAYER_PROTOCOL_VERSION, kind: 'celestiary-orbits',
-    capabilities: {anchors: true, time: true, labels: false},
-    contracts: {depth: 'shared', alpha: 'coverage', color: 'display-srgb'},
-    extent: {radiusM: EXTENT_M.orbits, beamsM: EXTENT_M.beams},
+    type: 'layer:hello', version: LAYER_PROTOCOL_VERSION, adapter: 'celestiary-orbits',
+    capabilities: {kinds: ['overlay'], depth: ['shared'], projections: ['matrix'], frames: ['ecef'],
+      warp: false, anchors: true, time: true, labels: false},
+    contracts: {alpha: 'coverage', color: 'display'},
+    extent: {frame: 'ecef', sphere: {center: [0, 0, 0], radius: EXTENT_M.orbits}, beyond: 'clamp-to-far',
+      farthest: EXTENT_M.beams},
+    ext: {'portal.anchors/1': {publish: ['norad', 'dsn', 'dsn-sc', 'naif']}},
   })
+  announce?.()
   hello()
   const resend = timers.setInterval(() => {
-    if (state.acked || state.stopped) {
+    if (state.heard || state.stopped) {
       timers.clearInterval(resend)
       return
     }
@@ -54,38 +71,45 @@ export function serveLayer({transport, layer, render, endFrame, resize = null, l
       return view.timeMs
     }
     const c = state.clock
-    return c ? c.utcMs + ((nowMs() - c.at) * c.rate) : nowMs()
+    return c ? c.timeMs + (c.paused ? 0 : (nowMs() - c.at) * c.rate) : nowMs()
   }
-  const draw = (view) => {
+  const draw = ({viewId = null, view}) => {
     if (state.hidden || state.stopped) {
       return
     }
     resize?.(view.viewport ?? [0, 0, 1, 1], view.pixelRatio ?? 1)
     const timeMs = timeOf(view)
-    layer.applyView({...view, timeMs})
+    layer.applyView({...view, timeMs}, viewId)
     render()
     endFrame()
     state.frames++
-    // The frame's receipt and its anchors, after its frame-end: the host
-    // sends its next view on this (one view in flight).
-    post({type: 'layer:anchors', viewId: view.viewId ?? null, timeMs, anchors: layer.anchors()})
+    if (layer.subscribed) {
+      post({type: 'layer:anchors', viewId, timeMs, anchors: layer.anchors()})
+    }
   }
 
   const unsubscribe = transport.onMessage((msg) => {
     switch (msg?.type) {
       case 'layer:hello-ack':
-        state.acked = true
+      case 'netgl:ready-ack':
+        state.heard = true
         break
       case 'layer:view':
+        state.heard = true
+        if (!msg.view || typeof msg.view !== 'object') {
+          break
+        }
         if (state.ready) {
           draw(msg)
         } else {
           state.pending = msg
         }
         break
-      case 'layer:time':
-        state.clock = {utcMs: Number(msg.utcMs), rate: Number.isFinite(msg.rate) ? msg.rate : 1, at: nowMs()}
+      case 'layer:time': {
+        const timeMs = Number(msg.timeMs ?? msg.utcMs)
+        state.clock = {timeMs, rate: Number.isFinite(msg.rate) ? msg.rate : 1, paused: msg.paused === true, at: nowMs()}
         break
+      }
       case 'layer:anchors-subscribe':
         layer.subscribe(Array.isArray(msg.patterns) ? msg.patterns : [])
         break
@@ -105,9 +129,9 @@ export function serveLayer({transport, layer, render, endFrame, resize = null, l
     state.ready = true
     post(failed.length ? {type: 'layer:status', status: 'ready', partial: failed} : {type: 'layer:status', status: 'ready'})
     if (state.pending) {
-      const view = state.pending
+      const msg = state.pending
       state.pending = null
-      draw(view)
+      draw(msg)
     }
   }).catch((err) => post({type: 'layer:status', status: 'error', message: String(err?.message ?? err)}))
   post({type: 'layer:status', status: 'loading'})

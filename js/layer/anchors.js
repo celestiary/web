@@ -1,16 +1,18 @@
 // The anchors layer mode publishes (design/LayerMode.md, "Anchors"): named
 // points a host can join its own things to (an AS's node to a Starlink
-// satellite, a dish to its complex's network).  URI-style ids, made only
-// here so the scheme can follow the anchor RFC: change these and the
-// layer's ids change with them.
+// satellite, a dish to its complex's network).  The ids are portal RFC
+// 0001's (§8.2, `prefix:local`, each local part in one canonical
+// spelling), and are made only here, so they follow the RFC's registry.
 
 
-/** The schemes, by what they name. */
+/** The prefixes, by what they name (RFC 0001 §8.2). */
 export const SCHEMES = {
   satellite: 'norad',
+  // The DSN's antennas and complexes share one prefix.
   dish: 'dsn',
-  site: 'dsn-site',
-  spacecraft: 'spacecraft',
+  site: 'dsn',
+  spacecraft: 'dsn-sc',
+  naif: 'naif',
 }
 
 
@@ -34,19 +36,28 @@ export function dishAnchor(dish) {
 
 /**
  * @param {string} site DSN Now's complex, e.g. 'gdscc'
- * @returns {string} e.g. 'dsn-site:gdscc'
+ * @returns {string} e.g. 'dsn:GDSCC'
  */
 export function siteAnchor(site) {
-  return `${SCHEMES.site}:${site}`
+  return `${SCHEMES.site}:${String(site).toUpperCase()}`
 }
 
 
 /**
  * @param {string} code DSN Now's spacecraft code, e.g. 'VGR1'
- * @returns {string} e.g. 'spacecraft:vgr1'
+ * @returns {string} e.g. 'dsn-sc:VGR1'
  */
 export function spacecraftAnchor(code) {
-  return `${SCHEMES.spacecraft}:${String(code).toLowerCase()}`
+  return `${SCHEMES.spacecraft}:${String(code).toUpperCase()}`
+}
+
+
+/**
+ * @param {number} id a NAIF SPICE id, e.g. −31
+ * @returns {?string} e.g. 'naif:-31', or null if it isn't one
+ */
+export function naifAnchor(id) {
+  return Number.isInteger(id) && id !== 0 ? `${SCHEMES.naif}:${id}` : null
 }
 
 
@@ -73,5 +84,5 @@ export function anchorMatcher(patterns) {
 }
 
 
-/** What a host gets before it subscribes: the DSN's, a few dozen. */
-export const DEFAULT_SUBSCRIPTION = [`${SCHEMES.dish}:*`, `${SCHEMES.site}:*`, `${SCHEMES.spacecraft}:*`]
+/** What a host gets before it subscribes: nothing (RFC 0001 §8.1). */
+export const DEFAULT_SUBSCRIPTION = []

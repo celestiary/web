@@ -100,6 +100,8 @@ export default class DeepSpaceNetwork extends Group {
       equator: new Vector3,
     })))
     this.dishByName = new Map(this.dishes.map((d) => [d.name, d]))
+    // The sphere the dishes are on (setSurfaceRadius).
+    this.surfaceRadius = EARTH_RADIUS_M
     // What turns with Earth: the dishes and the complexes' names, at their
     // latitudes and longitudes (coords.js), as places are.
     this.earthFixed = new Group
@@ -150,6 +152,29 @@ export default class DeepSpaceNetwork extends Group {
       bodyFixedToEquator(x, y, z, gmst, d.equator)
     }
     this._layLinks(jd)
+  }
+
+
+  /**
+   * Put the dishes on a sphere of this radius: a host's Earth (layer mode's
+   * `view.earth`, design/LayerMode.md), so they sit on its surface (deck's
+   * globe is 6,370,972 m, not WGS84's 6,378,137).  The latitude and
+   * longitude go on it as spherical ones, as the host's do.  Links take it
+   * from the next feed.  Not the complexes' names: layer mode has none.
+   *
+   * @param {number} radius m
+   */
+  setSurfaceRadius(radius) {
+    if (!(radius > 0) || radius === this.surfaceRadius) {
+      return
+    }
+    this.surfaceRadius = radius
+    const pos = this.dishPoints.geometry.attributes.position
+    this.dishes.forEach((d, i) => {
+      d.bodyFixed = latLngAltToBodyFixed(d.lat, d.lng, d.alt, radius)
+      pos.setXYZ(i, d.bodyFixed.x, d.bodyFixed.y, d.bodyFixed.z)
+    })
+    pos.needsUpdate = true
   }
 
 

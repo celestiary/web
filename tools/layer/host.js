@@ -122,16 +122,27 @@ iframe.src = `${guestOrigin}/layer.html?host=${encodeURIComponent(location.origi
   `&sats=${q.get('sats') ?? '1'}`
 document.body.appendChild(iframe)
 const transport = windowTransport({output: iframe.contentWindow, outputOrigin: guestOrigin, inputFilter: iframe.contentWindow})
+// portal-netgl 0.4.0's envelope (NetGLLayerViewMessage), as its deck.gl host sends it.
 const view = () => ({
-  type: 'layer:view', viewId: ++state.viewId, timeMs,
-  viewMatrix: camera.matrixWorldInverse.toArray(), projectionMatrix: camera.projectionMatrix.toArray(),
-  viewport: [0, 0, W, H], pixelRatio: 1,
+  type: 'layer:view', viewId: ++state.viewId, view: {
+    frame: 'ecef', viewMatrix: camera.matrixWorldInverse.toArray(), projectionMatrix: camera.projectionMatrix.toArray(),
+    viewport: [0, 0, W, H], pixelRatio: 1, timeMs, earth: {model: 'sphere', radius: R},
+  },
 })
 // What the guest's frames hold: it mustn't clear the host's buffers.
 state.calls = 0
 state.clears = 0
 state.byName = {}
 transport.onMessage((m) => {
+  // The frame's receipt, as 0.4.0's host takes it (receiver.onFrame): its
+  // frame-end.  Draw it, then send the next view (one in flight).
+  if (m.type === 'netgl:frame-end') {
+    setTimeout(() => {
+      frame()
+      state.frames++
+      transport.post(view())
+    }, 100)
+  }
   if (typeof m.name === 'string') {
     state.calls++
     state.byName[m.name] = (state.byName[m.name] ?? 0) + 1
@@ -145,22 +156,20 @@ const receiver = makeNetGLHostReceiver({
   onError: (err) => state.errors.push(String(err)),
   onControl: (msg) => {
     if (msg.type === 'layer:hello') {
-      state.hello = msg
-      transport.post({type: 'layer:hello-ack', accepted: true})
-      transport.post({type: 'layer:anchors-subscribe', patterns: ['norad:25544', 'dsn:*', 'dsn-site:*', 'spacecraft:*']})
-      transport.post(view())
+      if (!state.hello) {
+        state.hello = msg
+        transport.post({type: 'layer:hello-ack', accepted: true})
+        transport.post({type: 'layer:anchors-subscribe', patterns: ['norad:25544', 'dsn:*', 'dsn-sc:*']})
+        transport.post(view())
+      }
     } else if (msg.type === 'layer:status') {
       state.status.push(msg)
     } else if (msg.type === 'layer:anchors') {
       state.anchors = msg.anchors
       const a = msg.anchors.find((x) => x.id === 'norad:25544')
       if (a && state.iss) {
-        state.issErrorKm = Math.hypot(...a.ecef.map((v, k) => v - state.iss[k])) / 1e3
+        state.issErrorKm = Math.hypot(...a.p.map((v, k) => v - state.iss[k])) / 1e3
       }
-      frame()
-      state.frames++
-      // The next view after this frame (one in flight), a beat later.
-      setTimeout(() => transport.post(view()), 100)
     }
   },
 })

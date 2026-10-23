@@ -28,7 +28,8 @@ stations and ASes that the satellites link to.
   `https://celestiary.org/web/pr-preview/pr-<n>/layer.html`, and production
   at `https://celestiary.org/layer.html`.
 - **The host embeds it as a cross-origin iframe.** Its URL query picks what
-  to draw (`?nets=S,I,D&sats=1`) and names the host's origin (`?host=`).
+  to draw (`?nets=S,I,D&sats=1`). The host's origin comes from the
+  browser, and `?host=` is the last resort.
 - **It loads what it needs and nothing else:**
   - three, satellite.js, the network classes and portal-netgl;
   - no React, MUI, Scene, ThreeUi or ephemeris;
@@ -40,40 +41,60 @@ stations and ASes that the satellites link to.
 
 ## The contract (host ↔ guest)
 
-The messages ride beside NetGL's call stream on the same `postMessage`
-channel. Names follow portal-layers.md's control plane.
+The guest is wire-compatible with portal-netgl 0.4.0's deck.gl host
+(`attachNetGLDeckLayer` and `iframeTransport`, portal #36). Its messages
+are shaped as portal RFC 0001 has them
+([docs/rfcs/0001-globe-orbit-layers.md](https://github.com/pablo-mayrgundter/portal/blob/claude/rfc-globe-orbit-layers/docs/rfcs/0001-globe-orbit-layers.md):
+§6 the view, §7 time, §8 anchors, §10 the handshake). They ride beside
+NetGL's call stream on the same `postMessage` channel.
 
 | Direction | Message | Carries |
 |---|---|---|
-| guest → host | `layer:hello` | `{version: 1, kind: 'celestiary-orbits', capabilities: {anchors, time, labels: false}, contracts: {depth: 'shared', alpha: 'coverage', color: 'display-srgb'}, extent: {radiusM: 5e7, beamsM: 3e13}}`. Repeated every 500 ms until acked. |
-| host → guest | `layer:hello-ack` | `{accepted}` |
-| host → guest | `layer:view` | `{viewId, viewMatrix, projectionMatrix, viewport, pixelRatio, timeMs?}`. viewMatrix maps ECEF metres to eye metres and is rigid; projectionMatrix maps eye to clip and is the host's own. Both are column-major arrays of 16, composed in doubles. viewport is `[x, y, w, h]` in drawing-buffer pixels. |
-| host → guest | `layer:time` | `{utcMs, rate?}`: the host's clock, if it isn't in each view. Time is UTC; ECEF is of date (Earth turned by GMST). |
-| guest → host | `netgl:*` | the frame's GL calls, ending in `netgl:frame-end` |
-| host → guest | `layer:anchors-subscribe` | `{patterns: ['dsn:*', 'norad:25544', ...]}`: which anchors to publish |
-| guest → host | `layer:anchors` | `{viewId, timeMs, anchors: [{id, kind, name, ecef: [x, y, z]}]}`: after each frame's `netgl:frame-end`, only those subscribed. It is also the frame's receipt: the host sends its next view on it (one view in flight). |
+| guest → host | `netgl:ready` | NetGL's handshake (`guest.announce`), repeated every 500 ms until `netgl:ready-ack`. 0.4.0's host sends no view before it. |
+| guest → host | `layer:hello` | `{version: 1, adapter: 'celestiary-orbits', capabilities: {kinds: ['overlay'], depth: ['shared'], projections: ['matrix'], frames: ['ecef'], warp: false, anchors, time, labels: false}, contracts: {alpha: 'coverage', color: 'display'}, extent: {frame: 'ecef', sphere: {center: [0, 0, 0], radius: 5e7}, beyond: 'clamp-to-far', farthest: 3e13}, ext: {'portal.anchors/1': {publish: ['norad', 'dsn', 'dsn-sc', 'naif']}}}`. Repeated every 500 ms until the host is heard from (`layer:hello-ack`, `netgl:ready-ack`, or a first view): 0.4.0 doesn't ack it. |
+| host → guest | `layer:hello-ack` | `{accepted, reason?}` (optional; RFC §10.6) |
+| host → guest | `layer:view` | 0.4.0's `NetGLLayerViewMessage`: `{type, viewId, view: {frame: 'ecef', viewMatrix, projectionMatrix, viewport, pixelRatio, timeMs, earth?: {model: 'sphere', radius}}}`. `viewMatrix` maps ECEF metres to eye metres and is rigid. `projectionMatrix` is the host's own, with its scale folded in. Both are column-major arrays of 16, composed in doubles. `viewport` is `[x, y, w, h]` in drawing-buffer pixels. A flat view (this PR's first shape) is ignored. |
+| guest → host | `netgl:*` | the frame's GL calls, ending in `netgl:frame-end`. This is the frame's receipt: 0.4.0's host sends its next view on it (`receiver.onFrame`; one view in flight, re-sent after 1 s). |
+| host → guest | `layer:time` | `{timeMs, rate, paused?}` (RFC §7.1; `utcMs` is accepted too): the clock's state, for a view with no `timeMs`. A view's `timeMs` wins. |
+| host → guest | `layer:anchors-subscribe` | `{patterns: ['norad:25544', 'dsn:*', ...]}`, which replaces the subscription. Patterns are exact ids, `prefix:*`, or `*`. |
+| guest → host | `layer:anchors` | `{viewId, timeMs, anchors: [{id, kind, name, p: [x, y, z], geo?, aliases?}]}`, after each frame while something is subscribed. **Nothing is published until then** (RFC §8.1). |
 | guest → host | `layer:status` | `{status: 'loading'}`, `{status: 'ready', partial?: [what failed]}`, or `{status: 'error', message}` |
 | host → guest | `layer:visibility`, `layer:dispose` | throttle, or tear down |
 
-- **Anchors** are URI-style ids: `norad:<catalogue number>`,
-  `dsn:<dish>` (`dsn:DSS-43`), `dsn-site:<complex>` (`dsn-site:gdscc`),
-  `spacecraft:<code>` (`spacecraft:vgr1`, only for a live link with a
-  range).  Before a host subscribes it gets the DSN's (`dsn:*`,
-  `dsn-site:*`, `spacecraft:*`, about two dozen); satellites
-  (`norad:<n>`, `norad:*`) only when asked.
-  They're made in one module (`js/layer/anchors.js`) so the scheme can
-  follow the RFC being written. ECEF is metres, in the guest's frame, at
-  the frame's time.
-- **Origins.** The guest takes messages only from an allow-list:
-  `https://pablo-mayrgundter.github.io`, `https://celestiary.org`, and
-  `http://localhost:*` or `http://127.0.0.1:*` for development, extendable
-  by the build. It posts only to the host's origin once that is known.
-  Anything else is ignored.
+- **Anchors** use RFC 0001 §8.2's ids, made only in `js/layer/anchors.js`:
+  - `norad:<catalogue number>` (`norad:25544`);
+  - `dsn:<antenna>` (`dsn:DSS-43`);
+  - `dsn:<complex>` (`dsn:GDSCC`);
+  - `dsn-sc:<DSN Now code>` (`dsn-sc:VGR1`), aliased to `naif:<id>` from
+    the feed's `spacecraftID` (`naif:-31`). It's published only for a live
+    link with a range, and subscribing to either id gets it.
+
+  `p` is ECEF metres where the layer draws it, at the frame's time. For a
+  thing on the ground, `geo` is its own `[lat, lon, h]` (WGS84).
+- **The Earth** (RFC §6.3). Orbits are in true ECEF. What's tied to the
+  ground (the DSN's antennas and complexes) goes on the host's Earth:
+  `view.earth`'s sphere, with latitude and longitude put on it as
+  spherical, as deck does (`sphereToEcef`). On deck's 6,370,972 m globe the
+  dishes sit on its surface, not 7 km above it. Without `earth`, the
+  sphere is WGS84's equatorial 6,378,137 m.
+- **Origins** (RFC §10.2). The guest takes messages only from an
+  allow-list, `ALLOWED_ORIGINS` in `js/layer/origins.js`:
+  - `https://pablo-mayrgundter.github.io`, `https://celestiary.org` and
+    `https://celestiary.github.io`;
+  - `http://localhost:*` and `http://127.0.0.1:*` for development;
+  - more from `LAYER_ORIGINS` at build time, never at run time.
+
+  The host's origin is found as 0.4.0's `resolveParentOrigin` finds it:
+  `location.ancestorOrigins[0]`, else the referrer's origin, else
+  `?host=`. Each counts only if it's on the list: the URL may pick an
+  allowed origin, never add one. The guest posts only to that origin, and
+  drops anything not from `parent` and that origin. On the wire this is
+  0.4.0's `parentTransport({hostOrigins})`. The guest switches to it once
+  0.4.0 is published; it pins 0.3.0 until then.
 - **Frames.** Satellites and networks hang in Earth's equator frame of
   date, the same frame as Satellites.md, turned to ECEF by GMST from the
   host's time:
   - `ECEF = bodyToEcef · Ry(−GMST) · equator`;
-  - Earth is a sphere for the DSN's dishes, WGS84 is a follow-up;
   - vertices are float32 metres, about 4 m at GEO.
 
 ## What changes in existing code
@@ -119,8 +140,8 @@ channel. Names follow portal-layers.md's control plane.
 
 ## Open questions
 
-- **The anchor URI scheme**: composing with layer and frame paths, for
-  example `layer:celestiary/norad:25544`. This waits on the RFC.
+- **Anchor paths**: composing ids with layer paths (RFC §8.3), for example
+  `portal:/celestiary#norad:25544`.
 - **Anchor volume.** Starlink's 11,000 anchors at 60 Hz is about 270 KB a
   second. Subscribe to some, or publish their elements once and let the
   host propagate?
@@ -157,8 +178,8 @@ Phase 1 is in (branch `claude/layer-mode`):
   - `?t=<ISO>&lat=&lng=&altKm=&fov=&near=&far=&nets=S,I,D&sats=0|1` sets
     the view.
 - **Checked** (headless Chromium, SwiftShader, 2026-10-23 20:17 UTC):
-  - The ISS anchor is 2.6 m from satellite.js's own ECF, and its dot sits
-    in the host's ring.
+  - On the three.js check host: the ISS anchor is 2.6 m from
+    satellite.js's own ECF, and its dot sits in the host's ring.
   - The geostationary sample lies on the host's circle.
   - The guest's frames hold no `clear` calls.
   - With the host's depth, Starlink behind the globe is hidden; with
@@ -173,8 +194,35 @@ Phase 1 is in (branch `claude/layer-mode`):
     from the guest's own GL state;
   - an origin-checking transport of our own (`origins.js`), because
     0.3.0's `windowTransport` filters by source, not origin.
-- **Once portal's cross-origin host and luma adapter land**
-  (`claude/luma-host`):
-  - take its origin-checked transport in place of `origins.js`'s;
-  - fold `layer:hello` into its handshake;
-  - pass the `viewId` on `netgl:frame-end` instead of in `layer:anchors`.
+- **Against portal #36's real host** (portal-netgl 0.4.0's
+  `attachNetGLDeckLayer`, `iframeTransport` and a deck.gl 9.4 GlobeView,
+  modelled on its `apps/host-netgl-deck`; served from `localhost:5490`, the
+  guest from `127.0.0.1:5480`):
+  - The ISS dot sits in deck's own ring. deck's `ScatterplotLayer` puts
+    the ring at satellite.js's ECF, by geocentric lat/lng/alt over deck's
+    sphere. The anchor is 2.6 m from it.
+  - The DSN dishes sit in deck's rings at the complexes, on its
+    6,370,972 m surface (`view.earth`).
+  - deck's globe hides the Starlinks behind it; with deck's depth cleared
+    before the guest, they show through.
+  - deck's receiver became ready on `netgl:ready`, and views flowed on
+    frame-ends.
+- **Left with #36:**
+  - **A still view shows stale content.** 0.4.0's host sends a view only
+    when the view changes (`sameView`), so with a still camera and a
+    pinned clock the guest's own changes are not drawn until the camera
+    moves: a DSN feed that arrives, new links. With the clock running
+    (`_animate` and `time: Date.now`), every frame is a new view. A
+    guest → host "draw me again" (`layer:invalidate`?) would close it.
+  - **`layer:hello` isn't acked or read** by 0.4.0's host. It's harmless:
+    it's repeated until the first view, and the host forwards it to
+    `onControl`.
+  - **Anchors** need the host to subscribe (`layer.transport.post({type:
+    'layer:anchors-subscribe', ...})`); 0.4.0 has no API of its own for
+    them yet.
+- **When portal-netgl 0.4.0 is published:**
+  - take `parentTransport({hostOrigins: ALLOWED_ORIGINS})` in place of
+    `origins.js`'s transport;
+  - take 0.4.0's `isNetGLLayerViewMessage` and types;
+  - put the `viewId` on `netgl:frame-end` once portal-netgl carries it
+    (RFC open question 18).

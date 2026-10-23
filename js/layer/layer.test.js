@@ -3,7 +3,7 @@ import {describe, expect, it} from 'bun:test'
 import {Matrix4, Object3D, PerspectiveCamera, Vector3} from 'three'
 import {eciToEcf, gstime, json2satrec, propagate} from 'satellite.js'
 import OrbitsLayer from './OrbitsLayer.js'
-import {anchorMatcher, dishAnchor, satelliteAnchor, siteAnchor, spacecraftAnchor} from './anchors.js'
+import {DEFAULT_SUBSCRIPTION, anchorMatcher, dishAnchor, naifAnchor, satelliteAnchor, siteAnchor, spacecraftAnchor} from './anchors.js'
 import {bodyFixedToEcef, equatorToEcef} from './frames.js'
 import {hostOrigin, isAllowedOrigin, originTransport} from './origins.js'
 import {HELLO_RESEND_MS, serveLayer} from './protocol.js'
@@ -43,16 +43,20 @@ describe('layer mode frames', () => {
 
 
 describe('layer mode anchors', () => {
-  it('names things with URI-style ids', () => {
+  it('names things with portal RFC 0001\'s ids (§8.2)', () => {
     expect(satelliteAnchor(25544)).toBe('norad:25544')
     expect(dishAnchor('DSS43')).toBe('dsn:DSS-43')
-    expect(siteAnchor('gdscc')).toBe('dsn-site:gdscc')
-    expect(spacecraftAnchor('VGR1')).toBe('spacecraft:vgr1')
+    expect(siteAnchor('gdscc')).toBe('dsn:GDSCC')
+    expect(spacecraftAnchor('vgr1')).toBe('dsn-sc:VGR1')
+    expect(naifAnchor(-31)).toBe('naif:-31')
+    expect(naifAnchor(NaN)).toBeNull()
+    // Nothing flows until a host subscribes (§8.1).
+    expect(DEFAULT_SUBSCRIPTION).toEqual([])
   })
 
   it('matches a subscription', () => {
     const m = anchorMatcher(['norad:25544', 'dsn:*'])
-    expect([m('norad:25544'), m('norad:1'), m('dsn:DSS-43'), m('dsn-site:gdscc')]).toEqual([true, false, true, false])
+    expect([m('norad:25544'), m('norad:1'), m('dsn:DSS-43'), m('dsn:GDSCC'), m('dsn-sc:VGR1')]).toEqual([true, false, true, true, false])
     expect(anchorMatcher(['*'])('anything')).toBe(true)
   })
 })
@@ -69,10 +73,12 @@ describe('layer mode origins', () => {
     expect(isAllowedOrigin('null')).toBe(false)
   })
 
-  it('takes the host from ?host= or the referrer, if allowed', () => {
+  it('takes the host from ancestorOrigins, the referrer or ?host=, in that order, if allowed', () => {
     expect(hostOrigin({search: '?host=http://localhost:5481'})).toBe('http://localhost:5481')
     expect(hostOrigin({search: '', referrer: 'https://pablo-mayrgundter.github.io/netmap/?x'})).toBe('https://pablo-mayrgundter.github.io')
-    expect(hostOrigin({search: '?host=https://evil.com', referrer: 'https://evil.com/'})).toBeNull()
+    expect(hostOrigin({search: '?host=http://localhost:1', ancestors: ['http://localhost:5490'], referrer: 'http://localhost:2/'}))
+        .toBe('http://localhost:5490')
+    expect(hostOrigin({search: '?host=https://evil.com', referrer: 'https://evil.com/', ancestors: ['https://evil.com']})).toBeNull()
   })
 
   it('drops messages from another window or origin, and posts to the host only', () => {
@@ -105,9 +111,13 @@ describe('layer mode control plane', () => {
     const interval = {fn: null, cleared: false}
     const calls = []
     const layer = {
-      applyView: (v) => calls.push(['view', v.viewId, v.timeMs]),
-      anchors: () => [{id: 'dsn:DSS-43', ecef: [1, 2, 3]}],
-      subscribe: (p) => calls.push(['subscribe', p]),
+      subscribed: false,
+      applyView: (v, viewId) => calls.push(['view', viewId, v.timeMs, v.earth?.radius]),
+      anchors: () => [{id: 'dsn:DSS-43', p: [1, 2, 3]}],
+      subscribe: (p) => {
+        layer.subscribed = p.length > 0
+        calls.push(['subscribe', p])
+      },
       dispose: () => calls.push(['dispose']),
     }
     let resolve
@@ -120,44 +130,69 @@ describe('layer mode control plane', () => {
       }},
       layer, loaded, nowMs: () => clock.ms,
       render: () => calls.push(['render']), endFrame: () => calls.push(['frame-end']),
+      announce: () => calls.push(['announce']),
       timers: {setInterval: (fn) => (interval.fn = fn), clearInterval: () => (interval.cleared = true)},
     })
     return {posted, send: (m) => listener?.(m), interval, calls, resolve, served, clock}
   }
 
-  it('says hello until acked, then draws each view and posts its anchors after its frame', async () => {
+  // portal-netgl 0.4.0's NetGLLayerViewMessage (layer-view.ts), as its
+  // deck.gl host (attachNetGLDeckLayer) sends it.
+  const viewMsg = (viewId, timeMs = T) => ({type: 'layer:view', viewId, view: {
+    frame: 'ecef', viewMatrix: [], projectionMatrix: [], viewport: [0, 0, 640, 400], pixelRatio: 1, timeMs,
+    earth: {model: 'sphere', radius: 6370972},
+  }})
+
+  it('announces itself both ways, until the host is heard from', () => {
     const r = rig()
-    expect(r.posted[0]).toMatchObject({type: 'layer:hello', version: 1, kind: 'celestiary-orbits'})
-    expect(r.posted[0].extent.radiusM).toBeGreaterThan(4.2e7)
+    // NetGL's handshake, which 0.4.0's host waits on before its first view.
+    expect(r.calls[0]).toEqual(['announce'])
+    expect(r.posted[0]).toMatchObject({type: 'layer:hello', version: 1, adapter: 'celestiary-orbits',
+      capabilities: {depth: ['shared'], frames: ['ecef'], anchors: true}, contracts: {alpha: 'coverage', color: 'display'}})
+    expect(r.posted[0].contracts.depth).toBeUndefined()
+    expect(r.posted[0].extent.sphere.radius).toBeGreaterThan(4.2e7)
     r.interval.fn()
     expect(r.posted.filter((m) => m.type === 'layer:hello')).toHaveLength(2)
-    r.send({type: 'layer:hello-ack'})
+    // 0.4.0 acks netgl:ready, not layer:hello: that's enough.
+    r.send({type: 'netgl:ready-ack'})
     r.interval.fn()
     expect(r.interval.cleared).toBe(true)
+    expect(HELLO_RESEND_MS).toBeLessThanOrEqual(1000)
+  })
+
+  it('draws each view, from its envelope, ending in frame-end, and no anchors until subscribed', async () => {
+    const r = rig()
     // A view before the data is in: drawn once it is.
-    r.send({type: 'layer:view', viewId: 7, timeMs: T, viewMatrix: [], projectionMatrix: []})
-    expect(r.calls).toEqual([])
+    r.send(viewMsg(7))
+    expect(r.calls).toEqual([['announce']])
     r.resolve([])
     await new Promise((res) => setTimeout(res, 0))
-    expect(r.calls).toEqual([['view', 7, T], ['render'], ['frame-end']])
-    const last = r.posted[r.posted.length - 1]
-    expect(last).toEqual({type: 'layer:anchors', viewId: 7, timeMs: T, anchors: [{id: 'dsn:DSS-43', ecef: [1, 2, 3]}]})
+    expect(r.calls.slice(1)).toEqual([['view', 7, T, 6370972], ['render'], ['frame-end']])
+    expect(r.posted.some((m) => m.type === 'layer:anchors')).toBe(false)
     expect(r.posted.some((m) => m.type === 'layer:status' && m.status === 'ready')).toBe(true)
-    expect(HELLO_RESEND_MS).toBeLessThanOrEqual(1000)
+    r.send({type: 'layer:anchors-subscribe', patterns: ['dsn:*']})
+    r.send(viewMsg(8))
+    expect(r.posted[r.posted.length - 1])
+        .toEqual({type: 'layer:anchors', viewId: 8, timeMs: T, anchors: [{id: 'dsn:DSS-43', p: [1, 2, 3]}]})
+    // A flat view (#296's first shape) isn't one.
+    r.send({type: 'layer:view', viewId: 9, viewMatrix: [], timeMs: T})
+    expect(r.calls.filter((c) => c[0] === 'view')).toHaveLength(2)
   })
 
   it('takes the host\'s clock for views without a time, and stops when hidden or disposed', async () => {
     const r = rig()
     r.resolve([])
     await new Promise((res) => setTimeout(res, 0))
-    r.send({type: 'layer:time', utcMs: T, rate: 60})
+    r.send({type: 'layer:time', timeMs: T, rate: 60})
     r.clock.ms += 1000
-    r.send({type: 'layer:view', viewId: 1})
-    expect(r.calls[0]).toEqual(['view', 1, T + 60000])
+    const msg = viewMsg(1)
+    delete msg.view.timeMs
+    r.send(msg)
+    expect(r.calls[1]).toEqual(['view', 1, T + 60000, 6370972])
     r.send({type: 'layer:anchors-subscribe', patterns: ['norad:*']})
     expect(r.calls).toContainEqual(['subscribe', ['norad:*']])
     r.send({type: 'layer:visibility', state: 'hidden'})
-    r.send({type: 'layer:view', viewId: 2, timeMs: T})
+    r.send(viewMsg(2))
     expect(r.calls.filter((c) => c[0] === 'view')).toHaveLength(1)
     r.send({type: 'layer:dispose'})
     expect(r.calls).toContainEqual(['dispose'])
@@ -174,9 +209,12 @@ describe('OrbitsLayer', () => {
     cam.up.set(0, 0, 1)
     cam.lookAt(0, 0, 0)
     cam.updateMatrixWorld()
-    layer.applyView({viewMatrix: cam.matrixWorldInverse.toArray(), projectionMatrix: cam.projectionMatrix.toArray(), timeMs: T})
+    const view = {frame: 'ecef', viewMatrix: cam.matrixWorldInverse.toArray(), projectionMatrix: cam.projectionMatrix.toArray(),
+      viewport: [0, 0, 640, 400], pixelRatio: 1, timeMs: T, earth: {model: 'sphere', radius: 6370972}}
+    layer.applyView(view, 1)
     expect(layer.gmst).toBeCloseTo(gmstRad(unixMsToJd(T)), 12)
-    layer.subscribe(['norad:25544', 'norad:41917', 'dsn:*', 'dsn-site:*'])
+    expect(layer.anchors()).toEqual([])
+    layer.subscribe(['norad:25544', 'norad:41917', 'dsn:*'])
     const anchors = layer.anchors()
     const iss = anchors.find((a) => a.id === 'norad:25544')
     // satellite.js's own TEME → ECF, by its own GMST.
@@ -185,14 +223,22 @@ describe('OrbitsLayer', () => {
     const omm = Object.fromEntries(columns.map((c, i) => [c, rows.find((x) => x[0] === 25544)[i]]))
     const date = new Date(T)
     const f = eciToEcf(propagate(json2satrec(omm), date).position, gstime(date))
-    expect(Math.hypot(iss.ecef[0] - (f.x * 1e3), iss.ecef[1] - (f.y * 1e3), iss.ecef[2] - (f.z * 1e3))).toBeLessThan(50)
+    // Orbits stay in true ECEF, whatever the host's Earth.
+    expect(Math.hypot(iss.p[0] - (f.x * 1e3), iss.p[1] - (f.y * 1e3), iss.p[2] - (f.z * 1e3))).toBeLessThan(50)
     // An Iridium, from its Constellation, at ~780 km.
     const ir = anchors.find((a) => a.id === 'norad:41917')
-    expect(Math.hypot(...ir.ecef) / 1e3).toBeGreaterThan(7000)
-    // Madrid's complex where its latitude and longitude say.
-    const mad = anchors.find((a) => a.id === 'dsn-site:mdscc')
-    expect(Math.asin(mad.ecef[2] / Math.hypot(...mad.ecef)) * 180 / Math.PI).toBeCloseTo(40.2413554, 6)
-    expect(anchors.filter((a) => a.kind === 'dsn-dish').length).toBeGreaterThan(12)
+    expect(Math.hypot(...ir.p) / 1e3).toBeGreaterThan(7000)
+    // Madrid's complex where its latitude and longitude say, on the host's
+    // sphere (deck's 6,370,972 m), with its own position in geo.
+    const mad = anchors.find((a) => a.id === 'dsn:MDSCC')
+    expect(Math.asin(mad.p[2] / Math.hypot(...mad.p)) * 180 / Math.PI).toBeCloseTo(40.2413554, 6)
+    expect(Math.hypot(...mad.p)).toBeCloseTo(6370972, 3)
+    expect(mad.geo).toEqual([40.2413554, -4.2480085, 0])
+    const dishes = anchors.filter((a) => a.kind === 'dsn-dish')
+    expect(dishes.length).toBeGreaterThan(12)
+    expect(Math.hypot(...dishes[0].p)).toBeCloseTo(6370972, 3)
+    // The dishes the DSN draws are on it too.
+    expect(layer.networks.D.dishes[0].bodyFixed.length()).toBeCloseTo(6370972, 3)
     // The camera is the host's: the drawn points take its distance rules.
     expect(layer.satellites.points.visible).toBe(true)
     expect(layer.satellites.drawnCount).toBeGreaterThan(400)
