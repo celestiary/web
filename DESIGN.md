@@ -530,6 +530,39 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
   each frame (`layOrbitShape`): that ellipse is their ephemeris.
 - **Bodies without elements** (demo descriptors) keep the flat ellipse.
 
+### The info panel
+
+The target's facts, revealed in tiers rather than as its descriptor's
+fields (`ControlPanel`, `js/infoPanel.js`; the plan and the design system
+it follows: [design/UI.md](design/UI.md)).
+
+- **A head, rows, sections.**  The head has the name, the kind and one fact
+  (how far out it orbits, or a star's class); under it the few rows a
+  visitor asks first (radius, day, year, moons; a star's class, radius and
+  mass), with periods to a glance's precision (`periodText`); then
+  `<details>` sections, shut until asked: Orbit, Physical, Space around,
+  Rings, Atmosphere, Moons (open), More data (the descriptor's other fields,
+  in words, nested ones on a line).  Stars from the catalogue and SPARC
+  galaxies get the same head and rows.
+- **Strings, then wiring.**  `infoPanel.js` builds the HTML as strings, so
+  the structure is tested in bun with no DOM; `ControlPanel` puts it in
+  `#nav-info-id` and wires the orbit switches, the fold control and the
+  sections' toggles (heard on capture: a `toggle` doesn't bubble).
+- **Opaque**, `--surface`: over a starfield even 3% of a bright label read
+  through the 97% sheet, and the old translucent card let labels and lines
+  run over the text.
+- **Phones: a bottom sheet** (`js/infoSheet.js`), at 600px wide or less:
+  peek (the head), half (the summary) and full (88% of the scene).  Drag
+  the head or tap it to step; the detent lasts through the panel's
+  re-renders.  It sits above the widgets drawer's sheet; the bottom
+  controls and settings sit above its peek (`--info-sheet-bottom`) and hide
+  while it's raised (`html.info-raised`); Cesium's credits ride above both
+  sheets.  A drag's release eases from where the finger let go: measuring
+  the detents lays the sheet out at each, so it's laid out again at the
+  release height before the transition is let run (it had started from
+  full, the last measured, and jumped to the top).  Its height eases over 300 ms; on SwiftShader a busy main thread
+  stalls the transition, so a probe that reads its height turns it off.
+
 ### Orbital elements
 
 A body's six Keplerian elements, listed in its info panel and drawn on its
@@ -581,25 +614,22 @@ work it starts).
   listed in the source's form: ϖ and L for the planets, the Moon and
   Pluto; ω and M for the moons.  A negative inclination (Standish's Earth
   after J2000) is turned round (i > 0, Ω + 180°, ϖ kept).
-- **The panel** (`ControlPanel.orbitListHtml`): a lead line, not a list
-  item (what the elements are and their frame, then `Show all · none`, and
-  `clear every orbit` while other bodies have some on); the orbit period
-  (sidereal); the six elements, each with its symbol, name, value and
-  colour, the place's with the true place beside the mean (λ = ϖ + ν, or
-  ν); then the block's other fields as before.  The values, and
-  which elements are on, follow the date and the scene four times a second
-  while the list is open (`ControlPanel.frame`).  A click (or Enter, or
-  Space) turns an element on or off; a hover or focus previews one.
-- **The info list is a card** a third of the screen wide (at least 22em;
-  the screen's width on a phone), with its own scroll, so the panel doesn't
-  take the scene's clicks over a wide, unseen area: the maintainer's layout
-  until the info panels are redesigned (`index.css`, `#nav-info-id`).
-- **The panel's lists, open or folded, are in the link** (the `info:`
+- **The panel** (`ControlPanel.orbitListHtml`): the Orbit section of the
+  info panel ([the info panel](#the-info-panel)): a lead (what the elements
+  are and their frame, then `Show all · none`, and `clear every orbit` while
+  other bodies have some on); the orbit period (sidereal); the six elements
+  as rows, each with its symbol, name, value in mono and a short line in its
+  colour, the place's with the true place under the mean (λ = ϖ + ν, or ν);
+  then the block's other fields as rows.  The values, and which elements are
+  on, follow the date and the scene four times a second while the section is
+  open (`ControlPanel.frame`).  A click (or Enter, or Space) turns an element
+  on or off; a hover or focus previews one.
+- **The panel's sections, open or shut, are in the link** (the `info:`
   token, [design/URLs.md](design/URLs.md#info-token)): the whole panel
-  folded, and each list (named by its dotted place in a body's props,
-  `orbit`, `location.coord`) opened or folded against its default, for
-  every body alike, so moving from Earth to Venus keeps the orbit list
-  open (`ControlPanel.uiState`, `_applyUiState`, `_onToggle`).
+  folded, and each section (`orbit`, `physical`, `space`, `atmosphere`)
+  opened or shut against its default, for every body alike, so moving from
+  Earth to Venus keeps the orbit section open (`ControlPanel.uiState`,
+  `_applyUiState`, `_onToggle`).
 - **Stateful, on many bodies at once** (`Scene` `toggleOrbitElement`,
   `setOrbitElements`, `clearOrbitElements`, `previewOrbitElement`): the
   scene keeps, per body, the set of elements on, by their short codes

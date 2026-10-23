@@ -78,27 +78,41 @@ const GROUP_TEXT = {
  * @param {object} rec sgp4.js SatRecord
  * @param {number} jd the date, Julian Day (UTC)
  * @param {?string} fetched when the snapshot was fetched, ISO
- * @returns {Array<string>} lines, plain text
+ * @returns {{name: string, kind: string, fact: string, rows: Array<Array<string>>, notes: Array<string>}}
+ *   the panel's head, its rows as [label, value, unit], and notes in words
  */
 export function satelliteFacts(rec, jd, fetched = null) {
   const n = rec.meanMotion * 2 * Math.PI / 86400
   const a = Math.cbrt(GM_EARTH_KM3_S2 / (n * n))
-  const km = (x) => `${Math.round(x).toLocaleString('en-US')} km`
+  const km = (x) => Math.round(x).toLocaleString('en-US')
+  const perigee = km((a * (1 - rec.eccentricity)) - EARTH_EQUATORIAL_KM)
+  const apogee = km((a * (1 + rec.eccentricity)) - EARTH_EQUATORIAL_KM)
   const age = jd - rec.epochJd
   const ageText = Math.abs(age) < 1 ? `${(Math.abs(age) * 24).toFixed(1)} h` : `${Math.abs(age).toFixed(1)} days`
   const epoch = new Date((rec.epochJd - 2440587.5) * 86400e3).toISOString().slice(0, 16).replace('T', ' ')
-  const lines = [
-    `NORAD ${rec.id}${rec.intlId ? `, ${rec.intlId}` : ''}${GROUP_TEXT[rec.group] ? `, ${GROUP_TEXT[rec.group]}` : ''}`,
-    `${km((a * (1 - rec.eccentricity)) - EARTH_EQUATORIAL_KM)} × ${km((a * (1 + rec.eccentricity)) - EARTH_EQUATORIAL_KM)} up, ` +
-      `inclined ${rec.inclination.toFixed(1)}°`,
-    `period ${(1440 / rec.meanMotion).toFixed(1)} min, e ${rec.eccentricity.toFixed(4)}`,
-    `elements of ${epoch} UTC, ${ageText} ${age < 0 ? 'after' : 'before'} this date`,
+  const rows = [
+    ['Height', perigee === apogee ? perigee : `${perigee} – ${apogee}`, 'km'],
+    ['Inclination', `${rec.inclination.toFixed(1)}°`, ''],
+    ['Period', (1440 / rec.meanMotion).toFixed(1), 'min'],
+    ['Eccentricity', rec.eccentricity.toFixed(4), ''],
+    ['Elements', `${epoch} UTC`, `${ageText} ${age < 0 ? 'after' : 'before'} this date`],
+    ['NORAD', String(rec.id), ''],
   ]
+  if (rec.intlId) {
+    rows.push(['Designator', rec.intlId, ''])
+  }
+  const notes = []
   if (Math.abs(age) > rec.windowDays) {
-    lines.push(`not drawn: more than ${rec.windowDays} days from its elements, SGP4 can't say where it is`)
+    notes.push(`Not drawn: more than ${rec.windowDays} days from its elements, SGP4 can't say where it is.`)
   }
   if (fetched) {
-    lines.push(`from CelesTrak, ${fetched.slice(0, 10)}`)
+    notes.push(`Elements from CelesTrak, ${fetched.slice(0, 10)}.`)
   }
-  return lines
+  return {
+    name: displayName(rec),
+    kind: GROUP_TEXT[rec.group] ? `Satellite, ${GROUP_TEXT[rec.group]}` : 'Satellite',
+    fact: `${perigee} km up`,
+    rows,
+    notes,
+  }
 }

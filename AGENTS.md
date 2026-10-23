@@ -35,6 +35,7 @@ tried and dropped.
 | Permalinks (`#path@lat,lng,alt;t=…;cq=…;fov=…`) | [design/URLs.md](design/URLs.md) (the whole URL, and the state tokens for the drawer and its apps); [js/permalink.md](js/permalink.md) (the view's encoding) |
 | The changelog: `CHANGELOG.md`, its entry format, `changelog.json`, drafting from merged PRs | [tools/changelog/README.md](tools/changelog/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
 | What's new on the homepage, the changelog tour, the `#;news:tour` link | DESIGN.md [what's new](DESIGN.md#whats-new-and-the-changelog-tour); [design/URLs.md](design/URLs.md#news-token); [tools/changelog/README.md](tools/changelog/README.md) (the entries) |
+| The interface's look: the design system, its tokens, the info panel's tiers, the phone sheet, and the redesign's phases | [design/UI.md](design/UI.md); DESIGN.md [the info panel](DESIGN.md#the-info-panel) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Lagrange points, Hill spheres, synchronous orbits (every pair), orbital regimes (LEO, MEO, GPS, Molniya, sun-synchronous, cislunar space), three-body orbits (halo, Lyapunov, DRO, NRHO; the CR3BP), and the rest of #272's orbital structure | [js/scene/Lagrange.md](js/scene/Lagrange.md); DESIGN.md [orbital elements](DESIGN.md#orbital-elements) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |

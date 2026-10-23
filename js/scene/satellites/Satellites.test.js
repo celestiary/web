@@ -148,16 +148,20 @@ describe('satellite names', () => {
 describe('satellite facts', () => {
   it('gives the orbit from the mean elements, and the elements\' age', () => {
     const [iss, gps] = parseCatalog(SNAPSHOT)
-    const lines = satelliteFacts(iss, EPOCH_JD + 0.5, '2026-10-22T13:00:00Z')
-    expect(lines[0]).toBe('NORAD 25544, 1998-067A, space station')
+    const f = satelliteFacts(iss, EPOCH_JD + 0.5, '2026-10-22T13:00:00Z')
+    expect(f.name).toBe('ISS')
+    expect(f.kind).toBe('Satellite, space station')
+    const row = (label) => f.rows.find((r) => r[0] === label)
     // 15.5 rev/day: a = 6,796 km, about 418 km up.
-    expect(lines[1]).toMatch(/^41\d km × 42\d km up, inclined 51.6°$/)
-    expect(lines[2]).toBe('period 92.9 min, e 0.0005')
-    expect(lines[3]).toBe('elements of 2026-10-22 12:00 UTC, 12.0 h before this date')
-    expect(lines.at(-1)).toBe('from CelesTrak, 2026-10-22')
+    expect(row('Height')[1]).toMatch(/^41\d – 42\d$/)
+    expect(row('Inclination')[1]).toBe('51.6°')
+    expect(row('Period')[1]).toBe('92.9')
+    expect(row('Elements')).toEqual(['Elements', '2026-10-22 12:00 UTC', '12.0 h before this date'])
+    expect(row('Designator')[1]).toBe('1998-067A')
+    expect(f.notes).toEqual(['Elements from CelesTrak, 2026-10-22.'])
     // GPS: 20,200 km up.
-    expect(satelliteFacts(gps, EPOCH_JD)[1]).toMatch(/^20,\d{3} km × 20,\d{3} km up/)
+    expect(satelliteFacts(gps, EPOCH_JD).fact).toMatch(/^20,\d{3} km up$/)
     // Past its window, it says it isn't drawn.
-    expect(satelliteFacts(iss, EPOCH_JD - 40).join('\n')).toMatch(/after this date\nnot drawn: more than 30 days/)
+    expect(satelliteFacts(iss, EPOCH_JD - 40).notes[0]).toMatch(/^Not drawn: more than 30 days/)
   })
 })
