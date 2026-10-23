@@ -39,6 +39,18 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Starlink joins the satellites round Earth
+
+A sample of 300 Starlink satellites now shows as a shell close round Earth, beside the space
+stations, the navigation and weather satellites and the geostationary ring, and every satellite's
+orbit is two days fresher.
+
+- Date: 2026-10-23
+- PR: [#292](https://github.com/celestiary/web/pull/292)
+- Issue: [#50](https://github.com/celestiary/web/issues/50)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
+- Permalink: [Open this view](https://celestiary.org/#sat:25544@-23.1107,31.7158,57.33909Mm;t=9792.0444jd;cq=0,-0.0827,0,0.9966;fov=45deg;s=F)
+
 ### Satellites round Earth: the ISS, GPS, the geostationary ring
 
 Near Earth, with the orbits on, about 450 real satellites now circle it where they are on the date:

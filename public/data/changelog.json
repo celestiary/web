@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-10-23-starlink-joins-the-satellites-round-earth",
+      "date": "2026-10-23",
+      "headline": "Starlink joins the satellites round Earth",
+      "text": "A sample of 300 Starlink satellites now shows as a shell close round Earth, beside the space stations, the navigation and weather satellites and the geostationary ring, and every satellite's orbit is two days fresher.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 292,
+          "url": "https://github.com/celestiary/web/pull/292"
+        },
+        {
+          "kind": "issue",
+          "number": 50,
+          "url": "https://github.com/celestiary/web/issues/50"
+        }
+      ],
+      "epic": {
+        "number": 114,
+        "title": "Solar-system populations: asteroids, comets, satellites",
+        "url": "https://github.com/celestiary/web/issues/114"
+      },
+      "permalink": "#sat:25544@-23.1107,31.7158,57.33909Mm;t=9792.0444jd;cq=0,-0.0827,0,0.9966;fov=45deg;s=F",
+      "image": null
+    },
+    {
       "id": "2026-10-23-satellites-round-earth-the-iss-gps-the",
       "date": "2026-10-23",
       "headline": "Satellites round Earth: the ISS, GPS, the geostationary ring",
