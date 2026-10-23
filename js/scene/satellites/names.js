@@ -74,8 +74,8 @@ export const SATELLITES_LOAD_DIST = 1.5e9
 const GM_EARTH_KM3_S2 = 398600.4418
 const EARTH_EQUATORIAL_KM = 6378.137
 const GROUP_TEXT = {
-  stations: 'space station', science: 'science', gnss: 'navigation', starlink: 'Starlink', geo: 'geostationary',
-  molniya: 'Molniya orbit', weather: 'weather',
+  stations: 'space station', science: 'science', gnss: 'navigation', geo: 'geostationary', molniya: 'Molniya orbit',
+  weather: 'weather',
 }
 
 

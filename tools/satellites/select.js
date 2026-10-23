@@ -19,7 +19,8 @@ export const GROUP_QUERIES = [
   {group: 'molniya', query: {NAME: 'MOLNIYA'}},
   {group: 'weather', query: {GROUP: 'weather'}},
   {group: 'geo', query: {GROUP: 'geo'}, keep: 150},
-  {group: 'starlink', query: {GROUP: 'starlink'}, keep: 300},
+  // Starlink is a network overlay of its own, the whole constellation
+  // (tools/networks/fetch.mjs, js/scene/networks/Networks.md).
 ]
 
 

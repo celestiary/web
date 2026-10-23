@@ -31,12 +31,6 @@
       "url": "https://celestrak.org/NORAD/elements/gp.php?GROUP=geo&FORMAT=json",
       "of": 568,
       "kept": 150
-    },
-    "starlink": {
-      "url": "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=json",
-      "of": 0,
-      "kept": 0,
-      "error": "skipped"
     }
   },
   "columns": [

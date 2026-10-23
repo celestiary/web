@@ -27,7 +27,6 @@ export const GROUPS = {
   stations: {color: 0xfff2c0, text: 'space stations'},
   science: {color: 0xffd0a0, text: 'science'},
   gnss: {color: 0x9fe09f, text: 'navigation (GPS, GLONASS, Galileo, BeiDou)'},
-  starlink: {color: 0x7fd0ff, text: 'Starlink (a sample)'},
   geo: {color: 0xd0d0d0, text: 'geostationary (a sample)'},
   molniya: {color: 0xff9f9f, text: 'Molniya orbits'},
   weather: {color: 0xfff07f, text: 'weather (sun-synchronous and geostationary)'},
