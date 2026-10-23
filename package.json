@@ -32,6 +32,7 @@
     "bodies": "node tools/bodies/build.mjs",
     "stars": "bun tools/stars/build.mjs",
     "changelog": "node tools/changelog/json.mjs",
+    "satellites": "NODE_USE_ENV_PROXY=1 node tools/satellites/fetch.mjs",
     "changelog:draft": "node tools/changelog/draft.mjs",
     "posts": "node tools/posts/posts.mjs"
   },
@@ -54,6 +55,7 @@
     "fuse.js": "^7.3.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "satellite.js": "7.1.0",
     "three": "0.171.0",
     "tweakpane": "4.0.3",
     "vsop87": "1.0.5",

@@ -499,3 +499,37 @@ Press f in celestiary and the camera rides a body's orbit as time runs, so the p
 
 https://celestiary.org/#sun/jupiter@10.9426,97.5052,388.346569Mm;t=9496.5jd;cq=0.1228,0.4092,0.0818,0.9004;fov=45deg;s=TF;time:rate=16384
 ```
+
+## From the changelog
+
+Plain posts for entries added since the campaign: the headline, as much of the text as fits, and the link.  Rewrite them freely.
+
+### Satellites round Earth: the ISS, GPS, the geostationary ring
+
+- ID: 2026-10-23-satellites-round-earth-the-iss-gps-the
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-11-19
+- Entry: 2026-10-23-satellites-round-earth-the-iss-gps-the
+- Image: posts/images/2026-10-23-satellites-round-earth-the-iss-gps-the.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-23-satellites-round-earth-the-iss-gps-the --hash 'sat:25544@-23.1092,93.6224,184.75929Mm;t=9791.8729jd;cq=0,-0.0829,0,0.9966;fov=45deg;s=F' --png posts/images
+- Notes:
+- Length: X 86/280, Facebook 355/500
+
+```text
+Satellites round Earth: the ISS, GPS, the geostationary ring.
+
+https://celestiary.org/#sat:25544@-23.1092,93.6224,184.75929Mm;t=9791.8729jd;cq=0,-0.0829,0,0.9966;fov=45deg;s=F
+```
+
+#### Facebook
+
+```text
+Satellites round Earth: the ISS, GPS, the geostationary ring.
+
+Near Earth, with the orbits on, about 450 real satellites now circle it where they are on the date: the space stations, Hubble, every navigation satellite, weather satellites, the Molniya satellites on their long northern loops and a sample of the geostationary ring.
+
+https://celestiary.org/#sat:25544@-23.1092,93.6224,184.75929Mm;t=9791.8729jd;cq=0,-0.0829,0,0.9966;fov=45deg;s=F
+```

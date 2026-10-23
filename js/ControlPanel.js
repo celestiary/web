@@ -5,6 +5,7 @@ import {
 import {ORBIT_FADE_DEFAULT, encodeGuideOrbitToken} from './permalink.js'
 import {CODES, ELEMENT_CODES, elementRows, elementsOfDate, formatDistance} from './scene/orbitElements.js'
 import {CURVE_COLORS, rotationCurveSvg} from './scene/rotationCurve.js'
+import {satelliteFacts} from './scene/satellites/names.js'
 import {spectralTypeName} from './scene/stellar.js'
 import {LIGHTYEAR_METER} from './shared.js'
 import {capitalize} from './utils.js'
@@ -621,6 +622,27 @@ export default class ControlPanel {
     this._endPreview()
     this._orbit = null
     this._show(this.starPanelHtml(preview))
+  }
+
+
+  /**
+   * An Earth satellite's panel (js/scene/satellites/Satellites.md): its
+   * orbit from its mean elements, and their age at the date.
+   *
+   * @param {object} rec Its record (satellites/sgp4.js)
+   * @param {number} jd The date, Julian Day (UTC)
+   * @param {?string} [fetched] When the snapshot was fetched
+   */
+  showSatellite(rec, jd, fetched = null) {
+    if (!rec) {
+      return
+    }
+    this._endPreview()
+    this._orbit = null
+    const f = satelliteFacts(rec, jd, fetched)
+    const rows = f.rows.map(([label, value, unit]) => rowHtml(label, value, unit)).join('')
+    const notes = f.notes.map((n) => `<p class="info-note">${esc(n)}</p>\n`).join('')
+    this._show(panelHtml({name: f.name, kind: f.kind, fact: f.fact}, rowsHtml(rows) + notes))
   }
 
 

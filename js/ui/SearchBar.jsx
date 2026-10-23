@@ -575,8 +575,9 @@ function setPreviewForEntry(entry, {setPreviewPath, setPreviewStar, setPreviewGa
   if (parts[0] === 'milkyway') {
     parts.shift()
   }
-  if (entry.kind === 'place') {
-    // The panel shows the place's body: 'sun/earth/austin' → ['sun', 'earth'].
+  if (entry.kind === 'place' || entry.kind === 'satellite') {
+    // The panel shows the place's or satellite's body: 'sun/earth/austin' →
+    // ['sun', 'earth'].
     parts.pop()
   }
   if (parts.length === 0) {

@@ -22,6 +22,32 @@
       "image": null
     },
     {
+      "id": "2026-10-23-satellites-round-earth-the-iss-gps-the",
+      "date": "2026-10-23",
+      "headline": "Satellites round Earth: the ISS, GPS, the geostationary ring",
+      "text": "Near Earth, with the orbits on, about 450 real satellites now circle it where they are on the date: the space stations, Hubble, every navigation satellite, weather satellites, the Molniya satellites on their long northern loops and a sample of the geostationary ring. Search for one (\"ISS\", \"Tiangong\", \"Hubble\", a NORAD number) to target it and see its orbit and how old its elements are, then go to it to ride along 300 km away.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 286,
+          "url": "https://github.com/celestiary/web/pull/286"
+        },
+        {
+          "kind": "issue",
+          "number": 50,
+          "url": "https://github.com/celestiary/web/issues/50"
+        }
+      ],
+      "epic": {
+        "number": 114,
+        "title": "Solar-system populations: asteroids, comets, satellites",
+        "url": "https://github.com/celestiary/web/issues/114"
+      },
+      "permalink": "#sat:25544@-23.1092,93.6224,184.75929Mm;t=9791.8729jd;cq=0,-0.0829,0,0.9966;fov=45deg;s=F",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-10-23-settings-and-about-open-without-the-page",
       "date": "2026-10-23",
       "headline": "Settings and About open without the page blinking",
