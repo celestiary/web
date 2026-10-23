@@ -182,6 +182,8 @@ export default class Celestiary {
       toggle: (body, code) => this.scene.togglePeriodic(body, code),
       frame: () => this.scene.getPeriodicFrame(),
       setFrame: (f) => this.scene.setPeriodicFrame(f),
+      manifolds: () => this.scene.getPeriodicManifolds(),
+      setManifolds: (on) => this.scene.setPeriodicManifolds(on),
     }
     // Opening or folding the panel's lists rewrites the link (`info:`).
     this.controlPanel.onUiChange = () => this._schedulePermalinkUpdate()
@@ -3205,7 +3207,8 @@ export default class Celestiary {
       time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
       info: encodeInfoToken(this.controlPanel.uiState),
       orbits: encodeOrbitsToken(this.scene.getOrbitElements(), this.scene.getOrbitFade()),
-      periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame()),
+      periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame(),
+          this.scene.getPeriodicManifolds()),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(

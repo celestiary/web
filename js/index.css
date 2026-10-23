@@ -595,7 +595,8 @@ button {
 }
 
 .periodic-family,
-.periodic-frame {
+.periodic-frame,
+.periodic-manifolds {
   padding: 1px var(--space-10);
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
@@ -606,19 +607,22 @@ button {
 }
 
 .periodic-family:hover,
-.periodic-frame:hover {
+.periodic-frame:hover,
+.periodic-manifolds:hover {
   border-color: var(--line-accent);
   color: var(--ink);
 }
 
 .periodic-family:focus-visible,
-.periodic-frame:focus-visible {
+.periodic-frame:focus-visible,
+.periodic-manifolds:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
 .periodic-family.on,
-.periodic-frame.on {
+.periodic-frame.on,
+.periodic-manifolds.on {
   border-color: var(--line-accent);
   background: var(--accent-fill);
   color: var(--ink);
