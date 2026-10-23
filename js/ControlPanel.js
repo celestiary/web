@@ -50,8 +50,10 @@ export default class ControlPanel {
      * (Scene's orbit element state); and `preview(body, code)`, a hover's.
      */
     this.orbitHooks = null
-    /** Scene.spaceAround, for spaceListHtml; set by Celestiary. */
+    /** Scene.spaceAround, for spaceAround; set by Celestiary. */
     this.spaceHook = null
+    /** The three-body orbits' switches (periodicHtml): {pairs, toggle, frame, setFrame}. */
+    this.periodicHooks = null
     // The listed body and its list, and when the values last ran.
     this._orbit = null
     /**
@@ -185,6 +187,7 @@ export default class ControlPanel {
     this._endPreview()
     this._show(this.bodyPanelHtml(target, path.join('/')))
     this._wireOrbit(target)
+    this._wirePeriodic()
   }
 
 
@@ -275,8 +278,9 @@ export default class ControlPanel {
   /**
    * The space around the body (Scene.spaceAround; lagrange.js): its Hill
    * sphere, the collinear Lagrange points it shares with its primary, its
-   * synchronous orbit, or why it can't hold one, and its orbital regimes
-   * (regimes.js).  The scene draws them for the target, with the orbits.
+   * synchronous orbit, or why it can't hold one, its orbital regimes
+   * (regimes.js) and its three-body orbits (periodicHtml).  The scene draws
+   * them for the target, with the orbits.
    *
    * @param {string} name a body's
    * @returns {{html: string, peek: string}} the Space around section's
@@ -290,8 +294,10 @@ export default class ControlPanel {
     const pair = s.name ? rowsHtml(this.spaceRowsHtml(s)) : ''
     const regimes = s.regimes?.length ?
       `<div class="info-subhead">Orbital regimes</div>\n${rowsHtml(s.regimes.map(regimeRowHtml).join(''))}` : ''
-    const peek = [s.name ? 'Hill sphere, Lagrange points' : '', regimes ? 'regimes' : ''].filter(Boolean).join(', ')
-    return {html: pair + regimes, peek}
+    const periodic = this.periodicHtml(name)
+    const peek = [s.name ? 'Hill sphere, Lagrange points' : '', regimes ? 'regimes' : '',
+      periodic ? 'three-body orbits' : ''].filter(Boolean).join(', ')
+    return {html: pair + regimes + periodic, peek}
   }
 
 
@@ -321,6 +327,70 @@ export default class ControlPanel {
       rowHtml(`${s.name} L4, L5`, '60°', 'ahead, behind; L3 opposite'),
       rowLongHtml('Synchronous orbit', syncText),
     ].join('')
+  }
+
+
+  /**
+   * The three-body orbits at the body's pairs (Scene.periodicPairsOf;
+   * periodicOrbits.js), each family a switch, and how they're drawn:
+   * turning with the pair, where their shapes read, or fixed in space.
+   * Part of the Space around section, under its own subhead.
+   *
+   * @param {string} name a body's
+   * @returns {string} HTML, or '' for a body with no pairs
+   */
+  periodicHtml(name) {
+    const hooks = this.periodicHooks
+    const pairs = hooks?.pairs?.(name) ?? []
+    if (pairs.length === 0) {
+      return ''
+    }
+    const sw = (cls, on, data, text, role = 'switch') =>
+      `<span class="${cls}${on ? ' on' : ''}" ${data} role="${role}" aria-checked="${on}" tabindex="0">` +
+      `${esc(text)}</span>`
+    const row = (label, chips) =>
+      `<div class="info-row is-long"><dt>${esc(label)}</dt><dd class="info-switches">${chips}</dd></div>\n`
+    let rows = pairs.map((p) => row(p.name, p.families.map((f) =>
+      sw('periodic-family', f.on, `data-body="${esc(p.body)}" data-code="${esc(f.code)}"`, f.name)).join(''))).join('')
+    const frame = hooks.frame?.() ?? 'rotating'
+    rows += row('Drawn', sw('periodic-frame', frame === 'rotating', 'data-frame="rotating"', 'turning with the pair',
+        'radio') + sw('periodic-frame', frame === 'inertial', 'data-frame="inertial"', 'fixed in space', 'radio'))
+    return `<div class="info-subhead">Three-body orbits</div>\n${rowsHtml(rows)}`
+  }
+
+
+  /** Wire the three-body orbits' switches (periodicHtml) to the scene. */
+  _wirePeriodic() {
+    const hooks = this.periodicHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    const mark = (el, on) => {
+      el.classList.toggle('on', on)
+      el.setAttribute('aria-checked', String(on))
+    }
+    const act = (el, fn) => {
+      el.addEventListener('click', fn)
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault()
+          fn()
+        }
+      })
+    }
+    for (const el of this.containerElt.querySelectorAll('.periodic-family')) {
+      act(el, () => {
+        hooks.toggle(el.dataset.body, el.dataset.code)
+        mark(el, !el.classList.contains('on'))
+      })
+    }
+    const frames = [...this.containerElt.querySelectorAll('.periodic-frame')]
+    for (const el of frames) {
+      act(el, () => {
+        hooks.setFrame(el.dataset.frame)
+        frames.forEach((f) => mark(f, f === el))
+      })
+    }
   }
 
 

@@ -585,6 +585,45 @@ button {
   font-size: 0.72rem;
 }
 
+/* The three-body orbits' switches (ControlPanel.periodicHtml): a family
+   each, and how they're drawn. */
+.info-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  margin-top: var(--space-2);
+}
+
+.periodic-family,
+.periodic-frame {
+  padding: 1px var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--ink-3);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.periodic-family:hover,
+.periodic-frame:hover {
+  border-color: var(--line-accent);
+  color: var(--ink);
+}
+
+.periodic-family:focus-visible,
+.periodic-frame:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.periodic-family.on,
+.periodic-frame.on {
+  border-color: var(--line-accent);
+  background: var(--accent-fill);
+  color: var(--ink);
+}
+
 /* A body's system: chips that fly there. */
 .info-chips {
   display: flex;

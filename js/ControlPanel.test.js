@@ -159,6 +159,28 @@ describe('ControlPanel', () => {
     expect(periodText(1800)).toBe('30m')
   })
 
+  it('lists the three-body families at the body\'s pairs, as switches', () => {
+    const panel = new ControlPanel(null, null)
+    expect(panel.periodicHtml('earth')).toBe('')
+    panel.periodicHooks = {
+      pairs: () => [{body: 'moon', name: 'Earth–Moon', families: [{code: 'dro', name: 'DRO', on: true},
+        {code: 'nrho', name: '9:2 NRHO', on: false}]}],
+      frame: () => 'inertial',
+    }
+    const html = panel.periodicHtml('earth')
+    expect(html).toContain('<div class="info-subhead">Three-body orbits</div>')
+    expect(html).toContain('<dt>Earth–Moon</dt><dd class="info-switches">')
+    expect(html).toContain('<dt>Drawn</dt>')
+    expect(html).toContain('class="periodic-family on" data-body="moon" data-code="dro"')
+    expect(html).toContain('class="periodic-family" data-body="moon" data-code="nrho"')
+    expect(html).toContain('class="periodic-frame on" data-frame="inertial"')
+    // In the Space around section, after the pair's rows.
+    panel.spaceHook = () => ({name: 'Earth–Moon', secondary: 'Moon', hill: 6e7, l1: 6e7, l2: 6e7, sync: null})
+    const space = panel.spaceAround('earth')
+    expect(space.peek).toBe('Hill sphere, Lagrange points, three-body orbits')
+    expect(space.html.indexOf('Three-body orbits')).toBeGreaterThan(space.html.indexOf('Hill sphere'))
+  })
+
   it('writes masses in scientific notation', () => {
     expect(sci(5.97219e24)).toBe('5.9722 × 10²⁴')
     expect(sci(1.4762e15)).toBe('1.4762 × 10¹⁵')
