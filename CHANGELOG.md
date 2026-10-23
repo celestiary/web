@@ -54,6 +54,22 @@ Arenstorf's orbit, looping from close over the Moon round the Earth and back eve
 - Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@79.7759,18.5333,939.162972Gm;t=10205.8415jd;cq=0.5,0.5,0.5,-0.5;fov=45deg;s=alF;time:pause;periodic:moon=are,frame=inertial;craft:aldrin=9785.5)
 - Featured: yes
 
+### All of Starlink joins the satellites, with a search, and you choose which to see
+
+All 11,116 Starlink satellites can now show round Earth, with a slider for how many, the first by
+serial number, from one to all; and Iridium's 80 in their polar planes. In Earth's panel, the
+Satellites section has a search that finds Earth's satellites alone, a switch for each kind
+(Starlink, Iridium, navigation, weather, the space stations...) and a slider for how many names to
+show. The names hold still as the satellites move, those behind Earth no longer crowd out those in
+front, and selecting one keeps its one name. A link keeps what you chose.
+
+- Date: 2026-10-23
+- Featured: yes
+- PR: [#292](https://github.com/celestiary/web/pull/292)
+- Issue: [#50](https://github.com/celestiary/web/issues/50)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116)
+
 ### The slow way to the Moon, by way of the Sun
 
 The Earth's and the Moon's Craft sections now have a *ballistic lunar transfer*: the low-energy route

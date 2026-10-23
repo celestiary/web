@@ -30,6 +30,10 @@ const HIP_RE = /^(?:HIP\s*)?(\d+)$/i
  *   Fuses of every body in its scope, so a place resolves from any scope
  *   that includes its body: the body's, the solar system's, the root's.
  *   `ensureScope` loads them.
+ * - Tier P: providers that search themselves (`search(text, limit)`, under
+ *   their `scopePath`): a body's population, whose thousands (Starlink) are
+ *   matched by their names' characters, not fuzzily.  Merged in score order
+ *   from any scope that includes the body.
  */
 
 // A place found from a scope wider than its body ranks below the bodies and
@@ -210,18 +214,20 @@ export default class SearchIndex {
       // providers are in.
       this._startLoads()
     }
-    if (!this._fuseA || trimmed.length === 0) {
+    if (trimmed.length === 0) {
       return []
+    }
+    if (!this._fuseA) {
+      return this._queryProviders(trimmed, anchorPath, limit, [], new Set)
     }
 
     const hipMatch = trimmed.match(HIP_RE)
     if (hipMatch && this._hipResolver) {
       const hipId = parseInt(hipMatch[1], 10)
       const entry = this._hipResolver(hipId)
-      if (entry && inScope(entry.path, anchorPath)) {
-        return [{entry, score: 0}]
-      }
-      return []
+      const hit = entry && inScope(entry.path, anchorPath) ? [{entry, score: 0}] : []
+      // A number is a satellite's too (NORAD's catalogue number).
+      return this._queryProviders(trimmed, anchorPath, limit, hit, new Set(hit.map((h) => h.entry.id)))
     }
 
     const results = this._fuseA.search(trimmed, {limit: limit * 4})
@@ -255,7 +261,40 @@ export default class SearchIndex {
       // Stable, so a tie keeps the Tier A hit first.
       filtered.sort((a, b) => a.score - b.score)
     }
-    return filtered.slice(0, limit)
+    return this._queryProviders(trimmed, anchorPath, limit, filtered, seenIds)
+  }
+
+
+  /**
+   * Tier P: the providers that search themselves, in scope, merged into
+   * the hits so far by score.
+   *
+   * @param {string} text
+   * @param {string} anchorPath
+   * @param {number} limit
+   * @param {object[]} hits {entry, score}, best first
+   * @param {Set<string>} seenIds theirs
+   * @returns {object[]} array of {entry, score}
+   */
+  _queryProviders(text, anchorPath, limit, hits, seenIds) {
+    let merged = false
+    for (const p of SearchRegistry.list()) {
+      if (typeof p.search !== 'function' || !p.scopePath || !inScope(p.scopePath, anchorPath)) {
+        continue
+      }
+      const penalty = p.scopePath === anchorPath ? 0 : PLACE_WIDER_SCOPE_PENALTY
+      for (const r of p.search(text, limit)) {
+        if (!seenIds.has(r.entry.id)) {
+          seenIds.add(r.entry.id)
+          hits.push({entry: r.entry, score: r.score + penalty})
+          merged = true
+        }
+      }
+    }
+    if (merged) {
+      hits.sort((a, b) => a.score - b.score)
+    }
+    return hits.slice(0, limit)
   }
 
 
