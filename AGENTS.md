@@ -82,6 +82,11 @@ tried and dropped.
     real clock. A test that depends on where the tour or the bodies are
     pins it with `setSystemTime` (bun:test) and resets it after, or it
     passes at some hours and fails at others.
+  - A test that counts what a load fetches awaits the load's promise
+    (`scene._satellitesPending`, `scene._networksPending[key]`), not a
+    fixed sleep: those loads are a dynamic import first, and under a busy
+    machine the import outlasted a 20 ms wait and its fetch was counted in
+    the next test (`Celestiary.test.js`, "what a load fetches").
   - Keep DOM work (image loads, element creation) out of synchronous
     paths that tests drive, such as `Scene.setTarget`. Defer it to the
     animation loop: `preAnimCb` on a scene node runs every frame.
