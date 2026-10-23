@@ -18,9 +18,9 @@ const ORBIT_CODES = ['a', 'e', 'i', 'node', 'peri', 'at']
 export const ORBIT_FADE_DEFAULT = 0.5
 // The three-body periodic orbits' families (periodicOrbits.js FAMILIES'
 // codes), in the order the panel lists them.
-export const PERIODIC_CODES = ['l1l', 'l2l', 'l1h', 'l2h', 'dro', 'nrho']
+export const PERIODIC_CODES = ['l1l', 'l2l', 'l1h', 'l2h', 'dro', 'nrho', 'are']
 // The craft's flights (craft/flights.js FLIGHTS' codes).
-export const CRAFT_CODES = ['tli', 'blt']
+export const CRAFT_CODES = ['tli', 'blt', 'aldrin']
 const J2000_JD = 2451545
 // A departure's days from J2000 in a link: to a thousandth (86 s).
 const CRAFT_DAY_DIGITS = 3

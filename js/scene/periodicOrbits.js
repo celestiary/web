@@ -32,6 +32,8 @@ import {correctSymmetric, propagate} from './cr3bp.js'
  * The families, in the order the panel lists them; `code` is the link's.
  * `manifolds`: unstable enough to have tubes worth drawing (manifolds.js);
  * the DRO is stable and the 9:2 NRHO nearly so (stability index 1.3).
+ * `sweep`: fixed in space, swept over its own period (not one turn of the
+ * pair), in this many points.
  */
 export const FAMILIES = {
   l1Lyapunov: {code: 'l1l', name: 'L1 Lyapunov', point: 1, manifolds: true, color: 0x9fd0ff},
@@ -40,6 +42,8 @@ export const FAMILIES = {
   l2Halo: {code: 'l2h', name: 'L2 halo', point: 2, manifolds: true, color: 0xe0a0ff, halo: true},
   dro: {code: 'dro', name: 'DRO', point: 0, color: 0xa0ffd0},
   nrho: {code: 'nrho', name: '9:2 NRHO', point: 2, only: 'moon', color: 0xffe080, halo: true},
+  arenstorf: {code: 'are', name: 'Arenstorf cycler', point: 0, only: 'moon', color: 0x80e0ff,
+    sweep: {window: 'period', points: 2881}},
 }
 /**
  * JPL's catalogue members matching these (tools/periodic/fetchJpl.mjs), by
@@ -60,6 +64,17 @@ const DRO_STEPS = 24
 // pinned below.
 const NRHO_GUESS = [1.0221, -0.1821, -0.1033]
 const NRHO_PERIOD_ITERATIONS = 20
+// Arenstorf's periodic orbit (1963), as Hairer, Nørsett and Wanner give it
+// ("Solving Ordinary Differential Equations I", II.0): in his mass ratio,
+// from (0.994, 0) at rest in x, vy0 −2.00158510637908252240537862224,
+// period 17.0652165601579625588917206249 (to a double's precision here).
+// Continued to the pair's μ in ARENSTORF_STEPS, its start kept as far from
+// the Moon.
+export const ARENSTORF = {mu: 0.012277471, x0: 0.994, vy0: -2.0015851063790824, period: 17.06521656015796}
+const ARENSTORF_STEPS = 8
+// Its half-period crossing of y = 0 at right angles is the fourth crossing,
+// at T/2; the first after 0.45 T.
+const ARENSTORF_HALF = 0.45
 
 
 /**
@@ -253,6 +268,8 @@ export function familyMember(mu, family) {
     }
     case 'nrho':
       return nrho92(mu)
+    case 'arenstorf':
+      return arenstorf(mu)
     default:
       return null
   }
@@ -307,6 +324,34 @@ export function nrho92(mu, synodicRatio = 29.530589 / 27.321661) {
     b = correctSymmetric(mu, [x, b.state[2], b.state[4]], 'x')
   }
   return b
+}
+
+
+/**
+ * Arenstorf's periodic orbit at a pair: a ballistic path from a pass close
+ * over the Moon, round the Earth and back, over and over (an Earth-Moon
+ * cycler).  Continued from his mass ratio to the pair's, each step closed
+ * by the symmetric correction (its fourth crossing of y = 0 at right
+ * angles, at half its period), the start kept as far from the Moon.
+ *
+ * @param {number} mu
+ * @returns {?{state: Array<number>, period: number}}
+ */
+export function arenstorf(mu) {
+  const fromMoon = ARENSTORF.x0 - (1 - ARENSTORF.mu)
+  let vy = ARENSTORF.vy0
+  let period = ARENSTORF.period
+  let m = null
+  for (let k = 1; k <= ARENSTORF_STEPS; k++) {
+    const muK = ARENSTORF.mu + ((mu - ARENSTORF.mu) * k / ARENSTORF_STEPS)
+    m = correctSymmetric(muK, [1 - muK + fromMoon, 0, vy], 'x', ARENSTORF_HALF * period)
+    if (!m) {
+      return null
+    }
+    vy = m.state[4]
+    period = m.period
+  }
+  return m
 }
 
 

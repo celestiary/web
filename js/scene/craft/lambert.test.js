@@ -45,6 +45,26 @@ describe('Lambert\'s problem', () => {
     expect(long.v1[1]).toBeLessThan(0)
   })
 
+  it('goes round whole turns first when asked, on either branch', () => {
+    // From 1 AU to 1 AU 0.85 rad on, in 780 days with a turn first: the
+    // high branch is Aldrin's cycler's orbit, a = 1.60 AU.
+    const accel = newForceModel({gm, epoch: 2451545})
+    const r1 = [AU, 0, 0]
+    const r2 = [Math.cos(0.85) * AU, Math.sin(0.85) * AU, 0]
+    const as = {}
+    for (const branch of ['low', 'high']) {
+      const arc = lambert(r1, r2, 780 * DAY, gm, [0, 0, 1], 1, branch)
+      const {y} = dopri5(ratesOf(accel), [...r1, ...arc.v1], 0, 780 * DAY, TIGHT)
+      expect(Math.hypot(y[0] - r2[0], y[1] - r2[1], y[2] - r2[2]) / AU).toBeLessThan(1e-8)
+      const v = Math.hypot(...arc.v1)
+      as[branch] = 1 / ((2 / AU) - (v * v / gm)) / AU
+    }
+    expect(as.high).toBeCloseTo(1.60, 2)
+    expect(as.low).toBeLessThan(as.high)
+    // Too short for a whole turn first: none.
+    expect(lambert(r1, r2, 100 * DAY, gm, [0, 0, 1], 1)).toBeNull()
+  })
+
   it('matches Vallado\'s example 7-5', () => {
     // Vallado, "Fundamentals of Astrodynamics", 4th ed., example 7-5: from
     // (15945.34, 0, 0) km to (12214.83899, 10249.46731, 0) km in 76 min,

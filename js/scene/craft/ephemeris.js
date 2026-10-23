@@ -28,6 +28,7 @@ const J2000_OBLIQUITY_DEG = 84381.448 / 3600
 const ORDER = 8
 /** Samples' spacing, days, by body. */
 export const SAMPLE_DAYS = {moon: 0.25, sun: 1, planet: 1}
+const HELIOCENTRIC_DAYS = 4
 
 
 /**
@@ -151,22 +152,34 @@ export function geocentricTracks({vsop, moon, ttToUtc}, planets = []) {
 
 
 /**
- * The bodies about the Sun: the planets from VSOP87C, heliocentric.
+ * The bodies about the Sun: the planets from VSOP87C, heliocentric, all from
+ * one call a sample.
  *
  * @param {object} bodies bodies.js appBodies', with its vsop
  * @param {Array<string>} planets VSOP87C's names
+ * @param {number} [stepDays] the samples' spacing: 4 days by default, for
+ *     interplanetary arcs, where the Earth's 20 km of error there (its
+ *     monthly wobble, interpolated) is nothing to a v∞ of kilometres a second
  * @returns {{[key: string]: SampledTrack}}
  */
-export function heliocentricTracks({vsop, ttToUtc}, planets) {
+export function heliocentricTracks({vsop, ttToUtc}, planets, stepDays = HELIOCENTRIC_DAYS) {
+  const calls = new Map
+  const at = (jde) => {
+    if (!calls.has(jde)) {
+      const all = vsop(ttToUtc(jde))
+      calls.set(jde, Object.fromEntries(planets.map((p) => [p, [all[p].x, all[p].y, all[p].z]])))
+    }
+    return calls.get(jde)
+  }
   const tracks = {}
   for (const name of planets) {
     tracks[name] = new SampledTrack((jde, out) => {
-      const p = vsop(ttToUtc(jde))[name]
-      out[0] = p.x * ASTRO_UNIT_METER
-      out[1] = p.y * ASTRO_UNIT_METER
-      out[2] = p.z * ASTRO_UNIT_METER
+      const p = at(jde)[name]
+      out[0] = p[0] * ASTRO_UNIT_METER
+      out[1] = p[1] * ASTRO_UNIT_METER
+      out[2] = p[2] * ASTRO_UNIT_METER
       return out
-    }, SAMPLE_DAYS.planet)
+    }, stepDays)
   }
   return tracks
 }

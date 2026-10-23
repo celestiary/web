@@ -13,6 +13,10 @@ scope 5: the low-energy transfers and the cyclers.
 - `js/scene/craft/lambert.js`: Lambert's problem, the first guesses.
 - `js/scene/craft/transfer.js`: a transfer from a parking orbit to the Moon,
   targeted in the full model.
+- `js/scene/craft/cycler.js`: Aldrin's Earth–Mars cycler, on circles and on
+  the planets as they are; `tools/craft/designCyclers.mjs` makes the ones the
+  app offers (`public/data/aldrin.json`).  The Earth–Moon cycler is a
+  three-body orbit ([Lagrange.md](Lagrange.md#three-body-orbits)).
 - `js/scene/craft/blt.js`: the ballistic lunar transfer, designed backward
   from the Moon; `tools/craft/designBlt.mjs` makes the ones the app offers
   (`public/data/blt.json`).
@@ -288,11 +292,122 @@ and the panel's row rewritten with its facts.
 - **The designs the app offers**, two of them flown: each arrives within a
   kilometre of 100 km, 600 to 720 m/s from a circular orbit there.
 
+## Cyclers
+
+The last of #272's scope 5: orbits that keep meeting two bodies, for ever,
+with (nearly) nothing but their gravity.
+
+### Aldrin's Earth–Mars cycler
+
+A craft on a solar orbit that meets the Earth every synodic period, 2.135
+years, and Mars about 146 days after each Earth pass (Aldrin 1985; Byrnes,
+Longuski and Aldrin, *Cycler orbit between Earth and Mars*, J. Spacecraft
+and Rockets 30, 1993).  Its orbit, a = 1.60 AU, goes round in 2.02 years,
+so between Earth passes it goes a little over once round; the Earth's
+flyby turns its line of apsides on by the planets' 48.7° a cycle.
+
+**Patched conics** (`cycler.js`): Lambert's arcs about the Sun between the
+planets as VSOP87C has them, the craft's speed relative to each planet (v∞)
+turned at a flyby.  What a planet's gravity can't do above a least height
+(300 km at the Earth, 200 at Mars) is paid in Δv (`flybyDv`): a burn at
+periapsis to match the speeds in and out, and a rotation of the turn left
+over.  Lambert's problem got whole turns for this (`lambert(…, revs,
+branch)`): one turn first, on either of its two arcs.
+
+**On circles, as the papers have it** (`idealAldrin`): the planets on
+circles in one plane, each cycle one conic from the Earth to the Earth a
+synodic period later (Lambert's more energetic one-turn arc), joined at
+the Earth to its own copy turned by 48.7°, the start's phase searched for
+the conic to cross Mars's orbit where Mars is:
+
+| | published | here |
+|---|---|---|
+| Earth to Mars, days | 146 | 145.3 |
+| v∞ at the Earth, km/s | 6.54 | 6.40 |
+| v∞ at Mars, km/s | 9.75 | 9.68 |
+| Aphelion, AU | 2.23 | 2.224 |
+| Semi-major axis, AU; period, years | 1.60; 2.02 | 1.600; 2.023 |
+
+It passes 12,700 km from Mars, within its 577,000 km sphere of influence
+(the miss read at 3-hour steps).  The Earth's flyby asks for an 80° turn,
+where a 300 km pass at 6.4 km/s gives 73°: here the rest costs 830 m/s a
+cycle.  The published values are from Byrnes et al. and Russell and Ocampo
+(2004), as remembered: the papers weren't reachable from the sandbox, and
+the tests hold them to 3 days, 0.3 km/s and 0.2 km/s.
+
+**On the planets as they are** (`aldrinCycler`): started when Mars leads
+the Earth by the ideal's angle at its start, each cycle seeded with the
+ideal's 145 days to Mars and the synodic period, and all three cycles'
+dates adjusted together by coordinate descent (8 days down to half a day)
+for the least Δv at the flybys.  Chosen one cycle at a time instead, each
+stranded the next: an Earth flyby needed 7.4 km/s.  Neither orbit being a
+circle nor in one plane, no two cycles are alike.  Over the six designs
+(seven windows 2026 to 2040, one without a start): v∞ 5.3 to 11.4 km/s at
+the Earth and 7.0 to 13.0 at Mars (its eccentricity, 0.093, most of that),
+and 270 to 3,000 m/s at the flybys over three cycles, by window, nearly all
+of it at the Earth's (the Mars passes are free but in one window, 705 m/s).  Half a second a design.  `tools/craft/designCyclers.mjs`
+keeps each design's dates (`public/data/aldrin.json`, 4 KB); the app makes
+its arcs again from them (a few Lambert solutions, VSOP87C at a few dates)
+and flies each about the Sun alone, a Kepler arc, from its start.
+
+**Drawn** about the Sun: "Aldrin cycler" in the *Craft* rows of the Earth's
+and Mars's Space around sections; the first design starting on or after the
+clock's day, waiting for VSOP87C; the panel gives its departure, its Mars
+pass and their v∞, its cycles and what its flybys cost.  `craft:aldrin=…`.
+From 6 AU over the ecliptic, 400 days in, the Sun's glare off: three
+ellipses from the Earth's orbit out past Mars's, their apsides turning.
+
+![Aldrin cycler](../../screens/cyclers-272/aldrin.png)
+
+### An Earth–Moon cycler: Arenstorf's orbit
+
+A ballistic path that keeps cycling from a pass close over the Moon to a
+loop round the Earth and back: Arenstorf's periodic orbit (1963), in the
+circular restricted problem, the classic test of an integrator (Hairer,
+Nørsett and Wanner, *Solving Ordinary Differential Equations I*, II.0).
+It's a three-body orbit, so it's a family of the Earth–Moon pair's
+([Lagrange.md, three-body orbits](Lagrange.md#three-body-orbits)): the info
+panel's "Arenstorf cycler", `periodic:moon=are`.
+
+- **As published**: from (0.994, 0) in his mass ratio 0.012277471, vy0
+  −2.00158510637908…, period 17.0652165601579625…  One period from his
+  start returns to it to 2e-10, and the symmetric correction (its fourth
+  crossing of the Earth–Moon line, at right angles, at half its period)
+  gives his period to 6e-11.
+- **At the Earth–Moon pair**: continued from his μ to the pair's in eight
+  steps, its start kept as far from the Moon.  74.2 days round; 676 km over
+  the Moon, and 178,000 km from the Earth at its nearest.
+- **Fixed in space** it is swept over its own period, not the pair's turn,
+  in 2,881 points: its 74-day spirograph.
+
+A cycler of the kind the papers on Earth–Moon cyclers mean, with a low
+Earth pass each period too (Casoliva et al. 2010; Uphoff and Crouch 1991),
+would need their families: a free return from the Earth–Moon line can't
+come back to it at right angles behind the Moon three days later, as the
+Moon has moved on 40°, and a scan of perigee speeds found only orbits that
+turn round past 2 separations.
+
+Turning with the pair, and fixed in space:
+
+![Arenstorf cycler, turning with the pair](../../screens/cyclers-272/arenstorf-turning.png)
+![Arenstorf cycler, fixed in space](../../screens/cyclers-272/arenstorf-fixed.png)
+
+**Checked** (`cycler.test.js`, `periodicOrbits.test.js`, `lambert.test.js`):
+the flyby's cost (free within the turn the planet gives, the rest rotated;
+a burn under the speeds' difference); one-turn Lambert arcs on both
+branches landing to 1e-8 AU (the high branch over 780 days is a = 1.60 AU);
+the ideal cycler against the table; a cycler on VSOP87C, its Mars passes
+under 100 m/s, v∞ in range, each cycle within 30 days of the synodic
+period; the designs offered, flown; Arenstorf's orbit as published and at
+the pair.
+
 ## Not yet
 
 - **The ballistic lunar transfer in the Sun–Earth turning frame**, where its
   loop out toward L1 or L2 reads as the textbooks draw it.
-- **The cyclers**: Aldrin's Earth–Mars cycler and an Earth–Moon one.
+- **The cyclers flown in the full model**: the arcs are Kepler's; each
+  flown with every planet's pull would need its correction at each pass.
+- **Earth–Moon cyclers with low Earth passes** (above).
 - **Thrust, and a craft the user flies** (#2, #119).
 - **The lunar orbit after the perilune**, and the parking orbit before the
   burn.
