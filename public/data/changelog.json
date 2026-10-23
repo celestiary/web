@@ -1,6 +1,48 @@
 {
   "entries": [
     {
+      "id": "2026-10-23-halo-orbits-gateway-s-nrho-and-the-spirographs",
+      "date": "2026-10-23",
+      "headline": "Halo orbits, Gateway's NRHO and the spirographs of three-body space",
+      "text": "The orbits spacecraft fly around Lagrange points can now be drawn. Open a planet's or moon's info panel, and under space around switch on its halo, Lyapunov and distant retrograde orbits, or around the Moon the near-rectilinear halo orbit that NASA's Gateway station is planned for. They are drawn moving with the pair of bodies, where their shapes make sense, or fixed in space, where they trace the spirograph loops seen from Earth. Where NASA/JPL's catalogue of these orbits covers the pair (the Earth and Moon, the Sun and Earth or Mars, Phobos, Europa, Titan), the orbits drawn are JPL's own.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 283,
+          "url": "https://github.com/celestiary/web/pull/283"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth/moon",
+      "image": null
+    },
+    {
+      "id": "2026-10-23-earth-s-orbital-neighbourhoods-leo-gps-molniya",
+      "date": "2026-10-23",
+      "headline": "Earth's orbital neighbourhoods: LEO, GPS, Molniya and the edge of cislunar space",
+      "text": "With Earth selected, the regions satellites use are drawn around it: low and medium Earth orbit as faint shells, GPS's six orbital planes, the long Molniya and Tundra loops over the north, the graveyard just above the geostationary ring, and a sun-synchronous orbit that rides the line between day and night as the Earth goes round the Sun. Further out, outlines mark where the Moon's pull starts to matter and where cislunar space ends. Mars shows its own sun-synchronous orbit.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 278,
+          "url": "https://github.com/celestiary/web/pull/278"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth",
+      "image": null
+    },
+    {
       "id": "2026-10-23-lagrange-points-hill-spheres-and-stationary",
       "date": "2026-10-23",
       "headline": "Lagrange points, Hill spheres and stationary orbits around every planet and moon",

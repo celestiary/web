@@ -39,6 +39,33 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Halo orbits, Gateway's NRHO and the spirographs of three-body space
+
+The orbits spacecraft fly around Lagrange points can now be drawn. Open a planet's or moon's info
+panel, and under *space around* switch on its halo, Lyapunov and distant retrograde orbits, or around
+the Moon the near-rectilinear halo orbit that NASA's Gateway station is planned for. They are drawn
+moving with the pair of bodies, where their shapes make sense, or fixed in space, where they trace the
+spirograph loops seen from Earth. Where NASA/JPL's catalogue of these orbits covers the pair (the Earth
+and Moon, the Sun and Earth or Mars, Phobos, Europa, Titan), the orbits drawn are JPL's own.
+
+- Date: 2026-10-23
+- PR: [#283](https://github.com/celestiary/web/pull/283)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon)
+
+### Earth's orbital neighbourhoods: LEO, GPS, Molniya and the edge of cislunar space
+
+With Earth selected, the regions satellites use are drawn around it: low and medium Earth orbit as
+faint shells, GPS's six orbital planes, the long Molniya and Tundra loops over the north, the graveyard
+just above the geostationary ring, and a sun-synchronous orbit that rides the line between day and
+night as the Earth goes round the Sun. Further out, outlines mark where the Moon's pull starts to
+matter and where cislunar space ends. Mars shows its own sun-synchronous orbit.
+
+- Date: 2026-10-23
+- PR: [#278](https://github.com/celestiary/web/pull/278)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
 ### Lagrange points, Hill spheres and stationary orbits around every planet and moon
 
 Pick a planet or moon and the points where a spacecraft can hold station with it show up around it:

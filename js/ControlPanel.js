@@ -50,6 +50,8 @@ export default class ControlPanel {
     this.orbitHooks = null
     /** Scene.spaceAround, for spaceListHtml; set by Celestiary. */
     this.spaceHook = null
+    /** The three-body orbits' switches (periodicHtml): {pairs, toggle, frame, setFrame}. */
+    this.periodicHooks = null
     // The listed body and its list, and when the values last ran.
     this._orbit = null
     /**
@@ -161,13 +163,15 @@ export default class ControlPanel {
     collapsor.makeCollapsable(this.containerElt)
     this._applyUiState()
     this._wireOrbit(target)
+    this._wirePeriodic()
   }
 
 
   /**
    * The space around the body (Scene.spaceAround; lagrange.js): its Hill
-   * sphere, the collinear Lagrange points it shares with its primary, and
-   * its synchronous orbit, or why it can't hold one.  The scene draws them
+   * sphere, the collinear Lagrange points it shares with its primary, its
+   * synchronous orbit, or why it can't hold one, and its orbital regimes
+   * (regimes.js).  The scene draws them
    * for the target, with the orbits.
    *
    * @param {string} name a body's
@@ -177,6 +181,10 @@ export default class ControlPanel {
     const s = this.spaceHook?.(name)
     if (!s) {
       return ''
+    }
+    const regimes = (s.regimes ? s.regimes.map((r) => `<li>${r}</li>\n`).join('') : '') + this.periodicHtml(name)
+    if (!s.name) {
+      return `<li>space around: <ul class="collapsed" data-prop="space">\n${regimes}</ul></li>\n`
     }
     const sync = s.sync
     let syncText = 'no rotation period'
@@ -193,8 +201,69 @@ export default class ControlPanel {
       `<li>${s.name} L1: ${formatDistance(s.l1)} toward the ${s.name.split('–')[0]}; ` +
         `L2: ${formatDistance(s.l2)} beyond</li>\n` +
       `<li>${s.name} L4, L5: 60° ahead and behind on the orbit; L3 opposite</li>\n` +
-      `<li>synchronous orbit: ${syncText}</li>\n` +
-      '</ul></li>\n'
+      `<li>synchronous orbit: ${syncText}</li>\n${regimes}</ul></li>\n`
+  }
+
+
+  /**
+   * The three-body orbits at the body's pairs (Scene.periodicPairsOf;
+   * periodicOrbits.js), each family a switch, and how they're drawn:
+   * turning with the pair, where their shapes read, or fixed in space.
+   *
+   * @param {string} name a body's
+   * @returns {string} <li>s, or ''
+   */
+  periodicHtml(name) {
+    const hooks = this.periodicHooks
+    const pairs = hooks?.pairs?.(name) ?? []
+    if (pairs.length === 0) {
+      return ''
+    }
+    const sw = (cls, on, data, text, role = 'switch') =>
+      `<span class="${cls}${on ? ' on' : ''}" ${data} role="${role}" aria-checked="${on}" tabindex="0">${text}</span>`
+    const rows = pairs.map((p) => `<li class="periodic">three-body orbits, ${p.name}: ` +
+      `${p.families.map((f) => sw('periodic-family', f.on, `data-body="${p.body}" data-code="${f.code}"`, f.name))
+          .join(' · ')}</li>\n`)
+    const frame = hooks.frame?.() ?? 'rotating'
+    rows.push('<li class="periodic">drawn ' +
+      `${sw('periodic-frame', frame === 'rotating', 'data-frame="rotating"', 'turning with the pair', 'radio')} · ` +
+      `${sw('periodic-frame', frame === 'inertial', 'data-frame="inertial"', 'fixed in space', 'radio')}</li>\n`)
+    return rows.join('')
+  }
+
+
+  /** Wire the three-body orbits' switches (periodicHtml) to the scene. */
+  _wirePeriodic() {
+    const hooks = this.periodicHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    const mark = (el, on) => {
+      el.classList.toggle('on', on)
+      el.setAttribute('aria-checked', String(on))
+    }
+    const act = (el, fn) => {
+      el.addEventListener('click', fn)
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault()
+          fn()
+        }
+      })
+    }
+    for (const el of this.containerElt.querySelectorAll('.periodic-family')) {
+      act(el, () => {
+        hooks.toggle(el.dataset.body, el.dataset.code)
+        mark(el, !el.classList.contains('on'))
+      })
+    }
+    const frames = [...this.containerElt.querySelectorAll('.periodic-frame')]
+    for (const el of frames) {
+      act(el, () => {
+        hooks.setFrame(el.dataset.frame)
+        frames.forEach((f) => mark(f, f === el))
+      })
+    }
   }
 
 

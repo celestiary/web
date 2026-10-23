@@ -4,14 +4,13 @@ import {
   Float32BufferAttribute,
   Group,
   Points,
-  Quaternion,
   ShaderMaterial,
-  Vector2,
   Vector3,
 } from 'three'
 import {sceneReferred} from './hdr.js'
 import {POINT_NAMES, lagrangePoints, placePoints} from './lagrange.js'
-import SpriteSheet from './SpriteSheet.js'
+import {faceOutline, newLabels, pixelsPerMetre, unitCircle} from './overlayMarks.js'
+import {FAMILIES, inertialSweep, placeAt} from './periodicOrbits.js'
 import {newWideLineStrip} from './wideLines.js'
 
 
@@ -29,7 +28,6 @@ import {newWideLineStrip} from './wideLines.js'
 
 const COLORS = {point: 0x8fe3b0, hill: 0x8fb8e3, sync: 0xe3c88f, unstable: 0x9a9a9a}
 const POINT_SIZE_PX = 9
-const RING_POINTS = 129
 const LINE_WIDTH = 1.25
 const HILL_OPACITY = 0.5
 const SYNC_OPACITY = 0.7
@@ -39,35 +37,18 @@ const SYNC_OPACITY = 0.7
 // the pair spans MIN_PAIR_PX: else, from afar, they pile up on the bodies.
 const MIN_LABEL_PX = 50
 const MIN_PAIR_PX = 12
+// The three-body orbits (setFamily): fixed in space, swept out over one turn
+// of the pair in this many points.
+const SWEEP_POINTS = 721
+const FAMILY_WIDTH = 1.5
+const FAMILY_OPACITY = 0.85
+const FAMILY_KEYS = Object.keys(FAMILIES)
 const noRaycast = () => undefined
-const tmpQ = new Quaternion
 const tmpV = new Vector3
-const tmpRes = new Vector2
-
-
-/**
- * @param {number} color
- * @returns {string} as a canvas takes it
- */
-function cssColor(color) {
-  return `#${color.toString(16).padStart(6, '0')}`
-}
-
-
-/**
- * A unit circle in the XZ plane.
- *
- * @returns {Float32Array}
- */
-function unitCircle() {
-  const out = new Float32Array(RING_POINTS * 3)
-  for (let k = 0; k < RING_POINTS; k++) {
-    const t = 2 * Math.PI * k / (RING_POINTS - 1)
-    out[3 * k] = Math.cos(t)
-    out[(3 * k) + 2] = -Math.sin(t)
-  }
-  return out
-}
+const tmpX = new Vector3
+const tmpY = new Vector3
+const tmpZ = new Vector3
+const tmpP = [0, 0, 0]
 
 
 /**
@@ -110,37 +91,6 @@ function newRings(color, n) {
 }
 
 
-/**
- * @param {Array<{text: string, color: number, at: ?Array<number>}>} entries
- * @returns {{sheet: SpriteSheet, sprites: Points}}
- */
-function newLabels(entries) {
-  const sheet = new SpriteSheet(entries.length, entries.map((l) => l.text))
-  for (const l of entries) {
-    sheet.add(...(l.at ?? [0, 0, 0]), l.text, cssColor(l.color))
-  }
-  const sprites = sheet.compile()
-  sprites.frustumCulled = false
-  sprites.raycast = noRaycast
-  return {sheet, sprites}
-}
-
-
-/**
- * @param {object} renderer
- * @param {object} camera a perspective camera
- * @param {Vector3} at a world position
- * @returns {number} how many pixels a metre across at `at` spans
- */
-function pixelsPerMetre(renderer, camera, at) {
-  const target = renderer.getRenderTarget()
-  const height = target ? target.height / renderer.getPixelRatio() : renderer.getSize(tmpRes).y
-  const dist = camera.getWorldPosition(tmpCam).distanceTo(at)
-  return height / (2 * Math.tan(camera.fov * Math.PI / 360) * Math.max(dist, 1))
-}
-const tmpCam = new Vector3
-
-
 /** */
 export default class LagrangeMarks extends Group {
   /**
@@ -168,7 +118,9 @@ export default class LagrangeMarks extends Group {
     this.labels = newLabels([
       ...POINT_NAMES.map((p) => ({text: `${name} ${p}`, color: COLORS.point})),
       {text: `${secondary}'s Hill sphere`, color: COLORS.hill},
+      ...FAMILY_KEYS.map((k) => ({text: FAMILIES[k].name, color: FAMILIES[k].color})),
     ])
+    this._familyLabel0 = POINT_NAMES.length + 1
     this.labels.sprites.name = 'lagrange.labels'
     // The labels always draw (each shown or not by its attribute), so they
     // can switch the points back on: _declutter.
@@ -178,15 +130,16 @@ export default class LagrangeMarks extends Group {
       labelsDrawn?.call(this.labels.sprites, renderer, scene, camera, ...rest)
     }
     this.add(this.labels.sprites)
-    // The Hill sphere's outline: a unit circle turned to face the camera,
-    // at the secondary, scaled to the radius.
+    // The Hill sphere's outline as the camera sees it (faceOutline), about
+    // the secondary.
     this.hill = new Group
     this.hill.name = 'lagrange.hill'
     this.hillRing = newWideLineStrip(unitCircle(), {name: 'lagrange.hillRing', color: COLORS.hill,
       width: LINE_WIDTH, opacity: HILL_OPACITY})
     const drawn = this.hillRing.onBeforeRender
     this.hillRing.onBeforeRender = (renderer, scene, camera, ...rest) => {
-      this._faceCamera(camera)
+      const seen = faceOutline(this.hillRing, this.hill, this.hillRadius, camera)
+      this.hillRing.material.uniforms.uOpacity.value = seen ? HILL_OPACITY : 0
       drawn.call(this.hillRing, renderer, scene, camera, ...rest)
     }
     this.hill.add(this.hillRing)
@@ -201,11 +154,9 @@ export default class LagrangeMarks extends Group {
         width: LINE_WIDTH, opacity: SYNC_OPACITY})
       ring.scale.setScalar(sync.radius)
       this.syncRing.add(ring)
-      // By its radius: an altitude over the descriptors' mean radius isn't
-      // the usual one, over the equator (GEO's 35,786 km).
-      const km = Math.round(sync.radius / 1e3).toLocaleString('en-US')
-      this.syncLabels = newLabels([{text: `${syncName}, ${km} km radius`, color: COLORS.sync,
-        at: [sync.radius, 0, 0]}])
+      // Short: a label stands above its point by half its width
+      // (SpriteSheet).  The radius is in the info panel.
+      this.syncLabels = newLabels([{text: syncName, color: COLORS.sync, at: [sync.radius, 0, 0]}])
       const ringDrawn = ring.onBeforeRender
       ring.onBeforeRender = (renderer, scene, camera, ...rest) => {
         const px = pixelsPerMetre(renderer, camera, this.syncRing.getWorldPosition(tmpV)) * sync.radius
@@ -214,10 +165,88 @@ export default class LagrangeMarks extends Group {
       }
       this.syncRing.add(this.syncLabels.sprites)
     }
+    // The three-body orbits (setFamily), in the pair's frame: the primary
+    // at the origin, +X to the secondary scaled by their distance, +Y its
+    // way, +Z the pole (place).
+    this.periodic = new Group
+    this.periodic.name = 'lagrange.periodic'
+    this.periodic.matrixAutoUpdate = false
+    this.add(this.periodic)
+    /** The families shown, by FAMILIES key: {samples, rotating, sweep, marker}. */
+    this.families = new Map
+    /** 'rotating', turning with the pair, or 'inertial', fixed in space. */
+    this.frame = 'rotating'
+    this._layer = layer
     if (layer !== null) {
       this.traverse((o) => o.layers.set(layer))
       this.syncRing?.traverse((o) => o.layers.set(layer))
     }
+    this._hideFamilyLabels()
+  }
+
+
+  /** Hide the families' labels until their families are on. */
+  _hideFamilyLabels() {
+    FAMILY_KEYS.forEach((k, i) => this.labels.sheet.setShown?.(this._familyLabel0 + i, false))
+  }
+
+
+  /**
+   * Show a family's orbit (periodicOrbits.js), or take it away.
+   *
+   * @param {string} key a FAMILIES key
+   * @param {?object} samples sampleMember's, in the pair's units; null to remove
+   * @returns {?Group} the family's node, for the owner to fade
+   */
+  setFamily(key, samples) {
+    const had = this.families.get(key)
+    if (had) {
+      had.node.traverse((o) => {
+        o.geometry?.dispose()
+        o.material?.dispose()
+      })
+      had.node.removeFromParent()
+      this.families.delete(key)
+    }
+    if (!samples) {
+      return null
+    }
+    const f = FAMILIES[key]
+    const node = new Group
+    node.name = `lagrange.periodic.${key}`
+    const options = {color: f.color, width: FAMILY_WIDTH, opacity: FAMILY_OPACITY}
+    const rotating = newWideLineStrip(Float32Array.from(samples.xyz), {name: `periodic.${key}`, ...options})
+    const sweep = newWideLineStrip(new Float32Array(SWEEP_POINTS * 3), {name: `periodic.${key}.inertial`, ...options})
+    const marker = newRings(f.color, 1)
+    marker.name = `periodic.${key}.now`
+    node.add(rotating, sweep, marker)
+    if (this._layer !== null) {
+      node.traverse((o) => o.layers.set(this._layer))
+    }
+    this.periodic.add(node)
+    const family = {samples, node, rotating, sweep, marker, sweptAt: null}
+    this.families.set(key, family)
+    this._showFrame(family)
+    return node
+  }
+
+
+  /**
+   * @param {string} frame 'rotating' or 'inertial'
+   */
+  setFrame(frame) {
+    this.frame = frame === 'inertial' ? 'inertial' : 'rotating'
+    for (const family of this.families.values()) {
+      this._showFrame(family)
+    }
+  }
+
+
+  /** @param {object} family */
+  _showFrame(family) {
+    family.rotating.visible = this.frame === 'rotating'
+    family.sweep.visible = this.frame === 'inertial'
+    family.sweptAt = null
   }
 
 
@@ -229,15 +258,16 @@ export default class LagrangeMarks extends Group {
    * @param {Vector3} pole the pair's orbit pole, r × v
    * @param {Vector3} [body] the secondary's own place, where it isn't r:
    *     the Hill sphere is centred on it
+   * @param {number} [tau] the pair's turn now, radians since J2000 (its
+   *     mean motion times the time): where the three-body orbits' bodies are
    */
-  place(r, pole, body = r) {
+  place(r, pole, body = r, tau = 0) {
     placePoints(this.lagrange, r, pole, this.places)
     this._separation = r.length()
     const attr = this.points.geometry.getAttribute('position')
     this.places.forEach((p, k) => attr.setXYZ(k, p.x, p.y, p.z))
     attr.needsUpdate = true
     this.hill.position.copy(body)
-    this.hill.scale.setScalar(this.hillRadius)
     const labels = this.labels.sheet.positionAttribute
     if (labels) {
       this.places.forEach((p, k) => labels.setXYZ(k, p.x, p.y, p.z))
@@ -245,6 +275,47 @@ export default class LagrangeMarks extends Group {
       tmpV.copy(pole).normalize().multiplyScalar(this.hillRadius).add(body)
       labels.setXYZ(POINT_NAMES.length, tmpV.x, tmpV.y, tmpV.z)
       labels.needsUpdate = true
+    }
+    if (this.families.size > 0) {
+      this._placeFamilies(r, pole, tau)
+    }
+  }
+
+
+  /**
+   * Lay the three-body orbits on the pair: the pair's frame from r and the
+   * pole, scaled by the distance (the pulsating frame), and each family's
+   * body where it is at tau; fixed in space, its orbit swept out from there
+   * over one turn of the pair (inertialSweep).
+   *
+   * @param {Vector3} r
+   * @param {Vector3} pole
+   * @param {number} tau
+   */
+  _placeFamilies(r, pole, tau) {
+    const d = r.length()
+    tmpX.copy(r).divideScalar(d)
+    tmpY.crossVectors(pole, tmpX).normalize()
+    tmpZ.crossVectors(tmpX, tmpY)
+    this.periodic.matrix.makeBasis(tmpX.multiplyScalar(d), tmpY.multiplyScalar(d), tmpZ.multiplyScalar(d))
+    this.periodic.matrixWorldNeedsUpdate = true
+    const labels = this.labels.sheet.positionAttribute
+    for (const [key, family] of this.families) {
+      placeAt(family.samples, tau, tmpP)
+      const marker = family.marker.geometry.getAttribute('position')
+      marker.setXYZ(0, ...tmpP)
+      marker.needsUpdate = true
+      if (labels) {
+        tmpV.set(...tmpP).applyMatrix4(this.periodic.matrix)
+        labels.setXYZ(this._familyLabel0 + FAMILY_KEYS.indexOf(key), tmpV.x, tmpV.y, tmpV.z)
+        labels.needsUpdate = true
+      }
+      if (this.frame === 'inertial' && family.sweptAt !== tau) {
+        const attr = family.sweep.geometry.getAttribute('position')
+        inertialSweep(family.samples, tau, SWEEP_POINTS, attr.array)
+        attr.needsUpdate = true
+        family.sweptAt = tau
+      }
     }
   }
 
@@ -272,23 +343,9 @@ export default class LagrangeMarks extends Group {
       sheet.setShown(k, this.points.visible && span >= MIN_LABEL_PX)
     })
     sheet.setShown(POINT_NAMES.length, perMetre * this.hillRadius >= MIN_LABEL_PX)
-  }
-
-
-  /**
-   * Turn the Hill sphere's circle to face the camera: the outline of the
-   * sphere from any side.
-   *
-   * @param {object} camera
-   */
-  _faceCamera(camera) {
-    const hill = this.hill
-    hill.parent?.getWorldQuaternion(tmpQ).invert()
-    camera.getWorldQuaternion(hill.quaternion).premultiply(tmpQ)
-    // The circle is in XZ; the camera looks down its -Z: tip it to XY.
-    hill.quaternion.multiply(tmpQ.setFromAxisAngle(tmpV.set(1, 0, 0), Math.PI / 2))
-    // The renderer takes the ring's model-view matrix after this call.
-    hill.updateMatrixWorld(true)
+    FAMILY_KEYS.forEach((k, i) => {
+      sheet.setShown(this._familyLabel0 + i, this.families.has(k) && pair >= MIN_LABEL_PX)
+    })
   }
 
 

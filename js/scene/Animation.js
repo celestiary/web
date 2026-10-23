@@ -393,6 +393,9 @@ export default class Animation {
       if (system.lagrange?.visible) {
         this.layLagrange(system)
       }
+      if (system.regimes?.visible) {
+        this.layRegimes(system)
+      }
       if (system.postAnimCb) {
         system.postAnimCb(system)
       }
@@ -672,7 +675,27 @@ export default class Animation {
     if (name === 'earth') {
       r.addScaledVector(this.moonPos, MOON_MASS_FRACTION)
     }
-    orbitPosition.lagrange.place(r, pole, orbitPosition.position)
+    // The pair's turn since J2000 at its mean motion: where the three-body
+    // orbits' bodies are (LagrangeMarks._placeFamilies).
+    const period = Number(orbitPosition.orbit.siderealOrbitPeriod?.scalar ?? orbitPosition.orbit.siderealOrbitPeriod)
+    const tau = period > 0 && this.jd !== null ? Shared.twoPi * (this.jd - J2000_JD) * SECONDS_PER_DAY / period : 0
+    orbitPosition.lagrange.place(r, pole, orbitPosition.position, tau)
+  }
+
+
+  /**
+   * Turn a planet's sun-synchronous orbits (RegimeMarks) to the Sun: its
+   * direction, the planet's heliocentric place reversed, in the planet's
+   * equator (the regimes' parent, planetTilt, under the unrotated
+   * orbitPosition).
+   *
+   * @param {Object3D} orbitPosition the planet's, with `regimes`
+   */
+  layRegimes(orbitPosition) {
+    const marks = orbitPosition.regimes
+    const sun = this._lagrangeR.copy(orbitPosition.position).negate()
+    sun.applyQuaternion(this._invQuat.copy(marks.parent.quaternion).invert())
+    marks.place(sun)
   }
 
 
