@@ -39,6 +39,21 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### The slow way to the Moon, by way of the Sun
+
+The Earth's and the Moon's Craft sections now have a *ballistic lunar transfer*: the low-energy route
+NASA's GRAIL and CAPSTONE took. The craft goes out about four times the Moon's distance, where the Sun's
+pull bends its orbit round, and falls back three to four months later to meet the Moon almost at rest,
+needing far less fuel to stop there than a direct flight. Switch it on and the app flies the first one
+leaving from the clock's date, drawn with the craft where it is on that day.
+
+- Date: 2026-10-23
+- PR: [#295](https://github.com/celestiary/web/pull/295)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Epic: [#119](https://github.com/celestiary/web/issues/119) Flight simulation
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@86.7618,-11.4024,5.238672Gm;t=9833.335118jd;cq=-0.1126,0.6981,0.6981,0.1126;fov=45deg;s=alF;time:pause;craft:blt=9791.5)
+- Featured: yes
+
 ### Fly a spacecraft to the Moon
 
 The Earth's and the Moon's panels now have a Craft section: switch on *transfer to the Moon* and a
