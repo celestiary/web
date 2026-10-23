@@ -31,6 +31,19 @@ has no view to open yet.
 
 ## October 2026
 
+### Earth's night side stays dark while its terrain loads
+
+Close to Earth, until the detailed terrain arrives (or for good, when it can't load), Earth's night
+side used to show the daytime surface, dimly, under the city lights, and the city lights looked dimmer
+for it. The night side is now dark there, as it is once the terrain is in. This is the first fix we
+make to Cesium, the engine behind Earth's close-up surface, in our own copy of it, and we're offering
+it to Cesium's authors too.
+
+- Date: 2026-10-22
+- PR: [#275](https://github.com/celestiary/web/pull/275)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+
 ### See an orbit's six elements on the orbit itself
 
 A body's info panel now lists its orbit's six elements as they are right now: its size and shape, the

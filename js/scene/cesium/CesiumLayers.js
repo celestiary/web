@@ -1253,9 +1253,9 @@ export default class CesiumLayers {
     // asks for its detail imagery only once the camera is near
     // (_requestIon).  Terrain now, not near: it is billed by data, a few
     // hundred KB at the coarse levels, and it is what gives the globe
-    // vertex normals, so its lighting is Lambert, as celestiary's.  On the
-    // plain ellipsoid Cesium shades 5 × Lambert + 0.3, and the day's
-    // surface shows through the whole night side (litSurfaceOnly).
+    // vertex normals, so its lighting is Lambert on the terrain's slopes.
+    // Until it answers, the plain ellipsoid is lit by Lambert on its smooth
+    // normal (litSurfaceOnly, with the patched Cesium).
     const ion = token && !config.ionTileset ? {imagery: false} : null
     if (ion) {
       addIonTerrain(Cesium, widget)
@@ -1709,8 +1709,11 @@ export function bodyGain(name) {
  * pass draws it), lit at every distance (Cesium fades day-night shading out
  * below lightingFadeOutDistance, ~10,000 km from Earth's centre, and with it
  * the ground atmosphere).  With terrain normals (ion World Terrain) that's
- * Lambert on the terrain; on the plain ellipsoid, Cesium's day-night shading,
- * which is steeper than Lambert (5 × Lambert + 0.3, clamped).  No water
+ * Lambert on the terrain; on the plain ellipsoid, Lambert on the
+ * ellipsoid's normal.  The ellipsoid's day-night shading was a hard-coded
+ * 5 × Lambert + 0.3 that no setting reached; our Cesium patch
+ * (patches/, CESIUM.md "Patching Cesium") gives it
+ * dayNightLambertDiffuseMultiplier and vertexShadowDarkness.  No water
  * effect: its sun glint and sky reflection lit the sunward ocean up to
  * twice celestiary's (whose ocean shine is its own, Planet.md).
  *
@@ -1720,6 +1723,7 @@ function litSurfaceOnly(globe) {
   globe.showGroundAtmosphere = false
   globe.showWaterEffect = false
   globe.lambertDiffuseMultiplier = 1
+  globe.dayNightLambertDiffuseMultiplier = 1
   globe.vertexShadowDarkness = 0
   globe.lightingFadeOutDistance = 0
   globe.lightingFadeInDistance = 1

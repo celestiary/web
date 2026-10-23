@@ -26,6 +26,7 @@ tried and dropped.
 | Camera, navigation, targeting (`goTo`, `setTarget`, keys) | DESIGN.md: [camera controls](DESIGN.md#camera-controls), [navigation](DESIGN.md#navigation-goto-flow), [setTarget and lookAtTarget](DESIGN.md#settarget-lookattarget-c-key) |
 | Rendering, overlays and the `v` visibility groups | DESIGN.md: [rendering techniques](DESIGN.md#rendering-techniques), [overlays & visibility groups](DESIGN.md#overlays--visibility-groups) |
 | Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [parity check](CESIUM.md#parity-check), [follow-ups](CESIUM.md#follow-ups) |
+| Changing Cesium itself: the fork (celestiary/cesium), the patches in `patches/`, upstreaming | [CESIUM.md, patching Cesium](CESIUM.md#patching-cesium) |
 | The Sun's activity by date, spots, flares, prominences, corona, CMEs, eclipses, glare, solar wind | [js/scene/Sun.md](js/scene/Sun.md); the photosphere and every star: [js/scene/Stars.md](js/scene/Stars.md) |
 | Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
 | The HDR pipeline: the scene buffer, units, the one tone map, display-referred materials | [js/scene/HDR.md](js/scene/HDR.md); DESIGN.md [HDR pipeline](DESIGN.md#hdr-pipeline) |
@@ -212,6 +213,12 @@ tried and dropped.
   *off*, as `a`, `l`, `p`, `o` turn the overlays off. Harnesses that hide
   the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`, and add
   `G` to hide the galaxies' names (on by default, shown by magnitude).
+- **Cesium is patched on install** (`patches/`, applied by patch-package
+  from `postinstall`; [CESIUM.md](CESIUM.md#patching-cesium)).  A fix to
+  Cesium goes on a branch of celestiary/cesium with its Cesium specs, then
+  into the patch; never edit `node_modules` and leave it there.  `yarn
+  install --ignore-scripts` skips the patches, and
+  `cesiumPatches.test.js` then fails.
 - **Compare Cesium with celestiary numerically: `yarn parity`.**
   - Run `yarn build` first (with `CESIUM_ION_TOKEN` set); the script
     serves `docs/` and doesn't build. `yarn parity --out parity-out`
@@ -249,7 +256,7 @@ tried and dropped.
   - To keep Bing out of your own Playwright, abort `/v1/assets/2/` and
     let the rest of ion through (`route.abort()`).  Earth's World Terrain
     isn't deferred: without it the globe's lighting is the ellipsoid's,
-    with a night side at 30%
+    Lambert on its smooth normal, with no slopes
     ([CESIUM.md](CESIUM.md#earths-lighting-needs-the-terrain)).
 - **A shader edit needs a rendered check**, not only its arithmetic: a
   compile failure (e.g. a GLSL ES reserved word such as `half` as a
@@ -412,7 +419,13 @@ tried and dropped.
     never a bare relative path. Previews load large data from
     production, so a bare path 404s there.
   - A checkout without git-lfs holds pointer files, not data. Run
-    `git lfs pull`.
+    `git lfs pull`.  Some tests read LFS data (`tools/stars/stars.test.js`
+    reads Gaia's `index.json`) and fail on a pointer.
+  - git-lfs writes its hooks (`post-checkout`, `post-commit`,
+    `post-merge`, `pre-push`) into `hooks/`, the repo's `core.hooksPath`,
+    whenever it runs (`git lfs install`, `git lfs pull`). They're
+    untracked: never commit them. Keep `pre-push` if you commit LFS
+    data, since it uploads the objects; otherwise they can be deleted.
   - A PR that changes files under `public/textures/`,
     `public/data/stars.dat` or `public/large/` gets a full preview copy;
     any other PR previews against production's data.
