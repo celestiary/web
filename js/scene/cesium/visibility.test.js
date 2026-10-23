@@ -1,5 +1,5 @@
 import {Vector3} from 'three'
-import {hiddenBehind} from './visibility.js'
+import {groundInView, halfDiagonal, hiddenBehind} from './visibility.js'
 
 
 describe('hiddenBehind', () => {
@@ -48,5 +48,51 @@ describe('hiddenBehind', () => {
     expect(hiddenBehind(farSide, earth, R * 1.01, moon, 1737.4e3 * 0.994)).toBe(true)
     // Not from beside it.
     expect(hiddenBehind(new Vector3(3.844e8, 1737.4e3 + 1e5, 0), earth, R * 1.01, moon, 1737.4e3 * 0.994)).toBe(false)
+  })
+})
+
+
+describe('groundInView', () => {
+  const R = 6371e3
+  const earth = new Vector3(0, 0, 0)
+  // 2.5 km over the north pole: up is +Y, the horizon dips 1.6 degrees.
+  const eye = new Vector3(0, R + 2500, 0)
+  const looking = (elevationDeg) => {
+    const e = elevationDeg * Math.PI / 180
+    return new Vector3(Math.cos(e), Math.sin(e), 0)
+  }
+  // A 45 degree vertical field on a 16:9 frame: 40.2 degrees to a corner.
+  const half = halfDiagonal(45, 16 / 9)
+
+  it('measures a frame to its corners', () => {
+    expect(half * 180 / Math.PI).toBeCloseTo(40.2, 1)
+    expect(halfDiagonal(45, 1) * 180 / Math.PI).toBeCloseTo(30.4, 1)
+  })
+
+  it('sees no ground looking up into the sky from the surface', () => {
+    expect(groundInView(eye, looking(90), half, earth, R)).toBe(false)
+    expect(groundInView(eye, looking(55), half, earth, R)).toBe(false)
+  })
+
+  it('sees the ground with the horizon, or near it, in the frame', () => {
+    // The frame's corners reach 40.2 degrees from its centre: at 30 up,
+    // 10.2 under the horizontal.
+    expect(groundInView(eye, looking(30), half, earth, R)).toBe(true)
+    // At 45 up, 6.4 over the horizon: within the land's margin.
+    expect(groundInView(eye, looking(45), half, earth, R)).toBe(true)
+    expect(groundInView(eye, looking(0), half, earth, R)).toBe(true)
+    expect(groundInView(eye, looking(-90), half, earth, R)).toBe(true)
+  })
+
+  it('takes a level horizon from under the mean surface', () => {
+    const low = new Vector3(0, R - 400, 0)
+    expect(groundInView(low, looking(90), half, earth, R)).toBe(false)
+    expect(groundInView(low, looking(40), half, earth, R)).toBe(true)
+  })
+
+  it('sees the Earth from space when it\'s in the frame, and not when it\'s behind', () => {
+    const far = new Vector3(0, 0, 4e8)
+    expect(groundInView(far, new Vector3(0, 0, -1), half, earth, R)).toBe(true)
+    expect(groundInView(far, new Vector3(0, 0, 1), half, earth, R)).toBe(false)
   })
 })
