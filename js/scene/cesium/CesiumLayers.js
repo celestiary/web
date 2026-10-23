@@ -41,6 +41,7 @@ import {
   nightInView,
   sunLightDirectionEcef,
 } from './frames.js'
+import {newYorkOptions, newYorkRange} from './newYork.js'
 import {hiddenBehind, OCCLUDER_SCALE} from './visibility.js'
 import {fovScale} from '../farPoint.js'
 import {nightLightRadiance} from '../exposure.js'
@@ -104,6 +105,11 @@ export default class CesiumLayers {
     // Celestiary's simulation clock (Time), for monthly imagery; set by
     // Celestiary.  Without it, today's month.
     this.time = null
+    // Slop New York at Manhattan, drawn by Earth's Cesium layer: the page's
+    // switch (?nyc=1, newYork.js), and the city once loaded
+    // ({status: 'loading'|'ready'|'error', city}; _updateNewYork).
+    this.newYork = newYorkOptions(typeof location === 'undefined' ? '' : location.search)
+    this._newYork = null
 
     this.shellScene = new Scene()
     this.shell = new Mesh(new SphereGeometry(1, 128, 96), new MeshBasicMaterial({
@@ -188,6 +194,9 @@ export default class CesiumLayers {
     // celestiary's own draw.
     const wanted = (name) => perf.runs('cesium') && this._wanted(name)
     this._preload(target, wanted)
+    if (this._newYork && !(wanted('earth') && this.bodies.earth?.status === 'ready' && this.newYork.enabled)) {
+      this._freeNewYork()
+    }
     const active = []
     const warming = []
     for (const name of Object.keys(CESIUM_BODIES)) {
@@ -389,6 +398,12 @@ export default class CesiumLayers {
     const baseColor = globe.baseColor
     globe.baseColor = Cesium.Color.BLACK
     globe.enableLighting = false
+    // Not the city: its frame is lit (CESIUM.md, "New York", what's left).
+    const city = name === 'earth' ? this._newYork?.city : null
+    const cityShown = city?.renderer.show
+    if (city) {
+      city.setShown(false)
+    }
     renderer.setRenderTarget(cesiumRT)
     renderer.getClearColor(this._clearColor)
     const clearAlpha = renderer.getClearAlpha()
@@ -412,6 +427,9 @@ export default class CesiumLayers {
       }
       globe.baseColor = baseColor
       globe.enableLighting = true
+      if (city) {
+        city.setShown(cityShown)
+      }
     }
     renderer.resetState()
 
@@ -966,6 +984,9 @@ export default class CesiumLayers {
       body.tileset.maximumScreenSpaceError = TILE_SCREEN_SPACE_ERROR * detail
     }
     this._requestIon(name, body, camera.fov * toRad, canvas.clientHeight)
+    if (name === 'earth') {
+      this._updateNewYork(body, position)
+    }
 
     // Celestiary's Sun is at the world origin of its world group.
     this._sunPos.set(0, 0, 0)
@@ -1260,7 +1281,89 @@ export default class CesiumLayers {
     if (ion) {
       addIonTerrain(Cesium, widget)
     }
-    return {Cesium, widget, link, guest, container, ellipsoid, credits, night, customShader, ion, month: this._month()}
+    return {Cesium, netgl, widget, link, guest, container, ellipsoid, credits, night, customShader, ion, month: this._month()}
+  }
+
+
+  /**
+   * Slop New York (CESIUM.md, "New York"): load it the first time the camera
+   * is over Manhattan with the switch on (newYorkRange 'show': within tens of
+   * km, low enough for buildings), draw it from there, stop drawing it
+   * farther out, and free it far away.  Freed too when the switch, Earth's
+   * Cesium layer or the widget goes (beforeRender, _fail).
+   *
+   * @param {object} body Earth's
+   * @param {Array<number>} positionEcef Cesium's camera position this frame
+   */
+  _updateNewYork(body, positionEcef) {
+    if (!this.newYork.enabled) {
+      return
+    }
+    const range = newYorkRange(positionEcef, body.heightM)
+    const nyc = this._newYork
+    if (!nyc) {
+      if (range === 'show') {
+        this._loadNewYork(body)
+      }
+      return
+    }
+    if (range === 'free') {
+      this._freeNewYork()
+    } else if (nyc.status === 'ready') {
+      nyc.city.setShown(range === 'show')
+      nyc.city.update()
+    }
+  }
+
+
+  /**
+   * @param {object} body Earth's, ready
+   */
+  async _loadNewYork(body) {
+    const nyc = {status: 'loading', city: null}
+    this._newYork = nyc
+    try {
+      const {createNewYork} = await import('./newYorkGuest.js')
+      const city = await createNewYork({
+        Cesium: body.Cesium, netgl: body.netgl, widget: body.widget,
+        guestBase: this.newYork.guestBase, shadows: this.newYork.shadows,
+      })
+      if (this._newYork !== nyc) {
+        // Freed while it loaded.
+        city.dispose()
+        return
+      }
+      nyc.city = city
+      nyc.status = 'ready'
+    } catch (err) {
+      // Not retried this page: Earth's layer carries on without it.
+      console.warn('[new york] the city failed to load; Earth\'s layer carries on without it', err)
+      if (this._newYork === nyc) {
+        nyc.status = 'error'
+      }
+    }
+  }
+
+
+  /** Stop and free the city, if it's loaded or loading. */
+  _freeNewYork() {
+    const nyc = this._newYork
+    this._newYork = null
+    nyc?.city?.dispose()
+  }
+
+
+  /**
+   * Turn the New York switch on or off for the page (`?nyc=1` turns it on
+   * at load); off stops and frees the city.
+   *
+   * @param {boolean} on
+   */
+  setNewYork(on) {
+    this.newYork.enabled = on
+    if (!on) {
+      this._freeNewYork()
+    }
   }
 
 
@@ -1349,6 +1452,9 @@ export default class CesiumLayers {
   _fail(name, err) {
     if (this.bodies[name]?.status !== 'error') {
       console.error(`[cesium layer] ${name} failed; falling back to celestiary rendering`, err)
+    }
+    if (name === 'earth') {
+      this._freeNewYork()
     }
     this.bodies[name]?.credits?.remove()
     this.bodies[name] = {status: 'error'}

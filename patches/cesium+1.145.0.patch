@@ -1,0 +1,13 @@
+diff --git a/node_modules/cesium/Source/Cesium.js b/node_modules/cesium/Source/Cesium.js
+index a08d573..733dc79 100644
+--- a/node_modules/cesium/Source/Cesium.js
++++ b/node_modules/cesium/Source/Cesium.js
+@@ -627,6 +627,8 @@ export { Empty3DTileContent } from '@cesium/engine';
+ export { EquirectangularPanorama } from '@cesium/engine';
+ export { Expression } from '@cesium/engine';
+ export { ExpressionNodeType } from '@cesium/engine';
++export { ExternalRenderer } from '@cesium/engine';
++export { ExternalRendererCollection } from '@cesium/engine';
+ export { Fog } from '@cesium/engine';
+ export { FrameRateMonitor } from '@cesium/engine';
+ export { FrameState } from '@cesium/engine';
