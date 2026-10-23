@@ -51,6 +51,7 @@ pole. The info panel explains why most low lunar orbits crash within weeks or mo
 - PR: [#285](https://github.com/celestiary/web/pull/285)
 - Issue: [#272](https://github.com/celestiary/web/issues/272)
 - Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause)
+- Featured: yes
 
 ### Satellites round Earth: the ISS, GPS, the geostationary ring
 
