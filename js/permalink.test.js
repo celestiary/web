@@ -790,6 +790,20 @@ describe('the craft token', () => {
     expect(decodeCraftToken('tli=abc').size).toBe(0)
     expect(decodeCraftToken(undefined).size).toBe(0)
   })
+
+  it('restores the craft and the clock a written link was made at (#293)', () => {
+    // The reviewer's view: paused 2.6 minutes before the transfer's arrival.
+    const craft = new Map([['tli', 2461336.5]])
+    const d2000 = 9795.99822917
+    const link = encodePermalink('sun/earth/moon', d2000, 15.9259, 41.5689, 2347567,
+        {x: -0.1335, y: 0.0838, z: 0.2222, w: 0.9622}, 45, null, {time: 'pause', craft: encodeCraftToken(craft)})
+    const back = decodePermalink(link)
+    expect(decodeCraftToken(back.tokens.craft)).toEqual(craft)
+    expect(Math.abs(back.d2000 - d2000) * 86400).toBeLessThan(0.05)
+    // And written again from what it restored, the same link.
+    expect(encodePermalink(back.path, back.d2000, back.lat, back.lng, back.alt, back.quat, back.fov, null,
+        {time: back.tokens.time, craft: encodeCraftToken(decodeCraftToken(back.tokens.craft))})).toBe(link)
+  })
 })
 
 
