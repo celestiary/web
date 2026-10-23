@@ -31,6 +31,15 @@ has no view to open yet.
 
 ## October 2026
 
+### Settings and About open without the page blinking
+
+Opening Settings or About, bottom left, used to blank the whole page for a moment before the dialog
+appeared, and closing it did the same. The dialogs now open and close over the scene with no blink.
+
+- Date: 2026-10-23
+- PR: [#282](https://github.com/celestiary/web/pull/282)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
 ### Lagrange points, Hill spheres and stationary orbits around every planet and moon
 
 Pick a planet or moon and the points where a spacecraft can hold station with it show up around it:
