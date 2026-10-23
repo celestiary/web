@@ -31,6 +31,17 @@ has no view to open yet.
 
 ## October 2026
 
+### No more loading screen stuck after an update
+
+If you had celestiary open and it was updated in the minutes before you reloaded, the loading
+screen could sit there for up to ten minutes, however often you reloaded. Now the page fetches the
+new version and reloads once by itself. If that still doesn't load it, the page says so instead of
+spinning.
+
+- Date: 2026-10-23
+- PR: [#290](https://github.com/celestiary/web/pull/290)
+- Permalink: none
+
 ### Settings and About open without the page blinking
 
 Opening Settings or About, bottom left, used to blank the whole page for a moment before the dialog
