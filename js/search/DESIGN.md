@@ -13,6 +13,7 @@ craters on Earth/Mars) can be plugged in without re-architecting.
 | `SearchIndex.js` | Tiered index, query, per-anchor cache; exports the app-wide singleton `searchIndex` |
 | `providers/SceneProvider.js` | Entries for every body in `Loader.loaded` (sun, planets, moons, galaxy nodes) |
 | `providers/StarsProvider.js` | Entries for named stars + exact HIP resolver |
+| `providers/SatellitesProvider.js` | A body's population: its groups shown whole into Tier A, and every object by its names' characters (Tier P, `search`), under the body's path ([Populations](#populations)) |
 | `providers/PlacesProvider.js` | Surface places (cities, craters, landing sites) per body; lazy, from the places' index, a body's taken when a scope includes it ([Places in the index](#places-in-the-index)) |
 | `placesIndex.js` | `loadPlacesIndex`: `data/places-index.json`, every body's places in one file, fetched on the first search |
 | `providers/GalaxiesProvider.js` | SPARC's 175 galaxies by every name they have (SPARC's, NED's, SIMBAD's, RC3's: `WLM`, `M 63`), in the root's scope; Go travels there (`scene.goTo(galaxy)`), the panel shows the galaxy and its rotation curve ([Galaxies.md](../scene/Galaxies.md)).  Registered when their catalogue is in, which the first search fetches if nothing has ([Loaded on the first search](#loaded-on-the-first-search)) |
@@ -128,6 +129,30 @@ Sun › Earth in the breadcrumb: the solar system) and from the root.
   if the catalogue has one, so landing uses the eye-height default, as a
   click on the label does) and path `milkyway/sun/earth/austin`; the panel
   previews its body.
+
+### Populations
+
+A body's population (Earth's satellites: js/scene/population/Population.md)
+comes in two ways, from one provider, `providers/SatellitesProvider.js`:
+
+- **Tier A, fuzzy:** the groups shown whole (the stations, the GNSS planes,
+  Iridium...: a few hundred), so "tiangog" finds Tiangong as a body would be.
+- **Tier P, by characters:** every object, Starlink's eleven thousand too,
+  through the provider's own `search(text, limit)` under its `scopePath`
+  (the body's path).  A name or alias that is what's typed, case, spaces and
+  dashes aside, scores 0; one that starts with it 0.05; one with a word that
+  does 0.1; one with it anywhere 0.2.  Then the best known, the shorter name
+  and the data's order.  `query` merges these by score from any scope that
+  includes the body, a scope wider than the body adding the places' penalty,
+  and a number too (a NORAD number), after the HIP lookup's answer.
+- **Why not all in Tier A:** Fuse over Starlink alone took 60 to 160 ms a
+  keystroke (bun), against under 50 for today's index; and fuzzy matching
+  over thousands of names that differ by a digit lists them all for
+  "starlink-30930".  The character pass is a millisecond.
+
+The info panel's population section searches the same way, scoped to the
+body and kept to its population's results (`Celestiary._searchPopulation`);
+a pick targets or goes through `commitEntry` as the bar's do.
 
 ## Fuse.js configuration
 

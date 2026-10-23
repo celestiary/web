@@ -5,6 +5,11 @@ import {labelBoxes} from './labelPick.js'
 // many.
 export const GAP_PX = 3
 
+// What a hidden label of a holding sheet (declutterHold) needs clear around
+// it, beyond GAP_PX, to be shown again, px: one that only just fits would
+// go again at the next pixel's drift.
+export const SHOW_PAD_PX = 6
+
 // A label whose box is farther than this off the canvas takes no part: it
 // can't touch what is on it, and is judged again when it comes into view.
 const OFF_CANVAS_PX = 120
@@ -88,8 +93,8 @@ export function boxesTouch(a, b, gap = GAP_PX) {
  * none already drawn.  A greedy pass over a grid, so the cost goes as the
  * number of labels, not its square.
  *
- * @param {Array<{left: number, top: number, width: number, height: number}>} boxes
- *   Most important first
+ * @param {Array<{left: number, top: number, width: number, height: number, pad?: number}>} boxes
+ *   Most important first; `pad`, more room a box needs clear to be drawn
  * @param {number} [gap] px
  * @returns {Uint8Array} 1 where the box is drawn, by index in `boxes`
  */
@@ -99,11 +104,12 @@ export function declutter(boxes, gap = GAP_PX) {
   const reach = gap / 2
   for (let i = 0; i < boxes.length; i++) {
     const b = boxes[i]
-    // The cells the box, grown by the gap, falls in.
-    const x0 = Math.floor((b.left - reach) / CELL_PX)
-    const x1 = Math.floor((b.left + b.width + reach) / CELL_PX)
-    const y0 = Math.floor((b.top - reach) / CELL_PX)
-    const y1 = Math.floor((b.top + b.height + reach) / CELL_PX)
+    const pad = b.pad ?? 0
+    // The cells the box, grown by the gap and its pad, falls in, to look in.
+    const x0 = Math.floor((b.left - reach - pad) / CELL_PX)
+    const x1 = Math.floor((b.left + b.width + reach + pad) / CELL_PX)
+    const y0 = Math.floor((b.top - reach - pad) / CELL_PX)
+    const y1 = Math.floor((b.top + b.height + reach + pad) / CELL_PX)
     let clear = true
     for (let cy = y0; clear && cy <= y1; cy++) {
       for (let cx = x0; clear && cx <= x1; cx++) {
@@ -112,7 +118,7 @@ export function declutter(boxes, gap = GAP_PX) {
           continue
         }
         for (const j of cell) {
-          if (boxesTouch(b, boxes[j], gap)) {
+          if (boxesTouch(b, boxes[j], gap + pad)) {
             clear = false
             break
           }
@@ -123,8 +129,13 @@ export function declutter(boxes, gap = GAP_PX) {
       continue
     }
     shown[i] = 1
-    for (let cy = y0; cy <= y1; cy++) {
-      for (let cx = x0; cx <= x1; cx++) {
+    // Filed by the gap only: the pad is what it asks of others, not of itself.
+    const fx0 = Math.floor((b.left - reach) / CELL_PX)
+    const fx1 = Math.floor((b.left + b.width + reach) / CELL_PX)
+    const fy0 = Math.floor((b.top - reach) / CELL_PX)
+    const fy1 = Math.floor((b.top + b.height + reach) / CELL_PX)
+    for (let cy = fy0; cy <= fy1; cy++) {
+      for (let cx = fx0; cx <= fx1; cx++) {
         const key = cellKey(cx, cy)
         const cell = grid.get(key)
         if (cell) {
@@ -158,6 +169,14 @@ function cellKey(cx, cy) {
  * (`userData.labelRank`: the larger body, the larger feature); then the
  * nearer the camera.  Nothing changes for labels that touch none.
  *
+ * A sheet whose labels move against each other (a population's: hundreds
+ * of satellites) holds its shown labels in place (`userData.declutterHold`,
+ * a rank added to each label shown last frame): one gives way only to a
+ * more important one it comes to touch, and a hidden one shows only where
+ * there's room to spare (SHOW_PAD_PX), so a pixel's drift doesn't hide one
+ * and show another in turn, down the ranks, every frame.  Labels its `labelOccluder` hides
+ * behind the body are hidden, and take no room (labelPick.js).
+ *
  * @param {object} root The scene graph
  * @param {object} camera
  * @param {{left: number, top: number, width: number, height: number}} rect
@@ -167,25 +186,40 @@ function cellKey(cx, cy) {
  * @param {{obj: ?object, label: ?object}} [opts.current] The scene's target
  * @param {number} [opts.gap]
  * @returns {{labels: number, hidden: number, changed: number}} How many took
- *   part, how many of those are hidden, and how many changed since last time
+ *   part (those behind a body too), how many are hidden, and how many
+ *   changed since last time
  */
 export function declutterLabels(root, camera, rect, {pixelRatio = 1, current = {}, gap = GAP_PX} = {}) {
+  let hidden = 0
+  let changed = 0
+  let occluded = 0
   const boxes = labelBoxes(root, camera, rect, pixelRatio,
-      {hidden: true, only: (obj) => obj.userData.declutter, margin: OFF_CANVAS_PX, fresh: true})
+      {hidden: true, only: (obj) => obj.userData.declutter, margin: OFF_CANVAS_PX, fresh: true,
+        occluded: (sheet, i) => {
+          occluded++
+          if (sheet.setShown?.(i, false)) {
+            changed++
+          }
+        }})
   for (const b of boxes) {
     b.first = isTargetLabel(b.target, current)
+    if (b.hold && b.sheet.shown?.[b.index] === 1) {
+      b.rank += b.hold
+    } else if (b.hold && b.sheet.decluttered) {
+      // Not on a sheet's first pass, which packs it from nothing.
+      b.pad = SHOW_PAD_PX
+    }
   }
   boxes.sort(byImportance)
   const shown = declutter(boxes, gap)
-  let hidden = 0
-  let changed = 0
   for (let i = 0; i < boxes.length; i++) {
+    boxes[i].sheet.decluttered = true
     hidden += 1 - shown[i]
     if (boxes[i].sheet.setShown?.(boxes[i].index, shown[i] === 1)) {
       changed++
     }
   }
-  return {labels: boxes.length, hidden, changed}
+  return {labels: boxes.length + occluded, hidden: hidden + occluded, changed}
 }
 
 

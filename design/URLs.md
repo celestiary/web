@@ -507,11 +507,12 @@ Decisions:
 
 Each body's population (Earth's satellites, any other's: js/scene/population/Population.md)
 as its section of the info panel left it, where it isn't as it starts:
-the groups shown, and how many names show.
+the groups shown, how many names show, and how many of a counted group show.
 
 ```
 <body>=<group>+<group>   the groups shown, by the data's keys (none: `none`); left out when all are
 <body>.labels=N          how many names show, the best known first; left out at its default
+<body>.<group>=N         how many of a counted group show, the first in its order; left out at its default
 ```
 
 ```
@@ -519,6 +520,7 @@ the groups shown, and how many names show.
 #…;pop:earth=starlink+iridium,earth.labels=40 Starlink and Iridium, 40 named
 #…;pop:earth.labels=0                         every group, no names but the target's
 #…;pop:earth=none                             no satellites drawn
+#…;pop:earth=starlink,earth.starlink=2000     Starlink alone, its first 2,000 by serial number
 ```
 
 Decisions:
@@ -532,7 +534,11 @@ Decisions:
 - **App state, restored on any link that carries it**, as `periodic:` is.
   A link for a population not in yet is kept, written back as it was, and
   applied when it's added.
-- **The budget is clamped** to the names the shown groups hold.
+- **The budget is clamped** to the names the shown groups hold, within their
+  counts; the counts are applied first.
+- **A count is keyed by the group** under the body (`earth.starlink`), as
+  the budget is by `labels`, which a group can't be called.  A body's name
+  has no dot, so the key splits at the first.
 
 ### Craft Token
 

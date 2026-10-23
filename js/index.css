@@ -647,8 +647,60 @@ button {
   vertical-align: 0.05em;
 }
 
-/* Its names slider, as the orbit diagrams' far-side slider. */
-.population-labels {
+/* Its search: the main search's matching, scoped to the population
+   (ControlPanel.populationResultsHtml). */
+.population-search {
+  margin: var(--space-4) var(--space-16) var(--space-6);
+}
+
+.population-search input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.population-search input:focus {
+  outline: none;
+  border-color: var(--line-accent);
+}
+
+.population-results {
+  max-height: 12em;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.population-result {
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-chip);
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.population-result.active,
+.population-result:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.population-result.is-none {
+  color: var(--ink-4);
+  cursor: default;
+}
+
+/* Its names slider, as the orbit diagrams' far-side slider; and a counted
+   group's slider, how many of it show. */
+.population-labels,
+.population-count {
   display: flex;
   align-items: center;
   gap: var(--space-8);
@@ -657,13 +709,15 @@ button {
   color: var(--ink-3);
 }
 
-.population-labels input {
+.population-labels input,
+.population-count input {
   flex: 1;
   max-width: 10em;
   accent-color: var(--accent);
 }
 
-.population-labels-value {
+.population-labels-value,
+.population-count-value {
   min-width: 3em;
   font-family: var(--font-mono);
   font-size: 0.72rem;

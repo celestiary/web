@@ -61,6 +61,9 @@ export default class ControlPanel {
     // A body's population (Scene.populationOf): {of(body), setGroup(body,
     // key, on), setLabels(body, n)}.
     this.populationHooks = null
+    // The population search's query (populationSectionHtml), kept through
+    // the panel's redraws: picking a result targets it, which redraws.
+    this._populationQuery = {body: null, text: ''}
     /** The craft's switches (craftHtml): {list, toggle}. */
     this.craftHooks = null
     // The listed body and its list, and when the values last ran.
@@ -405,9 +408,50 @@ export default class ControlPanel {
       `<input type="range" min="0" max="${pop.maxLabels()}" step="1" value="${pop.labelBudget}" ` +
       `aria-label="how many ${esc(pop.title.toLowerCase())} are named, the best known first"> ` +
       `<span class="population-labels-value">${pop.labelBudget}</span></label>\n`
-    const content = '<dl class="info-rows"><div class="info-row is-long"><dt>Shown</dt>' +
-      `<dd class="info-switches">${chips}</dd></div></dl>\n${slider}`
+    // A counted group's slider: how many of it, the first in its order.
+    const counts = groups.filter((g) => g.limit !== undefined).map((g) =>
+      `<label class="population-count" data-body="${esc(body)}" data-key="${esc(g.key)}" ` +
+      `data-total="${g.count}">${esc(g.label)} ` +
+      `<input type="range" min="0" max="${COUNT_STEPS}" step="1" value="${countToSlider(g.limit, g.count)}" ` +
+      `aria-label="how many ${esc(g.label)} are shown${g.orderedBy ? `, by ${esc(g.orderedBy)}` : ''}"> ` +
+      `<span class="population-count-value">${countText(g.limit, g.count, g.orderedBy)}</span></label>\n`).join('')
+    // Its search: the main search's matching, scoped to the body's population.
+    const query = this._populationQuery.body === body ? this._populationQuery.text : ''
+    const search = hooksSearch(this.populationHooks) ?
+      `<div class="population-search" data-body="${esc(body)}">` +
+      `<input type="search" value="${esc(query)}" placeholder="Search ${esc(pop.title.toLowerCase())}…" ` +
+      `autocomplete="off" spellcheck="false" aria-label="Search ${esc(pop.title.toLowerCase())} round ` +
+      `${esc(capitalize(body))}" aria-controls="population-results-${esc(body)}">` +
+      `<ul class="population-results" id="population-results-${esc(body)}" role="listbox">` +
+      `${this.populationResultsHtml(body, query)}</ul></div>\n` : ''
+    const content = `${search}<dl class="info-rows"><div class="info-row is-long"><dt>Shown</dt>` +
+      `<dd class="info-switches">${chips}</dd></div></dl>\n${counts}${slider}`
     return sectionHtml('population', pop.title, `${total} in ${groups.length} groups`, content)
+  }
+
+
+  /**
+   * @param {string} body
+   * @param {string} text what's typed in the population's search
+   * @returns {string} its results, as the list's items: each its group's dot,
+   *   its name and what it is; a click targets it, a double click goes
+   */
+  populationResultsHtml(body, text) {
+    if (!text.trim()) {
+      return ''
+    }
+    const entries = this.populationHooks.search(body, text)
+    if (entries.length === 0) {
+      return '<li class="population-result is-none" role="option" aria-disabled="true">No match</li>'
+    }
+    const groups = new Map((this.populationHooks.of(body)?.groups() ?? []).map((g) => [g.key, g]))
+    return entries.map((e, k) => {
+      const g = groups.get(e.payload?.group)
+      return `<li class="population-result${k === 0 ? ' active' : ''}" role="option" ` +
+        `aria-selected="${k === 0}" data-id="${esc(String(e.payload?.target?.id ?? ''))}">` +
+        `<span class="population-dot" style="background: ${esc(g?.color ?? '#c8c8c8')}"></span>` +
+        `${esc(e.displayName)} <span class="info-unit">${esc(g?.label ?? '')}</span></li>`
+    }).join('')
   }
 
 
@@ -449,12 +493,79 @@ export default class ControlPanel {
         }
       })
     }
+    for (const el of this.containerElt.querySelectorAll('.population-count')) {
+      const range = el.querySelector('input')
+      const shown = el.querySelector('.population-count-value')
+      range?.addEventListener('input', () => {
+        const total = Number(el.dataset.total)
+        const n = sliderToCount(Number(range.value), total)
+        hooks.setCount?.(el.dataset.body, el.dataset.key, n)
+        const g = hooks.of(el.dataset.body)?.groups().find((x) => x.key === el.dataset.key)
+        if (shown) {
+          shown.textContent = countText(n, total, g?.orderedBy)
+        }
+        syncSlider()
+      })
+    }
     input?.addEventListener('input', () => {
       hooks.setLabels(slider.dataset.body, Number(input.value))
       if (value) {
         value.textContent = input.value
       }
     })
+    this._wirePopulationSearch()
+  }
+
+
+  /**
+   * The population's search (populationSectionHtml): results as it's typed;
+   * a click or Enter targets one, as a pick in the main search does, and a
+   * double click goes, as on its label.
+   */
+  _wirePopulationSearch() {
+    const hooks = this.populationHooks
+    const box = this.containerElt.querySelector('.population-search')
+    const field = box?.querySelector('input')
+    const list = box?.querySelector('.population-results')
+    if (!field || !list || !hooksSearch(hooks)) {
+      return
+    }
+    const body = box.dataset.body
+    const pick = (id, go) => {
+      if (id) {
+        hooks.pick(body, Number(id), go)
+      }
+    }
+    const items = () => [...(list.querySelectorAll?.('.population-result[data-id]') ?? [])]
+    const activeOf = () => items().findIndex((li) => li.classList.contains('active'))
+    field.addEventListener('input', () => {
+      this._populationQuery = {body, text: field.value}
+      list.innerHTML = this.populationResultsHtml(body, field.value)
+    })
+    field.addEventListener('keydown', (ev) => {
+      const all = items()
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault()
+        const k = activeOf()
+        const next = Math.max(0, Math.min(all.length - 1, k + (ev.key === 'ArrowDown' ? 1 : -1)))
+        all.forEach((li, i) => {
+          li.classList.toggle('active', i === next)
+          li.setAttribute('aria-selected', String(i === next))
+        })
+        all[next]?.scrollIntoView?.({block: 'nearest'})
+      } else if (ev.key === 'Enter') {
+        ev.preventDefault()
+        pick(all[Math.max(0, activeOf())]?.dataset.id, false)
+      } else if (ev.key === 'Escape' && field.value) {
+        ev.stopPropagation()
+        field.value = ''
+        this._populationQuery = {body, text: ''}
+        list.innerHTML = ''
+      }
+    })
+    const idOf = (ev) => ev.target?.closest?.('.population-result[data-id]')?.dataset.id
+    list.addEventListener('click', (ev) => pick(idOf(ev), false))
+    list.addEventListener('dblclick', (ev) => pick(idOf(ev), true))
   }
 
 
@@ -824,7 +935,11 @@ export default class ControlPanel {
     this._endPreview()
     this._orbit = null
     const f = satelliteFacts(rec, jd, fetched, kind)
-    const rows = f.rows.map(([label, value, unit]) => rowHtml(label, value, unit)).join('')
+    // A unit that's words (the elements' age) goes under its value: beside a
+    // date, it runs into the label.
+    const rows = f.rows.map(([label, value, unit]) => (unit?.length > LONG_UNIT ?
+      `${rowHtml(label, value)}<div class="info-row is-note"><dd>${esc(unit)}</dd></div>\n` :
+      rowHtml(label, value, unit))).join('')
     const notes = f.notes.map((n) => `<p class="info-note">${esc(n)}</p>\n`).join('')
     this._show(panelHtml({name: f.name, kind: f.kind, fact: f.fact},
         rowsHtml(rows) + notes + this.populationSectionHtml(body)))
@@ -1027,4 +1142,58 @@ function secsToYDHMS(s) {
     str += ` ${seconds}s`
   }
   return str.trim()
+}
+
+
+// A unit longer than this, characters, goes under its value (showSatellite).
+const LONG_UNIT = 12
+
+
+// A counted group's slider (populationSectionHtml): its steps, spaced by
+// the square root of the count, so a few and all are both in reach.
+const COUNT_STEPS = 1000
+
+
+/**
+ * @param {number} n how many show
+ * @param {number} total the group's size
+ * @returns {number} the slider's step for n
+ */
+export function countToSlider(n, total) {
+  return total > 0 ? Math.round(Math.sqrt(Math.min(n, total) / total) * COUNT_STEPS) : 0
+}
+
+
+/**
+ * @param {number} step the slider's
+ * @param {number} total the group's size
+ * @returns {number} how many show at that step: one at the first above 0,
+ *   all at the last
+ */
+export function sliderToCount(step, total) {
+  if (step <= 0) {
+    return 0
+  }
+  return Math.max(1, Math.round(((step / COUNT_STEPS) ** 2) * total))
+}
+
+
+/**
+ * @param {number} n
+ * @param {number} total
+ * @param {?string} [orderedBy]
+ * @returns {string} e.g. '300 of 11,116, by serial number'
+ */
+function countText(n, total, orderedBy) {
+  const of = n >= total ? 'all' : `${n.toLocaleString('en-US')} of ${total.toLocaleString('en-US')}`
+  return orderedBy ? `${of}, by ${orderedBy}` : of
+}
+
+
+/**
+ * @param {?object} hooks the panel's populationHooks
+ * @returns {boolean} whether they can search the population
+ */
+function hooksSearch(hooks) {
+  return typeof hooks?.search === 'function' && typeof hooks?.pick === 'function'
 }

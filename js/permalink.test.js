@@ -843,8 +843,8 @@ describe('the population token', () => {
 
   it('reads them back', () => {
     const state = decodePopulationToken('earth=starlink+iridium,earth.labels=40,moon=none,bad.labels=x')
-    expect(state.get('earth')).toEqual({shown: new Set(['starlink', 'iridium']), labels: 40})
-    expect(state.get('moon')).toEqual({shown: new Set, labels: null})
+    expect(state.get('earth')).toEqual({shown: new Set(['starlink', 'iridium']), labels: 40, counts: null})
+    expect(state.get('moon')).toEqual({shown: new Set, labels: null, counts: null})
     expect(state.has('bad')).toBe(false)
     expect(decodePopulationToken(undefined)).toEqual(new Map)
   })
@@ -855,6 +855,17 @@ describe('the population token', () => {
         {pop, apps: 'open'})
     const decoded = decodePermalink(link)
     expect(decoded.tokens).toEqual({pop: 'earth=starlink,earth.labels=12', apps: 'open'})
-    expect(decodePopulationToken(decoded.tokens.pop).get('earth')).toEqual({shown: new Set(['starlink']), labels: 12})
+    expect(decodePopulationToken(decoded.tokens.pop).get('earth')).toEqual({shown: new Set(['starlink']), labels: 12,
+      counts: null})
+  })
+
+  it('writes and reads how many of a counted group show', () => {
+    const state = new Map([['earth', {shown: null, labels: 300, counts: new Map([['starlink', 2000]])}]])
+    const token = encodePopulationToken(state)
+    expect(token).toBe('earth.labels=300,earth.starlink=2000')
+    expect(decodePopulationToken(token).get('earth')).toEqual({shown: null, labels: 300,
+      counts: new Map([['starlink', 2000]])})
+    // A count that isn't a whole number is dropped.
+    expect(decodePopulationToken('earth.starlink=lots').has('earth')).toBe(false)
   })
 })

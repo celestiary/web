@@ -1244,6 +1244,8 @@ export default class Scene {
       const tilt = this.objects[`${body}.planetTilt`]
       if (tilt && pop.parent !== tilt) {
         tilt.add(pop)
+        // Its names behind the body take no room (labelDeclutter.js).
+        pop.bodyRadius = Number(this.objects[body]?.props?.radius?.scalar) || 0
       }
     }
   }
@@ -1273,7 +1275,20 @@ export default class Scene {
 
 
   /**
-   * @returns {Map<string, {shown: ?Set<string>, labels: ?number}>} each
+   * How many of a counted group of a body's population show (the panel's
+   * slider for the group).
+   *
+   * @param {string} body
+   * @param {string} key the group's
+   * @param {number} n
+   */
+  setPopulationCount(body, key, n) {
+    this.populationOf(body)?.setGroupCount(key, n)
+  }
+
+
+  /**
+   * @returns {Map<string, {shown: ?Set<string>, labels: ?number, counts: ?Map<string, number>}>} each
    *   population's state away from its defaults, for the link's `pop:`
    *   token: the groups shown, or null for all; the label budget, or null
    *   for its default.  Pending states (a link's, for a population not in
@@ -1285,8 +1300,10 @@ export default class Scene {
       const groups = pop.groups()
       const shown = groups.every((g) => g.shown) ? null : new Set(groups.filter((g) => g.shown).map((g) => g.key))
       const labels = pop.labelBudget === pop.defaultLabelBudget ? null : pop.labelBudget
-      if (shown || labels !== null) {
-        out.set(body, {shown, labels})
+      const moved = groups.filter((g) => g.limit !== undefined && g.limit !== pop.defaultGroupCount(g.key))
+      const counts = moved.length > 0 ? new Map(moved.map((g) => [g.key, g.limit])) : null
+      if (shown || labels !== null || counts) {
+        out.set(body, {shown, labels, counts})
       }
     }
     return out
@@ -1297,7 +1314,7 @@ export default class Scene {
    * Put the populations back as a link had them (`pop:`): now for those in,
    * when they're added for the rest.  Quiet: the link isn't rewritten.
    *
-   * @param {Map<string, {shown: ?Set<string>, labels: ?number}>} state
+   * @param {Map<string, {shown: ?Set<string>, labels: ?number, counts: ?Map<string, number>}>} state
    */
   restorePopulations(state) {
     for (const [body, st] of state ?? []) {
@@ -1313,13 +1330,17 @@ export default class Scene {
 
   /**
    * @param {object} pop
-   * @param {{shown: ?Set<string>, labels: ?number}} st
+   * @param {{shown: ?Set<string>, labels: ?number, counts?: ?Map<string, number>}} st
    */
-  _applyPopulationState(pop, {shown, labels}) {
+  _applyPopulationState(pop, {shown, labels, counts}) {
     if (shown) {
       for (const g of pop.groups()) {
         pop.setGroupShown(g.key, shown.has(g.key), true)
       }
+    }
+    // The counts before the budget, which they bound.
+    for (const [key, n] of counts ?? []) {
+      pop.setGroupCount(key, n, true)
     }
     if (labels !== null && labels !== undefined) {
       pop.setLabelBudget(labels, true)

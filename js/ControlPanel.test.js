@@ -5,7 +5,7 @@ import Measure from '@pablo-mayrgundter/measure.js'
 // The real module, by a name the process-global mock of './ControlPanel'
 // (Celestiary.test.js) doesn't take.
 const realSpecifier = './ControlPanel.js?real'
-const {default: ControlPanel, periodText, sci} = await import(realSpecifier)
+const {default: ControlPanel, countToSlider, periodText, sci, sliderToCount} = await import(realSpecifier)
 
 
 /** Io's orbit, as its descriptor has it. */
@@ -297,6 +297,81 @@ describe('ControlPanel', () => {
     input.fire('input')
     expect(calls.at(-1)).toEqual(['labels', 'mars', 3])
     expect(value.textContent).toBe('3')
+  })
+
+  it('gives a counted group its own slider, how many of it show, square-root spaced', () => {
+    const pop = fakePopulation()
+    let count = 300
+    const groups = pop.groups
+    pop.groups = () => [...groups(), {key: 'starlink', label: 'Starlink', color: '#7fd0ff', count: 11116, shown: true,
+      limit: count, orderedBy: 'serial number'}]
+    const calls = []
+    const panel = new ControlPanel(null, null)
+    panel.populationHooks = {of: () => pop, setCount: (body, key, n) => {
+      calls.push([body, key, n])
+      count = n
+    }}
+    const html = panel.populationSectionHtml('earth')
+    expect(html).toContain('class="population-count" data-body="earth" data-key="starlink" data-total="11116"')
+    expect(html).toContain(`max="1000" step="1" value="${countToSlider(300, 11116)}"`)
+    expect(html).toContain('300 of 11,116, by serial number')
+    // A few at the low end, all at the top.
+    expect(sliderToCount(0, 11116)).toBe(0)
+    expect(sliderToCount(1, 11116)).toBe(1)
+    expect(sliderToCount(1000, 11116)).toBe(11116)
+    expect(sliderToCount(countToSlider(300, 11116), 11116)).toBeCloseTo(300, -1)
+    const input = fakeElt({}, {value: '1000'})
+    const value = fakeElt()
+    const el = fakeElt({body: 'earth', key: 'starlink', total: '11116'}, {}, {input, '.population-count-value': value})
+    panel.containerElt = {
+      querySelectorAll: (sel) => (sel === '.population-count' ? [el] : []),
+      querySelector: () => null,
+    }
+    panel._wirePopulation()
+    input.fire('input')
+    expect(calls).toEqual([['earth', 'starlink', 11116]])
+    expect(value.textContent).toBe('all, by serial number')
+  })
+
+  it('searches the population, keeps the query through a redraw, and targets or goes to a result', () => {
+    const pop = fakePopulation()
+    const calls = []
+    const mro = {displayName: 'MRO', payload: {group: 'nasa', target: {kind: 'satellite', id: 1, body: 'mars'}}}
+    const panel = new ControlPanel(null, null)
+    panel.populationHooks = {
+      of: () => pop,
+      search: (body, text) => {
+        calls.push(['search', body, text])
+        return text === 'mr' ? [mro] : []
+      },
+      pick: (body, id, go) => calls.push(['pick', body, id, go]),
+    }
+    let html = panel.populationSectionHtml('mars')
+    expect(html).toContain('placeholder="Search orbiters…"')
+    expect(html).toContain('<ul class="population-results" id="population-results-mars" role="listbox"></ul>')
+    // Typed: its results, the first highlighted.
+    const listeners = {}
+    const field = {value: 'mr', addEventListener: (t, fn) => (listeners[`field:${t}`] = fn)}
+    const list = {innerHTML: '', addEventListener: (t, fn) => (listeners[`list:${t}`] = fn),
+      querySelectorAll: () => []}
+    const box = {dataset: {body: 'mars'}, querySelector: (sel) => (sel === 'input' ? field : list)}
+    panel.containerElt = {querySelectorAll: () => [], querySelector: (sel) => (sel === '.population-search' ? box : null)}
+    panel._wirePopulation()
+    listeners['field:input']()
+    expect(list.innerHTML).toContain('class="population-result active" role="option" aria-selected="true" data-id="1"')
+    expect(list.innerHTML).toContain('MRO <span class="info-unit">NASA</span>')
+    // Picking redraws the panel: the query and its results stay.
+    html = panel.populationSectionHtml('mars')
+    expect(html).toContain('value="mr"')
+    expect(html).toContain('data-id="1"')
+    const li = {dataset: {id: '1'}}
+    const target = {closest: () => li}
+    listeners['list:click']({target})
+    listeners['list:dblclick']({target})
+    expect(calls.filter((c) => c[0] === 'pick')).toEqual([['pick', 'mars', 1, false], ['pick', 'mars', 1, true]])
+    field.value = 'zz'
+    listeners['field:input']()
+    expect(list.innerHTML).toContain('No match')
   })
 
   it('lists the craft that can be flown about the body, with a flown one\'s facts', () => {

@@ -66,6 +66,14 @@ describe('boxesTouch', () => {
 
 
 describe('declutter', () => {
+  it('asks a box with a pad for that much more room clear', () => {
+    // 5 px apart: clear of the gap, not of a 6 px pad as well.
+    expect(Array.from(declutter([box(0, 0), {...box(65, 0), pad: 6}]))).toEqual([1, 0])
+    expect(Array.from(declutter([box(0, 0), {...box(75, 0), pad: 6}]))).toEqual([1, 1])
+    // What a padded box asks of others, not of itself: one after it needs the gap only.
+    expect(Array.from(declutter([{...box(0, 0), pad: 6}, box(65, 0)]))).toEqual([1, 1])
+  })
+
   it('draws every label that touches none', () => {
     const boxes = [box(0, 0), box(100, 0), box(0, 100), box(300, 300)]
     expect(Array.from(declutter(boxes))).toEqual([1, 1, 1, 1])
@@ -240,6 +248,74 @@ describe('declutterLabels', () => {
     expect(labelBoxes(root, camera(), RECT).map((b) => b.target.name)).toEqual(['jupiter'])
     expect(labelBoxes(root, camera(), RECT, 1, {hidden: true}).length).toBe(3)
     expect(sheets[1].shown[0]).toBe(0)
+  })
+
+  it('holds a shown name in place against a higher one that is hidden (declutterHold)', () => {
+    // Two satellites' names a few px apart, of one population's sheet.
+    const sats = [{kind: 'satellite', id: 1, body: 'earth'}, {kind: 'satellite', id: 2, body: 'earth'}]
+    const held = labelPoints([[0, 0, 0], [0.02, 0, 0]], sats, [6, 5.5], {declutter: true, declutterHold: 1})
+    const sheet = held.userData.sheet
+    // The lower was shown, the higher not (it drifted in from elsewhere).
+    sheet.shown = [0, 1]
+    sheet.decluttered = true
+    const root = new Group()
+    root.add(held)
+    declutterLabels(root, camera(), RECT)
+    expect(sheet.shown).toEqual([0, 1])
+    // Without the hold, the higher takes the place back at once: what makes
+    // names change down the ranks frame after frame.
+    held.userData.declutterHold = 0
+    declutterLabels(root, camera(), RECT)
+    expect(sheet.shown).toEqual([1, 0])
+    // The hold never lifts a satellite's name over a body's.
+    held.userData.declutterHold = 1
+    const planet = labelPoints([[0.01, 0, 0]], [jupiter], [bodyRank(6.9e7)])
+    root.add(planet)
+    declutterLabels(root, camera(), RECT)
+    expect([planet.userData.sheet.shown[0], ...sheet.shown]).toEqual([1, 0, 0])
+  })
+
+  it('asks a hidden name of a holding sheet for room to spare, but not on the sheet\'s first pass', () => {
+    const sats = [{kind: 'satellite', id: 1, body: 'earth'}, {kind: 'satellite', id: 2, body: 'earth'}]
+    // From z = 10, 1.48 apart is about 107 px: 7 px clear of the other's 100 px box.
+    const p = labelPoints([[0, 0, 0], [1.48, 0, 0]], sats, [6, 5.5], {declutter: true, declutterHold: 1})
+    const sheet = p.userData.sheet
+    sheet.shown = [0, 0]
+    const root = new Group()
+    root.add(p)
+    declutterLabels(root, camera(), RECT)
+    expect(sheet.shown).toEqual([1, 1])
+    // Hidden once, it needs more than the gap to come back.
+    sheet.setShown(1, false)
+    declutterLabels(root, camera(), RECT)
+    expect(sheet.shown).toEqual([1, 0])
+  })
+
+  it('hides a name behind its body, which then takes no room (labelOccluder)', () => {
+    // From z = 10: one name behind a unit sphere at the origin, one in front,
+    // at the same spot on screen; the one behind ranked higher.
+    const occluder = new Group()
+    occluder.bodyRadius = 1
+    const sats = [{kind: 'satellite', id: 1, body: 'earth'}, {kind: 'satellite', id: 2, body: 'earth'}]
+    const p = labelPoints([[0, 0, -2], [0, 0, 2]], sats, [6, 5.5], {declutter: true})
+    const root = new Group()
+    root.add(occluder, p)
+    declutterLabels(root, camera(), RECT)
+    expect(p.userData.sheet.shown).toEqual([1, 0])
+    p.userData.labelOccluder = occluder
+    const stats = declutterLabels(root, camera(), RECT)
+    expect(p.userData.sheet.shown).toEqual([0, 1])
+    expect(stats).toEqual({labels: 2, hidden: 1, changed: 2})
+    // An eye inside the sphere (on low ground) sees down to its horizon.
+    const low = camera()
+    low.position.set(0, 0, 0.5)
+    low.updateMatrixWorld()
+    declutterLabels(root, low, RECT)
+    expect(p.userData.sheet.shown[0]).toBe(0)
+    // Off to the side, past the limb, it's seen again.
+    p.userData.sheet.positions[0] = 3
+    declutterLabels(root, camera(), RECT)
+    expect(p.userData.sheet.shown).toEqual([1, 1])
   })
 
   it('draws everything again when switched off', () => {

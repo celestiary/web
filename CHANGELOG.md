@@ -39,18 +39,21 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
-### Starlink and Iridium join the satellites, and you choose which to see
+### All of Starlink joins the satellites, with a search, and you choose which to see
 
-A sample of 300 Starlink satellites now shows as a shell close round Earth, and the 80 of Iridium
-in their polar planes. In Earth's panel, the Satellites section has a switch for each kind
+All 11,116 Starlink satellites can now show round Earth, with a slider for how many, the first by
+serial number, from one to all; and Iridium's 80 in their polar planes. In Earth's panel, the
+Satellites section has a search that finds Earth's satellites alone, a switch for each kind
 (Starlink, Iridium, navigation, weather, the space stations...) and a slider for how many names to
-show, and a link keeps what you chose: Starlink alone with 40 names opens as Starlink alone.
+show. The names hold still as the satellites move, those behind Earth no longer crowd out those in
+front, and selecting one keeps its one name. A link keeps what you chose.
 
 - Date: 2026-10-23
+- Featured: yes
 - PR: [#292](https://github.com/celestiary/web/pull/292)
 - Issue: [#50](https://github.com/celestiary/web/issues/50)
 - Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
-- Permalink: [Open this view](https://celestiary.org/#sun/earth@-23.1124,-36.2142,57.33909Mm;t=9792.2327jd;cq=0,-0.0825,0,0.9966;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=40)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116)
 
 ### Fly a spacecraft to the Moon
 

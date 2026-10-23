@@ -626,16 +626,18 @@ const LABELS_SUFFIX = '.labels'
  * The `pop:` token (design/URLs.md): each body's population as the info
  * panel left it, where it isn't as it starts.  `<body>=<group>+<group>` the
  * groups shown (`none` for none; left out when all are); `<body>.labels=N`
- * how many names show (left out at its default).  Left out (null) when
- * every population is as it starts.
+ * how many names show (left out at its default); `<body>.<group>=N` how many
+ * of a counted group show, the first in its order (`earth.starlink=2000`;
+ * left out at its default).  Left out (null) when every population is as
+ * it starts.
  *
- * @param {Map<string, {shown: ?Set<string>, labels: ?number}>} [state]
+ * @param {Map<string, {shown: ?Set<string>, labels: ?number, counts?: ?Map<string, number>}>} [state]
  *     Scene.getPopulationState
  * @returns {?string}
  */
 export function encodePopulationToken(state) {
   const named = {}
-  for (const [body, {shown, labels}] of state ?? []) {
+  for (const [body, {shown, labels, counts}] of state ?? []) {
     if (!PLAIN_WORD.test(body)) {
       continue
     }
@@ -646,6 +648,11 @@ export function encodePopulationToken(state) {
     if (Number.isInteger(labels) && labels >= 0) {
       named[`${body}${LABELS_SUFFIX}`] = labels
     }
+    for (const [group, n] of counts ?? []) {
+      if (PLAIN_WORD.test(group) && `.${group}` !== LABELS_SUFFIX && Number.isInteger(n) && n >= 0) {
+        named[`${body}.${group}`] = n
+      }
+    }
   }
   return formatTokenValue([], named) || null
 }
@@ -655,22 +662,30 @@ export function encodePopulationToken(state) {
  * The inverse of encodePopulationToken.
  *
  * @param {string} [value] The token's value, undefined if the link has none
- * @returns {Map<string, {shown: ?Set<string>, labels: ?number}>}
+ * @returns {Map<string, {shown: ?Set<string>, labels: ?number, counts: ?Map<string, number>}>}
  */
 export function decodePopulationToken(value) {
   const out = new Map
   const entry = (body) => {
     if (!out.has(body)) {
-      out.set(body, {shown: null, labels: null})
+      out.set(body, {shown: null, labels: null, counts: null})
     }
     return out.get(body)
   }
   for (const [key, v] of Object.entries(parseTokenValue(value).named)) {
-    if (key.endsWith(LABELS_SUFFIX)) {
+    const dot = key.indexOf('.')
+    if (dot > 0) {
+      // `<body>.labels` or `<body>.<group>`: a body's name has no dot.
       const n = Number(v)
-      const body = key.slice(0, -LABELS_SUFFIX.length)
-      if (body && Number.isInteger(n) && n >= 0) {
+      const body = key.slice(0, dot)
+      const what = key.slice(dot + 1)
+      if (!what || !Number.isInteger(n) || n < 0) {
+        continue
+      }
+      if (`.${what}` === LABELS_SUFFIX) {
         entry(body).labels = n
+      } else {
+        (entry(body).counts ??= new Map).set(what, n)
       }
     } else if (PLAIN_WORD.test(key)) {
       entry(key).shown = new Set(parseValueList(v).filter((k) => k !== NO_GROUPS))

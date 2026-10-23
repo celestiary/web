@@ -1770,7 +1770,7 @@ describe('what a load fetches', () => {
     const app = await open(`${TEST_FRAGMENT};pop:earth=starlink,earth.labels=12`)
     // Here the snapshot's fetch fails (404), so Earth's population never comes in.
     expect(app.scene.populationOf('earth')).toBeNull()
-    expect(app.scene.getPopulationState().get('earth')).toEqual({shown: new Set(['starlink']), labels: 12})
+    expect(app.scene.getPopulationState().get('earth')).toEqual({shown: new Set(['starlink']), labels: 12, counts: null})
     expect(app.permalink()).toContain(';pop:earth=starlink,earth.labels=12')
   })
 

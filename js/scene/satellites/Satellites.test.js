@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'bun:test'
 import {Color, Object3D, PerspectiveCamera, Vector3} from 'three'
 import Satellites, {ARRIVAL_DIST} from './Satellites.js'
+import {NAME_FADE_MS} from '../population/Population.js'
 import {aliasesOf, displayName, satelliteFacts} from './names.js'
 import {parseCatalog, temePosition} from './sgp4.js'
 
@@ -52,6 +53,39 @@ class StubSheet {
     const sprites = new Object3D
     sprites.userData.sheet = this
     return sprites
+  }
+}
+
+
+/** A label sheet with the shown states and fade the declutter and Population use. */
+class FadeSheet extends StubSheet {
+  /** */
+  constructor() {
+    super()
+    this.shown = []
+    this.alpha = []
+    this.fadeMs = 0
+  }
+
+  /** @param {...any} args */
+  add(...args) {
+    super.add(...args)
+    this.shown.push(1)
+    this.alpha.push(1)
+  }
+
+  /** @returns {Object3D} */
+  compile() {
+    const sprites = super.compile()
+    this.shownAttribute = {getX: (i) => this.alpha[i], setX: (i, v) => {
+      this.alpha[i] = v
+    }}
+    return sprites
+  }
+
+  /** @param {number} ms */
+  setFade(ms) {
+    this.fadeMs = ms
   }
 }
 
@@ -177,11 +211,48 @@ describe('Satellites', () => {
     expect(sats.targetLabel).toBeNull()
   })
 
-  it('keeps the target out of the budget\'s sheet, which names the next instead', () => {
-    const sats = newSatellites()
-    sats.setTarget(25544)
+  it('names a target the budget names by the label it has: no second one, no rebuild', () => {
+    const camera = new PerspectiveCamera()
+    const sats = newSatellites({camera, labelDist: 1e8})
+    new Object3D().add(sats)
+    camera.position.set(0, 0, 5e7)
+    camera.updateMatrixWorld()
+    sats.setLabelBudget(3)
     sats.update(EPOCH_JD)
-    expect(names(sats)).toEqual(['GPS BIIF-9 (PRN 26)'])
+    const sheet = sats.nameSheet
+    sats.setTarget(50001)
+    sats.update(EPOCH_JD)
+    expect(sats.nameSheet).toBe(sheet)
+    expect(names(sats)).toEqual(['ISS', 'GPS BIIF-9 (PRN 26)', 'STARLINK-1001'])
+    expect(sats.targetLabel).toBeNull()
+    // Too far for the budget's names: the target's alone, on its own.
+    camera.position.set(0, 0, 5e8)
+    camera.updateMatrixWorld()
+    sats.update(EPOCH_JD)
+    expect(sats.nameSheet.visible).toBe(false)
+    expect(sats.targetLabel.userData.ownSheet.labels).toEqual(['STARLINK-1001'])
+    expect(sats.targetLabel.visible).toBe(true)
+  })
+
+  it('keeps each staying name\'s shown state through a rebuild, and fades new ones in', () => {
+    const sats = newSatellites({Sheet: FadeSheet})
+    sats.setLabelBudget(2)
+    sats.update(EPOCH_JD)
+    const first = sats.nameSheet.userData.ownSheet
+    expect(first.fadeMs).toBe(NAME_FADE_MS)
+    // As the declutter left them: the ISS shown, GPS hidden.
+    first.shown = [1, 0]
+    first.alpha = [1, 0.4]
+    sats.setLabelBudget(3)
+    sats.update(EPOCH_JD)
+    const next = sats.nameSheet.userData.ownSheet
+    expect(next).not.toBe(first)
+    expect(next.labels).toEqual(['ISS', 'GPS BIIF-9 (PRN 26)', 'STARLINK-1001'])
+    expect(next.shown).toEqual([1, 0, 0])
+    expect(next.alpha).toEqual([1, 0.4, 0])
+    // Its shown names keep their place; those behind Earth take none.
+    expect(sats.nameSheet.userData.declutterHold).toBeGreaterThan(0)
+    expect(sats.nameSheet.userData.labelOccluder).toBe(sats)
   })
 
   it('shows the points near Earth, and the names nearer', () => {

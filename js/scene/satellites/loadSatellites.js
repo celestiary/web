@@ -1,3 +1,4 @@
+import {dataUrl} from '../../dataUrl.js'
 import Satellites from './Satellites.js'
 import {parseCatalog} from './sgp4.js'
 
@@ -14,16 +15,30 @@ export const SATELLITES_URL = 'data/satellites.json'
  * @param {object} [opts] As Satellites takes them
  * @param {Function} [fetchFn]
  * @returns {Promise<{satellites: Satellites, data: object}>} the snapshot,
- *   parsed and drawn; `data` its header (source, fetched, groups)
+ *   parsed and drawn, with each group kept in a file of its own (`file` in
+ *   its header: Starlink's, in Git LFS under public/large/); `data` its
+ *   header (source, fetched, groups)
  */
 export async function loadSatellites(opts = {}, fetchFn = fetch) {
-  const rsp = await fetchFn(SATELLITES_URL)
-  if (!rsp.ok) {
-    throw new Error(`satellites: ${rsp.status} for ${SATELLITES_URL}`)
-  }
-  const data = await rsp.json()
+  const data = await fetchJson(SATELLITES_URL, fetchFn)
   const {rows, ...header} = data
-  const records = parseCatalog({rows, known: header.known})
-  return {satellites: new Satellites(records, {body: header.body ?? 'earth', groups: header.groups ?? {}, ...opts}),
-    data: header}
+  const groups = header.groups ?? {}
+  const parts = await Promise.all(Object.values(groups).filter((g) => g.file && !g.error)
+      .map((g) => fetchJson(dataUrl(g.file), fetchFn)))
+  const records = parseCatalog({rows: rows.concat(...parts.map((p) => p.rows ?? [])), known: header.known})
+  return {satellites: new Satellites(records, {body: header.body ?? 'earth', groups, ...opts}), data: header}
+}
+
+
+/**
+ * @param {string} url
+ * @param {Function} fetchFn
+ * @returns {Promise<object>}
+ */
+async function fetchJson(url, fetchFn) {
+  const rsp = await fetchFn(url)
+  if (!rsp.ok) {
+    throw new Error(`satellites: ${rsp.status} for ${url}`)
+  }
+  return rsp.json()
 }

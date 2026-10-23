@@ -13,9 +13,10 @@ spacecraft) share: this doc is what's Earth's and CelesTrak's.
 
 ## Files
 
-- `sgp4.js`: the snapshot's rows to SGP4 records (satellite.js's
-  `json2satrec`), a position at a date (`temePosition`), TEME to Earth's
-  equator frame (`temeToEquator`), and each satellite's window round its
+- `sgp4.js`: the snapshot's rows to records, each making its SGP4 state
+  (satellite.js's `json2satrec`) the first time it's drawn; a position at a
+  date (`temePosition`) and with the velocity (`temeState`); TEME to Earth's
+  equator frame (`temeToEquator`); and each satellite's window round its
   elements' epoch (`inWindow`).
 - `Satellites.js`: the population (`../population/Population.js`) whose
   positions are SGP4's: the points, groups, names and target nodes are the
@@ -25,25 +26,28 @@ spacecraft) share: this doc is what's Earth's and CelesTrak's.
   the load distance.  It has no dependencies, so the scene, the search and
   the link import it without the SGP4 chunk.
 - `loadSatellites.js`: the chunk's entry. Scene imports it dynamically, with
-  the snapshot.
+  the snapshot and Starlink's file.
 - `../../search/providers/SatellitesProvider.js`: the search's entries, for
   any population.
 - `../../../tools/satellites/`: `fetch.mjs` refreshes the snapshot (`yarn
-  satellites`), `select.js` holds the groups and the sampling, and
+  satellites`), `select.js` holds the groups, the sampling and the orders, and
   `fetchHorizons.mjs` refreshes the Horizons fixture.
 
 ## The data
 
-**A snapshot, bundled:** `public/data/satellites.json`, refreshed by `yarn
-satellites`, not fetched live.
+**A snapshot, bundled:** `public/data/satellites.json`, and Starlink whole in
+a file of its own, `public/large/satellites/starlink.json` (Git LFS),
+refreshed by `yarn satellites`, not fetched live.
 
 - **Why a snapshot.**  The app is a time machine. A live fetch serves only
   dates near today, and links, previews and tests would change under it.
   CelesTrak's usage policy also asks clients to fetch each data set at most
-  once per update (every two hours for GP data), and it enforces that.  A
-  snapshot is small: 827 satellites are 132 KB, 45 KB gzipped, well under
-  the data policy's line for plain git (DESIGN.md, [data
-  policy](../../../DESIGN.md#data-policy)).
+  once per update (every two hours for GP data), and it enforces that.  The
+  snapshot without Starlink is small, 527 satellites in 85 KB, under the
+  data policy's line for plain git (DESIGN.md, [data
+  policy](../../../DESIGN.md#data-policy)).  Starlink's 11,116 are 1.8 MB
+  (543 KB gzipped), over it: in Git LFS under `public/large/`, loaded with
+  `dataUrl`.
 - **The snapshot** was fetched 2026-10-23 17:20 UTC; its elements' epochs
   run to 2026-10-23.  What's in it (`select.js` `GROUP_QUERIES`), each
   satellite once, under the first group that has it:
@@ -57,7 +61,7 @@ satellites`, not fetched live.
   | `weather` | `GROUP=weather` | 73 | 73 | 2026-10-22 to 23 |
   | `iridium` | `GROUP=iridium-NEXT` | 80 | 80 | 2026-10-07 to 23 |
   | `geo` | `GROUP=geo` | 569 | 150 | 2026-10-12 to 23 |
-  | `starlink` | `GROUP=starlink` | 11,116 | 300 | 2026-10-21 to 23 |
+  | `starlink` | `GROUP=starlink` | 11,116 | 11,116 (300 shown to start) | 2026-10-21 to 23 |
 
   - **Starlink came a fetch later.**  The first snapshot (2026-10-23 08:48
     UTC, PR #286) had no Starlink.  CelesTrak answered a 403: the set hadn't
@@ -70,8 +74,18 @@ satellites`, not fetched live.
   - **Molniya by name:** CelesTrak no longer has a Molniya group.  The name
     query brings the Molniya satellites themselves, most of them defunct
     but still in their orbits.
-  - **The samples** (GEO and Starlink) are spaced evenly by
-    NORAD number, so they spread over the launches and the orbital planes.
+  - **The GEO sample** is spaced evenly by NORAD number, so it spreads
+    over the launches and the slots.
+  - **Starlink whole, by serial number** (PR #292, at the maintainer's
+    ask; it was a 300 sample before).  `select.js` gives the group an order
+    and a count instead of a sample (`order: 'serial'`, the number in
+    STARLINK-1008, then NORAD's; `count: 300`) and a file of its own
+    (`file`).  The header carries them as `orderedBy` ("serial number"),
+    `count` and `file`, and the panel gives the group a slider, from one to
+    all, the first by serial number (Population.md, [counted
+    groups](../population/Population.md#counted-groups)).  Built from the
+    same 17:20 UTC fetch, kept in a cache (`--cache --offline`): nothing new
+    asked of CelesTrak.
   - **What they fill:** the regimes [Lagrange.md](../Lagrange.md#orbital-regimes)
     draws.  LEO has the stations, Hubble, Iridium (780 km, 86.4°) and
     Starlink; MEO has the
@@ -90,7 +104,8 @@ satellites`, not fetched live.
   each group's `label`, `kind` (what one of it is, for a satellite's panel)
   and `color` with its URL and counts, in the panel's order, and `known`,
   the best known by NORAD number with the names people use and their
-  aliases (`select.js` `KNOWN`).  It's OMM, not TLE: the catalogue passed five digits on
+  aliases (`select.js` `KNOWN`).  A group kept in a file of its own names
+  it (`file`); that file has the same columns, and its rows.  It's OMM, not TLE: the catalogue passed five digits on
   2026-07-11 (CelesTrak), and TLEs can't carry the new numbers.  The
   snapshot already has some, e.g. Soyuz MS-29, 100057.
 - **Fetching** (`tools/satellites/fetch.mjs`): one request a group, through
@@ -99,8 +114,10 @@ satellites`, not fetched live.
   policy](https://celestrak.org/usage-policy.php) asks of machine
   clients; ignoring refusals gets an address firewalled.  `--cache DIR`
   keeps each group's answer for two hours, so a run that stopped part way
-  can be run again without asking for what it had.  `--skip` leaves a
-  refused group out without asking.
+  can be run again without asking for what it had; with `--offline` too, the
+  cache is used whatever its age and nothing is asked, to rebuild the files
+  from the last fetch.  `--skip` leaves a refused group out without asking
+  (a skipped group's own file is left as it was).
 - **Licence and terms.**  The elements are the US Space Force's public
   catalogue (space-track.org), which CelesTrak republishes.  CelesTrak's
   usage policy (read 2026-10-23) sets access limits, the ones above, and
@@ -166,14 +183,28 @@ by.
   ([Population.md](../population/Population.md#what-every-population-gets)):
   the Satellites section of Earth's panel (and of a satellite's) lists the
   eight groups with their colours and counts as switches, and a Names
-  slider from none to all of the shown groups' (827), starting at the
-  three best known.  The names carry `labelTargets`, so a click targets a
-  satellite and a double click goes there (labelPick.js).  The link keeps
-  it all (`pop:earth=starlink,earth.labels=40`, design/URLs.md).
+  slider from none to all shown, starting at the three best known, and
+  Starlink's own slider, how many of its 11,116 show (300 to start).  The
+  names carry `labelTargets`, so a click targets a satellite and a double
+  click goes there (labelPick.js).  The names behind Earth take no room,
+  those shown keep their place, and they fade in and out
+  ([Population.md](../population/Population.md#names-that-hold-still)).
+  The link keeps it all (`pop:earth=starlink,earth.labels=40,earth.starlink=2000`,
+  design/URLs.md).  A search box at the top of the section finds Earth's
+  satellites alone (Population.md, [search](../population/Population.md#search)).
 - **Updated** each frame from the Julian Day animated.  While the points
-  are shown, every satellite is propagated: 0.5 ms a frame for 700 of them
-  (a third in deep space) in bun on this session's CPU.  The targets' nodes are always updated, since the
-  camera may ride one with `o` off.
+  are shown, every satellite shown is propagated: 0.5 ms a frame for 700 of
+  them (a third in deep space) in bun on this session's CPU.  Over 2,000
+  shown (Starlink whole), those on near-circular orbits are carried along
+  their circles between exact positions, 2,500 a frame in turn
+  (Population.md, [many shown](../population/Population.md#many-shown)):
+  SGP4's velocity gives each its circle, and Starlink's carried positions
+  are within 0.12 km of SGP4's after 10 s and 0.7 km after a minute.  All
+  11,116 cost 3 ms a frame in bun, and 6 ms in headless Chromium's update.
+  A record's SGP4 state is made when it's first drawn (`sgp4.js`
+  `newSatRecord`): parsing all of Starlink took 77 ms made at once, 33 ms
+  now.  The targets' nodes are always updated, since the camera may ride
+  one with `o` off.
 - **The target** is `{kind: 'satellite', id, name, body: 'earth'}`, set
   only through `Scene.setTarget`, like every other target (DESIGN.md, [the
   target](../../../DESIGN.md#the-target)).  It works the way a place does:
@@ -204,10 +235,12 @@ by.
   `#sat:25544`), and the frame is Earth's (`REF_FRAME.satellite`).  A link
   with a view restores the camera round Earth at its time, then targets the
   satellite.  With `F` set it rides the satellite again, from there.
-- **Search**: `SatellitesProvider` lists each satellite under Earth's path,
+- **Search**: `SatellitesProvider` finds each satellite under Earth's path,
   by its display name ("ISS"), CelesTrak's name ("ISS (ZARYA)"), the known
   aliases ("International Space Station", "Tiangong", "Hubble"), its NORAD
-  number and its international designator.
+  number and its international designator: the groups shown whole through
+  the search's fuzzy index, and every satellite, Starlink too, by its names'
+  characters (js/search/DESIGN.md, [populations](../../search/DESIGN.md#populations)).
 - **Info panel**: the NORAD number, the designator and the group; perigee
   and apogee heights, inclination, period and eccentricity from the mean
   elements; the elements' epoch and their age at the date; whether it's
@@ -222,7 +255,7 @@ by.
 Neither satellite.js (about 20 KB minified, 10 KB gzipped, its WASM
 propagators stubbed out in `esbuild/common.js`) nor the snapshot is in the
 first load.  `Scene.loadSatellites` imports the chunk and fetches the
-snapshot once, when:
+snapshot once, then Starlink's file (543 KB gzipped, by `dataUrl`), when:
 
 - the view could show the satellites: the camera within 1.5e9 m of Earth
   with the orbits (`o`) shown.  A watcher node under Earth's `planetTilt`
@@ -263,8 +296,20 @@ A failed load is logged and asked for again by the next need.
   position at the date.
 - `targetPath.test.js`, `SearchSlice.test.js`: `sat:` paths and the
   breadcrumb.  `Celestiary.test.js`: a link to Earth fetches the snapshot.
+- `Population.test.js`: a counted group and the carrying (Population.md).
+  `SatellitesProvider.test.js`: what goes to the fuzzy index, and the
+  ranking by characters.  `select.test.js`: Starlink kept whole, by serial
+  number, in its own file.
 - In the browser (headless Chromium, SwiftShader, `CESIUM_ION_TOKEN=`
-  build).  With the first snapshot at 2026-10-23 09:00 UTC: all 450 are drawn
+  build).  For PR #292's second round: the link
+  `#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;…;pop:earth=starlink,earth.labels=300`
+  loads 11,643 satellites, Starlink's 11,116 among them, 300 shown, and
+  the slider reads "300 of 11,116, by serial number".  At "all" every one
+  is drawn within three frames (`screens/satellites-50/starlink-all.png`),
+  and the link gains `earth.starlink=11116`.  The panel's search for
+  "starlink 2449" lists it, and a click targets it
+  (`panel-search.png`).  The names, frame by frame:
+  [Population.md](../population/Population.md#checked).  With the first snapshot at 2026-10-23 09:00 UTC: all 450 are drawn
   and the points' program compiles.  From 191,000 km the GEO sample sits
   on the geostationary ring, the GNSS satellites on and round the GPS
   planes, Molniya's on their long ellipses, and the weather satellites

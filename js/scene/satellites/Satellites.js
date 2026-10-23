@@ -1,6 +1,6 @@
 import Population, {ARRIVAL_DIST} from '../population/Population.js'
 import {SATELLITES_LOAD_DIST} from './names.js'
-import {temePosition, temeToEquator} from './sgp4.js'
+import {temePosition, temeState, temeToEquator} from './sgp4.js'
 
 
 // Earth's satellites (Satellites.md): a population (population/Population.js)
@@ -42,5 +42,22 @@ export default class Satellites extends Population {
       temeToEquator(p, out)
     }
     return Boolean(p)
+  }
+
+
+  /**
+   * @param {import('./sgp4.js').SatRecord} rec
+   * @param {number} jd
+   * @param {object} outP a Vector3, metres
+   * @param {object} outV a Vector3, metres a second
+   * @returns {boolean} SGP4's position and velocity, from one propagation
+   */
+  stateAt(rec, jd, outP, outV) {
+    const pv = rec && temeState(rec, jd)
+    if (pv) {
+      temeToEquator(pv.position, outP)
+      temeToEquator(pv.velocity, outV)
+    }
+    return Boolean(pv)
   }
 }

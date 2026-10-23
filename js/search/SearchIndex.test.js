@@ -431,3 +431,38 @@ describe('SearchIndex.loadOnSearch', () => {
     expect(source.calls).toBe(1)
   })
 })
+
+
+describe('SearchIndex, providers that search themselves (Tier P)', () => {
+  afterEach(() => SearchRegistry._reset())
+
+  /** A population round Earth: its own search, under Earth's path. */
+  const population = {
+    id: 'population:earth',
+    lazy: false,
+    scopePath: 'milkyway/sun/earth',
+    collectAll: () => [],
+    search: (text) => (text.toLowerCase().startsWith('star') ? [
+      {entry: {id: 'sat:1', displayName: 'STARLINK-1008', aliases: [], kind: 'satellite',
+        path: 'milkyway/sun/earth/sat:1'}, score: 0.05},
+    ] : []),
+  }
+
+  it('merges its results by score from any scope that includes its body', async () => {
+    const idx = buildIndex()
+    idx.register(population)
+    await idx.ensureReady()
+    expect(idx.query('starl', 'milkyway/sun/earth').map((r) => r.entry.id)).toEqual(['sat:1'])
+    // From the root, ranked as a place from a wider scope is.
+    const wide = idx.query('starl', 'milkyway')
+    expect(wide.find((r) => r.entry.id === 'sat:1').score).toBeCloseTo(0.15, 6)
+    expect(idx.query('starl', 'milkyway/sun/mars')).toEqual([])
+  })
+
+  it('answers before Tier A is built, and with a number too', () => {
+    const idx = buildIndex()
+    idx.register({...population, search: () => [{entry: {id: 'sat:25544', path: 'milkyway/sun/earth/sat:25544'},
+      score: 0}]})
+    expect(idx.query('25544', 'milkyway/sun/earth').map((r) => r.entry.id)).toEqual(['sat:25544'])
+  })
+})

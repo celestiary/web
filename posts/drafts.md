@@ -533,3 +533,65 @@ Near Earth, with the orbits on, about 450 real satellites now circle it where th
 
 https://celestiary.org/#sat:25544@-23.1092,93.6224,184.75929Mm;t=9791.8729jd;cq=0,-0.0829,0,0.9966;fov=45deg;s=F
 ```
+
+### Fly a spacecraft to the Moon
+
+- ID: 2026-10-23-fly-a-spacecraft-to-the-moon
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-11-21
+- Entry: 2026-10-23-fly-a-spacecraft-to-the-moon
+- Image: posts/images/2026-10-23-fly-a-spacecraft-to-the-moon.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-23-fly-a-spacecraft-to-the-moon --hash 'sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5' --png posts/images
+- Notes:
+- Length: X 54/280, Facebook 440/500
+
+```text
+Fly a spacecraft to the Moon.
+
+https://celestiary.org/#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5
+```
+
+#### Facebook
+
+```text
+Fly a spacecraft to the Moon.
+
+The Earth's and the Moon's panels now have a Craft section: switch on transfer to the Moon and a spacecraft leaves a low orbit round the Earth that day, burns once, and coasts four and a half days to pass 100 km over the Moon. Its path is drawn with the craft where it is at the clock's time, and the panel gives its burn, how long it takes and what it would cost to stop at the Moon.
+
+https://celestiary.org/#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5
+```
+
+### All of Starlink joins the satellites, with a search, and you choose which to see
+
+- ID: 2026-10-23-all-of-starlink-joins-the-satellites-with-a
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-11-24
+- Entry: 2026-10-23-all-of-starlink-joins-the-satellites-with-a
+- Image: posts/images/2026-10-23-all-of-starlink-joins-the-satellites-with-a.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-23-all-of-starlink-joins-the-satellites-with-a --hash 'sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116' --png posts/images
+- Notes:
+- Length: X 277/280, Facebook 496/500
+
+```text
+All of Starlink joins the satellites, with a search, and you choose which to see.
+
+All 11,116 Starlink satellites can now show round Earth, with a slider for how many, the first by serial number, from one to all; and Iridium's 80 in their polar planes.
+
+https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116
+```
+
+#### Facebook
+
+```text
+All of Starlink joins the satellites, with a search, and you choose which to see.
+
+All 11,116 Starlink satellites can now show round Earth, with a slider for how many, the first by serial number, from one to all; and Iridium's 80 in their polar planes. In Earth's panel, the Satellites section has a search that finds Earth's satellites alone, a switch for each kind (Starlink, Iridium, navigation, weather, the space stations...) and a slider for how many names to show.
+
+https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116
+```

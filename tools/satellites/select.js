@@ -9,8 +9,11 @@ import {OMM_FIELDS} from '../../js/scene/satellites/sgp4.js'
  * CelesTrak's GP groups, in the order a satellite in two is filed under the
  * first, which is also the order the info panel lists them in: each its
  * query, how it's shown (its label in the panel, what one of it is, its
- * colour), and for the big ones how many to keep (evenly by NORAD number,
- * so the sample spreads over the launches and the planes).  The labels and
+ * colour), and for the big ones either how many to keep (evenly by NORAD
+ * number, so the sample spreads over the launches and the planes) or, kept
+ * whole, an order and how many show to start (`order`, `count`: the panel
+ * gives the group a slider for how many, from the first), in a file of its
+ * own (`file`, under public/: over a megabyte, in Git LFS).  The labels and
  * colours go into the snapshot's header, so the app has no table of its
  * own: a population of any body brings its own (Satellites.md).
  */
@@ -26,9 +29,33 @@ export const GROUP_QUERIES = [
   {group: 'iridium', query: {GROUP: 'iridium-NEXT'}, label: 'Iridium', kind: 'Iridium', color: '#c9a0ff'},
   {group: 'geo', query: {GROUP: 'geo'}, keep: 150, label: 'Geostationary (a sample)', kind: 'geostationary',
     color: '#d0d0d0'},
-  {group: 'starlink', query: {GROUP: 'starlink'}, keep: 300, label: 'Starlink (a sample)', kind: 'Starlink',
-    color: '#7fd0ff'},
+  {group: 'starlink', query: {GROUP: 'starlink'}, label: 'Starlink', kind: 'Starlink', color: '#7fd0ff',
+    order: 'serial', count: 300, file: 'large/satellites/starlink.json'},
 ]
+
+
+/**
+ * The orders a group kept whole can be in (`order`): each a comparison of
+ * two OMM records, and how the panel says it.
+ */
+export const ORDERS = {
+  // STARLINK-1008 before STARLINK-30930: the number in the name, about the
+  // order they were built; then by NORAD number.
+  serial: {
+    label: 'serial number',
+    compare: (a, b) => (serialOf(a.OBJECT_NAME) - serialOf(b.OBJECT_NAME)) || (a.NORAD_CAT_ID - b.NORAD_CAT_ID),
+  },
+}
+
+
+/**
+ * @param {string} name e.g. 'STARLINK-1008'
+ * @returns {number} the number in it, or Infinity if none (last)
+ */
+export function serialOf(name) {
+  const m = (/(\d+)/).exec(name ?? '')
+  return m ? Number(m[1]) : Infinity
+}
 
 
 /**
@@ -87,20 +114,31 @@ export function toRow(omm, group) {
  *
  * @param {Array<{group: string, records: Array<object>, keep?: number}>} fetched in GROUP_QUERIES order
  * @param {string} date ISO time of the fetch
- * @returns {object} public/data/satellites.json
+ * @returns {object} public/data/satellites.json, and in `files` (not
+ *   written into it) each group's own file by its path under public/
  */
 export function buildSnapshot(fetched, date) {
   const seen = new Set
   const rows = []
   const groups = {}
-  for (const {group, records, keep, url, error, label, kind, color} of fetched) {
+  const files = {}
+  const columns = ['NORAD_CAT_ID', 'OBJECT_NAME', 'group', ...OMM_FIELDS]
+  for (const {group, records, keep, url, error, label, kind, color, order, count, file} of fetched) {
     const fresh = records.filter((r) => !seen.has(r.NORAD_CAT_ID) && r.MEAN_MOTION > 0)
-    const kept = sample(fresh, keep)
+    const kept = order ? [...fresh].sort(ORDERS[order].compare) : sample(fresh, keep)
+    const into = file ? [] : rows
     kept.forEach((r) => {
       seen.add(r.NORAD_CAT_ID)
-      rows.push(toRow(r, group))
+      into.push(toRow(r, group))
     })
     const shown = {label: label ?? group, kind: kind ?? group, color: color ?? '#c8c8c8'}
+    if (order) {
+      Object.assign(shown, {orderedBy: ORDERS[order].label, count})
+    }
+    if (file) {
+      shown.file = file
+      files[file] = {group, fetched: date, columns, rows: into}
+    }
     groups[group] = error ? {...shown, url, of: 0, kept: 0, error} : {...shown, url, of: records.length, kept: kept.length}
   }
   return {
@@ -111,7 +149,8 @@ export function buildSnapshot(fetched, date) {
     body: 'earth',
     groups,
     known: KNOWN,
-    columns: ['NORAD_CAT_ID', 'OBJECT_NAME', 'group', ...OMM_FIELDS],
+    columns,
     rows,
+    files,
   }
 }

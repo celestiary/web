@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import {parseCatalog} from '../../js/scene/satellites/sgp4.js'
-import {GROUP_QUERIES, buildSnapshot, gpUrl, sample} from './select.js'
+import {GROUP_QUERIES, buildSnapshot, gpUrl, sample, serialOf} from './select.js'
 
 
 const omm = (id, extra = {}) => ({
@@ -47,5 +47,25 @@ describe('satellites snapshot', () => {
     const recs = parseCatalog(snap)
     expect(recs.map((r) => r.id)).toEqual([25544, 40000])
     expect(recs[1].group).toBe('gnss')
+  })
+
+  it('keeps a group whole in its order, in a file of its own, with how many show to start', () => {
+    const starlink = GROUP_QUERIES.find((g) => g.group === 'starlink')
+    expect(starlink).toMatchObject({order: 'serial', count: 300, file: 'large/satellites/starlink.json'})
+    expect(starlink.keep).toBeUndefined()
+    const sl = (id, n) => omm(id, {OBJECT_NAME: `STARLINK-${n}`})
+    const snap = buildSnapshot([
+      {group: 'stations', records: [omm(25544)], url: 'a'},
+      {...starlink, records: [sl(3, 30930), sl(1, 1008), sl(2, 2449), sl(4, 1008)], url: 'b'},
+    ], 'x')
+    expect(snap.rows.map((r) => r[0])).toEqual([25544])
+    expect(snap.groups.starlink).toMatchObject({orderedBy: 'serial number', count: 300,
+      file: 'large/satellites/starlink.json', of: 4, kept: 4})
+    const part = snap.files['large/satellites/starlink.json']
+    // By the number in the name, then by NORAD number.
+    expect(part.rows.map((r) => r[0])).toEqual([1, 4, 2, 3])
+    expect(part.columns).toEqual(snap.columns)
+    expect(serialOf('STARLINK-11385 [DTC]')).toBe(11385)
+    expect(serialOf('NO NUMBER')).toBe(Infinity)
   })
 })

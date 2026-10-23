@@ -29,7 +29,7 @@ import {
   pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
-import {goToEntry, placeTarget} from './search/commitEntry'
+import {goToEntry, placeTarget, targetEntry} from './search/commitEntry'
 import {decodeNewsToken, loadChangelog, readFilter, tourStops} from './changelog'
 import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
 import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
@@ -106,6 +106,8 @@ const APPROACH_MAX_RADII = 100
 // Over a place this near a pole, a flight faces down to it squared to the
 // prime meridian, not the pole.
 const POLAR_LAT_DEG = 89
+// How many results the info panel's population search lists.
+const POPULATION_RESULTS = 12
 
 
 /** Main application class. */
@@ -198,6 +200,11 @@ export default class Celestiary {
       of: (body) => this.scene.populationOf(body),
       setGroup: (body, key, on) => this.scene.setPopulationGroup(body, key, on),
       setLabels: (body, n) => this.scene.setPopulationLabels(body, n),
+      setCount: (body, key, n) => this.scene.setPopulationCount(body, key, n),
+      // The panel's search: the main search's, scoped to the body, its
+      // population's results only (js/search/DESIGN.md, Populations).
+      search: (body, text) => this._searchPopulation(body, text),
+      pick: (body, id, go) => this._pickPopulation(body, id, go),
     }
     // Opening or folding the panel's lists rewrites the link (`info:`).
     this.controlPanel.onUiChange = () => this._schedulePermalinkUpdate()
@@ -582,6 +589,43 @@ export default class Celestiary {
    * ready immediately; StarsProvider registers once the star catalog
    * finishes async-loading (Stars.js sets `starsCatalog` on the store).
    */
+  /**
+   * @param {string} body
+   * @param {string} text
+   * @returns {Array<object>} the search's entries for the body's population
+   *   that match, best first
+   */
+  _searchPopulation(body, text) {
+    const path = `milkyway/${this.loader.pathByName[body] ?? `sun/${body}`}`
+    return searchIndex.query(text, path, POPULATION_RESULTS)
+        .map((r) => r.entry)
+        .filter((e) => e.kind === 'satellite' && (e.payload?.target?.body ?? 'earth') === body)
+  }
+
+
+  /**
+   * A pick in the panel's population search: targeted, as a pick in the main
+   * search is, or gone to (a double click).
+   *
+   * @param {string} body
+   * @param {number} id
+   * @param {boolean} go
+   */
+  _pickPopulation(body, id, go) {
+    const pop = this.scene.populationOf(body)
+    const rec = pop?.record(id)
+    if (!rec) {
+      return
+    }
+    const entry = {kind: 'satellite', displayName: pop.displayName(rec), payload: {target: pop.targetOf(rec)}}
+    if (go) {
+      goToEntry(entry, this)
+    } else {
+      targetEntry(entry, this)
+    }
+  }
+
+
   _registerSearchProviders() {
     searchIndex.register(new SceneProvider(this.loader))
     // Each body's population, as it comes in; Earth's satellites fetched

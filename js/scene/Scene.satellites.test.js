@@ -314,16 +314,39 @@ describe('Scene and the satellites', () => {
     // is its default (one known), so the link no longer says it.
     expect(pop.labelBudget).toBe(1)
     expect(changes).toBe(0)
-    expect(sys.s.getPopulationState()).toEqual(new Map([['mars', {shown: new Set(['esa']), labels: null}]]))
+    expect(sys.s.getPopulationState()).toEqual(new Map([['mars', {shown: new Set(['esa']), labels: null, counts: null}]]))
     // The panel's controls rewrite the link.
     sys.s.setPopulationGroup('mars', 'nasa', true)
     sys.s.setPopulationLabels('mars', 2)
     expect(changes).toBe(2)
-    expect(sys.s.getPopulationState()).toEqual(new Map([['mars', {shown: null, labels: 2}]]))
+    expect(sys.s.getPopulationState()).toEqual(new Map([['mars', {shown: null, labels: 2, counts: null}]]))
     // Back to its default, the same budget again is no change.
     sys.s.setPopulationLabels('mars', pop.defaultLabelBudget)
     sys.s.setPopulationLabels('mars', pop.defaultLabelBudget)
     expect(changes).toBe(3)
+    expect(sys.s.getPopulationState()).toEqual(new Map)
+  })
+
+  it('keeps how many of a counted group show for the link, and puts a link\'s back', () => {
+    const sys = solarSystem()
+    let changes = 0
+    sys.s.onSettingsChange = () => changes++
+    // A link's count, before the population is in, bounding its budget.
+    sys.s.restorePopulations(new Map([['mars', {shown: null, labels: 2, counts: new Map([['fleet', 2]])}]]))
+    const pop = new FixedPopulation([1, 2, 3, 4].map((id) => ({id, name: `Orbiter ${id}`, group: 'fleet', x: 4e6})),
+        {body: 'mars', groups: {fleet: {label: 'Fleet', count: 1, orderedBy: 'number'}}, Sheet: StubSheet})
+    sys.s.addPopulation(pop)
+    expect(pop.groupCount('fleet')).toBe(2)
+    expect(pop.labelBudget).toBe(2)
+    expect(changes).toBe(0)
+    // Its names behind Mars take no room: the scene gives it Mars's radius.
+    expect(pop.bodyRadius).toBe(sys.mars.props.radius.scalar)
+    sys.s.setPopulationCount('mars', 'fleet', 3)
+    expect(changes).toBe(1)
+    expect(sys.s.getPopulationState()).toEqual(new Map([['mars', {shown: null, labels: 2,
+      counts: new Map([['fleet', 3]])}]]))
+    sys.s.setPopulationCount('mars', 'fleet', 1)
+    sys.s.setPopulationLabels('mars', 0)
     expect(sys.s.getPopulationState()).toEqual(new Map)
   })
 })
