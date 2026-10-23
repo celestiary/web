@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../js/scene/craft/catalog.js"],
+  "sourcesContent": ["// The craft the app can fly (Craft.md, drawn), as the panel and the link\n// need them before any is flown: code, name, the body each is drawn about\n// (`centre`) and the bodies whose panels offer it (`shownAt`).  How each is\n// made is in flights.js, loaded the first time one is flown, with the\n// integrator behind it: none of it is in the first load.\n\n/** By link code. */\nexport const FLIGHT_CATALOG = {\n  tli: {code: 'tli', name: 'transfer to the Moon', centre: 'earth', shownAt: ['earth', 'moon'], color: 0xffc070},\n}\n\n\n/**\n * @param {string} code\n * @returns {?object} its FLIGHT_CATALOG entry\n */\nexport function flightOf(code) {\n  return FLIGHT_CATALOG[code] ?? null\n}\n"],
+  "mappings": "wCAOO,IAAMA,EAAiB,CAC5B,IAAK,CAAC,KAAM,MAAO,KAAM,uBAAwB,OAAQ,QAAS,QAAS,CAAC,QAAS,MAAM,EAAG,MAAO,QAAQ,CAC/G,EAOO,SAASC,EAASC,EAAM,CAhB/B,IAAAC,EAiBE,OAAOA,EAAAH,EAAeE,CAAI,IAAnB,KAAAC,EAAwB,IACjC,CAFgBC,EAAAH,EAAA",
+  "names": ["FLIGHT_CATALOG", "flightOf", "code", "_a", "__name"]
+}
