@@ -40,6 +40,19 @@ appeared, and closing it did the same. The dialogs now open and close over the s
 - PR: [#282](https://github.com/celestiary/web/pull/282)
 - Permalink: [Open this view](https://celestiary.org/#sun/earth)
 
+### Earth's orbital neighbourhoods: LEO, GPS, Molniya and the edge of cislunar space
+
+With Earth selected, the regions satellites use are drawn around it: low and medium Earth orbit as
+faint shells, GPS's six orbital planes, the long Molniya and Tundra loops over the north, the graveyard
+just above the geostationary ring, and a sun-synchronous orbit that rides the line between day and
+night as the Earth goes round the Sun. Further out, outlines mark where the Moon's pull starts to
+matter and where cislunar space ends. Mars shows its own sun-synchronous orbit.
+
+- Date: 2026-10-23
+- PR: [#278](https://github.com/celestiary/web/pull/278)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
 ### Lagrange points, Hill spheres and stationary orbits around every planet and moon
 
 Pick a planet or moon and the points where a spacecraft can hold station with it show up around it:

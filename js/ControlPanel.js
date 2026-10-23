@@ -166,8 +166,9 @@ export default class ControlPanel {
 
   /**
    * The space around the body (Scene.spaceAround; lagrange.js): its Hill
-   * sphere, the collinear Lagrange points it shares with its primary, and
-   * its synchronous orbit, or why it can't hold one.  The scene draws them
+   * sphere, the collinear Lagrange points it shares with its primary, its
+   * synchronous orbit, or why it can't hold one, and its orbital regimes
+   * (regimes.js).  The scene draws them
    * for the target, with the orbits.
    *
    * @param {string} name a body's
@@ -177,6 +178,10 @@ export default class ControlPanel {
     const s = this.spaceHook?.(name)
     if (!s) {
       return ''
+    }
+    const regimes = s.regimes ? s.regimes.map((r) => `<li>${r}</li>\n`).join('') : ''
+    if (!s.name) {
+      return `<li>space around: <ul class="collapsed" data-prop="space">\n${regimes}</ul></li>\n`
     }
     const sync = s.sync
     let syncText = 'no rotation period'
@@ -193,8 +198,7 @@ export default class ControlPanel {
       `<li>${s.name} L1: ${formatDistance(s.l1)} toward the ${s.name.split('–')[0]}; ` +
         `L2: ${formatDistance(s.l2)} beyond</li>\n` +
       `<li>${s.name} L4, L5: 60° ahead and behind on the orbit; L3 opposite</li>\n` +
-      `<li>synchronous orbit: ${syncText}</li>\n` +
-      '</ul></li>\n'
+      `<li>synchronous orbit: ${syncText}</li>\n${regimes}</ul></li>\n`
   }
 
 
