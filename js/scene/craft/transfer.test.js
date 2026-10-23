@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
+import {appBodies} from './bodies.js'
 import {geocentricTracks} from './ephemeris.js'
 import {EARTH_RADIUS, GM, SECONDS_PER_DAY, dopri5, ratesOf} from './integrator.js'
 import {TOLERANCES, earthModel, lunarTransfer} from './transfer.js'
@@ -12,7 +13,7 @@ const DATES = [2461345.5, 2461354.5, 2461375.5]
 
 
 describe('a transfer to the Moon', () => {
-  const tracks = geocentricTracks({vsop: vsop87c})
+  const tracks = geocentricTracks(appBodies(vsop87c))
 
   it('reaches a 100 km perilune from a 185 km parking orbit', () => {
     for (const jde of DATES) {

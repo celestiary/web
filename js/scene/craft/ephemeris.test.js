@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'bun:test'
 import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
-import {SampledTrack, earthPole, geocentricTracks, j2000ToDate, moonGeocentric, ttToUtc} from './ephemeris.js'
+import {appBodies, j2000ToDate, moonGeocentric, ttToUtc} from './bodies.js'
+import {SampledTrack, earthPole, geocentricTracks} from './ephemeris.js'
+import {J2000_OBLIQUITY_DEG} from '../celestialFrame.js'
 import {ASTRO_UNIT_METER} from '../../shared.js'
 
 
@@ -12,7 +14,7 @@ const JDE = 2461336.5
 
 describe('a craft\'s ephemeris', () => {
   it('reads the Moon and the Sun between samples to under a metre', () => {
-    const tracks = geocentricTracks({vsop: vsop87c})
+    const tracks = geocentricTracks(appBodies(vsop87c))
     for (let i = 0; i < 40; i++) {
       // Odd times, between the samples.
       const jde = JDE + (i * 0.3731)
@@ -57,7 +59,7 @@ describe('a craft\'s ephemeris', () => {
 
   it('has the Earth\'s pole at the obliquity from the ecliptic\'s', () => {
     const p = earthPole()
-    expect(Math.acos(p[2]) * 180 / Math.PI).toBeCloseTo(23.4393, 4)
+    expect(Math.acos(p[2]) * 180 / Math.PI).toBeCloseTo(J2000_OBLIQUITY_DEG, 10)
     // Toward ecliptic longitude 270°: the equinox's +90° is where the equator
     // is highest.
     expect(p[1]).toBeLessThan(0)

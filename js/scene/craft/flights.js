@@ -1,4 +1,3 @@
-import {FLIGHT_CATALOG} from './catalog.js'
 import {geocentricTracks} from './ephemeris.js'
 import {SECONDS_PER_DAY, dopri5, ratesOf} from './integrator.js'
 import {TOLERANCES, earthModel, lunarTransfer} from './transfer.js'
@@ -8,15 +7,16 @@ import {TOLERANCES, earthModel, lunarTransfer} from './transfer.js'
 // them), each a trajectory integrated in the full force model from a
 // departure the user picks.  `make` returns the path as drawn and its
 // facts, or null where it can't be flown; `describe` puts the facts in
-// words for the panel.  Loaded the first time one is flown (Scene).
+// words for the panel.  Loaded the first time one is flown (Scene), and
+// importing nothing the first load does (bodies.js says why).
 
 const UNIX_EPOCH_JD = 2440587.5
 const MS_PER_DAY = 864e5
 const KM = 1000
 
-/** By link code: the catalogue's entries, and how each is made. */
+/** By link code (catalog.js's): how each is made, and its facts told. */
 export const FLIGHTS = {
-  tli: {...FLIGHT_CATALOG.tli, make: transferToMoon, describe: describeTransfer},
+  tli: {make: transferToMoon, describe: describeTransfer},
 }
 
 
@@ -45,12 +45,12 @@ export function describeTransfer(f) {
  * perilune.
  *
  * @param {number} departure JDE of the burn
- * @param {?function(number): object} vsop VSOP87C's, or its stand-in's
+ * @param {object} bodies bodies.js appBodies', on VSOP87C or its stand-in
  * @returns {?{t: Float64Array, xyz: Float64Array, facts: object}} t JDE, xyz
  *     metres about the Earth in ecliptic axes of date
  */
-export function transferToMoon(departure, vsop) {
-  const tracks = geocentricTracks({vsop})
+export function transferToMoon(departure, bodies) {
+  const tracks = geocentricTracks(bodies)
   const transfer = lunarTransfer(tracks, departure)
   if (!transfer) {
     return null

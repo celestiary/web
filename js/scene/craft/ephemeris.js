@@ -1,15 +1,13 @@
-import {Quaternion, Vector3} from 'three'
-import {moonEcliptic} from '../lunarTheory.js'
-import {J2000_JD, J2000_OBLIQUITY_DEG, precessionQuaternion, ttMinusUtcSeconds} from '../celestialFrame.js'
 import {ASTRO_UNIT_METER} from '../../shared.js'
 
 
 // The bodies a craft's integrator needs, where the app draws them
 // (Craft.md; #11): the Moon from the lunar theory (lunarTheory.js, Meeus's
-// ELP-2000/82), the Sun and the planets from VSOP87C.  Positions are in
-// metres in the mean ecliptic and equinox of date, ecliptic axes (x to the
-// equinox, z to the ecliptic's north pole; the scene's are (x, z, −y)), and
-// time is TT, as a Julian Ephemeris Day.
+// ELP-2000/82), the Sun and the planets from VSOP87C, handed in (bodies.js
+// appBodies) so this file imports nothing the first load does.  Positions
+// are in metres in the mean ecliptic and equinox of date, ecliptic axes (x
+// to the equinox, z to the ecliptic's north pole; the scene's are
+// (x, z, −y)), and time is TT, as a Julian Ephemeris Day.
 //
 // VSOP87C costs about 2 ms a call and the Moon's series 11 µs, against an
 // integrator's tens of thousands of force evaluations, so each body is
@@ -21,57 +19,15 @@ import {ASTRO_UNIT_METER} from '../../shared.js'
 // barycentre, 4,700 km, which VSOP87C's Earth carries: at two days it was
 // 80 m.
 
-const SECONDS_PER_DAY = 86400
-const METERS_PER_KM = 1000
 const DEG = Math.PI / 180
+// The obliquity of J2000, celestialFrame.js's J2000_OBLIQUITY_DEG (a test
+// holds them equal).
+const J2000_OBLIQUITY_DEG = 84381.448 / 3600
 // Points of the interpolating polynomial (its degree plus 1): even, so the
 // point read is in the middle interval.
 const ORDER = 8
 /** Samples' spacing, days, by body. */
 export const SAMPLE_DAYS = {moon: 0.25, sun: 1, planet: 1}
-
-
-/**
- * The Moon's place from the Earth's centre: the lunar theory's longitude,
- * latitude and distance (TT), in ecliptic axes.
- *
- * @param {number} jde
- * @param {Array<number>} [out]
- * @returns {Array<number>} metres
- */
-export function moonGeocentric(jde, out = [0, 0, 0]) {
-  const {lambda, beta, distanceKm} = moonEcliptic(jde)
-  const r = distanceKm * METERS_PER_KM
-  const cb = Math.cos(beta * DEG)
-  out[0] = r * cb * Math.cos(lambda * DEG)
-  out[1] = r * cb * Math.sin(lambda * DEG)
-  out[2] = r * Math.sin(beta * DEG)
-  return out
-}
-
-
-const tmpQ = new Quaternion
-const tmpV = new Vector3
-
-
-/**
- * A vector in the ecliptic and equinox of J2000 (JPL Horizons'), in the
- * ecliptic of date: turned by the precession (celestialFrame.js), whose
- * quaternion is in the scene's axes, (x, z, −y).
- *
- * @param {Array<number>} v
- * @param {number} jde
- * @param {Array<number>} [out]
- * @returns {Array<number>}
- */
-export function j2000ToDate(v, jde, out = [0, 0, 0]) {
-  precessionQuaternion(J2000_JD, jde, tmpQ)
-  tmpV.set(v[0], v[2], -v[1]).applyQuaternion(tmpQ)
-  out[0] = tmpV.x
-  out[1] = -tmpV.z
-  out[2] = tmpV.y
-  return out
-}
 
 
 /**
@@ -84,16 +40,6 @@ export function j2000ToDate(v, jde, out = [0, 0, 0]) {
 export function earthPole() {
   const e = J2000_OBLIQUITY_DEG * DEG
   return [0, -Math.sin(e), Math.cos(e)]
-}
-
-
-/**
- * @param {number} jde TT
- * @returns {number} the UTC Julian Day, as the app feeds VSOP87C
- *     (Animation.setDate)
- */
-export function ttToUtc(jde) {
-  return jde - (ttMinusUtcSeconds(jde) / SECONDS_PER_DAY)
 }
 
 
@@ -170,14 +116,17 @@ export class SampledTrack {
  * The bodies about the Earth: the Moon and the Sun, and the planets if
  * asked, each geocentric.
  *
- * @param {object} [opts]
- * @param {?function(number): object} [opts.vsop] VSOP87C's function, of the
+ * @param {object} bodies bodies.js appBodies'
+ * @param {?function(number): object} bodies.vsop VSOP87C's function, of the
  *     UTC Julian Day, in AU; without it, no Sun or planets
- * @param {Array<string>} [opts.planets] VSOP87C's names, e.g. ['venus', 'jupiter']
+ * @param {function(number, Array<number>): Array<number>} bodies.moon the
+ *     Moon's place from the Earth, metres, at a JDE
+ * @param {function(number): number} bodies.ttToUtc
+ * @param {Array<string>} [planets] VSOP87C's names, e.g. ['venus', 'jupiter']
  * @returns {{[key: string]: SampledTrack}} by body
  */
-export function geocentricTracks({vsop = null, planets = []} = {}) {
-  const tracks = {moon: new SampledTrack(moonGeocentric, SAMPLE_DAYS.moon)}
+export function geocentricTracks({vsop, moon, ttToUtc}, planets = []) {
+  const tracks = {moon: new SampledTrack(moon, SAMPLE_DAYS.moon)}
   if (vsop) {
     // The Sun from the Earth is the Earth from the Sun, reversed.
     tracks.sun = new SampledTrack((jde, out) => {
@@ -204,11 +153,11 @@ export function geocentricTracks({vsop = null, planets = []} = {}) {
 /**
  * The bodies about the Sun: the planets from VSOP87C, heliocentric.
  *
- * @param {function(number): object} vsop
+ * @param {object} bodies bodies.js appBodies', with its vsop
  * @param {Array<string>} planets VSOP87C's names
  * @returns {{[key: string]: SampledTrack}}
  */
-export function heliocentricTracks(vsop, planets) {
+export function heliocentricTracks({vsop, ttToUtc}, planets) {
   const tracks = {}
   for (const name of planets) {
     tracks[name] = new SampledTrack((jde, out) => {

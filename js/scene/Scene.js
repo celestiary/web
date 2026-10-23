@@ -20,6 +20,7 @@ import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
 import {FAMILIES, PERIODIC_DATA_URL, familyMember, familyOfCode, sampleMember, southern} from './periodicOrbits.js'
 import {manifolds} from './manifolds.js'
 import CraftTrack from './craft/CraftTrack.js'
+import {appBodies} from './craft/bodies.js'
 import {FLIGHT_CATALOG, flightOf} from './craft/catalog.js'
 import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
@@ -1328,12 +1329,12 @@ export default class Scene {
       }
     }
     for (const [code, departure] of this._craft) {
-      const flight = this._flights.FLIGHTS[code]
+      const flight = {...FLIGHT_CATALOG[code], ...this._flights.FLIGHTS[code]}
       const centre = this.objects[`${flight.centre}.orbitPosition`]
       if (this._craftTracks.has(code) || !centre) {
         continue
       }
-      const path = flight.make(departure, this.vsopAt)
+      const path = flight.make(departure, appBodies(this.vsopAt))
       if (!path) {
         continue
       }

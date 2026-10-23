@@ -1,7 +1,8 @@
 import {describe, expect, it} from 'bun:test'
 import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
 import {jacobi} from '../cr3bp.js'
-import {geocentricTracks, j2000ToDate} from './ephemeris.js'
+import {appBodies, j2000ToDate} from './bodies.js'
+import {geocentricTracks} from './ephemeris.js'
 import {
   EARTH_J2, EARTH_RADIUS, GM, SECONDS_PER_DAY, dopri5, newForceModel, orbitalEnergy, ratesOf, symplectic,
 } from './integrator.js'
@@ -145,7 +146,7 @@ describe('a craft\'s integrator', () => {
     // tools/craft/fetchHorizons.mjs).  The Sun's light pressure is all that's
     // left: a cannonball of 0.015 m²/kg, Cr 1.3, fitted on the first arc,
     // holds the second, two weeks on, too.
-    const tracks = geocentricTracks({vsop: vsop87c})
+    const tracks = geocentricTracks(appBodies(vsop87c))
     for (const arc of tess.arcs) {
       const s0 = [...j2000ToDate(arc[0].r, arc[0].jd), ...j2000ToDate(arc[0].v, arc[0].jd)].map((x) => x * 1000)
       for (const [srp, bound] of [[null, 4e3], [{areaToMass: 0.015, cr: 1.3}, 300]]) {

@@ -7,7 +7,8 @@ simulation), and the ground for [#272](https://github.com/celestiary/web/issues/
 scope 5: the low-energy transfers and the cyclers.
 
 - `js/scene/craft/ephemeris.js`: the bodies' places as the integrator needs
-  them, sampled and interpolated; Horizons' frame to the app's.
+  them, sampled and interpolated; `bodies.js`: the app's series it's handed
+  (the Moon's, the UTC VSOP87C takes) and Horizons' frame to the app's.
 - `js/scene/craft/integrator.js`: the force model and the integrators.
 - `js/scene/craft/lambert.js`: Lambert's problem, the first guesses.
 - `js/scene/craft/transfer.js`: a transfer from a parking orbit to the Moon,
@@ -70,7 +71,12 @@ then, whose Sun is within 0.007° of it.  Nothing here imports VSOP87C, and
 none of the craft's code is in the first load: the scene knows the flights
 by `catalog.js` and imports `flights.js`, and so the integrator, the first
 time one is flown (`Scene._flightsReady`).  Imported with the scene, it
-took the first load from 705 to 713 KB gzipped.
+took the first load from 705 to 713 KB gzipped.  And nothing lazy imports
+a module the first load holds: esbuild puts what an entry and a dynamic
+import share in a chunk of its own, and flights.js reaching the lunar
+theory and the frame (and `catalog.js`) split two out, one request over
+the homepage's budget.  So `bodies.js`, which needs them, is in the first
+load, and the scene hands its functions to the flight (`appBodies`).
 
 **Horizons' frame**: Horizons gives the ecliptic and equinox of J2000;
 `j2000ToDate` turns a vector by the precession to the date
