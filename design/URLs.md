@@ -351,23 +351,25 @@ link may be a moment behind; paused it is exact.
 
 ### Info Token
 
-The info panel's lists as the user left them (DESIGN.md [orbital
-elements](../DESIGN.md#orbital-elements)): the whole panel folded, and its
-lists opened or folded against how they start.
+The info panel's sections as the user left them (DESIGN.md [the info
+panel](../DESIGN.md#the-info-panel)): the whole panel folded to its head,
+and its sections opened or shut against how they start.
 
 ```
-closed             the panel folded to its [+]
-open=<list>+…      lists opened that start folded (most do)
-shut=<list>+…      lists folded that start open (a body's `system`)
+closed             the panel folded to its head
+open=<section>+…   sections opened that start shut (all but one)
+shut=<section>+…   sections shut that start open (a body's `system`)
 ```
 
-A list is named by its place in a body's properties, dotted: `orbit`,
-`atmosphere`, `location.coord`.
+A section is named by its place in a body's properties (`orbit`,
+`atmosphere`, `rings`, `system`), or by its panel name (`physical`,
+`space`, `more`; a galaxy's `galaxy` and `curve`).  Links written before the
+sections, naming a nested list (`location.coord`), open nothing now.
 
 ```
-#…;info:open=orbit                      the orbit list open
+#…;info:open=orbit                      the orbit section open
 #…;info:closed                          the panel folded
-#…;info:open=orbit+atmosphere,shut=system
+#…;info:open=orbit+physical,shut=system
 ```
 
 Decisions:
@@ -450,6 +452,43 @@ Decisions:
 - **A hover's preview isn't written**, only what was clicked on.
 - **Unknown codes are dropped**, and a body the scene doesn't have is
   ignored.  No token: none on.
+
+### Periodic Token
+
+The three-body periodic orbits shown, from the info panel's *space around*
+list ([js/scene/Lagrange.md](../js/scene/Lagrange.md#three-body-orbits)): for
+each pair with some on, its secondary and the families' codes, and the
+frame they're drawn in when it isn't the default.
+
+```
+<secondary>=<code>+<code>   a pair by its secondary (moon: the Earth-Moon pair) and its families on
+frame=inertial              drawn fixed in space, not turning with the pair
+```
+
+The codes, in the order the panel lists them:
+
+```
+l1l      L1 Lyapunov
+l2l      L2 Lyapunov
+l1h      L1 halo
+l2h      L2 halo
+dro      distant retrograde orbit
+nrho     the 9:2 near-rectilinear halo orbit (Earth-Moon only)
+```
+
+```
+#…;periodic:moon=nrho+dro                    Gateway's NRHO and a DRO, turning with the Earth-Moon pair
+#…;periodic:earth=l1h+l2h                    the Sun-Earth L1 and L2 halos
+#…;periodic:moon=dro+l2l,frame=inertial      fixed in space: their spirographs
+```
+
+Decisions:
+
+- **Keyed by the secondary**, which names its pair (each body has one
+  primary).
+- **App state, restored on any link that carries it**, as the `orbits:`
+  token is; the families show once their pair is the target's.
+- **Unknown codes are dropped.**  No token: none on.
 
 ### Apps Token
 

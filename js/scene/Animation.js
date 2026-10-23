@@ -107,6 +107,7 @@ export default class Animation {
     this.onEphemeris = null
     this.curVsopCoords = this.vsopAt(J2000_JD)
     this.Y_AXIS = new Vector3(0, 1, 0)
+    this.X_AXIS = new Vector3(1, 0, 0)
     // Per-frame Moon position, from updateMoon.
     this.moonPos = new Vector3
     this._tmpVec = new Vector3
@@ -121,6 +122,10 @@ export default class Animation {
     this._lineBody = new Vector3
     this._invQuat = new Quaternion
     this._invMat = new Matrix4
+    // A pair's frame for its Lagrange points (layLagrange).
+    this._lagrangeQ = new Quaternion
+    this._lagrangePole = new Vector3
+    this._lagrangeR = new Vector3
     // A body's pole and meridian, from poleAndMeridian.
     this._pm = {ra: 0, dec: 0, w: 0}
     // Orbit line rebuilds, run within a per-frame budget.
@@ -385,6 +390,12 @@ export default class Animation {
       if (system.orbitDiagram?.visible) {
         this.layOrbitDiagram(system)
       }
+      if (system.lagrange?.visible) {
+        this.layLagrange(system)
+      }
+      if (system.regimes?.visible) {
+        this.layRegimes(system)
+      }
       if (system.postAnimCb) {
         system.postAnimCb(system)
       }
@@ -635,6 +646,56 @@ export default class Animation {
     diagram.updateMatrix()
     const body = this._tmpVec.copy(orbitPosition.position).applyMatrix4(this._invMat.copy(diagram.matrix).invert())
     diagram.setBodyOffset(body.distanceTo(diagram.anchors.body) * el.a > BODY_OFFSET_SHOWN_M ? body : null)
+  }
+
+
+  /**
+   * Lay a pair's Lagrange points, Hill sphere and synchronous orbit
+   * (LagrangeMarks, Scene._syncLagrange) on the pair as it is: along the
+   * secondary's place, scaled by its distance, in the plane of its orbit
+   * now (orbitElements), on the side it moves.  The Sun-Earth pair's
+   * secondary is the Earth-Moon barycentre.
+   *
+   * @param {Object3D} orbitPosition the secondary's, with `lagrange`
+   */
+  layLagrange(orbitPosition) {
+    const name = orbitPosition.name.split('.')[0]
+    const el = this.orbitElements(name, orbitPosition.orbit)
+    if (!el) {
+      return
+    }
+    const q = this._lagrangeQ.copy(el.frame)
+    if (!el.ofDate) {
+      q.premultiply(this.precession)
+    }
+    q.multiply(this._invQuat.setFromAxisAngle(this.Y_AXIS, el.node * Shared.toRad))
+    q.multiply(this._invQuat.setFromAxisAngle(this.X_AXIS, el.i * Shared.toRad))
+    const pole = this._lagrangePole.copy(this.Y_AXIS).applyQuaternion(q)
+    const r = this._lagrangeR.copy(orbitPosition.position)
+    if (name === 'earth') {
+      r.addScaledVector(this.moonPos, MOON_MASS_FRACTION)
+    }
+    // The pair's turn since J2000 at its mean motion: where the three-body
+    // orbits' bodies are (LagrangeMarks._placeFamilies).
+    const period = Number(orbitPosition.orbit.siderealOrbitPeriod?.scalar ?? orbitPosition.orbit.siderealOrbitPeriod)
+    const tau = period > 0 && this.jd !== null ? Shared.twoPi * (this.jd - J2000_JD) * SECONDS_PER_DAY / period : 0
+    orbitPosition.lagrange.place(r, pole, orbitPosition.position, tau)
+  }
+
+
+  /**
+   * Turn a planet's sun-synchronous orbits (RegimeMarks) to the Sun: its
+   * direction, the planet's heliocentric place reversed, in the planet's
+   * equator (the regimes' parent, planetTilt, under the unrotated
+   * orbitPosition).
+   *
+   * @param {Object3D} orbitPosition the planet's, with `regimes`
+   */
+  layRegimes(orbitPosition) {
+    const marks = orbitPosition.regimes
+    const sun = this._lagrangeR.copy(orbitPosition.position).negate()
+    sun.applyQuaternion(this._invQuat.copy(marks.parent.quaternion).invert())
+    marks.place(sun)
   }
 
 

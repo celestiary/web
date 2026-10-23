@@ -1,11 +1,56 @@
+/* The design system's tokens (design/UI.md; the Celestiary design system
+   artifact holds their usage notes), under its names.  New rules use these,
+   never raw values. */
 :root {
   /* The page's typeface: Inter (public/index.html loads it), else the
      system's sans.  MUI's theme takes the same stack (Style.jsx). */
   --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* Numbers: tabular, so columns align and ticking digits hold still. */
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   /* The fades of the chrome and the readouts: the scene's overlays' length
      (js/scene/fade.js FADE_MS) and a like easing, so they read as one. */
   --fade-ms: 400ms;
   --fade-ease: ease-in-out;
+
+  /* Surfaces.  The sky is the ground: nothing paints a page background. */
+  --surface: #0a0c14;
+  /* Lines: borders, not shadows. */
+  --line-hairline: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.12);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --line-accent: rgba(134, 159, 219, 0.55);
+  /* The one signal colour, never a large fill. */
+  --accent: #869fdb;
+  --accent-soft: #c4d2f2;
+  --accent-fill: rgba(134, 159, 219, 0.14);
+  --accent-fill-hover: rgba(134, 159, 219, 0.28);
+  --focus: var(--accent);
+  /* Ink, brightest first; each holds 4.5:1 on the sheet.  --ink-4 only on
+     an opaque surface. */
+  --ink-bright: #ffffff;
+  --ink: #dfe5f3;
+  --ink-2: #b9c3d9;
+  --ink-3: #a9b4cc;
+  --ink-4: #8f9bb5;
+  --ink-link: #b8cdea;
+
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --radius-chip: 6px;
+  --radius-card: 10px;
+  --radius-sheet: 12px;
+  --radius-pill: 999px;
+  --row-compact: 24px;
+  --row: 30px;
+  --panel-width: 360px;
+  /* The phone sheet's peek: its head, name and one fact. */
+  --sheet-peek: 88px;
 }
 
 body {
@@ -36,6 +81,26 @@ html.chrome-hidden #widgets-dock,
 html.chrome-hidden #cesium-credits {
   opacity: 0;
   pointer-events: none;
+}
+
+/* Cesium's credits, compact a few seconds after a body comes into view
+   (creditsReveal.js): the ion logo alone, dimmed; a hover, a focus or a tap
+   brings the rest back.  The attribution stays on screen, as ion's and
+   Bing's terms want, while their data is. */
+#cesium-credits.compact {
+  opacity: 0.55;
+}
+
+#cesium-credits.compact:not(:hover, :focus-within) .cesium-credit-textContainer,
+#cesium-credits.compact:not(:hover, :focus-within) .cesium-credit-expand-link,
+#cesium-credits.compact:not(:hover, :focus-within) .cesium-credit-delimiter {
+  /* Over Cesium's inline display (CreditDisplay sets it). */
+  display: none !important;
+}
+
+#cesium-credits.compact:hover,
+#cesium-credits.compact:focus-within {
+  opacity: 1;
 }
 
 a, .link {
@@ -79,55 +144,6 @@ button {
 
 .collapsed {
   display: none;
-}
-
-/* The info panel's orbit list: each element on lights its part of the
-   orbit's diagram in the scene, on any number of bodies at once
-   (ControlPanel.orbitListHtml). */
-.orbit-element {
-  width: fit-content;
-  cursor: pointer;
-  border-radius: 3px;
-}
-
-.orbit-element:hover,
-.orbit-element:focus-visible {
-  background-color: rgba(255, 255, 255, 0.08);
-  outline: none;
-}
-
-.orbit-element.on {
-  background-color: rgba(255, 255, 255, 0.16);
-  box-shadow: inset 2px 0 0 currentColor;
-}
-
-/* The diagrams' opacity at the far side of their orbits, in the lead. */
-.orbit-fade {
-  white-space: nowrap;
-  margin-left: 0.5em;
-}
-
-.orbit-fade input {
-  width: 6em;
-  vertical-align: middle;
-}
-
-/* The list's lead: what the elements are, and show all, none. */
-.orbit-lead {
-  list-style: none;
-  margin-left: -1em;
-  margin-bottom: 0.2em;
-  color: #aaa;
-}
-
-.orbit-action {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: #069;
-  text-decoration: underline;
-  cursor: pointer;
 }
 
 .panel {
@@ -189,35 +205,543 @@ button {
   top: 0px;
 }
 
-/* The target's info scrolls within the scene, clear of the search bar above
-   and the buttons below, rather than running off a phone's screen or under
-   the widgets sheet (--scene-height: Celestiary._sizeContainer). */
+/* The target's panel (ControlPanel, infoPanel.js; design/UI.md "The info
+   panel, in tiers"): a head with the name, kind and one fact, the key rows,
+   and sections that open on request.  Opaque, so no label or line reads
+   through it.  It scrolls within the scene, clear of the search bar
+   above and the buttons below (--scene-height: Celestiary._sizeContainer). */
 #nav-info-id {
-  max-height: calc(var(--scene-height, 100vh) - 10em);
-  overflow-y: hidden;
+  max-height: calc(var(--scene-height, 100vh) - 9em);
+  color: var(--ink);
+  font-family: var(--font-ui);
 }
 
-/* The target's info as a card a third of the screen wide, so the panel
-   doesn't take the scene's clicks over a wide, unseen area; it scrolls
-   within itself (the maintainer's layout, until the info panels are
-   redesigned). */
-#nav-info-id > ul[data-prop="info"] {
+.info {
   box-sizing: border-box;
-  width: 30vw;
-  min-width: 22em;
-  max-width: calc(100vw - 2em);
-  max-height: calc(var(--scene-height, 100vh) - 12em);
-  overflow-y: auto;
-  padding: 1em 1.5em;
-  border: solid 1px #ffffff33;
-  border-radius: 5px;
-  background: #aaaaff44;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--panel-width), calc(100vw - 2em));
+  max-height: calc(var(--scene-height, 100vh) - 9em);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  /* Opaque: over a starfield even 3% of a bright label reads through. */
+  background: var(--surface);
+  color: var(--ink);
 }
 
+.info-grabber {
+  display: none;
+}
+
+.info-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+  padding: var(--space-14) var(--space-8) var(--space-10) var(--space-16);
+}
+
+.info-id {
+  flex: 1;
+  min-width: 0;
+}
+
+.info-name {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.info-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-8);
+  margin-top: var(--space-4);
+}
+
+.info-badge {
+  padding: 0 var(--space-8);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  color: var(--ink-3);
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.info-fact {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+
+/* Folds the panel to its head (the link's `info:closed`). */
+.info-fold {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.info-fold:hover {
+  background: var(--line-hairline);
+  color: var(--ink);
+}
+
+.info-fold svg {
+  transition: transform 200ms ease;
+}
+
+.info.folded .info-fold svg {
+  transform: rotate(180deg);
+}
+
+.info.folded .info-body {
+  display: none;
+}
+
+.info-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: var(--space-8);
+}
+
+/* Rows: the label in words, the value in mono, the unit quiet. */
+.info-rows {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+
+.info-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--space-8);
+  min-height: var(--row);
+  box-sizing: border-box;
+  padding: var(--space-4) var(--space-16);
+}
+
+.info-rows.is-compact .info-row {
+  min-height: var(--row-compact);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.info-row dt {
+  grid-column: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--ink-3);
+}
+
+.info-row dd {
+  grid-column: 2;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--ink);
+  text-align: right;
+}
+
+.info-unit {
+  margin-left: 0.35em;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--ink-4);
+}
+
+/* A value that is a sentence: words, under its label. */
+.info-row.is-long dd,
+.info-row.is-note dd {
+  grid-column: 1 / -1;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.info-row.is-note {
+  min-height: 0;
+  padding-top: 0;
+}
+
+.info-row.is-note dd {
+  color: var(--ink-4);
+}
+
+.info-row.is-long dd {
+  color: var(--ink-2);
+}
+
+.info-sym {
+  display: inline-block;
+  min-width: 1.4em;
+  font-family: var(--font-mono);
+  color: var(--ink);
+}
+
+/* The orbit's elements: switches that light their part of the diagram. */
+.orbit-element {
+  cursor: pointer;
+  border-radius: var(--radius-chip);
+}
+
+.orbit-element:hover {
+  background: var(--line-hairline);
+}
+
+.orbit-element:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.orbit-element.on {
+  background: var(--accent-fill);
+}
+
+.orbit-element.on dt {
+  color: var(--ink);
+}
+
+/* A short line in the element's own colour, as its line in the scene. */
+.info-swatch {
+  position: absolute;
+  left: 3px;
+  /* On the row's first line, the element's, not the true place's below. */
+  top: 12px;
+  width: 9px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.45;
+}
+
+.orbit-element.on .info-swatch {
+  opacity: 1;
+  height: 3px;
+}
+
+.info-true {
+  grid-column: 1 / -1;
+  padding-left: 1.4em;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  text-align: left !important;
+}
+
+.info-true .orbit-true {
+  margin-left: 0.4em;
+  color: var(--ink);
+}
+
+/* Sections: closed by default, each saying what it holds. */
+.info-section {
+  border-top: 1px solid var(--line-hairline);
+}
+
+.info-section > summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  padding: var(--space-10) var(--space-16);
+  list-style: none;
+  cursor: pointer;
+}
+
+.info-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.info-section > summary::after {
+  content: '';
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-right: 1.5px solid var(--ink-3);
+  border-bottom: 1.5px solid var(--ink-3);
+  transform: rotate(-45deg);
+  transition: transform 200ms ease;
+}
+
+.info-section[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+.info-section > summary:hover .info-section-title {
+  color: var(--ink-bright);
+}
+
+.info-section > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.info-section-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.info-peek {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink-4);
+}
+
+.info-section-body {
+  padding-bottom: var(--space-8);
+}
+
+.info-note {
+  margin: 0 var(--space-16) var(--space-6);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.info-subhead {
+  margin: var(--space-10) var(--space-16) var(--space-2);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.info-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+  margin: 0 var(--space-16) var(--space-6);
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.orbit-action,
+.info-actions a {
+  padding: 2px var(--space-10);
+  border: 1px solid var(--line-accent);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--accent-soft);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.orbit-action:hover,
+.info-actions a:hover {
+  background: var(--accent-fill-hover);
+}
+
+.orbit-action:focus-visible,
+.info-actions a:focus-visible,
+.info-chip:focus-visible,
+.info-fold:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* The diagrams' opacity at the far side of their orbits. */
+.orbit-fade {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0 var(--space-16) var(--space-6);
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.orbit-fade input {
+  flex: 1;
+  max-width: 10em;
+  accent-color: var(--accent);
+}
+
+.orbit-fade-value {
+  min-width: 3em;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+/* The three-body orbits' switches (ControlPanel.periodicHtml): a family
+   each, and how they're drawn. */
+.info-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  margin-top: var(--space-2);
+}
+
+.periodic-family,
+.periodic-frame {
+  padding: 1px var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--ink-3);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.periodic-family:hover,
+.periodic-frame:hover {
+  border-color: var(--line-accent);
+  color: var(--ink);
+}
+
+.periodic-family:focus-visible,
+.periodic-frame:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.periodic-family.on,
+.periodic-frame.on {
+  border-color: var(--line-accent);
+  background: var(--accent-fill);
+  color: var(--ink);
+}
+
+/* A body's system: chips that fly there. */
+.info-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0 var(--space-16) var(--space-4);
+  list-style: none;
+}
+
+.info-chip {
+  display: inline-block;
+  padding: 2px var(--space-10);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--ink-link);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.info-chip:hover {
+  border-color: var(--line-accent);
+  color: var(--ink);
+}
+
+.galaxy-curve {
+  padding: 0 var(--space-16);
+}
+
+.galaxy-curve svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Phones: the panel is a sheet from the bottom (infoSheet.js), above the
+   widgets drawer's sheet when that's open, at one of three heights. */
 @media (max-width: 600px) {
-  #nav-info-id > ul[data-prop="info"] {
-    width: auto;
-    min-width: 0;
+  #nav-info-id {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--sheet-height, 0px);
+    z-index: 2;
+    max-height: none;
+    height: calc(var(--sheet-peek) + env(safe-area-inset-bottom, 0px));
+    transition: height 300ms var(--fade-ease);
+  }
+
+  #nav-info-id[data-detent='half'] {
+    height: calc(var(--scene-height, 100vh) * 0.5);
+  }
+
+  #nav-info-id[data-detent='full'] {
+    height: calc(var(--scene-height, 100vh) * 0.88);
+  }
+
+  #nav-info-id.dragging {
+    transition: none;
+  }
+
+  /* At the peek, the head alone. */
+  #nav-info-id[data-detent='peek'] .info-body {
+    visibility: hidden;
+  }
+
+  .info {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-bottom: none;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .info-grabber {
+    display: block;
+    flex: none;
+    align-self: center;
+    width: 36px;
+    height: 4px;
+    margin-top: var(--space-8);
+    border-radius: 2px;
+    background: var(--line-strong);
+  }
+
+  .info-head {
+    padding-top: var(--space-6);
+    cursor: grab;
+    touch-action: none;
+  }
+
+  /* The sheet's heights replace folding. */
+  .info-fold {
+    display: none;
+  }
+
+  .info.folded .info-body {
+    display: block;
+  }
+
+  /* The bottom controls and the settings stand above the sheet's peek, and
+     aside while it's raised, so nothing draws over it. */
+  html.info-sheet #top-right {
+    bottom: calc(var(--sheet-height, 0px) + var(--info-sheet-bottom, 0px));
+  }
+
+  html.info-sheet #text-buttons > .MuiBox-root {
+    bottom: calc(var(--sheet-height, 0px) + var(--info-sheet-bottom, 0px)) !important;
+  }
+
+  html.info-raised #top-right {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #nav-info-id, .info-fold svg, .info-section > summary::after {
+    transition: none;
   }
 }
 
@@ -883,6 +1407,123 @@ button.home-card[aria-busy='true'] {
   outline-offset: 2px;
 }
 
+.news-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 8px 14px 8px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+  color: #8f9bb5;
+}
+
+.news-filter-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
+.news-filter-count {
+  color: #c4d2f2;
+}
+
+.news-filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The filter's chips: "Featured only" and, joined, "Features | Fixes".  A
+   chip is pressed (aria-pressed) while its filter is on. */
+.news-chip {
+  padding: 4px 12px;
+  border: 1px solid rgba(134, 159, 219, 0.5);
+  border-radius: 999px;
+  background: none;
+  color: #8f9bb5;
+  font: inherit;
+  cursor: pointer;
+}
+
+.news-chip:hover {
+  background: rgba(134, 159, 219, 0.2);
+  color: #c4d2f2;
+}
+
+.news-chip[aria-pressed='true'] {
+  border-color: rgba(134, 159, 219, 0.85);
+  background: rgba(134, 159, 219, 0.28);
+  color: #fff;
+}
+
+.news-seg {
+  display: inline-flex;
+}
+
+.news-seg-first {
+  border-radius: 999px 0 0 999px;
+}
+
+.news-seg-last {
+  margin-left: -1px;
+  border-radius: 0 999px 999px 0;
+}
+
+.news-chip:focus-visible, .news-social-link:focus-visible {
+  position: relative;
+  outline: 2px solid #869fdb;
+  outline-offset: 2px;
+}
+
+.news-empty {
+  margin: 0;
+  padding: 24px 20px;
+  font-size: 0.86rem;
+  color: #8f9bb5;
+}
+
+.news-featured, .news-fix {
+  padding: 1px 7px;
+  border: 1px solid rgba(134, 159, 219, 0.6);
+  border-radius: 999px;
+  color: #a9b9e3;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+
+.news-fix {
+  border-color: rgba(143, 155, 181, 0.5);
+  border-style: dashed;
+  color: #8f9bb5;
+}
+
+/* The posts about an entry: the platforms' marks beside its PR and issue
+   links, in the same grey, a 28px target each. */
+.news-social {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.news-social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #7f8cab;
+}
+
+.news-social-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #c4d2f2;
+}
+
 .news-body {
   min-height: 0;
   overflow-y: auto;
@@ -1024,6 +1665,10 @@ button.home-card[aria-busy='true'] {
   }
 
   .news-head {
+    padding-left: 16px;
+  }
+
+  .news-filter {
     padding-left: 16px;
   }
 

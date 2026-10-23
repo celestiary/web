@@ -36,7 +36,10 @@ tried and dropped.
 | Permalinks (`#path@lat,lng,alt;t=…;cq=…;fov=…`) | [design/URLs.md](design/URLs.md) (the whole URL, and the state tokens for the drawer and its apps); [js/permalink.md](js/permalink.md) (the view's encoding) |
 | The changelog: `CHANGELOG.md`, its entry format, `changelog.json`, drafting from merged PRs | [tools/changelog/README.md](tools/changelog/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
 | What's new on the homepage, the changelog tour, the `#;news:tour` link | DESIGN.md [what's new](DESIGN.md#whats-new-and-the-changelog-tour); [design/URLs.md](design/URLs.md#news-token); [tools/changelog/README.md](tools/changelog/README.md) (the entries) |
+| Social post drafts from the changelog (`yarn posts`), the first campaign, what to attach and how to publish | [tools/posts/README.md](tools/posts/README.md); [What's new epic #244](https://github.com/celestiary/web/issues/244) |
+| The interface's look: the design system, its tokens, the info panel's tiers, the phone sheet, and the redesign's phases | [design/UI.md](design/UI.md); DESIGN.md [the info panel](DESIGN.md#the-info-panel) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
+| Lagrange points, Hill spheres, synchronous orbits (every pair), orbital regimes (LEO, MEO, GPS, Molniya, sun-synchronous, cislunar space), three-body orbits (halo, Lyapunov, DRO, NRHO; the CR3BP), and the rest of #272's orbital structure | [js/scene/Lagrange.md](js/scene/Lagrange.md); DESIGN.md [orbital elements](DESIGN.md#orbital-elements) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
 | Gaia's stars and the point-population engine (tiles, budget, epoch, photometry, merge, rebuilding) | [js/scene/Gaia.md](js/scene/Gaia.md) |
@@ -183,6 +186,18 @@ tried and dropped.
   `c.tour.t = ms`, and give the meter a few seconds after a jump.  The
   cards' images re-render with `node tools/home/cards.mjs` (after a build;
   `--gpu` on a real GPU).
+- **Post drafts: `yarn posts`** adds a draft for each new *featured*
+  CHANGELOG entry (`- Featured: yes`) to `posts/drafts.md`, and checks every
+  post against X's 280 (a link counts 23) and Facebook's 300 to 500 target;
+  the platforms are a table in `tools/posts/text.mjs`.
+  It never changes a post already in the file, so the maintainer's edits
+  and statuses stay, and nothing is posted for you. The images are the
+  homepage cards' or `node tools/home/cards.mjs --gpu --hash <fragment>
+  --id <name> --png posts/images`, which needs a real GPU: list those for the
+  maintainer to render. When the maintainer marks a post `posted` and
+  pastes its URLs into its `X:` and `Facebook:` fields, `yarn changelog`
+  (not `yarn posts`) joins them onto the entry in `changelog.json`, which
+  is how What's new links to them. [tools/posts/README.md](tools/posts/README.md).
 - **Measuring a page's requests (Playwright):**
   - `page.route` turns the HTTP cache off, so a repeat fetch shows as a
     network request. Block hosts with `--host-resolver-rules="MAP *
@@ -340,6 +355,9 @@ tried and dropped.
   - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
     Record Horizons results as offline test fixtures with the query that
     produced them; tests never hit the network.
+  - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
+    `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
+    [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).
   - `asc-planetarynames-data.s3.us-west-2.amazonaws.com` (the IAU
     Gazetteer's per-body downloads, for `tools/places/build.mjs`; the
     site itself, `planetarynames.wr.usgs.gov`, is refused).
@@ -483,21 +501,32 @@ tried and dropped.
     ambiguous;
   - skip events that don't need action.
 - **Merge only when the user says so.** A green PR waits for their
-  go-ahead.
-  - **The go-ahead is a comment on the PR itself** from
-    @pablo-mayrgundter: "lgtm", "ok to merge" or the like. It records the
-    decision where the change is, and the user doesn't merge PRs
-    directly. Check the comment's author before acting on it; a comment
-    from anyone else, a bot or an agent is not approval.
-  - **The session that dispatched the work merges**, not the agent that
-    wrote it. It can order the merges, merge `main` into each PR in
-    turn, resolve the conflicts (keep both sides of ROADMAP.md's *Done
-    recently*), and wait for CI on the merged head before merging.
+  go-ahead, which comes one of two ways; either is enough:
+  - **In a session:** the user tells the session they're talking to to
+    merge it ("merge 274"), whether that's the planning session or the
+    one that wrote the PR. That session merges, then leaves a one-line
+    comment on the PR saying who approved it and where, so the PR's
+    record is complete.
+  - **On the PR:** a comment from @pablo-mayrgundter, "lgtm", "ok to
+    merge" or the like. This is for approving asynchronously while lots
+    of work is in flight: the decision is recorded where the change is,
+    and the user doesn't merge PRs directly. Check the comment's author
+    before acting on it; a comment from anyone else, a bot or an agent
+    is not approval.
+  - **Neither is a gate on the other:** a session told to merge doesn't
+    also wait for a PR comment, and a PR comment doesn't need repeating
+    in a session.
+  - **Who merges an approved PR:** the session the user told to, or, for
+    an approval on the PR, the session that dispatched the work. The
+    dispatching session can order the merges, merge `main` into each PR
+    in turn, resolve the conflicts (keep both sides of ROADMAP.md's
+    *Done recently*), and wait for CI on the merged head before merging.
   - **The approval covers the PR as reviewed.** Merging `main` in and
     resolving conflicts doesn't need a new one. A later push that
     changes what the PR does does: say so on the PR and wait.
-  - **Agents never merge their own PRs**, approved or not. They say in
-    their report that the PR is ready, and the user approves on the PR.
+  - **An agent never merges on its own initiative**, its own PR or any
+    other. Without one of the go-aheads above it says in its report that
+    the PR is ready and waits.
 - **Keep the PR description current:** when later pushes change what the
   PR does or fixes, update the description to match.
 
@@ -521,6 +550,20 @@ tried and dropped.
     haven't found and opened one: don't guess). Housekeeping,
     refactors, CI and doc-only PRs get no entry, or a link in the
     month's "Behind the scenes" line.
+  - **Decide whether it is featured** (`- Featured: yes`): a new thing to
+    see or do, with a view to open, worth announcing. What's new shows
+    only the featured entries by default ("Featured only" turns off to
+    show the lesser features and fixes), the "new" count counts them, and
+    `yarn posts` drafts social posts only from them. Leave it out for a
+    polish or a lesser feature; a major fix can be featured.
+  - **State its kind** (`- Kind: fix`): a fix is something that was
+    broken, wrong or a regression, and now isn't. Anything that adds or
+    improves what users can see or do is a feature, the default when the
+    field is absent (`Kind: feature` is accepted; any other value is a
+    build error). Kind is independent of featured, and What's new's
+    "Features" and "Fixes" buttons filter on it, so a PR's entry says
+    which it is: classify it deliberately, don't leave a fix without the
+    field.
   - The entry links its own PR, so open the PR first and add the entry
     in a follow-up commit to it. Its `Date` is the day you write it
     (the merge day, if you know it); the entry goes at the top of its

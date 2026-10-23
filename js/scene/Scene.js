@@ -9,10 +9,15 @@ import {
 import Asterisms from './Asterisms.js'
 import ColonizationLines from './ColonizationLines.js'
 import Galaxies, {galaxiesInView} from './Galaxies.js'
+import LagrangeMarks from './LagrangeMarks.js'
+import RegimeMarks from './RegimeMarks.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import OrbitDiagram from './orbitDiagram.js'
 import {CODES, keyOfCode} from './orbitElements.js'
+import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
+import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
+import {FAMILIES, PERIODIC_DATA_URL, familyMember, familyOfCode, sampleMember, southern} from './periodicOrbits.js'
 import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
@@ -33,6 +38,8 @@ import * as Utils from '../utils.js'
 
 
 const ELEMENT_CODE_SET = new Set(CODES)
+// The synchronous orbits with names of their own (LagrangeMarks).
+const SYNC_NAMES = {earth: 'geostationary orbit', mars: 'areostationary orbit'}
 
 
 /**
@@ -191,6 +198,23 @@ export default class Scene {
     this._orbitFade = ORBIT_FADE_DEFAULT
     // The bodies whose orbit diagrams are showing.
     this._orbitDiagramBodies = new Set
+    // The three-body orbits shown (periodicOrbits.js): a pair's secondary →
+    // Set of family codes, in the link as the `periodic:` token; whether
+    // they're drawn turning with the pair or fixed in space; and the
+    // members made so far, by `secondary:family`.
+    this._periodic = new Map
+    this._periodicFrame = 'rotating'
+    this._periodicMembers = new Map
+    // JPL's catalogue members (public/data/periodicOrbits.json), loaded the
+    // first time a family is shown: undefined before, 'loading', the file,
+    // or null where it couldn't load (the app's own members then).
+    this._periodicData = undefined
+    this.loadPeriodicData = () => fetch(PERIODIC_DATA_URL).then((rsp) => {
+      if (!rsp.ok) {
+        throw new Error(`${PERIODIC_DATA_URL}: ${rsp.status}`)
+      }
+      return rsp.json()
+    })
     // Set by Celestiary; called with ('track' | 'follow', on) when 't' or
     // 'f' (or a link) switches that mode, for the readout.
     this.onModeChange = null
@@ -365,8 +389,12 @@ export default class Scene {
   _overlayNodes(key) {
     switch (key) {
       case 'o': {
-        // The solar wind's streamlines are a diagram of the same kind (sun/SolarWind.js).
-        return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind]
+        // The solar wind's streamlines are a diagram of the same kind
+        // (sun/SolarWind.js), and so are the target's Lagrange points.
+        const lagrange = [...this._lagrange?.values() ?? []].filter((m) => m.parent)
+        const regimes = [...this._regimes?.values() ?? []].filter((m) => m.parent)
+        return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind,
+          ...lagrange, ...lagrange.map((m) => m.syncRing), ...regimes]
       }
       case 'p': {
         // Bodies' names, and the places and lat/lng markers on them (the
@@ -563,6 +591,11 @@ export default class Scene {
     // A link's lit elements for a body that has only now loaded.
     if (this._orbitElements.has(name)) {
       this._syncOrbitDiagrams()
+    }
+    // The target's pairs and regimes, if this is one of their bodies.
+    if (this._lagrange && Shared.targets.obj) {
+      this._syncLagrange()
+      this._syncRegimes()
     }
     return obj3d
   }
@@ -817,6 +850,379 @@ export default class Scene {
   }
 
 
+  /**
+   * The pairs whose Lagrange points, Hill sphere and synchronous orbit the
+   * target shows (Lagrange.md): its own with its primary, and its own with
+   * its most massive moon.  The Earth: Sun-Earth and Earth-Moon; the Sun:
+   * Sun-Jupiter; Tethys: Saturn-Tethys.
+   *
+   * @param {string} name a body's
+   * @returns {Array<Array<string>>} [primary, secondary] pairs
+   */
+  lagrangePairsOf(name) {
+    const props = this.objects[name]?.props
+    if (!props) {
+      return []
+    }
+    const pairs = []
+    if (this.objects[props.parent]?.props?.mass && props.mass && props.orbit) {
+      pairs.push([props.parent, name])
+    }
+    const mass = (b) => massKg(this.objects[b]?.props?.mass)
+    const moon = (props.system ?? []).filter((b) => mass(b) > 0 && this.objects[b]?.props?.orbit)
+        .sort((x, y) => mass(y) - mass(x))[0]
+    if (moon && props.mass) {
+      pairs.push([name, moon])
+    }
+    return pairs
+  }
+
+
+  /**
+   * Show the target's pairs' marks (lagrangePairsOf), made on first use, and
+   * take the rest out of the scene.  They're in the orbits group (`o`).
+   */
+  _syncLagrange() {
+    this._lagrange ??= new Map
+    const target = Shared.targets.obj?.props?.name
+    const wanted = new Set((target ? this.lagrangePairsOf(target) : []).map((p) => p.join('-')))
+    for (const [key, marks] of this._lagrange) {
+      if (!wanted.has(key) && marks.parent) {
+        marks.removeFromParent()
+        marks.syncRing?.removeFromParent()
+        delete this.objects[`${key.split('-')[1]}.orbitPosition`]?.lagrange
+      }
+    }
+    for (const key of wanted) {
+      const [primary, secondary] = key.split('-')
+      const node = this.objects[`${secondary}.orbitPosition`]
+      if (!node) {
+        continue
+      }
+      let marks = this._lagrange.get(key)
+      if (!marks) {
+        marks = this._newLagrange(primary, secondary)
+        this._lagrange.set(key, marks)
+        this._joinOverlay('o', marks)
+        this._joinOverlay('o', marks.syncRing)
+      }
+      if (!marks.parent) {
+        // Shown as the group is now; it may have turned while they were out.
+        marks.visible = this.overlayShown('o')
+        node.parent.add(marks)
+        if (marks.syncRing) {
+          marks.syncRing.visible = marks.visible
+          this.objects[`${secondary}.planetTilt`]?.add(marks.syncRing)
+        }
+        node.lagrange = marks
+      }
+    }
+    this._syncPeriodic()
+  }
+
+
+  /**
+   * The numbers of the space around a pair (lagrange.js): its mass ratio,
+   * the secondary's Hill radius and synchronous orbit, and the collinear
+   * points' distances from the secondary at its mean distance.
+   *
+   * @param {string} primary
+   * @param {string} secondary
+   * @returns {object} {name, secondary, mu, a, hill, sync, l1, l2}: metres
+   */
+  pairFacts(primary, secondary) {
+    const props = this.objects[secondary].props
+    const kg = (b) => massKg(this.objects[b]?.props?.mass)
+    // The secondary with its moons (the Earth with the Moon, Pluto with
+    // Charon): the three-body problem's second mass.
+    const m = (props.system ?? []).reduce((sum, b) => sum + (kg(b) || 0), kg(secondary))
+    const mu = m / (m + kg(primary))
+    const a = Number(props.orbit.semiMajorAxis?.scalar ?? props.orbit.semiMajorAxis)
+    const hill = hillRadius(a, props.orbit.eccentricity ?? 0, mu)
+    const sync = synchronousOrbit({
+      gm: G * kg(secondary),
+      rotationSecs: Number(props.siderealRotationPeriod?.scalar ?? props.siderealRotationPeriod),
+      radius: Number(props.radius?.scalar ?? props.radius), hill,
+    })
+    const {l1, l2} = collinearDistances(mu)
+    return {
+      name: `${Utils.capitalize(primary)}–${Utils.capitalize(secondary)}`, secondary: Utils.capitalize(secondary),
+      mu, a, hill, sync, l1: l1 * a, l2: l2 * a, syncName: SYNC_NAMES[secondary],
+    }
+  }
+
+
+  /**
+   * The space around a body for its info panel: its pair with its primary's
+   * facts (pairFacts), or null for a body that orbits nothing with a mass.
+   *
+   * @param {string} name
+   * @returns {?object}
+   */
+  spaceAround(name) {
+    const pair = this.lagrangePairsOf(name).find((p) => p[1] === name)
+    const regimes = this.regimesOf(name)
+    if (!pair && !regimes) {
+      return null
+    }
+    return {...(pair ? this.pairFacts(...pair) : {}), regimes}
+  }
+
+
+  /**
+   * A body's orbital regimes (regimes.js), as the panel lists them.
+   *
+   * @param {string} name
+   * @returns {?Array<string>} null for a body with none
+   */
+  regimesOf(name) {
+    const body = REGIMES[name]
+    if (!body) {
+      return null
+    }
+    const km = (m) => `${Math.round(m / 1e3).toLocaleString('en-US')} km`
+    const year = this._yearSecs(name)
+    return [
+      ...body.shells.map((s) => `${s.text}: ${km(s.from)} to ${km(s.to)} up`),
+      ...body.spheres.map((s) => s.text),
+      ...body.orbits.map((o) => {
+        const i = o.sunSync ? sunSyncInclination(body, year, semiMajorAxisOf(body, o)) : null
+        return i === null ? o.text : `${o.text}, inclined ${i.toFixed(1)}°`
+      }),
+    ]
+  }
+
+
+  /**
+   * @param {string} name
+   * @returns {number} its sidereal orbit period, seconds
+   */
+  _yearSecs(name) {
+    const period = this.objects[name]?.props?.orbit?.siderealOrbitPeriod
+    return Number(period?.scalar ?? period)
+  }
+
+
+  /**
+   * Show the target's orbital regimes (regimes.js), made on first use under
+   * its planetTilt, and take any other body's out of the scene.  They're in
+   * the orbits group (`o`), as the Lagrange points are.
+   */
+  _syncRegimes() {
+    this._regimes ??= new Map
+    const target = Shared.targets.obj?.props?.name
+    for (const [name, marks] of this._regimes) {
+      if (name !== target && marks.parent) {
+        marks.removeFromParent()
+        delete this.objects[`${name}.orbitPosition`]?.regimes
+      }
+    }
+    const tilt = this.objects[`${target}.planetTilt`]
+    if (!REGIMES[target] || !tilt) {
+      return
+    }
+    let marks = this._regimes.get(target)
+    if (!marks) {
+      // Cislunar space reaches out to the Earth-Moon L2.
+      const radii = {}
+      for (const moon of this.objects[target]?.props?.system ?? []) {
+        if (this.objects[moon]?.props?.orbit && this.objects[target]?.props?.mass) {
+          const f = this.pairFacts(target, moon)
+          radii[moon] = f.a + f.l2
+        }
+      }
+      marks = new RegimeMarks(REGIMES[target], {name: target, yearSecs: this._yearSecs(target), radii},
+          Shared.OVERLAY_LAYER)
+      this._regimes.set(target, marks)
+      this._joinOverlay('o', marks)
+    }
+    if (!marks.parent) {
+      marks.visible = this.overlayShown('o')
+      tilt.add(marks)
+      this.objects[`${target}.orbitPosition`].regimes = marks
+    }
+  }
+
+
+  /** @returns {Map<string, Set<string>>} the three-body orbits on, by secondary */
+  getPeriodic() {
+    return this._periodic
+  }
+
+
+  /** @returns {string} 'rotating' or 'inertial' */
+  getPeriodicFrame() {
+    return this._periodicFrame
+  }
+
+
+  /**
+   * @param {string} secondary a pair's, e.g. 'moon' for the Earth-Moon pair
+   * @returns {Set<string>} its families' codes on
+   */
+  periodicOf(secondary) {
+    return this._periodic.get(secondary) ?? new Set
+  }
+
+
+  /**
+   * Turn a three-body family on or off at a pair.
+   *
+   * @param {string} secondary
+   * @param {string} code a family's link code (periodicOrbits.js FAMILIES)
+   */
+  togglePeriodic(secondary, code) {
+    const codes = new Set(this.periodicOf(secondary))
+    if (codes.has(code)) {
+      codes.delete(code)
+    } else if (familyOfCode(code)) {
+      codes.add(code)
+    }
+    if (codes.size > 0) {
+      this._periodic.set(secondary, codes)
+    } else {
+      this._periodic.delete(secondary)
+    }
+    this._syncPeriodic()
+    this.onSettingsChange?.()
+  }
+
+
+  /**
+   * @param {string} frame 'rotating' (with the pair) or 'inertial' (fixed in space)
+   * @param {boolean} [quiet] don't tell the link (a restore)
+   */
+  setPeriodicFrame(frame, quiet = false) {
+    this._periodicFrame = frame === 'inertial' ? 'inertial' : 'rotating'
+    this._syncPeriodic()
+    if (!quiet) {
+      this.onSettingsChange?.()
+    }
+  }
+
+
+  /**
+   * A link's three-body orbits (decodePeriodicToken), shown once their pairs
+   * are the target's.
+   *
+   * @param {{families: Map<string, Set<string>>, frame: string}} state
+   */
+  restorePeriodic({families, frame}) {
+    this._periodic = new Map(families)
+    this.setPeriodicFrame(frame, true)
+  }
+
+
+  /**
+   * The target's pairs and their families, for the info panel.
+   *
+   * @param {string} name a body's
+   * @returns {Array<{body: string, name: string, families: Array<object>}>}
+   *     each pair by its secondary, and its families {code, name, on}
+   */
+  periodicPairsOf(name) {
+    return this.lagrangePairsOf(name).map(([primary, secondary]) => ({
+      body: secondary,
+      name: `${Utils.capitalize(primary)}–${Utils.capitalize(secondary)}`,
+      families: Object.values(FAMILIES).filter((f) => !f.only || f.only === secondary)
+          .map((f) => ({code: f.code, name: f.name, on: this.periodicOf(secondary).has(f.code)})),
+    }))
+  }
+
+
+  /**
+   * Show the families on at the pairs that are showing (_syncLagrange), each
+   * member made the first time it's asked for and kept, and take away the
+   * rest.
+   */
+  _syncPeriodic() {
+    if (this._periodic.size > 0 && !this._periodicDataReady()) {
+      return
+    }
+    for (const [key, marks] of this._lagrange ?? []) {
+      if (!marks.parent) {
+        continue
+      }
+      const secondary = key.split('-')[1]
+      const wanted = new Set([...this.periodicOf(secondary)].map(familyOfCode)
+          .filter((f) => f && (!FAMILIES[f].only || FAMILIES[f].only === secondary)))
+      for (const family of [...marks.families.keys()]) {
+        if (!wanted.has(family)) {
+          marks.setFamily(family, null)
+        }
+      }
+      for (const family of wanted) {
+        if (marks.families.has(family)) {
+          continue
+        }
+        const samples = this._periodicSamples(secondary, marks.mu, family)
+        const node = samples ? marks.setFamily(family, samples) : null
+        if (node) {
+          fadeObject(node, this.fades.o.uniform)
+        }
+      }
+      marks.setFrame(this._periodicFrame)
+    }
+  }
+
+
+  /**
+   * @param {string} secondary
+   * @param {number} mu
+   * @param {string} family
+   * @returns {?object} sampleMember's, made once
+   */
+  _periodicSamples(secondary, mu, family) {
+    const key = `${secondary}:${family}`
+    if (!this._periodicMembers.has(key)) {
+      // JPL's member where its catalogue has the pair, in its mass ratio;
+      // else the app's own.  Halos as their southern twin (southern).
+      const system = this._periodicData?.systems?.[secondary]
+      const jpl = system?.families?.[family]
+      const m = jpl ? system.mu : mu
+      let member = jpl ? {state: jpl.state, period: jpl.period} : familyMember(m, family)
+      if (member && jpl && FAMILIES[family].halo) {
+        member = southern(m, member)
+      }
+      const samples = member ? sampleMember(m, member) : null
+      if (samples) {
+        samples.source = jpl ? 'JPL' : 'computed'
+      }
+      this._periodicMembers.set(key, samples)
+    }
+    return this._periodicMembers.get(key)
+  }
+
+
+  /**
+   * Whether JPL's catalogue members are in (or couldn't be had); starts
+   * loading them the first time, and syncs again when they come.
+   *
+   * @returns {boolean}
+   */
+  _periodicDataReady() {
+    if (this._periodicData === undefined) {
+      this._periodicData = 'loading'
+      this.loadPeriodicData().then((data) => {
+        this._periodicData = data
+      }, () => {
+        this._periodicData = null
+      }).then(() => this._syncPeriodic())
+    }
+    return this._periodicData !== 'loading'
+  }
+
+
+  /**
+   * @param {string} primary
+   * @param {string} secondary
+   * @returns {LagrangeMarks}
+   */
+  _newLagrange(primary, secondary) {
+    return new LagrangeMarks(this.pairFacts(primary, secondary), Shared.OVERLAY_LAYER)
+  }
+
+
   /** @param {string} name */
   targetNamed(name) {
     this.setTarget(name)
@@ -914,6 +1320,8 @@ export default class Scene {
     } else if (obj) {
       state?.setCommittedPath?.(path)
     }
+    this._syncLagrange()
+    this._syncRegimes()
     this.onTargetChange?.(t)
   }
 

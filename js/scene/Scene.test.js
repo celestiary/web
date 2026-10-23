@@ -2,6 +2,7 @@ import {describe, expect, it} from 'bun:test'
 import {Object3D, PerspectiveCamera, Quaternion, Scene as ThreeScene, Vector3} from 'three'
 import {SETTINGS_DEFAULTS} from '../permalink.js'
 import * as Shared from '../shared.js'
+import periodicData from '../../public/data/periodicOrbits.json'
 
 // SpriteSheet (used by Scene._setTempMarker) reaches for document.* —
 // stub the canvas APIs it touches.  Same pattern as Places.test.js.
@@ -1489,5 +1490,328 @@ describe('orbital elements lit on the orbits', () => {
     // Scene.add's hook, as a body arrives.
     s._syncOrbitDiagrams()
     expect(mars.orbitDiagram.visible).toBe(true)
+  })
+})
+
+
+describe('the target\'s Lagrange points', () => {
+  /**
+   * A body as Planet makes it, with its props: its orbitPosition under its
+   * orbit plane, its planetTilt under that.
+   *
+   * @param {object} s Scene
+   * @param {object} props
+   */
+  function addBody(s, props) {
+    s.objects[props.name] = {props}
+    if (!props.orbit) {
+      return
+    }
+    const plane = new Object3D()
+    const node = new Object3D()
+    node.name = `${props.name}.orbitPosition`
+    node.orbit = props.orbit
+    plane.add(node)
+    const tilt = new Object3D()
+    node.add(tilt)
+    s.objects[node.name] = node
+    s.objects[`${props.name}.planetTilt`] = tilt
+  }
+
+  /** @returns {object} Scene with the Sun, Earth, Moon and Mars */
+  function solarScene() {
+    const s = makeScene()
+    addBody(s, {name: 'sun', parent: 'milkyway', mass: '1.9891E33 g', radius: 6.957e8,
+      system: ['earth', 'mars']})
+    addBody(s, {name: 'earth', parent: 'sun', mass: '5.97219e27 g', radius: 6.37101e6,
+      siderealRotationPeriod: 86164.1, system: ['moon'],
+      orbit: {semiMajorAxis: 1.496e11, eccentricity: 0.0167}})
+    addBody(s, {name: 'moon', parent: 'earth', mass: '7.34767309E25 g', radius: 1.7381e6,
+      siderealRotationPeriod: 2360591.5, system: [], orbit: {semiMajorAxis: 3.844e8, eccentricity: 0.0549}})
+    addBody(s, {name: 'mars', parent: 'sun', mass: '6.4171E26 g', radius: 3.3895e6,
+      siderealRotationPeriod: 88642.7, system: [], orbit: {semiMajorAxis: 2.279e11, eccentricity: 0.0934}})
+    return s
+  }
+
+  const withTarget = (s, name, fn) => {
+    const before = Shared.targets.obj
+    Shared.targets.obj = s.objects[name]
+    try {
+      s._syncLagrange()
+      fn()
+    } finally {
+      Shared.targets.obj = before
+    }
+  }
+
+  it('shows the target\'s pair with its primary and with its biggest moon', () => {
+    const s = solarScene()
+    expect(s.lagrangePairsOf('earth')).toEqual([['sun', 'earth'], ['earth', 'moon']])
+    expect(s.lagrangePairsOf('moon')).toEqual([['earth', 'moon']])
+    expect(s.lagrangePairsOf('sun')).toEqual([['sun', 'earth']])
+    expect(s.lagrangePairsOf('nowhere')).toEqual([])
+  })
+
+  it('builds the Earth\'s marks with the Moon in its mass, and GEO in its equator', () => {
+    const s = solarScene()
+    withTarget(s, 'earth', () => {
+      const earth = s.objects['earth.orbitPosition']
+      const marks = earth.lagrange
+      expect(marks.parent).toBe(earth.parent)
+      // μ for the Sun and the Earth-Moon pair, 3.04e-6; the Earth alone's
+      // would be 3.00e-6.
+      expect(marks.mu).toBeCloseTo(3.04e-6, 8)
+      expect(marks.hillRadius / 1e9).toBeCloseTo(1.47, 1)
+      expect(marks.syncRing.parent).toBe(s.objects['earth.planetTilt'])
+      expect(marks.sync.radius / 1e3).toBeCloseTo(42164, -1)
+      // The Moon can't hold a selenosynchronous orbit: no ring.
+      expect(s.objects['moon.orbitPosition'].lagrange.syncRing).toBeNull()
+      expect(s.objects['moon.orbitPosition'].lagrange.sync.why).toBe('beyondHill')
+    })
+  })
+
+  it('takes a pair out of the scene when the target moves on, and back', () => {
+    const s = solarScene()
+    let earthMarks
+    withTarget(s, 'earth', () => {
+      earthMarks = s.objects['earth.orbitPosition'].lagrange
+    })
+    withTarget(s, 'mars', () => {
+      expect(earthMarks.parent).toBeNull()
+      expect(earthMarks.syncRing.parent).toBeNull()
+      expect(s.objects['earth.orbitPosition'].lagrange).toBeUndefined()
+      expect(s.objects['mars.orbitPosition'].lagrange.sync.why).toBeNull()
+    })
+    withTarget(s, 'earth', () => {
+      expect(s.objects['earth.orbitPosition'].lagrange).toBe(earthMarks)
+      expect(earthMarks.parent).not.toBeNull()
+    })
+  })
+
+  it('hides and shows them with the orbits', () => {
+    const s = solarScene()
+    withTarget(s, 'earth', () => {
+      const marks = s.objects['earth.orbitPosition'].lagrange
+      expect(s._overlayNodes('o')).toContain(marks)
+      expect(s._overlayNodes('o')).toContain(marks.syncRing)
+      s._showOverlay('o', false)
+      expect(marks.visible || marks.syncRing.visible).toBe(false)
+    })
+  })
+})
+
+
+describe('the target\'s orbital regimes', () => {
+  /**
+   * @param {object} s Scene
+   * @param {object} props
+   */
+  function addBody(s, props) {
+    s.objects[props.name] = {props}
+    if (!props.orbit) {
+      return
+    }
+    const plane = new Object3D()
+    const node = new Object3D()
+    node.name = `${props.name}.orbitPosition`
+    node.orbit = props.orbit
+    plane.add(node)
+    const tilt = new Object3D()
+    node.add(tilt)
+    s.objects[node.name] = node
+    s.objects[`${props.name}.planetTilt`] = tilt
+  }
+
+  /** @returns {object} Scene with the Sun, Earth, the Moon and Mars */
+  function solarScene() {
+    const s = makeScene()
+    addBody(s, {name: 'sun', parent: 'milkyway', mass: '1.9891E33 g', radius: 6.957e8, system: ['earth', 'mars']})
+    addBody(s, {name: 'earth', parent: 'sun', mass: '5.97219e27 g', radius: 6.37101e6, siderealRotationPeriod: 86164.1,
+      system: ['moon'], orbit: {semiMajorAxis: 1.496e11, eccentricity: 0.0167, siderealOrbitPeriod: 31558149.8}})
+    addBody(s, {name: 'moon', parent: 'earth', mass: '7.34767309E25 g', radius: 1.7381e6,
+      siderealRotationPeriod: 2360591.5, system: [], orbit: {semiMajorAxis: 3.844e8, eccentricity: 0.0549}})
+    addBody(s, {name: 'mars', parent: 'sun', mass: '6.4171E26 g', radius: 3.3895e6, siderealRotationPeriod: 88642.7,
+      system: [], orbit: {semiMajorAxis: 2.279e11, eccentricity: 0.0934, siderealOrbitPeriod: 59354294.4}})
+    return s
+  }
+
+  const withTarget = (s, name, fn) => {
+    const before = Shared.targets.obj
+    Shared.targets.obj = s.objects[name]
+    try {
+      s._syncRegimes()
+      fn()
+    } finally {
+      Shared.targets.obj = before
+    }
+  }
+
+  it('hangs the target\'s regimes in its equator, and takes them out when it moves on', () => {
+    const s = solarScene()
+    let earthRegimes
+    withTarget(s, 'earth', () => {
+      earthRegimes = s.objects['earth.orbitPosition'].regimes
+      expect(earthRegimes.parent).toBe(s.objects['earth.planetTilt'])
+      expect(earthRegimes.bands.map((b) => Math.round((b.outer - 6378137) / 1e3))).toEqual([2000, 35786])
+      // Cislunar space reaches the Earth-Moon L2: 1.168 of the Moon's distance.
+      const cislunar = earthRegimes.outlines.find((o) => o.label !== null && o.radius > 4e8)
+      expect(cislunar.radius / 3.844e8).toBeCloseTo(1.168, 2)
+      // GPS's six planes.
+      expect(earthRegimes.orbits.find((o) => o.spec.planes === 6).frames).toHaveLength(6)
+      expect(s._overlayNodes('o')).toContain(earthRegimes)
+    })
+    withTarget(s, 'mars', () => {
+      expect(earthRegimes.parent).toBeNull()
+      expect(s.objects['mars.orbitPosition'].regimes.orbits[0].i).toBeCloseTo(92.6, 0)
+    })
+    withTarget(s, 'moon', () => {
+      expect(s.objects['moon.orbitPosition'].regimes).toBeUndefined()
+    })
+  })
+
+  it('turns a sun-synchronous dawn-dusk orbit to face the Sun', () => {
+    const s = solarScene()
+    withTarget(s, 'earth', () => {
+      const marks = s.objects['earth.orbitPosition'].regimes
+      const sso = marks.orbits.find((o) => o.spec.sunSync)
+      for (const sun of [new Vector3(1, 0, 0), new Vector3(0.6, 0, -0.8)]) {
+        marks.place(sun)
+        // Its pole points nearly at the Sun: the plane is the terminator's.
+        const pole = new Vector3(0, 1, 0).applyQuaternion(sso.frames[0].quaternion)
+        expect(Math.abs(pole.dot(sun))).toBeGreaterThan(0.95)
+      }
+    })
+  })
+
+  it('lists the regimes in the panel\'s space around', () => {
+    const s = solarScene()
+    const lines = s.spaceAround('earth').regimes
+    expect(lines).toContain('low Earth orbit (LEO): 160 km to 2,000 km up')
+    expect(lines.find((l) => l.startsWith('sun-synchronous'))).toMatch(/inclined 98\.2°$/)
+    expect(s.spaceAround('moon').regimes).toBeNull()
+  })
+})
+
+
+describe('the three-body orbits at the target\'s pairs', () => {
+  /**
+   * @param {object} s Scene
+   * @param {object} props
+   */
+  function addBody(s, props) {
+    s.objects[props.name] = {props}
+    if (!props.orbit) {
+      return
+    }
+    const plane = new Object3D()
+    const node = new Object3D()
+    node.name = `${props.name}.orbitPosition`
+    node.orbit = props.orbit
+    plane.add(node)
+    node.add(new Object3D())
+    s.objects[node.name] = node
+    s.objects[`${props.name}.planetTilt`] = node.children[0]
+  }
+
+  /** @returns {object} Scene with the Sun, Earth and the Moon */
+  function solarScene() {
+    const s = makeScene()
+    addBody(s, {name: 'sun', parent: 'milkyway', mass: '1.9891E33 g', radius: 6.957e8, system: ['earth']})
+    addBody(s, {name: 'earth', parent: 'sun', mass: '5.97219e27 g', radius: 6.37101e6, siderealRotationPeriod: 86164.1,
+      system: ['moon'], orbit: {semiMajorAxis: 1.496e11, eccentricity: 0.0167, siderealOrbitPeriod: 31558149.8}})
+    addBody(s, {name: 'moon', parent: 'earth', mass: '7.34767309E25 g', radius: 1.7381e6,
+      siderealRotationPeriod: 2360591.5, system: [],
+      orbit: {semiMajorAxis: 3.844e8, eccentricity: 0.0549, siderealOrbitPeriod: 2360591.5}})
+    // JPL's catalogue members, as loaded (loadPeriodicData).
+    s._periodicData = periodicData
+    return s
+  }
+
+  const withTarget = (s, name, fn) => {
+    const before = Shared.targets.obj
+    Shared.targets.obj = s.objects[name]
+    try {
+      s._syncLagrange()
+      fn()
+    } finally {
+      Shared.targets.obj = before
+    }
+  }
+
+  it('offers each pair its families, the NRHO only at the Earth-Moon pair', () => {
+    const s = solarScene()
+    const pairs = s.periodicPairsOf('earth')
+    expect(pairs.map((p) => [p.body, p.name])).toEqual([['earth', 'Sun–Earth'], ['moon', 'Earth–Moon']])
+    expect(pairs[0].families.map((f) => f.code)).toEqual(['l1l', 'l2l', 'l1h', 'l2h', 'dro'])
+    expect(pairs[1].families.map((f) => f.code)).toContain('nrho')
+  })
+
+  it('shows a family on the pair when it\'s turned on, and keeps it for the link', () => {
+    const s = solarScene()
+    let changes = 0
+    s.onSettingsChange = () => changes++
+    withTarget(s, 'earth', () => {
+      s.togglePeriodic('moon', 'nrho')
+      const marks = s.objects['moon.orbitPosition'].lagrange
+      expect([...marks.families.keys()]).toEqual(['nrho'])
+      expect(s.getPeriodic()).toEqual(new Map([['moon', new Set(['nrho'])]]))
+      expect(changes).toBe(1)
+      // Laid on the pair: the body on its orbit now, in the pair's frame.
+      marks.place(new Vector3(3.844e8, 0, 0), new Vector3(0, 1, 0), undefined, 1.0)
+      const nrho = marks.families.get('nrho')
+      const at = nrho.marker.geometry.getAttribute('position')
+      expect(Math.hypot(at.getX(0) - 1, at.getY(0), at.getZ(0))).toBeLessThan(0.2)
+      // Fixed in space: the sweep is drawn instead, from where the body is.
+      s.setPeriodicFrame('inertial')
+      expect(nrho.rotating.visible).toBe(false)
+      expect(nrho.sweep.visible).toBe(true)
+      marks.place(new Vector3(3.844e8, 0, 0), new Vector3(0, 1, 0), undefined, 1.0)
+      const sweep = nrho.sweep.geometry.getAttribute('position')
+      expect(sweep.getX(0)).toBeCloseTo(at.getX(0), 5)
+      s.togglePeriodic('moon', 'nrho')
+      expect(marks.families.size).toBe(0)
+      expect(s.getPeriodic().size).toBe(0)
+    })
+  })
+
+  it('shows a link\'s families once their pair is the target\'s', () => {
+    const s = solarScene()
+    s.restorePeriodic({families: new Map([['moon', new Set(['dro'])]]), frame: 'inertial'})
+    withTarget(s, 'moon', () => {
+      const marks = s.objects['moon.orbitPosition'].lagrange
+      expect([...marks.families.keys()]).toEqual(['dro'])
+      expect(marks.frame).toBe('inertial')
+    })
+  })
+
+  it('draws JPL\'s member where its catalogue has the pair, loaded the first time, else its own', async () => {
+    const s = solarScene()
+    s._periodicData = undefined
+    let resolve
+    s.loadPeriodicData = () => new Promise((r) => {
+      resolve = r
+    })
+    let marks
+    withTarget(s, 'moon', () => {
+      marks = s.objects['moon.orbitPosition'].lagrange
+      s.togglePeriodic('moon', 'nrho')
+      // Not yet: the file is loading.
+      expect(marks.families.size).toBe(0)
+    })
+    const before = Shared.targets.obj
+    Shared.targets.obj = s.objects.moon
+    resolve(periodicData)
+    await new Promise((r) => setTimeout(r, 0))
+    Shared.targets.obj = before
+    expect(marks.families.get('nrho').samples.source).toBe('JPL')
+    // Where the file couldn't load, its own.
+    const t = solarScene()
+    t._periodicData = undefined
+    t.loadPeriodicData = () => Promise.reject(new Error('offline'))
+    withTarget(t, 'moon', () => t.togglePeriodic('moon', 'dro'))
+    Shared.targets.obj = t.objects.moon
+    await new Promise((r) => setTimeout(r, 0))
+    Shared.targets.obj = before
+    expect(t.objects['moon.orbitPosition'].lagrange.families.get('dro').samples.source).toBe('computed')
   })
 })

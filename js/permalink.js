@@ -16,6 +16,9 @@ const VALUE_LIST_SEP = '+'
 const ORBIT_CODES = ['a', 'e', 'i', 'node', 'peri', 'at']
 /** The orbit diagrams' opacity at the far side of their orbits, by default. */
 export const ORBIT_FADE_DEFAULT = 0.5
+// The three-body periodic orbits' families (periodicOrbits.js FAMILIES'
+// codes), in the order the panel lists them.
+export const PERIODIC_CODES = ['l1l', 'l2l', 'l1h', 'l2h', 'dro', 'nrho']
 const PLAIN_WORD = /^[\w.-]+$/
 // A `from=` frame path: a body path ('sun/earth') or a star ('hip:32349').
 const FRAME_PATH = /^([a-z0-9_-]+(\/[a-z0-9_-]+)*|hip:\d+)$/
@@ -511,10 +514,61 @@ export function decodeOrbitsFade(value) {
 
 
 /**
- * The `info:` token (design/URLs.md): the info panel's lists as the user
- * left them.  `closed`, the panel folded; `open=` and `shut=` the lists,
- * by their dotted place in a body's props, opened or folded against their
- * defaults.  Left out (null) when all are as they start.
+ * The `periodic:` token (design/URLs.md): the three-body periodic orbits
+ * shown (periodicOrbits.js), `secondary=code+code` for each pair by its
+ * secondary (`moon` is the Earth-Moon pair), and `frame=inertial` where
+ * they're drawn fixed in space, not turning with the pair.  Left out (null)
+ * when none are on.
+ *
+ * @param {Map<string, Set<string>>} families Scene.getPeriodic()
+ * @param {string} [frame] 'rotating' (the default) or 'inertial'
+ * @returns {?string}
+ */
+export function encodePeriodicToken(families, frame = 'rotating') {
+  const named = {}
+  for (const [body, codes] of families ?? []) {
+    const listed = PERIODIC_CODES.filter((c) => codes.has(c))
+    if (listed.length > 0 && PLAIN_WORD.test(body)) {
+      named[body] = listed
+    }
+  }
+  if (Object.keys(named).length === 0) {
+    return null
+  }
+  if (frame === 'inertial') {
+    named.frame = 'inertial'
+  }
+  return formatTokenValue([], named) || null
+}
+
+
+/**
+ * The inverse of encodePeriodicToken.  Unknown codes are dropped.
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {{families: Map<string, Set<string>>, frame: string}}
+ */
+export function decodePeriodicToken(value) {
+  const {named} = parseTokenValue(value)
+  const families = new Map
+  for (const [body, list] of Object.entries(named)) {
+    if (body === 'frame') {
+      continue
+    }
+    const codes = new Set(parseValueList(list).filter((c) => PERIODIC_CODES.includes(c)))
+    if (codes.size > 0) {
+      families.set(body, codes)
+    }
+  }
+  return {families, frame: named.frame === 'inertial' ? 'inertial' : 'rotating'}
+}
+
+
+/**
+ * The `info:` token (design/URLs.md): the info panel's sections as the user
+ * left them.  `closed`, the panel folded; `open=` and `shut=` its sections,
+ * by their place in a body's props or their panel name, opened or shut
+ * against their defaults.  Left out (null) when all are as they start.
  *
  * @param {{closed: boolean, open: Set<string>, shut: Set<string>}} [state]
  *     ControlPanel.uiState

@@ -22,12 +22,13 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {
-  decodeInfoToken, decodeOrbitsFade, decodeOrbitsToken, decodePermalink, decodeSettings, decodeTimeToken, encodeInfoToken,
-  encodeOrbitsToken, encodePermalink, encodeTimeToken, pathFromFragment, permalinkHref,
+  decodeInfoToken, decodeOrbitsFade, decodeOrbitsToken, decodePeriodicToken, decodePermalink, decodeSettings,
+  decodeTimeToken, encodeInfoToken, encodeOrbitsToken, encodePeriodicToken, encodePermalink, encodeTimeToken,
+  pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry, placeTarget} from './search/commitEntry'
-import {decodeNewsToken, loadChangelog, tourStops} from './changelog'
+import {decodeNewsToken, loadChangelog, readFilter, tourStops} from './changelog'
 import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
 import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
 import {ease} from './tour'
@@ -169,6 +170,16 @@ export default class Celestiary {
       clearAll: () => this.scene.clearOrbitElements(),
       count: () => this.scene.getOrbitElements().size,
       preview: (body, code) => this.scene.previewOrbitElement(body, code),
+    }
+    // And lists the space around the body: its Hill sphere, Lagrange
+    // points and synchronous orbit.
+    this.controlPanel.spaceHook = (name) => this.scene.spaceAround(name)
+    // And the three-body orbits at its pairs.
+    this.controlPanel.periodicHooks = {
+      pairs: (name) => this.scene.periodicPairsOf(name),
+      toggle: (body, code) => this.scene.togglePeriodic(body, code),
+      frame: () => this.scene.getPeriodicFrame(),
+      setFrame: (f) => this.scene.setPeriodicFrame(f),
     }
     // Opening or folding the panel's lists rewrites the link (`info:`).
     this.controlPanel.onUiChange = () => this._schedulePermalinkUpdate()
@@ -607,6 +618,8 @@ export default class Celestiary {
       // shows once it has loaded (Scene.add).
       this.scene.restoreOrbitElements(decodeOrbitsToken(tokens?.orbits))
       this.scene.setOrbitFade(decodeOrbitsFade(tokens?.orbits), true)
+      // The three-body orbits shown, once their pairs are the target's.
+      this.scene.restorePeriodic(decodePeriodicToken(tokens?.periodic))
       // The info panel's lists, open or folded as they were.
       this.controlPanel.restoreUiState(decodeInfoToken(tokens?.info))
     } else {
@@ -2289,7 +2302,8 @@ export default class Celestiary {
 
 
   /**
-   * Play the changelog tour (newsTour.js): the entries that have a
+   * Play the changelog tour (newsTour.js): the featured entries (or all, as
+   * What's new's filter has it) that have a
    * permalink, newest first, each flown to as a homepage card is, with its
    * headline and sentence as a caption while it is held.  Nothing else is on
    * screen: the homepage fades out as for a card, the chrome stays hidden
@@ -2299,9 +2313,12 @@ export default class Celestiary {
    * @param {object} [opts]
    * @param {?string} [opts.from] An entry's id or a date to begin at
    * @param {number} [opts.count] At most this many stops
+   * @param {object} [opts.filter] What's new's filter, which the tour
+   *   follows (changelog.js `visibleEntries`); the visitor's stored one if
+   *   not given
    * @returns {Promise<boolean>} Whether there was anything to play
    */
-  async startNewsTour({from = null, count = Infinity} = {}) {
+  async startNewsTour({from = null, count = Infinity, filter = readFilter()} = {}) {
     let entries
     try {
       entries = await this.loadNews()
@@ -2309,7 +2326,7 @@ export default class Celestiary {
       console.warn('What\'s new:', e)
       return false
     }
-    const stops = tourStops(entries, {from, count})
+    const stops = tourStops(entries, {from, count, filter})
     if (!stops.length) {
       return false
     }
@@ -3144,6 +3161,7 @@ export default class Celestiary {
       time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
       info: encodeInfoToken(this.controlPanel.uiState),
       orbits: encodeOrbitsToken(this.scene.getOrbitElements(), this.scene.getOrbitFade()),
+      periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame()),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(

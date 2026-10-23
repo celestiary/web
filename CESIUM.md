@@ -56,6 +56,22 @@ falls back to if its Cesium layer can't load.
   the same ion logo and links; with two bodies on screen, the farther
   one's data attribution isn't shown.  The overlay is HTML chrome too:
   `v` hides it with the other panels.
+- <a id="credits"></a>**Credits stand back after a few seconds**
+  (`creditsReveal.js`): in full as a body comes into view (none to one,
+  or one nearest body to another), then after 6 s compact, the ion logo
+  alone at 55% opacity; a hover, a focus or a tap brings the text and the
+  data attribution back for another 6 s (a tap on the compact logo doesn't
+  follow its link).  While ion's data is on screen the credits stay, as
+  ion's and Bing's terms want; while none of the body's ground is in the
+  frame (from the ground looking up into the sky) they go entirely, and no
+  logo brightens a night sky (`_creditedBody`, `visibility.js`
+  `groundInView`: the view's angle to the body's centre against the
+  ground's angular radius, the frame's half-diagonal and 10° for land
+  standing over the horizon, so it errs toward showing them).  Back in
+  view, they show in full again.  The credited body is the nearest active
+  one with ground in view.  On a phone the overlay rides
+  above the widgets drawer's sheet and the info panel's peek
+  (`--sheet-height`, `--info-sheet-bottom`).
 
 ## Architecture
 
@@ -1206,7 +1222,7 @@ has it does.
 
 | Patch | Fork branch | What it fixes | Upstream |
 |---|---|---|---|
-| The ellipsoid's lighting follows the globe's settings | `celestiary/globe-daynight-lighting` | Without vertex normals the globe's day-night shading was a hard-coded `clamp(5 × Lambert + 0.3)`: its floor is now `vertexShadowDarkness`, its multiplier a new `dayNightLambertDiffuseMultiplier` (defaults unchanged) | not yet proposed |
+| The ellipsoid's lighting follows the globe's settings | `celestiary/globe-daynight-lighting` | Without vertex normals the globe's day-night shading was a hard-coded `clamp(5 × Lambert + 0.3)`: its floor is now `vertexShadowDarkness`, its multiplier a new `dayNightLambertDiffuseMultiplier` (defaults unchanged) | [CesiumGS/cesium#13974](https://github.com/CesiumGS/cesium/pull/13974), from `upstream/globe-daynight-lighting`; drop the patch's hunks once a release has it |
 | External renderers: renderers outside Cesium drawing into its frame | `celestiary/external-render-pass` | `scene.externalRenderers` and `ExternalRenderer({boundingVolume, show, render(p)})`: `render` is called once per depth frustum the volume overlaps, after the opaque passes, with Cesium's framebuffer bound and the view, projection, near and far and log-depth constants in `p`; `Context.prototype.resetState()` after each.  For [New York](#new-york).  Exported from `cesium` too, so a second patch, `patches/cesium+1.145.0.patch` | not yet proposed |
 
 Candidates for later patches, by how much celestiary code each would
@@ -1274,15 +1290,19 @@ imagery layer that asks for its endpoint only when a tile needs it.
   portal-netgl would halve the cost when those aren't in use.
   Celestiary reads none of the shadow's pixels: its terrain heights
   (`globe.getHeight`, `tileset.getHeight`) are CPU picks on loaded tiles.
-- Perf: every synchronous GL call the shadow contexts make in a settled
-  frame is portal-netgl's state checkpoint, at each Cesium frame's end: 53
+- Perf, done: the shadow contexts' synchronous GL calls in a settled frame
+  were all portal-netgl's state checkpoint, at each Cesium frame's end (53
   `getParameter`, 16 `getVertexAttrib` and 10 `isEnabled`, 79 a Cesium
-  frame (Earth's day and night frames 158, the Moon's 79; Cesium itself
-  makes none, and `getUniformLocation` comes only with a new shader's
-  link).  Each is a round trip to the GPU process that waits for the
-  shadow's queued frame.  Tracking that scalar state from the recorded calls,
-  as the checkpoint already tracks bindings, would make none; a patch
-  for portal-netgl is proposed in #189's Cesium PR.
+  frame; Cesium itself makes none), each a round trip to the GPU process
+  waiting for the shadow's queued frame.  portal-netgl 0.3.0
+  (pablo-mayrgundter/portal#33) tracks that state from the recorded calls,
+  as it tracks bindings, so the checkpoint makes none: headless, Earth from
+  20 Mm, the shadow's `getParameter` calls went from 56.7 a frame to 0,
+  the frame unchanged.  What's left (`getUniformLocation` and the like)
+  comes only with a new shader's link.  Celestiary sets no GL state on the
+  shadow itself (the perf overlay only counts, times and, with
+  `barrier=read`, reads a framebuffer of its own), which the tracked mode
+  relies on; something that did would need `scalarState: 'queried'`.
 
 ## Files
 
