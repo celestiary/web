@@ -2755,6 +2755,31 @@ describe('the homepage', () => {
     Shared.targets.landed = false
   })
 
+  it('the changelog tour follows What\'s new\'s filter: the entries with a view that pass it', async () => {
+    const featured = {entries: NEWS.entries.map((e, i) => ({...e, featured: i === 0 || i === 3, kind: i === 3 ? 'fix' : 'feature'}))}
+    global.fetch = (url, ...rest) => (String(url).endsWith('changelog.json') ?
+      Promise.resolve({ok: true, status: 200, json: () => Promise.resolve(featured)}) : realFetch(url, ...rest))
+    const featuredOnly = await openHome()
+    run(featuredOnly, 1000, 500)
+    expect(await featuredOnly.startNewsTour({filter: {featuredOnly: true, features: true, fixes: true}})).toBe(true)
+    expect(featuredOnly.useStore.getState().newsTour).toMatchObject({index: 0, count: 2})
+    expect(featuredOnly.useStore.getState().newsTour.entry.headline).toBe('Earth at dusk')
+    const everything = await openHome()
+    run(everything, 1000, 500)
+    expect(await everything.startNewsTour({filter: {featuredOnly: false, features: true, fixes: true}})).toBe(true)
+    expect(everything.useStore.getState().newsTour).toMatchObject({index: 0, count: 3})
+    // Only the fixes with a view: the Gaia entry.
+    const fixes = await openHome()
+    run(fixes, 1000, 500)
+    expect(await fixes.startNewsTour({filter: {featuredOnly: false, features: false, fixes: true}})).toBe(true)
+    expect(fixes.useStore.getState().newsTour).toMatchObject({index: 0, count: 1})
+    // With no choice given and nothing stored, the featured ones.
+    const byDefault = await openHome()
+    run(byDefault, 1000, 500)
+    expect(await byDefault.startNewsTour()).toBe(true)
+    expect(byDefault.useStore.getState().newsTour.count).toBe(2)
+  })
+
   it('next, previous, pause and stop work as on the homepage\'s tour; Esc stops it where it is', async () => {
     serveNews()
     const app = await openHome()
