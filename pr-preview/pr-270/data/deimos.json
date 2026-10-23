@@ -22,8 +22,6 @@
 }
 },
 "albedo": 0.07,
-"equatorialGravity": 1.0,
-"escapeVelocity": 1.0,
 "orbit": {
     "elements": "JPL SSD planetary satellite mean elements (ssd.jpl.nasa.gov/sats/elem), ephemeris MAR099, retrieved 2026-09-30",
     "referencePlane": "Laplace",
