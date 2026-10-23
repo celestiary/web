@@ -96,6 +96,10 @@ export default class Animation {
     // from the series loading to the next frame, else the clock then.
     this._handover = null
     this._loadRequested = this.vsop !== null
+    // Set once the scene is up (loadEphemeris, at the reveal or the safety
+    // net), whether or not VSOP87C was already in: what waits for it (a
+    // spacecraft's trajectory table) mustn't come with the first load.
+    this._sceneUp = false
     this._firstFrameAt = null
     // The stand-in's positions for a frame's placement, and for the orbit
     // lines' samples (vsopAt): apart, so sampling a line doesn't overwrite
@@ -163,6 +167,7 @@ export default class Animation {
    *   fetching it failed: the stand-in carries on
    */
   loadEphemeris() {
+    this._sceneUp = true
     if (this._loadRequested) {
       return loadingVsop ?? Promise.resolve()
     }
@@ -255,7 +260,7 @@ export default class Animation {
    * still gets VSOP87C, a few seconds after its first frame.
    */
   _loadLater() {
-    if (this._loadRequested) {
+    if (this._sceneUp) {
       return
     }
     const now = this.clock()
@@ -419,15 +424,16 @@ export default class Animation {
   /**
    * A spacecraft's place relative to its parent, from its trajectory table
    * (trajectory.js), shown only over the table's span.  The table is asked
-   * for once the ephemeris is (the reveal, or the safety net after the
-   * first frame): it isn't in the first load.
+   * for once the scene is up (loadEphemeris: the reveal, or the safety net
+   * after the first frame), even with VSOP87C already in: it isn't in the
+   * first load.
    *
    * @param {Object3D} orbitPosition A spacecraft's
    */
   placeOnTrajectory(orbitPosition) {
     const trajectory = orbitPosition.trajectory
     if (!trajectory) {
-      if (this._loadRequested) {
+      if (this._sceneUp) {
         orbitPosition.loadTrajectory?.()
       }
       orbitPosition.body.visible = false

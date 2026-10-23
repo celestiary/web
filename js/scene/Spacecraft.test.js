@@ -59,13 +59,13 @@ function fakeScene() {
 
 /**
  * @param {number} jd
- * @param {boolean} loadRequested
+ * @param {boolean} sceneUp Whether loadEphemeris has been called
  * @returns {Animation}
  */
-function animationAt(jd, loadRequested = true) {
+function animationAt(jd, sceneUp = true) {
   const time = {simTimeJulianDay: () => jd, simTimeSecs: () => (jd - 2440587.5) * SECONDS_PER_DAY}
   const anim = new Animation(time, null)
-  anim._loadRequested = loadRequested
+  anim._sceneUp = sceneUp
   anim.setDate(jd)
   return anim
 }
@@ -127,7 +127,7 @@ describe('Spacecraft', () => {
     expect(pos.distanceTo(want)).toBe(0)
   })
 
-  it('asks for its table once the ephemeris has been, not before', () => {
+  it('asks for its table once the scene is up, not before, even with the ephemeris in', () => {
     const {scene, world} = webbScene()
     const orbitPosition = scene.objects['webb.orbitPosition']
     orbitPosition.trajectory = null
@@ -135,10 +135,15 @@ describe('Spacecraft', () => {
     orbitPosition.loadTrajectory = () => {
       asks++
     }
-    animationAt(JD, false).animateSystem(world)
+    // VSOP87C already in (an earlier page's import), the scene not yet up.
+    const anim = animationAt(JD, false)
+    anim._loadRequested = true
+    anim.animateSystem(world)
     expect(asks).toBe(0)
     expect(scene.objects.webb.visible).toBe(false)
-    animationAt(JD, true).animateSystem(world)
+    // The reveal.
+    anim.loadEphemeris()
+    anim.animateSystem(world)
     expect(asks).toBe(1)
   })
 

@@ -1,4 +1,5 @@
 import {parseTokenValue} from './permalink'
+import {validSocial} from './socialLinks.mjs'
 import STAMP from './changelogStamp.json'
 
 
@@ -20,6 +21,19 @@ export const CHANGELOG_URL = 'data/changelog.json'
 /** The browser-storage key for the newest entry date the visitor has seen. */
 export const LAST_SEEN_KEY = 'celestiary.whatsNew.lastSeen'
 
+/** And for What's new's filter (JSON: `{featuredOnly, features, fixes}`). */
+export const FILTER_KEY = 'celestiary.whatsNew.filter'
+
+/**
+ * The first filter's key: '1' meant "all updates", the featured only being
+ * the default.  Read as the filter's `featuredOnly: false` if there is no
+ * new one, and dropped when the new one is written.
+ */
+export const SHOW_ALL_KEY = 'celestiary.whatsNew.showAll'
+
+/** What's new's filter by default: the featured updates, features and fixes. */
+export const DEFAULT_FILTER = Object.freeze({featuredOnly: true, features: true, fixes: true})
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const DATE_LENGTH = 10
 const URL_PATTERN = /^https?:\/\//
@@ -39,8 +53,13 @@ const MONTHS_SHORT = MONTHS.map((m) => m.slice(0, 3))
  * @returns {Array<{id: string, date: string, headline: string, text: string,
  *   links: Array<{kind: string, number: number, url: string}>,
  *   epic: ?{number: number, title: string, url: string},
- *   permalink: ?string, image: ?{src: string, alt: string}}>} `permalink`
- *   is the fragment without its '#' (a card's form: Celestiary.openLink)
+ *   permalink: ?string, image: ?{src: string, alt: string}, featured: boolean, kind: string,
+ *   social: ?{x?: string, facebook?: string}}>} `permalink`
+ *   is the fragment without its '#' (a card's form: Celestiary.openLink);
+ *   `featured` is the entries worth announcing, which What's new shows
+ *   first; `kind` is 'fix' for a fix and 'feature' otherwise (independent of
+ *   `featured`: a major fix can be featured); `social` is the URLs of the live posts about it, only those on
+ *   X's and Facebook's own hosts over https (socialLinks.mjs)
  */
 export function parseChangelog(data) {
   const list = Array.isArray(data?.entries) ? data.entries : []
@@ -67,6 +86,9 @@ export function parseChangelog(data) {
       epic,
       permalink,
       image,
+      featured: e.featured === true,
+      kind: e.kind === 'fix' ? 'fix' : 'feature',
+      social: validSocial(e.social),
     })
   }
   // Newest first; the sort is stable, so a day's entries stay in the file's order.
@@ -171,12 +193,14 @@ export function checkNew(entries, storage = localStorageOrNull()) {
  * bundle, so What's new's marker needs no fetch.  An entry a date, as many as
  * the changelog has that day, for checkNew and markSeen.
  *
- * @param {{dates: Array<[string, number]>}} [stamp]
+ * @param {{dates: Array<[string, number]>, featured?: Array<[string, number]>}} [stamp]
+ * @param {string} [key] 'dates' for every entry, 'featured' for the featured
+ *   ones (the "new" marker counts those; a stamp without them has none)
  * @returns {Array<{date: string}>} Newest first
  */
-export function stampEntries(stamp = STAMP) {
+export function stampEntries(stamp = STAMP, key = 'dates') {
   const out = []
-  for (const [date, count] of Array.isArray(stamp?.dates) ? stamp.dates : []) {
+  for (const [date, count] of Array.isArray(stamp?.[key]) ? stamp[key] : []) {
     if (DATE_PATTERN.test(date ?? '') && Number.isInteger(count)) {
       for (let i = 0; i < count; i++) {
         out.push({date})
@@ -184,6 +208,20 @@ export function stampEntries(stamp = STAMP) {
     }
   }
   return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+}
+
+
+/**
+ * How many entries the "new" marker counts: the featured ones after the date
+ * the visitor last saw.  The marker is for what's worth a look, which is what
+ * What's new opens on; the lesser updates are there when asked for.
+ *
+ * @param {Array<{date: string}>} featured The featured entries' dates (stampEntries(stamp, 'featured'))
+ * @param {?string} since checkNew's `since`: null on a first visit
+ * @returns {number}
+ */
+export function unseenCount(featured, since) {
+  return since ? featured.filter((e) => e.date > since).length : 0
 }
 
 
@@ -215,8 +253,109 @@ export function markSeen(entries, storage = localStorageOrNull()) {
 
 
 /**
+ * @param {any} value A stored filter, parsed
+ * @returns {{featuredOnly: boolean, features: boolean, fixes: boolean}} It, with
+ *   what isn't a boolean as the default's, and never with neither kind
+ *   selected (the list would be empty with nothing to say why)
+ */
+export function normalizeFilter(value) {
+  const pick = (key) => (typeof value?.[key] === 'boolean' ? value[key] : DEFAULT_FILTER[key])
+  const filter = {featuredOnly: pick('featuredOnly'), features: pick('features'), fixes: pick('fixes')}
+  if (!filter.features && !filter.fixes) {
+    filter.features = true
+    filter.fixes = true
+  }
+  return filter
+}
+
+
+/**
+ * @param {?Storage} [storage]
+ * @returns {{featuredOnly: boolean, features: boolean, fixes: boolean}} The
+ *   visitor's filter: the default with nothing stored, a bad value or storage
+ *   that throws; from the earlier key ("all updates") if that is all there is
+ */
+export function readFilter(storage = localStorageOrNull()) {
+  try {
+    const stored = storage?.getItem(FILTER_KEY)
+    if (stored) {
+      return normalizeFilter(JSON.parse(stored))
+    }
+    return storage?.getItem(SHOW_ALL_KEY) === '1' ? {...DEFAULT_FILTER, featuredOnly: false} : {...DEFAULT_FILTER}
+  } catch {
+    return {...DEFAULT_FILTER}
+  }
+}
+
+
+/**
+ * @param {{featuredOnly: boolean, features: boolean, fixes: boolean}} filter
+ * @param {?Storage} [storage]
+ * @returns {boolean} Whether it was stored
+ */
+export function writeFilter(filter, storage = localStorageOrNull()) {
+  try {
+    if (!storage) {
+      return false
+    }
+    storage.setItem(FILTER_KEY, JSON.stringify(normalizeFilter(filter)))
+    // The earlier key is superseded.
+    storage.removeItem(SHOW_ALL_KEY)
+    return true
+  } catch {
+    return false
+  }
+}
+
+
+/**
+ * One press of the filter's controls.  "Featured only" flips.  A kind flips,
+ * except that the last one selected can't be turned off: pressing it
+ * selects the other kind instead (like a radio), so the list is never empty
+ * for want of a kind.
+ *
+ * @param {{featuredOnly: boolean, features: boolean, fixes: boolean}} filter
+ * @param {string} control 'featuredOnly', 'features' or 'fixes'
+ * @returns {{featuredOnly: boolean, features: boolean, fixes: boolean}} The new filter
+ */
+export function toggleFilter(filter, control) {
+  if (control === 'featuredOnly') {
+    return {...filter, featuredOnly: !filter.featuredOnly}
+  }
+  const other = control === 'features' ? 'fixes' : 'features'
+  if (control !== 'features' && control !== 'fixes') {
+    return {...filter}
+  }
+  if (filter[control] && !filter[other]) {
+    return {...filter, [control]: false, [other]: true}
+  }
+  return {...filter, [control]: !filter[control]}
+}
+
+
+/**
+ * What What's new lists: the entries that pass the filter: featured if
+ * "featured only" is on, and of a kind that is selected.  A changelog with no
+ * featured entry at all isn't narrowed by "featured only" (a file without the
+ * tag shows everything rather than nothing).
+ *
+ * @param {Array<{featured: boolean, kind: string}>} entries
+ * @param {?{featuredOnly: boolean, features: boolean, fixes: boolean}} filter null: all of them
+ * @returns {Array<object>}
+ */
+export function visibleEntries(entries, filter) {
+  if (!filter) {
+    return entries
+  }
+  const featuredOnly = filter.featuredOnly && entries.some((e) => e.featured)
+  return entries.filter((e) => (!featuredOnly || e.featured) && (e.kind === 'fix' ? filter.fixes : filter.features))
+}
+
+
+/**
  * The changelog tour's stops: the entries that have a permalink, newest
- * first, from a chosen entry on (toward the older ones).
+ * first, from a chosen entry on (toward the older ones).  The tour follows
+ * What's new's filter (visibleEntries).
  *
  * @param {Array<object>} entries Newest first (parseChangelog)
  * @param {object} [opts]
@@ -225,9 +364,11 @@ export function markSeen(entries, storage = localStorageOrNull()) {
  *   date it begins with, so a link to an entry survives its headline being
  *   reworded; anything else starts at the newest.
  * @param {number} [opts.count] At most this many stops
+ * @param {?object} [opts.filter] What's new's filter (visibleEntries); null: every entry with a view
  * @returns {Array<object>}
  */
-export function tourStops(entries, {from = null, count = Infinity} = {}) {
+export function tourStops(allEntries, {from = null, count = Infinity, filter = null} = {}) {
+  const entries = visibleEntries(allEntries, filter)
   let start = 0
   if (from) {
     const byId = entries.findIndex((e) => e.id === from)

@@ -90,9 +90,11 @@ A card, tonight's sky and the search's Go fly from wherever the tour is to their
 
 - **The data** (`changelog.js`): `loadChangelog` fetches `data/changelog.json`, a plain relative URL, because it is small data under `public/data/` ([data policy](#data-policy)), and `parseChangelog` checks and normalises it (an entry without a headline or a `YYYY-MM-DD` date is dropped, a link that isn't http(s) is dropped, newest first, a day's entries in file order).  `Celestiary.loadNews` asks once and caches (a failure is asked for again next time).  It is asked for when the panel opens, or the tour starts, not with the page ([#258](https://github.com/celestiary/web/issues/258)): the button and its marker are from the changelog's dates alone, `js/changelogStamp.json` (`[date, entries that day]`, newest first, about 500 bytes), which `yarn changelog` writes with the JSON and the app's bundle carries (`stampEntries`).  The panel shows once the entries are in; a failure to fetch them then closes it and takes the button away, as a failure on load used to (a tour link falls back to the homepage).  An entry's `permalink` is the fragment without its `#`, as a card's link is.
 - **The panel** (`ui/WhatsNew.jsx`, opened from `ui/Homepage.jsx`): a sheet over the homepage with the latest 8 entries (16 more at each "Show earlier"): date, headline, text (backticked spans as code), the PR and issue links, and an image where the entry has one.  An entry with a permalink has **Fly there**, an `<a href>` to its link (a middle click opens a tab) whose click is `Celestiary.openLink`: the same flight as a card, the homepage fading out as for one, ending on the link's own restore (so the camera is exactly the permalink's view), its own history entry.  An entry without one is for reading.  `Esc` closes the panel before it leaves the homepage (a capture listener).
-- **"New since your last visit"** (`changelog.js` `checkNew`, `markSeen`, on the stamp's dates; `freshIds` tags the entries once they're in): the newest entry date the visitor has seen is in `localStorage` (`celestiary.whatsNew.lastSeen`), and the button carries "N new" for the entries dated after it.  The first visit (nothing stored) is a baseline: nothing is new, and the newest date is stored, so a first-time visitor isn't told about 70 entries.  Opening the panel stores the newest date and clears the marker; the entries that were new keep their **New** tag until it closes.  The grain is a day: an entry on the day last seen isn't new.  Every access is in try/catch (the `localStorage` accessor itself throws in a private window or with site data blocked): with storage that throws nothing is ever new, and nothing else changes.
+- **Featured, kind and the filter** (`changelog.js` `visibleEntries`, `toggleFilter`, `readFilter`, `writeFilter`; `ui/WhatsNew.jsx`): an entry marked `- Featured: yes` in CHANGELOG.md has `featured: true` in the JSON, and one marked `- Kind: fix` has `kind: 'fix'` (a feature, the default, has no `kind` in the JSON; the app's `parseChangelog` reads it as `'feature'`; the build refuses any other value).  The two are independent, since a major fix can be featured.  The panel has a filter bar of three buttons with `aria-pressed`, styled as the drawer's chips (`.news-chip`): **Featured only**, and a joined pair, **Features | Fixes**, each on or off, with the count ("12 updates") and a heading in step ("Featured updates", "All fixes", ...).  All three are on by default.  The list is the entries that pass every active filter: featured if Featured only is on, and of a kind that is selected (`visibleEntries(entries, filter)`).  **Never both kinds off:** pressing the one kind left on selects the other instead of turning itself off (`toggleFilter`, like a radio), because an empty selection would be a list that shows nothing and says nothing; so from both on, pressing Features gives Fixes only, pressing Fixes then (the last one) swaps to Features only, and pressing the unselected one turns both on; it never goes to none.  (A stored filter with neither kind is normalised to both on, `normalizeFilter`.)  What isn't there to filter stays out of the way: no bar where nothing is featured and every entry is of one kind, and a changelog with no featured entry isn't narrowed by Featured only, so a file without the tags lists everything.  An entry is tagged **Featured** (when Featured only is off, since otherwise they all are) and **Fix**.  A filter that matches nothing says so under the bar ("No updates match. Turn a filter off."), and the buttons stay.  The choice, all three, is `localStorage` `celestiary.whatsNew.filter` (JSON `{featuredOnly, features, fixes}`), every access in try/catch, so with storage that throws it is always the default.  The first version's key, `celestiary.whatsNew.showAll` (`1` was "all updates"), is read as Featured only off when there is no new key, and removed the first time the new one is written.  The "N new" marker is not the filter's: it counts the featured entries whatever the buttons say.  The changelog tour follows the filter: `tourStops(..., {filter})`, `startNewsTour({filter})`, from the panel's own state (so it holds when storage fails) and the stored choice for the tour's link.
+- **Links to the live posts** (`socialLinks.mjs`, the icons in `ui/NewsIcons.jsx`): an entry with `social: {x, facebook}` in the JSON, once its social post is live, shows a small X and Facebook mark beside its PR and issue links, each a link in a new tab (`rel="noopener"`, `aria-label` "on X" and "on Facebook"), inline monochrome SVG in the links' grey like the panel's other icons.  The URLs are recorded once, by the maintainer, in the post's block in `posts/drafts.md`, and `yarn changelog` joins them (tools/posts/README.md "Links to the live posts"); both the build and the app accept only https URLs on x.com or twitter.com (X) and facebook.com (Facebook), the app dropping any other rather than linking it.
+- **"New since your last visit"** (`changelog.js` `checkNew`, `markSeen`, on the stamp's dates, counted by `unseenCount` on the stamp's featured dates, so it counts what What's new opens on and not the lesser updates; `freshIds` tags the entries once they're in): the newest entry date the visitor has seen is in `localStorage` (`celestiary.whatsNew.lastSeen`), and the button carries "N new" for the entries dated after it.  The first visit (nothing stored) is a baseline: nothing is new, and the newest date is stored, so a first-time visitor isn't told about 70 entries.  Opening the panel stores the newest date and clears the marker; the entries that were new keep their **New** tag until it closes.  The grain is a day: an entry on the day last seen isn't new.  Every access is in try/catch (the `localStorage` accessor itself throws in a private window or with site data blocked): with storage that throws nothing is ever new, and nothing else changes.
 - **Quiet loads.**  What's new exists only where the homepage does, which is the bare URL (and the tour's own link, below), so a permalink with the HUD off never mounts it, never fetches the changelog (nor does the homepage, until the panel opens) and never touches storage (`js/Celestiary.test.js`, "shows nothing on a link with the HUD off").  The tour's link `#;news:tour;s=v` is not a tour either (`decodeNewsToken`).  The page's own quiet-load rule for the loading text is unchanged ([the first load](#the-first-load)).
-- **The changelog tour** (`newsTour.js` `NewsTour`, driven by `Celestiary.startNewsTour`): the entries that have a permalink (`tourStops`; entries without one are never stops), newest first, or from a chosen entry or date toward the older ones, at most `n`.  For each stop: **fly** to its scene (`_newsGo`: from the homepage `leaveHome({link})`, else `_flyToLink`, the cards' flight with its [time plan](#flights-from-the-homepage), so a date far from the last is set under a dip to black, a near one eased), **caption** once the camera has arrived (its own restore has run, no flight or cut pending: `_newsArrived`), **hold**, then fly on.  A path-only permalink (`#galaxy:ngc2403`) goes by the app's go and counts as arrived when its tween ends; a stop that never arrives is skipped after 20 s.  At the end, or on `Esc`, the tour stops where it is: the live scene, the chrome in, the link written as a new entry after the homepage's, so Back returns to the homepage.
+- **The changelog tour** (`newsTour.js` `NewsTour`, driven by `Celestiary.startNewsTour`): the entries that have a permalink and are shown (`tourStops`; entries without a view are never stops, and shown by the filter), newest first, or from a chosen entry or date toward the older ones, at most `n`.  For each stop: **fly** to its scene (`_newsGo`: from the homepage `leaveHome({link})`, else `_flyToLink`, the cards' flight with its [time plan](#flights-from-the-homepage), so a date far from the last is set under a dip to black, a near one eased), **caption** once the camera has arrived (its own restore has run, no flight or cut pending: `_newsArrived`), **hold**, then fly on.  A path-only permalink (`#galaxy:ngc2403`) goes by the app's go and counts as arrived when its tween ends; a stop that never arrives is skipped after 20 s.  At the end, or on `Esc`, the tour stops where it is: the live scene, the chrome in, the link written as a new entry after the homepage's, so Back returns to the homepage.
   - **Caption** (`tourCaption`): the headline and the first sentence of the text, with the next if the first is short, cut at a word at 220 characters, backticks dropped.  Held `holdMs`: 3 s and 45 ms a character, 6 to 14 s.  The date shows above the headline.
   - **Made to be recorded.**  Nothing else is on screen: the homepage's foreground fades out as for a card, the chrome stays hidden through the tour (`_overlaySteps` skips its step while `_news` is set; the overlays a permalink's own `s=` shows do come in, they are part of its view), the address bar isn't written (the tour isn't a view: `_schedulePermalinkUpdate`), the caption is large on a bottom scrim with a text shadow (`ui/NewsTour.jsx`), and the controls (previous, pause, next, stop, "3 / 12") fade out when the pointer rests and wake when it moves; on a touch screen (`hover: none`) they stay, small.  The app's keys are held back while it plays (`_onNewsKey`, a capture listener): `Space` pauses, the arrows skip, `Esc` stops; Tab, function keys and browser shortcuts are left alone, and so is a focused control's own Enter and Space.
   - **Controls.**  Pause holds the caption's clock, and a flight under way (`_frameFlight` slides its clock by the frames held, so it resumes where it was).  Next and previous skip from a flight or a hold (a new flight from where the camera is; skipping while paused carries on), previous at the first begins it again, next at the last ends it.  A click, drag or wheel on the scene ends the tour, as it leaves the homepage; on a touch screen, a tap on the scene does too.  Back to the homepage (`showHome`) or another link (`hashchange`) takes the scene from it (`_abandonNewsTour`).
@@ -174,6 +176,7 @@ What the first load fetches is the page, its scripts, the bodies' bundle, the st
 | A body's places, `data/places/<body>.json` (24 bodies, 664 KB) | The camera approaches the body with the `p` labels on (its disc a fifth of the screen's height, about 12 radii at the default field: ahead of tier 0's three quarters, so a go there, arriving at 10, asks as it arrives); a link to a place on it, or a place targeted or flown to | `Places.ensureLoaded` (its LOD hook, `LOAD_FRAC`; after a failure the hook waits `LOAD_RETRY_MS`), `Places.js` `loadPlaces` (shared by the labels, the link and the search's fallback) |
 | The places' index for the search, `data/places-index.json` (259 KB, 113 KB gzipped: every place's name, position, kind and altitude, without the tiers) | The first search with text in it | `search/placesIndex.js`, `PlacesProvider`; [js/search/DESIGN.md](js/search/DESIGN.md#places-in-the-index) |
 | SPARC's galaxies, `data/sparc/galaxies.json` (216 KB) | A view that could show one (the limiting magnitude reaching the brightest's 7.53 from the Solar System, or within a magnitude of it while the `G` labels are shown; or the camera 10,000 light-years from the Sun); a link to a galaxy; the first search; the `e` key | `Galaxies.ensureLoaded`, `galaxiesInView`, `Scene.loadGalaxies`; [Galaxies.md](js/scene/Galaxies.md#the-data) |
+| Earth's satellites, `data/satellites.json`, and their chunk (satellite.js's SGP4, 20 KB) | The camera within 1.5e9 m of Earth with the orbits (`o`) shown; a `sat:` link; the first search | `Scene.loadSatellites`, `_watchForSatellites`; [Satellites.md](js/scene/satellites/Satellites.md#what-loads-when) |
 | The changelog, `data/changelog.json` (73 KB) | What's new opens, or the changelog tour starts; the button's "N new" is from the dates alone, `js/changelogStamp.json`, in the bundle | `Celestiary.loadNews`, `changelog.js` `stampEntries`; [what's new](#whats-new-and-the-changelog-tour) |
 | A spacecraft's trajectory table, `data/trajectories/<name>.json` (Webb's 99 KB, 43 KB gzipped) | With the ephemeris (the reveal, or the safety net after the first frame), or when the craft is targeted; the craft is hidden until it's in | `Animation.placeOnTrajectory`, `Spacecraft.loadTrajectory`; [models.md, positions](js/scene/models.md#positions) |
 | A spacecraft's model, `large/models/<name>/<name>.glb` (JWST's 2.38 MB), and `GLTFLoader` and the meshopt decoder (dynamic chunks) | The model's LOD first draws its near level (the craft over a couple of pixels), or the craft is targeted | `Spacecraft` `buildNear`, `model.js` `loadModel`; [models.md](js/scene/models.md#the-loader) |
@@ -531,6 +534,39 @@ were visibly off their lines (Mercury by ~10 px in an inner-system view).
   each frame (`layOrbitShape`): that ellipse is their ephemeris.
 - **Bodies without elements** (demo descriptors) keep the flat ellipse.
 
+### The info panel
+
+The target's facts, revealed in tiers rather than as its descriptor's
+fields (`ControlPanel`, `js/infoPanel.js`; the plan and the design system
+it follows: [design/UI.md](design/UI.md)).
+
+- **A head, rows, sections.**  The head has the name, the kind and one fact
+  (how far out it orbits, or a star's class); under it the few rows a
+  visitor asks first (radius, day, year, moons; a star's class, radius and
+  mass), with periods to a glance's precision (`periodText`); then
+  `<details>` sections, shut until asked: Orbit, Physical, Space around,
+  Rings, Atmosphere, Moons (open), More data (the descriptor's other fields,
+  in words, nested ones on a line).  Stars from the catalogue and SPARC
+  galaxies get the same head and rows.
+- **Strings, then wiring.**  `infoPanel.js` builds the HTML as strings, so
+  the structure is tested in bun with no DOM; `ControlPanel` puts it in
+  `#nav-info-id` and wires the orbit switches, the fold control and the
+  sections' toggles (heard on capture: a `toggle` doesn't bubble).
+- **Opaque**, `--surface`: over a starfield even 3% of a bright label read
+  through the 97% sheet, and the old translucent card let labels and lines
+  run over the text.
+- **Phones: a bottom sheet** (`js/infoSheet.js`), at 600px wide or less:
+  peek (the head), half (the summary) and full (88% of the scene).  Drag
+  the head or tap it to step; the detent lasts through the panel's
+  re-renders.  It sits above the widgets drawer's sheet; the bottom
+  controls and settings sit above its peek (`--info-sheet-bottom`) and hide
+  while it's raised (`html.info-raised`); Cesium's credits ride above both
+  sheets.  A drag's release eases from where the finger let go: measuring
+  the detents lays the sheet out at each, so it's laid out again at the
+  release height before the transition is let run (it had started from
+  full, the last measured, and jumped to the top).  Its height eases over 300 ms; on SwiftShader a busy main thread
+  stalls the transition, so a probe that reads its height turns it off.
+
 ### Orbital elements
 
 A body's six Keplerian elements, listed in its info panel and drawn on its
@@ -582,25 +618,22 @@ work it starts).
   listed in the source's form: ϖ and L for the planets, the Moon and
   Pluto; ω and M for the moons.  A negative inclination (Standish's Earth
   after J2000) is turned round (i > 0, Ω + 180°, ϖ kept).
-- **The panel** (`ControlPanel.orbitListHtml`): a lead line, not a list
-  item (what the elements are and their frame, then `Show all · none`, and
-  `clear every orbit` while other bodies have some on); the orbit period
-  (sidereal); the six elements, each with its symbol, name, value and
-  colour, the place's with the true place beside the mean (λ = ϖ + ν, or
-  ν); then the block's other fields as before.  The values, and
-  which elements are on, follow the date and the scene four times a second
-  while the list is open (`ControlPanel.frame`).  A click (or Enter, or
-  Space) turns an element on or off; a hover or focus previews one.
-- **The info list is a card** a third of the screen wide (at least 22em;
-  the screen's width on a phone), with its own scroll, so the panel doesn't
-  take the scene's clicks over a wide, unseen area: the maintainer's layout
-  until the info panels are redesigned (`index.css`, `#nav-info-id`).
-- **The panel's lists, open or folded, are in the link** (the `info:`
+- **The panel** (`ControlPanel.orbitListHtml`): the Orbit section of the
+  info panel ([the info panel](#the-info-panel)): a lead (what the elements
+  are and their frame, then `Show all · none`, and `clear every orbit` while
+  other bodies have some on); the orbit period (sidereal); the six elements
+  as rows, each with its symbol, name, value in mono and a short line in its
+  colour, the place's with the true place under the mean (λ = ϖ + ν, or ν);
+  then the block's other fields as rows.  The values, and which elements are
+  on, follow the date and the scene four times a second while the section is
+  open (`ControlPanel.frame`).  A click (or Enter, or Space) turns an element
+  on or off; a hover or focus previews one.
+- **The panel's sections, open or shut, are in the link** (the `info:`
   token, [design/URLs.md](design/URLs.md#info-token)): the whole panel
-  folded, and each list (named by its dotted place in a body's props,
-  `orbit`, `location.coord`) opened or folded against its default, for
-  every body alike, so moving from Earth to Venus keeps the orbit list
-  open (`ControlPanel.uiState`, `_applyUiState`, `_onToggle`).
+  folded, and each section (`orbit`, `physical`, `space`, `atmosphere`)
+  opened or shut against its default, for every body alike, so moving from
+  Earth to Venus keeps the orbit section open (`ControlPanel.uiState`,
+  `_applyUiState`, `_onToggle`).
 - **Stateful, on many bodies at once** (`Scene` `toggleOrbitElement`,
   `setOrbitElements`, `clearOrbitElements`, `previewOrbitElement`): the
   scene keeps, per body, the set of elements on, by their short codes
@@ -937,8 +970,10 @@ tween aimed at a body, a star's world position or a surface point.  See
 
 One target, shown and used everywhere: what the breadcrumb shows, what the
 link's path names, what `c` faces, `g` goes to and `t` tracks.  It is a body,
-a place on one, a catalogue star, an asterism or one of SPARC's galaxies
-(`{kind: 'galaxy', galaxy, name}`, [Galaxies.md](js/scene/Galaxies.md)), and **`Scene.setTarget` is
+a place on one, a catalogue star, an asterism, one of SPARC's galaxies
+(`{kind: 'galaxy', galaxy, name}`, [Galaxies.md](js/scene/Galaxies.md)) or an
+Earth satellite (`{kind: 'satellite', id, name, body: 'earth'}`, Earth the
+`obj` as for a place: [Satellites.md](js/scene/satellites/Satellites.md#in-the-scene)), and **`Scene.setTarget` is
 the only way it changes**: a click on a label, a pick in the search, Look
 at, Go, the keys (`h`, `u`, `0`-`9`), `Scene.goTo` and `Scene.land` (each
 makes where it went the target; a landing at a place keeps the place), and
@@ -1538,7 +1573,9 @@ Hot-reload in development: `esbuild/serve.js` calls `ctx.watch()` unconditionall
 | `js/ui/WhatsNew.jsx` | The homepage's What's new panel: the latest entries, Fly there, Tour from here |
 | `js/ui/NewsTour.jsx` | The changelog tour's caption and controls, over the scene (icons in `js/ui/NewsIcons.jsx`: plain SVG, so they render in tests without MUI's styling engine) |
 | `js/store/HomeSlice.js` | `homePhase`: the foreground's waiting, in, out or hidden |
-| `tools/home/cards.mjs` | Renders the cards' images, `public/images/home/<id>.webp` (`--gpu` on a real GPU) |
+| `tools/home/cards.mjs` | Renders the cards' images, `public/images/home/<id>.webp` (`--gpu` on a real GPU), or any one view as a PNG (`--hash`, `--id`, `--png`) |
+| `tools/posts/` | `yarn posts`: social post drafts from the featured changelog entries into `posts/drafts.md`, merged so the maintainer's edits stay; length counting per platform; the first campaign; `social.mjs`, the live posts' URLs for `yarn changelog` ([README](tools/posts/README.md)) |
+| `js/socialLinks.mjs` | The platforms an entry's posts can be on (X, Facebook) and the URLs that may be linked: https on their own hosts; read by the build and the app |
 | `js/scene/fade.js` | The overlays' fades: `Fade`, `FadeDriver`, `fadeMaterial`, `fadeObject`, `ease` ([fades](#fades)) |
 | `js/permalink.js` | Permalink encode/decode: `encodePermalink`, `decodePermalink`, `pathFromFragment`; state token values (`parseTokenValue`, `formatTokenValue`) |
 | `js/targetPath.js` | The target's path in the hash: `targetPath`, `parseTargetPath`, `resolvePlace` (a body or a place), `slug` |
@@ -1582,6 +1619,7 @@ and the provider extension contract.
 | `js/scene/LagrangeMarks.js` | The target's pairs' points, Hill spheres and synchronous orbits, drawn in the orbits group ([Lagrange.md](js/scene/Lagrange.md)) |
 | `js/scene/regimes.js` | A body's orbital regimes: Earth's shells, boundaries and orbit families, sun-synchronous orbits ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
 | `js/scene/RegimeMarks.js` | The target's regimes, drawn in its equator in the orbits group ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
+| `js/scene/satellites/` | Earth's satellites: CelesTrak's GP elements (`public/data/satellites.json`) by SGP4 (satellite.js), TEME to Earth's equator under its planetTilt, drawn in the orbits group, targeted as `{kind: 'satellite'}`, gone to and ridden ([Satellites.md](js/scene/satellites/Satellites.md)) |
 | `js/scene/cr3bp.js` | The circular restricted three-body problem: equations, an integrator with the state-transition matrix, the correction that closes a symmetric orbit ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
 | `js/scene/periodicOrbits.js` | A pair's three-body families (Lyapunov, halo, DRO, the 9:2 NRHO) from their first guesses, sampled and swept out in space ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
 | `js/scene/overlayMarks.js` | What the marks of orbital space share: unit rings and ellipses, labels, screen sizes, a sphere's outline as seen |

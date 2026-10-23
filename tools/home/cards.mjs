@@ -22,6 +22,13 @@ import {chromium} from 'playwright'
  * Earth is drawn by celestiary's own layer, as the homepage's tour draws
  * it, unless `--cesium`.  Any 600 × 375 WebP of the view will do in place of
  * one of these: the page loads public/images/home/<id>.webp as it is.
+ *
+ * Any other view, for a social post (tools/posts/README.md): `--hash` is
+ * its permalink's fragment, without the `#`, and `--id` names the image,
+ * `--png` the folder.  It writes the full 1200 × 750 PNG, <dir>/<id>.png,
+ * and nothing under public/:
+ *
+ *   node tools/home/cards.mjs --gpu --id gaia-night --hash 'sun/earth@...' --png posts/images
  */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -81,16 +88,24 @@ const CARDS = [
  * @param {Array<string>} argv
  * @returns {object}
  */
-function parseArgs(argv) {
-  const opts = {gpu: false, cesium: false, only: null, png: null}
+export function parseArgs(argv) {
+  const opts = {gpu: false, cesium: false, only: null, png: null, hash: null, id: null}
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
       case '--gpu': opts.gpu = true; break
       case '--cesium': opts.cesium = true; break
       case '--only': opts.only = argv[++i].split(','); break
       case '--png': opts.png = argv[++i]; break
+      case '--hash': opts.hash = argv[++i].replace(/^#/, ''); break
+      case '--id': opts.id = argv[++i]; break
       default: throw new Error(`Unknown argument ${argv[i]}`)
     }
+  }
+  if (opts.hash !== null && (!opts.id || !opts.png)) {
+    throw new Error('--hash needs --id (the image\'s name) and --png (its folder)')
+  }
+  if (opts.hash !== null && !/^[\w-]+$/.test(opts.id)) {
+    throw new Error(`--id is a name, letters, digits, - and _: ${opts.id}`)
   }
   return opts
 }
@@ -176,13 +191,16 @@ async function render(browser, base, card, opts) {
     ctx.drawImage(source, 0, 0, w, h)
     return {png: source.toDataURL('image/png'), webp: small.toDataURL('image/webp', q)}
   }, {w: CARD_WIDTH, h: CARD_HEIGHT, q: WEBP_QUALITY})
-  const out = path.join(OUT, `${card.id}.webp`)
-  fs.writeFileSync(out, Buffer.from(webp.split(',')[1], 'base64'))
   if (opts.png) {
     fs.mkdirSync(opts.png, {recursive: true})
     fs.writeFileSync(path.join(opts.png, `${card.id}.png`), Buffer.from(png.split(',')[1], 'base64'))
+    console.log(`${card.id}: ${path.join(opts.png, `${card.id}.png`)}`)
   }
-  console.log(`${card.id}: ${path.relative(ROOT, out)} (${fs.statSync(out).size} bytes)`)
+  if (!card.adhoc) {
+    const out = path.join(OUT, `${card.id}.webp`)
+    fs.writeFileSync(out, Buffer.from(webp.split(',')[1], 'base64'))
+    console.log(`${card.id}: ${path.relative(ROOT, out)} (${fs.statSync(out).size} bytes)`)
+  }
   await page.close()
 }
 
@@ -193,11 +211,16 @@ async function main() {
   if (!fs.existsSync(path.join(DOCS, 'index.html'))) {
     throw new Error('No build in docs/: run `yarn build` first')
   }
-  fs.mkdirSync(OUT, {recursive: true})
-  const links = Object.fromEntries((await homeCards()).map((c) => [c.id, c.link]))
-  const cards = CARDS
-      .filter((c) => !opts.only || opts.only.includes(c.id))
-      .map((c) => (c.link ? {...c, hash: links[c.id]} : c))
+  let cards
+  if (opts.hash !== null) {
+    cards = [{id: opts.id, hash: opts.hash, adhoc: true}]
+  } else {
+    fs.mkdirSync(OUT, {recursive: true})
+    const links = Object.fromEntries((await homeCards()).map((c) => [c.id, c.link]))
+    cards = CARDS
+        .filter((c) => !opts.only || opts.only.includes(c.id))
+        .map((c) => (c.link ? {...c, hash: links[c.id]} : c))
+  }
   const server = await serve(DOCS)
   const browser = await chromium.launch({args: opts.gpu ? ['--ignore-gpu-blocklist'] : SWIFTSHADER})
   try {
@@ -211,7 +234,9 @@ async function main() {
 }
 
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
+}
