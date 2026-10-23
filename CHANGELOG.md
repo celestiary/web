@@ -31,6 +31,20 @@ has no view to open yet.
 
 ## October 2026
 
+### The James Webb Space Telescope, where it really is
+
+Webb is now in the sky beside the Earth, drawn with NASA's own 3D model at its real size and lit by
+the Sun, its sunshield turned toward it. It follows JPL's record of its path, from 41 minutes after
+launch on Christmas Day 2021, out to its orbit around the Sun–Earth L2 point 1.5 million km beyond the
+Earth, and on along its planned path to October 2031. Search for "JWST" to fly there, zoom in to a few
+metres and orbit it; outside those dates it isn't shown.
+
+- Date: 2026-10-23
+- PR: [#288](https://github.com/celestiary/web/pull/288)
+- Issue: [#25](https://github.com/celestiary/web/issues/25)
+- Epic: [#120](https://github.com/celestiary/web/issues/120) Missions and models
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/webb)
+
 ### Halo orbits, Gateway's NRHO and the spirographs of three-body space
 
 The orbits spacecraft fly around Lagrange points can now be drawn. Open a planet's or moon's info
