@@ -657,8 +657,9 @@ export default class ControlPanel {
 
 
   /**
-   * Each frame: the orbit list's values follow the date, and its marks the
-   * scene's state, a few times a second while it's open.
+   * Each frame: the head's distance and the orbit list's values follow the
+   * date, and its marks the scene's state, a few times a second (the list's
+   * while it's open).
    *
    * @param {number} nowMs
    */
@@ -668,7 +669,18 @@ export default class ControlPanel {
       return
     }
     state.ranMs = nowMs
-    if (!state.list.isConnected || !state.list.open || state.list.closest('.info')?.classList.contains('folded')) {
+    if (!state.list.isConnected) {
+      return
+    }
+    // The head's distance is the osculating semi-major axis, which follows
+    // the date too: built once, it was the panel's opening date's, hours
+    // of sim time stale, and a link of the view showed another.
+    const fact = this.containerElt.querySelector?.('.info-fact')
+    const text = this._factOf(state.body)
+    if (fact && text && fact.textContent !== text) {
+      fact.textContent = text
+    }
+    if (!state.list.open || state.list.closest('.info')?.classList.contains('folded')) {
       return
     }
     this._showOrbitState()

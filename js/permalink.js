@@ -216,6 +216,11 @@ export function permalinkHref(fragment, baseHref, search) {
 }
 
 
+// Days from J2000 to 6 decimals, 0.09 s: the clock a link shows comes back
+// to its second, where 4 (8.6 s) brought it back up to 4 s off.
+const TIME_DIGITS = 6
+
+
 /**
  * Encode a complete view state into a hash fragment.
  *
@@ -261,7 +266,7 @@ export function permalinkHref(fragment, baseHref, search) {
  */
 export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens, from, ev = 0, sm = 0) {
   const pos = `${trimFloat(lat)},${trimFloat(lng)},${formatMeters(Math.round(alt))}`
-  const t = `${parseFloat(d2000.toFixed(4))}jd`
+  const t = `${parseFloat(d2000.toFixed(TIME_DIGITS))}jd`
   const cq = [quat.x, quat.y, quat.z, quat.w].map(trimFloat).join(',')
   const f = `${formatFov(fov)}deg`
   let frag = `${path}${SEPARATOR}${pos}`

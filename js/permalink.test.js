@@ -27,6 +27,14 @@ import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
 
 
 describe('encodePermalink / decodePermalink round-trip', () => {
+  it('keeps the clock to a tenth of a second, so a link shows its page\'s second', () => {
+    // #293: at 4 decimals (8.6 s) a paused view came back up to 4 s off.
+    const d2000 = 9795.99822917
+    const encoded = encodePermalink('sun/earth/moon', d2000, 0, 0, 1e6, {x: 0, y: 0, z: 0, w: 1}, 45)
+    expect(encoded).toContain(';t=9795.998229jd;')
+    expect(Math.abs(decodePermalink(encoded).d2000 - d2000) * 86400).toBeLessThan(0.05)
+  })
+
   it('round-trips a realistic Earth-orbit view', () => {
     const path = 'sun/earth'
     const d2000 = 9233.1234
