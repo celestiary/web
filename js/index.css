@@ -597,7 +597,8 @@ button {
 .periodic-family,
 .periodic-frame,
 .periodic-manifolds,
-.craft-flight {
+.craft-flight,
+.population-group {
   padding: 1px var(--space-10);
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
@@ -610,7 +611,8 @@ button {
 .periodic-family:hover,
 .periodic-frame:hover,
 .periodic-manifolds:hover,
-.craft-flight:hover {
+.craft-flight:hover,
+.population-group:hover {
   border-color: var(--line-accent);
   color: var(--ink);
 }
@@ -618,7 +620,8 @@ button {
 .periodic-family:focus-visible,
 .periodic-frame:focus-visible,
 .periodic-manifolds:focus-visible,
-.craft-flight:focus-visible {
+.craft-flight:focus-visible,
+.population-group:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -626,10 +629,98 @@ button {
 .periodic-family.on,
 .periodic-frame.on,
 .periodic-manifolds.on,
-.craft-flight.on {
+.craft-flight.on,
+.population-group.on {
   border-color: var(--line-accent);
   background: var(--accent-fill);
   color: var(--ink);
+}
+
+/* A population's group switch: its colour, then its name and count
+   (ControlPanel.populationSectionHtml). */
+.population-dot {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: var(--space-4);
+  border-radius: 50%;
+  vertical-align: 0.05em;
+}
+
+/* Its search: the main search's matching, scoped to the population
+   (ControlPanel.populationResultsHtml). */
+.population-search {
+  margin: var(--space-4) var(--space-16) var(--space-6);
+}
+
+.population-search input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.population-search input:focus {
+  outline: none;
+  border-color: var(--line-accent);
+}
+
+.population-results {
+  max-height: 12em;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.population-result {
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-chip);
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.population-result.active,
+.population-result:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.population-result.is-none {
+  color: var(--ink-4);
+  cursor: default;
+}
+
+/* Its names slider, as the orbit diagrams' far-side slider; and a counted
+   group's slider, how many of it show. */
+.population-labels,
+.population-count {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: var(--space-4) var(--space-16) var(--space-6);
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.population-labels input,
+.population-count input {
+  flex: 1;
+  max-width: 10em;
+  accent-color: var(--accent);
+}
+
+.population-labels-value,
+.population-count-value {
+  min-width: 3em;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
 }
 
 /* A craft flown: its facts, under its switch (ControlPanel.craftHtml). */

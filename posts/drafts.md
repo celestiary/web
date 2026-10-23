@@ -595,3 +595,35 @@ The Earth's and the Moon's panels now have a Craft section: switch on transfer t
 
 https://celestiary.org/#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5
 ```
+
+### All of Starlink joins the satellites, with a search, and you choose which to see
+
+- ID: 2026-10-23-all-of-starlink-joins-the-satellites-with-a
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-11-26
+- Entry: 2026-10-23-all-of-starlink-joins-the-satellites-with-a
+- Image: posts/images/2026-10-23-all-of-starlink-joins-the-satellites-with-a.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-23-all-of-starlink-joins-the-satellites-with-a --hash 'sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116' --png posts/images
+- Notes:
+- Length: X 277/280, Facebook 496/500
+
+```text
+All of Starlink joins the satellites, with a search, and you choose which to see.
+
+All 11,116 Starlink satellites can now show round Earth, with a slider for how many, the first by serial number, from one to all; and Iridium's 80 in their polar planes.
+
+https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116
+```
+
+#### Facebook
+
+```text
+All of Starlink joins the satellites, with a search, and you choose which to see.
+
+All 11,116 Starlink satellites can now show round Earth, with a slider for how many, the first by serial number, from one to all; and Iridium's 80 in their polar planes. In Earth's panel, the Satellites section has a search that finds Earth's satellites alone, a switch for each kind (Starlink, Iridium, navigation, weather, the space stations...) and a slider for how many names to show.
+
+https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116
+```

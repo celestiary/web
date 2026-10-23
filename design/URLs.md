@@ -83,6 +83,8 @@ it (`js/targetPath.js`):
                         (js/scene/Galaxies.md)
 #sat:25544              an Earth satellite, by its NORAD number
                         (js/scene/satellites/Satellites.md)
+#sat:mars:12            an object of another body's population, by its body
+                        and id (js/scene/population/Population.md)
 ```
 
 - **A place or a body?**  A last segment in the body above's `system` is a
@@ -93,8 +95,9 @@ it (`js/targetPath.js`):
   it always has), a place lands there, a star or a galaxy travels, an
   asterism turns to face it (from the Sun), a satellite is ridden from 300
   km off (Earth, if it has no position at the date).
-- **A satellite's frame is Earth's**, as a place's is its body's: a view
-  near it is in Earth's frame, with no `from=`.  With `F` the camera rides
+- **A satellite's frame is its body's** (Earth's for `sat:25544`), as a
+  place's is its body's: a view near it is in that body's frame, with no
+  `from=`.  With `F` the camera rides
   the satellite again once restored.
 - **With a view** (`@…`, below) the camera is put back where the link had
   it, in its frame, and the target is set without turning it.
@@ -499,6 +502,43 @@ Decisions:
 - **App state, restored on any link that carries it**, as the `orbits:`
   token is; the families show once their pair is the target's.
 - **Unknown codes are dropped.**  No token: none on.
+
+### Population Token
+
+Each body's population (Earth's satellites, any other's: js/scene/population/Population.md)
+as its section of the info panel left it, where it isn't as it starts:
+the groups shown, how many names show, and how many of a counted group show.
+
+```
+<body>=<group>+<group>   the groups shown, by the data's keys (none: `none`); left out when all are
+<body>.labels=N          how many names show, the best known first; left out at its default
+<body>.<group>=N         how many of a counted group show, the first in its order; left out at its default
+```
+
+```
+#…;pop:earth=starlink                         Starlink alone, the default names (the three best known)
+#…;pop:earth=starlink+iridium,earth.labels=40 Starlink and Iridium, 40 named
+#…;pop:earth.labels=0                         every group, no names but the target's
+#…;pop:earth=none                             no satellites drawn
+#…;pop:earth=starlink,earth.starlink=2000     Starlink alone, its first 2,000 by serial number
+```
+
+Decisions:
+
+- **Keyed by the body**, whose population it is; the group keys are the
+  data's (CelesTrak's group names for Earth), so a new population needs
+  nothing here.
+- **The groups shown, not those hidden**, so the link says what you see
+  ("Starlink alone").  A group the data no longer has is dropped; one
+  added since shows only if the link lists it.
+- **App state, restored on any link that carries it**, as `periodic:` is.
+  A link for a population not in yet is kept, written back as it was, and
+  applied when it's added.
+- **The budget is clamped** to the names the shown groups hold, within their
+  counts; the counts are applied first.
+- **A count is keyed by the group** under the body (`earth.starlink`), as
+  the budget is by `labels`, which a group can't be called.  A body's name
+  has no dot, so the key splits at the first.
 
 ### Craft Token
 

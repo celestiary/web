@@ -972,8 +972,9 @@ One target, shown and used everywhere: what the breadcrumb shows, what the
 link's path names, what `c` faces, `g` goes to and `t` tracks.  It is a body,
 a place on one, a catalogue star, an asterism, one of SPARC's galaxies
 (`{kind: 'galaxy', galaxy, name}`, [Galaxies.md](js/scene/Galaxies.md)) or an
-Earth satellite (`{kind: 'satellite', id, name, body: 'earth'}`, Earth the
-`obj` as for a place: [Satellites.md](js/scene/satellites/Satellites.md#in-the-scene)), and **`Scene.setTarget` is
+object of a body's population, an Earth satellite first (`{kind: 'satellite',
+id, name, body}`, the body the `obj` as for a place:
+[Population.md](js/scene/population/Population.md)), and **`Scene.setTarget` is
 the only way it changes**: a click on a label, a pick in the search, Look
 at, Go, the keys (`h`, `u`, `0`-`9`), `Scene.goTo` and `Scene.land` (each
 makes where it went the target; a landing at a place keeps the place), and
@@ -1619,7 +1620,8 @@ and the provider extension contract.
 | `js/scene/LagrangeMarks.js` | The target's pairs' points, Hill spheres and synchronous orbits, drawn in the orbits group ([Lagrange.md](js/scene/Lagrange.md)) |
 | `js/scene/regimes.js` | A body's orbital regimes: Earth's shells, boundaries and orbit families, sun-synchronous orbits; the Moon's low, frozen and elliptical orbits and the ELFOs' frozen condition ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes), [near the Moon](js/scene/Lagrange.md#near-the-moon)) |
 | `js/scene/RegimeMarks.js` | The target's regimes, drawn in its equator in the orbits group; low orbits labelled at their point nearest the eye ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
-| `js/scene/satellites/` | Earth's satellites: CelesTrak's GP elements (`public/data/satellites.json`) by SGP4 (satellite.js), TEME to Earth's equator under its planetTilt, drawn in the orbits group, targeted as `{kind: 'satellite'}`, gone to and ridden ([Satellites.md](js/scene/satellites/Satellites.md)) |
+| `js/scene/population/` | A population round a body: points by group, names by a budget, group switches, target nodes, the panel's section and the `pop:` token; a subclass says where a record is (`positionAt`) ([Population.md](js/scene/population/Population.md)) |
+| `js/scene/satellites/` | Earth's satellites (a population): CelesTrak's GP elements (`public/data/satellites.json`) by SGP4 (satellite.js), TEME to Earth's equator under its planetTilt, drawn in the orbits group, targeted as `{kind: 'satellite'}`, gone to and ridden ([Satellites.md](js/scene/satellites/Satellites.md)) |
 | `js/scene/cr3bp.js` | The circular restricted three-body problem: equations, an integrator with the state-transition matrix, the correction that closes a symmetric orbit ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
 | `js/scene/periodicOrbits.js` | A pair's three-body families (Lyapunov, halo, DRO, the 9:2 NRHO) from their first guesses, sampled and swept out in space ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
 | `js/scene/craft/` | A craft integrated among the bodies on their ephemerides: the sampled ephemeris, the force model, adaptive and symplectic integrators, Lambert, a targeted transfer to the Moon, the flights offered and their drawing ([Craft.md](js/scene/Craft.md)) |
