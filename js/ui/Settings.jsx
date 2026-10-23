@@ -23,7 +23,7 @@ const KEY_LABELS = {
 /** Group rendering order in the Settings dialog.  Groups not listed here
  * (or whose entries have no group label) fall through to "Other" at the
  * bottom. */
-const GROUP_ORDER = ['Info', 'Labels', 'Orbits', 'Grids', 'Time', 'Camera', 'Targeting']
+const GROUP_ORDER = ['Info', 'Labels', 'Orbits', 'Networks', 'Grids', 'Time', 'Camera', 'Targeting']
 const OTHER_GROUP = 'Other'
 
 

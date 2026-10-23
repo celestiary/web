@@ -177,7 +177,8 @@ s=al                scene settings not at their defaults, one letter each
 
 `s=` holds the scene's toggles (asterisms `a`, labels `l` `p`, orbits `o`,
 grids `e` `c` `g`, galaxy `U`, galaxy labels `G`, globular-cluster labels
-`C`, human expansion lines `x`, the HUD `v`),
+`C`, human expansion lines `x`, the space networks `S` Starlink, `I` Iridium
+and `D` the Deep Space Network, the HUD `v`),
 plus landed `L`, tracking `T`, following `F` and AR `A` (`permalink.js`
 `SETTINGS_DEFAULTS`).  `T` is the `t` key: the camera keeps the target
 centred every frame, so a link made while tracking reloads tracking.  `F`
@@ -206,7 +207,8 @@ both: riding along while facing it).
   frame is good to ~260 km at 1 AU.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
 `U`, `G`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
-star labels off, orbits off, landed), while `e` `c` `g` `C` `L` `T` `F` `A` mean on.
+star labels off, orbits off, landed), while `e` `c` `g` `C` `S` `I` `D` `L` `T` `F` `A` mean
+on (`s=ID` is Iridium and the DSN shown: js/scene/networks/Networks.md).
 
 `G` and `C` are the `e` and `E` keys (Shift+E), Celestia's: the galaxies'
 names and the globular clusters'.  The keys can't be the letters, since `e`
@@ -709,7 +711,8 @@ brings back all of the first group.
 - the date (`t=`), the clock's pause and rate (`time:`);
 - the exposure compensation (`ev=`) and the stars' setting (`sm=`);
 - the scene toggles (`s=`): asterisms, star and planet labels, orbits, the
-  three grids, the Milky Way, human expansion lines, the HUD (`v`), landed
+  three grids, the Milky Way, human expansion lines, the space networks
+  (`S`, `I`, `D`), the HUD (`v`), landed
   (`L`), tracking (`T`), following (`F`), AR (`A`);
 - the widgets drawer, the dock, the apps pinned and running, and each app's
   controls and run (`apps`, `apps.<id>`);

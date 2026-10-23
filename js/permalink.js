@@ -77,6 +77,9 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   G: true, // galaxy labels, the 'e' key (Celestia's), shown by magnitude (Galaxies.md)
   C: false, // globular-cluster labels, the 'E' key (Celestia's); none yet (#228)
   x: true, // human expansion lines (shown once computed)
+  S: false, // Starlink, the whole constellation (scene/networks/Networks.md)
+  I: false, // Iridium NEXT and its crosslinks
+  D: false, // NASA's Deep Space Network and its live links (DSN Now)
   v: true, // nav panels / heads-up display
   L: false, // landed at surface — see Scene.land
   T: false, // tracking the target — see Scene.track

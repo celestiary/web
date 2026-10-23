@@ -52,23 +52,22 @@ satellites`, not fetched live.
   | `molniya` | `NAME=MOLNIYA` | 34 | 34 | 2026-09-21 to 10-21 |
   | `weather` | `GROUP=weather` | 73 | 73 | 2026-10-17 to 21 |
   | `geo` | `GROUP=geo` | 568 | 150 | 2026-10-15 to 21 |
-  | `starlink` | `GROUP=starlink` | (refused) | 0 | |
 
-  - **Starlink isn't in yet.**  CelesTrak answered a 403: the set hadn't
-    updated since "your last successful download" on 2026-10-22 14:50
-    UTC.  That download was another client on this session's shared
-    address, and the set had stayed the same through the outage.  The
-    policy says to stop at a refusal and report it, rather than ask again
-    or work round it with another query.  So the snapshot was built with
-    `--skip starlink`, and its header names the group.  The next `yarn
-    satellites` after the set updates fills it (300 of the constellation).
+  - **Starlink isn't in this snapshot**: the whole constellation is a
+    network overlay of its own (`S`, [Networks.md](../networks/Networks.md)),
+    so the 300-satellite sample `select.js` once took is gone, and the
+    group with it from the header.  (When this snapshot was fetched,
+    CelesTrak had refused the group with a 403, the set unchanged since
+    another client at this session's shared address had it; the policy
+    says to stop at a refusal, so it was built with `--skip starlink`.)
   - **Molniya by name:** CelesTrak no longer has a Molniya group.  The name
     query brings the Molniya satellites themselves, most of them defunct
     but still in their orbits.
-  - **The samples** (GEO, and Starlink once it's in) are spaced evenly by
-    NORAD number, so they spread over the launches and the orbital planes.
+  - **The sample** (GEO) is spaced evenly by NORAD number, so it spreads
+    over the launches and the slots.
   - **What they fill:** the regimes [Lagrange.md](../Lagrange.md#orbital-regimes)
-    draws.  LEO has the stations, Hubble and (to come) Starlink; MEO has the
+    draws.  LEO has the stations and Hubble (and Starlink and Iridium, as
+    networks); MEO has the
     GNSS planes, on the GPS marks; then the GEO ring, Molniya, and the
     weather group's sun-synchronous orbits.
   - **The stations group** also holds the craft docked at the stations
@@ -81,7 +80,8 @@ satellites`, not fetched live.
   URL and counts.  It's OMM, not TLE: the catalogue passed five digits on
   2026-07-11 (CelesTrak), and TLEs can't carry the new numbers.  The
   snapshot already has some, e.g. Soyuz MS-29, 100057.
-- **Fetching** (`tools/satellites/fetch.mjs`): one request a group, through
+- **Fetching** (`tools/satellites/fetch.mjs`, with `celestrak.mjs`, which
+  `tools/networks/fetch.mjs` shares): one request a group, through
   the proxy (`NODE_USE_ENV_PROXY=1`, which `yarn satellites` sets).  It
   stops at the first answer that isn't a 200, as CelesTrak's [usage
   policy](https://celestrak.org/usage-policy.php) asks of machine

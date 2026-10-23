@@ -156,6 +156,29 @@ export function temePosition(rec, jd, anyDate = false) {
 
 
 /**
+ * SGP4's position and velocity in TEME, km and km/s, or null, as
+ * temePosition.
+ *
+ * @param {SatRecord} rec
+ * @param {number} jd Julian Day (UTC)
+ * @param {boolean} [anyDate] propagate outside the window too
+ * @returns {?{position: {x: number, y: number, z: number}, velocity: {x: number, y: number, z: number}}}
+ */
+export function temeState(rec, jd, anyDate = false) {
+  if (!anyDate && !inWindow(rec, jd)) {
+    return null
+  }
+  const pv = sgp4(rec.satrec, (jd - rec.epochJd) * MIN_PER_DAY)
+  const p = pv?.position
+  const v = pv?.velocity
+  if (!p || !v || rec.satrec.error || !Number.isFinite(p.x) || !Number.isFinite(v.x)) {
+    return null
+  }
+  return pv
+}
+
+
+/**
  * TEME, km, to Earth's equator frame under planetTilt, m: +X the equinox
  * of date, +Y the north pole, +Z toward right ascension 270°, i.e. TEME
  * (x, y, z) → (x, z, −y), the same remap as the ecliptic's to the scene's
