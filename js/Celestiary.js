@@ -23,8 +23,9 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {
-  decodeCraftToken, decodeInfoToken, decodeOrbitsFade, decodeOrbitsToken, decodePeriodicToken, decodePermalink, decodeSettings,
-  decodeTimeToken, encodeCraftToken, encodeInfoToken, encodeOrbitsToken, encodePeriodicToken, encodePermalink, encodeTimeToken,
+  decodeCraftToken, decodeInfoToken, decodeLayersToken, decodeOrbitsFade, decodeOrbitsToken, decodePeriodicToken, decodePermalink,
+  decodeSettings, decodeTimeToken, encodeCraftToken, encodeInfoToken, encodeLayersToken, encodeOrbitsToken, encodePeriodicToken,
+  encodePermalink, encodeTimeToken,
   pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
@@ -225,9 +226,10 @@ export default class Celestiary {
     this.ui.arController = this.ar
     this._registerSearchProviders()
     this._subscribePreview()
-    // The widgets drawer and its apps are in the permalink too.
+    // The widgets drawer and its apps are in the permalink too, and the
+    // optional layers (`layers:`, the New York toggle).
     this.useStore.subscribe((state, prev) => {
-      if (state.widgets !== prev.widgets) {
+      if (state.widgets !== prev.widgets || state.newYorkOn !== prev.newYorkOn) {
         this._schedulePermalinkUpdate()
       }
     })
@@ -707,6 +709,7 @@ export default class Celestiary {
       // Position planets at the saved time before goTo() orients the platform
       this.time.setTime(fromJulianDay(pl.d2000 + J2000_JD))
       this._restoreClock(pl)
+      this._restoreLayers(pl)
       this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
       this.ui.scene.updateMatrixWorld()
       // What the link restores (going there turns following on, the
@@ -811,6 +814,23 @@ export default class Celestiary {
     this.ui.setFov(pl.fov)
     this.setExposureCompensation(pl.ev)
     this.setStarMagnitude(pl.sm)
+  }
+
+
+  /**
+   * Switch on the optional layers a link has on (the `layers:` token):
+   * New York's city, which CesiumLayers loads once the camera is over
+   * Manhattan with Earth's Cesium layer active.  On every link with a view
+   * (the first load, a followed link, What's new's), as the clock is; a link
+   * without the token leaves a layer the user switched on as it is, since
+   * the city is costly to build again.
+   *
+   * @param {object} pl The decoded link
+   */
+  _restoreLayers(pl) {
+    if (decodeLayersToken(pl.tokens?.layers).newYork) {
+      this.useStore.getState().setNewYorkOn?.(true)
+    }
   }
 
 
@@ -3212,7 +3232,8 @@ export default class Celestiary {
     }
     // The clock when it isn't running at real time (the `time:` token), the
     // info panel's lists as they were left (`info:`), the orbital elements
-    // lit on the bodies' orbits (`orbits:`), then the drawer and the apps.
+    // lit on the bodies' orbits (`orbits:`), the optional layers on
+    // (`layers:`), then the drawer and the apps.
     const tokens = {
       time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
       info: encodeInfoToken(this.controlPanel.uiState),
@@ -3220,6 +3241,7 @@ export default class Celestiary {
       periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame(),
           this.scene.getPeriodicManifolds()),
       craft: encodeCraftToken(this.scene.getCraft()),
+      layers: encodeLayersToken({newYork: this.useStore.getState().newYorkOn === true}),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(

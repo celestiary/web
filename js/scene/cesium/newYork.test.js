@@ -1,4 +1,6 @@
 import {readFileSync} from 'node:fs'
+import {createStore} from 'zustand/vanilla'
+import createLayersSlice from '../../store/LayersSlice.js'
 import CesiumLayers from './CesiumLayers.js'
 import {
   DEFAULT_GUEST_BASE,
@@ -6,6 +8,7 @@ import {
   guestBaseAllowed,
   newYorkOptions,
   newYorkRange,
+  newYorkStatus,
   NYC_LAT,
   NYC_LON,
   SHOW_BELOW_M,
@@ -190,5 +193,144 @@ describe('CesiumLayers and New York', () => {
     L.suspended = true
     L.beforeRender(null)
     expect(c.disposed).toBe(1)
+  })
+
+
+  // The store and the layers control (LayersSlice: newYorkOn, newYorkNear,
+  // newYorkStatus).  Earth's layer active is `active` holding Earth.
+  const withStore = (fromUrl = false) => {
+    const store = createStore((set, get) => createLayersSlice(set, get))
+    const L = layers(fromUrl)
+    L._newYorkFromUrl = fromUrl
+    L.ui = {useStore: store}
+    return {L, store}
+  }
+  const earthActive = (L) => {
+    L.active = [{name: 'earth', node: {}}]
+  }
+
+  it('offers the toggle only with Earth\'s Cesium layer in use and the camera in the city\'s range', () => {
+    const {L, store} = withStore()
+    // Earth's layer not drawn (celestiary's Earth, or not loaded): no toggle,
+    // even over the city.
+    L._updateNewYork({heightM: 3000}, OVER)
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkNear).toBe(false)
+    // Drawn, over the harbour: offered.
+    earthActive(L)
+    L._updateNewYork({heightM: 3000}, OVER)
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkNear).toBe(true)
+    // Too high over the city, or over London: not offered.
+    L._updateNewYork({heightM: SHOW_BELOW_M + 1000}, above(NYC_LON, NYC_LAT, SHOW_BELOW_M + 1000))
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkNear).toBe(false)
+    L._updateNewYork({heightM: 3000}, OVER)
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkNear).toBe(true)
+    L._updateNewYork({heightM: 3000}, FAR)
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkNear).toBe(false)
+    // Earth's layer gone (the user chose celestiary's Earth): the range is
+    // forgotten, so it isn't offered on the layer's return before a new one.
+    L._updateNewYork({heightM: 3000}, OVER)
+    L.active = []
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkNear).toBe(false)
+    earthActive(L)
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkNear).toBe(false)
+  })
+
+  it('offers it while Earth\'s layer warms too: loaded and wanted, its tiles not in yet', () => {
+    const {L, store} = withStore()
+    L.active = []
+    L.warming = [{name: 'earth', node: {}}]
+    L._updateNewYork({heightM: 3000}, OVER)
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkNear).toBe(true)
+    // Not the Moon's warming.
+    L.warming = [{name: 'moon', node: {}}]
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkNear).toBe(false)
+  })
+
+  it('is off by default and loads nothing until toggled on', () => {
+    const {L, store} = withStore()
+    earthActive(L)
+    L._syncNewYork(store.getState())
+    L._updateNewYork({heightM: 3000}, OVER)
+    expect(store.getState().newYorkOn).toBe(false)
+    expect(L.loads).toBe(0)
+  })
+
+  it('follows the toggle: on loads it over the city, off frees it', () => {
+    const {L, store} = withStore()
+    earthActive(L)
+    store.getState().setNewYorkOn(true)
+    L._syncNewYork(store.getState())
+    expect(L.newYork.enabled).toBe(true)
+    L._updateNewYork({heightM: 3000}, OVER)
+    expect(L.loads).toBe(1)
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkStatus).toBe('loading')
+    // Built, its set-up still staged into the frames: still loading.
+    const c = city()
+    c.stage = {chunks: 3}
+    L._newYork = {status: 'ready', city: c}
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkStatus).toBe('loading')
+    c.stage.chunks = 0
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkStatus).toBe('ready')
+    // Off: freed, and no load state.
+    store.getState().setNewYorkOn(false)
+    L._syncNewYork(store.getState())
+    expect(L.newYork.enabled).toBe(false)
+    expect(c.disposed).toBe(1)
+    L._publishNewYork(store.getState())
+    expect(store.getState().newYorkStatus).toBe(null)
+  })
+
+  it('keeps ?nyc=1 working: on in the store from the first frame', () => {
+    const {L, store} = withStore(true)
+    L._syncNewYork(store.getState())
+    expect(store.getState().newYorkOn).toBe(true)
+    L._syncNewYork(store.getState())
+    expect(L.newYork.enabled).toBe(true)
+    // And the toggle can still turn it off.
+    store.getState().setNewYorkOn(false)
+    L._syncNewYork(store.getState())
+    expect(L.newYork.enabled).toBe(false)
+  })
+
+  it('writes setNewYork (the console\'s switch) to the store, so the control and the link agree', () => {
+    const {L, store} = withStore()
+    L.setNewYork(true)
+    expect(store.getState().newYorkOn).toBe(true)
+    L._syncNewYork(store.getState())
+    expect(L.newYork.enabled).toBe(true)
+    L.setNewYork(false)
+    expect(store.getState().newYorkOn).toBe(false)
+  })
+
+  it('runs the whole frame\'s switch through beforeRender', () => {
+    const {L, store} = withStore()
+    store.getState().setNewYorkOn(true)
+    L.beforeRender(null)
+    expect(L.newYork.enabled).toBe(true)
+    expect(store.getState().newYorkNear).toBe(false)
+  })
+})
+
+
+describe('newYorkStatus', () => {
+  it('is null before the city is asked for, then its load state', () => {
+    expect(newYorkStatus(null)).toBe(null)
+    expect(newYorkStatus({status: 'loading', city: null})).toBe('loading')
+    expect(newYorkStatus({status: 'ready', city: {stage: {chunks: 2}}})).toBe('loading')
+    expect(newYorkStatus({status: 'ready', city: {stage: {chunks: 0}}})).toBe('ready')
+    expect(newYorkStatus({status: 'ready', city: {stage: null}})).toBe('ready')
+    expect(newYorkStatus({status: 'error', city: null})).toBe('error')
   })
 })

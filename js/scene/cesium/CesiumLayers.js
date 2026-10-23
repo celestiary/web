@@ -42,7 +42,7 @@ import {
   nightInView,
   sunLightDirectionEcef,
 } from './frames.js'
-import {newYorkOptions, newYorkRange} from './newYork.js'
+import {newYorkOptions, newYorkRange, newYorkStatus} from './newYork.js'
 import {groundInView, halfDiagonal, hiddenBehind, OCCLUDER_SCALE} from './visibility.js'
 import {fovScale} from '../farPoint.js'
 import {nightLightRadiance} from '../exposure.js'
@@ -106,11 +106,18 @@ export default class CesiumLayers {
     // Celestiary's simulation clock (Time), for monthly imagery; set by
     // Celestiary.  Without it, today's month.
     this.time = null
-    // Slop New York at Manhattan, drawn by Earth's Cesium layer: the page's
-    // switch (?nyc=1, newYork.js), and the city once loaded
+    // Slop New York at Manhattan, drawn by Earth's Cesium layer: the switch
+    // (the store's newYorkOn, from the layers control, the permalink's
+    // `layers:nyc` or ?nyc=1; newYork.js), and the city once loaded
     // ({status: 'loading'|'ready'|'error', city}; _updateNewYork).
     this.newYork = newYorkOptions(typeof location === 'undefined' ? '' : location.search)
     this._newYork = null
+    // ?nyc=1 is put in the store on the first frame with one (it isn't set
+    // yet when ThreeUi makes this): _syncNewYork.
+    this._newYorkFromUrl = this.newYork.enabled
+    // The city's range from Earth's camera, last frame (newYorkRange), null
+    // while Earth's layer isn't drawn.
+    this._newYorkRange = null
 
     this.shellScene = new Scene()
     this.shell = new Mesh(new SphereGeometry(1, 128, 96), new MeshBasicMaterial({
@@ -198,6 +205,7 @@ export default class CesiumLayers {
     // celestiary's own draw.
     const wanted = (name) => perf.runs('cesium') && this._wanted(name)
     this._preload(target, wanted)
+    this._syncNewYork(store)
     if (this._newYork && !(wanted('earth') && this.bodies.earth?.status === 'ready' && this.newYork.enabled)) {
       this._freeNewYork()
     }
@@ -242,6 +250,7 @@ export default class CesiumLayers {
     } else {
       this.active = active
     }
+    this._publishNewYork(store)
     // The credits follow the ground in view: none while it's only sky.
     this._showCredits()
     for (const {node} of active) {
@@ -1333,10 +1342,11 @@ export default class CesiumLayers {
    * @param {Array<number>} positionEcef Cesium's camera position this frame
    */
   _updateNewYork(body, positionEcef) {
+    const range = newYorkRange(positionEcef, body.heightM)
+    this._newYorkRange = range
     if (!this.newYork.enabled) {
       return
     }
-    const range = newYorkRange(positionEcef, body.heightM)
     const nyc = this._newYork
     if (!nyc) {
       if (range === 'show') {
@@ -1401,6 +1411,62 @@ export default class CesiumLayers {
     this.newYork.enabled = on
     if (!on) {
       this._freeNewYork()
+    }
+    const store = this.ui.useStore?.getState()
+    if (store?.setNewYorkOn && store.newYorkOn !== on) {
+      store.setNewYorkOn(on)
+    }
+  }
+
+
+  /**
+   * Follow the store's switch (the layers control's toggle, the permalink's
+   * `layers:nyc`).  `?nyc=1` turns it on in the store, once, on the first
+   * frame with a store.  Without a store (tests, a page without the app's
+   * chrome) the page's switch stands alone.
+   *
+   * @param {object} [store] The store's state this frame
+   */
+  _syncNewYork(store) {
+    if (typeof store?.setNewYorkOn !== 'function') {
+      return
+    }
+    if (this._newYorkFromUrl) {
+      this._newYorkFromUrl = false
+      if (this.newYork.enabled && store.newYorkOn !== true) {
+        store.setNewYorkOn(true)
+        return
+      }
+    }
+    const on = store.newYorkOn === true
+    if (on !== this.newYork.enabled) {
+      this.setNewYork(on)
+    }
+  }
+
+
+  /**
+   * Publish for the layers control whether the city can show from here
+   * (Earth's Cesium layer in use, the camera in the city's range: 'show') and
+   * its load state, when either changes.  In use is active or warming: loaded
+   * and wanted, its tiles for the view perhaps not in yet (on a slow GPU
+   * that lasts; the city loads meanwhile and shows with the layer).
+   *
+   * @param {object} [store] The store's state this frame
+   */
+  _publishNewYork(store) {
+    const isEarth = (a) => a.name === 'earth'
+    const earthInUse = this.active.some(isEarth) || this.warming.some(isEarth)
+    if (!earthInUse) {
+      this._newYorkRange = null
+    }
+    if (typeof store?.setNewYorkState !== 'function') {
+      return
+    }
+    const near = earthInUse && this._newYorkRange === 'show'
+    const status = newYorkStatus(this._newYork)
+    if (store.newYorkNear !== near || store.newYorkStatus !== status) {
+      store.setNewYorkState({near, status})
     }
   }
 

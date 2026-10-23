@@ -6,8 +6,10 @@ import {
   decodeOrbitsFade,
   decodeOrbitsToken,
   decodeCraftToken,
+  decodeLayersToken,
   decodePeriodicToken,
   encodeCraftToken,
+  encodeLayersToken,
   encodePeriodicToken,
   decodeSettings,
   decodeTimeToken,
@@ -803,6 +805,36 @@ describe('the craft token', () => {
     // And written again from what it restored, the same link.
     expect(encodePermalink(back.path, back.d2000, back.lat, back.lng, back.alt, back.quat, back.fov, null,
         {time: back.tokens.time, craft: encodeCraftToken(decodeCraftToken(back.tokens.craft))})).toBe(link)
+  })
+})
+
+
+describe('the layers token', () => {
+  it('writes the optional layers switched on, and nothing at the defaults', () => {
+    expect(encodeLayersToken({newYork: true})).toBe('nyc')
+    expect(encodeLayersToken({newYork: false})).toBeNull()
+    expect(encodeLayersToken(undefined)).toBeNull()
+  })
+
+  it('reads them back, ignoring what it doesn\'t know', () => {
+    expect(decodeLayersToken('nyc')).toEqual({newYork: true})
+    expect(decodeLayersToken('nyc,later,earth=default')).toEqual({newYork: true})
+    expect(decodeLayersToken('')).toEqual({newYork: false})
+    expect(decodeLayersToken(undefined)).toEqual({newYork: false})
+  })
+
+  it('round-trips through a link: the aerial of Lower Manhattan, the city on', () => {
+    const link = encodePermalink('sun/earth', 9792.377067, 40.5025, -74.0298, 780,
+        {x: 0.2348, y: -0.1201, z: -0.2007, w: 0.9435}, 45, null, {layers: encodeLayersToken({newYork: true})})
+    expect(link).toBe('sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;layers:nyc')
+    const back = decodePermalink(link)
+    expect(decodeLayersToken(back.tokens.layers)).toEqual({newYork: true})
+    expect(encodePermalink(back.path, back.d2000, back.lat, back.lng, back.alt, back.quat, back.fov, null,
+        {layers: encodeLayersToken(decodeLayersToken(back.tokens.layers))})).toBe(link)
+    // Off, no token: the link is just the view.
+    expect(encodePermalink('sun/earth', 9792.377067, 40.5025, -74.0298, 780,
+        {x: 0.2348, y: -0.1201, z: -0.2007, w: 0.9435}, 45, null, {layers: encodeLayersToken({newYork: false})}))
+        .not.toContain('layers:')
   })
 })
 

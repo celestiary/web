@@ -30,8 +30,10 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1'])
 
 
 /**
- * The page's New York switch: `?nyc=1` turns it on (off by default, an
- * experiment); `?nycGuest=<url>` loads the guest from another copy of
+ * The page's New York switch at load: `?nyc=1` turns it on (off by default:
+ * the city costs ~140 MB and seconds to build; the layers control's toggle
+ * and the permalink's `layers:nyc` turn it on too, through the store's
+ * `newYorkOn`); `?nycGuest=<url>` loads the guest from another copy of
  * slop-newyork (its PR preview, say, `.../slop-newyork/pr-preview/pr-1/`),
  * if allowed (guestBaseAllowed); `?nycShadows=1` draws the city's sun
  * shadows (off: a shadow map is two more renders of the city a frame);
@@ -138,4 +140,25 @@ export function newYorkRange(cameraEcef, heightM) {
     return 'show'
   }
   return d > FREE_BEYOND_M ? 'free' : 'keep'
+}
+
+
+/**
+ * The city's load state for the layers control: null before it is asked
+ * for (or once freed), 'loading' while the guest builds and then while its
+ * set-up is still being replayed into the frames, a chunk a frame (the lean
+ * city's stage: netglLean.js stageLink), 'ready' once it draws, 'error' if
+ * it failed (not retried until the switch goes off and on).
+ *
+ * @param {?{status: string, city: ?object}} nyc CesiumLayers._newYork
+ * @returns {?('loading'|'ready'|'error')}
+ */
+export function newYorkStatus(nyc) {
+  if (!nyc) {
+    return null
+  }
+  if (nyc.status === 'ready' && nyc.city?.stage?.chunks > 0) {
+    return 'loading'
+  }
+  return nyc.status
 }

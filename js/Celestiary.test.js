@@ -298,6 +298,11 @@ function makeStubStore() {
   // every state it was in.
   state.newsTour = null
   state.newsTours = []
+  // The New York layer's switch (LayersSlice), for the `layers:` token.
+  state.newYorkOn = false
+  state.setNewYorkOn = (on) => {
+    state.newYorkOn = on
+  }
   state.setNewsTour = (tour) => {
     state.newsTour = tour
     state.newsTours.push(tour)
@@ -996,6 +1001,21 @@ describe('the target in the link', () => {
     expect(Shared.targets.obj).toBe(app.scene.objects.earth)
     expect(Shared.targets.cur).toBe(app.scene.objects.earth)
     expect(app.permalink().startsWith('sun/earth@30.2638,-97.7526,400km;t=9233jd;')).toBe(true)
+  })
+
+  it('the New York layer: a link with layers:nyc switches it on, and the link then carries it', async () => {
+    const plain = await open(TEST_FRAGMENT)
+    expect(plain.useStore.getState().newYorkOn).toBe(false)
+    expect(plain.permalink()).not.toContain('layers:')
+    const app = await open(`${TEST_FRAGMENT};layers:nyc`)
+    expect(app.useStore.getState().newYorkOn).toBe(true)
+    expect(app.permalink().endsWith(';layers:nyc')).toBe(true)
+    // Switched off (the layers control's toggle): out of the link.
+    app.useStore.getState().setNewYorkOn(false)
+    expect(app.permalink()).not.toContain('layers:')
+    // Unknown flags in it are ignored.
+    const later = await open(`${TEST_FRAGMENT};layers:later`)
+    expect(later.useStore.getState().newYorkOn).toBe(false)
   })
 
   it('"t" tracks the target: a place, as Earth turns', async () => {

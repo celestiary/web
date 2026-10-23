@@ -1,10 +1,10 @@
 {
   "entries": [
     {
-      "id": "2026-10-23-an-experiment-new-york-s-streets-and-towers-on",
+      "id": "2026-10-23-new-york-in-3d-manhattan-s-streets-and-towers",
       "date": "2026-10-23",
-      "headline": "An experiment: New York's streets and towers on Earth, at Manhattan",
-      "text": "Add ?nyc=1 to celestiary's address, fly to Earth and come down over New York, within a few tens of kilometres and under 30 km up: Slop New York, a 3D model of Manhattan's buildings, streets, parks and piers, appears at its place on the globe, lit by the same Sun at the simulation's time and hazed by the same air. It is an early experiment, off unless you ask for it: the city is a separate app that celestiary loads only then, and its lights don't show at night yet.",
+      "headline": "New York in 3D: Manhattan's streets and towers on Earth",
+      "text": "Come down over New York, within a few tens of kilometres of Manhattan and under 30 km up, open the layers button at the top right and switch on New York (3D city). Slop New York, a 3D model of Manhattan's buildings, streets, parks and piers, builds in a few seconds and stands at its place on the globe, lit by the same Sun at the simulation's time and hazed by the same air. It stays off until you switch it on, since it's a big download (about 140 MB), and a link you share keeps it on. Its lights don't show at night yet.",
       "links": [
         {
           "kind": "pr",
@@ -17,8 +17,9 @@
         "title": "Earth appearance parity across the Cesium swap",
         "url": "https://github.com/celestiary/web/issues/110"
       },
-      "permalink": null,
-      "image": null
+      "permalink": "#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;time:pause;layers:nyc",
+      "image": null,
+      "featured": true
     },
     {
       "id": "2026-10-23-fly-a-spacecraft-to-the-moon",

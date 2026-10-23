@@ -39,18 +39,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
-### An experiment: New York's streets and towers on Earth, at Manhattan
+### New York in 3D: Manhattan's streets and towers on Earth
 
-Add `?nyc=1` to celestiary's address, fly to Earth and come down over New York, within a few tens of
-kilometres and under 30 km up: Slop New York, a 3D model of Manhattan's buildings, streets, parks and
-piers, appears at its place on the globe, lit by the same Sun at the simulation's time and hazed by the
-same air. It is an early experiment, off unless you ask for it: the city is a separate app that
-celestiary loads only then, and its lights don't show at night yet.
+Come down over New York, within a few tens of kilometres of Manhattan and under 30 km up, open the
+layers button at the top right and switch on *New York (3D city)*. Slop New York, a 3D model of
+Manhattan's buildings, streets, parks and piers, builds in a few seconds and stands at its place on the
+globe, lit by the same Sun at the simulation's time and hazed by the same air. It stays off until you
+switch it on, since it's a big download (about 140 MB), and a link you share keeps it on. Its lights
+don't show at night yet.
 
 - Date: 2026-10-23
 - PR: [#287](https://github.com/celestiary/web/pull/287)
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
-- Permalink: none
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;time:pause;layers:nyc)
+- Featured: yes
 
 ### Fly a spacecraft to the Moon
 

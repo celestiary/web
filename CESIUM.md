@@ -967,7 +967,9 @@ draws, not just what it selects.
 [Slop New York](https://github.com/pablo-mayrgundter/slop-newyork), a
 three.js city of Manhattan (WebGPURenderer on its WebGL2 backend), drawn
 at its place on Earth's Cesium layer, standing on Cesium's terrain and
-composited with it by depth.  An experiment, behind a switch: `?nyc=1`.
+composited with it by depth.  A layer you switch on: *New York (3D city)* in
+the layers control, offered over Manhattan with Earth's Cesium layer active;
+`layers:nyc` in the permalink, and `?nyc=1` as before.
 
 ```
 celestiary (three.js 0.171)              the host
@@ -999,11 +1001,33 @@ recorder, which interns them as it does its own.
 
 **The switch and the load** (`newYork.js`, `CesiumLayers._updateNewYork`):
 
-- `?nyc=1` turns it on for the page (`layers.setNewYork(on)` from the
-  console).  Off, nothing of it loads or runs: frames are bit for bit
-  main's (Checked headless, below).
-- Loaded the first time the camera is over the city with Earth's layer
-  active: within `SHOW_WITHIN_M` (60 km) of 5th Avenue and 42nd Street and
+- **The control.**  The layers button (top right, under the navigation
+  controls) opens Earth's renderer picker, *Celestiary | Cesium*.  Under its
+  tiles, a switch, *New York (3D city)*, shows only while the city can be
+  drawn: Earth's Cesium layer in use (Cesium chosen, loaded and in view, its
+  tiles in or still coming) and the camera in the city's range, `newYorkRange` 'show' (below).  Elsewhere it is hidden,
+  not disabled: it's a place's layer, and the picker everywhere else stays as
+  it was.  Its caption is the cost while off ("Manhattan's buildings, about
+  140 MB"), and while on the city's state: a spinner and "Building the
+  city…" from the switch until the guest has built and its staged set-up has
+  replayed into the frames (`newYorkStatus`: the guest's `createNewYork`,
+  then `stage.chunks` > 0; a chunk a frame the city is in view, since Cesium
+  calls its renderer only then, so a city built out of view finishes once
+  it's looked at), then "Slop New York, on Cesium's Earth", or "The
+  city couldn't load" (off and on again retries).  Off by default.
+- **The state** is the store's (`LayersSlice`): `newYorkOn`, the switch,
+  which the control, the permalink and `?nyc=1` set and CesiumLayers follows
+  each frame (`_syncNewYork`); `newYorkNear` and `newYorkStatus`, which
+  CesiumLayers publishes (`_publishNewYork`) for the control.
+  `layers.setNewYork(on)` from the console writes the store too.
+- **The permalink**: `layers:nyc` while it is on (design/URLs.md [layers
+  token](design/URLs.md#layers-token)), read on every link with a view, which
+  only turns it on.  `?nyc=1` turns it on at load (into the store on the
+  first frame: CesiumLayers is made before the store is set).
+- Off, nothing of it loads or runs: frames are bit for bit main's (Checked
+  headless, below).
+- Loaded the first time the camera is over the city with the switch on and
+  Earth's layer active: within `SHOW_WITHIN_M` (60 km) of 5th Avenue and 42nd Street and
   under `SHOW_BELOW_M` (30 km).  Drawn there (`renderer.show`), not drawn
   farther out, and freed past `FREE_BEYOND_M` (300 km), or when the switch
   goes off, Earth's layer stops being wanted (the user chose celestiary's
@@ -1074,6 +1098,13 @@ three.js served from local copies):
 - The switch off: celestiary's frame is bit for bit main's, the canvas and
   the float scene buffer, in the same view with the clock paused (portal-
   netgl 0.3.0 and the patched Cesium included).
+- The control (800x500, the aerial of Lower Manhattan from 780 m, the clock
+  paused; slop-newyork served locally by `?nycGuest=`): the switch offered
+  once Earth's layer was in use there, off, its caption the cost; switched
+  on, "Building the city…" with its spinner, the link rewritten with
+  `layers:nyc`; the city in 3.5 minutes on SwiftShader, the caption then
+  "Slop New York, on Cesium's Earth".  The same view opened with
+  `;layers:nyc` loaded the city with no click (2.5 minutes).
 - Freed (`setNewYork(false)`): no external renderer left, the city's shadow
   context lost, and the next frame equal, in Cesium's frame and the scene
   buffer, to the frame with the city hidden; on again, it loads and draws
@@ -1274,6 +1305,20 @@ say `units: 'stored'`, for a host that hands it a frame in stored values):
   city on real ground haven't run here: the session's ion token is
   refused.  Check on the PR preview over Manhattan: the piers at the
   water, no gap under the buildings.
+- *Its long-term home.*  The layer is wired here for now: celestiary's
+  `newYorkGuest.js` loads slop-newyork's guest from its site at run time and
+  hangs it on Earth's widget through our Cesium patch, with the colour
+  stopgaps on celestiary's side.  It belongs longer term with Earth's other
+  extended assets (3D cities and the like) outside celestiary: in our custom
+  Cesium ([celestiary/cesium](https://github.com/celestiary/cesium), next to
+  the external renderers it rides on), or in a new repo that gathers them.
+  From there it would be imported first as an intermediate dependency (a
+  package celestiary pins, in place of the guest URL and the wiring here),
+  and finally loaded by celestiary as a dynamic layer: discovered with its
+  range and cost from that package or a manifest, offered in the layers
+  control by where the camera is, and fetched only when switched on, as it
+  is now.  The control, the `layers:` token and `newYorkRange` are written to
+  carry more such layers (a flag each).
 
 ## Patching Cesium
 
@@ -1380,7 +1425,9 @@ imagery layer that asks for its endpoint only when a tile needs it.
   forward celestiary's clicks to `scene.pick` on the active widget.
 - Night lights: done in #93 (Night lights, above).  Left: a bundled low-level
   copy of the Black Marble for offline use.  Clouds dim them since #88.
-- Persist the layer choice in the permalink.
+- Persist the layer choice in the permalink: the `layers:` token has New
+  York's switch (`layers:nyc`); the renderer chosen per body
+  (`layers:earth=default`) is left.
 - At a telescope's field the narrow-field clamp (Detail at narrow fields
   of view) keeps the Moon's tiles at a 21″ pixel's detail: at 0.91° over
   879 px the lit limb is as round as celestiary's sphere (0.47 px rms
@@ -1423,7 +1470,7 @@ New:
 - `js/scene/cesium/CesiumLayers.js` (+ test) — lazy Cesium + NetGL link, stencil
   shell, per-frame coupling, activation.
 - `js/scene/cesium/newYork.js` (+ test) — New York's switch, where its
-  guest loads from, and when it's wanted. Pure.
+  guest loads from, when it's wanted and its load state for the control. Pure.
 - `js/scene/cesium/newYorkGuest.js` — New York loaded and wired into Earth's
   widget: its link, ground, external renderer, colour stopgaps, the lean
   options (New York).
@@ -1435,8 +1482,9 @@ New:
   asks ion for Bing imagery (Cesium ion sessions). Pure.
 - `js/store/LayersSlice.js` — `layerBody` (in-range capable body or
   null), `bodyLayers` (per-body choice; `bodyLayer()` applies the
-  default).
-- `js/ui/LayersButton.jsx` — the control.
+  default), New York's `newYorkOn`, `newYorkNear`, `newYorkStatus`.
+- `js/ui/LayersButton.jsx` (+ test) — the control, with New York's switch
+  (`NewYorkToggle`, `newYorkControl`).
 
 Changed:
 
