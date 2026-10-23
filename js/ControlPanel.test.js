@@ -52,6 +52,27 @@ describe('ControlPanel', () => {
     expect(html).toMatch(/<a class="orbit-guide" href="guide\/orbit#orbit:body=io,a=421800000,[^"]*lit=i\+peri">/)
   })
 
+  it('keeps the head\'s distance at the date as time runs, the orbit list shut', () => {
+    // The osculating semi-major axis follows the date: a panel built hours of
+    // sim time earlier showed its opening date's, and a link of the view
+    // another (#293).
+    const panel = new ControlPanel(null, null)
+    let a = 384400e3
+    panel.orbitHooks = {elementsOf: () => ({a, e: 0.05, i: 5, node: 0, peri: 0, meanAnomaly: 0})}
+    const fact = {textContent: '384,400 km from Earth'}
+    panel.containerElt = {querySelector: (sel) => (sel === '.info-fact' ? fact : null)}
+    panel._orbit = {body: {name: 'moon', parent: 'earth', orbit: {}}, list: {isConnected: true, open: false}, ranMs: 0}
+    a = 386463e3
+    panel.frame(1000)
+    expect(fact.textContent).toBe('386,463 km from Earth')
+    // A few times a second, not every frame.
+    a = 385866e3
+    panel.frame(1100)
+    expect(fact.textContent).toBe('386,463 km from Earth')
+    panel.frame(1300)
+    expect(fact.textContent).toBe('385,866 km from Earth')
+  })
+
   it('shows a body as a head, its key rows, and sections that open on request', () => {
     const panel = new ControlPanel(null, null)
     panel.spaceHook = () => null
@@ -181,6 +202,17 @@ describe('ControlPanel', () => {
     const space = panel.spaceAround('earth')
     expect(space.peek).toBe('Hill sphere, Lagrange points, three-body orbits')
     expect(space.html.indexOf('Three-body orbits')).toBeGreaterThan(space.html.indexOf('Hill sphere'))
+  })
+
+  it('lists the craft that can be flown about the body, with a flown one\'s facts', () => {
+    const panel = new ControlPanel(null, null)
+    expect(panel.craftHtml('earth')).toBe('')
+    panel.craftHooks = {list: () => [{code: 'tli', name: 'transfer to the Moon', on: true, text: 'leaves 2026-10-23'}]}
+    const html = panel.craftHtml('earth')
+    expect(html).toContain('class="craft-flight on" data-code="tli"')
+    expect(html).toContain('<div class="info-subhead">Craft</div>')
+    expect(html).toContain('<dt>transfer to the Moon</dt>')
+    expect(html).toContain('<span class="craft-facts">leaves 2026-10-23</span>')
   })
 
   it('writes masses in scientific notation', () => {

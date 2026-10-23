@@ -596,7 +596,8 @@ button {
 
 .periodic-family,
 .periodic-frame,
-.periodic-manifolds {
+.periodic-manifolds,
+.craft-flight {
   padding: 1px var(--space-10);
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
@@ -608,24 +609,33 @@ button {
 
 .periodic-family:hover,
 .periodic-frame:hover,
-.periodic-manifolds:hover {
+.periodic-manifolds:hover,
+.craft-flight:hover {
   border-color: var(--line-accent);
   color: var(--ink);
 }
 
 .periodic-family:focus-visible,
 .periodic-frame:focus-visible,
-.periodic-manifolds:focus-visible {
+.periodic-manifolds:focus-visible,
+.craft-flight:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
 .periodic-family.on,
 .periodic-frame.on,
-.periodic-manifolds.on {
+.periodic-manifolds.on,
+.craft-flight.on {
   border-color: var(--line-accent);
   background: var(--accent-fill);
   color: var(--ink);
+}
+
+/* A craft flown: its facts, under its switch (ControlPanel.craftHtml). */
+.craft-facts {
+  flex-basis: 100%;
+  color: var(--ink-3);
 }
 
 /* A body's system: chips that fly there. */
