@@ -32,7 +32,7 @@
     "bodies": "node tools/bodies/build.mjs",
     "stars": "bun tools/stars/build.mjs",
     "changelog": "node tools/changelog/json.mjs",
-    "satellites": "node tools/satellites/fetch.mjs",
+    "satellites": "NODE_USE_ENV_PROXY=1 node tools/satellites/fetch.mjs",
     "changelog:draft": "node tools/changelog/draft.mjs",
     "posts": "node tools/posts/posts.mjs"
   },

@@ -10,29 +10,29 @@ import {
 } from 'three'
 import SpriteSheet from '../SpriteSheet.js'
 import {sceneReferred} from '../hdr.js'
-import {SATELLITES_LOAD_DIST, displayName, satelliteTarget} from './names.js'
+import {SATELLITES_LOAD_DIST, displayName, isKnown, satelliteTarget} from './names.js'
 import {temePosition, temeToEquator} from './sgp4.js'
 
 
 // Earth's satellites, drawn (Satellites.md): a point each, on the overlay
-// layer in the orbits group (`o`), the stations named, and a node for each
+// layer in the orbits group (`o`), the best known named, and a node for each
 // satellite that is targeted or ridden, which the camera can hang from.
 // Hung from Earth's planetTilt (+Y the pole, +X the equinox of date), so a
 // position is SGP4's TEME taken to that frame (sgp4.js temeToEquator), and
 // moved each frame from the Julian Day animated (preAnimCb).
 
 
-/** The snapshot's groups (tools/satellites/fetch.mjs): colour, and whether named. */
+/** The snapshot's groups (tools/satellites/fetch.mjs): colour, and what they are. */
 export const GROUPS = {
-  stations: {color: 0xfff2c0, named: true, text: 'space stations'},
-  science: {color: 0xffd0a0, named: true, text: 'science'},
-  gnss: {color: 0x9fe09f, named: false, text: 'navigation (GPS, GLONASS, Galileo, BeiDou)'},
-  starlink: {color: 0x7fd0ff, named: false, text: 'Starlink (a sample)'},
-  geo: {color: 0xd0d0d0, named: false, text: 'geostationary (a sample)'},
-  molniya: {color: 0xff9f9f, named: false, text: 'Molniya orbits'},
-  weather: {color: 0xfff07f, named: false, text: 'weather (sun-synchronous and geostationary)'},
+  stations: {color: 0xfff2c0, text: 'space stations'},
+  science: {color: 0xffd0a0, text: 'science'},
+  gnss: {color: 0x9fe09f, text: 'navigation (GPS, GLONASS, Galileo, BeiDou)'},
+  starlink: {color: 0x7fd0ff, text: 'Starlink (a sample)'},
+  geo: {color: 0xd0d0d0, text: 'geostationary (a sample)'},
+  molniya: {color: 0xff9f9f, text: 'Molniya orbits'},
+  weather: {color: 0xfff07f, text: 'weather (sun-synchronous and geostationary)'},
 }
-const OTHER = {color: 0xc8c8c8, named: false}
+const OTHER = {color: 0xc8c8c8}
 
 const POINT_SIZE_PX = 3.5
 // Past this far from Earth's centre the points are a smudge round its own
@@ -74,7 +74,10 @@ export default class Satellites extends Group {
     // The nodes made for targets, by id, and the names, by id.
     this.nodes = new Map
     this.labels = new Map
-    this._wantLabels = new Set(records.filter((r) => (GROUPS[r.group] ?? OTHER).named).map((r) => r.id))
+    // The best known (names.js KNOWN): the stations group also holds the
+    // craft docked at them and the cubesats they let go, whose names would
+    // pile up on the station's.
+    this._wantLabels = new Set(records.filter(isKnown).map((r) => r.id))
     this._targetId = null
     this.jd = NaN
     this.drawnCount = 0
@@ -271,7 +274,7 @@ export default class Satellites extends Group {
 
 
   /**
-   * Make the names wanted (the named groups' and the target's) and drop the
+   * Make the names wanted (the best known and the target's) and drop the
    * rest, and lay them on their satellites.  In the animation loop, as the
    * sheets draw to a canvas.
    *

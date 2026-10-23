@@ -81,9 +81,9 @@ describe('satellites against Horizons', () => {
     for (const row of iss.rows) {
       const p = temePosition(rec, row.jd)
       const err = temeInScene(p, J2000_OBLIQUITY).distanceTo(horizonsInScene(row))
-      // Horizons' ISS is TLE-based too (its own fit): a few km a day off
-      // the epoch.
-      expect(err).toBeLessThan(Math.abs(row.jd - rec.epochJd) < 0.3 ? 5 : 20)
+      // Horizons' ISS is fitted from the same elements (0.00 km at the
+      // epoch); 0.6 km 6 h off, 1.5 km a day off, when fetched.
+      expect(err).toBeLessThan(Math.abs(row.jd - rec.epochJd) < 0.3 ? 1 : 3)
     }
   })
 })

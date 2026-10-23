@@ -18,6 +18,15 @@ const KNOWN = {
 
 /**
  * @param {object} rec
+ * @returns {boolean} whether it's one of the best known, named in the scene
+ */
+export function isKnown(rec) {
+  return rec.id in KNOWN
+}
+
+
+/**
+ * @param {object} rec
  * @returns {string} what to call it
  */
 export function displayName(rec) {

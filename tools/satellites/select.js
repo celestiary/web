@@ -15,7 +15,8 @@ export const GROUP_QUERIES = [
   // Hubble isn't in a group of its own.
   {group: 'science', query: {CATNR: '20580'}},
   {group: 'gnss', query: {GROUP: 'gnss'}},
-  {group: 'molniya', query: {GROUP: 'molniya'}},
+  // CelesTrak has no Molniya group any more: the satellites by name.
+  {group: 'molniya', query: {NAME: 'MOLNIYA'}},
   {group: 'weather', query: {GROUP: 'weather'}},
   {group: 'geo', query: {GROUP: 'geo'}, keep: 150},
   {group: 'starlink', query: {GROUP: 'starlink'}, keep: 300},
@@ -72,14 +73,14 @@ export function buildSnapshot(fetched, date) {
   const seen = new Set
   const rows = []
   const groups = {}
-  for (const {group, records, keep, url} of fetched) {
+  for (const {group, records, keep, url, error} of fetched) {
     const fresh = records.filter((r) => !seen.has(r.NORAD_CAT_ID) && r.MEAN_MOTION > 0)
     const kept = sample(fresh, keep)
     kept.forEach((r) => {
       seen.add(r.NORAD_CAT_ID)
       rows.push(toRow(r, group))
     })
-    groups[group] = {url, of: records.length, kept: kept.length}
+    groups[group] = error ? {url, of: 0, kept: 0, error} : {url, of: records.length, kept: kept.length}
   }
   return {
     source: 'CelesTrak GP data (https://celestrak.org/NORAD/elements/), OMM, ' +

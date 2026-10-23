@@ -176,6 +176,27 @@ describe('Scene and the satellites', () => {
     expect(offset().distanceTo(before)).toBeLessThan(1)
   })
 
+  it('arrives above a satellite on Earth\'s far side, not under it', async () => {
+    const sys = solarSystem()
+    await sys.s.loadSatellites()
+    animate(sys, EPOCH_JD)
+    const node = sys.s.satellites.node(25544)
+    const earthAt = sys.earth.getWorldPosition(new Vector3)
+    const up = node.getWorldPosition(new Vector3).sub(earthAt).normalize()
+    // The camera far out on the other side of Earth.
+    sys.camera.position.copy(earthAt).addScaledVector(up, -2e8)
+    sys.scene.updateMatrixWorld()
+    sys.s.setTarget(ISS, {look: false})
+    sys.s.goTo()
+    // Run the tween to its end: read where it puts the camera.
+    Shared.targets.tween.update(Infinity)
+    sys.scene.updateMatrixWorld()
+    const cam = sys.camera.getWorldPosition(new Vector3)
+    const satAt = node.getWorldPosition(new Vector3)
+    expect(cam.distanceTo(earthAt)).toBeGreaterThan(satAt.distanceTo(earthAt))
+    expect(cam.distanceTo(satAt)).toBeCloseTo(300e3, -3)
+  })
+
   it('leaves a satellite for Earth\'s frame when following goes off', async () => {
     const sys = solarSystem()
     await sys.s.loadSatellites()

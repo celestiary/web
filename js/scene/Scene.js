@@ -79,6 +79,9 @@ export function formatLatLng(lat, lng) {
 
 
 const STEP_BACK = 10
+// A go to a satellite arrives above it unless the line in already does:
+// the cosine of the line from the vertical, at least.
+const SAT_ARRIVAL_MIN_UP = 0.3
 
 
 /**
@@ -1770,6 +1773,15 @@ export default class Scene {
       dir.normalize()
     } else {
       dir.set(0, 0, 1)
+    }
+    // A satellite from below its height (Earth's far side, or under it)
+    // would leave the camera beneath it, facing away from Earth, or inside
+    // Earth for one under 300 km up: arrive above it instead, Earth behind.
+    if (sat) {
+      const up = targetWorldPos.clone().sub(obj.getWorldPosition(new Vector3())).normalize()
+      if (dir.dot(up) < SAT_ARRIVAL_MIN_UP) {
+        dir.copy(up)
+      }
     }
     const camDist = sat ? sat.arrivalDistance : isPlanet ? this.arrivalDistance(obj) :
       isGalaxy ? star.viewDistance : (star.radius * STEP_BACK)

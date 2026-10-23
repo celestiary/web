@@ -31,6 +31,9 @@ describe('satellites snapshot', () => {
     ], '2026-10-23T00:00:00Z')
     expect(snap.rows.map((r) => [r[0], r[2]])).toEqual([[25544, 'stations'], [40000, 'gnss']])
     expect(snap.groups.gnss).toEqual({url: 'b', of: 3, kept: 1})
+    // A group CelesTrak refused is named, for the next run.
+    const partial = buildSnapshot([{group: 'starlink', records: [], url: 'c', error: '403'}], 'x')
+    expect(partial.groups.starlink).toEqual({url: 'c', of: 0, kept: 0, error: '403'})
     const recs = parseCatalog(snap)
     expect(recs.map((r) => r.id)).toEqual([25544, 40000])
     expect(recs[1].group).toBe('gnss')

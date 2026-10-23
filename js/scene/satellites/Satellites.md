@@ -3,7 +3,7 @@
 [#50](https://github.com/celestiary/web/issues/50), in
 [#114](https://github.com/celestiary/web/issues/114).  Satellites from
 CelesTrak's GP data (their mean elements, as OMM), propagated by SGP4 to the
-simulation's date and drawn round Earth: a point each, the stations named,
+simulation's date and drawn round Earth: a point each, the best known named,
 each one targetable, searchable and linkable, and gone to and ridden like a
 body.
 
@@ -34,37 +34,69 @@ satellites`, not fetched live.
 
 - **Why a snapshot.**  The app is a time machine. A live fetch serves only
   dates near today, and links, previews and tests would change under it.
-  CelesTrak also asks clients to fetch a group at most once every two hours,
-  and blocks those that ask more.  A snapshot is small: a few hundred
-  satellites are tens of KB gzipped, well under the data policy's line for
-  plain git (DESIGN.md, [data policy](../../../DESIGN.md#data-policy)).
-- **What's in it** (`select.js` `GROUP_QUERIES`).  Each satellite appears
+  CelesTrak's usage policy also asks clients to fetch each data set at most
+  once per update (every two hours for GP data), and it enforces that.  A
+  snapshot is small: 450 satellites are 69 KB, 24 KB gzipped, well under
+  the data policy's line for plain git (DESIGN.md, [data
+  policy](../../../DESIGN.md#data-policy)).
+- **The snapshot** was fetched 2026-10-23 08:48 UTC.  Its elements' epochs
+  run up to 2026-10-21, two days earlier, because CelesTrak had an outage
+  just before.  What's in it (`select.js` `GROUP_QUERIES`), each satellite
   once, under the first group that has it:
-  - `stations`: the ISS, Tiangong and the rest of CelesTrak's stations group,
-    all named in the scene.
-  - `science`: the Hubble Space Telescope (CATNR 20580).
-  - `gnss`: GPS, GLONASS, Galileo and BeiDou, all of them.
-  - `molniya`: CelesTrak's Molniya-orbit group.
-  - `weather`: weather satellites, sun-synchronous and geostationary.
-  - `geo`: 150 of the active geostationary satellites.
-  - `starlink`: 300 of the constellation.
-  
-  The two samples are spaced evenly by NORAD number, so they spread over the
-  launches and the orbital planes.  Together they fill the regimes
-  [Lagrange.md](../Lagrange.md#orbital-regimes) draws: LEO (the stations and
-  Starlink), MEO (the GNSS planes, on the GPS marks), GEO (the ring),
-  Molniya, and sun-synchronous orbits.
+
+  | Group | Query | In CelesTrak's | Kept | Epochs |
+  |---|---|---|---|---|
+  | `stations` | `GROUP=stations` | 21 | 21 | 2026-10-19 to 21 |
+  | `science` | `CATNR=20580` (Hubble) | 1 | 1 | 2026-10-21 |
+  | `gnss` | `GROUP=gnss` (GPS, GLONASS, Galileo, BeiDou) | 171 | 171 | 2026-09-22 to 10-21 |
+  | `molniya` | `NAME=MOLNIYA` | 34 | 34 | 2026-09-21 to 10-21 |
+  | `weather` | `GROUP=weather` | 73 | 73 | 2026-10-17 to 21 |
+  | `geo` | `GROUP=geo` | 568 | 150 | 2026-10-15 to 21 |
+  | `starlink` | `GROUP=starlink` | (refused) | 0 | |
+
+  - **Starlink isn't in yet.**  CelesTrak answered a 403: the set hadn't
+    updated since "your last successful download" on 2026-10-22 14:50
+    UTC.  That download was another client on this session's shared
+    address, and the set had stayed the same through the outage.  The
+    policy says to stop at a refusal and report it, rather than ask again
+    or work round it with another query.  So the snapshot was built with
+    `--skip starlink`, and its header names the group.  The next `yarn
+    satellites` after the set updates fills it (300 of the constellation).
+  - **Molniya by name:** CelesTrak no longer has a Molniya group.  The name
+    query brings the Molniya satellites themselves, most of them defunct
+    but still in their orbits.
+  - **The samples** (GEO, and Starlink once it's in) are spaced evenly by
+    NORAD number, so they spread over the launches and the orbital planes.
+  - **What they fill:** the regimes [Lagrange.md](../Lagrange.md#orbital-regimes)
+    draws.  LEO has the stations, Hubble and (to come) Starlink; MEO has the
+    GNSS planes, on the GPS marks; then the GEO ring, Molniya, and the
+    weather group's sun-synchronous orbits.
+  - **The stations group** also holds the craft docked at the stations
+    (Soyuz, Progress, Dragon, Shenzhou, Tianzhou) and cubesats they let go.
+    So the scene names only the best known (`names.js` `KNOWN`: the ISS,
+    Tiangong, Hubble) and the target.  Every satellite is in the search.
 - **The format** is one row per satellite: `[NORAD_CAT_ID, OBJECT_NAME,
-  group, ...OMM fields]`.  The columns are named in the file. The header
-  records the source, the fetch time (`fetched`) and each group's URL and
-  counts.  OMM rather than TLE because TLE's five-digit catalogue numbers run
-  out, and CelesTrak recommends OMM.
-- **Licence and terms.**  CelesTrak's GP data are the US Space Force's public
-  catalogue (18th/19th Space Defense Squadron, space-track.org), which
-  CelesTrak redistributes.  *To confirm before merging:* CelesTrak's
-  current terms for redistributing a snapshot in a public repository, and
-  the attribution they ask for.  celestrak.org was refused by this
-  session's network policy, so they haven't been read here.
+  group, ...OMM fields]`.  The columns are named in the file, and the
+  header records the source, the fetch time (`fetched`) and each group's
+  URL and counts.  It's OMM, not TLE: the catalogue passed five digits on
+  2026-07-11 (CelesTrak), and TLEs can't carry the new numbers.  The
+  snapshot already has some, e.g. Soyuz MS-29, 100057.
+- **Fetching** (`tools/satellites/fetch.mjs`): one request a group, through
+  the proxy (`NODE_USE_ENV_PROXY=1`, which `yarn satellites` sets).  It
+  stops at the first answer that isn't a 200, as CelesTrak's [usage
+  policy](https://celestrak.org/usage-policy.php) asks of machine
+  clients; ignoring refusals gets an address firewalled.  `--cache DIR`
+  keeps each group's answer for two hours, so a run that stopped part way
+  can be run again without asking for what it had.  `--skip` leaves a
+  refused group out without asking.
+- **Licence and terms.**  The elements are the US Space Force's public
+  catalogue (space-track.org), which CelesTrak republishes.  CelesTrak's
+  usage policy (read 2026-10-23) sets access limits, the ones above, and
+  its pages call the data freely available.  Neither the policy nor the
+  GP documentation says anything about redistributing a copy.  *For the
+  maintainer to decide:* whether committing a snapshot with attribution
+  (the header's `source`, the info panel's "Elements from CelesTrak") is
+  enough, or whether to ask CelesTrak, or space-track.org's terms, first.
 
 ### Old elements, and dates far from them
 
@@ -116,7 +148,7 @@ by.
   and Lagrange marks are. They're annotations: a 3.5 px dot per satellite,
   coloured by group, with depth testing, so Earth hides those behind it.
   The points are hidden when the camera is more than 1.5e9 m from Earth's
-  centre (about four times the Moon's distance), and the station names past
+  centre (about four times the Moon's distance), and the names past
   2e8 m.  The target's name shows wherever the points do.  A name is a
   one-label sheet that moves with its satellite each frame.  It carries
   `labelTargets`, so a click targets the satellite and a double click goes
@@ -133,8 +165,14 @@ by.
   Earth › ISS, and the page title is its name.
 - **Going** (`g`, a double click, the search's Go, a link's path alone):
   `Scene.goTo` with a satellite targeted hangs the camera platform on the
-  satellite's node and arrives 300 km from it, along the line it came in
-  on (`ARRIVAL_DIST`; a model can set `node.arrivalDistance`).  Following
+  satellite's node and arrives 300 km from it (`ARRIVAL_DIST`; a model can
+  set `node.arrivalDistance`), along the line it came in on, unless that
+  line comes from below the satellite's height, within 72° of straight up
+  (`SAT_ARRIVAL_MIN_UP`).  Then it arrives straight above, Earth behind
+  the satellite.  The first preview with the real data went to the ISS on
+  Earth's far side and arrived under it, 266 km up, looking out at the
+  stars; a satellite under 300 km up would have put the camera inside
+  Earth.  Following
   is on for the node, so the camera rides the satellite as time runs.
   `Shared.targets.cur`, the camera's frame, stays Earth, so a link made
   there is in Earth's frame.  The approach's exposure prediction is skipped
@@ -191,9 +229,12 @@ A failed load is logged and asked for again by the next need.
     within 0.33 km with the J2000 obliquity (nutation is the rest), and
     within 1.6 km in Earth's equator as drawn (its 23.45° tilt).  This
     checks the frame and the time.
-  - The ISS (Horizons −125544, its trajectory, itself built from TLEs) a
-    day either side of the snapshot's ISS elements: the elements'
-    error.  *Pending the snapshot.*
+  - The ISS (Horizons −125544, its trajectory) at its snapshot elements'
+    epoch (2026-10-21 01:09 UTC), 6 h and 1 d either side: 0.00 km at the
+    epoch, 0.24 to 0.61 km 6 h off, 0.48 and 1.52 km a day off.  Horizons'
+    ISS is fitted from the same elements, as the zero at the epoch shows.
+    So this checks the propagation and the frame together, not the
+    elements against the station's own tracking.
 - `Satellites.test.js`: positions, windows, nodes, names, the distance
   rules, the panel's lines.
 - `Scene.satellites.test.js`: loading once, hanging under Earth's tilt, the
@@ -203,10 +244,15 @@ A failed load is logged and asked for again by the next need.
   position at the date.
 - `targetPath.test.js`, `SearchSlice.test.js`: `sat:` paths and the
   breadcrumb.  `Celestiary.test.js`: a link to Earth fetches the snapshot.
-- In the browser (headless Chromium, SwiftShader), with a synthetic
-  catalogue in place of the snapshot: the points' program compiles, the
-  points sit in their regimes round Earth, the station names show, and a go
-  to a satellite arrives 300 km off and rides it (link `#sat:…@…`).
+- In the browser (headless Chromium, SwiftShader, `CESIUM_ION_TOKEN=`
+  build), with the snapshot at 2026-10-23 09:00 UTC: all 450 are drawn
+  and the points' program compiles.  From 191,000 km the GEO sample sits
+  on the geostationary ring, the GNSS satellites on and round the GPS
+  planes, Molniya's on their long ellipses, and the weather satellites
+  close in.  The ISS, Tiangong and Hubble are named.  The ISS targeted
+  titles the page "ISS — Celestiary", and the panel shows 415 – 424 km,
+  51.6°, 93.0 min, and the elements 2.3 days old.  A go arrives 300 km
+  above it and rides it (link `#sat:25544@…`).
 
 ## Follow-ups
 
