@@ -1,0 +1,2 @@
+import{a as s}from"./chunk-IBFGYFOP.js";import{b as o}from"./chunk-LF64YJ36.js";import"./chunk-VCYV5NGU.js";import"./chunk-OZZC4NSP.js";import"./chunk-J5BCLTIH.js";import{a}from"./chunk-XJ5TZC7W.js";var e="data/satellites.json";async function w(r={},l=fetch){let t=await l(e);if(!t.ok)throw new Error("satellites: ".concat(t.status," for ").concat(e));let n=await t.json(),{rows:i,...c}=n;return{satellites:new s(o({rows:i}),r),data:c}}a(w,"loadSatellites");export{e as SATELLITES_URL,w as loadSatellites};
+//# sourceMappingURL=loadSatellites-4EKWIIEO.js.map
