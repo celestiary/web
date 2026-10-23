@@ -1384,10 +1384,22 @@ what the diagnostic below tells apart:
 - the night lights' frame drawing over the city (`lightsAdded`): the city
   was hidden in that frame, so wherever Earth's globe is behind or under
   its buildings, Black Marble's ~500 m texels drew through them, blocky
-  and blue at that gain (its unlit land is dark blue).  Fixed regardless
-  (the city is black there now); the diagnostic measures it both ways;
+  and blue at that gain (its unlit land is dark blue).  Measured headless
+  at the user's other view, 12 km over the Upper Bay looking down, at
+  night (21:35 EDT): with the city hidden in that frame the lights landed
+  on 1,373 of its 1,374 pixels; drawn black, on none.  From the ground in
+  Central Park the ellipsoid has no ground behind the buildings (the view
+  is all sky above them), so headless can't show it there; World
+  Terrain's relief (the ground north of the park rising above eye level)
+  could.  The leading candidate, fixed (the city is black in that frame
+  now); the diagnostic measures it both ways;
 - holes, the sky through the city (`holes`): its pixels that read the same
   with and without it.
+
+The 12 km view also has 3 of the city's pixels lit in Cesium's frame at
+night (one at codes 129, 113, 82): something of the guest's still shines
+with every light and emission at 0 (the white specks of the colour
+contract, above), not yet found.
 
 `c.ui.layers.newYorkDebug({seconds})` (newYorkDebug.js), in the console
 with the city in view, watches the app's frames for `seconds` (default
