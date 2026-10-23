@@ -351,23 +351,25 @@ link may be a moment behind; paused it is exact.
 
 ### Info Token
 
-The info panel's lists as the user left them (DESIGN.md [orbital
-elements](../DESIGN.md#orbital-elements)): the whole panel folded, and its
-lists opened or folded against how they start.
+The info panel's sections as the user left them (DESIGN.md [the info
+panel](../DESIGN.md#the-info-panel)): the whole panel folded to its head,
+and its sections opened or shut against how they start.
 
 ```
-closed             the panel folded to its [+]
-open=<list>+…      lists opened that start folded (most do)
-shut=<list>+…      lists folded that start open (a body's `system`)
+closed             the panel folded to its head
+open=<section>+…   sections opened that start shut (all but one)
+shut=<section>+…   sections shut that start open (a body's `system`)
 ```
 
-A list is named by its place in a body's properties, dotted: `orbit`,
-`atmosphere`, `location.coord`.
+A section is named by its place in a body's properties (`orbit`,
+`atmosphere`, `rings`, `system`), or by its panel name (`physical`,
+`space`, `more`; a galaxy's `galaxy` and `curve`).  Links written before the
+sections, naming a nested list (`location.coord`), open nothing now.
 
 ```
-#…;info:open=orbit                      the orbit list open
+#…;info:open=orbit                      the orbit section open
 #…;info:closed                          the panel folded
-#…;info:open=orbit+atmosphere,shut=system
+#…;info:open=orbit+physical,shut=system
 ```
 
 Decisions:
