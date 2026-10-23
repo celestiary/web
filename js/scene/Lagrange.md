@@ -370,8 +370,8 @@ unstable red as Koon et al. draw them: each kind one set of thin, faint
 line segments (one draw call; the wide-line strip joins every vertex to the
 next, so it can't hold many trajectories).  Turning with the pair only: a
 tube is a set of trajectories leaving the orbit at every phase, and has no
-one picture fixed in space.  On request, with the info panel's "with their
-manifolds" switch under the three-body orbits, and in the link as the
+one picture fixed in space.  On request, with the *Manifolds* row's switch
+under the info panel's three-body orbits, and in the link as the
 `periodic:` token's `manifolds` flag
 ([design/URLs.md](../../design/URLs.md#periodic-token)).  A family's tubes
 are made the first time they're asked for and kept: 30 to 65 ms a family in

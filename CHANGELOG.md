@@ -41,7 +41,7 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ### The tubes that lead on and off halo orbits
 
-Switch on a halo or Lyapunov orbit around a Lagrange point, then *with their manifolds*, and you see
+Switch on a halo or Lyapunov orbit around a Lagrange point, then its *Manifolds*, and you see
 the paths a spacecraft can drift along onto that orbit (green) or off it (red) without firing its
 engines. Together they form tubes that reach from the orbit toward the planet or moon at either end.
 Low-energy missions to the Moon and to the Sun–Earth Lagrange points follow these tubes. This works for
