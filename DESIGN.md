@@ -1580,6 +1580,8 @@ and the provider extension contract.
 | `js/scene/LagrangeMarks.js` | The target's pairs' points, Hill spheres and synchronous orbits, drawn in the orbits group ([Lagrange.md](js/scene/Lagrange.md)) |
 | `js/scene/regimes.js` | A body's orbital regimes: Earth's shells, boundaries and orbit families, sun-synchronous orbits ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
 | `js/scene/RegimeMarks.js` | The target's regimes, drawn in its equator in the orbits group ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
+| `js/scene/cr3bp.js` | The circular restricted three-body problem: equations, an integrator with the state-transition matrix, the correction that closes a symmetric orbit ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
+| `js/scene/periodicOrbits.js` | A pair's three-body families (Lyapunov, halo, DRO, the 9:2 NRHO) from their first guesses, sampled and swept out in space ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
 | `js/scene/overlayMarks.js` | What the marks of orbital space share: unit rings and ellipses, labels, screen sizes, a sphere's outline as seen |
 | `js/scene/iauRotation.js` | IAU WGCCRE rotation models: pole, prime meridian, body orientation; Jupiter's System II cloud texture turn. Data in `iauRotation.json` (`tools/iau/pckRotation.mjs`) |
 | `js/scene/orbitPath.js` | Orbit lines sampled from the planets' and the Moon's ephemerides, and their budgeted rebuilds |

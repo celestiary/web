@@ -17,6 +17,7 @@ import OrbitDiagram from './orbitDiagram.js'
 import {CODES, keyOfCode} from './orbitElements.js'
 import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
 import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
+import {FAMILIES, familyMember, familyOfCode, sampleMember} from './periodicOrbits.js'
 import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
@@ -197,6 +198,13 @@ export default class Scene {
     this._orbitFade = ORBIT_FADE_DEFAULT
     // The bodies whose orbit diagrams are showing.
     this._orbitDiagramBodies = new Set
+    // The three-body orbits shown (periodicOrbits.js): a pair's secondary →
+    // Set of family codes, in the link as the `periodic:` token; whether
+    // they're drawn turning with the pair or fixed in space; and the
+    // members made so far, by `secondary:family`.
+    this._periodic = new Map
+    this._periodicFrame = 'rotating'
+    this._periodicMembers = new Map
     // Set by Celestiary; called with ('track' | 'follow', on) when 't' or
     // 'f' (or a link) switches that mode, for the readout.
     this.onModeChange = null
@@ -899,6 +907,7 @@ export default class Scene {
         node.lagrange = marks
       }
     }
+    this._syncPeriodic()
   }
 
 
@@ -1022,6 +1031,141 @@ export default class Scene {
       tilt.add(marks)
       this.objects[`${target}.orbitPosition`].regimes = marks
     }
+  }
+
+
+  /** @returns {Map<string, Set<string>>} the three-body orbits on, by secondary */
+  getPeriodic() {
+    return this._periodic
+  }
+
+
+  /** @returns {string} 'rotating' or 'inertial' */
+  getPeriodicFrame() {
+    return this._periodicFrame
+  }
+
+
+  /**
+   * @param {string} secondary a pair's, e.g. 'moon' for the Earth-Moon pair
+   * @returns {Set<string>} its families' codes on
+   */
+  periodicOf(secondary) {
+    return this._periodic.get(secondary) ?? new Set
+  }
+
+
+  /**
+   * Turn a three-body family on or off at a pair.
+   *
+   * @param {string} secondary
+   * @param {string} code a family's link code (periodicOrbits.js FAMILIES)
+   */
+  togglePeriodic(secondary, code) {
+    const codes = new Set(this.periodicOf(secondary))
+    if (codes.has(code)) {
+      codes.delete(code)
+    } else if (familyOfCode(code)) {
+      codes.add(code)
+    }
+    if (codes.size > 0) {
+      this._periodic.set(secondary, codes)
+    } else {
+      this._periodic.delete(secondary)
+    }
+    this._syncPeriodic()
+    this.onSettingsChange?.()
+  }
+
+
+  /**
+   * @param {string} frame 'rotating' (with the pair) or 'inertial' (fixed in space)
+   * @param {boolean} [quiet] don't tell the link (a restore)
+   */
+  setPeriodicFrame(frame, quiet = false) {
+    this._periodicFrame = frame === 'inertial' ? 'inertial' : 'rotating'
+    this._syncPeriodic()
+    if (!quiet) {
+      this.onSettingsChange?.()
+    }
+  }
+
+
+  /**
+   * A link's three-body orbits (decodePeriodicToken), shown once their pairs
+   * are the target's.
+   *
+   * @param {{families: Map<string, Set<string>>, frame: string}} state
+   */
+  restorePeriodic({families, frame}) {
+    this._periodic = new Map(families)
+    this.setPeriodicFrame(frame, true)
+  }
+
+
+  /**
+   * The target's pairs and their families, for the info panel.
+   *
+   * @param {string} name a body's
+   * @returns {Array<{body: string, name: string, families: Array<object>}>}
+   *     each pair by its secondary, and its families {code, name, on}
+   */
+  periodicPairsOf(name) {
+    return this.lagrangePairsOf(name).map(([primary, secondary]) => ({
+      body: secondary,
+      name: `${Utils.capitalize(primary)}–${Utils.capitalize(secondary)}`,
+      families: Object.values(FAMILIES).filter((f) => !f.only || f.only === secondary)
+          .map((f) => ({code: f.code, name: f.name, on: this.periodicOf(secondary).has(f.code)})),
+    }))
+  }
+
+
+  /**
+   * Show the families on at the pairs that are showing (_syncLagrange), each
+   * member made the first time it's asked for and kept, and take away the
+   * rest.
+   */
+  _syncPeriodic() {
+    for (const [key, marks] of this._lagrange ?? []) {
+      if (!marks.parent) {
+        continue
+      }
+      const secondary = key.split('-')[1]
+      const wanted = new Set([...this.periodicOf(secondary)].map(familyOfCode)
+          .filter((f) => f && (!FAMILIES[f].only || FAMILIES[f].only === secondary)))
+      for (const family of [...marks.families.keys()]) {
+        if (!wanted.has(family)) {
+          marks.setFamily(family, null)
+        }
+      }
+      for (const family of wanted) {
+        if (marks.families.has(family)) {
+          continue
+        }
+        const samples = this._periodicSamples(secondary, marks.mu, family)
+        const node = samples ? marks.setFamily(family, samples) : null
+        if (node) {
+          fadeObject(node, this.fades.o.uniform)
+        }
+      }
+      marks.setFrame(this._periodicFrame)
+    }
+  }
+
+
+  /**
+   * @param {string} secondary
+   * @param {number} mu
+   * @param {string} family
+   * @returns {?object} sampleMember's, made once
+   */
+  _periodicSamples(secondary, mu, family) {
+    const key = `${secondary}:${family}`
+    if (!this._periodicMembers.has(key)) {
+      const member = familyMember(mu, family)
+      this._periodicMembers.set(key, member ? sampleMember(mu, member) : null)
+    }
+    return this._periodicMembers.get(key)
   }
 
 

@@ -5,6 +5,8 @@ import {
   decodeInfoToken,
   decodeOrbitsFade,
   decodeOrbitsToken,
+  decodePeriodicToken,
+  encodePeriodicToken,
   decodeSettings,
   decodeTimeToken,
   encodeGuideOrbitToken,
@@ -762,5 +764,23 @@ describe('orbits token fade', () => {
     expect(decodeOrbitsFade('earth=i')).toBe(0.5)
     // Not a body.
     expect(decodeOrbitsToken('fade=20,earth=i')).toEqual(new Map([['earth', new Set(['i'])]]))
+  })
+})
+
+
+describe('the periodic token', () => {
+  it('writes the families on, by the pair\'s secondary, and the frame when it isn\'t the default', () => {
+    const families = new Map([['moon', new Set(['dro', 'nrho', 'bogus'])], ['earth', new Set(['l2h'])],
+      ['mars', new Set()]])
+    expect(encodePeriodicToken(families)).toBe('moon=dro+nrho,earth=l2h')
+    expect(encodePeriodicToken(families, 'inertial')).toBe('moon=dro+nrho,earth=l2h,frame=inertial')
+    expect(encodePeriodicToken(new Map, 'inertial')).toBeNull()
+  })
+
+  it('reads them back, dropping unknown codes', () => {
+    const {families, frame} = decodePeriodicToken('moon=nrho+x+l1h,frame=inertial')
+    expect(families).toEqual(new Map([['moon', new Set(['nrho', 'l1h'])]]))
+    expect(frame).toBe('inertial')
+    expect(decodePeriodicToken(undefined)).toEqual({families: new Map, frame: 'rotating'})
   })
 })

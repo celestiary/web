@@ -1,12 +1,13 @@
-# Lagrange points, Hill spheres, synchronous orbits and orbital regimes
+# Lagrange points, Hill spheres, synchronous orbits, orbital regimes and three-body orbits
 
 The space around a pair of bodies, a primary and the secondary that orbits
 it: the Sun and a planet, a planet and a moon, Pluto and Charon; and the
-regimes around a body that spacecraft use.  The first two parts of
+regimes around a body that spacecraft use.  The first three parts of
 [#272](https://github.com/celestiary/web/issues/272): its scope 1, the
-analytic features every pair has, and its scope 2, Earth's orbital regimes
-and their analogues ([below](#orbital-regimes)).  The three-body periodic
-orbits and the rotating-frame view are its later parts.
+analytic features every pair has; its scope 2, Earth's orbital regimes and
+their analogues ([below](#orbital-regimes)); and its scope 3, the
+three-body periodic orbits, in the turning frame or fixed in space
+([below](#three-body-orbits)).
 
 - `js/scene/lagrange.js`: the math, no scene.
 - `js/scene/LagrangeMarks.js`: a pair's marks, drawn.
@@ -124,8 +125,8 @@ target:
 - **Search and `goTo`** for the points ("Earth-Moon L2") need targets that
   aren't bodies.
 - **A setting of their own**: they're in `o` for now.
-- **The rest of #272**: the three-body periodic orbits from JPL's
-  catalogue, the rotating-frame view, the Moon's frozen orbits (scope 4).
+- **The rest of #272**: the Moon's frozen orbits (scope 4); the cyclers,
+  transfers and manifolds wait on the integrator (#11).
 
 ## Orbital regimes
 
@@ -192,3 +193,94 @@ Mars Reconnaissance Orbiter's, is 92.7° (MRO's 92.65° at about 290 km).
 - In the browser (headless Chromium, 2026 Oct 22 12:00 UTC), all 19 of
   Earth's programs and Mars's 2 compile, and the dawn–dusk orbit's pole was
   0.9987 along the Sun's direction (i = 98.19°).
+
+## Three-body orbits
+
+#272's scope 3: the periodic orbits about a pair's Lagrange points, made in
+the circular restricted three-body problem (CR3BP) and drawn on the pair as
+it is.
+
+- `js/scene/cr3bp.js`: the CR3BP in the pair's turning frame (units of the
+  separation, the mean motion and the total mass), an adaptive
+  Dormand–Prince integrator carrying the state-transition matrix, and the
+  differential correction that closes an orbit symmetric about the xz plane
+  (`correctSymmetric`: from (x0, 0, z0, 0, vy0, 0), two of x0, z0, vy0
+  adjusted so the orbit next crosses y = 0 at right angles; a planar orbit
+  adjusts vy0 alone).
+- `js/scene/periodicOrbits.js`: the families, their first guesses, the
+  sampling and the sweep in space.
+- `LagrangeMarks.setFamily`, `_placeFamilies`; `Scene.togglePeriodic`,
+  `setPeriodicFrame`, `periodicPairsOf`, `_syncPeriodic`;
+  `ControlPanel.periodicHtml`: drawing, state and the panel's switches.
+
+**The families**, one member each at every pair, sized against the
+secondary's L1 distance γ so a family looks alike everywhere:
+
+| Family | First guess | Member |
+|---|---|---|
+| L1, L2 Lyapunov (planar) | the linear solution at 0.01 γ, then x0 stepped out (continuation, each step predicted from the last two) | x amplitude 0.2 γ |
+| L1, L2 halo (southern) | Richardson's third-order approximation (Richardson 1980; Koon, Lo, Marsden and Ross, appendix) | z amplitude 0.25 γ |
+| Distant retrograde (DRO) | a retrograde two-body circle about the secondary at 0.2 γ, stepped out | 1.2 γ beyond it on the x axis (Earth–Moon: about 74,000 km, near Artemis I's) |
+| 9:2 NRHO, Earth–Moon only | Gateway's southern NRHO at apolune, (1.0221, −0.1821, −0.1033) | its period pinned to 2/9 of a synodic month by a secant on x0 |
+
+The links name them `l1l`, `l2l`, `l1h`, `l2h`, `dro`, `nrho`
+([design/URLs.md](../../design/URLs.md#periodic-token)).
+
+- **Richardson's guess misses by a fixed amount**: 160 km at Earth–Moon L1
+  and 500 km at L2 (under 1% of γ), however small z gets, because a halo
+  family begins at a finite x amplitude where the third order isn't exact.
+  The correction takes it from there in a few iterations.
+- **Lyapunov orbits need the continuation**: from the full size, the linear
+  guess converged on another orbit (Earth–Moon L2's passed 1,663 km from
+  the Moon's centre, inside it).
+
+**Drawn on the pair.**  Each member is sampled over one period at the
+integrator's own steps (densest where it moves fastest: the NRHO's
+perilune), primary-centred.  The pair's frame (`LagrangeMarks.periodic`) is
+laid each frame on the pair as the ephemerides have it: +X along the
+secondary's place, scaled by its distance (the pulsating frame), +Y its way,
++Z its pole, as the Lagrange points are.  A marker shows where a body on
+the orbit is now: its phase is the pair's turn since J2000 at its mean
+motion, from the orbit's crossing of the xz plane (an illustrative epoch).
+
+- **Turning with the pair** (the default): the orbit as its shape is
+  known, fixed against the pair.
+- **Fixed in space** (`inertialSweep`): the orbit as a body on it runs over
+  one turn of the pair from now, each place turned on about the pole by the
+  time since now. This is the spirograph the explainer video describes.
+  It's swept again each frame the time moves (721 points).
+
+**On request.** Families are off until switched on in the info panel's
+*space around* list ("three-body orbits, Earth–Moon: …"), with the frame
+switch below them. They're kept by pair (its secondary) for the link,
+and show whenever that pair is one of the target's. A member is made the
+first time it's asked for and kept: 3 to 150 ms each in bun; all six of
+the Earth–Moon pair took 1.65 s in headless Chromium.
+
+**Checked** (`cr3bp.test.js`, `periodicOrbits.test.js`):
+
+- The Lagrange points are equilibria of the equations.
+- The Jacobi constant holds to 1e-9 over 20 time units.
+- The state-transition matrix matches finite differences.
+- Every family closes at the Earth–Moon pair, Jupiter–Europa and
+  Saturn–Enceladus: one period returns to the start within 1e-8 of the
+  separation. No orbit except the NRHO comes within a tenth of a Hill
+  radius of the secondary.
+- The small L1 Lyapunov orbit's period is 2π/λ (λ = 2.3344, Szebehely).
+- The DRO is retrograde about the secondary.
+- **The 9:2 NRHO** has period 2/9 of the synodic month (6.562 d) and
+  Jacobi constant 3.047, as Davis et al. 2022's CR3BP table gives.
+  - Its perilune radius is 3,225 km, within the 15-year Gateway reference
+    ephemeris's 3,200–3,550 km.
+  - Its apolune is 70,000 km.
+
+Not yet:
+
+- **Comparison with JPL's catalogue.** The three-body periodic orbit
+  catalogue (`ssd-api.jpl.nasa.gov/periodic_orbits.api`) is refused by the
+  sandbox's network policy (`ssd.jpl.nasa.gov`, which serves Horizons,
+  doesn't serve it). With the host allowed, a fixture of its initial
+  states for the same families would check these members against it.
+- **Other members of a family:** a slider along the family (amplitude, or
+  Jacobi constant) would reuse the continuation here.
+

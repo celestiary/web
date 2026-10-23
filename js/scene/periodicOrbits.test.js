@@ -1,0 +1,133 @@
+import {describe, expect, it} from 'bun:test'
+import {jacobi, propagate} from './cr3bp.js'
+import {collinearDistances} from './lagrange.js'
+import {
+  FAMILIES, familyMember, familyOfCode, inertialSweep, lyapunovGuess, nrho92, placeAt, richardsonHalo, sampleMember,
+} from './periodicOrbits.js'
+import {correctSymmetric} from './cr3bp.js'
+import {PERIODIC_CODES} from '../permalink.js'
+
+
+const EARTH_MOON = 0.012150585609624
+const MOON_KM = 384400
+const MOON_DAYS = 27.321661
+const DAYS = MOON_DAYS / (2 * Math.PI)
+// Jupiter-Europa and Saturn-Enceladus: the same code at other pairs.
+const OTHER_PAIRS = {europa: 2.528e-5, enceladus: 1.9e-7}
+
+
+/**
+ * @param {number} mu
+ * @param {object} m a member
+ * @returns {{close: number, rMin: number, rMax: number}} pair units, from
+ *     the secondary
+ */
+function measure(mu, m) {
+  let rMin = Infinity
+  let rMax = 0
+  const end = propagate(mu, m.state, {t: m.period, onStep: (t, s) => {
+    const r = Math.hypot(s[0] - 1 + mu, s[1], s[2])
+    rMin = Math.min(rMin, r)
+    rMax = Math.max(rMax, r)
+  }}).s
+  return {close: Math.hypot(end[0] - m.state[0], end[1], end[2] - m.state[2]), rMin, rMax}
+}
+
+
+describe('periodic orbits', () => {
+  it('has the link\'s codes', () => {
+    expect(Object.values(FAMILIES).map((f) => f.code)).toEqual(PERIODIC_CODES)
+    expect(familyOfCode('nrho')).toBe('nrho')
+    expect(familyOfCode('l2h')).toBe('l2Halo')
+    expect(familyOfCode('x')).toBeNull()
+  })
+
+  it('makes Gateway\'s 9:2 NRHO', () => {
+    const m = nrho92(EARTH_MOON)
+    // 2/9 of a synodic month.
+    expect(m.period * DAYS).toBeCloseTo(2 * 29.530589 / 9, 6)
+    const {close, rMin, rMax} = measure(EARTH_MOON, m)
+    expect(close).toBeLessThan(1e-9)
+    // Perilune 3,200-3,550 km and apolune about 70,000 km over the 15-year
+    // Gateway ephemeris (NASA, Lee 2019); C 3.047 in the CR3BP (Davis et
+    // al. 2022).
+    expect(rMin * MOON_KM).toBeGreaterThan(3150)
+    expect(rMin * MOON_KM).toBeLessThan(3550)
+    expect(rMax * MOON_KM / 1000).toBeCloseTo(70, -1)
+    expect(jacobi(EARTH_MOON, m.state)).toBeCloseTo(3.047, 3)
+    // Southern: apolune under the plane.
+    expect(m.state[2]).toBeLessThan(0)
+  })
+
+  it('has the small Lyapunov orbit\'s period, 2π/λ, at L1', () => {
+    const {l1} = collinearDistances(EARTH_MOON)
+    const g = lyapunovGuess(EARTH_MOON, 1, 0.005)
+    const m = correctSymmetric(EARTH_MOON, [g[0], 0, g[2]], 'x')
+    // The linear frequency λ at Earth-Moon L1 is 2.3344 (Szebehely).
+    expect(m.period).toBeCloseTo(2 * Math.PI / 2.3344, 3)
+    expect(Math.abs(m.state[0] - (1 - EARTH_MOON - l1)) / l1).toBeLessThan(0.01)
+  })
+
+  it('starts the halos close to where they close', () => {
+    const {l1, l2} = collinearDistances(EARTH_MOON)
+    for (const [point, gamma] of [[1, l1], [2, l2]]) {
+      const g = richardsonHalo(EARTH_MOON, point, 0.1, -1)
+      const m = correctSymmetric(EARTH_MOON, g, 'z')
+      // Within 1% of the point's distance of Richardson's guess (160 km at
+      // L1, 500 km at L2: the third order's error at the family's smallest
+      // x amplitude, which it keeps however small z gets).
+      expect(Math.abs(m.state[0] - g[0]) / gamma).toBeLessThan(0.01)
+      // z0 is the one held.
+      expect(m.state[2]).toBe(g[1])
+    }
+  })
+
+  it('closes every family at the Earth-Moon pair and at others, by the same code', () => {
+    for (const [mu, key] of [[EARTH_MOON, 'moon'], ...Object.entries(OTHER_PAIRS).map(([k, v]) => [v, k])]) {
+      for (const [family, f] of Object.entries(FAMILIES)) {
+        if (f.only && f.only !== key) {
+          continue
+        }
+        const m = familyMember(mu, family)
+        expect(m).not.toBeNull()
+        const {close, rMin} = measure(mu, m)
+        expect(close).toBeLessThan(1e-8)
+        // Never through the secondary: at least a tenth of its Hill radius
+        // (the NRHO, by design, comes to 3,225 km: tested above).
+        if (family !== 'nrho') {
+          expect(rMin).toBeGreaterThan(0.1 * Math.cbrt(mu / 3))
+        }
+      }
+    }
+  })
+
+  it('runs a DRO retrograde about the secondary', () => {
+    const m = familyMember(EARTH_MOON, 'dro')
+    const [x, , , , vy] = m.state
+    expect(x).toBeGreaterThan(1 - EARTH_MOON)
+    // Clockwise seen from the pole, in the turning frame.
+    expect((x - 1 + EARTH_MOON) * vy).toBeLessThan(0)
+  })
+
+  it('samples an orbit, and sweeps it out in space', () => {
+    const m = familyMember(EARTH_MOON, 'l2Halo')
+    const samples = sampleMember(EARTH_MOON, m)
+    // Primary-centred, closed.
+    expect(samples.xyz[0]).toBeCloseTo(m.state[0] + EARTH_MOON, 6)
+    expect(samples.t[samples.t.length - 1]).toBe(m.period)
+    const p = placeAt(samples, m.period * 3.25)
+    const q = placeAt(samples, m.period * 0.25)
+    expect(Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2])).toBeLessThan(1e-9)
+    // The sweep starts where the body is now, and a quarter turn on it is
+    // where the body will be, turned a quarter on.
+    const now = 1.234
+    const sweep = inertialSweep(samples, now, 5, undefined, 2 * Math.PI)
+    const here = placeAt(samples, now)
+    // (Float32: to 1e-6.)
+    expect(sweep[0]).toBeCloseTo(here[0], 6)
+    expect(sweep[1]).toBeCloseTo(here[1], 6)
+    const later = placeAt(samples, now + (Math.PI / 2))
+    expect(sweep[3]).toBeCloseTo(-later[1], 6)
+    expect(sweep[4]).toBeCloseTo(later[0], 6)
+  })
+})

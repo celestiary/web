@@ -65,6 +65,21 @@ describe('ControlPanel', () => {
     expect(panel.spaceListHtml('earth')).toContain('synchronous orbit: 42,164 km from the centre (geostationary orbit)')
   })
 
+  it('lists the three-body families at the body\'s pairs, as switches', () => {
+    const panel = new ControlPanel(null, null)
+    expect(panel.periodicHtml('earth')).toBe('')
+    panel.periodicHooks = {
+      pairs: () => [{body: 'moon', name: 'Earth–Moon', families: [{code: 'dro', name: 'DRO', on: true},
+        {code: 'nrho', name: '9:2 NRHO', on: false}]}],
+      frame: () => 'inertial',
+    }
+    const html = panel.periodicHtml('earth')
+    expect(html).toContain('three-body orbits, Earth–Moon: ')
+    expect(html).toContain('class="periodic-family on" data-body="moon" data-code="dro"')
+    expect(html).toContain('class="periodic-family" data-body="moon" data-code="nrho"')
+    expect(html).toContain('class="periodic-frame on" data-frame="inertial"')
+  })
+
   it('writes masses in scientific notation', () => {
     expect(sci(5.97219e24)).toBe('5.9722 × 10²⁴')
     expect(sci(1.4762e15)).toBe('1.4762 × 10¹⁵')

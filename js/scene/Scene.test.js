@@ -1690,3 +1690,94 @@ describe('the target\'s orbital regimes', () => {
     expect(s.spaceAround('moon').regimes).toBeNull()
   })
 })
+
+
+describe('the three-body orbits at the target\'s pairs', () => {
+  /**
+   * @param {object} s Scene
+   * @param {object} props
+   */
+  function addBody(s, props) {
+    s.objects[props.name] = {props}
+    if (!props.orbit) {
+      return
+    }
+    const plane = new Object3D()
+    const node = new Object3D()
+    node.name = `${props.name}.orbitPosition`
+    node.orbit = props.orbit
+    plane.add(node)
+    node.add(new Object3D())
+    s.objects[node.name] = node
+    s.objects[`${props.name}.planetTilt`] = node.children[0]
+  }
+
+  /** @returns {object} Scene with the Sun, Earth and the Moon */
+  function solarScene() {
+    const s = makeScene()
+    addBody(s, {name: 'sun', parent: 'milkyway', mass: '1.9891E33 g', radius: 6.957e8, system: ['earth']})
+    addBody(s, {name: 'earth', parent: 'sun', mass: '5.97219e27 g', radius: 6.37101e6, siderealRotationPeriod: 86164.1,
+      system: ['moon'], orbit: {semiMajorAxis: 1.496e11, eccentricity: 0.0167, siderealOrbitPeriod: 31558149.8}})
+    addBody(s, {name: 'moon', parent: 'earth', mass: '7.34767309E25 g', radius: 1.7381e6,
+      siderealRotationPeriod: 2360591.5, system: [],
+      orbit: {semiMajorAxis: 3.844e8, eccentricity: 0.0549, siderealOrbitPeriod: 2360591.5}})
+    return s
+  }
+
+  const withTarget = (s, name, fn) => {
+    const before = Shared.targets.obj
+    Shared.targets.obj = s.objects[name]
+    try {
+      s._syncLagrange()
+      fn()
+    } finally {
+      Shared.targets.obj = before
+    }
+  }
+
+  it('offers each pair its families, the NRHO only at the Earth-Moon pair', () => {
+    const s = solarScene()
+    const pairs = s.periodicPairsOf('earth')
+    expect(pairs.map((p) => [p.body, p.name])).toEqual([['earth', 'Sun–Earth'], ['moon', 'Earth–Moon']])
+    expect(pairs[0].families.map((f) => f.code)).toEqual(['l1l', 'l2l', 'l1h', 'l2h', 'dro'])
+    expect(pairs[1].families.map((f) => f.code)).toContain('nrho')
+  })
+
+  it('shows a family on the pair when it\'s turned on, and keeps it for the link', () => {
+    const s = solarScene()
+    let changes = 0
+    s.onSettingsChange = () => changes++
+    withTarget(s, 'earth', () => {
+      s.togglePeriodic('moon', 'nrho')
+      const marks = s.objects['moon.orbitPosition'].lagrange
+      expect([...marks.families.keys()]).toEqual(['nrho'])
+      expect(s.getPeriodic()).toEqual(new Map([['moon', new Set(['nrho'])]]))
+      expect(changes).toBe(1)
+      // Laid on the pair: the body on its orbit now, in the pair's frame.
+      marks.place(new Vector3(3.844e8, 0, 0), new Vector3(0, 1, 0), undefined, 1.0)
+      const nrho = marks.families.get('nrho')
+      const at = nrho.marker.geometry.getAttribute('position')
+      expect(Math.hypot(at.getX(0) - 1, at.getY(0), at.getZ(0))).toBeLessThan(0.2)
+      // Fixed in space: the sweep is drawn instead, from where the body is.
+      s.setPeriodicFrame('inertial')
+      expect(nrho.rotating.visible).toBe(false)
+      expect(nrho.sweep.visible).toBe(true)
+      marks.place(new Vector3(3.844e8, 0, 0), new Vector3(0, 1, 0), undefined, 1.0)
+      const sweep = nrho.sweep.geometry.getAttribute('position')
+      expect(sweep.getX(0)).toBeCloseTo(at.getX(0), 5)
+      s.togglePeriodic('moon', 'nrho')
+      expect(marks.families.size).toBe(0)
+      expect(s.getPeriodic().size).toBe(0)
+    })
+  })
+
+  it('shows a link\'s families once their pair is the target\'s', () => {
+    const s = solarScene()
+    s.restorePeriodic({families: new Map([['moon', new Set(['dro'])]]), frame: 'inertial'})
+    withTarget(s, 'moon', () => {
+      const marks = s.objects['moon.orbitPosition'].lagrange
+      expect([...marks.families.keys()]).toEqual(['dro'])
+      expect(marks.frame).toBe('inertial')
+    })
+  })
+})

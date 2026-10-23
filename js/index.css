@@ -101,6 +101,27 @@ button {
   box-shadow: inset 2px 0 0 currentColor;
 }
 
+/* The three-body orbits' switches (ControlPanel.periodicHtml). */
+.periodic-family,
+.periodic-frame {
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.periodic-family:hover,
+.periodic-frame:hover,
+.periodic-family:focus-visible,
+.periodic-frame:focus-visible {
+  background-color: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
+
+.periodic-family.on,
+.periodic-frame.on {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
 /* The diagrams' opacity at the far side of their orbits, in the lead. */
 .orbit-fade {
   white-space: nowrap;
