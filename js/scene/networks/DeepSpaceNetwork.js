@@ -75,13 +75,16 @@ export default class DeepSpaceNetwork extends Group {
    * @param {Function} [opts.fetchFn] fetch, for the feed
    * @param {Function} [opts.nowMs] the wall clock, for the polling
    * @param {?object} [opts.camera] the view's, for the names by distance
+   * @param {boolean} [opts.labels] the complexes' and spacecraft's names
+   *   (false in layer mode, design/LayerMode.md)
    */
   constructor(config, {layer = null, Sheet = SpriteSheet, fetchFn = (...a) => globalThis.fetch(...a), nowMs = () => Date.now(),
-    camera = null} = {}) {
+    camera = null, labels = true} = {}) {
     super()
     this.name = 'dsn'
     this.config = config
     this.camera = camera
+    this.labelsOn = labels
     this.layer = layer
     this.Sheet = Sheet
     this.fetchFn = fetchFn
@@ -104,7 +107,7 @@ export default class DeepSpaceNetwork extends Group {
     this.add(this.earthFixed)
     this.dishPoints = this._newDishPoints()
     this.earthFixed.add(this.dishPoints)
-    this.siteLabels = this._newSiteLabels(config.sites)
+    this.siteLabels = labels ? this._newSiteLabels(config.sites) : new Group
     this.earthFixed.add(this.siteLabels)
     this.downBeams = this._newBeams('dsn downlinks', DOWN_WIDTH_PX)
     // The uplinks over the downlinks, opaque: a link with both reads as an
@@ -307,6 +310,9 @@ export default class DeepSpaceNetwork extends Group {
     }
     for (const [code, name] of want) {
       if (!this.scLabels.has(code)) {
+        if (!this.labelsOn) {
+          continue
+        }
         const label = this._newLabel(name, SC_LABEL_COLOR)
         label.visible = false
         this.scLabels.set(code, label)

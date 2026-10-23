@@ -37,6 +37,20 @@ export const STATIC_BUDGET = {
 }
 
 /**
+ * Layer mode's page (layer.html, js/layer/layer.js; design/LayerMode.md):
+ * its entry and what it imports statically, measured as the first load is.
+ * Set 2026-10-23 at its first measurement plus ~10%: 823 KB minified, 233
+ * KB gzipped, three 694 KB of it; the networks and the snapshots load after.
+ */
+export const LAYER_BUDGET = {
+  entries: ['js/layer/layer.js'],
+  totalMinifiedKB: 910,
+  totalGzipKB: 260,
+  largestChunkMinifiedKB: 765,
+}
+
+
+/**
  * The homepage's load, at a bare URL, from the built site served with gzip,
  * in headless Chromium with other hosts blocked (tools/loadBudget/).
  *

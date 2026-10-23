@@ -1,4 +1,7 @@
 const indexFile = './js/index.jsx'
+// Layer mode's page (design/LayerMode.md): celestiary's orbits as a NetGL
+// guest in another app's globe, its own entry so it loads none of the app.
+const layerFile = './js/layer/layer.js'
 const buildDir = 'docs'
 
 // satellite.js (SGP4, js/scene/satellites/) also ships WASM propagators,
@@ -17,7 +20,7 @@ const satelliteWasmStub = {
 
 // The build config
 export default {
-  entryPoints: [indexFile],
+  entryPoints: [indexFile, layerFile],
   outdir: buildDir,
   format: 'esm',
   platform: 'browser',
@@ -41,5 +44,8 @@ export default {
     // Development mode: true in `yarn serve`, false in production builds.
     // Used to enable dev-only features like esbuild hot reload (js/index.tsx).
     __DEV__: JSON.stringify(false),
+    // More origins that may host layer mode (js/layer/origins.js), comma-
+    // separated, beyond its built-in allow-list.
+    __LAYER_ORIGINS__: JSON.stringify(process.env.LAYER_ORIGINS ?? ''),
   },
 }

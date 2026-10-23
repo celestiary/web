@@ -55,8 +55,11 @@ export default class Satellites extends Group {
    * @param {number} [opts.layer] the overlay layer, for the points and labels
    * @param {Function} [opts.Sheet] the label sheet's class (a test's stub)
    * @param {object} [opts.camera] the view's, for what to show by distance
+   * @param {boolean} [opts.labels] name the best known and the target
+   *   (false in layer mode, design/LayerMode.md: the sheets want ThreeUi's
+   *   label pass, and the host names what it wants from the anchors)
    */
-  constructor(records, {layer = null, Sheet = SpriteSheet, camera = null} = {}) {
+  constructor(records, {layer = null, Sheet = SpriteSheet, camera = null, labels = true} = {}) {
     super()
     this.name = 'satellites'
     this.records = records
@@ -76,7 +79,8 @@ export default class Satellites extends Group {
     // The best known (names.js KNOWN): the stations group also holds the
     // craft docked at them and the cubesats they let go, whose names would
     // pile up on the station's.
-    this._wantLabels = new Set(records.filter(isKnown).map((r) => r.id))
+    this.labelsOn = labels
+    this._wantLabels = new Set(labels ? records.filter(isKnown).map((r) => r.id) : [])
     this._targetId = null
     this.jd = NaN
     this.drawnCount = 0
@@ -179,7 +183,9 @@ export default class Satellites extends Group {
     this.drawnCount = drawn
     pos.needsUpdate = true
     show.needsUpdate = true
-    this._syncLabels(jd)
+    if (this.labelsOn) {
+      this._syncLabels(jd)
+    }
   }
 
 

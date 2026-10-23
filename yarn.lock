@@ -547,7 +547,7 @@
   dependencies:
     "@pablo-mayrgundter/testing.js" "^1.0.0"
 
-"@pablo-mayrgundter/portal-netgl@^0.3.0":
+"@pablo-mayrgundter/portal-netgl@0.3.0":
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/@pablo-mayrgundter/portal-netgl/-/portal-netgl-0.3.0.tgz#9afcb6c7b915de060365b1c6f352b91ff4cfd968"
   integrity sha512-ikxRv/+pgnql1gxd0zp4jkQAMBcsO6IcNZ1d+tglt0yoSrGi4vebtGgeZhyY+XHHxxicwPSxVKmGq0eR2bfsmA==

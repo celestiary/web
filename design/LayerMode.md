@@ -1,6 +1,7 @@
 # Layer mode: celestiary's orbits inside another app's globe
 
-*Proposal, 2026-10-23.  Builds on PR [#294](https://github.com/celestiary/web/pull/294)
+*Proposed 2026-10-23, and phase 1 built on the same branch (see
+[Status](#status)).  Builds on PR [#294](https://github.com/celestiary/web/pull/294)
 (the space networks) and the spike `spike/satellites-layer`.*
 
 ## What and why
@@ -44,18 +45,22 @@ channel. Names follow portal-layers.md's control plane.
 
 | Direction | Message | Carries |
 |---|---|---|
-| guest → host | `layer:hello` | `{version, kind: 'celestiary-orbits', capabilities: {anchors, time}, extent: {radiusM}}`. Repeated until acked. |
+| guest → host | `layer:hello` | `{version: 1, kind: 'celestiary-orbits', capabilities: {anchors, time, labels: false}, contracts: {depth: 'shared', alpha: 'coverage', color: 'display-srgb'}, extent: {radiusM: 5e7, beamsM: 3e13}}`. Repeated every 500 ms until acked. |
 | host → guest | `layer:hello-ack` | `{accepted}` |
 | host → guest | `layer:view` | `{viewId, viewMatrix, projectionMatrix, viewport, pixelRatio, timeMs?}`. viewMatrix maps ECEF metres to eye metres and is rigid; projectionMatrix maps eye to clip and is the host's own. Both are column-major arrays of 16, composed in doubles. viewport is `[x, y, w, h]` in drawing-buffer pixels. |
 | host → guest | `layer:time` | `{utcMs, rate?}`: the host's clock, if it isn't in each view. Time is UTC; ECEF is of date (Earth turned by GMST). |
 | guest → host | `netgl:*` | the frame's GL calls, ending in `netgl:frame-end` |
 | host → guest | `layer:anchors-subscribe` | `{patterns: ['dsn:*', 'norad:25544', ...]}`: which anchors to publish |
-| guest → host | `layer:anchors` | `{viewId, timeMs, anchors: [{id, ecef: [x, y, z], name?, kind}]}`: after each frame, only those subscribed |
-| guest → host | `layer:status` | `loading`, `ready`, or `error {message}` |
+| guest → host | `layer:anchors` | `{viewId, timeMs, anchors: [{id, kind, name, ecef: [x, y, z]}]}`: after each frame's `netgl:frame-end`, only those subscribed. It is also the frame's receipt: the host sends its next view on it (one view in flight). |
+| guest → host | `layer:status` | `{status: 'loading'}`, `{status: 'ready', partial?: [what failed]}`, or `{status: 'error', message}` |
 | host → guest | `layer:visibility`, `layer:dispose` | throttle, or tear down |
 
 - **Anchors** are URI-style ids: `norad:<catalogue number>`,
-  `dsn:<dish>` (`dsn:DSS-43`), `dsn-site:<complex>`, `spacecraft:<code>`.
+  `dsn:<dish>` (`dsn:DSS-43`), `dsn-site:<complex>` (`dsn-site:gdscc`),
+  `spacecraft:<code>` (`spacecraft:vgr1`, only for a live link with a
+  range).  Before a host subscribes it gets the DSN's (`dsn:*`,
+  `dsn-site:*`, `spacecraft:*`, about two dozen); satellites
+  (`norad:<n>`, `norad:*`) only when asked.
   They're made in one module (`js/layer/anchors.js`) so the scheme can
   follow the RFC being written. ECEF is metres, in the guest's frame, at
   the frame's time.
@@ -127,3 +132,49 @@ channel. Names follow portal-layers.md's control plane.
   embeds make one request?
 - **Earth model:** WGS84 heights for the dishes, which needs the DSN
   handbook's coordinates (Networks.md).
+
+## Status
+
+Phase 1 is in (branch `claude/layer-mode`):
+
+- **Files:** `public/layer.html` and `js/layer/`:
+  - `layer.js`, the page's entry;
+  - `OrbitsLayer.js`, the scene with no Scene or ThreeUi;
+  - `protocol.js`, the control plane;
+  - `origins.js`, the allow-list and an origin-checking transport;
+  - `anchors.js`, the ids;
+  - `frames.js`, equator of date and body-fixed to ECEF.
+
+  Tests: `js/layer/layer.test.js`.
+- **The check host:** `yarn layer-host` (`tools/layer/serve.mjs`) serves
+  `docs/` at `http://127.0.0.1:5480` as the guest's origin. It serves a
+  small three.js host at `http://localhost:5481/host.html` with its own
+  references, computed without celestiary's code: satellite.js's ECI→ECF
+  for the ISS, the geostationary circle, and the DSN complexes from their
+  latitudes and longitudes. It replays the guest's frames into its own
+  depth.
+  - `?depth=0` clears the depth first, for the occlusion comparison.
+  - `?t=<ISO>&lat=&lng=&altKm=&fov=&near=&far=&nets=S,I,D&sats=0|1` sets
+    the view.
+- **Checked** (headless Chromium, SwiftShader, 2026-10-23 20:17 UTC):
+  - The ISS anchor is 2.6 m from satellite.js's own ECF, and its dot sits
+    in the host's ring.
+  - The geostationary sample lies on the host's circle.
+  - The guest's frames hold no `clear` calls.
+  - With the host's depth, Starlink behind the globe is hidden; with
+    `depth=0` it shows through.
+  - The DSN's beams leave Goldstone and Madrid, and from 400 AU one
+    reaches out to a Voyager.
+- **Size:** the page's static load is 823 KB minified, 233 KB gzipped,
+  three 694 KB of it, against `esbuild/budget.js` `LAYER_BUDGET`'s
+  910 / 260 KB. The networks' chunk and the snapshots load after.
+- **portal-netgl 0.3.0, pinned:**
+  - its `makeNetGLGuestContext` with checkpoints, so each frame replays
+    from the guest's own GL state;
+  - an origin-checking transport of our own (`origins.js`), because
+    0.3.0's `windowTransport` filters by source, not origin.
+- **Once portal's cross-origin host and luma adapter land**
+  (`claude/luma-host`):
+  - take its origin-checked transport in place of `origins.js`'s;
+  - fold `layer:hello` into its handshake;
+  - pass the `viewId` on `netgl:frame-end` instead of in `layer:anchors`.

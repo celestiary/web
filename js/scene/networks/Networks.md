@@ -252,8 +252,10 @@ time it's shown.  The DSN's feed then every 5 s while shown.
 
 ## For a layer mode
 
-A host app over NetGL that has celestiary draw only its overlays, with the
-host's camera and clock, would need from this code:
+Built: [design/LayerMode.md](../../../design/LayerMode.md) (`layer.html`,
+`js/layer/`), which takes the networks as below with `labels: false`.  What
+a host app over NetGL that has celestiary draw only its overlays, with the
+host's camera and clock, needs from this code:
 
 - **The clock**: every network moves from the Julian Day passed to its
   `update(jd)` (`preAnimCb`), not from `Time`; a host's time drives it as
