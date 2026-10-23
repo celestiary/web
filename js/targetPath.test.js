@@ -42,7 +42,13 @@ describe('targetPath', () => {
     const iss = {kind: 'satellite', id: 25544, name: 'ISS', body: 'earth'}
     expect(targetPath(iss, bodyPath)).toBe('sat:25544')
     expect(targetFramePath(iss, bodyPath)).toBe('sun/earth')
-    expect(parseTargetPath('sat:25544')).toEqual({kind: 'satellite', id: 25544})
+    expect(parseTargetPath('sat:25544')).toEqual({kind: 'satellite', id: 25544, body: 'earth'})
+    // Another body's population names its body.
+    const orbiter = {kind: 'satellite', id: 7, name: 'MRO', body: 'mars'}
+    expect(targetPath(orbiter, bodyPath)).toBe('sat:mars:7')
+    expect(targetFramePath(orbiter, bodyPath)).toBe('sun/mars')
+    expect(parseTargetPath('sat:mars:7')).toEqual({kind: 'satellite', id: 7, body: 'mars'})
+    expect(parseTargetPath('sat:Mars:7')).toBeNull()
     expect(parseTargetPath('sat:')).toBeNull()
     expect(parseTargetPath('sat:iss')).toBeNull()
   })

@@ -39,17 +39,18 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
-### Starlink joins the satellites round Earth
+### Starlink and Iridium join the satellites, and you choose which to see
 
-A sample of 300 Starlink satellites now shows as a shell close round Earth, beside the space
-stations, the navigation and weather satellites and the geostationary ring, and every satellite's
-orbit is two days fresher.
+A sample of 300 Starlink satellites now shows as a shell close round Earth, and the 80 of Iridium
+in their polar planes. In Earth's panel, the Satellites section has a switch for each kind
+(Starlink, Iridium, navigation, weather, the space stations...) and a slider for how many names to
+show, and a link keeps what you chose: Starlink alone with 40 names opens as Starlink alone.
 
 - Date: 2026-10-23
 - PR: [#292](https://github.com/celestiary/web/pull/292)
 - Issue: [#50](https://github.com/celestiary/web/issues/50)
 - Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
-- Permalink: [Open this view](https://celestiary.org/#sat:25544@-23.1107,31.7158,57.33909Mm;t=9792.0444jd;cq=0,-0.0827,0,0.9966;fov=45deg;s=F)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@-23.1124,-36.2142,57.33909Mm;t=9792.2327jd;cq=0,-0.0825,0,0.9966;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=40)
 
 ### Satellites round Earth: the ISS, GPS, the geostationary ring
 

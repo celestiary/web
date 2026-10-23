@@ -1,4 +1,5 @@
 import {
+  decodePopulationToken, encodePopulationToken,
   SETTINGS_DEFAULTS,
   decodePermalink,
   decodeGuideOrbitToken,
@@ -782,5 +783,36 @@ describe('the periodic token', () => {
     expect(families).toEqual(new Map([['moon', new Set(['nrho', 'l1h'])]]))
     expect(frame).toBe('inertial')
     expect(decodePeriodicToken(undefined)).toEqual({families: new Map, frame: 'rotating'})
+  })
+})
+
+
+describe('the population token', () => {
+  it('writes each body\'s groups shown and label budget where they aren\'t the defaults', () => {
+    const state = new Map([
+      ['earth', {shown: new Set(['starlink']), labels: 40}],
+      ['mars', {shown: null, labels: 0}],
+      ['moon', {shown: new Set, labels: null}],
+    ])
+    expect(encodePopulationToken(state)).toBe('earth=starlink,earth.labels=40,mars.labels=0,moon=none')
+    expect(encodePopulationToken(new Map)).toBeNull()
+    expect(encodePopulationToken(undefined)).toBeNull()
+  })
+
+  it('reads them back', () => {
+    const state = decodePopulationToken('earth=starlink+iridium,earth.labels=40,moon=none,bad.labels=x')
+    expect(state.get('earth')).toEqual({shown: new Set(['starlink', 'iridium']), labels: 40})
+    expect(state.get('moon')).toEqual({shown: new Set, labels: null})
+    expect(state.has('bad')).toBe(false)
+    expect(decodePopulationToken(undefined)).toEqual(new Map)
+  })
+
+  it('goes round a whole link with the other tokens', () => {
+    const pop = encodePopulationToken(new Map([['earth', {shown: new Set(['starlink']), labels: 12}]]))
+    const link = encodePermalink('sat:25544', 0, 0, 0, 1e7, {x: 0, y: 0, z: 0, w: 1}, 45, undefined,
+        {pop, apps: 'open'})
+    const decoded = decodePermalink(link)
+    expect(decoded.tokens).toEqual({pop: 'earth=starlink,earth.labels=12', apps: 'open'})
+    expect(decodePopulationToken(decoded.tokens.pop).get('earth')).toEqual({shown: new Set(['starlink']), labels: 12})
   })
 })

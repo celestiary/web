@@ -1,36 +1,46 @@
-import {aliasesOf, displayName, satelliteTarget} from '../../scene/satellites/names.js'
+import {aliasesOf} from '../../scene/satellites/names.js'
+import {satellitePath} from '../../targetPath.js'
 
 
 /** @typedef {import('../SearchProvider.js').SearchEntry} SearchEntry */
 
 
 /**
- * Earth's satellites (js/scene/satellites/Satellites.md), by the names
- * people know them by ('ISS'), CelesTrak's ('ISS (ZARYA)'), their NORAD
- * number and their international designator.  Under Earth's path, so a
- * scope at Earth finds them.
+ * A population's objects (js/scene/population/Population.md), Earth's
+ * satellites first among them (js/scene/satellites/Satellites.md): by the
+ * names people know them by ('ISS'), the catalogue's ('ISS (ZARYA)'), their
+ * number and their international designator.  Under their body's path, so
+ * a scope at the body finds them.
  */
 export default class SatellitesProvider {
   /**
-   * @param {object} satellites Satellites (js/scene/satellites/Satellites.js), loaded
+   * @param {object} population a Population, loaded
+   * @param {Function} [bodyPath] a body's name → its path ('milkyway/sun/earth')
    */
-  constructor(satellites) {
-    this.id = 'satellites'
+  constructor(population, bodyPath = (name) => `milkyway/sun/${name}`) {
+    this.id = `population:${population.body}`
     this.lazy = false
-    this.satellites = satellites
+    this.population = population
+    this.bodyPath = bodyPath
   }
 
 
   /** @returns {SearchEntry[]} */
   collectAll() {
-    return this.satellites.records.map((rec) => ({
-      id: `sat:${rec.id}`,
-      displayName: displayName(rec),
-      aliases: aliasesOf(rec),
-      kind: 'satellite',
-      path: `milkyway/sun/earth/sat:${rec.id}`,
-      parent: 'earth',
-      payload: {target: satelliteTarget(rec), group: rec.group},
-    }))
+    const pop = this.population
+    const base = this.bodyPath(pop.body)
+    return pop.records.map((rec) => {
+      const target = pop.targetOf(rec)
+      const id = satellitePath(target)
+      return {
+        id,
+        displayName: target.name,
+        aliases: aliasesOf(rec),
+        kind: 'satellite',
+        path: `${base}/${id}`,
+        parent: pop.body,
+        payload: {target, group: rec.group},
+      }
+    })
   }
 }

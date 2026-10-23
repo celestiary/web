@@ -1,6 +1,6 @@
 {
   "source": "JPL Horizons API (https://ssd.jpl.nasa.gov/api/horizons.api), geocentric vectors, ecliptic and equinox of J2000 (ICRF), km, UT; tools/satellites/fetchHorizons.mjs",
-  "fetched": "2026-10-23T13:02:24.933Z",
+  "fetched": "2026-10-23T17:36:58.005Z",
   "satellites": [
     {
       "name": "Vanguard 1",
@@ -66,7 +66,7 @@
         "MEAN_MOTION_DOT": 0.00009682,
         "MEAN_MOTION_DDOT": 0
       },
-      "snapshotFetched": "2026-10-23T13:01:57.263Z",
+      "snapshotFetched": "2026-10-23T17:20:27.186Z",
       "query": {
         "format": "text",
         "MAKE_EPHEM": "YES",

@@ -1748,6 +1748,14 @@ describe('what a load fetches', () => {
     expect(app.scene.galaxies.records).toHaveLength(175)
   })
 
+  it('a link\'s population state (pop:) is kept for its body, and written back, before the population is in', async () => {
+    const app = await open(`${TEST_FRAGMENT};pop:earth=starlink,earth.labels=12`)
+    // Here the snapshot's fetch fails (404), so Earth's population never comes in.
+    expect(app.scene.populationOf('earth')).toBeNull()
+    expect(app.scene.getPopulationState().get('earth')).toEqual({shown: new Set(['starlink']), labels: 12})
+    expect(app.permalink()).toContain(';pop:earth=starlink,earth.labels=12')
+  })
+
   it('a search: their catalogue, with the first query (SearchIndex.loadOnSearch)', async () => {
     const app = await open(TEST_FRAGMENT)
     // The singleton holds every app this file made; this app's is the last.

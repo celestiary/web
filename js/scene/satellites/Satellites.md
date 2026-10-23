@@ -3,9 +3,13 @@
 [#50](https://github.com/celestiary/web/issues/50), in
 [#114](https://github.com/celestiary/web/issues/114).  Satellites from
 CelesTrak's GP data (their mean elements, as OMM), propagated by SGP4 to the
-simulation's date and drawn round Earth: a point each, the best known named,
-each one targetable, searchable and linkable, and gone to and ridden like a
-body.
+simulation's date and drawn round Earth: a point each, named by a budget the
+info panel's slider sets, the groups (Starlink, Iridium, navigation...)
+switched on and off there, each one targetable, searchable and linkable, and
+gone to and ridden like a body.  Earth's satellites are a population
+([population/Population.md](../population/Population.md)), the generic part
+that other bodies' populations (orbiters, the Deep Space Network's
+spacecraft) share: this doc is what's Earth's and CelesTrak's.
 
 ## Files
 
@@ -13,16 +17,17 @@ body.
   `json2satrec`), a position at a date (`temePosition`), TEME to Earth's
   equator frame (`temeToEquator`), and each satellite's window round its
   elements' epoch (`inWindow`).
-- `Satellites.js`: the scene object.  One `Points` for all of them, the
-  names, and a node per targeted satellite.  Moved each frame from the
-  Julian Day animated (`preAnimCb`).
-- `names.js`: what they're called (`displayName`, `aliasesOf`), the target
-  (`satelliteTarget`), the info panel's lines (`satelliteFacts`), and the
-  load distance.  It has no dependencies, so the scene, the search and the
-  link import it without the SGP4 chunk.
+- `Satellites.js`: the population (`../population/Population.js`) whose
+  positions are SGP4's: the points, groups, names and target nodes are the
+  population's.
+- `names.js`: what they're called (`displayName`, `aliasesOf`, from the
+  snapshot's `known`), the satellite panel's lines (`satelliteFacts`), and
+  the load distance.  It has no dependencies, so the scene, the search and
+  the link import it without the SGP4 chunk.
 - `loadSatellites.js`: the chunk's entry. Scene imports it dynamically, with
   the snapshot.
-- `../../search/providers/SatellitesProvider.js`: the search's entries.
+- `../../search/providers/SatellitesProvider.js`: the search's entries, for
+  any population.
 - `../../../tools/satellites/`: `fetch.mjs` refreshes the snapshot (`yarn
   satellites`), `select.js` holds the groups and the sampling, and
   `fetchHorizons.mjs` refreshes the Horizons fixture.
@@ -36,10 +41,10 @@ satellites`, not fetched live.
   dates near today, and links, previews and tests would change under it.
   CelesTrak's usage policy also asks clients to fetch each data set at most
   once per update (every two hours for GP data), and it enforces that.  A
-  snapshot is small: 748 satellites are 118 KB, 41 KB gzipped, well under
+  snapshot is small: 827 satellites are 132 KB, 45 KB gzipped, well under
   the data policy's line for plain git (DESIGN.md, [data
   policy](../../../DESIGN.md#data-policy)).
-- **The snapshot** was fetched 2026-10-23 13:01 UTC; its elements' epochs
+- **The snapshot** was fetched 2026-10-23 17:20 UTC; its elements' epochs
   run to 2026-10-23.  What's in it (`select.js` `GROUP_QUERIES`), each
   satellite once, under the first group that has it:
 
@@ -47,9 +52,10 @@ satellites`, not fetched live.
   |---|---|---|---|---|
   | `stations` | `GROUP=stations` | 21 | 21 | 2026-10-20 to 23 |
   | `science` | `CATNR=20580` (Hubble) | 1 | 1 | 2026-10-23 |
-  | `gnss` | `GROUP=gnss` (GPS, GLONASS, Galileo, BeiDou) | 170 | 170 | 2026-09-23 to 10-23 |
+  | `gnss` | `GROUP=gnss` (GPS, GLONASS, Galileo, BeiDou) | 169 | 169 | 2026-09-28 to 10-23 |
   | `molniya` | `NAME=MOLNIYA` | 33 | 33 | 2026-10-14 to 23 |
   | `weather` | `GROUP=weather` | 73 | 73 | 2026-10-22 to 23 |
+  | `iridium` | `GROUP=iridium-NEXT` | 80 | 80 | 2026-10-07 to 23 |
   | `geo` | `GROUP=geo` | 569 | 150 | 2026-10-12 to 23 |
   | `starlink` | `GROUP=starlink` | 11,116 | 300 | 2026-10-21 to 23 |
 
@@ -67,17 +73,24 @@ satellites`, not fetched live.
   - **The samples** (GEO and Starlink) are spaced evenly by
     NORAD number, so they spread over the launches and the orbital planes.
   - **What they fill:** the regimes [Lagrange.md](../Lagrange.md#orbital-regimes)
-    draws.  LEO has the stations, Hubble and Starlink; MEO has the
+    draws.  LEO has the stations, Hubble, Iridium (780 km, 86.4°) and
+    Starlink; MEO has the
     GNSS planes, on the GPS marks; then the GEO ring, Molniya, and the
     weather group's sun-synchronous orbits.
   - **The stations group** also holds the craft docked at the stations
     (Soyuz, Progress, Dragon, Shenzhou, Tianzhou) and cubesats they let go.
-    So the scene names only the best known (`names.js` `KNOWN`: the ISS,
-    Tiangong, Hubble) and the target.  Every satellite is in the search.
+    So the names' budget starts at the best known (the header's `known`:
+    the ISS, Tiangong, Hubble), which rank first; the slider names more,
+    the rest of the stations next.  Every satellite is in the search.
 - **The format** is one row per satellite: `[NORAD_CAT_ID, OBJECT_NAME,
-  group, ...OMM fields]`.  The columns are named in the file, and the
-  header records the source, the fetch time (`fetched`) and each group's
-  URL and counts.  It's OMM, not TLE: the catalogue passed five digits on
+  group, ...OMM fields]`.  The columns are named in the file.  The header
+  records the source and the fetch time (`fetched`: the oldest group's, a
+  rebuild from the cache keeping it), and it carries how the app shows the
+  population, so the app has no table of its own: its `body` (`earth`),
+  each group's `label`, `kind` (what one of it is, for a satellite's panel)
+  and `color` with its URL and counts, in the panel's order, and `known`,
+  the best known by NORAD number with the names people use and their
+  aliases (`select.js` `KNOWN`).  It's OMM, not TLE: the catalogue passed five digits on
   2026-07-11 (CelesTrak), and TLEs can't carry the new numbers.  The
   snapshot already has some, e.g. Soyuz MS-29, 100057.
 - **Fetching** (`tools/satellites/fetch.mjs`): one request a group, through
@@ -148,10 +161,15 @@ by.
   coloured by group, with depth testing, so Earth hides those behind it.
   The points are hidden when the camera is more than 1.5e9 m from Earth's
   centre (about four times the Moon's distance), and the names past
-  2e8 m.  The target's name shows wherever the points do.  A name is a
-  one-label sheet that moves with its satellite each frame.  It carries
-  `labelTargets`, so a click targets the satellite and a double click goes
-  there (labelPick.js).
+  2e8 m.  The target's name shows wherever the points do.  The names and
+  the group switches are the population's
+  ([Population.md](../population/Population.md#what-every-population-gets)):
+  the Satellites section of Earth's panel (and of a satellite's) lists the
+  eight groups with their colours and counts as switches, and a Names
+  slider from none to all of the shown groups' (827), starting at the
+  three best known.  The names carry `labelTargets`, so a click targets a
+  satellite and a double click goes there (labelPick.js).  The link keeps
+  it all (`pop:earth=starlink,earth.labels=40`, design/URLs.md).
 - **Updated** each frame from the Julian Day animated.  While the points
   are shown, every satellite is propagated: 0.5 ms a frame for 700 of them
   (a third in deep space) in bun on this session's CPU.  The targets' nodes are always updated, since the
@@ -257,7 +275,9 @@ A failed load is logged and asked for again by the next need.
   2026-10-23 13:05 UTC: all 748 are drawn, and Starlink's 300 make a
   shell hugging Earth inside the LEO band.  The go to the ISS, on the day
   side this time, shows its name readable over bright cloud
-  (`screens/satellites-50/`).
+  (`screens/satellites-50/`).  The group switches and the Names slider,
+  clicked through the panel and reopened from their link:
+  [Population.md](../population/Population.md#checked).
 
 ## Follow-ups
 

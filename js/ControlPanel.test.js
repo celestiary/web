@@ -17,6 +17,49 @@ const IO_ORBIT = {
 }
 
 
+/** @returns {object} a population as the panel reads it: two groups, three objects */
+function fakePopulation() {
+  const pop = {
+    title: 'Orbiters',
+    shown: {nasa: true, esa: false},
+    labelBudget: 1,
+    groups: () => [
+      {key: 'nasa', label: 'NASA', color: '#ffffff', count: 2, shown: pop.shown.nasa},
+      {key: 'esa', label: 'ESA', color: '#c8c8c8', count: 1, shown: pop.shown.esa},
+    ],
+    maxLabels: () => (pop.shown.nasa ? 2 : 0) + (pop.shown.esa ? 1 : 0),
+  }
+  return pop
+}
+
+
+/**
+ * @param {object} [dataset]
+ * @param {object} [props]
+ * @param {object} [children] by selector
+ * @returns {object} an element, as far as _wirePopulation uses one
+ */
+function fakeElt(dataset = {}, props = {}, children = {}) {
+  const listeners = {}
+  const classes = new Set
+  return {
+    dataset, ...props, textContent: '',
+    classList: {
+      contains: (c) => classes.has(c), has: (c) => classes.has(c),
+      toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
+    },
+    setAttribute() {/* aria */},
+    addEventListener: (type, fn) => {
+      listeners[type] = fn
+    },
+    fire(type) {
+      listeners[type]?.({key: '', preventDefault() {/* none */}})
+    },
+    querySelector: (sel) => children[sel] ?? null,
+  }
+}
+
+
 describe('ControlPanel', () => {
   it('lists an orbit\'s six elements of the date, each tagged for the scene', () => {
     const panel = new ControlPanel(null, null)
@@ -179,6 +222,58 @@ describe('ControlPanel', () => {
     const space = panel.spaceAround('earth')
     expect(space.peek).toBe('Hill sphere, Lagrange points, three-body orbits')
     expect(space.html.indexOf('Three-body orbits')).toBeGreaterThan(space.html.indexOf('Hill sphere'))
+  })
+
+  it('gives a body with a population a section: its groups as switches, and a names slider', () => {
+    const panel = new ControlPanel(null, null)
+    expect(panel.populationSectionHtml('earth')).toBe('')
+    const pop = fakePopulation()
+    panel.populationHooks = {of: (body) => (body === 'mars' ? pop : null)}
+    expect(panel.populationSectionHtml('earth')).toBe('')
+    const html = panel.populationSectionHtml('mars')
+    // Named for the link's `info:` token, as the other sections are.
+    expect(html).toContain('data-prop="population"')
+    expect(html).toContain('Orbiters')
+    expect(html).toContain('3 in 2 groups')
+    expect(html).toContain('class="population-group on" data-body="mars" data-key="nasa"')
+    expect(html).toContain('class="population-group" data-body="mars" data-key="esa"')
+    expect(html).toContain('style="background: #ffffff"')
+    expect(html).toContain('<input type="range" min="0" max="2" step="1" value="1"')
+  })
+
+  it('switches a group and moves the names slider through the hooks', () => {
+    const pop = fakePopulation()
+    const calls = []
+    const panel = new ControlPanel(null, null)
+    panel.populationHooks = {
+      of: () => pop,
+      setGroup: (body, key, on) => {
+        calls.push(['group', body, key, on])
+        pop.shown[key] = on
+      },
+      setLabels: (body, n) => {
+        calls.push(['labels', body, n])
+        pop.labelBudget = n
+      },
+    }
+    const chip = fakeElt({body: 'mars', key: 'esa'})
+    const input = fakeElt({}, {value: '1', max: '2'})
+    const value = fakeElt()
+    const slider = fakeElt({body: 'mars'}, {}, {input, '.population-labels-value': value})
+    panel.containerElt = {
+      querySelectorAll: (sel) => (sel === '.population-group' ? [chip] : []),
+      querySelector: (sel) => (sel === '.population-labels' ? slider : null),
+    }
+    panel._wirePopulation()
+    chip.fire('click')
+    expect(calls).toEqual([['group', 'mars', 'esa', true]])
+    expect(chip.classList.has('on')).toBe(true)
+    // The slider's reach follows the groups shown.
+    expect(input.max).toBe('3')
+    input.value = '3'
+    input.fire('input')
+    expect(calls.at(-1)).toEqual(['labels', 'mars', 3])
+    expect(value.textContent).toBe('3')
   })
 
   it('writes masses in scientific notation', () => {

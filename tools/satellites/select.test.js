@@ -15,6 +15,12 @@ describe('satellites snapshot', () => {
   it('asks CelesTrak for OMM JSON', () => {
     expect(gpUrl({GROUP: 'stations'})).toBe('https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json')
     expect(GROUP_QUERIES[0].group).toBe('stations')
+    // Each group brings how the app shows it: no table of the app's own.
+    for (const g of GROUP_QUERIES) {
+      expect(g.label).toBeTruthy()
+      expect(g.color).toMatch(/^#[0-9a-f]{6}$/)
+    }
+    expect(GROUP_QUERIES.find((g) => g.group === 'iridium').query).toEqual({GROUP: 'iridium-NEXT'})
   })
 
   it('samples evenly by NORAD number', () => {
@@ -30,10 +36,14 @@ describe('satellites snapshot', () => {
       {group: 'gnss', records: [omm(25544), omm(40000, {MEAN_MOTION: 2.0056}), omm(1, {MEAN_MOTION: 0})], url: 'b'},
     ], '2026-10-23T00:00:00Z')
     expect(snap.rows.map((r) => [r[0], r[2]])).toEqual([[25544, 'stations'], [40000, 'gnss']])
-    expect(snap.groups.gnss).toEqual({url: 'b', of: 3, kept: 1})
+    expect(snap.groups.gnss).toEqual({label: 'gnss', kind: 'gnss', color: '#c8c8c8', url: 'b', of: 3, kept: 1})
+    expect(snap.body).toBe('earth')
+    expect(snap.known[25544].name).toBe('ISS')
     // A group CelesTrak refused is named, for the next run.
-    const partial = buildSnapshot([{group: 'starlink', records: [], url: 'c', error: '403'}], 'x')
-    expect(partial.groups.starlink).toEqual({url: 'c', of: 0, kept: 0, error: '403'})
+    const partial = buildSnapshot([{group: 'starlink', records: [], url: 'c', error: '403', label: 'Starlink',
+      kind: 'Starlink', color: '#7fd0ff'}], 'x')
+    expect(partial.groups.starlink).toEqual({label: 'Starlink', kind: 'Starlink', color: '#7fd0ff', url: 'c', of: 0,
+      kept: 0, error: '403'})
     const recs = parseCatalog(snap)
     expect(recs.map((r) => r.id)).toEqual([25544, 40000])
     expect(recs[1].group).toBe('gnss')

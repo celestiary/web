@@ -23,5 +23,7 @@ export async function loadSatellites(opts = {}, fetchFn = fetch) {
   }
   const data = await rsp.json()
   const {rows, ...header} = data
-  return {satellites: new Satellites(parseCatalog({rows}), opts), data: header}
+  const records = parseCatalog({rows, known: header.known})
+  return {satellites: new Satellites(records, {body: header.body ?? 'earth', groups: header.groups ?? {}, ...opts}),
+    data: header}
 }

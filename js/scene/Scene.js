@@ -229,11 +229,17 @@ export default class Scene {
     // The node the camera was riding when following was turned off, until
     // syncFollow has detached the camera from it.
     this._detachFrom = null
-    // Earth's satellites (satellites/Satellites.md): their chunk and
-    // snapshot, imported when something first needs them
-    // (loadSatellites), hung from Earth's planetTilt.
-    this.satellites = null
+    // Populations round bodies (population/Population.md), by body: Earth's
+    // satellites (satellites/Satellites.md), their chunk and snapshot
+    // imported when something first needs them (loadSatellites), and any
+    // other a loader adds (addPopulation).  Each hangs from its body's
+    // planetTilt.
+    this.populations = new Map
     this.importSatellites = () => import('./satellites/loadSatellites.js')
+    // A link's population state for bodies whose population isn't in yet
+    // (restorePopulations), and who to tell of one added (onPopulationAdded).
+    this._pendingPopulations = new Map
+    this._populationListeners = []
   }
 
 
@@ -403,7 +409,7 @@ export default class Scene {
         const lagrange = [...this._lagrange?.values() ?? []].filter((m) => m.parent)
         const regimes = [...this._regimes?.values() ?? []].filter((m) => m.parent)
         return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind,
-          ...lagrange, ...lagrange.map((m) => m.syncRing), ...regimes, this.satellites?.marks]
+          ...lagrange, ...lagrange.map((m) => m.syncRing), ...regimes, ...[...this.populations.values()].map((p) => p.marks)]
       }
       case 'p': {
         // Bodies' names, and the places and lat/lng markers on them (the
@@ -600,6 +606,7 @@ export default class Scene {
     if (name === 'earth') {
       this._watchForSatellites()
     }
+    this._hangPopulations()
     // A link's lit elements for a body that has only now loaded.
     if (this._orbitElements.has(name)) {
       this._syncOrbitDiagrams()
@@ -1065,7 +1072,6 @@ export default class Scene {
   _watchForSatellites() {
     const tilt = this.objects['earth.planetTilt']
     if (!tilt || this._satelliteWatch) {
-      this._hangSatellites()
       return
     }
     const watch = new Object3D
@@ -1100,10 +1106,8 @@ export default class Scene {
     this._satellitesPending ??= this.importSatellites()
         .then((m) => m.loadSatellites({layer: Shared.OVERLAY_LAYER, camera: this.ui?.camera}))
         .then(({satellites, data}) => {
-          this.satellites = satellites
           this.satelliteData = data
-          this._joinOverlay('o', satellites.marks)
-          this._hangSatellites()
+          this.addPopulation(satellites)
           this._satelliteWatch?.removeFromParent()
           const waiters = this._satellitesWaiters ?? []
           this._satellitesWaiters = null
@@ -1132,22 +1136,176 @@ export default class Scene {
   }
 
 
-  /** Hang the satellites from Earth's planetTilt, once both are here. */
-  _hangSatellites() {
-    const tilt = this.objects['earth.planetTilt']
-    if (this.satellites && tilt && this.satellites.parent !== tilt) {
-      tilt.add(this.satellites)
+  /** @returns {?object} Earth's satellites (the CelesTrak loader's population), once in */
+  get satellites() {
+    return this.populations.get('earth') ?? null
+  }
+
+
+  /**
+   * Add a population round a body (population/Population.js): hung from the
+   * body's planetTilt (now, or when the body loads), in the orbits group,
+   * with a link's state for it applied, its changes rewriting the link, and
+   * onPopulationAdded's listeners told.  The one way a population comes
+   * in: Earth's satellites (loadSatellites), and any other loader's.
+   *
+   * @param {object} population
+   */
+  addPopulation(population) {
+    this.populations.set(population.body, population)
+    this._joinOverlay('o', population.marks)
+    population.onChange = () => this.onSettingsChange?.()
+    const pending = this._pendingPopulations.get(population.body)
+    if (pending) {
+      this._pendingPopulations.delete(population.body)
+      this._applyPopulationState(population, pending)
+    }
+    this._hangPopulations()
+    this._populationListeners.forEach((cb) => cb(population))
+  }
+
+
+  /**
+   * @param {string} body
+   * @returns {Promise<?object>} its population once it's in: Earth's
+   *   satellites are loaded now if they aren't; another body's waits for
+   *   its loader to add it
+   */
+  loadPopulation(body) {
+    if (body === 'earth') {
+      return this.loadSatellites()
+    }
+    const pop = this.populationOf(body)
+    if (pop) {
+      return Promise.resolve(pop)
+    }
+    return new Promise((resolve) => {
+      const cb = (p) => {
+        if (p.body === body) {
+          this._populationListeners = this._populationListeners.filter((f) => f !== cb)
+          resolve(p)
+        }
+      }
+      this._populationListeners.push(cb)
+    })
+  }
+
+
+  /**
+   * @param {function(object): void} cb Called with each population as it's
+   *   added, and now with those already in
+   */
+  onPopulationAdded(cb) {
+    this._populationListeners.push(cb)
+    this.populations.forEach((p) => cb(p))
+  }
+
+
+  /**
+   * @param {string} body
+   * @returns {?object} its population, if one is in
+   */
+  populationOf(body) {
+    return this.populations.get(body) ?? null
+  }
+
+
+  /** Hang each population from its body's planetTilt, once both are here. */
+  _hangPopulations() {
+    for (const [body, pop] of this.populations) {
+      const tilt = this.objects[`${body}.planetTilt`]
+      if (tilt && pop.parent !== tilt) {
+        tilt.add(pop)
+      }
     }
   }
 
 
   /**
-   * @param {object} t a satellite target ({kind: 'satellite', id})
+   * Show or hide a group of a body's population (the info panel's switch).
+   *
+   * @param {string} body
+   * @param {string} key the group's
+   * @param {boolean} on
+   */
+  setPopulationGroup(body, key, on) {
+    this.populationOf(body)?.setGroupShown(key, on)
+  }
+
+
+  /**
+   * How many of a body's population's names show (the panel's slider).
+   *
+   * @param {string} body
+   * @param {number} n
+   */
+  setPopulationLabels(body, n) {
+    this.populationOf(body)?.setLabelBudget(n)
+  }
+
+
+  /**
+   * @returns {Map<string, {shown: ?Set<string>, labels: ?number}>} each
+   *   population's state away from its defaults, for the link's `pop:`
+   *   token: the groups shown, or null for all; the label budget, or null
+   *   for its default.  Pending states (a link's, for a population not in
+   *   yet) are kept as they were.
+   */
+  getPopulationState() {
+    const out = new Map(this._pendingPopulations)
+    for (const [body, pop] of this.populations) {
+      const groups = pop.groups()
+      const shown = groups.every((g) => g.shown) ? null : new Set(groups.filter((g) => g.shown).map((g) => g.key))
+      const labels = pop.labelBudget === pop.defaultLabelBudget ? null : pop.labelBudget
+      if (shown || labels !== null) {
+        out.set(body, {shown, labels})
+      }
+    }
+    return out
+  }
+
+
+  /**
+   * Put the populations back as a link had them (`pop:`): now for those in,
+   * when they're added for the rest.  Quiet: the link isn't rewritten.
+   *
+   * @param {Map<string, {shown: ?Set<string>, labels: ?number}>} state
+   */
+  restorePopulations(state) {
+    for (const [body, st] of state ?? []) {
+      const pop = this.populationOf(body)
+      if (pop) {
+        this._applyPopulationState(pop, st)
+      } else {
+        this._pendingPopulations.set(body, st)
+      }
+    }
+  }
+
+
+  /**
+   * @param {object} pop
+   * @param {{shown: ?Set<string>, labels: ?number}} st
+   */
+  _applyPopulationState(pop, {shown, labels}) {
+    if (shown) {
+      for (const g of pop.groups()) {
+        pop.setGroupShown(g.key, shown.has(g.key), true)
+      }
+    }
+    if (labels !== null && labels !== undefined) {
+      pop.setLabelBudget(labels, true)
+    }
+  }
+
+
+  /**
+   * @param {object} t a satellite target ({kind: 'satellite', id, body})
    * @returns {?object} its node, if it has a position now: none outside its
    *   elements' window (sgp4.js inWindow)
    */
   _satelliteNode(t) {
-    const sats = this.satellites
+    const sats = this.populationOf(t.body ?? 'earth')
     if (!sats || !sats.record(t.id)) {
       return null
     }
@@ -1419,8 +1577,10 @@ export default class Scene {
     }
     Shared.targets.label = t.kind === 'body' ? null : t
     this._labelTargetStar(Shared.targets.label)
-    // A satellite's name shows while it's the target (Satellites.setTarget).
-    this.satellites?.setTarget(t.kind === 'satellite' ? t.id : null)
+    // A satellite's name shows while it's the target (Population.setTarget).
+    for (const pop of this.populations.values()) {
+      pop.setTarget(t.kind === 'satellite' && (t.body ?? 'earth') === pop.body ? t.id : null)
+    }
     // Animated in ThreeUI.renderLoop
     if (look) {
       const pos = t.kind === 'body' ? obj.matrixWorld : this.labelPosition(t)
@@ -2261,9 +2421,9 @@ export default class Scene {
    * @returns {?object} The body it moves
    */
   _bodyOf(node) {
-    // A satellite's node is in Earth's frame: Earth is the camera's body.
+    // A satellite's node is in its body's frame: the body is the camera's.
     if (node?.isSatelliteNode) {
-      return this.objects['earth'] ?? null
+      return this.objects[node.body ?? 'earth'] ?? null
     }
     const cur = Shared.targets.cur
     if (cur?.orbitPosition === node) {
@@ -2279,9 +2439,9 @@ export default class Scene {
    *   planet's: the Sun's; a moon's: its planet's), or null for the Sun
    */
   _parentNode(node) {
-    // Leaving a satellite leaves the camera with Earth.
+    // Leaving a satellite leaves the camera with its body.
     if (node?.isSatelliteNode) {
-      return this.objects['earth']?.orbitPosition ?? null
+      return this.objects[node.body ?? 'earth']?.orbitPosition ?? null
     }
     const parent = this.objects[this._bodyOf(node)?.props?.parent]
     return parent?.orbitPosition ?? null

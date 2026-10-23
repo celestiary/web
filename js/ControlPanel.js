@@ -55,6 +55,9 @@ export default class ControlPanel {
     this.spaceHook = null
     /** The three-body orbits' switches (periodicHtml): {pairs, toggle, frame, setFrame}. */
     this.periodicHooks = null
+    // A body's population (Scene.populationOf): {of(body), setGroup(body,
+    // key, on), setLabels(body, n)}.
+    this.populationHooks = null
     // The listed body and its list, and when the values last ran.
     this._orbit = null
     /**
@@ -189,6 +192,7 @@ export default class ControlPanel {
     this._show(this.bodyPanelHtml(target, path.join('/')))
     this._wireOrbit(target)
     this._wirePeriodic()
+    this._wirePopulation()
   }
 
 
@@ -246,6 +250,7 @@ export default class ControlPanel {
     }
     html += sectionHtml('physical', 'Physical', 'mass, density, gravity', rowsHtml(physical))
     html += sectionHtml('space', 'Space around', space.peek, space.html)
+    html += this.populationSectionHtml(body.name)
     if (body.rings) {
       html += sectionHtml('rings', 'Rings', '', rowsHtml(fieldRowsHtml(body.rings, secsToYDHMS, sci)))
     }
@@ -357,6 +362,85 @@ export default class ControlPanel {
     rows += row('Drawn', sw('periodic-frame', frame === 'rotating', 'data-frame="rotating"', 'turning with the pair',
         'radio') + sw('periodic-frame', frame === 'inertial', 'data-frame="inertial"', 'fixed in space', 'radio'))
     return `<div class="info-subhead">Three-body orbits</div>\n${rowsHtml(rows)}`
+  }
+
+
+  /**
+   * A body's population (population/Population.js; Satellites.md), as a
+   * section of its panel and of its objects': each group a switch, with its
+   * colour and count, and how many names show, the highest ranked.  For any
+   * body with a population: the controls come from it, not from a table of
+   * Earth's.
+   *
+   * @param {string} body
+   * @returns {string} the section, or '' for a body with none
+   */
+  populationSectionHtml(body) {
+    const pop = this.populationHooks?.of?.(body)
+    if (!pop) {
+      return ''
+    }
+    const groups = pop.groups()
+    const total = groups.reduce((n, g) => n + g.count, 0)
+    const chips = groups.map((g) =>
+      `<span class="population-group${g.shown ? ' on' : ''}" data-body="${esc(body)}" data-key="${esc(g.key)}" ` +
+      `role="switch" aria-checked="${g.shown}" tabindex="0">` +
+      `<span class="population-dot" style="background: ${esc(g.color)}"></span>${esc(g.label)} ` +
+      `<span class="info-unit">${g.count}</span></span>`).join('')
+    const slider = `<label class="population-labels" data-body="${esc(body)}">Names ` +
+      `<input type="range" min="0" max="${pop.maxLabels()}" step="1" value="${pop.labelBudget}" ` +
+      `aria-label="how many ${esc(pop.title.toLowerCase())} are named, the best known first"> ` +
+      `<span class="population-labels-value">${pop.labelBudget}</span></label>\n`
+    const content = '<dl class="info-rows"><div class="info-row is-long"><dt>Shown</dt>' +
+      `<dd class="info-switches">${chips}</dd></div></dl>\n${slider}`
+    return sectionHtml('population', pop.title, `${total} in ${groups.length} groups`, content)
+  }
+
+
+  /** Wire a population's switches and names slider (populationSectionHtml) to the scene. */
+  _wirePopulation() {
+    const hooks = this.populationHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    const slider = this.containerElt.querySelector('.population-labels')
+    const input = slider?.querySelector('input')
+    const value = slider?.querySelector('.population-labels-value')
+    // The slider's reach follows the groups shown: its max is the names
+    // they hold.
+    const syncSlider = () => {
+      const pop = slider && hooks.of(slider.dataset.body)
+      if (!pop || !input) {
+        return
+      }
+      input.max = String(pop.maxLabels())
+      input.value = String(pop.labelBudget)
+      if (value) {
+        value.textContent = String(pop.labelBudget)
+      }
+    }
+    for (const el of this.containerElt.querySelectorAll('.population-group')) {
+      const toggle = () => {
+        const on = !el.classList.contains('on')
+        hooks.setGroup(el.dataset.body, el.dataset.key, on)
+        el.classList.toggle('on', on)
+        el.setAttribute('aria-checked', String(on))
+        syncSlider()
+      }
+      el.addEventListener('click', toggle)
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault()
+          toggle()
+        }
+      })
+    }
+    input?.addEventListener('input', () => {
+      hooks.setLabels(slider.dataset.body, Number(input.value))
+      if (value) {
+        value.textContent = input.value
+      }
+    })
   }
 
 
@@ -632,17 +716,22 @@ export default class ControlPanel {
    * @param {object} rec Its record (satellites/sgp4.js)
    * @param {number} jd The date, Julian Day (UTC)
    * @param {?string} [fetched] When the snapshot was fetched
+   * @param {?string} [kind] What one of its group is
+   * @param {string} [body] The body it's round, whose population's
+   *   controls follow
    */
-  showSatellite(rec, jd, fetched = null) {
+  showSatellite(rec, jd, fetched = null, kind = null, body = 'earth') {
     if (!rec) {
       return
     }
     this._endPreview()
     this._orbit = null
-    const f = satelliteFacts(rec, jd, fetched)
+    const f = satelliteFacts(rec, jd, fetched, kind)
     const rows = f.rows.map(([label, value, unit]) => rowHtml(label, value, unit)).join('')
     const notes = f.notes.map((n) => `<p class="info-note">${esc(n)}</p>\n`).join('')
-    this._show(panelHtml({name: f.name, kind: f.kind, fact: f.fact}, rowsHtml(rows) + notes))
+    this._show(panelHtml({name: f.name, kind: f.kind, fact: f.fact},
+        rowsHtml(rows) + notes + this.populationSectionHtml(body)))
+    this._wirePopulation()
   }
 
 

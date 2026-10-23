@@ -63,6 +63,10 @@ export function isTargetLabel(target, current) {
     const l = current.label
     return l?.kind === 'place' && l.body === target.body && l.name === target.name
   }
+  if (target.kind === 'satellite') {
+    const l = current.label
+    return l?.kind === 'satellite' && l.id === target.id && (l.body ?? 'earth') === (target.body ?? 'earth')
+  }
   return false
 }
 

@@ -1,19 +1,30 @@
 import {describe, expect, it} from 'bun:test'
 import {Color, Object3D, PerspectiveCamera, Vector3} from 'three'
-import Satellites, {ARRIVAL_DIST, GROUPS} from './Satellites.js'
-import {aliasesOf, displayName, satelliteFacts, satelliteTarget} from './names.js'
+import Satellites, {ARRIVAL_DIST} from './Satellites.js'
+import {aliasesOf, displayName, satelliteFacts} from './names.js'
 import {parseCatalog, temePosition} from './sgp4.js'
 
 
-// An ISS-like orbit and a GPS-like one, elements of 2026 Oct 22 12:00 UTC
-// (made up for the test: the real snapshot's are in satellites.json).
+// An ISS-like orbit, a GPS-like one and two Starlink-like ones, elements of
+// 2026 Oct 22 12:00 UTC (made up for the test: the real snapshot's are in
+// satellites.json), with the header's groups and known names.
 const EPOCH_JD = 2461336.0
-const SNAPSHOT = {rows: [
-  [25544, 'ISS (ZARYA)', 'stations', '1998-067A', '2026-10-22T12:00:00.000000', 15.5, 0.0005, 51.64, 100, 90, 0,
-    1.5e-4, 1e-4, 0],
-  [40000, 'GPS BIIF-9 (PRN 26)', 'gnss', '2015-013A', '2026-10-22T12:00:00.000000', 2.0056, 0.005, 55, 30, 10, 0,
-    0, 0, 0],
-]}
+const EPOCH = '2026-10-22T12:00:00.000000'
+const SNAPSHOT = {
+  body: 'earth',
+  groups: {
+    stations: {label: 'Space stations', kind: 'space station', color: '#fff2c0'},
+    gnss: {label: 'Navigation', kind: 'navigation', color: '#9fe09f'},
+    starlink: {label: 'Starlink (a sample)', kind: 'Starlink', color: '#7fd0ff'},
+  },
+  known: {25544: {name: 'ISS', aliases: ['International Space Station', 'Zarya']}},
+  rows: [
+    [25544, 'ISS (ZARYA)', 'stations', '1998-067A', EPOCH, 15.5, 0.0005, 51.64, 100, 90, 0, 1.5e-4, 1e-4, 0],
+    [40000, 'GPS BIIF-9 (PRN 26)', 'gnss', '2015-013A', EPOCH, 2.0056, 0.005, 55, 30, 10, 0, 0, 0, 0],
+    [50001, 'STARLINK-1001', 'starlink', '2019-074A', EPOCH, 15.06, 0.0001, 53, 10, 0, 0, 1e-4, 0, 0],
+    [50002, 'STARLINK-1002', 'starlink', '2019-074B', EPOCH, 15.06, 0.0001, 53, 10, 0, 30, 1e-4, 0, 0],
+  ],
+}
 
 
 /** A label sheet without a canvas. */
@@ -21,6 +32,8 @@ class StubSheet {
   /** */
   constructor() {
     this.labels = []
+    this.positions = []
+    this.positionAttribute = null
   }
 
   /**
@@ -31,6 +44,7 @@ class StubSheet {
    */
   add(x, y, z, text) {
     this.labels.push(text)
+    this.positions.push(x, y, z)
   }
 
   /** @returns {Object3D} */
@@ -42,7 +56,9 @@ class StubSheet {
 }
 
 
-const newSatellites = (opts = {}) => new Satellites(parseCatalog(SNAPSHOT), {Sheet: StubSheet, ...opts})
+const newSatellites = (opts = {}) => new Satellites(parseCatalog(SNAPSHOT),
+    {groups: SNAPSHOT.groups, Sheet: StubSheet, ...opts})
+const names = (sats) => sats.nameSheet?.userData.ownSheet.labels ?? []
 
 
 describe('Satellites', () => {
@@ -59,15 +75,16 @@ describe('Satellites', () => {
     expect(r(0) / 1e3).toBeGreaterThan(6378 + 300)
     expect(r(0) / 1e3).toBeLessThan(6378 + 500)
     expect(r(1) / 1e3).toBeCloseTo(26560, -3)
-    expect(sats.drawnCount).toBe(2)
+    expect(sats.drawnCount).toBe(4)
+    expect(sats.body).toBe('earth')
   })
 
   it('hides a satellite outside its elements\' window', () => {
     const sats = newSatellites()
-    // 60 days on: the ISS's 30-day window is over, GPS's 180 isn't.
+    // 60 days on: the low orbits' 30-day windows are over, GPS's 180 isn't.
     sats.update(EPOCH_JD + 60)
     const show = sats.points.geometry.attributes.aShow
-    expect([show.getX(0), show.getX(1)]).toEqual([0, 1])
+    expect([0, 1, 2, 3].map((i) => show.getX(i))).toEqual([0, 1, 0, 0])
     expect(sats.drawnAt(25544, EPOCH_JD + 60)).toBe(false)
     expect(sats.drawnAt(40000, EPOCH_JD + 60)).toBe(true)
   })
@@ -77,6 +94,7 @@ describe('Satellites', () => {
     sats.update(EPOCH_JD)
     const node = sats.node(25544)
     expect(node.isSatelliteNode).toBe(true)
+    expect(node.body).toBe('earth')
     expect(node.parent).toBe(sats)
     expect(node.arrivalDistance).toBe(ARRIVAL_DIST)
     expect(sats.node(25544)).toBe(node)
@@ -88,19 +106,82 @@ describe('Satellites', () => {
     expect(node.position.distanceTo(before) / 1e3).toBeCloseTo(4600, -3)
   })
 
-  it('names the stations and the target, the target only while it is', () => {
+  it('lists its groups from the data, with their counts, colours and switches', () => {
     const sats = newSatellites()
+    expect(sats.groups()).toEqual([
+      {key: 'stations', label: 'Space stations', kind: 'space station', color: '#fff2c0', count: 1, shown: true},
+      {key: 'gnss', label: 'Navigation', kind: 'navigation', color: '#9fe09f', count: 1, shown: true},
+      {key: 'starlink', label: 'Starlink (a sample)', kind: 'Starlink', color: '#7fd0ff', count: 2, shown: true},
+    ])
+    const c = sats.points.geometry.attributes.aColor
+    // In linear values, as three's Color holds them.
+    expect(c.getX(1)).toBeCloseTo(new Color('#9fe09f').r, 5)
+  })
+
+  it('hides a group\'s points and names when it\'s switched off', () => {
+    const sats = newSatellites()
+    let changes = 0
+    sats.onChange = () => changes++
+    sats.setLabelBudget(4)
+    sats.setGroupShown('starlink', false)
+    expect(changes).toBe(2)
     sats.update(EPOCH_JD)
-    expect([...sats.labels.keys()]).toEqual([25544])
-    const label = sats.labels.get(25544)
-    expect(label.userData.ownSheet.labels).toEqual(['ISS'])
-    expect(label.userData.labelTargets).toEqual([{kind: 'satellite', id: 25544, name: 'ISS', body: 'earth'}])
-    sats.setTarget(40000)
+    const show = sats.points.geometry.attributes.aShow
+    expect([0, 1, 2, 3].map((i) => show.getX(i))).toEqual([1, 1, 0, 0])
+    expect(sats.maxLabels()).toBe(2)
+    // The budget can't ask for more names than the shown groups hold.
+    expect(sats.labelBudget).toBe(2)
+    expect(names(sats)).toEqual(['ISS', 'GPS BIIF-9 (PRN 26)'])
+    sats.setGroupShown('starlink', false)
+    expect(changes).toBe(2)
+    sats.setGroupShown('starlink', true, true)
+    expect(changes).toBe(2)
+    expect(sats.isGroupShown('starlink')).toBe(true)
+  })
+
+  it('names the best known to start, then as many as the budget, ranked', () => {
+    const sats = newSatellites()
+    expect(sats.defaultLabelBudget).toBe(1)
     sats.update(EPOCH_JD)
-    expect([...sats.labels.keys()].sort()).toEqual([25544, 40000])
+    expect(names(sats)).toEqual(['ISS'])
+    sats.setLabelBudget(3)
+    sats.update(EPOCH_JD)
+    // The best known, then by group in the data's order.
+    expect(names(sats)).toEqual(['ISS', 'GPS BIIF-9 (PRN 26)', 'STARLINK-1001'])
+    const sprites = sats.nameSheet
+    expect(sprites.userData.labelTargets.map((t) => t.id)).toEqual([25544, 40000, 50001])
+    expect(sprites.userData.labelRank[0]).toBeGreaterThan(sprites.userData.labelRank[2])
+    // Laid on their satellites.
+    const pos = sats.points.geometry.attributes.position
+    expect(sprites.userData.ownSheet.positions.slice(3, 6)).toEqual([pos.getX(1), pos.getY(1), pos.getZ(1)])
+    sats.setLabelBudget(99)
+    expect(sats.labelBudget).toBe(4)
+    sats.setLabelBudget(0)
+    sats.update(EPOCH_JD)
+    expect(sats.nameSheet).toBeNull()
+  })
+
+  it('names the target on its own, whatever the budget and its group', () => {
+    const sats = newSatellites()
+    sats.setLabelBudget(0)
+    sats.setGroupShown('starlink', false)
+    sats.setTarget(50002)
+    sats.update(EPOCH_JD)
+    expect(sats.targetLabel.userData.ownSheet.labels).toEqual(['STARLINK-1002'])
+    expect(sats.targetLabel.userData.labelTargets).toEqual([
+      {kind: 'satellite', id: 50002, name: 'STARLINK-1002', body: 'earth'},
+    ])
+    expect(sats.targetLabel.visible).toBe(true)
     sats.setTarget(null)
     sats.update(EPOCH_JD)
-    expect([...sats.labels.keys()]).toEqual([25544])
+    expect(sats.targetLabel).toBeNull()
+  })
+
+  it('keeps the target out of the budget\'s sheet, which names the next instead', () => {
+    const sats = newSatellites()
+    sats.setTarget(25544)
+    sats.update(EPOCH_JD)
+    expect(names(sats)).toEqual(['GPS BIIF-9 (PRN 26)'])
   })
 
   it('shows the points near Earth, and the names nearer', () => {
@@ -108,39 +189,32 @@ describe('Satellites', () => {
     const sats = newSatellites({camera})
     const earth = new Object3D
     earth.add(sats)
-    camera.position.set(0, 0, 5e7)
-    camera.updateMatrixWorld()
-    sats.update(EPOCH_JD)
-    sats.update(EPOCH_JD)
+    const at = (d) => {
+      camera.position.set(0, 0, d)
+      camera.updateMatrixWorld()
+      sats.update(EPOCH_JD)
+    }
+    at(5e7)
     expect(sats.points.visible).toBe(true)
-    expect(sats.labels.get(25544).visible).toBe(true)
-    camera.position.set(0, 0, 5e8)
-    camera.updateMatrixWorld()
-    sats.update(EPOCH_JD)
+    expect(sats.nameSheet.visible).toBe(true)
+    at(5e8)
     expect(sats.points.visible).toBe(true)
-    expect(sats.labels.get(25544).visible).toBe(false)
-    camera.position.set(0, 0, 5e9)
-    camera.updateMatrixWorld()
-    sats.update(EPOCH_JD)
+    expect(sats.nameSheet.visible).toBe(false)
+    at(5e9)
     expect(sats.points.visible).toBe(false)
-  })
-
-  it('colours each group, in linear values as three\'s Color holds them', () => {
-    const sats = newSatellites()
-    const c = sats.points.geometry.attributes.aColor
-    expect(c.getX(1)).toBeCloseTo(new Color(GROUPS.gnss.color).r, 5)
   })
 })
 
 
 describe('satellite names', () => {
-  it('calls the known ones by the names people use', () => {
+  it('calls the known ones by the names the snapshot gives them', () => {
     const [iss, gps] = parseCatalog(SNAPSHOT)
+    expect(iss.known).toBe(true)
     expect(displayName(iss)).toBe('ISS')
     expect(aliasesOf(iss)).toEqual(expect.arrayContaining(['International Space Station', 'ISS (ZARYA)', '25544',
       '1998-067A']))
     expect(displayName(gps)).toBe('GPS BIIF-9 (PRN 26)')
-    expect(satelliteTarget(gps)).toEqual({kind: 'satellite', id: 40000, name: 'GPS BIIF-9 (PRN 26)', body: 'earth'})
+    expect(gps.known).toBeUndefined()
   })
 })
 
@@ -148,7 +222,7 @@ describe('satellite names', () => {
 describe('satellite facts', () => {
   it('gives the orbit from the mean elements, and the elements\' age', () => {
     const [iss, gps] = parseCatalog(SNAPSHOT)
-    const f = satelliteFacts(iss, EPOCH_JD + 0.5, '2026-10-22T13:00:00Z')
+    const f = satelliteFacts(iss, EPOCH_JD + 0.5, '2026-10-22T13:00:00Z', 'space station')
     expect(f.name).toBe('ISS')
     expect(f.kind).toBe('Satellite, space station')
     const row = (label) => f.rows.find((r) => r[0] === label)
@@ -159,6 +233,7 @@ describe('satellite facts', () => {
     expect(row('Elements')).toEqual(['Elements', '2026-10-22 12:00 UTC', '12.0 h before this date'])
     expect(row('Designator')[1]).toBe('1998-067A')
     expect(f.notes).toEqual(['Elements from CelesTrak, 2026-10-22.'])
+    expect(satelliteFacts(gps, EPOCH_JD).kind).toBe('Satellite')
     // GPS: 20,200 km up.
     expect(satelliteFacts(gps, EPOCH_JD).fact).toMatch(/^20,\d{3} km up$/)
     // Past its window, it says it isn't drawn.

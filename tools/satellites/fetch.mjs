@@ -31,6 +31,11 @@ const skipArg = process.argv.indexOf('--skip')
 const SKIP = new Set(skipArg > 0 ? process.argv[skipArg + 1].split(',') : [])
 
 
+// When the oldest group was fetched, ms: the snapshot's `fetched` (a group
+// from the cache counts from when it was fetched, not when it's read).
+let oldest = Date.now()
+
+
 /**
  * @param {string} url
  * @returns {Promise<Array<object>>} the group's OMM records
@@ -38,6 +43,7 @@ const SKIP = new Set(skipArg > 0 ? process.argv[skipArg + 1].split(',') : [])
 async function fetchGroup(url) {
   const file = CACHE ? path.join(CACHE, `${crypto.createHash('sha1').update(url).digest('hex')}.json`) : null
   if (file && fs.existsSync(file) && Date.now() - fs.statSync(file).mtimeMs < CACHE_MS) {
+    oldest = Math.min(oldest, fs.statSync(file).mtimeMs)
     return JSON.parse(fs.readFileSync(file, 'utf8'))
   }
   const rsp = await fetch(url, {headers: {'user-agent': 'celestiary (https://celestiary.org/; tools/satellites)'}})
@@ -54,18 +60,18 @@ async function fetchGroup(url) {
 
 
 const fetched = []
-for (const {group, query, keep} of GROUP_QUERIES) {
+for (const {group, query, keep, label, kind, color} of GROUP_QUERIES) {
   const url = gpUrl(query)
   if (SKIP.has(group)) {
     console.warn(`${group}: skipped`)
-    fetched.push({group, records: [], keep, url, error: 'skipped'})
+    fetched.push({group, records: [], keep, url, error: 'skipped', label, kind, color})
     continue
   }
   const records = await fetchGroup(url)
   console.log(`${group}: ${records.length} from ${url}`)
-  fetched.push({group, records, keep, url})
+  fetched.push({group, records, keep, url, label, kind, color})
 }
-const snapshot = buildSnapshot(fetched, new Date().toISOString())
+const snapshot = buildSnapshot(fetched, new Date(oldest).toISOString())
 // A row to a line: diffs between snapshots read by satellite.
 const {rows, ...header} = snapshot
 const json = JSON.stringify(header, null, 2).replace(/\n}$/,

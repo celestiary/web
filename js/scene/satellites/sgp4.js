@@ -97,16 +97,24 @@ export function newSatRecord(omm, group = '') {
 /**
  * The snapshot, parsed.
  *
- * @param {{rows: Array<Array>}} data public/data/satellites.json
+ * @param {{rows: Array<Array>, known?: object}} data public/data/satellites.json
  * @returns {Array<SatRecord>} in its order, those SGP4 can start from
  */
 export function parseCatalog(data) {
   const out = []
   for (const row of data?.rows ?? []) {
     const rec = newSatRecord(rowToOmm(row), row[2])
-    if (rec) {
-      out.push(rec)
+    if (!rec) {
+      continue
     }
+    // The snapshot's best known: the name people use, and their aliases.
+    const known = data.known?.[rec.id]
+    if (known) {
+      rec.known = true
+      rec.label = known.name
+      rec.aliases = known.aliases ?? []
+    }
+    out.push(rec)
   }
   return out
 }

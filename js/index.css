@@ -595,7 +595,8 @@ button {
 }
 
 .periodic-family,
-.periodic-frame {
+.periodic-frame,
+.population-group {
   padding: 1px var(--space-10);
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
@@ -606,22 +607,58 @@ button {
 }
 
 .periodic-family:hover,
-.periodic-frame:hover {
+.periodic-frame:hover,
+.population-group:hover {
   border-color: var(--line-accent);
   color: var(--ink);
 }
 
 .periodic-family:focus-visible,
-.periodic-frame:focus-visible {
+.periodic-frame:focus-visible,
+.population-group:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
 .periodic-family.on,
-.periodic-frame.on {
+.periodic-frame.on,
+.population-group.on {
   border-color: var(--line-accent);
   background: var(--accent-fill);
   color: var(--ink);
+}
+
+/* A population's group switch: its colour, then its name and count
+   (ControlPanel.populationSectionHtml). */
+.population-dot {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: var(--space-4);
+  border-radius: 50%;
+  vertical-align: 0.05em;
+}
+
+/* Its names slider, as the orbit diagrams' far-side slider. */
+.population-labels {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: var(--space-4) var(--space-16) var(--space-6);
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.population-labels input {
+  flex: 1;
+  max-width: 10em;
+  accent-color: var(--accent);
+}
+
+.population-labels-value {
+  min-width: 3em;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
 }
 
 /* A body's system: chips that fly there. */
