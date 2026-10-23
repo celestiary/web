@@ -451,6 +451,43 @@ Decisions:
 - **Unknown codes are dropped**, and a body the scene doesn't have is
   ignored.  No token: none on.
 
+### Periodic Token
+
+The three-body periodic orbits shown, from the info panel's *space around*
+list ([js/scene/Lagrange.md](../js/scene/Lagrange.md#three-body-orbits)): for
+each pair with some on, its secondary and the families' codes, and the
+frame they're drawn in when it isn't the default.
+
+```
+<secondary>=<code>+<code>   a pair by its secondary (moon: the Earth-Moon pair) and its families on
+frame=inertial              drawn fixed in space, not turning with the pair
+```
+
+The codes, in the order the panel lists them:
+
+```
+l1l      L1 Lyapunov
+l2l      L2 Lyapunov
+l1h      L1 halo
+l2h      L2 halo
+dro      distant retrograde orbit
+nrho     the 9:2 near-rectilinear halo orbit (Earth-Moon only)
+```
+
+```
+#…;periodic:moon=nrho+dro                    Gateway's NRHO and a DRO, turning with the Earth-Moon pair
+#…;periodic:earth=l1h+l2h                    the Sun-Earth L1 and L2 halos
+#…;periodic:moon=dro+l2l,frame=inertial      fixed in space: their spirographs
+```
+
+Decisions:
+
+- **Keyed by the secondary**, which names its pair (each body has one
+  primary).
+- **App state, restored on any link that carries it**, as the `orbits:`
+  token is; the families show once their pair is the target's.
+- **Unknown codes are dropped.**  No token: none on.
+
 ### Apps Token
 
 The widgets drawer (DESIGN.md

@@ -22,8 +22,9 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {
-  decodeInfoToken, decodeOrbitsFade, decodeOrbitsToken, decodePermalink, decodeSettings, decodeTimeToken, encodeInfoToken,
-  encodeOrbitsToken, encodePermalink, encodeTimeToken, pathFromFragment, permalinkHref,
+  decodeInfoToken, decodeOrbitsFade, decodeOrbitsToken, decodePeriodicToken, decodePermalink, decodeSettings,
+  decodeTimeToken, encodeInfoToken, encodeOrbitsToken, encodePeriodicToken, encodePermalink, encodeTimeToken,
+  pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry, placeTarget} from './search/commitEntry'
@@ -173,6 +174,13 @@ export default class Celestiary {
     // And lists the space around the body: its Hill sphere, Lagrange
     // points and synchronous orbit.
     this.controlPanel.spaceHook = (name) => this.scene.spaceAround(name)
+    // And the three-body orbits at its pairs.
+    this.controlPanel.periodicHooks = {
+      pairs: (name) => this.scene.periodicPairsOf(name),
+      toggle: (body, code) => this.scene.togglePeriodic(body, code),
+      frame: () => this.scene.getPeriodicFrame(),
+      setFrame: (f) => this.scene.setPeriodicFrame(f),
+    }
     // Opening or folding the panel's lists rewrites the link (`info:`).
     this.controlPanel.onUiChange = () => this._schedulePermalinkUpdate()
     this.firstTime = true
@@ -610,6 +618,8 @@ export default class Celestiary {
       // shows once it has loaded (Scene.add).
       this.scene.restoreOrbitElements(decodeOrbitsToken(tokens?.orbits))
       this.scene.setOrbitFade(decodeOrbitsFade(tokens?.orbits), true)
+      // The three-body orbits shown, once their pairs are the target's.
+      this.scene.restorePeriodic(decodePeriodicToken(tokens?.periodic))
       // The info panel's lists, open or folded as they were.
       this.controlPanel.restoreUiState(decodeInfoToken(tokens?.info))
     } else {
@@ -3147,6 +3157,7 @@ export default class Celestiary {
       time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
       info: encodeInfoToken(this.controlPanel.uiState),
       orbits: encodeOrbitsToken(this.scene.getOrbitElements(), this.scene.getOrbitFade()),
+      periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame()),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(

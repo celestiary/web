@@ -675,7 +675,11 @@ export default class Animation {
     if (name === 'earth') {
       r.addScaledVector(this.moonPos, MOON_MASS_FRACTION)
     }
-    orbitPosition.lagrange.place(r, pole, orbitPosition.position)
+    // The pair's turn since J2000 at its mean motion: where the three-body
+    // orbits' bodies are (LagrangeMarks._placeFamilies).
+    const period = Number(orbitPosition.orbit.siderealOrbitPeriod?.scalar ?? orbitPosition.orbit.siderealOrbitPeriod)
+    const tau = period > 0 && this.jd !== null ? Shared.twoPi * (this.jd - J2000_JD) * SECONDS_PER_DAY / period : 0
+    orbitPosition.lagrange.place(r, pole, orbitPosition.position, tau)
   }
 
 
