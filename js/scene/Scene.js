@@ -17,7 +17,7 @@ import OrbitDiagram from './orbitDiagram.js'
 import {CODES, keyOfCode} from './orbitElements.js'
 import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
 import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
-import {FAMILIES, familyMember, familyOfCode, sampleMember} from './periodicOrbits.js'
+import {FAMILIES, PERIODIC_DATA_URL, familyMember, familyOfCode, sampleMember, southern} from './periodicOrbits.js'
 import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
@@ -205,6 +205,16 @@ export default class Scene {
     this._periodic = new Map
     this._periodicFrame = 'rotating'
     this._periodicMembers = new Map
+    // JPL's catalogue members (public/data/periodicOrbits.json), loaded the
+    // first time a family is shown: undefined before, 'loading', the file,
+    // or null where it couldn't load (the app's own members then).
+    this._periodicData = undefined
+    this.loadPeriodicData = () => fetch(PERIODIC_DATA_URL).then((rsp) => {
+      if (!rsp.ok) {
+        throw new Error(`${PERIODIC_DATA_URL}: ${rsp.status}`)
+      }
+      return rsp.json()
+    })
     // Set by Celestiary; called with ('track' | 'follow', on) when 't' or
     // 'f' (or a link) switches that mode, for the readout.
     this.onModeChange = null
@@ -1126,6 +1136,9 @@ export default class Scene {
    * rest.
    */
   _syncPeriodic() {
+    if (this._periodic.size > 0 && !this._periodicDataReady()) {
+      return
+    }
     for (const [key, marks] of this._lagrange ?? []) {
       if (!marks.parent) {
         continue
@@ -1162,10 +1175,41 @@ export default class Scene {
   _periodicSamples(secondary, mu, family) {
     const key = `${secondary}:${family}`
     if (!this._periodicMembers.has(key)) {
-      const member = familyMember(mu, family)
-      this._periodicMembers.set(key, member ? sampleMember(mu, member) : null)
+      // JPL's member where its catalogue has the pair, in its mass ratio;
+      // else the app's own.  Halos as their southern twin (southern).
+      const system = this._periodicData?.systems?.[secondary]
+      const jpl = system?.families?.[family]
+      const m = jpl ? system.mu : mu
+      let member = jpl ? {state: jpl.state, period: jpl.period} : familyMember(m, family)
+      if (member && jpl && FAMILIES[family].halo) {
+        member = southern(m, member)
+      }
+      const samples = member ? sampleMember(m, member) : null
+      if (samples) {
+        samples.source = jpl ? 'JPL' : 'computed'
+      }
+      this._periodicMembers.set(key, samples)
     }
     return this._periodicMembers.get(key)
+  }
+
+
+  /**
+   * Whether JPL's catalogue members are in (or couldn't be had); starts
+   * loading them the first time, and syncs again when they come.
+   *
+   * @returns {boolean}
+   */
+  _periodicDataReady() {
+    if (this._periodicData === undefined) {
+      this._periodicData = 'loading'
+      this.loadPeriodicData().then((data) => {
+        this._periodicData = data
+      }, () => {
+        this._periodicData = null
+      }).then(() => this._syncPeriodic())
+    }
+    return this._periodicData !== 'loading'
   }
 
 

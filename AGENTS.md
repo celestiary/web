@@ -340,6 +340,9 @@ tried and dropped.
   - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
     Record Horizons results as offline test fixtures with the query that
     produced them; tests never hit the network.
+  - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
+    `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
+    [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).
   - `asc-planetarynames-data.s3.us-west-2.amazonaws.com` (the IAU
     Gazetteer's per-body downloads, for `tools/places/build.mjs`; the
     site itself, `planetarynames.wr.usgs.gov`, is refused).

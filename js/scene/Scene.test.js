@@ -2,6 +2,7 @@ import {describe, expect, it} from 'bun:test'
 import {Object3D, PerspectiveCamera, Quaternion, Scene as ThreeScene, Vector3} from 'three'
 import {SETTINGS_DEFAULTS} from '../permalink.js'
 import * as Shared from '../shared.js'
+import periodicData from '../../public/data/periodicOrbits.json'
 
 // SpriteSheet (used by Scene._setTempMarker) reaches for document.* —
 // stub the canvas APIs it touches.  Same pattern as Places.test.js.
@@ -1721,6 +1722,8 @@ describe('the three-body orbits at the target\'s pairs', () => {
     addBody(s, {name: 'moon', parent: 'earth', mass: '7.34767309E25 g', radius: 1.7381e6,
       siderealRotationPeriod: 2360591.5, system: [],
       orbit: {semiMajorAxis: 3.844e8, eccentricity: 0.0549, siderealOrbitPeriod: 2360591.5}})
+    // JPL's catalogue members, as loaded (loadPeriodicData).
+    s._periodicData = periodicData
     return s
   }
 
@@ -1779,5 +1782,36 @@ describe('the three-body orbits at the target\'s pairs', () => {
       expect([...marks.families.keys()]).toEqual(['dro'])
       expect(marks.frame).toBe('inertial')
     })
+  })
+
+  it('draws JPL\'s member where its catalogue has the pair, loaded the first time, else its own', async () => {
+    const s = solarScene()
+    s._periodicData = undefined
+    let resolve
+    s.loadPeriodicData = () => new Promise((r) => {
+      resolve = r
+    })
+    let marks
+    withTarget(s, 'moon', () => {
+      marks = s.objects['moon.orbitPosition'].lagrange
+      s.togglePeriodic('moon', 'nrho')
+      // Not yet: the file is loading.
+      expect(marks.families.size).toBe(0)
+    })
+    const before = Shared.targets.obj
+    Shared.targets.obj = s.objects.moon
+    resolve(periodicData)
+    await new Promise((r) => setTimeout(r, 0))
+    Shared.targets.obj = before
+    expect(marks.families.get('nrho').samples.source).toBe('JPL')
+    // Where the file couldn't load, its own.
+    const t = solarScene()
+    t._periodicData = undefined
+    t.loadPeriodicData = () => Promise.reject(new Error('offline'))
+    withTarget(t, 'moon', () => t.togglePeriodic('moon', 'dro'))
+    Shared.targets.obj = t.objects.moon
+    await new Promise((r) => setTimeout(r, 0))
+    Shared.targets.obj = before
+    expect(t.objects['moon.orbitPosition'].lagrange.families.get('dro').samples.source).toBe('computed')
   })
 })

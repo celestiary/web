@@ -17,7 +17,12 @@ import {correctSymmetric, propagate} from './cr3bp.js'
 //   secondary, from a two-body circle grown out by continuation.
 // - The Earth-Moon 9:2 near-rectilinear halo orbit (NRHO), Gateway's: an
 //   L2 southern halo whose period is 2/9 of a synodic month, from a
-//   published state, its period then pinned by a secant on z0.
+//   published state, its period then pinned by a secant on x0.
+//
+// Where JPL's three-body periodic orbit catalogue has the pair, the app
+// draws the catalogue's member that matches these (PERIODIC_DATA_URL;
+// Scene._periodicSamples), and these are checked against it
+// (periodicOrbits.test.js).
 //
 // Members are chosen by size against the secondary's Hill radius γ (the
 // L1 distance, collinearDistances), so a family looks alike at every pair.
@@ -27,11 +32,16 @@ import {correctSymmetric, propagate} from './cr3bp.js'
 export const FAMILIES = {
   l1Lyapunov: {code: 'l1l', name: 'L1 Lyapunov', point: 1, color: 0x9fd0ff},
   l2Lyapunov: {code: 'l2l', name: 'L2 Lyapunov', point: 2, color: 0x9fb0ff},
-  l1Halo: {code: 'l1h', name: 'L1 halo', point: 1, color: 0xffb0e0},
-  l2Halo: {code: 'l2h', name: 'L2 halo', point: 2, color: 0xe0a0ff},
+  l1Halo: {code: 'l1h', name: 'L1 halo', point: 1, color: 0xffb0e0, halo: true},
+  l2Halo: {code: 'l2h', name: 'L2 halo', point: 2, color: 0xe0a0ff, halo: true},
   dro: {code: 'dro', name: 'DRO', point: 0, color: 0xa0ffd0},
-  nrho: {code: 'nrho', name: '9:2 NRHO', point: 2, only: 'moon', color: 0xffe080},
+  nrho: {code: 'nrho', name: '9:2 NRHO', point: 2, only: 'moon', color: 0xffe080, halo: true},
 }
+/**
+ * JPL's catalogue members matching these (tools/periodic/fetchJpl.mjs), by
+ * the pair's secondary, which the app draws where it has them.
+ */
+export const PERIODIC_DATA_URL = 'data/periodicOrbits.json'
 // The members' sizes, in Hill radii: a Lyapunov orbit's x amplitude, a
 // halo's z amplitude, a DRO's distance from the secondary on the x axis.
 const LYAPUNOV_AX = 0.2
@@ -225,7 +235,8 @@ export function familyMember(mu, family) {
     case 'l2Halo': {
       const point = FAMILIES[family].point
       const g = richardsonHalo(mu, point, HALO_AZ, -1)
-      return g ? correctSymmetric(mu, g, 'z') : null
+      const m = g ? correctSymmetric(mu, g, 'z') : null
+      return m ? southern(mu, m) : null
     }
     case 'dro': {
       // A retrograde circle about the secondary, beyond it on the x axis,
@@ -241,6 +252,28 @@ export function familyMember(mu, family) {
     default:
       return null
   }
+}
+
+
+/**
+ * The southern of a halo and its mirror image in the pair's plane (the
+ * CR3BP is symmetric in z): the one whose crossing of the xz plane
+ * farthest from the plane is below it, as JPL's catalogue's southern
+ * branch.  Richardson's class sign flips between L1 and L2, so the guess's
+ * doesn't say which.
+ *
+ * @param {number} mu
+ * @param {{state: Array<number>, period: number}} m
+ * @returns {{state: Array<number>, period: number}}
+ */
+export function southern(mu, m) {
+  const other = propagate(mu, m.state, {toCrossing: true}).s
+  const apex = Math.abs(other[2]) > Math.abs(m.state[2]) ? other[2] : m.state[2]
+  if (apex <= 0) {
+    return m
+  }
+  const [x, y, z, vx, vy, vz] = m.state
+  return {...m, state: [x, y, -z, vx, vy, -vz]}
 }
 
 

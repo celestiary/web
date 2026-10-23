@@ -274,13 +274,48 @@ the Earth–Moon pair took 1.65 s in headless Chromium.
     ephemeris's 3,200–3,550 km.
   - Its apolune is 70,000 km.
 
+**JPL's catalogue, drawn where it has the pair.**  `public/data/periodicOrbits.json`
+holds, for each system JPL's three-body periodic orbit catalogue has
+(`ssd-api.jpl.nasa.gov/periodic_orbits.api`: Earth–Moon, Sun–Earth,
+Sun–Mars, Mars–Phobos, Jupiter–Europa, Saturn–Enceladus, Saturn–Titan),
+the catalogue's member matching each of the app's families: the one at the
+same Jacobi constant whose crossing of the xz plane is nearest the app's,
+or for the NRHO the one at the same period.
+`tools/periodic/fetchJpl.mjs` builds it and records its queries:
+`bun tools/periodic/fetchJpl.mjs > public/data/periodicOrbits.json`. The
+app loads it the first time a family is switched on (`Scene.loadPeriodicData`)
+and draws the catalogue's member, in the catalogue's mass ratio, where it
+has one (`samples.source` 'JPL'). It draws its own for the other pairs,
+and everywhere if the file can't be had. It's 16 KB.
+
+- **The NRHO is matched by its period in units of the pair's turn**, not in
+  days. The catalogue's time unit (382,981 s) makes the pair's turn 27.85
+  days, not the Moon's 27.32, so its 6.56-day member is another orbit
+  (C 3.0489). The member at 2/9 of a synodic month in turn units is at
+  C 3.04667, against the app's 3.04665 and Davis et al.'s 3.047.
+- **Halos are drawn as their southern twin** (`southern`: the crossing
+  farthest from the plane is below it). Every southern member of the
+  catalogue is that way but Titan's L1, which is listed as its northern
+  mirror image.
+- **Where the catalogue's family doesn't reach the app's size:**
+  - Enceladus's DRO is past the catalogue's: its nearest member's period is
+    53% longer, so it's listed `unmatched` and the app draws its own.
+  - Phobos's L1 halos stop just short: the catalogue's last member is drawn
+    (`edge`), 5% of γ (1 km) larger.
+
+**Checked against it** (`periodicOrbits.test.js`, 35 members in seven
+systems):
+
+- Every catalogue member closes under this integrator to 1e-8 of the
+  separation, and its Jacobi constant is as listed.
+- The app's own members match:
+  - periods within 0.2%;
+  - Jacobi constants within 1e-4;
+  - crossings within 1.5% of γ, or twice the catalogue's own spacing
+    there (10% at the family's edge).
+
 Not yet:
 
-- **Comparison with JPL's catalogue.** The three-body periodic orbit
-  catalogue (`ssd-api.jpl.nasa.gov/periodic_orbits.api`) is refused by the
-  sandbox's network policy (`ssd.jpl.nasa.gov`, which serves Horizons,
-  doesn't serve it). With the host allowed, a fixture of its initial
-  states for the same families would check these members against it.
 - **Other members of a family:** a slider along the family (amplitude, or
   Jacobi constant) would reuse the continuation here.
 

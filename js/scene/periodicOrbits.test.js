@@ -3,9 +3,11 @@ import {jacobi, propagate} from './cr3bp.js'
 import {collinearDistances} from './lagrange.js'
 import {
   FAMILIES, familyMember, familyOfCode, inertialSweep, lyapunovGuess, nrho92, placeAt, richardsonHalo, sampleMember,
+  southern,
 } from './periodicOrbits.js'
 import {correctSymmetric} from './cr3bp.js'
 import {PERIODIC_CODES} from '../permalink.js'
+import jpl from '../../public/data/periodicOrbits.json'
 
 
 const EARTH_MOON = 0.012150585609624
@@ -131,3 +133,65 @@ describe('periodic orbits', () => {
     expect(sweep[4]).toBeCloseTo(later[0], 6)
   })
 })
+
+
+describe('periodic orbits against JPL\'s catalogue', () => {
+  // public/data/periodicOrbits.json: the catalogue's member matching each
+  // of the app's, by tools/periodic/fetchJpl.mjs, in each system's own mass
+  // ratio and units.
+  const EDGES = ['phobos l1Halo']
+  const matched = Object.entries(jpl.systems).flatMap(([secondary, system]) =>
+    Object.entries(system.families).map(([family, m]) => ({secondary, system, family, m})))
+
+  it('has every system\'s families but one: Enceladus\'s DRO is past the catalogue\'s', () => {
+    expect(Object.keys(jpl.systems)).toEqual(['moon', 'earth', 'mars', 'phobos', 'europa', 'enceladus', 'titan'])
+    expect(matched).toHaveLength(35)
+    expect(Object.keys(jpl.systems.enceladus.unmatched)).toEqual(['dro'])
+    // And where the catalogue's family stops short of the app's member, its
+    // last.
+    expect(matched.filter(({m}) => m.edge).map(({secondary, family}) => `${secondary} ${family}`))
+        .toEqual(EDGES)
+  })
+
+  it('closes the catalogue\'s orbits with this integrator', () => {
+    for (const {system, m} of matched) {
+      const end = propagate(system.mu, m.state, {t: m.period}).s
+      expect(Math.hypot(...m.state.slice(0, 3).map((v, k) => end[k] - v))).toBeLessThan(1e-8)
+      expect(jacobi(system.mu, m.state)).toBeCloseTo(m.jacobi, 9)
+    }
+  })
+
+  it('makes the same orbits: period within 0.2%, C within 1e-4, crossing within 1.5% of γ', () => {
+    // Or within twice the catalogue's own spacing there, where its members
+    // are further apart than that (Phobos's, a km apart where γ is 17 km).
+    for (const {system, family, m} of matched) {
+      const mu = system.mu
+      const ours = familyMember(mu, family)
+      expect(Math.abs((ours.period / m.period) - 1)).toBeLessThan(0.002)
+      expect(Math.abs(jacobi(mu, ours.state) - m.jacobi)).toBeLessThan(1e-4)
+      // The catalogue's state is at one of the orbit's two crossings of the
+      // xz plane; ours at one of its own.  Halos as their southern twin.
+      const theirs = FAMILIES[family].halo ? southern(mu, m) : m
+      const crossings = (st) => [st, propagate(mu, st, {toCrossing: true}).s]
+      const ourX = crossings(ours.state)
+      const near = Math.min(...crossings(theirs.state).flatMap((a) => ourX.map((b) => Math.hypot(a[0] - b[0], a[2] - b[2]))))
+      // At the end of the catalogue's family, its nearest: within 10% of γ.
+      const gamma = collinearDistances(mu).l1
+      expect(near).toBeLessThan(m.edge ? 0.1 * gamma : Math.max(0.015 * gamma, 2 * m.spacing))
+    }
+  })
+
+  it('takes the catalogue\'s southern halos as southern, but for Titan\'s L1', () => {
+    const north = matched.filter(({system, family, m}) => FAMILIES[family].halo &&
+      southern(system.mu, m).state[2] !== m.state[2]).map(({secondary, family}) => `${secondary} ${family}`)
+    expect(north).toEqual(['titan l1Halo'])
+  })
+
+  it('has Gateway\'s 9:2 NRHO: its period 2/9 of a synodic month in units of the pair\'s turn', () => {
+    const {mu, families: {nrho}} = jpl.systems.moon
+    const ours = nrho92(mu)
+    expect(nrho.period / ours.period).toBeCloseTo(1, 3)
+    expect(nrho.jacobi).toBeCloseTo(3.0467, 4)
+  })
+})
+
