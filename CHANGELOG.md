@@ -38,7 +38,8 @@ orbits, then the few numbers you'd ask first: its size, its day, its year. Every
 elements, its mass and gravity, the space around it, its atmosphere) waits in sections you open
 when you want them, and nothing in the scene shows through. On a phone the panel is a sheet at the
 bottom of the screen: pull it up for more, push it down to see the sky. Cesium's credits shrink to
-its logo a few seconds after Earth's close-up surface comes into view; tap the logo to read them.
+its logo a few seconds after Earth's close-up surface comes into view (tap the logo to read them),
+and leave the screen while you look up at the sky.
 
 - Date: 2026-10-23
 - PR: [#280](https://github.com/celestiary/web/pull/280)

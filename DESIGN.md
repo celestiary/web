@@ -556,7 +556,10 @@ it follows: [design/UI.md](design/UI.md)).
   re-renders.  It sits above the widgets drawer's sheet; the bottom
   controls and settings sit above its peek (`--info-sheet-bottom`) and hide
   while it's raised (`html.info-raised`); Cesium's credits ride above both
-  sheets.  Its height eases over 300 ms; on SwiftShader a busy main thread
+  sheets.  A drag's release eases from where the finger let go: measuring
+  the detents lays the sheet out at each, so it's laid out again at the
+  release height before the transition is let run (it had started from
+  full, the last measured, and jumped to the top).  Its height eases over 300 ms; on SwiftShader a busy main thread
   stalls the transition, so a probe that reads its height turns it off.
 
 ### Orbital elements

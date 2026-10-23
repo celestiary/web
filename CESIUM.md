@@ -61,8 +61,15 @@ falls back to if its Cesium layer can't load.
   or one nearest body to another), then after 6 s compact, the ion logo
   alone at 55% opacity; a hover, a focus or a tap brings the text and the
   data attribution back for another 6 s (a tap on the compact logo doesn't
-  follow its link).  Not hidden: ion's and Bing's terms want the
-  attribution on screen while their data is.  On a phone the overlay rides
+  follow its link).  While ion's data is on screen the credits stay, as
+  ion's and Bing's terms want; while none of the body's ground is in the
+  frame (from the ground looking up into the sky) they go entirely, and no
+  logo brightens a night sky (`_creditedBody`, `visibility.js`
+  `groundInView`: the view's angle to the body's centre against the
+  ground's angular radius, the frame's half-diagonal and 10° for land
+  standing over the horizon, so it errs toward showing them).  Back in
+  view, they show in full again.  The credited body is the nearest active
+  one with ground in view.  On a phone the overlay rides
   above the widgets drawer's sheet and the info panel's peek
   (`--sheet-height`, `--info-sheet-bottom`).
 

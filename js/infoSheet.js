@@ -127,7 +127,8 @@ export default class InfoSheet {
       this._endDrag(tapDetent(this.detent))
       return
     }
-    this._endDrag(nearestDetent(this.elt.getBoundingClientRect().height, this._heights()))
+    const released = this.elt.getBoundingClientRect().height
+    this._endDrag(nearestDetent(released, this._heights(released)))
   }
 
 
@@ -140,8 +141,17 @@ export default class InfoSheet {
   }
 
 
-  /** @returns {number[]} each detent's height now, px, low to high */
-  _heights() {
+  /**
+   * Each detent's height now, measured by laying the sheet out at each
+   * (transitions off: it's still `dragging`).  Then it's held where the drag
+   * let it go, and laid out there, so the ease to the chosen detent starts
+   * from the finger, not from the last height measured (full: the sheet
+   * jumped to the top, then came down).
+   *
+   * @param {number} holdPx the height to leave it at, px
+   * @returns {number[]} px, low to high
+   */
+  _heights(holdPx) {
     const was = this.elt.dataset.detent
     const heights = DETENTS.map((d) => {
       this.elt.dataset.detent = d
@@ -149,6 +159,8 @@ export default class InfoSheet {
       return this.elt.getBoundingClientRect().height
     })
     this.elt.dataset.detent = was
+    this.elt.style.height = `${holdPx}px`
+    this.elt.getBoundingClientRect()
     return heights
   }
 }
