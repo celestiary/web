@@ -9,10 +9,12 @@ import {
 import Asterisms from './Asterisms.js'
 import ColonizationLines from './ColonizationLines.js'
 import Galaxies, {galaxiesInView} from './Galaxies.js'
+import LagrangeMarks from './LagrangeMarks.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import OrbitDiagram from './orbitDiagram.js'
 import {CODES, keyOfCode} from './orbitElements.js'
+import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
 import {ORBIT_FADE_DEFAULT} from '../permalink.js'
 import Planet from './Planet.js'
 import SpriteSheet from './SpriteSheet.js'
@@ -33,6 +35,8 @@ import * as Utils from '../utils.js'
 
 
 const ELEMENT_CODE_SET = new Set(CODES)
+// The synchronous orbits with names of their own (LagrangeMarks).
+const SYNC_NAMES = {earth: 'geostationary orbit', mars: 'areostationary orbit'}
 
 
 /**
@@ -365,8 +369,11 @@ export default class Scene {
   _overlayNodes(key) {
     switch (key) {
       case 'o': {
-        // The solar wind's streamlines are a diagram of the same kind (sun/SolarWind.js).
-        return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind]
+        // The solar wind's streamlines are a diagram of the same kind
+        // (sun/SolarWind.js), and so are the target's Lagrange points.
+        const lagrange = [...this._lagrange?.values() ?? []].filter((m) => m.parent)
+        return [...this._namedUnderSun('orbit'), this.objects['sun']?.sunLayers?.wind,
+          ...lagrange, ...lagrange.map((m) => m.syncRing)]
       }
       case 'p': {
         // Bodies' names, and the places and lat/lng markers on them (the
@@ -563,6 +570,10 @@ export default class Scene {
     // A link's lit elements for a body that has only now loaded.
     if (this._orbitElements.has(name)) {
       this._syncOrbitDiagrams()
+    }
+    // The target's pairs, if this is one of their bodies.
+    if (this._lagrange && Shared.targets.obj) {
+      this._syncLagrange()
     }
     return obj3d
   }
@@ -817,6 +828,130 @@ export default class Scene {
   }
 
 
+  /**
+   * The pairs whose Lagrange points, Hill sphere and synchronous orbit the
+   * target shows (Lagrange.md): its own with its primary, and its own with
+   * its most massive moon.  The Earth: Sun-Earth and Earth-Moon; the Sun:
+   * Sun-Jupiter; Tethys: Saturn-Tethys.
+   *
+   * @param {string} name a body's
+   * @returns {Array<Array<string>>} [primary, secondary] pairs
+   */
+  lagrangePairsOf(name) {
+    const props = this.objects[name]?.props
+    if (!props) {
+      return []
+    }
+    const pairs = []
+    if (this.objects[props.parent]?.props?.mass && props.mass && props.orbit) {
+      pairs.push([props.parent, name])
+    }
+    const mass = (b) => massKg(this.objects[b]?.props?.mass)
+    const moon = (props.system ?? []).filter((b) => mass(b) > 0 && this.objects[b]?.props?.orbit)
+        .sort((x, y) => mass(y) - mass(x))[0]
+    if (moon && props.mass) {
+      pairs.push([name, moon])
+    }
+    return pairs
+  }
+
+
+  /**
+   * Show the target's pairs' marks (lagrangePairsOf), made on first use, and
+   * take the rest out of the scene.  They're in the orbits group (`o`).
+   */
+  _syncLagrange() {
+    this._lagrange ??= new Map
+    const target = Shared.targets.obj?.props?.name
+    const wanted = new Set((target ? this.lagrangePairsOf(target) : []).map((p) => p.join('-')))
+    for (const [key, marks] of this._lagrange) {
+      if (!wanted.has(key) && marks.parent) {
+        marks.removeFromParent()
+        marks.syncRing?.removeFromParent()
+        delete this.objects[`${key.split('-')[1]}.orbitPosition`]?.lagrange
+      }
+    }
+    for (const key of wanted) {
+      const [primary, secondary] = key.split('-')
+      const node = this.objects[`${secondary}.orbitPosition`]
+      if (!node) {
+        continue
+      }
+      let marks = this._lagrange.get(key)
+      if (!marks) {
+        marks = this._newLagrange(primary, secondary)
+        this._lagrange.set(key, marks)
+        this._joinOverlay('o', marks)
+        this._joinOverlay('o', marks.syncRing)
+      }
+      if (!marks.parent) {
+        // Shown as the group is now; it may have turned while they were out.
+        marks.visible = this.overlayShown('o')
+        node.parent.add(marks)
+        if (marks.syncRing) {
+          marks.syncRing.visible = marks.visible
+          this.objects[`${secondary}.planetTilt`]?.add(marks.syncRing)
+        }
+        node.lagrange = marks
+      }
+    }
+  }
+
+
+  /**
+   * The numbers of the space around a pair (lagrange.js): its mass ratio,
+   * the secondary's Hill radius and synchronous orbit, and the collinear
+   * points' distances from the secondary at its mean distance.
+   *
+   * @param {string} primary
+   * @param {string} secondary
+   * @returns {object} {name, secondary, mu, a, hill, sync, l1, l2}: metres
+   */
+  pairFacts(primary, secondary) {
+    const props = this.objects[secondary].props
+    const kg = (b) => massKg(this.objects[b]?.props?.mass)
+    // The secondary with its moons (the Earth with the Moon, Pluto with
+    // Charon): the three-body problem's second mass.
+    const m = (props.system ?? []).reduce((sum, b) => sum + (kg(b) || 0), kg(secondary))
+    const mu = m / (m + kg(primary))
+    const a = Number(props.orbit.semiMajorAxis?.scalar ?? props.orbit.semiMajorAxis)
+    const hill = hillRadius(a, props.orbit.eccentricity ?? 0, mu)
+    const sync = synchronousOrbit({
+      gm: G * kg(secondary),
+      rotationSecs: Number(props.siderealRotationPeriod?.scalar ?? props.siderealRotationPeriod),
+      radius: Number(props.radius?.scalar ?? props.radius), hill,
+    })
+    const {l1, l2} = collinearDistances(mu)
+    return {
+      name: `${Utils.capitalize(primary)}–${Utils.capitalize(secondary)}`, secondary: Utils.capitalize(secondary),
+      mu, a, hill, sync, l1: l1 * a, l2: l2 * a, syncName: SYNC_NAMES[secondary],
+    }
+  }
+
+
+  /**
+   * The space around a body for its info panel: its pair with its primary's
+   * facts (pairFacts), or null for a body that orbits nothing with a mass.
+   *
+   * @param {string} name
+   * @returns {?object}
+   */
+  spaceAround(name) {
+    const pair = this.lagrangePairsOf(name).find((p) => p[1] === name)
+    return pair ? this.pairFacts(...pair) : null
+  }
+
+
+  /**
+   * @param {string} primary
+   * @param {string} secondary
+   * @returns {LagrangeMarks}
+   */
+  _newLagrange(primary, secondary) {
+    return new LagrangeMarks(this.pairFacts(primary, secondary), Shared.OVERLAY_LAYER)
+  }
+
+
   /** @param {string} name */
   targetNamed(name) {
     this.setTarget(name)
@@ -914,6 +1049,7 @@ export default class Scene {
     } else if (obj) {
       state?.setCommittedPath?.(path)
     }
+    this._syncLagrange()
     this.onTargetChange?.(t)
   }
 

@@ -1491,3 +1491,110 @@ describe('orbital elements lit on the orbits', () => {
     expect(mars.orbitDiagram.visible).toBe(true)
   })
 })
+
+
+describe('the target\'s Lagrange points', () => {
+  /**
+   * A body as Planet makes it, with its props: its orbitPosition under its
+   * orbit plane, its planetTilt under that.
+   *
+   * @param {object} s Scene
+   * @param {object} props
+   */
+  function addBody(s, props) {
+    s.objects[props.name] = {props}
+    if (!props.orbit) {
+      return
+    }
+    const plane = new Object3D()
+    const node = new Object3D()
+    node.name = `${props.name}.orbitPosition`
+    node.orbit = props.orbit
+    plane.add(node)
+    const tilt = new Object3D()
+    node.add(tilt)
+    s.objects[node.name] = node
+    s.objects[`${props.name}.planetTilt`] = tilt
+  }
+
+  /** @returns {object} Scene with the Sun, Earth, Moon and Mars */
+  function solarScene() {
+    const s = makeScene()
+    addBody(s, {name: 'sun', parent: 'milkyway', mass: '1.9891E33 g', radius: 6.957e8,
+      system: ['earth', 'mars']})
+    addBody(s, {name: 'earth', parent: 'sun', mass: '5.97219e27 g', radius: 6.37101e6,
+      siderealRotationPeriod: 86164.1, system: ['moon'],
+      orbit: {semiMajorAxis: 1.496e11, eccentricity: 0.0167}})
+    addBody(s, {name: 'moon', parent: 'earth', mass: '7.34767309E25 g', radius: 1.7381e6,
+      siderealRotationPeriod: 2360591.5, system: [], orbit: {semiMajorAxis: 3.844e8, eccentricity: 0.0549}})
+    addBody(s, {name: 'mars', parent: 'sun', mass: '6.4171E26 g', radius: 3.3895e6,
+      siderealRotationPeriod: 88642.7, system: [], orbit: {semiMajorAxis: 2.279e11, eccentricity: 0.0934}})
+    return s
+  }
+
+  const withTarget = (s, name, fn) => {
+    const before = Shared.targets.obj
+    Shared.targets.obj = s.objects[name]
+    try {
+      s._syncLagrange()
+      fn()
+    } finally {
+      Shared.targets.obj = before
+    }
+  }
+
+  it('shows the target\'s pair with its primary and with its biggest moon', () => {
+    const s = solarScene()
+    expect(s.lagrangePairsOf('earth')).toEqual([['sun', 'earth'], ['earth', 'moon']])
+    expect(s.lagrangePairsOf('moon')).toEqual([['earth', 'moon']])
+    expect(s.lagrangePairsOf('sun')).toEqual([['sun', 'earth']])
+    expect(s.lagrangePairsOf('nowhere')).toEqual([])
+  })
+
+  it('builds the Earth\'s marks with the Moon in its mass, and GEO in its equator', () => {
+    const s = solarScene()
+    withTarget(s, 'earth', () => {
+      const earth = s.objects['earth.orbitPosition']
+      const marks = earth.lagrange
+      expect(marks.parent).toBe(earth.parent)
+      // μ for the Sun and the Earth-Moon pair, 3.04e-6; the Earth alone's
+      // would be 3.00e-6.
+      expect(marks.mu).toBeCloseTo(3.04e-6, 8)
+      expect(marks.hillRadius / 1e9).toBeCloseTo(1.47, 1)
+      expect(marks.syncRing.parent).toBe(s.objects['earth.planetTilt'])
+      expect(marks.sync.radius / 1e3).toBeCloseTo(42164, -1)
+      // The Moon can't hold a selenosynchronous orbit: no ring.
+      expect(s.objects['moon.orbitPosition'].lagrange.syncRing).toBeNull()
+      expect(s.objects['moon.orbitPosition'].lagrange.sync.why).toBe('beyondHill')
+    })
+  })
+
+  it('takes a pair out of the scene when the target moves on, and back', () => {
+    const s = solarScene()
+    let earthMarks
+    withTarget(s, 'earth', () => {
+      earthMarks = s.objects['earth.orbitPosition'].lagrange
+    })
+    withTarget(s, 'mars', () => {
+      expect(earthMarks.parent).toBeNull()
+      expect(earthMarks.syncRing.parent).toBeNull()
+      expect(s.objects['earth.orbitPosition'].lagrange).toBeUndefined()
+      expect(s.objects['mars.orbitPosition'].lagrange.sync.why).toBeNull()
+    })
+    withTarget(s, 'earth', () => {
+      expect(s.objects['earth.orbitPosition'].lagrange).toBe(earthMarks)
+      expect(earthMarks.parent).not.toBeNull()
+    })
+  })
+
+  it('hides and shows them with the orbits', () => {
+    const s = solarScene()
+    withTarget(s, 'earth', () => {
+      const marks = s.objects['earth.orbitPosition'].lagrange
+      expect(s._overlayNodes('o')).toContain(marks)
+      expect(s._overlayNodes('o')).toContain(marks.syncRing)
+      s._showOverlay('o', false)
+      expect(marks.visible || marks.syncRing.visible).toBe(false)
+    })
+  })
+})
