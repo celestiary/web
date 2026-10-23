@@ -1028,9 +1028,10 @@ recorder, which interns them as it does its own.
 - `?nycGuest=<url>` loads another copy, e.g. slop-newyork's PR preview
   (`.../slop-newyork/pr-preview/pr-1/`).  Only slop-newyork's site and
   localhost are accepted: the guest's code runs in celestiary's page.
-  Until slop-newyork's [PR #1](https://github.com/pablo-mayrgundter/slop-newyork/pull/1)
-  merges, its main has no `composite` or `logDepth`, and the city fails to
-  load with that said in the console; the PR preview has them.
+  A copy older than slop-newyork's
+  [PR #1](https://github.com/pablo-mayrgundter/slop-newyork/pull/1) (merged
+  2026-10-23) has no `composite` or `logDepth`, and the city fails to load
+  with that said in the console.
 - `?nycShadows=1` turns on the city's sun shadows (two more renders of it
   a frame).
 - `?nycLean=0` loads the city as it comes, not lean ([What it
