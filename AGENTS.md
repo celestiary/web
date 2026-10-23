@@ -482,21 +482,32 @@ tried and dropped.
     ambiguous;
   - skip events that don't need action.
 - **Merge only when the user says so.** A green PR waits for their
-  go-ahead.
-  - **The go-ahead is a comment on the PR itself** from
-    @pablo-mayrgundter: "lgtm", "ok to merge" or the like. It records the
-    decision where the change is, and the user doesn't merge PRs
-    directly. Check the comment's author before acting on it; a comment
-    from anyone else, a bot or an agent is not approval.
-  - **The session that dispatched the work merges**, not the agent that
-    wrote it. It can order the merges, merge `main` into each PR in
-    turn, resolve the conflicts (keep both sides of ROADMAP.md's *Done
-    recently*), and wait for CI on the merged head before merging.
+  go-ahead, which comes one of two ways; either is enough:
+  - **In a session:** the user tells the session they're talking to to
+    merge it ("merge 274"), whether that's the planning session or the
+    one that wrote the PR. That session merges, then leaves a one-line
+    comment on the PR saying who approved it and where, so the PR's
+    record is complete.
+  - **On the PR:** a comment from @pablo-mayrgundter, "lgtm", "ok to
+    merge" or the like. This is for approving asynchronously while lots
+    of work is in flight: the decision is recorded where the change is,
+    and the user doesn't merge PRs directly. Check the comment's author
+    before acting on it; a comment from anyone else, a bot or an agent
+    is not approval.
+  - **Neither is a gate on the other:** a session told to merge doesn't
+    also wait for a PR comment, and a PR comment doesn't need repeating
+    in a session.
+  - **Who merges an approved PR:** the session the user told to, or, for
+    an approval on the PR, the session that dispatched the work. The
+    dispatching session can order the merges, merge `main` into each PR
+    in turn, resolve the conflicts (keep both sides of ROADMAP.md's
+    *Done recently*), and wait for CI on the merged head before merging.
   - **The approval covers the PR as reviewed.** Merging `main` in and
     resolving conflicts doesn't need a new one. A later push that
     changes what the PR does does: say so on the PR and wait.
-  - **Agents never merge their own PRs**, approved or not. They say in
-    their report that the PR is ready, and the user approves on the PR.
+  - **An agent never merges on its own initiative**, its own PR or any
+    other. Without one of the go-aheads above it says in its report that
+    the PR is ready and waits.
 - **Keep the PR description current:** when later pushes change what the
   PR does or fixes, update the description to match.
 
