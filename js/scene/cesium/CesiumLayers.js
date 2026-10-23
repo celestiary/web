@@ -1130,8 +1130,8 @@ export default class CesiumLayers {
       this.credits = document.createElement('div')
       this.credits.id = 'cesium-credits'
       Object.assign(this.credits.style, {
-        // Above the widgets drawer's sheet and the info panel's (a phone's).
-        position: 'fixed', bottom: 'calc(0.5em + var(--sheet-height, 0px) + var(--info-sheet-bottom, 0px))',
+        // Above the widgets drawer's sheet, the info panel's and the dock (a phone's).
+        position: 'fixed', bottom: 'calc(0.5em + var(--sheet-height, 0px) + var(--info-sheet-bottom, 0px) + var(--phone-dock-height, 0px))',
         left: '50%', transform: 'translateX(-50%)',
         fontSize: '11px', color: '#aaa', display: 'none', zIndex: '10',
         // HTML chrome: 'v' hides it with the other panels (Celestiary

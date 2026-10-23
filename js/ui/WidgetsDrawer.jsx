@@ -55,6 +55,9 @@ export default function WidgetsDrawer({celestiary}) {
   const {height: windowHeight} = useWindowDimensions()
   const isDocked = isDockVisible(widgets)
   const inset = isDocked ? DOCK_WIDTH : 0
+  // The phone dock's bar (ui/PhoneDock.jsx), which the sheet and the scene
+  // stand above; 0 where it isn't shown.
+  const dockHeight = useStore((state) => state.phoneDockHeight)
   const sheetHeight = isMobile && widgets.isOpen ? Math.round(windowHeight * SHEET_HEIGHT_FRACTION) : 0
   const app = appById(widgets.view)
 
@@ -72,8 +75,8 @@ export default function WidgetsDrawer({celestiary}) {
   useEffect(() => {
     document.documentElement.style.setProperty('--dock-width', `${inset}px`)
     document.documentElement.style.setProperty('--sheet-height', `${sheetHeight}px`)
-    celestiary.setInsets({right: inset, bottom: sheetHeight})
-  }, [inset, sheetHeight, celestiary])
+    celestiary.setInsets({right: inset, bottom: sheetHeight + dockHeight})
+  }, [inset, sheetHeight, dockHeight, celestiary])
 
   return (
     <>
@@ -86,7 +89,7 @@ export default function WidgetsDrawer({celestiary}) {
         PaperProps={{
           sx: {
             ...(isMobile ?
-              {width: `calc(100% - ${inset}px)`, height: sheetHeight, left: 0} :
+              {width: `calc(100% - ${inset}px)`, height: sheetHeight, left: 0, bottom: dockHeight} :
               {width: DRAWER_WIDTH}),
             right: inset,
             backgroundColor: PANEL_BG,
@@ -153,7 +156,7 @@ export default function WidgetsDrawer({celestiary}) {
           )
         })}
       </Drawer>
-      {isDocked && <Dock widgets={widgets} dispatch={dispatch}/>}
+      {isDocked && <Dock widgets={widgets} dispatch={dispatch} bottom={dockHeight}/>}
     </>
   )
 }
@@ -189,8 +192,11 @@ function Tray({running, dispatch}) {
 }
 
 
-/** @returns {ReactElement} The dock: the tray, then each pinned app */
-function Dock({widgets, dispatch}) {
+/**
+ * @property {number} bottom px it stands above: the phone dock's bar
+ * @returns {ReactElement} The dock: the tray, then each pinned app
+ */
+function Dock({widgets, dispatch, bottom}) {
   return (
     <Stack
       id='widgets-dock'
@@ -201,7 +207,7 @@ function Dock({widgets, dispatch}) {
         position: 'fixed',
         top: 0,
         right: 0,
-        bottom: 0,
+        bottom,
         width: DOCK_WIDTH,
         py: 1,
         backgroundColor: PANEL_BG,

@@ -8,13 +8,13 @@ import Celestiary from './Celestiary'
 import useIsMobile from './useIsMobile'
 import useStore from './store/useStore'
 import About from './ui/About'
-import ARButton from './ui/ARButton'
 import ARDebugHUD from './ui/ARDebugHUD'
 import DragModeToggle from './ui/DragModeToggle'
 import ExposureReadout from './ui/ExposureReadout'
 import Homepage from './ui/Homepage'
 import LayersButton from './ui/LayersButton'
 import NewsTour from './ui/NewsTour'
+import PhoneDock from './ui/PhoneDock'
 import SearchBar from './ui/SearchBar'
 import Settings from './ui/Settings'
 import TimePanel from './ui/TimePanel'
@@ -40,6 +40,8 @@ export default function App() {
   const [isPaused, setIsPaused] = useState(false)
   const [timeStr, setTimeStr] = useState('')
   const isMobile = useIsMobile()
+  // On a phone the floating controls give way to the dock (PhoneDock).
+  const floating = celestiary && !isMobile
 
   const sceneRef = useRef(null)
   const navInfoRef = useRef(null)
@@ -80,28 +82,31 @@ export default function App() {
         <div ref={navInfoRef} id='nav-info-id'>Welcome to Celestiary!  Loading...</div>
       </div>
       <Stack id='top-right' className='panel' direction='column' justifyContent='flex-start' alignItems='flex-end'>
-        {celestiary &&
+        {floating &&
           <TooltipIconButton tip='Widgets' onClick={() => dispatchWidgets({type: 'toggle'})} icon={<WidgetsIcon/>}/>}
-        {celestiary && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
-        {celestiary && <DragModeToggle/>}
-        {celestiary && <LayersButton/>}
-        {celestiary && isMobile && <ARButton celestiary={celestiary}/>}
+        {floating && <TimePanel time={celestiary.time} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
+        {floating && <DragModeToggle/>}
+        {floating && <LayersButton/>}
         {celestiary && <ARDebugHUD celestiary={celestiary}/>}
         <div id='text-buttons'>
-          {celestiary &&
+          {floating &&
             <Box sx={{position: 'fixed', bottom: 0, left: 0, m: '1em'}}>
               <TooltipToggleButton tip='Settings' icon={<SettingsIcon/>} onClick={() => navigate('/settings')}/>
-              <Route path='/settings'>
-                <Settings keys={celestiary.keys}/>
-              </Route>
               <TooltipToggleButton tip='About' icon={<StarsIcon/>} onClick={() => navigate('/about')}/>
-              <Route path='/about'>
-                <About/>
-              </Route>
             </Box>
           }
         </div>
       </Stack>
+      {celestiary &&
+        <Route path='/settings'>
+          <Settings keys={celestiary.keys}/>
+        </Route>}
+      {celestiary &&
+        <Route path='/about'>
+          <About/>
+        </Route>}
+      {celestiary && isMobile && homePhase === 'hidden' &&
+        <PhoneDock celestiary={celestiary} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
       {celestiary && <ExposureReadout celestiary={celestiary}/>}
       {celestiary && <WidgetsDrawer celestiary={celestiary}/>}
       {celestiary && homePhase !== 'hidden' && <Homepage celestiary={celestiary} phase={homePhase}/>}

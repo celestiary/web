@@ -3048,7 +3048,8 @@ export default class Celestiary {
 
   /** @param {boolean} shown The chrome in layout, or out of it */
   _navDisplay(shown) {
-    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('widgets-drawer'), elt('widgets-dock')]
+    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('widgets-drawer'), elt('widgets-dock'),
+      elt('phone-dock')]
     panels.forEach((panel) => {
       if (panel) {
         panel.style.display = shown ? '' : 'none'

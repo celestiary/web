@@ -1,6 +1,7 @@
 import {create} from 'zustand'
 import createARSlice from './ARSlice'
 import createAsterismsSlice from './AsterismsSlice'
+import createChromeSlice from './ChromeSlice'
 import createColonizationSlice from './ColonizationSlice'
 import createDragModeSlice from './DragModeSlice'
 import createHomeSlice from './HomeSlice'
@@ -14,6 +15,7 @@ import createWidgetsSlice from './WidgetsSlice'
 const useStore = create((set, get) => ({
   ...createARSlice(set, get),
   ...createAsterismsSlice(set, get),
+  ...createChromeSlice(set, get),
   ...createColonizationSlice(set, get),
   ...createDragModeSlice(set, get),
   ...createHomeSlice(set, get),

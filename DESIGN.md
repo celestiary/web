@@ -562,6 +562,31 @@ it follows: [design/UI.md](design/UI.md)).
   full, the last measured, and jumped to the top).  Its height eases over 300 ms; on SwiftShader a busy main thread
   stalls the transition, so a probe that reads its height turns it off.
 
+### The phone dock
+
+At 600 px wide or less one bar along the bottom holds the controls that
+float down the right on a wider screen, and the settings buttons
+(`ui/PhoneDock.jsx`; design: [design/UI.md](design/UI.md#phones-the-dock)).
+
+- **Time** (labelled with the sim clock, or its rate, or Paused), **Layers**
+  (near a Cesium body), **AR**, **Apps** and **More** (drag mode, Settings,
+  About).  Each opens its panel above the bar, one at a time; a second tap
+  or a touch on the scene closes it.  While AR is on, its controls take the
+  panel and its button exits.
+- **Its height is shared**: `PhoneDock` measures the bar (it grows by the
+  safe-area inset) and publishes it to the store (`ChromeSlice`
+  `phoneDockHeight`), which `WidgetsDrawer` adds to the scene's bottom inset
+  and the drawer's sheet stands on; its whole height, an open panel too, goes
+  to `--phone-dock-height`, which the info sheet and Cesium's credits stand
+  on, so a panel lifts them rather than covering them (a panel's opening
+  doesn't resize the scene).
+- **Testable without a DOM**: `PhoneDock` reads the store and the router and
+  renders `DockView` from props, which `PhoneDock.test.jsx` renders with
+  `renderToStaticMarkup` (zustand serves a server render its initial state,
+  so a view of props is the way to test each state).
+- Chrome: held on the homepage, faded with the rest, hidden by `v`
+  (`_navDisplay`).  Desktop keeps the floating controls.
+
 ### Orbital elements
 
 A body's six Keplerian elements, listed in its info panel and drawn on its
@@ -1465,10 +1490,12 @@ State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
   (`--dock-width`), so it never covers the scene; an open drawer sits left
   of it.
 - **Phones** (`useIsMobile`, 600 px wide or less).  The open drawer is a
-  sheet over the bottom half of the screen instead, and the scene shrinks
-  to the half above it (`setInsets`' bottom), so an app's effects show
-  while it's used.  The bottom controls move up above the sheet
-  (`--sheet-height`).
+  sheet over the bottom half of the screen instead, on the phone dock's bar
+  ([the phone dock](#the-phone-dock)), and the scene shrinks to the part
+  above both (`setInsets`' bottom: the sheet and the store's
+  `phoneDockHeight`), so an app's effects show while it's used.  The Apps
+  button in the dock opens it; a pinned app's side dock stops above the
+  bar.
 - **Sizing.**  `Celestiary` owns the scene's size: the window less the
   dock and sheet, redone on every resize (a phone rotating, its browser
   bars coming and going).  `ThreeUI.onResize` reads the container's size,
