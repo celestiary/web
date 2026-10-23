@@ -1,7 +1,7 @@
 import Measure from '@pablo-mayrgundter/measure.js'
 import * as collapsor from './collapsor.js'
 import {ORBIT_FADE_DEFAULT, encodeGuideOrbitToken} from './permalink.js'
-import {CODES, ELEMENT_CODES, elementRows, elementsOfDate} from './scene/orbitElements.js'
+import {CODES, ELEMENT_CODES, elementRows, elementsOfDate, formatDistance} from './scene/orbitElements.js'
 import {CURVE_COLORS, rotationCurveSvg} from './scene/rotationCurve.js'
 import {spectralTypeName} from './scene/stellar.js'
 import {LIGHTYEAR_METER} from './shared.js'
@@ -48,6 +48,8 @@ export default class ControlPanel {
      * (Scene's orbit element state); and `preview(body, code)`, a hover's.
      */
     this.orbitHooks = null
+    /** Scene.spaceAround, for spaceListHtml; set by Celestiary. */
+    this.spaceHook = null
     // The listed body and its list, and when the values last ran.
     this._orbit = null
     /**
@@ -152,12 +154,47 @@ export default class ControlPanel {
     const pathPrefix = path.join('/')
     let html = '<ul data-prop="info">\n'
     html += this.showInfoRecursive(target, pathPrefix, false, false)
+    html += this.spaceListHtml(target.name)
     html += '</ul>\n'
     this._endPreview()
     this.containerElt.innerHTML = html
     collapsor.makeCollapsable(this.containerElt)
     this._applyUiState()
     this._wireOrbit(target)
+  }
+
+
+  /**
+   * The space around the body (Scene.spaceAround; lagrange.js): its Hill
+   * sphere, the collinear Lagrange points it shares with its primary, and
+   * its synchronous orbit, or why it can't hold one.  The scene draws them
+   * for the target, with the orbits.
+   *
+   * @param {string} name a body's
+   * @returns {string} an <li>, or '' for a body that orbits nothing
+   */
+  spaceListHtml(name) {
+    const s = this.spaceHook?.(name)
+    if (!s) {
+      return ''
+    }
+    const sync = s.sync
+    let syncText = 'no rotation period'
+    if (sync && !sync.why) {
+      syncText = `${formatDistance(sync.radius)} from the centre${s.syncName ? ` (${s.syncName})` : ''}`
+    } else if (sync?.why === 'inside') {
+      syncText = `none: at ${formatDistance(sync.radius)} it would be inside the body`
+    } else if (sync?.why === 'beyondHill') {
+      syncText = `none: at ${formatDistance(sync.radius)} it would be past the Hill sphere, where ` +
+        `the ${s.name.split('–')[0]}'s pull takes it away`
+    }
+    return '<li>space around: <ul class="collapsed" data-prop="space">\n' +
+      `<li>Hill sphere: ${formatDistance(s.hill)} (where ${s.secondary}'s gravity rules)</li>\n` +
+      `<li>${s.name} L1: ${formatDistance(s.l1)} toward the ${s.name.split('–')[0]}; ` +
+        `L2: ${formatDistance(s.l2)} beyond</li>\n` +
+      `<li>${s.name} L4, L5: 60° ahead and behind on the orbit; L3 opposite</li>\n` +
+      `<li>synchronous orbit: ${syncText}</li>\n` +
+      '</ul></li>\n'
   }
 
 
