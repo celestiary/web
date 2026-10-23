@@ -1074,15 +1074,19 @@ imagery layer that asks for its endpoint only when a tile needs it.
   portal-netgl would halve the cost when those aren't in use.
   Celestiary reads none of the shadow's pixels: its terrain heights
   (`globe.getHeight`, `tileset.getHeight`) are CPU picks on loaded tiles.
-- Perf: every synchronous GL call the shadow contexts make in a settled
-  frame is portal-netgl's state checkpoint, at each Cesium frame's end: 53
+- Perf, done: the shadow contexts' synchronous GL calls in a settled frame
+  were all portal-netgl's state checkpoint, at each Cesium frame's end (53
   `getParameter`, 16 `getVertexAttrib` and 10 `isEnabled`, 79 a Cesium
-  frame (Earth's day and night frames 158, the Moon's 79; Cesium itself
-  makes none, and `getUniformLocation` comes only with a new shader's
-  link).  Each is a round trip to the GPU process that waits for the
-  shadow's queued frame.  Tracking that scalar state from the recorded calls,
-  as the checkpoint already tracks bindings, would make none; a patch
-  for portal-netgl is proposed in #189's Cesium PR.
+  frame; Cesium itself makes none), each a round trip to the GPU process
+  waiting for the shadow's queued frame.  portal-netgl 0.3.0
+  (pablo-mayrgundter/portal#33) tracks that state from the recorded calls,
+  as it tracks bindings, so the checkpoint makes none: headless, Earth from
+  20 Mm, the shadow's `getParameter` calls went from 56.7 a frame to 0,
+  the frame unchanged.  What's left (`getUniformLocation` and the like)
+  comes only with a new shader's link.  Celestiary sets no GL state on the
+  shadow itself (the perf overlay only counts, times and, with
+  `barrier=read`, reads a framebuffer of its own), which the tracked mode
+  relies on; something that did would need `scalarState: 'queried'`.
 
 ## Files
 

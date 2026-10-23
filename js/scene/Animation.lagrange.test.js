@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import {Object3D, Vector3} from 'three'
+import {Object3D, Quaternion, Vector3} from 'three'
 import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
 import Animation from './Animation.js'
 import {utcToTtJulianDay} from './celestialFrame.js'
@@ -111,5 +111,21 @@ describe('Animation.layLagrange', () => {
     animationAt(JD).layLagrange(node)
     const dt = 0.001
     expect(poleError(node.laid.r, place(JD + dt).sub(place(JD - dt)), node.laid.pole)).toBeLessThan(0.1)
+  })
+
+  it('gives a planet\'s regimes the Sun\'s direction in its equator', () => {
+    const earth = new Object3D
+    earth.name = 'earth.orbitPosition'
+    earth.position.set(1.4e11, 0, -5e10)
+    const tilt = new Object3D
+    tilt.quaternion.setFromAxisAngle(new Vector3(1, 0, 0), -23.44 * Math.PI / 180)
+    let sun = null
+    earth.regimes = {parent: tilt, visible: true, place: (v) => {
+      sun = v.clone()
+    }}
+    animationAt(JD).layRegimes(earth)
+    // Back to the scene's frame, it points from the Earth to the Sun.
+    const back = sun.applyQuaternion(new Quaternion().copy(tilt.quaternion))
+    expect(back.normalize().distanceTo(earth.position.clone().negate().normalize())).toBeLessThan(1e-12)
   })
 })

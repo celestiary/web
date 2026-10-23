@@ -233,7 +233,7 @@ export default class ControlPanel {
       row('Density', 'density') + row('Axial tilt', 'axialInclination') + row('Albedo', 'albedo') +
       row('Surface gravity', 'equatorialGravity') + row('Escape velocity', 'escapeVelocity')
     const more = fieldRowsHtml(body, secsToYDHMS, sci, BODY_LISTED)
-    const space = this.spaceRowsHtml(body.name)
+    const space = this.spaceAround(body.name)
     let html = rowsHtml(summary)
     if (body.orbit && typeof body.orbit === 'object') {
       const el = this._elementsOf(body)
@@ -241,7 +241,7 @@ export default class ControlPanel {
           this.orbitListHtml(body))
     }
     html += sectionHtml('physical', 'Physical', 'mass, density, gravity', rowsHtml(physical))
-    html += sectionHtml('space', 'Space around', 'Hill sphere, Lagrange points', rowsHtml(space))
+    html += sectionHtml('space', 'Space around', space.peek, space.html)
     if (body.rings) {
       html += sectionHtml('rings', 'Rings', '', rowsHtml(fieldRowsHtml(body.rings, secsToYDHMS, sci)))
     }
@@ -274,18 +274,33 @@ export default class ControlPanel {
 
   /**
    * The space around the body (Scene.spaceAround; lagrange.js): its Hill
-   * sphere, the collinear Lagrange points it shares with its primary, and
-   * its synchronous orbit, or why it can't hold one.  The scene draws them
-   * for the target, with the orbits.
+   * sphere, the collinear Lagrange points it shares with its primary, its
+   * synchronous orbit, or why it can't hold one, and its orbital regimes
+   * (regimes.js).  The scene draws them for the target, with the orbits.
    *
    * @param {string} name a body's
-   * @returns {string} rows, or '' for a body that orbits nothing
+   * @returns {{html: string, peek: string}} the Space around section's
+   *     content ('' for a body with none of them), and what it holds
    */
-  spaceRowsHtml(name) {
+  spaceAround(name) {
     const s = this.spaceHook?.(name)
     if (!s) {
-      return ''
+      return {html: '', peek: ''}
     }
+    const pair = s.name ? rowsHtml(this.spaceRowsHtml(s)) : ''
+    const regimes = s.regimes?.length ?
+      `<div class="info-subhead">Orbital regimes</div>\n${rowsHtml(s.regimes.map(regimeRowHtml).join(''))}` : ''
+    const peek = [s.name ? 'Hill sphere, Lagrange points' : '', regimes ? 'regimes' : ''].filter(Boolean).join(', ')
+    return {html: pair + regimes, peek}
+  }
+
+
+  /**
+   * @param {object} s Scene.spaceAround's facts for a body with a pair
+   * @returns {string} rows: its Hill sphere, its Lagrange points with its
+   *     primary, and its synchronous orbit, or why it can't hold one
+   */
+  spaceRowsHtml(s) {
     const primary = s.name.split('–')[0]
     const sync = s.sync
     let syncText = 'none: no rotation period'
@@ -617,6 +632,20 @@ export default class ControlPanel {
 function rowLongHtml(label, text) {
   return `<div class="info-row is-long"><dt>${esc(label)}</dt><dd>${esc(text)}</dd></div>
 `
+}
+
+
+/**
+ * An orbital regime (Scene.regimesOf) as a row: its name, then the rest in
+ * words, split at its first colon or comma (`GPS: 6 planes at 55°, 20,200
+ * km up`).
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function regimeRowHtml(text) {
+  const m = /^(.+?)(?:: |, )(.+)$/.exec(text)
+  return m ? rowLongHtml(capitalize(m[1]), m[2]) : rowLongHtml(capitalize(text), '')
 }
 
 

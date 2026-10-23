@@ -96,11 +96,12 @@ describe('ControlPanel', () => {
 
   it('lists the space around a body, and why it can\'t hold a synchronous orbit', () => {
     const panel = new ControlPanel(null, null)
-    expect(panel.spaceRowsHtml('earth')).toBe('')
+    expect(panel.spaceAround('earth')).toEqual({html: '', peek: ''})
     const facts = {name: 'Earth–Moon', secondary: 'Moon', hill: 57.9e6, l1: 58.1e6, l2: 64.5e6,
       sync: {radius: 88.5e6, why: 'beyondHill'}}
     panel.spaceHook = (name) => (name === 'moon' ? facts : null)
-    const html = panel.spaceRowsHtml('moon')
+    const {html, peek} = panel.spaceAround('moon')
+    expect(peek).toBe('Hill sphere, Lagrange points')
     expect(html).toContain('<dt>Hill sphere</dt><dd>57,900 km</dd>')
     expect(html).toContain('Where Moon\'s gravity rules.')
     expect(html).toContain('<dt>Earth–Moon L1</dt><dd>58,100 km<span class="info-unit">toward the Earth</span>')
@@ -108,7 +109,27 @@ describe('ControlPanel', () => {
     expect(html).toContain('none: at 88,500 km it would be past the Hill sphere, where the Earth\'s pull')
     panel.spaceHook = () => ({...facts, name: 'Sun–Earth', secondary: 'Earth', syncName: 'geostationary orbit',
       sync: {radius: 42164e3, why: null}})
-    expect(panel.spaceRowsHtml('earth')).toContain('42,164 km from the centre (geostationary orbit)')
+    expect(panel.spaceAround('earth').html).toContain('42,164 km from the centre (geostationary orbit)')
+  })
+
+  it('lists a body\'s orbital regimes under the space around it, with or without a pair', () => {
+    const panel = new ControlPanel(null, null)
+    const regimes = ['low Earth orbit (LEO): 160 km to 2,000 km up', 'GPS: 6 planes at 55°, 20,200 km up',
+      'sun-synchronous, 700 km, dawn–dusk, inclined 98.2°']
+    panel.spaceHook = () => ({name: 'Sun–Earth', secondary: 'Earth', hill: 1.5e9, l1: 1.5e9, l2: 1.5e9,
+      sync: {radius: 42164e3, why: null}, regimes})
+    let {html, peek} = panel.spaceAround('earth')
+    expect(peek).toBe('Hill sphere, Lagrange points, regimes')
+    expect(html.indexOf('<div class="info-subhead">Orbital regimes</div>')).toBeGreaterThan(html.indexOf('Hill sphere'))
+    expect(html).toContain('<dt>Low Earth orbit (LEO)</dt><dd>160 km to 2,000 km up</dd>')
+    expect(html).toContain('<dt>GPS</dt><dd>6 planes at 55°, 20,200 km up</dd>')
+    expect(html).toContain('<dt>Sun-synchronous</dt><dd>700 km, dawn–dusk, inclined 98.2°</dd>')
+    // Regimes alone (Scene.spaceAround for a body with no pair).
+    panel.spaceHook = () => ({regimes});
+    ({html, peek} = panel.spaceAround('mars'))
+    expect(peek).toBe('regimes')
+    expect(html).not.toContain('Hill sphere')
+    expect(html).toContain('<dt>GPS</dt>')
   })
 
   it('keeps the sections as the user leaves them, for the link, against their defaults', () => {
