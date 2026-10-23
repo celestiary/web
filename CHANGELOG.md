@@ -39,6 +39,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### The Moon's frozen orbits: the few low orbits that last
+
+With the Moon selected, the orbits spacecraft use near it are drawn around it. Low lunar orbit is a
+thin shell. The four "frozen" inclinations, 27°, 50°, 76° and 86°, are where the pulls of the Moon's
+lumpy mass concentrations average out, so an orbit lasts for years. Also drawn are the Lunar
+Reconnaissance Orbiter's two orbits and a 30-hour elliptical frozen orbit that hangs over the south
+pole. The info panel explains why most low lunar orbits crash within weeks or months.
+
+- Date: 2026-10-23
+- PR: [#285](https://github.com/celestiary/web/pull/285)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause)
+- Featured: yes
+
 ### Fly a spacecraft to the Moon
 
 The Earth's and the Moon's panels now have a Craft section: switch on *transfer to the Moon* and a
