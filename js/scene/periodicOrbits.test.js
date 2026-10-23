@@ -2,7 +2,8 @@ import {describe, expect, it} from 'bun:test'
 import {jacobi, propagate} from './cr3bp.js'
 import {collinearDistances} from './lagrange.js'
 import {
-  FAMILIES, familyMember, familyOfCode, inertialSweep, lyapunovGuess, nrho92, placeAt, richardsonHalo, sampleMember,
+  ARENSTORF, FAMILIES, arenstorf, familyMember, familyOfCode, inertialSweep, lyapunovGuess, nrho92, placeAt,
+  richardsonHalo, sampleMember,
   southern,
 } from './periodicOrbits.js'
 import {correctSymmetric} from './cr3bp.js'
@@ -96,11 +97,35 @@ describe('periodic orbits', () => {
         expect(close).toBeLessThan(1e-8)
         // Never through the secondary: at least a tenth of its Hill radius
         // (the NRHO, by design, comes to 3,225 km: tested above).
-        if (family !== 'nrho') {
+        if (family !== 'nrho' && family !== 'arenstorf') {
           expect(rMin).toBeGreaterThan(0.1 * Math.cbrt(mu / 3))
         }
       }
     }
+  })
+
+  it('closes Arenstorf\'s orbit as published, and continues it to the Earth-Moon pair', () => {
+    // In his mass ratio, the symmetric correction from his start gives his
+    // period (Hairer, Nørsett and Wanner's 17.0652165601579625) to 1e-9,
+    // and one period integrated returns to the start to 1e-9.
+    const m0 = correctSymmetric(ARENSTORF.mu, [ARENSTORF.x0, 0, ARENSTORF.vy0], 'x', 0.45 * ARENSTORF.period)
+    expect(Math.abs(m0.period - ARENSTORF.period)).toBeLessThan(1e-9)
+    expect(Math.abs(m0.state[4] - ARENSTORF.vy0)).toBeLessThan(1e-9)
+    const {s} = propagate(ARENSTORF.mu, [ARENSTORF.x0, 0, 0, 0, ARENSTORF.vy0, 0], {t: ARENSTORF.period})
+    expect(Math.hypot(s[0] - ARENSTORF.x0, s[1])).toBeLessThan(1e-9)
+    // At the Earth-Moon pair: a cycler, 74 days round, from 676 km over the
+    // Moon to a loop round the Earth 178,000 km out and back.
+    const m = arenstorf(EARTH_MOON)
+    expect(m.period * DAYS).toBeCloseTo(74.2, 1)
+    let rE = Infinity
+    let rM = Infinity
+    propagate(EARTH_MOON, m.state, {t: m.period, onStep: (t, y) => {
+      rE = Math.min(rE, Math.hypot(y[0] + EARTH_MOON, y[1]))
+      rM = Math.min(rM, Math.hypot(y[0] - 1 + EARTH_MOON, y[1]))
+    }})
+    expect((rM * MOON_KM) - 1737.4).toBeGreaterThan(600)
+    expect((rM * MOON_KM) - 1737.4).toBeLessThan(800)
+    expect(rE * MOON_KM / 1000).toBeCloseTo(178, -1)
   })
 
   it('runs a DRO retrograde about the secondary', () => {

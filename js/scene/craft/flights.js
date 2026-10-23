@@ -1,5 +1,6 @@
-import {geocentricTracks} from './ephemeris.js'
-import {GM, SECONDS_PER_DAY, dopri5, ratesOf} from './integrator.js'
+import {chain} from './cycler.js'
+import {geocentricTracks, heliocentricTracks} from './ephemeris.js'
+import {GM, SECONDS_PER_DAY, dopri5, newForceModel, ratesOf} from './integrator.js'
 import {TOLERANCES, earthModel, lunarTransfer} from './transfer.js'
 
 
@@ -14,11 +15,67 @@ const UNIX_EPOCH_JD = 2440587.5
 const MS_PER_DAY = 864e5
 const KM = 1000
 const MOON_RADIUS = 1737400
+const KEPLER = {rtol: 1e-10, atol: [1, 1, 1, 1e-6, 1e-6, 1e-6]}
+const AU = 149597870700
 
 /** By link code (catalog.js's): how each is made, and its facts told. */
 export const FLIGHTS = {
   tli: {make: transferToMoon, describe: describeTransfer},
   blt: {make: ballisticTransfer, describe: describeBlt},
+  aldrin: {make: aldrinFlight, describe: describeAldrin},
+}
+
+
+/**
+ * The first Aldrin cycler designed (aldrin.json) that starts on or after a
+ * day: its arcs made again from its dates (cycler.js chain), each flown
+ * about the Sun alone from its start (the arcs are Kepler's: patched
+ * conics, the flybys turns at a point).
+ *
+ * @param {number} day JDE
+ * @param {object} bodies bodies.js appBodies', with VSOP87C
+ * @param {{cyclers: Array<object>}} data aldrin.json
+ * @returns {?{t: Float64Array, xyz: Float64Array, facts: object}} xyz
+ *     metres about the Sun, ecliptic axes of date
+ */
+export function aldrinFlight(day, bodies, data) {
+  const design = (data?.cyclers ?? []).filter((c) => c.x[0] >= day)
+      .reduce((best, c) => (!best || c.x[0] < best.x[0] ? c : best), null)
+  if (!design) {
+    return null
+  }
+  const cycles = (design.x.length - 1) / 2
+  const made = chain(heliocentricTracks(bodies, ['earth', 'mars']), design.x, cycles)
+  if (!made) {
+    return null
+  }
+  const t = []
+  const xyz = []
+  for (const arc of made.legs) {
+    const accel = newForceModel({gm: GM.sun, epoch: arc.t0})
+    dopri5(ratesOf(accel), [...arc.r0, ...arc.v0], 0, (arc.t1 - arc.t0) * SECONDS_PER_DAY, {...KEPLER,
+      onStep: (time, s) => {
+        t.push(arc.t0 + (time / SECONDS_PER_DAY))
+        xyz.push(s[0], s[1], s[2])
+      }})
+  }
+  return {t: Float64Array.from(t), xyz: Float64Array.from(xyz), facts: {
+    departure: design.x[0], end: made.flybys.at(-1).jde, cycles, flybys: made.flybys, cost: made.cost,
+    aphelion: Math.max(...made.legs.map((arc) => Math.hypot(...arc.r1), 0)) / AU,
+  }}
+}
+
+
+/**
+ * @param {object} f aldrinFlight's facts
+ * @returns {string}
+ */
+export function describeAldrin(f) {
+  const [earth, mars] = f.flybys
+  return `leaves the Earth ${dateOf(f.departure)} at ${(earth.vInfOut / KM).toFixed(1)} km/s, passes Mars ` +
+    `${dateOf(mars.jde)} at ${(mars.vInfIn / KM).toFixed(1)} km/s, and the Earth again each 2.1 years, ` +
+    `${f.cycles} cycles to ${dateOf(f.end).slice(0, 4)}: ${Math.round(f.cost).toLocaleString('en-US')} m/s ` +
+    'at its flybys, where the planets\' gravity falls short'
 }
 
 

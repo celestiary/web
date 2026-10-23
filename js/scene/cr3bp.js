@@ -230,15 +230,18 @@ function refineCrossing(mu, s, time, h, k, tmp, next, onStep) {
  * @param {Array<number>} guess [x0, z0, vy0]
  * @param {string} fixed 'x' or 'z': the one held (a planar orbit, z0 = 0,
  *     holds both and adjusts vy0 alone)
+ * @param {number} [minTime] the crossing closed is the first after this
+ *     (propagate's): for an orbit that crosses y = 0 at a slant before the
+ *     crossing at right angles wanted
  * @returns {?{state: Array<number>, period: number, iterations: number}}
  *     null if it doesn't converge
  */
-export function correctSymmetric(mu, guess, fixed = 'z') {
+export function correctSymmetric(mu, guess, fixed = 'z', minTime = undefined) {
   let [x0, z0, vy0] = guess
   // A planar orbit has one condition (vx = 0) and one unknown, vy0.
   const planar = z0 === 0
   for (let it = 0; it < CORRECTION_ITERATIONS; it++) {
-    const {t, s} = propagate(mu, withStm([x0, 0, z0, 0, vy0, 0]), {toCrossing: true})
+    const {t, s} = propagate(mu, withStm([x0, 0, z0, 0, vy0, 0]), {toCrossing: true, minTime})
     if (!Number.isFinite(t) || t <= 0) {
       return null
     }

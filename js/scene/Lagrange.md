@@ -225,8 +225,9 @@ secondary's L1 distance γ so a family looks alike everywhere:
 | L1, L2 halo (southern) | Richardson's third-order approximation (Richardson 1980; Koon, Lo, Marsden and Ross, appendix) | z amplitude 0.25 γ |
 | Distant retrograde (DRO) | a retrograde two-body circle about the secondary at 0.2 γ, stepped out | 1.2 γ beyond it on the x axis (Earth–Moon: about 74,000 km, near Artemis I's) |
 | 9:2 NRHO, Earth–Moon only | Gateway's southern NRHO at apolune, (1.0221, −0.1821, −0.1033) | its period pinned to 2/9 of a synodic month by a secant on x0 |
+| Arenstorf cycler, Earth–Moon only | Arenstorf's periodic orbit in his μ, 0.012277471 | continued to the pair's μ: 74.2 days, 676 km over the Moon ([Craft.md, cyclers](Craft.md#an-earthmoon-cycler-arenstorfs-orbit)) |
 
-The links name them `l1l`, `l2l`, `l1h`, `l2h`, `dro`, `nrho`
+The links name them `l1l`, `l2l`, `l1h`, `l2h`, `dro`, `nrho`, `are`
 ([design/URLs.md](../../design/URLs.md#periodic-token)).
 
 - **Richardson's guess misses by a fixed amount**: 160 km at Earth–Moon L1

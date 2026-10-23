@@ -245,7 +245,8 @@ export default class LagrangeMarks extends Group {
     node.name = `lagrange.periodic.${key}`
     const options = {color: f.color, width: FAMILY_WIDTH, opacity: FAMILY_OPACITY}
     const rotating = newWideLineStrip(Float32Array.from(samples.xyz), {name: `periodic.${key}`, ...options})
-    const sweep = newWideLineStrip(new Float32Array(SWEEP_POINTS * 3), {name: `periodic.${key}.inertial`, ...options})
+    const sweepPoints = f.sweep?.points ?? SWEEP_POINTS
+    const sweep = newWideLineStrip(new Float32Array(sweepPoints * 3), {name: `periodic.${key}.inertial`, ...options})
     const marker = newRings(f.color, 1)
     marker.name = `periodic.${key}.now`
     node.add(rotating, sweep, marker)
@@ -395,7 +396,9 @@ export default class LagrangeMarks extends Group {
       }
       if (this.frame === 'inertial' && family.sweptAt !== tau) {
         const attr = family.sweep.geometry.getAttribute('position')
-        inertialSweep(family.samples, tau, SWEEP_POINTS, attr.array)
+        const {sweep} = FAMILIES[key]
+        inertialSweep(family.samples, tau, sweep?.points ?? SWEEP_POINTS, attr.array,
+            sweep?.window === 'period' ? family.samples.period : undefined)
         attr.needsUpdate = true
         family.sweptAt = tau
       }

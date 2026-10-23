@@ -37,10 +37,14 @@ export function stumpff(z) {
  * @param {number} gm
  * @param {Array<number>} [pole] the sense of motion: the arc goes round this
  *     way (the right hand about it); the ecliptic's north by default
+ * @param {number} [revs] whole revolutions before arriving: with one or
+ *     more there are two arcs, or none where the time is too short
+ * @param {string} [branch] which of the two: 'low' (the less energetic, z
+ *     above the time's least) or 'high'
  * @returns {?{v1: Array<number>, v2: Array<number>}} null where it
  *     doesn't converge
  */
-export function lambert(r1, r2, tof, gm, pole = [0, 0, 1]) {
+export function lambert(r1, r2, tof, gm, pole = [0, 0, 1], revs = 0, branch = 'low') {
   const n1 = Math.hypot(...r1)
   const n2 = Math.hypot(...r2)
   const c = [(r1[1] * r2[2]) - (r1[2] * r2[1]), (r1[2] * r2[0]) - (r1[0] * r2[2]), (r1[0] * r2[1]) - (r1[1] * r2[0])]
@@ -59,14 +63,50 @@ export function lambert(r1, r2, tof, gm, pole = [0, 0, 1]) {
     const yz = y(z)
     return ((((yz / C) ** 1.5) * S) + (aa * Math.sqrt(yz))) - (Math.sqrt(gm) * tof)
   }
-  // Bracket a root: z from where y > 0 up, then bisect (robust where
-  // Newton's method on the time can leave y's domain).
-  let lo = -4 * Math.PI * Math.PI
-  while (y(lo) < 0) {
-    lo += 0.1
+  // Bracket a root, then bisect (robust where Newton's method on the time
+  // can leave y's domain).  No whole revolutions: z from where y > 0 up to
+  // 4π², the time rising with z.  N of them: z between (2πN)² and
+  // (2π(N + 1))², where the time falls to a least and rises again, a root
+  // each side.
+  let lo
+  let hi
+  let rising = true
+  if (revs === 0) {
+    lo = -4 * Math.PI * Math.PI
+    while (y(lo) < 0) {
+      lo += 0.1
+    }
+    hi = 4 * Math.PI * Math.PI
+  } else {
+    const zLo = ((2 * Math.PI * revs) ** 2) + 1e-6
+    const zHi = ((2 * Math.PI * (revs + 1)) ** 2) - 1e-6
+    // The least time, by golden-section search.
+    let a = zLo
+    let b = zHi
+    const g = (Math.sqrt(5) - 1) / 2
+    for (let i = 0; i < MAX_ITERATIONS; i++) {
+      const p = b - (g * (b - a))
+      const q = a + (g * (b - a))
+      if (tofError(p) < tofError(q)) {
+        b = q
+      } else {
+        a = p
+      }
+    }
+    const zMin = (a + b) / 2
+    if (tofError(zMin) > 0) {
+      return null
+    }
+    if (branch === 'high') {
+      lo = zLo
+      hi = zMin
+      rising = false
+    } else {
+      lo = zMin
+      hi = zHi
+    }
   }
-  let hi = 4 * Math.PI * Math.PI
-  if (tofError(lo) > 0 || tofError(hi) < 0) {
+  if (rising ? (tofError(lo) > 0 || tofError(hi) < 0) : (tofError(lo) < 0 || tofError(hi) > 0)) {
     return null
   }
   let z = 0
@@ -76,7 +116,7 @@ export function lambert(r1, r2, tof, gm, pole = [0, 0, 1]) {
     if (Math.abs(f) < TOLERANCE * Math.sqrt(gm) * tof) {
       break
     }
-    if (f < 0) {
+    if ((f < 0) === rising) {
       lo = z
     } else {
       hi = z

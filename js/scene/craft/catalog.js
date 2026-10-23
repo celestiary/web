@@ -9,12 +9,16 @@
 
 /** The ballistic lunar transfers designed (tools/craft/designBlt.mjs). */
 export const BLT_DATA_URL = 'data/blt.json'
+/** The Aldrin cyclers designed (tools/craft/designCyclers.mjs). */
+export const ALDRIN_DATA_URL = 'data/aldrin.json'
 
 /** By link code. */
 export const FLIGHT_CATALOG = {
   tli: {code: 'tli', name: 'transfer to the Moon', centre: 'earth', shownAt: ['earth', 'moon'], color: 0xffc070},
   blt: {code: 'blt', name: 'ballistic lunar transfer', centre: 'earth', shownAt: ['earth', 'moon'], color: 0x9fe870,
     data: BLT_DATA_URL, needsVsop: true},
+  aldrin: {code: 'aldrin', name: 'Aldrin cycler', centre: 'sun', shownAt: ['earth', 'mars'], color: 0xff9a70,
+    data: ALDRIN_DATA_URL, needsVsop: true},
 }
 
 

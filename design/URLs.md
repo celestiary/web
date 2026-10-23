@@ -486,6 +486,7 @@ l1h      L1 halo
 l2h      L2 halo
 dro      distant retrograde orbit
 nrho     the 9:2 near-rectilinear halo orbit (Earth-Moon only)
+are      Arenstorf's periodic orbit, an Earth-Moon cycler (Earth-Moon only)
 ```
 
 ```
@@ -555,6 +556,7 @@ The codes:
 ```
 tli      a transfer to the Moon from a 185 km parking orbit
 blt      a ballistic lunar transfer: the first designed leaving on or after the day
+aldrin   Aldrin's Earth-Mars cycler: the first designed starting on or after the day
 ```
 
 ```

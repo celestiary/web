@@ -1819,8 +1819,8 @@ describe('the three-body orbits at the target\'s pairs', () => {
     const s = solarScene()
     let changes = 0
     s.onSettingsChange = () => changes++
-    expect(s.craftOf('earth').map((c) => [c.code, c.on])).toEqual([['tli', false], ['blt', false]])
-    expect(s.craftOf('mars')).toEqual([])
+    expect(s.craftOf('earth').map((c) => [c.code, c.on])).toEqual([['tli', false], ['blt', false], ['aldrin', false]])
+    expect(s.craftOf('mars').map((c) => c.code)).toEqual(['aldrin'])
     s.toggleCraft('tli', 2461336.8)
     expect(changes).toBe(1)
     expect(s.getCraft()).toEqual(new Map([['tli', 2461336.5]]))
