@@ -847,8 +847,8 @@ brings back all of the first group.
   small addition to the `layers:` token (`layers:earth=default`), but it
   needs Cesium ion to verify and belongs with the layers work (CESIUM.md);
   left to a follow-up.  The token's New York flag is in.
-- *Drag mode* (`m`: auto, pan, orbit): how the pointer moves the camera, not
-  what is seen, and `goTo` resets it.
+- *Drag mode* (`m`: orbit, pan): how the pointer moves the camera, not
+  what is seen, and `goTo` and landing set it.
 - *Presentation mode* (`V`): the toggles it sets are in `s=`; the snapshot
   it keeps to restore them is transient.
 - *The performance panel and the AR debug HUD*: developer tools.

@@ -52,39 +52,24 @@ describe('attachPointerDrag', () => {
     expect(camera.position.equals(startPos)).toBe(true)
   })
 
-  it('\'auto\' mode resolves to \'orbit\' when camera is far from target', () => {
-    const el = makeFakeElement()
-    const camera = new PerspectiveCamera()
-    camera.position.set(1e8, 0, 0) // far from a 6.4e6 m radius body
-    const startPos = camera.position.clone()
-    const target = {props: {radius: {scalar: 6.4e6}}}
-    attachPointerDrag(el, camera, {
-      getDragMode: () => 'auto',
-      getTarget: () => target,
-    })
-
-    el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
-    el.fire('pointermove', {pointerId: 1, clientX: 150, clientY: 100})
-
-    // Orbit moves position; pan would not.
-    expect(camera.position.equals(startPos)).toBe(false)
-  })
-
-  it('\'auto\' mode resolves to \'pan\' when camera is close to target', () => {
-    const el = makeFakeElement()
-    const camera = new PerspectiveCamera()
-    camera.position.set(6.4e6, 0, 0) // at surface of 6.4e6 m radius body
-    const startPos = camera.position.clone()
-    const target = {props: {radius: {scalar: 6.4e6}}}
-    attachPointerDrag(el, camera, {
-      getDragMode: () => 'auto',
-      getTarget: () => target,
-    })
-
-    el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
-    el.fire('pointermove', {pointerId: 1, clientX: 150, clientY: 100})
-
-    expect(camera.position.equals(startPos)).toBe(true) // pan: position unchanged
+  it('keeps the chosen mode at any distance: no switch by altitude', () => {
+    // Regression: an \'auto\' mode once flipped orbit to pan near the
+    // ground, which surprised people.  Orbit stays orbit at the surface,
+    // pan stays pan far out.
+    const at = (mode, dist) => {
+      const el = makeFakeElement()
+      const camera = new PerspectiveCamera()
+      camera.position.set(dist, 0, 0)
+      const startPos = camera.position.clone()
+      attachPointerDrag(el, camera, {getDragMode: () => mode})
+      el.fire('pointerdown', {button: 0, pointerId: 1, clientX: 100, clientY: 100})
+      el.fire('pointermove', {pointerId: 1, clientX: 150, clientY: 100})
+      return camera.position.equals(startPos) ? 'pan' : 'orbit'
+    }
+    expect(at('orbit', 6.4e6)).toBe('orbit') // at a 6.4e6 m body's surface
+    expect(at('orbit', 1e10)).toBe('orbit')
+    expect(at('pan', 6.4e6)).toBe('pan')
+    expect(at('pan', 1e10)).toBe('pan')
   })
 
   it('\'pan\' mode rotates camera quaternion only (position unchanged)', () => {

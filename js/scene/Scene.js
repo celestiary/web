@@ -2320,16 +2320,15 @@ export default class Scene {
       this.ui.approach?.(sat ? null : obj, arrivalWorld, Shared.targets.tween)
     }
 
-    // Reset drag mode to 'auto' on planet navigation so the next
-    // pointerdown re-evaluates pickDragMode against the actual camera
-    // position (which may end up at orbit altitude OR ground level if
-    // a permalink restore lands the camera on the surface).  Manual
-    // pan/orbit selections from a previous body don't carry over.
-    // Also clear any prior 'landed' state — orbit-style nav unpins the
-    // observer from the surface.
+    // Arriving at a body, a drag turns round it: a pan chosen at the last
+    // one doesn't carry over.  The mode is set here and by land, never by
+    // altitude (an automatic switch as the camera neared the ground
+    // surprised people, and zoom.js's rotateScale has since slowed the
+    // orbit drag near the ground).  Also clear any prior 'landed' state —
+    // orbit-style nav unpins the observer from the surface.
     if (isPlanet) {
       const state = this.ui.useStore?.getState?.()
-      state?.setDragMode?.('auto')
+      state?.setDragMode?.('orbit')
       state?.setLanded?.(false)
       Shared.targets.landed = false
     }
@@ -2430,14 +2429,11 @@ export default class Scene {
       Shared.targets.tweenNextFn = null
     }
 
-    // Reset drag mode to 'auto' so pickDragMode picks 'pan' here at the
-    // surface AND naturally flips back to 'orbit' when the user later
-    // zooms out past the auto-switch threshold.  Earlier we forced
-    // 'pan' explicitly, which felt right at touchdown but stayed sticky:
-    // zooming out past orbit altitude kept dragging in pan mode forever.
-    // Mark landed for permalink + UI; this is independent of drag mode.
+    // On the surface a drag looks around.  It stays that way on zooming
+    // out, until the user switches it or goes to a body: the mode doesn't
+    // follow altitude (goTo).  Mark landed for permalink + UI.
     const state = this.ui.useStore?.getState?.()
-    state?.setDragMode?.('auto')
+    state?.setDragMode?.('pan')
     state?.setLanded?.(true)
     Shared.targets.landed = true
 

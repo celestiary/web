@@ -61,20 +61,45 @@ bottom controls showed through.  It is now revealed in tiers
 At 600px wide or less (`useIsMobile`), the panel leaves the top-left and
 becomes a sheet from the bottom with three heights: **peek** (the head: name,
 kind, one fact), **half** (the summary) and **full** (88% of the scene, a strip
-of sky kept).  Drag the grabber or the head, or tap it to step.  The bottom
-controls and the settings buttons sit above the sheet at its peek, and hide
-while it is raised, so nothing overlaps it; the sheet sits above the widgets
-drawer's sheet when both are open.
+of sky kept).  Drag the grabber or the head, or tap it to step.  It sits on
+the dock (below), and on the widgets drawer's sheet when that's open, so
+nothing overlaps it.
+
+## Phones: the dock
+
+At 600px wide or less the controls that floated down the right of the screen
+(the widgets button, the time panel and its five buttons, the drag mode pair,
+layers, AR) and the settings and About buttons bottom-left collect into one
+bar along the bottom (`js/ui/PhoneDock.jsx`), 56px over the safe area:
+
+| Button | Shows | Tap |
+|---|---|---|
+| Time | the sim clock, `4:19 PM`, and its rate when not real time | the time panel above the bar: date, rate, rewind, now, pause, forward, calendar |
+| Layers | only near a Cesium body | the layer tiles above the bar |
+| AR | the AR sky view | enters it; while on, its controls (calibrate, damping, exit) sit above the bar |
+| Apps | the widgets drawer | opens or closes it, as a sheet above the bar |
+| More | | drag mode, Settings, About, above the bar |
+
+- One panel above the bar at a time; a second tap on its button, or a tap on
+  the scene, closes it.
+- The scene stops above the bar (`Celestiary.setInsets`' bottom takes its
+  height, from the store's `phoneDockHeight`), so nothing important is drawn
+  under it; the widgets sheet sits on the bar, and the info sheet and
+  Cesium's credits on the whole dock, an open panel too
+  (`--phone-dock-height`), so a panel lifts them rather than covering them.
+- It's chrome: held on the homepage, faded with the rest, hidden by `v`.
+- Desktop is unchanged.
 
 ## Phases
 
-1. **Tokens, the tiered panel, the phone sheet** (this change).  Bodies,
+1. **Tokens, the tiered panel, the phone sheet** (done, #280).  Bodies,
    stars and galaxies all use the new panel.
 2. **The observing (red) theme**: a setting and a permalink letter, every
    token's red value, offered when AR starts after dark.
-3. **The phone dock**: the time panel, layers, AR and widgets in one bottom
-   bar; the time readout in mono; the breadcrumb to its last two chips.
+3. **The phone dock** (done, above): the time panel, layers, AR, widgets
+   and settings in one bottom bar, the clock in mono.
 4. **AR**: the reticle, the identify card, labels with a halo and only the
    brightest named, Cesium's credits in the sheet.
-5. **The homepage and the rest of the chrome on tokens**; retire `.dialog`,
-   `.text-label`, `collapsor.js`.
+5. **The homepage and the rest of the chrome on tokens**; the breadcrumb to
+   its last two chips on a phone; retire `.dialog`, `.text-label`,
+   `collapsor.js`.
