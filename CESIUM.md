@@ -1369,48 +1369,76 @@ buffer is allocated at its first read: headless, 7-9 warnings a session
 before, none after (HDR.md, the meter's readback).  Its cadence (every
 fourth frame) has nothing to do with the flicker's.
 
-**Blue blocky bands on the buildings at night** (Central Park, from the
-ground, gain ~1.9e6): not reproduced headless.  At the user's view (no
-ion: the ellipsoid, and a flat 20 m terrain standing in for World
-Terrain; Black Marble served from GIBS) the city's 87,000 pixels are 0
-in Cesium's frame and in the scene buffer, and black on the canvas.  Its
-materials' output, checked flag by flag (NaN, negative or infinite rgb,
-and its largest channel × 1e4), is under 2e-7 everywhere.  What could
-put light in those pixels, and
-what the diagnostic below tells apart:
+**Blue blocky bands on the buildings at night** (Central Park from the
+ground, the night of 2026-10-23): the atmosphere pass, not the city, and
+not New York's only.  The user's `newYorkDebug()` on an M2 (camera
+−29.8 m, under the ellipsoid; Manhattan's ground lies ~30 m under it,
+where the geoid is −32.7 m) had the city's pixels clean in Cesium's frame
+(8 of 66,770 lit), no night lights added and no holes; its `sceneMean`
+(now `sceneLitMean`) was over those 8 lit pixels only, not the city's.
+So the light came after the composite.
 
-- the city's own rgb in Cesium's 8-bit frame (`dayLit`, its commonest
-  codes): at night's gain any code of 1 is white;
-- the night lights' frame drawing over the city (`lightsAdded`): the city
-  was hidden in that frame, so wherever Earth's globe is behind or under
-  its buildings, Black Marble's ~500 m texels drew through them, blocky
-  and blue at that gain (its unlit land is dark blue).  Measured headless
-  at the user's other view, 12 km over the Upper Bay looking down, at
-  night (21:35 EDT): with the city hidden in that frame the lights landed
-  on 1,373 of its 1,374 pixels; drawn black, on none.  From the ground in
-  Central Park the ellipsoid has no ground behind the buildings (the view
-  is all sky above them), so headless can't show it there; World
-  Terrain's relief (the ground north of the park rising above eye level)
-  could.  The leading candidate, fixed (the city is black in that frame
-  now); the diagnostic measures it both ways;
-- holes, the sky through the city (`holes`): its pixels that read the same
-  with and without it.
+*The cause.*  The pass marches the air in front of a surface it sees
+from inside the atmosphere (`marchSegment`, Atmosphere.js), and at each
+sample decides whether the Sun is behind the planet.  From above the
+sphere it asked whether the ray to the Sun meets the sphere ahead
+(`rsi`).  Within a metre of the sphere that is a difference of squares of
+~6.4e6 m in float32: the near hit came out on either side of the sample
+at random, and with the Sun 33° under the horizon the sample read the
+Sun's transmittance table as if lit.  From an eye under the sphere every
+ray crosses it, a few tens of metres out, and the samples that landed
+within that metre lit the night's air with daylight: speckled, in bands
+of the rows whose samples fall there, Rayleigh blue, fixed while the view
+is.  Headless, with a flat terrain at −31.5 m and the camera at −30 m
+(Cesium's frame then fills the view, the city's deck and trees within
+160 m): 2,665 pixels in horizontal blue bands, all of them gone with the
+atmosphere pass off and none with the cloud shell, the volumetric clouds,
+the night sky or the airglow off.  The bands' light, metered, held the
+gain at 0.01 where the dark frame wants ~150 (the user's was 0.001 against
+a goal of 27).
+
+*The fix.*  The Sun is behind the planet where it is under the sphere's
+horizon at the sample: its zenith cosine under −√(1 − R²/r²), from
+(r − R)(r + R), which keeps its bits near the sphere; under the sphere,
+under the local horizontal, as before (`rayEnd.js` `sunBelowHorizon`,
+its float32 mirror and tests; the GLSL in the atmosphere pass's march and
+narrow-lobe depth, and the volumetric clouds' light).  The same view after:
+0 pixels lit, at a gain of 148.  It holds wherever the camera is under
+or within a metre of the sphere, the city or not: the Dead Sea, the
+Netherlands, any coast where the geoid is negative.  The precomputed
+tables (AtmospherePrecompute.js) still decide by `rsi`, at their own
+sample points; their bottom row is the same question, not seen yet.
+
+Also fixed on the way, and kept: the night lights' frame draws the city
+black, not hidden.  Hidden, wherever Earth's globe is behind or under its
+buildings, Black Marble's ~500 m texels drew through them: at the user's
+12 km view at night (21:35 EDT), on 1,373 of its 1,374 pixels; drawn
+black, on none.
 
 The 12 km view also has 3 of the city's pixels lit in Cesium's frame at
-night (one at codes 129, 113, 82): something of the guest's still shines
-with every light and emission at 0 (the white specks of the colour
-contract, above), not yet found.
+night (one at codes 129, 113, 82), and the user's Central Park view 8:
+something of the guest's still shines with every light and emission at 0
+(the white specks of the colour contract, above), not yet found.
 
 `c.ui.layers.newYorkDebug({seconds})` (newYorkDebug.js), in the console
 with the city in view, watches the app's frames for `seconds` (default
-10), then reads two frames back, with the city and without, twice (the
-night lights' frame with the city black, and hidden as before), and logs
-`[new york] debug: {...}`: the frames (fps, those that drew no city and
-the frames between them, staged calls, Cesium's renders a frame), the
-pixels (`city`, `dayLit`, `dayCodes`, `lightsAdded`, `sceneLit`,
-`sceneMax`, `holes`), the GPU, the gain, the camera's height and
-whether Cesium has it underground, the terrain provider, and the guest's
-lights.
+10) and logs `[new york] debug: {...}`:
+
+- `frames`: fps, the frames that drew no city and the frames between
+  them, staged calls, Cesium's renders a frame;
+- `pixels` and `pixelsLightsHidden`: two frames read back, with the city
+  and without, with the night lights' frame drawing it black and hidden:
+  the city's pixels (`city`), those its day frame lit (`dayLit`,
+  `dayCodes`), those the lights added to (`lightsAdded`), those lit in the
+  scene buffer (`sceneLit`, `sceneMax`, `sceneLitMean` over them only),
+  holes;
+- `passes`: the final frame over the city's pixels and the ground's, as
+  drawn and with each pass after the composite off in turn (`noCloudShell`,
+  `noCloudVolume`, `noNightSky`, `noAirglow`, `noAtmosphere`): `lit` is how
+  many are over 0, `mean` the byte over all of them.  The pass whose
+  absence takes the light away is the one adding it;
+- the GPU, the gain, the camera's height and whether Cesium has it
+  underground, the terrain provider, and the guest's lights.
 
 ## Patching Cesium
 

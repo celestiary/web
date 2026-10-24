@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import {classifyCityPixels, halfToFloat, summarizeFrames} from './newYorkDebug.js'
+import {canvasOver, classifyCityPixels, halfToFloat, summarizeFrames} from './newYorkDebug.js'
 
 
 describe('summarizeFrames', () => {
@@ -62,5 +62,13 @@ describe('classifyCityPixels', () => {
     expect(halfToFloat(0x0001)).toBeCloseTo(5.96e-8, 10)
     expect(halfToFloat(0x7c00)).toBe(Infinity)
     expect(Number.isNaN(halfToFloat(0x7e00))).toBe(true)
+  })
+})
+
+
+describe('canvasOver', () => {
+  it('counts the lit pixels and means over every masked one', () => {
+    const canvas = Uint8Array.from([0, 0, 0, 255, 0, 0, 30, 255, 9, 9, 9, 255])
+    expect(canvasOver(canvas, Uint8Array.from([1, 1, 0]))).toEqual({n: 2, lit: 1, mean: [0, 0, 15]})
   })
 })

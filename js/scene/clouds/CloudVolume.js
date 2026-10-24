@@ -31,6 +31,7 @@ import {
   DIRECT_SHARE, EDDINGTON_SOURCE_SCALE, MU_SUN_MIN, cloudParams, deltaEddington, deltaScaled, deltaScaledAsymmetry,
   eddingtonGamma, phaseTable,
 } from './cloudPhysics.js'
+import {SUN_BELOW_HORIZON_GLSL} from '../atmos/rayEnd.js'
 import {CLOUD_HEIGHT_M, FAR_FIELD_FADE_M, VOLUME_FADE_M, fadeOver} from './CloudShell.js'
 
 
@@ -895,6 +896,7 @@ uniform float uMaxDistance;
 // level 3 of a 2560-wide map is 128 km a texel.
 #define COARSE_LOD 3.0
 
+${SUN_BELOW_HORIZON_GLSL}
 vec2 rsi(vec3 r0, vec3 rd, float sr) {
   float b = dot(rd, r0);
   float c = dot(r0, r0) - sr * sr;
@@ -1033,8 +1035,9 @@ vec2 airUv(float h, float mu) {
 // depths (AtmospherePrecompute), none with the Sun under its horizon.
 vec3 sunThroughAir(vec3 p) {
   float r = length(p);
-  vec2  pG = rsi(p, uSun, uGroundRadius);
-  if (pG.x > 0.0 && pG.x < pG.y) return vec3(0.0);
+  // Under the sphere's horizon (rayEnd.js sunBelowHorizon: rsi's near hit
+  // is float32 noise within a metre of the sphere)
+  if (sunBelowHorizon(p, uSun, uGroundRadius)) return vec3(0.0);
   vec2 od = texture(tTransmittance, airUv(r - uGroundRadius, dot(p / r, uSun))).rg;
   return exp(-(uMieCoeff * od.g + uRayleigh * od.r));
 }

@@ -1,5 +1,5 @@
 import {readFileSync} from 'fs'
-import {depthDistance, depthOf, rayEnd, raySphere, shellAhead} from './rayEnd.js'
+import {depthDistance, depthOf, rayEnd, raySphere, shellAhead, sunBelowHorizon} from './rayEnd.js'
 
 
 // The camera's far plane: six galaxy radii (ThreeUI.configLargeScene).
@@ -144,5 +144,50 @@ describe('shellAhead', () => {
     expect(source).toContain('${SHELL_AHEAD_GLSL}')
     expect(source).toContain('if (!shellAhead(pAtm))')
     expect(source).not.toContain('if (pAtm.x > pAtm.y)')
+  })
+})
+
+
+describe('sunBelowHorizon', () => {
+  const R = 6371000
+  // The Sun 33° under the horizon at Manhattan at night, the point's zenith
+  // in the x-z plane
+  const at = (h, zenithDeg = 40.6) => {
+    const z = zenithDeg * Math.PI / 180
+    return [(R + h) * Math.cos(z), 0, (R + h) * Math.sin(z)]
+  }
+  const sunAt = (elevDeg, zenithDeg = 40.6) => {
+    const z = zenithDeg * Math.PI / 180
+    const e = elevDeg * Math.PI / 180
+    // Up, and a horizontal direction, at that zenith
+    const up = [Math.cos(z), 0, Math.sin(z)]
+    const north = [-Math.sin(z), 0, Math.cos(z)]
+    return up.map((u, i) => (Math.sin(e) * u) + (Math.cos(e) * north[i]))
+  }
+
+  it('keeps the night\'s Sun down within a metre of the sphere, where the ray test is noise', () => {
+    const sun = sunAt(-33)
+    let rayTestUp = 0
+    for (let k = -40; k <= 40; k++) {
+      const p = at(k * 0.02)
+      expect(sunBelowHorizon(p, sun, R)).toBe(true)
+      // The test it replaced: the ray to the Sun meets the sphere ahead
+      const [near, far] = raySphere(p, sun, R)
+      if (!(near > 0 && near < far) && Math.hypot(...p) >= R) {
+        rayTestUp++
+      }
+    }
+    // Which let it through at some of these points
+    expect(rayTestUp).toBeGreaterThan(0)
+  })
+
+  it('agrees with the geometry away from the sphere, above and below it', () => {
+    // From 10 km up the horizon dips 3.2°: a Sun 2° down is still up there
+    expect(sunBelowHorizon(at(1e4), sunAt(-2), R)).toBe(false)
+    expect(sunBelowHorizon(at(1e4), sunAt(-4), R)).toBe(true)
+    expect(sunBelowHorizon(at(100), sunAt(10), R)).toBe(false)
+    // Under the sphere: the local horizontal
+    expect(sunBelowHorizon(at(-30), sunAt(0.5), R)).toBe(false)
+    expect(sunBelowHorizon(at(-30), sunAt(-0.5), R)).toBe(true)
   })
 })

@@ -39,6 +39,18 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### No more speckled blue bands in the night air over ground below sea level
+
+Standing on Earth's ground where it lies below the globe's mean shape (Manhattan, the Netherlands, the
+Dead Sea), at night the air in front of the ground and the buildings no longer lets the Sun's light
+through in speckled blue bands.
+
+- Date: 2026-10-24
+- PR: [#287](https://github.com/celestiary/web/pull/287)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+- Kind: fix
+
 ### New York in 3D: Manhattan's streets and towers on Earth
 
 Come down over New York, within a few tens of kilometres of Manhattan and under 30 km up, open the
