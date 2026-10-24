@@ -39,6 +39,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### The night sky stays dark on the shore
+
+On some of Earth's ground the night sky turned the orange of a sunset: at the water's edge in New
+York, or at the Dead Sea. The ground there lies a little below the height the app takes as Earth's
+surface, and from under that surface the Sun counted as visible at midnight, so its glare lit the
+sky. The Sun is now hidden whenever it's below the horizon, and the night sky is dark with its
+stars.
+
+- Date: 2026-10-24
+- Kind: fix
+- PR: [#298](https://github.com/celestiary/web/pull/298)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=alpoLF;time:pause,rate=-4096;info:closed)
+
 ### All of Starlink joins the satellites, with a search, and you choose which to see
 
 All 11,116 Starlink satellites can now show round Earth, with a slider for how many, the first by
