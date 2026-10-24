@@ -57,10 +57,12 @@ NetGL's call stream on the same `postMessage` channel.
 | guest → host | `netgl:*` | the frame's GL calls, ending in `netgl:frame-end`. This is the frame's receipt: 0.4.0's host sends its next view on it (`receiver.onFrame`; one view in flight, re-sent after 1 s). |
 | guest → host | `layer:invalidate` | `{reason}`: what's drawn changed with no new view: the snapshots loaded (`'loaded'`), the DSN's feed changed (`'dsn feed'`, at most every 5 s, and not for the same feed again), a subscription (`'anchors subscribed'`). #36's host re-sends its current view with a new `viewId`, keeping one in flight, so a still camera on a pinned clock still sees the DSN's links arrive. |
 | host → guest | `layer:time` | `{timeMs, rate, paused?}` (RFC §7.1; `utcMs` is accepted too): the clock's state, for a view with no `timeMs`. A view's `timeMs` wins. |
-| host → guest | `layer:anchors-subscribe` | `{patterns: ['norad:25544', 'dsn:*', ...]}`, which replaces the subscription. Patterns are exact ids, `prefix:*`, or `*`. |
+| host → guest | `layer:anchors-subscribe` | `{patterns: ['norad:25544', 'dsn:*', ...]}`, which replaces the subscription. Patterns are exact ids, `prefix:*`, `*`, or (proposed, below) `{near: {p: [x, y, z], n}, pattern}`. |
 | guest → host | `layer:anchors` | `{viewId, timeMs, anchors: [{id, kind, name, p: [x, y, z], geo?, aliases?}]}`, after each frame while something is subscribed. **Nothing is published until then** (RFC §8.1). |
 | guest → host | `layer:status` | `{status: 'loading'}`, `{status: 'ready', partial?: [what failed]}`, or `{status: 'error', message}` |
 | host → guest | `layer:visibility`, `layer:dispose` | throttle, or tear down |
+| host → guest | `layer:stats-subscribe` | `{intervalMs?}` (default 1000, at least 250); `{enabled: false}` or `intervalMs: 0` stops them. Off until asked. |
+| guest → host | `layer:stats` | `{frames, intervalMs, updateMs, renderMs, recordMs, anchorsMs, calls, messages, bytes}`: the guest's own cost, the mean per frame over the interval, sent after the frame that ends it ([Cost](#cost)). |
 
 - **Anchors** use RFC 0001 §8.2's ids, made only in `js/layer/anchors.js`:
   - `norad:<catalogue number>` (`norad:25544`);
@@ -72,6 +74,21 @@ NetGL's call stream on the same `postMessage` channel.
 
   `p` is ECEF metres where the layer draws it, at the frame's time. For a
   thing on the ground, `geo` is its own `[lat, lon, h]` (WGS84).
+
+  The subscription is compiled by scheme (`compileSubscription`). A
+  scheme nobody asked for isn't walked, and exact ids are looked up by
+  number. `dsn:*` alone never touches the ~11,600 satellites, and
+  `norad:25544` reads one. Only `norad:*` or `*` walks them all.
+- **Nearest anchors (a proposal for RFC #39 Q15).** A pattern can be
+  `{near: {p: [x, y, z], n}, pattern: 'norad:*'}`: the `n` anchors
+  (at most 256) nearest `p`, ECEF metres at the frame's time, of those
+  `pattern` matches (default `*`). It is ranked by where each is drawn
+  this frame (Starlink's and Iridium's carried circles, the population's
+  points), and the n chosen get their exact positions. A host can then ask
+  for "the satellites over this city" without the whole constellation. It
+  joins with the other patterns, so ids that two patterns match come once.
+  Its cost is the walk over the scheme: about 1.5 ms in bun for 8 nearest
+  of 11,643.
 - **The Earth** (RFC §6.3). Orbits are in true ECEF. What's tied to the
   ground (the DSN's antennas and complexes) goes on the host's Earth:
   `view.earth`'s sphere, with latitude and longitude put on it as
@@ -97,6 +114,59 @@ NetGL's call stream on the same `postMessage` channel.
   host's time:
   - `ECEF = bodyToEcef · Ry(−GMST) · equator`;
   - vertices are float32 metres, about 4 m at GEO.
+
+## Cost
+
+What the guest sends a frame, measured in the guest (`js/layer/wire.js`
+`meteredTransport`, which `layer:stats` reports). The check host ran with
+S, I, D and the satellites, at 640×400 on SwiftShader, on 2026-10-24.
+
+| | Calls a frame | Bytes a frame (median; max) | `anchors()` |
+|---|---|---|---|
+| Before, clock running | 186 | 505 KB; 905 KB on a re-base | 2.1 ms |
+| After, clock running | 170 | 49 KB; 50 KB | 0.1 ms |
+| Before, clock held | 179 | 504 KB | 2.0 ms |
+| After, clock held | 119 | 12 KB | 0.1 ms |
+
+The subscription in each was `norad:25544, dsn:*, dsn-sc:*`. The bytes
+count what structured clone copies: buffers whole, strings and numbers.
+The frames drawn are pixel-identical to main's (same draw order).
+
+- **The recorder's arrays.** Most of the 505 KB wasn't three's.
+  - Three uploads ranges: Starlink's 1/20 slice, and the used part of
+    the line buffers. It does this with `bufferSubData(target, dst, array,
+    srcOffset, count)`.
+  - portal-netgl 0.3.0's recorder encodes a typed array as its whole
+    `ArrayBuffer`, so every ranged upload crossed `postMessage` at the
+    attribute's full size.
+  - `compactCall` (`wire.js`) cuts each call's arrays to what it reads.
+    That alone took a running frame from 505 KB to 54 KB.
+  - **`compactCall` is interim.** The recorder slices from portal-netgl
+    0.6.0 on, and `compactCall` is removed when the guest moves to 0.6.0
+    and `parentTransport` (the follow-up PR). Compacted calls are valid
+    wire for any receiver meanwhile. `?compact=0` sends calls as the
+    recorder made them, to compare.
+- **Lines** (`wideLines.js` `setWideLineSegments`): only the span that
+  changed goes up, per attribute, and nothing when nothing did.
+  - The DSN's beams upload nothing between feeds while the clock holds.
+    While it runs, they upload only their starts (the dishes turn with
+    Earth).
+  - Iridium's links upload what moved.
+- **A held clock** (a view at the same time as the last):
+  - Constellation propagates and uploads nothing (Networks.md);
+  - Iridium's links stand.
+- **What's left a running frame:**
+  - Starlink's slice, about 20 KB (556 satellites, 36 bytes each);
+  - Iridium's points and links;
+  - the beams' starts;
+  - the population's points, which go up whole each frame (Population.js);
+  - about 120 state and draw calls, each its own message on 0.3.0.
+
+  Batching the calls into one message a frame is 0.6.0's.
+- **Draw order.** The renderer doesn't sort, so the root's children are
+  hung in a fixed order (satellites, S, I, D). Before, the order was
+  whichever loaded first, so Starlink's dots covered Iridium's links on
+  some loads and not others.
 
 ## What changes in existing code
 
@@ -145,9 +215,9 @@ NetGL's call stream on the same `postMessage` channel.
 
 - **Anchor paths**: composing ids with layer paths (RFC §8.3), for example
   `portal:/celestiary#norad:25544`.
-- **Anchor volume.** Starlink's 11,000 anchors at 60 Hz is about 270 KB a
-  second. Subscribe to some, or publish their elements once and let the
-  host propagate?
+- **Anchor volume.** Starlink's 11,000 anchors are about 1 MB a frame.
+  Subscribe to some, ask for the nearest (proposed above), or publish
+  their elements once and let the host propagate?
 - **Labels:** drawn by the guest (decoupled from ThreeUi), or only by the
   host from the anchors?
 - **Picking:** a host click mapped to the nearest anchor, or the guest
@@ -167,7 +237,9 @@ Phase 1 is in (branch `claude/layer-mode`):
   - `protocol.js`, the control plane;
   - `origins.js`, the allow-list and an origin-checking transport;
   - `anchors.js`, the ids;
-  - `frames.js`, equator of date and body-fixed to ECEF.
+  - `frames.js`, equator of date and body-fixed to ECEF;
+  - `wire.js`, the transport's meter and the interim `compactCall`
+    ([Cost](#cost)).
 
   Tests: `js/layer/layer.test.js`.
 - **The check host:** `yarn layer-host` (`tools/layer/serve.mjs`) serves
@@ -180,6 +252,12 @@ Phase 1 is in (branch `claude/layer-mode`):
   - `?depth=0` clears the depth first, for the occlusion comparison.
   - `?t=<ISO>&lat=&lng=&altKm=&fov=&near=&far=&nets=S,I,D&sats=0|1` sets
     the view.
+  - `&rate=1` runs the clock from `t` (0, the default, holds it).
+  - `&stats=1` asks for `layer:stats`, kept in `hostState.guestStats`.
+  - `&anchors=` sets the subscription (comma-separated, `none` for none).
+  - `&compact=0` passes on to the guest.
+  - `hostState.perFrame` holds what arrived per frame: calls, and buffer
+    bytes.
 - **Checked** (headless Chromium, SwiftShader, 2026-10-23 20:17 UTC):
   - On the three.js check host: the ISS anchor is 2.6 m from
     satellite.js's own ECF, and its dot sits in the host's ring.
@@ -189,7 +267,7 @@ Phase 1 is in (branch `claude/layer-mode`):
     `depth=0` it shows through.
   - The DSN's beams leave Goldstone and Madrid, and from 400 AU one
     reaches out to a Voyager.
-- **Size:** the page's static load is 591 KB minified, 164 KB gzipped,
+- **Size:** the page's static load is 600 KB minified, 167 KB gzipped,
   against `esbuild/budget.js` `LAYER_BUDGET`'s 650 / 180 KB; the snapshots
   load after.
 - **Its own build** (`esbuild/common.js` `layerConfig`, into `docs/layer/`),

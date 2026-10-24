@@ -99,6 +99,19 @@ SGP4 for all 11,116 Starlinks is 7 to 8 ms a frame on this session's CPU
   metres from Earth's centre in float32 (half a metre).
 - **Only while shown**: nothing is propagated while the overlay is off, or
   with the camera more than 1.5e9 m from Earth (the satellites' rule).
+- **Only while the clock moves**: a frame at the same Julian Day as the
+  last (paused, or a layer host's view at a held time) propagates and
+  uploads nothing; `lastRefreshed` is then 0 and `primed` stays true.
+- **Uploads by range**: a frame's slice goes up as one or two update
+  ranges (it wraps) of `position`, `aVw` and `aState`, and a re-base sends
+  `aState` whole.
+- **The links' uploads** (`wideLines.js` `setWideLineSegments`, for
+  Iridium's links and the DSN's beams): each attribute's span of changed
+  values goes up as one range, and nothing goes up where nothing changed.
+  The beams' ends and colours change only with a feed. Their starts move
+  with Earth while the clock runs, so between feeds only the starts go up,
+  and with the clock held nothing does. Layer mode's cost:
+  [design/LayerMode.md](../../../design/LayerMode.md#cost).
 - **Measured** (headless Chromium on this session's CPU, SwiftShader;
   `performance.now()` is coarsened to 0.1 ms there): Starlink 0.6 ms a
   frame, Iridium (with its links) 0.36, the DSN 0.01.  In bun: Starlink 0.42

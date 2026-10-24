@@ -61,26 +61,88 @@ export function naifAnchor(id) {
 }
 
 
+/** A `near` query's most anchors. */
+export const MAX_NEAR = 256
+
+
 /**
- * A host's subscription: exact ids, `scheme:*`, or `*`.
+ * @param {string} id e.g. 'norad:25544'
+ * @returns {string} its scheme, e.g. 'norad'
+ */
+export function schemeOf(id) {
+  const i = id.indexOf(':')
+  return i < 0 ? id : id.slice(0, i)
+}
+
+
+/**
+ * A host's subscription, compiled so the layer can skip what nobody asked
+ * for: whole schemes it never walks, exact ids it looks up rather than
+ * matching every record against.  Each pattern is an exact id,
+ * `scheme:*`, `*`, or (a proposal for portal RFC #39 Q15, design/LayerMode.md
+ * "Anchors") `{near: {p: [x, y, z], n}, pattern}`: the n anchors nearest p
+ * (ECEF metres, at the frame's time) of those matching `pattern` (a string
+ * as above; default `*`).
  *
- * @param {Array<string>} patterns
+ * @param {Array<string|object>} patterns
+ * @returns {{all: boolean, schemes: Set<string>, exact: Map<string, Set<string>>, near: Array<object>,
+ *   wants: Function, wantsScheme: Function, whole: Function}}
+ */
+export function compileSubscription(patterns) {
+  const exact = new Map()
+  const schemes = new Set()
+  const near = []
+  let all = false
+  for (const p of patterns ?? []) {
+    if (typeof p === 'string') {
+      if (p === '*') {
+        all = true
+      } else if (p.endsWith(':*')) {
+        schemes.add(p.slice(0, -2))
+      } else if (p) {
+        const scheme = schemeOf(p)
+        if (!exact.has(scheme)) {
+          exact.set(scheme, new Set())
+        }
+        exact.get(scheme).add(p)
+      }
+    } else if (p && typeof p === 'object' && p.near && Array.isArray(p.near.p) && p.near.p.length === 3 &&
+        p.near.p.every(Number.isFinite)) {
+      const n = Math.min(MAX_NEAR, Math.max(1, Math.floor(Number(p.near.n) || 1)))
+      const match = compileSubscription([typeof p.pattern === 'string' ? p.pattern : '*'])
+      near.push({p: p.near.p.slice(), n, match})
+    }
+  }
+  /**
+   * @param {string} scheme
+   * @returns {boolean} whether all of it is wanted
+   */
+  const whole = (scheme) => all || schemes.has(scheme)
+  return {
+    all, schemes, exact, near, whole,
+    /**
+     * @param {string} id
+     * @returns {boolean} whether it's wanted by id or scheme
+     */
+    wants: (id) => {
+      const scheme = schemeOf(id)
+      return whole(scheme) || Boolean(exact.get(scheme)?.has(id))
+    },
+    /**
+     * @param {string} scheme
+     * @returns {boolean} whether any of it is wanted, by id or whole
+     */
+    wantsScheme: (scheme) => whole(scheme) || exact.has(scheme),
+  }
+}
+
+
+/**
+ * @param {Array<string>} patterns as compileSubscription
  * @returns {function(string): boolean} whether an id is subscribed
  */
 export function anchorMatcher(patterns) {
-  const exact = new Set()
-  const prefixes = []
-  let all = false
-  for (const p of patterns ?? []) {
-    if (p === '*') {
-      all = true
-    } else if (p.endsWith(':*')) {
-      prefixes.push(p.slice(0, -1))
-    } else {
-      exact.add(p)
-    }
-  }
-  return (id) => all || exact.has(id) || prefixes.some((pre) => id.startsWith(pre))
+  return compileSubscription(patterns).wants
 }
 
 

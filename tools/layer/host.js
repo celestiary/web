@@ -5,7 +5,12 @@
 // (satellite.js's ECI to ECF, the lat/lng sphere), to check the layer lines
 // up: the ISS's ring, the geostationary circle, the DSN complexes' squares.
 //
-//   host.html?guest=<origin>&t=<ISO>&lat=&lng=&altKm=&fov=&nets=S,I,D&sats=1&depth=1&w=&h=
+//   host.html?guest=<origin>&t=<ISO>&rate=0&lat=&lng=&altKm=&fov=&nets=S,I,D&sats=1&depth=1&w=&h=
+//     &stats=0&anchors=norad:25544,dsn:*,dsn-sc:*&compact=1
+//
+// `rate` runs the clock from `t` (1 is real time; 0, the default, holds it);
+// `stats=1` asks for the guest's `layer:stats`, kept in hostState.guestStats;
+// `anchors` is the subscription (`none` for none).
 
 import {
   BufferGeometry, Color, Float32BufferAttribute, LineBasicMaterial, LineLoop, Mesh, MeshBasicMaterial,
@@ -19,7 +24,12 @@ const q = new URLSearchParams(location.search)
 const num = (k, d) => (q.has(k) ? Number(q.get(k)) : d)
 const R = 6378137
 const DEG = Math.PI / 180
-const timeMs = q.has('t') ? Date.parse(q.get('t')) : Date.now()
+const startMs = q.has('t') ? Date.parse(q.get('t')) : Date.now()
+const rate = num('rate', 0)
+const startedAt = performance.now()
+// The view's time: held at t, or running from it at `rate`.
+const viewTimeMs = () => startMs + ((performance.now() - startedAt) * rate)
+const timeMs = startMs
 const W = num('w', 640)
 const H = num('h', 400)
 const guestOrigin = q.get('guest') ?? 'http://127.0.0.1:5480'
@@ -104,14 +114,18 @@ const state = {frames: 0, anchors: [], status: [], hello: null, iss: null, issEr
   errors: []}
 window.hostState = state
 
-// The ISS by satellite.js on its own: ECI (TEME) to ECF by its gstime.
+// The ISS by satellite.js on its own: ECI (TEME) to ECF by its gstime, at
+// the view's start, and again at each anchors message's time.
+let issRec = null
+const issAt = (ms) => {
+  const date = new Date(ms)
+  const f = eciToEcf(propagate(issRec, date).position, gstime(date))
+  return [f.x * 1e3, f.y * 1e3, f.z * 1e3]
+}
 fetch('satellites.json').then((r) => r.json()).then(({columns, rows}) => {
   const row = rows.find((x) => x[0] === 25544)
-  const omm = Object.fromEntries(columns.map((c, i) => [c, row[i]]))
-  const date = new Date(timeMs)
-  const pv = propagate(json2satrec(omm), date)
-  const f = eciToEcf(pv.position, gstime(date))
-  state.iss = [f.x * 1e3, f.y * 1e3, f.z * 1e3]
+  issRec = json2satrec(Object.fromEntries(columns.map((c, i) => [c, row[i]])))
+  state.iss = issAt(timeMs)
   marks.setAttribute('position', new Float32BufferAttribute(state.iss, 3))
 })
 
@@ -119,24 +133,42 @@ fetch('satellites.json').then((r) => r.json()).then(({columns, rows}) => {
 const iframe = document.createElement('iframe')
 iframe.style.display = 'none'
 iframe.src = `${guestOrigin}/layer.html?host=${encodeURIComponent(location.origin)}&nets=${q.get('nets') ?? 'S,I,D'}` +
-  `&sats=${q.get('sats') ?? '1'}`
+  `&sats=${q.get('sats') ?? '1'}${q.has('compact') ? `&compact=${q.get('compact')}` : ''}`
 document.body.appendChild(iframe)
 const transport = windowTransport({output: iframe.contentWindow, outputOrigin: guestOrigin, inputFilter: iframe.contentWindow})
 // portal-netgl 0.4.0's envelope (NetGLLayerViewMessage), as its deck.gl host sends it.
 const view = () => ({
   type: 'layer:view', viewId: ++state.viewId, view: {
     frame: 'ecef', viewMatrix: camera.matrixWorldInverse.toArray(), projectionMatrix: camera.projectionMatrix.toArray(),
-    viewport: [0, 0, W, H], pixelRatio: 1, timeMs, earth: {model: 'sphere', radius: R},
+    viewport: [0, 0, W, H], pixelRatio: 1, timeMs: viewTimeMs(), earth: {model: 'sphere', radius: R},
   },
 })
 // What the guest's frames hold: it mustn't clear the host's buffers.
 state.calls = 0
 state.clears = 0
 state.byName = {}
+// Per frame, as received: GL calls and their buffers' bytes, the last 120.
+state.perFrame = []
+state.guestStats = []
+let frameIn = {calls: 0, bytes: 0}
+const bufferBytes = (v) => {
+  if (!v || typeof v !== 'object') {
+    return 0
+  }
+  if (v instanceof ArrayBuffer) {
+    return v.byteLength
+  }
+  return (Array.isArray(v) ? v : Object.values(v)).reduce((n, x) => n + bufferBytes(x), 0)
+}
 transport.onMessage((m) => {
   // The frame's receipt, as 0.4.0's host takes it (receiver.onFrame): its
   // frame-end.  Draw it, then send the next view (one in flight).
   if (m.type === 'netgl:frame-end') {
+    state.perFrame.push(frameIn)
+    if (state.perFrame.length > 120) {
+      state.perFrame.shift()
+    }
+    frameIn = {calls: 0, bytes: 0}
     setTimeout(() => {
       frame()
       state.frames++
@@ -146,6 +178,8 @@ transport.onMessage((m) => {
   if (typeof m.name === 'string') {
     state.calls++
     state.byName[m.name] = (state.byName[m.name] ?? 0) + 1
+    frameIn.calls++
+    frameIn.bytes += bufferBytes(m.args)
     if (m.name === 'clear') {
       state.clears++
     }
@@ -159,16 +193,23 @@ const receiver = makeNetGLHostReceiver({
       if (!state.hello) {
         state.hello = msg
         transport.post({type: 'layer:hello-ack', accepted: true})
-        transport.post({type: 'layer:anchors-subscribe', patterns: ['norad:25544', 'dsn:*', 'dsn-sc:*']})
+        const patterns = (q.get('anchors') ?? 'norad:25544,dsn:*,dsn-sc:*').split(',').filter((p) => p && p !== 'none')
+        transport.post({type: 'layer:anchors-subscribe', patterns})
+        if (q.get('stats') === '1') {
+          transport.post({type: 'layer:stats-subscribe', intervalMs: 1000})
+        }
         transport.post(view())
       }
+    } else if (msg.type === 'layer:stats') {
+      state.guestStats.push(msg)
     } else if (msg.type === 'layer:status') {
       state.status.push(msg)
     } else if (msg.type === 'layer:anchors') {
       state.anchors = msg.anchors
       const a = msg.anchors.find((x) => x.id === 'norad:25544')
-      if (a && state.iss) {
-        state.issErrorKm = Math.hypot(...a.p.map((v, k) => v - state.iss[k])) / 1e3
+      if (a && issRec) {
+        const iss = issAt(msg.timeMs)
+        state.issErrorKm = Math.hypot(...a.p.map((v, k) => v - iss[k])) / 1e3
       }
     }
   },
