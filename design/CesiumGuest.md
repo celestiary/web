@@ -1,6 +1,15 @@
 # Cesium as a cross-origin guest
 
-*Proposed 2026-10-24.  Nothing here is built yet.*
+*Proposed 2026-10-24; phase 0 in progress.*
+
+**Decided (2026-10-24):**
+- the guest is served from the fork's Pages on a subdomain of its own
+  (`cesium.celestiary.org`): cross-origin, same site;
+- the aim is a demo of Cesium cleanly hosted and minimally modded: the
+  guest page is stock Cesium plus the fork's few patches, with
+  celestiary's look carried by settings and its own shaders, and nothing
+  of celestiary's reaching into Cesium;
+- lockstep first (A, below); reprojection later.
 
 ## What and why
 
@@ -200,8 +209,5 @@ tests.
 
 ## Open questions
 
-- Which origin: same-site subdomain, or cross-site?  (Hosting, above.)
-- Is a frame of lockstep latency acceptable while the camera moves, or is
-  reprojection required before this can be the default?
 - Does New York move with Earth, or stay on the same page (which would
   keep the same-page Cesium for Earth while New York is on)?

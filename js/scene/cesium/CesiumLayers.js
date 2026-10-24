@@ -112,6 +112,12 @@ export default class CesiumLayers {
     // ({status: 'loading'|'ready'|'error', city}; _updateNewYork).
     this.newYork = newYorkOptions(typeof location === 'undefined' ? '' : location.search)
     this._newYork = null
+    // Cesium's draws run only in the replay, not on its shadow too: nothing
+    // here reads Cesium's pixels (heights are CPU picks on loaded tiles, its
+    // inputs are off), so the shadow needs its state, not its frame.
+    // ?cesiumShadowDraws=1 draws on the shadow as before, to compare.
+    this.shadowDraws = typeof location !== 'undefined' &&
+      new URLSearchParams(location.search).get('cesiumShadowDraws') === '1'
     // ?nyc=1 is put in the store on the first frame with one (it isn't set
     // yet when ThreeUi makes this): _syncNewYork.
     this._newYorkFromUrl = this.newYork.enabled
@@ -1210,7 +1216,7 @@ export default class CesiumLayers {
       },
       onError: (err) => console.warn('[cesium layer] replay error:', err),
     })
-    const guest = netgl.makeNetGLCesiumGuest({transport: link.transport, webgl: {alpha: true}})
+    const guest = netgl.makeNetGLCesiumGuest({transport: link.transport, webgl: {alpha: true}, shadowDraws: this.shadowDraws})
 
     const ellipsoid = Cesium.Ellipsoid[config.ellipsoid]
     Cesium.Ellipsoid.default = ellipsoid
