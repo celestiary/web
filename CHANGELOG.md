@@ -51,6 +51,17 @@ you're looking at sits on top of it, so nothing covers anything else.
 - Issue: [#279](https://github.com/celestiary/web/issues/279)
 - Permalink: [Open this view](https://celestiary.org/#sun/earth)
 
+### Dragging no longer changes what it does as you zoom in
+
+Close to a planet, dragging used to switch by itself from turning round the planet to looking
+around in place, with nothing to show it had. Now a drag does what the drag-mode switch says until
+you change it: it turns round a body you go to, and looks around once you land.
+
+- Date: 2026-10-24
+- Kind: fix
+- PR: [#289](https://github.com/celestiary/web/pull/289)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
 ### No more speckled blue bands in the night air over ground below sea level
 
 Standing on Earth's ground where it lies below the globe's mean shape (Manhattan, the Netherlands, the

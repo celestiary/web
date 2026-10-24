@@ -779,8 +779,8 @@ Camera orientation and position are separated across three input modes, all accu
 | Input | Effect |
 |---|---|
 | Scroll wheel | Zoom (TrackballControls, asymptotic near surface) |
-| Mouse drag | Free look — pitch (up/down) and yaw (left/right) around camera's local axes, slower the narrower the field of view ([FOV-scaled](#fov-scaled-turning)) |
-| Option+drag | Orbit — rotates camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) and the narrower the field of view ([FOV-scaled](#fov-scaled-turning)) |
+| Mouse drag | By the drag mode (the toggle, or `m`). **Orbit** rotates the camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) and the narrower the field of view ([FOV-scaled](#fov-scaled-turning)). **Free look** (pan) pitches (up/down) and yaws (left/right) around the camera's local axes, slower the narrower the field of view.  The mode is the user's: going to a body sets orbit, landing sets free look, and nothing switches it by altitude (an automatic switch near the ground, from before the proximity scale, surprised people and was removed) |
+| Option+drag | The other mode, for that drag |
 | ↑ / ↓ arrow keys (hold) | Pitch camera nose up/down, slower the narrower the field of view |
 | ← / → arrow keys (hold) | Roll camera left/right (while tracking too); not slowed by the field of view |
 | `t` | Toggle continuous tracking: the target stays centred every frame, following a place as its body turns, and the roll stays yours ([the target](#the-target)).  "Tracking on" or "off" shows on the readout, and it is a checkbox in Settings |

@@ -3072,10 +3072,9 @@ export default class Celestiary {
     'Camera')
     k.map('m', () => {
       const s = useStore.getState()
-      const next = {auto: 'pan', pan: 'orbit', orbit: 'auto'}[s.dragMode] ?? 'auto'
-      s.setDragMode(next)
+      s.setDragMode(s.dragMode === 'pan' ? 'orbit' : 'pan')
     },
-    'Cycle camera drag mode (Auto / Drag Pan / Move)',
+    'Switch camera drag mode (Move / Drag Pan)',
     undefined,
     'Camera')
     // Numbered views — pin a child of current system as look-target.

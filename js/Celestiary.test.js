@@ -285,7 +285,7 @@ function makeStubStore() {
   const state = {
     setCommittedPath: () => {},
     dragMode: 'pan',
-    // Recorded: tests can read state.dragModeCalls to assert auto-pick fired.
+    // Recorded: tests can read state.dragModeCalls for what navigation set.
     dragModeCalls: [],
     // The widgets drawer at its defaults: no state tokens (appTokens.js).
     widgets: {isOpen: false, isDocked: false, view: null, running: [], pinned: [], appStates: {}},
@@ -537,14 +537,12 @@ describe('Scene.goTo navigation', () => {
       expect(app2.ui.camera.platform.parent).toBe(sunObj.orbitPosition)
     })
 
-    it('resets dragMode to \'auto\' on planet navigation', () => {
-      // dragControls re-evaluates pickDragMode at the next pointerdown
-      // against the actual final camera position — covers both the
-      // normal goTo arrival (orbit altitude) and permalink restores
-      // that land the camera on the surface.
+    it('sets dragMode to \'orbit\' on planet navigation', () => {
+      // A pan chosen at the last body doesn't carry over; nothing switches
+      // it by altitude after (Scene.goTo).
       const calls = app2.useStore.getState().dragModeCalls
       expect(calls.length).toBeGreaterThan(0)
-      expect(calls[calls.length - 1]).toBe('auto')
+      expect(calls[calls.length - 1]).toBe('orbit')
     })
   })
 
