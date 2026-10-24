@@ -63,12 +63,14 @@ function inputGroup(input) {
  * @param {function(string): Uint8Array} contentOf The built bytes of an
  *   output file, as esbuild wrote (or would write) it
  * @param {function(Uint8Array): number} [gzipSize] Bytes after gzip
+ * @param {string[]} [entries] the entry points to measure from (default
+ *   the app's first load, firstLoad.js FIRST_LOAD_ENTRIES)
  * @returns {{files: Array<object>, minified: number, gzip: number,
  *   largest: object}} each first-load file's path, minified bytes, gzipped
  *   bytes and contributors; their totals; and the largest by minified bytes
  */
-export function measureFirstLoad(metafile, contentOf, gzipSize = gzipBytes) {
-  const files = firstLoadFiles(metafile).map((path) => {
+export function measureFirstLoad(metafile, contentOf, gzipSize = gzipBytes, entries = undefined) {
+  const files = firstLoadFiles(metafile, entries).map((path) => {
     const content = contentOf(path)
     return {
       path,

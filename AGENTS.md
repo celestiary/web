@@ -44,6 +44,7 @@ tried and dropped.
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Earth satellites: CelesTrak's GP data, SGP4, the TEME frame, old elements, targeting and riding one | [js/scene/satellites/Satellites.md](js/scene/satellites/Satellites.md) |
 | The space networks: Starlink's whole constellation, Iridium and its crosslinks, the Deep Space Network and DSN Now's live links; the compact elements, the propagation in slices | [js/scene/networks/Networks.md](js/scene/networks/Networks.md) |
+| Layer mode: celestiary's orbits (satellites, the networks) as a NetGL guest page (`layer.html`) in another app's globe; its contract (view, time, anchors, origins) and the two-origin check host (`yarn layer-host`) | [design/LayerMode.md](design/LayerMode.md) |
 | Populations round a body (satellites, orbiters, the Deep Space Network's): groups, the names budget, the panel's section, the `pop:` token, adding one | [js/scene/population/Population.md](js/scene/population/Population.md) |
 | 3D models (glTF, `loadModel`), spacecraft at their JPL Horizons positions (Webb), their sources and licences | [js/scene/models.md](js/scene/models.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
@@ -178,6 +179,15 @@ tried and dropped.
     `galaxyModel.js` `integrateRay`), iterate on its look with a CPU
     render of the mirror in bun, tone-mapped with `hdr.js` `neutral`: a
     200 px frame takes seconds, against minutes through SwiftShader.
+- **Layer mode's checks run on two origins:** `yarn build`, then `yarn
+  layer-host` (guest `http://127.0.0.1:5480`, host
+  `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read
+  `window.hostState` (frames, the guest's status and hello, the anchors,
+  `issErrorKm` against satellite.js's own ECF, the guest's call counts:
+  it must make no `clear`), and the canvas with `toDataURL` after
+  `window.hostFrame()` (the host keeps its drawing buffer).  Pass `t=` to pin
+  the time; the DSN's links show only within an hour of now
+  ([design/LayerMode.md](design/LayerMode.md#status)).
 - **Earth's clouds load from NASA GIBS** a second after the date settles
   (js/scene/Planet.md#clouds). Wait on
   `c.ui.sceneManager.objects.earth.clouds.userData.map.status`

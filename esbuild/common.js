@@ -1,4 +1,10 @@
 const indexFile = './js/index.jsx'
+// Layer mode's page (design/LayerMode.md): celestiary's orbits as a NetGL
+// guest in another app's globe.  Built separately (layerConfig), not as a
+// second entry here: esbuild's splitting would then cut the code the two
+// share into chunks of their own, and the app's first load would fetch
+// them as more requests (it did: two more, over the load budget).
+const layerFile = './js/layer/layer.js'
 const buildDir = 'docs'
 
 // satellite.js (SGP4, js/scene/satellites/) also ships WASM propagators,
@@ -16,7 +22,7 @@ const satelliteWasmStub = {
 }
 
 // The build config
-export default {
+const config = {
   entryPoints: [indexFile],
   outdir: buildDir,
   format: 'esm',
@@ -41,5 +47,22 @@ export default {
     // Development mode: true in `yarn serve`, false in production builds.
     // Used to enable dev-only features like esbuild hot reload (js/index.tsx).
     __DEV__: JSON.stringify(false),
+    // More origins that may host layer mode (js/layer/origins.js), comma-
+    // separated, beyond its built-in allow-list.
+    __LAYER_ORIGINS__: JSON.stringify(process.env.LAYER_ORIGINS ?? ''),
   },
+}
+export default config
+
+
+/**
+ * Layer mode's page, its own build into docs/layer/ (public/layer.html
+ * loads layer/layer.js): it shares no chunk with the app, so neither build
+ * changes the other's files.
+ */
+export const layerConfig = {
+  ...config,
+  entryPoints: [layerFile],
+  outdir: `${buildDir}/layer`,
+  define: {...config.define},
 }

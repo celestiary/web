@@ -75,13 +75,16 @@ export default class DeepSpaceNetwork extends Group {
    * @param {Function} [opts.fetchFn] fetch, for the feed
    * @param {Function} [opts.nowMs] the wall clock, for the polling
    * @param {?object} [opts.camera] the view's, for the names by distance
+   * @param {boolean} [opts.labels] the complexes' and spacecraft's names
+   *   (false in layer mode, design/LayerMode.md)
    */
   constructor(config, {layer = null, Sheet = SpriteSheet, fetchFn = (...a) => globalThis.fetch(...a), nowMs = () => Date.now(),
-    camera = null} = {}) {
+    camera = null, labels = true} = {}) {
     super()
     this.name = 'dsn'
     this.config = config
     this.camera = camera
+    this.labelsOn = labels
     this.layer = layer
     this.Sheet = Sheet
     this.fetchFn = fetchFn
@@ -97,6 +100,8 @@ export default class DeepSpaceNetwork extends Group {
       equator: new Vector3,
     })))
     this.dishByName = new Map(this.dishes.map((d) => [d.name, d]))
+    // The sphere the dishes are on (setSurfaceRadius).
+    this.surfaceRadius = EARTH_RADIUS_M
     // What turns with Earth: the dishes and the complexes' names, at their
     // latitudes and longitudes (coords.js), as places are.
     this.earthFixed = new Group
@@ -104,7 +109,7 @@ export default class DeepSpaceNetwork extends Group {
     this.add(this.earthFixed)
     this.dishPoints = this._newDishPoints()
     this.earthFixed.add(this.dishPoints)
-    this.siteLabels = this._newSiteLabels(config.sites)
+    this.siteLabels = labels ? this._newSiteLabels(config.sites) : new Group
     this.earthFixed.add(this.siteLabels)
     this.downBeams = this._newBeams('dsn downlinks', DOWN_WIDTH_PX)
     // The uplinks over the downlinks, opaque: a link with both reads as an
@@ -121,6 +126,10 @@ export default class DeepSpaceNetwork extends Group {
     this.links = []
     this.feedMs = NaN
     this.status = {polls: 0, ok: 0, failures: 0, lastError: null, lastFeedMs: NaN}
+    // Called when a feed changes what's drawn (layer mode asks its host for
+    // a frame: design/LayerMode.md, `layer:invalidate`).
+    this.onFeed = null
+    this._lastXml = null
     this._nextPollMs = 0
     this._pending = null
     this.jd = NaN
@@ -151,6 +160,29 @@ export default class DeepSpaceNetwork extends Group {
 
 
   /**
+   * Put the dishes on a sphere of this radius: a host's Earth (layer mode's
+   * `view.earth`, design/LayerMode.md), so they sit on its surface (deck's
+   * globe is 6,370,972 m, not WGS84's 6,378,137).  The latitude and
+   * longitude go on it as spherical ones, as the host's do.  Links take it
+   * from the next feed.  Not the complexes' names: layer mode has none.
+   *
+   * @param {number} radius m
+   */
+  setSurfaceRadius(radius) {
+    if (!(radius > 0) || radius === this.surfaceRadius) {
+      return
+    }
+    this.surfaceRadius = radius
+    const pos = this.dishPoints.geometry.attributes.position
+    this.dishes.forEach((d, i) => {
+      d.bodyFixed = latLngAltToBodyFixed(d.lat, d.lng, d.alt, radius)
+      pos.setXYZ(i, d.bodyFixed.x, d.bodyFixed.y, d.bodyFixed.z)
+    })
+    pos.needsUpdate = true
+  }
+
+
+  /**
    * @param {number} jd
    * @returns {boolean} whether the feed's links are drawn at jd: it's near
    *   the feed's time
@@ -167,6 +199,11 @@ export default class DeepSpaceNetwork extends Group {
    * @param {string} xml DSN Now's dsn.xml
    */
   setFeed(xml) {
+    // The same feed again (the CDN's copy): nothing changes.
+    if (xml === this._lastXml) {
+      return
+    }
+    this._lastXml = xml
     const feed = parseDsnXml(xml)
     const links = dsnLinks(feed, this.config)
     const times = feed.stations.map((s) => s.timeMs).filter(Number.isFinite)
@@ -190,6 +227,7 @@ export default class DeepSpaceNetwork extends Group {
       this.links.push({...link, dir, end})
     }
     this._syncLabels()
+    this.onFeed?.()
   }
 
 
@@ -307,6 +345,9 @@ export default class DeepSpaceNetwork extends Group {
     }
     for (const [code, name] of want) {
       if (!this.scLabels.has(code)) {
+        if (!this.labelsOn) {
+          continue
+        }
         const label = this._newLabel(name, SC_LABEL_COLOR)
         label.visible = false
         this.scLabels.set(code, label)

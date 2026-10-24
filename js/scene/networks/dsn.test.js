@@ -56,6 +56,8 @@ describe('DSN Now', () => {
     expect(links.map((l) => l.dish)).not.toContain('DSS14')
     const vgr1 = links.find((l) => l.spacecraft === 'VGR1')
     expect(vgr1).toMatchObject({dish: 'DSS63', site: 'mdscc', name: 'Voyager 1', up: false, down: true, rangeKm: 25800000000})
+    // NAIF's id, from the signals' spacecraftID: an alias layer mode publishes.
+    expect(vgr1.naifId).toBe(-31)
     const sta = links.find((l) => l.spacecraft === 'STA')
     expect(sta).toMatchObject({up: true, down: true, rangeKm: null})
     expect(spacecraftName('XYZ', CONFIG)).toBe('XYZ')
@@ -161,6 +163,17 @@ describe('DeepSpaceNetwork', () => {
     dsn.update(jd)
     await settle()
     expect(asked).toHaveLength(2)
+  })
+
+  it('says when a feed changes what\'s drawn, not for the same one again', () => {
+    const {dsn} = network()
+    let n = 0
+    dsn.onFeed = () => n++
+    dsn.setFeed(XML)
+    dsn.setFeed(XML)
+    expect(n).toBe(1)
+    dsn.setFeed(XML.replace('VGR1', 'VGR2'))
+    expect(n).toBe(2)
   })
 
   it('draws each link from its dish, out to the range along its pointing, while live', () => {

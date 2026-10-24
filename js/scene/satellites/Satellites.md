@@ -248,6 +248,12 @@ by.
   and apogee heights, inclination, period and eccentricity from the mean
   elements; the elements' epoch and their age at the date; whether it's
   drawn; and the snapshot's date (`ControlPanel.showSatellite`).
+- **Layer mode** ([design/LayerMode.md](../../../design/LayerMode.md)): the
+  same population with a label budget of 0 (no sheets, which want
+  ThreeUi's label pass) and without Starlink's file (the `S` network draws
+  it, and the `I` network Iridium), hung in ECEF under a host's camera and
+  clock; the host names what it wants from the layer's anchors
+  (`norad:<n>`).
 - **Models** (#25, done elsewhere for #120): a satellite's node is where a
   model would hang. The node is in Earth's equator frame, moved each frame,
   and the camera can already ride it.  A model sets

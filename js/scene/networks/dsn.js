@@ -51,7 +51,7 @@ function known(v) {
  * @returns {{stations: Array<object>, dishes: Array<object>}} each station
  *   `{name, friendlyName, timeMs}`; each dish `{name, station, azimuth,
  *   elevation, activity, up, down, targets}`, its signals
- *   `{active, spacecraft, band, dataRate, power}` and targets
+ *   `{active, spacecraft, spacecraftId (NAIF's, e.g. −31), band, dataRate, power}` and targets
  *   `{name, id, uplegKm, downlegKm, rtltSec}` (null where not known)
  */
 export function parseDsnXml(xml) {
@@ -76,7 +76,7 @@ export function parseDsnXml(xml) {
       case 'upSignal':
       case 'downSignal':
         dish?.[tag === 'upSignal' ? 'up' : 'down'].push({
-          active: a.active === 'true', spacecraft: a.spacecraft ?? '', band: a.band ?? '',
+          active: a.active === 'true', spacecraft: a.spacecraft ?? '', spacecraftId: Number(a.spacecraftID), band: a.band ?? '',
           dataRate: known(a.dataRate), power: Number(a.power),
         })
         break
@@ -113,9 +113,10 @@ export function rangeKm(target) {
  *
  * @param {{dishes: Array<object>, stations: Array<object>}} feed parseDsnXml's
  * @param {object} config public/data/dsn.json
- * @returns {Array<object>} `{dish, site, spacecraft, name, azimuth,
+ * @returns {Array<object>} `{dish, site, spacecraft, naifId, name, azimuth,
  *   elevation, up, down, rangeKm, timeMs}`: `name` from the configuration's
- *   friendly names, `up` and `down` whether each is active
+ *   friendly names, `up` and `down` whether each is active, `naifId` the
+ *   signals' spacecraftID (NAIF's id: −31 for Voyager 1), or null
  */
 export function dsnLinks(feed, config) {
   const siteOf = new Map((config.sites ?? []).flatMap((s) => s.dishes.map((d) => [d.name, s])))
@@ -133,8 +134,10 @@ export function dsnLinks(feed, config) {
       if (!up && !down) {
         continue
       }
+      const naif = [...dish.up, ...dish.down].find((s) => s.spacecraft === sc && Number.isInteger(s.spacecraftId))
       out.push({
-        dish: dish.name, site: site.name, spacecraft: sc, name: spacecraftName(sc, config),
+        dish: dish.name, site: site.name, spacecraft: sc, naifId: naif ? naif.spacecraftId : null,
+        name: spacecraftName(sc, config),
         azimuth: dish.azimuth, elevation: dish.elevation, up, down, rangeKm: rangeKm(target),
         timeMs: timeOf.get(dish.station) ?? NaN,
       })
