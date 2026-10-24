@@ -1,10 +1,52 @@
 {
   "entries": [
     {
+      "id": "2026-10-24-no-more-speckled-blue-bands-in-the-night-air",
+      "date": "2026-10-24",
+      "headline": "No more speckled blue bands in the night air over ground below sea level",
+      "text": "Standing on Earth's ground where it lies below the globe's mean shape (Manhattan, the Netherlands, the Dead Sea), at night the air in front of the ground and the buildings no longer lets the Sun's light through in speckled blue bands.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 287,
+          "url": "https://github.com/celestiary/web/pull/287"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
+      "id": "2026-10-24-the-night-sky-stays-dark-on-the-shore",
+      "date": "2026-10-24",
+      "headline": "The night sky stays dark on the shore",
+      "text": "On some of Earth's ground the night sky turned the orange of a sunset: at the water's edge in New York, or at the Dead Sea. The ground there lies a little below the height the app takes as Earth's surface, and from under that surface the Sun counted as visible at midnight, so its glare lit the sky. The Sun is now hidden whenever it's below the horizon, and the night sky is dark with its stars.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 298,
+          "url": "https://github.com/celestiary/web/pull/298"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": "#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=alpoLF;time:pause,rate=-4096;info:closed",
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-10-23-starlink-iridium-s-crosslinks-and-the-deep",
       "date": "2026-10-23",
       "headline": "Starlink, Iridium's crosslinks and the Deep Space Network's live links",
-      "text": "Three networks you can now turn on round Earth, in Settings under Networks: all 11,000 Starlink satellites, coloured by shell; Iridium's 66 satellites in their six polar planes, with the links between them coming and going as they move; and NASA's Deep Space Network, its dishes in California, Spain and Australia with live beams out to the spacecraft they're talking to right now, out to Voyager 1, 172 AU away. Uplinks are orange, downlinks blue.",
+      "text": "Three networks you can now turn on round Earth, in Settings under Networks: the whole Starlink constellation coloured by its shells; Iridium's 66 satellites in their six polar planes, with the links between them coming and going as they move; and NASA's Deep Space Network, its dishes in California, Spain and Australia with live beams out to the spacecraft they're talking to right now, out to Voyager 1, 172 AU away. Uplinks are orange, downlinks blue.",
       "links": [
         {
           "kind": "pr",
@@ -23,6 +65,151 @@
         "url": "https://github.com/celestiary/web/issues/114"
       },
       "permalink": "#sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF",
+      "image": null,
+      "featured": true
+    },
+    {
+      "id": "2026-10-23-new-york-in-3d-manhattan-s-streets-and-towers",
+      "date": "2026-10-23",
+      "headline": "New York in 3D: Manhattan's streets and towers on Earth",
+      "text": "Come down over New York, within a few tens of kilometres of Manhattan and under 30 km up, open the layers button at the top right and switch on New York (3D city). Slop New York, a 3D model of Manhattan's buildings, streets, parks and piers, builds in a few seconds and stands at its place on the globe, lit by the same Sun at the simulation's time and hazed by the same air. It stays off until you switch it on, since it's a big download (about 140 MB), and a link you share keeps it on. Its lights don't show at night yet.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 287,
+          "url": "https://github.com/celestiary/web/pull/287"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": "#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;time:pause;layers:nyc",
+      "image": null,
+      "featured": true
+    },
+    {
+      "id": "2026-10-23-all-of-starlink-joins-the-satellites-with-a",
+      "date": "2026-10-23",
+      "headline": "All of Starlink joins the satellites, with a search, and you choose which to see",
+      "text": "All 11,116 Starlink satellites can now show round Earth, with a slider for how many, the first by serial number, from one to all; and Iridium's 80 in their polar planes. In Earth's panel, the Satellites section has a search that finds Earth's satellites alone, a switch for each kind (Starlink, Iridium, navigation, weather, the space stations...) and a slider for how many names to show. The names hold still as the satellites move, those behind Earth no longer crowd out those in front, and selecting one keeps its one name. A link keeps what you chose.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 292,
+          "url": "https://github.com/celestiary/web/pull/292"
+        },
+        {
+          "kind": "issue",
+          "number": 50,
+          "url": "https://github.com/celestiary/web/issues/50"
+        }
+      ],
+      "epic": {
+        "number": 114,
+        "title": "Solar-system populations: asteroids, comets, satellites",
+        "url": "https://github.com/celestiary/web/issues/114"
+      },
+      "permalink": "#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116",
+      "image": null,
+      "featured": true
+    },
+    {
+      "id": "2026-10-23-the-slow-way-to-the-moon-by-way-of-the-sun",
+      "date": "2026-10-23",
+      "headline": "The slow way to the Moon, by way of the Sun",
+      "text": "The Earth's and the Moon's Craft sections now have a ballistic lunar transfer: the low-energy route NASA's GRAIL and CAPSTONE took. The craft goes out about four times the Moon's distance, where the Sun's pull bends its orbit round, and falls back three to four months later to meet the Moon almost at rest, needing far less fuel to stop there than a direct flight. Switch it on and the app flies the first one leaving from the clock's date, drawn with the craft where it is on that day.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 295,
+          "url": "https://github.com/celestiary/web/pull/295"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": {
+        "number": 119,
+        "title": "Flight simulation",
+        "url": "https://github.com/celestiary/web/issues/119"
+      },
+      "permalink": "#sun/earth/moon@86.7618,-11.4024,5.238672Gm;t=9833.335118jd;cq=-0.1126,0.6981,0.6981,0.1126;fov=45deg;s=alF;time:pause;craft:blt=9791.5",
+      "image": null
+    },
+    {
+      "id": "2026-10-23-the-james-webb-space-telescope-where-it-really",
+      "date": "2026-10-23",
+      "headline": "The James Webb Space Telescope, where it really is",
+      "text": "Webb is now in the sky beside the Earth, drawn with NASA's own 3D model at its real size and lit by the Sun, its sunshield turned toward it. It follows JPL's record of its path, from 41 minutes after launch on Christmas Day 2021, out to its orbit around the Sun–Earth L2 point 1.5 million km beyond the Earth, and on along its planned path to October 2031. Search for \"JWST\" to fly there, zoom in to a few metres and orbit it; from behind its sunshield it eclipses the Sun. Outside those dates it isn't shown.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 288,
+          "url": "https://github.com/celestiary/web/pull/288"
+        },
+        {
+          "kind": "issue",
+          "number": 25,
+          "url": "https://github.com/celestiary/web/issues/25"
+        }
+      ],
+      "epic": {
+        "number": 120,
+        "title": "Missions and models",
+        "url": "https://github.com/celestiary/web/issues/120"
+      },
+      "permalink": "#sun/earth/webb",
+      "image": null
+    },
+    {
+      "id": "2026-10-23-the-moon-s-frozen-orbits-the-few-low-orbits",
+      "date": "2026-10-23",
+      "headline": "The Moon's frozen orbits: the few low orbits that last",
+      "text": "With the Moon selected, the orbits spacecraft use near it are drawn around it. Low lunar orbit is a thin shell. The four \"frozen\" inclinations, 27°, 50°, 76° and 86°, are where the pulls of the Moon's lumpy mass concentrations average out, so an orbit lasts for years. Also drawn are the Lunar Reconnaissance Orbiter's two orbits and a 30-hour elliptical frozen orbit that hangs over the south pole. The info panel explains why most low lunar orbits crash within weeks or months.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 285,
+          "url": "https://github.com/celestiary/web/pull/285"
+        },
+        {
+          "kind": "issue",
+          "number": 272,
+          "url": "https://github.com/celestiary/web/issues/272"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause",
+      "image": null,
+      "featured": true
+    },
+    {
+      "id": "2026-10-23-fly-a-spacecraft-to-the-moon",
+      "date": "2026-10-23",
+      "headline": "Fly a spacecraft to the Moon",
+      "text": "The Earth's and the Moon's panels now have a Craft section: switch on transfer to the Moon and a spacecraft leaves a low orbit round the Earth that day, burns once, and coasts four and a half days to pass 100 km over the Moon. Its path is drawn with the craft where it is at the clock's time, and the panel gives its burn, how long it takes and what it would cost to stop at the Moon. Behind it is a new flight simulator: the craft is pulled by the Earth, the Moon and the Sun where the app draws them, and it flies a real spacecraft, NASA's TESS, to within a few hundred metres of where it really went.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 293,
+          "url": "https://github.com/celestiary/web/pull/293"
+        },
+        {
+          "kind": "issue",
+          "number": 11,
+          "url": "https://github.com/celestiary/web/issues/11"
+        }
+      ],
+      "epic": {
+        "number": 119,
+        "title": "Flight simulation",
+        "url": "https://github.com/celestiary/web/issues/119"
+      },
+      "permalink": "#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5",
       "image": null,
       "featured": true
     },
