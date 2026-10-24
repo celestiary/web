@@ -198,6 +198,34 @@ And a name fades in and out over 200 ms (`SpriteSheet.setFade`,
 each name that stays as it was, shown or not, mid-fade or not; a new one
 starts hidden and fades in once the declutter shows it.
 
+## Names by distance
+
+A population with a `labelStyle` (DESIGN.md, [label
+styles](../../../DESIGN.md#label-styles)) draws each name at a size and
+brightness by its distance from the camera, and ranks it by the same
+measure where two touch: the nearer wins (`_styleNames`, each frame the names
+show).  Earth's satellites have one (`SATELLITE_LABELS`): 14 px at 1,000 km
+or nearer, 11 px and half as bright at 50,000 km or farther, by the
+distance's logarithm.  The target's name is at its largest and brightest
+wherever it is.  A population without one draws its names alike, ranked by
+the budget's order.
+
+- **Fixed ranges**, not ranges taken from what's on screen: a name keeps
+  its look as the view turns, and the same distance looks the same in
+  every view.  From outside the shell (Earth's satellites from 16,000 km)
+  every name is about as far as the others, and they all come out small
+  and dim alike; from 1,000 km over one, it is the largest and the far
+  side of the shell the smallest.
+- **Measured** at the reported views, the same frames before and after:
+
+  | view | names shown, before | after | text per name |
+  |---|---|---|---|
+  | Starlink, 300 named, from 16,000 km | 39 | 48 | 1,531 → 807 px² |
+  | all 11,116 named, from 7,200 km up | 75 | 119 | 1,567 → 829 px² |
+
+  The second view renders black on SwiftShader (a shader there doesn't
+  validate, as on `main`), so it has numbers and no picture.
+
 ## Search
 
 The section's search box finds the body's population alone: the main

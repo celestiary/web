@@ -10,6 +10,7 @@ import {
 } from 'three'
 import SpriteSheet from '../SpriteSheet.js'
 import {sceneReferred} from '../hdr.js'
+import {labelFont, labelLook, prominence} from '../labelStyle.js'
 
 
 // A population of objects round a body, drawn (js/scene/population/Population.md):
@@ -63,6 +64,7 @@ const noRaycast = () => undefined
 const tmpV = new Vector3
 const tmpW = new Vector3
 const tmpCam = new Vector3
+const tmpEye = new Vector3
 
 
 /**
@@ -101,9 +103,12 @@ export default class Population extends Group {
    * @param {number} [opts.layer] the overlay layer, for the points and names
    * @param {Function} [opts.Sheet] the label sheet's class (a test's stub)
    * @param {object} [opts.camera] the view's, for what to show by distance
+   * @param {?import('../labelStyle.js').LabelStyle} [opts.labelStyle] the
+   *   names' size and brightness by their distance from the camera, and
+   *   which wins where two touch (null: all alike, by the budget's order)
    */
   constructor(records, {body, groups = {}, title = 'Objects', showDist = Infinity, labelDist = Infinity,
-    layer = null, Sheet = SpriteSheet, camera = null} = {}) {
+    layer = null, Sheet = SpriteSheet, camera = null, labelStyle = null} = {}) {
     super()
     this.name = `${body} population`
     this.body = body
@@ -119,6 +124,7 @@ export default class Population extends Group {
     this.layer = layer
     this.Sheet = Sheet
     this.camera = camera
+    this.labelStyle = labelStyle
     // The groups switched off (all on to start).
     this.hiddenGroups = new Set
     // Each record's place in its group, in the data's order; and how many of
@@ -671,6 +677,37 @@ export default class Population extends Group {
     if (attr) {
       attr.needsUpdate = true
     }
+    if (near) {
+      this._styleNames(sprites, ids)
+    }
+  }
+
+
+  /**
+   * Each name's size and brightness by its distance from the camera (the
+   * population's labelStyle), and its rank with them: where two touch, the
+   * nearer wins.  The target's at its largest and brightest.
+   *
+   * @param {object} sprites a name sheet's
+   * @param {Array<number>} ids its records' indices
+   */
+  _styleNames(sprites, ids) {
+    const style = this.labelStyle
+    const sheet = sprites.userData.ownSheet
+    if (!style || !this.camera || !sheet.setStyle) {
+      return
+    }
+    // The camera in the sheet's frame, which is the population's.
+    this.camera.getWorldPosition(tmpEye)
+    sprites.worldToLocal(tmpEye)
+    const ranks = sprites.userData.labelRank
+    ids.forEach((i, k) => {
+      const p = this.records[i].id === this._targetId ? 1 :
+        prominence(tmpEye.distanceTo(tmpV.fromArray(sheet.positions, 3 * k)), style)
+      const {scale, brightness} = labelLook(p, style)
+      sheet.setStyle(k, scale, brightness)
+      ranks[k] = RANK_TOP - RANK_SPAN + (RANK_SPAN * p)
+    })
   }
 
 
@@ -698,6 +735,8 @@ export default class Population extends Group {
     }
     const placed = this.positionAt(rec, jd, this.targetLabel.position)
     this.targetLabel.visible = placed && this.points.visible
+    // At its largest and brightest, whatever its distance.
+    this._styleNames(this.targetLabel, [this.byId.get(id)])
   }
 
 
@@ -712,7 +751,11 @@ export default class Population extends Group {
   _newNameSheet(indices, was = null, wasIds = []) {
     const recs = indices.map((i) => this.records[i])
     const texts = recs.map((r) => this.displayName(r))
-    const sheet = new this.Sheet(texts.length, texts)
+    // A styled population's names drawn at their largest, made smaller per name.
+    const style = this.labelStyle
+    const sheet = style ?
+      new this.Sheet(texts.length, texts, labelFont(style), [0, 0], false, false, {scalable: true}) :
+      new this.Sheet(texts.length, texts)
     recs.forEach((r, k) => {
       sheet.add(0, 0, 0, texts[k], this.groupInfo[r.group]?.color ?? OTHER_COLOR)
     })

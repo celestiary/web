@@ -59,9 +59,18 @@ class StubSheet {
 
 /** A label sheet with the shown states and fade the declutter and Population use. */
 class FadeSheet extends StubSheet {
-  /** */
-  constructor() {
+  /**
+   * @param {number} n
+   * @param {Array<string>} texts
+   * @param {string} [font]
+   * @param {Array<number>} [padding]
+   * @param {boolean} [rte]
+   * @param {boolean} [surface]
+   * @param {object} [opts]
+   */
+  constructor(n, texts, font, padding, rte, surface, opts) {
     super()
+    this.fontArgs = font ? [font, opts] : null
     this.shown = []
     this.alpha = []
     this.fadeMs = 0
@@ -86,6 +95,15 @@ class FadeSheet extends StubSheet {
   /** @param {number} ms */
   setFade(ms) {
     this.fadeMs = ms
+  }
+
+  /**
+   * @param {number} i
+   * @param {number} scale
+   * @param {number} brightness
+   */
+  setStyle(i, scale, brightness) {
+    (this.styles ??= [])[i] = [scale, brightness]
   }
 }
 
@@ -253,6 +271,36 @@ describe('Satellites', () => {
     // Its shown names keep their place; those behind Earth take none.
     expect(sats.nameSheet.userData.declutterHold).toBeGreaterThan(0)
     expect(sats.nameSheet.userData.labelOccluder).toBe(sats)
+  })
+
+  it('sizes and dims each name by its distance from the camera, the nearer winning where two touch', () => {
+    const camera = new PerspectiveCamera()
+    const sats = newSatellites({camera, Sheet: FadeSheet})
+    new Object3D().add(sats)
+    sats.setLabelBudget(4)
+    // Over the ISS, 1,000 km above it: the ISS at its largest, GPS, 20,000 km
+    // up, smaller and dimmer.
+    sats.update(EPOCH_JD)
+    const iss = sats.points.geometry.attributes.position
+    camera.position.set(iss.getX(0), iss.getY(0), iss.getZ(0)).multiplyScalar(1 + (1e6 / 6.8e6))
+    camera.updateMatrixWorld()
+    sats.update(EPOCH_JD)
+    const sheet = sats.nameSheet.userData.ownSheet
+    expect(sheet.fontArgs).toEqual(['14px arial', {scalable: true}])
+    const texts = sheet.labels
+    const style = (name) => sheet.styles[texts.indexOf(name)]
+    expect(style('ISS')[0]).toBeCloseTo(1, 1)
+    expect(style('ISS')[1]).toBeGreaterThan(0.95)
+    // About 30,000 km off, near the far end (50,000 km).
+    expect(style('GPS BIIF-9 (PRN 26)')[0]).toBeGreaterThan(11 / 14)
+    expect(style('GPS BIIF-9 (PRN 26)')[0]).toBeLessThan(0.85)
+    expect(style('GPS BIIF-9 (PRN 26)')[1]).toBeLessThan(0.65)
+    const rank = sats.nameSheet.userData.labelRank
+    expect(rank[texts.indexOf('ISS')]).toBeGreaterThan(rank[texts.indexOf('GPS BIIF-9 (PRN 26)')])
+    // The target, whatever its distance, at its largest and brightest.
+    sats.setTarget(40000)
+    sats.update(EPOCH_JD)
+    expect(style('GPS BIIF-9 (PRN 26)')).toEqual([1, 1])
   })
 
   it('shows the points near Earth, and the names nearer', () => {

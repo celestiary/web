@@ -1377,6 +1377,53 @@ being the machine's (`?perf=1&off=labels` shows the labels undecluttered, with
 the pass out).  It is a CPU cost only: the GPU draws the same sprites, a hidden
 one clipped in its vertex shader.
 
+### Label styles
+
+Every label used to be the same: one font (`medium arial`), at full
+brightness.  A **label style** (`js/scene/labelStyle.js`) gives a group of
+labels a range instead, so the near and prominent read first and the rest
+recede and take less room:
+
+- **Prominence:** each label's measure `x` (a satellite's distance from the
+  camera; a body's apparent size or a star's magnitude would serve the same
+  way) maps to `p` between 0 and 1, by its logarithm between the group's
+  fixed `near` and `far` (`prominence`; `interpolation: 'linear'` maps it
+  as it is): `p = (log far - log x) / (log far - log near)`, clamped.
+- **Look:** the text's height runs from the group's least to its most,
+  `s = s_min + (s_max - s_min)·p`, and its brightness from half the
+  brightest to the brightest (`labelLook`).
+- **Stacking between groups:** a group whose labels are usually nearer has
+  the higher least size (satellites' over bodies', over stars'), and bodies
+  the highest most, so a near body's name sits over every satellite's.
+  Proposed, text height in px (the sheets' units, in which `medium` is 16):
+
+  | group | least | most |
+  |---|---|---|
+  | stars, galaxies | 9 | 13 |
+  | bodies | 10 | 18 |
+  | places | 10 | 14 |
+  | satellites | 11 | 14 |
+
+  Satellites are the first group styled (`SATELLITE_LABELS`: 1,000 to
+  50,000 km from the camera); the others keep their one size until they
+  are.
+- **Drawing:** a scalable sheet (`SpriteSheet` with `{scalable: true}`)
+  draws its text once at its largest, linearly filtered, and each label at
+  its own `scale` and `brightness` (`setStyle`, two attributes every sheet
+  has, 1 unless set): the point's size times the scale, the alpha times the
+  brightness.  `labelBoxes` scales each box by its label's scale, so the
+  declutter sees the room a label really takes.
+- **Which wins** where two touch: within a styled group its rank follows
+  `p`, so the nearer wins (Population.md, [names by
+  distance](js/scene/population/Population.md#names-by-distance)).  Across
+  groups the ranks are still by kind, as above, until the other groups are
+  styled.
+
+A label's area goes as the square of its size: at Earth's satellites from
+outside the shell the names came out at about 0.84 of their
+largest, 807 px² of text each against 1,531 before, and 48 of 300 showed
+where 39 did.
+
 ## Performance panel
 
 The `` ` `` (backtick) key toggles three's own `Stats` panel (FPS, MS, MB; click it to cycle the view), for judging frame cost, e.g. on a real GPU.  `ThreeUi.togglePerfPanel()` builds it on the first press (`three/examples/jsm/libs/stats.module.js`, no new dependency) and afterwards only shows or hides it, so startup and the tests never touch the DOM for it.  It's listed in Settings under Info as "Toggle performance panel".
@@ -1695,6 +1742,7 @@ and the provider extension contract.
 | `js/scene/Picker.js` | Star picking by ray (`queryPoints`) and the surface point under the pointer (`pickSurfaceLatLng`) |
 | `js/scene/labelPick.js` | The label hit test for every label ([Picking labels](#picking-labels)); `labelBoxes` is also the declutter's projection |
 | `js/scene/placeCells.js` | A tier of surface labels grouped by cell of the sphere, and the horizon test that says which are in view ([places.md](js/scene/places.md#tier-scheme--lod)) |
+| `js/scene/labelStyle.js` | A label group's size and brightness by its labels' prominence: `prominence`, `labelLook`, the groups' styles ([Label styles](#label-styles)) |
 | `js/scene/labelDeclutter.js` | Which labels are drawn where two touch: ranks, the order, the greedy pass, `declutterLabels` once a frame ([Declutter](#declutter)) |
 | `tools/places/` | Builds `public/data/places/<body>.json` from the IAU Gazetteer: `build.mjs` (the script), `tiers.mjs` (rows to places and tiers), `readers.mjs` (ZIP, dBase), `curated/`, `promote.json` ([places.md](js/scene/places.md#the-gazetteer)) |
 | `js/scene/PickLabels.js` | Label picking and marker display |

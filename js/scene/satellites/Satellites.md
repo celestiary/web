@@ -192,6 +192,9 @@ by.
   click goes there (labelPick.js).  The names behind Earth take no room,
   those shown keep their place, and they fade in and out
   ([Population.md](../population/Population.md#names-that-hold-still)).
+  Each name is sized and dimmed by its distance from the camera, 14 px at
+  1,000 km to 11 px and half as bright at 50,000 km, the nearer winning
+  where two touch ([Population.md](../population/Population.md#names-by-distance)).
   The link keeps it all (`pop:earth=starlink,earth.labels=40,earth.starlink=2000`,
   design/URLs.md).  A search box at the top of the section finds Earth's
   satellites alone (Population.md, [search](../population/Population.md#search)).

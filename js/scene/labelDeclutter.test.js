@@ -291,6 +291,21 @@ describe('declutterLabels', () => {
     expect(sheet.shown).toEqual([1, 0])
   })
 
+  it('sizes a scaled label\'s box by its scale, so a smaller name takes less room', () => {
+    const sats = [{kind: 'satellite', id: 1, body: 'earth'}, {kind: 'satellite', id: 2, body: 'earth'}]
+    const p = labelPoints([[0, 0, 0], [1.4, 0, 0]], sats, [6, 5.5], {declutter: true})
+    const root = new Group()
+    root.add(p)
+    declutterLabels(root, camera(), RECT)
+    // 1.4 apart, about 101 px: they touch at full size ...
+    expect(p.userData.sheet.shown).toEqual([1, 0])
+    // ... and not at three quarters.
+    p.userData.sheet.scales = [0.75, 0.75]
+    declutterLabels(root, camera(), RECT)
+    expect(p.userData.sheet.shown).toEqual([1, 1])
+    expect(labelBoxes(root, camera(), RECT)[0].width).toBeCloseTo(75, 6)
+  })
+
   it('hides a name behind its body, which then takes no room (labelOccluder)', () => {
     // From z = 10: one name behind a unit sphere at the origin, one in front,
     // at the same spot on screen; the one behind ranked higher.

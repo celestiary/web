@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'bun:test'
+import {LinearFilter, NearestFilter} from 'three'
 
 // SpriteSheet reaches for document.* (a hidden canvas): stub the canvas APIs
 // it touches, each label measuring the width its text's length gives.
@@ -117,6 +118,24 @@ describe('SpriteSheet.setShown', () => {
     expect(sheet.stepFade(150)).toBe(true)
     expect(sheet.stepFade(100)).toBe(false)
     expect(Array.from(shown.array)).toEqual([1, 0])
+  })
+
+  it('draws a label at its own scale and brightness, every sheet at 1 and 1 unless set', () => {
+    const sheet = new SpriteSheet(2, 'Tycho', '14px arial', [0, 0], false, false, {scalable: true})
+    sheet.add(0, 0, 0, 'a')
+    sheet.add(0, 0, 0, 'b')
+    const geometry = sheet.compile().geometry
+    expect(Array.from(geometry.getAttribute('scale').array)).toEqual([1, 1])
+    expect(Array.from(geometry.getAttribute('brightness').array)).toEqual([1, 1])
+    sheet.setStyle(1, 0.75, 0.5)
+    expect(Array.from(geometry.getAttribute('scale').array)).toEqual([1, 0.75])
+    expect(Array.from(geometry.getAttribute('brightness').array)).toEqual([1, 0.5])
+    expect(sheet.scales).toEqual([1, 0.75])
+    // Smooth when drawn smaller; another sheet stays crisp.
+    expect(sheet.sprites.material.uniforms.map.value.minFilter).toBe(LinearFilter)
+    const plain = new SpriteSheet(1, 'Tycho')
+    plain.add(0, 0, 0, 'a')
+    expect(plain.compile().material.uniforms.map.value.minFilter).toBe(NearestFilter)
   })
 
   it('works before it is compiled', () => {
