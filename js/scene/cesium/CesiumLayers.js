@@ -1136,7 +1136,8 @@ export default class CesiumLayers {
       window.CESIUM_BASE_URL ??= new URL('cesium/', document.baseURI).href
       const [Cesium, netgl] = await Promise.all([
         import('cesium'),
-        import('@pablo-mayrgundter/portal-netgl'),
+        // The three-free entry: what the layers use is all there.
+        import('@pablo-mayrgundter/portal-netgl/core'),
       ])
       this.bodies[name] = {status: 'ready', ...this._createWidget(name, Cesium, netgl)}
       this._publishStatus(name, 'ready')

@@ -102,6 +102,9 @@ module.exports = [
       'space-infix-ops': ['error'],
       'valid-jsdoc': 'off',
       'yoda': 'error',
+      // The resolver doesn't read package.json `exports`: portal-netgl's
+      // three-free entry is a subpath export.
+      'import/no-unresolved': ['error', {ignore: ['^@pablo-mayrgundter/portal-netgl/core$']}],
     },
   },
   // Test files: relax rules that conflict with stub/mock patterns (must be last to win)

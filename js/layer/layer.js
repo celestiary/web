@@ -1,7 +1,7 @@
 import {SRGBColorSpace, WebGLRenderer} from 'three'
-import {makeNetGLGuestContext} from '@pablo-mayrgundter/portal-netgl'
+import {makeNetGLGuestContext, parentTransport} from '@pablo-mayrgundter/portal-netgl/core'
 import OrbitsLayer from './OrbitsLayer.js'
-import {hostOrigin, originTransport} from './origins.js'
+import {hostOrigin} from './origins.js'
 import {meteredTransport} from './wire.js'
 import {serveLayer} from './protocol.js'
 
@@ -11,11 +11,17 @@ import {serveLayer} from './protocol.js'
 // a cross-origin iframe.  The host's view and clock drive it; it draws into
 // the host's context with no clears, testing the host's depth.
 //
-//   layer.html?nets=S,I,D&sats=1[&host=<origin>][&compact=0]
+//   layer.html?nets=S,I,D&sats=1[&host=<origin>][&wire=1]
 //
 // The host's origin comes from location.ancestorOrigins, else the
 // referrer, else `host`, and must be on the allow-list (origins.js), a
 // constant of the build; nothing is sent or taken otherwise.
+//
+// The wire is portal-netgl 0.6.0's, negotiated in NetGL's handshake: the
+// guest offers wire 2 and a MessageChannel port in `netgl:ready`, and a
+// host whose ack says 2 gets a frame as one `netgl:batch`, on the port when
+// it hands one over.  A 0.5 host's ack doesn't, and it gets wire 1, a
+// message a call.  `wire=1` offers only 1, to compare.
 
 
 const params = new URLSearchParams(location.search)
@@ -23,13 +29,17 @@ const origin = hostOrigin({search: location.search, referrer: document.referrer,
 if (!origin || window.parent === window) {
   document.body.textContent = 'celestiary layer mode: embed this page in an allowed host (design/LayerMode.md).'
 } else {
-  // Metered (layer:stats), and each GL call's arrays cut to what it reads
-  // (wire.js); `compact=0` sends them as the recorder made them, to compare.
-  const meter = meteredTransport(originTransport({target: window.parent, origin}), {compact: params.get('compact') !== '0'})
-  const {transport} = meter
+  // Pinned to the host's one origin both ways, and metered (layer:stats),
+  // the port included (wire.js).
+  const meter = meteredTransport(parentTransport({hostOrigins: [origin]}))
   // With checkpoints (the default): each frame replays from the guest's own
-  // GL state, whatever the host left.
-  const guest = makeNetGLGuestContext({transport})
+  // GL state, whatever the host left.  The port carries the guest's stream
+  // and its own messages ('stream'); the host's come on the window.
+  const guest = makeNetGLGuestContext({transport: meter.transport, messageChannel: 'stream',
+    wire: params.get('wire') === '1' ? 1 : 2})
+  // The app's messages go the stream's way, so a frame's anchors follow
+  // its batch on the port.
+  const {transport} = guest
   const renderer = new WebGLRenderer({context: guest.gl, canvas: guest.shadow.canvas, antialias: false, alpha: true})
   renderer.autoClear = false
   renderer.sortObjects = false
@@ -44,8 +54,8 @@ if (!origin || window.parent === window) {
     transport, layer, loaded, meter,
     render: () => layer.render(renderer),
     endFrame: () => guest.endFrame(),
-    // NetGL's handshake, which portal-netgl 0.4.0's host waits on; an
-    // overlay has no door, so the anchor is nominal.
+    // NetGL's handshake, which portal-netgl's hosts wait on, and where the
+    // wire is agreed; an overlay has no door, so the anchor is nominal.
     announce: () => guest.announce({position: [0, 0, 0], normal: [0, 0, 1], up: [0, 1, 0]}),
     resize: ([x, y, w, h], pixelRatio) => {
       const key = `${x},${y},${w},${h},${pixelRatio}`

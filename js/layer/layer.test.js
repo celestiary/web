@@ -6,9 +6,9 @@ import OrbitsLayer from './OrbitsLayer.js'
 import {DEFAULT_SUBSCRIPTION, anchorMatcher, compileSubscription, dishAnchor,
   naifAnchor, satelliteAnchor, siteAnchor, spacecraftAnchor} from './anchors.js'
 import {bodyFixedToEcef, equatorToEcef} from './frames.js'
-import {hostOrigin, isAllowedOrigin, originTransport} from './origins.js'
+import {hostOrigin, isAllowedOrigin} from './origins.js'
 import {HELLO_RESEND_MS, serveLayer} from './protocol.js'
-import {compactCall, meteredTransport, payloadBytes} from './wire.js'
+import {callsIn, meteredTransport, payloadBytes} from './wire.js'
 import {gmstRad} from '../scene/celestialFrame.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {unixMsToJd} from '../scene/satellites/sgp4.js'
@@ -94,26 +94,6 @@ describe('layer mode origins', () => {
         .toBe('http://localhost:5490')
     expect(hostOrigin({search: '?host=https://evil.com', referrer: 'https://evil.com/', ancestors: ['https://evil.com']})).toBeNull()
   })
-
-  it('drops messages from another window or origin, and posts to the host only', () => {
-    const listeners = []
-    const win = {addEventListener: (t, f) => listeners.push(f), removeEventListener: () => {}}
-    const sent = []
-    const parent = {postMessage: (m, o) => sent.push([m, o])}
-    const t = originTransport({target: parent, origin: 'http://localhost:5481', win})
-    const got = []
-    t.onMessage((m) => got.push(m.type))
-    for (const ev of [
-      {source: parent, origin: 'http://localhost:5481', data: {type: 'ok'}},
-      {source: parent, origin: 'https://evil.com', data: {type: 'origin'}},
-      {source: {}, origin: 'http://localhost:5481', data: {type: 'source'}},
-    ]) {
-      listeners.forEach((f) => f(ev))
-    }
-    expect(got).toEqual(['ok'])
-    t.post({type: 'x'})
-    expect(sent).toEqual([[{type: 'x'}, 'http://localhost:5481']])
-  })
 })
 
 
@@ -188,6 +168,8 @@ describe('layer mode control plane', () => {
       capabilities: {depth: ['shared'], frames: ['ecef'], anchors: true}, contracts: {alpha: 'coverage', color: 'display'}})
     expect(r.posted[0].contracts.depth).toBeUndefined()
     expect(r.posted[0].extent.sphere.radius).toBeGreaterThan(4.2e7)
+    // Nearest anchors are offered, so a host may ask for them.
+    expect(r.posted[0].ext['portal.anchors/1']).toEqual({publish: ['norad', 'dsn', 'dsn-sc', 'naif'], near: true})
     r.interval.fn()
     expect(r.posted.filter((m) => m.type === 'layer:hello')).toHaveLength(2)
     // NetGL's ack is the other handshake's: hello goes on until its own.
@@ -258,33 +240,47 @@ describe('layer mode control plane', () => {
 describe('layer mode wire', () => {
   const env = (arr) => ({__netgl_typedarray: arr.constructor.name, buffer: arr.buffer, offset: arr.byteOffset, length: arr.length})
 
-  it('cuts a ranged bufferSubData to the range it reads', () => {
-    const big = new Float32Array(1000).map((_, i) => i)
-    const call = {name: 'bufferSubData', args: [34962, 40, env(big), 10, 30]}
-    const out = compactCall(call)
-    const a = out.args[2]
-    expect(a.buffer.byteLength).toBe(120)
-    expect([a.offset, a.length, out.args[3], out.args[4], out.args[1]]).toEqual([0, 30, 0, 30, 40])
-    // What the receiver rebuilds and uploads is the same values.
-    expect([...new Float32Array(a.buffer, a.offset, a.length)]).toEqual([...big.subarray(10, 40)])
-    // A view into a bigger buffer goes as its own bytes.
-    const sub = compactCall({name: 'uniform3fv', args: [{__netgl_handle: 1}, env(big.subarray(3, 6))]})
-    expect(sub.args[1].buffer.byteLength).toBe(12)
-    // Nothing to cut: the same call.
-    const whole = {name: 'bufferSubData', args: [34962, 0, env(new Float32Array(4))]}
-    expect(compactCall(whole)).toBe(whole)
-  })
-
-  it('meters what goes out, a frame at a time', () => {
+  it('meters what goes out, a frame at a time: wire 1\'s calls and wire 2\'s batches', () => {
     const sent = []
     const m = meteredTransport({post: (msg) => sent.push(msg), onMessage: () => () => {}}, {clock: () => 0})
-    m.transport.post({name: 'bufferSubData', args: [34962, 0, env(new Float32Array(100)), 0, 10]})
+    m.transport.post({name: 'bufferSubData', args: [34962, 0, env(new Float32Array(10))]})
     m.transport.post({type: 'netgl:frame-end'})
     const t = m.take()
     expect([t.calls, t.messages]).toEqual([1, 2])
     expect(t.bytes).toBe(payloadBytes(sent[0]) + payloadBytes(sent[1]))
-    expect(sent[0].args[2].buffer.byteLength).toBe(40)
     expect(m.take().messages).toBe(0)
+    const batch = {type: 'netgl:batch', batch: [{name: 'enable', args: [2929]}, {name: 'drawArrays', args: [0, 0, 3]},
+      {type: 'netgl:frame-end'}]}
+    expect(callsIn(batch)).toBe(2)
+    m.transport.post(batch)
+    expect(m.take()).toMatchObject({calls: 2, messages: 1})
+  })
+
+  it('meters the port a wire-2 host hands over, as the guest context sees the ack', () => {
+    let deliver = null
+    const m = meteredTransport({post: () => {}, onMessage: (fn) => {
+      deliver = fn
+      return () => {}
+    }}, {clock: () => 0})
+    const onPort = []
+    const port = {postMessage: (msg, transfer) => onPort.push([msg, transfer])}
+    const heard = []
+    m.transport.onMessage((msg) => {
+      heard.push(msg.type)
+      // What portal-netgl's guest context does with the ack's port.
+      msg.port?.postMessage({type: 'netgl:port', seq: 0, after: 3})
+    })
+    deliver({type: 'netgl:ready-ack', wire: 2, port})
+    expect(heard).toEqual(['netgl:ready-ack'])
+    port.postMessage({type: 'netgl:batch', batch: [{name: 'drawArrays', args: [0, 0, 3]}, {type: 'netgl:frame-end'}]})
+    expect(onPort.map(([msg]) => msg.type)).toEqual(['netgl:port', 'netgl:batch'])
+    expect(onPort[1][1]).toEqual([])
+    expect(m.take()).toMatchObject({calls: 1, messages: 2})
+    // A repeated ack doesn't wrap it twice.
+    deliver({type: 'netgl:ready-ack', wire: 2, port})
+    m.take()
+    port.postMessage({type: 'layer:anchors', anchors: []})
+    expect(m.take().messages).toBe(1)
   })
 })
 

@@ -41,20 +41,41 @@ stations and ASes that the satellites link to.
 
 ## The contract (host ↔ guest)
 
-The guest is wire-compatible with portal-netgl 0.4.0's deck.gl host
-(`attachNetGLDeckLayer` and `iframeTransport`, portal #36). Its messages
-are shaped as portal RFC 0001 has them
+The guest is portal-netgl 0.6.0's (pinned), and wire-compatible with its
+deck.gl host from 0.4.0 on (`attachNetGLDeckLayer` and `iframeTransport`,
+portal #36). Its messages are shaped as portal RFC 0001 has them
 ([docs/rfcs/0001-globe-orbit-layers.md](https://github.com/pablo-mayrgundter/portal/blob/claude/rfc-globe-orbit-layers/docs/rfcs/0001-globe-orbit-layers.md):
 §6 the view, §7 time, §8 anchors, §10 the handshake). They ride beside
-NetGL's call stream on the same `postMessage` channel.
+NetGL's call stream, in order with it.
+
+**The wire** is agreed in NetGL's handshake, as portal-netgl 0.6.0 has it
+([its README, protocol](https://github.com/pablo-mayrgundter/portal/blob/main/packages/portal-netgl/README.md#protocol)):
+
+- **Wire 2**, with a 0.6.0 host. The guest's `netgl:ready` offers `wire:
+  2` and `port: 'stream'`; the host's `netgl:ready-ack` answers `wire: 2`
+  and transfers one end of a `MessageChannel`. From then on a frame goes
+  as one `netgl:batch` (the checkpoint, the calls, the frame-end) on the
+  port. The guest's own messages (`layer:hello`, `layer:anchors`,
+  `layer:status`, `layer:stats`) go on the port too, in order with the
+  stream, through the guest context's `transport`. The host's messages
+  stay on the window. The recorder sends only what each call reads (a
+  ranged `bufferSubData`'s range, a view's own bytes), in copies of its
+  own that it transfers.
+- **Wire 1**, with a 0.4 or 0.5 host (netmap's, today): its ack has no
+  `wire`, so the guest posts a message a call on the window, as before.
+  The recorder still slices.
+- The host hands its port only to an exact origin, which the guest is
+  (`iframeTransport`).
+- `layer.html?wire=1` offers only wire 1, to compare.
 
 | Direction | Message | Carries |
 |---|---|---|
-| guest → host | `netgl:ready` | NetGL's handshake (`guest.announce`), repeated every 500 ms until `netgl:ready-ack`. 0.4.0's host sends no view before it. |
-| guest → host | `layer:hello` | `{version: 1, adapter: 'celestiary-orbits', capabilities: {kinds: ['overlay'], depth: ['shared'], projections: ['matrix'], frames: ['ecef'], warp: false, anchors, time, labels: false}, contracts: {alpha: 'coverage', color: 'display'}, extent: {frame: 'ecef', sphere: {center: [0, 0, 0], radius: 5e7}, beyond: 'clamp-to-far', farthest: 3e13}, ext: {'portal.anchors/1': {publish: ['norad', 'dsn', 'dsn-sc', 'naif']}}}`. Repeated every 500 ms until `layer:hello-ack` (#36 acks every hello, and re-sends its anchor subscription on each), or a first view from a host that doesn't ack (0.4.0 as published). |
+| guest → host | `netgl:ready` | NetGL's handshake (`guest.announce`), repeated every 500 ms until `netgl:ready-ack`, with `wire: 2, port: 'stream', seq, session`. The host sends no view before it. |
+| host → guest | `netgl:ready-ack` | `{wire?, port?}`: the wire it will read (absent: 1), and wire 2's port, transferred. |
+| guest → host | `layer:hello` | `{version: 1, adapter: 'celestiary-orbits', capabilities: {kinds: ['overlay'], depth: ['shared'], projections: ['matrix'], frames: ['ecef'], warp: false, anchors, time, labels: false}, contracts: {alpha: 'coverage', color: 'display'}, extent: {frame: 'ecef', sphere: {center: [0, 0, 0], radius: 5e7}, beyond: 'clamp-to-far', farthest: 3e13}, ext: {'portal.anchors/1': {publish: ['norad', 'dsn', 'dsn-sc', 'naif'], near: true}}}`. `near` says the subscription takes nearest-anchor patterns (below); a host asks for them only when it's there. Repeated every 500 ms until `layer:hello-ack` (#36 acks every hello, and re-sends its anchor subscription on each), or a first view from a host that doesn't ack (0.4.0 as published). |
 | host → guest | `layer:hello-ack` | `{accepted, reason?}` (optional; RFC §10.6) |
 | host → guest | `layer:view` | 0.4.0's `NetGLLayerViewMessage`: `{type, viewId, view: {frame: 'ecef', viewMatrix, projectionMatrix, viewport, pixelRatio, timeMs, earth?: {model: 'sphere', radius}}}`. `viewMatrix` maps ECEF metres to eye metres and is rigid. `projectionMatrix` is the host's own, with its scale folded in. Both are column-major arrays of 16, composed in doubles. `viewport` is `[x, y, w, h]` in drawing-buffer pixels. A flat view (this PR's first shape) is ignored. |
-| guest → host | `netgl:*` | the frame's GL calls, ending in `netgl:frame-end`. This is the frame's receipt: 0.4.0's host sends its next view on it (`receiver.onFrame`; one view in flight, re-sent after 1 s). |
+| guest → host | `netgl:batch` (wire 2), or `netgl:*` a call each (wire 1) | the frame's GL calls, ending in `netgl:frame-end`. This is the frame's receipt: the host sends its next view on it (`receiver.onFrame`; one view in flight, re-sent after 1 s). |
 | guest → host | `layer:invalidate` | `{reason}`: what's drawn changed with no new view: the snapshots loaded (`'loaded'`), the DSN's feed changed (`'dsn feed'`, at most every 5 s, and not for the same feed again), a subscription (`'anchors subscribed'`). #36's host re-sends its current view with a new `viewId`, keeping one in flight, so a still camera on a pinned clock still sees the DSN's links arrive. |
 | host → guest | `layer:time` | `{timeMs, rate, paused?}` (RFC §7.1; `utcMs` is accepted too): the clock's state, for a view with no `timeMs`. A view's `timeMs` wins. |
 | host → guest | `layer:anchors-subscribe` | `{patterns: ['norad:25544', 'dsn:*', ...]}`, which replaces the subscription. Patterns are exact ids, `prefix:*`, `*`, or (proposed, below) `{near: {p: [x, y, z], n}, pattern}`. |
@@ -79,7 +100,8 @@ NetGL's call stream on the same `postMessage` channel.
   scheme nobody asked for isn't walked, and exact ids are looked up by
   number. `dsn:*` alone never touches the ~11,600 satellites, and
   `norad:25544` reads one. Only `norad:*` or `*` walks them all.
-- **Nearest anchors (a proposal for RFC #39 Q15).** A pattern can be
+- **Nearest anchors (a proposal for RFC #39 Q15).** Offered in the hello
+  (`near: true` under `ext['portal.anchors/1']`). A pattern can be
   `{near: {p: [x, y, z], n}, pattern: 'norad:*'}`: the `n` anchors
   (at most 256) nearest `p`, ECEF metres at the frame's time, of those
   `pattern` matches (default `*`). It is ranked by where each is drawn
@@ -106,9 +128,11 @@ NetGL's call stream on the same `postMessage` channel.
   `location.ancestorOrigins[0]`, else the referrer's origin, else
   `?host=`. Each counts only if it's on the list: the URL may pick an
   allowed origin, never add one. The guest posts only to that origin, and
-  drops anything not from `parent` and that origin. On the wire this is
-  0.4.0's `parentTransport({hostOrigins})`. The guest switches to it once
-  0.4.0 is published; it pins 0.3.0 until then.
+  drops anything not from `parent` and that origin. That's portal-netgl's
+  `parentTransport({hostOrigins: [origin]})`, given the one origin found:
+  its list takes exact origins only, so the allow-list's `localhost:*`
+  entries are matched here first. Wire 2's port then needs no origin
+  check: the host hands it only to that origin.
 - **Frames.** Satellites and networks hang in Earth's equator frame of
   date, the same frame as Satellites.md, turned to ECEF by GMST from the
   host's time:
@@ -129,8 +153,28 @@ S, I, D and the satellites, at 640×400 on SwiftShader, on 2026-10-24.
 | After, clock held | 119 | 12 KB | 0.1 ms |
 
 The subscription in each was `norad:25544, dsn:*, dsn-sc:*`. The bytes
-count what structured clone copies: buffers whole, strings and numbers.
-The frames drawn are pixel-identical to main's (same draw order).
+count what crosses: buffers whole, strings and numbers. The frames drawn
+are pixel-identical to main's (same draw order).
+
+**portal-netgl 0.6.0 and wire 2** (the same check host, now on 0.6.0's
+receiver, 2026-10-24; the guest's own `layer:stats`):
+
+| | Messages a frame | Calls a frame | Bytes a frame |
+|---|---|---|---|
+| 0.3.0 as recorded (`compact=0`), clock running | 173 | 170 | 471 KB |
+| 0.3.0 with `compactCall`, clock running | 172 | 170 | 48 KB |
+| 0.6.0, wire 2, clock running | 2.1 | 170 | 47 KB |
+| 0.6.0, wire 1 (a 0.5 host), clock running | 172 | 170 | 47 KB |
+| 0.3.0 with `compactCall`, clock held | 121 | 119 | 12 KB |
+| 0.6.0, wire 2, clock held | 2.1 | 119 | 12 KB |
+
+- A wire-2 frame is two messages on the port: its batch, and its
+  anchors. About once a second a third, `layer:stats`.
+- The recorder's slicing carries the same bytes as `compactCall` did.
+- The frames are pixel-identical to the 0.3.0 build's, at a pinned time
+  over the GEO belt and over North America.
+- What crosses per message no longer depends on the call count. The rest
+  is the bytes: the population's whole-buffer uploads (below).
 
 - **The recorder's arrays.** Most of the 505 KB wasn't three's.
   - Three uploads ranges: Starlink's 1/20 slice, and the used part of
@@ -139,13 +183,10 @@ The frames drawn are pixel-identical to main's (same draw order).
   - portal-netgl 0.3.0's recorder encodes a typed array as its whole
     `ArrayBuffer`, so every ranged upload crossed `postMessage` at the
     attribute's full size.
-  - `compactCall` (`wire.js`) cuts each call's arrays to what it reads.
+  - `compactCall` (`wire.js`) cut each call's arrays to what it reads.
     That alone took a running frame from 505 KB to 54 KB.
-  - **`compactCall` is interim.** The recorder slices from portal-netgl
-    0.6.0 on, and `compactCall` is removed when the guest moves to 0.6.0
-    and `parentTransport` (the follow-up PR). Compacted calls are valid
-    wire for any receiver meanwhile. `?compact=0` sends calls as the
-    recorder made them, to compare.
+  - It was interim, and it's gone: portal-netgl 0.6.0's recorder slices
+    (`trimSource`) on any wire.
 - **Lines** (`wideLines.js` `setWideLineSegments`): only the span that
   changed goes up, per attribute, and nothing when nothing did.
   - The DSN's beams upload nothing between feeds while the clock holds.
@@ -160,9 +201,7 @@ The frames drawn are pixel-identical to main's (same draw order).
   - Iridium's points and links;
   - the beams' starts;
   - the population's points, which go up whole each frame (Population.js);
-  - about 120 state and draw calls, each its own message on 0.3.0.
-
-  Batching the calls into one message a frame is 0.6.0's.
+  - about 120 state and draw calls, one message a frame on wire 2.
 - **Draw order.** The renderer doesn't sort, so the root's children are
   hung in a fixed order (satellites, S, I, D). Before, the order was
   whichever loaded first, so Starlink's dots covered Iridium's links on
@@ -235,10 +274,10 @@ Phase 1 is in (branch `claude/layer-mode`):
   - `layer.js`, the page's entry;
   - `OrbitsLayer.js`, the scene with no Scene or ThreeUi;
   - `protocol.js`, the control plane;
-  - `origins.js`, the allow-list and an origin-checking transport;
+  - `origins.js`, the allow-list and the host's origin;
   - `anchors.js`, the ids;
   - `frames.js`, equator of date and body-fixed to ECEF;
-  - `wire.js`, the transport's meter and the interim `compactCall`
+  - `wire.js`, the transport's meter, wire 2's port included
     ([Cost](#cost)).
 
   Tests: `js/layer/layer.test.js`.
@@ -255,9 +294,13 @@ Phase 1 is in (branch `claude/layer-mode`):
   - `&rate=1` runs the clock from `t` (0, the default, holds it).
   - `&stats=1` asks for `layer:stats`, kept in `hostState.guestStats`.
   - `&anchors=` sets the subscription (comma-separated, `none` for none).
-  - `&compact=0` passes on to the guest.
-  - `hostState.perFrame` holds what arrived per frame: calls, and buffer
-    bytes.
+  - The receiver is portal-netgl 0.6.0's, on `iframeTransport` (so it
+    offers the port). `&wire=1` passes on to the guest, which then offers
+    only wire 1; `&hostWire=1` makes the host answer as a 0.5 host does.
+  - `hostState.perFrame` holds what arrived per frame, on the window and
+    the port: messages, calls, and buffer bytes.
+  - `hostState.ready` is the guest's `netgl:ready`, and `hostState.wire`
+    the receiver's view of the wire (`version`, `port`, counts).
 - **Checked** (headless Chromium, SwiftShader, 2026-10-23 20:17 UTC):
   - On the three.js check host: the ISS anchor is 2.6 m from
     satellite.js's own ECF, and its dot sits in the host's ring.
@@ -267,18 +310,21 @@ Phase 1 is in (branch `claude/layer-mode`):
     `depth=0` it shows through.
   - The DSN's beams leave Goldstone and Madrid, and from 400 AU one
     reaches out to a Voyager.
-- **Size:** the page's static load is 600 KB minified, 167 KB gzipped,
-  against `esbuild/budget.js` `LAYER_BUDGET`'s 650 / 180 KB; the snapshots
-  load after.
+- **Size:** the page's static load is 607 KB minified, 169 KB gzipped
+  (600 and 167 on 0.3.0), against `esbuild/budget.js` `LAYER_BUDGET`'s
+  650 / 180 KB; the snapshots load after.
 - **Its own build** (`esbuild/common.js` `layerConfig`, into `docs/layer/`),
   not a second entry of the app's. As a second entry, esbuild's splitting
   cut the code the two share into chunks of their own. That changed the
   app's first-load chunks, so a page shares none of the other's files.
-- **portal-netgl 0.3.0, pinned:**
+- **portal-netgl 0.6.0, pinned** (0.3.0 before; the app's Cesium layers
+  moved with it, through its three-free `/core` entry):
   - its `makeNetGLGuestContext` with checkpoints, so each frame replays
-    from the guest's own GL state;
-  - an origin-checking transport of our own (`origins.js`), because
-    0.3.0's `windowTransport` filters by source, not origin.
+    from the guest's own GL state, offering wire 2 and a port;
+  - its `parentTransport`, pinned to the host's origin (the 0.3.0 guest
+    had an origin-checking transport of its own in `origins.js`);
+  - imported from `@pablo-mayrgundter/portal-netgl/core`, which leaves out
+    the helpers that import three.
 - **Against portal #36's real host** (portal-netgl 0.4.0's
   `attachNetGLDeckLayer`, `iframeTransport` and a deck.gl 9.4 GlobeView,
   modelled on its `apps/host-netgl-deck`; served from `localhost:5490`, the
@@ -298,9 +344,15 @@ Phase 1 is in (branch `claude/layer-mode`):
   arrives. The host sent three views: the first, one after `'loaded'`,
   and one after `'dsn feed'`. Before `layer:invalidate`, that view kept
   the dishes and no links until the camera moved.
-- **When portal-netgl 0.4.0 is published:**
-  - take `parentTransport({hostOrigins: ALLOWED_ORIGINS})` in place of
-    `origins.js`'s transport;
-  - take 0.4.0's `isNetGLLayerViewMessage` and types;
+- **On portal-netgl 0.6.0** (2026-10-24, this check host): wire 2 with
+  the port open (`hostState.wire`: version 2, port `open`), two messages
+  a frame, the hello's `near: true`, the ISS anchor 3 to 8 m from
+  satellite.js's ECF, no `clear` calls, no replay errors. With
+  `hostWire=1` (a 0.5 host) and with `wire=1` the guest fell back to a
+  message a call, with the same calls and bytes.
+- **Left:**
+  - take 0.6.0's `isNetGLLayerViewMessage` and types;
   - put the `viewId` on `netgl:frame-end` once portal-netgl carries it
-    (RFC open question 18).
+    (RFC open question 18);
+  - the population's whole-buffer uploads (most of a real GPU's 505 KB
+    a frame), a follow-up.

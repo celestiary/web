@@ -6,18 +6,20 @@
 // up: the ISS's ring, the geostationary circle, the DSN complexes' squares.
 //
 //   host.html?guest=<origin>&t=<ISO>&rate=0&lat=&lng=&altKm=&fov=&nets=S,I,D&sats=1&depth=1&w=&h=
-//     &stats=0&anchors=norad:25544,dsn:*,dsn-sc:*&compact=1
+//     &stats=0&anchors=norad:25544,dsn:*,dsn-sc:*&wire=2&hostWire=2
 //
 // `rate` runs the clock from `t` (1 is real time; 0, the default, holds it);
 // `stats=1` asks for the guest's `layer:stats`, kept in hostState.guestStats;
-// `anchors` is the subscription (`none` for none).
+// `anchors` is the subscription (`none` for none).  The receiver is
+// portal-netgl 0.6.0's: `wire=1` has the guest offer only wire 1, and
+// `hostWire=1` has this host answer as a 0.5 host does (wire 1, no port).
 
 import {
   BufferGeometry, Color, Float32BufferAttribute, LineBasicMaterial, LineLoop, Mesh, MeshBasicMaterial,
   PerspectiveCamera, Points, Scene, ShaderMaterial, SRGBColorSpace, TextureLoader, Vector3, WebGLRenderer,
 } from 'three'
 import {eciToEcf, gstime, json2satrec, propagate} from 'satellite.js'
-import {makeNetGLHostReceiver, windowTransport} from '@pablo-mayrgundter/portal-netgl'
+import {iframeTransport, makeNetGLHostReceiver} from '@pablo-mayrgundter/portal-netgl/core'
 
 
 const q = new URLSearchParams(location.search)
@@ -110,7 +112,7 @@ camera.position.copy(ecef(num('lat', 20), num('lng', 0), num('altKm', 30000) * 1
 camera.lookAt(0, 0, 0)
 camera.updateMatrixWorld()
 
-const state = {frames: 0, anchors: [], status: [], hello: null, iss: null, issErrorKm: null, textured: false, viewId: 0,
+const state = {frames: 0, anchors: [], status: [], hello: null, ready: null, iss: null, issErrorKm: null, textured: false, viewId: 0,
   errors: []}
 window.hostState = state
 
@@ -129,28 +131,17 @@ fetch('satellites.json').then((r) => r.json()).then(({columns, rows}) => {
   marks.setAttribute('position', new Float32BufferAttribute(state.iss, 3))
 })
 
-// The guest.
-const iframe = document.createElement('iframe')
-iframe.style.display = 'none'
-iframe.src = `${guestOrigin}/layer.html?host=${encodeURIComponent(location.origin)}&nets=${q.get('nets') ?? 'S,I,D'}` +
-  `&sats=${q.get('sats') ?? '1'}${q.has('compact') ? `&compact=${q.get('compact')}` : ''}`
-document.body.appendChild(iframe)
-const transport = windowTransport({output: iframe.contentWindow, outputOrigin: guestOrigin, inputFilter: iframe.contentWindow})
-// portal-netgl 0.4.0's envelope (NetGLLayerViewMessage), as its deck.gl host sends it.
-const view = () => ({
-  type: 'layer:view', viewId: ++state.viewId, view: {
-    frame: 'ecef', viewMatrix: camera.matrixWorldInverse.toArray(), projectionMatrix: camera.projectionMatrix.toArray(),
-    viewport: [0, 0, W, H], pixelRatio: 1, timeMs: viewTimeMs(), earth: {model: 'sphere', radius: R},
-  },
-})
-// What the guest's frames hold: it mustn't clear the host's buffers.
+// What the guest sends, as it arrives: on the window, and on the
+// MessageChannel port the receiver hands it in the ack (wire 2).  The
+// receiver keeps its port to itself, so its onmessage is tapped here.
+// It mustn't clear the host's buffers.
 state.calls = 0
 state.clears = 0
 state.byName = {}
-// Per frame, as received: GL calls and their buffers' bytes, the last 120.
+// Per frame, as received: messages, GL calls and their buffers' bytes, the last 120.
 state.perFrame = []
 state.guestStats = []
-let frameIn = {calls: 0, bytes: 0}
+let frameIn = {messages: 0, calls: 0, bytes: 0}
 const bufferBytes = (v) => {
   if (!v || typeof v !== 'object') {
     return 0
@@ -160,45 +151,84 @@ const bufferBytes = (v) => {
   }
   return (Array.isArray(v) ? v : Object.values(v)).reduce((n, x) => n + bufferBytes(x), 0)
 }
-transport.onMessage((m) => {
-  // The frame's receipt, as 0.4.0's host takes it (receiver.onFrame): its
-  // frame-end.  Draw it, then send the next view (one in flight).
-  if (m.type === 'netgl:frame-end') {
-    state.perFrame.push(frameIn)
-    if (state.perFrame.length > 120) {
-      state.perFrame.shift()
-    }
-    frameIn = {calls: 0, bytes: 0}
-    setTimeout(() => {
-      frame()
-      state.frames++
-      transport.post(view())
-    }, 100)
-  }
-  if (typeof m.name === 'string') {
+const item = (m) => {
+  if (typeof m?.name === 'string') {
     state.calls++
     state.byName[m.name] = (state.byName[m.name] ?? 0) + 1
     frameIn.calls++
     frameIn.bytes += bufferBytes(m.args)
-    if (m.name === 'clear') {
+    if (m.name === 'clear' || m.name.startsWith('clearBuffer')) {
       state.clears++
     }
+  } else if (m?.type === 'netgl:frame-end') {
+    state.perFrame.push(frameIn)
+    if (state.perFrame.length > 120) {
+      state.perFrame.shift()
+    }
+    frameIn = {messages: 0, calls: 0, bytes: 0}
   }
+}
+const inspect = (m) => {
+  if (!m || typeof m !== 'object') {
+    return
+  }
+  frameIn.messages++
+  if (m.type === 'netgl:batch' && Array.isArray(m.batch)) {
+    m.batch.forEach(item)
+  } else {
+    item(m)
+  }
+}
+const NativeChannel = window.MessageChannel
+window.MessageChannel = class extends NativeChannel {
+  constructor() {
+    super()
+    const port = this.port1
+    const desc = Object.getOwnPropertyDescriptor(MessagePort.prototype, 'onmessage')
+    Object.defineProperty(port, 'onmessage', {
+      configurable: true,
+      get: () => desc.get.call(port),
+      set: (fn) => {
+        desc.set.call(port, fn && ((ev) => {
+          inspect(ev.data)
+          fn(ev)
+        }))
+      },
+    })
+  }
+}
+
+// The guest.
+const iframe = document.createElement('iframe')
+iframe.style.display = 'none'
+iframe.src = `${guestOrigin}/layer.html?host=${encodeURIComponent(location.origin)}&nets=${q.get('nets') ?? 'S,I,D'}` +
+  `&sats=${q.get('sats') ?? '1'}${q.has('wire') ? `&wire=${q.get('wire')}` : ''}`
+document.body.appendChild(iframe)
+// Pinned to the guest's exact origin, so the receiver may offer it a port.
+const transport = iframeTransport(iframe, {origin: guestOrigin})
+transport.onMessage(inspect)
+// portal-netgl's envelope (NetGLLayerViewMessage), as its deck.gl host sends it.
+const view = () => ({
+  type: 'layer:view', viewId: ++state.viewId, view: {
+    frame: 'ecef', viewMatrix: camera.matrixWorldInverse.toArray(), projectionMatrix: camera.projectionMatrix.toArray(),
+    viewport: [0, 0, W, H], pixelRatio: 1, timeMs: viewTimeMs(), earth: {model: 'sphere', radius: R},
+  },
 })
 const receiver = makeNetGLHostReceiver({
-  gl, transport,
+  gl, transport, wire: q.get('hostWire') === '1' ? 1 : 2,
   onError: (err) => state.errors.push(String(err)),
+  onReady: (msg) => (state.ready = {...msg}),
   onControl: (msg) => {
     if (msg.type === 'layer:hello') {
       if (!state.hello) {
         state.hello = msg
-        transport.post({type: 'layer:hello-ack', accepted: true})
+        receiver.post({type: 'layer:hello-ack', accepted: true})
         const patterns = (q.get('anchors') ?? 'norad:25544,dsn:*,dsn-sc:*').split(',').filter((p) => p && p !== 'none')
-        transport.post({type: 'layer:anchors-subscribe', patterns})
+        receiver.post({type: 'layer:anchors-subscribe', patterns})
         if (q.get('stats') === '1') {
-          transport.post({type: 'layer:stats-subscribe', intervalMs: 1000})
+          receiver.post({type: 'layer:stats-subscribe', intervalMs: 1000})
         }
-        transport.post(view())
+        receiver.post(view())
       }
     } else if (msg.type === 'layer:stats') {
       state.guestStats.push(msg)
@@ -213,6 +243,21 @@ const receiver = makeNetGLHostReceiver({
       }
     }
   },
+})
+// The wire as agreed, and what the receiver counted.
+Object.defineProperty(state, 'wire', {enumerable: true, get: () => {
+  const w = receiver.wire
+  return {version: w.version, port: w.port, controlOnPort: w.controlOnPort, messages: w.messages, items: w.items,
+    batches: w.batches}
+}})
+// The frame's receipt (receiver.onFrame, as portal-netgl's deck.gl host
+// takes it): draw it, then send the next view (one in flight).
+receiver.onFrame(() => {
+  setTimeout(() => {
+    frame()
+    state.frames++
+    receiver.post(view())
+  }, 100)
 })
 
 /** The globe, then the guest's frame over it, in the same depth. */

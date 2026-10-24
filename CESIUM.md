@@ -1306,8 +1306,15 @@ say `units: 'stored'`, for a host that hands it a frame in stored values):
   replays it without the copy, and its `clear: 'none'` would let the
   screen policy, not the guest's `composite`, keep its clears off Cesium's
   frame.  Neither is needed for a fix (the flicker was the stage's, below),
-  so celestiary stays on 0.3.0 until slop-newyork's `cesiumExternalRenderer`
-  ends its frames with `subFrame()`.  Not measured on a real GPU.
+  so neither is used yet, though celestiary is now on portal-netgl 0.6.0
+  (PR [#304](https://github.com/celestiary/web/pull/304), for layer mode),
+  until slop-newyork's `cesiumExternalRenderer` ends its frames with
+  `subFrame()`.  0.6.0's wire 2 doesn't reach these layers: the immediate
+  link acks without a version, so their calls still replay as they're
+  made.  Its recorder does copy what a call reads when that's part of a
+  bigger buffer (a ranged upload, a view into a pool), where 0.3.0 passed
+  the whole buffer by reference: a little CPU on the same-page link, for
+  which `?perf=1` is the check.  Not measured on a real GPU.
 - *Ion.*  The terrain path (`sampleTerrain` on World Terrain) and the
   city on real ground haven't run here: the session's ion token is
   refused.  Check on the PR preview over Manhattan: the piers at the

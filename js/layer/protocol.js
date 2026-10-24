@@ -2,12 +2,13 @@ import {EXTENT_M} from './OrbitsLayer.js'
 
 
 // Layer mode's control plane, guest side (design/LayerMode.md, "The
-// contract"), wire-compatible with portal-netgl 0.4.0's deck.gl host
-// (`attachNetGLDeckLayer`, portal #36) and shaped as portal RFC 0001 has it
+// contract"), wire-compatible with portal-netgl's deck.gl host
+// (`attachNetGLDeckLayer`, 0.4.0 on) and shaped as portal RFC 0001 has it
 // (§6 the view, §7 time, §8 anchors, §10 the handshake):
 //
 //   - NetGL's own handshake, `netgl:ready` until `netgl:ready-ack`
-//     (`announce`): 0.4.0's host sends no view before it.
+//     (`announce`), which agrees the wire (0.6.0's wire 2, else 1): the
+//     host sends no view before it.
 //   - `layer:hello` beside it, until `layer:hello-ack` (or a first view,
 //     from a host that doesn't ack it: 0.4.0 as published).
 //   - `layer:invalidate {reason}` when what's drawn changes with no new
@@ -63,7 +64,10 @@ export function serveLayer({transport, layer, render, endFrame, announce = null,
     contracts: {alpha: 'coverage', color: 'display'},
     extent: {frame: 'ecef', sphere: {center: [0, 0, 0], radius: EXTENT_M.orbits}, beyond: 'clamp-to-far',
       farthest: EXTENT_M.beams},
-    ext: {'portal.anchors/1': {publish: ['norad', 'dsn', 'dsn-sc', 'naif']}},
+    // `near`: the subscription takes `{near: {p, n}, pattern}`, the n
+    // anchors nearest p (anchors.js compileSubscription); a host asks for
+    // it only when this says so.
+    ext: {'portal.anchors/1': {publish: ['norad', 'dsn', 'dsn-sc', 'naif'], near: true}},
   })
   announce?.()
   hello()

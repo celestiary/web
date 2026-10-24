@@ -1,6 +1,8 @@
 // Which hosts may drive layer mode (design/LayerMode.md, "Origins"): the
 // guest takes messages only from an allowed origin, and posts only to the
-// host's.  Pure, for the page and its test.
+// host's.  The page finds the host's origin here, against a list that may
+// name a host on any port, then pins portal-netgl's `parentTransport` to
+// that one exact origin.  Pure, for the page and its test.
 
 
 /* global __LAYER_ORIGINS__ */
@@ -39,7 +41,7 @@ export function isAllowedOrigin(origin, allowed = ALLOWED_ORIGINS) {
 
 
 /**
- * The host's origin, as portal RFC 0001 §10.2 and portal-netgl 0.4.0's
+ * The host's origin, as portal RFC 0001 §10.2 and portal-netgl's
  * `resolveParentOrigin` find it: `location.ancestorOrigins[0]` (Chromium,
  * WebKit), else the referrer's origin (Firefox), else `?host=`.  Each only
  * if it's on the allow-list: the URL may pick an allowed origin, never add
@@ -68,38 +70,3 @@ function safeOrigin(url) {
   }
 }
 
-
-/**
- * A NetGL transport to the host (portal-netgl's NetGLTransport shape:
- * `post` and `onMessage`), that drops any message from another window or a
- * disallowed origin, and posts only to the host's origin.  On the wire the
- * same as portal-netgl 0.4.0's `parentTransport({hostOrigins})` (an exact
- * targetOrigin; inbound checked by source and origin), which replaces it
- * once 0.4.0 is published; 0.3.0's windowTransport checks source only.
- *
- * @param {object} opts
- * @param {object} opts.target the host's window (`parent`)
- * @param {string} opts.origin the host's origin
- * @param {object} [opts.win] the window to listen on
- * @param {Array<string>} [opts.allowed]
- * @returns {{post: Function, onMessage: Function}}
- */
-export function originTransport({target, origin, win = globalThis, allowed = ALLOWED_ORIGINS}) {
-  return {
-    post(msg, transfer) {
-      target.postMessage(msg, origin, transfer ?? [])
-    },
-    onMessage(listener) {
-      const on = (ev) => {
-        if (ev.source !== target || ev.origin !== origin || !isAllowedOrigin(ev.origin, allowed)) {
-          return
-        }
-        if (ev.data && typeof ev.data === 'object') {
-          listener(ev.data)
-        }
-      }
-      win.addEventListener('message', on)
-      return () => win.removeEventListener('message', on)
-    },
-  }
-}
