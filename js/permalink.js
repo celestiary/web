@@ -698,6 +698,37 @@ export function decodePopulationToken(value) {
 }
 
 
+/** The `layers:` token's flags: the optional layers switched on (design/URLs.md). */
+export const LAYER_FLAGS = Object.freeze({newYork: 'nyc'})
+
+
+/**
+ * The `layers:` token (design/URLs.md): the optional layers switched on.
+ * `nyc` is Slop New York, Manhattan's 3D city on Earth's Cesium layer
+ * (CESIUM.md, "New York").  Left out (null) when none is, its default.
+ *
+ * @param {{newYork?: boolean}} [layers]
+ * @returns {?string}
+ */
+export function encodeLayersToken(layers) {
+  const flags = Object.entries(LAYER_FLAGS).filter(([key]) => layers?.[key] === true).map(([, flag]) => flag)
+  return formatTokenValue(flags) || null
+}
+
+
+/**
+ * The inverse of encodeLayersToken.  Unknown flags and named values are
+ * ignored, so a link from a newer build still opens.
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {{newYork: boolean}}
+ */
+export function decodeLayersToken(value) {
+  const {flags} = parseTokenValue(value)
+  return {newYork: flags.includes(LAYER_FLAGS.newYork)}
+}
+
+
 /**
  * The `info:` token (design/URLs.md): the info panel's sections as the user
  * left them.  `closed`, the panel folded; `open=` and `shut=` its sections,
