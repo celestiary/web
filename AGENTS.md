@@ -62,13 +62,43 @@ tried and dropped.
 ## Working efficiently
 
 - **Toolchain: yarn and bun, Node 22.**
-  - `bun test path/to/file.test.js` runs one test file.
   - `yarn lint` runs ESLint.
-  - `yarn precommit` runs lint, all tests and the bundle check. The git
-    pre-commit hook runs it too, so a commit that fails it doesn't
-    happen.
+  - `yarn precommit` runs lint, all tests and the bundle check, at once
+    (`tools/test/precommit.mjs`: about 50 s on 4 cores, the tests' time).
+    The git pre-commit hook runs it too, so a commit that fails it
+    doesn't happen.
   - Frequent lint catches: `no-mixed-operators` (parenthesise
     `a / b + c`) and unused `catch (err)` (write `catch {`).
+- **`yarn test` runs the tests in parallel**, each file in a `bun test`
+  process of its own, one worker per core (`tools/test/run.mjs`; about
+  40 s on 4 cores, against 135 s for one process).
+  - Files start longest first, by `tools/test/timings.json`, and a worker
+    takes the next when it's done; a file the timings lack is taken as
+    their median. A passing file prints nothing; a failing one prints
+    its whole output when it ends, and the run ends with the combined
+    counts and the list of failed files. Exit status is non-zero if any
+    failed.
+  - One file: `bun test path/to/file.test.js` as ever, or
+    `yarn test js/Keys` (any file whose path contains it, as bun does;
+    other flags go to bun: `yarn test js/Keys -t name`).
+  - One process, as before: `yarn test:serial` (or `TEST_SERIAL=1 yarn
+    test`, or plain `bun test`).  Use it when a failure may come from
+    files sharing a process, and to see what `mock.module` leaks (below).
+  - One shard: `yarn test --shard=2/3` runs the second of three balanced
+    shards (CI runs `--shard=i/2`), `--list` prints what would run with
+    the estimates, `--jobs=N` or `TEST_JOBS=N` sets the workers.
+  - **Refresh the timings** with `yarn test:timings` when files have been
+    added or become much slower or faster (it runs them all, so the
+    machine should be quiet), and commit `timings.json`.  Stale entries
+    are harmless; only the balance of the shards suffers.
+  - **CI** runs `lint` (lint and the bundle check), `test (1/2)` and
+    `test (2/2)` side by side, and a `precommit` job that passes when
+    those do: the name branch protection may ask for.  A new shard count
+    is the matrix and the `/2` in `.github/workflows/ci.yml`.
+  - The run allows each test 15 s (`--timeout=15000`), not bun's 5 s:
+    beside other workers a 2-3 s test takes twice that.  A test that
+    takes over about 4 s alone still gets its own timeout in the test
+    (`it(name, fn, 30000)`), so plain `bun test` passes it too.
 - **`yarn build` replaces `docs/` wholesale** (`docs/` is build output:
   never edit it). A static server started inside `docs/` then serves
   nothing, so restart it after each build, e.g.
@@ -96,19 +126,24 @@ tried and dropped.
     paths that tests drive, such as `Scene.setTarget`. Defer it to the
     animation loop: `preAnimCb` on a scene node runs every frame.
 - **`mock.module` is process-global in bun**: `Celestiary.test.js` mocks
-  `./scene/SpriteSheet`, so in `bun test` (all files together) a test
-  that needs the real class gets the stub.  Import it by a name the
-  mock doesn't take (`SpriteSheet.test.js` imports `'./SpriteSheet.js?real'`
-  through a variable, which lint lets through), and in tests of code that
-  builds sheets (Places) assert on `userData` (`labelTargets`,
-  `labelRank`), not on the sheet's fields.
-  - The `./vsop` mock (Earth fixed at 1 AU on +X) is just as global, and
-    doesn't reach a module that loaded the real VSOP87C first: in some
-    file orders (`bun test --randomize --seed 1`) Celestiary's own tests
-    run on the real ephemeris.  So a test that needs the real one reads
-    the package (`tonight.test.js`), and code shouldn't be slow on it:
-    a VSOP87C call is about 2 ms (PR #249's tour plan asked once per
-    aim, 4 s a plan, and timed out in CI's order only).
+  `./scene/SpriteSheet`, so in one `bun test` process (all files together:
+  `yarn test:serial`) a test that needs the real class gets the stub.
+  `yarn test` gives each file its own process, so nothing leaks there and
+  no file's result depends on the others or on their order (none did, when
+  it was checked: all 211 files pass alone).  The code below is still
+  written to pass in both, for the people who run `bun test`:
+  - Import the real class by a name the mock doesn't take
+    (`SpriteSheet.test.js` imports `'./SpriteSheet.js?real'` through a
+    variable, which lint lets through), and in tests of code that builds
+    sheets (Places) assert on `userData` (`labelTargets`, `labelRank`),
+    not on the sheet's fields.
+  - The `./vsop` mock (Earth fixed at 1 AU on +X) doesn't reach a module
+    that loaded the real VSOP87C first: in some file orders (`bun test
+    --randomize --seed 1`) Celestiary's own tests run on the real
+    ephemeris.  So a test that needs the real one reads the package
+    (`tonight.test.js`), and code shouldn't be slow on it: a VSOP87C call
+    is about 2 ms (PR #249's tour plan asked once per aim, 4 s a plan, and
+    timed out in CI's order only).
 - **`bun test` follows symlinks, and walks `docs/`.**  Don't link a
   scratch directory into the worktree while running it (a link to a
   shared scratchpad ran other sessions' files and took 84 s), and rebuild
