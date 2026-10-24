@@ -76,6 +76,41 @@ eye's own pace, but slow for finding your way around.
 - Epic: [#236](https://github.com/celestiary/web/issues/236) An optics model: the instrument between the sky and the screen
 - Permalink: none
 
+### No more loading screen stuck after an update
+
+If you had celestiary open and it was updated in the minutes before you reloaded, the loading
+screen could sit there for up to ten minutes, however often you reloaded. Now the page fetches the
+new version and reloads once by itself. If that still doesn't load it, the page says so instead of
+spinning.
+
+- Date: 2026-10-24
+- PR: [#290](https://github.com/celestiary/web/pull/290)
+- Permalink: none
+- Kind: fix
+
+### One bar of controls at the bottom of your phone
+
+On a phone, the buttons that used to stack down the right of the screen are now one bar along the
+bottom: the time (it shows the clock, or how fast time is running), map layers near Earth, the AR sky
+view, apps and a More button for settings. Each opens just above the bar, and the panel about what
+you're looking at sits on top of it, so nothing covers anything else.
+
+- Date: 2026-10-24
+- PR: [#289](https://github.com/celestiary/web/pull/289)
+- Issue: [#279](https://github.com/celestiary/web/issues/279)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
+### Dragging no longer changes what it does as you zoom in
+
+Close to a planet, dragging used to switch by itself from turning round the planet to looking
+around in place, with nothing to show it had. Now a drag does what the drag-mode switch says until
+you change it: it turns round a body you go to, and looks around once you land.
+
+- Date: 2026-10-24
+- Kind: fix
+- PR: [#289](https://github.com/celestiary/web/pull/289)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
 ### No more speckled blue bands in the night air over ground below sea level
 
 Standing on Earth's ground where it lies below the globe's mean shape (Manhattan, the Netherlands, the
@@ -218,7 +253,6 @@ every pair of bodies; around the Moon, Gateway's orbit gets none, because it is 
 - PR: [#284](https://github.com/celestiary/web/pull/284)
 - Issue: [#272](https://github.com/celestiary/web/issues/272)
 - Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@83.3877,58.4439,342.261098Mm;t=9791.8393jd;cq=-0.6779,-0.0549,-0.0248,0.7327;fov=45deg;s=F;periodic:manifolds,moon=l1l+l2l)
-
 ### Satellites round Earth: the ISS, GPS, the geostationary ring
 
 Near Earth, with the orbits on, about 450 real satellites now circle it where they are on the date:

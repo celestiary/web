@@ -119,13 +119,14 @@ export function NewYorkToggle({control, onChange}) {
 
 
 /**
- * Render-layer picker for the body the camera is on (see CESIUM.md).
- * Hidden unless the camera is in range of a Cesium-capable body.  Collapsed it is
- * one Layers button; expanded, Google-Maps-style tiles for each layer.
+ * The layer tiles for the body the camera is near: Google-Maps-style, one
+ * per layer.  LayersButton shows them beside its button; the phone dock
+ * (PhoneDock) above its bar.
  *
- * @returns {React.ReactElement|null}
+ * @property {Function} [onChosen] called after a tile is picked
+ * @returns {ReactElement|null}
  */
-export default function LayersButton() {
+export function LayerOptions({onChosen}) {
   const layerBody = useStore((state) => state.layerBody)
   const bodyLayers = useStore((state) => state.bodyLayers)
   const layerStatus = useStore((state) => state.layerStatus)
@@ -134,8 +135,6 @@ export default function LayersButton() {
   const newYorkOn = useStore((state) => state.newYorkOn)
   const newYorkStatus = useStore((state) => state.newYorkStatus)
   const setNewYorkOn = useStore((state) => state.setNewYorkOn)
-  const [isOpen, setIsOpen] = useState(false)
-
   if (!layerBody) {
     return null
   }
@@ -144,63 +143,81 @@ export default function LayersButton() {
   const bodyName = capitalize(layerBody)
   const newYork = layerBody === 'earth' && current === 'cesium' ?
     newYorkControl({newYorkNear, newYorkOn, newYorkStatus}) : null
-
   const choose = (value) => {
     setBodyLayer(layerBody, value)
-    setIsOpen(false)
+    onChosen?.()
   }
+  return (
+    <Paper
+      elevation={4}
+      sx={{display: 'flex', flexDirection: 'column', p: 1, backgroundColor: 'rgba(20, 20, 20, 0.85)'}}
+      data-testid='layers-button-panel'
+    >
+      <Box sx={{display: 'flex', gap: 1}}>
+        {OPTIONS.map(({value, label, icon: Icon, tip}) => {
+          const isCesiumError = value === 'cesium' && status === 'error'
+          const isLoading = value === 'cesium' && current === 'cesium' && status === 'loading'
+          return (
+            <Tooltip
+              key={value}
+              title={isCesiumError ? `Cesium couldn't load for ${bodyName}` : tip}
+              describeChild
+            >
+              <span>
+                <ToggleButton
+                  value={value}
+                  selected={current === value}
+                  disabled={isCesiumError}
+                  onChange={() => choose(value)}
+                  aria-label={`${label} layer for ${bodyName}`}
+                  data-testid={`layers-button-option-${value}`}
+                  sx={{
+                    'width': TILE_PX,
+                    'height': TILE_PX,
+                    'flexDirection': 'column',
+                    'gap': 0.5,
+                    'borderRadius': 2,
+                    '&.Mui-selected': {
+                      color: '#90caf9',
+                      boxShadow: 'inset 0 0 0 2px #90caf9',
+                    },
+                  }}
+                >
+                  {isLoading ? <CircularProgress size={24}/> : <Icon/>}
+                  <Typography variant='caption' sx={{lineHeight: 1, textTransform: 'none'}}>
+                    {label}
+                  </Typography>
+                </ToggleButton>
+              </span>
+            </Tooltip>
+          )
+        })}
+      </Box>
+      {newYork && <NewYorkToggle control={newYork} onChange={setNewYorkOn}/>}
+    </Paper>
+  )
+}
+
+
+/**
+ * Render-layer picker for the body the camera is on (see CESIUM.md).
+ * Hidden unless the camera is in range of a Cesium-capable body.  Collapsed it is
+ * one Layers button; expanded, Google-Maps-style tiles for each layer.
+ *
+ * @returns {React.ReactElement|null}
+ */
+export default function LayersButton() {
+  const layerBody = useStore((state) => state.layerBody)
+  const [isOpen, setIsOpen] = useState(false)
+
+  if (!layerBody) {
+    return null
+  }
+  const bodyName = capitalize(layerBody)
 
   return (
     <Box sx={{display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 1}}>
-      {isOpen &&
-        <Paper
-          elevation={4}
-          sx={{display: 'flex', flexDirection: 'column', p: 1, backgroundColor: 'rgba(20, 20, 20, 0.85)'}}
-          data-testid='layers-button-panel'
-        >
-          <Box sx={{display: 'flex', gap: 1}}>
-            {OPTIONS.map(({value, label, icon: Icon, tip}) => {
-              const isCesiumError = value === 'cesium' && status === 'error'
-              const isLoading = value === 'cesium' && current === 'cesium' && status === 'loading'
-              return (
-                <Tooltip
-                  key={value}
-                  title={isCesiumError ? `Cesium couldn't load for ${bodyName}` : tip}
-                  describeChild
-                >
-                  <span>
-                    <ToggleButton
-                      value={value}
-                      selected={current === value}
-                      disabled={isCesiumError}
-                      onChange={() => choose(value)}
-                      aria-label={`${label} layer for ${bodyName}`}
-                      data-testid={`layers-button-option-${value}`}
-                      sx={{
-                        'width': TILE_PX,
-                        'height': TILE_PX,
-                        'flexDirection': 'column',
-                        'gap': 0.5,
-                        'borderRadius': 2,
-                        '&.Mui-selected': {
-                          color: '#90caf9',
-                          boxShadow: 'inset 0 0 0 2px #90caf9',
-                        },
-                      }}
-                    >
-                      {isLoading ? <CircularProgress size={24}/> : <Icon/>}
-                      <Typography variant='caption' sx={{lineHeight: 1, textTransform: 'none'}}>
-                        {label}
-                      </Typography>
-                    </ToggleButton>
-                  </span>
-                </Tooltip>
-              )
-            })}
-          </Box>
-          {newYork && <NewYorkToggle control={newYork} onChange={setNewYorkOn}/>}
-        </Paper>
-      }
+      {isOpen && <LayerOptions onChosen={() => setIsOpen(false)}/>}
       <Tooltip title={`${bodyName} layers`} describeChild>
         <ToggleButton
           value='layers'

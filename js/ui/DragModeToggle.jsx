@@ -8,15 +8,11 @@ import useStore from '../store/useStore'
 
 
 /**
- * Two-button selector for camera drag mode.  Highlights whichever mode
- * is *effectively* active right now — when `dragMode === 'auto'` the
- * highlight follows the auto-resolution, so the user can see the mode
- * shift as they zoom or navigate.  Clicking an unselected button locks
- * to that mode; clicking the already-selected button deselects → back
- * to `'auto'`.  Scene.goTo resets to `'auto'` on navigation.
+ * Two-button selector for camera drag mode: one of the two is always on.
+ * The mode changes only here, by `m`, and on navigating (Scene.goTo sets
+ * orbit, Scene.land pan), never with altitude.
  *
- * The selected button gets a vivid blue halo so a context-driven
- * mode shift catches the eye.
+ * The selected button gets a vivid blue halo so the mode reads at a glance.
  *
  * @returns {ReactElement}
  */
@@ -35,14 +31,14 @@ const HALO_SX = {
 
 /** @returns {ReactElement} */
 export default function DragModeToggle() {
-  const effective = useStore((state) => state.effectiveDragMode)
+  const dragMode = useStore((state) => state.dragMode)
   const setDragMode = useStore((state) => state.setDragMode)
   // ToggleButtonGroup with `exclusive` emits null when the user clicks
-  // the currently-selected button — interpret that as "back to auto".
-  const onChange = (_e, next) => setDragMode(next ?? 'auto')
+  // the selected button: it stays selected.
+  const onChange = (_e, next) => next && setDragMode(next)
   return (
     <ToggleButtonGroup
-      value={effective}
+      value={dragMode}
       exclusive
       onChange={onChange}
       size='small'

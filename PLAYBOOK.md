@@ -697,6 +697,22 @@ referrer.
 restores), read with `page.evaluate`, and the page it lands on sees the redirect as its
 referrer.
 
+### Reproduce a cache bug from the cache's real state
+
+The stale-build hang (a deploy deleting the chunks a cached `index.js` asks
+for) didn't reproduce the obvious way: load build A, swap in build B, reload.
+Chromium revalidated the page, took `index.js` *and every chunk* of A from its
+cache, and ran the old build happily.  The hang needs `index.js` cached and a
+chunk it needs not: a chunk the first visit never fetched (the guide first,
+then the app) or one the cache lost (served `no-store` on the first load to
+stand in for eviction).  Both hung, and both are what the fix had to be shown
+on.  The HTTP cache also needs to be on: a server that sends GitHub Pages'
+`max-age=600` (not `python3 -m http.server`), and no `page.route`, which
+turns it off.
+
+**Rule:** a caching bug's repro starts from the cache state that fails, built
+on purpose; "reload after a deploy" is the user's story, not the mechanism.
+
 ### "Still there" is signal; treat it as data
 
 When a fix doesn't work, "nope, still there" closes the loop immediately so we can pivot.

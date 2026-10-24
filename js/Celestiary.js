@@ -3082,10 +3082,9 @@ export default class Celestiary {
     'Camera')
     k.map('m', () => {
       const s = useStore.getState()
-      const next = {auto: 'pan', pan: 'orbit', orbit: 'auto'}[s.dragMode] ?? 'auto'
-      s.setDragMode(next)
+      s.setDragMode(s.dragMode === 'pan' ? 'orbit' : 'pan')
     },
-    'Cycle camera drag mode (Auto / Drag Pan / Move)',
+    'Switch camera drag mode (Move / Drag Pan)',
     undefined,
     'Camera')
     // Numbered views — pin a child of current system as look-target.
@@ -3256,7 +3255,8 @@ export default class Celestiary {
 
   /** @param {boolean} shown The chrome in layout, or out of it */
   _navDisplay(shown) {
-    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('widgets-drawer'), elt('widgets-dock')]
+    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('widgets-drawer'), elt('widgets-dock'),
+      elt('phone-dock')]
     panels.forEach((panel) => {
       if (panel) {
         panel.style.display = shown ? '' : 'none'

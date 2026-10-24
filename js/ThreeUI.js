@@ -49,7 +49,6 @@ import {perf} from './perf/perf.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
-import {resolveDragMode} from './dragMode'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
 import {
   ASTRO_UNIT_METER, CLOUD_LAYER, GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER,
@@ -215,7 +214,6 @@ export default class ThreeUi {
       // useStore and Shared.targets are populated by Celestiary after
       // ThreeUI construction; both accessors run lazily at pointerdown.
       getDragMode: () => this.useStore?.getState().dragMode,
-      getTarget: () => targets.obj,
       getOrbitScale: () => this.orbitScale(),
       getTurnScale: () => fovTurnScale(this.camera.fov),
       onClick: (e) => this._fireClickCbs(e),
@@ -526,7 +524,6 @@ export default class ThreeUi {
     if (this.arController && this.arController.isActive()) {
       this.arController.updateFrame()
     }
-    this._publishEffectiveDragMode()
     perf.end('update')
     // Render scene to RT, then composite atmosphere fullscreen pass to screen.
     // An active Cesium layer hides the body's own surface before the scene
@@ -719,27 +716,6 @@ export default class ThreeUi {
       this._stats.dom.style.display = this._perfVisible ? 'block' : 'none'
     }
     return this._perfVisible
-  }
-
-
-  /**
-   * Resolve the user's drag-mode intent to a concrete `'pan'` or
-   * `'orbit'` for the current camera/target context and write it into
-   * the store so the UI toggle can highlight whichever mode is active
-   * right now — including when the user-facing `dragMode` is `'auto'`
-   * and the resolution shifts as the camera moves (zoom, navigation).
-   * Zustand's default Object.is selector check skips the re-render when
-   * the value hasn't changed, so this is cheap to call every frame.
-   */
-  _publishEffectiveDragMode() {
-    const state = this.useStore?.getState()
-    if (!state?.setEffectiveDragMode) {
-      return
-    }
-    const next = resolveDragMode(state.dragMode, this.camera.position.length(), targets.obj)
-    if (next !== state.effectiveDragMode) {
-      state.setEffectiveDragMode(next)
-    }
   }
 
 
