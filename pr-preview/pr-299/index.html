@@ -109,6 +109,15 @@
         animation: none;
         transition: opacity 400ms ease-in-out;
       }
+      /* In the Moon's place when the app can't load (the stale-build
+         script, below). */
+      #loading .loading-failed {
+        max-width: 22rem;
+        font-size: 0.95rem;
+        line-height: 1.4;
+        text-align: center;
+        color: #b4bdd0;
+      }
       @keyframes loading-in {
         from { opacity: 0; transform: translateY(4px); }
         to { opacity: 1; transform: none; }
@@ -175,6 +184,95 @@
           root.classList.add('quiet-load')
         }
       }(decodeURIComponent(window.location.hash.slice(1)), document.documentElement))
+    </script>
+    <!-- stale-build: index.html and index.js keep their names, every chunk
+         they load is content-hashed, a deploy deletes the last build's
+         chunks, and GitHub Pages lets a browser keep any file for 10
+         minutes.  A cached index.js can then ask for a chunk that's gone:
+         the entry's error event (a static import), a route's lazy import
+         (js/Routed.jsx hands its failures to reloadStaleBuild) or an
+         unhandled dynamic import says so, and the page would sit on the
+         loading text for ever.  This fetches the page and index.js afresh
+         (cache: 'reload' replaces the cached copies, which a reload alone
+         keeps) and reloads, at most once in 30 s; a second failure in that
+         time shows a message instead, so a file that's really missing
+         never loops.  Only while the loading text is up: a running app
+         degrades on its own (the ephemeris, Cesium).  DESIGN.md "Hosting
+         and the domain"; tested in js/staleBuild.test.js. -->
+    <script type="text/javascript" id="stale-build">
+      (function (win, doc) {
+        var KEY = 'celestiary-stale-reload'
+        var GUARD_MS = 30000
+        // Chromium, Safari and Firefox's words for a module that didn't load.
+        var MODULE_FAILED = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/
+        var handled = false
+
+        function showFailed(el) {
+          var inner = el.querySelector('.loading-in')
+          var moon = el.querySelector('.loading-text')
+          var msg = doc.createElement('div')
+          msg.className = 'loading-failed'
+          msg.textContent = 'Couldn’t load the app. Reload the page to try again.'
+          if (moon) {
+            // The loading-moon timer stops once its element is gone.
+            inner.removeChild(moon)
+          }
+          inner.appendChild(msg)
+          doc.documentElement.classList.remove('quiet-load')
+        }
+
+        function recover() {
+          var el = doc.getElementById('loading')
+          if (handled || !el || el.classList.contains('done')) {
+            return handled
+          }
+          handled = true
+          var now = Date.now()
+          var last
+          try {
+            last = Number(win.sessionStorage.getItem(KEY)) || 0
+            win.sessionStorage.setItem(KEY, String(now))
+          } catch (e) {
+            // Nowhere to record it, so no guard: don't reload.
+            last = now
+          }
+          if (last <= now && now - last < GUARD_MS) {
+            showFailed(el)
+            return true
+          }
+          var fresh = {cache: 'reload'}
+          Promise.all([
+            win.fetch(win.location.href.split('#')[0], fresh),
+            win.fetch(new URL('index.js', doc.baseURI).href, fresh),
+          ]).then(function () {
+            win.location.reload()
+          }, function () {
+            showFailed(el)
+          })
+          return true
+        }
+
+        // Whether err is a module that didn't load, which the page now
+        // handles (it's reloading, or says it can't load).
+        win.reloadStaleBuild = function (err) {
+          return MODULE_FAILED.test(String((err && err.message) || err)) && recover()
+        }
+        win.addEventListener('error', function (event) {
+          var target = event.target
+          if (target && target.tagName === 'SCRIPT') {
+            if (target.type === 'module') {
+              recover()
+            }
+          } else {
+            win.reloadStaleBuild(event.error || event.message)
+          }
+        }, true)
+        win.addEventListener('unhandledrejection', function (event) {
+          if (win.reloadStaleBuild(event.reason)) {
+            event.preventDefault()
+          }
+        })
+      }(window, document))
     </script>
   </head>
   <body>
