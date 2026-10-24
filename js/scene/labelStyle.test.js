@@ -1,5 +1,9 @@
 import {describe, expect, it} from 'bun:test'
-import {SATELLITE_LABELS, STAR_LABELS, labelFont, labelLook, prominence, viewRange} from './labelStyle.js'
+import {Group, Object3D, PerspectiveCamera} from 'three'
+import {
+  BODY_LABELS, PLACE_LABELS, SATELLITE_LABELS, STAR_LABELS, labelFont, labelLook, prominence, resetRange, styleLabels,
+  viewRange,
+} from './labelStyle.js'
 
 
 describe('label styles', () => {
@@ -35,5 +39,90 @@ describe('label styles', () => {
     // Magnitudes: linear, at least a magnitude between the ends.
     expect(viewRange([-1.46, 0.03, 1.2], STAR_LABELS)).toEqual({near: -1.46, far: 1.2})
     expect(viewRange([0.5], STAR_LABELS)).toEqual({near: 0.5, far: 1.5})
+  })
+})
+
+
+describe('styleLabels', () => {
+  /**
+   * @param {Array<number>} at [x, y, z], world
+   * @param {number} radius
+   * @returns {Object3D} a body's name as Planet.js gives it, with a stub sheet
+   */
+  function bodyName(at, radius) {
+    const obj = new Object3D()
+    obj.position.fromArray(at)
+    obj.updateMatrixWorld()
+    obj.userData.sheet = {
+      labelCount: 1, positions: [0, 0, 0], styles: [],
+      setStyle(i, scale, brightness) {
+        this.styles[i] = [scale, brightness]
+      },
+    }
+    obj.userData.labelRank = [0]
+    obj.userData.labelStyle = BODY_LABELS
+    obj.userData.labelMeasure = (i, cam, p) => cam.distanceTo(p) / radius
+    obj.userData.labelRankOf = (p) => 1000 + (11 * p)
+    return obj
+  }
+
+  /** @returns {PerspectiveCamera} at the origin, looking down -z */
+  function camera() {
+    const cam = new PerspectiveCamera(60, 1, 1, 1e13)
+    cam.updateMatrixWorld()
+    return cam
+  }
+
+  it('sizes a group\'s names from the largest-looking in view to the smallest, and ranks them so', () => {
+    resetRange(BODY_LABELS)
+    const root = new Group()
+    // A big body near, a small one far, both ahead; one behind the camera.
+    const near = bodyName([0, 0, -7e7], 7e6)
+    const far = bodyName([1e8, 0, -1e9], 1e6)
+    const behind = bodyName([0, 0, 1e7], 1e6)
+    root.add(near, far, behind)
+    styleLabels(root, camera())
+    expect(near.userData.sheet.styles[0]).toEqual([1, 1])
+    expect(far.userData.sheet.styles[0][0]).toBeCloseTo(10 / 18, 6)
+    expect(far.userData.sheet.styles[0][1]).toBeCloseTo(0.7, 6)
+    expect(near.userData.labelRank[0]).toBeCloseTo(1011, 6)
+    expect(far.userData.labelRank[0]).toBeCloseTo(1000, 6)
+    // The one behind doesn't set the range: it looks larger than either
+    // (10 radii off), so it comes out at the largest, clamped.
+    expect(behind.userData.sheet.styles[0]).toEqual([1, 1])
+  })
+
+  it('leaves out a surface label on its body\'s far side, and eases the range when the view changes', () => {
+    resetRange(PLACE_LABELS)
+    const root = new Group()
+    const body = new Object3D()
+    body.position.set(0, 0, -2e7)
+    root.add(body)
+    const places = new Object3D()
+    body.add(places)
+    root.updateMatrixWorld()
+    const R = 6.4e6
+    // Two places on the near side, one on the far side (nearer the camera's
+    // line, farther away).
+    places.userData.sheet = {
+      labelCount: 3, positions: [0, 0, R, 0, R * 0.6, R * 0.8, 0, 0, -R], styles: [],
+      setStyle(i, scale, brightness) {
+        this.styles[i] = [scale, brightness]
+      },
+    }
+    places.userData.labelBody = body
+    places.userData.labelStyle = PLACE_LABELS
+    places.userData.labelMeasure = (i, cam, p) => cam.distanceTo(p)
+    styleLabels(root, camera())
+    const s = places.userData.sheet.styles
+    expect(s[0]).toEqual([1, 1])
+    expect(s[1][0]).toBeCloseTo(10 / 14, 6)
+    // The far side's is farther than the farthest in view: at the least.
+    expect(s[2][0]).toBeCloseTo(10 / 14, 6)
+    // The body moved off: the range eases toward the new one.
+    body.position.z = -4e7
+    root.updateMatrixWorld()
+    styleLabels(root, camera())
+    expect(places.userData.sheet.styles[0][0]).toBeLessThan(1)
   })
 })

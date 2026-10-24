@@ -39,12 +39,13 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
-### Star names only for the stars you can see
+### Star names only for the stars you can see, and names sized by how near they are
 
 A star's name now shows only while the star itself can be seen: under a city's sky just the few
 brightest, in daylight none, at a dark site many more. Every named star can be named, not only the
-few hundred before, and where names would crowd, the brighter star's shows. The brighter the star,
-the larger and brighter its name.
+few hundred before, and where names would crowd, the brighter star's shows. Names now have sizes:
+a bright star's, a near planet's or moon's and a nearby city's are larger and brighter, the faint and
+far ones smaller and dimmer, so what's near or prominent reads first.
 
 - Date: 2026-10-24
 - Featured: yes

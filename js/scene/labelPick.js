@@ -167,7 +167,7 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
  *   the camera (the surface normal there against the way to the camera, as
  *   the label shader tests it)
  */
-function onFarSide(x, y, z, centre, eye) {
+export function onFarSide(x, y, z, centre, eye) {
   const nx = x - centre.x
   const ny = y - centre.y
   const nz = z - centre.z

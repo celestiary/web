@@ -51,6 +51,21 @@ export function bodyRank(radiusM) {
 
 
 /**
+ * @param {number} p A body's name's prominence, 0 to 1 (labelStyle.js
+ *   BODY_LABELS: how large it looks)
+ * @returns {number} Its rank: the larger-looking body wins, in the bodies'
+ *   band, over any other kind's name
+ */
+export function bodyProminenceRank(p) {
+  return BODY_RANK + (BODY_PROMINENCE_SPAN * p)
+}
+
+
+// The bodies' band of ranks by prominence: as wide as by radius, 1 km to the Sun.
+const BODY_PROMINENCE_SPAN = 11
+
+
+/**
  * @param {number} tier 0 (the most prominent) to 3
  * @param {number} index The place's position in its tier, 0 the largest
  * @param {number} count How many places the tier has

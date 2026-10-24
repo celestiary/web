@@ -14,7 +14,8 @@ import {
 import Object from './object.js'
 import Places from './Places.js'
 import SpriteSheet from './SpriteSheet.js'
-import {bodyRank} from './labelDeclutter.js'
+import {bodyProminenceRank, bodyRank} from './labelDeclutter.js'
+import {BODY_LABELS, labelFont} from './labelStyle.js'
 import {
   FovLOD, MOON_POINT_LEVEL, discMeanValue, farPointLevel, handoffRatio, newFarPoint, pointSwitchDistance,
 } from './farPoint.js'
@@ -290,7 +291,9 @@ export default class Planet extends Object {
     const labelLOD = new FovLOD()
     const name = capitalize(this.name)
     // TODO: single sheet for all planets/moons
-    const labelSheet = named(new SpriteSheet(1, name), 'label')
+    // Sized by how large the body looks (labelStyle.js BODY_LABELS).
+    const labelSheet = named(new SpriteSheet(1, name, labelFont(BODY_LABELS), [0, 0], false, false, {scalable: true}),
+        'label')
     labelSheet.add(0, 0, 0, name, labelTextColor)
     const labelSprites = labelSheet.compile()
     // Drawn after the atmosphere pass, so it doesn't haze the label; still
@@ -302,6 +305,11 @@ export default class Planet extends Object {
     // (labelDeclutter.js).
     labelSprites.userData.declutter = true
     labelSprites.userData.labelRank = [bodyRank(surfaceRadius)]
+    // Sized, dimmed and ranked by how large the body looks, among the bodies'
+    // names in view (labelStyle.js styleLabels): its distance over its radius.
+    labelSprites.userData.labelStyle = BODY_LABELS
+    labelSprites.userData.labelMeasure = (i, cam, at) => cam.distanceTo(at) / surfaceRadius
+    labelSprites.userData.labelRankOf = bodyProminenceRank
     // Depth in front of the body's near side, so the body itself doesn't
     // hide it: at exactly the near side it tied with the body's own depth
     // (and Cesium's ground sphere, CesiumLayers._writeGroundDepths) where

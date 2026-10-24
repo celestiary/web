@@ -202,6 +202,17 @@ are in Earth's scope too, as the Moon is.  Picking a result in the dropdown
 targets it, Go lands there
 ([js/search/DESIGN.md](../search/DESIGN.md#places-in-the-index)).
 
+## Sizes
+
+Each name is sized and dimmed by its distance from the camera (DESIGN.md,
+[label styles](../../DESIGN.md#label-styles), `PLACE_LABELS`): from the
+nearest place in view, 14 px at full brightness, to the farthest, 10 px at
+0.7, the far side of the body left out of the range; eased over a few frames.
+The sheets are scalable (drawn at 14 px, smaller per name) and styled by
+`styleLabels`; they're still ranked by tier.  From 8,000 km over Africa
+(PR #302): Nairobi at 14 px, London and Moscow at 10.5, and one more name in
+view than before (`screens/labels/place-names-orbit.png`).
+
 ## Under a Cesium layer
 
 The labels stay on while a Cesium layer is active on Earth, the Moon or Mars:
