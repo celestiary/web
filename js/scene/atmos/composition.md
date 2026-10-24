@@ -190,6 +190,16 @@ in-scatter is the march's plus the table's through the march's
 transmittance, and its transmittance the product.  At the sphere itself the
 segment vanishes and the two cases meet.
 
+**The Sun behind the planet, at a march's sample**, is the Sun under the
+sphere's horizon there (`rayEnd.js` `sunBelowHorizon`): its zenith cosine
+under −√(1 − R²/r²), taken from (r − R)(r + R); under the sphere, under the
+local horizontal.  It was whether the ray to the Sun meets the sphere ahead
+(`rsi`), whose near hit within a metre of the sphere is float32 noise: from
+an eye under the sphere (Manhattan, ~30 m under Earth's), the samples where
+the rays cross it took a Sun 33° down for up, and the night air showed
+speckled blue bands (CESIUM.md, "New York", found on a real GPU).  The
+precomputed tables still use `rsi` at their own samples.
+
 Nothing is moved to make that work.  #141 had lifted the eye to the sphere
 and looked up from there, which put the eye's horizon within float32 noise
 of the rays clamped to it (below), and those flickered black on a real GPU

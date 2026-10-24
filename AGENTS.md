@@ -27,6 +27,7 @@ tried and dropped.
 | Rendering, overlays and the `v` visibility groups | DESIGN.md: [rendering techniques](DESIGN.md#rendering-techniques), [overlays & visibility groups](DESIGN.md#overlays--visibility-groups) |
 | Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [parity check](CESIUM.md#parity-check), [follow-ups](CESIUM.md#follow-ups) |
 | Changing Cesium itself: the fork (celestiary/cesium), the patches in `patches/`, upstreaming | [CESIUM.md, patching Cesium](CESIUM.md#patching-cesium) |
+| Slop New York at Manhattan in Earth's Cesium layer (the layers control's *New York (3D city)*, `layers:nyc`, `?nyc=1`): the nested NetGL chain, Cesium's external renderers, the city's colour contract | [CESIUM.md, New York](CESIUM.md#new-york) |
 | The Sun's activity by date, spots, flares, prominences, corona, CMEs, eclipses, glare, solar wind | [js/scene/Sun.md](js/scene/Sun.md); the photosphere and every star: [js/scene/Stars.md](js/scene/Stars.md) |
 | Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
 | The HDR pipeline: the scene buffer, units, the one tone map, display-referred materials | [js/scene/HDR.md](js/scene/HDR.md); DESIGN.md [HDR pipeline](DESIGN.md#hdr-pipeline) |
@@ -253,6 +254,17 @@ tried and dropped.
   *off*, as `a`, `l`, `p`, `o` turn the overlays off. Harnesses that hide
   the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`, and add
   `G` to hide the galaxies' names (on by default, shown by magnitude).
+- **New York's layer headless** (CESIUM.md [New York](CESIUM.md#new-york)):
+  open the view with `;layers:nyc` (or click the layers control's switch,
+  `[data-testid=layers-button-new-york-switch] input`) and
+  `?nycGuest=http://localhost:<port>/` serving slop-newyork's checkout; a
+  cross-origin module needs `access-control-allow-origin`, which
+  `python3 -m http.server` doesn't send, so answer it in `page.route` through
+  `route.fetch`.  Low over the ground Earth's layer stays warming on
+  SwiftShader: set `c.ui.layers.bodies.earth.shown = true` to draw it.  Pause
+  the clock (`;time:pause`): running, the view drifted off the island (the
+  rewritten link's longitude moved 0.2° west in 45 s), and a city out of view never finishes its staged set-up (it replays only
+  in frames that draw it).  The city takes 2.5 to 3.5 minutes at 800x500.
 - **Cesium is patched on install** (`patches/`, applied by patch-package
   from `postinstall`; [CESIUM.md](CESIUM.md#patching-cesium)).  A fix to
   Cesium goes on a branch of celestiary/cesium with its Cesium specs, then

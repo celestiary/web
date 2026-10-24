@@ -39,6 +39,18 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### No more speckled blue bands in the night air over ground below sea level
+
+Standing on Earth's ground where it lies below the globe's mean shape (Manhattan, the Netherlands, the
+Dead Sea), at night the air in front of the ground and the buildings no longer lets the Sun's light
+through in speckled blue bands.
+
+- Date: 2026-10-24
+- PR: [#287](https://github.com/celestiary/web/pull/287)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+- Kind: fix
+
 ### The night sky stays dark on the shore
 
 On some of Earth's ground the night sky turned the orange of a sunset: at the water's edge in New
@@ -66,6 +78,21 @@ now, out to Voyager 1, 172 AU away. Uplinks are orange, downlinks blue.
 - Issue: [#50](https://github.com/celestiary/web/issues/50)
 - Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF)
+- Featured: yes
+
+### New York in 3D: Manhattan's streets and towers on Earth
+
+Come down over New York, within a few tens of kilometres of Manhattan and under 30 km up, open the
+layers button at the top right and switch on *New York (3D city)*. Slop New York, a 3D model of
+Manhattan's buildings, streets, parks and piers, builds in a few seconds and stands at its place on the
+globe, lit by the same Sun at the simulation's time and hazed by the same air. It stays off until you
+switch it on, since it's a big download (about 140 MB), and a link you share keeps it on. Its lights
+don't show at night yet.
+
+- Date: 2026-10-23
+- PR: [#287](https://github.com/celestiary/web/pull/287)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;time:pause;layers:nyc)
 - Featured: yes
 
 ### All of Starlink joins the satellites, with a search, and you choose which to see
