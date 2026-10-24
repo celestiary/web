@@ -94,8 +94,13 @@ export function sectionHtml(key, title, peek, content, open = false) {
 }
 
 
-/** Descriptor fields shown elsewhere, or that are for the renderer. */
-const NOT_SHOWN = new Set(['name', 'parent', 'type', 'apparentMagnitude', 'colorIndex', 'has_locations', 'system'])
+/**
+ * Descriptor fields shown elsewhere, or that are for the renderer: a
+ * spacecraft's model, attitude and trajectory are drawing instructions
+ * (js/scene/models.md), not facts about it.
+ */
+const NOT_SHOWN = new Set(['name', 'parent', 'type', 'apparentMagnitude', 'colorIndex', 'has_locations', 'system',
+  'model', 'attitude', 'trajectory'])
 
 
 /** Words for the descriptors' field names. */

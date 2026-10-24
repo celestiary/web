@@ -23,12 +23,13 @@ import * as Shared from './shared'
 import {assertArgs} from './assert'
 import {latLngAltToBodyFixed, latLngAltToLocal, worldToLatLngAlt} from './coords'
 import {
-  decodeInfoToken, decodeOrbitsFade, decodeOrbitsToken, decodePeriodicToken, decodePermalink, decodeSettings,
-  decodeTimeToken, encodeInfoToken, encodeOrbitsToken, encodePeriodicToken, encodePermalink, encodeTimeToken,
+  decodeCraftToken, decodeInfoToken, decodeLayersToken, decodeOrbitsFade, decodeOrbitsToken, decodePeriodicToken, decodePermalink,
+  decodeSettings, decodeTimeToken, encodeCraftToken, encodeInfoToken, encodeLayersToken, encodeOrbitsToken, encodePeriodicToken,
+  encodePermalink, encodeTimeToken, decodePopulationToken, encodePopulationToken,
   pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
-import {goToEntry, placeTarget} from './search/commitEntry'
+import {goToEntry, placeTarget, targetEntry} from './search/commitEntry'
 import {decodeNewsToken, loadChangelog, readFilter, tourStops} from './changelog'
 import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
 import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
@@ -38,8 +39,8 @@ import {hideLoading} from './loading'
 import {clampEv, stepEv} from './scene/evCompensation'
 import {clampStarMag, stepStarMag} from './scene/starMagnitude'
 import {fetchPlaces} from './scene/Places'
-import {satelliteTarget} from './scene/satellites/names'
 import {parseTargetPath, resolvePlace, slug, targetFramePath, targetPath} from './targetPath'
+import {utcToTtJulianDay} from './scene/celestialFrame'
 import {elt} from './utils'
 
 
@@ -48,7 +49,7 @@ import {elt} from './utils'
 // keys here are the lowercase per-overlay toggles ('a' asterisms, 'p'
 // planet labels, etc.); the HTML chrome key 'v' is deliberately not in
 // this list so users can hide overlays and chrome independently.
-const SCENE_INFO_KEYS = ['a', 'l', 'p', 'G', 'C', 'o', 'e', 'c', 'g', 'x']
+const SCENE_INFO_KEYS = ['a', 'l', 'p', 'G', 'C', 'o', 'e', 'c', 'g', 'x', 'S', 'I', 'D']
 // The HTML chrome's fade, ms: index.css's --fade-ms, and the scene's
 // overlays' (scene/fade.js FADE_MS).
 const CHROME_FADE_MS = 400
@@ -105,6 +106,8 @@ const APPROACH_MAX_RADII = 100
 // Over a place this near a pole, a flight faces down to it squared to the
 // prime meridian, not the pole.
 const POLAR_LAT_DEG = 89
+// How many results the info panel's population search lists.
+const POPULATION_RESULTS = 12
 
 
 /** Main application class. */
@@ -182,6 +185,30 @@ export default class Celestiary {
       toggle: (body, code) => this.scene.togglePeriodic(body, code),
       frame: () => this.scene.getPeriodicFrame(),
       setFrame: (f) => this.scene.setPeriodicFrame(f),
+      manifolds: () => this.scene.getPeriodicManifolds(),
+      setManifolds: (on) => this.scene.setPeriodicManifolds(on),
+    }
+    // And the craft flown about it (scene/craft/flights.js), on the app's
+    // ephemeris (the Sun from VSOP87C, or its stand-in until it's in).
+    this.scene.vsopAt = (jd) => this.animation.vsopAt(jd)
+    this.scene.vsopReady = () => this.animation.vsopReady()
+    // A long flight waits for VSOP87C itself (flights.js needsVsop).
+    this.animation.onEphemeris = () => this.scene._syncCraft()
+    this.scene.onCraftChange = () => this.controlPanel.refreshCraft()
+    this.controlPanel.craftHooks = {
+      list: (name) => this.scene.craftOf(name),
+      toggle: (code) => this.scene.toggleCraft(code, utcToTtJulianDay(this.time.simTimeJulianDay())),
+    }
+    // And a body's population: its groups and how many names show.
+    this.controlPanel.populationHooks = {
+      of: (body) => this.scene.populationOf(body),
+      setGroup: (body, key, on) => this.scene.setPopulationGroup(body, key, on),
+      setLabels: (body, n) => this.scene.setPopulationLabels(body, n),
+      setCount: (body, key, n) => this.scene.setPopulationCount(body, key, n),
+      // The panel's search: the main search's, scoped to the body, its
+      // population's results only (js/search/DESIGN.md, Populations).
+      search: (body, text) => this._searchPopulation(body, text),
+      pick: (body, id, go) => this._pickPopulation(body, id, go),
     }
     // Opening or folding the panel's lists rewrites the link (`info:`).
     this.controlPanel.onUiChange = () => this._schedulePermalinkUpdate()
@@ -215,9 +242,10 @@ export default class Celestiary {
     this.ui.arController = this.ar
     this._registerSearchProviders()
     this._subscribePreview()
-    // The widgets drawer and its apps are in the permalink too.
+    // The widgets drawer and its apps are in the permalink too, and the
+    // optional layers (`layers:`, the New York toggle).
     this.useStore.subscribe((state, prev) => {
-      if (state.widgets !== prev.widgets) {
+      if (state.widgets !== prev.widgets || state.newYorkOn !== prev.newYorkOn) {
         this._schedulePermalinkUpdate()
       }
     })
@@ -517,9 +545,8 @@ export default class Celestiary {
         this.controlPanel.showNavDisplay(state.previewPath)
       } else if (state.committedGalaxy) {
         this.controlPanel.showGalaxyPreview(state.committedGalaxy, this.scene.galaxies)
-      } else if (state.committedTarget?.kind === 'satellite' && this.scene.satellites) {
-        this.controlPanel.showSatellite(this.scene.satellites.record(state.committedTarget.id),
-            this.time.simTimeJulianDay(), this.scene.satelliteData?.fetched)
+      } else if (state.committedTarget?.kind === 'satellite') {
+        this._showSatellitePanel(state.committedTarget)
       } else if (state.committedStar) {
         this.controlPanel.showStarPreview(state.committedStar)
       } else if (state.committedPath && state.committedPath.length > 0) {
@@ -530,16 +557,89 @@ export default class Celestiary {
 
 
   /**
+   * The panel for a targeted satellite, with its population's controls.
+   *
+   * @param {{id: number, body?: string}} target
+   */
+  _showSatellitePanel(target) {
+    const pop = this.scene.populationOf(target.body ?? 'earth')
+    const rec = pop?.record(target.id)
+    if (rec) {
+      this.controlPanel.showSatellite(rec, this.time.simTimeJulianDay(), this.scene.satelliteData?.fetched,
+          pop.groupInfo[rec.group]?.kind ?? null, pop.body)
+    }
+  }
+
+
+  /**
+   * Show the panel again if it's the target's and the target is this body or
+   * one of its population, for a population that has just come in: its
+   * section, or the satellite's facts.
+   *
+   * @param {string} body
+   */
+  _refreshPanelFor(body) {
+    const state = this.useStore?.getState?.()
+    const t = state?.committedTarget
+    if (t?.kind === 'satellite' && (t.body ?? 'earth') === body) {
+      this._showSatellitePanel(t)
+    } else if (t?.kind === 'body' && t.name === body && state.committedPath?.length > 0) {
+      this.controlPanel.showNavDisplay(state.committedPath)
+    }
+  }
+
+
+  /**
    * Wire the app-wide search index.  SceneProvider and PlacesProvider are
    * ready immediately; StarsProvider registers once the star catalog
    * finishes async-loading (Stars.js sets `starsCatalog` on the store).
    */
+  /**
+   * @param {string} body
+   * @param {string} text
+   * @returns {Array<object>} the search's entries for the body's population
+   *   that match, best first
+   */
+  _searchPopulation(body, text) {
+    const path = `milkyway/${this.loader.pathByName[body] ?? `sun/${body}`}`
+    return searchIndex.query(text, path, POPULATION_RESULTS)
+        .map((r) => r.entry)
+        .filter((e) => e.kind === 'satellite' && (e.payload?.target?.body ?? 'earth') === body)
+  }
+
+
+  /**
+   * A pick in the panel's population search: targeted, as a pick in the main
+   * search is, or gone to (a double click).
+   *
+   * @param {string} body
+   * @param {number} id
+   * @param {boolean} go
+   */
+  _pickPopulation(body, id, go) {
+    const pop = this.scene.populationOf(body)
+    const rec = pop?.record(id)
+    if (!rec) {
+      return
+    }
+    const entry = {kind: 'satellite', displayName: pop.displayName(rec), payload: {target: pop.targetOf(rec)}}
+    if (go) {
+      goToEntry(entry, this)
+    } else {
+      targetEntry(entry, this)
+    }
+  }
+
+
   _registerSearchProviders() {
     searchIndex.register(new SceneProvider(this.loader))
-    // Earth's satellites, as the galaxies, below (Satellites.md).
-    this.scene.onSatellitesReady((satellites) => {
-      searchIndex.register(new SatellitesProvider(satellites))
+    // Each body's population, as it comes in; Earth's satellites fetched
+    // for the first search, as the galaxies, below (Satellites.md).
+    this.scene.onPopulationAdded((population) => {
+      const bodyPath = (name) => `milkyway/${this.loader.pathByName[name] ?? `sun/${name}`}`
+      searchIndex.register(new SatellitesProvider(population, bodyPath))
       searchIndex.invalidate()
+      this._refreshPanelFor(population.body)
     })
     searchIndex.loadOnSearch(() => this.scene.loadSatellites())
     // SPARC's galaxies, once their catalogue is in (Galaxies.md).
@@ -632,6 +732,10 @@ export default class Celestiary {
       this.scene.setOrbitFade(decodeOrbitsFade(tokens?.orbits), true)
       // The three-body orbits shown, once their pairs are the target's.
       this.scene.restorePeriodic(decodePeriodicToken(tokens?.periodic))
+      // The craft flown, from their departures.
+      this.scene.restoreCraft(decodeCraftToken(tokens?.craft))
+      // The populations' groups and names, as their bodies' panels left them.
+      this.scene.restorePopulations(decodePopulationToken(tokens?.pop))
       // The info panel's lists, open or folded as they were.
       this.controlPanel.restoreUiState(decodeInfoToken(tokens?.info))
     } else {
@@ -695,6 +799,7 @@ export default class Celestiary {
       // Position planets at the saved time before goTo() orients the platform
       this.time.setTime(fromJulianDay(pl.d2000 + J2000_JD))
       this._restoreClock(pl)
+      this._restoreLayers(pl)
       this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
       this.ui.scene.updateMatrixWorld()
       // What the link restores (going there turns following on, the
@@ -803,6 +908,23 @@ export default class Celestiary {
 
 
   /**
+   * Switch on the optional layers a link has on (the `layers:` token):
+   * New York's city, which CesiumLayers loads once the camera is over
+   * Manhattan with Earth's Cesium layer active.  On every link with a view
+   * (the first load, a followed link, What's new's), as the clock is; a link
+   * without the token leaves a layer the user switched on as it is, since
+   * the city is costly to build again.
+   *
+   * @param {object} pl The decoded link
+   */
+  _restoreLayers(pl) {
+    if (decodeLayersToken(pl.tokens?.layers).newYork) {
+      this.useStore.getState().setNewYorkOn?.(true)
+    }
+  }
+
+
+  /**
    * Put the clock back as a link had it: paused or running, and at its
    * rate (the `time:` token; none is running at real time).  The date is
    * set already.  A link restores the clock whole, as it does `ev=`: one
@@ -883,6 +1005,11 @@ export default class Celestiary {
    * @param {Function} [onErr]
    */
   _resolveRef(ref, cb, onErr) {
+    if (ref.kind === 'satellite') {
+      // Its frame is its body's, by the loader's path when it has one.
+      cb({...ref, path: this.loader.pathByName[ref.body] ?? undefined})
+      return
+    }
     if (ref.kind !== 'bodies') {
       cb(ref)
       return
@@ -1007,11 +1134,11 @@ export default class Celestiary {
         this._whenGalaxy(resolved.id, (galaxy) => cb({kind: 'galaxy', galaxy, name: galaxy.name}), onMissing)
         return
       case 'satellite':
-        // Their snapshot is fetched now if the view hasn't yet.
-        this.scene.loadSatellites().then((sats) => {
-          const rec = sats?.record(resolved.id)
+        // Its body's population: Earth's fetched now if the view hasn't yet.
+        this.scene.loadPopulation(resolved.body ?? 'earth').then((pop) => {
+          const rec = pop?.record(resolved.id)
           if (rec) {
-            cb(satelliteTarget(rec))
+            cb(pop.targetOf(rec))
           } else {
             console.warn(`No satellite ${resolved.id}`)
             onMissing?.()
@@ -2617,7 +2744,7 @@ export default class Celestiary {
     }})
     return [
       step(REVEAL_AT.orbits, () => this.scene.revealOverlays(['o'])),
-      step(REVEAL_AT.diagrams, () => this.scene.revealOverlays(['a', 'e', 'c', 'g', 'x'])),
+      step(REVEAL_AT.diagrams, () => this.scene.revealOverlays(['a', 'e', 'c', 'g', 'x', 'S', 'I', 'D'])),
       step(REVEAL_AT.labels, () => this.scene.revealOverlays(['p', 'l', 'G'])),
       step(REVEAL_AT.chrome, () => {
         // The changelog tour shows nothing but the scene and its captions;
@@ -2747,7 +2874,7 @@ export default class Celestiary {
     // Presentation mode — hide every scene annotation at once.  No clean
     // single-state representation, so it stays an action button.
     k.map('V', () => this._toggleAllSceneInfo(),
-        'Hide/show all scene annotations (labels, orbits, asterisms, grids)',
+        'Hide/show all scene annotations (labels, orbits, asterisms, grids, networks)',
         undefined,
         'Info')
     // three's FPS/MS/MB panel, for judging frame cost on a real GPU.
@@ -2837,6 +2964,29 @@ export default class Celestiary {
     () => this.scene.getSetting('o'),
     'Orbits')
 
+    // === Networks === (scene/networks/Networks.md)  Settings rows with no
+    // key, as the ecliptic and galactic grids have: few letters are left,
+    // and the app follows Celestia's where it can.  A link carries each as
+    // S, I or D in `s=`, and 'V' hides them with the other annotations.
+    k.addAction(() => {
+      this.scene.toggleNetwork('S')
+    },
+    'Starlink (the whole constellation, by shell)',
+    () => this.scene.getSetting('S'),
+    'Networks')
+    k.addAction(() => {
+      this.scene.toggleNetwork('I')
+    },
+    'Iridium and its crosslinks',
+    () => this.scene.getSetting('I'),
+    'Networks')
+    k.addAction(() => {
+      this.scene.toggleNetwork('D')
+    },
+    'Deep Space Network, live from DSN Now',
+    () => this.scene.getSetting('D'),
+    'Networks')
+
     // === Grids ===
     k.map(';', () => {
       this.scene.toggleGridEquatorial()
@@ -2922,10 +3072,9 @@ export default class Celestiary {
     'Camera')
     k.map('m', () => {
       const s = useStore.getState()
-      const next = {auto: 'pan', pan: 'orbit', orbit: 'auto'}[s.dragMode] ?? 'auto'
-      s.setDragMode(next)
+      s.setDragMode(s.dragMode === 'pan' ? 'orbit' : 'pan')
     },
-    'Cycle camera drag mode (Auto / Drag Pan / Move)',
+    'Switch camera drag mode (Move / Drag Pan)',
     undefined,
     'Camera')
     // Numbered views — pin a child of current system as look-target.
@@ -3096,7 +3245,8 @@ export default class Celestiary {
 
   /** @param {boolean} shown The chrome in layout, or out of it */
   _navDisplay(shown) {
-    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('widgets-drawer'), elt('widgets-dock')]
+    const panels = [elt('nav-id'), elt('top-right'), elt('search-bar'), elt('widgets-drawer'), elt('widgets-dock'),
+      elt('phone-dock')]
     panels.forEach((panel) => {
       if (panel) {
         panel.style.display = shown ? '' : 'none'
@@ -3200,12 +3350,17 @@ export default class Celestiary {
     }
     // The clock when it isn't running at real time (the `time:` token), the
     // info panel's lists as they were left (`info:`), the orbital elements
-    // lit on the bodies' orbits (`orbits:`), then the drawer and the apps.
+    // lit on the bodies' orbits (`orbits:`), the optional layers on
+    // (`layers:`), then the drawer and the apps.
     const tokens = {
       time: encodeTimeToken(this.time.isPaused, this.time.timeScale),
       info: encodeInfoToken(this.controlPanel.uiState),
       orbits: encodeOrbitsToken(this.scene.getOrbitElements(), this.scene.getOrbitFade()),
-      periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame()),
+      periodic: encodePeriodicToken(this.scene.getPeriodic(), this.scene.getPeriodicFrame(),
+          this.scene.getPeriodicManifolds()),
+      craft: encodeCraftToken(this.scene.getCraft()),
+      pop: encodePopulationToken(this.scene.getPopulationState()),
+      layers: encodeLayersToken({newYork: this.useStore.getState().newYorkOn === true}),
       ...encodeAppTokens(this.useStore.getState().widgets),
     }
     return encodePermalink(
@@ -3332,8 +3487,6 @@ export default class Celestiary {
 
 
 const DEFAULT_TARGET = 'sun'
-// Earth's path: the frame a satellite's link is in.
-const EARTH_PATH = 'sun/earth'
 const J2000_JD = 2451545.0
 
 
@@ -3423,16 +3576,17 @@ const REF_FRAME = {
   star: (r) => `hip:${r.hipId}`,
   galaxy: (r) => `galaxy:${r.id}`,
   asterism: () => DEFAULT_TARGET,
-  // In Earth's frame (Satellites.md).
-  satellite: () => EARTH_PATH,
+  // In its body's frame (Satellites.md): the path parseTargetPath's caller
+  // gave it, else a planet's.
+  satellite: (r) => r.path ?? `sun/${r.body ?? 'earth'}`,
 }
 
 
 /**
  * Decide whether a scene-graph target is a body the user can plausibly
  * "stand on" for AR purposes.  Returns the body's name if it has a
- * surface (radius > 0) AND isn't a star (lacks `spectralType`); null
- * otherwise.  Stars are excluded so tapping AR while viewing the Sun
+ * surface (radius > 0) AND isn't a star (lacks `spectralType`) or a
+ * spacecraft; null otherwise.  Stars are excluded so tapping AR while viewing the Sun
  * doesn't silently teleport the user to the photosphere — the AR
  * caller falls back to a sensible default body (Earth) when this
  * returns null.
@@ -3449,6 +3603,10 @@ export function landableBodyName(target) {
     return null
   }
   if (props.spectralType !== undefined) {
+    return null
+  }
+  // Nor a spacecraft: its radius is its model's bounding sphere.
+  if (props.type === 'spacecraft') {
     return null
   }
   return props.name

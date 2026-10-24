@@ -12,6 +12,13 @@
 /** The heights, low to high. */
 export const DETENTS = ['peek', 'half', 'full']
 
+/** Each detent's height, as index.css lays the sheet out at it. */
+const DETENT_HEIGHTS = {
+  peek: 'var(--sheet-peek)',
+  half: 'calc(var(--scene-height, 100vh) * 0.5)',
+  full: 'calc(var(--scene-height, 100vh) * 0.88)',
+}
+
 /** As useIsMobile's. */
 const PHONE_QUERY = '(max-width: 600px)'
 
@@ -73,8 +80,8 @@ export default class InfoSheet {
     const sheet = this.isSheet
     root.classList.toggle('info-sheet', sheet)
     root.classList.toggle('info-raised', sheet && this.detent !== 'peek')
-    // What the bottom controls and Cesium's credits stand above.
-    root.style.setProperty('--info-sheet-bottom', sheet ? 'var(--sheet-peek)' : '0px')
+    // What Cesium's credits stand above: the sheet at its height now.
+    root.style.setProperty('--info-sheet-bottom', sheet ? DETENT_HEIGHTS[this.detent] : '0px')
     if (sheet) {
       this.elt.dataset.detent = this.detent
     } else {

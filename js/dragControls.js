@@ -1,5 +1,4 @@
 import {Quaternion, Vector3} from 'three'
-import {resolveDragMode} from './dragMode'
 
 
 /**
@@ -13,19 +12,16 @@ import {resolveDragMode} from './dragMode'
  * subsequent pointermove events to the element regardless of where the
  * pointer actually is, so dragging past the canvas edge keeps tracking.
  *
- * Drag behavior is mode-driven.  Mode is resolved at pointerdown and
- * latched for the gesture (no mid-drag flip).  Three modes:
+ * Drag behavior is mode-driven.  Mode is read at pointerdown and
+ * latched for the gesture (no mid-drag flip).  Two modes, the user's choice
+ * (the toggle, `m`), never switched by altitude:
  * - `'pan'`    → pitch/yaw camera around its local axes (free look,
  *                natural on a planet surface looking at the sky).
  * - `'orbit'`  → rotate camera.position around the platform origin and
  *                apply the same rotation to camera.quaternion (natural
  *                when viewing a planet from space).
- * - `'auto'`   → pick `'pan'` or `'orbit'` via `pickDragMode` using the
- *                current camera-to-target distance.  This follows the
- *                viewing context as the camera moves (zoom, navigation)
- *                without the user thinking about it.
  *
- * Alt held at pointerdown inverts the resolved mode for that gesture
+ * Alt held at pointerdown inverts the mode for that gesture
  * (pan ↔ orbit), useful as a one-shot override on desktop.
  *
  * @param {HTMLElement} el The container to bind events on.
@@ -33,11 +29,8 @@ import {resolveDragMode} from './dragMode'
  *   pan; .position and .quaternion for orbit).
  * @param {object} [options]
  * @param {Function} [options.onChange] Called after each rotation update.
- * @param {Function} [options.getDragMode] Returns `'pan'`, `'orbit'`, or
- *   `'auto'`.  Treated as `'auto'` when omitted.
- * @param {Function} [options.getTarget] Returns the current target object
- *   (with `.props.radius.scalar` and optional `.props.atmosphere.height.scalar`).
- *   Required for `'auto'` to resolve to anything other than `'pan'`.
+ * @param {Function} [options.getDragMode] Returns `'pan'` or `'orbit'`.
+ *   Treated as `'pan'` when omitted.
  * @param {Function} [options.getOrbitScale] Returns the fraction of full
  *   speed an orbit drag turns at (zoom.js `rotateScale`: slower near the
  *   ground).  Read on every move, since altitude changes over terrain.
@@ -58,7 +51,7 @@ import {resolveDragMode} from './dragMode'
  *   dblclick as an override (latest action wins).
  */
 export function attachPointerDrag(el, camera, options = {}) {
-  const {onChange, getDragMode, getTarget, getOrbitScale, getTurnScale, onClick, onDblClick} = options
+  const {onChange, getDragMode, getOrbitScale, getTurnScale, onClick, onDblClick} = options
   let lastX = 0
   let lastY = 0
   let downX = 0
@@ -91,7 +84,7 @@ export function attachPointerDrag(el, camera, options = {}) {
       return
     }
     activePointerId = e.pointerId
-    activeMode = resolveMode(getDragMode?.(), camera, getTarget?.())
+    activeMode = getDragMode?.() === 'orbit' ? 'orbit' : 'pan'
     if (e.altKey) {
       activeMode = activeMode === 'orbit' ? 'pan' : 'orbit'
       e.preventDefault() // suppress browser Alt menu on the canvas
@@ -168,17 +161,3 @@ export function attachPointerDrag(el, camera, options = {}) {
   })
 }
 
-
-/**
- * Wrap `resolveDragMode` for the dragControls context.  `camera.position.length()`
- * is the camera-to-target distance because the platform is parented to
- * the target's local frame (target center = local origin).
- *
- * @param {string} stored
- * @param {object} camera
- * @param {object} target
- * @returns {'pan'|'orbit'}
- */
-function resolveMode(stored, camera, target) {
-  return resolveDragMode(stored, camera.position.length(), target)
-}

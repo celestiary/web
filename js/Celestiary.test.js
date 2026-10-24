@@ -285,7 +285,7 @@ function makeStubStore() {
   const state = {
     setCommittedPath: () => {},
     dragMode: 'pan',
-    // Recorded: tests can read state.dragModeCalls to assert auto-pick fired.
+    // Recorded: tests can read state.dragModeCalls for what navigation set.
     dragModeCalls: [],
     // The widgets drawer at its defaults: no state tokens (appTokens.js).
     widgets: {isOpen: false, isDocked: false, view: null, running: [], pinned: [], appStates: {}},
@@ -298,6 +298,11 @@ function makeStubStore() {
   // every state it was in.
   state.newsTour = null
   state.newsTours = []
+  // The New York layer's switch (LayersSlice), for the `layers:` token.
+  state.newYorkOn = false
+  state.setNewYorkOn = (on) => {
+    state.newYorkOn = on
+  }
   state.setNewsTour = (tour) => {
     state.newsTour = tour
     state.newsTours.push(tour)
@@ -532,14 +537,12 @@ describe('Scene.goTo navigation', () => {
       expect(app2.ui.camera.platform.parent).toBe(sunObj.orbitPosition)
     })
 
-    it('resets dragMode to \'auto\' on planet navigation', () => {
-      // dragControls re-evaluates pickDragMode at the next pointerdown
-      // against the actual final camera position — covers both the
-      // normal goTo arrival (orbit altitude) and permalink restores
-      // that land the camera on the surface.
+    it('sets dragMode to \'orbit\' on planet navigation', () => {
+      // A pan chosen at the last body doesn't carry over; nothing switches
+      // it by altitude after (Scene.goTo).
       const calls = app2.useStore.getState().dragModeCalls
       expect(calls.length).toBeGreaterThan(0)
-      expect(calls[calls.length - 1]).toBe('auto')
+      expect(calls[calls.length - 1]).toBe('orbit')
     })
   })
 
@@ -996,6 +999,21 @@ describe('the target in the link', () => {
     expect(Shared.targets.obj).toBe(app.scene.objects.earth)
     expect(Shared.targets.cur).toBe(app.scene.objects.earth)
     expect(app.permalink().startsWith('sun/earth@30.2638,-97.7526,400km;t=9233jd;')).toBe(true)
+  })
+
+  it('the New York layer: a link with layers:nyc switches it on, and the link then carries it', async () => {
+    const plain = await open(TEST_FRAGMENT)
+    expect(plain.useStore.getState().newYorkOn).toBe(false)
+    expect(plain.permalink()).not.toContain('layers:')
+    const app = await open(`${TEST_FRAGMENT};layers:nyc`)
+    expect(app.useStore.getState().newYorkOn).toBe(true)
+    expect(app.permalink().endsWith(';layers:nyc')).toBe(true)
+    // Switched off (the layers control's toggle): out of the link.
+    app.useStore.getState().setNewYorkOn(false)
+    expect(app.permalink()).not.toContain('layers:')
+    // Unknown flags in it are ignored.
+    const later = await open(`${TEST_FRAGMENT};layers:later`)
+    expect(later.useStore.getState().newYorkOn).toBe(false)
   })
 
   it('"t" tracks the target: a place, as Earth turns', async () => {
@@ -1706,17 +1724,22 @@ describe('what a load fetches', () => {
       app.frame(t)
     }
     await new Promise((resolve) => setTimeout(resolve, 20))
+    // The satellites' load, if the frames asked for it, is a dynamic import
+    // and then the fetch: under load the import outlasts the 20 ms, and the
+    // fetch landed in the next test's list instead of this one's.
+    await app.scene._satellitesPending
     return app
   }
 
   const galaxyFetches = () => asked.filter((u) => u.endsWith('galaxies.json')).length
-  // The data asked for (the textures a body's surface fetches aside).
-  const jsonAsked = () => asked.filter((u) => u.endsWith('.json'))
+  // The data asked for (the textures a body's surface fetches aside, and
+  // Earth's satellites, which a view near Earth asks for once the overlays
+  // are revealed, a time this harness doesn't fix: their own test, below).
+  const jsonAsked = () => asked.filter((u) => u.endsWith('.json') && u !== 'data/satellites.json')
 
   it('a link to a body: no galaxies, no places (none of its labels can show yet), no changelog', async () => {
     const app = await open(TEST_FRAGMENT)
-    // Earth's satellites, though: the view is near Earth with the orbits on.
-    expect(jsonAsked()).toEqual(['data/satellites.json'])
+    expect(jsonAsked()).toEqual([])
     expect(app.scene.galaxies.records).toEqual([])
     expect(app.scene.objects.earth.places.loadState).toBe('idle')
   })
@@ -1724,7 +1747,7 @@ describe('what a load fetches', () => {
   it('a link to a place: its body\'s catalogue, once, for the place and its labels', async () => {
     expect(TEST_FRAGMENT.startsWith('sun/earth@')).toBe(true)
     const app = await open(TEST_FRAGMENT.replace('sun/earth@', 'sun/earth/austin@'))
-    expect(jsonAsked()).toEqual(['data/places/earth.json', 'data/satellites.json'])
+    expect(jsonAsked()).toEqual(['data/places/earth.json'])
     expect(app.scene.objects.earth.places.loadState).toBe('loaded')
     expect(app.scene.objects.earth.places.entries).toEqual([AUSTIN])
     expect(Shared.targets.label).toMatchObject({kind: 'place', body: 'earth', name: 'Austin'})
@@ -1746,6 +1769,31 @@ describe('what a load fetches', () => {
     await app.scene.loadGalaxies()
     expect(galaxyFetches()).toBe(1)
     expect(app.scene.galaxies.records).toHaveLength(175)
+  })
+
+  it('a view near Earth with the orbits shown asks for Earth\'s satellites, once while it waits', async () => {
+    const app = await open(TEST_FRAGMENT)
+    const asks = () => asked.filter((u) => u === 'data/satellites.json').length
+    // The overlays revealed, as the first load's reveal ends.  Here the
+    // fetch fails (404), and a failure is asked again by the next need:
+    // let any ask from the frames so far settle first.
+    app.scene.revealOverlays(['o'])
+    app.scene.overlays.finish()
+    await app.scene._satellitesPending
+    const before = asks()
+    // Two of the watcher's frames: one request, the second waiting on it.
+    app.scene._satelliteWatch.preAnimCb()
+    app.scene._satelliteWatch.preAnimCb()
+    await app.scene._satellitesPending
+    expect(asks() - before).toBe(1)
+  })
+
+  it('a link\'s population state (pop:) is kept for its body, and written back, before the population is in', async () => {
+    const app = await open(`${TEST_FRAGMENT};pop:earth=starlink,earth.labels=12`)
+    // Here the snapshot's fetch fails (404), so Earth's population never comes in.
+    expect(app.scene.populationOf('earth')).toBeNull()
+    expect(app.scene.getPopulationState().get('earth')).toEqual({shown: new Set(['starlink']), labels: 12, counts: null})
+    expect(app.permalink()).toContain(';pop:earth=starlink,earth.labels=12')
   })
 
   it('a search: their catalogue, with the first query (SearchIndex.loadOnSearch)', async () => {

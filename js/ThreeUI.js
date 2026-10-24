@@ -49,7 +49,6 @@ import {perf} from './perf/perf.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import TouchSafeTrackballControls from './TouchSafeTrackballControls.js'
 import {attachPointerDrag} from './dragControls'
-import {resolveDragMode} from './dragMode'
 import Fullscreen from '@pablo-mayrgundter/fullscreen.js/fullscreen.js'
 import {
   ASTRO_UNIT_METER, CLOUD_LAYER, GALAXY_RADIUS_METER, INITIAL_FOV, OVERLAY_LAYER, SMALLEST_SIZE_METER,
@@ -82,6 +81,11 @@ const FRAME_CAP_SLACK_MS = 2
 // shows: the homepage waits for the meter to settle on its first view
 // before it shows (Celestiary._homeSettled).
 const HIDDEN_CANVAS_OPACITY = '0.001'
+
+
+// The bodies the meter's sunlit-body anchor takes (_sunlitBodies): a
+// spacecraft filling the frame is a sunlit surface as a planet is.
+const SUNLIT_TYPES = new Set(['planet', 'moon', 'spacecraft'])
 
 
 export default class ThreeUi {
@@ -210,7 +214,6 @@ export default class ThreeUi {
       // useStore and Shared.targets are populated by Celestiary after
       // ThreeUI construction; both accessors run lazily at pointerdown.
       getDragMode: () => this.useStore?.getState().dragMode,
-      getTarget: () => targets.obj,
       getOrbitScale: () => this.orbitScale(),
       getTurnScale: () => fovTurnScale(this.camera.fov),
       onClick: (e) => this._fireClickCbs(e),
@@ -521,7 +524,6 @@ export default class ThreeUi {
     if (this.arController && this.arController.isActive()) {
       this.arController.updateFrame()
     }
-    this._publishEffectiveDragMode()
     perf.end('update')
     // Render scene to RT, then composite atmosphere fullscreen pass to screen.
     // An active Cesium layer hides the body's own surface before the scene
@@ -714,27 +716,6 @@ export default class ThreeUi {
       this._stats.dom.style.display = this._perfVisible ? 'block' : 'none'
     }
     return this._perfVisible
-  }
-
-
-  /**
-   * Resolve the user's drag-mode intent to a concrete `'pan'` or
-   * `'orbit'` for the current camera/target context and write it into
-   * the store so the UI toggle can highlight whichever mode is active
-   * right now — including when the user-facing `dragMode` is `'auto'`
-   * and the resolution shifts as the camera moves (zoom, navigation).
-   * Zustand's default Object.is selector check skips the re-render when
-   * the value hasn't changed, so this is cheap to call every frame.
-   */
-  _publishEffectiveDragMode() {
-    const state = this.useStore?.getState()
-    if (!state?.setEffectiveDragMode) {
-      return
-    }
-    const next = resolveDragMode(state.dragMode, this.camera.position.length(), targets.obj)
-    if (next !== state.effectiveDragMode) {
-      state.setEffectiveDragMode(next)
-    }
   }
 
 
@@ -1471,7 +1452,7 @@ export default class ThreeUi {
     for (const name of Object.keys(objects)) {
       const o = objects[name]
       const type = o?.props?.type
-      if ((type !== 'planet' && type !== 'moon') || !o.props.radius || !o.visible || name.endsWith('.orbitPosition') ||
+      if (!SUNLIT_TYPES.has(type) || !o.props.radius || !o.visible || name.endsWith('.orbitPosition') ||
           o === except) {
         continue
       }
@@ -2008,7 +1989,7 @@ export default class ThreeUi {
     // From where the camera ends up: from the linear step before the remap,
     // one frame's near plane was sized for an altitude the zoom never
     // reached (a zoom out from the ground: ~0.25 radii, near ~160 km).
-    const newNear = dynamicNear(Math.max(0, distDesired - surfaceR))
+    const newNear = dynamicNear(Math.max(0, distDesired - surfaceR), surfaceR)
     if (newNear !== this.camera.near) {
       this.camera.near = newNear
       this.camera.updateProjectionMatrix()

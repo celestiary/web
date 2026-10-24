@@ -1,7 +1,9 @@
 import {describe, expect, it} from 'bun:test'
+import vsop87cLoader from 'vsop87/dist/vsop87c-wasm'
 import {Object3D, PerspectiveCamera, Quaternion, Scene as ThreeScene, Vector3} from 'three'
 import {SETTINGS_DEFAULTS} from '../permalink.js'
 import * as Shared from '../shared.js'
+import bltData from '../../public/data/blt.json'
 import periodicData from '../../public/data/periodicOrbits.json'
 
 // SpriteSheet (used by Scene._setTempMarker) reaches for document.* —
@@ -59,7 +61,7 @@ function makeSceneWithEarth() {
   earth.props = {name: 'earth', radius: {scalar: 6.371e6}}
   scene.add(earth)
 
-  const stateBag = {dragMode: 'auto', landed: false}
+  const stateBag = {dragMode: 'orbit', landed: false}
   const useStore = {
     getState: () => ({
       setCommittedPath: () => {},
@@ -377,7 +379,7 @@ describe('Scene.applySettings', () => {
     milkyWay.name = 'MilkyWay'
     s.ui.scene.add(milkyWay)
     const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, G: true, C: true, x: false,
-      v: false}
+      S: false, I: false, D: false, v: false}
     s.registerSettingApplier('v', () => s.flipSetting('v'))
     s.applySettings(target)
     s.overlays.finish()
@@ -447,14 +449,10 @@ describe('Scene.land', () => {
     expect(camera.position.y).toBeCloseTo(r + 100, 0)
   })
 
-  it('resets drag mode to auto so it picks pan here and orbit on zoom-out', () => {
-    // Earlier rev forced dragMode='pan' on land; that stayed sticky and
-    // never flipped back to orbit when the user later zoomed away from
-    // the surface.  'auto' resolves to pan at touchdown via pickDragMode
-    // and naturally flips to orbit past the auto-switch threshold.
+  it('sets drag mode to pan: on the surface a drag looks around', () => {
     const {scene, stateBag} = makeSceneWithEarth()
     scene.land('earth', 0, 0, 0, {instant: true})
-    expect(stateBag.dragMode).toBe('auto')
+    expect(stateBag.dragMode).toBe('pan')
   })
 
   it('marks landed=true in store and Shared.targets', () => {
@@ -1665,7 +1663,12 @@ describe('the target\'s orbital regimes', () => {
       expect(s.objects['mars.orbitPosition'].regimes.orbits[0].i).toBeCloseTo(92.6, 0)
     })
     withTarget(s, 'moon', () => {
-      expect(s.objects['moon.orbitPosition'].regimes).toBeUndefined()
+      // The Moon's, over its 1,737.4 km reference sphere.
+      const moonRegimes = s.objects['moon.orbitPosition'].regimes
+      expect(moonRegimes.parent).toBe(s.objects['moon.planetTilt'])
+      expect(moonRegimes.bands.map((b) => Math.round((b.outer - 1737400) / 1e3))).toEqual([100])
+      expect(moonRegimes.orbits.filter((o) => o.spec.label.startsWith('frozen')).map((o) => o.i))
+          .toEqual([27, 50, 76, 86])
     })
   })
 
@@ -1688,7 +1691,10 @@ describe('the target\'s orbital regimes', () => {
     const lines = s.spaceAround('earth').regimes
     expect(lines).toContain('low Earth orbit (LEO): 160 km to 2,000 km up')
     expect(lines.find((l) => l.startsWith('sun-synchronous'))).toMatch(/inclined 98\.2°$/)
-    expect(s.spaceAround('moon').regimes).toBeNull()
+    const moonLines = s.spaceAround('moon').regimes
+    expect(moonLines).toContain('low lunar orbit (LLO): 20 km to 100 km up')
+    expect(moonLines.find((l) => l.startsWith('why most low lunar orbits'))).toMatch(/mascons/)
+    expect(s.spaceAround('venus')).toBeNull()
   })
 })
 
@@ -1774,6 +1780,104 @@ describe('the three-body orbits at the target\'s pairs', () => {
     })
   })
 
+  it('draws the manifolds of the families that have them, turning with the pair', () => {
+    const s = solarScene()
+    withTarget(s, 'earth', () => {
+      s.togglePeriodic('moon', 'l1l')
+      s.togglePeriodic('moon', 'dro')
+      const marks = s.objects['moon.orbitPosition'].lagrange
+      let changes = 0
+      s.onSettingsChange = () => changes++
+      s.setPeriodicManifolds(true)
+      expect(changes).toBe(1)
+      const l1l = marks.families.get('l1Lyapunov')
+      // Stable and unstable, each one set of segments; the DRO has none.
+      expect(l1l.manifolds.children.map((c) => c.name)).toEqual(['periodic.l1Lyapunov.stable',
+        'periodic.l1Lyapunov.unstable'])
+      expect(l1l.manifolds.children[0].geometry.getAttribute('position').count).toBeGreaterThan(1000)
+      expect(marks.families.get('dro').manifolds).toBeNull()
+      // Stopped at the Moon's surface, in units of the separation.
+      expect(marks.radii.secondary).toBeCloseTo(1.7381e6 / 3.844e8, 8)
+      // Made once: the same tubes when the family comes back.
+      const tubes = s._tubes('moon', 'l1Lyapunov')
+      s.togglePeriodic('moon', 'l1l')
+      s.togglePeriodic('moon', 'l1l')
+      expect(s._tubes('moon', 'l1Lyapunov')).toBe(tubes)
+      // Not fixed in space.
+      s.setPeriodicFrame('inertial')
+      expect(marks.families.get('l1Lyapunov').manifolds.visible).toBe(false)
+      s.setPeriodicManifolds(false)
+      expect(marks.families.get('l1Lyapunov').manifolds).toBeNull()
+    })
+  })
+
+  it('flies a craft to the Moon from the start of the day, about the Earth', async () => {
+    const s = solarScene()
+    let changes = 0
+    s.onSettingsChange = () => changes++
+    expect(s.craftOf('earth').map((c) => [c.code, c.on])).toEqual([['tli', false], ['blt', false]])
+    expect(s.craftOf('mars')).toEqual([])
+    s.toggleCraft('tli', 2461336.8)
+    expect(changes).toBe(1)
+    expect(s.getCraft()).toEqual(new Map([['tli', 2461336.5]]))
+    // How it's made loads on first use, then it's flown.
+    expect(s._craftTracks.size).toBe(0)
+    await s._flights
+    const track = s.objects['earth.orbitPosition'].children.find((c) => c.name === 'craft.tli')
+    expect(track).toBeDefined()
+    // In flight two days on, at the Moon's distance by the end.
+    expect(track.place(2461338.5)).toBe(true)
+    expect(track.marker.visible).toBe(true)
+    expect(track.place(2461330)).toBe(false)
+    const {t, xyz} = track.path
+    const n = t.length - 1
+    expect(Math.hypot(xyz[3 * n], xyz[(3 * n) + 1], xyz[(3 * n) + 2]) / 1e3).toBeGreaterThan(350e3)
+    expect(s.craftOf('earth')[0].text).toMatch(/^leaves 2026-10-23 from 185 km, 3,1\d\d m\/s, 4.5 days to 100 km/)
+    s.toggleCraft('tli', 2461336.8)
+    expect(s.getCraft().size).toBe(0)
+    expect(track.parent).toBeNull()
+  })
+
+  it('flies a ballistic lunar transfer once VSOP87C and the designs are in', async () => {
+    // From the package: Celestiary.test.js mocks ./vsop for the process.
+    const vsop87c = await vsop87cLoader
+    const s = solarScene()
+    let ready = false
+    s.vsopReady = () => ready
+    s.vsopAt = vsop87c
+    let refreshed = 0
+    s.onCraftChange = () => refreshed++
+    let loads = 0
+    s.loadCraftData = () => {
+      loads++
+      return Promise.resolve(bltData)
+    }
+    const first = Math.min(...bltData.designs.map((d) => d.departure))
+    const day = first - 3
+    s.toggleCraft('blt', day)
+    await s._flights
+    // Waiting for the ephemeris: neither drawn nor loading.
+    expect(s._craftTracks.size).toBe(0)
+    expect(loads).toBe(0)
+    ready = true
+    s._syncCraft()
+    expect(loads).toBe(1)
+    await new Promise((r) => setTimeout(r, 0))
+    const track = s._craftTracks.get('blt')
+    expect(track.path.facts.departure).toBe(first)
+    // Drawn once the file came: the panel is told.
+    expect(refreshed).toBe(1)
+    expect(track.path.facts.apogee / 1e9).toBeLessThan(2)
+    expect(s.craftOf('moon').find((c) => c.code === 'blt').text)
+        .toMatch(/^leaves \d{4}-\d\d-\d\d from 185 km, 3,2\d\d m\/s, out to 1\.\d\d million km/)
+    // No design from past the last: said so.
+    s.toggleCraft('blt', day)
+    s.toggleCraft('blt', Math.max(...bltData.designs.map((d) => d.departure)) + 10)
+    expect(s._craftTracks.size).toBe(0)
+    expect(s.craftOf('earth').find((c) => c.code === 'blt').text).toBe('none designed from this date')
+    expect(loads).toBe(1)
+  })
+
   it('shows a link\'s families once their pair is the target\'s', () => {
     const s = solarScene()
     s.restorePeriodic({families: new Map([['moon', new Set(['dro'])]]), frame: 'inertial'})
@@ -1782,6 +1886,8 @@ describe('the three-body orbits at the target\'s pairs', () => {
       expect([...marks.families.keys()]).toEqual(['dro'])
       expect(marks.frame).toBe('inertial')
     })
+    s.restorePeriodic({families: new Map([['moon', new Set(['l2h'])]]), frame: 'rotating', manifolds: true})
+    expect(s.getPeriodicManifolds()).toBe(true)
   })
 
   it('draws JPL\'s member where its catalogue has the pair, loaded the first time, else its own', async () => {

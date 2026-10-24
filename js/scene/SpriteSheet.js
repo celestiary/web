@@ -95,6 +95,8 @@ export default class SpriteSheet {
     // one off each frame it would overlap a more important label.
     this.shown = []
     this.shownAttribute = null
+    // How long a label takes to fade in or out, ms (setFade): 0 at once.
+    this.fadeMs = 0
     this.positionAttribute = null
     this.sprites = null
     // document.canvas = this.canvas;
@@ -233,11 +235,56 @@ export default class SpriteSheet {
       return false
     }
     this.shown[i] = v
-    if (this.shownAttribute) {
+    if (this.shownAttribute && !this.fadeMs) {
       this.shownAttribute.setX(i, v)
       this.shownAttribute.needsUpdate = true
     }
     return true
+  }
+
+
+  /**
+   * Fade labels in and out over this long when they're shown or hidden,
+   * rather than at once (a population's names): the `shown` attribute
+   * then eases toward `shown[i]`, by `stepFade` each frame, and the
+   * fragment's alpha goes with it.
+   *
+   * @param {number} ms
+   */
+  setFade(ms) {
+    this.fadeMs = ms
+  }
+
+
+  /**
+   * Move each label's drawn opacity toward whether it's shown (setFade).
+   *
+   * @param {number} dtMs Since the last step
+   * @returns {boolean} Whether any is still fading
+   */
+  stepFade(dtMs) {
+    const attr = this.shownAttribute
+    if (!attr || !this.fadeMs) {
+      return false
+    }
+    const step = Math.max(dtMs, 0) / this.fadeMs
+    let moving = false
+    let changed = false
+    for (let i = 0; i < this.labelCount; i++) {
+      const a = attr.getX(i)
+      const goal = this.shown[i]
+      if (a === goal) {
+        continue
+      }
+      const next = goal > a ? Math.min(goal, a + step) : Math.max(goal, a - step)
+      attr.setX(i, next)
+      changed = true
+      moving ||= next !== goal
+    }
+    if (changed) {
+      attr.needsUpdate = true
+    }
+    return moving
   }
 
 
@@ -354,9 +401,10 @@ const vertexShader = `
   attribute vec4 spriteCoord;
   attribute float shown;
   varying vec4 spriteCoordVarying;
+  varying float vShown;
   ${SAFE_LENGTH_GLSL}
   void main() {
-    if (shown < 0.5) {
+    if (shown <= 0.0) {
       // Hidden (labelDeclutter.js): off the clip volume.
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
       gl_PointSize = 0.0;
@@ -367,6 +415,7 @@ const vertexShader = `
     // Not normalize(): metres squared (rte.js SAFE_LENGTH_GLSL).
     mvPosition.xyz -= safeNormalize(mvPosition.xyz) * towardEye;
     spriteCoordVarying = spriteCoord;
+    vShown = shown;
     gl_PointSize = size[0];
     gl_Position = projectionMatrix * mvPosition;
   }
@@ -384,14 +433,16 @@ const rteVertexShader = `
   attribute vec3 positionLow;
   attribute float shown;
   varying vec4 spriteCoordVarying;
+  varying float vShown;
   void main() {
-    if (shown < 0.5) {
+    if (shown <= 0.0) {
       // Hidden (labelDeclutter.js): off the clip volume.
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
       gl_PointSize = 0.0;
       return;
     }
     spriteCoordVarying = spriteCoord;
+    vShown = shown;
     gl_PointSize = size[0];
     vec3 highDiff = position - uCamPosWorldHigh;
     vec3 lowDiff  = positionLow - uCamPosWorldLow;
@@ -402,7 +453,7 @@ const rteVertexShader = `
 #ifdef PIN_FAR
     // Past the far plane (a galaxy's megaparsecs): its direction only,
     // just inside the far plane, as Galaxies.js's points (clipToW1).
-    if (shown < 0.5 || !(gl_Position.w > 0.0)) {
+    if (shown <= 0.0 || !(gl_Position.w > 0.0)) {
       gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
       gl_PointSize = 0.0;
       return;
@@ -416,11 +467,14 @@ const rteVertexShader = `
 const fragmentShader = `
   uniform sampler2D map;
   varying vec4 spriteCoordVarying;
+  varying float vShown;
   void main() {
     vec2 spriteUV = vec2(
       spriteCoordVarying.x + spriteCoordVarying.z * gl_PointCoord.x,
       spriteCoordVarying.y + spriteCoordVarying.w * (1.0 - gl_PointCoord.y));
-    gl_FragColor = texture2D(map, spriteUV);
+    vec4 texel = texture2D(map, spriteUV);
+    // Faded in or out (fadeLabels): the shown attribute between 0 and 1.
+    gl_FragColor = vec4(texel.rgb, texel.a * vShown);
   }
 `
 
@@ -440,10 +494,11 @@ const surfaceVertexShader = `
   attribute vec4 spriteCoord;
   attribute float shown;
   varying vec4 spriteCoordVarying;
+  varying float vShown;
   varying float vVisible;
   ${SAFE_LENGTH_GLSL}
   void main() {
-    if (shown < 0.5) {
+    if (shown <= 0.0) {
       // Hidden (labelDeclutter.js): off the clip volume.
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
       gl_PointSize = 0.0;
@@ -458,6 +513,7 @@ const surfaceVertexShader = `
     vec3 viewDir = safeNormalize(-mvPosition.xyz);
     vVisible = dot(normalView, viewDir) > 0.0 ? 1.0 : 0.0;
     spriteCoordVarying = spriteCoord;
+    vShown = shown;
     gl_PointSize = size[0];
     gl_Position = projectionMatrix * mvPosition;
   }
@@ -468,11 +524,14 @@ const surfaceFragmentShader = `
   uniform sampler2D map;
   varying vec4 spriteCoordVarying;
   varying float vVisible;
+  varying float vShown;
   void main() {
     if (vVisible < 0.5) discard;
     vec2 spriteUV = vec2(
       spriteCoordVarying.x + spriteCoordVarying.z * gl_PointCoord.x,
       spriteCoordVarying.y + spriteCoordVarying.w * (1.0 - gl_PointCoord.y));
-    gl_FragColor = texture2D(map, spriteUV);
+    vec4 texel = texture2D(map, spriteUV);
+    // Faded in or out (fadeLabels): the shown attribute between 0 and 1.
+    gl_FragColor = vec4(texel.rgb, texel.a * vShown);
   }
 `

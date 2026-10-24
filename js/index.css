@@ -70,7 +70,7 @@ body {
    (public/index.html), and the load's reveal takes the class off, unless the
    link has 'v' off.  Once faded out, Celestiary._setNav takes the panels out
    of layout. */
-#nav-id, #top-right, #widgets-drawer, #widgets-dock, #cesium-credits {
+#nav-id, #top-right, #widgets-drawer, #widgets-dock, #cesium-credits, #phone-dock {
   transition: opacity var(--fade-ms) var(--fade-ease);
 }
 
@@ -78,7 +78,8 @@ html.chrome-hidden #nav-id,
 html.chrome-hidden #top-right,
 html.chrome-hidden #widgets-drawer,
 html.chrome-hidden #widgets-dock,
-html.chrome-hidden #cesium-credits {
+html.chrome-hidden #cesium-credits,
+html.chrome-hidden #phone-dock {
   opacity: 0;
   pointer-events: none;
 }
@@ -495,12 +496,14 @@ button {
 }
 
 .info-section-title {
+  flex: none;
   font-size: 0.95rem;
   font-weight: 500;
   color: var(--ink);
 }
 
 .info-peek {
+  min-width: 0;
   overflow: hidden;
   font-family: var(--font-mono);
   font-size: 0.72rem;
@@ -595,7 +598,10 @@ button {
 }
 
 .periodic-family,
-.periodic-frame {
+.periodic-frame,
+.periodic-manifolds,
+.craft-flight,
+.population-group {
   padding: 1px var(--space-10);
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
@@ -606,22 +612,124 @@ button {
 }
 
 .periodic-family:hover,
-.periodic-frame:hover {
+.periodic-frame:hover,
+.periodic-manifolds:hover,
+.craft-flight:hover,
+.population-group:hover {
   border-color: var(--line-accent);
   color: var(--ink);
 }
 
 .periodic-family:focus-visible,
-.periodic-frame:focus-visible {
+.periodic-frame:focus-visible,
+.periodic-manifolds:focus-visible,
+.craft-flight:focus-visible,
+.population-group:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
 .periodic-family.on,
-.periodic-frame.on {
+.periodic-frame.on,
+.periodic-manifolds.on,
+.craft-flight.on,
+.population-group.on {
   border-color: var(--line-accent);
   background: var(--accent-fill);
   color: var(--ink);
+}
+
+/* A population's group switch: its colour, then its name and count
+   (ControlPanel.populationSectionHtml). */
+.population-dot {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: var(--space-4);
+  border-radius: 50%;
+  vertical-align: 0.05em;
+}
+
+/* Its search: the main search's matching, scoped to the population
+   (ControlPanel.populationResultsHtml). */
+.population-search {
+  margin: var(--space-4) var(--space-16) var(--space-6);
+}
+
+.population-search input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.population-search input:focus {
+  outline: none;
+  border-color: var(--line-accent);
+}
+
+.population-results {
+  max-height: 12em;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.population-result {
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-chip);
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.population-result.active,
+.population-result:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.population-result.is-none {
+  color: var(--ink-4);
+  cursor: default;
+}
+
+/* Its names slider, as the orbit diagrams' far-side slider; and a counted
+   group's slider, how many of it show. */
+.population-labels,
+.population-count {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: var(--space-4) var(--space-16) var(--space-6);
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.population-labels input,
+.population-count input {
+  flex: 1;
+  max-width: 10em;
+  accent-color: var(--accent);
+}
+
+.population-labels-value,
+.population-count-value {
+  min-width: 3em;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+/* A craft flown: its facts, under its switch (ControlPanel.craftHtml). */
+.craft-facts {
+  flex-basis: 100%;
+  color: var(--ink-3);
 }
 
 /* A body's system: chips that fly there. */
@@ -665,7 +773,7 @@ button {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: var(--sheet-height, 0px);
+    bottom: calc(var(--sheet-height, 0px) + var(--phone-dock-height, 0px));
     z-index: 2;
     max-height: none;
     height: calc(var(--sheet-peek) + env(safe-area-inset-bottom, 0px));
@@ -737,6 +845,150 @@ button {
   html.info-raised #top-right {
     visibility: hidden;
   }
+}
+
+/* The phone dock (ui/PhoneDock.jsx; design/UI.md "Phones: the dock"): one
+   bar of controls along the bottom, each opening its panel above it. */
+#phone-dock {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  color: var(--ink);
+  font-family: var(--font-ui);
+}
+
+.dock-bar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  box-sizing: border-box;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4) env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.dock-slot {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 52px;
+  padding: var(--space-2) 0;
+  color: var(--ink-3);
+}
+
+.dock-button {
+  border: none;
+  border-radius: var(--radius-card);
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* The dock marks what's active itself: no flash of the browser's own. */
+#phone-dock button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dock-button.active {
+  color: var(--accent-soft);
+}
+
+.dock-button.active svg {
+  border-radius: var(--radius-pill);
+  background: var(--accent-fill);
+  box-shadow: 0 0 0 4px var(--accent-fill);
+}
+
+.dock-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* The AR slot holds ARButton's own icon button, without its padding. */
+.dock-slot .MuiIconButton-root {
+  padding: 0;
+  color: inherit;
+}
+
+.dock-label {
+  overflow: hidden;
+  max-width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dock-panel {
+  display: flex;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: var(--space-12) var(--space-16);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.dock-panel #time-id {
+  text-align: center;
+}
+
+.dock-panel #date-id {
+  font-family: var(--font-mono);
+  font-size: 0.86rem !important;
+  text-align: center !important;
+}
+
+.dock-panel #time-scale-id {
+  margin: var(--space-2) 0 var(--space-6);
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.dock-more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  width: 100%;
+}
+
+.dock-more-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+}
+
+.dock-more-label {
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.dock-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-14);
+  border: 1px solid var(--line-accent);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.dock-pill:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

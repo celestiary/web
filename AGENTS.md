@@ -27,6 +27,7 @@ tried and dropped.
 | Rendering, overlays and the `v` visibility groups | DESIGN.md: [rendering techniques](DESIGN.md#rendering-techniques), [overlays & visibility groups](DESIGN.md#overlays--visibility-groups) |
 | Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [parity check](CESIUM.md#parity-check), [follow-ups](CESIUM.md#follow-ups) |
 | Changing Cesium itself: the fork (celestiary/cesium), the patches in `patches/`, upstreaming | [CESIUM.md, patching Cesium](CESIUM.md#patching-cesium) |
+| Slop New York at Manhattan in Earth's Cesium layer (the layers control's *New York (3D city)*, `layers:nyc`, `?nyc=1`): the nested NetGL chain, Cesium's external renderers, the city's colour contract | [CESIUM.md, New York](CESIUM.md#new-york) |
 | The Sun's activity by date, spots, flares, prominences, corona, CMEs, eclipses, glare, solar wind | [js/scene/Sun.md](js/scene/Sun.md); the photosphere and every star: [js/scene/Stars.md](js/scene/Stars.md) |
 | Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
 | The HDR pipeline: the scene buffer, units, the one tone map, display-referred materials | [js/scene/HDR.md](js/scene/HDR.md); DESIGN.md [HDR pipeline](DESIGN.md#hdr-pipeline) |
@@ -39,8 +40,13 @@ tried and dropped.
 | The interface's look: the design system, its tokens, the info panel's tiers, the phone sheet, and the redesign's phases | [design/UI.md](design/UI.md); DESIGN.md [the info panel](DESIGN.md#the-info-panel) |
 | Search | [js/search/DESIGN.md](js/search/DESIGN.md) |
 | Lagrange points, Hill spheres, synchronous orbits (every pair), orbital regimes (LEO, MEO, GPS, Molniya, sun-synchronous, cislunar space), three-body orbits (halo, Lyapunov, DRO, NRHO; the CR3BP), and the rest of #272's orbital structure | [js/scene/Lagrange.md](js/scene/Lagrange.md); DESIGN.md [orbital elements](DESIGN.md#orbital-elements) |
+| A craft's integrator (#11): the force model on the ephemerides, the integrators and their energy drift, Lambert, the transfer to the Moon, the `craft:` flights | [js/scene/Craft.md](js/scene/Craft.md) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Earth satellites: CelesTrak's GP data, SGP4, the TEME frame, old elements, targeting and riding one | [js/scene/satellites/Satellites.md](js/scene/satellites/Satellites.md) |
+| The space networks: Starlink's whole constellation, Iridium and its crosslinks, the Deep Space Network and DSN Now's live links; the compact elements, the propagation in slices | [js/scene/networks/Networks.md](js/scene/networks/Networks.md) |
+| Layer mode: celestiary's orbits (satellites, the networks) as a NetGL guest page (`layer.html`) in another app's globe; its contract (view, time, anchors, origins) and the two-origin check host (`yarn layer-host`) | [design/LayerMode.md](design/LayerMode.md) |
+| Populations round a body (satellites, orbiters, the Deep Space Network's): groups, the names budget, the panel's section, the `pop:` token, adding one | [js/scene/population/Population.md](js/scene/population/Population.md) |
+| 3D models (glTF, `loadModel`), spacecraft at their JPL Horizons positions (Webb), their sources and licences | [js/scene/models.md](js/scene/models.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
 | Gaia's stars and the point-population engine (tiles, budget, epoch, photometry, merge, rebuilding) | [js/scene/Gaia.md](js/scene/Gaia.md) |
 | The Milky Way: its structural model, its light in exposure units, the march, the meter's galaxy anchor | [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
@@ -81,6 +87,11 @@ tried and dropped.
     real clock. A test that depends on where the tour or the bodies are
     pins it with `setSystemTime` (bun:test) and resets it after, or it
     passes at some hours and fails at others.
+  - A test that counts what a load fetches awaits the load's promise
+    (`scene._satellitesPending`, `scene._networksPending[key]`), not a
+    fixed sleep: those loads are a dynamic import first, and under a busy
+    machine the import outlasted a 20 ms wait and its fetch was counted in
+    the next test (`Celestiary.test.js`, "what a load fetches").
   - Keep DOM work (image loads, element creation) out of synchronous
     paths that tests drive, such as `Scene.setTarget`. Defer it to the
     animation loop: `preAnimCb` on a scene node runs every frame.
@@ -113,6 +124,11 @@ tried and dropped.
     `c.time` (`setTime(ms)`, `simTimeJulianDay()`).
   - Read state with `page.evaluate` rather than inferring it from
     pixels.
+  - Open a body other than the Sun by its path (`#earth`) and the bodies can
+    load out of order on a local `python3 -m http.server` build ("No parent
+    obj ... for earth", on main too, 2026-10-23), and the reveal never ends.
+    Open `#sun`, wait for `c._reveal.done`, then `c.scene.setTarget('earth')`
+    and `c.scene.goTo()`, and wait for `c.shared.targets.tween` to be null.
   - Call the function under test directly (e.g.
     `c.ui._applyAsymptoticZoom`) instead of replaying dozens of wheel
     events: SwiftShader is slow, and a screenshot of a landed view can
@@ -163,6 +179,15 @@ tried and dropped.
     `galaxyModel.js` `integrateRay`), iterate on its look with a CPU
     render of the mirror in bun, tone-mapped with `hdr.js` `neutral`: a
     200 px frame takes seconds, against minutes through SwiftShader.
+- **Layer mode's checks run on two origins:** `yarn build`, then `yarn
+  layer-host` (guest `http://127.0.0.1:5480`, host
+  `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read
+  `window.hostState` (frames, the guest's status and hello, the anchors,
+  `issErrorKm` against satellite.js's own ECF, the guest's call counts:
+  it must make no `clear`), and the canvas with `toDataURL` after
+  `window.hostFrame()` (the host keeps its drawing buffer).  Pass `t=` to pin
+  the time; the DSN's links show only within an hour of now
+  ([design/LayerMode.md](design/LayerMode.md#status)).
 - **Earth's clouds load from NASA GIBS** a second after the date settles
   (js/scene/Planet.md#clouds). Wait on
   `c.ui.sceneManager.objects.earth.clouds.userData.map.status`
@@ -229,6 +254,17 @@ tried and dropped.
   *off*, as `a`, `l`, `p`, `o` turn the overlays off. Harnesses that hide
   the overlays with `s=alpoU…` hide the galaxy too; use `s=alpo`, and add
   `G` to hide the galaxies' names (on by default, shown by magnitude).
+- **New York's layer headless** (CESIUM.md [New York](CESIUM.md#new-york)):
+  open the view with `;layers:nyc` (or click the layers control's switch,
+  `[data-testid=layers-button-new-york-switch] input`) and
+  `?nycGuest=http://localhost:<port>/` serving slop-newyork's checkout; a
+  cross-origin module needs `access-control-allow-origin`, which
+  `python3 -m http.server` doesn't send, so answer it in `page.route` through
+  `route.fetch`.  Low over the ground Earth's layer stays warming on
+  SwiftShader: set `c.ui.layers.bodies.earth.shown = true` to draw it.  Pause
+  the clock (`;time:pause`): running, the view drifted off the island (the
+  rewritten link's longitude moved 0.2° west in 45 s), and a city out of view never finishes its staged set-up (it replays only
+  in frames that draw it).  The city takes 2.5 to 3.5 minutes at 800x500.
 - **Cesium is patched on install** (`patches/`, applied by patch-package
   from `postinstall`; [CESIUM.md](CESIUM.md#patching-cesium)).  A fix to
   Cesium goes on a branch of celestiary/cesium with its Cesium specs, then
@@ -361,6 +397,14 @@ tried and dropped.
     group at most once every two hours: CelesTrak blocks clients that ask
     more.  Horizons takes a TLE too (`COMMAND='TLE'`, `TLE=` the lines),
     which `tools/satellites/fetchHorizons.mjs` uses to check the frame.
+    `yarn networks` (Starlink's and Iridium's snapshots,
+    [Networks.md](js/scene/networks/Networks.md#the-data)) asks the same
+    way: pass `--cache DIR` and `--only` so a rerun asks for nothing it has.
+  - `eyes.nasa.gov` (NASA's DSN Now: `config.xml` for `yarn networks`, and
+    `dsn/data/dsn.xml`, the live feed the DSN overlay polls from the page,
+    CORS `*`).  A page in headless Chromium reaches it through the proxy
+    with the CA pinned, as below.  `deepspace.jpl.nasa.gov` (the DSN
+    handbook, 810-005, with each antenna's coordinates) is refused.
   - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
     `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
     [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).

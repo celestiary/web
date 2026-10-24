@@ -414,6 +414,51 @@ describe('night lights', () => {
   it('draw when the meter frames are unknown', () => {
     expect(new CesiumLayers({renderer: {toneMappingExposure: step * 0.4}})._lightsShow(body)).toBe(true)
   })
+
+  it('draw New York black, not hidden, so its buildings hide the lights under them', () => {
+    // Hidden, the globe's night imagery drew in the city's pixels (the day
+    // frame's stencil): Black Marble's texels as blocky blue bands on its
+    // facades at night's gain (CESIUM.md, "New York", the night's bands)
+    const renderer = {
+      toneMappingExposure: step * 1e3,
+      setRenderTarget() {},
+      getClearColor() {},
+      getClearAlpha: () => 1,
+      setClearColor() {},
+      clear() {},
+      resetState() {},
+      render() {},
+    }
+    const L = new CesiumLayers({renderer, camera: new PerspectiveCamera(), isMeterFrame: () => true})
+    const seen = []
+    const city = {
+      renderer: {show: true},
+      occluding: false,
+      setShown() {
+        throw new Error('the city must stay drawn in the lights\' frame')
+      },
+      setOccluding(on) {
+        this.occluding = on
+      },
+    }
+    L._newYork = {status: 'ready', city}
+    const globe = {baseColor: null, enableLighting: true}
+    const night = {alpha: 1}
+    const widget = {
+      scene: {globe},
+      imageryLayers: {length: 1, get: () => night},
+      render: () => seen.push({shown: city.renderer.show, occluding: city.occluding}),
+    }
+    const lightsBody = {night, nightInView: true, widget, Cesium: {Color: {BLACK: 'black'}, Ellipsoid: {}},
+      link: {frame: (fn) => fn()}}
+    const node = new Object3D()
+    node.props = {radius: {scalar: 1}}
+    L.bodies.earth = lightsBody
+    L._drawNightLights({}, {}, 'earth', node)
+    expect(seen).toEqual([{shown: true, occluding: true}])
+    expect(city.occluding).toBe(false)
+    expect(city.renderer.show).toBe(true)
+  })
 })
 
 

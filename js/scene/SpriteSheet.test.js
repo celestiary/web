@@ -97,6 +97,28 @@ describe('SpriteSheet.setShown', () => {
     expect(sheet.shown).toEqual([1, 1, 1])
   })
 
+  it('fades a label in and out over its fade time, when it has one', () => {
+    const sheet = new SpriteSheet(2, 'Tycho')
+    sheet.add(0, 0, 0, 'a')
+    sheet.add(0, 0, 0, 'b')
+    const shown = sheet.compile().geometry.getAttribute('shown')
+    sheet.setFade(200)
+    expect(sheet.setShown(0, false)).toBe(true)
+    // Still drawn whole until stepped: hidden in the frame it was hidden
+    // only by its fade.
+    expect(Array.from(shown.array)).toEqual([1, 1])
+    expect(sheet.stepFade(50)).toBe(true)
+    expect(shown.getX(0)).toBeCloseTo(0.75, 6)
+    // Back on before it's gone: it eases back from where it got to.
+    sheet.setShown(0, true)
+    sheet.stepFade(50)
+    expect(shown.getX(0)).toBeCloseTo(1, 6)
+    sheet.setShown(1, false)
+    expect(sheet.stepFade(150)).toBe(true)
+    expect(sheet.stepFade(100)).toBe(false)
+    expect(Array.from(shown.array)).toEqual([1, 0])
+  })
+
   it('works before it is compiled', () => {
     const sheet = new SpriteSheet(2, 'Tycho')
     sheet.add(0, 0, 0, 'a')

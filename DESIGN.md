@@ -156,7 +156,7 @@ All celestial bodies (sun, planets, stars, asterisms) live under a single `World
 
 `Loader` loads the body descriptors recursively along a path (e.g. `sun/earth/moon`), each body's `system` after it. Each JSON descriptor includes:
 
-- `type`: `galaxy | stars | star | planet | moon`
+- `type`: `galaxy | stars | star | planet | moon | spacecraft` (a spacecraft: a glTF model on a trajectory table, [models.md](js/scene/models.md#a-spacecrafts-descriptor))
 - `radius`, `orbit`, `axialInclination`, `siderealRotationPeriod`
 - `system`: array of child names to load next
 - Optional: `texture_*`, `has_locations`
@@ -177,8 +177,12 @@ What the first load fetches is the page, its scripts, the bodies' bundle, the st
 | The places' index for the search, `data/places-index.json` (259 KB, 113 KB gzipped: every place's name, position, kind and altitude, without the tiers) | The first search with text in it | `search/placesIndex.js`, `PlacesProvider`; [js/search/DESIGN.md](js/search/DESIGN.md#places-in-the-index) |
 | SPARC's galaxies, `data/sparc/galaxies.json` (216 KB) | A view that could show one (the limiting magnitude reaching the brightest's 7.53 from the Solar System, or within a magnitude of it while the `G` labels are shown; or the camera 10,000 light-years from the Sun); a link to a galaxy; the first search; the `e` key | `Galaxies.ensureLoaded`, `galaxiesInView`, `Scene.loadGalaxies`; [Galaxies.md](js/scene/Galaxies.md#the-data) |
 | Earth's satellites, `data/satellites.json`, and their chunk (satellite.js's SGP4, 20 KB) | The camera within 1.5e9 m of Earth with the orbits (`o`) shown; a `sat:` link; the first search | `Scene.loadSatellites`, `_watchForSatellites`; [Satellites.md](js/scene/satellites/Satellites.md#what-loads-when) |
+| The space networks: Starlink (`data/networks/starlink.json`, 0.7 MB, 0.3 MB gzipped), Iridium, the DSN's configuration, and their code, in the satellites' chunk (55 KB minified with it; a chunk of their own split the first load's into two more requests, [Networks.md](js/scene/networks/Networks.md#what-loads-when)) | Each network's overlay first shown (Settings' Networks rows, `V`, a link's `s=S`, `I`, `D`); the DSN Now feed then every 5 s while shown | `Scene.loadNetwork`; [Networks.md](js/scene/networks/Networks.md#what-loads-when) |
 | The changelog, `data/changelog.json` (73 KB) | What's new opens, or the changelog tour starts; the button's "N new" is from the dates alone, `js/changelogStamp.json`, in the bundle | `Celestiary.loadNews`, `changelog.js` `stampEntries`; [what's new](#whats-new-and-the-changelog-tour) |
+| A spacecraft's trajectory table, `data/trajectories/<name>.json` (Webb's 99 KB, 43 KB gzipped) | With the ephemeris (the reveal, or the safety net after the first frame), or when the craft is targeted; the craft is hidden until it's in | `Animation.placeOnTrajectory`, `Spacecraft.loadTrajectory`; [models.md, positions](js/scene/models.md#positions) |
+| A spacecraft's model, `large/models/<name>/<name>.glb` (JWST's 2.38 MB), and `GLTFLoader` and the meshopt decoder (dynamic chunks) | The model's LOD first draws its near level (the craft over a couple of pixels), or the craft is targeted | `Spacecraft` `buildNear`, `model.js` `loadModel`; [models.md](js/scene/models.md#the-loader) |
 | The star catalogue's faint tiers, `large/stars/v1/packs/0.bin`-`11.bin` (97,867 stars, 1.65 MB gzipped, 12 requests) | The reveal (beside the ephemeris); before it, the packs a view wants to its limit plus a magnitude (a dark-adapted, deep or telescope link's field); a link or frame to a star not in yet, the first search, the human expansion; 3 s after the stars are drawn where nothing reveals the scene | `Stars.revealed` (which fades them in), `Stars.streamRest`, `Stars.whenStar`, `Stars.whenComplete`; [the star catalogue's tiers](#the-star-catalogues-tiers) |
+| Slop New York, only once switched on (the layers control's *New York (3D city)*, `layers:nyc`, `?nyc=1`): slop-newyork's 20 scripts from its site (2.3 MB, 0.7 MB gzipped) and three.js's dev build from jsDelivr (11 files, about 4 MB), by the page's import map | Switched on, with the camera within 60 km of Midtown and under 30 km and Earth's Cesium layer active (where the switch is offered); freed past 300 km or switched off | `CesiumLayers._updateNewYork`, `cesium/newYorkGuest.js`; [CESIUM.md, New York](CESIUM.md#new-york) |
 
 On the homepage that is the bodies' bundle where there were 31 descriptors, 24 place catalogues, the galaxies and the changelog: 57 requests and 1 MB of JSON before.  The homepage's tour doesn't fetch Earth's places as it passes (its overlays are held, so no labels could show) nor the galaxies (at the night side's deepest, 6.66, the brightest's point is under the limit and the labels are held).  Measured in the PR ([#258](https://github.com/celestiary/web/issues/258)).
 
@@ -565,6 +569,31 @@ it follows: [design/UI.md](design/UI.md)).
   full, the last measured, and jumped to the top).  Its height eases over 300 ms; on SwiftShader a busy main thread
   stalls the transition, so a probe that reads its height turns it off.
 
+### The phone dock
+
+At 600 px wide or less one bar along the bottom holds the controls that
+float down the right on a wider screen, and the settings buttons
+(`ui/PhoneDock.jsx`; design: [design/UI.md](design/UI.md#phones-the-dock)).
+
+- **Time** (labelled with the sim clock, or its rate, or Paused), **Layers**
+  (near a Cesium body), **AR**, **Apps** and **More** (drag mode, Settings,
+  About).  Each opens its panel above the bar, one at a time; a second tap
+  or a touch on the scene closes it.  While AR is on, its controls take the
+  panel and its button exits.
+- **Its height is shared**: `PhoneDock` measures the bar (it grows by the
+  safe-area inset) and publishes it to the store (`ChromeSlice`
+  `phoneDockHeight`), which `WidgetsDrawer` adds to the scene's bottom inset
+  and the drawer's sheet stands on; its whole height, an open panel too, goes
+  to `--phone-dock-height`, which the info sheet and Cesium's credits stand
+  on, so a panel lifts them rather than covering them (a panel's opening
+  doesn't resize the scene).
+- **Testable without a DOM**: `PhoneDock` reads the store and the router and
+  renders `DockView` from props, which `PhoneDock.test.jsx` renders with
+  `renderToStaticMarkup` (zustand serves a server render its initial state,
+  so a view of props is the way to test each state).
+- Chrome: held on the homepage, faded with the rest, hidden by `v`
+  (`_navDisplay`).  Desktop keeps the floating controls.
+
 ### Orbital elements
 
 A body's six Keplerian elements, listed in its info panel and drawn on its
@@ -750,8 +779,8 @@ Camera orientation and position are separated across three input modes, all accu
 | Input | Effect |
 |---|---|
 | Scroll wheel | Zoom (TrackballControls, asymptotic near surface) |
-| Mouse drag | Free look — pitch (up/down) and yaw (left/right) around camera's local axes, slower the narrower the field of view ([FOV-scaled](#fov-scaled-turning)) |
-| Option+drag | Orbit — rotates camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) and the narrower the field of view ([FOV-scaled](#fov-scaled-turning)) |
+| Mouse drag | By the drag mode (the toggle, or `m`). **Orbit** rotates the camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) and the narrower the field of view ([FOV-scaled](#fov-scaled-turning)). **Free look** (pan) pitches (up/down) and yaws (left/right) around the camera's local axes, slower the narrower the field of view.  The mode is the user's: going to a body sets orbit, landing sets free look, and nothing switches it by altitude (an automatic switch near the ground, from before the proximity scale, surprised people and was removed) |
+| Option+drag | The other mode, for that drag |
 | ↑ / ↓ arrow keys (hold) | Pitch camera nose up/down, slower the narrower the field of view |
 | ← / → arrow keys (hold) | Roll camera left/right (while tracking too); not slowed by the field of view |
 | `t` | Toggle continuous tracking: the target stays centred every frame, following a place as its body turns, and the roll stays yours ([the target](#the-target)).  "Tracking on" or "off" shows on the readout, and it is a checkbox in Settings |
@@ -970,8 +999,9 @@ One target, shown and used everywhere: what the breadcrumb shows, what the
 link's path names, what `c` faces, `g` goes to and `t` tracks.  It is a body,
 a place on one, a catalogue star, an asterism, one of SPARC's galaxies
 (`{kind: 'galaxy', galaxy, name}`, [Galaxies.md](js/scene/Galaxies.md)) or an
-Earth satellite (`{kind: 'satellite', id, name, body: 'earth'}`, Earth the
-`obj` as for a place: [Satellites.md](js/scene/satellites/Satellites.md#in-the-scene)), and **`Scene.setTarget` is
+object of a body's population, an Earth satellite first (`{kind: 'satellite',
+id, name, body}`, the body the `obj` as for a place:
+[Population.md](js/scene/population/Population.md)), and **`Scene.setTarget` is
 the only way it changes**: a click on a label, a pick in the search, Look
 at, Go, the keys (`h`, `u`, `0`-`9`), `Scene.goTo` and `Scene.land` (each
 makes where it went the target; a landing at a place keeps the place), and
@@ -1216,6 +1246,12 @@ scene render target through a stencil of the Earth's silhouette
 globe sits and is lit exactly where celestiary's would be.  Design, data
 sources and phases: [CESIUM.md](CESIUM.md).
 
+Over Manhattan, with Earth's Cesium layer active, the same control's panel
+adds a switch, *New York (3D city)*: an optional layer, Slop New York's
+three.js city drawn inside Cesium's frame, off by default and loaded only
+when switched on ([CESIUM.md, New York](CESIUM.md#new-york); its permalink
+token, design/URLs.md [layers token](design/URLs.md#layers-token)).
+
 ## Overlays & visibility groups
 
 Every visual feature in the app must opt into one of two top-level
@@ -1236,7 +1272,10 @@ Each scene-annotation feature also has its OWN scoped lowercase toggle
 (`a` asterisms, `p` planet+moon+place labels, `s` star labels, `e` galaxy
 labels, `E` globular-cluster labels, `o` orbits, `;` equatorial grid, `x`
 human expansion lines, etc.).  `V` is the union
-of all the lowercase scene-annotation toggles.
+of all the lowercase scene-annotation toggles.  The space networks (Starlink,
+Iridium, the Deep Space Network: [Networks.md](js/scene/networks/Networks.md))
+are three overlays of their own (settings `S`, `I`, `D`), toggled from
+Settings' Networks rows rather than keys, and in `V` too.
 
 **When adding a new visual feature, decide which group it belongs in and
 wire it through the corresponding toggle method.**  Surface place labels,
@@ -1260,7 +1299,9 @@ One helper, `js/scene/fade.js`:
   ([Lagrange.md](js/scene/Lagrange.md)),
   `p` bodies' and places' names and the
   lat/lng marker, `l` star names, `a` asterisms, `e` `c` `g` the grids,
-  `G` galaxies' names, `x` the expansion lines).  Its opacity is
+  `G` galaxies' names, `x` the expansion lines, and the space networks
+  `S` Starlink, `I` Iridium, `D` the Deep Space Network,
+  [Networks.md](js/scene/networks/Networks.md)).  Its opacity is
   smoothstep-eased over `FADE_MS` (400 ms) and lives in one shared uniform,
   `uFade`.
 - **The group's materials multiply by it.**  `fadeMaterial` wraps a
@@ -1470,10 +1511,12 @@ State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
   (`--dock-width`), so it never covers the scene; an open drawer sits left
   of it.
 - **Phones** (`useIsMobile`, 600 px wide or less).  The open drawer is a
-  sheet over the bottom half of the screen instead, and the scene shrinks
-  to the half above it (`setInsets`' bottom), so an app's effects show
-  while it's used.  The bottom controls move up above the sheet
-  (`--sheet-height`).
+  sheet over the bottom half of the screen instead, on the phone dock's bar
+  ([the phone dock](#the-phone-dock)), and the scene shrinks to the part
+  above both (`setInsets`' bottom: the sheet and the store's
+  `phoneDockHeight`), so an app's effects show while it's used.  The Apps
+  button in the dock opens it; a pinned app's side dock stops above the
+  bar.
 - **Sizing.**  `Celestiary` owns the scene's size: the window less the
   dock and sheet, redone on every resize (a phone rotating, its browser
   bars coming and going).  `ThreeUI.onResize` reads the container's size,
@@ -1617,11 +1660,16 @@ and the provider extension contract.
 | `js/scene/orbitDiagram.js` | The diagram of an orbit's elements, each lit on its own; the app's and the guide's ([orbital elements](#orbital-elements)) |
 | `js/scene/lagrange.js` | A pair's Lagrange points, the secondary's Hill radius and synchronous orbit ([Lagrange.md](js/scene/Lagrange.md)) |
 | `js/scene/LagrangeMarks.js` | The target's pairs' points, Hill spheres and synchronous orbits, drawn in the orbits group ([Lagrange.md](js/scene/Lagrange.md)) |
-| `js/scene/regimes.js` | A body's orbital regimes: Earth's shells, boundaries and orbit families, sun-synchronous orbits ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
-| `js/scene/RegimeMarks.js` | The target's regimes, drawn in its equator in the orbits group ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
-| `js/scene/satellites/` | Earth's satellites: CelesTrak's GP elements (`public/data/satellites.json`) by SGP4 (satellite.js), TEME to Earth's equator under its planetTilt, drawn in the orbits group, targeted as `{kind: 'satellite'}`, gone to and ridden ([Satellites.md](js/scene/satellites/Satellites.md)) |
+| `js/scene/regimes.js` | A body's orbital regimes: Earth's shells, boundaries and orbit families, sun-synchronous orbits; the Moon's low, frozen and elliptical orbits and the ELFOs' frozen condition ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes), [near the Moon](js/scene/Lagrange.md#near-the-moon)) |
+| `js/scene/RegimeMarks.js` | The target's regimes, drawn in its equator in the orbits group; low orbits labelled at their point nearest the eye ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
+| `js/scene/population/` | A population round a body: points by group, names by a budget, group switches, target nodes, the panel's section and the `pop:` token; a subclass says where a record is (`positionAt`) ([Population.md](js/scene/population/Population.md)) |
+| `js/scene/satellites/` | Earth's satellites (a population): CelesTrak's GP elements (`public/data/satellites.json`) by SGP4 (satellite.js), TEME to Earth's equator under its planetTilt, drawn in the orbits group, targeted as `{kind: 'satellite'}`, gone to and ridden ([Satellites.md](js/scene/satellites/Satellites.md)) |
+| `js/scene/networks/` | The space networks as overlays: Starlink's whole constellation and Iridium NEXT by SGP4 in slices with the in-between carried on the GPU (`Constellation.js`), Iridium's planes and crosslinks (`iridium.js`), and the Deep Space Network's dishes and live links from DSN Now (`dsn.js`, `DeepSpaceNetwork.js`) ([Networks.md](js/scene/networks/Networks.md)) |
+| `js/layer/`, `public/layer.html` | Layer mode: the orbits and networks as a NetGL guest page in a host app's globe, its own esbuild entry and budget (`LAYER_BUDGET`), with the host's camera, clock and depth, publishing anchors ([design/LayerMode.md](design/LayerMode.md)) |
 | `js/scene/cr3bp.js` | The circular restricted three-body problem: equations, an integrator with the state-transition matrix, the correction that closes a symmetric orbit ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
 | `js/scene/periodicOrbits.js` | A pair's three-body families (Lyapunov, halo, DRO, the 9:2 NRHO) from their first guesses, sampled and swept out in space ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
+| `js/scene/craft/` | A craft integrated among the bodies on their ephemerides: the sampled ephemeris, the force model, adaptive and symplectic integrators, Lambert, a targeted transfer to the Moon, the flights offered and their drawing ([Craft.md](js/scene/Craft.md)) |
+| `js/scene/manifolds.js` | The stable and unstable invariant manifolds of a Lyapunov or halo orbit, from its monodromy matrix's eigenvectors ([Lagrange.md, manifolds](js/scene/Lagrange.md#manifolds)) |
 | `js/scene/overlayMarks.js` | What the marks of orbital space share: unit rings and ellipses, labels, screen sizes, a sphere's outline as seen |
 | `js/scene/iauRotation.js` | IAU WGCCRE rotation models: pole, prime meridian, body orientation; Jupiter's System II cloud texture turn. Data in `iauRotation.json` (`tools/iau/pckRotation.mjs`) |
 | `js/scene/orbitPath.js` | Orbit lines sampled from the planets' and the Moon's ephemerides, and their budgeted rebuilds |
@@ -1630,6 +1678,10 @@ and the provider extension contract.
 | `js/scene/StellarFrame.js` | Parent of the J2000 catalogues: precesses them to the simulation date |
 | `js/scene/rte.js` | Relative-To-Eye camera uniforms in an object's own frame |
 | `js/scene/Planet.js` | Planet/moon scene graph construction |
+| `js/scene/Spacecraft.js` | A spacecraft: its model at its place on a trajectory table, turned to the Sun ([models.md](js/scene/models.md)) |
+| `js/scene/modelOccluder.js` | A model's silhouette against the Sun's disc: its triangles in a voxel grid, and the share of the disc they hide ([models.md, in front of the Sun](js/scene/models.md#in-front-of-the-sun)) |
+| `js/scene/model.js` | `loadModel`: glTF models, lazily loaded, metres, lit by the Sun ([models.md, the loader](js/scene/models.md#the-loader)) |
+| `js/scene/trajectory.js` | A spacecraft's JPL Horizons table, interpolated (cubic Hermite) and taken to the scene's frame ([models.md, positions](js/scene/models.md#positions)) |
 | `js/scene/sharedImage.js` | One fetch of an image for every consumer: the surface's `<img>`, the clouds' pixels, Cesium's `blob:` URL (Earth's month of Blue Marble; [Planet.md](js/scene/Planet.md#one-fetch-of-the-months-blue-marble)) |
 | `js/scene/clouds/` | Earth's clouds: `cloudSource.js` (date to GIBS layer, unmixing; pure), `cloudDay.js` (a day built whole, the day to show, the fade at ±180°; pure but for the injected fetch), `CloudMap.js` (loading, the coverage texture; the bundled `earth_atmos.jpg` only when a day needs it, a 128 KB copy for the polar gaps, `tools/clouds/bundledFill.py`), `CloudShell.js` (the shell and its shader); up close, `CloudVolume.js` (the ray-marched layer, its target and history), `cloudPhysics.js` (the model: extinction by cloud type, the delta-Eddington slab, the bodies' parameters; pure), `cloudNoise.js` (tiling Perlin-Worley; pure), `cloudPhase.earth.json` (the droplets' Mie phase function, from `tools/clouds/miePhase.mjs`) ([atmos/clouds.md](js/scene/atmos/clouds.md)) |
 | `js/scene/farPoint.js` | A body's far point: its mesh range (and `FovLOD`, which scales it by the FOV), colour, size and depth state |

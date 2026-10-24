@@ -400,6 +400,47 @@ function setQuad(geom) {
 }
 
 
+/**
+ * Rewrite a newWideLines mesh's segments in place, for lines that move
+ * (the Iridium links, the DSN's beams): the first `count` instances, up to
+ * the mesh's size.  Not for a sorted mesh (its order is the master's).
+ *
+ * @param {Mesh} mesh From newWideLines, unsorted
+ * @param {object} segments Columns as newWideLines takes them: `start`,
+ *   `end` (3 a segment, metres) and `color` (3), and optionally `hop` (1)
+ * @param {number} count Segments to draw
+ */
+export function setWideLineSegments(mesh, {start, end, color, hop}, count) {
+  const geom = mesh.geometry
+  const at = geom.attributes
+  const n = Math.min(count, at.startHigh.count)
+  const sh = at.startHigh.array
+  const sl = at.startLow.array
+  const eh = at.endHigh.array
+  const el = at.endLow.array
+  for (let j = 0; j < n * 3; j++) {
+    sh[j] = start[j]
+    sl[j] = start[j] - sh[j]
+    eh[j] = end[j]
+    el[j] = end[j] - eh[j]
+    at.aColor.array[j] = color[j]
+  }
+  if (hop) {
+    for (let i = 0; i < n; i++) {
+      at.aHop.array[i] = hop[i]
+    }
+  }
+  if (n > 0) {
+    for (const key of ['startHigh', 'startLow', 'endHigh', 'endLow', 'aColor', 'aHop']) {
+      at[key].clearUpdateRanges()
+      at[key].addUpdateRange(0, n * at[key].itemSize)
+      at[key].needsUpdate = true
+    }
+  }
+  geom.instanceCount = n
+}
+
+
 /** @param {Mesh} mesh From newWideLines; frees its GPU buffers */
 export function disposeWideLines(mesh) {
   mesh.removeFromParent()

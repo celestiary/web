@@ -1270,8 +1270,17 @@ pipeline stall.  It alone set the 5th-percentile frame rate of 10-15.
   which doesn't wait.  WebGL updates a fence's status between tasks, so the
   soonest a read can be ready is the next frame.  The newest signalled
   read is copied out (`getBufferSubData`, `STREAM_READ` usage: Chrome
-  serves it from a shadow copy once the fence is seen signalled); older
-  signalled reads are dropped unread, since the GPU finishes in order.
+  serves it from a shadow copy once the fence is seen signalled).  Older
+  signalled reads are copied out too, into the same array, the newest last:
+  dropped unread, a buffer was written again before being read back, and
+  Chrome warned each time ("READ-usage buffer was written, then fenced, but
+  written again before being read back. This discarded the shadow copy"),
+  3-4 a second on the user's Mac with New York drawn (a GPU a few frames
+  behind, so two readings signalled at one poll), and then read that buffer
+  without its shadow copy.  And each buffer's storage is allocated at its
+  first read, not up front: allocated up front (a write, to Chrome), the
+  second and third buffers were fenced by the first read's fence before
+  their own first read wrote them, two warnings at every load.
 - **A ring of three buffers** (`METER_RING_SIZE`), so a reading may be up to
   three meterings (12 frames) late without a metering waiting on the one
   before.  With every buffer in flight the metering is skipped, never

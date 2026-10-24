@@ -76,13 +76,21 @@ export function visibleFraction(discRadius, occluders, limb = () => 1) {
  * @param {Array<number>} centre the occluder's
  * @param {number} radius the occluder's, in the same units as the positions
  * @returns {{separation: number, radius: number, distance: number}|null}
- *     null when it's behind the eye or the eye is inside it
+ *     null when it's behind the eye, or the eye is inside it with the disc
+ *     over its local horizontal
  */
 export function occluderSeen(eye, sunDir, centre, radius) {
   const v = [centre[0] - eye[0], centre[1] - eye[1], centre[2] - eye[2]]
   const distance = Math.hypot(...v)
   if (!(distance > radius)) {
-    return null
+    // The eye inside the body's sphere: Cesium's terrain under its datum
+    // (a shore 30 m under Earth's, the Dead Sea).  The body hides the whole
+    // disc when it's under the local horizontal there, as the atmosphere
+    // pass takes it from below the sphere (composition.md).  Taken as no
+    // occluder, the Sun 60° under the horizon at night lit its glare over
+    // the sky.
+    const up = -((v[0] * sunDir[0]) + (v[1] * sunDir[1]) + (v[2] * sunDir[2]))
+    return up < 0 ? {separation: 0, radius: Math.PI / 2, distance} : null
   }
   const along = ((v[0] * sunDir[0]) + (v[1] * sunDir[1]) + (v[2] * sunDir[2])) / distance
   if (along <= 0) {

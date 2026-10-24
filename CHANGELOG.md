@@ -46,11 +46,176 @@ screen could sit there for up to ten minutes, however often you reloaded. Now th
 new version and reloads once by itself. If that still doesn't load it, the page says so instead of
 spinning.
 
-- Date: 2026-10-23
+- Date: 2026-10-24
 - PR: [#290](https://github.com/celestiary/web/pull/290)
 - Permalink: none
 - Kind: fix
 
+### One bar of controls at the bottom of your phone
+
+On a phone, the buttons that used to stack down the right of the screen are now one bar along the
+bottom: the time (it shows the clock, or how fast time is running), map layers near Earth, the AR sky
+view, apps and a More button for settings. Each opens just above the bar, and the panel about what
+you're looking at sits on top of it, so nothing covers anything else.
+
+- Date: 2026-10-24
+- PR: [#289](https://github.com/celestiary/web/pull/289)
+- Issue: [#279](https://github.com/celestiary/web/issues/279)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
+### Dragging no longer changes what it does as you zoom in
+
+Close to a planet, dragging used to switch by itself from turning round the planet to looking
+around in place, with nothing to show it had. Now a drag does what the drag-mode switch says until
+you change it: it turns round a body you go to, and looks around once you land.
+
+- Date: 2026-10-24
+- Kind: fix
+- PR: [#289](https://github.com/celestiary/web/pull/289)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth)
+
+### No more speckled blue bands in the night air over ground below sea level
+
+Standing on Earth's ground where it lies below the globe's mean shape (Manhattan, the Netherlands, the
+Dead Sea), at night the air in front of the ground and the buildings no longer lets the Sun's light
+through in speckled blue bands.
+
+- Date: 2026-10-24
+- PR: [#287](https://github.com/celestiary/web/pull/287)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+- Kind: fix
+
+### The night sky stays dark on the shore
+
+On some of Earth's ground the night sky turned the orange of a sunset: at the water's edge in New
+York, or at the Dead Sea. The ground there lies a little below the height the app takes as Earth's
+surface, and from under that surface the Sun counted as visible at midnight, so its glare lit the
+sky. The Sun is now hidden whenever it's below the horizon, and the night sky is dark with its
+stars.
+
+- Date: 2026-10-24
+- Kind: fix
+- PR: [#298](https://github.com/celestiary/web/pull/298)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=alpoLF;time:pause,rate=-4096;info:closed)
+
+### Starlink, Iridium's crosslinks and the Deep Space Network's live links
+
+Three networks you can now turn on round Earth, in Settings under Networks: the whole Starlink
+constellation coloured by its shells; Iridium's 66 satellites in their six polar planes, with the
+links between them coming and going as they move; and NASA's Deep Space Network, its dishes in
+California, Spain and Australia with live beams out to the spacecraft they're talking to right
+now, out to Voyager 1, 172 AU away. Uplinks are orange, downlinks blue.
+
+- Date: 2026-10-23
+- PR: [#294](https://github.com/celestiary/web/pull/294)
+- Issue: [#50](https://github.com/celestiary/web/issues/50)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF)
+- Featured: yes
+
+### New York in 3D: Manhattan's streets and towers on Earth
+
+Come down over New York, within a few tens of kilometres of Manhattan and under 30 km up, open the
+layers button at the top right and switch on *New York (3D city)*. Slop New York, a 3D model of
+Manhattan's buildings, streets, parks and piers, builds in a few seconds and stands at its place on the
+globe, lit by the same Sun at the simulation's time and hazed by the same air. It stays off until you
+switch it on, since it's a big download (about 140 MB), and a link you share keeps it on. Its lights
+don't show at night yet.
+
+- Date: 2026-10-23
+- PR: [#287](https://github.com/celestiary/web/pull/287)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;time:pause;layers:nyc)
+- Featured: yes
+
+### All of Starlink joins the satellites, with a search, and you choose which to see
+
+All 11,116 Starlink satellites can now show round Earth, with a slider for how many, the first by
+serial number, from one to all; and Iridium's 80 in their polar planes. In Earth's panel, the
+Satellites section has a search that finds Earth's satellites alone, a switch for each kind
+(Starlink, Iridium, navigation, weather, the space stations...) and a slider for how many names to
+show. The names hold still as the satellites move, those behind Earth no longer crowd out those in
+front, and selecting one keeps its one name. A link keeps what you chose.
+
+- Date: 2026-10-23
+- Featured: yes
+- PR: [#292](https://github.com/celestiary/web/pull/292)
+- Issue: [#50](https://github.com/celestiary/web/issues/50)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116)
+
+### The slow way to the Moon, by way of the Sun
+
+The Earth's and the Moon's Craft sections now have a *ballistic lunar transfer*: the low-energy route
+NASA's GRAIL and CAPSTONE took. The craft goes out about four times the Moon's distance, where the Sun's
+pull bends its orbit round, and falls back three to four months later to meet the Moon almost at rest,
+needing far less fuel to stop there than a direct flight. Switch it on and the app flies the first one
+leaving from the clock's date, drawn with the craft where it is on that day.
+
+- Date: 2026-10-23
+- PR: [#295](https://github.com/celestiary/web/pull/295)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Epic: [#119](https://github.com/celestiary/web/issues/119) Flight simulation
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@86.7618,-11.4024,5.238672Gm;t=9833.335118jd;cq=-0.1126,0.6981,0.6981,0.1126;fov=45deg;s=alF;time:pause;craft:blt=9791.5)
+
+### The James Webb Space Telescope, where it really is
+
+Webb is now in the sky beside the Earth, drawn with NASA's own 3D model at its real size and lit by
+the Sun, its sunshield turned toward it. It follows JPL's record of its path, from 41 minutes after
+launch on Christmas Day 2021, out to its orbit around the Sun–Earth L2 point 1.5 million km beyond the
+Earth, and on along its planned path to October 2031. Search for "JWST" to fly there, zoom in to a few
+metres and orbit it; from behind its sunshield it eclipses the Sun. Outside those dates it isn't shown.
+
+- Date: 2026-10-23
+- PR: [#288](https://github.com/celestiary/web/pull/288)
+- Issue: [#25](https://github.com/celestiary/web/issues/25)
+- Epic: [#120](https://github.com/celestiary/web/issues/120) Missions and models
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/webb)
+
+### The Moon's frozen orbits: the few low orbits that last
+
+With the Moon selected, the orbits spacecraft use near it are drawn around it. Low lunar orbit is a
+thin shell. The four "frozen" inclinations, 27°, 50°, 76° and 86°, are where the pulls of the Moon's
+lumpy mass concentrations average out, so an orbit lasts for years. Also drawn are the Lunar
+Reconnaissance Orbiter's two orbits and a 30-hour elliptical frozen orbit that hangs over the south
+pole. The info panel explains why most low lunar orbits crash within weeks or months.
+
+- Date: 2026-10-23
+- PR: [#285](https://github.com/celestiary/web/pull/285)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause)
+- Featured: yes
+
+### Fly a spacecraft to the Moon
+
+The Earth's and the Moon's panels now have a Craft section: switch on *transfer to the Moon* and a
+spacecraft leaves a low orbit round the Earth that day, burns once, and coasts four and a half days to
+pass 100 km over the Moon. Its path is drawn with the craft where it is at the clock's time, and the
+panel gives its burn, how long it takes and what it would cost to stop at the Moon. Behind it is a new
+flight simulator: the craft is pulled by the Earth, the Moon and the Sun where the app draws them, and
+it flies a real spacecraft, NASA's TESS, to within a few hundred metres of where it really went.
+
+- Date: 2026-10-23
+- PR: [#293](https://github.com/celestiary/web/pull/293)
+- Issue: [#11](https://github.com/celestiary/web/issues/11)
+- Epic: [#119](https://github.com/celestiary/web/issues/119) Flight simulation
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5)
+- Featured: yes
+
+### The tubes that lead on and off halo orbits
+
+Switch on a halo or Lyapunov orbit around a Lagrange point, then its *Manifolds*, and you see
+the paths a spacecraft can drift along onto that orbit (green) or off it (red) without firing its
+engines. Together they form tubes that reach from the orbit toward the planet or moon at either end.
+Low-energy missions to the Moon and to the Sun–Earth Lagrange points follow these tubes. This works for
+every pair of bodies; around the Moon, Gateway's orbit gets none, because it is almost stable.
+
+- Date: 2026-10-23
+- PR: [#284](https://github.com/celestiary/web/pull/284)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@83.3877,58.4439,342.261098Mm;t=9791.8393jd;cq=-0.6779,-0.0549,-0.0248,0.7327;fov=45deg;s=F;periodic:manifolds,moon=l1l+l2l)
 ### Satellites round Earth: the ISS, GPS, the geostationary ring
 
 Near Earth, with the orbits on, about 450 real satellites now circle it where they are on the date:

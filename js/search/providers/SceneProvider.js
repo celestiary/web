@@ -9,12 +9,13 @@ const TYPE_TO_KIND = {
   star: 'star',
   planet: 'planet',
   moon: 'moon',
+  spacecraft: 'spacecraft',
 }
 
 
 /**
  * Provides SearchEntries for every body tracked by the Loader (galaxy,
- * sun, planets, moons).  The SceneProvider reads the original JSON
+ * sun, planets, moons, spacecraft).  The SceneProvider reads the original JSON
  * descriptors from `loader.loaded`; each descriptor's optional `aliases`
  * array contributes extra search tokens ("luna" → Moon, etc).
  */

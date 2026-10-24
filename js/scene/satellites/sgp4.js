@@ -49,7 +49,8 @@ const LOW_MEAN_MOTION = MIN_PER_DAY / 225
  * @property {number} inclination degrees
  * @property {number} eccentricity e
  * @property {number} windowDays how far from the epoch it's drawn
- * @property {object} satrec satellite.js's SGP4 state
+ * @property {object} satrec satellite.js's SGP4 state, made the first time
+ *   it's asked for: of Starlink's eleven thousand, only those drawn
  */
 
 
@@ -71,42 +72,67 @@ export function rowToOmm(row) {
 /**
  * @param {object} omm An OMM record, CelesTrak's JSON
  * @param {string} [group]
- * @returns {?SatRecord} null if SGP4 can't start from it
+ * @returns {?SatRecord} null if it has no epoch or no motion; SGP4's own
+ *   errors (a decayed orbit) show when it's propagated, as no position
  */
 export function newSatRecord(omm, group = '') {
-  const satrec = json2satrec(omm)
-  if (!satrec || satrec.error) {
+  const meanMotion = Number(omm.MEAN_MOTION)
+  const epochJd = epochToJd(omm.EPOCH)
+  if (!(meanMotion > 0) || !Number.isFinite(epochJd)) {
     return null
   }
-  const meanMotion = Number(omm.MEAN_MOTION)
-  return {
+  const rec = {
     id: Number(omm.NORAD_CAT_ID),
     name: String(omm.OBJECT_NAME),
     group,
     intlId: String(omm.OBJECT_ID ?? ''),
-    epochJd: satrec.jdsatepoch + (satrec.jdsatepochF ?? 0),
+    epochJd,
     meanMotion,
     inclination: Number(omm.INCLINATION),
     eccentricity: Number(omm.ECCENTRICITY),
     windowDays: meanMotion > LOW_MEAN_MOTION ? WINDOW_DAYS.low : WINDOW_DAYS.high,
-    satrec,
   }
+  let satrec = null
+  Object.defineProperty(rec, 'satrec', {get: () => (satrec ??= json2satrec(omm))})
+  return rec
+}
+
+
+/**
+ * @param {string} epoch OMM's, UTC, e.g. '2026-10-22T22:17:33.690624'
+ * @returns {number} Julian Day (UTC), to the microsecond; NaN if not a date
+ */
+export function epochToJd(epoch) {
+  const m = (/^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?/).exec(String(epoch ?? ''))
+  if (!m) {
+    return NaN
+  }
+  const ms = Date.parse(`${m[1]}Z`) + (Number(m[2] ?? 0) * 1e3)
+  return unixMsToJd(ms)
 }
 
 
 /**
  * The snapshot, parsed.
  *
- * @param {{rows: Array<Array>}} data public/data/satellites.json
+ * @param {{rows: Array<Array>, known?: object}} data public/data/satellites.json
  * @returns {Array<SatRecord>} in its order, those SGP4 can start from
  */
 export function parseCatalog(data) {
   const out = []
   for (const row of data?.rows ?? []) {
     const rec = newSatRecord(rowToOmm(row), row[2])
-    if (rec) {
-      out.push(rec)
+    if (!rec) {
+      continue
     }
+    // The snapshot's best known: the name people use, and their aliases.
+    const known = data.known?.[rec.id]
+    if (known) {
+      rec.known = true
+      rec.label = known.name
+      rec.aliases = known.aliases ?? []
+    }
+    out.push(rec)
   }
   return out
 }
@@ -142,16 +168,30 @@ export function inWindow(rec, jd) {
  * @returns {?{x: number, y: number, z: number}}
  */
 export function temePosition(rec, jd, anyDate = false) {
+  return temeState(rec, jd, anyDate)?.position ?? null
+}
+
+
+/**
+ * @param {SatRecord} rec
+ * @param {number} jd Julian Day (UTC)
+ * @param {boolean} [anyDate] past its window too
+ * @returns {?{position: object, velocity: object}} TEME, km and km/s; null
+ *   outside its window or where SGP4 fails
+ */
+export function temeState(rec, jd, anyDate = false) {
   if (!anyDate && !inWindow(rec, jd)) {
     return null
   }
-  const minutes = (jd - rec.epochJd) * MIN_PER_DAY
-  const pv = sgp4(rec.satrec, minutes)
+  const satrec = rec.satrec
+  // From SGP4's own epoch, which epochJd (for the window) matches to a ms.
+  const minutes = (jd - satrec.jdsatepoch - (satrec.jdsatepochF ?? 0)) * MIN_PER_DAY
+  const pv = sgp4(satrec, minutes)
   const p = pv?.position
-  if (!p || rec.satrec.error || !Number.isFinite(p.x)) {
+  if (!p || satrec.error || !Number.isFinite(p.x)) {
     return null
   }
-  return p
+  return pv
 }
 
 
