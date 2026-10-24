@@ -39,6 +39,18 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Star names only for the stars you can see
+
+A star's name now shows only while the star itself can be seen: under a city's sky just the few
+brightest, in daylight none, at a dark site many more. Every named star can be named, not only the
+few hundred before, and where names would crowd, the brighter star's shows. The brighter the star,
+the larger and brighter its name.
+
+- Date: 2026-10-24
+- Featured: yes
+- PR: [#302](https://github.com/celestiary/web/pull/302)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=apoLF;time:pause;info:closed)
+
 ### Satellites' names by distance: the near ones larger and brighter
 
 Each satellite's name is now sized and dimmed by how far it is from you, from the nearest name in

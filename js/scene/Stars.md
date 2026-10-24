@@ -308,7 +308,7 @@ Proxima and let it into Betelgeuse.
 
 A star's name shows while the star can be seen and the names are on (`l`):
 how many is decided by what's visible, then by the user's choice of
-magnitude, then by the declutter (the maintainer's rule, PR #301).
+magnitude, then by the declutter (the maintainer's rule, PR #302).
 
 - **Which have one:** every named star in `starnames.dat` (3,369), and the
   luminous unnamed by HIP number (`LUMINOUS_LABEL_ABS_MAG`), on one sheet
