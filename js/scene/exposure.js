@@ -156,8 +156,13 @@ export function easeExposure(current, goal, dtSeconds, tauSeconds = EXPOSURE_TAU
 }
 
 
-/** Adaptation time constant, seconds. */
-export const EXPOSURE_TAU_SECONDS = 0.5
+/**
+ * The exposure's own adaptation time constant, seconds: toward the
+ * target-keyed exposure between targets, and the meter's gain over it.
+ * The observer's (observer/instrument.js ADAPTATION), named here as the
+ * calibration is.
+ */
+export const EXPOSURE_TAU_SECONDS = NAKED_EYE.adaptation.exposureSeconds
 
 
 /**
@@ -734,13 +739,15 @@ export const METER_GAIN_MIN = 5e-6
  * The metered gain's adaptation time constants, seconds (log space): up,
  * as the eye adapts to the dark, slowly; down, to the light, fast, as a
  * camera's auto-exposure, so a planet come upon from a star field is
- * blown out for a second, not five.
+ * blown out for a fraction of a second, not five.  The observer's
+ * (observer/instrument.js ADAPTATION: 0.75 s and 0.15 s), named here as
+ * the calibration is.
  */
-export const METER_TAU_UP_SECONDS = 1.5
-export const METER_TAU_DOWN_SECONDS = 0.3
+export const METER_TAU_UP_SECONDS = NAKED_EYE.adaptation.upSeconds
+export const METER_TAU_DOWN_SECONDS = NAKED_EYE.adaptation.downSeconds
 /**
  * Frames between meterings.  Kept with the asynchronous readback (HDR.md,
- * "The meter's readback"): a reading a frame or two late is under a tenth
+ * "The meter's readback"): a reading a frame or two late is under a quarter
  * of the faster time constant, and a metering every frame would cost four
  * times the CPU (the sort of 1,024 pixels, the bodies in view) for a
  * curve that moves under 6% between meterings.
@@ -750,16 +757,18 @@ export const METER_EVERY_FRAMES = 4
 
 /**
  * The metered gain's step toward its goal (ThreeUi._updateExposure): eased
- * in log space, slowly up (METER_TAU_UP_SECONDS, the eye adapting to the
- * dark), fast down (METER_TAU_DOWN_SECONDS).
+ * in log space, slowly up (the instrument's `upSeconds`, the eye adapting
+ * to the dark), fast down (`downSeconds`).
  *
  * @param {number} gain The gain now
  * @param {number} goal What the meter last asked for
  * @param {number} dtSeconds Time since the last step
+ * @param {{upSeconds: number, downSeconds: number}} [adaptation] The
+ *   observer's (Instrument.adaptation): the naked eye's by default
  * @returns {number}
  */
-export function adaptMeterGain(gain, goal, dtSeconds) {
-  return easeExposure(gain, goal, dtSeconds, goal < gain ? METER_TAU_DOWN_SECONDS : METER_TAU_UP_SECONDS)
+export function adaptMeterGain(gain, goal, dtSeconds, adaptation = NAKED_EYE.adaptation) {
+  return easeExposure(gain, goal, dtSeconds, goal < gain ? adaptation.downSeconds : adaptation.upSeconds)
 }
 
 
@@ -775,7 +784,7 @@ export function adaptMeterGain(gain, goal, dtSeconds) {
  *
  * The meter can't find this in time by itself: the destination is a few
  * pixels across until the last few frames of the travel, and the gain
- * eases up with a time constant of 1.5 s (METER_TAU_UP_SECONDS), so a body
+ * eases up with a time constant of 0.75 s (METER_TAU_UP_SECONDS), so a body
  * reached from the Sun's stopped-down gain arrived dark (Mars at 1/30 of
  * its exposure) and one reached from a star field arrived blown out (Earth
  * at 1,760 times), and each took 1-2 s after arriving to settle.

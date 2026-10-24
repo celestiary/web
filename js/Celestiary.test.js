@@ -16,7 +16,7 @@ import {HOME_TOUR_START, HOME_TOUR_STILL_MS} from './homeTour.js'
 import {FLIGHT_EASE_IN_MS, NEAR_RADII} from './flight.js'
 import {planEarthPass} from './nightSide.js'
 import {formatNavMode} from './navMode.js'
-import {decodePermalink, encodePermalink, encodeSettings, SETTINGS_DEFAULTS} from './permalink.js'
+import {decodePermalink, encodePermalink, encodeSettings, pathFromFragment, SETTINGS_DEFAULTS} from './permalink.js'
 import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
 import * as Shared from './shared.js'
 import {_resetPlaces} from './scene/Places.js'
@@ -26,6 +26,12 @@ import {buildFromSource} from '../tools/stars/build.mjs'
 
 const EARTH_RADIUS = 6371000 // meters
 const J2000_JD = 2451545.0
+// The Earth card's view at a fixed date, as the card was before it opened
+// at `t=now`: the flights' date plans (ease, dip, unseen, start) are tested on it.
+const DATED_EARTH = Object.freeze({
+  id: 'earth',
+  link: 'sun/earth@-38.1501,-99.3434,12.104919Mm;t=9781.4376jd;cq=0.1302,-0.0725,0.0095,0.9888;fov=45deg;s=alpoF',
+})
 
 // Permalink values for the test scenario
 const PL = {
@@ -2162,11 +2168,19 @@ describe('the homepage', () => {
     const want = decodePermalink(link)
     const got = decodePermalink(app.permalink())
     expect(got.from ?? null).toEqual(want.from ?? null)
-    expect(got.d2000).toBeCloseTo(want.d2000, 3)
+    if (!want.now) {
+      expect(got.d2000).toBeCloseTo(want.d2000, 3)
+    }
     expect(got.lat).toBeCloseTo(want.lat, 3)
     expect(got.lng).toBeCloseTo(want.lng, 3)
     expect(got.alt / want.alt).toBeCloseTo(1, 4)
     const q = new Quaternion(want.quat.x, want.quat.y, want.quat.z, want.quat.w).normalize()
+    if (want.now) {
+      // A `t=now` link's cq is the body's: turned with it into the platform's.
+      const body = app.scene.objects[(want.from ?? pathFromFragment(link)).split('/').at(-1)]
+      const platform = app.ui.camera.platform.getWorldQuaternion(new Quaternion())
+      q.premultiply(body.getWorldQuaternion(new Quaternion())).premultiply(platform.invert())
+    }
     expect(Math.abs(q.dot(app.ui.camera.quaternion))).toBeGreaterThan(0.999999)
     expect(got.fov).toBeCloseTo(want.fov, 3)
   }
@@ -2174,7 +2188,7 @@ describe('the homepage', () => {
   it('a card flies to its link\'s view from the tour\'s, without a jump, and ends on the link\'s own restore', async () => {
     const app = await openHome()
     let t = run(app, 1000, 500)
-    const card = HOME_CARDS.find((c) => c.id === 'earth')
+    const card = DATED_EARTH
     // An hour before the card's date: near the Sun, a short change eases.
     app.time.setTime(linkMs(card.link) - 3600000)
     const before = app.ui.camera.getWorldPosition(new Vector3())
@@ -2244,10 +2258,74 @@ describe('the homepage', () => {
     expect(decodePermalink(global.location.hash.slice(1) || replaced.at(-1).url.slice(1)).path).toBe('sun/earth')
   })
 
-  it('a card\'s foreground fades out before anything in the scene changes, then the flight eases in', async () => {
+  it('the Earth card, at now, flies from the tour with no date change at all, facing Earth', async () => {
     const app = await openHome()
     let t = run(app, 1000, 500)
     const card = HOME_CARDS.find((c) => c.id === 'earth')
+    expect(decodePermalink(card.link).now).toBe(true)
+    // The tour runs on the real time.
+    expect(Math.abs(app.time.simTime - Date.now())).toBeLessThan(1000)
+    const sets = []
+    const setTime = app.time.setTime.bind(app.time)
+    app.time.setTime = (ms) => {
+      sets.push(ms)
+      setTime(ms)
+    }
+    app.openLink(card.link)
+    t = fadeOut(app, t + 16)
+    expect(app._flight.plan).toBe('none')
+    expect(app._flight.dest.timeMs).toBe(null)
+    const {t: landed, samples} = fly(app, t + 16)
+    t = landed
+    expect(app._flight).toBe(null)
+    // No date set, by the flight or the link's own restore; the clock runs
+    // on at the real time, one way.
+    expect(sets).toEqual([])
+    for (let i = 1; i < samples.length; i++) {
+      expect(samples[i].jd).toBeGreaterThanOrEqual(samples[i - 1].jd - 1e-9)
+      expect(samples[i].jd - samples[i - 1].jd).toBeLessThan(1 / 86400)
+    }
+    expect(Math.abs(app.time.simTime - Date.now())).toBeLessThan(1000)
+    expect(app.time.isPaused).toBe(false)
+    expect(app.time.timeScale).toBe(1)
+    expectView(app, card.link)
+    // The view keeps its ground at any hour: Earth at the middle of the frame.
+    const camera = app.ui.camera
+    const toEarth = app.scene.objects.earth.getWorldPosition(new Vector3()).sub(camera.getWorldPosition(new Vector3()))
+    const ahead = new Vector3(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(new Quaternion()))
+    expect(ahead.angleTo(toEarth) * 180 / Math.PI).toBeLessThan(0.1)
+    // Then no asterisms nor labels come in.
+    run(app, t, 1500)
+    for (const key of ['a', 'l', 'p', 'G', 'o']) {
+      expect(app.scene.getSetting(key)).toBe(false)
+      expect(app.scene.fades[key].shown).toBe(false)
+    }
+  })
+
+  it('the Earth card, at now, from a clock elsewhere sets the real time, and faces Earth at another hour', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const card = HOME_CARDS.find((c) => c.id === 'earth')
+    // A clock half a day and a month off the real time, as a dated stop leaves it.
+    app.time.setTime(Date.now() - (30.5 * 86400000))
+    app.openLink(card.link)
+    t = fadeOut(app, t + 16)
+    expect(typeof app._flight.dest.timeMs).toBe('number')
+    expect(Math.abs(app._flight.dest.timeMs - Date.now())).toBeLessThan(5000)
+    fly(app, t + 16)
+    expect(app._flight).toBe(null)
+    expect(Math.abs(app.time.simTime - Date.now())).toBeLessThan(1000)
+    expectView(app, card.link)
+    const camera = app.ui.camera
+    const toEarth = app.scene.objects.earth.getWorldPosition(new Vector3()).sub(camera.getWorldPosition(new Vector3()))
+    const ahead = new Vector3(0, 0, -1).applyQuaternion(camera.getWorldQuaternion(new Quaternion()))
+    expect(ahead.angleTo(toEarth) * 180 / Math.PI).toBeLessThan(0.1)
+  })
+
+  it('a card\'s foreground fades out before anything in the scene changes, then the flight eases in', async () => {
+    const app = await openHome()
+    let t = run(app, 1000, 500)
+    const card = DATED_EARTH
     app.time.setTime(linkMs(card.link) - 3600000)
     // Every call that changes the scene, and the foreground's phase then.
     const calls = []
@@ -2308,7 +2386,7 @@ describe('the homepage', () => {
   it('Esc in the fade stops it with nothing moved; another card in it is flown to instead; Back drops it', async () => {
     const app = await openHome()
     let t = run(app, 1000, 500)
-    const earth = HOME_CARDS.find((c) => c.id === 'earth')
+    const earth = DATED_EARTH
     const gaia = HOME_CARDS.find((c) => c.id === 'gaia')
     const at = app.ui.camera.getWorldPosition(new Vector3())
     app.openLink(earth.link)
@@ -2465,7 +2543,7 @@ describe('the homepage', () => {
       // Earth near and in view the whole way.
       app.tour.t = 34000
       t = run(app, t, 100)
-      const card = HOME_CARDS.find((c) => c.id === 'earth')
+      const card = DATED_EARTH
       app.time.setTime(linkMs(card.link) - (30 * 86400000))
       expect(app._nearestShownRadii()).toBeLessThan(NEAR_RADII)
       const fades = canvasFades(app)
@@ -2509,7 +2587,7 @@ describe('the homepage', () => {
     // Out among Gaia's stars.
     app.tour.t = 120000
     t = run(app, t, 100)
-    const card = HOME_CARDS.find((c) => c.id === 'earth')
+    const card = DATED_EARTH
     app.openLink(card.link)
     t = fadeOut(app, t + 16)
     expect(app._flight.plan).toBe('start')
@@ -2534,7 +2612,7 @@ describe('the homepage', () => {
   it('another card mid-flight flies on to it, in the first\'s place; Back drops a flight for the homepage', async () => {
     const app = await openHome()
     let t = run(app, 1000, 500)
-    const earth = HOME_CARDS.find((c) => c.id === 'earth')
+    const earth = DATED_EARTH
     const gaia = HOME_CARDS.find((c) => c.id === 'gaia')
     app.time.setTime(linkMs(earth.link))
     app.openLink(earth.link)
@@ -2701,7 +2779,7 @@ describe('the homepage', () => {
 
   // ---- The changelog tour (changelog.js, newsTour.js; DESIGN.md "What's new") ----
 
-  const EARTH_CARD = HOME_CARDS.find((c) => c.id === 'earth')
+  const EARTH_CARD = DATED_EARTH
   const OCCULTATION_CARD = HOME_CARDS.find((c) => c.id === 'occultation')
   const GAIA_CARD = HOME_CARDS.find((c) => c.id === 'gaia')
   const NEWS = {entries: [
@@ -2801,7 +2879,8 @@ describe('the homepage', () => {
     expect(app.navVisible).toBe(true)
     await new Promise((resolve) => setTimeout(resolve, 1100))
     expect(pushed).toHaveLength(1)
-    expect(pushed[0].url).toMatch(/^#sun\/earth@/)
+    // The last stop's, Gaia's, whose target is the Sun.
+    expect(pushed[0].url).toMatch(/^#sun@/)
     Shared.targets.landed = false
   })
 

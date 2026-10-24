@@ -71,7 +71,8 @@ export function isHomeEntry(state) {
  * (Celestiary.openTonight), then a link each, opened in the app by its own
  * link restore (Celestiary.openLink); and a screenshot each.  The images
  * are public/images/home/<id>.webp, rendered by tools/home/cards.mjs; any
- * 600 × 375 WebP of the view can replace one.
+ * 600 × 375 WebP of the view can replace one.  Earth's link is at the time
+ * it's opened (`t=now`), so its image is one moment of it.
  */
 export const HOME_CARDS = Object.freeze([
   {
@@ -82,10 +83,13 @@ export const HOME_CARDS = Object.freeze([
     link: null,
   },
   {
+    // At the moment it's opened (`t=now`, permalink.js TIME_NOW): over the
+    // same ground whatever the hour, its `cq` the body's; no asterisms and
+    // no labels (stars', bodies', galaxies'), nor orbits.
     id: 'earth',
     title: 'Earth',
-    text: 'Dusk reaches South America across the Pacific, a storm turning off Chile.',
-    link: 'sun/earth@-38.1501,-99.3434,12.104919Mm;t=9781.4376jd;cq=0.1302,-0.0725,0.0095,0.9888;fov=45deg;s=alpoF',
+    text: 'The Pacific and South America as they are this minute, under the latest day\'s clouds.',
+    link: 'sun/earth@-38.1501,-99.3434,12.104919Mm;t=now;cq=0.3284,-0.0652,-0.0081,0.9423;fov=45deg;s=alpoGF',
   },
   {
     id: 'occultation',
@@ -97,7 +101,9 @@ export const HOME_CARDS = Object.freeze([
     id: 'gaia',
     title: 'Gaia\'s stars',
     text: 'A million stars from Gaia, and the Milky Way, from 3,200 light-years out.',
-    link: 'sun/earth@43.3389,-9.9593,30373373.021376Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF',
+    // The Sun's the target, and the frame: zoomed out, the camera goes
+    // round the Sun, not an Earth too small to see.
+    link: 'sun@27.7228,47.4569,30373373.135557Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF',
   },
 ])
 

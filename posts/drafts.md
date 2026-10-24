@@ -68,7 +68,7 @@ https://celestiary.org/
 ```text
 Gaia's brightest stars, down to magnitude 10.8: 925,686 of them, added to the older Hipparcos catalogue. They load in tiles as you look, brightest first, and move with the date. This is 3,200 light-years out, with the Milky Way around them. #astronomy
 
-https://celestiary.org/#sun/earth@43.3389,-9.9593,30373373.021376Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF
+https://celestiary.org/#sun@27.7228,47.4569,30373373.135557Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF
 ```
 
 #### Facebook
@@ -76,7 +76,7 @@ https://celestiary.org/#sun/earth@43.3389,-9.9593,30373373.021376Tm;t=9779.5692j
 ```text
 Gaia is a European Space Agency satellite that has been measuring the positions of stars. Celestiary now holds 925,686 of its brightest, down to magnitude 10.8, on top of the older Hipparcos catalogue. They load in tiles as you look, brightest first, and they move with the date. This view is 3,200 light-years out, with the Milky Way around the stars. #astronomy
 
-https://celestiary.org/#sun/earth@43.3389,-9.9593,30373373.021376Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF
+https://celestiary.org/#sun@27.7228,47.4569,30373373.135557Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF
 ```
 
 ### 175 galaxies

@@ -24,6 +24,8 @@ import {EYE_PSF_GLSL, GLARE_GLSL, GLARE_MAX_DEG, eyePsf, eyePsfShare, glareFunct
  *   and drawn as the core; the share of the light the PSF puts there; and
  *   the wing, the scattering round a point per steradian by the angle from
  *   it, which is the veil round a bright star and round a disc (the glare).
+ * - **The adaptation**: how fast its exposure follows the light
+ *   (ADAPTATION; exposure.js adaptMeterGain, ThreeUi._updateExposure).
  *
  * The eye's PSF is the CIE total glare equation (sun/glare.js eyePsf):
  * the optics' two lobes and the scattered light, in the eye's own angle.
@@ -130,7 +132,35 @@ export const EYE_CORE_SHARE = eyePsfShare(GLARE_MAX_DEG, (t) => 1 - wingWindow(t
  *   glareGlsl: string}} psf poolRadiusDeg where the pooled core hands over to the wing, in the
  *   instrument's own angle; coreShare the PSF's share within it; wing(θ°) the PSF per steradian,
  *   for a point; glare(θ°) the veil per steradian round a disc, over its range (0.1° to 100°)
+ * @property {{upSeconds: number, downSeconds: number, exposureSeconds: number}} adaptation How fast
+ *   its exposure follows the light (ADAPTATION): the metered gain's time constants rising (to the
+ *   dark) and falling (to the light), and the exposure's own toward the meter's and the target's
  */
+
+
+/**
+ * How fast the observer's exposure follows the light, as time constants in
+ * seconds, each in log space (exposure.js easeExposure: 63% of the way, in
+ * stops, per constant): the metered gain rising, as the eye adapts to the
+ * dark (`upSeconds`), and falling, as a camera's auto-exposure catches a
+ * bright planet come upon from a star field (`downSeconds`); and the
+ * rendered exposure's own ease toward the meter's and the target-keyed
+ * exposure (`exposureSeconds`: between targets, and over the meter's).
+ *
+ * The instrument's, not the scene's: what the sky sends doesn't change with
+ * how fast the eye or camera looking at it adapts (#236).  The real eye's
+ * dark adaptation takes minutes (the rods' twenty to thirty); these are a
+ * camera's, chosen to get one's bearings by.  They were 1.5 s, 0.3 s and
+ * 0.5 s, halved at the maintainer's review: more like an eye's first
+ * seconds, but slow to look about the first scene by (from the Sun's
+ * stopped-down disc to the dark-adapted field, 17 stops, a stop of the goal
+ * in about 4 s; now 2 s).
+ */
+export const ADAPTATION = Object.freeze({
+  upSeconds: 0.75,
+  downSeconds: 0.15,
+  exposureSeconds: 0.25,
+})
 
 
 /** The naked eye, dark adapted: the app's observer. @type {Instrument} */
@@ -151,6 +181,7 @@ export const NAKED_EYE = Object.freeze({
     glare: glareFunction,
     glareGlsl: GLARE_GLSL,
   }),
+  adaptation: ADAPTATION,
 })
 
 
