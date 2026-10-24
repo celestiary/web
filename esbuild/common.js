@@ -1,6 +1,9 @@
 const indexFile = './js/index.jsx'
 // Layer mode's page (design/LayerMode.md): celestiary's orbits as a NetGL
-// guest in another app's globe, its own entry so it loads none of the app.
+// guest in another app's globe.  Built separately (layerConfig), not as a
+// second entry here: esbuild's splitting would then cut the code the two
+// share into chunks of their own, and the app's first load would fetch
+// them as more requests (it did: two more, over the load budget).
 const layerFile = './js/layer/layer.js'
 const buildDir = 'docs'
 
@@ -19,8 +22,8 @@ const satelliteWasmStub = {
 }
 
 // The build config
-export default {
-  entryPoints: [indexFile, layerFile],
+const config = {
+  entryPoints: [indexFile],
   outdir: buildDir,
   format: 'esm',
   platform: 'browser',
@@ -48,4 +51,18 @@ export default {
     // separated, beyond its built-in allow-list.
     __LAYER_ORIGINS__: JSON.stringify(process.env.LAYER_ORIGINS ?? ''),
   },
+}
+export default config
+
+
+/**
+ * Layer mode's page, its own build into docs/layer/ (public/layer.html
+ * loads layer/layer.js): it shares no chunk with the app, so neither build
+ * changes the other's files.
+ */
+export const layerConfig = {
+  ...config,
+  entryPoints: [layerFile],
+  outdir: `${buildDir}/layer`,
+  define: {...config.define},
 }

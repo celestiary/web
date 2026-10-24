@@ -189,9 +189,13 @@ Phase 1 is in (branch `claude/layer-mode`):
     `depth=0` it shows through.
   - The DSN's beams leave Goldstone and Madrid, and from 400 AU one
     reaches out to a Voyager.
-- **Size:** the page's static load is 823 KB minified, 233 KB gzipped,
-  three 694 KB of it, against `esbuild/budget.js` `LAYER_BUDGET`'s
-  910 / 260 KB. The networks' chunk and the snapshots load after.
+- **Size:** the page's static load is 591 KB minified, 164 KB gzipped,
+  against `esbuild/budget.js` `LAYER_BUDGET`'s 650 / 180 KB; the snapshots
+  load after.
+- **Its own build** (`esbuild/common.js` `layerConfig`, into `docs/layer/`),
+  not a second entry of the app's. As a second entry, esbuild's splitting
+  cut the code the two share into chunks of their own. That changed the
+  app's first-load chunks, so a page shares none of the other's files.
 - **portal-netgl 0.3.0, pinned:**
   - its `makeNetGLGuestContext` with checkpoints, so each frame replays
     from the guest's own GL state;
