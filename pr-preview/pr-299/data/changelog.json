@@ -4,7 +4,7 @@
       "id": "2026-10-24-satellites-names-by-distance-the-near-ones",
       "date": "2026-10-24",
       "headline": "Satellites' names by distance: the near ones larger and brighter",
-      "text": "Each satellite's name is now sized and dimmed by how far it is from you: the near ones up to their full size and brightness, the far ones smaller and half as bright. Where two names would touch, the nearer one shows. Smaller far names leave more room, so more names fit: from outside the Starlink shell, 48 of 300 show where 39 did.",
+      "text": "Each satellite's name is now sized and dimmed by how far it is from you, from the nearest name in view, at full size and brightness, to the farthest, smaller and a little dimmer. Where two names would touch, the nearer one shows. You can see which side of the Starlink shell a name is on, and the smaller far names leave more room: from outside the shell, 45 of 300 show where 39 did.",
       "links": [
         {
           "kind": "pr",
