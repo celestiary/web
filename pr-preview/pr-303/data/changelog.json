@@ -1,6 +1,23 @@
 {
   "entries": [
     {
+      "id": "2026-10-24-star-names-only-for-the-stars-you-can-see-and",
+      "date": "2026-10-24",
+      "headline": "Star names only for the stars you can see, and names sized by how near they are",
+      "text": "A star's name now shows only while the star itself can be seen: under a city's sky just the few brightest, in daylight none, at a dark site many more. Every named star can be named, not only the few hundred before, and where names would crowd, the brighter star's shows. Names now have sizes: a bright star's, a near planet's or moon's and a nearby city's are larger and brighter, the faint and far ones smaller and dimmer, so what's near or prominent reads first.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 302,
+          "url": "https://github.com/celestiary/web/pull/302"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=apoLF;time:pause;info:closed",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-10-24-satellites-names-by-distance-the-near-ones",
       "date": "2026-10-24",
       "headline": "Satellites' names by distance: the near ones larger and brighter",
