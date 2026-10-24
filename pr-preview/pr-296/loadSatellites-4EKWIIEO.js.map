@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../js/scene/satellites/loadSatellites.js"],
-  "sourcesContent": ["import Satellites from './Satellites.js'\nimport {parseCatalog} from './sgp4.js'\n\n\n// The satellites' chunk (Satellites.md): imported by Scene when something\n// first needs them, with satellite.js, which the first load does without.\n\n\n/** The snapshot (tools/satellites/fetch.mjs). */\nexport const SATELLITES_URL = 'data/satellites.json'\n\n\n/**\n * @param {object} [opts] As Satellites takes them\n * @param {Function} [fetchFn]\n * @returns {Promise<{satellites: Satellites, data: object}>} the snapshot,\n *   parsed and drawn; `data` its header (source, fetched, groups)\n */\nexport async function loadSatellites(opts = {}, fetchFn = fetch) {\n  const rsp = await fetchFn(SATELLITES_URL)\n  if (!rsp.ok) {\n    throw new Error(`satellites: ${rsp.status} for ${SATELLITES_URL}`)\n  }\n  const data = await rsp.json()\n  const {rows, ...header} = data\n  return {satellites: new Satellites(parseCatalog({rows}), opts), data: header}\n}\n"],
-  "mappings": "uMASO,IAAMA,EAAiB,uBAS9B,eAAsBC,EAAeC,EAAO,CAAC,EAAGC,EAAU,MAAO,CAC/D,IAAMC,EAAM,MAAMD,EAAQH,CAAc,EACxC,GAAI,CAACI,EAAI,GACP,MAAM,IAAI,MAAM,eAAe,OAAAA,EAAI,OAAM,SAAQ,OAAAJ,EAAgB,EAEnE,IAAMK,EAAO,MAAMD,EAAI,KAAK,EACtB,CAAC,KAAAE,EAAM,GAAGC,CAAM,EAAIF,EAC1B,MAAO,CAAC,WAAY,IAAIG,EAAWC,EAAa,CAAC,KAAAH,CAAI,CAAC,EAAGJ,CAAI,EAAG,KAAMK,CAAM,CAC9E,CARsBG,EAAAT,EAAA",
-  "names": ["SATELLITES_URL", "loadSatellites", "opts", "fetchFn", "rsp", "data", "rows", "header", "Satellites", "parseCatalog", "__name"]
-}
