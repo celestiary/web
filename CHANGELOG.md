@@ -39,11 +39,25 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### The night sky stays dark on the shore
+
+On some of Earth's ground the night sky turned the orange of a sunset: at the water's edge in New
+York, or at the Dead Sea. The ground there lies a little below the height the app takes as Earth's
+surface, and from under that surface the Sun counted as visible at midnight, so its glare lit the
+sky. The Sun is now hidden whenever it's below the horizon, and the night sky is dark with its
+stars.
+
+- Date: 2026-10-24
+- Kind: fix
+- PR: [#298](https://github.com/celestiary/web/pull/298)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=alpoLF;time:pause,rate=-4096;info:closed)
+
 ### Starlink, Iridium's crosslinks and the Deep Space Network's live links
 
-Three networks you can now turn on round Earth, in Settings under Networks: all 11,000 Starlink
-satellites, coloured by shell; Iridium's 66 satellites in their six polar planes, with the links
-between them coming and going as they move; and NASA's Deep Space Network, its dishes in
+Three networks you can now turn on round Earth, in Settings under Networks: the whole Starlink
+constellation coloured by its shells; Iridium's 66 satellites in their six polar planes, with the
+links between them coming and going as they move; and NASA's Deep Space Network, its dishes in
 California, Spain and Australia with live beams out to the spacecraft they're talking to right
 now, out to Voyager 1, 172 AU away. Uplinks are orange, downlinks blue.
 
@@ -52,6 +66,80 @@ now, out to Voyager 1, 172 AU away. Uplinks are orange, downlinks blue.
 - Issue: [#50](https://github.com/celestiary/web/issues/50)
 - Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF)
+- Featured: yes
+
+### All of Starlink joins the satellites, with a search, and you choose which to see
+
+All 11,116 Starlink satellites can now show round Earth, with a slider for how many, the first by
+serial number, from one to all; and Iridium's 80 in their polar planes. In Earth's panel, the
+Satellites section has a search that finds Earth's satellites alone, a switch for each kind
+(Starlink, Iridium, navigation, weather, the space stations...) and a slider for how many names to
+show. The names hold still as the satellites move, those behind Earth no longer crowd out those in
+front, and selecting one keeps its one name. A link keeps what you chose.
+
+- Date: 2026-10-23
+- Featured: yes
+- PR: [#292](https://github.com/celestiary/web/pull/292)
+- Issue: [#50](https://github.com/celestiary/web/issues/50)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116)
+
+### The slow way to the Moon, by way of the Sun
+
+The Earth's and the Moon's Craft sections now have a *ballistic lunar transfer*: the low-energy route
+NASA's GRAIL and CAPSTONE took. The craft goes out about four times the Moon's distance, where the Sun's
+pull bends its orbit round, and falls back three to four months later to meet the Moon almost at rest,
+needing far less fuel to stop there than a direct flight. Switch it on and the app flies the first one
+leaving from the clock's date, drawn with the craft where it is on that day.
+
+- Date: 2026-10-23
+- PR: [#295](https://github.com/celestiary/web/pull/295)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Epic: [#119](https://github.com/celestiary/web/issues/119) Flight simulation
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@86.7618,-11.4024,5.238672Gm;t=9833.335118jd;cq=-0.1126,0.6981,0.6981,0.1126;fov=45deg;s=alF;time:pause;craft:blt=9791.5)
+
+### The James Webb Space Telescope, where it really is
+
+Webb is now in the sky beside the Earth, drawn with NASA's own 3D model at its real size and lit by
+the Sun, its sunshield turned toward it. It follows JPL's record of its path, from 41 minutes after
+launch on Christmas Day 2021, out to its orbit around the Sun–Earth L2 point 1.5 million km beyond the
+Earth, and on along its planned path to October 2031. Search for "JWST" to fly there, zoom in to a few
+metres and orbit it; from behind its sunshield it eclipses the Sun. Outside those dates it isn't shown.
+
+- Date: 2026-10-23
+- PR: [#288](https://github.com/celestiary/web/pull/288)
+- Issue: [#25](https://github.com/celestiary/web/issues/25)
+- Epic: [#120](https://github.com/celestiary/web/issues/120) Missions and models
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/webb)
+
+### The Moon's frozen orbits: the few low orbits that last
+
+With the Moon selected, the orbits spacecraft use near it are drawn around it. Low lunar orbit is a
+thin shell. The four "frozen" inclinations, 27°, 50°, 76° and 86°, are where the pulls of the Moon's
+lumpy mass concentrations average out, so an orbit lasts for years. Also drawn are the Lunar
+Reconnaissance Orbiter's two orbits and a 30-hour elliptical frozen orbit that hangs over the south
+pole. The info panel explains why most low lunar orbits crash within weeks or months.
+
+- Date: 2026-10-23
+- PR: [#285](https://github.com/celestiary/web/pull/285)
+- Issue: [#272](https://github.com/celestiary/web/issues/272)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@16.3925,115.3122,4.2619Mm;t=9791jd;cq=-0.1519,0.1194,0.0086,0.9811;fov=45deg;s=F;time:pause)
+- Featured: yes
+
+### Fly a spacecraft to the Moon
+
+The Earth's and the Moon's panels now have a Craft section: switch on *transfer to the Moon* and a
+spacecraft leaves a low orbit round the Earth that day, burns once, and coasts four and a half days to
+pass 100 km over the Moon. Its path is drawn with the craft where it is at the clock's time, and the
+panel gives its burn, how long it takes and what it would cost to stop at the Moon. Behind it is a new
+flight simulator: the craft is pulled by the Earth, the Moon and the Sun where the app draws them, and
+it flies a real spacecraft, NASA's TESS, to within a few hundred metres of where it really went.
+
+- Date: 2026-10-23
+- PR: [#293](https://github.com/celestiary/web/pull/293)
+- Issue: [#11](https://github.com/celestiary/web/issues/11)
+- Epic: [#119](https://github.com/celestiary/web/issues/119) Flight simulation
+- Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@61.929,-24.8021,497.959344Mm;t=9794jd;cq=-0.6681,-0.2315,-0.2315,0.6681;fov=45deg;s=alF;time:pause;craft:tli=9791.5)
 - Featured: yes
 
 ### The tubes that lead on and off halo orbits

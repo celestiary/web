@@ -1714,13 +1714,14 @@ describe('what a load fetches', () => {
   }
 
   const galaxyFetches = () => asked.filter((u) => u.endsWith('galaxies.json')).length
-  // The data asked for (the textures a body's surface fetches aside).
-  const jsonAsked = () => asked.filter((u) => u.endsWith('.json'))
+  // The data asked for (the textures a body's surface fetches aside, and
+  // Earth's satellites, which a view near Earth asks for once the overlays
+  // are revealed, a time this harness doesn't fix: their own test, below).
+  const jsonAsked = () => asked.filter((u) => u.endsWith('.json') && u !== 'data/satellites.json')
 
   it('a link to a body: no galaxies, no places (none of its labels can show yet), no changelog', async () => {
     const app = await open(TEST_FRAGMENT)
-    // Earth's satellites, though: the view is near Earth with the orbits on.
-    expect(jsonAsked()).toEqual(['data/satellites.json'])
+    expect(jsonAsked()).toEqual([])
     expect(app.scene.galaxies.records).toEqual([])
     expect(app.scene.objects.earth.places.loadState).toBe('idle')
   })
@@ -1728,7 +1729,7 @@ describe('what a load fetches', () => {
   it('a link to a place: its body\'s catalogue, once, for the place and its labels', async () => {
     expect(TEST_FRAGMENT.startsWith('sun/earth@')).toBe(true)
     const app = await open(TEST_FRAGMENT.replace('sun/earth@', 'sun/earth/austin@'))
-    expect(jsonAsked()).toEqual(['data/places/earth.json', 'data/satellites.json'])
+    expect(jsonAsked()).toEqual(['data/places/earth.json'])
     expect(app.scene.objects.earth.places.loadState).toBe('loaded')
     expect(app.scene.objects.earth.places.entries).toEqual([AUSTIN])
     expect(Shared.targets.label).toMatchObject({kind: 'place', body: 'earth', name: 'Austin'})
@@ -1750,6 +1751,31 @@ describe('what a load fetches', () => {
     await app.scene.loadGalaxies()
     expect(galaxyFetches()).toBe(1)
     expect(app.scene.galaxies.records).toHaveLength(175)
+  })
+
+  it('a view near Earth with the orbits shown asks for Earth\'s satellites, once while it waits', async () => {
+    const app = await open(TEST_FRAGMENT)
+    const asks = () => asked.filter((u) => u === 'data/satellites.json').length
+    // The overlays revealed, as the first load's reveal ends.  Here the
+    // fetch fails (404), and a failure is asked again by the next need:
+    // let any ask from the frames so far settle first.
+    app.scene.revealOverlays(['o'])
+    app.scene.overlays.finish()
+    await app.scene._satellitesPending
+    const before = asks()
+    // Two of the watcher's frames: one request, the second waiting on it.
+    app.scene._satelliteWatch.preAnimCb()
+    app.scene._satelliteWatch.preAnimCb()
+    await app.scene._satellitesPending
+    expect(asks() - before).toBe(1)
+  })
+
+  it('a link\'s population state (pop:) is kept for its body, and written back, before the population is in', async () => {
+    const app = await open(`${TEST_FRAGMENT};pop:earth=starlink,earth.labels=12`)
+    // Here the snapshot's fetch fails (404), so Earth's population never comes in.
+    expect(app.scene.populationOf('earth')).toBeNull()
+    expect(app.scene.getPopulationState().get('earth')).toEqual({shown: new Set(['starlink']), labels: 12, counts: null})
+    expect(app.permalink()).toContain(';pop:earth=starlink,earth.labels=12')
   })
 
   it('a search: their catalogue, with the first query (SearchIndex.loadOnSearch)', async () => {

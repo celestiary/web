@@ -21,6 +21,13 @@ export const LABEL_SLOP_PX = 8
  * body they're on: the shader discards the labels on its far side, so
  * they're not boxes either.
  *
+ * A sheet of labels floating round a body (a population's: satellites)
+ * carries userData.labelOccluder, an object at the body's centre with its
+ * radius (`bodyRadius`, in the sheet's units): a label the body's sphere
+ * hides from the camera is depth-tested away when drawn, so it isn't a box
+ * either, and is handed to `opts.occluded` (the declutter hides it, or it
+ * would keep its place to return to).
+ *
  * @param {object} root The scene graph to look in
  * @param {object} camera
  * @param {{left: number, top: number, width: number, height: number}} rect
@@ -36,12 +43,14 @@ export const LABEL_SLOP_PX = 8
  *   off the canvas (the declutter's; a pick takes all)
  * @param {boolean} [opts.fresh] The world matrices are this frame's (after a
  *   render), so don't update them: the declutter's
+ * @param {function(object, number): void} [opts.occluded] Called with the
+ *   sheet and index of each label its labelOccluder hides
  * @returns {Array<{left: number, top: number, width: number, height: number,
  *   depth: number, target: object, sheet: object, index: number,
- *   rank: number}>} Each shown label's text box on screen, CSS px, and depth
- *   (NDC z); with its sheet, its index in it and its rank
+ *   rank: number, hold: number}>} Each shown label's text box on screen, CSS
+ *   px, and depth (NDC z); with its sheet, its index in it, its rank
  *   (`userData.labelRank`, for the declutter: higher is more important, 0
- *   for a sheet with none)
+ *   for a sheet with none) and its sheet's `userData.declutterHold` (0 if none)
  */
 export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
   const boxes = []
@@ -49,6 +58,7 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
   const inv = new Matrix4()
   const centre = new Vector3()
   const eye = new Vector3()
+  const occCentre = new Vector3()
   const margin = opts.margin ?? Infinity
   // The camera's position once, and (when the world matrices are this
   // frame's) no walk up each sheet's parents to make them so.
@@ -62,6 +72,7 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
       return
     }
     const ranks = obj.userData.labelRank
+    const hold = obj.userData.declutterHold ?? 0
     const shown = sheet.shown
     if (!fresh) {
       obj.updateWorldMatrix(true, false)
@@ -80,6 +91,16 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
       centre.setFromMatrixPosition(body.matrixWorld).applyMatrix4(inv)
       eye.copy(camWorld).applyMatrix4(inv)
     }
+    const occluder = obj.userData.labelOccluder
+    const occR = occluder?.bodyRadius ?? 0
+    if (occR > 0) {
+      if (!fresh) {
+        occluder.updateWorldMatrix(true, false)
+      }
+      inv.copy(obj.matrixWorld).invert()
+      occCentre.setFromMatrixPosition(occluder.matrixWorld).applyMatrix4(inv)
+      eye.copy(camWorld).applyMatrix4(inv)
+    }
     const {positions, sizes, textSizes} = sheet
     const low = sheet._posLow
     for (let i = 0; i < sheet.labelCount; i++) {
@@ -95,6 +116,10 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
         z += low[(3 * i) + 2]
       }
       if (body && onFarSide(x, y, z, centre, eye)) {
+        continue
+      }
+      if (occR > 0 && behindSphere(x, y, z, occCentre, occR, eye)) {
+        opts.occluded?.(sheet, i)
         continue
       }
       const w = (m[3] * x) + (m[7] * y) + (m[11] * z) + m[15]
@@ -115,7 +140,8 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
           top + height < rect.top - margin || top > rect.top + rect.height + margin) {
         continue // well off the canvas, when the caller says it doesn't want them
       }
-      boxes.push({left, top, width, height, depth: nz, target: targets[i], sheet, index: i, rank: ranks?.[i] ?? 0})
+      boxes.push({left, top, width, height, depth: nz, target: targets[i], sheet, index: i, rank: ranks?.[i] ?? 0,
+        hold})
     }
   })
   return boxes
@@ -137,6 +163,43 @@ function onFarSide(x, y, z, centre, eye) {
   const ny = y - centre.y
   const nz = z - centre.z
   return ((nx * (eye.x - x)) + (ny * (eye.y - y)) + (nz * (eye.z - z))) < 0
+}
+
+
+/**
+ * @param {number} x A point, in the frame of the centre and eye
+ * @param {number} y
+ * @param {number} z
+ * @param {Vector3} centre A sphere's centre
+ * @param {number} r Its radius
+ * @param {Vector3} eye The camera
+ * @returns {boolean} Whether the sphere stands between the camera and the
+ *   point: the line from the eye meets it before the point
+ */
+export function behindSphere(x, y, z, centre, r, eye) {
+  const dx = x - eye.x
+  const dy = y - eye.y
+  const dz = z - eye.z
+  const len = Math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+  if (!(len > 0)) {
+    return false
+  }
+  const ox = eye.x - centre.x
+  const oy = eye.y - centre.y
+  const oz = eye.z - centre.z
+  const eye2 = (ox * ox) + (oy * oy) + (oz * oz)
+  // An eye under the sphere's radius (on the ground where it's lower, near a
+  // pole) sees down to its own horizon: the sphere taken just under it.
+  const rr = Math.min(r, Math.sqrt(eye2) * (1 - 1e-6))
+  // Along the unit line from the eye: t² + 2bt + c = 0.
+  const b = ((ox * dx) + (oy * dy) + (oz * dz)) / len
+  const c = eye2 - (rr * rr)
+  const disc = (b * b) - c
+  if (disc <= 0) {
+    return false
+  }
+  const t0 = -b - Math.sqrt(disc)
+  return t0 > 0 && t0 < len
 }
 
 

@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it} from 'bun:test'
 import {Object3D, PerspectiveCamera, Scene as ThreeScene, Vector3} from 'three'
+import Population from './population/Population.js'
 import Satellites from './satellites/Satellites.js'
 import {parseCatalog} from './satellites/sgp4.js'
 import * as Shared from '../shared.js'
@@ -24,7 +25,19 @@ const OBLIQUITY = 23.44 * Math.PI / 180
 /** A label sheet without a canvas. */
 class StubSheet {
   /** */
-  add() {/* no canvas */}
+  constructor() {
+    this.positions = []
+    this.positionAttribute = null
+  }
+
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   */
+  add(x, y, z) {
+    this.positions.push(x, y, z)
+  }
 
   /** @returns {Object3D} */
   compile() {
@@ -61,6 +74,8 @@ function solarSystem() {
   const sun = body('sun', undefined, s.worldGroup, 6.957e8)
   const earth = body('earth', 'sun', sun.orbitPosition, 6.371e6)
   earth.orbitPosition.position.set(EARTH_M, 0, 0)
+  const mars = body('mars', 'sun', sun.orbitPosition, 3.3895e6)
+  mars.orbitPosition.position.set(2.28e11, 0, 0)
   s.objects['earth.planetTilt'].rotateX(-OBLIQUITY)
   sun.orbitPosition.add(camera.platform)
   camera.position.set(EARTH_M + 3e7, 1e7, 2e7)
@@ -76,8 +91,34 @@ function solarSystem() {
   s._syncRegimes = () => {/* none */}
   s._syncLagrange = () => {/* none */}
   s._watchForSatellites()
-  return {s, scene, camera, sun, earth}
+  return {s, scene, camera, sun, earth, mars}
 }
+
+
+/**
+ * A population of another body, its objects where the records say: what a
+ * Mars-orbiter or Deep Space Network loader would add (addPopulation).
+ */
+class FixedPopulation extends Population {
+  /**
+   * @param {object} rec
+   * @param {number} jd
+   * @param {Vector3} out
+   * @returns {boolean}
+   */
+  positionAt(rec, jd, out) {
+    out.set(rec.x, 0, 0)
+    return true
+  }
+}
+
+
+/** @returns {FixedPopulation} two Mars orbiters in two groups */
+const marsOrbiters = () => new FixedPopulation([
+  {id: 1, name: 'MRO', group: 'nasa', x: 3.7e6, known: true},
+  {id: 2, name: 'Mars Express', group: 'esa', x: 4e6},
+], {body: 'mars', title: 'Orbiters', groups: {nasa: {label: 'NASA', color: '#ffffff'}, esa: {label: 'ESA'}},
+  Sheet: StubSheet})
 
 
 /**
@@ -227,5 +268,85 @@ describe('Scene and the satellites', () => {
     expect(sys.camera.platform.parent).toBe(sys.earth.orbitPosition)
     expect(Shared.targets.label).toBeNull()
     expect(sys.s.getTarget()).toEqual({kind: 'body', name: 'earth'})
+  })
+
+  it('takes another body\'s population the same way: hung from its tilt, in the orbits group, targetable', () => {
+    const sys = solarSystem()
+    const added = []
+    sys.s.onPopulationAdded((p) => added.push(p.body))
+    const pop = marsOrbiters()
+    sys.s.addPopulation(pop)
+    expect(added).toEqual(['mars'])
+    expect(pop.parent).toBe(sys.s.objects['mars.planetTilt'])
+    expect(sys.s.populationOf('mars')).toBe(pop)
+    expect(sys.s._overlayNodes('o')).toContain(pop.marks)
+    pop.update(EPOCH_JD)
+    const mro = {kind: 'satellite', id: 1, name: 'MRO', body: 'mars'}
+    sys.s.setTarget(mro, {look: false})
+    expect(Shared.targets.obj).toBe(sys.mars)
+    expect(pop._targetId).toBe(1)
+    sys.scene.updateMatrixWorld()
+    const at = sys.s.labelPosition(mro).sub(sys.mars.getWorldPosition(new Vector3))
+    expect(at.length()).toBeCloseTo(3.7e6, -2)
+    sys.s.goTo()
+    const node = pop.node(1)
+    expect(sys.camera.platform.parent).toBe(node)
+    expect(Shared.targets.cur).toBe(sys.mars)
+    // Following off leaves the camera with Mars, not Earth.
+    Shared.targets.tween = null
+    sys.s.setFollowing(false)
+    expect(sys.camera.platform.parent).toBe(sys.mars.orbitPosition)
+  })
+
+  it('keeps each population\'s groups and names for the link, and puts a link\'s back, before or after it\'s in', () => {
+    const sys = solarSystem()
+    let changes = 0
+    sys.s.onSettingsChange = () => changes++
+    // A link's state for Mars before its population is in: kept, and written back as it was.
+    const linkState = new Map([['mars', {shown: new Set(['esa']), labels: 2}]])
+    sys.s.restorePopulations(linkState)
+    expect(sys.s.getPopulationState()).toEqual(linkState)
+    const pop = marsOrbiters()
+    sys.s.addPopulation(pop)
+    expect(pop.isGroupShown('nasa')).toBe(false)
+    expect(pop.isGroupShown('esa')).toBe(true)
+    // Its budget can't ask for more than the shown groups hold: one, which
+    // is its default (one known), so the link no longer says it.
+    expect(pop.labelBudget).toBe(1)
+    expect(changes).toBe(0)
+    expect(sys.s.getPopulationState()).toEqual(new Map([['mars', {shown: new Set(['esa']), labels: null, counts: null}]]))
+    // The panel's controls rewrite the link.
+    sys.s.setPopulationGroup('mars', 'nasa', true)
+    sys.s.setPopulationLabels('mars', 2)
+    expect(changes).toBe(2)
+    expect(sys.s.getPopulationState()).toEqual(new Map([['mars', {shown: null, labels: 2, counts: null}]]))
+    // Back to its default, the same budget again is no change.
+    sys.s.setPopulationLabels('mars', pop.defaultLabelBudget)
+    sys.s.setPopulationLabels('mars', pop.defaultLabelBudget)
+    expect(changes).toBe(3)
+    expect(sys.s.getPopulationState()).toEqual(new Map)
+  })
+
+  it('keeps how many of a counted group show for the link, and puts a link\'s back', () => {
+    const sys = solarSystem()
+    let changes = 0
+    sys.s.onSettingsChange = () => changes++
+    // A link's count, before the population is in, bounding its budget.
+    sys.s.restorePopulations(new Map([['mars', {shown: null, labels: 2, counts: new Map([['fleet', 2]])}]]))
+    const pop = new FixedPopulation([1, 2, 3, 4].map((id) => ({id, name: `Orbiter ${id}`, group: 'fleet', x: 4e6})),
+        {body: 'mars', groups: {fleet: {label: 'Fleet', count: 1, orderedBy: 'number'}}, Sheet: StubSheet})
+    sys.s.addPopulation(pop)
+    expect(pop.groupCount('fleet')).toBe(2)
+    expect(pop.labelBudget).toBe(2)
+    expect(changes).toBe(0)
+    // Its names behind Mars take no room: the scene gives it Mars's radius.
+    expect(pop.bodyRadius).toBe(sys.mars.props.radius.scalar)
+    sys.s.setPopulationCount('mars', 'fleet', 3)
+    expect(changes).toBe(1)
+    expect(sys.s.getPopulationState()).toEqual(new Map([['mars', {shown: null, labels: 2,
+      counts: new Map([['fleet', 3]])}]]))
+    sys.s.setPopulationCount('mars', 'fleet', 1)
+    sys.s.setPopulationLabels('mars', 0)
+    expect(sys.s.getPopulationState()).toEqual(new Map)
   })
 })

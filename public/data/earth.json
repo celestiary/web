@@ -34,7 +34,8 @@
     "siderealOrbitPeriod": 31558150.1
   },
   "system": [
-    "moon"
+    "moon",
+    "webb"
   ],
   "texture_atmosphere": true,
   "texture_hydrosphere": true,

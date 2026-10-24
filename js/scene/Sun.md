@@ -306,6 +306,17 @@ ring's coverage exact).  It scales:
   From the ground the stars' depth pull puts them in front of the Moon,
   so depth couldn't hide it.
 
+**From inside a body's sphere** (`occluderSeen`): Cesium's terrain sinks
+under its body's sphere (a shore 30 m under Earth's, the Dead Sea, Mars's
+lowlands), and so does a camera landed on it.  There the body hides the
+whole disc when the Sun is under the local horizontal, as the atmosphere
+pass takes it from below the sphere
+([composition.md](atmos/composition.md#the-tables-domain-and-rays-that-start-outside-it)),
+and nothing otherwise.  It had counted as no occluder at all, so the Sun
+was whole at midnight: from the shore at Sandy Hook, 1:30 am, the glare of
+a Sun 60° under the horizon lit the night sky the orange of a sunset, and
+the meter exposed for it.
+
 **The 2024-04-08 eclipse from Dallas** (32.78° N, 96.80° W): totality in
 the app from 18:41:36 to 18:45:45 UTC (4 min 9 s, mid-eclipse 18:43:40,
 the centres 0.415′ apart), against NASA's 18:40:43-18:44:35 (1:40:43-1:44:35

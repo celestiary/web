@@ -58,6 +58,14 @@ export default class ControlPanel {
      * setFrame, manifolds, setManifolds}.
      */
     this.periodicHooks = null
+    // A body's population (Scene.populationOf): {of(body), setGroup(body,
+    // key, on), setLabels(body, n)}.
+    this.populationHooks = null
+    // The population search's query (populationSectionHtml), kept through
+    // the panel's redraws: picking a result targets it, which redraws.
+    this._populationQuery = {body: null, text: ''}
+    /** The craft's switches (craftHtml): {list, toggle}. */
+    this.craftHooks = null
     // The listed body and its list, and when the values last ran.
     this._orbit = null
     /**
@@ -192,6 +200,8 @@ export default class ControlPanel {
     this._show(this.bodyPanelHtml(target, path.join('/')))
     this._wireOrbit(target)
     this._wirePeriodic()
+    this._wirePopulation()
+    this._wireCraft()
   }
 
 
@@ -249,6 +259,7 @@ export default class ControlPanel {
     }
     html += sectionHtml('physical', 'Physical', 'mass, density, gravity', rowsHtml(physical))
     html += sectionHtml('space', 'Space around', space.peek, space.html)
+    html += this.populationSectionHtml(body.name)
     if (body.rings) {
       html += sectionHtml('rings', 'Rings', '', rowsHtml(fieldRowsHtml(body.rings, secsToYDHMS, sci)))
     }
@@ -283,8 +294,9 @@ export default class ControlPanel {
    * The space around the body (Scene.spaceAround; lagrange.js): its Hill
    * sphere, the collinear Lagrange points it shares with its primary, its
    * synchronous orbit, or why it can't hold one, its orbital regimes
-   * (regimes.js) and its three-body orbits (periodicHtml).  The scene draws
-   * them for the target, with the orbits.
+   * (regimes.js), its three-body orbits (periodicHtml) and the craft that
+   * can be flown about it (craftHtml).  The scene draws them for the
+   * target, with the orbits.
    *
    * @param {string} name a body's
    * @returns {{html: string, peek: string}} the Space around section's
@@ -299,9 +311,10 @@ export default class ControlPanel {
     const regimes = s.regimes?.length ?
       `<div class="info-subhead">Orbital regimes</div>\n${rowsHtml(s.regimes.map(regimeRowHtml).join(''))}` : ''
     const periodic = this.periodicHtml(name)
+    const craft = this.craftHtml(name)
     const peek = [s.name ? 'Hill sphere, Lagrange points' : '', regimes ? 'regimes' : '',
-      periodic ? 'three-body orbits' : ''].filter(Boolean).join(', ')
-    return {html: pair + regimes + periodic, peek}
+      periodic ? 'three-body orbits' : '', craft ? 'craft' : ''].filter(Boolean).join(', ')
+    return {html: pair + regimes + periodic + craft, peek}
   }
 
 
@@ -366,6 +379,273 @@ export default class ControlPanel {
       rows += row('Manifolds', sw('periodic-manifolds', hooks.manifolds(), '', 'stable and unstable tubes'))
     }
     return `<div class="info-subhead">Three-body orbits</div>\n${rowsHtml(rows)}`
+  }
+
+
+  /**
+   * A body's population (population/Population.js; Satellites.md), as a
+   * section of its panel and of its objects': each group a switch, with its
+   * colour and count, and how many names show, the highest ranked.  For any
+   * body with a population: the controls come from it, not from a table of
+   * Earth's.
+   *
+   * @param {string} body
+   * @returns {string} the section, or '' for a body with none
+   */
+  populationSectionHtml(body) {
+    const pop = this.populationHooks?.of?.(body)
+    if (!pop) {
+      return ''
+    }
+    const groups = pop.groups()
+    const total = groups.reduce((n, g) => n + g.count, 0)
+    const chips = groups.map((g) =>
+      `<span class="population-group${g.shown ? ' on' : ''}" data-body="${esc(body)}" data-key="${esc(g.key)}" ` +
+      `role="switch" aria-checked="${g.shown}" tabindex="0">` +
+      `<span class="population-dot" style="background: ${esc(g.color)}"></span>${esc(g.label)} ` +
+      `<span class="info-unit">${g.count}</span></span>`).join('')
+    const slider = `<label class="population-labels" data-body="${esc(body)}">Names ` +
+      `<input type="range" min="0" max="${pop.maxLabels()}" step="1" value="${pop.labelBudget}" ` +
+      `aria-label="how many ${esc(pop.title.toLowerCase())} are named, the best known first"> ` +
+      `<span class="population-labels-value">${pop.labelBudget}</span></label>\n`
+    // A counted group's slider: how many of it, the first in its order.
+    const counts = groups.filter((g) => g.limit !== undefined).map((g) =>
+      `<label class="population-count" data-body="${esc(body)}" data-key="${esc(g.key)}" ` +
+      `data-total="${g.count}">${esc(g.label)} ` +
+      `<input type="range" min="0" max="${COUNT_STEPS}" step="1" value="${countToSlider(g.limit, g.count)}" ` +
+      `aria-label="how many ${esc(g.label)} are shown${g.orderedBy ? `, by ${esc(g.orderedBy)}` : ''}"> ` +
+      `<span class="population-count-value">${countText(g.limit, g.count, g.orderedBy)}</span></label>\n`).join('')
+    // Its search: the main search's matching, scoped to the body's population.
+    const query = this._populationQuery.body === body ? this._populationQuery.text : ''
+    const search = hooksSearch(this.populationHooks) ?
+      `<div class="population-search" data-body="${esc(body)}">` +
+      `<input type="search" value="${esc(query)}" placeholder="Search ${esc(pop.title.toLowerCase())}…" ` +
+      `autocomplete="off" spellcheck="false" aria-label="Search ${esc(pop.title.toLowerCase())} round ` +
+      `${esc(capitalize(body))}" aria-controls="population-results-${esc(body)}">` +
+      `<ul class="population-results" id="population-results-${esc(body)}" role="listbox">` +
+      `${this.populationResultsHtml(body, query)}</ul></div>\n` : ''
+    const content = `${search}<dl class="info-rows"><div class="info-row is-long"><dt>Shown</dt>` +
+      `<dd class="info-switches">${chips}</dd></div></dl>\n${counts}${slider}`
+    return sectionHtml('population', pop.title, `${total} in ${groups.length} groups`, content)
+  }
+
+
+  /**
+   * @param {string} body
+   * @param {string} text what's typed in the population's search
+   * @returns {string} its results, as the list's items: each its group's dot,
+   *   its name and what it is; a click targets it, a double click goes
+   */
+  populationResultsHtml(body, text) {
+    if (!text.trim()) {
+      return ''
+    }
+    const entries = this.populationHooks.search(body, text)
+    if (entries.length === 0) {
+      return '<li class="population-result is-none" role="option" aria-disabled="true">No match</li>'
+    }
+    const groups = new Map((this.populationHooks.of(body)?.groups() ?? []).map((g) => [g.key, g]))
+    return entries.map((e, k) => {
+      const g = groups.get(e.payload?.group)
+      return `<li class="population-result${k === 0 ? ' active' : ''}" role="option" ` +
+        `aria-selected="${k === 0}" data-id="${esc(String(e.payload?.target?.id ?? ''))}">` +
+        `<span class="population-dot" style="background: ${esc(g?.color ?? '#c8c8c8')}"></span>` +
+        `${esc(e.displayName)} <span class="info-unit">${esc(g?.label ?? '')}</span></li>`
+    }).join('')
+  }
+
+
+  /** Wire a population's switches and names slider (populationSectionHtml) to the scene. */
+  _wirePopulation() {
+    const hooks = this.populationHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    const slider = this.containerElt.querySelector('.population-labels')
+    const input = slider?.querySelector('input')
+    const value = slider?.querySelector('.population-labels-value')
+    // The slider's reach follows the groups shown: its max is the names
+    // they hold.
+    const syncSlider = () => {
+      const pop = slider && hooks.of(slider.dataset.body)
+      if (!pop || !input) {
+        return
+      }
+      input.max = String(pop.maxLabels())
+      input.value = String(pop.labelBudget)
+      if (value) {
+        value.textContent = String(pop.labelBudget)
+      }
+    }
+    for (const el of this.containerElt.querySelectorAll('.population-group')) {
+      const toggle = () => {
+        const on = !el.classList.contains('on')
+        hooks.setGroup(el.dataset.body, el.dataset.key, on)
+        el.classList.toggle('on', on)
+        el.setAttribute('aria-checked', String(on))
+        syncSlider()
+      }
+      el.addEventListener('click', toggle)
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault()
+          toggle()
+        }
+      })
+    }
+    for (const el of this.containerElt.querySelectorAll('.population-count')) {
+      const range = el.querySelector('input')
+      const shown = el.querySelector('.population-count-value')
+      range?.addEventListener('input', () => {
+        const total = Number(el.dataset.total)
+        const n = sliderToCount(Number(range.value), total)
+        hooks.setCount?.(el.dataset.body, el.dataset.key, n)
+        const g = hooks.of(el.dataset.body)?.groups().find((x) => x.key === el.dataset.key)
+        if (shown) {
+          shown.textContent = countText(n, total, g?.orderedBy)
+        }
+        syncSlider()
+      })
+    }
+    input?.addEventListener('input', () => {
+      hooks.setLabels(slider.dataset.body, Number(input.value))
+      if (value) {
+        value.textContent = input.value
+      }
+    })
+    this._wirePopulationSearch()
+  }
+
+
+  /**
+   * The population's search (populationSectionHtml): results as it's typed;
+   * a click or Enter targets one, as a pick in the main search does, and a
+   * double click goes, as on its label.
+   */
+  _wirePopulationSearch() {
+    const hooks = this.populationHooks
+    const box = this.containerElt.querySelector('.population-search')
+    const field = box?.querySelector('input')
+    const list = box?.querySelector('.population-results')
+    if (!field || !list || !hooksSearch(hooks)) {
+      return
+    }
+    const body = box.dataset.body
+    const pick = (id, go) => {
+      if (id) {
+        hooks.pick(body, Number(id), go)
+      }
+    }
+    const items = () => [...(list.querySelectorAll?.('.population-result[data-id]') ?? [])]
+    const activeOf = () => items().findIndex((li) => li.classList.contains('active'))
+    field.addEventListener('input', () => {
+      this._populationQuery = {body, text: field.value}
+      list.innerHTML = this.populationResultsHtml(body, field.value)
+    })
+    field.addEventListener('keydown', (ev) => {
+      const all = items()
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault()
+        const k = activeOf()
+        const next = Math.max(0, Math.min(all.length - 1, k + (ev.key === 'ArrowDown' ? 1 : -1)))
+        all.forEach((li, i) => {
+          li.classList.toggle('active', i === next)
+          li.setAttribute('aria-selected', String(i === next))
+        })
+        all[next]?.scrollIntoView?.({block: 'nearest'})
+      } else if (ev.key === 'Enter') {
+        ev.preventDefault()
+        pick(all[Math.max(0, activeOf())]?.dataset.id, false)
+      } else if (ev.key === 'Escape' && field.value) {
+        ev.stopPropagation()
+        field.value = ''
+        this._populationQuery = {body, text: ''}
+        list.innerHTML = ''
+      }
+    })
+    const idOf = (ev) => ev.target?.closest?.('.population-result[data-id]')?.dataset.id
+    list.addEventListener('click', (ev) => pick(idOf(ev), false))
+    list.addEventListener('dblclick', (ev) => pick(idOf(ev), true))
+  }
+
+
+  /**
+   * The craft that can be flown about the body (Scene.craftOf;
+   * craft/flights.js), each a row with a switch, and a flown one's facts:
+   * when it leaves, its burn and how long it takes.  Part of the Space
+   * around section, under its own subhead.
+   *
+   * @param {string} name a body's
+   * @returns {string} HTML, or '' for a body with none
+   */
+  craftHtml(name) {
+    this._craftBody = name
+    const craft = this.craftHooks?.list?.(name) ?? []
+    if (craft.length === 0) {
+      return ''
+    }
+    return `<div class="info-subhead">Craft</div>\n${rowsHtml(craft.map((c) => this._craftRow(c)).join(''))}`
+  }
+
+
+  /**
+   * @param {{code: string, name: string, on: boolean, text: ?string}} c
+   * @returns {string} its row
+   */
+  _craftRow(c) {
+    const sw = `<span class="craft-flight${c.on ? ' on' : ''}" data-code="${esc(c.code)}" role="switch" ` +
+      `aria-checked="${c.on}" tabindex="0">fly</span>`
+    const facts = c.text ? `<span class="craft-facts">${esc(c.text)}</span>` : ''
+    return `<div class="info-row is-long craft" data-code="${esc(c.code)}"><dt>${esc(c.name)}</dt>` +
+      `<dd class="info-switches">${sw}${facts}</dd></div>\n`
+  }
+
+
+  /** Write the craft's rows again, as the scene has them now (a flight made since). */
+  refreshCraft() {
+    const hooks = this.craftHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    for (const row of this.containerElt.querySelectorAll('.craft')) {
+      const c = (hooks.list(this._craftBody) ?? []).find((x) => x.code === row.dataset.code)
+      if (c) {
+        row.outerHTML = this._craftRow(c)
+      }
+    }
+    this._wireCraft()
+  }
+
+
+  /** Wire the craft's switches (craftHtml) to the scene. */
+  _wireCraft() {
+    const hooks = this.craftHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    for (const el of this.containerElt.querySelectorAll('.craft-flight')) {
+      const fn = () => {
+        hooks.toggle(el.dataset.code)
+        // The row again, with the flight's facts now it's flown.
+        const row = el.closest?.('.craft')
+        const c = (hooks.list(this._craftBody) ?? []).find((x) => x.code === el.dataset.code)
+        if (row && c) {
+          row.outerHTML = this._craftRow(c)
+          this._wireCraft()
+        }
+      }
+      if (el.dataset.wired) {
+        continue
+      }
+      el.dataset.wired = '1'
+      el.addEventListener('click', fn)
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault()
+          fn()
+        }
+      })
+    }
   }
 
 
@@ -588,8 +868,9 @@ export default class ControlPanel {
 
 
   /**
-   * Each frame: the orbit list's values follow the date, and its marks the
-   * scene's state, a few times a second while it's open.
+   * Each frame: the head's distance and the orbit list's values follow the
+   * date, and its marks the scene's state, a few times a second (the list's
+   * while it's open).
    *
    * @param {number} nowMs
    */
@@ -599,7 +880,18 @@ export default class ControlPanel {
       return
     }
     state.ranMs = nowMs
-    if (!state.list.isConnected || !state.list.open || state.list.closest('.info')?.classList.contains('folded')) {
+    if (!state.list.isConnected) {
+      return
+    }
+    // The head's distance is the osculating semi-major axis, which follows
+    // the date too: built once, it was the panel's opening date's, hours
+    // of sim time stale, and a link of the view showed another.
+    const fact = this.containerElt.querySelector?.('.info-fact')
+    const text = this._factOf(state.body)
+    if (fact && text && fact.textContent !== text) {
+      fact.textContent = text
+    }
+    if (!state.list.open || state.list.closest('.info')?.classList.contains('folded')) {
       return
     }
     this._showOrbitState()
@@ -648,17 +940,26 @@ export default class ControlPanel {
    * @param {object} rec Its record (satellites/sgp4.js)
    * @param {number} jd The date, Julian Day (UTC)
    * @param {?string} [fetched] When the snapshot was fetched
+   * @param {?string} [kind] What one of its group is
+   * @param {string} [body] The body it's round, whose population's
+   *   controls follow
    */
-  showSatellite(rec, jd, fetched = null) {
+  showSatellite(rec, jd, fetched = null, kind = null, body = 'earth') {
     if (!rec) {
       return
     }
     this._endPreview()
     this._orbit = null
-    const f = satelliteFacts(rec, jd, fetched)
-    const rows = f.rows.map(([label, value, unit]) => rowHtml(label, value, unit)).join('')
+    const f = satelliteFacts(rec, jd, fetched, kind)
+    // A unit that's words (the elements' age) goes under its value: beside a
+    // date, it runs into the label.
+    const rows = f.rows.map(([label, value, unit]) => (unit?.length > LONG_UNIT ?
+      `${rowHtml(label, value)}<div class="info-row is-note"><dd>${esc(unit)}</dd></div>\n` :
+      rowHtml(label, value, unit))).join('')
     const notes = f.notes.map((n) => `<p class="info-note">${esc(n)}</p>\n`).join('')
-    this._show(panelHtml({name: f.name, kind: f.kind, fact: f.fact}, rowsHtml(rows) + notes))
+    this._show(panelHtml({name: f.name, kind: f.kind, fact: f.fact},
+        rowsHtml(rows) + notes + this.populationSectionHtml(body)))
+    this._wirePopulation()
   }
 
 
@@ -857,4 +1158,58 @@ function secsToYDHMS(s) {
     str += ` ${seconds}s`
   }
   return str.trim()
+}
+
+
+// A unit longer than this, characters, goes under its value (showSatellite).
+const LONG_UNIT = 12
+
+
+// A counted group's slider (populationSectionHtml): its steps, spaced by
+// the square root of the count, so a few and all are both in reach.
+const COUNT_STEPS = 1000
+
+
+/**
+ * @param {number} n how many show
+ * @param {number} total the group's size
+ * @returns {number} the slider's step for n
+ */
+export function countToSlider(n, total) {
+  return total > 0 ? Math.round(Math.sqrt(Math.min(n, total) / total) * COUNT_STEPS) : 0
+}
+
+
+/**
+ * @param {number} step the slider's
+ * @param {number} total the group's size
+ * @returns {number} how many show at that step: one at the first above 0,
+ *   all at the last
+ */
+export function sliderToCount(step, total) {
+  if (step <= 0) {
+    return 0
+  }
+  return Math.max(1, Math.round(((step / COUNT_STEPS) ** 2) * total))
+}
+
+
+/**
+ * @param {number} n
+ * @param {number} total
+ * @param {?string} [orderedBy]
+ * @returns {string} e.g. '300 of 11,116, by serial number'
+ */
+function countText(n, total, orderedBy) {
+  const of = n >= total ? 'all' : `${n.toLocaleString('en-US')} of ${total.toLocaleString('en-US')}`
+  return orderedBy ? `${of}, by ${orderedBy}` : of
+}
+
+
+/**
+ * @param {?object} hooks the panel's populationHooks
+ * @returns {boolean} whether they can search the population
+ */
+function hooksSearch(hooks) {
+  return typeof hooks?.search === 'function' && typeof hooks?.pick === 'function'
 }

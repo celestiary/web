@@ -1,47 +1,43 @@
-// What Earth's satellites are called and how they're named as targets and
-// in links (Satellites.md): no dependencies, so the scene, the search and
-// the link can import it without the SGP4 chunk.
+// What Earth's satellites (and any population's objects) are called, how
+// they're named in links, and the satellites' panel lines (Satellites.md):
+// no dependencies, so the scene, the search and the link can import it
+// without the SGP4 chunk.
 
 
-/** A satellite's path in the location hash: `sat:25544` (targetPath.js). */
+/**
+ * An object's path in the location hash (targetPath.js): `sat:25544` round
+ * Earth, `sat:<body>:<id>` round another body.
+ */
 export const SAT_PREFIX = 'sat:'
 
 
-// The names people know them by, for the scene and the search, where
-// CelesTrak's OBJECT_NAME is a module's or a catalogue's.
-const KNOWN = {
-  25544: {name: 'ISS', aliases: ['International Space Station', 'ISS (Zarya)', 'Zarya']},
-  48274: {name: 'Tiangong', aliases: ['Chinese Space Station', 'CSS', 'Tianhe', 'CSS (Tianhe)']},
-  20580: {name: 'Hubble Space Telescope', aliases: ['Hubble', 'HST']},
-}
-
-
 /**
- * @param {object} rec
- * @returns {boolean} whether it's one of the best known, named in the scene
+ * @param {object} rec a population's record
+ * @returns {boolean} whether it's one of the best known (the snapshot's
+ *   `known`), named first
  */
 export function isKnown(rec) {
-  return rec.id in KNOWN
+  return Boolean(rec.known)
 }
 
 
 /**
  * @param {object} rec
- * @returns {string} what to call it
+ * @returns {string} what to call it: its known name, else the catalogue's
  */
 export function displayName(rec) {
-  return KNOWN[rec.id]?.name ?? rec.name
+  return rec.label ?? rec.name
 }
 
 
 /**
  * @param {object} rec
- * @returns {Array<string>} other names it's found by: CelesTrak's, the
- *   known ones, its NORAD number and international designator
+ * @returns {Array<string>} other names it's found by: its known aliases,
+ *   the catalogue's name, its number and its international designator
  */
 export function aliasesOf(rec) {
-  const out = [...(KNOWN[rec.id]?.aliases ?? [])]
-  if (KNOWN[rec.id]) {
+  const out = [...(rec.aliases ?? [])]
+  if (rec.label && rec.label !== rec.name) {
     out.push(rec.name)
   }
   out.push(`NORAD ${rec.id}`, String(rec.id))
@@ -49,17 +45,6 @@ export function aliasesOf(rec) {
     out.push(rec.intlId)
   }
   return out
-}
-
-
-/**
- * @param {object} rec
- * @returns {{kind: 'satellite', id: number, name: string, body: string}} the
- *   satellite as a target (Scene.setTarget): Earth is its body, as a
- *   place's is
- */
-export function satelliteTarget(rec) {
-  return {kind: 'satellite', id: rec.id, name: displayName(rec), body: 'earth'}
 }
 
 
@@ -73,10 +58,6 @@ export const SATELLITES_LOAD_DIST = 1.5e9
 
 const GM_EARTH_KM3_S2 = 398600.4418
 const EARTH_EQUATORIAL_KM = 6378.137
-const GROUP_TEXT = {
-  stations: 'space station', science: 'science', gnss: 'navigation', geo: 'geostationary', molniya: 'Molniya orbit',
-  weather: 'weather',
-}
 
 
 /**
@@ -87,10 +68,12 @@ const GROUP_TEXT = {
  * @param {object} rec sgp4.js SatRecord
  * @param {number} jd the date, Julian Day (UTC)
  * @param {?string} fetched when the snapshot was fetched, ISO
+ * @param {?string} [kind] what one of its group is (the snapshot's groups'
+ *   `kind`), e.g. 'space station'
  * @returns {{name: string, kind: string, fact: string, rows: Array<Array<string>>, notes: Array<string>}}
  *   the panel's head, its rows as [label, value, unit], and notes in words
  */
-export function satelliteFacts(rec, jd, fetched = null) {
+export function satelliteFacts(rec, jd, fetched = null, kind = null) {
   const n = rec.meanMotion * 2 * Math.PI / 86400
   const a = Math.cbrt(GM_EARTH_KM3_S2 / (n * n))
   const km = (x) => Math.round(x).toLocaleString('en-US')
@@ -119,7 +102,7 @@ export function satelliteFacts(rec, jd, fetched = null) {
   }
   return {
     name: displayName(rec),
-    kind: GROUP_TEXT[rec.group] ? `Satellite, ${GROUP_TEXT[rec.group]}` : 'Satellite',
+    kind: kind ? `Satellite, ${kind}` : 'Satellite',
     fact: `${perigee} km up`,
     rows,
     notes,
