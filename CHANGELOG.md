@@ -1105,8 +1105,9 @@ the scene buffer ([#160](https://github.com/celestiary/web/pull/160)), and roadm
 and planning notes ([#173](https://github.com/celestiary/web/pull/173),
 [#200](https://github.com/celestiary/web/pull/200),
 [#215](https://github.com/celestiary/web/pull/215),
-[#222](https://github.com/celestiary/web/pull/222)), and layer mode's guest drawing its frame once,
-not twice ([#305](https://github.com/celestiary/web/pull/305)).
+[#222](https://github.com/celestiary/web/pull/222)), layer mode's guest drawing its frame once,
+not twice ([#305](https://github.com/celestiary/web/pull/305)), and its wide lines keeping up with a
+moving host camera ([#306](https://github.com/celestiary/web/pull/306)).
 
 ## September 2026
 
