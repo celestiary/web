@@ -39,6 +39,43 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Earth's clouds fade in rather than popping in
+
+On a first visit to Earth the day's clouds, built from NASA's satellite pictures as you arrive, used
+to appear all at once some seconds after the planet was on screen. They now fade in over a little
+more than a second, close up too. A view that opens on Earth still shows them from the start.
+
+- Date: 2026-10-24
+- PR: [#300](https://github.com/celestiary/web/pull/300)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+- Kind: fix
+
+### The homepage's Earth is Earth right now
+
+The Earth card on the homepage now opens on Earth as it is at that moment, over the Pacific and South
+America, lit as the hour has it and under the latest day's clouds, rather than on a fixed day in
+October. It arrives without star, planet or galaxy names. The Gaia card's view is now about the Sun,
+so zooming out from it goes round the Sun rather than round an Earth too small to see.
+
+- Date: 2026-10-24
+- PR: [#300](https://github.com/celestiary/web/pull/300)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@-38.1501,-99.3434,12.104919Mm;t=now;cq=0.3284,-0.0652,-0.0081,0.9423;fov=45deg;s=alpoGF)
+- Image: ![Earth over the Pacific, South America at its edge](public/images/home/earth.webp)
+- Kind: fix
+
+### The exposure adjusts twice as fast
+
+Moving between bright and dark views, the exposure now settles in about half the time: from the Sun's
+glare to a dark starfield, within a stop in about two seconds rather than four. It was closer to the
+eye's own pace, but slow for finding your way around.
+
+- Date: 2026-10-24
+- PR: [#300](https://github.com/celestiary/web/pull/300)
+- Epic: [#236](https://github.com/celestiary/web/issues/236) An optics model: the instrument between the sky and the screen
+- Permalink: none
+
 ### No more loading screen stuck after an update
 
 If you had celestiary open and it was updated in the minutes before you reloaded, the loading
@@ -558,7 +595,7 @@ naked-eye stars the old catalogue left out now show too.
 - PR: [#224](https://github.com/celestiary/web/pull/224)
 - Issue: [#98](https://github.com/celestiary/web/issues/98)
 - Epic: [#116](https://github.com/celestiary/web/issues/116) Milky Way: realistic structure, a million Gaia stars, and galactic dynamics
-- Permalink: [Open this view](https://celestiary.org/#sun/earth@43.3389,-9.9593,30373373.021376Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF)
+- Permalink: [Open this view](https://celestiary.org/#sun@27.7228,47.4569,30373373.135557Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF)
 - Image: ![Gaia's stars and the Milky Way from 3,200 light-years out](public/images/home/gaia.webp)
 
 ### 175 galaxies you can fly to

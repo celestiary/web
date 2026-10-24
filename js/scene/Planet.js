@@ -675,6 +675,8 @@ export default class Planet extends Object {
       groundPattern: this.props.texture_monthly,
       bundledPath: `${texDir}${this.name}_atmos.jpg`,
       fillPath: `${texDir}${this.name}_atmos_fill.jpg`,
+      // A map first drawn once the scene is on screen fades in (CloudMap.gain).
+      shown: () => this.scene?.revealed === true,
     })
     const radius = this.props.radius.scalar
     // The volumetric clouds up close (CloudVolume.js), for a body with

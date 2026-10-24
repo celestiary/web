@@ -326,6 +326,7 @@ rate=<n>           the rate, a signed multiplier on real time: 8 is eight
 
 ```
 #…;t=9774.8984jd;…;time:pause                paused at that date
+#…;t=now;…                                   at the moment it's opened, running
 #…;t=9774.8984jd;…;time:rate=8               running at 8x
 #…;t=9774.8984jd;…;time:pause,rate=-4        paused, resuming at 4x backwards
 ```
@@ -336,6 +337,10 @@ Decisions:
   link's date on load, so what was on screen when the link was copied is on
   screen when it opens, and a moment (an occultation, a transit) can be
   shared.  Unpausing runs from there.
+- **`t=now` is the present** (the homepage's Earth card): the moment the
+  link is opened, its `cq` turning with the body so the view keeps its
+  ground at any hour; a clock already at the real time isn't set at all.
+  The app never writes it ([js/permalink.md](../js/permalink.md#time--now)).
 - **The rate is in the link, and is the one in force.**  A paused clock keeps
   its rate (`j`, `k` and `l` set it while paused), so a link made paused at
   8x resumes at 8x.  Real time (1) is the default and left out, and so is a

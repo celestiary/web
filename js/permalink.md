@@ -47,7 +47,7 @@ returned as given in `decodePermalink(...).tokens`.  Spec: [design/URLs.md](../d
 | Key | Type | Example | Meaning |
 |-----|------|---------|---------|
 | `from` | path | `sun/earth`, `hip:32349` | The camera's frame (below), when it isn't the path's body; written right after the position |
-| `t` | Measure: days from J2000 | `9233.1234jd` | Simulation time, clamped on decode to ±2191500 days (J2000 ± 6000 years, Time.js's supported dates); a non-finite `t` makes the fragment invalid |
+| `t` | Measure: days from J2000, or `now` | `9233.1234jd`, `now` | Simulation time, clamped on decode to ±2191500 days (J2000 ± 6000 years, Time.js's supported dates); a non-finite `t` makes the fragment invalid.  `now` is the moment the link is opened ([below](#time--now)) |
 | `cq` | 4× dimensionless float | `0,0,0,1` | Camera quaternion (platform-local) |
 | `fov` | Measure: degrees | `45deg`, `0.0714deg` | Camera field of view, written to 4 significant figures (a telescope's 0.0714 isn't 0.07); held on decode to 0.0001..179 |
 | `ev` | dimensionless float, stops | `1.33` | The user's exposure compensation over the metered exposure (`evCompensation.js`): 2^ev as one multiplier on the exposure.  Written to 2 decimal places, left out at 0; read with or without a `+` (`ev=+1.3`), held to ±10, and 0 when absent or not a number.  Applied on every view restore, so a link without it sets 0 |
@@ -111,6 +111,28 @@ view, a craft near its end, moved (#293).
 
 Examples: `0jd` = noon 1 Jan 2000, `9233.1234jd` ≈ March 2025, `-36524.0jd` = 1 Jan 1900.
 
+### Time — `now`
+
+`t=now` (`TIME_NOW`) is a link at the moment it's opened, for a link that's meant to show
+the present (the homepage's Earth card): `decodePermalink` gives `now: true` and `d2000: null`.
+The app never writes it: a view's link is always its date.  It still needs `cq=` and `fov=`
+(without them the fragment is a path alone, as before).
+
+- **The date** (`linkTimeMs`): the real time, unless the clock is within `NOW_TOLERANCE_MS`
+  (1 s) of it already, when nothing is set.  The homepage's tour runs on the real time, so a
+  card at `now` flies from it with no date change at all (`Celestiary._linkFlight`'s `timeMs`
+  null, `timePlan` `none`), and its restore sets none.  From a clock elsewhere (a dated stop,
+  a paused clock) the real time is the date, set as any link's is.  The clock then runs as
+  its `time:` token says (none: at real time).
+- **The orientation.**  A dated link's `cq` is in the orbit-style platform, which doesn't turn
+  with the body, while its position (`lat,lng,alt`) does: at another hour the same `cq` from
+  the turned position looks past the body (half a day on, away from it).  So a `now` link's
+  `cq` is the **body's**, as a landed link's is: the restore turns it with the body into the
+  platform (`linkQuaternion`: the platform's world rotation inverted, times the body's, times
+  `cq`), and a flight's end does the same each frame.  The view keeps its ground at any hour,
+  lit as the hour has it.  To make one from a dated view: `cq_now = q_body⁻¹ · q_platform · cq`
+  at the dated link's time.
+
 ### Altitude — SI-prefixed meters
 
 | Range (abs) | Suffix | Factor |
@@ -158,7 +180,8 @@ On page load from a permalink URL, or a new one in the address bar (`Celestiary.
 
 1. The path is resolved: a body path's last segment is a body or a place (the body above it is
    loaded first to tell), and the target's body and the frame (`from`, else the target's) load.
-2. Simulation time is set to the saved `t` before any navigation.
+2. Simulation time is set to the saved `t` before any navigation (for `t=now`, the real time,
+   unless the clock is there already: [Time — `now`](#time--now)).
 3. `Animation.animateAtJD(scene, jd)` positions all planets at that time without advancing the
    clock.
 4. `Scene.goTo()` reparents the camera platform to the frame body's `orbitPosition` (or

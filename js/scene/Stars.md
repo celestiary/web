@@ -410,7 +410,7 @@ a flight out) fade in the same way, and so do Gaia's, which share the
 engine.  The same field after it, on a 20 fps clock: the light rises
 from 0.704 to 0.848 over 1.9 s, at most 0.008 a frame; the meter, at its
 cap, doesn't move.  Where a meter isn't at its cap it follows the rise as
-it follows any light, eased over its 1.5 s.
+it follows any light, eased over its 0.75 s (1.5 s when measured).
 
 **Every consumer, across the tiers:**
 
