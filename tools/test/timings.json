@@ -211,6 +211,7 @@
     "tools/posts/social.test.js": 0.1,
     "tools/posts/text.test.js": 0.1,
     "tools/satellites/select.test.js": 0.1,
-    "tools/stars/stars.test.js": 1.7
+    "tools/stars/stars.test.js": 1.7,
+    "tools/test/plan.test.js": 0.1
   }
 }
