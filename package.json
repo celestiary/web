@@ -33,6 +33,7 @@
     "stars": "bun tools/stars/build.mjs",
     "changelog": "node tools/changelog/json.mjs",
     "satellites": "NODE_USE_ENV_PROXY=1 node tools/satellites/fetch.mjs",
+    "networks": "NODE_USE_ENV_PROXY=1 node tools/networks/fetch.mjs",
     "changelog:draft": "node tools/changelog/draft.mjs",
     "posts": "node tools/posts/posts.mjs"
   },

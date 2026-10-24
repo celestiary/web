@@ -1726,6 +1726,10 @@ describe('what a load fetches', () => {
       app.frame(t)
     }
     await new Promise((resolve) => setTimeout(resolve, 20))
+    // The satellites' load, if the frames asked for it, is a dynamic import
+    // and then the fetch: under load the import outlasts the 20 ms, and the
+    // fetch landed in the next test's list instead of this one's.
+    await app.scene._satellitesPending
     return app
   }
 

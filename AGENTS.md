@@ -43,6 +43,7 @@ tried and dropped.
 | A craft's integrator (#11): the force model on the ephemerides, the integrators and their energy drift, Lambert, the transfer to the Moon, the `craft:` flights | [js/scene/Craft.md](js/scene/Craft.md) |
 | Places (surface points of interest) | [js/scene/places.md](js/scene/places.md) |
 | Earth satellites: CelesTrak's GP data, SGP4, the TEME frame, old elements, targeting and riding one | [js/scene/satellites/Satellites.md](js/scene/satellites/Satellites.md) |
+| The space networks: Starlink's whole constellation, Iridium and its crosslinks, the Deep Space Network and DSN Now's live links; the compact elements, the propagation in slices | [js/scene/networks/Networks.md](js/scene/networks/Networks.md) |
 | Populations round a body (satellites, orbiters, the Deep Space Network's): groups, the names budget, the panel's section, the `pop:` token, adding one | [js/scene/population/Population.md](js/scene/population/Population.md) |
 | 3D models (glTF, `loadModel`), spacecraft at their JPL Horizons positions (Webb), their sources and licences | [js/scene/models.md](js/scene/models.md) |
 | Rings | [js/scene/rings/rings.md](js/scene/rings/rings.md) |
@@ -85,6 +86,11 @@ tried and dropped.
     real clock. A test that depends on where the tour or the bodies are
     pins it with `setSystemTime` (bun:test) and resets it after, or it
     passes at some hours and fails at others.
+  - A test that counts what a load fetches awaits the load's promise
+    (`scene._satellitesPending`, `scene._networksPending[key]`), not a
+    fixed sleep: those loads are a dynamic import first, and under a busy
+    machine the import outlasted a 20 ms wait and its fetch was counted in
+    the next test (`Celestiary.test.js`, "what a load fetches").
   - Keep DOM work (image loads, element creation) out of synchronous
     paths that tests drive, such as `Scene.setTarget`. Defer it to the
     animation loop: `preAnimCb` on a scene node runs every frame.
@@ -117,6 +123,11 @@ tried and dropped.
     `c.time` (`setTime(ms)`, `simTimeJulianDay()`).
   - Read state with `page.evaluate` rather than inferring it from
     pixels.
+  - Open a body other than the Sun by its path (`#earth`) and the bodies can
+    load out of order on a local `python3 -m http.server` build ("No parent
+    obj ... for earth", on main too, 2026-10-23), and the reveal never ends.
+    Open `#sun`, wait for `c._reveal.done`, then `c.scene.setTarget('earth')`
+    and `c.scene.goTo()`, and wait for `c.shared.targets.tween` to be null.
   - Call the function under test directly (e.g.
     `c.ui._applyAsymptoticZoom`) instead of replaying dozens of wheel
     events: SwiftShader is slow, and a screenshot of a landed view can
@@ -376,6 +387,14 @@ tried and dropped.
     group at most once every two hours: CelesTrak blocks clients that ask
     more.  Horizons takes a TLE too (`COMMAND='TLE'`, `TLE=` the lines),
     which `tools/satellites/fetchHorizons.mjs` uses to check the frame.
+    `yarn networks` (Starlink's and Iridium's snapshots,
+    [Networks.md](js/scene/networks/Networks.md#the-data)) asks the same
+    way: pass `--cache DIR` and `--only` so a rerun asks for nothing it has.
+  - `eyes.nasa.gov` (NASA's DSN Now: `config.xml` for `yarn networks`, and
+    `dsn/data/dsn.xml`, the live feed the DSN overlay polls from the page,
+    CORS `*`).  A page in headless Chromium reaches it through the proxy
+    with the CA pinned, as below.  `deepspace.jpl.nasa.gov` (the DSN
+    handbook, 810-005, with each antenna's coordinates) is refused.
   - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
     `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
     [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).

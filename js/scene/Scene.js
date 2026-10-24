@@ -90,13 +90,22 @@ const SAT_ARRIVAL_MIN_UP = 0.3
 
 
 /**
+ * The space networks (networks/Networks.md), each an overlay of its own:
+ * `S` Starlink, `I` Iridium and its crosslinks, `D` NASA's Deep Space
+ * Network and its live links.  Off by default, and loaded (their chunk
+ * and data) the first time one is shown.
+ */
+export const NETWORK_KEYS = Object.freeze(['S', 'I', 'D'])
+
+
+/**
  * The settings that are scene overlays, each faded in and out as a group
  * (scene/fade.js; DESIGN.md "Overlays & visibility groups"): orbits, planet
  * and place labels, star labels, asterisms, the three grids, galaxy labels,
- * the human expansion lines.  The Milky Way (`U`) is the sky's own light,
- * not an overlay, and `C` draws nothing yet.
+ * the human expansion lines, the space networks.  The Milky Way (`U`) is
+ * the sky's own light, not an overlay, and `C` draws nothing yet.
  */
-export const OVERLAY_KEYS = Object.freeze(['o', 'p', 'l', 'a', 'e', 'c', 'g', 'G', 'x'])
+export const OVERLAY_KEYS = Object.freeze(['o', 'p', 'l', 'a', 'e', 'c', 'g', 'G', 'x', ...NETWORK_KEYS])
 
 
 /** */
@@ -174,6 +183,9 @@ export default class Scene {
       G: false, // galaxy labels (SPARC's), gated by magnitude: Galaxies.labelsVisible
       C: false, // globular-cluster labels: none yet (#228)
       x: true, // human expansion lines, once computed
+      S: false, // Starlink (networks/Networks.md)
+      I: false, // Iridium and its crosslinks
+      D: false, // the Deep Space Network and its live links
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
     // Each overlay's fade (OVERLAY_KEYS), stepped once a frame by the
@@ -270,6 +282,18 @@ export default class Scene {
     // planetTilt.
     this.populations = new Map
     this.importSatellites = () => import('./satellites/loadSatellites.js')
+    // The space networks (networks/Networks.md), by overlay key: their
+    // chunk and each one's data, imported when its overlay is first shown
+    // (loadNetwork); Starlink and Iridium hung from Earth's planetTilt as
+    // the satellites are, the DSN too (it turns its dishes with Earth).
+    this.networks = {}
+    this.networkData = {}
+    this._networksPending = {}
+    // In the satellites' chunk, not one of their own: a chunk of their own
+    // changed which modules esbuild shares between which lazy chunks, and
+    // split the first load's into two more requests (Networks.md, "What
+    // loads when").
+    this.importNetworks = () => import('./satellites/loadSatellites.js')
     // A link's population state for bodies whose population isn't in yet
     // (restorePopulations), and who to tell of one added (onPopulationAdded).
     this._pendingPopulations = new Map
@@ -462,6 +486,9 @@ export default class Scene {
       case 'g': return [this.grids?.galactic]
       case 'G': return [this.galaxies?.labelPoints]
       case 'x': return [this.colonization]
+      case 'S':
+      case 'I':
+      case 'D': return [this.networks[key]]
       default: return []
     }
   }
@@ -495,6 +522,10 @@ export default class Scene {
     }
     if (key === 'o') {
       this.orbitsVisible = shown
+    }
+    // A network is loaded the first time it's shown.
+    if (shown && NETWORK_KEYS.includes(key)) {
+      this.loadNetwork(key)
     }
     for (const node of this._overlayNodes(key)) {
       if (node) {
@@ -544,6 +575,9 @@ export default class Scene {
       G: () => this.toggleGalaxyLabels(),
       C: () => this.toggleGlobularLabels(),
       x: () => this.toggleColonization(),
+      S: () => this.toggleNetwork('S'),
+      I: () => this.toggleNetwork('I'),
+      D: () => this.toggleNetwork('D'),
       ...this._customAppliers,
     }
     for (const key of Object.keys(dispatch)) {
@@ -640,6 +674,7 @@ export default class Scene {
     }
     if (name === 'earth') {
       this._watchForSatellites()
+      this._hangNetworks()
     }
     this._hangPopulations()
     // A link's lit elements for a body that has only now loaded.
@@ -1181,6 +1216,51 @@ export default class Scene {
   }
 
 
+  /**
+   * A space network (networks/Networks.md), loaded once for the page: its
+   * chunk and data, hung from Earth's planetTilt and joined to its overlay
+   * group.  Asked for when its overlay is first shown.  A failure is logged
+   * and asked again the next time it's shown.
+   *
+   * @param {string} key Of NETWORK_KEYS
+   * @returns {Promise<?object>} the network's scene object, or null if it
+   *   didn't load
+   */
+  loadNetwork(key) {
+    if (this.networks[key]) {
+      return Promise.resolve(this.networks[key])
+    }
+    this._networksPending[key] ??= this.importNetworks()
+        .then((m) => m.loadNetwork(key, {layer: Shared.OVERLAY_LAYER, camera: this.ui?.camera}))
+        .then(({network, data}) => {
+          this.networks[key] = network
+          this.networkData[key] = data
+          // Labels it makes later take the group's fade too.
+          network.fadeUniform = this.fades[key].uniform
+          this._joinOverlay(key, network)
+          this._hangNetworks()
+          return network
+        })
+        .catch((err) => {
+          console.warn(`Network ${key} didn't load:`, err)
+          this._networksPending[key] = null
+          return null
+        })
+    return this._networksPending[key]
+  }
+
+
+  /** Hang the loaded networks from Earth's planetTilt, once it's here. */
+  _hangNetworks() {
+    const tilt = this.objects['earth.planetTilt']
+    for (const network of Object.values(this.networks)) {
+      if (tilt && network && network.parent !== tilt) {
+        tilt.add(network)
+      }
+    }
+  }
+
+
   /** @returns {?object} Earth's satellites (the CelesTrak loader's population), once in */
   get satellites() {
     return this.populations.get('earth') ?? null
@@ -1233,6 +1313,17 @@ export default class Scene {
       }
       this._populationListeners.push(cb)
     })
+  }
+
+
+  /**
+   * Show or hide a space network (`S` Starlink, `I` Iridium, `D` the DSN):
+   * loaded the first time it's shown.
+   *
+   * @param {string} key Of NETWORK_KEYS
+   */
+  toggleNetwork(key) {
+    this._setOverlay(key, !this._settings[key])
   }
 
 

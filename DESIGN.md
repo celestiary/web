@@ -177,6 +177,7 @@ What the first load fetches is the page, its scripts, the bodies' bundle, the st
 | The places' index for the search, `data/places-index.json` (259 KB, 113 KB gzipped: every place's name, position, kind and altitude, without the tiers) | The first search with text in it | `search/placesIndex.js`, `PlacesProvider`; [js/search/DESIGN.md](js/search/DESIGN.md#places-in-the-index) |
 | SPARC's galaxies, `data/sparc/galaxies.json` (216 KB) | A view that could show one (the limiting magnitude reaching the brightest's 7.53 from the Solar System, or within a magnitude of it while the `G` labels are shown; or the camera 10,000 light-years from the Sun); a link to a galaxy; the first search; the `e` key | `Galaxies.ensureLoaded`, `galaxiesInView`, `Scene.loadGalaxies`; [Galaxies.md](js/scene/Galaxies.md#the-data) |
 | Earth's satellites, `data/satellites.json`, and their chunk (satellite.js's SGP4, 20 KB) | The camera within 1.5e9 m of Earth with the orbits (`o`) shown; a `sat:` link; the first search | `Scene.loadSatellites`, `_watchForSatellites`; [Satellites.md](js/scene/satellites/Satellites.md#what-loads-when) |
+| The space networks: Starlink (`data/networks/starlink.json`, 0.7 MB, 0.3 MB gzipped), Iridium, the DSN's configuration, and their code, in the satellites' chunk (55 KB minified with it; a chunk of their own split the first load's into two more requests, [Networks.md](js/scene/networks/Networks.md#what-loads-when)) | Each network's overlay first shown (Settings' Networks rows, `V`, a link's `s=S`, `I`, `D`); the DSN Now feed then every 5 s while shown | `Scene.loadNetwork`; [Networks.md](js/scene/networks/Networks.md#what-loads-when) |
 | The changelog, `data/changelog.json` (73 KB) | What's new opens, or the changelog tour starts; the button's "N new" is from the dates alone, `js/changelogStamp.json`, in the bundle | `Celestiary.loadNews`, `changelog.js` `stampEntries`; [what's new](#whats-new-and-the-changelog-tour) |
 | A spacecraft's trajectory table, `data/trajectories/<name>.json` (Webb's 99 KB, 43 KB gzipped) | With the ephemeris (the reveal, or the safety net after the first frame), or when the craft is targeted; the craft is hidden until it's in | `Animation.placeOnTrajectory`, `Spacecraft.loadTrajectory`; [models.md, positions](js/scene/models.md#positions) |
 | A spacecraft's model, `large/models/<name>/<name>.glb` (JWST's 2.38 MB), and `GLTFLoader` and the meshopt decoder (dynamic chunks) | The model's LOD first draws its near level (the craft over a couple of pixels), or the craft is targeted | `Spacecraft` `buildNear`, `model.js` `loadModel`; [models.md](js/scene/models.md#the-loader) |
@@ -1246,7 +1247,10 @@ Each scene-annotation feature also has its OWN scoped lowercase toggle
 (`a` asterisms, `p` planet+moon+place labels, `s` star labels, `e` galaxy
 labels, `E` globular-cluster labels, `o` orbits, `;` equatorial grid, `x`
 human expansion lines, etc.).  `V` is the union
-of all the lowercase scene-annotation toggles.
+of all the lowercase scene-annotation toggles.  The space networks (Starlink,
+Iridium, the Deep Space Network: [Networks.md](js/scene/networks/Networks.md))
+are three overlays of their own (settings `S`, `I`, `D`), toggled from
+Settings' Networks rows rather than keys, and in `V` too.
 
 **When adding a new visual feature, decide which group it belongs in and
 wire it through the corresponding toggle method.**  Surface place labels,
@@ -1270,7 +1274,9 @@ One helper, `js/scene/fade.js`:
   ([Lagrange.md](js/scene/Lagrange.md)),
   `p` bodies' and places' names and the
   lat/lng marker, `l` star names, `a` asterisms, `e` `c` `g` the grids,
-  `G` galaxies' names, `x` the expansion lines).  Its opacity is
+  `G` galaxies' names, `x` the expansion lines, and the space networks
+  `S` Starlink, `I` Iridium, `D` the Deep Space Network,
+  [Networks.md](js/scene/networks/Networks.md)).  Its opacity is
   smoothstep-eased over `FADE_MS` (400 ms) and lives in one shared uniform,
   `uFade`.
 - **The group's materials multiply by it.**  `fadeMaterial` wraps a
@@ -1629,6 +1635,7 @@ and the provider extension contract.
 | `js/scene/RegimeMarks.js` | The target's regimes, drawn in its equator in the orbits group; low orbits labelled at their point nearest the eye ([Lagrange.md, orbital regimes](js/scene/Lagrange.md#orbital-regimes)) |
 | `js/scene/population/` | A population round a body: points by group, names by a budget, group switches, target nodes, the panel's section and the `pop:` token; a subclass says where a record is (`positionAt`) ([Population.md](js/scene/population/Population.md)) |
 | `js/scene/satellites/` | Earth's satellites (a population): CelesTrak's GP elements (`public/data/satellites.json`) by SGP4 (satellite.js), TEME to Earth's equator under its planetTilt, drawn in the orbits group, targeted as `{kind: 'satellite'}`, gone to and ridden ([Satellites.md](js/scene/satellites/Satellites.md)) |
+| `js/scene/networks/` | The space networks as overlays: Starlink's whole constellation and Iridium NEXT by SGP4 in slices with the in-between carried on the GPU (`Constellation.js`), Iridium's planes and crosslinks (`iridium.js`), and the Deep Space Network's dishes and live links from DSN Now (`dsn.js`, `DeepSpaceNetwork.js`) ([Networks.md](js/scene/networks/Networks.md)) |
 | `js/scene/cr3bp.js` | The circular restricted three-body problem: equations, an integrator with the state-transition matrix, the correction that closes a symmetric orbit ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
 | `js/scene/periodicOrbits.js` | A pair's three-body families (Lyapunov, halo, DRO, the 9:2 NRHO) from their first guesses, sampled and swept out in space ([Lagrange.md, three-body orbits](js/scene/Lagrange.md#three-body-orbits)) |
 | `js/scene/craft/` | A craft integrated among the bodies on their ephemerides: the sampled ephemeris, the force model, adaptive and symplectic integrators, Lambert, a targeted transfer to the Moon, the flights offered and their drawing ([Craft.md](js/scene/Craft.md)) |

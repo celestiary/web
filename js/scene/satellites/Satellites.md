@@ -29,6 +29,9 @@ spacecraft) share: this doc is what's Earth's and CelesTrak's.
   the snapshot and Starlink's file.
 - `../../search/providers/SatellitesProvider.js`: the search's entries, for
   any population.
+- `../networks/` (not this population): the space network overlays, `S`,
+  `I` and `D` ([Networks.md](../networks/Networks.md)), draw Starlink by its
+  shells and Iridium with its crosslinks from snapshots of their own.
 - `../../../tools/satellites/`: `fetch.mjs` refreshes the snapshot (`yarn
   satellites`), `select.js` holds the groups, the sampling and the orders, and
   `fetchHorizons.mjs` refreshes the Horizons fixture.

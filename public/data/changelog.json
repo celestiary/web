@@ -43,6 +43,32 @@
       "kind": "fix"
     },
     {
+      "id": "2026-10-23-starlink-iridium-s-crosslinks-and-the-deep",
+      "date": "2026-10-23",
+      "headline": "Starlink, Iridium's crosslinks and the Deep Space Network's live links",
+      "text": "Three networks you can now turn on round Earth, in Settings under Networks: the whole Starlink constellation coloured by its shells; Iridium's 66 satellites in their six polar planes, with the links between them coming and going as they move; and NASA's Deep Space Network, its dishes in California, Spain and Australia with live beams out to the spacecraft they're talking to right now, out to Voyager 1, 172 AU away. Uplinks are orange, downlinks blue.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 294,
+          "url": "https://github.com/celestiary/web/pull/294"
+        },
+        {
+          "kind": "issue",
+          "number": 50,
+          "url": "https://github.com/celestiary/web/issues/50"
+        }
+      ],
+      "epic": {
+        "number": 114,
+        "title": "Solar-system populations: asteroids, comets, satellites",
+        "url": "https://github.com/celestiary/web/issues/114"
+      },
+      "permalink": "#sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-10-23-new-york-in-3d-manhattan-s-streets-and-towers",
       "date": "2026-10-23",
       "headline": "New York in 3D: Manhattan's streets and towers on Earth",

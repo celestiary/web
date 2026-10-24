@@ -65,6 +65,21 @@ stars.
 - Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=alpoLF;time:pause,rate=-4096;info:closed)
 
+### Starlink, Iridium's crosslinks and the Deep Space Network's live links
+
+Three networks you can now turn on round Earth, in Settings under Networks: the whole Starlink
+constellation coloured by its shells; Iridium's 66 satellites in their six polar planes, with the
+links between them coming and going as they move; and NASA's Deep Space Network, its dishes in
+California, Spain and Australia with live beams out to the spacecraft they're talking to right
+now, out to Voyager 1, 172 AU away. Uplinks are orange, downlinks blue.
+
+- Date: 2026-10-23
+- PR: [#294](https://github.com/celestiary/web/pull/294)
+- Issue: [#50](https://github.com/celestiary/web/issues/50)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF)
+- Featured: yes
+
 ### New York in 3D: Manhattan's streets and towers on Earth
 
 Come down over New York, within a few tens of kilometres of Manhattan and under 30 km up, open the

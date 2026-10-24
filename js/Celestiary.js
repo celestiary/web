@@ -49,7 +49,7 @@ import {elt} from './utils'
 // keys here are the lowercase per-overlay toggles ('a' asterisms, 'p'
 // planet labels, etc.); the HTML chrome key 'v' is deliberately not in
 // this list so users can hide overlays and chrome independently.
-const SCENE_INFO_KEYS = ['a', 'l', 'p', 'G', 'C', 'o', 'e', 'c', 'g', 'x']
+const SCENE_INFO_KEYS = ['a', 'l', 'p', 'G', 'C', 'o', 'e', 'c', 'g', 'x', 'S', 'I', 'D']
 // The HTML chrome's fade, ms: index.css's --fade-ms, and the scene's
 // overlays' (scene/fade.js FADE_MS).
 const CHROME_FADE_MS = 400
@@ -2744,7 +2744,7 @@ export default class Celestiary {
     }})
     return [
       step(REVEAL_AT.orbits, () => this.scene.revealOverlays(['o'])),
-      step(REVEAL_AT.diagrams, () => this.scene.revealOverlays(['a', 'e', 'c', 'g', 'x'])),
+      step(REVEAL_AT.diagrams, () => this.scene.revealOverlays(['a', 'e', 'c', 'g', 'x', 'S', 'I', 'D'])),
       step(REVEAL_AT.labels, () => this.scene.revealOverlays(['p', 'l', 'G'])),
       step(REVEAL_AT.chrome, () => {
         // The changelog tour shows nothing but the scene and its captions;
@@ -2874,7 +2874,7 @@ export default class Celestiary {
     // Presentation mode — hide every scene annotation at once.  No clean
     // single-state representation, so it stays an action button.
     k.map('V', () => this._toggleAllSceneInfo(),
-        'Hide/show all scene annotations (labels, orbits, asterisms, grids)',
+        'Hide/show all scene annotations (labels, orbits, asterisms, grids, networks)',
         undefined,
         'Info')
     // three's FPS/MS/MB panel, for judging frame cost on a real GPU.
@@ -2963,6 +2963,29 @@ export default class Celestiary {
     'Orbits',
     () => this.scene.getSetting('o'),
     'Orbits')
+
+    // === Networks === (scene/networks/Networks.md)  Settings rows with no
+    // key, as the ecliptic and galactic grids have: few letters are left,
+    // and the app follows Celestia's where it can.  A link carries each as
+    // S, I or D in `s=`, and 'V' hides them with the other annotations.
+    k.addAction(() => {
+      this.scene.toggleNetwork('S')
+    },
+    'Starlink (the whole constellation, by shell)',
+    () => this.scene.getSetting('S'),
+    'Networks')
+    k.addAction(() => {
+      this.scene.toggleNetwork('I')
+    },
+    'Iridium and its crosslinks',
+    () => this.scene.getSetting('I'),
+    'Networks')
+    k.addAction(() => {
+      this.scene.toggleNetwork('D')
+    },
+    'Deep Space Network, live from DSN Now',
+    () => this.scene.getSetting('D'),
+    'Networks')
 
     // === Grids ===
     k.map(';', () => {
