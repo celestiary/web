@@ -9,6 +9,7 @@ import {
 } from 'three'
 import {dataUrl} from '../../dataUrl.js'
 import {monthlyPath} from '../monthly.js'
+import {fadeGain} from '../points/PointPopulation.js'
 import {sharedBlob} from '../sharedImage.js'
 import {COMPLETE_BAND_DEG, buildDay, chooseDay, fadeSeam, fallbackSources, seamSource} from './cloudDay.js'
 import {CLOUD_TILE_LEVEL, TILE_PX, cloudSource, coverageFromBundled, tileGrid} from './cloudSource.js'
@@ -32,6 +33,13 @@ import {CLOUD_TILE_LEVEL, TILE_PX, cloudSource, coverageFromBundled, tileGrid} f
  * once the date's source has stayed the same for SETTLE_MS (a clock running
  * at days a second doesn't start a load a frame).  A load for a stale date
  * is abandoned between tiles.
+ *
+ * The first map fades in (gain, drawn): from nothing to whole over
+ * CLOUD_FADE_IN_MS from the first frame the clouds can draw with it, as a
+ * star tile's light does (PointPopulation fadeGain), rather than appearing
+ * in a frame seconds after the planet is on screen.  Unless the scene
+ * wasn't on screen yet (`shown`, the first load's reveal): then the
+ * reveal's own fade brings them in with the planet.
  */
 export default class CloudMap {
   /**
@@ -42,8 +50,12 @@ export default class CloudMap {
    *   textures/ (earth/earth_atmos.jpg)
    * @param {string} [opts.fillPath] Its small copy, under textures/
    *   (earth/earth_atmos_fill.jpg), for a day's polar gaps
+   * @param {Function} [opts.shown] Whether the scene is on screen (the
+   *   first load's reveal has begun: Scene.revealed): a map first drawn
+   *   after that fades in, one drawn before it doesn't
+   * @param {number} [opts.fadeInMs]
    */
-  constructor({groundPattern, bundledPath, fillPath = null}) {
+  constructor({groundPattern, bundledPath, fillPath = null, shown = () => true, fadeInMs = CLOUD_FADE_IN_MS}) {
     const {width, height} = tileGrid(CLOUD_TILE_LEVEL)
     this.width = width
     this.height = height
@@ -70,6 +82,13 @@ export default class CloudMap {
     this._grounds = new Map()
     this._bundled = null
     this._fill = null
+    this.shown = shown
+    this.fadeInMs = fadeInMs
+    // Whether a map is in the texture, and when its fade began: undefined
+    // until the clouds are first drawn with one (drawn), null if that was
+    // before the scene was shown (no fade).
+    this._landed = false
+    this._fadeFrom = undefined
     // Loading needs a DOM (image decoding, canvases); the bun tests have
     // none, and must not reach the network.
     this.enabled = typeof document !== 'undefined' && typeof createImageBitmap === 'function'
@@ -117,11 +136,44 @@ export default class CloudMap {
   }
 
 
-  /** Mark the texture for upload. */
+  /** Mark the texture for upload: a map is in it. */
   _changed() {
     this.texture.needsUpdate = true
+    this._landed = true
   }
 
+
+  /**
+   * The clouds are drawn this frame (the shell's preAnimCb, while the
+   * surface under them is ready).  The first such frame with a map in the
+   * texture starts its fade in, if the scene is on screen; before that
+   * (the first load, under its reveal) the map is whole from the start.
+   *
+   * @param {number} [nowMs] performance.now()
+   */
+  drawn(nowMs = performance.now()) {
+    if (this._landed && this._fadeFrom === undefined) {
+      this._fadeFrom = this.shown() ? nowMs : null
+    }
+  }
+
+
+  /**
+   * The share of the map's coverage the clouds draw now, 0 to 1: the
+   * shell's opacity and the volume's share are multiplied by it.  0 until
+   * the first map has been drawn (drawn), then eased in over fadeInMs
+   * (fadeGain's smoothstep); 1 at once for a map drawn before the scene
+   * was shown.  A later day's map replaces the shown one whole.
+   *
+   * @param {number} [nowMs] performance.now()
+   * @returns {number}
+   */
+  gain(nowMs = performance.now()) {
+    if (this._fadeFrom === undefined) {
+      return 0
+    }
+    return this._fadeFrom === null ? 1 : fadeGain(nowMs - this._fadeFrom, this.fadeInMs)
+  }
 
   /**
    * The bundled texture, as coverage, for dates with no mosaic.
@@ -315,6 +367,13 @@ export default class CloudMap {
 
 // A date is wanted for this long, ms, before its clouds load.
 const SETTLE_MS = 1000
+
+/**
+ * How long the first map's clouds take to come in, ms, from the first
+ * frame they can be drawn (CloudMap.gain): a fade, not a wait, and not a
+ * pop over a planet already on screen.
+ */
+export const CLOUD_FADE_IN_MS = 1200
 
 // Fetch attempts per tile: the network can drop one.
 const TILE_ATTEMPTS = 2

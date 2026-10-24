@@ -1,4 +1,4 @@
-import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
+import {SUPPORTED_DAYS_FROM_J2000, fromJulianDay} from './Time.js'
 import {clampEv, roundEv} from './scene/evCompensation.js'
 import {clampStarMag, roundStarMag} from './scene/starMagnitude.js'
 
@@ -223,6 +223,37 @@ export function permalinkHref(fragment, baseHref, search) {
 // to its second, where 4 (8.6 s) brought it back up to 4 s off.
 const TIME_DIGITS = 6
 
+/**
+ * `t=now`: a link whose date is the moment it's opened (a homepage card's),
+ * not one written into it.  Its `cq` is then in the body's own frame,
+ * turning with it, as a landed link's is (decodePermalink), so the view
+ * keeps its ground whatever the hour.
+ */
+export const TIME_NOW = 'now'
+/**
+ * A clock this close to the real time, ms, is at it already: a `t=now`
+ * link opened from it changes no date (linkTimeMs).  The homepage's tour
+ * runs on the real time, so a card at now flies with no date change.
+ */
+export const NOW_TOLERANCE_MS = 1000
+
+
+/**
+ * The date opening a link sets, if any (Celestiary._arrive, _linkFlight):
+ * its own, or for `t=now` the real time, unless the clock is there already.
+ *
+ * @param {{d2000: ?number, now?: boolean}} pl A decoded link
+ * @param {number} simMs The clock now, Unix ms
+ * @param {number} [nowMs] The real time, Unix ms
+ * @returns {?number} Unix ms, or null to leave the clock as it is
+ */
+export function linkTimeMs(pl, simMs, nowMs = Date.now()) {
+  if (pl.now) {
+    return Math.abs(simMs - nowMs) <= NOW_TOLERANCE_MS ? null : nowMs
+  }
+  return fromJulianDay(pl.d2000 + J2000_JD)
+}
+
 
 /**
  * Encode a complete view state into a hash fragment.
@@ -251,7 +282,8 @@ const TIME_DIGITS = 6
  * See js/permalink.md for the full specification.
  *
  * @param {string} path  The target's path, e.g. 'sun/earth/moon', 'sun/earth/austin', 'hip:32349'
- * @param {number} d2000  Days from J2000.0 (= simTimeJulianDay() − 2451545.0)
+ * @param {?number} d2000  Days from J2000.0 (= simTimeJulianDay() − 2451545.0), or
+ *   null for `t=now` (TIME_NOW), whose `quat` is then body-relative
  * @param {number} lat  Latitude in degrees (body-fixed, −90…+90)
  * @param {number} lng  Longitude in degrees (body-fixed, −180…+180)
  * @param {number} alt  Altitude above planet surface in meters
@@ -269,7 +301,7 @@ const TIME_DIGITS = 6
  */
 export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens, from, ev = 0, sm = 0) {
   const pos = `${trimFloat(lat)},${trimFloat(lng)},${formatMeters(Math.round(alt))}`
-  const t = `${parseFloat(d2000.toFixed(TIME_DIGITS))}jd`
+  const t = d2000 === null ? TIME_NOW : `${parseFloat(d2000.toFixed(TIME_DIGITS))}jd`
   const cq = [quat.x, quat.y, quat.z, quat.w].map(trimFloat).join(',')
   const f = `${formatFov(fov)}deg`
   let frag = `${path}${SEPARATOR}${pos}`
@@ -308,12 +340,14 @@ export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings,
  * after the position prefix are silently ignored.  State tokens
  * (`label:value`) are returned as given, in `tokens`.  `from` is the
  * camera's frame path when the link names one (else null: the path's own);
- * a malformed one is null.  `ev` is the exposure compensation in stops, 0
+ * a malformed one is null.  `t=now` (TIME_NOW) is the moment the link is
+ * opened: `now` true and `d2000` null (linkTimeMs), and its `cq` turns with
+ * the body, as a landed link's does.  `ev` is the exposure compensation in stops, 0
  * when the link has none or a bad one, and held to the range (a `+` sign is
  * accepted).
  *
  * @param {string} fragment  Hash content without leading '#'
- * @returns {{path:string, d2000:number, lat:number, lng:number, alt:number,
+ * @returns {{path:string, d2000:?number, now:boolean, lat:number, lng:number, alt:number,
  *            quat:{x,y,z,w}, fov:number, ev:number, sm:number, settings:object, tokens:object,
  *            from:?string}|null}
  */
@@ -363,11 +397,12 @@ export function decodePermalink(fragment) {
   if (!tStr || !cqStr || !fovStr) {
     return null
   }
-  if (!tStr.endsWith('jd') || !fovStr.endsWith('deg')) {
+  const now = tStr === TIME_NOW
+  if ((!now && !tStr.endsWith('jd')) || !fovStr.endsWith('deg')) {
     return null
   }
 
-  const d2000 = parseFloat(tStr.slice(0, -2))
+  const d2000 = now ? 0 : parseFloat(tStr.slice(0, -2))
   const [qx, qy, qz, qw] = cqStr.split(',').map(Number)
   const fov = parseFloat(fovStr.slice(0, -3))
 
@@ -375,7 +410,7 @@ export function decodePermalink(fragment) {
     return null
   }
   // Past the ephemerides' range the planets are garbage (Time.js).
-  const d2000InRange = Math.min(Math.max(d2000, -SUPPORTED_DAYS_FROM_J2000), SUPPORTED_DAYS_FROM_J2000)
+  const d2000InRange = now ? null : Math.min(Math.max(d2000, -SUPPORTED_DAYS_FROM_J2000), SUPPORTED_DAYS_FROM_J2000)
   // Settings are always returned as a complete map (defaults + any flagged
   // overrides) so callers don't need to know the default table.
   const settings = decodeSettings(params['s'])
@@ -383,7 +418,7 @@ export function decodePermalink(fragment) {
   const ev = clampEv(parseFloat(params['ev']))
   const sm = clampStarMag(parseFloat(params['sm']))
   return {
-    path, d2000: d2000InRange, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw},
+    path, d2000: d2000InRange, now, lat, lng, alt, quat: {x: qx, y: qy, z: qz, w: qw},
     fov: Math.min(Math.max(fov, FOV_MIN), FOV_MAX), ev, sm, settings, tokens, from,
   }
 }

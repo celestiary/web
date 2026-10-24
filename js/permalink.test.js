@@ -21,12 +21,15 @@ import {
   encodeSettings,
   encodeTimeToken,
   formatTokenValue,
+  linkTimeMs,
+  NOW_TOLERANCE_MS,
+  TIME_NOW,
   parseTokenValue,
   parseValueList,
   pathFromFragment,
   permalinkHref,
 } from './permalink.js'
-import {SUPPORTED_DAYS_FROM_J2000} from './Time.js'
+import {SUPPORTED_DAYS_FROM_J2000, fromJulianDay} from './Time.js'
 
 
 describe('encodePermalink / decodePermalink round-trip', () => {
@@ -151,6 +154,52 @@ describe('decodePermalink clamps the time to the supported dates', () => {
   it('keeps a t= in range as it is', () => {
     const decoded = decodePermalink('sun/earth@0,0,0m;t=-1000000.5jd;cq=0,0,0,1;fov=45deg')
     expect(decoded.d2000).toBe(-1000000.5)
+  })
+})
+
+
+describe('t=now, a link at the moment it is opened', () => {
+  const NOW_LINK = 'sun/earth@-38.1501,-99.3434,12.104919Mm;t=now;cq=0.1,0.2,0.3,0.9;fov=45deg;s=alp'
+
+  it('decodes with no date of its own', () => {
+    const pl = decodePermalink(NOW_LINK)
+    expect(pl).not.toBeNull()
+    expect(pl.now).toBe(true)
+    expect(pl.d2000).toBeNull()
+    expect(pl.lat).toBe(-38.1501)
+    expect(pl.quat).toEqual({x: 0.1, y: 0.2, z: 0.3, w: 0.9})
+    expect(pl.settings.a).toBe(false)
+    // A dated link isn't.
+    expect(decodePermalink('sun/earth@0,0,0m;t=12jd;cq=0,0,0,1;fov=45deg').now).toBe(false)
+  })
+
+  it('round-trips through encodePermalink with a null date', () => {
+    const frag = encodePermalink('sun/earth', null, 1, 2, 3, {x: 0, y: 0, z: 0, w: 1}, 45, null, {})
+    expect(frag).toContain(`;t=${TIME_NOW};`)
+    expect(decodePermalink(frag).now).toBe(true)
+  })
+
+  it('still needs cq= and fov=, and refuses another word', () => {
+    expect(decodePermalink('sun/earth@0,0,0m;t=now;fov=45deg')).toBeNull()
+    expect(decodePermalink('sun/earth@0,0,0m;t=today;cq=0,0,0,1;fov=45deg')).toBeNull()
+    expect(decodePermalink('sun/earth@0,0,0m;t=nowjd;cq=0,0,0,1;fov=45deg')).toBeNull()
+  })
+
+  it('sets no date from a clock at the real time, and the real time from one that isn\'t', () => {
+    const pl = decodePermalink(NOW_LINK)
+    const real = Date.UTC(2026, 9, 24, 12)
+    expect(linkTimeMs(pl, real, real)).toBeNull()
+    expect(linkTimeMs(pl, real - NOW_TOLERANCE_MS, real)).toBeNull()
+    expect(linkTimeMs(pl, real + 400, real)).toBeNull()
+    expect(linkTimeMs(pl, real - (2 * NOW_TOLERANCE_MS), real)).toBe(real)
+    expect(linkTimeMs(pl, Date.UTC(2026, 9, 5), real)).toBe(real)
+  })
+
+  it('gives a dated link its own date, whatever the clock', () => {
+    const pl = decodePermalink('sun/earth@0,0,0m;t=9781.4376jd;cq=0,0,0,1;fov=45deg')
+    const ms = fromJulianDay(9781.4376 + 2451545)
+    expect(linkTimeMs(pl, 0, 0)).toBe(ms)
+    expect(linkTimeMs(pl, ms, ms)).toBe(ms)
   })
 })
 

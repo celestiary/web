@@ -1,6 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it} from 'bun:test'
 import {Object3D, PerspectiveCamera, Vector3} from 'three'
 import {METER_GAIN_MAX, arrivalGain, exposureAt} from './scene/exposure.js'
+import {NAKED_EYE} from './scene/observer/instrument.js'
 import {targets} from './shared'
 
 
@@ -31,6 +32,7 @@ function fakeUi(ev) {
     renderer: {toneMappingExposure: 1},
     camera: {fov: 45},
     height: 100,
+    instrument: NAKED_EYE,
   })
 }
 
@@ -238,5 +240,45 @@ describe('ThreeUi exposure on the way to a body', () => {
     expect(ui._approach).toBeNull()
     ui.approach(body, sunward(), null)
     expect(ui._approach).toBeNull()
+  })
+})
+
+
+describe('ThreeUi adaptation', () => {
+  beforeEach(() => {
+    targets.obj = null
+  })
+
+  /**
+   * One step of `dt` seconds of the meter's gain from 1 toward 2^10.
+   *
+   * @param {object} instrument
+   * @returns {number} The gain after it
+   */
+  function stepUp(instrument) {
+    const ui = fakeUi(0)
+    ui.instrument = instrument
+    ui._meterGain = 1
+    ui._meterGainGoal = 2 ** 10
+    const realNow = performance.now
+    let now = 1000
+    performance.now = () => now
+    try {
+      // The last step a moment ago (the first call snaps to the goal).
+      ui._lastExposureMs = now
+      now += 750
+      ui._updateExposure()
+    } finally {
+      performance.now = realNow
+    }
+    return ui._meterGain
+  }
+
+  it('is the instrument\'s, not the scene\'s: the naked eye\'s by default, another\'s when it is another', () => {
+    // The eye: 63% of the way in stops in its 0.75 s.
+    expect(Math.log2(stepUp(NAKED_EYE))).toBeCloseTo(10 * (1 - Math.exp(-1)), 6)
+    // An instrument that adapts four times slower gets a quarter of the time constants' way.
+    const slow = {...NAKED_EYE, adaptation: {upSeconds: 3, downSeconds: 0.6, exposureSeconds: 1}}
+    expect(Math.log2(stepUp(slow))).toBeCloseTo(10 * (1 - Math.exp(-0.25)), 6)
   })
 })

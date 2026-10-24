@@ -16,7 +16,7 @@ import PlacesProvider from './search/providers/PlacesProvider'
 import SceneProvider from './search/providers/SceneProvider'
 import StarsProvider from './search/providers/StarsProvider'
 import ThreeUi from './ThreeUI'
-import Time, {fromJulianDay, toJulianDay} from './Time'
+import Time, {toJulianDay} from './Time'
 import reifyMeasures from './reify'
 import * as Shapes from './scene/shapes'
 import * as Shared from './shared'
@@ -26,7 +26,7 @@ import {
   decodeCraftToken, decodeInfoToken, decodeLayersToken, decodeOrbitsFade, decodeOrbitsToken, decodePeriodicToken, decodePermalink,
   decodeSettings, decodeTimeToken, encodeCraftToken, encodeInfoToken, encodeLayersToken, encodeOrbitsToken, encodePeriodicToken,
   encodePermalink, encodeTimeToken, decodePopulationToken, encodePopulationToken,
-  pathFromFragment, permalinkHref,
+  linkTimeMs, pathFromFragment, permalinkHref,
 } from './permalink'
 import {decodeAppTokens, encodeAppTokens} from './store/appTokens'
 import {goToEntry, placeTarget, targetEntry} from './search/commitEntry'
@@ -491,6 +491,8 @@ export default class Celestiary {
         // didn't need, each fading in from now (Stars.md, "Brightness
         // tiers").
         this.scene.stars?.revealed?.()
+        // From now, Earth's first cloud map fades in (CloudMap.gain).
+        this.scene.revealed = true
       }
       reveal.frame(nowMs)
     }
@@ -796,8 +798,13 @@ export default class Celestiary {
    */
   _arrive(pl, frame, resolved) {
     if (pl) {
-      // Position planets at the saved time before goTo() orients the platform
-      this.time.setTime(fromJulianDay(pl.d2000 + J2000_JD))
+      // Position planets at the saved time before goTo() orients the platform.
+      // A link at `t=now` leaves a clock that is at the real time already
+      // (a homepage card's, from the tour), so nothing changes date.
+      const timeMs = linkTimeMs(pl, this.time.simTime)
+      if (timeMs !== null) {
+        this.time.setTime(timeMs)
+      }
       this._restoreClock(pl)
       this._restoreLayers(pl)
       this.animation.animateAtJD(this.ui.scene, this.time.simTimeJulianDay())
@@ -896,7 +903,7 @@ export default class Celestiary {
       const platformWorldQuat = camera.platform.getWorldQuaternion(new THREE.Quaternion())
       camera.position.copy(latLngAltToLocal(
           pl.lat, pl.lng, pl.alt, tObj.props.radius.scalar, planetWorldQuat, platformWorldQuat))
-      camera.quaternion.set(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
+      camera.quaternion.copy(linkQuaternion(pl, planetWorldQuat, platformWorldQuat))
     }
     // Permalink restore takes precedence over any pending goTo animations.
     Shared.targets.tween = null
@@ -1527,12 +1534,15 @@ export default class Celestiary {
       frame: frame.name,
       node,
       // Landed, the camera is the body's (Scene.land); else its orbit's,
-      // where the body turns under it (_restoreView).
+      // where the body turns under it (_restoreView), and so does a `t=now`
+      // link's orientation (linkQuaternion).
       localPosition: landed ? () => bodyFixed : () => latLngAltToLocal(pl.lat, pl.lng, pl.alt, r,
           body.getWorldQuaternion(new THREE.Quaternion()), node.getWorldQuaternion(new THREE.Quaternion())),
-      localQuaternion: () => quaternion,
+      localQuaternion: landed || !pl.now ? () => quaternion : () => linkQuaternion(pl,
+          body.getWorldQuaternion(new THREE.Quaternion()), node.getWorldQuaternion(new THREE.Quaternion())),
       fov: pl.fov,
-      timeMs: fromJulianDay(pl.d2000 + J2000_JD),
+      // None for a `t=now` link from a clock at the real time (linkTimeMs).
+      timeMs: linkTimeMs(pl, this.time.simTime),
       // The exposure follows the body in, where it's what the view is of.
       approach: !landed && pl.alt < APPROACH_MAX_RADII * r,
       arrive: () => this._arrive(pl, frame, resolved),
@@ -3488,6 +3498,26 @@ export default class Celestiary {
 
 const DEFAULT_TARGET = 'sun'
 const J2000_JD = 2451545.0
+
+
+/**
+ * A link's camera orientation in its orbit-style frame (the platform, on
+ * the body's orbit): `cq` as written, or for a `t=now` link, whose `cq` is
+ * the body's (decodePermalink), turned with the body, so the view keeps
+ * its ground at whatever hour the link is opened.
+ *
+ * @param {object} pl The decoded link
+ * @param {THREE.Quaternion} planetWorldQuat The body's world orientation
+ * @param {THREE.Quaternion} platformWorldQuat The platform's
+ * @returns {THREE.Quaternion}
+ */
+function linkQuaternion(pl, planetWorldQuat, platformWorldQuat) {
+  const q = new THREE.Quaternion(pl.quat.x, pl.quat.y, pl.quat.z, pl.quat.w).normalize()
+  if (!pl.now) {
+    return q
+  }
+  return platformWorldQuat.clone().invert().multiply(planetWorldQuat).multiply(q)
+}
 
 
 /**

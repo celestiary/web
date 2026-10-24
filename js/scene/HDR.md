@@ -712,7 +712,12 @@ instrument is:
   per steradian by the angle from it (the CIE total glare equation for
   the eye), which is the veil round a bright star; and the glare, the
   same scattering round a resolved disc (the general equation, 0.1° to
-  100°), which the Sun's pass draws ([Sun.md](Sun.md#glare)).
+  100°), which the Sun's pass draws ([Sun.md](Sun.md#glare));
+- **an adaptation**: how fast its exposure follows the light, the metered
+  gain's time constants up (0.75 s) and down (0.15 s) and the exposure's
+  own (0.25 s) ([metered exposure](#metered-exposure), rule 9).  The
+  scene's light doesn't change with how fast the eye or camera looking at
+  it adapts, so these are the observer's, where #236 puts the rest of it.
 
 `exposure.js` keeps the names the calibration is written in
 (`LIMITING_MAGNITUDE`, `LIMIT_VALUE`, `EYE_PATCH_SR`, `EYE_POINT_RAD`,
@@ -1074,10 +1079,22 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    DESIGN.md).  The rings are lit in exposure units (rings.md,
    "Lighting"), so the meter reads them as it does the globe.
 9. The gain **eases in log space** (`easeExposure`), with a time constant
-   of `METER_TAU_UP_SECONDS` (1.5 s) rising, the eye adapting to the dark,
-   and `METER_TAU_DOWN_SECONDS` (0.3 s) falling, a camera catching up with a
-   planet come upon from a star field; the keyed exposure itself keeps its
-   0.5 s between targets.  The gain asked for is the scene's whatever
+   of `METER_TAU_UP_SECONDS` (0.75 s) rising, the eye adapting to the dark,
+   and `METER_TAU_DOWN_SECONDS` (0.15 s) falling, a camera catching up with a
+   planet come upon from a star field; the rendered exposure eases toward
+   the meter's and the keyed exposure with `EXPOSURE_TAU_SECONDS` (0.25 s,
+   between targets too).  **These are the observer's, not the scene's**:
+   the instrument's `adaptation` (`observer/instrument.js` `ADAPTATION`,
+   [the instrument](#the-instrument)), which `ThreeUi._updateExposure`
+   reads from `this.instrument`, so another instrument (#236's binoculars,
+   a camera) brings its own; `exposure.js` keeps the three names as the
+   naked eye's values.  They were 1.5 s, 0.3 s and 0.5 s; the maintainer
+   halved them: more like the eye's first seconds, but slow to get one's
+   bearings by in the first scene (from the Sun's stopped-down disc to the
+   dark-adapted field, 17 stops, the gain was within a stop of its goal in
+   4.25 s, and is now in 2.1 s, `instrument.test.js`).  The real eye's dark
+   adaptation takes minutes; these are a camera's.  The measurements quoted
+   elsewhere in this doc were taken with the old constants.  The gain asked for is the scene's whatever
    exposure the frame was rendered at (step 2), so there is no loop to
    oscillate: at a fixed view the goal is a constant and the gain settles
    on it; as the view moves the goal moves with the frame's content and
@@ -1122,8 +1139,8 @@ half-float's smallest normal value) is written as zero (below).
 (`ThreeUi.approach`, `exposure.js arrivalGain` and `approachExposure`;
 DESIGN.md, [approach](../../DESIGN.md#approach)).  The meter alone can't:
 the destination is a few pixels across until the last few frames of a
-1.8 s travel, and the gain eases up with a time constant of 1.5 s (rule 9,
-the eye adapting to the dark).  So a body arrived at whatever exposure
+1.8 s travel, and the gain eases up with a time constant of 0.75 s (rule 9,
+the eye adapting to the dark; 1.5 s when this was written).  So a body arrived at whatever exposure
 the meter had been heading for, and took seconds to settle:
 
 - from the Sun's view, just after loading (the meter stopped down for the
@@ -1295,8 +1312,8 @@ pipeline stall.  It alone set the 5th-percentile frame rate of 10-15.
   0.3 s fall reads the scene brighter by however far the gain fell in
   those frames, and asks for too little (`meterReadback.test.js`).
 - **The cadence stays every fourth frame** (`METER_EVERY_FRAMES`).  A frame
-  or two of latency is under a tenth of the faster time constant (0.3 s,
-  18 frames at 60 Hz); a metering every frame would quadruple the CPU of
+  or two of latency is under a quarter of the faster time constant (0.15 s,
+  9 frames at 60 Hz; under a tenth of the 0.3 s it was); a metering every frame would quadruple the CPU of
   each (the sort of 1,024 pixels, the bodies in view, the 32×32 pass) for
   a curve that moves under 6% between meterings.
 - **Which frames are sampled is said in one place**, `MeterCadence`
@@ -1411,7 +1428,7 @@ gain the frame settled on, and "meter" what it read at the keyed exposure
   beside Earth; the daytime sky): their light is under a sunlit surface's
   by 1e4 or more, so the keyed exposure can't show them, as a camera
   can't.  They are back where the frame is dark: at night and in deep
-  space the gain reaches 4e6 (the 1.5 s constant), and a 45° field holds
+  space the gain reaches 4e6 (the 1.5 s constant then, 0.75 s now), and a 45° field holds
   240-410 stars over 10 of 255, to magnitude 6.5, the brightest first and
   blooming; the display-valued catalogue showed thousands at every
   exposure.
