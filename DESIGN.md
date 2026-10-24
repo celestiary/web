@@ -181,6 +181,7 @@ What the first load fetches is the page, its scripts, the bodies' bundle, the st
 | A spacecraft's trajectory table, `data/trajectories/<name>.json` (Webb's 99 KB, 43 KB gzipped) | With the ephemeris (the reveal, or the safety net after the first frame), or when the craft is targeted; the craft is hidden until it's in | `Animation.placeOnTrajectory`, `Spacecraft.loadTrajectory`; [models.md, positions](js/scene/models.md#positions) |
 | A spacecraft's model, `large/models/<name>/<name>.glb` (JWST's 2.38 MB), and `GLTFLoader` and the meshopt decoder (dynamic chunks) | The model's LOD first draws its near level (the craft over a couple of pixels), or the craft is targeted | `Spacecraft` `buildNear`, `model.js` `loadModel`; [models.md](js/scene/models.md#the-loader) |
 | The star catalogue's faint tiers, `large/stars/v1/packs/0.bin`-`11.bin` (97,867 stars, 1.65 MB gzipped, 12 requests) | The reveal (beside the ephemeris); before it, the packs a view wants to its limit plus a magnitude (a dark-adapted, deep or telescope link's field); a link or frame to a star not in yet, the first search, the human expansion; 3 s after the stars are drawn where nothing reveals the scene | `Stars.revealed` (which fades them in), `Stars.streamRest`, `Stars.whenStar`, `Stars.whenComplete`; [the star catalogue's tiers](#the-star-catalogues-tiers) |
+| Slop New York, only once switched on (the layers control's *New York (3D city)*, `layers:nyc`, `?nyc=1`): slop-newyork's 20 scripts from its site (2.3 MB, 0.7 MB gzipped) and three.js's dev build from jsDelivr (11 files, about 4 MB), by the page's import map | Switched on, with the camera within 60 km of Midtown and under 30 km and Earth's Cesium layer active (where the switch is offered); freed past 300 km or switched off | `CesiumLayers._updateNewYork`, `cesium/newYorkGuest.js`; [CESIUM.md, New York](CESIUM.md#new-york) |
 
 On the homepage that is the bodies' bundle where there were 31 descriptors, 24 place catalogues, the galaxies and the changelog: 57 requests and 1 MB of JSON before.  The homepage's tour doesn't fetch Earth's places as it passes (its overlays are held, so no labels could show) nor the galaxies (at the night side's deepest, 6.66, the brightest's point is under the limit and the labels are held).  Measured in the PR ([#258](https://github.com/celestiary/web/issues/258)).
 
@@ -1218,6 +1219,12 @@ scene render target through a stencil of the Earth's silhouette
 (portal-netgl's same-page link).  Camera and sunlight are coupled so the
 globe sits and is lit exactly where celestiary's would be.  Design, data
 sources and phases: [CESIUM.md](CESIUM.md).
+
+Over Manhattan, with Earth's Cesium layer active, the same control's panel
+adds a switch, *New York (3D city)*: an optional layer, Slop New York's
+three.js city drawn inside Cesium's frame, off by default and loaded only
+when switched on ([CESIUM.md, New York](CESIUM.md#new-york); its permalink
+token, design/URLs.md [layers token](design/URLs.md#layers-token)).
 
 ## Overlays & visibility groups
 

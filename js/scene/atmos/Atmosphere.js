@@ -25,7 +25,7 @@ import {EMITTED_GLSL, LUMINOUS_SHOULDER_GLSL, NEUTRAL_GLSL, absoluteUniforms} fr
 import {NIGHT_SKY_GLSL} from '../nightSky.js'
 import {sphere} from '../shapes'
 import {MIE_PHASE_GLSL, PEAK_TAU_MAX, STEP_INTEGRAL_GLSL, mieParams} from './AtmospherePrecompute.js'
-import {SHELL_AHEAD_GLSL} from './rayEnd.js'
+import {SHELL_AHEAD_GLSL, SUN_BELOW_HORIZON_GLSL} from './rayEnd.js'
 
 
 /**
@@ -796,6 +796,7 @@ vec4 sampleInScatter(float r, float mu_view, float mu_sun, bool ground, out vec4
 }
 
 vec2 rsi(vec3 r0, vec3 rd, float sr);
+${SUN_BELOW_HORIZON_GLSL}
 
 ${STEP_INTEGRAL_GLSL}
 
@@ -881,15 +882,17 @@ void marchSegment(vec3 eye, vec3 dir, float tMax, out vec4 inS, out vec4 ms, out
     h0 = h1;
     d0 = d1;
     vec2  jOd;
-    vec2  pPlanet = rsi(pos, uSunDirection, uGroundRadius);
-    // The Sun behind the planet: from above the sphere, the ray to it meets
-    // the sphere ahead; from below it (a march from an eye or to terrain
-    // under the datum, where every ray to the Sun leaves the sphere), the
-    // Sun is under the local horizontal.  Reading the table there instead
-    // gave a Sun 47° under the horizon a 200 m path to the ground, and the
-    // Dead Sea a blue sky at midnight once the metered exposure lifted it.
-    bool sunBlocked = r >= uGroundRadius ?
-        (pPlanet.x > 0.0 && pPlanet.x < pPlanet.y) : dot(pos, uSunDirection) < 0.0;
+    // The Sun behind the planet: from above the sphere, under its horizon
+    // there; from below it (a march from an eye or to terrain under the
+    // datum, where every ray to the Sun leaves the sphere), under the local
+    // horizontal.  Reading the table there instead gave a Sun 47° under the
+    // horizon a 200 m path to the ground, and the Dead Sea a blue sky at
+    // midnight once the metered exposure lifted it.  Not by whether the ray
+    // to the Sun meets the sphere (rsi): within a metre of it that was
+    // float32 noise, and from an eye under the sphere the samples where its
+    // rays cross it let the night's Sun through, in speckled bands (rayEnd.js
+    // sunBelowHorizon).
+    bool sunBlocked = sunBelowHorizon(pos, uSunDirection, uGroundRadius);
     if (sunBlocked) {
       // Enough path for the smallest coefficient (AtmospherePrecompute:
       // 1e6 m let 0.3% of the Sun through in Earth's red).
@@ -950,8 +953,7 @@ ${SHELL_AHEAD_GLSL}
 // transmission is (reciprocity).  None with the Sun down there.
 vec3 peakDepth(vec3 start, vec3 T, vec3 Ts) {
   float r = length(start);
-  vec2  pS = rsi(start, uSunDirection, uGroundRadius);
-  bool  sunDown = r >= uGroundRadius ? (pS.x > 0.0 && pS.x < pS.y) : dot(start, uSunDirection) < 0.0;
+  bool  sunDown = sunBelowHorizon(start, uSunDirection, uGroundRadius);
   if (sunDown) return vec3(0.0);
   vec2  od = texture2D(tTransmittance, vec2(max(r - uGroundRadius, 0.0) / (uAtmosphereRadius - uGroundRadius),
       dot(start / r, uSunDirection) * 0.5 + 0.5)).rg;
