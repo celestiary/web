@@ -1,11 +1,12 @@
 import {Group, Matrix4, PerspectiveCamera, Scene, Vector3} from 'three'
 import Satellites from '../scene/satellites/Satellites.js'
 import {bodyFixedToEcef, equatorToEcef} from './frames.js'
-import {DEFAULT_SUBSCRIPTION, anchorMatcher, dishAnchor, naifAnchor, satelliteAnchor, siteAnchor, spacecraftAnchor} from './anchors.js'
+import {DEFAULT_SUBSCRIPTION, SCHEMES, compileSubscription, dishAnchor, naifAnchor, satelliteAnchor, siteAnchor,
+  spacecraftAnchor} from './anchors.js'
 import {gmstRad} from '../scene/celestialFrame.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {loadNetwork} from '../scene/networks/loadNetworks.js'
-import {parseCatalog, temePosition, temeToEquator, unixMsToJd} from '../scene/satellites/sgp4.js'
+import {parseCatalog, unixMsToJd} from '../scene/satellites/sgp4.js'
 
 
 // Layer mode's scene (design/LayerMode.md): celestiary's satellites and the
@@ -24,6 +25,8 @@ export const SATELLITES_URL = 'data/satellites.json'
 /** How far out the layer draws, m: the DSN's beams reach the Voyagers. */
 export const EXTENT_M = {orbits: 5e7, beams: 3e13}
 const EARTH_RADIUS_M = 6378137
+// What's drawn first: the satellites, Starlink, Iridium, the DSN.
+const DRAW_ORDER = ['satellites', 'S', 'I', 'D']
 
 
 /** */
@@ -55,8 +58,11 @@ export default class OrbitsLayer {
     // equatorial radius until a view says.
     this.surfaceRadius = EARTH_RADIUS_M
     this.patterns = DEFAULT_SUBSCRIPTION
-    this._wanted = anchorMatcher(DEFAULT_SUBSCRIPTION)
+    this._sub = compileSubscription(DEFAULT_SUBSCRIPTION)
+    // NORAD id → index, a constellation's records each.
+    this._byId = new WeakMap
     this._viewInv = new Matrix4
+    this._rootInv = new Matrix4
     // Called with a reason when what's drawn changes without a new view
     // (the DSN's feed): the page asks its host for a frame.
     this.onInvalidate = null
@@ -84,7 +90,7 @@ export default class OrbitsLayer {
       jobs.push(loadNetwork(key, {camera: this.camera, labels: false}, this.fetchFn)
           .then(({network}) => {
             this.networks[key] = network
-            this.root.add(network)
+            this._attach(network, key)
             if (key === 'D') {
               network.setSurfaceRadius(this.surfaceRadius)
               network.onFeed = () => this.onInvalidate?.('dsn feed')
@@ -94,6 +100,23 @@ export default class OrbitsLayer {
     }
     await Promise.all(jobs)
     return failed
+  }
+
+
+  /**
+   * Hang what loaded from the root in a fixed order, whichever loaded
+   * first: the renderer doesn't sort (layer.js), so the order is the draw
+   * order, and Starlink's dots over Iridium's additive links (or not)
+   * otherwise changed with the fetches' timing.
+   *
+   * @param {object} obj
+   * @param {string} key 'satellites', or a network's key
+   */
+  _attach(obj, key) {
+    obj.userData.layerKey = key
+    this.root.add(obj)
+    const rank = (o) => DRAW_ORDER.indexOf(o.userData.layerKey)
+    this.root.children.sort((a, b) => rank(a) - rank(b))
   }
 
 
@@ -115,7 +138,7 @@ export default class OrbitsLayer {
     const records = parseCatalog({rows: rows.filter((r) => kept[r[2]]), known})
     this.satellites = new Satellites(records, {body: 'earth', groups: kept, camera: this.camera})
     this.satellites.setLabelBudget(0, true)
-    this.root.add(this.satellites)
+    this._attach(this.satellites, 'satellites')
   }
 
 
@@ -179,8 +202,8 @@ export default class OrbitsLayer {
 
   /** @param {Array<string>} patterns the host's `layer:anchors-subscribe` */
   subscribe(patterns) {
-    this.patterns = patterns ?? []
-    this._wanted = anchorMatcher(this.patterns)
+    this.patterns = Array.isArray(patterns) ? patterns : []
+    this._sub = compileSubscription(this.patterns)
   }
 
 
@@ -194,72 +217,188 @@ export default class OrbitsLayer {
    * The subscribed anchors at the last time set (portal RFC 0001 §8.1):
    * `p` in ECEF metres where the layer draws it; for what's on the ground,
    * on the host's Earth, with `geo` its own WGS84 latitude, longitude and
-   * height.
+   * height.  Only the subscribed schemes are walked, and exact ids are
+   * looked up: `dsn:*` alone never touches the ~11,000 satellites.
    *
    * @returns {Array<{id: string, kind: string, name: string, p: Array<number>}>}
    */
   anchors() {
-    const out = []
     if (!this.subscribed) {
-      return out
+      return []
     }
-    const m = this.root.matrix
+    const sub = this._sub
+    const out = new Map
     const v = new Vector3
-    const push = (id, kind, name, eq, extra = {}) => {
-      v.copy(eq).applyMatrix4(m)
-      out.push({id, kind, name, p: [v.x, v.y, v.z], ...extra})
+    const ecef = (eq) => {
+      v.copy(eq).applyMatrix4(this.root.matrix)
+      return [v.x, v.y, v.z]
     }
-    const want = this._wanted
-    if (this.satellites) {
-      for (const rec of this.satellites.records) {
-        const id = satelliteAnchor(rec.id)
-        const p = want(id) && temePosition(rec, this.jd)
-        if (p) {
-          push(id, 'satellite', rec.name, temeToEquator(p, new Vector3))
-        }
-      }
+    const sources = this._satelliteSources()
+    const satAnchor = (src, i, at) => {
+      const rec = src.records[i]
+      return {id: satelliteAnchor(rec.id), kind: src.kind, name: rec.name, p: ecef(at)}
     }
-    for (const key of ['S', 'I']) {
-      const sats = key === 'I' ? this.networks.I?.sats : this.networks.S
-      if (!sats) {
-        continue
-      }
-      sats.records.forEach((rec, i) => {
-        const id = satelliteAnchor(rec.id)
-        if (want(id) && sats.positionOf(i, new Vector3)) {
-          push(id, key === 'I' ? 'iridium' : 'starlink', rec.name, sats.positionOf(i, new Vector3))
-        }
-      })
-    }
-    const dsn = this.networks.D
-    if (dsn) {
-      for (const site of dsn.config.sites) {
-        const id = siteAnchor(site.name)
-        if (want(id)) {
-          out.push({id, kind: 'dsn-site', name: site.friendlyName, geo: [site.lat, site.lng, site.alt ?? 0],
-            p: bodyFixedToEcef(latLngAltToBodyFixed(site.lat, site.lng, site.alt ?? 0, this.surfaceRadius))})
+    const norad = SCHEMES.satellite
+    if (sub.whole(norad)) {
+      for (const src of sources) {
+        for (let i = 0; i < src.records.length; i++) {
+          if (src.exact(i, v)) {
+            const a = satAnchor(src, i, v)
+            out.set(a.id, a)
+          }
         }
       }
-      for (const dish of dsn.dishes) {
-        const id = dishAnchor(dish.name)
-        if (want(id)) {
-          out.push({id, kind: 'dsn-dish', name: dish.friendlyName, geo: [dish.lat, dish.lng, dish.alt],
-            p: bodyFixedToEcef(dish.bodyFixed)})
-        }
-      }
-      if (dsn.liveAt(this.jd)) {
-        const seen = new Set
-        for (const link of dsn.links) {
-          const id = spacecraftAnchor(link.spacecraft)
-          const naif = naifAnchor(link.naifId)
-          if (link.end && (want(id) || (naif && want(naif))) && !seen.has(id)) {
-            seen.add(id)
-            push(id, 'spacecraft', link.name, link.end, naif ? {aliases: [naif]} : {})
+    } else if (sub.exact.has(norad)) {
+      for (const id of sub.exact.get(norad)) {
+        const num = Number(id.slice(norad.length + 1))
+        for (const src of sources) {
+          const i = src.indexOf(num)
+          if (i !== undefined && src.exact(i, v)) {
+            out.set(id, satAnchor(src, i, v))
           }
         }
       }
     }
+    const dsn = this._dsnAnchors((scheme) => sub.wantsScheme(scheme) || sub.near.some((q) => q.match.wantsScheme(scheme)))
+    for (const a of dsn) {
+      if (sub.wants(a.id) || a.aliases?.some((alias) => sub.wants(alias))) {
+        out.set(a.id, a)
+      }
+    }
+    for (const q of sub.near) {
+      for (const a of this._nearest(q, sources, dsn, satAnchor)) {
+        out.set(a.id, a)
+      }
+    }
+    return [...out.values()]
+  }
+
+
+  /**
+   * Who has satellites to anchor, by the same interface: the population,
+   * Starlink, Iridium.
+   *
+   * @returns {Array<{kind: string, records: Array<object>, indexOf: Function, exact: Function, cheap: Function}>}
+   */
+  _satelliteSources() {
+    const jd = this.jd
+    const out = []
+    const pop = this.satellites
+    if (pop) {
+      out.push({kind: 'satellite', records: pop.records, indexOf: (id) => pop.byId.get(id),
+        exact: (i, at) => pop.positionAt(pop.records[i], jd, at),
+        // Where this frame drew it (Population.js update), for ranking.
+        cheap: (i, at) => {
+          const {position, aShow} = pop.points.geometry.attributes
+          if (!(aShow.getX(i) > 0)) {
+            return false
+          }
+          at.fromBufferAttribute(position, i)
+          return true
+        }})
+    }
+    for (const [kind, sats] of [['starlink', this.networks.S], ['iridium', this.networks.I?.sats]]) {
+      if (!sats) {
+        continue
+      }
+      if (!this._byId.has(sats.records)) {
+        this._byId.set(sats.records, new Map(sats.records.map((rec, i) => [rec.id, i])))
+      }
+      const index = this._byId.get(sats.records)
+      const at = (i, p) => Boolean(sats.positionOf(i, p))
+      out.push({kind, records: sats.records, indexOf: (id) => index.get(id), exact: at, cheap: at})
+    }
     return out
+  }
+
+
+  /**
+   * The DSN's anchors, of the schemes asked for: its complexes and dishes
+   * on the host's Earth, and the spacecraft at its links' far ends.
+   *
+   * @param {function(string): boolean} wanted by scheme
+   * @returns {Array<object>}
+   */
+  _dsnAnchors(wanted) {
+    const dsn = this.networks.D
+    const out = []
+    if (!dsn) {
+      return out
+    }
+    if (wanted(SCHEMES.dish)) {
+      for (const site of dsn.config.sites) {
+        out.push({id: siteAnchor(site.name), kind: 'dsn-site', name: site.friendlyName, geo: [site.lat, site.lng, site.alt ?? 0],
+          p: bodyFixedToEcef(latLngAltToBodyFixed(site.lat, site.lng, site.alt ?? 0, this.surfaceRadius))})
+      }
+      for (const dish of dsn.dishes) {
+        out.push({id: dishAnchor(dish.name), kind: 'dsn-dish', name: dish.friendlyName, geo: [dish.lat, dish.lng, dish.alt],
+          p: bodyFixedToEcef(dish.bodyFixed)})
+      }
+    }
+    if ((wanted(SCHEMES.spacecraft) || wanted(SCHEMES.naif)) && dsn.liveAt(this.jd)) {
+      const seen = new Set
+      for (const link of dsn.links) {
+        const id = spacecraftAnchor(link.spacecraft)
+        if (link.end && !seen.has(id)) {
+          seen.add(id)
+          const naif = naifAnchor(link.naifId)
+          const v = link.end.clone().applyMatrix4(this.root.matrix)
+          out.push({id, kind: 'spacecraft', name: link.name, p: [v.x, v.y, v.z], ...(naif ? {aliases: [naif]} : {})})
+        }
+      }
+    }
+    return out
+  }
+
+
+  /**
+   * A `near` query's anchors (anchors.js compileSubscription): the n
+   * nearest its point of those its pattern matches, by where they're drawn.
+   *
+   * @param {{p: Array<number>, n: number, match: object}} q
+   * @param {Array<object>} sources _satelliteSources
+   * @param {Array<object>} dsn _dsnAnchors
+   * @param {Function} satAnchor
+   * @returns {Array<object>}
+   */
+  _nearest(q, sources, dsn, satAnchor) {
+    // The best n so far, nearest first: [d², make]
+    const best = []
+    const offer = (d2, make) => {
+      if (best.length === q.n && d2 >= best[best.length - 1][0]) {
+        return
+      }
+      let k = best.length
+      while (k > 0 && best[k - 1][0] > d2) {
+        k--
+      }
+      best.splice(k, 0, [d2, make])
+      if (best.length > q.n) {
+        best.pop()
+      }
+    }
+    const d2 = (x, y, z, [px, py, pz]) => ((x - px) ** 2) + ((y - py) ** 2) + ((z - pz) ** 2)
+    const norad = SCHEMES.satellite
+    if (q.match.wantsScheme(norad)) {
+      const whole = q.match.whole(norad)
+      const v = new Vector3
+      // The point in the satellites' frame (root's turn is a rotation, so
+      // distances are the same there), rather than each one to ECEF.
+      const at = new Vector3(...q.p).applyMatrix4(this._rootInv.copy(this.root.matrix).invert()).toArray()
+      for (const src of sources) {
+        for (let i = 0; i < src.records.length; i++) {
+          if ((whole || q.match.wants(satelliteAnchor(src.records[i].id))) && src.cheap(i, v)) {
+            offer(d2(v.x, v.y, v.z, at), () => (src.exact(i, v) ? satAnchor(src, i, v) : null))
+          }
+        }
+      }
+    }
+    for (const a of dsn) {
+      if (q.match.wants(a.id) || a.aliases?.some((alias) => q.match.wants(alias))) {
+        offer(d2(...a.p, q.p), () => a)
+      }
+    }
+    return best.map(([, make]) => make()).filter(Boolean)
   }
 
 

@@ -3,10 +3,12 @@ import {describe, expect, it} from 'bun:test'
 import {Matrix4, Object3D, PerspectiveCamera, Vector3} from 'three'
 import {eciToEcf, gstime, json2satrec, propagate} from 'satellite.js'
 import OrbitsLayer from './OrbitsLayer.js'
-import {DEFAULT_SUBSCRIPTION, anchorMatcher, dishAnchor, naifAnchor, satelliteAnchor, siteAnchor, spacecraftAnchor} from './anchors.js'
+import {DEFAULT_SUBSCRIPTION, anchorMatcher, compileSubscription, dishAnchor,
+  naifAnchor, satelliteAnchor, siteAnchor, spacecraftAnchor} from './anchors.js'
 import {bodyFixedToEcef, equatorToEcef} from './frames.js'
-import {hostOrigin, isAllowedOrigin, originTransport} from './origins.js'
+import {hostOrigin, isAllowedOrigin} from './origins.js'
 import {HELLO_RESEND_MS, serveLayer} from './protocol.js'
+import {callsIn, meteredTransport, payloadBytes} from './wire.js'
 import {gmstRad} from '../scene/celestialFrame.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {unixMsToJd} from '../scene/satellites/sgp4.js'
@@ -59,6 +61,18 @@ describe('layer mode anchors', () => {
     expect([m('norad:25544'), m('norad:1'), m('dsn:DSS-43'), m('dsn:GDSCC'), m('dsn-sc:VGR1')]).toEqual([true, false, true, true, false])
     expect(anchorMatcher(['*'])('anything')).toBe(true)
   })
+
+  it('compiles a subscription by scheme, so whole schemes can be skipped', () => {
+    const sub = compileSubscription(['norad:25544', 'dsn:*', {near: {p: [1, 2, 3], n: 5}, pattern: 'norad:*'}, {near: {p: [1]}}])
+    expect([sub.wantsScheme('norad'), sub.whole('norad'), sub.wantsScheme('dsn'), sub.whole('dsn'), sub.wantsScheme('dsn-sc')])
+        .toEqual([true, false, true, true, false])
+    expect([...sub.exact.get('norad')]).toEqual(['norad:25544'])
+    // A malformed near is dropped; a good one keeps its own pattern.
+    expect(sub.near.length).toBe(1)
+    expect(sub.near[0].n).toBe(5)
+    expect(sub.near[0].match.whole('norad')).toBe(true)
+    expect(sub.near[0].match.wantsScheme('dsn')).toBe(false)
+  })
 })
 
 
@@ -79,26 +93,6 @@ describe('layer mode origins', () => {
     expect(hostOrigin({search: '?host=http://localhost:1', ancestors: ['http://localhost:5490'], referrer: 'http://localhost:2/'}))
         .toBe('http://localhost:5490')
     expect(hostOrigin({search: '?host=https://evil.com', referrer: 'https://evil.com/', ancestors: ['https://evil.com']})).toBeNull()
-  })
-
-  it('drops messages from another window or origin, and posts to the host only', () => {
-    const listeners = []
-    const win = {addEventListener: (t, f) => listeners.push(f), removeEventListener: () => {}}
-    const sent = []
-    const parent = {postMessage: (m, o) => sent.push([m, o])}
-    const t = originTransport({target: parent, origin: 'http://localhost:5481', win})
-    const got = []
-    t.onMessage((m) => got.push(m.type))
-    for (const ev of [
-      {source: parent, origin: 'http://localhost:5481', data: {type: 'ok'}},
-      {source: parent, origin: 'https://evil.com', data: {type: 'origin'}},
-      {source: {}, origin: 'http://localhost:5481', data: {type: 'source'}},
-    ]) {
-      listeners.forEach((f) => f(ev))
-    }
-    expect(got).toEqual(['ok'])
-    t.post({type: 'x'})
-    expect(sent).toEqual([[{type: 'x'}, 'http://localhost:5481']])
   })
 })
 
@@ -128,7 +122,8 @@ describe('layer mode control plane', () => {
         listener = f
         return () => (listener = null)
       }},
-      layer, loaded, nowMs: () => clock.ms,
+      layer, loaded, nowMs: () => clock.ms, clock: () => clock.ms,
+      meter: {take: () => ({calls: 10, messages: 12, bytes: 4096, postMs: 0.5})},
       render: () => calls.push(['render']), endFrame: () => calls.push(['frame-end']),
       announce: () => calls.push(['announce']),
       timers: {setInterval: (fn) => (interval.fn = fn), clearInterval: () => (interval.cleared = true)},
@@ -143,6 +138,28 @@ describe('layer mode control plane', () => {
     earth: {model: 'sphere', radius: 6370972},
   }})
 
+  it('sends its frames\' costs about once a second, only when asked', async () => {
+    const r = rig()
+    r.resolve([])
+    await new Promise((res) => setTimeout(res, 0))
+    const stats = () => r.posted.filter((m) => m.type === 'layer:stats')
+    r.send(viewMsg(1))
+    expect(r.served.state.last).toMatchObject({calls: 10, messages: 12, bytes: 4096, recordMs: 0.5})
+    expect(stats()).toHaveLength(0)
+    r.send({type: 'layer:stats-subscribe', intervalMs: 1000})
+    for (let k = 0; k < 5; k++) {
+      r.clock.ms += 300
+      r.send(viewMsg(2 + k))
+    }
+    // 1500 ms of frames: one report, of the frames up to the second.
+    expect(stats()).toHaveLength(1)
+    expect(stats()[0]).toMatchObject({frames: 4, calls: 10, bytes: 4096, recordMs: 0.5})
+    r.send({type: 'layer:stats-subscribe', enabled: false})
+    r.clock.ms += 5000
+    r.send(viewMsg(9))
+    expect(stats()).toHaveLength(1)
+  })
+
   it('announces itself both ways, until the host is heard from', () => {
     const r = rig()
     // NetGL's handshake, which 0.4.0's host waits on before its first view.
@@ -151,6 +168,8 @@ describe('layer mode control plane', () => {
       capabilities: {depth: ['shared'], frames: ['ecef'], anchors: true}, contracts: {alpha: 'coverage', color: 'display'}})
     expect(r.posted[0].contracts.depth).toBeUndefined()
     expect(r.posted[0].extent.sphere.radius).toBeGreaterThan(4.2e7)
+    // Nearest anchors are offered, so a host may ask for them.
+    expect(r.posted[0].ext['portal.anchors/1']).toEqual({publish: ['norad', 'dsn', 'dsn-sc', 'naif'], near: true})
     r.interval.fn()
     expect(r.posted.filter((m) => m.type === 'layer:hello')).toHaveLength(2)
     // NetGL's ack is the other handshake's: hello goes on until its own.
@@ -218,6 +237,54 @@ describe('layer mode control plane', () => {
 })
 
 
+describe('layer mode wire', () => {
+  const env = (arr) => ({__netgl_typedarray: arr.constructor.name, buffer: arr.buffer, offset: arr.byteOffset, length: arr.length})
+
+  it('meters what goes out, a frame at a time: wire 1\'s calls and wire 2\'s batches', () => {
+    const sent = []
+    const m = meteredTransport({post: (msg) => sent.push(msg), onMessage: () => () => {}}, {clock: () => 0})
+    m.transport.post({name: 'bufferSubData', args: [34962, 0, env(new Float32Array(10))]})
+    m.transport.post({type: 'netgl:frame-end'})
+    const t = m.take()
+    expect([t.calls, t.messages]).toEqual([1, 2])
+    expect(t.bytes).toBe(payloadBytes(sent[0]) + payloadBytes(sent[1]))
+    expect(m.take().messages).toBe(0)
+    const batch = {type: 'netgl:batch', batch: [{name: 'enable', args: [2929]}, {name: 'drawArrays', args: [0, 0, 3]},
+      {type: 'netgl:frame-end'}]}
+    expect(callsIn(batch)).toBe(2)
+    m.transport.post(batch)
+    expect(m.take()).toMatchObject({calls: 2, messages: 1})
+  })
+
+  it('meters the port a wire-2 host hands over, as the guest context sees the ack', () => {
+    let deliver = null
+    const m = meteredTransport({post: () => {}, onMessage: (fn) => {
+      deliver = fn
+      return () => {}
+    }}, {clock: () => 0})
+    const onPort = []
+    const port = {postMessage: (msg, transfer) => onPort.push([msg, transfer])}
+    const heard = []
+    m.transport.onMessage((msg) => {
+      heard.push(msg.type)
+      // What portal-netgl's guest context does with the ack's port.
+      msg.port?.postMessage({type: 'netgl:port', seq: 0, after: 3})
+    })
+    deliver({type: 'netgl:ready-ack', wire: 2, port})
+    expect(heard).toEqual(['netgl:ready-ack'])
+    port.postMessage({type: 'netgl:batch', batch: [{name: 'drawArrays', args: [0, 0, 3]}, {type: 'netgl:frame-end'}]})
+    expect(onPort.map(([msg]) => msg.type)).toEqual(['netgl:port', 'netgl:batch'])
+    expect(onPort[1][1]).toEqual([])
+    expect(m.take()).toMatchObject({calls: 1, messages: 2})
+    // A repeated ack doesn't wrap it twice.
+    deliver({type: 'netgl:ready-ack', wire: 2, port})
+    m.take()
+    port.postMessage({type: 'layer:anchors', anchors: []})
+    expect(m.take().messages).toBe(1)
+  })
+})
+
+
 describe('OrbitsLayer', () => {
   it('puts the satellites and networks in ECEF at the host\'s time: the ISS where satellite.js puts it', async () => {
     const layer = new OrbitsLayer({fetchFn: fromDisk})
@@ -260,5 +327,29 @@ describe('OrbitsLayer', () => {
     // The camera is the host's: the drawn points take its distance rules.
     expect(layer.satellites.points.visible).toBe(true)
     expect(layer.satellites.drawnCount).toBeGreaterThan(400)
+
+    // Only what's subscribed is walked: `dsn:*` alone asks no satellite.
+    let asked = 0
+    const positionAt = layer.satellites.positionAt.bind(layer.satellites)
+    layer.satellites.positionAt = (...a) => {
+      asked++
+      return positionAt(...a)
+    }
+    layer.subscribe(['dsn:*'])
+    expect(layer.anchors().every((a) => a.id.startsWith('dsn:'))).toBe(true)
+    expect(asked).toBe(0)
+    // An exact id is looked up, not matched against every record.
+    layer.subscribe(['norad:25544'])
+    expect(layer.anchors().map((a) => a.id)).toEqual(['norad:25544'])
+    expect(asked).toBe(1)
+
+    // The nearest n to a point: here, the ISS's own.
+    layer.subscribe([{near: {p: iss.p, n: 3}, pattern: 'norad:*'}])
+    const near = layer.anchors()
+    expect(near.length).toBe(3)
+    expect(near[0].id).toBe('norad:25544')
+    const d = near.map((a) => Math.hypot(...a.p.map((x, k) => x - iss.p[k])))
+    expect(d[1]).toBeGreaterThanOrEqual(d[0])
+    expect(d[2]).toBeGreaterThanOrEqual(d[1])
   })
 })

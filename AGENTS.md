@@ -219,7 +219,8 @@ tried and dropped.
   `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read
   `window.hostState` (frames, the guest's status and hello, the anchors,
   `issErrorKm` against satellite.js's own ECF, the guest's call counts:
-  it must make no `clear`), and the canvas with `toDataURL` after
+  it must make no `clear`; `wire` and `ready`, the wire agreed, 2 with the
+  port `open` on portal-netgl 0.6.0), and the canvas with `toDataURL` after
   `window.hostFrame()` (the host keeps its drawing buffer).  Pass `t=` to pin
   the time; the DSN's links show only within an hour of now
   ([design/LayerMode.md](design/LayerMode.md#status)).
