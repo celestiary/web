@@ -1,4 +1,5 @@
 import Population, {ARRIVAL_DIST} from '../population/Population.js'
+import {SATELLITE_LABELS} from '../labelStyle.js'
 import {SATELLITES_LOAD_DIST} from './names.js'
 import {temePosition, temeState, temeToEquator} from './sgp4.js'
 
@@ -24,7 +25,7 @@ export default class Satellites extends Population {
    */
   constructor(records, opts = {}) {
     super(records, {body: 'earth', title: 'Satellites', showDist: SATELLITES_LOAD_DIST, labelDist: LABEL_DIST,
-      ...opts})
+      labelStyle: SATELLITE_LABELS, ...opts})
     this.name = 'satellites'
   }
 

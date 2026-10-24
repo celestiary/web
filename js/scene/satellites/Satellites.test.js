@@ -59,9 +59,18 @@ class StubSheet {
 
 /** A label sheet with the shown states and fade the declutter and Population use. */
 class FadeSheet extends StubSheet {
-  /** */
-  constructor() {
+  /**
+   * @param {number} n
+   * @param {Array<string>} texts
+   * @param {string} [font]
+   * @param {Array<number>} [padding]
+   * @param {boolean} [rte]
+   * @param {boolean} [surface]
+   * @param {object} [opts]
+   */
+  constructor(n, texts, font, padding, rte, surface, opts) {
     super()
+    this.fontArgs = font ? [font, opts] : null
     this.shown = []
     this.alpha = []
     this.fadeMs = 0
@@ -86,6 +95,15 @@ class FadeSheet extends StubSheet {
   /** @param {number} ms */
   setFade(ms) {
     this.fadeMs = ms
+  }
+
+  /**
+   * @param {number} i
+   * @param {number} scale
+   * @param {number} brightness
+   */
+  setStyle(i, scale, brightness) {
+    (this.styles ??= [])[i] = [scale, brightness]
   }
 }
 
@@ -253,6 +271,54 @@ describe('Satellites', () => {
     // Its shown names keep their place; those behind Earth take none.
     expect(sats.nameSheet.userData.declutterHold).toBeGreaterThan(0)
     expect(sats.nameSheet.userData.labelOccluder).toBe(sats)
+  })
+
+  it('sizes and dims each name from the nearest in view to the farthest, the nearer winning where two touch', () => {
+    const camera = new PerspectiveCamera(90, 1, 1, 1e10)
+    const sats = newSatellites({camera, Sheet: FadeSheet})
+    sats.bodyRadius = 6.371e6
+    new Object3D().add(sats)
+    sats.setLabelBudget(4)
+    sats.update(EPOCH_JD)
+    const pos = sats.points.geometry.attributes.position
+    const at = (i) => new Vector3(pos.getX(i), pos.getY(i), pos.getZ(i))
+    // Far back past the ISS, looking at Earth's centre: the satellites on
+    // this side in view.
+    camera.position.copy(at(0)).multiplyScalar(12)
+    camera.lookAt(0, 0, 0)
+    camera.updateMatrixWorld()
+    // A fresh view: the range set at once, not eased from the first frame's.
+    sats._labelRange = null
+    sats.update(EPOCH_JD)
+    const sheet = sats.nameSheet.userData.ownSheet
+    expect(sheet.fontArgs).toEqual(['14px arial', {scalable: true}])
+    const texts = sheet.labels
+    const eye = camera.position
+    // The range is the names' in view: the nearest at its largest and
+    // brightest, the farthest at its least, 11 px and 0.7.
+    const {near, far} = sats._labelRange
+    const inView = texts.map((t, k) => [t, eye.distanceTo(at(sats._nameIds[k]))])
+        .filter(([, d]) => d >= near * 0.999 && d <= far * 1.001)
+    expect(inView.length).toBeGreaterThanOrEqual(2)
+    const nearest = inView.reduce((a, b) => (b[1] < a[1] ? b : a))
+    const farthest = inView.reduce((a, b) => (b[1] > a[1] ? b : a))
+    const style = (name) => sheet.styles[texts.indexOf(name)]
+    expect(style(nearest[0])[0]).toBeCloseTo(1, 6)
+    expect(style(nearest[0])[1]).toBeCloseTo(1, 6)
+    expect(style(farthest[0])[0]).toBeCloseTo(11 / 14, 6)
+    expect(style(farthest[0])[1]).toBeCloseTo(0.7, 6)
+    const rank = sats.nameSheet.userData.labelRank
+    expect(rank[texts.indexOf(nearest[0])]).toBeGreaterThan(rank[texts.indexOf(farthest[0])])
+    // Moved, the range eases toward the new one rather than jumping.
+    camera.position.multiplyScalar(2)
+    camera.updateMatrixWorld()
+    sats.update(EPOCH_JD)
+    expect(sats._labelRange.near).toBeGreaterThan(near)
+    expect(sats._labelRange.near).toBeLessThan(near * 2)
+    // The target, whatever its distance, at its largest and brightest.
+    sats.setTarget(farthest[0] === 'ISS' ? 25544 : sats.records[sats._nameIds[texts.indexOf(farthest[0])]].id)
+    sats.update(EPOCH_JD)
+    expect(style(farthest[0])).toEqual([1, 1])
   })
 
   it('shows the points near Earth, and the names nearer', () => {

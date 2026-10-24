@@ -196,14 +196,14 @@ export default class CloudVolume {
   /**
    * How much of the clouds this volume draws, 0 to 1, against the far-field
    * shell's share (CloudShell.farFieldOpacity): the complement of the
-   * shell's, over the band where the shell fades out, times its readiness;
-   * nothing above the band.
+   * shell's, over the band where the shell fades out, times its readiness
+   * and the map's fade in (CloudMap.gain); nothing above the band.
    *
    * @param {number} cameraHeightM The camera's height over the ground sphere
    * @returns {number}
    */
   share(cameraHeightM) {
-    return volumeShare(cameraHeightM) * this.readiness()
+    return volumeShare(cameraHeightM) * this.readiness() * (this.cloudMap.gain?.() ?? 1)
   }
 
 

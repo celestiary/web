@@ -158,6 +158,10 @@ export default class Scene {
         this.onDblClick(click)
       })
     }
+    // Whether the first load's reveal has begun (Celestiary.frame): what
+    // arrives from then on fades in rather than pops (Earth's first cloud
+    // map, CloudMap.gain; the stars' tiles have Stars.revealed).
+    this.revealed = false
     // Loaded later
     this.stars = null
     this.asterisms = null

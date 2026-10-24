@@ -3,6 +3,7 @@ import {
   BufferGeometry,
   CanvasTexture,
   Float32BufferAttribute,
+  LinearFilter,
   NearestFilter,
   Points,
   ShaderMaterial,
@@ -47,9 +48,12 @@ export default class SpriteSheet {
    *   for labels past it (a galaxy's megaparsecs), and give each label a
    *   `shown` attribute (1 drawn, 0 not; `shownAttribute`) for the owner to
    *   set per frame
+   * @param {boolean} [opts.scalable] Each label drawn at its own scale (at
+   *   most 1) and brightness (setStyle): the text is drawn at its largest
+   *   and filtered smoothly when made smaller
    */
   constructor(numLabels, maxLabel, labelTextFont = sharedDefaultFont, padding = [0, 0],
-      useRTE = false, surfaceVisibility = false, {pinFar = false} = {}) {
+      useRTE = false, surfaceVisibility = false, {pinFar = false, scalable = false} = {}) {
     if (!Number.isInteger(numLabels)) {
       throw new Error(`numLabels is invalid: ${ numLabels}`)
     }
@@ -83,6 +87,7 @@ export default class SpriteSheet {
     this.useRTE = useRTE
     this.surfaceVisibility = surfaceVisibility
     this.pinFar = pinFar && useRTE
+    this.scalable = scalable
     this.shownAttribute = null
     this.positions = []
     this._posLow = useRTE ? [] : null
@@ -95,6 +100,12 @@ export default class SpriteSheet {
     // one off each frame it would overlap a more important label.
     this.shown = []
     this.shownAttribute = null
+    // Each label's scale of its drawn size and its brightness, 0 to 1
+    // (setStyle): 1 and 1 unless set.
+    this.scales = []
+    this.brightness = []
+    this.scaleAttribute = null
+    this.brightnessAttribute = null
     // How long a label takes to fade in or out, ms (setFade): 0 at once.
     this.fadeMs = 0
     this.positionAttribute = null
@@ -147,6 +158,8 @@ export default class SpriteSheet {
 
     this.sizes.push(bounds.width, bounds.height)
     this.shown.push(1)
+    this.scales.push(1)
+    this.brightness.push(1)
     this.curX += bounds.width
     const id = this.labelCount++
     return id
@@ -257,6 +270,26 @@ export default class SpriteSheet {
 
 
   /**
+   * Draw a label smaller or dimmer (a scalable sheet's: a population's
+   * names by their distance).  Its box (labelPick.js) scales with it.
+   *
+   * @param {number} i The label's index
+   * @param {number} scale Of its drawn size, at most 1
+   * @param {number} brightness 0 to 1, multiplying its opacity
+   */
+  setStyle(i, scale, brightness) {
+    this.scales[i] = scale
+    this.brightness[i] = brightness
+    if (this.scaleAttribute) {
+      this.scaleAttribute.setX(i, scale)
+      this.scaleAttribute.needsUpdate = true
+      this.brightnessAttribute.setX(i, brightness)
+      this.brightnessAttribute.needsUpdate = true
+    }
+  }
+
+
+  /**
    * Move each label's drawn opacity toward whether it's shown (setFade).
    *
    * @param {number} dtMs Since the last step
@@ -320,6 +353,10 @@ export default class SpriteSheet {
     geometry.setAttribute('spriteCoord', spriteCoordAttribute)
     this.shownAttribute = new Float32BufferAttribute(this.shown, 1)
     geometry.setAttribute('shown', this.shownAttribute)
+    this.scaleAttribute = new Float32BufferAttribute(this.scales, 1)
+    geometry.setAttribute('scale', this.scaleAttribute)
+    this.brightnessAttribute = new Float32BufferAttribute(this.brightness, 1)
+    geometry.setAttribute('brightness', this.brightnessAttribute)
     geometry.computeBoundingBox()
     this.sprites = new Points(geometry, this.createMaterial())
     this.sprites.renderOrder = 0
@@ -348,8 +385,9 @@ export default class SpriteSheet {
   /** @returns {ShaderMaterial} */
   createMaterial() {
     const texture = new CanvasTexture(this.canvas)
-    texture.minFilter = NearestFilter
-    texture.magFilter = NearestFilter
+    // Crisp at its size; smooth when a scalable sheet draws it smaller.
+    texture.minFilter = this.scalable ? LinearFilter : NearestFilter
+    texture.magFilter = this.scalable ? LinearFilter : NearestFilter
     const uniforms = {
       map: {value: texture},
       padding: {value: new Vector2(this.padding[0], this.padding[1])},
@@ -400,6 +438,8 @@ const vertexShader = `
   attribute vec2 size;
   attribute vec4 spriteCoord;
   attribute float shown;
+  attribute float scale;
+  attribute float brightness;
   varying vec4 spriteCoordVarying;
   varying float vShown;
   ${SAFE_LENGTH_GLSL}
@@ -415,8 +455,8 @@ const vertexShader = `
     // Not normalize(): metres squared (rte.js SAFE_LENGTH_GLSL).
     mvPosition.xyz -= safeNormalize(mvPosition.xyz) * towardEye;
     spriteCoordVarying = spriteCoord;
-    vShown = shown;
-    gl_PointSize = size[0];
+    vShown = shown * brightness;
+    gl_PointSize = size[0] * scale;
     gl_Position = projectionMatrix * mvPosition;
   }
 `
@@ -432,6 +472,8 @@ const rteVertexShader = `
   attribute vec4 spriteCoord;
   attribute vec3 positionLow;
   attribute float shown;
+  attribute float scale;
+  attribute float brightness;
   varying vec4 spriteCoordVarying;
   varying float vShown;
   void main() {
@@ -442,8 +484,8 @@ const rteVertexShader = `
       return;
     }
     spriteCoordVarying = spriteCoord;
-    vShown = shown;
-    gl_PointSize = size[0];
+    vShown = shown * brightness;
+    gl_PointSize = size[0] * scale;
     vec3 highDiff = position - uCamPosWorldHigh;
     vec3 lowDiff  = positionLow - uCamPosWorldLow;
     vec3 eyePos = highDiff + lowDiff;
@@ -493,6 +535,8 @@ const surfaceVertexShader = `
   attribute vec2 size;
   attribute vec4 spriteCoord;
   attribute float shown;
+  attribute float scale;
+  attribute float brightness;
   varying vec4 spriteCoordVarying;
   varying float vShown;
   varying float vVisible;
@@ -513,8 +557,8 @@ const surfaceVertexShader = `
     vec3 viewDir = safeNormalize(-mvPosition.xyz);
     vVisible = dot(normalView, viewDir) > 0.0 ? 1.0 : 0.0;
     spriteCoordVarying = spriteCoord;
-    vShown = shown;
-    gl_PointSize = size[0];
+    vShown = shown * brightness;
+    gl_PointSize = size[0] * scale;
     gl_Position = projectionMatrix * mvPosition;
   }
 `

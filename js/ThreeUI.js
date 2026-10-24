@@ -763,12 +763,14 @@ export default class ThreeUi {
     this._lastExposureMs = now
     // The metered gain over the keyed exposure (_meter), eased in log
     // space with its own, slower time constant: the eye adapting to a dark
-    // scene.
-    this._meterGain = adaptMeterGain(this._meterGain, this._meterGainGoal, dt)
+    // scene.  How fast is the observer's (the instrument's adaptation), not
+    // the scene's.
+    const adaptation = this.instrument.adaptation
+    this._meterGain = adaptMeterGain(this._meterGain, this._meterGainGoal, dt, adaptation)
     // The user's compensation, one multiplier over the metered exposure.
     const exposureGoal = renderExposure(this._exposureGoal, this._meterGain, this._evStops)
-    this.renderer.toneMappingExposure = this._approachStep(
-        easeExposure(this._liveExposure ?? this.renderer.toneMappingExposure, exposureGoal, dt))
+    this.renderer.toneMappingExposure = this._approachStep(easeExposure(
+        this._liveExposure ?? this.renderer.toneMappingExposure, exposureGoal, dt, adaptation.exposureSeconds))
     // The gain this frame renders with, over the target-keyed exposure:
     // the eased exposure's, not the meter's goal nor _meterGain, which the
     // exposure's own easing trails.  Pre-exposure (HDR.md): everything of

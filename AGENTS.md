@@ -248,7 +248,8 @@ tried and dropped.
 - **A permalink restores its time and view only with a camera
   quaternion (`cq=`).** Without one the whole fragment is ignored, and
   the app runs at the current real time. To test a date, set it with
-  `c.time.setTime(ms)` after load.
+  `c.time.setTime(ms)` after load. `t=now` (the homepage's Earth card)
+  opens at the real time, and its `cq` turns with the body.
 - **A permalink's `s=` letters flip settings from their defaults**
   (`permalink.js` `SETTINGS_DEFAULTS`): `U` in `s=` turns the Milky Way
   *off*, as `a`, `l`, `p`, `o` turn the overlays off. Harnesses that hide

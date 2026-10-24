@@ -507,6 +507,40 @@ scene buffer after the Cesium composite and before the atmosphere pass
   built, then fades as before (`shellOpacity`), and the volume's share is
   its complement (`volumeShare`).
 
+### Fading in
+
+The day's map is built from 15 GIBS tiles, a second after the date has
+settled, and the shell is built only once Earth is first near or targeted
+(`Planet.newCloudShell`, from `buildNear`), so on a first visit the map
+comes in long after the planet is on screen: headless (SwiftShader, no
+ion), flown to the dated Earth view from the Sun's, the map was in 21 s
+after the surface, and the disc's mean brightness went from 59.5 to 109.2
+(of 255) in one frame.  The maintainer saw it as the clouds popping in at
+a random time after arriving.
+
+So the first map fades in (`CloudMap.gain`): from 0 to 1 over
+`CLOUD_FADE_IN_MS` (1.2 s), the smoothstep the star tiles fade in by
+(`PointPopulation` `fadeGain`), from the first frame the shell is drawn
+with it (`CloudMap.drawn`, from the shell's `preAnimCb` while the surface
+under it is ready: a map in before the surface doesn't spend its fade
+unseen).  The shell's opacity, so its coverage and its shadow, and the
+volumetric clouds' share (`CloudVolume.share`) are multiplied by it, so a
+cloud comes in from transparent, premultiplied, as the coverage does.  A
+map first drawn before the scene is on screen (the first load, under its
+reveal: `Scene.revealed`, set when the reveal begins) is whole at once, as
+the reveal's own fade brings it in with the planet.  Headless, on the same
+arrival on a 100 ms virtual clock: the clouds' share of the disc's
+brightness (the frame less the frame without the shell) 0, 1.2, 4.4, 9.3,
+15.2, 21.6, 28.0, 33.9, 39.2, 43.6, 46.8, 48.9, 49.7 over 1.2 s, then
+steady.  Cesium's Earth has no clouds of its own (the shell covers both
+sides), so nothing else pops.
+
+A later day's map (the date changed by a dated link, or the clock across
+midnight) still replaces the shown one whole: a crossfade needs a second
+coverage texture (3.3 MB, 4.4 with mips) and a mix in both shaders, and is
+a follow-up.  The volumetric clouds also come in by their own readiness
+(`CloudVolume.readiness`, over `READY_FADE_MS`), once their noise is built.
+
 Cost: a sphere of 256 × 128 segments and one more scene traversal a frame
 for the layer (as the label overlay's), the coverage texture's 3.3 MB (4.4
 with mips), and per pixel two texture reads and two ray-sphere solves.

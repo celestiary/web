@@ -1,5 +1,8 @@
 import {clearSharedImages, sharedBlob, sharedObjectUrl} from '../sharedImage.js'
-import CloudMap from './CloudMap.js'
+import {PerspectiveCamera, Scene} from 'three'
+import CloudMap, {CLOUD_FADE_IN_MS} from './CloudMap.js'
+import {newCloudShell} from './CloudShell.js'
+import CloudVolume from './CloudVolume.js'
 import {CLOUD_TILE_LEVEL, tileGrid} from './cloudSource.js'
 
 
@@ -221,5 +224,102 @@ describe('CloudMap loading', () => {
     clock += SETTLE_MS - 1
     map.update(THE_11TH, NOW)
     expect(requests).toEqual([])
+  })
+})
+
+
+describe('CloudMap fade in', () => {
+  const newShownMap = (shown) => new CloudMap({groundPattern: GROUND_PATTERN, bundledPath: BUNDLED_PATH,
+    fillPath: FILL_PATH, shown})
+
+  it('draws nothing until the first map is in and drawn, then eases it in over CLOUD_FADE_IN_MS', async () => {
+    expect(CLOUD_FADE_IN_MS).toBeGreaterThanOrEqual(1000)
+    expect(CLOUD_FADE_IN_MS).toBeLessThanOrEqual(1500)
+    const map = newShownMap(() => true)
+    expect(map.gain()).toBe(0)
+    map.drawn()
+    expect(map.gain()).toBe(0)
+    await load(map, THE_11TH)
+    expect(map.status.ready).toBe(true)
+    // In, but not drawn yet (the surface under it still loading).
+    clock += 5000
+    expect(map.gain()).toBe(0)
+    const t0 = clock
+    map.drawn()
+    expect(map.gain(t0)).toBe(0)
+    expect(map.gain(t0 + (CLOUD_FADE_IN_MS / 2))).toBeCloseTo(0.5, 12)
+    expect(map.gain(t0 + CLOUD_FADE_IN_MS)).toBe(1)
+    expect(map.gain(t0 + (10 * CLOUD_FADE_IN_MS))).toBe(1)
+    // A smoothstep: no step at either end, and never back down.
+    expect(map.gain(t0 + 10)).toBeLessThan(0.001)
+    expect(1 - map.gain(t0 + CLOUD_FADE_IN_MS - 10)).toBeLessThan(0.001)
+    let last = 0
+    for (let ms = 0; ms <= CLOUD_FADE_IN_MS; ms += 25) {
+      const g = map.gain(t0 + ms)
+      expect(g).toBeGreaterThanOrEqual(last)
+      last = g
+    }
+    // Drawing again doesn't restart it.
+    clock = t0 + (CLOUD_FADE_IN_MS / 2)
+    map.drawn()
+    expect(map.gain(t0 + CLOUD_FADE_IN_MS)).toBe(1)
+  })
+
+  it('doesn\'t fade a map drawn before the scene was shown, nor a later day\'s', async () => {
+    let shown = false
+    const map = newShownMap(() => shown)
+    await load(map, THE_11TH)
+    map.drawn()
+    expect(map.gain()).toBe(1)
+    // The reveal, then another day: it replaces the shown one whole.
+    shown = true
+    await load(map, Date.UTC(2026, 9, 10, 12))
+    map.drawn()
+    expect(map.gain()).toBe(1)
+  })
+
+  it('fades the bundled clouds in too, for a date with no daily picture', async () => {
+    const map = newShownMap(() => true)
+    await load(map, BEFORE_THE_SATELLITES)
+    expect(map.status.loaded).toBe(true)
+    map.drawn()
+    expect(map.gain()).toBe(0)
+    expect(map.gain(clock + CLOUD_FADE_IN_MS)).toBe(1)
+  })
+
+  it('scales the shell\'s opacity and the volume\'s share, from the first frame the shell is drawn', async () => {
+    const map = newShownMap(() => true)
+    const radius = 6.371e6
+    const volume = new CloudVolume(radius, map, {generate: false, search: ''})
+    let surfaceReady = false
+    const shell = newCloudShell(radius, map, {ready: () => surfaceReady, volume})
+    const camera = new PerspectiveCamera()
+    camera.position.set(0, 0, 3 * radius)
+    camera.updateMatrixWorld()
+    shell.updateMatrixWorld()
+    const opacity = () => {
+      shell.onBeforeRender(null, new Scene(), camera)
+      return shell.material.uniforms.uOpacity.value
+    }
+    await load(map, THE_11TH)
+    // The map is in, the surface isn't: not drawn, so not begun.
+    shell.preAnimCb({simTime: THE_11TH})
+    expect(shell.visible).toBe(false)
+    clock += 3000
+    surfaceReady = true
+    shell.preAnimCb({simTime: THE_11TH})
+    expect(shell.visible).toBe(true)
+    const t0 = clock
+    expect(opacity()).toBe(0)
+    clock = t0 + (CLOUD_FADE_IN_MS / 2)
+    expect(opacity()).toBeCloseTo(0.5, 12)
+    clock = t0 + CLOUD_FADE_IN_MS
+    expect(opacity()).toBe(1)
+    // The volume's share, ready and under the band, takes the same gain.
+    volume.ready = true
+    volume._readyAt = -1e9
+    expect(volume.share(0)).toBe(1)
+    clock = t0 + (CLOUD_FADE_IN_MS / 2)
+    expect(volume.share(0)).toBeCloseTo(0.5, 12)
   })
 })

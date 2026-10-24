@@ -103,7 +103,26 @@ describe('the homepage\'s cards', () => {
     expect(HOME_CARDS[2].link).toBe(
         'sun/jupiter@41.2054,-82.3901,169m;from=sun/earth;t=9774.891jd;cq=0.3372,-0.7003,-0.112,0.6191;fov=0.91deg;s=oL')
     expect(HOME_CARDS[3].link).toBe(
-        'sun/earth@43.3389,-9.9593,30373373.021376Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF')
+        'sun@27.7228,47.4569,30373373.135557Tm;t=9779.5692jd;cq=-0.436,0.7975,0.0666,0.4116;fov=45deg;ev=1.33;s=alovTF')
+  })
+
+  it('the Gaia card is about the Sun, not an Earth too small to see, from the same view', () => {
+    const pl = decodePermalink(HOME_CARDS[3].link)
+    expect(pathFromFragment(HOME_CARDS[3].link)).toBe('sun')
+    // The camera in the Sun's own frame, so it goes round the Sun.
+    expect(pl.from).toBeNull()
+    expect(pl.settings.T).toBe(true)
+  })
+
+  it('the Earth card is at the time it is opened, with no asterisms, labels or orbits', () => {
+    const pl = decodePermalink(HOME_CARDS[1].link)
+    expect(pl.now).toBe(true)
+    expect(pl.d2000).toBeNull()
+    for (const key of ['a', 'l', 'p', 'G', 'o']) {
+      expect(pl.settings[key]).toBe(false)
+    }
+    // Its text names no date or hour.
+    expect(HOME_CARDS[1].text).not.toMatch(/dusk|dawn|night|noon|evening|morning|\d/i)
   })
 
   it('the Earth card is near enough to show it whole, from celestiary\'s own Earth', () => {

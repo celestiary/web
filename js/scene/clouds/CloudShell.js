@@ -32,7 +32,8 @@ import {CLOUD_WHITE} from './cloudSource.js'
  * so the shell fades out as the camera comes down to it (farFieldOpacity),
  * and from below it isn't drawn.  The volumetric clouds (CloudVolume.js,
  * #169) take over across that band, seeded by the same map: the shell
- * holds until they are ready (shellOpacity).
+ * holds until they are ready (shellOpacity).  Both take the map's fade in
+ * (CloudMap.gain): the day's first map comes in over 1.2 s, not in a frame.
  */
 
 
@@ -153,6 +154,11 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volum
     cloudMap.update(time.simTime)
     volume?.update()
     shell.visible = ready()
+    // The first map fades in from here (CloudMap.gain), not from when it
+    // was built: it may be in before the surface under it.
+    if (shell.visible) {
+      cloudMap.drawn()
+    }
   }
   const inverse = new Matrix4()
   const eye = new Vector3()
@@ -179,7 +185,7 @@ export function newCloudShell(groundRadius, cloudMap, {ready = () => true, volum
     // A white cloud's radiance in three's units (Lambert: E·albedo/π), for
     // the renderer's exposure to scale as it does the lit surface.
     u.uRadiance.value = sunDistance > 0 ? CLOUD_WHITE * irradianceAt(sunDistance) / Math.PI : 0
-    u.uOpacity.value = shellOpacity(eye.length() - groundRadius, volume ? volume.readiness() : 0)
+    u.uOpacity.value = shellOpacity(eye.length() - groundRadius, volume ? volume.readiness() : 0) * cloudMap.gain()
   }
   return shell
 }
