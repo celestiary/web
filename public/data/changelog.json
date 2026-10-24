@@ -1,6 +1,44 @@
 {
   "entries": [
     {
+      "id": "2026-10-24-one-bar-of-controls-at-the-bottom-of-your-phone",
+      "date": "2026-10-24",
+      "headline": "One bar of controls at the bottom of your phone",
+      "text": "On a phone, the buttons that used to stack down the right of the screen are now one bar along the bottom: the time (it shows the clock, or how fast time is running), map layers near Earth, the AR sky view, apps and a More button for settings. Each opens just above the bar, and the panel about what you're looking at sits on top of it, so nothing covers anything else.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 289,
+          "url": "https://github.com/celestiary/web/pull/289"
+        },
+        {
+          "kind": "issue",
+          "number": 279,
+          "url": "https://github.com/celestiary/web/issues/279"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth",
+      "image": null
+    },
+    {
+      "id": "2026-10-24-dragging-no-longer-changes-what-it-does-as-you",
+      "date": "2026-10-24",
+      "headline": "Dragging no longer changes what it does as you zoom in",
+      "text": "Close to a planet, dragging used to switch by itself from turning round the planet to looking around in place, with nothing to show it had. Now a drag does what the drag-mode switch says until you change it: it turns round a body you go to, and looks around once you land.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 289,
+          "url": "https://github.com/celestiary/web/pull/289"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth",
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-10-24-no-more-speckled-blue-bands-in-the-night-air",
       "date": "2026-10-24",
       "headline": "No more speckled blue bands in the night air over ground below sea level",

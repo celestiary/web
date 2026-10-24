@@ -569,6 +569,31 @@ it follows: [design/UI.md](design/UI.md)).
   full, the last measured, and jumped to the top).  Its height eases over 300 ms; on SwiftShader a busy main thread
   stalls the transition, so a probe that reads its height turns it off.
 
+### The phone dock
+
+At 600 px wide or less one bar along the bottom holds the controls that
+float down the right on a wider screen, and the settings buttons
+(`ui/PhoneDock.jsx`; design: [design/UI.md](design/UI.md#phones-the-dock)).
+
+- **Time** (labelled with the sim clock, or its rate, or Paused), **Layers**
+  (near a Cesium body), **AR**, **Apps** and **More** (drag mode, Settings,
+  About).  Each opens its panel above the bar, one at a time; a second tap
+  or a touch on the scene closes it.  While AR is on, its controls take the
+  panel and its button exits.
+- **Its height is shared**: `PhoneDock` measures the bar (it grows by the
+  safe-area inset) and publishes it to the store (`ChromeSlice`
+  `phoneDockHeight`), which `WidgetsDrawer` adds to the scene's bottom inset
+  and the drawer's sheet stands on; its whole height, an open panel too, goes
+  to `--phone-dock-height`, which the info sheet and Cesium's credits stand
+  on, so a panel lifts them rather than covering them (a panel's opening
+  doesn't resize the scene).
+- **Testable without a DOM**: `PhoneDock` reads the store and the router and
+  renders `DockView` from props, which `PhoneDock.test.jsx` renders with
+  `renderToStaticMarkup` (zustand serves a server render its initial state,
+  so a view of props is the way to test each state).
+- Chrome: held on the homepage, faded with the rest, hidden by `v`
+  (`_navDisplay`).  Desktop keeps the floating controls.
+
 ### Orbital elements
 
 A body's six Keplerian elements, listed in its info panel and drawn on its
@@ -754,8 +779,8 @@ Camera orientation and position are separated across three input modes, all accu
 | Input | Effect |
 |---|---|
 | Scroll wheel | Zoom (TrackballControls, asymptotic near surface) |
-| Mouse drag | Free look — pitch (up/down) and yaw (left/right) around camera's local axes, slower the narrower the field of view ([FOV-scaled](#fov-scaled-turning)) |
-| Option+drag | Orbit — rotates camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) and the narrower the field of view ([FOV-scaled](#fov-scaled-turning)) |
+| Mouse drag | By the drag mode (the toggle, or `m`). **Orbit** rotates the camera as a rigid body around the planet center (position + orientation rotate together), slower the nearer the ground ([proximity-scaled](#proximity-scaled-orbit-drag)) and the narrower the field of view ([FOV-scaled](#fov-scaled-turning)). **Free look** (pan) pitches (up/down) and yaws (left/right) around the camera's local axes, slower the narrower the field of view.  The mode is the user's: going to a body sets orbit, landing sets free look, and nothing switches it by altitude (an automatic switch near the ground, from before the proximity scale, surprised people and was removed) |
+| Option+drag | The other mode, for that drag |
 | ↑ / ↓ arrow keys (hold) | Pitch camera nose up/down, slower the narrower the field of view |
 | ← / → arrow keys (hold) | Roll camera left/right (while tracking too); not slowed by the field of view |
 | `t` | Toggle continuous tracking: the target stays centred every frame, following a place as its body turns, and the roll stays yours ([the target](#the-target)).  "Tracking on" or "off" shows on the readout, and it is a checkbox in Settings |
@@ -1486,10 +1511,12 @@ State is `store/WidgetsSlice.js`, a pure reducer (tested without a DOM):
   (`--dock-width`), so it never covers the scene; an open drawer sits left
   of it.
 - **Phones** (`useIsMobile`, 600 px wide or less).  The open drawer is a
-  sheet over the bottom half of the screen instead, and the scene shrinks
-  to the half above it (`setInsets`' bottom), so an app's effects show
-  while it's used.  The bottom controls move up above the sheet
-  (`--sheet-height`).
+  sheet over the bottom half of the screen instead, on the phone dock's bar
+  ([the phone dock](#the-phone-dock)), and the scene shrinks to the part
+  above both (`setInsets`' bottom: the sheet and the store's
+  `phoneDockHeight`), so an app's effects show while it's used.  The Apps
+  button in the dock opens it; a pinned app's side dock stops above the
+  bar.
 - **Sizing.**  `Celestiary` owns the scene's size: the window less the
   dock and sheet, redone on every resize (a phone rotating, its browser
   bars coming and going).  `ThreeUI.onResize` reads the container's size,
