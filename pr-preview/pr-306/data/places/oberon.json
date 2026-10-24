@@ -1,0 +1,22 @@
+{
+  "_attribution": "IAU Gazetteer of Planetary Nomenclature, USGS Astrogeology Science Center and the IAU Working Group for Planetary System Nomenclature (WGPSN); planetarynames.wr.usgs.gov. Public domain.",
+  "_body": "oberon",
+  "_source": "https://asc-planetarynames-data.s3.us-west-2.amazonaws.com/OBERON_nomenclature_center_pts.zip",
+  "_sourceModified": "2026-10-09",
+  "_newestApproval": "1988-01-01",
+  "_generator": "tools/places/build.mjs",
+  "_lngConvention": "east-positive (+E), -180..+180",
+  "_latConvention": "planetocentric",
+  "places": [
+    {"n": "Mommur Chasma", "t": 0, "lat": -16.3, "lng": -36.5, "k": "chasma"},
+    {"n": "Hamlet", "t": 0, "lat": -46.1, "lng": 44.4, "k": "crater"},
+    {"n": "Macbeth", "t": 0, "lat": -58.4, "lng": 112.5, "k": "crater"},
+    {"n": "Romeo", "t": 1, "lat": -28.7, "lng": 89.4, "k": "crater"},
+    {"n": "Lear", "t": 1, "lat": -5.4, "lng": 31.5, "k": "crater"},
+    {"n": "Falstaff", "t": 1, "lat": -22.1, "lng": 19, "k": "crater"},
+    {"n": "Coriolanus", "t": 1, "lat": -11.4, "lng": -14.8, "k": "crater"},
+    {"n": "Othello", "t": 1, "lat": -66, "lng": 42.9, "k": "crater"},
+    {"n": "Caesar", "t": 1, "lat": -26.6, "lng": 61.1, "k": "crater"},
+    {"n": "Antony", "t": 1, "lat": -27.5, "lng": 65.4, "k": "crater"}
+  ]
+}
