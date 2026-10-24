@@ -34,7 +34,8 @@ import {decodeNewsToken, loadChangelog, readFilter, tourStops} from './changelog
 import {HOME_HISTORY_KEY, isHomeEntry, isHomepage} from './home'
 import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
 import {ease} from './tour'
-import {formatTonight, lowPrecisionSun, resolveLocation, tonightTime} from './tonight'
+import {observingAtLoad, setObservingTheme, shouldOfferObserving, storeObserving} from './observing'
+import {formatTonight, lowPrecisionSun, resolveLocation, sunAltitude, tonightTime} from './tonight'
 import {hideLoading} from './loading'
 import {clampEv, stepEv} from './scene/evCompensation'
 import {clampStarMag, stepStarMag} from './scene/starMagnitude'
@@ -296,7 +297,12 @@ export default class Celestiary {
     // anything is built, so each overlay is built shown or hidden as the link
     // says and what it hides is never drawn (design/URLs.md, "Reading and
     // writing").  The overlays it shows are held back for the reveal.
-    this.scene.initSettings(linkSettings(location.hash), {hold: true})
+    // The observing (red) theme is the link's, or what the page's first
+    // script turned on for this device (js/observing.js).
+    const firstSettings = linkSettings(location.hash)
+    this.scene.initSettings({...firstSettings, R: firstSettings.R || observingAtLoad()}, {hold: true})
+    this._observingOffered = false
+    this._syncObserving()
     // Whether the first load's reveal brings the overlays in: not once the
     // homepage has been left after it began, whose own steps do (leaveHome).
     this._revealOverlays = true
@@ -1447,7 +1453,9 @@ export default class Celestiary {
    * @param {object} pl The decoded link
    */
   _holdLinkSettings(pl) {
-    this.scene.initSettings({...pl.settings, v: this.scene.getSetting('v')}, {hold: true})
+    this.scene.initSettings({...pl.settings, v: this.scene.getSetting('v'), R: this._keepObserving(pl.settings)},
+        {hold: true})
+    this._syncObserving()
   }
 
 
@@ -2266,7 +2274,8 @@ export default class Celestiary {
       ...this._tonightFlight(where, when),
       // The app's defaults for the overlays and labels; the HUD as it is.
       // Set as the flight starts, after the homepage's fade.
-      before: () => this.scene.initSettings({...decodeSettings(undefined), v: this.scene.getSetting('v')}, {hold: true}),
+      before: () => this.scene.initSettings({...decodeSettings(undefined), v: this.scene.getSetting('v'),
+        R: this.scene.getSetting('R')}, {hold: true}),
     }
     if (!this.leaveHome({fly: dest})) {
       this._flyTo(dest)
@@ -2882,6 +2891,12 @@ export default class Celestiary {
         'Toggle performance panel',
         () => this.ui.isPerfPanelVisible(),
         'Info')
+    // === Display ===
+    // The observing (red) theme (js/observing.js; design/UI.md).
+    k.map('r', () => this.toggleObserving(),
+        'Red light, for eyes adapted to the dark (observing)',
+        () => this.scene.getSetting('R'),
+        'Display')
     // The stars' limiting magnitude at a dark site (HDR.md), stepped as
     // Celestia steps it: 6.5 is the naked eye's.
     // The setting is the limit's offset from that, 0 by default, shown as
@@ -3421,13 +3436,75 @@ export default class Celestiary {
    */
   enterAR(opts) {
     const body = opts.body ?? this._currentBodyName() ?? 'earth'
-    return this.ar.enter({...opts, body})
+    return this.ar.enter({...opts, body}).then((result) => {
+      this._offerObserving(body, opts.lat, opts.lng)
+      return result
+    })
   }
 
 
   /** Exit AR sky-view mode and restore the prior view state. */
   exitAR() {
     this.ar.exit()
+    this.useStore.getState().setObservingOffer?.(false)
+  }
+
+
+  /**
+   * AR has started: after dark on Earth, offer the observing theme, once a
+   * page (ui/ObservingOffer.jsx).  AR runs at the real time (ARController).
+   *
+   * @param {string} body
+   * @param {number} lat Degrees
+   * @param {number} lng Degrees
+   */
+  _offerObserving(body, lat, lng) {
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      return
+    }
+    const offer = shouldOfferObserving({
+      observing: this.scene.getSetting('R'),
+      offered: this._observingOffered,
+      body,
+      sunAltitudeDeg: sunAltitude(lat, lng, this.time.simTime, this._sunAt()),
+    })
+    if (offer) {
+      this._observingOffered = true
+      this.useStore.getState().setObservingOffer?.(true)
+    }
+  }
+
+
+  /**
+   * The observing (red) theme on or off ('r', the dock's More panel, AR's
+   * offer), kept for this device's next visit.
+   */
+  toggleObserving() {
+    this.scene.flipSetting('R')
+    storeObserving(globalThis.localStorage, this.scene.getSetting('R'))
+    this._syncObserving()
+  }
+
+
+  /** The page, the store and the offer as the 'R' setting says. */
+  _syncObserving() {
+    const on = this.scene.getSetting('R')
+    setObservingTheme(globalThis.document?.documentElement, on)
+    const state = this.useStore.getState()
+    state.setObserving?.(on)
+    if (on) {
+      state.setObservingOffer?.(false)
+    }
+  }
+
+
+  /**
+   * @param {object} settings A link's
+   * @returns {boolean} The observing theme after it: a link can turn it on,
+   *   never off, so following one outdoors at night keeps the screen red
+   */
+  _keepObserving(settings) {
+    return Boolean(settings?.R) || this.scene.getSetting('R')
   }
 
 

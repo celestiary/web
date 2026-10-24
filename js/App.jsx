@@ -14,6 +14,7 @@ import ExposureReadout from './ui/ExposureReadout'
 import Homepage from './ui/Homepage'
 import LayersButton from './ui/LayersButton'
 import NewsTour from './ui/NewsTour'
+import ObservingOffer from './ui/ObservingOffer'
 import PhoneDock from './ui/PhoneDock'
 import SearchBar from './ui/SearchBar'
 import Settings from './ui/Settings'
@@ -107,6 +108,7 @@ export default function App() {
         </Route>}
       {celestiary && isMobile && homePhase === 'hidden' &&
         <PhoneDock celestiary={celestiary} timeStr={timeStr} isPaused={isPaused} setIsPaused={setIsPaused}/>}
+      {celestiary && <ObservingOffer celestiary={celestiary}/>}
       {celestiary && <ExposureReadout celestiary={celestiary}/>}
       {celestiary && <WidgetsDrawer celestiary={celestiary}/>}
       {celestiary && homePhase !== 'hidden' && <Homepage celestiary={celestiary} phase={homePhase}/>}

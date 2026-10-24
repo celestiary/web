@@ -90,6 +90,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   T: false, // tracking the target — see Scene.track
   F: false, // following the target's orbit — see Scene.follow
   A: false, // AR-fallback — enter AR sky view if device supports
+  R: false, // the observing (red) theme, for eyes adapted to the dark (js/observing.js)
 })
 
 

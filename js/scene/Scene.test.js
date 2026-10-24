@@ -389,8 +389,12 @@ describe('Scene.applySettings', () => {
     // level snapshot — the live AR state is folded in at the permalink
     // writer in Celestiary, not here).
     Shared.targets.follow = null // going (a test elsewhere) turns it on
-    expect(s.getSettings()).toEqual({...target, L: false, A: false, T: false, F: false})
+    // R, the observing theme, is Celestiary's and has no applier: a
+    // snapshot's restore never turns it (Celestiary.toggleObserving).
+    expect(s.getSettings()).toEqual({...target, L: false, A: false, T: false, F: false, R: false})
     expect(milkyWay.visible).toBe(false)
+    s.applySettings({R: true})
+    expect(s.getSetting('R')).toBe(false)
   })
 })
 

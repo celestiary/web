@@ -576,8 +576,8 @@ float down the right on a wider screen, and the settings buttons
 (`ui/PhoneDock.jsx`; design: [design/UI.md](design/UI.md#phones-the-dock)).
 
 - **Time** (labelled with the sim clock, or its rate, or Paused), **Layers**
-  (near a Cesium body), **AR**, **Apps** and **More** (drag mode, Settings,
-  About).  Each opens its panel above the bar, one at a time; a second tap
+  (near a Cesium body), **AR**, **Apps** and **More** (drag mode, the red
+  light, Settings, About).  Each opens its panel above the bar, one at a time; a second tap
   or a touch on the scene closes it.  While AR is on, its controls take the
   panel and its button exits.
 - **Its height is shared**: `PhoneDock` measures the bar (it grows by the
@@ -593,6 +593,47 @@ float down the right on a wider screen, and the settings buttons
   so a view of props is the way to test each state).
 - Chrome: held on the homepage, faded with the rest, hidden by `v`
   (`_navDisplay`).  Desktop keeps the floating controls.
+- **The breadcrumb** on a phone shows a path of four or more as a "…" chip
+  and its last two (`SearchSlice` `breadcrumbStart`), until the "…" is tapped
+  or the search opens (it scopes by the whole path); only the chip with the
+  search icon keeps an icon slot, there being no hover to move it.
+
+### The observing (red) theme
+
+For using the app outdoors at night, as through a red torch (`js/observing.js`;
+design: [design/UI.md](design/UI.md#the-observing-red-theme)).  Only red light
+leaves the screen, the scene's included, so the eye's rods, which don't see it,
+keep their dark adaptation.
+
+- **How**: two fixed layers over the whole page (`#observing-grey`,
+  `#observing-red`, in `public/index.html` with their CSS, so they work from the
+  first paint), shown by `data-theme="observing"` on `<html>`.  The first greys
+  everything behind it (`backdrop-filter: grayscale(1)`, Rec. 709 luminance of
+  the sRGB values); the second multiplies that by `#f00` (`mix-blend-mode:
+  multiply`).  Each pixel becomes its luminance on the red channel alone:
+  white 255, the night ink 229, the accent 158, a pure blue 18, a pure red 54.
+  Both layers take no pointer events.
+- **Not a filter on the page**: a `filter` on `<body>` would make it the
+  containing block of every fixed element (the dock, the sheets), and `<html>`
+  can't carry both steps (its filter would grey the red layer too).  An SVG
+  `feColorMatrix` would be one step, but WebKit draws SVG filters on HTML in
+  software, too slow over the WebGL canvas on an iPhone, the AR device;
+  `grayscale()` and `multiply` are composited on the GPU everywhere.
+- **The tokens stay the night theme's**: the transform maps them by
+  luminance, which keeps the ink's steps (229, 195, 179, 154 for `--ink` to
+  `--ink-4`).  Red light can't carry contrast past 5.25:1 on black (pure red's
+  luminance is 0.21), so in red only white text passes 4.5:1; `--ink` is 4.3:1.
+- **State**: the `R` setting (`permalink.js` `SETTINGS_DEFAULTS`; Celestiary
+  owns it, as `v`).  `r` and the dock's *Red light* switch it
+  (`Celestiary.toggleObserving`), keeping the choice in localStorage
+  (`celestiary-observing`).  The page's `observing` script turns it on before
+  the first paint for that choice or a view link with `R`.  A link can turn it
+  on, never off (`_keepObserving`), and `Scene.applySettings` has no applier
+  for it, so V's and AR's snapshot restores leave it as it is.
+- **Offered in AR after dark**: entering AR on Earth with the Sun below −6° at
+  the observer (`tonight.js` `sunAltitude`, at the real time AR runs at)
+  shows `ui/ObservingOffer.jsx` once a page (`ChromeSlice` `observingOffer`),
+  until it's taken, declined or AR ends.
 
 ### Orbital elements
 
@@ -789,6 +830,7 @@ Camera orientation and position are separated across three input modes, all accu
 | `j` / `k` / `l` | Reverse, slow down, speed up time: paused too, when the step is often set; the display shows it and resuming runs at it |
 | `-` / `=` (or `+`) | Exposure compensation down / up a third of a stop (EV), over the metered exposure; the readout shows "EV +1.3" for two seconds |
 | `[` / `]` | The stars' setting: the limiting magnitude's offset from the naked eye's, 0.5 mag a press (not the exposure); 0 is the default, shown as "Stars +1.0 mag" and in the link as `sm=` ([design/URLs.md](design/URLs.md#view)) |
+| `r` | The observing (red) theme: the whole screen in red light, for eyes adapted to the dark ([the observing theme](#the-observing-red-theme)); `R` in the link |
 | Click / tap a label (a star, planet, moon, asterism or place name) | Target it and do nothing else: `c` then faces it, `g` goes ([Picking labels](#picking-labels)) |
 | Double-click / double-tap a label | Go to it, as `g` does |
 | Double-click / double-tap elsewhere on a body | Land there |

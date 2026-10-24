@@ -5,7 +5,7 @@ import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
 import {goToEntry, lookAtEntry, targetEntry} from '../search/commitEntry'
 import {searchIndex} from '../search/SearchIndex'
-import {anchorPathFor, breadcrumbItems as breadcrumbFor} from '../store/SearchSlice'
+import {anchorPathFor, breadcrumbItems as breadcrumbFor, breadcrumbStart} from '../store/SearchSlice'
 import useStore from '../store/useStore'
 import useIsMobile from '../useIsMobile'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
@@ -68,6 +68,8 @@ export default function SearchBar({celestiary, home = false}) {
   const [indexVersion, setIndexVersion] = useState(searchIndex.version)
   const [inputFocused, setInputFocused] = useState(false)
   const isMobile = useIsMobile()
+  // A phone's breadcrumb, expanded from its "…" chip, until the path changes.
+  const [crumbsExpanded, setCrumbsExpanded] = useState(false)
 
   const hoverResetTimer = useRef(null)
   const blurCollapseTimer = useRef(null)
@@ -89,6 +91,8 @@ export default function SearchBar({celestiary, home = false}) {
       () => breadcrumbFor(committedTarget, committedPath),
       [committedTarget, committedPath],
   )
+
+  useEffect(() => setCrumbsExpanded(false), [breadcrumbItems])
 
   const anchorPath = useMemo(
       () => (committedStar ? 'milkyway' :
@@ -337,6 +341,9 @@ export default function SearchBar({celestiary, home = false}) {
   const visibleItems = isSearchOpen ?
     breadcrumbItems.slice(0, Math.min(anchorIndex + 1, breadcrumbItems.length)) :
     breadcrumbItems
+  // On a phone, a long path's last chips behind a "…" that shows the rest.
+  const start = breadcrumbStart(visibleItems.length, {phone: isMobile, open: isSearchOpen, expanded: crumbsExpanded})
+  const moreActive = start > 0 && effectiveIconIndex < start
 
   const iconButton = (
     <Tooltip title='Search' describeChild>
@@ -368,7 +375,25 @@ export default function SearchBar({celestiary, home = false}) {
             icon slot (visibility toggled so metrics are identical across
             chips) plus the label.  Wrapping them together lets the whole
             chip be a hover target and a styled background. */}
+        {start > 0 &&
+          <span className={`chip chip-more${moreActive ? ' chip-active' : ''}`}>
+            <span className='chip-icon' aria-hidden={!moreActive}>
+              {iconButton}
+            </span>
+            <button
+              type='button'
+              className='chip-label chip-expand'
+              aria-label={`Show the whole path: ${visibleItems.slice(0, start).map((item) => item.label).join(', ')}`}
+              onClick={() => setCrumbsExpanded(true)}
+              data-testid='breadcrumb-more'
+            >
+              …
+            </button>
+          </span>}
         {visibleItems.map((item, i) => {
+          if (i < start) {
+            return null
+          }
           const key = item.hash || `star-${i}`
           const isLast = !isSearchOpen && i === visibleItems.length - 1
           const active = effectiveIconIndex === i

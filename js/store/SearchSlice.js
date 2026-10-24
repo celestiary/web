@@ -118,6 +118,29 @@ export function anchorPathFor(committedPath, anchorIndex) {
 }
 
 
+/** How many of the breadcrumb's last chips a phone shows behind its "…" chip. */
+export const PHONE_CRUMBS = 2
+
+
+/**
+ * Where the breadcrumb starts showing chips: on a phone, closed and not
+ * expanded, a path of more than PHONE_CRUMBS + 1 shows its last
+ * PHONE_CRUMBS behind a "…" chip that expands it (design/UI.md, "Phones:
+ * the breadcrumb").  A shorter path, or a "…" that would hide one chip only,
+ * shows whole.
+ *
+ * @param {number} count The path's chips
+ * @param {object} state
+ * @param {boolean} state.phone useIsMobile's
+ * @param {boolean} state.open The search is open: it scopes by the path, whole
+ * @param {boolean} state.expanded The "…" was tapped, for this path
+ * @returns {number} The first chip shown; 0 for all
+ */
+export function breadcrumbStart(count, {phone, open, expanded}) {
+  return phone && !open && !expanded && count > PHONE_CRUMBS + 1 ? count - PHONE_CRUMBS : 0
+}
+
+
 /**
  * The breadcrumb's elements for a target: its body path, each element a
  * link to its own path, then a place's or a satellite's name; a star's or an asterism's
