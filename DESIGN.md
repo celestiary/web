@@ -620,7 +620,7 @@ keep their dark adaptation.
   software, too slow over the WebGL canvas on an iPhone, the AR device;
   `grayscale()` and `multiply` are composited on the GPU everywhere.
 - **The tokens stay the night theme's**: the transform maps them by
-  luminance, which keeps the ink's steps (229, 195, 179, 154 for `--ink` to
+  luminance, which keeps the ink's steps (229, 194, 179, 154 for `--ink` to
   `--ink-4`).  Red light can't carry contrast past 5.25:1 on black (pure red's
   luminance is 0.21), so in red only white text passes 4.5:1; `--ink` is 4.3:1.
 - **State**: the `R` setting (`permalink.js` `SETTINGS_DEFAULTS`; Celestiary

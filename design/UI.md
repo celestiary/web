@@ -113,7 +113,7 @@ each pixel shows its brightness on the red channel alone.
 - **Offered** when AR starts on Earth after dark (the Sun below −6°): a card
   above the dock, *Red light* or *Not now*, once a page.
 - **The tokens don't change**: the night theme's colours map by brightness,
-  which keeps the ink's steps (`--ink` to `--ink-4` become reds of 229, 195,
+  which keeps the ink's steps (`--ink` to `--ink-4` become reds of 229, 194,
   179 and 154).  The system's `observing` values are what the night ones become.
 - **Contrast**: red light tops out at 5.25:1 on black (pure red is a fifth as
   bright as white), so in red only white text passes 4.5:1, and `--ink` is
