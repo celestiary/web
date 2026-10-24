@@ -224,12 +224,22 @@ are (`iridium.js`).  The model, kept simple:
 
 ## What loads when
 
-Nothing in the first load.  `Scene.loadNetwork(key)` imports the chunk
-(`loadNetworks.js`, 21 KB minified; satellite.js's SGP4 is a chunk shared
-with the satellites') and fetches that network's snapshot once, when its
-overlay is first shown (`Scene._showOverlay`): a Settings row, `V`'s
-restore, a link's `s=`.  A failed load is logged and asked again the next
-time it's shown.  The DSN's feed then every 5 s while shown.
+Nothing in the first load.  `Scene.loadNetwork(key)` imports the
+satellites' chunk, which carries the networks' code too
+(`loadSatellites.js` re-exports `loadNetwork`), and fetches that network's
+snapshot once, when its overlay is first shown (`Scene._showOverlay`): a
+Settings row, `V`'s restore, a link's `s=`.  A failed load is logged and
+asked again the next time it's shown.  The DSN's feed then every 5 s while
+shown.
+
+- **Why not a chunk of its own.** The networks' code imports modules the
+  first load has (wideLines, fade, SpriteSheet, hdr, coords) and some the
+  satellites' chunk has (sgp4).  As its own dynamic import it made a third
+  set of importers for them, and esbuild's splitting cut the first load's
+  shared chunk into three: two more requests on the homepage (29 against
+  main's 27, over the 28 budget; `yarn load-budget`).  In the satellites'
+  chunk the sets are main's again, 27 requests.  The cost: that chunk grows
+  from 34 KB to 55 KB minified, fetched whenever the satellites are.
 
 ## Checked
 

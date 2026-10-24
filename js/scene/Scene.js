@@ -289,7 +289,11 @@ export default class Scene {
     this.networks = {}
     this.networkData = {}
     this._networksPending = {}
-    this.importNetworks = () => import('./networks/loadNetworks.js')
+    // In the satellites' chunk, not one of their own: a chunk of their own
+    // changed which modules esbuild shares between which lazy chunks, and
+    // split the first load's into two more requests (Networks.md, "What
+    // loads when").
+    this.importNetworks = () => import('./satellites/loadSatellites.js')
     // A link's population state for bodies whose population isn't in yet
     // (restorePopulations), and who to tell of one added (onPopulationAdded).
     this._pendingPopulations = new Map

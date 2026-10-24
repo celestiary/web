@@ -3,6 +3,12 @@ import Satellites from './Satellites.js'
 import {parseCatalog} from './sgp4.js'
 
 
+// The space networks' loader (networks/Networks.md) rides in this chunk:
+// Scene imports it from here, so the networks share the satellites' chunk
+// and the first load's chunks stay as they were.
+export {loadNetwork} from '../networks/loadNetworks.js'
+
+
 // The satellites' chunk (Satellites.md): imported by Scene when something
 // first needs them, with satellite.js, which the first load does without.
 
