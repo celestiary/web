@@ -2,6 +2,7 @@ import {SRGBColorSpace, WebGLRenderer} from 'three'
 import {makeNetGLGuestContext} from '@pablo-mayrgundter/portal-netgl'
 import OrbitsLayer from './OrbitsLayer.js'
 import {hostOrigin, originTransport} from './origins.js'
+import {meteredTransport} from './wire.js'
 import {serveLayer} from './protocol.js'
 
 
@@ -10,7 +11,7 @@ import {serveLayer} from './protocol.js'
 // a cross-origin iframe.  The host's view and clock drive it; it draws into
 // the host's context with no clears, testing the host's depth.
 //
-//   layer.html?nets=S,I,D&sats=1[&host=<origin>]
+//   layer.html?nets=S,I,D&sats=1[&host=<origin>][&compact=0]
 //
 // The host's origin comes from location.ancestorOrigins, else the
 // referrer, else `host`, and must be on the allow-list (origins.js), a
@@ -22,7 +23,10 @@ const origin = hostOrigin({search: location.search, referrer: document.referrer,
 if (!origin || window.parent === window) {
   document.body.textContent = 'celestiary layer mode: embed this page in an allowed host (design/LayerMode.md).'
 } else {
-  const transport = originTransport({target: window.parent, origin})
+  // Metered (layer:stats), and each GL call's arrays cut to what it reads
+  // (wire.js); `compact=0` sends them as the recorder made them, to compare.
+  const meter = meteredTransport(originTransport({target: window.parent, origin}), {compact: params.get('compact') !== '0'})
+  const {transport} = meter
   // With checkpoints (the default): each frame replays from the guest's own
   // GL state, whatever the host left.
   const guest = makeNetGLGuestContext({transport})
@@ -36,8 +40,8 @@ if (!origin || window.parent === window) {
   const layer = new OrbitsLayer()
   const loaded = layer.load({satellites: params.get('sats') !== '0', networks: nets})
   let size = ''
-  serveLayer({
-    transport, layer, loaded,
+  const served = serveLayer({
+    transport, layer, loaded, meter,
     render: () => layer.render(renderer),
     endFrame: () => guest.endFrame(),
     // NetGL's handshake, which portal-netgl 0.4.0's host waits on; an
@@ -53,5 +57,5 @@ if (!origin || window.parent === window) {
       }
     },
   })
-  window.celestiaryLayer = {layer, renderer, guest, origin}
+  window.celestiaryLayer = {layer, renderer, guest, origin, meter, served}
 }

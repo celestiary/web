@@ -45,6 +45,21 @@ describe('Constellation', () => {
     expect(c.lastRefreshed).toBe(40)
   })
 
+  it('propagates and uploads nothing while the clock holds', () => {
+    const c = shell()
+    c.update(JD)
+    c.update(JD + SEC)
+    const attrs = c.points.geometry.attributes
+    const versions = () => ['position', 'aVw', 'aState'].map((k) => attrs[k].version)
+    const v = versions()
+    c.update(JD + SEC)
+    expect(c.lastRefreshed).toBe(0)
+    expect(c.primed).toBe(true)
+    expect(versions()).toEqual(v)
+    c.update(JD + (2 * SEC))
+    expect(c.lastRefreshed).toBe(10)
+  })
+
   it('does nothing while hidden, and starts whole again', () => {
     const c = shell()
     c.update(JD)

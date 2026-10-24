@@ -1,7 +1,7 @@
 import {hopWidth} from './Colonization.js'
 import {hopColor} from './ColonizationLines.js'
 import {Float32BufferAttribute} from 'three'
-import {WideLineStripGeometry, sortFarToNear, trimToFront} from './wideLines.js'
+import {WideLineStripGeometry, newWideLines, setWideLineSegments, sortFarToNear, trimToFront} from './wideLines.js'
 
 
 /**
@@ -27,6 +27,41 @@ function pack(segments) {
 
 
 describe('wideLines', () => {
+  it('setWideLineSegments uploads only what changed, and nothing when nothing did', () => {
+    const cap = 8
+    const mesh = newWideLines({start: new Float64Array(cap * 3), end: new Float64Array(cap * 3), color: new Float32Array(cap * 3)})
+    const at = mesh.geometry.attributes
+    const keys = ['startHigh', 'startLow', 'endHigh', 'endLow', 'aColor']
+    // As three does once it has uploaded.
+    const uploaded = () => keys.forEach((k) => at[k].clearUpdateRanges())
+    const versions = () => keys.map((k) => at[k].version)
+    const seg = {start: new Float64Array(cap * 3), end: new Float64Array(cap * 3), color: new Float32Array(cap * 3)}
+    for (let j = 0; j < 9; j++) {
+      seg.start[j] = 7e6 + j + 0.123
+      seg.end[j] = 4e8 + j
+      seg.color[j] = 0.5
+    }
+    expect(setWideLineSegments(mesh, seg, 3)).toBeGreaterThan(0)
+    expect(mesh.geometry.instanceCount).toBe(3)
+    // The high and low parts hold the float64 value.
+    expect(at.startHigh.array[0] + at.startLow.array[0]).toBeCloseTo(7e6 + 0.123, 6)
+    uploaded()
+    // The same again: nothing flagged.
+    let v = versions()
+    expect(setWideLineSegments(mesh, seg, 3)).toBe(0)
+    expect(versions()).toEqual(v)
+    // One start moves: only the starts go up, and just that segment's span.
+    seg.start[4] += 10
+    v = versions()
+    setWideLineSegments(mesh, seg, 3)
+    expect(versions().map((x, i) => x - v[i])).toEqual([1, 1, 0, 0, 0])
+    expect(at.startHigh.updateRanges).toEqual([{start: 4, count: 1}])
+    // Not drawn before the next change: one range covering both.
+    seg.start[7] += 10
+    setWideLineSegments(mesh, seg, 3)
+    expect(at.startHigh.updateRanges).toEqual([{start: 4, count: 4}])
+  })
+
   it('sortFarToNear orders segments by their closest distance, farthest first', () => {
     const LY = 9.461e15
     const segments = [

@@ -123,6 +123,12 @@ export default class Constellation extends Group {
       this.lastRefreshed = 0
       return
     }
+    // The clock held (paused, or a host's view at the same time): every
+    // satellite is where it was drawn, so nothing to propagate or upload.
+    if (this._primed && jd === this.jd) {
+      this.lastRefreshed = 0
+      return
+    }
     const t = (jd - this.jdRef) * SEC_PER_DAY
     const jump = !this._primed || !(Math.abs(jd - this.jd) < JUMP_DAYS)
     this.jd = jd
@@ -156,6 +162,12 @@ export default class Constellation extends Group {
     }
     this._wholeUpload.clear()
     this.points.material.uniforms.uNow.value = t - this.tRef
+  }
+
+
+  /** @returns {boolean} whether it's drawn: propagated since it was last hidden */
+  get primed() {
+    return this._primed
   }
 
 

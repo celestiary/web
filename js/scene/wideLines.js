@@ -403,41 +403,84 @@ function setQuad(geom) {
 /**
  * Rewrite a newWideLines mesh's segments in place, for lines that move
  * (the Iridium links, the DSN's beams): the first `count` instances, up to
- * the mesh's size.  Not for a sorted mesh (its order is the master's).
+ * the mesh's size.  Only what changed goes up: each attribute's span of
+ * changed values as one update range, and nothing for an attribute (or a
+ * frame) where nothing did, so the DSN's beams upload nothing between
+ * feeds while the clock holds, and only their starts while it runs.  Not
+ * for a sorted mesh (its order is the master's).
  *
  * @param {Mesh} mesh From newWideLines, unsorted
  * @param {object} segments Columns as newWideLines takes them: `start`,
  *   `end` (3 a segment, metres) and `color` (3), and optionally `hop` (1)
  * @param {number} count Segments to draw
+ * @returns {number} the values that changed, over all the attributes
  */
 export function setWideLineSegments(mesh, {start, end, color, hop}, count) {
   const geom = mesh.geometry
   const at = geom.attributes
   const n = Math.min(count, at.startHigh.count)
-  const sh = at.startHigh.array
-  const sl = at.startLow.array
-  const eh = at.endHigh.array
-  const el = at.endLow.array
-  for (let j = 0; j < n * 3; j++) {
-    sh[j] = start[j]
-    sl[j] = start[j] - sh[j]
-    eh[j] = end[j]
-    el[j] = end[j] - eh[j]
-    at.aColor.array[j] = color[j]
+  let changed = 0
+  // Write src[j] (split into float32 high and low parts, or as is) over
+  // the first len values; mark the span that differs for upload.
+  const write = (src, len, high, low = null) => {
+    const ha = high.array
+    const la = low?.array
+    let lo = len
+    let hi = -1
+    for (let j = 0; j < len; j++) {
+      const v = src[j]
+      const h = Math.fround(v)
+      if (ha[j] !== h) {
+        ha[j] = h
+        lo = Math.min(lo, j)
+        hi = j
+      }
+      if (la) {
+        const l = Math.fround(v - h)
+        if (la[j] !== l) {
+          la[j] = l
+          lo = Math.min(lo, j)
+          hi = j
+        }
+      }
+    }
+    if (hi >= lo) {
+      changed += hi - lo + 1
+      for (const attr of low ? [high, low] : [high]) {
+        markRange(attr, lo, hi + 1)
+      }
+    }
   }
+  write(start, n * 3, at.startHigh, at.startLow)
+  write(end, n * 3, at.endHigh, at.endLow)
+  write(color, n * 3, at.aColor)
   if (hop) {
-    for (let i = 0; i < n; i++) {
-      at.aHop.array[i] = hop[i]
-    }
-  }
-  if (n > 0) {
-    for (const key of ['startHigh', 'startLow', 'endHigh', 'endLow', 'aColor', 'aHop']) {
-      at[key].clearUpdateRanges()
-      at[key].addUpdateRange(0, n * at[key].itemSize)
-      at[key].needsUpdate = true
-    }
+    write(hop, n, at.aHop)
   }
   geom.instanceCount = n
+  return changed
+}
+
+
+/**
+ * Flag [from, to) of an attribute for upload, as one range with any it
+ * already has (one not yet uploaded: a mesh that isn't drawn for a while
+ * would otherwise collect a range a frame).
+ *
+ * @param {object} attr a BufferAttribute
+ * @param {number} from
+ * @param {number} to
+ */
+function markRange(attr, from, to) {
+  let a = from
+  let b = to
+  for (const r of attr.updateRanges) {
+    a = Math.min(a, r.start)
+    b = Math.max(b, r.start + r.count)
+  }
+  attr.clearUpdateRanges()
+  attr.addUpdateRange(a, b - a)
+  attr.needsUpdate = true
 }
 
 

@@ -66,9 +66,10 @@ export default class IridiumNetwork extends Group {
   /** @param {number} jd Julian Day (UTC) */
   update(jd) {
     this.sats.update(jd, this.visible)
-    const drawn = this.visible && this.sats.points.visible && this.sats.lastRefreshed > 0
+    const drawn = this.visible && this.sats.points.visible && this.sats.primed
     this.inPlaneLines.visible = this.crossLines.visible = drawn
-    if (!drawn) {
+    // Not drawn, or the clock held (nothing moved): the links stand.
+    if (!drawn || this.sats.lastRefreshed === 0) {
       return
     }
     // Refreshed this frame, all of them: their states are where they are.
