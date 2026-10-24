@@ -720,6 +720,12 @@ export default class Scene {
           l: this.fades.l.shown, p: this.fades.p.shown,
           lOpacity: this.fades.l.opacity, pOpacity: this.fades.p.opacity,
         })
+        // Which names are wanted (Stars._syncLabels): those the limiting
+        // magnitude reaches, and the target's.
+        this.stars.labelState = () => ({
+          limit: this.ui.limitingMagnitude?.() ?? Infinity,
+          target: Shared.targets.label?.kind === 'star' ? Shared.targets.label.star : null,
+        })
         this._joinOverlay('l', this.stars.labelLOD)
         this._labelTargetStar(Shared.targets.label)
         if (this._settings.a) {

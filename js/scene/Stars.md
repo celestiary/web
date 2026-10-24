@@ -304,6 +304,41 @@ approaches its surface and stops there (`ThreeUI._homeBody`): the floor
 was the last targeted body's radius, which kept the camera 6 radii from
 Proxima and let it into Betelgeuse.
 
+## Names
+
+A star's name shows while the star can be seen and the names are on (`l`):
+how many is decided by what's visible, then by the user's choice of
+magnitude, then by the declutter (the maintainer's rule, PR #302).
+
+- **Which have one:** every named star in `starnames.dat` (3,369), and the
+  luminous unnamed by HIP number (`LUMINOUS_LABEL_ABS_MAG`), on one sheet
+  (`showLabels`).  Before, only the 290 or so with three names or more were
+  on it, all drawn wherever their stars were, seen or not.  The Sun has its
+  body's name.
+- **Wanted each frame** (`_syncLabels`, `sheet.wanted`): a star's name while
+  its apparent magnitude from the camera is within the limiting magnitude
+  (`ThreeUI.limitingMagnitude`: the exposure, the user's star setting, `[`
+  and `]`, and the field of view), and the target star's always.  So none
+  in daylight or with a sunlit body in the frame, the bright ones under a
+  city's sky, hundreds at a dark site.  Scene gives the limit and the target
+  (`labelState`); without it (the guide's scene) every name is wanted.
+- **Then the declutter** ([DESIGN.md, declutter](../../DESIGN.md#declutter)):
+  the wanted take part, the brighter winning, below every place's name, a
+  shown one holding its place.
+- **Their look** ([DESIGN.md, label styles](../../DESIGN.md#label-styles),
+  `STAR_LABELS`): from the brightest wanted name in view, 13 px and full
+  brightness, to the faintest, 9 px and 0.7, by magnitude, at least a
+  magnitude between the ends; eased over a few frames; faded in and out.
+- **Checked** (headless Chromium, the same frames against `main`): at New
+  York's shore at night (`#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;…`,
+  names on) the limit is 1.7, and Castor, Pollux and Procyon are named where
+  `main` named 30 stars in view, most of them unseen
+  (`screens/labels/star-names-visible.png`).  The limit forced to 6.5 in the
+  page: 250 wanted, 53 shown after the declutter
+  (`screens/labels/star-names-limit-6.5.png`).  From 5 million km with the
+  sunlit Moon targeted, the limit is -6.4: no star is drawn, and none is
+  named.
+
 ## Brightness tiers
 
 [#259](https://github.com/celestiary/web/issues/259), leaner first load 3

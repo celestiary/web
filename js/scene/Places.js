@@ -4,6 +4,7 @@ import SpriteSheet from './SpriteSheet.js'
 import {point} from './shapes.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {placeRank} from './labelDeclutter.js'
+import {PLACE_LABELS, labelFont} from './labelStyle.js'
 import {cellInView, groupByCell, horizonAngle} from './placeCells.js'
 import {labelTextColor, overlay} from '../shared.js'
 
@@ -309,7 +310,9 @@ export default class Places extends Group {
     // anchor's depth but the surface there can be much closer to the
     // camera).  Non-RTE: positions are body-local (small magnitude),
     // three.js handles body-local → world via modelMatrix.
-    const sheet = new SpriteSheet(chunk.length, chunk.map(({e}) => e.n), undefined, [0, 0], false, true)
+    // Sized by distance (labelStyle.js PLACE_LABELS).
+    const sheet = new SpriteSheet(chunk.length, chunk.map(({e}) => e.n), labelFont(PLACE_LABELS), [0, 0], false, true,
+        {scalable: true})
     for (const {e} of chunk) {
       const xyz = latLngAltToBodyFixed(e.lat, e.lng, e.a ?? 0, this.planetRadius)
       sheet.add(xyz.x, xyz.y, xyz.z, e.n, labelTextColor)
@@ -329,6 +332,11 @@ export default class Places extends Group {
     // the catalogue lists a tier largest first.
     g.userData.declutter = true
     g.userData.labelRank = chunk.map(({rank}) => placeRank(t, rank, tierCount))
+    // Sized and dimmed by distance among the places' names in view
+    // (labelStyle.js styleLabels); still ranked by tier, the larger feature
+    // first.
+    g.userData.labelStyle = PLACE_LABELS
+    g.userData.labelMeasure = (i, cam, at) => cam.distanceTo(at)
     g.add(points)
     return g
   }
