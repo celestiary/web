@@ -67,6 +67,13 @@ NetGL's call stream, in order with it.
 - The host hands its port only to an exact origin, which the guest is
   (`iframeTransport`).
 - `layer.html?wire=1` offers only wire 1, to compare.
+- **No draws on the shadow** (portal-netgl 0.6.2's `shadowDraws: false`):
+  the guest context's shadow answers three's queries and mints its
+  handles, but doesn't run the draws and clears, which only the host's
+  replay needs. The layer reads none of its own pixels. The shadow's
+  canvas stays 1×1 (three keeps the size it's given, and never reads the
+  drawing buffer's). `layer.html?shadowDraws=1` draws on a full-size
+  shadow as before, to compare ([Cost](#cost)).
 
 | Direction | Message | Carries |
 |---|---|---|
@@ -202,6 +209,28 @@ receiver, 2026-10-24; the guest's own `layer:stats`):
   - the beams' starts;
   - the population's points, which go up whole each frame (Population.js);
   - about 120 state and draw calls, one message a frame on wire 2.
+- **The shadow's draws** (portal-netgl 0.6.2, 2026-10-24). Before, the
+  guest's shadow context ran every draw, at the host's full viewport,
+  and the host's replay ran them again. Timed on the check host on
+  SwiftShader, where a frame's wall clock up to a 1-pixel `readPixels`
+  stands in for GPU time, each context timed with the other idle (the
+  clock held, medians of 20 to 40 frames):
+
+  | Viewport | Guest render, shadow drawing | Not drawing | Host's replay of the draws | Without them |
+  |---|---|---|---|---|
+  | 1280×720 | 10.2 ms | 0.8 ms | 11 ms | 0.9 ms |
+  | 2560×1440 | 11 ms | 0.8 ms | 19 ms | 1.1 ms |
+
+  So the shadow was a third to a half of the overlay's GPU work; with
+  `shadowDraws: false` the replay is the only one that draws. With the
+  published 0.6.2, the guest's render (to the same sync) went from 16.2
+  ms to 0.7 ms at 640×400, and from 15.2 ms to 0.9 ms at 1280×720. The
+  host's frames are pixel-identical with and without it at both sizes
+  (the clock held at 2026-10-20 12:00 UTC), on wire 2 and the port, with
+  the same 117 calls and 7 KB a frame, no clears, and the ISS anchor 3.3
+  m from satellite.js's. On a real GPU it's unproven: an Apple M2 A/B on netmap
+  gave medians that didn't repeat (133 ms, then 17.5 ms, with the
+  overlay on; 16.7 ms off).
 - **Draw order.** The renderer doesn't sort, so the root's children are
   hung in a fixed order (satellites, S, I, D). Before, the order was
   whichever loaded first, so Starlink's dots covered Iridium's links on
@@ -294,9 +323,10 @@ Phase 1 is in (branch `claude/layer-mode`):
   - `&rate=1` runs the clock from `t` (0, the default, holds it).
   - `&stats=1` asks for `layer:stats`, kept in `hostState.guestStats`.
   - `&anchors=` sets the subscription (comma-separated, `none` for none).
-  - The receiver is portal-netgl 0.6.0's, on `iframeTransport` (so it
+  - The receiver is portal-netgl 0.6.2's, on `iframeTransport` (so it
     offers the port). `&wire=1` passes on to the guest, which then offers
-    only wire 1; `&hostWire=1` makes the host answer as a 0.5 host does.
+    only wire 1; `&hostWire=1` makes the host answer as a 0.5 host does;
+    `&shadowDraws=1` passes on too, and the guest draws on its shadow.
   - `hostState.perFrame` holds what arrived per frame, on the window and
     the port: messages, calls, and buffer bytes.
   - `hostState.ready` is the guest's `netgl:ready`, and `hostState.wire`
