@@ -2,7 +2,9 @@ import {
   BufferGeometry,
   Color,
   Float32BufferAttribute,
+  Frustum,
   Group,
+  Matrix4,
   Object3D,
   Points,
   ShaderMaterial,
@@ -10,6 +12,8 @@ import {
 } from 'three'
 import SpriteSheet from '../SpriteSheet.js'
 import {sceneReferred} from '../hdr.js'
+import {labelFont, labelLook, prominence, viewRange} from '../labelStyle.js'
+import {behindSphere} from '../labelPick.js'
 
 
 // A population of objects round a body, drawn (js/scene/population/Population.md):
@@ -63,6 +67,14 @@ const noRaycast = () => undefined
 const tmpV = new Vector3
 const tmpW = new Vector3
 const tmpCam = new Vector3
+const tmpEye = new Vector3
+const tmpMat = new Matrix4
+const tmpFrustum = new Frustum
+const ORIGIN = new Vector3
+// How far a view range moves toward this frame's each frame, of the way:
+// a name coming into view or leaving it eases the others' looks over a
+// few frames rather than jolting them.
+const RANGE_EASE = 0.25
 
 
 /**
@@ -101,9 +113,12 @@ export default class Population extends Group {
    * @param {number} [opts.layer] the overlay layer, for the points and names
    * @param {Function} [opts.Sheet] the label sheet's class (a test's stub)
    * @param {object} [opts.camera] the view's, for what to show by distance
+   * @param {?import('../labelStyle.js').LabelStyle} [opts.labelStyle] the
+   *   names' size and brightness by their distance from the camera, and
+   *   which wins where two touch (null: all alike, by the budget's order)
    */
   constructor(records, {body, groups = {}, title = 'Objects', showDist = Infinity, labelDist = Infinity,
-    layer = null, Sheet = SpriteSheet, camera = null} = {}) {
+    layer = null, Sheet = SpriteSheet, camera = null, labelStyle = null} = {}) {
     super()
     this.name = `${body} population`
     this.body = body
@@ -119,6 +134,9 @@ export default class Population extends Group {
     this.layer = layer
     this.Sheet = Sheet
     this.camera = camera
+    this.labelStyle = labelStyle
+    // A view-ranged style's near and far, eased frame to frame (_styleNames).
+    this._labelRange = null
     // The groups switched off (all on to start).
     this.hiddenGroups = new Set
     // Each record's place in its group, in the data's order; and how many of
@@ -671,6 +689,76 @@ export default class Population extends Group {
     if (attr) {
       attr.needsUpdate = true
     }
+    if (near) {
+      this._styleNames(sprites, ids)
+    }
+  }
+
+
+  /**
+   * Each name's size and brightness by its distance from the camera (the
+   * population's labelStyle), and its rank with them: where two touch, the
+   * nearer wins.  The target's at its largest and brightest.  A view-ranged
+   * style maps from the nearest of the names in view to the farthest
+   * (`viewRange`), eased over a few frames.
+   *
+   * @param {object} sprites a name sheet's
+   * @param {Array<number>} ids its records' indices
+   * @param {boolean} [ranged] whether these names set the view range (the
+   *   budget's do; the target's own label takes it as it is)
+   */
+  _styleNames(sprites, ids, ranged = true) {
+    const style = this.labelStyle
+    const sheet = sprites.userData.ownSheet
+    if (!style || !this.camera || !sheet.setStyle) {
+      return
+    }
+    // The camera in the sheet's frame, which is the population's.
+    this.camera.getWorldPosition(tmpEye)
+    sprites.worldToLocal(tmpEye)
+    const dist = ids.map((i, k) => tmpEye.distanceTo(tmpV.fromArray(sheet.positions, 3 * k)))
+    let range = this._labelRange ?? {near: style.near, far: style.far}
+    if (ranged && style.range === 'view') {
+      const goal = viewRange(this._inView(sprites, sheet, dist), style)
+      range = this._labelRange ? {
+        near: range.near + ((goal.near - range.near) * RANGE_EASE),
+        far: range.far + ((goal.far - range.far) * RANGE_EASE),
+      } : goal
+      this._labelRange = range
+    }
+    const mapped = {...style, ...range}
+    const ranks = sprites.userData.labelRank
+    ids.forEach((i, k) => {
+      const p = this.records[i].id === this._targetId ? 1 : prominence(dist[k], mapped)
+      const {scale, brightness} = labelLook(p, style)
+      sheet.setStyle(k, scale, brightness)
+      ranks[k] = RANK_TOP - RANK_SPAN + (RANK_SPAN * p)
+    })
+  }
+
+
+  /**
+   * @param {object} sprites a name sheet's
+   * @param {object} sheet its SpriteSheet
+   * @param {Array<number>} dist each name's distance from the camera
+   * @returns {Array<number>} the distances of the names in view: in the
+   *   camera's frustum, and not behind the body
+   */
+  _inView(sprites, sheet, dist) {
+    const cam = this.camera
+    cam.updateMatrixWorld?.()
+    tmpFrustum.setFromProjectionMatrix(tmpMat.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse))
+    const out = []
+    for (let k = 0; k < dist.length; k++) {
+      tmpV.fromArray(sheet.positions, 3 * k)
+      if (this.bodyRadius > 0 && behindSphere(tmpV.x, tmpV.y, tmpV.z, ORIGIN, this.bodyRadius, tmpEye)) {
+        continue
+      }
+      if (tmpFrustum.containsPoint(sprites.localToWorld(tmpV))) {
+        out.push(dist[k])
+      }
+    }
+    return out
   }
 
 
@@ -698,6 +786,8 @@ export default class Population extends Group {
     }
     const placed = this.positionAt(rec, jd, this.targetLabel.position)
     this.targetLabel.visible = placed && this.points.visible
+    // At its largest and brightest, whatever its distance.
+    this._styleNames(this.targetLabel, [this.byId.get(id)], false)
   }
 
 
@@ -712,7 +802,11 @@ export default class Population extends Group {
   _newNameSheet(indices, was = null, wasIds = []) {
     const recs = indices.map((i) => this.records[i])
     const texts = recs.map((r) => this.displayName(r))
-    const sheet = new this.Sheet(texts.length, texts)
+    // A styled population's names drawn at their largest, made smaller per name.
+    const style = this.labelStyle
+    const sheet = style ?
+      new this.Sheet(texts.length, texts, labelFont(style), [0, 0], false, false, {scalable: true}) :
+      new this.Sheet(texts.length, texts)
     recs.forEach((r, k) => {
       sheet.add(0, 0, 0, texts[k], this.groupInfo[r.group]?.color ?? OTHER_COLOR)
     })

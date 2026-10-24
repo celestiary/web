@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-10-24-satellites-names-by-distance-the-near-ones",
+      "date": "2026-10-24",
+      "headline": "Satellites' names by distance: the near ones larger and brighter",
+      "text": "Each satellite's name is now sized and dimmed by how far it is from you, from the nearest name in view, at full size and brightness, to the farthest, smaller and a little dimmer. Where two names would touch, the nearer one shows. You can see which side of the Starlink shell a name is on, and the smaller far names leave more room: from outside the shell, 45 of 300 show where 39 did.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 299,
+          "url": "https://github.com/celestiary/web/pull/299"
+        },
+        {
+          "kind": "issue",
+          "number": 50,
+          "url": "https://github.com/celestiary/web/issues/50"
+        }
+      ],
+      "epic": {
+        "number": 114,
+        "title": "Solar-system populations: asteroids, comets, satellites",
+        "url": "https://github.com/celestiary/web/issues/114"
+      },
+      "permalink": "#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;time:pause;info:closed;pop:earth=starlink,earth.labels=300",
+      "image": null
+    },
+    {
       "id": "2026-10-24-earth-s-clouds-fade-in-rather-than-popping-in",
       "date": "2026-10-24",
       "headline": "Earth's clouds fade in rather than popping in",

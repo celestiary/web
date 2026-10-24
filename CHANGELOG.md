@@ -39,6 +39,19 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Satellites' names by distance: the near ones larger and brighter
+
+Each satellite's name is now sized and dimmed by how far it is from you, from the nearest name in
+view, at full size and brightness, to the farthest, smaller and a little dimmer. Where two names
+would touch, the nearer one shows. You can see which side of the Starlink shell a name is on, and the
+smaller far names leave more room: from outside the shell, 45 of 300 show where 39 did.
+
+- Date: 2026-10-24
+- PR: [#299](https://github.com/celestiary/web/pull/299)
+- Issue: [#50](https://github.com/celestiary/web/issues/50)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;time:pause;info:closed;pop:earth=starlink,earth.labels=300)
+
 ### Earth's clouds fade in rather than popping in
 
 On a first visit to Earth the day's clouds, built from NASA's satellite pictures as you arrive, used

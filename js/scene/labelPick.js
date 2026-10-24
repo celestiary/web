@@ -101,7 +101,7 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
       occCentre.setFromMatrixPosition(occluder.matrixWorld).applyMatrix4(inv)
       eye.copy(camWorld).applyMatrix4(inv)
     }
-    const {positions, sizes, textSizes} = sheet
+    const {positions, sizes, textSizes, scales} = sheet
     const low = sheet._posLow
     for (let i = 0; i < sheet.labelCount; i++) {
       if (!targets[i] || (!opts.hidden && shown?.[i] === 0)) {
@@ -131,9 +131,11 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
       }
       const cx = rect.left + (((nx + 1) / 2) * rect.width)
       const cy = rect.top + (((1 - ny) / 2) * rect.height)
-      const side = sizes[2 * i] / pixelRatio
-      const width = textSizes[2 * i] / pixelRatio
-      const height = textSizes[(2 * i) + 1] / pixelRatio
+      // A scalable sheet's label at its own scale (SpriteSheet.setStyle).
+      const k = (scales?.[i] ?? 1) / pixelRatio
+      const side = sizes[2 * i] * k
+      const width = textSizes[2 * i] * k
+      const height = textSizes[(2 * i) + 1] * k
       const left = cx - (side / 2)
       const top = cy - (side / 2)
       if (left + width < rect.left - margin || left > rect.left + rect.width + margin ||

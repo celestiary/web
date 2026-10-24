@@ -198,6 +198,39 @@ And a name fades in and out over 200 ms (`SpriteSheet.setFade`,
 each name that stays as it was, shown or not, mid-fade or not; a new one
 starts hidden and fades in once the declutter shows it.
 
+## Names by distance
+
+A population with a `labelStyle` (DESIGN.md, [label
+styles](../../../DESIGN.md#label-styles)) draws each name at a size and
+brightness by its distance from the camera, and ranks it by the same
+measure where two touch: the nearer wins (`_styleNames`, each frame the names
+show).  Earth's satellites have one (`SATELLITE_LABELS`), over the view's
+range: the nearest of their names in view (in the frustum, not behind
+Earth: `_inView`) at 14 px and full brightness, the farthest at 11 px and
+0.7, by the distance's logarithm, the range eased over a few frames
+(`_labelRange`).  With none in view the style's own range stands in, 1,000
+to 50,000 km.  The target's name is at its largest and brightest wherever it
+is, and doesn't set the range.  A population without a style draws its names
+alike, ranked by the budget's order.
+
+- **The view's range, not a fixed one** (the maintainer's choice on PR #299):
+  with a fixed 1,000 to 50,000 km, from outside the shell every name was
+  about as far as the others, and all came out small and dim alike.  Over the
+  view's range the near side of the shell reads at its largest and the limb
+  at its least, from any distance.
+- **Measured** at the reported views, the same frames, against `main`:
+
+  | view | names shown, `main` | this | text per name |
+  |---|---|---|---|
+  | Starlink, 300 named, from 16,000 km | 39 | 45 | 1,531 → 954 px² |
+
+  There the names in view ran from 15,500 to 23,900 km away: sizes 0.79 to 1
+  of the largest, brightness 0.7 to 1 (`screens/satellites-50/labels-by-distance.png`,
+  `main` above).  With a fixed range, half as bright at the least, 48 showed,
+  all at about 0.84 and 0.6.  The view with all 11,116 named, from 7,200 km
+  up, renders black on SwiftShader (a shader there doesn't validate, as on
+  `main`); with the fixed range 119 of its names showed where 75 did.
+
 ## Search
 
 The section's search box finds the body's population alone: the main
