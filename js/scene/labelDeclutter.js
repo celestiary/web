@@ -27,10 +27,18 @@ const CELL_PX = 96
  *   (Jupiter over Ganymede, over Io), 1003 for a 1 km moon to 1011 for the
  *   Sun;
  * - a place: 4 - its tier + its place in the tier, which the catalogue
- *   orders largest first (below 1000, whatever a body's size).
+ *   orders largest first (below 1000, whatever a body's size);
+ * - a star: 0 to STAR_RANK_SPAN by how bright it looks, and its hold
+ *   (STAR_HOLD) keeps a shown one within the band, below every place.
  * The target's label is above all of these, by `isTargetLabel`.
  */
 export const BODY_RANK = 1000
+
+
+// The stars' band of ranks, and what a shown star's name adds to its rank
+// (declutterHold): together under 1, every place's least.
+export const STAR_RANK_SPAN = 0.49
+export const STAR_HOLD = 0.5
 
 
 /**
@@ -67,6 +75,11 @@ export function isTargetLabel(target, current) {
   if (target.kind === 'place') {
     const l = current.label
     return l?.kind === 'place' && l.body === target.body && l.name === target.name
+  }
+  if (target.kind === 'star') {
+    const l = current.label
+    const hip = target.star?.hipId
+    return hip !== undefined && l?.kind === 'star' && (l.star?.hipId ?? l.hipId) === hip
   }
   if (target.kind === 'satellite') {
     const l = current.label

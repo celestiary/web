@@ -1382,11 +1382,14 @@ Where labels don't touch nothing changes: every label's `shown` stays 1.  It
 is hide-only; an offset along a leader line, or hiding a moon's name until a
 hover, are the other ways [#207](https://github.com/celestiary/web/issues/207)
 names, and they'd need a label to draw away from its position, which none
-of the sprites do.  Star names, asterism names and the target star's label are
-left as they were (they don't take part, and don't hide anyone's): a catalogue
-of thousands of names whose priority is the star catalogue's business
-([Stars](js/scene/Stars.md)).  A sheet opts in by `userData.declutter = true`
-and `userData.labelRank`, so it is a few lines for another kind of label.
+of the sprites do.  Star names take part (PR #301): only those whose stars
+can be seen are wanted (`sheet.wanted`, [Stars.md, names](js/scene/Stars.md#names)),
+ranked in a band below every place's (0 to `STAR_RANK_SPAN`, by how bright
+the star looks, and `STAR_HOLD` for a shown one).  Asterism names and the
+target star's own label are left as they were (they don't take part, and
+don't hide anyone's).  A sheet opts in by `userData.declutter = true` and
+`userData.labelRank`, so it is a few lines for another kind of label; a label
+its owner marks not wanted (`sheet.wanted[i]` 0) is hidden and takes no room.
 
 **Cost.**  Per frame: a walk of the scene to the visible sheets (a few hundred
 nodes), one matrix per sheet, and a few multiplies per label (a surface label's
@@ -1438,9 +1441,10 @@ recede and take less room:
   | places | 10 | 14 |
   | satellites | 11 | 14 |
 
-  Satellites are the first group styled (`SATELLITE_LABELS`: by distance
-  from the camera, the view's range); the others keep their one size until
-  they are.
+  Satellites (`SATELLITE_LABELS`: by distance from the camera) and stars
+  (`STAR_LABELS`: by apparent magnitude, linear, at least a magnitude
+  between the ends) are styled, each over the view's range; bodies and
+  places keep their one size until they are.
 - **Drawing:** a scalable sheet (`SpriteSheet` with `{scalable: true}`)
   draws its text once at its largest, linearly filtered, and each label at
   its own `scale` and `brightness` (`setStyle`, two attributes every sheet

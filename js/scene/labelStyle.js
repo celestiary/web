@@ -23,6 +23,8 @@
  *   dimmest 0.7 of the brightest, the maintainer's choice on PR #299)
  * @property {'log'|'linear'} [interpolation] how the measure maps between
  *   near and far: by its logarithm (the default) or as it is
+ * @property {number} [minSpan] a linear view range's least span, in the
+ *   measure's units (a log one's far end is at least 1.1 times its near)
  */
 
 
@@ -34,7 +36,17 @@
 export const SATELLITE_LABELS = {near: 1e6, far: 5e7, range: 'view', size: [11, 14], brightness: [0.7, 1]}
 
 
-// The least ratio of far to near a view range spans.
+/**
+ * Stars: by their apparent magnitude from the camera, from the brightest of
+ * their names in view to the faintest, at least a magnitude apart
+ * (magnitudes are a logarithm already, so linear); the naked eye's -1.5 to
+ * 6.5 while none is.  The faintest groups' sizes (DESIGN.md, label styles).
+ */
+export const STAR_LABELS = {near: -1.5, far: 6.5, range: 'view', interpolation: 'linear', minSpan: 1,
+  size: [9, 13], brightness: [0.7, 1]}
+
+
+// The least ratio of far to near a log view range spans.
 const MIN_SPREAD = 1.1
 
 
@@ -56,7 +68,8 @@ export function viewRange(measures, style) {
     near = Math.min(near, m)
     far = Math.max(far, m)
   }
-  return {near, far: Math.max(far, near * MIN_SPREAD)}
+  return {near, far: style.interpolation === 'linear' ? Math.max(far, near + (style.minSpan ?? 0)) :
+    Math.max(far, near * MIN_SPREAD)}
 }
 
 
@@ -66,9 +79,11 @@ export function viewRange(measures, style) {
  * @returns {number} its prominence, 1 at `near` or nearer, 0 at `far` or farther
  */
 export function prominence(x, style) {
+  // A logarithm's measure above 0; a linear one as it is (a magnitude can be
+  // under 0: Sirius's -1.46).
   const log = style.interpolation !== 'linear'
-  const f = log ? Math.log : (v) => v
-  const t = (f(style.far) - f(Math.max(x, Number.MIN_VALUE))) / (f(style.far) - f(style.near))
+  const f = log ? (v) => Math.log(Math.max(v, Number.MIN_VALUE)) : (v) => v
+  const t = (f(style.far) - f(x)) / (f(style.far) - f(style.near))
   return Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : 0
 }
 

@@ -1,6 +1,8 @@
 import {
+  Frustum,
   Group,
   LOD,
+  Matrix4,
   Points,
   Vector3,
 } from 'three'
@@ -19,10 +21,22 @@ import {rteCameraLocal} from './rte.js'
 import {newStarsMaterial} from './starsMaterial.js'
 import {newCataloguePopulation, starTiersEnabled} from './catalogue/cataloguePopulation.js'
 import {LUMINOUS_LABEL_ABS_MAG} from './catalogue/tiers.js'
+import {STAR_HOLD, STAR_RANK_SPAN} from './labelDeclutter.js'
+import {STAR_LABELS, labelFont, labelLook, prominence, viewRange} from './labelStyle.js'
 
 
 // > 10k is too much for my old laptop.
 const MAX_LABELS = 10000
+const PARSEC_METER = 3.085677581491367e16
+// How long a star's name takes to fade in or out, ms; and the longest step.
+const NAME_FADE_MS = 200
+const FADE_STEP_MAX_MS = 100
+// How far the names' view range moves toward this frame's, of the way.
+const RANGE_EASE = 0.25
+const tmpCam = new Vector3
+const tmpStar = new Vector3
+const tmpMat = new Matrix4
+const tmpFrustum = new Frustum
 /**
  * The faint tiers stream in after the first load's reveal (Celestiary
  * calls streamRest, beside the ephemeris), or when something needs them; a
@@ -95,7 +109,17 @@ export default class Stars extends Object {
     this.labelSettings = () => ({l: this.labelLOD.visible, p: false})
     // Its opacity: the label groups' that show it (Scene's fades; fade.js).
     this.targetLabelFade = {value: 1}
-    this.preAnimCb = () => this.syncTargetLabel()
+    // The names' state each frame (_syncLabels): Scene sets `labelState` to
+    // the limiting magnitude and the target star; without it, every name is
+    // wanted, as before (the guide's scene).
+    this.labelState = null
+    this._labelStars = []
+    this._labelRange = null
+    this._fadeAt = NaN
+    this.preAnimCb = () => {
+      this.syncTargetLabel()
+      this._syncLabels()
+    }
 
     if (catalog instanceof StarsCatalog) {
       if (!catalog.starByHip) {
@@ -597,13 +621,22 @@ export default class Stars extends Object {
   }
 
 
-  /** */
-  showLabels(level = 2) {
+  /**
+   * The names: every named star, and the luminous unnamed by HIP number, on
+   * one sheet.  Which show is decided each frame (_syncLabels): a star's
+   * name while the star is bright enough to see, then the declutter.
+   *
+   * @param {number} [level] how many names a star needs past its first to
+   *   be named: 0, every named star (it was 2 before the names were
+   *   decided by what's visible)
+   */
+  showLabels(level = 0) {
     const toShow = []
     this.addFaves(toShow)
     const others = []
     this.catalog.starByHip.forEach((star, hipId) => {
-      if (this.faves.get(hipId)) {
+      // The Sun has its body's name.
+      if (this.faves.get(hipId) || hipId === 0) {
         return
       }
       const names = this.catalog.namesByHip.get(hipId)
@@ -621,16 +654,94 @@ export default class Stars extends Object {
       console.warn(`Stars#showLabels: hit max count of ${MAX_LABELS}`)
     }
     const maxLabel = 'Rigel Kentaurus B'
-    this.starLabelSpriteSheet = new SpriteSheet(toShow.length, maxLabel, undefined, [0, 0], true)
+    // Drawn at its largest, made smaller per name (labelStyle.js).
+    this.starLabelSpriteSheet = new SpriteSheet(toShow.length, maxLabel, labelFont(STAR_LABELS), [0, 0], true,
+        false, {scalable: true})
     for (let i = 0; i < toShow.length; i++) {
       const [star, name] = toShow[i]
       this.showStarName(star, name)
     }
     this.labelledHips = new Set(toShow.map(([star]) => star.hipId))
-    const labelPoints = overlay(this.starLabelSpriteSheet.compile())
+    const sheet = this.starLabelSpriteSheet
+    const labelPoints = overlay(sheet.compile())
     // A double click or tap on one goes to its star (labelPick.js).
     labelPoints.userData.labelTargets = toShow.map(([star, name]) => ({kind: 'star', star, name}))
+    // Through the declutter, below every place, the brighter winning, a
+    // shown name holding its place; none wanted until the first frame
+    // decides, and each faded in.
+    labelPoints.userData.declutter = true
+    labelPoints.userData.labelRank = new Array(toShow.length).fill(0)
+    labelPoints.userData.declutterHold = STAR_HOLD
+    this._labelStars = toShow.map(([star]) => star)
+    sheet.wanted = new Uint8Array(toShow.length).fill(this.labelState ? 0 : 1)
+    // Faded in once the declutter shows them, in a scene that runs it.
+    if (this.labelState && sheet.shown) {
+      sheet.setFade?.(NAME_FADE_MS)
+      for (let i = 0; i < toShow.length; i++) {
+        sheet.shown[i] = 0
+        sheet.shownAttribute?.setX(i, 0)
+      }
+    }
     this.labelsGroup.add(labelPoints)
+  }
+
+
+  /**
+   * Which names are wanted this frame, and their look: a star's while it is
+   * bright enough to see from the camera (its apparent magnitude within the
+   * limiting magnitude, which follows the exposure, the user's star
+   * setting and the field), and the target's always.  Sized and dimmed from
+   * the brightest wanted in view to the faintest (STAR_LABELS), the brighter
+   * ranked higher.  Then the declutter decides which of the wanted show.
+   * Each frame, before the scene is drawn.
+   */
+  _syncLabels() {
+    const sheet = this.starLabelSpriteSheet
+    const points = sheet?.sprites
+    const camera = this.ui?.camera
+    if (!points || !sheet.wanted || !camera || !this.labelLOD.visible) {
+      return
+    }
+    const state = this.labelState?.()
+    const limit = state ? state.limit : Infinity
+    const target = state?.target?.hipId ?? null
+    camera.getWorldPosition(tmpCam)
+    points.worldToLocal(tmpCam)
+    tmpFrustum.setFromProjectionMatrix(tmpMat.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse))
+    const stars = this._labelStars
+    const mags = new Float64Array(stars.length)
+    const inView = []
+    for (let i = 0; i < stars.length; i++) {
+      const star = stars[i]
+      const pc = Math.hypot(star.x - tmpCam.x, star.y - tmpCam.y, star.z - tmpCam.z) / PARSEC_METER
+      const mag = star.absMag + (5 * Math.log10(Math.max(pc, 1e-12) / 10))
+      mags[i] = mag
+      const want = mag <= limit || star.hipId === target
+      sheet.wanted[i] = want ? 1 : 0
+      if (want && inSideBounds(points.localToWorld(tmpStar.set(star.x, star.y, star.z)))) {
+        inView.push(mag)
+      }
+    }
+    const goal = viewRange(inView, STAR_LABELS)
+    const range = this._labelRange ? {
+      near: this._labelRange.near + ((goal.near - this._labelRange.near) * RANGE_EASE),
+      far: this._labelRange.far + ((goal.far - this._labelRange.far) * RANGE_EASE),
+    } : goal
+    this._labelRange = range
+    const mapped = {...STAR_LABELS, ...range}
+    const ranks = points.userData.labelRank
+    for (let i = 0; i < stars.length; i++) {
+      if (!sheet.wanted[i]) {
+        continue
+      }
+      const p = stars[i].hipId === target ? 1 : prominence(mags[i], mapped)
+      const {scale, brightness} = labelLook(p, STAR_LABELS)
+      sheet.setStyle?.(i, scale, brightness)
+      ranks[i] = STAR_RANK_SPAN * p
+    }
+    const now = performance.now()
+    sheet.stepFade?.(Number.isFinite(this._fadeAt) ? Math.min(now - this._fadeAt, FADE_STEP_MAX_MS) : 0)
+    this._fadeAt = now
   }
 
 
@@ -652,4 +763,19 @@ export default class Stars extends Object {
       toShow.push([star, name])
     })
   }
+}
+
+
+/**
+ * @param {Vector3} p A point, world
+ * @returns {boolean} Whether it's within the camera's frustum's sides, its
+ *   near and far planes aside: a star is past any far plane
+ */
+function inSideBounds(p) {
+  for (let k = 0; k < 4; k++) {
+    if (tmpFrustum.planes[k].distanceToPoint(p) < 0) {
+      return false
+    }
+  }
+  return true
 }

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import {SATELLITE_LABELS, labelFont, labelLook, prominence, viewRange} from './labelStyle.js'
+import {SATELLITE_LABELS, STAR_LABELS, labelFont, labelLook, prominence, viewRange} from './labelStyle.js'
 
 
 describe('label styles', () => {
@@ -13,6 +13,10 @@ describe('label styles', () => {
     expect(prominence(1e7, style)).toBeCloseTo(0.5, 10)
     expect(prominence(5.05e7, {...style, interpolation: 'linear'})).toBeCloseTo(0.5, 10)
     expect(prominence(0, style)).toBe(1)
+    // A linear measure under 0 (a magnitude): mapped as it is.
+    const mags = {near: -1.5, far: 6.5, size: [9, 13], brightness: [0.7, 1], interpolation: 'linear'}
+    expect(prominence(-1.46, mags)).toBeCloseTo(0.995, 3)
+    expect(prominence(2.5, mags)).toBeCloseTo(0.5, 10)
   })
 
   it('runs size and brightness from the group\'s least to its most, the dimmest 0.7 of the brightest', () => {
@@ -28,5 +32,8 @@ describe('label styles', () => {
     // A lone name, or a tight cluster: at least a tenth between the ends.
     expect(viewRange([4e6], SATELLITE_LABELS)).toEqual({near: 4e6, far: 4.4e6})
     expect(viewRange([3e6, 9e6], {...SATELLITE_LABELS, range: 'fixed'})).toEqual({near: 1e6, far: 5e7})
+    // Magnitudes: linear, at least a magnitude between the ends.
+    expect(viewRange([-1.46, 0.03, 1.2], STAR_LABELS)).toEqual({near: -1.46, far: 1.2})
+    expect(viewRange([0.5], STAR_LABELS)).toEqual({near: 0.5, far: 1.5})
   })
 })
