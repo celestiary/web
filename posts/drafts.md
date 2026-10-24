@@ -688,22 +688,22 @@ Starlink, Iridium's crosslinks and the Deep Space Network's live links.
 https://celestiary.org/#sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF
 ```
 
-### Star names only for the stars you can see
+### Star names only for the stars you can see, and names sized by how near they are
 
-- ID: 2026-10-24-star-names-only-for-the-stars-you-can-see
+- ID: 2026-10-24-star-names-only-for-the-stars-you-can-see-and
 - Status: draft
 - X:
 - Facebook:
 - Date: 2026-12-03
-- Entry: 2026-10-24-star-names-only-for-the-stars-you-can-see
-- Image: posts/images/2026-10-24-star-names-only-for-the-stars-you-can-see.png
+- Entry: 2026-10-24-star-names-only-for-the-stars-you-can-see-and
+- Image: posts/images/2026-10-24-star-names-only-for-the-stars-you-can-see-and.png
 - Alt:
-- Render: node tools/home/cards.mjs --gpu --id 2026-10-24-star-names-only-for-the-stars-you-can-see --hash 'sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=apoLF;time:pause;info:closed' --png posts/images
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-24-star-names-only-for-the-stars-you-can-see-and --hash 'sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=apoLF;time:pause;info:closed' --png posts/images
 - Notes:
-- Length: X 219/280, Facebook 396/500
+- Length: X 257/280, Facebook 377/500
 
 ```text
-Star names only for the stars you can see.
+Star names only for the stars you can see, and names sized by how near they are.
 
 A star's name now shows only while the star itself can be seen: under a city's sky just the few brightest, in daylight none, at a dark site many more.
 
@@ -713,9 +713,9 @@ https://celestiary.org/#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.42
 #### Facebook
 
 ```text
-Star names only for the stars you can see.
+Star names only for the stars you can see, and names sized by how near they are.
 
-A star's name now shows only while the star itself can be seen: under a city's sky just the few brightest, in daylight none, at a dark site many more. Every named star can be named, not only the few hundred before, and where names would crowd, the brighter star's shows. The brighter the star, the larger and brighter its name.
+A star's name now shows only while the star itself can be seen: under a city's sky just the few brightest, in daylight none, at a dark site many more. Every named star can be named, not only the few hundred before, and where names would crowd, the brighter star's shows.
 
 https://celestiary.org/#sun/earth@40.5159,-74.0352,-30m;t=9793.733225jd;cq=-0.4268,0.4502,0.2162,-0.7539;fov=45deg;s=apoLF;time:pause;info:closed
 ```
