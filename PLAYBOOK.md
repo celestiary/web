@@ -504,6 +504,37 @@ the hazard.
 
 Checking that a card's or What's new's flight ended exactly on its permalink, the first headless run read the app's own link half a minute of real time after the arrival and found the longitude 0.158 degrees off.  Nothing was wrong: a link restores the clock running at real time (`time:` says otherwise), and a camera riding Earth's orbit, not landed, has body-fixed coordinates that move as Earth turns (0.25 degrees a minute).  Read at the arrival frame itself (`c.permalink()` in the same `evaluate` that sees the flight end), latitude, longitude, altitude, date and field were the link's to the digit, and the orientation to the link's four decimals.  **Rule:** a probe of "the view is the link's" runs at the arrival frame, before the clock or the loop moves anything; a later reading differs by exactly what the link left running.
 
+### Parallelise by process, one file each; the file that dominates sets the floor
+
+`bun test` had no sharding or parallelism of its own (1.3.11 has `--concurrent`,
+which is per test and needs every test written for it, and no `--shard`), and ran
+its 211 files in one process for 135 s.  `yarn test` now starts a `bun test` per
+file, one worker per core, longest file first from `tools/test/timings.json`:
+38-44 s on 4 cores.  What we learned:
+
+- A process per file costs nothing here: the files' times alone add up to 130 s
+  (median file 84 ms), no more than all together, so there was no module cache
+  worth sharing.  It also ends the `mock.module` leak between files, and the
+  question of which files can sit together.  Before relying on that, run every
+  file alone (all 211 passed alone, so none leaned on another's mocks or on
+  the order), and keep passing `bun test` as a whole too.
+- A queue the workers pull from, longest first, balances itself against
+  wrong timings; a fixed split per worker only works while the timings do.
+  CI's shards must agree on their split, so that one is greedy longest-first
+  over the timings file, sorted by name on ties.
+- The floor is the slowest file: `Celestiary.test.js` is 29 s of the 130, so
+  4 workers can't beat about 33 s, and more shards add setup, not speed.
+  Splitting that file is the next gain.
+- Parallel workers are a loaded machine.  Three tests that took 4-6 s alone
+  (against bun's 5 s limit) failed about one run in two, and a handful at 2-3 s
+  failed with 6 workers on 4 cores.  Time every file alone before choosing the
+  worker count, give a test over 4 s its own timeout in the test, and give the
+  parallel run a wider default (`--timeout=15000`).  Bun 1.3.11 reads no
+  `timeout` from `bunfig.toml`; it's silently ignored.
+- Lint is a single busy core for 35 s; the tests use the rest, so
+  `yarn precommit` runs lint, the tests and the bundle check at once
+  (`tools/test/precommit.mjs`).
+
 ### Clear timers a test leaves behind
 
 bun runs every test file in one process, and `Shared.targets` is a module

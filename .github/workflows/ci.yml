@@ -11,12 +11,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  precommit:
+  # What `yarn precommit` runs, as jobs side by side: lint with the bundle
+  # check, and the tests in shards.  Locally `yarn precommit` runs the three at
+  # once on one machine (tools/test/precommit.mjs).
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
 
-      # The tests and the bundle check read bundled data, which may be in LFS.
+      # The bundle check reads bundled data, which may be in LFS.
       - uses: ./.github/actions/lfs
 
       - uses: actions/setup-node@v6.4.0
@@ -25,11 +28,55 @@ jobs:
           node-version: '22'
           cache: yarn
 
+      - run: yarn install --frozen-lockfile
+
+      - run: yarn lint
+
+      - run: yarn bundle-check
+
+  # The bun tests, split into balanced shards: tools/test/run.mjs divides the
+  # files by their times in tools/test/timings.json, and each shard runs its
+  # share in parallel on the runner's cores.  The shard count is the "/2" here
+  # and in `--shard`; the split follows it.  Not fail-fast: every shard's
+  # verdict shows.
+  test:
+    name: test (${{ matrix.shard }}/2)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      # The tests read bundled data, which may be in LFS.
+      - uses: ./.github/actions/lfs
+
+      - uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '22'
+          cache: yarn
+
       - uses: oven-sh/setup-bun@v2.2.0
 
       - run: yarn install --frozen-lockfile
 
-      - run: yarn precommit
+      - run: echo "$(nproc) cores"
+
+      - run: yarn test --shard=${{ matrix.shard }}/2
+
+  # The one name to require: a pull request's `precommit` check passes when
+  # lint and every test shard do.  (It was the single job that ran all three,
+  # and branch protection may still ask for it by that name.)
+  precommit:
+    needs: [lint, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "lint: ${{ needs.lint.result }}"
+          echo "test: ${{ needs.test.result }}"
+          [ "${{ needs.lint.result }}" = success ] && [ "${{ needs.test.result }}" = success ]
 
   # The homepage's load against its budget (esbuild/budget.js,
   # tools/loadBudget/): a build served with gzip, loaded in headless Chromium,
