@@ -39,6 +39,18 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### No more loading screen stuck after an update
+
+If you had celestiary open and it was updated in the minutes before you reloaded, the loading
+screen could sit there for up to ten minutes, however often you reloaded. Now the page fetches the
+new version and reloads once by itself. If that still doesn't load it, the page says so instead of
+spinning.
+
+- Date: 2026-10-24
+- PR: [#290](https://github.com/celestiary/web/pull/290)
+- Permalink: none
+- Kind: fix
+
 ### One bar of controls at the bottom of your phone
 
 On a phone, the buttons that used to stack down the right of the screen are now one bar along the
@@ -204,7 +216,6 @@ every pair of bodies; around the Moon, Gateway's orbit gets none, because it is 
 - PR: [#284](https://github.com/celestiary/web/pull/284)
 - Issue: [#272](https://github.com/celestiary/web/issues/272)
 - Permalink: [Open this view](https://celestiary.org/#sun/earth/moon@83.3877,58.4439,342.261098Mm;t=9791.8393jd;cq=-0.6779,-0.0549,-0.0248,0.7327;fov=45deg;s=F;periodic:manifolds,moon=l1l+l2l)
-
 ### Satellites round Earth: the ISS, GPS, the geostationary ring
 
 Near Earth, with the orbits on, about 450 real satellites now circle it where they are on the date:
