@@ -2,7 +2,9 @@ import {
   BufferGeometry,
   Color,
   Float32BufferAttribute,
+  Frustum,
   Group,
+  Matrix4,
   Object3D,
   Points,
   ShaderMaterial,
@@ -10,7 +12,8 @@ import {
 } from 'three'
 import SpriteSheet from '../SpriteSheet.js'
 import {sceneReferred} from '../hdr.js'
-import {labelFont, labelLook, prominence} from '../labelStyle.js'
+import {labelFont, labelLook, prominence, viewRange} from '../labelStyle.js'
+import {behindSphere} from '../labelPick.js'
 
 
 // A population of objects round a body, drawn (js/scene/population/Population.md):
@@ -65,6 +68,13 @@ const tmpV = new Vector3
 const tmpW = new Vector3
 const tmpCam = new Vector3
 const tmpEye = new Vector3
+const tmpMat = new Matrix4
+const tmpFrustum = new Frustum
+const ORIGIN = new Vector3
+// How far a view range moves toward this frame's each frame, of the way:
+// a name coming into view or leaving it eases the others' looks over a
+// few frames rather than jolting them.
+const RANGE_EASE = 0.25
 
 
 /**
@@ -125,6 +135,8 @@ export default class Population extends Group {
     this.Sheet = Sheet
     this.camera = camera
     this.labelStyle = labelStyle
+    // A view-ranged style's near and far, eased frame to frame (_styleNames).
+    this._labelRange = null
     // The groups switched off (all on to start).
     this.hiddenGroups = new Set
     // Each record's place in its group, in the data's order; and how many of
@@ -686,12 +698,16 @@ export default class Population extends Group {
   /**
    * Each name's size and brightness by its distance from the camera (the
    * population's labelStyle), and its rank with them: where two touch, the
-   * nearer wins.  The target's at its largest and brightest.
+   * nearer wins.  The target's at its largest and brightest.  A view-ranged
+   * style maps from the nearest of the names in view to the farthest
+   * (`viewRange`), eased over a few frames.
    *
    * @param {object} sprites a name sheet's
    * @param {Array<number>} ids its records' indices
+   * @param {boolean} [ranged] whether these names set the view range (the
+   *   budget's do; the target's own label takes it as it is)
    */
-  _styleNames(sprites, ids) {
+  _styleNames(sprites, ids, ranged = true) {
     const style = this.labelStyle
     const sheet = sprites.userData.ownSheet
     if (!style || !this.camera || !sheet.setStyle) {
@@ -700,14 +716,49 @@ export default class Population extends Group {
     // The camera in the sheet's frame, which is the population's.
     this.camera.getWorldPosition(tmpEye)
     sprites.worldToLocal(tmpEye)
+    const dist = ids.map((i, k) => tmpEye.distanceTo(tmpV.fromArray(sheet.positions, 3 * k)))
+    let range = this._labelRange ?? {near: style.near, far: style.far}
+    if (ranged && style.range === 'view') {
+      const goal = viewRange(this._inView(sprites, sheet, dist), style)
+      range = this._labelRange ? {
+        near: range.near + ((goal.near - range.near) * RANGE_EASE),
+        far: range.far + ((goal.far - range.far) * RANGE_EASE),
+      } : goal
+      this._labelRange = range
+    }
+    const mapped = {...style, ...range}
     const ranks = sprites.userData.labelRank
     ids.forEach((i, k) => {
-      const p = this.records[i].id === this._targetId ? 1 :
-        prominence(tmpEye.distanceTo(tmpV.fromArray(sheet.positions, 3 * k)), style)
+      const p = this.records[i].id === this._targetId ? 1 : prominence(dist[k], mapped)
       const {scale, brightness} = labelLook(p, style)
       sheet.setStyle(k, scale, brightness)
       ranks[k] = RANK_TOP - RANK_SPAN + (RANK_SPAN * p)
     })
+  }
+
+
+  /**
+   * @param {object} sprites a name sheet's
+   * @param {object} sheet its SpriteSheet
+   * @param {Array<number>} dist each name's distance from the camera
+   * @returns {Array<number>} the distances of the names in view: in the
+   *   camera's frustum, and not behind the body
+   */
+  _inView(sprites, sheet, dist) {
+    const cam = this.camera
+    cam.updateMatrixWorld?.()
+    tmpFrustum.setFromProjectionMatrix(tmpMat.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse))
+    const out = []
+    for (let k = 0; k < dist.length; k++) {
+      tmpV.fromArray(sheet.positions, 3 * k)
+      if (this.bodyRadius > 0 && behindSphere(tmpV.x, tmpV.y, tmpV.z, ORIGIN, this.bodyRadius, tmpEye)) {
+        continue
+      }
+      if (tmpFrustum.containsPoint(sprites.localToWorld(tmpV))) {
+        out.push(dist[k])
+      }
+    }
+    return out
   }
 
 
@@ -736,7 +787,7 @@ export default class Population extends Group {
     const placed = this.positionAt(rec, jd, this.targetLabel.position)
     this.targetLabel.visible = placed && this.points.visible
     // At its largest and brightest, whatever its distance.
-    this._styleNames(this.targetLabel, [this.byId.get(id)])
+    this._styleNames(this.targetLabel, [this.byId.get(id)], false)
   }
 
 

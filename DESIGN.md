@@ -1412,11 +1412,20 @@ recede and take less room:
 - **Prominence:** each label's measure `x` (a satellite's distance from the
   camera; a body's apparent size or a star's magnitude would serve the same
   way) maps to `p` between 0 and 1, by its logarithm between the group's
-  fixed `near` and `far` (`prominence`; `interpolation: 'linear'` maps it
-  as it is): `p = (log far - log x) / (log far - log near)`, clamped.
+  `near` and `far` (`prominence`; `interpolation: 'linear'` maps it as it
+  is): `p = (log far - log x) / (log far - log near)`, clamped.
+- **The range** is fixed (`range: 'fixed'`, the style's `near` and `far`) or
+  the view's (`range: 'view'`, `viewRange`): the nearest and the farthest of
+  the group's labels in view this frame (in the camera's frustum, not behind
+  their body), the far end at least 1.1 times the near.  Eased a quarter of
+  the way each frame, so a label coming into view or leaving it doesn't jolt
+  the others.  The maintainer chose the view's for satellites on PR #299:
+  with a fixed range, from outside the shell every name was about as far as
+  the others and all came out alike.
 - **Look:** the text's height runs from the group's least to its most,
-  `s = s_min + (s_max - s_min)·p`, and its brightness from half the
-  brightest to the brightest (`labelLook`).
+  `s = s_min + (s_max - s_min)·p`, and its brightness from 0.7 of the
+  brightest to the brightest (`labelLook`; 0.7, the maintainer's choice:
+  half was hard to read over bright cloud).
 - **Stacking between groups:** a group whose labels are usually nearer has
   the higher least size (satellites' over bodies', over stars'), and bodies
   the highest most, so a near body's name sits over every satellite's.
@@ -1429,9 +1438,9 @@ recede and take less room:
   | places | 10 | 14 |
   | satellites | 11 | 14 |
 
-  Satellites are the first group styled (`SATELLITE_LABELS`: 1,000 to
-  50,000 km from the camera); the others keep their one size until they
-  are.
+  Satellites are the first group styled (`SATELLITE_LABELS`: by distance
+  from the camera, the view's range); the others keep their one size until
+  they are.
 - **Drawing:** a scalable sheet (`SpriteSheet` with `{scalable: true}`)
   draws its text once at its largest, linearly filtered, and each label at
   its own `scale` and `brightness` (`setStyle`, two attributes every sheet
@@ -1445,9 +1454,10 @@ recede and take less room:
   styled.
 
 A label's area goes as the square of its size: at Earth's satellites from
-outside the shell the names came out at about 0.84 of their
-largest, 807 px² of text each against 1,531 before, and 48 of 300 showed
-where 39 did.
+outside the shell (Starlink, 300 named, from 16,000 km) the names in view
+ran from 15,500 km to 23,900 km away, so from 0.79 to 1 of their largest
+and 0.7 to 1 bright, 954 px² of text each against 1,531 before, and 45 of 300
+showed where 39 did.
 
 ## Performance panel
 
