@@ -100,8 +100,10 @@ NetGL's call stream on the same `postMessage` channel.
 
 ## What changes in existing code
 
-- **Labels optional.** Satellites and DeepSpaceNetwork take `labels:
-  false`: their SpriteSheets want ThreeUi's uniforms. Layer mode draws no
+- **Labels off.** DeepSpaceNetwork takes `labels: false`, and the
+  satellites' population gets a label budget of 0: their SpriteSheets want
+  ThreeUi's uniforms. The satellites leave out Starlink's file (Git LFS)
+  and, with `I` on, Iridium, which the networks draw. Layer mode draws no
   names; it publishes anchors, and the host names them.
 - **No Scene.** The network classes already take `layer`, `camera` and a
   `jd` passed to `update`. The layer builds them through `loadNetworks.js`

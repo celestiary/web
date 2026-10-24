@@ -75,7 +75,10 @@ export default class OrbitsLayer {
     const failed = []
     const jobs = []
     if (satellites) {
-      jobs.push(this._loadSatellites().catch((err) => failed.push(`satellites: ${err.message ?? err}`)))
+      // Starlink (a file of its own, in Git LFS) and Iridium are drawn by
+      // their networks here, when those are on: not twice.
+      const skip = new Set(['starlink', ...(networks.includes('I') ? ['iridium'] : [])])
+      jobs.push(this._loadSatellites(skip).catch((err) => failed.push(`satellites: ${err.message ?? err}`)))
     }
     for (const key of networks) {
       jobs.push(loadNetwork(key, {camera: this.camera, labels: false}, this.fetchFn)
@@ -94,14 +97,24 @@ export default class OrbitsLayer {
   }
 
 
-  /** @returns {Promise<void>} */
-  async _loadSatellites() {
+  /**
+   * Earth's satellites (a population, population/Population.js), from the
+   * snapshot's rows alone, with no names: the layer publishes anchors, and
+   * the host names what it wants.
+   *
+   * @param {Set<string>} skip groups left out
+   * @returns {Promise<void>}
+   */
+  async _loadSatellites(skip) {
     const rsp = await this.fetchFn(SATELLITES_URL)
     if (!rsp.ok) {
       throw new Error(`${rsp.status} for ${SATELLITES_URL}`)
     }
-    const {rows} = await rsp.json()
-    this.satellites = new Satellites(parseCatalog({rows}), {camera: this.camera, labels: false})
+    const {rows, known, groups = {}} = await rsp.json()
+    const kept = Object.fromEntries(Object.entries(groups).filter(([key, g]) => !skip.has(key) && !g.file))
+    const records = parseCatalog({rows: rows.filter((r) => kept[r[2]]), known})
+    this.satellites = new Satellites(records, {body: 'earth', groups: kept, camera: this.camera})
+    this.satellites.setLabelBudget(0, true)
     this.root.add(this.satellites)
   }
 

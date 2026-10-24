@@ -45,6 +45,17 @@ describe('the visible share of a disc', () => {
   })
 
 
+  it('from inside a body: the whole disc under the local horizontal, none over it', () => {
+    // 30 m under a 6371 km sphere's top (+y), the Sun below and above.
+    const R_E = 6.371e6
+    const eye = [0, R_E - 30, 0]
+    const below = occluderSeen(eye, [0, -1, 0], [0, 0, 0], R_E)
+    expect(visibleFraction(R, [below])).toBe(0)
+    expect(below.separation).toBeLessThan(below.radius)
+    expect(occluderSeen(eye, [0, 0.1, Math.sqrt(0.99)], [0, 0, 0], R_E)).toBeNull()
+  })
+
+
   it('the sky in totality: ~1e-4 of the day\'s; uneclipsed or out of the air, as it was', () => {
     const sun = (f) => ({sunLayers: {visibleFractionExcept: () => f}})
     expect(eclipsedSky(sun(0), {}, true)).toBeCloseTo(TOTALITY_SKY, 12)

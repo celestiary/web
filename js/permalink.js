@@ -19,6 +19,11 @@ export const ORBIT_FADE_DEFAULT = 0.5
 // The three-body periodic orbits' families (periodicOrbits.js FAMILIES'
 // codes), in the order the panel lists them.
 export const PERIODIC_CODES = ['l1l', 'l2l', 'l1h', 'l2h', 'dro', 'nrho']
+// The craft's flights (craft/flights.js FLIGHTS' codes).
+export const CRAFT_CODES = ['tli', 'blt']
+const J2000_JD = 2451545
+// A departure's days from J2000 in a link: to a thousandth (86 s).
+const CRAFT_DAY_DIGITS = 3
 const PLAIN_WORD = /^[\w.-]+$/
 // A `from=` frame path: a body path ('sun/earth') or a star ('hip:32349').
 const FRAME_PATH = /^([a-z0-9_-]+(\/[a-z0-9_-]+)*|hip:\d+)$/
@@ -214,6 +219,11 @@ export function permalinkHref(fragment, baseHref, search) {
 }
 
 
+// Days from J2000 to 6 decimals, 0.09 s: the clock a link shows comes back
+// to its second, where 4 (8.6 s) brought it back up to 4 s off.
+const TIME_DIGITS = 6
+
+
 /**
  * Encode a complete view state into a hash fragment.
  *
@@ -259,7 +269,7 @@ export function permalinkHref(fragment, baseHref, search) {
  */
 export function encodePermalink(path, d2000, lat, lng, alt, quat, fov, settings, tokens, from, ev = 0, sm = 0) {
   const pos = `${trimFloat(lat)},${trimFloat(lng)},${formatMeters(Math.round(alt))}`
-  const t = `${parseFloat(d2000.toFixed(4))}jd`
+  const t = `${parseFloat(d2000.toFixed(TIME_DIGITS))}jd`
   const cq = [quat.x, quat.y, quat.z, quat.w].map(trimFloat).join(',')
   const f = `${formatFov(fov)}deg`
   let frag = `${path}${SEPARATOR}${pos}`
@@ -566,6 +576,125 @@ export function decodePeriodicToken(value) {
     }
   }
   return {families, frame: named.frame === 'inertial' ? 'inertial' : 'rotating', manifolds: flags.includes('manifolds')}
+}
+
+
+/**
+ * The `craft:` token (design/URLs.md): the craft flown (craft/flights.js),
+ * `code=day` each, the day its departure's Julian Ephemeris Day less
+ * J2000's (as `t=` writes the time, but TT).  Left out (null) when none are.
+ *
+ * @param {Map<string, number>} craft Scene.getCraft(): code → departure JDE
+ * @returns {?string}
+ */
+export function encodeCraftToken(craft) {
+  const named = {}
+  for (const code of CRAFT_CODES) {
+    const jde = craft?.get(code)
+    if (Number.isFinite(jde)) {
+      named[code] = Number((jde - J2000_JD).toFixed(CRAFT_DAY_DIGITS))
+    }
+  }
+  return formatTokenValue([], named) || null
+}
+
+
+/**
+ * The inverse of encodeCraftToken.  Unknown codes, and days that aren't
+ * numbers or are past the supported dates, are dropped.
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {Map<string, number>} code → departure JDE
+ */
+export function decodeCraftToken(value) {
+  const {named} = parseTokenValue(value)
+  const craft = new Map
+  for (const code of CRAFT_CODES) {
+    const day = Number(named[code])
+    if (named[code] !== undefined && Number.isFinite(day) && Math.abs(day) <= SUPPORTED_DAYS_FROM_J2000) {
+      craft.set(code, J2000_JD + day)
+    }
+  }
+  return craft
+}
+
+
+// A `pop:` group list naming no group: all switched off.
+const NO_GROUPS = 'none'
+// A `pop:` key's suffix for a population's label budget: `earth.labels=40`.
+const LABELS_SUFFIX = '.labels'
+
+
+/**
+ * The `pop:` token (design/URLs.md): each body's population as the info
+ * panel left it, where it isn't as it starts.  `<body>=<group>+<group>` the
+ * groups shown (`none` for none; left out when all are); `<body>.labels=N`
+ * how many names show (left out at its default); `<body>.<group>=N` how many
+ * of a counted group show, the first in its order (`earth.starlink=2000`;
+ * left out at its default).  Left out (null) when every population is as
+ * it starts.
+ *
+ * @param {Map<string, {shown: ?Set<string>, labels: ?number, counts?: ?Map<string, number>}>} [state]
+ *     Scene.getPopulationState
+ * @returns {?string}
+ */
+export function encodePopulationToken(state) {
+  const named = {}
+  for (const [body, {shown, labels, counts}] of state ?? []) {
+    if (!PLAIN_WORD.test(body)) {
+      continue
+    }
+    if (shown) {
+      const keys = [...shown].filter((k) => PLAIN_WORD.test(k) && k !== NO_GROUPS)
+      named[body] = keys.length > 0 ? keys : NO_GROUPS
+    }
+    if (Number.isInteger(labels) && labels >= 0) {
+      named[`${body}${LABELS_SUFFIX}`] = labels
+    }
+    for (const [group, n] of counts ?? []) {
+      if (PLAIN_WORD.test(group) && `.${group}` !== LABELS_SUFFIX && Number.isInteger(n) && n >= 0) {
+        named[`${body}.${group}`] = n
+      }
+    }
+  }
+  return formatTokenValue([], named) || null
+}
+
+
+/**
+ * The inverse of encodePopulationToken.
+ *
+ * @param {string} [value] The token's value, undefined if the link has none
+ * @returns {Map<string, {shown: ?Set<string>, labels: ?number, counts: ?Map<string, number>}>}
+ */
+export function decodePopulationToken(value) {
+  const out = new Map
+  const entry = (body) => {
+    if (!out.has(body)) {
+      out.set(body, {shown: null, labels: null, counts: null})
+    }
+    return out.get(body)
+  }
+  for (const [key, v] of Object.entries(parseTokenValue(value).named)) {
+    const dot = key.indexOf('.')
+    if (dot > 0) {
+      // `<body>.labels` or `<body>.<group>`: a body's name has no dot.
+      const n = Number(v)
+      const body = key.slice(0, dot)
+      const what = key.slice(dot + 1)
+      if (!what || !Number.isInteger(n) || n < 0) {
+        continue
+      }
+      if (`.${what}` === LABELS_SUFFIX) {
+        entry(body).labels = n
+      } else {
+        (entry(body).counts ??= new Map).set(what, n)
+      }
+    } else if (PLAIN_WORD.test(key)) {
+      entry(key).shown = new Set(parseValueList(v).filter((k) => k !== NO_GROUPS))
+    }
+  }
+  return out
 }
 
 

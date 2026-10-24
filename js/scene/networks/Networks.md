@@ -53,12 +53,16 @@ DSN's live feed isn't bundled: the app polls it.
   over a week (`compactElements.test.js`; 0.11 km worst over 2,000
   Starlinks).  CelesTrak's OMM JSON for the same set is 4.7 MB; rows in the
   satellites' format would be about 1.5 MB, over the data policy's line.
-- **Starlink is here, not in the satellites' snapshot.** `select.js`
-  sampled 300 of it into the orbits group (`o`); the snapshot never had
-  them (CelesTrak refused that day).  With the whole constellation an
-  overlay of its own, the sample is dropped, so the two never draw the same
-  satellites twice.  The cost: Starlinks aren't in the search, nor
-  targetable (see follow-ups).
+- **Starlink and Iridium are in the satellites' population too.** PR
+  #292 (merged while this was open) put the whole of Starlink (in Git LFS,
+  `public/large/satellites/starlink.json`) and Iridium in the orbits group
+  (`o`), with a slider for how many, names, search and targets
+  ([Satellites.md](../satellites/Satellites.md)). The network overlays draw
+  the same satellites from their own snapshots (this one is
+  `public/data/networks/starlink.json`, plain git): Starlink by shell and
+  Iridium with its crosslinks. With both on, the same satellites are
+  drawn twice. *For the maintainer:* keep both, or have the overlays draw
+  from the population's records (one Starlink file, one propagation).
 - **CelesTrak's policy** (Satellites.md): one download of a group per two
   hours, stop at the first refusal.  This snapshot was one request for each
   group, kept in a cache directory; the satellites' groups weren't asked
@@ -278,9 +282,9 @@ host's camera and clock, needs from this code:
 
 - **Per-dish coordinates** from DSN 810-005 module 301 (needs its host),
   with heights.
-- **Starlink in the search and as targets**: 11,000 more search entries
-  (names are left out of the snapshot) and the info panel's lines, as
-  Satellites.js does.
+- **One Starlink:** the overlays drawing from the satellites' population
+  (#292), which has the search, names and targets, instead of a snapshot
+  of their own.
 - **The DSN's spacecraft as targets**, and links to the ones celestiary
   already has (the Moon's LRO, a probe's own body once #119 has them).
 - **History**: links at a past date need DSN Now's history, which isn't
