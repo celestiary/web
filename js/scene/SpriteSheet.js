@@ -106,6 +106,10 @@ export default class SpriteSheet {
     this.brightness = []
     this.scaleAttribute = null
     this.brightnessAttribute = null
+    // Which labels the owner wants drawn this frame, 1 or 0 (a star's
+    // name while the star is bright enough to see), or null for all: the
+    // declutter hides the rest and gives them no room (labelPick.js).
+    this.wanted = null
     // How long a label takes to fade in or out, ms (setFade): 0 at once.
     this.fadeMs = 0
     this.positionAttribute = null

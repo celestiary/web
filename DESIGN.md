@@ -1382,11 +1382,14 @@ Where labels don't touch nothing changes: every label's `shown` stays 1.  It
 is hide-only; an offset along a leader line, or hiding a moon's name until a
 hover, are the other ways [#207](https://github.com/celestiary/web/issues/207)
 names, and they'd need a label to draw away from its position, which none
-of the sprites do.  Star names, asterism names and the target star's label are
-left as they were (they don't take part, and don't hide anyone's): a catalogue
-of thousands of names whose priority is the star catalogue's business
-([Stars](js/scene/Stars.md)).  A sheet opts in by `userData.declutter = true`
-and `userData.labelRank`, so it is a few lines for another kind of label.
+of the sprites do.  Star names take part (PR #302): only those whose stars
+can be seen are wanted (`sheet.wanted`, [Stars.md, names](js/scene/Stars.md#names)),
+ranked in a band below every place's (0 to `STAR_RANK_SPAN`, by how bright
+the star looks, and `STAR_HOLD` for a shown one).  Asterism names and the
+target star's own label are left as they were (they don't take part, and
+don't hide anyone's).  A sheet opts in by `userData.declutter = true` and
+`userData.labelRank`, so it is a few lines for another kind of label; a label
+its owner marks not wanted (`sheet.wanted[i]` 0) is hidden and takes no room.
 
 **Cost.**  Per frame: a walk of the scene to the visible sheets (a few hundred
 nodes), one matrix per sheet, and a few multiplies per label (a surface label's
@@ -1438,20 +1441,28 @@ recede and take less room:
   | places | 10 | 14 |
   | satellites | 11 | 14 |
 
-  Satellites are the first group styled (`SATELLITE_LABELS`: by distance
-  from the camera, the view's range); the others keep their one size until
-  they are.
+  Every group with many names is styled, each over the view's range:
+  satellites (`SATELLITE_LABELS`, by distance from the camera), stars
+  (`STAR_LABELS`, by apparent magnitude, linear, at least a magnitude
+  between the ends), bodies (`BODY_LABELS`, by how large they look: their
+  distance over their radius) and places (`PLACE_LABELS`, by distance).
+  A population and the stars style their own sheets as they update them;
+  the bodies' and places' many small sheets are styled together by
+  `styleLabels`, once a frame before the declutter (ThreeUI
+  `_declutterLabels`): a sheet asks with `userData.labelStyle` (its group's
+  style, shared), `userData.labelMeasure(i, camWorld, worldPos)` and, to be
+  ranked by it, `userData.labelRankOf(p)`.
 - **Drawing:** a scalable sheet (`SpriteSheet` with `{scalable: true}`)
   draws its text once at its largest, linearly filtered, and each label at
   its own `scale` and `brightness` (`setStyle`, two attributes every sheet
   has, 1 unless set): the point's size times the scale, the alpha times the
   brightness.  `labelBoxes` scales each box by its label's scale, so the
   declutter sees the room a label really takes.
-- **Which wins** where two touch: within a styled group its rank follows
-  `p`, so the nearer wins (Population.md, [names by
-  distance](js/scene/population/Population.md#names-by-distance)).  Across
-  groups the ranks are still by kind, as above, until the other groups are
-  styled.
+- **Which wins** where two touch: within satellites, stars and bodies the
+  rank follows `p`, so the nearer, brighter or larger-looking wins (a body's
+  `bodyProminenceRank`, 1000 to 1011, in place of its radius's); places keep
+  their tiers' order, the larger feature first.  Across groups the ranks are
+  still by kind: bodies over satellites over places over stars.
 
 A label's area goes as the square of its size: at Earth's satellites from
 outside the shell (Starlink, 300 named, from 16,000 km) the names in view

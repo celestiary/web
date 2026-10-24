@@ -48,8 +48,13 @@ describe('isTargetLabel', () => {
     expect(isTargetLabel(place, {obj: null, label: null})).toBe(false)
   })
 
-  it('is never a star or asterism label, which don\'t take part', () => {
+  it('is the targeted star\'s name, by its HIP number; never an asterism\'s', () => {
+    const sirius = {kind: 'star', star: {hipId: 32349}, name: 'Sirius'}
+    expect(isTargetLabel(sirius, {obj: null, label: {kind: 'star', star: {hipId: 32349}}})).toBe(true)
+    expect(isTargetLabel(sirius, {obj: null, label: {kind: 'star', star: {hipId: 24436}}})).toBe(false)
     expect(isTargetLabel({kind: 'star'}, {obj: null, label: {kind: 'star'}})).toBe(false)
+    expect(isTargetLabel({kind: 'asterism', name: 'Orion'}, {obj: null, label: {kind: 'asterism', name: 'Orion'}}))
+        .toBe(false)
   })
 })
 

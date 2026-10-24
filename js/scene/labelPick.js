@@ -44,7 +44,8 @@ export const LABEL_SLOP_PX = 8
  * @param {boolean} [opts.fresh] The world matrices are this frame's (after a
  *   render), so don't update them: the declutter's
  * @param {function(object, number): void} [opts.occluded] Called with the
- *   sheet and index of each label its labelOccluder hides
+ *   sheet and index of each label its labelOccluder hides, or its owner
+ *   doesn't want drawn (`sheet.wanted[i]` 0: a star too faint to see)
  * @returns {Array<{left: number, top: number, width: number, height: number,
  *   depth: number, target: object, sheet: object, index: number,
  *   rank: number, hold: number}>} Each shown label's text box on screen, CSS
@@ -102,9 +103,15 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
       eye.copy(camWorld).applyMatrix4(inv)
     }
     const {positions, sizes, textSizes, scales} = sheet
+    // The labels the owner wants drawn this frame, if it says (SpriteSheet.wanted).
+    const wanted = sheet.wanted
     const low = sheet._posLow
     for (let i = 0; i < sheet.labelCount; i++) {
       if (!targets[i] || (!opts.hidden && shown?.[i] === 0)) {
+        continue
+      }
+      if (wanted && !wanted[i]) {
+        opts.occluded?.(sheet, i)
         continue
       }
       let x = positions[3 * i]
@@ -160,7 +167,7 @@ export function labelBoxes(root, camera, rect, pixelRatio = 1, opts = {}) {
  *   the camera (the surface normal there against the way to the camera, as
  *   the label shader tests it)
  */
-function onFarSide(x, y, z, centre, eye) {
+export function onFarSide(x, y, z, centre, eye) {
   const nx = x - centre.x
   const ny = y - centre.y
   const nz = z - centre.z

@@ -44,6 +44,7 @@ import {AsyncReadback, MeterCadence, asyncReadbackSupported} from './scene/meter
 import {raysAllHitSphere} from './scene/viewCache.js'
 import {lunarHighlight} from './scene/lunarPhotometry.js'
 import {declutterLabels, showAllLabels} from './scene/labelDeclutter.js'
+import {styleLabels} from './scene/labelStyle.js'
 import {ECLIPSED_DISC, eclipsedSky} from './scene/sun/eclipse.js'
 import {perf} from './perf/perf.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
@@ -601,6 +602,9 @@ export default class ThreeUi {
    * after the scene has been drawn, so the world matrices are this frame's.
    */
   _declutterLabels() {
+    // The bodies' and places' names sized first, so the declutter sees each
+    // at its size (labelStyle.js).
+    styleLabels(this.scene, this.camera)
     this.renderer.getSize(this._labelSize)
     this.labelStats = declutterLabels(this.scene, this.camera,
         {left: 0, top: 0, width: this._labelSize.x, height: this._labelSize.y},

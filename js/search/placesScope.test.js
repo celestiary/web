@@ -130,5 +130,5 @@ describe('place search by scope', () => {
         expect(hits.some((h) => h.entry.kind === 'place' && h.entry.displayName === e.n)).toBe(true)
       }
     }
-  })
+  }, 30000) // 4-6 s alone: at bun's 5 s limit
 })

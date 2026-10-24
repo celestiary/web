@@ -115,7 +115,7 @@ describe('a ballistic lunar transfer', () => {
       const loiDirect = Math.hypot(...direct.perilune.relV) - Math.sqrt(GM.moon / direct.perilune.r)
       expect(loiDirect - blt).toBeGreaterThan(100)
       expect(loiDirect - blt).toBeLessThan(250)
-    })
+    }, 30000) // 4-6 s alone: at bun's 5 s limit
   }
 
   it('flies the designs the app offers to their arrival', () => {
