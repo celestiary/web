@@ -1,6 +1,6 @@
 # Cesium as a cross-origin guest
 
-*Proposed 2026-10-24; phase 0 in progress.*
+*Proposed 2026-10-24; phase 0 measured (below).*
 
 **Decided (2026-10-24):**
 - the guest is served from the fork's Pages on a subdomain of its own
@@ -180,6 +180,50 @@ against the fork's engine with all `celestiary/*` fix branches merged,
 and deployed with a Pages workflow from a `celestiary/pages` branch.  The
 celestiary-specific shaders (relief, the encoding) move there, with their
 tests.
+
+## Phase 0: what was measured
+
+Headless Chromium on SwiftShader, 480×300, 2026-10-24.  The probe wraps
+Earth's link transport.  It counts each call the recorder posts (sliced,
+as wire 2 would ship it), each argument's own bytes, and the images.  It
+also counts every readback on every WebGL2 context from page load.  Earth
+ran on its bundled imagery and the plain ellipsoid: this session's ion
+token was stale (ion answered 401), so World Terrain, Bing, the Moon and
+Mars weren't measured.
+
+| View | Calls a frame | KB a frame (clock running; held) | Set-up to settled |
+|---|---|---|---|
+| Earth from 20,000 km | 208 (199 held) | 3.8; 3.4 | 32 MB in 10 to 17 s, all one `texImage2D` |
+| Earth at 12 km, over the Gulf | 263 (259) | 5.9; 5.6 | 33 MB, 2 images |
+| Earth at 6.5 km, Everest | 530 (497) | 15.5; 14 | 35 MB, 3 images |
+
+- **At rest Cesium's frame is light**, the size of the orbits layer's
+  frame in netmap (about 120 calls, 12 KB).  On wire 2 it is one message a
+  frame of a few KB.  It has no uploads, only the checkpoint, uniforms and
+  draws.
+- **The set-up is one big image.**  The month's Blue Marble goes up whole,
+  in one 32 MB upload.  Across an iframe that is a 32 MB
+  `ImageBitmap` clone, in a batch of its own, at load and at each month's
+  change.  Streaming imagery tiles from ion would be many small images
+  instead.  That is still to be measured with a working token, on the
+  preview or locally.
+- **No readbacks.**  Nothing read Cesium's shadow, in any view, with or
+  without the shadow's draws.  This held from page load, Cesium's
+  construction included.
+- **`shadowDraws: false` holds.**  With the instant pinned
+  (`c.time.setTime`, paused, the tiles settled again), Earth from orbit
+  is bit for bit the same with and without the shadow's draws (0 of 115,680
+  pixels).  At 12 km 4 pixels differ, by 1 (an earlier run, with the clock
+  unpinned).  At Everest the frame is celestiary's volumetric cloud deck, and
+  differs by at most 8 levels; that isn't Cesium's.  SwiftShader drew 4 to 7%
+  more frames without the shadow's draws.  A real GPU's gain needs `?perf=1`
+  on the preview.  So celestiary turns them off (`?cesiumShadowDraws=1`
+  turns them back on), on portal-netgl 0.6.5.
+- **New York isn't measured.**  The city's set-up stages a chunk a frame,
+  and only in frames that draw it.  After 25 minutes on SwiftShader, 24,388
+  of its queued messages were still waiting: the probe's camera, landed
+  over Lower Manhattan, wasn't looking at the city.  The city is about
+  140 MB built (CESIUM.md), which bounds what its set-up would carry across.
 
 ## Phases
 
