@@ -60,7 +60,9 @@ if (!origin || window.parent === window) {
   const served = serveLayer({
     transport, layer, loaded, meter,
     render: () => layer.render(renderer),
-    endFrame: () => guest.endFrame(),
+    // The view it was drawn for rides the frame-end (portal-netgl 0.6.3), so
+    // a host that reprojects composes it for that view, not its guess.
+    endFrame: () => guest.endFrame(Number.isFinite(layer.viewId) ? {viewId: layer.viewId} : {}),
     // NetGL's handshake, which portal-netgl's hosts wait on, and where the
     // wire is agreed; an overlay has no door, so the anchor is nominal.
     announce: () => guest.announce({position: [0, 0, 0], normal: [0, 0, 1], up: [0, 1, 0]}),

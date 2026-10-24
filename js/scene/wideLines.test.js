@@ -1,7 +1,9 @@
 import {hopWidth} from './Colonization.js'
 import {hopColor} from './ColonizationLines.js'
-import {Float32BufferAttribute} from 'three'
-import {WideLineStripGeometry, newWideLines, setWideLineSegments, sortFarToNear, trimToFront} from './wideLines.js'
+import {Float32BufferAttribute, Matrix4, PerspectiveCamera, Vector3} from 'three'
+import {mat4Multiply, reprojection} from '@pablo-mayrgundter/portal-netgl/core'
+import {WideLineStripGeometry, newWideLineStrip, newWideLines, setWideLineSegments, sortFarToNear, trimToFront}
+  from './wideLines.js'
 
 
 /**
@@ -122,5 +124,95 @@ describe('wideLines', () => {
     expect(Math.min(...first)).toBeGreaterThan(0.9)
     expect(Math.max(...last)).toBeLessThan(0.1)
     expect(hopWidth(1, 64, 6, 1)).toEqual(6)
+  })
+})
+
+
+// Host reprojection (layer mode; portal-netgl's opt-in, js/layer): a NetGL
+// host that composes the guest's frame for a later view sets
+// netgl_reproject, and the shader applies it to the ends before extruding,
+// so the line keeps its width in pixels.  The wide line's extrusion, as the
+// shader does it, in doubles.
+describe('wideLines under host reprojection', () => {
+  /**
+   * @param {Array<number>} m column-major 4x4
+   * @param {Array<number>} v
+   * @returns {Array<number>}
+   */
+  const mul = (m, v) => [0, 1, 2, 3].map((r) => (m[r] * v[0]) + (m[4 + r] * v[1]) + (m[8 + r] * v[2]) + (m[12 + r] * v[3]))
+  const res = [800, 500]
+  /**
+   * The quad's four corners in pixels, from the ends' clip positions.
+   *
+   * @param {Array<number>} cs
+   * @param {Array<number>} ce
+   * @param {number} halfW px
+   * @param {Array<number>} [after] a correction applied after the extrusion (a wrapped shader)
+   * @returns {Array<Array<number>>}
+   */
+  const corners = (cs, ce, halfW, after = null) => {
+    const half = res.map((r) => r / 2)
+    const d = [0, 1].map((i) => ((ce[i] / ce[3]) - (cs[i] / cs[3])) * half[i])
+    const len = Math.hypot(...d)
+    const dir = d.map((x) => x / len)
+    const perp = [-dir[1], dir[0]]
+    const out = []
+    for (const [clip, cap] of [[cs, -1], [ce, 1]]) {
+      for (const side of [-1, 1]) {
+        let c = [...clip]
+        for (const i of [0, 1]) {
+          c[i] += (((perp[i] * side) + (dir[i] * cap)) * halfW / half[i]) * c[3]
+        }
+        if (after) {
+          c = mul(after, c)
+        }
+        out.push([0, 1].map((i) => ((c[i] / c[3]) + 1) * half[i]))
+      }
+    }
+    return out
+  }
+  const camera = (pos, fov) => {
+    const c = new PerspectiveCamera(fov, res[0] / res[1], 1e5, 1e9)
+    c.position.set(...pos)
+    c.lookAt(new Vector3(0, 0, 0))
+    c.updateMatrixWorld()
+    return {viewMatrix: c.matrixWorldInverse.toArray(), projectionMatrix: c.projectionMatrix.toArray()}
+  }
+
+  it('the shader opts in: it declares the uniform and applies it to the ends before the extrusion', () => {
+    for (const mesh of [newWideLines({start: [0, 0, 0], end: [1, 1, 1], color: [1, 1, 1]}),
+      newWideLineStrip(new Float32Array(6), {color: 'white'})]) {
+      const src = mesh.material.vertexShader
+      // portal-netgl's test for the opt-in: the declaration, so its replay doesn't wrap main.
+      expect(src).toMatch(/\buniform\s+mat4\s+netgl_reproject\s*;/)
+      expect(src.indexOf('netgl_reproject * (projectionMatrix')).toBeGreaterThan(0)
+      expect(src.indexOf('netgl_reproject * (projectionMatrix')).toBeLessThan(src.indexOf('clip.xy +='))
+      // Identity unless a host sets it: the app draws as before.
+      const u = mesh.material.uniforms.netgl_reproject.value
+      expect(u).toBeInstanceOf(Matrix4)
+      expect(u.equals(new Matrix4())).toBe(true)
+    }
+  })
+
+  it('a beam drawn for one view and corrected lands, and is as wide, as one drawn for the next', () => {
+    // A DSN beam's two ends, metres, and a pan with a zoom in between.
+    const ends = [[6.4e6, 1e6, 2e5, 1], [5.9e6, -2e6, 1.5e6, 1]]
+    const from = camera([2.5e7, 3e6, 4e6], 30)
+    const to = camera([2.4e7, 5e6, 3.5e6], 24)
+    const C = reprojection(from, to)
+    const vp = (v) => mat4Multiply(v.projectionMatrix, v.viewMatrix)
+    const [cs, ce] = ends.map((p) => mul(vp(from), p))
+    const truth = corners(...ends.map((p) => mul(vp(to), p)), 3)
+    const optIn = corners(mul(C, cs), mul(C, ce), 3)
+    const wrapped = corners(cs, ce, 3, C)
+    for (let k = 0; k < 4; k++) {
+      for (const i of [0, 1]) {
+        expect(optIn[k][i]).toBeCloseTo(truth[k][i], 6)
+      }
+    }
+    // Wrapped, C after the extrusion scales the width with the zoom.
+    const width = (q) => Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1])
+    expect(width(optIn)).toBeCloseTo(6, 6)
+    expect(Math.abs(width(wrapped) - 6)).toBeGreaterThan(0.5)
   })
 })
