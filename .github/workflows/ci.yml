@@ -40,12 +40,12 @@ jobs:
   # and in `--shard`; the split follows it.  Not fail-fast: every shard's
   # verdict shows.
   test:
-    name: test (${{ matrix.shard }}/2)
+    name: test (${{ matrix.shard }}/1)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1]
     steps:
       - uses: actions/checkout@v6.0.2
 
@@ -63,7 +63,7 @@ jobs:
 
       - run: echo "$(nproc) cores"
 
-      - run: yarn test --shard=${{ matrix.shard }}/2
+      - run: yarn test --shard=${{ matrix.shard }}/1
 
   # The one name to require: a pull request's `precommit` check passes when
   # lint and every test shard do.  (It was the single job that ran all three,
