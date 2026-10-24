@@ -429,10 +429,22 @@ export default class SunLayers {
     this.discRadius = dist > radius ? Math.asin(radius / dist) : Math.PI / 2
     const dir = sun.clone().sub(cam).normalize().toArray()
     const occluders = []
+    // A spacecraft in front (Spacecraft.js sunBlocked): the share of the
+    // disc its triangles hide, and whether they hide the centre.
+    let craftVisible = 1
+    let craftCentre = false
     if (objects && dist > radius) {
       for (const name of Object.keys(objects)) {
         const o = objects[name]
         const type = o?.props?.type
+        if (type === 'spacecraft' && o.sunBlocked) {
+          const blocked = o.sunBlocked(cam, sun, this.discRadius)
+          if (blocked) {
+            craftVisible *= 1 - blocked.fraction
+            craftCentre ||= blocked.centre
+          }
+          continue
+        }
         if ((type !== 'planet' && type !== 'moon') || !o.props.radius || name.endsWith('.orbitPosition')) {
           continue
         }
@@ -447,13 +459,14 @@ export default class SunLayers {
       }
     }
     this.occluders = occluders
-    this.visibleFraction = this.occulter > 0 ? 0 : visibleFraction(this.discRadius, occluders, this._limb)
+    this.visibleFraction = this.occulter > 0 ? 0 :
+      visibleFraction(this.discRadius, occluders, this._limb) * craftVisible
     this.star.visibleFraction = this.visibleFraction
     if (this.activity) {
       // The point stands for the whole disc at its centre: gone once a body
       // covers the centre (the light left is a crescent's, at the limb, which
       // the disc's mesh draws), else dimmed with what's seen.
-      const centreCovered = occluders.some((o) => o.separation < o.radius)
+      const centreCovered = craftCentre || occluders.some((o) => o.separation < o.radius)
       absoluteUniforms.uSunVisible.value = centreCovered ? 0 : this.visibleFraction
     }
   }

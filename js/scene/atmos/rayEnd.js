@@ -140,3 +140,44 @@ bool shellAhead(vec2 p) {
   return p.x <= p.y && p.y > 0.0;
 }
 `
+
+
+/**
+ * Whether the Sun is under a sphere's horizon at a point, as the passes'
+ * `sunBelowHorizon` computes it, in float32: the Sun's zenith cosine there
+ * under the horizon's, −√(1 − R²/r²), taken from (r − R)(r + R), which keeps
+ * its bits near the sphere; under the sphere, under the local horizontal.
+ *
+ * The test it replaces asked whether the ray to the Sun meets the sphere
+ * ahead (`rsi`): within a metre of the sphere that is the difference of two
+ * squares of ~6.4e6 m, float32 noise, and the near hit came out either side
+ * of the point at random.  Marching the air from a camera under Earth's
+ * sphere (Manhattan, ~30 m under the ellipsoid; the Dead Sea; the
+ * Netherlands), the samples where its rays cross the sphere then took the
+ * Sun 33° under the horizon for up, and the night's air scattered daylight
+ * in speckled bands (CESIUM.md, "New York", found on a real GPU).
+ *
+ * @param {Array<number>} p The point, relative to the sphere's centre, metres
+ * @param {Array<number>} sun The Sun's direction, unit
+ * @param {number} radius Metres
+ * @returns {boolean}
+ */
+export function sunBelowHorizon(p, sun, radius) {
+  const r = f32(Math.hypot(...p.map(f32)))
+  const muS = f32(f32(f32(f32(p[0] * sun[0]) + f32(p[1] * sun[1])) + f32(p[2] * sun[2])) / r)
+  const h = f32(r - f32(radius))
+  const muH = h > 0 ? f32(-f32(Math.sqrt(f32(h * f32(r + f32(radius))))) / r) : 0
+  return muS < muH
+}
+
+
+/** The shaders' sunBelowHorizon (Atmosphere.js, CloudVolume.js). */
+export const SUN_BELOW_HORIZON_GLSL = `
+bool sunBelowHorizon(vec3 p, vec3 sun, float rG) {
+  float r = length(p);
+  float muS = dot(p, sun) / r;
+  float h = r - rG;
+  float muH = h > 0.0 ? -sqrt(h * (r + rG)) / r : 0.0;
+  return muS < muH;
+}
+`

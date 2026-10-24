@@ -1,0 +1,17 @@
+{
+  "type": "spacecraft",
+  "name": "webb",
+  "parent": "earth",
+  "aliases": ["jwst", "james webb space telescope", "james webb", "webb space telescope"],
+  "radius": "17 m",
+  "albedo": 0.3,
+  "launched": "2021-12-25T12:20:00Z",
+  "model": {
+    "path": "large/models/jwst/jwst.glb",
+    "doubleSided": true
+  },
+  "attitude": {
+    "sun": [0, -1, 0]
+  },
+  "trajectory": "trajectories/webb.json"
+}

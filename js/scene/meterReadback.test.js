@@ -37,12 +37,31 @@ function fakeGl() {
   }
   gl.bufferData = (target, bytes) => {
     gl.bound.data = new Float32Array(bytes / 4)
+    // An allocation is a write too, as Chrome counts them
+    gl.written(gl.bound)
+  }
+  // Pack buffers written and not read back since (Chrome warns, and drops
+  // its shadow copy, when one is written again)
+  // Chrome's rule: written, then a fence, then written again unread
+  gl.unread = new Map()
+  gl.rewrittenUnread = 0
+  gl.written = (buffer) => {
+    if (gl.unread.get(buffer) === 'fenced') {
+      gl.rewrittenUnread++
+    }
+    gl.unread.set(buffer, 'written')
   }
   gl.readPixels = (x, y, w, h, format, type, dest) => {
     gl.calls.push(typeof dest === 'number' ? 'readPixels-pbo' : 'readPixels')
     gl.bound.data.set(gl.framebuffer)
+    gl.written(gl.bound)
   }
   gl.fenceSync = () => {
+    for (const [buffer, state] of gl.unread) {
+      if (state === 'written') {
+        gl.unread.set(buffer, 'fenced')
+      }
+    }
     const sync = {id: ++gl.fences}
     gl.live.add(sync)
     return sync
@@ -52,6 +71,7 @@ function fakeGl() {
   gl.getBufferSubData = (target, offset, dest) => {
     gl.calls.push('getBufferSubData')
     dest.set(gl.bound.data)
+    gl.unread.delete(gl.bound)
   }
   return gl
 }
@@ -89,7 +109,7 @@ describe('AsyncReadback', () => {
     expect(gl.calls).toEqual(['readPixels-pbo', 'getBufferSubData'])
   })
 
-  it('takes only the newest finished read, and drops the older unread', () => {
+  it('hands back the newest finished read, having read the older out too', () => {
     const gl = fakeGl()
     const rb = new AsyncReadback(gl, {width: SIZE, height: SIZE})
     for (let i = 1; i <= 3; i++) {
@@ -100,11 +120,30 @@ describe('AsyncReadback', () => {
     const reading = rb.poll(5)
     expect(reading.meta).toEqual({n: 2})
     expect(reading.pixels[0]).toBe(2)
-    expect(gl.calls.filter((c) => c === 'getBufferSubData').length).toBe(1)
+    // Both finished buffers read: none is written again unread (Chrome's
+    // "READ-usage buffer was written, then fenced, but written again")
+    expect(gl.calls.filter((c) => c === 'getBufferSubData').length).toBe(2)
     expect(rb.inFlight).toBe(1)
     gl.signalledUpTo = 3
     expect(rb.poll(6).meta).toEqual({n: 3})
     expect(rb.poll(7)).toBeNull()
+  })
+
+  it('never writes a buffer again before reading it back, however late the reads come', () => {
+    const gl = fakeGl()
+    const rb = new AsyncReadback(gl, {width: SIZE, height: SIZE})
+    // A GPU that signals two meterings at a time: each poll finds two done
+    for (let frame = 0; frame < 40; frame++) {
+      rb.poll(frame)
+      if (rb.canIssue()) {
+        rb.issue({frame}, frame)
+      }
+      if (frame % 2 === 1) {
+        gl.signalledUpTo = gl.fences
+      }
+    }
+    expect(gl.fences).toBeGreaterThan(METER_RING_SIZE)
+    expect(gl.rewrittenUnread).toBe(0)
   })
 
   it('skips a read with every buffer in flight, never waits', () => {

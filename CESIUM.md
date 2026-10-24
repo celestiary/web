@@ -962,6 +962,484 @@ problem (the cache trims only tiles unused this frame; these were all in
 use), and clamping the frustum handed to Cesium would have widened what it
 draws, not just what it selects.
 
+## New York
+
+[Slop New York](https://github.com/pablo-mayrgundter/slop-newyork), a
+three.js city of Manhattan (WebGPURenderer on its WebGL2 backend), drawn
+at its place on Earth's Cesium layer, standing on Cesium's terrain and
+composited with it by depth.  A layer you switch on: *New York (3D city)* in
+the layers control, offered over Manhattan with Earth's Cesium layer active;
+`layers:nyc` in the permalink, and `?nyc=1` as before.
+
+```
+celestiary (three.js 0.171)              the host
+  ← Earth's link (makeNetGLImmediateLink, CesiumLayers._createWidget)
+Cesium (Earth's widget, NetGL guest)     its context._gl is a NetGL recorder
+  ← the city's link (newYorkGuest.js), replaying into that recorder
+New York (three.js dev, NetGL guest)     drawn by Cesium in its own frame
+```
+
+**The hook.**  Cesium draws the city through `scene.externalRenderers`
+(our patch, [Patching Cesium](#patching-cesium)): a renderer's `render(p)`
+is called once per depth frustum its bounding volume overlaps, after the
+frustum's opaque geometry and before the translucent, with Cesium's pass
+framebuffer bound, its viewport set and its depth holding the globe; `p`
+has the view and projection in doubles, the frustum's near and far, and
+the log-depth constants.  slop-newyork's `cesiumExternalRenderer`
+(`js/guest-cesium.mjs`) takes Cesium's view times the city's frame into the
+guest's camera, sets its log depth, points its link's replay at `p`'s
+framebuffer and runs one guest frame on the link.  Every call of the
+city's frame replays into Cesium's recorder while Earth's own `link.frame`
+is replaying Cesium into celestiary's context, so it lands in Cesium's
+globe-depth framebuffer, in the same frame, depth-tested against the
+terrain: three levels, each GL call executed three times (the city's
+shadow context, Cesium's, celestiary's).  Cesium's state tracker sees the
+city's calls (they go through its recorder) and its `resetState()` after
+each renderer goes the same way, so Cesium's checkpoint stays right.  Its
+handles compose: the city's objects are created through Cesium's
+recorder, which interns them as it does its own.
+
+**The switch and the load** (`newYork.js`, `CesiumLayers._updateNewYork`):
+
+- **The control.**  The layers button (top right, under the navigation
+  controls) opens Earth's renderer picker, *Celestiary | Cesium*.  Under its
+  tiles, a switch, *New York (3D city)*, shows only while the city can be
+  drawn: Earth's Cesium layer in use (Cesium chosen, loaded and in view, its
+  tiles in or still coming) and the camera in the city's range, `newYorkRange` 'show' (below).  Elsewhere it is hidden,
+  not disabled: it's a place's layer, and the picker everywhere else stays as
+  it was.  Its caption is the cost while off ("Manhattan's buildings, about
+  140 MB"), and while on the city's state: a spinner and "Building the
+  city…" from the switch until the guest has built and its staged set-up has
+  replayed into the frames (`newYorkStatus`: the guest's `createNewYork`,
+  then `stage.chunks` > 0; a chunk a frame the city is in view, since Cesium
+  calls its renderer only then, so a city built out of view finishes once
+  it's looked at), then "Slop New York, on Cesium's Earth", or "The
+  city couldn't load" (off and on again retries).  Off by default.
+- **The state** is the store's (`LayersSlice`): `newYorkOn`, the switch,
+  which the control, the permalink and `?nyc=1` set and CesiumLayers follows
+  each frame (`_syncNewYork`); `newYorkNear` and `newYorkStatus`, which
+  CesiumLayers publishes (`_publishNewYork`) for the control.
+  `layers.setNewYork(on)` from the console writes the store too.
+- **The permalink**: `layers:nyc` while it is on (design/URLs.md [layers
+  token](design/URLs.md#layers-token)), read on every link with a view, which
+  only turns it on.  `?nyc=1` turns it on at load (into the store on the
+  first frame: CesiumLayers is made before the store is set).
+- Off, nothing of it loads or runs: frames are bit for bit main's (Checked
+  headless, below).
+- Loaded the first time the camera is over the city with the switch on and
+  Earth's layer active: within `SHOW_WITHIN_M` (60 km) of 5th Avenue and 42nd Street and
+  under `SHOW_BELOW_M` (30 km).  Drawn there (`renderer.show`), not drawn
+  farther out, and freed past `FREE_BEYOND_M` (300 km), or when the switch
+  goes off, Earth's layer stops being wanted (the user chose celestiary's
+  Earth, or the homepage) or fails.  Freeing removes the renderer, deletes
+  the city's GL objects through the links (so in Cesium's shadow and
+  celestiary's context too), resets Cesium's state cache and loses the
+  city's shadow context.
+- The code is two dynamic imports: `newYorkGuest.js` (celestiary's
+  wiring, 4 KB) and the guest itself, from slop-newyork's site,
+  `https://pablo-mayrgundter.github.io/slop-newyork/` (its main), with
+  `js/guest-entry.mjs` and `js/guest-cesium.mjs`.  Not bundled: it's a
+  separate app with its own release cycle, on three.js's dev build (its
+  WebGPURenderer and TSL), where celestiary bundles three 0.171; bundling
+  it would put two three.js builds and the city's 20 scripts in
+  celestiary's build to version by hand.  The guest's modules import three
+  by bare names, so `public/index.html` has an import map for `three`,
+  `three/webgpu`, `three/tsl` and `three/addons/`, to jsDelivr pinned at a
+  three.js commit (not `@dev`, which would change under production).
+  Celestiary's own bundle imports nothing by name, so the map is inert
+  until the city loads.  The browser warns "Multiple instances of Three.js
+  being imported" then: by design, the city's three is its own.
+- `?nycGuest=<url>` loads another copy, e.g. slop-newyork's PR preview
+  (`.../slop-newyork/pr-preview/pr-1/`).  Only slop-newyork's site and
+  localhost are accepted: the guest's code runs in celestiary's page.
+  A copy older than slop-newyork's
+  [PR #1](https://github.com/pablo-mayrgundter/slop-newyork/pull/1) (merged
+  2026-10-23) has no `composite` or `logDepth`, and the city fails to load
+  with that said in the console.
+- `?nycShadows=1` turns on the city's sun shadows (two more renders of it
+  a frame).
+- `?nycLean=0` loads the city as it comes, not lean ([What it
+  costs](#what-it-costs-and-the-lean-city)), for comparing.
+
+**The ground.**  The guest is built flat and drapes itself over its host's
+terrain (`guest.groundSamples`, `setGround`).  Its heights come from
+`scene.terrainProvider` by `sampleTerrain` at level 12 on a 100 m grid
+(8,000 points, about a dozen World Terrain tiles over the island, a few
+hundred KB of ion data, billed by data: no imagery session), not
+`sampleTerrainMostDetailed`, which would fetch the finest tiles.  On the
+plain ellipsoid (no token, or before World Terrain answers) every height
+is 0 and nothing is fetched: the city stands on the ellipsoid, curving with
+it.  When the provider changes (World Terrain arriving), it is sampled
+again.  The city's flat ground layers are then split to follow it, to
+`LEAN_DRAPE`'s detail (10 cm, a 1.5 million triangle budget): a few seconds
+of main thread each time ([What it costs](#what-it-costs-and-the-lean-city)).
+
+**The Sun** is Cesium's light (`p.lightDirectionWC`), which celestiary
+sets each frame from its own Sun ([camera and light
+coupling](#camera-and-light-coupling)), not Cesium's sun, which follows
+Cesium's clock: the renderer is made with `sun: false` and the light's
+direction is handed to `guest.setSun` once a Cesium frame.
+
+**Black in the night lights' frame.**  That frame is the night imagery's
+stored values on black (Night lights, above).  The city is drawn in it
+black (`setOccluding`, the `occlude` switch: its output selected to
+black, its alpha and depth as ever), so its buildings hide the imagery's
+lights on the ground under and behind them; it was hidden there, and the
+lights showed through it ([found on a real GPU](#found-on-a-real-gpu)).
+It costs a second draw of the city in each frame the lights draw (at
+night, every frame).
+
+**Checked headless** (SwiftShader, no ion token: Earth on the bundled Blue
+Marble and the ellipsoid, the city at height 0 over it; slop-newyork and
+three.js served from local copies):
+
+- The city at Manhattan from 3 km over the Upper Bay (480x300) and 1.5 km
+  (800x500): Lower Manhattan's towers, the street grid, Central Park, the
+  piers, in Cesium's frame and through the atmosphere pass.  Cesium calls
+  the renderer once a frame (one log-depth frustum), with its globe-depth
+  framebuffer bound; the city draws 226 meshes a frame; no replay error on
+  either link, and no shader or WebGL error in the console.
+- The city's distance reaches alpha: its pixels encode a median of 36
+  (nearer) against the ground's 41, from the log depth it wrote.
+- The switch off: celestiary's frame is bit for bit main's, the canvas and
+  the float scene buffer, in the same view with the clock paused (portal-
+  netgl 0.3.0 and the patched Cesium included).
+- The control (800x500, the aerial of Lower Manhattan from 780 m, the clock
+  paused; slop-newyork served locally by `?nycGuest=`): the switch offered
+  once Earth's layer was in use there, off, its caption the cost; switched
+  on, "Building the city…" with its spinner, the link rewritten with
+  `layers:nyc`; the city in 3.5 minutes on SwiftShader, the caption then
+  "Slop New York, on Cesium's Earth".  The same view opened with
+  `;layers:nyc` loaded the city with no click (2.5 minutes).
+- Freed (`setNewYork(false)`): no external renderer left, the city's shadow
+  context lost, and the next frame equal, in Cesium's frame and the scene
+  buffer, to the frame with the city hidden; on again, it loads and draws
+  again.
+
+### What it costs, and the lean city
+
+The first preview (`?nyc=1`, PR #287) crashed a Chrome tab on an Apple
+GPU.  Measured headless (SwiftShader, 480x300, no ion: Earth on the Blue
+Marble and the ellipsoid; the hero view, 3 km over the Upper Bay looking
+up the island; the probe wraps each context's uploads, reads CDP's heap
+and the processes' RSS):
+
+| | Without the city | The city as it came | Lean (now) |
+|---|---|---|---|
+| JS heap + ArrayBuffers, settled | 49 + 89 MB | 295 + 320 MB | 160 + 280 MB |
+| ... at the city's ready, before its first frame | | 298 + 447 MB | 163 + 298 MB |
+| Renderer process RSS | 394 MB | 941 MB | 739 MB |
+| GPU process RSS (SwiftShader: the GPU's memory) | 510 MB | 1,162 MB | 829 MB |
+| City's GPU buffers + textures: its shadow / Cesium's shadow / celestiary's | | 112+23 / 112+23 / 112+23 MB | 0.3+23 / 0.4+23 / 112+23 MB |
+| City's draws a frame: its shadow / Cesium's / celestiary's | | 182 / 182 / 182 | 0 / 0 / 183 |
+| Set-up calls copied into the link's queue (held to the first frame) | | 20,273 calls, 133 MB | 0 (19 MB of small calls copied in the stage) |
+| The city's first frame | | 2.6-4.2 s (every queued call, both host contexts) | 0.27 s, after 23 chunks of 0-1.3 s over as many frames |
+| A frame (aerial; JS) | 36 ms | 71 ms (city 14 ms) | 63 ms (city 15 ms) |
+| A frame at street level, 25 m up on 5th Ave (JS; SwiftShader waits on its GPU here) | | 10.5 s (city 9.4 s; its update 7.8 ms) | 89 ms (city 25 ms; its update 4.5 ms) |
+| 60 s at 30 frames | flat | flat | flat (0 GL handles a frame) |
+| Drape on real terrain (Terrarium heights on the 100 m grid) | | never ended (13 min, 1.4 GB, then killed) | 4.5 s, 1.67 M triangles |
+
+**What most likely killed the tab: the ground's drape on real terrain.**
+On the preview, with ion, `setGroundFrom` samples World Terrain, and
+`setGround` splits the city's flat ground layers until each triangle is
+within 4 mm of the ground (slop-newyork guest.js, THE GROUND).  Real
+terrain bends a little everywhere, so that split the island down to 2 m
+triangles (the deck alone 2.9 million, 140 s), and slivers along the shore
+(triangles with their corners in a line) never stopped splitting: the page's
+main thread was pinned for good with its memory climbing.  Headless runs
+never saw it: no ion there, so every height was 0 and only the Earth's
+curve was draped.  On top of that, the city's ~135 MB of geometry and
+textures lived three times on the GPU, each frame drew three times, and its
+first frame replayed 20,000 queued calls and 133 MB into two contexts at
+once, every program linked in that one frame.
+
+**Lean** is the default; `?nycLean=0` loads the city as it comes, for
+comparing.  It looks the same: at the hero view 263 of the city's 16,467
+pixels differ from the city as it came, by at most 59 codes summed over rgb
+(the cars, placed at random).  What it changes:
+
+- *The drape* (`LEAN_DRAPE`, newYorkGuest.js, the guest's `drape` option):
+  within 10 cm, no edge under 8 m, a budget of 1.5 million triangles
+  shared by area (the flat layers are 0.93 million).  slop-newyork's split
+  also leaves slivers alone now.  On real heights: 4.5 s and 1.67 million
+  triangles, against 12 s and 3.1 million at 2 cm (no visible difference
+  over Central Park from 350 m).
+- *Lean shadows* (netglLean.js `leanShadow`): the city's shadow context, and
+  Cesium's while the city's calls run through it, keep the city's objects,
+  state and programs (they still answer the recorder's queries and mint its
+  handles) but allocate none of its buffers' storage, write no contents and
+  draw nothing.  Only celestiary's context holds and draws the city.  Own
+  properties on each shadow, which the recorder (a Proxy over it) reaches
+  first.  The city's shadow is on a 1x1 canvas (three sizes the city by
+  its own).  Nothing reads either shadow's pixels for the city: three
+  doesn't, and Cesium's picking doesn't call external renderers.
+- *A staged set-up* (netglLean.js `stageLink`): the city's calls made while
+  its link is closed (its whole build and compile) are queued by
+  celestiary, not cloned by the link: uploads by reference (the attribute's
+  or texture's own array, which nothing rewrites before the replay), the
+  rest copied as the link does.  The queue is cut into chunks (8 MB of
+  uploads, 4 programs or 4,000 calls) by asking the guest for a frame end,
+  whose checkpoint restores its state at the next chunk; the external
+  renderer replays one chunk a frustum, the city undrawn, then draws it.
+- *What isn't built* (slop-newyork): the other boroughs (built and then
+  removed before), the shadow stand-ins (shadows are off), and with
+  `crowds: false` the pedestrians, never drawn on WebGL2 but walked and
+  skinned (5 ms of the city's update at street level).  And two
+  build-time scratch arrays the city's closures kept alive (~130 MB of the
+  JS heap: the waterfront's accumulators, the facade boxes) are let go.
+
+What's still expensive, and what it would take:
+
+- *The city's programs compile three times* (64 each: its shadow, Cesium's
+  shadow, celestiary), since its uniform locations come back through
+  Cesium's recorder.  portal-netgl could *flatten nested links*: replay an
+  inner guest's calls straight into the outermost context through the outer
+  link's handle table, so Cesium's recorder and shadow never see the city
+  (one encode-decode pass and one shadow fewer).
+- *Lean shadows and staging belong in portal-netgl*: a shadow mode for
+  `makeNetGLGuestContext` (`shadow: 'lean'`), a policy for calls an outer
+  recorder replays from an inner link, and a link that queues uploads by
+  reference and replays its set-up in chunks (`link.step()`), cutting at
+  its own checkpoints rather than asking the guest for frame ends.
+- *The city itself*: 1.6-1.7 million triangles of ground layers, ~1.25 million
+  of buildings and 3.4 million of street details (most instanced and culled
+  by distance), 112 MB of buffers on celestiary's context and 280 MB of
+  ArrayBuffers in JS (three keeps every attribute's array; the drape keeps
+  the flat layers, 23 MB).  The compile (64 programs, 17 s on SwiftShader)
+  is the longest step of the load; then the facade blocks (2.7 s) and the
+  ground grid (2 s).  The highway traffic's update is ~3 ms a frame.
+- *The drape* is still seconds of main thread on real terrain (at load, and
+  again when World Terrain replaces the ellipsoid).
+- Not measured on a real GPU: ask for a `?perf=sync` snapshot over the city
+  (below, What's left).
+
+### The colour and alpha contract
+
+The city's pixels land in Cesium's frame, which the composite decodes as
+one body ([Architecture](#architecture), HDR.md [Cesium in the same
+units](js/scene/HDR.md#cesium-in-the-same-units)), so they must be in the
+frame's encoding:
+
+| | The decode expects (Earth) | The guest wrote (`composite: true`, as shipped) |
+|---|---|---|
+| rgb | stored value × the Sun's light (Lambert, at intensity 1), linear in the light, 0 to 1: a white Lambertian wall facing the Sun is 1 | its preset lights (the Sun at 5.8-6.6 in three's units, a white wall at 2.1; a sky light at 1-1.6; its baked sky for reflections), on linear albedo, sRGB-encoded at the end, with lit windows, lamps and signals emitting into it; under the horizon, a moon of its own |
+| alpha | anything over 0 where it draws; Cesium's distance stage replaces it with the encoded distance from Cesium's depth texture (`distance.js`) | its materials' alpha, 1 for the opaque city: right |
+| depth | Cesium's log depth (the stage and the decode turn it into celestiary's depth for the atmosphere pass's haze) | `logDepth: true`: Cesium's, from the renderer's constants: right |
+
+The decode multiplies rgb by `bodyGain` (`DISPLAY_GAIN` for Earth) and
+`exposureOf`.  So the guest's light was 2-3 times the scale and clipped in
+the 8 bits, its shading went through sRGB's curve (a wall at 15% of the
+Sun showed at 42% of its sunlit value), and its emission, under a code of
+the frame by day, became a sunlit white at night's gain (up to 4e6).
+
+What celestiary does now (`newYorkGuest.js`, a stopgap through the guest's
+public objects and three's node-material hooks, before its programs
+compile):
+
+- `inCelestiaryFrame`: each material's diffuse colour is sRGB-encoded
+  back to its stored value before it is lit, and the output is linear, so
+  the frame holds stored value × light, linear in the light.  Unlit
+  materials scale with the daylight; `emissiveNode`s and emissive colours
+  are multiplied by 0.
+- `inCelestiaryUnits`, after every `setSun` (which switches presets): the
+  Sun white at π (three's Lambert is albedo / π, so a white wall facing it
+  is 1), 0 once it is down; the sky's hemisphere light at 15% of it and the
+  baked environment at 0.15, fading with the Sun; the guest's light switch
+  (`cityUniforms.uInteriorGlow`) at 0.
+
+Measured headless (no ion: Blue Marble on the ellipsoid; 480x300, 3 km
+over the Upper Bay looking up the island, 2026-06-21 16:00 UTC, the Sun 69°
+up, the meter off at the keyed exposure): over the 16,348 pixels the city
+covers, Cesium's frame reads a median luma of 0.209 (10th and 90th
+percentiles 0.080 and 0.542, 0.25% clipped), against 0.277 (0.163, 0.318)
+for the Blue Marble ground around it; in the scene buffer, 0.314 against
+0.416 exposure units.  The guest's own output in the same view is 0.539
+(0.296, 0.791), twice the ground.  At night (03:00 UTC, gain 1.9e6) the
+city is black with the ground (0 in Cesium's frame, the gain 1.9e6),
+but for 5 of its pixels (of 144,000), at 4-7 codes of 255, white specks at
+that gain: shading outside the hooks, likely the guest's preset sky colours
+(`cityUniforms`).  Before the lamps went through the switch there were 11,
+six clipped orange.  At 800x500, 1.5 km over the Upper Bay, the city covers
+50,101 pixels at a median of 0.183 (0.068, 0.510) against the ground's
+0.269; the guest's own, 0.505.
+
+**What slop-newyork needs**, so celestiary can drop the stopgap (an option,
+say `units: 'stored'`, for a host that hands it a frame in stored values):
+
+1. Light stored values: in its material pass (`prepareMaterials`), after
+   three's `setupDiffuseColor`, `diffuseColor.rgb =
+   sRGBTransferOETF(diffuseColor.rgb)` (vertex and instance colours
+   included), and output linear (`setLinearOutput(true)`), with no tone
+   map.
+2. Take the host's light, not its presets': `setLight({direction,
+   intensity, sky})`, the Sun at π × intensity (1 = the host's sunlit white,
+   white: the host's atmosphere colours it), 0 below the horizon (no moon of
+   its own), the sky light and the environment at the host's fraction.
+3. Emission out of the lit frame: `setEmission(0)` for every
+   `emissiveNode`, emissive colour and unlit material, and a second mode
+   for the night lights' frame (below) that draws only emission, in units
+   of the host's night imagery.
+
+**What's left.**
+
+- *Night.*  The city is black in the night lights' frame, hiding Black
+  Marble's lights under it, but it has no lights of its own.  The guest's
+  emission (windows, lamps, cars) belongs in that frame, drawn alone
+  (lighting off, emission on) at the Black Marble's scale (a full-white
+  texel is `NIGHT_LIGHT_RADIANCE` of a sunlit white), with its surfaces
+  black as now; the decode is already the lights' (`newLightsMaterial`).
+  That's item 3's second mode.
+- *Ground.*  The camera's floor (`groundHeight`, `_keepAboveGround`) is
+  Cesium's terrain under it, so over the city it flies through the
+  buildings, 1 m over the street.  The city would need to be the ground
+  there: `guest.groundOffsetAt` gives the draped deck's height, and the
+  buildings' heights would need a query of the guest (its colliders, or a
+  height field of its roofs) at the camera's (x, z), the larger of the two
+  taken as `groundHeight` while the city is drawn.  Picking against it
+  (Cesium's `scene.pick` doesn't call external renderers) is the same
+  question.
+- *Cost.*  Lean now ([What it costs](#what-it-costs-and-the-lean-city)):
+  the city held and drawn by celestiary's context only, its set-up staged
+  over frames.  Its checkpoint (~107 calls a frame) is still copied,
+  into the stage's queue: portal-netgl 0.4.0's `subFrame()`
+  ([portal#34](https://github.com/pablo-mayrgundter/portal/pull/34))
+  replays it without the copy, and its `clear: 'none'` would let the
+  screen policy, not the guest's `composite`, keep its clears off Cesium's
+  frame.  Neither is needed for a fix (the flicker was the stage's, below),
+  so celestiary stays on 0.3.0 until slop-newyork's `cesiumExternalRenderer`
+  ends its frames with `subFrame()`.  Not measured on a real GPU.
+- *Ion.*  The terrain path (`sampleTerrain` on World Terrain) and the
+  city on real ground haven't run here: the session's ion token is
+  refused.  Check on the PR preview over Manhattan: the piers at the
+  water, no gap under the buildings.
+- *Its long-term home.*  The layer is wired here for now: celestiary's
+  `newYorkGuest.js` loads slop-newyork's guest from its site at run time and
+  hangs it on Earth's widget through our Cesium patch, with the colour
+  stopgaps on celestiary's side.  It belongs longer term with Earth's other
+  extended assets (3D cities and the like) outside celestiary: in our custom
+  Cesium ([celestiary/cesium](https://github.com/celestiary/cesium), next to
+  the external renderers it rides on), or in a new repo that gathers them.
+  From there it would be imported first as an intermediate dependency (a
+  package celestiary pins, in place of the guest URL and the wiring here),
+  and finally loaded by celestiary as a dynamic layer: discovered with its
+  range and cost from that package or a manifest, offered in the layers
+  control by where the camera is, and fetched only when switched on, as it
+  is now.  The control, the `layers:` token and `newYorkRange` are written to
+  carry more such layers (a flag each).
+
+### Found on a real GPU
+
+The user's preview on a Mac (Apple GPU, Brave: ANGLE Metal), with ion.
+
+**The city vanished for a frame every couple of seconds**, almost
+periodically, with the clock paused too.  The lean link's stage
+(`netglLean.js` `stageLink`) cut its queue into chunks by the calls,
+bytes and programs queued while the link was closed, counted since the
+last cut, and never reset them once the set-up was in.  After the city's
+first frame the closed calls are each frame end's checkpoint (107 calls
+at the aerial view; ~80 in portal's three.js test), so every
+4,000 / 107 = 37 frames the count reached `CHUNK_CALLS`, the stage asked
+the guest for a frame end, and the next frame's external renderer saw a
+chunk waiting, replayed it and returned without drawing the city.  At
+the preview's 20-25 fps, every 1.5-2 s; the jitter is the frame rate's.
+Measured headless (320x200, the aerial view from 780 m, the clock paused,
+the app's own loop; per celestiary frame: Cesium's renders, the external
+renderer's calls, whether each replayed a chunk, and the city's draws on
+celestiary's context): 101 frames, two with no city draw (frames 29 and
+66, each a staged call, Cesium rendering and the renderer shown and
+called as in every other frame, which drew 187), 37 frames apart.  Not
+the renderer's `show`, Cesium's culling, `frameNumber` or the night
+lights' frame (the same in the frames before and after), nor the ground,
+the range check or the meter (no cadence of 37).  Now the stage cuts only
+the set-up: from the first `frame()` on, the calls between frames are
+replayed whole at the next frame, as the link does (`stageLink`'s
+`framed`; `netglLean.test.js` reproduces the period on the old code).
+After: 143 frames, every one with the city's 187 draws.  A side effect
+of the old behaviour: the layers control's status (`newYorkStatus`) read
+'loading' on those frames.
+
+**"READ-usage buffer was written, then fenced, but written again before
+being read back"** (3-4 a second in the console) is celestiary's meter,
+not the city's links: headless it shows before the city loads.  Its
+asynchronous readback (`meterReadback.js`) dropped the older of two
+readings that finished at one poll unread, so that buffer's next read
+wrote it again; and it allocated every buffer up front, which Chrome
+counts as a write.  Now every finished reading is copied out and each
+buffer is allocated at its first read: headless, 7-9 warnings a session
+before, none after (HDR.md, the meter's readback).  Its cadence (every
+fourth frame) has nothing to do with the flicker's.
+
+**Blue blocky bands on the buildings at night** (Central Park from the
+ground, the night of 2026-10-23): the atmosphere pass, not the city, and
+not New York's only.  The user's `newYorkDebug()` on an M2 (camera
+−29.8 m, under the ellipsoid; Manhattan's ground lies ~30 m under it,
+where the geoid is −32.7 m) had the city's pixels clean in Cesium's frame
+(8 of 66,770 lit), no night lights added and no holes; its `sceneMean`
+(now `sceneLitMean`) was over those 8 lit pixels only, not the city's.
+So the light came after the composite.
+
+*The cause.*  The pass marches the air in front of a surface it sees
+from inside the atmosphere (`marchSegment`, Atmosphere.js), and at each
+sample decides whether the Sun is behind the planet.  From above the
+sphere it asked whether the ray to the Sun meets the sphere ahead
+(`rsi`).  Within a metre of the sphere that is a difference of squares of
+~6.4e6 m in float32: the near hit came out on either side of the sample
+at random, and with the Sun 33° under the horizon the sample read the
+Sun's transmittance table as if lit.  From an eye under the sphere every
+ray crosses it, a few tens of metres out, and the samples that landed
+within that metre lit the night's air with daylight: speckled, in bands
+of the rows whose samples fall there, Rayleigh blue, fixed while the view
+is.  Headless, with a flat terrain at −31.5 m and the camera at −30 m
+(Cesium's frame then fills the view, the city's deck and trees within
+160 m): 2,665 pixels in horizontal blue bands, all of them gone with the
+atmosphere pass off and none with the cloud shell, the volumetric clouds,
+the night sky or the airglow off.  The bands' light, metered, held the
+gain at 0.01 where the dark frame wants ~150 (the user's was 0.001 against
+a goal of 27).
+
+*The fix.*  The Sun is behind the planet where it is under the sphere's
+horizon at the sample: its zenith cosine under −√(1 − R²/r²), from
+(r − R)(r + R), which keeps its bits near the sphere; under the sphere,
+under the local horizontal, as before (`rayEnd.js` `sunBelowHorizon`,
+its float32 mirror and tests; the GLSL in the atmosphere pass's march and
+narrow-lobe depth, and the volumetric clouds' light).  The same view after:
+0 pixels lit, at a gain of 148.  It holds wherever the camera is under
+or within a metre of the sphere, the city or not: the Dead Sea, the
+Netherlands, any coast where the geoid is negative.  The precomputed
+tables (AtmospherePrecompute.js) still decide by `rsi`, at their own
+sample points; their bottom row is the same question, not seen yet.
+
+Also fixed on the way, and kept: the night lights' frame draws the city
+black, not hidden.  Hidden, wherever Earth's globe is behind or under its
+buildings, Black Marble's ~500 m texels drew through them: at the user's
+12 km view at night (21:35 EDT), on 1,373 of its 1,374 pixels; drawn
+black, on none.
+
+The 12 km view also has 3 of the city's pixels lit in Cesium's frame at
+night (one at codes 129, 113, 82), and the user's Central Park view 8:
+something of the guest's still shines with every light and emission at 0
+(the white specks of the colour contract, above), not yet found.
+
+`c.ui.layers.newYorkDebug({seconds})` (newYorkDebug.js), in the console
+with the city in view, watches the app's frames for `seconds` (default
+10) and logs `[new york] debug: {...}`:
+
+- `frames`: fps, the frames that drew no city and the frames between
+  them, staged calls, Cesium's renders a frame;
+- `pixels` and `pixelsLightsHidden`: two frames read back, with the city
+  and without, with the night lights' frame drawing it black and hidden:
+  the city's pixels (`city`), those its day frame lit (`dayLit`,
+  `dayCodes`), those the lights added to (`lightsAdded`), those lit in the
+  scene buffer (`sceneLit`, `sceneMax`, `sceneLitMean` over them only),
+  holes;
+- `passes`: the final frame over the city's pixels and the ground's, as
+  drawn and with each pass after the composite off in turn (`noCloudShell`,
+  `noCloudVolume`, `noNightSky`, `noAirglow`, `noAtmosphere`): `lit` is how
+  many are over 0, `mean` the byte over all of them.  The pass whose
+  absence takes the light away is the one adding it;
+- the GPU, the gain, the camera's height and whether Cesium has it
+  underground, the terrain provider, and the guest's lights.
+
 ## Patching Cesium
 
 Some of what celestiary needs from Cesium is a change to Cesium itself, not
@@ -988,7 +1466,12 @@ has it does.
   `node_modules/@cesium/engine` (a shader edit means copying the generated
   `Source/Shaders/<Name>.js`, from `npx gulp build` in the fork), then
   `npx patch-package @cesium/engine`.  One patch file holds every fix for
-  the engine version.  `js/scene/cesium/cesiumPatches.test.js` checks the
+  the engine version.  A new module also needs its exports: the engine's
+  `index.js` and the `cesium` package's `Source/Cesium.js` (what
+  `import('cesium')` reads) are generated by Cesium's build, so add its
+  lines to both by hand, as the fork's build writes them, and run `npx
+  patch-package cesium` too (`patches/cesium+1.145.0.patch`, the
+  external renderers' exports).  `js/scene/cesium/cesiumPatches.test.js` checks the
   patched lines are in `node_modules`, so a checkout installed without
   the hook (`--ignore-scripts`) fails a test rather than rendering
   Cesium's unpatched behaviour.
@@ -1008,6 +1491,7 @@ has it does.
 | Patch | Fork branch | What it fixes | Upstream |
 |---|---|---|---|
 | The ellipsoid's lighting follows the globe's settings | `celestiary/globe-daynight-lighting` | Without vertex normals the globe's day-night shading was a hard-coded `clamp(5 × Lambert + 0.3)`: its floor is now `vertexShadowDarkness`, its multiplier a new `dayNightLambertDiffuseMultiplier` (defaults unchanged) | [CesiumGS/cesium#13974](https://github.com/CesiumGS/cesium/pull/13974), from `upstream/globe-daynight-lighting`; drop the patch's hunks once a release has it |
+| External renderers: renderers outside Cesium drawing into its frame | `celestiary/external-render-pass` | `scene.externalRenderers` and `ExternalRenderer({boundingVolume, show, render(p)})`: `render` is called once per depth frustum the volume overlaps, after the opaque passes, with Cesium's framebuffer bound and the view, projection, near and far and log-depth constants in `p`; `Context.prototype.resetState()` after each.  For [New York](#new-york).  Exported from `cesium` too, so a second patch, `patches/cesium+1.145.0.patch` | not yet proposed |
 
 Candidates for later patches, by how much celestiary code each would
 remove: a tone-map-free HDR output (the log encoding and the sRGB
@@ -1061,7 +1545,9 @@ imagery layer that asks for its endpoint only when a tile needs it.
   forward celestiary's clicks to `scene.pick` on the active widget.
 - Night lights: done in #93 (Night lights, above).  Left: a bundled low-level
   copy of the Black Marble for offline use.  Clouds dim them since #88.
-- Persist the layer choice in the permalink.
+- Persist the layer choice in the permalink: the `layers:` token has New
+  York's switch (`layers:nyc`); the renderer chosen per body
+  (`layers:earth=default`) is left.
 - At a telescope's field the narrow-field clamp (Detail at narrow fields
   of view) keeps the Moon's tiles at a 21″ pixel's detail: at 0.91° over
   879 px the lit limb is as round as celestiary's sphere (0.47 px rms
@@ -1103,12 +1589,22 @@ New:
   (Relief on the Moon's tiles, above).
 - `js/scene/cesium/CesiumLayers.js` (+ test) — lazy Cesium + NetGL link, stencil
   shell, per-frame coupling, activation.
+- `js/scene/cesium/newYork.js` (+ test) — New York's switch, where its
+  guest loads from, when it's wanted and its load state for the control. Pure.
+- `js/scene/cesium/newYorkGuest.js` — New York loaded and wired into Earth's
+  widget: its link, ground, external renderer, colour stopgaps, the lean
+  options (New York).
+- `js/scene/cesium/netglLean.js` (+ test) — lean NetGL plumbing for a nested
+  guest: shadow contexts that hold and draw nothing of it (`leanShadow`), and
+  its set-up queued without copies and replayed a chunk a frame
+  (`stageLink`). Pure.
 - `js/scene/cesium/ionImagery.js` (+ test) — the altitude under which Earth
   asks ion for Bing imagery (Cesium ion sessions). Pure.
 - `js/store/LayersSlice.js` — `layerBody` (in-range capable body or
   null), `bodyLayers` (per-body choice; `bodyLayer()` applies the
-  default).
-- `js/ui/LayersButton.jsx` — the control.
+  default), New York's `newYorkOn`, `newYorkNear`, `newYorkStatus`.
+- `js/ui/LayersButton.jsx` (+ test) — the control, with New York's switch
+  (`NewYorkToggle`, `newYorkControl`).
 
 Changed:
 

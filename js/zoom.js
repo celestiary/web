@@ -62,17 +62,29 @@ export function asymptoticZoomDist(distBefore, distAfter, surfaceR) {
 }
 
 
+/** The near plane's floor, metres, for a body over 10 km in radius. */
+export const NEAR_FLOOR_M = 1e2
+/** The floor for a smaller body, in its radii. */
+export const NEAR_FLOOR_RADII = 0.01
+
+
 /**
  * Computes the camera near-plane distance for a given altitude above the
  * surface.  Shrinks proportionally as the camera descends so the surface
  * stays visible; caps at SMALLEST_SIZE_METER when far away to preserve depth
  * buffer precision across the full stellar scene.
  *
+ * Never under NEAR_FLOOR_M, unless the body is small enough that the
+ * floor would clip it up close: a spacecraft's model (Spacecraft.js), tens
+ * of metres across, gets a hundredth of its radius.
+ *
  * @param {number} altitude   Current altitude above the target surface (meters)
+ * @param {number} [radius]   The body's radius (meters)
  * @returns {number} Near-plane distance in meters
  */
-export function dynamicNear(altitude) {
-  return Math.min(SMALLEST_SIZE_METER, Math.max(1e2, altitude * 0.1))
+export function dynamicNear(altitude, radius = Infinity) {
+  const floor = Math.min(NEAR_FLOOR_M, radius * NEAR_FLOOR_RADII)
+  return Math.min(SMALLEST_SIZE_METER, Math.max(floor, altitude * 0.1))
 }
 
 

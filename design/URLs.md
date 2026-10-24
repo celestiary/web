@@ -83,6 +83,8 @@ it (`js/targetPath.js`):
                         (js/scene/Galaxies.md)
 #sat:25544              an Earth satellite, by its NORAD number
                         (js/scene/satellites/Satellites.md)
+#sat:mars:12            an object of another body's population, by its body
+                        and id (js/scene/population/Population.md)
 ```
 
 - **A place or a body?**  A last segment in the body above's `system` is a
@@ -93,8 +95,9 @@ it (`js/targetPath.js`):
   it always has), a place lands there, a star or a galaxy travels, an
   asterism turns to face it (from the Sun), a satellite is ridden from 300
   km off (Earth, if it has no position at the date).
-- **A satellite's frame is Earth's**, as a place's is its body's: a view
-  near it is in Earth's frame, with no `from=`.  With `F` the camera rides
+- **A satellite's frame is its body's** (Earth's for `sat:25544`), as a
+  place's is its body's: a view near it is in that body's frame, with no
+  `from=`.  With `F` the camera rides
   the satellite again once restored.
 - **With a view** (`@…`, below) the camera is put back where the link had
   it, in its frame, and the target is set without turning it.
@@ -177,7 +180,8 @@ s=al                scene settings not at their defaults, one letter each
 
 `s=` holds the scene's toggles (asterisms `a`, labels `l` `p`, orbits `o`,
 grids `e` `c` `g`, galaxy `U`, galaxy labels `G`, globular-cluster labels
-`C`, human expansion lines `x`, the HUD `v`),
+`C`, human expansion lines `x`, the space networks `S` Starlink, `I` Iridium
+and `D` the Deep Space Network, the HUD `v`),
 plus landed `L`, tracking `T`, following `F` and AR `A` (`permalink.js`
 `SETTINGS_DEFAULTS`).  `T` is the `t` key: the camera keeps the target
 centred every frame, so a link made while tracking reloads tracking.  `F`
@@ -206,7 +210,8 @@ both: riding along while facing it).
   frame is good to ~260 km at 1 AU.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
 `U`, `G`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
-star labels off, orbits off, landed), while `e` `c` `g` `C` `L` `T` `F` `A` mean on.
+star labels off, orbits off, landed), while `e` `c` `g` `C` `S` `I` `D` `L` `T` `F` `A` mean
+on (`s=ID` is Iridium and the DSN shown: js/scene/networks/Networks.md).
 
 `G` and `C` are the `e` and `E` keys (Shift+E), Celestia's: the galaxies'
 names and the globular clusters'.  The keys can't be the letters, since `e`
@@ -298,6 +303,9 @@ Each feature has its own label:
 "info":             the info panel's lists, open or folded
 "orbits":           the orbital elements lit on the bodies' orbits
 "orbit":            the guide's orbit page: one orbit at a moment (read)
+"periodic":         the three-body orbits shown, and their manifolds
+"craft":            the craft flown, with their departures
+"layers":           the optional layers switched on (New York's city)
 "apps":             the widgets drawer and dock: open, docked, the app
                     showing, the apps pinned and running
 "apps.<id>":        one running app's own state, a sub-namespace of apps
@@ -469,6 +477,7 @@ frame they're drawn in when it isn't the default.
 ```
 <secondary>=<code>+<code>   a pair by its secondary (moon: the Earth-Moon pair) and its families on
 frame=inertial              drawn fixed in space, not turning with the pair
+manifolds                   the families' invariant manifolds drawn too (the Lyapunov orbits' and halos')
 ```
 
 The codes, in the order the panel lists them:
@@ -486,6 +495,7 @@ nrho     the 9:2 near-rectilinear halo orbit (Earth-Moon only)
 #…;periodic:moon=nrho+dro                    Gateway's NRHO and a DRO, turning with the Earth-Moon pair
 #…;periodic:earth=l1h+l2h                    the Sun-Earth L1 and L2 halos
 #…;periodic:moon=dro+l2l,frame=inertial      fixed in space: their spirographs
+#…;periodic:manifolds,moon=l1l+l2l           the Earth-Moon L1 and L2 Lyapunov orbits with their tubes
 ```
 
 Decisions:
@@ -495,6 +505,115 @@ Decisions:
 - **App state, restored on any link that carries it**, as the `orbits:`
   token is; the families show once their pair is the target's.
 - **Unknown codes are dropped.**  No token: none on.
+
+### Population Token
+
+Each body's population (Earth's satellites, any other's: js/scene/population/Population.md)
+as its section of the info panel left it, where it isn't as it starts:
+the groups shown, how many names show, and how many of a counted group show.
+
+```
+<body>=<group>+<group>   the groups shown, by the data's keys (none: `none`); left out when all are
+<body>.labels=N          how many names show, the best known first; left out at its default
+<body>.<group>=N         how many of a counted group show, the first in its order; left out at its default
+```
+
+```
+#…;pop:earth=starlink                         Starlink alone, the default names (the three best known)
+#…;pop:earth=starlink+iridium,earth.labels=40 Starlink and Iridium, 40 named
+#…;pop:earth.labels=0                         every group, no names but the target's
+#…;pop:earth=none                             no satellites drawn
+#…;pop:earth=starlink,earth.starlink=2000     Starlink alone, its first 2,000 by serial number
+```
+
+Decisions:
+
+- **Keyed by the body**, whose population it is; the group keys are the
+  data's (CelesTrak's group names for Earth), so a new population needs
+  nothing here.
+- **The groups shown, not those hidden**, so the link says what you see
+  ("Starlink alone").  A group the data no longer has is dropped; one
+  added since shows only if the link lists it.
+- **App state, restored on any link that carries it**, as `periodic:` is.
+  A link for a population not in yet is kept, written back as it was, and
+  applied when it's added.
+- **The budget is clamped** to the names the shown groups hold, within their
+  counts; the counts are applied first.
+- **A count is keyed by the group** under the body (`earth.starlink`), as
+  the budget is by `labels`, which a group can't be called.  A body's name
+  has no dot, so the key splits at the first.
+
+### Craft Token
+
+The craft flown ([js/scene/Craft.md](../js/scene/Craft.md#drawn)), from the
+info panel's *space around* list: each by its code, with its departure as
+days from J2000 (TT, as `t=` writes the time in UTC), to a thousandth.
+
+```
+<code>=<days>   a flight, leaving then
+```
+
+The codes:
+
+```
+tli      a transfer to the Moon from a 185 km parking orbit
+blt      a ballistic lunar transfer: the first designed leaving on or after the day
+```
+
+```
+#…;craft:tli=9791.5        leaving 2026-10-23 0h TT
+#…;craft:blt=9791.5        the first ballistic lunar transfer leaving on or after then
+```
+
+Decisions:
+
+- **The departure is in the link**, not "today": the flight is made from
+  it, so a link draws the same path whenever it's opened.
+- **App state, restored on any link that carries it**, as `periodic:` is;
+  drawn once its central body is in.
+- **Unknown codes, and days that aren't numbers or are past the supported
+  dates, are dropped.**
+
+### Layers Token
+
+The optional layers switched on, from the layers control (top right, under
+the navigation controls), as flags.  An optional layer is drawn over a
+body's own, where it can show, and is costly enough to be off by default.
+
+```
+nyc      Slop New York: Manhattan's 3D city on Earth's Cesium layer
+         (CESIUM.md, "New York")
+```
+
+```
+#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;layers:nyc
+                                    the aerial of Lower Manhattan, the city on
+```
+
+Decisions:
+
+- **A token, not an `s=` letter.**  `s=` is the scene's toggles, each of
+  them free to flip and drawn at once; this is a layer that loads ~140 MB
+  and takes seconds to build, offered only in one place.  It belongs with
+  the layers control's other state, the renderer chosen per body
+  (`bodyLayers`, left out below), which would join it as named values
+  (`layers:nyc,earth=default`) without a new label.
+- **It says "on", not "here".**  The city is drawn only where it can show:
+  Earth's Cesium layer in use and the camera in its range (within 60 km of
+  Midtown, under 30 km up).  A link with `nyc` anywhere else keeps the
+  switch on, and the city loads once the camera gets there; the toggle shows
+  only there.
+- **Read on every link with a view** (the first load, a followed link, What's
+  new's), as the clock is; it only turns the layer on.  A link without it
+  leaves a city the user switched on as it is: building it again costs
+  seconds, and an unrelated link isn't a request to drop it.
+- **`?nyc=1` in the query** turns it on at load too, as before the token
+  (the query is kept when the address bar is rewritten, so such a page
+  reloads with it on).  `?nycGuest=`, `?nycShadows=1` and `?nycLean=0` stay
+  query switches, for development: they say how the city is built, not what
+  the view shows.
+- **Unknown flags and named values are ignored**, so a link from a newer
+  build still opens.
 
 ### Apps Token
 
@@ -662,15 +781,17 @@ yet run aren't in the link.
 - **Writing.**  The address bar is rewritten (`history.replaceState`, no
   reload; `pushState` once, just after the homepage, [above](#the-bare-url))
   1 s after the camera settles, the target, a scene setting, the
-  exposure, the stars' setting or the clock changes, or the drawer or an
-  app's state changes (`Celestiary._schedulePermalinkUpdate`).
+  exposure, the stars' setting or the clock changes, the drawer or an
+  app's state changes, or an optional layer is switched (`Celestiary._schedulePermalinkUpdate`).
   The drawer state and the apps' states are in the widgets slice
   (store/WidgetsSlice.js); `store/appTokens.js` turns them into tokens and
   back.
 - **Reading.**  On the first load only, as with the scene settings: the
   `apps` token restores the drawer at once, and each running app starts
   from its token, waiting for what it needs.  Moving to another target
-  later (a new hash) leaves the drawer as it is.  The one other reader is the
+  later (a new hash) leaves the drawer as it is.  The `layers` token is read
+  on every link with a view, as the clock is, and only turns a layer on
+  ([above](#layers-token)).  The one other reader is the
   `news` token, which a link to the tour sets going on the first load or a
   `hashchange`, and which is never written ([above](#news-token)).
 - **The scene settings come first.**  `s=` is read in Celestiary's
@@ -709,10 +830,12 @@ brings back all of the first group.
 - the date (`t=`), the clock's pause and rate (`time:`);
 - the exposure compensation (`ev=`) and the stars' setting (`sm=`);
 - the scene toggles (`s=`): asterisms, star and planet labels, orbits, the
-  three grids, the Milky Way, human expansion lines, the HUD (`v`), landed
+  three grids, the Milky Way, human expansion lines, the space networks
+  (`S`, `I`, `D`), the HUD (`v`), landed
   (`L`), tracking (`T`), following (`F`), AR (`A`);
 - the widgets drawer, the dock, the apps pinned and running, and each app's
   controls and run (`apps`, `apps.<id>`);
+- the optional layers switched on: New York's city (`layers:nyc`);
 - the page's query string (`?hdr=0`, `?perf=1`), kept when the address bar
   is rewritten.
 
@@ -721,8 +844,9 @@ brings back all of the first group.
 **Left out, deliberately**
 - *Cesium or celestiary's own rendering for Earth, the Moon and Mars*
   (the layers control, `bodyLayers`).  It changes what is seen, and is a
-  small token (`layers:earth=default`), but it needs Cesium ion to verify
-  and belongs with the layers work (CESIUM.md); left to a follow-up.
+  small addition to the `layers:` token (`layers:earth=default`), but it
+  needs Cesium ion to verify and belongs with the layers work (CESIUM.md);
+  left to a follow-up.  The token's New York flag is in.
 - *Drag mode* (`m`: auto, pan, orbit): how the pointer moves the camera, not
   what is seen, and `goTo` resets it.
 - *Presentation mode* (`V`): the toggles it sets are in `s=`; the snapshot

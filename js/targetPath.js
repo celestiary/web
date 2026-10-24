@@ -9,6 +9,7 @@
  *   asterism:orion      an asterism, by its name as a slug
  *   galaxy:ngc2403      a SPARC galaxy, by its SPARC name as a slug (Galaxies.md)
  *   sat:25544           an Earth satellite, by its NORAD number (Satellites.md)
+ *   sat:mars:12345      an object of another body's population, by its body and id
  *
  * A place's last segment is told from a body's by the body above it: a
  * name in that body's `system` is a body (bodies win), anything else under
@@ -22,6 +23,8 @@ import {SAT_PREFIX} from './scene/satellites/names.js'
 
 
 const STAR_PREFIX = 'hip:'
+// The body a `sat:` path's object is round when it names none.
+const EARTH = 'earth'
 const ASTERISM_PREFIX = 'asterism:'
 const GALAXY_PREFIX = 'galaxy:'
 
@@ -70,7 +73,7 @@ export function targetPath(target, bodyPath) {
       return id ? `${GALAXY_PREFIX}${id}` : null
     }
     case 'satellite':
-      return Number.isInteger(target.id) ? `${SAT_PREFIX}${target.id}` : null
+      return satellitePath(target)
     default:
       return null
   }
@@ -106,12 +109,27 @@ export function targetFramePath(target, bodyPath) {
 
 
 /**
+ * @param {{id: number, body?: string}} target an object of a population
+ *   (Scene.setTarget's `{kind: 'satellite'}`)
+ * @returns {?string} its path: `sat:<id>` round Earth, the body named for
+ *   any other (`sat:mars:<id>`)
+ */
+export function satellitePath(target) {
+  if (!Number.isInteger(target?.id)) {
+    return null
+  }
+  const body = target.body ?? EARTH
+  return body === EARTH ? `${SAT_PREFIX}${target.id}` : `${SAT_PREFIX}${body}:${target.id}`
+}
+
+
+/**
  * Parse a path from the hash, as far as it can be without the bodies'
  * descriptors.
  *
  * @param {string} path
  * @returns {?({kind: 'star', hipId: number}|{kind: 'asterism', slug: string}|{kind: 'galaxy', id: string}|
- *   {kind: 'satellite', id: number}|
+ *   {kind: 'satellite', id: number, body: string}|
  *   {kind: 'bodies', parts: Array<string>})} null if empty or malformed.
  *   `bodies` is a body path, or a body path then a place (resolvePlace)
  */
@@ -129,9 +147,9 @@ export function parseTargetPath(path) {
     return /^\d+$/.test(s) && Number.isSafeInteger(hipId) ? {kind: 'star', hipId} : null
   }
   if (path.startsWith(SAT_PREFIX)) {
-    const s = path.slice(SAT_PREFIX.length)
-    const id = Number(s)
-    return /^\d+$/.test(s) && Number.isSafeInteger(id) ? {kind: 'satellite', id} : null
+    const m = /^(?:([a-z][a-z0-9_-]*):)?(\d+)$/.exec(path.slice(SAT_PREFIX.length))
+    const id = Number(m?.[2])
+    return m && Number.isSafeInteger(id) ? {kind: 'satellite', id, body: m[1] ?? EARTH} : null
   }
   if (path.startsWith(ASTERISM_PREFIX)) {
     const s = slug(path.slice(ASTERISM_PREFIX.length))

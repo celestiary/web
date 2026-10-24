@@ -10,8 +10,9 @@
  *
  * A small ring of buffers, so a reading can be a few frames late without a
  * metering waiting for the one before it.  The GPU finishes its work in
- * order, so when a reading is ready every older one is too, and only the
- * newest is copied out; the older are dropped unread.  With every slot in
+ * order, so when a reading is ready every older one is too: each is copied
+ * out (a buffer written again unread costs Chrome its shadow copy, and a
+ * console warning), and the newest is the reading.  With every slot in
  * flight (a GPU several meterings behind) a metering is skipped, never
  * waited for.
  *
@@ -109,15 +110,15 @@ export class AsyncReadback {
     // Every buffer, and the ones free; in flight, oldest first.
     this._slots = []
     this._free = []
+    // Each buffer's storage is allocated at its first read (issue), not
+    // here: allocated here, every buffer but the first was written (by
+    // bufferData), fenced (by the first read's fence) and written again (its
+    // own first read), and Chrome warned for each.
     for (let i = 0; i < slots; i++) {
-      const buffer = gl.createBuffer()
-      gl.bindBuffer(this._enum('PIXEL_PACK_BUFFER'), buffer)
-      gl.bufferData(this._enum('PIXEL_PACK_BUFFER'), this.pixels.byteLength, this._enum('STREAM_READ'))
-      const slot = {buffer, sync: null, meta: null, frame: 0}
+      const slot = {buffer: gl.createBuffer(), allocated: false, sync: null, meta: null, frame: 0}
       this._slots.push(slot)
       this._free.push(slot)
     }
-    gl.bindBuffer(this._enum('PIXEL_PACK_BUFFER'), null)
     this._inFlight = []
     // Meterings skipped with every buffer in flight, for the probes.
     this.skipped = 0
@@ -153,6 +154,10 @@ export class AsyncReadback {
     const gl = this.gl
     const pack = this._enum('PIXEL_PACK_BUFFER')
     gl.bindBuffer(pack, slot.buffer)
+    if (!slot.allocated) {
+      gl.bufferData(pack, this.pixels.byteLength, this._enum('STREAM_READ'))
+      slot.allocated = true
+    }
     gl.readPixels(0, 0, this.width, this.height, this._enum('RGBA'), this._enum('FLOAT'), 0)
     gl.bindBuffer(pack, null)
     slot.sync = gl.fenceSync(this._enum('SYNC_GPU_COMMANDS_COMPLETE'), 0)
@@ -167,16 +172,25 @@ export class AsyncReadback {
    * @param {number} frame The frame it's polled in
    * @returns {{pixels: Float32Array, meta: *, latency: number}|null} The
    *   newest read whose fence has signalled, or null; older finished reads
-   *   are dropped, and their buffers freed.
+   *   are copied out too (and overwritten by the newest), then freed.
    */
   poll(frame) {
     const gl = this.gl
+    const pack = this._enum('PIXEL_PACK_BUFFER')
     let newest = null
     // In order: the GPU finishes them in order, so stop at the first that hasn't.
+    // Every finished read is copied out, the older ones too (into the same
+    // array, the newest last): a STREAM_READ buffer written, fenced and then
+    // written again unread makes Chrome drop the shadow copy it serves
+    // getBufferSubData from ("READ-usage buffer was written, then fenced, but
+    // written again before being read back"), a console warning each time and
+    // a slower read after.  A copy of the 32x32 floats (16 KB) waits for nothing.
     while (this._inFlight.length > 0 && this._signalled(this._inFlight[0])) {
       const slot = this._inFlight.shift()
       gl.deleteSync(slot.sync)
       slot.sync = null
+      gl.bindBuffer(pack, slot.buffer)
+      gl.getBufferSubData(pack, 0, this.pixels)
       if (newest) {
         this._release(newest)
       }
@@ -185,9 +199,6 @@ export class AsyncReadback {
     if (!newest) {
       return null
     }
-    const pack = this._enum('PIXEL_PACK_BUFFER')
-    gl.bindBuffer(pack, newest.buffer)
-    gl.getBufferSubData(pack, 0, this.pixels)
     gl.bindBuffer(pack, null)
     const out = {pixels: this.pixels, meta: newest.meta, latency: frame - newest.frame}
     this._release(newest)

@@ -27,6 +27,17 @@ export function bodyLayer(bodyLayers, name) {
  *     DEFAULT_BODY_LAYER; read it with bodyLayer().
  *   - `layerStatus` — per body, the Cesium layer's load state: `'loading'`,
  *     `'ready'` or `'error'`.  Set by CesiumLayers.
+ *   - `newYorkOn` — the New York layer's switch (Slop New York, Manhattan's
+ *     3D city on Earth's Cesium layer; CESIUM.md, "New York"): the user's
+ *     toggle, the permalink's `layers:nyc` or `?nyc=1`.  Off by default.
+ *     CesiumLayers follows it.
+ *   - `newYorkNear` — whether the city can be drawn from here: Earth's
+ *     Cesium layer in use (active or warming) and the camera in the city's range (newYork.js
+ *     newYorkRange 'show').  Published by CesiumLayers; the layers control
+ *     offers the toggle only while it is set.
+ *   - `newYorkStatus` — the city's load state: null (not loaded),
+ *     `'loading'` (the guest building, then its set-up staged into the
+ *     frames), `'ready'` or `'error'`.  Published by CesiumLayers.
  *
  * @param {Function} set
  * @param {Function} get
@@ -40,5 +51,10 @@ export default function createLayersSlice(set, get) {
     setLayerBody: (name) => set(() => ({layerBody: name})),
     setBodyLayer: (body, layer) => set((state) => ({bodyLayers: {...state.bodyLayers, [body]: layer}})),
     setLayerStatus: (body, status) => set((state) => ({layerStatus: {...state.layerStatus, [body]: status}})),
+    newYorkOn: false,
+    newYorkNear: false,
+    newYorkStatus: null,
+    setNewYorkOn: (on) => set(() => ({newYorkOn: on === true})),
+    setNewYorkState: ({near, status}) => set(() => ({newYorkNear: near === true, newYorkStatus: status ?? null})),
   }
 }

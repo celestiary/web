@@ -1,3 +1,413 @@
+diff --git a/node_modules/@cesium/engine/Source/Renderer/Context.js b/node_modules/@cesium/engine/Source/Renderer/Context.js
+index cd516a7..b881881 100644
+--- a/node_modules/@cesium/engine/Source/Renderer/Context.js
++++ b/node_modules/@cesium/engine/Source/Renderer/Context.js
+@@ -1450,6 +1450,128 @@ Context.prototype.endFrame = function () {
+   }
+ };
+ 
++/**
++ * Resets the WebGL state that this context caches, and the WebGL context's own
++ * state, to the defaults the context assumes.
++ * <p>
++ * The context skips WebGL calls that would set state it believes is already
++ * set: the render state of the last command, the bound framebuffer, the clear
++ * values. Call this after code outside Cesium has issued calls on the WebGL
++ * context (an {@link ExternalRenderer}, say), so the next command sets all of
++ * the state it needs. It resets the context's bindings (program, vertex
++ * array, buffers, framebuffer, renderbuffer, samplers, transform feedback),
++ * the capabilities and parameters of {@link RenderState}, the viewport, the
++ * clear values, the pixel storage parameters and the capabilities outside
++ * <code>RenderState</code> (<code>DITHER</code>,
++ * <code>SAMPLE_ALPHA_TO_COVERAGE</code>, <code>RASTERIZER_DISCARD</code>).
++ * </p>
++ * <p>
++ * It does not reset the state of WebGL objects, such as the attributes of a
++ * vertex array, the draw buffers of a framebuffer, the parameters of a texture
++ * or the uniforms of a program: code outside Cesium should change only the
++ * objects it created.
++ * </p>
++ *
++ * @private
++ */
++Context.prototype.resetState = function () {
++  const gl = this._gl;
++  const webgl2 = this._webgl2;
++  let i;
++
++  // Bindings. The default vertex array is bound first, so the element array
++  // buffer unbound is the default vertex array's.
++  gl.useProgram(null);
++  if (this.vertexArrayObject) {
++    this.glBindVertexArray(null);
++  }
++  gl.bindBuffer(gl.ARRAY_BUFFER, null);
++  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
++  if (!this.vertexArrayObject) {
++    // Without vertex array objects, Cesium's vertex arrays enable and set
++    // their attributes on the default vertex array for each draw, assuming
++    // the others are disabled and not instanced.
++    const maximumVertexAttributes = ContextLimits.maximumVertexAttributes;
++    for (i = 0; i < maximumVertexAttributes; ++i) {
++      gl.disableVertexAttribArray(i);
++      if (this.instancedArrays) {
++        this.glVertexAttribDivisor(i, 0);
++      }
++      this._vertexAttribDivisors[i] = 0;
++    }
++    this._previousDrawInstanced = false;
++  }
++  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
++  if (webgl2) {
++    gl.bindBuffer(gl.COPY_READ_BUFFER, null);
++    gl.bindBuffer(gl.COPY_WRITE_BUFFER, null);
++    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
++    gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
++    gl.bindBuffer(gl.UNIFORM_BUFFER, null);
++    gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
++    gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER, null);
++    // Sampler objects override the parameters of the textures Cesium binds.
++    const maximumTextureUnits = ContextLimits.maximumCombinedTextureImageUnits;
++    for (i = 0; i < maximumTextureUnits; ++i) {
++      gl.bindSampler(i, null);
++    }
++  }
++  gl.activeTexture(gl.TEXTURE0);
++
++  // The default framebuffer, with its default draw and read buffers.
++  this._currentFramebuffer = undefined;
++  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
++  if (this.drawBuffers) {
++    this.glDrawBuffers(scratchBackBufferArray);
++  }
++  if (webgl2) {
++    gl.readBuffer(gl.BACK);
++  }
++
++  // Capabilities outside RenderState, at their WebGL defaults.
++  gl.enable(gl.DITHER);
++  gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE);
++  if (webgl2) {
++    gl.disable(gl.RASTERIZER_DISCARD);
++  }
++
++  // Pixel storage, at its WebGL defaults.
++  gl.pixelStorei(gl.PACK_ALIGNMENT, 4);
++  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
++  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
++  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
++  gl.pixelStorei(
++    gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,
++    gl.BROWSER_DEFAULT_WEBGL,
++  );
++  if (webgl2) {
++    gl.pixelStorei(gl.PACK_ROW_LENGTH, 0);
++    gl.pixelStorei(gl.PACK_SKIP_PIXELS, 0);
++    gl.pixelStorei(gl.PACK_SKIP_ROWS, 0);
++    gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
++    gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT, 0);
++    gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
++    gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
++    gl.pixelStorei(gl.UNPACK_SKIP_IMAGES, 0);
++  }
++
++  // Clear values.
++  Color.clone(Color.TRANSPARENT, this._clearColor);
++  gl.clearColor(0.0, 0.0, 0.0, 0.0);
++  this._clearDepth = 1.0;
++  gl.clearDepth(1.0);
++  this._clearStencil = 0;
++  gl.clearStencil(0);
++
++  // The render and pass state, applied in full, so the next command applies
++  // whatever differs from them.
++  const renderState = this._defaultRenderState;
++  const passState = this._defaultPassState;
++  RenderState.apply(gl, renderState, passState);
++  this._currentRenderState = renderState;
++  this._currentPassState = passState;
++};
++
+ /**
+  * @typedef {object} ReadState
+  *
+diff --git a/node_modules/@cesium/engine/Source/Scene/ExternalRenderer.js b/node_modules/@cesium/engine/Source/Scene/ExternalRenderer.js
+new file mode 100644
+index 0000000..2408b01
+--- /dev/null
++++ b/node_modules/@cesium/engine/Source/Scene/ExternalRenderer.js
+@@ -0,0 +1,145 @@
++import Check from "../Core/Check.js";
++import Frozen from "../Core/Frozen.js";
++
++/**
++ * @typedef {object} ExternalRenderer.ConstructorOptions
++ *
++ * Initialization options for the ExternalRenderer constructor
++ *
++ * @property {ExternalRenderer.RenderCallback} render The function that draws into the scene's frame.
++ * @property {BoundingSphere|OrientedBoundingBox} [boundingVolume] The world-space volume, in the scene's world coordinates, that contains everything the renderer draws. It is used to cull the renderer when it is out of view, to fit the near and far planes of the scene's frustums around it, and to call the renderer only in the frustums it overlaps. Without one the renderer is never culled, and is treated as spanning the camera's whole near-to-far range, as a {@link DrawCommand} without a bounding volume is. It is in the globe's fixed frame, so in 2D and Columbus view the renderer is treated as unbounded.
++ * @property {boolean} [show=true] Determines if the renderer is called.
++ */
++
++/**
++ * The function an {@link ExternalRenderer} calls to draw into the scene's frame.
++ *
++ * @callback ExternalRenderer.RenderCallback
++ * @param {ExternalRenderer.RenderParameters} parameters The context, target, camera and depth encoding for this frustum. The object, and the objects it holds, are only valid during the call, and are reused afterwards.
++ */
++
++/**
++ * The parameters passed to an {@link ExternalRenderer.RenderCallback}: what an
++ * external renderer needs to draw into the frame Cesium is rendering, from the
++ * same camera, and composite with it by depth.
++ *
++ * @typedef {object} ExternalRenderer.RenderParameters
++ *
++ * @property {WebGLRenderingContext|WebGL2RenderingContext} gl The WebGL context the scene draws with.
++ * @property {boolean} webgl2 <code>true</code> if <code>gl</code> is a WebGL 2 context.
++ * @property {WebGLFramebuffer|null} framebuffer The framebuffer the scene's opaque geometry was drawn into for this pass, or <code>null</code> for the default framebuffer. It is bound to <code>gl.FRAMEBUFFER</code> when the callback is called, and its depth attachment holds the depth of the opaque geometry drawn so far in this frustum.
++ * @property {BoundingRectangle} viewport The viewport of the pass, in pixels. It is set with <code>gl.viewport</code> when the callback is called.
++ * @property {Matrix4} viewMatrix The view matrix, from the scene's world coordinates to eye coordinates, in double precision. A renderer whose geometry lives in a local frame should multiply it by its own model matrix in double precision, and give the product to the GPU, rather than upload world coordinates in single precision.
++ * @property {Matrix4} projectionMatrix The projection matrix of this frustum, from eye coordinates to clip coordinates.
++ * @property {number} near The distance to this frustum's near plane, in meters.
++ * @property {number} far The distance to this frustum's far plane, in meters.
++ * @property {number} frustumIndex The index of this frustum, <code>0</code> being the nearest. Frustums are drawn from the farthest to the nearest, and the depth buffer is cleared before each.
++ * @property {number} frustumCount The number of frustums the scene is drawn in this frame.
++ * @property {boolean} logarithmicDepth <code>true</code> if the scene writes a logarithmic depth buffer this frame. To composite by depth, the renderer then has to write the same depth Cesium's shaders do: for a fragment at distance <code>w</code> in front of the camera along its view direction (the clip coordinate <code>w</code> of a perspective projection, <code>-z</code> in eye coordinates), <code>gl_FragDepth = log2(w - near + 1.0) * oneOverLog2FarDepthFromNearPlusOne</code>, discarding the fragment when <code>w - near + 1.0</code> is outside <code>(1.0, farDepthFromNearPlusOne]</code>. Otherwise depth is the window-space depth of <code>projectionMatrix</code> with the default depth range.
++ * @property {number} farDepthFromNearPlusOne <code>far - near + 1.0</code>, as <code>czm_farDepthFromNearPlusOne</code>.
++ * @property {number} log2FarDepthFromNearPlusOne <code>log2(farDepthFromNearPlusOne)</code>, as <code>czm_log2FarDepthFromNearPlusOne</code>.
++ * @property {number} oneOverLog2FarDepthFromNearPlusOne <code>1.0 / log2FarDepthFromNearPlusOne</code>, as <code>czm_oneOverLog2FarDepthFromNearPlusOne</code>.
++ * @property {Cartesian3} cameraPositionWC The camera's position in world coordinates, in double precision.
++ * @property {Cartesian3} sunDirectionWC The direction of the sun in world coordinates, as <code>czm_sunDirectionWC</code>.
++ * @property {Cartesian3} lightDirectionWC The direction of the scene's light in world coordinates, toward the light, as <code>czm_lightDirectionWC</code>.
++ * @property {Cartesian3} lightColor The color of the scene's light, clamped to [0, 1], as <code>czm_lightColor</code>.
++ * @property {Cartesian3} lightColorHdr The color of the scene's light times its intensity, as <code>czm_lightColorHdr</code>.
++ * @property {boolean} highDynamicRange <code>true</code> if the scene renders in high dynamic range this frame; the target then holds linear colour, tone mapped later.
++ * @property {number} pixelRatio The ratio of drawing-buffer pixels to CSS pixels.
++ * @property {SceneMode} mode The scene's mode. In 2D and Columbus view the view matrix is that of the projected scene, not of the globe's fixed frame.
++ * @property {number} frameNumber The current frame number.
++ * @property {JulianDate} time The scene's time.
++ */
++
++/**
++ * A renderer outside Cesium that draws into the scene's frame with the scene's
++ * WebGL context, depth-composited with what Cesium draws: a three.js scene
++ * standing on the globe, say, or a renderer that replays another engine's
++ * WebGL calls.
++ * <p>
++ * Add it to {@link Scene#externalRenderers}. In each render pass, the scene
++ * calls its <code>render</code> function once for each of the frame's frustums
++ * that its bounding volume overlaps, after the frustum's opaque geometry (the
++ * globe, 3D Tiles, classification, voxels, opaque primitives, Gaussian splats)
++ * and before its translucent geometry, with that frustum's projection and
++ * near and far planes. With a logarithmic depth buffer the frame is usually a
++ * single frustum.
++ * </p>
++ * <p>
++ * The callback draws with the WebGL context it is given, into the framebuffer
++ * that is bound, testing and writing depth. It should not clear the
++ * framebuffer, and should leave its stencil unchanged: Cesium keeps per-pixel
++ * state there for classification. It may change any other WebGL state: Cesium
++ * resets its own state cache after the call, so it does not rely on what it
++ * last set.
++ * </p>
++ * <p>
++ * The callback is not called in pick passes, so the renderer's geometry is not
++ * picked, and it casts no shadows.
++ * </p>
++ *
++ * @alias ExternalRenderer
++ * @constructor
++ *
++ * @param {ExternalRenderer.ConstructorOptions} options Object describing initialization options
++ *
++ * @see Scene#externalRenderers
++ *
++ * @example
++ * // Draw a scene of another engine in a local east-north-up frame.
++ * const modelMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
++ *   Cesium.Cartesian3.fromDegrees(-73.98, 40.75),
++ * );
++ * const modelView = new Cesium.Matrix4();
++ * viewer.scene.externalRenderers.add(
++ *   new Cesium.ExternalRenderer({
++ *     boundingVolume: new Cesium.BoundingSphere(
++ *       Cesium.Matrix4.getTranslation(modelMatrix, new Cesium.Cartesian3()),
++ *       10000.0,
++ *     ),
++ *     render: function (parameters) {
++ *       // Compose in double precision; upload the small product.
++ *       Cesium.Matrix4.multiply(parameters.viewMatrix, modelMatrix, modelView);
++ *       myEngine.draw(parameters.gl, {
++ *         framebuffer: parameters.framebuffer,
++ *         viewport: parameters.viewport,
++ *         modelView: Cesium.Matrix4.toArray(modelView),
++ *         projection: Cesium.Matrix4.toArray(parameters.projectionMatrix),
++ *       });
++ *     },
++ *   }),
++ * );
++ */
++function ExternalRenderer(options) {
++  options = options ?? Frozen.EMPTY_OBJECT;
++
++  //>>includeStart('debug', pragmas.debug);
++  Check.typeOf.func("options.render", options.render);
++  //>>includeEnd('debug');
++
++  /**
++   * The function that draws into the scene's frame.
++   *
++   * @type {ExternalRenderer.RenderCallback}
++   */
++  this.render = options.render;
++
++  /**
++   * The world-space volume that contains everything the renderer draws, or
++   * <code>undefined</code> if it is unbounded.
++   *
++   * @type {BoundingSphere|OrientedBoundingBox|undefined}
++   * @default undefined
++   */
++  this.boundingVolume = options.boundingVolume;
++
++  /**
++   * Determines if the renderer is called.
++   *
++   * @type {boolean}
++   * @default true
++   */
++  this.show = options.show ?? true;
++}
++
++export default ExternalRenderer;
+diff --git a/node_modules/@cesium/engine/Source/Scene/ExternalRendererCollection.js b/node_modules/@cesium/engine/Source/Scene/ExternalRendererCollection.js
+new file mode 100644
+index 0000000..f21e42d
+--- /dev/null
++++ b/node_modules/@cesium/engine/Source/Scene/ExternalRendererCollection.js
+@@ -0,0 +1,120 @@
++import Check from "../Core/Check.js";
++import defined from "../Core/defined.js";
++import DeveloperError from "../Core/DeveloperError.js";
++
++/**
++ * An ordered collection of {@link ExternalRenderer}s, called in order in each
++ * frustum they overlap. The collection does not own the renderers: removing a
++ * renderer, or destroying the scene, leaves whatever the renderer holds to its
++ * owner.
++ *
++ * @alias ExternalRendererCollection
++ * @constructor
++ *
++ * @see Scene#externalRenderers
++ * @see ExternalRenderer
++ */
++function ExternalRendererCollection() {
++  this._renderers = [];
++}
++
++Object.defineProperties(ExternalRendererCollection.prototype, {
++  /**
++   * Gets the number of renderers in the collection.
++   *
++   * @memberof ExternalRendererCollection.prototype
++   * @type {number}
++   * @readonly
++   */
++  length: {
++    get: function () {
++      return this._renderers.length;
++    },
++  },
++});
++
++/**
++ * Adds a renderer to the collection.
++ *
++ * @param {ExternalRenderer} renderer The renderer to add. Any object with a <code>render</code> function, and optionally <code>show</code> and <code>boundingVolume</code>, may be added.
++ * @param {number} [index] The index to add the renderer at. If omitted, the renderer is added after all the others, and is called last.
++ * @returns {ExternalRenderer} The renderer added.
++ *
++ * @exception {DeveloperError} The renderer is already in the collection.
++ * @exception {DeveloperError} index, if supplied, must be greater than or equal to zero and less than or equal to the number of renderers.
++ *
++ * @example
++ * const renderer = scene.externalRenderers.add(new Cesium.ExternalRenderer({
++ *   render: function (parameters) {
++ *     // draw with parameters.gl
++ *   },
++ * }));
++ */
++ExternalRendererCollection.prototype.add = function (renderer, index) {
++  //>>includeStart('debug', pragmas.debug);
++  Check.typeOf.object("renderer", renderer);
++  Check.typeOf.func("renderer.render", renderer.render);
++  if (this.contains(renderer)) {
++    throw new DeveloperError("renderer is already in this collection.");
++  }
++  //>>includeEnd('debug');
++
++  const renderers = this._renderers;
++  if (!defined(index)) {
++    renderers.push(renderer);
++  } else {
++    //>>includeStart('debug', pragmas.debug);
++    Check.typeOf.number.greaterThanOrEquals("index", index, 0);
++    Check.typeOf.number.lessThanOrEquals("index", index, renderers.length);
++    //>>includeEnd('debug');
++    renderers.splice(index, 0, renderer);
++  }
++  return renderer;
++};
++
++/**
++ * Removes a renderer from the collection.
++ *
++ * @param {ExternalRenderer} renderer The renderer to remove.
++ * @returns {boolean} <code>true</code> if the renderer was removed; <code>false</code> if it was not in the collection.
++ */
++ExternalRendererCollection.prototype.remove = function (renderer) {
++  const index = this._renderers.indexOf(renderer);
++  if (index === -1) {
++    return false;
++  }
++  this._renderers.splice(index, 1);
++  return true;
++};
++
++/**
++ * Removes every renderer from the collection.
++ */
++ExternalRendererCollection.prototype.removeAll = function () {
++  this._renderers.length = 0;
++};
++
++/**
++ * Determines if the collection contains a renderer.
++ *
++ * @param {ExternalRenderer} [renderer] The renderer to check for.
++ * @returns {boolean} <code>true</code> if the collection contains the renderer; <code>false</code> otherwise.
++ */
++ExternalRendererCollection.prototype.contains = function (renderer) {
++  return defined(renderer) && this._renderers.indexOf(renderer) !== -1;
++};
++
++/**
++ * Gets the renderer at an index in the collection.
++ *
++ * @param {number} index The zero-based index of the renderer.
++ * @returns {ExternalRenderer} The renderer at the index.
++ */
++ExternalRendererCollection.prototype.get = function (index) {
++  //>>includeStart('debug', pragmas.debug);
++  Check.typeOf.number("index", index);
++  //>>includeEnd('debug');
++  return this._renderers[index];
++};
++
++export default ExternalRendererCollection;
 diff --git a/node_modules/@cesium/engine/Source/Scene/Globe.js b/node_modules/@cesium/engine/Source/Scene/Globe.js
 index 31b71e4..d4eb766 100644
 --- a/node_modules/@cesium/engine/Source/Scene/Globe.js
@@ -98,6 +508,357 @@ index 6ffcbfc..ce0c50b 100644
  
      const highlightFillTile =
        !defined(surfaceTile.vertexArray) &&
+diff --git a/node_modules/@cesium/engine/Source/Scene/Scene.js b/node_modules/@cesium/engine/Source/Scene/Scene.js
+index 5e55985..99cff74 100644
+--- a/node_modules/@cesium/engine/Source/Scene/Scene.js
++++ b/node_modules/@cesium/engine/Source/Scene/Scene.js
+@@ -35,6 +35,7 @@ import RequestScheduler from "../Core/RequestScheduler.js";
+ import TaskProcessor from "../Core/TaskProcessor.js";
+ import Transforms from "../Core/Transforms.js";
+ import VectorProvider from "../Core/VectorProvider.js";
++import WebGLConstants from "../Core/WebGLConstants.js";
+ import ClearCommand from "../Renderer/ClearCommand.js";
+ import ComputeEngine from "../Renderer/ComputeEngine.js";
+ import Context from "../Renderer/Context.js";
+@@ -53,6 +54,7 @@ import DepthPlane from "./DepthPlane.js";
+ import DerivedCommand from "./DerivedCommand.js";
+ import DeviceOrientationCameraController from "./DeviceOrientationCameraController.js";
+ import DynamicAtmosphereLightingType from "./DynamicAtmosphereLightingType.js";
++import ExternalRendererCollection from "./ExternalRendererCollection.js";
+ import Fog from "./Fog.js";
+ import FrameState from "./FrameState.js";
+ import GlobeTranslucencyState from "./GlobeTranslucencyState.js";
+@@ -186,6 +188,8 @@ function Scene(options) {
+   this._globeTranslucencyState = new GlobeTranslucencyState();
+   this._primitives = new PrimitiveCollection({ countReferences });
+   this._groundPrimitives = new PrimitiveCollection({ countReferences });
++  this._externalRenderers = new ExternalRendererCollection();
++  this._externalRenderParameters = createExternalRenderParameters();
+ 
+   this._globeHeight = undefined;
+   this._globeHeightDirty = true;
+@@ -1028,6 +1032,24 @@ Object.defineProperties(Scene.prototype, {
+     },
+   },
+ 
++  /**
++   * Gets the collection of external renderers: renderers outside Cesium that
++   * draw into the scene's frame with its WebGL context, after the opaque
++   * geometry of each frustum and before its translucent geometry, so that
++   * what they draw is composited with the scene by depth.
++   * @memberof Scene.prototype
++   *
++   * @type {ExternalRendererCollection}
++   * @readonly
++   *
++   * @see ExternalRenderer
++   */
++  externalRenderers: {
++    get: function () {
++      return this._externalRenderers;
++    },
++  },
++
+   /**
+    * Gets or sets the camera.
+    * @memberof Scene.prototype
+@@ -3085,6 +3107,14 @@ function executeCommands(scene, passState) {
+ 
+     performGaussianSplatPass(scene, passState, frustumCommands);
+ 
++    executeExternalRenderers(
++      scene,
++      passState,
++      frustumCommands,
++      index,
++      numFrustums,
++    );
++
+     if (index !== 0 && scene.mode !== SceneMode.SCENE2D) {
+       // Do not overlap frustums in the translucent pass to avoid blending artifacts
+       frustum.near = frustumCommands.near;
+@@ -3152,6 +3182,173 @@ function executeCommands(scene, passState) {
+   }
+ }
+ 
++const scratchBackBuffers = [WebGLConstants.BACK];
++
++function createExternalRenderParameters() {
++  return {
++    gl: undefined,
++    webgl2: false,
++    framebuffer: null,
++    viewport: new BoundingRectangle(),
++    viewMatrix: new Matrix4(),
++    projectionMatrix: new Matrix4(),
++    near: 0.0,
++    far: 0.0,
++    frustumIndex: 0,
++    frustumCount: 0,
++    logarithmicDepth: false,
++    farDepthFromNearPlusOne: 0.0,
++    log2FarDepthFromNearPlusOne: 0.0,
++    oneOverLog2FarDepthFromNearPlusOne: 0.0,
++    cameraPositionWC: new Cartesian3(),
++    sunDirectionWC: new Cartesian3(),
++    lightDirectionWC: new Cartesian3(),
++    lightColor: new Cartesian3(),
++    lightColorHdr: new Cartesian3(),
++    highDynamicRange: false,
++    pixelRatio: 1.0,
++    mode: SceneMode.SCENE3D,
++    frameNumber: 0,
++    time: new JulianDate(),
++  };
++}
++
++/**
++ * Fills the parameters given to an external renderer from the frustum and
++ * pass being drawn. They are filled again for each renderer, in case one
++ * changes them.
++ *
++ * @private
++ */
++function updateExternalRenderParameters(
++  scene,
++  passState,
++  frustumIndex,
++  frustumCount,
++) {
++  const { context, frameState } = scene;
++  const { uniformState } = context;
++  const parameters = scene._externalRenderParameters;
++
++  parameters.gl = context._gl;
++  parameters.webgl2 = context.webgl2;
++  const framebuffer = passState.framebuffer;
++  parameters.framebuffer = defined(framebuffer)
++    ? framebuffer._framebuffer
++    : null;
++  const viewport = passState.viewport;
++  if (defined(viewport)) {
++    BoundingRectangle.clone(viewport, parameters.viewport);
++  } else {
++    parameters.viewport.x = 0;
++    parameters.viewport.y = 0;
++    parameters.viewport.width = context.drawingBufferWidth;
++    parameters.viewport.height = context.drawingBufferHeight;
++  }
++
++  Matrix4.clone(uniformState.view, parameters.viewMatrix);
++  Matrix4.clone(uniformState.projection, parameters.projectionMatrix);
++  const currentFrustum = uniformState.currentFrustum;
++  parameters.near = currentFrustum.x;
++  parameters.far = currentFrustum.y;
++  parameters.frustumIndex = frustumIndex;
++  parameters.frustumCount = frustumCount;
++  parameters.logarithmicDepth = frameState.useLogDepth;
++  parameters.farDepthFromNearPlusOne = uniformState.farDepthFromNearPlusOne;
++  parameters.log2FarDepthFromNearPlusOne =
++    uniformState.log2FarDepthFromNearPlusOne;
++  parameters.oneOverLog2FarDepthFromNearPlusOne =
++    uniformState.oneOverLog2FarDepthFromNearPlusOne;
++
++  Matrix4.getTranslation(uniformState.inverseView, parameters.cameraPositionWC);
++  Cartesian3.clone(uniformState.sunDirectionWC, parameters.sunDirectionWC);
++  Cartesian3.clone(uniformState.lightDirectionWC, parameters.lightDirectionWC);
++  Cartesian3.clone(uniformState.lightColor, parameters.lightColor);
++  Cartesian3.clone(uniformState.lightColorHdr, parameters.lightColorHdr);
++  parameters.highDynamicRange = scene._hdr === true;
++  parameters.pixelRatio = frameState.pixelRatio;
++  parameters.mode = frameState.mode;
++  parameters.frameNumber = frameState.frameNumber;
++  JulianDate.clone(frameState.time, parameters.time);
++  return parameters;
++}
++
++/**
++ * Calls the external renderers that overlap a frustum, after its opaque
++ * geometry, with the pass's framebuffer bound. Cesium's cached WebGL state is
++ * reset after each, since a renderer may change any of it.
++ *
++ * @param {Scene} scene The scene.
++ * @param {PassState} passState The state for the current render pass.
++ * @param {FrustumCommands} frustumCommands The frustum being drawn.
++ * @param {number} frustumIndex The frustum's index, 0 being the nearest.
++ * @param {number} frustumCount The number of frustums.
++ *
++ * @private
++ */
++function executeExternalRenderers(
++  scene,
++  passState,
++  frustumCommands,
++  frustumIndex,
++  frustumCount,
++) {
++  const extents = scene._view.externalRendererExtents;
++  const length = extents.length;
++  if (length === 0) {
++    return;
++  }
++
++  const { context, frameState } = scene;
++  const passes = frameState.passes;
++  if (
++    !passes.render ||
++    passes.pick ||
++    passes.pickVoxel ||
++    passes.depth ||
++    scene._environmentState.renderTranslucentDepthForPick
++  ) {
++    return;
++  }
++
++  const gl = context._gl;
++  const framebuffer = passState.framebuffer;
++  for (let i = 0; i < length; ++i) {
++    const extent = extents[i];
++    if (
++      extent.near > frustumCommands.far ||
++      extent.far < frustumCommands.near
++    ) {
++      continue;
++    }
++
++    const parameters = updateExternalRenderParameters(
++      scene,
++      passState,
++      frustumIndex,
++      frustumCount,
++    );
++
++    // Bind the pass's framebuffer and viewport, as a command would see them.
++    gl.bindFramebuffer(gl.FRAMEBUFFER, parameters.framebuffer);
++    if (context.drawBuffers) {
++      context.glDrawBuffers(
++        defined(framebuffer)
++          ? framebuffer._getActiveColorAttachments()
++          : scratchBackBuffers,
++      );
++    }
++    const viewport = parameters.viewport;
++    gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
++
++    try {
++      extent.renderer.render(parameters);
++    } finally {
++      context.resetState();
++    }
++  }
++}
++
+ /**
+  * Render the sky, atmosphere, sun, and moon
+  *
+@@ -5515,6 +5712,7 @@ Scene.prototype.destroy = function () {
+   this._primitives = this._primitives && this._primitives.destroy();
+   this._groundPrimitives =
+     this._groundPrimitives && this._groundPrimitives.destroy();
++  this._externalRenderers.removeAll();
+   this._globe = this._globe && this._globe.destroy();
+   this._removeTerrainProviderReadyListener =
+     this._removeTerrainProviderReadyListener &&
+diff --git a/node_modules/@cesium/engine/Source/Scene/View.js b/node_modules/@cesium/engine/Source/Scene/View.js
+index 72e68cc..8cf742c 100644
+--- a/node_modules/@cesium/engine/Source/Scene/View.js
++++ b/node_modules/@cesium/engine/Source/Scene/View.js
+@@ -3,6 +3,7 @@ import Cartesian3 from "../Core/Cartesian3.js";
+ import CullingVolume from "../Core/CullingVolume.js";
+ import defined from "../Core/defined.js";
+ import getTimestamp from "../Core/getTimestamp.js";
++import Intersect from "../Core/Intersect.js";
+ import Interval from "../Core/Interval.js";
+ import CesiumMath from "../Core/Math.js";
+ import Matrix4 from "../Core/Matrix4.js";
+@@ -29,6 +30,12 @@ function CommandExtent() {
+   this.far = undefined;
+ }
+ 
++function ExternalRendererExtent() {
++  this.renderer = undefined;
++  this.near = undefined;
++  this.far = undefined;
++}
++
+ /**
+  * @alias View
+  * @constructor
+@@ -84,6 +91,11 @@ function View(scene, camera, viewport) {
+   // Array of all commands that get rendered into frustums along with their near / far values.
+   // Acts similar to a ManagedArray.
+   this._commandExtents = [];
++
++  // The external renderers in view this frame, with the distances they span.
++  // Its objects are reused across frames.
++  this.externalRendererExtents = [];
++  this._externalRendererExtentPool = [];
+ }
+ 
+ const scratchPosition0 = new Cartesian3();
+@@ -400,6 +412,62 @@ View.prototype.createPotentiallyVisibleSet = function (scene) {
+     }
+   }
+ 
++  // External renderers fit the frustums as commands do, and keep the distances
++  // they span, to be called only in the frustums they overlap.
++  const externalExtents = this.externalRendererExtents;
++  const externalExtentPool = this._externalRendererExtentPool;
++  externalExtents.length = 0;
++  const externalRenderers = scene._externalRenderers;
++  const externalRendererCount = externalRenderers.length;
++  for (let i = 0; i < externalRendererCount; ++i) {
++    const renderer = externalRenderers.get(i);
++    if (!(renderer.show ?? true)) {
++      continue;
++    }
++
++    let rendererNear;
++    let rendererFar;
++    // A renderer's bounding volume is in the globe's fixed frame: in 2D and
++    // Columbus view it is treated as unbounded.
++    const boundingVolume =
++      frameState.mode === SceneMode.SCENE3D
++        ? renderer.boundingVolume
++        : undefined;
++    if (defined(boundingVolume)) {
++      if (
++        cullingVolume.computeVisibility(boundingVolume) === Intersect.OUTSIDE ||
++        (defined(occluder) && boundingVolume.isOccluded(occluder))
++      ) {
++        continue;
++      }
++      const nearFarInterval = boundingVolume.computePlaneDistances(
++        positionWC,
++        directionWC,
++        scratchNearFarInterval,
++      );
++      rendererNear = nearFarInterval.start;
++      rendererFar = nearFarInterval.stop;
++    } else {
++      rendererNear = frustum.near;
++      rendererFar = frustum.far;
++    }
++    near = Math.min(near, rendererNear);
++    far = Math.max(far, rendererFar);
++
++    let extent = externalExtentPool[externalExtents.length];
++    if (!defined(extent)) {
++      extent = externalExtentPool[externalExtents.length] =
++        new ExternalRendererExtent();
++    }
++    extent.renderer = renderer;
++    extent.near = rendererNear;
++    extent.far = rendererFar;
++    externalExtents.push(extent);
++  }
++  for (let i = externalExtents.length; i < externalExtentPool.length; ++i) {
++    externalExtentPool[i].renderer = undefined;
++  }
++
+   if (shadowsEnabled) {
+     shadowNear = Math.min(Math.max(shadowNear, frustum.near), frustum.far);
+     shadowFar = Math.max(Math.min(shadowFar, frustum.far), shadowNear);
 diff --git a/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js b/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js
 index 9f5ad1c..8429f27 100644
 --- a/node_modules/@cesium/engine/Source/Shaders/GlobeFS.js
@@ -127,3 +888,16 @@ index 9f5ad1c..8429f27 100644
      diffuseIntensity = mix(1.0, diffuseIntensity, fade);\n\
      vec4 finalColor = vec4(color.rgb * czm_lightColor * diffuseIntensity, color.a);\n\
  #else\n\
+diff --git a/node_modules/@cesium/engine/index.js b/node_modules/@cesium/engine/index.js
+index 58c1204..3aee6db 100644
+--- a/node_modules/@cesium/engine/index.js
++++ b/node_modules/@cesium/engine/index.js
+@@ -627,6 +627,8 @@ export { default as Empty3DTileContent } from './Source/Scene/Empty3DTileContent
+ export { default as EquirectangularPanorama } from './Source/Scene/EquirectangularPanorama.js';
+ export { default as Expression } from './Source/Scene/Expression.js';
+ export { default as ExpressionNodeType } from './Source/Scene/ExpressionNodeType.js';
++export { default as ExternalRenderer } from './Source/Scene/ExternalRenderer.js';
++export { default as ExternalRendererCollection } from './Source/Scene/ExternalRendererCollection.js';
+ export { default as Fog } from './Source/Scene/Fog.js';
+ export { default as FrameRateMonitor } from './Source/Scene/FrameRateMonitor.js';
+ export { default as FrameState } from './Source/Scene/FrameState.js';
