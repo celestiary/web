@@ -2,7 +2,8 @@ import {Box3, Euler, Group, Object3D, Quaternion, Vector3} from 'three'
 import Object from './object.js'
 import SpriteSheet from './SpriteSheet.js'
 import {FovLOD, newFarPoint, pointSwitchDistance} from './farPoint.js'
-import {bodyRank} from './labelDeclutter.js'
+import {bodyProminenceRank, bodyRank} from './labelDeclutter.js'
+import {BODY_LABELS, labelFont} from './labelStyle.js'
 import {loadModel} from './model.js'
 import {buildOccluder, sunBlocked} from './modelOccluder.js'
 import {point} from './shapes.js'
@@ -235,13 +236,17 @@ export default class Spacecraft extends Object {
    */
   newLabel(scene, radius, far) {
     const name = this.props.label ?? capitalize(this.name)
-    const sheet = named(new SpriteSheet(1, name), 'label')
+    const sheet = named(new SpriteSheet(1, name, labelFont(BODY_LABELS), [0, 0], false, false, {scalable: true}), 'label')
     sheet.add(0, 0, 0, name, labelTextColor)
     const sprites = sheet.compile()
     sprites.layers.set(OVERLAY_LAYER)
     sprites.userData.labelTargets = [{kind: 'body', name: this.name}]
     sprites.userData.declutter = true
     sprites.userData.labelRank = [bodyRank(radius)]
+    // As a body's (Planet.js): by how large it looks.
+    sprites.userData.labelStyle = BODY_LABELS
+    sprites.userData.labelMeasure = (i, cam, at) => cam.distanceTo(at) / radius
+    sprites.userData.labelRankOf = bodyProminenceRank
     sheet.setTowardEye(radius * LABEL_LIFT)
     const near = radius * LABEL_NEAR_RADII
     const labelLOD = new FovLOD()
