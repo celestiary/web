@@ -22,6 +22,12 @@ import {serveLayer} from './protocol.js'
 // host whose ack says 2 gets a frame as one `netgl:batch`, on the port when
 // it hands one over.  A 0.5 host's ack doesn't, and it gets wire 1, a
 // message a call.  `wire=1` offers only 1, to compare.
+//
+// The guest never reads its own pixels, so its shadow context (which
+// answers three's queries) doesn't run the draws: portal-netgl 0.6.2's
+// `shadowDraws: false`, and the host's replay is the only one that draws.
+// The shadow's canvas then stays 1×1, as three never reads its size back.
+// `shadowDraws=1` draws on a full-size shadow as before, to compare.
 
 
 const params = new URLSearchParams(location.search)
@@ -35,8 +41,9 @@ if (!origin || window.parent === window) {
   // With checkpoints (the default): each frame replays from the guest's own
   // GL state, whatever the host left.  The port carries the guest's stream
   // and its own messages ('stream'); the host's come on the window.
+  const shadowDraws = params.get('shadowDraws') === '1'
   const guest = makeNetGLGuestContext({transport: meter.transport, messageChannel: 'stream',
-    wire: params.get('wire') === '1' ? 1 : 2})
+    wire: params.get('wire') === '1' ? 1 : 2, shadowDraws})
   // The app's messages go the stream's way, so a frame's anchors follow
   // its batch on the port.
   const {transport} = guest
@@ -63,9 +70,15 @@ if (!origin || window.parent === window) {
         size = key
         renderer.setPixelRatio(pixelRatio)
         renderer.setSize((x + w) / pixelRatio, (y + h) / pixelRatio, false)
+        if (!shadowDraws) {
+          // three keeps the size it was given (its viewport, its pixel
+          // ratio); only the undrawn shadow's buffer goes back to 1×1.
+          guest.shadow.canvas.width = 1
+          guest.shadow.canvas.height = 1
+        }
         renderer.setViewport(x / pixelRatio, y / pixelRatio, w / pixelRatio, h / pixelRatio)
       }
     },
   })
-  window.celestiaryLayer = {layer, renderer, guest, origin, meter, served}
+  window.celestiaryLayer = {layer, renderer, guest, origin, meter, served, shadowDraws}
 }

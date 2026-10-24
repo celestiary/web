@@ -6,13 +6,15 @@
 // up: the ISS's ring, the geostationary circle, the DSN complexes' squares.
 //
 //   host.html?guest=<origin>&t=<ISO>&rate=0&lat=&lng=&altKm=&fov=&nets=S,I,D&sats=1&depth=1&w=&h=
-//     &stats=0&anchors=norad:25544,dsn:*,dsn-sc:*&wire=2&hostWire=2
+//     &stats=0&anchors=norad:25544,dsn:*,dsn-sc:*&wire=2&hostWire=2&shadowDraws=0
 //
 // `rate` runs the clock from `t` (1 is real time; 0, the default, holds it);
 // `stats=1` asks for the guest's `layer:stats`, kept in hostState.guestStats;
 // `anchors` is the subscription (`none` for none).  The receiver is
-// portal-netgl 0.6.0's: `wire=1` has the guest offer only wire 1, and
+// portal-netgl 0.6.2's: `wire=1` has the guest offer only wire 1, and
 // `hostWire=1` has this host answer as a 0.5 host does (wire 1, no port).
+// `shadowDraws=1` has the guest draw on its shadow context as well, as it
+// did before 0.6.2's `shadowDraws: false` (layer.js), to compare.
 
 import {
   BufferGeometry, Color, Float32BufferAttribute, LineBasicMaterial, LineLoop, Mesh, MeshBasicMaterial,
@@ -202,7 +204,8 @@ window.MessageChannel = class extends NativeChannel {
 const iframe = document.createElement('iframe')
 iframe.style.display = 'none'
 iframe.src = `${guestOrigin}/layer.html?host=${encodeURIComponent(location.origin)}&nets=${q.get('nets') ?? 'S,I,D'}` +
-  `&sats=${q.get('sats') ?? '1'}${q.has('wire') ? `&wire=${q.get('wire')}` : ''}`
+  `&sats=${q.get('sats') ?? '1'}${q.has('wire') ? `&wire=${q.get('wire')}` : ''}` +
+  `${q.has('shadowDraws') ? `&shadowDraws=${q.get('shadowDraws')}` : ''}`
 document.body.appendChild(iframe)
 // Pinned to the guest's exact origin, so the receiver may offer it a port.
 const transport = iframeTransport(iframe, {origin: guestOrigin})
