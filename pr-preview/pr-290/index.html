@@ -127,6 +127,22 @@
       }
     </style>
     <link rel="icon" type="image/png" href="favicon.ico"/>
+    <!-- For Slop New York (?nyc=1, CESIUM.md "New York"), a separate app
+         celestiary loads at run time: its modules import three.js's dev
+         build by these bare names.  Celestiary's own bundle has its three
+         built in and imports nothing by name, so the map is inert until the
+         city loads; nothing is fetched for it before.  Pinned to a three.js
+         commit, not @dev (js/scene/cesium/newYork.test.js checks it). -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@8d737d9ceb701eedff7bba3086cefcbfb7fea9c5/build/three.webgpu.js",
+          "three/webgpu": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@8d737d9ceb701eedff7bba3086cefcbfb7fea9c5/build/three.webgpu.js",
+          "three/tsl": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@8d737d9ceb701eedff7bba3086cefcbfb7fea9c5/build/three.tsl.js",
+          "three/addons/": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@8d737d9ceb701eedff7bba3086cefcbfb7fea9c5/examples/jsm/"
+        }
+      }
+    </script>
     <script type="text/javascript">
       // Single Page Apps for GitHub Pages
       // MIT License
