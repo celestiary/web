@@ -29,11 +29,12 @@ const initial = useStore.getState()
  * @returns {string} the dock's markup
  */
 function render(state = {}) {
-  const {layerBody = null, ar = null, widgetsOpen = false} = state
+  const {layerBody = null, ar = null, widgetsOpen = false, panel = null, observing = false} = state
   useStore.setState({ar})
   return renderToStaticMarkup(
       <DockView celestiary={celestiary} timeStr='' isPaused={false} setIsPaused={() => {}} layerBody={layerBody}
-        ar={ar} widgetsOpen={widgetsOpen} onApps={() => {}} navigate={() => {}}/>)
+        ar={ar} widgetsOpen={widgetsOpen} onApps={() => {}} navigate={() => {}}
+        observing={observing} onObserving={() => {}} initialPanel={panel}/>)
 }
 
 
@@ -48,6 +49,14 @@ describe('PhoneDock', () => {
     expect(html).toContain('data-testid="ar-button-enter"')
     expect(html).not.toContain('data-testid="phone-dock-layers"')
     expect(html).not.toContain('dock-panel')
+  })
+
+  it('switches the red light from More, showing whether it\'s on', () => {
+    const off = render({panel: 'more'})
+    expect(off).toContain('data-testid="phone-dock-panel-more"')
+    expect(off).toMatch(/aria-pressed="false"[^>]*data-testid="phone-dock-observing"/)
+    expect(render({panel: 'more', observing: true}))
+        .toMatch(/class="dock-pill on" aria-pressed="true"[^>]*data-testid="phone-dock-observing"/)
   })
 
   it('offers Layers near a Cesium body', () => {

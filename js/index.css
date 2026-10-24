@@ -991,6 +991,72 @@ button {
   outline-offset: 2px;
 }
 
+/* On: the observing (red) theme's switch while it's on. */
+.dock-pill.on {
+  border-color: var(--accent);
+  background: var(--accent-fill);
+}
+
+/* AR's offer of the observing theme after dark (ui/ObservingOffer.jsx):
+   over the scene, above the dock and the info sheet on a phone. */
+#observing-offer {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--space-16) + var(--phone-dock-height, 0px) + var(--info-sheet-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  box-sizing: border-box;
+  width: min(var(--panel-width), calc(100vw - 2 * var(--space-16)));
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.observing-offer-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink-bright);
+}
+
+.observing-offer-text {
+  margin-top: var(--space-2);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.observing-offer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.observing-offer-decline {
+  padding: var(--space-6) var(--space-10);
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.observing-offer-decline:hover {
+  color: var(--accent-soft);
+}
+
+.observing-offer-decline:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   #nav-info-id, .info-fold svg, .info-section > summary::after {
     transition: none;
@@ -1063,6 +1129,29 @@ button {
 #search-bar .chip:hover a.chip-label {
   color: #dde8f7;
   text-decoration: underline;
+}
+
+/* A phone's "…" chip (SearchBar, breadcrumbStart): the path's first chips,
+   folded; a tap shows them. */
+#search-bar .chip-expand {
+  padding: 0 var(--space-4);
+  border: 0;
+  background: none;
+  color: var(--ink-link);
+  font: inherit;
+  cursor: pointer;
+}
+
+#search-bar .chip-expand:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* No hover on a phone: only the chip with the search icon keeps its slot. */
+@media (max-width: 600px) {
+  #search-bar:not(.open) .chip:not(.chip-active) .chip-icon {
+    display: none;
+  }
 }
 
 #search-bar .chip-sep {

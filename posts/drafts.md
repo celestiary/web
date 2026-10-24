@@ -627,3 +627,95 @@ All 11,116 Starlink satellites can now show round Earth, with a slider for how m
 
 https://celestiary.org/#sun/earth@2.3217,30.6675,15.963766Mm;t=9792.863603jd;cq=-0.0436,-0.6266,-0.0542,0.7762;fov=45deg;s=F;info:open=population;pop:earth=starlink,earth.labels=300,earth.starlink=11116
 ```
+
+### New York in 3D: Manhattan's streets and towers on Earth
+
+- ID: 2026-10-23-new-york-in-3d-manhattan-s-streets-and-towers
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-11-28
+- Entry: 2026-10-23-new-york-in-3d-manhattan-s-streets-and-towers
+- Image: posts/images/2026-10-23-new-york-in-3d-manhattan-s-streets-and-towers.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-23-new-york-in-3d-manhattan-s-streets-and-towers --hash 'sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;time:pause;layers:nyc' --png posts/images
+- Notes:
+- Length: X 246/280, Facebook 458/500
+
+```text
+New York in 3D: Manhattan's streets and towers on Earth.
+
+Come down over New York, within a few tens of kilometres of Manhattan and under 30 km up, open the layers button at the top right and switch on New York (3D city).
+
+https://celestiary.org/#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;time:pause;layers:nyc
+```
+
+#### Facebook
+
+```text
+New York in 3D: Manhattan's streets and towers on Earth.
+
+Come down over New York, within a few tens of kilometres of Manhattan and under 30 km up, open the layers button at the top right and switch on New York (3D city). Slop New York, a 3D model of Manhattan's buildings, streets, parks and piers, builds in a few seconds and stands at its place on the globe, lit by the same Sun at the simulation's time and hazed by the same air.
+
+https://celestiary.org/#sun/earth@40.5025,-74.0298,780m;t=9792.377067jd;cq=0.2348,-0.1201,-0.2007,0.9435;fov=45deg;time:pause;layers:nyc
+```
+
+### Starlink, Iridium's crosslinks and the Deep Space Network's live links
+
+- ID: 2026-10-23-starlink-iridium-s-crosslinks-and-the-deep
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-12-01
+- Entry: 2026-10-23-starlink-iridium-s-crosslinks-and-the-deep
+- Image: posts/images/2026-10-23-starlink-iridium-s-crosslinks-and-the-deep.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-23-starlink-iridium-s-crosslinks-and-the-deep --hash 'sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF' --png posts/images
+- Notes:
+- Length: X 96/280, Facebook 96/500 SHORT
+
+```text
+Starlink, Iridium's crosslinks and the Deep Space Network's live links.
+
+https://celestiary.org/#sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF
+```
+
+#### Facebook
+
+```text
+Starlink, Iridium's crosslinks and the Deep Space Network's live links.
+
+https://celestiary.org/#sun/earth@17.7323,14.5345,19.62899Mm;t=9792.2086jd;cq=-0.2991,0.3157,0.1056,0.8943;fov=45deg;s=SIF
+```
+
+### Red light, for looking at the night sky
+
+- ID: 2026-10-24-red-light-for-looking-at-the-night-sky
+- Status: draft
+- X:
+- Facebook:
+- Date: 2026-12-03
+- Entry: 2026-10-24-red-light-for-looking-at-the-night-sky
+- Image: posts/images/2026-10-24-red-light-for-looking-at-the-night-sky.png
+- Alt:
+- Render: node tools/home/cards.mjs --gpu --id 2026-10-24-red-light-for-looking-at-the-night-sky --hash 'sun/earth@36.0544,-112.1401,2.2km;t=9792.770833jd;cq=0.145,-0.9312,0.2525,0.2194;fov=45deg;s=LFR;time:pause' --png posts/images
+- Notes:
+- Length: X 260/280, Facebook 494/500
+
+```text
+Red light, for looking at the night sky.
+
+For using celestiary outdoors at night, the whole screen can now turn red, the sky and the planets as well as the buttons and panels, as through a red torch, so your eyes stay used to the dark.
+
+https://celestiary.org/#sun/earth@36.0544,-112.1401,2.2km;t=9792.770833jd;cq=0.145,-0.9312,0.2525,0.2194;fov=45deg;s=LFR;time:pause
+```
+
+#### Facebook
+
+```text
+Red light, for looking at the night sky.
+
+For using celestiary outdoors at night, the whole screen can now turn red, the sky and the planets as well as the buttons and panels, as through a red torch, so your eyes stay used to the dark. Press r, or Red light under More on a phone; it stays on until you turn it off, and starting the AR sky view after dark offers it. On a phone, a long path at the top now shows only its last two steps, and a tap on "…" shows the rest.
+
+https://celestiary.org/#sun/earth@36.0544,-112.1401,2.2km;t=9792.770833jd;cq=0.145,-0.9312,0.2525,0.2194;fov=45deg;s=LFR;time:pause
+```

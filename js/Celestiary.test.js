@@ -16,7 +16,8 @@ import {HOME_TOUR_START, HOME_TOUR_STILL_MS} from './homeTour.js'
 import {FLIGHT_EASE_IN_MS, NEAR_RADII} from './flight.js'
 import {planEarthPass} from './nightSide.js'
 import {formatNavMode} from './navMode.js'
-import {decodePermalink, encodePermalink, encodeSettings, pathFromFragment, SETTINGS_DEFAULTS} from './permalink.js'
+import {decodePermalink, decodeSettings, encodePermalink, encodeSettings, pathFromFragment, SETTINGS_DEFAULTS} from './permalink.js'
+import {sunAltitude} from './tonight.js'
 import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
 import * as Shared from './shared.js'
 import {_resetPlaces} from './scene/Places.js'
@@ -1673,6 +1674,63 @@ describe('the target in the link', () => {
       expect(Shared.targets.track).toBe(false)
       expect(off).toBeDefined()
       expect(reloaded).toBeDefined()
+      clearTimeout(app._permalinkTimer)
+    })
+  })
+
+  describe('the observing (red) theme', () => {
+    /**
+     * @param {object} app
+     * @returns {{observing: Array<boolean>, offer: Array<boolean>}} What the
+     *   app tells the store, from now
+     */
+    function record(app) {
+      const calls = {observing: [], offer: []}
+      const state = app.useStore.getState()
+      state.setObserving = (on) => calls.observing.push(on)
+      state.setObservingOffer = (on) => calls.offer.push(on)
+      return calls
+    }
+
+    it('is the R setting: \'r\' turns it, the link carries it, and nothing else turns it off', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const calls = record(app)
+      expect(app.scene.getSetting('R')).toBe(false)
+      app.keys.onKeyDown({key: 'r'})
+      expect(app.scene.getSetting('R')).toBe(true)
+      expect(calls.observing).toEqual([true])
+      expect(app.permalink()).toMatch(/;s=[^;]*R/)
+      // V's and AR's snapshots restore through applySettings, which leaves it.
+      app.scene.applySettings({...app.scene.getSettings(), R: false})
+      expect(app.scene.getSetting('R')).toBe(true)
+      // A link that doesn't ask for it doesn't turn it off.
+      app._holdLinkSettings({settings: decodeSettings('a')})
+      expect(app.scene.getSetting('R')).toBe(true)
+      app.keys.onKeyDown({key: 'r'})
+      expect(app.scene.getSetting('R')).toBe(false)
+      expect(calls.observing).toEqual([true, true, false])
+      const reloaded = await open(`${TEST_FRAGMENT};s=R`)
+      expect(reloaded.scene.getSetting('R')).toBe(true)
+      clearTimeout(app._permalinkTimer)
+    })
+
+    it('is offered once when AR starts on Earth after dark', async () => {
+      const app = await open(TEST_FRAGMENT)
+      const calls = record(app)
+      const ms = app.time.simTime
+      const sunAt = app._sunAt()
+      const night = [0, 90, 180, 270].find((lng) => sunAltitude(0, lng, ms, sunAt) < -6)
+      const day = [0, 90, 180, 270].find((lng) => sunAltitude(0, lng, ms, sunAt) > 0)
+      app._offerObserving('earth', 0, day)
+      app._offerObserving('mars', 0, night)
+      expect(calls.offer).toEqual([])
+      app._offerObserving('earth', 0, night)
+      app._offerObserving('earth', 0, night)
+      expect(calls.offer).toEqual([true])
+      // Taking it ends the offer.
+      app.toggleObserving()
+      expect(calls.offer).toEqual([true, false])
+      app.toggleObserving()
       clearTimeout(app._permalinkTimer)
     })
   })

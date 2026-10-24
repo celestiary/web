@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import createSearchSlice, {anchorPathFor, breadcrumbItems} from './SearchSlice.js'
+import createSearchSlice, {PHONE_CRUMBS, anchorPathFor, breadcrumbItems, breadcrumbStart} from './SearchSlice.js'
 
 
 /** Run a slice against a toy store emulator so transitions can be asserted. */
@@ -186,5 +186,28 @@ describe('the target (committedTarget) and the breadcrumb', () => {
     expect(slice.state.previewGalaxy).toBe(galaxy)
     slice.call('setPreviewStar', {hipId: 1})
     expect(slice.state.previewGalaxy).toBeNull()
+  })
+})
+
+
+describe('breadcrumbStart', () => {
+  const phone = {phone: true, open: false, expanded: false}
+
+  it('shows a long path\'s last chips on a phone, behind its "…"', () => {
+    expect(PHONE_CRUMBS).toBe(2)
+    // Sun › Jupiter › Io › a place: … › Io › the place.
+    expect(breadcrumbStart(4, phone)).toBe(2)
+    expect(breadcrumbStart(6, phone)).toBe(4)
+  })
+
+  it('shows the path whole where a "…" would hide one chip or none, or off a phone', () => {
+    expect(breadcrumbStart(3, phone)).toBe(0) // Sun › Earth › Grand Canyon
+    expect(breadcrumbStart(1, phone)).toBe(0)
+    expect(breadcrumbStart(5, {...phone, phone: false})).toBe(0)
+  })
+
+  it('shows it whole once expanded, and while the search is open (it scopes by the path)', () => {
+    expect(breadcrumbStart(5, {...phone, expanded: true})).toBe(0)
+    expect(breadcrumbStart(5, {...phone, open: true})).toBe(0)
   })
 })

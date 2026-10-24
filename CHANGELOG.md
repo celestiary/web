@@ -39,6 +39,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Red light, for looking at the night sky
+
+For using celestiary outdoors at night, the whole screen can now turn red, the sky and the planets as
+well as the buttons and panels, as through a red torch, so your eyes stay used to the dark. Press `r`,
+or Red light under More on a phone; it stays on until you turn it off, and starting the AR sky view
+after dark offers it. On a phone, a long path at the top now shows only its last two steps, and a tap
+on "…" shows the rest.
+
+- Date: 2026-10-24
+- Featured: yes
+- PR: [#301](https://github.com/celestiary/web/pull/301)
+- Issue: [#279](https://github.com/celestiary/web/issues/279)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@36.0544,-112.1401,2.2km;t=9792.770833jd;cq=0.145,-0.9312,0.2525,0.2194;fov=45deg;s=LFR;time:pause)
+
 ### Satellites' names by distance: the near ones larger and brighter
 
 Each satellite's name is now sized and dimmed by how far it is from you, from the nearest name in

@@ -191,6 +191,10 @@ export default class Scene {
       I: false, // Iridium and its crosslinks
       D: false, // the Deep Space Network and its live links
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
+      // The observing (red) theme, Celestiary's (toggleObserving).  No
+      // applier: applySettings, which V's and AR's snapshots restore, never
+      // turns it, so a red screen outdoors stays red.
+      R: false,
     }
     // Each overlay's fade (OVERLAY_KEYS), stepped once a frame by the
     // driver (Celestiary.frame): toggles fade rather than switch, and a

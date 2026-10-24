@@ -23,6 +23,37 @@
         /* The app's controls (scrollbars, inputs) are dark from here on. */
         color-scheme: dark;
       }
+      /* The observing (red) theme (js/observing.js; the observing script,
+         below): black from the first paint, and two layers over everything,
+         the first greying what's behind it by luminance, the second
+         multiplying that by red, so only red light leaves the screen, the
+         scene's included. */
+      html[data-theme='observing'], html[data-theme='observing'] body {
+        background: #000;
+        color: #fff;
+        color-scheme: dark;
+        transition: none;
+      }
+      #observing-grey, #observing-red {
+        display: none;
+      }
+      html[data-theme='observing'] #observing-grey,
+      html[data-theme='observing'] #observing-red {
+        display: block;
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+      html[data-theme='observing'] #observing-grey {
+        z-index: 2147483646;
+        -webkit-backdrop-filter: grayscale(1);
+        backdrop-filter: grayscale(1);
+      }
+      html[data-theme='observing'] #observing-red {
+        z-index: 2147483647;
+        background: #f00;
+        mix-blend-mode: multiply;
+      }
     </style>
     <base href="{{BASE_PATH}}"/>
     <title>Celestiary - Celestial Simulator</title>
@@ -183,6 +214,38 @@
         }
       }(decodeURIComponent(window.location.hash.slice(1)), document.documentElement))
     </script>
+    <!-- observing: the red theme (js/observing.js) is on before the first
+         paint when this device chose it last (localStorage) or a view link
+         asks for it ('R' in s=, read as quiet-load reads 'v'), so a page
+         opened outdoors at night never flashes white.  The app takes it from
+         <html>'s data-theme.  Tested in js/observing.test.js. -->
+    <script type="text/javascript" id="observing">
+      (function (win, root) {
+        var on = false
+        try {
+          on = win.localStorage.getItem('celestiary-observing') === '1'
+        } catch (e) {
+          on = false
+        }
+        var hash = decodeURIComponent(win.location.hash.slice(1))
+        var at = hash.indexOf('@')
+        if (!on && at !== -1) {
+          var params = {}
+          hash.slice(at + 1).split(';').slice(1).forEach(function (pair) {
+            var eq = pair.indexOf('=')
+            var colon = pair.indexOf(':')
+            if (eq === -1 || (colon !== -1 && colon < eq)) {
+              return
+            }
+            params[pair.slice(0, eq)] = pair.slice(eq + 1)
+          })
+          on = Boolean(params.t && params.cq && params.fov && (params.s || '').indexOf('R') !== -1)
+        }
+        if (on) {
+          root.setAttribute('data-theme', 'observing')
+        }
+      }(window, document.documentElement))
+    </script>
     <!-- stale-build: index.html and index.js keep their names, every chunk
          they load is content-hashed, a deploy deletes the last build's
          chunks, and GitHub Pages lets a browser keep any file for 10
@@ -274,6 +337,8 @@
     </script>
   </head>
   <body>
+    <div id="observing-grey" aria-hidden="true"></div>
+    <div id="observing-red" aria-hidden="true"></div>
     <div id="loading" role="status" aria-live="polite">
       <div class="loading-in">
         <div class="loading-title">Celestiary</div>

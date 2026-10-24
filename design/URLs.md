@@ -182,8 +182,8 @@ s=al                scene settings not at their defaults, one letter each
 grids `e` `c` `g`, galaxy `U`, galaxy labels `G`, globular-cluster labels
 `C`, human expansion lines `x`, the space networks `S` Starlink, `I` Iridium
 and `D` the Deep Space Network, the HUD `v`),
-plus landed `L`, tracking `T`, following `F` and AR `A` (`permalink.js`
-`SETTINGS_DEFAULTS`).  `T` is the `t` key: the camera keeps the target
+plus landed `L`, tracking `T`, following `F`, AR `A` and the observing (red)
+theme `R` (`permalink.js` `SETTINGS_DEFAULTS`).  `T` is the `t` key: the camera keeps the target
 centred every frame, so a link made while tracking reloads tracking.  `F`
 is the `f` key (`Scene.follow`, `Shared.targets.follow`): the camera follows
 **the body it is at**, its frame's, moving with it as time runs and keeping
@@ -210,8 +210,15 @@ both: riding along while facing it).
   frame is good to ~260 km at 1 AU.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
 `U`, `G`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
-star labels off, orbits off, landed), while `e` `c` `g` `C` `S` `I` `D` `L` `T` `F` `A` mean
+star labels off, orbits off, landed), while `e` `c` `g` `C` `S` `I` `D` `L` `T` `F` `A` `R` mean
 on (`s=ID` is Iridium and the DSN shown: js/scene/networks/Networks.md).
+
+`R` is the `r` key, and the dock's *Red light* on a phone: the observing theme
+([design/UI.md](UI.md#the-observing-red-theme)).  A link can turn it **on, never
+off**: a link with `R` opens red (the page's `observing` script sets it before
+the first paint), and following a link without it keeps the screen red, so an
+observer outdoors is never flashed white.  This device's last choice
+(localStorage) turns it on too.
 
 `G` and `C` are the `e` and `E` keys (Shift+E), Celestia's: the galaxies'
 names and the globular clusters'.  The keys can't be the letters, since `e`

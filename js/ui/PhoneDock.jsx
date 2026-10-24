@@ -2,7 +2,7 @@ import React, {useEffect, useRef, useState} from 'react'
 import {useLocation} from 'wouter'
 import useStore from '../store/useStore'
 import ARButton from './ARButton'
-import {ARIcon, AboutIcon, AppsIcon, LayersIcon, MoreIcon, SettingsIcon, TimeIcon} from './DockIcons'
+import {ARIcon, AboutIcon, AppsIcon, LayersIcon, MoreIcon, RedLightIcon, SettingsIcon, TimeIcon} from './DockIcons'
 import DragModeToggle from './DragModeToggle'
 import {LayerOptions} from './LayersButton'
 import TimePanel from './TimePanel'
@@ -28,6 +28,7 @@ export default function PhoneDock({celestiary, timeStr, isPaused, setIsPaused}) 
   const layerBody = useStore((state) => state.layerBody)
   const ar = useStore((state) => state.ar)
   const widgetsOpen = useStore((state) => state.widgets.isOpen)
+  const observing = useStore((state) => state.observing)
   const dispatchWidgets = useStore((state) => state.dispatchWidgets)
   const setPhoneDockHeight = useStore((state) => state.setPhoneDockHeight)
   const [, navigate] = useLocation()
@@ -70,6 +71,8 @@ export default function PhoneDock({celestiary, timeStr, isPaused, setIsPaused}) 
       widgetsOpen={widgetsOpen}
       onApps={() => dispatchWidgets({type: 'toggle'})}
       navigate={navigate}
+      observing={observing}
+      onObserving={() => celestiary.toggleObserving()}
     />
   )
 }
@@ -89,12 +92,16 @@ export default function PhoneDock({celestiary, timeStr, isPaused, setIsPaused}) 
  * @property {boolean} widgetsOpen
  * @property {Function} onApps opens or closes the widgets drawer
  * @property {Function} navigate the router's, for Settings and About
+ * @property {boolean} observing the observing (red) theme is on
+ * @property {Function} onObserving switches it
+ * @property {?string} [initialPanel] the panel open at first (tests)
  * @returns {React.ReactElement}
  */
 export function DockView({
   dockRef, celestiary, timeStr, isPaused, setIsPaused, layerBody, ar, widgetsOpen, onApps, navigate,
+  observing, onObserving, initialPanel = null,
 }) {
-  const [panel, setPanel] = useState(null)
+  const [panel, setPanel] = useState(initialPanel)
   const time = celestiary.time
   // A panel whose button has gone (layers, away from a Cesium body) closes.
   const shown = panel === 'layers' && !layerBody ? null : panel
@@ -126,6 +133,17 @@ export function DockView({
               <div className='dock-more-row'>
                 <span className='dock-more-label'>Drag</span>
                 <DragModeToggle/>
+              </div>
+              <div className='dock-more-row'>
+                <button
+                  type='button'
+                  className={`dock-pill${observing ? ' on' : ''}`}
+                  aria-pressed={Boolean(observing)}
+                  onClick={onObserving}
+                  data-testid='phone-dock-observing'
+                >
+                  <RedLightIcon/> Red light
+                </button>
               </div>
               <div className='dock-more-row'>
                 <button type='button' className='dock-pill' onClick={() => navigate('/settings')}>
