@@ -71,6 +71,26 @@ describe('Constellation', () => {
     expect(c.lastRefreshed).toBe(40)
   })
 
+  it('says where a satellite is drawn at a date, while it draws them', () => {
+    const c = shell({refreshFrames: 1e9})
+    expect(c.drawing).toBe(false)
+    c.update(JD)
+    expect(c.drawing).toBe(true)
+    // A minute on, carried: within metres of SGP4.
+    const i = c.indexOf(50003)
+    expect(i).toBe(3)
+    expect(c.isShown(i)).toBe(true)
+    const p = c.positionAtJd(i, JD + (60 * SEC), new Vector3)
+    expect(p.distanceTo(sgp4At(records[3], JD + (60 * SEC)))).toBeLessThan(50)
+    expect(c.indexOf(1)).toBe(-1)
+    // Its owner's overlay off: not drawing, whatever it last did.
+    c.parent.visible = false
+    expect(c.drawing).toBe(false)
+    c.parent.visible = true
+    c.points.visible = false
+    expect(c.drawing).toBe(false)
+  })
+
   it('carries a satellite between refreshes to within metres of SGP4', () => {
     const c = shell({refreshFrames: 1e9})
     c.update(JD)

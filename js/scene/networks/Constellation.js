@@ -172,6 +172,69 @@ export default class Constellation extends Group {
 
 
   /**
+   * @returns {boolean} whether its points are drawn now: propagated since
+   *   they were last hidden, near enough, and it and every node over it
+   *   visible (an owner's overlay switched off stops its updates, so
+   *   `primed` alone could be stale)
+   */
+  get drawing() {
+    if (!this._primed || !this.points.visible) {
+      return false
+    }
+    for (let o = this; o; o = o.parent) {
+      if (!o.visible) {
+        return false
+      }
+    }
+    return true
+  }
+
+
+  // A population that leaves a group's points to this while it's drawing
+  // (Population.setGroupDrawer) asks these: which of its records is which
+  // here, once, then whether each is drawn, every frame, and where, only
+  // for those it names.  So its names go where the dots are, and nothing
+  // is propagated twice.
+
+
+  /**
+   * @param {number} id NORAD number
+   * @returns {number} its index here, or -1 if it isn't one of these
+   */
+  indexOf(id) {
+    this._byId ??= new Map(this.records.map((r, i) => [r.id, i]))
+    return this._byId.get(id) ?? -1
+  }
+
+
+  /**
+   * @param {number} i
+   * @returns {boolean} whether satellite i is drawn (it had a position at
+   *   its last refresh)
+   */
+  isShown(i) {
+    return this.shown[i] === 1
+  }
+
+
+  /**
+   * Where satellite i is drawn at a date: its last refresh carried there,
+   * as the shader does.
+   *
+   * @param {number} i
+   * @param {number} jd Julian Day (UTC)
+   * @param {{set: Function}} out
+   * @returns {?object} out, or null if it isn't drawn
+   */
+  positionAtJd(i, jd, out) {
+    if (!this.shown[i]) {
+      return null
+    }
+    return carry(this.r0, this.vw, 3 * i, this.w[i], ((jd - this.jdRef) * SEC_PER_DAY) - this.t0[i], out)
+  }
+
+
+  /**
    * Where satellite i is drawn now, metres in this frame: its last refresh
    * carried to the frame's time, as the shader does.
    *
