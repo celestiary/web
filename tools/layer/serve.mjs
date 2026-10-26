@@ -33,7 +33,7 @@ const HOST_FILES = {
   '/host.html': fs.readFileSync(path.join(ROOT, 'tools/layer/host.html')),
   '/host-bundle.js': built.outputFiles[0].contents,
   '/earth.jpg': fs.readFileSync(path.join(ROOT, 'public/textures/earth/blue-marble/2004-10.jpg')),
-  '/satellites.json': fs.readFileSync(path.join(ROOT, 'public/data/satellites.json')),
+  '/satellites.json': fs.readFileSync(path.join(ROOT, 'public/data/earth/satellites/index.json')),
 }
 
 /**

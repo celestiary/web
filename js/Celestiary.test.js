@@ -1741,7 +1741,7 @@ describe('what a load fetches', () => {
   // The data asked for (the textures a body's surface fetches aside, and
   // Earth's satellites, which a view near Earth asks for once the overlays
   // are revealed, a time this harness doesn't fix: their own test, below).
-  const jsonAsked = () => asked.filter((u) => u.endsWith('.json') && u !== 'data/satellites.json')
+  const jsonAsked = () => asked.filter((u) => u.endsWith('.json') && u !== 'data/earth/satellites/index.json')
 
   it('a link to a body: no galaxies, no places (none of its labels can show yet), no changelog', async () => {
     const app = await open(TEST_FRAGMENT)
@@ -1779,7 +1779,7 @@ describe('what a load fetches', () => {
 
   it('a view near Earth with the orbits shown asks for Earth\'s satellites, once while it waits', async () => {
     const app = await open(TEST_FRAGMENT)
-    const asks = () => asked.filter((u) => u === 'data/satellites.json').length
+    const asks = () => asked.filter((u) => u === 'data/earth/satellites/index.json').length
     // The overlays revealed, as the first load's reveal ends.  Here the
     // fetch fails (404), and a failure is asked again by the next need:
     // let any ask from the frames so far settle first.

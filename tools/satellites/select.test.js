@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'bun:test'
+import {decodeElements} from '../../js/scene/networks/compactElements.js'
+import {serialOf} from '../../js/scene/satellites/names.js'
 import {parseCatalog} from '../../js/scene/satellites/sgp4.js'
-import {GROUP_QUERIES, buildSnapshot, gpUrl, sample, serialOf} from './select.js'
+import {GROUP_QUERIES, buildSnapshot, gpUrl, sample} from './select.js'
 
 
 const omm = (id, extra = {}) => ({
@@ -49,22 +51,27 @@ describe('satellites snapshot', () => {
     expect(recs[1].group).toBe('gnss')
   })
 
-  it('keeps a group whole in its order, in a file of its own, with how many show to start', () => {
+  it('keeps a constellation whole in a file of its own, with its order and how many show to start', () => {
     const starlink = GROUP_QUERIES.find((g) => g.group === 'starlink')
-    expect(starlink).toMatchObject({order: 'serial', count: 300, file: 'large/satellites/starlink.json'})
+    expect(starlink).toMatchObject({order: 'serial', count: 300, file: 'data/earth/satellites/networks/starlink.json'})
+    expect(GROUP_QUERIES.find((g) => g.group === 'iridium').file).toBe('data/earth/satellites/networks/iridium.json')
     expect(starlink.keep).toBeUndefined()
     const sl = (id, n) => omm(id, {OBJECT_NAME: `STARLINK-${n}`})
     const snap = buildSnapshot([
       {group: 'stations', records: [omm(25544)], url: 'a'},
-      {...starlink, records: [sl(3, 30930), sl(1, 1008), sl(2, 2449), sl(4, 1008)], url: 'b'},
+      {...starlink, records: [sl(3, 30930), sl(1, 1008), sl(2, 2449), sl(4, 1008), sl(25544, 1)], url: 'b'},
     ], 'x')
     expect(snap.rows.map((r) => r[0])).toEqual([25544])
-    expect(snap.groups.starlink).toMatchObject({orderedBy: 'serial number', count: 300,
-      file: 'large/satellites/starlink.json', of: 4, kept: 4})
-    const part = snap.files['large/satellites/starlink.json']
-    // By the number in the name, then by NORAD number.
-    expect(part.rows.map((r) => r[0])).toEqual([1, 4, 2, 3])
-    expect(part.columns).toEqual(snap.columns)
+    expect(snap.groups.starlink).toMatchObject({order: 'serial', orderedBy: 'serial number', count: 300,
+      file: 'data/earth/satellites/networks/starlink.json', of: 5, kept: 4})
+    const part = snap.files['data/earth/satellites/networks/starlink.json']
+    expect(part).toMatchObject({group: 'starlink', fetched: 'x', url: 'b', count: 4})
+    // In NORAD order (the app puts it in its order), named, each once.
+    expect(decodeElements(part).map((r) => [r.NORAD_CAT_ID, r.OBJECT_NAME])).toEqual([
+      [1, 'STARLINK-1008'], [2, 'STARLINK-2449'], [3, 'STARLINK-30930'], [4, 'STARLINK-1008']])
+    // Refused this time: no file, so the last one stays.
+    const refused = buildSnapshot([{...starlink, records: [], url: 'b', error: '403'}], 'x')
+    expect(refused.files).toEqual({})
     expect(serialOf('STARLINK-11385 [DTC]')).toBe(11385)
     expect(serialOf('NO NUMBER')).toBe(Infinity)
   })
