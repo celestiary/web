@@ -68,6 +68,23 @@ describe('Scene and the space networks', () => {
     expect(loads).toEqual(['I'])
   })
 
+  it('leaves Earth\'s Iridium points to the network, whichever comes in first', async () => {
+    for (const populationFirst of [true, false]) {
+      const {s} = scene()
+      const calls = []
+      const pop = {setGroupDrawer: (group, drawer) => calls.push([group, drawer])}
+      if (populationFirst) {
+        s.populations.set('earth', pop)
+      }
+      const network = await s.loadNetwork('I')
+      if (!populationFirst) {
+        s.populations.set('earth', pop)
+        s._shareNetworks()
+      }
+      expect(calls).toEqual([['iridium', network.sats]])
+    }
+  })
+
   it('is driven by applySettings, as V and a link drive it', async () => {
     const {s, loads} = scene()
     s.applySettings({...SETTINGS_DEFAULTS, D: true})

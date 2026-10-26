@@ -71,11 +71,19 @@ live feed isn't bundled: the app polls it.
   ask there's one file each now, the overlay's, with the names and
   designators added: the population's group names it (`file`), and orders
   Starlink by serial number as it loads (names.js `ORDERS`; the file is in
-  NORAD order).  Still two propagations: with the overlay and the
-  population both on, the same satellites are worked out and drawn twice
-  (Starlink by shell, and as the population's points).  *For the
-  maintainer:* whether the overlays should draw from the population's
-  records.
+  NORAD order).
+- **One drawing.**  With an overlay and the population (`o`) both on, the
+  population leaves the group's points to the overlay
+  ([Population.md, a group drawn elsewhere](../population/Population.md#a-group-drawn-elsewhere)):
+  Scene gives Earth's population each network's Constellation as the
+  drawer of its group (`NETWORK_GROUPS`, `S` Starlink, `I` Iridium's
+  points), whichever loads first.  So Starlink is drawn once, by shell,
+  propagated once, a twentieth a frame, and the population still names
+  them, where the overlay's dots are.  Before, both drew and propagated
+  them: the population's blue dots over the shells' (all 11,116 with its
+  slider at all), its update 4.3 ms a frame in SwiftShader, now 2.9 ms
+  with `S` on, most of it the 400 names of that probe.  Each still keeps
+  its own records in memory (SGP4's state, made on first use).
 - **CelesTrak's policy** (Satellites.md): one download of a group per two
   hours, stop at the first refusal.  One script asks for the
   constellations now, with the other groups: each is downloaded once a
