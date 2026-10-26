@@ -1134,7 +1134,7 @@ turns to it; Go and Enter travel
 | Saturn rings | Double-sided `RingGeometry`, lit in exposure units as a slab of particles scattering the Sun's light once (`ringPhotometry.js`): the colour map the particles' albedo, the opacity map their optical depth, calibrated to the rings' integrated light ([rings.md, lighting](js/scene/rings/rings.md#lighting-the-rings-in-exposure-units)) |
 | Orbit paths | A wide line strip (`wideLines.js`, 1.5 px, additive, on the overlay layer after the atmosphere): the body's sampled path, or its mean-element ellipse ([Orbit lines](#orbit-lines)) |
 | Labels | Canvas-rendered `SpriteSheet` compiled to a single `Points` geometry |
-| Asterisms | Wide lines (`wideLines.js`) between the stars of `asterisms-clean.dat` |
+| Asterisms | Wide lines (`wideLines.js`) between the stars of `asterisms.dat` (`AsterismsCatalog.js`) |
 | Human expansion | Wide lines (`wideLines.js`), one per hop of a BFS across the catalogue, grown in the shader by a time uniform ([Colonization.md](js/scene/Colonization.md)) |
 | Wide lines (`wideLines.js`) | Instanced screen-space quads: any width, antialiased, cut in front of the camera, divided through to w = 1.  Segments (RTE, optionally sorted far to near: the asterisms, the human expansion) or a strip (a Line's position attribute and draw range, through the model-view: the orbits).  GL lines are 1 px, and at light-years their w ~1e17 m ([Colonization.md, Drawing](js/scene/Colonization.md#drawing)) |
 

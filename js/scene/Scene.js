@@ -96,6 +96,12 @@ const SAT_ARRIVAL_MIN_UP = 0.3
  * and data) the first time one is shown.
  */
 export const NETWORK_KEYS = Object.freeze(['S', 'I', 'D'])
+/**
+ * The networks that draw a group of Earth's satellites, whole: while one's
+ * overlay is drawn, the population leaves that group's points to it
+ * (Population.setGroupDrawer; Networks.md, one copy, one drawing).
+ */
+export const NETWORK_GROUPS = Object.freeze({S: 'starlink', I: 'iridium'})
 
 
 /**
@@ -1249,6 +1255,7 @@ export default class Scene {
           network.fadeUniform = this.fades[key].uniform
           this._joinOverlay(key, network)
           this._hangNetworks()
+          this._shareNetworks()
           return network
         })
         .catch((err) => {
@@ -1296,7 +1303,25 @@ export default class Scene {
       this._applyPopulationState(population, pending)
     }
     this._hangPopulations()
+    this._shareNetworks()
     this._populationListeners.forEach((cb) => cb(population))
+  }
+
+
+  /**
+   * Leave Earth's Starlink and Iridium points to their networks' overlays
+   * while those are drawn (NETWORK_GROUPS), once both the population and
+   * the network are in, whichever came first.
+   */
+  _shareNetworks() {
+    const pop = this.populationOf('earth')
+    for (const [key, group] of Object.entries(NETWORK_GROUPS)) {
+      const network = this.networks[key]
+      if (pop && network) {
+        // Iridium's points are its Constellation, under its links.
+        pop.setGroupDrawer(group, network.sats ?? network)
+      }
+    }
   }
 
 

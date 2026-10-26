@@ -49,6 +49,10 @@ const HOLD_RANK = 1
 // SGP4 takes about 2 µs each.
 const DIRECT_MAX = 2000
 const REFRESH_PER_FRAME = 2500
+// aShow for a record another drawer draws (setGroupDrawer): it counts as
+// drawn, and its position is set only when it's named.  1 is drawn here, 0
+// not at all.
+const SHOW_ELSEWHERE = 2
 // How far along the circle an object is carried, days, before its exact
 // position is worked out again: J2's turn of the plane, a few degrees a day
 // in low orbit, is a few km in an hour.
@@ -149,6 +153,10 @@ export default class Population extends Group {
       this._groupSize.set(r.group, k + 1)
     })
     this.groupLimits = new Map
+    // A group's points left to another drawer while it draws them (a space
+    // network's overlay: setGroupDrawer), by key.
+    this.drawers = new Map
+    this._elsewhere = new Map
     this._shownCount = null
     for (const [key, g] of Object.entries(groups)) {
       if (Number.isFinite(g.count)) {
@@ -315,6 +323,48 @@ export default class Population extends Group {
 
 
   /**
+   * Leave a group's points to another drawer while it draws them: Earth's
+   * Starlink and Iridium to their networks' overlays (Networks.md, one copy,
+   * one drawing).  While `drawer.drawing`, the group's points aren't drawn
+   * or propagated here: a record counts as drawn while the drawer draws it
+   * (`isShown`), and the names the budget gives the group are put where its
+   * dots are (`positionAtJd`), the only positions asked of it; the targets'
+   * nodes stay exact.  Otherwise, as any group.  The drawer is a space
+   * network's Constellation (networks/Constellation.js).
+   *
+   * @param {string} key
+   * @param {?{drawing: boolean, indexOf: Function, isShown: Function, positionAtJd: Function}} drawer
+   *   null for none
+   */
+  setGroupDrawer(key, drawer) {
+    if (!drawer) {
+      this.drawers.delete(key)
+      return
+    }
+    // Each record's index in the drawer, once (-1: not its, or another group).
+    const index = new Int32Array(this.records.length).fill(-1)
+    this.records.forEach((r, i) => {
+      if (r.group === key) {
+        index[i] = drawer.indexOf(r.id)
+      }
+    })
+    this.drawers.set(key, {drawer, index})
+  }
+
+
+  /** @returns {Map<string, object>} the drawers drawing now, with their indices, by group */
+  _drawingElsewhere() {
+    const out = new Map
+    for (const [key, entry] of this.drawers) {
+      if (entry.drawer.drawing) {
+        out.set(key, entry)
+      }
+    }
+    return out
+  }
+
+
+  /**
    * Show or hide a group: its points and its names.  A hidden group's
    * target keeps its own name.
    *
@@ -447,9 +497,19 @@ export default class Population extends Group {
     let drawn = 0
     const many = this.maxLabels() > DIRECT_MAX
     let budget = REFRESH_PER_FRAME
+    const elsewhere = this._drawingElsewhere()
+    this._elsewhere = elsewhere
     for (let i = 0; i < this.records.length; i++) {
       const rec = this.records[i]
       let on = this._isOn(i)
+      const entry = elsewhere.get(rec.group)
+      if (entry) {
+        // Its dot is the drawer's: not drawn here, and placed only if it's
+        // named (_syncNames).
+        const j = entry.index[i]
+        show.setX(i, on && j >= 0 && entry.drawer.isShown(j) ? SHOW_ELSEWHERE : 0)
+        continue
+      }
       if (on && many && this._circular(rec)) {
         // Not shown until its first exact position: those over the
         // frame's budget come in over the next frames.
@@ -471,7 +531,7 @@ export default class Population extends Group {
     }
     this.drawnCount = drawn
     if (many) {
-      this._refreshInTurn(jd, budget)
+      this._refreshInTurn(jd, budget, elsewhere)
     }
     pos.needsUpdate = true
     show.needsUpdate = true
@@ -600,13 +660,14 @@ export default class Population extends Group {
    *
    * @param {number} jd
    * @param {number} budget
+   * @param {Map<string, object>} [elsewhere] groups drawn by another drawer, not refreshed here
    */
-  _refreshInTurn(jd, budget) {
+  _refreshInTurn(jd, budget, elsewhere = new Map) {
     const n = this.records.length
     for (let k = 0; k < n && budget > 0; k++) {
       const i = this._carryCursor
       this._carryCursor = (i + 1) % n
-      if (this._isOn(i) && this._circular(this.records[i])) {
+      if (this._isOn(i) && !elsewhere.has(this.records[i].group) && this._circular(this.records[i])) {
         this._refresh(i, jd)
         budget--
       }
@@ -659,6 +720,15 @@ export default class Population extends Group {
       }
       if (show.getX(i) > 0.5) {
         ids.push(i)
+      }
+    }
+    // A name on another drawer's dot goes where that dot is.
+    for (const i of ids) {
+      if (show.getX(i) > 1.5) {
+        const entry = this._elsewhere.get(this.records[i].group)
+        if (entry?.drawer.positionAtJd(entry.index[i], this.jd, tmpV)) {
+          pos.setXYZ(i, tmpV.x, tmpV.y, tmpV.z)
+        }
       }
     }
     const key = ids.join(',')
@@ -893,8 +963,9 @@ export default class Population extends Group {
         void main() {
           vColor = aColor;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          // Off the screen: not drawn (a hidden group, no position).
-          if (aShow < 0.5) {
+          // Off the screen: not drawn (a hidden group, no position, or
+          // another drawer's dot: SHOW_ELSEWHERE).
+          if (aShow < 0.5 || aShow > 1.5) {
             gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
           }
           gl_PointSize = uSize * uPixelRatio;
