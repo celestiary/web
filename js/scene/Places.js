@@ -6,6 +6,7 @@ import {latLngAltToBodyFixed} from '../coords.js'
 import {placeRank} from './labelDeclutter.js'
 import {PLACE_LABELS, labelFont} from './labelStyle.js'
 import {cellInView, groupByCell, horizonAngle} from './placeCells.js'
+import {placesUrl} from '../bodyBundle.js'
 import {labelTextColor, overlay} from '../shared.js'
 
 
@@ -404,7 +405,7 @@ const catalogues = new Map() // body name → Promise of its places
 
 
 /**
- * A body's place catalogue (`data/places/<body>.json`), fetched once for the
+ * A body's place catalogue (`data/<its dir>/places.json`), fetched once for the
  * page: the labels (Places), the search and a link to a place all share it,
  * and concurrent asks share the request.  A failure rejects, and isn't kept:
  * the next ask fetches it again.
@@ -417,7 +418,7 @@ export function loadPlaces(bodyName, fetchFn = (...args) => globalThis.fetch(...
   let p = catalogues.get(bodyName)
   if (!p) {
     p = (async () => {
-      const rsp = await fetchFn(`data/places/${bodyName}.json`)
+      const rsp = await fetchFn(placesUrl(bodyName))
       if (!rsp?.ok) {
         throw new Error(`${rsp?.status ?? 'no response'}`)
       }

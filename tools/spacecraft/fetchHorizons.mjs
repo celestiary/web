@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Builds a spacecraft's trajectory table, public/data/trajectories/<name>.json,
+// Builds a spacecraft's trajectory table, trajectory.json in its directory
+// (public/data/earth/spacecraft/webb/),
 // from JPL Horizons' state vectors, and the offline fixture its test checks
 // the interpolation against, js/scene/trajectory.<name>.horizons.json.  Tests never
 // fetch; run this by hand to refresh both (js/scene/models.md, "Positions").
@@ -16,6 +17,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import {hermite} from '../../js/scene/trajectory.js'
+import {readBodyDirs} from '../bodies/build.mjs'
 
 
 const API = 'https://ssd.jpl.nasa.gov/api/horizons.api'
@@ -153,7 +155,8 @@ for (const craft of CRAFT) {
     r: kept.flatMap((s) => s.r.map((x) => Number(x.toFixed(3)))),
     v: kept.flatMap((s) => s.v.map((x) => Number(x.toFixed(9)))),
   }
-  const out = path.join(ROOT, 'public/data/trajectories', `${craft.name}.json`)
+  // In the craft's own directory (its descriptor's `trajectory`).
+  const out = path.join(ROOT, 'public/data', readBodyDirs()[craft.name], 'trajectory.json')
   fs.mkdirSync(path.dirname(out), {recursive: true})
   fs.writeFileSync(out, `${JSON.stringify(table)}\n`)
   process.stderr.write(`${craft.name}: ${dense.length} states thinned to ${kept.length}, ${out}\n`)

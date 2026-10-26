@@ -23,7 +23,7 @@ function jpegSize(buf) {
 
 
 describe('the Moon\'s relief (Planet.md, "Relief")', () => {
-  const moon = JSON.parse(readFileSync('./public/data/moon.json', 'utf8'))
+  const moon = JSON.parse(readFileSync('./public/data/earth/moons/moon/index.json', 'utf8'))
 
   it('has a normal map', () => {
     expect(moon.texture_normal).toBe(true)

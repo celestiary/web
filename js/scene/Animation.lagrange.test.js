@@ -7,7 +7,7 @@ import {lagrangePoints, placePoints} from './lagrange.js'
 import {moonScenePosition} from './lunarTheory.js'
 import {meanElements} from './meanElements.js'
 import {ASTRO_UNIT_METER} from '../shared.js'
-import tethys from '../../public/data/tethys.json'
+import tethys from '../../public/data/saturn/moons/tethys/index.json'
 
 
 // Animation.layLagrange: the pair's line is the secondary's place (the

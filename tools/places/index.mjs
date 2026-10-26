@@ -2,21 +2,49 @@
 // Writes public/data/places-index.json: every body's places for the search,
 // without what only the labels need (the tier), so a search loads one file
 // rather than every body's catalogue (#258; js/search/DESIGN.md, "Places in
-// the index").  Built from public/data/places/<body>.json, which stay what
-// to edit or rebuild (build.mjs runs this after writing them); committed, and
-// a test fails when it has drifted from them (places.test.js).
+// the index").  Built from each body's places.json, in its directory
+// (public/data/earth/places.json, public/data/earth/moons/moon/places.json:
+// js/bodyDirs.json), which stay what to edit or rebuild (build.mjs runs this
+// after writing them); committed, and a test fails when it has drifted from
+// them (places.test.js).
 //
 //   yarn places-index           writes the index
 //   yarn places-index --check   exits 1 if the index isn't what the catalogues say
-import {existsSync, readFileSync, readdirSync, writeFileSync} from 'node:fs'
+import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {dirname, join, relative, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {readBodyDirs} from '../bodies/build.mjs'
 
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '../..')
-export const CATALOGUES = join(root, 'public/data/places')
-export const OUTPUT = join(root, 'public/data/places-index.json')
+export const DATA = join(root, 'public/data')
+export const OUTPUT = join(DATA, 'places-index.json')
+
+
+/**
+ * @param {string} body
+ * @param {string} [data] public/data
+ * @returns {string} where its place catalogue is, in its directory
+ */
+export function catalogueFile(body, data = DATA) {
+  const dir = readBodyDirs()[body]
+  if (!dir) {
+    throw new Error(`${body} has no directory (js/bodyDirs.json): run yarn bodies`)
+  }
+  return join(data, dir, 'places.json')
+}
+
+
+/**
+ * @param {string} [data] public/data
+ * @returns {Array<[string, string]>} each body with places and its
+ *   catalogue's file, by name
+ */
+export function catalogueFiles(data = DATA) {
+  return Object.keys(readBodyDirs()).sort().map((body) => [body, catalogueFile(body, data)])
+      .filter(([, file]) => existsSync(file))
+}
 
 
 /**
@@ -58,7 +86,7 @@ export function renderIndex(index) {
   return [
     '{',
     '"_generator": "tools/places/index.mjs",',
-    '"_about": "The places of public/data/places/<body>.json for the search: [name, lat, lng, kind, altitude?]. ' +
+    '"_about": "The places of each body\'s places.json for the search: [name, lat, lng, kind, altitude?]. ' +
       'Edit or rebuild those, then run yarn places-index",',
     `"kinds": ${JSON.stringify(index.kinds)},`,
     '"bodies": {',
@@ -71,13 +99,13 @@ export function renderIndex(index) {
 
 
 /**
- * @param {string} [dir] Where the catalogues are
+ * @param {string} [data] public/data
  * @returns {string} The index the catalogues there make
  */
-export function buildIndex(dir = CATALOGUES) {
+export function buildIndex(data = DATA) {
   const catalogues = {}
-  for (const file of readdirSync(dir).filter((f) => f.endsWith('.json')).sort()) {
-    catalogues[file.slice(0, -'.json'.length)] = JSON.parse(readFileSync(join(dir, file), 'utf8'))
+  for (const [body, file] of catalogueFiles(data)) {
+    catalogues[body] = JSON.parse(readFileSync(file, 'utf8'))
   }
   return renderIndex(placesIndex(catalogues))
 }

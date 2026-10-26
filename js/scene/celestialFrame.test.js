@@ -10,7 +10,7 @@ const toRad = Math.PI / 180
 
 
 // Earth obliquity at J2000 (IAU value).  Matches `axialInclination` for
-// Earth in public/data/earth.json (modulo the JSON's published precision).
+// Earth in public/data/earth/index.json (modulo the JSON's published precision).
 const EARTH_OBLIQUITY_DEG = 23.4392811
 
 

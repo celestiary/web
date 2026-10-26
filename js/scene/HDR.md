@@ -156,7 +156,7 @@ the sky eases with it, as the surface does.
 
 ### Worked number: Earth's midday sky
 
-Earth's atmosphere (`earth.json`): Rayleigh `β = (5.8, 13.5, 33.1)×10⁻⁶ /m`,
+Earth's atmosphere (`earth/index.json`): Rayleigh `β = (5.8, 13.5, 33.1)×10⁻⁶ /m`,
 scale height 8 km, so vertical optical depth `τ = (0.046, 0.108, 0.265)`; Mie
 `τ ≈ 0.006`.  For the zenith sky with the Sun 45° up (scattering angle 45°,
 `pRlh = 3/(16π)·(1 + cos² 45°) = 0.0895`), single scattering gives about
@@ -1612,7 +1612,7 @@ band the calibration is in.
 All in exposure units at Earth's keyed exposure, pre-exposed as the stars
 are, and through the air's transmittance (composition.md):
 
-- **Airglow** (`nightSky.js`, earth.json `atmosphere.airglow`): 22.4
+- **Airglow** (`nightSky.js`, earth/index.json `atmosphere.airglow`): 22.4
   mag/arcsec² in V at the zenith from a layer at 90 km, 10 km thick.  Its
   path along a ray is the layer's chord (`airglowPath`): 1 at the zenith,
   the van Rhijn factor toward the horizon (1.9 at 60°, 3.3 at 75°, 6.1 at

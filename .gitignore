@@ -20,6 +20,9 @@ t
 parity-out
 tools/places/.cache
 
+# CelesTrak's answers, two hours each (tools/satellites/celestrak.mjs)
+tools/satellites/.cache
+
 # The Gaia build's fetched rows (tools/gaia/gaia.mjs; js/scene/Gaia.md)
 tools/gaia/.cache
 

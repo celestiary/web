@@ -159,10 +159,10 @@ js/scene/rings/Rings.test.js   — unit tests
 | `js/scene/shapes.js` | Remove the `rings()` function entirely |
 | `js/scene/Planet.js` | Replace `if (name === 'saturn')` with `if (props.rings) surface.add(new Rings(props))` |
 | `js/reify.js` | Add `rings` sub-object reification |
-| `public/data/saturn.json` | Add `rings` block |
-| `public/data/uranus.json` | Add `rings` stub (no texture yet) |
-| `public/data/neptune.json` | Add `rings` stub (no texture yet) |
-| `public/data/jupiter.json` | Add `rings` stub (no texture yet) |
+| `public/data/saturn/index.json` | Add `rings` block |
+| `public/data/uranus/index.json` | Add `rings` stub (no texture yet) |
+| `public/data/neptune/index.json` | Add `rings` stub (no texture yet) |
+| `public/data/jupiter/index.json` | Add `rings` stub (no texture yet) |
 
 ---
 

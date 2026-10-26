@@ -162,7 +162,7 @@ in view space).
 
 Earth's clouds are a layer of their own (#88), not baked into the surface:
 the Blue Marble on both sides of the Cesium swap is cloud-free, so one cloud
-shell is drawn over whichever surface is there.  `earth.json` turns it on
+shell is drawn over whichever surface is there.  `earth/index.json` turns it on
 (`"clouds": "gibs"`); the code is `js/scene/clouds/`.
 
 ### Source: NASA GIBS's daily true colour
@@ -729,7 +729,7 @@ bright at #192's crescent (HDR.md, [a star beside the Moon](HDR.md#a-star-beside
 Both Moons, celestiary's mesh (`lunarSurface.js`) and Cesium's tileset
 (`sunlitShader`), now take their light from one function,
 `lunarPhotometry.js` (GLSL `LUNAR_PHOTOMETRY_GLSL`, shared by the two
-shaders), for `photometry: 'lunar'` in moon.json and bodies.js:
+shaders), for `photometry: 'lunar'` in earth/moons/moon/index.json and bodies.js:
 
 - **Lunar-Lambert** (McEwen 1991; the Moon's L(α) from McEwen 1996, as
   USGS ISIS has it): I/F = A · f(α) · [2L(α) μ0/(μ0 + μ) + (1 − L(α)) μ0].
@@ -889,7 +889,7 @@ point](../../DESIGN.md#the-far-point)).
   `2004-MM/0/` to `2/` are no longer requested (about 1.2 MB a month, 14
   MB in all), and can go once nothing else reads them.
   Same −180° left edge as before.  NASA has no June: it's May and July
-  blended.  `earth.json` `texture_monthly` makes the map follow the
+  blended.  `earth/index.json` `texture_monthly` makes the map follow the
   simulation date's month (`monthly.js`, `Planet.monthlyMap`).  Earth's
   atmosphere `sunIntensity` was 30, matched to Cesium's Earth over the same
   imagery (median ratio 1.00 over the disc from 20,000 km; at 60 the haze
@@ -924,7 +924,7 @@ example asked for `2004-10.jpg` three times, and asks once.
   Arizona State University, via the USGS; public domain), the imagery of
   Cesium's Moon.  Same layout and recipe, from
   `https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/3/{row}/{col}.jpg`.
-  Its stored values are a linear stretch of I/F; `moon.json` sets
+  Its stored values are a linear stretch of I/F; `earth/moons/moon/index.json` sets
   `texture_gain` 0.4448, which makes them the Moon's normal albedo
   ([the Moon's photometry](#the-moons-photometry)), and Cesium's Moon takes
   the same gain (`CESIUM_BODIES.moon.textureGain`), over ion's copy being
@@ -932,7 +932,7 @@ example asked for `2004-10.jpg` three times, and asks once.
   photometry").  (It was
   1.3 under Lambert's law: the mean 76/255 against Mars's 121, scaled by
   the albedo ratio.)
-- **Moon relief** (`moon_normal.jpg`, 2048×1024, 620 KB; `moon.json`
+- **Moon relief** (`moon_normal.jpg`, 2048×1024, 620 KB; `earth/moons/moon/index.json`
   `texture_normal`): a tangent-space normal map from LRO LOLA's global DEM
   (NASA/GSFC; public domain), as Moon Trek serves it
   (`LRO_LOLA_DEM_Global_128ppd_v04`, an 8-bit PNG stretch, WMTS level 3,
@@ -1024,7 +1024,7 @@ Iapetus's are published as west longitude, east = −west):
 **Jupiter's clouds** turn with System II (W = 43.3° + 870.270° d), not the
 IAU's System III (the interior's, from the radio period), 0.266°/day
 faster, about 97° a year.  A texture fixed in System III would put the
-Great Red Spot anywhere.  So `jupiter.json`'s `texture_rotation` turns the
+Great Red Spot anywhere.  So `jupiter/index.json`'s `texture_rotation` turns the
 surface mesh (`iauRotation.textureTurn`) to put the texture's spot, which
 is at 91.7°E in the texture (the centroid of its reddest pixels, 26°S), at
 its observed System II longitude: 46° + 21°/yr from 2023-10-01, which fits

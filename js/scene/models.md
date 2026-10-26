@@ -70,7 +70,8 @@ JWST's floor is 17 cm.
 
 ## A spacecraft's descriptor
 
-`public/data/webb.json`, listed in its parent's `system` (earth.json) and
+`public/data/earth/spacecraft/webb/index.json`, listed in its parent's `system`
+(`earth/index.json`) and
 built into `bodies.json` by `yarn bodies`:
 
 | Field | |
@@ -81,7 +82,7 @@ built into `bodies.json` by `yarn bodies`:
 | `albedo` | For the meter's sunlit-body anchor (`ThreeUI._sunlitBodies`) |
 | `aliases` | Search tokens ("jwst") |
 | `model` | `{path, scale?, rotation?, doubleSided?}`: `loadModel`'s, and an XYZ Euler turn in degrees into the attitude frame below |
-| `trajectory` | The table, under `data/` (`trajectories/webb.json`) |
+| `trajectory` | The table, under `data/` (`earth/spacecraft/webb/trajectory.json`, in its own directory) |
 | `attitude` | `{sun: [x, y, z]}`: the model's axis kept toward the Sun |
 
 The body is called `webb` rather than `jwst` so its name reads well
@@ -164,7 +165,7 @@ couldn't follow the burns anyway).
 - **Thinned** to the fewest states whose cubic Hermite between neighbours
   (both ends' positions and velocities) reproduces every state of the
   dense sample within 5 km: 1,196 states, 99 KB, 43 KB gzipped
-  (`public/data/trajectories/webb.json`).  The Earth's monthly wobble about
+  (`public/data/earth/spacecraft/webb/trajectory.json`).  The Earth's monthly wobble about
   the Earth–Moon barycentre is in a geocentric table, and is what limits the
   step: 1 km would take 1,848 states (66 KB gzipped), 10 km 1,016.  5 km is
   3 parts in a million of Webb's 1.5 million km from the Earth.
@@ -239,7 +240,7 @@ Headless Chromium on SwiftShader, `CESIUM_ION_TOKEN= yarn build`, at
   Earth's.
 - From beside the Earth, 2 million km off the Earth–Webb line, Webb's label
   and marker sit near the Sun–Earth L2 mark, and the page fetched
-  `data/trajectories/webb.json` and not the model.
+  `data/earth/spacecraft/webb/trajectory.json` and not the model.
 - No shader errors.
 
 ## Not yet

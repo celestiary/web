@@ -13,7 +13,7 @@ import {recordsOf} from './networks/loadNetworks.js'
 
 const Scene = (await import('./Scene.js')).default
 const {NETWORK_KEYS, OVERLAY_KEYS} = await import('./Scene.js')
-const IRIDIUM = JSON.parse(fs.readFileSync(new URL('../../public/data/networks/iridium.json', import.meta.url), 'utf8'))
+const IRIDIUM = JSON.parse(fs.readFileSync(new URL('../../public/data/earth/satellites/networks/iridium.json', import.meta.url), 'utf8'))
 
 
 /** @returns {object} a Scene with Earth's planetTilt, and a stub chunk counting its loads */

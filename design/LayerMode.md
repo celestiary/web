@@ -265,8 +265,10 @@ receiver, 2026-10-24; the guest's own `layer:stats`):
 
 - **Labels off.** DeepSpaceNetwork takes `labels: false`, and the
   satellites' population gets a label budget of 0: their SpriteSheets want
-  ThreeUi's uniforms. The satellites leave out Starlink's file (Git LFS)
-  and, with `I` on, Iridium, which the networks draw. Layer mode draws no
+  ThreeUi's uniforms. The satellites leave out Starlink, which only its
+  network draws here, and, with `I` on, Iridium (`loadSatelliteRecords`'
+  `skip`): the networks' files are the population's too, so a group left
+  out isn't fetched for it. Layer mode draws no
   names; it publishes anchors, and the host names them.
 - **No Scene.** The network classes already take `layer`, `camera` and a
   `jd` passed to `update`. The layer builds them through `loadNetworks.js`

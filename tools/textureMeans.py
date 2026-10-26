@@ -12,7 +12,6 @@ Usage: tools/textureMeans.py > js/scene/textureMeans.json
 Run from the repository root.  Needs Pillow and NumPy.  A body whose map
 follows the month (Earth's texture_monthly) takes January's.
 """
-import glob
 import json
 import os
 import sys
@@ -39,7 +38,10 @@ def mean_rgb(path):
 
 def main():
     means = {}
-    for path in sorted(glob.glob('public/data/*.json')):
+    # Each body's descriptor, in its directory (js/bodyDirs.json, yarn bodies).
+    with open('js/bodyDirs.json') as f:
+        dirs = json.load(f)
+    for path in sorted(f'public/data/{d}/index.json' for d in dirs.values()):
         try:
             with open(path) as f:
                 props = json.load(f)

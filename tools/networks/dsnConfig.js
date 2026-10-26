@@ -1,5 +1,5 @@
 // DSN Now's configuration (https://eyes.nasa.gov/dsn/config.xml) to the
-// app's public/data/networks/dsn.json (js/scene/networks/Networks.md, the
+// app's public/data/earth/networks/dsn.json (js/scene/networks/Networks.md, the
 // DSN): the complexes, their dishes, and the spacecraft's friendly names.
 // Pure, for fetch.mjs and its test.
 

@@ -8,7 +8,7 @@ import {parseCatalog, temePosition} from './sgp4.js'
 
 // An ISS-like orbit, a GPS-like one and two Starlink-like ones, elements of
 // 2026 Oct 22 12:00 UTC (made up for the test: the real snapshot's are in
-// satellites.json), with the header's groups and known names.
+// data/earth/satellites/), with the header's groups and known names.
 const EPOCH_JD = 2461336.0
 const EPOCH = '2026-10-22T12:00:00.000000'
 const SNAPSHOT = {

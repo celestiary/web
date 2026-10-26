@@ -22,35 +22,42 @@ spacecraft) share: this doc is what's Earth's and CelesTrak's.
   positions are SGP4's: the points, groups, names and target nodes are the
   population's.
 - `names.js`: what they're called (`displayName`, `aliasesOf`, from the
-  snapshot's `known`), the satellite panel's lines (`satelliteFacts`), and
-  the load distance.  It has no dependencies, so the scene, the search and
+  snapshot's `known`), the orders a counted group can be in (`ORDERS`), the
+  satellite panel's lines (`satelliteFacts`), and the load distance.  It has no dependencies, so the scene, the search and
   the link import it without the SGP4 chunk.
 - `loadSatellites.js`: the chunk's entry. Scene imports it dynamically, with
-  the snapshot and Starlink's file.
+  the snapshot and its groups' own files (`loadSatelliteRecords`, which layer
+  mode shares).
 - `../../search/providers/SatellitesProvider.js`: the search's entries, for
   any population.
 - `../networks/` (not this population): the space network overlays, `S`,
   `I` and `D` ([Networks.md](../networks/Networks.md)), draw Starlink by its
-  shells and Iridium with its crosslinks from snapshots of their own.
-- `../../../tools/satellites/`: `fetch.mjs` refreshes the snapshot (`yarn
-  satellites`), `select.js` holds the groups, the sampling and the orders, and
-  `fetchHorizons.mjs` refreshes the Horizons fixture.
+  shells and Iridium with its crosslinks, from the same files as this
+  population's Starlink and Iridium groups.
+- `../../../tools/satellites/`: `fetch.mjs` refreshes the snapshot and the
+  constellations' files (`yarn satellites`), `celestrak.mjs` asks CelesTrak,
+  `select.js` holds the groups and the sampling, and `fetchHorizons.mjs`
+  refreshes the Horizons fixture.
 
 ## The data
 
-**A snapshot, bundled:** `public/data/satellites.json`, and Starlink whole in
-a file of its own, `public/large/satellites/starlink.json` (Git LFS),
-refreshed by `yarn satellites`, not fetched live.
+**A snapshot, bundled**, under `public/data/earth/satellites/`: `index.json`,
+and the constellations the space networks draw (Starlink, Iridium) whole in
+files of their own under `networks/` there, which the networks' overlays
+read too ([Networks.md](../networks/Networks.md#the-data)): one copy each.
+Refreshed by `yarn satellites`, not fetched live.
 
 - **Why a snapshot.**  The app is a time machine. A live fetch serves only
   dates near today, and links, previews and tests would change under it.
   CelesTrak's usage policy also asks clients to fetch each data set at most
   once per update (every two hours for GP data), and it enforces that.  The
-  snapshot without Starlink is small, 527 satellites in 85 KB, under the
-  data policy's line for plain git (DESIGN.md, [data
-  policy](../../../DESIGN.md#data-policy)).  Starlink's 11,116 are 1.8 MB
-  (543 KB gzipped), over it: in Git LFS under `public/large/`, loaded with
-  `dataUrl`.
+  snapshot without the constellations is small, 447 satellites in 70 KB,
+  under the data policy's line for plain git (DESIGN.md, [data
+  policy](../../../DESIGN.md#data-policy)); so are Starlink's 11,116 in the
+  networks' compact columns, 859 KB (320 KB gzipped), and Iridium's 80.
+  Starlink's were 1.8 MB as rows (543 KB gzipped), in Git LFS under
+  `public/large/`, beside the overlay's own copy, until they became one
+  file (below).
 - **The snapshot** was fetched 2026-10-23 17:20 UTC; its elements' epochs
   run to 2026-10-23.  What's in it (`select.js` `GROUP_QUERIES`), each
   satellite once, under the first group that has it:
@@ -83,12 +90,22 @@ refreshed by `yarn satellites`, not fetched live.
     ask; it was a 300 sample before).  `select.js` gives the group an order
     and a count instead of a sample (`order: 'serial'`, the number in
     STARLINK-1008, then NORAD's; `count: 300`) and a file of its own
-    (`file`).  The header carries them as `orderedBy` ("serial number"),
-    `count` and `file`, and the panel gives the group a slider, from one to
-    all, the first by serial number (Population.md, [counted
-    groups](../population/Population.md#counted-groups)).  Built from the
-    same 17:20 UTC fetch, kept in a cache (`--cache --offline`): nothing new
-    asked of CelesTrak.
+    (`file`).  The header carries them as `order` (`serial`), `orderedBy`
+    ("serial number"), `count` and `file`, and the panel gives the group a
+    slider, from one to all, the first by serial number (Population.md,
+    [counted groups](../population/Population.md#counted-groups)).  Built
+    from the same 17:20 UTC fetch, kept in a cache (`--cache --offline`):
+    nothing new asked of CelesTrak.
+  - **One file a constellation** (at the maintainer's ask, after the
+    networks' overlays brought copies of their own): Starlink and Iridium
+    are each one file under `networks/`, in the networks' compact columns
+    with the names and designators (`compactElements.js`), which the
+    overlays and this population both read.  The file is in NORAD order;
+    `loadSatellites.js` puts a group in its `order` as it loads it
+    (names.js `ORDERS`), so the slider's first are still by serial number.
+    The rows it replaced came from the same 17:20 UTC fetch, rebuilt with
+    nothing asked of CelesTrak: every name and designator the same, positions
+    within 3 m over a week.
   - **What they fill:** the regimes [Lagrange.md](../Lagrange.md#orbital-regimes)
     draws.  LEO has the stations, Hubble, Iridium (780 km, 86.4°) and
     Starlink; MEO has the
@@ -108,24 +125,51 @@ refreshed by `yarn satellites`, not fetched live.
   and `color` with its URL and counts, in the panel's order, and `known`,
   the best known by NORAD number with the names people use and their
   aliases (`select.js` `KNOWN`).  A group kept in a file of its own names
-  it (`file`); that file has the same columns, and its rows.  It's OMM, not TLE: the catalogue passed five digits on
+  it (`file`, a path under public/, plain git, fetched as it is: not by
+  `dataUrl`, which a preview resolves against production); that file is
+  the networks' compact columns.  It's OMM, not TLE: the catalogue passed five digits on
   2026-07-11 (CelesTrak), and TLEs can't carry the new numbers.  The
-  snapshot already has some, e.g. Soyuz MS-29, 100057.
-- **Fetching** (`tools/satellites/fetch.mjs`): one request a group, through
-  the proxy (`NODE_USE_ENV_PROXY=1`, which `yarn satellites` sets).  It
-  stops at the first answer that isn't a 200, as CelesTrak's [usage
-  policy](https://celestrak.org/usage-policy.php) asks of machine
-  clients; ignoring refusals gets an address firewalled.  `--cache DIR`
-  keeps each group's answer for two hours, so a run that stopped part way
-  can be run again without asking for what it had; with `--offline` too, the
-  cache is used whatever its age and nothing is asked, to rebuild the files
-  from the last fetch.  `--skip` leaves a refused group out without asking
-  (a skipped group's own file is left as it was).
+  snapshot already has some, e.g. Soyuz MS-29, 100057 (and 473 of the
+  Starlinks).  Nothing on the way assumes five: satellite.js's
+  `json2satrec` takes the number as it is, links are `sat:<digits>`, the
+  compact columns store differences.
+- **Fetching** (`tools/satellites/fetch.mjs`, asking through
+  `celestrak.mjs`): one request a group, the constellations' among them,
+  through the proxy (`NODE_USE_ENV_PROXY=1`, which `yarn satellites` sets).
+  - **As CSV** (`FORMAT=CSV`).  CelesTrak's [GP data
+    formats](https://celestrak.org/NORAD/documentation/gp-data-formats.php)
+    page (updated 2026-06-23, read 2026-10-26) makes CSV the default since
+    2026-05-09, is the format CelesTrak uses itself and promises not to
+    change "unless absolutely necessary", where the JSON could; and the
+    JSON is three times its size, while CelesTrak is short of bandwidth.
+    `parseGpCsv` reads it into the records the JSON gave (`.1189007E-3` is
+    the JSON's 0.0001189007: the same doubles), so nothing downstream
+    changed, and throws on an answer that isn't GP CSV (its "No GP data
+    found" comes as a 200) or a record SGP4 can't start from.
+  - **Once per update.**  Each answer is kept in `tools/satellites/.cache`
+    (git ignores it; `--cache DIR` for another) and used again for two
+    hours.  `yarn networks` asked for Starlink and Iridium NEXT too, for the
+    overlays' copies: without a shared `--cache` the second script asked
+    again, and since 2026-03-26 CelesTrak answers a second download of a set
+    that hasn't updated with a 403.  Now only this script asks CelesTrak.
+    A run that stopped part way can be run again
+    without asking for what it had; with `--offline`, the cache is used
+    whatever its age and nothing is asked, to rebuild the files from the
+    last fetch.
+  - **Stopping at the first answer that isn't a 200**, as CelesTrak's
+    [usage policy](https://celestrak.org/usage-policy.php) asks of machine
+    clients; ignoring refusals gets an address firewalled (50 errors in two
+    hours, 301s, 403s and 404s alike).  Redirects aren't followed
+    (`redirect: 'manual'`): a 301 is one of those errors, and CelesTrak
+    says to stop at it.  `--skip` leaves a refused group out without asking
+    (a skipped group's own file is left as it was).
 - **Licence and terms.**  The elements are the US Space Force's public
   catalogue (space-track.org), which CelesTrak republishes.  CelesTrak's
   usage policy (read 2026-10-23) sets access limits, the ones above, and
   its pages call the data freely available.  Neither the policy nor the
-  GP documentation says anything about redistributing a copy.  *For the
+  GP documentation (read again 2026-10-26, after its update of 2026-06-23)
+  says anything about redistributing a copy; the documentation asks users
+  who value the service to donate.  *For the
   maintainer to decide:* whether committing a snapshot with attribution
   (the header's `source`, the info panel's "Elements from CelesTrak") is
   enough, or whether to ask CelesTrak, or space-track.org's terms, first.
@@ -164,7 +208,7 @@ scene's.  Two things differ:
 - **Nutation**, which TEME has and the scene doesn't: under 20″.  That's
   0.2 to 0.33 km for Vanguard 1 at 7,000 to 9,000 km out, and up to about
   4 km at GEO.
-- **Earth's tilt**: `earth.json`'s `axialInclination` is 23.45°, 0.0107°
+- **Earth's tilt**: `earth/index.json`'s `axialInclination` is 23.45°, 0.0107°
   (38″) over the J2000 obliquity, 23.4393°.  The satellites hang in the
   equator as drawn, so their ground tracks match Earth's drawn surface, and
   they carry that 38″ in space: 1.6 km for Vanguard 1.  Correcting Earth's
@@ -267,7 +311,9 @@ by.
 Neither satellite.js (about 20 KB minified, 10 KB gzipped, its WASM
 propagators stubbed out in `esbuild/common.js`) nor the snapshot is in the
 first load.  `Scene.loadSatellites` imports the chunk and fetches the
-snapshot once, then Starlink's file (543 KB gzipped, by `dataUrl`), when:
+snapshot once, then its groups' own files (Starlink's 320 KB gzipped,
+Iridium's; the networks' overlays read the same files, so a second reader
+gets them from the HTTP cache), when:
 
 - the view could show the satellites: the camera within 1.5e9 m of Earth
   with the orbits (`o`) shown.  A watcher node under Earth's `planetTilt`

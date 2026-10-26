@@ -1,5 +1,7 @@
 // Unit tests for atmosphere parameter validation and planet atmosphere data.
-import {readdirSync, readFileSync} from 'fs'
+import {readFileSync} from 'fs'
+import BODY_DIRS from '../../bodyDirs.json'
+import {descriptorUrl} from '../../bodyBundle.js'
 import {ASTRO_UNIT_METER, DISPLAY_GAIN} from '../../shared.js'
 import {PHYSICAL_SKY_GAIN, exposureAt, skyExposure, skyGain} from '../exposure.js'
 import {mieParams} from './AtmospherePrecompute.js'
@@ -9,7 +11,7 @@ import {mieParams} from './AtmospherePrecompute.js'
  * @returns {object}
  */
 function loadPlanet(name) {
-  return JSON.parse(readFileSync(`./public/data/${name}.json`, 'utf8'))
+  return JSON.parse(readFileSync(`./public/${descriptorUrl(name)}`, 'utf8'))
 }
 
 // Fields stored as Measure strings ("8e3 m") need scalar extraction in tests,
@@ -217,18 +219,8 @@ describe('atmosphere JSON data', () => {
 
 
 describe('the sky gain', () => {
-  // Every body descriptor with an atmosphere (some data files aren't
-  // plain JSON).
-  const bodies = readdirSync('./public/data')
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => {
-        try {
-          return JSON.parse(readFileSync(`./public/data/${f}`, 'utf8'))
-        } catch {
-          return null
-        }
-      })
-      .filter((b) => b?.atmosphere)
+  // Every body descriptor with an atmosphere.
+  const bodies = Object.keys(BODY_DIRS).map(loadPlanet).filter((b) => b.atmosphere)
 
   it('is the physical single-scattering gain, π·DISPLAY_GAIN', () => {
     expect(PHYSICAL_SKY_GAIN).toBe(Math.PI * DISPLAY_GAIN)

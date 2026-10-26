@@ -115,26 +115,35 @@ export function epochToJd(epoch) {
 /**
  * The snapshot, parsed.
  *
- * @param {{rows: Array<Array>, known?: object}} data public/data/satellites.json
+ * @param {{rows: Array<Array>, known?: object}} data public/data/earth/satellites/index.json
  * @returns {Array<SatRecord>} in its order, those SGP4 can start from
  */
 export function parseCatalog(data) {
   const out = []
   for (const row of data?.rows ?? []) {
     const rec = newSatRecord(rowToOmm(row), row[2])
-    if (!rec) {
-      continue
+    if (rec) {
+      out.push(withKnown(rec, data.known))
     }
-    // The snapshot's best known: the name people use, and their aliases.
-    const known = data.known?.[rec.id]
-    if (known) {
-      rec.known = true
-      rec.label = known.name
-      rec.aliases = known.aliases ?? []
-    }
-    out.push(rec)
   }
   return out
+}
+
+
+/**
+ * @param {SatRecord} rec
+ * @param {object} [known] the snapshot's best known, by NORAD number
+ * @returns {SatRecord} rec, with the name people use and their aliases if
+ *   it's one of them
+ */
+export function withKnown(rec, known) {
+  const k = known?.[rec.id]
+  if (k) {
+    rec.known = true
+    rec.label = k.name
+    rec.aliases = k.aliases ?? []
+  }
+  return rec
 }
 
 
