@@ -39,6 +39,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Starlink drawn once with its overlay and the satellites both on
+
+With the Starlink overlay (`S`) and Earth's satellites both on, each Starlink was drawn twice, as a
+dot in its shell's colour and again as a blue satellite dot. Now the overlay draws it, once, and its
+name, if it has one, sits on that dot. Iridium is the same with its overlay (`I`). Turning the overlay
+off brings the satellites' own dots back.
+
+- Date: 2026-10-26
+- PR: [#308](https://github.com/celestiary/web/pull/308)
+- Issue: [#50](https://github.com/celestiary/web/issues/50)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Solar-system populations: asteroids, comets, satellites
+- Permalink: none
+- Kind: fix
+
 ### Star names only for the stars you can see, and names sized by how near they are
 
 A star's name now shows only while the star itself can be seen: under a city's sky just the few

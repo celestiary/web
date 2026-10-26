@@ -1,6 +1,32 @@
 {
   "entries": [
     {
+      "id": "2026-10-26-starlink-drawn-once-with-its-overlay-and-the",
+      "date": "2026-10-26",
+      "headline": "Starlink drawn once with its overlay and the satellites both on",
+      "text": "With the Starlink overlay (S) and Earth's satellites both on, each Starlink was drawn twice, as a dot in its shell's colour and again as a blue satellite dot. Now the overlay draws it, once, and its name, if it has one, sits on that dot. Iridium is the same with its overlay (I). Turning the overlay off brings the satellites' own dots back.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 308,
+          "url": "https://github.com/celestiary/web/pull/308"
+        },
+        {
+          "kind": "issue",
+          "number": 50,
+          "url": "https://github.com/celestiary/web/issues/50"
+        }
+      ],
+      "epic": {
+        "number": 114,
+        "title": "Solar-system populations: asteroids, comets, satellites",
+        "url": "https://github.com/celestiary/web/issues/114"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-10-24-star-names-only-for-the-stars-you-can-see-and",
       "date": "2026-10-24",
       "headline": "Star names only for the stars you can see, and names sized by how near they are",
