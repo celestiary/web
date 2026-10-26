@@ -508,8 +508,9 @@ tried and dropped.
   Chromium, `https://celestiary.org/` and
   `https://celestiary.org/web/pr-preview/pr-<n>/`):
   `yarn load-budget --url <url> --no-budget` with
-  `--chromium /opt/pw-browsers/chromium-1194/chrome-linux/chrome
-  --trust-ca /root/.ccr/agent-proxy-ca.crt`. The sandbox's proxy re-signs
+  `--chromium /opt/pw-browsers/chromium --trust-ca
+  /root/.ccr/agent-proxy-ca.crt` (the link, not a versioned path such as
+  `chromium-1194`, which changes with the image). The sandbox's proxy re-signs
   TLS, and Chromium's own certificate store can be stale after a container
   restart (`ERR_CERT_AUTHORITY_INVALID`), so `--trust-ca` passes
   `--ignore-certificate-errors-spki-list=<base64 SHA-256 of the CA's
