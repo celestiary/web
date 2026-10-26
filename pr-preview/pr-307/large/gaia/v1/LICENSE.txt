@@ -1,0 +1,17 @@
+Gaia DR3 star tiles for celestiary (js/scene/Gaia.md).
+
+Derived from the European Space Agency (ESA) mission Gaia's third data
+release, Gaia DR3 (Gaia Collaboration, Vallenari et al. 2023, A&A 674, A1;
+the mission: Gaia Collaboration, Prusti et al. 2016, A&A 595, A1), from the
+ESA Gaia archive, with distances from Bailer-Jones et al. 2021 (AJ 161, 147).
+Gaia data: ESA/Gaia/DPAC, licensed CC BY-SA 3.0 IGO
+(https://creativecommons.org/licenses/by-sa/3.0/igo/).  These tiles are a
+derived work (propagated to J2000.0, converted to V and to the scene's frame,
+merged with the bundled catalogue) and are shared under the same licence.
+
+This work has made use of data from the European Space Agency (ESA) mission
+Gaia (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing
+and Analysis Consortium (DPAC,
+https://www.cosmos.esa.int/web/gaia/dpac/consortium). Funding for the DPAC has
+been provided by national institutions, in particular the institutions
+participating in the Gaia Multilateral Agreement.
