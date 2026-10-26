@@ -12,14 +12,17 @@
 //   the spacecraft's names.  The live feed isn't bundled: the app polls it.
 //
 // CelesTrak is asked as tools/satellites/celestrak.mjs asks: once a group,
-// kept in --cache DIR for two hours, and stopping at the first refusal.
+// kept for two hours in the cache `yarn satellites` shares
+// (tools/satellites/.cache, or --cache DIR), so the two scripts ask for
+// Starlink and Iridium NEXT once between them, and stopping at the first
+// refusal.
 // NODE_USE_ENV_PROXY=1 (set by `yarn networks`) lets Node's fetch use the
 // proxy.
 
 import fs from 'node:fs'
 import {dsnConfig} from './dsnConfig.js'
 import {encodeElements} from '../../js/scene/networks/compactElements.js'
-import {cacheFile, fetchGroup} from '../satellites/celestrak.mjs'
+import {DEFAULT_CACHE, fetchGroup} from '../satellites/celestrak.mjs'
 import {gpUrl} from '../satellites/select.js'
 
 
@@ -31,7 +34,7 @@ const arg = (name) => {
   const i = process.argv.indexOf(name)
   return i > 0 ? process.argv[i + 1] : null
 }
-const CACHE = arg('--cache')
+const CACHE = arg('--cache') ?? DEFAULT_CACHE
 const ONLY = new Set((arg('--only') ?? 'starlink,iridium,dsn').split(','))
 
 
@@ -55,10 +58,11 @@ for (const [name, group, names] of [['starlink', 'starlink', false], ['iridium',
     continue
   }
   const url = gpUrl({GROUP: group})
-  const records = (await fetchGroup(url, CACHE)).filter((r) => r.MEAN_MOTION > 0)
+  const answer = await fetchGroup(url, {cacheDir: CACHE})
+  const records = answer.records.filter((r) => r.MEAN_MOTION > 0)
   console.log(`${name}: ${records.length} from ${url}`)
   // When CelesTrak answered: the cached answer's time, if it came from there.
-  const at = CACHE && fs.existsSync(cacheFile(url, CACHE)) ? fs.statSync(cacheFile(url, CACHE)).mtime.toISOString() : fetched
+  const at = new Date(answer.fetchedMs).toISOString()
   write(`${name}.json`, {source: SOURCE, fetched: at, url, ...encodeElements(records, {names})})
 }
 if (ONLY.has('dsn')) {

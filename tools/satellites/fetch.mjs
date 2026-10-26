@@ -2,17 +2,18 @@
 // Refresh the satellites' snapshot, public/data/satellites.json, from
 // CelesTrak's GP data (js/scene/satellites/Satellites.md, the data):
 //
-//   yarn satellites [--cache DIR [--offline]] [--skip group,...]
+//   yarn satellites [--cache DIR] [--offline] [--skip group,...]
 //
 // One request a group (CelesTrak asks for no more than one per group every
-// two hours, and blocks clients that ask more).  With --cache, a group's
-// answer is kept in DIR and used again for two hours, so a run that failed
-// part way can be run again without asking for the groups it had; with
-// --offline too, the cache is used whatever its age and nothing is asked
-// (to rebuild the files from the last fetch).  A group kept whole in a file
-// of its own (select.js `file`: Starlink's) is written there.  Node's
-// fetch reads HTTPS_PROXY only with NODE_USE_ENV_PROXY=1, which `yarn
-// satellites` sets.
+// two hours, and blocks clients that ask more), through celestrak.mjs: each
+// answer is kept in tools/satellites/.cache (or --cache DIR) and used again
+// for two hours, by this script and by `yarn networks`, which asks for two of
+// the same groups; so a run that failed part way can be run again without
+// asking for the groups it had.  With --offline, the cache is used whatever
+// its age and nothing is asked (to rebuild the files from the last fetch).
+// A group kept whole in a file of its own (select.js `file`: Starlink's) is
+// written there.  Node's fetch reads HTTPS_PROXY only with
+// NODE_USE_ENV_PROXY=1, which `yarn satellites` sets.
 //
 // CelesTrak's usage policy (https://celestrak.org/usage-policy.php): stop at
 // the first answer that isn't a 200 and report it to a person, so the script
@@ -20,16 +21,15 @@
 // hasn't changed since this address last had it (a 403) can be left out with
 // --skip, without asking; the snapshot's header names it, for a later run.
 
-import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import {DEFAULT_CACHE, fetchGroup} from './celestrak.mjs'
 import {GROUP_QUERIES, buildSnapshot, gpUrl} from './select.js'
 
 
 const OUT = new URL('../../public/data/satellites.json', import.meta.url)
-const CACHE_MS = 2 * 3600e3
 const cacheArg = process.argv.indexOf('--cache')
-const CACHE = cacheArg > 0 ? process.argv[cacheArg + 1] : null
+const CACHE = cacheArg > 0 ? process.argv[cacheArg + 1] : DEFAULT_CACHE
 const skipArg = process.argv.indexOf('--skip')
 const SKIP = new Set(skipArg > 0 ? process.argv[skipArg + 1].split(',') : [])
 const OFFLINE = process.argv.includes('--offline')
@@ -40,32 +40,6 @@ const OFFLINE = process.argv.includes('--offline')
 let oldest = Date.now()
 
 
-/**
- * @param {string} url
- * @returns {Promise<Array<object>>} the group's OMM records
- */
-async function fetchGroup(url) {
-  const file = CACHE ? path.join(CACHE, `${crypto.createHash('sha1').update(url).digest('hex')}.json`) : null
-  if (file && fs.existsSync(file) && (OFFLINE || Date.now() - fs.statSync(file).mtimeMs < CACHE_MS)) {
-    oldest = Math.min(oldest, fs.statSync(file).mtimeMs)
-    return JSON.parse(fs.readFileSync(file, 'utf8'))
-  }
-  if (OFFLINE) {
-    throw new Error(`${url}: not in the cache, and --offline`)
-  }
-  const rsp = await fetch(url, {headers: {'user-agent': 'celestiary (https://celestiary.org/; tools/satellites)'}})
-  const text = await rsp.text()
-  if (!rsp.ok || !text.startsWith('[')) {
-    throw new Error(`${url}: ${rsp.status} ${text.slice(0, 200)}`)
-  }
-  if (file) {
-    fs.mkdirSync(CACHE, {recursive: true})
-    fs.writeFileSync(file, text)
-  }
-  return JSON.parse(text)
-}
-
-
 const fetched = []
 for (const q of GROUP_QUERIES) {
   const url = gpUrl(q.query)
@@ -74,7 +48,8 @@ for (const q of GROUP_QUERIES) {
     fetched.push({...q, records: [], url, error: 'skipped'})
     continue
   }
-  const records = await fetchGroup(url)
+  const {records, fetchedMs} = await fetchGroup(url, {cacheDir: CACHE, offline: OFFLINE})
+  oldest = Math.min(oldest, fetchedMs)
   console.log(`${q.group}: ${records.length} from ${url}`)
   fetched.push({...q, records, url})
 }

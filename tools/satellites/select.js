@@ -1,6 +1,6 @@
 // Which satellites the snapshot holds, and how a row is made from
-// CelesTrak's OMM JSON (js/scene/satellites/Satellites.md, the data).  Pure,
-// for fetch.mjs and its test.
+// CelesTrak's OMM records (js/scene/satellites/Satellites.md, the data; read
+// from its CSV by celestrak.mjs).  Pure, for fetch.mjs and its test.
 
 import {OMM_FIELDS} from '../../js/scene/satellites/sgp4.js'
 
@@ -72,10 +72,11 @@ export const KNOWN = {
 
 /**
  * @param {object} query
- * @returns {string} CelesTrak's GP URL for it, as OMM JSON
+ * @returns {string} CelesTrak's GP URL for it, as OMM CSV (celestrak.mjs
+ *   reads it into the records its JSON would give)
  */
 export function gpUrl(query) {
-  const q = new URLSearchParams({...query, FORMAT: 'json'})
+  const q = new URLSearchParams({...query, FORMAT: 'CSV'})
   return `https://celestrak.org/NORAD/elements/gp.php?${q}`
 }
 

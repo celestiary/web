@@ -12,8 +12,8 @@ const omm = (id, extra = {}) => ({
 
 
 describe('satellites snapshot', () => {
-  it('asks CelesTrak for OMM JSON', () => {
-    expect(gpUrl({GROUP: 'stations'})).toBe('https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json')
+  it('asks CelesTrak for OMM CSV', () => {
+    expect(gpUrl({GROUP: 'stations'})).toBe('https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=CSV')
     expect(GROUP_QUERIES[0].group).toBe('stations')
     // Each group brings how the app shows it: no table of the app's own.
     for (const g of GROUP_QUERIES) {

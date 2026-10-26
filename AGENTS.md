@@ -432,11 +432,17 @@ tried and dropped.
     `public/data/satellites.json`: `yarn satellites`;
     [Satellites.md](js/scene/satellites/Satellites.md#the-data)).  Fetch a
     group at most once every two hours: CelesTrak blocks clients that ask
-    more.  Horizons takes a TLE too (`COMMAND='TLE'`, `TLE=` the lines),
-    which `tools/satellites/fetchHorizons.mjs` uses to check the frame.
-    `yarn networks` (Starlink's and Iridium's snapshots,
-    [Networks.md](js/scene/networks/Networks.md#the-data)) asks the same
-    way: pass `--cache DIR` and `--only` so a rerun asks for nothing it has.
+    more, and answers a second download of a set that hasn't updated with a
+    403.  `yarn networks` (Starlink's and Iridium's snapshots,
+    [Networks.md](js/scene/networks/Networks.md#the-data)) asks for two of
+    the same groups: both scripts keep CelesTrak's answers in
+    `tools/satellites/.cache` for two hours (`tools/satellites/celestrak.mjs`),
+    so run them in one session, and pass `--only` so a rerun asks for nothing
+    it has.  Ask for OMM as CSV (`FORMAT=CSV`, CelesTrak's default since
+    2026-05-09), never TLE: the catalogue passed five digits on 2026-07-11,
+    and new objects have no TLE.  Horizons takes a TLE (`COMMAND='TLE'`,
+    `TLE=` the lines), which `tools/satellites/fetchHorizons.mjs` uses to
+    check the frame with Vallado's Vanguard 1, a five-digit number.
   - `eyes.nasa.gov` (NASA's DSN Now: `config.xml` for `yarn networks`, and
     `dsn/data/dsn.xml`, the live feed the DSN overlay polls from the page,
     CORS `*`).  A page in headless Chromium reaches it through the proxy

@@ -33,7 +33,10 @@ SGP4 and frames.
 
 Snapshots in `public/data/networks/`, refreshed by `yarn networks [--cache
 DIR] [--only starlink,iridium,dsn]`, as the satellites' is (a time machine
-can't depend on a live fetch for its orbits; Satellites.md, the data).  The
+can't depend on a live fetch for its orbits; Satellites.md, the data), and
+from the same cache: `yarn satellites` asks for Starlink and Iridium NEXT
+too, and run within two hours of it, this script asks CelesTrak for
+nothing it has.  The
 DSN's live feed isn't bundled: the app polls it.
 
 | File | Source | What | Size |
@@ -51,7 +54,8 @@ DSN's live feed isn't bundled: the app polls it.
   SGP's).  Starlink's names are left out too (the NORAD number stands in);
   Iridium keeps them.  Against the full elements, positions agree to 0.15 km
   over a week (`compactElements.test.js`; 0.11 km worst over 2,000
-  Starlinks).  CelesTrak's OMM JSON for the same set is 4.7 MB; rows in the
+  Starlinks).  CelesTrak's OMM JSON for the same set is 4.7 MB (its CSV, which the
+  tools now ask for, about a third of that); rows in the
   satellites' format would be about 1.5 MB, over the data policy's line.
 - **Starlink and Iridium are in the satellites' population too.** PR
   #292 (merged while this was open) put the whole of Starlink (in Git LFS,

@@ -110,22 +110,47 @@ refreshed by `yarn satellites`, not fetched live.
   aliases (`select.js` `KNOWN`).  A group kept in a file of its own names
   it (`file`); that file has the same columns, and its rows.  It's OMM, not TLE: the catalogue passed five digits on
   2026-07-11 (CelesTrak), and TLEs can't carry the new numbers.  The
-  snapshot already has some, e.g. Soyuz MS-29, 100057.
-- **Fetching** (`tools/satellites/fetch.mjs`): one request a group, through
-  the proxy (`NODE_USE_ENV_PROXY=1`, which `yarn satellites` sets).  It
-  stops at the first answer that isn't a 200, as CelesTrak's [usage
-  policy](https://celestrak.org/usage-policy.php) asks of machine
-  clients; ignoring refusals gets an address firewalled.  `--cache DIR`
-  keeps each group's answer for two hours, so a run that stopped part way
-  can be run again without asking for what it had; with `--offline` too, the
-  cache is used whatever its age and nothing is asked, to rebuild the files
-  from the last fetch.  `--skip` leaves a refused group out without asking
-  (a skipped group's own file is left as it was).
+  snapshot already has some, e.g. Soyuz MS-29, 100057 (and 473 of the
+  Starlinks).  Nothing on the way assumes five: satellite.js's
+  `json2satrec` takes the number as it is, links are `sat:<digits>`, the
+  compact columns store differences.
+- **Fetching** (`tools/satellites/fetch.mjs`, asking through
+  `celestrak.mjs`, which `yarn networks` shares): one request a group,
+  through the proxy (`NODE_USE_ENV_PROXY=1`, which `yarn satellites` sets).
+  - **As CSV** (`FORMAT=CSV`).  CelesTrak's [GP data
+    formats](https://celestrak.org/NORAD/documentation/gp-data-formats.php)
+    page (updated 2026-06-23, read 2026-10-26) makes CSV the default since
+    2026-05-09, is the format CelesTrak uses itself and promises not to
+    change "unless absolutely necessary", where the JSON could; and the
+    JSON is three times its size, while CelesTrak is short of bandwidth.
+    `parseGpCsv` reads it into the records the JSON gave (`.1189007E-3` is
+    the JSON's 0.0001189007: the same doubles), so nothing downstream
+    changed, and throws on an answer that isn't GP CSV (its "No GP data
+    found" comes as a 200) or a record SGP4 can't start from.
+  - **Once per update, for both scripts.**  Each answer is kept in
+    `tools/satellites/.cache` (git ignores it; `--cache DIR` for another)
+    and used again for two hours, by this script and by `yarn networks`,
+    which asks for two of the same groups (Starlink, Iridium NEXT): before,
+    without a shared `--cache`, the second script asked again, and since
+    2026-03-26 CelesTrak answers a second download of a set that hasn't
+    updated with a 403.  A run that stopped part way can be run again
+    without asking for what it had; with `--offline`, the cache is used
+    whatever its age and nothing is asked, to rebuild the files from the
+    last fetch.
+  - **Stopping at the first answer that isn't a 200**, as CelesTrak's
+    [usage policy](https://celestrak.org/usage-policy.php) asks of machine
+    clients; ignoring refusals gets an address firewalled (50 errors in two
+    hours, 301s, 403s and 404s alike).  Redirects aren't followed
+    (`redirect: 'manual'`): a 301 is one of those errors, and CelesTrak
+    says to stop at it.  `--skip` leaves a refused group out without asking
+    (a skipped group's own file is left as it was).
 - **Licence and terms.**  The elements are the US Space Force's public
   catalogue (space-track.org), which CelesTrak republishes.  CelesTrak's
   usage policy (read 2026-10-23) sets access limits, the ones above, and
   its pages call the data freely available.  Neither the policy nor the
-  GP documentation says anything about redistributing a copy.  *For the
+  GP documentation (read again 2026-10-26, after its update of 2026-06-23)
+  says anything about redistributing a copy; the documentation asks users
+  who value the service to donate.  *For the
   maintainer to decide:* whether committing a snapshot with attribution
   (the header's `source`, the info panel's "Elements from CelesTrak") is
   enough, or whether to ask CelesTrak, or space-track.org's terms, first.
