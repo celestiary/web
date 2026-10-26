@@ -20,7 +20,7 @@ import {
 } from './lunarPhotometry.js'
 import {CESIUM_BODIES} from './cesium/bodies.js'
 import horizons from './lunarPhotometry.horizons.json'
-import moonProps from '../../public/data/moon.json'
+import moonProps from '../../public/data/earth/moons/moon/index.json'
 
 
 const toRad = Math.PI / 180

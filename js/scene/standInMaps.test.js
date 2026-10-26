@@ -1,5 +1,7 @@
-import {existsSync, readFileSync, readdirSync} from 'node:fs'
+import {existsSync, readFileSync} from 'node:fs'
 import {describe, expect, it} from 'bun:test'
+import BODY_DIRS from '../bodyDirs.json'
+import {descriptorUrl} from '../bodyBundle.js'
 import {FLAT_NORMAL, solidTexture, standInMaps, textureMean} from './standInMaps.js'
 
 
@@ -48,15 +50,9 @@ describe('standInMaps', () => {
   })
 
   it('has a mean for every planet and moon with a colour map', () => {
-    const dir = 'public/data'
     let checked = 0
-    for (const file of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
-      let props
-      try {
-        props = JSON.parse(readFileSync(`${dir}/${file}`, 'utf8'))
-      } catch {
-        continue
-      }
+    for (const name of Object.keys(BODY_DIRS)) {
+      const props = JSON.parse(readFileSync(`public/${descriptorUrl(name)}`, 'utf8'))
       if (props?.type !== 'planet' && props?.type !== 'moon') {
         continue
       }

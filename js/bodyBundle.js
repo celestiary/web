@@ -1,15 +1,50 @@
+import BODY_DIRS from './bodyDirs.json'
+
+
 /**
  * The scene's body descriptors in one file (#258; DESIGN.md "Data loading"):
- * `public/data/bodies.json`, built from `public/data/<name>.json` by `yarn
- * bodies` (tools/bodies/build.mjs).  The Loader takes a body from it when
- * it's there, so the first load fetches one file rather than thirty, and
- * fetches the body's own file when it isn't (the guide's demo descriptors,
- * `earth-as-moon`) or when the bundle can't be had.
+ * `public/data/bodies.json`, built from each body's
+ * `public/data/<dir>/index.json` by `yarn bodies` (tools/bodies/build.mjs).
+ * The Loader takes a body from it when it's there, so the first load fetches
+ * one file rather than thirty, and fetches the body's own file when it isn't
+ * (the guide's demo descriptors, `earth-as-moon`, in `data/demos/`) or when
+ * the bundle can't be had.
  */
 
 
 /** A small file under public/data, so a plain relative URL (DESIGN.md "Data policy"). */
 export const BODIES_URL = 'data/bodies.json'
+
+
+/**
+ * @param {string} name a body's
+ * @returns {?string} its directory under data/ (DESIGN.md "Data policy", by
+ *   body: 'earth', 'earth/moons/moon'), from js/bodyDirs.json, which `yarn
+ *   bodies` writes; null for a body that has none (a demo descriptor)
+ */
+export function bodyDir(name) {
+  return Object.hasOwn(BODY_DIRS, name) ? BODY_DIRS[name] : null
+}
+
+
+/**
+ * @param {string} name
+ * @returns {string} its descriptor's URL: `data/<dir>/index.json`, or a
+ *   demo's, `data/demos/<name>.json`
+ */
+export function descriptorUrl(name) {
+  const dir = bodyDir(name)
+  return dir ? `data/${dir}/index.json` : `data/demos/${name}.json`
+}
+
+
+/**
+ * @param {string} name
+ * @returns {string} its place catalogue's URL, `data/<dir>/places.json`
+ */
+export function placesUrl(name) {
+  return `data/${bodyDir(name) ?? name}/places.json`
+}
 
 let shared = null
 

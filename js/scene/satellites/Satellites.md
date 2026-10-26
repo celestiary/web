@@ -208,7 +208,7 @@ scene's.  Two things differ:
 - **Nutation**, which TEME has and the scene doesn't: under 20″.  That's
   0.2 to 0.33 km for Vanguard 1 at 7,000 to 9,000 km out, and up to about
   4 km at GEO.
-- **Earth's tilt**: `earth.json`'s `axialInclination` is 23.45°, 0.0107°
+- **Earth's tilt**: `earth/index.json`'s `axialInclination` is 23.45°, 0.0107°
   (38″) over the J2000 obliquity, 23.4393°.  The satellites hang in the
   equator as drawn, so their ground tracks match Earth's drawn surface, and
   they carry that 38″ in space: 1.6 km for Vanguard 1.  Correcting Earth's

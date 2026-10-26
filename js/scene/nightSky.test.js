@@ -3,7 +3,7 @@ import {
   AIRGLOW_COLOR, LEINERT, ZODIACAL_CLOUD, airglowOf, airglowPath, cloudNormal, fanProfile, hongPhase, leinertS10,
   zodiacalAlong, zodiacalBrightest,
 } from './nightSky.js'
-import earth from '../../public/data/earth.json'
+import earth from '../../public/data/earth/index.json'
 
 
 const DEG = Math.PI / 180

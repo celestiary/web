@@ -11,7 +11,7 @@ import {unixMsToJd} from '../satellites/sgp4.js'
 // it was at 2026-10-23 16:01:02 UTC; the configuration is the bundled one
 // (tools/networks/fetch.mjs, from https://eyes.nasa.gov/dsn/config.xml).
 const XML = fs.readFileSync(new URL('./dsn.fixture.xml', import.meta.url), 'utf8')
-const CONFIG = JSON.parse(fs.readFileSync(new URL('../../../public/data/networks/dsn.json', import.meta.url), 'utf8'))
+const CONFIG = JSON.parse(fs.readFileSync(new URL('../../../public/data/earth/networks/dsn.json', import.meta.url), 'utf8'))
 const FEED_MS = 1792771262000
 const DEG = Math.PI / 180
 

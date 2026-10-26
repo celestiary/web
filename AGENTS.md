@@ -490,7 +490,8 @@ tried and dropped.
   (DESIGN.md [load budgets](DESIGN.md#load-budgets)).
 - **Some data is built from other data and committed, with a test that
   fails when it drifts**: after editing a body's descriptor
-  (`public/data/<name>.json`) run `yarn bodies`; a place catalogue,
+  (`public/data/<dir>/index.json`: `public/data/earth/`,
+  `public/data/earth/moons/moon/`) run `yarn bodies`; a place catalogue,
   `yarn places-index`; `CHANGELOG.md`, `yarn changelog`. Nothing but the
   page, its scripts, the bodies' bundle and the stars loads with the page:
   a body's places, the galaxies and the changelog wait until something

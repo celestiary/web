@@ -1,9 +1,8 @@
 import {describe, expect, it} from 'bun:test'
-import {readFileSync, readdirSync} from 'node:fs'
-import {join} from 'node:path'
+import {readFileSync} from 'node:fs'
 import {deflateRawSync} from 'node:zlib'
 import {parsePlacesIndex} from '../../js/search/placesIndex.js'
-import {CATALOGUES, OUTPUT, buildIndex, placesIndex, renderIndex} from './index.mjs'
+import {OUTPUT, buildIndex, catalogueFiles, placesIndex, renderIndex} from './index.mjs'
 import {readDbf, readZip} from './readers.mjs'
 import {
   TIER0_MAX, kindOf, matchKey, parseRadiusM, placeOf, sizeFraction, tierPlaces, wrapLng,
@@ -300,10 +299,12 @@ describe('the search\'s index of the catalogues (index.mjs)', () => {
   it('has every catalogue\'s places, about 40% of their bytes', () => {
     const read = parsePlacesIndex(JSON.parse(readFileSync(OUTPUT, 'utf8')))
     let bytes = 0
-    for (const file of readdirSync(CATALOGUES)) {
-      const text = readFileSync(join(CATALOGUES, file), 'utf8')
+    const files = catalogueFiles()
+    expect(files).toHaveLength(24)
+    for (const [body, file] of files) {
+      const text = readFileSync(file, 'utf8')
       bytes += text.length
-      expect(read.get(file.replace('.json', ''))).toHaveLength(JSON.parse(text).places.length)
+      expect(read.get(body)).toHaveLength(JSON.parse(text).places.length)
     }
     expect(readFileSync(OUTPUT, 'utf8').length).toBeLessThan(bytes * 0.45)
   })

@@ -3,8 +3,9 @@
 //
 //   yarn networks
 //
-// public/data/networks/dsn.json: DSN Now's config.xml, the complexes and the
-// spacecraft's names.  The live feed isn't bundled: the app polls it.
+// public/data/earth/networks/dsn.json: DSN Now's config.xml, the complexes
+// and the spacecraft's names; Earth's ground networks, beside its satellites'
+// (satellites/networks/).  The live feed isn't bundled: the app polls it.
 //
 // The satellite networks' constellations (Starlink, Iridium) are CelesTrak's
 // groups, refreshed with the rest of Earth's satellites by `yarn
@@ -18,7 +19,7 @@ import {dsnConfig} from './dsnConfig.js'
 import {columnsJson} from '../satellites/select.js'
 
 
-const OUT = new URL('../../public/data/networks/dsn.json', import.meta.url)
+const OUT = new URL('../../public/data/earth/networks/dsn.json', import.meta.url)
 const DSN_CONFIG = 'https://eyes.nasa.gov/dsn/config.xml'
 
 

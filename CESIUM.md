@@ -897,7 +897,7 @@ Moon](js/scene/HDR.md#a-star-beside-the-moon)).
   from `positionEC`, and the fragment's own phase angle.  Celestiary's
   Moon takes both cosines from its normal-mapped normal the same way
   (`lunarSurface.js`, three's `geometryNormal`).
-- `textureGain` is 0.4448, moon.json's `texture_gain`: the stored values
+- `textureGain` is 0.4448, earth/moons/moon/index.json's `texture_gain`: the stored values
   to normal albedo, so the near side's disc at full is the geometric
   albedo, 0.121.  The frame still holds stored value × light; the decode's
   `bodyGain` carries the albedo scale.

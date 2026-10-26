@@ -451,7 +451,7 @@ describe('loadPlaces', () => {
       // Concurrent: one request; a failure rejects loadPlaces and is [] from fetchPlaces.
       const [a, b] = await Promise.allSettled([loadPlaces('mars'), loadPlaces('mars')])
       expect([a.status, b.status]).toEqual(['rejected', 'rejected'])
-      expect(asked).toEqual(['data/places/mars.json'])
+      expect(asked).toEqual(['data/mars/places.json'])
       expect(await fetchPlaces('mars')).toEqual([])
       ok = true
       const [c, d] = await Promise.all([loadPlaces('mars'), fetchPlaces('mars')])

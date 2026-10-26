@@ -10,6 +10,7 @@
  */
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock, setSystemTime} from 'bun:test'
 import {readFileSync} from 'fs'
+import {descriptorUrl} from './bodyBundle.js'
 import {Object3D, PerspectiveCamera, Quaternion, Scene, Vector3} from 'three'
 import {HOME_CARDS, HOME_HISTORY_KEY} from './home.js'
 import {HOME_TOUR_START, HOME_TOUR_STILL_MS} from './homeTour.js'
@@ -207,7 +208,7 @@ class StubLoader {
 
   _read(name) {
     if (!this.loaded[name]) {
-      this.loaded[name] = JSON.parse(readFileSync(`./public/data/${name}.json`, 'utf-8'))
+      this.loaded[name] = JSON.parse(readFileSync(`./public/${descriptorUrl(name)}`, 'utf-8'))
     }
     return this.loaded[name]
   }
@@ -897,7 +898,7 @@ describe('the target in the link', () => {
   beforeAll(() => {
     // Earth's places, for a link to Austin: this file's, not another's.
     _resetPlaces()
-    global.fetch = (url) => Promise.resolve(String(url).endsWith('places/earth.json') ?
+    global.fetch = (url) => Promise.resolve(String(url).endsWith('data/earth/places.json') ?
       {ok: true, json: () => Promise.resolve({places: [{n: 'Austin', lat: AUSTIN.lat, lng: AUSTIN.lng}]})} :
       {ok: false, json: () => Promise.resolve({})})
   })
@@ -1699,7 +1700,7 @@ describe('what a load fetches', () => {
       if (u.endsWith('sparc/galaxies.json')) {
         return Promise.resolve({ok: true, json: () => Promise.resolve(GALAXIES)})
       }
-      if (u.endsWith('places/earth.json')) {
+      if (u.endsWith('data/earth/places.json')) {
         return Promise.resolve({ok: true, json: () => Promise.resolve({places: [AUSTIN]})})
       }
       return Promise.resolve({ok: false, status: 404})
@@ -1753,7 +1754,7 @@ describe('what a load fetches', () => {
   it('a link to a place: its body\'s catalogue, once, for the place and its labels', async () => {
     expect(TEST_FRAGMENT.startsWith('sun/earth@')).toBe(true)
     const app = await open(TEST_FRAGMENT.replace('sun/earth@', 'sun/earth/austin@'))
-    expect(jsonAsked()).toEqual(['data/places/earth.json'])
+    expect(jsonAsked()).toEqual(['data/earth/places.json'])
     expect(app.scene.objects.earth.places.loadState).toBe('loaded')
     expect(app.scene.objects.earth.places.entries).toEqual([AUSTIN])
     expect(Shared.targets.label).toMatchObject({kind: 'place', body: 'earth', name: 'Austin'})
@@ -1869,7 +1870,7 @@ describe('what a load fetches', () => {
     const went = []
     app.scene.goTo = (star) => went.push(star.hipId)
     // The milky way's system, as the Loader brings it.
-    app.onLoad('stars', JSON.parse(readFileSync('./public/data/stars.json', 'utf8')))
+    app.onLoad('stars', JSON.parse(readFileSync('./public/data/stars/index.json', 'utf8')))
     const frames = async (ms) => {
       for (let t = 0; t < ms; t += 16) {
         app.animation.animate(app.ui.scene)

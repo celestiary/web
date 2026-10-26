@@ -3,7 +3,7 @@ import {Vector3} from 'three'
 import {J2000_JD, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
 import {Trajectory, hermite} from './trajectory.js'
 import fixture from './trajectory.webb.horizons.json'
-import table from '../../public/data/trajectories/webb.json'
+import table from '../../public/data/earth/spacecraft/webb/trajectory.json'
 
 
 describe('hermite', () => {

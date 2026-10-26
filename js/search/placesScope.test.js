@@ -1,6 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it} from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
+import {descriptorUrl, placesUrl} from '../bodyBundle.js'
 import {_resetPlaces} from '../scene/Places.js'
 import {_resetPlacesIndex} from './placesIndex.js'
 import PlacesProvider from './providers/PlacesProvider.js'
@@ -25,7 +26,7 @@ const readJson = (file) => JSON.parse(fs.readFileSync(path.join(DATA, file), 'ut
 function loadedTree() {
   const loaded = {}
   for (const name of BODIES) {
-    loaded[name] = readJson(`${name}.json`)
+    loaded[name] = readJson(descriptorUrl(name).slice('data/'.length))
   }
   return loaded
 }
@@ -122,7 +123,7 @@ describe('place search by scope', () => {
   it('matches the places of every catalogue by their own names', async () => {
     await index.ensureScope('milkyway')
     for (const body of ['earth', 'moon', 'mars', 'mercury', 'venus']) {
-      for (const [i, e] of readJson(`places/${body}.json`).places.entries()) {
+      for (const [i, e] of readJson(placesUrl(body).slice('data/'.length)).places.entries()) {
         if ((e.t ?? 0) > 0 && i % 40 !== 0) {
           continue
         }

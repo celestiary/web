@@ -36,14 +36,15 @@ Snapshots, bundled, as the satellites' is (a time machine can't depend on a
 live fetch for its orbits; Satellites.md, the data).  The constellations
 are Earth's satellites' groups, under `public/data/earth/satellites/networks/`,
 refreshed with the rest by `yarn satellites`; the DSN's is
-`public/data/networks/dsn.json`, refreshed by `yarn networks`.  The DSN's
+`public/data/earth/networks/dsn.json` (Earth's ground networks, beside its
+satellites'), refreshed by `yarn networks`.  The DSN's
 live feed isn't bundled: the app polls it.
 
 | File | Source | What | Size |
 |---|---|---|---|
 | `earth/satellites/networks/starlink.json` | CelesTrak `GROUP=starlink`, fetched 2026-10-23 17:20 UTC | 11,116 satellites, epochs 2026-10-20 to 23, with names and designators | 859 KB, 320 KB gzipped |
 | `earth/satellites/networks/iridium.json` | CelesTrak `GROUP=iridium-NEXT`, same fetch | 80 satellites, with names and designators | 7 KB |
-| `networks/dsn.json` | DSN Now's https://eyes.nasa.gov/dsn/config.xml | 3 complexes, 15 dishes, 170 spacecraft names | 5 KB |
+| `earth/networks/dsn.json` | DSN Now's https://eyes.nasa.gov/dsn/config.xml | 3 complexes, 15 dishes, 170 spacecraft names | 5 KB |
 
 - **Compact elements** (`compactElements.js`, format
   `celestiary-compact-omm-1`): a column per OMM field SGP4 starts from, as

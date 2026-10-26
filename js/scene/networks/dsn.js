@@ -1,5 +1,5 @@
 // NASA's Deep Space Network (Networks.md, "DSN"): its complexes from DSN
-// Now's configuration (public/data/dsn.json, tools/networks/fetch.mjs), and
+// Now's configuration (public/data/earth/networks/dsn.json, tools/networks/fetch.mjs), and
 // what each dish is doing from DSN Now's live feed: its target, where it
 // points (azimuth and elevation), its signals up and down, and the range.
 // Pure, no dependencies: the feed is a flat XML document, read here with a
@@ -9,7 +9,7 @@
 /** DSN Now's live feed: CORS `*`, rewritten about every 5 s. */
 export const DSN_NOW_URL = 'https://eyes.nasa.gov/dsn/data/dsn.xml'
 /** The bundled configuration: complexes, dishes, spacecraft names. */
-export const DSN_CONFIG_URL = 'data/networks/dsn.json'
+export const DSN_CONFIG_URL = 'data/earth/networks/dsn.json'
 /** The feed's own cadence, ms: never asked for more often. */
 export const POLL_MS = 5000
 const C_KM_S = 299792.458
@@ -112,7 +112,7 @@ export function rangeKm(target) {
  * The links in a feed: one a dish and spacecraft with a signal up or down.
  *
  * @param {{dishes: Array<object>, stations: Array<object>}} feed parseDsnXml's
- * @param {object} config public/data/dsn.json
+ * @param {object} config public/data/earth/networks/dsn.json
  * @returns {Array<object>} `{dish, site, spacecraft, naifId, name, azimuth,
  *   elevation, up, down, rangeKm, timeMs}`: `name` from the configuration's
  *   friendly names, `up` and `down` whether each is active, `naifId` the
