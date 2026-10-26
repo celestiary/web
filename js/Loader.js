@@ -1,5 +1,5 @@
 import {assert} from './assert'
-import {loadBodyBundle} from './bodyBundle'
+import {descriptorUrl, loadBodyBundle} from './bodyBundle'
 
 
 /**
@@ -108,8 +108,9 @@ export default class Loader {
           arrived(structuredClone(obj))
           return
         }
-        fetch(`data/${name}.json`)
-            .then((rsp) => (rsp.ok ? rsp.json() : Promise.reject(new Error(`data/${name}.json: ${rsp.status}`))))
+        const url = descriptorUrl(name)
+        fetch(url)
+            .then((rsp) => (rsp.ok ? rsp.json() : Promise.reject(new Error(`${url}: ${rsp.status}`))))
             .then(arrived, (err) => onErrCb?.(err))
       })
     }

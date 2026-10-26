@@ -5,13 +5,13 @@ import {J2000_JD, precessionQuaternion, utcToTtJulianDay} from './celestialFrame
 import {moonArguments, moonOrientation, moonScenePosition} from './lunarTheory.js'
 import {bodyQuaternion, poleVector, rotationModel} from './iauRotation.js'
 import {meanElements, orbitAt} from './meanElements.js'
-import io from '../../public/data/io.json'
-import jupiter from '../../public/data/jupiter.json'
-import mars from '../../public/data/mars.json'
-import pluto from '../../public/data/pluto.json'
-import saturn from '../../public/data/saturn.json'
-import titan from '../../public/data/titan.json'
-import triton from '../../public/data/triton.json'
+import io from '../../public/data/jupiter/moons/io/index.json'
+import jupiter from '../../public/data/jupiter/index.json'
+import mars from '../../public/data/mars/index.json'
+import pluto from '../../public/data/pluto/index.json'
+import saturn from '../../public/data/saturn/index.json'
+import titan from '../../public/data/saturn/moons/titan/index.json'
+import triton from '../../public/data/neptune/moons/triton/index.json'
 
 
 const toRad = Math.PI / 180

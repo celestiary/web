@@ -11,10 +11,13 @@ import {newStarlink} from './Starlink.js'
 // does without.  Each network's data is fetched then, once.
 
 
-/** The snapshots (tools/networks/fetch.mjs). */
+/**
+ * The snapshots: the constellations Earth's satellites' population reads
+ * too (tools/satellites/fetch.mjs), and the DSN's (tools/networks/fetch.mjs).
+ */
 export const NETWORK_URLS = {
-  S: 'data/networks/starlink.json',
-  I: 'data/networks/iridium.json',
+  S: 'data/earth/satellites/networks/starlink.json',
+  I: 'data/earth/satellites/networks/iridium.json',
   D: DSN_CONFIG_URL,
 }
 

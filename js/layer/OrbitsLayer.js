@@ -6,7 +6,8 @@ import {DEFAULT_SUBSCRIPTION, SCHEMES, compileSubscription, dishAnchor, naifAnch
 import {gmstRad} from '../scene/celestialFrame.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {loadNetwork} from '../scene/networks/loadNetworks.js'
-import {parseCatalog, unixMsToJd} from '../scene/satellites/sgp4.js'
+import {loadSatelliteRecords} from '../scene/satellites/loadSatellites.js'
+import {unixMsToJd} from '../scene/satellites/sgp4.js'
 
 
 // Layer mode's scene (design/LayerMode.md): celestiary's satellites and the
@@ -20,8 +21,8 @@ import {parseCatalog, unixMsToJd} from '../scene/satellites/sgp4.js'
 // it wants.  Pure three, no DOM, so the tests drive it in bun.
 
 
-/** The satellites' snapshot (as loadSatellites.js). */
-export const SATELLITES_URL = 'data/satellites.json'
+/** The satellites' snapshot (loadSatellites.js'). */
+export {SATELLITES_URL} from '../scene/satellites/loadSatellites.js'
 /** How far out the layer draws, m: the DSN's beams reach the Voyagers. */
 export const EXTENT_M = {orbits: 5e7, beams: 3e13}
 const EARTH_RADIUS_M = 6378137
@@ -81,8 +82,9 @@ export default class OrbitsLayer {
     const failed = []
     const jobs = []
     if (satellites) {
-      // Starlink (a file of its own, in Git LFS) and Iridium are drawn by
-      // their networks here, when those are on: not twice.
+      // Iridium is drawn by its network here, when that's on: not twice.
+      // Starlink only by its network, as before: the population's 11,000
+      // points (and their file) aren't the layer's.
       const skip = new Set(['starlink', ...(networks.includes('I') ? ['iridium'] : [])])
       jobs.push(this._loadSatellites(skip).catch((err) => failed.push(`satellites: ${err.message ?? err}`)))
     }
@@ -129,14 +131,8 @@ export default class OrbitsLayer {
    * @returns {Promise<void>}
    */
   async _loadSatellites(skip) {
-    const rsp = await this.fetchFn(SATELLITES_URL)
-    if (!rsp.ok) {
-      throw new Error(`${rsp.status} for ${SATELLITES_URL}`)
-    }
-    const {rows, known, groups = {}} = await rsp.json()
-    const kept = Object.fromEntries(Object.entries(groups).filter(([key, g]) => !skip.has(key) && !g.file))
-    const records = parseCatalog({rows: rows.filter((r) => kept[r[2]]), known})
-    this.satellites = new Satellites(records, {body: 'earth', groups: kept, camera: this.camera})
+    const {records, header} = await loadSatelliteRecords(this.fetchFn, {skip})
+    this.satellites = new Satellites(records, {body: 'earth', groups: header.groups, camera: this.camera})
     this.satellites.setLabelBudget(0, true)
     this._attach(this.satellites, 'satellites')
   }

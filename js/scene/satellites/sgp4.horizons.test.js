@@ -4,7 +4,7 @@ import {sgp4, twoline2satrec} from 'satellite.js'
 import {precessionQuaternion, utcToTtJulianDay} from '../celestialFrame.js'
 import {newSatRecord, temePosition, temeToEquator} from './sgp4.js'
 import fixture from './sgp4.horizons.json'
-import earth from '../../../public/data/earth.json'
+import earth from '../../../public/data/earth/index.json'
 
 
 // Satellites against JPL Horizons (offline fixture sgp4.horizons.json, its

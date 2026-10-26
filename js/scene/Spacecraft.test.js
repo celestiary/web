@@ -5,8 +5,8 @@ import {utcToTtJulianDay} from './celestialFrame.js'
 import {clearModelCache, setGltfLoader} from './model.js'
 import {Trajectory} from './trajectory.js'
 import reifyMeasures from '../reify.js'
-import table from '../../public/data/trajectories/webb.json'
-import webb from '../../public/data/webb.json'
+import table from '../../public/data/earth/spacecraft/webb/trajectory.json'
+import webb from '../../public/data/earth/spacecraft/webb/index.json'
 
 
 // No canvas in bun: the label's sheet is a stub, as Celestiary.test.js's

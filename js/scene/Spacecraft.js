@@ -28,12 +28,13 @@ const IDLE_TIMEOUT_MS = 2000
  * table (trajectory.js), relative to its parent body, turned to the Sun.
  * See js/scene/models.md.
  *
- * Its descriptor (public/data/<name>.json):
+ * Its descriptor (public/data/<parent's dir>/spacecraft/<name>/index.json):
  *
  *   type: 'spacecraft', parent, radius (its model's bounding sphere about
  *   its centre, with units: "17 m"), model: {path, scale?, rotation? (degrees,
  *   XYZ Euler), doubleSided?} (model.js loadModel),
- *   trajectory: a path under data/ (trajectories/<name>.json),
+ *   trajectory: a path under data/ (its own directory's trajectory.json,
+ *   earth/spacecraft/webb/trajectory.json),
  *   attitude: {sun: [x, y, z]}, the model's axis kept toward the Sun
  *
  * The scene graph, as a planet's down to the body's node:

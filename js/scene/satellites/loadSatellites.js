@@ -1,6 +1,7 @@
-import {dataUrl} from '../../dataUrl.js'
 import Satellites from './Satellites.js'
-import {parseCatalog} from './sgp4.js'
+import {ORDERS} from './names.js'
+import {decodeElements} from '../networks/compactElements.js'
+import {newSatRecord, parseCatalog, withKnown} from './sgp4.js'
 
 
 // The space networks' loader (networks/Networks.md) rides in this chunk:
@@ -14,25 +15,55 @@ export {loadNetwork} from '../networks/loadNetworks.js'
 
 
 /** The snapshot (tools/satellites/fetch.mjs). */
-export const SATELLITES_URL = 'data/satellites.json'
+export const SATELLITES_URL = 'data/earth/satellites/index.json'
+
+
+/**
+ * The snapshot's records, its groups' own files with them (`file` in a
+ * group's header: the constellations the space networks draw, whole, in
+ * compactElements.js's columns), each such group in its order (`order`,
+ * names.js ORDERS), whose first its slider counts.
+ *
+ * @param {Function} fetchFn
+ * @param {object} [opts]
+ * @param {Set<string>} [opts.skip] groups left out (layer mode's, drawn by
+ *   their networks)
+ * @returns {Promise<{records: Array<object>, header: object}>} the records,
+ *   and the snapshot's header (source, fetched, groups: those kept)
+ */
+export async function loadSatelliteRecords(fetchFn, {skip = new Set} = {}) {
+  const {rows, ...header} = await fetchJson(SATELLITES_URL, fetchFn)
+  const groups = Object.fromEntries(Object.entries(header.groups ?? {}).filter(([key]) => !skip.has(key)))
+  const records = parseCatalog({rows: rows.filter((r) => groups[r[2]]), known: header.known})
+  const own = Object.entries(groups).filter(([, g]) => g.file && !g.error)
+  const parts = await Promise.all(own.map(([, g]) => fetchJson(g.file, fetchFn)))
+  own.forEach(([key, g], i) => {
+    const omms = decodeElements(parts[i])
+    if (ORDERS[g.order]) {
+      omms.sort(ORDERS[g.order].compare)
+    }
+    for (const omm of omms) {
+      const rec = newSatRecord(omm, key)
+      if (rec) {
+        records.push(withKnown(rec, header.known))
+      }
+    }
+  })
+  return {records, header: {...header, groups}}
+}
 
 
 /**
  * @param {object} [opts] As Satellites takes them
  * @param {Function} [fetchFn]
  * @returns {Promise<{satellites: Satellites, data: object}>} the snapshot,
- *   parsed and drawn, with each group kept in a file of its own (`file` in
- *   its header: Starlink's, in Git LFS under public/large/); `data` its
- *   header (source, fetched, groups)
+ *   parsed and drawn, with its groups' own files; `data` its header
+ *   (source, fetched, groups)
  */
 export async function loadSatellites(opts = {}, fetchFn = fetch) {
-  const data = await fetchJson(SATELLITES_URL, fetchFn)
-  const {rows, ...header} = data
-  const groups = header.groups ?? {}
-  const parts = await Promise.all(Object.values(groups).filter((g) => g.file && !g.error)
-      .map((g) => fetchJson(dataUrl(g.file), fetchFn)))
-  const records = parseCatalog({rows: rows.concat(...parts.map((p) => p.rows ?? [])), known: header.known})
-  return {satellites: new Satellites(records, {body: header.body ?? 'earth', groups, ...opts}), data: header}
+  const {records, header} = await loadSatelliteRecords(fetchFn)
+  return {satellites: new Satellites(records, {body: header.body ?? 'earth', groups: header.groups, ...opts}),
+    data: header}
 }
 
 

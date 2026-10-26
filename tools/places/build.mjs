@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Regenerates public/data/places/<body>.json from the IAU Gazetteer of
+// Regenerates each body's places.json, in its directory (public/data/<dir>/,
+// js/bodyDirs.json), from the IAU Gazetteer of
 // Planetary Nomenclature (USGS Astrogeology; js/scene/places.md, "The
 // Gazetteer"), and the search's index of them, public/data/places-index.json
 // (index.mjs).
@@ -20,7 +21,7 @@
 import {mkdirSync, readFileSync, writeFileSync, existsSync} from 'node:fs'
 import {dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {writeIndex} from './index.mjs'
+import {catalogueFile, writeIndex} from './index.mjs'
 import {readDbf, readZip} from './readers.mjs'
 import {parseRadiusM, placeOf, tierPlaces} from './tiers.mjs'
 
@@ -58,7 +59,6 @@ export const BODIES = {
 }
 
 const here = dirname(fileURLToPath(import.meta.url))
-const root = resolve(here, '../..')
 
 const MISSION_KINDS = new Set(['landing', 'lander', 'rover'])
 
@@ -118,7 +118,7 @@ export async function buildBody(body, cache) {
   const features = rows.map(placeOf).filter(Boolean)
   const newest = rows.reduce((a, r) => (r.approvaldt > a ? r.approvaldt : a), '').slice(0, 10).replaceAll('/', '-')
 
-  const descriptor = JSON.parse(readFileSync(join(root, `public/data/${body}.json`), 'utf8'))
+  const descriptor = JSON.parse(readFileSync(join(dirname(catalogueFile(body)), 'index.json'), 'utf8'))
   const diameterKm = (2 * parseRadiusM(descriptor.radius)) / 1000
   const curatedFile = join(here, 'curated', `${body}.json`)
   const curated = existsSync(curatedFile) ? JSON.parse(readFileSync(curatedFile, 'utf8')).places : []
@@ -175,7 +175,7 @@ async function main() {
     if (check) {
       console.log(`  tier 0: ${places.filter((p) => p.t === 0).map((p) => p.n).join(', ')}`)
     } else {
-      const out = join(root, 'public/data/places', `${body}.json`)
+      const out = catalogueFile(body)
       mkdirSync(dirname(out), {recursive: true})
       writeFileSync(out, json)
     }

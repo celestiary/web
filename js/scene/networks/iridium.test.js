@@ -119,7 +119,8 @@ describe('Iridium network model', () => {
   })
 
   it('reads the snapshot: 67 in service in six planes', () => {
-    const recs = recordsOf(JSON.parse(fs.readFileSync(new URL('../../../public/data/networks/iridium.json', import.meta.url))), 'iridium')
+    const file = new URL('../../../public/data/earth/satellites/networks/iridium.json', import.meta.url)
+    const recs = recordsOf(JSON.parse(fs.readFileSync(file)), 'iridium')
     const service = inService(recs)
     expect(recs).toHaveLength(80)
     expect(service.filter(Boolean)).toHaveLength(67)
