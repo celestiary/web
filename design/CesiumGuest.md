@@ -412,8 +412,8 @@ portal-netgl 0.6.6, the overlap; the same view, 2026-10-27):
   scene during the wait.
 - Three things changed at once: the overlap, the guest's own site, and
   0.6.6 (the shadow no longer draws; the same-page baseline's shadow drew
-  all 177 draws on the same GPU).  Production is now the same page on
-  0.6.6, the baseline that separates them.
+  all 177 draws on the same GPU).  Production on 0.6.6, the same page, is
+  the baseline that separates them (below).
 - The wait, 13.7 ms, is the guest's own frame in its process plus the trip
   both ways.  `?perf=1`'s snapshot now splits it: `scene.cesiumGuests` has,
   per guest page, over its last 240 round trips (mean and p95), `tripMs`
@@ -427,6 +427,39 @@ portal-netgl 0.6.6, the overlap; the same view, 2026-10-27):
   shorter than that can read a little under 0.  On SwiftShader, cross-site:
   a trip of 10.8 ms was 3.3 in, 7.6 the guest's frame, and −0.15 back (the
   batch, posted at the frame's end, is in by the time its frame-end is).
+
+The baseline and the split, on the M2 (the same view, 2026-10-27, `?perf=1`;
+production is the same page on 0.6.6, #310's preview the cross-site guest):
+
+| | Same page, 0.6.6 (production) | Cross-site guest (#310) |
+|---|---|---|
+| Frames a second (mean; 5th percentile) | 33.0; 10.5 | 27.8; 12.6 |
+| Frame interval (mean; p95) | 30.3; 95 ms | 36.0; 79 ms |
+| Cesium's work on celestiary's thread (`cesium.replay` CPU) | 6.0 ms | 1.2 ms |
+| Waiting for the guest (`other`) | 0.1 ms | 14.0 ms |
+| `meter` CPU (mean; p95) | 15.6; 82 ms | 11.8; 55 ms |
+| The shadow's draws | 0 | (no shadow) |
+
+`scene.cesiumGuests` on the guest: a trip of 14.3 ms (p95 17.6) was 1.1 ms
+in, 9.9 ms the guest's frame (p95 12.9) and 3.3 ms back; the frames waited
+13.7 ms.
+
+- 0.6.6 was the same page's big gain: 27.8 to 33.0 fps, with the shadow's
+  177 draws gone from the GPU.
+- Against that, the guest costs 5.7 ms a frame on the mean: 4.8 ms of
+  Cesium's work leaves celestiary's thread, a 14 ms wait comes in, and the
+  meter's stalls shrink by about 4 ms.  Its slowest frames are still faster
+  (12.6 fps at the 5th percentile, not 10.5), by the meter.
+- The overlap hides almost nothing: the wait is the whole trip less half a
+  millisecond, because issuing celestiary's scene costs the CPU that much,
+  and the camera's update (3.8 ms) comes before the view can be posted.
+  Lockstep keeps the trip on the frame's critical path.
+- The guest's frame takes 9.9 ms for what costs about 4.8 ms on the same
+  page: Cesium's render, plus recording and encoding the batch, in another
+  process.  The way back, 3.3 ms, is the batch's clone across processes and
+  its decode.  Those two are what a faster lockstep would cut; a frame of
+  lag would hide the trip whole, at the cost of Cesium's frame being a
+  frame behind the camera.
 - `?perf=sync` timed no GPU work here: its rows were the issue times, so
   `finish` didn't wait; `&barrier=read` is the way.
 
