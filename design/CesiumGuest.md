@@ -552,7 +552,21 @@ page's URL (`nycGuest`, checked against the same list; `nycShadows`,
 `nycLean`), and it has the same import map for three.js's dev build.  Each
 of the city's calls is now recorded twice, by the city's context and by
 Cesium's, and crosses to celestiary's process; its set-up is millions of
-triangles, staged a chunk a frame.  Unmeasured: see the check below.
+triangles, staged a chunk a frame.
+
+**Checked** (`yarn cesium-guest-check`, headless Chromium on SwiftShader,
+480×300, two sites, portal-netgl 0.6.8's build in place, 2026-10-28):
+- `--view earth-night --gibs`: the camera on Earth's night side, Black
+  Marble from GIBS.  The guest's frame is the page's within one level
+  (2,378 of 115,680 pixels by 1), its lights part drawn.
+- `earth-orbit` by day: 0 pixels differ, no lights asked for.
+- `--nyc`: Lower Manhattan from 780 m (CHANGELOG's permalink).  The city
+  loads on both sides (99 s on the page, 77 s from the guest page), with no
+  replay or console error, and the two frames look the same; 5,001 pixels
+  differ, by up to 33, in the city's own detail.  Its set-up crossed in 317
+  batches, 247,254 items.  While it loads and draws, a round trip is 77 ms
+  on average (p95 333; the view's way in 38, the guest's frame 37, back 2),
+  84% of frames in step.
 
 ## Phases
 
