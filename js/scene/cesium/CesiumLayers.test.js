@@ -803,6 +803,30 @@ describe('New York on Earth\'s guest page', () => {
 })
 
 
+describe('a guest page older than this page', () => {
+  it('is said once, by its protocol, and works as it can', () => {
+    const L = new CesiumLayers({})
+    L.guests = new GuestPages(L, 2)
+    const body = {iframe: {src: 'https://guest.example/cesium-guest.html'}, trips: []}
+    const warnings = []
+    const warn = console.warn
+    console.warn = (...args) => warnings.push(args.join(' '))
+    try {
+      // #310's guest page sends no `guest`: protocol 1.
+      L.guests._onMessage('earth', body, {type: 'cesium:status', tilesLoaded: true})
+      L.guests._onMessage('earth', body, {type: 'cesium:status', tilesLoaded: true})
+      L.guests._onMessage('moon', {iframe: {}, trips: []}, {type: 'cesium:status', guest: 2})
+    } finally {
+      console.warn = warn
+    }
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('guest.example')
+    expect(warnings[0]).toContain('protocol 1')
+    expect(body.tilesLoaded).toBe(true)
+  })
+})
+
+
 describe('a guest page\'s ground height at a landing place', () => {
   const setup = () => {
     const L = withGuests(new CesiumLayers({}))

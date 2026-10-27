@@ -66,7 +66,7 @@ import {perf} from '../../perf/perf.js'
 import {dataUrl} from '../../dataUrl.js'
 import {sanitizeCredits} from '../../cesium-guest/credits.js'
 import {monthOfJulianDay} from '../monthly.js'
-import {guestOptions} from '../../cesium-guest/origins.js'
+import {GUEST_VERSION, guestOptions} from '../../cesium-guest/origins.js'
 
 
 export {tilesReady}
@@ -1247,7 +1247,7 @@ export default class CesiumLayers {
         this._fail(name, err)
         return
       }
-      this.guests ??= new GuestPages(this)
+      this.guests ??= new GuestPages(this, GUEST_VERSION)
       await this._loadGuest(name)
       return
     }

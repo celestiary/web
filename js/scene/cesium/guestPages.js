@@ -11,9 +11,14 @@
  * the first load would grow.
  */
 export default class GuestPages {
-  /** @param {object} layers The CesiumLayers */
-  constructor(layers) {
+  /**
+   * @param {object} layers The CesiumLayers
+   * @param {number} [version] This page's guest protocol (origins.js
+   *   GUEST_VERSION): an older guest page is reported, once
+   */
+  constructor(layers, version = 0) {
     this.layers = layers
+    this.version = version
     // The last view's id, over every guest page.
     this._viewId = 0
     // The last GUEST_STATS_N frames' waits for a guest's (noteWait).
@@ -255,6 +260,12 @@ export default class GuestPages {
    */
   _onMessage(name, body, msg) {
     if (msg?.type === 'cesium:status') {
+      if (!body.versionSaid && (msg.guest ?? 1) < this.version) {
+        // An older guest page leaves out what it doesn't know, silently.
+        body.versionSaid = true
+        console.warn(`[cesium layer] ${name}'s guest page (${body.iframe?.src ?? 'unknown'}) speaks protocol ` +
+          `${msg.guest ?? 1}, this page ${this.version}: no night lights, New York or landing heights from it`)
+      }
       this._splitTrip(body, msg)
       body.tilesLoaded = msg.tilesLoaded === true
       body.groundHeight = Number.isFinite(msg.groundHeight) ? msg.groundHeight : null

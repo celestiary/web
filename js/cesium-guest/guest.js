@@ -6,7 +6,7 @@ import {applyView, createWidget, renderNightLights, sampleGround, terrainHeight,
 import {bodyToEcef} from '../scene/cesium/frames.js'
 import {newYorkOptions, newYorkRange, newYorkStatus} from '../scene/cesium/newYork.js'
 import {creditsOf} from './credits.js'
-import {CESIUM_GUEST_HOSTS, dataBase} from './origins.js'
+import {CESIUM_GUEST_HOSTS, GUEST_VERSION, dataBase} from './origins.js'
 
 
 // The Cesium guest page (public/cesium-guest.html; design/CesiumGuest.md):
@@ -20,7 +20,8 @@ import {CESIUM_GUEST_HOSTS, dataBase} from './origins.js'
 // Celestiary drives it: each `cesium:view` (cesiumBody.applyView's view, and
 // its id) renders one frame, which goes to the host as portal-netgl's
 // stream (wire 2 and a port, when the host offers them), its frame-end
-// carrying the view's id.  After each frame a `cesium:status` says whether
+// carrying the view's id.  After each frame a `cesium:status` says its
+// protocol (origins.js GUEST_VERSION), whether
 // the tiles for that view are in, the terrain's height under the camera,
 // the credits, when they change, whether it has night lights, and the
 // frame's timing: when the view came in (wall clock) and how long the frame
@@ -225,6 +226,7 @@ async function start() {
       viewId,
       tilesLoaded: tilesReady(body),
       groundHeight: body.groundHeight ?? null,
+      guest: GUEST_VERSION,
       night: Boolean(body.night),
       newYork: newYorkStatus(nyc),
       timing: {receivedAt, renderMs: (endedAt ?? performance.now()) - t0},

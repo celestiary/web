@@ -522,6 +522,13 @@ renders come in one drain, so each needs a target of its own.
   stencil and the depth into it, as the page's lights render finds
   `_cesiumRT`.  After it, `_decodeLights` decodes it as the page's.
 
+A PR preview's `?cesium=iframe` loads that PR's guest page by default, not
+main's: its build sets `CESIUM_GUEST_PAGE` (`.github/workflows/pr-preview.yml`),
+since a host and a guest of two commits differ in what they speak.  The
+guest says its protocol in its status (`origins.js` `GUEST_VERSION`, 2 from
+here); a host with an older guest says so in the console once, and goes on
+without what the guest doesn't know.
+
 The guest pages' code on the host (the iframes, the receivers, the views
 and the waits, the lights' target, the messages and the timing) is
 `js/scene/cesium/guestPages.js`, which CesiumLayers imports with its first

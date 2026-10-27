@@ -6,7 +6,7 @@
 import {isAllowedOrigin} from '../layer/origins.js'
 
 
-/* global __CESIUM_GUEST_HOSTS__, __CESIUM_GUEST_ORIGINS__ */
+/* global __CESIUM_GUEST_HOSTS__, __CESIUM_GUEST_ORIGINS__, __CESIUM_GUEST_PAGE__ */
 /**
  * The hosts that may embed the guest: celestiary's production site and
  * local development.  A build adds more with CESIUM_GUEST_HOSTS
@@ -94,10 +94,22 @@ function listFrom(list) {
 
 /**
  * The guest page celestiary loads with `?cesium=iframe` and no
- * `cesiumGuest`: main's, deployed to cesium-portal's root.  A PR's is under
- * `pr-preview/pr-<n>/` there.
+ * `cesiumGuest`: main's, deployed to cesium-portal's root; or a build's own,
+ * CESIUM_GUEST_PAGE (esbuild/common.js), which a PR preview sets to its
+ * guest's preview, under `pr-preview/pr-<n>/` there, so the two are of one
+ * commit.
  */
-export const DEFAULT_GUEST_PAGE = 'https://pablo-mayrgundter.github.io/cesium-portal/cesium-guest.html'
+export const DEFAULT_GUEST_PAGE = (typeof __CESIUM_GUEST_PAGE__ === 'string' && __CESIUM_GUEST_PAGE__) ||
+  'https://pablo-mayrgundter.github.io/cesium-portal/cesium-guest.html'
+
+
+/**
+ * The guest page's protocol, in its status (`guest`), so a host can tell a
+ * guest page older than itself, which leaves out what it doesn't know:
+ * 1, #309 and #310, Earth only; 2, the night lights' part, New York and
+ * the landing height (design/CesiumGuest.md, phase 4).
+ */
+export const GUEST_VERSION = 2
 
 
 /**
