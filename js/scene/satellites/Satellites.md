@@ -51,27 +51,35 @@ Refreshed by `yarn satellites`, not fetched live.
   dates near today, and links, previews and tests would change under it.
   CelesTrak's usage policy also asks clients to fetch each data set at most
   once per update (every two hours for GP data), and it enforces that.  The
-  snapshot without the constellations is small, 447 satellites in 70 KB,
+  snapshot without the constellations is small, 446 satellites in 70 KB,
   under the data policy's line for plain git (DESIGN.md, [data
-  policy](../../../DESIGN.md#data-policy)); so are Starlink's 11,116 in the
-  networks' compact columns, 859 KB (320 KB gzipped), and Iridium's 80.
+  policy](../../../DESIGN.md#data-policy)); so are Starlink's 11,106 in the
+  networks' compact columns, 860 KB (320 KB gzipped), and Iridium's 80.
   Starlink's were 1.8 MB as rows (543 KB gzipped), in Git LFS under
   `public/large/`, beside the overlay's own copy, until they became one
   file (below).
-- **The snapshot** was fetched 2026-10-23 17:20 UTC; its elements' epochs
-  run to 2026-10-23.  What's in it (`select.js` `GROUP_QUERIES`), each
-  satellite once, under the first group that has it:
+- **The snapshot** was fetched 2026-10-27 04:35 UTC, the first fetch as
+  CSV (every group answered, every row read); its elements' epochs run to
+  2026-10-27.  What's in it (`select.js` `GROUP_QUERIES`), each satellite
+  once, under the first group that has it:
 
   | Group | Query | In CelesTrak's | Kept | Epochs |
   |---|---|---|---|---|
-  | `stations` | `GROUP=stations` | 21 | 21 | 2026-10-20 to 23 |
-  | `science` | `CATNR=20580` (Hubble) | 1 | 1 | 2026-10-23 |
-  | `gnss` | `GROUP=gnss` (GPS, GLONASS, Galileo, BeiDou) | 169 | 169 | 2026-09-28 to 10-23 |
-  | `molniya` | `NAME=MOLNIYA` | 33 | 33 | 2026-10-14 to 23 |
-  | `weather` | `GROUP=weather` | 73 | 73 | 2026-10-22 to 23 |
-  | `iridium` | `GROUP=iridium-NEXT` | 80 | 80 | 2026-10-07 to 23 |
-  | `geo` | `GROUP=geo` | 569 | 150 | 2026-10-12 to 23 |
-  | `starlink` | `GROUP=starlink` | 11,116 | 11,116 (300 shown to start) | 2026-10-21 to 23 |
+  | `stations` | `GROUP=stations` | 20 | 20 | 2026-10-26 |
+  | `science` | `CATNR=20580` (Hubble) | 1 | 1 | 2026-10-26 |
+  | `gnss` | `GROUP=gnss` (GPS, GLONASS, Galileo, BeiDou) | 169 | 169 | 2026-09-28 to 10-27 |
+  | `molniya` | `NAME=MOLNIYA` | 33 | 33 | 2026-10-14 to 26 |
+  | `weather` | `GROUP=weather` | 73 | 73 | 2026-10-26 to 27 |
+  | `iridium` | `GROUP=iridium-NEXT` | 80 | 80 | 2026-10-07 to 26 |
+  | `geo` | `GROUP=geo` | 569 | 150 | 2026-10-12 to 26 |
+  | `starlink` | `GROUP=starlink` | 11,106 | 11,106 (300 shown to start) | 2026-10-20 to 27 |
+
+  The epochs' spread is the catalogue's: a working satellite's elements
+  are a day or two old, a dead one's (some GLONASS, Iridium spares,
+  Molniyas) as old as its last tracking update.  The first snapshot (below)
+  was fetched 2026-10-23 17:20 UTC, as JSON; this one, the same groups as
+  CSV four days on, changed a station (21 to 20) and Starlink (11,116 to
+  11,106), and nothing else in the counts.
 
   - **Starlink came a fetch later.**  The first snapshot (2026-10-23 08:48
     UTC, PR #286) had no Starlink.  CelesTrak answered a 403: the set hadn't
@@ -231,7 +239,7 @@ by.
   the Satellites section of Earth's panel (and of a satellite's) lists the
   eight groups with their colours and counts as switches, and a Names
   slider from none to all shown, starting at the three best known, and
-  Starlink's own slider, how many of its 11,116 show (300 to start).  The
+  Starlink's own slider, how many of them show (300 to start).  The
   names carry `labelTargets`, so a click targets a satellite and a double
   click goes there (labelPick.js).  The names behind Earth take no room,
   those shown keep their place, and they fade in and out
@@ -387,7 +395,12 @@ A failed load is logged and asked for again by the next need.
 - **Fresher elements.**  A scheduled workflow could run `yarn satellites`
   and open a PR each week.  Or the app could fetch live from CelesTrak when
   the date is within a few days of now and fall back to the snapshot
-  otherwise; that needs CORS, which isn't checked yet.
+  otherwise; that needs CORS, which isn't checked yet.  Until one of those,
+  a refresh is by hand, and the low-orbit window bounds a snapshot's life:
+  30 days after its fetch, "now" is past every low satellite's window
+  (Starlink, Iridium, the stations, Hubble: [old
+  elements](#old-elements-and-dates-far-from-them)), and the view of
+  today has only the higher ones until `yarn satellites` runs again.
 - **History.**  Dates outside the snapshot's windows need elements of their
   date: space-track.org's history (an account, and terms to read), or
   snapshots kept by date.
