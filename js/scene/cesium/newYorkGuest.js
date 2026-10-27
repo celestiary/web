@@ -70,10 +70,19 @@ export const ENVIRONMENT_INTENSITY = 0.15
  * @param {boolean} [args.lean] The lean city (CESIUM.md, "New York", what it
  *   costs): no crowds, lean shadow contexts, its set-up staged over frames.
  *   false: as the guest comes
+ * @param {boolean} [args.parallelCompile] Let three compile with
+ *   KHR_parallel_shader_compile where the GPU has it.  It then waits for
+ *   each program by polling on requestAnimationFrame, which a hidden
+ *   cross-origin iframe may never run: false hides the extension from the
+ *   city, and three compiles without it, as on SwiftShader (the Cesium
+ *   guest page, design/CesiumGuest.md)
+ * @param {function(string): void} [args.onStep] Told each step of the load
+ *   as it starts: 'build', 'ground', 'compile'
  * @returns {Promise<object>} The city: {guest, renderer, setShown(on),
  *   update(), dispose()}
  */
-export async function createNewYork({Cesium, netgl, widget, guestBase, shadows = false, cesiumShadow = null, lean = true}) {
+export async function createNewYork({Cesium, netgl, widget, guestBase, shadows = false, cesiumShadow = null, lean = true,
+  parallelCompile = true, onStep = null}) {
   const scene = widget.scene
   if (!scene.externalRenderers || typeof Cesium.ExternalRenderer !== 'function') {
     throw new Error('Cesium has no externalRenderers (patches/@cesium+engine; CESIUM.md "Patching Cesium")')
@@ -114,6 +123,11 @@ export async function createNewYork({Cesium, netgl, widget, guestBase, shadows =
     transport: stage ? stage.transport : link.transport,
     contextAttributes: {alpha: true, antialias: false, depth: true, stencil: false},
   })
+  if (!parallelCompile) {
+    // An own property: three looks the method up on the context.
+    const getExtension = guestCtx.gl.getExtension.bind(guestCtx.gl)
+    guestCtx.gl.getExtension = (name) => (name === 'KHR_parallel_shader_compile' ? null : getExtension(name))
+  }
   stage?.attach(guestCtx)
   // Lean: the city's shadow and Cesium's (during the city's calls) keep its
   // objects and programs but none of its geometry, and draw none of it
@@ -146,6 +160,7 @@ export async function createNewYork({Cesium, netgl, widget, guestBase, shadows =
   // Lean, crowds: false builds no pedestrians, never drawn on the guest's
   // WebGL2 backend but walked and skinned every frame; and the ground's
   // drape is coarser (LEAN_DRAPE)
+  onStep?.('build')
   const guest = await entry.createNYCGuest({
     canvas, context: guestCtx.gl, width, height,
     extent: 'manhattan', shadows, lights: false, composite: true, logDepth, crowds: !lean,
@@ -158,7 +173,9 @@ export async function createNewYork({Cesium, netgl, widget, guestBase, shadows =
   inCelestiaryUnits(guest)
 
   let terrain = scene.terrainProvider
+  onStep?.('ground')
   await setGroundFrom(guest, Cesium, terrain, helpers.MANHATTAN_SEA_LEVEL)
+  onStep?.('compile')
   await guest.compile()
 
   // The Sun is Cesium's light, which celestiary sets each frame

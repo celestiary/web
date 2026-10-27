@@ -987,6 +987,12 @@ Cesium (Earth's widget, NetGL guest)     its context._gl is a NetGL recorder
 New York (three.js dev, NetGL guest)     drawn by Cesium in its own frame
 ```
 
+With Earth's Cesium on a guest page (`?cesium=iframe`;
+[design/CesiumGuest.md, phase 4](design/CesiumGuest.md#phase-4-the-rest)) the
+chain is the same inside the guest page, and its batch then crosses to
+celestiary's process: the view carries the switch, the guest page loads and
+frees the city by the view's range, and its state comes back in the status.
+
 **The hook.**  Cesium draws the city through `scene.externalRenderers`
 (our patch, [Patching Cesium](#patching-cesium)): a renderer's `render(p)`
 is called once per depth frustum its bounding volume overlaps, after the

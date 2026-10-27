@@ -221,7 +221,10 @@ tried and dropped.
   (127.0.0.1) and the guest (localhost), renders Earth's layer both ways
   (`?cesium=iframe`), and fails if the frames at the permalink's instant
   differ or a guest frame was out of step while the camera orbits.
-  `--view earth-12km`, `--wait ms`, `--out dir`.  The repo's Playwright
+  `--view earth-12km`, `--wait ms`, `--out dir`; `--view earth-night
+  --gibs` (GIBS through Node, the camera on the night side) compares the
+  night lights, and `--nyc <slop-newyork checkout>` loads New York on both
+  sides (three.js from GitHub's raw files; minutes a side).  The repo's Playwright
   doesn't know the machine's Chromium: it takes `/opt/pw-browsers/chromium`
   when that's there (`--chromium` otherwise).  To read a held frame (one
   waiting on the guest), hook `ThreeUi._drawFrame` and read the canvas
