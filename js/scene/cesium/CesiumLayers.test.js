@@ -665,3 +665,38 @@ describe('a body on a guest page (?cesium=iframe)', () => {
     expect(posted).toHaveLength(0)
   })
 })
+
+
+describe('a guest page\'s round trips, split', () => {
+  it('into the view\'s way in, the guest\'s frame and the way back, on the shared clock', () => {
+    const L = new CesiumLayers({})
+    const origin = performance.timeOrigin
+    const body = {remote: true, origin: 'https://guest.example', frames: 3, steps: {drawn: 4, inStep: 3}, trips: [],
+      trip: {viewId: 7, postedAt: 1000, landed: 1012}}
+    L.bodies.earth = body
+    // In 2 ms after the post, a 7 ms frame, so 3 ms back.
+    L._splitTrip(body, {viewId: 7, timing: {receivedAt: origin + 1002, renderMs: 7}})
+    expect(body.trips).toHaveLength(1)
+    const [t] = body.trips
+    expect(t.tripMs).toBe(12)
+    expect(t.toGuestMs).toBeCloseTo(2, 6)
+    expect(t.guestMs).toBe(7)
+    expect(t.backMs).toBeCloseTo(3, 6)
+    expect(body.trip).toBe(null)
+    L.noteWait(5)
+    L.noteWait(9)
+    const [stats] = L.guestStats()
+    expect(stats).toMatchObject({name: 'earth', origin: 'https://guest.example', frames: 3, inStep: 0.75, n: 1})
+    expect(stats.guestMs).toEqual({mean: 7, p95: 7})
+    expect(stats.waitMs).toEqual({mean: 7, p95: 9})
+  })
+
+  it('takes a status only for the frame it follows', () => {
+    const L = new CesiumLayers({})
+    const body = {remote: true, steps: {drawn: 0, inStep: 0}, trips: [], trip: {viewId: 7, postedAt: 0, landed: 5}}
+    L._splitTrip(body, {viewId: 6, timing: {receivedAt: 1, renderMs: 1}})
+    L._splitTrip(body, {viewId: 7})
+    expect(body.trips).toHaveLength(0)
+    expect(new CesiumLayers({}).guestStats()).toEqual([])
+  })
+})

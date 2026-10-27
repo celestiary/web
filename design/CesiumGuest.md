@@ -3,9 +3,13 @@
 *Proposed 2026-10-24.  Phase 0 measured; phase 1 built: Earth's Cesium from
 the guest page, behind `?cesium=iframe` (below).*
 
-**Decided (2026-10-24):**
-- the guest is served from the fork's Pages on a subdomain of its own
-  (`cesium.celestiary.org`): cross-origin, same site;
+**Decided (2026-10-24; hosting revised 2026-10-27):**
+- the guest is served from a site of its own, so it runs in a process of
+  its own: pablo-mayrgundter/cesium-portal's Pages,
+  `https://pablo-mayrgundter.github.io/cesium-portal/` (Hosting, below).  A
+  subdomain of celestiary.org, the first choice, would be the same site,
+  and the M2's numbers (phase 1) showed a guest on celestiary's thread only
+  adds the wait;
 - the aim is a demo of Cesium cleanly hosted and minimally modded: the
   guest page is stock Cesium plus the fork's few patches, with
   celestiary's look carried by settings and its own shaders, and nothing
@@ -170,18 +174,38 @@ fork's Pages alone don't give a cross-origin guest.  The options:
 | Another site (e.g. a `*.github.io` without a custom domain) | cross-site | separate process | add it to the token, or a separate token | The netmap case: the heaviest transport.  It is already being measured there for a light guest. |
 
 celestiary's PR previews (`celestiary.org/web/pr-preview/…`) sit on the same
-origin as production, so they compare the same way.  The fork's own PR
-previews would follow its domain.
+origin as production, so they compare the same way.
+
+**The choice (2026-10-27): another site.**  celestiary.github.io itself is
+no good: every path there answers 301 to celestiary.org's (the org's user
+page holds the custom domain), so an iframe pointed at it ends on
+celestiary.org.  pablo-mayrgundter.github.io has no custom domain, and each
+`*.github.io` is a site of its own (the public suffix list), so the guest
+gets a process of its own there, as netmap's orbits do the other way
+round.  The repository `pablo-mayrgundter/cesium-portal` holds only what
+CI deploys to its `gh-pages`:
+
+- `.github/workflows/cesium-guest.yml` builds celestiary and pushes the
+  guest's files (`cesium-guest.html`, `cesium-guest/`, `cesium/`, no source
+  maps) with the `CESIUM_GUEST_DEPLOY_KEY` secret, a deploy key with write
+  access there.  Without the secret it deploys nothing.
+- main goes to the root: `https://pablo-mayrgundter.github.io/cesium-portal/cesium-guest.html`,
+  the default for `?cesium=iframe`.
+- A PR goes to `pr-preview/pr-<n>/`, removed when it closes.  A celestiary
+  preview loads its PR's guest with
+  `?cesium=iframe&cesiumGuest=https://pablo-mayrgundter.github.io/cesium-portal/pr-preview/pr-<n>/`.
+- ion's token must allow `https://pablo-mayrgundter.github.io/` (the
+  guest's requests carry that Referer), or the guest has no terrain.
 
 **The guest page's source is celestiary's** (`js/cesium-guest/`, its own
 esbuild build into `docs/cesium-guest/`, as layer mode's page is), and only
-its hosting is the fork's.  This proposal first put the source in the fork.
+its hosting is elsewhere.  This proposal first put the source in the fork.
 Building phase 1 showed why not: the guest runs the same code as
 celestiary's own Cesium layer, its widget set-up, imagery, ion requests,
 heights and shaders (relief, the encoding, the distance in alpha), with
 bun tests beside it.  So that code is one module, `cesiumBody.js`, which
 both paths drive.  In the fork it would be a copy, or a package to
-publish, and the two layers would drift.  What the fork's Pages serve is
+publish, and the two layers would drift.  What the guest's site serves is
 the build: `cesium-guest.html`, `cesium-guest/` and Cesium's assets
 (`cesium/`), deployed from celestiary's CI as `deploy-prod.yml` deploys
 to celestiary.github.io.  The Cesium in it is still npm's 1.145 with
@@ -277,8 +301,12 @@ posts the same view.
 - The status sets `tilesLoaded` (the warming and the fade), the height
   under the camera, and the credits, drawn with celestiary's own elements.
 
-**Lockstep.**  ThreeUi's `renderLoop` stops after `beforeRender` while a
-guest's view is out (`CesiumLayers.awaitingGuests`).  The receiver's
+**Lockstep.**  `beforeRender` posts the view.  ThreeUi's `renderLoop` then
+renders celestiary's scene into `_sceneRT` and stops before the composite
+while a guest's view is out (`CesiumLayers.awaitingGuests`).  The guest's
+frame is needed only from the composite on, so the GPU draws celestiary's
+scene while the guest computes its frame.  Before #310 the wait came before
+the scene's render, and the two ran one after the other.  The receiver's
 `onFrame` for that view's id calls `ThreeUi.resumeFrame`, which draws the
 frame in the message's task.  After `guestWaitMs` the next loop draws with
 the last frame in, and the view stays out: the next is posted only when it
@@ -344,12 +372,19 @@ counts are read):
   the guest's frame costs more, 12.6 ms, so the frame is 4.6 ms longer.
 - On the preview the guest is same-origin, so it shares celestiary's
   thread: the wait is Cesium's work done there anyway, plus the copy.  A
-  subdomain (`cesium.celestiary.org`) is the same *site*, and Chromium keeps
+  subdomain (`cesium.celestiary.org`, the first plan) is the same *site*, and Chromium keeps
   a site's pages in one process, so it would be the same.  Cesium runs in
   parallel with celestiary only from another site.
-- Even then the frame waits in the wrong place: celestiary posts the view
-  and idles until the guest's frame lands, before drawing its own scene.
-  Waiting only before `composite()` would overlap the two.  Next.
+- Even then the frame waited in the wrong place: celestiary posted the view
+  and idled until the guest's frame landed, before drawing its own scene.
+  It now waits only before `composite()` (Lockstep, above).  On SwiftShader
+  that changes little (the wait 5.8 ms a frame before, 5.2 ms after, at 7.1
+  to 7.2 frames a second): issuing the scene costs the CPU about half a
+  millisecond, and SwiftShader's "GPU" is CPU threads competing with the
+  guest.  What it buys is the real GPU drawing celestiary's scene during the
+  wait, which needs the M2 with a guest on another site to see.
+  `ThreeUi.guestWait` (frames held and ms waited) and `yarn
+  cesium-guest-check`'s `waitMs` measure it.
 - On 0.6.4 the shadow still draws (the same-page snapshot's
   `cesium.shadow.earth` has all 177 draws); 0.6.6 takes them out, on either
   page.
@@ -357,6 +392,100 @@ counts are read):
   average, but 107 to 115 ms at the 95th percentile, about one frame in
   four.  That accounts for most of the mean interval and the 8 fps 5th
   percentile.
+
+**On the M2 with the guest on a site of its own** (#310's preview, the
+guest from `pablo-mayrgundter.github.io/cesium-portal/pr-preview/pr-310/`,
+portal-netgl 0.6.6, the overlap; the same view, 2026-10-27):
+
+| | Cross-site guest (#310) | Same-origin guest (#309) | Same page (#309) |
+|---|---|---|---|
+| Frames a second (mean; 5th percentile) | 28.1; 12.6 | 24.7; 7.4 | 27.8; 8.2 |
+| Frame interval (mean; p95) | 35.6; 79 ms | 40.6; 135 ms | 36.0; 122 ms |
+| Main-thread CPU, the frame's | 32.1 ms | 38.0 ms | 32.2 ms |
+| `cesium.replay` CPU | 1.2 ms | 1.3 ms | 6.3 ms |
+| Waiting for the guest (`other`) | 13.7 ms | 12.6 ms | 0.1 ms |
+| `meter` CPU (mean; p95) | 11.6; 58 ms | 18.6; 115 ms | 20.2; 107 ms |
+
+- The page's frame rate, and steadier: the slowest frames run at 12.6 fps,
+  not 8.2, and the 95th percentile interval is 79 ms, not 122.  The meter's
+  readback stalls halved, which fits the GPU catching up on celestiary's
+  scene during the wait.
+- Three things changed at once: the overlap, the guest's own site, and
+  0.6.6 (the shadow no longer draws; the same-page baseline's shadow drew
+  all 177 draws on the same GPU).  Production on 0.6.6, the same page, is
+  the baseline that separates them (below).
+- The wait, 13.7 ms, is the guest's own frame in its process plus the trip
+  both ways.  `?perf=1`'s snapshot now splits it: `scene.cesiumGuests` has,
+  per guest page, over its last 240 round trips (mean and p95), `tripMs`
+  (the view posted to the guest's frame in), `toGuestMs` (the view's way
+  in), `guestMs` (the view in to the frame's batch posted, by the guest's
+  clock), `backMs` (the batch's way back, decoded and in), and `waitMs`
+  (what the frames waited).  The guest's `cesium:status` carries the timing
+  (`receivedAt` on the wall clock, `performance.timeOrigin + now`, which
+  both pages share, and `renderMs`); `yarn cesium-guest-check` reports it
+  as `split`.  Two processes' clocks agree to about a millisecond, so a way
+  shorter than that can read a little under 0.  On SwiftShader, cross-site:
+  a trip of 10.8 ms was 3.3 in, 7.6 the guest's frame, and −0.15 back (the
+  batch, posted at the frame's end, is in by the time its frame-end is).
+
+The baseline and the split, on the M2 (the same view, 2026-10-27, `?perf=1`;
+production is the same page on 0.6.6, #310's preview the cross-site guest):
+
+| | Same page, 0.6.6 (production) | Cross-site guest (#310) |
+|---|---|---|
+| Frames a second (mean; 5th percentile) | 33.0; 10.5 | 27.8; 12.6 |
+| Frame interval (mean; p95) | 30.3; 95 ms | 36.0; 79 ms |
+| Cesium's work on celestiary's thread (`cesium.replay` CPU) | 6.0 ms | 1.2 ms |
+| Waiting for the guest (`other`) | 0.1 ms | 14.0 ms |
+| `meter` CPU (mean; p95) | 15.6; 82 ms | 11.8; 55 ms |
+| The shadow's draws | 0 | (no shadow) |
+
+`scene.cesiumGuests` on the guest: a trip of 14.3 ms (p95 17.6) was 1.1 ms
+in, 9.9 ms the guest's frame (p95 12.9) and 3.3 ms back; the frames waited
+13.7 ms.
+
+- 0.6.6 was the same page's big gain: 27.8 to 33.0 fps, with the shadow's
+  177 draws gone from the GPU.
+- Against that, the guest costs 5.7 ms a frame on the mean: 4.8 ms of
+  Cesium's work leaves celestiary's thread, a 14 ms wait comes in, and the
+  meter's stalls shrink by about 4 ms.  Its slowest frames are still faster
+  (12.6 fps at the 5th percentile, not 10.5), by the meter.
+- The overlap hides almost nothing: the wait is the whole trip less half a
+  millisecond, because issuing celestiary's scene costs the CPU that much,
+  and the camera's update (3.8 ms) comes before the view can be posted.
+  Lockstep keeps the trip on the frame's critical path.
+- The guest's frame takes 9.9 ms for what costs about 4.8 ms on the same
+  page: Cesium's render, plus recording and encoding the batch, in another
+  process.  The way back, 3.3 ms, is the batch's clone across processes and
+  its decode.  Those two are what a faster lockstep would cut; a frame of
+  lag would hide the trip whole, at the cost of Cesium's frame being a
+  frame behind the camera.
+- `?perf=sync` timed no GPU work here: its rows were the issue times, so
+  `finish` didn't wait; `&barrier=read` is the way.
+
+With `?perf=sync&barrier=read` (each pass's wall time with the GPU waited
+on, so 20.8 fps, not 28; the same view and preview), the 48 ms frame:
+
+| Pass | Wall ms, mean | |
+|---|---|---|
+| `other` (waiting for the guest) | 17.4 | the guest's frame and the trip |
+| `clouds.volume` | 8.1 (p95 15) | the volumetric clouds: celestiary's heaviest pass |
+| `cesium.replay` | 5.2 | the GPU drawing Cesium's 177 replayed draws |
+| `update` | 4.0 | CPU |
+| `atmosphere` | 2.6 | |
+| `cesium` | 2.5 | |
+| `overlay` | 1.7 | |
+| `scene` | 1.5 | |
+| everything else | 5.0 | each under 1.1 ms; `meter` 0.5 |
+
+- The meter's stalls are gone when the GPU is waited on after every pass
+  (0.5 ms), so in the unsynced snapshots they were the GPU's backlog
+  arriving at the meter's readback, not the meter's own cost.
+- Moving Cesium out moved its scene's CPU work off celestiary's thread, but
+  not the replay's GPU work: 5 ms of celestiary's GPU frame is still
+  Cesium's.  A guest that drew its own frame and handed over the pixels
+  and depth instead of draws would take that too, at the cost of a copy
+  across processes each frame; not planned.
 
 **On a PR preview**, before the guest has a host of its own: celestiary's
 build serves the guest page too, and `https://celestiary.org` is on the
