@@ -327,6 +327,37 @@ Cesium on celestiary's own page (only Earth goes to the guest in phase 1),
 its terrain under celestiary's atmosphere.  No night lights on the guest's
 Earth, as expected.
 
+**Its cost on the M2** (`?perf=1`, the Grand Canyon from 2.5 km, 1470×838,
+the guest on the preview's own origin, portal-netgl 0.6.4, 2026-10-27;
+ANGLE Metal times the GPU per encoder, so only the CPU columns and the
+counts are read):
+
+| | iframe | same page |
+|---|---|---|
+| Frames a second (mean; 5th percentile) | 24.7; 7.4 | 27.8; 8.2 |
+| Frame interval, mean | 40.6 ms | 36.0 ms |
+| `cesium.replay` CPU, on celestiary's thread | 1.3 ms | 6.3 ms |
+| Waiting for the guest's frame (`other` CPU) | 12.6 ms | 0.1 ms |
+| Cesium's draws replayed | 177 | 177 |
+
+- Cesium's own work left celestiary's thread: 5 ms a frame.  The wait for
+  the guest's frame costs more, 12.6 ms, so the frame is 4.6 ms longer.
+- On the preview the guest is same-origin, so it shares celestiary's
+  thread: the wait is Cesium's work done there anyway, plus the copy.  A
+  subdomain (`cesium.celestiary.org`) is the same *site*, and Chromium keeps
+  a site's pages in one process, so it would be the same.  Cesium runs in
+  parallel with celestiary only from another site.
+- Even then the frame waits in the wrong place: celestiary posts the view
+  and idles until the guest's frame lands, before drawing its own scene.
+  Waiting only before `composite()` would overlap the two.  Next.
+- On 0.6.4 the shadow still draws (the same-page snapshot's
+  `cesium.shadow.earth` has all 177 draws); 0.6.6 takes them out, on either
+  page.
+- Not the guest's: in both, the meter's CPU time is 18.6 to 20.2 ms on
+  average, but 107 to 115 ms at the 95th percentile, about one frame in
+  four.  That accounts for most of the mean interval and the 8 fps 5th
+  percentile.
+
 **On a PR preview**, before the guest has a host of its own: celestiary's
 build serves the guest page too, and `https://celestiary.org` is on the
 list of guest origins, so a preview can load its own.  It's the same
