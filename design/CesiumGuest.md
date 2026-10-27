@@ -423,7 +423,10 @@ portal-netgl 0.6.6, the overlap; the same view, 2026-10-27):
   (what the frames waited).  The guest's `cesium:status` carries the timing
   (`receivedAt` on the wall clock, `performance.timeOrigin + now`, which
   both pages share, and `renderMs`); `yarn cesium-guest-check` reports it
-  as `split`.
+  as `split`.  Two processes' clocks agree to about a millisecond, so a way
+  shorter than that can read a little under 0.  On SwiftShader, cross-site:
+  a trip of 10.8 ms was 3.3 in, 7.6 the guest's frame, and −0.15 back (the
+  batch, posted at the frame's end, is in by the time its frame-end is).
 - `?perf=sync` timed no GPU work here: its rows were the issue times, so
   `finish` didn't wait; `&barrier=read` is the way.
 
