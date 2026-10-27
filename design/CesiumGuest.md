@@ -318,6 +318,15 @@ another process; ion, GIBS and analytics refused; 2026-10-27):
 - the sky's crossfade for a body that draws its own atmosphere (none does);
 - the `?perf=1` rows of the guest's own cost.
 
+**On a real GPU** (the maintainer's machine, PR #309's preview, guest page
+on the same origin, 2026-10-27): Earth from the guest page with ion's
+World Terrain and the preview's ion token: the Grand Canyon by day, with
+celestiary's clouds over Cesium's terrain, and by night looking up, the
+horizon's glow and the stars.  Mars beside it, at the same time, is still
+Cesium on celestiary's own page (only Earth goes to the guest in phase 1),
+its terrain under celestiary's atmosphere.  No night lights on the guest's
+Earth, as expected.
+
 **On a PR preview**, before the guest has a host of its own: celestiary's
 build serves the guest page too, and `https://celestiary.org` is on the
 list of guest origins, so a preview can load its own.  It's the same
