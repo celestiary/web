@@ -22,11 +22,15 @@ export const CESIUM_GUEST_HOSTS = [
 
 
 /**
- * Where celestiary may load the guest from: the Cesium fork's Pages and
- * local development.  A build adds more with CESIUM_GUEST_ORIGINS.
+ * Where celestiary may load the guest from: the Cesium fork's Pages,
+ * celestiary's own site (its build serves the guest page too, so a PR
+ * preview can load its own: the same origin, so the same process, but the
+ * same wire), and local development.  A build adds more with
+ * CESIUM_GUEST_ORIGINS.
  */
 export const CESIUM_GUEST_ORIGINS = [
   'https://cesium.celestiary.org',
+  'https://celestiary.org',
   'http://localhost:*',
   'http://127.0.0.1:*',
   ...listFrom(typeof __CESIUM_GUEST_ORIGINS__ === 'string' ? __CESIUM_GUEST_ORIGINS__ : ''),

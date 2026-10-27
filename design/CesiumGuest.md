@@ -318,6 +318,13 @@ another process; ion, GIBS and analytics refused; 2026-10-27):
 - the sky's crossfade for a body that draws its own atmosphere (none does);
 - the `?perf=1` rows of the guest's own cost.
 
+**On a PR preview**, before the guest has a host of its own: celestiary's
+build serves the guest page too, and `https://celestiary.org` is on the
+list of guest origins, so a preview can load its own.  It's the same
+origin, so the same process (not the cross-site case the check runs), but
+the same wire, lockstep and ion (the token allows celestiary.org):
+`https://celestiary.org/web/pr-preview/pr-<n>/?cesium=iframe&cesiumGuest=https://celestiary.org/web/pr-preview/pr-<n>/cesium-guest.html#<permalink>`.
+
 ## Phases
 
 0. **Measure on the same page, change nothing users see.**

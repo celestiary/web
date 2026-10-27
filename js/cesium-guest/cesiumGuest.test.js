@@ -25,6 +25,8 @@ describe('the guest page celestiary loads', () => {
     } finally {
       console.warn = warn
     }
+    expect(guestPage('https://celestiary.org/web/pr-preview/pr-1/cesium-guest.html').href)
+        .toBe('https://celestiary.org/web/pr-preview/pr-1/cesium-guest.html')
     expect(guestPage('https://evil.example/cesium-guest.html')).toBe(null)
     expect(guestPage('javascript:alert(1)')).toBe(null)
     expect(guestPage('not a url')).toBe(null)
