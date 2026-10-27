@@ -182,6 +182,37 @@ Refreshed by `yarn satellites`, not fetched live.
   (the header's `source`, the info panel's "Elements from CelesTrak") is
   enough, or whether to ask CelesTrak, or space-track.org's terms, first.
 
+### Kept fresh
+
+A low satellite is drawn for 30 days round its elements' epoch
+([below](#old-elements-and-dates-far-from-them)), so a snapshot more than a
+month old shows today without Starlink, Iridium, the stations or Hubble.
+`.github/workflows/satellites.yml` refreshes it every two weeks, on the 1st
+and the 15th of each month at 06:17 UTC, and on demand (Actions, Satellites,
+Run workflow):
+
+- **It runs `yarn satellites`**, one request a group from CelesTrak, and
+  stops at the first answer that isn't a 200, as CelesTrak's policy asks.
+  That fails the job, and GitHub tells whoever last changed the schedule; no
+  retry, so nothing hammers CelesTrak.  A 403 for a set "not updated since
+  your last successful download" can come from another job on the same
+  shared runner address: the next run, or a run by hand, asks again.
+- **Then the tests that read the snapshot** (`tools/satellites`,
+  `js/scene/satellites`, `js/scene/networks`, `js/layer`), before anything
+  is pushed.
+- **A changed snapshot opens one pull request**, from the branch
+  `auto/satellites`, force-pushed from `main` each time, so an unmerged
+  refresh is replaced by the next rather than stacking.  Its body lists the
+  groups' counts.  Unchanged, nothing is pushed.
+- **CI runs on it by dispatch:** a pull request opened with the workflow's
+  own token starts no `pull_request` workflows, but a `workflow_dispatch`
+  of `ci.yml` does, and its checks land on the pull request's commit.  No
+  preview is built for it.
+- **It needs** the repository's *Allow GitHub Actions to create and approve
+  pull requests* (Settings, Actions, General), and merges by the maintainer
+  as any other.  These pull requests add no ROADMAP or CHANGELOG entry:
+  fresher elements are the data's upkeep, not a change.
+
 ### Old elements, and dates far from them
 
 Mean elements age.  SGP4 is a few kilometres off within a day of the
@@ -392,15 +423,13 @@ A failed load is logged and asked for again by the next need.
 
 ## Follow-ups
 
-- **Fresher elements.**  A scheduled workflow could run `yarn satellites`
-  and open a PR each week.  Or the app could fetch live from CelesTrak when
-  the date is within a few days of now and fall back to the snapshot
-  otherwise; that needs CORS, which isn't checked yet.  Until one of those,
-  a refresh is by hand, and the low-orbit window bounds a snapshot's life:
-  30 days after its fetch, "now" is past every low satellite's window
-  (Starlink, Iridium, the stations, Hubble: [old
-  elements](#old-elements-and-dates-far-from-them)), and the view of
-  today has only the higher ones until `yarn satellites` runs again.
+- **Fresher elements than a fortnight's.**  The scheduled refresh ([kept
+  fresh](#kept-fresh)) keeps today within every low satellite's window
+  while its pull requests are merged.  For elements of the day, the app
+  could fetch live from CelesTrak when the date is within a few days of now
+  and fall back to the snapshot otherwise; that needs CORS, which isn't
+  checked yet, and every visitor's fetch would count against CelesTrak's
+  limits, so it would need its own cache.
 - **History.**  Dates outside the snapshot's windows need elements of their
   date: space-track.org's history (an account, and terms to read), or
   snapshots kept by date.

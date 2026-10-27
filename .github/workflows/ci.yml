@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - main
+  # The satellites' refresh (satellites.yml) starts it on its own pull
+  # request, which its token's pull_request event can't.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
