@@ -1120,8 +1120,9 @@ and planning notes ([#173](https://github.com/celestiary/web/pull/173),
 [#200](https://github.com/celestiary/web/pull/200),
 [#215](https://github.com/celestiary/web/pull/215),
 [#222](https://github.com/celestiary/web/pull/222)), layer mode's guest drawing its frame once,
-not twice ([#305](https://github.com/celestiary/web/pull/305)), and its wide lines keeping up with a
-moving host camera ([#306](https://github.com/celestiary/web/pull/306)).
+not twice ([#305](https://github.com/celestiary/web/pull/305)), its wide lines keeping up with a
+moving host camera ([#306](https://github.com/celestiary/web/pull/306)), and keeping their width when
+the host's buffer changes size ([#316](https://github.com/celestiary/web/pull/316)).
 
 ## September 2026
 
