@@ -1,13 +1,15 @@
 import esbuild from 'esbuild'
 import {LAYER_BUDGET, STATIC_BUDGET} from './budget.js'
-import config, {layerConfig} from './common.js'
+import config, {cesiumGuestConfig, layerConfig} from './common.js'
 import {firstLoadOutputs, firstLoadProblems} from './firstLoad.js'
 import {budgetProblems, kb, measureFirstLoad} from './staticBudget.js'
 
 
 // A minified dry run, so the sizes are the shipped ones.
 const dryRun = (c) => esbuild.build({...c, write: false, minify: true, logLevel: 'error'})
-Promise.all([dryRun(config), dryRun(layerConfig)])
+// The Cesium guest page is built too, so a break in it fails here; it has
+// no budget (Cesium is its whole point, imported after the page).
+Promise.all([dryRun(config), dryRun(layerConfig), dryRun(cesiumGuestConfig)])
     .then(([result, layerResult]) => {
       const problems = firstLoadProblems(result.metafile)
       if (problems.length > 0) {

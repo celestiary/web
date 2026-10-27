@@ -5,6 +5,9 @@ const indexFile = './js/index.jsx'
 // share into chunks of their own, and the app's first load would fetch
 // them as more requests (it did: two more, over the load budget).
 const layerFile = './js/layer/layer.js'
+// The Cesium guest page (design/CesiumGuest.md): one Cesium body as a NetGL
+// guest that celestiary embeds from another origin.  Its own build too.
+const cesiumGuestFile = './js/cesium-guest/guest.js'
 const buildDir = 'docs'
 
 // satellite.js (SGP4, js/scene/satellites/) also ships WASM propagators,
@@ -50,6 +53,10 @@ const config = {
     // More origins that may host layer mode (js/layer/origins.js), comma-
     // separated, beyond its built-in allow-list.
     __LAYER_ORIGINS__: JSON.stringify(process.env.LAYER_ORIGINS ?? ''),
+    // More hosts that may embed the Cesium guest, and origins celestiary may
+    // load it from (js/cesium-guest/origins.js), comma-separated.
+    __CESIUM_GUEST_HOSTS__: JSON.stringify(process.env.CESIUM_GUEST_HOSTS ?? ''),
+    __CESIUM_GUEST_ORIGINS__: JSON.stringify(process.env.CESIUM_GUEST_ORIGINS ?? ''),
   },
 }
 export default config
@@ -64,5 +71,19 @@ export const layerConfig = {
   ...config,
   entryPoints: [layerFile],
   outdir: `${buildDir}/layer`,
+  define: {...config.define},
+}
+
+
+/**
+ * The Cesium guest page's own build, into docs/cesium-guest/
+ * (public/cesium-guest.html loads cesium-guest/guest.js).  Cesium's assets
+ * are the app's, in docs/cesium/ (cesiumAssets.js), which the guest's
+ * deploy copies beside it.
+ */
+export const cesiumGuestConfig = {
+  ...config,
+  entryPoints: [cesiumGuestFile],
+  outdir: `${buildDir}/cesium-guest`,
   define: {...config.define},
 }

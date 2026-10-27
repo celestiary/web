@@ -215,6 +215,18 @@ tried and dropped.
     `galaxyModel.js` `integrateRay`), iterate on its look with a CPU
     render of the mirror in bun, tone-mapped with `hdr.js` `neutral`: a
     200 px frame takes seconds, against minutes through SwiftShader.
+- **The Cesium guest page's check: `yarn cesium-guest-check`**
+  ([design/CesiumGuest.md](design/CesiumGuest.md#phase-1-earth-from-the-guest-page)).
+  After `CESIUM_ION_TOKEN= yarn build` it serves `docs/` as the app
+  (127.0.0.1) and the guest (localhost), renders Earth's layer both ways
+  (`?cesium=iframe`), and fails if the frames at the permalink's instant
+  differ or a guest frame was out of step while the camera orbits.
+  `--view earth-12km`, `--wait ms`, `--out dir`.  The repo's Playwright
+  doesn't know the machine's Chromium: it takes `/opt/pw-browsers/chromium`
+  when that's there (`--chromium` otherwise).  To read a held frame (one
+  waiting on the guest), hook `ThreeUi._drawFrame` and read the canvas
+  inside it: the guest's frame lands in a message's task, not an animation
+  frame's.
 - **Layer mode's checks run on two origins:** `yarn build`, then `yarn
   layer-host` (guest `http://127.0.0.1:5480`, host
   `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read

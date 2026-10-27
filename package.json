@@ -37,6 +37,7 @@
     "satellites": "NODE_USE_ENV_PROXY=1 node tools/satellites/fetch.mjs",
     "networks": "NODE_USE_ENV_PROXY=1 node tools/networks/fetch.mjs",
     "layer-host": "node tools/layer/serve.mjs",
+    "cesium-guest-check": "node tools/cesium-guest/check.mjs",
     "changelog:draft": "node tools/changelog/draft.mjs",
     "posts": "node tools/posts/posts.mjs"
   },

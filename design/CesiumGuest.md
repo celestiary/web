@@ -1,6 +1,7 @@
 # Cesium as a cross-origin guest
 
-*Proposed 2026-10-24; phase 0 measured (below).*
+*Proposed 2026-10-24.  Phase 0 measured; phase 1 built: Earth's Cesium from
+the guest page, behind `?cesium=iframe` (below).*
 
 **Decided (2026-10-24):**
 - the guest is served from the fork's Pages on a subdomain of its own
@@ -33,16 +34,13 @@ Two reasons:
    the guest streams tiles, textures, a log depth buffer and full-screen
    passes.  It is also the guest that portal's DESIGN.md calls the reason
    the same-page link exists.
-2. **Cesium out of celestiary's build.**  The guest page would be built from
-   the fork itself.  That has three effects:
-   - patch-package and `patches/` go, since the fixes are the fork's own
-     source;
-   - a fix in Cesium's prebuilt workers becomes possible, which patching
-     can't reach ([CESIUM.md, Patching
-     Cesium](../CESIUM.md#patching-cesium));
-   - the ion token goes to the fork's deploy.
-
-   Celestiary keeps only the composite.
+2. **Cesium out of celestiary's page.**  Celestiary's page keeps only the
+   composite: the stencil, the decode, depth, the atmosphere.  Cesium, its
+   assets and the ion token are served from the guest's origin.  Later,
+   the guest can be built against the fork's own engine rather than
+   patched npm packages (Hosting, below), which would retire patch-package
+   and reach Cesium's prebuilt workers, which a patch can't ([CESIUM.md,
+   Patching Cesium](../CESIUM.md#patching-cesium)).
 
 ## What crosses today, synchronously
 
@@ -175,11 +173,20 @@ celestiary's PR previews (`celestiary.org/web/pr-preview/…`) sit on the same
 origin as production, so they compare the same way.  The fork's own PR
 previews would follow its domain.
 
-The guest page's source: in the fork (for example `Apps/Celestiary/`), built
-against the fork's engine with all `celestiary/*` fix branches merged,
-and deployed with a Pages workflow from a `celestiary/pages` branch.  The
-celestiary-specific shaders (relief, the encoding) move there, with their
-tests.
+**The guest page's source is celestiary's** (`js/cesium-guest/`, its own
+esbuild build into `docs/cesium-guest/`, as layer mode's page is), and only
+its hosting is the fork's.  This proposal first put the source in the fork.
+Building phase 1 showed why not: the guest runs the same code as
+celestiary's own Cesium layer, its widget set-up, imagery, ion requests,
+heights and shaders (relief, the encoding, the distance in alpha), with
+bun tests beside it.  So that code is one module, `cesiumBody.js`, which
+both paths drive.  In the fork it would be a copy, or a package to
+publish, and the two layers would drift.  What the fork's Pages serve is
+the build: `cesium-guest.html`, `cesium-guest/` and Cesium's assets
+(`cesium/`), deployed from celestiary's CI as `deploy-prod.yml` deploys
+to celestiary.github.io.  The Cesium in it is still npm's 1.145 with
+`patches/`; building it against the fork's branches instead is a later
+step.
 
 ## Phase 0: what was measured
 
@@ -225,6 +232,92 @@ Mars weren't measured.
   over Lower Manhattan, wasn't looking at the city.  The city is about
   140 MB built (CESIUM.md), which bounds what its set-up would carry across.
 
+## Phase 1: Earth from the guest page
+
+Built 2026-10-27, behind `?cesium=iframe` (`?cesiumGuest=<url>` for a copy
+on another allowed origin; `?cesiumWait=<ms>` for the wait, 100 by
+default).  The same-page layer stays the default and is unchanged.
+
+**One code path, two transports.**  `js/scene/cesium/cesiumBody.js` is
+everything done to a body's Cesium widget: `createWidget` (the imagery,
+ion's terrain, the lighting, the distance stage), `applyView` (the
+camera, the frustum, the detail, ion's imagery, the month, the Sun, the
+earthshine), `sampleGround` and `tilesReady`.  CesiumLayers computes a
+frame's view as plain data (`_viewOf`).  On the page it calls `applyView`
+and renders through the immediate link, as before.  For the guest it
+posts the same view.
+
+**The page** (`public/cesium-guest.html`, `js/cesium-guest/guest.js`):
+- It loads Cesium and portal-netgl, takes messages only from an allowed
+  host (`origins.js` `CESIUM_GUEST_HOSTS`: celestiary.org,
+  celestiary.github.io, local development), and pins
+  `parentTransport` to it.
+- It makes the body's widget at once, with `shadowDraws: false`, and says
+  NetGL's `netgl:ready`.  Wire 2 and the port are agreed in the handshake.
+- On each `cesium:view {viewId, view}` it applies the view and renders.
+  The frame-end carries the `viewId`.  Then it sends `cesium:status
+  {viewId, tilesLoaded, groundHeight, credits?}` on the port, after the
+  frame.  The credits go only when they change, as plain items
+  (`credits.js`: text, http(s) links, https or data images), never HTML.
+- `?data=` is celestiary's data base (the Blue Marble), taken only on an
+  allowed host (`dataUrl.js` `setDataBaseUrl`).  `?month=` is the
+  first view's month.
+
+**The host** (CesiumLayers `_loadGuest`):
+- The iframe is laid out at the frame's size but hidden.  The guest's
+  Cesium sizes its canvas from its page, which `display: none` would leave
+  at 0.
+- portal-netgl's `makeNetGLHostReceiver` runs on `iframeTransport`, pinned
+  to the guest page's origin.  It has the same replay config as the link
+  (`_replayConfig`: `_cesiumRT` for the screen, the stencil, premultiplied
+  over, depth-only clears).
+- At the end of `beforeRender` it posts the view (`_postGuestViews`), one
+  in flight a body.  `composite()` drains the receiver where it would
+  render Cesium.
+- The status sets `tilesLoaded` (the warming and the fade), the height
+  under the camera, and the credits, drawn with celestiary's own elements.
+
+**Lockstep.**  ThreeUi's `renderLoop` stops after `beforeRender` while a
+guest's view is out (`CesiumLayers.awaitingGuests`).  The receiver's
+`onFrame` for that view's id calls `ThreeUi.resumeFrame`, which draws the
+frame in the message's task.  After `guestWaitMs` the next loop draws with
+the last frame in, and the view stays out: the next is posted only when it
+lands.  So a slow guest gives "latest frame", never a backlog of views.
+
+**Checked** (`yarn cesium-guest-check`: headless Chromium on SwiftShader,
+480×300, the app on 127.0.0.1 and the guest on localhost, two sites, so
+another process; ion, GIBS and analytics refused; 2026-10-27):
+
+- **The same frame.**  Earth from 20,000 km at the permalink's instant,
+  pinned: 0 of 115,680 pixels differ between Cesium on the page and Cesium
+  from the guest page.  At 12 km over the Gulf, where the guest streams the
+  Blue Marble's tiles from celestiary's origin, 585 differ, by one level:
+  less than two runs of one build differ.
+- **In step under motion.**  With the camera orbiting Earth every frame for
+  20 s, every frame drew the guest's frame of its own view: from 20,000 km
+  147 of 147 with a 100 ms wait, 141 of 141 with 3 s; at 12 km 107 of 107.
+  A view's round trip, posted to its frame in, was 5 to 7 ms from orbit and
+  9 ms at 12 km.  celestiary drew 7.0 to 7.4 frames a second from orbit,
+  against 6.65 to 6.8 with Cesium on the page, and 5.35 against 6.2 at
+  12 km.  The frame rate is celestiary's own drawing on SwiftShader, not the
+  wait.
+- **The wire.**  Version 2 with the port open; each guest frame is one
+  batch.
+- **The refactor.**  The same-page layer is unchanged: Earth from orbit is
+  bit for bit the same before and after, at a pinned instant.  At 12 km the
+  two builds differ by at most one level, as two runs of one build do.
+
+**Not yet, in iframe mode:**
+- the night lights: their frame is a second render with other settings.
+  It needs the receiver to drain one sub-frame at a time;
+- New York;
+- the Moon and Mars, which stay on the page;
+- the terrain height at a landing place (`groundHeightAt`), which needs a
+  request and a reply.  The height under the camera comes with each
+  status;
+- the sky's crossfade for a body that draws its own atmosphere (none does);
+- the `?perf=1` rows of the guest's own cost.
+
 ## Phases
 
 0. **Measure on the same page, change nothing users see.**
@@ -237,10 +330,8 @@ Mars weren't measured.
      `makeNetGLCesiumGuest`, a portal patch release).  Keep it if frames
      match and nothing reads back.
 1. **Earth in an iframe, behind a flag** (`?cesium=iframe`), on a local
-   two-origin harness as `yarn layer-host` is.  Use the view, status,
-   heights and credits messages above, and lockstep (A).  The same-page
-   link stays the default.  Check: `yarn parity`'s views match the
-   same-page layer.
+   two-origin harness.  *Built (above); checked with `yarn
+   cesium-guest-check` against the same-page layer.*
 2. **Reprojection for Cesium** (B): the portal changes in its four points,
    with tests in portal and a pan-and-zoom check like netmap's.
 3. **Deploy:** the fork's Pages workflow, the domain, the token's allowed
