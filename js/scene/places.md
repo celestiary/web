@@ -31,7 +31,9 @@ that opt in via `has_locations: true` in their JSON descriptor.
 
 ## Catalog file format
 
-`/data/places/<bodyName>.json`:
+`data/<its dir>/places.json` (`data/earth/places.json`,
+`data/earth/moons/moon/places.json`; the directory from `js/bodyDirs.json`,
+`bodyBundle.js` `placesUrl`):
 
 ```json
 {
@@ -226,7 +228,8 @@ cover them, and the shader's back-hemisphere discard hides the far side.
 
 Every body below but Earth has its names from the IAU's Gazetteer of
 Planetary Nomenclature ([#170](https://github.com/celestiary/web/issues/170)),
-built by `tools/places/build.mjs` into `public/data/places/<body>.json`.  The
+built by `tools/places/build.mjs` into each body's `places.json`, in its
+directory.  The
 files are checked in (a rebuild is for when the Gazetteer adds names or the
 rules below change), 8,226 places and 650 KB for the 23 bodies, so none is in
 Git LFS ([data policy](../../DESIGN.md#data-policy): over about 1 MB there).
@@ -334,11 +337,11 @@ regional capitals worldwide.  Reveal-threshold tuning means T2 only paints at
 continent-scale zoom, so the from-space view stays uncluttered.  It could gain
 natural features from Natural Earth.
 
-**Not here.**  Ceres and Vesta are in the Gazetteer, but celestiary draws them
-as points of the asteroid list (`asteroids.ssc`), with no body to put names
-on; they, and Enceladus, Mimas, Miranda and the others the Gazetteer has for
-moons celestiary doesn't model, are a line in `BODIES` once they have a
-descriptor.  Spacecraft and exoplanet names are later
+**Not here.**  Ceres and Vesta are in the Gazetteer, but celestiary has no
+body for them (nor any asteroid: Celestia's `asteroids.ssc`, once bundled
+for an old guide page, was never drawn, and is gone); they, and Enceladus,
+Mimas, Miranda and the others the Gazetteer has for moons celestiary doesn't
+model, are a line in `BODIES` once they have a descriptor.  Spacecraft and exoplanet names are later
 ([ROADMAP.md](../../ROADMAP.md#shared-engines)).
 
 ## Declutter

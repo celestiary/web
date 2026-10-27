@@ -175,3 +175,49 @@ describe('Population, many shown', () => {
     expect(new Vector3(pos.getX(0), pos.getY(0), pos.getZ(0)).distanceTo(exact)).toBeLessThan(2)
   })
 })
+
+
+describe('Population, a group drawn elsewhere', () => {
+  it('leaves its points to the drawer while it draws them, and names them where its dots are', () => {
+    const pop = circles(3000)
+    // The drawer's index of each is its id + 1000; it draws all but every
+    // hundredth.
+    const asked = []
+    const drawer = {
+      drawing: true,
+      indexOf: (id) => id + 1000,
+      isShown: (j) => (j - 1000) % 100 !== 0,
+      positionAtJd: (j, jd, out) => {
+        asked.push(j)
+        return out.set(j - 1000, 0, 0)
+      },
+    }
+    pop.setGroupDrawer('b', drawer)
+    pop.setLabelBudget(20)
+    pop.update(JD)
+    // Group a's 10 worked out here (many shown: carried, so their states,
+    // then again in turn with the frame's budget to spare); none of b's
+    // 2,990, which the drawer draws.  Its positions only for the names.
+    expect(pop.states).toBe(20)
+    expect(asked).toEqual([1011, 1012, 1013, 1014, 1015, 1016, 1017, 1018, 1019, 1020])
+    const show = pop.points.geometry.attributes.aShow
+    expect(show.getX(0)).toBe(1)
+    expect(show.getX(10)).toBe(2)
+    // One the drawer doesn't draw (#100) isn't placed.
+    expect(show.getX(99)).toBe(0)
+    expect(pop.drawnCount).toBe(10)
+    // The names: the budget reaches into b, at the drawer's places.
+    expect(pop._nameIds.length).toBe(20)
+    const pos = pop.points.geometry.attributes.position
+    expect([pos.getX(10), pos.getY(10)]).toEqual([11, 0])
+    // The drawer stops (its overlay off): the group is drawn here again,
+    // coming in within the frame's budget.
+    drawer.drawing = false
+    const before = pop.states
+    pop.update(JD + (1 / 86400))
+    expect(pop.states - before).toBe(2500)
+    expect(show.getX(10)).toBe(1)
+    pop.setGroupDrawer('b', null)
+    expect(pop.drawers.size).toBe(0)
+  })
+})

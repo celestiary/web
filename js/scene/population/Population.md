@@ -165,6 +165,32 @@ near-circular orbits (`eccentricity` under 0.01) are carried:
   came out 26 m off after 10 minutes, from them).  Satellites give SGP4's
   velocity.
 
+## A group drawn elsewhere
+
+A group another drawer draws whole can be left to it while it draws them
+(`setGroupDrawer(key, drawer)`): Earth's Starlink and Iridium while their
+networks' overlays (`S`, `I`) are on
+([Networks.md](../networks/Networks.md#the-data)).
+
+- **The drawer** is a space network's Constellation: `drawing` (its points
+  drawn now, it and every node over it visible), `indexOf(id)`,
+  `isShown(i)` and `positionAtJd(i, jd, out)` (its last refresh carried to
+  the date, as its shader does).  The population maps each of its records
+  to the drawer's index once, when the drawer is set.
+- **While it draws:** the group's points aren't drawn or propagated here.
+  A record counts as drawn while the drawer draws it (`aShow` 2, which the
+  points' shader skips), so the names' budget, the counts and the switches
+  work as before, and a named one is put where its dot is: the only
+  positions asked of the drawer, the budget's.  The targets' nodes stay
+  exact, from `positionAt`.  The group's count bounds its names, not the
+  drawer's dots.
+- **When it stops** (its overlay off, the camera too far): the group is
+  drawn here again, coming in within a frame's budget of exact positions.
+- **Not in layer mode**, which leaves Starlink out of its population and
+  Iridium to its network when that's loaded (design/LayerMode.md): its
+  anchors read the points' positions, which a drawn-elsewhere record
+  doesn't have.
+
 ## Names that hold still
 
 Hundreds of names round a body move against each other.  Three faults made

@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it} from 'bun:test'
 import {readFileSync} from 'node:fs'
-import {BODIES_URL, _resetBodyBundle, loadBodyBundle} from './bodyBundle.js'
+import {BODIES_URL, _resetBodyBundle, bodyDir, descriptorUrl, loadBodyBundle, placesUrl} from './bodyBundle.js'
 
 
 // The real Loader, by a name the process-global mock of './Loader' in
@@ -36,12 +36,12 @@ function serve({bundle = true} = {}) {
     if (url.endsWith(BODIES_URL)) {
       return Promise.resolve(bundle ? ok(BUNDLE) : {ok: false, status: 404})
     }
-    const m = url.match(/data\/([\w-]+)\.json$/)
+    const m = url.match(/(data\/[\w/-]+\.json)$/)
     if (!m) {
       return Promise.resolve({ok: false, status: 404})
     }
     try {
-      const body = readFileSync(`./public/data/${m[1]}.json`, 'utf8')
+      const body = readFileSync(`./public/${m[1]}`, 'utf8')
       return Promise.resolve(ok(JSON.parse(body)))
     } catch {
       return Promise.resolve({ok: false, status: 404})
@@ -84,7 +84,7 @@ describe('Loader and the bodies\' bundle', () => {
     expect(names.length).toBe(Object.keys(BUNDLE.bodies).length)
     expect(new Set(names)).toEqual(new Set(Object.keys(BUNDLE.bodies)))
     expect(loader.pathByName.moon).toBe('milkyway/sun/earth/moon')
-    expect(loader.loaded.earth).toEqual(JSON.parse(readFileSync('./public/data/earth.json', 'utf8')))
+    expect(loader.loaded.earth).toEqual(JSON.parse(readFileSync('./public/data/earth/index.json', 'utf8')))
   })
 
   it('gives each Loader its own copy, and still one request', async () => {
@@ -103,7 +103,7 @@ describe('Loader and the bodies\' bundle', () => {
     const names = await loadAll(loader, 'earth-as-moon')
     expect(names).toEqual(['earth-as-moon'])
     expect(asked[0]).toBe(BODIES_URL)
-    expect(asked.slice(1).every((u) => u.endsWith('data/earth-as-moon.json'))).toBe(true)
+    expect(asked.slice(1).every((u) => u.endsWith('data/demos/earth-as-moon.json'))).toBe(true)
   })
 
   it('fetches each body\'s file when the bundle fails, and says why once', async () => {
@@ -115,7 +115,7 @@ describe('Loader and the bodies\' bundle', () => {
     expect(names).toContain('earth')
     expect(loader.loaded.earth.name).toBe('earth')
     expect(asked.filter((u) => u.endsWith(BODIES_URL))).toHaveLength(1)
-    expect(asked.some((u) => u.endsWith('data/earth.json'))).toBe(true)
+    expect(asked.some((u) => u.endsWith('data/earth/index.json'))).toBe(true)
     expect(warned.filter((w) => w.includes('bundle'))).toHaveLength(1)
   })
 
@@ -124,6 +124,23 @@ describe('Loader and the bodies\' bundle', () => {
     const loader = new Loader()
     const err = await new Promise((resolve) => loader.loadPath('nosuchbody', () => {}, () => {}, resolve))
     expect(err).toBeTruthy()
+  })
+})
+
+
+describe('a body\'s files', () => {
+  it('are in its directory, a moon\'s under its planet\'s', () => {
+    expect(bodyDir('earth')).toBe('earth')
+    expect(descriptorUrl('moon')).toBe('data/earth/moons/moon/index.json')
+    expect(placesUrl('moon')).toBe('data/earth/moons/moon/places.json')
+    expect(descriptorUrl('webb')).toBe('data/earth/spacecraft/webb/index.json')
+    // The guide's demo descriptors have none.
+    expect(bodyDir('earth-as-moon')).toBeNull()
+    expect(bodyDir('constructor')).toBeNull()
+    expect(descriptorUrl('earth-as-moon')).toBe('data/demos/earth-as-moon.json')
+    for (const url of [descriptorUrl('titan'), placesUrl('titan'), descriptorUrl('saturn-with-earth-moon')]) {
+      expect(readFileSync(`./public/${url}`, 'utf8').length, url).toBeGreaterThan(0)
+    }
   })
 })
 

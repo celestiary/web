@@ -13,7 +13,7 @@ import {recordsOf} from './networks/loadNetworks.js'
 
 const Scene = (await import('./Scene.js')).default
 const {NETWORK_KEYS, OVERLAY_KEYS} = await import('./Scene.js')
-const IRIDIUM = JSON.parse(fs.readFileSync(new URL('../../public/data/networks/iridium.json', import.meta.url), 'utf8'))
+const IRIDIUM = JSON.parse(fs.readFileSync(new URL('../../public/data/earth/satellites/networks/iridium.json', import.meta.url), 'utf8'))
 
 
 /** @returns {object} a Scene with Earth's planetTilt, and a stub chunk counting its loads */
@@ -66,6 +66,23 @@ describe('Scene and the space networks', () => {
     expect(a.visible).toBe(false)
     s.toggleNetwork('I')
     expect(loads).toEqual(['I'])
+  })
+
+  it('leaves Earth\'s Iridium points to the network, whichever comes in first', async () => {
+    for (const populationFirst of [true, false]) {
+      const {s} = scene()
+      const calls = []
+      const pop = {setGroupDrawer: (group, drawer) => calls.push([group, drawer])}
+      if (populationFirst) {
+        s.populations.set('earth', pop)
+      }
+      const network = await s.loadNetwork('I')
+      if (!populationFirst) {
+        s.populations.set('earth', pop)
+        s._shareNetworks()
+      }
+      expect(calls).toEqual([['iridium', network.sats]])
+    }
   })
 
   it('is driven by applySettings, as V and a link drive it', async () => {

@@ -41,7 +41,7 @@ stations and ASes that the satellites link to.
 
 ## The contract (host ↔ guest)
 
-The guest is portal-netgl 0.6.0's (pinned), and wire-compatible with its
+The guest is portal-netgl 0.6.4's (pinned), and wire-compatible with its
 deck.gl host from 0.4.0 on (`attachNetGLDeckLayer` and `iframeTransport`,
 portal #36). Its messages are shaped as portal RFC 0001 has them
 ([docs/rfcs/0001-globe-orbit-layers.md](https://github.com/pablo-mayrgundter/portal/blob/claude/rfc-globe-orbit-layers/docs/rfcs/0001-globe-orbit-layers.md):
@@ -74,6 +74,31 @@ NetGL's call stream, in order with it.
   canvas stays 1×1 (three keeps the size it's given, and never reads the
   drawing buffer's). `layer.html?shadowDraws=1` draws on a full-size
   shadow as before, to compare ([Cost](#cost)).
+- **Host reprojection** (portal-netgl 0.6.3 and 0.6.4; netmap turns it on).
+  A frame lands a host draw or more after the view it was drawn for, so
+  while the camera moves the host composes it for its *current* view: its
+  replay corrects each vertex's clip position by C = VP_now · VP_frame⁻¹,
+  by wrapping the guest's vertex shaders' `main`. That's exact for points
+  (the satellites, the dishes: their size is pixels), but a wide line's
+  quad is extruded in pixels from its ends' clip positions, and C after the
+  extrusion scales the width with a zoom: on an M2 the satellites co-moved
+  with netmap's globe and the DSN's beams lagged slightly. So the wide
+  lines (`wideLines.js`: the DSN's beams, Iridium's links, and the app's
+  asterisms, expansion lines and orbit strips, where it's the identity)
+  opt in to portal-netgl's convention: the shader declares `uniform mat4
+  netgl_reproject`, which the host then sets instead of wrapping `main`,
+  and multiplies each end's clip position by it before the extrusion. The
+  material's value is the identity, so standalone the shader is unchanged
+  (an identity multiply is exact in float32), and a reprojecting host drops
+  the guest's own set of it. On portal-netgl's headless-gl harness the
+  shader as shipped, drawn for one view and composed at another (a pan and
+  a zoom in), matched the guest's own frame for the second: 0 of 238 pixels
+  differed and the width across was the same, where wrapped 42 differed
+  and the line was a pixel wider. The frame-end carries the view's id
+  (`guest.endFrame({viewId})`), so the host composes each frame for the
+  view it was drawn for rather than the one it had in flight. Still the old
+  view's for that frame: the beams' cut at the near plane, and the dishes'
+  far-side cull.
 
 | Direction | Message | Carries |
 |---|---|---|
@@ -240,8 +265,10 @@ receiver, 2026-10-24; the guest's own `layer:stats`):
 
 - **Labels off.** DeepSpaceNetwork takes `labels: false`, and the
   satellites' population gets a label budget of 0: their SpriteSheets want
-  ThreeUi's uniforms. The satellites leave out Starlink's file (Git LFS)
-  and, with `I` on, Iridium, which the networks draw. Layer mode draws no
+  ThreeUi's uniforms. The satellites leave out Starlink, which only its
+  network draws here, and, with `I` on, Iridium (`loadSatelliteRecords`'
+  `skip`): the networks' files are the population's too, so a group left
+  out isn't fetched for it. Layer mode draws no
   names; it publishes anchors, and the host names them.
 - **No Scene.** The network classes already take `layer`, `camera` and a
   `jd` passed to `update`. The layer builds them through `loadNetworks.js`

@@ -115,7 +115,7 @@ module.exports = [
       'no-useless-constructor': 'off',
       'jsdoc/require-jsdoc': 'off',
       'jsdoc/require-returns': 'off',
-      'import/no-unresolved': ['error', {ignore: ['^bun:']}],
+      'import/no-unresolved': ['error', {ignore: ['^bun:', '^@pablo-mayrgundter/portal-netgl/core$']}],
       'import/no-duplicates': 'off',
     },
   },

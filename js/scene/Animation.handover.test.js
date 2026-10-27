@@ -6,7 +6,7 @@ import Planet from './Planet.js'
 import {planetsApprox} from './planetsApprox.js'
 import {OrbitPaths} from './orbitPath.js'
 import {ASTRO_UNIT_METER} from '../shared.js'
-import earthJson from '../../public/data/earth.json'
+import earthJson from '../../public/data/earth/index.json'
 
 
 // The hand-over from the planets' mean elements to VSOP87C, once its chunk

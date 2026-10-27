@@ -68,7 +68,7 @@ const tmpEarth = new Vector3
 /** */
 export default class DeepSpaceNetwork extends Group {
   /**
-   * @param {object} config public/data/dsn.json
+   * @param {object} config public/data/earth/networks/dsn.json
    * @param {object} [opts]
    * @param {?number} [opts.layer] the overlay layer
    * @param {Function} [opts.Sheet] the label sheet's class (a test's stub)

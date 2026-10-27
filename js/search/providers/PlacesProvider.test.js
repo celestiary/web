@@ -31,7 +31,7 @@ function serve({index = true, delayMs = 0} = {}) {
     let rsp = {ok: false, status: 404}
     if (String(url).endsWith('places-index.json')) {
       rsp = index ? {ok: true, json: () => Promise.resolve(INDEX)} : {ok: false, status: 500}
-    } else if (String(url).endsWith('places/moon.json')) {
+    } else if (String(url).endsWith('moon/places.json')) {
       rsp = {ok: true, json: () => Promise.resolve({places: MOON.map((p) => ({...p, t: 0}))})}
     }
     return new Promise((resolve) => setTimeout(() => resolve(rsp), delayMs))
@@ -113,7 +113,7 @@ describe('PlacesProvider.collectUnder', () => {
     const p = new PlacesProvider()
     const entries = await p.collectUnder('milkyway/sun/earth/moon')
     expect(entries.map((e) => e.displayName)).toEqual(['Tycho', 'Apollo 11'])
-    expect(asked).toEqual(['data/places-index.json', 'data/places/moon.json'])
+    expect(asked).toEqual(['data/places-index.json', 'data/earth/moons/moon/places.json'])
     asked = serve()
     expect(await new PlacesProvider().collectUnder('milkyway/sun/mars')).toHaveLength(1)
     expect(asked[0]).toBe('data/places-index.json')
@@ -124,7 +124,7 @@ describe('PlacesProvider.collectUnder', () => {
     const p = new PlacesProvider()
     expect(await p.collectUnder('milkyway/sun/earth/missing')).toEqual([])
     expect(await p.collectUnder('milkyway/sun/earth/missing')).toEqual([])
-    expect(asked.filter((u) => u.endsWith('missing.json'))).toHaveLength(2)
+    expect(asked.filter((u) => u.endsWith('data/missing/places.json'))).toHaveLength(2)
   })
 
   it('exposes the place kind as an alias when provided', async () => {

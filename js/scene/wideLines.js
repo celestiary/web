@@ -6,6 +6,7 @@ import {
   InstancedBufferGeometry,
   InstancedInterleavedBuffer,
   InterleavedBufferAttribute,
+  Matrix4,
   Mesh,
   NormalBlending,
   ShaderMaterial,
@@ -99,6 +100,11 @@ const vertexShader = `
   uniform vec3 uFadeCentre;
   uniform float uFadeRange;
   uniform float uFadeMin;
+  // Host reprojection (layer mode, portal-netgl 0.6.4's opt-in): a host
+  // that composes this frame for a later view sets the correction from the
+  // view it was drawn for to its own, applied to the ends below before the
+  // extrusion so the width stays in pixels.  The identity anywhere else.
+  uniform mat4 netgl_reproject;
   attribute vec3 corner;
 #ifdef STRIP
   attribute vec3 stripStart;
@@ -157,8 +163,8 @@ const vertexShader = `
       ve = mix(ve, vs, (zCut - ve.z) / (vs.z - ve.z));
       ve.z = zCut;
     }
-    vec4 cs = projectionMatrix * vec4(vs, 1.0);
-    vec4 ce = projectionMatrix * vec4(ve, 1.0);
+    vec4 cs = netgl_reproject * (projectionMatrix * vec4(vs, 1.0));
+    vec4 ce = netgl_reproject * (projectionMatrix * vec4(ve, 1.0));
     vec2 halfRes = 0.5 * uResolution;
     vec2 d = (ce.xy / ce.w - cs.xy / cs.w) * halfRes;
     float len = length(d);
@@ -558,6 +564,8 @@ function newWideLineMaterial(params = {}) {
       uFadeCentre: {value: new Vector3()},
       uFadeRange: {value: 0},
       uFadeMin: {value: 1},
+      // The identity, unless a NetGL host reprojects (the vertex shader's note).
+      netgl_reproject: {value: new Matrix4()},
     },
     vertexShader,
     fragmentShader,

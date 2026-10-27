@@ -12,6 +12,32 @@ export const SAT_PREFIX = 'sat:'
 
 
 /**
+ * The orders a counted group can be in (its header's `order`), each a
+ * comparison of two OMM records and how the panel says it: a group in a
+ * file of its own comes in NORAD order (networks/compactElements.js), and
+ * the population puts it in this one, whose first the group's slider counts.
+ */
+export const ORDERS = {
+  // STARLINK-1008 before STARLINK-30930: the number in the name, about the
+  // order they were built; then by NORAD number.
+  serial: {
+    label: 'serial number',
+    compare: (a, b) => (serialOf(a.OBJECT_NAME) - serialOf(b.OBJECT_NAME)) || (a.NORAD_CAT_ID - b.NORAD_CAT_ID),
+  },
+}
+
+
+/**
+ * @param {string} name e.g. 'STARLINK-1008'
+ * @returns {number} the number in it, or Infinity if none (last)
+ */
+export function serialOf(name) {
+  const m = (/(\d+)/).exec(name ?? '')
+  return m ? Number(m[1]) : Infinity
+}
+
+
+/**
  * @param {object} rec a population's record
  * @returns {boolean} whether it's one of the best known (the snapshot's
  *   `known`), named first

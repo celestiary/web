@@ -13,5 +13,5 @@
   "attitude": {
     "sun": [0, -1, 0]
   },
-  "trajectory": "trajectories/webb.json"
+  "trajectory": "earth/spacecraft/webb/trajectory.json"
 }

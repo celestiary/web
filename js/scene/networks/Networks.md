@@ -11,8 +11,9 @@ SGP4 and frames.
 ## Files
 
 - `compactElements.js`: a constellation's mean elements as integer
-  columns (`encodeElements`, `decodeElements`), so Starlink's ~11,000 fit
-  in plain git.
+  columns (`encodeElements`, `decodeElements`), with the names and
+  designators, so Starlink's ~11,000 fit in plain git: the one copy, which
+  the overlay and the satellites' population both read.
 - `Constellation.js`: a constellation's satellites as points, propagated in
   slices with the in-between carried on the GPU (Propagation, below).
 - `Starlink.js`: Starlink's Constellation, coloured by shell.
@@ -24,23 +25,26 @@ SGP4 and frames.
   the spacecraft's names, and the polling.
 - `loadNetworks.js`: the chunk's entry, imported by Scene when a network's
   overlay is first shown.
-- `../../../tools/networks/`: `fetch.mjs` refreshes the snapshots (`yarn
+- `../../../tools/satellites/fetch.mjs` (`yarn satellites`) refreshes
+  Starlink's and Iridium's files with the rest of Earth's satellites.
+  `../../../tools/networks/`: `fetch.mjs` refreshes the DSN's (`yarn
   networks`), `dsnConfig.js` reads DSN Now's config.xml.
-  `../../../tools/satellites/celestrak.mjs` is the CelesTrak fetch both
-  tools share (one request a group, the two-hour cache).
 
 ## The data
 
-Snapshots in `public/data/networks/`, refreshed by `yarn networks [--cache
-DIR] [--only starlink,iridium,dsn]`, as the satellites' is (a time machine
-can't depend on a live fetch for its orbits; Satellites.md, the data).  The
-DSN's live feed isn't bundled: the app polls it.
+Snapshots, bundled, as the satellites' is (a time machine can't depend on a
+live fetch for its orbits; Satellites.md, the data).  The constellations
+are Earth's satellites' groups, under `public/data/earth/satellites/networks/`,
+refreshed with the rest by `yarn satellites`; the DSN's is
+`public/data/earth/networks/dsn.json` (Earth's ground networks, beside its
+satellites'), refreshed by `yarn networks`.  The DSN's
+live feed isn't bundled: the app polls it.
 
 | File | Source | What | Size |
 |---|---|---|---|
-| `starlink.json` | CelesTrak `GROUP=starlink`, fetched 2026-10-23 16:02 UTC | 11,116 satellites, epochs 2026-10-20 to 23 | 719 KB, 290 KB gzipped |
-| `iridium.json` | CelesTrak `GROUP=iridium-NEXT`, same fetch | 80 satellites, with names | 7 KB |
-| `dsn.json` | DSN Now's https://eyes.nasa.gov/dsn/config.xml | 3 complexes, 15 dishes, 170 spacecraft names | 5 KB |
+| `earth/satellites/networks/starlink.json` | CelesTrak `GROUP=starlink`, fetched 2026-10-23 17:20 UTC | 11,116 satellites, epochs 2026-10-20 to 23, with names and designators | 859 KB, 320 KB gzipped |
+| `earth/satellites/networks/iridium.json` | CelesTrak `GROUP=iridium-NEXT`, same fetch | 80 satellites, with names and designators | 7 KB |
+| `earth/networks/dsn.json` | DSN Now's https://eyes.nasa.gov/dsn/config.xml | 3 complexes, 15 dishes, 170 spacecraft names | 5 KB |
 
 - **Compact elements** (`compactElements.js`, format
   `celestiary-compact-omm-1`): a column per OMM field SGP4 starts from, as
@@ -48,25 +52,42 @@ DSN's live feed isn't bundled: the app polls it.
   eccentricity 1e-7, angles 1e-4°, B* 1e-9), the NORAD numbers as
   differences, the epoch in ms after the snapshot's first day.
   `MEAN_MOTION_DOT` and `_DDOT` are left out: SGP4 doesn't use them (they're
-  SGP's).  Starlink's names are left out too (the NORAD number stands in);
-  Iridium keeps them.  Against the full elements, positions agree to 0.15 km
-  over a week (`compactElements.test.js`; 0.11 km worst over 2,000
-  Starlinks).  CelesTrak's OMM JSON for the same set is 4.7 MB; rows in the
-  satellites' format would be about 1.5 MB, over the data policy's line.
-- **Starlink and Iridium are in the satellites' population too.** PR
-  #292 (merged while this was open) put the whole of Starlink (in Git LFS,
-  `public/large/satellites/starlink.json`) and Iridium in the orbits group
-  (`o`), with a slider for how many, names, search and targets
-  ([Satellites.md](../satellites/Satellites.md)). The network overlays draw
-  the same satellites from their own snapshots (this one is
-  `public/data/networks/starlink.json`, plain git): Starlink by shell and
-  Iridium with its crosslinks. With both on, the same satellites are
-  drawn twice. *For the maintainer:* keep both, or have the overlays draw
-  from the population's records (one Starlink file, one propagation).
+  SGP's).  The names are kept as the start they share once (`namePrefix`,
+  `STARLINK-`) and the rest each (`1008`), and the designators each in full
+  or, after one of the same launch, as the piece alone (`2019-074B`, `F`):
+  without them Starlink's file was 719 KB, with them whole 1.04 MB, at the
+  data policy's line (`loadNetworks.test.js` keeps each under 1 MiB); so,
+  859 KB.  Against the full elements, positions agree to 0.15 km over a
+  week (`compactElements.test.js`; 3 m worst over a tenth of Starlink's
+  against the rows they replaced).  CelesTrak's OMM JSON for the same set
+  is 4.7 MB (its CSV, which the tools ask for, about a third of that); rows
+  in the satellites' format were 1.8 MB, in Git LFS.
+- **One copy, two readers.**  Starlink and Iridium are in the satellites'
+  population too (PR #292): in the orbits group (`o`), with a slider for
+  how many, names, search and targets
+  ([Satellites.md](../satellites/Satellites.md)).  Each read its own copy,
+  Starlink's population's in Git LFS
+  (`public/large/satellites/starlink.json`, 1.8 MB).  At the maintainer's
+  ask there's one file each now, the overlay's, with the names and
+  designators added: the population's group names it (`file`), and orders
+  Starlink by serial number as it loads (names.js `ORDERS`; the file is in
+  NORAD order).
+- **One drawing.**  With an overlay and the population (`o`) both on, the
+  population leaves the group's points to the overlay
+  ([Population.md, a group drawn elsewhere](../population/Population.md#a-group-drawn-elsewhere)):
+  Scene gives Earth's population each network's Constellation as the
+  drawer of its group (`NETWORK_GROUPS`, `S` Starlink, `I` Iridium's
+  points), whichever loads first.  So Starlink is drawn once, by shell,
+  propagated once, a twentieth a frame, and the population still names
+  them, where the overlay's dots are.  Before, both drew and propagated
+  them: the population's blue dots over the shells' (all 11,116 with its
+  slider at all), its update 4.3 ms a frame in SwiftShader, now 2.9 ms
+  with `S` on, most of it the 400 names of that probe.  Each still keeps
+  its own records in memory (SGP4's state, made on first use).
 - **CelesTrak's policy** (Satellites.md): one download of a group per two
-  hours, stop at the first refusal.  This snapshot was one request for each
-  group, kept in a cache directory; the satellites' groups weren't asked
-  again.
+  hours, stop at the first refusal.  One script asks for the
+  constellations now, with the other groups: each is downloaded once a
+  refresh.
 - **The DSN's configuration** gives each complex's latitude and longitude,
   not each dish's, and no heights.  So the dishes are drawn at their
   complex, on the surface.  The antennas' own coordinates are in the DSN's

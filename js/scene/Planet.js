@@ -393,7 +393,7 @@ export default class Planet extends Object {
 
   /**
    * Build a Places group for this planet's surface POIs: empty, its
-   * catalogue (/data/places/<name>.json) fetched when the camera approaches
+   * catalogue (data/<its dir>/places.json) fetched when the camera approaches
    * the body, or something else asks (Places.ensureLoaded; #258).
    *
    * @param {object} props

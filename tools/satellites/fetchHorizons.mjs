@@ -11,14 +11,14 @@
 //   own SGP4 (its TLE input): the same elements both sides, so it checks
 //   the frame (TEME to the scene's) and the time, not the elements.
 // - The ISS (Horizons -125544, its trajectory) a day either side of the
-//   epoch of the snapshot's elements (public/data/satellites.json), if the
+//   epoch of the snapshot's elements (public/data/earth/satellites/index.json), if the
 //   snapshot has it: the elements' error too.
 import fs from 'node:fs'
 import {rowToOmm} from '../../js/scene/satellites/sgp4.js'
 
 
 const API = 'https://ssd.jpl.nasa.gov/api/horizons.api'
-const SNAPSHOT = new URL('../../public/data/satellites.json', import.meta.url)
+const SNAPSHOT = new URL('../../public/data/earth/satellites/index.json', import.meta.url)
 const VECTORS = {
   format: 'text',
   MAKE_EPHEM: 'YES',

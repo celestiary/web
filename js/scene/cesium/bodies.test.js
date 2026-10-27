@@ -1,4 +1,4 @@
-import moonProps from '../../../public/data/moon.json'
+import moonProps from '../../../public/data/earth/moons/moon/index.json'
 import {CESIUM_BODIES, ionToken, isCesiumBody} from './bodies.js'
 
 

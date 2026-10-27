@@ -429,16 +429,22 @@ tried and dropped.
   - `ssd.jpl.nasa.gov` (JPL Horizons, for ephemeris reference vectors).
     Record Horizons results as offline test fixtures with the query that
     produced them; tests never hit the network.
-  - `celestrak.org` (CelesTrak's GP data, for the satellites' snapshot,
-    `public/data/satellites.json`: `yarn satellites`;
+  - `celestrak.org` (CelesTrak's GP data, for Earth's satellites,
+    `public/data/earth/satellites/` with the networks' Starlink and Iridium:
+    `yarn satellites`;
     [Satellites.md](js/scene/satellites/Satellites.md#the-data)).  Fetch a
     group at most once every two hours: CelesTrak blocks clients that ask
-    more.  Horizons takes a TLE too (`COMMAND='TLE'`, `TLE=` the lines),
-    which `tools/satellites/fetchHorizons.mjs` uses to check the frame.
-    `yarn networks` (Starlink's and Iridium's snapshots,
-    [Networks.md](js/scene/networks/Networks.md#the-data)) asks the same
-    way: pass `--cache DIR` and `--only` so a rerun asks for nothing it has.
-  - `eyes.nasa.gov` (NASA's DSN Now: `config.xml` for `yarn networks`, and
+    more, and answers a second download of a set that hasn't updated with a
+    403.  `yarn satellites` is the only script that asks it, and keeps the
+    answers in `tools/satellites/.cache` for two hours
+    (`tools/satellites/celestrak.mjs`), so a rerun asks for nothing it has
+    (`--offline` asks for nothing at all).  Ask for OMM as CSV (`FORMAT=CSV`, CelesTrak's default since
+    2026-05-09), never TLE: the catalogue passed five digits on 2026-07-11,
+    and new objects have no TLE.  Horizons takes a TLE (`COMMAND='TLE'`,
+    `TLE=` the lines), which `tools/satellites/fetchHorizons.mjs` uses to
+    check the frame with Vallado's Vanguard 1, a five-digit number.
+  - `eyes.nasa.gov` (NASA's DSN Now: `config.xml` for `yarn networks`, the
+    DSN's snapshot only, and
     `dsn/data/dsn.xml`, the live feed the DSN overlay polls from the page,
     CORS `*`).  A page in headless Chromium reaches it through the proxy
     with the CA pinned, as below.  `deepspace.jpl.nasa.gov` (the DSN
@@ -485,7 +491,8 @@ tried and dropped.
   (DESIGN.md [load budgets](DESIGN.md#load-budgets)).
 - **Some data is built from other data and committed, with a test that
   fails when it drifts**: after editing a body's descriptor
-  (`public/data/<name>.json`) run `yarn bodies`; a place catalogue,
+  (`public/data/<dir>/index.json`: `public/data/earth/`,
+  `public/data/earth/moons/moon/`) run `yarn bodies`; a place catalogue,
   `yarn places-index`; `CHANGELOG.md`, `yarn changelog`. Nothing but the
   page, its scripts, the bodies' bundle and the stars loads with the page:
   a body's places, the galaxies and the changelog wait until something
@@ -502,8 +509,9 @@ tried and dropped.
   Chromium, `https://celestiary.org/` and
   `https://celestiary.org/web/pr-preview/pr-<n>/`):
   `yarn load-budget --url <url> --no-budget` with
-  `--chromium /opt/pw-browsers/chromium-1194/chrome-linux/chrome
-  --trust-ca /root/.ccr/agent-proxy-ca.crt`. The sandbox's proxy re-signs
+  `--chromium /opt/pw-browsers/chromium --trust-ca
+  /root/.ccr/agent-proxy-ca.crt` (the link, not a versioned path such as
+  `chromium-1194`, which changes with the image). The sandbox's proxy re-signs
   TLS, and Chromium's own certificate store can be stale after a container
   restart (`ERR_CERT_AUTHORITY_INVALID`), so `--trust-ca` passes
   `--ignore-certificate-errors-spki-list=<base64 SHA-256 of the CA's

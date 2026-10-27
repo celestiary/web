@@ -32,6 +32,20 @@ describe('compact elements', () => {
     expect(decodeElements(encodeElements(recs))[0].OBJECT_NAME).toBe('NORAD 44714')
   })
 
+  it('keeps the names and designators, each once', () => {
+    const recs = [omm(44714, {OBJECT_ID: '2019-074B'}), omm(44718, {OBJECT_ID: '2019-074F'}),
+      omm(44720, {OBJECT_NAME: 'STARLINK-44720 [DTC]', OBJECT_ID: '2019-074AB'}), omm(45001, {OBJECT_ID: '2020-001A'}),
+      omm(45002, {OBJECT_ID: ''}), omm(45003, {OBJECT_NAME: 'STARLINK-1008', OBJECT_ID: '2020-001B'})]
+    const data = encodeElements(recs, {names: true})
+    expect(data.namePrefix).toBe('STARLINK-')
+    expect(data.name).toEqual(['44714', '44718', '44720 [DTC]', '45001', '45002', '1008'])
+    expect(data.intlId).toEqual(['2019-074B', 'F', 'AB', '2020-001A', '', '2020-001B'])
+    const back = decodeElements(JSON.parse(JSON.stringify(data)))
+    expect(back.map((r) => [r.OBJECT_NAME, r.OBJECT_ID])).toEqual(recs.map((r) => [r.OBJECT_NAME, r.OBJECT_ID]))
+    // A designator that would read as a piece is refused, not mangled.
+    expect(() => encodeElements([omm(1, {OBJECT_ID: '2019-074B'}), omm(2, {OBJECT_ID: 'X'})], {names: true})).toThrow()
+  })
+
   it('propagates where the full elements do, to metres over a week', () => {
     const full = omm(44714)
     const a = newSatRecord(full)
