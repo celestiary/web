@@ -41,7 +41,7 @@ stations and ASes that the satellites link to.
 
 ## The contract (host ↔ guest)
 
-The guest is portal-netgl 0.6.4's (pinned), and wire-compatible with its
+The guest is portal-netgl 0.6.7's (pinned), and wire-compatible with its
 deck.gl host from 0.4.0 on (`attachNetGLDeckLayer` and `iframeTransport`,
 portal #36). Its messages are shaped as portal RFC 0001 has them
 ([docs/rfcs/0001-globe-orbit-layers.md](https://github.com/pablo-mayrgundter/portal/blob/claude/rfc-globe-orbit-layers/docs/rfcs/0001-globe-orbit-layers.md):
@@ -99,6 +99,24 @@ NetGL's call stream, in order with it.
   view it was drawn for rather than the one it had in flight. Still the old
   view's for that frame: the beams' cut at the near plane, and the dishes'
   far-side cull.
+- **A resize or a pixel-ratio change** (portal-netgl 0.6.5 and 0.6.7).
+  netmap's `?movedpr=1` drops its buffer to ratio 1 while the camera
+  moves, and a window can be resized, so a frame can be composed into a
+  buffer of another size or ratio than the one it was drawn for. The host
+  maps the frame's viewport onto its own (0.6.5) and scales its pixel
+  sizes by its ratio over the frame's (0.6.7): the satellites' and dishes'
+  `gl_PointSize`, in their wrapped shaders, with nothing here. A wide line
+  needs more: its offset is computed in clip space from its own resolution
+  uniform, which on a ratio change comes out right by itself (the offset is
+  the same share of the viewport at either ratio) but on a resize was
+  scaled by the change of size, per axis. So `wideLines.js` also declares
+  `netgl_pixelScale` and `netgl_viewportScale`, 1 and (1, 1) unless a host
+  sets them (the composed viewport over the frame's, and the ratio over the
+  frame's), and multiplies its resolution and its width by them. On
+  portal's headless-gl harness the shader as shipped, composed after a
+  ratio change (2× into 1×, and 1× into 2×) and after a resize (64×48 into
+  96×72, and into 96×48), matched the guest's own frame there to the byte;
+  without them, after the resize the line was 6 px across against 4.
 
 | Direction | Message | Carries |
 |---|---|---|
