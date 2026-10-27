@@ -281,7 +281,7 @@ posts the same view.
 renders celestiary's scene into `_sceneRT` and stops before the composite
 while a guest's view is out (`CesiumLayers.awaitingGuests`).  The guest's
 frame is needed only from the composite on, so the GPU draws celestiary's
-scene while the guest computes its frame.  Before, the wait came before
+scene while the guest computes its frame.  Before #310 the wait came before
 the scene's render, and the two ran one after the other.  The receiver's
 `onFrame` for that view's id calls `ThreeUi.resumeFrame`, which draws the
 frame in the message's task.  After `guestWaitMs` the next loop draws with
