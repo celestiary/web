@@ -1,18 +1,21 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import esbuild from 'esbuild'
-import config, {layerConfig} from './common.js'
+import config, {cesiumGuestConfig, layerConfig} from './common.js'
 import {createProxyServer} from './proxy.js'
 
 
 // Enable dev-only features (hot reload, debug builds, etc) in serve mode
 config.define.__DEV__ = JSON.stringify(true)
 layerConfig.define.__DEV__ = JSON.stringify(true)
+cesiumGuestConfig.define.__DEV__ = JSON.stringify(true)
 
 const ctx = await esbuild.context(config)
 await ctx.watch()
 // Layer mode's page, written to docs/layer/ as it changes (common.js layerConfig).
 await (await esbuild.context(layerConfig)).watch()
+// The Cesium guest page, into docs/cesium-guest/ (common.js cesiumGuestConfig).
+await (await esbuild.context(cesiumGuestConfig)).watch()
 
 
 /**

@@ -613,3 +613,55 @@ describe('ion requests', () => {
     expect(warnings[0]).not.toContain('SECRET')
   })
 })
+
+
+describe('a body on a guest page (?cesium=iframe)', () => {
+  const setup = () => {
+    const L = new CesiumLayers({})
+    L._viewOf = () => ({size: [480, 300], heightM: 2e7, distanceScale: 1e7})
+    const posted = []
+    const body = {
+      status: 'ready', remote: true, iframe: {style: {}}, waiting: null, holdUntil: 0,
+      receiver: {post: (msg) => posted.push(msg)},
+    }
+    L.bodies.earth = body
+    return {L, body, posted, earth: {name: 'earth'}}
+  }
+
+  it('is sent this frame\'s view, one in flight', () => {
+    const {L, body, posted, earth} = setup()
+    L._postGuestViews([{name: 'earth', node: earth}])
+    expect(posted).toHaveLength(1)
+    expect(posted[0].type).toBe('cesium:view')
+    expect(body.waiting).toBe(posted[0].viewId)
+    expect(body.iframe.style.width).toBe('480px')
+    // The next frame, the view still out: none sent.
+    L._postGuestViews([{name: 'earth', node: earth}])
+    expect(posted).toHaveLength(1)
+    // Its frame in: the next frame's goes.
+    body.waiting = null
+    L._postGuestViews([{name: 'earth', node: earth}])
+    expect(posted).toHaveLength(2)
+    expect(posted[1].viewId).toBeGreaterThan(posted[0].viewId)
+  })
+
+  it('holds the frame for the guest\'s, until the wait runs out', () => {
+    const {L, body, earth} = setup()
+    expect(L.awaitingGuests()).toBe(false)
+    L._postGuestViews([{name: 'earth', node: earth}])
+    expect(L.awaitingGuests()).toBe(true)
+    // Out of time: drawn with the last frame in, the view still out.
+    body.holdUntil = performance.now() - 1
+    expect(L.awaitingGuests()).toBe(false)
+    expect(body.waiting).not.toBe(null)
+  })
+
+  it('sends nothing to a guest not yet ready, nor to a body on this page', () => {
+    const {L, body, posted, earth} = setup()
+    body.status = 'loading'
+    L._postGuestViews([{name: 'earth', node: earth}])
+    L.bodies.moon = {status: 'ready'}
+    L._postGuestViews([{name: 'moon', node: {}}])
+    expect(posted).toHaveLength(0)
+  })
+})

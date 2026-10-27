@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import {dataUrl, resolveDataUrl} from './dataUrl.js'
+import {dataUrl, resolveDataUrl, setDataBaseUrl} from './dataUrl.js'
 
 
 const PROD = 'https://celestiary.org/'
@@ -44,6 +44,16 @@ describe('resolveDataUrl', () => {
 
 describe('dataUrl', () => {
   it('is the identity when no base URL was defined at build time', () => {
+    expect(dataUrl('textures/mars.jpg')).toBe('textures/mars.jpg')
+  })
+
+  it('takes a base set at run time, until it is cleared', () => {
+    setDataBaseUrl(PROD)
+    try {
+      expect(dataUrl('textures/mars.jpg')).toBe(`${PROD}textures/mars.jpg`)
+    } finally {
+      setDataBaseUrl(null)
+    }
     expect(dataUrl('textures/mars.jpg')).toBe('textures/mars.jpg')
   })
 })

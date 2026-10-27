@@ -478,9 +478,19 @@ export default class ThreeUi {
 
   /** */
   renderLoop(time) {
+    // A frame held for a Cesium guest's (CesiumLayers.awaitingGuests): drawn
+    // once the guest's frame for its view is in (resumeFrame), or on the
+    // first loop after the wait runs out.
+    if (this._frameHeld) {
+      if (!this.layers.awaitingGuests()) {
+        this._drawFrame()
+      }
+      return
+    }
     // Timing runs only while the panel is showing.  Visibility flips from
     // key events, never mid-frame, so begin() and end() always pair.
     const stats = this._perfVisible ? this._stats : null
+    this._frameStats = stats
     stats?.begin()
     perf.frameBegin()
     perf.begin('update')
@@ -532,6 +542,27 @@ export default class ThreeUi {
     this._updateExposure()
     this._updateNightSkyShown()
     this.layers.beforeRender(targets.obj)
+    // Lockstep with a Cesium guest on another page (design/CesiumGuest.md):
+    // the frame waits for the guest's frame of this view.
+    if (this.layers.awaitingGuests()) {
+      this._frameHeld = true
+      return
+    }
+    this._drawFrame()
+  }
+
+
+  /** A held frame, now that its guests' frames are in. */
+  resumeFrame() {
+    if (this._frameHeld && !this.layers.awaitingGuests()) {
+      this._drawFrame()
+    }
+  }
+
+
+  /** The frame's drawing, from the scene's render on (renderLoop). */
+  _drawFrame() {
+    this._frameHeld = false
     this.renderer.setRenderTarget(this._sceneRT)
     // Display-referred materials (stars, lines, labels) write the values the
     // final tone map gives back unchanged (hdr.js sceneReferred).
@@ -592,7 +623,7 @@ export default class ThreeUi {
       }
     }
     perf.frameEnd()
-    stats?.end()
+    this._frameStats?.end()
   }
 
 

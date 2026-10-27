@@ -80,6 +80,14 @@ iframe: Cesium runs in celestiary's page against a *shadow* WebGL2 context
 on its own hidden canvas; its GL calls are recorded and replayed into
 celestiary's context at a chosen point in celestiary's frame.
 
+What is done to a body's widget is `cesiumBody.js` (`createWidget`,
+`applyView`, `sampleGround`, `tilesReady`); CesiumLayers computes each
+frame's view as plain data (`_viewOf`) and applies it.  With
+`?cesium=iframe`, Earth's Cesium runs on a page of its own instead, on
+another origin, driven by the same views over portal-netgl's wire and
+composited the same way, in lockstep with celestiary's frame
+([design/CesiumGuest.md](design/CesiumGuest.md#phase-1-earth-from-the-guest-page)).
+
 ```
 ThreeUi.renderLoop
   layers.beforeRender()          pick the active bodies; hide/show their
@@ -1596,6 +1604,12 @@ New:
   (Relief on the Moon's tiles, above).
 - `js/scene/cesium/CesiumLayers.js` (+ test) — lazy Cesium + NetGL link, stencil
   shell, per-frame coupling, activation.
+- `js/scene/cesium/cesiumBody.js` — a body's Cesium widget and what's done to
+  it each frame (the view, imagery, ion, heights), wherever Cesium runs: this
+  page, or the guest page.
+- `js/cesium-guest/` (+ test), `public/cesium-guest.html` — the Cesium guest
+  page (`?cesium=iframe`; design/CesiumGuest.md), its allow-lists and its
+  credits as data; `tools/cesium-guest/check.mjs`, `yarn cesium-guest-check`.
 - `js/scene/cesium/newYork.js` (+ test) — New York's switch, where its
   guest loads from, when it's wanted and its load state for the control. Pure.
 - `js/scene/cesium/newYorkGuest.js` — New York loaded and wired into Earth's
