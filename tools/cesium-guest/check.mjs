@@ -127,13 +127,21 @@ function parseArgs(argv) {
 
 /**
  * @param {string} root
+ * @param {object} [options]
+ * @param {boolean} [options.fallback] Answer a missing file with index.html
+ *   (the app's routes), else 404 (slop-newyork's: its index.html is the app)
  * @returns {Promise<{port: number, close: Function}>} A static server with CORS open
  */
-async function serve(root) {
+async function serve(root, {fallback = true} = {}) {
   const server = http.createServer((req, res) => {
     const requested = path.join(root, decodeURIComponent(new URL(req.url, 'http://localhost').pathname))
-    const file = requested.startsWith(root) && fs.existsSync(requested) && fs.statSync(requested).isFile() ?
-      requested : path.join(root, 'index.html')
+    const found = requested.startsWith(root) && fs.existsSync(requested) && fs.statSync(requested).isFile()
+    if (!found && !fallback) {
+      res.writeHead(404, {'access-control-allow-origin': '*'})
+      res.end()
+      return
+    }
+    const file = found ? requested : path.join(root, 'index.html')
     res.writeHead(200, {'content-type': MIME[path.extname(file)] ?? 'application/octet-stream',
       'access-control-allow-origin': '*'})
     fs.createReadStream(file).pipe(res)
@@ -203,6 +211,7 @@ async function runMode(browser, opts, mode, ports) {
   page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) &&
     errors.push(m.text().slice(0, 300)))
   page.on('pageerror', (e) => errors.push(String(e).slice(0, 300)))
+  page.on('crash', () => console.error(`${mode}: the page crashed`))
   await page.route(BLOCKED, (route) => route.abort())
   if (opts.gibs) {
     // NASA GIBS (the clouds' map, the night lights) through Node, which
@@ -262,9 +271,12 @@ async function runMode(browser, opts, mode, ports) {
   const deadline = Date.now() + (city ? 1500000 : 900000)
   const ready = (x) => x.shown && x.active && (city ? x.nyc === 'ready' || x.nyc === 'error' : x.tilesLoaded)
   const started = Date.now()
-  while (!ready(st) && st.status !== 'error' && Date.now() < deadline) {
+  for (let n = 1; !ready(st) && st.status !== 'error' && Date.now() < deadline; n++) {
     await page.waitForTimeout(1000)
     st = await state()
+    if (n % 30 === 0) {
+      console.error(`  ${mode}, ${n} s: ${JSON.stringify({...st, wire: undefined})}`)
+    }
   }
   if (!(st.shown && st.active)) {
     throw new Error(`${mode}: Earth's layer never showed: ${JSON.stringify(st)} ${errors.join(' | ')}`)
@@ -352,8 +364,8 @@ async function runMode(browser, opts, mode, ports) {
       lights: {night: body.night === true, parts: body.parts === true, drawn: body.lastLights === true}} : {})}
   }, [opts.motion, opts.wait])
 
-  await page.close()
   const replayErrors = city ? await page.evaluate(() => window.c.ui.layers._newYork?.city?.replayErrors ?? null) : null
+  await page.close()
   return {mode, wire: st.wire, motion, png, shot, city: cityAt && {...cityAt, replayErrors}, errors: errors.slice(0, 10)}
 }
 
@@ -390,7 +402,7 @@ async function main() {
   }
   const app = await serve(root)
   const guest = await serve(root)
-  const nyc = opts.view === 'nyc' ? await serve(path.resolve(opts.nyc ?? '')) : null
+  const nyc = opts.view === 'nyc' ? await serve(path.resolve(opts.nyc ?? ''), {fallback: false}) : null
   const browser = await chromium.launch({args: CHROMIUM_ARGS, ...(opts.chromium ? {executablePath: opts.chromium} : {})})
   try {
     const ports = {app: app.port, guest: guest.port, nyc: nyc?.port}
