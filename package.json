@@ -37,6 +37,7 @@
     "satellites": "NODE_USE_ENV_PROXY=1 node tools/satellites/fetch.mjs",
     "networks": "NODE_USE_ENV_PROXY=1 node tools/networks/fetch.mjs",
     "layer-host": "node tools/layer/serve.mjs",
+    "cesium-guest-check": "node tools/cesium-guest/check.mjs",
     "changelog:draft": "node tools/changelog/draft.mjs",
     "posts": "node tools/posts/posts.mjs"
   },
@@ -49,7 +50,7 @@
     "@pablo-mayrgundter/fullscreen.js": "1.1.0",
     "@pablo-mayrgundter/measure.js": "2.0.1",
     "@pablo-mayrgundter/parser.js": "1.0.1",
-    "@pablo-mayrgundter/portal-netgl": "0.6.4",
+    "@pablo-mayrgundter/portal-netgl": "0.6.6",
     "@pablo-mayrgundter/yaot2": "2.0.1",
     "@react-three/drei": "9.120.4",
     "@react-three/fiber": "8.17.10",

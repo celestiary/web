@@ -27,6 +27,7 @@ tried and dropped.
 | Rendering, overlays and the `v` visibility groups | DESIGN.md: [rendering techniques](DESIGN.md#rendering-techniques), [overlays & visibility groups](DESIGN.md#overlays--visibility-groups) |
 | Cesium layers: Earth, Moon, Mars in place | [CESIUM.md](CESIUM.md): [architecture](CESIUM.md#architecture), [camera, light and ground](CESIUM.md#camera-and-light-coupling), [data](CESIUM.md#data), [atmospheres](CESIUM.md#atmospheres), [tiles and lighting](CESIUM.md#tiles-and-lighting-ion-3d-tiles), [parity check](CESIUM.md#parity-check), [follow-ups](CESIUM.md#follow-ups) |
 | Changing Cesium itself: the fork (celestiary/cesium), the patches in `patches/`, upstreaming | [CESIUM.md, patching Cesium](CESIUM.md#patching-cesium) |
+| Moving Cesium into a page of its own, on the fork's Pages, as a cross-origin NetGL guest (proposed): what crosses, lag, hosting | [design/CesiumGuest.md](design/CesiumGuest.md) |
 | Slop New York at Manhattan in Earth's Cesium layer (the layers control's *New York (3D city)*, `layers:nyc`, `?nyc=1`): the nested NetGL chain, Cesium's external renderers, the city's colour contract | [CESIUM.md, New York](CESIUM.md#new-york) |
 | The Sun's activity by date, spots, flares, prominences, corona, CMEs, eclipses, glare, solar wind | [js/scene/Sun.md](js/scene/Sun.md); the photosphere and every star: [js/scene/Stars.md](js/scene/Stars.md) |
 | Planet materials, lighting and exposure, texture sources and their recipes | [js/scene/Planet.md](js/scene/Planet.md): [lighting and exposure](js/scene/Planet.md#lighting-and-exposure), [surface texture sources](js/scene/Planet.md#surface-texture-sources) |
@@ -214,6 +215,18 @@ tried and dropped.
     `galaxyModel.js` `integrateRay`), iterate on its look with a CPU
     render of the mirror in bun, tone-mapped with `hdr.js` `neutral`: a
     200 px frame takes seconds, against minutes through SwiftShader.
+- **The Cesium guest page's check: `yarn cesium-guest-check`**
+  ([design/CesiumGuest.md](design/CesiumGuest.md#phase-1-earth-from-the-guest-page)).
+  After `CESIUM_ION_TOKEN= yarn build` it serves `docs/` as the app
+  (127.0.0.1) and the guest (localhost), renders Earth's layer both ways
+  (`?cesium=iframe`), and fails if the frames at the permalink's instant
+  differ or a guest frame was out of step while the camera orbits.
+  `--view earth-12km`, `--wait ms`, `--out dir`.  The repo's Playwright
+  doesn't know the machine's Chromium: it takes `/opt/pw-browsers/chromium`
+  when that's there (`--chromium` otherwise).  To read a held frame (one
+  waiting on the guest), hook `ThreeUi._drawFrame` and read the canvas
+  inside it: the guest's frame lands in a message's task, not an animation
+  frame's.
 - **Layer mode's checks run on two origins:** `yarn build`, then `yarn
   layer-host` (guest `http://127.0.0.1:5480`, host
   `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read

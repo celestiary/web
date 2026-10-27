@@ -7,8 +7,23 @@
  * public/large/) is resolved against a configurable base, so a PR preview
  * can load it from the production site rather than carry its own copy.
  * The base is the DATA_BASE_URL build-time env var (esbuild/common.js).
- * Empty, the default, means the same origin and path as the page.
+ * Empty, the default, means the same origin and path as the page.  The
+ * Cesium guest page (js/cesium-guest/) sets it at run time instead, to the
+ * data of the celestiary that embeds it (setDataBaseUrl).
  */
+
+
+let runtimeBase = null
+
+
+/**
+ * Fetch data from this base from now on, in place of the build's.
+ *
+ * @param {?string} base A base URL, or null for the build's again
+ */
+export function setDataBaseUrl(base) {
+  runtimeBase = base
+}
 
 
 /**
@@ -46,5 +61,5 @@ export function resolveDataUrl(path, base) {
  * @returns {string} The path against the build's data base URL
  */
 export function dataUrl(path) {
-  return resolveDataUrl(path, typeof __DATA_BASE_URL__ === 'string' ? __DATA_BASE_URL__ : '')
+  return resolveDataUrl(path, runtimeBase ?? (typeof __DATA_BASE_URL__ === 'string' ? __DATA_BASE_URL__ : ''))
 }
