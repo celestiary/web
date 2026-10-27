@@ -585,6 +585,16 @@ tried and dropped.
   `await route.request().allHeaders()`: without it ion's bearer token is
   dropped, and its asset requests (terrain, tilesets) answer 401 while
   the token is fine. `tools/parity/parity.mjs` does this.
+- **Changing a token in ion can change its value.**  Editing its allowed
+  URLs gave the token a new value (2026-10-27), and every build that
+  baked in the old one (production, the previews, the Cesium guest) got
+  401s from ion, even with celestiary.org's Referer.  Copy the new value
+  into the `CESIUM_ION_TOKEN` secret, then rebuild what serves it: Actions →
+  *Deploy production* (workflow_dispatch), the Cesium guest (Actions →
+  *Cesium guest*), and each open PR's preview with its next push.  To
+  check a live build's token without printing it, take it from the
+  deployed bundle and ask `api.cesium.com/v1/assets/1/endpoint` for the
+  status code alone.
 - **A session's env holds the token from when the session started.**
   After the user rotates it, ion answers 401 here. Say so, and leave
   ion-dependent checks to the PR preview.
