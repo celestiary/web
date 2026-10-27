@@ -22,14 +22,16 @@ export const CESIUM_GUEST_HOSTS = [
 
 
 /**
- * Where celestiary may load the guest from: the Cesium fork's Pages,
- * celestiary's own site (its build serves the guest page too, so a PR
- * preview can load its own: the same origin, so the same process, but the
- * same wire), and local development.  A build adds more with
- * CESIUM_GUEST_ORIGINS.
+ * Where celestiary may load the guest from: its own site on another site's
+ * domain (pablo-mayrgundter/cesium-portal's Pages: each *.github.io is a
+ * site of its own, so the guest runs in a process of its own;
+ * .github/workflows/cesium-guest.yml deploys it there), celestiary's own
+ * site (its build serves the guest page too, so a PR preview can load its
+ * own: the same origin, so the same process, but the same wire), and local
+ * development.  A build adds more with CESIUM_GUEST_ORIGINS.
  */
 export const CESIUM_GUEST_ORIGINS = [
-  'https://cesium.celestiary.org',
+  'https://pablo-mayrgundter.github.io',
   'https://celestiary.org',
   'http://localhost:*',
   'http://127.0.0.1:*',
@@ -90,8 +92,12 @@ function listFrom(list) {
 }
 
 
-/** The guest page celestiary loads with `?cesium=iframe` and no `cesiumGuest`. */
-export const DEFAULT_GUEST_PAGE = 'https://cesium.celestiary.org/cesium-guest.html'
+/**
+ * The guest page celestiary loads with `?cesium=iframe` and no
+ * `cesiumGuest`: main's, deployed to cesium-portal's root.  A PR's is under
+ * `pr-preview/pr-<n>/` there.
+ */
+export const DEFAULT_GUEST_PAGE = 'https://pablo-mayrgundter.github.io/cesium-portal/cesium-guest.html'
 
 
 /**

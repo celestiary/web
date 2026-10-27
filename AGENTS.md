@@ -226,7 +226,9 @@ tried and dropped.
   when that's there (`--chromium` otherwise).  To read a held frame (one
   waiting on the guest), hook `ThreeUi._drawFrame` and read the canvas
   inside it: the guest's frame lands in a message's task, not an animation
-  frame's.
+  frame's.  Its `split`, and `?perf=1`'s `scene.cesiumGuests`
+  (`c.ui.layers.guestStats()`), split the round trip into the view's way
+  in, the guest's frame and the way back.
 - **Layer mode's checks run on two origins:** `yarn build`, then `yarn
   layer-host` (guest `http://127.0.0.1:5480`, host
   `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read
@@ -567,7 +569,10 @@ tried and dropped.
   It's restricted by Referer to `https://celestiary.org/` and
   `https://celestiary.github.io/` (the site moved to celestiary.org; the
   old host redirects).  `tools/parity` and `tools/narrow-fov` send the
-  github.io Referer, which the token still allows.
+  github.io Referer, which the token still allows.  The Cesium guest page is
+  served from `https://pablo-mayrgundter.github.io/cesium-portal/`
+  (`.github/workflows/cesium-guest.yml`; design/CesiumGuest.md), whose
+  requests carry that Referer, so the token must allow it too.
 - Never print, log, commit or paste it, including in PR text or test
   output.
 - **Ion's error bodies echo the token:** a not-found response repeats
@@ -582,6 +587,16 @@ tried and dropped.
   `await route.request().allHeaders()`: without it ion's bearer token is
   dropped, and its asset requests (terrain, tilesets) answer 401 while
   the token is fine. `tools/parity/parity.mjs` does this.
+- **Changing a token in ion can change its value.**  Editing its allowed
+  URLs gave the token a new value (2026-10-27), and every build that
+  baked in the old one (production, the previews, the Cesium guest) got
+  401s from ion, even with celestiary.org's Referer.  Copy the new value
+  into the `CESIUM_ION_TOKEN` secret, then rebuild what serves it: Actions →
+  *Deploy production* (workflow_dispatch), the Cesium guest (Actions →
+  *Cesium guest*), and each open PR's preview with its next push.  To
+  check a live build's token without printing it, take it from the
+  deployed bundle and ask `api.cesium.com/v1/assets/1/endpoint` for the
+  status code alone.
 - **A session's env holds the token from when the session started.**
   After the user rotates it, ion answers 401 here. Say so, and leave
   ion-dependent checks to the PR preview.

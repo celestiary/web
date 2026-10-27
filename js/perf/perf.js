@@ -527,6 +527,9 @@ export class Perf {
         hdr: ui.hdr === true,
         fov: ui.camera?.fov ?? null,
         cesiumActive: ui.layers?.active?.map((a) => a.name) ?? [],
+        // Cesium on a guest page (?cesium=iframe; design/CesiumGuest.md):
+        // its round trips, split, and the frames' waits.
+        cesiumGuests: ui.layers?.guestStats?.() ?? [],
       },
     })
   }
