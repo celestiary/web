@@ -393,6 +393,32 @@ counts are read):
   four.  That accounts for most of the mean interval and the 8 fps 5th
   percentile.
 
+**On the M2 with the guest on a site of its own** (#310's preview, the
+guest from `pablo-mayrgundter.github.io/cesium-portal/pr-preview/pr-310/`,
+portal-netgl 0.6.6, the overlap; the same view, 2026-10-27):
+
+| | Cross-site guest (#310) | Same-origin guest (#309) | Same page (#309) |
+|---|---|---|---|
+| Frames a second (mean; 5th percentile) | 28.1; 12.6 | 24.7; 7.4 | 27.8; 8.2 |
+| Frame interval (mean; p95) | 35.6; 79 ms | 40.6; 135 ms | 36.0; 122 ms |
+| Main-thread CPU, the frame's | 32.1 ms | 38.0 ms | 32.2 ms |
+| `cesium.replay` CPU | 1.2 ms | 1.3 ms | 6.3 ms |
+| Waiting for the guest (`other`) | 13.7 ms | 12.6 ms | 0.1 ms |
+| `meter` CPU (mean; p95) | 11.6; 58 ms | 18.6; 115 ms | 20.2; 107 ms |
+
+- The page's frame rate, and steadier: the slowest frames run at 12.6 fps,
+  not 8.2, and the 95th percentile interval is 79 ms, not 122.  The meter's
+  readback stalls halved, which fits the GPU catching up on celestiary's
+  scene during the wait.
+- Three things changed at once: the overlap, the guest's own site, and
+  0.6.6 (the shadow no longer draws; the same-page baseline's shadow drew
+  all 177 draws on the same GPU).  Production is now the same page on
+  0.6.6, the baseline that separates them.
+- The wait, 13.7 ms, is the guest's own frame in its process plus the trip
+  both ways; how it splits isn't measured yet.
+- `?perf=sync` timed no GPU work here: its rows were the issue times, so
+  `finish` didn't wait; `&barrier=read` is the way.
+
 **On a PR preview**, before the guest has a host of its own: celestiary's
 build serves the guest page too, and `https://celestiary.org` is on the
 list of guest origins, so a preview can load its own.  It's the same
