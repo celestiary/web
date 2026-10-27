@@ -274,7 +274,8 @@ export default class GuestPages {
       // Its city's state, for the layers control (_publishNewYork); none
       // while the switch is off here, until the guest has freed it.
       if (name === 'earth' && 'newYork' in msg) {
-        this.layers._newYork = msg.newYork && this.layers.newYork.enabled ? {status: msg.newYork, remote: true} : null
+        this.layers._newYork = msg.newYork && this.layers.newYork.enabled ?
+          {status: msg.newYork, remote: true, step: msg.newYorkStep ?? null} : null
       }
       if (msg.credits) {
         this.layers._showGuestCredits(body, msg.credits)

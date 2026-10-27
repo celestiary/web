@@ -791,7 +791,9 @@ describe('New York on Earth\'s guest page', () => {
     const {L, body, posted} = setup()
     L.newYork.enabled = true
     L.guests._onMessage('earth', body, {type: 'cesium:status', newYork: 'loading'})
-    expect(L._newYork).toEqual({status: 'loading', remote: true})
+    expect(L._newYork).toEqual({status: 'loading', remote: true, step: null})
+    L.guests._onMessage('earth', body, {type: 'cesium:status', newYork: 'loading', newYorkStep: 'compile'})
+    expect(L._newYork.step).toBe('compile')
     L.guests._onMessage('earth', body, {type: 'cesium:status', newYork: 'ready'})
     L.setNewYork(false)
     expect(L._newYork).toBe(null)

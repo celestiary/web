@@ -132,15 +132,27 @@ async function start() {
     was?.city?.dispose()
   }
   const loadNewYork = async () => {
-    const mine = {status: 'loading', city: null}
+    const mine = {status: 'loading', city: null, step: 'import'}
     nyc = mine
+    // Each step of the load, timed, in this page's console and the status.
+    let stepAt = performance.now()
+    const onStep = (step) => {
+      console.info(`[cesium guest] New York: ${mine.step} took ${((performance.now() - stepAt) / 1000).toFixed(1)} s; ${step}`)
+      mine.step = step
+      stepAt = performance.now()
+    }
     try {
       const {createNewYork} = await import('../scene/cesium/newYorkGuest.js')
+      // No KHR_parallel_shader_compile for the city: with it, three polls
+      // each program's compile on requestAnimationFrame, which this hidden
+      // cross-origin iframe may never run (Brave on an M2: the city built,
+      // and never compiled).
       const city = await createNewYork({
         Cesium, netgl, widget: body.widget,
         guestBase: nycOptions.guestBase, shadows: nycOptions.shadows, lean: nycOptions.lean,
-        cesiumShadow: guest.core?.shadow,
+        cesiumShadow: guest.core?.shadow, parallelCompile: false, onStep,
       })
+      onStep('stage')
       if (nyc !== mine) {
         // Freed while it loaded.
         city.dispose()
@@ -229,6 +241,7 @@ async function start() {
       guest: GUEST_VERSION,
       night: Boolean(body.night),
       newYork: newYorkStatus(nyc),
+      newYorkStep: nyc ? (nyc.status === 'ready' ? `stage, ${nyc.city?.stage?.chunks ?? 0} chunks left` : nyc.step) : null,
       timing: {receivedAt, renderMs: (endedAt ?? performance.now()) - t0},
     }
     const now = JSON.stringify(creditsOf(creditContainer))
