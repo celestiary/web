@@ -1,0 +1,111 @@
+name: Cesium guest
+
+# The Cesium guest page (design/CesiumGuest.md) on a site of its own:
+# pablo-mayrgundter/cesium-portal's Pages, at
+# https://pablo-mayrgundter.github.io/cesium-portal/.  Another site than
+# celestiary.org (each *.github.io is one), so Chromium runs the guest in a
+# process of its own.  This builds celestiary and pushes only the guest's
+# files there: main to the root, a PR to pr-preview/pr-<n>/, removed when the
+# PR closes.  `?cesium=iframe&cesiumGuest=<that page>` loads it.
+#
+# Pushes with the CESIUM_GUEST_DEPLOY_KEY secret (a deploy key with write
+# access on cesium-portal); without it, nothing is deployed.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
+
+concurrency:
+  group: cesium-guest-${{ github.event.number || 'main' }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GUEST_REPO: pablo-mayrgundter/cesium-portal
+  HAS_KEY: ${{ secrets.CESIUM_GUEST_DEPLOY_KEY != '' }}
+
+jobs:
+  deploy:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        if: env.HAS_KEY == 'true'
+
+      - uses: ./.github/actions/build
+        if: env.HAS_KEY == 'true'
+        with:
+          cesium-ion-token: ${{ secrets.CESIUM_ION_TOKEN }}
+          # The guest takes celestiary's data from its host (?data=), and
+          # needs no large data of its own.
+          lfs: 'false'
+          noindex: 'true'
+
+      - name: The guest's files, without source maps
+        if: env.HAS_KEY == 'true'
+        run: |
+          mkdir -p guest
+          cp -r docs/cesium-guest.html docs/cesium-guest docs/cesium guest/
+          find guest -name '*.map' -delete
+          touch guest/.nojekyll
+          du -sh guest
+
+      - name: Deploy (main)
+        if: env.HAS_KEY == 'true' && github.event_name == 'push'
+        uses: JamesIves/github-pages-deploy-action@v4.8.0
+        with:
+          repository-name: ${{ env.GUEST_REPO }}
+          branch: gh-pages
+          folder: guest
+          ssh-key: ${{ secrets.CESIUM_GUEST_DEPLOY_KEY }}
+          clean: true
+          clean-exclude: pr-preview/
+          commit-message: "celestiary/web@${{ github.sha }}: the Cesium guest"
+          git-config-name: github-actions[bot]
+          git-config-email: 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Deploy (PR preview)
+        if: env.HAS_KEY == 'true' && github.event_name == 'pull_request'
+        uses: JamesIves/github-pages-deploy-action@v4.8.0
+        with:
+          repository-name: ${{ env.GUEST_REPO }}
+          branch: gh-pages
+          folder: guest
+          target-folder: pr-preview/pr-${{ github.event.number }}
+          ssh-key: ${{ secrets.CESIUM_GUEST_DEPLOY_KEY }}
+          clean: true
+          commit-message: "celestiary/web#${{ github.event.number }}: the Cesium guest's preview"
+          git-config-name: github-actions[bot]
+          git-config-email: 41898282+github-actions[bot]@users.noreply.github.com
+
+  remove-preview:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        if: env.HAS_KEY == 'true'
+        with:
+          repository: ${{ env.GUEST_REPO }}
+          ref: gh-pages
+          ssh-key: ${{ secrets.CESIUM_GUEST_DEPLOY_KEY }}
+
+      - name: Remove the PR's preview
+        if: env.HAS_KEY == 'true'
+        run: |
+          dir="pr-preview/pr-${{ github.event.number }}"
+          if [ -d "$dir" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git rm -rq "$dir"
+            git commit -qm "celestiary/web#${{ github.event.number }} closed: its Cesium guest preview removed"
+            git push
+          fi

@@ -567,7 +567,10 @@ tried and dropped.
   It's restricted by Referer to `https://celestiary.org/` and
   `https://celestiary.github.io/` (the site moved to celestiary.org; the
   old host redirects).  `tools/parity` and `tools/narrow-fov` send the
-  github.io Referer, which the token still allows.
+  github.io Referer, which the token still allows.  The Cesium guest page is
+  served from `https://pablo-mayrgundter.github.io/cesium-portal/`
+  (`.github/workflows/cesium-guest.yml`; design/CesiumGuest.md), whose
+  requests carry that Referer, so the token must allow it too.
 - Never print, log, commit or paste it, including in PR text or test
   output.
 - **Ion's error bodies echo the token:** a not-found response repeats

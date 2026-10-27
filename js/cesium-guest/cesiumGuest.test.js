@@ -27,6 +27,9 @@ describe('the guest page celestiary loads', () => {
     }
     expect(guestPage('https://celestiary.org/web/pr-preview/pr-1/cesium-guest.html').href)
         .toBe('https://celestiary.org/web/pr-preview/pr-1/cesium-guest.html')
+    expect(guestPage('https://pablo-mayrgundter.github.io/cesium-portal/pr-preview/pr-310/').href)
+        .toBe('https://pablo-mayrgundter.github.io/cesium-portal/pr-preview/pr-310/cesium-guest.html')
+    expect(guestPage('https://cesium.celestiary.org/cesium-guest.html')).toBe(null)
     expect(guestPage('https://evil.example/cesium-guest.html')).toBe(null)
     expect(guestPage('javascript:alert(1)')).toBe(null)
     expect(guestPage('not a url')).toBe(null)

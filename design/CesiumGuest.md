@@ -3,9 +3,13 @@
 *Proposed 2026-10-24.  Phase 0 measured; phase 1 built: Earth's Cesium from
 the guest page, behind `?cesium=iframe` (below).*
 
-**Decided (2026-10-24):**
-- the guest is served from the fork's Pages on a subdomain of its own
-  (`cesium.celestiary.org`): cross-origin, same site;
+**Decided (2026-10-24; hosting revised 2026-10-27):**
+- the guest is served from a site of its own, so it runs in a process of
+  its own: pablo-mayrgundter/cesium-portal's Pages,
+  `https://pablo-mayrgundter.github.io/cesium-portal/` (Hosting, below).  A
+  subdomain of celestiary.org, the first choice, would be the same site,
+  and the M2's numbers (phase 1) showed a guest on celestiary's thread only
+  adds the wait;
 - the aim is a demo of Cesium cleanly hosted and minimally modded: the
   guest page is stock Cesium plus the fork's few patches, with
   celestiary's look carried by settings and its own shaders, and nothing
@@ -170,18 +174,38 @@ fork's Pages alone don't give a cross-origin guest.  The options:
 | Another site (e.g. a `*.github.io` without a custom domain) | cross-site | separate process | add it to the token, or a separate token | The netmap case: the heaviest transport.  It is already being measured there for a light guest. |
 
 celestiary's PR previews (`celestiary.org/web/pr-preview/…`) sit on the same
-origin as production, so they compare the same way.  The fork's own PR
-previews would follow its domain.
+origin as production, so they compare the same way.
+
+**The choice (2026-10-27): another site.**  celestiary.github.io itself is
+no good: every path there answers 301 to celestiary.org's (the org's user
+page holds the custom domain), so an iframe pointed at it ends on
+celestiary.org.  pablo-mayrgundter.github.io has no custom domain, and each
+`*.github.io` is a site of its own (the public suffix list), so the guest
+gets a process of its own there, as netmap's orbits do the other way
+round.  The repository `pablo-mayrgundter/cesium-portal` holds only what
+CI deploys to its `gh-pages`:
+
+- `.github/workflows/cesium-guest.yml` builds celestiary and pushes the
+  guest's files (`cesium-guest.html`, `cesium-guest/`, `cesium/`, no source
+  maps) with the `CESIUM_GUEST_DEPLOY_KEY` secret, a deploy key with write
+  access there.  Without the secret it deploys nothing.
+- main goes to the root: `https://pablo-mayrgundter.github.io/cesium-portal/cesium-guest.html`,
+  the default for `?cesium=iframe`.
+- A PR goes to `pr-preview/pr-<n>/`, removed when it closes.  A celestiary
+  preview loads its PR's guest with
+  `?cesium=iframe&cesiumGuest=https://pablo-mayrgundter.github.io/cesium-portal/pr-preview/pr-<n>/`.
+- ion's token must allow `https://pablo-mayrgundter.github.io/` (the
+  guest's requests carry that Referer), or the guest has no terrain.
 
 **The guest page's source is celestiary's** (`js/cesium-guest/`, its own
 esbuild build into `docs/cesium-guest/`, as layer mode's page is), and only
-its hosting is the fork's.  This proposal first put the source in the fork.
+its hosting is elsewhere.  This proposal first put the source in the fork.
 Building phase 1 showed why not: the guest runs the same code as
 celestiary's own Cesium layer, its widget set-up, imagery, ion requests,
 heights and shaders (relief, the encoding, the distance in alpha), with
 bun tests beside it.  So that code is one module, `cesiumBody.js`, which
 both paths drive.  In the fork it would be a copy, or a package to
-publish, and the two layers would drift.  What the fork's Pages serve is
+publish, and the two layers would drift.  What the guest's site serves is
 the build: `cesium-guest.html`, `cesium-guest/` and Cesium's assets
 (`cesium/`), deployed from celestiary's CI as `deploy-prod.yml` deploys
 to celestiary.github.io.  The Cesium in it is still npm's 1.145 with
@@ -348,7 +372,7 @@ counts are read):
   the guest's frame costs more, 12.6 ms, so the frame is 4.6 ms longer.
 - On the preview the guest is same-origin, so it shares celestiary's
   thread: the wait is Cesium's work done there anyway, plus the copy.  A
-  subdomain (`cesium.celestiary.org`) is the same *site*, and Chromium keeps
+  subdomain (`cesium.celestiary.org`, the first plan) is the same *site*, and Chromium keeps
   a site's pages in one process, so it would be the same.  Cesium runs in
   parallel with celestiary only from another site.
 - Even then the frame waited in the wrong place: celestiary posted the view
