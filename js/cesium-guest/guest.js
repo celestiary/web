@@ -19,7 +19,8 @@ import {CESIUM_GUEST_HOSTS, dataBase} from './origins.js'
 // stream (wire 2 and a port, when the host offers them), its frame-end
 // carrying the view's id.  After each frame a `cesium:status` says whether
 // the tiles for that view are in, the terrain's height under the camera,
-// and the credits, when they change.
+// the credits, when they change, and the frame's timing: when the view came
+// in (wall clock) and how long the frame took.
 //
 // The host's origin comes from location.ancestorOrigins, else the referrer,
 // else `host`, and must be on the allow-list (origins.js); nothing is sent
@@ -90,8 +91,13 @@ async function start() {
   })
   body.container = container
   const {core} = guest
-  // The frame-end carries the view the frame was drawn for.
-  body.widget.scene.postRender.addEventListener(() => core.endFrame(Number.isFinite(viewId) ? {viewId} : {}))
+  // The frame-end carries the view the frame was drawn for, and posts the
+  // frame's batch: when, for the status's timing.
+  let endedAt = null
+  body.widget.scene.postRender.addEventListener(() => {
+    core.endFrame(Number.isFinite(viewId) ? {viewId} : {})
+    endedAt = performance.now()
+  })
 
   /**
    * One frame, for the host's view.
@@ -102,6 +108,12 @@ async function start() {
     if (failed) {
       return
     }
+    // When the view came in, on the wall clock the host shares (its
+    // timeOrigin and ours are the same clock), and how long the frame took
+    // from there to its batch posted (the frame-end posts it, in render).
+    const t0 = performance.now()
+    const receivedAt = performance.timeOrigin + t0
+    endedAt = null
     viewId = msg.viewId
     applyView(body, msg.view)
     try {
@@ -118,6 +130,7 @@ async function start() {
       viewId,
       tilesLoaded: tilesReady(body),
       groundHeight: body.groundHeight ?? null,
+      timing: {receivedAt, renderMs: (endedAt ?? performance.now()) - t0},
     }
     const now = JSON.stringify(creditsOf(creditContainer))
     if (now !== credits) {

@@ -139,6 +139,8 @@ export default class CesiumLayers {
     // drawn with the last one in (?cesiumWait=ms; awaitingGuests).
     this.guestWaitMs = Number(new URLSearchParams(search).get('cesiumWait')) || GUEST_WAIT_MS
     this._viewId = 0
+    // The last GUEST_STATS_N frames' waits for a guest's (noteWait).
+    this._waits = []
     // ?nyc=1 is put in the store on the first frame with one (it isn't set
     // yet when ThreeUi makes this): _syncNewYork.
     this._newYorkFromUrl = this.newYork.enabled
@@ -1271,6 +1273,8 @@ export default class CesiumLayers {
       // Frames drawn, those in step with their view, and the guest's
       // round trips (a view posted to its frame in), for design/CesiumGuest.md.
       steps: {drawn: 0, inStep: 0, trips: 0, tripMs: 0},
+      // The last GUEST_STATS_N round trips, split (_splitTrip; guestStats).
+      trips: [], trip: null, origin: page.origin,
     }
     this.bodies[name] = body
     const own = () => this.bodies[name] === body
@@ -1296,8 +1300,11 @@ export default class CesiumLayers {
       }
       body.frames++
       if (end.viewId === undefined || end.viewId === body.waiting) {
+        const landed = performance.now()
         body.steps.trips++
-        body.steps.tripMs += performance.now() - body.postedAt
+        body.steps.tripMs += landed - body.postedAt
+        // Split when the frame's status (its timing) follows it in.
+        body.trip = {viewId: body.waiting, postedAt: body.postedAt, landed}
         body.waiting = null
         this.ui.resumeFrame?.()
       }
@@ -1315,6 +1322,7 @@ export default class CesiumLayers {
    */
   _onGuestMessage(name, body, msg) {
     if (msg?.type === 'cesium:status') {
+      this._splitTrip(body, msg)
       body.tilesLoaded = msg.tilesLoaded === true
       body.groundHeight = Number.isFinite(msg.groundHeight) ? msg.groundHeight : null
       if (msg.credits) {
@@ -1323,6 +1331,76 @@ export default class CesiumLayers {
     } else if (msg?.type === 'cesium:error') {
       this._fail(name, new Error(`the Cesium guest page failed: ${String(msg.message).slice(0, 300)}`))
     }
+  }
+
+
+  /**
+   * Split a guest frame's round trip by the timing its status carries: the
+   * view's way to the guest, the guest's frame, and the frame's way back.
+   * Wall-clock times on both sides (timeOrigin + now: one clock in one
+   * browser).
+   *
+   * @param {object} body
+   * @param {object} msg A `cesium:status`
+   */
+  _splitTrip(body, msg) {
+    const {trip} = body
+    const t = msg.timing
+    if (!trip || msg.viewId !== trip.viewId || !Number.isFinite(t?.receivedAt) || !Number.isFinite(t?.renderMs)) {
+      return
+    }
+    body.trip = null
+    const origin = performance.timeOrigin
+    const toGuestMs = t.receivedAt - (origin + trip.postedAt)
+    const backMs = (origin + trip.landed) - (t.receivedAt + t.renderMs)
+    body.trips.push({tripMs: trip.landed - trip.postedAt, toGuestMs, guestMs: t.renderMs, backMs})
+    if (body.trips.length > GUEST_STATS_N) {
+      body.trips.shift()
+    }
+  }
+
+
+  /**
+   * Note how long a frame waited for its guests' (ThreeUi._drawFrame).
+   *
+   * @param {number} ms
+   */
+  noteWait(ms) {
+    this._waits.push(ms)
+    if (this._waits.length > GUEST_STATS_N) {
+      this._waits.shift()
+    }
+  }
+
+
+  /**
+   * The guest pages' timing for ?perf=1's snapshot (perf.js): per body, over
+   * the last GUEST_STATS_N round trips, the trip, the view's way in, the
+   * guest's frame and the way back, mean and p95; and the frames' waits.
+   *
+   * @returns {Array<object>} Empty with no guest page
+   */
+  guestStats() {
+    const stat = (xs) => {
+      if (xs.length === 0) {
+        return null
+      }
+      const sorted = [...xs].sort((a, b) => a - b)
+      const mean = xs.reduce((a, b) => a + b, 0) / xs.length
+      return {mean: +mean.toFixed(2), p95: +sorted[Math.min(sorted.length - 1, Math.floor(0.95 * sorted.length))].toFixed(2)}
+    }
+    return Object.entries(this.bodies).filter(([, b]) => b.remote).map(([name, b]) => ({
+      name,
+      origin: b.origin,
+      frames: b.frames,
+      inStep: b.steps.drawn ? +(b.steps.inStep / b.steps.drawn).toFixed(3) : null,
+      n: b.trips.length,
+      tripMs: stat(b.trips.map((x) => x.tripMs)),
+      toGuestMs: stat(b.trips.map((x) => x.toGuestMs)),
+      guestMs: stat(b.trips.map((x) => x.guestMs)),
+      backMs: stat(b.trips.map((x) => x.backMs)),
+      waitMs: stat(this._waits),
+    }))
   }
 
 
@@ -1828,6 +1906,8 @@ const STENCIL_REF = 1
 // How long a frame waits for a guest page's frame of its view, ms, before
 // it's drawn with the last one (CesiumLayers.awaitingGuests).
 const GUEST_WAIT_MS = 100
+// How many round trips, and waits, guestStats summarises.
+const GUEST_STATS_N = 240
 // Smallest on-screen radius, in pixels, at which a body is drawn by Cesium:
 // under a few pixels across, celestiary's own mesh shows the same.
 const MIN_PIXEL_RADIUS = 2

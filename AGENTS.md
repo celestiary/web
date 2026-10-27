@@ -226,7 +226,9 @@ tried and dropped.
   when that's there (`--chromium` otherwise).  To read a held frame (one
   waiting on the guest), hook `ThreeUi._drawFrame` and read the canvas
   inside it: the guest's frame lands in a message's task, not an animation
-  frame's.
+  frame's.  Its `split`, and `?perf=1`'s `scene.cesiumGuests`
+  (`c.ui.layers.guestStats()`), split the round trip into the view's way
+  in, the guest's frame and the way back.
 - **Layer mode's checks run on two origins:** `yarn build`, then `yarn
   layer-host` (guest `http://127.0.0.1:5480`, host
   `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read

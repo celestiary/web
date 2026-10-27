@@ -223,7 +223,9 @@ async function runMode(browser, opts, mode, ports) {
     return {fps: +(drawn / dt).toFixed(2), drawn, ...(d ? {inStep: d.inStep, guestDrawn: d.drawn,
       tripMs: +(d.tripMs / Math.max(1, d.trips)).toFixed(1),
       // The time a drawn frame waited for the guest's, on average.
-      waitMs: +((ui.guestWait.ms - w0.ms) / Math.max(1, drawn)).toFixed(1)} : {})}
+      waitMs: +((ui.guestWait.ms - w0.ms) / Math.max(1, drawn)).toFixed(1),
+      // The last round trips, split: the way in, the guest's frame, the way back.
+      split: ui.layers.guestStats()[0] ?? null} : {})}
   }, [opts.motion, opts.wait])
 
   await page.close()

@@ -415,9 +415,41 @@ portal-netgl 0.6.6, the overlap; the same view, 2026-10-27):
   all 177 draws on the same GPU).  Production is now the same page on
   0.6.6, the baseline that separates them.
 - The wait, 13.7 ms, is the guest's own frame in its process plus the trip
-  both ways; how it splits isn't measured yet.
+  both ways.  `?perf=1`'s snapshot now splits it: `scene.cesiumGuests` has,
+  per guest page, over its last 240 round trips (mean and p95), `tripMs`
+  (the view posted to the guest's frame in), `toGuestMs` (the view's way
+  in), `guestMs` (the view in to the frame's batch posted, by the guest's
+  clock), `backMs` (the batch's way back, decoded and in), and `waitMs`
+  (what the frames waited).  The guest's `cesium:status` carries the timing
+  (`receivedAt` on the wall clock, `performance.timeOrigin + now`, which
+  both pages share, and `renderMs`); `yarn cesium-guest-check` reports it
+  as `split`.
 - `?perf=sync` timed no GPU work here: its rows were the issue times, so
   `finish` didn't wait; `&barrier=read` is the way.
+
+With `?perf=sync&barrier=read` (each pass's wall time with the GPU waited
+on, so 20.8 fps, not 28; the same view and preview), the 48 ms frame:
+
+| Pass | Wall ms, mean | |
+|---|---|---|
+| `other` (waiting for the guest) | 17.4 | the guest's frame and the trip |
+| `clouds.volume` | 8.1 (p95 15) | the volumetric clouds: celestiary's heaviest pass |
+| `cesium.replay` | 5.2 | the GPU drawing Cesium's 177 replayed draws |
+| `update` | 4.0 | CPU |
+| `atmosphere` | 2.6 | |
+| `cesium` | 2.5 | |
+| `overlay` | 1.7 | |
+| `scene` | 1.5 | |
+| everything else | 5.0 | each under 1.1 ms; `meter` 0.5 |
+
+- The meter's stalls are gone when the GPU is waited on after every pass
+  (0.5 ms), so in the unsynced snapshots they were the GPU's backlog
+  arriving at the meter's readback, not the meter's own cost.
+- Moving Cesium out moved its scene's CPU work off celestiary's thread, but
+  not the replay's GPU work: 5 ms of celestiary's GPU frame is still
+  Cesium's.  A guest that drew its own frame and handed over the pixels
+  and depth instead of draws would take that too, at the cost of a copy
+  across processes each frame; not planned.
 
 **On a PR preview**, before the guest has a host of its own: celestiary's
 build serves the guest page too, and `https://celestiary.org` is on the

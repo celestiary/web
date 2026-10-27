@@ -579,8 +579,10 @@ export default class ThreeUi {
   _drawFrame() {
     if (this._frameHeld) {
       // How long frames waited for a guest's (design/CesiumGuest.md).
+      const waited = performance.now() - this._heldAt
       this.guestWait.frames++
-      this.guestWait.ms += performance.now() - this._heldAt
+      this.guestWait.ms += waited
+      this.layers.noteWait?.(waited)
     }
     this._frameHeld = false
     // A held frame resumes in another task: _sceneRT again, whatever was
