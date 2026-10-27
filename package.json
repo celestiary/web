@@ -50,7 +50,7 @@
     "@pablo-mayrgundter/fullscreen.js": "1.1.0",
     "@pablo-mayrgundter/measure.js": "2.0.1",
     "@pablo-mayrgundter/parser.js": "1.0.1",
-    "@pablo-mayrgundter/portal-netgl": "0.6.6",
+    "@pablo-mayrgundter/portal-netgl": "0.6.8",
     "@pablo-mayrgundter/yaot2": "2.0.1",
     "@react-three/drei": "9.120.4",
     "@react-three/fiber": "8.17.10",
