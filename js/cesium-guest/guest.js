@@ -1,7 +1,10 @@
+import {latLngAltToBodyFixed} from '../coords.js'
 import {setDataBaseUrl} from '../dataUrl.js'
 import {hostOrigin} from '../layer/origins.js'
 import {CESIUM_BODIES, ionToken} from '../scene/cesium/bodies.js'
-import {applyView, createWidget, sampleGround, tilesReady} from '../scene/cesium/cesiumBody.js'
+import {applyView, createWidget, renderNightLights, sampleGround, terrainHeight, tilesReady} from '../scene/cesium/cesiumBody.js'
+import {bodyToEcef} from '../scene/cesium/frames.js'
+import {newYorkOptions, newYorkRange, newYorkStatus} from '../scene/cesium/newYork.js'
 import {creditsOf} from './credits.js'
 import {CESIUM_GUEST_HOSTS, dataBase} from './origins.js'
 
@@ -19,8 +22,20 @@ import {CESIUM_GUEST_HOSTS, dataBase} from './origins.js'
 // stream (wire 2 and a port, when the host offers them), its frame-end
 // carrying the view's id.  After each frame a `cesium:status` says whether
 // the tiles for that view are in, the terrain's height under the camera,
-// the credits, when they change, and the frame's timing: when the view came
-// in (wall clock) and how long the frame took.
+// the credits, when they change, whether it has night lights, and the
+// frame's timing: when the view came in (wall clock) and how long the frame
+// took.  A view with `lights` renders the night lights' frame too, after the
+// day frame, its frame-end tagged `part: 'lights'` (portal-netgl 0.6.8), which
+// the host replays into a target of its own (CesiumLayers._drawNightLights).
+// A `cesium:height {id, lat, lng, radius}` is answered with the terrain's height there
+// (CesiumLayers.requestGroundHeight, for a landing).
+//
+// New York (Earth only; CESIUM.md "New York"): a view's `nyc` says whether
+// the host's switch is on, and this page loads, draws and frees the city in
+// its Cesium by the view's range, as the host's own page does
+// (CesiumLayers._updateNewYork); its state goes back in the status.
+// `nycGuest`, `nycShadows` and `nycLean` are the host's options
+// (newYork.js newYorkOptions); `cesium:newYork {on: false}` frees it.
 //
 // The host's origin comes from location.ancestorOrigins, else the referrer,
 // else `host`, and must be on the allow-list (origins.js); nothing is sent
@@ -94,10 +109,67 @@ async function start() {
   // The frame-end carries the view the frame was drawn for, and posts the
   // frame's batch: when, for the status's timing.
   let endedAt = null
-  body.widget.scene.postRender.addEventListener(() => {
-    core.endFrame(Number.isFinite(viewId) ? {viewId} : {})
+  // The part being rendered: null for the day frame, 'lights' for the
+  // night lights' frame.
+  let part = null
+  const endFrame = () => {
+    const end = Number.isFinite(viewId) ? {viewId} : {}
+    if (part) {
+      end.part = part
+    }
+    core.endFrame(end)
     endedAt = performance.now()
-  })
+  }
+  body.widget.scene.postRender.addEventListener(endFrame)
+
+  // New York, in this page's Cesium (Earth's): {status, city}, or null.
+  const nycOptions = newYorkOptions(location.search)
+  let nyc = null
+  const freeNewYork = () => {
+    const was = nyc
+    nyc = null
+    was?.city?.dispose()
+  }
+  const loadNewYork = async () => {
+    const mine = {status: 'loading', city: null}
+    nyc = mine
+    try {
+      const {createNewYork} = await import('../scene/cesium/newYorkGuest.js')
+      const city = await createNewYork({
+        Cesium, netgl, widget: body.widget,
+        guestBase: nycOptions.guestBase, shadows: nycOptions.shadows, lean: nycOptions.lean,
+        cesiumShadow: guest.core?.shadow,
+      })
+      if (nyc !== mine) {
+        // Freed while it loaded.
+        city.dispose()
+        return
+      }
+      mine.city = city
+      mine.status = 'ready'
+    } catch (err) {
+      console.warn('[cesium guest] New York failed to load; Earth carries on without it', err)
+      if (nyc === mine) {
+        mine.status = 'error'
+      }
+    }
+  }
+  const updateNewYork = (on, view) => {
+    if (name !== 'earth') {
+      return
+    }
+    const range = on ? newYorkRange(view.position, view.heightM) : 'free'
+    if (!nyc) {
+      if (range === 'show') {
+        loadNewYork()
+      }
+    } else if (range === 'free') {
+      freeNewYork()
+    } else if (nyc.status === 'ready') {
+      nyc.city.setShown(range === 'show')
+      nyc.city.update()
+    }
+  }
 
   /**
    * One frame, for the host's view.
@@ -116,6 +188,7 @@ async function start() {
     endedAt = null
     viewId = msg.viewId
     applyView(body, msg.view)
+    updateNewYork(msg.nyc === true, msg.view)
     try {
       body.widget.resize()
       body.widget.render()
@@ -124,12 +197,36 @@ async function start() {
       return
     }
     body.frames++
+    if (msg.lights === true && body.night) {
+      // The night lights' frame.  Its frame-end goes even if it fails, as
+      // the host waits for it; then the status says there are none.
+      part = 'lights'
+      endedAt = null
+      // The city black, not hidden: its buildings hide the lights on the
+      // ground under them (CesiumLayers._drawNightLights).
+      const city = nyc?.city
+      city?.setOccluding?.(true)
+      try {
+        renderNightLights(body, () => body.widget.render())
+      } catch (err) {
+        console.warn(`[cesium guest] ${name} night lights failed; drawing no lights`, err)
+        body.night = null
+      } finally {
+        city?.setOccluding?.(false)
+      }
+      if (endedAt === null) {
+        endFrame()
+      }
+      part = null
+    }
     sampleGround(body, name, performance.now())
     const status = {
       type: 'cesium:status',
       viewId,
       tilesLoaded: tilesReady(body),
       groundHeight: body.groundHeight ?? null,
+      night: Boolean(body.night),
+      newYork: newYorkStatus(nyc),
       timing: {receivedAt, renderMs: (endedAt ?? performance.now()) - t0},
     }
     const now = JSON.stringify(creditsOf(creditContainer))
@@ -143,6 +240,16 @@ async function start() {
   base.onMessage((msg) => {
     if (msg?.type === 'cesium:view' && msg.view) {
       render(msg)
+    } else if (msg?.type === 'cesium:newYork' && msg.on === false) {
+      freeNewYork()
+    } else if (msg?.type === 'cesium:height' && [msg.id, msg.lat, msg.lng, msg.radius].every(Number.isFinite)) {
+      // The terrain's height at a landing place (CesiumLayers.requestGroundHeight),
+      // from the tiles loaded so far, as groundHeightAt on the host's page:
+      // the place on celestiary's sphere, on the ellipsoid.
+      const [x, y, z] = bodyToEcef(latLngAltToBodyFixed(msg.lat, msg.lng, 0, msg.radius))
+      const carto = body.ellipsoid.cartesianToCartographic(new body.Cesium.Cartesian3(x, y, z))
+      const height = carto ? terrainHeight(body, name, carto) : null
+      core.transport.post({type: 'cesium:height', id: msg.id, height: Number.isFinite(height) ? height : null})
     }
   })
   // NetGL's handshake, which the host's receiver waits on and where the

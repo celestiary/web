@@ -335,7 +335,8 @@ another process; ion, GIBS and analytics refused; 2026-10-27):
   bit for bit the same before and after, at a pinned instant.  At 12 km the
   two builds differ by at most one level, as two runs of one build do.
 
-**Not yet, in iframe mode:**
+**Not yet, in iframe mode** (as phase 1 left it; phase 4 below does the
+first four):
 - the night lights: their frame is a second render with other settings.
   It needs the receiver to drain one sub-frame at a time;
 - New York;
@@ -344,7 +345,8 @@ another process; ion, GIBS and analytics refused; 2026-10-27):
   request and a reply.  The height under the camera comes with each
   status;
 - the sky's crossfade for a body that draws its own atmosphere (none does);
-- the `?perf=1` rows of the guest's own cost.
+- the `?perf=1` rows of the guest's own cost (#310 added the round trip's
+  split, `scene.cesiumGuests`).
 
 **On a real GPU** (the maintainer's machine, PR #309's preview, guest page
 on the same origin, 2026-10-27): Earth from the guest page with ion's
@@ -494,6 +496,64 @@ origin, so the same process (not the cross-site case the check runs), but
 the same wire, lockstep and ion (the token allows celestiary.org):
 `https://celestiary.org/web/pr-preview/pr-<n>/?cesium=iframe&cesiumGuest=https://celestiary.org/web/pr-preview/pr-<n>/cesium-guest.html#<permalink>`.
 
+## Phase 4: the rest
+
+Built 2026-10-28, still behind `?cesium=iframe`.
+
+**The night lights.**  On the page they're a second render of Earth's
+widget: only the night layer, unlit, on black, which the host decodes
+after the day frame (CESIUM.md, "Night lights").  From the guest page both
+renders come in one drain, so each needs a target of its own.
+- portal-netgl 0.6.8 ([portal#48](https://github.com/pablo-mayrgundter/portal/pull/48))
+  tags a frame-end with a `part`, and the receiver calls `beforeFrame(end)`
+  before each frame's calls replay, a re-run's too.  The replay asks for
+  the screen's framebuffer at each bind, so `_replayConfig` returns
+  the lights' target (`GuestPages.lightsTarget`) while the part is
+  `'lights'`.
+- The host asks for the lights (`lights` in the view) where they can show
+  (`_lightsShow`, as on the page), once the guest says it has them (its
+  status's `night`) and the receiver has called `beforeFrame` (0.6.8).
+  Before an older receiver or guest nothing changes.
+- The guest renders the lights after the day frame
+  (`cesiumBody.renderNightLights`, the page's settings, shared), and ends
+  it with `part: 'lights'`, even if it fails.  The view lands with that
+  part.
+- Before the drain, the host clears that target and copies the shell's
+  stencil and the depth into it, as the page's lights render finds
+  `_cesiumRT`.  After it, `_decodeLights` decodes it as the page's.
+
+The guest pages' code on the host (the iframes, the receivers, the views
+and the waits, the lights' target, the messages and the timing) is
+`js/scene/cesium/guestPages.js`, which CesiumLayers imports with its first
+guest page: none of it is in the first load.
+
+**The Moon and Mars** load from guest pages of their own: `_load` takes
+the guest page for every body, so with `?cesium=iframe` celestiary's page
+loads no Cesium at all.  The guest page already took any body (`?body=`).
+They need ion, so they're untested here: check them on the preview.
+
+**The landing height.**  `groundHeightAt` is synchronous, and a guest
+page's tiles are in its own page.  `Scene.land` aims at the sphere when it
+has no height, and asks `CesiumLayers.requestGroundHeight`, which posts
+`cesium:height {id, lat, lng, radius}`; the guest answers with `terrainHeight` from the
+tiles it has (as the page does), or the host gives up after a second.  If
+the answer comes within half a second and the same landing is still under
+way, the landing is aimed again over the terrain (`Scene._reaimLanding`);
+later, the ground floor lifts the camera as it arrives, as with coarse
+tiles on the page.
+
+**New York.**  The city is drawn by Earth's Cesium through its external
+renderers, and its calls are replayed into Cesium's NetGL recorder
+(`newYorkGuest.js`), which the guest page has too.  So the guest page runs
+it as the host's page does: the view carries the switch (`nyc`), the guest
+loads, shows and frees the city by the view's range, and its state comes
+back in the status for the layers control.  Its options go in the guest
+page's URL (`nycGuest`, checked against the same list; `nycShadows`,
+`nycLean`), and it has the same import map for three.js's dev build.  Each
+of the city's calls is now recorded twice, by the city's context and by
+Cesium's, and crosses to celestiary's process; its set-up is millions of
+triangles, staged a chunk a frame.  Unmeasured: see the check below.
+
 ## Phases
 
 0. **Measure on the same page, change nothing users see.**
@@ -516,7 +576,7 @@ the same wire, lockstep and ion (the token allows celestiary.org):
    notes use.
 4. **The rest:** the Moon and Mars, the night lights, then New York if
    phase 0's numbers allow.  Decide then whether the iframe becomes the
-   default or stays an option.
+   default or stays an option.  *Built (above).*
 
 ## Open questions
 

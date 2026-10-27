@@ -468,6 +468,48 @@ describe('Scene.land', () => {
     expect(() => scene.land('nonsense', 0, 0)).toThrow(/no body/)
   })
 
+  it('aims again over the terrain when a guest page\'s height comes in', async () => {
+    const {scene, ui} = makeSceneWithEarth()
+    const asked = []
+    let answer = 2134
+    ui.layers = {
+      groundHeightAt: () => null,
+      requestGroundHeight: (node, lat, lng) => {
+        asked.push([lat, lng])
+        return Promise.resolve(answer)
+      },
+    }
+    scene.land('earth', 36, -112, 2)
+    const first = Shared.targets.tween
+    expect(asked).toEqual([[36, -112]])
+    await Promise.resolve()
+    expect(Shared.targets.tween).not.toBe(first)
+    expect(Shared.targets.tween).not.toBe(null)
+    // No answer, or another landing since: the tween stays.
+    answer = null
+    scene.land('earth', 36, -112, 2)
+    const second = Shared.targets.tween
+    await Promise.resolve()
+    expect(Shared.targets.tween).toBe(second)
+    answer = 10
+    scene.land('earth', 36, -112, 2)
+    const third = {}
+    Shared.targets.tween = third
+    await Promise.resolve()
+    expect(Shared.targets.tween).toBe(third)
+    Shared.targets.tween = null
+  })
+
+  it('asks no guest page for a height the page knows', () => {
+    const {scene, ui} = makeSceneWithEarth()
+    let asked = 0
+    ui.layers = {groundHeightAt: () => 2000, requestGroundHeight: () => Promise.resolve(asked++)}
+    scene.land('earth', 36, -112, 2)
+    scene.land('earth', 36, -112, 2, {instant: true})
+    expect(asked).toBe(0)
+    Shared.targets.tween = null
+  })
+
   it('throws when body lacks a radius', () => {
     const {scene} = makeSceneWithEarth()
     scene.objects['noradius'] = {props: {name: 'noradius'}}
