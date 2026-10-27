@@ -166,6 +166,8 @@ export default class ThreeUi {
     this._inScatterRT = null
     // Optional Cesium rendering of nearby bodies; see CESIUM.md.
     this.layers = new CesiumLayers(this)
+    // Frames held for a Cesium guest's, and the time they waited (_drawFrame).
+    this.guestWait = {frames: 0, ms: 0}
     this.initControls(this.camera)
     this.fs = new Fullscreen(this.container, () => this.onResize())
     window.addEventListener('resize', () => {
@@ -542,10 +544,20 @@ export default class ThreeUi {
     this._updateExposure()
     this._updateNightSkyShown()
     this.layers.beforeRender(targets.obj)
+    this.renderer.setRenderTarget(this._sceneRT)
+    // Display-referred materials (stars, lines, labels) write the values the
+    // final tone map gives back unchanged (hdr.js sceneReferred).
+    sceneReferredUniform.value = this.hdr ? 1 : 0
+    perf.begin('scene')
+    this.renderer.render(this.scene, this.camera)
+    perf.end('scene')
     // Lockstep with a Cesium guest on another page (design/CesiumGuest.md):
-    // the frame waits for the guest's frame of this view.
+    // beforeRender sent it this frame's view, and its frame is needed only
+    // from the composite on, so the frame waits here, after the scene's
+    // render, which a guest on another site's process overlaps.
     if (this.layers.awaitingGuests()) {
       this._frameHeld = true
+      this._heldAt = performance.now()
       return
     }
     this._drawFrame()
@@ -560,16 +572,20 @@ export default class ThreeUi {
   }
 
 
-  /** The frame's drawing, from the scene's render on (renderLoop). */
+  /**
+   * The frame's drawing from the Cesium composite on, into the scene's
+   * render (renderLoop) and then to the screen.
+   */
   _drawFrame() {
+    if (this._frameHeld) {
+      // How long frames waited for a guest's (design/CesiumGuest.md).
+      this.guestWait.frames++
+      this.guestWait.ms += performance.now() - this._heldAt
+    }
     this._frameHeld = false
+    // A held frame resumes in another task: _sceneRT again, whatever was
+    // bound since.
     this.renderer.setRenderTarget(this._sceneRT)
-    // Display-referred materials (stars, lines, labels) write the values the
-    // final tone map gives back unchanged (hdr.js sceneReferred).
-    sceneReferredUniform.value = this.hdr ? 1 : 0
-    perf.begin('scene')
-    this.renderer.render(this.scene, this.camera)
-    perf.end('scene')
     perf.begin('cesium')
     this.layers.composite()
     perf.end('cesium')

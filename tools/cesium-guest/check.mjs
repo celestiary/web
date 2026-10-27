@@ -212,6 +212,7 @@ async function runMode(browser, opts, mode, ports) {
       draw()
     }
     const body = ui.layers.bodies.earth
+    const w0 = {...ui.guestWait}
     const s0 = body.steps ? {...body.steps} : null
     const t0 = performance.now()
     await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
@@ -220,7 +221,9 @@ async function runMode(browser, opts, mode, ports) {
     ui._drawFrame = draw
     const d = s0 ? Object.fromEntries(Object.keys(s0).map((k) => [k, body.steps[k] - s0[k]])) : null
     return {fps: +(drawn / dt).toFixed(2), drawn, ...(d ? {inStep: d.inStep, guestDrawn: d.drawn,
-      tripMs: +(d.tripMs / Math.max(1, d.trips)).toFixed(1)} : {})}
+      tripMs: +(d.tripMs / Math.max(1, d.trips)).toFixed(1),
+      // The time a drawn frame waited for the guest's, on average.
+      waitMs: +((ui.guestWait.ms - w0.ms) / Math.max(1, drawn)).toFixed(1)} : {})}
   }, [opts.motion, opts.wait])
 
   await page.close()

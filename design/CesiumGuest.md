@@ -277,8 +277,12 @@ posts the same view.
 - The status sets `tilesLoaded` (the warming and the fade), the height
   under the camera, and the credits, drawn with celestiary's own elements.
 
-**Lockstep.**  ThreeUi's `renderLoop` stops after `beforeRender` while a
-guest's view is out (`CesiumLayers.awaitingGuests`).  The receiver's
+**Lockstep.**  `beforeRender` posts the view.  ThreeUi's `renderLoop` then
+renders celestiary's scene into `_sceneRT` and stops before the composite
+while a guest's view is out (`CesiumLayers.awaitingGuests`).  The guest's
+frame is needed only from the composite on, so the GPU draws celestiary's
+scene while the guest computes its frame.  Before, the wait came before
+the scene's render, and the two ran one after the other.  The receiver's
 `onFrame` for that view's id calls `ThreeUi.resumeFrame`, which draws the
 frame in the message's task.  After `guestWaitMs` the next loop draws with
 the last frame in, and the view stays out: the next is posted only when it
@@ -347,9 +351,16 @@ counts are read):
   subdomain (`cesium.celestiary.org`) is the same *site*, and Chromium keeps
   a site's pages in one process, so it would be the same.  Cesium runs in
   parallel with celestiary only from another site.
-- Even then the frame waits in the wrong place: celestiary posts the view
-  and idles until the guest's frame lands, before drawing its own scene.
-  Waiting only before `composite()` would overlap the two.  Next.
+- Even then the frame waited in the wrong place: celestiary posted the view
+  and idled until the guest's frame landed, before drawing its own scene.
+  It now waits only before `composite()` (Lockstep, above).  On SwiftShader
+  that changes little (the wait 5.8 ms a frame before, 5.2 ms after, at 7.1
+  to 7.2 frames a second): issuing the scene costs the CPU about half a
+  millisecond, and SwiftShader's "GPU" is CPU threads competing with the
+  guest.  What it buys is the real GPU drawing celestiary's scene during the
+  wait, which needs the M2 with a guest on another site to see.
+  `ThreeUi.guestWait` (frames held and ms waited) and `yarn
+  cesium-guest-check`'s `waitMs` measure it.
 - On 0.6.4 the shadow still draws (the same-page snapshot's
   `cesium.shadow.earth` has all 177 draws); 0.6.6 takes them out, on either
   page.
