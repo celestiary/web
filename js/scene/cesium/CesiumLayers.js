@@ -705,10 +705,10 @@ export default class CesiumLayers {
       // it's still out, the last one again (the receiver's re-run).
       this.guests.beforeDrain(body, unseen)
       perf.begin('cesium.replay')
-      body.receiver.drain()
+      const drew = body.receiver.drain()
       perf.end('cesium.replay')
       renderer.resetState()
-      this.guests.afterDrain(body)
+      this.guests.afterDrain(body, drew, unseen)
       return
     }
     this._setCesiumView(name, body, node)

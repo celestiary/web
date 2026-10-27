@@ -534,6 +534,19 @@ and the waits, the lights' target, the messages and the timing) is
 `js/scene/cesium/guestPages.js`, which CesiumLayers imports with its first
 guest page: none of it is in the first load.
 
+**A late frame that can't run again.**  When a view's frame is late,
+the host draws the last one again (the receiver's re-run), but the
+receiver never re-runs a frame that deleted a GL object, which frames
+loading tiles do.  Such a frame drew nothing of Cesium's, and with the
+body's own surface hidden the atmosphere pass drew sky there: white flashes
+near Mars's surface on the M2 while its tiles streamed in.  Headless, with
+every frame late (`cesiumWait=1`, Earth at 12 km), 118 of 503 frames were
+blank.  So after a drain whose frame can't run again, `GuestPages` keeps
+Cesium's target (colour and depth), and a frame that drains nothing draws
+that copy: what a re-run would have.  None blank then (121 of 536 drew the
+kept frame).  The surface still holds still while the guest is late; the
+cure for that is reprojection (#314).
+
 **The Moon and Mars** load from guest pages of their own: `_load` takes
 the guest page for every body, so with `?cesium=iframe` celestiary's page
 loads no Cesium at all.  The guest page already took any body (`?body=`).

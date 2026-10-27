@@ -51,14 +51,55 @@ export default class GuestPages {
    * After the drain: what it had, and whether it was in step, this frame
    * drawn with the guest's frame of this frame's view.
    *
+   * A frame that drew nothing (no frame in, and the last can't run again:
+   * the receiver never re-runs one that deleted a GL object, as a frame
+   * loading tiles does) would leave Cesium's target empty, and with the
+   * body's own surface hidden the atmosphere pass drew sky there: white
+   * flashes near the ground, about a frame in five while the guest was late
+   * (design/CesiumGuest.md, phase 4).  So after a drain whose frame can't
+   * run again, its picture is kept (colour and depth), and a frame that
+   * drains nothing draws that: what a re-run would have.
+   *
    * @param {object} body
+   * @param {boolean} drew Whether the drain replayed a frame
+   * @param {boolean} unseen The body's shell wasn't drawn
    */
-  afterDrain(body) {
+  afterDrain(body, drew, unseen) {
     body.lastLights = body.drainedLights
     body.steps.drawn++
     if (body.receiver.drainedViews.at(-1) === body.posted) {
       body.steps.inStep++
     }
+    const cesiumRT = this.layers._cesiumTarget()
+    const kept = `_keptRT_${body.name}`
+    if (drew) {
+      body.kept = !body.receiver.canRerun && !unseen
+      if (body.kept) {
+        this._copy(cesiumRT, this.layers._cesiumTarget(kept))
+      }
+    } else if (body.kept && !unseen) {
+      this._copy(this.layers._cesiumTarget(kept), cesiumRT)
+      body.steps.kept = (body.steps.kept ?? 0) + 1
+    }
+  }
+
+
+  /**
+   * Copy a render target's colour and depth into another of its size and
+   * formats (CesiumLayers._cesiumTarget's).
+   *
+   * @param {object} from
+   * @param {object} to
+   */
+  _copy(from, to) {
+    const {renderer} = this.layers.ui
+    const gl = renderer.getContext()
+    renderer.resetState()
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.properties.get(from).__webglFramebuffer)
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.properties.get(to).__webglFramebuffer)
+    gl.blitFramebuffer(0, 0, from.width, from.height, 0, 0, to.width, to.height,
+        gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, gl.NEAREST)
+    renderer.resetState()
   }
 
 

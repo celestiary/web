@@ -805,6 +805,32 @@ describe('New York on Earth\'s guest page', () => {
 })
 
 
+describe('a guest page\'s frame that can\'t run again', () => {
+  it('is kept, and drawn in a frame that drains nothing', () => {
+    const L = new CesiumLayers({})
+    L.guests = new GuestPages(L)
+    const targets = {}
+    L._cesiumTarget = (key = '_cesiumRT') => (targets[key] ??= {key})
+    const copies = []
+    L.guests._copy = (from, to) => copies.push(`${from.key}>${to.key}`)
+    const receiver = {canRerun: true, drainedViews: []}
+    const body = {name: 'mars', receiver, steps: {drawn: 0, inStep: 0}}
+    // A frame that can run again: nothing kept.
+    L.guests.afterDrain(body, true, false)
+    expect(copies).toEqual([])
+    // One that deleted objects: kept; then a frame with nothing drawn shows it.
+    receiver.canRerun = false
+    L.guests.afterDrain(body, true, false)
+    L.guests.afterDrain(body, false, false)
+    expect(copies).toEqual(['_cesiumRT>_keptRT_mars', '_keptRT_mars>_cesiumRT'])
+    expect(body.steps.kept).toBe(1)
+    // Unseen, nothing is copied either way.
+    L.guests.afterDrain(body, false, true)
+    expect(copies).toHaveLength(2)
+  })
+})
+
+
 describe('a guest page older than this page', () => {
   it('is said once, by its protocol, and works as it can', () => {
     const L = new CesiumLayers({})
