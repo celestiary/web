@@ -15,6 +15,9 @@ on:
   push:
     branches:
       - main
+  # main's guest again, by hand (Actions → Cesium guest → Run workflow), as
+  # after the deploy key or the ion token changes.
+  workflow_dispatch:
   pull_request:
     types:
       - opened
@@ -60,7 +63,7 @@ jobs:
           du -sh guest
 
       - name: Deploy (main)
-        if: env.HAS_KEY == 'true' && github.event_name == 'push'
+        if: env.HAS_KEY == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: JamesIves/github-pages-deploy-action@v4.8.0
         with:
           repository-name: ${{ env.GUEST_REPO }}
