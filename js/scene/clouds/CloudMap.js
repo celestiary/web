@@ -75,6 +75,9 @@ export default class CloudMap {
     // date, satellites, tilesDone, tilesTotal, tilesFailed, tried, ready,
     // seam} (_loadDaily), or {kind: 'bundled', reason, loaded}.
     this.status = {kind: 'none'}
+    // Whether the texture holds a day from NASA GIBS (its credit, gibs.js),
+    // not the bundled clouds or nothing.
+    this.fromGibs = false
     this._wantedKey = null
     this._wantedSince = 0
     this._loadingKey = null
@@ -188,6 +191,7 @@ export default class CloudMap {
       return
     }
     this.coverage.set(bundled)
+    this.fromGibs = false
     this._changed()
     this.status = {kind: 'bundled', reason: source.reason, loaded: true}
   }
@@ -251,6 +255,7 @@ export default class CloudMap {
     }
     const {source: shown, day} = chosen
     this.coverage.set(day.coverage)
+    this.fromGibs = true
     this._changed()
     Object.assign(status, {building: null, date: shown.date, satellites: shown.layers.map((l) => l.satellite),
       tilesFailed: day.failed, complete: day.complete, unseenShare: day.unseenShare, filled: day.filled, ready: true})

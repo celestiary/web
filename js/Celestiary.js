@@ -38,6 +38,7 @@ import {HOME_TOUR_LOOP_FADE_MS, HOME_TOUR_STILL_MS, homeTour} from './homeTour'
 import {ease} from './tour'
 import {formatTonight, lowPrecisionSun, resolveLocation, tonightTime} from './tonight'
 import {hideLoading} from './loading'
+import {setCreditsChrome} from './credits.js'
 import {clampEv, stepEv} from './scene/evCompensation'
 import {clampStarMag, stepStarMag} from './scene/starMagnitude'
 import {fetchPlaces} from './scene/Places'
@@ -3250,6 +3251,8 @@ export default class Celestiary {
    */
   _setNav(visible) {
     this.navVisible = visible
+    // The credits' windows run only while they can be seen (credits.js).
+    setCreditsChrome(visible)
     if (visible) {
       this._navHideAt = null
       this._navDisplay(true)

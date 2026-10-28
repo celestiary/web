@@ -65,6 +65,7 @@ import {perf} from '../../perf/perf.js'
 import {dataUrl} from '../../dataUrl.js'
 import {sanitizeCredits} from '../../cesium-guest/credits.js'
 import {addCredit, removeCredit} from '../../credits.js'
+import {creditGibs} from '../gibs.js'
 import {monthOfJulianDay} from '../monthly.js'
 import {GUEST_VERSION, guestOptions} from '../../cesium-guest/origins.js'
 
@@ -292,6 +293,7 @@ export default class CesiumLayers {
     // The credits follow the ground in view: none while it's only sky.
     this._showCredits()
     this._creditNewYork()
+    this._creditNightLights()
     for (const {node} of active) {
       this._hideSurface(node)
     }
@@ -596,8 +598,35 @@ export default class CesiumLayers {
     if (!body?.night || !body.nightInView) {
       return false
     }
+    return this._lightsVisible() || this._meterFrame()
+  }
+
+
+  /**
+   * @returns {boolean} Whether the night lights' brightest is a display
+   *   step or more at this exposure (_lightsShow)
+   */
+  _lightsVisible() {
     const brightest = nightLightRadiance() * this.ui.renderer.toneMappingExposure
-    return !(brightest < LIGHTS_DISPLAY_STEP) || this._meterFrame()
+    return !(brightest < LIGHTS_DISPLAY_STEP)
+  }
+
+
+  /**
+   * NASA GIBS's acknowledgement (gibs.js) while Earth's layer draws its
+   * night lights, VIIRS Black Marble from GIBS (CESIUM.md, "Night lights"):
+   * the layer active, some night in view, and the lights bright enough to
+   * show.  Celestiary's own Earth's lights are the bundled texture, from
+   * NASA Earth Observatory, not GIBS.
+   */
+  _creditNightLights() {
+    const earth = this.bodies.earth
+    const drawn = Boolean(earth?.night && earth.nightInView && this.active.some((a) => a.name === 'earth') &&
+      this._lightsVisible())
+    if (drawn !== (this._lightsCredited ?? false)) {
+      this._lightsCredited = drawn
+      creditGibs('night-lights', drawn)
+    }
   }
 
 
@@ -1058,9 +1087,12 @@ export default class CesiumLayers {
       return
     }
     this._credited = shown
-    // In the credits footer (credits.js, ui/CreditsFooter.jsx) while shown.
+    // In the credits footer (credits.js, ui/CreditsFooter.jsx) while shown,
+    // the whole time: ion's terms want its logo on screen, and Bing's that its
+    // attribution isn't removed or minimised while its imagery is
+    // (CESIUM.md, "Credits").
     if (shown) {
-      addCredit(CESIUM_CREDIT_ID, {element: this.credits}, {order: 0})
+      addCredit(CESIUM_CREDIT_ID, {element: this.credits}, {order: 0, persistence: 'while-shown'})
     } else {
       removeCredit(CESIUM_CREDIT_ID)
     }
@@ -1665,7 +1697,9 @@ export default class CesiumLayers {
     }
     this._newYorkCredited = drawn
     if (drawn) {
-      addCredit(NEW_YORK_CREDIT_ID, NEW_YORK_CREDITS)
+      // On arrival, then fading: OSMF's attribution guidelines allow it
+      // after five seconds, reachable after (CESIUM.md, "Credits").
+      addCredit(NEW_YORK_CREDIT_ID, NEW_YORK_CREDITS, {persistence: 'timed'})
     } else {
       removeCredit(NEW_YORK_CREDIT_ID)
     }

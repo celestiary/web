@@ -21,6 +21,7 @@ import {decodePermalink, encodePermalink, encodeSettings, pathFromFragment, SETT
 import {latLngAltToBodyFixed, worldToLatLngAlt} from './coords.js'
 import * as Shared from './shared.js'
 import {_resetPlaces} from './scene/Places.js'
+import {addCredit, clearCredits, getCredits, setCreditsClock} from './credits.js'
 import {searchIndex} from './search/SearchIndex.js'
 import {buildFromSource} from '../tools/stars/build.mjs'
 
@@ -3168,6 +3169,29 @@ describe('the credits footer', () => {
       expect(els['nav-id'].style.display).toBe('')
     } finally {
       global.document.getElementById = saved
+    }
+  })
+
+  it('runs the timed credits\' windows only while the chrome is shown', () => {
+    let now = 0
+    const due = []
+    setCreditsClock({now: () => now, setTimeout: (fn, ms) => due.push(ms), clearTimeout: () => {}})
+    const saved = global.document.getElementById
+    global.document.getElementById = () => ({style: {}})
+    try {
+      const nav = {_navHideAt: null, _navShowPending: false, _navDisplay: () => {}}
+      Celestiary.prototype._setNav.call(nav, false)
+      addCredit('osm', {text: 'OSM'}, {persistence: 'timed'})
+      now = 60000
+      Celestiary.prototype._setNav.call(nav, false)
+      expect(getCredits()[0].phase).toBe('in')
+      expect(due).toEqual([])
+      Celestiary.prototype._setNav.call(nav, true)
+      expect(due.length).toBeGreaterThan(0)
+    } finally {
+      global.document.getElementById = saved
+      clearCredits()
+      setCreditsClock(null)
     }
   })
 

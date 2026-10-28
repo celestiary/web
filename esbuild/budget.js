@@ -40,8 +40,11 @@ export const STATIC_BUDGET = {
   // 2026-10-28: the seat the camera rides (Scene.rideSeat, its near plane
   // in ThreeUI) and the panel's seat button and shell switch; 734 the same
   // day for the search's views (ViewsProvider, store/appViews.js) and the
-  // bar's places reload; 735 for the credits footer, the same day.
-  totalGzipKB: 736,
+  // bar's places reload; 735 for the credits footer, the same day, and 737
+  // for its timing (each credit on arrival, then fading), its Credits button
+  // and Gaia's and NASA GIBS's credits (credits.js, CreditsFooter.jsx,
+  // scene/gibs.js; chrome, so in the first load with the footer).
+  totalGzipKB: 738,
   // The largest single first-load file, minified.  Main: 695 KB.
   largestChunkMinifiedKB: 765,
 }

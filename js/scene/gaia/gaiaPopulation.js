@@ -1,4 +1,5 @@
 import Loader from '../../Loader.js'
+import {addCredit, followCredit, removeCredit} from '../../credits.js'
 import {dataUrl} from '../../dataUrl.js'
 import {utcToTtJulianDay} from '../celestialFrame.js'
 import PointPopulation, {DEFAULT_BUDGET} from '../points/PointPopulation.js'
@@ -19,6 +20,46 @@ import {newStarsMaterial} from '../starsMaterial.js'
 
 /** The tiles' directory under public/, by format version (tools/gaia/gaia.mjs writes it). */
 export const GAIA_TILES_DIR = 'large/gaia/v1'
+
+
+/**
+ * Gaia's credit in the credits footer (credits.js) while its stars are
+ * drawn (gaiaDrawn): ESA's requested "ESA/Gaia/DPAC", linked to Gaia's page,
+ * and the licence, CC BY-SA 3.0 IGO, whose §4(a) asks for its URI with the
+ * work (Gaia.md, "The source and its licence").  On arrival then fading
+ * (§4(c): "in any reasonable manner", "reasonable to the medium"), but held
+ * in while a credit that stays is (Cesium's): §4(c)'s credit "at least as
+ * prominent as the credits for the other contributors" (CESIUM.md,
+ * "Credits").
+ */
+export const GAIA_CREDIT_ID = 'gaia'
+
+export const GAIA_CREDIT = Object.freeze([
+  Object.freeze({text: 'ESA/Gaia/DPAC', href: 'https://www.cosmos.esa.int/gaia'}),
+  Object.freeze({text: 'CC BY-SA 3.0 IGO', href: 'https://creativecommons.org/licenses/by-sa/3.0/igo/'}),
+])
+
+
+/**
+ * Whether any of Gaia's stars are drawn: the manifest in, the last frame's
+ * selection drawing some (tiles loaded, in the field and to the limiting
+ * magnitude: PointPopulation.update's `last.drawn`), and nothing over it
+ * hidden.
+ *
+ * @param {?object} population
+ * @returns {boolean}
+ */
+export function gaiaDrawn(population) {
+  if (population?.status !== 'ready' || !(population.last?.drawn > 0)) {
+    return false
+  }
+  for (let o = population; o; o = o.parent) {
+    if (o.visible === false) {
+      return false
+    }
+  }
+  return true
+}
 
 
 /**
@@ -71,12 +112,28 @@ export function newGaiaPopulation(ui) {
   // From the animation callback, each frame (Animation.animateSystem): the
   // date for the stars' motion, then the selection.  Nothing is drawn
   // before the shader's sources are in.
+  const credit = followCredit(creditGaia)
   population.preAnimCb = (time, jd) => {
     if (!shaderReady) {
       return
     }
     population.setDate(utcToTtJulianDay(jd ?? time.simTimeJulianDay()))
     population.update()
+    credit(gaiaDrawn(population))
   }
   return population
+}
+
+
+/**
+ * Gaia's credit in or out (followCredit, as gaiaDrawn changes).
+ *
+ * @param {boolean} drawn
+ */
+export function creditGaia(drawn) {
+  if (drawn) {
+    addCredit(GAIA_CREDIT_ID, GAIA_CREDIT, {persistence: 'timed', asProminent: true})
+  } else {
+    removeCredit(GAIA_CREDIT_ID)
+  }
 }

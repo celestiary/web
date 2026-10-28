@@ -134,6 +134,55 @@ html.chrome-hidden #phone-dock {
   padding: 0 var(--space-4);
 }
 
+/* Each credit fades in as it comes into the line (its data arrives, or the
+   Credits button opens), and a timed one out at the end of its window
+   (credits.js phases: 'fading', then out of the line), on the chrome's
+   motion tokens. */
+#credits-footer .credits-entry {
+  animation: credits-in var(--fade-ms) var(--fade-ease);
+  transition: opacity var(--fade-ms) var(--fade-ease);
+}
+
+#credits-footer .credits-entry.fading {
+  opacity: 0;
+}
+
+@keyframes credits-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The Credits button at the line's end: dim, the way back to every
+   applicable credit once the timed ones have gone (hover, keyboard focus or
+   a tap: CreditsFooter). */
+#credits-footer .credits-more {
+  margin: 0 0 0 var(--space-4);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  /* The line's ink (--ink-4 wants an opaque surface, not the veil). */
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+#credits-footer .credits-more:hover,
+#credits-footer.open .credits-more {
+  color: var(--ink);
+}
+
+#credits-footer .credits-more:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #credits-footer .credits-entry {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* Links, Cesium's included, in the line's ink (over Cesium's own white,
    CreditDisplay's injected styles). */
 #credits-footer a,

@@ -54,7 +54,8 @@ falls back to if its Cesium layer can't load.
   bottom of the screen (design/UI.md [the credits
   footer](design/UI.md#the-credits-footer); `js/credits.js`,
   `ui/CreditsFooter.jsx`), first, before celestiary's own (New York's data,
-  below).  Each body's widget is made with its `creditContainer` in
+  Gaia's stars, NASA GIBS's imagery: below), and the whole time a layer's
+  ground is in view.  Each body's widget is made with its `creditContainer` in
   `#cesium-credits`, which `_showCredits` puts in the footer
   (`addCredit('cesium', {element})`) while a layer is active, so Cesium's
   own `CreditDisplay` keeps deciding which credits are on screen as imagery
@@ -63,7 +64,8 @@ falls back to if its Cesium layer can't load.
   copy per body visited; with two bodies on screen, the farther one's data
   attribution isn't shown).  Credits Cesium shows only in its list (a
   provider's credit given as a string, Blue Marble's and GIBS's) are behind
-  its *Data attribution* link, which opens the list over the page
+  its *Data attribution* link (GIBS's is in the footer too, as its own
+  entry, while the night lights are drawn: below), which opens the list over the page
   (`creditViewport: document.body`; it opened in the hidden widget's own
   element before, so the link did nothing).  While none of the body's
   ground is in the frame (from the ground looking up into the sky) they go
@@ -73,33 +75,103 @@ falls back to if its Cesium layer can't load.
   toward showing them).  The credited body is the nearest active one with
   ground in view.  The footer is HTML chrome: held on the homepage, faded in
   with the first load's reveal, `v` hides it with the other panels.
-- **The credits no longer stand back.**  They used to float over the scene,
-  centred at the bottom, in full for 6 s as a body came into view and then
-  compact, the ion logo alone at 55% opacity until a hover, a focus or a tap
-  (`creditsReveal.js`, removed).  In the footer they are as small and quiet
-  as a map's attribution all the time (11 px, `--ink-3` on a dark veil), off
-  the scene's middle, so there is nothing to stand back from; and the
-  compact look hid Bing's text and logo, which its terms don't allow
-  (below).  The ion logo is at 20 px of its 28 (`--credits-logo`), the
+- <a id="credits-policy"></a>**On arrival, then fading, unless a source's
+  terms say otherwise** (`credits.js` `persistence`).  Each credit in the
+  footer has its own policy, and the timed ones their own clocks: one fades
+  in as its data comes into the scene, stays 8 s (`CREDIT_SHOW_MS`), and
+  fades out over the chrome's 400 ms (`--fade-ms`; none with
+  `prefers-reduced-motion`), whatever the others do; one whose data leaves
+  and comes back starts again.  Faded out, it's still applicable: the dim
+  **Credits** button at the line's end shows every applicable credit while
+  it's hovered, focused from the keyboard, or tapped (design/UI.md [the
+  credits footer](design/UI.md#the-credits-footer)).  The windows run only
+  while the chrome is shown, so a credit that arrives on the homepage shows
+  its whole window when the chrome reveals, if its data is still in.  The
+  default is `'while-shown'`, so a credit nobody has checked stays.
+
+  | Source | Credit | Policy | Why |
+  |---|---|---|---|
+  | Cesium ion (its logo, and its *Data attribution* list) | Cesium's `CreditDisplay`, the `cesium` entry | `while-shown` | ion's terms want the "Cesium ion" logo "prominently viewable" on the main window while its data is used |
+  | Bing Maps through ion (its logo and text) | in the same `cesium` entry, which Cesium's `CreditDisplay` adds and removes as Bing's imagery comes and goes | `while-shown` | Bing's attribution must not be removed, and Microsoft's notices not "obscured or minimised", while its imagery is shown |
+  | OpenStreetMap (New York's geography) | "© OpenStreetMap contributors (ODbL)", to its copyright page | `timed` | OSMF's Attribution Guidelines let an interactive map fade or collapse the attribution after five seconds, the licence reachable after (below) |
+  | NYC Open Data (New York's boroughs, streets, parks) | "NYC Open Data" | `timed` | Published "without restriction or licensing requirements"; the credit is a courtesy |
+  | ESA Gaia DR3 (Gaia's stars, [Gaia.md](js/scene/Gaia.md#the-source-and-its-licence)) | "ESA/Gaia/DPAC", to Gaia's page, and "CC BY-SA 3.0 IGO", to the licence | `timed`, held in while a `while-shown` credit is (`asProminent`) | CC BY-SA §4(c) takes the credit "in any reasonable manner", "reasonable to the medium", but "at least as prominent as the credits for the other contributors": so while ion's and Bing's stay, Gaia's does too |
+  | NASA GIBS (Earth's clouds from its daily mosaics; Cesium's Earth's night lights, VIIRS Black Marble) | its suggested acknowledgement, from "Imagery provided by services from NASA's Global Imagery Browse Services (GIBS), …", to GIBS's page; one entry for both (`setCreditSource`) | `timed` | GIBS asks for it ("We ask that users … add the following acknowledgment"); NASA's data is open, with no licence term to keep it up |
+
+  Gaia's is in while any of its stars are drawn (`gaiaDrawn`: the
+  population's last selection drew some, to the limiting magnitude in the
+  field); GIBS's while the clouds draw a GIBS day (`CloudMap.fromGibs`, not
+  the bundled clouds) with the shell's disc 10 px or more in radius
+  (`CloudShell.js` `cloudsCredited`), or while Earth's layer draws its night
+  lights (`_creditNightLights`: some night in view, bright enough to show).
+  Both go after 30 frames without their data (`followCredit`), so a skipped
+  frame or a flickering count doesn't start the window again.  Celestiary's
+  own Earth's lights are the bundled texture (NASA Earth Observatory's), not
+  GIBS's, and aren't credited.
+- **The credits no longer stand back as they did.**  They used to float over
+  the scene, centred at the bottom, in full for 6 s as a body came into view
+  and then compact, the ion logo alone at 55% opacity until a hover, a focus
+  or a tap (`creditsReveal.js`, removed).  That hid Bing's text and logo,
+  which its terms don't allow (below).  In the footer Cesium's stay as small
+  and quiet as a map's attribution (11 px, `--ink-3` on a dark veil), off the
+  scene's middle.  The ion logo is at 20 px of its 28 (`--credits-logo`), the
   line's height, neither dimmed nor hidden.
-- **The terms** (checked 2026-10-28, from search results quoting them:
-  cesium.com isn't reachable from the sandbox, so read them again there):
+- **The terms** (checked 2026-10-28.  cesium.com, osmfoundation.org,
+  creativecommons.org, cosmos.esa.int, nyc.gov and nasa-gibs.github.io aren't
+  reachable from the sandbox, so where noted these are from search results
+  quoting them; read them again there):
   - Cesium ion's [Terms of Service](https://cesium.com/legal/terms-of-service/)
     and [Content Usage and Attribution
-    Guide](https://cesium.com/learn/ion/content-usage-and-attribution-guide/):
-    the "Cesium ion" logo prominently viewable on the main application
-    window, attribution not removed, and the data attribution of Asset Depot
-    assets displayed.  They set no size; a smaller logo that stays legible
-    and on screen keeps to them.
+    Guide](https://cesium.com/learn/ion/content-usage-and-attribution-guide/)
+    (search results): the "Cesium ion" logo prominently viewable on the main
+    application window, attribution not removed, and the data attribution
+    of Asset Depot assets displayed.  They set no size; a smaller logo that
+    stays legible and on screen keeps to them.
   - Bing Maps through ion ([Appendix B-1, Bing Maps
     Content](https://cesium.com/legal/terms-for-bing/); the [asset's
-    page](https://cesium.com/platform/cesium-ion/content/bing-maps-imagery/)):
-    Cesium's clients show Bing's attribution, which must not be removed or
-    modified, and Microsoft's logos and notices must not be changed,
-    obscured or minimised.  So the footer leaves Bing's credits as Cesium
-    draws them: only the ion logo is resized, and nothing is hidden behind a
-    tap except on a phone, where the line is cut to one with an ellipsis
-    that a tap opens (the first thing to check if ion or Microsoft object).
+    page](https://cesium.com/platform/cesium-ion/content/bing-maps-imagery/);
+    search results): Cesium's clients show Bing's attribution, which must
+    not be removed or modified, and Microsoft's logos and notices must not
+    be changed, obscured or minimised.  So the footer leaves Bing's credits
+    as Cesium draws them: only the ion logo is resized, nothing of them
+    fades, and on a phone the line wraps rather than hiding any of it behind
+    a tap.
+  - OpenStreetMap: the [OSMF Attribution
+    Guidelines](https://osmfoundation.org/wiki/Licence/Attribution_Guidelines)
+    (adopted 2021-06-25; search results quoting them): for interactive maps,
+    "you may use a mechanism to fade/collapse the attribution" on a dismiss
+    action, on map interaction ("panning, clicking, zooming") or
+    "automatically after five seconds"; the licence information must stay
+    reachable once collapsed, "an info button in the map corner" or an
+    About menu.  The credit's 8 s is over the five, and the Credits button
+    is the info button.  (On the OSMF's lists in 2021 some argued OSM's
+    attribution fading while others stay would be against the ODbL: a
+    discussion, not the guideline.  If the OSMF objects, `persistence:
+    'while-shown'` in `CesiumLayers._creditNewYork` is the switch.)
+  - NYC Open Data: the city's Open Data Technical Standards Manual (search
+    results): "Upon publication to NYC Open Data, datasets become a public
+    resource available to anyone, without restriction or licensing
+    requirements."
+  - Gaia DR3: [CC BY-SA 3.0
+    IGO](https://creativecommons.org/licenses/by-sa/3.0/igo/), read in full
+    (SPDX's copy, `spdx/license-list-data` `text/CC-BY-SA-3.0-IGO.txt`):
+    §4(a) "You must include a copy of, or the Uniform Resource Identifier
+    (URI) for, this License with every copy of the Work"; §4(c) the credit,
+    "reasonable to the medium or means You are utilizing", "may be
+    implemented in any reasonable manner; provided, however, that in the
+    case of an Adaptation or Collection, at a minimum such credit will
+    appear, if a credit for all contributors to the Adaptation or Collection
+    appears, then as part of these credits and in a manner at least as
+    prominent as the credits for the other contributors."  The credit is
+    ESA's, "ESA/Gaia/DPAC" (Gaia.md).
+  - NASA GIBS: its API documentation's "Data Use Guidance and
+    Acknowledgements" (read in full, `nasa-gibs/gibs-api-docs`
+    `docs/index.md`): "NASA promotes full and open sharing of data.  We ask
+    that users who make use of GIBS in their clients … add the following
+    acknowledgment: *We acknowledge the use of imagery provided by services
+    from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth
+    Science Data and Information System (ESDIS).*"  The footer gives it from
+    "Imagery", which reads as a credit in a line of them.
 
 ## Architecture
 

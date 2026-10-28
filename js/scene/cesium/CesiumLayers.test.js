@@ -1135,6 +1135,49 @@ describe('credits in the footer', () => {
     expect(drawn()).toBe(false)
   })
 
+  it('keeps Cesium\'s credits in the whole time (ion\'s logo, Bing\'s), and times New York\'s', () => {
+    const L = new CesiumLayers({})
+    L.credits = {id: 'cesium-credits'}
+    L._creditedBody = () => 'earth'
+    L._showCredits()
+    L.active = [{name: 'earth', node: {}}]
+    L._newYorkRange = 'show'
+    L._newYork = {status: 'ready', city: {}}
+    L._creditNewYork()
+    expect(getCredits().map((c) => [c.id, c.persistence])).toEqual([['cesium', 'while-shown'], ['new-york', 'timed']])
+  })
+
+  it('credits NASA GIBS while Earth\'s layer draws its night lights, VIIRS Black Marble from GIBS', () => {
+    let exposure = 1
+    const L = new CesiumLayers({renderer: {get toneMappingExposure() {
+      return exposure
+    }}})
+    const earth = {night: {}, nightInView: true}
+    L.bodies.earth = earth
+    const lit = () => {
+      L._creditNightLights()
+      return hasCredit('nasa-gibs')
+    }
+    // Earth's layer warming: celestiary's Earth, whose lights are bundled.
+    L.active = []
+    expect(lit()).toBe(false)
+    L.active = [{name: 'earth', node: {}}]
+    expect(lit()).toBe(true)
+    expect(getCredits()[0].persistence).toBe('timed')
+    // All day side.
+    earth.nightInView = false
+    expect(lit()).toBe(false)
+    earth.nightInView = true
+    expect(lit()).toBe(true)
+    // An exposure under which the lights are under a display step.
+    exposure = 1e-12
+    expect(lit()).toBe(false)
+    exposure = 1
+    // No night layer (a guest page that has none).
+    earth.night = false
+    expect(lit()).toBe(false)
+  })
+
   it('credits the city drawn on Earth\'s guest page too', () => {
     const L = new CesiumLayers({})
     L.active = [{name: 'earth', node: {}}]
