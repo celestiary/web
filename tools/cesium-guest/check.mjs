@@ -27,7 +27,7 @@ import {chromium} from 'playwright'
  *
  * `--pan deg` adds the late-frame check (RFC 0003 §4; portal-netgl 0.6.10's
  * named targets, the celestiary/netgl-reproject Cesium patch), on the guest
- * page: the camera turned by `deg` about the body (B), the guest's own
+ * page: the camera turned by `deg` where it is (B), the guest's own
  * frame of B (the truth); then the guest's frame of A composed at B, with
  * the guest held (no view posted, the last frame re-run), corrected and,
  * with `guestReproject` off, as it came.  It fails if the corrected frame
@@ -404,17 +404,22 @@ async function panCheck(page, deg) {
     const earth = ui.sceneManager.objects.earth
     const Vector3 = ui.camera.position.constructor
     const at = new Vector3()
-    const posA = ui.camera.position.clone()
-    const posB = posA.clone().applyAxisAngle(new Vector3(0, 1, 0), deg * Math.PI / 180)
-    let hold = posA
+    // A turn where the camera is, not a move: about the body's centre a
+    // degree is ~100 km at Earth's surface, far past what a frame's lag
+    // moves the camera (and what a float32 correction can carry).
+    const pos = ui.camera.position.clone()
+    let yaw = 0
     const keep = ui._keepAboveGround.bind(ui)
     ui._keepAboveGround = () => {
-      ui.camera.position.copy(hold)
+      ui.camera.position.copy(pos)
       earth.getWorldPosition(at)
       ui.camera.updateMatrixWorld()
       ui.camera.lookAt(at)
+      ui.camera.rotateY(yaw)
+      ui.camera.updateMatrixWorld()
       keep()
     }
+    const turnB = deg * Math.PI / 180
     window.c.shared.targets.tween = null
     L.guestWaitMs = 60000
     const draw = ui._drawFrame.bind(ui)
@@ -440,7 +445,8 @@ async function panCheck(page, deg) {
         if (++k === n) {
           ui._drawFrame = draw
           clearTimeout(timer)
-          resolve(pixels())
+          const png = ui.renderer.domElement.toDataURL('image/png').split(',')[1]
+          resolve(Object.assign(pixels(), {png}))
         }
       }
     })
@@ -456,11 +462,11 @@ async function panCheck(page, deg) {
     }
     try {
       // The truth: the guest's own frame of B, in step (a long wait).
-      hold = posB
+      yaw = turnB
       await frames(2)
       const truth = await frames(2)
       // Back at A, in step; then the guest held and the camera at B.
-      hold = posA
+      yaw = 0
       await frames(3)
       const postViews = L.guests.postViews.bind(L.guests)
       // Held: no view goes, but the frame still counts as one, as
@@ -470,7 +476,7 @@ async function panCheck(page, deg) {
       }
       const corrected0 = body.corrected ?? 0
       const corrected = await frames(2, () => {
-        hold = posB
+        yaw = turnB
       })
       const correctedFrames = (body.corrected ?? 0) - corrected0
       L.guestReproject = false
@@ -479,7 +485,8 @@ async function panCheck(page, deg) {
       L.guests.postViews = postViews
       const c = distance(corrected, truth)
       const u = distance(uncorrected, truth)
-      return {deg, corrected: c, uncorrected: u, correctedFrames, lastEnd: body.lastEnd,
+      return {deg, corrected: c, uncorrected: u, correctedFrames, refused: body.refused ?? 0, lastEnd: body.lastEnd,
+        pngs: {truth: truth.png, corrected: corrected.png, uncorrected: uncorrected.png},
         correctedDraws: body.receiver.replay.reprojectStats.correctedDraws}
     } finally {
       ui._drawFrame = draw
@@ -538,7 +545,7 @@ async function main() {
       wait: opts.wait,
       frame: diff,
       motion: {page: results.page.motion, iframe},
-      ...(results.iframe.pan ? {pan: results.iframe.pan} : {}),
+      ...(results.iframe.pan ? {pan: {...results.iframe.pan, pngs: undefined}} : {}),
       wire: results.iframe.wire,
       ...(nyc ? {city: {page: results.page.city, iframe: results.iframe.city}} : {}),
       errors: {page: results.page.errors, iframe: results.iframe.errors},
@@ -550,6 +557,9 @@ async function main() {
         if (results[mode].png) {
           fs.writeFileSync(path.join(opts.out, `${opts.view}-${mode}.png`), Buffer.from(results[mode].png, 'base64'))
         }
+      }
+      for (const [name, png] of Object.entries(results.iframe.pan?.pngs ?? {})) {
+        fs.writeFileSync(path.join(opts.out, `${opts.view}-pan-${name}.png`), Buffer.from(png, 'base64'))
       }
       fs.writeFileSync(path.join(opts.out, 'report.json'), JSON.stringify(report, null, 1))
     }

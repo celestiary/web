@@ -802,14 +802,28 @@ describe('a guest page\'s late frames, corrected (portal-netgl 0.6.10)', () => {
     expect(L.guests._correction(netgl, body, 7, end)).toBe(null)
     // No view and projection (several frusta, an older page): none.
     expect(L.guests._correction(netgl, body, 6, {type: 'netgl:frame-end', viewId: 6})).toBe(null)
-    // The camera moves, and the frame is the last one again.
-    camera.position.set(0.1 * R, 0, 3 * R)
+    // The camera turns and moves a little, and the frame is the last one again.
+    camera.position.set(300, 0, 3 * R)
+    camera.rotateY(0.02)
     camera.updateMatrixWorld()
     L.guests._tick = 1
     const C = L.guests._correction(netgl, body, 7, end)
     const now = {viewMatrix: L._ecefViewMatrix('earth', node), projectionMatrix: P}
     expect(C).toEqual(netgl.reprojection(end, now))
     expect(body.corrected).toBe(1)
+  })
+
+  it('refuses a correction too large for the shader\'s float32 (a long move), drawing the frame as it came', () => {
+    const {L, camera, node} = setup()
+    const body = {name: 'earth', node, posted: 7, postedTick: 0}
+    L.guests._tick = 1
+    // Cesium's projection low down: near 0.1 m, far all but infinite.
+    const P = [1.5, 0, 0, 0, 0, 2.4, 0, 0, 0, 0, -1, -1, 0, 0, -0.2, 0]
+    const end = {type: 'netgl:frame-end', viewId: 7, viewMatrix: L._ecefViewMatrix('earth', node), projectionMatrix: P}
+    camera.position.set(0.02 * R, 0, 3 * R)
+    camera.updateMatrixWorld()
+    expect(L.guests._correction(netgl, body, 7, end)).toBe(null)
+    expect(body.refused).toBe(1)
   })
 
   it('the lights part is \'emission\' (GUEST_VERSION 3) or \'lights\' (before)', () => {

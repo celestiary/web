@@ -331,7 +331,17 @@ export default class GuestPages {
     }
     body.corrected = (body.corrected ?? 0) + 1
     const viewMatrix = this.layers._ecefViewMatrix(body.name, body.node)
-    return netgl.reprojection(end, {viewMatrix, projectionMatrix: end.projectionMatrix})
+    const correction = netgl.reprojection(end, {viewMatrix, projectionMatrix: end.projectionMatrix})
+    body.lastCorrection = {from: end.viewMatrix, projection: end.projectionMatrix, to: viewMatrix, correction}
+    // The shader applies it in float32.  A move t is scaled by about
+    // t / (2 near) in its columns for z and w (Cesium's near is 0.1 m low
+    // down), which then cancel: a 100 m move is 500, well under a pixel;
+    // 100 km is 6e5, and garbage.  Past that the frame is drawn as it came.
+    if (!correction || correction.some((x) => !(Math.abs(x) < MAX_CORRECTION))) {
+      body.refused = (body.refused ?? 0) + 1
+      return null
+    }
+    return correction
   }
 
 
@@ -447,6 +457,7 @@ export default class GuestPages {
       // Frames composed for a camera other than their view's (_correction),
       // and the replay's corrected draws.
       corrected: b.corrected ?? 0,
+      refused: b.refused ?? 0,
       correctedDraws: b.receiver?.replay?.reprojectStats?.correctedDraws ?? 0,
     }))
   }
@@ -523,6 +534,10 @@ export default class GuestPages {
 const GUEST_STATS_N = 240
 // How long requestGroundHeight waits for a guest page's answer, ms.
 const GROUND_REPLY_MS = 1000
+
+
+// The largest entry of a correction the shader is given (_correction).
+const MAX_CORRECTION = 1e4
 
 
 /**
