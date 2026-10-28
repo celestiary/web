@@ -1,3 +1,37 @@
+diff --git a/node_modules/@cesium/engine/Source/Renderer/AutomaticUniforms.js b/node_modules/@cesium/engine/Source/Renderer/AutomaticUniforms.js
+index 94baee1..9e0221d 100644
+--- a/node_modules/@cesium/engine/Source/Renderer/AutomaticUniforms.js
++++ b/node_modules/@cesium/engine/Source/Renderer/AutomaticUniforms.js
+@@ -1918,5 +1918,29 @@ const AutomaticUniforms = {
+       return uniformState.ellipsoid.oneOverRadii;
+     },
+   }),
++
++  /**
++   * The correction a NetGL host applies to a frame it composes for a view
++   * other than the one it was drawn for (portal-netgl's host reprojection):
++   * the identity here, unless a host replaying Cesium's calls into its own
++   * context sets its own. Declared, under portal-netgl's name, by the
++   * vertex shaders the log-depth derived commands make (which apply it
++   * before {@link czm_vertexLogDepth} reads <code>gl_Position</code>) and by
++   * the viewport quad (which doesn't, so its copies stay put). Not a
++   * <code>czm_</code> uniform, so never declared automatically.
++   *
++   * @example
++   * // GLSL declaration
++   * uniform mat4 netgl_reproject;
++   *
++   * gl_Position = netgl_reproject * gl_Position;
++   */
++  netgl_reproject: new AutomaticUniform({
++    size: 1,
++    datatype: WebGLConstants.FLOAT_MAT4,
++    getValue: function () {
++      return Matrix4.IDENTITY;
++    },
++  }),
+ };
+ export default AutomaticUniforms;
 diff --git a/node_modules/@cesium/engine/Source/Renderer/Context.js b/node_modules/@cesium/engine/Source/Renderer/Context.js
 index cd516a7..b881881 100644
 --- a/node_modules/@cesium/engine/Source/Renderer/Context.js
@@ -131,6 +165,28 @@ index cd516a7..b881881 100644
  /**
   * @typedef {object} ReadState
   *
+diff --git a/node_modules/@cesium/engine/Source/Scene/DerivedCommand.js b/node_modules/@cesium/engine/Source/Scene/DerivedCommand.js
+index a905d9e..de71fca 100644
+--- a/node_modules/@cesium/engine/Source/Scene/DerivedCommand.js
++++ b/node_modules/@cesium/engine/Source/Scene/DerivedCommand.js
+@@ -175,11 +175,17 @@ function getLogDepthShaderProgram(context, shaderProgram) {
+       sources[i] = ShaderSource.replaceMain(sources[i], "czm_log_depth_main");
+     }
+ 
++    // netgl_reproject is the identity (an automatic uniform) unless a NetGL
++    // host reprojects the frame: applied here, before czm_vertexLogDepth
++    // reads gl_Position, so the log depth follows the corrected position.
+     const logMain = `
+ 
++uniform mat4 netgl_reproject;
++
+ void main()
+ {
+     czm_log_depth_main();
++    gl_Position = netgl_reproject * gl_Position;
+     czm_vertexLogDepth();
+ }
+ `;
 diff --git a/node_modules/@cesium/engine/Source/Scene/ExternalRenderer.js b/node_modules/@cesium/engine/Source/Scene/ExternalRenderer.js
 new file mode 100644
 index 0000000..2408b01
@@ -888,6 +944,21 @@ index 9f5ad1c..8429f27 100644
      diffuseIntensity = mix(1.0, diffuseIntensity, fade);\n\
      vec4 finalColor = vec4(color.rgb * czm_lightColor * diffuseIntensity, color.a);\n\
  #else\n\
+diff --git a/node_modules/@cesium/engine/Source/Shaders/ViewportQuadVS.js b/node_modules/@cesium/engine/Source/Shaders/ViewportQuadVS.js
+index f4fb081..67f247b 100644
+--- a/node_modules/@cesium/engine/Source/Shaders/ViewportQuadVS.js
++++ b/node_modules/@cesium/engine/Source/Shaders/ViewportQuadVS.js
+@@ -4,6 +4,10 @@ in vec2 textureCoordinates;\n\
+ \n\
+ out vec2 v_textureCoordinates;\n\
+ \n\
++// Declared and never applied: a NetGL host that reprojects a late frame\n\
++// leaves the full-screen copies where they are (portal-netgl's opt-in).\n\
++uniform mat4 netgl_reproject;\n\
++\n\
+ void main() \n\
+ {\n\
+     gl_Position = position;\n\
 diff --git a/node_modules/@cesium/engine/index.js b/node_modules/@cesium/engine/index.js
 index 58c1204..3aee6db 100644
 --- a/node_modules/@cesium/engine/index.js

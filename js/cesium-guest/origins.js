@@ -107,9 +107,11 @@ export const DEFAULT_GUEST_PAGE = (typeof __CESIUM_GUEST_PAGE__ === 'string' && 
  * The guest page's protocol, in its status (`guest`), so a host can tell a
  * guest page older than itself, which leaves out what it doesn't know:
  * 1, #309 and #310, Earth only; 2, the night lights' part, New York and
- * the landing height (design/CesiumGuest.md, phase 4).
+ * the landing height (design/CesiumGuest.md, phase 4); 3, the lights part
+ * named 'emission' (was 'lights'; the host takes both) and the frame-end's
+ * screen targets, view and projection, for the host's reprojection.
  */
-export const GUEST_VERSION = 2
+export const GUEST_VERSION = 3
 
 
 /**

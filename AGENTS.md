@@ -240,7 +240,10 @@ tried and dropped.
   inside it: the guest's frame lands in a message's task, not an animation
   frame's.  Its `split`, and `?perf=1`'s `scene.cesiumGuests`
   (`c.ui.layers.guestStats()`), split the round trip into the view's way
-  in, the guest's frame and the way back.
+  in, the guest's frame and the way back.  `--pan deg` checks a late frame
+  corrected to the camera: the guest held, its frame of one view composed
+  at a view turned `deg`, against the guest's own frame there, with the
+  correction and without (`guestReproject`).
 - **Layer mode's checks run on two origins:** `yarn build`, then `yarn
   layer-host` (guest `http://127.0.0.1:5480`, host
   `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read

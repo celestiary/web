@@ -440,6 +440,11 @@ export default class ThreeUi {
     // the container started out filling it, or the canvas runs under them.
     const width = this.container.offsetWidth
     const height = this.container.offsetHeight
+    // Kept for what's laid out at the canvas's size: the Cesium layers'
+    // view (CesiumLayers._viewOf's size and field), which a stale size had
+    // Cesium render at the first layout's aspect, stretched onto this one.
+    this.width = width
+    this.height = height
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
