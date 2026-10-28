@@ -105,6 +105,14 @@ const vertexShader = `
   // view it was drawn for to its own, applied to the ends below before the
   // extrusion so the width stays in pixels.  The identity anywhere else.
   uniform mat4 netgl_reproject;
+  // And a frame composed into a buffer of another size or pixel ratio
+  // (portal-netgl 0.6.7: a resize, netmap's ?movedpr=1): the composed
+  // viewport over the frame's (per axis) and pixel ratio over the frame's,
+  // so the extrusion is in the composed viewport's pixels, at its ratio.
+  // Without them a resize scaled the width by the change of size.  1 and
+  // (1, 1) anywhere else.
+  uniform float netgl_pixelScale;
+  uniform vec2 netgl_viewportScale;
   attribute vec3 corner;
 #ifdef STRIP
   attribute vec3 stripStart;
@@ -165,7 +173,7 @@ const vertexShader = `
     }
     vec4 cs = netgl_reproject * (projectionMatrix * vec4(vs, 1.0));
     vec4 ce = netgl_reproject * (projectionMatrix * vec4(ve, 1.0));
-    vec2 halfRes = 0.5 * uResolution;
+    vec2 halfRes = 0.5 * uResolution * netgl_viewportScale;
     vec2 d = (ce.xy / ce.w - cs.xy / cs.w) * halfRes;
     float len = length(d);
     vec2 dir = len > 1e-6 ? d / len : vec2(1.0, 0.0);
@@ -185,7 +193,7 @@ const vertexShader = `
     if (uAttenuation > 0.0) {
       w *= min(uAttenuation / safeLength(atEnd ? ve : vs), ${MAX_ATTENUATION_GAIN.toFixed(1)});
     }
-    w *= uPixelRatio;
+    w *= uPixelRatio * netgl_pixelScale;
     // Half the quad's width: half the line's, and a pixel for its edge.
     float halfW = (0.5 * w) + 1.0;
     vec4 clip = atEnd ? ce : cs;
@@ -566,6 +574,8 @@ function newWideLineMaterial(params = {}) {
       uFadeMin: {value: 1},
       // The identity, unless a NetGL host reprojects (the vertex shader's note).
       netgl_reproject: {value: new Matrix4()},
+      netgl_pixelScale: {value: 1},
+      netgl_viewportScale: {value: new Vector2(1, 1)},
     },
     vertexShader,
     fragmentShader,
