@@ -838,6 +838,32 @@ describe('a guest page\'s late frames, corrected (portal-netgl 0.6.10)', () => {
     expect(L._ecefProjection(P)[0]).toBeCloseTo(y * 200 / 480, 12)
   })
 
+  it('waits the short wait when its last frame could be corrected to the camera, the long one when not', () => {
+    const {L, node} = setup()
+    L._viewOf = () => ({size: [480, 300], heightM: 2e7, distanceScale: 1e7, position: [0, 0, 3 * R]})
+    L.guests._netgl = netgl
+    const body = {
+      name: 'earth', status: 'ready', remote: true, iframe: {style: {}}, waiting: null, holdUntil: 0,
+      receiver: {post: () => {}},
+    }
+    L.bodies.earth = body
+    const post = () => {
+      body.waiting = null
+      L.guests.postViews([{name: 'earth', node}])
+      return body.holdUntil - body.postedAt
+    }
+    // No frame in yet, or one without its view and projection: the long wait.
+    expect(post()).toBe(L.guestWaitUncorrectedMs)
+    // A frame that can be corrected: the short one.
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 1,
+      viewMatrix: L._ecefViewMatrix('earth', node), projectionMatrix: [1, 0, 0, 0, 0, 1.6, 0, 0, 0, 0, -1, -1, 0, 0, -2, 0]})
+    expect(post()).toBe(L.guestWaitMs)
+    expect(L.guestWaitMs).toBeLessThan(L.guestWaitUncorrectedMs)
+    // Off: the long one again.
+    L.guestReproject = false
+    expect(post()).toBe(L.guestWaitUncorrectedMs)
+  })
+
   it('the lights part is \'emission\' (GUEST_VERSION 3) or \'lights\' (before)', () => {
     const fbs = new Map()
     const L = withGuests(new CesiumLayers({renderer: {properties: {get: (rt) => ({__webglFramebuffer: fbs.get(rt)})}}}))
@@ -920,6 +946,36 @@ describe('a guest page\'s frame that can\'t run again', () => {
     expect(body.steps.kept).toBe(1)
     // Unseen, nothing is copied either way.
     L.guests.afterDrain(body, false, true)
+    expect(copies).toHaveLength(2)
+  })
+  it('with night lights, the day frame is kept, and drawn in a drain that had only the lights', () => {
+    const L = new CesiumLayers({})
+    L.guests = new GuestPages(L)
+    const targets = {}
+    L._cesiumTarget = (key = '_cesiumRT') => (targets[key] ??= {key})
+    L._prepareLights = () => {}
+    L.guests._prepareLights = () => {}
+    const copies = []
+    L.guests._copy = (from, to) => copies.push(`${from.key}>${to.key}`)
+    const receiver = {canRerun: true, drainedViews: []}
+    const body = {name: 'earth', receiver, steps: {drawn: 0, inStep: 0}, postedLights: true}
+    // A drain with both parts: the day frame kept.
+    L.guests.beforeDrain(body, false)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 4})
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 4, part: 'emission'})
+    L.guests.afterDrain(body, true, false)
+    expect(copies).toEqual(['_cesiumRT>_keptRT_earth'])
+    // The next drain has only the lights (the day part landed a drain
+    // earlier, or the lights re-run alone): the kept day frame is drawn.
+    L.guests.beforeDrain(body, false)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 5, part: 'emission'})
+    L.guests.afterDrain(body, true, false)
+    expect(copies).toEqual(['_cesiumRT>_keptRT_earth', '_keptRT_earth>_cesiumRT'])
+    // Without lights, a frame that can run again keeps nothing.
+    body.postedLights = false
+    L.guests.beforeDrain(body, false)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 6})
+    L.guests.afterDrain(body, true, false)
     expect(copies).toHaveLength(2)
   })
 })

@@ -43,6 +43,7 @@ export default class GuestPages {
    */
   beforeDrain(body, unseen) {
     body.drainedLights = false
+    body.drainedDay = false
     body.lightsReady = !unseen && (body.postedLights || body.lastLights) === true
     if (body.lightsReady) {
       this._prepareLights(this.layers._cesiumTarget())
@@ -63,6 +64,11 @@ export default class GuestPages {
    * run again, its picture is kept (colour and depth), and a frame that
    * drains nothing draws that: what a re-run would have.
    *
+   * The same for a drain with the night lights' part and no day frame: a
+   * view's two parts are two frame-ends, which can land in two drains when
+   * the wait runs out between them, and a re-run of the second re-runs the
+   * lights alone.  While the view has lights, the day frame is kept too.
+   *
    * @param {object} body
    * @param {boolean} drew Whether the drain replayed a frame
    * @param {boolean} unseen The body's shell wasn't drawn
@@ -75,8 +81,8 @@ export default class GuestPages {
     }
     const cesiumRT = this.layers._cesiumTarget()
     const kept = `_keptRT_${body.name}`
-    if (drew) {
-      body.kept = !body.receiver.canRerun && !unseen
+    if (drew && body.drainedDay !== false) {
+      body.kept = !unseen && (!body.receiver.canRerun || body.postedLights === true)
       if (body.kept) {
         this._copy(cesiumRT, this.layers._cesiumTarget(kept))
       }
@@ -166,6 +172,7 @@ export default class GuestPages {
     L.bodies[name] = body
     const own = () => L.bodies[name] === body
     const {renderer} = L.ui
+    this._netgl = netgl
     body.receiver = netgl.makeNetGLHostReceiver({
       gl: renderer.getContext(),
       // Pinned to the guest page's origin: the receiver may hand it a port.
@@ -237,7 +244,10 @@ export default class GuestPages {
       body.posted = viewId
       body.postedTick = this._tick
       body.postedAt = performance.now()
-      body.holdUntil = body.postedAt + L.guestWaitMs
+      // Short when a late frame can be corrected to the camera; else as
+      // long as before the correction, or it's drawn where it was.
+      body.node = node
+      body.holdUntil = body.postedAt + (this._correctable(body) ? L.guestWaitMs : L.guestWaitUncorrectedMs)
       // New York, drawn by the guest page's Cesium: the switch.
       const nyc = name === 'earth' ? L.newYork.enabled : undefined
       body.receiver.post({type: 'cesium:view', viewId, view, lights: body.postedLights, nyc})
@@ -299,11 +309,19 @@ export default class GuestPages {
     body.parts = true
     // What it carries for the correction, for the checks.
     body.lastEnd = {view: Boolean(end.viewMatrix), screenTargets: end.screenTargets?.length ?? null}
+    // The last day frame's view and projection, or none: what a late
+    // frame's wait asks (_correctable).
+    if (!isLights(end)) {
+      body.lastView = end.viewMatrix && end.projectionMatrix ?
+        {viewMatrix: end.viewMatrix, projectionMatrix: end.projectionMatrix} : null
+    }
     // Lights parts by one name (the guest page's 'emission', RFC 0002
     // §6.3; 'lights' before GUEST_VERSION 3).
     body.part = isLights(end) ? 'emission' : end.part ?? null
     if (isLights(end)) {
       body.drainedLights = true
+    } else {
+      body.drainedDay = true
     }
   }
 
@@ -335,20 +353,48 @@ export default class GuestPages {
       body.uncorrectable = (body.uncorrectable ?? 0) + 1
       return null
     }
-    body.corrected = (body.corrected ?? 0) + 1
-    const viewMatrix = this.layers._ecefViewMatrix(body.name, body.node)
-    const projectionMatrix = this.layers._ecefProjection(end.projectionMatrix)
-    const correction = netgl.reprojection(end, {viewMatrix, projectionMatrix})
-    body.lastCorrection = {from: end.viewMatrix, projection: end.projectionMatrix, to: viewMatrix, correction}
-    // The shader applies it in float32.  A move t is scaled by about
-    // t / (2 near) in its columns for z and w (Cesium's near is 0.1 m low
-    // down), which then cancel: a 100 m move is 500, well under a pixel;
-    // 100 km is 6e5, and garbage.  Past that the frame is drawn as it came.
-    if (!correction || correction.some((x) => !(Math.abs(x) < MAX_CORRECTION))) {
+    const correction = this._toCamera(netgl, body, end)
+    if (!correction) {
       body.refused = (body.refused ?? 0) + 1
       return null
     }
+    body.corrected = (body.corrected ?? 0) + 1
     return correction
+  }
+
+
+  /**
+   * The correction from a frame's view and projection to this frame's
+   * camera, or null where the shader couldn't carry it.  It applies it in
+   * float32, and a move t is scaled by about t / (2 near) in its columns
+   * for z and w (Cesium's near is 0.1 m low down), which then cancel: a
+   * 100 m move is 500, well under a pixel; 100 km is 6e5, and garbage.
+   *
+   * @param {object} netgl portal-netgl
+   * @param {object} body
+   * @param {{viewMatrix: Array<number>, projectionMatrix: Array<number>}} from
+   * @returns {?Array<number>}
+   */
+  _toCamera(netgl, body, from) {
+    const viewMatrix = this.layers._ecefViewMatrix(body.name, body.node)
+    const projectionMatrix = this.layers._ecefProjection(from.projectionMatrix)
+    const correction = netgl.reprojection(from, {viewMatrix, projectionMatrix})
+    body.lastCorrection = {from: from.viewMatrix, projection: from.projectionMatrix, to: viewMatrix, correction}
+    return correction && correction.every((x) => Math.abs(x) < MAX_CORRECTION) ? correction : null
+  }
+
+
+  /**
+   * Whether a body's last frame could be composed for this frame's camera
+   * (_toCamera), if this frame's is late: what the wait for it hangs on.
+   *
+   * @param {object} body
+   * @returns {boolean}
+   */
+  _correctable(body) {
+    const end = body.lastView
+    return Boolean(this.layers.guestReproject && this._netgl && body.node && end &&
+      this._toCamera(this._netgl, body, end))
   }
 
 

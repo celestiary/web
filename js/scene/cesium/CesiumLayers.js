@@ -138,7 +138,12 @@ export default class CesiumLayers {
     this.guestPage = guestOptions(search)
     // How long a frame waits for a guest's frame of its view before it's
     // drawn with the last one in (?cesiumWait=ms; awaitingGuests).
-    this.guestWaitMs = Number(new URLSearchParams(search).get('cesiumWait')) || GUEST_WAIT_MS
+    // Short when a late frame can be corrected to the camera, as long as
+    // before the correction when it can't (GuestPages.postViews); a
+    // ?cesiumWait sets both.
+    const wait = Number(new URLSearchParams(search).get('cesiumWait'))
+    this.guestWaitMs = wait || GUEST_WAIT_MS
+    this.guestWaitUncorrectedMs = wait || GUEST_WAIT_UNCORRECTED_MS
     // A late frame from a guest page is composed for this frame's camera
     // (portal-netgl's host reprojection, named targets: GuestPages);
     // ?cesiumReproject=0 draws it as it was, to compare.
@@ -1902,6 +1907,10 @@ const STENCIL_REF = 1
 // Short, since a late frame is corrected to the camera rather than drawn
 // where it was (RFC 0003 §4.6): 100 ms until the correction.
 const GUEST_WAIT_MS = 30
+// Its frame couldn't be corrected (no view and projection, a move too
+// large for float32): 100 ms, the wait before the correction, since a frame
+// drawn where it was shows the shell's edge uncovered near the ground.
+const GUEST_WAIT_UNCORRECTED_MS = 100
 // Smallest on-screen radius, in pixels, at which a body is drawn by Cesium:
 // under a few pixels across, celestiary's own mesh shows the same.
 const MIN_PIXEL_RADIUS = 2
