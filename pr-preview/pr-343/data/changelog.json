@@ -23,6 +23,26 @@
         "url": "https://github.com/celestiary/web/issues/321"
       },
       "permalink": null,
+      "image": null
+    },
+    {
+      "id": "2026-10-28-earth-s-detailed-surface-keeps-its-shape-after",
+      "date": "2026-10-28",
+      "headline": "Earth's detailed surface keeps its shape after the window changes size",
+      "text": "Up close, Earth's detailed surface (and the Moon's and Mars's) was drawn at the window's size when the page opened. After the window changed size, the widgets dock opened or the browser's developer tools appeared, it came out stretched or squashed, its horizon off the atmosphere's edge, until a reload. Now it follows the window.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 335,
+          "url": "https://github.com/celestiary/web/pull/335"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": null,
       "image": null,
       "kind": "fix"
     },
