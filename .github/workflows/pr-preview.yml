@@ -49,6 +49,9 @@ jobs:
           data-base-url: ${{ steps.data.outputs.copy != 'true' && 'https://celestiary.org/' || '' }}
           # A preview is a copy: keep it out of search results.
           noindex: 'true'
+          # ?cesium=iframe loads this PR's guest page (cesium-guest.yml
+          # deploys it there), not main's.
+          cesium-guest-page: https://pablo-mayrgundter.github.io/cesium-portal/pr-preview/pr-${{ github.event.number }}/cesium-guest.html
           # The large data is dropped below, so its LFS files aren't needed.
           lfs: ${{ steps.data.outputs.copy }}
 

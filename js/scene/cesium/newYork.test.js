@@ -106,6 +106,15 @@ describe('the page\'s import map', () => {
     // Before index.js, the first module script.
     expect(html.indexOf('type="importmap"')).toBeLessThan(html.indexOf('<script type="module"'))
   })
+
+  it('is the Cesium guest page\'s too, which draws the city in iframe mode', () => {
+    const map = (file) => {
+      const html = readFileSync(new URL(`../../../public/${file}`, import.meta.url), 'utf8')
+      expect(html.indexOf('type="importmap"')).toBeLessThan(html.indexOf('<script type="module"'))
+      return JSON.parse(html.match(/<script type="importmap">([\s\S]*?)<\/script>/)?.[1]).imports
+    }
+    expect(map('cesium-guest.html')).toEqual(map('index.html'))
+  })
 })
 
 

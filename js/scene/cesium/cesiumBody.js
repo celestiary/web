@@ -477,6 +477,42 @@ export function addNightLights(Cesium, widget, imagery) {
 
 
 /**
+ * Render a body's night lights' frame: only its night layer, unlit, on
+ * black (CESIUM.md, "Night lights").  The other layers are skipped (alpha
+ * 0), not hidden, so their tiles stay loaded for the day frame; everything
+ * is put back after, even if the render throws.  On the page
+ * (CesiumLayers._drawNightLights) and on a guest page (cesium-guest/guest.js)
+ * alike.
+ *
+ * @param {object} body A body's, from createWidget, with its night layer
+ * @param {Function} render Renders the widget once
+ */
+export function renderNightLights(body, render) {
+  const {Cesium, widget, night} = body
+  const {globe} = widget.scene
+  const layers = widget.imageryLayers
+  const alphas = []
+  for (let i = 0; i < layers.length; i++) {
+    const layer = layers.get(i)
+    alphas.push([layer, layer.alpha])
+    layer.alpha = layer === night ? 1 : 0
+  }
+  const baseColor = globe.baseColor
+  globe.baseColor = Cesium.Color.BLACK
+  globe.enableLighting = false
+  try {
+    render()
+  } finally {
+    for (const [layer, alpha] of alphas) {
+      layer.alpha = alpha
+    }
+    globe.baseColor = baseColor
+    globe.enableLighting = true
+  }
+}
+
+
+/**
  * @param {string} url Absolute, or relative to the page's base
  * @returns {string} Absolute
  */

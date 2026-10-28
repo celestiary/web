@@ -84,6 +84,10 @@ export function formatLatLng(lat, lng) {
 
 
 const STEP_BACK = 10
+// How soon a guest page's ground height must come to aim a landing again,
+// ms (_reaimLanding): later, the approach is under way, and the ground floor
+// lifts the camera instead.
+const REAIM_MS = 500
 // A go to a satellite arrives above it unless the line in already does:
 // the cosine of the line from the vertical, at least.
 const SAT_ARRIVAL_MIN_UP = 0.3
@@ -2446,8 +2450,8 @@ export default class Scene {
     // loaded so far; ThreeUI keeps the camera over the ground as finer ones
     // arrive).  Not for a permalink restore: its altitude was measured over
     // the sphere, terrain included.
-    const ground = opts.instant ? 0 : this.ui.layers?.groundHeightAt?.(bodyNode, lat, lng) ?? 0
-    const arrivalLocal = latLngAltToBodyFixed(lat, lng, alt + ground, r)
+    const ground = opts.instant ? 0 : this.ui.layers?.groundHeightAt?.(bodyNode, lat, lng) ?? null
+    const arrivalLocal = latLngAltToBodyFixed(lat, lng, alt + (ground ?? 0), r)
 
     if (opts.instant) {
       // Snap into the landed pose; permalink restore will overwrite
@@ -2462,6 +2466,9 @@ export default class Scene {
       // owns both position AND orientation per frame.
       Shared.targets.tween = newCameraLandTween(this.ui.camera, arrivalLocal, r)
       Shared.targets.tweenNextFn = null
+      if (ground === null) {
+        this._reaimLanding(bodyNode, lat, lng, alt, r)
+      }
     }
 
     // On the surface a drag looks around.  It stays that way on zooming
@@ -2473,6 +2480,32 @@ export default class Scene {
     Shared.targets.landed = true
 
     this.setTarget(opts.target ?? bodyName, {look: false})
+  }
+
+
+  /**
+   * A Cesium layer on a guest page knows the terrain's height at a landing
+   * place only by message (CesiumLayers.requestGroundHeight): land aims at
+   * the sphere meanwhile, and this aims the landing again over the terrain
+   * when the answer comes, if it's the same landing and it has barely begun
+   * (REAIM_MS).  Later, the ground floor lifts the camera as it arrives
+   * (ThreeUi._keepAboveGround), as with coarse tiles on the page.
+   *
+   * @param {object} bodyNode
+   * @param {number} lat Degrees
+   * @param {number} lng Degrees, east-positive
+   * @param {number} alt Metres over the ground
+   * @param {number} r The body's radius, metres
+   */
+  _reaimLanding(bodyNode, lat, lng, alt, r) {
+    const asked = performance.now()
+    const tween = Shared.targets.tween
+    this.ui.layers?.requestGroundHeight?.(bodyNode, lat, lng)?.then((height) => {
+      if (height === null || Shared.targets.tween !== tween || performance.now() - asked > REAIM_MS) {
+        return
+      }
+      Shared.targets.tween = newCameraLandTween(this.ui.camera, latLngAltToBodyFixed(lat, lng, alt + height, r), r)
+    })
   }
 
 

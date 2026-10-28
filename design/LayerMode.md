@@ -41,7 +41,7 @@ stations and ASes that the satellites link to.
 
 ## The contract (host ↔ guest)
 
-The guest is portal-netgl 0.6.7's (pinned), and wire-compatible with its
+The guest is portal-netgl 0.6.8's (pinned; the scales below are 0.6.7's), and wire-compatible with its
 deck.gl host from 0.4.0 on (`attachNetGLDeckLayer` and `iframeTransport`,
 portal #36). Its messages are shaped as portal RFC 0001 has them
 ([docs/rfcs/0001-globe-orbit-layers.md](https://github.com/pablo-mayrgundter/portal/blob/claude/rfc-globe-orbit-layers/docs/rfcs/0001-globe-orbit-layers.md):

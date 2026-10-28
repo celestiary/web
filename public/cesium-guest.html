@@ -5,6 +5,19 @@
   <title>Celestiary's Cesium guest</title>
   <meta name="robots" content="noindex">
   <style>html, body { margin: 0; background: transparent; color: #ccc; font: 13px sans-serif; overflow: hidden; }</style>
+  <!-- For Slop New York, drawn by this page's Cesium when the host asks
+       (CESIUM.md "New York"): its modules import three.js's dev build by
+       these bare names.  index.html's map, the same (newYork.test.js). -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@8d737d9ceb701eedff7bba3086cefcbfb7fea9c5/build/three.webgpu.js",
+        "three/webgpu": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@8d737d9ceb701eedff7bba3086cefcbfb7fea9c5/build/three.webgpu.js",
+        "three/tsl": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@8d737d9ceb701eedff7bba3086cefcbfb7fea9c5/build/three.tsl.js",
+        "three/addons/": "https://cdn.jsdelivr.net/gh/mrdoob/three.js@8d737d9ceb701eedff7bba3086cefcbfb7fea9c5/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
   <script type="module" src="cesium-guest/guest.js"></script>
