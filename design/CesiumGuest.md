@@ -626,8 +626,27 @@ atmosphere and labels moved on; now it's composed for this frame's camera.
   entry over 10^4 is refused and the frame drawn as it came
   (`stats().refused`).  A turn where the camera is costs nothing of the
   kind.
-- **The wait** is 30 ms (was 100): a late frame is now corrected rather
-  than left where it was (RFC 0003 §4.6; Q7 asks to measure 0 against it).
+- **The wait** is 30 ms (was 100) when the frame in hand could be corrected
+  to the camera (`GuestPages._correctable`, asked at each post), and 100 ms
+  when it couldn't (no view and projection, a move too large): such a frame
+  is drawn where it was, and near the ground, where the camera moves
+  kilometres a frame, that left the shell's edge uncovered, white.  A
+  headless dive from 3.4 Mm with every frame at 30 ms: 5 of 16 late frames
+  refused; at 100, none of 3.  `?cesiumWait` sets both (RFC 0003 §4.6; Q7
+  asks to measure 0 against it).
+- **The day frame is kept while a view has night lights.**  A view's two
+  parts are two frame-ends, which can land in two drains when the wait runs
+  out between them, and a re-run of the second re-runs the lights alone:
+  that frame drew no ground.  A drain with no day frame now draws the kept
+  one (`afterDrain`), as phase 4 does for a frame that can't run again.
+- **The view's size follows the canvas.**  `ThreeUi.onResize` never updated
+  `width` and `height`, which size Cesium (`_viewOf`): after the dock's
+  layout, a resize or the developer tools, Cesium drew at the first
+  layout's aspect, stretched onto the canvas's, the body squashed under its
+  atmosphere until a reload.  On the page too: production had it.  The
+  correction lands in the canvas's projection now (`_ecefProjection`), not
+  the frame's, since the copy stretches a frame drawn at the old size to the
+  new one.
 - **The night lights' part** is `'emission'` (RFC 0002 §6.3's name) from
   `GUEST_VERSION` 3; the host takes `'lights'` too, from an older page.
 

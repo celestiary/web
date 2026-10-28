@@ -39,6 +39,19 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Earth's detailed surface keeps its shape after the window changes size
+
+Up close, Earth's detailed surface (and the Moon's and Mars's) was drawn at the window's size when
+the page opened. After the window changed size, the widgets dock opened or the browser's developer
+tools appeared, it came out stretched or squashed, its horizon off the atmosphere's edge, until a
+reload. Now it follows the window.
+
+- Date: 2026-10-28
+- PR: [#335](https://github.com/celestiary/web/pull/335)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+- Kind: fix
+
 ### Starlink drawn once with its overlay and the satellites both on
 
 With the Starlink overlay (`S`) and Earth's satellites both on, each Starlink was drawn twice, as a
