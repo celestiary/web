@@ -54,6 +54,7 @@ tried and dropped.
 | Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
+| The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md) |
 | Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
 | Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |

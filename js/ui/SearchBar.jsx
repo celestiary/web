@@ -86,8 +86,8 @@ export default function SearchBar({celestiary, home = false}) {
   // (targetPath.js).  The hover/anchor logic doesn't branch on which one is
   // active.
   const breadcrumbItems = useMemo(
-      () => breadcrumbFor(committedTarget, committedPath),
-      [committedTarget, committedPath],
+      () => breadcrumbFor(committedTarget, committedPath, (name) => celestiary?.scene?.objects?.[name]?.props?.label),
+      [committedTarget, committedPath, celestiary],
   )
 
   const anchorPath = useMemo(

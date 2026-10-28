@@ -9,7 +9,7 @@ import {
 import Asterisms from './Asterisms.js'
 import ColonizationLines from './ColonizationLines.js'
 import Galaxies, {galaxiesInView} from './Galaxies.js'
-import LagrangeMarks from './LagrangeMarks.js'
+import LagrangeMarks, {newRings} from './LagrangeMarks.js'
 import RegimeMarks from './RegimeMarks.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
@@ -31,6 +31,10 @@ import Stars from './Stars.js'
 import StellarFrame from './StellarFrame.js'
 import {Fade, FadeDriver, fadeObject} from './fade.js'
 import {latLngAltToBodyFixed} from '../coords.js'
+import {J2000_JD, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
+import {orbitAt} from './meanElements.js'
+import {newLabels} from './overlayMarks.js'
+import {newWideLineStrip} from './wideLines.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {faceKeepingRoll} from '../faceKeepingRoll.js'
 import {rehangPlatform} from '../follow.js'
@@ -177,6 +181,10 @@ export default class Scene {
     this.asterisms = null
     // Human expansion lines (ColonizationLines), built by the expansion drawer.
     this.colonization = null
+    // The Rubin Observatory and 2026 ED138's apparent path (rubin/install.js),
+    // built by the Rubin app (getRubin), with whether it's wanted now.
+    this.rubin = null
+    this._rubinWanted = false
     this.orbitsVisible = true
     // Toggleable settings.  Initialized to the runtime state right after
     // Scene construction (before any user / firstTime toggle): asterisms
@@ -255,6 +263,8 @@ export default class Scene {
     // promise while it loads, then its module.
     this._flights = undefined
     this.loadFlights = () => import('./craft/flights.js')
+    // The Rubin feature, the same way (getRubin).
+    this.loadRubin = () => import('./rubin/install.js')
     // Whether vsopAt is VSOP87C itself yet (Animation.vsopReady): set by
     // Celestiary.  Absent, as in tests, it's taken as ready.
     this.vsopReady = null
@@ -3149,6 +3159,45 @@ export default class Scene {
       this.stars.add(this.colonization)
     }
     return this.colonization
+  }
+
+
+  /**
+   * The Rubin Observatory on Earth and 2026 ED138's apparent path
+   * (rubin/Rubin.md), built the first time the Rubin app asks, from a
+   * dynamic import: nothing of it is in the first load.
+   *
+   * @returns {Promise<?object>} install.js's {observatory, path, dispose};
+   *   null while Earth or the body isn't in the scene yet, or once it's
+   *   been removed meanwhile
+   */
+  async getRubin() {
+    this._rubinWanted = true
+    if (this.rubin) {
+      return this.rubin
+    }
+    if (!this.objects.earth || !this.objects['ed138.orbitPosition']) {
+      return null
+    }
+    const {installRubin} = await this.loadRubin()
+    if (!this._rubinWanted) {
+      return null
+    }
+    // The first load's functions it needs, handed in rather than imported
+    // there (rubin/rubin.js says why).
+    this.rubin ??= installRubin(this, {
+      orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD, newRings, newLabels, newWideLineStrip,
+      latLngAltToBodyFixed, OVERLAY_LAYER: Shared.OVERLAY_LAYER, ASTRO_UNIT_METER: Shared.ASTRO_UNIT_METER,
+    })
+    return this.rubin
+  }
+
+
+  /** Out of the scene (the app's stop). */
+  removeRubin() {
+    this._rubinWanted = false
+    this.rubin?.dispose()
+    this.rubin = null
   }
 
 

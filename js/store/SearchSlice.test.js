@@ -151,6 +151,14 @@ describe('the target (committedTarget) and the breadcrumb', () => {
     ])
   })
 
+  it('takes a body\'s own label where it has one', () => {
+    const labelOf = (name) => (name === 'ed138' ? '2026 ED138' : undefined)
+    expect(breadcrumbItems({kind: 'body', name: 'ed138'}, ['sun', 'ed138'], labelOf)).toEqual([
+      {label: 'Sun', hash: 'sun'},
+      {label: '2026 ED138', hash: 'sun/ed138'},
+    ])
+  })
+
   it('a satellite is Earth\'s path, then its name, linking to sat:<NORAD>', () => {
     const iss = {kind: 'satellite', id: 25544, name: 'ISS', body: 'earth'}
     expect(breadcrumbItems(iss, ['sun', 'earth'])).toEqual([

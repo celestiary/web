@@ -269,7 +269,8 @@ export default class ControlPanel {
     html += sectionHtml('system', isStar ? 'Planets' : 'Moons', String(system.length),
         systemHtml(system, pathPrefix), true)
     html += sectionHtml('more', 'More data', '', rowsHtml(more))
-    return panelHtml({name: capitalize(body.name), kind: kindOf(body.type, body.name), fact: this._factOf(body)}, html)
+    return panelHtml({name: body.label ?? capitalize(body.name), kind: kindOf(body.type, body.name, body.kind),
+      fact: this._factOf(body)}, html)
   }
 
 

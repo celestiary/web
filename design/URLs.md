@@ -310,6 +310,7 @@ Each feature has its own label:
                     showing, the apps pinned and running
 "apps.<id>":        one running app's own state, a sub-namespace of apps
 "apps.expansion":   the Human Expansion app
+"apps.rubin":       the Rubin Observatory app
 "news":             the changelog tour: a link that starts it (read, never
                     written)
 ```
@@ -650,6 +651,28 @@ others.
 ```
 
 No `apps` token: the drawer closed, undocked, nothing running.
+
+#### `apps.rubin`
+
+The Rubin Observatory app ([js/scene/rubin/Rubin.md](../js/scene/rubin/Rubin.md)):
+the telescope on Cerro Pachón following 2026 ED138, and the object's
+apparent path on the sky.
+
+```
+path=0             the apparent path off (on by default)
+night=<days>       the night the run's slider is on, as days since 1970 at
+                   0h UTC (15 May 2026 by default)
+```
+
+```
+#…;apps:open,view=rubin                        open on the app, the defaults
+#…;apps:open,view=rubin;apps.rubin:path=0,night=20544   the path off, the slider on 1 April 2026
+```
+
+- **The clock is the `t=` token's.**  Watching a night sets the clock, and
+  the link carries the time and rate as ever; the token holds only what
+  the app's own controls say.
+- **A bad value is its default.**
 
 ### News Token
 
