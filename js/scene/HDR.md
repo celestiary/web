@@ -1083,7 +1083,9 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    a frame meters the same with every overlay on as off.  What still
    reaches the buffer display-valued is a body's far point (a few pixels,
    kept in the scene pass so the day sky hides it as it does the stars;
-   DESIGN.md).  The rings are lit in exposure units (rings.md,
+   DESIGN.md; past 2^22 radii from the camera it is the only picture of a
+   body, never handed over to a mesh whatever the field, DESIGN.md [the far
+   point](../../DESIGN.md#the-far-point)).  The rings are lit in exposure units (rings.md,
    "Lighting"), so the meter reads them as it does the globe.
 9. The gain **eases in log space** (`easeExposure`), with a time constant
    of `METER_TAU_UP_SECONDS` (0.75 s) rising, the eye adapting to the dark,

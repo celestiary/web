@@ -39,6 +39,17 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### A distant body stays a point where its mesh would break up
+
+Zoomed far in on a body tens of astronomical units away, such as 2026 ED138 from the Rubin Observatory's
+seat, its disc blinked, drew as a crescent or vanished as time ran: the graphics card can't place a
+mesh that small against its distance. Past 4 million radii away a body now stays a point at any
+field of view, steady from frame to frame. Pluto seen from Earth is one at every zoom too.
+
+- Date: 2026-10-28
+- PR: [#343](https://github.com/celestiary/web/pull/343)
+- Issue: [#338](https://github.com/celestiary/web/issues/338)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
 ### Earth's detailed surface keeps its shape after the window changes size
 
 Up close, Earth's detailed surface (and the Moon's and Mars's) was drawn at the window's size when
