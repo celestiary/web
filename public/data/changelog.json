@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "id": "2026-10-28-rubin-s-dwarf-planet-candidate-and-the",
+      "date": "2026-10-28",
+      "headline": "Rubin's dwarf planet candidate, and the telescope that found it",
+      "text": "2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's system on JPL's orbit: about 1,000 km across, 46 au from the Sun, beyond Pluto. A new app in the widgets drawer puts the Rubin Observatory on Cerro Pachón with its telescope following the object through a night of the discovery run, and draws the object's path on the sky over those months: 2° of retrograde that is the Earth's own motion reflected, not the orbit.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 320,
+          "url": "https://github.com/celestiary/web/pull/320"
+        }
+      ],
+      "epic": {
+        "number": 114,
+        "title": "Asteroids, comets, satellites",
+        "url": "https://github.com/celestiary/web/issues/114"
+      },
+      "permalink": "#sun/ed138",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-10-26-starlink-drawn-once-with-its-overlay-and-the",
       "date": "2026-10-26",
       "headline": "Starlink drawn once with its overlay and the satellites both on",

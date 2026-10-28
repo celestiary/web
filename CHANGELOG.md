@@ -39,6 +39,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Rubin's dwarf planet candidate, and the telescope that found it
+
+2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's
+system on JPL's orbit: about 1,000 km across, 46 au from the Sun, beyond Pluto. A new app in the
+widgets drawer puts the Rubin Observatory on Cerro Pachón with its telescope following the object
+through a night of the discovery run, and draws the object's path on the sky over those months: 2°
+of retrograde that is the Earth's own motion reflected, not the orbit.
+
+- Date: 2026-10-28
+- PR: [#320](https://github.com/celestiary/web/pull/320)
+- Epic: [#114](https://github.com/celestiary/web/issues/114) Asteroids, comets, satellites
+- Permalink: [Open this view](https://celestiary.org/#sun/ed138)
+- Featured: yes
+
 ### Starlink drawn once with its overlay and the satellites both on
 
 With the Starlink overlay (`S`) and Earth's satellites both on, each Starlink was drawn twice, as a
