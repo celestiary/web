@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'bun:test'
 import {Object3D, Vector3} from 'three'
-import ApparentPath, {SKY_RADIUS_M} from './ApparentPath.js'
+import ApparentPath from './ApparentPath.js'
 import {ASTRO_UNIT_METER, OVERLAY_LAYER} from '../../shared.js'
 import {newRings} from '../LagrangeMarks.js'
 import {J2000_JD, J2000_OBLIQUITY_DEG, precessionQuaternion, utcToTtJulianDay} from '../celestialFrame.js'
@@ -41,10 +41,13 @@ function raDec(x, y, z) {
 describe('ApparentPath', () => {
   const path = new ApparentPath({elements, earthAt, deps})
 
-  it('lays the daily directions from Earth at the sky radius, March to August 2026', () => {
+  it('lays the daily positions from Earth at the body\'s true distance, 45 to 47 au, March to August 2026', () => {
     expect(path.jds).toHaveLength(154)
+    const AU = 1.495978707e11
     for (let i = 0; i < path.jds.length; i++) {
-      expect(Math.hypot(path.points[3 * i], path.points[(3 * i) + 1], path.points[(3 * i) + 2])).toBeCloseTo(SKY_RADIUS_M, -5)
+      const d = Math.hypot(path.points[3 * i], path.points[(3 * i) + 1], path.points[(3 * i) + 2]) / AU
+      expect(d).toBeGreaterThan(45)
+      expect(d).toBeLessThan(47.6)
     }
   })
 
@@ -71,8 +74,8 @@ describe('ApparentPath', () => {
     expect(path.marker.visible).toBe(true)
     const at = path.marker.geometry.getAttribute('position').array
     for (let k = 0; k < 3; k++) {
-      // float32 at 1e12 m is good to about 1e5 m.
-      expect(Math.abs(at[k] - ((path.points[(3 * 50) + k] + path.points[(3 * 51) + k]) / 2))).toBeLessThan(1e6)
+      // float32 at 7e12 m is good to about 5e5 m.
+      expect(Math.abs(at[k] - ((path.points[(3 * 50) + k] + path.points[(3 * 51) + k]) / 2))).toBeLessThan(2e6)
     }
     path.place(path.jds[path.jds.length - 1] + 1)
     expect(path.marker.visible).toBe(false)

@@ -200,14 +200,17 @@ maintainer's ask, until the complete scene's enclosure is in).  The
 ## The apparent path
 
 `ApparentPath`: for each day of the run (1 March to 1 August 2026) the
-unit direction from Earth's centre to the body, in the ecliptic of J2000
-(the body by `orbitAt`, Earth by the app's ephemeris precessed back),
-laid `SKY_RADIUS_M` (1e12 m, 6.7 au) out, as a wide line strip on the
-overlay layer with the orbit lines, the first of each month named, and a
-ring where the body is at the clock's time while it's in the span.
-Hung from Earth's `orbitPosition`, turned to the date by the precession
-each frame as the orbit lines are, so it stays on the stars.  From the
-site the parallax of 1e12 m against Earth's radius is nothing.
+body's position from Earth's centre, in the ecliptic of J2000 (the body
+by `orbitAt`, Earth by the app's ephemeris precessed back), at its true
+distance (45 to 47 au), as a wide line strip on the overlay layer with the
+orbit lines, the first of each month named, and a ring where the body is
+at the clock's time while it's in the span.  Hung from Earth's
+`orbitPosition`, turned to the date by the precession each frame as the
+orbit lines are, so it stays on the stars.  A first cut laid the
+directions out at a fixed 1e12 m (6.7 au), where from the ground the ring
+was 1.1″ off the body, the parallax of Earth's radius at 6.7 au against
+47 au, and the two came apart in a 20″ field on the preview; at the true
+distance the ring is on the body from anywhere.
 
 ## The app
 
@@ -247,6 +250,16 @@ unpinned, removes them (`Scene.removeRubin`).
 - **The dome and the building**: the shell switch (`setShell`).
 - **Its path on the sky**: the switch for the arc.
 
+**From the search**: "Watch 2026 ED138 from the Rubin Observatory"
+(`store/appViews.js`, [the search's views](../../search/DESIGN.md#views)):
+Go opens the app and watches the night (`askRubinWatch` marks `watch` in
+the app's state; the panel runs `watchNight` once the observatory is in
+and clears it; it's not in the link).  "rubin" finds, in order, the
+crater on the Moon, the observatory (a place on Earth), the view and the
+body (the view's aliases leave out "rubin" itself, which put it first);
+the places were lost to the index's rebuilds on the first search before
+(search/DESIGN.md, "Places in the index").
+
 **State in the link** (`apps.rubin`, design/URLs.md): `path=0` with the
 path off, `night=<days since 1970>` for a night other than 15 May,
 `shell=0` with the shell off.  The clock is the `t=` token's, as ever.
@@ -263,7 +276,7 @@ request budget.  So `Scene.getRubin` hands `installRubin` the functions
 them as `deps`; `rubin.js` has its own radians and its own radial (the
 test holds it to coords.js's).  The panel, its icon and the token's codec
 are in the first load, 2 KB gzipped, which was at its budget (729 of 730
-KB, esbuild/budget.js: 732 then, 733 with the seat and the shell switch).  Loading the panel lazily too cost more,
+KB, esbuild/budget.js: 732 then, 733 with the seat and the shell switch, 734 with the search's view).  Loading the panel lazily too cost more,
 735 and three scripts: what it shares with the App (MUI's controls, the
 camera's tweens, the store) was split out the same way.  The panel
 repeats the few numbers it needs of `rubin.js` (`store/rubinApp.js`)

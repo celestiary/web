@@ -13,6 +13,10 @@ const entries = {
     payload: {galaxy: GALAXY}},
   place: {id: 'loc:earth:paris', displayName: 'Paris', kind: 'place', path: 'milkyway/sun/earth/paris',
     payload: {body: 'earth', lat: 48.8, lng: 2.3, alt: 35}},
+  view: {id: 'view:rubin-watch', displayName: 'Watch 2026 ED138 from the Rubin Observatory', kind: 'view',
+    path: 'milkyway/sun/jupiter', payload: {target: 'jupiter', open: (c) => c.calls.push(['open'])}},
+  viewAway: {id: 'view:away', displayName: 'A view of nothing here', kind: 'view', path: 'milkyway',
+    payload: {target: 'mars', open: (c) => c.calls.push(['open'])}},
 }
 
 
@@ -63,6 +67,14 @@ describe('lookAtEntry (target)', () => {
     expect(c.calls).toEqual([['setTarget', PARIS]])
   })
 
+  it('targets a view\'s body when it is in the scene, else nothing, and never opens it', () => {
+    lookAtEntry(entries.view, c)
+    expect(c.calls).toEqual([['setTarget', 'jupiter']])
+    c.calls.length = 0
+    lookAtEntry(entries.viewAway, c)
+    expect(c.calls).toEqual([])
+  })
+
   it('ignores a body with no scene object, and a missing entry', () => {
     const warn = console.warn
     console.warn = () => {}
@@ -95,6 +107,11 @@ describe('goToEntry (go)', () => {
   it('travels to a star, which targets it', () => {
     goToEntry(entries.star, c)
     expect(c.calls).toEqual([['goTo', STAR, 'Sirius']])
+  })
+
+  it('opens a view, with the celestiary, and travels nowhere itself', () => {
+    goToEntry(entries.view, c)
+    expect(c.calls).toEqual([['open']])
   })
 
   it('lands on a place, which stays the target', () => {

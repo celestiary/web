@@ -74,3 +74,20 @@ export function decodeRubinToken(value) {
     shell: named.shell === '1' ? true : named.shell === '0' ? false : d.shell,
   }
 }
+
+
+/**
+ * Ask the Rubin app to watch the night: open it (the drawer on it, the
+ * app running) and set `watch` in its state, which the panel acts on once
+ * the observatory is in (RubinApp.jsx), then clears.  The search's "Watch
+ * 2026 ED138 from the Rubin Observatory" (appViews.js).
+ * Not in the link: encodeRubinToken leaves it out.
+ *
+ * @param {object} store The zustand store (useStore)
+ */
+export function askRubinWatch(store) {
+  const {dispatchWidgets} = store.getState()
+  dispatchWidgets({type: 'openApp', id: RUBIN_APP_ID})
+  const current = store.getState().widgets.appStates[RUBIN_APP_ID] ?? DEFAULT_RUBIN
+  dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {...current, watch: true}})
+}

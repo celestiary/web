@@ -35,8 +35,10 @@ export const STATIC_BUDGET = {
   // and token codec) took it to 731.  Loading the panel lazily cost more,
   // 735 and three scripts, in the shared chunks the split made.  733 on
   // 2026-10-28: the seat the camera rides (Scene.rideSeat, its near plane
-  // in ThreeUI) and the panel's seat button and shell switch.
-  totalGzipKB: 733,
+  // in ThreeUI) and the panel's seat button and shell switch; 734 the same
+  // day for the search's views (ViewsProvider, store/appViews.js) and the
+  // bar's places reload.
+  totalGzipKB: 734,
   // The largest single first-load file, minified.  Main: 695 KB.
   largestChunkMinifiedKB: 765,
 }

@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "id": "2026-10-28-places-found-again-on-the-homepage-s-search",
+      "date": "2026-10-28",
+      "headline": "Places found again on the homepage's search",
+      "text": "Typing a place on the homepage, \"rubin\" for the Rubin Observatory or the Moon's crater Rubin, lost the places a second after showing them, as the search's first loads landed. They stay now. And the search finds an app's view: \"Watch 2026 ED138 from the Rubin Observatory\" opens the app on the night.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 320,
+          "url": "https://github.com/celestiary/web/pull/320"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-10-28-earth-s-clouds-can-be-switched-off",
       "date": "2026-10-28",
       "headline": "Earth's clouds can be switched off",

@@ -130,6 +130,28 @@ Sun › Earth in the breadcrumb: the solar system) and from the root.
   click on the label does) and path `milkyway/sun/earth/austin`; the panel
   previews its body.
 
+- **After a rebuild the bar loads them again.**  The first search's own
+  loads (the stars' tiers, the galaxies, the satellites: `loadOnSearch`)
+  `invalidate` the index as they land, which clears Tier C too, and the
+  bar's `ensureScope` effect ran only when the scope or the query's
+  presence changed: "rubin" on the homepage had the crater and the
+  observatory for a second, then lost them to the galaxies' arrival and
+  showed 2026 ED138 alone (2026-10-28).  The effect runs on `indexVersion`
+  too now; the places' entries are cached per body in the provider, so
+  the reload is a Fuse build each.
+
+### Views
+
+An app's way in as a result (`ViewsProvider`, kind `view`, from
+`store/appViews.js`): "Watch 2026 ED138 from the Rubin Observatory".  Go
+opens the app and runs the view (`payload.open(celestiary)`:
+`askRubinWatch` opens the drawer on the app and marks `watch` in its
+state, which the panel acts on once the observatory is in, then clears);
+a pick or Look at targets the view's body (`payload.target`) while it's in
+the scene, so the panel previews it.  The views live in `store/`, not
+with the panels in `ui/apps.jsx`: the search needs none of their React,
+and Celestiary's test imports the index.
+
 ### Populations
 
 A body's population (Earth's satellites: js/scene/population/Population.md)
@@ -215,6 +237,8 @@ camera still turns to face it.  Per kind:
   aimed at `worldGroup.localToWorld(starPosition(star))`; `g` travels to it.
 - **Places:** `Scene.setTarget({kind: 'place', body, name, lat, lng, alt})`,
   the tween aimed at the surface point; `g` lands there.
+- **Views:** the view's body, as a body; Go opens the app instead
+  ([Views](#views)).
 
 All three are the one targeting function, `Scene.setTarget` (DESIGN.md
 [the target](../../DESIGN.md#the-target)).

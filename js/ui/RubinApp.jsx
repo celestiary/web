@@ -92,6 +92,10 @@ export default function RubinApp({celestiary}) {
   const [ready, setReady] = useState(false)
   const [readout, setReadout] = useState(null)
   const rubinRef = useRef(null)
+  // A watch asked from outside (askRubinWatch: the search's view), held
+  // until the observatory is in.
+  const watchAsked = useStore((state) => state.widgets.appStates[RUBIN_APP_ID]?.watch === true)
+  const watchRef = useRef(saved.watch === true)
   const scene = celestiary.scene
   const time = celestiary.time
 
@@ -201,6 +205,23 @@ export default function RubinApp({celestiary}) {
     time.setPaused(false)
     goToSeat()
   }
+
+  useEffect(() => {
+    if (watchAsked) {
+      watchRef.current = true
+    }
+  }, [watchAsked])
+
+  // The asked watch, once the observatory is in; then its mark is cleared
+  // from the store (the state reported is the panel's own).
+  useEffect(() => {
+    if (!ready || !watchRef.current) {
+      return
+    }
+    watchRef.current = false
+    watchNight()
+    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell}})
+  })
 
   const nightDay = Math.round((nightMs - RUN_START_MS) / MS_PER_DAY)
   const el = readout ? readout.bodyEl : null

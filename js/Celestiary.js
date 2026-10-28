@@ -15,6 +15,8 @@ import SatellitesProvider from './search/providers/SatellitesProvider'
 import PlacesProvider from './search/providers/PlacesProvider'
 import SceneProvider from './search/providers/SceneProvider'
 import StarsProvider from './search/providers/StarsProvider'
+import ViewsProvider from './search/providers/ViewsProvider'
+import {APP_VIEWS} from './store/appViews.js'
 import ThreeUi from './ThreeUI'
 import Time, {toJulianDay} from './Time'
 import reifyMeasures from './reify'
@@ -645,6 +647,9 @@ export default class Celestiary {
 
   _registerSearchProviders() {
     searchIndex.register(new SceneProvider(this.loader))
+    // The apps' ways in (store/appViews.js): "Watch 2026 ED138 from the
+    // Rubin Observatory".
+    searchIndex.register(new ViewsProvider(APP_VIEWS))
     // Each body's population, as it comes in; Earth's satellites fetched
     // for the first search, as the galaxies, below (Satellites.md).
     this.scene.onPopulationAdded((population) => {

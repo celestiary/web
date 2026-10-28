@@ -3,16 +3,19 @@ import {RUN_END_MS, RUN_START_MS} from './rubin.js'
 
 
 // A body's apparent path on Earth's sky over a span of days (Rubin.md):
-// the direction from Earth's centre to the body each day, laid out at a
-// fixed distance, with the first of each month named and a ring where
-// the body is at the clock's time.  Hung from Earth's orbitPosition, in
-// the ecliptic of J2000 turned to the date each frame as the orbit lines
-// are, so it stays on the stars.  For 2026 ED138 the path is Earth's own
-// motion reflected: 2° of retrograde from the April stationary point to
-// August, while the body moves half a degree along its orbit.
-
-/** The path's distance from Earth's centre, metres: well past the Moon. */
-export const SKY_RADIUS_M = 1e12
+// the body's position from Earth's centre each day, at its true distance,
+// with the first of each month named and a ring where the body is at the
+// clock's time.  Hung from Earth's orbitPosition, in the ecliptic of J2000
+// turned to the date each frame as the orbit lines are, so it stays on the
+// stars.  For 2026 ED138 the path is Earth's own motion reflected: 2° of
+// retrograde from the April stationary point to August, while the body
+// moves half a degree along its orbit.
+//
+// At the true distance, not a fixed sky radius: laid out 1e12 m from
+// Earth's centre (6.7 au) the ring was 1.1″ off the body from the ground,
+// the parallax of Earth's radius at 6.7 au against the body's at 47 au,
+// and the two came apart in a field of 20″ (the maintainer's preview,
+// 2026-10-28).  Where the body is, the ring is on it from anywhere.
 export const PATH_COLOR = 0x4fd8c8
 const WIDTH_PX = 2
 const OPACITY = 0.9
@@ -47,17 +50,14 @@ export default class ApparentPath extends Group {
    *   `OVERLAY_LAYER` (shared.js)
    * @param {number} [opts.startMs]
    * @param {number} [opts.endMs]
-   * @param {number} [opts.radius] metres
    * @param {?number} [opts.layer] deps.OVERLAY_LAYER by default
    */
-  constructor({elements, earthAt, deps, startMs = RUN_START_MS, endMs = RUN_END_MS, radius = SKY_RADIUS_M,
-    layer = deps.OVERLAY_LAYER}) {
+  constructor({elements, earthAt, deps, startMs = RUN_START_MS, endMs = RUN_END_MS, layer = deps.OVERLAY_LAYER}) {
     super()
     this.name = 'rubin apparent path'
     this.deps = deps
     this.elements = elements
     this.earthAt = earthAt
-    this.radius = radius
     this.startMs = startMs
     this.endMs = endMs
     const days = Math.round((endMs - startMs) / MS_PER_DAY)
@@ -68,7 +68,7 @@ export default class ApparentPath extends Group {
       const ms = startMs + (i * MS_PER_DAY)
       const jd = jdOf(ms)
       this.jds[i] = jd
-      this.directionJ2000(jd, tmpPos).multiplyScalar(radius)
+      this.positionJ2000(jd, tmpPos)
       this.points[3 * i] = tmpPos.x
       this.points[(3 * i) + 1] = tmpPos.y
       this.points[(3 * i) + 2] = tmpPos.z
@@ -93,20 +93,32 @@ export default class ApparentPath extends Group {
 
 
   /**
-   * The unit direction from Earth to the body, in the ecliptic of J2000,
-   * scene axes.
+   * The body's position from Earth's centre, in the ecliptic of J2000,
+   * scene axes, metres.
+   *
+   * @param {number} jd Julian Day (UTC)
+   * @param {Vector3} [out]
+   * @returns {Vector3}
+   */
+  positionJ2000(jd, out = new Vector3) {
+    const {orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD} = this.deps
+    const jde = utcToTtJulianDay(jd)
+    orbitAt(this.elements, jde, tmpQuat, out)
+    // Earth's place is of date: back to J2000.
+    tmpEarth.copy(this.earthAt(jd)).applyQuaternion(precessionQuaternion(jde, J2000_JD, tmpQuat))
+    return out.sub(tmpEarth)
+  }
+
+
+  /**
+   * The unit direction from Earth to the body, in the ecliptic of J2000.
    *
    * @param {number} jd Julian Day (UTC)
    * @param {Vector3} [out]
    * @returns {Vector3}
    */
   directionJ2000(jd, out = new Vector3) {
-    const {orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD} = this.deps
-    const jde = utcToTtJulianDay(jd)
-    orbitAt(this.elements, jde, tmpQuat, out)
-    // Earth's place is of date: back to J2000.
-    tmpEarth.copy(this.earthAt(jd)).applyQuaternion(precessionQuaternion(jde, J2000_JD, tmpQuat))
-    return out.sub(tmpEarth).normalize()
+    return this.positionJ2000(jd, out).normalize()
   }
 
 
