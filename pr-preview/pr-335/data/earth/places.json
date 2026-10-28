@@ -192,6 +192,7 @@
     {"n": "Mount Fuji",     "t": 1, "lat":  35.3606, "lng": 138.7274, "a": 3776, "k": "peak"},
     {"n": "Kilimanjaro",    "t": 1, "lat":  -3.0674, "lng":  37.3556, "a": 5895, "k": "peak"},
     {"n": "Aconcagua",      "t": 1, "lat": -32.6532, "lng": -70.0109, "a": 6961, "k": "peak"},
+    {"n": "Rubin Observatory","t": 1, "lat": -30.2446, "lng": -70.7494, "a": 2663, "k": "observatory"},
 
     {"n": "North Pole",     "t": 0, "lat":  90.0000, "lng":   0.0000, "k": "pole"},
     {"n": "South Pole",     "t": 0, "lat": -90.0000, "lng":   0.0000, "k": "pole"}
