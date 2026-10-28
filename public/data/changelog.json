@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-10-28-rubin-s-pixel-on-the-sky",
+      "date": "2026-10-28",
+      "headline": "Rubin's pixel on the sky",
+      "text": "A new switch in the Rubin Observatory app, Rubin's pixel, draws what the camera can tell apart at 2026 ED138: a blunt square one of its 0.2″ pixels across, and a fainter outline at the 0.7″ it resolves through the air, at their size on your screen. At the pixel limit the object's disc is a point well inside one pixel; wider, the marker fades so it never claims more than the camera has.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 346,
+          "url": "https://github.com/celestiary/web/pull/346"
+        },
+        {
+          "kind": "issue",
+          "number": 339,
+          "url": "https://github.com/celestiary/web/issues/339"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-28-zoom-within-rubin-s-optics",
       "date": "2026-10-28",
       "headline": "Zoom within Rubin's optics",

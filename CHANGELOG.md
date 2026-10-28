@@ -39,6 +39,20 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Rubin's pixel on the sky
+
+A new switch in the Rubin Observatory app, *Rubin's pixel*, draws what the camera can tell apart at
+2026 ED138: a blunt square one of its 0.2″ pixels across, and a fainter outline at the 0.7″ it
+resolves through the air, at their size on your screen. At the pixel limit the object's disc is a
+point well inside one pixel; wider, the marker fades so it never claims more than the camera has.
+
+- Date: 2026-10-28
+- PR: [#346](https://github.com/celestiary/web/pull/346)
+- Issue: [#339](https://github.com/celestiary/web/issues/339)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Kind: feature
+
 ### Zoom within Rubin's optics
 
 While the Rubin Observatory app runs, the field-of-view keys (`,` and `.`) zoom from the camera's
