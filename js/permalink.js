@@ -85,6 +85,7 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   S: false, // Starlink, the whole constellation (scene/networks/Networks.md)
   I: false, // Iridium NEXT and its crosslinks
   D: false, // NASA's Deep Space Network and its live links (DSN Now)
+  i: true, // Earth's clouds, the 'I' key (Celestia's i): the shell and the volume (Planet.md, clouds)
   v: true, // nav panels / heads-up display
   L: false, // landed at surface — see Scene.land
   T: false, // tracking the target — see Scene.track

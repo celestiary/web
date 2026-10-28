@@ -209,8 +209,9 @@ both: riding along while facing it).
   of a degree: a camera riding a body keeps a few metres, one left in the Sun's
   frame is good to ~260 km at 1 AU.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
-`U`, `G`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
-star labels off, orbits off, landed), while `e` `c` `g` `C` `S` `I` `D` `L` `T` `F` `A` mean
+`U`, `G`, `x`, `i` and `v` are on by default, so their letters mean off (`s=loL` is
+star labels off, orbits off, landed; `s=i` is Earth's clouds off, the `I`
+key's, Celestia's `i`), while `e` `c` `g` `C` `S` `I` `D` `L` `T` `F` `A` mean
 on (`s=ID` is Iridium and the DSN shown: js/scene/networks/Networks.md).
 
 `G` and `C` are the `e` and `E` keys (Shift+E), Celestia's: the galaxies'

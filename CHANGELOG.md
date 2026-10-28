@@ -39,6 +39,16 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Earth's clouds can be switched off
+
+The `I` key (Celestia's `i`) and a new *Clouds* switch in Earth's atmosphere section hide the
+clouds, for a night's sky the day's weather would cover. A link remembers it.
+
+- Date: 2026-10-28
+- PR: [#320](https://github.com/celestiary/web/pull/320)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+
 ### Rubin's dwarf planet candidate, and the telescope that found it
 
 2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's

@@ -155,7 +155,11 @@ export default class Celestiary {
     this.scene.onTargetChange = () => this._schedulePermalinkUpdate()
     // Any settings toggle (asterisms, grids, etc.) updates the permalink so
     // the URL always reflects the live view configuration.
-    this.scene.onSettingsChange = () => this._schedulePermalinkUpdate()
+    this.scene.onSettingsChange = () => {
+      this._schedulePermalinkUpdate()
+      // The info panel's switches (the clouds') follow the keys.
+      this.controlPanel?.refreshSettings?.()
+    }
     // 't' and 'f' say what they switched, on the readout (onNavMode).
     this.scene.onModeChange = (mode, on, note) => this._announce(this._navModeListeners, mode, on, note)
     // 'v' (nav panels) is a Celestiary-level toggle — register the applier
@@ -195,6 +199,12 @@ export default class Celestiary {
     // A long flight waits for VSOP87C itself (flights.js needsVsop).
     this.animation.onEphemeris = () => this.scene._syncCraft()
     this.scene.onCraftChange = () => this.controlPanel.refreshCraft()
+    // The settings the info panel switches: Earth's clouds, in the
+    // atmosphere section (ControlPanel.cloudsSwitchHtml).
+    this.controlPanel.settingsHooks = {
+      get: (key) => this.scene.getSetting(key),
+      toggle: (key) => this.scene.applySettings({[key]: !this.scene.getSetting(key)}),
+    }
     this.controlPanel.craftHooks = {
       list: (name) => this.scene.craftOf(name),
       toggle: (code) => this.scene.toggleCraft(code, utcToTtJulianDay(this.time.simTimeJulianDay())),
@@ -2965,6 +2975,15 @@ export default class Celestiary {
     'Human expansion lines',
     () => this.scene.getSetting('x'),
     'Labels')
+
+    // === Surfaces === Celestia's 'i' is its clouds; 'I' here, as its
+    // 'U' and 'E' are (`i` in a link's `s=`: design/URLs.md).
+    k.map('I', () => {
+      this.scene.toggleClouds()
+    },
+    'Earth\'s clouds',
+    () => this.scene.getSetting('i'),
+    'Surfaces')
 
     // === Orbits ===
     k.map('o', () => {

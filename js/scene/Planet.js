@@ -695,7 +695,10 @@ export default class Planet extends Object {
     // their parameters (cloudPhysics.js BODY_CLOUDS): the shell hands over
     // to them, and ThreeUi draws them after the shell.
     const volume = cloudParams(this.name) ? new CloudVolume(radius, map) : null
-    return newCloudShell(radius, map, {ready: () => planet.surfaceReady(), volume})
+    // Drawn once the surface under it is, while the clouds are on
+    // (Scene.toggleClouds).
+    return newCloudShell(radius, map, {ready: () => planet.surfaceReady() && (this.scene?.cloudsShown?.() ?? true),
+      volume})
   }
 
 

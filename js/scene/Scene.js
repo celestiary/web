@@ -209,6 +209,7 @@ export default class Scene {
       S: false, // Starlink (networks/Networks.md)
       I: false, // Iridium and its crosslinks
       D: false, // the Deep Space Network and its live links
+      i: true, // Earth's clouds: the shell and the volume (cloudsShown; the 'I' key)
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
     // Each overlay's fade (OVERLAY_KEYS), stepped once a frame by the
@@ -603,6 +604,7 @@ export default class Scene {
       S: () => this.toggleNetwork('S'),
       I: () => this.toggleNetwork('I'),
       D: () => this.toggleNetwork('D'),
+      i: () => this.toggleClouds(),
       ...this._customAppliers,
     }
     for (const key of Object.keys(dispatch)) {
@@ -3287,6 +3289,23 @@ export default class Scene {
    * pinned to a Scene field.  Default-hidden by `enterAR()`; the user can
    * flip this back on with the 'U' shortcut once in AR.
    */
+  /**
+   * Earth's clouds on or off (the 'I' key, the atmosphere section's switch):
+   * the cloud shell reads cloudsShown each frame (Planet.newCloudShell's
+   * `ready`), and the volumetric clouds follow the shell (ThreeUi
+   * _drawCloudVolume).  Not an overlay: no fade, and 'V' leaves it be.
+   */
+  toggleClouds() {
+    this._flipSetting('i')
+  }
+
+
+  /** @returns {boolean} whether Earth's clouds are drawn (the 'i' setting) */
+  cloudsShown() {
+    return this._settings.i !== false
+  }
+
+
   toggleGalaxy() {
     let target = null
     this.ui.scene.traverse((obj) => {

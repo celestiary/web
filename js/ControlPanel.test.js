@@ -374,6 +374,39 @@ describe('ControlPanel', () => {
     expect(list.innerHTML).toContain('No match')
   })
 
+  it('switches Earth\'s clouds in the atmosphere section, and follows the key', () => {
+    const panel = new ControlPanel(null, null)
+    const body = {name: 'earth', clouds: 'gibs', atmosphere: {height: '8e4 m'}}
+    expect(panel.cloudsSwitchHtml(body)).toBe('')
+    let on = true
+    panel.settingsHooks = {get: () => on, toggle: () => {
+      on = !on
+    }}
+    expect(panel.cloudsSwitchHtml({name: 'mars', atmosphere: {}})).toBe('')
+    const html = panel.cloudsSwitchHtml(body)
+    expect(html).toContain('<dt>Clouds</dt>')
+    expect(html).toContain('class="info-toggle on" data-setting="i" role="switch" aria-checked="true"')
+    expect(html).toContain('>shown</span>')
+    on = false
+    expect(panel.cloudsSwitchHtml(body)).toContain('class="info-toggle" data-setting="i" role="switch" aria-checked="false"')
+    // Wired: a click toggles and the switch follows.
+    const listeners = {}
+    const el = {
+      dataset: {setting: 'i'}, classList: {toggle: (c, v) => {
+        el.on = v
+      }},
+      setAttribute: () => {}, addEventListener: (type, fn) => {
+        listeners[type] = fn
+      },
+    }
+    panel.containerElt = {querySelectorAll: () => [el]}
+    panel._wireSettings()
+    listeners.click()
+    expect(on).toBe(true)
+    expect(el.on).toBe(true)
+    expect(el.textContent).toBe('shown')
+  })
+
   it('lists the craft that can be flown about the body, with a flown one\'s facts', () => {
     const panel = new ControlPanel(null, null)
     expect(panel.craftHtml('earth')).toBe('')

@@ -1,6 +1,26 @@
 {
   "entries": [
     {
+      "id": "2026-10-28-earth-s-clouds-can-be-switched-off",
+      "date": "2026-10-28",
+      "headline": "Earth's clouds can be switched off",
+      "text": "The I key (Celestia's i) and a new Clouds switch in Earth's atmosphere section hide the clouds, for a night's sky the day's weather would cover. A link remembers it.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 320,
+          "url": "https://github.com/celestiary/web/pull/320"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-28-rubin-s-dwarf-planet-candidate-and-the",
       "date": "2026-10-28",
       "headline": "Rubin's dwarf planet candidate, and the telescope that found it",

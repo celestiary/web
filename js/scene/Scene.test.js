@@ -252,6 +252,22 @@ describe('Scene settings tracking', () => {
     expect(s.overlayShown('l')).toBe(true)
   })
 
+  it('toggleClouds flips i, which cloudsShown reads, and applySettings drives it', () => {
+    const s = makeScene()
+    expect(s.cloudsShown()).toBe(true)
+    let fired = 0
+    s.onSettingsChange = () => fired++
+    s.toggleClouds()
+    expect(s.getSettings().i).toBe(false)
+    expect(s.cloudsShown()).toBe(false)
+    expect(fired).toBe(1)
+    s.applySettings({i: false})
+    expect(fired).toBe(1)
+    s.applySettings({i: true})
+    expect(s.cloudsShown()).toBe(true)
+    expect(fired).toBe(2)
+  })
+
   it('toggleOrbits flips o, and the attached orbits fade out, hidden once faded', () => {
     const s = makeScene()
     s.objects['sun'] = fakeSunWithOrbit()
@@ -379,7 +395,7 @@ describe('Scene.applySettings', () => {
     milkyWay.name = 'MilkyWay'
     s.ui.scene.add(milkyWay)
     const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, G: true, C: true, x: false,
-      S: false, I: false, D: false, v: false}
+      S: false, I: false, D: false, i: false, v: false}
     s.registerSettingApplier('v', () => s.flipSetting('v'))
     s.applySettings(target)
     s.overlays.finish()

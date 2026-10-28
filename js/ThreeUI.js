@@ -691,7 +691,8 @@ export default class ThreeUi {
     const body = this._lastAtmPlanet
     const volume = body?.clouds?.userData?.volume
     const u = this._atmMesh.material.uniforms
-    if (!volume || !this.hdr || !this._transmittanceRT || u.uAtmEnabled.value < 0.5) {
+    // Nothing while the shell is off (the clouds toggled off, Scene.toggleClouds).
+    if (!volume || !body.clouds.visible || !this.hdr || !this._transmittanceRT || u.uAtmEnabled.value < 0.5) {
       this._setCloudComposite(null)
       return
     }

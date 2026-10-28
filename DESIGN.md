@@ -1277,7 +1277,11 @@ human expansion lines, etc.).  `V` is the union
 of all the lowercase scene-annotation toggles.  The space networks (Starlink,
 Iridium, the Deep Space Network: [Networks.md](js/scene/networks/Networks.md))
 are three overlays of their own (settings `S`, `I`, `D`), toggled from
-Settings' Networks rows rather than keys, and in `V` too.
+Settings' Networks rows rather than keys, and in `V` too.  Earth's clouds
+are scene content, not an annotation: the `I` key (Celestia's `i`; the
+setting `i`, so `s=i` is clouds off) and the atmosphere section's switch
+hide the shell and the volumetric clouds (`Scene.toggleClouds`), with no
+fade, and `V` leaves them be.
 
 **When adding a new visual feature, decide which group it belongs in and
 wire it through the corresponding toggle method.**  Surface place labels,
