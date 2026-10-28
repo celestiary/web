@@ -323,10 +323,16 @@ export default class GuestPages {
    * @returns {?Array<number>}
    */
   _correction(netgl, body, viewId, end) {
-    if (!this.layers.guestReproject || !end.viewMatrix || !end.projectionMatrix || !body.node) {
+    if (!this.layers.guestReproject || !body.node) {
       return null
     }
     if (viewId === body.posted && body.postedTick === this._tick) {
+      return null
+    }
+    if (!end.viewMatrix || !end.projectionMatrix) {
+      // Late, and nothing to correct it from: several frusta, or an older
+      // guest page.
+      body.uncorrectable = (body.uncorrectable ?? 0) + 1
       return null
     }
     body.corrected = (body.corrected ?? 0) + 1
@@ -459,6 +465,7 @@ export default class GuestPages {
       // and the replay's corrected draws.
       corrected: b.corrected ?? 0,
       refused: b.refused ?? 0,
+      uncorrectable: b.uncorrectable ?? 0,
       correctedDraws: b.receiver?.replay?.reprojectStats?.correctedDraws ?? 0,
     }))
   }
