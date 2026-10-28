@@ -1,6 +1,27 @@
 {
   "entries": [
     {
+      "id": "2026-10-28-every-credit-in-one-small-line-along-the-bottom",
+      "date": "2026-10-28",
+      "headline": "Every credit in one small line along the bottom",
+      "text": "The data's credits (Cesium ion's and its imagery's, and OpenStreetMap's and NYC Open Data's while New York's city is drawn) are now one quiet line at the bottom edge, as a map's, and they come and go with the rest of the controls. Cesium's Data attribution link opens its list again.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 341,
+          "url": "https://github.com/celestiary/web/pull/341"
+        },
+        {
+          "kind": "issue",
+          "number": 279,
+          "url": "https://github.com/celestiary/web/issues/279"
+        }
+      ],
+      "epic": null,
+      "permalink": "#sun/earth@-38.1501,-99.3434,12.104919Mm;t=9792.377067jd;cq=0.3284,-0.0652,-0.0081,0.9423;fov=45deg;s=alpoGF;time:pause",
+      "image": null
+    },
+    {
       "id": "2026-10-28-places-found-again-on-the-homepage-s-search",
       "date": "2026-10-28",
       "headline": "Places found again on the homepage's search",
