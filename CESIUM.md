@@ -49,29 +49,57 @@ falls back to if its Cesium layer can't load.
   none now) would also fade celestiary's atmosphere pass out
   (`uAtmStrength`) as Cesium's sky fades in (its `brightnessShift`).
 - The button is HTML chrome, so it follows the `v` visibility group.
-- Cesium's credits (required data attribution) show as a small overlay
-  while a layer is active: the nearest active body's only.  Each body's
-  widget writes its credits into its own container inside the overlay (one
-  shared container stacked a copy per body visited).  Every widget carries
-  the same ion logo and links; with two bodies on screen, the farther
-  one's data attribution isn't shown.  The overlay is HTML chrome too:
-  `v` hides it with the other panels.
-- <a id="credits"></a>**Credits stand back after a few seconds**
-  (`creditsReveal.js`): in full as a body comes into view (none to one,
-  or one nearest body to another), then after 6 s compact, the ion logo
-  alone at 55% opacity; a hover, a focus or a tap brings the text and the
-  data attribution back for another 6 s (a tap on the compact logo doesn't
-  follow its link).  While ion's data is on screen the credits stay, as
-  ion's and Bing's terms want; while none of the body's ground is in the
-  frame (from the ground looking up into the sky) they go entirely, and no
-  logo brightens a night sky (`_creditedBody`, `visibility.js`
-  `groundInView`: the view's angle to the body's centre against the
-  ground's angular radius, the frame's half-diagonal and 10° for land
-  standing over the horizon, so it errs toward showing them).  Back in
-  view, they show in full again.  The credited body is the nearest active
-  one with ground in view.  On a phone the overlay rides
-  above the widgets drawer's sheet and the info panel's peek
-  (`--sheet-height`, `--info-sheet-bottom`).
+- <a id="credits"></a>**Cesium's credits** (required data attribution) are
+  in the **credits footer**, celestiary's one line of attribution along the
+  bottom of the screen (design/UI.md [the credits
+  footer](design/UI.md#the-credits-footer); `js/credits.js`,
+  `ui/CreditsFooter.jsx`), first, before celestiary's own (New York's data,
+  below).  Each body's widget is made with its `creditContainer` in
+  `#cesium-credits`, which `_showCredits` puts in the footer
+  (`addCredit('cesium', {element})`) while a layer is active, so Cesium's
+  own `CreditDisplay` keeps deciding which credits are on screen as imagery
+  and terrain change; only the nearest active body's show (every widget
+  carries the same ion logo and links, and one shared container stacked a
+  copy per body visited; with two bodies on screen, the farther one's data
+  attribution isn't shown).  Credits Cesium shows only in its list (a
+  provider's credit given as a string, Blue Marble's and GIBS's) are behind
+  its *Data attribution* link, which opens the list over the page
+  (`creditViewport: document.body`; it opened in the hidden widget's own
+  element before, so the link did nothing).  While none of the body's
+  ground is in the frame (from the ground looking up into the sky) they go
+  entirely (`_creditedBody`, `visibility.js` `groundInView`: the view's angle
+  to the body's centre against the ground's angular radius, the frame's
+  half-diagonal and 10° for land standing over the horizon, so it errs
+  toward showing them).  The credited body is the nearest active one with
+  ground in view.  The footer is HTML chrome: held on the homepage, faded in
+  with the first load's reveal, `v` hides it with the other panels.
+- **The credits no longer stand back.**  They used to float over the scene,
+  centred at the bottom, in full for 6 s as a body came into view and then
+  compact, the ion logo alone at 55% opacity until a hover, a focus or a tap
+  (`creditsReveal.js`, removed).  In the footer they are as small and quiet
+  as a map's attribution all the time (11 px, `--ink-3` on a dark veil), off
+  the scene's middle, so there is nothing to stand back from; and the
+  compact look hid Bing's text and logo, which its terms don't allow
+  (below).  The ion logo is at 20 px of its 28 (`--credits-logo`), the
+  line's height, neither dimmed nor hidden.
+- **The terms** (checked 2026-10-28, from search results quoting them:
+  cesium.com isn't reachable from the sandbox, so read them again there):
+  - Cesium ion's [Terms of Service](https://cesium.com/legal/terms-of-service/)
+    and [Content Usage and Attribution
+    Guide](https://cesium.com/learn/ion/content-usage-and-attribution-guide/):
+    the "Cesium ion" logo prominently viewable on the main application
+    window, attribution not removed, and the data attribution of Asset Depot
+    assets displayed.  They set no size; a smaller logo that stays legible
+    and on screen keeps to them.
+  - Bing Maps through ion ([Appendix B-1, Bing Maps
+    Content](https://cesium.com/legal/terms-for-bing/); the [asset's
+    page](https://cesium.com/platform/cesium-ion/content/bing-maps-imagery/)):
+    Cesium's clients show Bing's attribution, which must not be removed or
+    modified, and Microsoft's logos and notices must not be changed,
+    obscured or minimised.  So the footer leaves Bing's credits as Cesium
+    draws them: only the ion logo is resized, and nothing is hidden behind a
+    tap except on a phone, where the line is cut to one with an ellipsis
+    that a tap opens (the first thing to check if ion or Microsoft object).
 
 ## Architecture
 

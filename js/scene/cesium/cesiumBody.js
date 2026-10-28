@@ -35,6 +35,7 @@ import {sharedObjectUrl} from '../sharedImage.js'
  * @param {HTMLElement} opts.container Laid out at the frame's size (Cesium sizes its canvas from it)
  * @param {object} opts.contextOptions From portal-netgl's makeNetGLCesiumGuest
  * @param {HTMLElement} opts.creditContainer Where Cesium writes the body's credits
+ * @param {HTMLElement} [opts.creditViewport] Where its "Data attribution" list opens
  * @param {number} opts.month 1-12, for the monthly imagery
  * @param {string|null} opts.token Cesium ion's, or none
  * @param {function(object): void} opts.onError A render or load failure
@@ -42,7 +43,7 @@ import {sharedObjectUrl} from '../sharedImage.js'
  *   night, customShader, ion, month, tileset (once loaded), distanceScale,
  *   heightM, frames}
  */
-export function createWidget(Cesium, name, {container, contextOptions, creditContainer, month, token, onError}) {
+export function createWidget(Cesium, name, {container, contextOptions, creditContainer, creditViewport, month, token, onError}) {
   const config = CESIUM_BODIES[name]
   if (token) {
     Cesium.Ion.defaultAccessToken = token
@@ -65,6 +66,7 @@ export function createWidget(Cesium, name, {container, contextOptions, creditCon
     useDefaultRenderLoop: false,
     showRenderLoopErrors: false,
     creditContainer,
+    creditViewport,
     scene3DOnly: true,
     skyBox: false,
     msaaSamples: 1,

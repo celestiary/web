@@ -9,6 +9,7 @@ import useIsMobile from './useIsMobile'
 import useStore from './store/useStore'
 import About from './ui/About'
 import ARDebugHUD from './ui/ARDebugHUD'
+import CreditsFooter from './ui/CreditsFooter'
 import DragModeToggle from './ui/DragModeToggle'
 import ExposureReadout from './ui/ExposureReadout'
 import Homepage from './ui/Homepage'
@@ -113,5 +114,8 @@ export default function App() {
       {celestiary && <WidgetsDrawer celestiary={celestiary}/>}
       {celestiary && homePhase !== 'hidden' && <Homepage celestiary={celestiary} phase={homePhase}/>}
       {celestiary && newsTour && <NewsTour celestiary={celestiary} tour={newsTour}/>}
+      {/* Mounted from the start: Cesium's credits go into it whenever a layer
+          loads (credits.js; design/UI.md "The credits footer"). */}
+      <CreditsFooter/>
     </>)
 }

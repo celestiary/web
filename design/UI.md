@@ -84,11 +84,48 @@ bar along the bottom (`js/ui/PhoneDock.jsx`), 56px over the safe area:
   the scene, closes it.
 - The scene stops above the bar (`Celestiary.setInsets`' bottom takes its
   height, from the store's `phoneDockHeight`), so nothing important is drawn
-  under it; the widgets sheet sits on the bar, and the info sheet and
-  Cesium's credits on the whole dock, an open panel too
+  under it; the widgets sheet sits on the bar, and the info sheet and the
+  credits footer on the whole dock, an open panel too
   (`--phone-dock-height`), so a panel lifts them rather than covering them.
 - It's chrome: held on the homepage, faded with the rest, hidden by `v`.
 - Desktop is unchanged.
+
+## The credits footer
+
+Every attribution on screen is in one line along the bottom edge, as a map's
+(Google Maps' "Imagery ©2026 …, Map data ©2026 Google"): small, low
+contrast, right-aligned (`js/ui/CreditsFooter.jsx`, `js/credits.js`).
+
+- **What's in it**, each only while its data is drawn: Cesium's credits
+  first (the ion logo, the imagery's and terrain's providers, its *Data
+  attribution* list; CESIUM.md [credits](../CESIUM.md#credits)), then
+  celestiary's own: New York's "© OpenStreetMap contributors (ODbL)" and
+  "NYC Open Data" while the city is drawn, a `·` between them.  Empty, the
+  footer isn't laid out.
+- **The registry** (`credits.js`): `addCredit(id, credit, {order})` and
+  `removeCredit(id)`.  A credit is `{text, href}` (a link only if http(s)),
+  a list of them, or `{element}`, an element a library keeps up to date
+  itself (Cesium's `CreditDisplay` writes into `#cesium-credits`, which the
+  footer mounts as it is).  Lower `order` first (Cesium's 0, the rest 10),
+  then by when added.  A layer that brings data with a licence asking for
+  credit adds its own here while that data is drawn.
+- **The look**: 11px Inter (`--credits-size`) on a 20px line
+  (`--credits-line`), `--ink-3` on `--surface-veil` (the surface at 75%),
+  which holds about 4.4:1 over a sunlit day side and stays quiet on the
+  night sky; links in the same ink, underlined on hover.  The ion logo is the
+  line's height (`--credits-logo`, 20 of its 28 px); other providers' logos
+  stay as Cesium draws them.
+- **Where**: the bottom edge, from `--credits-left` (128px, clear of the
+  settings and About buttons bottom-left) to the widgets drawer
+  (`--dock-width`).  On a phone (600px or less) the whole width, above the
+  dock and both sheets (`--phone-dock-height`, `--sheet-height`,
+  `--info-sheet-bottom`), wrapping rather than cut: Bing's terms forbid
+  obscuring its attribution, so nothing is behind a tap.
+- **Chrome**: held through the first load and on the homepage (no credits
+  there anyway: the Cesium layers are suspended), faded in with the rest at
+  the reveal, out with the changelog tour, hidden by `v` (`html.chrome-hidden`,
+  `Celestiary._navDisplay`'s `CHROME_PANEL_IDS`).  It's mounted from the
+  start, so Cesium's credits have somewhere to go whenever a layer loads.
 
 ## Phases
 

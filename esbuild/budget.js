@@ -28,8 +28,11 @@
  * process, close to what GitHub Pages sends.
  */
 export const STATIC_BUDGET = {
-  // Everything in the first load, minified.  Main on 2026-10-15: 2,130 KB.
-  totalMinifiedKB: 2350,
+  // Everything in the first load, minified.  Main on 2026-10-15: 2,130 KB;
+  // 2,349 on 2026-10-28, then 2,354 with the credits footer
+  // (ui/CreditsFooter.jsx, credits.js and their CSS: chrome, mounted from the
+  // start so Cesium's credits have somewhere to go).
+  totalMinifiedKB: 2360,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -37,8 +40,8 @@ export const STATIC_BUDGET = {
   // 2026-10-28: the seat the camera rides (Scene.rideSeat, its near plane
   // in ThreeUI) and the panel's seat button and shell switch; 734 the same
   // day for the search's views (ViewsProvider, store/appViews.js) and the
-  // bar's places reload.
-  totalGzipKB: 734,
+  // bar's places reload; 735 for the credits footer, the same day.
+  totalGzipKB: 736,
   // The largest single first-load file, minified.  Main: 695 KB.
   largestChunkMinifiedKB: 765,
 }

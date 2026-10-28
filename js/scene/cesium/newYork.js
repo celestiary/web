@@ -162,3 +162,34 @@ export function newYorkStatus(nyc) {
   }
   return nyc.status
 }
+
+
+/**
+ * The city's data credits, in the credits footer while it's drawn
+ * (CesiumLayers._creditNewYork; credits.js).  Its geography is built from
+ * OpenStreetMap (the coastline, piers, Central Park and landmarks: ODbL,
+ * which asks for "© OpenStreetMap contributors" with a link to its
+ * copyright page) and NYC Open Data (the borough boundaries, the street
+ * centrelines, the parks), as slop-newyork's README, "License and data",
+ * credits them.
+ */
+export const NEW_YORK_CREDITS = Object.freeze([
+  Object.freeze({text: '© OpenStreetMap contributors (ODbL)', href: 'https://www.openstreetmap.org/copyright'}),
+  Object.freeze({text: 'NYC Open Data', href: 'https://opendata.cityofnewyork.us/'}),
+])
+
+
+/**
+ * Whether the city is drawn this frame, for its credits: Earth's layer
+ * active (not only warming: then celestiary's Earth shows), the camera in the
+ * city's range ('show', where it's drawn) and the city in (built, here or on
+ * Earth's guest page; its staged set-up may still be replaying).
+ *
+ * @param {?{status: string}} nyc CesiumLayers._newYork
+ * @param {boolean} earthActive
+ * @param {?string} range newYorkRange's, last frame
+ * @returns {boolean}
+ */
+export function newYorkDrawn(nyc, earthActive, range) {
+  return Boolean(earthActive && range === 'show' && nyc?.status === 'ready')
+}

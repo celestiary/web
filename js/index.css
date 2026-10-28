@@ -49,6 +49,15 @@
   --row-compact: 24px;
   --row: 30px;
   --panel-width: 360px;
+  /* The credits footer (ui/CreditsFooter.jsx): small, as a map's, and clear
+     of the settings and About buttons bottom-left. */
+  --credits-size: 11px;
+  --credits-line: 20px;
+  --credits-logo: 20px;
+  --credits-left: 128px;
+  /* Behind small text over the scene: dark enough for --ink-3 over a
+     sunlit day side (about 4.4:1 on white), quiet on the night sky. */
+  --surface-veil: rgba(10, 12, 20, 0.75);
   /* The phone sheet's peek: its head, name and one fact. */
   --sheet-peek: 88px;
 }
@@ -70,7 +79,7 @@ body {
    (public/index.html), and the load's reveal takes the class off, unless the
    link has 'v' off.  Once faded out, Celestiary._setNav takes the panels out
    of layout. */
-#nav-id, #top-right, #widgets-drawer, #widgets-dock, #cesium-credits, #phone-dock {
+#nav-id, #top-right, #widgets-drawer, #widgets-dock, #credits-footer, #phone-dock {
   transition: opacity var(--fade-ms) var(--fade-ease);
 }
 
@@ -78,30 +87,102 @@ html.chrome-hidden #nav-id,
 html.chrome-hidden #top-right,
 html.chrome-hidden #widgets-drawer,
 html.chrome-hidden #widgets-dock,
-html.chrome-hidden #cesium-credits,
+html.chrome-hidden #credits-footer,
 html.chrome-hidden #phone-dock {
   opacity: 0;
   pointer-events: none;
 }
 
-/* Cesium's credits, compact a few seconds after a body comes into view
-   (creditsReveal.js): the ion logo alone, dimmed; a hover, a focus or a tap
-   brings the rest back.  The attribution stays on screen, as ion's and
-   Bing's terms want, while their data is. */
-#cesium-credits.compact {
-  opacity: 0.55;
+/* The credits footer (ui/CreditsFooter.jsx; design/UI.md "The credits
+   footer"): every attribution on screen, Cesium's and celestiary's own, as
+   one small low-contrast line along the bottom edge, right-aligned, as a
+   map's.  Chrome: it fades and hides with the rest (above).  Clear of the
+   settings and About buttons bottom-left, and of the widgets drawer on the
+   right (--dock-width). */
+#credits-footer {
+  position: fixed;
+  right: var(--dock-width, 0px);
+  bottom: 0;
+  left: var(--credits-left);
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+  font-family: var(--font-ui);
+  font-size: var(--credits-size);
+  line-height: var(--credits-line);
 }
 
-#cesium-credits.compact:not(:hover, :focus-within) .cesium-credit-textContainer,
-#cesium-credits.compact:not(:hover, :focus-within) .cesium-credit-expand-link,
-#cesium-credits.compact:not(:hover, :focus-within) .cesium-credit-delimiter {
-  /* Over Cesium's inline display (CreditDisplay sets it). */
-  display: none !important;
+#credits-footer.empty {
+  display: none;
 }
 
-#cesium-credits.compact:hover,
-#cesium-credits.compact:focus-within {
-  opacity: 1;
+#credits-footer .credits-line {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-chip) 0 0 0;
+  /* A veil, not a sheet: legible over a bright day side and quiet on the
+     night sky. */
+  background: var(--surface-veil);
+  color: var(--ink-3);
+  pointer-events: auto;
+  overflow-wrap: anywhere;
+}
+
+#credits-footer .credits-sep {
+  padding: 0 var(--space-4);
+}
+
+/* Links, Cesium's included, in the line's ink (over Cesium's own white,
+   CreditDisplay's injected styles). */
+#credits-footer a,
+#credits-footer a:visited,
+#credits-footer .cesium-credit-text,
+#credits-footer .cesium-credit-expand-link {
+  color: var(--ink-3);
+  text-decoration: none;
+}
+
+#credits-footer a:hover,
+#credits-footer .cesium-credit-expand-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+/* Cesium's credits: its data's, and the ion logo, which ion's terms want
+   prominently viewable; set to the line's height (20 of its 28 px) and
+   centred on it, not dimmed or hidden.  Other providers' logos (Bing's)
+   stay as Cesium draws them: their terms forbid minimising them
+   (CESIUM.md, "Credits"). */
+#credits-footer .cesium-credit-logoContainer img {
+  height: var(--credits-logo);
+  vertical-align: middle !important;
+}
+
+#credits-footer .cesium-credit-textContainer img {
+  vertical-align: middle !important;
+}
+
+#credits-footer .cesium-credit-textContainer .cesium-credit-wrapper:first-of-type {
+  padding-left: var(--space-4);
+}
+
+/* Cesium's "Data attribution" list, over the page (its viewport is the
+   body: CesiumLayers._createWidget) and over the chrome. */
+body > .cesium-credit-lightbox-overlay {
+  position: fixed;
+  z-index: 1400;
+}
+
+/* Phones: above the dock and both sheets, the whole width; a long line
+   wraps (Bing's terms: nothing of its attribution hidden). */
+@media (max-width: 600px) {
+  #credits-footer {
+    right: 0;
+    bottom: calc(var(--sheet-height, 0px) + var(--info-sheet-bottom, 0px) + var(--phone-dock-height, 0px));
+    left: 0;
+  }
 }
 
 a, .link {

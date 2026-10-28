@@ -3150,3 +3150,33 @@ describe('the homepage', () => {
     expect(app.ui.frameCap).toBeUndefined()
   })
 })
+
+
+describe('the credits footer', () => {
+  it('is chrome: out of layout once the chrome has faded out, and back with it', () => {
+    const els = {}
+    const saved = global.document.getElementById
+    global.document.getElementById = (id) => (els[id] ??= {style: {}})
+    try {
+      const nav = {_navHideAt: null, _navShowPending: false, _navDisplay: Celestiary.prototype._navDisplay}
+      Celestiary.prototype._setNav.call(nav, false)
+      Celestiary.prototype._frameNav.call(nav, performance.now() + 60000)
+      expect(els['credits-footer'].style.display).toBe('none')
+      expect(els['nav-id'].style.display).toBe('none')
+      Celestiary.prototype._setNav.call(nav, true)
+      expect(els['credits-footer'].style.display).toBe('')
+      expect(els['nav-id'].style.display).toBe('')
+    } finally {
+      global.document.getElementById = saved
+    }
+  })
+
+  it('fades with the chrome, so the homepage and the first load hold it hidden', () => {
+    const css = readFileSync('./js/index.css', 'utf8')
+    expect(css).toContain('html.chrome-hidden #credits-footer,')
+    expect(css).not.toContain('#cesium-credits.compact')
+    // Mounted from the start, whatever the route's state: Cesium's credits
+    // go into it whenever a layer loads.
+    expect(readFileSync('./js/App.jsx', 'utf8')).toMatch(/\n {6}<CreditsFooter\/>\n/)
+  })
+})
