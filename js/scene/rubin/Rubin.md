@@ -371,3 +371,12 @@ rather than import it; `rubin.test.js` holds them equal.
   both.
 - **The object's own size and albedo**, when they're measured, and its
   rotation.
+- **Float32 at 47 au** ([#334](https://github.com/celestiary/web/issues/334)).
+  The body's disc is a far point past 2^22 radii (`FAR_BODY_RATIO`, #338:
+  its mesh blinked and drew as a crescent at a 0.00016° field), whatever
+  the field.  Left: the path's ring, which jumps between frames (its points
+  are a `Float32Array` at the body's distance, quantised to 5e5 m), the
+  path and the orbit line missing each other by a step, and depth, which at
+  the seat is 1.0 like empty sky, so the orbit line draws across the
+  point.  The general fix is relative-to-eye placement, option 3 in
+  [#340](https://github.com/celestiary/web/issues/340).

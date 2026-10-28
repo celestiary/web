@@ -1199,6 +1199,20 @@ single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
   to a disc of 0.5, seven times dimmer, as it was approached.  Farther
   out it is the marker as before.  A body with no colour map keeps the
   marker throughout.
+- **Never a mesh past 2^22 radii** (`FAR_BODY_RATIO`, `isFarBody`; #338).
+  float32 places what the camera sees at distance d to about d * 2^-24, so
+  past 2^22 radii a body's vertices land to within a quarter of its radius
+  at best, and its mesh jumps, loses parts or isn't drawn as the camera
+  moves (2026 ED138 from the Rubin seat: 500 km at 47 au, 1.4e7 radii;
+  [#334](https://github.com/celestiary/web/issues/334)).  There the planet
+  LOD (`FovLOD({radius})`) never chooses the mesh, whatever the field, and
+  `handoffRatio` is infinite, so `farPointLevel` is the marker and the
+  point doesn't fade toward a disc that never comes.  2^22 and not 2^23
+  because Pluto at 39 au (4.9e6 radii) shows the same defect: float32's
+  step there is 0.44 of its radius, 11 px on a 100 px disc at a 0.0001°
+  field.  The point is one position with no shape to break up; the
+  body's path and orbit line, which are float32 too, still quantise
+  ([#340](https://github.com/celestiary/web/issues/340)).
 - **Not tone mapped** (`toneMapped: false`): the exposure follows the
   targeted body (~1e-17 far out), which drew the marker black (#85).  The
   colour is a display value, so it must be made with `point()`
