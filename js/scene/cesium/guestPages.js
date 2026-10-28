@@ -297,6 +297,8 @@ export default class GuestPages {
    */
   _onPart(body, end) {
     body.parts = true
+    // What it carries for the correction, for the checks.
+    body.lastEnd = {view: Boolean(end.viewMatrix), screenTargets: end.screenTargets?.length ?? null}
     // Lights parts by one name (the guest page's 'emission', RFC 0002
     // §6.3; 'lights' before GUEST_VERSION 3).
     body.part = isLights(end) ? 'emission' : end.part ?? null

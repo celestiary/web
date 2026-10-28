@@ -97,6 +97,9 @@ function parseArgs(argv) {
     const [key, value] = [argv[i], argv[i + 1]]
     if (key === '--view') {
       opts.view = value
+    } else if (key === '--no-reproject') {
+      opts.reproject = false
+      i--
     } else if (key === '--pan') {
       opts.pan = Number(value)
     } else if (key === '--motion') {
@@ -246,6 +249,9 @@ async function runMode(browser, opts, mode, ports) {
     params.set('cesium', 'iframe')
     params.set('cesiumGuest', guest)
     params.set('cesiumWait', String(opts.wait))
+    if (opts.reproject === false) {
+      params.set('cesiumReproject', '0')
+    }
   }
   if (ports.nyc) {
     params.set('nycGuest', `http://localhost:${ports.nyc}/`)
@@ -457,7 +463,11 @@ async function panCheck(page, deg) {
       hold = posA
       await frames(3)
       const postViews = L.guests.postViews.bind(L.guests)
-      L.guests.postViews = () => {}
+      // Held: no view goes, but the frame still counts as one, as
+      // postViews' own call does (GuestPages._correction).
+      L.guests.postViews = () => {
+        L.guests._tick++
+      }
       const corrected0 = body.corrected ?? 0
       const corrected = await frames(2, () => {
         hold = posB
@@ -469,7 +479,7 @@ async function panCheck(page, deg) {
       L.guests.postViews = postViews
       const c = distance(corrected, truth)
       const u = distance(uncorrected, truth)
-      return {deg, corrected: c, uncorrected: u, correctedFrames,
+      return {deg, corrected: c, uncorrected: u, correctedFrames, lastEnd: body.lastEnd,
         correctedDraws: body.receiver.replay.reprojectStats.correctedDraws}
     } finally {
       ui._drawFrame = draw
