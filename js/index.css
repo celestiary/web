@@ -155,6 +155,11 @@ html.chrome-hidden #phone-dock {
    centred on it, not dimmed or hidden.  Other providers' logos (Bing's)
    stay as Cesium draws them: their terms forbid minimising them
    (CESIUM.md, "Credits"). */
+/* The widget's own wrapper is a div, which would break the line. */
+#credits-footer .cesium-widget-credits {
+  display: inline;
+}
+
 #credits-footer .cesium-credit-logoContainer img {
   height: var(--credits-logo);
   vertical-align: middle !important;
