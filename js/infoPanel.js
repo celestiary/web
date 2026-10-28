@@ -100,7 +100,7 @@ export function sectionHtml(key, title, peek, content, open = false) {
  * (js/scene/models.md), not facts about it.
  */
 const NOT_SHOWN = new Set(['name', 'parent', 'type', 'apparentMagnitude', 'colorIndex', 'has_locations', 'system',
-  'model', 'attitude', 'trajectory'])
+  'model', 'attitude', 'trajectory', 'label', 'kind', 'aliases'])
 
 
 /** Words for the descriptors' field names. */
@@ -262,9 +262,14 @@ function flatLine(val, duration, sci) {
 /**
  * @param {string} type the descriptor's (`planet`, `moon`, `star`)
  * @param {string} name
+ * @param {string} [kind] the descriptor's own words for it (`Dwarf planet
+ *   candidate`), which win
  * @returns {string} the kind, as the badge says it
  */
-export function kindOf(type, name) {
+export function kindOf(type, name, kind = undefined) {
+  if (kind) {
+    return kind
+  }
   if (name === 'pluto') {
     return 'Dwarf planet'
   }

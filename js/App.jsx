@@ -63,10 +63,12 @@ export default function App() {
     } else if (committedStar && committedStar.displayName) {
       leaf = committedStar.displayName
     } else if (committedPath.length > 0) {
-      leaf = capitalize(committedPath[committedPath.length - 1])
+      // A body's own label where it has one (`2026 ED138`).
+      const name = committedPath[committedPath.length - 1]
+      leaf = celestiary?.scene?.objects?.[name]?.props?.label ?? capitalize(name)
     }
     document.title = leaf ? `${leaf} — Celestiary` : 'Celestiary'
-  }, [location, committedPath, committedStar, committedTarget, homePhase])
+  }, [location, committedPath, committedStar, committedTarget, homePhase, celestiary])
   useEffect(() => {
     const c = new Celestiary(useStore, sceneRef.current, navInfoRef.current, setTimeStr, setIsPaused)
     setCelestiary(c)

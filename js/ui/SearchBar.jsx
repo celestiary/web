@@ -86,8 +86,8 @@ export default function SearchBar({celestiary, home = false}) {
   // (targetPath.js).  The hover/anchor logic doesn't branch on which one is
   // active.
   const breadcrumbItems = useMemo(
-      () => breadcrumbFor(committedTarget, committedPath),
-      [committedTarget, committedPath],
+      () => breadcrumbFor(committedTarget, committedPath, (name) => celestiary?.scene?.objects?.[name]?.props?.label),
+      [committedTarget, committedPath, celestiary],
   )
 
   const anchorPath = useMemo(
@@ -126,7 +126,12 @@ export default function SearchBar({celestiary, home = false}) {
   // The places on the bodies in scope load as the scope changes, once
   // something is typed (the query below runs again once they're in): the
   // homepage's bar is open from the start, and its places' index isn't
-  // fetched until it's used (#258).
+  // fetched until it's used (#258).  And again after each rebuild of the
+  // index (indexVersion): the first search's own loads (the stars' tiers,
+  // the galaxies, the satellites: loadOnSearch) invalidate it as they
+  // land, which clears the places too, and "rubin" on the homepage lost
+  // the crater and the observatory a second after it had them, leaving
+  // 2026 ED138 alone.
   const [placesVersion, setPlacesVersion] = useState(0)
   const hasQuery = (searchQuery ?? '').trim().length > 0
   useEffect(() => {
@@ -142,7 +147,7 @@ export default function SearchBar({celestiary, home = false}) {
     return () => {
       cancelled = true
     }
-  }, [isSearchOpen, anchorPath, hasQuery])
+  }, [isSearchOpen, anchorPath, hasQuery, indexVersion])
 
   useEffect(() => {
     if (!ready) {

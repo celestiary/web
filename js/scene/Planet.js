@@ -124,7 +124,9 @@ export default class Planet extends Object {
     // scene direction".  Using rotateZ instead would put the pole in the
     // X-Y plane, 90° away from NCP, and any subsequent spin then turns the
     // body around the wrong axis.
-    planetTilt.rotateX(-assertInRange(this.props.axialInclination, 0, 360) * toRad)
+    // A body whose pole is unknown (2026 ED138) has none: it stands on the
+    // ecliptic's.
+    planetTilt.rotateX(-assertInRange(this.props.axialInclination ?? 0, 0, 360) * toRad)
     // Bodies with an IAU rotation model are turned by Animation instead:
     // planetTilt to the body's equator (its pole, and the node its prime
     // meridian is measured from), the spun node below by the meridian W.
@@ -289,7 +291,9 @@ export default class Planet extends Object {
     planetLOD.addLevel(FAR_OBJ, pointTooFarDist)
 
     const labelLOD = new FovLOD()
-    const name = capitalize(this.name)
+    // Its label, where its name doesn't read as one (`2026 ED138`, from
+    // `ed138`), as a spacecraft's.
+    const name = this.props.label ?? capitalize(this.name)
     // TODO: single sheet for all planets/moons
     // Sized by how large the body looks (labelStyle.js BODY_LABELS).
     const labelSheet = named(new SpriteSheet(1, name, labelFont(BODY_LABELS), [0, 0], false, false, {scalable: true}),
@@ -691,7 +695,10 @@ export default class Planet extends Object {
     // their parameters (cloudPhysics.js BODY_CLOUDS): the shell hands over
     // to them, and ThreeUi draws them after the shell.
     const volume = cloudParams(this.name) ? new CloudVolume(radius, map) : null
-    return newCloudShell(radius, map, {ready: () => planet.surfaceReady(), volume})
+    // Drawn once the surface under it is, while the clouds are on
+    // (Scene.toggleClouds).
+    return newCloudShell(radius, map, {ready: () => planet.surfaceReady() && (this.scene?.cloudsShown?.() ?? true),
+      volume})
   }
 
 

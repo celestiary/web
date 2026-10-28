@@ -89,6 +89,12 @@ const HIDDEN_CANVAS_OPACITY = '0.001'
 const SUNLIT_TYPES = new Set(['planet', 'moon', 'spacecraft'])
 
 
+/** The near plane in a seat (Scene.rideSeat), metres: the parts round it are a metre off. */
+const SEAT_NEAR_M = 0.3
+/** A zoom that moves the camera this much of its distance, relative, leaves a seat. */
+const SEAT_ZOOM_LEAVES = 1e-9
+
+
 export default class ThreeUi {
   /** */
   constructor(container, animationCb, backgroundColor, renderer) {
@@ -696,7 +702,8 @@ export default class ThreeUi {
     const body = this._lastAtmPlanet
     const volume = body?.clouds?.userData?.volume
     const u = this._atmMesh.material.uniforms
-    if (!volume || !this.hdr || !this._transmittanceRT || u.uAtmEnabled.value < 0.5) {
+    // Nothing while the shell is off (the clouds toggled off, Scene.toggleClouds).
+    if (!volume || !body.clouds.visible || !this.hdr || !this._transmittanceRT || u.uAtmEnabled.value < 0.5) {
       this._setCloudComposite(null)
       return
     }
@@ -799,10 +806,20 @@ export default class ThreeUi {
    * side shows at its albedo (exposure.js), easing between targets.  The
    * target is what the camera looks at, so looking at a far planet from
    * near another makes it the exposure target.  The Sun and other stars
-   * keep the last body's exposure.
+   * keep the last body's exposure.  Landed, the eye is where it stands:
+   * the body under the camera keys the exposure whatever is targeted
+   * (from the Rubin seat with 2026 ED138 targeted, 47 au out, the target's
+   * exposure was 2,200× Earth's, Earth's night ground keyed the meter at a
+   * gain of 10, and the sky had no stars).
    */
   _updateExposure() {
-    const target = targets.obj
+    let target = targets.obj
+    if (targets.landed) {
+      const home = this._homeBody()
+      if (home?.props?.radius) {
+        target = home
+      }
+    }
     if (target?.props?.radius && target.props.type !== 'star') {
       this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
       target.getWorldPosition(this._exposureBodyPos)
@@ -2036,6 +2053,12 @@ export default class ThreeUi {
     // sphere went into it.
     const surfaceR = groundRadius(targetObj.props.radius.scalar, this.layers.groundHeight(targetObj))
     const distAfter = this.camera.position.distanceTo(this.controls.target)
+    // In a seat (Scene.rideSeat) the camera's position is the seat's each
+    // frame: a zoom leaves it, from where it is.
+    const seated = Boolean(this.sceneManager?.seat)
+    if (seated && Math.abs(distAfter - distBefore) > distBefore * SEAT_ZOOM_LEAVES) {
+      this.sceneManager.leaveSeat()
+    }
     const distDesired = asymptoticZoomDist(distBefore, distAfter, surfaceR + GROUND_CLEARANCE_M)
     if (distDesired !== distAfter) {
       this._zoomEye.subVectors(this.camera.position, this.controls.target)
@@ -2049,7 +2072,9 @@ export default class ThreeUi {
     // From where the camera ends up: from the linear step before the remap,
     // one frame's near plane was sized for an altitude the zoom never
     // reached (a zoom out from the ground: ~0.25 radii, near ~160 km).
-    const newNear = dynamicNear(Math.max(0, distDesired - surfaceR), surfaceR)
+    // In a seat, among a telescope's parts, a metre off: the floor
+    // (100 m on Earth) would clip it all.
+    const newNear = seated && this.sceneManager.seat ? SEAT_NEAR_M : dynamicNear(Math.max(0, distDesired - surfaceR), surfaceR)
     if (newNear !== this.camera.near) {
       this.camera.near = newNear
       this.camera.updateProjectionMatrix()
@@ -2106,6 +2131,12 @@ export default class ThreeUi {
   _keepAboveGround() {
     const targetObj = this._homeBody()
     if (!targetObj?.props?.radius || (this.arController && this.arController.isActive())) {
+      return
+    }
+    // A seat stands on its own ground (the Rubin Observatory's, from its
+    // own sample of the terrain): lifting the camera off it to the
+    // layer's sample under the camera left the visitor hovering.
+    if (this.sceneManager?.seat) {
       return
     }
     const groundHeight = this.layers.groundHeight(targetObj)
