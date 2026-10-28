@@ -108,7 +108,14 @@ origin, along X) put at the origin of the azimuth and elevation groups,
 15 m over the ground (`AXIS_HEIGHT_M`, the dome's centre is 14), and the
 elevation structure turned from the model's pose (45° up) to the park,
 the tube along +Y, 9.6 m to its top end.  The pier runs 20 m below the
-model's origin, under the enclosure and the ground.  Its materials join
+model's origin, under the enclosure and the ground.  Its paint is a
+dielectric (build.sh's palette: metalness 0.05, the mirror 1): a first
+cut gave it 0.4 to 0.6, and a half-metal under the Sun's one point light,
+with no environment to reflect, was near black by day from 175 m with the
+shell off.  And `obj2glb.py` winds each face to the file's normals, which
+faced the other way from the winding on half of them: with the two-sided
+material those faces were lit from the wrong side, black from both, a
+speckled silhouette by day.  Its materials join
 the night glow's list as they arrive.  `rubinModel.test.js` checks the
 re-hang on a model of three points.  Lit by the Sun as the planets and
 Webb's model are (models.md): PBR under the Sun's point light, in the HDR
@@ -160,6 +167,36 @@ end shows while it tracks, so the pointing reads from beside the dome.  `rubin.t
 checks the frame, the angles and that the tube's +Y lands on the body;
 `RubinObservatory.test.js` the group in a scene graph, with a stub model.
 
+**The seat** (`SEAT_M`, the model's `seat` node): a viewpoint on the
+telescope's elevation structure, in its frame, so it rides the pointing
+and looks parallel to it, as the maintainer asked (an "astronomer's
+seat").  It stands on the walkway NOIRLab's model carries on the
+structure's +Z side (its `platform` and `rails1` parts: a floor at 7 to
+8 m from the elevation axis, a metre above it, with rails to 3 m), at a
+standing eye's height, 2.8 m over the axis and 7.3 m out, which is
+outside the structure's rings (radius 6 m) and clear of the view.  The
+model's bounds were measured from its vertices in the park frame
+(a `Box3` of the posed parts inflates: the 45° pose turns each part's
+box); the test holds the seat off the rings and inside the dome.
+`Scene.rideSeat(seat, {lookAt, up})` lands the camera on Earth as `land`
+does (the platform on the spun node, a drag looks around), takes it
+there over the go tween looking along the tube with the site's zenith
+up, and from then on puts the camera at the seat's world position each
+frame (`Scene._syncSeat`, from `syncFollow`, before tracking faces the
+target), so the view rides the mount as the telescope turns, with the
+orientation the user's or tracking's.  In the seat ThreeUI sets the near
+plane to 0.3 m (`SEAT_NEAR_M`; the floor of 100 m on Earth would clip
+the parts a metre off) and leaves the ground floor alone (the seat
+stands on the observatory's own ground); a wheel zoom leaves the seat
+(`SEAT_ZOOM_LEAVES`), as do a go, a landing and the app's stop.  From
+inside, the dome and the enclosure don't show: their materials are
+front-sided, and from the seat only their backs face the camera.
+
+**The shell** (`setShell`): the enclosure and the dome, which the app's
+switch hides to show the telescope on its mount from outside (the
+maintainer's ask, until the complete scene's enclosure is in).  The
+`shell=0` token carries it.
+
 ## The apparent path
 
 `ApparentPath`: for each day of the run (1 March to 1 August 2026) the
@@ -182,21 +219,37 @@ unpinned, removes them (`Scene.removeRubin`).
 - **Observatory**: lands 170 m south-east of the dome, 2 m up
   (`Scene.land`), and turns to it when landed (`tweenNextFn`, a look
   tween).  170 m because the near plane's floor on Earth is 100 m
-  (zoom.js `dynamicNear`); from nearer the dome clips.
+  (zoom.js `dynamicNear`); from nearer the dome clips.  It lands on the
+  observatory's own ground (`land`'s `groundHeight` option, the
+  observatory's `altitude`): on the preview with ion, the layer's sample
+  at the viewpoint and the observatory's differed by a tile's level, and
+  the visitor arrived 1.2 km over the dome (the camera at 2.954 km, the
+  model at 1.717 km).  The seat sidesteps it altogether: the camera is
+  on the model.
+- **Astronomer's seat**: `Scene.rideSeat` to the seat, looking along the
+  tube, 2026 ED138 targeted; arriving, tracking goes on if the telescope
+  is tracking, so the view holds the object as the telescope does, and
+  the field-of-view keys zoom into the sky it sees.  By day the seat
+  looks up the parked tube at the zenith.  Targeting the body from the
+  ground keyed the exposure to it, 2,200× Earth's (its sunlit surface at
+  47 au), and Earth's night ground then keyed the meter at a gain of 10,
+  with no stars in the sky: landed, the exposure is now keyed to the body
+  the camera stands on, whatever is targeted ([HDR.md](../HDR.md#metered-exposure)).
 - **2026 ED138**: targets the body and goes to it (10 radii out: a
   mottled grey ball; from there the Sun is a star of −19).
 - **Its orbit**: to the Sun, 100 au out, where the line shows beyond
   Pluto's.
 - **A night's observing**: a slider over the run's nights; *Watch the
   night* sets the clock to 03:00 UTC that night (23:00 at the site), runs
-  it at 256× (a night in about two minutes) and lands by the dome.  A
+  it at 256× (a night in about two minutes) and takes the seat.  A
   readout a few times a second: the time, the body's altitude, the Sun's,
   the dome, the telescope's azimuth and elevation or "parked".
+- **The dome and the building**: the shell switch (`setShell`).
 - **Its path on the sky**: the switch for the arc.
 
 **State in the link** (`apps.rubin`, design/URLs.md): `path=0` with the
-path off, `night=<days since 1970>` for a night other than 15 May.  The
-clock is the `t=` token's, as ever.
+path off, `night=<days since 1970>` for a night other than 15 May,
+`shell=0` with the shell off.  The clock is the `t=` token's, as ever.
 
 **The first load.**  The feature loads with a dynamic import
 (`install.js`), and imports nothing of the first load's but three: a
@@ -210,7 +263,7 @@ request budget.  So `Scene.getRubin` hands `installRubin` the functions
 them as `deps`; `rubin.js` has its own radians and its own radial (the
 test holds it to coords.js's).  The panel, its icon and the token's codec
 are in the first load, 2 KB gzipped, which was at its budget (729 of 730
-KB, esbuild/budget.js: 732 now).  Loading the panel lazily too cost more,
+KB, esbuild/budget.js: 732 then, 733 with the seat and the shell switch).  Loading the panel lazily too cost more,
 735 and three scripts: what it shares with the App (MUI's controls, the
 camera's tweens, the store) was split out the same way.  The panel
 repeats the few numbers it needs of `rubin.js` (`store/rubinApp.js`)
@@ -249,6 +302,32 @@ rather than import it; `rubin.test.js` holds them equal.
     planet candidate, 42.9485 AU from the Sun"; the title "2026 ED138 —
     Celestiary".
   - No shader errors.
+- The seat and the field, headless as above, 2026-10-28 (the night of 15
+  May, 03:00 UTC, the clock paused; the probe rode the seat at once,
+  looked along the tube with the site's zenith up and tracked):
+  - **The seat rides the pointing**: tracking at azimuth 123°, elevation
+    35°, the camera on the elevation structure, the tube's +Y 0.0° from
+    the body, 46.4 au off; the near plane 0.3 m; landed, the drag mode pan.
+  - **Tracking holds the body at the frame's centre at every field**: its
+    projection is within 1e-13 of the centre in normalised device
+    coordinates at 45°, 5°, 0.5° and 0.05° (the `setFov` steps).  At 45°
+    the telescope's upper ring is an arc across the bottom of the frame at
+    the glow, the constellations and the path's crowded months above; at
+    5°, a Rubin field's width, a star field to Gaia's depth, the arc with
+    its months apart, the body's orbit line and the beam up the pointing;
+    at 0.5° the ring at the body, the arc and its 1 May tick, one star; at
+    0.05° (3′) the ring and the lines alone.  So a projection of Rubin's
+    imagery over the patch (#333) has a frame to land in at any of these.
+  - **The exposure**: with the body targeted the keyed exposure went to
+    its, 2,200× Earth's, over the ease; now landed it stays Earth's
+    (3.8e-5), and the meter settles at 5.4e5 at 45° (the glow and the
+    ring in the frame) and the dark-adapted cap, 3.9e6, in the narrower
+    fields, where the sky is the airglow's grey through the eye's response.
+  - **The probe's own lesson** (AGENTS.md): the meter's readback lands
+    between tasks.  Driven inside one task the gain sat at 37 and the
+    frame was black but for the overlays, which looked like a pipeline
+    fault for hours (the overlays, the near plane, the far point and the
+    model were each suspected and cleared).
 
 ## Not yet
 
@@ -266,8 +345,16 @@ rather than import it; `rubin.test.js` holds them equal.
   all night, to show where it is; a scheduler's pattern of visits is a
   follow-up.
 - **Moonlight on the model**, in place of the glow.
-- **The near plane.**  From under 100 m the dome clips; a lower floor near
-  a small object on a large body (as spacecraft get a hundredth of their
-  radius) would let the visitor walk up to it.
+- **The near plane outside the seat.**  From under 100 m the dome clips;
+  a lower floor near a small object on a large body (as spacecraft get a
+  hundredth of their radius) would let the visitor walk up to it.  The
+  seat has its own (0.3 m); first-person controls round the telescope
+  (#330) want the floor too.
+- **The slit is a wedge.**  The dome's slit is a cut in the sphere's
+  longitude, 11 m wide at the rim and closing at the top, where the real
+  slit runs over the top at its full width; and the dome's inside isn't
+  drawn (front-sided materials), so from the seat the shell is see-through
+  whatever the shutter does.  The complete scene's dome (#331) replaces
+  both.
 - **The object's own size and albedo**, when they're measured, and its
   rotation.

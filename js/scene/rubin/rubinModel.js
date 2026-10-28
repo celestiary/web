@@ -44,6 +44,16 @@ export const MODEL_POSE_EL_DEG = 45
 export const MODEL_TUBE_TOP_M = 9.6
 
 export const BEAM_LENGTH_M = 400
+/**
+ * The astronomer's seat (Rubin.md, "The seat"): a viewpoint on the
+ * elevation structure, in its frame (the tube along +Y, the axis along X),
+ * so it rides the pointing and looks parallel to it.  On the walkway the
+ * model carries on the structure's +Z side (its `platform` and `rails1`
+ * parts: a floor at radius 7 to 8 m from the axis, a metre above it, with
+ * rails to 3 m), at a standing eye's height over the floor, outside the
+ * structure's rings (radius 6) and the beam of the view.
+ */
+export const SEAT_M = Object.freeze({x: 0, y: 2.8, z: 7.3})
 const BEAM_COLOR = 0x9fe8ff
 const BEAM_WIDTH_PX = 1.5
 const BEAM_OPACITY = 0.6
@@ -132,8 +142,11 @@ export function assembleTelescope(root, {axisY = MODEL_AXIS_Y, poseElDeg = MODEL
  * @param {?Function} [deps.loadModel] model.js's; without it the mount is
  *   empty (a test)
  * @returns {{group: Group, azimuth: Object3D, elevation: Object3D, dome: Object3D, shutter: Mesh,
- *   beam: Mesh, materials: MeshStandardMaterial[], ready: Promise<?object>}} The
- *   model, its moving parts (RubinObservatory.js turns them), every lit
+ *   beam: Mesh, seat: Object3D, building: Mesh, materials: MeshStandardMaterial[],
+ *   ready: Promise<?object>}} The
+ *   model, its moving parts (RubinObservatory.js turns them), the seat on
+ *   the elevation structure (SEAT_M), the enclosure (with the dome, the
+ *   shell RubinObservatory.setShell hides), every lit
  *   material, for the night glow (the telescope's join the list when it
  *   loads), and the telescope's arrival (assembleTelescope's, or null)
  */
@@ -179,7 +192,13 @@ export function newRubinModel({newWideLineStrip, loadModel = null}) {
   beam.visible = false
   elevation.add(beam)
 
-  const model = {group, azimuth, elevation, dome, shutter, beam, materials, telescope: null, ready: null}
+  // The astronomer's seat, riding the elevation structure.
+  const seat = new Object3D
+  seat.name = 'seat'
+  seat.position.set(SEAT_M.x, SEAT_M.y, SEAT_M.z)
+  elevation.add(seat)
+
+  const model = {group, azimuth, elevation, dome, shutter, beam, seat, building, materials, telescope: null, ready: null}
   model.ready = loadModel ?
     loadModel(MODEL_PATH, {doubleSided: true}).then((root) => {
       const parts = assembleTelescope(root)

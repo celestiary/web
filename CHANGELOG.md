@@ -54,13 +54,15 @@ clouds, for a night's sky the day's weather would cover. A link remembers it.
 2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's
 system on JPL's orbit: about 1,000 km across, 46 au from the Sun, beyond Pluto. A new app in the
 widgets drawer puts the Rubin Observatory on Cerro Pachón, with NOIRLab's model of the Simonyi
-Survey Telescope following the object through a night of the discovery run, and draws the object's
-path on the sky over those months: 2° of retrograde that is the Earth's own motion reflected, not
-the orbit.
+Survey Telescope following the object through a night of the discovery run, watched from an
+astronomer's seat on the telescope that rides its pointing and tracks the object with it (zoom the
+field of view into the sky it sees), and draws the object's path on the sky over those months: 2° of
+retrograde that is the Earth's own motion reflected, not the orbit. A switch takes the dome and the
+building away to see the telescope turn.
 
 - Date: 2026-10-28
 - PR: [#320](https://github.com/celestiary/web/pull/320)
-- Epic: [#114](https://github.com/celestiary/web/issues/114) Asteroids, comets, satellites
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
 - Permalink: [Open this view](https://celestiary.org/#sun/ed138)
 - Featured: yes
 

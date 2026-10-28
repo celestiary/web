@@ -33,8 +33,10 @@ export const STATIC_BUDGET = {
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
-  // 735 and three scripts, in the shared chunks the split made.
-  totalGzipKB: 732,
+  // 735 and three scripts, in the shared chunks the split made.  733 on
+  // 2026-10-28: the seat the camera rides (Scene.rideSeat, its near plane
+  // in ThreeUI) and the panel's seat button and shell switch.
+  totalGzipKB: 733,
   // The largest single first-load file, minified.  Main: 695 KB.
   largestChunkMinifiedKB: 765,
 }

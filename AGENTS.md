@@ -179,6 +179,14 @@ tried and dropped.
     with `toDataURL` in the same task (its buffer is cleared once the
     task ends). Null `c.shared.targets.tween` before each frame, or the
     `goTo` tween moves the camera off your view.
+  - **Drive the loop across tasks when the meter matters.**  The meter
+    reads back through a pixel-pack buffer whose fence resolves between
+    tasks: a run of `renderLoop` calls inside one `page.evaluate` meters
+    its first frames and then reads nothing more, so the gain stays where
+    those left it (at the Rubin seat it sat at 37 for a sky worth 5e5,
+    and the frame was black with no stars: hours of hunting).  Settle
+    with many short `evaluate`s of a few frames each, a few ms apart, and
+    render the frame you read in the same task as its canvas read.
   - Before reading a metered view, wait for `c.ui._meterGainGoal` to
     hold for ~30 s, not a few polls. A view loaded far from its gain
     (a link with a high `ev=` starts at the dark gain) can bounce: a

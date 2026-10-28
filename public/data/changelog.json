@@ -24,7 +24,7 @@
       "id": "2026-10-28-rubin-s-dwarf-planet-candidate-and-the",
       "date": "2026-10-28",
       "headline": "Rubin's dwarf planet candidate, and the telescope that found it",
-      "text": "2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's system on JPL's orbit: about 1,000 km across, 46 au from the Sun, beyond Pluto. A new app in the widgets drawer puts the Rubin Observatory on Cerro Pachón, with NOIRLab's model of the Simonyi Survey Telescope following the object through a night of the discovery run, and draws the object's path on the sky over those months: 2° of retrograde that is the Earth's own motion reflected, not the orbit.",
+      "text": "2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's system on JPL's orbit: about 1,000 km across, 46 au from the Sun, beyond Pluto. A new app in the widgets drawer puts the Rubin Observatory on Cerro Pachón, with NOIRLab's model of the Simonyi Survey Telescope following the object through a night of the discovery run, watched from an astronomer's seat on the telescope that rides its pointing and tracks the object with it (zoom the field of view into the sky it sees), and draws the object's path on the sky over those months: 2° of retrograde that is the Earth's own motion reflected, not the orbit. A switch takes the dome and the building away to see the telescope turn.",
       "links": [
         {
           "kind": "pr",
@@ -33,9 +33,9 @@
         }
       ],
       "epic": {
-        "number": 114,
-        "title": "Asteroids, comets, satellites",
-        "url": "https://github.com/celestiary/web/issues/114"
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
       },
       "permalink": "#sun/ed138",
       "image": null,

@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'bun:test'
 import {Mesh, MeshStandardMaterial, Object3D, Vector3} from 'three'
 import {
-  AXIS_HEIGHT_M, MODEL_AXIS_Y, MODEL_POSE_EL_DEG, MODEL_TUBE_TOP_M, assembleTelescope, newRubinModel,
+  AXIS_HEIGHT_M, MODEL_AXIS_Y, MODEL_POSE_EL_DEG, MODEL_TUBE_TOP_M, SEAT_M, assembleTelescope, newRubinModel,
 } from './rubinModel.js'
 import {newWideLineStrip} from '../wideLines.js'
 
@@ -88,5 +88,22 @@ describe('newRubinModel', () => {
     const none = newRubinModel({newWideLineStrip})
     expect(await none.ready).toBe(null)
     expect(none.dome.getObjectByName('shutter')).toBeDefined()
+  })
+
+  it('carries the seat on the elevation structure, beside the tube, so it rides the pointing', () => {
+    const model = newRubinModel({newWideLineStrip})
+    expect(model.seat.parent).toBe(model.elevation)
+    expect(model.seat.position.toArray()).toEqual([SEAT_M.x, SEAT_M.y, SEAT_M.z])
+    // Outside the structure's rings (radius 6 m round the tube), inside the
+    // dome (15 m), and the building is the shell's.
+    expect(Math.hypot(SEAT_M.x, SEAT_M.z)).toBeGreaterThan(6.5)
+    expect(Math.hypot(SEAT_M.x, SEAT_M.y, SEAT_M.z)).toBeLessThan(15)
+    expect(model.building.parent).toBe(model.group)
+    // Pointed 30° up toward the north, the seat goes with the tube.
+    model.elevation.rotation.x = -60 * toRad
+    const seat = worldOf(model.seat)
+    const tubeDir = new Vector3(0, 1, 0).applyEuler(model.elevation.rotation)
+    expect(tubeDir.z).toBeLessThan(-0.8)
+    expect(seat.y).toBeCloseTo(AXIS_HEIGHT_M + (SEAT_M.y * Math.cos(60 * toRad)) + (SEAT_M.z * Math.sin(60 * toRad)), 6)
   })
 })

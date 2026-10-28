@@ -871,7 +871,14 @@ the table above.
 ## Metered exposure
 
 The target-keyed exposure ([Planet.md](Planet.md#lighting-and-exposure))
-shows a sunlit target at its albedo and is the anchor.  Over it a **metered
+shows a sunlit target at its albedo and is the anchor.  Landed, the body
+the camera stands on keys it, whatever is targeted
+(`ThreeUi._updateExposure`): the eye is where it stands.  From the Rubin
+Observatory's seat with 2026 ED138 targeted, 47 au out ([rubin/Rubin.md](rubin/Rubin.md)),
+the target's exposure was 2,200× Earth's, Earth's night ground keyed the
+meter at a gain of 10, and the sky had no stars; a far target is an
+unresolved point there, with no sunlit surface to show at its albedo.
+Over it a **metered
 gain** adapts to what's in the frame, as the eye or an auto-exposing camera
 does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
 

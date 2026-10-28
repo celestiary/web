@@ -28,12 +28,14 @@ export const DEFAULT_NIGHT_MS = Date.UTC(2026, 4, 15)
 
 /**
  * The app's state, as the widgets slice keeps it for the permalink: whether
- * the apparent path is drawn, and the night the run's slider is on (ms at
- * 0h UTC).
+ * the apparent path is drawn, the night the run's slider is on (ms at
+ * 0h UTC), and whether the observatory's shell (the enclosure and dome)
+ * is drawn.
  */
 export const DEFAULT_RUBIN = Object.freeze({
   path: true,
   nightMs: DEFAULT_NIGHT_MS,
+  shell: true,
 })
 
 const MS_PER_DAY = 86400e3
@@ -51,6 +53,7 @@ export function encodeRubinToken(s) {
   const value = formatTokenValue([], {
     path: s.path === d.path ? null : (s.path ? 1 : 0),
     night: s.nightMs === d.nightMs ? null : Math.round(s.nightMs / MS_PER_DAY),
+    shell: s.shell === d.shell ? null : (s.shell ? 1 : 0),
   })
   return value || null
 }
@@ -68,5 +71,6 @@ export function decodeRubinToken(value) {
   return {
     path: named.path === '1' ? true : named.path === '0' ? false : d.path,
     nightMs: named.night && Number.isInteger(night) && night > 0 ? night * MS_PER_DAY : d.nightMs,
+    shell: named.shell === '1' ? true : named.shell === '0' ? false : d.shell,
   }
 }

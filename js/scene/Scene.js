@@ -301,6 +301,9 @@ export default class Scene {
     // The node the camera was riding when following was turned off, until
     // syncFollow has detached the camera from it.
     this._detachFrom = null
+    // A node the camera rides in place of its own position, landed: the
+    // Rubin Observatory's seat (rideSeat); null when it isn't.
+    this.seat = null
     // Populations round bodies (population/Population.md), by body: Earth's
     // satellites (satellites/Satellites.md), their chunk and snapshot
     // imported when something first needs them (loadSatellites), and any
@@ -2384,6 +2387,7 @@ export default class Scene {
       state?.setLanded?.(false)
       Shared.targets.landed = false
     }
+    this.leaveSeat()
   }
 
 
@@ -2420,6 +2424,11 @@ export default class Scene {
    *   the saved view direction.
    * @param {object} [opts.target] The target after (`setTarget`, without
    *   the look): a place being landed at; else the body
+   * @param {number} [opts.groundHeight] The terrain's height at the place
+   *   over the sphere, metres, when the caller knows it (the Rubin
+   *   Observatory's, which stands on its own sample), in place of the
+   *   layer's: two samples of the same ground can differ by a tile's
+   *   level, and the observatory's visitor arrived a kilometre over it
    */
   land(bodyName, lat, lng, alt = DEFAULT_LAND_ALT_M, opts = {}) {
     const bodyNode = this.objects[bodyName]
@@ -2430,6 +2439,7 @@ export default class Scene {
     if (!r) {
       throw new Error(`Scene.land: body ${bodyName} has no radius`)
     }
+    this.leaveSeat()
 
     this.ui.scene.updateMatrixWorld()
 
@@ -2463,7 +2473,8 @@ export default class Scene {
     // loaded so far; ThreeUI keeps the camera over the ground as finer ones
     // arrive).  Not for a permalink restore: its altitude was measured over
     // the sphere, terrain included.
-    const ground = opts.instant ? 0 : this.ui.layers?.groundHeightAt?.(bodyNode, lat, lng) ?? null
+    const ground = opts.instant ? 0 :
+      opts.groundHeight ?? this.ui.layers?.groundHeightAt?.(bodyNode, lat, lng) ?? null
     const arrivalLocal = latLngAltToBodyFixed(lat, lng, alt + (ground ?? 0), r)
 
     if (opts.instant) {
@@ -2703,6 +2714,85 @@ export default class Scene {
 
 
   /**
+   * Put the camera in a seat: a node on a body that moves in the body's
+   * frame (the Rubin Observatory's seat, on its telescope's elevation
+   * structure: rubin/Rubin.md).  Landed on the body, as `land` leaves the
+   * camera (its platform on the body's spun node, a drag looks around),
+   * and from then on the camera's position is the seat's every frame
+   * (`syncFollow`), wherever the seat turns to; its orientation stays the
+   * user's, or tracking's.  A go tween takes the camera there, looking at
+   * `lookAt`, or the camera is put there at once.  Going somewhere,
+   * landing, a zoom (ThreeUi) and the seat's removal leave it
+   * (`leaveSeat`): the camera stays where it is, landed.
+   *
+   * @param {object} seat A node under a body's spun node (this.objects')
+   * @param {object} [opts]
+   * @param {Vector3} [opts.lookAt] Where to face on arrival, world space;
+   *   along the way the camera turns to it (camera.js newCameraGoToTween)
+   * @param {Vector3} [opts.up] The up at the arrival, world space (the
+   *   seat's zenith); else the camera keeps its roll
+   * @param {boolean} [opts.instant] Put the camera in the seat now, facing
+   *   as it does
+   */
+  rideSeat(seat, {lookAt = null, up = null, instant = false} = {}) {
+    let body = seat
+    while (body && !(body.props?.radius?.scalar > 0)) {
+      body = body.parent
+    }
+    if (!body) {
+      throw new Error('Scene.rideSeat: the seat is not on a body')
+    }
+    this.ui.scene.updateMatrixWorld()
+    const platform = this.ui.camera.platform
+    if (platform.parent !== body) {
+      rehangPlatform(platform, this.ui.camera, body)
+    }
+    Shared.targets.cur = body
+    this._followArrival(body.orbitPosition ?? null)
+    const local = platform.worldToLocal(seat.getWorldPosition(new Vector3))
+    if (instant || !lookAt) {
+      this.ui.camera.position.copy(local)
+      Shared.targets.tween = null
+    } else {
+      Shared.targets.tween = newCameraGoToTween(this.ui.camera, lookAt, local, {up})
+    }
+    Shared.targets.tweenNextFn = null
+    const state = this.ui.useStore?.getState?.()
+    state?.setDragMode?.('pan')
+    state?.setLanded?.(true)
+    Shared.targets.landed = true
+    this.seat = seat
+  }
+
+
+  /** Out of the seat (rideSeat), the camera staying where it is. */
+  leaveSeat() {
+    this.seat = null
+  }
+
+
+  /**
+   * The camera to the seat it rides (rideSeat), once the go there is over:
+   * each frame, after the animation has moved the seat, before tracking
+   * faces the target from there.
+   */
+  _syncSeat() {
+    const seat = this.seat
+    if (!seat || Shared.targets.tween?.travels) {
+      return
+    }
+    if (!seat.parent || this.ui.camera.platform.parent !== Shared.targets.cur) {
+      // Removed from the scene, or the camera has left the body.
+      this.seat = null
+      return
+    }
+    const platform = this.ui.camera.platform
+    platform.updateWorldMatrix(true, false)
+    this.ui.camera.position.copy(platform.worldToLocal(seat.getWorldPosition(this._seatPos ??= new Vector3)))
+  }
+
+
+  /**
    * Track the target ('t'), on and off: every frame the camera faces it
    * (`lookAtTarget`, from Celestiary's animation callback), whatever the
    * target is then: a body, a star, an asterism, or a place, which it
@@ -2918,6 +3008,7 @@ export default class Scene {
    * Cheap when there is nothing to do: a few comparisons.
    */
   syncFollow() {
+    this._syncSeat()
     if (Shared.targets.tween?.travels) {
       return
     }
@@ -3199,6 +3290,9 @@ export default class Scene {
   /** Out of the scene (the app's stop). */
   removeRubin() {
     this._rubinWanted = false
+    if (this.rubin && this.seat === this.rubin.observatory.seat) {
+      this.leaveSeat()
+    }
     this.rubin?.dispose()
     this.rubin = null
   }

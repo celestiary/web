@@ -663,11 +663,14 @@ apparent path on the sky.
 path=0             the apparent path off (on by default)
 night=<days>       the night the run's slider is on, as days since 1970 at
                    0h UTC (15 May 2026 by default)
+shell=0            the observatory's shell, the enclosure and dome, hidden
+                   (drawn by default), the telescope on its mount in the open
 ```
 
 ```
 #…;apps:open,view=rubin                        open on the app, the defaults
 #…;apps:open,view=rubin;apps.rubin:path=0,night=20544   the path off, the slider on 1 April 2026
+#…;apps:open,view=rubin;apps.rubin:shell=0     the telescope in the open
 ```
 
 - **The clock is the `t=` token's.**  Watching a night sets the clock, and

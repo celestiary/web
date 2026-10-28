@@ -22,14 +22,16 @@ function stubModel() {
   dome.position.y = 14
   const shutter = new Object3D
   const beam = new Object3D
+  const seat = new Object3D
+  seat.position.set(0, 2.8, 7.3)
   const materials = [new MeshStandardMaterial({color: 0x808080})]
   const building = new Mesh(undefined, materials[0])
   building.name = 'building'
   group.add(building, azimuth, dome)
   azimuth.add(elevation)
   dome.add(shutter)
-  elevation.add(beam)
-  return {group, azimuth, elevation, dome, shutter, beam, materials}
+  elevation.add(beam, seat)
+  return {group, azimuth, elevation, dome, shutter, beam, seat, building, materials}
 }
 
 
@@ -197,5 +199,21 @@ describe('RubinObservatory', () => {
     expect(obs.parent).toBe(null)
     expect(earth.children).toHaveLength(0)
     expect(new Mesh().isMesh).toBe(true)
+  })
+
+  it('hides the shell, the building and the dome, on setShell(false), leaving the mount; the seat is the model\'s', () => {
+    const {earth} = world(0)
+    const obs = new RubinObservatory({earth, deps, body: () => null, newModel: stubModel})
+    expect(obs.shell).toBe(true)
+    expect(obs.seat).toBe(obs.model.seat)
+    expect(obs.seat.parent).toBe(obs.model.elevation)
+    obs.setShell(false)
+    expect(obs.shell).toBe(false)
+    expect(obs.model.building.visible).toBe(false)
+    expect(obs.model.dome.visible).toBe(false)
+    expect(obs.model.azimuth.visible).toBe(true)
+    obs.setShell(true)
+    expect(obs.model.building.visible).toBe(true)
+    expect(obs.model.dome.visible).toBe(true)
   })
 })

@@ -115,6 +115,13 @@ def main():
             for tri in tris:
                 pts = [verts[c[0]] for c in tri]
                 fn = face_normal(*pts)
+                # Wind the face to its own normals: where the file's normals
+                # face the other way from the winding (half of NOIRLab's
+                # Rubin faces), a two-sided material lights the face from
+                # the wrong side and it is black from both.
+                given = [norms[ni] for (vi, ni) in tri if ni is not None and ni < len(norms)]
+                if given and sum(fn[k] * sum(n[k] for n in given) for k in range(3)) < 0:
+                    tri = (tri[0], tri[2], tri[1])
                 for (vi, ni) in tri:
                     n = norms[ni] if ni is not None and ni < len(norms) else fn
                     key = (vi, n)

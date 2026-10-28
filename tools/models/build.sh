@@ -33,13 +33,18 @@ $GT optimize "$SRC/James_Webb_Space_Telescope_A.glb" "$OUT/jwst/jwst.glb" \
 # obj2glb.py makes one node a part under three groups the app turns (the
 # pier, the azimuth structure, the elevation structure: the regexes are
 # the parts' names in the file); optimize keeps that hierarchy (no flatten
-# or join) and the materials' colours (no palette texture).
+# or join) and the materials' colours (no palette texture).  The paint is a
+# dielectric (metalness 0.05; the mirror 1): a half-metal under the Sun's
+# one point light, with no environment to reflect, was near black by day.
+# obj2glb.py winds each face to the file's normals, which face the other
+# way from the winding on half of them: a two-sided material lit those
+# from the wrong side, black from both.
 mkdir -p "$OUT/rubin"
 TMP=$(mktemp -d)
 python3 "$(dirname "$0")/obj2glb.py" "$SRC/model3d004.obj" "$TMP/rubin-grouped.glb" --scale 0.01 \
-  --mat 'mirror=0.25,0.28,0.33,1,0.1' --mat 'Metal - Teflon=0.85,0.85,0.85,0.6,0.4' \
-  --mat 'Mat=0.6,0.62,0.65,0.5,0.6' --mat 'Mat_1=0.75,0.76,0.78,0.5,0.55' --mat 'Mat_2=0.35,0.37,0.4,0.6,0.6' \
-  --mat 'default=0.7,0.7,0.7,0.4,0.7' --mat 'override=0.5,0.5,0.52,0.4,0.7' \
+  --mat 'mirror=0.25,0.28,0.33,1,0.1' --mat 'Metal - Teflon=0.85,0.85,0.85,0.1,0.4' \
+  --mat 'Mat=0.6,0.62,0.65,0.05,0.6' --mat 'Mat_1=0.75,0.76,0.78,0.05,0.55' --mat 'Mat_2=0.35,0.37,0.4,0.05,0.6' \
+  --mat 'default=0.7,0.7,0.7,0.05,0.7' --mat 'override=0.5,0.5,0.52,0.05,0.7' \
   --group 'pier=^peer_(?!rails)' \
   --group 'azimuth=base_telescope|^platform_[123]$|^rails$|^stair_rails|^Layer_0_58481|^Cube|^pillar_1$|^ring_base_telescope$|^peer_rails' \
   --group 'elevation=.'

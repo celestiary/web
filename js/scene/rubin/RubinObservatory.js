@@ -92,6 +92,9 @@ export default class RubinObservatory extends Group {
     this.shutterSlide = 0
     // The last frame's pointing (pointingState), for the app's readout.
     this.state = null
+    // The shell: the enclosure and the dome, which setShell hides to show
+    // the telescope from outside.
+    this.shell = true
     // Each frame, before the bodies move (Animation.animateSystem).
     this.preAnimCb = () => this.update()
     earth.add(this)
@@ -225,6 +228,25 @@ export default class RubinObservatory extends Group {
       this._twins.set(lit, twin)
     }
     return twin
+  }
+
+
+  /** @returns {object} The astronomer's seat, an Object3D on the elevation structure (rubinModel.js SEAT_M), for Scene.rideSeat */
+  get seat() {
+    return this.model.seat
+  }
+
+
+  /**
+   * Show or hide the shell, the enclosure and its dome, leaving the
+   * telescope on its mount in the open: the app's switch (Rubin.md).
+   *
+   * @param {boolean} on
+   */
+  setShell(on) {
+    this.shell = Boolean(on)
+    this.model.building.visible = this.shell
+    this.model.dome.visible = this.shell
   }
 
 

@@ -12,6 +12,7 @@ import {
   DEFAULT_RUBIN, RUBIN_APP_ID, RUBIN_MIN_EL_DEG as MIN_EL_DEG, RUBIN_RUN_END_MS as RUN_END_MS,
   RUBIN_RUN_START_MS as RUN_START_MS, RUBIN_SITE as SITE, RUBIN_TARGET as TARGET,
 } from '../store/rubinApp'
+import {Quaternion, Vector3} from 'three'
 import {newCameraLookTween} from '../camera'
 import * as Shared from '../shared'
 import PauseIcon from '@mui/icons-material/Pause'
@@ -27,12 +28,15 @@ const NIGHT_START_HOURS_UTC = 3
 // The clock's rate while the night plays: 256× is four and a quarter
 // minutes a second, a night in about 2 minutes.
 const RUN_RATE = 256
-// Where the visitor stands: 170 m from the dome (the near plane's floor is
-// 100 m on Earth, zoom.js), 2 m up, on the Sun's side by day (nothing
-// lights the shaded side: it's black) and to the south-east by night.
+// Where the visitor stands outside: 170 m from the dome (the near plane's
+// floor is 100 m on Earth, zoom.js), 2 m up, on the Sun's side by day
+// (nothing lights the shaded side: it's black) and to the south-east by
+// night.
 const VIEW_DIST_M = 170
 const VIEW_BEARING_DEG = 135
 const VIEW_ALT_M = 2
+// From the seat, the camera arrives looking this far along the telescope.
+const SEAT_LOOK_M = 1e4
 const READOUT_MS = 250
 const RESTORE_POLL_MS = 250
 const OUTER_SYSTEM_LY = 1.6e-3 // 100 AU
@@ -84,6 +88,7 @@ export default function RubinApp({celestiary}) {
   const [saved] = useState(() => useStore.getState().widgets.appStates[RUBIN_APP_ID] ?? DEFAULT_RUBIN)
   const [path, setPath] = useState(saved.path)
   const [nightMs, setNightMs] = useState(saved.nightMs)
+  const [shell, setShell] = useState(saved.shell)
   const [ready, setReady] = useState(false)
   const [readout, setReadout] = useState(null)
   const rubinRef = useRef(null)
@@ -117,10 +122,14 @@ export default function RubinApp({celestiary}) {
     }
   }, [path, ready])
 
+  useEffect(() => {
+    rubinRef.current?.observatory.setShell(shell)
+  }, [shell, ready])
+
   // Report the state, for the permalink.
   useEffect(() => {
-    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs}})
-  }, [dispatchWidgets, path, nightMs])
+    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell}})
+  }, [dispatchWidgets, path, nightMs, shell])
 
   // The telescope's pointing, a few times a second.
   useEffect(() => {
@@ -140,11 +149,38 @@ export default function RubinApp({celestiary}) {
     const sun = rubin.observatory.state
     const bearing = sun && sun.sunEl > 0 ? sun.sunAz : VIEW_BEARING_DEG
     const {lat, lng} = viewpoint(VIEW_DIST_M, bearing, earth.props.radius.scalar)
-    scene.land('earth', lat, lng, VIEW_ALT_M)
+    // On the observatory's own ground: the layer's sample at the viewpoint
+    // has differed from the observatory's by a tile's level (a kilometre).
+    scene.land('earth', lat, lng, VIEW_ALT_M, {groundHeight: rubin.observatory.altitude})
     // Landed, turn to the dome.
     Shared.targets.tweenNextFn = () => {
       Shared.targets.tween = newCameraLookTween(celestiary.ui.camera, rubin.observatory.domeWorldPosition())
       return Shared.targets.tween
+    }
+  }
+
+  // The astronomer's seat: on the telescope's elevation structure, looking
+  // along the tube, with 2026 ED138 targeted; tracking it once there, when
+  // the telescope does, so the view holds it as the telescope holds it.
+  const goToSeat = () => {
+    const rubin = rubinRef.current
+    if (!rubin) {
+      return
+    }
+    const {observatory} = rubin
+    const seat = observatory.seat
+    celestiary.ui.scene.updateMatrixWorld()
+    const seatPos = seat.getWorldPosition(new Vector3)
+    const seatQuat = seat.getWorldQuaternion(new Quaternion)
+    const lookAt = new Vector3(0, SEAT_LOOK_M, 0).applyQuaternion(seatQuat).add(seatPos)
+    const up = new Vector3(0, 1, 0).applyQuaternion(observatory.getWorldQuaternion(new Quaternion))
+    scene.rideSeat(seat, {lookAt, up})
+    scene.setTarget(TARGET, {look: false})
+    Shared.targets.tweenNextFn = () => {
+      if (observatory.state?.tracking) {
+        scene.setTracking(true)
+      }
+      return null
     }
   }
 
@@ -163,7 +199,7 @@ export default function RubinApp({celestiary}) {
     time.setTime(nightMs + (NIGHT_START_HOURS_UTC * 3600e3))
     time.setRate(RUN_RATE)
     time.setPaused(false)
-    goToObservatory()
+    goToSeat()
   }
 
   const nightDay = Math.round((nightMs - RUN_START_MS) / MS_PER_DAY)
@@ -181,6 +217,9 @@ export default function RubinApp({celestiary}) {
         <Button variant='outlined' size='small' onClick={goToObservatory} disabled={!ready} data-testid='rubin-go-observatory'>
           Observatory
         </Button>
+        <Button variant='outlined' size='small' onClick={goToSeat} disabled={!ready} data-testid='rubin-go-seat'>
+          Astronomer&apos;s seat
+        </Button>
         <Button variant='outlined' size='small' onClick={goToBody} data-testid='rubin-go-body'>
           2026 ED138
         </Button>
@@ -192,8 +231,9 @@ export default function RubinApp({celestiary}) {
       <Typography variant='subtitle2'>A night&apos;s observing</Typography>
       <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
         The telescope follows 2026 ED138 whenever it is up by night, more than {MIN_EL_DEG}° over the horizon,
-        and parks at the zenith with the dome shut by day. Pick a night of the run and watch it, from
-        beside the dome, at {RUN_RATE}× time.
+        and parks at the zenith with the dome shut by day. Pick a night of the run and watch it from the
+        astronomer&apos;s seat on the telescope, riding its pointing and tracking the object with it, at {RUN_RATE}× time.
+        Zoom in (the field of view) to see the sky it sees; scroll out to leave the seat.
       </Typography>
       <Typography variant='body2' id='rubin-night-label'>Night of {dateLabel(nightMs)}</Typography>
       <Slider
@@ -226,6 +266,13 @@ export default function RubinApp({celestiary}) {
             'Parked at the zenith'}</div>
         </Box>}
       <Divider sx={{my: 1.5}}/>
+      <FormControlLabel
+        control={<Switch checked={shell} onChange={(e) => setShell(e.target.checked)} size='small' data-testid='rubin-shell-switch'/>}
+        label='The dome and the building'
+      />
+      <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
+        Off, the telescope stands on its mount in the open, to see it turn from outside.
+      </Typography>
       <FormControlLabel
         control={<Switch checked={path} onChange={(e) => setPath(e.target.checked)} size='small' data-testid='rubin-path-switch'/>}
         label='Its path on the sky, March to August'
