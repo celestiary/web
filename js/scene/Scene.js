@@ -3287,12 +3287,13 @@ export default class Scene {
   }
 
 
-  /** Out of the scene (the app's stop). */
+  /** Out of the scene (the app's stop), and the naked eye the observer again. */
   removeRubin() {
     this._rubinWanted = false
     if (this.rubin && this.seat === this.rubin.observatory.seat) {
       this.leaveSeat()
     }
+    this.ui.setInstrument?.(null)
     this.rubin?.dispose()
     this.rubin = null
   }

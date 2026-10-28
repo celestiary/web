@@ -34,7 +34,7 @@ import {
 } from './scene/exposure.js'
 import {clampEv, renderExposure} from './scene/evCompensation.js'
 import {clampStarMag} from './scene/starMagnitude.js'
-import {NAKED_EYE, instrumentStarGain} from './scene/observer/instrument.js'
+import {NAKED_EYE, clampField, instrumentFieldRange, instrumentStarGain} from './scene/observer/instrument.js'
 import {extendedGain, s10Value} from './scene/eye.js'
 import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
@@ -158,11 +158,14 @@ export default class ThreeUi {
     this.meterReadings = 0
     // The user's exposure compensation, stops (setExposureCompensation).
     this._evStops = 0
-    // The observer (observer/instrument.js): the naked eye, dark adapted.
-    // What the star field takes from it goes to the shaders through hdr.js
+    // The observer (observer/instrument.js): the naked eye, dark adapted,
+    // or the instrument an app sets while it runs (setInstrument).  What
+    // the star field takes from it goes to the shaders through hdr.js
     // absoluteUniforms, once here (the field's magnification is the
     // camera's, each frame in the shader).
     this.instrument = NAKED_EYE
+    // Whether the instrument's field range holds the field (setFieldLimit).
+    this.fieldLimit = true
     this._setObserverUniforms()
     // The stars' setting, magnitudes over the instrument's limit (setStarMagnitudeOffset).
     this._starMag = 0
@@ -448,14 +451,61 @@ export default class ThreeUi {
     // size on this canvas (farPoint.js meshReach).
     setDrawingBuffer(height * this.renderer.getPixelRatio(), this.renderer.getPixelRatio())
     this.controls.handleResize()
+    // The pixel limit is in the canvas's pixels (fieldRange).
+    if (this.fieldRange()) {
+      this.setFov(this.camera.fov)
+    }
   }
 
 
-  /** */
+  /**
+   * The field of view, degrees, vertical: held to the active instrument's
+   * range while its limit is on (fieldRange), so the field keys and a
+   * link's `fov=` stop at the instrument's widest field and its pixel
+   * limit.
+   *
+   * @param {number} fov
+   */
   setFov(fov) {
-    this.camera.fov = fov
+    this.camera.fov = clampField(fov, this.fieldRange())
     this.camera.updateProjectionMatrix()
     this.onCameraChange?.()
+  }
+
+
+  /**
+   * The active instrument's field range on this canvas (observer/instrument.js
+   * instrumentFieldRange), while its limit is on.
+   *
+   * @returns {?{minDeg: number, maxDeg: number}} null with no limit
+   */
+  fieldRange() {
+    return this.fieldLimit ? instrumentFieldRange(this.instrument, this.renderer?.domElement?.height || this.height) : null
+  }
+
+
+  /**
+   * Make an instrument the observer (HDR.md, "The instrument"): an app's,
+   * while it runs (the Rubin app's RUBIN), or the naked eye again.  The
+   * star field's numbers follow it, and the field is held to its range.
+   *
+   * @param {?object} instrument An Instrument; null for NAKED_EYE
+   */
+  setInstrument(instrument) {
+    this.instrument = instrument ?? NAKED_EYE
+    this._setObserverUniforms()
+    this.setStarGain(instrumentStarGain(this.instrument, this._starMag))
+    this.setFov(this.camera.fov)
+  }
+
+
+  /**
+   * @param {boolean} on Whether the instrument's field range holds the
+   *   field (the Rubin app's "Rubin's optics"); off, the field is free
+   */
+  setFieldLimit(on) {
+    this.fieldLimit = on !== false
+    this.setFov(this.camera.fov)
   }
 
 

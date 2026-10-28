@@ -29,7 +29,10 @@
  */
 export const STATIC_BUDGET = {
   // Everything in the first load, minified.  Main on 2026-10-15: 2,130 KB.
-  totalMinifiedKB: 2350,
+  // 2,349 on 2026-10-28, a KB under; 2,352 with an instrument's field (#337:
+  // the field range on ThreeUI, the RUBIN instrument, the Rubin panel's
+  // optics switch and field readout, 3 KB minified).
+  totalMinifiedKB: 2353,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -37,8 +40,10 @@ export const STATIC_BUDGET = {
   // 2026-10-28: the seat the camera rides (Scene.rideSeat, its near plane
   // in ThreeUI) and the panel's seat button and shell switch; 734 the same
   // day for the search's views (ViewsProvider, store/appViews.js) and the
-  // bar's places reload.
-  totalGzipKB: 734,
+  // bar's places reload.  735 the same day for an instrument's field (#337:
+  // 1.1 KB gzipped, from 733.3 to 734.4; the clamp has to be in ThreeUI and
+  // the switch and readout in the panel, both first load).
+  totalGzipKB: 735,
   // The largest single first-load file, minified.  Main: 695 KB.
   largestChunkMinifiedKB: 765,
 }
