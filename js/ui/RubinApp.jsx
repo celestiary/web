@@ -230,10 +230,14 @@ export default function RubinApp({celestiary}) {
         control={<Switch checked={path} onChange={(e) => setPath(e.target.checked)} size='small' data-testid='rubin-path-switch'/>}
         label='Its path on the sky, March to August'
       />
-      <Typography variant='caption' color='text.secondary' display='block'>
+      <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
         The arc is not the orbit: at 46 au the object crawls half a degree along it in five months. What
         Rubin saw is the Earth&apos;s own motion reflected, 2° of retrograde from the turn at the start of
         April. Open the path with the orbit lines on and look up from the dome.
+      </Typography>
+      <Typography variant='caption' color='text.secondary' display='block' data-testid='rubin-credit'>
+        Telescope model: Rubin Observatory/NSF/AURA, from NOIRLab&apos;s 3D models. The dome and the object&apos;s
+        surface are stand-ins.
       </Typography>
     </Box>
   )

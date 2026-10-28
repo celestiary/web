@@ -1,24 +1,26 @@
 import {
-  BoxGeometry,
-  CircleGeometry,
   CylinderGeometry,
   Group,
   Mesh,
   MeshStandardMaterial,
   Object3D,
+  Quaternion,
   SphereGeometry,
-  TorusGeometry,
   Vector3,
 } from 'three'
 
 
-// A model of the Rubin Observatory from primitives, in metres (Rubin.md):
-// the enclosure and its dome, the Simonyi Survey Telescope on its
-// alt-azimuth mount, and a beam along its pointing.  Not a survey of the
-// building: the published sizes (a 30 m dome, an 8.4 m primary, a compact
-// 9 m telescope) and the shapes a visitor knows it by.  Lit by the Sun as
-// the planets are (models.md), with a faint glow of its own so it shows
-// at night (RubinObservatory.js sets it).
+// The Rubin Observatory's model, in metres (Rubin.md, "The model"): the
+// enclosure and its dome from primitives, by the published sizes (a 30 m
+// dome with an 11 m slit), and the Simonyi Survey Telescope from NOIRLab's
+// model of it (public/large/models/rubin/simonyi.glb, credit Rubin
+// Observatory/NSF/AURA; tools/models/build.sh), whose parts are grouped
+// into the pier, the azimuth structure and the elevation structure, so
+// the mount turns as the real one does.  Lit by the Sun as the planets are
+// (models.md), with a faint glow of its own so it shows at night
+// (RubinObservatory.js sets it).  Nothing here imports the first load's
+// modules but three (rubin.js says why): the loader and the line strip
+// come in as `deps`.
 
 export const BUILDING_RADIUS_M = 16
 export const BUILDING_HEIGHT_M = 14
@@ -28,51 +30,30 @@ export const DOME_CENTRE_M = BUILDING_HEIGHT_M
 /** The elevation axis over the ground. */
 export const AXIS_HEIGHT_M = 15
 /** Half the slit's angle at the dome's centre (an 11 m slit). */
-const SLIT_HALF_RAD = Math.asin(5.5 / DOME_RADIUS_M)
-const PRIMARY_RADIUS_M = 4.2
-const CELL_RADIUS_M = 4.6
-const TOP_RING_RADIUS_M = 3
-const TOP_HEIGHT_M = 5
-const CELL_DEPTH_M = -2.5
-const TRUSS_COUNT = 6
+export const SLIT_HALF_RAD = Math.asin(5.5 / DOME_RADIUS_M)
+/** The shutter slides aside by the slit's width to open. */
+export const SHUTTER_SLIDE_RAD = 2 * SLIT_HALF_RAD
+
+/** NOIRLab's telescope (build.sh), under the site's data. */
+export const MODEL_PATH = 'large/models/rubin/simonyi.glb'
+/** In the model: the elevation axis over its origin, metres, along X. */
+export const MODEL_AXIS_Y = 7.8
+/** The model's pose: its tube points this far up, toward its +Z. */
+export const MODEL_POSE_EL_DEG = 45
+/** The tube's top end over the axis, along the tube, metres. */
+export const MODEL_TUBE_TOP_M = 9.6
+
 export const BEAM_LENGTH_M = 400
 const BEAM_COLOR = 0x9fe8ff
 const BEAM_WIDTH_PX = 1.5
 const BEAM_OPACITY = 0.6
 const SEGMENTS = 48
+const toRad = Math.PI / 180
 
 const PAINT = {color: 0xd9d9d6, roughness: 0.85, metalness: 0}
 const DOME_PAINT = {color: 0xe4e4e0, roughness: 0.8, metalness: 0.05}
-const STEEL = {color: 0x7f8a99, roughness: 0.55, metalness: 0.6}
-const MIRROR = {color: 0x404855, roughness: 0.12, metalness: 1}
 const DARK = {color: 0x2a2c30, roughness: 0.7, metalness: 0.3}
 const Y_AXIS = new Vector3(0, 1, 0)
-
-
-/**
- * @param {object} params MeshStandardMaterial's
- * @returns {MeshStandardMaterial}
- */
-function material(params) {
-  return new MeshStandardMaterial(params)
-}
-
-
-/**
- * A strut from one point to another, a thin cylinder.
- *
- * @param {Vector3} from
- * @param {Vector3} to
- * @param {MeshStandardMaterial} mat
- * @returns {Mesh}
- */
-function strut(from, to, mat) {
-  const dir = to.clone().sub(from)
-  const mesh = new Mesh(new CylinderGeometry(0.15, 0.15, dir.length(), 8), mat)
-  mesh.position.copy(from).add(to).multiplyScalar(0.5)
-  mesh.quaternion.setFromUnitVectors(Y_AXIS, dir.normalize())
-  return mesh
-}
 
 
 /**
@@ -96,29 +77,81 @@ function domeShell(radius, shutter, mat) {
 
 
 /**
+ * The telescope's parts from NOIRLab's model, re-hung for the mount: the
+ * model is turned about Y by 180° (its tube leans toward +Z, the mount's
+ * toward −Z at azimuth 0) and its elevation axis put at the origin, and
+ * the elevation structure is turned from the model's pose to the park,
+ * the tube along +Y.
+ *
+ * @param {Object3D} root The loaded model (its scene), with nodes named
+ *   `pier`, `azimuth` and `elevation` (build.sh's groups)
+ * @param {object} [opts]
+ * @param {number} [opts.axisY] MODEL_AXIS_Y
+ * @param {number} [opts.poseElDeg] MODEL_POSE_EL_DEG
+ * @returns {{pier: Object3D, azimuth: Object3D, tube: Object3D, materials: MeshStandardMaterial[]}}
+ *   `pier` to go at the axis's height (newRubinModel leaves it out),
+ *   `azimuth` under the azimuth group and `tube` under the elevation
+ *   group, both pivoted on the axis
+ */
+export function assembleTelescope(root, {axisY = MODEL_AXIS_Y, poseElDeg = MODEL_POSE_EL_DEG} = {}) {
+  const parts = ['pier', 'azimuth', 'elevation'].map((name) => root.getObjectByName(name))
+  if (parts.some((p) => !p)) {
+    throw new Error('the telescope model needs pier, azimuth and elevation nodes')
+  }
+  // Its materials, before the parts leave the root.
+  const materials = []
+  root.traverse((o) => {
+    for (const m of Array.isArray(o.material) ? o.material : (o.material ? [o.material] : [])) {
+      if (!materials.includes(m)) {
+        materials.push(m)
+      }
+    }
+  })
+  const flip = new Quaternion().setFromAxisAngle(Y_AXIS, Math.PI)
+  const hang = (part, name) => {
+    const node = new Group
+    node.name = name
+    node.quaternion.copy(flip)
+    node.position.y = -axisY
+    node.add(part)
+    return node
+  }
+  const pier = hang(parts[0], 'pier')
+  const azimuth = hang(parts[1], 'azimuth parts')
+  const tube = new Group
+  tube.name = 'tube'
+  tube.rotation.x = poseElDeg * toRad
+  tube.add(hang(parts[2], 'elevation parts'))
+  return {pier, azimuth, tube, materials}
+}
+
+
+/**
  * @param {object} deps
  * @param {Function} deps.newWideLineStrip wideLines.js's, handed in (rubin.js)
+ * @param {?Function} [deps.loadModel] model.js's; without it the mount is
+ *   empty (a test)
  * @returns {{group: Group, azimuth: Object3D, elevation: Object3D, dome: Object3D, shutter: Mesh,
- *   beam: Mesh, materials: MeshStandardMaterial[]}} The model, its moving
- *   parts (RubinObservatory.js turns them), and every lit material, for
- *   the night glow
+ *   beam: Mesh, materials: MeshStandardMaterial[], ready: Promise<?object>}} The
+ *   model, its moving parts (RubinObservatory.js turns them), every lit
+ *   material, for the night glow (the telescope's join the list when it
+ *   loads), and the telescope's arrival (assembleTelescope's, or null)
  */
-export function newRubinModel({newWideLineStrip}) {
+export function newRubinModel({newWideLineStrip, loadModel = null}) {
   const group = new Group
   group.name = 'rubin model'
-  const paint = material(PAINT)
-  const domePaint = material(DOME_PAINT)
-  const steel = material(STEEL)
-  const mirror = material(MIRROR)
-  const dark = material(DARK)
+  const paint = new MeshStandardMaterial(PAINT)
+  const domePaint = new MeshStandardMaterial(DOME_PAINT)
+  const dark = new MeshStandardMaterial(DARK)
+  const materials = [paint, domePaint, dark]
 
   // The enclosure, sunk a little so a slope doesn't open a gap under it.
   const building = new Mesh(new CylinderGeometry(BUILDING_RADIUS_M, BUILDING_RADIUS_M, BUILDING_HEIGHT_M + 2, SEGMENTS), paint)
   building.position.y = (BUILDING_HEIGHT_M / 2) - 1
   group.add(building)
 
-  // The dome turns with the telescope's azimuth; its shutter shows while
-  // the dome is shut.
+  // The dome turns with the telescope's azimuth; its shutter slides aside
+  // to open (RubinObservatory).
   const dome = new Object3D
   dome.name = 'dome'
   dome.position.y = DOME_CENTRE_M
@@ -128,60 +161,39 @@ export function newRubinModel({newWideLineStrip}) {
   dome.add(shutter)
   group.add(dome)
 
-  // The mount: a pier, the azimuth ring and fork, the elevation axis.
-  const pier = new Mesh(new CylinderGeometry(3, 3.5, AXIS_HEIGHT_M - 6, 24), dark)
-  pier.position.y = (AXIS_HEIGHT_M - 6) / 2
-  group.add(pier)
+  // The mount: the azimuth group about +Y at the axis's height, the
+  // elevation group about its +X.  Empty until the telescope loads.
   const azimuth = new Object3D
   azimuth.name = 'azimuth'
   azimuth.position.y = AXIS_HEIGHT_M
-  const base = new Mesh(new CylinderGeometry(6, 6, 1.2, 32), steel)
-  base.position.y = -5.4
-  azimuth.add(base)
-  for (const side of [-1, 1]) {
-    const arm = new Mesh(new BoxGeometry(1.4, 7, 3.2), steel)
-    arm.position.set(side * 5.6, -2.5, 0)
-    azimuth.add(arm)
-  }
   const elevation = new Object3D
   elevation.name = 'elevation'
   azimuth.add(elevation)
   group.add(azimuth)
 
-  // The telescope about its elevation axis: the mirror cell and the
-  // primary at the bottom, a truss to the top ring, the camera at the top.
-  const cell = new Mesh(new CylinderGeometry(CELL_RADIUS_M, CELL_RADIUS_M, 1.6, SEGMENTS), steel)
-  cell.position.y = CELL_DEPTH_M - 0.5
-  elevation.add(cell)
-  const primary = new Mesh(new CircleGeometry(PRIMARY_RADIUS_M, SEGMENTS), mirror)
-  primary.rotation.x = -Math.PI / 2
-  primary.position.y = CELL_DEPTH_M + 0.4
-  elevation.add(primary)
-  const trunnion = new Mesh(new CylinderGeometry(0.8, 0.8, 12, 16), steel)
-  trunnion.rotation.z = Math.PI / 2
-  elevation.add(trunnion)
-  for (let i = 0; i < TRUSS_COUNT; i++) {
-    const a = (i / TRUSS_COUNT) * 2 * Math.PI
-    const b = ((i + 0.5) / TRUSS_COUNT) * 2 * Math.PI
-    const foot = new Vector3(CELL_RADIUS_M * Math.cos(a), CELL_DEPTH_M, CELL_RADIUS_M * Math.sin(a))
-    elevation.add(strut(foot, new Vector3(TOP_RING_RADIUS_M * Math.cos(a), TOP_HEIGHT_M, TOP_RING_RADIUS_M * Math.sin(a)), steel))
-    elevation.add(strut(foot, new Vector3(TOP_RING_RADIUS_M * Math.cos(b), TOP_HEIGHT_M, TOP_RING_RADIUS_M * Math.sin(b)), steel))
-  }
-  const topRing = new Mesh(new TorusGeometry(TOP_RING_RADIUS_M, 0.3, 8, SEGMENTS), steel)
-  topRing.rotation.x = Math.PI / 2
-  topRing.position.y = TOP_HEIGHT_M
-  elevation.add(topRing)
-  const camera = new Mesh(new CylinderGeometry(0.85, 0.85, 3, 24), dark)
-  camera.position.y = TOP_HEIGHT_M - 1.5
-  elevation.add(camera)
-
-  // The beam out along the pointing, shown while tracking.
-  const beam = newWideLineStrip(new Float32Array([0, TOP_HEIGHT_M, 0, 0, TOP_HEIGHT_M + BEAM_LENGTH_M, 0]),
+  // The beam out along the pointing, from the tube's top, shown while
+  // tracking.
+  const beam = newWideLineStrip(new Float32Array([0, MODEL_TUBE_TOP_M, 0, 0, MODEL_TUBE_TOP_M + BEAM_LENGTH_M, 0]),
       {name: 'rubin beam', color: BEAM_COLOR, width: BEAM_WIDTH_PX, opacity: BEAM_OPACITY,
         material: {depthWrite: false, transparent: true}})
   beam.visible = false
   elevation.add(beam)
 
-  return {group, azimuth, elevation, dome, shutter, beam, materials: [paint, domePaint, steel, mirror, dark]}
+  const model = {group, azimuth, elevation, dome, shutter, beam, materials, telescope: null, ready: null}
+  model.ready = loadModel ?
+    loadModel(MODEL_PATH, {doubleSided: true}).then((root) => {
+      const parts = assembleTelescope(root)
+      // Not the pier: it's inside the enclosure and runs 13 m under the
+      // ground, where nothing hides it from a camera on the ground.
+      azimuth.add(parts.azimuth)
+      elevation.add(parts.tube)
+      materials.push(...parts.materials)
+      model.telescope = parts
+      return parts
+    }).catch((err) => {
+      console.warn(`Rubin: no telescope model (${MODEL_PATH}): ${err.message}`)
+      return null
+    }) :
+    Promise.resolve(null)
+  return model
 }
-

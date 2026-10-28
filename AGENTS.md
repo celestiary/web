@@ -470,6 +470,10 @@ tried and dropped.
   - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
     `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
     [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).
+  - `noirlab.edu` (NOIRLab's 3D models, for `tools/models/build.sh`'s
+    Rubin telescope, and its press releases; `rubinobservatory.org` is
+    allowed too).  `curl` through the sandbox proxy reaches it where
+    `WebFetch` doesn't.
   - `asc-planetarynames-data.s3.us-west-2.amazonaws.com` (the IAU
     Gazetteer's per-body downloads, for `tools/places/build.mjs`; the
     site itself, `planetarynames.wr.usgs.gov`, is refused).

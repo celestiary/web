@@ -88,16 +88,32 @@ own figures).  It's a place on Earth too (`public/data/earth/places.json`,
 "Rubin Observatory", kind `observatory`, 2,663 m), so `#sun/earth/rubin-observatory`
 lands there and the search finds it.
 
-**The model** (`rubinModel.js`) is primitives in metres, by the published
-sizes and the shapes the building is known by, not a survey: the
-enclosure, a 32 m cylinder 14 m high; the 30 m dome, a hemisphere with
-an 11 m slit from its rim to the top and a shutter that fills it; the
-pier, the azimuth ring and fork; and the telescope about its elevation
-axis, 15 m up: the mirror cell with the 8.4 m primary, a six-bay truss to
-the top ring, the camera at the top.  About 40 meshes, five materials.
-Lit by the Sun as the planets and Webb's model are (models.md): PBR under
-the Sun's point light, in the HDR buffer at the keyed exposure.  At night
-nothing lights it, and an unlit surface is black, so the materials carry
+**The model** (`rubinModel.js`).  The enclosure and the dome are
+primitives in metres, by the published sizes: the enclosure a 32 m
+cylinder 14 m high, the 30 m dome a hemisphere with an 11 m slit from its
+rim to the top, and a shutter that slides aside by the slit's width to
+open (eased over a couple of seconds of wall clock,
+`RubinObservatory._slideShutter`).  The telescope is **NOIRLab's model of
+the Vera C. Rubin Telescope** (model3d004, credit Rubin Observatory/NSF/AURA,
+mandatory and shown in the app's panel; [models.md](../models.md) has the
+source, the licence and the recipe): the Simonyi Survey Telescope on its
+pier, 130 named parts, 39,500 triangles, 567 KB with meshopt under
+`public/large/models/rubin/simonyi.glb`, loaded through `loadModel` when
+the observatory is built (the dome stands meanwhile, the mount empty).
+`tools/models/obj2glb.py` groups the file's parts into `pier`, `azimuth`
+and `elevation` nodes by their names, and `assembleTelescope` re-hangs
+them for the mount: the model turned 180° about Y (its tube leans toward
++Z, ours toward −Z at azimuth 0), its elevation axis (7.8 m over its
+origin, along X) put at the origin of the azimuth and elevation groups,
+15 m over the ground (`AXIS_HEIGHT_M`, the dome's centre is 14), and the
+elevation structure turned from the model's pose (45° up) to the park,
+the tube along +Y, 9.6 m to its top end.  The pier runs 20 m below the
+model's origin, under the enclosure and the ground.  Its materials join
+the night glow's list as they arrive.  `rubinModel.test.js` checks the
+re-hang on a model of three points.  Lit by the Sun as the planets and
+Webb's model are (models.md): PBR under the Sun's point light, in the HDR
+buffer at the keyed exposure.  At night nothing lights it, and an unlit
+surface is black, so the materials carry
 a faint glow of their own colour, `NIGHT_GLOW` = 3e-6 in exposure units
 over Earth's keyed exposure (a tenth of a city's lights, HDR.md: at the
 dark-adapted gain of 1.4e5 beside the dome it shows at 0.4, a grey; at a
@@ -107,7 +123,16 @@ without the meter's gain, which then lifts it at night as it lifts the
 stars; the renderer's `toneMappingExposure` has the gain in it, and over
 that the glow was absolute at the display, black): a
 stand-in for the moonlight and sky glow the scene doesn't cast on it.
-By day it is under a millionth of the sunlit paint and invisible.
+By day it is under a millionth of the sunlit paint and invisible.  And
+**by night every mesh wears an unlit twin of its material** (`_light`:
+a `MeshBasicMaterial` of the same colour and side, its colour the glow;
+the Sun's own materials come back at sunrise): three's point light
+doesn't know the Earth is in the way, and at midnight it lit the pier's
+underside and the slid shutter from below the horizon; and a lit material
+can't be made dark, since its Fresnel goes to white at a grazing angle
+whatever its colour (`specularF90` is 1): black and metal, the enclosure's
+rim was still a white slab at the dark gain, and the meter keyed on it
+(a gain of 867 for 1.4e5).
 
 **On the ground** (`RubinObservatory.js`): a child of Earth's spun node
 (`scene.objects.earth`), so it turns with the Earth, at the site in the
@@ -129,9 +154,9 @@ dome opens), and the mount's angles.  The azimuth group and the dome turn
 about +Y, the elevation group about its +X, the tube along +Y at the
 park, so `mountAngles(el, az)` is −az about Y and −(90° − el) about X,
 held to 20°–86.5° (the Simonyi telescope's range: it can't track through
-the zenith).  By day, or with the body down, it parks at the zenith with
-the shutter shown.  A 400 m beam out along the tube shows while it
-tracks, so the pointing reads from beside the dome.  `rubin.test.js`
+the zenith).  By day, or with the body down, it parks at the zenith and
+the shutter slides shut.  A 400 m beam out along the tube from its top
+end shows while it tracks, so the pointing reads from beside the dome.  `rubin.test.js`
 checks the frame, the angles and that the tube's +Y lands on the body;
 `RubinObservatory.test.js` the group in a scene graph, with a stub model.
 
@@ -206,10 +231,15 @@ rather than import it; `rubin.test.js` holds them equal.
     the Sun's side by day.
   - **By night** (03:00 UTC, the Sun at −65°): tracking, azimuth 123°,
     elevation 35°, the dome open, the beam shown; the tube's +Y on the body
-    (the test's check, and the state's numbers).  The gain settled at
-    1.4e5, the dome a grey silhouette over the black sky at the glow's
-    0.4.  The ground is the night floor's lavender at that gain, as the
-    homepage's hold has it (AGENTS.md): not this feature's.
+    (the test's check, and the state's numbers).  From 170 m at bearing
+    125°, into the slit, at a 22° field: the gain settled at 1.5e5, the
+    enclosure and dome a grey over the black sky at the glow's 0.4, the
+    shutter slid aside, NOIRLab's telescope in the slit with its top-end
+    ring and camera toward the camera.  Before the unlit twins, the set
+    Sun's grazing Fresnel on the enclosure's rim was a white slab that
+    keyed the meter at 867.  The ground is the night floor's lavender at
+    that gain, as the homepage's hold has it (AGENTS.md): not this
+    feature's.
   - **The path**, from the dome up the beam at a 12° field: the arc beside
     Corona Australis and Telescopium, Kaus Australis at the edge, as
     Rubin's picture frames it; the months' names crowd at that field (the
@@ -222,10 +252,14 @@ rather than import it; `rubin.test.js` holds them equal.
 
 ## Not yet
 
-- **A measured model.**  Rubin has published drawings and a NOIRLab 3D
-  model would do better than primitives; neither was reachable from the
-  sandbox (noirlab.edu and rubinobservatory.org are refused).  The
-  auxiliary telescope and the support buildings aren't drawn.
+- **The dome from NOIRLab's complete scene** (model3d003: the enclosure,
+  dome and site, a 2 GB OBJ or a 472 MB Cinema 4D file), decimated to
+  what a page can carry; the dome and enclosure are primitives until then,
+  and the auxiliary telescope and the support buildings aren't drawn.
+- **Animation.**  Neither NOIRLab file carries any (OBJ can't; the Cinema
+  4D file might, but nothing here reads it).  The mount's motion and the
+  shutter's are the app's own; the real dome's shutter and wind screen, and
+  the slew between fields, are more of the same.
 - **The real cadence.**  Rubin doesn't stare at one object: it surveys
   the sky in 30-second visits, and the discovery came from the
   pipeline's detections across many visits.  The demo tracks the object

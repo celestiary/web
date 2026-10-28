@@ -33,6 +33,7 @@ import {Fade, FadeDriver, fadeObject} from './fade.js'
 import {latLngAltToBodyFixed} from '../coords.js'
 import {J2000_JD, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
 import {orbitAt} from './meanElements.js'
+import {loadModel} from './model.js'
 import {newLabels} from './overlayMarks.js'
 import {newWideLineStrip} from './wideLines.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
@@ -3186,7 +3187,7 @@ export default class Scene {
     // The first load's functions it needs, handed in rather than imported
     // there (rubin/rubin.js says why).
     this.rubin ??= installRubin(this, {
-      orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD, newRings, newLabels, newWideLineStrip,
+      orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD, newRings, newLabels, newWideLineStrip, loadModel,
       latLngAltToBodyFixed, OVERLAY_LAYER: Shared.OVERLAY_LAYER, ASTRO_UNIT_METER: Shared.ASTRO_UNIT_METER,
     })
     return this.rubin

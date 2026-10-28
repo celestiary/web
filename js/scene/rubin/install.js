@@ -13,7 +13,8 @@ import {TARGET} from './rubin.js'
 /**
  * @param {object} scene The Scene, with Earth and the body in it
  * @param {object} deps The first load's functions (Scene.getRubin):
- *   ApparentPath's and RubinObservatory's, and `ASTRO_UNIT_METER`
+ *   ApparentPath's and RubinObservatory's (with `loadModel`, for the
+ *   telescope), and `ASTRO_UNIT_METER`
  * @returns {{observatory: RubinObservatory, path: ApparentPath, dispose: Function}}
  */
 export function installRubin(scene, deps) {

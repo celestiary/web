@@ -1,6 +1,6 @@
-import {Group, Quaternion, Vector3} from 'three'
-import {newRubinModel} from './rubinModel.js'
-import {SITE, localFrameQuaternion, pointingState} from './rubin.js'
+import {Group, MeshBasicMaterial, Quaternion, Vector3} from 'three'
+import {SHUTTER_SLIDE_RAD, newRubinModel} from './rubinModel.js'
+import {SITE, altAz, localFrameQuaternion, pointingState} from './rubin.js'
 
 
 // The Rubin Observatory on Earth's ground (Rubin.md): the model at Cerro
@@ -22,6 +22,18 @@ export const NIGHT_GLOW = 3e-6
 const GROUND_POLL_MS = 1000
 /** A height this near the last is the same ground, metres. */
 const GROUND_SAME_M = 0.5
+/** The shutter's slide eases with this time constant, wall clock, s. */
+const SHUTTER_SECONDS = 2
+/**
+ * The Sun's light leaves the model once the Sun is this far below the
+ * horizon (degrees): three's point light doesn't know the Earth is in the
+ * way, and lit the pier's underside and the shutter from below at
+ * midnight, and a lit material can't be made dark (its Fresnel goes to
+ * white at a grazing angle whatever its colour: the enclosure's rim was a
+ * white slab at the dark gain), so by night every mesh wears an unlit
+ * twin of its material instead.
+ */
+const SUNSET_DEG = -1
 const tmpWorld = new Vector3
 const tmpBody = new Vector3
 const tmpSun = new Vector3
@@ -42,7 +54,7 @@ export default class RubinObservatory extends Group {
    * @param {() => number} [opts.nowMs] The wall clock, for the ground poll
    * @param {object} opts.deps The first load's functions, handed in
    *   (install.js): `latLngAltToBodyFixed` (coords.js) and, for the model,
-   *   `newWideLineStrip` (wideLines.js)
+   *   `newWideLineStrip` (wideLines.js) and `loadModel` (model.js)
    * @param {object} [opts.site] SITE's shape, for a test
    * @param {Function} [opts.newModel] rubinModel.js newRubinModel, or a stub
    */
@@ -66,6 +78,18 @@ export default class RubinObservatory extends Group {
     this.altitude = site.alt
     this.placeAt(site.alt)
     this._groundAskedMs = -Infinity
+    this._lastMs = null
+    // The unlit twins of the model's materials, for the night (_light), by
+    // the lit material; and the meshes, gathered again when the telescope
+    // arrives.
+    this._twins = new Map
+    this._meshes = null
+    this._night = null
+    this.model.ready?.then(() => {
+      this._meshes = null
+    })
+    // The shutter: 0 shut, 1 slid aside; it eases toward the pointing's.
+    this.shutterSlide = 0
     // The last frame's pointing (pointingState), for the app's readout.
     this.state = null
     // Each frame, before the bodies move (Animation.animateSystem).
@@ -88,29 +112,50 @@ export default class RubinObservatory extends Group {
   }
 
 
-  /** A frame: the ground, the glow, the pointing. */
+  /** A frame: the ground, the glow, the pointing, the shutter. */
   update() {
+    const now = this.nowMs()
+    const dt = this._lastMs === null ? 0 : (now - this._lastMs) / 1e3
+    this._lastMs = now
     this._followGround()
-    this._glow()
+    // Directions from the site in its local frame: the Sun's, at the world
+    // origin, and the body's.
+    this.getWorldPosition(tmpWorld)
+    this.getWorldQuaternion(tmpQuat).invert()
+    tmpSun.copy(tmpWorld).negate().applyQuaternion(tmpQuat)
     const body = this.bodyOf()
     if (!body) {
       this.state = null
+      this._light(altAz(tmpSun).el)
+      this._slideShutter(0, dt)
       return
     }
-    // Directions from the site in its local frame: the body's, and the
-    // Sun's, at the world origin.
-    this.getWorldPosition(tmpWorld)
-    this.getWorldQuaternion(tmpQuat).invert()
     body.getWorldPosition(tmpBody).sub(tmpWorld).applyQuaternion(tmpQuat)
-    tmpSun.copy(tmpWorld).negate().applyQuaternion(tmpQuat)
     const state = pointingState(tmpBody, tmpSun)
     this.state = state
-    const {azimuth, elevation, dome, shutter, beam} = this.model
+    this._light(state.sunEl)
+    const {azimuth, elevation, dome, beam} = this.model
     azimuth.rotation.y = state.azimuthY
     dome.rotation.y = state.azimuthY
     elevation.rotation.x = state.elevationX
-    shutter.visible = !state.open
     beam.visible = state.tracking
+    this._slideShutter(state.open ? 1 : 0, dt)
+  }
+
+
+  /**
+   * Slide the shutter toward open (1) or shut (0), eased on the wall clock.
+   *
+   * @param {number} target
+   * @param {number} dt Seconds since the last frame
+   */
+  _slideShutter(target, dt) {
+    this.shutterSlide += (target - this.shutterSlide) * (1 - Math.exp(-dt / SHUTTER_SECONDS))
+    if (Math.abs(target - this.shutterSlide) < 1e-3) {
+      this.shutterSlide = target
+    }
+    // The shutter's rest is over the slit (rubinModel.js domeShell).
+    this.model.shutter.rotation.y = (-Math.PI / 2) + (this.shutterSlide * SHUTTER_SLIDE_RAD)
   }
 
 
@@ -120,7 +165,7 @@ export default class RubinObservatory extends Group {
    * and finer ones refine it as the camera arrives.
    */
   _followGround() {
-    const now = this.nowMs()
+    const now = this._lastMs
     if (now - this._groundAskedMs < GROUND_POLL_MS) {
       return
     }
@@ -133,17 +178,53 @@ export default class RubinObservatory extends Group {
   }
 
 
-  /** The faint glow that shows the building at night, in exposure units at the keyed exposure. */
-  _glow() {
-    const exposure = this.exposure()
-    if (!(exposure > 0)) {
+  /**
+   * The materials by the Sun's altitude: the model's own, lit by the Sun,
+   * while it's up; by night an unlit twin of each (MeshBasicMaterial, the
+   * same colour and side), glowing faintly in exposure units at the keyed
+   * exposure, so the metered gain brings the building up as it brings up
+   * the stars.  The swap is per mesh, once at each sunset and sunrise.
+   *
+   * @param {number} sunEl Degrees
+   */
+  _light(sunEl) {
+    const night = sunEl < SUNSET_DEG
+    if (this._meshes === null || night !== this._night) {
+      this._meshes = []
+      this.model.group.traverse((o) => {
+        if (o.isMesh && (o.material?.isMeshStandardMaterial || o.material?.userData.lit)) {
+          this._meshes.push(o)
+        }
+      })
+      for (const mesh of this._meshes) {
+        mesh.material = night ? this._twinOf(mesh.material) : (mesh.material.userData.lit ?? mesh.material)
+      }
+      this._night = night
+    }
+    if (!night) {
       return
     }
-    const intensity = NIGHT_GLOW / exposure
-    for (const m of this.model.materials) {
-      m.emissive.copy(m.color)
-      m.emissiveIntensity = intensity
+    const exposure = this.exposure()
+    const intensity = exposure > 0 ? NIGHT_GLOW / exposure : 0
+    for (const twin of this._twins.values()) {
+      twin.color.copy(twin.userData.lit.color).multiplyScalar(intensity)
     }
+  }
+
+
+  /**
+   * @param {object} material A lit material, or a twin
+   * @returns {MeshBasicMaterial} Its unlit twin, made once
+   */
+  _twinOf(material) {
+    const lit = material.userData.lit ?? material
+    let twin = this._twins.get(lit)
+    if (!twin) {
+      twin = new MeshBasicMaterial({color: lit.color, side: lit.side})
+      twin.userData.lit = lit
+      this._twins.set(lit, twin)
+    }
+    return twin
   }
 
 
@@ -161,6 +242,9 @@ export default class RubinObservatory extends Group {
     })
     for (const m of this.model.materials) {
       m.dispose()
+    }
+    for (const twin of this._twins.values()) {
+      twin.dispose()
     }
     this.model.beam.material?.dispose?.()
   }
