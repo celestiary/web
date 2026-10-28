@@ -50,6 +50,19 @@ come and go with the rest of the controls. Cesium's *Data attribution* link open
 - Issue: [#279](https://github.com/celestiary/web/issues/279)
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@-38.1501,-99.3434,12.104919Mm;t=9792.377067jd;cq=0.3284,-0.0652,-0.0081,0.9423;fov=45deg;s=alpoGF;time:pause)
 
+### Earth's detailed surface keeps its shape after the window changes size
+
+Up close, Earth's detailed surface (and the Moon's and Mars's) was drawn at the window's size when
+the page opened. After the window changed size, the widgets dock opened or the browser's developer
+tools appeared, it came out stretched or squashed, its horizon off the atmosphere's edge, until a
+reload. Now it follows the window.
+
+- Date: 2026-10-28
+- PR: [#335](https://github.com/celestiary/web/pull/335)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+- Kind: fix
+
 ### Places found again on the homepage's search
 
 Typing a place on the homepage, "rubin" for the Rubin Observatory or the Moon's crater Rubin, lost

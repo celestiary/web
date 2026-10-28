@@ -20,13 +20,16 @@ import {CESIUM_GUEST_HOSTS, GUEST_VERSION, dataBase} from './origins.js'
 // Celestiary drives it: each `cesium:view` (cesiumBody.applyView's view, and
 // its id) renders one frame, which goes to the host as portal-netgl's
 // stream (wire 2 and a port, when the host offers them), its frame-end
-// carrying the view's id.  After each frame a `cesium:status` says its
+// carrying the view's id and what a reprojecting host needs: the targets
+// Cesium drew its scene into and the view and projection it drew with
+// (portal-netgl 0.6.10's cesiumFrameEnd).  After each frame a `cesium:status` says its
 // protocol (origins.js GUEST_VERSION), whether
 // the tiles for that view are in, the terrain's height under the camera,
 // the credits, when they change, whether it has night lights, and the
 // frame's timing: when the view came in (wall clock) and how long the frame
 // took.  A view with `lights` renders the night lights' frame too, after the
-// day frame, its frame-end tagged `part: 'lights'` (portal-netgl 0.6.8), which
+// day frame, its frame-end tagged `part: 'emission'` (portal-netgl 0.6.8's
+// parts, RFC 0002 §6.3's name; 'lights' before GUEST_VERSION 3), which
 // the host replays into a target of its own (CesiumLayers._drawNightLights).
 // A `cesium:height {id, lat, lng, radius}` is answered with the terrain's height there
 // (CesiumLayers.requestGroundHeight, for a landing).
@@ -110,11 +113,14 @@ async function start() {
   // The frame-end carries the view the frame was drawn for, and posts the
   // frame's batch: when, for the status's timing.
   let endedAt = null
-  // The part being rendered: null for the day frame, 'lights' for the
+  // The part being rendered: null for the day frame, 'emission' for the
   // night lights' frame.
   let part = null
   const endFrame = () => {
-    const end = Number.isFinite(viewId) ? {viewId} : {}
+    const end = {...netgl.cesiumFrameEnd(body.widget.scene)}
+    if (Number.isFinite(viewId)) {
+      end.viewId = viewId
+    }
     if (part) {
       end.part = part
     }
@@ -213,7 +219,7 @@ async function start() {
     if (msg.lights === true && body.night) {
       // The night lights' frame.  Its frame-end goes even if it fails, as
       // the host waits for it; then the status says there are none.
-      part = 'lights'
+      part = 'emission'
       endedAt = null
       // The city black, not hidden: its buildings hide the lights on the
       // ground under them (CesiumLayers._drawNightLights).

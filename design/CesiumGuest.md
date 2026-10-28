@@ -260,7 +260,7 @@ Mars weren't measured.
 
 Built 2026-10-27, behind `?cesium=iframe` (`?cesiumGuest=<url>` for a copy
 on another allowed origin; `?cesiumWait=<ms>` for the wait, 100 by
-default).  The same-page layer stays the default and is unchanged.
+default then, 30 since phase 2).  The same-page layer stays the default and is unchanged.
 
 **One code path, two transports.**  `js/scene/cesium/cesiumBody.js` is
 everything done to a body's Cesium widget: `createWidget` (the imagery,
@@ -588,6 +588,81 @@ triangles, staged a chunk a frame.
   on average (p95 333; the view's way in 38, the guest's frame 37, back 2),
   84% of frames in step.
 
+## Phase 2: late frames, corrected
+
+Built 2026-10-28, behind `?cesium=iframe` (`?cesiumReproject=0` turns it
+off), on portal-netgl 0.6.9 and 0.6.10 and a Cesium patch (RFC 0003,
+[portal#49](https://github.com/pablo-mayrgundter/portal/issues/49)).
+A late frame was drawn where its view had been while the host's
+atmosphere and labels moved on; now it's composed for this frame's camera.
+
+- **Any frame re-runs** (0.6.9, [portal#54](https://github.com/pablo-mayrgundter/portal/pull/54)):
+  the receiver holds deletes back to the next drain with a new frame, so
+  the copy kept for a frame that couldn't run again (phase 4) is needed
+  only for a frame that reads back, which Cesium here doesn't.
+- **What's corrected** (0.6.10, [portal#55](https://github.com/pablo-mayrgundter/portal/pull/55)):
+  the guest page's frame-ends carry `cesiumFrameEnd(scene)`, the
+  framebuffers Cesium draws its scene into (globe depth, the scene
+  framebuffer) and the view and projection it drew with, for a frame with
+  one frustum.  The receiver reprojects with `targets: 'named'`, so the
+  draws into those targets get the correction, and Cesium's copies to the
+  screen don't move.
+- **The Cesium patch** (`celestiary/netgl-reproject`, CESIUM.md):
+  Cesium's log depth reads `gl_Position` inside `main`, before the
+  replay's wrapper multiplies it, so its log-depth vertex shaders apply
+  `netgl_reproject` themselves, before `czm_vertexLogDepth`; the viewport
+  quad declares it without applying it, which exempts the copies.  On its
+  own Cesium it's the identity.
+- **The correction** (`GuestPages._correction`): from the frame-end's view
+  and projection to Cesium's view for this frame's camera
+  (`CesiumLayers._ecefViewMatrix`, Cesium's `computeView` of the view
+  `applyView` would set), with portal-netgl's `reprojection`.  None for a
+  frame of the view posted this frame (on time: drawn exactly as it came),
+  nor without the matrices (several frusta, an older guest page).
+- **Its limit is float32.**  The shader applies C to `gl_Position`, and a
+  camera move t scales C's columns for z and w by about t / (2 near):
+  Cesium's near is 0.1 m low down, so a frame's lag of 100 m is 500, well
+  under a pixel, but 100 km is 6 × 10^5, and garbage.  A correction with an
+  entry over 10^4 is refused and the frame drawn as it came
+  (`stats().refused`).  A turn where the camera is costs nothing of the
+  kind.
+- **The wait** is 30 ms (was 100) when the frame in hand could be corrected
+  to the camera (`GuestPages._correctable`, asked at each post), and 100 ms
+  when it couldn't (no view and projection, a move too large): such a frame
+  is drawn where it was, and near the ground, where the camera moves
+  kilometres a frame, that left the shell's edge uncovered, white.  A
+  headless dive from 3.4 Mm with every frame at 30 ms: 5 of 16 late frames
+  refused; at 100, none of 3.  `?cesiumWait` sets both (RFC 0003 §4.6; Q7
+  asks to measure 0 against it).
+- **The day frame is kept while a view has night lights.**  A view's two
+  parts are two frame-ends, which can land in two drains when the wait runs
+  out between them, and a re-run of the second re-runs the lights alone:
+  that frame drew no ground.  A drain with no day frame now draws the kept
+  one (`afterDrain`), as phase 4 does for a frame that can't run again.
+- **The view's size follows the canvas.**  `ThreeUi.onResize` never updated
+  `width` and `height`, which size Cesium (`_viewOf`): after the dock's
+  layout, a resize or the developer tools, Cesium drew at the first
+  layout's aspect, stretched onto the canvas's, the body squashed under its
+  atmosphere until a reload.  On the page too: production had it.  The
+  correction lands in the canvas's projection now (`_ecefProjection`), not
+  the frame's, since the copy stretches a frame drawn at the old size to the
+  new one.
+- **The night lights' part** is `'emission'` (RFC 0002 §6.3's name) from
+  `GUEST_VERSION` 3; the host takes `'lights'` too, from an older page.
+
+**Checked** (`yarn cesium-guest-check --pan 2`, headless, 480×300, two
+sites): the camera turned 2° where it is, the guest held, its frame of
+the view before composed at the turned one, against the guest's own frame
+there (mean of each pixel's largest channel difference):
+- from orbit (`earth-orbit`): corrected, 0 (no pixel differs); as it came,
+  2.07, 4,804 pixels by more than 16 (the disc's limb and terminator where
+  they were);
+- at 12 km (`earth-12km`, the open ocean, little to see): corrected 3.53,
+  as it came 5.01.
+The in-step frames still match the page's (0 pixels from orbit; at 12 km
+within one level).  Not checked here: the Moon and Mars (ion), and how it
+looks on a real GPU while tiles stream; the preview is where to look.
+
 ## Phases
 
 0. **Measure on the same page, change nothing users see.**
@@ -603,7 +678,8 @@ triangles, staged a chunk a frame.
    two-origin harness.  *Built (above); checked with `yarn
    cesium-guest-check` against the same-page layer.*
 2. **Reprojection for Cesium** (B): the portal changes in its four points,
-   with tests in portal and a pan-and-zoom check like netmap's.
+   with tests in portal and a pan-and-zoom check like netmap's.  *Built
+   (above): portal-netgl 0.6.9 and 0.6.10, the Cesium patch, `--pan`.*
 3. **Deploy:** the fork's Pages workflow, the domain, the token's allowed
    URLs, and `?cesium=iframe` on celestiary's preview.  Then `?perf=1` on
    the M2 against the same-page layer, at the views CESIUM.md's perf
