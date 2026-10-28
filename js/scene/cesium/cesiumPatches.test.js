@@ -33,4 +33,14 @@ describe('Cesium patches', () => {
     expect(read('index.js')).toContain(`export { default as ExternalRenderer } from './Source/Scene/ExternalRenderer.js'`)
     expect(readFileSync(path.join(cesium, 'Source/Cesium.js'), 'utf8')).toContain(`export { ExternalRenderer } from '@cesium/engine'`)
   })
+
+  it('opts log depth into a NetGL host\'s reprojection, and exempts the viewport quad (celestiary/netgl-reproject)', () => {
+    expect(read('Source/Renderer/AutomaticUniforms.js')).toContain('netgl_reproject: new AutomaticUniform({')
+    const derived = read('Source/Scene/DerivedCommand.js')
+    expect(derived).toContain('uniform mat4 netgl_reproject;')
+    expect(derived.indexOf('gl_Position = netgl_reproject * gl_Position;')).toBeLessThan(derived.indexOf('    czm_vertexLogDepth();'))
+    const quad = read('Source/Shaders/ViewportQuadVS.js')
+    expect(quad).toContain('uniform mat4 netgl_reproject;')
+    expect(quad).not.toContain('netgl_reproject *')
+  })
 })

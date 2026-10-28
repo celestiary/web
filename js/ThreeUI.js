@@ -443,6 +443,11 @@ export default class ThreeUi {
     // the container started out filling it, or the canvas runs under them.
     const width = this.container.offsetWidth
     const height = this.container.offsetHeight
+    // Kept for what's laid out at the canvas's size: the Cesium layers'
+    // view (CesiumLayers._viewOf's size and field), which a stale size had
+    // Cesium render at the first layout's aspect, stretched onto this one.
+    this.width = width
+    this.height = height
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
@@ -451,8 +456,9 @@ export default class ThreeUi {
     // size on this canvas (farPoint.js meshReach).
     setDrawingBuffer(height * this.renderer.getPixelRatio(), this.renderer.getPixelRatio())
     this.controls.handleResize()
-    // The pixel limit is in the canvas's pixels (fieldRange).
-    if (this.fieldRange()) {
+    // The pixel limit is in the canvas's pixels (fieldRange).  Optional:
+    // ThreeUI.resize.test.js resizes a bare object.
+    if (this.fieldRange?.()) {
       this.setFov(this.camera.fov)
     }
   }

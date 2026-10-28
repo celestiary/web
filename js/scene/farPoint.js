@@ -1,4 +1,4 @@
-import {AdditiveBlending, Color, LOD, LinearSRGBColorSpace, Matrix4} from 'three'
+import {AdditiveBlending, Color, LOD, LinearSRGBColorSpace, Matrix4, Vector3} from 'three'
 import {DISPLAY_GAIN, INITIAL_FOV, toRad} from '../shared.js'
 import {named} from '../utils.js'
 import {neutral} from './hdr.js'
@@ -84,6 +84,39 @@ export function meshReach() {
 
 
 /**
+ * Past this many radii from the camera a body is never a mesh, at any field
+ * of view: the far point stays.  float32 holds a position to 2^-24 of its
+ * size, so everything the camera sees at distance d is placed to about
+ * d * 2^-24 (half a step off, at worst).  A body whose radius is under
+ * d * 2^-22 has its vertices placed to within a quarter of its radius at
+ * best, and its mesh jumps, loses parts or isn't drawn as the camera moves
+ * (2026 ED138 from the Rubin seat, 500 km at 47 au, one part in 1.4e7:
+ * #334).  There the point sprite, which is one position with no shape to
+ * break up, is the honest picture, and it is under any instrument's pixel
+ * anyway (Pluto's disc from Earth is 0.1 arcsecond).  2^22 and not 2^23:
+ * Pluto at 39 au for 1,188 km, 4.9e6 over, has float32's step (5.2e5 m,
+ * 0.44 of its radius) in its mesh too, so it is capped with the rest.  See
+ * DESIGN.md, "The far point".
+ */
+export const FAR_BODY_RATIO = 2 ** 22
+
+
+const _bodyAt = new Vector3()
+const _camAt = new Vector3()
+
+
+/**
+ * @param {number} distance The camera's from the body, metres
+ * @param {number} radius The body's, metres
+ * @returns {boolean} Whether the body is past FAR_BODY_RATIO: only its far
+ *   point is drawn, whatever the field of view
+ */
+export function isFarBody(distance, radius) {
+  return radius > 0 && distance / radius > FAR_BODY_RATIO
+}
+
+
+/**
  * three's LOD picks a level by distance / camera.zoom, which ignores the
  * FOV, so a body zoomed on by narrowing the FOV stayed a point however big
  * it drew.  This one picks by apparent size: the distance is scaled by
@@ -96,10 +129,14 @@ export class FovLOD extends LOD {
   /**
    * @param {object} [opts]
    * @param {boolean} [opts.drawnSize] Scale by meshReach too
+   * @param {number} [opts.radius] The body's radius in metres: past
+   *   FAR_BODY_RATIO of them from the camera the first level is never
+   *   chosen, whatever the field (the second, the far point, is)
    */
-  constructor({drawnSize = false} = {}) {
+  constructor({drawnSize = false, radius = 0} = {}) {
     super()
     this.drawnSize = drawnSize
+    this.radius = radius
   }
 
 
@@ -108,6 +145,17 @@ export class FovLOD extends LOD {
     if (this.levels.length > 1) {
       _cam.matrixWorld = camera.matrixWorld
       _cam.zoom = camera.zoom / fovScale(camera) * (this.drawnSize ? meshReach() : 1)
+      if (this.radius > 0) {
+        _camAt.setFromMatrixPosition(camera.matrixWorld)
+        _bodyAt.setFromMatrixPosition(this.matrixWorld)
+        const distance = _camAt.distanceTo(_bodyAt)
+        if (isFarBody(distance, this.radius)) {
+          // Zoomed just far enough that the second level's distance is
+          // passed: the point, whatever the field.  Never nearer than the
+          // field's own choice, so a level beyond the point is kept.
+          _cam.zoom = Math.min(_cam.zoom, distance / (this.levels[1].distance * 1.01))
+        }
+      }
       super.update(_cam)
     }
   }
@@ -275,8 +323,13 @@ export function farPointLevel({marker, radiusPx, value, ratio, pointPx}) {
  * @param {number} radius The body's, metres
  * @param {{fov: number}} camera
  * @returns {number} The distance over the one at which the planet LOD
- *   (FovLOD, drawnSize) hands the point over to the mesh: 1 there
+ *   (FovLOD, drawnSize) hands the point over to the mesh: 1 there.
+ *   Infinity for a body past FAR_BODY_RATIO, where no mesh comes and the
+ *   point is its marker whatever the field.
  */
 export function handoffRatio(distance, radius, camera) {
+  if (isFarBody(distance, radius)) {
+    return Infinity
+  }
   return distance * fovScale(camera) / (pointSwitchDistance(radius) * meshReach())
 }

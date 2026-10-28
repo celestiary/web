@@ -26,6 +26,52 @@
       "image": null
     },
     {
+      "id": "2026-10-28-a-distant-body-stays-a-point-where-its-mesh",
+      "date": "2026-10-28",
+      "headline": "A distant body stays a point where its mesh would break up",
+      "text": "Zoomed far in on a body tens of astronomical units away, such as 2026 ED138 from the Rubin Observatory's seat, its disc blinked, drew as a crescent or vanished as time ran: the graphics card can't place a mesh that small against its distance. Past 4 million radii away a body now stays a point at any field of view, steady from frame to frame. Pluto seen from Earth is one at every zoom too.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 343,
+          "url": "https://github.com/celestiary/web/pull/343"
+        },
+        {
+          "kind": "issue",
+          "number": 338,
+          "url": "https://github.com/celestiary/web/issues/338"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
+      "id": "2026-10-28-earth-s-detailed-surface-keeps-its-shape-after",
+      "date": "2026-10-28",
+      "headline": "Earth's detailed surface keeps its shape after the window changes size",
+      "text": "Up close, Earth's detailed surface (and the Moon's and Mars's) was drawn at the window's size when the page opened. After the window changed size, the widgets dock opened or the browser's developer tools appeared, it came out stretched or squashed, its horizon off the atmosphere's edge, until a reload. Now it follows the window.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 335,
+          "url": "https://github.com/celestiary/web/pull/335"
+        }
+      ],
+      "epic": {
+        "number": 110,
+        "title": "Earth appearance parity across the Cesium swap",
+        "url": "https://github.com/celestiary/web/issues/110"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
       "id": "2026-10-28-places-found-again-on-the-homepage-s-search",
       "date": "2026-10-28",
       "headline": "Places found again on the homepage's search",
