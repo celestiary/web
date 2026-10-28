@@ -25,6 +25,14 @@ import {chromium} from 'playwright'
  * It exits non-zero if the two frames differ by more than one level
  * anywhere, or if a guest frame was out of step under motion.
  *
+ * `--pan deg` adds the late-frame check (RFC 0003 §4; portal-netgl 0.6.10's
+ * named targets, the celestiary/netgl-reproject Cesium patch), on the guest
+ * page: the camera turned by `deg` about the body (B), the guest's own
+ * frame of B (the truth); then the guest's frame of A composed at B, with
+ * the guest held (no view posted, the last frame re-run), corrected and,
+ * with `guestReproject` off, as it came.  It fails if the corrected frame
+ * isn't nearer the truth than the uncorrected one.
+ *
  * Needs a build in docs/ (`CESIUM_ION_TOKEN= yarn build`); it doesn't build.
  * Other hosts are refused: ion, GIBS (the clouds fall back to the bundled
  * map, and there are no night lights) and analytics.  `--gibs` lets GIBS
@@ -32,6 +40,7 @@ import {chromium} from 'playwright'
  *
  * Usage: yarn cesium-guest-check [--view earth-orbit|earth-12km|earth-night]
  *                                [--motion s] [--wait ms] [--viewport WxH]
+ *                                [--pan deg]
  *                                [--out dir] [--docs dir] [--gibs]
  *                                [--nyc <slop-newyork checkout>]
  *                                [--chromium path]
@@ -88,6 +97,8 @@ function parseArgs(argv) {
     const [key, value] = [argv[i], argv[i + 1]]
     if (key === '--view') {
       opts.view = value
+    } else if (key === '--pan') {
+      opts.pan = Number(value)
     } else if (key === '--motion') {
       opts.motion = Number(value)
     } else if (key === '--wait') {
@@ -364,9 +375,107 @@ async function runMode(browser, opts, mode, ports) {
       lights: {night: body.night === true, parts: body.parts === true, drawn: body.lastLights === true}} : {})}
   }, [opts.motion, opts.wait])
 
+  const pan = mode === 'iframe' && opts.pan > 0 ? await panCheck(page, opts.pan) : null
+
   const replayErrors = city ? await page.evaluate(() => window.c.ui.layers._newYork?.city?.replayErrors ?? null) : null
   await page.close()
-  return {mode, wire: st.wire, motion, png, shot, city: cityAt && {...cityAt, replayErrors}, errors: errors.slice(0, 10)}
+  return {mode, wire: st.wire, motion, pan, png, shot, city: cityAt && {...cityAt, replayErrors}, errors: errors.slice(0, 10)}
+}
+
+
+/**
+ * The late-frame check (--pan): see the header.
+ *
+ * @param {object} page On the guest page (?cesium=iframe), the view settled
+ * @param {number} deg How far B is turned from A, about the body
+ * @returns {Promise<object>} The two composites' distances from the truth
+ */
+async function panCheck(page, deg) {
+  return page.evaluate(async (deg) => {
+    const {ui} = window.c
+    const L = ui.layers
+    const body = L.bodies.earth
+    const earth = ui.sceneManager.objects.earth
+    const Vector3 = ui.camera.position.constructor
+    const at = new Vector3()
+    const posA = ui.camera.position.clone()
+    const posB = posA.clone().applyAxisAngle(new Vector3(0, 1, 0), deg * Math.PI / 180)
+    let hold = posA
+    const keep = ui._keepAboveGround.bind(ui)
+    ui._keepAboveGround = () => {
+      ui.camera.position.copy(hold)
+      earth.getWorldPosition(at)
+      ui.camera.updateMatrixWorld()
+      ui.camera.lookAt(at)
+      keep()
+    }
+    window.c.shared.targets.tween = null
+    L.guestWaitMs = 60000
+    const draw = ui._drawFrame.bind(ui)
+    const pixels = () => {
+      const gl = ui.renderer.getContext()
+      const {width, height} = gl.canvas
+      const out = new Uint8Array(width * height * 4)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, out)
+      ui.renderer.resetState()
+      return out
+    }
+    // `n` frames drawn as they are, after `then` runs in the task of the
+    // first; the last frame's pixels, read in the task that draws it.
+    const frames = (n, then = () => {}) => new Promise((resolve, reject) => {
+      let k = 0
+      const timer = setTimeout(() => reject(new Error('no frames')), 180000)
+      ui._drawFrame = () => {
+        if (k === 0) {
+          then()
+        }
+        draw()
+        if (++k === n) {
+          ui._drawFrame = draw
+          clearTimeout(timer)
+          resolve(pixels())
+        }
+      }
+    })
+    const distance = (a, b) => {
+      let sum = 0
+      let far = 0
+      for (let i = 0; i < a.length; i += 4) {
+        const d = Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2]))
+        sum += d
+        far += d > 16 ? 1 : 0
+      }
+      return {mean: +(sum / (a.length / 4)).toFixed(3), over16: far}
+    }
+    try {
+      // The truth: the guest's own frame of B, in step (a long wait).
+      hold = posB
+      await frames(2)
+      const truth = await frames(2)
+      // Back at A, in step; then the guest held and the camera at B.
+      hold = posA
+      await frames(3)
+      const postViews = L.guests.postViews.bind(L.guests)
+      L.guests.postViews = () => {}
+      const corrected0 = body.corrected ?? 0
+      const corrected = await frames(2, () => {
+        hold = posB
+      })
+      const correctedFrames = (body.corrected ?? 0) - corrected0
+      L.guestReproject = false
+      const uncorrected = await frames(2)
+      L.guestReproject = true
+      L.guests.postViews = postViews
+      const c = distance(corrected, truth)
+      const u = distance(uncorrected, truth)
+      return {deg, corrected: c, uncorrected: u, correctedFrames,
+        correctedDraws: body.receiver.replay.reprojectStats.correctedDraws}
+    } finally {
+      ui._drawFrame = draw
+      ui._keepAboveGround = keep
+    }
+  }, deg)
 }
 
 
@@ -419,6 +528,7 @@ async function main() {
       wait: opts.wait,
       frame: diff,
       motion: {page: results.page.motion, iframe},
+      ...(results.iframe.pan ? {pan: results.iframe.pan} : {}),
       wire: results.iframe.wire,
       ...(nyc ? {city: {page: results.page.city, iframe: results.iframe.city}} : {}),
       errors: {page: results.page.errors, iframe: results.iframe.errors},
@@ -445,6 +555,10 @@ async function main() {
       }
     } else if (diff.max > 1) {
       fails.push(`the frames differ: ${diff.differing} of ${diff.pixels} pixels, by up to ${diff.max}`)
+    }
+    const pan = results.iframe.pan
+    if (pan && !(pan.corrected.mean < pan.uncorrected.mean)) {
+      fails.push(`a late frame corrected to the camera (${pan.corrected.mean}) isn't nearer its own frame than as it came (${pan.uncorrected.mean})`)
     }
     if (iframe.inStep !== iframe.guestDrawn) {
       fails.push(`${iframe.guestDrawn - iframe.inStep} of ${iframe.guestDrawn} guest frames out of step under motion`)

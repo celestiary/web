@@ -139,6 +139,10 @@ export default class CesiumLayers {
     // How long a frame waits for a guest's frame of its view before it's
     // drawn with the last one in (?cesiumWait=ms; awaitingGuests).
     this.guestWaitMs = Number(new URLSearchParams(search).get('cesiumWait')) || GUEST_WAIT_MS
+    // A late frame from a guest page is composed for this frame's camera
+    // (portal-netgl's host reprojection, named targets: GuestPages);
+    // ?cesiumReproject=0 draws it as it was, to compare.
+    this.guestReproject = new URLSearchParams(search).get('cesiumReproject') !== '0'
     // The guest pages' (GuestPages, loaded with the first): null without.
     this.guests = null
     // ?nyc=1 is put in the store on the first frame with one (it isn't set
@@ -702,7 +706,9 @@ export default class CesiumLayers {
     // 2. Cesium, from celestiary's camera, into the stencilled pixels.
     if (body.remote) {
       // A guest page's frames, as they came: this frame's view's, or, if
-      // it's still out, the last one again (the receiver's re-run).
+      // it's still out, the last one again (the receiver's re-run),
+      // corrected to this frame's camera (GuestPages._correction).
+      body.node = node
       this.guests.beforeDrain(body, unseen)
       perf.begin('cesium.replay')
       const drew = body.receiver.drain()
@@ -1317,6 +1323,32 @@ export default class CesiumLayers {
 
 
   /**
+   * The view matrix (world → eye, ECEF, column-major) a guest page's
+   * Cesium would have for this frame's camera: what applyView sets from a
+   * posted view, through Cesium's Camera (unit direction and up, right
+   * their cross) and Matrix4.computeView.  A late frame's correction is
+   * to it (GuestPages._correction).
+   *
+   * @param {string} name
+   * @param {object} node The body's scene node
+   * @returns {Array<number>}
+   */
+  _ecefViewMatrix(name, node) {
+    const view = cameraToEcefView(this.ui.camera.matrixWorld, node.matrixWorld)
+    const p = ellipsoidCameraPosition(view.position, node.props.radius.scalar, CESIUM_BODIES[name].radii)
+    const unit = (v) => {
+      const n = Math.hypot(v[0], v[1], v[2]) || 1
+      return [v[0] / n, v[1] / n, v[2] / n]
+    }
+    const d = unit(view.direction)
+    const u = unit(view.up)
+    const r = unit([(d[1] * u[2]) - (d[2] * u[1]), (d[2] * u[0]) - (d[0] * u[2]), (d[0] * u[1]) - (d[1] * u[0])])
+    const dot = (a, b) => (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2])
+    return [r[0], u[0], -d[0], 0, r[1], u[1], -d[1], 0, r[2], u[2], -d[2], 0, -dot(r, p), -dot(u, p), dot(d, p), 1]
+  }
+
+
+  /**
    * A guest page's credits, as data (GuestPages; credits.js), drawn with
    * celestiary's own elements.
    *
@@ -1355,7 +1387,7 @@ export default class CesiumLayers {
       // Cesium's "screen" is _cesiumRT, which composite() then brings into
       // celestiary's scene render target; a guest page's lights part's is
       // the guest pages' lights target (beforeFrame sets the part).
-      screenFramebuffer: () => renderer.properties.get(body?.part === 'lights' ?
+      screenFramebuffer: () => renderer.properties.get(body?.part === 'emission' ?
         this.guests.lightsTarget() : this._cesiumTarget()).__webglFramebuffer,
       remapScreenViewport: (x, y, w, h) => {
         const size = canvasSize()
@@ -1847,7 +1879,9 @@ function newDecodeMaterial() {
 const STENCIL_REF = 1
 // How long a frame waits for a guest page's frame of its view, ms, before
 // it's drawn with the last one (CesiumLayers.awaitingGuests).
-const GUEST_WAIT_MS = 100
+// Short, since a late frame is corrected to the camera rather than drawn
+// where it was (RFC 0003 §4.6): 100 ms until the correction.
+const GUEST_WAIT_MS = 30
 // Smallest on-screen radius, in pixels, at which a body is drawn by Cesium:
 // under a few pixels across, celestiary's own mesh shows the same.
 const MIN_PIXEL_RADIUS = 2

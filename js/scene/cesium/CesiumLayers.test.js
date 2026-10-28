@@ -1,4 +1,5 @@
-import {AlwaysDepth, LOD, Object3D, PerspectiveCamera, Vector3} from 'three'
+import {AlwaysDepth, LOD, Matrix4, Object3D, PerspectiveCamera, Vector3} from 'three'
+import * as netgl from '@pablo-mayrgundter/portal-netgl/core'
 import {ASTRO_UNIT_METER} from '../../shared.js'
 import {exposureAt, METER_EVERY_FRAMES, nightLightRadiance} from '../exposure.js'
 import {MeterCadence} from '../meterReadback.js'
@@ -760,6 +761,73 @@ describe('a guest page\'s night lights', () => {
     expect(body.drainedLights).toBe(true)
     // The page's own link: no body, always Cesium's.
     expect(L._replayConfig(() => null).screenFramebuffer()).toBe('day')
+  })
+})
+
+
+describe('a guest page\'s late frames, corrected (portal-netgl 0.6.10)', () => {
+  const R = 6371000
+  const setup = () => {
+    const camera = new PerspectiveCamera(45, 1.6, 1, 1e9)
+    camera.position.set(0, 0, 3 * R)
+    camera.lookAt(0, 0, 0)
+    camera.updateMatrixWorld()
+    const L = withGuests(new CesiumLayers({camera}))
+    const node = {matrixWorld: new Matrix4(), props: {radius: {scalar: R}}}
+    return {L, camera, node}
+  }
+  const apply = (m, v) => [0, 1, 2, 3].map((r) => (m[r] * v[0]) + (m[4 + r] * v[1]) + (m[8 + r] * v[2]) + (m[12 + r] * v[3]))
+
+  it('Cesium\'s view for this frame\'s camera puts the camera at the origin, looking down -z', () => {
+    const {L, node} = setup()
+    const V = L._ecefViewMatrix('earth', node)
+    const {position} = L._viewOf('earth', node)
+    const eye = apply(V, [...position, 1])
+    for (const c of eye.slice(0, 3)) {
+      expect(Math.abs(c)).toBeLessThan(1e-6)
+    }
+    // Towards the body's centre is straight ahead.
+    const ahead = apply(V, [-position[0], -position[1], -position[2], 0])
+    const n = Math.hypot(...ahead.slice(0, 3))
+    expect(ahead[2] / n).toBeCloseTo(-1, 9)
+  })
+
+  it('no correction for the frame of the view posted this frame; the camera\'s move for an older one', () => {
+    const {L, camera, node} = setup()
+    const body = {name: 'earth', node, posted: 7, postedTick: 0}
+    L.guests._tick = 0
+    const V = L._ecefViewMatrix('earth', node)
+    const P = [1, 0, 0, 0, 0, 1.6, 0, 0, 0, 0, -1, -1, 0, 0, -2, 0]
+    const end = {type: 'netgl:frame-end', viewId: 7, viewMatrix: V, projectionMatrix: P}
+    expect(L.guests._correction(netgl, body, 7, end)).toBe(null)
+    // No view and projection (several frusta, an older page): none.
+    expect(L.guests._correction(netgl, body, 6, {type: 'netgl:frame-end', viewId: 6})).toBe(null)
+    // The camera moves, and the frame is the last one again.
+    camera.position.set(0.1 * R, 0, 3 * R)
+    camera.updateMatrixWorld()
+    L.guests._tick = 1
+    const C = L.guests._correction(netgl, body, 7, end)
+    const now = {viewMatrix: L._ecefViewMatrix('earth', node), projectionMatrix: P}
+    expect(C).toEqual(netgl.reprojection(end, now))
+    expect(body.corrected).toBe(1)
+  })
+
+  it('the lights part is \'emission\' (GUEST_VERSION 3) or \'lights\' (before)', () => {
+    const fbs = new Map()
+    const L = withGuests(new CesiumLayers({renderer: {properties: {get: (rt) => ({__webglFramebuffer: fbs.get(rt)})}}}))
+    const day = {}
+    const lights = {}
+    fbs.set(day, 'day').set(lights, 'lights')
+    L._cesiumTarget = () => day
+    L.guests.lightsTarget = () => lights
+    const body = {postedLights: true, waiting: 3, frames: 0, steps: {trips: 0, tripMs: 0}, postedAt: 0}
+    const config = L._replayConfig(() => [480, 300], body)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 3, part: 'emission'})
+    expect(config.screenFramebuffer()).toBe('lights')
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 3})
+    expect(config.screenFramebuffer()).toBe('day')
+    L.guests._onFrame(body, {type: 'netgl:frame-end', viewId: 3, part: 'emission'})
+    expect(body.waiting).toBe(null)
   })
 })
 

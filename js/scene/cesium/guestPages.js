@@ -21,6 +21,9 @@ export default class GuestPages {
     this.version = version
     // The last view's id, over every guest page.
     this._viewId = 0
+    // postViews' calls: a frame's drain knows whether the view it drains
+    // was posted in the same frame (_correction).
+    this._tick = 0
     // The last GUEST_STATS_N frames' waits for a guest's (noteWait).
     this._waits = []
     // requestGroundHeight's last request.
@@ -169,6 +172,14 @@ export default class GuestPages {
       transport: netgl.iframeTransport(iframe, {origin: page.origin}),
       wire: 2,
       replay: L._replayConfig(() => body.size, body),
+      // A late frame composed for this frame's camera: Cesium names the
+      // targets it draws its scene into and the view and projection it drew
+      // with (portal-netgl 0.6.10, cesiumFrameEnd), and its patch exempts
+      // its copies and opts its log depth in (CESIUM.md, patching Cesium).
+      reproject: L.guestReproject ? {
+        targets: 'named',
+        correction: (viewId, end) => this._correction(netgl, body, viewId, end),
+      } : undefined,
       // Each part to its target (_replayConfig): the day frame to
       // _cesiumRT, the lights to _lightsRT.  Called only from 0.6.8 on,
       // which is how the lights know they can be asked for.
@@ -195,6 +206,7 @@ export default class GuestPages {
    * @param {Array<{name: string, node: object}>} drawn This frame's active and warming bodies
    */
   postViews(drawn) {
+    this._tick++
     const L = this.layers
     const remote = drawn.filter(({name}) => L.bodies[name]?.remote && L.bodies[name].status === 'ready' &&
       L.bodies[name].waiting === null)
@@ -223,6 +235,7 @@ export default class GuestPages {
       const viewId = ++this._viewId
       body.waiting = viewId
       body.posted = viewId
+      body.postedTick = this._tick
       body.postedAt = performance.now()
       body.holdUntil = body.postedAt + L.guestWaitMs
       // New York, drawn by the guest page's Cesium: the switch.
@@ -257,7 +270,7 @@ export default class GuestPages {
    * @param {object} end Its frame-end
    */
   _onFrame(body, end) {
-    if ((end.part === 'lights') !== (body.postedLights === true)) {
+    if (isLights(end) !== (body.postedLights === true)) {
       return
     }
     body.frames++
@@ -284,10 +297,39 @@ export default class GuestPages {
    */
   _onPart(body, end) {
     body.parts = true
-    body.part = end.part ?? null
-    if (end.part === 'lights') {
+    // Lights parts by one name (the guest page's 'emission', RFC 0002
+    // §6.3; 'lights' before GUEST_VERSION 3).
+    body.part = isLights(end) ? 'emission' : end.part ?? null
+    if (isLights(end)) {
       body.drainedLights = true
     }
+  }
+
+
+  /**
+   * The correction for a guest page's frame drawn for `viewId` (the
+   * receiver's reproject.correction): from the view and projection it drew
+   * with (its frame-end) to Cesium's view for this frame's camera
+   * (CesiumLayers._ecefViewMatrix).  None for a frame of the view posted
+   * this frame, which is the camera's (on time, drawn exactly as it came),
+   * or one without them (several frusta, an older guest page).
+   *
+   * @param {object} netgl portal-netgl
+   * @param {object} body
+   * @param {?number} viewId
+   * @param {object} end Its frame-end
+   * @returns {?Array<number>}
+   */
+  _correction(netgl, body, viewId, end) {
+    if (!this.layers.guestReproject || !end.viewMatrix || !end.projectionMatrix || !body.node) {
+      return null
+    }
+    if (viewId === body.posted && body.postedTick === this._tick) {
+      return null
+    }
+    body.corrected = (body.corrected ?? 0) + 1
+    const viewMatrix = this.layers._ecefViewMatrix(body.name, body.node)
+    return netgl.reprojection(end, {viewMatrix, projectionMatrix: end.projectionMatrix})
   }
 
 
@@ -400,6 +442,10 @@ export default class GuestPages {
       guestMs: stat(b.trips.map((x) => x.guestMs)),
       backMs: stat(b.trips.map((x) => x.backMs)),
       waitMs: stat(this._waits),
+      // Frames composed for a camera other than their view's (_correction),
+      // and the replay's corrected draws.
+      corrected: b.corrected ?? 0,
+      correctedDraws: b.receiver?.replay?.reprojectStats?.correctedDraws ?? 0,
     }))
   }
 
@@ -475,3 +521,13 @@ export default class GuestPages {
 const GUEST_STATS_N = 240
 // How long requestGroundHeight waits for a guest page's answer, ms.
 const GROUND_REPLY_MS = 1000
+
+
+/**
+ * @param {object} end A frame-end
+ * @returns {boolean} Whether it ends a night lights part: 'emission', or
+ *   'lights' from a guest page before GUEST_VERSION 3
+ */
+function isLights(end) {
+  return end.part === 'emission' || end.part === 'lights'
+}
