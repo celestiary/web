@@ -1349,6 +1349,26 @@ export default class CesiumLayers {
 
 
   /**
+   * A guest page's frame's projection for this frame's camera: its near
+   * and far (Cesium's, the z row), with the scales of the camera's field
+   * and aspect now.  After a resize the copy to the screen stretches the
+   * frame to the new size, which keeps clip space, so the correction must
+   * land in this one, not the frame's (GuestPages._correction).
+   *
+   * @param {Array<number>} projection The frame's (its frame-end's)
+   * @returns {Array<number>}
+   */
+  _ecefProjection(projection) {
+    const {camera, width, height} = this.ui
+    const y = 1 / Math.tan(camera.fov * toRad / 2)
+    const p = Array.from(projection)
+    p[0] = y / (width / Math.max(1, height))
+    p[5] = y
+    return p
+  }
+
+
+  /**
    * A guest page's credits, as data (GuestPages; credits.js), drawn with
    * celestiary's own elements.
    *

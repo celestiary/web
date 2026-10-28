@@ -331,7 +331,8 @@ export default class GuestPages {
     }
     body.corrected = (body.corrected ?? 0) + 1
     const viewMatrix = this.layers._ecefViewMatrix(body.name, body.node)
-    const correction = netgl.reprojection(end, {viewMatrix, projectionMatrix: end.projectionMatrix})
+    const projectionMatrix = this.layers._ecefProjection(end.projectionMatrix)
+    const correction = netgl.reprojection(end, {viewMatrix, projectionMatrix})
     body.lastCorrection = {from: end.viewMatrix, projection: end.projectionMatrix, to: viewMatrix, correction}
     // The shader applies it in float32.  A move t is scaled by about
     // t / (2 near) in its columns for z and w (Cesium's near is 0.1 m low

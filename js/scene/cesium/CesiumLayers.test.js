@@ -772,7 +772,7 @@ describe('a guest page\'s late frames, corrected (portal-netgl 0.6.10)', () => {
     camera.position.set(0, 0, 3 * R)
     camera.lookAt(0, 0, 0)
     camera.updateMatrixWorld()
-    const L = withGuests(new CesiumLayers({camera}))
+    const L = withGuests(new CesiumLayers({camera, width: 480, height: 300}))
     const node = {matrixWorld: new Matrix4(), props: {radius: {scalar: R}}}
     return {L, camera, node}
   }
@@ -808,7 +808,7 @@ describe('a guest page\'s late frames, corrected (portal-netgl 0.6.10)', () => {
     camera.updateMatrixWorld()
     L.guests._tick = 1
     const C = L.guests._correction(netgl, body, 7, end)
-    const now = {viewMatrix: L._ecefViewMatrix('earth', node), projectionMatrix: P}
+    const now = {viewMatrix: L._ecefViewMatrix('earth', node), projectionMatrix: L._ecefProjection(P)}
     expect(C).toEqual(netgl.reprojection(end, now))
     expect(body.corrected).toBe(1)
   })
@@ -824,6 +824,18 @@ describe('a guest page\'s late frames, corrected (portal-netgl 0.6.10)', () => {
     camera.updateMatrixWorld()
     expect(L.guests._correction(netgl, body, 7, end)).toBe(null)
     expect(body.refused).toBe(1)
+  })
+
+  it('corrects to the camera\'s projection now: a resize changes the scales, not the near and far', () => {
+    const {L, camera} = setup()
+    const P = [1, 0, 0, 0, 0, 1.6, 0, 0, 0, 0, -1.0000002, -1, 0, 0, -0.2, 0]
+    const Q = L._ecefProjection(P)
+    const y = 1 / Math.tan(camera.fov * Math.PI / 360)
+    expect(Q[5]).toBeCloseTo(y, 12)
+    expect(Q[0]).toBeCloseTo(y * 300 / 480, 12)
+    expect([Q[10], Q[11], Q[14], Q[15]]).toEqual([P[10], P[11], P[14], P[15]])
+    L.ui.height = 200
+    expect(L._ecefProjection(P)[0]).toBeCloseTo(y * 200 / 480, 12)
   })
 
   it('the lights part is \'emission\' (GUEST_VERSION 3) or \'lights\' (before)', () => {
