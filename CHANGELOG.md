@@ -39,6 +39,19 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Zoom within Rubin's optics
+
+While the Rubin Observatory app runs, the field-of-view keys (`,` and `.`) zoom from the camera's
+3.5° field down to where one of its 0.2″ pixels is a pixel on your screen, and stop there. The app
+shows the field, the magnification and the size of Rubin's pixel on screen, and says when you're at
+either end. A switch, *Rubin's optics*, turns the limit off.
+
+- Date: 2026-10-28
+- PR: [#342](https://github.com/celestiary/web/pull/342)
+- Issue: [#337](https://github.com/celestiary/web/issues/337)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Kind: feature
 ### A distant body stays a point where its mesh would break up
 
 Zoomed far in on a body tens of astronomical units away, such as 2026 ED138 from the Rubin Observatory's

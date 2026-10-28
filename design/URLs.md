@@ -665,17 +665,24 @@ night=<days>       the night the run's slider is on, as days since 1970 at
                    0h UTC (15 May 2026 by default)
 shell=0            the observatory's shell, the enclosure and dome, hidden
                    (drawn by default), the telescope on its mount in the open
+optics=0           Rubin's optics off: the field free (on by default, the
+                   field held between the camera's 3.5° and its pixel limit)
 ```
 
 ```
 #…;apps:open,view=rubin                        open on the app, the defaults
 #…;apps:open,view=rubin;apps.rubin:path=0,night=20544   the path off, the slider on 1 April 2026
 #…;apps:open,view=rubin;apps.rubin:shell=0     the telescope in the open
+#…;fov=0.0001615deg;…;apps:open,view=rubin;apps.rubin:optics=0   a field past Rubin's pixels, kept
 ```
 
 - **The clock is the `t=` token's.**  Watching a night sets the clock, and
   the link carries the time and rate as ever; the token holds only what
   the app's own controls say.
+- **The field is the view's `fov=`**, held to Rubin's range while the
+  optics are on ([Rubin.md, the optics](../js/scene/rubin/Rubin.md#the-optics)):
+  a link's field past the pixel limit opens at the limit, and with
+  `optics=0` as written.
 - **A bad value is its default.**
 
 ### News Token

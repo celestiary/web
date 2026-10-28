@@ -1,7 +1,53 @@
 import {
   EXPOSURE_TAU_SECONDS, METER_TAU_DOWN_SECONDS, METER_TAU_UP_SECONDS, adaptMeterGain, easeExposure,
 } from '../exposure.js'
-import {ADAPTATION, NAKED_EYE} from './instrument.js'
+import {
+  ADAPTATION, NAKED_EYE, RUBIN, clampField, fieldEnd, instrumentFieldRange, instrumentStarGain,
+} from './instrument.js'
+
+
+describe('an instrument\'s field', () => {
+  it('Rubin\'s: 3.5° wide, 0.2″ pixels, 0.7″ seeing, 8.4 m, and the eye\'s light and PSF for now', () => {
+    expect(RUBIN.fieldMaxDeg).toBe(3.5)
+    expect(RUBIN.pixelScaleArcsec).toBe(0.2)
+    expect(RUBIN.resolutionArcsec).toBe(0.7)
+    expect(RUBIN.apertureM).toBe(8.4)
+    // Everything the star field and the meter read of ui.instrument is there.
+    for (const key of Object.keys(NAKED_EYE)) {
+      expect(key in RUBIN).toBe(true)
+    }
+    expect(RUBIN.psf).toBe(NAKED_EYE.psf)
+    expect(RUBIN.adaptation).toBe(ADAPTATION)
+    expect(instrumentStarGain(RUBIN, 1)).toBe(instrumentStarGain(NAKED_EYE, 1))
+    expect(Object.isFrozen(RUBIN)).toBe(true)
+  })
+
+  it('the eye has no range: the field is free', () => {
+    expect(instrumentFieldRange(NAKED_EYE, 1000)).toBe(null)
+    expect(clampField(1e-4, null)).toBe(1e-4)
+    expect(fieldEnd(45, null)).toBe(null)
+  })
+
+  it('runs from the widest field to where a detector pixel is a screen pixel', () => {
+    // 0.2″ × 1,000 px = 200″, 0.056°.
+    const range = instrumentFieldRange(RUBIN, 1000)
+    expect(range.maxDeg).toBe(3.5)
+    expect(range.minDeg).toBeCloseTo(200 / 3600, 12)
+    expect(instrumentFieldRange(RUBIN, 2000).minDeg).toBeCloseTo(400 / 3600, 12)
+    // A canvas so tall the pixel limit passes the widest field: the range is that one field.
+    expect(instrumentFieldRange(RUBIN, 1e5)).toEqual({minDeg: 3.5, maxDeg: 3.5})
+  })
+
+  it('clamps the field to the range, and says which end it is at', () => {
+    const range = instrumentFieldRange(RUBIN, 1000)
+    expect(clampField(45, range)).toBe(3.5)
+    expect(clampField(1e-4, range)).toBe(range.minDeg)
+    expect(clampField(1, range)).toBe(1)
+    expect(fieldEnd(3.5, range)).toBe('max')
+    expect(fieldEnd(range.minDeg, range)).toBe('min')
+    expect(fieldEnd(1, range)).toBe(null)
+  })
+})
 
 
 describe('the observer\'s adaptation', () => {

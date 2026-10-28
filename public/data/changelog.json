@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "id": "2026-10-28-zoom-within-rubin-s-optics",
+      "date": "2026-10-28",
+      "headline": "Zoom within Rubin's optics",
+      "text": "While the Rubin Observatory app runs, the field-of-view keys (, and .) zoom from the camera's 3.5° field down to where one of its 0.2″ pixels is a pixel on your screen, and stop there. The app shows the field, the magnification and the size of Rubin's pixel on screen, and says when you're at either end. A switch, Rubin's optics, turns the limit off.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 342,
+          "url": "https://github.com/celestiary/web/pull/342"
+        },
+        {
+          "kind": "issue",
+          "number": 337,
+          "url": "https://github.com/celestiary/web/issues/337"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
       "id": "2026-10-28-a-distant-body-stays-a-point-where-its-mesh",
       "date": "2026-10-28",
       "headline": "A distant body stays a point where its mesh would break up",
