@@ -125,9 +125,11 @@ export function anchorPathFor(committedPath, anchorIndex) {
  *
  * @param {?object} target committedTarget
  * @param {string[]} committedPath
+ * @param {(name: string) => (string|undefined)} [labelOf] A body's own
+ *   label, where its descriptor has one (`2026 ED138` for `ed138`)
  * @returns {Array<{label: string, hash: string}>}
  */
-export function breadcrumbItems(target, committedPath) {
+export function breadcrumbItems(target, committedPath, labelOf = () => undefined) {
   if (target?.kind === 'star') {
     return [{label: target.name || `HIP ${target.star.hipId}`, hash: `hip:${target.star.hipId}`}]
   }
@@ -138,7 +140,7 @@ export function breadcrumbItems(target, committedPath) {
     return [{label: target.name, hash: `galaxy:${target.galaxy.id}`}]
   }
   const items = committedPath.map((name, i) => ({
-    label: capitalize(name),
+    label: labelOf(name) ?? capitalize(name),
     hash: committedPath.slice(0, i + 1).join('/'),
   }))
   if (target?.kind === 'place' && committedPath.length > 0) {

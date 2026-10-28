@@ -146,14 +146,16 @@ function findEntry(body, observer) {
 
 
 describe('the IAU WGCCRE table', () => {
-  it('has a sourced model for every body celestiary turns, and none for Hyperion', () => {
-    for (const name of [...sun.system, 'moon', 'phobos', 'deimos', 'io', 'europa', 'ganymede', 'callisto', 'titan',
-      'rhea', 'dione', 'tethys', 'iapetus', 'janus', 'titania', 'oberon', 'triton', 'proteus', 'charon']) {
+  it('has a sourced model for every body celestiary turns, and none for Hyperion or 2026 ED138', () => {
+    // 2026 ED138's pole and rotation are unknown (rubin/Rubin.md): it isn't turned.
+    for (const name of [...sun.system.filter((n) => n !== 'ed138'), 'moon', 'phobos', 'deimos', 'io', 'europa',
+      'ganymede', 'callisto', 'titan', 'rhea', 'dione', 'tethys', 'iapetus', 'janus', 'titania', 'oberon', 'triton', 'proteus', 'charon']) {
       const model = rotationModel(name)
       expect(model).not.toBeNull()
       expect(model.source).toMatch(/WGCCRE (2009|2015)/)
     }
     expect(rotationModel('hyperion')).toBeNull()
+    expect(rotationModel('ed138')).toBeNull()
     expect(table.source).toMatch(/Archinal et al\. 2018/)
   })
 

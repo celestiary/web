@@ -54,6 +54,7 @@ tried and dropped.
 | Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
+| The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md) |
 | Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
 | Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |
@@ -178,6 +179,14 @@ tried and dropped.
     with `toDataURL` in the same task (its buffer is cleared once the
     task ends). Null `c.shared.targets.tween` before each frame, or the
     `goTo` tween moves the camera off your view.
+  - **Drive the loop across tasks when the meter matters.**  The meter
+    reads back through a pixel-pack buffer whose fence resolves between
+    tasks: a run of `renderLoop` calls inside one `page.evaluate` meters
+    its first frames and then reads nothing more, so the gain stays where
+    those left it (at the Rubin seat it sat at 37 for a sky worth 5e5,
+    and the frame was black with no stars: hours of hunting).  Settle
+    with many short `evaluate`s of a few frames each, a few ms apart, and
+    render the frame you read in the same task as its canvas read.
   - Before reading a metered view, wait for `c.ui._meterGainGoal` to
     hold for ~30 s, not a few polls. A view loaded far from its gain
     (a link with a high `ev=` starts at the dark gain) can bounce: a
@@ -469,6 +478,10 @@ tried and dropped.
   - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
     `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
     [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).
+  - `noirlab.edu` (NOIRLab's 3D models, for `tools/models/build.sh`'s
+    Rubin telescope, and its press releases; `rubinobservatory.org` is
+    allowed too).  `curl` through the sandbox proxy reaches it where
+    `WebFetch` doesn't.
   - `asc-planetarynames-data.s3.us-west-2.amazonaws.com` (the IAU
     Gazetteer's per-body downloads, for `tools/places/build.mjs`; the
     site itself, `planetarynames.wr.usgs.gov`, is refused).

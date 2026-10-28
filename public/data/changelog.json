@@ -1,6 +1,68 @@
 {
   "entries": [
     {
+      "id": "2026-10-28-places-found-again-on-the-homepage-s-search",
+      "date": "2026-10-28",
+      "headline": "Places found again on the homepage's search",
+      "text": "Typing a place on the homepage, \"rubin\" for the Rubin Observatory or the Moon's crater Rubin, lost the places a second after showing them, as the search's first loads landed. They stay now. And the search finds an app's view: \"Watch 2026 ED138 from the Rubin Observatory\" opens the app on the night.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 320,
+          "url": "https://github.com/celestiary/web/pull/320"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": null,
+      "image": null,
+      "kind": "fix"
+    },
+    {
+      "id": "2026-10-28-earth-s-clouds-can-be-switched-off",
+      "date": "2026-10-28",
+      "headline": "Earth's clouds can be switched off",
+      "text": "The I key (Celestia's i) and a new Clouds switch in Earth's atmosphere section hide the clouds, for a night's sky the day's weather would cover. A link remembers it.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 320,
+          "url": "https://github.com/celestiary/web/pull/320"
+        }
+      ],
+      "epic": {
+        "number": 118,
+        "title": "Navigation, time and sharing",
+        "url": "https://github.com/celestiary/web/issues/118"
+      },
+      "permalink": null,
+      "image": null
+    },
+    {
+      "id": "2026-10-28-rubin-s-dwarf-planet-candidate-and-the",
+      "date": "2026-10-28",
+      "headline": "Rubin's dwarf planet candidate, and the telescope that found it",
+      "text": "2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's system on JPL's orbit: about 1,000 km across, 46 au from the Sun, beyond Pluto. A new app in the widgets drawer puts the Rubin Observatory on Cerro Pachón, with NOIRLab's model of the Simonyi Survey Telescope following the object through a night of the discovery run, watched from an astronomer's seat on the telescope that rides its pointing and tracks the object with it (zoom the field of view into the sky it sees), and draws the object's path on the sky over those months: 2° of retrograde that is the Earth's own motion reflected, not the orbit. A switch takes the dome and the building away to see the telescope turn.",
+      "links": [
+        {
+          "kind": "pr",
+          "number": 320,
+          "url": "https://github.com/celestiary/web/pull/320"
+        }
+      ],
+      "epic": {
+        "number": 321,
+        "title": "The Rubin Observatory and 2026 ED138",
+        "url": "https://github.com/celestiary/web/issues/321"
+      },
+      "permalink": "#sun/ed138",
+      "image": null,
+      "featured": true
+    },
+    {
       "id": "2026-10-26-starlink-drawn-once-with-its-overlay-and-the",
       "date": "2026-10-26",
       "headline": "Starlink drawn once with its overlay and the satellites both on",

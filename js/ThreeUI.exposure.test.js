@@ -40,6 +40,28 @@ function fakeUi(ev) {
 describe('ThreeUi exposure compensation', () => {
   beforeEach(() => {
     targets.obj = null
+    targets.landed = false
+  })
+
+  it('keys the exposure to the targeted body, or landed, to the body the camera stands on', () => {
+    const AU = 1.496e11
+    const earth = new Object3D
+    earth.props = {name: 'earth', type: 'planet', radius: {scalar: 6.371e6}}
+    earth.position.set(AU, 0, 0)
+    const far = new Object3D
+    far.props = {name: 'ed138', type: 'planet', radius: {scalar: 5e5}}
+    far.position.set(0, 0, 47 * AU)
+    const ui = fakeUi(0)
+    ui.camera = {fov: 45, platform: {parent: earth}}
+    ui._exposureBodyPos = new Vector3
+    ui._exposureSunPos = new Vector3
+    targets.obj = far
+    targets.cur = earth
+    ThreeUi.prototype._updateExposure.call(ui)
+    expect(ui._exposureGoal).toBeCloseTo(exposureAt(47 * AU), 20)
+    targets.landed = true
+    ThreeUi.prototype._updateExposure.call(ui)
+    expect(ui._exposureGoal).toBeCloseTo(exposureAt(AU), 20)
   })
 
   it('multiplies the metered exposure by 2^EV', () => {

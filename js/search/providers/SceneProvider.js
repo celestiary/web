@@ -66,7 +66,7 @@ export default class SceneProvider {
       }
       out.push({
         id: name,
-        displayName: capitalize(obj.name || name),
+        displayName: obj.label ?? capitalize(obj.name || name),
         aliases: Array.isArray(obj.aliases) ? obj.aliases.slice() : [],
         kind,
         path,

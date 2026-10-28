@@ -39,6 +39,46 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Places found again on the homepage's search
+
+Typing a place on the homepage, "rubin" for the Rubin Observatory or the Moon's crater Rubin, lost
+the places a second after showing them, as the search's first loads landed. They stay now. And the
+search finds an app's view: "Watch 2026 ED138 from the Rubin Observatory" opens the app on the
+night.
+
+- Date: 2026-10-28
+- PR: [#320](https://github.com/celestiary/web/pull/320)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Kind: fix
+
+### Earth's clouds can be switched off
+
+The `I` key (Celestia's `i`) and a new *Clouds* switch in Earth's atmosphere section hide the
+clouds, for a night's sky the day's weather would cover. A link remembers it.
+
+- Date: 2026-10-28
+- PR: [#320](https://github.com/celestiary/web/pull/320)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+
+### Rubin's dwarf planet candidate, and the telescope that found it
+
+2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's
+system on JPL's orbit: about 1,000 km across, 46 au from the Sun, beyond Pluto. A new app in the
+widgets drawer puts the Rubin Observatory on Cerro Pachón, with NOIRLab's model of the Simonyi
+Survey Telescope following the object through a night of the discovery run, watched from an
+astronomer's seat on the telescope that rides its pointing and tracks the object with it (zoom the
+field of view into the sky it sees), and draws the object's path on the sky over those months: 2° of
+retrograde that is the Earth's own motion reflected, not the orbit. A switch takes the dome and the
+building away to see the telescope turn.
+
+- Date: 2026-10-28
+- PR: [#320](https://github.com/celestiary/web/pull/320)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: [Open this view](https://celestiary.org/#sun/ed138)
+- Featured: yes
+
 ### Starlink drawn once with its overlay and the satellites both on
 
 With the Starlink overlay (`S`) and Earth's satellites both on, each Starlink was drawn twice, as a

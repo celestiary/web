@@ -16,7 +16,7 @@
  * @property {string} id Unique id ('earth', 'hip:32349', 'loc:earth:paris').
  * @property {string} displayName Primary user-facing label.
  * @property {string[]} aliases Extra search tokens.
- * @property {string} kind One of 'galaxy' | 'star' | 'planet' | 'moon' | 'spacecraft' | 'place'.
+ * @property {string} kind One of 'galaxy' | 'star' | 'planet' | 'moon' | 'spacecraft' | 'place' | 'satellite' | 'view'.
  * @property {string} path Rooted path, '/'-joined, e.g. 'milkyway/sun/earth'.
  * @property {string|null} parent Parent id (null for root).
  * @property {object} payload Navigation hint — shape depends on `kind`.

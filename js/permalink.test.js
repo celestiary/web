@@ -663,6 +663,16 @@ describe('sm= (the stars\' setting)', () => {
 })
 
 
+describe('the i setting (Earth\'s clouds)', () => {
+  it('is on by default, and a flag in s= when off', () => {
+    expect(SETTINGS_DEFAULTS.i).toBe(true)
+    expect(encodeSettings({...SETTINGS_DEFAULTS, i: false})).toBe('i')
+    expect(decodeSettings('i').i).toBe(false)
+    expect(decodeSettings('oL').i).toBe(true)
+  })
+})
+
+
 describe('the T setting (tracking)', () => {
   it('is off by default, and a flag in s= when on', () => {
     expect(SETTINGS_DEFAULTS.T).toBe(false)

@@ -951,7 +951,7 @@ each the same for all of them:
 
 | Stage | What | Where |
 |---|---|---|
-| Target switch | `setTarget` keys the exposure to the body (its distance from the Sun) and asks for its surface (`preloadNear`, served next frame), for a moon its planet's too, so its maps load while the camera turns | `Scene.setTarget`, `Planet.preloadNear` |
+| Target switch | `setTarget` keys the exposure to the body (its distance from the Sun; landed, to the body the camera stands on, whatever is targeted: [HDR.md, metered exposure](js/scene/HDR.md#metered-exposure)) and asks for its surface (`preloadNear`, served next frame), for a moon its planet's too, so its maps load while the camera turns | `Scene.setTarget`, `Planet.preloadNear` |
 | Exposure on the way | `goTo` hands the UI the travel (`ThreeUi.approach`): from the arrival pose it works out the gain the meter will settle on there (the sunlit-disc anchor of the body and whatever else that frame holds, over an otherwise dark frame: `exposure.js arrivalGain`), and each frame of the travel renders at the exposure without the travel blended to the arrival's, evenly in stops, by the position channel's eased progress (`approachExposure`, `tween.travelProgress()`).  On arriving the meter is handed that gain; readings of frames drawn on the way don't set its goal | `ThreeUi._approachStep`, [HDR.md, travel](js/scene/HDR.md#travel) |
 | LOD hand-off | the far point's light goes over to the disc's within 4× of the distance where the mesh takes over (`farPointLevel`), the small disc draws a few pixels at their coverage and writes the sphere's depth (so the atmosphere pass draws its sky over it), and the full mesh takes over at 24 px, all at the same exposure | [the far point](#the-far-point), [Planet.md, small discs](js/scene/Planet.md#small-discs) |
 | Surface before its maps | one-texel stand-ins (the colour map's mean over the sphere, a flat normal) until each map is in, so a slow map never leaves the body missing or black | `standInMaps.js`, [Planet.md, while the maps load](js/scene/Planet.md#while-the-maps-load) |
@@ -1277,7 +1277,11 @@ human expansion lines, etc.).  `V` is the union
 of all the lowercase scene-annotation toggles.  The space networks (Starlink,
 Iridium, the Deep Space Network: [Networks.md](js/scene/networks/Networks.md))
 are three overlays of their own (settings `S`, `I`, `D`), toggled from
-Settings' Networks rows rather than keys, and in `V` too.
+Settings' Networks rows rather than keys, and in `V` too.  Earth's clouds
+are scene content, not an annotation: the `I` key (Celestia's `i`; the
+setting `i`, so `s=i` is clouds off) and the atmosphere section's switch
+hide the shell and the volumetric clouds (`Scene.toggleClouds`), with no
+fade, and `V` leaves them be.
 
 **When adding a new visual feature, decide which group it belongs in and
 wire it through the corresponding toggle method.**  Surface place labels,

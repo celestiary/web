@@ -163,7 +163,12 @@ in view space).
 Earth's clouds are a layer of their own (#88), not baked into the surface:
 the Blue Marble on both sides of the Cesium swap is cloud-free, so one cloud
 shell is drawn over whichever surface is there.  `earth/index.json` turns it on
-(`"clouds": "gibs"`); the code is `js/scene/clouds/`.
+(`"clouds": "gibs"`); the code is `js/scene/clouds/`.  **The `I` key**
+(Celestia's `i`) and the *Clouds* switch in Earth's atmosphere section turn
+them off and on (`Scene.toggleClouds`, the `i` setting, `s=i` in a link for
+off): the shell's own per-frame `visible` reads it, and the volumetric
+clouds follow the shell.  For a night under the dome (rubin/Rubin.md), or
+any ground view the day's weather hides.
 
 ### Source: NASA GIBS's daily true colour
 

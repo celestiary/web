@@ -30,5 +30,6 @@
   "triton": "neptune/moons/triton",
   "proteus": "neptune/moons/proteus",
   "pluto": "pluto",
-  "charon": "pluto/moons/charon"
+  "charon": "pluto/moons/charon",
+  "ed138": "ed138"
 }
