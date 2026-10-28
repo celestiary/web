@@ -667,12 +667,16 @@ shell=0            the observatory's shell, the enclosure and dome, hidden
                    (drawn by default), the telescope on its mount in the open
 optics=0           Rubin's optics off: the field free (on by default, the
                    field held between the camera's 3.5° and its pixel limit)
+pixel=1            Rubin's pixel drawn at the body: a square the camera's 0.2″
+                   pixel across and a fainter outline at its 0.7″ resolution,
+                   to scale on screen (off by default)
 ```
 
 ```
 #…;apps:open,view=rubin                        open on the app, the defaults
 #…;apps:open,view=rubin;apps.rubin:path=0,night=20544   the path off, the slider on 1 April 2026
 #…;apps:open,view=rubin;apps.rubin:shell=0     the telescope in the open
+#…;apps:open,view=rubin;apps.rubin:pixel=1     Rubin's pixel drawn at the body
 #…;fov=0.0001615deg;…;apps:open,view=rubin;apps.rubin:optics=0   a field past Rubin's pixels, kept
 ```
 

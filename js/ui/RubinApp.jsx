@@ -79,9 +79,9 @@ function dateLabel(ms) {
  * it builds both (Scene.getRubin); stopping removes them.
  *
  * Its state is in the permalink (`apps.rubin`): whether the path is drawn,
- * the night the slider is on, the shell, and whether Rubin's optics hold
- * the field.  While it runs Rubin's camera is the observer
- * (ThreeUi.setInstrument: Rubin.md, "The optics").
+ * the night the slider is on, the shell, whether Rubin's optics hold
+ * the field, and whether Rubin's pixel is drawn.  While it runs Rubin's
+ * camera is the observer (ThreeUi.setInstrument: Rubin.md, "The optics").
  *
  * @property {object} celestiary
  * @returns {ReactElement}
@@ -93,6 +93,7 @@ export default function RubinApp({celestiary}) {
   const [nightMs, setNightMs] = useState(saved.nightMs)
   const [shell, setShell] = useState(saved.shell)
   const [optics, setOptics] = useState(saved.optics !== false)
+  const [pixel, setPixel] = useState(saved.pixel === true)
   const [field, setField] = useState(null)
   const [ready, setReady] = useState(false)
   const [readout, setReadout] = useState(null)
@@ -153,10 +154,16 @@ export default function RubinApp({celestiary}) {
     rubinRef.current?.observatory.setShell(shell)
   }, [shell, ready])
 
+  useEffect(() => {
+    if (rubinRef.current) {
+      rubinRef.current.pixel.enabled = pixel
+    }
+  }, [pixel, ready])
+
   // Report the state, for the permalink.
   useEffect(() => {
-    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics}})
-  }, [dispatchWidgets, path, nightMs, shell, optics])
+    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel}})
+  }, [dispatchWidgets, path, nightMs, shell, optics, pixel])
 
   // The telescope's pointing and the field, a few times a second.
   useEffect(() => {
@@ -245,7 +252,7 @@ export default function RubinApp({celestiary}) {
     }
     watchRef.current = false
     watchNight()
-    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics}})
+    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel}})
   })
 
   const nightDay = Math.round((nightMs - RUN_START_MS) / MS_PER_DAY)
@@ -327,6 +334,15 @@ export default function RubinApp({celestiary}) {
           <div>Magnification {field.magnification} the eye&apos;s</div>
           <div>Rubin&apos;s pixel: {field.pixelPx} px on screen</div>
         </Box>}
+      <FormControlLabel
+        control={<Switch checked={pixel} onChange={(e) => setPixel(e.target.checked)} size='small'
+          data-testid='rubin-pixel-switch'/>}
+        label={'Rubin\'s pixel'}
+      />
+      <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
+        A square at 2026 ED138 the camera&apos;s {RUBIN.pixelScaleArcsec}″ pixel across, and a fainter outline at
+        the {RUBIN.resolutionArcsec}″ it resolves, to scale on your screen.
+      </Typography>
       <FormControlLabel
         control={<Switch checked={shell} onChange={(e) => setShell(e.target.checked)} size='small' data-testid='rubin-shell-switch'/>}
         label='The dome and the building'

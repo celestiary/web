@@ -31,8 +31,9 @@ export const STATIC_BUDGET = {
   // Everything in the first load, minified.  Main on 2026-10-15: 2,130 KB.
   // 2,349 on 2026-10-28, a KB under; 2,352 with an instrument's field (#337:
   // the field range on ThreeUI, the RUBIN instrument, the Rubin panel's
-  // optics switch and field readout, 3 KB minified).
-  totalMinifiedKB: 2353,
+  // optics switch and field readout, 3 KB minified); 2,353.4 with Rubin's pixel
+  // (#339: its switch and token field, 0.4 KB minified and 0.6 KB gzipped).
+  totalMinifiedKB: 2354,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,
@@ -42,8 +43,9 @@ export const STATIC_BUDGET = {
   // day for the search's views (ViewsProvider, store/appViews.js) and the
   // bar's places reload.  735 the same day for an instrument's field (#337:
   // 1.1 KB gzipped, from 733.3 to 734.4; the clamp has to be in ThreeUI and
-  // the switch and readout in the panel, both first load).
-  totalGzipKB: 735,
+  // the switch and readout in the panel, both first load); 736 for the pixel
+  // marker's switch (735.03: 30 bytes over, so a KB of room, not a squeeze).
+  totalGzipKB: 736,
   // The largest single first-load file, minified.  Main: 695 KB.
   largestChunkMinifiedKB: 765,
 }
