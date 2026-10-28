@@ -39,6 +39,17 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Every credit in one small line along the bottom
+
+The data's credits (Cesium ion's and its imagery's, and OpenStreetMap's and NYC Open Data's
+while New York's city is drawn) are now one quiet line at the bottom edge, as a map's, and they
+come and go with the rest of the controls. Cesium's *Data attribution* link opens its list again.
+
+- Date: 2026-10-28
+- PR: [#341](https://github.com/celestiary/web/pull/341)
+- Issue: [#279](https://github.com/celestiary/web/issues/279)
+- Permalink: [Open this view](https://celestiary.org/#sun/earth@-38.1501,-99.3434,12.104919Mm;t=9792.377067jd;cq=0.3284,-0.0652,-0.0081,0.9423;fov=45deg;s=alpoGF;time:pause)
+
 ### Places found again on the homepage's search
 
 Typing a place on the homepage, "rubin" for the Rubin Observatory or the Moon's crater Rubin, lost
