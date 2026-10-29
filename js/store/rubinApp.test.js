@@ -10,16 +10,21 @@ describe('apps.rubin token', () => {
     expect(encodeRubinToken({...DEFAULT_RUBIN, nightMs: Date.UTC(2026, 3, 1)})).toBe('night=20544')
     expect(encodeRubinToken({...DEFAULT_RUBIN, shell: false})).toBe('shell=0')
     expect(encodeRubinToken({...DEFAULT_RUBIN, optics: false})).toBe('optics=0')
+    expect(encodeRubinToken({...DEFAULT_RUBIN, pixel: true})).toBe('pixel=1')
+    // A state saved before the switch has no pixel: the default, nothing written.
+    expect(encodeRubinToken({...DEFAULT_RUBIN, pixel: undefined})).toBe(null)
   })
 
   it('reads a token back, and a bad value as its default', () => {
     expect(decodeRubinToken(undefined)).toEqual(DEFAULT_RUBIN)
     expect(DEFAULT_RUBIN.optics).toBe(true)
     expect(decodeRubinToken('path=0,night=20544,shell=0')).toEqual(
-        {path: false, nightMs: Date.UTC(2026, 3, 1), shell: false, optics: true})
+        {path: false, nightMs: Date.UTC(2026, 3, 1), shell: false, optics: true, pixel: false})
     expect(decodeRubinToken('optics=0')).toEqual({...DEFAULT_RUBIN, optics: false})
-    expect(decodeRubinToken('path=2,night=x,shell=no,optics=off')).toEqual(DEFAULT_RUBIN)
-    const s = {path: false, nightMs: Date.UTC(2026, 6, 20), shell: false, optics: false}
+    expect(DEFAULT_RUBIN.pixel).toBe(false)
+    expect(decodeRubinToken('pixel=1')).toEqual({...DEFAULT_RUBIN, pixel: true})
+    expect(decodeRubinToken('path=2,night=x,shell=no,optics=off,pixel=on')).toEqual(DEFAULT_RUBIN)
+    const s = {path: false, nightMs: Date.UTC(2026, 6, 20), shell: false, optics: false, pixel: true}
     expect(decodeRubinToken(encodeRubinToken(s))).toEqual(s)
   })
 })

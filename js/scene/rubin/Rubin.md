@@ -329,6 +329,44 @@ over the eye's 45° field (`instrumentMagnification`, 14× at 3.5°); and
 one of Rubin's pixels on the screen, `0.2″ × h / field` in screen pixels
 (0.0079 px at 3.5° on a 500 px canvas, 1.0 at the limit).
 
+**Rubin's pixel** (#339, `PixelMarker.js`), a second switch, off by
+default, `pixel=1` in the `apps.rubin` token when on.  The readout gives
+the pixel as a number; this draws it.  At the body's place (a child of
+2026 ED138's `orbitPosition`, so Animation moves it with the body each
+frame, `preAnimCb` sizing it) a blunt square the active instrument's
+`pixelScaleArcsec` across (Rubin's 0.2″), and round it a fainter square
+outline the `resolutionArcsec` across (0.7″, the seeing), in amber, a
+colour of its own (the path is teal, the orbit line blue), on the overlay
+layer, drawn without a depth test over the body (at 47 au its depth is the
+sky's, #334).  From the seat at the pixel limit the body's disc, 0.03″, is
+a point well inside the one pixel the camera has there: the square says so
+without a number.  Its size law is a pure function, `pixelMarkerSize(fovDeg,
+heightPx, angleArcsec)`:
+
+    raw     = angle / 3600 / field × canvas height      (screen pixels)
+    side    = max(raw, 1)
+    opacity = min(raw, 1)
+
+so at the pixel limit the pixel is one screen pixel and the resolution
+3.5, both opaque; narrower (the optics off) they grow with the field;
+wider they hold one pixel and fade by the fraction, so the marker never
+claims more than the instrument has (0.028 at 1° on 500 px: a ghost;
+0.008 at the widest field: gone).  The resolution fades by its own
+fraction, 3.5 times later.  The pixel is a filled square and the
+resolution a one-pixel outline, and each is a quad whose corners the
+vertex shader offsets from the body's clip position by its side in
+screen pixels, so the size is exact and no GPU's point-size limit caps it
+(a point sprite, as the path's ring is, would at the narrower fields); the
+centre is held to a pixel's centre, so the one-pixel square covers exactly
+one pixel and the 3.5 px outline is the ring of eight round it.  The
+colour is a display value (`LinearSRGBColorSpace`, as the far point's), not
+a hex, which the unencoded scene draws darker and redder.  An instrument
+with no `pixelScaleArcsec` (the naked eye) hides it; one with no
+`resolutionArcsec` has the pixel's.  `install.js` builds it with
+`sceneReferred` handed in (`deps`, as the others), the panel's switch sets
+`pixel.enabled`, and the app's stop disposes it with the rest.  The switch
+and the token's field are the only parts in the first load.
+
 **The first load.**  The feature loads with a dynamic import
 (`install.js`), and imports nothing of the first load's but three: a
 module shared between the entry and a dynamic import is split into a
@@ -341,7 +379,7 @@ request budget.  So `Scene.getRubin` hands `installRubin` the functions
 them as `deps`; `rubin.js` has its own radians and its own radial (the
 test holds it to coords.js's).  The panel, its icon and the token's codec
 are in the first load, 2 KB gzipped, which was at its budget (729 of 730
-KB, esbuild/budget.js: 732 then, 733 with the seat and the shell switch, 734 with the search's view, 735 with the optics: the clamp in ThreeUI, `RUBIN`, the switch and the readout, 1.1 KB).  Loading the panel lazily too cost more,
+KB, esbuild/budget.js: 732 then, 733 with the seat and the shell switch, 734 with the search's view, 735 with the optics: the clamp in ThreeUI, `RUBIN`, the switch and the readout, 1.1 KB; 736 with the pixel's switch and token field, 0.6 KB: 735.03 without the extra KB).  Loading the panel lazily too cost more,
 735 and three scripts: what it shares with the App (MUI's controls, the
 camera's tweens, the store) was split out the same way.  The panel
 repeats the few numbers it needs of `rubin.js` (`store/rubinApp.js`)
@@ -407,6 +445,22 @@ rather than import it; `rubin.test.js` holds them equal.
     fault for hours (the overlays, the near plane, the far point and the
     model were each suspected and cleared).
 
+- Rubin's pixel (#339), headless as above at 800×500 (500 device pixels
+  high), the clock paused on 15 May 03:00 UTC, in the seat tracking the
+  body, a link with `apps.rubin:pixel=1` (the app opens with the switch on,
+  `pixel.enabled` true, the instrument Rubin's), state read with
+  `page.evaluate` and the canvas in the frame's own task, no shader errors:
+  - **At the pixel limit** (0.0277778°): the pixel 1.00 px, the resolution
+    3.50 px, both opacity 1; the marker's projection and the body's agree to
+    1e-12 in normalised device coordinates (0 px).  The frame's centre has
+    one amber pixel (the display value 0xedb665 over the blue orbit line)
+    inside the faint outline's ring of eight, beside the path's teal ring;
+    with the switch off the same frame has neither.
+  - **At 1°**: both squares one pixel, opacities 0.028 and 0.097, no
+    visible mark; **at the widest field** (3.5°) 0.0079 and 0.028.
+  - The switch off sets `visible` false at once; `pixel=1` is in the
+    rewritten link.  No shader errors.  Not seen on a real GPU or a phone.
+
 - Rubin's optics (#337), headless as above at 800×500 (the canvas 500
   device pixels high, so the pixel limit is 100″, 0.0278°), 2026-10-28:
   - **Opening the app** from `#sun` at 45°: the instrument Rubin's, the
@@ -430,8 +484,9 @@ rather than import it; `rubin.test.js` holds them equal.
 ## Not yet
 
 - **Rubin's light and PSF.**  The instrument has the eye's collecting
-  area and point spread function (#340); and #339 draws its pixel and
-  its seeing on the sky.
+  area and point spread function (#340).  Its pixel and its seeing are
+  drawn on the sky (#339, above), but only as a marker: the star field and
+  the body aren't blurred to them.
 
 - **The dome from NOIRLab's complete scene** (model3d003: the enclosure,
   dome and site, a 2 GB OBJ or a 472 MB Cinema 4D file), decimated to
