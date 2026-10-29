@@ -55,6 +55,44 @@ attribution* link opens its list again.
 - Issue: [#279](https://github.com/celestiary/web/issues/279)
 - Permalink: [Open this view](https://celestiary.org/#sun/earth@-38.1501,-99.3434,12.104919Mm;t=9792.377067jd;cq=0.3284,-0.0652,-0.0081,0.9423;fov=45deg;s=alpoGF;time:pause)
 
+### Rubin's pixel on the sky
+
+A new switch in the Rubin Observatory app, *Rubin's pixel*, draws what the camera can tell apart at
+2026 ED138: a blunt square one of its 0.2″ pixels across, and a fainter outline at the 0.7″ it
+resolves through the air, at their size on your screen. At the pixel limit the object's disc is a
+point well inside one pixel; wider, the marker fades so it never claims more than the camera has.
+
+- Date: 2026-10-28
+- PR: [#346](https://github.com/celestiary/web/pull/346)
+- Issue: [#339](https://github.com/celestiary/web/issues/339)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Kind: feature
+
+### Zoom within Rubin's optics
+
+While the Rubin Observatory app runs, the field-of-view keys (`,` and `.`) zoom from the camera's
+3.5° field down to where one of its 0.2″ pixels is a pixel on your screen, and stop there. The app
+shows the field, the magnification and the size of Rubin's pixel on screen, and says when you're at
+either end. A switch, *Rubin's optics*, turns the limit off.
+
+- Date: 2026-10-28
+- PR: [#342](https://github.com/celestiary/web/pull/342)
+- Issue: [#337](https://github.com/celestiary/web/issues/337)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Kind: feature
+### A distant body stays a point where its mesh would break up
+
+Zoomed far in on a body tens of astronomical units away, such as 2026 ED138 from the Rubin Observatory's
+seat, its disc blinked, drew as a crescent or vanished as time ran: the graphics card can't place a
+mesh that small against its distance. Past 4 million radii away a body now stays a point at any
+field of view, steady from frame to frame. Pluto seen from Earth is one at every zoom too.
+
+- Date: 2026-10-28
+- PR: [#343](https://github.com/celestiary/web/pull/343)
+- Issue: [#338](https://github.com/celestiary/web/issues/338)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
 ### Earth's detailed surface keeps its shape after the window changes size
 
 Up close, Earth's detailed surface (and the Moon's and Mars's) was drawn at the window's size when

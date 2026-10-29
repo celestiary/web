@@ -124,10 +124,9 @@ describe('the credits dialog\'s facts', () => {
   })
 
   it('quotes the bundled data\'s numbers as they are (a rebuild that changes one fails here)', () => {
-    const sats = json('public/data/earth/satellites/index.json')
-    expect([sats.rows.length, Object.keys(sats.groups).length, sats.fetched.slice(0, 10)]).toEqual([447, 8, '2026-10-23'])
-    expect(json('public/data/earth/satellites/networks/starlink.json').count).toBe(11116)
-    expect(json('public/data/earth/satellites/networks/iridium.json').count).toBe(80)
+    // The satellites' snapshot is refreshed twice a month, so its facts quote
+    // only its number of groups.
+    expect(Object.keys(json('public/data/earth/satellites/index.json').groups).length).toBe(8)
     const places = json('public/data/places-index.json').bodies
     expect([Object.values(places).reduce((a, v) => a + v.length, 0), Object.keys(places).length]).toEqual([8405, 24])
     expect(json('public/data/sparc/galaxies.json').galaxies.length).toBe(175)
@@ -139,7 +138,7 @@ describe('the credits dialog\'s facts', () => {
     const stars = readFileSync(new URL('../../public/data/stars.dat', import.meta.url))
     expect(stars.readUInt32LE(10)).toBe(106747)
     expect(byLabel(starsFacts(null, refs)).Shipped).toContain('106,747')
-    expect(byLabel(satellitesFacts(null)).Shipped).toBe('447 satellites in 8 groups, Starlink\'s 11,116 and Iridium NEXT\'s 80')
+    expect(byLabel(satellitesFacts(null)).Shipped).toContain('8 groups')
     expect(byLabel(placesFacts(null)).Shipped).toContain('8,405 named features on 24 bodies')
   })
 })

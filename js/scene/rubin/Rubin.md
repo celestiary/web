@@ -15,8 +15,9 @@ and a body in the Sun's system.
 | `RubinObservatory.js` | The model on Earth's ground, turned each frame to follow the body |
 | `ApparentPath.js` | The body's apparent path on Earth's sky over the run, the months named, a ring at the clock's time |
 | `install.js` | Builds both in the scene (`Scene.getRubin`), a dynamic import |
-| `../../ui/RubinApp.jsx` | The app's panel: the views, a night's observing, the readout, the path's switch |
-| `../../store/rubinApp.js` | The app's ID and the `apps.rubin` token |
+| `../../ui/RubinApp.jsx` | The app's panel: the views, a night's observing, the readout, the optics, the shell's and the path's switches |
+| `../../store/rubinApp.js` | The app's ID, the `apps.rubin` token and the field's readout |
+| `../observer/instrument.js` | `RUBIN`, the instrument the app makes the observer, and the field range (`instrumentFieldRange`, `clampField`) |
 | `../ed138.horizons.json`, `../ed138.test.js` | JPL Horizons' vectors and sky positions, and the test against them |
 
 ## The object
@@ -247,6 +248,8 @@ unpinned, removes them (`Scene.removeRubin`).
   it at 256× (a night in about two minutes) and takes the seat.  A
   readout a few times a second: the time, the body's altitude, the Sun's,
   the dome, the telescope's azimuth and elevation or "parked".
+- **Rubin's optics**: the switch that holds the field to the camera's
+  ([below](#the-optics)), and the field's readout.
 - **The dome and the building**: the shell switch (`setShell`).
 - **Its path on the sky**: the switch for the arc.
 
@@ -262,7 +265,107 @@ the places were lost to the index's rebuilds on the first search before
 
 **State in the link** (`apps.rubin`, design/URLs.md): `path=0` with the
 path off, `night=<days since 1970>` for a night other than 15 May,
-`shell=0` with the shell off.  The clock is the `t=` token's, as ever.
+`shell=0` with the shell off, `optics=0` with Rubin's optics off.  The
+clock is the `t=` token's, as ever.
+
+## The optics
+
+While the app runs, Rubin's camera is the observer: the panel makes
+`RUBIN` (`observer/instrument.js`) ThreeUI's active instrument
+(`ThreeUi.setInstrument`, [HDR.md](../HDR.md#the-instrument)), and the
+app's stop puts the naked eye back (`Scene.removeRubin`, and the panel's
+own unmount).  #334 is why: zoomed with the field keys to 0.00016°, 0.6″
+across the frame, the view was 20 times past Rubin's own pixels, at a
+field no telescope on Earth resolves, and there float32 at 47 au breaks
+the body's disc and the lines (#338, #340).  The maintainer's direction:
+the instrument's real limit, as an optional limit in the app, and the
+same path for later optics (binoculars, another telescope).
+
+**The instrument.**  An 8.4 m primary (6.4 m effective), a field 3.5°
+across (9.6 deg², `fieldMaxDeg`), 0.2″ pixels (`pixelScaleArcsec`), and a
+delivered image quality of about 0.7″ FWHM, seeing-limited on Cerro
+Pachón (`resolutionArcsec`).  Only its field is its own for now: its
+light and point spread function are the eye's, copied, so the star field
+doesn't change when the app opens (a collecting area of 1, and the user's
+`sm=` is still the sensitivity); the optics' PSF and the view as the
+instrument sees it are #340's.
+
+**The range.**  From the widest field, 3.5°, down to where one of the
+camera's pixels is one screen pixel: with the canvas `h` device pixels
+high (`renderer.domElement.height`; the camera's field is vertical),
+
+    minimum field = pixelScaleArcsec × h = 0.2″ × h
+
+200″ (0.056°) on a 1,000 px canvas, 100″ on a 500 px one.  Narrower than
+that only magnifies pixels.  (Seeing blurs a point over 0.7″, 3.5
+pixels, so a pixel is finer than anything the camera resolves; the limit
+is the pixel's because the camera samples at it, and #339 draws both.)
+`instrumentFieldRange(instrument, h)` gives `{minDeg, maxDeg}`, null for
+an instrument with no range (the naked eye's field is free), and the
+minimum never passes the maximum.
+
+**The clamp.**  `ThreeUi.setFov` holds the field to `fieldRange()` while
+the instrument has a range and its limit is on, so everything that sets
+the field stops at each end: `,` and `.` (`multFov`, ×0.9 and ×1.1), `/`
+(`resetFov`: 45° is past the range, so it resets to the widest field), a
+link's `fov=`, the arrival of a flight.  Setting the instrument, turning
+the limit on and a resize (the minimum is in the canvas's pixels) apply
+it to the field already there, so opening the app at 45° takes the view
+to 3.5°, and a link's field past the limit is held to it whichever comes
+first, the view or the app.  The panel sets the limit before the
+instrument, so a link with `optics=0` keeps its field.
+
+**The switch**, "Rubin's optics" (`ThreeUi.setFieldLimit`), on by
+default, `optics=0` in the `apps.rubin` token when off: off, the field is
+free as before, through the keys and links alike, for the views from
+outside (the dome from 170 m is 10° across, and the orbit from 100 au
+far wider).
+
+**The readout**, under the switch, a few times a second
+(`store/rubinApp.js` `fieldReadout`): the field in degrees, arcminutes or
+arcseconds as fits (`formatAngle`), with "at the widest field" or "at the
+pixel limit" when the field is at an end of the range; the magnification
+over the eye's 45° field (`instrumentMagnification`, 14× at 3.5°); and
+one of Rubin's pixels on the screen, `0.2″ × h / field` in screen pixels
+(0.0079 px at 3.5° on a 500 px canvas, 1.0 at the limit).
+
+**Rubin's pixel** (#339, `PixelMarker.js`), a second switch, off by
+default, `pixel=1` in the `apps.rubin` token when on.  The readout gives
+the pixel as a number; this draws it.  At the body's place (a child of
+2026 ED138's `orbitPosition`, so Animation moves it with the body each
+frame, `preAnimCb` sizing it) a blunt square the active instrument's
+`pixelScaleArcsec` across (Rubin's 0.2″), and round it a fainter square
+outline the `resolutionArcsec` across (0.7″, the seeing), in amber, a
+colour of its own (the path is teal, the orbit line blue), on the overlay
+layer, drawn without a depth test over the body (at 47 au its depth is the
+sky's, #334).  From the seat at the pixel limit the body's disc, 0.03″, is
+a point well inside the one pixel the camera has there: the square says so
+without a number.  Its size law is a pure function, `pixelMarkerSize(fovDeg,
+heightPx, angleArcsec)`:
+
+    raw     = angle / 3600 / field × canvas height      (screen pixels)
+    side    = max(raw, 1)
+    opacity = min(raw, 1)
+
+so at the pixel limit the pixel is one screen pixel and the resolution
+3.5, both opaque; narrower (the optics off) they grow with the field;
+wider they hold one pixel and fade by the fraction, so the marker never
+claims more than the instrument has (0.028 at 1° on 500 px: a ghost;
+0.008 at the widest field: gone).  The resolution fades by its own
+fraction, 3.5 times later.  The pixel is a filled square and the
+resolution a one-pixel outline, and each is a quad whose corners the
+vertex shader offsets from the body's clip position by its side in
+screen pixels, so the size is exact and no GPU's point-size limit caps it
+(a point sprite, as the path's ring is, would at the narrower fields); the
+centre is held to a pixel's centre, so the one-pixel square covers exactly
+one pixel and the 3.5 px outline is the ring of eight round it.  The
+colour is a display value (`LinearSRGBColorSpace`, as the far point's), not
+a hex, which the unencoded scene draws darker and redder.  An instrument
+with no `pixelScaleArcsec` (the naked eye) hides it; one with no
+`resolutionArcsec` has the pixel's.  `install.js` builds it with
+`sceneReferred` handed in (`deps`, as the others), the panel's switch sets
+`pixel.enabled`, and the app's stop disposes it with the rest.  The switch
+and the token's field are the only parts in the first load.
 
 **The first load.**  The feature loads with a dynamic import
 (`install.js`), and imports nothing of the first load's but three: a
@@ -276,7 +379,7 @@ request budget.  So `Scene.getRubin` hands `installRubin` the functions
 them as `deps`; `rubin.js` has its own radians and its own radial (the
 test holds it to coords.js's).  The panel, its icon and the token's codec
 are in the first load, 2 KB gzipped, which was at its budget (729 of 730
-KB, esbuild/budget.js: 732 then, 733 with the seat and the shell switch, 734 with the search's view).  Loading the panel lazily too cost more,
+KB, esbuild/budget.js: 732 then, 733 with the seat and the shell switch, 734 with the search's view, 735 with the optics: the clamp in ThreeUI, `RUBIN`, the switch and the readout, 1.1 KB; 736 with the pixel's switch and token field, 0.6 KB: 735.03 without the extra KB).  Loading the panel lazily too cost more,
 735 and three scripts: what it shares with the App (MUI's controls, the
 camera's tweens, the store) was split out the same way.  The panel
 repeats the few numbers it needs of `rubin.js` (`store/rubinApp.js`)
@@ -342,7 +445,48 @@ rather than import it; `rubin.test.js` holds them equal.
     fault for hours (the overlays, the near plane, the far point and the
     model were each suspected and cleared).
 
+- Rubin's pixel (#339), headless as above at 800×500 (500 device pixels
+  high), the clock paused on 15 May 03:00 UTC, in the seat tracking the
+  body, a link with `apps.rubin:pixel=1` (the app opens with the switch on,
+  `pixel.enabled` true, the instrument Rubin's), state read with
+  `page.evaluate` and the canvas in the frame's own task, no shader errors:
+  - **At the pixel limit** (0.0277778°): the pixel 1.00 px, the resolution
+    3.50 px, both opacity 1; the marker's projection and the body's agree to
+    1e-12 in normalised device coordinates (0 px).  The frame's centre has
+    one amber pixel (the display value 0xedb665 over the blue orbit line)
+    inside the faint outline's ring of eight, beside the path's teal ring;
+    with the switch off the same frame has neither.
+  - **At 1°**: both squares one pixel, opacities 0.028 and 0.097, no
+    visible mark; **at the widest field** (3.5°) 0.0079 and 0.028.
+  - The switch off sets `visible` false at once; `pixel=1` is in the
+    rewritten link.  No shader errors.  Not seen on a real GPU or a phone.
+
+- Rubin's optics (#337), headless as above at 800×500 (the canvas 500
+  device pixels high, so the pixel limit is 100″, 0.0278°), 2026-10-28:
+  - **Opening the app** from `#sun` at 45°: the instrument Rubin's, the
+    field 3.5°.  In the seat on the night of 15 May (03:00 UTC, paused):
+    "Field 3.50°, at the widest field; Magnification 14× the eye's;
+    Rubin's pixel: 0.0079 px on screen"; `.` leaves it at 3.5°.
+  - **`,` to the limit**: 47 presses from 3.5° to 0.0277778° (1.7′), where
+    the readout says "at the pixel limit", 1,709×, 1.0 px; another `,`
+    leaves it there; `/` goes back to 3.5°.  `setFov(10)` gives 3.5,
+    `setFov(1e-4)` 0.0277778.
+  - **The switch off**: `setFov(1e-4)` and `setFov(20)` are honoured, the
+    readout loses its ends, and the link takes `apps.rubin:optics=0`; on
+    again, the field goes from 20° to 3.5°.
+  - **The app's stop**: the naked eye again, and `setFov(1e-4)` honoured.
+  - **A link past the limit** (#334's first capture, `fov=0.0001615deg`,
+    from `sun/ed138` landed at the site, `apps:open,view=rubin`): held to
+    0.0277778° with the optics on; with `;apps.rubin:optics=0`, 0.0001615°
+    as written, the readout "Field 0.581″", 172 px a pixel.
+  - No page errors.
+
 ## Not yet
+
+- **Rubin's light and PSF.**  The instrument has the eye's collecting
+  area and point spread function (#340).  Its pixel and its seeing are
+  drawn on the sky (#339, above), but only as a marker: the star field and
+  the body aren't blurred to them.
 
 - **The dome from NOIRLab's complete scene** (model3d003: the enclosure,
   dome and site, a 2 GB OBJ or a 472 MB Cinema 4D file), decimated to
@@ -371,3 +515,12 @@ rather than import it; `rubin.test.js` holds them equal.
   both.
 - **The object's own size and albedo**, when they're measured, and its
   rotation.
+- **Float32 at 47 au** ([#334](https://github.com/celestiary/web/issues/334)).
+  The body's disc is a far point past 2^22 radii (`FAR_BODY_RATIO`, #338:
+  its mesh blinked and drew as a crescent at a 0.00016° field), whatever
+  the field.  Left: the path's ring, which jumps between frames (its points
+  are a `Float32Array` at the body's distance, quantised to 5e5 m), the
+  path and the orbit line missing each other by a step, and depth, which at
+  the seat is 1.0 like empty sky, so the orbit line draws across the
+  point.  The general fix is relative-to-eye placement, option 3 in
+  [#340](https://github.com/celestiary/web/issues/340).

@@ -16,6 +16,7 @@ import newMilkyWay from './MilkyWay.js'
 import OrbitDiagram from './orbitDiagram.js'
 import {CODES, keyOfCode} from './orbitElements.js'
 import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
+import {sceneReferred} from './hdr.js'
 import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
 import {FAMILIES, PERIODIC_DATA_URL, familyMember, familyOfCode, sampleMember, southern} from './periodicOrbits.js'
 import {manifolds} from './manifolds.js'
@@ -3281,18 +3282,19 @@ export default class Scene {
     // there (rubin/rubin.js says why).
     this.rubin ??= installRubin(this, {
       orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD, newRings, newLabels, newWideLineStrip, loadModel,
-      latLngAltToBodyFixed, OVERLAY_LAYER: Shared.OVERLAY_LAYER, ASTRO_UNIT_METER: Shared.ASTRO_UNIT_METER,
+      latLngAltToBodyFixed, sceneReferred, OVERLAY_LAYER: Shared.OVERLAY_LAYER, ASTRO_UNIT_METER: Shared.ASTRO_UNIT_METER,
     })
     return this.rubin
   }
 
 
-  /** Out of the scene (the app's stop). */
+  /** Out of the scene (the app's stop), and the naked eye the observer again. */
   removeRubin() {
     this._rubinWanted = false
     if (this.rubin && this.seat === this.rubin.observatory.seat) {
       this.leaveSeat()
     }
+    this.ui.setInstrument?.(null)
     this.rubin?.dispose()
     this.rubin = null
   }

@@ -295,12 +295,11 @@ export function galaxiesFacts(galaxies) {
  * @returns {Array<{label: string, value: string}>}
  */
 export function satellitesFacts(scene) {
-  // index.json: 447 satellites in 8 groups, fetched 2026-10-23T17:20Z;
-  // starlink.json 11,116 (epochs from 2026-10-20), iridium.json 80 (from
-  // 2026-10-07), the same fetch.
+  // No counts or dates from the snapshot here: .github/workflows/satellites.yml
+  // refreshes it twice a month, so they come from the data as loaded.
   const facts = [
-    {label: 'Shipped', value: '447 satellites in 8 groups, Starlink\'s 11,116 and Iridium NEXT\'s 80'},
-    {label: 'Snapshot', value: 'GP elements fetched 23 October 2026; propagated with SGP4 to the date shown'},
+    {label: 'Shipped', value: 'CelesTrak\'s GP elements for 8 groups, and Starlink\'s and Iridium NEXT\'s constellations'},
+    {label: 'Snapshot', value: 'Refreshed twice a month; propagated with SGP4 to the date shown'},
   ]
   const rows = scene?.satellites?.records?.length
   const fetched = scene?.satelliteData?.fetched

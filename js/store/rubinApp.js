@@ -1,4 +1,5 @@
 import {formatTokenValue, parseTokenValue} from '../permalink.js'
+import {fieldEnd, instrumentMagnification} from '../scene/observer/instrument.js'
 
 
 // The Rubin app (ui/RubinApp.jsx, scene/rubin/Rubin.md): its ID in the
@@ -29,13 +30,16 @@ export const DEFAULT_NIGHT_MS = Date.UTC(2026, 4, 15)
 /**
  * The app's state, as the widgets slice keeps it for the permalink: whether
  * the apparent path is drawn, the night the run's slider is on (ms at
- * 0h UTC), and whether the observatory's shell (the enclosure and dome)
- * is drawn.
+ * 0h UTC), whether the observatory's shell (the enclosure and dome)
+ * is drawn, whether Rubin's optics hold the field, and whether Rubin's
+ * pixel is drawn at the body (Rubin.md, "The optics").
  */
 export const DEFAULT_RUBIN = Object.freeze({
   path: true,
   nightMs: DEFAULT_NIGHT_MS,
   shell: true,
+  optics: true,
+  pixel: false,
 })
 
 const MS_PER_DAY = 86400e3
@@ -54,6 +58,8 @@ export function encodeRubinToken(s) {
     path: s.path === d.path ? null : (s.path ? 1 : 0),
     night: s.nightMs === d.nightMs ? null : Math.round(s.nightMs / MS_PER_DAY),
     shell: s.shell === d.shell ? null : (s.shell ? 1 : 0),
+    optics: s.optics === d.optics ? null : (s.optics ? 1 : 0),
+    pixel: (s.pixel === true) === d.pixel ? null : (s.pixel === true ? 1 : 0),
   })
   return value || null
 }
@@ -72,6 +78,44 @@ export function decodeRubinToken(value) {
     path: named.path === '1' ? true : named.path === '0' ? false : d.path,
     nightMs: named.night && Number.isInteger(night) && night > 0 ? night * MS_PER_DAY : d.nightMs,
     shell: named.shell === '1' ? true : named.shell === '0' ? false : d.shell,
+    optics: named.optics === '1' ? true : named.optics === '0' ? false : d.optics,
+    pixel: named.pixel === '1' ? true : named.pixel === '0' ? false : d.pixel,
+  }
+}
+
+
+/**
+ * @param {number} deg An angle
+ * @returns {string} In degrees, arcminutes or arcseconds, as fits: `3.50°`,
+ *   `12.0′`, `3.36″`
+ */
+export function formatAngle(deg) {
+  if (deg >= 1) {
+    return `${deg.toFixed(2)}°`
+  }
+  return deg >= 1 / 60 ? `${(deg * 60).toFixed(1)}′` : `${(deg * 3600).toPrecision(3)}″`
+}
+
+
+/**
+ * The panel's readout of the field (Rubin.md, "The optics").
+ *
+ * @param {number} fovDeg The camera's field, vertical
+ * @param {?{minDeg: number, maxDeg: number}} range The field's range while
+ *   the optics hold it (ThreeUi.fieldRange), or null
+ * @param {number} heightPx The canvas's height, device pixels
+ * @param {object} instrument The active instrument (its pixelScaleArcsec)
+ * @returns {{field: string, end: ?string, magnification: string, pixelPx: ?string}}
+ *   pixelPx: one of the instrument's pixels on the screen, in screen pixels
+ */
+export function fieldReadout(fovDeg, range, heightPx, instrument) {
+  const end = fieldEnd(fovDeg, range)
+  const pixel = instrument?.pixelScaleArcsec > 0 ? instrument.pixelScaleArcsec / 3600 * heightPx / fovDeg : null
+  return {
+    field: formatAngle(fovDeg),
+    end: end === 'max' ? 'at the widest field' : end === 'min' ? 'at the pixel limit' : null,
+    magnification: `${Math.round(instrumentMagnification(fovDeg)).toLocaleString('en-US')}×`,
+    pixelPx: pixel === null ? null : (pixel >= 10 ? pixel.toFixed(0) : pixel.toPrecision(2)),
   }
 }
 

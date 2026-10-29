@@ -689,7 +689,9 @@ read −7.1 at #198's 0.44° view of HIP 46635, where the limit is 3.1.
 
 What the star field takes from the observer lives in one module,
 `observer/instrument.js` ([#235](https://github.com/celestiary/web/issues/235)),
-whose one instance is the naked eye, dark adapted (`NAKED_EYE`).  The
+whose instances are the naked eye, dark adapted (`NAKED_EYE`), the
+app's observer, and Rubin's camera (`RUBIN`, [#337](https://github.com/celestiary/web/issues/337)),
+which the Rubin app makes the observer while it runs.  The
 seam is there so that binoculars, a telescope or a camera can be another
 instance, with brightness and image size separate by construction: the
 light an instrument collects sets what it detects, its point spread
@@ -717,20 +719,39 @@ instrument is:
   gain's time constants up (0.75 s) and down (0.15 s) and the exposure's
   own (0.25 s) ([metered exposure](#metered-exposure), rule 9).  The
   scene's light doesn't change with how fast the eye or camera looking at
-  it adapts, so these are the observer's, where #236 puts the rest of it.
+  it adapts, so these are the observer's, where #236 puts the rest of it;
+- **a field range**, for optics that have one: the widest field
+  (`fieldMaxDeg`), a detector pixel on the sky (`pixelScaleArcsec`) and,
+  where it differs, what it resolves (`resolutionArcsec`, a telescope's
+  seeing).  The narrowest field is where one detector pixel is one screen
+  pixel, `pixelScaleArcsec × h` for a canvas `h` device pixels high
+  (`instrumentFieldRange`): Rubin's 0.2″ pixels give 200″ on a 1,000 px
+  canvas, and its widest is 3.5°.  The naked eye has none (null): its
+  field is free, the zoom a virtual telescope's
+  ([Rubin.md, the optics](rubin/Rubin.md#the-optics)).
 
 `exposure.js` keeps the names the calibration is written in
 (`LIMITING_MAGNITUDE`, `LIMIT_VALUE`, `EYE_PATCH_SR`, `EYE_POINT_RAD`,
 `METER_GAIN_MAX`, `eyePatchRad`, `fieldMagnification`) as re-exports or
-one-line wrappers over the instrument; `ThreeUi` holds the instrument
-(`this.instrument`) and sends the shader what it needs through
-`absoluteUniforms` once (`_setObserverUniforms`: `uEyePointRad`,
+one-line wrappers over the instrument; `ThreeUi` holds the active instrument
+(`this.instrument`: `NAKED_EYE`, or the one an app sets while it runs
+with `setInstrument`, null putting the eye back) and sends the shader
+what it needs through
+`absoluteUniforms` whenever it changes (`_setObserverUniforms`: `uEyePointRad`,
 `uPoolRadiusDeg`, `uCoreShare`, and `uMaxStarSizePx`, the quad's largest
 side held to the GPU's point-size range); `setStarMagnitudeOffset` sets
 `uStarGain` from `instrumentStarGain`; the Sun's glare shader takes its
 function from `NAKED_EYE.psf.glareGlsl`.  The field's magnification
 (`instrumentMagnification`: a field narrower than 45° is a telescope's)
-is the camera's, each frame, in the shader.
+is the camera's, each frame, in the shader.  The field range holds the
+camera's field: `setFov` (so `,` `.` `/`, a link's `fov=` and a flight's
+field) clamps to `fieldRange()`, the active instrument's range on the
+canvas while its limit is on (`setFieldLimit`, the Rubin app's "Rubin's
+optics" switch), and setting the instrument, the limit or the canvas's
+size re-applies it.  `RUBIN` copies the eye's light, PSF and adaptation
+for now (a collecting area of 1), so everything that reads
+`ui.instrument` reads the same numbers with it; its own PSF and the view
+as it sees it are [#340](https://github.com/celestiary/web/issues/340)'s.
 
 What is the eye's alone, and would change for another instrument: the
 shaders carry the eye's PSF as a function (`eyePsf` in `stars.vert` and
@@ -1083,7 +1104,9 @@ does (`exposure.js` `meteredGain`, `ThreeUi._meter`):
    a frame meters the same with every overlay on as off.  What still
    reaches the buffer display-valued is a body's far point (a few pixels,
    kept in the scene pass so the day sky hides it as it does the stars;
-   DESIGN.md).  The rings are lit in exposure units (rings.md,
+   DESIGN.md; past 2^22 radii from the camera it is the only picture of a
+   body, never handed over to a mesh whatever the field, DESIGN.md [the far
+   point](../../DESIGN.md#the-far-point)).  The rings are lit in exposure units (rings.md,
    "Lighting"), so the meter reads them as it does the globe.
 9. The gain **eases in log space** (`easeExposure`), with a time constant
    of `METER_TAU_UP_SECONDS` (0.75 s) rising, the eye adapting to the dark,

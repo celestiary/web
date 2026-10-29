@@ -10,8 +10,9 @@ import Typography from '@mui/material/Typography'
 import useStore from '../store/useStore'
 import {
   DEFAULT_RUBIN, RUBIN_APP_ID, RUBIN_MIN_EL_DEG as MIN_EL_DEG, RUBIN_RUN_END_MS as RUN_END_MS,
-  RUBIN_RUN_START_MS as RUN_START_MS, RUBIN_SITE as SITE, RUBIN_TARGET as TARGET,
+  RUBIN_RUN_START_MS as RUN_START_MS, RUBIN_SITE as SITE, RUBIN_TARGET as TARGET, fieldReadout,
 } from '../store/rubinApp'
+import {RUBIN} from '../scene/observer/instrument'
 import {Quaternion, Vector3} from 'three'
 import {newCameraLookTween} from '../camera'
 import * as Shared from '../shared'
@@ -77,8 +78,10 @@ function dateLabel(ms) {
  * object's apparent path on the sky over the nights that found it.  Opening
  * it builds both (Scene.getRubin); stopping removes them.
  *
- * Its state is in the permalink (`apps.rubin`): whether the path is drawn
- * and the night the slider is on.
+ * Its state is in the permalink (`apps.rubin`): whether the path is drawn,
+ * the night the slider is on, the shell, whether Rubin's optics hold
+ * the field, and whether Rubin's pixel is drawn.  While it runs Rubin's
+ * camera is the observer (ThreeUi.setInstrument: Rubin.md, "The optics").
  *
  * @property {object} celestiary
  * @returns {ReactElement}
@@ -89,6 +92,9 @@ export default function RubinApp({celestiary}) {
   const [path, setPath] = useState(saved.path)
   const [nightMs, setNightMs] = useState(saved.nightMs)
   const [shell, setShell] = useState(saved.shell)
+  const [optics, setOptics] = useState(saved.optics !== false)
+  const [pixel, setPixel] = useState(saved.pixel === true)
+  const [field, setField] = useState(null)
   const [ready, setReady] = useState(false)
   const [readout, setReadout] = useState(null)
   const rubinRef = useRef(null)
@@ -98,6 +104,24 @@ export default function RubinApp({celestiary}) {
   const watchRef = useRef(saved.watch === true)
   const scene = celestiary.scene
   const time = celestiary.time
+  const ui = celestiary.ui
+
+  // Rubin's optics: the limit first, so a link's field with them off isn't
+  // clamped by the instrument's arrival.
+  useEffect(() => {
+    ui.setFieldLimit?.(optics)
+  }, [ui, optics])
+
+  // Rubin's camera is the observer while the app runs; the naked eye again
+  // when it stops (Scene.removeRubin does too).
+  useEffect(() => {
+    ui.setInstrument?.(RUBIN)
+    return () => {
+      if (ui.instrument === RUBIN) {
+        ui.setInstrument(null)
+      }
+    }
+  }, [ui])
 
   // Build the observatory and the path once Earth and the body are in.
   useEffect(() => {
@@ -130,19 +154,27 @@ export default function RubinApp({celestiary}) {
     rubinRef.current?.observatory.setShell(shell)
   }, [shell, ready])
 
+  useEffect(() => {
+    if (rubinRef.current) {
+      rubinRef.current.pixel.enabled = pixel
+    }
+  }, [pixel, ready])
+
   // Report the state, for the permalink.
   useEffect(() => {
-    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell}})
-  }, [dispatchWidgets, path, nightMs, shell])
+    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel}})
+  }, [dispatchWidgets, path, nightMs, shell, optics, pixel])
 
-  // The telescope's pointing, a few times a second.
+  // The telescope's pointing and the field, a few times a second.
   useEffect(() => {
     const timer = setInterval(() => {
       const state = rubinRef.current?.observatory.state
       setReadout(state ? {...state, paused: time.isPaused, ms: time.simTime} : null)
+      const heightPx = ui.renderer?.domElement?.height || ui.height
+      setField(fieldReadout(ui.camera.fov, ui.fieldRange?.() ?? null, heightPx, RUBIN))
     }, READOUT_MS)
     return () => clearInterval(timer)
-  }, [time])
+  }, [time, ui])
 
   const goToObservatory = () => {
     const earth = scene.objects.earth
@@ -220,7 +252,7 @@ export default function RubinApp({celestiary}) {
     }
     watchRef.current = false
     watchNight()
-    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell}})
+    dispatchWidgets({type: 'appState', id: RUBIN_APP_ID, appState: {path, nightMs, shell, optics, pixel}})
   })
 
   const nightDay = Math.round((nightMs - RUN_START_MS) / MS_PER_DAY)
@@ -287,6 +319,30 @@ export default function RubinApp({celestiary}) {
             'Parked at the zenith'}</div>
         </Box>}
       <Divider sx={{my: 1.5}}/>
+      <FormControlLabel
+        control={<Switch checked={optics} onChange={(e) => setOptics(e.target.checked)} size='small'
+          data-testid='rubin-optics-switch'/>}
+        label={'Rubin\'s optics'}
+      />
+      <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
+        The field-of-view keys (, and .) zoom from the camera&apos;s {RUBIN.fieldMaxDeg}° field to where one of its
+        {' '}{RUBIN.pixelScaleArcsec}″ pixels is a pixel on your screen, and stop there. Off, the field is free.
+      </Typography>
+      {field &&
+        <Box sx={{fontFamily: 'monospace', fontSize: '0.8rem', mb: 1}} data-testid='rubin-field'>
+          <div>Field {field.field}{field.end ? `, ${field.end}` : ''}</div>
+          <div>Magnification {field.magnification} the eye&apos;s</div>
+          <div>Rubin&apos;s pixel: {field.pixelPx} px on screen</div>
+        </Box>}
+      <FormControlLabel
+        control={<Switch checked={pixel} onChange={(e) => setPixel(e.target.checked)} size='small'
+          data-testid='rubin-pixel-switch'/>}
+        label={'Rubin\'s pixel'}
+      />
+      <Typography variant='caption' color='text.secondary' display='block' sx={{mb: 1}}>
+        A square at 2026 ED138 the camera&apos;s {RUBIN.pixelScaleArcsec}″ pixel across, and a fainter outline at
+        the {RUBIN.resolutionArcsec}″ it resolves, to scale on your screen.
+      </Typography>
       <FormControlLabel
         control={<Switch checked={shell} onChange={(e) => setShell(e.target.checked)} size='small' data-testid='rubin-shell-switch'/>}
         label='The dome and the building'

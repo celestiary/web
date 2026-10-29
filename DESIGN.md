@@ -790,6 +790,7 @@ Camera orientation and position are separated across three input modes, all accu
 | `c` | Snap look at current target, squaring the roll to the ecliptic's up |
 | `j` / `k` / `l` | Reverse, slow down, speed up time: paused too, when the step is often set; the display shows it and resuming runs at it |
 | `-` / `=` (or `+`) | Exposure compensation down / up a third of a stop (EV), over the metered exposure; the readout shows "EV +1.3" for two seconds |
+| `,` / `.` / `/` | Narrow and broaden the field of view by ×0.9 and ×1.1 (`multFov`), and reset it to 45° (`resetFov`).  Free with the naked eye; while an app's instrument has a field range and its limit is on (the Rubin app's "Rubin's optics"), `setFov` holds the field between the instrument's widest field and its pixel limit, so the keys stop at each end and `/` resets to the widest ([HDR.md, the instrument](js/scene/HDR.md#the-instrument); [Rubin.md, the optics](js/scene/rubin/Rubin.md#the-optics)) |
 | `[` / `]` | The stars' setting: the limiting magnitude's offset from the naked eye's, 0.5 mag a press (not the exposure); 0 is the default, shown as "Stars +1.0 mag" and in the link as `sm=` ([design/URLs.md](design/URLs.md#view)) |
 | Click / tap a label (a star, planet, moon, asterism or place name) | Target it and do nothing else: `c` then faces it, `g` goes ([Picking labels](#picking-labels)) |
 | Double-click / double-tap a label | Go to it, as `g` does |
@@ -1199,6 +1200,20 @@ single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
   to a disc of 0.5, seven times dimmer, as it was approached.  Farther
   out it is the marker as before.  A body with no colour map keeps the
   marker throughout.
+- **Never a mesh past 2^22 radii** (`FAR_BODY_RATIO`, `isFarBody`; #338).
+  float32 places what the camera sees at distance d to about d * 2^-24, so
+  past 2^22 radii a body's vertices land to within a quarter of its radius
+  at best, and its mesh jumps, loses parts or isn't drawn as the camera
+  moves (2026 ED138 from the Rubin seat: 500 km at 47 au, 1.4e7 radii;
+  [#334](https://github.com/celestiary/web/issues/334)).  There the planet
+  LOD (`FovLOD({radius})`) never chooses the mesh, whatever the field, and
+  `handoffRatio` is infinite, so `farPointLevel` is the marker and the
+  point doesn't fade toward a disc that never comes.  2^22 and not 2^23
+  because Pluto at 39 au (4.9e6 radii) shows the same defect: float32's
+  step there is 0.44 of its radius, 11 px on a 100 px disc at a 0.0001°
+  field.  The point is one position with no shape to break up; the
+  body's path and orbit line, which are float32 too, still quantise
+  ([#340](https://github.com/celestiary/web/issues/340)).
 - **Not tone mapped** (`toneMapped: false`): the exposure follows the
   targeted body (~1e-17 far out), which drew the marker black (#85).  The
   colour is a display value, so it must be made with `point()`

@@ -279,7 +279,7 @@ export default class Planet extends Object {
 
     // Scaled to the canvas's pixels too (farPoint.js meshReach): the mesh
     // until its disc is smaller than the point.
-    const planetLOD = new FovLOD({drawnSize: true})
+    const planetLOD = new FovLOD({drawnSize: true, radius: surfaceRadius})
     planetLOD.addLevel(planet, 1)
     // A point once the mesh would be under ~1.6 px across (45° fov over
     // 640 px): a sub-pixel mesh, lit at its albedo, fades to nothing.  (It

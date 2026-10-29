@@ -1,5 +1,6 @@
 import {Vector3} from 'three'
 import ApparentPath from './ApparentPath.js'
+import PixelMarker from './PixelMarker.js'
 import RubinObservatory from './RubinObservatory.js'
 import {TARGET} from './rubin.js'
 
@@ -14,8 +15,8 @@ import {TARGET} from './rubin.js'
  * @param {object} scene The Scene, with Earth and the body in it
  * @param {object} deps The first load's functions (Scene.getRubin):
  *   ApparentPath's and RubinObservatory's (with `loadModel`, for the
- *   telescope), and `ASTRO_UNIT_METER`
- * @returns {{observatory: RubinObservatory, path: ApparentPath, dispose: Function}}
+ *   telescope), PixelMarker's (`sceneReferred`), and `ASTRO_UNIT_METER`
+ * @returns {{observatory: RubinObservatory, path: ApparentPath, pixel: PixelMarker, dispose: Function}}
  */
 export function installRubin(scene, deps) {
   const earth = scene.objects.earth
@@ -45,12 +46,28 @@ export function installRubin(scene, deps) {
     },
   })
   orbitPosition.add(path)
+  // Rubin's pixel at the body's place: a child of its orbitPosition, which
+  // Animation moves, so it follows the body; off until the panel's switch.
+  const pixel = new PixelMarker({
+    deps,
+    view: () => {
+      const ui = scene.ui
+      return {
+        instrument: ui.instrument,
+        fovDeg: ui.camera.fov,
+        heightPx: ui.renderer?.domElement?.height || ui.height,
+      }
+    },
+  })
+  body.add(pixel)
   return {
     observatory,
     path,
+    pixel,
     dispose() {
       observatory.dispose()
       path.dispose()
+      pixel.dispose()
     },
   }
 }
