@@ -42,7 +42,7 @@ live feed isn't bundled: the app polls it.
 
 | File | Source | What | Size |
 |---|---|---|---|
-| `earth/satellites/networks/starlink.json` | CelesTrak `GROUP=starlink`, fetched 2026-10-23 17:20 UTC | 11,116 satellites, epochs 2026-10-20 to 23, with names and designators | 859 KB, 320 KB gzipped |
+| `earth/satellites/networks/starlink.json` | CelesTrak `GROUP=starlink`, fetched 2026-10-27 04:35 UTC | 11,106 satellites, epochs 2026-10-20 to 27, with names and designators | 860 KB, 320 KB gzipped |
 | `earth/satellites/networks/iridium.json` | CelesTrak `GROUP=iridium-NEXT`, same fetch | 80 satellites, with names and designators | 7 KB |
 | `earth/networks/dsn.json` | DSN Now's https://eyes.nasa.gov/dsn/config.xml | 3 complexes, 15 dishes, 170 spacecraft names | 5 KB |
 

@@ -1,0 +1,89 @@
+name: Satellites
+
+# Earth's satellites from CelesTrak, refreshed every two weeks
+# (js/scene/satellites/Satellites.md, "Kept fresh"): a low orbit's elements
+# are drawn for 30 days round their epoch, so a snapshot more than a month
+# old shows today without them.  `yarn satellites` asks CelesTrak once a
+# group and stops at the first answer that isn't a 200, as its usage policy
+# asks; that fails this job, and GitHub tells whoever last changed the
+# schedule.  A change opens (or updates) one pull request from the branch
+# `auto/satellites`, for the maintainer to merge.
+
+on:
+  schedule:
+    # The 1st and the 15th of each month, 06:17 UTC.
+    - cron: '17 6 1,15 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  # To start CI on the pull request: one opened with this workflow's token
+  # starts no pull_request workflows, but a dispatch does run, and its checks
+  # land on the pull request's head commit.
+  actions: write
+
+concurrency:
+  group: satellites
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      # The tests below read bundled data, which may be in LFS.
+      - uses: ./.github/actions/lfs
+
+      - uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '22'
+          cache: yarn
+
+      - uses: oven-sh/setup-bun@v2.2.0
+
+      - run: yarn install --frozen-lockfile
+
+      - name: Fetch from CelesTrak
+        # bash, for pipefail: a refusal fails the step through the tee.
+        shell: bash
+        run: yarn satellites 2>&1 | tee "$RUNNER_TEMP/satellites.log"
+
+      # The tests that read the snapshot, before anything is pushed.
+      - run: yarn test tools/satellites js/scene/satellites js/scene/networks js/layer
+
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- public/data/earth/satellites; then
+            echo "The snapshot is unchanged."
+            exit 0
+          fi
+          branch=auto/satellites
+          fetched="$(node -p "require('./public/data/earth/satellites/index.json').fetched")"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C "$branch"
+          git add public/data/earth/satellites
+          # The checks are CI's, dispatched below: not the precommit hook's.
+          git commit --no-verify -m "Earth's satellites refreshed from CelesTrak, $fetched"
+          git push --force origin "$branch"
+          {
+            echo "Earth's satellites refreshed from CelesTrak at $fetched by the scheduled workflow"
+            echo "(\`.github/workflows/satellites.yml\`, js/scene/satellites/Satellites.md, \"Kept fresh\")."
+            echo
+            echo '```'
+            grep -E '^[a-z]+: [0-9]+ from |^Wrote ' "$RUNNER_TEMP/satellites.log"
+            echo '```'
+            echo
+            echo 'The tests that read the snapshot passed before the push; CI runs on it here.'
+          } > "$RUNNER_TEMP/body.md"
+          if [ "$(gh pr view "$branch" --json state --jq .state 2>/dev/null)" = OPEN ]; then
+            gh pr edit "$branch" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --base main --head "$branch" \
+              --title "Earth's satellites refreshed from CelesTrak" --body-file "$RUNNER_TEMP/body.md"
+          fi
+          gh workflow run ci.yml --ref "$branch"

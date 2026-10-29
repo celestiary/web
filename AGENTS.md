@@ -464,7 +464,10 @@ tried and dropped.
     [Satellites.md](js/scene/satellites/Satellites.md#the-data)).  Fetch a
     group at most once every two hours: CelesTrak blocks clients that ask
     more, and answers a second download of a set that hasn't updated with a
-    403.  `yarn satellites` is the only script that asks it, and keeps the
+    403.  A workflow refreshes it every two weeks and opens a PR from
+    `auto/satellites` ([Satellites.md, kept
+    fresh](js/scene/satellites/Satellites.md#kept-fresh)); such a PR needs no
+    ROADMAP or CHANGELOG entry.  `yarn satellites` is the only script that asks it, and keeps the
     answers in `tools/satellites/.cache` for two hours
     (`tools/satellites/celestrak.mjs`), so a rerun asks for nothing it has
     (`--offline` asks for nothing at all).  Ask for OMM as CSV (`FORMAT=CSV`, CelesTrak's default since
