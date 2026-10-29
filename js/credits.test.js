@@ -191,24 +191,13 @@ describe('credits on arrival, then fading', () => {
     expect(hand.timers.size).toBe(0)
   })
 
-  it('holds an as-prominent credit in while a while-shown one is, its window starting after', () => {
-    addCredit('gaia', {text: 'ESA/Gaia/DPAC'}, {persistence: 'timed', asProminent: true})
-    hand.advance(CREDIT_SHOW_MS + CREDIT_FADE_MS)
-    expect(phases()).toEqual({gaia: 'out'})
-    // Cesium's credits come in: Gaia's with them, for as long.
+  it('fades Gaia\'s on its own clock, whatever stays (the maintainer\'s call, CESIUM.md)', () => {
     addCredit('cesium', {element: {}}, {order: 0, persistence: 'while-shown'})
-    expect(phases()).toEqual({cesium: 'in', gaia: 'in'})
-    hand.advance(3 * CREDIT_SHOW_MS)
-    expect(phases()).toEqual({cesium: 'in', gaia: 'in'})
-    removeCredit('cesium')
-    expect(phases()).toEqual({gaia: 'in'})
+    addCredit('gaia', {text: 'ESA/Gaia/DPAC'}, {persistence: 'timed'})
     hand.advance(CREDIT_SHOW_MS)
-    expect(phases()).toEqual({gaia: 'fading'})
-    // A plain timed credit isn't held.
-    addCredit('osm', {text: 'OSM'}, {persistence: 'timed'})
-    hand.advance(CREDIT_SHOW_MS + CREDIT_FADE_MS)
-    addCredit('cesium', {element: {}}, {order: 0, persistence: 'while-shown'})
-    expect(phases().osm).toBe('out')
+    expect(phases()).toEqual({cesium: 'in', gaia: 'fading'})
+    hand.advance(CREDIT_FADE_MS)
+    expect(phases()).toEqual({cesium: 'in', gaia: 'out'})
   })
 
   it('keeps a logo after the window: Cesium\'s goes compact, not out, and stays so', () => {
@@ -237,7 +226,7 @@ describe('credits on arrival, then fading', () => {
     const off = subscribeCredits(() => calls++)
     for (let i = 0; i < 5; i++) {
       addCredit('cesium', {element: hand}, {order: 0, persistence: 'while-shown', keepsLogo: true})
-      addCredit('gaia', {text: 'G'}, {persistence: 'while-shown', asProminent: true})
+      addCredit('gaia', {text: 'G'}, {persistence: 'timed'})
     }
     expect(calls).toBe(2)
     off()

@@ -26,11 +26,9 @@ export const GAIA_TILES_DIR = 'large/gaia/v1'
  * Gaia's credit in the credits footer (credits.js) while its stars are
  * drawn (gaiaDrawn): ESA's requested "ESA/Gaia/DPAC", linked to Gaia's page,
  * and the licence, CC BY-SA 3.0 IGO, whose §4(a) asks for its URI with the
- * work (Gaia.md, "The source and its licence").  On arrival then fading
- * (§4(c): "in any reasonable manner", "reasonable to the medium"), but held
- * in while a credit that stays is (Cesium's): §4(c)'s credit "at least as
- * prominent as the credits for the other contributors" (CESIUM.md,
- * "Credits").
+ * work (Gaia.md, "The source and its licence").  On arrival then fading,
+ * on its own clock (§4(c): "in any reasonable manner", "reasonable to the
+ * medium"), whatever stays, at the maintainer's call (CESIUM.md, "Credits").
  */
 export const GAIA_CREDIT_ID = 'gaia'
 
@@ -132,7 +130,7 @@ export function newGaiaPopulation(ui) {
  */
 export function creditGaia(drawn) {
   if (drawn) {
-    addCredit(GAIA_CREDIT_ID, GAIA_CREDIT, {persistence: 'timed', asProminent: true})
+    addCredit(GAIA_CREDIT_ID, GAIA_CREDIT, {persistence: 'timed'})
   } else {
     removeCredit(GAIA_CREDIT_ID)
   }

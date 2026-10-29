@@ -64,8 +64,8 @@ reach, so check it there.  **In the app** Gaia's credit, "ESA/Gaia/DPAC" (to
 Gaia's page) and "CC BY-SA 3.0 IGO" (to the licence, which §4(a) asks for by
 its URI), is in the credits footer while any of its stars are drawn
 (`gaiaPopulation.js` `gaiaDrawn`, `GAIA_CREDIT`): on arrival for 8 s, then
-faded, but held in while Cesium's credits are, for §4(c)'s "at least as
-prominent" ([CESIUM.md, credits](../../CESIUM.md#credits-policy)).  The ShareAlike term applies to the data, not to the code (ISC).
+faded on its own clock, whatever else stays
+([CESIUM.md, credits](../../CESIUM.md#credits-policy)).  The ShareAlike term applies to the data, not to the code (ISC).
 
 ## The query
 

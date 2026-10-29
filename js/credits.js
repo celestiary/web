@@ -27,9 +27,6 @@
  *   so another's arrival doesn't touch it.  One that leaves and comes back
  *   starts again.  Out, it's still applicable: the footer's *Credits*
  *   button shows every applicable credit (CreditsFooter).
- * - `asProminent` (with `'timed'`): held in while any `'while-shown'` credit
- *   is (CC BY-SA's "at least as prominent as the credits for the other
- *   contributors", Gaia's), its window starting when that hold ends.
  * - `keepsLogo` (with `'timed'`): after its window it goes `'compact'`, not
  *   out: Cesium's, whose ion logo stays (ion's terms) while its text and
  *   its Data attribution link go (index.css `.credits-entry.compact`).
@@ -83,12 +80,9 @@ let fadeMs = CREDIT_FADE_MS
  * @param {object} [opts]
  * @param {number} [opts.order] Lower first; DEFAULT_ORDER by default
  * @param {string} [opts.persistence] 'while-shown' (default) or 'timed'
- * @param {boolean} [opts.asProminent] Timed, but held in while a
- *   'while-shown' credit is in
  * @param {boolean} [opts.keepsLogo] Timed, then compact rather than out
  */
-export function addCredit(id, credit, {order = DEFAULT_ORDER, persistence = 'while-shown', asProminent = false,
-  keepsLogo = false} = {}) {
+export function addCredit(id, credit, {order = DEFAULT_ORDER, persistence = 'while-shown', keepsLogo = false} = {}) {
   const element = Array.isArray(credit) ? null : credit?.element ?? null
   const items = element ? [] : sanitizeCredits(Array.isArray(credit) ? credit : [credit])
   if (!element && items.length === 0) {
@@ -98,12 +92,12 @@ export function addCredit(id, credit, {order = DEFAULT_ORDER, persistence = 'whi
   const timed = persistence === 'timed'
   const old = entries.get(id)
   if (old && old.element === element && old.order === order && old.timed === timed &&
-      old.asProminent === (timed && asProminent) && old.keepsLogo === (timed && keepsLogo) &&
+      old.keepsLogo === (timed && keepsLogo) &&
       sameItems(old.items, items)) {
     return
   }
   entries.set(id, {
-    id, items, element, order, timed, asProminent: timed && asProminent, keepsLogo: timed && keepsLogo,
+    id, items, element, order, timed, keepsLogo: timed && keepsLogo,
     seq: old?.seq ?? ++added,
     // When its window began: null until it runs (the chrome hidden, held).
     start: old ? old.start : null,
@@ -289,17 +283,13 @@ function notify() {
  */
 function phases() {
   const now = clock.now()
-  const held = [...entries.values()].some((e) => !e.timed)
   let next = Infinity
   const out = []
   for (const e of [...entries.values()].sort((a, b) => (a.order - b.order) || (a.seq - b.seq))) {
     let phase = 'in'
     if (e.timed) {
       const window = CREDIT_SHOW_MS + fadeMs
-      if (e.asProminent && held) {
-        // Its window starts again when the hold ends.
-        e.start = null
-      } else if (!chromeShown) {
+      if (!chromeShown) {
         // Unseen: a window not yet over starts again at the reveal.
         if (e.start !== null && now - e.start < window) {
           e.start = null

@@ -115,8 +115,7 @@ contrast, right-aligned (`js/ui/CreditsFooter.jsx`, `js/credits.js`).
   (`keepsLogo`, phase `'compact'`: its text credits and *Data attribution*
   go, the logo stays), and stay whole while Bing's imagery is drawn
   (`while-shown`).  The policy for each source, from its terms, is the table
-  in CESIUM.md [credits](../CESIUM.md#credits-policy).  Gaia's stays up with
-  a while-shown credit (CC BY-SA's "at least as prominent").
+  in CESIUM.md [credits](../CESIUM.md#credits-policy).
 - **The info icon**: Material's *InfoOutlined* (`@mui/icons-material`, 363
   bytes in the first load; an inline path would have been about the same),
   dim, at the line's end while anything is applicable, `aria-label`
@@ -151,7 +150,7 @@ contrast, right-aligned (`js/ui/CreditsFooter.jsx`, `js/credits.js`).
   in and out (`setCreditsMotion`, and no animation or transition in
   index.css).
 - **The registry** (`credits.js`): `addCredit(id, credit, {order,
-  persistence, asProminent, keepsLogo})` and `removeCredit(id)`; `setCreditSource(id,
+  persistence, keepsLogo})` and `removeCredit(id)`; `setCreditSource(id,
   source, on, credit, opts)` for a credit more than one layer brings (GIBS's:
   the clouds and the night lights; a hand-over doesn't restart it); and
   `followCredit(apply)`, which follows a per-frame "drawn" and lets it go
