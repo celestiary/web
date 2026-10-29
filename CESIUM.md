@@ -987,6 +987,12 @@ Cesium (Earth's widget, NetGL guest)     its context._gl is a NetGL recorder
 New York (three.js dev, NetGL guest)     drawn by Cesium in its own frame
 ```
 
+With Earth's Cesium on a guest page (`?cesium=iframe`;
+[design/CesiumGuest.md, phase 4](design/CesiumGuest.md#phase-4-the-rest)) the
+chain is the same inside the guest page, and its batch then crosses to
+celestiary's process: the view carries the switch, the guest page loads and
+frees the city by the view's range, and its state comes back in the status.
+
 **The hook.**  Cesium draws the city through `scene.externalRenderers`
 (our patch, [Patching Cesium](#patching-cesium)): a renderer's `render(p)`
 is called once per depth frustum its bounding volume overlaps, after the
@@ -1507,6 +1513,7 @@ has it does.
 |---|---|---|---|
 | The ellipsoid's lighting follows the globe's settings | `celestiary/globe-daynight-lighting` | Without vertex normals the globe's day-night shading was a hard-coded `clamp(5 × Lambert + 0.3)`: its floor is now `vertexShadowDarkness`, its multiplier a new `dayNightLambertDiffuseMultiplier` (defaults unchanged) | [CesiumGS/cesium#13974](https://github.com/CesiumGS/cesium/pull/13974), from `upstream/globe-daynight-lighting`; drop the patch's hunks once a release has it |
 | External renderers: renderers outside Cesium drawing into its frame | `celestiary/external-render-pass` | `scene.externalRenderers` and `ExternalRenderer({boundingVolume, show, render(p)})`: `render` is called once per depth frustum the volume overlaps, after the opaque passes, with Cesium's framebuffer bound and the view, projection, near and far and log-depth constants in `p`; `Context.prototype.resetState()` after each.  For [New York](#new-york).  Exported from `cesium` too, so a second patch, `patches/cesium+1.145.0.patch` | not yet proposed |
+| Log depth follows a NetGL host's reprojection | `celestiary/netgl-reproject` | A late frame from a guest page is corrected to the host's camera by portal-netgl, which multiplies `gl_Position` by `netgl_reproject` after a vertex shader's `main`; Cesium's log depth reads `gl_Position` inside `main` (`czm_vertexLogDepth`), so its depth kept the old frame's.  The log-depth derived vertex shader (`DerivedCommand`) now applies `netgl_reproject` before `czm_vertexLogDepth`, and `ViewportQuadVS` declares it without applying it, so the full-screen copies stay put.  `netgl_reproject` is an automatic uniform, the identity: on its own Cesium draws as before.  For [design/CesiumGuest.md](design/CesiumGuest.md), late frames | not yet proposed |
 
 Candidates for later patches, by how much celestiary code each would
 remove: a tone-map-free HDR output (the log encoding and the sRGB

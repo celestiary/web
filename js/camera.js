@@ -52,13 +52,17 @@ export function newCameraLookTween(camera, targetMatrixOrPos) {
  * @param {object} camera
  * @param {Vector3} targetWorldPos World-space position to look at
  * @param {Vector3} endLocalPos Destination camera position in platform-local space
+ * @param {object} [opts]
+ * @param {Vector3} [opts.up] The up hint at the arrival, world space: a
+ *   seat's zenith (Scene.rideSeat), so the horizon arrives level; else the
+ *   camera's own up, keeping its roll
  * @returns {Tween}
  */
-export function newCameraGoToTween(camera, targetWorldPos, endLocalPos) {
+export function newCameraGoToTween(camera, targetWorldPos, endLocalPos, {up = null} = {}) {
   const startPos = camera.position.clone()
   const startQuat = camera.quaternion.clone()
 
-  const worldUp = new Vector3(0, 1, 0).applyQuaternion(startQuat)
+  const worldUp = up ? up.clone() : new Vector3(0, 1, 0).applyQuaternion(startQuat)
   camera.up.copy(worldUp)
   camera.position.copy(endLocalPos)
   camera.lookAt(targetWorldPos)

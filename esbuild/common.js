@@ -57,6 +57,10 @@ const config = {
     // load it from (js/cesium-guest/origins.js), comma-separated.
     __CESIUM_GUEST_HOSTS__: JSON.stringify(process.env.CESIUM_GUEST_HOSTS ?? ''),
     __CESIUM_GUEST_ORIGINS__: JSON.stringify(process.env.CESIUM_GUEST_ORIGINS ?? ''),
+    // The guest page `?cesium=iframe` loads by default (origins.js
+    // DEFAULT_GUEST_PAGE): a PR preview's own, from its workflow.  Empty =
+    // main's.
+    __CESIUM_GUEST_PAGE__: JSON.stringify(process.env.CESIUM_GUEST_PAGE ?? ''),
   },
 }
 export default config

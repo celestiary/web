@@ -34,7 +34,7 @@ import {
 } from './scene/exposure.js'
 import {clampEv, renderExposure} from './scene/evCompensation.js'
 import {clampStarMag} from './scene/starMagnitude.js'
-import {NAKED_EYE, instrumentStarGain} from './scene/observer/instrument.js'
+import {NAKED_EYE, clampField, instrumentFieldRange, instrumentStarGain} from './scene/observer/instrument.js'
 import {extendedGain, s10Value} from './scene/eye.js'
 import {STORE_SCALE} from './scene/galaxyModel.js'
 import {absoluteUniforms, hdrSupported, installExposureOnlyToneMapping, sceneReferredUniform} from './scene/hdr.js'
@@ -87,6 +87,12 @@ const HIDDEN_CANVAS_OPACITY = '0.001'
 // The bodies the meter's sunlit-body anchor takes (_sunlitBodies): a
 // spacecraft filling the frame is a sunlit surface as a planet is.
 const SUNLIT_TYPES = new Set(['planet', 'moon', 'spacecraft'])
+
+
+/** The near plane in a seat (Scene.rideSeat), metres: the parts round it are a metre off. */
+const SEAT_NEAR_M = 0.3
+/** A zoom that moves the camera this much of its distance, relative, leaves a seat. */
+const SEAT_ZOOM_LEAVES = 1e-9
 
 
 export default class ThreeUi {
@@ -152,11 +158,14 @@ export default class ThreeUi {
     this.meterReadings = 0
     // The user's exposure compensation, stops (setExposureCompensation).
     this._evStops = 0
-    // The observer (observer/instrument.js): the naked eye, dark adapted.
-    // What the star field takes from it goes to the shaders through hdr.js
+    // The observer (observer/instrument.js): the naked eye, dark adapted,
+    // or the instrument an app sets while it runs (setInstrument).  What
+    // the star field takes from it goes to the shaders through hdr.js
     // absoluteUniforms, once here (the field's magnification is the
     // camera's, each frame in the shader).
     this.instrument = NAKED_EYE
+    // Whether the instrument's field range holds the field (setFieldLimit).
+    this.fieldLimit = true
     this._setObserverUniforms()
     // The stars' setting, magnitudes over the instrument's limit (setStarMagnitudeOffset).
     this._starMag = 0
@@ -166,6 +175,8 @@ export default class ThreeUi {
     this._inScatterRT = null
     // Optional Cesium rendering of nearby bodies; see CESIUM.md.
     this.layers = new CesiumLayers(this)
+    // Frames held for a Cesium guest's, and the time they waited (_drawFrame).
+    this.guestWait = {frames: 0, ms: 0}
     this.initControls(this.camera)
     this.fs = new Fullscreen(this.container, () => this.onResize())
     window.addEventListener('resize', () => {
@@ -432,6 +443,11 @@ export default class ThreeUi {
     // the container started out filling it, or the canvas runs under them.
     const width = this.container.offsetWidth
     const height = this.container.offsetHeight
+    // Kept for what's laid out at the canvas's size: the Cesium layers'
+    // view (CesiumLayers._viewOf's size and field), which a stale size had
+    // Cesium render at the first layout's aspect, stretched onto this one.
+    this.width = width
+    this.height = height
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
@@ -440,14 +456,62 @@ export default class ThreeUi {
     // size on this canvas (farPoint.js meshReach).
     setDrawingBuffer(height * this.renderer.getPixelRatio(), this.renderer.getPixelRatio())
     this.controls.handleResize()
+    // The pixel limit is in the canvas's pixels (fieldRange).  Optional:
+    // ThreeUI.resize.test.js resizes a bare object.
+    if (this.fieldRange?.()) {
+      this.setFov(this.camera.fov)
+    }
   }
 
 
-  /** */
+  /**
+   * The field of view, degrees, vertical: held to the active instrument's
+   * range while its limit is on (fieldRange), so the field keys and a
+   * link's `fov=` stop at the instrument's widest field and its pixel
+   * limit.
+   *
+   * @param {number} fov
+   */
   setFov(fov) {
-    this.camera.fov = fov
+    this.camera.fov = clampField(fov, this.fieldRange())
     this.camera.updateProjectionMatrix()
     this.onCameraChange?.()
+  }
+
+
+  /**
+   * The active instrument's field range on this canvas (observer/instrument.js
+   * instrumentFieldRange), while its limit is on.
+   *
+   * @returns {?{minDeg: number, maxDeg: number}} null with no limit
+   */
+  fieldRange() {
+    return this.fieldLimit ? instrumentFieldRange(this.instrument, this.renderer?.domElement?.height || this.height) : null
+  }
+
+
+  /**
+   * Make an instrument the observer (HDR.md, "The instrument"): an app's,
+   * while it runs (the Rubin app's RUBIN), or the naked eye again.  The
+   * star field's numbers follow it, and the field is held to its range.
+   *
+   * @param {?object} instrument An Instrument; null for NAKED_EYE
+   */
+  setInstrument(instrument) {
+    this.instrument = instrument ?? NAKED_EYE
+    this._setObserverUniforms()
+    this.setStarGain(instrumentStarGain(this.instrument, this._starMag))
+    this.setFov(this.camera.fov)
+  }
+
+
+  /**
+   * @param {boolean} on Whether the instrument's field range holds the
+   *   field (the Rubin app's "Rubin's optics"); off, the field is free
+   */
+  setFieldLimit(on) {
+    this.fieldLimit = on !== false
+    this.setFov(this.camera.fov)
   }
 
 
@@ -542,10 +606,20 @@ export default class ThreeUi {
     this._updateExposure()
     this._updateNightSkyShown()
     this.layers.beforeRender(targets.obj)
+    this.renderer.setRenderTarget(this._sceneRT)
+    // Display-referred materials (stars, lines, labels) write the values the
+    // final tone map gives back unchanged (hdr.js sceneReferred).
+    sceneReferredUniform.value = this.hdr ? 1 : 0
+    perf.begin('scene')
+    this.renderer.render(this.scene, this.camera)
+    perf.end('scene')
     // Lockstep with a Cesium guest on another page (design/CesiumGuest.md):
-    // the frame waits for the guest's frame of this view.
+    // beforeRender sent it this frame's view, and its frame is needed only
+    // from the composite on, so the frame waits here, after the scene's
+    // render, which a guest on another site's process overlaps.
     if (this.layers.awaitingGuests()) {
       this._frameHeld = true
+      this._heldAt = performance.now()
       return
     }
     this._drawFrame()
@@ -560,16 +634,22 @@ export default class ThreeUi {
   }
 
 
-  /** The frame's drawing, from the scene's render on (renderLoop). */
+  /**
+   * The frame's drawing from the Cesium composite on, into the scene's
+   * render (renderLoop) and then to the screen.
+   */
   _drawFrame() {
+    if (this._frameHeld) {
+      // How long frames waited for a guest's (design/CesiumGuest.md).
+      const waited = performance.now() - this._heldAt
+      this.guestWait.frames++
+      this.guestWait.ms += waited
+      this.layers.noteWait?.(waited)
+    }
     this._frameHeld = false
+    // A held frame resumes in another task: _sceneRT again, whatever was
+    // bound since.
     this.renderer.setRenderTarget(this._sceneRT)
-    // Display-referred materials (stars, lines, labels) write the values the
-    // final tone map gives back unchanged (hdr.js sceneReferred).
-    sceneReferredUniform.value = this.hdr ? 1 : 0
-    perf.begin('scene')
-    this.renderer.render(this.scene, this.camera)
-    perf.end('scene')
     perf.begin('cesium')
     this.layers.composite()
     perf.end('cesium')
@@ -673,7 +753,8 @@ export default class ThreeUi {
     const body = this._lastAtmPlanet
     const volume = body?.clouds?.userData?.volume
     const u = this._atmMesh.material.uniforms
-    if (!volume || !this.hdr || !this._transmittanceRT || u.uAtmEnabled.value < 0.5) {
+    // Nothing while the shell is off (the clouds toggled off, Scene.toggleClouds).
+    if (!volume || !body.clouds.visible || !this.hdr || !this._transmittanceRT || u.uAtmEnabled.value < 0.5) {
       this._setCloudComposite(null)
       return
     }
@@ -776,10 +857,20 @@ export default class ThreeUi {
    * side shows at its albedo (exposure.js), easing between targets.  The
    * target is what the camera looks at, so looking at a far planet from
    * near another makes it the exposure target.  The Sun and other stars
-   * keep the last body's exposure.
+   * keep the last body's exposure.  Landed, the eye is where it stands:
+   * the body under the camera keys the exposure whatever is targeted
+   * (from the Rubin seat with 2026 ED138 targeted, 47 au out, the target's
+   * exposure was 2,200× Earth's, Earth's night ground keyed the meter at a
+   * gain of 10, and the sky had no stars).
    */
   _updateExposure() {
-    const target = targets.obj
+    let target = targets.obj
+    if (targets.landed) {
+      const home = this._homeBody()
+      if (home?.props?.radius) {
+        target = home
+      }
+    }
     if (target?.props?.radius && target.props.type !== 'star') {
       this._worldGroup ??= this.scene.getObjectByName('WorldGroup') ?? null
       target.getWorldPosition(this._exposureBodyPos)
@@ -2013,6 +2104,12 @@ export default class ThreeUi {
     // sphere went into it.
     const surfaceR = groundRadius(targetObj.props.radius.scalar, this.layers.groundHeight(targetObj))
     const distAfter = this.camera.position.distanceTo(this.controls.target)
+    // In a seat (Scene.rideSeat) the camera's position is the seat's each
+    // frame: a zoom leaves it, from where it is.
+    const seated = Boolean(this.sceneManager?.seat)
+    if (seated && Math.abs(distAfter - distBefore) > distBefore * SEAT_ZOOM_LEAVES) {
+      this.sceneManager.leaveSeat()
+    }
     const distDesired = asymptoticZoomDist(distBefore, distAfter, surfaceR + GROUND_CLEARANCE_M)
     if (distDesired !== distAfter) {
       this._zoomEye.subVectors(this.camera.position, this.controls.target)
@@ -2026,7 +2123,9 @@ export default class ThreeUi {
     // From where the camera ends up: from the linear step before the remap,
     // one frame's near plane was sized for an altitude the zoom never
     // reached (a zoom out from the ground: ~0.25 radii, near ~160 km).
-    const newNear = dynamicNear(Math.max(0, distDesired - surfaceR), surfaceR)
+    // In a seat, among a telescope's parts, a metre off: the floor
+    // (100 m on Earth) would clip it all.
+    const newNear = seated && this.sceneManager.seat ? SEAT_NEAR_M : dynamicNear(Math.max(0, distDesired - surfaceR), surfaceR)
     if (newNear !== this.camera.near) {
       this.camera.near = newNear
       this.camera.updateProjectionMatrix()
@@ -2083,6 +2182,12 @@ export default class ThreeUi {
   _keepAboveGround() {
     const targetObj = this._homeBody()
     if (!targetObj?.props?.radius || (this.arController && this.arController.isActive())) {
+      return
+    }
+    // A seat stands on its own ground (the Rubin Observatory's, from its
+    // own sample of the terrain): lifting the camera off it to the
+    // layer's sample under the camera left the visitor hovering.
+    if (this.sceneManager?.seat) {
       return
     }
     const groundHeight = this.layers.groundHeight(targetObj)

@@ -123,6 +123,7 @@ earth.orbitPosition
 | Model | File | Source | Licence | Built |
 |---|---|---|---|---|
 | James Webb Space Telescope (A), deployed | `public/large/models/jwst/jwst.glb`, 2.38 MB (LFS) | NASA 3D Resources, NASA Goddard: [the page](https://science.nasa.gov/3d-resources/james-webb-space-telescope-a/), [the glb](https://assets.science.nasa.gov/content/dam/science/cds/3d/resources/model/james-webb-space-telescope-(a)/James%20Webb%20Space%20Telescope%20(A).glb) (4.71 MB, md5 `fd616ecfd267dd60f62fba4f9d30cc7c`); [bldrs-ai/test-models](https://github.com/bldrs-ai/test-models/tree/main/glb) holds a byte-identical copy | NASA 3D Resources are "free and without copyright" ([the collection's README](https://github.com/nasa/NASA-3D-Resources)), under NASA's [media usage guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media) (no endorsement implied) | `tools/models/build.sh` |
+| Vera C. Rubin Telescope (the Simonyi Survey Telescope on its pier) | `public/large/models/rubin/simonyi.glb`, 567 KB (LFS; 250 KB gzipped) | NOIRLab's 3D models, [model3d004](https://noirlab.edu/public/products/models3d/model3d004/): [the OBJ](https://noirlab.edu/public/media/archives/models3d/model_3d_obj/model3d004.obj) (8.4 MB, md5 `0b235571cafb1cb1c3f4d32c739e2a9c`; a Cinema 4D export, 2020, in centimetres; the .mtl it names isn't served) | Credit Rubin Observatory/NSF/AURA, mandatory and visible (NOIRLab's [usage terms](https://noirlab.edu/public/copyright/): CC BY 4.0 for its images and videos, and "crediting this 3D Model with the full credit line, in a visible way, is MANDATORY"); the app's panel carries it | `tools/models/build.sh`, through `tools/models/obj2glb.py` |
 
 **The recipe** (`tools/models/build.sh <downloads dir>`): glTF-Transform's
 `optimize`, pinned (`@gltf-transform/cli@4.5.1`, run with npx, not a
@@ -134,6 +135,31 @@ rather than Draco because its decoder is a JS module that bundles (no wasm
 file to serve beside the page).  The model is metres already: its box is
 27.4 × 12.0 × 14.8 m, the sunshield 21 × 14 m in its XZ plane, the
 telescope on +Y, the bus on −Y (the Sun's side).
+
+**The telescope's recipe** (`tools/models/build.sh`, for
+[js/scene/rubin/Rubin.md](rubin/Rubin.md)): `tools/models/obj2glb.py`, a
+dependency-free OBJ reader, writes a binary glTF with one node per OBJ
+object (the file's 130, named: `mirror`, `circle_upper`, `camera_structure`,
+`stairs_base_telescope_12`...), each polygon fanned into triangles with the
+file's normals, a flat material per `usemtl` from a palette on the command
+line (there's no .mtl; the mirror glossy and dark, the steel grey), and
+the objects gathered by name under three nodes the app turns: `pier`
+(`peer_*`), `azimuth` (the base, platforms, rails, stairs and fork) and
+`elevation` (the rest: the rings, the mirror cell, the truss, the camera
+and top end).  Then glTF-Transform's `optimize` with meshopt, keeping the
+hierarchy (`--flatten false --join false`) and the materials' colours
+(`--palette false`): 39,493 triangles, 2.19 MB raw to 567 KB.  The
+model's units are centimetres (`--scale 0.01`); its elevation axis is 7.8
+m over its origin, along X, and its tube is posed 45° up toward +Z
+(`rubinModel.js` `assembleTelescope` re-hangs it for the mount); its pier
+runs 20 m below the origin.  Which of the file's objects belong to the
+elevation structure was read off their bounding boxes and checked by
+rendering the groups parked and at 20° (the first cut's probes): the
+parts turn as one.  NOIRLab also offers the complete scene, dome and
+building ([model3d003](https://noirlab.edu/public/products/models3d/model3d003/)),
+as a 2 GB OBJ and a 472 MB Cinema 4D file: the dome stays primitives for
+now.  Neither file carries animation (OBJ can't); the pointing is the
+app's own.
 
 **Celestia's models.**  The task pointed at github.com/celestiaorg; that is
 the Celestia *blockchain* project.  The space simulator's content is

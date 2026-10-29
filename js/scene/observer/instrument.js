@@ -135,6 +135,12 @@ export const EYE_CORE_SHARE = eyePsfShare(GLARE_MAX_DEG, (t) => 1 - wingWindow(t
  * @property {{upSeconds: number, downSeconds: number, exposureSeconds: number}} adaptation How fast
  *   its exposure follows the light (ADAPTATION): the metered gain's time constants rising (to the
  *   dark) and falling (to the light), and the exposure's own toward the meter's and the target's
+ * @property {?number} fieldMaxDeg The optics' field: the widest it sees, degrees (null: no range,
+ *   the field is free, as the naked eye's is in celestiary)
+ * @property {?number} pixelScaleArcsec A detector pixel on the sky, arcseconds: the narrowest
+ *   field is where one is one screen pixel (instrumentFieldRange)
+ * @property {?number} resolutionArcsec What it resolves, arcseconds, where that differs from the
+ *   pixel (a telescope's delivered image quality: seeing)
  */
 
 
@@ -182,7 +188,86 @@ export const NAKED_EYE = Object.freeze({
     glareGlsl: GLARE_GLSL,
   }),
   adaptation: ADAPTATION,
+  fieldMaxDeg: null,
+  pixelScaleArcsec: null,
+  resolutionArcsec: null,
 })
+
+
+/**
+ * The Vera C. Rubin Observatory's Simonyi Survey Telescope and its camera
+ * (scene/rubin/Rubin.md, "The optics"), which the Rubin app makes the
+ * active instrument while it runs (ThreeUi.setInstrument): an 8.4 m
+ * primary (6.4 m effective, the central obscuration taken out), a field
+ * 3.5° across (9.6 deg²), 0.2″ pixels, and a delivered image quality of
+ * about 0.7″ FWHM, seeing-limited on Cerro Pachón.
+ *
+ * For now only its field is its own.  Its light and its point spread
+ * function are the eye's, copied (#340 carries the view as the instrument
+ * sees it): a collecting area of 1, so the star field doesn't jump when
+ * the app opens and the user's star setting (`sm=`) is still the
+ * sensitivity, and the eye's PSF and adaptation, which the star shader
+ * and the meter read through `ui.instrument` as ever.
+ *
+ * @type {Instrument}
+ */
+export const RUBIN = Object.freeze({
+  ...NAKED_EYE,
+  name: 'the Rubin Observatory\'s Simonyi Survey Telescope',
+  apertureM: 8.4,
+  fieldMaxDeg: 3.5,
+  pixelScaleArcsec: 0.2,
+  resolutionArcsec: 0.7,
+})
+
+
+/**
+ * The field an instrument's optics allow (Rubin.md, "The optics"): from
+ * its widest field down to where one of its detector pixels is one screen
+ * pixel at the canvas's height, `pixelScaleArcsec × heightPx` (200″, 0.056°,
+ * for Rubin on a 1,000 px canvas), past which zooming only magnifies
+ * pixels.  A vertical field, as the camera's is.
+ *
+ * @param {Instrument} instrument
+ * @param {number} heightPx The canvas's height, device pixels
+ * @returns {?{minDeg: number, maxDeg: number}} null for an instrument with
+ *   no range (the naked eye)
+ */
+export function instrumentFieldRange(instrument, heightPx) {
+  const max = instrument?.fieldMaxDeg
+  if (!(max > 0)) {
+    return null
+  }
+  const pixelDeg = instrument.pixelScaleArcsec > 0 ? instrument.pixelScaleArcsec / 3600 : 0
+  return {minDeg: Math.min(pixelDeg * Math.max(heightPx, 1), max), maxDeg: max}
+}
+
+
+/**
+ * @param {number} fovDegrees
+ * @param {?{minDeg: number, maxDeg: number}} range instrumentFieldRange's
+ * @returns {number} The field held to the range; as given with none
+ */
+export function clampField(fovDegrees, range) {
+  return range ? Math.min(Math.max(fovDegrees, range.minDeg), range.maxDeg) : fovDegrees
+}
+
+
+/**
+ * @param {number} fovDegrees
+ * @param {?{minDeg: number, maxDeg: number}} range
+ * @returns {?string} 'max' at the widest field, 'min' at the pixel limit,
+ *   null inside the range or with none
+ */
+export function fieldEnd(fovDegrees, range) {
+  if (!range) {
+    return null
+  }
+  if (fovDegrees >= range.maxDeg * (1 - 1e-9)) {
+    return 'max'
+  }
+  return fovDegrees <= range.minDeg * (1 + 1e-9) ? 'min' : null
+}
 
 
 /**

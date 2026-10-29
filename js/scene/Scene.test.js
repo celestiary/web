@@ -252,6 +252,22 @@ describe('Scene settings tracking', () => {
     expect(s.overlayShown('l')).toBe(true)
   })
 
+  it('toggleClouds flips i, which cloudsShown reads, and applySettings drives it', () => {
+    const s = makeScene()
+    expect(s.cloudsShown()).toBe(true)
+    let fired = 0
+    s.onSettingsChange = () => fired++
+    s.toggleClouds()
+    expect(s.getSettings().i).toBe(false)
+    expect(s.cloudsShown()).toBe(false)
+    expect(fired).toBe(1)
+    s.applySettings({i: false})
+    expect(fired).toBe(1)
+    s.applySettings({i: true})
+    expect(s.cloudsShown()).toBe(true)
+    expect(fired).toBe(2)
+  })
+
   it('toggleOrbits flips o, and the attached orbits fade out, hidden once faded', () => {
     const s = makeScene()
     s.objects['sun'] = fakeSunWithOrbit()
@@ -379,7 +395,7 @@ describe('Scene.applySettings', () => {
     milkyWay.name = 'MilkyWay'
     s.ui.scene.add(milkyWay)
     const target = {a: false, l: true, p: false, o: false, e: true, c: true, g: true, U: false, G: true, C: true, x: false,
-      S: false, I: false, D: false, v: false}
+      S: false, I: false, D: false, i: false, v: false}
     s.registerSettingApplier('v', () => s.flipSetting('v'))
     s.applySettings(target)
     s.overlays.finish()
@@ -420,6 +436,64 @@ describe('Scene.onStarsReady', () => {
   it('_markStarsReady is a no-op when no callbacks are queued', () => {
     const s = makeScene()
     expect(() => s._markStarsReady()).not.toThrow()
+  })
+})
+
+
+describe('Scene.rideSeat', () => {
+  /** A seat 10 m over the north pole, on a node that turns. */
+  function seatOn(earth) {
+    const mount = new Object3D()
+    mount.position.y = 6.371e6
+    const seat = new Object3D()
+    seat.position.y = 10
+    mount.add(seat)
+    earth.add(mount)
+    return {mount, seat}
+  }
+
+  it('lands the camera on the seat\'s body and keeps it in the seat as the seat moves, until it leaves', () => {
+    const {scene, earth, camera, stateBag} = makeSceneWithEarth()
+    const {mount, seat} = seatOn(earth)
+    scene.rideSeat(seat, {instant: true})
+    expect(camera.platform.parent).toBe(earth)
+    expect(scene.seat).toBe(seat)
+    expect(Shared.targets.landed).toBe(true)
+    expect(stateBag.dragMode).toBe('pan')
+    expect(camera.position.y).toBeCloseTo(6.371e6 + 10, 6)
+    // The mount turns the seat 90° about Earth's pole: the camera goes with it.
+    seat.position.set(5, 10, 0)
+    mount.rotation.y = Math.PI / 2
+    scene.syncFollow()
+    expect(camera.position.x).toBeCloseTo(0, 6)
+    expect(camera.position.z).toBeCloseTo(-5, 6)
+    scene.leaveSeat()
+    expect(scene.seat).toBe(null)
+    seat.position.set(0, 10, 0)
+    scene.syncFollow()
+    expect(camera.position.z).toBeCloseTo(-5, 6)
+  })
+
+  it('goes there over a tween, looking where asked, and leaves the seat on a landing or a go, or when the seat is gone', () => {
+    const {scene, earth, camera} = makeSceneWithEarth()
+    const {seat} = seatOn(earth)
+    const start = camera.position.clone()
+    scene.rideSeat(seat, {lookAt: new Vector3(0, 1e7, 0), up: new Vector3(1, 0, 0)})
+    expect(Shared.targets.tween?.travels).toBe(true)
+    // Travelling, the seat doesn't pull the camera.
+    scene.syncFollow()
+    expect(camera.position.equals(start)).toBe(true)
+    Shared.targets.tween.update(performance.now() + 1e5)
+    Shared.targets.tween = null
+    scene.syncFollow()
+    expect(camera.position.y).toBeCloseTo(6.371e6 + 10, 6)
+    scene.land('earth', 0, 0, 0, {instant: true})
+    expect(scene.seat).toBe(null)
+    scene.rideSeat(seat, {instant: true})
+    seat.removeFromParent()
+    scene.syncFollow()
+    expect(scene.seat).toBe(null)
+    expect(() => scene.rideSeat(new Object3D())).toThrow(/not on a body/)
   })
 })
 
@@ -466,6 +540,56 @@ describe('Scene.land', () => {
   it('throws on unknown body', () => {
     const {scene} = makeSceneWithEarth()
     expect(() => scene.land('nonsense', 0, 0)).toThrow(/no body/)
+  })
+
+  it('takes the caller\'s ground height over the layer\'s', () => {
+    const {scene, camera, ui} = makeSceneWithEarth()
+    ui.layers = {groundHeightAt: () => 2952}
+    scene.land('earth', 90, 0, 2, {groundHeight: 1717})
+    Shared.targets.tween.update(performance.now() + 1e5)
+    expect(camera.position.y).toBeCloseTo(6.371e6 + 1717 + 2, 0)
+  })
+
+  it('aims again over the terrain when a guest page\'s height comes in', async () => {
+    const {scene, ui} = makeSceneWithEarth()
+    const asked = []
+    let answer = 2134
+    ui.layers = {
+      groundHeightAt: () => null,
+      requestGroundHeight: (node, lat, lng) => {
+        asked.push([lat, lng])
+        return Promise.resolve(answer)
+      },
+    }
+    scene.land('earth', 36, -112, 2)
+    const first = Shared.targets.tween
+    expect(asked).toEqual([[36, -112]])
+    await Promise.resolve()
+    expect(Shared.targets.tween).not.toBe(first)
+    expect(Shared.targets.tween).not.toBe(null)
+    // No answer, or another landing since: the tween stays.
+    answer = null
+    scene.land('earth', 36, -112, 2)
+    const second = Shared.targets.tween
+    await Promise.resolve()
+    expect(Shared.targets.tween).toBe(second)
+    answer = 10
+    scene.land('earth', 36, -112, 2)
+    const third = {}
+    Shared.targets.tween = third
+    await Promise.resolve()
+    expect(Shared.targets.tween).toBe(third)
+    Shared.targets.tween = null
+  })
+
+  it('asks no guest page for a height the page knows', () => {
+    const {scene, ui} = makeSceneWithEarth()
+    let asked = 0
+    ui.layers = {groundHeightAt: () => 2000, requestGroundHeight: () => Promise.resolve(asked++)}
+    scene.land('earth', 36, -112, 2)
+    scene.land('earth', 36, -112, 2, {instant: true})
+    expect(asked).toBe(0)
+    Shared.targets.tween = null
   })
 
   it('throws when body lacks a radius', () => {

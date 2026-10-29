@@ -64,6 +64,11 @@ export default class ControlPanel {
     // The population search's query (populationSectionHtml), kept through
     // the panel's redraws: picking a result targets it, which redraws.
     this._populationQuery = {body: null, text: ''}
+    /**
+     * The scene's settings the panel switches (settingsHtml): {get(key),
+     * toggle(key)}; Earth's clouds ('i') in the atmosphere section.
+     */
+    this.settingsHooks = null
     /** The craft's switches (craftHtml): {list, toggle}. */
     this.craftHooks = null
     // The listed body and its list, and when the values last ran.
@@ -202,6 +207,7 @@ export default class ControlPanel {
     this._wirePeriodic()
     this._wirePopulation()
     this._wireCraft()
+    this._wireSettings()
   }
 
 
@@ -264,12 +270,14 @@ export default class ControlPanel {
       html += sectionHtml('rings', 'Rings', '', rowsHtml(fieldRowsHtml(body.rings, secsToYDHMS, sci)))
     }
     if (body.atmosphere) {
-      html += sectionHtml('atmosphere', 'Atmosphere', '', rowsHtml(fieldRowsHtml(body.atmosphere, secsToYDHMS, sci)))
+      html += sectionHtml('atmosphere', 'Atmosphere', '',
+          rowsHtml(this.cloudsSwitchHtml(body) + fieldRowsHtml(body.atmosphere, secsToYDHMS, sci)))
     }
     html += sectionHtml('system', isStar ? 'Planets' : 'Moons', String(system.length),
         systemHtml(system, pathPrefix), true)
     html += sectionHtml('more', 'More data', '', rowsHtml(more))
-    return panelHtml({name: capitalize(body.name), kind: kindOf(body.type, body.name), fact: this._factOf(body)}, html)
+    return panelHtml({name: body.label ?? capitalize(body.name), kind: kindOf(body.type, body.name, body.kind),
+      fact: this._factOf(body)}, html)
   }
 
 
@@ -585,6 +593,67 @@ export default class ControlPanel {
       return ''
     }
     return `<div class="info-subhead">Craft</div>\n${rowsHtml(craft.map((c) => this._craftRow(c)).join(''))}`
+  }
+
+
+  /**
+   * The clouds' switch, for a body that has them (`clouds` in its
+   * descriptor): the 'i' setting, the 'I' key's (Scene.toggleClouds).
+   *
+   * @param {object} body the body's props
+   * @returns {string} its row, or nothing
+   */
+  cloudsSwitchHtml(body) {
+    const hooks = this.settingsHooks
+    if (!body.clouds || !hooks) {
+      return ''
+    }
+    const on = hooks.get('i') !== false
+    const sw = `<span class="info-toggle${on ? ' on' : ''}" data-setting="i" role="switch" aria-checked="${on}" ` +
+      `tabindex="0">${on ? 'shown' : 'hidden'}</span>`
+    return `<div class="info-row is-long setting" data-setting="i"><dt>Clouds</dt>` +
+      `<dd class="info-switches">${sw}<span class="info-unit">I</span></dd></div>\n`
+  }
+
+
+  /** Write the settings' switches again, as the scene has them now (a key pressed). */
+  refreshSettings() {
+    const hooks = this.settingsHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    for (const el of this.containerElt.querySelectorAll('.info-toggle[data-setting]')) {
+      const on = hooks.get(el.dataset.setting) !== false
+      el.classList.toggle('on', on)
+      el.setAttribute('aria-checked', String(on))
+      el.textContent = on ? 'shown' : 'hidden'
+    }
+  }
+
+
+  /** Wire the settings' switches (cloudsSwitchHtml) to the scene. */
+  _wireSettings() {
+    const hooks = this.settingsHooks
+    if (!hooks || !this.containerElt?.querySelectorAll) {
+      return
+    }
+    for (const el of this.containerElt.querySelectorAll('.info-toggle[data-setting]')) {
+      if (el.dataset.wired) {
+        continue
+      }
+      el.dataset.wired = '1'
+      const fn = () => {
+        hooks.toggle(el.dataset.setting)
+        this.refreshSettings()
+      }
+      el.addEventListener('click', fn)
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault()
+          fn()
+        }
+      })
+    }
   }
 
 

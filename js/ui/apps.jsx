@@ -1,6 +1,9 @@
 import ColonizationApp from './ColonizationApp'
+import RubinApp from './RubinApp'
 import {EXPANSION_APP_ID} from '../store/ColonizationSlice'
+import {RUBIN_APP_ID} from '../store/rubinApp'
 import RocketIcon from '@mui/icons-material/RocketLaunchOutlined'
+import TelescopeIcon from '@mui/icons-material/TravelExploreOutlined'
 
 
 /**
@@ -21,6 +24,14 @@ export const APPS = [
     Icon: RocketIcon,
     Panel: ColonizationApp,
     stop: (celestiary) => celestiary.scene.removeColonization(),
+  },
+  {
+    id: RUBIN_APP_ID,
+    name: 'Rubin Observatory',
+    description: 'The telescope on Cerro Pachón following 2026 ED138, its first dwarf planet candidate',
+    Icon: TelescopeIcon,
+    Panel: RubinApp,
+    stop: (celestiary) => celestiary.scene.removeRubin(),
   },
 ]
 

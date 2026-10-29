@@ -12,6 +12,8 @@ describe('the guest page celestiary loads', () => {
 
   it('is the fork\'s Pages by default', () => {
     expect(guestOptions('?cesium=iframe').href).toBe(DEFAULT_GUEST_PAGE)
+    // Main's, without a build's CESIUM_GUEST_PAGE (a PR preview's own).
+    expect(DEFAULT_GUEST_PAGE).toBe('https://pablo-mayrgundter.github.io/cesium-portal/cesium-guest.html')
   })
 
   it('is another copy only on an allowed origin, the page named or the directory\'s', () => {
@@ -27,6 +29,9 @@ describe('the guest page celestiary loads', () => {
     }
     expect(guestPage('https://celestiary.org/web/pr-preview/pr-1/cesium-guest.html').href)
         .toBe('https://celestiary.org/web/pr-preview/pr-1/cesium-guest.html')
+    expect(guestPage('https://pablo-mayrgundter.github.io/cesium-portal/pr-preview/pr-310/').href)
+        .toBe('https://pablo-mayrgundter.github.io/cesium-portal/pr-preview/pr-310/cesium-guest.html')
+    expect(guestPage('https://cesium.celestiary.org/cesium-guest.html')).toBe(null)
     expect(guestPage('https://evil.example/cesium-guest.html')).toBe(null)
     expect(guestPage('javascript:alert(1)')).toBe(null)
     expect(guestPage('not a url')).toBe(null)

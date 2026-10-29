@@ -191,8 +191,84 @@ describe('wideLines under host reprojection', () => {
       const u = mesh.material.uniforms.netgl_reproject.value
       expect(u).toBeInstanceOf(Matrix4)
       expect(u.equals(new Matrix4())).toBe(true)
+      // portal-netgl 0.6.7's scales, declared with the types its replay
+      // looks for, and applied to the resolution and the width; 1 here.
+      expect(src).toMatch(/\buniform\s+float\s+netgl_pixelScale\s*;/)
+      expect(src).toMatch(/\buniform\s+vec2\s+netgl_viewportScale\s*;/)
+      expect(src).toContain('0.5 * uResolution * netgl_viewportScale')
+      expect(src).toContain('uPixelRatio * netgl_pixelScale')
+      expect(mesh.material.uniforms.netgl_pixelScale.value).toBe(1)
+      expect(mesh.material.uniforms.netgl_viewportScale.value.toArray()).toEqual([1, 1])
     }
   })
+
+  // The extrusion as the shader does it, for a frame drawn at resolution
+  // `res` (device px) and pixel ratio `pr`, composed into one at `resTo`:
+  // the corners in the composed buffer's pixels.  The host maps the
+  // frame's viewport onto the composed one (NDC is drawn into resTo).
+  const composed = (cs, ce, {resFrom, pr, resTo, widthCss, viewportScale = [1, 1], pixelScale = 1}) => {
+    const half = resFrom.map((r, i) => r * viewportScale[i] / 2)
+    const d = [0, 1].map((i) => ((ce[i] / ce[3]) - (cs[i] / cs[3])) * half[i])
+    const len = Math.hypot(...d)
+    const dir = d.map((x) => x / len)
+    const perp = [-dir[1], dir[0]]
+    const halfW = 0.5 * widthCss * pr * pixelScale
+    const out = []
+    for (const [clip, cap] of [[cs, -1], [ce, 1]]) {
+      for (const side of [-1, 1]) {
+        const c = [...clip]
+        for (const i of [0, 1]) {
+          c[i] += (((perp[i] * side) + (dir[i] * cap)) * halfW / half[i]) * c[3]
+        }
+        out.push([0, 1].map((i) => ((c[i] / c[3]) + 1) * resTo[i] / 2))
+      }
+    }
+    return out
+  }
+  const cameraFor = (pos, fov, aspect) => {
+    const c = new PerspectiveCamera(fov, aspect, 1e5, 1e9)
+    c.position.set(...pos)
+    c.lookAt(new Vector3(0, 0, 0))
+    c.updateMatrixWorld()
+    return {viewMatrix: c.matrixWorldInverse.toArray(), projectionMatrix: c.projectionMatrix.toArray()}
+  }
+
+  for (const [name, from, to] of [
+    ['a pixel-ratio change (2x to 1x)', {css: [800, 500], pr: 2}, {css: [800, 500], pr: 1}],
+    ['a resize (800x500 to 1200x600)', {css: [800, 500], pr: 1}, {css: [1200, 600], pr: 1}],
+  ]) {
+    it(`composed after ${name}, with the host's scales, a beam is the guest's own for the new buffer`, () => {
+      const ends = [[6.4e6, 1e6, 2e5, 1], [5.9e6, -2e6, 1.5e6, 1]]
+      const resFrom = from.css.map((x) => x * from.pr)
+      const resTo = to.css.map((x) => x * to.pr)
+      const vf = cameraFor([2.5e7, 3e6, 4e6], 30, from.css[0] / from.css[1])
+      const vt = cameraFor([2.5e7, 3e6, 4e6], 30, to.css[0] / to.css[1])
+      const C = reprojection(vf, vt)
+      const vp = (v) => mat4Multiply(v.projectionMatrix, v.viewMatrix)
+      const [cs, ce] = ends.map((p) => mul(C, mul(vp(vf), p)))
+      const truth = composed(...ends.map((p) => mul(vp(vt), p)), {resFrom: resTo, pr: to.pr, resTo, widthCss: 3})
+      // What portal-netgl's replay sets: the viewport remap's scale and the ratio's.
+      const viewportScale = [0, 1].map((i) => resTo[i] / resFrom[i])
+      const pixelScale = to.pr / from.pr
+      const scaled = composed(cs, ce, {resFrom, pr: from.pr, resTo, widthCss: 3, viewportScale, pixelScale})
+      const unscaled = composed(cs, ce, {resFrom, pr: from.pr, resTo, widthCss: 3})
+      for (let k = 0; k < 4; k++) {
+        for (const i of [0, 1]) {
+          expect(scaled[k][i]).toBeCloseTo(truth[k][i], 6)
+        }
+      }
+      const width = (q) => Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1])
+      expect(width(scaled)).toBeCloseTo(3 * to.pr, 6)
+      // Without them: right on a ratio change (the offset is the same share
+      // of the viewport at either ratio), scaled by the change of size on a
+      // resize.
+      if (from.pr !== to.pr) {
+        expect(width(unscaled)).toBeCloseTo(3 * to.pr, 6)
+      } else {
+        expect(width(unscaled)).toBeGreaterThan(3 * 1.15)
+      }
+    })
+  }
 
   it('a beam drawn for one view and corrected lands, and is as wide, as one drawn for the next', () => {
     // A DSN beam's two ends, metres, and a pan with a zoom in between.

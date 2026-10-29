@@ -39,6 +39,97 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 
 ## October 2026
 
+### Rubin's pixel on the sky
+
+A new switch in the Rubin Observatory app, *Rubin's pixel*, draws what the camera can tell apart at
+2026 ED138: a blunt square one of its 0.2″ pixels across, and a fainter outline at the 0.7″ it
+resolves through the air, at their size on your screen. At the pixel limit the object's disc is a
+point well inside one pixel; wider, the marker fades so it never claims more than the camera has.
+
+- Date: 2026-10-28
+- PR: [#346](https://github.com/celestiary/web/pull/346)
+- Issue: [#339](https://github.com/celestiary/web/issues/339)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Kind: feature
+
+### Zoom within Rubin's optics
+
+While the Rubin Observatory app runs, the field-of-view keys (`,` and `.`) zoom from the camera's
+3.5° field down to where one of its 0.2″ pixels is a pixel on your screen, and stop there. The app
+shows the field, the magnification and the size of Rubin's pixel on screen, and says when you're at
+either end. A switch, *Rubin's optics*, turns the limit off.
+
+- Date: 2026-10-28
+- PR: [#342](https://github.com/celestiary/web/pull/342)
+- Issue: [#337](https://github.com/celestiary/web/issues/337)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Kind: feature
+### A distant body stays a point where its mesh would break up
+
+Zoomed far in on a body tens of astronomical units away, such as 2026 ED138 from the Rubin Observatory's
+seat, its disc blinked, drew as a crescent or vanished as time ran: the graphics card can't place a
+mesh that small against its distance. Past 4 million radii away a body now stays a point at any
+field of view, steady from frame to frame. Pluto seen from Earth is one at every zoom too.
+
+- Date: 2026-10-28
+- PR: [#343](https://github.com/celestiary/web/pull/343)
+- Issue: [#338](https://github.com/celestiary/web/issues/338)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+### Earth's detailed surface keeps its shape after the window changes size
+
+Up close, Earth's detailed surface (and the Moon's and Mars's) was drawn at the window's size when
+the page opened. After the window changed size, the widgets dock opened or the browser's developer
+tools appeared, it came out stretched or squashed, its horizon off the atmosphere's edge, until a
+reload. Now it follows the window.
+
+- Date: 2026-10-28
+- PR: [#335](https://github.com/celestiary/web/pull/335)
+- Epic: [#110](https://github.com/celestiary/web/issues/110) Earth appearance parity across the Cesium swap
+- Permalink: none
+- Kind: fix
+
+### Places found again on the homepage's search
+
+Typing a place on the homepage, "rubin" for the Rubin Observatory or the Moon's crater Rubin, lost
+the places a second after showing them, as the search's first loads landed. They stay now. And the
+search finds an app's view: "Watch 2026 ED138 from the Rubin Observatory" opens the app on the
+night.
+
+- Date: 2026-10-28
+- PR: [#320](https://github.com/celestiary/web/pull/320)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: none
+- Kind: fix
+
+### Earth's clouds can be switched off
+
+The `I` key (Celestia's `i`) and a new *Clouds* switch in Earth's atmosphere section hide the
+clouds, for a night's sky the day's weather would cover. A link remembers it.
+
+- Date: 2026-10-28
+- PR: [#320](https://github.com/celestiary/web/pull/320)
+- Epic: [#118](https://github.com/celestiary/web/issues/118) Navigation, time and sharing
+- Permalink: none
+
+### Rubin's dwarf planet candidate, and the telescope that found it
+
+2026 ED138, the first dwarf planet candidate in the Rubin Observatory's images, is in the Sun's
+system on JPL's orbit: about 1,000 km across, 46 au from the Sun, beyond Pluto. A new app in the
+widgets drawer puts the Rubin Observatory on Cerro Pachón, with NOIRLab's model of the Simonyi
+Survey Telescope following the object through a night of the discovery run, watched from an
+astronomer's seat on the telescope that rides its pointing and tracks the object with it (zoom the
+field of view into the sky it sees), and draws the object's path on the sky over those months: 2° of
+retrograde that is the Earth's own motion reflected, not the orbit. A switch takes the dome and the
+building away to see the telescope turn.
+
+- Date: 2026-10-28
+- PR: [#320](https://github.com/celestiary/web/pull/320)
+- Epic: [#321](https://github.com/celestiary/web/issues/321) The Rubin Observatory and 2026 ED138
+- Permalink: [Open this view](https://celestiary.org/#sun/ed138)
+- Featured: yes
+
 ### Starlink drawn once with its overlay and the satellites both on
 
 With the Starlink overlay (`S`) and Earth's satellites both on, each Starlink was drawn twice, as a
@@ -1120,8 +1211,9 @@ and planning notes ([#173](https://github.com/celestiary/web/pull/173),
 [#200](https://github.com/celestiary/web/pull/200),
 [#215](https://github.com/celestiary/web/pull/215),
 [#222](https://github.com/celestiary/web/pull/222)), layer mode's guest drawing its frame once,
-not twice ([#305](https://github.com/celestiary/web/pull/305)), and its wide lines keeping up with a
-moving host camera ([#306](https://github.com/celestiary/web/pull/306)).
+not twice ([#305](https://github.com/celestiary/web/pull/305)), its wide lines keeping up with a
+moving host camera ([#306](https://github.com/celestiary/web/pull/306)), and keeping their width when
+the host's buffer changes size ([#316](https://github.com/celestiary/web/pull/316)).
 
 ## September 2026
 

@@ -9,13 +9,14 @@ import {
 import Asterisms from './Asterisms.js'
 import ColonizationLines from './ColonizationLines.js'
 import Galaxies, {galaxiesInView} from './Galaxies.js'
-import LagrangeMarks from './LagrangeMarks.js'
+import LagrangeMarks, {newRings} from './LagrangeMarks.js'
 import RegimeMarks from './RegimeMarks.js'
 import newGrids from './Grids.js'
 import newMilkyWay from './MilkyWay.js'
 import OrbitDiagram from './orbitDiagram.js'
 import {CODES, keyOfCode} from './orbitElements.js'
 import {G, collinearDistances, hillRadius, massKg, synchronousOrbit} from './lagrange.js'
+import {sceneReferred} from './hdr.js'
 import {REGIMES, semiMajorAxisOf, sunSyncInclination} from './regimes.js'
 import {FAMILIES, PERIODIC_DATA_URL, familyMember, familyOfCode, sampleMember, southern} from './periodicOrbits.js'
 import {manifolds} from './manifolds.js'
@@ -31,6 +32,11 @@ import Stars from './Stars.js'
 import StellarFrame from './StellarFrame.js'
 import {Fade, FadeDriver, fadeObject} from './fade.js'
 import {latLngAltToBodyFixed} from '../coords.js'
+import {J2000_JD, precessionQuaternion, utcToTtJulianDay} from './celestialFrame.js'
+import {orbitAt} from './meanElements.js'
+import {loadModel} from './model.js'
+import {newLabels} from './overlayMarks.js'
+import {newWideLineStrip} from './wideLines.js'
 import {newCameraGoToTween, newCameraLandTween, newCameraLookTween} from '../camera.js'
 import {faceKeepingRoll} from '../faceKeepingRoll.js'
 import {rehangPlatform} from '../follow.js'
@@ -84,6 +90,10 @@ export function formatLatLng(lat, lng) {
 
 
 const STEP_BACK = 10
+// How soon a guest page's ground height must come to aim a landing again,
+// ms (_reaimLanding): later, the approach is under way, and the ground floor
+// lifts the camera instead.
+const REAIM_MS = 500
 // A go to a satellite arrives above it unless the line in already does:
 // the cosine of the line from the vertical, at least.
 const SAT_ARRIVAL_MIN_UP = 0.3
@@ -173,6 +183,10 @@ export default class Scene {
     this.asterisms = null
     // Human expansion lines (ColonizationLines), built by the expansion drawer.
     this.colonization = null
+    // The Rubin Observatory and 2026 ED138's apparent path (rubin/install.js),
+    // built by the Rubin app (getRubin), with whether it's wanted now.
+    this.rubin = null
+    this._rubinWanted = false
     this.orbitsVisible = true
     // Toggleable settings.  Initialized to the runtime state right after
     // Scene construction (before any user / firstTime toggle): asterisms
@@ -196,6 +210,7 @@ export default class Scene {
       S: false, // Starlink (networks/Networks.md)
       I: false, // Iridium and its crosslinks
       D: false, // the Deep Space Network and its live links
+      i: true, // Earth's clouds: the shell and the volume (cloudsShown; the 'I' key)
       v: true, // nav panels / heads-up display (Celestiary-owned, see registerSettingApplier)
     }
     // Each overlay's fade (OVERLAY_KEYS), stepped once a frame by the
@@ -251,6 +266,8 @@ export default class Scene {
     // promise while it loads, then its module.
     this._flights = undefined
     this.loadFlights = () => import('./craft/flights.js')
+    // The Rubin feature, the same way (getRubin).
+    this.loadRubin = () => import('./rubin/install.js')
     // Whether vsopAt is VSOP87C itself yet (Animation.vsopReady): set by
     // Celestiary.  Absent, as in tests, it's taken as ready.
     this.vsopReady = null
@@ -285,6 +302,9 @@ export default class Scene {
     // The node the camera was riding when following was turned off, until
     // syncFollow has detached the camera from it.
     this._detachFrom = null
+    // A node the camera rides in place of its own position, landed: the
+    // Rubin Observatory's seat (rideSeat); null when it isn't.
+    this.seat = null
     // Populations round bodies (population/Population.md), by body: Earth's
     // satellites (satellites/Satellites.md), their chunk and snapshot
     // imported when something first needs them (loadSatellites), and any
@@ -588,6 +608,7 @@ export default class Scene {
       S: () => this.toggleNetwork('S'),
       I: () => this.toggleNetwork('I'),
       D: () => this.toggleNetwork('D'),
+      i: () => this.toggleClouds(),
       ...this._customAppliers,
     }
     for (const key of Object.keys(dispatch)) {
@@ -2367,6 +2388,7 @@ export default class Scene {
       state?.setLanded?.(false)
       Shared.targets.landed = false
     }
+    this.leaveSeat()
   }
 
 
@@ -2403,6 +2425,11 @@ export default class Scene {
    *   the saved view direction.
    * @param {object} [opts.target] The target after (`setTarget`, without
    *   the look): a place being landed at; else the body
+   * @param {number} [opts.groundHeight] The terrain's height at the place
+   *   over the sphere, metres, when the caller knows it (the Rubin
+   *   Observatory's, which stands on its own sample), in place of the
+   *   layer's: two samples of the same ground can differ by a tile's
+   *   level, and the observatory's visitor arrived a kilometre over it
    */
   land(bodyName, lat, lng, alt = DEFAULT_LAND_ALT_M, opts = {}) {
     const bodyNode = this.objects[bodyName]
@@ -2413,6 +2440,7 @@ export default class Scene {
     if (!r) {
       throw new Error(`Scene.land: body ${bodyName} has no radius`)
     }
+    this.leaveSeat()
 
     this.ui.scene.updateMatrixWorld()
 
@@ -2446,8 +2474,9 @@ export default class Scene {
     // loaded so far; ThreeUI keeps the camera over the ground as finer ones
     // arrive).  Not for a permalink restore: its altitude was measured over
     // the sphere, terrain included.
-    const ground = opts.instant ? 0 : this.ui.layers?.groundHeightAt?.(bodyNode, lat, lng) ?? 0
-    const arrivalLocal = latLngAltToBodyFixed(lat, lng, alt + ground, r)
+    const ground = opts.instant ? 0 :
+      opts.groundHeight ?? this.ui.layers?.groundHeightAt?.(bodyNode, lat, lng) ?? null
+    const arrivalLocal = latLngAltToBodyFixed(lat, lng, alt + (ground ?? 0), r)
 
     if (opts.instant) {
       // Snap into the landed pose; permalink restore will overwrite
@@ -2462,6 +2491,9 @@ export default class Scene {
       // owns both position AND orientation per frame.
       Shared.targets.tween = newCameraLandTween(this.ui.camera, arrivalLocal, r)
       Shared.targets.tweenNextFn = null
+      if (ground === null) {
+        this._reaimLanding(bodyNode, lat, lng, alt, r)
+      }
     }
 
     // On the surface a drag looks around.  It stays that way on zooming
@@ -2473,6 +2505,32 @@ export default class Scene {
     Shared.targets.landed = true
 
     this.setTarget(opts.target ?? bodyName, {look: false})
+  }
+
+
+  /**
+   * A Cesium layer on a guest page knows the terrain's height at a landing
+   * place only by message (CesiumLayers.requestGroundHeight): land aims at
+   * the sphere meanwhile, and this aims the landing again over the terrain
+   * when the answer comes, if it's the same landing and it has barely begun
+   * (REAIM_MS).  Later, the ground floor lifts the camera as it arrives
+   * (ThreeUi._keepAboveGround), as with coarse tiles on the page.
+   *
+   * @param {object} bodyNode
+   * @param {number} lat Degrees
+   * @param {number} lng Degrees, east-positive
+   * @param {number} alt Metres over the ground
+   * @param {number} r The body's radius, metres
+   */
+  _reaimLanding(bodyNode, lat, lng, alt, r) {
+    const asked = performance.now()
+    const tween = Shared.targets.tween
+    this.ui.layers?.requestGroundHeight?.(bodyNode, lat, lng)?.then((height) => {
+      if (height === null || Shared.targets.tween !== tween || performance.now() - asked > REAIM_MS) {
+        return
+      }
+      Shared.targets.tween = newCameraLandTween(this.ui.camera, latLngAltToBodyFixed(lat, lng, alt + height, r), r)
+    })
   }
 
 
@@ -2653,6 +2711,85 @@ export default class Scene {
       this.ui.scene.add(this._starAnchor)
     }
     return this._starAnchor
+  }
+
+
+  /**
+   * Put the camera in a seat: a node on a body that moves in the body's
+   * frame (the Rubin Observatory's seat, on its telescope's elevation
+   * structure: rubin/Rubin.md).  Landed on the body, as `land` leaves the
+   * camera (its platform on the body's spun node, a drag looks around),
+   * and from then on the camera's position is the seat's every frame
+   * (`syncFollow`), wherever the seat turns to; its orientation stays the
+   * user's, or tracking's.  A go tween takes the camera there, looking at
+   * `lookAt`, or the camera is put there at once.  Going somewhere,
+   * landing, a zoom (ThreeUi) and the seat's removal leave it
+   * (`leaveSeat`): the camera stays where it is, landed.
+   *
+   * @param {object} seat A node under a body's spun node (this.objects')
+   * @param {object} [opts]
+   * @param {Vector3} [opts.lookAt] Where to face on arrival, world space;
+   *   along the way the camera turns to it (camera.js newCameraGoToTween)
+   * @param {Vector3} [opts.up] The up at the arrival, world space (the
+   *   seat's zenith); else the camera keeps its roll
+   * @param {boolean} [opts.instant] Put the camera in the seat now, facing
+   *   as it does
+   */
+  rideSeat(seat, {lookAt = null, up = null, instant = false} = {}) {
+    let body = seat
+    while (body && !(body.props?.radius?.scalar > 0)) {
+      body = body.parent
+    }
+    if (!body) {
+      throw new Error('Scene.rideSeat: the seat is not on a body')
+    }
+    this.ui.scene.updateMatrixWorld()
+    const platform = this.ui.camera.platform
+    if (platform.parent !== body) {
+      rehangPlatform(platform, this.ui.camera, body)
+    }
+    Shared.targets.cur = body
+    this._followArrival(body.orbitPosition ?? null)
+    const local = platform.worldToLocal(seat.getWorldPosition(new Vector3))
+    if (instant || !lookAt) {
+      this.ui.camera.position.copy(local)
+      Shared.targets.tween = null
+    } else {
+      Shared.targets.tween = newCameraGoToTween(this.ui.camera, lookAt, local, {up})
+    }
+    Shared.targets.tweenNextFn = null
+    const state = this.ui.useStore?.getState?.()
+    state?.setDragMode?.('pan')
+    state?.setLanded?.(true)
+    Shared.targets.landed = true
+    this.seat = seat
+  }
+
+
+  /** Out of the seat (rideSeat), the camera staying where it is. */
+  leaveSeat() {
+    this.seat = null
+  }
+
+
+  /**
+   * The camera to the seat it rides (rideSeat), once the go there is over:
+   * each frame, after the animation has moved the seat, before tracking
+   * faces the target from there.
+   */
+  _syncSeat() {
+    const seat = this.seat
+    if (!seat || Shared.targets.tween?.travels) {
+      return
+    }
+    if (!seat.parent || this.ui.camera.platform.parent !== Shared.targets.cur) {
+      // Removed from the scene, or the camera has left the body.
+      this.seat = null
+      return
+    }
+    const platform = this.ui.camera.platform
+    platform.updateWorldMatrix(true, false)
+    this.ui.camera.position.copy(platform.worldToLocal(seat.getWorldPosition(this._seatPos ??= new Vector3)))
   }
 
 
@@ -2872,6 +3009,7 @@ export default class Scene {
    * Cheap when there is nothing to do: a few comparisons.
    */
   syncFollow() {
+    this._syncSeat()
     if (Shared.targets.tween?.travels) {
       return
     }
@@ -3119,6 +3257,49 @@ export default class Scene {
   }
 
 
+  /**
+   * The Rubin Observatory on Earth and 2026 ED138's apparent path
+   * (rubin/Rubin.md), built the first time the Rubin app asks, from a
+   * dynamic import: nothing of it is in the first load.
+   *
+   * @returns {Promise<?object>} install.js's {observatory, path, dispose};
+   *   null while Earth or the body isn't in the scene yet, or once it's
+   *   been removed meanwhile
+   */
+  async getRubin() {
+    this._rubinWanted = true
+    if (this.rubin) {
+      return this.rubin
+    }
+    if (!this.objects.earth || !this.objects['ed138.orbitPosition']) {
+      return null
+    }
+    const {installRubin} = await this.loadRubin()
+    if (!this._rubinWanted) {
+      return null
+    }
+    // The first load's functions it needs, handed in rather than imported
+    // there (rubin/rubin.js says why).
+    this.rubin ??= installRubin(this, {
+      orbitAt, precessionQuaternion, utcToTtJulianDay, J2000_JD, newRings, newLabels, newWideLineStrip, loadModel,
+      latLngAltToBodyFixed, sceneReferred, OVERLAY_LAYER: Shared.OVERLAY_LAYER, ASTRO_UNIT_METER: Shared.ASTRO_UNIT_METER,
+    })
+    return this.rubin
+  }
+
+
+  /** Out of the scene (the app's stop), and the naked eye the observer again. */
+  removeRubin() {
+    this._rubinWanted = false
+    if (this.rubin && this.seat === this.rubin.observatory.seat) {
+      this.leaveSeat()
+    }
+    this.ui.setInstrument?.(null)
+    this.rubin?.dispose()
+    this.rubin = null
+  }
+
+
   /** Remove the human expansion lines (its app stopped), freeing them. */
   removeColonization() {
     if (this.colonization) {
@@ -3204,6 +3385,23 @@ export default class Scene {
    * pinned to a Scene field.  Default-hidden by `enterAR()`; the user can
    * flip this back on with the 'U' shortcut once in AR.
    */
+  /**
+   * Earth's clouds on or off (the 'I' key, the atmosphere section's switch):
+   * the cloud shell reads cloudsShown each frame (Planet.newCloudShell's
+   * `ready`), and the volumetric clouds follow the shell (ThreeUi
+   * _drawCloudVolume).  Not an overlay: no fade, and 'V' leaves it be.
+   */
+  toggleClouds() {
+    this._flipSetting('i')
+  }
+
+
+  /** @returns {boolean} whether Earth's clouds are drawn (the 'i' setting) */
+  cloudsShown() {
+    return this._settings.i !== false
+  }
+
+
   toggleGalaxy() {
     let target = null
     this.ui.scene.traverse((obj) => {

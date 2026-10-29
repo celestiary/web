@@ -41,7 +41,7 @@ import {
   nightInView,
   sunLightDirectionEcef,
 } from './frames.js'
-import {newYorkOptions, newYorkRange, newYorkStatus} from './newYork.js'
+import {DEFAULT_GUEST_BASE, newYorkOptions, newYorkRange, newYorkStatus} from './newYork.js'
 import {groundInView, halfDiagonal, hiddenBehind, OCCLUDER_SCALE} from './visibility.js'
 import {fovScale} from '../farPoint.js'
 import {nightLightRadiance} from '../exposure.js'
@@ -54,6 +54,7 @@ import {
   absoluteUrl,
   applyView,
   createWidget,
+  renderNightLights,
   requestIon,
   sampleGround,
   terrainHeight,
@@ -62,10 +63,10 @@ import {
 } from './cesiumBody.js'
 import {latLngAltToBodyFixed} from '../../coords.js'
 import {perf} from '../../perf/perf.js'
-import {monthOfJulianDay} from '../monthly.js'
 import {dataUrl} from '../../dataUrl.js'
 import {sanitizeCredits} from '../../cesium-guest/credits.js'
-import {guestOptions} from '../../cesium-guest/origins.js'
+import {monthOfJulianDay} from '../monthly.js'
+import {GUEST_VERSION, guestOptions} from '../../cesium-guest/origins.js'
 
 
 export {tilesReady}
@@ -137,8 +138,18 @@ export default class CesiumLayers {
     this.guestPage = guestOptions(search)
     // How long a frame waits for a guest's frame of its view before it's
     // drawn with the last one in (?cesiumWait=ms; awaitingGuests).
-    this.guestWaitMs = Number(new URLSearchParams(search).get('cesiumWait')) || GUEST_WAIT_MS
-    this._viewId = 0
+    // Short when a late frame can be corrected to the camera, as long as
+    // before the correction when it can't (GuestPages.postViews); a
+    // ?cesiumWait sets both.
+    const wait = Number(new URLSearchParams(search).get('cesiumWait'))
+    this.guestWaitMs = wait || GUEST_WAIT_MS
+    this.guestWaitUncorrectedMs = wait || GUEST_WAIT_UNCORRECTED_MS
+    // A late frame from a guest page is composed for this frame's camera
+    // (portal-netgl's host reprojection, named targets: GuestPages);
+    // ?cesiumReproject=0 draws it as it was, to compare.
+    this.guestReproject = new URLSearchParams(search).get('cesiumReproject') !== '0'
+    // The guest pages' (GuestPages, loaded with the first): null without.
+    this.guests = null
     // ?nyc=1 is put in the store on the first frame with one (it isn't set
     // yet when ThreeUi makes this): _syncNewYork.
     this._newYorkFromUrl = this.newYork.enabled
@@ -288,55 +299,55 @@ export default class CesiumLayers {
 
 
   /**
-   * Send this frame's view to each body drawn by a guest page, one view in
-   * flight a body: the frame then waits for the guest's frame of it
-   * (awaitingGuests).  A body whose last view is still out gets none, and
-   * its last frame is drawn again.
+   * Send this frame's view to each body drawn by a guest page
+   * (GuestPages.postViews).
    *
    * @param {Array<{name: string, node: object}>} drawn This frame's active and warming bodies
    */
   _postGuestViews(drawn) {
-    const remote = drawn.filter(({name}) => this.bodies[name]?.remote && this.bodies[name].status === 'ready' &&
-      this.bodies[name].waiting === null)
-    if (remote.length === 0) {
-      return
-    }
-    // The bodies' matrices as the render will have them.
-    this.ui.scene?.updateMatrixWorld?.()
-    for (const {name, node} of remote) {
-      const body = this.bodies[name]
-      const view = this._viewOf(name, node)
-      const [width, height] = view.size
-      if (body.iframe.style.width !== `${width}px` || body.iframe.style.height !== `${height}px`) {
-        body.iframe.style.width = `${width}px`
-        body.iframe.style.height = `${height}px`
-      }
-      body.heightM = view.heightM
-      body.distanceScale = view.distanceScale
-      body.size = view.size
-      const viewId = ++this._viewId
-      body.waiting = viewId
-      body.posted = viewId
-      body.postedAt = performance.now()
-      body.holdUntil = body.postedAt + this.guestWaitMs
-      body.receiver.post({type: 'cesium:view', viewId, view})
-    }
+    this.guests?.postViews(drawn)
   }
 
 
   /**
    * @returns {boolean} Whether this frame waits for a guest page's frame of
-   *   its view (ThreeUi.renderLoop): one is in flight, and not for longer
-   *   than guestWaitMs
+   *   its view (ThreeUi.renderLoop; GuestPages.awaiting)
    */
   awaitingGuests() {
-    const now = performance.now()
-    for (const body of Object.values(this.bodies)) {
-      if (body.remote && body.waiting !== null && now < body.holdUntil) {
-        return true
-      }
-    }
-    return false
+    return this.guests?.awaiting() ?? false
+  }
+
+
+  /**
+   * Note how long a frame waited for its guests' (ThreeUi._drawFrame).
+   *
+   * @param {number} ms
+   */
+  noteWait(ms) {
+    this.guests?.noteWait(ms)
+  }
+
+
+  /**
+   * @returns {Array<object>} The guest pages' timing for ?perf=1's snapshot
+   *   (perf.js; GuestPages.stats); empty with none
+   */
+  guestStats() {
+    return this.guests?.stats() ?? []
+  }
+
+
+  /**
+   * The terrain's height at a place from a guest page, which gives it by
+   * message (GuestPages.requestGroundHeight; Scene._reaimLanding).
+   *
+   * @param {object} node A body's rotating node
+   * @param {number} lat Degrees
+   * @param {number} lng Degrees, east-positive
+   * @returns {Promise<number|null>} Null where no active body is on one
+   */
+  requestGroundHeight(node, lat, lng) {
+    return this.guests?.requestGroundHeight(node, lat, lng) ?? Promise.resolve(null)
   }
 
 
@@ -475,24 +486,15 @@ export default class CesiumLayers {
    */
   _drawNightLights(sceneRT, cesiumRT, name, node) {
     const body = this.bodies[name]
+    if (body?.remote) {
+      // A guest page's lights part, drained with its day frame.
+      this.guests?.drawLights(sceneRT, body, node)
+      return
+    }
     if (!this._lightsShow(body)) {
       return
     }
-    const {renderer, camera} = this.ui
-    const {Cesium, widget} = body
-    const {globe} = widget.scene
-    const layers = widget.imageryLayers
-    // Only the night layer, unlit, on black: the others are skipped, not
-    // hidden, so their tiles stay loaded for the day frame.
-    const alphas = []
-    for (let i = 0; i < layers.length; i++) {
-      const layer = layers.get(i)
-      alphas.push([layer, layer.alpha])
-      layer.alpha = layer === body.night ? 1 : 0
-    }
-    const baseColor = globe.baseColor
-    globe.baseColor = Cesium.Color.BLACK
-    globe.enableLighting = false
+    const {renderer} = this.ui
     // The city black, not hidden: its buildings must hide the imagery's
     // lights on the ground under and behind them.  Hidden, the globe's
     // lights drew in the city's pixels (the day frame's stencil), Black
@@ -516,9 +518,10 @@ export default class CesiumLayers {
     renderer.setClearColor(this._clearColor, clearAlpha)
     body.Cesium.Ellipsoid.default = body.ellipsoid
     try {
-      body.link.frame(() => {
+      // Only the night layer, unlit, on black.
+      renderNightLights(body, () => body.link.frame(() => {
         body.widget.render()
-      })
+      }))
     } catch (err) {
       // The lights are an extra: without them the body's Cesium layer
       // stays, as the day frame already drew.
@@ -526,11 +529,6 @@ export default class CesiumLayers {
       body.night = null
       return
     } finally {
-      for (const [layer, alpha] of alphas) {
-        layer.alpha = alpha
-      }
-      globe.baseColor = baseColor
-      globe.enableLighting = true
       if (hide) {
         city.setShown(cityShown)
       } else {
@@ -538,11 +536,25 @@ export default class CesiumLayers {
       }
     }
     renderer.resetState()
+    this._decodeLights(sceneRT, cesiumRT, node)
+  }
 
+
+  /**
+   * Add a night lights' frame, in a render target, into the scene's render:
+   * Cesium's (_drawNightLights) or a guest page's lights part
+   * (_drawGuestLights).
+   *
+   * @param {object} sceneRT
+   * @param {object} lightsRT Holding the lights' frame
+   * @param {object} node The body's node
+   */
+  _decodeLights(sceneRT, lightsRT, node) {
+    const {renderer, camera} = this.ui
     // The decode: the body's sphere and the Sun in view space, for each
     // pixel's N·L.
     const u = this.lights.material.uniforms
-    u.tCesium.value = cesiumRT.texture
+    u.tCesium.value = lightsRT.texture
     u.uHdr.value = this.ui.hdr === true ? 1 : 0
     u.uGain.value = nightLightRadiance() * renderer.toneMappingExposure
     u.uProjectionInverse.value.copy(camera.projectionMatrixInverse)
@@ -699,16 +711,15 @@ export default class CesiumLayers {
     // 2. Cesium, from celestiary's camera, into the stencilled pixels.
     if (body.remote) {
       // A guest page's frames, as they came: this frame's view's, or, if
-      // it's still out, the last one again (the receiver's re-run).
+      // it's still out, the last one again (the receiver's re-run),
+      // corrected to this frame's camera (GuestPages._correction).
+      body.node = node
+      this.guests.beforeDrain(body, unseen)
       perf.begin('cesium.replay')
-      body.receiver.drain()
+      const drew = body.receiver.drain()
       perf.end('cesium.replay')
       renderer.resetState()
-      // In step: this frame drew the guest's frame of this frame's view.
-      body.steps.drawn++
-      if (body.receiver.drainedViews.at(-1) === body.posted) {
-        body.steps.inStep++
-      }
+      this.guests.afterDrain(body, drew, unseen)
       return
     }
     this._setCesiumView(name, body, node)
@@ -807,6 +818,7 @@ export default class CesiumLayers {
    * @param {number} lat Degrees
    * @param {number} lng Degrees, east-positive
    * @returns {number|null} Metres, or null when no active layer knows it
+   *   here (a guest page's answers by message: requestGroundHeight)
    */
   groundHeightAt(node, lat, lng) {
     const a = this.active.find((x) => x.node === node)
@@ -878,13 +890,15 @@ export default class CesiumLayers {
 
 
   /**
+   * @param {string} [key] The target's field: _cesiumRT, or a guest page's
+   *   night lights' _lightsRT (GuestPages.lightsTarget), made alike
    * @returns {object} _cesiumRT: where Cesium's frames draw, the size of
    *   _sceneRT, 8-bit colour (what Cesium hands over is 8-bit already) and
    *   a depth-stencil texture like _sceneRT's, for the depth copy
    */
-  _cesiumTarget() {
+  _cesiumTarget(key = '_cesiumRT') {
     const sceneRT = this.ui._sceneRT
-    if (!this._cesiumRT) {
+    if (!this[key]) {
       // Nearest: the decode reads each texel as it is.  Filtered, a pixel
       // just off the terrain's edge read a sliver of its alpha, a distance
       // of ~0, and drew black, nearest the camera.
@@ -893,9 +907,9 @@ export default class CesiumLayers {
       rt.depthTexture = new DepthTexture()
       rt.depthTexture.format = DepthStencilFormat
       rt.depthTexture.type = UnsignedInt248Type
-      this._cesiumRT = rt
+      this[key] = rt
     }
-    const rt = this._cesiumRT
+    const rt = this[key]
     if (rt.width !== sceneRT.width || rt.height !== sceneRT.height) {
       rt.setSize(sceneRT.width, sceneRT.height)
     }
@@ -905,19 +919,22 @@ export default class CesiumLayers {
 
 
   /**
-   * Copy depth between two same-size DEPTH24_STENCIL8 render targets.
+   * Copy depth, and the stencil if asked, between two same-size
+   * DEPTH24_STENCIL8 render targets.
    *
    * @param {object} from
    * @param {object} to
+   * @param {boolean} [stencil]
    */
-  _blitDepth(from, to) {
+  _blitDepth(from, to, stencil = false) {
     const {renderer} = this.ui
     const gl = renderer.getContext()
     // The blit honours the scissor test.
     renderer.resetState()
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.properties.get(from).__webglFramebuffer)
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.properties.get(to).__webglFramebuffer)
-    gl.blitFramebuffer(0, 0, from.width, from.height, 0, 0, to.width, to.height, gl.DEPTH_BUFFER_BIT, gl.NEAREST)
+    const bits = gl.DEPTH_BUFFER_BIT | (stencil ? gl.STENCIL_BUFFER_BIT : 0)
+    gl.blitFramebuffer(0, 0, from.width, from.height, 0, 0, to.width, to.height, bits, gl.NEAREST)
     renderer.resetState()
   }
 
@@ -1094,14 +1111,28 @@ export default class CesiumLayers {
       this._updateNewYork(body, view.position)
     }
     this._sampleGround(body, name)
-    // Whether any of the night side is in the frame, for the lights' pass
-    // (_lightsShow): out to Cesium's shell, where its pixels end.
+    body.nightInView = this._nightInView(body, name, node, view)
+  }
+
+
+  /**
+   * Whether any of the night side is in the frame, for the lights' pass
+   * (_lightsShow): out to Cesium's shell, where its pixels end.
+   *
+   * @param {object} body
+   * @param {string} name
+   * @param {object} node The body's node
+   * @param {object} view This frame's (_viewOf), which set _lastEcefView
+   * @returns {boolean}
+   */
+  _nightInView(body, name, node, view) {
+    if (!body.night) {
+      return false
+    }
     const {camera} = this.ui
     const {radii, shellScale} = CESIUM_BODIES[name]
-    body.nightInView = body.night ?
-      nightInView(this._lastEcefView, camera.fov * toRad, camera.aspect, view.sunDirection, node.props.radius.scalar,
-          shellScale * Math.max(...radii)) :
-      false
+    return nightInView(this._lastEcefView, camera.fov * toRad, camera.aspect, view.sunDirection,
+        node.props.radius.scalar, shellScale * Math.max(...radii))
   }
 
 
@@ -1208,12 +1239,26 @@ export default class CesiumLayers {
 
   /**
    * Load Cesium and set up the body's widget and NetGL link; or, with a
-   * guest page (?cesium=iframe), Earth's iframe and receiver (_loadGuest).
+   * guest page (?cesium=iframe), the body's iframe and receiver
+   * (GuestPages.load, by _loadGuest): a page for each body, Cesium then not
+   * loaded here at all.
    *
    * @param {string} name
    */
   async _load(name) {
-    if (this.guestPage && name === 'earth') {
+    if (this.guestPage) {
+      // Loading from now, as _loadGuest's body would say: beforeRender asks
+      // for each body until it has one.
+      this.bodies[name] = {status: 'loading'}
+      this._publishStatus(name, 'loading')
+      let GuestPages
+      try {
+        ({default: GuestPages} = await import('./guestPages.js'))
+      } catch (err) {
+        this._fail(name, err)
+        return
+      }
+      this.guests ??= new GuestPages(this, GUEST_VERSION)
       await this._loadGuest(name)
       return
     }
@@ -1235,94 +1280,119 @@ export default class CesiumLayers {
 
 
   /**
-   * The body's Cesium on a page of its own (design/CesiumGuest.md): an
-   * iframe on the guest page's origin, a NetGL receiver for its frames,
-   * and its status by message.  Ready once the guest's handshake is in.
+   * A body's guest page's URL (GuestPages.load): the page, the body, the
+   * month, celestiary's data, this page's origin, and New York's options
+   * for Earth's city (newYork.js; the guest checks nycGuest against the
+   * same list).
    *
    * @param {string} name
+   * @returns {URL}
    */
-  async _loadGuest(name) {
-    this.bodies[name] = {status: 'loading'}
-    this._publishStatus(name, 'loading')
-    let netgl
-    try {
-      netgl = await import('@pablo-mayrgundter/portal-netgl/core')
-    } catch (err) {
-      this._fail(name, err)
-      return
-    }
+  _guestPageUrl(name) {
     const page = new URL(this.guestPage)
     page.searchParams.set('body', name)
     page.searchParams.set('month', String(this._month()))
     page.searchParams.set('data', absoluteUrl(dataUrl('')))
     page.searchParams.set('host', location.origin)
-    const iframe = document.createElement('iframe')
-    // Laid out at the frame's size, but not seen: the guest's Cesium sizes
-    // its canvas from its page (display: none would give it none).
-    Object.assign(iframe.style, {
-      position: 'fixed', left: '0', top: '0', border: '0', visibility: 'hidden', pointerEvents: 'none', zIndex: '-1',
-      width: `${this.ui.width}px`, height: `${this.ui.height}px`,
-    })
-    iframe.src = page.href
-    document.body.appendChild(iframe)
-    const body = {
-      status: 'loading', remote: true, name, iframe, frames: 0, tilesLoaded: false, groundHeight: null,
-      waiting: null, posted: null, postedAt: 0, holdUntil: 0, size: null, credits: this._creditsFor(),
-      // Frames drawn, those in step with their view, and the guest's
-      // round trips (a view posted to its frame in), for design/CesiumGuest.md.
-      steps: {drawn: 0, inStep: 0, trips: 0, tripMs: 0},
+    if (name === 'earth') {
+      if (this.newYork.guestBase !== DEFAULT_GUEST_BASE) {
+        page.searchParams.set('nycGuest', this.newYork.guestBase)
+      }
+      if (this.newYork.shadows) {
+        page.searchParams.set('nycShadows', '1')
+      }
+      if (!this.newYork.lean) {
+        page.searchParams.set('nycLean', '0')
+      }
     }
-    this.bodies[name] = body
-    const own = () => this.bodies[name] === body
-    const {renderer} = this.ui
-    body.receiver = netgl.makeNetGLHostReceiver({
-      gl: renderer.getContext(),
-      // Pinned to the guest page's origin: the receiver may hand it a port.
-      transport: netgl.iframeTransport(iframe, {origin: page.origin}),
-      wire: 2,
-      replay: this._replayConfig(() => body.size),
-      onReady: () => {
-        if (own() && body.status === 'loading') {
-          body.status = 'ready'
-          this._publishStatus(name, 'ready')
-        }
-      },
-      onControl: (msg) => own() && this._onGuestMessage(name, body, msg),
-      onError: (err) => console.warn('[cesium layer] replay error:', err),
-    })
-    body.receiver.onFrame((end) => {
-      if (!own()) {
-        return
-      }
-      body.frames++
-      if (end.viewId === undefined || end.viewId === body.waiting) {
-        body.steps.trips++
-        body.steps.tripMs += performance.now() - body.postedAt
-        body.waiting = null
-        this.ui.resumeFrame?.()
-      }
-    })
+    return page
   }
 
 
   /**
-   * A guest page's own messages: its status after each frame, or its
-   * failure.
+   * A body's view for its guest page (GuestPages.postViews): _viewOf's, and
+   * for Earth the city's range from it, for the layers control
+   * (_publishNewYork).
    *
    * @param {string} name
-   * @param {object} body
-   * @param {object} msg
+   * @param {object} node
+   * @returns {object}
    */
-  _onGuestMessage(name, body, msg) {
-    if (msg?.type === 'cesium:status') {
-      body.tilesLoaded = msg.tilesLoaded === true
-      body.groundHeight = Number.isFinite(msg.groundHeight) ? msg.groundHeight : null
-      if (msg.credits) {
-        showCredits(body.credits, sanitizeCredits(msg.credits))
-      }
-    } else if (msg?.type === 'cesium:error') {
-      this._fail(name, new Error(`the Cesium guest page failed: ${String(msg.message).slice(0, 300)}`))
+  _guestViewOf(name, node) {
+    const view = this._viewOf(name, node)
+    if (name === 'earth') {
+      this._newYorkRange = newYorkRange(view.position, view.heightM)
     }
+    return view
+  }
+
+
+  /**
+   * The view matrix (world → eye, ECEF, column-major) a guest page's
+   * Cesium would have for this frame's camera: what applyView sets from a
+   * posted view, through Cesium's Camera (unit direction and up, right
+   * their cross) and Matrix4.computeView.  A late frame's correction is
+   * to it (GuestPages._correction).
+   *
+   * @param {string} name
+   * @param {object} node The body's scene node
+   * @returns {Array<number>}
+   */
+  _ecefViewMatrix(name, node) {
+    const view = cameraToEcefView(this.ui.camera.matrixWorld, node.matrixWorld)
+    const p = ellipsoidCameraPosition(view.position, node.props.radius.scalar, CESIUM_BODIES[name].radii)
+    const unit = (v) => {
+      const n = Math.hypot(v[0], v[1], v[2]) || 1
+      return [v[0] / n, v[1] / n, v[2] / n]
+    }
+    const d = unit(view.direction)
+    const u = unit(view.up)
+    const r = unit([(d[1] * u[2]) - (d[2] * u[1]), (d[2] * u[0]) - (d[0] * u[2]), (d[0] * u[1]) - (d[1] * u[0])])
+    const dot = (a, b) => (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2])
+    return [r[0], u[0], -d[0], 0, r[1], u[1], -d[1], 0, r[2], u[2], -d[2], 0, -dot(r, p), -dot(u, p), dot(d, p), 1]
+  }
+
+
+  /**
+   * A guest page's frame's projection for this frame's camera: its near
+   * and far (Cesium's, the z row), with the scales of the camera's field
+   * and aspect now.  After a resize the copy to the screen stretches the
+   * frame to the new size, which keeps clip space, so the correction must
+   * land in this one, not the frame's (GuestPages._correction).
+   *
+   * @param {Array<number>} projection The frame's (its frame-end's)
+   * @returns {Array<number>}
+   */
+  _ecefProjection(projection) {
+    const {camera, width, height} = this.ui
+    const y = 1 / Math.tan(camera.fov * toRad / 2)
+    const p = Array.from(projection)
+    p[0] = y / (width / Math.max(1, height))
+    p[5] = y
+    return p
+  }
+
+
+  /**
+   * A guest page's credits, as data (GuestPages; credits.js), drawn with
+   * celestiary's own elements.
+   *
+   * @param {object} body
+   * @param {Array<object>} items
+   */
+  _showGuestCredits(body, items) {
+    showCredits(body.credits, sanitizeCredits(items))
+  }
+
+
+  /**
+   * A body's guest page (GuestPages.load).
+   *
+   * @param {string} name
+   * @returns {Promise<void>}
+   */
+  _loadGuest(name) {
+    return this.guests.load(name)
   }
 
 
@@ -1332,14 +1402,18 @@ export default class CesiumLayers {
    *
    * @param {function(): ?Array<number>} canvasSize The guest canvas's
    *   drawing buffer [w, h], for mapping its viewport onto _cesiumRT
+   * @param {object} [body] A guest page's body, whose lights part goes to
+   *   its guest pages' lights target (GuestPages.lightsTarget)
    * @returns {object} portal-netgl's replay config
    */
-  _replayConfig(canvasSize) {
+  _replayConfig(canvasSize, body = null) {
     const {renderer} = this.ui
     return {
       // Cesium's "screen" is _cesiumRT, which composite() then brings into
-      // celestiary's scene render target.
-      screenFramebuffer: () => renderer.properties.get(this._cesiumTarget()).__webglFramebuffer,
+      // celestiary's scene render target; a guest page's lights part's is
+      // the guest pages' lights target (beforeFrame sets the part).
+      screenFramebuffer: () => renderer.properties.get(body?.part === 'emission' ?
+        this.guests.lightsTarget() : this._cesiumTarget()).__webglFramebuffer,
       remapScreenViewport: (x, y, w, h) => {
         const size = canvasSize()
         const target = this._cesiumRT
@@ -1485,11 +1559,14 @@ export default class CesiumLayers {
   }
 
 
-  /** Stop and free the city, if it's loaded or loading. */
+  /** Stop and free the city, if it's loaded or loading, here or on Earth's guest page. */
   _freeNewYork() {
     const nyc = this._newYork
     this._newYork = null
     nyc?.city?.dispose()
+    if (nyc?.remote) {
+      this.bodies.earth?.receiver?.post({type: 'cesium:newYork', on: false})
+    }
   }
 
 
@@ -1827,7 +1904,13 @@ function newDecodeMaterial() {
 const STENCIL_REF = 1
 // How long a frame waits for a guest page's frame of its view, ms, before
 // it's drawn with the last one (CesiumLayers.awaitingGuests).
-const GUEST_WAIT_MS = 100
+// Short, since a late frame is corrected to the camera rather than drawn
+// where it was (RFC 0003 §4.6): 100 ms until the correction.
+const GUEST_WAIT_MS = 30
+// Its frame couldn't be corrected (no view and projection, a move too
+// large for float32): 100 ms, the wait before the correction, since a frame
+// drawn where it was shows the shell's edge uncovered near the ground.
+const GUEST_WAIT_UNCORRECTED_MS = 100
 // Smallest on-screen radius, in pixels, at which a body is drawn by Cesium:
 // under a few pixels across, celestiary's own mesh shows the same.
 const MIN_PIXEL_RADIUS = 2

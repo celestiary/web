@@ -790,6 +790,7 @@ Camera orientation and position are separated across three input modes, all accu
 | `c` | Snap look at current target, squaring the roll to the ecliptic's up |
 | `j` / `k` / `l` | Reverse, slow down, speed up time: paused too, when the step is often set; the display shows it and resuming runs at it |
 | `-` / `=` (or `+`) | Exposure compensation down / up a third of a stop (EV), over the metered exposure; the readout shows "EV +1.3" for two seconds |
+| `,` / `.` / `/` | Narrow and broaden the field of view by ×0.9 and ×1.1 (`multFov`), and reset it to 45° (`resetFov`).  Free with the naked eye; while an app's instrument has a field range and its limit is on (the Rubin app's "Rubin's optics"), `setFov` holds the field between the instrument's widest field and its pixel limit, so the keys stop at each end and `/` resets to the widest ([HDR.md, the instrument](js/scene/HDR.md#the-instrument); [Rubin.md, the optics](js/scene/rubin/Rubin.md#the-optics)) |
 | `[` / `]` | The stars' setting: the limiting magnitude's offset from the naked eye's, 0.5 mag a press (not the exposure); 0 is the default, shown as "Stars +1.0 mag" and in the link as `sm=` ([design/URLs.md](design/URLs.md#view)) |
 | Click / tap a label (a star, planet, moon, asterism or place name) | Target it and do nothing else: `c` then faces it, `g` goes ([Picking labels](#picking-labels)) |
 | Double-click / double-tap a label | Go to it, as `g` does |
@@ -951,7 +952,7 @@ each the same for all of them:
 
 | Stage | What | Where |
 |---|---|---|
-| Target switch | `setTarget` keys the exposure to the body (its distance from the Sun) and asks for its surface (`preloadNear`, served next frame), for a moon its planet's too, so its maps load while the camera turns | `Scene.setTarget`, `Planet.preloadNear` |
+| Target switch | `setTarget` keys the exposure to the body (its distance from the Sun; landed, to the body the camera stands on, whatever is targeted: [HDR.md, metered exposure](js/scene/HDR.md#metered-exposure)) and asks for its surface (`preloadNear`, served next frame), for a moon its planet's too, so its maps load while the camera turns | `Scene.setTarget`, `Planet.preloadNear` |
 | Exposure on the way | `goTo` hands the UI the travel (`ThreeUi.approach`): from the arrival pose it works out the gain the meter will settle on there (the sunlit-disc anchor of the body and whatever else that frame holds, over an otherwise dark frame: `exposure.js arrivalGain`), and each frame of the travel renders at the exposure without the travel blended to the arrival's, evenly in stops, by the position channel's eased progress (`approachExposure`, `tween.travelProgress()`).  On arriving the meter is handed that gain; readings of frames drawn on the way don't set its goal | `ThreeUi._approachStep`, [HDR.md, travel](js/scene/HDR.md#travel) |
 | LOD hand-off | the far point's light goes over to the disc's within 4× of the distance where the mesh takes over (`farPointLevel`), the small disc draws a few pixels at their coverage and writes the sphere's depth (so the atmosphere pass draws its sky over it), and the full mesh takes over at 24 px, all at the same exposure | [the far point](#the-far-point), [Planet.md, small discs](js/scene/Planet.md#small-discs) |
 | Surface before its maps | one-texel stand-ins (the colour map's mean over the sphere, a flat normal) until each map is in, so a slow map never leaves the body missing or black | `standInMaps.js`, [Planet.md, while the maps load](js/scene/Planet.md#while-the-maps-load) |
@@ -1199,6 +1200,20 @@ single point beyond (the `planet LOD`'s second level, `js/scene/farPoint.js`,
   to a disc of 0.5, seven times dimmer, as it was approached.  Farther
   out it is the marker as before.  A body with no colour map keeps the
   marker throughout.
+- **Never a mesh past 2^22 radii** (`FAR_BODY_RATIO`, `isFarBody`; #338).
+  float32 places what the camera sees at distance d to about d * 2^-24, so
+  past 2^22 radii a body's vertices land to within a quarter of its radius
+  at best, and its mesh jumps, loses parts or isn't drawn as the camera
+  moves (2026 ED138 from the Rubin seat: 500 km at 47 au, 1.4e7 radii;
+  [#334](https://github.com/celestiary/web/issues/334)).  There the planet
+  LOD (`FovLOD({radius})`) never chooses the mesh, whatever the field, and
+  `handoffRatio` is infinite, so `farPointLevel` is the marker and the
+  point doesn't fade toward a disc that never comes.  2^22 and not 2^23
+  because Pluto at 39 au (4.9e6 radii) shows the same defect: float32's
+  step there is 0.44 of its radius, 11 px on a 100 px disc at a 0.0001°
+  field.  The point is one position with no shape to break up; the
+  body's path and orbit line, which are float32 too, still quantise
+  ([#340](https://github.com/celestiary/web/issues/340)).
 - **Not tone mapped** (`toneMapped: false`): the exposure follows the
   targeted body (~1e-17 far out), which drew the marker black (#85).  The
   colour is a display value, so it must be made with `point()`
@@ -1277,7 +1292,11 @@ human expansion lines, etc.).  `V` is the union
 of all the lowercase scene-annotation toggles.  The space networks (Starlink,
 Iridium, the Deep Space Network: [Networks.md](js/scene/networks/Networks.md))
 are three overlays of their own (settings `S`, `I`, `D`), toggled from
-Settings' Networks rows rather than keys, and in `V` too.
+Settings' Networks rows rather than keys, and in `V` too.  Earth's clouds
+are scene content, not an annotation: the `I` key (Celestia's `i`; the
+setting `i`, so `s=i` is clouds off) and the atmosphere section's switch
+hide the shell and the volumetric clouds (`Scene.toggleClouds`), with no
+fade, and `V` leaves them be.
 
 **When adding a new visual feature, decide which group it belongs in and
 wire it through the corresponding toggle method.**  Surface place labels,

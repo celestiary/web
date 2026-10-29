@@ -1,9 +1,11 @@
-import {AlwaysDepth, LOD, Object3D, PerspectiveCamera, Vector3} from 'three'
+import {AlwaysDepth, LOD, Matrix4, Object3D, PerspectiveCamera, Vector3} from 'three'
+import * as netgl from '@pablo-mayrgundter/portal-netgl/core'
 import {ASTRO_UNIT_METER} from '../../shared.js'
 import {exposureAt, METER_EVERY_FRAMES, nightLightRadiance} from '../exposure.js'
 import {MeterCadence} from '../meterReadback.js'
 import {clearSharedImages, sharedObjectUrl} from '../sharedImage.js'
 import CesiumLayers, {bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
+import GuestPages from './guestPages.js'
 import {CESIUM_BODIES} from './bodies.js'
 
 
@@ -615,10 +617,20 @@ describe('ion requests', () => {
 })
 
 
+/**
+ * @param {object} L A CesiumLayers
+ * @returns {object} L, with its guest pages' (as _load gives it the first)
+ */
+function withGuests(L) {
+  L.guests = new GuestPages(L)
+  return L
+}
+
+
 describe('a body on a guest page (?cesium=iframe)', () => {
   const setup = () => {
-    const L = new CesiumLayers({})
-    L._viewOf = () => ({size: [480, 300], heightM: 2e7, distanceScale: 1e7})
+    const L = withGuests(new CesiumLayers({}))
+    L._viewOf = () => ({size: [480, 300], heightM: 2e7, distanceScale: 1e7, position: [2.7e7, 0, 0]})
     const posted = []
     const body = {
       status: 'ready', remote: true, iframe: {style: {}}, waiting: null, holdUntil: 0,
@@ -656,6 +668,23 @@ describe('a body on a guest page (?cesium=iframe)', () => {
     expect(body.waiting).not.toBe(null)
   })
 
+  it('loads every body from a guest page of its own, Cesium not on this page', async () => {
+    const L = new CesiumLayers({})
+    L.guestPage = 'https://guest.example/cesium-guest.html'
+    const guests = []
+    L._loadGuest = (name) => {
+      guests.push(name)
+      return Promise.resolve()
+    }
+    for (const name of ['earth', 'moon', 'mars']) {
+      await L._load(name)
+    }
+    expect(guests).toEqual(['earth', 'moon', 'mars'])
+    // The guest pages' code, loaded with the first (none in the first load).
+    expect(L.guests).toBeInstanceOf(GuestPages)
+    expect(L.bodies.moon).toEqual({status: 'loading'})
+  })
+
   it('sends nothing to a guest not yet ready, nor to a body on this page', () => {
     const {L, body, posted, earth} = setup()
     body.status = 'loading'
@@ -663,5 +692,382 @@ describe('a body on a guest page (?cesium=iframe)', () => {
     L.bodies.moon = {status: 'ready'}
     L._postGuestViews([{name: 'moon', node: {}}])
     expect(posted).toHaveLength(0)
+  })
+})
+
+
+describe('a guest page\'s night lights', () => {
+  const setup = () => {
+    const L = withGuests(new CesiumLayers({}))
+    L._viewOf = () => ({size: [480, 300], heightM: 2e7, distanceScale: 1e7, position: [2.7e7, 0, 0]})
+    L._nightInView = () => true
+    // As _lightsShow, but at any exposure.
+    L._lightsShow = (b) => Boolean(b.night && b.nightInView)
+    const posted = []
+    const body = {
+      status: 'ready', remote: true, iframe: {style: {}}, waiting: null, holdUntil: 0, night: true, parts: false,
+      frames: 0, steps: {drawn: 0, inStep: 0, trips: 0, tripMs: 0},
+      receiver: {post: (msg) => posted.push(msg)},
+    }
+    L.bodies.earth = body
+    const post = () => {
+      body.waiting = null
+      L._postGuestViews([{name: 'earth', node: {}}])
+      return posted.at(-1)
+    }
+    return {L, body, post}
+  }
+
+  it('are asked for once the receiver routes parts, where the guest has them', () => {
+    const {L, body, post} = setup()
+    // portal-netgl before 0.6.8: no beforeFrame, so never asked for.
+    expect(post().lights).toBe(false)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 1})
+    expect(body.parts).toBe(true)
+    expect(post().lights).toBe(true)
+    expect(body.postedLights).toBe(true)
+    // A guest without them (an older page, or their frame failed).
+    body.night = false
+    expect(post().lights).toBe(false)
+  })
+
+  it('land the view with their part, the day frame alone not', () => {
+    const {L, body, post} = setup()
+    L.guests._onPart(body, {type: 'netgl:frame-end'})
+    const {viewId} = post()
+    L.guests._onFrame(body, {type: 'netgl:frame-end', viewId})
+    expect(body.waiting).toBe(viewId)
+    expect(body.frames).toBe(0)
+    L.guests._onFrame(body, {type: 'netgl:frame-end', viewId, part: 'lights'})
+    expect(body.waiting).toBe(null)
+    expect(body.frames).toBe(1)
+  })
+
+  it('replay into their own target, the day frame into Cesium\'s', () => {
+    const fbs = new Map()
+    const L = withGuests(new CesiumLayers({renderer: {properties: {get: (rt) => ({__webglFramebuffer: fbs.get(rt)})}}}))
+    const day = {}
+    const lights = {}
+    fbs.set(day, 'day').set(lights, 'lights')
+    L._cesiumTarget = () => day
+    L.guests.lightsTarget = () => lights
+    const body = {}
+    const config = L._replayConfig(() => [480, 300], body)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 2})
+    expect(config.screenFramebuffer()).toBe('day')
+    expect(body.drainedLights).toBeUndefined()
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 2, part: 'lights'})
+    expect(config.screenFramebuffer()).toBe('lights')
+    expect(body.drainedLights).toBe(true)
+    // The page's own link: no body, always Cesium's.
+    expect(L._replayConfig(() => null).screenFramebuffer()).toBe('day')
+  })
+})
+
+
+describe('a guest page\'s late frames, corrected (portal-netgl 0.6.10)', () => {
+  const R = 6371000
+  const setup = () => {
+    const camera = new PerspectiveCamera(45, 1.6, 1, 1e9)
+    camera.position.set(0, 0, 3 * R)
+    camera.lookAt(0, 0, 0)
+    camera.updateMatrixWorld()
+    const L = withGuests(new CesiumLayers({camera, width: 480, height: 300}))
+    const node = {matrixWorld: new Matrix4(), props: {radius: {scalar: R}}}
+    return {L, camera, node}
+  }
+  const apply = (m, v) => [0, 1, 2, 3].map((r) => (m[r] * v[0]) + (m[4 + r] * v[1]) + (m[8 + r] * v[2]) + (m[12 + r] * v[3]))
+
+  it('Cesium\'s view for this frame\'s camera puts the camera at the origin, looking down -z', () => {
+    const {L, node} = setup()
+    const V = L._ecefViewMatrix('earth', node)
+    const {position} = L._viewOf('earth', node)
+    const eye = apply(V, [...position, 1])
+    for (const c of eye.slice(0, 3)) {
+      expect(Math.abs(c)).toBeLessThan(1e-6)
+    }
+    // Towards the body's centre is straight ahead.
+    const ahead = apply(V, [-position[0], -position[1], -position[2], 0])
+    const n = Math.hypot(...ahead.slice(0, 3))
+    expect(ahead[2] / n).toBeCloseTo(-1, 9)
+  })
+
+  it('no correction for the frame of the view posted this frame; the camera\'s move for an older one', () => {
+    const {L, camera, node} = setup()
+    const body = {name: 'earth', node, posted: 7, postedTick: 0}
+    L.guests._tick = 0
+    const V = L._ecefViewMatrix('earth', node)
+    const P = [1, 0, 0, 0, 0, 1.6, 0, 0, 0, 0, -1, -1, 0, 0, -2, 0]
+    const end = {type: 'netgl:frame-end', viewId: 7, viewMatrix: V, projectionMatrix: P}
+    expect(L.guests._correction(netgl, body, 7, end)).toBe(null)
+    // No view and projection (several frusta, an older page): none.
+    expect(L.guests._correction(netgl, body, 6, {type: 'netgl:frame-end', viewId: 6})).toBe(null)
+    // The camera turns and moves a little, and the frame is the last one again.
+    camera.position.set(300, 0, 3 * R)
+    camera.rotateY(0.02)
+    camera.updateMatrixWorld()
+    L.guests._tick = 1
+    const C = L.guests._correction(netgl, body, 7, end)
+    const now = {viewMatrix: L._ecefViewMatrix('earth', node), projectionMatrix: L._ecefProjection(P)}
+    expect(C).toEqual(netgl.reprojection(end, now))
+    expect(body.corrected).toBe(1)
+  })
+
+  it('refuses a correction too large for the shader\'s float32 (a long move), drawing the frame as it came', () => {
+    const {L, camera, node} = setup()
+    const body = {name: 'earth', node, posted: 7, postedTick: 0}
+    L.guests._tick = 1
+    // Cesium's projection low down: near 0.1 m, far all but infinite.
+    const P = [1.5, 0, 0, 0, 0, 2.4, 0, 0, 0, 0, -1, -1, 0, 0, -0.2, 0]
+    const end = {type: 'netgl:frame-end', viewId: 7, viewMatrix: L._ecefViewMatrix('earth', node), projectionMatrix: P}
+    camera.position.set(0.02 * R, 0, 3 * R)
+    camera.updateMatrixWorld()
+    expect(L.guests._correction(netgl, body, 7, end)).toBe(null)
+    expect(body.refused).toBe(1)
+  })
+
+  it('corrects to the camera\'s projection now: a resize changes the scales, not the near and far', () => {
+    const {L, camera} = setup()
+    const P = [1, 0, 0, 0, 0, 1.6, 0, 0, 0, 0, -1.0000002, -1, 0, 0, -0.2, 0]
+    const Q = L._ecefProjection(P)
+    const y = 1 / Math.tan(camera.fov * Math.PI / 360)
+    expect(Q[5]).toBeCloseTo(y, 12)
+    expect(Q[0]).toBeCloseTo(y * 300 / 480, 12)
+    expect([Q[10], Q[11], Q[14], Q[15]]).toEqual([P[10], P[11], P[14], P[15]])
+    L.ui.height = 200
+    expect(L._ecefProjection(P)[0]).toBeCloseTo(y * 200 / 480, 12)
+  })
+
+  it('waits the short wait when its last frame could be corrected to the camera, the long one when not', () => {
+    const {L, node} = setup()
+    L._viewOf = () => ({size: [480, 300], heightM: 2e7, distanceScale: 1e7, position: [0, 0, 3 * R]})
+    L.guests._netgl = netgl
+    const body = {
+      name: 'earth', status: 'ready', remote: true, iframe: {style: {}}, waiting: null, holdUntil: 0,
+      receiver: {post: () => {}},
+    }
+    L.bodies.earth = body
+    const post = () => {
+      body.waiting = null
+      L.guests.postViews([{name: 'earth', node}])
+      return body.holdUntil - body.postedAt
+    }
+    // No frame in yet, or one without its view and projection: the long wait.
+    expect(post()).toBe(L.guestWaitUncorrectedMs)
+    // A frame that can be corrected: the short one.
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 1,
+      viewMatrix: L._ecefViewMatrix('earth', node), projectionMatrix: [1, 0, 0, 0, 0, 1.6, 0, 0, 0, 0, -1, -1, 0, 0, -2, 0]})
+    expect(post()).toBe(L.guestWaitMs)
+    expect(L.guestWaitMs).toBeLessThan(L.guestWaitUncorrectedMs)
+    // Off: the long one again.
+    L.guestReproject = false
+    expect(post()).toBe(L.guestWaitUncorrectedMs)
+  })
+
+  it('the lights part is \'emission\' (GUEST_VERSION 3) or \'lights\' (before)', () => {
+    const fbs = new Map()
+    const L = withGuests(new CesiumLayers({renderer: {properties: {get: (rt) => ({__webglFramebuffer: fbs.get(rt)})}}}))
+    const day = {}
+    const lights = {}
+    fbs.set(day, 'day').set(lights, 'lights')
+    L._cesiumTarget = () => day
+    L.guests.lightsTarget = () => lights
+    const body = {postedLights: true, waiting: 3, frames: 0, steps: {trips: 0, tripMs: 0}, postedAt: 0}
+    const config = L._replayConfig(() => [480, 300], body)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 3, part: 'emission'})
+    expect(config.screenFramebuffer()).toBe('lights')
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 3})
+    expect(config.screenFramebuffer()).toBe('day')
+    L.guests._onFrame(body, {type: 'netgl:frame-end', viewId: 3, part: 'emission'})
+    expect(body.waiting).toBe(null)
+  })
+})
+
+
+describe('New York on Earth\'s guest page', () => {
+  // Over Manhattan, 3 km up (newYork.test.js's above()).
+  const OVER = [1333000, -4655000, 4138000]
+  const setup = () => {
+    const L = withGuests(new CesiumLayers({}))
+    L._viewOf = () => ({size: [480, 300], heightM: 3000, distanceScale: 1e7, position: OVER})
+    const posted = []
+    const body = {
+      status: 'ready', remote: true, iframe: {style: {}}, waiting: null, holdUntil: 0, steps: {},
+      receiver: {post: (msg) => posted.push(msg)},
+    }
+    L.bodies.earth = body
+    return {L, body, posted}
+  }
+
+  it('is sent the switch with each view, and its range kept for the control', () => {
+    const {L, posted} = setup()
+    L.newYork.enabled = true
+    L._postGuestViews([{name: 'earth', node: {}}])
+    expect(posted[0].nyc).toBe(true)
+    expect(['show', 'keep', 'free']).toContain(L._newYorkRange)
+  })
+
+  it('mirrors the guest\'s city in the status, and frees it there', () => {
+    const {L, body, posted} = setup()
+    L.newYork.enabled = true
+    L.guests._onMessage('earth', body, {type: 'cesium:status', newYork: 'loading'})
+    expect(L._newYork).toEqual({status: 'loading', remote: true, step: null})
+    L.guests._onMessage('earth', body, {type: 'cesium:status', newYork: 'loading', newYorkStep: 'compile'})
+    expect(L._newYork.step).toBe('compile')
+    L.guests._onMessage('earth', body, {type: 'cesium:status', newYork: 'ready'})
+    L.setNewYork(false)
+    expect(L._newYork).toBe(null)
+    expect(posted).toContainEqual({type: 'cesium:newYork', on: false})
+    // The guest's next status, before it freed the city: still none here.
+    L.guests._onMessage('earth', body, {type: 'cesium:status', newYork: 'ready'})
+    expect(L._newYork).toBe(null)
+  })
+})
+
+
+describe('a guest page\'s frame that can\'t run again', () => {
+  it('is kept, and drawn in a frame that drains nothing', () => {
+    const L = new CesiumLayers({})
+    L.guests = new GuestPages(L)
+    const targets = {}
+    L._cesiumTarget = (key = '_cesiumRT') => (targets[key] ??= {key})
+    const copies = []
+    L.guests._copy = (from, to) => copies.push(`${from.key}>${to.key}`)
+    const receiver = {canRerun: true, drainedViews: []}
+    const body = {name: 'mars', receiver, steps: {drawn: 0, inStep: 0}}
+    // A frame that can run again: nothing kept.
+    L.guests.afterDrain(body, true, false)
+    expect(copies).toEqual([])
+    // One that deleted objects: kept; then a frame with nothing drawn shows it.
+    receiver.canRerun = false
+    L.guests.afterDrain(body, true, false)
+    L.guests.afterDrain(body, false, false)
+    expect(copies).toEqual(['_cesiumRT>_keptRT_mars', '_keptRT_mars>_cesiumRT'])
+    expect(body.steps.kept).toBe(1)
+    // Unseen, nothing is copied either way.
+    L.guests.afterDrain(body, false, true)
+    expect(copies).toHaveLength(2)
+  })
+  it('with night lights, the day frame is kept, and drawn in a drain that had only the lights', () => {
+    const L = new CesiumLayers({})
+    L.guests = new GuestPages(L)
+    const targets = {}
+    L._cesiumTarget = (key = '_cesiumRT') => (targets[key] ??= {key})
+    L._prepareLights = () => {}
+    L.guests._prepareLights = () => {}
+    const copies = []
+    L.guests._copy = (from, to) => copies.push(`${from.key}>${to.key}`)
+    const receiver = {canRerun: true, drainedViews: []}
+    const body = {name: 'earth', receiver, steps: {drawn: 0, inStep: 0}, postedLights: true}
+    // A drain with both parts: the day frame kept.
+    L.guests.beforeDrain(body, false)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 4})
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 4, part: 'emission'})
+    L.guests.afterDrain(body, true, false)
+    expect(copies).toEqual(['_cesiumRT>_keptRT_earth'])
+    // The next drain has only the lights (the day part landed a drain
+    // earlier, or the lights re-run alone): the kept day frame is drawn.
+    L.guests.beforeDrain(body, false)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 5, part: 'emission'})
+    L.guests.afterDrain(body, true, false)
+    expect(copies).toEqual(['_cesiumRT>_keptRT_earth', '_keptRT_earth>_cesiumRT'])
+    // Without lights, a frame that can run again keeps nothing.
+    body.postedLights = false
+    L.guests.beforeDrain(body, false)
+    L.guests._onPart(body, {type: 'netgl:frame-end', viewId: 6})
+    L.guests.afterDrain(body, true, false)
+    expect(copies).toHaveLength(2)
+  })
+})
+
+
+describe('a guest page older than this page', () => {
+  it('is said once, by its protocol, and works as it can', () => {
+    const L = new CesiumLayers({})
+    L.guests = new GuestPages(L, 2)
+    const body = {iframe: {src: 'https://guest.example/cesium-guest.html'}, trips: []}
+    const warnings = []
+    const warn = console.warn
+    console.warn = (...args) => warnings.push(args.join(' '))
+    try {
+      // #310's guest page sends no `guest`: protocol 1.
+      L.guests._onMessage('earth', body, {type: 'cesium:status', tilesLoaded: true})
+      L.guests._onMessage('earth', body, {type: 'cesium:status', tilesLoaded: true})
+      L.guests._onMessage('moon', {iframe: {}, trips: []}, {type: 'cesium:status', guest: 2})
+    } finally {
+      console.warn = warn
+    }
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('guest.example')
+    expect(warnings[0]).toContain('protocol 1')
+    expect(body.tilesLoaded).toBe(true)
+  })
+})
+
+
+describe('a guest page\'s ground height at a landing place', () => {
+  const setup = () => {
+    const L = withGuests(new CesiumLayers({}))
+    const posted = []
+    const node = {props: {radius: {scalar: 6371000}}}
+    const body = {status: 'ready', remote: true, receiver: {post: (msg) => posted.push(msg)}}
+    L.bodies.earth = body
+    L.active = [{name: 'earth', node}]
+    return {L, body, node, posted}
+  }
+
+  it('is asked for by message, with the place on celestiary\'s sphere, and answered', async () => {
+    const {L, body, node, posted} = setup()
+    // Not synchronously: the guest's tiles are in its own page.
+    expect(L.groundHeightAt(node, 36, -112)).toBe(null)
+    const asked = L.requestGroundHeight(node, 36, -112)
+    expect(posted).toHaveLength(1)
+    const [msg] = posted
+    expect(msg).toMatchObject({type: 'cesium:height', lat: 36, lng: -112, radius: 6371000})
+    L.guests._onMessage('earth', body, {type: 'cesium:height', id: msg.id, height: 2134})
+    expect(await asked).toBe(2134)
+    expect(body.heights.size).toBe(0)
+  })
+
+  it('is null where no active body is on a guest page', async () => {
+    const {L, node, posted} = setup()
+    L.active = []
+    expect(await L.requestGroundHeight(node, 0, 0)).toBe(null)
+    expect(posted).toHaveLength(0)
+  })
+})
+
+
+describe('a guest page\'s round trips, split', () => {
+  it('into the view\'s way in, the guest\'s frame and the way back, on the shared clock', () => {
+    const L = withGuests(new CesiumLayers({}))
+    const origin = performance.timeOrigin
+    const body = {remote: true, origin: 'https://guest.example', frames: 3, steps: {drawn: 4, inStep: 3}, trips: [],
+      trip: {viewId: 7, postedAt: 1000, landed: 1012}}
+    L.bodies.earth = body
+    // In 2 ms after the post, a 7 ms frame, so 3 ms back.
+    L.guests._splitTrip(body, {viewId: 7, timing: {receivedAt: origin + 1002, renderMs: 7}})
+    expect(body.trips).toHaveLength(1)
+    const [t] = body.trips
+    expect(t.tripMs).toBe(12)
+    expect(t.toGuestMs).toBeCloseTo(2, 6)
+    expect(t.guestMs).toBe(7)
+    expect(t.backMs).toBeCloseTo(3, 6)
+    expect(body.trip).toBe(null)
+    L.noteWait(5)
+    L.noteWait(9)
+    const [stats] = L.guestStats()
+    expect(stats).toMatchObject({name: 'earth', origin: 'https://guest.example', frames: 3, inStep: 0.75, n: 1})
+    expect(stats.guestMs).toEqual({mean: 7, p95: 7})
+    expect(stats.waitMs).toEqual({mean: 7, p95: 9})
+  })
+
+  it('takes a status only for the frame it follows', () => {
+    const L = withGuests(new CesiumLayers({}))
+    const body = {remote: true, steps: {drawn: 0, inStep: 0}, trips: [], trip: {viewId: 7, postedAt: 0, landed: 5}}
+    L.guests._splitTrip(body, {viewId: 6, timing: {receivedAt: 1, renderMs: 1}})
+    L.guests._splitTrip(body, {viewId: 7})
+    expect(body.trips).toHaveLength(0)
+    expect(new CesiumLayers({}).guestStats()).toEqual([])
   })
 })

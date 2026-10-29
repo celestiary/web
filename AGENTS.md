@@ -54,6 +54,7 @@ tried and dropped.
 | Star discs and colours: temperature from class, blackbody colour, limb darkening, granulation, spots | [js/scene/Stars.md](js/scene/Stars.md) |
 | The widgets drawer and dock (apps, pin, stop) | DESIGN.md [widgets drawer and dock](DESIGN.md#widgets-drawer-and-dock) |
 | Human expansion (an app: BFS spread across the stars) | [js/scene/Colonization.md](js/scene/Colonization.md) |
+| The Rubin Observatory on Cerro Pachón following 2026 ED138, its first dwarf planet candidate (an app: the model, its pointing, the object's apparent path, the body's JPL elements) | [js/scene/rubin/Rubin.md](js/scene/rubin/Rubin.md) |
 | Other galaxies: SPARC's 175 discs from their parameters, their data and cross-match, levels of detail, rotation curves | [js/scene/Galaxies.md](js/scene/Galaxies.md); the model they share with the Milky Way, [js/scene/MilkyWay.md](js/scene/MilkyWay.md) |
 | Social previews via the portal proxy | [portal/DESIGN.md](portal/DESIGN.md) |
 | Where code lives | DESIGN.md [key files](DESIGN.md#key-files-reference) |
@@ -178,6 +179,14 @@ tried and dropped.
     with `toDataURL` in the same task (its buffer is cleared once the
     task ends). Null `c.shared.targets.tween` before each frame, or the
     `goTo` tween moves the camera off your view.
+  - **Drive the loop across tasks when the meter matters.**  The meter
+    reads back through a pixel-pack buffer whose fence resolves between
+    tasks: a run of `renderLoop` calls inside one `page.evaluate` meters
+    its first frames and then reads nothing more, so the gain stays where
+    those left it (at the Rubin seat it sat at 37 for a sky worth 5e5,
+    and the frame was black with no stars: hours of hunting).  Settle
+    with many short `evaluate`s of a few frames each, a few ms apart, and
+    render the frame you read in the same task as its canvas read.
   - Before reading a metered view, wait for `c.ui._meterGainGoal` to
     hold for ~30 s, not a few polls. A view loaded far from its gain
     (a link with a high `ev=` starts at the dark gain) can bounce: a
@@ -221,12 +230,20 @@ tried and dropped.
   (127.0.0.1) and the guest (localhost), renders Earth's layer both ways
   (`?cesium=iframe`), and fails if the frames at the permalink's instant
   differ or a guest frame was out of step while the camera orbits.
-  `--view earth-12km`, `--wait ms`, `--out dir`.  The repo's Playwright
+  `--view earth-12km`, `--wait ms`, `--out dir`; `--view earth-night
+  --gibs` (GIBS through Node, the camera on the night side) compares the
+  night lights, and `--nyc <slop-newyork checkout>` loads New York on both
+  sides (three.js from GitHub's raw files; minutes a side).  The repo's Playwright
   doesn't know the machine's Chromium: it takes `/opt/pw-browsers/chromium`
   when that's there (`--chromium` otherwise).  To read a held frame (one
   waiting on the guest), hook `ThreeUi._drawFrame` and read the canvas
   inside it: the guest's frame lands in a message's task, not an animation
-  frame's.
+  frame's.  Its `split`, and `?perf=1`'s `scene.cesiumGuests`
+  (`c.ui.layers.guestStats()`), split the round trip into the view's way
+  in, the guest's frame and the way back.  `--pan deg` checks a late frame
+  corrected to the camera: the guest held, its frame of one view composed
+  at a view turned `deg`, against the guest's own frame there, with the
+  correction and without (`guestReproject`).
 - **Layer mode's checks run on two origins:** `yarn build`, then `yarn
   layer-host` (guest `http://127.0.0.1:5480`, host
   `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read
@@ -467,6 +484,10 @@ tried and dropped.
   - `ssd-api.jpl.nasa.gov` (JPL's three-body periodic orbit catalogue, for
     `public/data/periodicOrbits.json`: `bun tools/periodic/fetchJpl.mjs`;
     [Lagrange.md](js/scene/Lagrange.md#three-body-orbits)).
+  - `noirlab.edu` (NOIRLab's 3D models, for `tools/models/build.sh`'s
+    Rubin telescope, and its press releases; `rubinobservatory.org` is
+    allowed too).  `curl` through the sandbox proxy reaches it where
+    `WebFetch` doesn't.
   - `asc-planetarynames-data.s3.us-west-2.amazonaws.com` (the IAU
     Gazetteer's per-body downloads, for `tools/places/build.mjs`; the
     site itself, `planetarynames.wr.usgs.gov`, is refused).
@@ -570,7 +591,10 @@ tried and dropped.
   It's restricted by Referer to `https://celestiary.org/` and
   `https://celestiary.github.io/` (the site moved to celestiary.org; the
   old host redirects).  `tools/parity` and `tools/narrow-fov` send the
-  github.io Referer, which the token still allows.
+  github.io Referer, which the token still allows.  The Cesium guest page is
+  served from `https://pablo-mayrgundter.github.io/cesium-portal/`
+  (`.github/workflows/cesium-guest.yml`; design/CesiumGuest.md), whose
+  requests carry that Referer, so the token must allow it too.
 - Never print, log, commit or paste it, including in PR text or test
   output.
 - **Ion's error bodies echo the token:** a not-found response repeats
@@ -585,6 +609,16 @@ tried and dropped.
   `await route.request().allHeaders()`: without it ion's bearer token is
   dropped, and its asset requests (terrain, tilesets) answer 401 while
   the token is fine. `tools/parity/parity.mjs` does this.
+- **Changing a token in ion can change its value.**  Editing its allowed
+  URLs gave the token a new value (2026-10-27), and every build that
+  baked in the old one (production, the previews, the Cesium guest) got
+  401s from ion, even with celestiary.org's Referer.  Copy the new value
+  into the `CESIUM_ION_TOKEN` secret, then rebuild what serves it: Actions →
+  *Deploy production* (workflow_dispatch), the Cesium guest (Actions →
+  *Cesium guest*), and each open PR's preview with its next push.  To
+  check a live build's token without printing it, take it from the
+  deployed bundle and ask `api.cesium.com/v1/assets/1/endpoint` for the
+  status code alone.
 - **A session's env holds the token from when the session started.**
   After the user rotates it, ion answers 401 here. Say so, and leave
   ion-dependent checks to the PR preview.

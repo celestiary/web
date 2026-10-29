@@ -17,10 +17,12 @@ import {
   POINT_AT_RADII,
   POINT_HANDOFF_RANGE,
   discFlux,
+  FAR_BODY_RATIO,
   discMeanValue,
   farPointColor,
   farPointLevel,
   handoffRatio,
+  isFarBody,
   lambertPhase,
   farPointOptions,
   FovLOD,
@@ -349,5 +351,88 @@ describe('the far point\'s hand-off to the disc', () => {
       lod.update(camera)
       expect(lod.getCurrentLevel()).toBe(level)
     }
+  })
+})
+
+
+describe('a body past float32: the far point stays', () => {
+  const ED138 = 5e5
+  const PLUTO = 1.188e6
+  const AU = 1.495978707e11
+
+  /** @returns {{lod: FovLOD, camera: PerspectiveCamera}} Camera `distance` out on +z */
+  function setup(distance, fov, radius, opts = {radius}) {
+    setDrawingBuffer(640, 1)
+    const lod = new FovLOD({drawnSize: true, ...opts})
+    lod.addLevel(new Object3D(), 1)
+    lod.addLevel(new Object3D(), pointSwitchDistance(radius))
+    lod.addLevel(new Object3D(), pointSwitchDistance(radius) * 1e12)
+    const camera = new PerspectiveCamera(fov, 1.5, 1, 1e20)
+    camera.position.set(0, 0, distance)
+    camera.updateMatrixWorld()
+    lod.updateMatrixWorld()
+    return {lod, camera}
+  }
+
+  it('is 2^22 radii', () => {
+    expect(FAR_BODY_RATIO).toBe(4194304)
+    expect(isFarBody(FAR_BODY_RATIO * 0.99, 1)).toBe(false)
+    expect(isFarBody(FAR_BODY_RATIO * 1.01, 1)).toBe(true)
+    expect(isFarBody(1e30, 0)).toBe(false)
+  })
+
+  it('keeps the point at any field, where a nearer body is the mesh at a narrow one', () => {
+    const far = 47 * AU // ED138: 1.4e7 radii
+    expect(far / ED138).toBeGreaterThan(FAR_BODY_RATIO)
+    // A body of the same ratio inside it takes the mesh at 0.00016 degrees.
+    const nearRadius = far / (FAR_BODY_RATIO * 0.9)
+    expect(setup(far, 0.0001615, nearRadius).lod.getCurrentLevel()).toBe(0)
+    for (const fov of [0.0001615, 0.001, 0.01, 1, 45, 120]) {
+      const {lod, camera} = setup(far, fov, ED138)
+      lod.update(camera)
+      expect(lod.getCurrentLevel()).toBe(1)
+      expect(lod.levels[0].object.visible).toBe(false)
+      expect(lod.levels[1].object.visible).toBe(true)
+    }
+    // Without the radius, a plain FovLOD as before: the mesh at that field.
+    const {lod, camera} = setup(far, 0.0001615, ED138, {})
+    lod.update(camera)
+    expect(lod.getCurrentLevel()).toBe(0)
+  })
+
+  it('hands off as before inside the cap', () => {
+    const r = 1e6
+    for (const [fov, k, level] of [[45, 0.99, 0], [45, 1.01, 1], [0.05, 0.99, 0], [0.05, 1.01, 1]]) {
+      const {lod, camera} = setup(1, fov, r)
+      camera.position.set(0, 0, k * pointSwitchDistance(r) * meshReach() / fovScale(camera))
+      camera.updateMatrixWorld()
+      expect(camera.position.z / r).toBeLessThan(FAR_BODY_RATIO)
+      lod.update(camera)
+      expect(lod.getCurrentLevel()).toBe(level)
+    }
+  })
+
+  it('keeps the levels beyond the point', () => {
+    const r = 1e6
+    const {lod, camera} = setup(1, 45, r)
+    camera.position.set(0, 0, pointSwitchDistance(r) * 1e12 * 2)
+    camera.updateMatrixWorld()
+    lod.update(camera)
+    expect(lod.getCurrentLevel()).toBe(2)
+  })
+
+  it('is the marker\'s level, not the disc\'s, in the hand-off', () => {
+    setDrawingBuffer(640, 1)
+    const camera = new PerspectiveCamera(0.0001615, 1.5, 1, 1e20)
+    const ratio = handoffRatio(47 * AU, ED138, camera)
+    expect(ratio).toBe(Infinity)
+    const p = {marker: 1, radiusPx: 0.89, value: 0.41, pointPx: 2}
+    // Inside the cap that value, at the hand-off, would dim the point.
+    expect(farPointLevel({...p, ratio: 1})).toBeLessThan(1)
+    expect(farPointLevel({...p, ratio})).toBe(1)
+    expect(farPointLevel({...p, marker: MOON_POINT_LEVEL, ratio})).toBe(MOON_POINT_LEVEL)
+    // Pluto at 39 au is past it too; 30 au is not.
+    expect(handoffRatio(39 * AU, PLUTO, camera)).toBe(Infinity)
+    expect(Number.isFinite(handoffRatio(30 * AU, PLUTO, camera))).toBe(true)
   })
 })

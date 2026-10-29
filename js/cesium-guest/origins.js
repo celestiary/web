@@ -6,7 +6,7 @@
 import {isAllowedOrigin} from '../layer/origins.js'
 
 
-/* global __CESIUM_GUEST_HOSTS__, __CESIUM_GUEST_ORIGINS__ */
+/* global __CESIUM_GUEST_HOSTS__, __CESIUM_GUEST_ORIGINS__, __CESIUM_GUEST_PAGE__ */
 /**
  * The hosts that may embed the guest: celestiary's production site and
  * local development.  A build adds more with CESIUM_GUEST_HOSTS
@@ -22,14 +22,16 @@ export const CESIUM_GUEST_HOSTS = [
 
 
 /**
- * Where celestiary may load the guest from: the Cesium fork's Pages,
- * celestiary's own site (its build serves the guest page too, so a PR
- * preview can load its own: the same origin, so the same process, but the
- * same wire), and local development.  A build adds more with
- * CESIUM_GUEST_ORIGINS.
+ * Where celestiary may load the guest from: its own site on another site's
+ * domain (pablo-mayrgundter/cesium-portal's Pages: each *.github.io is a
+ * site of its own, so the guest runs in a process of its own;
+ * .github/workflows/cesium-guest.yml deploys it there), celestiary's own
+ * site (its build serves the guest page too, so a PR preview can load its
+ * own: the same origin, so the same process, but the same wire), and local
+ * development.  A build adds more with CESIUM_GUEST_ORIGINS.
  */
 export const CESIUM_GUEST_ORIGINS = [
-  'https://cesium.celestiary.org',
+  'https://pablo-mayrgundter.github.io',
   'https://celestiary.org',
   'http://localhost:*',
   'http://127.0.0.1:*',
@@ -90,8 +92,26 @@ function listFrom(list) {
 }
 
 
-/** The guest page celestiary loads with `?cesium=iframe` and no `cesiumGuest`. */
-export const DEFAULT_GUEST_PAGE = 'https://cesium.celestiary.org/cesium-guest.html'
+/**
+ * The guest page celestiary loads with `?cesium=iframe` and no
+ * `cesiumGuest`: main's, deployed to cesium-portal's root; or a build's own,
+ * CESIUM_GUEST_PAGE (esbuild/common.js), which a PR preview sets to its
+ * guest's preview, under `pr-preview/pr-<n>/` there, so the two are of one
+ * commit.
+ */
+export const DEFAULT_GUEST_PAGE = (typeof __CESIUM_GUEST_PAGE__ === 'string' && __CESIUM_GUEST_PAGE__) ||
+  'https://pablo-mayrgundter.github.io/cesium-portal/cesium-guest.html'
+
+
+/**
+ * The guest page's protocol, in its status (`guest`), so a host can tell a
+ * guest page older than itself, which leaves out what it doesn't know:
+ * 1, #309 and #310, Earth only; 2, the night lights' part, New York and
+ * the landing height (design/CesiumGuest.md, phase 4); 3, the lights part
+ * named 'emission' (was 'lights'; the host takes both) and the frame-end's
+ * screen targets, view and projection, for the host's reprojection.
+ */
+export const GUEST_VERSION = 3
 
 
 /**

@@ -209,8 +209,9 @@ both: riding along while facing it).
   of a degree: a camera riding a body keeps a few metres, one left in the Sun's
   frame is good to ~260 km at 1 AU.
 A letter is a flip of the toggle's default, not "on": `a`, `l`, `p`, `o`,
-`U`, `G`, `x` and `v` are on by default, so their letters mean off (`s=loL` is
-star labels off, orbits off, landed), while `e` `c` `g` `C` `S` `I` `D` `L` `T` `F` `A` mean
+`U`, `G`, `x`, `i` and `v` are on by default, so their letters mean off (`s=loL` is
+star labels off, orbits off, landed; `s=i` is Earth's clouds off, the `I`
+key's, Celestia's `i`), while `e` `c` `g` `C` `S` `I` `D` `L` `T` `F` `A` mean
 on (`s=ID` is Iridium and the DSN shown: js/scene/networks/Networks.md).
 
 `G` and `C` are the `e` and `E` keys (Shift+E), Celestia's: the galaxies'
@@ -310,6 +311,7 @@ Each feature has its own label:
                     showing, the apps pinned and running
 "apps.<id>":        one running app's own state, a sub-namespace of apps
 "apps.expansion":   the Human Expansion app
+"apps.rubin":       the Rubin Observatory app
 "news":             the changelog tour: a link that starts it (read, never
                     written)
 ```
@@ -650,6 +652,42 @@ others.
 ```
 
 No `apps` token: the drawer closed, undocked, nothing running.
+
+#### `apps.rubin`
+
+The Rubin Observatory app ([js/scene/rubin/Rubin.md](../js/scene/rubin/Rubin.md)):
+the telescope on Cerro Pachón following 2026 ED138, and the object's
+apparent path on the sky.
+
+```
+path=0             the apparent path off (on by default)
+night=<days>       the night the run's slider is on, as days since 1970 at
+                   0h UTC (15 May 2026 by default)
+shell=0            the observatory's shell, the enclosure and dome, hidden
+                   (drawn by default), the telescope on its mount in the open
+optics=0           Rubin's optics off: the field free (on by default, the
+                   field held between the camera's 3.5° and its pixel limit)
+pixel=1            Rubin's pixel drawn at the body: a square the camera's 0.2″
+                   pixel across and a fainter outline at its 0.7″ resolution,
+                   to scale on screen (off by default)
+```
+
+```
+#…;apps:open,view=rubin                        open on the app, the defaults
+#…;apps:open,view=rubin;apps.rubin:path=0,night=20544   the path off, the slider on 1 April 2026
+#…;apps:open,view=rubin;apps.rubin:shell=0     the telescope in the open
+#…;apps:open,view=rubin;apps.rubin:pixel=1     Rubin's pixel drawn at the body
+#…;fov=0.0001615deg;…;apps:open,view=rubin;apps.rubin:optics=0   a field past Rubin's pixels, kept
+```
+
+- **The clock is the `t=` token's.**  Watching a night sets the clock, and
+  the link carries the time and rate as ever; the token holds only what
+  the app's own controls say.
+- **The field is the view's `fov=`**, held to Rubin's range while the
+  optics are on ([Rubin.md, the optics](../js/scene/rubin/Rubin.md#the-optics)):
+  a link's field past the pixel limit opens at the limit, and with
+  `optics=0` as written.
+- **A bad value is its default.**
 
 ### News Token
 

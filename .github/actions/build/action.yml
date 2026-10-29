@@ -30,6 +30,13 @@ inputs:
       Only the build for the domain's root sets it.
     required: false
     default: ''
+  cesium-guest-page:
+    description: >
+      The Cesium guest page `?cesium=iframe` loads by default
+      (js/cesium-guest/origins.js; design/CesiumGuest.md). Empty means
+      main's; a PR preview sets its guest's preview, so the two match.
+    required: false
+    default: ''
   noindex:
     description: >
       'true' for a copy that search engines shouldn't index (PR previews).
@@ -63,5 +70,6 @@ runs:
         CESIUM_ION_TOKEN: ${{ inputs.cesium-ion-token }}
         DATA_BASE_URL: ${{ inputs.data-base-url }}
         CUSTOM_DOMAIN: ${{ inputs.custom-domain }}
+        CESIUM_GUEST_PAGE: ${{ inputs.cesium-guest-page }}
         NOINDEX: ${{ inputs.noindex }}
       run: yarn build

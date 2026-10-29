@@ -6,13 +6,19 @@
  * search field.  Bodies route through the location hash (a link to the
  * body's path flies there), stars through `scene.goTo`, and places through
  * `scene.land`.  Each ends with the result as the target
- * (`Scene.setTarget`).
+ * (`Scene.setTarget`).  A view (an app's way in, ViewsProvider) opens its
+ * app and runs.
  *
  * @param {SearchEntry} entry
  * @param {object} celestiary
  */
 export function goToEntry(entry, celestiary) {
   if (!entry || !celestiary) {
+    return
+  }
+  if (entry.kind === 'view') {
+    // An app's way in (ViewsProvider): the view opens the app and runs.
+    entry.payload?.open?.(celestiary)
     return
   }
   if (entry.kind === 'star' && entry.payload && entry.payload.star) {
@@ -101,6 +107,12 @@ function entryTarget(entry, celestiary) {
   }
   if (entry.kind === 'place' && entry.payload) {
     return placeTarget(entry)
+  }
+  if (entry.kind === 'view') {
+    // The view's body, while it's in the scene; a view with none can't be
+    // targeted, only gone to.
+    const body = entry.payload?.target
+    return body && celestiary.scene.objects[body] ? body : null
   }
   const name = entry.payload && entry.payload.name
   if (!name || !celestiary.scene.objects[name]) {
