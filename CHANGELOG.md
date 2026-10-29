@@ -44,9 +44,11 @@ feature, the default. Featured and kind are independent: a major fix can be feat
 The data's credits are now one quiet line at the bottom edge, as a map's: Cesium ion's and its
 imagery's, OpenStreetMap's and NYC Open Data's while New York's city is drawn, and now ESA Gaia's
 for its stars and NASA GIBS's for Earth's clouds and night lights. Each shows as its data comes
-into view and fades a few seconds later, unless its terms want it kept up (ion's and Bing's stay);
-the *Credits* button at the line's end brings them all back. Cesium's *Data attribution* link
-opens its list again.
+into view and fades a few seconds later, leaving the Cesium ion logo, and Bing's credits while its
+imagery is up. The info icon at the line's end opens a credits dialog: what's in the scene now and
+every source celestiary uses, with what it takes from each, such as how many of Gaia's stars are
+loaded and of what types, or how many of Earth's tiles Cesium is drawing. Cesium's *Data
+attribution* link opens its list again.
 
 - Date: 2026-10-28
 - PR: [#341](https://github.com/celestiary/web/pull/341)

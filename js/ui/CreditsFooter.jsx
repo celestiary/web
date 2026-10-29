@@ -1,5 +1,15 @@
-import React, {useEffect, useRef, useState, useSyncExternalStore} from 'react'
-import {getCredits, setCreditsMotion, subscribeCredits} from '../credits.js'
+import React, {Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore} from 'react'
+import MuiDialog from '@mui/material/Dialog'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
+import IconButton from '@mui/material/IconButton'
+import CloseIcon from '@mui/icons-material/Close'
+import InfoOutlined from '@mui/icons-material/InfoOutlined'
+import useIsMobile from '../useIsMobile'
+import {getCredits, hasCredit, setCreditsMotion, subscribeCredits} from '../credits.js'
+import {CESIUM_BODIES} from '../scene/cesium/bodies.js'
+import {bingShown} from '../scene/cesium/CesiumLayers.js'
+import {SPECTRAL_CLASSES} from '../scene/stellar.js'
 
 
 /**
@@ -7,20 +17,23 @@ import {getCredits, setCreditsMotion, subscribeCredits} from '../credits.js'
  * map's (design/UI.md, "The credits footer"): Cesium's, which its
  * CreditDisplay keeps up to date in its own element, and celestiary's own
  * (credits.js), each while its data is drawn.  A timed credit fades in as
- * its data arrives and out some seconds later (credits.js, its phase); the
- * *Credits* button at the line's end shows every applicable one again while
- * it's hovered, focused from the keyboard, or tapped (tapped, until a tap
- * elsewhere or on it).  HTML chrome: it fades with the rest
+ * its data arrives and out some seconds later (credits.js, its phase);
+ * Cesium's goes to the ion logo alone.  The info icon at the line's end
+ * shows every applicable one in the line while it's hovered or focused from
+ * the keyboard, and opens the credits dialog (CreditsDialog.jsx, loaded on
+ * the first open) on a click or a tap.  HTML chrome: it fades with the rest
  * (html.chrome-hidden) and `v` hides it (Celestiary._navDisplay).  Empty,
  * it isn't laid out.  Too long for the width (a phone's), it wraps: Bing's
  * terms forbid hiding its attribution behind a tap (CESIUM.md, "Credits").
  *
+ * @param {object} props
+ * @param {?object} [props.celestiary] For the dialog's live facts
  * @returns {React.ReactElement}
  */
-export default function CreditsFooter() {
+export default function CreditsFooter({celestiary = null}) {
   const entries = useSyncExternalStore(subscribeCredits, getCredits, getCredits)
   const [open, setOpen] = useState(CLOSED)
-  const ref = useRef(null)
+  const [dialog, setDialog] = useState(false)
   // Reduced motion: in and out, no fade (index.css too).
   useEffect(() => {
     const query = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')
@@ -32,22 +45,8 @@ export default function CreditsFooter() {
     query.addEventListener?.('change', apply)
     return () => query.removeEventListener?.('change', apply)
   }, [])
-  // Tapped open, a tap anywhere else closes it.
-  useEffect(() => {
-    if (!open.pinned) {
-      return undefined
-    }
-    const away = (ev) => {
-      if (!ref.current?.contains(ev.target)) {
-        setOpen((s) => affordance(s, 'away'))
-      }
-    }
-    document.addEventListener('pointerdown', away)
-    return () => document.removeEventListener('pointerdown', away)
-  }, [open.pinned])
-  const on = (event) => () => setOpen((s) => affordance(s, event))
   const handlers = {
-    // A mouse's hover only: a touch's tap toggles (onToggle).
+    // A mouse's hover only: a touch's tap opens the dialog.
     onPointerEnter: (ev) => ev.pointerType === 'mouse' && setOpen((s) => affordance(s, 'enter')),
     onPointerLeave: (ev) => ev.pointerType === 'mouse' && setOpen((s) => affordance(s, 'leave')),
     onFocus: (ev) => setOpen((s) => affordance(s, ev.target?.matches?.(':focus-visible') ? 'focus' : 'none')),
@@ -57,20 +56,62 @@ export default function CreditsFooter() {
       }
     },
   }
-  return <CreditsView entries={entries} open={isOpen(open)} lineRef={ref} handlers={handlers} onToggle={on('tap')}/>
+  return (
+    <>
+      <CreditsView entries={entries} open={isOpen(open)} handlers={handlers} onInfo={() => setDialog(true)}/>
+      {dialog &&
+        <Suspense fallback={null}>
+          <CreditsDialog open={dialog} onClose={() => setDialog(false)} celestiary={celestiary}/>
+        </Suspense>}
+    </>)
 }
 
 
-const CLOSED = Object.freeze({hover: false, focus: false, pinned: false})
+/**
+ * What the credits dialog's chunk shares with the first load, handed to it
+ * rather than imported there (ui/creditsDialog.js says why): React, MUI's
+ * dialog as ui/Dialog.jsx uses it, the registry, and the tables its facts
+ * read (credits/facts.js refs).
+ */
+export const CREDITS_DIALOG_DEPS = Object.freeze({
+  React, Dialog: MuiDialog, DialogTitle, DialogContent, IconButton, CloseIcon, useIsMobile,
+  getCredits, hasCredit, subscribeCredits,
+  refs: Object.freeze({bodies: CESIUM_BODIES, spectralClasses: SPECTRAL_CLASSES, bingShown}),
+})
 
 
 /**
- * The *Credits* button's state: open while hovered (a mouse's pointer; a
- * touch's tap toggles instead), focused from the keyboard, or tapped open.
+ * The credits dialog and its facts, in a chunk of their own: imported on the
+ * first open, so the first load doesn't carry them (esbuild/budget.js).
  *
- * @param {{hover: boolean, focus: boolean, pinned: boolean}} s
- * @param {string} event enter, leave, focus, blur, tap, away (a tap elsewhere), none
- * @returns {{hover: boolean, focus: boolean, pinned: boolean}}
+ * @returns {Promise<{default: Function}>} The dialog's component, for React's lazy
+ */
+export function loadCreditsDialog() {
+  return import('./creditsDialog.js')
+      .then((m) => ({default: m.creditsDialog(CREDITS_DIALOG_DEPS).CreditsDialog}))
+      .catch((err) => {
+        // A failed chunk (a stale build, offline): no dialog, rather than an
+        // error thrown into the app's render.  (Not staleBuild.js's
+        // staleRoute: importing it here moved it into a chunk of its own.)
+        console.warn('[credits] the credits dialog didn\'t load', err)
+        return {default: () => null}
+      })
+}
+
+
+const CreditsDialog = lazy(loadCreditsDialog)
+
+
+const CLOSED = Object.freeze({hover: false, focus: false})
+
+
+/**
+ * The line's state: every applicable credit in it while a mouse hovers it
+ * (a touch's tap opens the dialog instead) or the keyboard focuses it.
+ *
+ * @param {{hover: boolean, focus: boolean}} s
+ * @param {string} event enter, leave, focus, blur, none
+ * @returns {{hover: boolean, focus: boolean}}
  */
 export function affordance(s, event) {
   switch (event) {
@@ -78,38 +119,34 @@ export function affordance(s, event) {
     case 'leave': return {...s, hover: false}
     case 'focus': return {...s, focus: true}
     case 'blur': return {...s, focus: false}
-    // A tap pins it open (a hover's or a focus's too, so it stays once the
-    // pointer leaves); a tap on a pinned one closes it, however it opened.
-    case 'tap': return s.pinned ? CLOSED : {...s, pinned: true}
-    case 'away': return {...s, pinned: false}
     default: return s
   }
 }
 
 
 /**
- * @param {{hover: boolean, focus: boolean, pinned: boolean}} s
+ * @param {{hover: boolean, focus: boolean}} s
  * @returns {boolean}
  */
 export function isOpen(s) {
-  return s.hover || s.focus || s.pinned
+  return s.hover || s.focus
 }
 
 
 /**
  * The footer from props, for tests (a server render runs no effects, so an
  * element entry renders its empty slot).  Closed, it draws the credits in
- * the line and fading (credits.js phases); open, every applicable one.
+ * the line, fading, or compact (credits.js phases); open, every applicable
+ * one whole.
  *
  * @param {object} props
  * @param {Array<object>} props.entries credits.js getCredits
- * @param {boolean} [props.open] The *Credits* button open
- * @param {object} [props.lineRef]
+ * @param {boolean} [props.open] Hovered or focused
  * @param {object} [props.handlers] The line's hover and focus handlers
- * @param {Function} [props.onToggle] The button's tap
+ * @param {Function} [props.onInfo] The info icon's click
  * @returns {React.ReactElement}
  */
-export function CreditsView({entries, open = false, lineRef, handlers, onToggle}) {
+export function CreditsView({entries, open = false, handlers, onInfo}) {
   const shown = open ? entries : entries.filter((e) => e.phase !== 'out')
   const classes = ['credits-footer']
   if (entries.length === 0) {
@@ -120,23 +157,40 @@ export function CreditsView({entries, open = false, lineRef, handlers, onToggle}
   }
   return (
     <footer id='credits-footer' className={classes.join(' ')} data-testid='credits-footer' aria-label='Credits'>
-      <div className='credits-line' ref={lineRef} {...handlers}>
+      <div className='credits-line' {...handlers}>
         {shown.map((entry, i) => (
           <React.Fragment key={entry.id}>
             {i > 0 && <span className='credits-sep' aria-hidden='true'>·</span>}
-            <span className={!open && entry.phase === 'fading' ? 'credits-entry fading' : 'credits-entry'}
-              data-credit={entry.id}>
+            <span className={entryClass(entry, open)} data-credit={entry.id}>
               {entry.element ? <ElementSlot element={entry.element}/> : <CreditItems items={entry.items}/>}
             </span>
           </React.Fragment>
         ))}
         {entries.length > 0 &&
-          <button type='button' className='credits-more' aria-expanded={open}
-            title={open ? 'Credits' : 'Show all credits'} onClick={onToggle}>
-            Credits
+          <button type='button' className='credits-more' aria-label='Credits' title='Credits'
+            aria-haspopup='dialog' onClick={onInfo}>
+            <InfoOutlined fontSize='inherit' aria-hidden='true'/>
           </button>}
       </div>
     </footer>)
+}
+
+
+/**
+ * @param {object} entry
+ * @param {boolean} open
+ * @returns {string} Its classes: fading or compact while closed, and
+ *   keeps-logo for Cesium's (index.css)
+ */
+function entryClass(entry, open) {
+  const classes = ['credits-entry']
+  if (entry.keepsLogo) {
+    classes.push('keeps-logo')
+  }
+  if (!open && (entry.phase === 'fading' || entry.phase === 'compact')) {
+    classes.push(entry.phase)
+  }
+  return classes.join(' ')
 }
 
 

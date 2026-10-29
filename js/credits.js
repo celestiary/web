@@ -30,13 +30,17 @@
  * - `asProminent` (with `'timed'`): held in while any `'while-shown'` credit
  *   is (CC BY-SA's "at least as prominent as the credits for the other
  *   contributors", Gaia's), its window starting when that hold ends.
+ * - `keepsLogo` (with `'timed'`): after its window it goes `'compact'`, not
+ *   out: Cesium's, whose ion logo stays (ion's terms) while its text and
+ *   its Data attribution link go (index.css `.credits-entry.compact`).
  *
  * A credit's window runs only while the chrome is shown (setCreditsChrome,
  * from Celestiary._setNav): one that arrives on the homepage, or whose
  * window the chrome's hiding cut short, shows its whole window when the
  * chrome comes back, if its data is still in.  Each entry carries its
  * `phase`: `'in'`, `'fading'` (CREDIT_FADE_MS, none with reduced motion:
- * setCreditsMotion) or `'out'`.
+ * setCreditsMotion), then `'out'`, or `'compact'` for one that keeps its
+ * logo.
  */
 import {sanitizeCredits} from './cesium-guest/credits.js'
 
@@ -81,8 +85,10 @@ let fadeMs = CREDIT_FADE_MS
  * @param {string} [opts.persistence] 'while-shown' (default) or 'timed'
  * @param {boolean} [opts.asProminent] Timed, but held in while a
  *   'while-shown' credit is in
+ * @param {boolean} [opts.keepsLogo] Timed, then compact rather than out
  */
-export function addCredit(id, credit, {order = DEFAULT_ORDER, persistence = 'while-shown', asProminent = false} = {}) {
+export function addCredit(id, credit, {order = DEFAULT_ORDER, persistence = 'while-shown', asProminent = false,
+  keepsLogo = false} = {}) {
   const element = Array.isArray(credit) ? null : credit?.element ?? null
   const items = element ? [] : sanitizeCredits(Array.isArray(credit) ? credit : [credit])
   if (!element && items.length === 0) {
@@ -92,11 +98,13 @@ export function addCredit(id, credit, {order = DEFAULT_ORDER, persistence = 'whi
   const timed = persistence === 'timed'
   const old = entries.get(id)
   if (old && old.element === element && old.order === order && old.timed === timed &&
-      old.asProminent === asProminent && sameItems(old.items, items)) {
+      old.asProminent === (timed && asProminent) && old.keepsLogo === (timed && keepsLogo) &&
+      sameItems(old.items, items)) {
     return
   }
   entries.set(id, {
-    id, items, element, order, timed, asProminent: timed && asProminent, seq: old?.seq ?? ++added,
+    id, items, element, order, timed, asProminent: timed && asProminent, keepsLogo: timed && keepsLogo,
+    seq: old?.seq ?? ++added,
     // When its window began: null until it runs (the chrome hidden, held).
     start: old ? old.start : null,
   })
@@ -189,7 +197,7 @@ export function hasCredit(id) {
  * they change, for React's useSyncExternalStore.
  *
  * @returns {Array<{id: string, items: Array<object>, element: ?object, order: number, seq: number,
- *   persistence: string, phase: string}>}
+ *   persistence: string, keepsLogo: boolean, phase: string}>}
  */
 export function getCredits() {
   return snapshot
@@ -296,7 +304,7 @@ function phases() {
         if (e.start !== null && now - e.start < window) {
           e.start = null
         }
-        phase = e.start === null ? 'in' : 'out'
+        phase = e.start === null ? 'in' : seenThrough(e)
       } else {
         e.start ??= now
         const t = now - e.start
@@ -306,13 +314,13 @@ function phases() {
           phase = 'fading'
           next = Math.min(next, e.start + window)
         } else {
-          phase = 'out'
+          phase = seenThrough(e)
         }
       }
     }
     out.push({
       id: e.id, items: e.items, element: e.element, order: e.order, seq: e.seq,
-      persistence: e.timed ? 'timed' : 'while-shown', phase,
+      persistence: e.timed ? 'timed' : 'while-shown', keepsLogo: e.keepsLogo, phase,
     })
   }
   clock.clearTimeout(timer)
@@ -322,6 +330,15 @@ function phases() {
     timer?.unref?.()
   }
   return out
+}
+
+
+/**
+ * @param {object} e
+ * @returns {string} A timed credit's phase once its window is over
+ */
+function seenThrough(e) {
+  return e.keepsLogo ? 'compact' : 'out'
 }
 
 

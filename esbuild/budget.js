@@ -31,8 +31,14 @@ export const STATIC_BUDGET = {
   // Everything in the first load, minified.  Main on 2026-10-15: 2,130 KB;
   // 2,349 on 2026-10-28, then 2,354 with the credits footer
   // (ui/CreditsFooter.jsx, credits.js and their CSS: chrome, mounted from the
-  // start so Cesium's credits have somewhere to go).
-  totalMinifiedKB: 2360,
+  // start so Cesium's credits have somewhere to go); 2,362 for the footer's
+  // info icon (@mui/icons-material's InfoOutlined), the hand-off of what the
+  // lazy credits dialog shares with the first load (CreditsFooter
+  // CREDITS_DIALOG_DEPS: passed, not imported there, which had split the
+  // first load into 16 files), Cesium's credits timed to the ion logo
+  // (CesiumLayers bingShown, credits.js keepsLogo) and Gaia tiles' class
+  // counts (starTile.js); the dialog and its facts are a chunk of their own.
+  totalMinifiedKB: 2363,
   // The same, gzipped (what crosses the wire).  Main: 661 KB; 729 KB on
   // 2026-10-27, when the Rubin app's panel (ui/RubinApp.jsx, with its icon
   // and token codec) took it to 731.  Loading the panel lazily cost more,

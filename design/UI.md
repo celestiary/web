@@ -101,32 +101,57 @@ contrast, right-aligned (`js/ui/CreditsFooter.jsx`, `js/credits.js`).
   attribution* list; CESIUM.md [credits](../CESIUM.md#credits)), then
   celestiary's own: New York's "© OpenStreetMap contributors (ODbL)" and
   "NYC Open Data" while the city is drawn, Gaia's "ESA/Gaia/DPAC · CC BY-SA
-  3.0 IGO" while any of its stars are, and NASA GIBS's acknowledgement while
-  Earth's clouds from its daily mosaics, or the Cesium layer's night lights,
-  are on screen; a `·` between them, and the **Credits** button at the end.
-  Empty, the footer isn't laid out.
+  3.0 IGO" while any of its stars are, and "Imagery: NASA GIBS / ESDIS"
+  while Earth's clouds from its daily mosaics, or the Cesium layer's night
+  lights, are on screen (GIBS's whole acknowledgement is in the dialog); a
+  `·` between them, and the **info icon** at the end.  Empty, the footer
+  isn't laid out.
 - **On arrival, then fading.**  A credit fades in as its data comes into the
   scene, stays 8 s (`CREDIT_SHOW_MS`), and fades out over `--fade-ms`
   (`CREDIT_FADE_MS`, 400 ms), each on its own clock: Y arriving while X is
   up doesn't touch X's, so X fades first and Y after its own 8 s.  One whose
   data leaves and comes back starts again; one that stays doesn't.  Out of
-  the line, it's still applicable.  Unless its source's terms want it on
-  screen while its data is (`persistence: 'while-shown'`, Cesium's: ion's
-  logo, Bing's), the policy table in CESIUM.md [credits](../CESIUM.md#credits-policy).
-  Gaia's stays up with those (CC BY-SA's "at least as prominent").
-- **The Credits button**: a dim "Credits" at the line's end while anything
-  is applicable, the way back to every applicable credit once the timed ones
-  have gone.  Open while a mouse hovers the line or the keyboard focuses it
-  (`:focus-visible`, so a tap's focus doesn't count); a tap or a click pins
-  it open, and a second tap, or a tap elsewhere, closes it (`affordance`).
-  Open, every applicable credit is in the line, none fading.
+  the line, it's still applicable.  Cesium's fade to the ion logo alone
+  (`keepsLogo`, phase `'compact'`: its text credits and *Data attribution*
+  go, the logo stays), and stay whole while Bing's imagery is drawn
+  (`while-shown`).  The policy for each source, from its terms, is the table
+  in CESIUM.md [credits](../CESIUM.md#credits-policy).  Gaia's stays up with
+  a while-shown credit (CC BY-SA's "at least as prominent").
+- **The info icon**: Material's *InfoOutlined* (`@mui/icons-material`, 363
+  bytes in the first load; an inline path would have been about the same),
+  dim, at the line's end while anything is applicable, `aria-label`
+  "Credits".  While a mouse hovers the line or the keyboard focuses it
+  (`:focus-visible`, so a tap's focus doesn't count) every applicable credit
+  is in the line, whole (`affordance`).  A click or a tap opens the credits
+  dialog.
+- **The credits dialog** (`js/ui/creditsDialog.js`, `js/credits/catalog.js`,
+  `js/credits/facts.js`): MUI's Dialog as the app's others (ui/Dialog.jsx:
+  the 1.5rem title, the close button; its focus trap and Esc), but not
+  routed, so the scene's link stays; full screen on a phone (600px or
+  less).  Two tabs (WAI-ARIA's pattern: arrows, Home and End; the selected
+  tab in the tab order): **Active**, the sources whose data is in the scene
+  now (the footer's registry, and the scene's state for the rest), and
+  **All**, every source the docs name, 24 of them.  Each is a section: its
+  name as the title, its attribution and licence links, a note where its
+  terms ask for words (Gaia's acknowledgement, GIBS's), its facts as a
+  two-column list, read again each second while it's open, and whether it
+  ever shows in the footer.  The facts come from the scene where it holds
+  them (Gaia's stars loaded and drawn and their types, the Cesium layers'
+  tiles, the cloud day, the satellites and places loaded) and from the
+  data's own metadata otherwise, each number's source in a comment, and a
+  test that fails when the bundled data drifts from the numbers quoted.
+  **Lazy:** loaded on the first open, a chunk of its own with no imports from
+  the first load (React, MUI's dialog, the registry and the tables come in
+  from the footer, `CREDITS_DIALOG_DEPS`), and no JSX (its runtime would be
+  one): a module both import would make esbuild split the first load's
+  chunks, which the first try did (16 files, 4 KB more).
 - **Motion**: the fades are on the chrome's tokens (`--fade-ms`,
   `--fade-ease`; a `credits-in` keyframe as an entry comes into the line, an
   opacity transition out).  With `prefers-reduced-motion` there's no fade:
   in and out (`setCreditsMotion`, and no animation or transition in
   index.css).
 - **The registry** (`credits.js`): `addCredit(id, credit, {order,
-  persistence, asProminent})` and `removeCredit(id)`; `setCreditSource(id,
+  persistence, asProminent, keepsLogo})` and `removeCredit(id)`; `setCreditSource(id,
   source, on, credit, opts)` for a credit more than one layer brings (GIBS's:
   the clouds and the night lights; a hand-over doesn't restart it); and
   `followCredit(apply)`, which follows a per-frame "drawn" and lets it go

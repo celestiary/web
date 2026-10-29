@@ -82,21 +82,24 @@ falls back to if its Cesium layer can't load.
   fades out over the chrome's 400 ms (`--fade-ms`; none with
   `prefers-reduced-motion`), whatever the others do; one whose data leaves
   and comes back starts again.  Faded out, it's still applicable: the dim
-  **Credits** button at the line's end shows every applicable credit while
-  it's hovered, focused from the keyboard, or tapped (design/UI.md [the
-  credits footer](design/UI.md#the-credits-footer)).  The windows run only
+  info icon at the line's end (Material's *InfoOutlined*, labelled
+  "Credits") shows every applicable credit in the line while it's hovered or
+  focused from the keyboard, and a click or a tap opens the **credits
+  dialog**, every source with what celestiary uses from it (design/UI.md
+  [the credits footer](design/UI.md#the-credits-footer)).  The windows run only
   while the chrome is shown, so a credit that arrives on the homepage shows
   its whole window when the chrome reveals, if its data is still in.  The
   default is `'while-shown'`, so a credit nobody has checked stays.
 
   | Source | Credit | Policy | Why |
   |---|---|---|---|
-  | Cesium ion (its logo, and its *Data attribution* list) | Cesium's `CreditDisplay`, the `cesium` entry | `while-shown` | ion's terms want the "Cesium ion" logo "prominently viewable" on the main window while its data is used |
-  | Bing Maps through ion (its logo and text) | in the same `cesium` entry, which Cesium's `CreditDisplay` adds and removes as Bing's imagery comes and goes | `while-shown` | Bing's attribution must not be removed, and Microsoft's notices not "obscured or minimised", while its imagery is shown |
+  | Cesium ion: its logo | Cesium's `CreditDisplay`, the `cesium` entry, its `.cesium-credit-logoContainer` | `while-shown` (the entry `timed` with `keepsLogo`: after its window it's `'compact'`, never out) | ion's terms want the "Cesium ion" logo "prominently viewable" on the main window while its data is used |
+  | Cesium ion: its other credits (its text credits and the *Data attribution* link) | the same entry's `.cesium-credit-textContainer` and `.cesium-credit-expand-link` | `timed`: in full for 8 s, then hidden, the logo left (index.css `.credits-entry.compact`) | the maintainer's call (2026-10-29): ion's guide wants Asset Depot data attributed, which the *Data attribution* list still does, a hover of the line or the credits dialog away; re-read the guide if ion objects |
+  | Bing Maps through ion (its logo and text) | in the same `cesium` entry, which Cesium's `CreditDisplay` adds and removes as Bing's imagery comes and goes | `while-shown`: while Bing's logo is in Cesium's credits (`bingShown`, an image titled "Bing Imagery") the whole entry is `while-shown`, and index.css's compact rule doesn't apply to an entry that `:has()` it, a second guard | Bing's attribution must not be removed, and Microsoft's notices not "obscured or minimised", while its imagery is shown; no term found that allows fading it |
   | OpenStreetMap (New York's geography) | "© OpenStreetMap contributors (ODbL)", to its copyright page | `timed` | OSMF's Attribution Guidelines let an interactive map fade or collapse the attribution after five seconds, the licence reachable after (below) |
   | NYC Open Data (New York's boroughs, streets, parks) | "NYC Open Data" | `timed` | Published "without restriction or licensing requirements"; the credit is a courtesy |
   | ESA Gaia DR3 (Gaia's stars, [Gaia.md](js/scene/Gaia.md#the-source-and-its-licence)) | "ESA/Gaia/DPAC", to Gaia's page, and "CC BY-SA 3.0 IGO", to the licence | `timed`, held in while a `while-shown` credit is (`asProminent`) | CC BY-SA §4(c) takes the credit "in any reasonable manner", "reasonable to the medium", but "at least as prominent as the credits for the other contributors": so while ion's and Bing's stay, Gaia's does too |
-  | NASA GIBS (Earth's clouds from its daily mosaics; Cesium's Earth's night lights, VIIRS Black Marble) | its suggested acknowledgement, from "Imagery provided by services from NASA's Global Imagery Browse Services (GIBS), …", to GIBS's page; one entry for both (`setCreditSource`) | `timed` | GIBS asks for it ("We ask that users … add the following acknowledgment"); NASA's data is open, with no licence term to keep it up |
+  | NASA GIBS (Earth's clouds from its daily mosaics; Cesium's Earth's night lights, VIIRS Black Marble) | "Imagery: NASA GIBS / ESDIS", to GIBS's page, its whole suggested acknowledgement in the credits dialog; one entry for both (`setCreditSource`) | `timed` | GIBS asks for it ("We ask that users … add the following acknowledgment"); NASA's data is open, with no licence term to keep it up |
 
   Gaia's is in while any of its stars are drawn (`gaiaDrawn`: the
   population's last selection drew some, to the limiting magnitude in the
@@ -108,14 +111,18 @@ falls back to if its Cesium layer can't load.
   frame or a flickering count doesn't start the window again.  Celestiary's
   own Earth's lights are the bundled texture (NASA Earth Observatory's), not
   GIBS's, and aren't credited.
-- **The credits no longer stand back as they did.**  They used to float over
-  the scene, centred at the bottom, in full for 6 s as a body came into view
-  and then compact, the ion logo alone at 55% opacity until a hover, a focus
-  or a tap (`creditsReveal.js`, removed).  That hid Bing's text and logo,
-  which its terms don't allow (below).  In the footer Cesium's stay as small
-  and quiet as a map's attribution (11 px, `--ink-3` on a dark veil), off the
-  scene's middle.  The ion logo is at 20 px of its 28 (`--credits-logo`), the
-  line's height, neither dimmed nor hidden.
+- **Cesium's credits stand back again, but not Bing's.**  They used to float
+  over the scene, centred at the bottom, in full for 6 s as a body came into
+  view and then compact, the ion logo alone at 55% opacity until a hover, a
+  focus or a tap (`creditsReveal.js`, removed).  That hid Bing's text and
+  logo too, which its terms don't allow (below).  In the footer they come in
+  full for 8 s as a body's ground comes into view, its text and *Data
+  attribution* fade, and the ion logo stays, at full opacity, at 20 px of its
+  28 (`--credits-logo`), the line's height; while Bing's logo is among them
+  they stay whole (`CesiumLayers._showCredits` makes the entry `while-shown`
+  each frame Bing's logo is in `#cesium-credits`).  A hover of the line, a
+  keyboard focus of the info icon, or the credits dialog brings the rest
+  back.
 - **The terms** (checked 2026-10-28.  cesium.com, osmfoundation.org,
   creativecommons.org, cosmos.esa.int, nyc.gov and nasa-gibs.github.io aren't
   reachable from the sandbox, so where noted these are from search results
@@ -143,7 +150,7 @@ falls back to if its Cesium layer can't load.
     action, on map interaction ("panning, clicking, zooming") or
     "automatically after five seconds"; the licence information must stay
     reachable once collapsed, "an info button in the map corner" or an
-    About menu.  The credit's 8 s is over the five, and the Credits button
+    About menu.  The credit's 8 s is over the five, and the info icon (and its dialog)
     is the info button.  (On the OSMF's lists in 2021 some argued OSM's
     attribution fading while others stay would be against the ODbL: a
     discussion, not the guideline.  If the OSMF objects, `persistence:

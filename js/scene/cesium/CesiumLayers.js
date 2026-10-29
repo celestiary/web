@@ -1083,23 +1083,26 @@ export default class CesiumLayers {
       return
     }
     const shown = this._creditedBody()
-    if (shown === this._credited) {
-      return
-    }
-    this._credited = shown
-    // In the credits footer (credits.js, ui/CreditsFooter.jsx) while shown,
-    // the whole time: ion's terms want its logo on screen, and Bing's that its
-    // attribution isn't removed or minimised while its imagery is
-    // (CESIUM.md, "Credits").
-    if (shown) {
-      addCredit(CESIUM_CREDIT_ID, {element: this.credits}, {order: 0, persistence: 'while-shown'})
-    } else {
-      removeCredit(CESIUM_CREDIT_ID)
-    }
-    for (const [name, body] of Object.entries(this.bodies)) {
-      if (body.credits) {
-        body.credits.style.display = name === shown ? 'inline' : 'none'
+    if (shown !== this._credited) {
+      this._credited = shown
+      if (!shown) {
+        removeCredit(CESIUM_CREDIT_ID)
       }
+      for (const [name, body] of Object.entries(this.bodies)) {
+        if (body.credits) {
+          body.credits.style.display = name === shown ? 'inline' : 'none'
+        }
+      }
+    }
+    if (shown) {
+      // In the credits footer (credits.js, ui/CreditsFooter.jsx) while shown:
+      // on arrival in full, then the ion logo alone, which ion's terms want
+      // on screen; but whole while Bing's imagery is drawn, whose terms
+      // forbid minimising its attribution (CESIUM.md, "Credits").  The same
+      // credit again changes nothing, so this runs each frame.
+      const bing = bingShown(this.credits)
+      addCredit(CESIUM_CREDIT_ID, {element: this.credits},
+          {order: 0, persistence: bing ? 'while-shown' : 'timed', keepsLogo: true})
     }
   }
 
@@ -1952,6 +1955,23 @@ function newDecodeMaterial() {
 
 
 const STENCIL_REF = 1
+
+
+/**
+ * Whether Cesium's credits hold Bing's (its logo, which CreditDisplay shows
+ * while Bing's tiles are drawn: BingMapsImageryProvider's credit, an image
+ * titled "Bing Imagery").
+ *
+ * @param {?object} credits #cesium-credits
+ * @returns {boolean}
+ */
+export function bingShown(credits) {
+  return Boolean(credits?.querySelector?.(BING_LOGO_SELECTOR))
+}
+
+
+/** Bing's logo in Cesium's credits (index.css keeps it whole too). */
+export const BING_LOGO_SELECTOR = 'img[title="Bing Imagery"]'
 // Cesium's credits' entry in the credits footer (credits.js), and New York's.
 const CESIUM_CREDIT_ID = 'cesium'
 const NEW_YORK_CREDIT_ID = 'new-york'

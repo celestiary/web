@@ -15,15 +15,16 @@ import {setCreditSource} from '../credits.js'
  * > and Information System (ESDIS).
  *
  * in a client, as a request under NASA's open data policy, not a licence
- * term; the footer gives its words from "Imagery", linked to GIBS's page.
+ * term.  The footer's line is short, "Imagery: NASA GIBS / ESDIS", linked to
+ * GIBS's page; the whole acknowledgement is in the credits dialog
+ * (credits/catalog.js, GIBS_ACKNOWLEDGEMENT).
  */
 
 
 export const GIBS_CREDIT_ID = 'nasa-gibs'
 
 export const GIBS_CREDIT = Object.freeze({
-  text: 'Imagery provided by services from NASA\'s Global Imagery Browse Services (GIBS), ' +
-    'part of NASA\'s Earth Science Data and Information System (ESDIS)',
+  text: 'Imagery: NASA GIBS / ESDIS',
   href: 'https://earthdata.nasa.gov/gibs',
 })
 

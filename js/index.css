@@ -54,6 +54,7 @@
   --credits-size: 11px;
   --credits-line: 20px;
   --credits-logo: 20px;
+  --credits-icon: 15px;
   --credits-left: 128px;
   /* Behind small text over the scene: dark enough for --ink-3 over a
      sunlit day side (about 4.4:1 on white), quiet on the night sky. */
@@ -143,8 +144,26 @@ html.chrome-hidden #phone-dock {
   transition: opacity var(--fade-ms) var(--fade-ease);
 }
 
-#credits-footer .credits-entry.fading {
+/* A timed credit's fade out; Cesium's (keeps-logo) fades its text and Data
+   attribution only, then goes compact: the ion logo alone, which ion's
+   terms want on screen while its data is.  Never while Bing's logo is in it:
+   Bing's terms forbid minimising its attribution while its imagery shows
+   (CesiumLayers keeps that entry while-shown then, so it never gets here;
+   this is the second guard, and a browser without :has() compacts nothing). */
+#credits-footer .credits-entry.fading:not(.keeps-logo) {
   opacity: 0;
+}
+
+#credits-footer .credits-entry.keeps-logo.fading:not(:has(img[title="Bing Imagery"])) .cesium-credit-textContainer,
+#credits-footer .credits-entry.keeps-logo.fading:not(:has(img[title="Bing Imagery"])) .cesium-credit-expand-link {
+  opacity: 0;
+  transition: opacity var(--fade-ms) var(--fade-ease);
+}
+
+#credits-footer .credits-entry.compact:not(:has(img[title="Bing Imagery"])) .cesium-credit-textContainer,
+#credits-footer .credits-entry.compact:not(:has(img[title="Bing Imagery"])) .cesium-credit-expand-link {
+  /* Over Cesium's inline display (CreditDisplay sets it). */
+  display: none !important;
 }
 
 @keyframes credits-in {
@@ -152,17 +171,21 @@ html.chrome-hidden #phone-dock {
   to { opacity: 1; }
 }
 
-/* The Credits button at the line's end: dim, the way back to every
-   applicable credit once the timed ones have gone (hover, keyboard focus or
-   a tap: CreditsFooter). */
+/* The info icon at the line's end (Material's InfoOutlined, aria-label
+   "Credits"): dim; hovered or focused it shows every applicable credit in
+   the line, clicked or tapped it opens the credits dialog. */
 #credits-footer .credits-more {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
   margin: 0 0 0 var(--space-4);
   padding: 0;
   border: 0;
   background: none;
-  font: inherit;
   /* The line's ink (--ink-4 wants an opaque surface, not the veil). */
   color: var(--ink-3);
+  font-size: var(--credits-icon);
+  line-height: 1;
   cursor: pointer;
 }
 

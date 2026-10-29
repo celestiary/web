@@ -3201,6 +3201,6 @@ describe('the credits footer', () => {
     expect(css).not.toContain('#cesium-credits.compact')
     // Mounted from the start, whatever the route's state: Cesium's credits
     // go into it whenever a layer loads.
-    expect(readFileSync('./js/App.jsx', 'utf8')).toMatch(/\n {6}<CreditsFooter\/>\n/)
+    expect(readFileSync('./js/App.jsx', 'utf8')).toMatch(/\n {6}<CreditsFooter celestiary=\{celestiary\}\/>\n/)
   })
 })

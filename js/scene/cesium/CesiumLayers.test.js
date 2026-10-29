@@ -4,7 +4,7 @@ import {ASTRO_UNIT_METER} from '../../shared.js'
 import {exposureAt, METER_EVERY_FRAMES, nightLightRadiance} from '../exposure.js'
 import {MeterCadence} from '../meterReadback.js'
 import {clearSharedImages, sharedObjectUrl} from '../sharedImage.js'
-import CesiumLayers, {bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
+import CesiumLayers, {BING_LOGO_SELECTOR, bingShown, bodyGain, meshRange, preloadNames, tilesReady} from './CesiumLayers.js'
 import GuestPages from './guestPages.js'
 import {CESIUM_BODIES} from './bodies.js'
 import {addCredit, clearCredits, getCredits, hasCredit} from '../../credits.js'
@@ -1135,16 +1135,27 @@ describe('credits in the footer', () => {
     expect(drawn()).toBe(false)
   })
 
-  it('keeps Cesium\'s credits in the whole time (ion\'s logo, Bing\'s), and times New York\'s', () => {
+  it('times Cesium\'s credits down to the ion logo, keeps them whole while Bing\'s are in, and times New York\'s', () => {
     const L = new CesiumLayers({})
-    L.credits = {id: 'cesium-credits'}
+    let bing = false
+    L.credits = {id: 'cesium-credits', querySelector: (sel) => (bing && sel === BING_LOGO_SELECTOR ? {} : null)}
     L._creditedBody = () => 'earth'
     L._showCredits()
     L.active = [{name: 'earth', node: {}}]
     L._newYorkRange = 'show'
     L._newYork = {status: 'ready', city: {}}
     L._creditNewYork()
-    expect(getCredits().map((c) => [c.id, c.persistence])).toEqual([['cesium', 'while-shown'], ['new-york', 'timed']])
+    expect(getCredits().map((c) => [c.id, c.persistence, c.keepsLogo])).toEqual([
+      ['cesium', 'timed', true], ['new-york', 'timed', false]])
+    // Bing's logo in Cesium's credits: whole, the whole time.
+    bing = true
+    L._showCredits()
+    expect(getCredits()[0]).toMatchObject({id: 'cesium', persistence: 'while-shown'})
+    expect(bingShown(L.credits)).toBe(true)
+    bing = false
+    L._showCredits()
+    expect(getCredits()[0]).toMatchObject({id: 'cesium', persistence: 'timed', keepsLogo: true})
+    expect(bingShown(null)).toBe(false)
   })
 
   it('credits NASA GIBS while Earth\'s layer draws its night lights, VIIRS Black Marble from GIBS', () => {

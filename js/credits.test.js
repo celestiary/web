@@ -26,7 +26,7 @@ describe('the credits registry', () => {
     expect(hasCredit('gaia')).toBe(true)
     expect(getCredits()).toEqual([{
       id: 'gaia', items: [{text: 'ESA/Gaia/DPAC', href: 'https://www.cosmos.esa.int/gaia'}], element: null,
-      order: DEFAULT_ORDER, seq: expect.any(Number), persistence: 'while-shown', phase: 'in',
+      order: DEFAULT_ORDER, seq: expect.any(Number), persistence: 'while-shown', keepsLogo: false, phase: 'in',
     }])
     removeCredit('gaia')
     expect(hasCredit('gaia')).toBe(false)
@@ -209,6 +209,38 @@ describe('credits on arrival, then fading', () => {
     hand.advance(CREDIT_SHOW_MS + CREDIT_FADE_MS)
     addCredit('cesium', {element: {}}, {order: 0, persistence: 'while-shown'})
     expect(phases().osm).toBe('out')
+  })
+
+  it('keeps a logo after the window: Cesium\'s goes compact, not out, and stays so', () => {
+    addCredit('cesium', {element: {}}, {order: 0, persistence: 'timed', keepsLogo: true})
+    expect(getCredits()[0]).toMatchObject({phase: 'in', keepsLogo: true, persistence: 'timed'})
+    hand.advance(CREDIT_SHOW_MS)
+    expect(phases()).toEqual({cesium: 'fading'})
+    hand.advance(CREDIT_FADE_MS)
+    expect(phases()).toEqual({cesium: 'compact'})
+    hand.advance(100 * CREDIT_SHOW_MS)
+    expect(phases()).toEqual({cesium: 'compact'})
+    expect(hand.timers.size).toBe(0)
+    // Bing's imagery comes in: whole the whole time it's drawn.
+    addCredit('cesium', {element: {}}, {order: 0, persistence: 'while-shown', keepsLogo: true})
+    expect(phases()).toEqual({cesium: 'in'})
+    expect(getCredits()[0].keepsLogo).toBe(false)
+    hand.advance(10 * CREDIT_SHOW_MS)
+    expect(phases()).toEqual({cesium: 'in'})
+    // Bing gone: the logo alone again, its window long over.
+    addCredit('cesium', {element: {}}, {order: 0, persistence: 'timed', keepsLogo: true})
+    expect(phases()).toEqual({cesium: 'compact'})
+  })
+
+  it('tells its listeners nothing when the same credit is added again each frame, whatever its options', () => {
+    let calls = 0
+    const off = subscribeCredits(() => calls++)
+    for (let i = 0; i < 5; i++) {
+      addCredit('cesium', {element: hand}, {order: 0, persistence: 'while-shown', keepsLogo: true})
+      addCredit('gaia', {text: 'G'}, {persistence: 'while-shown', asProminent: true})
+    }
+    expect(calls).toBe(2)
+    off()
   })
 
   it('runs no window while the chrome is hidden, and shows a credit once when it comes back', () => {

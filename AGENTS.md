@@ -253,7 +253,9 @@ tried and dropped.
   `e.getAnimations().length === 0`).  Gaia's credit needs a view away from
   the Sun (from `#sun` the exposure leaves the limit near −7 and no Gaia
   star drawn); `c.scene.gaia.last.drawn` says.  Faded credits are still in
-  the registry: hover `#credits-footer .credits-more` to show them.
+  the registry: hover `#credits-footer .credits-line` to show them, or
+  click `#credits-footer .credits-more` (the info icon) for the dialog,
+  which loads on that first click.
 - **Layer mode's checks run on two origins:** `yarn build`, then `yarn
   layer-host` (guest `http://127.0.0.1:5480`, host
   `http://localhost:5481/host.html?guest=http://127.0.0.1:5480`).  Read

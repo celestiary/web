@@ -116,6 +116,6 @@ export default function App() {
       {celestiary && newsTour && <NewsTour celestiary={celestiary} tour={newsTour}/>}
       {/* Mounted from the start: Cesium's credits go into it whenever a layer
           loads (credits.js; design/UI.md "The credits footer"). */}
-      <CreditsFooter/>
+      <CreditsFooter celestiary={celestiary}/>
     </>)
 }

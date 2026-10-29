@@ -581,7 +581,8 @@ export default class PointPopulation extends Group {
     points.frustumCulled = false
     points.visible = false
     // Fading in from 0 if the population is shown, else at full light.
-    const tile = {points, mags: data.mags, ids: data.ids ?? null, hips: data.hips ?? null, count: data.count,
+    const tile = {points, mags: data.mags, ids: data.ids ?? null, hips: data.hips ?? null, classes: data.classes ?? null,
+      count: data.count,
       lastWanted: this.frame, landedAt: this.now(), gain: this.shown && this.fadeInMs > 0 ? 0 : 1}
     const tileGain = this._tileGain
     points.onBeforeRender = (renderer, scene, camera) => {

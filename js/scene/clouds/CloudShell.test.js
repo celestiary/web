@@ -11,9 +11,8 @@ const EARTH_M = 6371e3
 describe('NASA GIBS\'s credit', () => {
   afterEach(() => clearCredits())
 
-  it('gives GIBS\'s suggested acknowledgement, linked to GIBS\'s page, on arrival then fading', () => {
-    expect(GIBS_CREDIT.text).toBe('Imagery provided by services from NASA\'s Global Imagery Browse Services (GIBS), ' +
-      'part of NASA\'s Earth Science Data and Information System (ESDIS)')
+  it('gives GIBS\'s credit short in the footer, linked to GIBS\'s page, on arrival then fading', () => {
+    expect(GIBS_CREDIT.text).toBe('Imagery: NASA GIBS / ESDIS')
     expect(GIBS_CREDIT.href).toBe('https://earthdata.nasa.gov/gibs')
     creditGibs('clouds', true)
     expect(getCredits()[0]).toMatchObject({id: GIBS_CREDIT_ID, persistence: 'timed'})
